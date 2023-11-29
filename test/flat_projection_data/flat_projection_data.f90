@@ -11,7 +11,8 @@ program flat_projection_data
   real(8)                                :: area1, area2
   real(8), dimension(:),     allocatable :: eta_lat, eta_lon
   real(8), dimension(:,:),   allocatable :: drake_ke, drake_enstrophy
-  real(8), dimension(:,:,:), allocatable :: field2d_save, lat_slice, lon_slice, zonal_av, zcoord_lat, zcoord_lon, field2d_simplephys
+  real(8), dimension(:,:,:), allocatable :: field2d_av, field2d_save, field2d_incr, field2d_simplephys
+  real(8), dimension(:,:,:), allocatable :: lat_slice, lon_slice, zonal_av, zcoord_lat, zcoord_lon
   
   character(2)                           :: var_file
   character(8)                           :: itype
@@ -305,16 +306,20 @@ program flat_projection_data
          else
             call cal_zonal_average
          end if
-         if (cp_idx == cp_2d) call latlon
+         if (cp_idx == cp_2d) call latlon (field2d_save)
       elseif (trim (test_case) == "Held_Suarez") then
-         call latlon
+         
+         call latlon (field2d_incr); field2d_av = field2d_av + field2d_incr
+         
+         if (cp_idx == cp_2d) call latlon (field2d_save)
+         
       else
          if (welford) then
            call cal_zonal_av
         else
            call cal_zonal_average
         end if
-        if (cp_idx == cp_2d) call latlon
+        if (cp_idx == cp_2d) call latlon (field2d_save)
      end if
   end do
 
@@ -340,12 +345,18 @@ program flat_projection_data
         end do
         call barrier
      end if
-
+     
      ! Finish covariance calculations
      zonal_av(:,:,2)   = zonal_av(:,:,2)   / (Ncumul-1)
      zonal_av(:,:,6:9) = zonal_av(:,:,6:9) / (Ncumul-1)
 
-     if (rank==0) call write_out
+     if (rank==0) then
+        call write_out
+        if (trim (test_case) == "Held_Suarez") then
+           field2d_av = field2d_av / dble (mean_end - mean_beg + 1)
+           call write_out_av
+        end if
+     end if
   end if
   call finalize
 contains
@@ -576,10 +587,12 @@ contains
     end do
   end subroutine cal_variance
 
-  subroutine latlon
+  subroutine latlon (field)
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels)
     use domain_mod
     implicit none
+    real(8), dimension (Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels) :: field
+    
     integer :: d, j, k
 
     ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
@@ -603,7 +616,7 @@ contains
     do k = 1, save_levels
        ! Temperature
        call project_field_onto_plane (trend(1,k), level_save, 0.0_8)
-       field2d_save(:,:,1+k-1) = field2d
+       field(:,:,1+k-1) = field2d
 
        ! Calculate zonal and meridional velocities and vorticity
        do d = 1, size(grid)
@@ -621,16 +634,16 @@ contains
 
        ! Zonal velocity
        call project_array_onto_plane ("u_zonal", level_save, 0d0)
-       field2d_save(:,:,2+k-1) = field2d
+       field(:,:,2+k-1) = field2d
        
        ! Meridional velocity
        call project_array_onto_plane ("v_merid", level_save, 0d0)
-       field2d_save(:,:,3+k-1) = field2d
+       field(:,:,3+k-1) = field2d
 
        ! Geopotential
        call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
        call project_array_onto_plane ("geopot", level_save, 1d0)
-       field2d_save(:,:,4+k-1) = field2d
+       field(:,:,4+k-1) = field2d
 
        ! Vorticity
        do d = 1, size(grid)
@@ -641,15 +654,15 @@ contains
           nullify (vort)
        end do
        call project_array_onto_plane ("press_lower", level_save, 1d0)
-       field2d_save(:,:,5+k-1) = field2d
+       field(:,:,5+k-1) = field2d
        
        ! Surface pressure
        call project_array_onto_plane ("surf_press", level_save, 1d0)
-       field2d_save(:,:,6+k-1) = field2d
+       field(:,:,6+k-1) = field2d
 
        ! Project vertical velocity
        call project_field_onto_plane (trend(S_TEMP,k), level_save, 0d0)
-       field2d_save(:,:,7+k-1) = field2d
+       field(:,:,7+k-1) = field2d
        
        ! Save climatology for simple Physics
        if (trim(test_case)=="Simple_Physics" .and. climatology) then
@@ -671,6 +684,7 @@ contains
 
          simple_phys_vels%bdry_uptodate= .false.
          call update_vector_bdry(simple_phys_vels,NONE,27)
+         
          ! Calculate zonal and meridional velocity
          do d = 1, size(grid)
             temp  => simple_phys_temp(k-1)%data(d)%elts
@@ -1228,7 +1242,7 @@ contains
     field2d_save(:,:,5) = field2d
   end subroutine latlon_1layer
 
-  subroutine write_out
+  subroutine write_out 
     ! Writes out results
     integer            :: i, info, k, v
     integer, parameter :: funit = 400
@@ -1304,16 +1318,54 @@ contains
     call system (trim(bash_cmd))
 
     ! Compress files
-    write (s_time, '(i4.4)') cp_idx
     command = 'ls -1 '//trim(run_id)//'.4.?? > tmp'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (trim(bash_cmd))
     command = 'gtar czf '//trim(run_id)//'.4.tgz -T tmp --remove-files &'
     call system (trim(command))
-
-    command = '\rm -f tmp'
-    call system (trim(command))
   end subroutine write_out
+
+  subroutine write_out_av
+    ! Writes out time averaged 2d projection results
+    integer            :: i, info, k, v
+    integer, parameter :: funit = 400
+
+    ! 2d projections
+    do v = 1, nvar_save * save_levels
+       write (var_file, '(i1)') v
+       open (unit=funit, file=trim(run_id)//'.6.0'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
+       do i = Ny(1), Ny(2)
+          write (funit) field2d_av(:,i,v)
+       end do
+       close (funit)
+    end do
+
+    ! Coordinates
+
+    ! Longitude values
+    write (var_file, '(i2)') 20
+    open (unit=funit, file=trim(run_id)//'.6.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE") 
+    write (funit) (-180+dx_export*(i-1)/MATH_PI*180, i=1,Nx(2)-Nx(1)+1)
+    close (funit)
+
+    ! Latitude values
+    write (var_file, '(i2)') 21
+    open (unit=funit, file=trim(run_id)//'.6.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE") 
+    write (funit) (-90+dy_export*(i-1)/MATH_PI*180, i=1,Ny(2)-Ny(1)+1)
+    close (funit)
+
+    ! Compress files
+    command = 'ls -1 '//trim(run_id)//'.6.?? > tmp'
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (trim(bash_cmd))
+
+    ! Compress files
+    command = 'ls -1 '//trim(run_id)//'.6.?? > tmp'
+    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    call system (trim(bash_cmd))
+    command = 'gtar czf '//trim(run_id)//'.6.tgz -T tmp --remove-files &'
+    call system (trim(command))
+  end subroutine write_out_av
 
   subroutine write_out_drake
     ! Writes out results
@@ -1495,9 +1547,14 @@ contains
     implicit none
 
     allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_total))
+    
+    allocate (field2d_av  (Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
+    allocate (field2d_incr(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
     allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
+    
     if (trim(test_case)=="Simple_Physics" .and. climatology) allocate (field2d_simplephys(Nx(1):Nx(2),Ny(1):Ny(2),5*save_levels))
-    zonal_av = 0d0
+    
+    field2d_av = 0d0; field2d_incr = 0d0; field2d_save = 0d0; zonal_av = 0d0
   end subroutine initialize_stat
 
   subroutine initialize_stat_drake

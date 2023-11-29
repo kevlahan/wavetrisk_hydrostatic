@@ -431,10 +431,19 @@ contains
     end do
   end subroutine grad_eta
 
-  subroutine vertical_velocity
+  subroutine vertical_velocity (vel_type)
     ! Computes vertical velocity at nodes, stored in trend(S_TEMP,1:zlevels)
     implicit none
+    character (*), optional :: vel_type
+
     integer :: d, j, k, l, p
+    character(9999) ::type
+    
+    if (present(vel_type)) then
+       type = vel_type
+    else
+       type = "Omega"
+    end if
 
     call update_array_bdry (sol, NONE)
 
@@ -500,12 +509,16 @@ contains
        end do
     end do
 
-    ! Integrate up to find vertical velocity, stored in trend(S_TEMP,1:zlevels)
-    do d = 1, size(grid)
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (cal_vertical_velocity, grid(d), p-1, z_null, 0, 1)
-       end do
-    end do
+    ! Compute Omega (velocity flux across interfaces)
+    ! stored in trend(S_TEMP,1:zlevels)
+    call apply (cal_omega, z_null)
+
+    ! Compute vertical velocity
+    if (trim(type)=="W") then
+       print*, 'hi'
+       call apply (cal_vertical_velocity, z_null)
+    end if
+
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
   end subroutine vertical_velocity
 
@@ -529,9 +542,6 @@ contains
     idW  = idx (i-1, j,   offs, dims)
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
-
-    ! Compute velocity flux across interfaces
-    call cal_omega (dom, i, j, zlev, offs, dims)
 
     ! Compute vertical velocity relative to z coordinate
     do k = 1, zlevels

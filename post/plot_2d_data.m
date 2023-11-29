@@ -16,11 +16,12 @@ else % local file
     test_case = 'Held_Suarez'; run_id = 'HS_J6'; run_dir = '';
 end
 
-file_base = [run_id '.4.']; 
+%file_base = [run_id '.4.']; % single time
+file_base = [run_id '.6.']; % average
 
 % 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'omega' 
 % 'temp_var' 'eddy_mom' 'zonal_var' 'merid_var' 'eddy_ke' 'eddy_heat_flux'
-itype     = 'vort';  % field to plot
+itype     = 'omega';  % field to plot
 lon_lat   = true;  % Plot longitude - latitude data
 zonal_avg = false;   % Plot zonally averaged data
 shift     = true;   % shift left boundary to zero longitude
@@ -76,7 +77,11 @@ end
 % Load coordinates
 lon = fread(fopen([file_base '20']),'double');
 lat = fread(fopen([file_base '21']),'double');
-P_z = fread(fopen([file_base '22']),'double'); % Pressure-based vertical coordinates
+
+% Pressure-based vertical coordinates
+if (zonal_avg) 
+    P_z = fread(fopen([file_base '22']),'double'); 
+end
 
 s_ll = 0; s_zo = 0; s_var1 = 0; s_var2 = 0;
 if (strcmp(itype,'temp')) % Plot temperature
@@ -158,7 +163,7 @@ elseif (strcmp(itype,'surf_press')) % Plot surface pressure data
     zonal_avg = false;
 elseif (strcmp(itype,'omega')) % Plot vertical velocity
     fid_ll = fopen([file_base '07']);
-    c_scale = linspace(-0.05,0.05,100);
+    c_scale = linspace(-0.01,0.01,100);
      v_title = 'Omega';  
 elseif (strcmp(itype,'ke')) % Plot kinetic energy
     c_scale = 0:40:480; % Held-Suarez

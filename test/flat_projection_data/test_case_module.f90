@@ -780,10 +780,10 @@ contains
       call zero_float_field (simple_phys_zonal(k), S_TEMP)
       call zero_float_field (simple_phys_merid(k), S_TEMP)
    end do
+   
+ end subroutine init_physics_climatology
 
-  end subroutine init_physics_climatology
-
-  subroutine climatology_add_temp(dom, i, j, zlev, offs, dims)
+ subroutine climatology_add_temp (dom, i, j, zlev, offs, dims)
    implicit none
    type (Domain)                  :: dom
    integer                        :: i, j, zlev
@@ -811,9 +811,9 @@ contains
    !calculate the density -> for the KEs
    dom%ke%elts(id_i) = dom%press%elts(id_i)/(temperature*R_d)
 
-  end subroutine climatology_add_temp
+ end subroutine climatology_add_temp
 
-  subroutine climatology_add_velocities(dom, i, j, zlev, offs, dims)
+ subroutine climatology_add_velocities (dom, i, j, zlev, offs, dims)
    implicit none
    type (Domain)                  :: dom
    integer                        :: i, j, zlev
@@ -830,9 +830,9 @@ contains
    do e = RT,UP
       velo_2d(EDGE*id+e+1) = velo_2d(EDGE*id+e+1) + velo(EDGE*id+e+1)
    end do
-  end subroutine climatology_add_velocities
+ end subroutine climatology_add_velocities
 
-  subroutine climatology_add_KE(dom, i, j, zlev, offs, dims)
+ subroutine climatology_add_KE(dom, i, j, zlev, offs, dims)
    implicit none
    type (Domain)                  :: dom
    integer                        :: i, j, zlev
@@ -847,14 +847,14 @@ contains
 
    !Calculate the zonal and meridional velocities
    call interp_UVW_latlon(dom, i, j, zlev, offs, dims)
-   
+
 
    ! !update the KE's
-    simple_phys_zonal(zlev)%data(d)%elts(id_i) = simple_phys_zonal(zlev)%data(d)%elts(id_i)+(0.5*dom%ke%elts(id_i)*(velo1(id_i)**2))
-    simple_phys_merid(zlev)%data(d)%elts(id_i) = simple_phys_merid(zlev)%data(d)%elts(id_i)+(0.5*dom%ke%elts(id_i)*(velo2(id_i)**2))
-  end subroutine climatology_add_KE
+   simple_phys_zonal(zlev)%data(d)%elts(id_i) = simple_phys_zonal(zlev)%data(d)%elts(id_i)+(0.5*dom%ke%elts(id_i)*(velo1(id_i)**2))
+   simple_phys_merid(zlev)%data(d)%elts(id_i) = simple_phys_merid(zlev)%data(d)%elts(id_i)+(0.5*dom%ke%elts(id_i)*(velo2(id_i)**2))
+ end subroutine climatology_add_KE
 
-  subroutine climatology_temp_mean(dom, i, j, zlev, offs, dims)
+ subroutine climatology_temp_mean(dom, i, j, zlev, offs, dims)
    implicit none
    type (Domain)                  :: dom
    integer                        :: i, j, zlev
@@ -868,10 +868,10 @@ contains
    d = dom%id + 1
 
    temp1(id_i) = temp1(id_i)/(mean_end-mean_beg+1)
-  
-  end subroutine climatology_temp_mean
 
-  subroutine climatology_velocity_mean(dom, i, j, zlev, offs, dims)
+ end subroutine climatology_temp_mean
+
+ subroutine climatology_velocity_mean(dom, i, j, zlev, offs, dims)
    implicit none
    type (Domain)                  :: dom
    integer                        :: i, j, zlev
@@ -888,9 +888,9 @@ contains
       velo_2d(EDGE*id+e+1) = velo_2d(EDGE*id+e+1)/(mean_end-mean_beg+1)
    end do
 
-  end subroutine climatology_velocity_mean
+ end subroutine climatology_velocity_mean
 
-  subroutine climatology_KE_mean(dom, i, j, zlev, offs, dims)
+ subroutine climatology_KE_mean(dom, i, j, zlev, offs, dims)
    implicit none
    type (Domain)                  :: dom
    integer                        :: i, j, zlev
