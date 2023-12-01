@@ -919,7 +919,7 @@ contains
     do i = 2, 5
        wgt(i) = wgt(i-1) + dom%areas%elts(id+1)%part(modulo(i+offs-1,6)+1)
     end do
-    wgt = 0.5_8 - wgt*dom%areas%elts(id+1)%hex_inv
+    wgt = 0.5d0 - wgt*dom%areas%elts(id+1)%hex_inv
     get_weights = (/wgt(1), -wgt(2), wgt(3), -wgt(4), wgt(5)/)
   end function get_weights
 
@@ -929,43 +929,52 @@ contains
     ! Set geopotential to surface geopotential for upward integration
     type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
 
-    integer :: l
+    integer :: d, j, k, p
 
     call update_array_bdry (q(S_MASS:S_TEMP,1:zlevels), NONE)
 
     call apply (set_surf_geopot, z_null)
-    call apply (column_mass,     z_null)
-  contains
-    subroutine column_mass (dom, i, j, zlev, offs, dims)
-      ! Sum up mass
-      implicit none
-      type (Domain)                  :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
 
-      integer :: d, id, k
-      real(8) :: full_mass, full_temp
+    do d = 1, size(grid)
+       grid(d)%surf_press%elts = 0d0
+       do k = 1, zlevels
+          mass   =>        q(S_MASS,k)%data(d)%elts
+          temp   =>        q(S_TEMP,k)%data(d)%elts
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (column_mass, grid(d), p-1, k, 0, 1)
+          end do
+          nullify (mass, mean_m, mean_t, temp)
+       end do
+       grid(d)%surf_press%elts  = grav_accel * grid(d)%surf_press%elts + p_top
 
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-
-      dom%surf_press%elts(id) = 0d0
-      do k = 1, zlevels
-         full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + q(S_MASS,k)%data(d)%elts(id)
-         if (compressible) then
-            dom%surf_press%elts(id) = dom%surf_press%elts(id) + full_mass
-         else
-            full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + q(S_TEMP,k)%data(d)%elts(id)
-
-            dom%surf_press%elts(id) = dom%surf_press%elts(id) + (full_mass - full_temp)
-         end if
-      end do
-      dom%surf_press%elts(id) = grav_accel * dom%surf_press%elts(id) + p_top
-
-      dom%press_lower%elts(id) = dom%surf_press%elts(id)
-    end subroutine column_mass
+       grid(d)%press_lower%elts = grid(d)%surf_press%elts
+    end do
   end subroutine cal_surf_press
+
+  subroutine column_mass (dom, i, j, zlev, offs, dims)
+    ! Sum up mass
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+    real(8) :: full_mass, full_temp
+
+    id = idx (i, j, offs, dims) + 1
+     
+    if (compressible) then
+       dom%surf_press%elts(id) = dom%surf_press%elts(id) + mass(id)
+    else
+       full_mass = mean_m(id) + mass(id)
+       full_temp = mean_t(id) + temp(id)
+       
+       dom%surf_press%elts(id) = dom%surf_press%elts(id) + (full_mass - full_temp)
+    end if
+  end subroutine column_mass
 
   subroutine set_surf_geopot (dom, i, j, zlev, offs, dims)
     ! Set initial geopotential to surface geopotential (negative for incompressible ocean flows)

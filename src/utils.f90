@@ -841,7 +841,7 @@ contains
     hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
 
-  subroutine zero_float_field (q, itype, lmin, lmax)
+  subroutine zero_float_field (q, itype, lmin_in, lmax_in)
     ! Set float field to zero for scales:
     ! (lmin,lmax) if both lmin and lmax are present
     ! lmin if only lmin is present
@@ -849,143 +849,165 @@ contains
     ! itype = S_MASS or S_VELO
     implicit none
     integer                                  :: itype
-    integer, optional                        :: lmin, lmax
+    integer, optional                        :: lmin_in, lmax_in
     type(Float_Field), target, intent(inout) :: q
 
-    integer :: j, jmin, jmax
+    integer :: d, j, l, lmin, lmax
     
-    if (present(lmin)) then
-       jmin = lmin
-       if (present(lmax)) then
-          jmax = lmax
+    if (present(lmin_in)) then
+       lmin = lmin_in
+       if (present(lmax_in)) then
+          lmax = lmax_in
        else
-          jmax = lmin
+          lmax = lmin_in
        end if
     else
-       jmin = level_start
-       jmax = level_end
+       lmin = level_start
+       lmax = level_end
     end if
 
     if (itype == AT_NODE) then
-       do j = jmin, jmax
-          call apply_onescale (cal_zero_scalar, j, z_null, 0, 1)
+       do l = lmin, lmax
+          do d = 1, size(grid)
+             val1 => q%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (cal_zero_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             end do
+             nullify (val1)
+          end do
        end do
     elseif (itype == AT_EDGE) then
-       do j = jmin, jmax
-          call apply_onescale (cal_zero_vector, j, z_null, 0, 0)
+       do l = lmin, lmax
+          do d = 1, size(grid)
+             val1 => q%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (cal_zero_edge, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+             end do
+             nullify (val1)
+          end do
        end do
     else
        if (rank == 0) write (6,'(a)') "Unsupported type for zero_float_field ... aborting"
        call abort
     end if
     q%bdry_uptodate = .false.
-    call update_bdry1 (q, jmin, jmax)
-  contains
-    subroutine cal_zero_scalar (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-
-      q%data(d)%elts(id) = 0d0
-    end subroutine cal_zero_scalar
-
-    subroutine cal_zero_vector (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, e, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims)
-
-      do e = 1, EDGE
-         q%data(d)%elts(EDGE*id+e) = 0d0
-      end do
-    end subroutine cal_zero_vector
+    call update_bdry1 (q, lmin, lmax)
   end subroutine zero_float_field
 
-  subroutine equals_float_field (q1, q2, itype, lmin, lmax)
+  subroutine cal_zero_node (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+
+    val1(id) = 0d0
+  end subroutine cal_zero_node
+
+  subroutine cal_zero_edge (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: e, id
+
+    id = idx (i, j, offs, dims)
+
+    do e = 1, EDGE
+       val1(EDGE*id+e) = 0d0
+    end do
+  end subroutine cal_zero_edge
+
+  subroutine equals_float_field (q1, q2, itype, lmin_in, lmax_in)
     ! Set elements of float field q1 = q2
     !
     ! itype = S_MASS or S_VELO
     ! if scale l is present, compute only for scale l
     implicit none
     integer                                  :: itype
-    integer, optional                        :: lmin, lmax
+    integer, optional                        :: lmin_in, lmax_in
     type(Float_Field), target, intent(in)    :: q2
     type(Float_Field), target, intent(inout) :: q1
 
-    integer :: j, jmin, jmax
-
-    if (present(lmin)) then
-       jmin = lmin
-       if (present(lmax)) then
-          jmax = lmax
+    integer :: d, j, l, lmin, lmax
+    
+    if (present(lmin_in)) then
+       lmin = lmin_in
+       if (present(lmax_in)) then
+          lmax = lmax_in
        else
-          jmax = lmin
+          lmax = lmin_in
        end if
     else
-       jmin = level_start
-       jmax = level_end
+       lmin = level_start
+       lmax = level_end
     end if
 
     if (itype == AT_NODE) then
-       do j = jmin, jmax
-          call apply_onescale (cal_equals_scalar, j, z_null, 0, 1)
+       do l = lmin, lmax
+          do d = 1, size(grid)
+             val1 => q1%data(d)%elts
+             val2 => q2%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (cal_equals_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             end do
+             nullify (val1, val2)
+          end do
        end do
     elseif (itype == AT_EDGE) then
-       do j = jmin, jmax
-          call apply_onescale (cal_equals_vector, j, z_null, 0, 0)
+       do l = lmin, lmax
+          do d = 1, size(grid)
+             val1 => q1%data(d)%elts
+             val2 => q2%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (cal_equals_edge, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+             end do
+             nullify (val1, val2)
+          end do
        end do
     else
-       if (rank == 0) write (6,'(a)') "Unsupported type for equals_float_field ... aborting"
+       if (rank == 0) write (6,'(a)') "Unsupported type for zero_float_field ... aborting"
        call abort
     end if
     q1%bdry_uptodate = .false.
-    call update_bdry1 (q1, jmin, jmax)
-  contains
-    subroutine cal_equals_scalar (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-
-      q1%data(d)%elts(id) = q2%data(d)%elts(id)
-    end subroutine cal_equals_scalar
-
-    subroutine cal_equals_vector (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, e, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) 
-
-      do e = 1, EDGE
-         q1%data(d)%elts(EDGE*id+e) = q2%data(d)%elts(EDGE*id+e)
-      end do
-    end subroutine cal_equals_vector
+    call update_bdry1 (q1, lmin, lmax)
   end subroutine equals_float_field
+
+   subroutine cal_equals_node (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+
+    val1(id) = val2(id)
+  end subroutine cal_equals_node
+
+  subroutine cal_equals_edge (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: e, id
+
+    id = idx (i, j, offs, dims) 
+
+    do e = 1, EDGE
+       val1(EDGE*id+e) = val2(EDGE*id+e)
+    end do
+  end subroutine cal_equals_edge
   
   subroutine smoothing_rbf (dx, npts, nsmth, data)
     ! Smooths data(lon,lat) over neighbouring region using radial basis functions
@@ -1029,8 +1051,6 @@ contains
        data_old = data
     end do
     deallocate (data_old)
-  contains
-    
   end subroutine smoothing_rbf
 
   subroutine smoothing_shapiro (nsmth, data)

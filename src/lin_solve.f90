@@ -25,8 +25,10 @@ module lin_solve_mod
   real(8) ::            k1 = 3d-2     ! empirically optimized, 0 < k1 <= k2
   real(8) ::            k2 = 1.8d0
 
-  real(8) :: dp_loc, l2_loc
-  real(8) :: s_test 
+  real(8)                        :: dp_loc, l2_loc
+  real(8)                        :: s_test
+  real(8), pointer               :: mu1, mu2
+  real(8), dimension(:), pointer :: scalar1, scalar2, scalar3
 contains
   subroutine FMG (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using the full multi-grid (FMG) algorithm with V-cycles
@@ -301,12 +303,13 @@ contains
   subroutine Jacobi_iteration (u, f, jac_wgt, Lu, Lu_diag, l)
     ! Performs a single weighted Jacobi iteration for equation Lu(u) = f
     implicit none
-    integer,            intent(in)    :: l
-    real(8),            intent(in)    :: jac_wgt ! weight
-     type(Float_Field), intent(in)    :: f
-     type(Float_Field), intent(inout) :: u
+    integer,                   intent(in)    :: l
+    real(8),           target, intent(in)    :: jac_wgt ! weight
+    type(Float_Field), target, intent(in)    :: f
+    type(Float_Field), target, intent(inout) :: u
 
-    type(Float_Field) :: Au, diag
+    integer                   :: d, j
+    type(Float_Field), target :: Au, diag
 
     interface
        function Lu (u, l)
@@ -322,29 +325,38 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-    
+
     Au   = Lu      (u, l); call update_bdry (Au,   l)
     diag = Lu_diag (u, l); call update_bdry (diag, l)
 
-    call apply_onescale (cal_jacobi, l, z_null, 0, 1)
+    do d = 1, size(grid)
+       mu1     =>  jac_wgt
+       scalar  =>    u%data(d)%elts
+       scalar1 =>    f%data(d)%elts
+       scalar2 =>   Au%data(d)%elts
+       scalar3 => diag%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_jacobi, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (mu1, scalar, scalar1, scalar1, scalar2, scalar3)
+    end do
     u%bdry_uptodate = .false.
-  contains
-    subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
- 
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-      
-      if (dom%mask_n%elts(id) >= ADJZONE) &
-           u%data(d)%elts(id) =  u%data(d)%elts(id) + jac_wgt * (f%data(d)%elts(id) - Au%data(d)%elts(id)) / diag%data(d)%elts(id)
-    end subroutine cal_jacobi
   end subroutine Jacobi_iteration
+
+  subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id) >= ADJZONE) scalar(id) = scalar(id) + mu1 * (scalar1(id) - scalar2(id)) / scalar3(id)
+  end subroutine cal_jacobi
   
   subroutine bicgstab (u, f, nrm_f, Lu, l, tol_bicgstab, iter_max, err_out, iter_out)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
@@ -373,8 +385,8 @@ contains
     call update_bdry (f, l)
     call update_bdry (u, l)
 
-    res  = u; call zero_float_field (res,  AT_NODE, lmin=level_start)
-    corr = u; call zero_float_field (corr, AT_NODE, lmin=level_start)
+    res  = u; call zero_float_field (res,  AT_NODE, lmin_in=level_start)
+    corr = u; call zero_float_field (corr, AT_NODE, lmin_in=level_start)
 
     ! Initialize float fields
     call residual (f, u, Lu, l, res)
@@ -421,103 +433,123 @@ contains
   real(8) function l2 (s, l)
     ! Returns l_2 norm of scalar s at scale l
     implicit none
-    integer,           intent(in) :: l
-    type(Float_Field), intent(in) :: s
+    integer,                   intent(in) :: l
+    type(Float_Field), target, intent(in) :: s
 
-    call update_bdry (s, l)
+    integer :: d, j
 
     l2_loc = 0d0
-
-    call apply_onescale (cal_l2, l, z_null, 0, 1)
-
+    do d = 1, size(grid)
+       scalar => s%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_l2, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar)
+    end do
     l2 = sqrt (sum_real (l2_loc))
-  contains
-    subroutine cal_l2 (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-
-      l2_loc = l2_loc +  s%data(d)%elts(id)**2
-    end subroutine cal_l2
   end function l2
+
+  subroutine cal_l2 (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id) >= ADJZONE) l2_loc = l2_loc + scalar(id)**2
+  end subroutine cal_l2
 
   real(8) function dp (s1, s2, l)
     ! Calculates dot product of s1 and s2 at scale l
     implicit none
-    integer,           intent(in) :: l
-    type(Float_Field), intent(in) :: s1, s2
+    integer,                   intent(in) :: l
+    type(Float_Field), target, intent(in) :: s1, s2
+
+    integer :: d, j
 
     call update_bdry (s1, l)
     call update_bdry (s2, l)
 
     dp_loc = 0d0
+    do d = 1, size(grid)
+       scalar1 => s1%data(d)%elts
+       scalar2 => s2%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_dotproduct, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar1, scalar2)
+    end do
 
-    call apply_onescale (cal_dotproduct, l, z_null, 0, 1)
-    
     dp = sum_real (dp_loc)
-  contains
-    subroutine cal_dotproduct (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-      
-      dp_loc = dp_loc + s1%data(d)%elts(id) * s2%data(d)%elts(id)
-    end subroutine cal_dotproduct
   end function dp
+
+  subroutine cal_dotproduct (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+
+    dp_loc = dp_loc + scalar1(id) * scalar2(id)
+  end subroutine cal_dotproduct
 
   subroutine lc (s, a1, s1, a2, s2, l)
     ! Calculates linear combination of scalars s = a1*s1 + a2*s2 at scale l
     implicit none
-    integer,           intent(in)    :: l
-    real(8),           intent(in)    :: a1, a2
-    type(Float_Field), intent(inout) :: s
-    type(Float_Field), intent(in)    :: s1, s2
+    integer,                   intent(in)    :: l
+    real(8),           target, intent(in)    :: a1, a2
+    type(Float_Field), target, intent(inout) :: s
+    type(Float_Field), target, intent(in)    :: s1, s2
 
-    call update_bdry (s1, l)
-    call update_bdry (s2, l)
-    
-    call apply_onescale (cal_lc, l, z_null, 0, 1)
+    integer :: d, j
 
+    do d = 1, size(grid)
+       mu1     => a1
+       mu2     => a2
+       scalar  =>  s%data(d)%elts
+       scalar1 => s1%data(d)%elts
+       scalar2 => s2%data(d)%elts
+
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_lc, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar, scalar1, scalar2, mu1, mu2)
+    end do
     s%bdry_uptodate = .false.
-  contains
-    subroutine cal_lc (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-
-      s%data(d)%elts(id) = a1 * s1%data(d)%elts(id) + a2 * s2%data(d)%elts(id)
-    end subroutine cal_lc
+    call update_bdry (s, l, 80)
   end subroutine lc
+
+  subroutine cal_lc (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+    
+    scalar(id) = mu1 * scalar1(id) + mu2 * scalar2(id)
+  end subroutine cal_lc
 
   subroutine residual (f, u, Lu, l, res)
     ! Residual f - Lu(u) at scale l
     implicit none
-    integer,           intent(in)    :: l
-    type(Float_Field), intent(in)    :: f, u
-    type(Float_Field), intent(inout) :: res
-    
-    type(Float_Field) :: Au
+    integer,                   intent(in)    :: l
+    type(Float_Field), target, intent(in)    :: f, u
+    type(Float_Field), target, intent(inout) :: res
+
+    integer                   :: d, j
+    type(Float_Field), target :: Au
 
     interface
        function Lu (u, l)
@@ -532,25 +564,32 @@ contains
 
     Au = Lu (u, l); call update_bdry (Au, l)
 
-    call apply_onescale (cal_res, l, z_null, 0, 1)
+    do d = 1, size(grid)
+       scalar => res%data(d)%elts
+       scalar1 =>  f%data(d)%elts
+       scalar2 => Au%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_res, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar, scalar1, scalar2)
+    end do
 
     res%bdry_uptodate = .false.
-  contains
-    subroutine cal_res (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-
-      if (dom%mask_n%elts(id) >= ADJZONE) res%data(d)%elts(id) = f%data(d)%elts(id) - Au%data(d)%elts(id)
-    end subroutine cal_res
   end subroutine residual
+
+  subroutine cal_res (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id) >= ADJZONE) scalar(id) = scalar1(id) - scalar2(id)
+  end subroutine cal_res
 
   subroutine res_err (f, u, Lu, nrm_f, l, err)
     ! Normalized residual error ||f - Lu(u)||/||f|| at scale l
@@ -592,7 +631,7 @@ contains
 
     call update_bdry (u, l)
 
-    elliptic_fun = u; call zero_float_field (elliptic_fun, AT_NODE, lmin=l)
+    elliptic_fun = u; call zero_float_field (elliptic_fun, AT_NODE, lmin_in=l)
 
     ! Compute scalar fluxes
     do d = 1, size(grid)
@@ -629,81 +668,97 @@ contains
     integer                   :: l
     type(Float_Field), target :: elliptic_fun_diag, q
 
+    integer :: d, j
+
     elliptic_fun_diag = q
-    call apply_onescale (cal_elliptic_fun_diag, l, z_null, 0, 1)
+
+    do d = 1, size(grid)
+       scalar => elliptic_fun_diag%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_elliptic_fun_diag, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar)
+    end do
 
     elliptic_fun_diag%bdry_uptodate = .false.
     call update_bdry (elliptic_fun_diag, l)
-  contains
-    subroutine cal_elliptic_fun_diag  (dom, i, j, zlev, offs, dims)
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer            :: d, id, id_i, idE, idNE, idN, idW, idSW, idS
-      real(8)            :: wgt
-      logical, parameter :: exact = .true.
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims)
-      id_i = id + 1
-
-      if (exact) then ! true local value
-         idE  = idx (i+1, j,   offs, dims) 
-         idNE = idx (i+1, j+1, offs, dims) 
-         idN  = idx (i,   j+1, offs, dims) 
-         idW  = idx (i-1, j,   offs, dims) 
-         idSW = idx (i-1, j-1, offs, dims) 
-         idS  = idx (i,   j-1, offs, dims)
-         wgt = &
-              dom%pedlen%elts(EDGE*id+RT+1)   / dom%len%elts(EDGE*id+RT+1)   + &
-              dom%pedlen%elts(EDGE*id+DG+1)   / dom%len%elts(EDGE*id+DG+1)   + &
-              dom%pedlen%elts(EDGE*id+UP+1)   / dom%len%elts(EDGE*id+UP+1)   + &
-              dom%pedlen%elts(EDGE*idW+RT+1)  / dom%len%elts(EDGE*idW+RT+1)  + &
-              dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) + &
-              dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
-      else ! average value (error less than about 5%)
-         wgt = 2d0 * sqrt (3d0)
-      end if
-      elliptic_fun_diag%data(d)%elts(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv - 10d0/s_test**2
-    end subroutine cal_elliptic_fun_diag
   end function elliptic_fun_diag
+
+  subroutine cal_elliptic_fun_diag  (dom, i, j, zlev, offs, dims)
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer            :: id, id_i, idE, idNE, idN, idW, idSW, idS
+    real(8)            :: wgt
+    logical, parameter :: exact = .true.
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    if (exact) then ! true local value
+       idE  = idx (i+1, j,   offs, dims) 
+       idNE = idx (i+1, j+1, offs, dims) 
+       idN  = idx (i,   j+1, offs, dims) 
+       idW  = idx (i-1, j,   offs, dims) 
+       idSW = idx (i-1, j-1, offs, dims) 
+       idS  = idx (i,   j-1, offs, dims)
+       wgt = &
+            dom%pedlen%elts(EDGE*id+RT+1)   / dom%len%elts(EDGE*id+RT+1)   + &
+            dom%pedlen%elts(EDGE*id+DG+1)   / dom%len%elts(EDGE*id+DG+1)   + &
+            dom%pedlen%elts(EDGE*id+UP+1)   / dom%len%elts(EDGE*id+UP+1)   + &
+            dom%pedlen%elts(EDGE*idW+RT+1)  / dom%len%elts(EDGE*idW+RT+1)  + &
+            dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) + &
+            dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
+    else ! average value (error less than about 5%)
+       wgt = 2d0 * sqrt (3d0)
+    end if
+    scalar(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv - 10d0/s_test**2
+  end subroutine cal_elliptic_fun_diag
 
   real(8) function relative_error (u, l)
     ! Relative error of test elliptic problem
     implicit none
-    integer           :: l
-    type(Float_Field) :: u
+    integer,                   intent(in) :: l
+    type(Float_Field), target, intent(in) :: u
 
-    real(8)           :: nrm_err, nrm_sol
-    type(Float_Field) :: err
+    integer                   :: d, j
+    real(8)                   :: nrm_err, nrm_sol
+    type(Float_Field), target :: err
 
     call update_bdry (u, l)
 
     err = u
-    call apply_onescale (cal_err, l, z_null, 0, 1)
+
+    do d = 1, size(grid)
+       scalar  => err%data(d)%elts
+       scalar1 =>   u%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_err, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (scalar, scalar1)
+    end do
 
     ! Compute relative error
     nrm_sol = l2 (u,   l)
     nrm_err = l2 (err, l)
     relative_error = nrm_err / nrm_sol
-  contains
-    subroutine cal_err (dom, i, j, zlev, offs, dims)
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims) + 1
-
-      err%data(d)%elts(id) = u%data(d)%elts(id) -  exact_sol (dom%node%elts(id))
-    end subroutine cal_err
   end function relative_error
+
+  subroutine cal_err (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+
+    scalar(id) = scalar1(id) - exact_sol (dom%node%elts(id))
+  end subroutine cal_err
 
   real(8) function exact_sol (p)
     implicit none

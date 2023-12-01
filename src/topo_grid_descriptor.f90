@@ -3,6 +3,17 @@ module topo_grid_descriptor_mod
   use utils_mod
   use init_mod
   implicit none
+  integer                              :: icol, loc_size, ncol
+  integer, dimension(:),   allocatable :: grid_dom
+  integer, dimension(:),   allocatable :: grid_id
+  integer, dimension(:),   allocatable :: loc_ids
+  integer, dimension(:),   allocatable :: loc_dom
+  real(8), dimension(:),   allocatable :: loc_area
+  real(8), dimension(:),   allocatable :: loc_center_lat
+  real(8), dimension(:),   allocatable :: loc_center_lon
+  real(8), dimension(:),   allocatable :: phi_s
+  real(8), dimension(:,:), allocatable :: loc_corner_lat
+  real(8), dimension(:,:), allocatable :: loc_corner_lon
 #  include "netcdf.inc"
   !
   !  DATE CODED:  November 2023
@@ -16,7 +27,7 @@ module topo_grid_descriptor_mod
   !
   !  First step: pre-processing of coordinate data
   !
-  !                               call write_grid_coords
+  !                                call write_grid_coords
   !
   !  to produce a grid descriptor file (e.g. J08_topo_grid.nc) for ESMF/SCRIP software in NetCDF file format
   !  for the hexagons on a given non-adaptive WAVETRISK grid (e.g. the grid corresponding to the desired max_level).
@@ -46,30 +57,40 @@ contains
     ! saves results to netcdf coordinate file
     use mpi
     implicit none
-    integer                               :: i, icol, loc_size
+    integer                               :: d, i, i_node, j, l
     integer                               :: grid_size          ! number of nodes
     integer, parameter                    :: grid_corners = 6   ! hexagons
-    integer, dimension(:),    allocatable :: grid_dom, loc_dom
-    integer, dimension(:),    allocatable :: grid_imask          
-    integer, dimension(:),    allocatable :: grid_id, loc_id            
-    real (8), dimension(:),   allocatable :: grid_area, loc_area          
-    real (8), dimension(:),   allocatable :: grid_center_lat, loc_center_lat
-    real (8), dimension(:),   allocatable :: grid_center_lon, loc_center_lon
-    real (8), dimension(:,:), allocatable :: grid_corner_lat, loc_corner_lat
-    real (8), dimension(:,:), allocatable :: grid_corner_lon, loc_corner_lon
+    integer,  dimension(:),   allocatable :: grid_dom
+    integer,  dimension(:),   allocatable :: grid_imask          
+    integer,  dimension(:),   allocatable :: grid_id           
+    real (8), dimension(:),   allocatable :: grid_area        
+    real (8), dimension(:),   allocatable :: grid_center_lat
+    real (8), dimension(:),   allocatable :: grid_center_lon
+    real (8), dimension(:,:), allocatable :: grid_corner_lat
+    real (8), dimension(:,:), allocatable :: grid_corner_lon
+    character(255)                        :: grid_name
 
-    integer :: i_node
-
-    character(255) :: grid_name
-
+    ! Compute topography on finest grid
+    l = max_level
+    
     loc_size = 0
-    call apply_onescale (count_nodes, max_level, z_null, 0, 1)
-    allocate (loc_dom(1:loc_size), loc_id(1:loc_size))
+    do d = 1, size(grid)
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (count_nodes, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+    end do
+    
+    allocate (loc_dom(1:loc_size), loc_ids(1:loc_size))
     allocate (loc_area(1:loc_size), loc_center_lat(1:loc_size), loc_center_lon(1:loc_size))
     allocate (loc_corner_lat(1:grid_corners,1:loc_size), loc_corner_lon(1:grid_corners,1:loc_size))
 
     icol = 0
-    call apply_onescale (grid_coords, max_level, z_null, 0, 1)
+    do d = 1, size(grid)
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (grid_coords, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+    end do
+    
 #ifdef MPI
     grid_size = sum_int (loc_size)
 #else
@@ -82,7 +103,7 @@ contains
 
 #ifdef MPI
     call MPI_Gather (loc_dom, loc_size, MPI_INTEGER, grid_dom, loc_size, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Gather (loc_id,  loc_size, MPI_INTEGER, grid_id,  loc_size, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Gather (loc_ids,  loc_size, MPI_INTEGER, grid_id,  loc_size, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
 
     call MPI_Gather (loc_area, loc_size, MPI_DOUBLE_PRECISION, grid_area, loc_size, MPI_DOUBLE_PRECISION, 0, &
          MPI_COMM_WORLD, ierror)
@@ -100,7 +121,7 @@ contains
             MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     end do
 #else
-    grid_dom = loc_dom; grid_id = loc_id; grid_area = loc_area; grid_center_lat = loc_center_lat; 
+    grid_dom = loc_dom; grid_id = loc_ids; grid_area = loc_area; grid_center_lat = loc_center_lat; 
     grid_center_lon = loc_center_lon; grid_corner_lat = loc_corner_lat; grid_corner_lon = loc_corner_lon
 #endif
     
@@ -109,72 +130,6 @@ contains
        call wrt_esmf_rll
     end if
   contains
-    subroutine count_nodes (dom, i, j, zlev, offs, dims)
-      ! Count number of nodes
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      loc_size = loc_size + 1
-    end subroutine count_nodes
-
-    subroutine grid_coords (dom, i, j, zlev, offs, dims)
-      ! Set grid coordinates
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: d, id, id_i, idS, idSW, idW
-      real(8) :: lat, lon
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims)
-      id_i = id + 1
-
-      idW  = idx (i-1, j,   offs, dims)
-      idSW = idx (i-1, j-1, offs, dims)
-      idS  = idx (i,   j-1, offs, dims)
-
-      icol = icol + 1
-
-      loc_id(icol)  = id                   ! id of node
-      loc_dom(icol) = glo_id(rank+1,d) + 1 ! global domain label associated to node id
-
-      loc_area(icol) = 1d0 / dom%areas%elts(id_i)%hex_inv / radius**2 ! hexagon area (unit sphere)
-
-      call cart2sph (dom%node%elts(id_i), lon, lat) ! longitude and latitude coordinates of node in radians
-      loc_center_lat(icol) = lat
-      loc_center_lon(icol) = lon
-
-      call cart2sph (dom%ccentre%elts(TRIAG*id+LORT+1), lon, lat)    
-      loc_corner_lat(1,icol) = lat
-      loc_corner_lon(1,icol) = lon
-
-      call cart2sph (dom%ccentre%elts(TRIAG*id+UPLT+1), lon, lat)    
-      loc_corner_lat(2,icol) = lat
-      loc_corner_lon(2,icol) = lon
-
-      call cart2sph (dom%ccentre%elts(TRIAG*idW+LORT+1), lon, lat)    
-      loc_corner_lat(3,icol) = lat
-      loc_corner_lon(3,icol) = lon
-
-      call cart2sph (dom%ccentre%elts(TRIAG*idSW+UPLT+1), lon, lat)    
-      loc_corner_lat(4,icol) = lat
-      loc_corner_lon(4,icol) = lon
-    
-      call cart2sph (dom%ccentre%elts(TRIAG*idSW+LORT+1), lon, lat)    
-      loc_corner_lat(5,icol) = lat
-      loc_corner_lon(5,icol) = lon
-    
-      call cart2sph (dom%ccentre%elts(TRIAG*idS+UPLT+1), lon, lat)    
-      loc_corner_lat(6,icol) = lat
-      loc_corner_lon(6,icol) = lon
-    end subroutine grid_coords
-    
     subroutine wrt_esmf_rll
       !
       ! write netCDF grid descriptor file for ESMF remapping
@@ -358,27 +313,96 @@ contains
 
       ncstat = nf_close(nc_grid_id)
       call handle_err (ncstat)
-
+      
       write (6, '(a)') " finished writing file descriptor data file."
       write (6, '(a,/)') "Use cube_to_target to generate corresponding surface geopotential .nc file."
     end subroutine wrt_esmf_rll
   end subroutine write_grid_coords
+
+  subroutine count_nodes (dom, i, j, zlev, offs, dims)
+    ! Count number of nodes
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    loc_size = loc_size + 1
+  end subroutine count_nodes
+
+  subroutine grid_coords (dom, i, j, zlev, offs, dims)
+    ! Set grid coordinates
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, id_i, idS, idSW, idW
+    real(8) :: lat, lon
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    icol = icol + 1
+
+    loc_ids(icol) = id                   ! id of node
+    loc_dom(icol) = glo_id(rank+1,d) + 1 ! global domain label associated to node id
+
+    loc_area(icol) = 1d0 / dom%areas%elts(id_i)%hex_inv / radius**2 ! hexagon area (unit sphere)
+
+    call cart2sph (dom%node%elts(id_i), lon, lat) ! longitude and latitude coordinates of node in radians
+    loc_center_lat(icol) = lat
+    loc_center_lon(icol) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*id+LORT+1), lon, lat)    
+    loc_corner_lat(1,icol) = lat
+    loc_corner_lon(1,icol) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*id+UPLT+1), lon, lat)    
+    loc_corner_lat(2,icol) = lat
+    loc_corner_lon(2,icol) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*idW+LORT+1), lon, lat)    
+    loc_corner_lat(3,icol) = lat
+    loc_corner_lon(3,icol) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*idSW+UPLT+1), lon, lat)    
+    loc_corner_lat(4,icol) = lat
+    loc_corner_lon(4,icol) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*idSW+LORT+1), lon, lat)    
+    loc_corner_lat(5,icol) = lat
+    loc_corner_lon(5,icol) = lon
+
+    call cart2sph (dom%ccentre%elts(TRIAG*idS+UPLT+1), lon, lat)    
+    loc_corner_lat(6,icol) = lat
+    loc_corner_lon(6,icol) = lon
+  end subroutine grid_coords
 
   subroutine assign_height (fname)
     ! Reads netcdf geopotential data and saves it to the variable topography
     implicit none
     character(*), intent(in) :: fname
 
-    integer                            :: d, ncol
-    integer, dimension(:), allocatable :: grid_dom, grid_id
-    real(8), dimension(:), allocatable :: phi_s
+    integer :: d, j, l
+
+    ! Compute topography on finest grid
+    l = max_level
 
     if (rank == 0) write (6,'(/,a,a,a)',advance="no") "Reading NCAR topography data ", trim(fname)//".nc ..."
-    
-    call read_geopotential
 
+    call read_geopotential
+    
     do d = 1, size(grid)
-       call apply_onescale_d (cal_assign_height, grid(d), max_level, z_null, 0, 1)
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_assign_height, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
     end do
 
     topography%bdry_uptodate = .false.
@@ -439,26 +463,28 @@ contains
       call MPI_Bcast (phi_s,    ncol, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
 #endif
     end subroutine read_geopotential
-
-    subroutine cal_assign_height (dom, i, j, zlev, offs, dims)
-      ! Assign topography to multiscale float field variable topography
-      implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer :: id, d_glo, icol
-
-      d_glo = glo_id(rank+1,d) + 1 ! global domain
-      do icol = 1, ncol
-         if (grid_dom(icol) == d_glo) then ! data is for this domain
-            id = grid_id(icol) + 1
-            topography%data(d)%elts(id) = phi_s(icol) / grav_accel
-         end if
-      end do
-    end subroutine cal_assign_height
   end subroutine assign_height
+
+  subroutine cal_assign_height (dom, i, j, zlev, offs, dims)
+    ! Assign topography to multiscale float field variable topography
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, d_glo, icol
+
+    d = dom%id + 1
+
+    d_glo = glo_id(rank+1,d) + 1 ! global domain
+    do icol = 1, ncol
+       if (grid_dom(icol) == d_glo) then ! data is for this domain
+          id = grid_id(icol) + 1
+          topography%data(d)%elts(id) = phi_s(icol) / grav_accel
+       end if
+    end do
+  end subroutine cal_assign_height
 
   subroutine handle_err (status)
     implicit         none
