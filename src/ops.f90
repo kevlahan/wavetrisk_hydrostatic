@@ -973,11 +973,11 @@ contains
     real(8) :: full_mass, full_temp
 
     id = idx (i, j, offs, dims) + 1
-     
+
+    full_mass = mean_m(id) + mass(id)
     if (compressible) then
-       dom%surf_press%elts(id) = dom%surf_press%elts(id) + mass(id)
+       dom%surf_press%elts(id) = dom%surf_press%elts(id) + full_mass
     else
-       full_mass = mean_m(id) + mass(id)
        full_temp = mean_t(id) + temp(id)
        
        dom%surf_press%elts(id) = dom%surf_press%elts(id) + (full_mass - full_temp)
