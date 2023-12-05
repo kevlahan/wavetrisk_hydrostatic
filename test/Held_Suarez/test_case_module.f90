@@ -231,11 +231,11 @@ contains
 
     k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
 
-    theta_tropo = T_tropo * (p / p_0)**(-kappa) ! Potential temperature at tropopause
+    theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
 
     theta_force = T_mean - delta_T * (1d0 - cs2) - delta_theta * cs2 * log (p / p_0)
 
-    theta_equil = max (theta_tropo, theta_force) ! Equilibrium temperature
+    theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
   end subroutine cal_theta_eq
 
   real(8) function set_temp (x_i, sigma)
@@ -851,7 +851,7 @@ contains
     real(8) :: k_v, sigma
 
     id = idx (i, j, offs, dims)
-    id_i = id+1
+    id_i = id + 1
 
     sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
     k_v = k_f * max (0d0, (sigma - sigma_b) / sigma_c)
@@ -921,7 +921,7 @@ contains
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
-    full_mass = sol_mean(S_MASS,zlev)%data(d)%elts(id) + mass(id)
+    full_mass = mean_m(id) + mass(id)
 
     dom%surf_press%elts(id) = dom%surf_press%elts(id) + full_mass
   end subroutine column_mass_HS
