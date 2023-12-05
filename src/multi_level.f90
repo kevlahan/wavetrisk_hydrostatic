@@ -592,7 +592,7 @@ contains
           h_flux => horiz_flux(S_MASS)%data(d)%elts
           velo   => q%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
-             call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=6)
+             call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=5)
           end do
           nullify (velo)
           if (l < level_end) then

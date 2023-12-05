@@ -474,12 +474,36 @@ contains
   end subroutine grad_eta
 
   subroutine vertical_velocity (vel_type)
-    ! Computes vertical velocity at nodes, stored in trend(S_TEMP,1:zlevels)
+    ! Computes vertical velocity in either pressure coordinates [Pa/s] (i.e. OMEGA) by default or if vel_type="Omega" or in [m/s] (i.e. w) if vel_type="W"
+    ! stored in trend(S_TEMP,1:zlevels)
+    !
+    ! !! assumes vertical grid has been remapped to original coordinates !!
+    !
+    ! Compute OMEGA = Dp/Dt:
+    !
+    ! Assuming pressure coordinates with pressure P = A(eta) + B(eta) Ps,
+    !
+    !      DP/Dt = dP/deta Deta/Dt + B(eta) DPs/Dt
+    !            = - m g Deta/Dt + B(eta) DPs/Dt.
+    !
+    ! ! dPs/dt = - int (div U, dz)
+    !
+    ! By definition, the mass flux through model levels is
+    !
+    !          W = m Deta/Dt with m = -1/g dP/deta.
+    !
+    ! Therefore,
+    !
+    !  Dp/Dt = -g W + B(eta) dPs/dt + B(eta) u grad Ps
+    !        = - g int_k div U + B(eta) u grad Ps
+    !
+    ! where div U is integrated from top to bottom is integrated mass flux (U = mu u).
+    !
     implicit none
     character (*), optional :: vel_type
 
-    integer :: d, j, k, l, p
-    character(9999) ::type
+    integer         :: d, j, k, l, p
+    character(9999) :: type
     
     if (present(vel_type)) then
        type = vel_type
@@ -488,49 +512,25 @@ contains
     end if
 
     call update_array_bdry (sol, NONE)
+    
+    ! Compute surface pressure
+    call cal_surf_press (sol)
 
-    ! Divergence of vertically integrated thickness flux, stored in trend(S_MASS,1)
-    do l = level_end, level_start, -1
-       do d = 1, size(grid)
-          h_flux => horiz_flux(S_MASS)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call step1 (q=sol, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=4)
-          end do
-          if (l < level_end) then
-             dscalar => trend(S_MASS,1)%data(d)%elts
-             call cpt_or_restr_flux (grid(d), l)
-             nullify (dscalar)
-          end if
-          nullify (h_flux)
-       end do
-       horiz_flux(S_MASS)%bdry_uptodate = .false.
-       call update_bdry (horiz_flux(S_MASS), l)
-       do d = 1, size(grid)
-          dscalar =>    trend(S_MASS,1)%data(d)%elts
-          h_flux  => horiz_flux(S_MASS)%data(d)%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-          nullify (dscalar, h_flux)
-       end do
-       trend(S_MASS,1)%bdry_uptodate = .false.
-       call update_bdry (trend(S_MASS,1), l)
-    end do
-
-    ! Divergence of thickness flux at each vertical level, stored in exner_fun(1:zlevels)
     do k = 1, zlevels
        do l = level_end, level_start, -1
+          ! Divergence of mass flux at each vertical level
+          ! stored in trend(S_MASS,1:zlevels)
           do d = 1, size(grid)
-             mass   => sol(S_MASS,k)%data(d)%elts
-             velo   => sol(S_VELO,k)%data(d)%elts
+             mass   =>      sol(S_MASS,k)%data(d)%elts
+             velo   =>      sol(S_VELO,k)%data(d)%elts
              mean_m => sol_mean(S_MASS,k)%data(d)%elts
              h_flux => horiz_flux(S_MASS)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call step1 (q=sol, dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=5)
+                call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=7)
              end do
              nullify (mass, mean_m, velo)
              if (l < level_end) then
-                dscalar => exner_fun(k)%data(d)%elts
+                dscalar => trend(S_MASS,k)%data(d)%elts
                 call cpt_or_restr_flux (grid(d), l)
                 nullify (dscalar)
              end if
@@ -539,15 +539,43 @@ contains
           horiz_flux(S_MASS)%bdry_uptodate = .false.
           call update_bdry (horiz_flux(S_MASS), l)
           do d = 1, size(grid)
-             dscalar => exner_fun(k)%data(d)%elts
+             dscalar => trend(S_MASS,k)%data(d)%elts
              h_flux  => horiz_flux(S_MASS)%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
                 call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify (dscalar, h_flux)
           end do
-          exner_fun(k)%bdry_uptodate = .false.
-          call update_bdry (exner_fun(k), l)
+          
+          ! u grad(P_S) at hexagon centres
+          ! stored in trend(S_TEMP,1:zlevels)
+          do d = 1, size(grid)
+             scalar =>         grid(d)%surf_press%elts
+             velo   =>      sol(S_VELO,k)%data(d)%elts
+             h_flux => horiz_flux(S_TEMP)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=6)
+             end do
+             if (l < level_end) then
+                dscalar => trend(S_TEMP,k)%data(d)%elts
+                call cpt_or_restr_flux (grid(d), l)
+                nullify (dscalar)
+             end if
+             nullify (h_flux, scalar, velo)
+          end do
+          horiz_flux(S_TEMP)%bdry_uptodate = .false.
+          call update_bdry (horiz_flux(S_TEMP), l)
+          do d = 1, size(grid)
+             dscalar =>    trend(S_TEMP,k)%data(d)%elts
+             h_flux  => horiz_flux(S_TEMP)%data(d)%elts
+             do j = 1, grid(d)%lev(l)%length
+                call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+             end do
+             nullify (dscalar, h_flux)
+          end do
+          
+          trend(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
+          call update_vector_bdry (trend(S_MASS:S_TEMP,k), l)
        end do
     end do
 
@@ -560,6 +588,39 @@ contains
 
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
   end subroutine vertical_velocity
+  
+  subroutine cal_omega (dom, i, j, zlev, offs, dims)
+    ! Velocity flux across interfaces
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                         :: d, id_i, k
+    real(8), dimension(1:zlevels)   :: u_gradP
+    real(8), dimension(1:zlevels+1) :: div_mass
+
+    d    = dom%id + 1
+    id_i = idx (i, j, offs, dims) + 1
+
+    ! Vertically integrate div(mass flux) from top to bottom
+    ! results at interfaces
+    div_mass(zlevels+1) = 0d0 ! zero flux at top boundary
+    do k = zlevels, 1, -1
+       div_mass(k) = div_mass(k+1) + trend(S_MASS,k)%data(d)%elts(id_i)
+    end do
+
+    ! u.gradP at layers
+    do k = 1, zlevels
+       u_gradP(k) = interp (b_vert(k), b_vert(k+1)) * trend(S_TEMP,k)%data(d)%elts(id_i)
+    end do
+    
+    ! Complete computation of omega
+    do k = 1, zlevels
+       trend(S_TEMP,k)%data(d)%elts(id_i) = - grav_accel * interp (div_mass(k), div_mass(k+1)) + u_gradP(k) 
+    end do
+  end subroutine cal_omega
 
   subroutine cal_vertical_velocity (dom, i, j, zlev, offs, dims)
     ! Vertical velocity
@@ -569,22 +630,16 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer  :: d, id, id_i, idE, idN, idNE, idS, idSW, idW, k
-    
+    integer :: d, id, id_i, k
+    real(8) :: p
+        
     id   = idx (i, j, offs, dims)
     id_i = id + 1
     d    = dom%id + 1
 
-    idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-    idW  = idx (i-1, j,   offs, dims)
-    idSW = idx (i-1, j-1, offs, dims)
-    idS  = idx (i,   j-1, offs, dims)
-
     ! Compute vertical velocity relative to z coordinate
     do k = 1, zlevels
-       trend(S_TEMP,k)%data(d)%elts(id_i) = trend(S_TEMP,k)%data(d)%elts(id_i) + proj_vel_vertical ()
+       trend(S_TEMP,k)%data(d)%elts(id_i) = trend(S_TEMP,k)%data(d)%elts(id_i)/(ref_density * grav_accel) + proj_vel_vertical ()
     end do
   contains
     real(8) function proj_vel_vertical ()
@@ -592,6 +647,14 @@ contains
       ! Uses Perot formula as also used for kinetic energy:
       ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_center) ) / cell_area
       implicit none
+      integer :: d, id, id_i, idE, idN, idNE, idS, idSW, idW, k
+
+      idE  = idx (i+1, j,   offs, dims)
+      idNE = idx (i+1, j+1, offs, dims)
+      idN  = idx (i,   j+1, offs, dims)
+      idW  = idx (i-1, j,   offs, dims)
+      idSW = idx (i-1, j-1, offs, dims)
+      idS  = idx (i,   j-1, offs, dims)
 
       velo => sol(S_VELO,k)%data(d)%elts
     
@@ -614,44 +677,4 @@ contains
       vert_vel = dz / sqrt (dl**2 + dz**2) * velo(id_e)
     end function vert_vel
   end subroutine cal_vertical_velocity
-  
-  subroutine cal_omega (dom, i, j, zlev, offs, dims)
-    ! Velocity flux across interfaces
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                        :: d, id_i, k
-    real(8)                        :: deta_dt, eta, rho, z_s
-    real(8), dimension (0:zlevels) :: omega, z
-
-    id_i = idx (i, j, offs, dims) + 1
-    d    = dom%id + 1
-
-    if (sigma_z) then
-       if (mode_split) then
-          eta = sol(S_MASS,zlevels+1)%data(d)%elts(id_i)
-       else
-          eta = free_surface (dom, i, j, zlev, offs, dims, sol)
-       end if
-       z_s = dom%topo%elts(id_i)
-       z = z_coords (eta, z_s) ! set a_vert
-    end if
-
-    deta_dt = trend(S_MASS,1)%data(d)%elts(id_i)
-
-    omega(0) = 0d0; omega(zlevels) = 0d0 ! impose zero mass flux at bottom and top
-    do k = 1, zlevels-1
-       omega(k) = omega(k-1) + (a_vert(k+1)-a_vert(k)) * deta_dt - exner_fun(k)%data(d)%elts(id_i)
-    end do
-    do k = zlevels, 1, -1
-       rho = porous_density (d, id_i, k)
-       omega(k) = interp (omega(k-1), omega(k)) / rho
-    end do
-    do k = 1, zlevels
-       trend(S_TEMP,k)%data(d)%elts(id_i) = omega(k)
-    end do
-  end subroutine cal_omega
 end module barotropic_2d_mod

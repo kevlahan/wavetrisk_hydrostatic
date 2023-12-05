@@ -231,9 +231,17 @@ contains
             h_flux(EDGE*id+UP+1) = h_flux(EDGE*id+UP+1) + q(S_VELO,k)%data(d)%elts(EDGE*id+UP+1) * dz
          end do
          h_flux(EDGE*id+RT+1:EDGE*id+UP+1) = h_flux(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1) 
-      elseif (itype == 5) then ! mass flux for vertical velocity
+      elseif (itype == 5) then ! divu
+         h_flux(EDGE*id+RT+1) = velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+         h_flux(EDGE*id+DG+1) = velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+         h_flux(EDGE*id+UP+1) = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+      elseif (itype == 6) then ! surface pressure gradient flux (for vertical velocity)
+         h_flux(EDGE*id+RT+1) = (scalar(idE_i) - scalar(id_i))   * velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1) / 4d0
+         h_flux(EDGE*id+DG+1) = (scalar(id_i)  - scalar(idNE_i)) * velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1) / 4d0
+         h_flux(EDGE*id+UP+1) = (scalar(idN_i) - scalar(id_i))   * velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1) / 4d0
+      elseif (itype == 7) then ! mass flux (for vertical velocity)
          dz0 = mass(id+1) + mean_m(id+1)
-         
+
          dz = interp (dz0, mass(idE+1) + mean_m(idE+1))
          h_flux(EDGE*id+RT+1) = velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1) * dz
 
@@ -242,10 +250,6 @@ contains
 
          dz = interp (dz0, mass(idN+1) + mean_m(idN+1)) 
          h_flux(EDGE*id+UP+1) = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1) * dz
-      elseif (itype == 6) then ! divu
-         h_flux(EDGE*id+RT+1) = velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-         h_flux(EDGE*id+DG+1) = velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-         h_flux(EDGE*id+UP+1) = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
       elseif (itype == 0) then ! standard 
          do v = scalars(1), scalars(2)
             full(0:NORTHEAST,v) = q(v,zlev)%data(d)%elts((/id,idN,idE,idS,idW,idNE/)+1) &
@@ -389,7 +393,7 @@ contains
          h_flux(EDGE*idS+UP+1)  = 0d0
          do k = 1, zlevels
             dz0 = q(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-            
+
             dz = interp (dz0, q(S_MASS,k)%data(d)%elts(idW_i) + sol_mean(S_MASS,k)%data(d)%elts(idW_i))
             h_flux(EDGE*idW+RT+1) = h_flux(EDGE*idW+RT+1) + q(S_VELO,k)%data(d)%elts(EDGE*idW+RT+1) * dz
 
@@ -402,9 +406,17 @@ contains
          h_flux(EDGE*idW+RT+1)  = h_flux(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1) 
          h_flux(EDGE*idSW+DG+1) = h_flux(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) 
          h_flux(EDGE*idS+UP+1)  = h_flux(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)  
-      elseif (itype == 5) then ! mass flux for vertical velocity
+      elseif (itype == 5) then ! divu
+         h_flux(EDGE*idW+RT+1)  = velo(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1) 
+         h_flux(EDGE*idSW+DG+1) = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+         h_flux(EDGE*idS+UP+1)  = velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
+      elseif (itype == 6) then ! surface pressure gradient flux (for vertical velocity)
+         h_flux(EDGE*idW+RT+1)  = - (scalar(idW_i) - scalar(id_i))   * velo(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)  / 4d0
+         h_flux(EDGE*idSW+DG+1) = - (scalar(id_i)  - scalar(idSW_i)) * velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) / 4d0
+         h_flux(EDGE*idS+UP+1)  = - (scalar(idS_i) - scalar(id_i))   * velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)  / 4d0
+      elseif (itype == 7) then ! mass flux for vertical velocity
          dz0 = mass(id+1) + mean_m(id+1)
-         
+
          dz = interp (dz0, mass(idW+1) + mean_m(idW+1)) 
          h_flux(EDGE*idW+RT+1) = velo(EDGE*idW+RT+1) * dom%pedlen%elts(EDGE*idW+RT+1) * dz
 
@@ -413,10 +425,6 @@ contains
 
          dz = interp (dz0, mass(idS+1) + mean_m(idS+1))
          h_flux(EDGE*idS+UP+1) = velo(EDGE*idS+UP+1) * dom%pedlen%elts(EDGE*idS+UP+1) * dz
-      elseif (itype == 6) then ! divu
-         h_flux(EDGE*idW+RT+1)  = velo(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1) 
-         h_flux(EDGE*idSW+DG+1) = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
-         h_flux(EDGE*idS+UP+1)  = velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1) 
       elseif (itype == 0) then ! standard
          do v = scalars(1), scalars(2)
             full(0:SOUTHWEST,v) = q(v,zlev)%data(d)%elts((/id,id,id,idS,idW,id,id,idSW/)+1) &
