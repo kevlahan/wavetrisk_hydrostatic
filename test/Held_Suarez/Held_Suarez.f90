@@ -98,7 +98,7 @@ program Held_Suarez
   ! Diffusion parameters
   Laplace_order_init = 2                            ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
   C_visc(S_VELO)     = 1d-3                         ! dimensionless viscosity of S_VELO (rotu, divu)
-  C_visc(S_TEMP)     = C_visc(S_VELO)/2.5d0         ! dimensionless viscosity of S_MASS
+  C_visc(S_TEMP)     = 0d0                          ! dimensionless viscosity of S_MASS
   C_visc(S_MASS)     = 0d0                          ! dimensionless viscosity of S_TEMP
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -110,7 +110,7 @@ program Held_Suarez
   call print_test_case_parameters
 
   ! Save initial conditions
-  call vertical_velocity
+  call omega_velocity
   call write_and_export (iwrite)
   
   if (rank == 0) write (6,'(A,/)') &
@@ -136,7 +136,7 @@ program Held_Suarez
         if (remap) call remap_vertical_coordinates
 
         ! Save fields
-        call vertical_velocity
+        call omega_velocity
         call write_and_export (iwrite)
         
         ! Save checkpoint (and rebalance)

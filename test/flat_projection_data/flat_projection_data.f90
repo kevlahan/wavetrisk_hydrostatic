@@ -599,7 +599,7 @@ contains
     call fill_up_grid_and_IWT (level_save)
 
     ! Compute vertical velocities at all vertical layers
-    call vertical_velocity 
+    call omega_velocity 
 
     call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
 
