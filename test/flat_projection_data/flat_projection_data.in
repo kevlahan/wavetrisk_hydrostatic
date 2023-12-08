@@ -12,3 +12,5 @@ pressure_save   850.0       ! pressure level to save (hPa)
 lat_val         0           ! latitude value for longitude slice
 lon_val         0           ! latitude value for latitude slice
 zonal           F           ! compute zonal average for latitude slice
+NCAR_topo       T           ! load realistic topography (compile with flag TOPO=.true.)
+topo_file       J06_120.0km ! smoothed NCAR topography file name

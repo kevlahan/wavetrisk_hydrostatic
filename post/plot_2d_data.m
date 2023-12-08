@@ -3,6 +3,7 @@ clc; clear all;
 
 % Data file details
 test_case = 'Held_Suarez'; run_id = 'HS_J6'; run_dir = ''; 
+NCAR_topo = 1;               % load topography file
 
 %file_base = [run_id '.4.']; % single time
 file_base = [run_id '.6.'];  % average
@@ -222,6 +223,18 @@ if (lon_lat)
     fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_ll)));
     figure;plot_lon_lat_data(s_ll, lon, lat, c_scale, v_title, smooth, shift, lines)
     axis(ax)
+    if (NCAR_topo) % extract topography file
+        hold on
+        topo_file = [run_id '_topo_2D'];
+        file_tar = ['tar ' 'xf ' pathid topo_file '.tgz'];
+        disp(['Uncompressing topography file ' file_tar]);
+        system(file_tar);
+        topo = fread(fopen(topo_file),'double'); N = (-3 + sqrt(8*size(topo,1) + 1)) / 2;
+        topo = reshape (topo, N+1, N/2+1)';
+
+        topo = circshift(topo,round(size(topo,2)/2),2);
+        contour(lon+180,lat,topo, [10 10],'-k','linewidth',2); axis('equal')
+    end
 end
 
 if (zonal_avg)

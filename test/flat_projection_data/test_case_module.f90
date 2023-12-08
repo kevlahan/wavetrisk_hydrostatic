@@ -423,6 +423,8 @@ contains
     read (fid,*) varname, lat_val
     read (fid,*) varname, lon_val
     read (fid,*) varname, zonal
+    read (fid,*) varname, NCAR_topo
+    read (fid,*) varname, topo_file
     close(fid)
 
     if (rank==0) then
@@ -445,6 +447,8 @@ contains
        write (6,'(A,es10.4)') "lat_val = ", lat_val
        write (6,'(A,es10.4)') "lon_val = ", lon_val
        write( 6,'(A,L1)')     "zonal average          = ", zonal
+       write( 6,'(A,L1)')     "NCAR_topo              = ", NCAR_topo
+       write (6,'(A,A)')      "topo_file              = ", trim (topo_file)
        write (6,*) ' '
     end if
 

@@ -6,7 +6,8 @@ program flat_projection_data
   use projection_mod
   implicit none
   
-  integer                                :: k, l, nt, Ncumul, p, d, nvar_total
+  integer                                :: i, k, l, nt, Ncumul, p, d, nvar_total
+  integer, parameter                     :: funit = 400
   integer, parameter                     :: nvar_save = 7, nvar_drake = 12, nvar_1layer = 5
   real(8)                                :: area1, area2
   real(8), dimension(:),     allocatable :: eta_lat, eta_lon
@@ -16,7 +17,7 @@ program flat_projection_data
   
   character(2)                           :: var_file
   character(8)                           :: itype
-  character(9999)                        :: bash_cmd, command
+  character(9999)                        :: bash_cmd, command, topo_filename
 
   logical, parameter                     :: welford = .true. ! use Welford's one-pass algorithm or naive two-pass algorithm
   
@@ -239,6 +240,22 @@ program flat_projection_data
      call initialize_stat
   end if
   
+  ! Save topography
+  if (NCAR_topo) then
+     call project_field_onto_plane (topography, level_end, 0d0)
+     if (rank == 0) then
+        topo_filename = trim(run_id)//'_topo_2D'
+        open (unit=400, file=trim(topo_filename), access="STREAM", form="UNFORMATTED", status="REPLACE")
+        do i = Ny(1), Ny(2)
+           write (funit) field2d(:,i)
+        end do
+        close (funit)
+
+        command = 'gtar czf '//trim(topo_filename)//'.tgz '//trim(run_id)//'_topo_2D --remove-files &'
+        call system (trim(command))
+     end if
+  end if
+
   Nt = 0
   do cp_idx = mean_beg, mean_end
      Nt = Nt + 1
@@ -306,7 +323,7 @@ program flat_projection_data
          else
             call cal_zonal_average
          end if
-         if (cp_idx == cp_2d) call latlon (field2d_save)
+
       elseif (trim (test_case) == "Held_Suarez") then
          
          call latlon (field2d_incr); field2d_av = field2d_av + field2d_incr
@@ -358,6 +375,7 @@ program flat_projection_data
         end if
      end if
   end if
+  
   call finalize
 contains
   subroutine cal_zonal_av
