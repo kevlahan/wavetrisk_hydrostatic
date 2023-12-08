@@ -27,9 +27,9 @@ end
 J = customcolormap_preset('red-white-blue');
 colormap(J)
 %colormap(J(numel(c_scale)-1));
-caxis([min(c_scale) max(c_scale)]);c=colorbar;
+clim([min(c_scale) max(c_scale)]);c=colorbar;
 
-c.Label.String=v_title;c.Label.FontSize=18;%c.YTick=c_scale;
+c.Label.String=v_title; c.Label.FontSize=18;%c.YTick=c_scale;
 axis('equal'); 
 set(gca,'ytick',v_yticks,'yticklabels',{'90S','60S','30S','0','30N','60N','90N'});
 if (shift)
@@ -37,7 +37,9 @@ if (shift)
     set(gca,'xtick',v_xticks,'xticklabels',{'0', '30 ', '60', '90 ', '120', '150 ', '180', ...
         '210 ', '240', '270 ', '300', '330'});
 end
-xlabel('Longitude','fontsize',18);ylabel('Latitude','fontsize',16);set(gca,'FontSize',19);
+xlabel('Longitude');
+ylabel('Latitude' );
+set(gca,'FontSize',19);
 
 
 

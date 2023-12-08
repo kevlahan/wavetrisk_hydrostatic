@@ -1,36 +1,37 @@
 % Plot 2d data from export_2d or log data
-clc; clear
+clc; clear all;
 
-% Minimum and maximum scales
-Jmin = 4; Jmax = 6;
-
-% Dimensions of lon-lat data
-N = 400;
-Nz = 32;
-
-nia = 0;
-if (nia)
-    test_case = 'DCMIP2012c4'; run_id = 'DCMIP2012c4_J5J7_var'; run_dir = '';
-    unix ('scp niagara.computecanada.ca:"~/hydro/*c4/DCMIP2012c4_J5J7_var.4.tgz" ~/hydro/DCMIP2012c4/.');
-else % local file
-    test_case = 'Held_Suarez'; run_id = 'HS_J6'; run_dir = '';
-end
+% Data file details
+test_case = 'Held_Suarez'; run_id = 'HS_J6'; run_dir = ''; 
 
 %file_base = [run_id '.4.']; % single time
-file_base = [run_id '.6.']; % average
+file_base = [run_id '.6.'];  % average
 
-% 2d projection options: 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'omega' 
+nia       = 0;               % transfer data from niagara if true
+
+Jmin = 6; Jmax = 6;          % minimum and maximum scales (for compression ratio)
+Nz = 32;                     % number of vertical layers  (for vertical slice)
+
+% 2d projection options
+% 'temp' 'zonal' 'merid' 'geopot' 'vort' 'surf_press' 'ke' 'omega' 
 % 'temp_var' 'eddy_mom' 'zonal_var' 'merid_var' 'eddy_ke' 'eddy_heat_flux'
+
 itype     = 'omega';  % field to plot
-lon_lat   = true;  % Plot longitude - latitude data
-zonal_avg = false;   % Plot zonally averaged data
-shift     = true;   % shift left boundary to zero longitude
-smooth    = false;  % smooth data over two points in each direction
-lines     = false;  % plot contour lines
+lon_lat   = true;     % plot longitude - latitude data
+zonal_avg = false;    % plot zonally averaged data
+shift     = true;     % shift left boundary to zero longitude
+smooth    = false;    % smooth data over two points in each direction
+lines     = false;    % plot contour lines
+
+if (nia)
+    unix ('scp niagara.computecanada.ca:"~/hydro/*c4/DCMIP2012c4_J5J7_var.4.tgz" ~/hydro/DCMIP2012c4/.');
+else % local file
+   
+end
 
 % Log data options:
-dt=2; tol_mass=3; tol_temp=4; tol_velo=5; J=6; dof=7; min_mass=8; mass_err=9; balance=10; cpu=11; cpudof=12; compression=13;
-ilog = dof;
+dt=2; tol_mass=3; tol_temp=4; tol_velo=5; J=6; dof=7; min_mass=8; mass_err=9; balance=10; 
+cpu=11; cpudof=12; compression=13; ilog = dof;
 
 % Number of dof on equivalent uniform grid
 Nunif = 4 * 10*4^Jmax;
@@ -49,7 +50,7 @@ elseif (strcmp(machine,'mac'))
     pathid = ['/Users/kevlahan/hydro/' test_case '/' run_dir];
 end
 
-set(0,'defaulttextinterpreter','latex')
+%set(0,'defaulttextinterpreter','latex')
 % Uncompress data files for 2d plots
 
 % Extract files
@@ -163,8 +164,8 @@ elseif (strcmp(itype,'surf_press')) % Plot surface pressure data
     zonal_avg = false;
 elseif (strcmp(itype,'omega')) % Plot vertical velocity
     fid_ll = fopen([file_base '07']);
-    c_scale = linspace(-0.01,0.01,100);
-     v_title = 'Omega';  
+    c_scale = linspace(-0.1,0.1,100);
+     v_title = 'OMEGA at 500 hPa   [Pa/s]';  
 elseif (strcmp(itype,'ke')) % Plot kinetic energy
     c_scale = 0:40:480; % Held-Suarez
     v_title = 'Kinetic energy (m^2/s^2)';
@@ -204,7 +205,8 @@ elseif (strcmp(itype,'eddy_heat_flux')) % Plot zonal eddy heat flux
     v_title = 'Eddy heat flux (K m/s)';
     fid_zo = fopen([file_base '19']);
 end
-s_ll = reshape (fread(fid_ll,'double'), N+1, N/2+1)';
+s_ll = fread(fid_ll,'double'); N = (-3 + sqrt(8*size(s_ll,1) + 1)) / 2;
+s_ll = reshape (s_ll, N+1, N/2+1)';
 
 if zonal_avg
     if not(strcmp(itype,'eddy_ke'))
