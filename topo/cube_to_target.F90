@@ -115,7 +115,7 @@ program convterr
   !
   character(len=1024) :: grid_descriptor_fname,intermediate_cubed_sphere_fname,output_fname=''
   character(len=1024) :: grid_descriptor_fname_gll
-  character(len=1024) :: output_grid='', ofile,smooth_topo_fname = '',str_dir=''
+  character(len=1024) :: output_grid='', ofile, smth_txt, smooth_topo_fname = '',str_dir=''
   character(len=1024) :: rrfactor_fname, command_line_arguments, str, str_creator, str_source=''
 
   character(len=8)  :: date
@@ -492,24 +492,20 @@ program convterr
      !
      ! Laplacian smoother standard file name
      !
-     if (lfind_ridges) then
-        nsw = nwindow_halfwidth        
-        if (lsmoothing_over_ocean) then
-           write (ofile, "('_',f5.1,'km')") smoothing_scale
-        else
-           write (ofile ,"('_',f5.1,'km','_noleak')" )  smoothing_scale
-        endif
-     else
-        if (lsmoothing_over_ocean) then
-           write (ofile, "('_',f5.1,'km')" ) smoothing_scale
-        else
-           write (ofile , "(f5.1,'km','_noleak')" ) smoothing_scale
-        end if
-     endif
-  end if
+     write (smth_txt,'(f5.1)') smoothing_scale
+     smth_txt = repeat ('0', 5-len_trim(adjustl(smth_txt))) // adjustl(smth_txt) ! add leading zeros
 
-  output_fname = TRIM(str_dir)//'/'//trim(output_grid)//trim(ofile)//'.nc'
-  write (6,*) "Writing topo file to ", output_fname
+     if (lfind_ridges) nsw = nwindow_halfwidth        
+
+     if (lsmoothing_over_ocean) then
+        ofile = '_'//trim(smth_txt)//'km'
+     else
+        ofile = '_'//trim(smth_txt)//'km_noleak'
+     endif
+
+     output_fname = TRIM(str_dir)//'/'//trim(output_grid)//trim(ofile)//'.nc'
+     write (6,*) "Writing topo file to ", output_fname
+  end if
   
   !+++aRH
   ! Compute overlap weights

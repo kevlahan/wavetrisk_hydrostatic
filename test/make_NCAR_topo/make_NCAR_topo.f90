@@ -14,7 +14,7 @@ program make_NCAR_topo
   call init_comm_mpi_mod
   
   if (n_process > 1) then
-     write (6,'(a)') 'Must run make_NCAR_topo on a single core ... aborting'
+     if (rank == 0) write (6,'(/,a,/)') '!!! Must run make_NCAR_topo on a single core ... aborting !!!'
      call abort
   end if
 
@@ -43,8 +43,10 @@ program make_NCAR_topo
   
   ! Generate smoothed NCAR topography using cube_to_target
   write (jmax_txt,'(i2.2)') max_level
-  write (smth_txt,'(f5.1)') smth_scl
   topo_desc = 'J'//trim(jmax_txt)//'_topo_grid'
+
+  write (smth_txt,'(f5.1)') smth_scl
+  smth_txt = repeat ('0', 5-len_trim(adjustl(smth_txt))) // adjustl(smth_txt) ! add leading zeros
   
   write (cmd,'(a)') &
        "./cube_to_target &
