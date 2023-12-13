@@ -52,11 +52,13 @@ module topo_grid_descriptor_mod
   !  Modified for inclusion WAVETRISK by Nicholas Kevlahan (kevlahan@mcmaster.ca) 2023-10
   !
 contains
-  subroutine write_grid_coords
+  subroutine write_grid_coords (topo_desc)
     ! Find grid coordinates on each domain at finest level over entire grid
     ! saves results to netcdf coordinate file
     use mpi
     implicit none
+    character(255)                        :: topo_desc
+    
     integer                               :: d, i, i_node, j, l
     integer                               :: grid_size          ! number of nodes
     integer, parameter                    :: grid_corners = 6   ! hexagons
@@ -68,7 +70,6 @@ contains
     real (8), dimension(:),   allocatable :: grid_center_lon
     real (8), dimension(:,:), allocatable :: grid_corner_lat
     real (8), dimension(:,:), allocatable :: grid_corner_lon
-    character(255)                        :: grid_name
 
     ! Compute topography on finest grid
     l = max_level
@@ -125,10 +126,7 @@ contains
     grid_center_lon = loc_center_lon; grid_corner_lat = loc_corner_lat; grid_corner_lon = loc_corner_lon
 #endif
     
-    if (rank==0) then
-       write (grid_name, '(a,i2.2,a)') "J", max_level, "_topo_grid"
-       call wrt_esmf_rll
-    end if
+    if (rank==0) call wrt_esmf_rll
   contains
     subroutine wrt_esmf_rll
       !
@@ -171,10 +169,10 @@ contains
       !***
       !*** create netCDF dataset for this grid
       !***
-      ncstat = nf_create (trim(grid_name)//".nc", NF_CLOBBER, nc_grid_id)
+      ncstat = nf_create (trim(topo_desc)//".nc", NF_CLOBBER, nc_grid_id)
       call handle_err (ncstat)
 
-      ncstat = nf_put_att_text (nc_grid_id, NF_GLOBAL, 'title', len_trim(grid_name), grid_name)
+      ncstat = nf_put_att_text (nc_grid_id, NF_GLOBAL, 'title', len_trim(topo_desc), topo_desc)
       call handle_err (ncstat)
 
       !***
@@ -282,7 +280,7 @@ contains
       !     write grid data
       !
       !-----------------------------------------------------------------------
-      write (6,'(/,a,a,a)',advance="no") "Writing NCAR topography grid descriptor file ", trim(grid_name)//".nc ..."
+      write (6,'(/,a,a,a)',advance="no") "Writing NCAR topography grid descriptor file ", trim(topo_desc)//".nc ..."
 
       ncstat = nf_put_var_int (nc_grid_id, nc_griddims_id, grid_dims)
       call handle_err (ncstat)

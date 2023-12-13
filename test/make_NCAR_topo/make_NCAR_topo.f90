@@ -7,7 +7,7 @@ program make_NCAR_topo
   implicit none
   integer         :: l
   real(8)         :: fine_mass
-  character(9999) :: cmd, jmax_txt, smth_txt, topo_desc 
+  character(9999) :: cmd, grid_name, jmin_txt, jmax_txt, smth_txt, topo_desc 
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -39,15 +39,19 @@ program make_NCAR_topo
   call print_test_case_parameters
 
   ! Write out grid coordinates for NCAR data
-  call write_grid_coords
-  
-  ! Generate smoothed NCAR topography using cube_to_target
+  write (jmin_txt,'(i2.2)') min_level
   write (jmax_txt,'(i2.2)') max_level
-  topo_desc = 'J'//trim(jmax_txt)//'_topo_grid'
+  grid_name = 'J'//trim(jmin_txt)//'J'//trim(jmax_txt)
+  topo_desc = trim(grid_name)//'_topo_grid'
+
+  call write_grid_coords (topo_desc)
+    
+  topo_desc = trim(grid_name)//'_topo_grid'
 
   write (smth_txt,'(f5.1)') smth_scl
   smth_txt = repeat ('0', 5-len_trim(adjustl(smth_txt))) // adjustl(smth_txt) ! add leading zeros
   
+  ! Generate smoothed NCAR topography using cube_to_target
   write (cmd,'(a)') &
        "./cube_to_target &
        
@@ -57,7 +61,7 @@ program make_NCAR_topo
        
        --intermediate_cs_name="//"'"//trim(topo_data)//"' &
        
-       --output_grid="//"'"//'J'//trim(jmax_txt)//"' &
+       --output_grid="//"'"//trim(grid_name)//"' &
        
        --smoothing_scale="//trim(smth_txt)// &
        
@@ -66,7 +70,7 @@ program make_NCAR_topo
   call system (trim(cmd))
 
   ! Assign to grid topography at max_level
-  topo_file = 'J'//trim(jmax_txt)//"_"//trim(smth_txt)//'km'
+  topo_file = trim(grid_name)//"_"//trim(smth_txt)//'km'
   call assign_height (trim (topo_file))
 
   ! Compute topography wavelets
