@@ -1,7 +1,7 @@
 program trisk2vtk
   ! Converts standard ASCII trisk data files from wavetrisk code to BINARY .vtk format for paraview
   !
-  ! Usage: trisk2vtk file_base file_type tstart tend jmin jmax zlev 
+  ! Usage: trisk2vtk file_base file_type tstart tend jmin jmax zmin zmax
   ! Example: trisk2vtk drake primal 0 1 5 7 3 4
   !
   ! Reads files drake_003.1.0001.tgz, drake_004.1.0001.tgz, drake_003.1.0002.tgz, drake_004.1.0002.tgz
