@@ -71,7 +71,8 @@ contains
     else
        ! Initialize basic structures
        call init_basic
-
+       call init_structures (run_id)
+       
        ! Initialize vertical grid
        call initialize_a_b_vert
 
@@ -81,16 +82,17 @@ contains
        ! Initialize time step and viscosities
        call initialize_dt_viscosity
 
-       call init_structures (run_id)
-       call apply_initial_conditions
-
-       ! Initialize thresholds to default values 
+        ! Initialize thresholds to default values 
        call initialize_thresholds
 
+       ! Load topography
+       if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') call load_topo
+      
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
             ------------------------------------------------------'
 
+       call apply_initial_conditions
        call forward_wavelet_transform (sol, wav_coeff)
 
        do while (level_end < max_level)
@@ -102,7 +104,6 @@ contains
           call adapt (set_thresholds)
 
           call apply_initial_conditions
-
           call forward_wavelet_transform (sol, wav_coeff)
 
           ! Check whether there are any active nodes or edges at this scale
@@ -135,11 +136,6 @@ contains
 
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        if (rank==0) write (6,'(a,i8,/)') 'Initial number of dof = ', sum (n_active)
-
-       if (NCAR_topo) then
-          call load_topo
-          call apply_initial_conditions ! re-apply initial conditions to use correct surface pressure
-       end if
 
        if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
     end if
@@ -334,6 +330,9 @@ contains
 
     ! Rebalance adaptive grid and re-initialize structures
     call init_structures (run_id)
+    
+    ! Load NCAR topography data (defined on non-adaptive grid from min_level to max_level)
+    if (NCAR_topo) call load_topo 
 
     ! Initialize thresholds to default values 
     call initialize_thresholds
@@ -346,9 +345,6 @@ contains
     call adapt (set_thresholds, .false.) 
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
-
-    ! Load NCAR topography data (defined on non-adaptive grid from min_level to max_level)
-    if (NCAR_topo) call load_topo 
 
     ! Initialize time step and viscosities
     call initialize_dt_viscosity

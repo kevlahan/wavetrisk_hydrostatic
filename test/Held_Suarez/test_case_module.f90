@@ -619,7 +619,6 @@ contains
        write (6,'(a,es10.4)') "delta_theta   [K/m] = ", delta_theta
        write (6,'(a,es10.4,/)') "wave_speed   [m/s]  = ", wave_speed
        write (6,'(a,l)')      "NCAR_topo           = ", NCAR_topo
-       write (6,'(a,l1)')     "topo_save_wav       = ", topo_save_wav
        write (6,'(a,a)')      "topo_file           = ", trim (topo_file)
        write (6,'(a)') &
             '*********************************************************************&
@@ -669,11 +668,11 @@ contains
     allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0d0
     allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0d0
 
-    lnorm(S_MASS,:) = dPdim/grav_accel
+    lnorm(S_MASS,:) = dPdim / grav_accel
     do k = 1, zlevels
-       lnorm(S_TEMP,k) = (a_vert_mass(k) + b_vert_mass(k)*Pdim/grav_accel)*dTempdim
+       lnorm(S_TEMP,k) = (a_vert_mass(k) + b_vert_mass(k) * Pdim/grav_accel) * dTempdim
     end do
-    lnorm(S_TEMP,:) = lnorm(S_TEMP,:) + Tempdim*lnorm(S_MASS,:) ! Add component due to tendency in mass 
+    lnorm(S_TEMP,:) = lnorm(S_TEMP,:) + Tempdim * lnorm(S_MASS,:) ! Add component due to tendency in mass 
     lnorm(S_VELO,:) = Udim
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds_case

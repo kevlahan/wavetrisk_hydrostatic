@@ -107,7 +107,6 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, topo_data
     read (fid,*) varname, smth_scl
-    read (fid,*) varname, topo_save_wav
     close(fid)
   end subroutine read_test_case_parameters
 
@@ -129,7 +128,6 @@ contains
        write (6,'(a,a)')      "topo_data            = ", trim (topo_data)
        write (6,'(a,a)')      "topo_file            = ", trim (topo_file)
        write (6,'(a,es10.4)') "smth_scl             = ", smth_scl
-       write (6,'(a,l1)')     "topo_save_wav        = ", topo_save_wav
        write (6,'(a)') &
             '*********************************************************************&
             ************************************************************'

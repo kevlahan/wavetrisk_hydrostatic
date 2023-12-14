@@ -1,4 +1,3 @@
 max_level       6                                     ! maximum level of resolution
 topo_data       gmted2010_bedmachine-ncube0540-220518 ! NCAR topoography file 
 smth_scl        120                                   ! smoothing scale [km]
-topo_wav_save   T                                     ! save topography as wavelets (T) or using full weight restriction (F)	   
