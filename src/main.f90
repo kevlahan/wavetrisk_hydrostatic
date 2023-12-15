@@ -89,7 +89,6 @@ contains
             '----------------------------------------------------- Adapting initial grid &
             ------------------------------------------------------'
 
-       if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') call load_topo
        call apply_initial_conditions
        call forward_wavelet_transform (sol, wav_coeff)
 
@@ -101,7 +100,6 @@ contains
           dt_new = cpt_dt ()
           call adapt (set_thresholds)
 
-          if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') call load_topo
           call apply_initial_conditions
           call forward_wavelet_transform (sol, wav_coeff)
 
