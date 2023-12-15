@@ -85,13 +85,11 @@ contains
         ! Initialize thresholds to default values 
        call initialize_thresholds
 
-       ! Load topography
-       if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') call load_topo
-      
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
             ------------------------------------------------------'
 
+       if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') call load_topo
        call apply_initial_conditions
        call forward_wavelet_transform (sol, wav_coeff)
 
@@ -103,6 +101,7 @@ contains
           dt_new = cpt_dt ()
           call adapt (set_thresholds)
 
+          if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') call load_topo
           call apply_initial_conditions
           call forward_wavelet_transform (sol, wav_coeff)
 
@@ -137,20 +136,25 @@ contains
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        if (rank==0) write (6,'(a,i8,/)') 'Initial number of dof = ', sum (n_active)
 
+       if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') then
+          call load_topo
+          call apply_initial_conditions
+       end if
+
        if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
     end if
     call barrier
   end subroutine initialize
 
   subroutine record_init_state (init_state)
-    implicit none
-    type(Initial_State), dimension(:), allocatable :: init_state
+     implicit none
+     type(Initial_State), dimension(:), allocatable :: init_state
 
-    integer :: d, i, v
+     integer :: d, i, v
 
-    allocate (init_state(size(grid)))
+     allocate (init_state(size(grid)))
 
-    do d = 1, size(grid)
+     do d = 1, size(grid)
        init_state(d)%n_patch      = grid(d)%patch%length
        init_state(d)%n_bdry_patch = grid(d)%bdry_patch%length
        init_state(d)%n_node       = grid(d)%node%length
@@ -330,9 +334,6 @@ contains
 
     ! Rebalance adaptive grid and re-initialize structures
     call init_structures (run_id)
-    
-    ! Load NCAR topography data (defined on non-adaptive grid from min_level to max_level)
-    if (NCAR_topo) call load_topo 
 
     ! Initialize thresholds to default values 
     call initialize_thresholds
@@ -345,6 +346,9 @@ contains
     call adapt (set_thresholds, .false.) 
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
+
+    ! Load NCAR topography data (defined on non-adaptive grid from min_level to max_level)
+    if (NCAR_topo) call load_topo 
 
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
