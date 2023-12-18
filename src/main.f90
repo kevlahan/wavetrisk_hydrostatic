@@ -198,6 +198,13 @@ contains
        dt = idt/time_mult
     end if
 
+    !  Diffusion
+    if (modulo (istep_cumul, n_diffuse) == 0) then
+       Laplace_order = Laplace_order_init
+    else
+       Laplace_order = 0
+    end if
+
     ! Take time step
     if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
        if (istep <= nstep_init) then  ! small time steps to start
@@ -248,13 +255,6 @@ contains
     ! Compute change in vertical layer depths
     if (log_mass) min_mass = cpt_min_mass ()
     
-    ! Add diffusion
-    if (modulo (istep_cumul, n_diffuse) == 0 .and. Laplace_order_init /= 0) then
-       Laplace_order = Laplace_order_init
-    else
-       Laplace_order = 0
-    end if
-    
     ! Adapt grid
     if (vert_diffuse .or. (remap .and. modulo (istep, iremap) == 0)) &
          call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
@@ -263,6 +263,7 @@ contains
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
 
+    if (NCAR_topo) call load_topo 
     call update
     
     if (log_mass) call sum_total_mass (.false.)
