@@ -36,18 +36,20 @@ ifeq ($(SYSTEM),Darwin)
   MACHINE = mac
   LIBS   += -L/opt/homebrew/opt/lapack/lib
   ifeq ($(TOPO), true)
-    NETCDF_DIR = /opt/homebrew/Cellar/netcdf-fortran/4.6.1
+    NETCDF_DIR  = /opt/homebrew/Cellar/netcdf-fortran/4.6.1
     FLAGS_COMP += -I$(NETCDF_DIR)/include
     LIBS       += -L$(NETCDF_DIR)/lib $(NETCDF)
   endif
 else
   MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
-  ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia)) # module load CCEnv StdEnv/2023 
-    LAPACK = -lflexiblas # module load flexiblas
+  ifeq ($(MACHINE),$(filter $(MACHINE), orc bul gra nia)) # module load CCEnv StdEnv/2023 
+    LAPACK = -lflexiblas  # module load flexiblas
     ifeq ($(TOPO), true)
-      LIBS += $(NETCDF)  # module load netcdf netcdf-fortran
+       LIBS += $(NETCDF)  # module load netcdf netcdf-fortran
     endif
-  endif 
+  else ifeq ($(MACHINE),$(filter $(MACHINE), if orme))
+      LIBS += $(NETCDF)
+  endif
 endif
 
 ifeq ($(F90),ifort)
