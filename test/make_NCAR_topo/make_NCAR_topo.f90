@@ -70,7 +70,8 @@ program make_NCAR_topo
   call system (trim(cmd))
 
   ! Assign to grid topography at max_level
-  topo_file = trim(grid_name)//"_"//trim(smth_txt)//'km'
+  topo_file = trim(grid_name)//"_"//trim(smth_txt)//"km"
+
   call assign_height (trim (topo_file))
 
   ! Compute topography wavelets
