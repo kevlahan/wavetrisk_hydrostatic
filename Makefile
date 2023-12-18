@@ -27,7 +27,7 @@ $(shell ln -nsf ../test/$(TEST_CASE)/$(TEST_CASE).f90 src/test.f90)
 
 # Make directories
 $(shell mkdir -p $(PREFIX)/$(BUILD_DIR))
-$(shell mkdir -p $(PREFIX)/$(BIN_DIR))
+$(shell mkdir -p $(PREFIX)/$(BIN_DIR))	
 
 vpath %.f90 src
 
@@ -138,6 +138,11 @@ $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
 phys_package:
 	@echo "Compiling Physics Package"
 	@$(MAKE) -C src/physics/simple_physics/phyparam F90=mpif90
+
+topography:
+	@echo "Compiling NCAR topography package"
+	@$(MAKE) -C topo 
+	@$(MAKE) -C topo clean
 
 clean:
 	\rm -f $(BUILD_DIR)/* src/test_case_module.f90 src/test.f90
