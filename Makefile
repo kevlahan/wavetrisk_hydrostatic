@@ -12,6 +12,9 @@ FLAGS_COMP =
 LAPACK     = -llapack  #  link to lapack library
 NETCDF     = -lnetcdff # link to netcdf library
 TOPO       = false     # use NCAR topography
+ifeq ($(TEST_CASE), make_NCAR_topo)
+  TOPO = true
+endif
 PHYSICS    = false     # use simple dry physics
 PREFIX     = .
 

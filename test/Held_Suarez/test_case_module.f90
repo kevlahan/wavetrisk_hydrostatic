@@ -276,7 +276,7 @@ contains
        c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
        cs2 = cos (lat)**2; sn2 = sin (lat)**2
 
-       surf_geopot_case =  c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
+       surf_geopot_case = c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
             + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0))
     end if
   end function surf_geopot_case

@@ -13,8 +13,6 @@ program Held_Suarez
   logical        :: aligned
   character(256) :: input_file
 
-  character(255) :: topo_operation
-
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
