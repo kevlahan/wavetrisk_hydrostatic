@@ -52,7 +52,6 @@ contains
     logical, optional                                    :: type
 
     integer                    :: id_i
-    real(8)                    :: visc
     real(8), dimension(1:EDGE) :: d_e, grad, l_e
     logical                    :: local_type
 
@@ -75,9 +74,9 @@ contains
           l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
           l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
           l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
-          d_e(RT+1) = -dom%len%elts(EDGE*idE+RT+1)
-          d_e(DG+1) = -dom%len%elts(EDGE*idNE+DG+1)
-          d_e(UP+1) = -dom%len%elts(EDGE*idN+UP+1)
+          d_e(RT+1) =  - dom%len%elts(EDGE*idE+RT+1)
+          d_e(DG+1) =  - dom%len%elts(EDGE*idNE+DG+1)
+          d_e(UP+1) =  - dom%len%elts(EDGE*idN+UP+1)
        end if
 
        ! Calculate gradients
@@ -88,11 +87,10 @@ contains
        end if
 
        if (Laplace_order == 0) then
-          visc = 0d0
-       else ! scale aware viscosity
-          visc =  C_visc(v) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init) / dt
-       end if
-       physics_scalar_flux_case = visc * (-1d0)**Laplace_order * grad * l_e
+           physics_scalar_flux_case  = 0d0
+        else
+           physics_scalar_flux_case = (-1d0)**Laplace_order * grad * l_e
+        end if
     end if
   contains
     function grad_physics (scalar)
@@ -100,10 +98,22 @@ contains
       real(8), dimension(1:EDGE) :: grad_physics
       real(8), dimension(:)      :: scalar
 
-      grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
-      grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
-      grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
+      grad_physics(RT+1) = (visc(idE) * scalar(idE+1) - visc(id)   * scalar(id+1))   / d_e(RT+1)
+      grad_physics(DG+1) = (visc(id)  * scalar(id+1)  - visc(idNE) * scalar(idNE+1)) / d_e(DG+1)
+      grad_physics(UP+1) = (visc(idN) * scalar(idN+1) - visc(id)   * scalar(id+1))   / d_e(UP+1)
     end function grad_physics
+
+    real(8) function visc (id)
+      ! Scale aware viscosity
+      implicit none
+      integer :: id
+
+      real(8) :: dx
+      
+      dx = sqrt (2d0/sqrt(3d0) / dom%areas%elts(id+1)%hex_inv)
+      
+      visc = C_visc(v) * dx**(2d0*Laplace_order) / dt
+    end function visc
   end function physics_scalar_flux_case
 
   function physics_velo_source_case (dom, i, j, zlev, offs, dims)
@@ -117,18 +127,16 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: id
-    real(8)                    :: visc
+    integer :: id
     
     id = idx (i, j, offs, dims)
 
     ! Scale aware viscosity
     if (Laplace_order == 0) then
-       visc = 0d0
+       physics_velo_source_case = 0d0
     else
-       visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order) / dt
+       physics_velo_source_case = (-1d0)**(Laplace_order-1) * (5d0 * grad_divu () - curl_rotu ())
     end if
-    physics_velo_source_case =  visc * (-1d0)**(Laplace_order-1) * (5d0 * grad_divu () - curl_rotu ())
   contains
     function grad_divu ()
       implicit none
@@ -140,9 +148,9 @@ contains
       idN  = idx (i,   j+1, offs, dims)
       idNE = idx (i+1, j+1, offs, dims)
 
-      grad_divu(RT+1) = (divu(idE+1) - divu(id+1))  /dom%len%elts(EDGE*id+RT+1)
-      grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1))/dom%len%elts(EDGE*id+DG+1)
-      grad_divu(UP+1) = (divu(idN+1) - divu(id+1))  /dom%len%elts(EDGE*id+UP+1)
+      grad_divu(RT+1) = (visc(idE) * divu(idE+1) - visc(id)   * divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
+      grad_divu(DG+1) = (visc(id)  * divu(id+1)  - visc(idNE) * divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      grad_divu(UP+1) = (visc(idN) * divu(idN+1) - visc(id)   * divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
     end function grad_divu
 
     function curl_rotu ()
@@ -154,10 +162,22 @@ contains
       idS  = idx (i,   j-1, offs, dims)
       idW  = idx (i-1, j,   offs, dims)
 
-      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
-      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
-      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
+      curl_rotu(RT+1) = (visc(id)  * vort(TRIAG*id +LORT+1) - visc(idS) * vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+      curl_rotu(DG+1) = (visc(id)  * vort(TRIAG*id +LORT+1) - visc(id)  * vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+      curl_rotu(UP+1) = (visc(idW) * vort(TRIAG*idW+LORT+1) - visc(id)  * vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
+
+    real(8) function visc (id)
+      ! Scale aware viscosity
+      implicit none
+      integer :: id
+
+      real(8) :: dx
+      
+      dx = sqrt (2d0/sqrt(3d0) / dom%areas%elts(id+1)%hex_inv)
+      
+      visc = C_visc(S_VELO) * dx**(2d0*Laplace_order) / dt
+    end function visc
   end function physics_velo_source_case
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
