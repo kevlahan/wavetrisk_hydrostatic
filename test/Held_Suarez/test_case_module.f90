@@ -85,12 +85,7 @@ contains
        elseif (Laplace_order == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-
-       if (Laplace_order == 0) then
-           physics_scalar_flux_case  = 0d0
-        else
-           physics_scalar_flux_case = (-1d0)**Laplace_order * grad * l_e
-        end if
+       physics_scalar_flux_case = (-1d0)**Laplace_order * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -109,10 +104,13 @@ contains
       integer :: id
 
       real(8) :: dx
-      
-      dx = sqrt (2d0/sqrt(3d0) / dom%areas%elts(id+1)%hex_inv)
-      
-      visc = C_visc(v) * dx**(2d0*Laplace_order) / dt
+
+      if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         dx = sqrt (2d0/sqrt(3d0) / dom%areas%elts(id+1)%hex_inv)
+         visc = C_visc(v) * dx**(2d0*Laplace_order) / dt
+      else
+         visc = 0d0
+      end if
     end function visc
   end function physics_scalar_flux_case
 
@@ -128,7 +126,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    
+
     id = idx (i, j, offs, dims)
 
     ! Scale aware viscosity
@@ -173,10 +171,13 @@ contains
       integer :: id
 
       real(8) :: dx
-      
-      dx = sqrt (2d0/sqrt(3d0) / dom%areas%elts(id+1)%hex_inv)
-      
-      visc = C_visc(S_VELO) * dx**(2d0*Laplace_order) / dt
+
+      if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         dx = sqrt (2d0/sqrt(3d0) / dom%areas%elts(id+1)%hex_inv)
+         visc = C_visc(S_VELO) * dx**(2d0*Laplace_order) / dt
+      else
+         visc = 0d0
+      end if
     end function visc
   end function physics_velo_source_case
 
@@ -189,12 +190,14 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: id, d, k
-    real(8)     :: p, p_s, pot_temp, sigma
+    real(8)     :: k_T, lat, lon, p, p_s, pot_temp, sigma
     type(Coord) :: x_i
     
     d   = dom%id+1
     id  = idx (i, j, offs, dims)
     x_i = dom%node%elts(id+1)
+    
+    call cart2sph (x_i, lon, lat)
 
     ! Surface pressure
     dom%surf_press%elts(id+1) = surf_pressure (d, id+1)
@@ -207,8 +210,8 @@ contains
        ! Potential temperature
        sigma = (p - p_top) / (p_s - p_top)
        sigma_v = (sigma - sigma_0) * MATH_PI/2d0
-       pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
-       !     call cal_theta_eq (p, p_s, lat, theta_equil, k_T)
+       !pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
+       call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
 
        sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
        sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
@@ -271,9 +274,9 @@ contains
     cs2 = cos (lat)**2
 
     if (sigma >= sigma_t) then
-       Tmean = T_0*sigma**(R_d*Gamma_T/grav_accel)
+       Tmean = T_0 * sigma**(R_d*Gamma_T/grav_accel)
     else
-       Tmean = T_0*sigma**(R_d*Gamma_T/grav_accel) + delta_T * (sigma_t - sigma)**5
+       Tmean = T_0 * sigma**(R_d*Gamma_T/grav_accel) + delta_T * (sigma_t - sigma)**5
     end if
 
     set_temp = Tmean + 0.75d0 * sigma*MATH_PI*u_0/R_d * sin(sigma_v) * sqrt(cos(sigma_v)) * &
@@ -282,22 +285,21 @@ contains
   end function set_temp
 
   real(8) function surf_geopot_case (d, id)
-    
     implicit none
     integer :: d, id
     
-    Type(Coord) :: x_i
-    real(8)     :: c1, cs2, lon, lat, sn2
-    
+    real(8) :: c1, cs2, lon, lat, sn2
+
     if (NCAR_topo) then ! add non-zero surface geopotential
-       surf_geopot_case =  grav_accel * topography%data(d)%elts(id)
+       surf_geopot_case = grav_accel * topography%data(d)%elts(id)
     else ! surface geopotential from Jablonowski and Williamson (2006)
        call cart2sph (grid(d)%node%elts(id), lon, lat)
+       
        c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
        cs2 = cos (lat)**2; sn2 = sin (lat)**2
 
        surf_geopot_case = c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
-            + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0))
+            + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0)) 
     end if
   end function surf_geopot_case
 
@@ -323,40 +325,16 @@ contains
 
     real(8) :: rgrc
     real(8) :: lat_c, lon_c, r
+    real(8) :: amp = 0d0 ! amplitude of random noise
    
     ! Zonal velocity component
-    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2 
-
-    ! Add random perturbation to zonal velocity
-    call random_number (r); u = u + r
+    call random_number (r)
+    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2  + amp * 2d0 * (r - 0.5d0) / 2d0
 
     ! Meridional velocity component
-    v = 0d0 
+    call random_number (r)
+    v = amp * 2d0 * (r - 0.5d0) 
   end subroutine vel_fun
-
-  subroutine set_thresholds_case
-    ! Set thresholds dynamically (trend or sol must be known)
-    use lnorms_mod
-    use wavelet_mod
-    implicit none
-    integer                                       :: k
-    real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: threshold_new
-    character(3), parameter                       :: order = "inf"
-
-    if (default_thresholds) then ! Initialize once
-       threshold_new = threshold_def
-    else
-       call cal_lnorm_sol (sol, order)
-       !threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
-       threshold_new = tol*lnorm
-    end if
-
-    if (istep >= 10) then
-       threshold = 0.01*threshold_new + 0.99*threshold
-    else
-       threshold = threshold_new
-    end if
-  end subroutine set_thresholds_case
 
   subroutine initialize_a_b_vert_case
     implicit none
@@ -439,7 +417,7 @@ contains
                0.7301315d0, 0.7897776d0, 0.8443334d0, 0.8923650d0, 0.9325572d0, 0.9637744d0, &
                0.9851122d0, 1d0/)
        else
-          write (6,'(a)') "zlevels choice not supported ... aborting"
+          if (rank == 0) write (6,'(a)') "zlevels choice not supported ... aborting"
           call abort
        end if
        a_vert = a_vert(zlevels+1:1:-1) * p_0
@@ -683,19 +661,51 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
 
-    integer :: k
+    integer      :: k
+    real(8)     :: p, pot_temp, sigma, sigma_v
+    type(Coord) :: x_i 
 
     allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0d0
     allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0d0
 
-    lnorm(S_MASS,:) = dPdim / grav_accel
     do k = 1, zlevels
-       lnorm(S_TEMP,k) = (a_vert_mass(k) + b_vert_mass(k) * Pdim/grav_accel) * dTempdim
+       
+       p        = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_0)
+       sigma    = (p - p_top) / (p_0 - p_top)
+       sigma_v  = (sigma - sigma_0) * MATH_PI/2d0
+       x_i      = Coord (radius, 0d0, 0d0)
+       pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
+       
+       lnorm(S_MASS,k) = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
+       lnorm(S_TEMP,k) = lnorm(S_MASS,k) * pot_temp
     end do
-    lnorm(S_TEMP,:) = lnorm(S_TEMP,:) + Tempdim * lnorm(S_MASS,:) ! Add component due to tendency in mass 
     lnorm(S_VELO,:) = Udim
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds_case
+
+  subroutine set_thresholds_case
+    ! Set thresholds dynamically (trend or sol must be known)
+    use lnorms_mod
+    use wavelet_mod
+    implicit none
+    integer                                       :: k
+    real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: threshold_new
+    character(3), parameter                       :: order = "inf"
+
+    if (default_thresholds) then ! Initialize once
+       threshold_new = threshold_def
+    else
+       call cal_lnorm_sol (sol, order)
+       !threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
+       threshold_new = tol*lnorm
+    end if
+
+    if (istep >= 10) then
+       threshold = 0.01*threshold_new + 0.99*threshold
+    else
+       threshold = threshold_new
+    end if
+  end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
   end subroutine initialize_dt_viscosity_case
@@ -718,16 +728,20 @@ contains
     integer :: d, k, l, p
 
     if (istep /= 0) then
-       do d = 1, size(grid)
-          do p = n_patch_old(d)+1, grid(d)%patch%length
-             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       if (NCAR_topo) then
+          do d = 1, size(grid)
+             do p = n_patch_old(d)+1, grid(d)%patch%length
+                call apply_onescale_to_patch (assign_topo, grid(d), p-1, z_null, -2, 3)
+             end do
           end do
-       end do
+       end if
     else ! need to set values over entire grid on restart
        do l = level_start, level_end
           call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
-   end if
+    end if
+
+    call update_bdry (topography, NONE)
   end subroutine update_case
 
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
@@ -843,6 +857,7 @@ contains
     dmass(id) = 0d0
 
     call cart2sph (dom%node%elts(id), lon, lat)
+    
     call cal_theta_eq (dom%press%elts(id), dom%surf_press%elts(id), lat, theta_equil, k_T)
 
     if (NCAR_topo) then 
@@ -911,8 +926,8 @@ contains
     do d = 1, size(grid)
        grid(d)%surf_press%elts = 0d0
        do k = 1, zlevels
-          mass   => q(S_MASS,k)%data(d)%elts
-          temp   => q(S_TEMP,k)%data(d)%elts
+          mass   =>        q(S_MASS,k)%data(d)%elts
+          temp   =>        q(S_TEMP,k)%data(d)%elts
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
           mean_t => sol_mean(S_TEMP,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
