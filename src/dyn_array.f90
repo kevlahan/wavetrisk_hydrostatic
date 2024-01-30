@@ -12,6 +12,11 @@ module dyn_arrays
      integer                            :: length
   end type Float_Array
 
+  type Topo_Array
+     real(8),     dimension(:), allocatable :: elts
+     type(Coord), dimension(:), allocatable :: node
+  end type Topo_Array
+
   type Coord_Array
      type(Coord), dimension(:), allocatable :: elts
      integer                                :: length

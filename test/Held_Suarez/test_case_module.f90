@@ -103,11 +103,8 @@ contains
       implicit none
       integer :: id
 
-      real(8) :: dx
-
       if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         dx = sqrt (2d0/sqrt(3d0) / dom%areas%elts(id+1)%hex_inv)
-         visc = C_visc(v) * dx**(2d0*Laplace_order) / dt
+         visc = C_visc(v) * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
       else
          visc = 0d0
       end if
@@ -133,7 +130,7 @@ contains
     if (Laplace_order == 0) then
        physics_velo_source_case = 0d0
     else
-       physics_velo_source_case = (-1d0)**(Laplace_order-1) * (5d0 * grad_divu () - curl_rotu ())
+       physics_velo_source_case = (-1d0)**(Laplace_order-1) * (2.5d0 * grad_divu () - curl_rotu ())
     end if
   contains
     function grad_divu ()
@@ -170,19 +167,34 @@ contains
       implicit none
       integer :: id
 
-      real(8) :: dx
-
       if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         dx = sqrt (2d0/sqrt(3d0) / dom%areas%elts(id+1)%hex_inv)
-         visc = C_visc(S_VELO) * dx**(2d0*Laplace_order) / dt
+         visc = C_visc(S_VELO) * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
       else
          visc = 0d0
       end if
     end function visc
   end function physics_velo_source_case
-
+  
   subroutine init_sol (dom, i, j, zlev, offs, dims)
-    ! From Jablonowski and Williamson (2006) without perturbation
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer :: id, d, k
+
+    d  = dom%id+1
+    id = idx (i, j, offs, dims)
+
+    do k = 1, zlevels
+       sol(S_MASS,k)%data(d)%elts(id+1) = 0d0 
+       sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
+       call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
+    end do
+  end subroutine init_sol
+
+  subroutine init_mean (dom, i, j, zlev, offs, dims)
     implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
@@ -204,8 +216,7 @@ contains
     p_s = dom%surf_press%elts(id+1)
 
     do k = 1, zlevels
-       ! Pressure at level k
-       p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s)
+       p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
        
        ! Potential temperature
        sigma = (p - p_top) / (p_s - p_top)
@@ -213,30 +224,9 @@ contains
        !pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
        call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
 
-       sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
-       sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
-       call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
-    end do
-  end subroutine init_sol
-  
-  subroutine init_mean (dom, i, j, zlev, offs, dims)
-    ! From Jablonowski and Williamson (2006) without perturbation
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer :: id, d, k
-
-    d  = dom%id+1
-    id = idx (i, j, offs, dims)
-
-    ! Means are zero
-    do k = 1, zlevels
-       sol_mean(S_MASS,k)%data(d)%elts(id+1)                      = 0d0 
-       sol_mean(S_TEMP,k)%data(d)%elts(id+1)                      = 0d0
-       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+       sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
+       sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
+       sol_mean(S_VELO,k)%data(d)%elts(id+1) = 0d0
     end do
   end subroutine init_mean
 
@@ -325,15 +315,15 @@ contains
 
     real(8) :: rgrc
     real(8) :: lat_c, lon_c, r
-    real(8) :: amp = 0d0 ! amplitude of random noise
+    real(8) :: amp = 1d0 ! amplitude of random noise
    
     ! Zonal velocity component
     call random_number (r)
-    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2  + amp * 2d0 * (r - 0.5d0) / 2d0
+    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2  + amp * 2d0 * (r - 0.5d0)
 
     ! Meridional velocity component
-    call random_number (r)
-    v = amp * 2d0 * (r - 0.5d0) 
+     call random_number (r)
+    v = amp * 2d0 * (r - 0.5d0)
   end subroutine vel_fun
 
   subroutine initialize_a_b_vert_case
@@ -661,20 +651,26 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
 
-    integer      :: k
-    real(8)     :: p, pot_temp, sigma, sigma_v
+    integer     :: k
+    real(8)     :: k_t, p, p_s, pot_temp, sigma, sigma_v
     type(Coord) :: x_i 
 
     allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0d0
     allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0d0
 
+    if (NCAR_topo) then ! use standard atmosphere
+       call std_surf_pres (0d0, p_s)
+    else
+       p_s = p_0
+    end if
+    
     do k = 1, zlevels
-       
        p        = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_0)
        sigma    = (p - p_top) / (p_0 - p_top)
        sigma_v  = (sigma - sigma_0) * MATH_PI/2d0
        x_i      = Coord (radius, 0d0, 0d0)
-       pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
+       !pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
+       call cal_theta_eq (p, p_s, 0d0, pot_temp, k_T)
        
        lnorm(S_MASS,k) = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
        lnorm(S_TEMP,k) = lnorm(S_MASS,k) * pot_temp
@@ -696,8 +692,7 @@ contains
        threshold_new = threshold_def
     else
        call cal_lnorm_sol (sol, order)
-       !threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
-       threshold_new = tol*lnorm
+       threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
     end if
 
     if (istep >= 10) then
@@ -725,23 +720,21 @@ contains
     ! not needed in this test case
     use wavelet_mod
     implicit none
-    integer :: d, k, l, p
-
+    integer :: d, l, p
+   
     if (istep /= 0) then
-       if (NCAR_topo) then
-          do d = 1, size(grid)
-             do p = n_patch_old(d)+1, grid(d)%patch%length
-                call apply_onescale_to_patch (assign_topo, grid(d), p-1, z_null, -2, 3)
-             end do
+       do d = 1, size(grid)
+          do p = n_patch_old(d)+1, grid(d)%patch%length
+             if (NCAR_topo) call apply_onescale_to_patch (assign_topo, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           end do
-       end if
+       end do
     else ! need to set values over entire grid on restart
        do l = level_start, level_end
+          if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end if
-
-    call update_bdry (topography, NONE)
   end subroutine update_case
 
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
@@ -823,7 +816,7 @@ contains
 
     do k = 1, zlevels
        do d = 1, size(grid)
-          mean_m =>  sol_mean(S_MASS,k)%data(d)%elts
+          mean_m =>   sol_mean(S_MASS,k)%data(d)%elts
           mass   =>  q(S_MASS,k)%data(d)%elts
           temp   =>  q(S_TEMP,k)%data(d)%elts
           velo   =>  q(S_VELO,k)%data(d)%elts
@@ -866,10 +859,10 @@ contains
        if (sigma > 0.7d0) then ! no temperature relaxation in lower part of atmosphere
           dtemp(id) = 0d0
        else
-          dtemp(id) = - k_T * (temp(id) - theta_equil * mass(id))          
+          dtemp(id) = - k_T * temp(id)       
        end if
     else
-       dtemp(id) = - k_T * (temp(id) - theta_equil * mass(id))
+       dtemp(id) = - k_T * temp(id)
     end if
   end subroutine trend_scalars
 
@@ -927,13 +920,11 @@ contains
        grid(d)%surf_press%elts = 0d0
        do k = 1, zlevels
           mass   =>        q(S_MASS,k)%data(d)%elts
-          temp   =>        q(S_TEMP,k)%data(d)%elts
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
-          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (column_mass_HS, grid(d), p-1, k, 0, 1)
           end do
-          nullify (mass, mean_m, mean_t, temp)
+          nullify (mass, mean_m)
        end do
        grid(d)%surf_press%elts = grav_accel * grid(d)%surf_press%elts + p_top
 

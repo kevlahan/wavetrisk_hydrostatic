@@ -75,8 +75,11 @@ program make_NCAR_topo
   call assign_height (trim (topo_file))
 
   ! Compute topography wavelets
+  !call forward_scalar_transform (topography, wav_topography)
+  !call inverse_scalar_transform (wav_topography, topography)
+
   call forward_topo_transform (topography, wav_topography)
-  call inverse_topo_transform (wav_topography, topography)
+  !call inverse_topo_transform (wav_topography, topography)
 
   ! Check mass conservation
   fine_mass = integrate_hex (topo, z_null, max_level)

@@ -249,7 +249,7 @@ module shared_mod
 
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type, topo_file
   
-  logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
+  logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu, init_adapt_mean
   logical :: log_iter, log_mass, match_time, mode_split, NCAR_topo, penalize, rebalance, remap, uniform, vert_diffuse
   logical :: sigma_z, soil_mod, tke_closure
 contains
@@ -346,6 +346,7 @@ contains
     compressible        = .true.                            ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true.                            ! use default thresholds (T) or calculate dynamically (F)
     fill                = .false.                           ! fill up grid to level j_fill if true (T)
+    init_adapt_mean     = .false.                           ! adapt initial grid on mean values sol_mean (T) or on sol (F)
     log_iter            = .false.                           ! print residual error in elliptic solver (T)
     log_mass            = .true.                            ! compute minimum mass and mass conservation, relatively expensive (T)
     match_time          = .false.                           ! match time exactly for data saving (T)

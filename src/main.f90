@@ -88,66 +88,85 @@ contains
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
             ------------------------------------------------------'
-
-       if (NCAR_topo) call load_topo
+       if (NCAR_topo) then
+          call load_topo
+          call apply (assign_topo, z_null)
+       end if
        call apply_initial_conditions
        call forward_wavelet_transform (sol, wav_coeff)
 
        do while (level_end < max_level)
           if (rank == 0) write (6,'(A,i2,A,i2)') 'Initial refinement Level ', level_end, ' -> ', level_end+1
-          node_level_start = grid(:)%node%length+1
-          edge_level_start = grid(:)%midpt%length+1
+          
+          node_level_start = grid%node%length+1
+          edge_level_start = grid%midpt%length+1
+          n_patch_old      = grid%patch%length
+          n_node_old       = grid%node%length
 
-          dt_new = cpt_dt ()
+          ! Adapt grid
           call adapt (set_thresholds)
 
-          if (NCAR_topo) call load_topo
-          call apply_initial_conditions
-          call forward_wavelet_transform (sol, wav_coeff)
+          ! Evaluate initical conditions on new grid
+          if (NCAR_topo) call apply (assign_topo, z_null)
+          call apply_initial_conditions         
 
-          ! Check whether there are any active nodes or edges at this scale
-          n_active = 0
-          do k = zmin, zmax
-             do d = 1, size(grid)
-                do v = scalars(1), scalars(2)
-                   wc_s => wav_coeff(v,k)%data(d)%elts
-                   n_active(AT_NODE) = n_active(AT_NODE) &
-                        + count (abs(wc_s(node_level_start(d):grid(d)%node%length)) >= threshold(v,k))
-                   nullify (wc_s)
-                end do
-                wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-                n_active(AT_EDGE) = n_active(AT_EDGE) &
-                     + count (abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= threshold(S_VELO,k))
-                nullify (wc_u)
-             end do
-          end do
-
-          ! Sum results over all ranks
-          n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))          
-          if (rank == 0) write (6,'(A,i2,1x,2(A,i12,1x),/)') &
-               'Level = ', level_end, 'number of active node wavelets = ', n_active(AT_NODE), &
-               'number of active edge wavelets = ', n_active(AT_EDGE)
-          if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit ! No active nodes or edges at this scale
+          ! Count active nodes and edges
+          call count_active
+                
+          if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit ! no further active grid points
        end do
+       
        if (rank == 0) write (6,'(A,/)') &
             '------------------------------------------------- Finished adapting initial grid &
             -------------------------------------------------'
-
-       call adapt (set_thresholds) ; dt_new = cpt_dt ()
        if (rank==0) write (6,'(a,i8,/)') 'Initial number of dof = ', sum (n_active)
-
-       if (NCAR_topo .and. trim (test_case) /= 'make_NCAR_topo') then
-          call load_topo
-          call apply_initial_conditions
-       end if
-
+       
+       call adapt (set_thresholds) ; dt_new = cpt_dt ()
+       if (NCAR_topo) call apply (assign_topo, z_null)
+       call apply_initial_conditions
+       
        if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
     end if
     call barrier
   end subroutine initialize
+  
+  subroutine count_active
+    ! Count number of active node and edge wavelets
+    implicit none
+    integer :: d, k, v
+
+    if (init_adapt_mean) then
+       call forward_wavelet_transform (sol_mean, wav_coeff)
+    else
+       call forward_wavelet_transform (sol, wav_coeff)
+    end if
+
+    n_active = 0
+    do k = zmin, zmax
+       do d = 1, size(grid)
+          do v = scalars(1), scalars(2)
+             wc_s => wav_coeff(v,k)%data(d)%elts
+             n_active(AT_NODE) = n_active(AT_NODE) &
+                  + count (abs(wc_s(node_level_start(d):grid(d)%node%length)) >= threshold(v,k))
+             nullify (wc_s)
+          end do
+          wc_u => wav_coeff(S_VELO,k)%data(d)%elts
+          n_active(AT_EDGE) = n_active(AT_EDGE) &
+               + count (abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= threshold(S_VELO,k))
+          nullify (wc_u)
+       end do
+    end do
+
+    ! Sum results over all ranks
+    n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))
+
+    if (rank == 0) write (6,'(A,i2,1x,2(A,i12,1x),/)') &
+         'Level = ', level_end, 'number of active node wavelets = ', n_active(AT_NODE), &
+         'number of active edge wavelets = ', n_active(AT_EDGE)
+  end subroutine count_active
 
   subroutine record_init_state (init_state)
-     implicit none
+    implicit none
      type(Initial_State), dimension(:), allocatable :: init_state
 
      integer :: d, i, v
@@ -180,7 +199,7 @@ contains
     
     istep       = istep+1
     istep_cumul = istep_cumul+1
-    
+
     dt = dt_new
 
     n_patch_old = grid%patch%length
@@ -197,8 +216,8 @@ contains
     ! Modify time step
     if (aligned .and. match_time) then
        idt = ialign - modulo (itime,ialign)
-       dt = idt/time_mult
-    end if
+        dt = idt / time_mult
+     end if
 
     !  Diffusion
     if (modulo (istep_cumul, n_diffuse) == 0) then
@@ -265,7 +284,6 @@ contains
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
 
-    if (NCAR_topo) call load_topo 
     call update
     
     if (log_mass) call sum_total_mass (.false.)
@@ -347,12 +365,12 @@ contains
     call adapt (set_thresholds, .false.) 
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
-
-    ! Load NCAR topography data (defined on non-adaptive grid from min_level to max_level)
-    if (NCAR_topo) call load_topo 
-
+    
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
+    
+    ! Assign topography
+    if (NCAR_topo) call load_topo
 
     ! Initialize mean values and other test case defined variables
     call update
@@ -361,9 +379,9 @@ contains
     if (log_mass) call sum_total_mass (.true.)
     
     ! Initialize time step and counters
-    dt_new = cpt_dt ()
-    itime = nint (time*time_mult, 8)
-    istep = 0
+    dt_new = dt_init
+    itime  = nint (time*time_mult, 8)
+    istep  = 0
 
     if (rank == 0) then
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
@@ -569,8 +587,9 @@ contains
        ! Measure relative change in mass
        if (compressible) then
           do k = 1, zlevels
-             init_mass = a_vert_mass(k) + b_vert_mass(k)*col_mass
-             min_mass_loc = min (min_mass_loc, sol(S_MASS,k)%data(d)%elts(id_i)/init_mass)
+             init_mass = a_vert_mass(k) + b_vert_mass(k) * col_mass
+             full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+             min_mass_loc = min (min_mass_loc, full_mass/init_mass)
           end do
        else
           z_s = dom%topo%elts(id_i)
@@ -580,6 +599,7 @@ contains
              z = b_vert * z_s ! assumes zero free surface perturbation initial condition
           end if
           dz = z(1:zlevels) - z(0:zlevels-1)
+          
           do k = 1, zlevels
              rho = porous_density (d, id_i, k)
              init_mass = rho * dz(k)
@@ -767,10 +787,18 @@ contains
              deallocate (wav_tke(k)%data(d)%elts)
           end do
        end if
-    end do
 
+       if (NCAR_topo) then
+          do l = min_level, max_level
+             deallocate (topography_data(l,d)%node)
+             deallocate (topography_data(l,d)%elts)
+          end do
+       end if
+    end do
+    
     deallocate (topography%data)
     deallocate (wav_topography%data)
+    if (NCAR_topo) deallocate (topography_data)
 
     deallocate (Laplacian_vector(S_DIVU)%data)
     deallocate (Laplacian_vector(S_ROTU)%data)

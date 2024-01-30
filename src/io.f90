@@ -6,16 +6,16 @@ module io_mod
   use utils_mod
   implicit none
 
-  integer, dimension(2,4)              :: HR_offs
-  data                                    HR_offs /0,0, 1,0, 1,1, 0,1/
+  integer, dimension(2,4)                       :: HR_offs
+  data                                             HR_offs /0,0, 1,0, 1,1, 0,1/
   
-  integer                              :: N_VAR_OUT
-  real(8)                              :: vmin, vmax
-  real(8), dimension(:), allocatable   :: minv, maxv
-  integer                              :: next_fid
-  type(Float_Field)                    :: active_level
-
-  logical                              :: topo_save_wav = .true.
+  integer                                       :: ii, N_VAR_OUT
+  integer, dimension(:,:), allocatable          :: topo_count
+  real(8)                                       :: vmin, vmax
+  real(8), dimension(:), allocatable            :: minv, maxv
+  integer                                       :: next_fid
+  type(Float_Field)                             :: active_level
+  type(Topo_Array),  dimension(:,:), allocatable :: topography_data
 contains
   subroutine init_io_mod
     implicit none
@@ -842,7 +842,7 @@ contains
 
        if (compressible .or. zlevels /= 2) then
           if (compressible) then ! temperature in layer zlev
-             outv(1) = sol(S_TEMP,zlev)%data(d)%elts(id_i) / full_mass * (dom%press%elts(id_i)/p_0)**kappa
+             outv(1) = full_temp / full_mass * (dom%press%elts(id_i)/p_0)**kappa
           else
              outv(1) = ref_density * (1.0_8 - full_temp / full_mass) ! density
           end if
@@ -1378,102 +1378,65 @@ contains
   end subroutine read_scalar
 
   subroutine save_topo
-    ! Save topography data on non-adaptive max_level grid for restart
-    ! (one file per domain)
+    ! Save topography data
+    ! (one file per domain and per level)
     !
     ! !! saves topgraphy data on a non-adaptive grid !!
     !
     implicit none
-    integer                          :: d, ibeg, iend, j, l, p_par, r
-    integer, dimension(1:size(grid)) :: fid_no, fid_gr
-    character(9999)                  :: filename_gr, filename_no
-    character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
+    integer         :: d, d_glo, l
+    character(9999) :: filename, lev
+    character(9999) :: bash_cmd, cmd_archive, cmd_files, command
 
-    ! Compute topography wavelets
-    call update_bdry (wav_topography, NONE)
+    allocate (topo_count(min_level:max_level,1:size(grid))); topo_count = 0
 
-    if (topo_save_wav) then ! wavelet-based
+    ! Save a separate file for each domain and each level
+    do l = min_level, max_level
        do d = 1, size(grid)
-          scalar => topography%data(d)%elts
-          wc_s   => wav_topography%data(d)%elts
-          call apply_interscale_d (Restrict_scalar, grid(d), min_level-1, z_null, 0, 1) ! +1 to include poles
-          nullify (scalar, wc_s)
-       end do
-    end if
-
-    do r = 1, n_process
-#ifdef MPI       
-       if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
-          call MPI_Barrier (MPI_Comm_World, ierror)
-          cycle 
-       end if
-#endif       
-       do d = 1, size(grid)
-          fid_no(d) = 1000000 + glo_id(rank+1,d)
-          fid_gr(d) = 3000000 + glo_id(rank+1,d)
-
-          write (filename_no, '(a,a,i5.5)') trim (topo_file), "_coef.", glo_id(rank+1,d)
-          write (filename_gr, '(a,a,i5.5)') trim (topo_file), "_grid.", glo_id(rank+1,d)
-
-          open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='WRITE', status='REPLACE')
-          open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='WRITE', status='REPLACE')
+          d_glo = glo_id(rank+1,d) + 1 ! global domain 1:N_GLO_DOMAIN
+          
+          write (lev, '(i2.2)') l
+          write (filename, '(a,a,a,a,i5.5)') trim (topo_file), '.', trim(lev), '.', d_glo           
+          open (unit=10, file=trim (filename), form="UNFORMATTED", action='WRITE', status='REPLACE')
+          
+          call apply_onescale_d (write_topo, grid(d), l, z_null, 0, 1)
+          close (10)
        end do
     end do
 
-    do d = 1, size(grid)
-       ! Save type of multiscale topography
-       write (fid_no(d)) topo_save_wav
-       
-       if (topo_save_wav) then
-          ! Write topography at coarsest scale (scaling functions)
-          call apply_to_pole_d (write_scalar_topo, grid(d), min_level-1, z_null, fid_no(d), .true.)
-
-          p_par = 1
-          ibeg = MULT(S_MASS)*grid(d)%patch%elts(p_par+1)%elts_start + 1
-          iend = ibeg + MULT(S_MASS)*PATCH_SIZE**2 - 1
-          write (fid_no(d)) topography%data(d)%elts(ibeg:iend)
-       end if
-
-       ! Write topography wavelets
-       do l = min_level, max_level
-          do j = 1, grid(d)%lev(l)%length
-             p_par = grid(d)%lev(l)%elts(j)
-             ibeg = MULT(S_MASS)*grid(d)%patch%elts(p_par+1)%elts_start + 1
-             iend = ibeg + MULT(S_MASS)*PATCH_SIZE**2 - 1
-             if (topo_save_wav) then
-                write (fid_no(d)) wav_topography%data(d)%elts(ibeg:iend)
-             else
-                write (fid_no(d)) topography%data(d)%elts(ibeg:iend)
-             end if
-          end do
-       end do
-       close (fid_no(d)); close (fid_gr(d))
-    end do
-
-    ! Compress wavelet topography data
-    write (cmd_files,   '(a,a,a)') trim (topo_file), '{_grid,_coef}.', '?????'
-    write (cmd_archive,     '(a)') trim (topo_file)//".tgz"
-    write (6,'(a,a,/)') 'Saving topography file ', trim (cmd_archive)
-    write (command, '(a,a,a,a,a)') 'gtar czf ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
-    write (bash_cmd,    '(a,a,a)') 'bash -c "', trim (command), '"'
+    write (filename, '(a,a)') trim (topo_file), '.count'
+    open (unit=10, file=trim (filename), form="UNFORMATTED", action='WRITE', status='REPLACE')
+    write (10) topo_count
+    close (10)
+    
+    ! Compress topography data
+    write (cmd_files,   '(a,a,a,a,a,a,a)') trim (topo_file), '.', '??', '.', '?????', ' ', trim (filename)
+    write (cmd_archive,         '(a)') trim (topo_file)//".tgz"
+    write (6,             '(/,a,a,/)') 'Saving topography file ', trim (cmd_archive)
+    write (command,     '(a,a,a,a,a)') 'gtar czf ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
+    write (bash_cmd,        '(a,a,a)') 'bash -c "', trim (command), '"'
     call system (trim(bash_cmd))
   end subroutine save_topo
-
-  subroutine write_scalar_topo (dom, p, i, j, zlev, offs, dims, fid)
-    ! For poles
+  
+  subroutine write_topo (dom, i, j, zlev, offs, dims)
+    ! Write out level, coordinates and topography height
     implicit none
     type(Domain)                   :: dom
-    integer                        :: fid, i, j, p, zlev
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id
-    
-    d = dom%id+1
+    integer :: d, id, l
+
+    d  = dom%id+1
     id = idx (i, j, offs, dims) + 1
 
-    write (fid) topography%data(d)%elts(id)
-  end subroutine write_scalar_topo
+    l = dom%level%elts(id) ! level
+
+    write (10) dom%node%elts(id), topography%data(d)%elts(id)
+
+    topo_count(l,d) = topo_count(l,d) + 1
+  end subroutine write_topo
 
   subroutine load_topo
     ! Read topography data from for restart
@@ -1482,24 +1445,23 @@ contains
     ! !! assumes topgraphy data was saved on a non-adaptive grid !!
     !
     implicit none
-    integer                          :: d, ibeg, iend, info, j, l, p_par, r
-    integer, dimension(1:size(grid)) :: fid_no, fid_gr
-    character(9999)                  :: filename_gr, filename_no
-    character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
+    integer         :: d, d_glo, l, r
+    character(9999) :: filename, lev
+    character(9999) :: bash_cmd, cmd_archive, cmd_files, command
 
-    ! Uncompress wavelet topography data
+    ! Uncompress topography data
     if (rank == 0) then
        write (cmd_archive, '(a)') trim (topo_file)//".tgz"
        write (6,'(/,a,a,/)') 'Loading topography file ', trim (cmd_archive)
        write (command, '(a,a)') 'gtar xzf ', trim (cmd_archive)
        write (bash_cmd,    '(a,a,a)') 'bash -c "', trim (command), '"'
-       call system (trim(bash_cmd), info)
-       if (info /= 0) then
-          if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
-          call abort
-       end if
+       call system (trim(bash_cmd))
     end if
     call barrier
+    
+    ! Allocate topo_count matrix for all domains on all ranks 
+    if (allocated (topo_count)) deallocate (topo_count)
+    allocate (topo_count(min_level:max_level,1:N_GLO_DOMAIN))
 
     do r = 1, n_process
 #ifdef MPI
@@ -1508,78 +1470,75 @@ contains
           cycle 
        end if
 #endif
-       do d = 1, size(grid)
-          fid_no(d) = 1000000 + glo_id(rank+1,d)
-          fid_gr(d) = 3000000 + glo_id(rank+1,d)
+       ! Read topography count for all domains
+       write (filename, '(a,a)') trim (topo_file), '.count'
+       open (unit=10, file=trim (filename), form="UNFORMATTED", action='READ', status='OLD')
+       read (10) topo_count
+       close (10)
 
-          write (filename_no, '(a,a,i5.5)') trim (topo_file), "_coef.", glo_id(rank+1,d)
-          write (filename_gr, '(a,a,i5.5)') trim (topo_file), "_grid.", glo_id(rank+1,d)
-
-          open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ', status='OLD')
-          open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ', status='OLD')
-       end do
-    end do
-    
-    do d = 1, size(grid)
-       ! Read type of multiscale topography
-       read (fid_no(d)) topo_save_wav
-       
-       if (topo_save_wav) then
-          ! Read coarsest scale topography data (scaling function)
-          call apply_to_pole_d (read_scalar_topo, grid(d), min_level-1, z_null, fid_no(d), .true.)
-
-          p_par = 1
-          ibeg = MULT(S_MASS)*grid(d)%patch%elts(p_par+1)%elts_start + 1
-          iend = ibeg + MULT(S_MASS)*PATCH_SIZE**2 - 1
-          read (fid_no(d)) topography%data(d)%elts(ibeg:iend)
-       end if
-
-       ! Read topography wavelets
+       ! Allocate topgraphy data structures for domains on this rank     
+       allocate (topography_data(min_level:max_level, 1:size(grid)))
        do l = min_level, max_level
-          do j = 1, grid(d)%lev(l)%length
-             p_par = grid(d)%lev(l)%elts(j)
-             ibeg = MULT(S_MASS)*grid(d)%patch%elts(p_par+1)%elts_start + 1
-             iend = ibeg + MULT(S_MASS)*PATCH_SIZE**2 - 1
-             if (topo_save_wav) then
-                read (fid_no(d)) wav_topography%data(d)%elts(ibeg:iend)
-             else
-                read (fid_no(d)) topography%data(d)%elts(ibeg:iend)
-             end if
+          do d = 1, size(grid)
+             d_glo = glo_id(rank+1,d) + 1
+             allocate (topography_data(l,d)%node(1:topo_count(l,d_glo)))
+             allocate (topography_data(l,d)%elts(1:topo_count(l,d_glo)))
           end do
        end do
-       close (fid_no(d)); close (fid_gr(d))
     end do
-    topography%bdry_uptodate     = .false.
-    wav_topography%bdry_uptodate = .false.
+
+    do l = min_level, max_level
+       do d = 1, size(grid)
+          d_glo = glo_id(rank+1,d) + 1 ! global domain id from local domain id
+          
+          write (lev, '(i2.2)') l
+          write (filename, '(a,a,a,a,i5.5)') trim (topo_file), '.', trim(lev), '.', d_glo
+          open (unit=10, file=trim (filename), form="UNFORMATTED", action='READ', status='OLD')
+
+          do ii = 1, topo_count(l,d)
+             read (10) topography_data(l,d)%node(ii), topography_data(l,d)%elts(ii)
+          end do
+       end do
+    end do
 
     ! Remove temporary files
     call barrier ! do not delete files before everyone has read them
     if (rank == 0) then
-       write (cmd_files, '(a,a,a)') trim (topo_file), '{_grid,_coef}.', '?????'
+       write (cmd_files,   '(a,a,a,a,a,a,a,a)') trim (topo_file), '.', '??', '.', '?????', ' ', trim (topo_file)//'.count'
        write (command,     '(a,a)') '\rm ', trim (cmd_files)
        write (bash_cmd,  '(a,a,a)') 'bash -c "', trim (command), '"' 
        call system (trim(bash_cmd))
     end if
-    
-    ! Inverse wavelet transform to reconstruct topography data on all levels
-    if (topo_save_wav) call inverse_scalar_transform (wav_topography, topography, jmin_in=level_start-1)
-    call update_bdry (topography, NONE)
   end subroutine load_topo
 
-  subroutine read_scalar_topo (dom, p, i, j, zlev, offs, dims, fid)
-    ! For poles
+  subroutine assign_topo (dom, i, j, zlev, offs, dims)
+    ! Assign topography data to topography structure for simulation
     implicit none
     type(Domain)                   :: dom
-    integer                        :: fid, i, j, p, zlev
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer :: d, id
+
+    integer :: d, id, ii, jj, l, n_topo
+    real(8), dimension(:), allocatable :: topo_loc
 
     d  = dom%id+1
     id = idx (i, j, offs, dims) + 1
+    l  = dom%level%elts(id)
+    !l = active_level%data(d)%elts(id)
 
-    read (fid) topography%data(d)%elts(id)
-  end subroutine read_scalar_topo
+    n_topo = size (topography_data(l,d)%node)
+    allocate (topo_loc(1:n_topo))
+
+    do ii = 1, n_topo
+       topo_loc(ii) = dist (dom%node%elts(id), topography_data(l,d)%node(ii))
+    end do
+
+    jj = minloc (topo_loc, 1)
+    topography%data(d)%elts(id) = topography_data(l,d)%elts(jj)
+
+    deallocate (topo_loc)
+  end subroutine assign_topo
 
   subroutine proj_xz_plane (cin, cout)
     implicit none
