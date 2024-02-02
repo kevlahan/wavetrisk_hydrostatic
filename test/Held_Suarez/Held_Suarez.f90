@@ -26,7 +26,7 @@ program Held_Suarez
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Standard (shared) parameter values for the simulation
   radius         = 6371d0    * KM                   ! mean radius of the Earth
-  grav_accel     = 9.80616d0 * METRE/SECOND**2      ! gravitational acceleration 
+  grav_accel     = 9.8d0     * METRE/SECOND**2      ! gravitational acceleration 
   omega          = 7.292d-5  * RAD/SECOND           ! Earth's angular velocity in radians per second
   ! Reference pressure (mean surface pressure) in Pascals
   if (NCAR_topo) then
@@ -44,11 +44,11 @@ program Held_Suarez
   T_0            = 300d0      * KELVIN              ! reference temperature
   T_mean         = 315d0      * KELVIN              ! mean temperature
   T_tropo        = 200d0      * KELVIN              ! tropopause temperature
-  k_a            = 1d0/40d0 / DAY                   ! cooling at free surface of atmosphere
-  k_f            = 1d0      / DAY                   ! Rayleigh friction
-  k_s            = 1d0/4d0  / DAY                   ! cooling at surface
-  delta_T        = 60       * KELVIN/METRE          ! meridional temperature gradient
-  delta_theta    = 10       * KELVIN/METRE          ! vertical temperature gradient
+  k_a            = 1d0/40d0   / DAY                 ! cooling at free surface of atmosphere
+  k_f            = 1d0        / DAY                 ! Rayleigh friction
+  k_s            = 1d0/4d0    / DAY                 ! cooling at surface
+  delta_T        = 65d0       * KELVIN/METRE        ! meridional temperature gradient
+  delta_theta    = 10d0       * KELVIN/METRE        ! vertical temperature gradient
 
   sigma_b        = 0.7d0                            ! normalized tropopause pressure height
   sigma_c        = 1d0 - sigma_b
@@ -82,13 +82,13 @@ program Held_Suarez
   
   cfl_min            = 1d-1                         ! minimum cfl number
   cfl_max            = 1d0                          ! maximum cfl number
-  T_cfl              = 2d0 * DAY                    ! time over which to increase cfl number from cfl_min to cfl_max
+  T_cfl              = 1d0 * DAY                    ! time over which to increase cfl number from cfl_min to cfl_max
   cfl_num            = cfl_min                      ! initialize cfl number
   dt_init            = cfl_num * dx_min / (wave_speed + Udim) * 0.85d0 ! corrected for dynamic value
   adapt_dt           = .true.
 
   timeint_type       = "RK4"
-  iremap             = 5
+  iremap             = 4
 
   default_thresholds = .true.
   compressible       = .true.
@@ -98,11 +98,12 @@ program Held_Suarez
   ! Diffusion parameters
   Laplace_order_init = 2                            ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
   C_visc(S_VELO)     = 1d-3                         ! dimensionless viscosity of S_VELO (rotu, divu)
-  C_visc(S_TEMP)     = 1d-3                         ! dimensionless viscosity of S_MASS
-  C_visc(S_MASS)     = 1d-3                         ! dimensionless viscosity of S_TEMP
+  C_visc(S_TEMP)     = 2d-3                         ! dimensionless viscosity of S_MASS
+  C_visc(S_MASS)     = 2d-3                         ! dimensionless viscosity of S_TEMP
 
   ! Adapt on mean variables (fluctuations are initially zero)
   init_adapt_mean    = .false.
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize functions
@@ -122,12 +123,11 @@ program Held_Suarez
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0d0; time_start = time
 
-  tol = 1d-16
   do while (time < time_end)
      cfl_num = cfl (time) ! gradually increase cfl number
      call start_timing
      call time_step (dt_write, aligned)
-     if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
+     !if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
      call euler (sol, wav_coeff, trend_cooling, dt)
      call stop_timing
 

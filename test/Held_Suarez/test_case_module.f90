@@ -183,14 +183,18 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-
+    
     d  = dom%id+1
     id = idx (i, j, offs, dims)
 
     do k = 1, zlevels
        sol(S_MASS,k)%data(d)%elts(id+1) = 0d0 
        sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
-       call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
+       if (NCAR_topo) then
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+       else
+          call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
+       end if
     end do
   end subroutine init_sol
 
@@ -226,7 +230,7 @@ contains
 
        sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
        sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
-       sol_mean(S_VELO,k)%data(d)%elts(id+1) = 0d0
+       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
   end subroutine init_mean
 
@@ -264,12 +268,12 @@ contains
     cs2 = cos (lat)**2
 
     if (sigma >= sigma_t) then
-       Tmean = T_0 * sigma**(R_d*Gamma_T/grav_accel)
+       Tmean = T_0 * sigma**(R_d * Gamma_T / grav_accel)
     else
-       Tmean = T_0 * sigma**(R_d*Gamma_T/grav_accel) + delta_T * (sigma_t - sigma)**5
+       Tmean = T_0 * sigma**(R_d * Gamma_T / grav_accel) + delta_T * (sigma_t - sigma)**5
     end if
 
-    set_temp = Tmean + 0.75d0 * sigma*MATH_PI*u_0/R_d * sin(sigma_v) * sqrt(cos(sigma_v)) * &
+    set_temp = Tmean + 0.75d0 * sigma * MATH_PI * u_0 / R_d * sin(sigma_v) * sqrt(cos(sigma_v)) * &
          (2d0*u_0*cos(sigma_v)**1.5 * (-2d0*sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
          + radius * omega * (8d0/5d0*cs2**1.5 * (sn2+2/3d0) - MATH_PI/4d0))
   end function set_temp
@@ -289,7 +293,8 @@ contains
        cs2 = cos (lat)**2; sn2 = sin (lat)**2
 
        surf_geopot_case = c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
-            + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0)) 
+            + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0)) &
+            + grav_accel * topography%data(d)%elts(id)
     end if
   end function surf_geopot_case
 
@@ -301,7 +306,7 @@ contains
     real(8) :: z_s
 
     if (NCAR_topo) then ! use standard atmosphere
-       z_s = topography%data(d)%elts(id)
+       z_s = surf_geopot_case (d, id) / grav_accel
        call std_surf_pres (z_s, surf_pressure)
     else
        surf_pressure = p_0
@@ -319,7 +324,7 @@ contains
    
     ! Zonal velocity component
     call random_number (r)
-    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2  + amp * 2d0 * (r - 0.5d0)
+    u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2  + amp * 2d0 * (r - 0.5d0)
 
     ! Meridional velocity component
      call random_number (r)
@@ -882,7 +887,6 @@ contains
 
     sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
     k_v = k_f * max (0d0, (sigma - sigma_b) / sigma_c)
-
     dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - k_v * velo(EDGE*id+RT+1:EDGE*id+UP+1)
   end subroutine trend_velo
 
