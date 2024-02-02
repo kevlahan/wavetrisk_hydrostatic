@@ -321,13 +321,13 @@ contains
     real(8) :: rgrc
     real(8) :: lat_c, lon_c, r
     real(8) :: amp = 1d0 ! amplitude of random noise
-   
+
     ! Zonal velocity component
     call random_number (r)
-    u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2  + amp * 2d0 * (r - 0.5d0)
+    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2  + amp * 2d0 * (r - 0.5d0)
 
     ! Meridional velocity component
-     call random_number (r)
+    call random_number (r)
     v = amp * 2d0 * (r - 0.5d0)
   end subroutine vel_fun
 
