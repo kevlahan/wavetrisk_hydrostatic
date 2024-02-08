@@ -75,8 +75,17 @@ program flat_projection_data
      gamma          = c_p/c_v                     ! heat capacity ratio
      kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
 
-     u_0            = 35.0_8                      ! maximum velocity of zonal wind
-     eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
+     T_0            = 300d0      * KELVIN              ! reference temperature
+     T_mean         = 315d0      * KELVIN              ! mean temperature
+     T_tropo        = 200d0      * KELVIN              ! tropopause temperature
+     k_a            = 1d0/40d0   / DAY                 ! cooling at free surface of atmosphere
+     k_f            = 1d0        / DAY                 ! Rayleigh friction
+     k_s            = 1d0/4d0    / DAY                 ! cooling at surface
+     delta_T        = 65d0       * KELVIN/METRE        ! meridional temperature gradient
+     delta_theta    = 10d0       * KELVIN/METRE        ! vertical temperature gradient
+
+     sigma_b        = 0.7d0                            ! normalized tropopause pressure height
+     sigma_c        = 1d0 - sigma_b
   case ("drake")
      scale          = 6                                  ! scale factor for small planet (1/6 Earth radius)
      radius         = 6371.229/scale   * KM              ! mean radius of the small planet
@@ -653,7 +662,7 @@ contains
        ! Zonal velocity
        call project_array_onto_plane ("u_zonal", level_save, 0d0)
        field(:,:,2+k-1) = field2d
-       
+
        ! Meridional velocity
        call project_array_onto_plane ("v_merid", level_save, 0d0)
        field(:,:,3+k-1) = field2d
@@ -673,7 +682,7 @@ contains
        end do
        call project_array_onto_plane ("press_lower", level_save, 1d0)
        field(:,:,5+k-1) = field2d
-       
+
        ! Surface pressure
        call project_array_onto_plane ("surf_press", level_save, 1d0)
        field(:,:,6+k-1) = field2d
@@ -681,7 +690,7 @@ contains
        ! Project vertical velocity
        call project_field_onto_plane (trend(S_TEMP,k), level_save, 0d0)
        field(:,:,7+k-1) = field2d
-       
+
        ! Save climatology for simple Physics
        if (trim(test_case)=="Simple_Physics" .and. climatology) then
          ! update the boundarys

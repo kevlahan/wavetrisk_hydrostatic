@@ -206,7 +206,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer     :: id, d, k
-    real(8)     :: k_T, lat, lon, p, p_s, pot_temp, sigma
+    real(8)     :: k_T, lat, lon, p, p_s, pot_temp
     type(Coord) :: x_i
     
     d   = dom%id+1
@@ -223,9 +223,6 @@ contains
        p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
        
        ! Potential temperature
-       sigma = (p - p_top) / (p_s - p_top)
-       sigma_v = (sigma - sigma_0) * MATH_PI/2d0
-       !pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
        call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
 
        sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel

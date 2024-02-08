@@ -5,6 +5,8 @@ module test_case_mod
   use init_mod
   use equation_of_state_mod
   use ops_mod
+  use std_atm_profile_mod
+  use io_mod
   implicit none
   integer :: mean_beg, mean_end, cp_2d, N
   real(8) :: npts_penal, ref_surf_press, scale
@@ -31,6 +33,10 @@ module test_case_mod
   ! Simple Physics
   logical :: climatology
   type(Float_Field), dimension(:), allocatable, target :: simple_phys_temp, simple_phys_zonal, simple_phys_merid, simple_phys_vels
+  ! Held Suarez
+  real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_mean, T_tropo
+  real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T
+  real(8) :: cfl_max, cfl_min, T_cfl
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -101,9 +107,18 @@ contains
 
        surf_geopot_case = grav_accel*h_0*exp__flush (-rgrc**2/d2)
     elseif (trim (test_case) == "Held_Suarez") then
-       c1 = u_0*cos((1.0_8-eta_0)*MATH_PI/2)**1.5
-       surf_geopot_case = c1*(c1*(-2*sn2**3*(cs2 + 1/3.0_8) + 10/63.0_8) &
-            + radius*omega*(8/5.0_8*cs2**1.5*(sn2 + 2/3.0_8) - MATH_PI/4))
+       if (NCAR_topo) then ! add non-zero surface geopotential
+          surf_geopot_case = grav_accel * topography%data(d)%elts(id)
+       else ! surface geopotential from Jablonowski and Williamson (2006)
+          call cart2sph (grid(d)%node%elts(id), lon, lat)
+
+          c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
+          cs2 = cos (lat)**2; sn2 = sin (lat)**2
+
+          surf_geopot_case = c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
+               + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0)) &
+               + grav_accel * topography%data(d)%elts(id)
+       end if
     elseif (trim (test_case) == "seamount") then
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
        surf_geopot_case = grav_accel*h0 * exp__flush (-(rgrc/width)**2)
@@ -566,8 +581,13 @@ contains
   end subroutine apply_initial_conditions_case
 
   subroutine update_case
-    ! dummy routine
-
+    implicit none
+    integer :: l
+    
+    do l = level_start, level_end
+       if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    end do
   end subroutine update_case
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
@@ -589,7 +609,8 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, k
-    real (8)                      :: eta, rho, z_s
+    real(8)                       :: eta, rho, z_s
+    real(8)                       :: k_T, lat, lon, p, p_s, pot_temp
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
     type(Coord)                   :: x_i
@@ -642,10 +663,59 @@ contains
              sol_mean(S_MASS,k)%data(d)%elts(id_i) = rho * dz(k)
              sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
           end if
-          sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8
+          sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8   
+       elseif (trim (test_case) == "Held_Suarez") then
+          call cart2sph (x_i, lon, lat)
+
+          dom%surf_press%elts(id+1) = surf_pressure (d, id+1)
+          p_s = dom%surf_press%elts(id+1)
+
+          p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
+
+          call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
+
+          sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
+          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
+          sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
        end if
     end do
   end subroutine init_mean
+
+  subroutine cal_theta_eq (p, p_s, lat, theta_equil, k_T)
+    ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
+    use domain_mod
+    implicit none
+    real(8) :: p, p_s, lat, theta_equil, k_T
+
+    real(8) :: cs2, sigma, theta_force, theta_tropo
+
+    cs2 = cos (lat)**2
+
+    sigma = (p - p_top) / (p_s - p_top)
+
+    k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
+
+    theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
+
+    theta_force = T_mean - delta_T * (1d0 - cs2) - delta_theta * cs2 * log (p / p_0)
+
+    theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
+  end subroutine cal_theta_eq
+
+  real(8) function surf_pressure (d, id) 
+    ! Surface pressure
+    implicit none
+    integer :: d, id
+
+    real(8) :: z_s
+
+    if (NCAR_topo) then ! use standard atmosphere
+       z_s = surf_geopot_case (d, id) / grav_accel
+       call std_surf_pres (z_s, surf_pressure)
+    else
+       surf_pressure = p_0
+    end if
+  end function surf_pressure
 
   real(8) function buoy_flat (eta, z_s, zlev)
     ! Buoyancy profile
