@@ -138,10 +138,12 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
+    real(8) :: full_mass
 
     id = idx (i, j, offs, dims)
-    
-    pot_energy = sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)**2
+
+    full_mass = sol_mean(S_MASS,zlev)%data(dom%id+1)%elts(id+1) + sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
+    pot_energy = full_mass**2
   end function pot_energy
 
   real(8) function total_ke (itype)
@@ -508,27 +510,36 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, d, k
+    integer                       :: id, d, k
+    real(8)                       :: full_mass, full_mass_lower, full_temp
     real(8), dimension(1:zlevels) :: p
 
     d = dom%id + 1
-    id = idx(i, j, offs, dims)
+    id = idx(i, j, offs, dims) + 1
 
     ! Integrate the pressure upwards
-    p(1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
+    full_mass = sol_mean(S_MASS,1)%data(d)%elts(id) + sol(S_MASS,1)%data(d)%elts(id)
+    p(1) = dom%surf_press%elts(id) - 0.5d0 * grav_accel * full_mass
     do k = 2, zlevels
-       p(k) = p(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k-1)%data(d)%elts(id+1))
+       full_mass_lower = full_mass
+       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
+       p(k) = p(k-1) - grav_accel * interp (full_mass, full_mass_lower)
     end do
 
     ! Temperature at all vertical levels (saved in exner_fun)
     do k = 1, zlevels
-       exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) * (p(k)/p_0)**kappa
+       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
+       full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol(S_TEMP,k)%data(d)%elts(id)
+       
+       exner_fun(k)%data(d)%elts(id) = full_temp / full_mass * (p(k)/p_0)**kappa
     end do
 
-    ! temperature at save levels (saved in trend)
+    ! Temperature at save levels (saved in trend)
     do k = 1, save_levels
-       trend(1,k)%data(d)%elts(id+1) = sol_save(S_TEMP,k)%data(d)%elts(id+1)/sol_save(S_MASS,k)%data(d)%elts(id+1) * &
-            (pressure_save(k)/p_0)**kappa
+       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol_save(S_MASS,k)%data(d)%elts(id)
+       full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol_save(S_TEMP,k)%data(d)%elts(id)
+       
+       trend(1,k)%data(d)%elts(id+1) = full_temp / full_mass * (pressure_save(k) / p_0)**kappa
     end do
   end subroutine cal_temp
 
@@ -542,14 +553,17 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: pressure_lower, pressure_upper
+    real(8) :: full_mass, pressure_lower, pressure_upper
 
     d = dom%id + 1
     id = idx(i, j, offs, dims) + 1
 
     ! Integrate geopotential upwards from surface
+    full_mass = sol_mean(S_MASS,1)%data(d)%elts(id) + sol(S_MASS,1)%data(d)%elts(id)
+
     pressure_lower = dom%surf_press%elts(id)
-    pressure_upper = pressure_lower - grav_accel*sol(S_MASS,1)%data(d)%elts(id)
+    pressure_upper = pressure_lower - grav_accel * full_mass
+    
     dom%geopot_lower%elts(id) = surf_geopot (d, id) / grav_accel
 
     k = 1
@@ -558,13 +572,15 @@ contains
             R_d/grav_accel * exner_fun(k)%data(d)%elts(id) * (log(pressure_lower)-log(pressure_upper))
 
        k = k+1
+       full_mass = sol_mean(S_MASS,k+1)%data(d)%elts(id) + sol(S_MASS,k+1)%data(d)%elts(id)
+
        pressure_lower = pressure_upper
-       pressure_upper = pressure_lower - grav_accel*sol(S_MASS,k+1)%data(d)%elts(id)
+       pressure_upper = pressure_lower - grav_accel * full_mass
     end do
 
     ! Add additional contribution up to pressure level pressure_save(1)
     dom%geopot_lower%elts(id) = dom%geopot_lower%elts(id) &
-         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id) * (log(pressure_lower)-log(pressure_save(1)))
+         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id) * (log(pressure_lower) - log(pressure_save(1)))
   end subroutine cal_geopot
 
   subroutine statistics
@@ -932,7 +948,8 @@ contains
           outv(7) = dom%ke%elts(id_i)
 
           ! Baroclinic eta
-          outv(8) = sol(S_MASS,1)%data(d)%elts(id_i) / (ref_density * phi_node (d, id_i, zlev))
+          full_mass = sol_mean(S_MASS,1)%data(d)%elts(id_i) + sol(S_MASS,1)%data(d)%elts(id_i)
+          outv(8) = full_mass / (ref_density * phi_node (d, id_i, zlev))
 
           ! Free surface perturbation (barotropic eta)
           if (mode_split) then 
