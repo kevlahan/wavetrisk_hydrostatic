@@ -379,7 +379,7 @@ contains
     if (log_mass) call sum_total_mass (.true.)
     
     ! Initialize time step and counters
-    dt_new = dt_init
+    dt_new = min (dt_init, cpt_dt ())
     itime  = nint (time*time_mult, 8)
     istep  = 0
 
