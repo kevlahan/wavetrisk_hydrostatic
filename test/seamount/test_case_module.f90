@@ -306,7 +306,7 @@ contains
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
-    call cal_lnorm_sol (sol, "inf")
+    call cal_lnorm (sol, "inf")
     maxv = 100 * maxval (lnorm(S_VELO,:))
 
     if (rank == 0) then

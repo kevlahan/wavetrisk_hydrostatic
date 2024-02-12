@@ -278,7 +278,7 @@ contains
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
     else
-       call cal_lnorm_sol (sol, order)
+       call cal_lnorm (sol, order)
        threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
        threshold_new = tol*lnorm
     end if
