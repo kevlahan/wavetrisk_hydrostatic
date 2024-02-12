@@ -57,15 +57,13 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id, v
-
+    
     d = dom%id+1
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = scalars(1), scalars(2)
-          lnorm(v,zlev) = lnorm(v,zlev) + abs (scaling(v,zlev)%data(d)%elts(id+1))
-       end do
-    endif
+    do v = scalars(1), scalars(2)
+       lnorm(v,zlev) = lnorm(v,zlev) + abs (scaling(v,zlev)%data(d)%elts(id+1))
+    end do
   end subroutine l1_scalar
 
   subroutine l1_velo (dom, i, j, zlev, offs, dims)
@@ -79,12 +77,10 @@ contains
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
-
+    
     do e = 1, EDGE
        id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) >= ADJZONE) then
-          lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + abs (scaling(S_VELO,zlev)%data(d)%elts(id_e))
-       end if
+       lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + abs (scaling(S_VELO,zlev)%data(d)%elts(id_e))
     end do
   end subroutine l1_velo
 
@@ -100,11 +96,9 @@ contains
     d = dom%id+1
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = scalars(1), scalars(2)
-          lnorm(v,zlev) = lnorm(v,zlev) + scaling(v,zlev)%data(d)%elts(id+1)**2
-       end do
-    end if
+    do v = scalars(1), scalars(2)
+       lnorm(v,zlev) = lnorm(v,zlev) + scaling(v,zlev)%data(d)%elts(id+1)**2
+    end do
   end subroutine l2_scalar
 
   subroutine l2_velo (dom, i, j, zlev, offs, dims)
@@ -121,9 +115,7 @@ contains
 
     do e = 1, EDGE
        id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) >= ADJZONE) then
-          lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + scaling(S_VELO,zlev)%data(d)%elts(id_e)**2
-       end if
+       lnorm(S_VELO,zlev) = lnorm(S_VELO,zlev) + scaling(S_VELO,zlev)%data(d)%elts(id_e)**2
     end do
   end subroutine l2_velo
 
@@ -139,11 +131,9 @@ contains
     d = dom%id+1
     id = idx(i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       do v = scalars(1), scalars(2)
-          lnorm(v,zlev) = max (lnorm(v,zlev), abs (scaling(v,zlev)%data(d)%elts(id+1)))
-       end do
-    end if
+    do v = scalars(1), scalars(2)
+       lnorm(v,zlev) = max (lnorm(v,zlev), abs (scaling(v,zlev)%data(d)%elts(id+1)))
+    end do
   end subroutine linf_scalar
 
   subroutine linf_velo (dom, i, j, zlev, offs, dims)
@@ -157,12 +147,10 @@ contains
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
-
+    
     do e = 1, EDGE
        id_e = EDGE*id+e
-       if (dom%mask_e%elts(id_e) >= ADJZONE) then
-          lnorm(S_VELO,zlev) = max (lnorm(S_VELO,zlev), abs (scaling(S_VELO,zlev)%data(d)%elts(id_e)))
-       end if
+       lnorm(S_VELO,zlev) = max (lnorm(S_VELO,zlev), abs (scaling(S_VELO,zlev)%data(d)%elts(id_e)))
     end do
   end subroutine linf_velo
 end module lnorms_mod
