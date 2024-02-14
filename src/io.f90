@@ -837,7 +837,7 @@ contains
 
     integer :: idE, idN, idNE
     real(8) :: dz0, dze, r_max
-
+    
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
@@ -1131,7 +1131,7 @@ contains
     end do
 
     do d = 1, size(grid)
-       write (fid_no(d)) istep
+       write (fid_no(d)) istep_cumul
        write (fid_no(d)) time
        call dump (fid_no(d))
 
@@ -1281,7 +1281,7 @@ contains
     
     ! Load coarsest scale solution (scaling functions)
     do d = 1, size(grid)
-       read (fid_no(d)) istep
+       read (fid_no(d)) istep_cumul
        read (fid_no(d)) time
        call load (fid_no(d))
 
@@ -1542,7 +1542,6 @@ contains
     d  = dom%id+1
     id = idx (i, j, offs, dims) + 1
     l  = dom%level%elts(id)
-    !l = active_level%data(d)%elts(id)
 
     n_topo = size (topography_data(l,d)%node)
     allocate (topo_loc(1:n_topo))
@@ -1553,6 +1552,8 @@ contains
 
     jj = minloc (topo_loc, 1)
     topography%data(d)%elts(id) = topography_data(l,d)%elts(jj)
+
+    if (topography%data(d)%elts(id) < 1d1) topography%data(d)%elts(id) = 0d0
 
     deallocate (topo_loc)
   end subroutine assign_topo

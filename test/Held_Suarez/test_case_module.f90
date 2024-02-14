@@ -651,57 +651,35 @@ contains
 
   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
+    use lnorms_mod
     implicit none
-
-    integer     :: k
-    real(8)     :: k_t, p, p_s, pot_temp, sigma, sigma_v
-    type(Coord) :: x_i 
+    character(3), parameter :: order = "inf"
 
     allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0d0
     allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0d0
 
-    if (NCAR_topo) then ! use standard atmosphere
-       call std_surf_pres (0d0, p_s)
-    else
-       p_s = p_0
-    end if
-    
-    do k = 1, zlevels
-       p        = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_0)
-       sigma    = (p - p_top) / (p_0 - p_top)
-       sigma_v  = (sigma - sigma_0) * MATH_PI/2d0
-       x_i      = Coord (radius, 0d0, 0d0)
-       !pot_temp = set_temp (x_i, sigma) * (p/p_0)**(-kappa)
-       call cal_theta_eq (p, p_s, 0d0, pot_temp, k_T)
-       
-       lnorm(S_MASS,k) = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
-       lnorm(S_TEMP,k) = lnorm(S_MASS,k) * pot_temp
-    end do
+    call cal_lnorm (sol_mean, order)
     lnorm(S_VELO,:) = Udim
+    
     threshold_def = tol * lnorm
   end subroutine initialize_thresholds_case
 
   subroutine set_thresholds_case
     ! Set thresholds dynamically (trend or sol must be known)
     use lnorms_mod
-    use wavelet_mod
     implicit none
-    integer                                       :: k
-    real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: threshold_new
+    real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: lnorm_mean
     character(3), parameter                       :: order = "inf"
 
-    if (default_thresholds) then ! Initialize once
-       threshold_new = threshold_def
-    else
-       call cal_lnorm_sol (sol, order)
-       threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
+    call cal_lnorm (sol_mean, order)
+    lnorm(S_VELO,:) = Udim
+    
+    if (.not. default_thresholds) then
+       lnorm_mean = lnorm
+       call cal_lnorm (sol, order); lnorm = lnorm + lnorm_mean
     end if
-
-    if (istep >= 10) then
-       threshold = 0.01*threshold_new + 0.99*threshold
-    else
-       threshold = threshold_new
-    end if
+    
+    threshold = tol * lnorm 
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
@@ -723,7 +701,7 @@ contains
     use wavelet_mod
     implicit none
     integer :: d, l, p
-   
+
     if (istep /= 0) then
        do d = 1, size(grid)
           do p = n_patch_old(d)+1, grid(d)%patch%length

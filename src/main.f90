@@ -277,15 +277,16 @@ contains
     if (log_mass) min_mass = cpt_min_mass ()
     
     ! Adapt grid
-    if (vert_diffuse .or. (remap .and. modulo (istep, iremap) == 0)) &
-         call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
-    if (zmin < 1) &
-         call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1)
-    call adapt (set_thresholds)
-    call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
+    if (iadapt > 0 .and. modulo (istep, iadapt) == 0) then
+       if (vert_diffuse .or. (remap .and. modulo (istep, iremap) == 0)) &
+            call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
+       if (zmin < 1) &
+            call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1)
+       call adapt (set_thresholds)
+       call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
+       call update
+    end if
 
-    call update
-    
     if (log_mass) call sum_total_mass (.false.)
 
     itime = itime + idt
@@ -297,7 +298,7 @@ contains
     end if
     
     ! Set new time step and count active nodes
-    if (modulo (istep, iadapt) == 0) dt_new = cpt_dt ()
+    if (adapt_dt) dt_new = cpt_dt ()
 
     ! Check load balance
 #ifdef AMPI
@@ -326,7 +327,7 @@ contains
        write (6,'(A,/)') &
             '********************************************************* Begin Restart &
             **********************************************************'
-       write (6,'(A,i4,/)') 'Reloading from checkpoint ', cp_idx
+       write (6,'(A,i4,/)') 'Restarting from checkpoint ', cp_idx
     end if
 
     ! Deallocate all dynamic arrays and variables
@@ -360,6 +361,10 @@ contains
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, run_id)
 
+    ! Initialize time step counters
+    itime = nint (time * time_mult, 8)
+    istep = 0
+
     ! Compute masks based on active wavelets
     ! (do not re-calculate thresholds)
     call adapt (set_thresholds, .false.) 
@@ -375,20 +380,21 @@ contains
     ! Initialize mean values and other test case defined variables
     call update
 
+    ! Adapt grid to tolerance for this run
+    call adapt (set_thresholds, .true.) 
+
     ! Initialize total mass value
     if (log_mass) call sum_total_mass (.true.)
     
-    ! Initialize time step and counters
+    ! Initialize time step
     dt_new = min (dt_init, cpt_dt ())
-    itime  = nint (time*time_mult, 8)
-    istep  = 0
 
     if (rank == 0) then
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
             'time [d] = ', time/DAY, &
             '  mass threshold = ', sum (threshold(S_MASS,:))/size(threshold,2), &
-            ' temp threshold = ', sum (threshold(S_TEMP,:))/size(threshold,2), &
-            ' velo threshold = ', sum (threshold(S_VELO,:))/size(threshold,2), &
+             ' temp threshold = ', sum (threshold(S_TEMP,:))/size(threshold,2), &
+             ' velo threshold = ', sum (threshold(S_VELO,:))/size(threshold,2), &
             ' Jmax = ', level_end, &
             '  dof = ', sum (n_active)
        write (6,'(A)') &
