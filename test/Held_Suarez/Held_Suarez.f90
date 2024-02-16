@@ -80,7 +80,7 @@ program Held_Suarez
   dx_min             = sqrt (4d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (20d0 * 4d0**max_level))              
   dx_max             = sqrt (4d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (20d0 * 4d0**min_level))
   
-  cfl_min            = 1d-1                         ! minimum cfl number
+  cfl_min            = 1d0                          ! minimum cfl number
   cfl_max            = 1d0                          ! maximum cfl number
   T_cfl              = 1d0 * DAY                    ! time over which to increase cfl number from cfl_min to cfl_max
   cfl_num            = cfl_min                      ! initialize cfl number
@@ -90,16 +90,25 @@ program Held_Suarez
   timeint_type       = "RK4"
   iremap             = 4
 
-  default_thresholds = .true.
+  default_thresholds = .false.
   compressible       = .true.
   remap              = .true.
   uniform            = .false.
-  
+
   ! Diffusion parameters
-  Laplace_order_init = 2                            ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
-  C_visc(S_VELO)     = 1d-3                         ! dimensionless viscosity of S_VELO (rotu, divu)
-  C_visc(S_TEMP)     = 2d-3                         ! dimensionless viscosity of S_MASS
-  C_visc(S_MASS)     = 2d-3                         ! dimensionless viscosity of S_TEMP
+  Laplace_order_init = 2                            ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0
+
+  ! CAM values
+  C_visc(S_MASS)     = 6.1d-4                       ! dimensionless viscosity of S_TEMP
+  C_visc(S_TEMP)     = 6.1d-4                       ! dimensionless viscosity of S_MASS
+  C_visc(S_VELO)     = 6.1d-4                       ! dimensionless viscosity of S_VELO (rotu)
+
+  ! C_div = div_fac * C_rot = div_fac * C_visc(S_VELO)
+  if (tol == 0d0) then ! CAM value
+     div_fac = 2.5d0
+  else                 ! increase divu diffusion in adaptive case
+     div_fac = 30d0
+  end if
 
   ! Adapt on mean variables (fluctuations are initially zero)
   init_adapt_mean    = .false.
@@ -130,7 +139,6 @@ program Held_Suarez
      !if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
      call euler (sol, wav_coeff, trend_cooling, dt)
      call stop_timing
-
      call sum_total_mass (.false.)
      call print_log
 
