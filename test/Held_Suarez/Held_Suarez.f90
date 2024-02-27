@@ -54,7 +54,7 @@ program Held_Suarez
   sigma_c        = 1d0 - sigma_b
   
   ! Local test case parameters (Jablonowski and Williamson 2006 zonally symmetric initial conditions)
-  u_0            = 35d0     * METRE/SECOND          ! maximum velocity of zonal wind
+  u_0            = 70d0     * METRE/SECOND          ! maximum velocity of zonal wind
   gamma_T        = 5d-3     * KELVIN/METRE          ! temperature lapse rate
   delta_T2       = 4.8d5    * KELVIN                ! empirical temperature difference
   
@@ -79,13 +79,6 @@ program Held_Suarez
   ! Numerical method parameters
   dx_min             = sqrt (4d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (20d0 * 4d0**max_level))              
   dx_max             = sqrt (4d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (20d0 * 4d0**min_level))
-  
-  cfl_min            = 1d0                          ! minimum cfl number
-  cfl_max            = 1d0                          ! maximum cfl number
-  T_cfl              = 1d0 * DAY                    ! time over which to increase cfl number from cfl_min to cfl_max
-  cfl_num            = cfl_min                      ! initialize cfl number
-  dt_init            = cfl_num * dx_min / (wave_speed + Udim) * 0.85d0 ! corrected for dynamic value
-  adapt_dt           = .true.
 
   timeint_type       = "RK4"
   iremap             = 4
@@ -94,22 +87,24 @@ program Held_Suarez
   compressible       = .true.
   remap              = .true.
   uniform            = .false.
+  
+  cfl_min            = 1d0                          ! minimum cfl number
+  cfl_max            = 1d0                          ! maximum cfl number
+  T_cfl              = 1d0 * DAY                    ! time over which to increase cfl number from cfl_min to cfl_max
+  cfl_num            = cfl_min                      ! initialize cfl number
+  !dt_init            = cfl_num * dx_min / (wave_speed + Udim) * 0.85d0 ! corrected for dynamic value
+  dt_init            = 300d0 * SECOND               ! Lauritzen value
+  adapt_dt           = .false.
 
   ! Diffusion parameters
   Laplace_order_init = 2                            ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0
 
   ! CAM values
-  C_visc(S_MASS)     = 6.1d-4                       ! dimensionless viscosity of S_TEMP
-  C_visc(S_TEMP)     = 6.1d-4                       ! dimensionless viscosity of S_MASS
-  C_visc(S_VELO)     = 6.1d-4                       ! dimensionless viscosity of S_VELO (rotu)
-
-  ! C_div = div_fac * C_rot = div_fac * C_visc(S_VELO)
-  if (tol == 0d0) then ! CAM value
-     div_fac = 2.5d0
-  else                 ! increase divu diffusion in adaptive case
-     div_fac = 30d0
-  end if
-
+  C_visc(S_MASS)     = 5d-4                         ! dimensionless viscosity of S_TEMP
+  C_visc(S_TEMP)     = C_visc(S_MASS)               ! dimensionless viscosity of S_MASS
+  C_visc(S_VELO)     = C_visc(S_MASS)               ! dimensionless viscosity of S_VELO (rotu)
+  C_div              = 2.5d0 * C_visc(S_MASS)       ! dimensionless viscosity of S_VELO (divu)
+  
   ! Adapt on mean variables (fluctuations are initially zero)
   init_adapt_mean    = .false.
 

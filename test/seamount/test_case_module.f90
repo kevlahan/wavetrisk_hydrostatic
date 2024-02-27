@@ -306,7 +306,7 @@ contains
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
-    call cal_lnorm (sol, "inf")
+    call cal_lnorm ("inf")
     maxv = 100 * maxval (lnorm(S_VELO,:))
 
     if (rank == 0) then
@@ -575,7 +575,7 @@ contains
     if (default_thresholds) then ! Initialize once
        threshold_new = threshold_def
     else
-       call cal_lnorm_sol (sol, order)
+       call cal_lnorm (order)
        threshold_new = tol * lnorm
        ! Correct very small values
        do k = 1, zmax

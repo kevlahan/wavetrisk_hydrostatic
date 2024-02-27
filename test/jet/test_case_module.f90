@@ -879,7 +879,7 @@ contains
     if (default_thresholds) then ! initialize once
        threshold = threshold_def
     else
-       call cal_lnorm_sol (sol, order)
+       call cal_lnorm_sol (order)
        threshold_new = tol * lnorm
        
        ! Correct very small values

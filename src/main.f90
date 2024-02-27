@@ -82,9 +82,6 @@ contains
        ! Initialize time step and viscosities
        call initialize_dt_viscosity
 
-        ! Initialize thresholds to default values 
-       call initialize_thresholds
-
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
             ------------------------------------------------------'
@@ -94,6 +91,9 @@ contains
        end if
        call apply_initial_conditions
        call forward_wavelet_transform (sol, wav_coeff)
+
+       ! Initialize thresholds to default values 
+       call initialize_thresholds
 
        do while (level_end < max_level)
           if (rank == 0) write (6,'(A,i2,A,i2)') 'Initial refinement Level ', level_end, ' -> ', level_end+1
@@ -297,8 +297,8 @@ contains
        time = time + dt
     end if
     
-    ! Set new time step and count active nodes
-    if (adapt_dt) dt_new = cpt_dt ()
+    ! Update time step and count active nodes
+    dt_new = cpt_dt ()
 
     ! Check load balance
 #ifdef AMPI

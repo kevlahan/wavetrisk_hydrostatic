@@ -13,7 +13,7 @@ module test_case_mod
   real(8) :: time_start
 
   ! Test case variables
-  real(8) :: delta_T, delta_theta, div_fac, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
+  real(8) :: C_div, delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, u_0
   real(8) :: cfl_max, cfl_min, T_cfl
 contains
@@ -131,7 +131,7 @@ contains
     if (Laplace_order == 0) then
        physics_velo_source_case = 0d0
     else
-       physics_velo_source_case = (-1d0)**(Laplace_order-1) * (div_fac * grad_divu () - curl_rotu ())
+       physics_velo_source_case = (-1d0)**(Laplace_order-1) * (grad_divu () - curl_rotu ())
     end if
   contains
     function grad_divu ()
@@ -144,9 +144,9 @@ contains
       idN  = idx (i,   j+1, offs, dims)
       idNE = idx (i+1, j+1, offs, dims)
 
-      grad_divu(RT+1) = (visc(idE) * divu(idE+1) - visc(id)   * divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
-      grad_divu(DG+1) = (visc(id)  * divu(id+1)  - visc(idNE) * divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
-      grad_divu(UP+1) = (visc(idN) * divu(idN+1) - visc(id)   * divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
+      grad_divu(RT+1) = (visc_div(idE) * divu(idE+1) - visc_div(id)   * divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
+      grad_divu(DG+1) = (visc_div(id)  * divu(id+1)  - visc_div(idNE) * divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      grad_divu(UP+1) = (visc_div(idN) * divu(idN+1) - visc_div(id)   * divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
     end function grad_divu
 
     function curl_rotu ()
@@ -158,23 +158,39 @@ contains
       idS  = idx (i,   j-1, offs, dims)
       idW  = idx (i-1, j,   offs, dims)
 
-      curl_rotu(RT+1) = (visc(id)  * vort(TRIAG*id +LORT+1) - visc(idS) * vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
-      curl_rotu(DG+1) = (visc(id)  * vort(TRIAG*id +LORT+1) - visc(id)  * vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
-      curl_rotu(UP+1) = (visc(idW) * vort(TRIAG*idW+LORT+1) - visc(id)  * vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+      curl_rotu(RT+1) = (visc_rot(id)  * vort(TRIAG*id +LORT+1) - visc_rot(idS) * vort(TRIAG*idS+UPLT+1)) &
+           / dom%pedlen%elts(EDGE*id+RT+1)
+      curl_rotu(DG+1) = (visc_rot(id)  * vort(TRIAG*id +LORT+1) - visc_rot(id)  * vort(TRIAG*id +UPLT+1)) &
+           / dom%pedlen%elts(EDGE*id+DG+1)
+      curl_rotu(UP+1) = (visc_rot(idW) * vort(TRIAG*idW+LORT+1) - visc_rot(id)  * vort(TRIAG*id +UPLT+1)) &
+           / dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
-
-    real(8) function visc (id)
+    
+    real(8) function visc_div (id)
       ! Scale aware viscosity
       ! factor 3 ensures that maximum stable C_visc matches theoretical estimate of 1/24^Laplace_order
       implicit none
       integer :: id
 
       if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         visc = C_visc(S_VELO) * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
+         visc_div = C_div * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
       else
-         visc = 0d0
+         visc_div = 0d0
       end if
-    end function visc
+    end function visc_div
+
+    real(8) function visc_rot (id)
+      ! Scale aware viscosity
+      ! factor 3 ensures that maximum stable C_visc matches theoretical estimate of 1/24^Laplace_order
+      implicit none
+      integer :: id
+
+      if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         visc_rot = 3d0 * C_visc(S_VELO) * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
+      else
+         visc_rot = 0d0
+      end if
+    end function visc_rot
   end function physics_velo_source_case
   
   subroutine init_sol (dom, i, j, zlev, offs, dims)
@@ -571,19 +587,24 @@ contains
        write (6,'(a,i1)')     "optimize_grid       = ", optimize_grid
        write (6,'(a,l1)')     "adapt_dt            = ", adapt_dt
        write (6,'(a,es10.4)') "cfl_num             = ", cfl_num
-       write (6,'(a,a)')      "timeint_type        = ", trim (timeint_type)       
+       write (6,'(a,a)')      "timeint_type        = ", trim (timeint_type)
+       
        write (6,'(a,i1,/)')     "Laplace_order       = ", Laplace_order_init
        write (6,'(a,/,a,/,/,a,es8.2,/,a,es8.2,/)') "Stability limits:", &
             "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
             "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1d0/6d0)**Laplace_order_init, &
             "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1d0/24d0)**Laplace_order_init
+       
        write (6,'(a,/)') "Scale-aware horizontal diffusion"
+
+       write (6,'(a)') "Non-dimensional viscosities"
        write (6,'(3(a,es8.2/))') "C_visc(S_MASS)     = ", C_visc(S_MASS), "C_visc(S_TEMP)     = ", C_visc(S_TEMP), &
             "C_visc(S_VELO)     = ", C_visc(S_VELO)
+       
        write (6,'(a)')        "Approximate viscosities on finest grid"
        write (6,'(a,es8.2)') "nu_scalar           = ", C_visc(S_TEMP) * 3d0 * dx_min**(2*Laplace_order_init) / dt_init
        write (6,'(a,es8.2)') "nu_rot              = ", C_visc(S_VELO) * 3d0 * dx_min**(2*Laplace_order_init) / dt_init
-       write (6,'(a,es8.2,/)') "nu_div              = ", 2.5d0 * C_visc(S_VELO) * 3d0 * dx_min**(2*Laplace_order_init) / dt_init
+       write (6,'(a,es8.2,/)') "nu_div              = ", C_div * 3d0 * dx_min**(2*Laplace_order_init) / dt_init
 
        write (6,'(a,es10.4)') "dt_write        [d] = ", dt_write / DAY
        write (6,'(a,i3)')     "CP_EVERY            = ", CP_EVERY
@@ -665,10 +686,12 @@ contains
     allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0d0
     allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0d0
 
-    call cal_lnorm (sol_mean, order)
+    call cal_lnorm (order)
     lnorm(S_VELO,:) = Udim
-    
+
     threshold_def = tol * lnorm
+
+    threshold_def(S_VELO,:) = 10 * threshold_def(S_VELO,:) 
   end subroutine initialize_thresholds_case
 
   subroutine set_thresholds_case
@@ -677,16 +700,13 @@ contains
     implicit none
     real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: lnorm_mean
     character(3), parameter                       :: order = "inf"
+    
+    call cal_lnorm (order)
+    lnorm(S_VELO,:) = max (Udim,  (lnorm(S_VELO,:)))
+    
+    threshold = tol * lnorm
 
-    call cal_lnorm (sol_mean, order)
-    lnorm(S_VELO,:) = Udim
-    
-    if (.not. default_thresholds) then
-       lnorm_mean = lnorm
-       call cal_lnorm (sol, order); lnorm = lnorm + lnorm_mean
-    end if
-    
-    threshold = tol * lnorm 
+    threshold(S_VELO,:) = 10 * threshold(S_VELO,:) 
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
