@@ -681,12 +681,11 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     use lnorms_mod
     implicit none
-    character(3), parameter :: order = "inf"
 
     allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0d0
     allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0d0
 
-    call cal_lnorm (order)
+    call cal_lnorm ("inf")
     lnorm(S_VELO,:) = Udim
 
     threshold_def = tol * lnorm
@@ -699,9 +698,8 @@ contains
     use lnorms_mod
     implicit none
     real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: lnorm_mean
-    character(3), parameter                       :: order = "inf"
     
-    call cal_lnorm (order)
+    call cal_lnorm ("inf")
     lnorm(S_VELO,:) = max (Udim,  (lnorm(S_VELO,:)))
     
     threshold = tol * lnorm

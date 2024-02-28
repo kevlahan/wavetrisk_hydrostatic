@@ -841,8 +841,12 @@ contains
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
-
+    
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       idE  = idx (i+1, j,   offs, dims)
+       idNE = idx (i+1, j+1, offs, dims)
+       idN  = idx (i,   j+1, offs, dims)
+       
        idW  = idx (i-1, j,   offs, dims)
        idSW = idx (i-1, j-1, offs, dims)
        idS  = idx (i,   j-1, offs, dims)
@@ -868,12 +872,38 @@ contains
 
           if (compressible) then ! topography
              outv(4) = topography%data(d)%elts(id_i)
-          else 
-             outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
-          end if
+          else ! vertical velocity
+             !outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i) 
 
+             ! Averaged over adjacent hexagons
+             outv(4) = ( &
+                  trend(S_TEMP,zlev)%data(d)%elts(id_i)   / dom%areas%elts(id_i)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idE+1)  / dom%areas%elts(idE+1)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idNE+1) / dom%areas%elts(idNE+1)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idN+1)  / dom%areas%elts(idN+1)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idW+1)  / dom%areas%elts(idW+1)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idSW+1) / dom%areas%elts(idSW+1)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idS+1)  / dom%areas%elts(idS+1)%hex_inv ) / ( &
+                  1d0/dom%areas%elts(id_i)%hex_inv + &
+                  1d0/dom%areas%elts(idE+1)%hex_inv + 1d0/dom%areas%elts(idNE+1)%hex_inv + 1d0/dom%areas%elts(idN+1)%hex_inv + &
+                  1d0/dom%areas%elts(idW+1)%hex_inv + 1d0/dom%areas%elts(idSW+1)%hex_inv + 1d0/dom%areas%elts(idS+1)%hex_inv )
+          end if
+          
           if (compressible .or. .not. penalize) then
-             outv(5) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
+             !outv(5) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
+
+             ! Averaged over adjacent hexagons
+             outv(5) = ( &
+                  trend(S_TEMP,zlev)%data(d)%elts(id_i)   / dom%areas%elts(id_i)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idE+1)  / dom%areas%elts(idE+1)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idNE+1) / dom%areas%elts(idNE+1)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idN+1)  / dom%areas%elts(idN+1)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idW+1)  / dom%areas%elts(idW+1)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idSW+1) / dom%areas%elts(idSW+1)%hex_inv + &
+                  trend(S_TEMP,zlev)%data(d)%elts(idS+1)  / dom%areas%elts(idS+1)%hex_inv ) / ( &
+                  1d0/dom%areas%elts(id_i)%hex_inv + &
+                  1d0/dom%areas%elts(idE+1)%hex_inv + 1d0/dom%areas%elts(idNE+1)%hex_inv + 1d0/dom%areas%elts(idN+1)%hex_inv + &
+                  1d0/dom%areas%elts(idW+1)%hex_inv + 1d0/dom%areas%elts(idSW+1)%hex_inv + 1d0/dom%areas%elts(idS+1)%hex_inv )
           else 
              outv(5) = penal_node(zlev)%data(d)%elts(id_i)   ! penalization mask
           end if
@@ -887,10 +917,6 @@ contains
                 outv(6) = free_surface (dom, i, j, zlev, offs, dims, sol)
              end if
           end if
-
-          idE  = idx (i+1, j,   offs, dims)
-          idNE = idx (i+1, j+1, offs, dims)
-          idN  = idx (i,   j+1, offs, dims)
 
           r_max = 0d0
           do k = 1, zlevels
