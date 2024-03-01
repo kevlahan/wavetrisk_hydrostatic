@@ -15,7 +15,8 @@ module test_case_mod
   ! Test case variables
   real(8) :: C_div, delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, u_0
-  real(8) :: cfl_max, cfl_min, T_cfl
+  real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
+  logical :: scale_aware = .true.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -104,10 +105,10 @@ contains
       implicit none
       integer :: id
 
-      if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         visc = C_visc(v) * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
+      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         visc = C_visc(v) * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt_init
       else
-         visc = 0d0
+         visc = nu_sclr
       end if
     end function visc
   end function physics_scalar_flux_case
@@ -172,10 +173,10 @@ contains
       implicit none
       integer :: id
 
-      if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         visc_div = C_div * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
+      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         visc_div = C_div * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt_init
       else
-         visc_div = 0d0
+         visc_div = nu_divu
       end if
     end function visc_div
 
@@ -185,10 +186,10 @@ contains
       implicit none
       integer :: id
 
-      if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         visc_rot = 3d0 * C_visc(S_VELO) * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
+      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         visc_rot = 3d0 * C_visc(S_VELO) * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt_init
       else
-         visc_rot = 0d0
+         visc_rot = nu_rotu
       end if
     end function visc_rot
   end function physics_velo_source_case
@@ -594,17 +595,24 @@ contains
             "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
             "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1d0/6d0)**Laplace_order_init, &
             "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1d0/24d0)**Laplace_order_init
-       
-       write (6,'(a,/)') "Scale-aware horizontal diffusion"
 
-       write (6,'(a)') "Non-dimensional viscosities"
-       write (6,'(3(a,es8.2/))') "C_visc(S_MASS)     = ", C_visc(S_MASS), "C_visc(S_TEMP)     = ", C_visc(S_TEMP), &
-            "C_visc(S_VELO)     = ", C_visc(S_VELO)
-       
-       write (6,'(a)')        "Approximate viscosities on finest grid"
-       write (6,'(a,es8.2)') "nu_scalar           = ", C_visc(S_TEMP) * 3d0 * dx_min**(2*Laplace_order_init) / dt_init
-       write (6,'(a,es8.2)') "nu_rot              = ", C_visc(S_VELO) * 3d0 * dx_min**(2*Laplace_order_init) / dt_init
-       write (6,'(a,es8.2,/)') "nu_div              = ", C_div * 3d0 * dx_min**(2*Laplace_order_init) / dt_init
+       if (scale_aware) then
+          write (6,'(a,/)') "Scale-aware horizontal diffusion"
+
+          write (6,'(a)') "Non-dimensional viscosities"
+          write (6,'(3(a,es8.2/))') "C_visc(S_MASS)     = ", C_visc(S_MASS), "C_visc(S_TEMP)     = ", C_visc(S_TEMP), &
+               "C_visc(S_VELO)     = ", C_visc(S_VELO)
+
+          write (6,'(a)')        "Approximate viscosities on finest grid"
+          write (6,'(a,es8.2)') "nu_scalar           = ", C_visc(S_TEMP) * 3d0 * dx_min**(2*Laplace_order_init) / dt_init
+          write (6,'(a,es8.2)') "nu_rot              = ", C_visc(S_VELO) * 3d0 * dx_min**(2*Laplace_order_init) / dt_init
+          write (6,'(a,es8.2,/)') "nu_div              = ", C_div * 3d0 * dx_min**(2*Laplace_order_init) / dt_init
+       else
+          write (6,'(a)')        "Constant viscosities"
+          write (6,'(a,es8.2)') "nu_sclr             = ", nu_sclr
+          write (6,'(a,es8.2)') "nu_rotu             = ", nu_rotu
+          write (6,'(a,es8.2,/)') "nu_divu             = ", nu_divu
+       end if
 
        write (6,'(a,es10.4)') "dt_write        [d] = ", dt_write / DAY
        write (6,'(a,i3)')     "CP_EVERY            = ", CP_EVERY
@@ -690,7 +698,7 @@ contains
 
     threshold_def = tol * lnorm
 
-    threshold_def(S_VELO,:) = 10 * threshold_def(S_VELO,:) 
+    threshold_def(S_VELO,:) = threshold_def(S_VELO,:) 
   end subroutine initialize_thresholds_case
 
   subroutine set_thresholds_case
@@ -704,7 +712,7 @@ contains
     
     threshold = tol * lnorm
 
-    threshold(S_VELO,:) = 10 * threshold(S_VELO,:) 
+    threshold(S_VELO,:) = threshold(S_VELO,:) 
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case

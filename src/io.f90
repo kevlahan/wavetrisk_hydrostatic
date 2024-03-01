@@ -873,38 +873,40 @@ contains
           if (compressible) then ! topography
              outv(4) = topography%data(d)%elts(id_i)
           else ! vertical velocity
-             !outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i) 
-
-             ! Averaged over adjacent hexagons
-             outv(4) = ( &
-                  trend(S_TEMP,zlev)%data(d)%elts(id_i)   / dom%areas%elts(id_i)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idE+1)  / dom%areas%elts(idE+1)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idNE+1) / dom%areas%elts(idNE+1)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idN+1)  / dom%areas%elts(idN+1)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idW+1)  / dom%areas%elts(idW+1)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idSW+1) / dom%areas%elts(idSW+1)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idS+1)  / dom%areas%elts(idS+1)%hex_inv ) / ( &
-                  1d0/dom%areas%elts(id_i)%hex_inv + &
-                  1d0/dom%areas%elts(idE+1)%hex_inv + 1d0/dom%areas%elts(idNE+1)%hex_inv + 1d0/dom%areas%elts(idN+1)%hex_inv + &
-                  1d0/dom%areas%elts(idW+1)%hex_inv + 1d0/dom%areas%elts(idSW+1)%hex_inv + 1d0/dom%areas%elts(idS+1)%hex_inv )
+             if (min_level == max_level) then
+                outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i) 
+             else ! average over adjacent hexagons
+                outv(4) = ( &
+                     trend(S_TEMP,zlev)%data(d)%elts(id_i)   / dom%areas%elts(id_i)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idE+1)  / dom%areas%elts(idE+1)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idNE+1) / dom%areas%elts(idNE+1)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idN+1)  / dom%areas%elts(idN+1)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idW+1)  / dom%areas%elts(idW+1)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idSW+1) / dom%areas%elts(idSW+1)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idS+1)  / dom%areas%elts(idS+1)%hex_inv ) / ( &
+                     1d0/dom%areas%elts(id_i)%hex_inv + &
+                     1d0/dom%areas%elts(idE+1)%hex_inv + 1d0/dom%areas%elts(idNE+1)%hex_inv + 1d0/dom%areas%elts(idN+1)%hex_inv + &
+                     1d0/dom%areas%elts(idW+1)%hex_inv + 1d0/dom%areas%elts(idSW+1)%hex_inv + 1d0/dom%areas%elts(idS+1)%hex_inv )
+             end if
           end if
-          
-          if (compressible .or. .not. penalize) then
-             !outv(5) = trend(S_TEMP,zlev)%data(d)%elts(id_i) ! vertical velocity
 
-             ! Averaged over adjacent hexagons
-             outv(5) = ( &
-                  trend(S_TEMP,zlev)%data(d)%elts(id_i)   / dom%areas%elts(id_i)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idE+1)  / dom%areas%elts(idE+1)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idNE+1) / dom%areas%elts(idNE+1)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idN+1)  / dom%areas%elts(idN+1)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idW+1)  / dom%areas%elts(idW+1)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idSW+1) / dom%areas%elts(idSW+1)%hex_inv + &
-                  trend(S_TEMP,zlev)%data(d)%elts(idS+1)  / dom%areas%elts(idS+1)%hex_inv ) / ( &
-                  1d0/dom%areas%elts(id_i)%hex_inv + &
-                  1d0/dom%areas%elts(idE+1)%hex_inv + 1d0/dom%areas%elts(idNE+1)%hex_inv + 1d0/dom%areas%elts(idN+1)%hex_inv + &
-                  1d0/dom%areas%elts(idW+1)%hex_inv + 1d0/dom%areas%elts(idSW+1)%hex_inv + 1d0/dom%areas%elts(idS+1)%hex_inv )
-          else 
+          if (compressible .or. .not. penalize) then
+              if (min_level == max_level) then
+                outv(5) = trend(S_TEMP,zlev)%data(d)%elts(id_i) 
+             else ! average over adjacent hexagons
+                outv(5) = ( &
+                     trend(S_TEMP,zlev)%data(d)%elts(id_i)   / dom%areas%elts(id_i)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idE+1)  / dom%areas%elts(idE+1)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idNE+1) / dom%areas%elts(idNE+1)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idN+1)  / dom%areas%elts(idN+1)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idW+1)  / dom%areas%elts(idW+1)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idSW+1) / dom%areas%elts(idSW+1)%hex_inv + &
+                     trend(S_TEMP,zlev)%data(d)%elts(idS+1)  / dom%areas%elts(idS+1)%hex_inv ) / ( &
+                     1d0/dom%areas%elts(id_i)%hex_inv + &
+                     1d0/dom%areas%elts(idE+1)%hex_inv + 1d0/dom%areas%elts(idNE+1)%hex_inv + 1d0/dom%areas%elts(idN+1)%hex_inv + &
+                     1d0/dom%areas%elts(idW+1)%hex_inv + 1d0/dom%areas%elts(idSW+1)%hex_inv + 1d0/dom%areas%elts(idS+1)%hex_inv )
+             end if
+          else
              outv(5) = penal_node(zlev)%data(d)%elts(id_i)   ! penalization mask
           end if
 

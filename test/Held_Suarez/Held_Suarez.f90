@@ -104,6 +104,13 @@ program Held_Suarez
   C_visc(S_TEMP)     = C_visc(S_MASS)               ! dimensionless viscosity of S_MASS
   C_visc(S_VELO)     = C_visc(S_MASS)               ! dimensionless viscosity of S_VELO (rotu)
   C_div              = 2.5d0 * C_visc(S_MASS)       ! dimensionless viscosity of S_VELO (divu)
+
+  ! Non-scale aware values
+  nu_sclr            = 1d-15
+  nu_rotu            = 1d-15
+  nu_divu            = 2.5d0 * nu_rotu
+
+  scale_aware        = .false.                      ! use scale-aware viscosity
   
   ! Adapt on mean variables (fluctuations are initially zero)
   init_adapt_mean    = .false.
