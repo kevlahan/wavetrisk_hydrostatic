@@ -365,27 +365,27 @@ contains
     itime = nint (time * time_mult, 8)
     istep = 0
 
-    ! Compute masks based on active wavelets
+    ! Compute masks based on active wavelets in saved data
     ! (do not re-calculate thresholds)
     call adapt (set_thresholds, .false.) 
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
     
-    ! Initialize time step and viscosities
-    call initialize_dt_viscosity
-    
     ! Assign topography
     if (NCAR_topo) call load_topo
+    call update ! compute mean values and other quantities depending on topography and solution
 
-    ! Initialize mean values and other test case defined variables
+    ! Adapt on (new) threshold for this run
+    call adapt (set_thresholds, .true.) 
+    call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
     call update
 
-    ! Adapt grid to tolerance for this run
-    call adapt (set_thresholds, .true.) 
+    ! Initialize time step and viscosities
+    call initialize_dt_viscosity
 
     ! Initialize total mass value
     if (log_mass) call sum_total_mass (.true.)
-    
+
     ! Initialize time step
     dt_new = min (dt_init, cpt_dt ())
 
