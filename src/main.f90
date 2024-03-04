@@ -378,6 +378,7 @@ contains
     ! Adapt on (new) threshold for this run
     call adapt (set_thresholds, .true.) 
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
+    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start)
     call update
 
     ! Initialize time step and viscosities
