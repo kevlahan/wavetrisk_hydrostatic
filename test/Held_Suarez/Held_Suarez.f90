@@ -77,8 +77,12 @@ program Held_Suarez
   Hdim           = wave_speed**2 / grav_accel       ! vertical length scale
 
   ! Numerical method parameters
-  dx_min             = sqrt (4d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (20d0 * 4d0**max_level))              
-  dx_max             = sqrt (4d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (20d0 * 4d0**min_level))
+  Area_min           = 2d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (10d0 * 4d0**max_level)
+  Area_max           = 2d0 / sqrt(3d0) * 4d0*MATH_PI * radius**2 / (10d0 * 4d0**min_level)
+
+  ! Adjusted minimum grid scales to account for deformed triangles
+  dx_min             = 0.85d0 * sqrt (Area_min)              
+  dx_max             = 0.85d0 * sqrt (Area_max)
 
   timeint_type       = "RK4"
   iremap             = 4
@@ -87,30 +91,36 @@ program Held_Suarez
   compressible       = .true.
   remap              = .true.
   uniform            = .false.
-  
-  cfl_min            = 1d0                          ! minimum cfl number
-  cfl_max            = 1d0                          ! maximum cfl number
-  T_cfl              = 1d0 * DAY                    ! time over which to increase cfl number from cfl_min to cfl_max
-  cfl_num            = cfl_min                      ! initialize cfl number
-  !dt_init            = cfl_num * dx_min / (wave_speed + Udim) * 0.85d0 ! corrected for dynamic value
-  dt_init            = 300d0 * SECOND               ! Lauritzen value
+
   adapt_dt           = .false.
+  if (adapt_dt) then
+     cfl_min  = 0.1d0                        ! minimum cfl number
+     cfl_max  = 1d0                          ! maximum cfl number
+     T_cfl    = 1d0 * DAY                    ! time over which to increase cfl number from cfl_min to cfl_max
+     cfl_num  = cfl_min                      ! initialize cfl number
+     dt_init  = cfl_min * dx_min / (wave_speed + Udim) ! initial time step
+     dt_max   = cfl_max * dx_min / (wave_speed + Udim) ! long time step
+  else
+     dt_init = 300d0 * SECOND * 2**(6 - max_level) ! Lauritzen value
+     dt_max  = dt_init
+  end if
 
   ! Diffusion parameters
   Laplace_order_init = 2                            ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0
 
-  ! CAM values
-  C_visc(S_MASS)     = 5d-4                         ! dimensionless viscosity of S_TEMP
-  C_visc(S_TEMP)     = C_visc(S_MASS)               ! dimensionless viscosity of S_MASS
-  C_visc(S_VELO)     = C_visc(S_MASS)               ! dimensionless viscosity of S_VELO (rotu)
-  C_div              = 2.5d0 * C_visc(S_MASS)       ! dimensionless viscosity of S_VELO (divu)
+  ! Use scale-aware viscosity (if .false. viscosity depends only on dt)
+  scale_aware        = .false.                      
 
-  ! Non-scale aware values
-  nu_sclr            = 1d-15
-  nu_rotu            = 1d-15
-  nu_divu            = 2.5d0 * nu_rotu
+  ! CAM values for viscosity
+  nu_sclr            = 1.0d15
+  nu_rotu            = 1.0d15
+  nu_divu            = 2.5d15
 
-  scale_aware        = .false.                      ! use scale-aware viscosity
+  ! Equivalent non-dimensional viscosities
+  C_visc(S_MASS)     = nu_sclr * dt_max / (3d0 * Area_min**Laplace_order_init) ! dimensionless viscosity of S_MASS
+  C_visc(S_TEMP)     = nu_sclr * dt_max / (3d0 * Area_min**Laplace_order_init) ! dimensionless viscosity of S_MASS
+  C_visc(S_VELO)     = nu_rotu * dt_max / (3d0 * Area_min**Laplace_order_init) ! dimensionless viscosity of S_MASS
+  C_div              = nu_divu * dt_max / (3d0 * Area_min**Laplace_order_init) ! dimensionless viscosity of S_MASS
   
   ! Adapt on mean variables (fluctuations are initially zero)
   init_adapt_mean    = .false.
