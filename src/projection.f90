@@ -101,6 +101,7 @@ contains
           end do
        end do
     end do
+    
     ! Synchronize array over all processors
     sync_val = default_val
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
@@ -194,6 +195,36 @@ contains
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_array_onto_plane
   
+  subroutine interp_tri_to_2d_and_fix_bdry (a0, b0, c0, val)
+    implicit none
+    real(8), dimension(2) :: a0, b0, c0
+    real(8), dimension(3) :: val
+
+    integer               :: i
+    integer, dimension(3) :: fixed
+    real(8), dimension(2) :: a, b, c
+
+    a = a0
+    b = b0
+    c = c0
+    
+    call fix_boundary (a(1), b(1), c(1), fixed(1))
+    call fix_boundary (b(1), c(1), a(1), fixed(2))
+    call fix_boundary (c(1), a(1), b(1), fixed(3))
+    
+    call interp_tri_to_2d (a, b, c, val)
+
+    if (sum (abs (fixed)) > 1) write (0,'(A)') 'ALARM'
+
+    if (sum (fixed) /= 0) then
+       a(1) = a(1) - sum (fixed) * 2d0*MATH_PI
+       b(1) = b(1) - sum (fixed) * 2d0*MATH_PI
+       c(1) = c(1) - sum (fixed) * 2d0*MATH_PI
+       
+       call interp_tri_to_2d (a, b, c, val)
+    end if
+  end subroutine interp_tri_to_2d_and_fix_bdry
+
   subroutine interp_tri_to_2d (a, b, c, val)
     implicit none
     real(8), dimension(2) :: a, b, c
@@ -209,7 +240,8 @@ contains
     maxx = max (max (a(1), b(1)), c(1))
     miny = min (min (a(2), b(2)), c(2))
     maxy = max (max (a(2), b(2)), c(2))
-    if (maxx-minx > MATH_PI/2d0) then
+    
+    if (maxx - minx > MATH_PI/2d0) then
        write (0,'(A,i4,A)') 'ERROR (rank = ', rank, '): io-333 "export"'
        return
     end if
@@ -219,46 +251,13 @@ contains
        do id_y = floor (ky_export*miny), ceiling (ky_export*maxy)
           if (id_y < lbound (field2d,2) .or. id_y > ubound (field2d,2)) cycle
           ll = (/ dx_export*id_x, dy_export*id_y /)
+
           call interp_tria (ll, a, b, c, val, ival, inside)
+
           if (inside) field2d(id_x,id_y) = ival
        end do
     end do
   end subroutine interp_tri_to_2d
-
-  subroutine interp_tri_to_2d_and_fix_bdry (a0, b0, c0, val)
-    implicit none
-    real(8), dimension(2) :: a0, b0, c0
-    real(8), dimension(3) :: val
-
-    integer               :: i
-    integer, dimension(3) :: fixed
-    real(8), dimension(2) :: a, b, c
-
-    a = a0
-    b = b0
-    c = c0
-    call fix_boundary (a(1), b(1), c(1), fixed(1))
-    call fix_boundary (b(1), c(1), a(1), fixed(2))
-    call fix_boundary (c(1), a(1), b(1), fixed(3))
-    call interp_tri_to_2d (a, b, c, val)
-
-    if (sum(abs(fixed)) > 1) write (0,'(A)') 'ALARM'
-
-    if (sum(fixed) /= 0) then
-       a(1) = a(1) - sum(fixed) * 2d0*MATH_PI
-       b(1) = b(1) - sum(fixed) * 2d0*MATH_PI
-       c(1) = c(1) - sum(fixed) * 2d0*MATH_PI
-       call interp_tri_to_2d (a, b, c, val)
-    end if
-  end subroutine interp_tri_to_2d_and_fix_bdry
-
-  subroutine cart2sph2 (cin, cout)
-    implicit none
-    type(Coord)                        :: cin
-    real(8), dimension(2), intent(out) :: cout
-
-    call cart2sph (cin, cout(1), cout(2))
-  end subroutine cart2sph2
 
   subroutine interp_tria (ll, coord1, coord2, coord3, values, ival, inside)
     implicit none
@@ -270,9 +269,11 @@ contains
     real(8), dimension(2) :: ll
     real(8), dimension(3) :: bc
 
-    bc = bary_coord(ll, coord1, coord2, coord3)
+    bc = bary_coord (ll, coord1, coord2, coord3)
+    
     inside = (0d0 < bc(1) .and. bc(1) < 1d0 .and. 0d0 < bc(2) .and. bc(2) < 1d0 .and. 0d0 < bc(3) .and. bc(3) < 1d0)
-    if (inside) ival = sum (values*bc)
+    
+    if (inside) ival = sum (values * bc)
   end subroutine interp_tria
 
   function bary_coord (ll, a, b, c)
@@ -284,13 +285,17 @@ contains
     real(8), dimension(3) :: bac
     real(8), dimension(2) :: ca, cb, cll
 
-    cb = b - c
-    ca = a - c
+    cb  = b - c
+    ca  = a - c
     cll = ll - c
-    det = cb(2)*ca(1) - cb(1)*ca(2)
-    bac(1) = ( cb(2)*cll(1) - cb(1)*cll(2)) / det
-    bac(2) = (-ca(2)*cll(1) + ca(1)*cll(2)) / det
+    
+    det = cb(2) * ca(1) - cb(1) * ca(2)
+    
+    bac(1) = ( cb(2) * cll(1) - cb(1) * cll(2)) / det
+    bac(2) = (-ca(2) * cll(1) + ca(1) * cll(2)) / det
+    
     bac(3) = 1d0 - bac(1) - bac(2)
+    
     bary_coord = bac
   end function bary_coord
 
@@ -309,4 +314,12 @@ contains
        fixed = -1
     end if
   end subroutine fix_boundary
+
+   subroutine cart2sph2 (cin, cout)
+    implicit none
+    type(Coord)                        :: cin
+    real(8), dimension(2), intent(out) :: cout
+
+    call cart2sph (cin, cout(1), cout(2))
+  end subroutine cart2sph2
 end module projection_mod
