@@ -2154,6 +2154,7 @@ contains
     call apply (cal_omega, z_null)
 
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
+    call update_vector_bdry (trend(S_TEMP,:), NONE)
   end subroutine omega_velocity
   
   subroutine cal_omega (dom, i, j, zlev, offs, dims)
