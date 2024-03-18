@@ -34,7 +34,7 @@ contains
     character(*) :: run_id
     
     character(255) :: command
-    integer        :: k, d, v
+    integer        :: d, k, l, v
 
     ! Default elliptic solver (scheduled relaxation Jacobi method)
     elliptic_solver => SRJ
@@ -87,7 +87,7 @@ contains
             ------------------------------------------------------'
        if (NCAR_topo) then
           call load_topo
-          call apply (assign_topo, z_null)
+          call apply_onescale (assign_topo, level_start, z_null, 0, 1)
        end if
        call apply_initial_conditions
        call forward_wavelet_transform (sol, wav_coeff)
@@ -107,7 +107,11 @@ contains
           call adapt (set_thresholds)
 
           ! Evaluate initical conditions on new grid
-          if (NCAR_topo) call apply (assign_topo, z_null)
+          if (NCAR_topo) then
+             do l = level_end, level_start, -1
+                call apply_onescale (assign_topo, l, z_null, 0, 1)
+             end do
+          end if
           call apply_initial_conditions         
 
           ! Count active nodes and edges
@@ -122,7 +126,12 @@ contains
        if (rank==0) write (6,'(a,i8,/)') 'Initial number of dof = ', sum (n_active)
        
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
-       if (NCAR_topo) call apply (assign_topo, z_null)
+       if (NCAR_topo) then
+          do l = level_end, level_start, -1
+             call apply_onescale (assign_topo, l, z_null, 0, 1)
+          end do
+       end if
+
        call apply_initial_conditions
        
        if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)

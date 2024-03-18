@@ -735,16 +735,17 @@ contains
     if (istep /= 0) then
        do d = 1, size(grid)
           do p = n_patch_old(d)+1, grid(d)%patch%length
-             if (NCAR_topo) call apply_onescale_to_patch (assign_topo, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+             if (NCAR_topo) call apply_onescale_to_patch (assign_topo, grid(d), p-1, z_null, 0, 1)
              call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           end do
        end do
     else ! need to set values over entire grid on restart
        do l = level_start, level_end
-          if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+          if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, 0, 1)
           call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        end do
     end if
+    call update_bdry (topography, NONE)
   end subroutine update_case
 
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)

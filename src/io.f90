@@ -1429,22 +1429,24 @@ contains
     ! !! saves topgraphy data on a non-adaptive grid !!
     !
     implicit none
-    integer         :: d, d_glo, l
-    character(9999) :: filename, lev
+    integer         :: d, d_glo, j, l
+    character(9999) :: filename
     character(9999) :: bash_cmd, cmd_archive, cmd_files, command
+
+    call update_bdry (topography, NONE)
 
     allocate (topo_count(min_level:max_level,1:size(grid))); topo_count = 0
 
     ! Save a separate file for each domain and each level
-    do l = min_level, max_level
-       do d = 1, N_GLO_DOMAIN
-          d_glo = glo_id(rank+1,d) + 1 ! global domain 1:N_GLO_DOMAIN
-          
-          write (lev, '(i2.2)') l
-          write (filename, '(a,a,a,a,i5.5)') trim (topo_file), '.', trim(lev), '.', d_glo           
+    do l = max_level, min_level, -1
+       do d = 1, size(grid)
+          d_glo = glo_id(rank+1,d) + 1
+       
+          write (filename, '(a,a,i2.2,a,i5.5)') trim (topo_file), '.', l, '.', d_glo           
           open (unit=10, file=trim (filename), form="UNFORMATTED", action='WRITE', status='REPLACE')
-          
-          call apply_onescale_d (write_topo, grid(d), l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+          do j = 1, grid(d)%lev(l)%length
+             call apply_onescale_to_patch (write_topo, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          end do
           close (10)
        end do
     end do
@@ -1491,7 +1493,7 @@ contains
     !
     implicit none
     integer         :: d, d_glo, l, r
-    character(9999) :: filename, lev
+    character(9999) :: filename
     character(9999) :: bash_cmd, cmd_archive, cmd_files, command
 
     ! Uncompress topography data
@@ -1507,7 +1509,7 @@ contains
     ! Allocate topo_count matrix for all domains on all ranks 
     if (allocated (topo_count)) deallocate (topo_count)
     allocate (topo_count(min_level:max_level,1:N_GLO_DOMAIN))
-
+    
     do r = 1, n_process
 #ifdef MPI
        if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
@@ -1522,24 +1524,23 @@ contains
        close (10)
 
        ! Allocate topgraphy data structures    
-       allocate (topography_data(min_level:max_level, 1:N_GLO_DOMAIN))
+       allocate (topography_data(min_level:max_level, 1:size(grid)))
        do l = min_level, max_level
-          do d_glo = 1, N_GLO_DOMAIN
-             allocate (topography_data(l,d_glo)%node(1:topo_count(l,d_glo)))
-             allocate (topography_data(l,d_glo)%elts(1:topo_count(l,d_glo)))
+          do d = 1, size(grid)
+             d_glo = glo_id(rank+1,d) + 1
+             allocate (topography_data(l,d)%node(1:topo_count(l,d_glo)))
+             allocate (topography_data(l,d)%elts(1:topo_count(l,d_glo)))
           end do
        end do
     end do
 
-    ! Load all data for current rank
+    ! Load topography data
     do l = min_level, max_level
        do d = 1, size(grid)
           d_glo = glo_id(rank+1,d) + 1
-
-          write (lev, '(i2.2)') l
-          write (filename, '(a,a,a,a,i5.5)') trim (topo_file), '.', trim(lev), '.', d_glo
+          write (filename, '(a,a,i2.2,a,i5.5)') trim (topo_file), '.', l, '.', d_glo
           open (unit=10, file=trim (filename), form="UNFORMATTED", action='READ', status='OLD')
-          
+
           do ii = 1, topo_count(l,d_glo)
              read (10) topography_data(l,d)%node(ii), topography_data(l,d)%elts(ii)
           end do
@@ -1566,7 +1567,6 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                            :: d, id, ii, jj, l, n_topo
-    real(8)                            :: min_distance
     real(8), dimension(:), allocatable :: distance
 
     d  = dom%id + 1
@@ -1577,12 +1577,9 @@ contains
     do ii = 1, n_topo
        distance(ii) = dist (dom%node%elts(id), topography_data(l,d)%node(ii))
     end do
-    jj = minloc (distance,1)
-    topography%data(d)%elts(id) = topography_data(l,d)%elts(jj)
-    min_distance = distance(jj)
-    deallocate (distance)
+    jj = minloc (distance,1) ; deallocate (distance)
 
-    if (min_distance > dx_min) write(6,'(i2,es11.4)') l, min_distance/dx_min
+    topography%data(d)%elts(id) = topography_data(l,d)%elts(jj)
   end subroutine assign_topo
 
   subroutine proj_xz_plane (cin, cout)
