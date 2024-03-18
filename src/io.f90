@@ -1437,14 +1437,14 @@ contains
 
     ! Save a separate file for each domain and each level
     do l = min_level, max_level
-       do d = 1, size(grid)
+       do d = 1, N_GLO_DOMAIN
           d_glo = glo_id(rank+1,d) + 1 ! global domain 1:N_GLO_DOMAIN
           
           write (lev, '(i2.2)') l
           write (filename, '(a,a,a,a,i5.5)') trim (topo_file), '.', trim(lev), '.', d_glo           
           open (unit=10, file=trim (filename), form="UNFORMATTED", action='WRITE', status='REPLACE')
           
-          call apply_onescale_d (write_topo, grid(d), l, z_null, 0, 1)
+          call apply_onescale_d (write_topo, grid(d), l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           close (10)
        end do
     end do
@@ -1521,28 +1521,29 @@ contains
        read (10) topo_count
        close (10)
 
-       ! Allocate topgraphy data structures for domains on this rank     
-       allocate (topography_data(min_level:max_level, 1:size(grid)))
+       ! Allocate topgraphy data structures    
+       allocate (topography_data(min_level:max_level, 1:N_GLO_DOMAIN))
        do l = min_level, max_level
-          do d = 1, size(grid)
-             d_glo = glo_id(rank+1,d) + 1
-             allocate (topography_data(l,d)%node(1:topo_count(l,d_glo)))
-             allocate (topography_data(l,d)%elts(1:topo_count(l,d_glo)))
+          do d_glo = 1, N_GLO_DOMAIN
+             allocate (topography_data(l,d_glo)%node(1:topo_count(l,d_glo)))
+             allocate (topography_data(l,d_glo)%elts(1:topo_count(l,d_glo)))
           end do
        end do
     end do
 
+    ! Load all data for current rank
     do l = min_level, max_level
        do d = 1, size(grid)
-          d_glo = glo_id(rank+1,d) + 1 ! global domain id from local domain id
-          
+          d_glo = glo_id(rank+1,d) + 1
+
           write (lev, '(i2.2)') l
           write (filename, '(a,a,a,a,i5.5)') trim (topo_file), '.', trim(lev), '.', d_glo
           open (unit=10, file=trim (filename), form="UNFORMATTED", action='READ', status='OLD')
-
-          do ii = 1, topo_count(l,d)
+          
+          do ii = 1, topo_count(l,d_glo)
              read (10) topography_data(l,d)%node(ii), topography_data(l,d)%elts(ii)
           end do
+          close (10)
        end do
     end do
 
@@ -1564,26 +1565,24 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, ii, jj, l, n_topo
-    real(8), dimension(:), allocatable :: topo_loc
+    integer                            :: d, id, ii, jj, l, n_topo
+    real(8)                            :: min_distance
+    real(8), dimension(:), allocatable :: distance
 
-    d  = dom%id+1
+    d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
     l  = dom%level%elts(id)
 
-    n_topo = size (topography_data(l,d)%node)
-    allocate (topo_loc(1:n_topo))
-
+    n_topo = size (topography_data(l,d)%elts); allocate (distance(1:n_topo))
     do ii = 1, n_topo
-       topo_loc(ii) = dist (dom%node%elts(id), topography_data(l,d)%node(ii))
+       distance(ii) = dist (dom%node%elts(id), topography_data(l,d)%node(ii))
     end do
-
-    jj = minloc (topo_loc, 1)
+    jj = minloc (distance,1)
     topography%data(d)%elts(id) = topography_data(l,d)%elts(jj)
+    min_distance = distance(jj)
+    deallocate (distance)
 
-    if (topography%data(d)%elts(id) < 1d1) topography%data(d)%elts(id) = 0d0
-
-    deallocate (topo_loc)
+    if (min_distance > dx_min) write(6,'(i2,es11.4)') l, min_distance/dx_min
   end subroutine assign_topo
 
   subroutine proj_xz_plane (cin, cout)
