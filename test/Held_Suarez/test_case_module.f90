@@ -716,12 +716,20 @@ contains
 
   subroutine apply_initial_conditions_case
     implicit none
-    integer :: k, l
-
+    integer :: l
+    
     do l = level_start, level_end
-       call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       call apply_onescale (init_sol,  l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, 0, 1)
+       call apply_onescale (init_mean, l, z_null, 0, 1)
+       call apply_onescale (init_sol,  l, z_null, 0, 1)
     end do
+    topography%bdry_uptodate = .false.
+    sol%bdry_uptodate        = .false.
+    sol_mean%bdry_uptodate   = .false.
+    
+    call update_bdry       (topography, NONE)
+    call update_array_bdry (sol,        NONE)
+    call update_array_bdry (sol_mean,   NONE)
   end subroutine apply_initial_conditions_case
 
   subroutine update_case
@@ -730,8 +738,8 @@ contains
     use wavelet_mod
     implicit none
     integer :: d, l, p
-    
-    if (istep > 0) then
+
+    if (istep /= 0) then
        do d = 1, size(grid)
           do p = n_patch_old(d)+1, grid(d)%patch%length
              if (NCAR_topo) call apply_onescale_to_patch (assign_topo, grid(d), p-1, z_null, 0, 1)
@@ -739,13 +747,19 @@ contains
           end do
        end do
     else ! need to set values over entire grid on restart
-       do l = level_end, level_start, -1
+       do l = level_start, level_end
           if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, 0, 1)
           call apply_onescale (init_mean, l, z_null, 0, 1)
        end do
     end if
-    call update_array_bdry (sol_mean, NONE)
-    call update_bdry (topography, NONE)
+
+    topography%bdry_uptodate = .false.
+    sol%bdry_uptodate        = .false.
+    sol_mean%bdry_uptodate   = .false.
+    
+    call update_bdry       (topography, NONE)
+    call update_array_bdry (sol,        NONE)
+    call update_array_bdry (sol_mean,   NONE)
   end subroutine update_case
 
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)

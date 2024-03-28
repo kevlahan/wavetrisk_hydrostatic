@@ -128,13 +128,7 @@ contains
     ! Apply initial conditions and count  number of active node and edge wavelets
     implicit none
     integer :: d, k, l, v
-
-    if (NCAR_topo) then
-       do l = level_end, level_start, -1
-          call apply_onescale (assign_topo, l, z_null, 0, 1)
-       end do
-    end if
-          
+    
     call apply_initial_conditions
     call forward_wavelet_transform (sol, wav_coeff) 
     
