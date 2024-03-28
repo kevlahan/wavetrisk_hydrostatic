@@ -73,8 +73,6 @@ program DCMIP2008c5
      call start_timing
      call time_step (dt_write, aligned)
      call stop_timing
-     
-     call sum_total_mass (.false.)
      call print_log
 
      if (aligned) then

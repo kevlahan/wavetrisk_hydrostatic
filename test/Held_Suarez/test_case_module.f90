@@ -224,12 +224,13 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer     :: id, d, k
+    integer     :: id, d, k, l
     real(8)     :: k_T, lat, lon, p, p_s, pot_temp
     type(Coord) :: x_i
     
     d   = dom%id+1
     id  = idx (i, j, offs, dims)
+    l   = dom%level%elts(id+1)
     x_i = dom%node%elts(id+1)
     
     call cart2sph (x_i, lon, lat)
@@ -240,7 +241,7 @@ contains
 
     do k = 1, zlevels
        p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
-       
+
        ! Potential temperature
        call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
 
@@ -663,7 +664,7 @@ contains
     total_layers = size (threshold, 2)
 
     if (rank == 0) then
-       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es8.2,1x))') &
+       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,2(a,es8.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
             '  mass tol = ', sum (threshold(S_MASS,:))/total_layers, &
@@ -671,14 +672,12 @@ contains
             ' velo tol = ', sum (threshold(S_VELO,:))/total_layers, &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
-            ' min rel mass = ', min_mass, &
-            ' mass error = ', mass_error, &
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
-       write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  &
+       write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  &
             time/DAY, dt, sum (threshold(S_MASS,:))/total_layers, sum (threshold(S_TEMP,:))/total_layers, &
-            sum (threshold(S_VELO,:))/total_layers, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
+            sum (threshold(S_VELO,:))/total_layers, level_end, sum (n_active), rel_imbalance, timing
     end if
   end subroutine print_log
 
@@ -731,20 +730,21 @@ contains
     use wavelet_mod
     implicit none
     integer :: d, l, p
-
-    if (istep /= 0) then
+    
+    if (istep > 0) then
        do d = 1, size(grid)
           do p = n_patch_old(d)+1, grid(d)%patch%length
              if (NCAR_topo) call apply_onescale_to_patch (assign_topo, grid(d), p-1, z_null, 0, 1)
-             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, 0, 1)
           end do
        end do
     else ! need to set values over entire grid on restart
-       do l = level_start, level_end
+       do l = level_end, level_start, -1
           if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, 0, 1)
-          call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+          call apply_onescale (init_mean, l, z_null, 0, 1)
        end do
     end if
+    call update_array_bdry (sol_mean, NONE)
     call update_bdry (topography, NONE)
   end subroutine update_case
 

@@ -22,9 +22,11 @@ contains
     implicit none
     integer, optional                         :: jmin_in, jmax_in
     type(Float_Field), dimension(:,:), target :: scaling, wavelet
-
+    
     integer :: d, jmin, jmax, k, l, v
 
+    call zero_float (wavelet)
+    
     if (present(jmin_in)) then
        jmin = jmin_in
     else
@@ -102,6 +104,8 @@ contains
     
     integer :: d, jmin, jmax, k, l
 
+    call zero_float (wavelet)
+
     if (present(jmin_in)) then
        jmin = jmin_in
     else
@@ -150,6 +154,8 @@ contains
     type(Float_Field), dimension(:), target :: scaling, wavelet
 
     integer :: d, jmin, jmax, k, l
+
+    call zero_float (wavelet)
 
     if (present(jmin_in)) then
        jmin = jmin_in

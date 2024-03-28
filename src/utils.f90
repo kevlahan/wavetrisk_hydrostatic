@@ -27,6 +27,10 @@ module utils_mod
   end interface
   procedure (routine_hex), pointer :: integrand_hex => null ()
   procedure (routine_tri), pointer :: integrand_tri => null ()
+
+  interface zero_float
+     procedure :: zero_float_0, zero_float_1, zero_float_2
+  end interface zero_float
 contains
   real(8) function z_i (dom, i, j, zlev, offs, dims, q)
     ! Position of vertical level zlev at nodes
@@ -840,6 +844,78 @@ contains
 
     hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
+  
+  subroutine zero_float_0 (q)
+    ! Initializes a float field to zero
+    implicit none
+    type(Float_Field) :: q
+
+    integer :: d
+
+    do d = 1, size(grid)
+       q%data(d)%elts = 0d0
+    end do
+  end subroutine zero_float_0
+
+  subroutine zero_float_1 (q)
+    ! Initializes a float vector to zero
+    implicit none
+    type(Float_Field), dimension(:) :: q
+
+    integer :: d, j
+
+    do j = 1, size(q,1)
+       do d = 1, size(grid)
+          q(j)%data(d)%elts = 0d0
+       end do
+    end do
+  end subroutine zero_float_1
+
+   subroutine zero_float_2 (q)
+    ! Initializes a float array to zero
+    implicit none
+    type(Float_Field), dimension(:,:) :: q
+
+    integer :: d, j1, j2
+
+    do j1 = 1, size(q,1)
+       do j2 = 1, size(q,2)
+          do d = 1, size(grid)
+             q(j1,j2)%data(d)%elts = 0d0
+          end do
+       end do
+    end do
+  end subroutine zero_float_2
+  
+  subroutine zero_float_vector (q)
+    ! Initializes a float vector to zero
+    implicit none
+    type(Float_Field), dimension(:) :: q
+
+    integer :: d, j
+
+    do j = 1, size(q,1)
+       do d = 1, size(grid)
+          q(j)%data(d)%elts = 0d0
+       end do
+    end do
+  end subroutine zero_float_vector
+
+   subroutine zero_float_array (q)
+    ! Initializes a float array to zero
+    implicit none
+    type(Float_Field), dimension(:,:) :: q
+
+    integer :: d, j1, j2
+
+    do j1 = 1, size(q,1)
+       do j2 = 1, size(q,2)
+          do d = 1, size(grid)
+             q(j1,j2)%data(d)%elts = 0d0
+          end do
+       end do
+    end do
+  end subroutine zero_float_array
 
   subroutine zero_float_field (q, itype, lmin_in, lmax_in)
     ! Set float field to zero for scales:

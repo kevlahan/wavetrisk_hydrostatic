@@ -297,42 +297,23 @@ contains
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
-
+    
     if (rank == 0) then
        open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-       if (log_mass) then
-          write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
-               'time [d] = ', time/DAY, &
-               ' dt [s] = ', dt, &
-               '  mass tol = ', threshold(S_MASS,zlevels), &
-               ' temp tol = ', threshold(S_TEMP,zlevels), &
-               ' velo tol = ', threshold(S_VELO,zlevels), &
-               ' Jmax = ', level_end, &
-               ' dof = ', sum (n_active), &
-               ' min rel mass = ', min_mass, &
-               ' mass error = ', mass_error, &
-               ' balance = ', rel_imbalance, &
-               ' cpu = ', timing
+       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,2(a,es9.2,1x))') &
+            'time [d] = ', time/DAY, &
+            ' dt [s] = ', dt, &
+            '  mass tol = ', threshold(S_MASS,zlevels), &
+            ' temp tol = ', threshold(S_TEMP,zlevels), &
+            ' velo tol = ', threshold(S_VELO,zlevels), &
+            ' Jmax = ', level_end, &
+            ' dof = ', sum (n_active), &
+            ' balance = ', rel_imbalance, &
+            ' cpu = ', timing
 
-          write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  time/DAY, dt, &
-               threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
-               level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
-       else
-          write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,2(a,es9.2,1x))') &
-               'time [d] = ', time/DAY, &
-               ' dt [s] = ', dt, &
-               '  mass tol = ', threshold(S_MASS,zlevels), &
-               ' temp tol = ', threshold(S_TEMP,zlevels), &
-               ' velo tol = ', threshold(S_VELO,zlevels), &
-               ' Jmax = ', level_end, &
-               ' dof = ', sum (n_active), &
-               ' balance = ', rel_imbalance, &
-               ' cpu = ', timing
-
-          write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  time/DAY, dt, &
-               threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
-               level_end, sum (n_active), rel_imbalance, timing
-       end if
+       write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  time/DAY, dt, &
+            threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
+            level_end, sum (n_active), rel_imbalance, timing
        close (12)
     end if
   end subroutine print_log

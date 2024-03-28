@@ -126,8 +126,6 @@ program Simple_Physics
       if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
       call euler (sol(1:N_VARIABLE,1:ZLEVELS), wav_coeff(1:N_VARIABLE,1:ZLEVELS), trend_physics, dt) ! physics step
       call stop_timing
-
-      call sum_total_mass (.false.)
       call print_log
 
       if (aligned) then

@@ -122,7 +122,8 @@ program Held_Suarez
   C_div              = nu_divu * dt_max / (3d0 * Area_min**Laplace_order_init) 
   
   ! Adapt on mean variables (fluctuations are initially zero)
-  init_adapt_mean    = .false.
+  log_min_mass       = .true.
+  log_total_mass     = .false.
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -150,7 +151,6 @@ program Held_Suarez
      !if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
      call euler (sol, wav_coeff, trend_cooling, dt)
      call stop_timing
-     call sum_total_mass (.false.)
      call print_log
 
      if (aligned) then

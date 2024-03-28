@@ -105,7 +105,6 @@ program tke1d
      call vertical_diffusion
      time = time + dt
      min_mass = cpt_min_mass ()
-     call sum_total_mass (.false.)
      dt = cpt_dt ()
    
      call print_log

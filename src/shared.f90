@@ -234,7 +234,7 @@ module shared_mod
   real(8)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
   real(8)                                       :: dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr, ref_density
-  real(8)                                       :: initotalmass, mass_error, max_depth, min_depth, min_mass, totalmass
+  real(8)                                       :: mass_error, max_depth, min_depth, min_mass
   real(8)                                       :: e_min, Kt_const, Kt_0, Kv_0, Kv_bottom, rb_0
   real(8)                                       :: theta1, theta2, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
@@ -249,8 +249,9 @@ module shared_mod
 
   character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type, topo_file
   
-  logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu, init_adapt_mean
-  logical :: log_iter, log_mass, match_time, mode_split, NCAR_topo, penalize, rebalance, remap, uniform, vert_diffuse
+  logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
+  logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize
+  logical :: rebalance, remap, uniform, vert_diffuse
   logical :: sigma_z, soil_mod, tke_closure
 contains
   subroutine init_shared_mod
@@ -346,16 +347,16 @@ contains
     compressible        = .true.                            ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds  = .true.                            ! use default thresholds (T) or calculate dynamically (F)
     fill                = .false.                           ! fill up grid to level j_fill if true (T)
-    init_adapt_mean     = .false.                           ! adapt initial grid on mean values sol_mean (T) or on sol (F)
     log_iter            = .false.                           ! print residual error in elliptic solver (T)
-    log_mass            = .true.                            ! compute minimum mass and mass conservation, relatively expensive (T)
+    log_min_mass        = .true.                            ! compute minimum mass, relatively expensive (T)
+    log_total_mass      = .false.                           ! mass conservation, relatively expensive (F)
     match_time          = .false.                           ! match time exactly for data saving (T)
     mode_split          = .false.                           ! calculate barotropic free surface mode separately (T)
     NCAR_topo           = .false.                           ! use NCAR topography (requires pre-computation of float fields topography and wav_topograph) (T)
     penalize            = .false.                           ! include penalization of topography (T)
     rebalance           = .true.                            ! rebalance computational load at each checkpoint if T
-    sigma_z             = .false.                           ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)
     remap               = .true.                            ! remap Lagrangian coordinates (T) or no remapping (F)
+    sigma_z             = .false.                           ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)
     soil_mod            = .false.                           ! simple physics with soil levels (T)
     tke_closure         = .false.                           ! use TKE closure for eddy viscosity (T) or analytic form (F)
     uniform             = .true.                            ! uniform vertical grid in pressure (T) or hybrid (F)

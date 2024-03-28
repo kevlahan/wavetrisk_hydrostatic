@@ -3,15 +3,17 @@ module main_mod
   use wavelet_mod
   use adapt_mod
   use remap_mod
-
   implicit none
+  
   type Initial_State
      integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
   end type Initial_State
+  
   integer                                        :: chkpt_info
   integer,             dimension(:), allocatable :: node_level_start, edge_level_start
-  real(8)                                        :: dt_new, time_mult  
+  real(8)                                        :: dt_new, time_mult
+  real(8), dimension(:), allocatable             :: init_total_mass
   type(Initial_State), dimension(:), allocatable :: ini_st
 contains
   subroutine init_basic
@@ -35,6 +37,8 @@ contains
     
     character(255) :: command
     integer        :: d, k, l, v
+
+    allocate (init_total_mass(min_level:max_level))
 
     ! Default elliptic solver (scheduled relaxation Jacobi method)
     elliptic_solver => SRJ
@@ -85,93 +89,81 @@ contains
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
             ------------------------------------------------------'
-       if (NCAR_topo) then
-          call load_topo
-          call apply_onescale (assign_topo, level_start, z_null, 0, 1)
-       end if
-       call apply_initial_conditions
-       call forward_wavelet_transform (sol, wav_coeff)
-
-       ! Initialize thresholds to default values 
-       call initialize_thresholds
+       if (NCAR_topo) call load_topo
+       
+       ! Apply initial conditions 
+       call count_active
 
        do while (level_end < max_level)
           if (rank == 0) write (6,'(A,i2,A,i2)') 'Initial refinement Level ', level_end, ' -> ', level_end+1
-          
-          node_level_start = grid%node%length+1
-          edge_level_start = grid%midpt%length+1
-          n_patch_old      = grid%patch%length
-          n_node_old       = grid%node%length
 
-          ! Adapt grid
+          ! Set current number of nodes
+          node_level_start = grid%node%length+1; edge_level_start = grid%midpt%length+1
+          n_patch_old      = grid%patch%length;  n_node_old       = grid%node%length
+
+          ! Extend grid
           call adapt (set_thresholds)
 
-          ! Evaluate initical conditions on new grid
-          if (NCAR_topo) then
-             do l = level_end, level_start, -1
-                call apply_onescale (assign_topo, l, z_null, 0, 1)
-             end do
-          end if
-          call apply_initial_conditions         
-
-          ! Count active nodes and edges
+          ! Apply initial conditions on new grid and count additional active wavelets at current level
           call count_active
-                
+
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit ! no further active grid points
        end do
        
        if (rank == 0) write (6,'(A,/)') &
             '------------------------------------------------- Finished adapting initial grid &
             -------------------------------------------------'
-       if (rank==0) write (6,'(a,i8,/)') 'Initial number of dof = ', sum (n_active)
+       if (rank==0) write (6,'(a,i8,/)') 'Initial number of active wavelets = ', sum (n_active)
        
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
-       if (NCAR_topo) then
-          do l = level_end, level_start, -1
-             call apply_onescale (assign_topo, l, z_null, 0, 1)
-          end do
-       end if
-
-       call apply_initial_conditions
        
+       call count_active
+     
        if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
     end if
     call barrier
   end subroutine initialize
   
   subroutine count_active
-    ! Count number of active node and edge wavelets
+    ! Apply initial conditions and count  number of active node and edge wavelets
     implicit none
-    integer :: d, k, v
+    integer :: d, k, l, v
 
-    if (init_adapt_mean) then
-       call forward_wavelet_transform (sol_mean, wav_coeff)
-    else
-       call forward_wavelet_transform (sol, wav_coeff)
-    end if
-
-    n_active = 0
-    do k = zmin, zmax
-       do d = 1, size(grid)
-          do v = scalars(1), scalars(2)
-             wc_s => wav_coeff(v,k)%data(d)%elts
-             n_active(AT_NODE) = n_active(AT_NODE) &
-                  + count (abs(wc_s(node_level_start(d):grid(d)%node%length)) >= threshold(v,k))
-             nullify (wc_s)
-          end do
-          wc_u => wav_coeff(S_VELO,k)%data(d)%elts
-          n_active(AT_EDGE) = n_active(AT_EDGE) &
-               + count (abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= threshold(S_VELO,k))
-          nullify (wc_u)
+    if (NCAR_topo) then
+       do l = level_end, level_start, -1
+          call apply_onescale (assign_topo, l, z_null, 0, 1)
        end do
-    end do
+    end if
+          
+    call apply_initial_conditions
+    call forward_wavelet_transform (sol, wav_coeff) 
+    
+    if (.not. allocated (threshold)) call initialize_thresholds
 
-    ! Sum results over all ranks
-    n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))
+    if (level_end /= level_start) then
+       n_active = 0
+       do k = zmin, zmax
+          do d = 1, size(grid)
+             do v = scalars(1), scalars(2)
+                wc_s => wav_coeff(v,k)%data(d)%elts
+                n_active(AT_NODE) = n_active(AT_NODE) &
+                     + count (abs(wc_s(node_level_start(d):grid(d)%node%length)) >= threshold(v,k))
+                nullify (wc_s)
+             end do
+             wc_u => wav_coeff(S_VELO,k)%data(d)%elts
+             n_active(AT_EDGE) = n_active(AT_EDGE) &
+                  + count (abs(wc_u(edge_level_start(d):grid(d)%midpt%length)) >= threshold(S_VELO,k))
+             nullify (wc_u)
+          end do
+       end do
 
-    if (rank == 0) write (6,'(A,i2,1x,2(A,i12,1x),/)') &
-         'Level = ', level_end, 'number of active node wavelets = ', n_active(AT_NODE), &
-         'number of active edge wavelets = ', n_active(AT_EDGE)
+       ! Sum results over all ranks
+       n_active(AT_NODE) = sum_int (n_active(AT_NODE)) ; n_active(AT_EDGE) = sum_int(n_active(AT_EDGE))
+
+       if (rank == 0) write (6,'(a,i2,1x,2(a,i12,1x),/)') &
+            'Level = ', level_end, 'number of active node wavelets = ', n_active(AT_NODE), &
+            'number of active edge wavelets = ', n_active(AT_EDGE)
+    end if
   end subroutine count_active
 
   subroutine record_init_state (init_state)
@@ -205,7 +197,7 @@ contains
 
     integer(8) :: idt, ialign
     real(8)    :: dx, dt_0
-    
+
     istep       = istep+1
     istep_cumul = istep_cumul+1
 
@@ -283,23 +275,28 @@ contains
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
 
     ! Compute change in vertical layer depths
-    if (log_mass) min_mass = cpt_min_mass ()
+    if (log_min_mass) min_mass = cpt_min_mass ()
     
     ! Adapt grid
-    if (iadapt > 0 .and. modulo (istep, iadapt) == 0) then
+    if (tol > 0d0 .and. iadapt >= 0 .and. modulo (istep, iadapt) == 0) then
        if (vert_diffuse .or. (remap .and. modulo (istep, iremap) == 0)) &
             call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
        if (zmin < 1) &
             call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1)
+
        call adapt (set_thresholds)
-       call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
+       call inverse_wavelet_transform (wav_coeff, sol)
+
+       ! Update mean solution and topography
        call update
+    else ! in non-adaptive case construct coarse scaling functions from finest scale solution
+       call forward_wavelet_transform (sol, wav_coeff)
     end if
 
-    if (log_mass) call sum_total_mass (.false.)
-
+    if (log_total_mass) call cal_total_mass (.false.)
+ 
     itime = itime + idt
-    
+
     if (match_time) then
        time = itime/time_mult
     else
@@ -327,8 +324,9 @@ contains
     integer         :: l
     character(9999) :: bash_cmd, cmd_archive, cmd_files, command
     
-    if (maxval (C_visc(S_MASS:S_TEMP)) > (1d0/6d0)**Laplace_order .or. C_visc(S_VELO) > (1d0/24d0)**Laplace_order) then
-       if (rank == 0) write (6,*) "Dimensional viscosity too large ... aborting"
+    if (Laplace_order < 0 .and. &
+         (maxval (C_visc(S_MASS:S_TEMP)) > (1d0/6d0)**Laplace_order .or. C_visc(S_VELO) > (1d0/24d0)**Laplace_order) ) then
+         if (rank == 0) write (6,*) "Dimensional viscosity too large ... aborting"
        call abort
     end if
 
@@ -388,13 +386,15 @@ contains
     call adapt (set_thresholds, .true.) 
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start)
+
+    ! Set mean solution and topography
     call update
 
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
 
     ! Initialize total mass value
-    if (log_mass) call sum_total_mass (.true.)
+    if (log_total_mass) call cal_total_mass (.true.)
 
     ! Initialize time step
     dt_new = min (dt_init, cpt_dt ())
@@ -403,8 +403,8 @@ contains
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
             'time [d] = ', time/DAY, &
             '  mass threshold = ', sum (threshold(S_MASS,:))/size(threshold,2), &
-             ' temp threshold = ', sum (threshold(S_TEMP,:))/size(threshold,2), &
-             ' velo threshold = ', sum (threshold(S_VELO,:))/size(threshold,2), &
+            ' temp threshold = ', sum (threshold(S_TEMP,:))/size(threshold,2), &
+            ' velo threshold = ', sum (threshold(S_VELO,:))/size(threshold,2), &
             ' Jmax = ', level_end, &
             '  dof = ', sum (n_active)
        write (6,'(A)') &
@@ -423,7 +423,7 @@ contains
     implicit none
     character(*) :: run_id
     logical      :: rebal
-    
+
     cp_idx = cp_idx + 1 
 
     if (rank == 0) then
@@ -438,7 +438,7 @@ contains
 !     call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
 !     call MPI_Barrier (MPI_COMM_WORLD, ierror)
 !     call AMPI_Migrate (chkpt_info, ierror)
-!     if (log_mass) call sum_total_mass (.true.) 
+!     if (log_total_mass) call cal_total_mass (.true.) 
 ! #else
     call write_load_conn (cp_idx, run_id)
     call dump_adapt_mpi  (cp_idx, run_id)
@@ -489,6 +489,36 @@ contains
     call init_RK_mem
   end subroutine init_structures
 
+  subroutine cal_total_mass (initialize_total_mass)
+    ! Compute total mass over all vertical layers
+    implicit none
+    logical :: initialize_total_mass
+    
+    integer                            :: k, l
+    real(8), dimension(:), allocatable :: mass_error, total_mass
+
+    allocate (total_mass(min_level:max_level), mass_error(min_level:max_level))
+    
+    total_mass = 0d0
+    do l = level_start, level_end
+       do k = zmin, zmax
+          total_mass(l) = total_mass(l) + integrate_hex (full_mass, k, l)
+       end do
+    end do
+    if (initialize_total_mass) init_total_mass = total_mass
+    
+    mass_error = abs (total_mass - init_total_mass) / init_total_mass
+
+    if (rank == 0 .and. .not. initialize_total_mass) then
+       if (tol == 0d0) then
+          write (6,'(a,10(es10.4,1x))') "Mass error            = ", mass_error(level_start:level_end)
+       else
+          write (6,'(a,10(es10.4,1x))') "Mass error            = ", mass_error(level_start)
+       end if
+    end if
+    deallocate (mass_error, total_mass)
+  end subroutine cal_total_mass
+  
   real(8) function cpt_dt ()
     ! Calculates time step, minimum relative mass and active nodes and edges
     implicit none
@@ -523,11 +553,16 @@ contains
     integer :: ierror, l
 
     min_mass_loc = 1d16
-    do l = level_start, level_end
-       call apply_onescale (cal_min_mass, l, z_null, 0, 0)
-    end do
-
+    if (tol /= 0d0) then
+       do l = level_start, level_end
+          call apply_onescale (cal_min_mass, l, z_null, 0, 0)
+       end do
+    else
+       call apply_onescale (cal_min_mass, max_level, z_null, 0, 0)
+    end if
+    
     cpt_min_mass = sync_min_real (min_mass_loc)
+    if (rank == 0) write (6,'(a,es10.4)') "Minimum relative mass = ", cpt_min_mass
   end function cpt_min_mass
 
   subroutine cal_min_dt (dom, i, j, zlev, offs, dims)

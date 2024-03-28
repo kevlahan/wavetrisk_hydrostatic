@@ -76,27 +76,6 @@ contains
     end if
   end subroutine vort_extrema
 
-  subroutine sum_total_mass (initialgo)
-    ! Total mass over all vertical layers
-    implicit none
-    logical :: initialgo
-
-    integer :: k
-
-    if (initialgo) then
-       initotalmass = 0d0
-       do k = zmin, zmax
-          initotalmass = initotalmass + integrate_hex (full_mass, k, level_start)
-       end do
-    else
-       totalmass = 0d0
-       do k = zmin, zmax
-          totalmass = totalmass + integrate_hex (full_mass, k, level_start)
-       end do
-       mass_error = abs (totalmass - initotalmass) / initotalmass
-    end if
-  end subroutine sum_total_mass
-
   real(8) function full_mass (dom, i, j, zlev, offs, dims)
     use domain_mod
     implicit none
@@ -109,7 +88,7 @@ contains
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
-
+    
     full_mass = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
   end function full_mass
 
@@ -1571,7 +1550,7 @@ contains
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
-    l  = dom%level%elts(id)
+    l  = max_level                   ! use topography from finest grid
 
     n_topo = size (topography_data(l,d)%elts); allocate (distance(1:n_topo))
     do ii = 1, n_topo
