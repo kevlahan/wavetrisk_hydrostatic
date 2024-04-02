@@ -113,7 +113,7 @@ contains
        if (rank == 0) write (6,'(A,/)') &
             '------------------------------------------------- Finished adapting initial grid &
             -------------------------------------------------'
-       if (rank==0) write (6,'(a,i8,/)') 'Initial number of active wavelets = ', sum (n_active)
+       if (rank==0) write (6,'(a,i12,/)') 'Initial number of active wavelets = ', sum (n_active)
        
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        
