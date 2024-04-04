@@ -226,6 +226,7 @@ module shared_mod
   integer                                       :: iadapt, ibin, irebalance, iremap, istep, istep_cumul, iwrite
   integer                                       :: n_diffuse, nbins, nstep_init, save_zlev
   integer                                       :: resume, Laplace_order, Laplace_order_init
+  integer                                       :: topo_min_level, topo_max_level
   integer(8)                                    :: itime
   integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
   integer, dimension(:), allocatable            :: n_node_old, n_patch_old

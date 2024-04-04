@@ -122,8 +122,12 @@ program Held_Suarez
   C_div              = nu_divu * dt_max / (3d0 * Area_min**Laplace_order_init) 
   
   ! Adapt on mean variables (fluctuations are initially zero)
-  log_min_mass       = .true.
+  log_min_mass       = .false.
   log_total_mass     = .false.
+
+  ! Topography data levels (need to use same DOMAIN_LEVEL as used to generate topography data)
+  topo_min_level     = 4
+  topo_max_level     = 6
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

@@ -1484,10 +1484,10 @@ contains
        call system (trim(bash_cmd))
     end if
     call barrier
-    
+
     ! Allocate topo_count matrix for all domains on all ranks 
     if (allocated (topo_count)) deallocate (topo_count)
-    allocate (topo_count(min_level:max_level,1:N_GLO_DOMAIN))
+    allocate (topo_count(topo_min_level:topo_max_level,1:N_GLO_DOMAIN))
     
     do r = 1, n_process
 #ifdef MPI
