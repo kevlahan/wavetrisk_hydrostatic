@@ -9,7 +9,7 @@ program Held_Suarez
   implicit none
 
   integer        :: l
-  real(8)        :: fine_mass
+  real(8)        :: dx_scaling, fine_mass, nu_scaling
   logical        :: aligned
   character(256) :: input_file
 
@@ -92,6 +92,8 @@ program Held_Suarez
   uniform            = .false.
 
   adapt_dt           = .false.
+
+  dx_scaling         = 2**(6 - max_level) 
   if (adapt_dt) then
      cfl_min = 0.1d0                                           ! minimum cfl number
      cfl_max = 1d0                                             ! maximum cfl number
@@ -100,7 +102,7 @@ program Held_Suarez
      dt_init = cfl_min * 0.85d0 * dx_min / (wave_speed + Udim) ! initial time step     (0.85 factor corrects for minimum dx)
      dt_max  = cfl_max * 0.85d0 * dx_min / (wave_speed + Udim) ! equilibrium time step (0.85 factor corrects for minimum dx)
   else
-     dt_init = 300d0 * SECOND * 2**(6 - max_level)             ! Lauritzen value
+     dt_init = 300d0 * SECOND * dx_scaling                     ! Lauritzen value
      dt_max  = dt_init
   end if
 
@@ -111,9 +113,11 @@ program Held_Suarez
   scale_aware        = .false.                      
 
   ! CAM values for viscosity
-  nu_sclr            = 1.0d15
-  nu_rotu            = 1.0d15
-  nu_divu            = 2.5d15
+  nu_scaling         = dx_scaling**(2*Laplace_order_init)
+  
+  nu_sclr            = 1.0d15 * nu_scaling
+  nu_rotu            = 1.0d15 * nu_scaling
+  nu_divu            = 2.5d15 * nu_scaling
 
   ! Equivalent non-dimensional viscosities
   C_visc(S_MASS)     = nu_sclr * dt_max / (3d0 * Area_min**Laplace_order_init) 
