@@ -1,9 +1,0 @@
-#!/bin/csh -f
-# Computes a separate vtk file for each scale
-# Example: trisk2vtk_ms 2layer_normal 2layer 30 31 6 10 
-
-set s = $5
- while ( $s <= $6 )
-   ./trisk2vtk $1.1 $2 $3 $4 $s $s $1_J$s
-   @ s++
- end
