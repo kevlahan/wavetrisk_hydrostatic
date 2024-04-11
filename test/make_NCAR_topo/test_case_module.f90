@@ -196,7 +196,7 @@ contains
     real(8) :: Area
 
     Area = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**l) ! average hexagonal cell area
-    dt_nu = Area / 5d0                               ! amount of smoothing 
+    dt_nu = Area / 4d0                               ! amount of smoothing 
     
     call cal_trend_topo (l)
 
