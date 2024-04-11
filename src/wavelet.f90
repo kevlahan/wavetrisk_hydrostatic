@@ -799,11 +799,10 @@ contains
     end if
   end subroutine Compute_velo_wavelets_penta
 
-  subroutine forward_topo_transform (scaling, wavelet, jmin_in, jmax_in)
-    ! Forward scalar wavelet transform
+  subroutine topo_restriction (jmin_in, jmax_in)
+    ! Forward 
     implicit none
-    integer, optional         :: jmin_in, jmax_in
-    type(Float_Field), target :: scaling, wavelet
+    integer, optional :: jmin_in, jmax_in
 
     integer :: d, jmin, jmax, l
 
@@ -824,29 +823,18 @@ contains
        call abort
     end if
 
-    do l = jmax-1, level_start-1, -1
-       call update_bdry (scaling, l+1)
+    do l = jmax-1, jmin-1, -1
+       call update_bdry (topography, l+1)
 
-       ! Compute scalar wavelet coefficients
+       ! Restrict topography to coarser grid using full-weighting 
        do d = 1, size(grid)
-          scalar => scaling%data(d)%elts
-          wc_s   => wavelet%data(d)%elts
-          call apply_interscale_d (Compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-          nullify (scalar, wc_s)
-       end do
-       call update_bdry (wavelet, l+1)
-
-       ! Restrict scalars (sub-sample and lift) to coarser grid
-       do d = 1, size(grid)
-          scalar => scaling%data(d)%elts
-          wc_s   => wavelet%data(d)%elts
+          scalar => topography%data(d)%elts
           call apply_interscale_d (Restrict_full_weighting, grid(d), l, z_null, 0, 1) ! +1 to include poles
-          nullify (scalar, wc_s)
+          nullify (scalar)
        end do
-       scaling%bdry_uptodate = .false.
-       wavelet%bdry_uptodate = .false.
+       topography%bdry_uptodate = .false.
     end do
-  end subroutine forward_topo_transform
+  end subroutine topo_restriction
 
   subroutine inverse_topo_transform (wavelet, scaling, jmin_in, jmax_in)
     ! Inverse scalar wavelet transform

@@ -9,7 +9,7 @@ program Held_Suarez
   implicit none
 
   integer        :: l
-  real(8)        :: dx_scaling, fine_mass, nu_scaling
+  real(8)        :: dx_scaling, fine_mass, nu_scaling, r_max
   logical        :: aligned
   character(256) :: input_file
 
@@ -129,11 +129,7 @@ program Held_Suarez
   log_min_mass       = .false.
   log_total_mass     = .false.
 
-  ! Topography data levels (need to use same DOMAIN_LEVEL as used to generate topography data)
-  topo_min_level     = 4
-  topo_max_level     = 6
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize functions
   call assign_functions
@@ -141,6 +137,13 @@ program Held_Suarez
   ! Initialize variables
   call initialize (run_id)
   call print_test_case_parameters
+
+  ! Compute r_max factor for topography
+  if (rank == 0) write (6,'(/,a)') "Level      r_max"
+  do l = min_level, max_level
+     call cal_r_max (l, r_max)
+     if (rank == 0) write (6,'(i2,8x,es8.2)') l, r_max
+  end do
 
   ! Save initial conditions
   call omega_velocity

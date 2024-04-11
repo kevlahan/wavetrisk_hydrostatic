@@ -74,10 +74,13 @@ program make_NCAR_topo
 
   call assign_height (trim (topo_file))
 
-  ! Compute topography 
-  !call forward_scalar_transform (topography, wav_topography)
-  call forward_topo_transform (topography, wav_topography)
-
+  ! Smooth topography
+  call topo_restriction (max_level, max_level)
+  do l = max_level-1, min_level, -1
+     call smooth_topo (l)
+     call topo_restriction (l, l)
+  end do
+  
   ! Check mass conservation
   fine_mass = integrate_hex (topo, z_null, max_level)
   do l = max_level-1, min_level, -1

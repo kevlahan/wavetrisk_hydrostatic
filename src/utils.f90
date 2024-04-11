@@ -901,7 +901,7 @@ contains
     end do
   end subroutine zero_float_vector
 
-   subroutine zero_float_array (q)
+  subroutine zero_float_array (q)
     ! Initializes a float array to zero
     implicit none
     type(Float_Field), dimension(:,:) :: q

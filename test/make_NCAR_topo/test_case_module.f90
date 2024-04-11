@@ -6,7 +6,7 @@ module test_case_mod
   use std_atm_profile_mod
   use io_mod
   implicit none
-  real(8)         :: smth_scl
+  real(8)         :: dt_nu, smth_scl
   character(9999) :: topo_data
 contains
   subroutine assign_functions
@@ -187,4 +187,75 @@ contains
     implicit none
     integer :: fid
   end subroutine load_case
+
+  subroutine smooth_topo (l)
+    ! Smooths topography by taking an Euler time step with diffusive trend
+    implicit none
+    integer :: l
+
+    real(8) :: Area
+
+    Area = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**l) ! average hexagonal cell area
+    dt_nu = Area / 5d0                               ! amount of smoothing 
+    
+    call cal_trend_topo (l)
+
+    call apply_onescale (Euler_step_topo, l, z_null, 0, 1)
+
+    topography%bdry_uptodate = .false.
+    call update_bdry (topography, l)
+  end subroutine smooth_topo
+
+  subroutine Euler_step_topo (dom, i, j, zlev, offs, dims)
+    ! Euler step for topography smoothing
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+
+    id = idx (i, j, offs, dims) + 1
+    d = dom%id + 1
+
+    topography%data(d)%elts(id) = topography%data(d)%elts(id) + dt_nu * trend(S_MASS,1)%data(d)%elts(id)
+  end subroutine Euler_step_topo
+
+  subroutine cal_trend_topo (l)
+    ! Computes Laplacian of topography, div (grad (topography) ), stored as trend(S_MASS,1)
+    ! (used to smooth topography at scale l)
+    implicit none
+    integer :: l
+    
+    integer :: d, j
+
+    call zero_float (trend(S_MASS,1))
+
+    call update_bdry (topography, l)
+
+    ! Compute scalar fluxes
+    do d = 1, size(grid)
+       scalar => topography%data(d)%elts
+       h_flux => horiz_flux(S_MASS)%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=1)
+       end do
+       nullify (scalar, h_flux)
+    end do
+    horiz_flux%bdry_uptodate = .false.
+    call update_bdry (horiz_flux(S_MASS), l)
+
+    ! Compute divergence of fluxes
+    do d = 1, size(grid)
+       dscalar => trend(S_MASS,1)%data(d)%elts
+       h_flux  => horiz_flux(S_MASS)%data(d)%elts
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+       end do
+       nullify (dscalar, h_flux)
+    end do
+    trend(S_MASS,1)%bdry_uptodate = .false.
+    call update_bdry (trend(S_MASS,1), l)
+  end subroutine cal_trend_topo
 end module test_case_mod

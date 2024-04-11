@@ -1550,7 +1550,7 @@ contains
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
-    l  = max_level                   ! use topography from finest grid
+    l  = dom%level%elts(id)           
 
     n_topo = size (topography_data(l,d)%elts); allocate (distance(1:n_topo))
     do ii = 1, n_topo
