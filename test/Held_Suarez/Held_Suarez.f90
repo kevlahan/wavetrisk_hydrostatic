@@ -9,7 +9,7 @@ program Held_Suarez
   implicit none
 
   integer        :: l
-  real(8)        :: dx_scaling, fine_mass, nu_scaling, r_max
+  real(8)        :: dx_scaling, fine_mass, nu_scaling, rx0_max, rx1_max
   logical        :: aligned
   character(256) :: input_file
 
@@ -138,11 +138,11 @@ program Held_Suarez
   call initialize (run_id)
   call print_test_case_parameters
 
-  ! Compute r_max factor for topography
-  if (rank == 0) write (6,'(/,a)') "Level      r_max"
+  ! Compute hydrostatic error factors for topography
+  if (rank == 0) write (6,'(/,a)') "Level      rx0_max   rx1_max"
   do l = min_level, max_level
-     call cal_r_max (l, r_max)
-     if (rank == 0) write (6,'(i2,8x,es8.2)') l, r_max
+     call cal_r_max (l, rx0_max, rx1_max)
+     if (rank == 0) write (6,'(i2,8x,2(es8.2,3x))') l, rx0_max, rx1_max
   end do
 
   ! Save initial conditions

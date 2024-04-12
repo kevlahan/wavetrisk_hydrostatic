@@ -76,7 +76,6 @@ program make_NCAR_topo
 
   ! Smooth topography
   nsmth = 100
-  !call smooth_topo (max_level, nsmth)
   call topo_restriction (max_level, max_level)
   do l = max_level-1, min_level, -1
      call smooth_topo (l, nsmth)
