@@ -9,7 +9,7 @@ module test_case_mod
 
   ! Standard variables
   integer :: CP_EVERY, resume_init
-  real(8) :: total_cpu_time, dPdim, Hdim, Ldim, Pdim, R_ddim, r_max_loc, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8) :: total_cpu_time, dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
   real(8) :: time_start
 
   ! Test case variables
@@ -1016,61 +1016,4 @@ contains
        cfl = cfl_max
     end if
   end function cfl
-
-  subroutine cal_r_max (l, r_max)
-    ! Calculates minimum relative mass and checks diffusion stability limits
-    use mpi
-    implicit none
-    integer :: l
-    real(8) :: r_max
-
-    integer :: ierror, k
-
-    r_max_loc = 0d0
-    r_max     = 0d0
-
-    do k = 1, zlevels
-       call apply_onescale (cal_rmax_loc, l, k, 0, 0)
-    end do
-
-    call MPI_Allreduce (r_max_loc, r_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-  end subroutine cal_r_max
-
-  subroutine cal_rmax_loc (dom, i, j, zlev, offs, dims)
-    ! Calculates minimum mass and diffusion stability limits
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id, idE, idN, idNE, idS, idSW, idW, k
-    real(8) :: r_loc
-
-    id   = idx (i,   j,   offs, dims)
-
-    idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-
-    idW  = idx (i-1, j,   offs, dims)
-    idSW = idx (i-1, j-1, offs, dims)
-    idS  = idx (i,   j-1, offs, dims)
-
-    d    = dom%id + 1
-
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       r_loc = abs (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) - sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)) / &
-            (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idE+1))
-       r_max_loc = max (r_max_loc, r_loc)
-
-       r_loc = abs (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) - sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1)) / &
-            (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1))
-       r_max_loc = max (r_max_loc, r_loc)
-
-       r_loc = abs (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) - sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)) / &
-            (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(idN+1))
-       r_max_loc = max (r_max_loc, r_loc)
-    end if
-  end subroutine cal_rmax_loc
 end module test_case_mod

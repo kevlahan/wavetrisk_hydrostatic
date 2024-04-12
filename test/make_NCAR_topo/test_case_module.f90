@@ -188,22 +188,23 @@ contains
     integer :: fid
   end subroutine load_case
 
-  subroutine smooth_topo (l)
+  subroutine smooth_topo (l, nsmth)
     ! Smooths topography by taking an Euler time step with diffusive trend
     implicit none
-    integer :: l
+    integer :: l, nsmth
 
     real(8) :: Area
 
     Area = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**l) ! average hexagonal cell area
-    dt_nu = Area / 4d0                               ! amount of smoothing 
-    
-    call cal_trend_topo (l)
+    dt_nu = Area/3d0 / dble (nsmth)                ! amount of smoothing
+    do istep = 1, nsmth
+       call cal_trend_topo (l)
 
-    call apply_onescale (Euler_step_topo, l, z_null, 0, 1)
+       call apply_onescale (Euler_step_topo, l, z_null, 0, 1)
 
-    topography%bdry_uptodate = .false.
-    call update_bdry (topography, l)
+       topography%bdry_uptodate = .false.
+       call update_bdry (topography, l)
+    end do
   end subroutine smooth_topo
 
   subroutine Euler_step_topo (dom, i, j, zlev, offs, dims)
@@ -218,7 +219,7 @@ contains
 
     id = idx (i, j, offs, dims) + 1
     d = dom%id + 1
-
+   
     topography%data(d)%elts(id) = topography%data(d)%elts(id) + dt_nu * trend(S_MASS,1)%data(d)%elts(id)
   end subroutine Euler_step_topo
 
