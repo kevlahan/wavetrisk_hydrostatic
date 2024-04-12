@@ -153,12 +153,18 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: id, k
+    integer :: id, k, kmax
 
     id = idx (i, j, offs, dims)
 
+    if (l == -1) then
+       kmax = zlev - 1
+    else
+       kmax = zlev
+    end if
+
     zl_i = dom%topo%elts(id+1)
-    do k = 1, zlev+l
+    do k = 1, kmax
        zl_i = zl_i + dz_i (dom, i, j, k, offs, dims, q)
     end do
   end function zl_i
@@ -174,17 +180,23 @@ contains
     type(Float_Field), dimension(:,:), target :: q
     real(8), dimension(1:EDGE)                :: zl_e
 
-    integer :: id, idE, idN, idNE, k
+    integer :: id, idE, idN, idNE, k, kmax
 
     id   = idx (i,   j,   offs, dims)
     idE  = idx (i+1, j,   offs, dims)
     idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
 
+    if (l == -1) then
+       kmax = zlev - 1
+    else
+       kmax = zlev
+    end if
+
     zl_e(RT+1) = interp (dom%topo%elts(id+1), dom%topo%elts(idE+1))  
     zl_e(DG+1) = interp (dom%topo%elts(id+1), dom%topo%elts(idNE+1)) 
     zl_e(UP+1) = interp (dom%topo%elts(id+1), dom%topo%elts(idN+1))  
-    do k = 1, zlev+l
+    do k = 1, kmax
        zl_e = zl_e + dz_e (dom, i, j, k, offs, dims, q)
     end do
   end function zl_e
