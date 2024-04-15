@@ -1219,131 +1219,109 @@ contains
     radial_basis_fun = exp__flush (-(alph*r)**2)
   end function radial_basis_fun
 
-  subroutine cal_r_max (l, rx0_max, rx1_max)
-    ! Calculates minimum relative mass and checks diffusion stability limits
+  subroutine cal_rx0_max (l, rx0_max)
+    ! Maximum topographic stiffness ratio rx0 < 0.2
+    ! (also called the Beckman-Haidvogel number)
+    ! the compressible version uses surface pressure instead of topography height
     use mpi
     implicit none
     integer :: l
-    real(8) :: rx0_max, rx1_max
+    real(8) :: rx0_max
 
-    integer :: ierror, k
+    integer :: ierror
 
     rx0_max_loc = 0d0
     rx0_max     = 0d0
 
+    if (compressible) then
+       call apply_onescale (cal_rx0_loc_P, l, z_null, 0, 0)
+    else
+       call apply_onescale (cal_rx0_loc_Z, l, z_null, 0, 0)
+    end if
+    call MPI_Allreduce (rx0_max_loc, rx0_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+  end subroutine cal_rx0_max
+
+  subroutine cal_rx1_max (l, rx1_max)
+    ! Hydrostatic maximum instability number rx1 < 1 (also called Haney number)
+    ! (Haney 1991, Shchepetkin and McWilliams 2003)
+    ! note that rx1 < 1 is almost impossible to achieve and rx1 <= 5 is usually okay in oceanographic simulations.
+    use mpi
+    implicit none
+    integer :: l
+    real(8) :: rx1_max
+
+    integer :: ierror, k
+
     rx1_max_loc = 0d0
     rx1_max     = 0d0
-
+    
     do k = 1, zlevels
        if (compressible) then
-          call apply_onescale (cal_r_loc_P, l, k, 0, 0)
+          call apply_onescale (cal_rx1_loc_P, l, k, 0, 0)
        else
-          call apply_onescale (cal_r_loc_Z, l, k, 0, 0)
+          call apply_onescale (cal_rx1_loc_Z, l, k, 0, 0)
        end if
     end do
-
-    call MPI_Allreduce (rx0_max_loc, rx0_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
     call MPI_Allreduce (rx1_max_loc, rx1_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-  end subroutine cal_r_max
+  end subroutine cal_rx1_max
 
-  subroutine cal_r_loc_Z (dom, i, j, zlev, offs, dims)
+  subroutine cal_rx0_loc_P (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
-    ! uses z vertical coordinates
+    ! uses surface pressure 
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idE, idN, idNE
-    real(8) :: h0, h1, z1, z2, z3, z4
+    integer :: id, idE, idNE, idN
+    real(8) :: h0, h1
 
     id   = idx (i,   j,   offs, dims)
 
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
-    
-    d    = dom%id + 1
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       h0 = sol_mean(S_MASS,zlev)%data(d)%elts(id+ 1) + sol(S_MASS,zlev)%data(d)%elts(id+1)
+       h0 = dom%surf_press%elts(id+1)
 
-       h1 = sol_mean(S_MASS,zlev)%data(d)%elts(idE+1) + sol(S_MASS,zlev)%data(d)%elts(idE+1)
+       h1 = dom%surf_press%elts(idE+1)
        rx0_max_loc = max (rx0_max_loc, rx0 ())
 
-       h1 = sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) + sol(S_MASS,zlev)%data(d)%elts(idNE+1)
+       h1 = dom%surf_press%elts(idNE+1)
        rx0_max_loc = max (rx0_max_loc, rx0 ())
 
-       h1 = sol_mean(S_MASS,zlev)%data(d)%elts(idN+1) + sol(S_MASS,zlev)%data(d)%elts(idN+1)
+       h1 = dom%surf_press%elts(idN+1)
        rx0_max_loc = max (rx0_max_loc, rx0 ())
-    
-       z1 = zl_i (dom, i, j, zlev, offs, dims, sol, -1)
-       z2 = zl_i (dom, i, j, zlev, offs, dims, sol,  1)
-
-       z3 = zl_i (dom, i+1, j, zlev, offs, dims, sol, -1)
-       z4 = zl_i (dom, i+1, j, zlev, offs, dims, sol,  1)
-       rx1_max_loc = max (rx1_max_loc, rx1 ())
-
-       z3 = zl_i (dom, i+1, j+1, zlev, offs, dims, sol, -1)
-       z4 = zl_i (dom, i+1, j+1, zlev, offs, dims, sol,  1)
-       rx1_max_loc = max (rx1_max_loc, rx1 ())
-
-       z3 = zl_i (dom, i, j+1, zlev, offs, dims, sol, -1)
-       z4 = zl_i (dom, i, j+1, zlev, offs, dims, sol,  1)
-       rx1_max_loc = max (rx1_max_loc, rx1 ())
     end if
   contains
     real(8) function rx0 ()
-      ! Topographic stiffness number: rx0 < 0.2 for acceptable horizontal pressure gradient error
-      ! (Beckmann and Haidvogel 1993)
       implicit none
 
       rx0 = abs (h0 - h1) / (h0 + h1)
     end function rx0
+  end subroutine cal_rx0_loc_P
 
-    real(8) function rx1 ()
-      ! Hydrostatic instability number rx1 < 1 (also called Haney number)
-      ! (Haney 1991, Shchepetkin and McWilliams 2003)
-      ! Note that rx1 < 1 is almost impossible to achieve and rx1 <= 5 is usually okay in oceanographic simulations.
-      implicit none
-
-      rx1 = (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1)
-    end function rx1
-  end subroutine cal_r_loc_Z
-
-  subroutine cal_r_loc_P (dom, i, j, zlev, offs, dims)
+  subroutine cal_rx1_loc_P (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
     ! uses pressure vertical coordinates
-    implicit none
+    Implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idE, idN, idNE
-    real(8) :: h0, h1, z1, z2, z3, z4
-
-    id   = idx (i,   j,   offs, dims)
+    integer :: id, idE, idNE, idN
+    real(8) :: z1, z2, z3, z4
+    
+    id  = idx (i, j, offs, dims)
 
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
-    
-    d    = dom%id + 1
 
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       h0 = p(id,zlev) - p(id,zlev+1)
-
-       h1 = p(idE,zlev) - p(idE,zlev+1)
-       rx0_max_loc = max (rx0_max_loc, rx0 ())
-
-       h1 = p(idNE,zlev) - p(idNE,zlev+1)
-       rx0_max_loc = max (rx0_max_loc, rx0 ())
-
-       h1 = p(idN,zlev) - p(idN,zlev+1)
-       rx0_max_loc = max (rx0_max_loc, rx0 ())
-    
        z1 = p(id, zlev+1)
        z2 = p(id, zlev)
 
@@ -1367,21 +1345,88 @@ contains
       p = a_vert(k) + b_vert(k) * dom%surf_press%elts(id+1)
     end function p
 
-    real(8) function rx0 ()
-      ! Topographic stiffness number: rx0 < 0.2 for acceptable horizontal pressure gradient error
-      ! (Beckmann and Haidvogel 1993)
-      implicit none
-
-      rx0 = abs (h0 - h1) / (h0 + h1)
-    end function rx0
-
     real(8) function rx1 ()
-      ! Hydrostatic instability number rx1 < 1 (also called Haney number)
-      ! (Haney 1991, Shchepetkin and McWilliams 2003)
-      ! Note that rx1 < 1 is almost impossible to achieve and rx1 <= 5 is usually okay in oceanographic simulations.
       implicit none
 
       rx1 = (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1)
     end function rx1
-  end subroutine cal_r_loc_P
+  end subroutine cal_rx1_loc_P
+
+  subroutine cal_rx0_loc_Z (dom, i, j, zlev, offs, dims)
+    ! Calculates minimum mass and diffusion stability limits
+    ! uses z vertical coordinates
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, idE, idN, idNE
+    real(8) :: h0, h1
+
+    id   = idx (i,   j,   offs, dims)
+
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+
+    d    = dom%id + 1
+
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+       h0 = topography%data(d)%elts(id+1)
+
+       h1 = topography%data(d)%elts(idE+1)
+       rx0_max_loc = max (rx0_max_loc, rx0 ())
+
+       h1 = topography%data(d)%elts(idNE+1)
+       rx0_max_loc = max (rx0_max_loc, rx0 ())
+
+       h1 = topography%data(d)%elts(idN+1)
+       rx0_max_loc = max (rx0_max_loc, rx0 ())
+    end if
+  contains
+    real(8) function rx0 ()
+      implicit none
+
+      rx0 = abs (h0 - h1) / (h0 + h1)
+    end function rx0
+  end subroutine cal_rx0_loc_Z
+
+  subroutine cal_rx1_loc_Z (dom, i, j, zlev, offs, dims)
+    ! Calculates minimum mass and diffusion stability limits
+    ! uses z vertical coordinates
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+    real(8) :: z1, z2, z3, z4
+
+    id  = idx (i, j, offs, dims)
+
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+       z1 = zl_i (dom, i, j, zlev, offs, dims, sol, -1)
+       z2 = zl_i (dom, i, j, zlev, offs, dims, sol,  1)
+
+       z3 = zl_i (dom, i+1, j, zlev, offs, dims, sol, -1)
+       z4 = zl_i (dom, i+1, j, zlev, offs, dims, sol,  1)
+       rx1_max_loc = max (rx1_max_loc, rx1 ())
+
+       z3 = zl_i (dom, i+1, j+1, zlev, offs, dims, sol, -1)
+       z4 = zl_i (dom, i+1, j+1, zlev, offs, dims, sol,  1)
+       rx1_max_loc = max (rx1_max_loc, rx1 ())
+
+       z3 = zl_i (dom, i, j+1, zlev, offs, dims, sol, -1)
+       z4 = zl_i (dom, i, j+1, zlev, offs, dims, sol,  1)
+       rx1_max_loc = max (rx1_max_loc, rx1 ())
+    end if
+  contains
+    real(8) function rx1 ()
+      implicit none
+
+      rx1 = (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1)
+    end function rx1
+  end subroutine cal_rx1_loc_Z
 end module utils_mod
