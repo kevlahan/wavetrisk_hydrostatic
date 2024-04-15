@@ -1348,7 +1348,7 @@ contains
     real(8) function rx1 ()
       implicit none
 
-      rx1 = (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1)
+      rx1 = abs ( (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1) )
     end function rx1
   end subroutine cal_rx1_loc_P
 
@@ -1426,7 +1426,7 @@ contains
     real(8) function rx1 ()
       implicit none
 
-      rx1 = (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1)
+      rx1 = abs ( (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1) )
     end function rx1
   end subroutine cal_rx1_loc_Z
 end module utils_mod
