@@ -668,7 +668,7 @@ contains
        field(:,:,3+k-1) = field2d
 
        ! Geopotential
-       call apply_onescale (cal_geopot, level_save, z_null, 0, 1)
+       call apply_onescale (cal_geopot, level_save, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        call project_array_onto_plane ("geopot", level_save, 1d0)
        field(:,:,4+k-1) = field2d
 

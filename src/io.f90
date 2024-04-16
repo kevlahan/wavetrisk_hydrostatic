@@ -1833,7 +1833,8 @@ contains
                 mean_t  => sol_mean(S_TEMP,k)%data(d)%elts
                 exner   => exner_fun(k)%data(d)%elts
                 do j = 1, grid(d)%lev(l)%length
-                   call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
+                   call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, &
+                        -BDRY_THICKNESS, BDRY_THICKNESS)
                 end do
                 nullify (mass, mean_m, temp, mean_t, exner)
              end do

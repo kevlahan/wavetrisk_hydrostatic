@@ -1234,9 +1234,9 @@ contains
     rx0_max     = 0d0
 
     if (compressible) then
-       call apply_onescale (cal_rx0_loc_P, l, z_null, 0, 0)
+       call apply_onescale (cal_rx0_loc_P, l, z_null, 0, 1)
     else
-       call apply_onescale (cal_rx0_loc_Z, l, z_null, 0, 0)
+       call apply_onescale (cal_rx0_loc_Z, l, z_null, 0, 1)
     end if
     call MPI_Allreduce (rx0_max_loc, rx0_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
   end subroutine cal_rx0_max
@@ -1244,24 +1244,23 @@ contains
   subroutine cal_rx1_max (l, rx1_max)
     ! Hydrostatic maximum instability number rx1 < 1 (also called Haney number)
     ! (Haney 1991, Shchepetkin and McWilliams 2003)
-    ! note that rx1 < 1 is almost impossible to achieve and rx1 <= 5 is usually okay in oceanographic simulations.
+    ! note that rx1 < 1 is almost impossible to achieve and rx1 <= 5 is usually okay in oceanographic simulations
+    ! compute only over lowest layer (most unstable)
     use mpi
     implicit none
     integer :: l
     real(8) :: rx1_max
 
-    integer :: ierror, k
+    integer :: ierror
 
     rx1_max_loc = 0d0
     rx1_max     = 0d0
-    
-    do k = 1, zlevels
-       if (compressible) then
-          call apply_onescale (cal_rx1_loc_P, l, k, 0, 0)
-       else
-          call apply_onescale (cal_rx1_loc_Z, l, k, 0, 0)
-       end if
-    end do
+
+    if (compressible) then
+       call apply_onescale (cal_rx1_loc_P, l, 1, 0, 1)
+    else
+       call apply_onescale (cal_rx1_loc_Z, l, 1, 0, 1)
+    end if
     call MPI_Allreduce (rx1_max_loc, rx1_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
   end subroutine cal_rx1_max
 
@@ -1406,7 +1405,7 @@ contains
 
     id  = idx (i, j, offs, dims)
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+    !if (dom%mask_n%elts(id+1) >= ADJZONE) then
        z1 = zl_i (dom, i, j, zlev, offs, dims, sol, -1)
        z2 = zl_i (dom, i, j, zlev, offs, dims, sol,  1)
 
@@ -1421,7 +1420,7 @@ contains
        z3 = zl_i (dom, i, j+1, zlev, offs, dims, sol, -1)
        z4 = zl_i (dom, i, j+1, zlev, offs, dims, sol,  1)
        rx1_max_loc = max (rx1_max_loc, rx1 ())
-    end if
+    !end if
   contains
     real(8) function rx1 ()
       implicit none
