@@ -1251,16 +1251,18 @@ contains
     integer :: l
     real(8) :: rx1_max
 
-    integer :: ierror
+    integer :: ierror, k
 
     rx1_max_loc = 0d0
     rx1_max     = 0d0
 
-    if (compressible) then
-       call apply_onescale (cal_rx1_loc_P, l, 1, 0, 1)
-    else
-       call apply_onescale (cal_rx1_loc_Z, l, 1, 0, 1)
-    end if
+    do k = 1, zlevels
+       if (compressible) then
+          call apply_onescale (cal_rx1_loc_P, l, k, 0, 1)
+       else
+          call apply_onescale (cal_rx1_loc_Z, l, k, 0, 1)
+       end if
+    end do
     call MPI_Allreduce (rx1_max_loc, rx1_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
   end subroutine cal_rx1_max
 
