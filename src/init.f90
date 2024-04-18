@@ -425,13 +425,13 @@ contains
        call init (grid(d)%ccentre, grid(d)%node%length*TRIAG)
 
        do i = 1, grid(d)%node%length*TRIAG
-          call init_Coord (grid(d)%ccentre%elts(i), 0.0_8, 0.0_8, 0.0_8)
+          call init_Coord (grid(d)%ccentre%elts(i), 0d0, 0d0, 0d0)
        end do
 
        call init (grid(d)%midpt, grid(d)%node%length*EDGE)
 
        do i = 1, grid(d)%node%length*EDGE
-          call init_Coord (grid(d)%midpt%elts(i), 0.0_8, 0.0_8, 0.0_8)
+          call init_Coord (grid(d)%midpt%elts(i), 0d0, 0d0, 0d0)
        end do
 
        call init (grid(d)%areas,       grid(d)%node%length)
@@ -452,12 +452,12 @@ contains
        call ccentre_penta (grid(d), 1)
     end do
 
-    call apply_onescale2 (midpt,      min_level-1, z_null, -1, 2)
-    call apply_onescale2 (cpt_areas,  min_level-1, z_null, -1, 2)
-    call apply_onescale2 (lengths,    min_level-1, z_null, -1, 2)
+    call apply_onescale2 (midpt,      min_level-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_onescale2 (cpt_areas,  min_level-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_onescale2 (lengths,    min_level-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
 
-    call apply_onescale (cpt_triarea, min_level-1, z_null, -1, 1)
-    call apply_onescale (coriolis,    min_level-1, z_null, -1, 1)
+    call apply_onescale (cpt_triarea, min_level-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_onescale (coriolis,    min_level-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     
     do d = 1, size(grid)
        call init (grid(d)%surf_press,   grid(d)%node%length)

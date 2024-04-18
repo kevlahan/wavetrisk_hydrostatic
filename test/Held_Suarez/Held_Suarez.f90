@@ -138,16 +138,17 @@ program Held_Suarez
   call initialize (run_id)
   call print_test_case_parameters
 
-  ! Compute hydrostatic error factors for topography
-  if (rank == 0) write (6,'(/,a)') "Level      rx0_max   rx1_max"
-  do l = min_level, max_level
-     call cal_r_max (l, rx0_max, rx1_max)
-     if (rank == 0) write (6,'(i2,8x,2(es8.2,3x))') l, rx0_max, rx1_max
-  end do
-
   ! Save initial conditions
   call omega_velocity
   call write_and_export (iwrite)
+
+  ! Compute hydrostatic error factors for topography
+  if (rank == 0) write (6,'(/,a)') "Level      rx0_max   rx1_max"
+  do l = min_level, max_level
+     call cal_rx0_max (l, rx0_max)
+     call cal_rx1_max (l, rx1_max)
+     if (rank == 0) write (6,'(i2,8x,2(es8.2,3x))') l, rx0_max, rx1_max
+  end do
   
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &

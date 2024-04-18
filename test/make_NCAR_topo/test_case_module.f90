@@ -6,6 +6,7 @@ module test_case_mod
   use std_atm_profile_mod
   use io_mod
   implicit none
+  integer         :: nsmth
   real(8)         :: dt_nu, smth_scl
   character(9999) :: topo_data
 contains
@@ -188,15 +189,15 @@ contains
     integer :: fid
   end subroutine load_case
 
-  subroutine smooth_topo (l, nsmth)
+  subroutine smooth_topo (l)
     ! Smooths topography by taking an Euler time step with diffusive trend
     implicit none
-    integer :: l, nsmth
+    integer :: l
 
     real(8) :: Area
 
     Area = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**l) ! average hexagonal cell area
-    dt_nu = Area/3d0 / dble (nsmth)                ! amount of smoothing
+    dt_nu = Area/3d0 / dble (nsmth)                  ! amount of smoothing
     do istep = 1, nsmth
        call cal_trend_topo (l)
 
@@ -220,7 +221,7 @@ contains
     id = idx (i, j, offs, dims) + 1
     d = dom%id + 1
    
-    topography%data(d)%elts(id) = topography%data(d)%elts(id) + dt_nu * trend(S_MASS,1)%data(d)%elts(id)
+    topography%data(d)%elts(id) = topography%data(d)%elts(id) + trend(S_MASS,1)%data(d)%elts(id) 
   end subroutine Euler_step_topo
 
   subroutine cal_trend_topo (l)
@@ -252,11 +253,57 @@ contains
        dscalar => trend(S_MASS,1)%data(d)%elts
        h_flux  => horiz_flux(S_MASS)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          call apply_onescale_to_patch (cal_div_topo, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
        nullify (dscalar, h_flux)
     end do
     trend(S_MASS,1)%bdry_uptodate = .false.
     call update_bdry (trend(S_MASS,1), l)
   end subroutine cal_trend_topo
+
+  subroutine cal_div_topo (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, idE, idNE, idN, idW, idS, idSW
+
+    d = dom%id + 1
+
+    id   = idx (i,   j,   offs, dims)
+
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    dscalar(id+1) = ( nu_dt (id, idE)  * h_flux(EDGE*id+RT+1)   - nu_dt (id, idW)  * h_flux(EDGE*idW+RT+1)  &
+         + nu_dt (id, idSW) * h_flux(EDGE*idSW+DG+1) - nu_dt (id, idNE) * h_flux(EDGE*id+DG+1)   &
+         + nu_dt (id, idN)  * h_flux(EDGE*id+UP+1)   - nu_dt (id, idS)  * h_flux(EDGE*idS+UP+1) ) * dom%areas%elts(id+1)%hex_inv
+  contains
+    real(8) function nu_dt (id1, id2)
+      implicit none
+      integer :: id1, id2
+
+      real(8)            :: Area, fac, p1, p2, rx_0, s
+      real(8), parameter :: r_max = 0.15d0
+
+      call std_surf_pres (topography%data(d)%elts(id1+1), p1)
+      call std_surf_pres (topography%data(d)%elts(id2+1), p2)
+
+      rx_0 = abs (p1 - p2) / (p1 + p2) ! rx_0 at edge
+
+      Area = 1d0 / dom%areas%elts(id+1)%hex_inv
+
+      s = r_max/10d0
+      fac = ( 2d0 + tanh((rx_0-r_max/2d0)/s) - tanh( - (rx_0-r_max/2d0)/s) ) / 4d0 
+
+      nu_dt = fac * Area/3d0
+    end function nu_dt
+  end subroutine cal_div_topo
 end module test_case_mod

@@ -44,7 +44,7 @@ module domain_mod
      type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack, unpk
      type(Int_Array), dimension(:,:), allocatable             :: src_patch
      
-     ! Physical quantities
+     ! Physical quantities (should evaluate on -BDRY_THICKNESS, BDRY_THICKNESS since cannot use bdry_update)
      type(Float_Array) :: coriolis    ! Coriolis force
      type(Float_Array) :: surf_press  ! surface pressure (compressible) or surface Lagrange multiplier (incompressible)
      type(Float_Array) :: press       ! pressure (compressible case) or Lagrange multiplier (incompressible case)

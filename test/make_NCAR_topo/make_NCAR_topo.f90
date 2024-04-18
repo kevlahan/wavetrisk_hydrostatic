@@ -5,7 +5,7 @@ program make_NCAR_topo
   use io_mod
   use topo_grid_descriptor_mod
   implicit none
-  integer         :: l, nsmth
+  integer         :: l
   real(8)         :: fine_mass
   character(9999) :: cmd, grid_name, jmin_txt, jmax_txt, smth_txt, topo_desc 
 
@@ -75,10 +75,10 @@ program make_NCAR_topo
   call assign_height (trim (topo_file))
 
   ! Smooth topography
-  nsmth = 100
+  nsmth = 10
   call topo_restriction (max_level, max_level)
   do l = max_level-1, min_level, -1
-     call smooth_topo (l, nsmth)
+     call smooth_topo (l)
      call topo_restriction (l, l)
   end do
   
