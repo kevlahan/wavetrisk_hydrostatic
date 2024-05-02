@@ -245,8 +245,7 @@ contains
        call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
 
        sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
-       !sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
-       sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * Tempdim * (p/p_0)**(-kappa) ! constant temperature
+       sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
   end subroutine init_mean
@@ -430,8 +429,14 @@ contains
                0.7301315d0, 0.7897776d0, 0.8443334d0, 0.8923650d0, 0.9325572d0, 0.9637744d0, &
                0.9851122d0, 1d0/)
        else
-          if (rank == 0) write (6,'(a)') "zlevels choice not supported ... aborting"
-          call abort
+          if (rank == 0) then
+             write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+             write (6,'(a)'  ) "!                                                  !"
+             write (6,'(a)'  ) "!    zlevels choice not supported ... aborting     !"
+             write (6,'(a)'  ) "!                                                  !"
+             write (6,'(a,/)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+             call abort
+          end if
        end if
        a_vert = a_vert(zlevels+1:1:-1) * p_0
        b_vert = b_vert(zlevels+1:1:-1)
