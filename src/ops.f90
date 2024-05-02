@@ -198,10 +198,10 @@ contains
          h_flux(EDGE*id+DG+1) = (scalar(id_i)  - scalar(idNE_i)) / dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
          h_flux(EDGE*id+UP+1) = (scalar(idN_i) - scalar(id_i))   / dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
       elseif (itype == 2) then ! external pressure gradient flux, (H + eta^n) grad(eta^(n+1)) * edge_length, in elliptic operator
-         csq(0) = abs (dom%topo%elts(id_i))   * phi(0) + mass(id_i)
-         csq(1) = abs (dom%topo%elts(idE_i))  * phi(1) + mass(idE_i)
-         csq(2) = abs (dom%topo%elts(idNE_i)) * phi(2) + mass(idNE_i)
-         csq(3) = abs (dom%topo%elts(idN_i))  * phi(3) + mass(idN_i)
+         csq(0) = abs (topography%data(d)%elts(id_i))   * phi(0) + mass(id_i)
+         csq(1) = abs (topography%data(d)%elts(idE_i))  * phi(1) + mass(idE_i)
+         csq(2) = abs (topography%data(d)%elts(idNE_i)) * phi(2) + mass(idNE_i)
+         csq(3) = abs (topography%data(d)%elts(idN_i))  * phi(3) + mass(idN_i)
          csq = grav_accel * csq
          
          h_flux(EDGE*id+RT+1) = interp (csq(0), csq(1)) * &
@@ -369,10 +369,10 @@ contains
          h_flux(EDGE*idS+UP+1)  = -(scalar(idS_i) - scalar(id_i))   / dom%len%elts(EDGE*idS+UP+1)  &
               * dom%pedlen%elts(EDGE*idS+UP+1)
       elseif (itype == 2) then ! external pressure gradient flux, (H + eta^n) grad(eta^(n+1)) * edge_length, in elliptic operator
-         csq(0) = abs (dom%topo%elts(id_i))   * phi(0) + mass(id_i)
-         csq(1) = abs (dom%topo%elts(idW_i))  * phi(1) + mass(idW_i)
-         csq(2) = abs (dom%topo%elts(idSW_i)) * phi(2) + mass(idSW_i)
-         csq(3) = abs (dom%topo%elts(idS_i))  * phi(3) + mass(idS_i)
+         csq(0) = abs (topography%data(d)%elts(id_i))   * phi(0) + mass(id_i)
+         csq(1) = abs (topography%data(d)%elts(idW_i))  * phi(1) + mass(idW_i)
+         csq(2) = abs (topography%data(d)%elts(idSW_i)) * phi(2) + mass(idSW_i)
+         csq(3) = abs (topography%data(d)%elts(idS_i))  * phi(3) + mass(idS_i)
          csq = grav_accel * csq
 
          h_flux(EDGE*idW+RT+1)  = - interp (csq(0), csq(1)) * &
@@ -1000,7 +1000,7 @@ contains
     if (compressible) then
        dom%geopot%elts(id) = surf_geopot (d, id)
     else
-       dom%geopot%elts(id) = grav_accel * dom%topo%elts(id)
+       dom%geopot%elts(id) = grav_accel * topography%data(d)%elts(id)
     end if
   end subroutine set_surf_geopot
 

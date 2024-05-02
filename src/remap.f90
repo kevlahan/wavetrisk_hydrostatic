@@ -246,7 +246,7 @@ contains
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
+    call find_coordinates_incompressible (z_new, z_old, topography%data(d)%elts(id_i), d, id_i)
     dz = z_new(1:zlevels) - z_new(0:zlevels-1)
 
     ! Old buoyancy
@@ -290,10 +290,10 @@ contains
     id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
     id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
 
-    call find_coordinates_incompressible (z_new, z_old, dom%topo%elts(id_i), d, id_i)
+    call find_coordinates_incompressible (z_new, z_old, topography%data(d)%elts(id_i), d, id_i)
 
     do e = 1, EDGE
-       call find_coordinates_incompressible (z_edge_new, z_edge_old, dom%topo%elts(id_i), d, id_r(e))
+       call find_coordinates_incompressible (z_edge_new, z_edge_old, topography%data(d)%elts(id_i), d, id_r(e))
        z_edge_new = 0.5d0 * (z_new + z_edge_new)
        z_edge_old = 0.5d0 * (z_old + z_edge_old)
 

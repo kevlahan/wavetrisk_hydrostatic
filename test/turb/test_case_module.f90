@@ -12,7 +12,7 @@ Module test_case_mod
   ! Standard variables
   integer                              :: bathy_per_deg, CP_EVERY, resume_init
   real(8)                              :: dt_cfl, tau_diffusion, total_cpu_time
-  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8)                              :: dPdim, R_ddim, specvoldim, dTempdim
 
   ! Local variables
   real(8)                              :: bv, drho, drho_dz, grav_reduced, tau_nudge, Tcline
@@ -565,7 +565,7 @@ contains
     call cart2sph (p, lon, lat)
 
     eta = init_free_surface (dom%node%elts(id_i))
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
 
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -629,7 +629,7 @@ contains
     id_i = id + 1
 
     eta = 0d0
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
 
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -977,7 +977,7 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth
+       topography%data(d)%elts(id_i) = max_depth
     case ("penalize") ! analytic land mass with smoothing
        penal_node(zlev)%data(d)%elts(id_i)                      = 0d0
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0   

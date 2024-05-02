@@ -12,7 +12,7 @@ Module test_case_mod
   ! Standard variables
   integer                              :: bathy_per_deg, CP_EVERY, resume_init
   real(8)                              :: dt_cfl, tau_diffusion, total_cpu_time
-  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8)                              :: dPdim, R_ddim, specvoldim, dTempdim
 
   ! Local variables
   real(8)                              :: beta, bv, drho, drho_dz, f0, grav_reduced, L_jet, L_pyc, Rb, Rd, tau_nudge, Tcline
@@ -344,7 +344,7 @@ contains
 
     if (rank == 0) then
        open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-       if (log_mass) then
+       if (log_min_mass) then
           write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es9.2,1x))') &
                'time [d] = ', time/DAY, &
                ' dt [s] = ', dt, &
@@ -595,7 +595,7 @@ contains
     call cart2sph (p, lon, lat)
 
     eta = init_free_surface (dom%node%elts(id_i))
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
     
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -659,7 +659,7 @@ contains
     id_i = id + 1
 
     eta = 0d0
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
     
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -879,7 +879,7 @@ contains
     if (default_thresholds) then ! initialize once
        threshold = threshold_def
     else
-       call cal_lnorm_sol (order)
+       call cal_lnorm (order)
        threshold_new = tol * lnorm
        
        ! Correct very small values
@@ -1054,7 +1054,7 @@ contains
     case ("bathymetry")
 !!$       nsmth = 2 * (l - min_level)
        nsmth = 1
-       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot, d, id_i, dx, nsmth) / grav_accel
+       topography%data(d)%elts(id_i) = max_depth + smooth (surf_geopot, d, id_i, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
        nsmth = 0
        

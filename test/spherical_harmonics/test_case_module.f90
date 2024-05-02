@@ -6,7 +6,7 @@ module test_case_mod
   implicit none
   integer        :: angular_order, cp_beg, cp_end, lwin, N, ntaper, k_min, k_max
   real(8)        :: concentration, lat0, lon0, ref_surf_press, theta0
-  real(8)        :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8)        :: dPdim, R_ddim, specvoldim, dTempdim
   character(255) :: spec_type
   logical        :: local_spec
   character(255) :: coords
@@ -336,7 +336,7 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot_case (d, id_i) / grav_accel
+       topography%data(d)%elts(id_i) = max_depth + surf_geopot_case (d, id_i) / grav_accel
     case ("penalize")
        call cart2sph (dom%node%elts(id_i), lon, lat)
        dx = dx_max
@@ -449,7 +449,7 @@ contains
           sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
        else
           dz =  b_vert_mass(zlev) * max_depth
-          z = 0.5d0 * (b_vert(zlev) + b_vert(zlev-1)) * dom%topo%elts(id_i)
+          z = 0.5d0 * (b_vert(zlev) + b_vert(zlev-1)) * topography%data(d)%elts(id_i)
 
           rho = porous_density (d, id_i, zlev)
           sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = rho * dz

@@ -637,7 +637,7 @@ contains
              min_mass_loc = min (min_mass_loc, full_mass/init_mass)
           end do
        else
-          z_s = dom%topo%elts(id_i)
+          z_s = topography%data(d)%elts(id_i)
           if (sigma_z) then
              z = z_coords (0d0, z_s)
           else
@@ -764,7 +764,6 @@ contains
        deallocate (grid(d)%bernoulli%elts)
        deallocate (grid(d)%ke%elts)
        deallocate (grid(d)%divu%elts)
-       deallocate (grid(d)%topo%elts)
        deallocate (grid(d)%coriolis%elts)
        
        deallocate (grid(d)%node%elts) 

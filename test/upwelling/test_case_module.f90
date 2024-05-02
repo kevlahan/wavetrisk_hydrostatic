@@ -9,7 +9,7 @@ Module test_case_mod
   ! Standard variables
   integer                              :: bathy_per_deg, CP_EVERY, npts_penal, resume_init
   real(8)                              :: dt_cfl, tau_diffusion, total_cpu_time
-  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8)                              :: dPdim, R_ddim, specvoldim, dTempdim
 
   ! Local variables
   real(8)                              :: beta, beta0, drho, f0, Rd, ref_temp
@@ -393,7 +393,7 @@ contains
     id_i = id + 1
 
     eta = init_free_surface (dom%node%elts(id_i))
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
 
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -440,7 +440,7 @@ contains
     id_i = id + 1
 
     eta = 0d0
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
 
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -817,7 +817,7 @@ contains
        n_coarse = 8 ! ensure r_max is small enough
        nsmth = n_coarse * 2**(l - min_level) 
        dx    = dx_max / 2**(l - min_level) 
-       dom%topo%elts(id_i) = max_depth + smooth (surf_geopot_case, d, id_i, dx, nsmth) / grav_accel
+       topography%data(d)%elts(id_i) = max_depth + smooth (surf_geopot_case, d, id_i, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
        nsmth = npts_penal * 2**(l - min_level) 
        dx    = dx_max / 2**(l - min_level) 

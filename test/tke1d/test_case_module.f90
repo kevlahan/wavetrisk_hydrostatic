@@ -10,7 +10,7 @@ Module test_case_mod
   ! Standard variables
   integer                              :: CP_EVERY, resume_init
   real(8)                              :: dt_cfl,  tau_diffusion, total_cpu_time
-  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8)                              :: dPdim, R_ddim, specvoldim, dTempdim
   real(8), target                      :: bottom_friction_case
 
   ! Local variables
@@ -455,7 +455,7 @@ contains
     id_i = id + 1
 
     eta = init_free_surface (dom%node%elts(id_i))
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
 
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -501,8 +501,8 @@ contains
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
 
-    eta = 0.0_8
-    z_s = dom%topo%elts(id_i)
+    eta = 0d0
+    z_s = topography%data(d)%elts(id_i)
 
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -836,7 +836,7 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot_case (d, id_i) / grav_accel
+       topography%data(d)%elts(id_i) = max_depth + surf_geopot_case (d, id_i) / grav_accel
     case ("penalize") ! not used
     end select
   end subroutine topo_tke1d
@@ -846,7 +846,7 @@ contains
     real(8) :: lat, lon, tau_zonal, tau_merid
 
     tau_zonal = tau_0
-    tau_merid = 0.0_8
+    tau_merid = 0d0
   end subroutine wind_stress
 
   real(8) function tau_mag_case (p)

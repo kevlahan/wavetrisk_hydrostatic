@@ -9,12 +9,11 @@ module test_case_mod
 
   ! Standard variables
   integer :: CP_EVERY, resume_init
-  real(8) :: total_cpu_time, dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
-  real(8) :: time_start
+  real(8) :: time_start, total_cpu_time
 
   ! Test case variables
-  real(8) :: Area_max, Area_min, C_div, delta_T, delta_theta, dt_max, sigma_b, sigma_c, k_a, k_f, k_s, T_0, T_mean, T_tropo
-  real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, u_0
+  real(8) :: Area_max, Area_min, C_div, delta_T, delta_theta, dt_max, k_a, k_f, k_s, specvoldim, T_0, T_mean, T_tropo
+  real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, sigma_b, sigma_c, u_0
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
   logical :: scale_aware = .true.
 contains
@@ -246,7 +245,8 @@ contains
        call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
 
        sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
-       sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
+       !sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
+       sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * Tempdim * (p/p_0)**(-kappa) ! constant temperature
        sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
   end subroutine init_mean
@@ -270,6 +270,7 @@ contains
     theta_force = T_mean - delta_T * (1d0 - cs2) - delta_theta * cs2 * log (p / p_0)
 
     theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
+    !theta_equil = Tempdim
   end subroutine cal_theta_eq
 
   real(8) function set_temp (x_i, sigma)

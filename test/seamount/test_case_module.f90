@@ -9,7 +9,7 @@ Module test_case_mod
   ! Standard variables
   integer                              :: bathy_per_deg, CP_EVERY, resume_init
   real(8)                              :: dt_cfl, k_T, tau_diffusion, total_cpu_time
-  real(8)                              :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8)                              :: dPdim, R_ddim, specvoldim, dTempdim
 
   ! Local variables
   real(8)                              :: beta, bu, bv, drho, drho_dz, f0, Rb, Rd, Rey, Ro
@@ -367,7 +367,7 @@ contains
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
     eta_surf = init_free_surface (x_i)
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
 
     if (zlev == zlevels+1) then ! 2D barotropic mode
        phi = 1d0 + (alpha - 1d0) * penal_node(zlevels)%data(d)%elts(id_i)
@@ -407,7 +407,7 @@ contains
     id_i = id + 1
     x_i  = dom%node%elts(id_i)
     eta_surf = init_free_surface (x_i)
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
 
     if (zlev == zlevels+1) then
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = 0d0
@@ -673,7 +673,7 @@ contains
     d = dom%id + 1
     id  = idx (i, j, offs, dims)  + 1
 
-    dom%topo%elts(id) = surf_geopot_case (d, id) / grav_accel
+    topography%data(d)%elts(id) = surf_geopot_case (d, id) / grav_accel
   end subroutine set_bathymetry
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)

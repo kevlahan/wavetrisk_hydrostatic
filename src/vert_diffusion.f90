@@ -151,7 +151,7 @@ contains
        else
           eta = free_surface (dom, i, j, z_null, offs, dims, sol)
        end if
-       z = dom%topo%elts(id)
+       z = topography%data(d)%elts(id)
 
        Kt(0)%data(d)%elts(id) = Kt_analytic ()
        Kv(0)%data(d)%elts(id) = Kv_analytic (z, eta)
@@ -253,7 +253,7 @@ contains
     end if
 
     ! Layer thicknesses and interface positions
-    z(0) = dom%topo%elts(id)
+    z(0) = topography%data(d)%elts(id)
     do k = 1, zlevels
        dz(k) = dz_i (dom, i, j, k, offs, dims, sol)
        z(k) = z(k-1) + dz(k)

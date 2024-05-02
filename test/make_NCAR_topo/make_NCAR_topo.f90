@@ -75,10 +75,10 @@ program make_NCAR_topo
   call assign_height (trim (topo_file))
 
   ! Smooth topography
-  nsmth = 10
+  nsmth = 0
   call topo_restriction (max_level, max_level)
   do l = max_level-1, min_level, -1
-     call smooth_topo (l)
+     !call smooth_topo (l)
      call topo_restriction (l, l)
   end do
   

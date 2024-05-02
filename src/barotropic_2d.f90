@@ -93,8 +93,8 @@ contains
     integer :: d, id
     real(8) :: eta, full_mass, full_temp, mean_theta, theta, dz
     
-    id = idx (i, j, offs, dims) + 1
     d = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
     
     full_mass = mean_m(id) + mass(id)
     full_temp = mean_t(id) + temp(id)
@@ -106,7 +106,7 @@ contains
     eta = scalar(id) / phi_node (d, id, zlevels) 
 
     ! Correct mass perturbation
-    mass(id) = (eta - grid(d)%topo%elts(id)) / scalar_2d(id) * full_mass - mean_m(id)
+    mass(id) = (eta - topography%data(d)%elts(id)) / scalar_2d(id) * full_mass - mean_m(id)
 
     ! Update full mass
     full_mass = mean_m(id) + mass(id)
@@ -287,7 +287,7 @@ contains
     id_i = id + 1
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       depth = abs (dom%topo%elts(id_i)) + dscalar(id_i) / phi_node (d, id_i, zlevels)
+       depth = abs (topography%data(d)%elts(id_i)) + dscalar(id_i) / phi_node (d, id_i, zlevels)
 
        if (.not. exact) then ! average value 
           wgt = 2d0 * sqrt (3d0) * depth
@@ -299,22 +299,22 @@ contains
           idSW = idx (i-1, j-1, offs, dims) 
           idS  = idx (i,   j-1, offs, dims)
 
-          depth_e = abs (dom%topo%elts(idE+1)) + dscalar(idE+1) / phi_node (d, idE+1, zlevels)
+          depth_e = abs (topography%data(d)%elts(idE+1)) + dscalar(idE+1) / phi_node (d, idE+1, zlevels)
           wgt = dom%pedlen%elts(EDGE*id+RT+1) / dom%len%elts(EDGE*id+RT+1) * interp (depth_e, depth)
 
-          depth_e = abs (dom%topo%elts(idNE+1)) + dscalar(idNE+1) / phi_node (d, idNE+1, zlevels)
+          depth_e = abs (topography%data(d)%elts(idNE+1)) + dscalar(idNE+1) / phi_node (d, idNE+1, zlevels)
           wgt = wgt + dom%pedlen%elts(EDGE*id+DG+1) / dom%len%elts(EDGE*id+DG+1) * interp (depth_e, depth)
 
-          depth_e = abs (dom%topo%elts(idN+1)) + dscalar(idN+1) / phi_node (d, idN+1, zlevels)
+          depth_e = abs (topography%data(d)%elts(idN+1)) + dscalar(idN+1) / phi_node (d, idN+1, zlevels)
           wgt = wgt + dom%pedlen%elts(EDGE*id+UP+1) / dom%len%elts(EDGE*id+UP+1) * interp (depth_e, depth)
 
-          depth_e = abs (dom%topo%elts(idW+1)) + dscalar(idW+1) / phi_node (d, idW+1, zlevels)
+          depth_e = abs (topography%data(d)%elts(idW+1)) + dscalar(idW+1) / phi_node (d, idW+1, zlevels)
           wgt = wgt + dom%pedlen%elts(EDGE*idW+RT+1) / dom%len%elts(EDGE*idW+RT+1) * interp (depth_e, depth)
 
-          depth_e = abs (dom%topo%elts(idSW+1)) + dscalar(idSW+1) / phi_node (d, idSW+1, zlevels)
+          depth_e = abs (topography%data(d)%elts(idSW+1)) + dscalar(idSW+1) / phi_node (d, idSW+1, zlevels)
           wgt = wgt + dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) * interp (depth_e, depth)
 
-          depth_e = abs (dom%topo%elts(idS+1)) + dscalar(idS+1) / phi_node (d, idS+1, zlevels)
+          depth_e = abs (topography%data(d)%elts(idS+1)) + dscalar(idS+1) / phi_node (d, idS+1, zlevels)
           wgt = wgt + dom%pedlen%elts(EDGE*idS+UP+1) / dom%len%elts(EDGE*idS+UP+1) * interp (depth_e, depth)
        end if
 

@@ -7,7 +7,7 @@ module test_case_mod
 
   ! Standard variables
   integer :: CP_EVERY, resume_init
-  real(8) :: dt_cfl, total_cpu_time, dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8) :: dt_cfl, total_cpu_time, dPdim, R_ddim, specvoldim, dTempdim
 
   ! Test case variables
   real(8) :: delta_T, sigma, sigma_t, sigma_v, sigma_0, gamma_T, lat_c, lon_c, R_pert, T_0, u_p, u_0

@@ -8,7 +8,7 @@ Module test_case_mod
 
   ! Standard variables
   integer :: CP_EVERY, resume_init
-  real(8) :: dt_cfl, total_cpu_time, Hdim, Ldim, Tdim, Udim
+  real(8) :: dt_cfl, total_cpu_time
   real(8) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
 
   ! Local variables
@@ -389,7 +389,7 @@ contains
     x_i  = dom%node%elts(id_i)
 
     eta = init_free_surface (x_i)
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
 
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -448,7 +448,7 @@ contains
     x_i  = dom%node%elts(id_i)
 
     eta = init_free_surface (x_i)
-    z_s = dom%topo%elts(id_i)
+    z_s = topography%data(d)%elts(id_i)
     
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -686,7 +686,7 @@ contains
     
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot_case (d, id_i) / grav_accel
+       topography%data(d)%elts(id_i) = max_depth + surf_geopot_case (d, id_i) / grav_accel
     case ("penalize")
        call cart2sph (p, lon, lat)
 
@@ -761,7 +761,7 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = mask
+       topography%data(d)%elts(id_i) = mask
        !       topography%data(d)%elts(id_i) = mask
     case ("penalize")
        penal_node(zlev)%data(d)%elts(id_i) = mask

@@ -159,7 +159,6 @@ contains
     call extend (dom%bernoulli,    num, 0d0)
     call extend (dom%ke,           num, 0d0)
     call extend (dom%divu,         num, 0d0)
-    call extend (dom%topo,         num, 0d0)
     
     call extend (dom%qe,      EDGE*num, 0d0)
     call extend (dom%vort,   TRIAG*num, 0d0)

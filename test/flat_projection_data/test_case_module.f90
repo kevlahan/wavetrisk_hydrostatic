@@ -10,7 +10,7 @@ module test_case_mod
   implicit none
   integer :: mean_beg, mean_end, cp_2d, N
   real(8) :: npts_penal, ref_surf_press, scale
-  real(8) :: dPdim, Hdim, Ldim, Pdim, R_ddim, specvoldim, Tdim, Tempdim, dTempdim, Udim
+  real(8) :: dPdim, R_ddim, specvoldim, dTempdim
   logical :: mean_split, zonal
 
   ! DCMIP2012c4
@@ -495,7 +495,7 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       dom%topo%elts(id_i) = max_depth + surf_geopot (d, id_i) / grav_accel
+       topography%data(d)%elts(id_i) = max_depth + surf_geopot (d, id_i) / grav_accel
     case ("penalize")
        if (trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
           penal_node(zlev)%data(d)%elts(id_i) = mask (p)
@@ -621,8 +621,8 @@ contains
 
     x_i = dom%node%elts(id_i)
 
-    eta = 0.0_8
-    z_s = dom%topo%elts(id_i)
+    eta = 0d0
+    z_s = topography%data(d)%elts(id_i)
 
     if (sigma_z) then
        z = z_coords_case (eta, z_s)

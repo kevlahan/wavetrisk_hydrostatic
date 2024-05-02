@@ -63,9 +63,7 @@ program Held_Suarez
 
   ! Dimensions for scaling tendencies
   Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
-  dTempdim       = 70d0     * KELVIN                ! temperature scale for tolerances
   Pdim           = p_0                              ! pressure scale
-  dPdim          = 80d0     * hPa                   ! scale of surface pressure variation determining mass tolerance scale
 
   ! Dimensional scaling
   specvoldim     = (R_d * Tempdim) / Pdim           ! specific volume scale
@@ -140,6 +138,8 @@ program Held_Suarez
 
   ! Save initial conditions
   call omega_velocity
+
+  call trend_ml (sol, trend) ! to compute horizontal pressure gradient error
   call write_and_export (iwrite)
 
   ! Compute hydrostatic error factors for topography

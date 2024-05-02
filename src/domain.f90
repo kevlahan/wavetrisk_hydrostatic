@@ -58,7 +58,6 @@ module domain_mod
      type(Float_Array) :: bernoulli   ! Bernoulli function
      type(Float_Array) :: divu        ! divergence of velocity
      type(Float_Array) :: qe          !
-     type(Float_Array) :: topo        ! coordinate of local topography
   end type Domain
 
   type Float_Field
