@@ -1559,6 +1559,7 @@ contains
     jj = minloc (distance,1) ; deallocate (distance)
 
     topography%data(d)%elts(id) = topography_data(l,d)%elts(jj)
+    dom%topo%elts(id) = topography%data(d)%elts(id)
   end subroutine assign_topo
 
   subroutine proj_xz_plane (cin, cout)
