@@ -1018,19 +1018,22 @@ contains
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
-    full_mass  = mean_m(id) + mass(id)
+    full_mass = mean_m(id) + mass(id)
 
+    dom%geopot_lower%elts(id) = dom%geopot%elts(id)
+    
     if (compressible) then ! compressible case
        p_upper = dom%press_lower%elts(id) - grav_accel * full_mass
+
+       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel * full_mass / ref_density
     else                   ! incompressible case
        full_temp  = mean_t(id) + temp(id)
        p_upper = dom%press_lower%elts(id) - grav_accel * (full_mass - full_temp)
+
+       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel * full_mass / (ref_density * phi_node (d, id, zlev))
     end if
     dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
     dom%press_lower%elts(id) = p_upper
-
-    dom%geopot_lower%elts(id) = dom%geopot%elts(id)
-    dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel * full_mass / (ref_density * phi_node (d, id, zlev))
 
     if (compressible) exner(id) = c_p * (dom%press%elts(id)/p_0)**kappa
   end subroutine integrate_pressure_up
