@@ -91,8 +91,7 @@ program Held_Suarez
 
   adapt_dt           = .false.
 
-  dx_scaling         = 2d0 ** (dble (6 - max_level))
-
+  dx_scaling         = 2**(6 - max_level) 
   if (adapt_dt) then
      cfl_min = 0.1d0                                           ! minimum cfl number
      cfl_max = 1d0                                             ! maximum cfl number
