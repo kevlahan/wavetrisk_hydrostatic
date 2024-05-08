@@ -39,7 +39,7 @@ def split_cell(cellid, offset, ugrid) :
 
 # Main program
 if (len(sys.argv)<3) :
-    print("Usage: python nick.py input_vtk_file output_vtk_file")
+    print("Usage: python xyz2lonlat.py input_vtk_file output_vtk_file")
     exit(0)
 
 infile = sys.argv[1]
