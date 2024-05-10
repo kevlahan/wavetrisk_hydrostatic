@@ -58,7 +58,7 @@ unstrctGrid = vtkreader.GetOutput()
 points = unstrctGrid.GetPoints()
 coords = vtk_to_numpy(points.GetData())
 
-# Conversion from x,y,z to log, lat, 0
+# Conversion from x,y,z to lon, lat, 0
 R = 6.3707e6
 
 coords[:,0] = np.degrees(np.arctan2(coords[:,1], coords[:,0])) # longitude
