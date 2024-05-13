@@ -42,7 +42,7 @@ if (len(sys.argv)<3) :
     print("Usage: python xyz2lonlat.py input_vtk_file output_vtk_file")
     exit(0)
 
-infile = sys.argv[1]
+infile  = sys.argv[1]
 outfile = sys.argv[2]
 
 # Load the input vtk file
@@ -61,8 +61,8 @@ coords = vtk_to_numpy(points.GetData())
 # Conversion from x,y,z to lon, lat, 0
 R = 6.3707e6
 
-coords[:,0] = np.degrees(np.arctan2(coords[:,1], coords[:,0])) # longitude
-coords[:,1] = np.degrees(np.arcsin(coords[:,2] / R)) # latitude
+coords[:,0] = np.degrees(np.arctan2(coords[:,1], coords[:,0]))      # longitude
+coords[:,1] = np.degrees(np.arcsin(np.clip(coords[:,2] / R, -1,1))) # latitude
 coords[:,2] = 0.0
 
 points.SetData(numpy_to_vtk(coords))
