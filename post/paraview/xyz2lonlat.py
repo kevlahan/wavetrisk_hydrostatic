@@ -58,11 +58,13 @@ unstrctGrid = vtkreader.GetOutput()
 points = unstrctGrid.GetPoints()
 coords = vtk_to_numpy(points.GetData())
 
-# Conversion from x,y,z to lon, lat, 0
-R = 6.3707e6
+# Compute radius of sphere
+R = np.sqrt(np.max(coords[:,0]*coords[:,0] + coords[:,1]*coords[:,1] + coords[:,2]*coords[:,2]))
+print("Radius of the sphere = {:e} km".format(R/1e3))
 
+# Conversion from x,y,z to lon, lat, 0
 coords[:,0] = np.degrees(np.arctan2(coords[:,1], coords[:,0]))      # longitude
-coords[:,1] = np.degrees(np.arcsin(np.clip(coords[:,2] / R, -1,1))) # latitude
+coords[:,1] = np.degrees(np.arcsin(coords[:,2] / R)) # latitude
 coords[:,2] = 0.0
 
 points.SetData(numpy_to_vtk(coords))
