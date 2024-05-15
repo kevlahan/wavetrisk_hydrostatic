@@ -10,7 +10,7 @@ program trisk2vtk
   ! If zmin < 0 there is no layer label (for backwards compatibility).
   !
   ! file_base = name of file
-  ! file_type = primal (hexagons) or multi (triangles)
+  ! file_type = hex (overlapping hexagons on each scale) or multi (non-overlapping triangles of adaptive grid)
   ! tstart    = first file to read
   ! tend      = last file to read
   ! jmin      = minimum scale
@@ -57,12 +57,12 @@ program trisk2vtk
   if (file_type == " ") then
      write (6,'(/,a)') "Converts standard ASCII trisk data files from wavetrisk code to BINARY .vtk format for paraview"
      write (6,'(/,a)')"Usage: trisk2vtk file_base file_type tstart tend jmin jmax zlev"
-     write (6,'(/,a)')"Example: ./trisk2vtk drake primal 0 1 5 7 3 4"
+     write (6,'(/,a)')"Example: ./trisk2vtk drake hex 0 1 5 7 3 4"
      write (6,'(/,a)')"Reads files drake_003.1.0001.tgz, drake_004.1.0001.tgz, drake_003.1.0002.tgz, drake_004.1.0002.tgz"
      write (6,'(a,/)')"for scale 5 to 7."
      write (6,'(a,/)') "If zmin < 0 there is no layer label (for backwards compatibility)."
      write (6,'(a)') "file_base = name of file"
-     write (6,'(a)') "file_type = primal (hexagons) or multi (multiscale grid of triangles)"
+     write (6,'(a)') "file_type = hex (overlapping hexagons on each scale) or multi (non-overlapping triangles of adaptive grid)"
      write (6,'(a)') "tstart    = first file to read"
      write (6,'(a)') "tend      = last file to read"
      write (6,'(a)') "jmin      = minimum scale"
@@ -80,13 +80,13 @@ program trisk2vtk
      write (6,'("zmin      = ", i4.3)') zmin
      if (zmin >= 0) write (6,'("zmax      = ", i3.3)') zmax
 
-     if (trim(file_type) == "primal") then
+     if (trim(file_type) == "hex") then
         itype      = 1 
         n_vertices = 6 ! hexagonal cells (primal grid)
         nvar_out   = 7
      elseif (trim(file_type) == "multi") then
         itype      = 2
-        n_vertices = 3 ! triangular cells (multiscale grid)
+        n_vertices = 3 ! triangular cells (dual grid)
         nvar_out   = 8
      elseif (trim(file_type) == "2layer") then
         itype      = 1
@@ -126,7 +126,7 @@ program trisk2vtk
            call system (trim(bash_cmd))
 
            ! Delete un-needed file
-           if (trim(file_type) == "primal" .or. trim(file_type) == "2layer") then
+           if (trim(file_type) == "hex" .or. trim(file_type) == "2layer") then
               command = '\rm ' // trim(filename_in) // '00'
               write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
               call system (trim(bash_cmd))
@@ -184,7 +184,7 @@ program trisk2vtk
 
            ! Second pass to read in data
            open (unit=iunit, file=trim(filename_in)//j_lev, form="formatted")
-           if (file_type == "primal") then
+           if (file_type == "hex") then
               do icell = ncells_old+1, ncells
                  read (iunit, fmt='(18(E14.5E2, 1X), 7(E14.5E2, 1X), I3, 1X, I3)') &
                       ((vertices(icell,ivert,icoord),icoord=1,3),ivert=1,n_vertices), &
@@ -252,7 +252,7 @@ program trisk2vtk
         ! Write out cell data for each cell                        
         write(iunit) 'CELL_DATA '//str1//lf
         
-        if (file_type == "primal") then
+        if (file_type == "hex") then
            write(iunit) 'SCALARS temperature float'//lf
            write(iunit) 'LOOKUP_TABLE default'//lf
            do icell = 1, ncells
