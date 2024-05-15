@@ -350,7 +350,7 @@ contains
     default_thresholds  = .true.                            ! use default thresholds (T) or calculate dynamically (F)
     fill                = .false.                           ! fill up grid to level j_fill if true (T)
     log_iter            = .false.                           ! print residual error in elliptic solver (T)
-    log_min_mass        = .true.                            ! compute minimum mass, relatively expensive (T)
+    log_min_mass        = .false.                            ! compute minimum mass, relatively expensive (T)
     log_total_mass      = .false.                           ! mass conservation, relatively expensive (F)
     match_time          = .false.                           ! match time exactly for data saving (T)
     mode_split          = .false.                           ! calculate barotropic free surface mode separately (T)

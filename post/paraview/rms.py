@@ -6,7 +6,7 @@ from utilities import *
 
 # Input
 if (len(sys.argv)<5) :
-    print("Usage: python energy.py base_vtk_file tstart tend dt field")
+    print("Usage: python rms.py base_vtk_file tstart tend dt field")
     print("base_vtk_file = prefix of vtk files to load (e.g. HS_J7_001)")
     print("tstart = first file")
     print("tend   = last last file")

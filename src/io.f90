@@ -6,15 +6,16 @@ module io_mod
   use utils_mod
   implicit none
 
-  integer, dimension(2,4)                       :: HR_offs
+  integer, dimension(2,4)                        :: HR_offs
   data                                             HR_offs /0,0, 1,0, 1,1, 0,1/
   
-  integer                                       :: ii, N_VAR_OUT
-  integer, dimension(:,:), allocatable          :: topo_count
-  real(8)                                       :: vmin, vmax
-  real(8), dimension(:), allocatable            :: minv, maxv
-  integer                                       :: next_fid
-  type(Float_Field)                             :: active_level
+  integer                                        :: ii, N_VAR_OUT
+  integer, dimension(:,:), allocatable           :: topo_count
+  real(8)                                        :: vmin, vmax
+  real(8), dimension(:), allocatable             :: minv, maxv
+  integer                                        :: next_fid
+  type(Float_Field)                              :: active_level
+  type(Float_Field), dimension(LORT:UPLT)        :: save_tri                           
   type(Topo_Array),  dimension(:,:), allocatable :: topography_data
 contains
   subroutine init_io_mod
@@ -830,8 +831,8 @@ contains
        idSW = idx (i-1, j-1, offs, dims)
        idS  = idx (i,   j-1, offs, dims)
 
-       if (allocated(active_level%data)) then ! avoid segfault pre_levelout not used
-          outl = nint(active_level%data(d)%elts(id_i))
+       if (allocated (active_level%data)) then ! avoid segfault pre_levelout not used
+          outl = nint (active_level%data(d)%elts(id_i))
        else
           outl = 0
        end if
@@ -983,38 +984,79 @@ contains
   end subroutine write_primal
 
   subroutine write_dual (dom, p, i, j, zlev, offs, dims, funit)
+    use utils_mod
     implicit none
     type(Domain)                   :: dom
     integer                        :: p, i, j, zlev, funit
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                   :: d, id, idE, idN, idNE
-    integer, dimension(TRIAG) :: leveldual
-    real(8), dimension(TRIAG) :: relvort
+    integer                         :: d, id, idE, idN, idNE, outl
+    integer, dimension(0:EDGE)      :: neigh_id
+    
+    real(8), dimension(0:EDGE)      :: full_mass, full_temp
+    real(8), dimension(0:EDGE)      :: temperature
+    real(8), dimension(LORT:UPLT,8) :: outv
+    real(8), dimension(LORT:UPLT)   :: relvort, tri_area
+    real(8), dimension(2*EDGE)      :: hex_area
 
     d = dom%id + 1
 
     id   = idx(i,   j,   offs, dims)
+    
     idE  = idx(i+1, j,   offs, dims)
     idN  = idx(i,   j+1, offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
 
+    neigh_id = (/ id, idE, idNE, idN /) + 1
+
+    tri_area(LORT) = dom%triarea%elts(TRIAG*id+LORT+1)
+    tri_area(UPLT) = dom%triarea%elts(TRIAG*id+UPLT+1)
+
+    hex_area(1) = dom%areas%elts(id+1)%part(1)
+    hex_area(2) = dom%areas%elts(id+1)%part(2)
+    hex_area(3) = dom%areas%elts(idE+1)%part(3)
+    hex_area(4) = dom%areas%elts(idNE+1)%part(4)
+    hex_area(5) = dom%areas%elts(idNE+1)%part(5)
+    hex_area(6) = dom%areas%elts(idNE+1)%part(6)
+
     relvort = get_vort (dom, i, j, offs, dims)
 
-    if (maxval(dom%mask_n%elts((/id, idE, idNE/)+1)) >= ADJZONE) then
-       ! avoid segfault if pre_levelout not used
-       if (allocated(active_level%data)) leveldual(LORT+1) = maxval(active_level%data(d)%elts((/id, idE, idNE/)+1))
+    outl = dom%level%elts(id+1)
 
-       write (funit,'(9(E14.5E2,1X), E14.5E2, 1X, I3)') dom%node%elts((/id, idE, idNE/)+1), relvort(LORT+1), leveldual(LORT+1)
+    full_mass = sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id)
+    full_temp = sol(S_TEMP,zlev)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,zlev)%data(d)%elts(neigh_id)
+    
+    if (compressible) then
+       temperature = full_temp/full_mass * (dom%press%elts(neigh_id)/p_0)**kappa
+    else
+       temperature = ref_density * (1d0 - full_temp / full_mass)
     end if
+      
+    outv(:,1) = hex2tri2 (temperature, hex_area, tri_area)                               ! temperature
+    outv(:,2) = hex2tri2 (dom%u_zonal%elts(neigh_id), hex_area, tri_area)                ! zonal velocity
+    outv(:,3) = hex2tri2 (dom%v_merid%elts(neigh_id), hex_area, tri_area)                ! meridional velocity
+    outv(:,4) = relvort                                                                  ! vorticity
+    outv(:,5) = hex2tri2 (topography%data(d)%elts(neigh_id), hex_area, tri_area)         ! topography
+    outv(:,6) = hex2tri2 (trend(S_TEMP,zlev)%data(d)%elts(neigh_id), hex_area, tri_area) ! vertical velocity
 
-    if (maxval(dom%mask_n%elts((/id, idNE, idN/)+1)) >= ADJZONE) then
-       ! avoid segfault if pre_levelout not used
-       if (allocated(active_level%data)) leveldual(UPLT+1) = maxval(active_level%data(d)%elts((/id, idNE, idN/)+1))
-
-       write (funit,'(9(E14.5E2,1X), E14.5E2, 1X, I3)') dom%node%elts((/id, idNE, idN/)+1), relvort(UPLT+1), leveldual(UPLT+1)
+    if (compressible) then
+       outv(:,7) = hex2tri2 (dom%surf_press%elts(neigh_id), hex_area, tri_area)          ! surface pressure
+    else                                                                                 ! free surface perturbation
+       if (mode_split) then
+          outv(:,7) = hex2tri2 (sol(S_MASS,zlevels+1)%data(d)%elts(neigh_id), hex_area, tri_area) 
+       else
+          outv(:,7) = hex2tri2 (sol(S_MASS,1)%data(d)%elts(neigh_id), hex_area, tri_area) 
+       end if
     end if
+    
+    outv(:,8) = hex2tri2 (dom%ke%elts(neigh_id), hex_area, tri_area)                     ! kinetic energy
+    
+    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0 .and. active_level%data(d)%elts(id+1) == dom%level%elts(id+1)) &
+       write (funit,'(9(e14.5e2,1X), 8(e14.5e2, 1x), i3)') dom%node%elts((/id, idE, idNE/)+1), outv(LORT,:), outl
+
+    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0 .and. active_level%data(d)%elts(id+1) == dom%level%elts(id+1)) &
+       write (funit,'(9(e14.5e2,1X), 8(e14.5e2, 1x), i3)') dom%node%elts((/id, idNE, idN/)+1), outv(UPLT,:), outl
   end subroutine write_dual
 
   function get_vort (dom, i, j, offs, dims)
@@ -1747,32 +1789,51 @@ contains
 
   subroutine pre_levelout
     implicit none
-    integer :: d, l, max_output_level, num
+    integer :: d, l, max_output_level, num, t
 
     ! FIXME cleaner would be to use init_io routine
-    call init_Float_Field (active_level, AT_NODE)
+    call init_Float_Field (active_level,   AT_NODE)
+    call init_Float_Field (save_tri(LORT), AT_NODE)
+    call init_Float_Field (save_tri(UPLT), AT_NODE)
 
     do d = 1, size(grid)
        num = grid(d)%node%length
        call init (active_level%data(d), num)
-       active_level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
+
+        do t = LORT, UPLT
+          call init (save_tri(t)%data(d), num)
+          save_tri(t)%data(d)%elts(1:num) = 0d0
+       end do
+       
+       active_Level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
     end do
 
-    do l = level_end-1, level_start, -1
+    do l = level_end-1, level_start-1, -1
+       call apply_interscale (mark_save_tri,  l, z_null, 0, 1)
+    end do
+    
+    call apply_interscale (mark_save_tri2, level_start, z_null, 0, 1)
+
+     do l = level_end-1, level_start-1, -1
        call apply_interscale (restrict_level, l, z_null, 0, 1)
     end do
   end subroutine pre_levelout
 
-  ! now active_level can be used
-
   subroutine post_levelout
     implicit none
-    integer :: d
+    integer :: d, t
 
     do d = 1, size(grid)
        deallocate (active_level%data(d)%elts)
+       do t = LORT, UPLT
+          deallocate (save_tri(t)%data(d)%elts)
+       end do
     end do
     deallocate (active_level%data)
+    
+    do t = LORT, UPLT
+       deallocate (save_tri(t)%data)
+    end do
   end subroutine post_levelout
 
   subroutine restrict_level (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -1789,8 +1850,58 @@ contains
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
-    if (dom%mask_n%elts(id_chd+1) >= ADJZONE) active_level%data(d)%elts(id_par+1) = active_level%data(d)%elts(id_chd+1)
+    if (dom%mask_n%elts(id_chd+1) >= ADJZONE .and. &
+         save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0 .and. save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0 ) &
+         active_level%data(d)%elts(id_par+1) = active_level%data(d)%elts(id_chd+1)
   end subroutine restrict_level
+  
+  subroutine mark_save_tri (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: d, id_par, id_chd, idE_chd, idNE_chd, idN_chd
+
+    d = dom%id+1
+    
+    id_par = idx(i_par, j_par, offs_par, dims_par)
+
+    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+    
+    idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
+
+    if (minval (dom%mask_n%elts((/ id_chd, idE_chd, idNE_chd /)+1)) >= ADJZONE) then
+       save_tri(LORT)%data(d)%elts((/ id_chd, idE_chd, idNE_chd/)+1) = 1d0
+       save_tri(UPLT)%data(d)%elts(idE_chd+1)                        = 1d0
+    end if
+
+    if (minval (dom%mask_n%elts((/ id_chd, idNE_chd, idN_chd /)+1)) >= ADJZONE) then
+       save_tri(LORT)%data(d)%elts(idN_chd+1)                         = 1d0
+       save_tri(UPLT)%data(d)%elts((/ id_chd, idNE_chd, idN_chd /)+1) = 1d0
+    end if
+  end subroutine mark_save_tri
+
+  subroutine mark_save_tri2 (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: d, id_par, id_chd
+    
+    d = dom%id+1
+
+    id_par = idx(i_par, j_par, offs_par, dims_par)
+    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+
+    if (save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0) save_tri(LORT)%data(d)%elts(id_par+1) = 0d0
+    if (save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0) save_tri(UPLT)%data(d)%elts(id_par+1) = 0d0
+  end subroutine mark_save_tri2
 
   subroutine write_and_export (isave)
     use utils_mod

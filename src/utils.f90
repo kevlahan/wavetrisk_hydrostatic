@@ -25,7 +25,7 @@ module utils_mod
        integer, dimension(2,N_BDRY+1) :: dims
      end function routine_tri
   end interface
-  procedure (routine_hex), pointer :: integrand_hex => null ()
+  procedure (routine_hex), pointer :: arr_hex => null ()
   procedure (routine_tri), pointer :: integrand_tri => null ()
 
   interface zero_float
@@ -723,7 +723,7 @@ contains
        end function fun
     end interface
 
-    integrand_hex => fun
+    arr_hex => fun
     
     integral = 0d0
     
@@ -742,11 +742,11 @@ contains
     
     integrate_hex = sum_real (integral)
     
-    nullify (integrand_hex)
+    nullify (arr_hex)
   end function integrate_hex
 
   subroutine integrate_hex_scale (l, zlev)
-    ! Integrate function pointer integrand_hex over hexagons at a single scale l
+    ! Integrate function pointer arr_hex over hexagons at a single scale l
     implicit none
     integer :: l, zlev
     
@@ -762,7 +762,7 @@ contains
           do j = 1, PATCH_SIZE
              do i = 1, PATCH_SIZE
                 id = idx (i-1, j-1, offs, dims)
-                integral = integral + integrand_hex (grid(d), i-1, j-1, zlev, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
+                integral = integral + arr_hex (grid(d), i-1, j-1, zlev, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
              end do
           end do
        end do
@@ -782,10 +782,10 @@ contains
 
           if (c == NORTHWEST) then     ! north pole
              id = idx (0, PATCH_SIZE, offs, dims)
-             integral = integral + integrand_hex (grid(d), 0, PATCH_SIZE, zlev, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
+             integral = integral + arr_hex (grid(d), 0, PATCH_SIZE, zlev, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
           elseif (c == SOUTHEAST) then ! south pole
              id = idx (PATCH_SIZE, 0, offs, dims)
-             integral = integral + integrand_hex (grid(d), PATCH_SIZE, 0, zlev, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
+             integral = integral + arr_hex (grid(d), PATCH_SIZE, 0, zlev, offs, dims) / grid(d)%areas%elts(id+1)%hex_inv
           end if
 
        end do
@@ -833,7 +833,7 @@ contains
   end subroutine integrate_hex_fine
 
   real(8) function hex2tri (dom, i, j, t, offs, dims, zlev)
-    ! Integrand at triangles associated with node (i,j) computed from integral over hexagons
+    ! Float array arr_hex at triangles associated with node (i,j) computed from integral over hexagons
     implicit none
     integer :: i, j, t, zlev
     type(Domain)                     :: dom
@@ -848,19 +848,31 @@ contains
     if (t == LORT) then
        idE = idx (i+1, j, offs, dims)
        hex2tri = &
-            integrand_hex (dom, i,   j,   zlev, offs, dims) * dom%areas%elts(id+1)%part(1)  + &
-            integrand_hex (dom, i+1, j+1, zlev, offs, dims) * dom%areas%elts(idNE+1)%part(5) + &
-            integrand_hex (dom, i+1, j,   zlev, offs, dims) * dom%areas%elts(idE+1)%part(3)
+            arr_hex (dom, i,   j,   zlev, offs, dims) * dom%areas%elts(id+1)%part(1)  + &
+            arr_hex (dom, i+1, j+1, zlev, offs, dims) * dom%areas%elts(idNE+1)%part(5) + &
+            arr_hex (dom, i+1, j,   zlev, offs, dims) * dom%areas%elts(idE+1)%part(3)
     elseif (t == UPLT) then
        idN = idx (i, j+1, offs, dims)
        hex2tri = &
-            integrand_hex (dom, i,   j,   zlev, offs, dims) * dom%areas%elts(id+1)%part(2)  + &
-            integrand_hex (dom, i+1, j+1, zlev, offs, dims) * dom%areas%elts(idNE+1)%part(4) + &
-            integrand_hex (dom, i,   j+1, zlev, offs, dims) * dom%areas%elts(idN+1)%part(6)
+            arr_hex (dom, i,   j,   zlev, offs, dims) * dom%areas%elts(id+1)%part(2)  + &
+            arr_hex (dom, i+1, j+1, zlev, offs, dims) * dom%areas%elts(idNE+1)%part(4) + &
+            arr_hex (dom, i,   j+1, zlev, offs, dims) * dom%areas%elts(idN+1)%part(6)
     end if
 
     hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
+  
+  function hex2tri2 (sclr, hex_area, tri_area)
+    ! Interpolates sclr given at hexagons to triangles 
+    implicit none
+    real(8), dimension(0:EDGE)    :: sclr
+    real(8), dimension(2*EDGE)    :: hex_area
+    real(8), dimension(LORT:UPLT) :: tri_area
+    real(8), dimension(LORT:UPLT) :: hex2tri2
+
+    hex2tri2(LORT) = (sclr(0) * hex_area(1) + sclr(2) * hex_area(5) + sclr(3) * hex_area(3)) / tri_area(LORT)
+    hex2tri2(UPLT) = (sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6)) / tri_area(UPLT)
+  end function hex2tri2
   
   subroutine zero_float_0 (q)
     ! Initializes a float field to zero
