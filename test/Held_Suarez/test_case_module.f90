@@ -320,11 +320,8 @@ contains
     implicit none
     integer :: d, id
 
-    real(8) :: z_s
-
     if (NCAR_topo) then ! use standard atmosphere
-       z_s = surf_geopot_case (d, id) / grav_accel
-       call std_surf_pres (z_s, surf_pressure)
+       call std_surf_pres (topography%data(d)%elts(id), surf_pressure)
     else
        surf_pressure = p_0
     end if
