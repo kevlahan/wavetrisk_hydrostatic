@@ -1084,7 +1084,7 @@ contains
     call update_bdry1 (q1, lmin, lmax)
   end subroutine equals_float_field
 
-   subroutine cal_equals_node (dom, i, j, zlev, offs, dims)
+  subroutine cal_equals_node (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1447,4 +1447,51 @@ contains
       rx1 = abs ( (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1) )
     end function rx1
   end subroutine cal_rx1_loc_Z
+
+  real(8) function theta (dom, i, j, zlev, offs, dims)
+    ! Potential temperature at layer centre
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+    
+    d  = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    theta = ( sol_mean(S_TEMP,zlev)%data(d)%elts(id) + sol(S_TEMP,zlev)%data(d)%elts(id) ) / &
+            ( sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id) )
+  end function theta
+
+  real(8) function  brunt_vaisala (dom, i, j, zlev, offs, dims)
+    ! Brunt-Vaisala frequency at layer interfaces
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+    real(8) :: drho, dtheta, dz, rho, rho1, rho2
+
+    d  = dom%id + 1
+    id = idx (i, j, offs, dims)
+    
+    dz =  dz_l (dom, i, j, zlev, offs, dims, sol)
+    
+    if (compressible) then
+       dtheta = log (theta (dom, i, j, zlev+1, offs, dims)) -  log (theta (dom, i, j, zlev, offs, dims))
+       
+       brunt_vaisala =  sqrt ( grav_accel *  dtheta/dz) 
+    else                     ! incompressible
+       rho1 = porous_density (d, id+1, zlev)
+       rho2 = porous_density (d, id+1, zlev+1) 
+       rho = interp (rho1, rho2)
+       drho = rho2 - rho1
+       
+       brunt_vaisala = sqrt ( grav_accel * drho/dz / rho )
+    end if
+  end function brunt_vaisala
 end module utils_mod

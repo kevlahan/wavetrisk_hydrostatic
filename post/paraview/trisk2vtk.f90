@@ -10,7 +10,7 @@ program trisk2vtk
   ! If zmin < 0 there is no layer label (for backwards compatibility).
   !
   ! file_base = name of file
-  ! file_type = hex (overlapping hexagons on each scale) or multi (non-overlapping triangles of adaptive grid)
+  ! file_type = hex (overlapping hexagons on each scale) or tri (non-overlapping triangles of adaptive grid)
   ! tstart    = first file to read
   ! tend      = last file to read
   ! jmin      = minimum scale
@@ -62,7 +62,7 @@ program trisk2vtk
      write (6,'(a,/)')"for scale 5 to 7."
      write (6,'(a,/)') "If zmin < 0 there is no layer label (for backwards compatibility)."
      write (6,'(a)') "file_base = name of file"
-     write (6,'(a)') "file_type = hex (overlapping hexagons on each scale) or multi (non-overlapping triangles of adaptive grid)"
+     write (6,'(a)') "file_type = hex (overlapping hexagons on each scale) or tri (non-overlapping triangles of adaptive grid)"
      write (6,'(a)') "tstart    = first file to read"
      write (6,'(a)') "tend      = last file to read"
      write (6,'(a)') "jmin      = minimum scale"
@@ -84,7 +84,7 @@ program trisk2vtk
         itype      = 1 
         n_vertices = 6 ! hexagonal cells (primal grid)
         nvar_out   = 7
-     elseif (trim(file_type) == "multi") then
+     elseif (trim(file_type) == "tri") then
         itype      = 2
         n_vertices = 3 ! triangular cells (dual grid)
         nvar_out   = 8
@@ -190,7 +190,7 @@ program trisk2vtk
                       ((vertices(icell,ivert,icoord),icoord=1,3),ivert=1,n_vertices), &
                       outv(icell,1:nvar_out), mask(icell), level(icell)
               end do
-           elseif (file_type == "multi") then
+           elseif (file_type == "tri") then
               do icell = ncells_old+1, ncells
                  read (iunit, fmt='(9(e14.5e2, 1x), 8(e14.5e2, 1x), i3)') &
                       ((vertices(icell,ivert,icoord),icoord=1,3),ivert=1,n_vertices), &
@@ -404,7 +404,7 @@ program trisk2vtk
            do icell = 1, ncells
               write (iunit) level(icell)
            end do
-        elseif (file_type == "multi") then
+        elseif (file_type == "tri") then
            write(iunit) 'SCALARS temperature float'//lf
            write(iunit) 'LOOKUP_TABLE default'//lf
            do icell = 1, ncells

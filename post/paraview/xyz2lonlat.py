@@ -38,60 +38,82 @@ def split_cell(cellid, offset, ugrid) :
 
 
 # Main program
-if (len(sys.argv)<3) :
-    print("Usage: python xyz2lonlat.py input_vtk_file output_vtk_file")
+if (len(sys.argv)<5) :
+    print("Usage: python xyz2lonlat.py file grid t1 t2\n")
+    print("file = file base name (without .1 or .2 and .vtk)")
+    print("grid = hex (.1) or tri (.2)")
+    print("t1   = first time")
+    print("t2   = last time\n")
+    print("output is file_lonlat ... .vtk\n")
+    print("Example:")
+    print("python3 xyz2lonlat.py HS_J6J7_dl_240km_012 hex 0 28")
     exit(0)
 
-infile  = sys.argv[1]
-outfile = sys.argv[2]
+file_base  = sys.argv[1]
+grid       = sys.argv[2]
+t1         = int(sys.argv[3])
+t2         = int(sys.argv[4])
 
-# Load the input vtk file
-vtkreader = vtk.vtkUnstructuredGridReader()
-vtkreader.ReadAllScalarsOn()
-vtkreader.SetFileName(infile)
-vtkreader.Update()
+if grid == "hex" :
+    grd = ".1"
+elif grid == "tri" :
+    grd = ".2"    
 
-# Get the unstructed grid data
-unstrctGrid = vtkreader.GetOutput()
+for j in range (t1, t2+1):   
+    # Load the input vtk file
+    infile  = file_base+grd+str(j).zfill(4)
+    outfile = file_base+"_lonlat_"+grd+str(j).zfill(4)
+    
+    print("Transforming file "+infile+".vtk")
+    vtkreader = vtk.vtkUnstructuredGridReader()
+    vtkreader.ReadAllScalarsOn()
+    vtkreader.SetFileName(infile+".vtk")
+    vtkreader.Update()
 
-# Get coordinates of vertices
-points = unstrctGrid.GetPoints()
-coords = vtk_to_numpy(points.GetData())
+    # Get the unstructed grid data
+    unstrctGrid = vtkreader.GetOutput()
 
-# Compute radius of sphere
-R = np.sqrt(np.max(coords[:,0]*coords[:,0] + coords[:,1]*coords[:,1] + coords[:,2]*coords[:,2]))
-print("Radius of the sphere = {:e} km".format(R/1e3))
+    # Get coordinates of vertices
+    points = unstrctGrid.GetPoints()
+    coords = vtk_to_numpy(points.GetData())
 
-# Conversion from x,y,z to lon, lat, 0
-coords[:,0] = np.degrees(np.arctan2(coords[:,1], coords[:,0]))      # longitude
-coords[:,1] = np.degrees(np.arcsin(coords[:,2] / R)) # latitude
-coords[:,2] = 0.0
+    # Compute radius of sphere
+    R = np.sqrt(np.max(coords[:,0]*coords[:,0] + coords[:,1]*coords[:,1] + coords[:,2]*coords[:,2]))
 
-points.SetData(numpy_to_vtk(coords))
+    # Conversion from x,y,z to lon, lat, 0
+    coords[:,0] = np.degrees(np.arctan2(coords[:,1], coords[:,0]))      # longitude
+    coords[:,1] = np.degrees(np.arcsin(coords[:,2] / R)) # latitude
+    coords[:,2] = 0.0
 
-# Re-adjust coords
-cellformation = np.copy(vtk_to_numpy(unstrctGrid.GetCells().GetData()))
+    points.SetData(numpy_to_vtk(coords))
 
-num_cells = unstrctGrid.GetNumberOfCells()
-startID = 0
-for cell in range(num_cells) : # loop through cells
-    size = cellformation[startID] #cells.GetCellSize(cell)  # number of vertices
+    # Re-adjust coords
+    cellformation = np.copy(vtk_to_numpy(unstrctGrid.GetCells().GetData()))
 
-    # Check if it is a cell on the edge
-    num_positives = 0
-    for i in range(size) : # loop through vertices of a cell
-        pid = cellformation[startID+1+i]
-        if (coords[pid,0]>0) :
-            num_positives += 1
+    num_cells = unstrctGrid.GetNumberOfCells()
+    startID = 0
+    for cell in range(num_cells) : # loop through cells
+        size = cellformation[startID] #cells.GetCellSize(cell)  # number of vertices
 
-    if not (num_positives==size or num_positives==0) : # perhaps needs to split
-        if (abs(coords[cellformation[startID+1],0])>90) :
-            split_cell(cell, startID, unstrctGrid)
+        # Check if it is a cell on the edge
+        num_positives = 0
+        for i in range(size) : # loop through vertices of a cell
+            pid = cellformation[startID+1+i]
+            if (coords[pid,0]>0) :
+                num_positives += 1
 
-    startID = startID + 1 + size
+        if not (num_positives==size or num_positives==0) : # perhaps needs to split
+            if (abs(coords[cellformation[startID+1],0])>90) :
+                split_cell(cell, startID, unstrctGrid)
 
-writer = vtk.vtkUnstructuredGridWriter()
-writer.SetFileTypeToBinary()
-writer.SetFileName(outfile)
-writer.SetInputData(unstrctGrid)
-writer.Write()
+        startID = startID + 1 + size
+
+    writer = vtk.vtkUnstructuredGridWriter()
+    writer.SetFileTypeToBinary()
+    writer.SetFileName(outfile+".vtk")
+    writer.SetInputData(unstrctGrid)
+    writer.Write()
+
+
+                    
+
