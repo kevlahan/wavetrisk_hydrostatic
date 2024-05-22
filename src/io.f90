@@ -1018,7 +1018,7 @@ contains
     hex_area(3) = dom%areas%elts(idE+1)%part(3)
     hex_area(4) = dom%areas%elts(idNE+1)%part(4)
     hex_area(5) = dom%areas%elts(idNE+1)%part(5)
-    hex_area(6) = dom%areas%elts(idNE+1)%part(6)
+    hex_area(6) = dom%areas%elts(idN+1)%part(6)
 
     relvort = get_vort (dom, i, j, offs, dims)
 

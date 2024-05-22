@@ -870,7 +870,7 @@ contains
     real(8), dimension(LORT:UPLT) :: tri_area
     real(8), dimension(LORT:UPLT) :: hex2tri2
 
-    hex2tri2(LORT) = (sclr(0) * hex_area(1) + sclr(2) * hex_area(5) + sclr(3) * hex_area(3)) / tri_area(LORT)
+    hex2tri2(LORT) = (sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)) / tri_area(LORT)
     hex2tri2(UPLT) = (sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6)) / tri_area(UPLT)
   end function hex2tri2
   
