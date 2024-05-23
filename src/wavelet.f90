@@ -1786,7 +1786,7 @@ contains
     id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
     idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
 
-    ratio = (1/dom%areas%elts(id_chd+1)%hex_inv + &
+    ratio = (1d0/dom%areas%elts(id_chd+1)%hex_inv + &
          dom%overl_areas%elts(idE+1)%a(1) + &
          dom%overl_areas%elts(idNE+1)%a(2) + &
          dom%overl_areas%elts(idN2E+1)%a(3) + &

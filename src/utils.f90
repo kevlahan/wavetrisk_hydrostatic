@@ -1465,8 +1465,8 @@ contains
             ( sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id) )
   end function theta
 
-  real(8) function brunt_vaisala (dom, i, j, zlev, offs, dims)
-    ! Brunt-Vaisala frequency at layer interfaces
+  real(8) function N_i (dom, i, j, zlev, offs, dims)
+    ! Brunt-Vaisala frequency at nodes at layer interfaces
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1487,14 +1487,30 @@ contains
        theta_l = interp (theta1, theta2)
        dtheta =  theta2 - theta1
        
-       brunt_vaisala = sqrt ( grav_accel *  dtheta/dz / theta_l) 
+       N_i = sqrt ( grav_accel *  dtheta/dz / theta_l) 
     else                     ! incompressible
        rho1 = porous_density (d, id+1, zlev)
        rho2 = porous_density (d, id+1, zlev+1) 
        rho_l = interp (rho1, rho2)
        drho = rho2 - rho1
        
-       brunt_vaisala = sqrt ( grav_accel * drho/dz / rho_l )
+       N_i = sqrt ( grav_accel * drho/dz / rho_l )
     end if
-  end function brunt_vaisala
+  end function N_i
+
+  function N_e (dom, i, j, zlev, offs, dims)
+    ! Brunt-Vaisala frequency at edges at layer interfaces
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8), dimension(1:EDGE)     :: N_e
+
+    N_e = 0.5d0 * ( &
+              N_i (dom, i,   j,   zlev, offs, dims) + (/ &
+              N_i (dom, i+1, j,   zlev, offs, dims),     &
+              N_i (dom, i+1, j+1, zlev, offs, dims),     &
+              N_i (dom, i,   j+1, zlev, offs, dims) /))
+  end function N_e
 end module utils_mod

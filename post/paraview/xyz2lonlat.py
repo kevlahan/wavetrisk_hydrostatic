@@ -54,6 +54,7 @@ grid       = sys.argv[2]
 t1         = int(sys.argv[3])
 t2         = int(sys.argv[4])
 
+
 if grid == "hex" :
     grd = ".1"
 elif grid == "tri" :
@@ -62,7 +63,7 @@ elif grid == "tri" :
 for j in range (t1, t2+1):   
     # Load the input vtk file
     infile  = file_base+grd+str(j).zfill(4)
-    outfile = file_base+"_lonlat_"+grd+str(j).zfill(4)
+    outfile = file_base+"_lonlat"+grd+str(j).zfill(4)
     
     print("Transforming file "+infile+".vtk")
     vtkreader = vtk.vtkUnstructuredGridReader()

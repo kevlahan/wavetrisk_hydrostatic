@@ -15,7 +15,7 @@ module test_case_mod
   real(8) :: Area_max, Area_min, C_div, delta_T, delta_theta, dt_max, k_a, k_f, k_s, specvoldim, T_0, T_mean, T_tropo
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, sigma_b, sigma_c, u_0
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
-  logical :: scale_aware = .true.
+  logical :: scale_aware = .true., sso = .false.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -131,12 +131,15 @@ contains
     if (Laplace_order == 0) then
        physics_velo_source_case = 0d0
     else
-       physics_velo_source_case = (-1d0)**(Laplace_order-1) * (grad_divu () - curl_rotu ())
+       physics_velo_source_case = (-1d0)**(Laplace_order-1) * (grad_divu () - curl_rotu ()) 
     end if
+    
+    ! Add subgrid scale orography parameterization of surface drags
+    physics_velo_source_case = physics_velo_source_case - gravity_wave_stress () / (mean_m(id+1) + mass(id+1))
   contains
     function grad_divu ()
       implicit none
-      real(8), dimension(3) :: grad_divu
+      real(8), dimension(1:EDGE) :: grad_divu
 
       integer :: idE, idN, idNE
       
@@ -151,7 +154,7 @@ contains
 
     function curl_rotu ()
       implicit none
-      real(8), dimension(3) :: curl_rotu
+      real(8), dimension(1:EDGE) :: curl_rotu
 
       integer :: idS, idW
 
@@ -191,7 +194,165 @@ contains
          visc_rot = C_visc(S_VELO) * 3d0 * Area_min**Laplace_order / dt
       end if
     end function visc_rot
+
+    function gravity_wave_stress ()
+      ! Gravity wave stress at edges
+      ! Simple parameterization of subgrid scale orography assuming circular orography feature
+      implicit none
+      real(8), dimension(1:EDGE) :: gravity_wave_stress
+      
+      integer                    :: d, idE, idNE, idN, k, nlev
+      integer, dimension(1:EDGE) :: edge_id, neigh_id
+      real(8)                    :: sigma, p, z
+      real(8), dimension(1:EDGE) :: mu, N, U
+
+      if (sso .and. dom%level%elts(id+1) < max_level .and. zlev == 1) then ! apply surface stress only in bottom layer
+         d = dom%id + 1
+
+         idE  = idx (i+1, j,   offs, dims)
+         idNE = idx (i+1, j+1, offs, dims)
+         idN  = idx (i,   j+1, offs, dims)
+
+         neigh_id = (/ idE, idNE, idN /) + 1
+         edge_id  = EDGE*id + (/ RT, DG, UP /) + 1
+
+         mu = 0.5d0 * (wav_topography%data(d)%elts(id+1) + wav_topography%data(d)%elts(neigh_id)) ! SSO standard deviation at edges
+
+         ! Compute mean Brunt-Vaisala frequency and velocity for vertical layers mu <= z - z_s <= 2 mu
+         N = 0d0
+         U = 0d0
+         nlev = 0
+         do k = 1, zlevels
+            z =  zl_i (dom, i, j, zlev, offs, dims, sol, 1) - topography%data(d)%elts(id+1) ! height of upper interface above topography
+            if (z > 2d0 * maxval (mu)) then
+               exit
+            elseif (z >= minval(mu)) then
+               N = N + N_e (dom, i, j, k, offs, dims) ! Brunt-Vaisala frequency
+               U = U + sol(S_VELO,k)%data(d)%elts(id+1)
+               nlev = nlev + 1
+            end if
+         end do
+         N = N / dble (nlev)
+         U = U / dble (nlev)
+
+         gravity_wave_stress = ref_density * MATH_PI/4d0 * dx_min * N * mu**2 * U
+      else
+         gravity_wave_stress = 0d0
+      end if
+    end function gravity_wave_stress
+
   end function physics_velo_source_case
+
+  subroutine sso_mu
+    ! Computes standard deviation of Subgrid Scale Orography (SSO) mu compared to Grid Scale Orography (GSO) at each level <= max_level-1
+    implicit none
+    integer :: l
+
+    ! Use exact overlapping region at scale max_level-1
+    call apply_interscale (cal_sso_mu1,  max_level-1, z_null, 0, 1)
+
+    ! Use approximate overlapping regions at coarser scales
+    do l = max_level-2, min_level, -1
+       call apply_onescale (cal_sso_mu2, l, z_null, 0, 1)
+    end do
+    
+    wav_topography%bdry_uptodate = .false.
+    call update_bdry (wav_topography, NONE)
+  end subroutine sso_mu
+  
+  subroutine cal_sso_mu1 (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! mu (standard deviation) of Subgrid Scale Orography (SSO) compared to Grid Scale Orography (GSO) at scale max_level-1
+    ! results are stored in wav_topography
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer                      :: d, id_chd, id_par
+    integer                      :: idE_chd, idNE_chd, idN2E_chd, id2NE_chd, idN_chd, idW_chd
+    integer                      :: idNW_chd, idS2W_chd, idSW_chd, idS_chd, id2SW_chd, idSE_chd
+    integer, dimension(0:4*EDGE) :: neigh_chd
+    real(8), dimension(0:4*EDGE) :: area_chd, h
+
+    d = dom%id + 1
+
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd) + 1
+    id_par = idx (i_par, j_par, offs_par, dims_par) + 1
+
+    idE_chd   = idx (i_chd+1, j_chd,   offs_chd, dims_chd) + 1
+    idNE_chd  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd) + 1
+    idN2E_chd = idx (i_chd+2, j_chd+1, offs_chd, dims_chd) + 1
+    id2NE_chd = idx (i_chd+1, j_chd+2, offs_chd, dims_chd) + 1
+    idN_chd   = idx (i_chd,   j_chd+1, offs_chd, dims_chd) + 1
+    idW_chd   = idx (i_chd-1, j_chd,   offs_chd, dims_chd) + 1
+    idNW_chd  = idx (i_chd-1, j_chd+1, offs_chd, dims_chd) + 1
+    idS2W_chd = idx (i_chd-2, j_chd-1, offs_chd, dims_chd) + 1
+    idSW_chd  = idx (i_chd-1, j_chd-1, offs_chd, dims_chd) + 1
+    idS_chd   = idx (i_chd,   j_chd-1, offs_chd, dims_chd) + 1
+    id2SW_chd = idx (i_chd-1, j_chd-2, offs_chd, dims_chd) + 1
+    idSE_chd  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd) + 1
+
+    neigh_chd = (/ id_chd, idE_chd, idNE_chd, idN2E_chd, id2NE_chd, idN_chd, &
+         idW_chd, idNW_chd, idS2W_chd, idSW_chd, idS_chd, id2SW_chd, idSE_chd /)
+
+    area_chd = (/ &
+         1d0/dom%areas%elts(id_chd)%hex_inv,   &
+         dom%overl_areas%elts(idE_chd)%a(1),   &
+         dom%overl_areas%elts(idNE_chd)%a(2),  &
+         dom%overl_areas%elts(idN2E_chd)%a(3), &
+         dom%overl_areas%elts(id2NE_chd)%a(4), &
+         dom%overl_areas%elts(idN_chd)%a(1),   &
+         dom%overl_areas%elts(idW_chd)%a(2),   &
+         dom%overl_areas%elts(idNW_chd)%a(3),  &
+         dom%overl_areas%elts(idS2W_chd)%a(4), &
+         dom%overl_areas%elts(idSW_chd)%a(1),  &
+         dom%overl_areas%elts(idS_chd)%a(2),   &
+         dom%overl_areas%elts(id2SW_chd)%a(3), &
+         dom%overl_areas%elts(idSE_chd)%a(4) /)
+
+    ! SSO deviation from GSO
+    h = topography%data(d)%elts(neigh_chd) - topography%data(d)%elts(id_par)
+
+    ! mu (standard deviation of SSO from GSO)
+    wav_topography%data(d)%elts(id_par) = sqrt (sum (h**2 * area_chd) * dom%areas%elts(id_par)%hex_inv)
+  end subroutine cal_sso_mu1
+
+  subroutine cal_sso_mu2 (dom, i, j, zlev, offs, dims)
+    ! mu (standard deviation) of Subgrid Scale Orography (SSO) compared to Grid Scale Orography (GSO)
+    ! Use area-weighted integral including approximate overlapping coarse-fine hexagonal cells for levels < max_level-1
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, n_topo
+    real(8) :: distance, dx, h, h_sq, total_area 
+    
+    d  = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    dx  = dom%len%elts(EDGE*id+RT+1) * 2d0/sqrt(3d0)
+
+    ! Include all finest grid topography in a disk of radius dx
+    h_sq       = 0d0
+    total_area = 0d0
+    n_topo     = size (topography_data(max_level,d)%elts)
+    
+    do ii = 1, n_topo
+       distance = dist (dom%node%elts(id), topography_data(max_level,d)%node(ii))
+       if (distance <= dx) then
+          h = topography_data(max_level,d)%elts(ii) - topography%data(d)%elts(id)
+          h_sq = h_sq + h**2
+          
+          total_area = total_area + Area_min
+       end if
+    end do
+
+    ! mu (standard deviation of SSO from GSO)
+    wav_topography%data(d)%elts(id) = sqrt (h_sq * Area_min / total_area)
+  end subroutine cal_sso_mu2
   
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none

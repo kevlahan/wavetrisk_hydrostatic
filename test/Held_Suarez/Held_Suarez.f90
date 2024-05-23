@@ -128,7 +128,10 @@ program Held_Suarez
   log_min_mass       = .false.
   log_total_mass     = .false.
 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Use simple subgrid scale orography parameterization
+  sso               = .false.
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize functions
   call assign_functions
@@ -136,6 +139,9 @@ program Held_Suarez
   ! Initialize variables
   call initialize (run_id)
   call print_test_case_parameters
+  
+  ! Compute SSO heights (stored in wav_topography)
+  call sso_mu
 
   ! Save initial conditions
   call omega_velocity
