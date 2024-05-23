@@ -1465,7 +1465,7 @@ contains
             ( sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id) )
   end function theta
 
-  real(8) function  brunt_vaisala (dom, i, j, zlev, offs, dims)
+  real(8) function brunt_vaisala (dom, i, j, zlev, offs, dims)
     ! Brunt-Vaisala frequency at layer interfaces
     implicit none
     type(Domain)                   :: dom
@@ -1474,7 +1474,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: drho, dtheta, dz, rho, rho1, rho2
+    real(8) :: drho, dtheta, dz, rho_l, rho1, rho2, theta_l, theta1, theta2
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims)
@@ -1482,16 +1482,19 @@ contains
     dz =  dz_l (dom, i, j, zlev, offs, dims, sol)
     
     if (compressible) then
-       dtheta = log (theta (dom, i, j, zlev+1, offs, dims)) -  log (theta (dom, i, j, zlev, offs, dims))
+       theta2 = theta (dom, i, j, zlev+1, offs, dims)
+       theta1 = theta (dom, i, j, zlev,   offs, dims)
+       theta_l = interp (theta1, theta2)
+       dtheta =  theta2 - theta1
        
-       brunt_vaisala =  sqrt ( grav_accel *  dtheta/dz) 
+       brunt_vaisala = sqrt ( grav_accel *  dtheta/dz / theta_l) 
     else                     ! incompressible
        rho1 = porous_density (d, id+1, zlev)
        rho2 = porous_density (d, id+1, zlev+1) 
-       rho = interp (rho1, rho2)
+       rho_l = interp (rho1, rho2)
        drho = rho2 - rho1
        
-       brunt_vaisala = sqrt ( grav_accel * drho/dz / rho )
+       brunt_vaisala = sqrt ( grav_accel * drho/dz / rho_l )
     end if
   end function brunt_vaisala
 end module utils_mod
