@@ -347,12 +347,12 @@ contains
     ! Include all finest grid topography in a disk of radius dx
     h_sq       = 0d0
     total_area = 0d0
-    n_topo     = size (topography_data(max_level,d)%elts)
+    n_topo     = size (topography_data(topo_max_level,d)%elts)
     
     do ii = 1, n_topo
-       distance = dist (dom%node%elts(id), topography_data(max_level,d)%node(ii))
+       distance = dist (dom%node%elts(id), topography_data(topo_max_level,d)%node(ii))
        if (distance <= dx) then
-          h = topography_data(max_level,d)%elts(ii) - topography%data(d)%elts(id)
+          h = topography_data(topo_max_level,d)%elts(ii) - topography%data(d)%elts(id)
           h_sq = h_sq + h**2
           
           total_area = total_area + Area_min
