@@ -5,7 +5,6 @@ program Held_Suarez
   use ops_mod
   use test_case_mod
   use io_mod
-  use topo_grid_descriptor_mod
   implicit none
 
   integer        :: l
