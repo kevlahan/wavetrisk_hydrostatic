@@ -135,7 +135,7 @@ contains
     end if
     
     ! Add subgrid scale orography parameterization of surface drags
-    physics_velo_source_case = physics_velo_source_case - gravity_wave_stress () / (mean_m(id+1) + mass(id+1))
+    if (zlev == 1) physics_velo_source_case = physics_velo_source_case - gravity_wave_stress () / (mean_m(id+1) + mass(id+1))
   contains
     function grad_divu ()
       implicit none
@@ -204,7 +204,7 @@ contains
       integer                    :: d, idE, idNE, idN, k, nlev
       integer, dimension(1:EDGE) :: edge_id, neigh_id
       real(8)                    :: sigma, p, z
-      real(8), dimension(1:EDGE) :: mu, N, U
+      real(8), dimension(1:EDGE) :: mu, N, rho, U
 
       if (sso .and. dom%level%elts(id+1) < max_level .and. zlev == 1) then ! apply surface stress only in bottom layer
          d = dom%id + 1
@@ -218,24 +218,32 @@ contains
 
          mu = 0.5d0 * (wav_topography%data(d)%elts(id+1) + wav_topography%data(d)%elts(neigh_id)) ! SSO standard deviation at edges
 
-         ! Compute mean Brunt-Vaisala frequency and velocity for vertical layers mu <= z - z_s <= 2 mu
-         N = 0d0
-         U = 0d0
-         nlev = 0
-         do k = 1, zlevels
-            z =  zl_i (dom, i, j, zlev, offs, dims, sol, 1) - topography%data(d)%elts(id+1) ! height of upper interface above topography
-            if (z > 2d0 * maxval (mu)) then
-               exit
-            elseif (z >= minval(mu)) then
-               N = N + N_e (dom, i, j, k, offs, dims) ! Brunt-Vaisala frequency
-               U = U + sol(S_VELO,k)%data(d)%elts(id+1)
-               nlev = nlev + 1
-            end if
-         end do
-         N = N / dble (nlev)
-         U = U / dble (nlev)
+         ! ! Compute mean Brunt-Vaisala frequency and velocity for vertical layers mu <= z - z_s <= 2 mu
+         ! N    = 0d0
+         ! U    = 0d0
+         ! nlev = 0
+         ! do k = 1, zlevels
+         !    z =  zl_i (dom, i, j, k, offs, dims, sol, 1) - topography%data(d)%elts(id+1) ! height of upper interface above topography
+         !    if (z >= minval(mu) .and. z <= maxval(mu)) then
+         !       nlev = nlev + 1
+         !       N = N + N_e (dom, i, j, k, offs, dims) ! Brunt-Vaisala frequency
+         !       U = U + sol(S_VELO,k)%data(d)%elts(id+1)
+         !    elseif (z > maxval(mu)) then
+         !       exit
+         !    end if
+         ! end do
 
-         gravity_wave_stress = ref_density * MATH_PI/4d0 * dx_min * N * mu**2 * U
+         ! if (nlev /= 0) then
+         !    N = N / dble (nlev)
+         !    U = U / dble (nlev)
+         ! end if
+
+         ! For now use values in lowest layer
+         N = N_e (dom, i, j, 1, offs, dims)
+         U = sol(S_VELO,1)%data(d)%elts(id+1)
+         
+         rho = density_e (dom, i, j, zlev, offs, dims, sol)
+         gravity_wave_stress = rho * MATH_PI/4d0 * dx_min * N * mu**2 * U
       else
          gravity_wave_stress = 0d0
       end if
@@ -262,6 +270,7 @@ contains
   
   subroutine cal_sso_mu1 (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! mu (standard deviation) of Subgrid Scale Orography (SSO) compared to Grid Scale Orography (GSO) at scale max_level-1
+    ! uses exact overlapping region
     ! results are stored in wav_topography
     implicit none
     type(Domain)                   :: dom
@@ -773,45 +782,46 @@ contains
             "C_visc(S_VELO)     = ", C_visc(S_VELO)
 
        write (6,'(a)')        "Approximate viscosities on finest grid"
-       write (6,'(a,es8.2)') "nu_scalar           = ", nu_sclr
-       write (6,'(a,es8.2)') "nu_rot              = ", nu_rotu
+       write (6,'(a,es8.2)') "nu_scalar             = ", nu_sclr
+       write (6,'(a,es8.2)') "nu_rot                = ", nu_rotu
        write (6,'(a,es8.2,/)') "nu_div              = ", nu_divu
 
-       write (6,'(a,es10.4)') "dt_max          [s] = ", dt_max
-       write (6,'(a,es10.4)') "dt_write        [d] = ", dt_write / DAY
-       write (6,'(a,i3)')     "CP_EVERY            = ", CP_EVERY
-       write (6,'(a,l1)')     "rebalance           = ", rebalance
-       write (6,'(a,es10.4)') "time_end        [d] = ", time_end / DAY
-       write (6,'(a,i6)')     "resume              = ", resume_init
+       write (6,'(a,es10.4)') "dt_max           [s] = ", dt_max
+       write (6,'(a,es10.4)') "dt_write         [d] = ", dt_write / DAY
+       write (6,'(a,i3)')     "CP_EVERY             = ", CP_EVERY
+       write (6,'(a,l1)')     "rebalance            = ", rebalance
+       write (6,'(a,es10.4)') "time_end         [d] = ", time_end / DAY
+       write (6,'(a,i6)')     "resume               = ", resume_init
 
        write (6,'(/,a)')      "STANDARD PARAMETERS"
-       write (6,'(a,es10.4)') "radius         [km] = ", radius / KM
-       write (6,'(a,es10.4)') "omega       [rad/s] = ", omega
-       write (6,'(a,es10.4)') "p_0           [hPa] = ", p_0/100d0
-       write (6,'(a,es10.4)') "p_top         [hPa] = ", p_top/100d0
-       write (6,'(a,es10.4)') "R_d      [J/(kg K)] = ", R_d
-       write (6,'(a,es10.4)') "c_p      [J/(kg K)] = ", c_p
-       write (6,'(a,es10.4)') "c_v      [J/(kg K)] = ", c_v
-       write (6,'(a,es10.4)') "gamma               = ", gamma
-       write (6,'(a,es10.4)') "kappa               = ", kappa
-       write (6,'(a,f10.1)') "dx_max         [km] = ", dx_max / KM
-       write (6,'(a,f10.1)') "dx_min         [km] = ", dx_min / KM
+       write (6,'(a,es10.4)') "radius          [km] = ", radius / KM
+       write (6,'(a,es10.4)') "omega        [rad/s] = ", omega
+       write (6,'(a,es10.4)') "ref_density [kg/m^3] = ", ref_density
+       write (6,'(a,es10.4)') "p_0           [hPa]  = ", p_0/100d0
+       write (6,'(a,es10.4)') "p_top         [hPa]  = ", p_top/100d0
+       write (6,'(a,es10.4)') "R_d      [J/(kg K)]  = ", R_d
+       write (6,'(a,es10.4)') "c_p      [J/(kg K)]  = ", c_p
+       write (6,'(a,es10.4)') "c_v      [J/(kg K)]  = ", c_v
+       write (6,'(a,es10.4)') "gamma                = ", gamma
+       write (6,'(a,es10.4)') "kappa                = ", kappa
+       write (6,'(a,f10.1)')  "dx_max         [km]  = ", dx_max / KM
+       write (6,'(a,f10.1)')  "dx_min         [km]  = ", dx_min / KM
 
        write (6,'(/,a)')      "TEST CASE PARAMETERS"
-       write (6,'(a,f5.1)')   "T_0             [K] = ", T_0
-       write (6,'(a,es10.4)') "T_mean          [K] = ", T_mean
-       write (6,'(a,es10.4)') "T_tropo         [K] = ", T_tropo
-       write (6,'(a,es10.4)') "sigma_b             = ", sigma_b
-       write (6,'(a,es10.4)') "k_a           [1/d] = ", k_a / DAY
-       write (6,'(a,es10.4)') "k_f           [1/d] = ", k_f / DAY
-       write (6,'(a,es10.4)') "k_s           [1/d] = ", k_s / DAY
-       write (6,'(a,es10.4)') "delta_T       [K/m] = ", delta_T
-       write (6,'(a,es10.4)') "delta_theta   [K/m] = ", delta_theta
-       write (6,'(a,es10.4,/)') "wave_speed    [m/s] = ", wave_speed
-       write (6,'(a,l)')      "NCAR_topo           = ", NCAR_topo
-       write (6,'(a,a)')      "topo_file           = ", trim (topo_file)
-       write (6,'(a,i3)')     "topo_min_level      = ", topo_min_level
-       write (6,'(a,i3)')     "topo_max_level      = ", topo_max_level
+       write (6,'(a,f5.1)')   "T_0             [K]  = ", T_0
+       write (6,'(a,es10.4)') "T_mean          [K]  = ", T_mean
+       write (6,'(a,es10.4)') "T_tropo         [K]  = ", T_tropo
+       write (6,'(a,es10.4)') "sigma_b              = ", sigma_b
+       write (6,'(a,es10.4)') "k_a           [1/d]  = ", k_a / DAY
+       write (6,'(a,es10.4)') "k_f           [1/d]  = ", k_f / DAY
+       write (6,'(a,es10.4)') "k_s           [1/d]  = ", k_s / DAY
+       write (6,'(a,es10.4)') "delta_T       [K/m]  = ", delta_T
+       write (6,'(a,es10.4)') "delta_theta   [K/m]  = ", delta_theta
+       write (6,'(a,es10.4,/)') "wave_speed    [m/s]  = ", wave_speed
+       write (6,'(a,l)')      "NCAR_topo            = ", NCAR_topo
+       write (6,'(a,a)')      "topo_file            = ", trim (topo_file)
+       write (6,'(a,i3)')     "topo_min_level       = ", topo_min_level
+       write (6,'(a,i3)')     "topo_max_level       = ", topo_max_level
        write (6,'(a)') &
             '*********************************************************************&
             ************************************************************'
@@ -885,7 +895,7 @@ contains
   subroutine apply_initial_conditions_case
     implicit none
     integer :: l
-    
+
     do l = level_start, level_end
        if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, 0, 1)
        call apply_onescale (init_mean, l, z_null, 0, 1)
@@ -894,10 +904,18 @@ contains
     topography%bdry_uptodate = .false.
     sol%bdry_uptodate        = .false.
     sol_mean%bdry_uptodate   = .false.
-    
     call update_bdry       (topography, NONE)
     call update_array_bdry (sol,        NONE)
     call update_array_bdry (sol_mean,   NONE)
+
+    ! SSO parameters (requires topography)
+    if (NCAR_TOPO .and. sso) then
+       do l = level_start, level_end
+          call apply_onescale (cal_sso_mu2, l, z_null, 0, 1)
+       end do
+       wav_topography%bdry_uptodate = .false.
+       call update_bdry (wav_topography, NONE)
+    end if
   end subroutine apply_initial_conditions_case
 
   subroutine update_case
@@ -920,14 +938,29 @@ contains
           call apply_onescale (init_mean, l, z_null, 0, 1)
        end do
     end if
-
     topography%bdry_uptodate = .false.
     sol%bdry_uptodate        = .false.
-    sol_mean%bdry_uptodate   = .false.
-    
+    sol_mean%bdry_uptodate   = .false.    
     call update_bdry       (topography, NONE)
     call update_array_bdry (sol,        NONE)
     call update_array_bdry (sol_mean,   NONE)
+
+    ! SSO parameters (requires topography)
+    if (NCAR_topo .and. sso) then
+       if (istep /= 0) then
+          do d = 1, size(grid)
+             do p = n_patch_old(d)+1, grid(d)%patch%length
+                if (sso) call apply_onescale_to_patch (cal_sso_mu2, grid(d), p-1, z_null, 0, 1)
+             end do
+          end do
+       else ! need to set values over entire grid on restart
+          do l = level_start, level_end
+             call apply_onescale (cal_sso_mu2, l, z_null, 0, 1)
+          end do
+       end if
+       wav_topography%bdry_uptodate = .false.
+       call update_bdry (wav_topography, NONE)
+    end if
   end subroutine update_case
 
   subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)

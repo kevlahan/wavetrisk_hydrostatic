@@ -34,6 +34,7 @@ module utils_mod
 contains
   real(8) function z_i (dom, i, j, zlev, offs, dims, q)
     ! Position of vertical level zlev at nodes
+    ! *** compressible case requires dom%press ***
     implicit none
     type(Domain)                              :: dom
     integer                                   :: i, j, zlev
@@ -49,7 +50,7 @@ contains
     id = idx (i, j, offs, dims)
 
     z_s = topography%data(d)%elts(id+1) 
-    
+
     dz_below = dz_i (dom, i, j, 1, offs, dims, q)
     z_i = z_s + dz_below / 2d0
     do k = 2, zlev
@@ -59,95 +60,9 @@ contains
     end do
   end function z_i
 
-  real(8) function dz_i (dom, i, j, zlev, offs, dims, q)
-    ! Thickness of layer zlev at nodes
-    implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
-
-    integer :: d, id
-
-    d = dom%id + 1
-    id = idx (i, j, offs, dims) + 1
-
-    dz_i = (sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)) / porous_density (d, id, zlev)
-  end function dz_i
-  
-  function dz_e (dom, i, j, zlev, offs, dims, q)
-    ! Thickness of layer zlev at edges
-    implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
-    real(8), dimension(1:EDGE)                :: dz_e
-
-    integer                    :: d, id, idE, idN, idNE
-    real(8), dimension(0:EDGE) :: dz
-
-    d = dom%id + 1
-
-    id   = idx (i, j,   offs, dims)
-    idE  = idx (i+1, j,   offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-   
-    dz(0) = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1)   + q(S_MASS,zlev)%data(d)%elts(id+1)) &
-         / porous_density (d, id+1, zlev)
-    
-    dz(RT+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idE+1)  + q(S_MASS,zlev)%data(d)%elts(idE+1)) &
-         / porous_density (d, idE+1, zlev)
-    
-    dz(DG+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idNE+1) + q(S_MASS,zlev)%data(d)%elts(idNE+1)) &
-         / porous_density (d, idNE+1, zlev)
-    
-    dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idN+1)  + q(S_MASS,zlev)%data(d)%elts(idN+1)) &
-         / porous_density (d, idN+1, zlev)
-
-    dz_e = 0.5d0 * (dz(0) + dz(1:EDGE))
-  end function dz_e
-
-  function dz_SW_e (dom, i, j, zlev, offs, dims, q)
-    ! Thickness of layer zlev at edges (SW edges)
-    implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
-    real(8), dimension(1:EDGE)                :: dz_SW_e
-
-    integer                    :: d, id, idW, idSW, idS
-    real(8), dimension(0:EDGE) :: dz
-
-    d = dom%id + 1
-
-    id   = idx (i,   j,   offs, dims)
-    idW  = idx (i-1, j,   offs, dims)
-    idSW = idx (i-1, j-1, offs, dims)
-    idS  = idx (i,   j-1, offs, dims)
-   
-    dz(0) = (sol_mean(S_MASS,zlev)%data(d)%elts(id+1) + q(S_MASS,zlev)%data(d)%elts(id+1)) &
-         / porous_density (d, id+1, zlev)
-    
-    dz(RT+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idW+1)  + q(S_MASS,zlev)%data(d)%elts(idW+1)) &
-         / porous_density (d, idW+1, zlev)
-    
-    dz(DG+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idSW+1) + q(S_MASS,zlev)%data(d)%elts(idSW+1)) &
-         / porous_density (d, idSW+1, zlev)
-    
-    dz(UP+1) = (sol_mean(S_MASS,zlev)%data(d)%elts(idS+1)  + q(S_MASS,zlev)%data(d)%elts(idS+1)) &
-         / porous_density (d, idS+1, zlev)
-
-    dz_SW_e = 0.5d0 * (dz(0) + dz(1:EDGE))
-  end function dz_SW_e
-  
   real(8) function zl_i (dom, i, j, zlev, offs, dims, q, l)
     ! Position of interface below (l=-1) or above (l=1) vertical level zlev nodes
+    ! *** compressible case requires dom%press ***
     implicit none
     type(Domain)                              :: dom
     integer                                   :: i, j, l, zlev
@@ -206,6 +121,82 @@ contains
     end do
   end function zl_e
 
+  real(8) function dz_i (dom, i, j, zlev, offs, dims, q)
+    ! Thickness of layer zlev at nodes
+    implicit none
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
+
+    integer :: d, id
+    real(8) :: exner, full_mass, full_temp
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    if (compressible) then ! dz = mu/rho = mu alpha = mu (kappa theta pi) / P = kappa Theta pi / P *** requires pressure ***
+       full_temp = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
+       exner = c_p * (dom%press%elts(id)/p_0)**kappa
+
+       dz_i = kappa * full_temp * exner / dom%press%elts(id)
+    else                  ! dz = mu/ref_density
+       full_mass = sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)
+
+       dz_i = full_mass / porous_density (d, id, zlev)
+    end if
+  end function dz_i
+
+  function dz_e (dom, i, j, zlev, offs, dims, q)
+    ! Thickness of layer zlev at edges
+    implicit none
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
+    real(8), dimension(1:EDGE)                :: dz_e
+
+    integer                    :: id
+    real(8), dimension(0:EDGE) :: dz
+
+    dz(0)    = dz_i (dom, i,   j,   zlev, offs, dims, q)
+    dz(RT+1) = dz_i (dom, i+1, j,   zlev, offs, dims, q)
+    dz(DG+1) = dz_i (dom, i+1, j+1, zlev, offs, dims, q)
+    dz(UP+1) = dz_i (dom, i  , j+1, zlev, offs, dims, q)
+
+    dz_e = 0.5d0 * (dz(0) + dz(1:EDGE))
+  end function dz_e
+
+  function dz_SW_e (dom, i, j, zlev, offs, dims, q)
+    ! Thickness of layer zlev at edges (SW edges)
+    implicit none
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
+    real(8), dimension(1:EDGE)                :: dz_SW_e
+
+    integer                    :: d, id, idW, idSW, idS
+    real(8), dimension(0:EDGE) :: dz
+
+    d = dom%id + 1
+
+    id   = idx (i,   j,   offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    dz(0)    = dz_i (dom, i,   j,   zlev, offs, dims, q)
+    dz(RT+1) = dz_i (dom, i-1, j,   zlev, offs, dims, q)
+    dz(DG+1) = dz_i (dom, i-1, j-1, zlev, offs, dims, q)
+    dz(UP+1) = dz_i (dom, i  , j-1, zlev, offs, dims, q)
+
+    dz_SW_e = 0.5d0 * (dz(0) + dz(1:EDGE))
+  end function dz_SW_e
+
   real(8) function dz_l (dom, i, j, zlev, offs, dims, q)
     ! Thickness of layer associated with interface between layers zlev and zlev+1: z_(zlev+1) - z(zlev)
     implicit none
@@ -214,7 +205,7 @@ contains
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
-    
+
     real(8) :: dZ, dZ_above
 
     dZ        = dz_i (dom, i, j, zlev,   offs, dims, q)
@@ -255,10 +246,10 @@ contains
   end function eta_e
 
   real(8) function porous_density (d, id_i, zlev)
-    ! Porous density at nodes
+    ! Porous density at nodes for incompressible case
     implicit none
     integer :: d, id_i, zlev
-    
+
     porous_density = ref_density * phi_node (d, id_i, zlev)
   end function porous_density
 
@@ -267,7 +258,7 @@ contains
     implicit none
     integer                    :: d, id, zlev
     real(8), dimension(1:EDGE) :: porous_density_edge
-    
+
     porous_density_edge = ref_density * phi_edge (d, id, zlev)
   end function porous_density_edge
 
@@ -302,16 +293,16 @@ contains
 
     integer :: d, id_i
     real(8) :: z
-    
+
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
     z = z_i (dom, i, j, zlev, offs, dims, q)
 
-    potential_density = density (dom, i, j, zlev, offs, dims, q) - ref_density * z / H_rho
+    potential_density = density_i (dom, i, j, zlev, offs, dims, q) - ref_density * z / H_rho
   end function potential_density
 
-   real(8) function potential_buoyancy (dom, i, j, zlev, offs, dims, q)
+  real(8) function potential_buoyancy (dom, i, j, zlev, offs, dims, q)
     ! Potential buoyancy at nodes (neglect free surface perturbation)
     implicit none
     type(Domain)                              :: dom
@@ -322,7 +313,7 @@ contains
 
     integer :: d, id_i
     real(8) :: z
-    
+
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
@@ -342,7 +333,7 @@ contains
 
     integer :: d, id_i
     real(8) :: full_mass, full_theta
-    
+
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
@@ -362,7 +353,7 @@ contains
 
     integer :: id_i
     real(8) :: full_mass, full_theta
-    
+
     id_i = idx (i, j, offs, dims) + 1
 
     full_mass  = mean_m(id_i) + mass(id_i)
@@ -371,8 +362,9 @@ contains
     scalar(id_i) = full_theta / full_mass
   end subroutine cal_buoyancy
 
-  real(8) function density (dom, i, j, zlev, offs, dims, q)
+  real(8) function density_i (dom, i, j, zlev, offs, dims, q)
     ! Density at nodes
+    ! *** compressible case requires pressure at zlev ***
     implicit none
     type(Domain)                              :: dom
     integer                                   :: i, j, zlev
@@ -380,8 +372,42 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    density = ref_density * (1d0 - buoyancy (dom, i, j, zlev, offs, dims, q))
-  end function density
+    integer :: d, id
+    real(8) :: exner, full_temp
+
+    d = dom%id + 1
+    id  = idx (i, j, offs, dims) + 1
+    
+    if (compressible) then ! rho = P / (kappa theta pi)
+       full_temp = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
+       exner = c_p * (dom%press%elts(id)/p_0)**kappa
+
+       density_i = dom%press%elts(id) / (kappa * full_temp * exner) 
+    else                   ! gravitational density using Boussinesq approximation
+       density_i = ref_density * (1d0 - buoyancy (dom, i, j, zlev, offs, dims, q))
+    end if
+  end function density_i
+
+  function density_e (dom, i, j, zlev, offs, dims, q)
+    ! Density at edges
+    ! *** compressible case requires pressure at zlev ***
+    implicit none
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
+    real(8), dimension(1:EDGE)                :: density_e
+
+    real(8), dimension (0:EDGE) :: rho
+
+    rho(0)    = density_i (dom, i,   j,   zlev, offs, dims, q)
+    rho(RT+1) = density_i (dom, i+1, j,   zlev, offs, dims, q)
+    rho(DG+1) = density_i (dom, i+1, j+1, zlev, offs, dims, q)
+    rho(UP+1) = density_i (dom, i  , j+1, zlev, offs, dims, q)
+
+    density_e = 0.5d0 * (rho(0) + rho(1:EDGE))
+  end function density_e
 
   real(8) function free_surface (dom, i, j, zlev, offs, dims, q)
     ! Computes free surface perturbations
@@ -397,7 +423,7 @@ contains
 
     d = dom%id + 1
     id_i  = idx (i, j, offs, dims) + 1
-    
+
     total_depth = 0d0
     do k = 1, zlevels
        full_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i) + q(S_MASS,k)%data(d)%elts(id_i)
@@ -422,7 +448,7 @@ contains
 
     interp_e = 0.5d0 * (e1 + e2)
   end function interp_e
-  
+
   real(8) function u_mag (dom, i, j, zlev, offs, dims)
     ! Velocity magnitude using data from a single element
     implicit none
@@ -437,9 +463,9 @@ contains
     id = idx (i, j, offs, dims)
 
     prim_dual = dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-   
+
     u = sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-   
+
     u_mag = sqrt (sum (u**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv)
   end function u_mag
 
@@ -498,7 +524,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    
+
     integer     :: id, idN, idE, idNE, idS, idSW, idW
     real(8)     :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
     type(Coord) :: cent, e_zonal, e_merid, vel
@@ -523,8 +549,8 @@ contains
     ! Compute hexagon centroid from its vertices
     cent = centroid (                                                                 &
          (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1),   &
-            dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
-            dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /), 6)
+         dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
+         dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /), 6)
 
     ! Velocity at node from Perot formula
     vel = dom%areas%elts(id+1)%hex_inv * ( &
@@ -541,7 +567,7 @@ contains
     ! Zonal and meridional directions
     e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat))
-    
+
     ! Project velocity at node onto zonal and meridional directions
     velo1(id+1) = inner (vel, e_zonal)
     velo2(id+1) = inner (vel, e_merid)
@@ -572,7 +598,7 @@ contains
          dom%areas%elts(id+1)%part(6)*dom%vort%elts(TRIAG*idS+UPLT+1)    &
          ) * dom%areas%elts(id+1)%hex_inv
   end subroutine vort_triag_to_hex
-  
+
   function f_coriolis_edge (dom, i, j, zlev, offs, dims)
     ! Coriolis parameter at edges
     type(Domain)                   :: dom
@@ -584,7 +610,7 @@ contains
     integer :: id
 
     id = idx (i, j, offs, dims)
-    
+
     f_coriolis_edge = dom%midpt%elts(EDGE*id+RT+1:EDGE*id+UP+1)%z / radius * 2d0*omega
   end function f_coriolis_edge
 
@@ -608,10 +634,10 @@ contains
     implicit none
     integer           :: zlev
     logical, optional :: coarse_only
-    
+
     integer :: d, j, l
     logical :: finer
-    
+
     interface
        real(8) function fun (dom, i, j, t, zlev, offs, dims)
          use domain_mod
@@ -645,10 +671,10 @@ contains
        end do
     end if
     nullify (integrand_tri)
-    
+
     integrate_tri = sum_real (integral)
   end function integrate_tri
-    
+
   subroutine integrate_tri_coarse (dom, i, j, zlev, offs, dims)
     ! Integral over a single level.
     implicit none
@@ -702,7 +728,7 @@ contains
        end do
     end if
   end subroutine integrate_tri_fine
-  
+
   real(8) function integrate_hex (fun, zlev, level)
     ! Integrate over adaptive hexagons, where the integrand is defined by the routine fun.
     ! If optional variable coarse_only = .true. the integration is carried out over level_start only.
@@ -724,9 +750,9 @@ contains
     end interface
 
     arr_hex => fun
-    
+
     integral = 0d0
-    
+
     if (present (level)) then ! integrate over a single scales
        call integrate_hex_scale (level, zlev)
     else                      ! integrate over all scales
@@ -739,9 +765,9 @@ contains
           end do
        end do
     end if
-    
+
     integrate_hex = sum_real (integral)
-    
+
     nullify (arr_hex)
   end function integrate_hex
 
@@ -749,7 +775,7 @@ contains
     ! Integrate function pointer arr_hex over hexagons at a single scale l
     implicit none
     integer :: l, zlev
-    
+
     integer                        :: c, d, i, id, j, jj, p
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
@@ -814,7 +840,7 @@ contains
        do t = LORT, UPLT
           parent_integrand(t) = hex2tri (dom, i_par, j_par, t, offs_par, dims_par, zlev)
        end do
-       
+
        do t = LORT, UPLT
           integral = integral + (hex2tri (dom, i_chd, j_chd, t, offs_chd, dims_chd, zlev) - parent_integrand(t)) &
                * dom%triarea%elts(TRIAG*id_chd+t+1)
@@ -861,7 +887,7 @@ contains
 
     hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
-  
+
   function hex2tri2 (sclr, hex_area, tri_area)
     ! Interpolates sclr given at hexagons to triangles 
     implicit none
@@ -873,7 +899,7 @@ contains
     hex2tri2(LORT) = (sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)) / tri_area(LORT)
     hex2tri2(UPLT) = (sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6)) / tri_area(UPLT)
   end function hex2tri2
-  
+
   subroutine zero_float_0 (q)
     ! Initializes a float field to zero
     implicit none
@@ -900,7 +926,7 @@ contains
     end do
   end subroutine zero_float_1
 
-   subroutine zero_float_2 (q)
+  subroutine zero_float_2 (q)
     ! Initializes a float array to zero
     implicit none
     type(Float_Field), dimension(:,:) :: q
@@ -915,7 +941,7 @@ contains
        end do
     end do
   end subroutine zero_float_2
-  
+
   subroutine zero_float_vector (q)
     ! Initializes a float vector to zero
     implicit none
@@ -958,7 +984,7 @@ contains
     type(Float_Field), target, intent(inout) :: q
 
     integer :: d, j, l, lmin, lmax
-    
+
     if (present(lmin_in)) then
        lmin = lmin_in
        if (present(lmax_in)) then
@@ -1041,7 +1067,7 @@ contains
     type(Float_Field), target, intent(inout) :: q1
 
     integer :: d, j, l, lmin, lmax
-    
+
     if (present(lmin_in)) then
        lmin = lmin_in
        if (present(lmax_in)) then
@@ -1113,7 +1139,7 @@ contains
        val1(EDGE*id+e) = val2(EDGE*id+e)
     end do
   end subroutine cal_equals_edge
-  
+
   subroutine smoothing_rbf (dx, npts, nsmth, data)
     ! Smooths data(lon,lat) over neighbouring region using radial basis functions
     implicit none
@@ -1182,7 +1208,7 @@ contains
           data(nx,jj) = 0.25d0 * data_old(nx-1,jj) + 0.5d0 * data_old(nx,jj) + 0.25d0 * data_old(1,jj)
        end do
        data_old = data
-       
+
        ! Smooth in y-direction
        do ii = 1, nx
           i = ii + int(dble(ny)/dble(2))
@@ -1197,7 +1223,7 @@ contains
        end do
        data_old = data
     end do
-    
+
     deallocate (data_old)
   end subroutine smoothing_shapiro
 
@@ -1212,7 +1238,7 @@ contains
        j = 1 - j
        i = i + int (dble(ny)/dble(2))
     end if
-    
+
     if (i > nx) then
        i = mod (i, nx)
     elseif (i < 1) then
@@ -1332,7 +1358,7 @@ contains
 
     integer :: id, idE, idNE, idN
     real(8) :: z1, z2, z3, z4
-    
+
     id  = idx (i, j, offs, dims)
 
     idE  = idx (i+1, j,   offs, dims)
@@ -1425,20 +1451,20 @@ contains
     id  = idx (i, j, offs, dims)
 
     !if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       z1 = zl_i (dom, i, j, zlev, offs, dims, sol, -1)
-       z2 = zl_i (dom, i, j, zlev, offs, dims, sol,  1)
+    z1 = zl_i (dom, i, j, zlev, offs, dims, sol, -1)
+    z2 = zl_i (dom, i, j, zlev, offs, dims, sol,  1)
 
-       z3 = zl_i (dom, i+1, j, zlev, offs, dims, sol, -1)
-       z4 = zl_i (dom, i+1, j, zlev, offs, dims, sol,  1)
-       rx1_max_loc = max (rx1_max_loc, rx1 ())
+    z3 = zl_i (dom, i+1, j, zlev, offs, dims, sol, -1)
+    z4 = zl_i (dom, i+1, j, zlev, offs, dims, sol,  1)
+    rx1_max_loc = max (rx1_max_loc, rx1 ())
 
-       z3 = zl_i (dom, i+1, j+1, zlev, offs, dims, sol, -1)
-       z4 = zl_i (dom, i+1, j+1, zlev, offs, dims, sol,  1)
-       rx1_max_loc = max (rx1_max_loc, rx1 ())
+    z3 = zl_i (dom, i+1, j+1, zlev, offs, dims, sol, -1)
+    z4 = zl_i (dom, i+1, j+1, zlev, offs, dims, sol,  1)
+    rx1_max_loc = max (rx1_max_loc, rx1 ())
 
-       z3 = zl_i (dom, i, j+1, zlev, offs, dims, sol, -1)
-       z4 = zl_i (dom, i, j+1, zlev, offs, dims, sol,  1)
-       rx1_max_loc = max (rx1_max_loc, rx1 ())
+    z3 = zl_i (dom, i, j+1, zlev, offs, dims, sol, -1)
+    z4 = zl_i (dom, i, j+1, zlev, offs, dims, sol,  1)
+    rx1_max_loc = max (rx1_max_loc, rx1 ())
     !end if
   contains
     real(8) function rx1 ()
@@ -1457,12 +1483,12 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    
+
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
     theta = ( sol_mean(S_TEMP,zlev)%data(d)%elts(id) + sol(S_TEMP,zlev)%data(d)%elts(id) ) / &
-            ( sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id) )
+         ( sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id) )
   end function theta
 
   real(8) function N_i (dom, i, j, zlev, offs, dims)
@@ -1478,22 +1504,22 @@ contains
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims)
-    
+
     dz =  dz_l (dom, i, j, zlev, offs, dims, sol)
-    
+
     if (compressible) then
        theta2 = theta (dom, i, j, zlev+1, offs, dims)
        theta1 = theta (dom, i, j, zlev,   offs, dims)
        theta_l = interp (theta1, theta2)
        dtheta =  theta2 - theta1
-       
+
        N_i = sqrt ( grav_accel *  dtheta/dz / theta_l) 
     else                     ! incompressible
        rho1 = porous_density (d, id+1, zlev)
        rho2 = porous_density (d, id+1, zlev+1) 
        rho_l = interp (rho1, rho2)
        drho = rho2 - rho1
-       
+
        N_i = sqrt ( grav_accel * drho/dz / rho_l )
     end if
   end function N_i
@@ -1508,9 +1534,9 @@ contains
     real(8), dimension(1:EDGE)     :: N_e
 
     N_e = 0.5d0 * ( &
-              N_i (dom, i,   j,   zlev, offs, dims) + (/ &
-              N_i (dom, i+1, j,   zlev, offs, dims),     &
-              N_i (dom, i+1, j+1, zlev, offs, dims),     &
-              N_i (dom, i,   j+1, zlev, offs, dims) /))
+         N_i (dom, i,   j,   zlev, offs, dims) + (/ &
+         N_i (dom, i+1, j,   zlev, offs, dims),     &
+         N_i (dom, i+1, j+1, zlev, offs, dims),     &
+         N_i (dom, i,   j+1, zlev, offs, dims) /))
   end function N_e
 end module utils_mod

@@ -1006,6 +1006,10 @@ contains
 
   subroutine integrate_pressure_up (dom, i, j, zlev, offs, dims)
     ! Integrate pressure (compressible case)/Lagrange multiplier (incompressible case) and geopotential up from surface to top layer
+    !
+    ! Hydrostatic equilibrium:  dP = - g rho dz 
+    ! compressible case:   rho dz = mu, rho = P / (kappa theta pi)
+    ! incompressible case: rho dz = (1 - theta) mu = mu - Theta
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1021,7 +1025,7 @@ contains
     full_mass                 = mean_m(id) + mass(id)
     full_temp                 = mean_t(id) + temp(id)
     dom%geopot_lower%elts(id) = dom%geopot%elts(id)
-    if (compressible) then ! compressible case
+    if (compressible) then ! compressible case:, rho = P / (kappa theta pi)
        p_upper = dom%press_lower%elts(id) - grav_accel * full_mass
        
        dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
@@ -1266,18 +1270,28 @@ contains
   end subroutine cal_div
 
   subroutine cal_density (dom, i, j, zlev, offs, dims)
-    ! Compute total density in the incompressible case
+    ! Compute density
+    ! *** compressible case requires pressure ***
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer :: d, id
+    real(8) :: full_temp, exner
 
     id = idx (i, j, offs, dims) + 1
 
-    scalar(id) = ref_density * (1d0 - (mean_t(id) + temp(id)) / (mean_m(id) + mass(id)))
+    if (compressible) then ! rho = P / (kappa theta pi)
+       d = dom%id + 1
+       full_temp = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + sol(S_TEMP,zlev)%data(d)%elts(id)
+       exner = c_p * (dom%press%elts(id)/p_0)**kappa
+
+       scalar(id) = dom%press%elts(id) / (kappa * full_temp * exner) 
+    else ! gravitational density (Boussinesq approximation)
+       scalar(id) = ref_density * (1d0 - (mean_t(id) + temp(id)) / (mean_m(id) + mass(id)))
+    end if
   end subroutine cal_density
 
   subroutine comp_offs3 (dom, p, offs, dims)
