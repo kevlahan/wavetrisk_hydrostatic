@@ -27,6 +27,7 @@ program Held_Suarez
   radius         = 6371d0    * KM                   ! mean radius of the Earth
   grav_accel     = 9.8d0     * METRE/SECOND**2      ! gravitational acceleration 
   omega          = 7.292d-5  * RAD/SECOND           ! Earth's angular velocity in radians per second
+  ref_density    = ref_density_air                  
   ! Reference pressure (mean surface pressure) in Pascals
   if (NCAR_topo) then
      call std_surf_pres (0d0, p_0)

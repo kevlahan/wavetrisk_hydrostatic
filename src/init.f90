@@ -141,6 +141,14 @@ contains
        zmax = zlevels
     end if
 
+    if (ref_density == 0d0) then ! ref_density not set in test case: choose correct default value
+       if (compressible) then
+          ref_density = ref_density_air
+       else
+          ref_density = ref_density_water
+       end if
+    end if
+
     allocate (grid(n_domain(rank+1)))
     allocate (sol(1:N_VARIABLE,zmin:zmax), sol_mean(1:N_VARIABLE,zmin:zmax))
     allocate (sol_save(1:N_VARIABLE,1:save_levels), trend(1:N_VARIABLE,1:zmax))

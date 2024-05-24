@@ -234,7 +234,8 @@ module shared_mod
 
   real(8)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
   real(8)                                       :: dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
-  real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr, ref_density
+  real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr
+  real(8)                                       :: ref_density, ref_density_air, ref_density_water
   real(8)                                       :: mass_error, max_depth, min_depth, min_mass
   real(8)                                       :: e_min, Kt_const, Kt_0, Kv_0, Kv_bottom, rb_0
   real(8)                                       :: theta1, theta2, visc_divu, visc_rotu
@@ -392,7 +393,9 @@ contains
     grav_accel          = 9.80616d0   * METRE / SECOND**2     ! gravitational acceleration
     p_top               = 0d0         * hPa                   ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
     R_d                 = 287d0       * JOULE / (KG*KELVIN)   ! ideal gas constant for dry air in joules per kilogram Kelvin
-    ref_density         = 1000d0      * KG                    ! reference density for incompressible case
+    ref_density         = 0d0         * KG / METRE**3         ! set ref_density to correct default value below if not set in test case
+    ref_density_air     = 1.225d0     * KG / METRE**3         ! reference density (compressible case: atmosphere)
+    ref_density_water   = 1028d0      * KG / METRE**3         ! reference density (incompressible case: seawater)
     omega               = 7.292d-05   * RAD / SECOND          ! rotation rate of Earth
     radius              = 6371.22d0   * KM                    ! radius of Earth
     p_0                 = 1000d0      * hPA                   ! standard pressure
