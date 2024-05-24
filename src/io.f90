@@ -1545,8 +1545,8 @@ contains
        close (10)
 
        ! Allocate topgraphy data structures    
-       allocate (topography_data(min_level:max_level, 1:size(grid)))
-       do l = min_level, max_level
+       allocate (topography_data(topo_min_level:topo_max_level, 1:size(grid)))
+       do l = topo_min_level, topo_max_level
           do d = 1, size(grid)
              d_glo = glo_id(rank+1,d) + 1
              allocate (topography_data(l,d)%node(1:topo_count(l,d_glo)))
@@ -1556,7 +1556,7 @@ contains
     end do
 
     ! Load topography data
-    do l = min_level, max_level
+    do l = topo_min_level, topo_max_level
        do d = 1, size(grid)
           d_glo = glo_id(rank+1,d) + 1
           write (filename, '(a,a,i2.2,a,i5.5)') trim (topo_file), '.', l, '.', d_glo
