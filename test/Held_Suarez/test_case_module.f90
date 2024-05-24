@@ -13,6 +13,7 @@ module test_case_mod
 
   ! Test case variables
   real(8) :: Area_max, Area_min, C_div, delta_T, delta_theta, dt_max, k_a, k_f, k_s, specvoldim, T_0, T_mean, T_tropo
+  real(8) :: topo_Area_min, topo_dx_min
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, sigma_b, sigma_c, u_0
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
   logical :: scale_aware = .true., sso = .false.
@@ -218,32 +219,31 @@ contains
 
          mu = 0.5d0 * (wav_topography%data(d)%elts(id+1) + wav_topography%data(d)%elts(neigh_id)) ! SSO standard deviation at edges
 
-         ! ! Compute mean Brunt-Vaisala frequency and velocity for vertical layers mu <= z - z_s <= 2 mu
-         ! N    = 0d0
-         ! U    = 0d0
-         ! nlev = 0
-         ! do k = 1, zlevels
-         !    z =  zl_i (dom, i, j, k, offs, dims, sol, 1) - topography%data(d)%elts(id+1) ! height of upper interface above topography
-         !    if (z >= minval(mu) .and. z <= maxval(mu)) then
-         !       nlev = nlev + 1
-         !       N = N + N_e (dom, i, j, k, offs, dims) ! Brunt-Vaisala frequency
-         !       U = U + sol(S_VELO,k)%data(d)%elts(id+1)
-         !    elseif (z > maxval(mu)) then
-         !       exit
-         !    end if
-         ! end do
+         ! Compute mean Brunt-Vaisala frequency and velocity for vertical layers mu <= z - z_s <= 2 mu
+         N    = 0d0
+         U    = 0d0
+         nlev = 0
+         do k = 1, zlevels
+            z =  zl_i (dom, i, j, k, offs, dims, sol, 1) - topography%data(d)%elts(id+1) ! height of upper interface above topography
+            if (z >= minval(mu) .and. z <= maxval(mu)) then
+               nlev = nlev + 1
+               N = N + N_e (dom, i, j, k, offs, dims) ! Brunt-Vaisala frequency
+               U = U + sol(S_VELO,k)%data(d)%elts(id+1)
+            elseif (z > maxval(mu)) then
+               exit
+            end if
+         end do
 
-         ! if (nlev /= 0) then
-         !    N = N / dble (nlev)
-         !    U = U / dble (nlev)
-         ! end if
+         if (nlev /= 0) then
+            N = N / dble (nlev)
+            U = U / dble (nlev)
+         end if
 
-         ! For now use values in lowest layer
-         N = N_e (dom, i, j, 1, offs, dims)
-         U = sol(S_VELO,1)%data(d)%elts(id+1)
-         
-         rho = density_e (dom, i, j, zlev, offs, dims, sol)
-         gravity_wave_stress = rho * MATH_PI/4d0 * dx_min * N * mu**2 * U
+          !N = N_e (dom, i, j, 1, offs, dims) ! Brunt-Vaisala frequency
+          !U = sol(S_VELO,1)%data(d)%elts(id+1)
+          
+         rho = density_e (dom, i, j, 1, offs, dims, sol)
+         gravity_wave_stress = rho * MATH_PI/4d0 * topo_dx_min * N * mu**2 * abs(U)
       else
          gravity_wave_stress = 0d0
       end if

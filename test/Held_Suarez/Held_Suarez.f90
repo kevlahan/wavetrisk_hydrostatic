@@ -81,6 +81,9 @@ program Held_Suarez
   dx_min             = sqrt (2d0 / sqrt(3d0) * Area_min)              
   dx_max             = sqrt (2d0 / sqrt(3d0) * Area_max)
 
+  topo_Area_min      = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**topo_min_level)
+  topo_dx_min        = sqrt (2d0 / sqrt(3d0) * Area_min)
+  
   timeint_type       = "RK4"
   iremap             = 4
 
