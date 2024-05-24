@@ -47,12 +47,11 @@ else
   MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
   ifeq ($(MACHINE),$(filter $(MACHINE), orc bul gra nia)) # module load CCEnv StdEnv/2023 
     LAPACK = -lflexiblas  # module load flexiblas
-    ifeq ($(TOPO), true)
-       LIBS += $(NETCDF)  # module load netcdf netcdf-fortran
-    endif
-  else ifeq ($(MACHINE),$(filter $(MACHINE), if orme))
-      LIBS += $(NETCDF)
   endif
+endif
+
+ifeq ($(TOPO), true)
+  LIBS += $(NETCDF)  # module load netcdf netcdf-fortran
 endif
 
 ifeq ($(F90),ifort)
