@@ -222,6 +222,7 @@ contains
          ! Compute mean Brunt-Vaisala frequency and velocity for vertical layers mu <= z - z_s <= 2 mu
          N    = 0d0
          U    = 0d0
+         rho  = 0d0
          nlev = 0
          do k = 1, zlevels
             z =  zl_i (dom, i, j, k, offs, dims, sol, 1) - topography%data(d)%elts(id+1) ! height of upper interface above topography
@@ -229,6 +230,7 @@ contains
                nlev = nlev + 1
                N = N + N_e (dom, i, j, k, offs, dims) ! Brunt-Vaisala frequency
                U = U + sol(S_VELO,k)%data(d)%elts(id+1)
+               rho = rho + density_e (dom, i, j, k, offs, dims, sol)
             elseif (z > maxval(mu)) then
                exit
             end if
@@ -237,12 +239,12 @@ contains
          if (nlev /= 0) then
             N = N / dble (nlev)
             U = U / dble (nlev)
+            rho = rho / dble (nlev)
          end if
 
           !N = N_e (dom, i, j, 1, offs, dims) ! Brunt-Vaisala frequency
           !U = sol(S_VELO,1)%data(d)%elts(id+1)
-          
-         rho = density_e (dom, i, j, 1, offs, dims, sol)
+          !rho = density_e (dom, i, j, 1, offs, dims, sol)
          gravity_wave_stress = rho * MATH_PI/4d0 * topo_dx_min * N * mu**2 * abs(U)
       else
          gravity_wave_stress = 0d0
