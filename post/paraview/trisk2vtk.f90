@@ -102,7 +102,6 @@ program trisk2vtk
 
            ! Delete un-needed file
            if (trim(grid_type) == "hex" .or. trim(grid_type) == "tri" .or. trim(grid_type) == "2layer") then
-              command = '\rm ' // trim(filename_in) // '00'
               write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
               call system (trim(bash_cmd))
            end if

@@ -1551,7 +1551,7 @@ contains
           save_tri(t)%data(d)%elts(1:num) = 0d0
        end do
        
-       active_Level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
+       active_level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
     end do
 
     do l = level_end-1, level_start-1, -1
@@ -1862,11 +1862,7 @@ contains
        idSW = idx (i-1, j-1, offs, dims)
        idS  = idx (i,   j-1, offs, dims)
 
-       if (allocated (active_level%data)) then ! avoid segfault pre_levelout not used
-          outl = nint (active_level%data(d)%elts(id_i))
-       else
-          outl = 0
-       end if
+       outl = nint (active_level%data(d)%elts(id_i))
 
        if (.not. compressible .and. zlevels == 2) then ! two layer incompressible case (e.g. Drake)
           
@@ -1961,7 +1957,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                                 :: d, id, idE, idN, idNE, outl
+    integer                                 :: d, id, idE, idN, idNE, outa, outl
     integer, dimension(0:EDGE)              :: neigh_id
     
     real(8), dimension(0:EDGE)              :: full_mass, full_temp
@@ -1993,6 +1989,7 @@ contains
     relvort = get_vort (dom, i, j, offs, dims)
 
     outl = dom%level%elts(id+1)
+    outa = nint (active_level%data(d)%elts(id+1))
 
     full_mass = sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id)
     full_temp = sol(S_TEMP,zlev)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,zlev)%data(d)%elts(neigh_id)
@@ -2023,12 +2020,12 @@ contains
        end if
     end if
 
-    outv(:,9) = hex2tri2 (dom%geopot%elts(neigh_id)/grav_accel,      hex_area, tri_area) ! geopotential height
+    outv(:,9) = hex2tri2 (dom%geopot%elts(neigh_id)/grav_accel, hex_area, tri_area)      ! geopotential height
 
-    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0 .and. active_level%data(d)%elts(id+1) == dom%level%elts(id+1)) &
+    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0 .and. outa == outl) &
          write (funit) dom%node%elts((/id, idE, idNE/)+1), outv(LORT,:), dom%mask_n%elts(id+1), outl
 
-    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0 .and. active_level%data(d)%elts(id+1) == dom%level%elts(id+1)) &
+    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0 .and. outa == outl) &
          write (funit) dom%node%elts((/id, idNE, idN/)+1), outv(UPLT,:), dom%mask_n%elts(id+1), outl
   end subroutine write_tri
 
