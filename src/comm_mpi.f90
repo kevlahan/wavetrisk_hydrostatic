@@ -135,9 +135,9 @@ contains
        filename = trim(run_id)//'.'//var_file
 
        if (r == 1) then ! first process opens without append to delete old file if existing
-          open (unit=funit, file=filename, status='replace')
+          open (unit=funit, file=filename, form='unformatted', status='replace')
        else
-          open (unit=funit, file=filename, access='append', status='old')
+          open (unit=funit, file=filename, form='unformatted', access='append', status='old')
        end if
 
        if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .true.)
