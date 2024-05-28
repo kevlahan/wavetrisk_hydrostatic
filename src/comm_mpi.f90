@@ -111,33 +111,27 @@ contains
     avg = dble(load_sum)/dble(n_process)
   end subroutine get_load_balance
 
-  subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole, run_id)
+  subroutine write_level_mpi (out_rout, l, zlev, eval_pole, filename)
     use mpi
     implicit none
     external       :: out_rout
-    integer        :: fid, l, zlev
+    integer        :: l, zlev
     logical        :: eval_pole
-    character(*)   :: run_id
+    character(*)   :: filename
 
     integer            :: r
     integer, parameter :: funit = 300
-    character(3)       :: layer
-    character(7)       :: var_file
-    character(255)     :: filename
-        
+            
     do r = 1, n_process
        if (r /= rank+1) then ! write only if our turn, otherwise only wait at barrier
           call MPI_Barrier (MPI_Comm_World, ierror)
           cycle 
        end if
 
-       write (var_file, '(i7)') fid
-       filename = trim(run_id)//'.'//var_file
-
        if (r == 1) then ! first process opens without append to delete old file if existing
-          open (unit=funit, file=filename, form='unformatted', status='replace')
+          open (unit=funit, file=trim(filename), form='unformatted', status='replace')
        else
-          open (unit=funit, file=filename, form='unformatted', access='append', status='old')
+          open (unit=funit, file=trim(filename), form='unformatted', access='append', status='old')
        end if
 
        if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .true.)

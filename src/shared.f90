@@ -1,10 +1,14 @@
 module shared_mod
   use param_mod
   implicit none
-
+  
   type Coord
      real(8) :: x, y, z
   end type Coord
+
+  type Coord_r4
+     real(4):: x, y, z
+  end type Coord_r4
 
   type Areas
      real(8), dimension(6) :: part
@@ -461,4 +465,16 @@ contains
        exp__flush = 0d0
     end if
   end function exp__flush
+
+  function coord2r4 (c, n)
+    ! Converts a coordinate variable type from double to single precisions
+    implicit none
+    integer                      :: n
+    type(Coord),    dimension(n) :: c
+    type(Coord_r4), dimension(n) :: coord2r4
+
+    coord2r4%x = real (c%x)
+    coord2r4%y = real (c%y)
+    coord2r4%z = real (c%z)
+  end function coord2r4
 end module shared_mod

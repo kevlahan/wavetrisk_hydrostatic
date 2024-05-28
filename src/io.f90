@@ -8,16 +8,14 @@ module io_mod
 
   integer, dimension(2,4)                        :: HR_offs
   data                                             HR_offs /0,0, 1,0, 1,1, 0,1/
-  
+
   integer                                        :: ii, ncells_hex_loc, ncells_tri_loc, nvar_out
   integer, dimension(:,:), allocatable           :: topo_count
   real(8)                                        :: vmin, vmax
-  real(8), dimension(:), allocatable             :: minv, maxv
   integer                                        :: next_fid
   type(Float_Field)                              :: active_level
   type(Float_Field), dimension(LORT:UPLT)        :: save_tri                           
   type(Topo_Array),  dimension(:,:), allocatable :: topography_data
-  character(255)                                 :: nvar
 contains
   subroutine init_io_mod
     implicit none
@@ -26,18 +24,7 @@ contains
     if (initialized) return ! initialize only once
     call init_domain_mod
     next_fid = 100
-
-    if (compressible .or. zlevels /= 2) then
-       nvar_out = 9
-    else
-       nvar_out = 11
-    end if
-
-    write (nvar,*) nvar_out
-
-    allocate (minv(1:nvar_out), maxv(1:nvar_out))
-    minv = 0d0
-    maxv = 0d0
+    nvar_out = 11
     initialized = .true.
   end subroutine init_io_mod
 
@@ -92,7 +79,7 @@ contains
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
-    
+
     full_mass = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
   end function full_mass
 
@@ -135,7 +122,7 @@ contains
     character(*) :: itype
 
     integer :: k
-    
+
     total_ke = 0d0
     do k = 1, zlevels
        total_ke = total_ke + integrate_hex (kinetic_energy, k)
@@ -150,7 +137,7 @@ contains
     integer                   :: k
 
     integer :: d, j, p
-    
+
     do d = 1, size(grid)
        velo => q%data(d)%elts
        ke   => grid(d)%ke%elts
@@ -168,11 +155,11 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-   
+
     integer :: d, id, idW, idSW, idS
     real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
     real(8) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-    
+
     d  = dom%id + 1
     id = idx (i, j, offs, dims)
 
@@ -195,10 +182,10 @@ contains
     u_dual_RT_W  = velo(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
     u_dual_DG_SW = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
     u_dual_UP_S  = velo(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
-    
+
     ke(id+1) = sqrt( (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT + &
-                      u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-                      * dom%areas%elts(id+1)%hex_inv/(4d0*MATH_PI*radius**2)) 
+         u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+         * dom%areas%elts(id+1)%hex_inv/(4d0*MATH_PI*radius**2)) 
   end subroutine cal_umag
 
   real(8) function kinetic_energy (dom, i, j, zlev, offs, dims)
@@ -207,11 +194,11 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-   
+
     integer :: d, id, idW, idSW, idS
     real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
     real(8) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-    
+
     d  = dom%id + 1
     id = idx (i, j, offs, dims)
 
@@ -236,7 +223,7 @@ contains
     u_dual_UP_S  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
 
     kinetic_energy = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT + &
-                      u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+         u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
          * dom%areas%elts(id+1)%hex_inv/4d0 
   end function kinetic_energy
 
@@ -485,7 +472,7 @@ contains
     end if
   end function pot_enstrophy
 
-   subroutine cal_temp (dom, i, j, zlev, offs, dims)
+  subroutine cal_temp (dom, i, j, zlev, offs, dims)
     ! Compute temperature in compressible case
     implicit none
     type(Domain)                   :: dom
@@ -513,7 +500,7 @@ contains
     do k = 1, zlevels
        full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
        full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol(S_TEMP,k)%data(d)%elts(id)
-       
+
        exner_fun(k)%data(d)%elts(id) = full_temp / full_mass * (p(k)/p_0)**kappa
     end do
 
@@ -521,7 +508,7 @@ contains
     do k = 1, save_levels
        full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol_save(S_MASS,k)%data(d)%elts(id)
        full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol_save(S_TEMP,k)%data(d)%elts(id)
-       
+
        trend(1,k)%data(d)%elts(id+1) = full_temp / full_mass * (pressure_save(k) / p_0)**kappa
     end do
   end subroutine cal_temp
@@ -546,7 +533,7 @@ contains
 
     pressure_lower = dom%surf_press%elts(id)
     pressure_upper = pressure_lower - grav_accel * full_mass
-    
+
     dom%geopot_lower%elts(id) = surf_geopot (d, id) / grav_accel
 
     k = 1
@@ -677,7 +664,7 @@ contains
           temp = zonal_avg(k,bin,:)
           call MPI_Gather (temp, nvar_zonal, MPI_DOUBLE_PRECISION, zonal_avg_loc, nvar_zonal, MPI_DOUBLE_PRECISION, &
                0, MPI_COMM_WORLD, ierror)
-          
+
           if (rank == 0) call combine_var
        end do
     end do
@@ -883,7 +870,7 @@ contains
     character(9999)                  :: filename_gr, filename_no
     character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
     logical, dimension(1:N_CHDRN)    :: required
-    
+
     call update_array_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE)
     if (vert_diffuse) call update_vector_bdry (wav_tke, NONE, 20)
 
@@ -905,7 +892,7 @@ contains
           end do
        end if
     end do
-    
+
     do r = 1, n_process
 #ifdef MPI       
        if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
@@ -1048,7 +1035,7 @@ contains
     implicit none
     integer      :: id
     character(*) :: run_id
-    
+
     integer                          :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     character(9999)                  :: filename_gr, filename_no
@@ -1073,7 +1060,7 @@ contains
           open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ', status='OLD')
        end do
     end do
-    
+
     ! Load coarsest scale solution (scaling functions)
     do d = 1, size(grid)
        read (fid_no(d)) istep_cumul
@@ -1208,7 +1195,7 @@ contains
     do l = max_level, min_level, -1
        do d = 1, size(grid)
           d_glo = glo_id(rank+1,d) + 1
-       
+
           write (filename, '(a,a,i2.2,a,i5.5)') trim (topo_file), '.', l, '.', d_glo           
           open (unit=10, file=trim (filename), form="UNFORMATTED", action='WRITE', status='REPLACE')
           do j = 1, grid(d)%lev(l)%length
@@ -1222,7 +1209,7 @@ contains
     open (unit=10, file=trim (filename), form="UNFORMATTED", action='WRITE', status='REPLACE')
     write (10) topo_count
     close (10)
-    
+
     ! Compress topography data
     write (cmd_files,   '(a,a,a,a,a,a,a)') trim (topo_file), '.', '??', '.', '?????', ' ', trim (filename)
     write (cmd_archive,         '(a)') trim (topo_file)//".tgz"
@@ -1231,7 +1218,7 @@ contains
     write (bash_cmd,        '(a,a,a)') 'bash -c "', trim (command), '"'
     call system (trim(bash_cmd))
   end subroutine save_topo
-  
+
   subroutine write_topo (dom, i, j, zlev, offs, dims)
     ! Write out level, coordinates and topography height
     implicit none
@@ -1276,7 +1263,7 @@ contains
     ! Allocate topo_count matrix for all domains on all ranks 
     if (allocated (topo_count)) deallocate (topo_count)
     allocate (topo_count(topo_min_level:topo_max_level,1:N_GLO_DOMAIN))
-    
+
     do r = 1, n_process
 #ifdef MPI
        if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
@@ -1457,7 +1444,7 @@ contains
        write (6,'(A,2(es8.2,A))') 'Grid quality after optimization  = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
        write (6,'(A)') '(distance between midpoints of primal and dual edges)'
        write (6,'(A)') '-------------------------------------------------------&
-     ---------------------------------------------------------------------------'
+            ---------------------------------------------------------------------------'
     end if
   end subroutine read_HR_optim_grid
 
@@ -1546,21 +1533,21 @@ contains
        num = grid(d)%node%length
        call init (active_level%data(d), num)
 
-        do t = LORT, UPLT
+       do t = LORT, UPLT
           call init (save_tri(t)%data(d), num)
           save_tri(t)%data(d)%elts(1:num) = 0d0
        end do
-       
+
        active_level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
     end do
 
     do l = level_end-1, level_start-1, -1
        call apply_interscale (mark_save_tri,  l, z_null, 0, 1)
     end do
-    
+
     call apply_interscale (mark_save_tri2, level_start, z_null, 0, 1)
 
-     do l = level_end-1, level_start-1, -1
+    do l = level_end-1, level_start-1, -1
        call apply_interscale (restrict_level, l, z_null, 0, 1)
     end do
   end subroutine pre_levelout
@@ -1576,7 +1563,7 @@ contains
        end do
     end do
     deallocate (active_level%data)
-    
+
     do t = LORT, UPLT
        deallocate (save_tri(t)%data)
     end do
@@ -1600,7 +1587,7 @@ contains
          save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0 .and. save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0 ) &
          active_level%data(d)%elts(id_par+1) = active_level%data(d)%elts(id_chd+1)
   end subroutine restrict_level
-  
+
   subroutine mark_save_tri (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     implicit none
     type(Domain)                   :: dom
@@ -1611,11 +1598,11 @@ contains
     integer :: d, id_par, id_chd, idE_chd, idNE_chd, idN_chd
 
     d = dom%id+1
-    
+
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
     id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-    
+
     idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
     idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
     idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
@@ -1639,7 +1626,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
     integer :: d, id_par, id_chd
-    
+
     d = dom%id+1
 
     id_par = idx(i_par, j_par, offs_par, dims_par)
@@ -1654,25 +1641,16 @@ contains
     implicit none
     integer :: isave
 
-    integer        :: d, i, j, k, k1, k2, l, p, u1, u2
-    character(3)   :: layer
-    character(7)   :: var_file
-    character(255) :: prefix
-
-    u1 = 1000000 + 100*isave
-    u2 = 2000000 + 100*isave
-
-    if (save_zlev < 0) then ! save all layers
-       k1 = 1; k2 = zlevels 
-    else
-       k1 = save_zlev; k2 = save_zlev
-    end if
+    integer         :: d, j, k, l
+    character(3)    :: layer
+    character(1000) :: file_hex, isv, file_tri, scale
 
     if (rank == 0) write(6,'(/,A,i4/)') 'Saving fields ', isave
+    write (isv, '(i4.4)') isave
 
     sol%bdry_uptodate = .false.
     call update_array_bdry (sol, NONE, 26)
-    
+
     call pre_levelout
 
     ! Compute surface pressure
@@ -1682,8 +1660,9 @@ contains
     call omega_velocity
 
     do l = level_start, level_end
+       write (scale, '(i2.2)') l
        if (compressible .or. zlevels /= 2 .or. .not. mode_split) then
-          do k = 1, k2
+          do k = 1, zlevels
              ! Compute pressure, exner and geopotential
              do d = 1, size(grid)
                 mass    => sol(S_MASS,k)%data(d)%elts
@@ -1698,46 +1677,47 @@ contains
                 nullify (mass, mean_m, temp, mean_t, exner)
              end do
 
-             if (save_zlev < 0 .or. k == k2) then ! Compute zonal/meridional velocities and vorticity
-                ! Zonal and meridional velocities 
-                do d = 1, size(grid)
-                   velo  => sol(S_VELO,k)%data(d)%elts
-                   velo1 => grid(d)%u_zonal%elts
-                   velo2 => grid(d)%v_merid%elts
-                   do j = 1, grid(d)%lev(l)%length
-                      call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-                   end do
-                   nullify (velo, velo1, velo2)
+             ! Zonal and meridional velocities 
+             do d = 1, size(grid)
+                velo  => sol(S_VELO,k)%data(d)%elts
+                velo1 => grid(d)%u_zonal%elts
+                velo2 => grid(d)%v_merid%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
                 end do
+                nullify (velo, velo1, velo2)
+             end do
 
-                ! Vorticity
-                do d = 1, size(grid)
-                   velo  => sol(S_VELO,k)%data(d)%elts
-                   vort  => grid(d)%vort%elts
-                   do j = 1, grid(d)%lev(l)%length
-                      call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
-                   end do
-                   call apply_to_penta_d (post_vort, grid(d), l, z_null)
-                   nullify (velo, vort)
+             ! Vorticity
+             do d = 1, size(grid)
+                velo  => sol(S_VELO,k)%data(d)%elts
+                vort  => grid(d)%vort%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
                 end do
+                call apply_to_penta_d (post_vort, grid(d), l, z_null)
+                nullify (velo, vort)
+             end do
 
-                ! Calculate vorticity at hexagon points (stored in ke)
-                do d = 1, size(grid)
-                   vort => grid(d)%ke%elts
-                   do j = 1, grid(d)%lev(l)%length
-                      call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-                   end do
-                   nullify (vort)
+             ! Calculate vorticity at hexagon points (stored in ke)
+             do d = 1, size(grid)
+                vort => grid(d)%ke%elts
+                do j = 1, grid(d)%lev(l)%length
+                   call apply_onescale_to_patch (vort_triag_to_hex, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
                 end do
-                
-                ! Save fields
-                write (layer, '(i3.3)') k
-                prefix = trim(run_id)//'_'//layer
+                nullify (vort)
+             end do
 
-                call write_level_mpi (write_hex, u1+l, l, k, .true.,  prefix)
-                call write_level_mpi (write_tri, u2+l, l, k, .false., prefix)
-             end if
-           end do
+             ! Save fields
+             write (layer, '(i3.3)') k
+
+             ! Save fields
+             file_hex = trim(run_id)//"_hex_"//trim(scale)//"_"//trim(layer)//"_"//trim(isv)
+             file_tri = trim(run_id)//"_tri_"//trim(scale)//"_"//trim(layer)//"_"//trim(isv)
+
+             call write_level_mpi (write_hex, l, k, .true.,  trim(file_hex))
+             call write_level_mpi (write_tri, l, k, .false., trim(file_tri))
+          end do
        else
           ! Barotropic velocity
           do d = 1, size(grid)
@@ -1818,22 +1798,17 @@ contains
           end do
 
           ! Save fields
-          prefix = trim(run_id)
-          call write_level_mpi (write_hex, u1+l, l, z_null, .true.,  prefix)
-          call write_level_mpi (write_tri, u2+l, l, z_null, .false., prefix)
+          file_hex = trim(run_id)//"_hex_"//trim(scale)//"_"//trim(isv)
+          file_tri = trim(run_id)//"_tri_"//trim(scale)//"_"//trim(isv)
+
+          call write_level_mpi (write_hex, l, z_null, .true.,  trim(file_hex))
+          call write_level_mpi (write_tri, l, z_null, .false., trim(file_tri))
        end if
     end do
     call post_levelout
     call barrier
-    
-    if (rank == 0) then
-       do k = k1, k2
-          write (layer, '(i3.3)') k
-          prefix = trim(run_id)//'_'//layer
-          call compress_files (isave, prefix)
-       end do
-    end if
-    call barrier
+
+    if (rank == 0) call compress_files (isave)
   end subroutine write_and_export
 
   subroutine write_hex (dom, p, i, j, zlev, offs, dims, funit)
@@ -1845,9 +1820,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                       :: d, id, id_i, idE, idN, idNE, idW, idSW, idS, k, outl
-    real(8)                       :: full_mass, full_temp, total_depth, total_height
-    real(8), dimension(nvar_out)  :: outv
+    integer                      :: d, id, id_i, idE, idN, idNE, idW, idSW, idS, outl
+    real(8)                      :: full_mass, full_temp
+    real(4), dimension(nvar_out) :: outv
+    type(Coord), dimension(6)    :: vertices
     
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -1861,11 +1837,13 @@ contains
        idW  = idx (i-1, j,   offs, dims)
        idSW = idx (i-1, j-1, offs, dims)
        idS  = idx (i,   j-1, offs, dims)
-
+       
        outl = nint (active_level%data(d)%elts(id_i))
 
+       full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
+       full_temp = sol(S_TEMP,zlev)%data(d)%elts(id_i) + sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)
+
        if (.not. compressible .and. zlevels == 2) then ! two layer incompressible case (e.g. Drake)
-          
           ! Density perturbation
           outv(1) = -ref_density * full_temp / full_mass
 
@@ -1894,57 +1872,60 @@ contains
              outv(9) = free_surface (dom, i, j, zlev, offs, dims, sol)
           end if
 
-          ! Topography
-          outv(10) = topography%data(d)%elts(id_i)
-
-          ! Penalization mask
-          outv(11) = penal_node(zlev)%data(d)%elts(id_i)  ! penalization mask
-
+          if (zlev == 1) then
+             outv(10) = topography%data(d)%elts(id_i)           ! topography
+             outv(11) = penal_node(zlev)%data(d)%elts(id_i)     ! penalization mask
+          else
+             outv(10:11) = 0d0
+          end if
+             
           write (funit) &
                dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
                dom%ccentre%elts(TRIAG*idW +LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
                dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1), &
                outv, dom%mask_n%elts(id_i), outl
-          
        else  ! default case (compressible or incompressible)
+          outv(1) = full_mass                                                    ! rho dz
           
-          full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
-          full_temp = sol(S_TEMP,zlev)%data(d)%elts(id_i) + sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)
-
           if (compressible) then 
-             outv(1) = full_temp / full_mass * (dom%press%elts(id_i)/p_0)**kappa ! temperature in layer zlev (compressible)
+             outv(2) = full_temp / full_mass * (dom%press%elts(id_i)/p_0)**kappa ! temperature in layer zlev (compressible)
           else
-             outv(1) = ref_density * (1d0 - full_temp / full_mass)               ! density                   (incompressible)
+             outv(2) = ref_density * (1d0 - full_temp / full_mass)               ! density                   (incompressible)
           end if
 
-          outv(2) = dom%u_zonal%elts(id_i) * phi_node (d, id_i, zlev)            ! zonal velocity
-          outv(3) = dom%v_merid%elts(id_i) * phi_node (d, id_i, zlev)            ! meridional velocity
+          outv(3) = dom%u_zonal%elts(id_i) * phi_node (d, id_i, zlev)            ! zonal velocity
+          outv(4) = dom%v_merid%elts(id_i) * phi_node (d, id_i, zlev)            ! meridional velocity
           
-          outv(4) = trend(S_TEMP,zlev)%data(d)%elts(id_i)                        ! vertical velocity OMEGA (stored in trend(S_TEMP,:))
+          outv(5) = trend(S_TEMP,zlev)%data(d)%elts(id_i)                        ! vertical velocity OMEGA (stored in trend(S_TEMP,:))
           
-          outv(5) = dom%ke%elts(id_i)                                            ! vorticity (stored in ke)
-          
-          outv(6) = topography%data(d)%elts(id_i)                                ! topography
+          outv(6) = dom%ke%elts(id_i)                                            ! vorticity (stored in ke)
 
-          outv(7) = penal_node(zlev)%data(d)%elts(id_i)                          ! penalization mask
+          if (zlev == 1) then
+             outv(7) = topography%data(d)%elts(id_i)                             ! topography
+             outv(8) = penal_node(zlev)%data(d)%elts(id_i)                       ! penalization mask
+          else
+             outv(7:8) = 0.0
+          end if
 
           if (compressible) then 
-             outv(8) = dom%surf_press%elts(id_i)                                 ! surface pressure          (compressible)
+             outv(9) = dom%surf_press%elts(id_i)                                 ! surface pressure          (compressible)
           else                                                                   ! free surface perturbation (incompressible)
              if (mode_split) then 
-                outv(8) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
+                outv(9) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
              else
-                outv(8) = free_surface (dom, i, j, zlev, offs, dims, sol)
+                outv(9) = free_surface (dom, i, j, zlev, offs, dims, sol)
              end if
           end if
 
-          outv(9) = dom%geopot%elts(id_i)/grav_accel                              ! geopotential height
+          outv(10) = dom%geopot%elts(id_i) / grav_accel                          ! geopotential height
+          outv(11) = dom%press%elts(id_i)                                        ! layer pressure
 
-          write (funit) &
-               dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
+          ! Vertices of hexagon
+          vertices = (/ dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
                dom%ccentre%elts(TRIAG*idW +LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
-               dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1), &
-               outv, dom%mask_n%elts(id_i), outl
+               dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1) /)
+
+          write (funit) coord2r4 (vertices, 6), outv, dom%mask_n%elts(id_i), outl
        end if
     end if
   end subroutine write_hex
@@ -1957,14 +1938,16 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                                 :: d, id, idE, idN, idNE, outa, outl
-    integer, dimension(0:EDGE)              :: neigh_id
+    integer                                :: d, id, idE, idN, idNE, outa, outl
+    integer, dimension(0:EDGE)             :: neigh_id
     
-    real(8), dimension(0:EDGE)              :: full_mass, full_temp
-    real(8), dimension(0:EDGE)              :: temperature
-    real(8), dimension(LORT:UPLT,nvar_out)  :: outv
-    real(8), dimension(LORT:UPLT)           :: relvort, tri_area
-    real(8), dimension(2*EDGE)              :: hex_area
+    real(8), dimension(0:EDGE)             :: full_mass, full_temp
+    real(8), dimension(0:EDGE)             :: temperature
+    real(4), dimension(LORT:UPLT,nvar_out) :: outv
+    real(8), dimension(LORT:UPLT)          :: relvort, tri_area
+    real(8), dimension(2*EDGE)             :: hex_area
+
+    type(Coord), dimension(LORT:UPLT,3)    :: vertices
     
     d = dom%id + 1
 
@@ -1988,8 +1971,8 @@ contains
 
     relvort = get_vort (dom, i, j, offs, dims)
 
-    outl = dom%level%elts(id+1)
-    outa = nint (active_level%data(d)%elts(id+1))
+    outl = dom%level%elts(id+1)                     ! level of current node
+    outa = nint (active_level%data(d)%elts(id+1))   ! finest level of child nodes
 
     full_mass = sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id)
     full_temp = sol(S_TEMP,zlev)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,zlev)%data(d)%elts(neigh_id)
@@ -2000,33 +1983,43 @@ contains
        temperature = ref_density * (1d0 - full_temp / full_mass)
     end if
 
-    outv(:,1) = hex2tri2 (temperature, hex_area, tri_area)                               ! temperature (compressible) or density (incompressible)
+    outv(:,1) = hex2tri2 (full_mass,   hex_area, tri_area)                               ! rho_dz
     
-    outv(:,2) = hex2tri2 (dom%u_zonal%elts(neigh_id),                hex_area, tri_area) ! zonal velocity
-    outv(:,3) = hex2tri2 (dom%v_merid%elts(neigh_id),                hex_area, tri_area) ! meridional velocity
-    outv(:,4) = hex2tri2 (trend(S_TEMP,zlev)%data(d)%elts(neigh_id), hex_area, tri_area) ! vertical velocity OMEGA (stored in trend(S_TEMP,:))
-    outv(:,5) = relvort                                                                  ! vorticity
+    outv(:,2) = hex2tri2 (temperature, hex_area, tri_area)                               ! temperature (compressible) or density (incompressible)
     
-    outv(:,6) = hex2tri2 (topography%data(d)%elts(neigh_id),         hex_area, tri_area) ! topography
-    outv(:,7) = hex2tri2 (penal_node(zlev)%data(d)%elts(neigh_id),   hex_area, tri_area) ! penalization mask
+    outv(:,3) = hex2tri2 (dom%u_zonal%elts(neigh_id),                hex_area, tri_area) ! zonal velocity
+    outv(:,4) = hex2tri2 (dom%v_merid%elts(neigh_id),                hex_area, tri_area) ! meridional velocity
+    outv(:,5) = hex2tri2 (trend(S_TEMP,zlev)%data(d)%elts(neigh_id), hex_area, tri_area) ! vertical velocity OMEGA (stored in trend(S_TEMP,:))
+    outv(:,6) = relvort                                                                  ! vorticity
+
+    if (zlev == 1) then
+       outv(:,7) = hex2tri2 (topography%data(d)%elts(neigh_id),       hex_area, tri_area) ! topography
+       outv(:,8) = hex2tri2 (penal_node(zlev)%data(d)%elts(neigh_id), hex_area, tri_area) ! penalization mask
+    else
+       outv(:,7:8) = 0.0
+    end if
 
     if (compressible) then
-       outv(:,8) = hex2tri2 (dom%surf_press%elts(neigh_id),          hex_area, tri_area) ! surface pressure
+       outv(:,9) = hex2tri2 (dom%surf_press%elts(neigh_id),          hex_area, tri_area) ! surface pressure
     else                                                                                 ! free surface perturbation
        if (mode_split) then
-          outv(:,8) = hex2tri2 (sol(S_MASS,zlevels+1)%data(d)%elts(neigh_id), hex_area, tri_area) 
+          outv(:,9) = hex2tri2 (sol(S_MASS,zlevels+1)%data(d)%elts(neigh_id), hex_area, tri_area) 
        else
-          outv(:,8) = hex2tri2 (sol(S_MASS,1)%data(d)%elts(neigh_id), hex_area, tri_area) 
+          outv(:,9) = hex2tri2 (sol(S_MASS,1)%data(d)%elts(neigh_id), hex_area, tri_area) 
        end if
     end if
 
-    outv(:,9) = hex2tri2 (dom%geopot%elts(neigh_id)/grav_accel, hex_area, tri_area)      ! geopotential height
+    outv(:,10) = hex2tri2 (dom%geopot%elts(neigh_id) / grav_accel, hex_area, tri_area)   ! geopotential height
+    outv(:,11) = hex2tri2 (dom%press%elts(neigh_id),               hex_area, tri_area)   ! layer pressure
+
+    vertices(LORT,:) = dom%node%elts((/id, idE, idNE/)+1)
+    vertices(UPLT,:) = dom%node%elts((/id, idNE, idN/)+1)
 
     if (save_tri(LORT)%data(d)%elts(id+1) == 1d0 .and. outa == outl) &
-         write (funit) dom%node%elts((/id, idE, idNE/)+1), outv(LORT,:), dom%mask_n%elts(id+1), outl
+         write (funit) coord2r4 (vertices(LORT,:), 3), outv(LORT,:), dom%mask_n%elts(id+1), outl
 
     if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0 .and. outa == outl) &
-         write (funit) dom%node%elts((/id, idNE, idN/)+1), outv(UPLT,:), dom%mask_n%elts(id+1), outl
+         write (funit) coord2r4 (vertices(UPLT,:), 3), outv(UPLT,:), dom%mask_n%elts(id+1), outl
   end subroutine write_tri
 
   subroutine barotropic_velocity (dom, i, j, zlev, offs, dims)
@@ -2088,7 +2081,7 @@ contains
     integer :: d, j, k, l, p
 
     call update_array_bdry (sol, NONE)
-    
+
     ! Compute surface pressure
     call cal_surf_press (sol)
 
@@ -2122,7 +2115,7 @@ contains
              end do
              nullify (dscalar, h_flux)
           end do
-          
+
           ! u grad(P_S) at hexagon centres
           ! stored in trend(S_TEMP,1:zlevels)
           do d = 1, size(grid)
@@ -2149,7 +2142,7 @@ contains
              end do
              nullify (dscalar, h_flux)
           end do
-          
+
           trend(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
           call update_vector_bdry (trend(S_MASS:S_TEMP,k), l)
        end do
@@ -2162,7 +2155,7 @@ contains
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
     call update_vector_bdry (trend(S_TEMP,:), NONE)
   end subroutine omega_velocity
-  
+
   subroutine cal_omega (dom, i, j, zlev, offs, dims)
     ! Velocity flux across interfaces
     implicit none
@@ -2189,7 +2182,7 @@ contains
     do k = 1, zlevels
        u_gradP(k) = interp (b_vert(k), b_vert(k+1)) * trend(S_TEMP,k)%data(d)%elts(id_i)
     end do
-    
+
     ! Complete computation of omega
     do k = 1, zlevels
        trend(S_TEMP,k)%data(d)%elts(id_i) = - grav_accel * interp (div_mass(k), div_mass(k+1)) + u_gradP(k) 
@@ -2203,7 +2196,7 @@ contains
     integer :: d, j, k, l, p
 
     call update_array_bdry (sol, NONE)
-    
+
     ! Compute surface pressure
     call cal_surf_press (sol)
 
@@ -2272,7 +2265,7 @@ contains
     do k = zlevels, 1, -1
        div_mass(k) = div_mass(k+1) + trend(S_MASS,k)%data(d)%elts(id_i)
     end do
-    
+
     do k = 1, zlevels
        ! Vertical mass flux through layers
        trend(S_TEMP,k)%data(d)%elts(id_i) = - grav_accel * interp (div_mass(k), div_mass(k+1)) &
@@ -2297,11 +2290,11 @@ contains
       idS  = idx (i,   j-1, offs, dims)
 
       velo => sol(S_VELO,k)%data(d)%elts
-    
+
       proj_vel_vertical =  &
-      (vert_vel (i,j,i+1,j,EDGE*id +RT+1) + vert_vel (i+1,j+1,i,j,EDGE*id  +DG+1) + vert_vel (i,j,i,j+1,EDGE*id +UP+1) + &
-      (vert_vel (i-1,j,i,j,EDGE*idW+RT+1) + vert_vel (i,j,i-1,j-1,EDGE*idSW+DG+1) + vert_vel (i,j-1,i,j,EDGE*idS+UP+1))) / 6d0
-      
+           (vert_vel (i,j,i+1,j,EDGE*id +RT+1) + vert_vel (i+1,j+1,i,j,EDGE*id  +DG+1) + vert_vel (i,j,i,j+1,EDGE*id +UP+1) + &
+           (vert_vel (i-1,j,i,j,EDGE*idW+RT+1) + vert_vel (i,j,i-1,j-1,EDGE*idSW+DG+1) + vert_vel (i,j-1,i,j,EDGE*idS+UP+1))) / 6d0
+
       nullify (velo)
     end function proj_vel_vertical
 
@@ -2318,34 +2311,36 @@ contains
     end function vert_vel
   end subroutine cal_w
 
-  subroutine compress_files (isave, run_id)
+  subroutine compress_files (isave)
     implicit none
-    integer      :: isave
-    character(*) :: run_id
+    integer :: isave
 
     integer         :: info
-    character(4)    :: s_time
-    character(1300) :: bash_cmd, command
+    character(1300) :: bash_cmd, command, isv
 
-    write (s_time, '(i4.4)') isave
+    write (isv, '(i4.4)') isave
 
-    command = 'ls -1 '//trim(run_id)//'.1'//s_time//'?? > tmp1'
+    command = "ls -1 *hex*"//trim(isv)//" > tmp1"
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (trim(bash_cmd))
 
-    command = 'gtar cfz '//trim(run_id)//'.1'//s_time//'.tgz -T tmp1 --remove-files'
+    command = 'gtar caf '//trim(run_id)//"_hex_"//trim(isv)//'.tgz -T tmp1 --remove-files'
     call system (trim(command), info)
     if (info /= 0) then
        if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
        call abort
     end if
 
-    command = 'ls -1 '//trim(run_id)//'.2'//s_time //'?? > tmp2'
+    command = "ls -1 *tri*"//trim(isv)//" > tmp2"
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (trim(bash_cmd))
 
-    command = 'gtar cfz '//trim(run_id)//'.2'//s_time//'.tgz -T tmp2 --remove-files'
-    call system (trim(command))
+    command = 'gtar caf '//trim(run_id)//"_tri_"//trim(isv)//'.tgz -T tmp2 --remove-files'
+    call system (trim(command), info)
+    if (info /= 0) then
+       if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
+       call abort
+    end if
 
     command = '\rm -f tmp1 tmp2'
     call system (trim(command))

@@ -38,10 +38,9 @@ def split_cell(cellid, offset, ugrid) :
 
 
 # Main program
-if (len(sys.argv)<5) :
-    print("Usage: python xyz2lonlat.py file grid t1 t2\n")
-    print("file = file base name (without .1 or .2 and .vtk)")
-    print("grid = hex (.1) or tri (.2)")
+if (len(sys.argv)<3) :
+    print("Usage: python xyz2lonlat.py file t1 t2\n")
+    print("file = file base name (without .vtk)")
     print("t1   = first time")
     print("t2   = last time\n")
     print("output is file_lonlat ... .vtk\n")
@@ -50,20 +49,13 @@ if (len(sys.argv)<5) :
     exit(0)
 
 file_base  = sys.argv[1]
-grid       = sys.argv[2]
-t1         = int(sys.argv[3])
-t2         = int(sys.argv[4])
-
-
-if grid == "hex" :
-    grd = ".1"
-elif grid == "tri" :
-    grd = ".2"    
+t1         = int(sys.argv[2])
+t2         = int(sys.argv[3])
 
 for j in range (t1, t2+1):   
     # Load the input vtk file
-    infile  = file_base+grd+str(j).zfill(4)
-    outfile = file_base+"_lonlat"+grd+str(j).zfill(4)
+    infile  = file_base+"_"+str(j).zfill(4)
+    outfile = file_base+"_lonlat_"+str(j).zfill(4)
     
     print("Transforming file "+infile+".vtk")
     vtkreader = vtk.vtkUnstructuredGridReader()
@@ -83,7 +75,7 @@ for j in range (t1, t2+1):
 
     # Conversion from x,y,z to lon, lat, 0
     coords[:,0] = np.degrees(np.arctan2(coords[:,1], coords[:,0]))      # longitude
-    coords[:,1] = np.degrees(np.arcsin(coords[:,2] / R)) # latitude
+    coords[:,1] = np.degrees(np.arcsin(coords[:,2] / R))                # latitude
     coords[:,2] = 0.0
 
     points.SetData(numpy_to_vtk(coords))

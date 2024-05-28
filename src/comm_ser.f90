@@ -26,22 +26,17 @@ contains
     min_load = 1; max_load = 1; avg_load = 1d0; rel_imbalance = 1d0
   end subroutine cal_load_balance
 
-  subroutine write_level_mpi (out_rout, fid, l, zlev, eval_pole, run_id)
+  subroutine write_level_mpi (out_rout, l, zlev, eval_pole, filename)
     implicit none
     external     :: out_rout
     integer      :: fid, l, zlev
     logical      :: eval_pole
-    character(*) :: run_id
+    character(*) :: filename
 
     integer, parameter :: funit = 300
-    character(3)       :: layer
     character(7)       :: var_file
-    character(255)     :: filename
     
-    write (var_file, '(i7)')  fid
-    filename = trim(run_id)//'.'//var_file
-    
-    open (unit=funit, file=filename, status='replace')
+    open (unit=funit, file=trim(filename), form='unformatted', status='replace')
     if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .false.)
     call apply_onescale__int (out_rout, l, zlev, 0, 0, funit)
     close (funit)
