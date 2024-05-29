@@ -5,7 +5,7 @@ program make_NCAR_topo
   use io_mod
   use topo_grid_descriptor_mod
   implicit none
-  integer         :: l
+  integer         :: d, l
   real(8)         :: fine_mass
   character(9999) :: cmd, grid_name, jmin_txt, jmax_txt, smth_txt, topo_desc 
 
@@ -81,6 +81,31 @@ program make_NCAR_topo
      !call smooth_topo (l)
      call topo_restriction (l, l)
   end do
+  topography%bdry_uptodate = .false.
+  call update_bdry (topography, NONE)
+  
+  ! Compute topography gradients at edges (stored in sol(S_VELO,1))
+  do l = max_level, min_level, -1
+     do d = 1, size(grid)
+        scalar => topography%data(d)%elts
+        velo   => sol(S_VELO,1)%data(d)%elts
+        call apply_onescale_d (cal_grad_topo, grid(d), l, z_null, 0, 1)
+        nullify (scalar, velo)
+     end do
+  end do
+  sol(S_VELO,1)%bdry_uptodate = .false.
+  call update_bdry (sol(S_VELO,1), NONE)
+
+  ! Interpolate topography gradients to nodes
+  do l = max_level, min_level, -1
+     do d = 1, size(grid)
+        velo  => sol(S_VELO,1)%data(d)%elts
+        velo1 => grid(d)%u_zonal%elts
+        velo2 => grid(d)%v_merid%elts
+        call apply_onescale_d (interp_UVW_latlon, grid(d), l, z_null, 0, 1)
+        nullify (velo1, velo2)
+     end do
+  end do
   
   ! Check mass conservation
   fine_mass = integrate_hex (topo, z_null, max_level)
@@ -89,7 +114,7 @@ program make_NCAR_topo
           "Relative mass error at level ", l, " = ", abs (integrate_hex (topo, z_null, l) - fine_mass)/fine_mass
   end do
 
-  ! Save topography data (coarsest scaling function and wavelets) on all non-adaptive levels
+  ! Save topography data on all non-adaptive levels
   call save_topo
 
   call finalize

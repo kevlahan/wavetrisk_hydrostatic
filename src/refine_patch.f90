@@ -163,8 +163,10 @@ contains
     call extend (dom%qe,      EDGE*num, 0d0)
     call extend (dom%vort,   TRIAG*num, 0d0)
 
-    call extend (topography%data(d),     num, 0d0)
-    call extend (wav_topography%data(d), num, 0d0)
+    call extend (topography%data(d),           num, 0d0)
+    call extend (wav_topography%data(d),       num, 0d0)
+    call extend (topo_gradient(LON_x)%data(d), num, 0d0)
+    call extend (topo_gradient(LAT_y)%data(d), num, 0d0)
     
     do k = zmin, zmax
        call extend (penal_node(k)%data(d),      num, 0d0)

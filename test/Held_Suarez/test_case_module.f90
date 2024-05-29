@@ -338,7 +338,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, n_topo
+    integer :: d, id, ii, n_topo
     real(8) :: distance, dx, h, h_sq, total_area 
     
     d  = dom%id + 1
@@ -658,7 +658,6 @@ contains
     implicit none
     integer            :: k, v
     integer, parameter :: fid = 500, funit = 400
-    real(8)            :: press_save
     character(255)     :: bash_cmd, command, filename, varname
     character(2)       :: var_file
     logical            :: file_exists
@@ -676,7 +675,6 @@ contains
     read (fid,*) varname, run_id
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
-    read (fid,*) varname, save_zlev
     read (fid,*) varname, NCAR_topo
     read (fid,*) varname, topo_file
     read (fid,*) varname, topo_min_level
@@ -736,13 +734,8 @@ contains
 
   subroutine print_test_case_parameters
     implicit none
-    integer :: k
-    real(8) :: p_save
 
     if (rank==0) then
-       k = save_zlev
-       p_save = 0.5d0 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1)) * p_0)
-       
        write (6,'(a)') &
             '********************************************************** Parameters &
             ************************************************************'
@@ -757,7 +750,6 @@ contains
        write (6,'(a,i5)')     "DOMAIN_LEVEL        = ", DOMAIN_LEVEL
        write (6,'(a,i5)')     "PATCH_LEVEL         = ", PATCH_LEVEL
        write (6,'(a,i3)')     "zlevels             = ", zlevels
-       write (6,'(a,i3,1x,f6.1,a)')     "save_zlev           = ", save_zlev, p_save/1d2, ' [hPa]'
        write (6,'(a,l1)')     "uniform             = ", uniform
        write (6,'(a,l1)')     "remap               = ", remap
        write (6,'(a,i3)')     "iremap              = ", iremap

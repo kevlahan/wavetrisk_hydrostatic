@@ -306,4 +306,20 @@ contains
       nu_dt = fac * Area/3d0
     end function nu_dt
   end subroutine cal_div_topo
+
+
+  subroutine cal_grad_topo (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+    
+    id = idx (i,   j,   offs, dims)
+    velo(EDGE*id+RT+1:EDGE*id+UP+1) = gradi_e (scalar, dom, i, j, offs, dims)
+
+  end subroutine cal_grad_topo
+  
 end module test_case_mod

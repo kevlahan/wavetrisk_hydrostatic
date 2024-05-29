@@ -841,6 +841,8 @@ contains
     end do
     
     deallocate (topography%data)
+    deallocate (topo_gradient(LON_x)%data)
+    deallocate (topo_gradient(LAT_y)%data)
     deallocate (wav_topography%data)
     if (NCAR_topo) deallocate (topography_data)
 

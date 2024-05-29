@@ -9,7 +9,7 @@ module io_mod
   integer, dimension(2,4)                        :: HR_offs
   data                                             HR_offs /0,0, 1,0, 1,1, 0,1/
 
-  integer                                        :: ii, ncells_hex_loc, ncells_tri_loc, nvar_out
+  integer                                        :: ncells_hex_loc, ncells_tri_loc, nvar_out
   integer, dimension(:,:), allocatable           :: topo_count
   real(8)                                        :: vmin, vmax
   integer                                        :: next_fid
@@ -1198,9 +1198,14 @@ contains
 
           write (filename, '(a,a,i2.2,a,i5.5)') trim (topo_file), '.', l, '.', d_glo           
           open (unit=10, file=trim (filename), form="UNFORMATTED", action='WRITE', status='REPLACE')
+
+          scalar => topography%data(d)%elts
+          velo1  => grid(d)%u_zonal%elts
+          velo2  => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (write_topo, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
+          nullify (scalar, velo1, velo2)
           close (10)
        end do
     end do
@@ -1234,7 +1239,8 @@ contains
 
     l = dom%level%elts(id) ! level
 
-    write (10) dom%node%elts(id), topography%data(d)%elts(id)
+    ! Write out coordinates, topography height and topography gradients
+    write (10) dom%node%elts(id), scalar(id), velo1(id), velo2(id)
 
     topo_count(l,d) = topo_count(l,d) + 1
   end subroutine write_topo
@@ -1246,7 +1252,7 @@ contains
     ! !! assumes topgraphy data was saved on a non-adaptive grid !!
     !
     implicit none
-    integer         :: d, d_glo, l, r
+    integer         :: d, d_glo, i, ii, l, r
     character(9999) :: filename
     character(9999) :: bash_cmd, cmd_archive, cmd_files, command
 
@@ -1282,8 +1288,8 @@ contains
        do l = topo_min_level, topo_max_level
           do d = 1, size(grid)
              d_glo = glo_id(rank+1,d) + 1
-             allocate (topography_data(l,d)%node(1:topo_count(l,d_glo)))
-             allocate (topography_data(l,d)%elts(1:topo_count(l,d_glo)))
+             allocate (topography_data(l,d)%node(1:  topo_count(l,d_glo)))
+             allocate (topography_data(l,d)%elts(1:3*topo_count(l,d_glo)))
           end do
        end do
     end do
@@ -1294,9 +1300,9 @@ contains
           d_glo = glo_id(rank+1,d) + 1
           write (filename, '(a,a,i2.2,a,i5.5)') trim (topo_file), '.', l, '.', d_glo
           open (unit=10, file=trim (filename), form="UNFORMATTED", action='READ', status='OLD')
-
           do ii = 1, topo_count(l,d_glo)
-             read (10) topography_data(l,d)%node(ii), topography_data(l,d)%elts(ii)
+             i = 3*(ii-1) + 1
+             read (10) topography_data(l,d)%node(ii), topography_data(l,d)%elts(i:i+2)
           end do
           close (10)
        end do
@@ -1327,13 +1333,16 @@ contains
     id = idx (i, j, offs, dims) + 1
     l  = dom%level%elts(id)           
 
-    n_topo = size (topography_data(l,d)%elts); allocate (distance(1:n_topo))
+    n_topo = size (topography_data(l,d)%node); allocate (distance(1:n_topo))
     do ii = 1, n_topo
        distance(ii) = dist (dom%node%elts(id), topography_data(l,d)%node(ii))
     end do
     jj = minloc (distance,1) ; deallocate (distance)
-
-    topography%data(d)%elts(id) = topography_data(l,d)%elts(jj)
+    
+    ii = 3*(jj-1) + 1
+    topography%data(d)%elts(id)           = topography_data(l,d)%elts(ii)
+    topo_gradient(LON_x)%data(d)%elts(id) = topography_data(l,d)%elts(ii+1)
+    topo_gradient(LAT_y)%data(d)%elts(id) = topography_data(l,d)%elts(ii+2)
   end subroutine assign_topo
 
   subroutine proj_xz_plane (cin, cout)

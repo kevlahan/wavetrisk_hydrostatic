@@ -29,6 +29,9 @@ module shared_mod
   ! Indices for nodes and edges of type Float_Field variables (e.g. sol, wave_coeff)
   integer, parameter :: AT_NODE = 1, AT_EDGE = 2
 
+  ! Indices for longitude and latitude components
+  integer, parameter :: LON_x = 1, LAT_y = 2
+
   ! Shifts on regular (i,j) grid
   integer, parameter :: JPLUS = 1
   integer, parameter :: IPLUS = 2
