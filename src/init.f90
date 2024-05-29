@@ -160,9 +160,10 @@ contains
     allocate (lnorm(1:N_VARIABLE,zmin:zmax))
     if (vert_diffuse) allocate (Kt(0:zlevels), Kv(0:zlevels), tke(1:zlevels), wav_tke(1:zlevels))
 
-    call init_Float_Field (topography,           AT_NODE)
-    call init_Float_Field (topo_gradient(LON_x), AT_NODE)
-    call init_Float_Field (topo_gradient(LAT_y), AT_NODE)
+    call init_Float_Field (topography, AT_NODE)
+    do k = 1, 4
+       call init_Float_Field (sso_param(k), AT_NODE)
+    end do
     
     do k = zmin, zmax
        call init_Float_Field (penal_node(k), AT_NODE)
@@ -491,9 +492,11 @@ contains
           call init (Laplacian_scalar(v)%data(d), grid(d)%node%length)
        end do
        
-       call init (topography%data(d),           grid(d)%node%length)
-       call init (topo_gradient(LON_x)%data(d), grid(d)%node%length)
-       call init (topo_gradient(LAT_y)%data(d), grid(d)%node%length)
+       call init (topography%data(d), grid(d)%node%length)
+       do k = 1, 4
+          call init (sso_param(k)%data(d), grid(d)%node%length)
+       end do
+       
        do k = zmin, zmax
           call init (penal_node(k)%data(d),      grid(d)%node%length)
           call init (penal_edge(k)%data(d), EDGE*grid(d)%node%length)

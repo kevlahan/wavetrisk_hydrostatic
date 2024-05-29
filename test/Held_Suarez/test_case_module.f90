@@ -217,7 +217,7 @@ contains
          neigh_id = (/ idE, idNE, idN /) + 1
          edge_id  = EDGE*id + (/ RT, DG, UP /) + 1
 
-         mu = 0.5d0 * (wav_topography%data(d)%elts(id+1) + wav_topography%data(d)%elts(neigh_id)) ! SSO standard deviation at edges
+         mu = 0.5d0 * (sso_param(S_MU)%data(d)%elts(id+1) + sso_param(S_MU)%data(d)%elts(neigh_id)) ! SSO standard deviation at edges
 
          ! Compute mean Brunt-Vaisala frequency and velocity for vertical layers mu <= z - z_s <= 2 mu
          N    = 0d0
@@ -266,8 +266,8 @@ contains
        call apply_onescale (cal_sso_mu2, l, z_null, 0, 1)
     end do
     
-    wav_topography%bdry_uptodate = .false.
-    call update_bdry (wav_topography, NONE)
+    sso_param%bdry_uptodate = .false.
+    call update_vector_bdry (sso_param, NONE)
   end subroutine sso_mu
   
   subroutine cal_sso_mu1 (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -326,7 +326,7 @@ contains
     h = topography%data(d)%elts(neigh_chd) - topography%data(d)%elts(id_par)
 
     ! mu (standard deviation of SSO from GSO)
-    wav_topography%data(d)%elts(id_par) = sqrt (sum (h**2 * area_chd) * dom%areas%elts(id_par)%hex_inv)
+    sso_param(S_MU)%data(d)%elts(id_par) = sqrt (sum (h**2 * area_chd) * dom%areas%elts(id_par)%hex_inv)
   end subroutine cal_sso_mu1
 
   subroutine cal_sso_mu2 (dom, i, j, zlev, offs, dims)
@@ -338,8 +338,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, ii, n_topo
-    real(8) :: distance, dx, h, h_sq, total_area 
+    integer :: d, id, ii, jj, n_topo
+    real(8) :: distance, dx, h, hx, hy, h_sq, hx_sq, hy_sq, hxhy, total_area
+    real(8) :: K, L, M
+    real(8) :: gamma, mu, sigma, theta
     
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -348,21 +350,44 @@ contains
 
     ! Include all finest grid topography in a disk of radius dx
     h_sq       = 0d0
+    hx_sq      = 0d0
+    hy_sq      = 0d0
+    hxhy       = 0d0
+    
     total_area = 0d0
-    n_topo     = size (topography_data(topo_max_level,d)%elts)
+    n_topo     = size (topography_data(topo_max_level,d)%node)
     
     do ii = 1, n_topo
        distance = dist (dom%node%elts(id), topography_data(topo_max_level,d)%node(ii))
        if (distance <= dx) then
-          h = topography_data(topo_max_level,d)%elts(ii) - topography%data(d)%elts(id)
-          h_sq = h_sq + h**2
+          jj = 3*(ii-1) + 1
+          
+          h  = topography_data(topo_max_level,d)%elts(jj) - topography%data(d)%elts(id)
+          
+          hx = topography_data(topo_max_level,d)%elts(jj+1)  ! topography gradient in longitude direction
+          hy = topography_data(topo_max_level,d)%elts(jj+2)  ! topography gradient in latitude direction
+          
+          h_sq  = h_sq  + h**2
+          hx_sq = hx_sq + hx**2
+          hy_sq = hy_sq + hy**2
+          hxhy  = hxhy  + hx * hy
           
           total_area = total_area + Area_min
        end if
     end do
 
-    ! mu (standard deviation of SSO from GSO)
-    wav_topography%data(d)%elts(id) = sqrt (h_sq * Area_min / total_area)
+    hx_sq = hx_sq * Area_min / total_area
+    hy_sq = hy_sq * Area_min / total_area
+    M     = hxhy  * Area_min / total_area
+    
+    K = 0.5d0 * (hx_sq + hy_sq)
+    L = 0.5d0 * (hx_sq - hy_sq) 
+
+    ! SSO parameters
+    sso_param(S_MU)%data(d)%elts(id)    = sqrt (h_sq * Area_min / total_area)
+    sso_param(S_THETA)%data(d)%elts(id) = 0.5d0 * atan2 (M, L)
+    sso_param(S_GAMMA)%data(d)%elts(id) = sqrt ( (K - sqrt (L**2 + M**2)) / (K + sqrt (L**2 + M**2)) )
+    sso_param(S_SIGMA)%data(d)%elts(id) = sqrt (hx_sq * cos (theta) + hy_sq * sin (theta))
   end subroutine cal_sso_mu2
   
   subroutine init_sol (dom, i, j, zlev, offs, dims)
@@ -907,8 +932,8 @@ contains
        do l = level_start, level_end
           call apply_onescale (cal_sso_mu2, l, z_null, 0, 1)
        end do
-       wav_topography%bdry_uptodate = .false.
-       call update_bdry (wav_topography, NONE)
+       sso_param%bdry_uptodate = .false.
+       call update_vector_bdry (sso_param, NONE)
     end if
   end subroutine apply_initial_conditions_case
 
@@ -952,8 +977,8 @@ contains
              call apply_onescale (cal_sso_mu2, l, z_null, 0, 1)
           end do
        end if
-       wav_topography%bdry_uptodate = .false.
-       call update_bdry (wav_topography, NONE)
+       sso_param%bdry_uptodate = .false.
+       call update_vector_bdry (sso_param, NONE)
     end if
   end subroutine update_case
 

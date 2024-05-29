@@ -1340,9 +1340,7 @@ contains
     jj = minloc (distance,1) ; deallocate (distance)
     
     ii = 3*(jj-1) + 1
-    topography%data(d)%elts(id)           = topography_data(l,d)%elts(ii)
-    topo_gradient(LON_x)%data(d)%elts(id) = topography_data(l,d)%elts(ii+1)
-    topo_gradient(LAT_y)%data(d)%elts(id) = topography_data(l,d)%elts(ii+2)
+    topography%data(d)%elts(id) = topography_data(l,d)%elts(ii)
   end subroutine assign_topo
 
   subroutine proj_xz_plane (cin, cout)

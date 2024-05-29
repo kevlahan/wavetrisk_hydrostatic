@@ -835,57 +835,6 @@ contains
        topography%bdry_uptodate = .false.
     end do
   end subroutine topo_restriction
-
-  subroutine inverse_topo_transform (wavelet, scaling, jmin_in, jmax_in)
-    ! Inverse scalar wavelet transform
-    implicit none
-    integer, optional         :: jmin_in, jmax_in
-    type(Float_Field), target :: scaling, wavelet
-
-    integer :: d, jmin, jmax, l
-
-    if (present(jmin_in)) then
-       jmin = jmin_in
-    else
-       jmin = level_start
-    end if
-
-    if (present(jmax_in)) then
-       jmax = jmax_in
-    else
-       jmax = level_end
-    end if
-
-    if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine ... abort"
-       call abort
-    end if
-
-    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
-    call update_bdry1 (scaling, jmin,                    jmax)
-
-    scaling%bdry_uptodate = .false.
-
-    do l = jmin, jmax-1
-       ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
-       do d = 1, size(grid)
-          scalar => scaling%data(d)%elts
-          wc_s   => wavelet%data(d)%elts
-          call apply_interscale_d2 (Prolong_full_weighting, grid(d), l, z_null, 0, 1) ! needs wc
-          nullify (scalar, wc_s)
-       end do
-       call update_bdry (scaling, l+1)
-
-       ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
-       do d = 1, size(grid)
-          scalar => scaling%data(d)%elts
-          wc_s   => wavelet%data(d)%elts
-          call apply_interscale_d (Reconstruct_scalar, grid(d), l, z_null, 0, 0)
-          nullify (scalar, wc_s)
-       end do
-       scaling%bdry_uptodate = .false.
-    end do
-  end subroutine inverse_topo_transform
   
   subroutine Restrict_full_weighting (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Restrict both scalar and potential temperature
@@ -1414,8 +1363,6 @@ contains
     implicit none
     integer :: d, i, k, num, v
 
-    call init_Float_Field (wav_topography, AT_NODE)
-    
     do k = zmin, zmax
        do v = 1, N_VARIABLE
           call init_Float_Field (wav_coeff(v,k), POSIT(v))
@@ -1442,8 +1389,6 @@ contains
        do i = 1, num
           call init_RF_Wgt (grid(d)%R_F_wgt%elts(i), (/0d0, 0d0, 0d0/))
        end do
-
-       call init (wav_topography%data(d), num)
 
        do k = zmin, zmax
           do v = scalars(1), scalars(2)

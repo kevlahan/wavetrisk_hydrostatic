@@ -166,6 +166,9 @@ module shared_mod
   integer               :: N_VECTOR, N_SCALAR, N_VARIABLE
   integer, dimension(2) :: scalars
 
+  ! Indices of SSO
+  integer, parameter    :: S_MU = 1, S_THETA = 2, S_GAMMA = 3, S_SIGMA = 4
+
   ! Number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
   integer, dimension(:), allocatable :: MULT, POSIT
 
@@ -362,7 +365,7 @@ contains
     log_total_mass      = .false.                           ! mass conservation, relatively expensive (F)
     match_time          = .false.                           ! match time exactly for data saving (T)
     mode_split          = .false.                           ! calculate barotropic free surface mode separately (T)
-    NCAR_topo           = .false.                           ! use NCAR topography (requires pre-computation of float fields topography and wav_topograph) (T)
+    NCAR_topo           = .false.                           ! use NCAR topography (requires pre-computation of float field topography) (T)
     penalize            = .false.                           ! include penalization of topography (T)
     rebalance           = .true.                            ! rebalance computational load at each checkpoint if T
     remap               = .true.                            ! remap Lagrangian coordinates (T) or no remapping (F)
