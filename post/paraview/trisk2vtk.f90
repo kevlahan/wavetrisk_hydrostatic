@@ -2,28 +2,31 @@ program trisk2vtk
   ! Converts trisk data files from wavetrisk code to BINARY .vtk format for paraview
   !
   implicit none
-  integer            :: fid, i, icell, icoord, ipts, isave, ivert, k, ncells, ncells_adapt, n_vertices, tstart, tend
-  integer            :: stat
-  integer            :: j, jmin, jmax, ncells_old, zmax, zmin
-  integer, parameter :: iunit=10
+  integer, parameter :: VTK_TRIANGLE         = 5
+  integer, parameter :: VTK_POLYGON          = 7
+  integer, parameter :: VTK_TETRA            = 10
+  integer, parameter :: VTK_WEDGE            = 13
+  integer, parameter :: VTK_PENTAGONAL_PRISM = 15
+  integer, parameter :: VTK_HEXAGONAL_PRISM  = 16
+
   integer, parameter :: nvar_out = 11 ! number of saved variables
-  integer, parameter :: vtk_type = 7  ! vtk polygonal data
-  integer, dimension(:), allocatable :: tmp, mask, level
+  integer, parameter :: iunit = 10
+
+  integer                                 :: fid, i, icell, icoord, isave, ivert, k, ncells, ncells_adapt, nvertices, tstart, tend
+  integer                                 :: stat
+  integer                                 :: j, jmin, jmax, ncells_old, zmax, zmin
+  integer, dimension(:),      allocatable :: mask, level, vtk_type, tmp
+
+  real(4), dimension (:,:),   allocatable :: tmp_outv, outv
+  real(4), dimension (:,:,:), allocatable :: tmp_vertices, vertices
 
   character(2)    :: j_lev
   character(4)    :: isv
   character(12)   :: str1, str2
   character(6)    :: grid_type
   character(1300) :: arg, bash_cmd, command, file_in, file_out, run_id, sim_type, zlev
+
   character(1), parameter :: lf=char(10) ! line feed character
-
-  real(4), dimension (:,:),   allocatable :: tmp_outv, outv
-  real(4), dimension (:,:,:), allocatable :: tmp_vertices, vertices
-
-  real(4), parameter :: Hdim = 3.344175893265152e+03, g = 9.80665
-  real(4), parameter :: Ldim = 6371e3
-  real(4), parameter :: Udim = sqrt(Hdim*g)
-  real(4), parameter :: Tdim = Ldim/Udim
 
   logical :: compressed_file_exists, file_exists
 
@@ -37,7 +40,7 @@ program trisk2vtk
   call get_command_argument (7, arg); read (arg,'(I12)') jmax
   call get_command_argument (8, arg); read (arg,'(I12)') zmin
   call get_command_argument (9, arg); read (arg,'(I12)') zmax
-  
+
   if (grid_type == " ") then
      write (6,'(/,a)') "Converts trisk data files from wavetrisk code to BINARY .vtk format for paraview"
      write (6,'(/,a)')"Usage: trisk2vtk run_id sim_type grid_type tstart tend jmin jmax zmin zmax"
@@ -66,9 +69,9 @@ program trisk2vtk
      write (6,'("zmax      = ", i3.3)') zmax
 
      if (trim(grid_type) == "hex") then     ! hexagonal cells (primal grid)
-        n_vertices = 6
+        nvertices = 6
      elseif (trim(grid_type) == "tri") then ! triangular cells (dual grid)
-        n_vertices = 3 
+        nvertices = 3 
      end if
   end if
 
@@ -84,7 +87,7 @@ program trisk2vtk
         call system (trim(bash_cmd))
      end if
      write (6,'(/,"Reading from archive ",a,/)') trim(file_in)//".tgz"
-     
+
      do k = zmin, zmax
         write (zlev,'(i3.3)') k
         ! Loop through all scales
@@ -113,7 +116,7 @@ program trisk2vtk
            write (6,'("  Number of cells at level ", i2.2, " = ", i10)') j, ncells-ncells_old
 
            if (j > jmin) then ! need to increase size of arrays and keep previous values
-              allocate (tmp_vertices(1:ncells,1:n_vertices,1:3))
+              allocate (tmp_vertices(1:ncells,1:nvertices,1:3))
               tmp_vertices(1:size(vertices,1),:,:) = vertices
               call move_alloc (tmp_vertices, vertices)
 
@@ -129,18 +132,21 @@ program trisk2vtk
               tmp(1:size(level)) = level
               call move_alloc (tmp, level)
            else
-              if (allocated(vertices)) deallocate (vertices)
-              if (allocated(mask))     deallocate (mask)
-              if (allocated(level))    deallocate (level)
-              if (allocated(level))    deallocate (level)
-              if (allocated(outv))     deallocate (outv)
-              allocate (vertices(1:ncells,1:n_vertices,1:3), level(1:ncells), mask(1:ncells), outv(1:ncells,1:nvar_out))
+              if (allocated (vertices)) deallocate (vertices)
+              if (allocated (mask))     deallocate (mask)
+              if (allocated (level))    deallocate (level)
+              if (allocated (level))    deallocate (level)
+              if (allocated (outv))     deallocate (outv)
+              allocate (vertices(1:ncells,1:nvertices,1:3), level(1:ncells), mask(1:ncells), outv(1:ncells,1:nvar_out))
            end if
+
+           if (allocated(vtk_type)) deallocate (vtk_type)
+           allocate (vtk_type(1:ncells)); vtk_type = VTK_POLYGON
 
            ! Second pass to read in data
            open (iunit, file=trim(file_in), form="unformatted")
            do icell = ncells_old+1, ncells
-              read (iunit) ((vertices(icell,ivert,icoord),icoord=1,3), ivert = 1, n_vertices), &
+              read (iunit) ((vertices(icell,ivert,icoord),icoord=1,3), ivert = 1, nvertices), &
                    outv(icell,1:nvar_out), mask(icell), level(icell)
            end do
            close (iunit)
@@ -150,234 +156,151 @@ program trisk2vtk
         file_out = trim(run_id)//"_"//trim(grid_type)//"_"//trim(zlev)//"_"//trim(isv)//".vtk"
         write (6,'("Saving output to file ", a,/)') trim (file_out)
 
-        open (unit=iunit, file=trim(file_out), form="unformatted", access='stream',convert='BIG_ENDIAN')
-        write(iunit) '# vtk DataFile Version 3.0'//lf
-        write(iunit) 'vtk output'//lf                
-        write(iunit) 'BINARY'//lf                    
-        write(iunit) 'DATASET UNSTRUCTURED_GRID'//lf  
+        open (unit=iunit, file=trim(file_out), form="unformatted", access='stream',status='replace',convert='BIG_ENDIAN')
+        write (iunit) '# vtk DataFile Version 2.0'//lf
+        write (iunit) 'vtk output'//lf              
+        write (iunit) 'BINARY'//lf                   
+        write (iunit) 'DATASET UNSTRUCTURED_GRID'//lf
 
         ! Write out vertices
-        write(str1(1:12),'(i12)') ncells * n_vertices
-        write(iunit) 'POINTS ' // trim(str1) // ' float'// lf
+        write (str1(1:12),'(i12)') ncells * nvertices
+        write (iunit) 'POINTS ' // trim(str1) // ' float'//lf
         do icell = 1, ncells
-           do ivert = 1, n_vertices
-              write(iunit) (vertices(icell,ivert,icoord),icoord=1,3)
+           do ivert = 1, nvertices
+              write (iunit) (vertices(icell,ivert,icoord), icoord=1,3)
            end do
         end do
-        write(iunit) lf
 
         ! Write out cells
-        write(str1(1:12),'(i12)') ncells
-        write(str2(1:12),'(i12)') ncells * (1 + n_vertices)
-        write(iunit) 'CELLS '//str1//str2//lf
+        write (str1(1:12),'(i12)') ncells
+        write (str2(1:12),'(i12)') ncells * (1 + nvertices)
+        write (iunit) 'CELLS '//str1//str2//lf
         do icell = 1, ncells
-           write (iunit) n_vertices, ((icell-1)*n_vertices+ivert-1, ivert=1,n_vertices)
+           write (iunit) nvertices, ((icell-1)*nvertices+ivert-1, ivert=1,nvertices)
         end do
-        write(iunit) lf
 
         ! Write out type of each cell (all polygons!)
-        write(iunit) 'CELL_TYPES '//str1//lf
-        do icell = 1, ncells
-           write (iunit) vtk_type
-        end do
-        write(iunit) lf
+        write (iunit) 'CELL_TYPES '//trim(str1)//lf
+        write (iunit) vtk_type
 
         ! Write out cell data for each cell                        
-        write(iunit) 'CELL_DATA '//str1//lf
+        write (iunit) 'CELL_DATA '//trim(str1)//lf
 
+        ! Variables
         if (.not. grid_type == "2layer") then ! usual (hex or tri)
-           write(iunit) 'SCALARS rho_dz float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,1)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS rho_dz float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,1)
 
            if (sim_type == "atm") then
-              write(iunit) 'SCALARS temperature float'//lf
+              write (iunit) 'SCALARS temperature float'//lf
            else
-              write(iunit) 'SCALARS density float'//lf
+              write (iunit) 'SCALARS density float'//lf
            end if
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,2)
-           end do
-           write(iunit) lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,2)
 
-           write(iunit) 'SCALARS velocity_zonal float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,3)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS velocity_zonal float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,3)
 
-           write(iunit) 'SCALARS velocity_meridional float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,4)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS velocity_meridional float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,4)
 
-           write(iunit) 'SCALARS OMEGA float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,5)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS OMEGA float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,5)
 
-           write(iunit) 'SCALARS vorticity float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,6)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS vorticity float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,6)
 
-           write(iunit) 'SCALARS topography float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,7)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS topography float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,7)
 
-           write(iunit) 'SCALARS penalization float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,8)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS penalization float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,8)
 
            if (sim_type == "atm") then
-              write(iunit) 'SCALARS surf_press float'//lf
+              write (iunit) 'SCALARS surf_press float'//lf
            else
-              write(iunit) 'SCALARS free_surface_pert float'//lf
+              write (iunit) 'SCALARS free_surface_pert float'//lf
            end if
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,9)
-           end do
-           write(iunit) lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,9)
 
-           write(iunit) 'SCALARS geopot_height float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,10)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS geopot_height float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,10)
 
-           write(iunit) 'SCALARS pressure float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,11)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS pressure float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,11)
 
-           write(iunit) 'SCALARS mask int'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) mask(icell)
-           end do
-           write(iunit) lf
-           
-           write(iunit) 'SCALARS level int'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) level(icell)
-           end do
+           write (iunit) 'SCALARS mask int'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) mask
 
-           close (iunit)
+           write (iunit) 'SCALARS level int'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) level
         else ! 2 layer
-           write(iunit) 'SCALARS density float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,1)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS density float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,1)
 
-           write(iunit) 'SCALARS barotropic_velocity_zonal float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,2)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS barotropic_velocity_zonal float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,2)
 
-           write(iunit) 'SCALARS barotropic_velocity_meridional float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,3)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS barotropic_velocity_meridional float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,3)
 
-           write(iunit) 'SCALARS baroclinic_velocity_zonal float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,4)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS baroclinic_velocity_zonal float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,4)
 
-           write(iunit) 'SCALARS baroclinic_velocity_meridional float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,5)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS baroclinic_velocity_meridional float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,5)
 
-           write(iunit) 'SCALARS baroclinic_vort float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,6)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS baroclinic_vort float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,6)
 
-           write(iunit) 'SCALARS barotropic_vort float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,7)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS barotropic_vort float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,7)
 
-           write(iunit) 'SCALARS baroclinic_free_surf float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,8)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS baroclinic_free_surf float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,8)
 
-           write(iunit) 'SCALARS barotropic_free_surf float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,9)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS barotropic_free_surf float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,9)
 
-           write(iunit) 'SCALARS topography float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,10)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS topography float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,10)
 
-           write(iunit) 'SCALARS land_mass float'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) outv(icell,11)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS land_mass float'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) outv(:,11)
 
-           write(iunit) 'SCALARS mask int'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) mask(icell)
-           end do
-           write(iunit) lf
+           write (iunit) 'SCALARS mask int'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) mask
 
-           write(iunit) 'SCALARS level int'//lf
-           write(iunit) 'LOOKUP_TABLE default'//lf
-           do icell = 1, ncells
-              write (iunit) level(icell)
-           end do
+           write (iunit) 'SCALARS level int'//lf
+           write (iunit) 'LOOKUP_TABLE default'//lf
+           write (iunit) level
         end if
-        
-        close(iunit)
+        close (iunit)
      end do
 
      ! Delete uncompressed file for current time
@@ -387,5 +310,5 @@ program trisk2vtk
         call system (trim(bash_cmd))
      end if
   end do
-end program
+end program trisk2vtk
 
