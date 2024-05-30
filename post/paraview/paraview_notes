@@ -11,48 +11,43 @@ kevlahan@mcmaster.ca
 **********************************************************************************************************************************
 PREPARE VTK FILES USING trisk2vtk
 
-  Compile post/trisk2vtk.f90:
+  Compile post/paraview/trisk2vtk.f90:
   
   gfortran trisk2vtk.f90 -o trisk2vtk
   
-  Usage: trisk2vtk file_base file_type tbegin tend jmin jmax file_vtk
+Converts trisk data files from wavetrisk code to BINARY .vtk format for paraview
 
-  file_base = base name for files
-  file_type = primal (hexagons) or dual (triangles) or 2layer (incompressible 2 layer)
-  tstart    = number of first file to read
-  tend      = number of last file to read
-  jmin      = minimum scale to save
-  jmax      = maximum scale to save
-  file_vtk  = file for vtk data (without extension)
+Usage: trisk2vtk run_id sim_type grid_type tstart tend jmin jmax zmin zmax
 
+Example: ./trisk2vtk drake sea hex 0 1 5 7 3 4
+
+Reads files drake_003.1.0001.tgz, drake_004.1.0001.tgz, drake_003.1.0002.tgz, drake_004.1.0002.tgz
+for scale 5 to 7.
+
+run_id    = base name of files
+sim_type  = atm (atmosphere, compressible), sea (sea, incompressible), or 2layer (sea, 2 layer)
+grid_type = hex (overlapping hexagons on each scale) or tri (non-overlapping triangles of adaptive grid)
+tstart    = first file to read
+tend      = last file to read
+jmin      = minimum scale
+jmax      = maximum scale
+zmin      = min vertical layer
+zmax      = max vertical layer
+
+
+Note: select try to obtain the complete non-overlapping adaptive grid over all grid levels.
+
+You can transform from 3D xyz coordinates to longitude-latitude coordinates using xyz2lonlat.py:
+
+python xyz2lonlat.py filename 3 10
+
+transforms all vtk files of the form filename0003.vtk filename0004.vtk ... filename0010.vtk to longitude-latitude grids.
 
 **********************************************************************************************************************************
 SELECTING OBJECTS TO DISPLAY
 
 Load vtk data files. Click on the window and then in the pipeline browser: click the "eye" icon to left of object to activate or
 de-activate its display in the window. May need to open "Properties" window.
-
-
-**********************************************************************************************************************************
-PROPERLY DISPLAYING DIFFERENT LEVELS OF RESOLUTION
-
-  1. Use trisk2vtk to generate separate vtk files for each level. For example,
-   	     trisk2vtk jet.1 primal 266 266 5 5 jet_J5
-  	     trisk2vtk jet.1 primal 266 266 6 6 jet_J6
-  	     trisk2vtk jet.1 primal 266 266 7 7 jet_J7
- 	     trisk2vtk jet.1 primal 266 266 8 8 jet_J8
-	     trisk2vtk jet.1 primal 266 266 9 9 jet_J9
-	     
-  2. Load vtk files for all levels and make them visible.
-  
-  3. In View -> Properties -> Display -> Scale so the spheres are scaled very slightly by level, with the finest scale 
-  having scale = (1,1,1). (You may need to click on the gear symbol at the top right of the Properties window to see the Scale option.)
-
-  For example: set Scales for J = 9, 8, 7, 6, 5 to 1, 0.999, 0.998, 0.997, 0.996. This way the finest levels block the coarser
-  levels at any given position.
-
-  (If you just do trisk2vtk jet.1 primal 266 266 5 9 jet, then paraview will arbitrarily plot some levels in front of others,
-  producing a fuzzier image. You cannot specify layer depths in paraview.)
   
 
 **********************************************************************************************************************************
@@ -119,21 +114,21 @@ Can record your modifications as a python script to reuse commands later or in a
 **********************************************************************************************************************************
 SAVE ANIMATION
 
-File -> Save Animation. Click on "Save All Views" and then save as .jpg (don't click "transparent view").
+File -> Save Animation. Click on "Save All Views" and then save as .jpeg (don't click "transparent view").
 
-Then convert .jpg to .avi usable in Beamer:
+Then convert .jpeg to .mov format usable in keynote (for example):
 
-ffmpeg -r fps -i base%4d.jpg -vcodec mpeg4 -qscale 0 base.avi
+ffmpeg -r fps -i base%4d.jpeg -vcodec mpeg4 -q:v 10 base.mov
 
 e.g. 
 
-ffmpeg -r 12 -i test.%4d.jpg -vcodec mpeg4 -qscale 0 DCMIP2008c5.avi
+ffmpeg -r 12 -i test.%4d.jpeg -vcodec mpeg4 -q:v 10 test.mov
 
 where: fps is the number of frames per second, "base" is the base name of the .jpg files and %4d is the frame numbering
-(e.g. test.0001.jpg, test.0002.jpg etc). NB: need to include -start_number option if first file does not start at zero 0,
+(e.g. test.0001.jpeg, test.0002.jpeg etc). NB: need to include -start_number option if first file does not start at zero 0,
 for example:
 
-ffmpeg -r 12 -start_number 10 -i test.%4d.jpg -vcodec mpeg4 -qscale 0 DCMIP2008c5.avi
+ffmpeg -r 12 -start_number 10 -i test.%4d.jpeg -vcodec mpeg4 --q:v 10 test.mov
 
 
 **********************************************************************************************************************************
