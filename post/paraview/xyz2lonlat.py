@@ -45,7 +45,7 @@ if (len(sys.argv)<3) :
     print("t2   = last time\n")
     print("output is file_lonlat ... .vtk\n")
     print("Example:")
-    print("python3 xyz2lonlat.py HS_J6J7_dl_240km_012 hex 0 28")
+    print("python3 xyz2lonlat.py HS_J6J7_dl_240km_012 0 28")
     exit(0)
 
 file_base  = sys.argv[1]
@@ -54,7 +54,7 @@ t2         = int(sys.argv[3])
 
 for j in range (t1, t2+1):   
     # Load the input vtk file
-    infile  = file_base+"_"+str(j).zfill(4)
+    infile  = file_base+str(j).zfill(4)
     outfile = file_base+"_lonlat_"+str(j).zfill(4)
     
     print("Transforming file "+infile+".vtk")
