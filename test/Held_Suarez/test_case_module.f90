@@ -1,10 +1,12 @@
 module test_case_mod
   ! Module file for Held & Suarez (1994) test case
+  ! uses Lott and Miller (1997) gravity wave/blocking model
   use comm_mpi_mod
   use utils_mod
   use init_mod
   use std_atm_profile_mod
   use io_mod
+  use sso_mod
   implicit none
 
   ! Standard variables
@@ -16,7 +18,7 @@ module test_case_mod
   real(8) :: topo_Area_min, topo_dx_min
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, sigma_b, sigma_c, u_0
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
-  logical :: scale_aware = .true., sso = .false.
+  logical :: scale_aware = .true.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -125,6 +127,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
+    real(8), dimension(1:EDGE) :: blocking_drag, wave_drag
 
     id = idx (i, j, offs, dims)
 
@@ -134,9 +137,11 @@ contains
     else
        physics_velo_source_case = (-1d0)**(Laplace_order-1) * (grad_divu () - curl_rotu ()) 
     end if
-    
+
     ! Add subgrid scale orography parameterization of surface drags
-    if (zlev == 1) physics_velo_source_case = physics_velo_source_case - gravity_wave_stress () / (mean_m(id+1) + mass(id+1))
+    if (zlev == 1 .and. sso) &
+         physics_velo_source_case = physics_velo_source_case &
+         - sso_wave_drag (dom, i, j, zlev, offs, dims) / (mean_m(id+1) + mass(id+1))
   contains
     function grad_divu ()
       implicit none
@@ -195,200 +200,7 @@ contains
          visc_rot = C_visc(S_VELO) * 3d0 * Area_min**Laplace_order / dt
       end if
     end function visc_rot
-
-    function gravity_wave_stress ()
-      ! Gravity wave stress at edges
-      ! Simple parameterization of subgrid scale orography assuming circular orography feature
-      implicit none
-      real(8), dimension(1:EDGE) :: gravity_wave_stress
-      
-      integer                    :: d, idE, idNE, idN, k, nlev
-      integer, dimension(1:EDGE) :: edge_id, neigh_id
-      real(8)                    :: sigma, p, z
-      real(8), dimension(1:EDGE) :: mu, N, rho, U
-
-      if (sso .and. dom%level%elts(id+1) < max_level .and. zlev == 1) then ! apply surface stress only in bottom layer
-         d = dom%id + 1
-
-         idE  = idx (i+1, j,   offs, dims)
-         idNE = idx (i+1, j+1, offs, dims)
-         idN  = idx (i,   j+1, offs, dims)
-
-         neigh_id = (/ idE, idNE, idN /) + 1
-         edge_id  = EDGE*id + (/ RT, DG, UP /) + 1
-
-         mu = 0.5d0 * (sso_param(S_MU)%data(d)%elts(id+1) + sso_param(S_MU)%data(d)%elts(neigh_id)) ! SSO standard deviation at edges
-
-         ! Compute mean Brunt-Vaisala frequency and velocity for vertical layers mu <= z - z_s <= 2 mu
-         N    = 0d0
-         U    = 0d0
-         rho  = 0d0
-         nlev = 0
-         do k = 1, zlevels
-            z =  zl_i (dom, i, j, k, offs, dims, sol, 1) - topography%data(d)%elts(id+1) ! height of upper interface above topography
-            if (z >= minval(mu) .and. z <= maxval(mu)) then
-               nlev = nlev + 1
-               N = N + N_e (dom, i, j, k, offs, dims) ! Brunt-Vaisala frequency
-               U = U + sol(S_VELO,k)%data(d)%elts(id+1)
-               rho = rho + density_e (dom, i, j, k, offs, dims, sol)
-            elseif (z > maxval(mu)) then
-               exit
-            end if
-         end do
-
-         if (nlev /= 0) then
-            N = N / dble (nlev)
-            U = U / dble (nlev)
-            rho = rho / dble (nlev)
-         end if
-
-          !N = N_e (dom, i, j, 1, offs, dims) ! Brunt-Vaisala frequency
-          !U = sol(S_VELO,1)%data(d)%elts(id+1)
-          !rho = density_e (dom, i, j, 1, offs, dims, sol)
-         gravity_wave_stress = rho * MATH_PI/4d0 * topo_dx_min * N * mu**2 * abs(U)
-      else
-         gravity_wave_stress = 0d0
-      end if
-    end function gravity_wave_stress
-
   end function physics_velo_source_case
-
-  subroutine sso_mu
-    ! Computes standard deviation of Subgrid Scale Orography (SSO) mu compared to Grid Scale Orography (GSO) at each level <= max_level-1
-    implicit none
-    integer :: l
-
-    ! Use exact overlapping region at scale max_level-1
-    call apply_interscale (cal_sso_mu1,  max_level-1, z_null, 0, 1)
-
-    ! Use approximate overlapping regions at coarser scales
-    do l = max_level-2, min_level, -1
-       call apply_onescale (cal_sso_mu2, l, z_null, 0, 1)
-    end do
-    
-    sso_param%bdry_uptodate = .false.
-    call update_vector_bdry (sso_param, NONE)
-  end subroutine sso_mu
-  
-  subroutine cal_sso_mu1 (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! mu (standard deviation) of Subgrid Scale Orography (SSO) compared to Grid Scale Orography (GSO) at scale max_level-1
-    ! uses exact overlapping region
-    ! results are stored in wav_topography
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer                      :: d, id_chd, id_par
-    integer                      :: idE_chd, idNE_chd, idN2E_chd, id2NE_chd, idN_chd, idW_chd
-    integer                      :: idNW_chd, idS2W_chd, idSW_chd, idS_chd, id2SW_chd, idSE_chd
-    integer, dimension(0:4*EDGE) :: neigh_chd
-    real(8), dimension(0:4*EDGE) :: area_chd, h
-
-    d = dom%id + 1
-
-    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd) + 1
-    id_par = idx (i_par, j_par, offs_par, dims_par) + 1
-
-    idE_chd   = idx (i_chd+1, j_chd,   offs_chd, dims_chd) + 1
-    idNE_chd  = idx (i_chd+1, j_chd+1, offs_chd, dims_chd) + 1
-    idN2E_chd = idx (i_chd+2, j_chd+1, offs_chd, dims_chd) + 1
-    id2NE_chd = idx (i_chd+1, j_chd+2, offs_chd, dims_chd) + 1
-    idN_chd   = idx (i_chd,   j_chd+1, offs_chd, dims_chd) + 1
-    idW_chd   = idx (i_chd-1, j_chd,   offs_chd, dims_chd) + 1
-    idNW_chd  = idx (i_chd-1, j_chd+1, offs_chd, dims_chd) + 1
-    idS2W_chd = idx (i_chd-2, j_chd-1, offs_chd, dims_chd) + 1
-    idSW_chd  = idx (i_chd-1, j_chd-1, offs_chd, dims_chd) + 1
-    idS_chd   = idx (i_chd,   j_chd-1, offs_chd, dims_chd) + 1
-    id2SW_chd = idx (i_chd-1, j_chd-2, offs_chd, dims_chd) + 1
-    idSE_chd  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd) + 1
-
-    neigh_chd = (/ id_chd, idE_chd, idNE_chd, idN2E_chd, id2NE_chd, idN_chd, &
-         idW_chd, idNW_chd, idS2W_chd, idSW_chd, idS_chd, id2SW_chd, idSE_chd /)
-
-    area_chd = (/ &
-         1d0/dom%areas%elts(id_chd)%hex_inv,   &
-         dom%overl_areas%elts(idE_chd)%a(1),   &
-         dom%overl_areas%elts(idNE_chd)%a(2),  &
-         dom%overl_areas%elts(idN2E_chd)%a(3), &
-         dom%overl_areas%elts(id2NE_chd)%a(4), &
-         dom%overl_areas%elts(idN_chd)%a(1),   &
-         dom%overl_areas%elts(idW_chd)%a(2),   &
-         dom%overl_areas%elts(idNW_chd)%a(3),  &
-         dom%overl_areas%elts(idS2W_chd)%a(4), &
-         dom%overl_areas%elts(idSW_chd)%a(1),  &
-         dom%overl_areas%elts(idS_chd)%a(2),   &
-         dom%overl_areas%elts(id2SW_chd)%a(3), &
-         dom%overl_areas%elts(idSE_chd)%a(4) /)
-
-    ! SSO deviation from GSO
-    h = topography%data(d)%elts(neigh_chd) - topography%data(d)%elts(id_par)
-
-    ! mu (standard deviation of SSO from GSO)
-    sso_param(S_MU)%data(d)%elts(id_par) = sqrt (sum (h**2 * area_chd) * dom%areas%elts(id_par)%hex_inv)
-  end subroutine cal_sso_mu1
-
-  subroutine cal_sso_mu2 (dom, i, j, zlev, offs, dims)
-    ! mu (standard deviation) of Subgrid Scale Orography (SSO) compared to Grid Scale Orography (GSO)
-    ! Use area-weighted integral including approximate overlapping coarse-fine hexagonal cells for levels < max_level-1
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id, ii, jj, n_topo
-    real(8) :: distance, dx, h, hx, hy, h_sq, hx_sq, hy_sq, hxhy, total_area
-    real(8) :: K, L, M
-    real(8) :: gamma, mu, sigma, theta
-    
-    d  = dom%id + 1
-    id = idx (i, j, offs, dims) + 1
-
-    dx  = dom%len%elts(EDGE*id+RT+1) * 2d0/sqrt(3d0)
-
-    ! Include all finest grid topography in a disk of radius dx
-    h_sq       = 0d0
-    hx_sq      = 0d0
-    hy_sq      = 0d0
-    hxhy       = 0d0
-    
-    total_area = 0d0
-    n_topo     = size (topography_data(topo_max_level,d)%node)
-    
-    do ii = 1, n_topo
-       distance = dist (dom%node%elts(id), topography_data(topo_max_level,d)%node(ii))
-       if (distance <= dx) then
-          jj = 3*(ii-1) + 1
-          
-          h  = topography_data(topo_max_level,d)%elts(jj) - topography%data(d)%elts(id)
-          
-          hx = topography_data(topo_max_level,d)%elts(jj+1)  ! topography gradient in longitude direction
-          hy = topography_data(topo_max_level,d)%elts(jj+2)  ! topography gradient in latitude direction
-          
-          h_sq  = h_sq  + h**2
-          hx_sq = hx_sq + hx**2
-          hy_sq = hy_sq + hy**2
-          hxhy  = hxhy  + hx * hy
-          
-          total_area = total_area + Area_min
-       end if
-    end do
-
-    hx_sq = hx_sq * Area_min / total_area
-    hy_sq = hy_sq * Area_min / total_area
-    M     = hxhy  * Area_min / total_area
-    
-    K = 0.5d0 * (hx_sq + hy_sq)
-    L = 0.5d0 * (hx_sq - hy_sq) 
-
-    ! SSO parameters
-    sso_param(S_MU)%data(d)%elts(id)    = sqrt (h_sq * Area_min / total_area)
-    sso_param(S_THETA)%data(d)%elts(id) = 0.5d0 * atan2 (M, L)
-    sso_param(S_GAMMA)%data(d)%elts(id) = sqrt ( (K - sqrt (L**2 + M**2)) / (K + sqrt (L**2 + M**2)) )
-    sso_param(S_SIGMA)%data(d)%elts(id) = sqrt (hx_sq * cos (theta) + hy_sq * sin (theta))
-  end subroutine cal_sso_mu2
   
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
@@ -803,7 +615,7 @@ contains
        write (6,'(a)')        "Approximate viscosities on finest grid"
        write (6,'(a,es8.2)') "nu_scalar             = ", nu_sclr
        write (6,'(a,es8.2)') "nu_rot                = ", nu_rotu
-       write (6,'(a,es8.2,/)') "nu_div              = ", nu_divu
+       write (6,'(a,es8.2,/)') "nu_div                = ", nu_divu
 
        write (6,'(a,es10.4)') "dt_max           [s] = ", dt_max
        write (6,'(a,es10.4)') "dt_write         [d] = ", dt_write / DAY
@@ -930,7 +742,7 @@ contains
     ! SSO parameters (requires topography)
     if (NCAR_TOPO .and. sso) then
        do l = level_start, level_end
-          call apply_onescale (cal_sso_mu2, l, z_null, 0, 1)
+          call apply_onescale (cal_sso_param, l, z_null, 0, 1)
        end do
        sso_param%bdry_uptodate = .false.
        call update_vector_bdry (sso_param, NONE)
@@ -969,12 +781,12 @@ contains
        if (istep /= 0) then
           do d = 1, size(grid)
              do p = n_patch_old(d)+1, grid(d)%patch%length
-                if (sso) call apply_onescale_to_patch (cal_sso_mu2, grid(d), p-1, z_null, 0, 1)
+                if (sso) call apply_onescale_to_patch (cal_sso_param, grid(d), p-1, z_null, 0, 1)
              end do
           end do
        else ! need to set values over entire grid on restart
           do l = level_start, level_end
-             call apply_onescale (cal_sso_mu2, l, z_null, 0, 1)
+             call apply_onescale (cal_sso_param, l, z_null, 0, 1)
           end do
        end if
        sso_param%bdry_uptodate = .false.

@@ -265,7 +265,7 @@ module shared_mod
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize
   logical :: rebalance, remap, uniform, vert_diffuse
-  logical :: sigma_z, soil_mod, tke_closure
+  logical :: sigma_z, soil_mod, sso, tke_closure
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -371,6 +371,7 @@ contains
     remap               = .true.                            ! remap Lagrangian coordinates (T) or no remapping (F)
     sigma_z             = .false.                           ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)
     soil_mod            = .false.                           ! simple physics with soil levels (T)
+    sso                 = .false.                           ! SSO (subgrid scale orography) parameterization for atmosphere
     tke_closure         = .false.                           ! use TKE closure for eddy viscosity (T) or analytic form (F)
     uniform             = .true.                            ! uniform vertical grid in pressure (T) or hybrid (F)
     vert_diffuse        = .false.                           ! include vertical diffusion in ocean models (T)
