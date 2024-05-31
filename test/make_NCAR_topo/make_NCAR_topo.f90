@@ -74,13 +74,8 @@ program make_NCAR_topo
 
   call assign_height (trim (topo_file))
 
-  ! Smooth topography
-  nsmth = 0
-  call topo_restriction (max_level, max_level)
-  do l = max_level-1, min_level, -1
-     !call smooth_topo (l)
-     call topo_restriction (l, l)
-  end do
+  ! Restrict topography
+  call topo_restriction (min_level, max_level)
   topography%bdry_uptodate = .false.
   call update_bdry (topography, NONE)
   
