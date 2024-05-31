@@ -130,6 +130,8 @@ program Held_Suarez
 
   ! Use simple subgrid scale orography parameterization
   sso                = .false.
+  grav_wav_drag      = .false.
+  blocking_drag      = .false.
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -166,6 +168,7 @@ program Held_Suarez
      call time_step (dt_write, aligned)
      !if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
      call euler (sol, wav_coeff, trend_cooling, dt)
+     if (sso) call euler (sol, wav_coeff, trend_sso, dt)
      call stop_timing
      call print_log
 

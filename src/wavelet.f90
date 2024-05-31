@@ -60,7 +60,7 @@ contains
        end do
        call update_array_bdry (wavelet(scalars(1):scalars(2),:), l+1)
 
-       ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
+       ! Restrict scalars (sub-sample and lift) and velocity (average) from fine grid l+1 to coarse grid l
        do k = 1, size(scaling,2)
           do d = 1, size(grid)
              do v = scalars(1), scalars(2)
@@ -135,7 +135,7 @@ contains
        end do
        call update_bdry (wavelet, l+1)
 
-       ! Restrict scalars (sub-sample and lift) to coarser grid
+       ! Restrict scalars (sub-sample and lift) from fine grid l+1 to coarse grid l
        do d = 1, size(grid)
           scalar => scaling%data(d)%elts
           wc_s   => wavelet%data(d)%elts
@@ -188,7 +188,7 @@ contains
        end do
        call update_vector_bdry (wavelet, l+1)
 
-       ! Restrict scalars (sub-sample and lift) to coarser grid
+       ! Restrict scalars (sub-sample and lift) from fine grid l+1 to coarse grid l
        do k = 1, size(scaling)
           do d = 1, size(grid)
              scalar => scaling(k)%data(d)%elts
@@ -800,7 +800,7 @@ contains
   end subroutine Compute_velo_wavelets_penta
 
   subroutine topo_restriction (jmin_in, jmax_in)
-    ! Forward 
+    ! Restricts topography from level jmax_in to all coarser levels to jmin_in using full weighting
     implicit none
     integer, optional :: jmin_in, jmax_in
 
@@ -823,10 +823,10 @@ contains
        call abort
     end if
 
-    do l = jmax-1, jmin-1, -1
+    do l = jmax-1, jmin, -1
        call update_bdry (topography, l+1)
 
-       ! Restrict topography to coarser grid using full-weighting 
+       ! Restrict topography from fine grid l+1 to coarse grid l using full-weighting 
        do d = 1, size(grid)
           scalar => topography%data(d)%elts
           call apply_interscale_d (Restrict_full_weighting, grid(d), l, z_null, 0, 1) ! +1 to include poles

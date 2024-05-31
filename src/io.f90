@@ -15,7 +15,6 @@ module io_mod
   integer                                        :: next_fid
   type(Float_Field)                              :: active_level
   type(Float_Field), dimension(LORT:UPLT)        :: save_tri                           
-  type(Topo_Array),  dimension(:,:), allocatable :: topography_data
 contains
   subroutine init_io_mod
     implicit none

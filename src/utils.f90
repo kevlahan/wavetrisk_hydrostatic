@@ -575,13 +575,12 @@ contains
 
   function uvw2zonal_merid (dom, i, j, zlev, offs, dims)
     ! Interpolate velocity from U, V, W velocity components at edges to zonal, meridional velocity components at nodes
+    ! uses sol(S_VELO,zlev)
     ! Perot reconstruction based on Gauss theorem:
     !
     ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_centroid) ) / cell_area
     !
     ! also used for kinetic energy
-    !
-    ! Output is in pointer arrays velo1 (u_zonal) and velo2 (u_merid)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -589,10 +588,12 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     real(8), dimension(2)          :: uvw2zonal_merid
 
-    integer     :: id, idN, idE, idNE, idS, idSW, idW
+    integer     :: d, id, idN, idE, idNE, idS, idSW, idW
     real(8)     :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
     type(Coord) :: cent, e_zonal, e_merid, vel
 
+    d = dom%id + 1
+    
     id   = idx (i,   j,   offs, dims)
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
@@ -602,13 +603,13 @@ contains
     idS  = idx (i,   j-1, offs, dims)
 
     ! Fluxes normal to hexagon edges
-    u_dual_RT    =  velo(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
-    u_dual_DG    = -velo(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
-    u_dual_UP    =  velo(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
+    u_dual_RT    =  sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1)   * dom%pedlen%elts(EDGE*id+RT+1)
+    u_dual_DG    = -sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1)   * dom%pedlen%elts(EDGE*id+DG+1)
+    u_dual_UP    =  sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1)   * dom%pedlen%elts(EDGE*id+UP+1)
 
-    u_dual_RT_W  = -velo(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
-    u_dual_DG_SW =  velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
-    u_dual_UP_S  = -velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
+    u_dual_RT_W  = -sol(S_VELO,zlev)%data(d)%elts(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)
+    u_dual_DG_SW =  sol(S_VELO,zlev)%data(d)%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
+    u_dual_UP_S  = -sol(S_VELO,zlev)%data(d)%elts(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
 
     ! Compute hexagon centroid from its vertices
     cent = centroid (                                                                 &
@@ -1552,11 +1553,11 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     theta = ( sol_mean(S_TEMP,zlev)%data(d)%elts(id) + sol(S_TEMP,zlev)%data(d)%elts(id) ) / &
-         ( sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id) )
+            ( sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id) )
   end function theta
 
   real(8) function N_i (dom, i, j, zlev, offs, dims)
-    ! Brunt-Vaisala frequency at nodes at layer interfaces
+    ! Brunt-Vaisala frequency at nodes at layer interface above layer zlev
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1569,7 +1570,7 @@ contains
     d  = dom%id + 1
     id = idx (i, j, offs, dims)
 
-    dz =  dz_l (dom, i, j, zlev, offs, dims, sol)
+    dz = dz_l (dom, i, j, zlev, offs, dims, sol)
 
     if (compressible) then
        theta2 = theta (dom, i, j, zlev+1, offs, dims)

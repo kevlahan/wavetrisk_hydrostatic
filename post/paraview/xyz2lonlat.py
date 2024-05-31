@@ -55,7 +55,7 @@ t2         = int(sys.argv[3])
 for j in range (t1, t2+1):   
     # Load the input vtk file
     infile  = file_base+str(j).zfill(4)
-    outfile = file_base+"_lonlat_"+str(j).zfill(4)
+    outfile = file_base+"lonlat_"+str(j).zfill(4)
     
     print("Transforming file "+infile+".vtk")
     vtkreader = vtk.vtkUnstructuredGridReader()

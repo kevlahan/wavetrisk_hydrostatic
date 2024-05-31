@@ -69,6 +69,7 @@ module domain_mod
   type(Domain), dimension(:), allocatable, target        :: grid
 
   type(Float_Field),                              target :: topography
+  type(Topo_Array),  dimension(:,:), allocatable         :: topography_data
   type(Float_Field), dimension(4),                target :: sso_param
   type(Float_Field), dimension(:),   allocatable, target :: exner_fun, horiz_flux, penal_node, penal_edge
   type(Float_Field), dimension(:),   allocatable, target :: Kv, Kt, tke, wav_tke
