@@ -34,7 +34,7 @@ module utils_mod
 contains
   real(8) function z_i (dom, i, j, zlev, offs, dims, q)
     ! Position of vertical level zlev at nodes
-    ! *** compressible case requires dom%press ***
+    ! *** compressible case requires dom%surf_press ***
     implicit none
     type(Domain)                              :: dom
     integer                                   :: i, j, zlev
@@ -42,83 +42,93 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, id, k
-    real(8) :: dz, dz_below, z_s
+    integer                    :: d, id, l
+    real(8)                    :: dz, exner, full_mass, full_temp, p
+    real(8), dimension(0:zlev) :: z
 
     d = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
 
-    id = idx (i, j, offs, dims)
+    z(0) = topography%data(d)%elts(id)
+    p    =     dom%surf_press%elts(id)
+    do l = 1, zlev
+       full_mass = sol_mean(S_MASS,l)%data(d)%elts(id) + q(S_MASS,l)%data(d)%elts(id) 
+       if (compressible) then
+          full_temp = sol_mean(S_TEMP,l)%data(d)%elts(id) + q(S_TEMP,l)%data(d)%elts(id)
 
-    z_s = topography%data(d)%elts(id+1) 
-
-    dz_below = dz_i (dom, i, j, 1, offs, dims, q)
-    z_i = z_s + dz_below / 2d0
-    do k = 2, zlev
-       dz = dz_i (dom, i, j, k, offs, dims, q)
-       z_i = z_i + interp (dz, dz_below)
-       dz_below = dz
+          p     = p - grav_accel * full_mass
+          exner = c_p * (p/p_0)**kappa
+          
+          dz = kappa * full_temp * exner / p
+       else 
+          dz = full_mass / porous_density (d, id, l)
+       end if
+       z(l) = z(l-1) + dz
     end do
+
+    z_i = interp (z(zlev-1), z(zlev))
   end function z_i
 
-  real(8) function zl_i (dom, i, j, zlev, offs, dims, q, l)
+  real(8) function zl_i (dom, i, j, zlev, offs, dims, q, pos)
     ! Position of interface below (l=-1) or above (l=1) vertical level zlev nodes
-    ! *** compressible case requires dom%press ***
+    ! *** compressible case requires dom%surf_press ***
     implicit none
     type(Domain)                              :: dom
-    integer                                   :: i, j, l, zlev
+    integer                                   :: i, j, zlev
+    integer                                   :: pos
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, id, k, kmax
+    integer :: d, id, l, lmax
+    real(8) :: dz, exner, full_mass, full_temp, p
 
     d = dom%id + 1
-    id = idx (i, j, offs, dims)
+    id = idx (i, j, offs, dims) + 1
 
-    if (l == -1) then
-       kmax = zlev - 1
+    if (pos == -1) then
+       lmax = zlev - 1
     else
-       kmax = zlev
+       lmax = zlev
     end if
+    
+    zl_i = topography%data(d)%elts(id)
+    p    =     dom%surf_press%elts(id)
+    do l = 1, lmax
+       full_mass = sol_mean(S_MASS,l)%data(d)%elts(id) + q(S_MASS,l)%data(d)%elts(id) 
+       if (compressible) then
+          full_temp = sol_mean(S_TEMP,l)%data(d)%elts(id) + q(S_TEMP,l)%data(d)%elts(id)
 
-    zl_i = topography%data(d)%elts(id+1)
-    do k = 1, kmax
-       zl_i = zl_i + dz_i (dom, i, j, k, offs, dims, q)
+          p     = p - grav_accel * full_mass
+          exner = c_p * (p/p_0)**kappa
+          
+          dz = kappa * full_temp * exner / p
+       else 
+          dz = full_mass / porous_density (d, id, l)
+       end if
+       zl_i = zl_i + dz
     end do
   end function zl_i
 
-  function zl_e (dom, i, j, zlev, offs, dims, q, l)
-    ! Position of interface below (l=-1) or above (l=1) vertical level zlev at edges
+  function zl_e (dom, i, j, zlev, offs, dims, q, pos)
+    ! Position of interface below (pos=-1) or above (pos=1) vertical level zlev at edges
     implicit none
     type(Domain)                              :: dom
     integer                                   :: i, j, zlev
-    integer                                   :: l
+    integer                                   :: pos
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
     real(8), dimension(1:EDGE)                :: zl_e
 
-    integer :: d, id, idE, idN, idNE, k, kmax
+    real(8), dimension(0:EDGE) :: z
 
-    d = dom%id + 1
+    z(0)    = zl_i (dom, i,   j,   zlev, offs, dims, q, pos)
+    z(RT+1) = zl_i (dom, i+1, j,   zlev, offs, dims, q, pos)
+    z(DG+1) = zl_i (dom, i+1, j+1, zlev, offs, dims, q, pos)
+    z(UP+1) = zl_i (dom, i,   j+1, zlev, offs, dims, q, pos)
 
-    id   = idx (i,   j,   offs, dims)
-    idE  = idx (i+1, j,   offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-
-    if (l == -1) then
-       kmax = zlev - 1
-    else
-       kmax = zlev
-    end if
-
-    zl_e(RT+1) = interp (topography%data(d)%elts(id+1), topography%data(d)%elts(idE+1))  
-    zl_e(DG+1) = interp (topography%data(d)%elts(id+1), topography%data(d)%elts(idNE+1)) 
-    zl_e(UP+1) = interp (topography%data(d)%elts(id+1), topography%data(d)%elts(idN+1))  
-    do k = 1, kmax
-       zl_e = zl_e + dz_e (dom, i, j, k, offs, dims, q)
-    end do
+    zl_e = 0.5d0 * (z(0) + z(1:EDGE))
   end function zl_e
 
   real(8) function dz_i (dom, i, j, zlev, offs, dims, q)
