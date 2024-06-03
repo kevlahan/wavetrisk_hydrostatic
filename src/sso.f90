@@ -146,7 +146,7 @@ contains
        do k = 1, zlevels
           if (z(k) <= Z_block) then
              if (circle) then ! circular mountain
-                tau_block(k) = - 0.5d0 * C_d * rho(k) * 4d0  * sigma/H_env * sqrt ( (Z_block - z(k))/(z(k) + mu) ) * umag(k) * 0.78d0 
+                tau_block(k) = - 0.5d0 * C_d * rho(k) * 4d0  * sigma/H_env * sqrt ((Z_block - z(k))/(z(k) + mu)) * umag(k) * 0.78d0  
              else
                 r = sqrt ( (cos(psi(k))**2 + gamma**2 * sin(psi(k))**2) / (gamma**2 * cos(psi(k))**2 + sin(psi(k))**2) )
 
