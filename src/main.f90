@@ -841,9 +841,11 @@ contains
     end do
     
     deallocate (topography%data)
-    do k = 1, 4
-       deallocate (sso_param(k)%data)
-    end do
+    if (sso) then
+       do k = 1, 4
+          deallocate (sso_param(k)%data)
+       end do
+    end if
     if (NCAR_topo) deallocate (topography_data)
 
     deallocate (Laplacian_vector(S_DIVU)%data)

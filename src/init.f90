@@ -161,9 +161,11 @@ contains
     if (vert_diffuse) allocate (Kt(0:zlevels), Kv(0:zlevels), tke(1:zlevels), wav_tke(1:zlevels))
 
     call init_Float_Field (topography, AT_NODE)
-    do k = 1, 4
-       call init_Float_Field (sso_param(k), AT_NODE)
-    end do
+    if (sso) then
+       do k = 1, 4
+          call init_Float_Field (sso_param(k), AT_NODE)
+       end do
+    end if
     
     do k = zmin, zmax
        call init_Float_Field (penal_node(k), AT_NODE)
@@ -493,9 +495,11 @@ contains
        end do
        
        call init (topography%data(d), grid(d)%node%length)
-       do k = 1, 4
-          call init (sso_param(k)%data(d), grid(d)%node%length)
-       end do
+       if (sso) then
+          do k = 1, 4
+             call init (sso_param(k)%data(d), grid(d)%node%length)
+          end do
+       end if
        
        do k = zmin, zmax
           call init (penal_node(k)%data(d),      grid(d)%node%length)

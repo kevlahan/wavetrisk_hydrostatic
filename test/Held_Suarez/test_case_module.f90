@@ -508,6 +508,7 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, NCAR_topo
+    read (fid,*) varname, sso
     read (fid,*) varname, topo_file
     read (fid,*) varname, topo_min_level
     read (fid,*) varname, topo_max_level   
@@ -645,6 +646,7 @@ contains
        write (6,'(a,es10.4)') "delta_theta   [K/m]  = ", delta_theta
        write (6,'(a,es10.4,/)') "wave_speed    [m/s]  = ", wave_speed
        write (6,'(a,l)')      "NCAR_topo            = ", NCAR_topo
+       write (6,'(a,l)')      "sso                  = ", sso
        write (6,'(a,a)')      "topo_file            = ", trim (topo_file)
        write (6,'(a,i3)')     "topo_min_level       = ", topo_min_level
        write (6,'(a,i3)')     "topo_max_level       = ", topo_max_level
@@ -945,15 +947,18 @@ contains
 
     integer :: d, k, n_id, p
 
-    call update_vector_bdry (sol(S_VELO,:), NONE, 27)
-    
+    call update_array_bdry (sol, NONE, 27)
+
+    ! Current surface pressure
+    call cal_surf_press_HS (sol)
+
     do d = 1, size(grid)
        n_id = size (q(S_VELO,1)%data(d)%elts)
        allocate (sso_stress(1:zlevels,1:n_id))
 
        ! Compute SSO stress for all layers
        do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (cal_sso_stress, grid(d), p-1, k, 0, 1)
+          call apply_onescale_to_patch (cal_sso_stress, grid(d), p-1, z_null, 0, 1)
        end do
 
        do k = 1, zlevels

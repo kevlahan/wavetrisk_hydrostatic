@@ -164,9 +164,11 @@ contains
     call extend (dom%vort,   TRIAG*num, 0d0)
 
     call extend (topography%data(d), num, 0d0)
-    do k = 1, 4
-       call extend (sso_param(k)%data(d), num, 0d0)
-    end do
+    if (sso) then
+       do k = 1, 4
+          call extend (sso_param(k)%data(d), num, 0d0)
+       end do
+    end if
     
     do k = zmin, zmax
        call extend (penal_node(k)%data(d),      num, 0d0)

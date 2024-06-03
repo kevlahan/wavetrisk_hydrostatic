@@ -3,6 +3,7 @@ run_id             HS_J6       ! name of run (for saved data files)
 max_level	   6           ! maximum level of resolution
 zlevels            32          ! number of vertical levels
 NCAR_topo          T           ! use realistic topography (compile with flag TOPO=.true.)		  
+sso                F           ! use SSO (subgrid scale orography) parameterization (Lott and Miller 1997) 
 topo_file          J06_120.0km ! smoothed NCAR topography file name
 topo_min_level     4           ! minimum topography level
 topo_max_level     6           ! maximum topography level

@@ -128,11 +128,6 @@ program Held_Suarez
   log_min_mass       = .false.
   log_total_mass     = .false.
 
-  ! Use simple subgrid scale orography parameterization
-  sso                = .false.
-  grav_wav_drag      = .false.
-  blocking_drag      = .false.
-
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Initialize functions
@@ -155,7 +150,7 @@ program Held_Suarez
      call cal_rx1_max (l, rx1_max)
      if (rank == 0) write (6,'(i2,8x,2(es8.2,3x))') l, rx0_max, rx1_max
   end do
-  
+   
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
@@ -166,9 +161,9 @@ program Held_Suarez
      cfl_num = cfl (time) ! gradually increase cfl number
      call start_timing
      call time_step (dt_write, aligned)
-     !if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
      call euler (sol, wav_coeff, trend_cooling, dt)
      if (sso) call euler (sol, wav_coeff, trend_sso, dt)
+     !if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
      call stop_timing
      call print_log
 

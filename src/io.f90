@@ -1904,7 +1904,8 @@ contains
           
           outv(5) = trend(S_TEMP,zlev)%data(d)%elts(id_i)                        ! vertical velocity OMEGA (stored in trend(S_TEMP,:))
           
-          outv(6) = dom%ke%elts(id_i)                                            ! vorticity (stored in ke)
+          !outv(6) = dom%ke%elts(id_i)                                            ! vorticity (stored in ke)
+          outv(6) = (zl_i (dom, i, j, 1, offs, dims, sol, 1) - topography%data(d)%elts(id+1))
 
           if (zlev == 1) then
              outv(7) = topography%data(d)%elts(id_i)                             ! topography
@@ -1927,7 +1928,8 @@ contains
           outv(11) = dom%press%elts(id_i)                                        ! layer pressure
 
           ! Vertices of hexagon
-          vertices = (/ dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
+          vertices = (/ &
+               dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
                dom%ccentre%elts(TRIAG*idW +LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
                dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1) /)
 
