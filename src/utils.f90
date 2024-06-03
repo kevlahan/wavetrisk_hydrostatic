@@ -131,17 +131,18 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id
-    real(8) :: exner, full_mass, full_temp
+    real(8) :: exner, full_mass, full_temp, p
 
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
-    if (compressible) then ! dz = mu/rho = mu alpha = mu (kappa theta pi) / P = kappa Theta pi / P *** requires pressure ***
+    if (compressible) then ! dz = mu alpha = mu (kappa theta pi) / p = kappa Theta pi / p
+       p         = pressure_i (dom, i, j, zlev, offs, dims, sol)
+       exner     = c_p * (p/p_0)**kappa
        full_temp = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
-       exner = c_p * (dom%press%elts(id)/p_0)**kappa
 
-       dz_i = kappa * full_temp * exner / dom%press%elts(id)
-    else                  ! dz = mu/ref_density
+       dz_i = kappa * full_temp * exner / p
+    else                   ! dz = mu/ref_density
        full_mass = sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)
 
        dz_i = full_mass / porous_density (d, id, zlev)
@@ -373,16 +374,17 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id
-    real(8) :: exner, full_temp
+    real(8) :: exner, full_temp, p
 
     d = dom%id + 1
     id  = idx (i, j, offs, dims) + 1
     
     if (compressible) then ! rho = P / (kappa theta pi)
        full_temp = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
-       exner = c_p * (dom%press%elts(id)/p_0)**kappa
+       p         = pressure_i (dom, i, j, zlev, offs, dims, sol)
+       exner     = c_p * (p/p_0)**kappa
 
-       density_i = dom%press%elts(id) / (kappa * full_temp * exner) 
+       density_i = p / (kappa * full_temp * exner) 
     else                   ! gravitational density using Boussinesq approximation
        density_i = ref_density * (1d0 - buoyancy (dom, i, j, zlev, offs, dims, q))
     end if
@@ -408,6 +410,38 @@ contains
 
     density_e = 0.5d0 * (rho(0) + rho(1:EDGE))
   end function density_e
+
+  real(8) function pressure_i (dom, i, j, zlev, offs, dims, q)
+    ! Pressure at layer zlev computed by integrated down
+    implicit none
+    type(Domain)                              :: dom
+    integer                                   :: i, j, zlev
+    integer, dimension(N_BDRY+1)              :: offs
+    integer, dimension(2,N_BDRY+1)            :: dims
+    type(Float_Field), dimension(:,:), target :: q
+
+    integer                            :: d, id, k, l
+    real(8)                            :: full_mass, full_temp
+    real(8), dimension(zlev-1:zlevels) :: p
+
+    d  = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    p(zlevels) = p_top
+    do l = zlevels-1, zlev, -1
+       k = l + 1 ! layer index
+       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + q(S_MASS,k)%data(d)%elts(id) 
+
+       ! Pressure at interface l
+       if (compressible) then
+          p(l) = p(l+1) + grav_accel * full_mass               
+       else 
+          full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + q(S_TEMP,k)%data(d)%elts(id)
+          p(l) = p(l+1) + grav_accel * (full_mass - full_temp) 
+       end if
+    end do
+    pressure_i = interp (p(zlev-1), p(zlev)) ! pressure at layer zlev
+  end function pressure_i
 
   real(8) function free_surface (dom, i, j, zlev, offs, dims, q)
     ! Computes free surface perturbations

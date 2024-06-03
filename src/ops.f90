@@ -1058,9 +1058,9 @@ contains
 
     full_mass = mean_m(id) + mass(id)
 
-    if (compressible) then ! Compressible case
+    if (compressible) then 
        p_upper = dom%press_lower%elts(id) - grav_accel * full_mass
-    else ! Incompressible case
+    else 
        full_temp = mean_t(id) + temp(id)
        
        p_upper = dom%press_lower%elts(id) - grav_accel * (full_mass - full_temp)
