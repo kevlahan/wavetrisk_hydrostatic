@@ -1,4 +1,4 @@
-module ops_mod
+ module ops_mod
   use init_mod
   use utils_mod
   implicit none
@@ -684,10 +684,12 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                :: e, id
-    real(8), dimension (3) :: Qperp_e, physics
+    integer                    :: id
+    integer, dimension(1:EDGE) :: id_e
+    real(8), dimension(1:EDGE) :: Qperp_e, physics
 
-    id = idx (i, j, offs, dims)
+    id =  idx (i, j, offs, dims)
+    id_e = id_edge (id)
 
     ! Calculate Q_perp
     Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
@@ -696,7 +698,7 @@ contains
     physics = physics_velo_source (dom, i, j, zlev, offs, dims)
 
     ! Trend
-    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - Qperp_e + physics * dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+    dvelo(id_e) = - Qperp_e + physics * dom%len%elts(id_e)
   end subroutine du_source
 
   subroutine du_grad (dom, i, j, zlev, offs, dims)
@@ -707,7 +709,8 @@ contains
     integer, dimension(N_BDRY + 1)   :: offs
     integer, dimension(2,N_BDRY + 1) :: dims
 
-    integer                         :: e, id, idE, idN, idNE
+    integer                         :: id, idE, idN, idNE
+    integer, dimension(1:EDGE)      :: id_e
     real(8), dimension(1:EDGE)      :: gradB, gradE, theta_e
     real(8), dimension(0:NORTHEAST) :: full_mass, full_temp, theta
 
@@ -716,6 +719,8 @@ contains
     idE  = idx (i+1, j,   offs, dims) 
     idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
+
+    id_e = id_edge (id) 
 
     full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
     full_temp(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
@@ -737,9 +742,7 @@ contains
     gradE = gradi_e (exner,     dom, i, j, offs, dims)
 
     ! Trend
-    do e = 1, EDGE
-       dvelo(EDGE*id+e) = dvelo(EDGE*id+e)/dom%len%elts(EDGE*id+e) - gradB(e) - theta_e(e)*gradE(e)
-    end do
+    dvelo(id_e) = dvelo(id_e)/dom%len%elts(id_e) - gradB - theta_e*gradE
   end subroutine du_grad
 
   function Qperp (dom, i, j, zlev, offs, dims)

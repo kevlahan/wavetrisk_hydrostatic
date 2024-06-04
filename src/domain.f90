@@ -1,4 +1,4 @@
-module domain_mod
+ module domain_mod
   use param_mod
   use shared_mod
   use geom_mod
@@ -732,14 +732,14 @@ contains
     idx__fast = PATCH_SIZE*j + i + offs
   end function idx__fast
 
-  function idu (id)
+  function id_edge (id) 
     ! Returns vector with the indices of the three edges associated to node id
     implicit none
     integer                    :: id
-    integer, dimension(1:EDGE) :: idu
+    integer, dimension(1:EDGE) :: id_edge
 
-    idu = EDGE*id + 1 + (/ RT, DG, UP /)
-  end function idu
+    id_edge = EDGE*id + (/ RT, DG, UP /) + 1
+  end function id_edge
 
   integer function tri_idx (i, j, tri, offs, dims)
     implicit none

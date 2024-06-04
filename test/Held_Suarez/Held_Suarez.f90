@@ -5,6 +5,7 @@ program Held_Suarez
   use ops_mod
   use test_case_mod
   use io_mod
+  use sso_mod
   implicit none
 
   integer        :: l
@@ -139,7 +140,6 @@ program Held_Suarez
 
   ! Save initial conditions
   call omega_velocity
-
   call trend_ml (sol, trend) ! to compute horizontal pressure gradient error
   call write_and_export (iwrite)
 
@@ -161,8 +161,7 @@ program Held_Suarez
      cfl_num = cfl (time) ! gradually increase cfl number
      call start_timing
      call time_step (dt_write, aligned)
-     call euler (sol, wav_coeff, trend_cooling, dt)
-     if (sso) call euler (sol, wav_coeff, trend_sso, dt)
+     call euler (sol, wav_coeff, trend_physics, dt)
      !if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
      call stop_timing
      call print_log

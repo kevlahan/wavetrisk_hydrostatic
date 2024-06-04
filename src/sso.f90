@@ -5,27 +5,30 @@ module sso_mod
   use comm_mpi_mod
   use utils_mod
   implicit none
-  real(8), dimension(:,:), allocatable :: sso_stress
-  logical                              :: circle        = .true. ! assume circular mountain (not enough SSO statistics)
+  real(8), dimension(:,:), allocatable :: sso_drag
+  logical                              :: circle = .true.         ! assume circular mountain (not enough SSO statistics)
+  logical                              :: blocking_drag = .true. ! block drag is too large
+  logical                              :: wave_drag     = .true.
 contains
-  subroutine cal_sso_stress (dom, i, j, z_null, offs, dims)
+  subroutine cal_sso_drag (dom, i, j, z_null, offs, dims)
     ! SSO block and wave drag at edges
     ! uses version from Japanese Meteorological Agency (2019) report
     use coord_arithmetic_mod
     implicit none
-    type(Domain)                         :: dom
-    integer                              :: i, j, z_null
-    integer, dimension(N_BDRY+1)         :: offs
-    integer, dimension(2,N_BDRY+1)       :: dims
+    type(Domain)                      :: dom
+    integer                           :: i, j, z_null
+    integer, dimension(N_BDRY+1)      :: offs
+    integer, dimension(2,N_BDRY+1)    :: dims
 
     integer                           :: d, id, idE, idNE, idN, k, nlev
+    integer, dimension(1:EDGE)        :: id_e
 
     real(8)                           :: mu, gamma, sigma, p, theta
     real(8)                           :: B, C, H, H_eff, H_env, H_peak, r, Z_block
-    real(8)                           :: N_above, N_below, N_av, phi_av, psi_av, rho_av, u_av
+    real(8)                           :: N_above, N_below, N_av, phi_av, psi_av, rho_av, rho_dz, u_av
     real(8)                           :: lat, lon
-    real(8), dimension(1:zlevels,2)   :: vel
-    real(8), dimension(1:zlevels)     :: N_bv, phi, psi, rho, tau_block, tau_grav, tau_mag, umag
+    real(8), dimension(2)             :: vel
+    real(8), dimension(1:zlevels)     :: N_bv, phi, psi, rho, drag_block, drag_wave, umag
     real(8), dimension(0:zlevels)     :: z
 
     type(Coord)                       :: e_zonal, e_merid, e_Uav, e_U, e_V, e_W
@@ -34,14 +37,15 @@ contains
     real(8), parameter                :: H_crit = 0.50d0
     real(8), parameter                :: G      = 0.25d0
 
-    sso_stress = 0d0
-    tau_block  = 0d0
-    tau_grav   = 0d0
+    sso_drag   = 0d0
+    drag_block = 0d0
+    drag_wave  = 0d0
 
     id = idx (i, j, offs, dims)
-
+    
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        d = dom%id + 1
+       id_e = id_edge (id)
 
        idE  = idx (i+1, j,   offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
@@ -81,29 +85,31 @@ contains
        ! Save layer values
        z(0) = 0d0
        do k = 1, zlevels
-          rho(k)   = density_i (dom, i, j, k, offs, dims, sol)      ! density
-          vel(k,:) = uvw2zonal_merid (dom, i, j, k, offs, dims)     ! zonal and meridional velocities at node
-          umag(k)  = sqrt (sum (vel(k,:)**2))                       ! velocity magnitude
-          z(k)     = z(k-1) + dz_i (dom, i, j, k, offs, dims, sol)  ! height of upper interface above topography
+          rho(k)  = density_i (dom, i, j, k, offs, dims, sol)     ! density
+          vel     = uvw2zonal_merid (dom, i, j, k, offs, dims)    ! zonal and meridional velocities at node
+          umag(k) = sqrt (sum (vel**2))                           ! velocity magnitude
+          z(k)    = z(k-1) + dz_i (dom, i, j, k, offs, dims, sol) ! height of upper interface above topography
           
           if (.not. circle) then
-             phi(k) = atan2 (vel(k,2), vel(k,1))                    ! angle of incident flow
-             psi(k) = theta - phi(k)                                ! angle of incident flow with respect to principal axis of ellipse
+             phi(k) = atan2 (vel(2), vel(1))                      ! angle of incident flow
+             psi(k) = theta - phi(k)                              ! angle of incident flow with respect to principal axis of ellipse
           end if
        end do
 
        ! Find blocking height
-       H = 0d0
-       Z_block = 0d0
-       do k = zlevels, 1, -1
-          if (z(k) <= H_peak) then
-             H = H + N_bv(k) * dz_i (dom, i, j, k, offs, dims, sol) / umag(k) ! non-dimensional height
-             if (H >= H_crit) then
-                Z_block = z(k)
-                exit
+       if (blocking_drag) then
+          H = 0d0
+          Z_block = 0d0
+          do k = zlevels, 1, -1
+             if (z(k) <= H_peak) then
+                H = H + N_bv(k) * dz_i (dom, i, j, k, offs, dims, sol) / umag(k) ! non-dimensional height
+                if (H >= H_crit) then
+                   Z_block = z(k)
+                   exit
+                end if
              end if
-          end if
-       end do
+          end do
+       end if
 
        ! Compute mean values vertical layers mu <= z - z_s <= 2 mu
        N_av    = 0d0
@@ -126,52 +132,66 @@ contains
           N_av   = N_av   / dble (nlev)
           phi_av = phi_av / dble (nlev)
           rho_av = rho_av / dble (nlev)
-          U_av   = U_av   / dble (nlev)
+          u_av   = u_av   / dble (nlev)
        end if
        if (.not. circle) then
           psi_av = theta - phi_av
           e_Uav = cos(phi_av) * e_zonal + sin(phi_av) * e_merid
        end if
 
-       ! Compute gravity wave drag stress (non-zero in lowest layer only)
-       H_eff = H_peak - Z_block
-       if (circle) then ! circular mountain
-          tau_grav(1) = - rho_av * N_av * (H_eff/3d0)**2 * sigma/mu * G * u_av * 0.78d0
-       else
-          tau_grav(1) = - rho_av * N_av * (H_eff/3d0)**2 * sigma/mu * G * u_av &
-               * ((B*cos(psi_av)**2 + C*sin(psi_av)**2) + (B-C)*sin(psi_av)*cos(psi_av))
+       ! Compute gravity wave drag drag (non-zero in lowest layer only)
+       if (wave_drag) then
+          
+          if (blocking_drag) then
+             H_eff = H_peak - Z_block
+          else
+             H_eff = H_peak
+          end if
+          rho_dz = sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1)
+
+          if (circle) then ! circular mountain
+             drag_wave(1) = - rho_av * N_av * u_av * (H_eff/3d0)**2 * sigma/mu * G  * 0.78d0 / rho_dz
+          else
+             drag_wave(1) = - rho_av * N_av * u_av * (H_eff/3d0)**2 * sigma/mu * G  &
+                  * ((B*cos(psi_av)**2 + C*sin(psi_av)**2) + (B-C)*sin(psi_av)*cos(psi_av)) / rho_dz
+          end if
        end if
 
-       ! Compute blocking drag stress magnitude
-       do k = 1, zlevels
-          if (z(k) <= Z_block) then
-             if (circle) then ! circular mountain
-                tau_block(k) = - 0.5d0 * C_d * rho(k) * 4d0  * sigma/H_env * sqrt ((Z_block - z(k))/(z(k) + mu)) * umag(k) * 0.78d0  
-             else
-                r = sqrt ( (cos(psi(k))**2 + gamma**2 * sin(psi(k))**2) / (gamma**2 * cos(psi(k))**2 + sin(psi(k))**2) )
+       ! Compute blocking drag magnitude
+       if (blocking_drag) then
+          do k = 1, zlevels
+             if (z(k) <= Z_block) then
+                if (circle) then ! circular mountain
+                   drag_block(k) = - 0.5d0 * C_d * 4d0  * sigma/H_env * sqrt ((Z_block - z(k))/(z(k) + mu)) * umag(k) * 0.78d0  
+                else
+                   r = sqrt ( (cos(psi(k))**2 + gamma**2 * sin(psi(k))**2) / (gamma**2 * cos(psi(k))**2 + sin(psi(k))**2) )
 
-                tau_block(k) = - 0.5d0 * C_d * rho(k) * max (5d0 - 1d0/r**3, 0d0)  * sigma/H_env &
-                     * sqrt ( (Z_block - z(k))/(z(k) + mu) ) * umag(k) * (B * cos(psi(k))**2  + C * sin(psi(k))**2)
+                   drag_block(k) = - 0.5d0 * C_d * max (5d0 - 1d0/r**3, 0d0)  * sigma/H_env &
+                        * sqrt ( (Z_block - z(k))/(z(k) + mu) ) * umag(k) * (B * cos(psi(k))**2  + C * sin(psi(k))**2)
+                end if
+             else 
+                exit
              end if
-          else 
-             exit
-          end if
-       end do
-
-       ! Complete stress
+           end do
+       end if
+       
+       ! Complete drag
        do k = 1, zlevels
-          if (circle) then
-             sso_stress(k,EDGE*id+RT+1) = tau_grav(k) + tau_block(k) * sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1)
-             sso_stress(k,EDGE*id+DG+1) = tau_grav(k) + tau_block(k) * sol(S_VELO,k)%data(d)%elts(EDGE*id+DG+1)
-             sso_stress(k,EDGE*id+UP+1) = tau_grav(k) + tau_block(k) * sol(S_VELO,k)%data(d)%elts(EDGE*id+UP+1)
-          else
-             sso_stress(k,EDGE*id+RT+1) = inner (tau_grav(k)*e_Uav, e_U) + tau_block(k) * sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1)
-             sso_stress(k,EDGE*id+DG+1) = inner (tau_grav(k)*e_Uav, e_V) + tau_block(k) * sol(S_VELO,k)%data(d)%elts(EDGE*id+DG+1)
-             sso_stress(k,EDGE*id+UP+1) = inner (tau_grav(k)*e_Uav, e_W) + tau_block(k) * sol(S_VELO,k)%data(d)%elts(EDGE*id+UP+1)
+          if (blocking_drag) &
+               sso_drag(k,id_e) = drag_block(k) * sol(S_VELO,k)%data(d)%elts(id_e)
+
+          if (wave_drag) then
+             if (circle) then
+                sso_drag(k,id_e) = drag_wave(k) 
+             else
+                sso_drag(k,EDGE*id+RT+1) = inner (drag_wave(k)*e_Uav, e_U) 
+                sso_drag(k,EDGE*id+DG+1) = inner (drag_wave(k)*e_Uav, e_V) 
+                sso_drag(k,EDGE*id+UP+1) = inner (drag_wave(k)*e_Uav, e_W) 
+             end if
           end if
        end do
     end if
-  end subroutine cal_sso_stress
+  end subroutine cal_sso_drag
 
   subroutine cal_sso_param (dom, i, j, zlev, offs, dims)
     ! mu (standard deviation) of Subgrid Scale Orography (SSO) compared to Grid Scale Orography (GSO)

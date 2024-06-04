@@ -856,41 +856,52 @@ contains
     read (fid) threshold
   end subroutine load_case
 
-  subroutine trend_cooling (q, dq)
-    ! Trend for Held-Suarez cooling
+  subroutine trend_physics (q, dq)
+    ! Trend for Held-Suarez physics
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
 
-    integer :: d, k, p
+    integer :: d, k, n_id, p
 
     call update_array_bdry (sol, NONE, 27)
-
+    
     ! Current surface pressure
     call cal_surf_press_HS (sol)
 
-    do k = 1, zlevels
-       do d = 1, size(grid)
+    do d = 1, size(grid)
+       ! Compute SSO drag over all layers
+       if (sso) then
+          n_id = size (sol(S_VELO,1)%data(d)%elts)
+          allocate (sso_drag(1:zlevels,1:n_id))
+          
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (cal_sso_drag, grid(d), p-1, z_null, 0, 1)
+          end do
+       end if
+
+       do k = 1, zlevels
           mean_m =>   sol_mean(S_MASS,k)%data(d)%elts
           mass   =>  q(S_MASS,k)%data(d)%elts
           temp   =>  q(S_TEMP,k)%data(d)%elts
           velo   =>  q(S_VELO,k)%data(d)%elts
-          
+
           dmass  => dq(S_MASS,k)%data(d)%elts
           dtemp  => dq(S_TEMP,k)%data(d)%elts
           dvelo  => dq(S_VELO,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (cal_press_HS,          grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (trend_scalars_cooling, grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (trend_velo_cooling,    grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (trend_scalars_physics, grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (trend_velo_physics,    grid(d), p-1, k, 0, 0)
           end do
           nullify (dmass, dtemp, dvelo, mass, temp, velo)
        end do
+       if (sso) deallocate (sso_drag)
     end do
     dq%bdry_uptodate = .false.
-  end subroutine trend_cooling
+  end subroutine trend_physics
 
-  subroutine trend_scalars_cooling (dom, i, j, zlev, offs, dims)
-    ! Trend for cooling step (relaxation to equilibrium temperature)
+  subroutine trend_scalars_physics (dom, i, j, zlev, offs, dims)
+    ! Trend for physics step (relaxation to equilibrium temperature)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -919,26 +930,30 @@ contains
     else
        dtemp(id) = - k_T * temp(id)
     end if
-  end subroutine trend_scalars_cooling
+  end subroutine trend_scalars_physics
 
-  subroutine trend_velo_cooling (dom, i, j, zlev, offs, dims)
-    ! Velocity trend for cooling step (Rayleigh friction)
+  subroutine trend_velo_physics (dom, i, j, zlev, offs, dims)
+    ! Velocity trend for physics step (Rayleigh friction)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, id_i
-    real(8) :: k_v, sigma
+    integer                    :: id, id_i
+    integer, dimension(1:EDGE) :: id_e
+    real(8)                    :: k_v, sigma
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
+    id_e = id_edge (id)
 
     sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
     k_v = k_f * max (0d0, (sigma - sigma_b) / sigma_c)
-    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = - k_v * velo(EDGE*id+RT+1:EDGE*id+UP+1)
-  end subroutine trend_velo_cooling
+    dvelo(id_e) = - k_v * velo(id_e)
+
+    if (sso) dvelo(id_e) = dvelo(id_e) + sso_drag(zlev,id_e) 
+  end subroutine trend_velo_physics
 
   subroutine trend_sso (q, dq)
     ! Trend for SSO drag
@@ -954,11 +969,11 @@ contains
 
     do d = 1, size(grid)
        n_id = size (q(S_VELO,1)%data(d)%elts)
-       allocate (sso_stress(1:zlevels,1:n_id))
+       allocate (sso_drag(1:zlevels,1:n_id))
 
        ! Compute SSO stress for all layers
        do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (cal_sso_stress, grid(d), p-1, z_null, 0, 1)
+          call apply_onescale_to_patch (cal_sso_drag, grid(d), p-1, z_null, 0, 1)
        end do
 
        do k = 1, zlevels
@@ -975,7 +990,7 @@ contains
           end do
           nullify (dmass, dtemp, dvelo, mass, mean_m, velo)
        end do
-       deallocate (sso_stress)
+       deallocate (sso_drag)
     end do
     dq%bdry_uptodate = .false.
   end subroutine trend_sso
@@ -1008,7 +1023,7 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = sso_stress(zlev,EDGE*id+RT+1:EDGE*id+UP+1) / (mass(id+1) + mean_m(id+1))
+    dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = sso_drag(zlev,EDGE*id+RT+1:EDGE*id+UP+1) 
   end subroutine trend_velo_sso
 
   subroutine cal_press_HS (dom, i, j, zlev, offs, dims)
