@@ -1904,8 +1904,7 @@ contains
           
           outv(5) = trend(S_TEMP,zlev)%data(d)%elts(id_i)                        ! vertical velocity OMEGA (stored in trend(S_TEMP,:))
           
-          !outv(6) = dom%ke%elts(id_i)                                            ! vorticity (stored in ke)
-          outv(6) = (zl_i (dom, i, j, 1, offs, dims, sol, 1) - topography%data(d)%elts(id+1))
+          outv(6) = dom%ke%elts(id_i)                                            ! vorticity (stored in ke)
 
           if (zlev == 1) then
              outv(7) = topography%data(d)%elts(id_i)                             ! topography
