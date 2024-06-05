@@ -11,37 +11,37 @@ kevlahan@mcmaster.ca
 **********************************************************************************************************************************
 PREPARE VTK FILES USING trisk2vtk
 
-  Compile post/paraview/trisk2vtk.f90:
+Compile post/paraview/trisk2vtk.f90:
   
   gfortran trisk2vtk.f90 -o trisk2vtk
   
 Converts trisk data files from wavetrisk code to BINARY .vtk format for paraview
 
-Usage: trisk2vtk run_id sim_type grid_type tstart tend jmin jmax zmin zmax
-
-Example: ./trisk2vtk drake sea hex 0 1 5 7 3 4
-
-Reads files drake_003.1.0001.tgz, drake_004.1.0001.tgz, drake_003.1.0002.tgz, drake_004.1.0002.tgz
-for scale 5 to 7.
+Usage: ./trisk2vtk run_id sim_type grid_type jmin jmax zmin zmax tbeg tend
 
 run_id    = base name of files
 sim_type  = atm (atmosphere, compressible), sea (sea, incompressible), or 2layer (sea, 2 layer)
 grid_type = hex (overlapping hexagons on each scale) or tri (non-overlapping triangles of adaptive grid)
-tstart    = first file to read
-tend      = last file to read
 jmin      = minimum scale
 jmax      = maximum scale
 zmin      = min vertical layer
 zmax      = max vertical layer
+tbeg      = first file to read
+tend      = last file to read
 
+Example: ./trisk2vtk drake sea hex 5 7 3 4 0 15
+incompressible simulation
+hexagonal grid
+jmin = 5, jmax = 7
+zmin = 3, zmax = 4
+tbeg = 0, tend = 15
 
-Note: select try to obtain the complete non-overlapping adaptive grid over all grid levels.
+Note: selecting grid_type=tri produces a single vtk file with the complete non-overlapping adaptive triangular grid over all grid levels.
 
 You can transform from 3D xyz coordinates to longitude-latitude coordinates using xyz2lonlat.py:
 
-python xyz2lonlat.py filename 3 10
+python xyz2lonlat.py drake hex 3 4 0 15
 
-transforms all vtk files of the form filename0003.vtk filename0004.vtk ... filename0010.vtk to longitude-latitude grids.
 
 **********************************************************************************************************************************
 SELECTING OBJECTS TO DISPLAY
