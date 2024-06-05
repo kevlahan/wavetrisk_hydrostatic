@@ -38,29 +38,31 @@ def split_cell(cellid, offset, ugrid) :
 
 
 # Main program
-if (len(sys.argv)<5) :
-    print("Usage: python xyz2lonlat.py file z1 z2 t1 t2\n")
+if (len(sys.argv)<7) :
+    print("\nUsage: python xyz2lonlat.py file grid z1 z2 t1 t2\n")
     print("file = file base name (without .vtk)")
+    print("grid = hex or tri")
     print("z1   = first z layer")
     print("z2   = last  z layer")
     print("t1   = first time")
     print("t2   = last time\n")
     print("output is file_lonlat ... .vtk\n")
     print("Example:")
-    print("python3 xyz2lonlat.py HS_J6J7_dl_240km 1 32 0 28")
+    print("python3 xyz2lonlat.py HS_J6J7_dl_240km hex 1 32 0 28")
     exit(0)
 
 file_base = sys.argv[1]
-z1        = int(sys.argv[2])
-z2        = int(sys.argv[3])
-t1        = int(sys.argv[4])
-t2        = int(sys.argv[5])
+grid      = sys.argv[2]
+z1        = int(sys.argv[3])
+z2        = int(sys.argv[4])
+t1        = int(sys.argv[5])
+t2        = int(sys.argv[6])
 
-for k in range (z1, z2+1):
-    for j in range (t1, t2+1):
+for z in range (z1, z2+1):
+    for t in range (t1, t2+1):
         # Load the input vtk file
-        infile  = file_base+"_"+str(k).zfill(3)+"_"+str(j).zfill(4)
-        outfile = file_base+"_lonlat_"+str(k).zfill(3)+"_"+str(j).zfill(4)
+        infile  = file_base+"_"+grid+"_"+str(z).zfill(3)+"_"+str(t).zfill(4)
+        outfile = file_base+"_"+grid+"_lonlat_"+str(z).zfill(3)+"_"+str(t).zfill(4)
         print("Transforming file "+infile+".vtk")
         vtkreader = vtk.vtkUnstructuredGridReader()
         vtkreader.ReadAllScalarsOn()
