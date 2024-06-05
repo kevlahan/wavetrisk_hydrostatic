@@ -12,7 +12,7 @@ program trisk2vtk
   integer, parameter :: nvar_out = 11 ! number of saved variables
   integer, parameter :: iunit = 10
 
-  integer                                 :: fid, i, icell, icoord, isave, ivert, k, ncells, ncells_adapt, nvertices, tstart, tend
+  integer                                 :: fid, i, icell, icoord, isave, ivert, k, ncells, ncells_adapt, nvertices, tbeg, tend
   integer                                 :: stat
   integer                                 :: j, jmin, jmax, ncells_old, zmax, zmin
   integer, dimension(:),      allocatable :: mask, level, vtk_type, tmp
@@ -34,39 +34,37 @@ program trisk2vtk
   call get_command_argument (1, arg); run_id    = trim(arg)
   call get_command_argument (2, arg); sim_type  = trim(arg)
   call get_command_argument (3, arg); grid_type = trim(arg)
-  call get_command_argument (4, arg); read (arg,'(I12)') tstart
-  call get_command_argument (5, arg); read (arg,'(I12)') tend
-  call get_command_argument (6, arg); read (arg,'(I12)') jmin
-  call get_command_argument (7, arg); read (arg,'(I12)') jmax
-  call get_command_argument (8, arg); read (arg,'(I12)') zmin
-  call get_command_argument (9, arg); read (arg,'(I12)') zmax
+  call get_command_argument (4, arg); read (arg,'(I12)') jmin
+  call get_command_argument (5, arg); read (arg,'(I12)') jmax
+  call get_command_argument (6, arg); read (arg,'(I12)') zmin
+  call get_command_argument (7, arg); read (arg,'(I12)') zmax
+  call get_command_argument (8, arg); read (arg,'(I12)') tbeg
+  call get_command_argument (9, arg); read (arg,'(I12)') tend
 
   if (grid_type == " ") then
      write (6,'(/,a)') "Converts trisk data files from wavetrisk code to BINARY .vtk format for paraview"
-     write (6,'(/,a)')"Usage: trisk2vtk run_id sim_type grid_type tstart tend jmin jmax zmin zmax"
-     write (6,'(/,a)')"Example: ./trisk2vtk drake sea hex 0 1 5 7 3 4"
-     write (6,'(/,a)')"Reads files drake_003.1.0001.tgz, drake_004.1.0001.tgz, drake_003.1.0002.tgz, drake_004.1.0002.tgz"
-     write (6,'(a,/)')"for scale 5 to 7."
+     write (6,'(/,a)')"Usage: trisk2vtk run_id sim_type grid_type jmin jmax zmin zmax tbeg tend"
+     write (6,'(/,a)')"Example: ./trisk2vtk drake sea hex 5 7 3 4 0 10"
      write (6,'(a)') "run_id    = base name of files"
      write (6,'(a)') "sim_type  = atm (atmosphere, compressible), sea (sea, incompressible), or 2layer (sea, 2 layer)"
      write (6,'(a)') "grid_type = hex (overlapping hexagons on each scale) or tri (non-overlapping triangles of adaptive grid)"
-     write (6,'(a)') "tstart    = first file to read"
-     write (6,'(a)') "tend      = last file to read"
      write (6,'(a)') "jmin      = minimum scale"
      write (6,'(a)') "jmax      = maximum scale"
      write (6,'(a)') "zmin      = min vertical layer"
      write (6,'(a,/)') "zmax      = max vertical layer"
+     write (6,'(a)') "tbeg      = first file to read"
+     write (6,'(a)') "tend      = last file to read"
      stop 
   else
      write (6,'(/,"run_id = ", a)') trim(run_id)
      write (6,'("sim_type  = ", a)') trim(sim_type)
      write (6,'("grid_type = ", a)') trim(grid_type)
-     write (6,'("tstart    = ", i4.4)') tstart
-     write (6,'("tend      = ", i4.4)') tend
      write (6,'("jmin      = ", i2.2)') jmin
      write (6,'("jmax      = ", i2.2)') jmax
      write (6,'("zmin      = ", i3.3)') zmin
      write (6,'("zmax      = ", i3.3)') zmax
+     write (6,'("tbeg      = ", i4.4)') tbeg
+     write (6,'("tend      = ", i4.4)') tend
 
      if (trim(grid_type) == "hex") then     ! hexagonal cells (primal grid)
         nvertices = 6
@@ -75,7 +73,7 @@ program trisk2vtk
      end if
   end if
 
-  do isave = tstart, tend
+  do isave = tbeg, tend
      write (isv,'(i4.4)') isave
      file_in = trim(run_id)//"_"//trim(grid_type)//"_"//trim(isv)
 
