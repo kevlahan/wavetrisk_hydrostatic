@@ -158,35 +158,36 @@ contains
   subroutine remap_scalars (dom, i, j, z_null, offs, dims)
     ! Remap mass-weighted potential temperature
     ! (potential temperature is remapped and then multiplied by new mass)
+    implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, z_null
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
-    real(8)                        :: full_mass, full_temp
-    real(8), dimension (1:zlevels) :: rho_dz, theta_new, theta_old 
+    real(8)                        :: rho_dz, rho_dz_theta
+    real(8), dimension (1:zlevels) :: rho_dz_new, theta_new, theta_old 
     real(8), dimension (0:zlevels) :: p_new, p_old
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
     do k = 1, zlevels
-       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
-       full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
+       rho_dz       = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
+       rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
 
-       theta_old(zlevels-k+1) = full_temp / full_mass
+       theta_old(zlevels-k+1) = rho_dz_theta / rho_dz
     end do
 
     call find_coordinates (p_new, p_old, d, id_i)
-    rho_dz = (p_new(zlevels:1:-1) - p_new(zlevels-1:0:-1)) / grav_accel
+    rho_dz_new = (p_new(zlevels:1:-1) - p_new(zlevels-1:0:-1)) / grav_accel
   
     call interp_scalar (zlevels, theta_new, p_new, theta_old, p_old)
 
     ! Remapped values
     do k = 1, zlevels
-       sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz(k) - sol_mean(S_MASS,k)%data(d)%elts(id_i)
-       sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz(k) * theta_new(zlevels-k+1) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+       sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz_new(k) - sol_mean(S_MASS,k)%data(d)%elts(id_i)
+       sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz_new(k) * theta_new(zlevels-k+1) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
     end do
   end subroutine remap_scalars
 
@@ -199,7 +200,7 @@ contains
 
     integer                        :: d, e, id, id_i, k
     integer, dimension (1:EDGE)    :: id_r
-    real(8)                        :: full_mass
+    real(8)                        :: rho_dz
     real(8), dimension (1:zlevels) :: flux_new, flux_old
     real(8), dimension (0:zlevels) :: p_edge_new, p_edge_old, p_new, p_old
 
@@ -233,13 +234,14 @@ contains
   subroutine remap_scalars_incompressible (dom, i, j, zlev, offs, dims)
     ! Remap full buoyancy and layer heights
     ! (full buoyancy is remapped and then mass-weighted buoyancy is formed)
+    implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                        :: d, id_i, k
-    real(8)                        :: full_mass, full_theta, rho
+    real(8)                        :: rho_dz, rho
     real(8), dimension (1:zlevels) :: dz, theta_new, theta_old 
     real(8), dimension (0:zlevels) :: z_new, z_old
 
@@ -260,13 +262,13 @@ contains
     do k = 1, zlevels
        ! New full mass
        rho = porous_density (d, id_i, k)
-       full_mass =  rho * dz(k)
+       rho_dz =  rho * dz(k)
 
        ! New perturbation mass
-       sol(S_MASS,k)%data(d)%elts(id_i) = full_mass - sol_mean(S_MASS,k)%data(d)%elts(id_i)
+       sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz - sol_mean(S_MASS,k)%data(d)%elts(id_i)
 
        ! New mass-weighted buoyancy
-       sol(S_TEMP,k)%data(d)%elts(id_i) = full_mass * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i) 
+       sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i) 
     end do
   end subroutine remap_scalars_incompressible
 
@@ -313,15 +315,15 @@ contains
     ! Calculates old and new pressure-based z coordinates from top down
     implicit none
     integer                       :: d, id_i
-    real(8)                       :: full_mass
+    real(8)                       :: rho_dz
     real(8), dimension(0:zlevels) :: p_new, p_old
 
     integer :: k
 
     p_old(0) = p_top
     do k = 1, zlevels
-       full_mass = sol_mean(S_MASS,zlevels-k+1)%data(d)%elts(id_i) + old_mass(zlevels-k+1)%data(d)%elts(id_i)
-       p_old(k) = p_old(k-1) + grav_accel * full_mass 
+       rho_dz = sol_mean(S_MASS,zlevels-k+1)%data(d)%elts(id_i) + old_mass(zlevels-k+1)%data(d)%elts(id_i)
+       p_old(k) = p_old(k-1) + grav_accel * rho_dz 
     end do
     p_new = a_vert(zlevels+1:1:-1) + b_vert(zlevels+1:1:-1) * p_old(zlevels)
   end subroutine find_coordinates
@@ -334,12 +336,12 @@ contains
     real(8), dimension(0:zlevels) :: z_new, z_old
 
     integer :: k
-    real(8) :: eta_surf, full_mass
+    real(8) :: eta_surf, rho_dz
 
     z_old(0) = z_s
     do k = 1, zlevels
-       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i) + old_mass(k)%data(d)%elts(id_i)
-       z_old(k) = z_old(k-1) + full_mass / (ref_density * phi_node (d, id_i, k))
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + old_mass(k)%data(d)%elts(id_i)
+       z_old(k) = z_old(k-1) + rho_dz / (ref_density * phi_node (d, id_i, k))
     end do
     eta_surf = z_old(zlevels) ! coordinate of free surface                                                                                                                                                                                                      
     ! New coordinates

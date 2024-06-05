@@ -483,7 +483,7 @@ contains
     real(8) :: circ_LORT, circ_UPLT, circ_S_UPLT, circ_SW_LORT, circ_SW_UPLT, circ_W_LORT
     real(8) :: pv, pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
     real(8) :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
-    real(8), dimension(0:N_BDRY) :: full_mass
+    real(8), dimension(0:N_BDRY) :: rho_dz
 
     ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
     ! Note that pedlen(EDGE*idSW+DG+1) = 0 in this case
@@ -495,7 +495,7 @@ contains
        idW  = idx (-1,  0, offs, dims)
        idSW = idx (-1, -1, offs, dims)
 
-       full_mass(0:SOUTHWEST) = mass((/id,idN,idE,idS,idW,id,id,idSW/)+1) + mean_m((/id,idN,idE,idS,idW,id,id,idSW/)+1)
+       rho_dz(0:SOUTHWEST) = mass((/id,idN,idE,idS,idW,id,id,idSW/)+1) + mean_m((/id,idN,idE,idS,idW,id,id,idSW/)+1)
 
        u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
        u_prim_RT_SW = velo(EDGE*idSW+RT+1) * dom%len%elts(EDGE*idSW+RT+1) 
@@ -509,19 +509,19 @@ contains
        vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        pv_SW_LORT = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_SW_LORT) / &
-            (full_mass(WEST)  * dom%areas%elts(idW+1)%part(6) + &
-            full_mass(0)     * sum(dom%areas%elts(id+1)%part(4:5)) + &
-            full_mass(SOUTH) * dom%areas%elts(idS+1)%part(3))
+            (rho_dz(WEST)  * dom%areas%elts(idW+1)%part(6) + &
+            rho_dz(0)     * sum(dom%areas%elts(id+1)%part(4:5)) + &
+            rho_dz(SOUTH) * dom%areas%elts(idS+1)%part(3))
 
        pv_W_LORT = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_W_LORT) / &
-            (full_mass(WEST)  * dom%areas%elts(idW+1)%part(1) + &
-            full_mass(0)     * dom%areas%elts(id+1)%part(3) + &
-            full_mass(NORTH) * dom%areas%elts(idN+1)%part(5))
+            (rho_dz(WEST)  * dom%areas%elts(idW+1)%part(1) + &
+            rho_dz(0)     * dom%areas%elts(id+1)%part(3) + &
+            rho_dz(NORTH) * dom%areas%elts(idN+1)%part(5))
 
        pv_S_UPLT = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_S_UPLT) / &
-            (full_mass(SOUTH) * dom%areas%elts(idS+1)%part(2) + &
-            full_mass(EAST)  * dom%areas%elts(idE+1)%part(4) + &
-            full_mass(0)     * dom%areas%elts(id+1)%part(6))
+            (rho_dz(SOUTH) * dom%areas%elts(idS+1)%part(2) + &
+            rho_dz(EAST)  * dom%areas%elts(idE+1)%part(4) + &
+            rho_dz(0)     * dom%areas%elts(id+1)%part(6))
 
        pv_SW_UPLT = pv_SW_LORT
 
@@ -539,7 +539,7 @@ contains
        idNE = idx (PATCH_SIZE+1,  1, offs, dims)
        idSW = idx (PATCH_SIZE-1, -1, offs, dims)
 
-       full_mass(0:SOUTHWEST) = mass((/id,id,idE,idS,idW,idNE,id,idSW/)+1) + mean_m((/id,id,idE,idS,idW,idNE,id,idSW/)+1)
+       rho_dz(0:SOUTHWEST) = mass((/id,id,idE,idS,idW,idNE,id,idSW/)+1) + mean_m((/id,id,idE,idS,idW,idNE,id,idSW/)+1)
 
        u_prim_RT_SW = velo(EDGE*idSW+RT+1) * dom%len%elts(EDGE*idSW+RT+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
@@ -553,19 +553,19 @@ contains
        vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
 
        pv_SW_LORT = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_SW_LORT) / &
-            (full_mass(SOUTHWEST) * dom%areas%elts(idSW+1)%part(1) + &
-            full_mass(SOUTH)     * dom%areas%elts(idS +1)%part(3) + &
-            full_mass(0)         * sum(dom%areas%elts(id+1)%part(5:6)))
+            (rho_dz(SOUTHWEST) * dom%areas%elts(idSW+1)%part(1) + &
+            rho_dz(SOUTH)     * dom%areas%elts(idS +1)%part(3) + &
+            rho_dz(0)         * sum(dom%areas%elts(id+1)%part(5:6)))
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT) / &
-            (full_mass(0)         * dom%areas%elts(id  +1)%part(1) + &
-            full_mass(EAST)      * dom%areas%elts(idE +1)%part(3) + &
-            full_mass(NORTHEAST) * dom%areas%elts(idNE+1)%part(5))
+            (rho_dz(0)         * dom%areas%elts(id  +1)%part(1) + &
+            rho_dz(EAST)      * dom%areas%elts(idE +1)%part(3) + &
+            rho_dz(NORTHEAST) * dom%areas%elts(idNE+1)%part(5))
 
        pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_SW_UPLT) / &
-            (full_mass(SOUTHWEST) * dom%areas%elts(idSW+1)%part(2) + &
-            full_mass(0)         * dom%areas%elts(id  +1)%part(4) + &
-            full_mass(WEST)      * dom%areas%elts(idW +1)%part(6))
+            (rho_dz(SOUTHWEST) * dom%areas%elts(idSW+1)%part(2) + &
+            rho_dz(0)         * dom%areas%elts(id  +1)%part(4) + &
+            rho_dz(WEST)      * dom%areas%elts(idW +1)%part(6))
 
        pv_S_UPLT = pv_SW_LORT
 
@@ -583,7 +583,7 @@ contains
        idNE = idx ( 1, PATCH_SIZE+1, offs, dims)
        idSW = idx (-1, PATCH_SIZE-1, offs, dims)
 
-       full_mass(0:SOUTHWEST) = mass((/id,idN,id,idS,idW,idNE,id,idSW/)+1) + mean_m((/id,idN,id,idS,idW,idNE,id,idSW/)+1)
+       rho_dz(0:SOUTHWEST) = mass((/id,idN,id,idS,idW,idNE,id,idSW/)+1) + mean_m((/id,idN,id,idS,idW,idNE,id,idSW/)+1)
 
        u_prim_UP    = velo(EDGE*id  +UP+1) * dom%len%elts(EDGE*id  +UP+1)
        u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
@@ -597,19 +597,19 @@ contains
        vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
 
        pv_SW_UPLT = (dom%coriolis%elts(TRIAG*idSW+UPLT+1) + circ_SW_UPLT) / &
-            (full_mass(SOUTHWEST) * dom%areas%elts(idSW+1)%part(2) + &
-            full_mass(0)         * sum(dom%areas%elts(id+1)%part(3:4)) + &
-            full_mass(WEST)      * dom%areas%elts(idW+1)%part(6))
+            (rho_dz(SOUTHWEST) * dom%areas%elts(idSW+1)%part(2) + &
+            rho_dz(0)         * sum(dom%areas%elts(id+1)%part(3:4)) + &
+            rho_dz(WEST)      * dom%areas%elts(idW+1)%part(6))
 
        pv_UPLT = (dom%coriolis%elts(TRIAG*id+UPLT+1) + circ_UPLT) / &
-            (full_mass(0)         * dom%areas%elts(id  +1)%part(2) + &
-            full_mass(NORTHEAST) * dom%areas%elts(idNE+1)%part(4) + &
-            full_mass(NORTH)     * dom%areas%elts(idN +1)%part(6))
+            (rho_dz(0)         * dom%areas%elts(id  +1)%part(2) + &
+            rho_dz(NORTHEAST) * dom%areas%elts(idNE+1)%part(4) + &
+            rho_dz(NORTH)     * dom%areas%elts(idN +1)%part(6))
 
        pv_SW_LORT = (dom%coriolis%elts(TRIAG*idSW+LORT+1) + circ_SW_LORT) / &
-            (full_mass(SOUTHWEST) * dom%areas%elts(idSW+1)%part(1) + &
-            full_mass(SOUTH)     * dom%areas%elts(idS +1)%part(3) + &
-            full_mass(0)         * dom%areas%elts(id  +1)%part(5))
+            (rho_dz(SOUTHWEST) * dom%areas%elts(idSW+1)%part(1) + &
+            rho_dz(SOUTH)     * dom%areas%elts(idS +1)%part(3) + &
+            rho_dz(0)         * dom%areas%elts(id  +1)%part(5))
 
        pv_W_LORT = pv_SW_UPLT
 
@@ -626,7 +626,7 @@ contains
        idS = idx (PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
        idW = idx (PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
 
-       full_mass(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean_m((/id,idN,idE,idS,idW/)+1)
+       rho_dz(0:WEST) = mass((/id,idN,idE,idS,idW/)+1) + mean_m((/id,idN,idE,idS,idW/)+1)
 
        u_prim_RT   = velo(EDGE*id +RT+1) * dom%len%elts(EDGE*id +RT+1)
        u_prim_RT_N = velo(EDGE*idN+RT+1) * dom%len%elts(EDGE*idN+RT+1)
@@ -640,19 +640,19 @@ contains
        vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
 
        pv_LORT = (dom%coriolis%elts(TRIAG*id+LORT+1) + circ_LORT) / &          
-            (full_mass(EAST)  * dom%areas%elts(idE+1)%part(3) + &
-            full_mass(0)     * sum(dom%areas%elts(id+1)%part(1:2)) + &
-            full_mass(NORTH) * dom%areas%elts(idN+1)%part(6))
+            (rho_dz(EAST)  * dom%areas%elts(idE+1)%part(3) + &
+            rho_dz(0)     * sum(dom%areas%elts(id+1)%part(1:2)) + &
+            rho_dz(NORTH) * dom%areas%elts(idN+1)%part(6))
 
        pv_W_LORT = (dom%coriolis%elts(TRIAG*idW+LORT+1) + circ_W_LORT) / &
-            (full_mass(WEST)  * dom%areas%elts(idW+1)%part(1) + &
-            full_mass(0)     * dom%areas%elts(id +1)%part(3) + &
-            full_mass(NORTH) * dom%areas%elts(idN+1)%part(5))
+            (rho_dz(WEST)  * dom%areas%elts(idW+1)%part(1) + &
+            rho_dz(0)     * dom%areas%elts(id +1)%part(3) + &
+            rho_dz(NORTH) * dom%areas%elts(idN+1)%part(5))
 
        pv_S_UPLT = (dom%coriolis%elts(TRIAG*idS+UPLT+1) + circ_S_UPLT) / &
-            (full_mass(SOUTH) * dom%areas%elts(idS+1)%part(2) + &
-            full_mass(EAST)  * dom%areas%elts(idE+1)%part(4) + &
-            full_mass(0)     * dom%areas%elts(id +1)%part(6))
+            (rho_dz(SOUTH) * dom%areas%elts(idS+1)%part(2) + &
+            rho_dz(EAST)  * dom%areas%elts(idE+1)%part(4) + &
+            rho_dz(0)     * dom%areas%elts(id +1)%part(6))
 
        pv_UPLT = pv_LORT
 
@@ -712,7 +712,7 @@ contains
     integer                         :: id, idE, idN, idNE
     integer, dimension(1:EDGE)      :: id_e
     real(8), dimension(1:EDGE)      :: gradB, gradE, theta_e
-    real(8), dimension(0:NORTHEAST) :: full_mass, full_temp, theta
+    real(8), dimension(0:NORTHEAST) :: rho_dz, rho_dz_theta, theta
 
     id = idx (i, j, offs, dims)
 
@@ -722,15 +722,15 @@ contains
 
     id_e = id_edge (id) 
 
-    full_mass(0:NORTHEAST) = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
-    full_temp(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
+    rho_dz(0:NORTHEAST)       = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
+    rho_dz_theta(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
 
     ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
     ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
-    theta(0)         = full_temp(0)         / full_mass(0)
-    theta(EAST)      = full_temp(EAST)      / full_mass(EAST)
-    theta(NORTHEAST) = full_temp(NORTHEAST) / full_mass(NORTHEAST)
-    theta(NORTH)     = full_temp(NORTH)     / full_mass(NORTH)
+    theta(0)         = rho_dz_theta(0)         / rho_dz(0)
+    theta(EAST)      = rho_dz_theta(EAST)      / rho_dz(EAST)
+    theta(NORTHEAST) = rho_dz_theta(NORTHEAST) / rho_dz(NORTHEAST)
+    theta(NORTH)     = rho_dz_theta(NORTH)     / rho_dz(NORTH)
 
     ! Interpolate potential temperature to edges
     theta_e(RT+1) = interp (theta(0), theta(EAST))      
@@ -973,17 +973,17 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: full_mass, full_temp
+    real(8) :: rho_dz, rho_dz_theta
 
     id = idx (i, j, offs, dims) + 1
 
-    full_mass = mean_m(id) + mass(id)
+    rho_dz = mean_m(id) + mass(id)
     if (compressible) then
-       dom%surf_press%elts(id) = dom%surf_press%elts(id) + full_mass
+       dom%surf_press%elts(id) = dom%surf_press%elts(id) + rho_dz
     else
-       full_temp = mean_t(id) + temp(id)
+       rho_dz_theta = mean_t(id) + temp(id)
        
-       dom%surf_press%elts(id) = dom%surf_press%elts(id) + (full_mass - full_temp)
+       dom%surf_press%elts(id) = dom%surf_press%elts(id) + (rho_dz - rho_dz_theta)
     end if
   end subroutine column_mass
 
@@ -1020,28 +1020,28 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: full_mass, full_temp, p_upper
+    real(8) :: rho_dz, rho_dz_theta, p_upper
 
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
-    full_mass                 = mean_m(id) + mass(id)
-    full_temp                 = mean_t(id) + temp(id)
+    rho_dz       = mean_m(id) + mass(id)
+    rho_dz_theta = mean_t(id) + temp(id)
     dom%geopot_lower%elts(id) = dom%geopot%elts(id)
     if (compressible) then ! compressible case:, rho = P / (kappa theta pi)
-       p_upper = dom%press_lower%elts(id) - grav_accel * full_mass
+       p_upper = dom%press_lower%elts(id) - grav_accel * rho_dz
        
        dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
 
        exner(id) = c_p * (dom%press%elts(id)/p_0)**kappa
 
-       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel * kappa * full_temp * exner(id) / dom%press%elts(id)
+       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel * kappa * rho_dz_theta * exner(id) / dom%press%elts(id)
     else ! incompressible case
-       p_upper = dom%press_lower%elts(id) - grav_accel * (full_mass - full_temp)
+       p_upper = dom%press_lower%elts(id) - grav_accel * (rho_dz - rho_dz_theta)
 
        dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
        
-       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel*full_mass / (ref_density * phi_node (d, id, zlev))
+       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel*rho_dz / (ref_density * phi_node (d, id, zlev))
     end if
     dom%press_lower%elts(id) = p_upper
   end subroutine integrate_pressure_up
@@ -1055,18 +1055,18 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: full_mass, full_temp, p_upper
+    real(8) :: rho_dz, rho_dz_theta, p_upper
 
     id = idx (i, j, offs, dims) + 1
 
-    full_mass = mean_m(id) + mass(id)
+    rho_dz = mean_m(id) + mass(id)
 
     if (compressible) then 
-       p_upper = dom%press_lower%elts(id) - grav_accel * full_mass
+       p_upper = dom%press_lower%elts(id) - grav_accel * rho_dz
     else 
-       full_temp = mean_t(id) + temp(id)
+       rho_dz_theta = mean_t(id) + temp(id)
        
-       p_upper = dom%press_lower%elts(id) - grav_accel * (full_mass - full_temp)
+       p_upper = dom%press_lower%elts(id) - grav_accel * (rho_dz - rho_dz_theta)
     end if
     dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
     dom%press_lower%elts(id) = p_upper
@@ -1282,16 +1282,16 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: full_temp, exner
+    real(8) :: rho_dz_theta, exner
 
     id = idx (i, j, offs, dims) + 1
 
     if (compressible) then ! rho = P / (kappa theta pi)
        d = dom%id + 1
-       full_temp = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + sol(S_TEMP,zlev)%data(d)%elts(id)
+       rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + sol(S_TEMP,zlev)%data(d)%elts(id)
        exner = c_p * (dom%press%elts(id)/p_0)**kappa
 
-       scalar(id) = dom%press%elts(id) / (kappa * full_temp * exner) 
+       scalar(id) = dom%press%elts(id) / (kappa * rho_dz_theta * exner) 
     else ! gravitational density (Boussinesq approximation)
        scalar(id) = ref_density * (1d0 - (mean_t(id) + temp(id)) / (mean_m(id) + mass(id)))
     end if

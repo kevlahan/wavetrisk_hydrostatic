@@ -43,7 +43,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer                    :: d, id, l
-    real(8)                    :: dz, exner, full_mass, full_temp, p
+    real(8)                    :: dz, exner, rho_dz, rho_dz_theta, p
     real(8), dimension(0:zlev) :: z
 
     d = dom%id + 1
@@ -52,16 +52,16 @@ contains
     z(0) = topography%data(d)%elts(id)
     p    =     dom%surf_press%elts(id)
     do l = 1, zlev
-       full_mass = sol_mean(S_MASS,l)%data(d)%elts(id) + q(S_MASS,l)%data(d)%elts(id) 
+       rho_dz = sol_mean(S_MASS,l)%data(d)%elts(id) + q(S_MASS,l)%data(d)%elts(id) 
        if (compressible) then
-          full_temp = sol_mean(S_TEMP,l)%data(d)%elts(id) + q(S_TEMP,l)%data(d)%elts(id)
+          rho_dz_theta = sol_mean(S_TEMP,l)%data(d)%elts(id) + q(S_TEMP,l)%data(d)%elts(id)
 
-          p     = p - grav_accel * full_mass
+          p     = p - grav_accel * rho_dz
           exner = c_p * (p/p_0)**kappa
           
-          dz = kappa * full_temp * exner / p
+          dz = kappa * rho_dz_theta * exner / p
        else 
-          dz = full_mass / porous_density (d, id, l)
+          dz = rho_dz / porous_density (d, id, l)
        end if
        z(l) = z(l-1) + dz
     end do
@@ -81,7 +81,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id, l, lmax
-    real(8) :: dz, exner, full_mass, full_temp, p
+    real(8) :: dz, exner, rho_dz, rho_dz_theta, p
 
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -95,16 +95,16 @@ contains
     zl_i = topography%data(d)%elts(id)
     p    =     dom%surf_press%elts(id)
     do l = 1, lmax
-       full_mass = sol_mean(S_MASS,l)%data(d)%elts(id) + q(S_MASS,l)%data(d)%elts(id) 
+       rho_dz = sol_mean(S_MASS,l)%data(d)%elts(id) + q(S_MASS,l)%data(d)%elts(id) 
        if (compressible) then
-          full_temp = sol_mean(S_TEMP,l)%data(d)%elts(id) + q(S_TEMP,l)%data(d)%elts(id)
+          rho_dz_theta = sol_mean(S_TEMP,l)%data(d)%elts(id) + q(S_TEMP,l)%data(d)%elts(id)
 
-          p     = p - grav_accel * full_mass
+          p     = p - grav_accel * rho_dz
           exner = c_p * (p/p_0)**kappa
           
-          dz = kappa * full_temp * exner / p
+          dz = kappa * rho_dz_theta * exner / p
        else 
-          dz = full_mass / porous_density (d, id, l)
+          dz = rho_dz / porous_density (d, id, l)
        end if
        zl_i = zl_i + dz
     end do
@@ -141,7 +141,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id
-    real(8) :: exner, full_mass, full_temp, p
+    real(8) :: exner, rho_dz, rho_dz_theta, p
 
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -149,13 +149,13 @@ contains
     if (compressible) then ! dz = mu alpha = mu (kappa theta pi) / p = kappa Theta pi / p
        p         = pressure_i (dom, i, j, zlev, offs, dims, sol)
        exner     = c_p * (p/p_0)**kappa
-       full_temp = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
+       rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
 
-       dz_i = kappa * full_temp * exner / p
+       dz_i = kappa * rho_dz_theta * exner / p
     else                   ! dz = mu/ref_density
-       full_mass = sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)
+       rho_dz = sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)
 
-       dz_i = full_mass / porous_density (d, id, zlev)
+       dz_i = rho_dz / porous_density (d, id, zlev)
     end if
   end function dz_i
 
@@ -343,15 +343,15 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id_i
-    real(8) :: full_mass, full_theta
+    real(8) :: rho_dz, rho_dz_theta
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    full_mass  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + q(S_MASS,zlev)%data(d)%elts(id_i)
-    full_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + q(S_TEMP,zlev)%data(d)%elts(id_i)
+    rho_dz  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + q(S_MASS,zlev)%data(d)%elts(id_i)
+    rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + q(S_TEMP,zlev)%data(d)%elts(id_i)
 
-    buoyancy = full_theta / full_mass
+    buoyancy = rho_dz_theta / rho_dz
   end function buoyancy
 
   subroutine cal_buoyancy (dom, i, j, zlev, offs, dims)
@@ -363,16 +363,32 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: full_mass, full_theta
+    real(8) :: rho_dz, rho_dz_theta
 
     id_i = idx (i, j, offs, dims) + 1
 
-    full_mass  = mean_m(id_i) + mass(id_i)
-    full_theta = mean_t(id_i) + temp(id_i)
+    rho_dz  = mean_m(id_i) + mass(id_i)
+    rho_dz_theta = mean_t(id_i) + temp(id_i)
 
-    scalar(id_i) = full_theta / full_mass
+    scalar(id_i) = rho_dz_theta / rho_dz
   end subroutine cal_buoyancy
 
+  real(8) function rho_dz_i (dom, i, j, zlev, offs, dims)
+    use domain_mod
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims)
+
+    rho_dz_i = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
+  end function rho_dz_i
+  
   real(8) function density_i (dom, i, j, zlev, offs, dims, q)
     ! Density at nodes
     ! *** compressible case requires pressure at zlev ***
@@ -384,17 +400,17 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id
-    real(8) :: exner, full_temp, p
+    real(8) :: exner, rho_dz_theta, p
 
     d = dom%id + 1
     id  = idx (i, j, offs, dims) + 1
     
     if (compressible) then ! rho = P / (kappa theta pi)
-       full_temp = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
+       rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
        p         = pressure_i (dom, i, j, zlev, offs, dims, sol)
        exner     = c_p * (p/p_0)**kappa
 
-       density_i = p / (kappa * full_temp * exner) 
+       density_i = p / (kappa * rho_dz_theta * exner) 
     else                   ! gravitational density using Boussinesq approximation
        density_i = ref_density * (1d0 - buoyancy (dom, i, j, zlev, offs, dims, q))
     end if
@@ -431,7 +447,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer                            :: d, id, k, l
-    real(8)                            :: full_mass, full_temp
+    real(8)                            :: rho_dz, rho_dz_theta
     real(8), dimension(zlev-1:zlevels) :: p
 
     d  = dom%id + 1
@@ -440,14 +456,14 @@ contains
     p(zlevels) = p_top
     do l = zlevels-1, zlev, -1
        k = l + 1 ! layer index
-       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + q(S_MASS,k)%data(d)%elts(id) 
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + q(S_MASS,k)%data(d)%elts(id) 
 
        ! Pressure at interface l
        if (compressible) then
-          p(l) = p(l+1) + grav_accel * full_mass               
+          p(l) = p(l+1) + grav_accel * rho_dz               
        else 
-          full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + q(S_TEMP,k)%data(d)%elts(id)
-          p(l) = p(l+1) + grav_accel * (full_mass - full_temp) 
+          rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id) + q(S_TEMP,k)%data(d)%elts(id)
+          p(l) = p(l+1) + grav_accel * (rho_dz - rho_dz_theta) 
        end if
     end do
     pressure_i = interp (p(zlev-1), p(zlev)) ! pressure at layer zlev
@@ -463,15 +479,15 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id_i, k
-    real(8) :: full_mass, total_depth
+    real(8) :: rho_dz, total_depth
 
     d = dom%id + 1
     id_i  = idx (i, j, offs, dims) + 1
 
     total_depth = 0d0
     do k = 1, zlevels
-       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id_i) + q(S_MASS,k)%data(d)%elts(id_i)
-       total_depth = total_depth + full_mass /  porous_density (d, id_i, k)
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + q(S_MASS,k)%data(d)%elts(id_i)
+       total_depth = total_depth + rho_dz /  porous_density (d, id_i, k)
     end do
     free_surface = total_depth + topography%data(d)%elts(id_i)
   end function free_surface

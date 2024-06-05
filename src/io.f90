@@ -66,22 +66,6 @@ contains
     end if
   end subroutine vort_extrema
 
-  real(8) function full_mass (dom, i, j, zlev, offs, dims)
-    use domain_mod
-    implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id
-
-    d = dom%id + 1
-    id = idx (i, j, offs, dims)
-
-    full_mass = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
-  end function full_mass
-
   real(8) function topo (dom, i, j, zlev, offs, dims)
     use domain_mod
     implicit none
@@ -107,12 +91,12 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: full_mass
+    real(8) :: rho_dz
 
     id = idx (i, j, offs, dims)
 
-    full_mass = sol_mean(S_MASS,zlev)%data(dom%id+1)%elts(id+1) + sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
-    pot_energy = full_mass**2
+    rho_dz = sol_mean(S_MASS,zlev)%data(dom%id+1)%elts(id+1) + sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
+    pot_energy = rho_dz**2
   end function pot_energy
 
   real(8) function total_ke (itype)
@@ -480,35 +464,35 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                       :: id, d, k
-    real(8)                       :: full_mass, full_mass_lower, full_temp
+    real(8)                       :: rho_dz, rho_dz_lower, rho_dz_theta
     real(8), dimension(1:zlevels) :: p
 
     d = dom%id + 1
     id = idx(i, j, offs, dims) + 1
 
     ! Integrate the pressure upwards
-    full_mass = sol_mean(S_MASS,1)%data(d)%elts(id) + sol(S_MASS,1)%data(d)%elts(id)
-    p(1) = dom%surf_press%elts(id) - 0.5d0 * grav_accel * full_mass
+    rho_dz = sol_mean(S_MASS,1)%data(d)%elts(id) + sol(S_MASS,1)%data(d)%elts(id)
+    p(1) = dom%surf_press%elts(id) - 0.5d0 * grav_accel * rho_dz
     do k = 2, zlevels
-       full_mass_lower = full_mass
-       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
-       p(k) = p(k-1) - grav_accel * interp (full_mass, full_mass_lower)
+       rho_dz_lower = rho_dz
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
+       p(k) = p(k-1) - grav_accel * interp (rho_dz, rho_dz_lower)
     end do
 
     ! Temperature at all vertical levels (saved in exner_fun)
     do k = 1, zlevels
-       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
-       full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol(S_TEMP,k)%data(d)%elts(id)
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
+       rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol(S_TEMP,k)%data(d)%elts(id)
 
-       exner_fun(k)%data(d)%elts(id) = full_temp / full_mass * (p(k)/p_0)**kappa
+       exner_fun(k)%data(d)%elts(id) = rho_dz_theta / rho_dz * (p(k)/p_0)**kappa
     end do
 
     ! Temperature at save levels (saved in trend)
     do k = 1, save_levels
-       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol_save(S_MASS,k)%data(d)%elts(id)
-       full_temp = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol_save(S_TEMP,k)%data(d)%elts(id)
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol_save(S_MASS,k)%data(d)%elts(id)
+       rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol_save(S_TEMP,k)%data(d)%elts(id)
 
-       trend(1,k)%data(d)%elts(id+1) = full_temp / full_mass * (pressure_save(k) / p_0)**kappa
+       trend(1,k)%data(d)%elts(id+1) = rho_dz_theta / rho_dz * (pressure_save(k) / p_0)**kappa
     end do
   end subroutine cal_temp
 
@@ -522,16 +506,16 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: full_mass, pressure_lower, pressure_upper
+    real(8) :: rho_dz, pressure_lower, pressure_upper
 
     d = dom%id + 1
     id = idx(i, j, offs, dims) + 1
 
     ! Integrate geopotential upwards from surface
-    full_mass = sol_mean(S_MASS,1)%data(d)%elts(id) + sol(S_MASS,1)%data(d)%elts(id)
+    rho_dz = sol_mean(S_MASS,1)%data(d)%elts(id) + sol(S_MASS,1)%data(d)%elts(id)
 
     pressure_lower = dom%surf_press%elts(id)
-    pressure_upper = pressure_lower - grav_accel * full_mass
+    pressure_upper = pressure_lower - grav_accel * rho_dz
 
     dom%geopot_lower%elts(id) = surf_geopot (d, id) / grav_accel
 
@@ -541,10 +525,10 @@ contains
             R_d/grav_accel * exner_fun(k)%data(d)%elts(id) * (log(pressure_lower)-log(pressure_upper))
 
        k = k+1
-       full_mass = sol_mean(S_MASS,k+1)%data(d)%elts(id) + sol(S_MASS,k+1)%data(d)%elts(id)
+       rho_dz = sol_mean(S_MASS,k+1)%data(d)%elts(id) + sol(S_MASS,k+1)%data(d)%elts(id)
 
        pressure_lower = pressure_upper
-       pressure_upper = pressure_lower - grav_accel * full_mass
+       pressure_upper = pressure_lower - grav_accel * rho_dz
     end do
 
     ! Add additional contribution up to pressure level pressure_save(1)
@@ -1827,7 +1811,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                      :: d, id, id_i, idE, idN, idNE, idW, idSW, idS, outl
-    real(8)                      :: full_mass, full_temp
+    real(8)                      :: rho_dz, rho_dz_theta
     real(4), dimension(nvar_out) :: outv
     type(Coord), dimension(6)    :: vertices
     
@@ -1846,12 +1830,12 @@ contains
        
        outl = nint (active_level%data(d)%elts(id_i))
 
-       full_mass = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
-       full_temp = sol(S_TEMP,zlev)%data(d)%elts(id_i) + sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)
+       rho_dz = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
+       rho_dz_theta = sol(S_TEMP,zlev)%data(d)%elts(id_i) + sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)
 
        if (.not. compressible .and. zlevels == 2) then ! two layer incompressible case (e.g. Drake)
           ! Density perturbation
-          outv(1) = -ref_density * full_temp / full_mass
+          outv(1) = -ref_density * rho_dz_theta / rho_dz
 
           ! Barotropic velocity
           outv(2) = dom%u_zonal%elts(id_i)
@@ -1868,8 +1852,8 @@ contains
           outv(7) = dom%ke%elts(id_i)
 
           ! Baroclinic eta
-          full_mass = sol_mean(S_MASS,1)%data(d)%elts(id_i) + sol(S_MASS,1)%data(d)%elts(id_i)
-          outv(8) = full_mass / (ref_density * phi_node (d, id_i, zlev))
+          rho_dz = sol_mean(S_MASS,1)%data(d)%elts(id_i) + sol(S_MASS,1)%data(d)%elts(id_i)
+          outv(8) = rho_dz / (ref_density * phi_node (d, id_i, zlev))
 
           ! Free surface perturbation (barotropic eta)
           if (mode_split) then 
@@ -1891,12 +1875,12 @@ contains
                dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1), &
                outv, dom%mask_n%elts(id_i), outl
        else  ! default case (compressible or incompressible)
-          outv(1) = full_mass                                                    ! rho dz
+          outv(1) = rho_dz                                                    ! rho dz
           
           if (compressible) then 
-             outv(2) = full_temp / full_mass * (dom%press%elts(id_i)/p_0)**kappa ! temperature in layer zlev (compressible)
+             outv(2) = rho_dz_theta / rho_dz * (dom%press%elts(id_i)/p_0)**kappa ! temperature in layer zlev (compressible)
           else
-             outv(2) = ref_density * (1d0 - full_temp / full_mass)               ! density                   (incompressible)
+             outv(2) = ref_density * (1d0 - rho_dz_theta / rho_dz)               ! density                   (incompressible)
           end if
 
           outv(3) = dom%u_zonal%elts(id_i) * phi_node (d, id_i, zlev)            ! zonal velocity
@@ -1948,7 +1932,7 @@ contains
     integer                                :: d, id, idE, idN, idNE, outa, outl
     integer, dimension(0:EDGE)             :: neigh_id
     
-    real(8), dimension(0:EDGE)             :: full_mass, full_temp
+    real(8), dimension(0:EDGE)             :: rho_dz, rho_dz_theta
     real(8), dimension(0:EDGE)             :: temperature
     real(4), dimension(LORT:UPLT,nvar_out) :: outv
     real(8), dimension(LORT:UPLT)          :: relvort, tri_area
@@ -1981,16 +1965,16 @@ contains
     outl = dom%level%elts(id+1)                     ! level of current node
     outa = nint (active_level%data(d)%elts(id+1))   ! finest level of child nodes
 
-    full_mass = sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id)
-    full_temp = sol(S_TEMP,zlev)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,zlev)%data(d)%elts(neigh_id)
+    rho_dz = sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id)
+    rho_dz_theta = sol(S_TEMP,zlev)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,zlev)%data(d)%elts(neigh_id)
     
     if (compressible) then
-       temperature = full_temp/full_mass * (dom%press%elts(neigh_id)/p_0)**kappa
+       temperature = rho_dz_theta/rho_dz * (dom%press%elts(neigh_id)/p_0)**kappa
     else
-       temperature = ref_density * (1d0 - full_temp / full_mass)
+       temperature = ref_density * (1d0 - rho_dz_theta/rho_dz)
     end if
 
-    outv(:,1) = hex2tri2 (full_mass,   hex_area, tri_area)                               ! rho_dz
+    outv(:,1) = hex2tri2 (rho_dz,   hex_area, tri_area)                               ! rho_dz
     
     outv(:,2) = hex2tri2 (temperature, hex_area, tri_area)                               ! temperature (compressible) or density (incompressible)
     

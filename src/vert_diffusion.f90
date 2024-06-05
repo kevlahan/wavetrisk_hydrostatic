@@ -237,7 +237,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                         :: d, id, info, k, l
-    real(8)                         :: eta, full_mass, theta
+    real(8)                         :: eta, rho_dz, theta
 
     real(8), dimension(0:zlevels)   :: z
     real(8), dimension(1:zlevels)   :: diag, dz, rhs
@@ -288,8 +288,8 @@ contains
 
     ! Backwards Euler step
     do k = 1, zlevels
-       full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
-       sol(S_TEMP,k)%data(d)%elts(id) = full_mass * rhs(k)
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
+       sol(S_TEMP,k)%data(d)%elts(id) = rho_dz * rhs(k)
     end do
   contains
     real(8) function coeff (l)
@@ -305,10 +305,10 @@ contains
     real(8) function b ()
       ! Fluctuating buoyancy
       implicit none
-      real(8) :: full_mass
+      real(8) :: rho_dz
       
-      full_mass = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
-      b = sol(S_TEMP,k)%data(d)%elts(id) / full_mass
+      rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
+      b = sol(S_TEMP,k)%data(d)%elts(id) / rho_dz
     end function b
 
     real(8) function solar_flux ()

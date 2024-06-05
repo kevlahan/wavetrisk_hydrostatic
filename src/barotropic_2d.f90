@@ -91,28 +91,28 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer :: d, id
-    real(8) :: eta, full_mass, full_temp, mean_theta, theta, dz
+    real(8) :: eta, rho_dz, rho_dz_theta, mean_theta, theta, dz
     
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
     
-    full_mass = mean_m(id) + mass(id)
-    full_temp = mean_t(id) + temp(id)
+    rho_dz = mean_m(id) + mass(id)
+    rho_dz_theta = mean_t(id) + temp(id)
 
     ! Full buoyancy
-    theta = full_temp / full_mass 
+    theta = rho_dz_theta / rho_dz 
 
     ! Free surface perturbation    
     eta = scalar(id) / phi_node (d, id, zlevels) 
 
     ! Correct mass perturbation
-    mass(id) = (eta - topography%data(d)%elts(id)) / scalar_2d(id) * full_mass - mean_m(id)
+    mass(id) = (eta - topography%data(d)%elts(id)) / scalar_2d(id) * rho_dz - mean_m(id)
 
     ! Update full mass
-    full_mass = mean_m(id) + mass(id)
+    rho_dz = mean_m(id) + mass(id)
 
     ! Correct mass-weighted buoyancy
-    temp(id) = full_mass * theta - mean_t(id)
+    temp(id) = rho_dz * theta - mean_t(id)
   end subroutine cal_barotropic_correction
 
   subroutine eta_update
@@ -399,14 +399,14 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: dz, full_mass
+    real(8) :: dz, rho_dz
     
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
-    full_mass = mean_m(id) + mass(id)
+    rho_dz = mean_m(id) + mass(id)
     
-    dz = full_mass / porous_density (d, id, zlev)
+    dz = rho_dz / porous_density (d, id, zlev)
     
     scalar_2d(id) = scalar_2d(id) + dz
   end subroutine cal_height

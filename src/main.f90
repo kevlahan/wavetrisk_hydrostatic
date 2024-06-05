@@ -496,7 +496,7 @@ contains
     total_mass = 0d0
     do l = level_start, level_end
        do k = zmin, zmax
-          total_mass(l) = total_mass(l) + integrate_hex (full_mass, k, l)
+          total_mass(l) = total_mass(l) + integrate_hex (rho_dz_i, k, l)
        end do
     end do
     if (initialize_total_mass) init_total_mass = total_mass
@@ -607,7 +607,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                       :: d, e, id, id_e, id_i, k, l
-    real(8)                       :: col_mass, d_e, fac, full_mass, init_mass, rho, z_s
+    real(8)                       :: col_mass, d_e, fac, rho_dz, init_mass, rho, z_s
     real(8)                       :: beta_sclr, beta_divu, beta_rotu
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
@@ -619,22 +619,22 @@ contains
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        col_mass = 0d0
        do k = 1, zlevels
-          full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-          if (full_mass < 0d0 .or. full_mass /= full_mass) then
+          rho_dz = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+          if (rho_dz < 0d0 .or. rho_dz /= rho_dz) then
              write (6,'(A,i8,A,3(es9.2,1x),A,i2,A)') "Mass negative at id = ", id_i, &
                   " with position ", dom%node%elts(id_i)%x,  dom%node%elts(id_i)%y, dom%node%elts(id_i)%z, &
                   " vertical level k = ", k, " ... aborting"
              call abort
           end if
-          col_mass = col_mass + full_mass
+          col_mass = col_mass + rho_dz
        end do
 
        ! Measure relative change in mass
        if (compressible) then
           do k = 1, zlevels
              init_mass = a_vert_mass(k) + b_vert_mass(k) * col_mass
-             full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-             min_mass_loc = min (min_mass_loc, full_mass/init_mass)
+             rho_dz = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+             min_mass_loc = min (min_mass_loc, rho_dz/init_mass)
           end do
        else
           z_s = topography%data(d)%elts(id_i)
@@ -648,8 +648,8 @@ contains
           do k = 1, zlevels
              rho = porous_density (d, id_i, k)
              init_mass = rho * dz(k)
-             full_mass = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-             min_mass_loc = min (min_mass_loc, full_mass/init_mass)
+             rho_dz = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
+             min_mass_loc = min (min_mass_loc, rho_dz/init_mass)
           end do
        end if
     end if
