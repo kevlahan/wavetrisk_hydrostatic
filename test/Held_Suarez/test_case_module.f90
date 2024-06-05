@@ -1035,12 +1035,12 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id_i
-    real(8) :: full_mass, p_upper
+    real(8) :: rho_dz, p_upper
 
     id_i = idx (i, j, offs, dims) + 1
 
-    full_mass = mass(id_i) + mean_m(id_i)
-    p_upper = dom%press_lower%elts(id_i) - grav_accel * full_mass
+    rho_dz = mass(id_i) + mean_m(id_i)
+    p_upper = dom%press_lower%elts(id_i) - grav_accel * rho_dz
 
     dom%press%elts(id_i) = 0.5d0 * (dom%press_lower%elts(id_i) + p_upper)
     dom%press_lower%elts(id_i) = p_upper
@@ -1081,14 +1081,14 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: full_mass
+    real(8) :: rho_dz
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
-    full_mass = mean_m(id) + mass(id)
+    rho_dz = mean_m(id) + mass(id)
 
-    dom%surf_press%elts(id) = dom%surf_press%elts(id) + full_mass
+    dom%surf_press%elts(id) = dom%surf_press%elts(id) + rho_dz
   end subroutine column_mass_HS
 
   subroutine set_surf_geopot_HS (dom, i, j, zlev, offs, dims)
