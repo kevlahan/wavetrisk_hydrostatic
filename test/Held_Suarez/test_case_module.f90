@@ -647,6 +647,8 @@ contains
        write (6,'(a,es10.4,/)') "wave_speed    [m/s]  = ", wave_speed
        write (6,'(a,l)')      "NCAR_topo            = ", NCAR_topo
        write (6,'(a,l)')      "sso                  = ", sso
+       write (6,'(a,l)')      "wave_drag            = ", wave_drag
+       write (6,'(a,l)')      "blocking_drag        = ", blocking_drag
        write (6,'(a,a)')      "topo_file            = ", trim (topo_file)
        write (6,'(a,i3)')     "topo_min_level       = ", topo_min_level
        write (6,'(a,i3)')     "topo_max_level       = ", topo_max_level
