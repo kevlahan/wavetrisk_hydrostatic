@@ -5,20 +5,20 @@ module sso_mod
   use comm_mpi_mod
   use utils_mod
   implicit none
-  real(8), dimension(:,:), allocatable :: sso_drag
-  logical                              :: circle = .true.         ! assume circular mountain (not enough SSO statistics)
-  logical                              :: blocking_drag = .true. ! block drag is too large
-  logical                              :: wave_drag     = .true.
+  logical :: circle        = .true. ! assume circular mountain (not enough SSO statistics)
+  logical :: blocking_drag = .true. 
+  logical :: wave_drag     = .true.
 contains
-  subroutine cal_sso_drag (dom, i, j, z_null, offs, dims)
+  function sso_drag (dom, i, j, z_null, offs, dims)
     ! SSO block and wave drag at edges
     ! uses version from Japanese Meteorological Agency (2019) report
     use coord_arithmetic_mod
     implicit none
-    type(Domain)                      :: dom
-    integer                           :: i, j, z_null
-    integer, dimension(N_BDRY+1)      :: offs
-    integer, dimension(2,N_BDRY+1)    :: dims
+    type(Domain)                         :: dom
+    integer                              :: i, j, z_null
+    integer, dimension(N_BDRY+1)         :: offs
+    integer, dimension(2,N_BDRY+1)       :: dims
+    real(8), dimension(1:zlevels,1:EDGE) :: sso_drag
 
     integer                           :: d, id, idE, idNE, idN, k, nlev
     integer, dimension(1:EDGE)        :: id_e
@@ -42,156 +42,153 @@ contains
     drag_wave  = 0d0
 
     id = idx (i, j, offs, dims)
-    
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       d = dom%id + 1
-       id_e = id_edge (id)
 
-       idE  = idx (i+1, j,   offs, dims)
-       idNE = idx (i+1, j+1, offs, dims)
-       idN  = idx (i,   j+1, offs, dims)
+    d = dom%id + 1
+    id_e = id_edge (id)
 
-       ! SSO parameters
-       mu    =    sso_param(S_MU)%data(d)%elts(id+1)    
-       theta = sso_param(S_THETA)%data(d)%elts(id+1) 
-       gamma = sso_param(S_GAMMA)%data(d)%elts(id+1) 
-       sigma = sso_param(S_SIGMA)%data(d)%elts(id+1) 
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
 
-       H_peak = 3d0 * mu ! maximum SSO peak height
-       H_env  = 2d0 * mu ! SSO envelope
+    ! SSO parameters
+    mu    =    sso_param(S_MU)%data(d)%elts(id+1)    
+    theta = sso_param(S_THETA)%data(d)%elts(id+1) 
+    gamma = sso_param(S_GAMMA)%data(d)%elts(id+1) 
+    sigma = sso_param(S_SIGMA)%data(d)%elts(id+1) 
 
-       B = 1d0 - 0.18d0 * gamma - 0.04d0 * gamma**2
-       C =       0.48d0 * gamma + 0.30d0 * gamma**2
+    H_peak = 3d0 * mu ! maximum SSO peak height
+    H_env  = 2d0 * mu ! SSO envelope
 
-       ! Unit vectors
-       call cart2sph (dom%node%elts(id+1), lon, lat)
+    B = 1d0 - 0.18d0 * gamma - 0.04d0 * gamma**2
+    C =       0.48d0 * gamma + 0.30d0 * gamma**2
 
-       e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
-       e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat))
+    ! Unit vectors
+    call cart2sph (dom%node%elts(id+1), lon, lat)
 
-       e_U = direction (dom%node%elts(id+1),   dom%node%elts(idE+1))
-       e_V = direction (dom%node%elts(idNE+1), dom%node%elts(id+1))
-       e_W = direction (dom%node%elts(id+1),   dom%node%elts(idN+1))
+    e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
+    e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat))
 
-       ! Brunt-Vaisala frequency at layer centres
-       N_bv(1) = N_i (dom, i, j, 1, offs, dims); N_below = N_bv(1)
-       do k = 2, zlevels-1
-          N_above = N_i (dom, i, j, k, offs, dims)
-          N_bv(k) = interp (N_below, N_above)
-          N_below = N_above
-       end do
-       N_bv(zlevels) = N_below   
+    e_U = direction (dom%node%elts(id+1),   dom%node%elts(idE+1))
+    e_V = direction (dom%node%elts(idNE+1), dom%node%elts(id+1))
+    e_W = direction (dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-       ! Save layer values
-       z(0) = 0d0
-       do k = 1, zlevels
-          rho(k)  = density_i (dom, i, j, k, offs, dims, sol)     ! density
-          vel     = uvw2zonal_merid (dom, i, j, k, offs, dims)    ! zonal and meridional velocities at node
-          umag(k) = sqrt (sum (vel**2))                           ! velocity magnitude
-          z(k)    = z(k-1) + dz_i (dom, i, j, k, offs, dims, sol) ! height of upper interface above topography
-          
-          if (.not. circle) then
-             phi(k) = atan2 (vel(2), vel(1))                      ! angle of incident flow
-             psi(k) = theta - phi(k)                              ! angle of incident flow with respect to principal axis of ellipse
-          end if
-       end do
+    ! Brunt-Vaisala frequency at layer centres
+    N_bv(1) = N_i (dom, i, j, 1, offs, dims); N_below = N_bv(1)
+    do k = 2, zlevels-1
+       N_above = N_i (dom, i, j, k, offs, dims)
+       N_bv(k) = interp (N_below, N_above)
+       N_below = N_above
+    end do
+    N_bv(zlevels) = N_below   
 
-       ! Find blocking height
-       if (blocking_drag) then
-          H = 0d0
-          Z_block = 0d0
-          do k = zlevels, 1, -1
-             if (z(k) <= H_peak) then
-                H = H + N_bv(k) * dz_i (dom, i, j, k, offs, dims, sol) / umag(k) ! non-dimensional height
-                if (H >= H_crit) then
-                   Z_block = z(k)
-                   exit
-                end if
-             end if
-          end do
-       end if
+    ! Save layer values
+    z(0) = 0d0
+    do k = 1, zlevels
+       rho(k)  = density_i (dom, i, j, k, offs, dims, sol)     ! density
+       vel     = uvw2zonal_merid (dom, i, j, k, offs, dims)    ! zonal and meridional velocities at node
+       umag(k) = sqrt (sum (vel**2))                           ! velocity magnitude
+       z(k)    = z(k-1) + dz_i (dom, i, j, k, offs, dims, sol) ! height of upper interface above topography
 
-       ! Compute mean values vertical layers mu <= z - z_s <= 2 mu
-       N_av    = 0d0
-       u_av    = 0d0
-       rho_av  = 0d0
-       psi_av  = 0d0
-       nlev = 0
-       do k = 1, zlevels
-          if (z(k) >= mu .and. z(k) <= H_env) then
-             nlev = nlev + 1
-             N_av   = N_av   + N_bv(k)    
-             rho_av = rho_av + rho(k)  
-             u_av   = u_av   + umag(k) 
-             if (.not. circle) phi_av = phi_av + phi(k)
-          elseif (z(k) > H_env) then
-             exit
-          end if
-       end do
-       if (nlev > 0) then
-          N_av   = N_av   / dble (nlev)
-          phi_av = phi_av / dble (nlev)
-          rho_av = rho_av / dble (nlev)
-          u_av   = u_av   / dble (nlev)
-       end if
        if (.not. circle) then
-          psi_av = theta - phi_av
-          e_Uav = cos(phi_av) * e_zonal + sin(phi_av) * e_merid
+          phi(k) = atan2 (vel(2), vel(1))                      ! angle of incident flow
+          psi(k) = theta - phi(k)                              ! angle of incident flow with respect to principal axis of ellipse
        end if
+    end do
 
-       ! Compute gravity wave drag drag (non-zero in lowest layer only)
-       if (wave_drag) then
-          
-          if (blocking_drag) then
-             H_eff = H_peak - Z_block
-          else
-             H_eff = H_peak
-          end if
-          rho_dz = sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1)
-
-          if (circle) then ! circular mountain
-             drag_wave(1) = - rho_av * N_av * u_av * (H_eff/3d0)**2 * sigma/mu * G  * 0.78d0 / rho_dz
-          else
-             drag_wave(1) = - rho_av * N_av * u_av * (H_eff/3d0)**2 * sigma/mu * G  &
-                  * ((B*cos(psi_av)**2 + C*sin(psi_av)**2) + (B-C)*sin(psi_av)*cos(psi_av)) / rho_dz
-          end if
-       end if
-
-       ! Compute blocking drag magnitude
-       if (blocking_drag) then
-          do k = 1, zlevels
-             if (z(k) <= Z_block) then
-                if (circle) then ! circular mountain
-                   drag_block(k) = - 0.5d0 * C_d * 4d0  * sigma/H_env * sqrt ((Z_block - z(k))/(z(k) + mu)) * umag(k) * 0.78d0  
-                else
-                   r = sqrt ( (cos(psi(k))**2 + gamma**2 * sin(psi(k))**2) / (gamma**2 * cos(psi(k))**2 + sin(psi(k))**2) )
-
-                   drag_block(k) = - 0.5d0 * C_d * max (5d0 - 1d0/r**3, 0d0)  * sigma/H_env &
-                        * sqrt ( (Z_block - z(k))/(z(k) + mu) ) * umag(k) * (B * cos(psi(k))**2  + C * sin(psi(k))**2)
-                end if
-             else 
+    ! Find blocking height
+    if (blocking_drag) then
+       H = 0d0
+       Z_block = 0d0
+       do k = zlevels, 1, -1
+          if (z(k) <= H_peak) then
+             H = H + N_bv(k) * dz_i (dom, i, j, k, offs, dims, sol) / umag(k) ! non-dimensional height
+             if (H >= H_crit) then
+                Z_block = z(k)
                 exit
-             end if
-           end do
-       end if
-       
-       ! Complete drag
-       do k = 1, zlevels
-          if (blocking_drag) &
-               sso_drag(k,id_e) = drag_block(k) * sol(S_VELO,k)%data(d)%elts(id_e)
-
-          if (wave_drag) then
-             if (circle) then
-                sso_drag(k,id_e) = drag_wave(k) 
-             else
-                sso_drag(k,EDGE*id+RT+1) = inner (drag_wave(k)*e_Uav, e_U) 
-                sso_drag(k,EDGE*id+DG+1) = inner (drag_wave(k)*e_Uav, e_V) 
-                sso_drag(k,EDGE*id+UP+1) = inner (drag_wave(k)*e_Uav, e_W) 
              end if
           end if
        end do
     end if
-  end subroutine cal_sso_drag
+
+    ! Compute mean values vertical layers mu <= z - z_s <= 2 mu
+    N_av    = 0d0
+    u_av    = 0d0
+    rho_av  = 0d0
+    psi_av  = 0d0
+    nlev = 0
+    do k = 1, zlevels
+       if (z(k) >= mu .and. z(k) <= H_env) then
+          nlev = nlev + 1
+          N_av   = N_av   + N_bv(k)    
+          rho_av = rho_av + rho(k)  
+          u_av   = u_av   + umag(k) 
+          if (.not. circle) phi_av = phi_av + phi(k)
+       elseif (z(k) > H_env) then
+          exit
+       end if
+    end do
+    if (nlev > 0) then
+       N_av   = N_av   / dble (nlev)
+       phi_av = phi_av / dble (nlev)
+       rho_av = rho_av / dble (nlev)
+       u_av   = u_av   / dble (nlev)
+    end if
+    if (.not. circle) then
+       psi_av = theta - phi_av
+       e_Uav = cos(phi_av) * e_zonal + sin(phi_av) * e_merid
+    end if
+
+    ! Compute gravity wave drag drag (non-zero in lowest layer only)
+    if (wave_drag) then
+
+       if (blocking_drag) then
+          H_eff = H_peak - Z_block
+       else
+          H_eff = H_peak
+       end if
+       rho_dz = sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1)
+
+       if (circle) then ! circular mountain
+          drag_wave(1) = - rho_av * N_av * u_av * (H_eff/3d0)**2 * sigma/mu * G  * 0.78d0 / rho_dz
+       else
+          drag_wave(1) = - rho_av * N_av * u_av * (H_eff/3d0)**2 * sigma/mu * G  &
+               * ((B*cos(psi_av)**2 + C*sin(psi_av)**2) + (B-C)*sin(psi_av)*cos(psi_av)) / rho_dz
+       end if
+    end if
+
+    ! Compute blocking drag magnitude
+    if (blocking_drag) then
+       do k = 1, zlevels
+          if (z(k) <= Z_block) then
+             if (circle) then ! circular mountain
+                drag_block(k) = - 0.5d0 * C_d * 4d0  * sigma/H_env * sqrt ((Z_block - z(k))/(z(k) + mu)) * umag(k) * 0.78d0  
+             else
+                r = sqrt ( (cos(psi(k))**2 + gamma**2 * sin(psi(k))**2) / (gamma**2 * cos(psi(k))**2 + sin(psi(k))**2) )
+
+                drag_block(k) = - 0.5d0 * C_d * max (5d0 - 1d0/r**3, 0d0)  * sigma/H_env &
+                     * sqrt ( (Z_block - z(k))/(z(k) + mu) ) * umag(k) * (B * cos(psi(k))**2  + C * sin(psi(k))**2)
+             end if
+          else 
+             exit
+          end if
+       end do
+    end if
+
+    ! Complete drag
+    do k = 1, zlevels
+       if (blocking_drag) sso_drag(k,:) = drag_block(k) * sol(S_VELO,k)%data(d)%elts(id_e)
+
+       if (wave_drag) then
+          if (circle) then
+             sso_drag(k,:) = drag_wave(k) 
+          else
+             sso_drag(k,RT+1) = inner (drag_wave(k)*e_Uav, e_U) 
+             sso_drag(k,DG+1) = inner (drag_wave(k)*e_Uav, e_V) 
+             sso_drag(k,UP+1) = inner (drag_wave(k)*e_Uav, e_W) 
+          end if
+       end if
+    end do
+  end function sso_drag
 
   subroutine cal_sso_param (dom, i, j, zlev, offs, dims)
     ! mu (standard deviation) of Subgrid Scale Orography (SSO) compared to Grid Scale Orography (GSO)
@@ -251,7 +248,7 @@ contains
     L = 0.5d0 * (hx_sq - hy_sq) 
 
     ! SSO parameters
-       sso_param(S_MU)%data(d)%elts(id+1) = sqrt (h_sq * topo_Area_min / total_area)
+    sso_param(S_MU)%data(d)%elts(id+1) = sqrt (h_sq * topo_Area_min / total_area)
     sso_param(S_THETA)%data(d)%elts(id+1) = 0.5d0 * atan2 (M, L)
     sso_param(S_GAMMA)%data(d)%elts(id+1) = sqrt ( (K - sqrt (L**2 + M**2)) / (K + sqrt (L**2 + M**2)) )
     if (circle) then
