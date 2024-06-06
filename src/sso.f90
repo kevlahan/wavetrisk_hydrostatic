@@ -7,7 +7,7 @@ module sso_mod
   implicit none
   logical :: circle        = .true. ! assume circular mountain (not enough SSO statistics)
   logical :: blocking_drag = .true. 
-  logical :: wave_drag     = .true.
+  logical :: wave_drag     = .false.
 contains
   function sso_drag (dom, i, j, z_null, offs, dims)
     ! SSO block and wave drag at edges
@@ -140,7 +140,6 @@ contains
 
     ! Compute gravity wave drag drag (non-zero in lowest layer only)
     if (wave_drag) then
-
        if (blocking_drag) then
           H_eff = H_peak - Z_block
        else
