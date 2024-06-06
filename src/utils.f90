@@ -217,12 +217,12 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    real(8) :: dZ, dZ_above
+    real(8) :: dz, dz_above
 
-    dZ        = dz_i (dom, i, j, zlev,   offs, dims, q)
-    dZ_above  = dz_i (dom, i, j, zlev+1, offs, dims, q)
+    dz        = dz_i (dom, i, j, zlev,   offs, dims, q)
+    dz_above  = dz_i (dom, i, j, zlev+1, offs, dims, q)
 
-    dz_l = 0.5d0 * (dZ + dZ_above)
+    dz_l = 0.5d0 * (dz + dz_above)
   end function dz_l
 
   function eta_e (dom, i, j, zlev, offs, dims, q)
@@ -1599,7 +1599,7 @@ contains
     end function rx1
   end subroutine cal_rx1_loc_Z
 
-  real(8) function theta (dom, i, j, zlev, offs, dims)
+  real(8) function theta_i (dom, i, j, zlev, offs, dims)
     ! Potential temperature at layer centre
     implicit none
     type(Domain)                   :: dom
@@ -1608,16 +1608,20 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
+    real(8) :: rho_dz, rho_dz_theta
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
-    theta = ( sol_mean(S_TEMP,zlev)%data(d)%elts(id) + sol(S_TEMP,zlev)%data(d)%elts(id) ) / &
-            ( sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id) )
-  end function theta
+    rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + sol(S_TEMP,zlev)%data(d)%elts(id)
+    rho_dz       = sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id) 
+
+    theta_i = rho_dz_theta / rho_dz
+  end function theta_i
 
   real(8) function N_i (dom, i, j, zlev, offs, dims)
     ! Brunt-Vaisala frequency at nodes at layer interface above layer zlev
+    ! *** need zlev /= zlevels ***
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1633,8 +1637,8 @@ contains
     dz = dz_l (dom, i, j, zlev, offs, dims, sol)
 
     if (compressible) then
-       theta2 = theta (dom, i, j, zlev+1, offs, dims)
-       theta1 = theta (dom, i, j, zlev,   offs, dims)
+       theta1 = theta_i (dom, i, j, zlev,   offs, dims)
+       theta2 = theta_i (dom, i, j, zlev+1, offs, dims)
        theta_l = interp (theta1, theta2)
        dtheta =  theta2 - theta1
 

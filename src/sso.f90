@@ -23,10 +23,11 @@ contains
     integer                           :: d, id, idE, idNE, idN, k, nlev
     integer, dimension(1:EDGE)        :: id_e
 
-    real(8)                           :: mu, gamma, sigma, p, theta
+    real(8)                           :: mu, gamma, sigma, p, theta, N1, N2
     real(8)                           :: B, C, H, H_eff, H_env, H_peak, r, Z_block
-    real(8)                           :: N_above, N_below, N_av, phi_av, psi_av, rho_av, rho_dz, u_av
+    real(8)                           :: N_above, N_below, N_av, phi_av, psi_av, rho_av, rho_dz
     real(8)                           :: lat, lon
+    real(8), dimension(1:EDGE)        :: u_av
     real(8), dimension(2)             :: vel
     real(8), dimension(1:zlevels)     :: N_bv, phi, psi, rho, drag_block, drag_wave, umag
     real(8), dimension(0:zlevels)     :: z
@@ -36,14 +37,15 @@ contains
     real(8), parameter                :: C_d    = 2.00d0
     real(8), parameter                :: H_crit = 0.50d0
     real(8), parameter                :: G      = 0.25d0
+    real(8), parameter                :: n_eff  = 2.4d0
 
     sso_drag   = 0d0
     drag_block = 0d0
     drag_wave  = 0d0
 
-    id = idx (i, j, offs, dims)
-
-    d = dom%id + 1
+    d    = dom%id + 1
+    
+    id   = idx (i, j, offs, dims)
     id_e = id_edge (id)
 
     idE  = idx (i+1, j,   offs, dims)
@@ -117,16 +119,17 @@ contains
     psi_av  = 0d0
     nlev = 0
     do k = 1, zlevels
-       if (z(k) >= mu .and. z(k) <= H_env) then
+       if (z(k-1) > mu .and. z(k) < H_env) then ! average over layers *between* mu and 2 mu
           nlev = nlev + 1
           N_av   = N_av   + N_bv(k)    
           rho_av = rho_av + rho(k)  
-          u_av   = u_av   + umag(k) 
+          u_av   = u_av   + sol(S_VELO,k)%data(d)%elts(id_e)
           if (.not. circle) phi_av = phi_av + phi(k)
-       elseif (z(k) > H_env) then
+       elseif (z(k) >= H_env) then
           exit
        end if
     end do
+
     if (nlev > 0) then
        N_av   = N_av   / dble (nlev)
        phi_av = phi_av / dble (nlev)
@@ -141,16 +144,16 @@ contains
     ! Compute gravity wave drag drag (non-zero in lowest layer only)
     if (wave_drag) then
        if (blocking_drag) then
-          H_eff = H_peak - Z_block
+          H_eff = n_eff * (H_peak - Z_block)
        else
           H_eff = H_peak
        end if
        rho_dz = sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1)
 
        if (circle) then ! circular mountain
-          drag_wave(1) = - rho_av * N_av * u_av * (H_eff/3d0)**2 * sigma/mu * G  * 0.78d0 / rho_dz
+          drag_wave(1) = - rho_av * N_av * (H_eff/3d0)**2 * sigma/mu * G  * 0.78d0 / rho_dz
        else
-          drag_wave(1) = - rho_av * N_av * u_av * (H_eff/3d0)**2 * sigma/mu * G  &
+          drag_wave(1) = - rho_av * N_av * (H_eff/3d0)**2 * sigma/mu * G  &
                * ((B*cos(psi_av)**2 + C*sin(psi_av)**2) + (B-C)*sin(psi_av)*cos(psi_av)) / rho_dz
        end if
     end if
@@ -179,11 +182,11 @@ contains
 
        if (wave_drag) then
           if (circle) then
-             sso_drag(k,:) = drag_wave(k) 
+             sso_drag(k,:) = sso_drag(k,:) + drag_wave(k) * u_av
           else
-             sso_drag(k,RT+1) = inner (drag_wave(k)*e_Uav, e_U) 
-             sso_drag(k,DG+1) = inner (drag_wave(k)*e_Uav, e_V) 
-             sso_drag(k,UP+1) = inner (drag_wave(k)*e_Uav, e_W) 
+             sso_drag(k,RT+1) = sso_drag(k,RT+1) + inner (drag_wave(k)*e_Uav, e_U) 
+             sso_drag(k,DG+1) = sso_drag(k,DG+1) + inner (drag_wave(k)*e_Uav, e_V) 
+             sso_drag(k,UP+1) = sso_drag(k,UP+1) + inner (drag_wave(k)*e_Uav, e_W) 
           end if
        end if
     end do
