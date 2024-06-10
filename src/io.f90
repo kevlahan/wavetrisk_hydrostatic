@@ -1872,7 +1872,7 @@ contains
              outv(10) = topography%data(d)%elts(id_i)           ! topography
              outv(11) = penal_node(zlev)%data(d)%elts(id_i)     ! penalization mask
           else
-             outv(10:11) = 0d0
+             outv(10:11) = 0.0
           end if
              
           write (funit) &
@@ -1959,19 +1959,19 @@ contains
     tri_area(LORT) = dom%triarea%elts(TRIAG*id+LORT+1)
     tri_area(UPLT) = dom%triarea%elts(TRIAG*id+UPLT+1)
 
-    hex_area(1) = dom%areas%elts(id+1)%part(1)
-    hex_area(2) = dom%areas%elts(id+1)%part(2)
-    hex_area(3) = dom%areas%elts(idE+1)%part(3)
+    hex_area(1) = dom%areas%elts(id+1  )%part(1)
+    hex_area(2) = dom%areas%elts(id+1  )%part(2)
+    hex_area(3) = dom%areas%elts(idE+1 )%part(3)
     hex_area(4) = dom%areas%elts(idNE+1)%part(4)
     hex_area(5) = dom%areas%elts(idNE+1)%part(5)
-    hex_area(6) = dom%areas%elts(idN+1)%part(6)
+    hex_area(6) = dom%areas%elts(idN+1 )%part(6)
 
     relvort = get_vort (dom, i, j, offs, dims)
 
-    outl = dom%level%elts(id+1)                     ! level of current node
-    outa = nint (active_level%data(d)%elts(id+1))   ! finest level of child nodes
+    outl = dom%level%elts(id+1)                   ! level of current node
+    outa = nint (active_level%data(d)%elts(id+1)) ! finest level of child nodes
 
-    rho_dz = sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id)
+    rho_dz       = sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id)
     rho_dz_theta = sol(S_TEMP,zlev)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,zlev)%data(d)%elts(neigh_id)
     
     if (compressible) then
@@ -1980,7 +1980,7 @@ contains
        temperature = ref_density * (1d0 - rho_dz_theta/rho_dz)
     end if
 
-    outv(:,1) = hex2tri2 (rho_dz,   hex_area, tri_area)                               ! rho_dz
+    outv(:,1) = hex2tri2 (rho_dz,   hex_area, tri_area)                                  ! rho_dz
     
     outv(:,2) = hex2tri2 (temperature, hex_area, tri_area)                               ! temperature (compressible) or density (incompressible)
     

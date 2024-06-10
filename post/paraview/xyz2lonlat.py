@@ -77,11 +77,11 @@ for z in range (z1, z2+1):
         coords = vtk_to_numpy(points.GetData())
 
         # Compute radius of sphere
-        R = np.sqrt(np.max(coords[:,0]*coords[:,0] + coords[:,1]*coords[:,1] + coords[:,2]*coords[:,2]))
+        R = np.sqrt(coords[:,0]**2 + coords[:,1]**2 + coords[:,2]**2)
 
         # Conversion from x,y,z to lon, lat, 0
-        coords[:,0] = np.degrees(np.arctan2(coords[:,1], coords[:,0]))      # longitude
-        coords[:,1] = np.degrees(np.arcsin(coords[:,2] / R))                # latitude
+        coords[:,0] = np.degrees(np.arctan2(coords[:,1], coords[:,0])) # longitude
+        coords[:,1] = np.degrees(np.arcsin(coords[:,2] / R))           # latitude
         coords[:,2] = 0.0
 
         points.SetData(numpy_to_vtk(coords))
@@ -91,12 +91,12 @@ for z in range (z1, z2+1):
 
         num_cells = unstrctGrid.GetNumberOfCells()
         startID = 0
-        for cell in range(num_cells) : # loop through cells
-            size = cellformation[startID] #cells.GetCellSize(cell)  # number of vertices
+        for cell in range(num_cells) :    # loop through cells
+            size = cellformation[startID] # number of vertices
 
             # Check if it is a cell on the edge
             num_positives = 0
-            for i in range(size) : # loop through vertices of a cell
+            for i in range(size) :        # loop through vertices of a cell
                 pid = cellformation[startID+1+i]
                 if (coords[pid,0]>0) :
                     num_positives += 1
