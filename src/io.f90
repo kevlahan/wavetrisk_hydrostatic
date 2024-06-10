@@ -1311,10 +1311,16 @@ contains
 
     integer                            :: d, id, ii, jj, l, n_topo
     real(8), dimension(:), allocatable :: distance
+    logical, parameter                 :: restrict = .true.
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
-    l  = dom%level%elts(id)           
+
+    if (restrict) then
+       l = dom%level%elts(id)
+    else ! sub-sample
+       l = topo_max_level
+    end if
 
     n_topo = size (topography_data(l,d)%node); allocate (distance(1:n_topo))
     do ii = 1, n_topo
