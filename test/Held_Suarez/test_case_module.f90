@@ -694,15 +694,10 @@ contains
     use lnorms_mod
     implicit none
 
-    allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0d0
-    allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0d0
-
     call cal_lnorm ("inf")
     lnorm(S_VELO,:) = Udim
 
     threshold_def = tol * lnorm
-
-    threshold_def(S_VELO,:) = threshold_def(S_VELO,:) 
   end subroutine initialize_thresholds_case
 
   subroutine set_thresholds_case
@@ -710,13 +705,13 @@ contains
     use lnorms_mod
     implicit none
     real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: lnorm_mean
-    
-    call cal_lnorm ("inf")
-    lnorm(S_VELO,:) = max (Udim,  (lnorm(S_VELO,:)))
-    
-    threshold = tol * lnorm
 
-    threshold(S_VELO,:) = threshold(S_VELO,:) 
+    if (default_thresholds) then
+       threshold = threshold_def
+    else
+       call cal_lnorm ("inf")
+       threshold = max (tol * lnorm, threshold_def)
+    end if
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case

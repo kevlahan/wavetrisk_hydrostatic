@@ -672,9 +672,6 @@ contains
     real(8), dimension(0:zlevels) :: z
     type(Coord)                   :: x_i
 
-    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0d0
-    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0d0
-
     eta = 0d0
     z_s = max_depth
 

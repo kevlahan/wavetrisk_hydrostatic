@@ -556,11 +556,7 @@ contains
   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
-
     integer :: k
-
-    allocate (threshold(1:N_VARIABLE,1:zlevels));     threshold     = 0.0_8
-    allocate (threshold_def(1:N_VARIABLE,1:zlevels)); threshold_def = 0.0_8
 
     lnorm(S_MASS,:) = dPdim/grav_accel
     do k = 1, zlevels

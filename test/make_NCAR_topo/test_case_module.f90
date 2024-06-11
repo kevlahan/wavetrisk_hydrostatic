@@ -137,8 +137,6 @@ contains
 
   subroutine initialize_thresholds_case
     implicit none
-    allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0d0
-    allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0d0
     threshold_def = tol
   end subroutine initialize_thresholds_case
 

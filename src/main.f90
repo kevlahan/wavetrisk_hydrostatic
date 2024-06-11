@@ -131,8 +131,9 @@ contains
     
     call apply_initial_conditions
     call forward_wavelet_transform (sol, wav_coeff) 
-    
-    if (.not. allocated (threshold)) call initialize_thresholds
+
+    ! Initialize thresholds to default values for this grid (possibly based on mean values)
+    call initialize_thresholds
 
     if (level_end /= level_start) then
        n_active = 0
@@ -356,9 +357,6 @@ contains
     ! Rebalance adaptive grid and re-initialize structures
     call init_structures (run_id)
 
-    ! Initialize thresholds to default values 
-    call initialize_thresholds
-
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, run_id)
 
@@ -375,6 +373,9 @@ contains
     ! Assign topography
     if (NCAR_topo) call load_topo
     call update ! compute mean values and other quantities depending on topography and solution
+
+    ! Initialize thresholds to default values (possibly based on mean values)
+    call initialize_thresholds
 
     ! Adapt on (new) threshold for this run
     call adapt (set_thresholds, .true.) 
@@ -474,13 +475,15 @@ contains
 
     call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
     call apply_interscale (mask_adj_scale, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
-
+    
     call record_init_state (ini_st)
     if (time_end > 0d0) time_mult = huge (itime)/2/time_end
 
     allocate (n_patch_old(size(grid)), n_node_old(size(grid))); n_patch_old = 2
 
     call init_RK_mem
+
+    allocate (threshold(1:N_VARIABLE,zmin:zlevels), threshold_def(1:N_VARIABLE,zmin:zlevels))
   end subroutine init_structures
 
   subroutine cal_total_mass (initialize_total_mass)

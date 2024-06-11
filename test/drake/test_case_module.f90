@@ -582,9 +582,6 @@ contains
     real(8)     :: dz, theta, z
     type(Coord) :: x_i
 
-    allocate (threshold(1:N_VARIABLE,1:zmax));     threshold     = 0d0
-    allocate (threshold_def(1:N_VARIABLE,1:zmax)); threshold_def = 0d0
-
     x_i = Coord (radius, 0d0, 0d0)
     do k = 1, zlevels
        dz = b_vert_mass(k) * max_depth

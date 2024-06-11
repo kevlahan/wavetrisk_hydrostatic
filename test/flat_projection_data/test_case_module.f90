@@ -786,9 +786,6 @@ contains
   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
-
-    allocate (threshold(1:N_VARIABLE,zmin:zlevels));     threshold     = 0.0_8
-    allocate (threshold_def(1:N_VARIABLE,zmin:zlevels)); threshold_def = 0.0_8
   end subroutine initialize_thresholds_case
 
   subroutine initialize_dt_viscosity_case 
