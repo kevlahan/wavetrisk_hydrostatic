@@ -1391,7 +1391,6 @@ contains
     ! Maximum topographic stiffness ratio rx0 < 0.2
     ! (also called the Beckman-Haidvogel number)
     ! the compressible version uses surface pressure instead of topography height
-    use mpi
     implicit none
     integer :: l
     real(8) :: rx0_max
@@ -1406,7 +1405,8 @@ contains
     else
        call apply_onescale (cal_rx0_loc_Z, l, z_null, 0, 1)
     end if
-    call MPI_Allreduce (rx0_max_loc, rx0_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+
+    rx0_max = sync_max_real (rx0_max_loc)
   end subroutine cal_rx0_max
 
   subroutine cal_rx1_max (l, rx1_max)
@@ -1414,7 +1414,6 @@ contains
     ! (Haney 1991, Shchepetkin and McWilliams 2003)
     ! note that rx1 < 1 is almost impossible to achieve and rx1 <= 5 is usually okay in oceanographic simulations
     ! compute only over lowest layer (most unstable)
-    use mpi
     implicit none
     integer :: l
     real(8) :: rx1_max
@@ -1431,7 +1430,8 @@ contains
           call apply_onescale (cal_rx1_loc_Z, l, k, 0, 1)
        end if
     end do
-    call MPI_Allreduce (rx1_max_loc, rx1_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+
+    rx1_max = sync_max_real (rx1_max_loc)
   end subroutine cal_rx1_max
 
   subroutine cal_rx0_loc_P (dom, i, j, zlev, offs, dims)

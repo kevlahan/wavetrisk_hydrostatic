@@ -7,8 +7,16 @@ module comm_mpi_mod
   type(Float_Array)                  :: recv_buf, send_buf
   integer, dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
   real(8), dimension(2)              :: times
-  
+
   logical, parameter                 :: deadlock = .true. ! test for communication deadlocks
+  
+  interface sum_real
+     procedure :: sum_real_0, sum_real_1
+  end interface sum_real
+
+  interface sync_max_real
+     procedure :: sync_max_real_0, sync_max_real_1
+  end interface sync_max_real
 contains
   subroutine init_comm_mpi
     implicit none
@@ -1254,16 +1262,32 @@ contains
     sync_min_int = val_glo
   end function sync_min_int
 
-  real(8) function sync_max_real (val)
+  real(8) function sync_max_real_0 (val)
     use mpi
     implicit none
     real(8) :: val
 
     real(8) :: val_glo
-
+    
     call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
-    sync_max_real = val_glo
-  end function sync_max_real
+    sync_max_real_0 = val_glo
+  end function sync_max_real_0
+
+  function sync_max_real_1 (val)
+    use mpi
+    implicit none
+    real(8), dimension(:), allocatable :: sync_max_real_1
+    real(8), dimension(:)              :: val
+
+    integer                            :: n
+    real(8), dimension(:), allocatable :: val_glo
+
+    n = size (val,1)
+    allocate (sync_max_real_1(n), val_glo(n))
+
+    call MPI_Allreduce (val, val_glo, n, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+    sync_max_real_1 = val_glo
+  end function sync_max_real_1
 
   real(8) function sync_min_real (val)
     use mpi
@@ -1276,7 +1300,7 @@ contains
     sync_min_real = val_glo
   end function sync_min_real
 
-  real(8) function sum_real (val)
+  real(8) function sum_real_0 (val)
     use mpi
     implicit none
     real(8) :: val
@@ -1284,21 +1308,24 @@ contains
     real(8) :: val_glo
     
     call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierror)
-    sum_real = val_glo
-  end function sum_real
+    sum_real_0 = val_glo
+  end function sum_real_0
 
-  function sum_real_vector (val, n)
+  function sum_real_1 (val)
     use mpi
     implicit none
-    real(8), dimension(n) :: sum_real_vector
-    integer               :: n
-    real(8), dimension(n) :: val
+    real(8), dimension(:), allocatable :: sum_real_1
+    real(8), dimension(:)              :: val
 
-    real(8), dimension(n) :: val_glo
+    integer                            :: n
+    real(8), dimension(:), allocatable :: val_glo
+
+    n = size (val,1)
+    allocate (sum_real_1(n), val_glo(n))
     
     call MPI_Allreduce (val, val_glo, n, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierror)
-    sum_real_vector = val_glo
-  end function sum_real_vector
+    sum_real_1 = val_glo
+  end function sum_real_1
 
   integer function sum_int (val)
     use mpi

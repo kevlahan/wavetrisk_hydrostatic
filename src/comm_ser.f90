@@ -4,6 +4,14 @@ module comm_mpi_mod
   implicit none
   integer, dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
   real(8), dimension(2)              :: times
+
+  interface sum_real
+     procedure :: sum_real_0, sum_real_1
+  end interface sum_real
+
+  interface sync_max_real
+     procedure :: sync_max_real_0, sync_max_real_1
+  end interface sync_max_real
 contains
   subroutine init_comm_mpi
     ! Needed for compatibility with mpi code (not actually used in serial case)
@@ -252,12 +260,25 @@ contains
     sync_min_int = val
   end function sync_min_int
 
-  real(8) function sync_max_real (val)
+  real(8) function sync_max_real_0 (val)
     implicit none
     real(8) :: val
     
-    sync_max_real = val
-  end function sync_max_real
+    sync_max_real_0 = val
+  end function sync_max_real_0
+  
+  function sync_max_real_1 (val)
+    implicit none
+    real(8), dimension(:), allocatable :: sync_max_real_1
+    real(8), dimension(:)              :: val
+
+    integer :: n
+
+    n = size (val,1)
+    allocate (sync_max_real_1(n))
+    
+    sync_max_real_1 = val
+  end function sync_max_real_1
 
   real(8) function sync_min_real (val)
     implicit none
@@ -266,21 +287,24 @@ contains
     sync_min_real = val
   end function sync_min_real
 
-  real(8) function sum_real (val)
+  real(8) function sum_real_0 (val)
     implicit none
     real(8) :: val
     
-    sum_real = val
-  end function sum_real
+    sum_real_0 = val
+  end function sum_real_0
 
-  function sum_real_vector (val, n)
+  function sum_real_1 (val)
     implicit none
-    real(8), dimension(n) :: sum_real_vector
+    real(8), dimension(:), allocatable :: sum_real_1
+    real(8), dimension(:) :: val
+    
     integer               :: n
-    real(8), dimension(n) :: val
 
-    sum_real_vector = val
-  end function sum_real_vector
+    allocate (sum_real_1(n))
+
+    sum_real_1 = val
+  end function sum_real_1
 
   integer function sum_int (val)
     integer :: val

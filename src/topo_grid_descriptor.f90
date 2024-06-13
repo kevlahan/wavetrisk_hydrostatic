@@ -55,7 +55,10 @@ contains
   subroutine write_grid_coords (topo_desc)
     ! Find grid coordinates on each domain at finest level over entire grid
     ! saves results to netcdf coordinate file
+#ifdef MPI
     use mpi
+#endif
+
     implicit none
     character(255)                        :: topo_desc
     
