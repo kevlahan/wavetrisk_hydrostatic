@@ -110,7 +110,7 @@ program Held_Suarez
   Laplace_order_init = 2 ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0
 
   ! Use scale-aware viscosity (if .false. viscosity depends only on dt)
-  scale_aware        = .false.                      
+  scale_aware        = .true.                      
 
   ! CAM values for viscosity
   nu_scaling         = dx_scaling**(2*Laplace_order_init)
