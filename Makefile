@@ -2,7 +2,7 @@
 TEST_CASE  = Held_Suarez
 PARAM      = param_J6
 ARCH       = mpi
-OPTIM      = 2
+OPTIM      = fast
 F90        = gfortran
 MPIF90     = mpif90
 BIN_DIR    = bin
