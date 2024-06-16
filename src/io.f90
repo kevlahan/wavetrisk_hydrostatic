@@ -492,7 +492,7 @@ contains
        rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol_save(S_MASS,k)%data(d)%elts(id)
        rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol_save(S_TEMP,k)%data(d)%elts(id)
 
-       trend(1,k)%data(d)%elts(id+1) = rho_dz_theta / rho_dz * (pressure_save(k) / p_0)**kappa
+       trend(1,k)%data(d)%elts(id) = rho_dz_theta / rho_dz * (pressure_save(k) / p_0)**kappa
     end do
   end subroutine cal_temp
 
