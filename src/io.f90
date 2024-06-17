@@ -556,8 +556,8 @@ contains
           velo2 => grid(d)%v_merid%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (interp_UVW_latlon, grid(d), p-1, k, 0, 0)
-             call apply_onescale_to_patch (cal_pressure,     grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (cal_zonal_avg,    grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (cal_pressure,      grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (cal_zonal_avg,     grid(d), p-1, k, 0, 0)
           end do
           nullify (mass, mean_m, temp, velo, velo1, velo2)
        end do
@@ -854,8 +854,8 @@ contains
     character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
     logical, dimension(1:N_CHDRN)    :: required
 
-    call update_array_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE)
-    if (vert_diffuse) call update_vector_bdry (wav_tke, NONE, 20)
+    call update_array_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE, 880)
+    if (vert_diffuse) call update_vector_bdry (wav_tke, NONE, 881)
 
     do d = 1, size(grid)
        do k = zmin, zmax
@@ -1170,7 +1170,7 @@ contains
     character(9999) :: filename
     character(9999) :: bash_cmd, cmd_archive, cmd_files, command
 
-    call update_bdry (topography, NONE)
+    call update_bdry (topography, NONE, 882)
 
     allocate (topo_count(min_level:max_level,1:size(grid))); topo_count = 0
 
@@ -1641,11 +1641,11 @@ contains
     character(3)    :: layer
     character(1000) :: file_hex, isv, file_tri, scale
 
-    if (rank == 0) write(6,'(/,A,i4/)') 'Saving fields ', isave
+    if (rank == 0) write(6,'(/,A,i4)') 'Saving fields ', isave
     write (isv, '(i4.4)') isave
 
     sol%bdry_uptodate = .false.
-    call update_array_bdry (sol, NONE, 26)
+    call update_array_bdry (sol, NONE, 883)
 
     call pre_levelout
 
@@ -1805,6 +1805,7 @@ contains
     call barrier
 
     if (rank == 0) call compress_files (isave)
+    call barrier
   end subroutine write_and_export
 
   subroutine write_hex (dom, p, i, j, zlev, offs, dims, funit)
@@ -2077,7 +2078,7 @@ contains
     implicit none
     integer :: d, j, k, l, p
 
-    call update_array_bdry (sol, NONE)
+    call update_array_bdry (sol, NONE, 884)
 
     ! Compute surface pressure
     call cal_surf_press (sol)
@@ -2103,7 +2104,7 @@ contains
              nullify (h_flux)
           end do
           horiz_flux(S_MASS)%bdry_uptodate = .false.
-          call update_bdry (horiz_flux(S_MASS), l)
+          call update_bdry (horiz_flux(S_MASS), l, 885)
           do d = 1, size(grid)
              dscalar => trend(S_MASS,k)%data(d)%elts
              h_flux  => horiz_flux(S_MASS)%data(d)%elts
@@ -2130,7 +2131,7 @@ contains
              nullify (h_flux, scalar, velo)
           end do
           horiz_flux(S_TEMP)%bdry_uptodate = .false.
-          call update_bdry (horiz_flux(S_TEMP), l)
+          call update_bdry (horiz_flux(S_TEMP), l, 886)
           do d = 1, size(grid)
              dscalar =>    trend(S_TEMP,k)%data(d)%elts
              h_flux  => horiz_flux(S_TEMP)%data(d)%elts
@@ -2141,7 +2142,7 @@ contains
           end do
 
           trend(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
-          call update_vector_bdry (trend(S_MASS:S_TEMP,k), l)
+          call update_vector_bdry (trend(S_MASS:S_TEMP,k), l, 887)
        end do
     end do
 
@@ -2150,7 +2151,7 @@ contains
     call apply (cal_omega, z_null)
 
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
-    call update_vector_bdry (trend(S_TEMP,:), NONE)
+    call update_vector_bdry (trend(S_TEMP,:), NONE, 888)
   end subroutine omega_velocity
 
   subroutine cal_omega (dom, i, j, zlev, offs, dims)
@@ -2192,7 +2193,7 @@ contains
     implicit none
     integer :: d, j, k, l, p
 
-    call update_array_bdry (sol, NONE)
+    call update_array_bdry (sol, NONE, 889)
 
     ! Compute surface pressure
     call cal_surf_press (sol)
@@ -2218,7 +2219,7 @@ contains
              nullify (h_flux)
           end do
           horiz_flux(S_MASS)%bdry_uptodate = .false.
-          call update_bdry (horiz_flux(S_MASS), l)
+          call update_bdry (horiz_flux(S_MASS), l, 890)
           do d = 1, size(grid)
              dscalar => trend(S_MASS,k)%data(d)%elts
              h_flux  => horiz_flux(S_MASS)%data(d)%elts
@@ -2230,8 +2231,7 @@ contains
        end do
     end do
     trend(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
-    call update_vector_bdry (trend(S_MASS:S_TEMP,k), l)
-
+    call update_vector_bdry (trend(S_MASS:S_TEMP,k), l, 891)
 
     ! Compute Omega (velocity flux across interfaces)
     ! stored in trend(S_TEMP,1:zlevels)
