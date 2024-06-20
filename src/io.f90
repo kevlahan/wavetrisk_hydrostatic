@@ -1580,7 +1580,7 @@ contains
     id_par = idx(i_par, j_par, offs_par, dims_par)
 
     if (dom%mask_n%elts(id_chd+1) >= ADJZONE .and. &
-         save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0 .and. save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0 ) &
+         save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0 .and. save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0) &
          active_level%data(d)%elts(id_par+1) = active_level%data(d)%elts(id_chd+1)
   end subroutine restrict_level
 
@@ -1591,26 +1591,37 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer :: d, id_par, id_chd, idE_chd, idNE_chd, idN_chd
-
+    integer                        :: d, id_chd, idE_chd, idNE_chd, idN_chd
+    integer                        :: mask_id, mask_idE, mask_idNE, mask_idN
+    integer, dimension(1:2*EDGE+1) :: id_hex, idE_hex, idNE_hex, idN_hex
+    
     d = dom%id+1
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
-    id_par = idx(i_par, j_par, offs_par, dims_par)
+    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    
+    id_hex   = idx_hex (dom, i_chd,   j_chd,   offs_chd, dims_chd)
+    
+    idE_hex  = idx_hex (dom, i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_hex = idx_hex (dom, i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_hex  = idx_hex (dom, i_chd,   j_chd+1, offs_chd, dims_chd)
 
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-
-    idE_chd  = idx(i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd = idx(i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN_chd  = idx(i_chd,   j_chd+1, offs_chd, dims_chd)
-
-    if (minval (dom%mask_n%elts((/ id_chd, idE_chd, idNE_chd /)+1)) >= ADJZONE) then
-       save_tri(LORT)%data(d)%elts((/ id_chd, idE_chd, idNE_chd/)+1) = 1d0
-       save_tri(UPLT)%data(d)%elts(idE_chd+1)                        = 1d0
-    end if
-
-    if (minval (dom%mask_n%elts((/ id_chd, idNE_chd, idN_chd /)+1)) >= ADJZONE) then
-       save_tri(LORT)%data(d)%elts(idN_chd+1)                         = 1d0
-       save_tri(UPLT)%data(d)%elts((/ id_chd, idNE_chd, idN_chd /)+1) = 1d0
+    mask_id   = minval (dom%mask_n%elts(id_hex  +1))
+    mask_idE  = minval (dom%mask_n%elts(idE_hex +1))
+    mask_idNE = minval (dom%mask_n%elts(idNE_hex+1))
+    mask_idN  = minval (dom%mask_n%elts(idN_hex +1))
+    
+    if (mask_id >= ADJZONE .and. mask_idNE >= ADJZONE) then
+       if (mask_idE >= ADJZONE) then
+          save_tri(LORT)%data(d)%elts((/id_chd, idE_chd, idNE_chd/)+1) = 1d0
+          save_tri(UPLT)%data(d)%elts(idE_chd+1)                       = 1d0
+       end if
+       if (mask_idN >= ADJZONE) then
+          save_tri(LORT)%data(d)%elts(idN_chd+1)                       = 1d0
+          save_tri(UPLT)%data(d)%elts((/id_chd, idNE_chd, idN_chd/)+1) = 1d0
+       end if
     end if
   end subroutine mark_save_tri
 
@@ -1817,16 +1828,21 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                      :: d, id, id_i, idE, idN, idNE, idW, idSW, idS, outl
+    integer                      :: d, id, id_i, idE, idN, idNE, idW, idSW, idS, mask_hex, outl
+    integer, dimension(2*EDGE+1) :: id_hex
     real(8)                      :: rho_dz, rho_dz_theta
     real(4), dimension(nvar_out) :: outv
     type(Coord), dimension(6)    :: vertices
     
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
-    id_i = id + 1
+    id_i = id + 1 
     
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+    id_hex = idx_hex (dom, i, j, offs, dims)
+    
+    mask_hex = minval (dom%mask_n%elts(id_hex+1))
+
+    if (mask_hex >= ADJZONE) then
        idE  = idx (i+1, j,   offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
        idN  = idx (i,   j+1, offs, dims)

@@ -737,9 +737,33 @@ contains
     implicit none
     integer                    :: id
     integer, dimension(1:EDGE) :: id_edge
-
+    
     id_edge = EDGE*id + (/ RT, DG, UP /) + 1
   end function id_edge
+
+  function idx_hex (dom, i, j, offs, dims)
+    ! Returns vector with the indices of the hexagon and its six neighbours hexagons at node (i,j,offs,dims)
+    implicit none
+    type(Domain)                     :: dom
+    integer                          :: i, j
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims 
+    integer, dimension(1:2*EDGE+1)   :: idx_hex
+
+    integer :: id, idE, idNE, idN, idW, idSW, idS
+
+    id   = idx (i+1, j,   offs, dims)
+    
+    idE  = idx (i+1, j,   offs, dims) 
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+
+    idS  = idx (i-1, j,   offs, dims) 
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    idx_hex = (/ id, idE, idNE, idN, idS, idSW, idS /)
+  end function idx_hex
 
   integer function tri_idx (i, j, tri, offs, dims)
     implicit none
