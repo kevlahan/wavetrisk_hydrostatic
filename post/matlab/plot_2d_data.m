@@ -2,8 +2,8 @@
 clc; clear all;
 
 % Data file details
-test_case = 'Held_Suarez'; run_id = 'HS_J6'; run_dir = ''; 
-NCAR_topo = 1;               % load topography file
+test_case = 'Held_Suarez'; run_id = 'HS_J6_dl_240km'; run_dir = ''; 
+NCAR_topo = false;               % load topography file
 
 %file_base = [run_id '.4.']; % single time
 file_base = [run_id '.6.'];  % average
@@ -20,7 +20,7 @@ Nz = 32;                     % number of vertical layers  (for vertical slice)
 itype     = 'omega';  % field to plot
 lon_lat   = true;     % plot longitude - latitude data
 zonal_avg = false;    % plot zonally averaged data
-shift     = true;     % shift left boundary to zero longitude
+shift     = false;     % shift left boundary to zero longitude
 smooth    = false;    % smooth data over two points in each direction
 lines     = false;    % plot contour lines
 
@@ -67,7 +67,11 @@ end
 
 % Axis limits
 if (strcmp(test_case,'DCMIP2008c5')||strcmp(test_case,'Held_Suarez'))
-    ax = [0 360 -90 90];
+    if shift
+        ax = [0 360 -90 90];
+    else
+        ax = [-180 180 -90 90];
+    end
 elseif (strcmp(test_case,'DCMIP2012c4'))
     if (strcmp(itype,'temp')||strcmp(itype,'surf_press'))
         ax = [45 360 0 90];
@@ -242,9 +246,10 @@ if (zonal_avg)
     fprintf('Maximum value of variable %s = %8.4e\n', itype, max(max(s_zo)));
     plot_zonal_avg_data(s_zo, lat, P_z, c_scale, v_title, smooth, lines, 1)
 end
+
 % Erase extracted files
-file_erase = ['\rm ' file_base '*'];
-system(file_erase);
+file_erase = ['\rm ' file_base '0* ' file_base '2*'];
+system(file_erase)
 %% Log data plots
 % Load log file
 %figure;

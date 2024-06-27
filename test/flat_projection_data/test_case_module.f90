@@ -440,6 +440,8 @@ contains
     read (fid,*) varname, zonal
     read (fid,*) varname, NCAR_topo
     read (fid,*) varname, topo_file
+    read (fid,*) varname, topo_min_level
+    read (fid,*) varname, topo_max_level  
     close(fid)
 
     if (rank==0) then
@@ -464,6 +466,8 @@ contains
        write( 6,'(A,L1)')     "zonal average          = ", zonal
        write( 6,'(A,L1)')     "NCAR_topo              = ", NCAR_topo
        write (6,'(A,A)')      "topo_file              = ", trim (topo_file)
+       write (6,'(a,i3)')     "topo_min_level       = ", topo_min_level
+       write (6,'(a,i3)')     "topo_max_level       = ", topo_max_level
        write (6,*) ' '
     end if
 

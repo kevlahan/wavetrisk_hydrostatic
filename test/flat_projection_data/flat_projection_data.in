@@ -1,16 +1,18 @@
-test_case    "Held_Suarez"  ! test case
-run_id       "Held_Suarez_J6"  ! run
-mean_beg	200         ! first checkpoint file for calculating mean
-mean_end	1200        ! last checkpoint file for calculating mean	
-cp_2d	        2000        ! checkpoint for 2d projection	
-max_level	6           ! maximum level of resolution
-zlevels         18          ! number of vertical levels
-uniform         F           ! uniform (T) or hybrid (F) vertical grid
-level_save      6           ! resolution level to interpolate to
-N               200         ! resolution of interpolated grid (N/2 latitude x N longitude), N  <= sqrt(40*4^J)
-pressure_save   850.0       ! pressure level to save (hPa)
-lat_val         0           ! latitude value for longitude slice
-lon_val         0           ! latitude value for latitude slice
-zonal           F           ! compute zonal average for latitude slice
-NCAR_topo       T           ! load realistic topography (compile with flag TOPO=.true.)
-topo_file       J06_120.0km ! smoothed NCAR topography file name
+test_case    "Held_Suarez"              ! test case
+run_id       "HS_J6_dl_240km"           ! run
+mean_beg	50                      ! first checkpoint file for calculating mean
+mean_end	60             		! last checkpoint file for calculating mean	
+cp_2d	        2000           		! checkpoint for 2d projection	
+max_level	6              		! maximum level of resolution
+zlevels         18             		! number of vertical levels
+uniform         F              		! uniform (T) or hybrid (F) vertical grid
+level_save      6              		! resolution level to interpolate to
+N               200            		! resolution of interpolated grid (N/2 latitude x N longitude), N  <= sqrt(40*4^J)
+pressure_save   500            		! pressure level to save (hPa)
+lat_val         0              		! latitude value for longitude slice
+lon_val         0              		! latitude value for latitude slice
+zonal           F              		! compute zonal average for latitude slice
+NCAR_topo       T              		! load realistic topography (compile with flag TOPO=.true.)
+topo_file       J06J07_240.0km 		! smoothed NCAR topography file name
+topo_min_level  6           		! minimum topography level
+topo_max_level  7                     	! maximum topography level

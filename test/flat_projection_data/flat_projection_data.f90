@@ -4,6 +4,7 @@ program flat_projection_data
   use test_case_mod
   use io_mod
   use projection_mod
+  use std_atm_profile_mod
   implicit none
   
   integer                                :: i, k, l, nt, Ncumul, p, d, nvar_total
@@ -66,10 +67,10 @@ program flat_projection_data
      compressible   = .true.                      ! Compressible equations
      mean_split     = .false.
 
-     radius         = 6.371229d6                  ! mean radius of the Earth in meters
+     radius         = 6.371d6                  ! mean radius of the Earth in meters
      grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
      omega          = 7.292d-5                    ! Earth’s angular velocity in radians per second
-     p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
+     call std_surf_pres (0d0, p_0)
      ref_surf_press = p_0                         ! reference surface pressure
      R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
      gamma          = c_p/c_v                     ! heat capacity ratio
@@ -299,7 +300,7 @@ program flat_projection_data
          if (climatology) then
             call cal_surf_press(sol(1:N_VARIABLE,1:zmax))
             ! Add each temp & KE for each checkpoint for the climatology
-            !Update the boundary for the velocities
+            ! Update the boundary for the velocities
             sol%bdry_uptodate = .false.
             call update_array_bdry (sol, NONE, 26)
             do k = 1, zlevels
