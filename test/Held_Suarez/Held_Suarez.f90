@@ -28,13 +28,8 @@ program Held_Suarez
   radius         = 6371d0    * KM                   ! mean radius of the Earth
   grav_accel     = 9.8d0     * METRE/SECOND**2      ! gravitational acceleration 
   omega          = 7.292d-5  * RAD/SECOND           ! Earth's angular velocity in radians per second
-  ref_density    = ref_density_air                  
-  ! Reference pressure (mean surface pressure) in Pascals
-  if (NCAR_topo) then
-     call std_surf_pres (0d0, p_0)
-  else
-     p_0         = 1000d0  * hPa                
-  end if
+  ref_density    = ref_density_air                  ! reference density of air
+  call std_surf_pres (0d0, p_0)                     ! surface pressure from USA standard atmosphere model
   c_p            = 1004d0  * JOULE/(KG*KELVIN)      ! specific heat at constant pressure in joules per kilogram Kelvin
   kappa          = 2d0/7d0                          ! kappa
   R_d            = kappa * c_p                      ! ideal gas constant for dry air in joules per kilogram Kelvin
@@ -82,7 +77,7 @@ program Held_Suarez
   dx_min             = sqrt (2d0 / sqrt(3d0) * Area_min)              
   dx_max             = sqrt (2d0 / sqrt(3d0) * Area_max)
 
-  timeint_type       = "RK4"
+  timeint_type       = "RK33"
   iremap             = 4
 
   default_thresholds = .false.
@@ -90,14 +85,14 @@ program Held_Suarez
   remap              = .true.
   uniform            = .false.
 
-  adapt_dt           = .false.
+  adapt_dt           = .true.
 
   dx_scaling         = 2d0 ** (dble (6 - max_level))
 
   if (adapt_dt) then
-     cfl_min = 0.1d0                                           ! minimum cfl number
-     cfl_max = 1d0                                             ! maximum cfl number
-     T_cfl   = 1d0 * DAY                                       ! time over which to increase cfl number from cfl_min to cfl_max
+     cfl_max = 1.0d0                                           ! maximum cfl number
+     cfl_min = cfl_max                                         ! minimum cfl number
+     T_cfl   = 5d-2 * DAY                                      ! time over which to increase cfl number from cfl_min to cfl_max
      cfl_num = cfl_min                                         ! initialize cfl number
      dt_init = cfl_min * 0.85d0 * dx_min / (wave_speed + Udim) ! initial time step     (0.85 factor corrects for minimum dx)
      dt_max  = cfl_max * 0.85d0 * dx_min / (wave_speed + Udim) ! equilibrium time step (0.85 factor corrects for minimum dx)

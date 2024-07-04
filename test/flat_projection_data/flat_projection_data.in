@@ -4,7 +4,7 @@ mean_beg	50                      ! first checkpoint file for calculating mean
 mean_end	60             		! last checkpoint file for calculating mean	
 cp_2d	        2000           		! checkpoint for 2d projection	
 max_level	6              		! maximum level of resolution
-zlevels         18             		! number of vertical levels
+zlevels         32             		! number of vertical levels
 uniform         F              		! uniform (T) or hybrid (F) vertical grid
 level_save      6              		! resolution level to interpolate to
 N               200            		! resolution of interpolated grid (N/2 latitude x N longitude), N  <= sqrt(40*4^J)

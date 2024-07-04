@@ -589,7 +589,7 @@ contains
     integer :: l
     
     do l = level_start, level_end
-       if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       if (NCAR_topo) call apply_onescale (assign_NCAR_topo, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
        call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
   end subroutine update_case

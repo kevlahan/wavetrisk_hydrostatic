@@ -51,7 +51,7 @@ program trisk2vtk
      write (6,'(a)') "jmin      = minimum scale"
      write (6,'(a)') "jmax      = maximum scale"
      write (6,'(a)') "zmin      = min vertical layer"
-     write (6,'(a,/)') "zmax      = max vertical layer"
+     write (6,'(a)') "zmax      = max vertical layer"
      write (6,'(a)') "tbeg      = first file to read"
      write (6,'(a)') "tend      = last file to read"
      stop 

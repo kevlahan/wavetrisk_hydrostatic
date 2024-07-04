@@ -18,7 +18,10 @@ module test_case_mod
   real(8) :: topo_Area_min, topo_dx_min
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, sigma_b, sigma_c, u_0
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
-  logical :: scale_aware = .true.
+
+  character(255) :: analytic_topo = "dcmip" ! ellipse or dcmip
+  
+  logical        :: scale_aware = .false.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -212,7 +215,7 @@ contains
     do k = 1, zlevels
        sol(S_MASS,k)%data(d)%elts(id+1) = 0d0 
        sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
-       if (NCAR_topo) then
+       if (NCAR_topo .or. analytic_topo=="ellipse") then
           sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
        else
           call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
@@ -300,16 +303,17 @@ contains
   end function set_temp
 
   real(8) function surf_geopot_case (d, id)
+    ! Set geopotential and topography
     implicit none
     integer :: d, id
     
     real(8) :: c1, cs2, lon, lat, sn2
-
-    if (NCAR_topo) then ! add non-zero surface geopotential
+    
+    if (NCAR_topo .or. analytic_topo=="ellipse") then
        surf_geopot_case = grav_accel * topography%data(d)%elts(id)
-    else ! surface geopotential from Jablonowski and Williamson (2006)
+    else
        call cart2sph (grid(d)%node%elts(id), lon, lat)
-       
+
        c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
        cs2 = cos (lat)**2; sn2 = sin (lat)**2
 
@@ -319,12 +323,71 @@ contains
     end if
   end function surf_geopot_case
 
+  subroutine init_topo (dom, i, j, zlev, offs, dims)
+    ! Assigns analytic topography
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+    real(8) :: lat, lon
+
+    d  = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    select case (analytic_topo)
+    case ("dcmip")
+       topography%data(d)%elts(id) = 0d0
+    case ("ellipse")
+       call cart2sph (grid(d)%node%elts(id), lon, lat)
+       
+       topography%data(d)%elts(id) = &
+            mountain ( 86*DEG,  32*DEG, 0.85d0, 4d3*METRE, 15*DEG,  0*DEG ) + & ! Himalayas
+            mountain (-67*DEG, -30*DEG, 0.98d0, 4d3*METRE, 20*DEG, 80*DEG )     ! Andes
+    end select
+  contains
+    real(8) function mountain (lon_0, lat_0, e, height, sigma, theta)
+      ! Elliptical smoothed mountain, ellipticity 0 < e <= 1
+      ! Minimum resolution of gradient = N
+      implicit none
+      real(8), intent(in) :: lon_0, lat_0 ! centre of ellipse (in radians)
+      real(8), intent(in) :: e            ! ellipticity
+      real(8), intent(in) :: height       ! height of ellipse (in metres)
+      real(8), intent(in) :: sigma        ! size of ellipse (in radians)
+      real(8), intent(in) :: theta        ! orientation (in radians)
+
+      real(8)            :: dtheta, p, lat_loc, lat_rot, lon_loc, lon_rot, rsq, sigma_x, sigma_y
+
+      real(8), parameter :: npts_slope = 5d0 ! resolve slope with this many cells
+
+      dtheta = dx_min / radius
+
+      sigma_x = sigma
+      sigma_y = sigma_x * sqrt (1d0 - e**2)
+
+      ! Transform coordinates (shift and rotate)
+      lon_loc = lon - lon_0; lat_loc = lat - lat_0
+
+      lon_rot = lon_loc * cos (theta) - lat_loc * sin (theta)
+      lat_rot = lon_loc * sin (theta) + lat_loc * cos (theta)
+
+      rsq = (lon_rot/sigma_x)**2 + (lat_rot/sigma_y)**2
+
+      ! Order of hyper Gaussian is 2 p
+      p = (log (0.01d0) / log (1d0 - npts_slope * dtheta/(2d0*sigma_y))) / 2d0
+
+      mountain = height * exp__flush (-rsq**p)
+    end function mountain
+  end subroutine init_topo
+
   real(8) function surf_pressure (d, id) 
     ! Surface pressure
     implicit none
     integer :: d, id
 
-    if (NCAR_topo) then ! use standard atmosphere
+    if (NCAR_topo .or. analytic_topo=="ellipse") then ! use standard atmosphere
        call std_surf_pres (topography%data(d)%elts(id), surf_pressure)
     else
        surf_pressure = p_0
@@ -646,12 +709,16 @@ contains
        write (6,'(a,es10.4)') "delta_theta   [K/m]  = ", delta_theta
        write (6,'(a,es10.4,/)') "wave_speed    [m/s]  = ", wave_speed
        write (6,'(a,l)')      "NCAR_topo            = ", NCAR_topo
-       write (6,'(a,l)')      "sso                  = ", sso
-       write (6,'(a,l)')      "wave_drag            = ", wave_drag
-       write (6,'(a,l)')      "blocking_drag        = ", blocking_drag
-       write (6,'(a,a)')      "topo_file            = ", trim (topo_file)
-       write (6,'(a,i3)')     "topo_min_level       = ", topo_min_level
-       write (6,'(a,i3)')     "topo_max_level       = ", topo_max_level
+       if (NCAR_topo) then
+          write (6,'(a,l)')      "sso                  = ", sso
+          write (6,'(a,l)')      "wave_drag            = ", wave_drag
+          write (6,'(a,l)')      "blocking_drag        = ", blocking_drag
+          write (6,'(a,a)')      "topo_file            = ", trim (topo_file)
+          write (6,'(a,i3)')     "topo_min_level       = ", topo_min_level
+          write (6,'(a,i3)')     "topo_max_level       = ", topo_max_level
+       else
+          write (6,'(a,a)')      "analytic_topo        = ", analytic_topo
+       end if
        write (6,'(a)') &
             '*********************************************************************&
             ************************************************************'
@@ -694,7 +761,7 @@ contains
     use lnorms_mod
     implicit none
 
-    call cal_lnorm ("inf")
+    call cal_lnorm ("2")
     lnorm(S_VELO,:) = Udim
 
     threshold_def = tol * lnorm
@@ -704,13 +771,13 @@ contains
     ! Set thresholds dynamically (trend or sol must be known)
     use lnorms_mod
     implicit none
-    real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: lnorm_mean
 
     if (default_thresholds) then
        threshold = threshold_def
     else
-       call cal_lnorm ("inf")
-       threshold = max (tol * lnorm, threshold_def)
+       call cal_lnorm ("2")
+       threshold = tol * lnorm
+       threshold(S_VELO,:) = max (threshold(S_VELO,:), threshold_def(S_VELO,:))
     end if
   end subroutine set_thresholds_case
 
@@ -722,7 +789,11 @@ contains
     integer :: l
 
     do l = level_start, level_end
-       if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, 0, 1)
+       if (NCAR_topo) then
+          call apply_onescale (assign_NCAR_topo, l, z_null, 0, 1)
+       else
+          call apply_onescale (init_topo, l, z_null, 0, 1)
+       end if
        call apply_onescale (init_mean, l, z_null, 0, 1)
        call apply_onescale (init_sol,  l, z_null, 0, 1)
     end do
@@ -753,13 +824,21 @@ contains
     if (istep /= 0) then
        do d = 1, size(grid)
           do p = n_patch_old(d)+1, grid(d)%patch%length
-             if (NCAR_topo) call apply_onescale_to_patch (assign_topo, grid(d), p-1, z_null, 0, 1)
+             if (NCAR_topo) then
+                call apply_onescale_to_patch (assign_NCAR_topo, grid(d), p-1, z_null, 0, 1)
+             else
+                call apply_onescale_to_patch (init_topo, grid(d), p-1, z_null, 0, 1)
+             end if
              call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, 0, 1)
           end do
        end do
     else ! need to set values over entire grid on restart
        do l = level_start, level_end
-          if (NCAR_topo) call apply_onescale (assign_topo, l, z_null, 0, 1)
+          if (NCAR_topo) then
+             call apply_onescale (assign_NCAR_topo, l, z_null, 0, 1)
+          else
+             call apply_onescale (init_topo, l, z_null, 0, 1)
+          end if
           call apply_onescale (init_mean, l, z_null, 0, 1)
        end do
     end if
@@ -913,7 +992,7 @@ contains
     
     call cal_theta_eq (dom%press%elts(id), dom%surf_press%elts(id), lat, theta_equil, k_T)
 
-    if (NCAR_topo) then 
+    if (NCAR_topo .or. analytic_topo=="ellipse") then
        sigma = (dom%press%elts(id) - p_top) / (dom%surf_press%elts(id) - p_top)
 
        if (sigma > 0.7d0) then ! no temperature relaxation in lower part of atmosphere

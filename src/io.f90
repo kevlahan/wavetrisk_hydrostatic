@@ -1301,7 +1301,7 @@ contains
     end if
   end subroutine load_topo
 
-  subroutine assign_topo (dom, i, j, zlev, offs, dims)
+  subroutine assign_NCAR_topo (dom, i, j, zlev, offs, dims)
     ! Assign topography data to topography structure for simulation
     implicit none
     type(Domain)                   :: dom
@@ -1330,7 +1330,7 @@ contains
     
     ii = 3*(jj-1) + 1
     topography%data(d)%elts(id) = topography_data(l,d)%elts(ii)
-  end subroutine assign_topo
+  end subroutine assign_NCAR_topo
 
   subroutine proj_xz_plane (cin, cout)
     implicit none
