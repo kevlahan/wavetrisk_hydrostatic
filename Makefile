@@ -2,7 +2,7 @@
 TEST_CASE  = Held_Suarez
 PARAM      = param_J6
 ARCH       = mpi
-OPTIM      = fast
+OPTIM      = 2
 F90        = gfortran
 MPIF90     = mpif90
 BIN_DIR    = bin
@@ -62,7 +62,7 @@ ifeq ($(F90),ifort)
     FLAGS_LINK += -module $(BUILD_DIR)
   endif
 else
-  FLAGS_COMP += -O$(OPTIM) -c -J$(BUILD_DIR) -cpp
+  FLAGS_COMP += -O$(OPTIM) -mtune=native  -c -J$(BUILD_DIR) -cpp
   FLAGS_LINK += -O$(OPTIM) -J $(BUILD_DIR)
 endif
 
