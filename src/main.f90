@@ -317,7 +317,7 @@ contains
     character(*) :: run_id
     
     integer         :: l
-    character(9999) :: bash_cmd, cmd_archive, cmd_files, command
+    character(9999) :: archive, bash_cmd
     
     if (Laplace_order < 0 .and. &
          (maxval (C_visc(S_MASS:S_TEMP)) > (1d0/6d0)**Laplace_order .or. C_visc(S_VELO) > (1d0/24d0)**Laplace_order) ) then
@@ -346,10 +346,9 @@ contains
 
     ! Uncompress checkpoint data (needed for init_structures and load_adapt_mpi)
     if (rank == 0) then
-       write (cmd_archive, '(a,i4.4,a)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
-       write (6,              '(a,a,/)') 'Loading file ', trim (cmd_archive)
-       write (command,          '(a,a)') 'gtar xzf ', trim (cmd_archive)
-       write (bash_cmd,       '(a,a,a)') 'bash -c "', trim (command), '"'
+       write (archive, '(a,i4.4,a)') trim(run_id)//'_checkpoint_' , cp_idx, '.tgz'
+       write (6, '(a,a,/)') 'Loading file ', trim(archive)
+       bash_cmd = 'bash -c "'//'gtar xzf '//trim(archive)//'"'
        call system (trim(bash_cmd))
     end if
     call barrier ! make sure all archive files have been uncompressed

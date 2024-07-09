@@ -851,7 +851,7 @@ contains
     integer                          :: c, d, ibeg, iend, info, j, k, l, p_chd, p_lev, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     character(9999)                  :: filename_gr, filename_no
-    character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
+    character(9999)                  :: archive, bash_cmd, files
     logical, dimension(1:N_CHDRN)    :: required
 
     call update_array_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE, 880)
@@ -970,16 +970,18 @@ contains
     end do
 
     ! Archive checkpoint (overwriting existing checkpoint if present)
-    call barrier ! Make sure all processors have written data
+    call barrier ! make sure all processors have written data
     if (rank == 0) then
-       write (cmd_files, '(a,a,i4.4,a,a,a,i4.4)') trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', &
-            trim (run_id), '_conn.', cp_idx
-       write (cmd_archive, '(a,i4.4,a)') trim (run_id)//'_checkpoint_' , cp_idx, ".tgz"
-       write (command,    '(a,a,a,a,a)') 'gtar cfz ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
-       write (bash_cmd,       '(a,a,a)') 'bash -c "', trim (command), '"'
+       write (files, '(a,a,i4.4,a,a,a,i4.4)') &
+            trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
+
+       write (archive, '(a,i4.4,a)') trim(run_id)//'_checkpoint_' , cp_idx, '.tgz'
+
+       bash_cmd = 'bash -c "gtar cfz '//trim(archive)//' '//trim(files)//' --remove-files"'
        call system (trim(bash_cmd), info)
+       
        if (info /= 0) then
-          if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
+          if (rank == 0) write (6,'(a)') 'gtar command not present ... aborting'
           call abort
        end if
     end if
@@ -1022,7 +1024,7 @@ contains
     integer                          :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     character(9999)                  :: filename_gr, filename_no
-    character(9999)                  :: bash_cmd, cmd_archive, cmd_files, command
+    character(9999)                  :: bash_cmd, cmd_archive, files
     logical, dimension(1:N_CHDRN)    :: required
 
     do r = 1, n_process
@@ -1036,8 +1038,8 @@ contains
           fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
           fid_gr(d) = id*1000 + 3000000 + glo_id(rank+1,d)
 
-          write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
-          write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
+          write (filename_no, '(A,A,I4.4,A,I5.5)') trim(run_id), "_coef.", id, "_", glo_id(rank+1,d)
+          write (filename_gr, '(A,A,I4.4,A,I5.5)') trim(run_id), "_grid.", id, "_", glo_id(rank+1,d)
 
           open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ', status='OLD')
           open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ', status='OLD')
@@ -1124,10 +1126,10 @@ contains
     ! Delete temporary files
     call barrier ! Do not delete files before everyone has read them
     if (rank == 0) then
-       write (cmd_files, '(a,a,i4.4,a,a,a,i4.4)') &
+       write (files, '(a,a,i4.4,a,a,a,i4.4)') &
             trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
-       write (command,    '(a,a)') '\rm ', trim (cmd_files)
-       write (bash_cmd, '(a,a,a)') 'bash -c "', trim (command), '"' 
+       
+       bash_cmd = 'bash -c "\rm '//trim(files)//'"'
        call system (trim(bash_cmd))
     end if
     call barrier
@@ -1168,7 +1170,7 @@ contains
     implicit none
     integer         :: d, d_glo, j, l
     character(9999) :: filename
-    character(9999) :: bash_cmd, cmd_archive, cmd_files, command
+    character(9999) :: archive, bash_cmd, files
 
     call update_bdry (topography, NONE, 882)
 
@@ -1199,11 +1201,10 @@ contains
     close (10)
 
     ! Compress topography data
-    write (cmd_files,   '(a,a,a,a,a,a,a)') trim (topo_file), '.', '??', '.', '?????', ' ', trim (filename)
-    write (cmd_archive,         '(a)') trim (topo_file)//".tgz"
-    write (6,             '(/,a,a,/)') 'Saving topography file ', trim (cmd_archive)
-    write (command,     '(a,a,a,a,a)') 'gtar czf ', trim (cmd_archive), ' ', trim (cmd_files), ' --remove-files'
-    write (bash_cmd,        '(a,a,a)') 'bash -c "', trim (command), '"'
+    archive = trim (topo_file)//'.tgz'
+    write (6, '(/,a,a,/)') 'Saving topography file ', trim (archive)
+    write (files, '(a,a,a,a,a,a,a)') trim (topo_file), '.', '??', '.', '?????', ' ', trim (filename)
+    bash_cmd = 'bash -c "gtar czf '//trim (archive)//' '//trim (files)//' --remove-files"'
     call system (trim(bash_cmd))
   end subroutine save_topo
 
@@ -1237,14 +1238,13 @@ contains
     implicit none
     integer         :: d, d_glo, i, ii, l, r
     character(9999) :: filename
-    character(9999) :: bash_cmd, cmd_archive, cmd_files, command
+    character(9999) :: archive, bash_cmd, files
 
     ! Uncompress topography data
     if (rank == 0) then
-       write (cmd_archive, '(a)') trim (topo_file)//".tgz"
-       write (6,'(/,a,a,/)') 'Loading topography file ', trim (cmd_archive)
-       write (command, '(a,a)') 'gtar xzf ', trim (cmd_archive)
-       write (bash_cmd,    '(a,a,a)') 'bash -c "', trim (command), '"'
+       write (archive, '(a)') trim (topo_file)//".tgz"
+       write (6,'(/,a,a,/)') 'Loading topography file ', trim(archive)
+       bash_cmd = 'bash -c "gtar xzf '//trim(archive)//'"'
        call system (trim(bash_cmd))
     end if
     call barrier
@@ -1294,9 +1294,8 @@ contains
     ! Remove temporary files
     call barrier ! do not delete files before everyone has read them
     if (rank == 0) then
-       write (cmd_files,   '(a,a,a,a,a,a,a,a)') trim (topo_file), '.', '??', '.', '?????', ' ', trim (topo_file)//'.count'
-       write (command,     '(a,a)') '\rm ', trim (cmd_files)
-       write (bash_cmd,  '(a,a,a)') 'bash -c "', trim (command), '"' 
+       write (files,   '(a,a,a,a,a,a,a,a)') trim (topo_file), '.', '??', '.', '?????', ' ', trim (topo_file)//'.count'
+       bash_cmd = 'bash -c "\rm '//trim(files)//'"' 
        call system (trim(bash_cmd))
     end if
   end subroutine load_topo
@@ -2333,8 +2332,7 @@ contains
 
     write (isv, '(i4.4)') isave
 
-    command = "ls -1 *hex*"//trim(isv)//" > tmp1"
-    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    bash_cmd = 'bash -c "ls -1 *hex*'//trim(isv)//' > tmp1"'
     call system (trim(bash_cmd))
 
     command = 'gtar caf '//trim(run_id)//"_hex_"//trim(isv)//'.tgz -T tmp1 --remove-files'
@@ -2344,14 +2342,13 @@ contains
        call abort
     end if
 
-    command = "ls -1 *tri*"//trim(isv)//" > tmp2"
-    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
+    bash_cmd = 'bash -c "ls -1 *tri*'//trim(isv)//' > tmp2"'
     call system (trim(bash_cmd))
 
-    command = 'gtar caf '//trim(run_id)//"_tri_"//trim(isv)//'.tgz -T tmp2 --remove-files'
+    command = 'bash -c "gtar caf '//trim(run_id)//'_tri_'//trim(isv)//'.tgz -T tmp2 --remove-files"'
     call system (trim(command), info)
     if (info /= 0) then
-       if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
+       if (rank == 0) write (6,'(a)') 'gtar command not present ... aborting'
        call abort
     end if
 
