@@ -121,8 +121,10 @@ program Held_Suarez
   C_div              = nu_divu * dt_max / (3d0 * Area_min**Laplace_order_init) 
   
   ! Adapt on mean variables (fluctuations are initially zero)
-  log_min_mass       = .false.
+  log_min_mass       = .true.
   log_total_mass     = .false.
+
+  analytic_topo = "mountains" ! type of analytic topography (mountains or dcmip, if NCAR_topo = .false.)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

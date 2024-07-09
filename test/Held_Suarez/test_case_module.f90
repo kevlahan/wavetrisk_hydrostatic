@@ -19,7 +19,7 @@ module test_case_mod
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, sigma_b, sigma_c, u_0
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
 
-  character(255) :: analytic_topo = "dcmip" ! ellipse or dcmip
+  character(255) :: analytic_topo = "dcmip" ! mountains or dcmip
   
   logical        :: scale_aware = .false.
 contains
@@ -332,7 +332,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: lat, lon
+    real(8) :: lat, lon, width
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -340,15 +340,37 @@ contains
     select case (analytic_topo)
     case ("dcmip")
        topography%data(d)%elts(id) = 0d0
-    case ("ellipse")
+    case ("mountains")
+       width = 8d0 * dx_max
        call cart2sph (grid(d)%node%elts(id), lon, lat)
        
        topography%data(d)%elts(id) = &
-            mountain ( 86*DEG,  32*DEG, 0.85d0, 4d3*METRE, 15*DEG,  0*DEG ) + & ! Himalayas
-            mountain (-67*DEG, -30*DEG, 0.98d0, 4d3*METRE, 20*DEG, 80*DEG )     ! Andes
+            tanh_profile (4d3*METRE,  65*DEG,   95*DEG,  25*DEG,  40*DEG) + & ! Himalayas
+            tanh_profile (4d3*METRE, -60*DEG,  -50*DEG, -60*DEG, -10*DEG)     ! Andes
     end select
   contains
-    real(8) function mountain (lon_0, lat_0, e, height, sigma, theta)
+    real(8) function tanh_profile (height, lon_min, lon_max, lat_min, lat_max)
+      implicit none
+      real(8), intent(in) :: height, lon_min, lon_max, lat_min, lat_max
+
+      tanh_profile = height * (profile1d (lat, lat_min, lat_max) * profile1d (lon, lon_min, lon_max))
+    end function tanh_profile
+
+    real(8) function profile1d (x, xmin, xmax)
+      implicit none
+      real(8) :: x, xmin, xmax
+
+      profile1d = prof (x, xmax) - prof (x, xmin)
+    end function profile1d
+
+    real(8) function prof (x, x0)
+      implicit none
+      real(8) :: x, x0
+
+      prof = 0.5d0 * (1d0 - tanh ((x - x0)/((width/5d0)/radius)))
+    end function prof
+    
+    real(8) function ellipse_profile (lon_0, lat_0, e, height, sigma, theta)
       ! Elliptical smoothed mountain, ellipticity 0 < e <= 1
       ! Minimum resolution of gradient = N
       implicit none
@@ -378,8 +400,8 @@ contains
       ! Order of hyper Gaussian is 2 p
       p = (log (0.01d0) / log (1d0 - npts_slope * dtheta/(2d0*sigma_y))) / 2d0
 
-      mountain = height * exp__flush (-rsq**p)
-    end function mountain
+      ellipse_profile = height * exp__flush (-rsq**p)
+    end function ellipse_profile
   end subroutine init_topo
 
   real(8) function surf_pressure (d, id) 
