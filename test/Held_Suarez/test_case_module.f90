@@ -341,7 +341,7 @@ contains
     case ("dcmip")
        topography%data(d)%elts(id) = 0d0
     case ("mountains")
-       width = 8d0 * dx_max
+       width = 8d0 * dx_min
        call cart2sph (grid(d)%node%elts(id), lon, lat)
        
        topography%data(d)%elts(id) = &
