@@ -220,7 +220,11 @@ contains
        elseif (analytic_topo=="dcmip") then
           call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
        else
-          if (rank == 0) write (6,'(/,a,/)') "!! Incorrect topography type: must be NCAR_topo or analytic_topo = mountains or dcmip !!"
+          if (rank == 0) then
+             write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+             write (6,'(a)')   "!! Incorrect topography type: must be NCAR_topo or analytic_topo = mountains or dcmip !!"
+             write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          end if
           call abort
        end if
     end do
