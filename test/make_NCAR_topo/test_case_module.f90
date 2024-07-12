@@ -7,8 +7,9 @@ module test_case_mod
   use io_mod
   implicit none
   integer         :: nsmth
-  real(8)         :: dt_nu, smth_scl
+  real(8)         :: Area_max, Area_min, dt_nu, smth_scl
   character(9999) :: topo_data
+  logical         :: analytic_topo = .false.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -60,6 +61,82 @@ contains
        sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
   end subroutine init_mean
+
+  subroutine init_topo (dom, i, j, zlev, offs, dims)
+    ! Assigns analytic topography
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id
+    real(8) :: lat, lon, width
+
+    d  = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+    
+    width = 8d0 * dx_min
+    call cart2sph (grid(d)%node%elts(id), lon, lat)
+
+    topography%data(d)%elts(id) = &
+         tanh_profile (4d3*METRE,  65*DEG,   95*DEG,  25*DEG,  40*DEG) + & ! Himalayas
+         tanh_profile (4d3*METRE, -60*DEG,  -50*DEG, -60*DEG, -10*DEG)     ! Andes
+  contains
+    real(8) function tanh_profile (height, lon_min, lon_max, lat_min, lat_max)
+      implicit none
+      real(8), intent(in) :: height, lon_min, lon_max, lat_min, lat_max
+
+      tanh_profile = height * (profile1d (lat, lat_min, lat_max) * profile1d (lon, lon_min, lon_max))
+    end function tanh_profile
+
+    real(8) function profile1d (x, xmin, xmax)
+      implicit none
+      real(8) :: x, xmin, xmax
+
+      profile1d = prof (x, xmax) - prof (x, xmin)
+    end function profile1d
+
+    real(8) function prof (x, x0)
+      implicit none
+      real(8) :: x, x0
+
+      prof = 0.5d0 * (1d0 - tanh ((x - x0)/((width/5d0)/radius)))
+    end function prof
+    
+    real(8) function ellipse_profile (lon_0, lat_0, e, height, sigma, theta)
+      ! Elliptical smoothed mountain, ellipticity 0 < e <= 1
+      ! Minimum resolution of gradient = N
+      implicit none
+      real(8), intent(in) :: lon_0, lat_0 ! centre of ellipse (in radians)
+      real(8), intent(in) :: e            ! ellipticity
+      real(8), intent(in) :: height       ! height of ellipse (in metres)
+      real(8), intent(in) :: sigma        ! size of ellipse (in radians)
+      real(8), intent(in) :: theta        ! orientation (in radians)
+
+      real(8)            :: dtheta, p, lat_loc, lat_rot, lon_loc, lon_rot, rsq, sigma_x, sigma_y
+
+      real(8), parameter :: npts_slope = 5d0 ! resolve slope with this many cells
+
+      dtheta = dx_min / radius
+
+      sigma_x = sigma
+      sigma_y = sigma_x * sqrt (1d0 - e**2)
+
+      ! Transform coordinates (shift and rotate)
+      lon_loc = lon - lon_0; lat_loc = lat - lat_0
+
+      lon_rot = lon_loc * cos (theta) - lat_loc * sin (theta)
+      lat_rot = lon_loc * sin (theta) + lat_loc * cos (theta)
+
+      rsq = (lon_rot/sigma_x)**2 + (lat_rot/sigma_y)**2
+
+      ! Order of hyper Gaussian is 2 p
+      p = (log (0.01d0) / log (1d0 - npts_slope * dtheta/(2d0*sigma_y))) / 2d0
+
+      ellipse_profile = height * exp__flush (-rsq**p)
+    end function ellipse_profile
+  end subroutine init_topo
 
   subroutine set_thresholds_case
     use lnorms_mod
@@ -148,9 +225,17 @@ contains
     integer :: k, l
 
     do l = level_start, level_end
-       call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       call apply_onescale (init_sol,  l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+       if (.not. NCAR_topo) call apply_onescale (init_topo, l, z_null, 0, 1)
+       call apply_onescale (init_mean, l, z_null, 0, 1)
+       call apply_onescale (init_sol,  l, z_null, 0, 1)
     end do
+
+    topography%bdry_uptodate = .false.
+    sol%bdry_uptodate        = .false.
+    sol_mean%bdry_uptodate   = .false.
+    call update_bdry       (topography, NONE)
+    call update_array_bdry (sol,        NONE)
+    call update_array_bdry (sol_mean,   NONE)
   end subroutine apply_initial_conditions_case
 
   subroutine update_case

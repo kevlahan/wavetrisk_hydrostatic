@@ -1,6 +1,6 @@
 # Highlight data using CMD+click
 approx = inputs[0].CellData['OMEGA_average']
-exact  = inputs[1].CellData['mass_average']
+exact  = inputs[1].CellData['OMEGA_average']
 
 # Compute difference 
 output.CellData.append(approx - exact, 'difference')
