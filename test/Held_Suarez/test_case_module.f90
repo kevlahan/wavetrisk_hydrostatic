@@ -215,10 +215,13 @@ contains
     do k = 1, zlevels
        sol(S_MASS,k)%data(d)%elts(id+1) = 0d0 
        sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
-       if (NCAR_topo .or. analytic_topo=="ellipse") then
+       if (NCAR_topo .or. analytic_topo=="mountains") then
           sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
-       else
+       elseif (analytic_topo=="dcmip") then
           call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
+       else
+          if (rank == 0) write (6,'(/,a,/)') "!! Incorrect topography type: must be NCAR_topo or analytic_topo = mountains or dcmip !!"
+          call abort
        end if
     end do
   end subroutine init_sol
@@ -309,7 +312,7 @@ contains
     
     real(8) :: c1, cs2, lon, lat, sn2
     
-    if (NCAR_topo .or. analytic_topo=="ellipse") then
+    if (NCAR_topo .or. analytic_topo=="mountains") then
        surf_geopot_case = grav_accel * topography%data(d)%elts(id)
     else
        call cart2sph (grid(d)%node%elts(id), lon, lat)
@@ -409,7 +412,7 @@ contains
     implicit none
     integer :: d, id
 
-    if (NCAR_topo .or. analytic_topo=="ellipse") then ! use standard atmosphere
+    if (NCAR_topo .or. analytic_topo=="mountains") then ! use standard atmosphere
        call std_surf_pres (topography%data(d)%elts(id), surf_pressure)
     else
        surf_pressure = p_0
@@ -1014,7 +1017,7 @@ contains
     
     call cal_theta_eq (dom%press%elts(id), dom%surf_press%elts(id), lat, theta_equil, k_T)
 
-    if (NCAR_topo .or. analytic_topo=="ellipse") then
+    if (NCAR_topo .or. analytic_topo=="mountains") then
        sigma = (dom%press%elts(id) - p_top) / (dom%surf_press%elts(id) - p_top)
 
        if (sigma > 0.7d0) then ! no temperature relaxation in lower part of atmosphere
