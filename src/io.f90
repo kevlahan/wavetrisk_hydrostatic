@@ -2332,7 +2332,7 @@ contains
 
     write (isv, '(i4.4)') isave
 
-    bash_cmd = 'bash -c "ls -1 *hex*'//trim(isv)//' > tmp1"'
+    bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_hex_*'//trim(isv)//' > tmp1"'
     call system (trim(bash_cmd))
 
     command = 'gtar caf '//trim(run_id)//"_hex_"//trim(isv)//'.tgz -T tmp1 --remove-files'
@@ -2342,7 +2342,7 @@ contains
        call abort
     end if
 
-    bash_cmd = 'bash -c "ls -1 *tri*'//trim(isv)//' > tmp2"'
+    bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_tri_*'//trim(isv)//' > tmp2"'
     call system (trim(bash_cmd))
 
     command = 'bash -c "gtar caf '//trim(run_id)//'_tri_'//trim(isv)//'.tgz -T tmp2 --remove-files"'
