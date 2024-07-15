@@ -760,18 +760,18 @@ contains
     close (funit)
 
     ! Compress files
-    command = 'ls -1 '//trim(run_id)//'.3.?? > tmp'
+    command = 'ls -1 '//trim(run_id)//'.3.?? > '//trim(run_id)//'tmp'
     write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
     call system (trim(bash_cmd))
 
-    command = 'gtar czf '//trim(run_id)//'.3.tgz -T tmp --remove-files &'
+    command = 'gtar czf '//trim(run_id)//'.3.tgz -T '//trim(run_id)//'tmp --remove-files &'
     call system (trim(command), info)
     if (info /= 0) then
-       if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
+       if (rank == 0) write (6,'(a)') "gtar error info=0 ... aborting"
        call abort
     end if
 
-    command = '\rm -f tmp'
+    command = '\rm -f '//trim(run_id)//'tmp'
     call system (trim(command))
   end subroutine write_out_stats
 
@@ -981,7 +981,7 @@ contains
        call system (trim(bash_cmd), info)
        
        if (info /= 0) then
-          if (rank == 0) write (6,'(a)') 'gtar command not present ... aborting'
+          if (rank == 0) write (6,'(a)') 'gtar error info=0 .. aborting'
           call abort
        end if
     end if
@@ -2332,27 +2332,27 @@ contains
 
     write (isv, '(i4.4)') isave
 
-    bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_hex_*'//trim(isv)//' > tmp1"'
+    bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_hex_*'//trim(isv)//' > '//trim(run_id)//'_tmp1"'
     call system (trim(bash_cmd))
 
-    command = 'gtar caf '//trim(run_id)//"_hex_"//trim(isv)//'.tgz -T tmp1 --remove-files'
+    command = 'gtar caf '//trim(run_id)//"_hex_"//trim(isv)//'.tgz -T '//trim(run_id)//'_tmp1 --remove-files'
     call system (trim(command), info)
     if (info /= 0) then
-       if (rank == 0) write (6,'(a)') "gtar command not present ... aborting"
+       if (rank == 0) write (6,'(a)') "gtar error info=0... aborting"
        call abort
     end if
 
-    bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_tri_*'//trim(isv)//' > tmp2"'
+    bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_tri_*'//trim(isv)//' > '//trim(run_id)//'_tmp2"'
     call system (trim(bash_cmd))
 
-    command = 'bash -c "gtar caf '//trim(run_id)//'_tri_'//trim(isv)//'.tgz -T tmp2 --remove-files"'
+    command = 'bash -c "gtar caf '//trim(run_id)//'_tri_'//trim(isv)//'.tgz -T '//trim(run_id)//'_tmp2 --remove-files"'
     call system (trim(command), info)
     if (info /= 0) then
-       if (rank == 0) write (6,'(a)') 'gtar command not present ... aborting'
+       if (rank == 0) write (6,'(a)') 'gtar error info=0 ... aborting'
        call abort
     end if
 
-    command = '\rm -f tmp1 tmp2'
+    command = '\rm -f '//trim(run_id)//'_tmp1 '//trim(run_id)//'_tmp2'
     call system (trim(command))
   end subroutine compress_files
 end module io_mod
