@@ -19,7 +19,7 @@ module test_case_mod
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, sigma_b, sigma_c, u_0
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
 
-  character(255) :: analytic_topo = "dcmip" ! mountains or dcmip
+  character(255) :: analytic_topo = "none" ! mountains or dcmip or none
   
   logical        :: scale_aware = .false.
 contains
@@ -215,15 +215,15 @@ contains
     do k = 1, zlevels
        sol(S_MASS,k)%data(d)%elts(id+1) = 0d0 
        sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
-       if (NCAR_topo .or. analytic_topo=="mountains") then
+       if (NCAR_topo .or. analytic_topo=="mountains" .or. analytic_topo=="none") then
           sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
        elseif (analytic_topo=="dcmip") then
           call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
        else
           if (rank == 0) then
-             write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-             write (6,'(a)')   "!! Incorrect topography type: must be NCAR_topo or analytic_topo = mountains or dcmip !!"
-             write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+             write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+             write (6,'(a)')  "!! Incorrect topography type: must be NCAR_topo or analytic_topo = mountains, dcmip, none !!"
+             write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
           end if
           call abort
        end if
@@ -316,9 +316,9 @@ contains
     
     real(8) :: c1, cs2, lon, lat, sn2
     
-    if (NCAR_topo .or. analytic_topo=="mountains") then
+    if (NCAR_topo .or. analytic_topo/="dcmip") then
        surf_geopot_case = grav_accel * topography%data(d)%elts(id)
-    else
+    else ! dcmip
        call cart2sph (grid(d)%node%elts(id), lon, lat)
 
        c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
@@ -354,6 +354,8 @@ contains
        topography%data(d)%elts(id) = &
             tanh_profile (4d3*METRE,  65*DEG,   95*DEG,  25*DEG,  40*DEG) + & ! Himalayas
             tanh_profile (4d3*METRE, -60*DEG,  -50*DEG, -60*DEG, -10*DEG)     ! Andes
+    case ("none")
+       topography%data(d)%elts(id) = 0d0
     end select
   contains
     real(8) function tanh_profile (height, lon_min, lon_max, lat_min, lat_max)
@@ -416,9 +418,9 @@ contains
     implicit none
     integer :: d, id
 
-    if (NCAR_topo .or. analytic_topo=="mountains") then ! use standard atmosphere
+    if (NCAR_topo .or. analytic_topo/="dcmip") then ! use standard atmosphere
        call std_surf_pres (topography%data(d)%elts(id), surf_pressure)
-    else
+    else ! dcmip
        surf_pressure = p_0
     end if
   end function surf_pressure
@@ -1021,7 +1023,7 @@ contains
     
     call cal_theta_eq (dom%press%elts(id), dom%surf_press%elts(id), lat, theta_equil, k_T)
 
-    if (NCAR_topo .or. analytic_topo=="mountains") then
+    if (NCAR_topo .or. analytic_topo/="dcmip") then
        sigma = (dom%press%elts(id) - p_top) / (dom%surf_press%elts(id) - p_top)
 
        if (sigma > 0.7d0) then ! no temperature relaxation in lower part of atmosphere

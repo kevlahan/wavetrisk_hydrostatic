@@ -124,7 +124,7 @@ program Held_Suarez
   log_min_mass       = .true.
   log_total_mass     = .false.
 
-  analytic_topo = "mountains" ! type of analytic topography (mountains or dcmip, if NCAR_topo = .false.)
+  analytic_topo      = "mountains" ! type of analytic topography (mountains, dcmip, or none if NCAR_topo = .false.)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
