@@ -19,7 +19,7 @@ module test_case_mod
   real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, sigma_b, sigma_c, u_0
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
 
-  character(255) :: analytic_topo = "none" ! mountains or dcmip or none
+  character(255) :: analytic_topo = "none" ! mountains or none (used if NCAR_topo = .false.)
   
   logical        :: scale_aware = .false.
 contains
@@ -213,20 +213,9 @@ contains
     id = idx (i, j, offs, dims)
 
     do k = 1, zlevels
-       sol(S_MASS,k)%data(d)%elts(id+1) = 0d0 
-       sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
-       if (NCAR_topo .or. analytic_topo=="mountains" .or. analytic_topo=="none") then
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
-       elseif (analytic_topo=="dcmip") then
-          call vel2uvw (dom, i, j, k, offs, dims, vel_fun)
-       else
-          if (rank == 0) then
-             write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-             write (6,'(a)')  "!! Incorrect topography type: must be NCAR_topo or analytic_topo = mountains, dcmip, none !!"
-             write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-          end if
-          call abort
-       end if
+       sol(S_MASS,k)%data(d)%elts(id+1)                      = 0d0 
+       sol(S_TEMP,k)%data(d)%elts(id+1)                      = 0d0
+       sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
   end subroutine init_sol
 
@@ -314,20 +303,7 @@ contains
     implicit none
     integer :: d, id
     
-    real(8) :: c1, cs2, lon, lat, sn2
-    
-    if (NCAR_topo .or. analytic_topo/="dcmip") then
-       surf_geopot_case = grav_accel * topography%data(d)%elts(id)
-    else ! dcmip
-       call cart2sph (grid(d)%node%elts(id), lon, lat)
-
-       c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
-       cs2 = cos (lat)**2; sn2 = sin (lat)**2
-
-       surf_geopot_case = c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
-            + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0)) &
-            + grav_accel * topography%data(d)%elts(id)
-    end if
+    surf_geopot_case = grav_accel * topography%data(d)%elts(id)
   end function surf_geopot_case
 
   subroutine init_topo (dom, i, j, zlev, offs, dims)
@@ -345,8 +321,6 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     select case (analytic_topo)
-    case ("dcmip")
-       topography%data(d)%elts(id) = 0d0
     case ("mountains")
        width = 8d0 * dx_min
        call cart2sph (grid(d)%node%elts(id), lon, lat)
@@ -418,11 +392,7 @@ contains
     implicit none
     integer :: d, id
 
-    if (NCAR_topo .or. analytic_topo/="dcmip") then ! use standard atmosphere
-       call std_surf_pres (topography%data(d)%elts(id), surf_pressure)
-    else ! dcmip
-       surf_pressure = p_0
-    end if
+    call std_surf_pres (topography%data(d)%elts(id), surf_pressure)
   end function surf_pressure
 
   subroutine vel_fun (lon, lat, u, v)
@@ -667,27 +637,27 @@ contains
             '********************************************************** Parameters &
             ************************************************************'
        write (6,'(a)')        "RUN PARAMETERS"
-       write (6,'(a,a)')      "test_case           = ", trim (test_case)
-       write (6,'(a,a)')      "run_id              = ", trim (run_id)
-       write (6,'(a,l1)')     "compressible        = ", compressible
-       write (6,'(a,i3)')     "min_level           = ", min_level
-       write (6,'(a,i3)')     "max_level           = ", max_level
-       write (6,'(a,i5)')     "number of domains   = ", N_GLO_DOMAIN
+       write (6,'(a,a)')      "test_case            = ", trim (test_case)
+       write (6,'(a,a)')      "run_id               = ", trim (run_id)
+       write (6,'(a,l1)')     "compressible         = ", compressible
+       write (6,'(a,i3)')     "min_level            = ", min_level
+       write (6,'(a,i3)')     "max_level            = ", max_level
+       write (6,'(a,i5)')     "number of domains    = ", N_GLO_DOMAIN
        write (6,'(a,i5)')     "number of processors = ", n_process
-       write (6,'(a,i5)')     "DOMAIN_LEVEL        = ", DOMAIN_LEVEL
-       write (6,'(a,i5)')     "PATCH_LEVEL         = ", PATCH_LEVEL
-       write (6,'(a,i3)')     "zlevels             = ", zlevels
-       write (6,'(a,l1)')     "uniform             = ", uniform
-       write (6,'(a,l1)')     "remap               = ", remap
-       write (6,'(a,i3)')     "iremap              = ", iremap
-       write (6,'(a,l1)')     "default_thresholds  = ", default_thresholds
-       write (6,'(a,es10.4)') "tolerance           = ", tol
-       write (6,'(a,i1)')     "optimize_grid       = ", optimize_grid
-       write (6,'(a,l1)')     "adapt_dt            = ", adapt_dt
-       write (6,'(a,es10.4)') "cfl_num             = ", cfl_num
-       write (6,'(a,a)')      "timeint_type        = ", trim (timeint_type)
+       write (6,'(a,i5)')     "DOMAIN_LEVEL         = ", DOMAIN_LEVEL
+       write (6,'(a,i5)')     "PATCH_LEVEL          = ", PATCH_LEVEL
+       write (6,'(a,i3)')     "zlevels              = ", zlevels
+       write (6,'(a,l1)')     "uniform              = ", uniform
+       write (6,'(a,l1)')     "remap                = ", remap
+       write (6,'(a,i3)')     "iremap               = ", iremap
+       write (6,'(a,l1)')     "default_thresholds   = ", default_thresholds
+       write (6,'(a,es10.4)') "tolerance            = ", tol
+       write (6,'(a,i1)')     "optimize_grid        = ", optimize_grid
+       write (6,'(a,l1)')     "adapt_dt             = ", adapt_dt
+       write (6,'(a,es10.4)') "cfl_num              = ", cfl_num
+       write (6,'(a,a)')      "timeint_type         = ", trim (timeint_type)
        
-       write (6,'(a,i1,/)')     "Laplace_order       = ", Laplace_order_init
+       write (6,'(a,i1,/)')     "Laplace_order        = ", Laplace_order_init
        write (6,'(a,/,a,/,/,a,es8.2,/,a,es8.2,/)') "Stability limits:", &
             "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
             "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1d0/6d0)**Laplace_order_init, &
@@ -699,56 +669,56 @@ contains
        end if
 
        write (6,'(a)') "Non-dimensional viscosities"
-       write (6,'(3(a,es8.2/))') "C_visc(S_MASS)     = ", C_visc(S_MASS), "C_visc(S_TEMP)     = ", C_visc(S_TEMP), &
+       write (6,'(3(a,es8.2/))') "C_visc(S_MASS)      = ", C_visc(S_MASS), "C_visc(S_TEMP)     = ", C_visc(S_TEMP), &
             "C_visc(S_VELO)     = ", C_visc(S_VELO)
 
        write (6,'(a)')        "Approximate viscosities on finest grid"
-       write (6,'(a,es8.2)') "nu_scalar             = ", nu_sclr
-       write (6,'(a,es8.2)') "nu_rot                = ", nu_rotu
-       write (6,'(a,es8.2,/)') "nu_div                = ", nu_divu
+       write (6,'(a,es8.2)') "nu_scalar              = ", nu_sclr
+       write (6,'(a,es8.2)') "nu_rot                 = ", nu_rotu
+       write (6,'(a,es8.2,/)') "nu_div                 = ", nu_divu
 
-       write (6,'(a,es10.4)') "dt_max           [s] = ", dt_max
-       write (6,'(a,es10.4)') "dt_write         [d] = ", dt_write / DAY
-       write (6,'(a,i3)')     "CP_EVERY             = ", CP_EVERY
-       write (6,'(a,l1)')     "rebalance            = ", rebalance
-       write (6,'(a,es10.4)') "time_end         [d] = ", time_end / DAY
-       write (6,'(a,i6)')     "resume               = ", resume_init
+       write (6,'(a,es10.4)') "dt_max           [s]  = ", dt_max
+       write (6,'(a,es10.4)') "dt_write         [d]  = ", dt_write / DAY
+       write (6,'(a,i3)')     "CP_EVERY              = ", CP_EVERY
+       write (6,'(a,l1)')     "rebalance             = ", rebalance
+       write (6,'(a,es10.4)') "time_end         [d]  = ", time_end / DAY
+       write (6,'(a,i6)')     "resume                = ", resume_init
 
        write (6,'(/,a)')      "STANDARD PARAMETERS"
-       write (6,'(a,es10.4)') "radius          [km] = ", radius / KM
-       write (6,'(a,es10.4)') "omega        [rad/s] = ", omega
-       write (6,'(a,es10.4)') "ref_density [kg/m^3] = ", ref_density
-       write (6,'(a,es10.4)') "p_0           [hPa]  = ", p_0/100d0
-       write (6,'(a,es10.4)') "p_top         [hPa]  = ", p_top/100d0
-       write (6,'(a,es10.4)') "R_d      [J/(kg K)]  = ", R_d
-       write (6,'(a,es10.4)') "c_p      [J/(kg K)]  = ", c_p
-       write (6,'(a,es10.4)') "c_v      [J/(kg K)]  = ", c_v
-       write (6,'(a,es10.4)') "gamma                = ", gamma
-       write (6,'(a,es10.4)') "kappa                = ", kappa
-       write (6,'(a,f10.1)')  "dx_max         [km]  = ", dx_max / KM
-       write (6,'(a,f10.1)')  "dx_min         [km]  = ", dx_min / KM
+       write (6,'(a,es10.4)') "radius          [km]  = ", radius / KM
+       write (6,'(a,es10.4)') "omega        [rad/s]  = ", omega
+       write (6,'(a,es10.4)') "ref_density [kg/m^3]  = ", ref_density
+       write (6,'(a,es10.4)') "p_0           [hPa]   = ", p_0/100d0
+       write (6,'(a,es10.4)') "p_top         [hPa]   = ", p_top/100d0
+       write (6,'(a,es10.4)') "R_d      [J/(kg K)]   = ", R_d
+       write (6,'(a,es10.4)') "c_p      [J/(kg K)]   = ", c_p
+       write (6,'(a,es10.4)') "c_v      [J/(kg K)]   = ", c_v
+       write (6,'(a,es10.4)') "gamma                 = ", gamma
+       write (6,'(a,es10.4)') "kappa                 = ", kappa
+       write (6,'(a,f10.1)')  "dx_max         [km]   = ", dx_max / KM
+       write (6,'(a,f10.1)')  "dx_min         [km]   = ", dx_min / KM
 
        write (6,'(/,a)')      "TEST CASE PARAMETERS"
-       write (6,'(a,f5.1)')   "T_0             [K]  = ", T_0
-       write (6,'(a,es10.4)') "T_mean          [K]  = ", T_mean
-       write (6,'(a,es10.4)') "T_tropo         [K]  = ", T_tropo
-       write (6,'(a,es10.4)') "sigma_b              = ", sigma_b
-       write (6,'(a,es10.4)') "k_a           [1/d]  = ", k_a / DAY
-       write (6,'(a,es10.4)') "k_f           [1/d]  = ", k_f / DAY
-       write (6,'(a,es10.4)') "k_s           [1/d]  = ", k_s / DAY
-       write (6,'(a,es10.4)') "delta_T       [K/m]  = ", delta_T
-       write (6,'(a,es10.4)') "delta_theta   [K/m]  = ", delta_theta
-       write (6,'(a,es10.4,/)') "wave_speed    [m/s]  = ", wave_speed
-       write (6,'(a,l)')      "NCAR_topo            = ", NCAR_topo
+       write (6,'(a,f5.1)')   "T_0             [K]   = ", T_0
+       write (6,'(a,es10.4)') "T_mean          [K]   = ", T_mean
+       write (6,'(a,es10.4)') "T_tropo         [K]   = ", T_tropo
+       write (6,'(a,es10.4)') "sigma_b               = ", sigma_b
+       write (6,'(a,es10.4)') "k_a           [1/d]   = ", k_a / DAY
+       write (6,'(a,es10.4)') "k_f           [1/d]   = ", k_f / DAY
+       write (6,'(a,es10.4)') "k_s           [1/d]   = ", k_s / DAY
+       write (6,'(a,es10.4)') "delta_T       [K/m]   = ", delta_T
+       write (6,'(a,es10.4)') "delta_theta   [K/m]   = ", delta_theta
+       write (6,'(a,es10.4,/)') "wave_speed    [m/s]   = ", wave_speed
+       write (6,'(a,l)')      "NCAR_topo             = ", NCAR_topo
        if (NCAR_topo) then
-          write (6,'(a,l)')      "sso                  = ", sso
-          write (6,'(a,l)')      "wave_drag            = ", wave_drag
-          write (6,'(a,l)')      "blocking_drag        = ", blocking_drag
-          write (6,'(a,a)')      "topo_file            = ", trim (topo_file)
-          write (6,'(a,i3)')     "topo_min_level       = ", topo_min_level
-          write (6,'(a,i3)')     "topo_max_level       = ", topo_max_level
+          write (6,'(a,l)')      "sso                   = ", sso
+          write (6,'(a,l)')      "wave_drag             = ", wave_drag
+          write (6,'(a,l)')      "blocking_drag         = ", blocking_drag
+          write (6,'(a,a)')      "topo_file             = ", trim (topo_file)
+          write (6,'(a,i3)')     "topo_min_level        = ", topo_min_level
+          write (6,'(a,i3)')     "topo_max_level        = ", topo_max_level
        else
-          write (6,'(a,a)')      "analytic_topo        = ", analytic_topo
+          write (6,'(a,a)')      "analytic_topo         = ", analytic_topo
        end if
        write (6,'(a)') &
             '*********************************************************************&
@@ -1023,7 +993,7 @@ contains
     
     call cal_theta_eq (dom%press%elts(id), dom%surf_press%elts(id), lat, theta_equil, k_T)
 
-    if (NCAR_topo .or. analytic_topo/="dcmip") then
+    if (NCAR_topo) then
        sigma = (dom%press%elts(id) - p_top) / (dom%surf_press%elts(id) - p_top)
 
        if (sigma > 0.7d0) then ! no temperature relaxation in lower part of atmosphere

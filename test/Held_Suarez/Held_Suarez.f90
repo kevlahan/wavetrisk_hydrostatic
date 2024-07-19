@@ -109,7 +109,6 @@ program Held_Suarez
 
   ! CAM values for viscosity
   nu_scaling         = dx_scaling**(2*Laplace_order_init)
-  
   nu_sclr            = 1.0d15 * nu_scaling
   nu_rotu            = 1.0d15 * nu_scaling
   nu_divu            = 2.5d15 * nu_scaling
@@ -124,7 +123,7 @@ program Held_Suarez
   log_min_mass       = .true.
   log_total_mass     = .false.
 
-  analytic_topo      = "mountains" ! type of analytic topography (mountains, dcmip, or none if NCAR_topo = .false.)
+  analytic_topo      = "none" ! type of analytic topography (mountains or none if NCAR_topo = .false.)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -141,12 +140,14 @@ program Held_Suarez
   call write_and_export (iwrite)
 
   ! Compute hydrostatic error factors for topography
-  if (rank == 0) write (6,'(/,a)') "Level      rx0_max   rx1_max"
-  do l = min_level, max_level
-     call cal_rx0_max (l, rx0_max)
-     call cal_rx1_max (l, rx1_max)
-     if (rank == 0) write (6,'(i2,8x,2(es8.2,3x))') l, rx0_max, rx1_max
-  end do
+  if (NCAR_topo .or. analytic_topo=="mountains") then
+     if (rank == 0) write (6,'(/,a)') "Level      rx0_max   rx1_max"
+     do l = min_level, max_level
+        call cal_rx0_max (l, rx0_max)
+        call cal_rx1_max (l, rx1_max)
+        if (rank == 0) write (6,'(i2,8x,2(es8.2,3x))') l, rx0_max, rx1_max
+     end do
+  end if
    
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
