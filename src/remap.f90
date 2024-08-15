@@ -1,8 +1,8 @@
 #   include "ppr/ppr_1d.f90"
 module remap_mod
-  use time_integr_mod
-  use wavelet_mod
   use utils_mod
+  use init_mod
+  use adapt_mod
   implicit none
   type(Float_Field), dimension(:), allocatable, target :: old_mass
   abstract interface
@@ -13,15 +13,14 @@ module remap_mod
        real(8), dimension(0:N) :: z_new, z_old
      end subroutine interpolation
   end interface
-  procedure (interpolation), pointer :: interp_scalar => null ()
-  procedure (interpolation), pointer :: interp_velo   => null ()
+  procedure (interpolation), pointer :: interpolate => null ()
 contains
   subroutine remap_vertical_coordinates
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! Conserves mass, potential temperature and velocity divergence
     ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
-    integer :: d, k, l, v
+    integer :: l
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -34,129 +33,54 @@ contains
     ! remap4    = parabolic WENO reconstruction enhanced by quartic power-law reconciliation step
     !                  (ensures continuity of both value and first derivative at each interface)
     ! remapPPR = a selection of piecewise polynomial reconstructions written by Darren Engwirda (the options are specified in subroutine)
-    select case (remapscalar_type)
+
+    select case (remap_type)
     case ("0")
-       interp_scalar => remap0 ! only used for incompressible case
+       interpolate => remap0 ! only used for incompressible case
+
+       if (compressible .and. rank == 0) then
+          write (6,'(a)') "Invalid remapping choice 0 for compressible case ... aborting"
+       end if
     case ("1")
-       interp_scalar => remap1
+       interpolate => remap1
     case ("2PPM") 
-       interp_scalar => remap2PPM
+       interpolate => remap2PPM
     case ("2S") 
-       interp_scalar => remap2S
+       interpolate => remap2S
     case ("2W")
-       interp_scalar => remap2W
+       interpolate => remap2W
     case ("4") 
-       interp_scalar => remap4
+       interpolate => remap4
     case ("PPR")
-       interp_scalar => remapPPR
+       interpolate => remapPPR
     case default
        if (rank == 0) write (6,'(a)') "Invalid remapping choice ... aborting"
        call abort
     end select
-
-    select case (remapvelo_type)
-    case ("0")
-       interp_velo => remap0 ! only used for incompressible case
-    case ("1")
-       interp_velo => remap1
-    case ("2PPM") 
-       interp_velo => remap2PPM
-    case ("2S") 
-       interp_velo => remap2S
-    case ("2W")
-       interp_velo => remap2W
-    case ("4") 
-       interp_velo => remap4
-    case ("PPR")
-       interp_velo => remapPPR
-    case default
-       if (rank == 0) write (6,'(a)') "Invalid remapping choice ... aborting"
-       call abort
-    end select
-
-    ! Ensure boundary values are up to date
-    call update_array_bdry (sol(:,1:zlevels), NONE)
-
-    ! Save old masses
-    allocate(old_mass(1:zlevels)); old_mass = sol(S_MASS,1:zlevels)
     
-    ! Remap on finest level
-    if (compressible) then
-       if (remapscalar_type == "0") then
-          call apply_onescale (remap0_scalars, level_end, z_null, 0, 1)
-       else
-          call apply_onescale (remap_scalars, level_end, z_null, 0, 1)
-       end if
-       if (remapvelo_type == "0") then
-          call apply_onescale (remap0_velo, level_end, z_null, 0, 0)
-       else
-          call apply_onescale (remap_velo, level_end, z_null, 0, 0)
-       end if
-    else
-        call apply_onescale (remap_scalars_incompressible, level_end, z_null, 0, 1)
-        call apply_onescale (remap_velo_incompressible,    level_end, z_null, 0, 0)
-    end if
-        
-    ! Remap scalars at coarser levels
-    do l = level_end-1, level_start-1, -1
-       sol%bdry_uptodate = .false.
-       call update_array_bdry (sol(:,1:zlevels), l+1)
+    ! Save old masses
+    call update_array_bdry (sol(:,1:zlevels), NONE)
+    allocate (old_mass(1:zlevels)); old_mass = sol(S_MASS,1:zlevels)
 
-       ! Compute scalar wavelet coefficients
-       do d = 1, size(grid)
-          do k = 1, zlevels
-             do v = scalars(1), scalars(2)
-                scalar => sol(v,k)%data(d)%elts
-                wc_s   => wav_coeff(v,k)%data(d)%elts
-                call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-                nullify (scalar, wc_s)
-             end do
-          end do
-       end do
-       wav_coeff%bdry_uptodate = .false.
-       call update_array_bdry (wav_coeff(scalars(1):scalars(2),1:zlevels), l+1)
-
-       ! Remap at level l (over-written if value available from restriction)
+    ! Remap variables on all levels
+    do l = level_start, level_end
        if (compressible) then
-          if (remapscalar_type == "0") then
-             call apply_onescale (remap0_scalars, l, z_null, 0, 1)
-          else
-             call apply_onescale (remap_scalars, l, z_null, 0, 1)
-          end if
-          if (remapvelo_type == "0") then
-             call apply_onescale (remap0_velo, l, z_null, 0, 0)
-          else
-             call apply_onescale (remap_velo, l, z_null, 0, 0)
-          end if
+          call apply_onescale (remap_compressible,   l, z_null, 0, 1)
        else
-          call apply_onescale (remap_scalars_incompressible, l, z_null, 0, 1)
-          call apply_onescale (remap_velo_incompressible,    l, z_null, 0, 0)
+          call apply_onescale (remap_incompressible, l, z_null, 0, 1)
        end if
-
-       ! Restrict scalars (sub-sample and lift) and velocity (average) to coarser grid
-       do d = 1, size(grid)
-          do k = 1, zlevels
-             do v = scalars(1), scalars(2)
-                scalar => sol(v,k)%data(d)%elts
-                wc_s   => wav_coeff(v,k)%data(d)%elts
-                call apply_interscale_d (restrict_scalar, grid(d), l, k, 0, 1)
-                nullify (scalar, wc_s)
-             end do
-             velo => sol(S_VELO,k)%data(d)%elts
-             call apply_interscale_d (restrict_velo, grid(d), l, k, 0, 0)
-             nullify (velo)
-          end do
-       end do
     end do
-    nullify (interp_scalar, interp_velo)
-    sol(:,1:zlevels)%bdry_uptodate       = .false.
-    wav_coeff(:,1:zlevels)%bdry_uptodate = .false.
+    sol(:,1:zlevels)%bdry_uptodate = .false.
 
+    ! Interpolate onto grid (conserves mass)
+    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
+
+    nullify (interpolate)
     deallocate (old_mass)
   end subroutine remap_vertical_coordinates
 
-  subroutine remap_scalars (dom, i, j, z_null, offs, dims)
-    ! Remap mass-weighted potential temperature
+  subroutine remap_compressible (dom, i, j, z_null, offs, dims)
+    ! Remap mass-weighted potential temperature and velocities
     ! (potential temperature is remapped and then multiplied by new mass)
     implicit none
     type (Domain)                   :: dom
@@ -164,101 +88,117 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                        :: d, id_i, k
-    real(8)                        :: rho_dz, rho_dz_theta
-    real(8), dimension (1:zlevels) :: rho_dz_new, theta_new, theta_old 
-    real(8), dimension (0:zlevels) :: p_new, p_old
+    integer                               :: d, e, id, id_i, k
+    integer, dimension (1:EDGE)           :: id_r
+    
+    real(8)                               :: rho_dz, rho_dz_theta
+    real(8), dimension (1:zlevels)        :: rho_dz_new, theta_new, theta_old 
+    real(8), dimension (0:zlevels)        :: p_new, p_old
+    real(8), dimension (1:zlevels,1:EDGE) :: flux_new, flux_old
+    real(8), dimension (0:zlevels,1:EDGE) :: p_edge_new, p_edge_old
 
     d    = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
-
-    do k = 1, zlevels
-       rho_dz       = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
-       rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
-
-       theta_old(zlevels-k+1) = rho_dz_theta / rho_dz
-    end do
-
-    call find_coordinates (p_new, p_old, d, id_i)
-    rho_dz_new = (p_new(zlevels:1:-1) - p_new(zlevels-1:0:-1)) / grav_accel
-  
-    call interp_scalar (zlevels, theta_new, p_new, theta_old, p_old)
-
-    ! Remapped values
-    do k = 1, zlevels
-       sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz_new(k) - sol_mean(S_MASS,k)%data(d)%elts(id_i)
-       sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz_new(k) * theta_new(zlevels-k+1) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
-    end do
-  end subroutine remap_scalars
-
-  subroutine remap_velo (dom, i, j, z_null, offs, dims)
-    ! Remap velocity
-    type (Domain)                   :: dom
-    integer                         :: i, j, z_null
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer                        :: d, e, id, id_i, k
-    integer, dimension (1:EDGE)    :: id_r
-    real(8)                        :: rho_dz
-    real(8), dimension (1:zlevels) :: flux_new, flux_old
-    real(8), dimension (0:zlevels) :: p_edge_new, p_edge_old, p_new, p_old
-
-    d    = dom%id + 1
-    id   = idx (i, j, offs, dims) 
+    id   = idx (i, j, offs, dims)
     id_i = id + 1
 
     id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
     id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
     id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
 
+    ! Find old and new pressure coordinates
     call find_coordinates (p_new, p_old, d, id_i)
-
     do e = 1, EDGE
-       call find_coordinates (p_edge_new, p_edge_old, d, id_r(e))
-       p_edge_new = 0.5d0 * (p_new + p_edge_new)
-       p_edge_old = 0.5d0 * (p_old + p_edge_old)
-       
-       do k = 1, zlevels
-          flux_old(zlevels-k+1) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) 
-       end do
-       
-       call interp_velo (zlevels, flux_new, p_edge_new, flux_old, p_edge_old)
+       call find_coordinates (p_edge_new(:,e), p_edge_old(:,e), d, id_r(e))
+       p_edge_new(:,e) = 0.5d0 * (p_new + p_edge_new(:,e))
+       p_edge_old(:,e) = 0.5d0 * (p_old + p_edge_old(:,e))
+    end do
 
-       do k = 1, zlevels
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(zlevels-k+1)
+    ! Old variables
+    do k = 1, zlevels
+       rho_dz       = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
+       rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
+
+       theta_old(zlevels-k+1) = rho_dz_theta / rho_dz
+
+       do e = 1, EDGE
+          flux_old(zlevels-k+1,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
        end do
     end do
-  end subroutine remap_velo
 
-  subroutine remap_scalars_incompressible (dom, i, j, zlev, offs, dims)
-    ! Remap full buoyancy and layer heights
-    ! (full buoyancy is remapped and then mass-weighted buoyancy is formed)
+    ! Interpolate rho_dz
+    rho_dz_new = (p_new(zlevels:1:-1) - p_new(zlevels-1:0:-1)) / grav_accel
+  
+    ! Interpolate theta
+    call interpolate (zlevels, theta_new, p_new, theta_old, p_old)
+        
+    ! Interpolate velocities
+    do e = 1, EDGE
+       call interpolate (zlevels, flux_new(:,e), p_edge_new(:,e), flux_old(:,e), p_edge_old(:,e))
+    end do
+
+    ! Remapped variables
+    do k = 1, zlevels
+       sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz_new(k) - sol_mean(S_MASS,k)%data(d)%elts(id_i)
+       sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz_new(k) * theta_new(zlevels-k+1) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+
+       do e = 1, EDGE
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(zlevels-k+1,e)
+       end do
+    end do
+  end subroutine remap_compressible
+
+  subroutine remap_incompressible (dom, i, j, z_null, offs, dims)
+    ! Remap mass-weighted potential temperature and velocities
+    ! (potential temperature is remapped and then multiplied by new mass)
     implicit none
     type (Domain)                   :: dom
-    integer                         :: i, j, zlev
+    integer                         :: i, j, z_null
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer                        :: d, id_i, k
-    real(8)                        :: rho_dz, rho
-    real(8), dimension (1:zlevels) :: dz, theta_new, theta_old 
-    real(8), dimension (0:zlevels) :: z_new, z_old
+    integer                               :: d, e, id, id_i, k
+    integer, dimension (1:EDGE)           :: id_r
+    
+    real(8)                               :: rho, rho_dz, rho_dz_theta
+    real(8), dimension (1:zlevels)        :: dz, rho_dz_new, theta_new, theta_old 
+    real(8), dimension (0:zlevels)        :: z_new, z_old
+    real(8), dimension (1:zlevels,1:EDGE) :: flux_new, flux_old
+    real(8), dimension (0:zlevels,1:EDGE) :: z_edge_new, z_edge_old
 
     d    = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
+    id   = idx (i, j, offs, dims)
+    id_i = id + 1
 
-    call find_coordinates_incompressible (z_new, z_old, topography%data(d)%elts(id_i), d, id_i)
+    id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
+    id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
+    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
+    
+    ! Find old and new vertical coordinates
+    call find_coordinates_incompressible (z_new, z_old,topography%data(d)%elts(id_i), d, id_i)
     dz = z_new(1:zlevels) - z_new(0:zlevels-1)
+    do e = 1, EDGE
+       call find_coordinates_incompressible (z_edge_new(:,e), z_edge_old(:,e), topography%data(d)%elts(id_r(e)), d, id_r(e))
+       z_edge_new(:,e) = 0.5d0 * (z_new + z_edge_new(:,e))
+       z_edge_old(:,e) = 0.5d0 * (z_old + z_edge_old(:,e))
+    end do
 
-    ! Old buoyancy
+    ! Old variables
     do k = 1, zlevels
-       theta_old(k) = buoyancy (dom, i, j, k, offs, dims, sol)
+       theta_old(k) = buoyancy (dom, i, j, k, offs, dims, sol) ! old buoyancy
+       do e = 1, EDGE
+          flux_old(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
+       end do
     end do
 
     ! Remap density
-    call interp_scalar (zlevels, theta_new, z_new, theta_old, z_old)
+    call interpolate (zlevels, theta_new, z_new, theta_old, z_old)
 
+    ! Interpolate velocity
+    do e = 1, EDGE
+       call interpolate (zlevels, flux_new(:,e), z_edge_new(:,e), flux_old(:,e), z_edge_old(:,e))
+    end do
+    
+    ! Interpolated variables
     do k = 1, zlevels
        ! New full mass
        rho = porous_density (d, id_i, k)
@@ -268,48 +208,14 @@ contains
        sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz - sol_mean(S_MASS,k)%data(d)%elts(id_i)
 
        ! New mass-weighted buoyancy
-       sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i) 
-    end do
-  end subroutine remap_scalars_incompressible
+       sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
 
-  subroutine remap_velo_incompressible (dom, i, j, z_null, offs, dims)
-    ! Remap velocity
-    type (Domain)                   :: dom
-    integer                         :: i, j, z_null
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer                        :: d, e, id, id_i, k
-    integer, dimension(1:EDGE)     :: id_r
-    real(8), dimension (1:zlevels) :: flux_new, flux_old 
-    real(8), dimension (0:zlevels) :: z_new, z_edge_new, z_old, z_edge_old
-
-    d    = dom%id + 1
-    id   = idx (i, j, offs, dims) 
-    id_i = id + 1
-
-    id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
-    id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
-    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
-
-    call find_coordinates_incompressible (z_new, z_old, topography%data(d)%elts(id_i), d, id_i)
-
-    do e = 1, EDGE
-       call find_coordinates_incompressible (z_edge_new, z_edge_old, topography%data(d)%elts(id_i), d, id_r(e))
-       z_edge_new = 0.5d0 * (z_new + z_edge_new)
-       z_edge_old = 0.5d0 * (z_old + z_edge_old)
-
-       do k = 1, zlevels
-          flux_old(k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
-       end do
-
-       call interp_velo (zlevels, flux_new, z_edge_new, flux_old, z_edge_old)
-
-       do k = 1, zlevels
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k)
+       ! New velocity
+       do e = 1, EDGE
+          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k,e)
        end do
     end do
-  end subroutine remap_velo_incompressible
+  end subroutine remap_incompressible
 
   subroutine find_coordinates (p_new, p_old, d, id_i)
     ! Calculates old and new pressure-based z coordinates from top down
@@ -352,124 +258,7 @@ contains
     end if
   end subroutine find_coordinates_incompressible
 
-  subroutine remap0_scalars (dom, i, j, z_null, offs, dims)
-    ! Piecewise constant remapping of scalars
-    type (Domain)                   :: dom
-    integer                         :: i, j, z_null
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer                          :: current_zlev, d, id, k, zlev
-    real(8)                          :: column_mass, cumul_mass_zlev, cumul_mass_target, new_cumul_mass, cumul_mass_upper, X
-    real(8)                          :: new_mass
-    real(8), dimension (zlevels+1)   :: cumul_mass, cumul_temp, new_cumul_temp
-
-    d  = dom%id + 1
-    id = idx(i, j, offs, dims)
-
-    ! Calculate cumulative mass and total mass of column
-    cumul_mass(1) = 0d0
-    cumul_temp(1) = 0d0
-    do k = 1, zlevels
-       cumul_mass(k+1) = cumul_mass(k) + sol(S_MASS,k)%data(d)%elts(id+1)
-       cumul_temp(k+1) = cumul_temp(k) + sol(S_TEMP,k)%data(d)%elts(id+1)
-    end do
-    column_mass = cumul_mass(zlevels+1) + p_top/grav_accel
-
-    current_zlev = 1
-    exner_fun(1)%data(d)%elts(id+1) = 1d0
-    new_cumul_mass = 0d0
-    do k = 1, zlevels
-       sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * column_mass
-
-       cumul_mass_target = new_cumul_mass + sol(S_MASS,k)%data(d)%elts(id+1)
-
-       do zlev = current_zlev, zlevels
-          cumul_mass_upper = cumul_mass(zlev+1)
-          if (cumul_mass_target <= cumul_mass_upper) exit
-       end do
-
-       if (zlev > zlevels) zlev = zlevels
-       cumul_mass_zlev = cumul_mass(zlev)
-
-       current_zlev = zlev
-       new_cumul_mass = cumul_mass_target
-
-       ! New vertical coordinate (saved in exner_fun)
-       exner_fun(k+1)%data(d)%elts(id+1) = zlev + (cumul_mass_target - cumul_mass_zlev)/(cumul_mass_upper - cumul_mass_zlev)
-    end do
-
-    ! Remap theta
-    do k = 1, zlevels+1
-       X = exner_fun(k)%data(d)%elts(id+1)
-       zlev = min(zlevels,floor(X)) ; if (zlev<1) return
-       X = X - zlev
-       new_cumul_temp(k) = cumul_temp(zlev) + X*sol(S_TEMP,zlev)%data(d)%elts(id+1)
-    end do
-
-    do k = 1, zlevels
-       sol(S_TEMP,k)%data(d)%elts(id+1) = new_cumul_temp(k+1) - new_cumul_temp(k)
-    end do
-  end subroutine remap0_scalars
-
-  subroutine remap0_velo (dom, i, j, z_null, offs, dims)
-    ! Piecewise constant remap momentum onto original vertical grid by linear interpolation of mass flux
-    ! interpolate vertical pressure coordinates to edges
-    type (Domain)                   :: dom
-    integer                         :: i, j, z_null
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer                              :: d, e, id, idE, idN, idNE, k, zlev
-    real(8), dimension(EDGE)             :: mass_e, X
-    real(8), dimension(zlevels+1,1:EDGE) :: massflux_cumul, massflux, new_massflux_cumul
-
-    d    = dom%id + 1
-    id   = idx (i, j, offs, dims)
-
-    idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-
-    massflux_cumul(1,:) = 0d0
-    do k = 1, zlevels
-       ! Interpolate old masses to edges 
-       mass_e(RT+1) = interp (old_mass(k)%data(d)%elts(id+1), old_mass(k)%data(d)%elts(idE+1))
-       mass_e(DG+1) = interp (old_mass(k)%data(d)%elts(id+1), old_mass(k)%data(d)%elts(idNE+1))
-       mass_e(UP+1) = interp (old_mass(k)%data(d)%elts(id+1), old_mass(k)%data(d)%elts(idN+1))
-
-       do e = 1, EDGE
-          massflux(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e) * mass_e(e)
-          massflux_cumul(k+1,e) = massflux_cumul(k,e) + massflux(k,e)
-       end do
-    end do
-
-    do k = 1, zlevels+1
-       ! Interpolate new coordinates to edges
-       X(RT+1) = interp (exner_fun(k)%data(d)%elts(id+1), exner_fun(k)%data(d)%elts(idE+1))
-       X(DG+1) = interp (exner_fun(k)%data(d)%elts(id+1), exner_fun(k)%data(d)%elts(idNE+1))
-       X(UP+1) = interp (exner_fun(k)%data(d)%elts(id+1), exner_fun(k)%data(d)%elts(idN+1))
-
-       do e = 1, EDGE
-          zlev = min(zlevels,floor(X(e))) ; if (zlev<1) return
-          X(e) = X(e) - zlev
-          new_massflux_cumul(k,e) = massflux_cumul(zlev,e) + X(e)*massflux(zlev,e)
-       end do
-    end do
-
-    do k = 1, zlevels
-       ! Interpolate new masses to edges
-       mass_e(RT+1) = interp (sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k)%data(d)%elts(idE+1))
-       mass_e(DG+1) = interp (sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k)%data(d)%elts(idNE+1))
-       mass_e(UP+1) = interp (sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k)%data(d)%elts(idN+1))
-
-       do e = 1, EDGE
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = (new_massflux_cumul(k+1,e) - new_massflux_cumul(k,e)) / mass_e(e)
-       end do
-    end do
-  end subroutine remap0_velo
-
-   subroutine remap0 (N, var_new, z_new, var_old, z_old)
+  subroutine remap0 (N, var_new, z_new, var_old, z_old)
     !
     ! The simplest remapping procedure which assumes that the distribution of var_old(z) is piecewise constant 
     ! in each grid box, (i.e. similar to donor-cell first-order upstream advection).

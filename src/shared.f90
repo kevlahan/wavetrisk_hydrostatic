@@ -260,7 +260,8 @@ module shared_mod
   real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(8), dimension (12,3)                     :: unique_pent_locs
 
-  character(255)                                :: run_id, test_case, remapscalar_type, remapvelo_type, timeint_type, topo_file
+  character(255)                                :: run_id, test_case, timeint_type, topo_file
+  character(255)                                :: remap_type, remapscalar_type, remapvelo_type
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize
@@ -389,6 +390,7 @@ contains
     Laplace_order_init  = 0                                 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     n_diffuse           = 1                                 ! include diffusion every n_diffuse steps
     optimize_grid       = HR_GRID                           ! type of optimization of coarse grid
+    remap_type          = "PPR"                             ! remapping scheme for scalars
     remapscalar_type    = "PPR"                             ! remapping scheme for scalars
     remapvelo_type      = "PPR"                             ! remapping scheme for velocity
     save_levels         = 1                                 ! vertical level to save

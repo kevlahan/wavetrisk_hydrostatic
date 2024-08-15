@@ -3,6 +3,7 @@ module main_mod
   use wavelet_mod
   use adapt_mod
   use remap_mod
+  use time_integr_mod
   implicit none
   
   type Initial_State
@@ -201,8 +202,8 @@ contains
     n_patch_old = grid%patch%length
     n_node_old  = grid%node%length
 
-    idt    = nint (dt*time_mult, 8)
-    ialign = nint (align_time*time_mult, 8)
+    idt    = nint (dt * time_mult, 8)
+    ialign = nint (align_time * time_mult, 8)
     if (ialign > 0 .and. istep > 20) then
        aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
     else
@@ -265,31 +266,24 @@ contains
 
     ! Split step routines
     if (vert_diffuse) call vertical_diffusion 
+    
+    ! Adapt grid
+    if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels for iWT
+    call adapt (set_thresholds)
+    call inverse_wavelet_transform (wav_coeff, sol)
+
+    ! Update mean solution and topography
+    call update
 
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
 
-    ! Compute change in vertical layer depths
+    ! Change in vertical layer depths
     if (log_min_mass) min_mass = cpt_min_mass ()
-    
-    ! Adapt grid
-    if (tol > 0d0 .and. iadapt >= 0 .and. modulo (istep, iadapt) == 0) then
-       if (vert_diffuse .or. (remap .and. modulo (istep, iremap) == 0)) &
-            call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
-       if (zmin < 1) &
-            call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1)
 
-       call adapt (set_thresholds)
-       call inverse_wavelet_transform (wav_coeff, sol)
-
-       ! Update mean solution and topography
-       call update
-    else ! in non-adaptive case construct coarse scaling functions from finest scale solution
-       call forward_wavelet_transform (sol, wav_coeff)
-    end if
-
+    ! Change in total mass
     if (log_total_mass) call cal_total_mass (.false.)
- 
+
     itime = itime + idt
 
     if (match_time) then
@@ -301,7 +295,7 @@ contains
     ! Update time step and count active nodes
     dt_new = cpt_dt ()
 
-    ! Check load balance
+    ! Rebalance with AMPI
 #ifdef AMPI
     if (modulo (istep, irebalance) == 0) then
        if (rank == 0) write (6,'(a)') "Checking load balance and rebalancing if necessary using AMPI ..."
@@ -494,27 +488,31 @@ contains
     real(8), dimension(:), allocatable :: mass_error, total_mass
 
     allocate (total_mass(min_level:max_level), mass_error(min_level:max_level))
-    
+
     total_mass = 0d0
-    do l = level_start, level_end
-       do k = zmin, zmax
-          total_mass(l) = total_mass(l) + integrate_hex (rho_dz_i, k, l)
-       end do
+    do k = zmin, zmax
+       l = level_start
+       total_mass(l) = total_mass(l) + integrate_hex (rho_dz_i, k, l)
+       if (tol == 0d0) then
+          do l = level_start+1, level_end
+             total_mass(l) = total_mass(l) + integrate_hex (rho_dz_i, k, l)
+          end do
+       end if
     end do
     if (initialize_total_mass) init_total_mass = total_mass
-    
+
     mass_error = abs (total_mass - init_total_mass) / init_total_mass
 
     if (rank == 0 .and. .not. initialize_total_mass) then
        if (tol == 0d0) then
-          write (6,'(a,10(es10.4,1x))') "Mass error            = ", mass_error(level_start:level_end)
+          write (6,'(a,10(es10.4,1x))') "Mass error at coarsest to finest levels = ", mass_error
        else
-          write (6,'(a,10(es10.4,1x))') "Mass error            = ", mass_error(level_start)
+          write (6,'(a,10(es10.4,1x))') "Mass error at coarsest level = ", mass_error(level_start)
        end if
     end if
     deallocate (mass_error, total_mass)
   end subroutine cal_total_mass
-  
+
   real(8) function cpt_dt ()
     ! Calculates time step, minimum relative mass and active nodes and edges
     implicit none
