@@ -84,9 +84,17 @@ program make_NCAR_topo
   end if
 
   ! Restrict topography
-  call topo_restriction (min_level, max_level)
+  call scalar_restriction (topography, "ss")
   topography%bdry_uptodate = .false.
   call update_bdry (topography, NONE)
+
+  ! Set surface pressure at max_level to standard atmosphere value (stored in exern_fun(1))
+  call apply_onescale (surface_pressure, max_level, z_null, 0, 1)
+  call update_bdry (exner_fun(1), max_level)
+
+  ! Restrict surface pressure to coarser levels
+  call scalar_restriction (exner_fun(1), "ss")
+  call update_bdry (exner_fun(1), NONE)
 
   ! Compute topography gradients at edges (stored in sol(S_VELO,1))
   do l = max_level, min_level, -1
@@ -122,4 +130,21 @@ program make_NCAR_topo
   call save_topo
 
   call finalize
-end program
+contains
+  subroutine surface_pressure (dom, i, j, zlev, offs, dims)
+    ! From Jablonowski and Williamson (2006) without perturbation
+    use main_mod
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer :: d, id
+
+    d = dom%id+1
+    id = idx (i, j, offs, dims) + 1
+
+    call std_surf_pres (topography%data(d)%elts(id), exner_fun(1)%data(d)%elts(id))
+  end subroutine surface_pressure
+end program make_NCAR_topo

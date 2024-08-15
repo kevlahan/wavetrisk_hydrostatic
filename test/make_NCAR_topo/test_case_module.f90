@@ -390,7 +390,6 @@ contains
     end function nu_dt
   end subroutine cal_div_topo
 
-
   subroutine cal_grad_topo (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom

@@ -24,8 +24,6 @@ contains
     type(Float_Field), dimension(:,:), target :: scaling, wavelet
     
     integer :: d, jmin, jmax, k, l, v
-
-    call zero_float (wavelet)
     
     if (present(jmin_in)) then
        jmin = jmin_in
@@ -44,6 +42,9 @@ contains
        call abort
     end if
 
+    call zero_float (wavelet)
+    wavelet%bdry_uptodate = .false.
+    
     do l = jmax-1, jmin-1, -1
        ! Compute scalar wavelet coefficients
        call update_array_bdry (scaling(scalars(1):scalars(2),:), l+1)
@@ -104,8 +105,6 @@ contains
     
     integer :: d, jmin, jmax, k, l
 
-    call zero_float (wavelet)
-
     if (present(jmin_in)) then
        jmin = jmin_in
     else
@@ -122,6 +121,9 @@ contains
        write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
        call abort
     end if
+
+    call zero_float (wavelet)
+    wavelet%bdry_uptodate = .false.
 
     do l = jmax-1, jmin-1, -1
        call update_bdry (scaling, l+1)
@@ -155,8 +157,6 @@ contains
 
     integer :: d, jmin, jmax, k, l
 
-    call zero_float (wavelet)
-
     if (present(jmin_in)) then
        jmin = jmin_in
     else
@@ -174,6 +174,9 @@ contains
        call abort
     end if
 
+    call zero_float (wavelet)
+    wavelet%bdry_uptodate = .false.
+    
     do l = jmax-1, jmin-1, -1
        call update_vector_bdry (scaling, l+1)
 
@@ -227,6 +230,8 @@ contains
        call abort
     end if
 
+    scaling%bdry_uptodate = .false.
+    wavelet%bdry_uptodate = .false.
     call update_array_bdry1 (wavelet, max (jmin, level_start), jmax)
     call update_array_bdry1 (scaling, jmin,                    jmax)
 
@@ -318,6 +323,8 @@ contains
        call abort
     end if
 
+    scaling%bdry_uptodate = .false.
+    wavelet%bdry_uptodate = .false.
     call update_bdry1 (wavelet, max (jmin, level_start), jmax)
     call update_bdry1 (scaling, jmin,                    jmax)
 
@@ -369,6 +376,8 @@ contains
        call abort
     end if
 
+    scaling%bdry_uptodate = .false.
+    wavelet%bdry_uptodate = .false.
     call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax)
     call update_vector_bdry1 (scaling, jmin,                    jmax)
 
@@ -424,6 +433,8 @@ contains
        call abort
     end if
 
+    scaling%bdry_uptodate = .false.
+    wavelet%bdry_uptodate = .false.
     call update_bdry1 (wavelet, max (jmin, level_start), jmax)
     call update_bdry1 (scaling, jmin,                    jmax)
 
@@ -482,6 +493,8 @@ contains
        call abort
     end if
 
+    scaling%bdry_uptodate = .false.
+    wavelet%bdry_uptodate = .false.
     call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax)
     call update_vector_bdry1 (scaling, jmin,                    jmax)
 
@@ -799,45 +812,50 @@ contains
     end if
   end subroutine Compute_velo_wavelets_penta
 
-  subroutine topo_restriction (jmin_in, jmax_in)
-    ! Restricts topography from level jmax_in to all coarser levels to jmin_in using full weighting
+  subroutine scalar_restriction (q, itype)
+    ! Restricts scalar using sub-sampling (itype = "ss") or full weighting restriction (itype = "fwr")
     implicit none
-    integer, optional :: jmin_in, jmax_in
+    type(Float_Field), target :: q
+    character(*)              :: itype
 
-    integer :: d, jmin, jmax, l
-
-    if (present(jmin_in)) then
-       jmin = jmin_in
-    else
-       jmin = level_start
-    end if
-
-    if (present(jmax_in)) then
-       jmax = jmax_in
-    else
-       jmax = level_end
-    end if
-
-    if (jmax < jmin) then
-       write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
-       call abort
-    end if
-
-    do l = jmax-1, jmin, -1
-       call update_bdry (topography, l+1)
+    integer :: d, l
+   
+    do l = level_end-1, level_start, -1
+       call update_bdry (q, l+1)
 
        ! Restrict topography from fine grid l+1 to coarse grid l using full-weighting 
        do d = 1, size(grid)
-          scalar => topography%data(d)%elts
-          call apply_interscale_d (Restrict_full_weighting, grid(d), l, z_null, 0, 1) ! +1 to include poles
+          scalar => q%data(d)%elts
+          select case (itype)
+          case ("fwr")
+             call apply_interscale_d (Restrict_fwr, grid(d), l, z_null, 0, 1) ! +1 to include poles
+          case ("ss") 
+             call apply_interscale_d (Restrict_ss,  grid(d), l, z_null, 0, 1) ! +1 to include poles
+          end select
           nullify (scalar)
        end do
-       topography%bdry_uptodate = .false.
+       q%bdry_uptodate = .false.
     end do
-  end subroutine topo_restriction
+  end subroutine scalar_restriction
+
+  subroutine Restrict_ss (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Sub sampling restriction, as for Bernoulli and Exner functions
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: id_par, id_chd
+
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+    id_par = idx (i_par, j_par, offs_par, dims_par)
+
+    scalar(id_par+1) = scalar(id_chd+1)
+  end subroutine Restrict_ss
   
-  subroutine Restrict_full_weighting (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Restrict both scalar and potential temperature
+  subroutine Restrict_fwr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Full weighting (mass conserving) restriction as alternative to sub-sampling for topography
     implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
@@ -879,7 +897,7 @@ contains
          scalar(idS+1)   * dom%overl_areas%elts(idS+1)%a(2)   + &
          scalar(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
          scalar(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4) ) * dom%areas%elts(id_par+1)%hex_inv
-  end subroutine Restrict_full_weighting
+  end subroutine Restrict_fwr
 
   subroutine Prolong_full_weighting (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Prolong scalars to fine points existing at coarse scale by undoing lifting
