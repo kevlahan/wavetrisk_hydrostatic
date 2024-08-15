@@ -12,9 +12,7 @@ module io_mod
   integer                                        :: ncells_hex_loc, ncells_tri_loc, nvar_out
   integer, dimension(:,:), allocatable           :: topo_count
   real(8)                                        :: vmin, vmax
-  integer                                        :: next_fid
-  type(Float_Field)                              :: active_level
-  type(Float_Field), dimension(LORT:UPLT)        :: save_tri                           
+  integer                                        :: next_fid                        
 contains
   subroutine init_io_mod
     implicit none
@@ -1184,13 +1182,14 @@ contains
           write (filename, '(a,a,i2.2,a,i5.5)') trim (topo_file), '.', l, '.', d_glo           
           open (unit=10, file=trim (filename), form="UNFORMATTED", action='WRITE', status='REPLACE')
 
+          mass   => exner_fun(1)%data(d)%elts
           scalar => topography%data(d)%elts
           velo1  => grid(d)%u_zonal%elts
           velo2  => grid(d)%v_merid%elts
           do j = 1, grid(d)%lev(l)%length
              call apply_onescale_to_patch (write_topo, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
           end do
-          nullify (scalar, velo1, velo2)
+          nullify (mass, scalar, velo1, velo2)
           close (10)
        end do
     end do
@@ -1209,7 +1208,8 @@ contains
   end subroutine save_topo
 
   subroutine write_topo (dom, i, j, zlev, offs, dims)
-    ! Write out level, coordinates and topography height
+    ! Write out coordinates, topography height, topography gradients and surface pressure
+    ! Compute topo_count
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1224,7 +1224,7 @@ contains
     l = dom%level%elts(id) ! level
 
     ! Write out coordinates, topography height and topography gradients
-    write (10) dom%node%elts(id), scalar(id), velo1(id), velo2(id)
+    write (10) dom%node%elts(id), scalar(id), velo1(id), velo2(id), mass(id)
 
     topo_count(l,d) = topo_count(l,d) + 1
   end subroutine write_topo
@@ -1272,7 +1272,7 @@ contains
           do d = 1, size(grid)
              d_glo = glo_id(rank+1,d) + 1
              allocate (topography_data(l,d)%node(1:  topo_count(l,d_glo)))
-             allocate (topography_data(l,d)%elts(1:3*topo_count(l,d_glo)))
+             allocate (topography_data(l,d)%elts(1:4*topo_count(l,d_glo)))
           end do
        end do
     end do
@@ -1284,8 +1284,8 @@ contains
           write (filename, '(a,a,i2.2,a,i5.5)') trim (topo_file), '.', l, '.', d_glo
           open (unit=10, file=trim (filename), form="UNFORMATTED", action='READ', status='OLD')
           do ii = 1, topo_count(l,d_glo)
-             i = 3*(ii-1) + 1
-             read (10) topography_data(l,d)%node(ii), topography_data(l,d)%elts(i:i+2)
+             i = 4*(ii-1) + 1
+             read (10) topography_data(l,d)%node(ii), topography_data(l,d)%elts(i:i+3)
           end do
           close (10)
        end do
@@ -1302,6 +1302,7 @@ contains
 
   subroutine assign_NCAR_topo (dom, i, j, zlev, offs, dims)
     ! Assign topography data to topography structure for simulation
+    ! Sets topography height and surface pressure
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -1310,16 +1311,11 @@ contains
 
     integer                            :: d, id, ii, jj, l, n_topo
     real(8), dimension(:), allocatable :: distance
-    logical, parameter                 :: restrict = .true.
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
-
-    if (restrict) then
-       l = dom%level%elts(id)
-    else ! sub-sample
-       l = topo_max_level
-    end if
+    
+    l  = dom%level%elts(id)
 
     n_topo = size (topography_data(l,d)%node); allocate (distance(1:n_topo))
     do ii = 1, n_topo
@@ -1327,8 +1323,9 @@ contains
     end do
     jj = minloc (distance,1) ; deallocate (distance)
     
-    ii = 3*(jj-1) + 1
+    ii = 4*(jj-1) + 1
     topography%data(d)%elts(id) = topography_data(l,d)%elts(ii)
+    dom%surf_press%elts(id)     = topography_data(l,d)%elts(ii+3)
   end subroutine assign_NCAR_topo
 
   subroutine proj_xz_plane (cin, cout)
@@ -1514,133 +1511,6 @@ contains
        end if
     end do
   end subroutine coord_from_file
-
-  subroutine pre_levelout
-    implicit none
-    integer :: d, l, max_output_level, num, t
-
-    ! FIXME cleaner would be to use init_io routine
-    call init_Float_Field (active_level,   AT_NODE)
-    call init_Float_Field (save_tri(LORT), AT_NODE)
-    call init_Float_Field (save_tri(UPLT), AT_NODE)
-
-    do d = 1, size(grid)
-       num = grid(d)%node%length
-       call init (active_level%data(d), num)
-
-       do t = LORT, UPLT
-          call init (save_tri(t)%data(d), num)
-          save_tri(t)%data(d)%elts(1:num) = 0d0
-       end do
-
-       active_level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
-    end do
-
-    do l = level_end-1, level_start-1, -1
-       call apply_interscale (mark_save_tri,  l, z_null, 0, 1)
-    end do
-
-    call apply_interscale (mark_save_tri2, level_start, z_null, 0, 1)
-
-    do l = level_end-1, level_start-1, -1
-       call apply_interscale (restrict_level, l, z_null, 0, 1)
-    end do
-  end subroutine pre_levelout
-
-  subroutine post_levelout
-    implicit none
-    integer :: d, t
-
-    do d = 1, size(grid)
-       deallocate (active_level%data(d)%elts)
-       do t = LORT, UPLT
-          deallocate (save_tri(t)%data(d)%elts)
-       end do
-    end do
-    deallocate (active_level%data)
-
-    do t = LORT, UPLT
-       deallocate (save_tri(t)%data)
-    end do
-  end subroutine post_levelout
-
-  subroutine restrict_level (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer :: d, id_par, id_chd
-
-    d = dom%id+1
-
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-    id_par = idx(i_par, j_par, offs_par, dims_par)
-
-    if (dom%mask_n%elts(id_chd+1) >= ADJZONE .and. &
-         save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0 .and. save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0) &
-         active_level%data(d)%elts(id_par+1) = active_level%data(d)%elts(id_chd+1)
-  end subroutine restrict_level
-
-  subroutine mark_save_tri (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer                        :: d, id_chd, idE_chd, idNE_chd, idN_chd
-    integer                        :: mask_id, mask_idE, mask_idNE, mask_idN
-    integer, dimension(1:2*EDGE+1) :: id_hex, idE_hex, idNE_hex, idN_hex
-    
-    d = dom%id+1
-    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
-
-    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
-    
-    id_hex   = idx_hex (dom, i_chd,   j_chd,   offs_chd, dims_chd)
-    
-    idE_hex  = idx_hex (dom, i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_hex = idx_hex (dom, i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN_hex  = idx_hex (dom, i_chd,   j_chd+1, offs_chd, dims_chd)
-
-    mask_id   = minval (dom%mask_n%elts(id_hex  +1))
-    mask_idE  = minval (dom%mask_n%elts(idE_hex +1))
-    mask_idNE = minval (dom%mask_n%elts(idNE_hex+1))
-    mask_idN  = minval (dom%mask_n%elts(idN_hex +1))
-    
-    if (mask_id >= ADJZONE .and. mask_idNE >= ADJZONE) then
-       if (mask_idE >= ADJZONE) then
-          save_tri(LORT)%data(d)%elts((/id_chd, idE_chd, idNE_chd/)+1) = 1d0
-          save_tri(UPLT)%data(d)%elts(idE_chd+1)                       = 1d0
-       end if
-       if (mask_idN >= ADJZONE) then
-          save_tri(LORT)%data(d)%elts(idN_chd+1)                       = 1d0
-          save_tri(UPLT)%data(d)%elts((/id_chd, idNE_chd, idN_chd/)+1) = 1d0
-       end if
-    end if
-  end subroutine mark_save_tri
-
-  subroutine mark_save_tri2 (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer :: d, id_par, id_chd
-
-    d = dom%id+1
-
-    id_par = idx(i_par, j_par, offs_par, dims_par)
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-
-    if (save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0) save_tri(LORT)%data(d)%elts(id_par+1) = 0d0
-    if (save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0) save_tri(UPLT)%data(d)%elts(id_par+1) = 0d0
-  end subroutine mark_save_tri2
 
   subroutine write_and_export (isave)
     use utils_mod

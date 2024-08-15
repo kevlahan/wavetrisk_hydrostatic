@@ -3,10 +3,12 @@ module utils_mod
   use domain_mod
   use comm_mod
   use comm_mpi_mod
+  use init_mod
   implicit none
-  real(8)                        :: integral, rx0_max_loc, rx1_max_loc
-  real(8), dimension(:), pointer :: val1, val2
-
+  real(8)                                 :: integral, rx0_max_loc, rx1_max_loc
+  real(8), dimension(:), pointer          :: val1, val2
+  type(Float_Field)                       :: active_level
+  type(Float_Field), dimension(LORT:UPLT) :: save_tri   
   abstract interface
      real(8) function routine_hex (dom, i, j, zlev, offs, dims)
        use domain_mod
@@ -25,9 +27,8 @@ module utils_mod
        integer, dimension(2,N_BDRY+1) :: dims
      end function routine_tri
   end interface
-  procedure (routine_hex), pointer :: arr_hex => null ()
-  procedure (routine_tri), pointer :: integrand_tri => null ()
-
+  procedure (routine_hex), pointer :: arr_hex       => null ()
+  procedure (fun3),        pointer :: integrand     => null ()
   interface zero_float
      procedure :: zero_float_0, zero_float_1, zero_float_2
   end interface zero_float
@@ -753,107 +754,6 @@ contains
     f_coriolis_node = dom%node%elts(id+1)%z / radius * 2d0*omega
   end function f_coriolis_node
 
-  real(8) function integrate_tri (fun, zlev, coarse_only)
-    ! Integrate over adaptive triangles, where the integrand is defined by the routine fun.
-    ! If optional variable coarse_only = .true. the integration is carried out over level_start only.
-    implicit none
-    integer           :: zlev
-    logical, optional :: coarse_only
-
-    integer :: d, j, l
-    logical :: finer
-
-    interface
-       real(8) function fun (dom, i, j, t, zlev, offs, dims)
-         use domain_mod
-         implicit none
-         type (Domain)                  :: dom
-         integer                        :: i, j, t, zlev
-         integer, dimension(N_BDRY+1)   :: offs
-         integer, dimension(2,N_BDRY+1) :: dims
-       end function fun
-    end interface
-
-    if (present(coarse_only)) then
-       finer = .not. coarse_only
-    else
-       finer = .true.
-    end if
-    integrand_tri => fun
-
-    ! Coarsest level
-    integral = 0d0
-    call apply_onescale (integrate_tri_coarse, level_start, zlev, 0, 0)
-
-    ! Finer levels
-    if (finer) then
-       do l = level_start, level_end-1
-          do d = 1, size(grid)
-             do j = 1, grid(d)%lev(l)%length
-                call apply_interscale_to_patch (integrate_tri_fine, grid(d), grid(d)%lev(l)%elts(j), zlev, 0, 0)
-             end do
-          end do
-       end do
-    end if
-    nullify (integrand_tri)
-
-    integrate_tri = sum_real (integral)
-  end function integrate_tri
-
-  subroutine integrate_tri_coarse (dom, i, j, zlev, offs, dims)
-    ! Integral over a single level.
-    implicit none
-    type(Domain),                   intent(in) :: dom
-    integer,                        intent(in) :: i, j, zlev
-    integer, dimension(N_BDRY+1),   intent(in) :: offs
-    integer, dimension(2,N_BDRY+1), intent(in) :: dims
-
-    integer :: id, t
-
-    id = idx (i, j, offs, dims)
-
-    do t = LORT, UPLT
-       integral = integral + integrand_tri (dom, i, j, t, zlev, offs, dims) * dom%triarea%elts(TRIAG*id+t+1)
-    end do
-  end subroutine integrate_tri_coarse
-
-  subroutine integrate_tri_fine (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Integrate over active finer levels.
-    implicit none
-    type(Domain)                     :: dom
-    integer                          :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
-
-    integer                       :: id_chd, idE_chd, idNE_chd, idN_chd, t
-    real(8), dimension(LORT:UPLT) :: parent_integrand
-
-    id_chd   = idx (i_chd,   j_chd,   offs_chd, dims_chd)
-    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
-
-    if (dom%mask_n%elts(id_chd+1) >= ADJZONE) then
-       do t = LORT, UPLT
-          parent_integrand(t) = integrand_tri (dom, i_par, j_par, t, zlev, offs_par, dims_par)
-       end do
-
-       do t = LORT, UPLT
-          integral = integral + (integrand_tri (dom, i_chd, j_chd, t, zlev, offs_chd, dims_chd) - parent_integrand(t)) &
-               * dom%triarea%elts(TRIAG*id_chd+t+1)
-
-          integral = integral + (integrand_tri (dom, i_chd+1, j_chd, t, zlev, offs_chd, dims_chd) - parent_integrand(LORT)) &
-               * dom%triarea%elts(TRIAG*idE_chd+t+1)
-
-          integral = integral + (integrand_tri (dom, i_chd, j_chd+1, t, zlev, offs_chd, dims_chd) - parent_integrand(UPLT)) &
-               * dom%triarea%elts(TRIAG*idN_chd+t+1)
-
-          integral = integral + (integrand_tri (dom, i_chd+1, j_chd+1, t, zlev, offs_chd, dims_chd) - parent_integrand(t)) &
-               * dom%triarea%elts(TRIAG*idNE_chd+t+1)
-       end do
-    end if
-  end subroutine integrate_tri_fine
-
   real(8) function integrate_hex (fun, zlev, level)
     ! Integrate over adaptive hexagons, where the integrand is defined by the routine fun.
     ! If optional variable coarse_only = .true. the integration is carried out over level_start only.
@@ -1013,6 +913,85 @@ contains
     hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
 
+  real(8) function integrate_tri (fun, zlev)
+    ! Integrate a function defined by  fun over complete (non-overlapping) sadaptive triangular grid.
+    implicit none
+    integer :: zlev
+    
+    integer :: l
+
+    interface
+       real(8) function fun (dom, i, j, zlev, offs, dims)
+         use domain_mod
+         implicit none
+         type (Domain)                  :: dom
+         integer                        :: i, j, zlev
+         integer, dimension(N_BDRY+1)   :: offs
+         integer, dimension(2,N_BDRY+1) :: dims
+       end function fun
+    end interface
+    
+    integrand => fun
+
+    call pre_levelout
+    
+    integral = 0d0
+    do l = level_start, level_end
+       call apply_onescale (fdA_tri, l, zlev, 0, 0)
+    end do
+
+    integrate_tri = sum_real (integral)
+    nullify (integrand)
+
+    call post_levelout
+  end function integrate_tri
+
+ subroutine fdA_tri (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer                       :: d, id, idE, idN, idNE, outa, outl
+    real(8), dimension(LORT:UPLT) :: FdTri, tri_area
+    real(8), dimension(2*EDGE)    :: hex_area
+    real(8), dimension(0:EDGE)    :: val
+
+    real(8) :: mu
+
+    d = dom%id + 1
+
+    id   = idx(i,   j,   offs, dims)
+
+    idE  = idx(i+1, j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+
+    outl = dom%level%elts(id+1)                   ! level of current node
+    outa = nint (active_level%data(d)%elts(id+1)) ! finest level of child nodes
+
+    tri_area(LORT) = dom%triarea%elts(TRIAG*id+LORT+1)
+    tri_area(UPLT) = dom%triarea%elts(TRIAG*id+UPLT+1)
+
+    hex_area(1) = dom%areas%elts(id+1  )%part(1)
+    hex_area(2) = dom%areas%elts(id+1  )%part(2)
+    hex_area(3) = dom%areas%elts(idE+1 )%part(3)
+    hex_area(4) = dom%areas%elts(idNE+1)%part(4)
+    hex_area(5) = dom%areas%elts(idNE+1)%part(5)
+    hex_area(6) = dom%areas%elts(idN+1 )%part(6)
+
+    val(0)    = integrand (dom, i,   j,   zlev, offs, dims)
+    val(RT+1) = integrand (dom, i+1, j,   zlev, offs, dims)
+    val(DG+1) = integrand (dom, i+1, j+1, zlev, offs, dims)
+    val(UP+1) = integrand (dom, i,   j+1, zlev, offs, dims)
+
+    FdTri = hex2tri3 (val, hex_area, tri_area)  
+
+    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0 .and. outa == outl) integral = integral + FdTri(LORT)
+    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0 .and. outa == outl) integral = integral + FdTri(UPLT)
+  end subroutine fdA_tri
+
   function hex2tri2 (sclr, hex_area, tri_area)
     ! Interpolates sclr given at hexagons to triangles 
     implicit none
@@ -1024,6 +1003,145 @@ contains
     hex2tri2(LORT) = (sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)) / tri_area(LORT)
     hex2tri2(UPLT) = (sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6)) / tri_area(UPLT)
   end function hex2tri2
+
+  function hex2tri3 (sclr, hex_area, tri_area)
+    ! Inteegrates sclr given at hexagons over triangles 
+    implicit none
+    real(8), dimension(0:EDGE)    :: sclr
+    real(8), dimension(2*EDGE)    :: hex_area
+    real(8), dimension(LORT:UPLT) :: tri_area
+    real(8), dimension(LORT:UPLT) :: hex2tri3
+
+    hex2tri3(LORT) = sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)
+    hex2tri3(UPLT) = sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6) 
+  end function hex2tri3
+
+  subroutine pre_levelout
+    implicit none
+    integer :: d, l, max_output_level, num, t
+
+    ! FIXME cleaner would be to use init_io routine
+    call init_Float_Field (active_level,   AT_NODE)
+    call init_Float_Field (save_tri(LORT), AT_NODE)
+    call init_Float_Field (save_tri(UPLT), AT_NODE)
+
+    do d = 1, size(grid)
+       num = grid(d)%node%length
+       call init (active_level%data(d), num)
+
+       do t = LORT, UPLT
+          call init (save_tri(t)%data(d), num)
+          save_tri(t)%data(d)%elts(1:num) = 0d0
+       end do
+
+       active_level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
+    end do
+
+    do l = level_end-1, level_start-1, -1
+       call apply_interscale (mark_save_tri,  l, z_null, 0, 1)
+    end do
+
+    call apply_interscale (mark_save_tri2, level_start, z_null, 0, 1)
+
+    do l = level_end-1, level_start-1, -1
+       call apply_interscale (restrict_level, l, z_null, 0, 1)
+    end do
+  end subroutine pre_levelout
+
+  subroutine post_levelout
+    implicit none
+    integer :: d, t
+
+    do d = 1, size(grid)
+       deallocate (active_level%data(d)%elts)
+       do t = LORT, UPLT
+          deallocate (save_tri(t)%data(d)%elts)
+       end do
+    end do
+    deallocate (active_level%data)
+
+    do t = LORT, UPLT
+       deallocate (save_tri(t)%data)
+    end do
+  end subroutine post_levelout
+
+  subroutine restrict_level (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: d, id_par, id_chd
+
+    d = dom%id+1
+
+    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+    id_par = idx(i_par, j_par, offs_par, dims_par)
+
+    if (dom%mask_n%elts(id_chd+1) >= ADJZONE .and. &
+         save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0 .and. save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0) &
+         active_level%data(d)%elts(id_par+1) = active_level%data(d)%elts(id_chd+1)
+  end subroutine restrict_level
+
+  subroutine mark_save_tri (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer                        :: d, id_chd, idE_chd, idNE_chd, idN_chd
+    integer                        :: mask_id, mask_idE, mask_idNE, mask_idN
+    integer, dimension(1:2*EDGE+1) :: id_hex, idE_hex, idNE_hex, idN_hex
+    
+    d = dom%id+1
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+
+    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
+    
+    id_hex   = idx_hex (dom, i_chd,   j_chd,   offs_chd, dims_chd)
+    
+    idE_hex  = idx_hex (dom, i_chd+1, j_chd,   offs_chd, dims_chd)
+    idNE_hex = idx_hex (dom, i_chd+1, j_chd+1, offs_chd, dims_chd)
+    idN_hex  = idx_hex (dom, i_chd,   j_chd+1, offs_chd, dims_chd)
+
+    mask_id   = minval (dom%mask_n%elts(id_hex  +1))
+    mask_idE  = minval (dom%mask_n%elts(idE_hex +1))
+    mask_idNE = minval (dom%mask_n%elts(idNE_hex+1))
+    mask_idN  = minval (dom%mask_n%elts(idN_hex +1))
+    
+    if (mask_id >= ADJZONE .and. mask_idNE >= ADJZONE) then
+       if (mask_idE >= ADJZONE) then
+          save_tri(LORT)%data(d)%elts((/id_chd, idE_chd, idNE_chd/)+1) = 1d0
+          save_tri(UPLT)%data(d)%elts(idE_chd+1)                       = 1d0
+       end if
+       if (mask_idN >= ADJZONE) then
+          save_tri(LORT)%data(d)%elts(idN_chd+1)                       = 1d0
+          save_tri(UPLT)%data(d)%elts((/id_chd, idNE_chd, idN_chd/)+1) = 1d0
+       end if
+    end if
+  end subroutine mark_save_tri
+
+  subroutine mark_save_tri2 (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    integer :: d, id_par, id_chd
+
+    d = dom%id+1
+
+    id_par = idx(i_par, j_par, offs_par, dims_par)
+    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+
+    if (save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0) save_tri(LORT)%data(d)%elts(id_par+1) = 0d0
+    if (save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0) save_tri(UPLT)%data(d)%elts(id_par+1) = 0d0
+  end subroutine mark_save_tri2
 
   subroutine zero_float_0 (q)
     ! Initializes a float field to zero
