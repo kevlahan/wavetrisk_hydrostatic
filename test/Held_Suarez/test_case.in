@@ -7,7 +7,7 @@ sso                F              ! use SSO (subgrid scale orography) parameteri
 topo_file          J05J07_120.0km ! smoothed NCAR topography file name
 topo_min_level     5              ! minimum topography level
 topo_max_level     7              ! maximum topography level
-tol      	   2e-2           ! non-dimensional tolerance
+tol      	   1e-2           ! non-dimensional tolerance
 dt_write           5              ! save interval (days)
 CP_EVERY           1              ! checkpoint and rebalance every CP_EVERY saves
 time_end           300            ! final time (days)
