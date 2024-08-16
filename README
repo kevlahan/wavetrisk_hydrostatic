@@ -96,6 +96,7 @@ CONTENTS
    6.9 INDEXING OF GRID ELEMENTS AND NEIGHBOURS
    6.10 DATA OUTPUT
    6.11 CALCULATIONS ON ADAPTED GRID
+   6.12 DIAGNOSTIC VARIABLES
 
 
 **********************************************************************************************************************************
@@ -681,3 +682,18 @@ This means that some operations on the entire grid could produce intermediate ov
 incorrect values at these nodes or their neighbours. Functions and subroutines should take this into account.  Similarly,
 circulation, vorticity and qe (potential vorticity are first computed incorrectly at pentagon points in step1 (or cal_vort) and
 then corrected in post_step1 (or post_vort).
+
+************************************************************
+6.12 DIAGNOSTIC VARIABLES
+
+Diagnostic variables are derived from the prognostic variables defined in section 6.1. Diagnostic variables (or quantities) include
+temperature, zonal velocity, meridional velocity, OMEGA (vertical velocity D_t P = OMEGa [Pa/s]), vorticity, eddy kinetic energy,
+eddy momentum flux. Many of these diagnostics arecomputed in provided routines (e.g. in the data saving routines write_hex or write_tri,
+or dedicated routines such as omega_velocity). Routines for test case specific diagnostic variables are usually provided in the file
+test_case_module.f90 for that test case.
+
+For computing quantities integrated over the entire adapted grid, you should use integrate_tri (fun, zlev), which integrates the function
+defined by the routine fun over the entire adaptive triangular grid at vertical level zlev.  The routine integrate_hex (fun, zlev, level)
+integrates fun on the grid defined at scale level and vertical level zlev.  Note that the triangular cells are not overlapping, but the
+hexagonal cells overlap between levels.  To compute over a portion of the grid, modify fun by including the appropriate mask.
+
