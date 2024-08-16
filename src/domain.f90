@@ -752,7 +752,7 @@ contains
 
     integer :: id, idE, idNE, idN, idW, idSW, idS
 
-    id   = idx (i+1, j,   offs, dims)
+    id   = idx (i,   j,   offs, dims)
     
     idE  = idx (i+1, j,   offs, dims) 
     idNE = idx (i+1, j+1, offs, dims)
