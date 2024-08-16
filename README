@@ -688,12 +688,13 @@ then corrected in post_step1 (or post_vort).
 
 Diagnostic variables are derived from the prognostic variables defined in section 6.1. Diagnostic variables (or quantities) include
 temperature, zonal velocity, meridional velocity, OMEGA (vertical velocity D_t P = OMEGa [Pa/s]), vorticity, eddy kinetic energy,
-eddy momentum flux. Many of these diagnostics arecomputed in provided routines (e.g. in the data saving routines write_hex or write_tri,
+eddy momentum flux. Many of these diagnostics are computed in provided routines (e.g. in the data saving routines write_hex or write_tri,
 or dedicated routines such as omega_velocity). Routines for test case specific diagnostic variables are usually provided in the file
-test_case_module.f90 for that test case.
+test_case_module.f90 for that test case. You can also compute diagnostic quantities from vtk files during post-processing in paraview,
+python, or matlab (see section 4).
 
 For computing quantities integrated over the entire adapted grid, you should use integrate_tri (fun, zlev), which integrates the function
 defined by the routine fun over the entire adaptive triangular grid at vertical level zlev.  The routine integrate_hex (fun, zlev, level)
 integrates fun on the grid defined at scale level and vertical level zlev.  Note that the triangular cells are not overlapping, but the
-hexagonal cells overlap between levels.  To compute over a portion of the grid, modify fun by including the appropriate mask.
+hexagonal cells overlap between levels.  To compute over a portion of the grid, modify fun by including the appropriate mask. 
 
