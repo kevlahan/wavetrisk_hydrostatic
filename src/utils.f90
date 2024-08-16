@@ -780,15 +780,8 @@ contains
 
     if (present (level)) then ! integrate over a single scales
        call integrate_hex_scale (level, zlev)
-    else                      ! integrate over all scales
+    else                      ! integrate over coarsest scale
        call integrate_hex_scale (level_start, zlev)
-       do l = level_start, level_end-1
-          do d = 1, size(grid)
-             do j = 1, grid(d)%lev(l)%length
-                call apply_interscale_to_patch (integrate_hex_fine, grid(d), grid(d)%lev(l)%elts(j), zlev, 0, 0)
-             end do
-          end do
-       end do
     end if
 
     integrate_hex = sum_real (integral)
@@ -843,46 +836,6 @@ contains
     end do
   end subroutine integrate_hex_scale
 
-  subroutine integrate_hex_fine (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    ! Integrate over active finer levels.
-    implicit none
-    type(Domain)                     :: dom
-    integer                          :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
-
-    real(8), dimension(LORT:UPLT) :: parent_integrand
-    integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd, t
-
-    id_par = idx (i_par, j_par, offs_par, dims_par)
-    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
-
-    idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
-
-    if (dom%mask_n%elts(id_chd+1) >= ADJZONE) then
-       do t = LORT, UPLT
-          parent_integrand(t) = hex2tri (dom, i_par, j_par, t, offs_par, dims_par, zlev)
-       end do
-
-       do t = LORT, UPLT
-          integral = integral + (hex2tri (dom, i_chd, j_chd, t, offs_chd, dims_chd, zlev) - parent_integrand(t)) &
-               * dom%triarea%elts(TRIAG*id_chd+t+1)
-
-          integral = integral + (hex2tri (dom, i_chd+1, j_chd, t, offs_chd, dims_chd, zlev) - parent_integrand(LORT)) &
-               * dom%triarea%elts(TRIAG*idE_chd+t+1)
-
-          integral = integral + &
-               (hex2tri (dom, i_chd, j_chd+1, t, offs_chd, dims_chd, zlev) - parent_integrand(UPLT)) &
-               * dom%triarea%elts(TRIAG*idN_chd+t+1)
-
-          integral = integral + (hex2tri (dom, i_chd+1, j_chd+1, t, offs_chd, dims_chd, zlev) - parent_integrand(t)) &
-               * dom%triarea%elts(TRIAG*idNE_chd+t+1)
-       end do
-    end if
-  end subroutine integrate_hex_fine
-
   real(8) function hex2tri (dom, i, j, t, offs, dims, zlev)
     ! Float array arr_hex at triangles associated with node (i,j) computed from integral over hexagons
     implicit none
@@ -914,7 +867,7 @@ contains
   end function hex2tri
 
   real(8) function integrate_tri (fun, zlev)
-    ! Integrate a function defined by  fun over complete (non-overlapping) sadaptive triangular grid.
+    ! Integrate a function defined by fun over complete (non-overlapping) adaptive triangular grid.
     implicit none
     integer :: zlev
     
