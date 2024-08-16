@@ -389,7 +389,7 @@ contains
 
     rho_dz_i = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
   end function rho_dz_i
-  
+
   real(8) function density_i (dom, i, j, zlev, offs, dims, q)
     ! Density at nodes
     ! *** compressible case requires pressure at zlev ***
@@ -469,6 +469,18 @@ contains
     end do
     pressure_i = interp (p(zlev-1), p(zlev)) ! pressure at layer zlev
   end function pressure_i
+
+  real(8) function dA_i (dom, i, j, zlev, offs, dims)
+    ! For checking areas
+    use domain_mod
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    dA_i = 1d0
+  end function dA_i
 
   real(8) function free_surface (dom, i, j, zlev, offs, dims, q)
     ! Computes free surface perturbations
@@ -890,7 +902,7 @@ contains
     
     integral = 0d0
     do l = level_start, level_end
-       call apply_onescale (fdA_tri, l, zlev, 0, 0)
+       call apply_onescale (fdA_tri, l, zlev, 0, 1)
     end do
 
     integrate_tri = sum_real (integral)
@@ -899,30 +911,26 @@ contains
     call post_levelout
   end function integrate_tri
 
- subroutine fdA_tri (dom, i, j, zlev, offs, dims)
+  subroutine fdA_tri (dom, i, j, zlev, offs, dims)
+    ! Integrate over active triangles, including only those portions of the triangle overlapping with significant hexagons.
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                       :: d, id, idE, idN, idNE, outa, outl
+    integer                       :: d, id, idE, idN, idNE
     real(8), dimension(LORT:UPLT) :: FdTri, tri_area
     real(8), dimension(2*EDGE)    :: hex_area
     real(8), dimension(0:EDGE)    :: val
-
-    real(8) :: mu
 
     d = dom%id + 1
 
     id   = idx(i,   j,   offs, dims)
 
     idE  = idx(i+1, j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
-
-    outl = dom%level%elts(id+1)                   ! level of current node
-    outa = nint (active_level%data(d)%elts(id+1)) ! finest level of child nodes
+    idN  = idx(i,   j+1, offs, dims)
 
     tri_area(LORT) = dom%triarea%elts(TRIAG*id+LORT+1)
     tri_area(UPLT) = dom%triarea%elts(TRIAG*id+UPLT+1)
@@ -934,15 +942,17 @@ contains
     hex_area(5) = dom%areas%elts(idNE+1)%part(5)
     hex_area(6) = dom%areas%elts(idN+1 )%part(6)
 
-    val(0)    = integrand (dom, i,   j,   zlev, offs, dims)
-    val(RT+1) = integrand (dom, i+1, j,   zlev, offs, dims)
-    val(DG+1) = integrand (dom, i+1, j+1, zlev, offs, dims)
-    val(UP+1) = integrand (dom, i,   j+1, zlev, offs, dims)
+    ! Only include contribution from hexagons in active or adjacent zone
+    val = 0d0
+    if (dom%mask_n%elts(id+1)   >= ADJZONE) val(0)    = integrand (dom, i,   j,   zlev, offs, dims)
+    if (dom%mask_n%elts(idE+1)  >= ADJZONE) val(RT+1) = integrand (dom, i+1, j,   zlev, offs, dims)
+    if (dom%mask_n%elts(idNE+1) >= ADJZONE) val(DG+1) = integrand (dom, i+1, j+1, zlev, offs, dims)
+    if (dom%mask_n%elts(idN+1)  >= ADJZONE) val(UP+1) = integrand (dom, i,   j+1, zlev, offs, dims)
 
     FdTri = hex2tri3 (val, hex_area, tri_area)  
 
-    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0 .and. outa == outl) integral = integral + FdTri(LORT)
-    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0 .and. outa == outl) integral = integral + FdTri(UPLT)
+    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0) integral = integral + FdTri(LORT)
+    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0) integral = integral + FdTri(UPLT)
   end subroutine fdA_tri
 
   function hex2tri2 (sclr, hex_area, tri_area)
@@ -951,6 +961,7 @@ contains
     real(8), dimension(0:EDGE)    :: sclr
     real(8), dimension(2*EDGE)    :: hex_area
     real(8), dimension(LORT:UPLT) :: tri_area
+    
     real(8), dimension(LORT:UPLT) :: hex2tri2
 
     hex2tri2(LORT) = (sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)) / tri_area(LORT)
@@ -963,6 +974,7 @@ contains
     real(8), dimension(0:EDGE)    :: sclr
     real(8), dimension(2*EDGE)    :: hex_area
     real(8), dimension(LORT:UPLT) :: tri_area
+    
     real(8), dimension(LORT:UPLT) :: hex2tri3
 
     hex2tri3(LORT) = sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)
@@ -987,17 +999,15 @@ contains
           save_tri(t)%data(d)%elts(1:num) = 0d0
        end do
 
-       active_level%data(d)%elts(1:num) = grid(d)%level%elts(1:num)
+       active_level%data(d)%elts = grid(d)%level%elts
     end do
 
     do l = level_end-1, level_start-1, -1
-       call apply_interscale (mark_save_tri,  l, z_null, 0, 1)
+       call apply_interscale (mark_save_chd, l, z_null, 0, 0)
     end do
-
-    call apply_interscale (mark_save_tri2, level_start, z_null, 0, 1)
-
-    do l = level_end-1, level_start-1, -1
-       call apply_interscale (restrict_level, l, z_null, 0, 1)
+    
+    do l = level_start, level_end-1
+       call apply_interscale (mark_save_par, l, z_null, 0, 0)
     end do
   end subroutine pre_levelout
 
@@ -1018,67 +1028,42 @@ contains
     end do
   end subroutine post_levelout
 
-  subroutine restrict_level (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+  subroutine mark_save_chd (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    ! Mark active child triangles
     implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer :: d, id_par, id_chd
-
-    d = dom%id+1
-
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
-    id_par = idx(i_par, j_par, offs_par, dims_par)
-
-    if (dom%mask_n%elts(id_chd+1) >= ADJZONE .and. &
-         save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0 .and. save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0) &
-         active_level%data(d)%elts(id_par+1) = active_level%data(d)%elts(id_chd+1)
-  end subroutine restrict_level
-
-  subroutine mark_save_tri (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
-    integer                        :: d, id_chd, idE_chd, idNE_chd, idN_chd
-    integer                        :: mask_id, mask_idE, mask_idNE, mask_idN
-    integer, dimension(1:2*EDGE+1) :: id_hex, idE_hex, idNE_hex, idN_hex
+    integer                    :: d, id_chd, idE_chd, idNE_chd, idN_chd
+    integer                    :: mask_LORT, mask_UPLT
+    integer, dimension(2*EDGE) :: id_LORT, id_UPLT
     
-    d = dom%id+1
-    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+    d = dom%id + 1
 
+    id_chd   = idx (i_chd,   j_chd,   offs_chd, dims_chd)
     idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
     idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
     idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
-    
-    id_hex   = idx_hex (dom, i_chd,   j_chd,   offs_chd, dims_chd)
-    
-    idE_hex  = idx_hex (dom, i_chd+1, j_chd,   offs_chd, dims_chd)
-    idNE_hex = idx_hex (dom, i_chd+1, j_chd+1, offs_chd, dims_chd)
-    idN_hex  = idx_hex (dom, i_chd,   j_chd+1, offs_chd, dims_chd)
+   
+    id_LORT = idx_hex_LORT (dom, i_chd, j_chd, offs_chd, dims_chd)
+    id_UPLT = idx_hex_UPLT (dom, i_chd, j_chd, offs_chd, dims_chd)
 
-    mask_id   = minval (dom%mask_n%elts(id_hex  +1))
-    mask_idE  = minval (dom%mask_n%elts(idE_hex +1))
-    mask_idNE = minval (dom%mask_n%elts(idNE_hex+1))
-    mask_idN  = minval (dom%mask_n%elts(idN_hex +1))
-    
-    if (mask_id >= ADJZONE .and. mask_idNE >= ADJZONE) then
-       if (mask_idE >= ADJZONE) then
-          save_tri(LORT)%data(d)%elts((/id_chd, idE_chd, idNE_chd/)+1) = 1d0
-          save_tri(UPLT)%data(d)%elts(idE_chd+1)                       = 1d0
-       end if
-       if (mask_idN >= ADJZONE) then
-          save_tri(LORT)%data(d)%elts(idN_chd+1)                       = 1d0
-          save_tri(UPLT)%data(d)%elts((/id_chd, idNE_chd, idN_chd/)+1) = 1d0
-       end if
+    mask_LORT = minval (dom%mask_n%elts(id_LORT+1))
+    if (mask_LORT >= ADJZONE) then
+       save_tri(LORT)%data(d)%elts((/id_chd, idE_chd, idNE_chd/)+1) = 1d0
+       save_tri(UPLT)%data(d)%elts(idE_chd+1)                       = 1d0
     end if
-  end subroutine mark_save_tri
 
-  subroutine mark_save_tri2 (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    mask_UPLT = minval (dom%mask_n%elts(id_UPLT+1))
+    if (mask_UPLT >= ADJZONE) then
+       save_tri(LORT)%data(d)%elts(idN_chd+1)                       = 1d0
+       save_tri(UPLT)%data(d)%elts((/id_chd, idNE_chd, idN_chd/)+1) = 1d0
+    end if
+  end subroutine mark_save_chd
+
+  subroutine mark_save_par (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, zlev
@@ -1087,14 +1072,14 @@ contains
 
     integer :: d, id_par, id_chd
 
-    d = dom%id+1
+    d = dom%id + 1
 
-    id_par = idx(i_par, j_par, offs_par, dims_par)
-    id_chd = idx(i_chd, j_chd, offs_chd, dims_chd)
+    id_par = idx (i_par, j_par, offs_par, dims_par)
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
     if (save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0) save_tri(LORT)%data(d)%elts(id_par+1) = 0d0
     if (save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0) save_tri(UPLT)%data(d)%elts(id_par+1) = 0d0
-  end subroutine mark_save_tri2
+  end subroutine mark_save_par
 
   subroutine zero_float_0 (q)
     ! Initializes a float field to zero

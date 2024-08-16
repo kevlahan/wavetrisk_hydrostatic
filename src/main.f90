@@ -13,8 +13,7 @@ module main_mod
   
   integer                                        :: chkpt_info
   integer,             dimension(:), allocatable :: node_level_start, edge_level_start
-  real(8)                                        :: dt_new, time_mult
-  real(8), dimension(:), allocatable             :: init_total_mass
+  real(8)                                        :: dt_new, initial_total_mass, time_mult
   type(Initial_State), dimension(:), allocatable :: ini_st
 contains
   subroutine init_basic
@@ -38,8 +37,6 @@ contains
     
     character(255) :: command
     integer        :: d, k, l, v
-
-    allocate (init_total_mass(min_level:max_level))
 
     ! Default elliptic solver (scheduled relaxation Jacobi method)
     elliptic_solver => SRJ
@@ -265,25 +262,25 @@ contains
     end if
 
     ! Split step routines
-    if (vert_diffuse) call vertical_diffusion 
-    
+    if (vert_diffuse) call vertical_diffusion
+
     ! Adapt grid
     if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels for iWT
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol)
-
+    
     ! Update mean solution and topography
     call update
 
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
-
+    
     ! Change in vertical layer depths
     if (log_min_mass) min_mass = cpt_min_mass ()
 
     ! Change in total mass
     if (log_total_mass) call cal_total_mass (.false.)
-
+   
     itime = itime + idt
 
     if (match_time) then
@@ -480,37 +477,22 @@ contains
   end subroutine init_structures
 
   subroutine cal_total_mass (initialize_total_mass)
-    ! Compute total mass over all vertical layers
+    ! Compute total mass over all vertical layers at coarsest level
     implicit none
     logical :: initialize_total_mass
     
-    integer                            :: k, l
-    real(8), dimension(:), allocatable :: mass_error, total_mass
-
-    allocate (total_mass(min_level:max_level), mass_error(min_level:max_level))
-
+    integer :: k
+    real(8) :: total_mass, mass_error                            
+    
     total_mass = 0d0
-    do k = zmin, zmax
-       l = level_start
-       total_mass(l) = total_mass(l) + integrate_hex (rho_dz_i, k, l)
-       if (tol == 0d0) then
-          do l = level_start+1, level_end
-             total_mass(l) = total_mass(l) + integrate_hex (rho_dz_i, k, l)
-          end do
-       end if
+    do k = 1, zlevels
+       total_mass = total_mass + integrate_hex (rho_dz_i, k, level_start)
     end do
-    if (initialize_total_mass) init_total_mass = total_mass
+    if (initialize_total_mass) initial_total_mass = total_mass
 
-    mass_error = abs (total_mass - init_total_mass) / init_total_mass
+    mass_error =  (total_mass - initial_total_mass) / initial_total_mass
 
-    if (rank == 0 .and. .not. initialize_total_mass) then
-       if (tol == 0d0) then
-          write (6,'(a,10(es10.4,1x))') "Mass error at coarsest to finest levels = ", mass_error
-       else
-          write (6,'(a,10(es10.4,1x))') "Mass error at coarsest level = ", mass_error(level_start)
-       end if
-    end if
-    deallocate (mass_error, total_mass)
+    if (rank == 0 .and. .not. initialize_total_mass) write (6,'(a,es11.4)') "Relative total mass error = ", mass_error
   end subroutine cal_total_mass
 
   real(8) function cpt_dt ()

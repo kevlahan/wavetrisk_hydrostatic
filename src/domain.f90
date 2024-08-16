@@ -765,6 +765,86 @@ contains
     idx_hex = (/ id, idE, idNE, idN, idS, idSW, idS /)
   end function idx_hex
 
+  function idx_hex_LORT (dom, i, j, offs, dims)
+    ! Returns vector with the indices of the six child hexagons overlapping with the LORT parent triangle
+    implicit none
+    type(Domain)                     :: dom
+    integer                          :: i, j
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims 
+    integer, dimension(1:2*EDGE)     :: idx_hex_LORT
+
+    integer :: id, idE, idNE, id2E, id2NE, id2EN
+
+    id   = idx (i,   j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims) 
+    idNE = idx (i+1, j+1, offs, dims)
+    
+    id2E  = idx (i+2, j,   offs, dims) 
+    id2NE = idx (i+2, j+2, offs, dims)
+    id2EN = idx (i+2, j+1, offs, dims)
+
+    idx_hex_LORT = (/ id, idE, idNE, id2E, id2NE, id2EN /)
+  end function idx_hex_LORT
+
+  function idx_hex_LORT2 (dom, i, j, offs, dims)
+    ! Returns vector with the indices of the three hexagons overlapping with the LORT triangle
+    implicit none
+    type(Domain)                     :: dom
+    integer                          :: i, j
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims 
+    integer, dimension(1:EDGE)       :: idx_hex_LORT2
+
+    integer :: id, idE, idNE
+
+    id   = idx (i,   j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims) 
+    idNE = idx (i+1, j+1, offs, dims)
+    
+    idx_hex_LORT2 = (/ id, idE, idNE /)
+  end function idx_hex_LORT2
+
+  function idx_hex_UPLT (dom, i, j, offs, dims)
+    ! Returns vector with the indices of the six child hexagons overlapping with the LORT parent triangle
+    implicit none
+    type(Domain)                     :: dom
+    integer                          :: i, j
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims 
+    integer, dimension(2*EDGE)       :: idx_hex_UPLT
+
+    integer :: id, idNE, idN, id2NE, idE2N, id2N
+
+    id    = idx (i,   j,   offs, dims)
+    idNE  = idx (i+1, j+1, offs, dims)
+    idN   = idx (i,   j+1, offs, dims)
+    
+    idE2N = idx (i+1, j+2, offs, dims)
+    id2NE = idx (i+2, j+2, offs, dims)
+    id2N  = idx (i,   j+2, offs, dims)
+
+    idx_hex_UPLT = (/ id, idNE, idN, id2N, id2NE, idE2N/)
+  end function idx_hex_UPLT
+
+  function idx_hex_UPLT2 (dom, i, j, offs, dims)
+    ! Returns vector with the indices of the three hexagons overlapping with the LORT triangle
+    implicit none
+    type(Domain)                     :: dom
+    integer                          :: i, j
+    integer, dimension(N_BDRY + 1)   :: offs
+    integer, dimension(2,N_BDRY + 1) :: dims 
+    integer, dimension(1:EDGE)       :: idx_hex_UPLT2
+
+    integer :: id, idNE, idN
+
+    id   = idx (i,   j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i+1, j,   offs, dims)
+    
+    idx_hex_UPLT2 = (/ id, idNE, idN /)
+  end function idx_hex_UPLT2
+
   integer function tri_idx (i, j, tri, offs, dims)
     implicit none
     integer                        :: i, j

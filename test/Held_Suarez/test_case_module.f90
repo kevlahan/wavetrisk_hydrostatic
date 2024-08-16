@@ -226,26 +226,24 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer     :: id, d, k, l
-    real(8)     :: k_T, lat, lon, p, p_s, pot_temp
-    type(Coord) :: x_i
+    integer :: id, d, k
+    real(8) :: k_T, lat, lon, p, p_s, pot_temp
     
     d   = dom%id+1
     id  = idx (i, j, offs, dims)
-    l   = dom%level%elts(id+1)
-    x_i = dom%node%elts(id+1)
-    
-    call cart2sph (x_i, lon, lat)
 
-    ! Surface pressure
-    dom%surf_press%elts(id+1) = surf_pressure (d, id+1)
-    p_s = dom%surf_press%elts(id+1)
+    call cart2sph (dom%node%elts(id+1), lon, lat)
+
+    if (NCAR_topo) then ! surface pressure from multilevel topography
+       p_s = dom%surf_press%elts(id+1)
+    else                ! surface pressure from standard atmosphere
+       call std_surf_pres (topography%data(d)%elts(id+1), p_s)
+    end if
 
     do k = 1, zlevels
        p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
-
-       ! Potential temperature
-       call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
+       
+       call cal_theta_eq (p, p_s, lat, pot_temp, k_T)                          ! potential temperature
 
        sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
        sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
@@ -386,14 +384,6 @@ contains
       ellipse_profile = height * exp__flush (-rsq**p)
     end function ellipse_profile
   end subroutine init_topo
-
-  real(8) function surf_pressure (d, id) 
-    ! Surface pressure
-    implicit none
-    integer :: d, id
-
-    call std_surf_pres (topography%data(d)%elts(id), surf_pressure)
-  end function surf_pressure
 
   subroutine vel_fun (lon, lat, u, v)
     ! Zonal latitude-dependent wind
@@ -669,7 +659,7 @@ contains
        end if
 
        write (6,'(a)') "Non-dimensional viscosities"
-       write (6,'(3(a,es8.2/))') "C_visc(S_MASS)      = ", C_visc(S_MASS), "C_visc(S_TEMP)     = ", C_visc(S_TEMP), &
+       write (6,'(3(a,es8.2/))') "C_visc(S_MASS)     = ", C_visc(S_MASS), "C_visc(S_TEMP)     = ", C_visc(S_TEMP), &
             "C_visc(S_VELO)     = ", C_visc(S_VELO)
 
        write (6,'(a)')        "Approximate viscosities on finest grid"

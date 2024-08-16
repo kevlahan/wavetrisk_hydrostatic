@@ -9,7 +9,7 @@ program Held_Suarez
   implicit none
 
   integer        :: l
-  real(8)        :: dx_scaling, fine_mass, nu_scaling, rx0_max, rx1_max
+  real(8)        :: area_sphere, dx_scaling, fine_mass, nu_scaling, rx0_max, rx1_max, integ1
   logical        :: aligned
   character(256) :: input_file
 
@@ -71,13 +71,14 @@ program Held_Suarez
   Hdim           = wave_speed**2 / grav_accel       ! vertical length scale
 
   ! Numerical method parameters
-  Area_min           = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**max_level)
-  Area_max           = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**min_level)
+  area_sphere        = 4d0*MATH_PI * radius**2 
+  Area_min           = area_sphere / (10d0 * 4d0**max_level)
+  Area_max           = area_sphere/ (10d0 * 4d0**min_level)
 
   dx_min             = sqrt (2d0 / sqrt(3d0) * Area_min)              
   dx_max             = sqrt (2d0 / sqrt(3d0) * Area_max)
 
-  timeint_type       = "RK33"
+  timeint_type       = "RK3"
   iremap             = 4
 
   default_thresholds = .false.
@@ -120,7 +121,7 @@ program Held_Suarez
   C_div              = nu_divu * dt_max / (3d0 * Area_min**Laplace_order_init) 
   
   ! Adapt on mean variables (fluctuations are initially zero)
-  log_min_mass       = .true.
+  log_min_mass       = .false. 
   log_total_mass     = .false.
 
   analytic_topo      = "none" ! type of analytic topography (mountains or none if NCAR_topo = .false.)
@@ -136,7 +137,6 @@ program Held_Suarez
 
   ! Save initial conditions
   call omega_velocity
-  call trend_ml (sol, trend) ! to compute horizontal pressure gradient error
   call write_and_export (iwrite)
 
   ! Compute hydrostatic error factors for topography

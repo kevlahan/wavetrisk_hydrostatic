@@ -1821,7 +1821,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                                :: d, id, idE, idN, idNE, outa, outl
+    integer                                :: d, id, idE, idN, idNE, outl
     integer, dimension(0:EDGE)             :: neigh_id
     
     real(8), dimension(0:EDGE)             :: rho_dz, rho_dz_theta
@@ -1855,7 +1855,6 @@ contains
     relvort = get_vort (dom, i, j, offs, dims)
 
     outl = dom%level%elts(id+1)                   ! level of current node
-    outa = nint (active_level%data(d)%elts(id+1)) ! finest level of child nodes
 
     rho_dz       = sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id)
     rho_dz_theta = sol(S_TEMP,zlev)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,zlev)%data(d)%elts(neigh_id)
@@ -1898,10 +1897,10 @@ contains
     vertices(LORT,:) = dom%node%elts((/id, idE, idNE/)+1)
     vertices(UPLT,:) = dom%node%elts((/id, idNE, idN/)+1)
 
-    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0 .and. outa == outl) &
+    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0) &
          write (funit) coord2r4 (vertices(LORT,:), 3), outv(LORT,:), dom%mask_n%elts(id+1), outl
 
-    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0 .and. outa == outl) &
+    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0) &
          write (funit) coord2r4 (vertices(UPLT,:), 3), outv(UPLT,:), dom%mask_n%elts(id+1), outl
   end subroutine write_tri
 
