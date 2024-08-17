@@ -912,7 +912,7 @@ contains
   end function integrate_tri
 
   subroutine fdA_tri (dom, i, j, zlev, offs, dims)
-    ! Integrate over active triangles, including only those portions of the triangle overlapping with significant hexagons.
+    ! Integrate over adaptive triangle grid.
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -942,12 +942,10 @@ contains
     hex_area(5) = dom%areas%elts(idNE+1)%part(5)
     hex_area(6) = dom%areas%elts(idN+1 )%part(6)
 
-    ! Only include contribution from hexagons in active or adjacent zone
-    val = 0d0
-    if (dom%mask_n%elts(id+1)   >= ADJZONE) val(0)    = integrand (dom, i,   j,   zlev, offs, dims)
-    if (dom%mask_n%elts(idE+1)  >= ADJZONE) val(RT+1) = integrand (dom, i+1, j,   zlev, offs, dims)
-    if (dom%mask_n%elts(idNE+1) >= ADJZONE) val(DG+1) = integrand (dom, i+1, j+1, zlev, offs, dims)
-    if (dom%mask_n%elts(idN+1)  >= ADJZONE) val(UP+1) = integrand (dom, i,   j+1, zlev, offs, dims)
+    val(0)    = integrand (dom, i,   j,   zlev, offs, dims)
+    val(RT+1) = integrand (dom, i+1, j,   zlev, offs, dims)
+    val(DG+1) = integrand (dom, i+1, j+1, zlev, offs, dims)
+    val(UP+1) = integrand (dom, i,   j+1, zlev, offs, dims)
 
     FdTri = hex2tri3 (val, hex_area, tri_area)  
 
