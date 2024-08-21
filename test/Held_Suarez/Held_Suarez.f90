@@ -2,14 +2,11 @@ program Held_Suarez
   ! Held & Suarez (1994) test case
   ! Bulletin of the American Meteorological Society 75 (10), 1825-1830
   use main_mod
-  use ops_mod
   use test_case_mod
-  use io_mod
-  use sso_mod
   implicit none
 
   integer        :: l
-  real(8)        :: area_sphere, dx_scaling, fine_mass, nu_scaling, rx0_max, rx1_max, integ1
+  real(8)        :: area_sphere, dx_scaling, nu_scaling, rx0_max, rx1_max
   logical        :: aligned
   character(256) :: input_file
 
@@ -73,12 +70,12 @@ program Held_Suarez
   ! Numerical method parameters
   area_sphere        = 4d0*MATH_PI * radius**2 
   Area_min           = area_sphere / (10d0 * 4d0**max_level)
-  Area_max           = area_sphere/ (10d0 * 4d0**min_level)
+  Area_max           = area_sphere / (10d0 * 4d0**min_level)
 
   dx_min             = sqrt (2d0 / sqrt(3d0) * Area_min)              
   dx_max             = sqrt (2d0 / sqrt(3d0) * Area_max)
 
-  timeint_type       = "RK3"
+  timeint_type       = "RK4"
   iremap             = 4
 
   default_thresholds = .false.
@@ -91,7 +88,7 @@ program Held_Suarez
   dx_scaling         = 2d0 ** (dble (6 - max_level))
 
   if (adapt_dt) then
-     cfl_max = 1.0d0                                           ! maximum cfl number
+     cfl_max = 1.2d0                                           ! maximum cfl number
      cfl_min = cfl_max                                         ! minimum cfl number
      T_cfl   = 5d-2 * DAY                                      ! time over which to increase cfl number from cfl_min to cfl_max
      cfl_num = cfl_min                                         ! initialize cfl number
@@ -103,10 +100,10 @@ program Held_Suarez
   end if
 
   ! Diffusion parameters: always use hyperdiffusion
-  Laplace_order_init = 2 ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0
+  Laplace_order_init = 2 ! Laplacian if 1, bi-Laplacian if 2, no diffusion if 0.
 
   ! Use scale-aware viscosity (if .false. viscosity depends only on dt)
-  scale_aware        = .true.                      
+  scale_aware        = .false.                      
 
   ! CAM values for viscosity
   nu_scaling         = dx_scaling**(2*Laplace_order_init)
