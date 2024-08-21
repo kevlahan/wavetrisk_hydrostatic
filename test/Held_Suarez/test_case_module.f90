@@ -663,9 +663,9 @@ contains
             "C_visc(S_VELO)     = ", C_visc(S_VELO)
 
        write (6,'(a)')        "Approximate viscosities on finest grid"
-       write (6,'(a,es8.2)') "nu_scalar              = ", nu_sclr
-       write (6,'(a,es8.2)') "nu_rot                 = ", nu_rotu
-       write (6,'(a,es8.2,/)') "nu_div                 = ", nu_divu
+       write (6,'(a,es8.2)') "nu_scalar             = ", nu_sclr
+       write (6,'(a,es8.2)') "nu_rot                = ", nu_rotu
+       write (6,'(a,es8.2,/)') "nu_div                = ", nu_divu
 
        write (6,'(a,es10.4)') "dt_max           [s]  = ", dt_max
        write (6,'(a,es10.4)') "dt_write         [d]  = ", dt_write / DAY
@@ -777,32 +777,17 @@ contains
 
   subroutine apply_initial_conditions_case
     implicit none
-    integer :: l
-
-    do l = level_start, level_end
-       if (NCAR_topo) then
-          call apply_onescale (assign_NCAR_topo, l, z_null, 0, 1)
-       else
-          call apply_onescale (init_topo, l, z_null, 0, 1)
-       end if
-       call apply_onescale (init_mean, l, z_null, 0, 1)
-       call apply_onescale (init_sol,  l, z_null, 0, 1)
-    end do
-    topography%bdry_uptodate = .false.
-    sol%bdry_uptodate        = .false.
-    sol_mean%bdry_uptodate   = .false.
-    call update_bdry       (topography, NONE)
-    call update_array_bdry (sol,        NONE)
-    call update_array_bdry (sol_mean,   NONE)
+    
+    if (NCAR_topo) then
+       call apply (assign_NCAR_topo, z_null)
+    else
+       call apply (init_topo, z_null)
+    end if
+    call apply (init_mean, z_null)
+    call apply (init_sol,  z_null)
 
     ! SSO parameters (requires topography)
-    if (NCAR_TOPO .and. sso) then
-       do l = level_start, level_end
-          call apply_onescale (cal_sso_param, l, z_null, 0, 1)
-       end do
-       sso_param%bdry_uptodate = .false.
-       call update_vector_bdry (sso_param, NONE)
-    end if
+    if (NCAR_TOPO .and. sso) call apply (cal_sso_param, z_null)
   end subroutine apply_initial_conditions_case
 
   subroutine update_case
@@ -810,51 +795,39 @@ contains
     ! not needed in this test case
     use wavelet_mod
     implicit none
-    integer :: d, l, p
+    integer :: d, p
 
     if (istep /= 0) then
        do d = 1, size(grid)
           do p = n_patch_old(d)+1, grid(d)%patch%length
              if (NCAR_topo) then
-                call apply_onescale_to_patch (assign_NCAR_topo, grid(d), p-1, z_null, 0, 1)
+                call apply_onescale_to_patch (assign_NCAR_topo, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
              else
-                call apply_onescale_to_patch (init_topo, grid(d), p-1, z_null, 0, 1)
+                call apply_onescale_to_patch (init_topo, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
              end if
-             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, 0, 1)
+             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
           end do
        end do
     else ! need to set values over entire grid on restart
-       do l = level_start, level_end
-          if (NCAR_topo) then
-             call apply_onescale (assign_NCAR_topo, l, z_null, 0, 1)
-          else
-             call apply_onescale (init_topo, l, z_null, 0, 1)
-          end if
-          call apply_onescale (init_mean, l, z_null, 0, 1)
-       end do
+       if (NCAR_topo) then
+          call apply (assign_NCAR_topo, z_null)
+       else
+          call apply (init_topo, z_null)
+       end if
+       call apply (init_mean, z_null)
     end if
-    topography%bdry_uptodate = .false.
-    sol%bdry_uptodate        = .false.
-    sol_mean%bdry_uptodate   = .false.    
-    call update_bdry       (topography, NONE)
-    call update_array_bdry (sol,        NONE)
-    call update_array_bdry (sol_mean,   NONE)
-
+    
     ! SSO parameters (requires topography)
     if (NCAR_topo .and. sso) then
        if (istep /= 0) then
           do d = 1, size(grid)
              do p = n_patch_old(d)+1, grid(d)%patch%length
-                if (sso) call apply_onescale_to_patch (cal_sso_param, grid(d), p-1, z_null, 0, 1)
+                if (sso) call apply_onescale_to_patch (cal_sso_param, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
              end do
           end do
        else ! need to set values over entire grid on restart
-          do l = level_start, level_end
-             call apply_onescale (cal_sso_param, l, z_null, 0, 1)
-          end do
+          call apply (cal_sso_param, z_null)
        end if
-       sso_param%bdry_uptodate = .false.
-       call update_vector_bdry (sso_param, NONE)
     end if
   end subroutine update_case
 
