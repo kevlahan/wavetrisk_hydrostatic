@@ -210,7 +210,7 @@ contains
     do k = zmin, zmax
        do v = scalars(1), scalars(2)
           call extend (sol(v,k)%data(d),      num, 0d0)
-          call extend (sol_mean(v,k)%data(d), num, 0d0)
+          call extend (sol_mean(v,k)%data(d), num, 1d0)
        end do
        call extend (sol(S_VELO,k)%data(d),      EDGE*num, 0d0)
        call extend (sol_mean(S_VELO,k)%data(d), EDGE*num, 0d0)
@@ -230,6 +230,7 @@ contains
   !!! Subroutines for applying a routine to domains, patches, ... !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine apply (routine, zlev)
+    ! Applies routine over all levels and entire boundary
     implicit none
     external :: routine
     integer  :: zlev
@@ -240,6 +241,18 @@ contains
        call apply_onescale (routine, l, zlev, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
   end subroutine apply
+
+  subroutine apply_bdry (routine, zlev, st, en)
+    implicit none
+    external :: routine
+    integer  :: en, st, zlev
+
+    integer :: l
+
+    do l = level_start, level_end
+       call apply_onescale (routine, l, zlev, st, en)
+    end do
+  end subroutine apply_bdry
   
   subroutine apply_onescale_to_patch (routine, dom, p, zlev, st, en)
     implicit none

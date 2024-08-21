@@ -8,10 +8,14 @@ module comm_mpi_mod
   interface sum_real
      procedure :: sum_real_0, sum_real_1
   end interface sum_real
-
+  
   interface sync_max_real
      procedure :: sync_max_real_0, sync_max_real_1
   end interface sync_max_real
+
+  interface sync_min_real
+     procedure :: sync_min_real_0, sync_min_real_1
+  end interface sync_min_real
 contains
   subroutine init_comm_mpi
     ! Needed for compatibility with mpi code (not actually used in serial case)
@@ -280,12 +284,25 @@ contains
     sync_max_real_1 = val
   end function sync_max_real_1
 
-  real(8) function sync_min_real (val)
+  real(8) function sync_min_real_0 (val)
     implicit none
     real(8) :: val
     
-    sync_min_real = val
-  end function sync_min_real
+    sync_min_real_0 = val
+  end function sync_min_real_0
+  
+  function sync_min_real_1 (val)
+    implicit none
+    real(8), dimension(:), allocatable :: sync_min_real_1
+    real(8), dimension(:)              :: val
+
+    integer :: n
+
+    n = size (val,1)
+    allocate (sync_min_real_1(n))
+    
+    sync_min_real_1 = val
+  end function sync_min_real_1
 
   real(8) function sum_real_0 (val)
     implicit none

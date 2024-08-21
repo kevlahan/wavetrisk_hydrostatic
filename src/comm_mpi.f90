@@ -17,6 +17,10 @@ module comm_mpi_mod
   interface sync_max_real
      procedure :: sync_max_real_0, sync_max_real_1
   end interface sync_max_real
+
+  interface sync_min_real
+     procedure :: sync_min_real_0, sync_min_real_1
+  end interface sync_min_real
 contains
   subroutine init_comm_mpi
     implicit none
@@ -1289,16 +1293,32 @@ contains
     sync_max_real_1 = val_glo
   end function sync_max_real_1
 
-  real(8) function sync_min_real (val)
+  real(8) function sync_min_real_0 (val)
     use mpi
     implicit none
     real(8) :: val
 
     real(8) :: val_glo
-
+    
     call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
-    sync_min_real = val_glo
-  end function sync_min_real
+    sync_min_real_0 = val_glo
+  end function sync_min_real_0
+
+  function sync_min_real_1 (val)
+    use mpi
+    implicit none
+    real(8), dimension(:), allocatable :: sync_min_real_1
+    real(8), dimension(:)              :: val
+
+    integer                            :: n
+    real(8), dimension(:), allocatable :: val_glo
+
+    n = size (val,1)
+    allocate (sync_min_real_1(n), val_glo(n))
+
+    call MPI_Allreduce (val, val_glo, n, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+    sync_min_real_1 = val_glo
+  end function sync_min_real_1
 
   real(8) function sum_real_0 (val)
     use mpi

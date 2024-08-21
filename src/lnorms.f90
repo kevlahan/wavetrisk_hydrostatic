@@ -5,7 +5,7 @@ module lnorms_mod
   integer :: n_norm
 contains
   subroutine cal_lnorm (order)
-    ! Calculates order = "l1", "l2" or "linf" norm of all prognostic variables
+    ! Calculates order = "l1", "l2", "linf", "lmin" norm of all prognostic variables
     ! result is divided by number of active cells for l1 and l2 norms to get average 
     implicit none
     character(*) :: order
@@ -17,18 +17,32 @@ contains
     call apply (count_norm, z_null)
     n_norm = sum_int (n_norm)
 
-    lnorm  = 0d0
+    ! Initialize norms
+    select case (order)
+    case ("1")
+       lnorm = 0d0
+    case ("2")
+       lnorm = 0d0
+    case ("inf")
+       lnorm = 0d0
+    case ("min")
+       lnorm = 1d16
+    end select
+
     do k = zmin, zmax
        select case (order)
        case ("1")
-          call apply (l1_scalar, k)
-          call apply (l1_velo,   k)
+          call apply_bdry (l1_scalar, k, 0, 1)
+          call apply_bdry (l1_velo,   k, 0, 0)
        case ("2")
-          call apply (l2_scalar, k)
-          call apply (l2_velo,   k)
+          call apply_bdry (l2_scalar, k, 0, 1)
+          call apply_bdry (l2_velo,   k, 0, 0)
        case ("inf")
-          call apply (linf_scalar, k)
-          call apply (linf_velo,   k)
+          call apply_bdry (linf_scalar, k, 0, 1)
+          call apply_bdry (linf_velo,   k, 0, 0)
+       case ("min")
+          call apply_bdry (lmin_scalar, k, 0, 1)
+          call apply_bdry (lmin_velo,   k, 0, 0)
        end select
        select case (order)
        case ("1")
@@ -37,6 +51,8 @@ contains
           lnorm(:,k) = sqrt (sum_real (lnorm(:,k)) / dble (n_norm))
        case ("inf")
           lnorm(:,k) = sync_max_real (lnorm(:,k))
+       case ("min")
+          lnorm(:,k) = sync_min_real (lnorm(:,k))
        end select
     end do
   end subroutine cal_lnorm
@@ -152,6 +168,25 @@ contains
     end if
   end subroutine linf_scalar
 
+  subroutine lmin_scalar (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, v
+
+    d = dom%id+1
+    id = idx(i, j, offs, dims)
+    
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then 
+       do v = scalars(1), scalars(2)
+          lnorm(v,zlev) = min (lnorm(v,zlev), abs (sol_mean(v,zlev)%data(d)%elts(id+1) + sol(v,zlev)%data(d)%elts(id+1)))
+       end do
+    end if
+  end subroutine lmin_scalar
+
   subroutine linf_velo (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
@@ -171,4 +206,24 @@ contains
        end do
     end if
   end subroutine linf_velo
+
+   subroutine lmin_velo (dom, i, j, zlev, offs, dims)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: d, id, id_e, e
+
+    d = dom%id+1
+    id = idx(i, j, offs, dims)
+
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then 
+       do e = 1, EDGE
+          id_e = EDGE*id+e
+          lnorm(S_VELO,zlev) = min (lnorm(S_VELO,zlev), abs (sol(S_VELO,zlev)%data(d)%elts(id_e)))
+       end do
+    end if
+  end subroutine lmin_velo
 end module lnorms_mod
