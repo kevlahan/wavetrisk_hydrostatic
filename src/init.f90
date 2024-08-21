@@ -174,7 +174,7 @@ contains
        do v = 1, N_VARIABLE
           call init_Float_Field (sol(v,k),      POSIT(v))
           call init_Float_Field (sol_mean(v,k), POSIT(v))
-          if (k > 0) call init_Float_Field (trend(v,k),    POSIT(v))
+          if (k > 0) call init_Float_Field (trend(v,k), POSIT(v))
        end do
     end do
     call init_Float_Field (exner_fun(zmax+1), AT_NODE)
@@ -257,8 +257,8 @@ contains
     type(Coord)                 :: ne, se, sw, nw
     type(Coord), dimension(2,2) :: cnr
 
-    lat = (/-MATH_PI/2, -atan(1.0_8/2), atan(1.0_8/2), MATH_PI/2/)
-    lon = (/ ((MATH_PI*k)/5, k = 0, 10-1) /)
+    lat = (/ - MATH_PI/2d0, - atan (1d0/2d0), atan (1d0/2d0), MATH_PI/2d0 /)
+    lon = (/ ((MATH_PI * dble(k))/5d0, k = 0, 10-1) /)
 
     do ii = 1, 2
        do jj = 1, 5
@@ -353,13 +353,13 @@ contains
        i = PATCH_SIZE
        j = -1
 
-       id   = idx(i,     j,     offs, dims)
-       idN  = idx(i,     j+1, offs, dims)
+       id   = idx(i,   j,   offs, dims)
+       idN  = idx(i,   j+1, offs, dims)
        idNE = idx(i+1, j+1, offs, dims)
-       idW  = idx(i-1, j,     offs, dims)
+       idW  = idx(i-1, j,   offs, dims)
 
        dom%ccentre%elts(TRIAG*idW+LORT+1) = circumcentre(dom%node%elts(idW+1), dom%node%elts(idN+1), dom%node%elts(idNE+1))
-       dom%ccentre%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*idW+LORT+1)
+       dom%ccentre%elts(TRIAG*id +UPLT+1) = dom%ccentre%elts(TRIAG*idW+LORT+1)
     end if
 
     if (is_penta(dom, p, IMINUSJPLUS - 1)) then
@@ -435,23 +435,23 @@ contains
     integer :: d, i, v
 
     do d = 1, size(grid)
-       call init (grid(d)%ccentre, grid(d)%node%length*TRIAG)
+       call init (grid(d)%ccentre, grid(d)%node%length * TRIAG)
 
        do i = 1, grid(d)%node%length*TRIAG
           call init_Coord (grid(d)%ccentre%elts(i), 0d0, 0d0, 0d0)
        end do
 
-       call init (grid(d)%midpt, grid(d)%node%length*EDGE)
+       call init (grid(d)%midpt, grid(d)%node%length * EDGE)
 
        do i = 1, grid(d)%node%length*EDGE
           call init_Coord (grid(d)%midpt%elts(i), 0d0, 0d0, 0d0)
        end do
 
-       call init (grid(d)%areas,       grid(d)%node%length)
-       call init (grid(d)%pedlen,      grid(d)%node%length*EDGE)
-       call init (grid(d)%len,         grid(d)%node%length*EDGE)
-       call init (grid(d)%triarea,     grid(d)%node%length*TRIAG)
-       call init (grid(d)%coriolis,    grid(d)%node%length*TRIAG)
+       call init (grid(d)%areas,    grid(d)%node%length)
+       call init (grid(d)%pedlen,   grid(d)%node%length*EDGE)
+       call init (grid(d)%len,      grid(d)%node%length*EDGE)
+       call init (grid(d)%triarea,  grid(d)%node%length*TRIAG)
+       call init (grid(d)%coriolis, grid(d)%node%length*TRIAG)
     end do
   end subroutine init_geometry
 
@@ -502,14 +502,14 @@ contains
        end if
        
        do k = zmin, zmax
-          call init (penal_node(k)%data(d),      grid(d)%node%length)
-          call init (penal_edge(k)%data(d), EDGE*grid(d)%node%length)
-          call init (exner_fun(k)%data(d),       grid(d)%node%length)
+          call init (penal_node(k)%data(d),        grid(d)%node%length)
+          call init (penal_edge(k)%data(d), EDGE * grid(d)%node%length)
+          call init (exner_fun(k)%data(d),         grid(d)%node%length)
           if (k > 0) then
              do v = scalars(1), scalars(2)
                 call init (trend(v,k)%data(d), grid(d)%node%length)
              end do
-             call init (trend(S_VELO,k)%data(d), EDGE*grid(d)%node%length)
+             call init (trend(S_VELO,k)%data(d), EDGE * grid(d)%node%length)
           end if
        end do
        call init (exner_fun(zmax+1)%data(d),  grid(d)%node%length)
@@ -541,7 +541,7 @@ contains
           loz = 5*ii - 5 + (jj-1)
           do i = 1, N_SUB_DOM_PER_DIM
              do j = 1, N_SUB_DOM_PER_DIM
-                split = N_SUB_DOM_PER_DIM*(j-1) + (i-1)
+                split = N_SUB_DOM_PER_DIM * (j-1) + (i-1)
                 d_glo = N_SUB_DOM*loz + split
 
                 if (.not. owner(d_glo+1) == rank) then
@@ -663,12 +663,12 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     integer                        :: i, j, l, pc_incr, pf_offs
 
-    call get_offs_Domain(dom, p, offs, dims)
+    call get_offs_Domain (dom, p, offs, dims)
 
-    dom%node%elts(offs(NORTHEAST+1) + 1) = project_on_sphere(ne)
-    dom%node%elts(offs(EAST+1) + 1)      = project_on_sphere(se)
-    dom%node%elts(offs(1) + 1)           = project_on_sphere(sw)
-    dom%node%elts(offs(NORTH+1) + 1)     = project_on_sphere(nw)
+    dom%node%elts(offs(NORTHEAST+1) + 1) = project_on_sphere (ne)
+    dom%node%elts(offs(EAST+1) + 1)      = project_on_sphere (se)
+    dom%node%elts(offs(1) + 1)           = project_on_sphere (sw)
+    dom%node%elts(offs(NORTH+1) + 1)     = project_on_sphere (nw)
 
     do l = 1, PATCH_LEVEL
        pc_incr = 2**(PATCH_LEVEL - l + 1)
@@ -761,7 +761,7 @@ contains
        ij = (/ij(2), ij(1)/)
     end if
 
-    sub_dom_id = ij(2)*N_SUB_DOM_PER_DIM + ij(1)
+    sub_dom_id = ij(2) * N_SUB_DOM_PER_DIM + ij(1)
   end function sub_dom_id
 
   subroutine ccentre (dom, p, i, j, zlev, offs, dims)
