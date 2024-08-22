@@ -89,7 +89,7 @@ program make_NCAR_topo
   call update_bdry (topography, NONE)
 
   ! Set surface pressure at max_level to standard atmosphere value (stored in exern_fun(1))
-  call apply_onescale (surface_pressure, max_level, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+  call apply_onescale (surface_pressure, max_level, z_null, 0, 1)
   call update_bdry (exner_fun(1), max_level)
 
   ! Restrict surface pressure to coarser levels
@@ -101,7 +101,7 @@ program make_NCAR_topo
      do d = 1, size(grid)
         scalar => topography%data(d)%elts
         velo   => sol(S_VELO,1)%data(d)%elts
-        call apply_onescale_d (cal_grad_topo, grid(d), l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+        call apply_onescale_d (cal_grad_topo, grid(d), l, z_null, 0, 1)
         nullify (scalar, velo)
      end do
   end do
@@ -114,7 +114,7 @@ program make_NCAR_topo
         velo  => sol(S_VELO,1)%data(d)%elts
         velo1 => grid(d)%u_zonal%elts
         velo2 => grid(d)%v_merid%elts
-        call apply_onescale_d (interp_UVW_latlon, grid(d), l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+        call apply_onescale_d (interp_UVW_latlon, grid(d), l, z_null, 0, 1)
         nullify (velo1, velo2)
      end do
   end do

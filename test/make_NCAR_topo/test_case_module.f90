@@ -20,6 +20,9 @@ contains
     set_save_level           => set_save_level_case
     initialize_thresholds    => initialize_thresholds_case
     set_thresholds           => set_thresholds_case
+    update                   => update_case
+    dump                     => dump_case
+    load                     => load_case
   end subroutine assign_functions
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
@@ -222,40 +225,20 @@ contains
 
   subroutine apply_initial_conditions_case
     implicit none
-    integer :: k, l
 
-    do l = level_start, level_end
-       if (.not. NCAR_topo) call apply_onescale (init_topo, l, z_null, 0, 1)
-       call apply_onescale (init_mean, l, z_null, 0, 1)
-       call apply_onescale (init_sol,  l, z_null, 0, 1)
-    end do
+    call apply_bdry (init_mean, z_null, 0, 1)
+    call apply_bdry (init_sol,  z_null, 0, 1)
+    sol%bdry_uptodate      = .false.
+    sol_mean%bdry_uptodate = .false.
 
-    topography%bdry_uptodate = .false.
-    sol%bdry_uptodate        = .false.
-    sol_mean%bdry_uptodate   = .false.
-    call update_bdry       (topography, NONE)
     call update_array_bdry (sol,        NONE)
     call update_array_bdry (sol_mean,   NONE)
   end subroutine apply_initial_conditions_case
 
   subroutine update_case
-    ! Update means, bathymetry and penalization mask
-    ! not needed in this test case
-    use wavelet_mod
+    ! Not needed in this test case
     implicit none
-    integer :: d, k, l, p
-
-    if (istep /= 0) then
-       do d = 1, size(grid)
-          do p = n_patch_old(d)+1, grid(d)%patch%length
-             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-          end do
-       end do
-    else ! need to set values over entire grid on restart
-       do l = level_start, level_end
-          call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
-   end if
+   
   end subroutine update_case
 
   subroutine set_save_level_case
