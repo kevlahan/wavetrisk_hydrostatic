@@ -779,20 +779,32 @@ contains
     implicit none
     
     if (NCAR_topo) then
-       call apply (assign_NCAR_topo, z_null)
+       call apply_bdry (assign_NCAR_topo, z_null, 0, 1)
     else
-       call apply (init_topo, z_null)
+       call apply_bdry (init_topo, z_null, 0, 1)
     end if
-    call apply (init_mean, z_null)
-    call apply (init_sol,  z_null)
+    topography%bdry_uptodate = .false.
+    
+    call apply_bdry (init_mean, z_null, 0, 1)
+    call apply_bdry (init_sol,  z_null, 0, 1)
+    sol%bdry_uptodate        = .false.
+    sol_mean%bdry_uptodate   = .false.
+
+    call update_bdry       (topography, NONE)
+    call update_array_bdry (sol,        NONE) 
+    call update_array_bdry (sol_mean,   NONE)
 
     ! SSO parameters (requires topography)
-    if (NCAR_TOPO .and. sso) call apply (cal_sso_param, z_null)
+    if (NCAR_TOPO .and. sso) then
+       call apply (cal_sso_param, z_null)
+       
+       sso_param%bdry_uptodate = .false.
+       call update_vector_bdry (sso_param, NONE)
+    end if
   end subroutine apply_initial_conditions_case
 
   subroutine update_case
-    ! Update means, bathymetry and penalization mask
-    ! not needed in this test case
+    ! Update sol_mean and topography on new grid
     use wavelet_mod
     implicit none
     integer :: d, p
@@ -801,33 +813,41 @@ contains
        do d = 1, size(grid)
           do p = n_patch_old(d)+1, grid(d)%patch%length
              if (NCAR_topo) then
-                call apply_onescale_to_patch (assign_NCAR_topo, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+                call apply_onescale_to_patch (assign_NCAR_topo, grid(d), p-1, z_null, 0, 1)
              else
-                call apply_onescale_to_patch (init_topo, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+                call apply_onescale_to_patch (init_topo, grid(d), p-1, z_null, 0, 1)
              end if
-             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, 0, 1)
           end do
        end do
     else ! need to set values over entire grid on restart
        if (NCAR_topo) then
-          call apply (assign_NCAR_topo, z_null)
+          call apply_bdry (assign_NCAR_topo, z_null, 0, 1)
        else
-          call apply (init_topo, z_null)
+          call apply_bdry (init_topo, z_null, 0, 1)
        end if
-       call apply (init_mean, z_null)
+       call apply_bdry (init_mean, z_null, 0, 1)
     end if
+    topography%bdry_uptodate = .false.
+    sol_mean%bdry_uptodate   = .false.
+    
+    call update_bdry       (topography, NONE)
+    call update_array_bdry (sol_mean,   NONE)
     
     ! SSO parameters (requires topography)
     if (NCAR_topo .and. sso) then
        if (istep /= 0) then
           do d = 1, size(grid)
              do p = n_patch_old(d)+1, grid(d)%patch%length
-                if (sso) call apply_onescale_to_patch (cal_sso_param, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+                if (sso) call apply_onescale_to_patch (cal_sso_param, grid(d), p-1, z_null, 0, 1)
              end do
           end do
        else ! need to set values over entire grid on restart
-          call apply (cal_sso_param, z_null)
+          call apply_bdry (cal_sso_param, z_null, 0, 1)
        end if
+       sso_param%bdry_uptodate = .false.
+       
+       call update_vector_bdry (sso_param, NONE)
     end if
   end subroutine update_case
 
