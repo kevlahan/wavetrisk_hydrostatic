@@ -4,7 +4,6 @@ module topo_grid_descriptor_mod
   use init_mod
   implicit none
   integer                              :: icol, loc_size, ncol
-  real(8)                              :: Area_hex
   integer, dimension(:),   allocatable :: grid_dom
   integer, dimension(:),   allocatable :: grid_id
   integer, dimension(:),   allocatable :: loc_ids
@@ -77,25 +76,16 @@ contains
 
     ! Compute topography on finest grid
     l = max_level
-    Area_hex = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**l)
     
     loc_size = 0
-    do d = 1, size(grid)
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (count_nodes, grid(d), grid(d)%lev(l)%elts(j), z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
-    end do
-
+    call apply_onescale (count_nodes, l, z_null, 0, 1)
+    
     allocate (loc_dom(1:loc_size), loc_ids(1:loc_size))
     allocate (loc_area(1:loc_size), loc_center_lat(1:loc_size), loc_center_lon(1:loc_size))
     allocate (loc_corner_lat(1:grid_corners,1:loc_size), loc_corner_lon(1:grid_corners,1:loc_size))
 
     icol = 0
-    do d = 1, size(grid)
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (grid_coords, grid(d), grid(d)%lev(l)%elts(j), z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
-    end do
+    call apply_onescale (grid_coords, l, z_null, 0, 1)
     
 #ifdef MPI
     grid_size = sum_int (loc_size)
@@ -357,7 +347,6 @@ contains
     loc_ids(icol) = id                   ! id of node
     loc_dom(icol) = glo_id(rank+1,d) + 1 ! global domain label associated to node id
 
-    if (dom%areas%elts(id_i)%hex_inv == 0) dom%areas%elts(id_i)%hex_inv = Area_hex
     loc_area(icol) = 1d0 / dom%areas%elts(id_i)%hex_inv / radius**2 ! hexagon area (unit sphere)
 
     call cart2sph (dom%node%elts(id_i), lon, lat) ! longitude and latitude coordinates of node in radians
@@ -403,12 +392,7 @@ contains
 
     call read_geopotential
     
-    do d = 1, size(grid)
-       do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_assign_height, grid(d), grid(d)%lev(l)%elts(j), z_null, &
-               -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
-    end do
+    call apply_onescale (cal_assign_height, l, z_null, 0, 1)
 
     topography%bdry_uptodate = .false.
     call update_bdry (topography, max_level)
