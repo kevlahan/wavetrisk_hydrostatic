@@ -75,6 +75,13 @@ contains
 
     ! Set insignificant wavelet coefficients to zero
     if (local_type) call compress_wavelets (wav_coeff)
+
+    ! Ensure new grid points have correct values in boundary halo
+    sol%bdry_uptodate  = .false.
+    call update_array_bdry (sol, NONE)
+
+    ! Evaluate sol_mean, topography and penalization (as defined in test case) on new grid
+    call update
   end subroutine adapt
 
   subroutine compress_wavelets (wav)
@@ -86,7 +93,7 @@ contains
 
     call update_array_bdry (wav, NONE)
     
-    do k = 1, size(wav,2)
+    do k = 1, size (wav, 2)
        do l = level_start+1, level_end
           do d = 1, size (grid)
              do v = scalars(1), scalars(2)

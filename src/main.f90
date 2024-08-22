@@ -182,8 +182,136 @@ contains
     end do
   end subroutine record_init_state
 
+  subroutine restart (run_id)
+    ! Fresh restart from checkpoint data (all structures reset)
+    implicit none
+    character(*) :: run_id
+    
+    integer         :: l
+    character(9999) :: archive, bash_cmd
+    
+    if (Laplace_order < 0 .and. &
+         (maxval (C_visc(S_MASS:S_TEMP)) > (1d0/6d0)**Laplace_order .or. C_visc(S_VELO) > (1d0/24d0)**Laplace_order) ) then
+         if (rank == 0) write (6,*) "Dimensional viscosity too large ... aborting"
+       call abort
+    end if
+
+    if (rank == 0) then
+       write (6,'(A,/)') &
+            '********************************************************* Begin Restart &
+            **********************************************************'
+       write (6,'(A,i4,/)') 'Restarting from checkpoint ', cp_idx
+    end if
+
+    ! Deallocate all dynamic arrays and variables
+    if (resume == NONE) call deallocate_structures
+
+    ! Initialize basic structures
+    call init_basic
+
+    ! Initialize vertical grid
+    call initialize_a_b_vert
+    
+    ! Determine vertical level to save
+    call set_save_level
+
+    ! Uncompress checkpoint data (needed for init_structures and load_adapt_mpi)
+    if (rank == 0) then
+       write (archive, '(a,i4.4,a)') trim(run_id)//'_checkpoint_' , cp_idx, '.tgz'
+       write (6, '(a,a,/)') 'Loading file ', trim(archive)
+       bash_cmd = 'bash -c "'//'gtar xzf '//trim(archive)//'"'
+       call system (trim(bash_cmd))
+    end if
+    call barrier ! make sure all archive files have been uncompressed
+
+    ! Rebalance adaptive grid and re-initialize structures
+    call init_structures (run_id)
+
+    ! Load checkpoint data
+    call load_adapt_mpi (cp_idx, run_id)
+
+    ! Initialize time step counters
+    itime = nint (time * time_mult, 8)
+    istep = 0
+
+    ! Compute masks based on active wavelets in saved data
+    ! (do not re-calculate thresholds)
+    call adapt (set_thresholds, .false.) 
+    call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
+    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
+    
+    ! Assign topography
+    if (NCAR_topo) call load_topo
+    call update ! compute mean values and other quantities depending on topography and solution
+
+    ! Initialize thresholds to default values (possibly based on mean values)
+    call initialize_thresholds
+
+    ! Adapt on (new) threshold for this run
+    call adapt (set_thresholds, .true.) 
+    call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
+    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start)
+
+    ! Initialize time step and viscosities
+    call initialize_dt_viscosity
+
+    ! Initialize total mass value
+    if (log_total_mass) call cal_total_mass (.true.)
+
+    ! Initialize time step
+    dt_new = min (dt_init, cpt_dt ())
+
+    if (rank == 0) then
+       write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
+            'time [d] = ', time/DAY, &
+            '  mass threshold = ', sum (threshold(S_MASS,:))/size(threshold,2), &
+            ' temp threshold = ', sum (threshold(S_TEMP,:))/size(threshold,2), &
+            ' velo threshold = ', sum (threshold(S_VELO,:))/size(threshold,2), &
+            ' Jmax = ', level_end, &
+            '  dof = ', sum (n_active)
+       write (6,'(A)') &
+            '********************************************************** End Restart &
+            ***********************************************************'
+    end if
+
+#ifdef AMPI
+    if (rank == 0) write (6,'(/,a)') "Rebalancing using AMPI ..."
+    call MPI_Barrier (MPI_COMM_WORLD, ierror)
+    call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierror)
+#endif
+  end subroutine restart
+
+  subroutine write_checkpoint (run_id, rebal)
+    implicit none
+    character(*) :: run_id
+    logical      :: rebal
+
+    cp_idx = cp_idx + 1 
+
+    if (rank == 0) then
+       write (6,'(/,a,/)') &
+            '************************************************************************&
+            **********************************************************'
+       write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time/DAY
+    end if
+    
+! #ifdef AMPI
+!     if (rank == 0) write (6,'(a)') "Checkpointing using AMPI ..."
+!     call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
+!     call MPI_Barrier (MPI_COMM_WORLD, ierror)
+!     call AMPI_Migrate (chkpt_info, ierror)
+!     if (log_total_mass) call cal_total_mass (.true.) 
+! #else
+    call write_load_conn (cp_idx, run_id)
+    call dump_adapt_mpi  (cp_idx, run_id)
+    
+    call restart (run_id)
+!#endif
+  end subroutine write_checkpoint
+
   subroutine time_step (align_time, aligned)
     use vert_diffusion_mod
+    use lnorms_mod
     implicit none
     real(8)              :: align_time
     logical, intent(out) :: aligned
@@ -266,11 +394,9 @@ contains
 
     ! Adapt grid
     if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels for iWT
+
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol)
-    
-    ! Update mean solution and topography
-    call update
 
     ! If necessary, remap vertical coordinates
     if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
@@ -301,136 +427,6 @@ contains
     end if
 #endif
   end subroutine time_step
-
-  subroutine restart (run_id)
-    ! Fresh restart from checkpoint data (all structures reset)
-    implicit none
-    character(*) :: run_id
-    
-    integer         :: l
-    character(9999) :: archive, bash_cmd
-    
-    if (Laplace_order < 0 .and. &
-         (maxval (C_visc(S_MASS:S_TEMP)) > (1d0/6d0)**Laplace_order .or. C_visc(S_VELO) > (1d0/24d0)**Laplace_order) ) then
-         if (rank == 0) write (6,*) "Dimensional viscosity too large ... aborting"
-       call abort
-    end if
-
-    if (rank == 0) then
-       write (6,'(A,/)') &
-            '********************************************************* Begin Restart &
-            **********************************************************'
-       write (6,'(A,i4,/)') 'Restarting from checkpoint ', cp_idx
-    end if
-
-    ! Deallocate all dynamic arrays and variables
-    if (resume == NONE) call deallocate_structures
-
-    ! Initialize basic structures
-    call init_basic
-
-    ! Initialize vertical grid
-    call initialize_a_b_vert
-    
-    ! Determine vertical level to save
-    call set_save_level
-
-    ! Uncompress checkpoint data (needed for init_structures and load_adapt_mpi)
-    if (rank == 0) then
-       write (archive, '(a,i4.4,a)') trim(run_id)//'_checkpoint_' , cp_idx, '.tgz'
-       write (6, '(a,a,/)') 'Loading file ', trim(archive)
-       bash_cmd = 'bash -c "'//'gtar xzf '//trim(archive)//'"'
-       call system (trim(bash_cmd))
-    end if
-    call barrier ! make sure all archive files have been uncompressed
-
-    ! Rebalance adaptive grid and re-initialize structures
-    call init_structures (run_id)
-
-    ! Load checkpoint data
-    call load_adapt_mpi (cp_idx, run_id)
-
-    ! Initialize time step counters
-    itime = nint (time * time_mult, 8)
-    istep = 0
-
-    ! Compute masks based on active wavelets in saved data
-    ! (do not re-calculate thresholds)
-    call adapt (set_thresholds, .false.) 
-    call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
-    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
-    
-    ! Assign topography
-    if (NCAR_topo) call load_topo
-    call update ! compute mean values and other quantities depending on topography and solution
-
-    ! Initialize thresholds to default values (possibly based on mean values)
-    call initialize_thresholds
-
-    ! Adapt on (new) threshold for this run
-    call adapt (set_thresholds, .true.) 
-    call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
-    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start)
-
-    ! Set mean solution and topography
-    call update
-
-    ! Initialize time step and viscosities
-    call initialize_dt_viscosity
-
-    ! Initialize total mass value
-    if (log_total_mass) call cal_total_mass (.true.)
-
-    ! Initialize time step
-    dt_new = min (dt_init, cpt_dt ())
-
-    if (rank == 0) then
-       write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
-            'time [d] = ', time/DAY, &
-            '  mass threshold = ', sum (threshold(S_MASS,:))/size(threshold,2), &
-            ' temp threshold = ', sum (threshold(S_TEMP,:))/size(threshold,2), &
-            ' velo threshold = ', sum (threshold(S_VELO,:))/size(threshold,2), &
-            ' Jmax = ', level_end, &
-            '  dof = ', sum (n_active)
-       write (6,'(A)') &
-            '********************************************************** End Restart &
-            ***********************************************************'
-    end if
-
-#ifdef AMPI
-    if (rank == 0) write (6,'(/,a)') "Rebalancing using AMPI ..."
-    call MPI_Barrier (MPI_COMM_WORLD, ierror)
-    call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierror)
-#endif
-  end subroutine restart
-
-  subroutine write_checkpoint (run_id, rebal)
-    implicit none
-    character(*) :: run_id
-    logical      :: rebal
-
-    cp_idx = cp_idx + 1 
-
-    if (rank == 0) then
-       write (6,'(/,a,/)') &
-            '************************************************************************&
-            **********************************************************'
-       write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time/DAY
-    end if
-    
-! #ifdef AMPI
-!     if (rank == 0) write (6,'(a)') "Checkpointing using AMPI ..."
-!     call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
-!     call MPI_Barrier (MPI_COMM_WORLD, ierror)
-!     call AMPI_Migrate (chkpt_info, ierror)
-!     if (log_total_mass) call cal_total_mass (.true.) 
-! #else
-    call write_load_conn (cp_idx, run_id)
-    call dump_adapt_mpi  (cp_idx, run_id)
-    
-    call restart (run_id)
-!#endif
-  end subroutine write_checkpoint
 
   subroutine init_structures (run_id)
     ! Initialize dynamical arrays and structures
