@@ -174,23 +174,23 @@ contains
     call manage_RK_mem
 
     call trend_fun (q, trend) 
-    call RK_sub_step1 (q, trend, alpha(1,1), h*beta(1,1), q1)
+    call RK_sub_step1 (q, trend, alpha(1,1), h * beta(1,1), q1)
     call WT_after_step (q1, wav)
 
     call trend_fun (q1, trend)
-    call RK_sub_step2 (q, q1, trend, alpha(1:2,2), h*beta(2,2), q2)
+    call RK_sub_step2 (q, q1, trend, alpha(1:2,2), h * beta(2,2), q2)
     call WT_after_step (q2, wav)
 
     call trend_fun (q2, trend)
-    call RK_sub_step2 (q, q2, trend, (/alpha(1,3), alpha(3,3)/), h*beta(3,3), q3)
+    call RK_sub_step2 (q, q2, trend, (/alpha(1,3), alpha(3,3)/), h * beta(3,3), q3)
     call WT_after_step (q3, wav)
 
     call trend_fun (q3, trend)
-    call RK_sub_step2 (q, q3, trend, (/alpha(1,4), alpha(4,4)/), h*beta(4,4), q4)
+    call RK_sub_step2 (q, q3, trend, (/alpha(1,4), alpha(4,4)/), h * beta(4,4), q4)
     call WT_after_step (q4, wav)
 
     call trend_fun (q4, dq1)
-    call RK_sub_step4 (q, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), h*beta(4:5,5), q)
+    call RK_sub_step4 (q, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), h * beta(4:5,5), q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK45_opt
 
@@ -263,8 +263,9 @@ contains
           ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
           iend = dest(v,1)%data(d)%length
           do k = 1, zlevels
-             dest(v,k)%data(d)%elts(ibeg:iend) = alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) &
-                  + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) + h*trends(v,k)%data(d)%elts(ibeg:iend)
+             dest(v,k)%data(d)%elts(ibeg:iend) = alpha(1) * sol1(v,k)%data(d)%elts(ibeg:iend) &
+                                               + alpha(2) * sol2(v,k)%data(d)%elts(ibeg:iend) &
+                  + h * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
        dest%bdry_uptodate = .false.
@@ -287,9 +288,9 @@ contains
           iend = dest(v,1)%data(d)%length
           do k = 1, zlevels
              dest(v,k)%data(d)%elts(ibeg:iend) = &
-                  alpha(1)*sol1(v,k)%data(d)%elts(ibeg:iend) + alpha(2)*sol2(v,k)%data(d)%elts(ibeg:iend) &
-                  + alpha(3)*sol3(v,k)%data(d)%elts(ibeg:iend) + alpha(4)*sol4(v,k)%data(d)%elts(ibeg:iend) &
-                  + h(1)*trend1(v,k)%data(d)%elts(ibeg:iend) + h(2)*trend2(v,k)%data(d)%elts(ibeg:iend)
+                    alpha(1) * sol1(v,k)%data(d)%elts(ibeg:iend) + alpha(2) * sol2(v,k)%data(d)%elts(ibeg:iend) &
+                  + alpha(3) * sol3(v,k)%data(d)%elts(ibeg:iend) + alpha(4) * sol4(v,k)%data(d)%elts(ibeg:iend) &
+                  + h(1) * trend1(v,k)%data(d)%elts(ibeg:iend) + h(2) * trend2(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
        dest%bdry_uptodate = .False.
