@@ -209,11 +209,11 @@ contains
 
     do k = zmin, zmax
        do v = scalars(1), scalars(2)
-          call extend (sol(v,k)%data(d),      num, 1d0) ! set non-zero to avoid NaN if undefined (unlikely)
+          call extend (sol(v,k)%data(d),      num, 0d0) 
           call extend (sol_mean(v,k)%data(d), num, 1d0) ! set non-zero to avoid NaN if undefined (unlikely)
        end do
-       call extend (sol(S_VELO,k)%data(d),      EDGE*num, 0d0)
-       call extend (sol_mean(S_VELO,k)%data(d), EDGE*num, 0d0)
+       call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0d0)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0d0)
     end do
   end subroutine extend_Domain
 
