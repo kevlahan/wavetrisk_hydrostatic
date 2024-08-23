@@ -40,6 +40,9 @@ contains
 
     ! Default elliptic solver (scheduled relaxation Jacobi method)
     elliptic_solver => SRJ
+
+    ! Time integrator
+    call set_time_integrator
     
     if (max_level < min_level) then
        if (rank == 0) then
@@ -181,6 +184,43 @@ contains
        end do
     end do
   end subroutine record_init_state
+
+  subroutine set_time_integrator
+    ! Selects time integration scheme as specified in test case
+    implicit none
+
+    if (mode_split) then 
+       select case (timeint_type)
+       case ("Euler")
+          dt_step_split => Euler_split
+       case ("RK2")
+          dt_step_split => RK2_split
+       case ("RK3")
+          dt_step_split => RK3_split
+       case ("RK4")
+          dt_step_split => RK4_split
+       case default
+          dt_step_split => RK4_split
+       end select
+    else
+       select case (timeint_type)
+       case ("Euler")
+          dt_step => RK33_opt 
+       case ("RK33")
+          dt_step => RK33_opt 
+       case ("RK34")
+          dt_step => RK34_opt 
+       case ("RK45")
+          dt_step => RK45_opt
+       case ("RK3")
+          dt_step => RK3 
+       case ("RK4")
+          dt_step => RK4 
+       case default
+          dt_step => RK4
+       end select
+    end if
+  end subroutine set_time_integrator
 
   subroutine restart (run_id)
     ! Fresh restart from checkpoint data (all structures reset)
@@ -333,14 +373,22 @@ contains
     else
        aligned = .false.
     end if
-
+    
     ! Modify time step
     if (aligned .and. match_time) then
        idt = ialign - modulo (itime,ialign)
-        dt = idt / time_mult
-     end if
+       dt = idt / time_mult
+    end if
 
-    !  Diffusion
+    ! 2D barotropic mode splitting: take som esmall time steps to start
+    if (mode_split .and. istep <= nstep_init) then  
+       dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2 / (20d0*4**level_end)) 
+       dt_0 = 0.8d0 * dx / wave_speed
+
+       dt = dt_0 + (dt - dt_0) * sin (MATH_PI/2d0 * dble(istep-1)/dble(nstep_init-1))
+    end if
+
+    ! Diffusion
     if (modulo (istep_cumul, n_diffuse) == 0) then
        Laplace_order = Laplace_order_init
     else
@@ -348,44 +396,10 @@ contains
     end if
 
     ! Take time step
-    if (mode_split) then ! 2D barotropic mode splitting (implicit Euler)
-       if (istep <= nstep_init) then  ! small time steps to start
-          dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4**level_end)) 
-          dt_0 = 0.8d0 * dx / wave_speed
-
-          dt = dt_0 + (dt - dt_0) * sin (MATH_PI/2d0 * dble(istep-1)/dble(nstep_init-1))
-       end if
-
-       select case (timeint_type)
-       case ("RK4")
-          call RK4_split (dt)
-       case ("RK3")
-          call RK3_split (dt)
-       case ("RK2")
-          call RK2_split (dt)
-       case ("Euler")
-          call Euler_split (dt)
-       case default
-          call RK3_split (dt)
-       end select
+    if (mode_split) then
+       call dt_step_split (dt)
     else
-       select case (timeint_type)
-       case ("Euler")
-          call Euler (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
-       case ("RK33")
-          call RK33_opt (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
-       case ("RK34")
-          call RK34_opt (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
-       case ("RK45")
-          call RK45_opt (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
-       case ("RK3")
-          call RK3 (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
-       case ("RK4")
-          call RK4 (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
-       case default
-          if (rank == 0) write (6,'(a)') "Invalid timestepping choice ... aborting"
-          call abort
-       end select
+       call dt_step (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
     end if
 
     ! Split step routines
@@ -393,7 +407,6 @@ contains
 
     ! Adapt grid
     if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels for iWT
-
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol)
 
