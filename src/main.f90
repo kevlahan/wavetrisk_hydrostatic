@@ -485,22 +485,35 @@ contains
   end subroutine init_structures
 
   subroutine cal_total_mass (initialize_total_mass)
-    ! Compute total mass over all vertical layers at coarsest level
+    ! Compute total mass over all vertical layers
     implicit none
     logical :: initialize_total_mass
     
     integer :: k
-    real(8) :: total_mass, mass_error                            
-    
+    real(8) :: total_mass, mass_error
+    character(3) :: int_type = "hex"
+
     total_mass = 0d0
     do k = 1, zlevels
-       total_mass = total_mass + integrate_hex (rho_dz_i, k, level_start)
+       select case (int_type)
+       case ("hex") ! coarsest level only
+          total_mass = total_mass + integrate_hex (rho_dz_i, k, level_start)
+       case ("tri") ! all levels
+          total_mass = total_mass + integrate_tri (rho_dz_i, k)
+       end select
     end do
     if (initialize_total_mass) initial_total_mass = total_mass
 
     mass_error =  (total_mass - initial_total_mass) / initial_total_mass
 
-    if (rank == 0 .and. .not. initialize_total_mass) write (6,'(a,es11.4)') "Relative total mass error = ", mass_error
+    if (rank == 0 .and. .not. initialize_total_mass) then
+       select case (int_type)
+       case ("hex") 
+          write (6,'(a,es11.4)') "Relative total mass error on coarsest level (hexagons) = ", mass_error
+       case ("tri")
+          write (6,'(a,es11.4)') "Relative total mass error on adaptive grid (triangles) = ", mass_error
+       end select
+    end if
   end subroutine cal_total_mass
 
   real(8) function cpt_dt ()
