@@ -6,7 +6,7 @@ program Held_Suarez
   implicit none
 
   integer        :: l
-  real(8)        :: area_sphere, dx_scaling, nu_scaling, rx0_max, rx1_max
+  real(8)        :: area_sphere, dx_scaling, nu_scaling, res_scaling, rx0_max, rx1_max
   logical        :: aligned
   character(256) :: input_file
 
@@ -67,28 +67,34 @@ program Held_Suarez
   Ldim           = Udim * Tdim                      ! length scale
   Hdim           = wave_speed**2 / grav_accel       ! vertical length scale
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Numerical method parameters
-  area_sphere        = 4d0*MATH_PI * radius**2 
-  Area_min           = area_sphere / (10d0 * 4d0**max_level)
-  Area_max           = area_sphere / (10d0 * 4d0**min_level)
+  compressible             = .true.                 ! compressible equations
+  split_mean_perturbation  = .true.                 ! split prognostic variables into mean and fluctuations
+  uniform                  = .false.                ! hybrid vertical grid (based on A, B coefficients)
+  adapt_dt                 = .false.                ! fixed time step
+  default_thresholds       = .false.                ! thresholding type
+  remap                    = .true.                 ! use vertical remapping
+  iremap                   = 4                     ! remap every 4 dt
+  timeint_type             = "RK4"                  ! time integration scheme (use RK34, RK45 or RK4)
+  Laplace_order_init       = 2                      ! bi-Laplacian horizontal diffusion
+  scale_aware              = .false.                ! do not use scale-aware viscosity
+  analytic_topo            = "none"                 ! type of analytic topography (mountains or none if NCAR_topo = .false.)
+  log_min_mass             = .true.                ! compute minimum mass at each dt (for checking stability issues)
+  log_total_mass           = .false.                ! check whether total mass is conserved (for debugging)
 
-  dx_min             = sqrt (2d0 / sqrt(3d0) * Area_min)              
-  dx_max             = sqrt (2d0 / sqrt(3d0) * Area_max)
+  ! Average hexagon areas and horizontal resolution
+  area_sphere = 4d0*MATH_PI * radius**2 
+  Area_min    = area_sphere / (10d0 * 4d0**max_level)
+  Area_max    = area_sphere / (10d0 * 4d0**min_level)
 
-  timeint_type       = "RK4"
-  iremap             = 4
+  dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)              
+  dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
+  dx_scaling  = 2d0 ** (dble (6 - max_level))       ! scaling factor compared to approximately J6 base CAM value
 
-  default_thresholds = .false.
-  compressible       = .true.
-  remap              = .true.
-  uniform            = .false.
-
-  adapt_dt           = .true.
-
-  dx_scaling         = 2d0 ** (dble (6 - max_level))
-
+  ! Time adaptivity parameters
   if (adapt_dt) then
-     cfl_max = 1.2d0                                           ! maximum cfl number
+     cfl_max = 1d0                                             ! maximum cfl number
      cfl_min = cfl_max                                         ! minimum cfl number
      T_cfl   = 5d-2 * DAY                                      ! time over which to increase cfl number from cfl_min to cfl_max
      cfl_num = cfl_min                                         ! initialize cfl number
@@ -99,14 +105,12 @@ program Held_Suarez
      dt_max  = dt_init
   end if
 
-  ! Diffusion parameters: always use hyperdiffusion
-  Laplace_order_init = 2 ! Laplacian if 1, bi-Laplacian if 2, no diffusion if 0.
-
-  ! Use scale-aware viscosity (if .false. viscosity depends only on dt)
-  scale_aware        = .false.                      
-
-  ! CAM values for viscosity
-  nu_scaling         = dx_scaling**(2*Laplace_order_init)
+  ! CAM values for viscosity for 1 degree are 1e15 except 2.5e15 for divu
+  ! note that wavetrisk J6 resolution is about 120 km while 1 degree CAM resolution is about 110 km
+  !
+  ! Rescale by difference in grid sizes to get equivalent viscosity
+  res_scaling        = 2d0                                                ! approximately (120/100)^4
+  nu_scaling         = res_scaling * dx_scaling**(2*Laplace_order_init)   ! rescale by maximum resolution
   nu_sclr            = 1.0d15 * nu_scaling
   nu_rotu            = 1.0d15 * nu_scaling
   nu_divu            = 2.5d15 * nu_scaling
@@ -115,13 +119,7 @@ program Held_Suarez
   C_visc(S_MASS)     = nu_sclr * dt_max / (3d0 * Area_min**Laplace_order_init) 
   C_visc(S_TEMP)     = nu_sclr * dt_max / (3d0 * Area_min**Laplace_order_init) 
   C_visc(S_VELO)     = nu_rotu * dt_max / (3d0 * Area_min**Laplace_order_init) 
-  C_div              = nu_divu * dt_max / (3d0 * Area_min**Laplace_order_init) 
-  
-  ! Adapt on mean variables (fluctuations are initially zero)
-  log_min_mass       = .false. 
-  log_total_mass     = .false.
-
-  analytic_topo      = "none" ! type of analytic topography (mountains or none if NCAR_topo = .false.)
+  C_div              = nu_divu * dt_max / (3d0 * Area_min**Laplace_order_init)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -134,7 +132,7 @@ program Held_Suarez
 
   ! Save initial conditions
   call omega_velocity
-  call write_and_export (iwrite)
+  !call write_and_export (iwrite)
 
   ! Compute hydrostatic error factors for topography
   if (NCAR_topo .or. analytic_topo=="mountains") then
