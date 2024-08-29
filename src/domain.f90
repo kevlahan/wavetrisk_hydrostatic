@@ -191,7 +191,7 @@ contains
 
     call append (self%bdry_patch, Bdry_Patch(self%node%length, side, 0))
 
-    call extend_Domain (self, BDRY_THICKNESS*PATCH_SIZE)
+    call extend_Domain (self, BDRY_THICKNESS * PATCH_SIZE)
 
     add_bdry_patch_Domain = p
   end function add_bdry_patch_Domain
@@ -202,15 +202,44 @@ contains
     integer      :: num
     
     integer :: d, k, v
+    real(8) :: def_val
 
     d = self%id + 1
 
     call extend (self%node, num, ORIGIN)
 
-    do k = zmin, zmax
+    ! Atmosphere layers
+    do k = 1, zlevels
+       ! Set reasonable default values for new boundary patches to avoid NaN if variable undefined in boundary
+       if (compressible) then
+          def_val = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
+       else
+          def_val = ref_density * (b_vert(k) - b_vert(k-1)) * max_depth
+       end if
+       
        do v = scalars(1), scalars(2)
-          call extend (sol(v,k)%data(d),      num, 1d0) ! set non-zero to avoid NaN if undefined (unlikely)
-          call extend (sol_mean(v,k)%data(d), num, 1d0) ! set non-zero to avoid NaN if undefined (unlikely)
+          if (split_mean_perturbation) then 
+             call extend (sol(v,k)%data(d),      num, 0d0)     
+             call extend (sol_mean(v,k)%data(d), num, def_val) 
+          else
+             call extend (sol(v,k)%data(d),      num, def_val) 
+             call extend (sol_mean(v,k)%data(d), num, 0d0)     
+          end if
+       end do
+       call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0d0)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0d0)
+    end do
+
+    ! Soil layers
+    do k = zmin, 0
+       do v = scalars(1), scalars(2)
+          if (split_mean_perturbation) then 
+             call extend (sol(v,k)%data(d),      num, 0d0)     
+             call extend (sol_mean(v,k)%data(d), num, 1d0) 
+          else
+             call extend (sol(v,k)%data(d),      num, 1d0) 
+             call extend (sol_mean(v,k)%data(d), num, 0d0)     
+          end if
        end do
        call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0d0)
        call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0d0)

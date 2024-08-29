@@ -74,12 +74,12 @@ contains
        call restart (run_id)
        resume = NONE
     else
+       ! Initialize vertical grid
+       call initialize_a_b_vert
+
        ! Initialize basic structures
        call init_basic
        call init_structures (run_id)
-       
-       ! Initialize vertical grid
-       call initialize_a_b_vert
 
        ! Determine vertical level to save
        call set_save_level
@@ -246,12 +246,12 @@ contains
     ! Deallocate all dynamic arrays and variables
     if (resume == NONE) call deallocate_structures
 
+    ! Initialize vertical grid
+    call initialize_a_b_vert
+
     ! Initialize basic structures
     call init_basic
 
-    ! Initialize vertical grid
-    call initialize_a_b_vert
-    
     ! Determine vertical level to save
     call set_save_level
 

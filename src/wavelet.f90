@@ -611,36 +611,19 @@ contains
     id2SW = idx (i_chd-1, j_chd-2, offs_chd, dims_chd)
     idSE  = idx (i_chd+1, j_chd-1, offs_chd, dims_chd)
 
-    if (id2NE+1 <= ubound (wc_s, dim=1)) then
-       scalar(id_chd+1) = scalar(id_par+1) - ( &
-            wc_s(idE+1)   * dom%overl_areas%elts(idE+1)%a(1) + &
-            wc_s(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2) + &
-            wc_s(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
-            wc_s(id2NE+1) * dom%overl_areas%elts(id2NE+1)%a(4) + &
-            wc_s(idN+1)   * dom%overl_areas%elts(idN+1)%a(1) + &
-            wc_s(idW+1)   * dom%overl_areas%elts(idW+1)%a(2) + &
-            wc_s(idNW+1)  * dom%overl_areas%elts(idNW+1)%a(3) + &
-            wc_s(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
-            wc_s(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1) + &
-            wc_s(idS+1)   * dom%overl_areas%elts(idS+1)%a(2) + &
-            wc_s(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
-            wc_s(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4) &
-            ) * dom%areas%elts(id_par+1)%hex_inv
-    else
-       scalar(id_chd+1) = scalar(id_par+1) - ( &
-            wc_s(idE+1)   * dom%overl_areas%elts(idE+1)%a(1) + &
-            wc_s(idNE+1)  * dom%overl_areas%elts(idNE+1)%a(2) + &
-            wc_s(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
-            wc_s(idN+1)   * dom%overl_areas%elts(idN+1)%a(1) + &
-            wc_s(idW+1)   * dom%overl_areas%elts(idW+1)%a(2) + &
-            wc_s(idNW+1)  * dom%overl_areas%elts(idNW+1)%a(3) + &
-            wc_s(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
-            wc_s(idSW+1)  * dom%overl_areas%elts(idSW+1)%a(1) + &
-            wc_s(idS+1)   * dom%overl_areas%elts(idS+1)%a(2) + &
-            wc_s(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
-            wc_s(idSE+1)  * dom%overl_areas%elts(idSE+1)%a(4) &
-            ) * dom%areas%elts(id_par+1)%hex_inv
-    end if
+    scalar(id_chd+1) = scalar(id_par+1) - ( &
+         wc_s(idE+1)   * dom%overl_areas%elts(idE  +1)%a(1) + &
+         wc_s(idNE+1)  * dom%overl_areas%elts(idNE +1)%a(2) + &
+         wc_s(idN2E+1) * dom%overl_areas%elts(idN2E+1)%a(3) + &
+         wc_s(idN+1)   * dom%overl_areas%elts(idN  +1)%a(1) + &
+         wc_s(idW+1)   * dom%overl_areas%elts(idW  +1)%a(2) + &
+         wc_s(idNW+1)  * dom%overl_areas%elts(idNW +1)%a(3) + &
+         wc_s(idS2W+1) * dom%overl_areas%elts(idS2W+1)%a(4) + &
+         wc_s(idSW+1)  * dom%overl_areas%elts(idSW+ 1)%a(1) + &
+         wc_s(idS+1)   * dom%overl_areas%elts(idS  +1)%a(2) + &
+         wc_s(id2SW+1) * dom%overl_areas%elts(id2SW+1)%a(3) + &
+         wc_s(idSE+1)  * dom%overl_areas%elts(idSE +1)%a(4) &
+         ) * dom%areas%elts(id_par+1)%hex_inv
   end subroutine Prolong_scalar
 
   subroutine Reconstruct_scalar (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
