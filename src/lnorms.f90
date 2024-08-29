@@ -179,10 +179,10 @@ contains
 
     d = dom%id+1
     id = idx(i, j, offs, dims)
-    
+
     if (dom%mask_n%elts(id+1) >= ADJZONE) then 
        do v = scalars(1), scalars(2)
-          lnorm(v,zlev) = min (lnorm(v,zlev), abs (sol_mean(v,zlev)%data(d)%elts(id+1) + sol(v,zlev)%data(d)%elts(id+1)))
+          lnorm(v,zlev) = min (lnorm(v,zlev), sol_mean(v,zlev)%data(d)%elts(id+1) + sol(v,zlev)%data(d)%elts(id+1))
        end do
     end if
   end subroutine lmin_scalar
@@ -222,7 +222,7 @@ contains
     if (dom%mask_n%elts(id+1) >= ADJZONE) then 
        do e = 1, EDGE
           id_e = EDGE*id+e
-          lnorm(S_VELO,zlev) = min (lnorm(S_VELO,zlev), abs (sol(S_VELO,zlev)%data(d)%elts(id_e)))
+          lnorm(S_VELO,zlev) = min (lnorm(S_VELO,zlev), sol(S_VELO,zlev)%data(d)%elts(id_e))
        end do
     end if
   end subroutine lmin_velo
