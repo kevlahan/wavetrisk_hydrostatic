@@ -380,14 +380,9 @@ contains
        dt = idt / time_mult
     end if
 
-    ! 2D barotropic mode splitting: take som esmall time steps to start
-    if (mode_split .and. istep <= nstep_init) then  
-       dx = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2 / (20d0*4**level_end)) 
-       dt_0 = 0.8d0 * dx / wave_speed
-
-       dt = dt_0 + (dt - dt_0) * sin (MATH_PI/2d0 * dble(istep-1)/dble(nstep_init-1))
-    end if
-
+    ! Take initial small time steps after restart
+    if (istep <= nstep_init) dt = dt_init * (0.1d0 + (1d0 - 0.1d0) * sin (MATH_PI/2d0 * dble(istep-1)/dble(nstep_init-1)))
+    
     ! Diffusion
     if (modulo (istep_cumul, n_diffuse) == 0) then
        Laplace_order = Laplace_order_init
