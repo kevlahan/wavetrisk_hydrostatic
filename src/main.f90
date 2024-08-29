@@ -205,19 +205,19 @@ contains
     else
        select case (timeint_type)
        case ("Euler")
-          dt_step => RK33_opt 
-       case ("RK33")
-          dt_step => RK33_opt 
-       case ("RK34")
-          dt_step => RK34_opt 
-       case ("RK45")
-          dt_step => RK45_opt
+          dt_step => Euler
        case ("RK3")
           dt_step => RK3 
        case ("RK4")
           dt_step => RK4 
        case default
           dt_step => RK4
+       case ("RK33")
+          dt_step => RK33_opt 
+       case ("RK34")
+          dt_step => RK34_opt 
+       case ("RK45")
+          dt_step => RK45_opt
        end select
     end if
   end subroutine set_time_integrator
