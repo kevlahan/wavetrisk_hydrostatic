@@ -1043,7 +1043,7 @@ contains
              do i = 1, grid(d_src)%pack(AT_NODE,dest)%length
                 id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
                 k = send_buf%length
-                call extend (send_buf, 7, 0._8)
+                call extend (send_buf, 7, 0d0)
                 call get (grid(d_src), id, val)
                 send_buf%elts(k+1:k+7) = val
              end do
@@ -1115,7 +1115,7 @@ contains
                 id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
                 c = get(grid(d_src), id)
                 k = send_buf%length
-                call extend (send_buf, 3, 0._8)
+                call extend (send_buf, 3, 0d0)
                 send_buf%elts(k+1:k+3) = (/c%x, c%y, c%z/)
              end do
           end do

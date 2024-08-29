@@ -53,7 +53,7 @@ contains
     
     !  Main difficulty: in order to precompute geometry, weights etc
     !         nodes outside the patch are needed that might not be part of the grid yet
-    !         Better compute them temporarily that adding additional patches
+    !         Better compute them temporarily than adding additional patches
     !         that are empty in terms of evaluating operators and slow down the inner loops
     !         Stategy A: use temporary bdry_patch
 

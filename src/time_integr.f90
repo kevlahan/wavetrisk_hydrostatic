@@ -216,7 +216,7 @@ contains
 
     do v = 1, N_VARIABLE
        do d = 1, size(grid)
-          ibeg = (1+2*(POSIT(v)-1))*grid(d)%patch%elts(2+1)%elts_start + 1
+          ibeg = (1+2*(POSIT(v)-1)) * grid(d)%patch%elts(2+1)%elts_start + 1
           iend = dest(v,1)%data(d)%length
           do k = 1, zlevels
              dest(v,k)%data(d)%elts(ibeg:iend) = sols(v,k)%data(d)%elts(ibeg:iend) + h * trends(v,k)%data(d)%elts(ibeg:iend)
@@ -315,11 +315,11 @@ contains
 
        do d = 1, size(grid)
           do v = 1, N_VARIABLE
-             call init (q1(v,k)%data(d),  sol(v,k)%data(d)%length);  q1(v,k)%data(d)%elts = dble(3-v)
-             call init (q2(v,k)%data(d),  sol(v,k)%data(d)%length);  q2(v,k)%data(d)%elts = dble(3-v)
-             call init (q3(v,k)%data(d),  sol(v,k)%data(d)%length);  q3(v,k)%data(d)%elts = dble(3-v)
-             call init (q4(v,k)%data(d),  sol(v,k)%data(d)%length);  q4(v,k)%data(d)%elts = dble(3-v)
-             call init (dq1(v,k)%data(d), sol(v,k)%data(d)%length); dq1(v,k)%data(d)%elts = dble(3-v) 
+             call init (q1(v,k)%data(d),  sol(v,k)%data(d)%length);  q1(v,k)%data(d)%elts = dble (N_VARIABLE-v)
+             call init (q2(v,k)%data(d),  sol(v,k)%data(d)%length);  q2(v,k)%data(d)%elts = dble (N_VARIABLE-v)
+             call init (q3(v,k)%data(d),  sol(v,k)%data(d)%length);  q3(v,k)%data(d)%elts = dble (N_VARIABLE-v)
+             call init (q4(v,k)%data(d),  sol(v,k)%data(d)%length);  q4(v,k)%data(d)%elts = dble (N_VARIABLE-v)
+             call init (dq1(v,k)%data(d), sol(v,k)%data(d)%length); dq1(v,k)%data(d)%elts = dble (N_VARIABLE-v) 
           end do
        end do
     end do
@@ -333,7 +333,7 @@ contains
        do d = 1, size(grid)
           do v = 1, N_VARIABLE
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
-             if (n_new > 0) call extend (q1(v,k)%data(d), n_new, dble(3-v))
+             if (n_new > 0) call extend (q1(v,k)%data(d), n_new, dble (N_VARIABLE-v))
           end do
        end do
     end do
@@ -348,11 +348,11 @@ contains
           do v = 1, N_VARIABLE
              n_new = sol(v,k)%data(d)%length - q1(v,k)%data(d)%length
              if (n_new > 0) then
-                call extend (q1(v,k)%data(d),  n_new, dble(3-v))
-                call extend (q2(v,k)%data(d),  n_new, dble(3-v))
-                call extend (q3(v,k)%data(d),  n_new, dble(3-v))
-                call extend (q4(v,k)%data(d),  n_new, dble(3-v))
-                call extend (dq1(v,k)%data(d), n_new, dble(3-v))
+                call extend ( q1(v,k)%data(d), n_new, dble (N_VARIABLE-v))
+                call extend ( q2(v,k)%data(d), n_new, dble (N_VARIABLE-v))
+                call extend ( q3(v,k)%data(d), n_new, dble (N_VARIABLE-v))
+                call extend ( q4(v,k)%data(d), n_new, dble (N_VARIABLE-v))
+                call extend (dq1(v,k)%data(d), n_new, dble (N_VARIABLE-v))
              end if
           end do
        end do
