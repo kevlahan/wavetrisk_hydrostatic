@@ -69,16 +69,12 @@ contains
     call comm_masks_mpi (NONE)
 
     ! Determine whether any new patches are required
-    if (refine()) call post_refine
+    if (refine ()) call post_refine
 
     call complete_masks
 
     ! Set insignificant wavelet coefficients to zero
     if (local_type) call compress_wavelets (wav_coeff)
-
-    ! Ensure new grid points have correct values in boundary halo
-    sol%bdry_uptodate  = .false.
-    call update_array_bdry (sol, NONE)
 
     ! Evaluate sol_mean, topography and penalization (as defined in test case) on new grid
     call update
