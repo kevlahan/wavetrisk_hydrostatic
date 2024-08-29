@@ -264,7 +264,7 @@ module shared_mod
   character(255)                                :: remap_type, remapscalar_type, remapvelo_type
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
-  logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize
+  logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize, split_mean_perturbation
   logical :: rebalance, remap, uniform, vert_diffuse
   logical :: sigma_z, soil_mod, sso, tke_closure
 contains
@@ -343,94 +343,95 @@ contains
 
     ! Initialize values
     ! (these parameters may be reset in the test case file, but are needed for compilation)
-    resume              = NONE
-    cp_idx              = NONE
-    err_restart         = 0
-    istep               = 0
-    istep_cumul         = 0
-    iwrite              = 0
-    time                = 0d0
-    max_level           = MIN_LEVEL
-    level_start         = MIN_LEVEL
-    level_end           = level_start
-    level_fill          = MIN_LEVEL
-    nstep_init          = -1                                ! nstep_init gradually increasing small time steps after restart
+    resume                  = NONE
+    cp_idx                  = NONE
+    err_restart             = 0
+    istep                   = 0
+    istep_cumul             = 0
+    iwrite                  = 0
+    time                    = 0d0
+    max_level               = MIN_LEVEL
+    level_start             = MIN_LEVEL
+    level_end               = level_start
+    level_fill              = MIN_LEVEL
+    nstep_init              = -1                                ! nstep_init gradually increasing small time steps after restart
     
     ! Default logical switches, most are reset in the input file
-    adapt_dt            = .true.                            ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
-    compressible        = .true.                            ! compressible equations (T) or Boussinesq incompressible (F)
-    default_thresholds  = .true.                            ! use default thresholds (T) or calculate dynamically (F)
-    fill                = .false.                           ! fill up grid to level j_fill if true (T)
-    log_iter            = .false.                           ! print residual error in elliptic solver (T)
-    log_min_mass        = .false.                            ! compute minimum mass, relatively expensive (T)
-    log_total_mass      = .false.                           ! mass conservation, relatively expensive (F)
-    match_time          = .false.                           ! match time exactly for data saving (T)
-    mode_split          = .false.                           ! calculate barotropic free surface mode separately (T)
-    NCAR_topo           = .false.                           ! use NCAR topography (requires pre-computation of float field topography) (T)
-    penalize            = .false.                           ! include penalization of topography (T)
-    rebalance           = .true.                            ! rebalance computational load at each checkpoint if T
-    remap               = .true.                            ! remap Lagrangian coordinates (T) or no remapping (F)
-    sigma_z             = .false.                           ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)
-    soil_mod            = .false.                           ! simple physics with soil levels (T)
-    sso                 = .false.                           ! SSO (subgrid scale orography) parameterization for atmosphere
-    tke_closure         = .false.                           ! use TKE closure for eddy viscosity (T) or analytic form (F)
-    uniform             = .true.                            ! uniform vertical grid in pressure (T) or hybrid (F)
-    vert_diffuse        = .false.                           ! include vertical diffusion in ocean models (T)
+    adapt_dt                = .true.                            ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
+    compressible            = .true.                            ! compressible equations (T) or Boussinesq incompressible (F)
+    default_thresholds      = .true.                            ! use default thresholds (T) or calculate dynamically (F)
+    fill                    = .false.                           ! fill up grid to level j_fill if true (T)
+    log_iter                = .false.                           ! print residual error in elliptic solver (T)
+    log_min_mass            = .false.                           ! compute minimum mass, relatively expensive (T)
+    log_total_mass          = .false.                           ! mass conservation, relatively expensive (F)
+    match_time              = .false.                           ! match time exactly for data saving (T)
+    mode_split              = .false.                           ! calculate barotropic free surface mode separately (T)
+    NCAR_topo               = .false.                           ! use NCAR topography (requires pre-computation of float field topography) (T)
+    penalize                = .false.                           ! include penalization of topography (T)
+    rebalance               = .true.                            ! rebalance computational load at each checkpoint if T
+    remap                   = .true.                            ! remap Lagrangian coordinates (T) or no remapping (F)
+    sigma_z                 = .false.                           ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)
+    soil_mod                = .false.                           ! simple physics with soil levels (T)
+    split_mean_perturbation = .false.
+    sso                     = .false.                           ! SSO (subgrid scale orography) parameterization for atmosphere
+    tke_closure             = .false.                           ! use TKE closure for eddy viscosity (T) or analytic form (F)
+    uniform                 = .true.                            ! uniform vertical grid in pressure (T) or hybrid (F)
+    vert_diffuse            = .false.                           ! include vertical diffusion in ocean models (T)
 
     ! Default numerical method values
-    alpha               = 1d0                               ! porosity
-    cfl_adv             = 1.4d0                             ! advective CFL number in mode split case
-    cfl_bar             = 1d0                               ! baroclinic CFL number in mode split case
-    cfl_num             = 1d0                               ! CFL number (barotropic CFL in mode split case)
-    C_visc              = 5d-4                              ! dimensionless diffusion coefficients
-    iadapt              = 1                                 ! adapt horizontal grid every iadapt time step
-    irebalance          = 5                                 ! interval for checking rebalance (only active if using AMPI)
-    iremap              = 10                                ! remap every iremap time steps
-    level_save          = level_start                       ! level to save
-    Laplace_order_init  = 0                                 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
-    n_diffuse           = 1                                 ! include diffusion every n_diffuse steps
-    optimize_grid       = HR_GRID                           ! type of optimization of coarse grid
-    remap_type          = "PPR"                             ! remapping scheme for scalars
-    remapscalar_type    = "PPR"                             ! remapping scheme for scalars
-    remapvelo_type      = "PPR"                             ! remapping scheme for velocity
-    save_levels         = 1                                 ! vertical level to save
-    timeint_type        = "RK45"                            ! time integration scheme (RK3 is default for incompressible case)
-    tol                 = 0d0                               ! relative tolerance for adaptivity (default is non-adaptive)
-    zlevels             = 20                                ! number of vertical levels
-    zmin                = 1                                 ! lowest vertical level index
+    alpha                   = 1d0                               ! porosity
+    cfl_adv                 = 1.4d0                             ! advective CFL number in mode split case
+    cfl_bar                 = 1d0                               ! baroclinic CFL number in mode split case
+    cfl_num                 = 1d0                               ! CFL number (barotropic CFL in mode split case)
+    C_visc                  = 5d-4                              ! dimensionless diffusion coefficients
+    iadapt                  = 1                                 ! adapt horizontal grid every iadapt time step
+    irebalance              = 5                                 ! interval for checking rebalance (only active if using AMPI)
+    iremap                  = 10                                ! remap every iremap time steps
+    level_save              = level_start                       ! level to save
+    Laplace_order_init      = 0                                 ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
+    n_diffuse               = 1                                 ! include diffusion every n_diffuse steps
+    optimize_grid           = HR_GRID                           ! type of optimization of coarse grid
+    remap_type              = "PPR"                             ! remapping scheme for scalars
+    remapscalar_type        = "PPR"                             ! remapping scheme for scalars
+    remapvelo_type          = "PPR"                             ! remapping scheme for velocity
+    save_levels             = 1                                 ! vertical level to save
+    timeint_type            = "RK4"                             ! time integration scheme (RK3 is default for incompressible case)
+    tol                     = 0d0                               ! relative tolerance for adaptivity (default is non-adaptive)
+    zlevels                 = 20                                ! number of vertical levels
+    zmin                    = 1                                 ! lowest vertical level index
 
     ! Default physical parameters
     ! (these parameters are typically reset in test case file, but are needed for compilation)
-    c_p                 = 1004.64d0   * JOULE / (KG*KELVIN)   ! specific heat at constant pressure for air (= 3991.87 for seawater)
-    c_v                 = 717.6d0     * JOULE / (KG*KELVIN)   ! specfic heat at constant volume c_v = R_d - c_p
-    grav_accel          = 9.80616d0   * METRE / SECOND**2     ! gravitational acceleration
-    p_top               = 0d0         * hPa                   ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
-    R_d                 = 287d0       * JOULE / (KG*KELVIN)   ! ideal gas constant for dry air in joules per kilogram Kelvin
-    ref_density         = 0d0         * KG / METRE**3         ! set ref_density to correct default value below if not set in test case
-    ref_density_air     = 1.225d0     * KG / METRE**3         ! reference density (compressible case: atmosphere)
-    ref_density_water   = 1028d0      * KG / METRE**3         ! reference density (incompressible case: seawater)
-    omega               = 7.292d-05   * RAD / SECOND          ! rotation rate of Earth
-    radius              = 6371.22d0   * KM                    ! radius of Earth
-    p_0                 = 1000d0      * hPA                   ! standard pressure
-    visc_sclr           = 0d0         * METRE**2 / SECOND     ! kinematic viscosity of scalars 
-    visc_divu           = 0d0         * METRE**2 / SECOND     ! kinematic viscosity of divergence of velocity 
-    visc_rotu           = 0d0         * METRE**2 / SECOND     ! kinematic viscosity of vorticity 
+    c_p                 = 1004.64d0   * JOULE / (KG*KELVIN)     ! specific heat at constant pressure for air (= 3991.87 for seawater)
+    c_v                 = 717.6d0     * JOULE / (KG*KELVIN)     ! specfic heat at constant volume c_v = R_d - c_p
+    grav_accel          = 9.80616d0   * METRE / SECOND**2       ! gravitational acceleration
+    p_top               = 0d0         * hPa                     ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
+    R_d                 = 287d0       * JOULE / (KG*KELVIN)     ! ideal gas constant for dry air in joules per kilogram Kelvin
+    ref_density         = 0d0         * KG / METRE**3           ! set ref_density to correct default value below if not set in test case
+    ref_density_air     = 1.225d0     * KG / METRE**3           ! reference density (compressible case: atmosphere)
+    ref_density_water   = 1028d0      * KG / METRE**3           ! reference density (incompressible case: seawater)
+    omega               = 7.292d-05   * RAD / SECOND            ! rotation rate of Earth
+    radius              = 6371.22d0   * KM                      ! radius of Earth
+    p_0                 = 1000d0      * hPA                     ! standard pressure
+    visc_sclr           = 0d0         * METRE**2 / SECOND       ! kinematic viscosity of scalars 
+    visc_divu           = 0d0         * METRE**2 / SECOND       ! kinematic viscosity of divergence of velocity 
+    visc_rotu           = 0d0         * METRE**2 / SECOND       ! kinematic viscosity of vorticity 
 
-    kappa               = R_d/c_p                             ! heat capacity ratio
+    kappa               = R_d/c_p                               ! heat capacity ratio
 
     ! Parameters for ocean (incompressible) model
-    c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
-    c_s                 = 1500d0    * METRE / SECOND              ! sound speed for seawater
-    e_min               = 0d0       * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
-    Kt_0                = 1.2d-5    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy diffusion
-    Kv_0                = 1.2d-4    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy viscosity
-    Kt_const            = 1d-6      * METRE**2 / SECOND           ! analytic value for eddy diffusion (tke_closure = .false.)
-    Kv_bottom           = 2d-3      * METRE**2 / SECOND           ! analytic value for eddy viscosity (tke_closure = .false.)
-    max_depth           = 4d0       * KM                          ! maximum depth 
-    min_depth           = max_depth                               ! minimum depth 
-    Q_sr                = 0d0       * WATT / METRE**2             ! penetrative part of solar short wave radiation
-    rb_0                = 4d-4      * METRE /SECOND               ! NEMO value for bottom friction
-    H_rho               = c_s**2 / grav_accel                     ! density scale height
+    c1                  = 1d-16     * METRE / SECOND            ! value for internal wave speed (used for incompressible cases)
+    c_s                 = 1500d0    * METRE / SECOND            ! sound speed for seawater
+    e_min               = 0d0       * METRE**2 / SECOND**2      ! minimum TKE for vertical diffusion
+    Kt_0                = 1.2d-5    * METRE**2 / SECOND         ! NEMO value for minimum/initial eddy diffusion
+    Kv_0                = 1.2d-4    * METRE**2 / SECOND         ! NEMO value for minimum/initial eddy viscosity
+    Kt_const            = 1d-6      * METRE**2 / SECOND         ! analytic value for eddy diffusion (tke_closure = .false.)
+    Kv_bottom           = 2d-3      * METRE**2 / SECOND         ! analytic value for eddy viscosity (tke_closure = .false.)
+    max_depth           = 4d0       * KM                        ! maximum depth 
+    min_depth           = max_depth                             ! minimum depth 
+    Q_sr                = 0d0       * WATT / METRE**2           ! penetrative part of solar short wave radiation
+    rb_0                = 4d-4      * METRE /SECOND             ! NEMO value for bottom friction
+    H_rho               = c_s**2 / grav_accel                   ! density scale height
 
     ! Equation of state parameters for ocean model
     eos_nl              = .false.                                 ! nonlinear equation of state if true

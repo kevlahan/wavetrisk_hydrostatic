@@ -22,7 +22,6 @@ module test_case_mod
   character(255) :: analytic_topo = "none" ! mountains or none (used if NCAR_topo = .false.)
   
   logical        :: scale_aware             = .false.
-  logical        :: split_mean_perturbation = .true.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
