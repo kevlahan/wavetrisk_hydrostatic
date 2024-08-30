@@ -15,96 +15,60 @@ module shared_mod
      real(8)               :: hex_inv
   end type Areas
 
-  type(Coord), parameter :: ORIGIN = Coord (0d0, 0d0, 0d0)
-
-  ! Numbers of triangles and edges per grid element
-  integer, parameter :: TRIAG = 2, EDGE = 3
-
-  ! Indices for edges
-  integer, parameter :: RT = 0, DG = 1, UP = 2
-
-  ! Indices for triangles
-  integer, parameter :: LORT = 0, UPLT = 1
-
-  ! Indices for nodes and edges of type Float_Field variables (e.g. sol, wave_coeff)
-  integer, parameter :: AT_NODE = 1, AT_EDGE = 2
-
-  ! Indices for longitude and latitude components
-  integer, parameter :: LON_x = 1, LAT_y = 2
-
-  ! Shifts on regular (i,j) grid
-  integer, parameter :: JPLUS = 1
-  integer, parameter :: IPLUS = 2
-  integer, parameter :: JMINUS = 3
-  integer, parameter :: IMINUS = 4
-  integer, parameter :: IJPLUS = 5
-  integer, parameter :: IPLUSJMINUS = 6
-  integer, parameter :: IJMINUS = 7
-  integer, parameter :: IMINUSJPLUS = 8
-
-  ! Neighbouring patch indices for use in index arrays offs and dims 
-  integer, parameter :: NORTH     = 1
-  integer, parameter :: EAST      = 2
-  integer, parameter :: SOUTH     = 3
-  integer, parameter :: WEST      = 4
-  integer, parameter :: NORTHEAST = 5
-  integer, parameter :: SOUTHEAST = 6
-  integer, parameter :: SOUTHWEST = 7
-  integer, parameter :: NORTHWEST = 8
-
-  ! Number of children nodes associated to each parent node
-  integer, parameter :: N_CHDRN = 4 
-
   ! Domain parameters
-  integer, parameter :: N_BDRY            = 8                            ! number of boundary patches associated to each patch
+  integer, parameter :: N_BDRY            =  8                           ! number of boundary patches associated to each patch
+  integer, parameter :: POLE              = -2                           ! label for two pole points
   integer, parameter :: N_ICOSAH_LOZENGE  = 10                           ! number of lozenges (coarse regular domains) in icosahedron
+  integer, parameter :: BDRY_THICKNESS    =  2                           ! thickness of boundary overlaps between lozenges (ghost points or halo)
+  integer, parameter :: N_CHDRN           =  4                           ! number of children nodes associated to each parent node
+  
   integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL              ! number of subdomains per lozenge in each direction
   integer, parameter :: N_SUB_DOM         = N_SUB_DOM_PER_DIM**2         ! total number of sub-domains per lozenge
   integer, parameter :: N_GLO_DOMAIN      = N_ICOSAH_LOZENGE * N_SUB_DOM ! total number of domains at coarsest level (number of cores must be <= N_GLO_DOMAIN)
   integer, parameter :: PATCH_LEVEL       = MIN_LEVEL - DOMAIN_LEVEL - 1 ! patch level: MIN_LEVEL = DOMAIN_LEVEL + PATCH_LEVEL + 1
+  
   integer, dimension(:), allocatable :: n_domain                         ! number of subdomains on each processor
 
-  ! Thickness of boundary overlaps between lozenges (ghost points or halo)
-  integer, parameter :: BDRY_THICKNESS = 2
+  ! Shifts on regular (i,j) grid
+  integer, parameter :: JPLUS       = 1
+  integer, parameter :: IPLUS       = 2
+  integer, parameter :: JMINUS      = 3
+  integer, parameter :: IMINUS      = 4
+  integer, parameter :: IJPLUS      = 5
+  integer, parameter :: IPLUSJMINUS = 6
+  integer, parameter :: IJMINUS     = 7
+  integer, parameter :: IMINUSJPLUS = 8
 
-  integer, parameter :: FROZEN = 32
+  ! Neighbouring patch indices for use in index arrays offs and dims 
+  integer, parameter :: NORTH       = 1
+  integer, parameter :: EAST        = 2
+  integer, parameter :: SOUTH       = 3
+  integer, parameter :: WEST        = 4
+  integer, parameter :: NORTHEAST   = 5
+  integer, parameter :: SOUTHEAST   = 6
+  integer, parameter :: SOUTHWEST   = 7
+  integer, parameter :: NORTHWEST   = 8
 
-  ! Label for active nodes
-  integer, parameter :: TOLRNZ = 16
-
-  ! Label for adjacent nodes  in position (space) only 
-  integer, parameter :: ADJSPACE = 14
-
-  ! Label for nodes whose flux can be obtained by restriction from fine level
-  integer, parameter :: RESTRCT = 12
-
-  ! Label for nodes where trend is uniformly accurate
-  integer, parameter :: TRND = 10
-
-  ! Label for adjacent zone nodes in either position (space) or scale
-  integer, parameter :: ADJZONE = 8
-
-  ! Label for nodes added for consistency between adaptive velocity (edge) and mass (hexagon) nodes
-  integer, parameter :: CONSIST = 4
-
-  ! Label nodes needed for trisk operators 
-  integer, parameter :: TRSK = 2
-
-  integer, parameter :: NODE = 3
-
-  integer, parameter :: ZERO =  0 
-  integer, parameter :: NONE = -1
-  integer, parameter :: POLE = -2 ! label for two pole points 
+  ! Mask values
+  integer, parameter :: FROZEN   = 32  ! nodes that should not be modified
+  integer, parameter :: TOLRNZ   = 16  ! active nodes
+  integer, parameter :: ADJSPACE = 14  ! adjacent nodes in position (space) only 
+  integer, parameter :: RESTRCT  = 12  ! nodes whose flux can be obtained by restriction from fine level
+  integer, parameter :: TRND     = 10  ! nodes where trend is uniformly accurate
+  integer, parameter :: ADJZONE  = 8   ! adjacent zone nodes in either position (space) or scale
+  integer, parameter :: CONSIST  = 4   ! nodes added for consistency between adaptive velocity (edge) and mass (hexagon) nodes
+  integer, parameter :: TRSK     = 2   ! nodes needed for TRISK operators
+  
+  integer, parameter :: INSIDE = 0
+  integer, parameter :: OUTER1 = 1
+  integer, parameter :: OUTER2 = 2
 
   ! logical integer parameters
   integer, parameter :: FALSE = 0
   integer, parameter :: TRUE  = 1
 
-  integer, parameter :: ON_LINE  = 2
-  integer, parameter :: INSIDE   = 0
-  integer, parameter :: OUTER1   = 1
-  integer, parameter :: OUTER2   = 2
-  integer, parameter :: COINSIDE = 3
+  integer, parameter :: ZERO =  0 
+  integer, parameter :: NONE = -1
 
   ! Nearest two neighbour flux/velocity interpolation points U, V, W (i.e. RT,UP,DG)
   ! 
@@ -158,7 +122,25 @@ module shared_mod
 
   ! Used in grid smoothing routine
   integer, dimension(2,3) :: O2 
-  data O2 /2,3, 3,1, 1,2/ 
+  data O2 /2,3, 3,1, 1,2/
+
+  ! Numbers of triangles and edges per grid element
+  integer, parameter :: TRIAG = 2, EDGE = 3
+
+  ! Indices for edges
+  integer, parameter :: RT = 0, DG = 1, UP = 2
+
+  ! Indices for triangles
+  integer, parameter :: LORT = 0, UPLT = 1
+
+  ! Label for node
+  integer, parameter :: NODE = 3
+
+  ! Indices for nodes and edges of type Float_Field variables (e.g. sol, wave_coeff)
+  integer, parameter :: AT_NODE = 1, AT_EDGE = 2
+
+  ! Indices for longitude and latitude components
+  integer, parameter :: LON_x = 1, LAT_y = 2
 
   ! Indices of prognostic variables in sol, trend etc
   integer, parameter    :: S_VELO = 1, S_MASS = 2, S_TEMP = 3
@@ -191,6 +173,8 @@ module shared_mod
   integer, dimension(AT_NODE:AT_EDGE) :: n_active ! number of active points at grid locations (node and edge)
   
   real(8) :: tol ! relative tolerance for all variables
+
+  type(Coord), parameter :: ORIGIN = Coord (0d0, 0d0, 0d0)
 
   ! Basic constants (uses MKS system of units)
 
