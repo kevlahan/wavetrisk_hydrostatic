@@ -14,7 +14,9 @@ contains
     if (initialized) return ! initialize only once
     call init_arch_mod
     call init_domain_mod
+    
     shift_arr = reshape ((/ 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0 /), (/ 4, 4 /))
+    
     initialized = .true.
   end subroutine init_comm_mod
 
@@ -396,12 +398,12 @@ contains
 
     if (rot == 1 .and. typ == SOUTH) then
        if (is_penta (dom, p, SOUTHWEST - 1)) &
-            call create_pack_st (dom, AT_EDGE, src, LAST, LAST, pa, UP, - nidx(LAST_BDRY, LAST_BDRY, SOUTHWEST, offs, dims) * EDGE)
+            call create_pack_st (dom, AT_EDGE, src, LAST, LAST, pa, UP, - nidx (LAST_BDRY, LAST_BDRY, SOUTHWEST, offs, dims) * EDGE)
     end if
     
     if (rot == 0 .and. typ == EAST) then
        if (is_penta (dom, p, SOUTHEAST - 1)) &
-            call create_pack_st (dom, AT_NODE, src, 1, 0, pa, NODE, nidx(0, LAST_BDRY, SOUTHEAST, offs, dims))
+            call create_pack_st (dom, AT_NODE, src, 1, 0, pa, NODE, nidx (0, LAST_BDRY, SOUTHEAST, offs, dims))
     end if
     
     if (rot == 0 .and. typ == NORTH) then
@@ -411,11 +413,11 @@ contains
 
     if (rot == 1 .and. typ == EAST) then
        if (is_penta (dom, p, NORTHEAST - 1)) then
-          call create_pack_st (dom, AT_NODE, src, 0, 1, pa, NODE,  nidx(0, 1, NORTHEAST, offs, dims))
-          call create_pack_st (dom, AT_NODE, src, 1, 1, pa, NODE, -nidx(1, 0, NORTHEAST, offs, dims))
-          call create_pack_st (dom, AT_EDGE, src, 0, 1, pa, RT,    nidx(0, 1, NORTHEAST, offs, dims) * EDGE + RT)
-          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, DG,  -(nidx(0, 0, NORTHEAST, offs, dims) * EDGE + RT))
-          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, UP,    nidx(0, 0, NORTHEAST, offs, dims) * EDGE + UP)
+          call create_pack_st (dom, AT_NODE, src, 0, 1, pa, NODE,  nidx (0, 1, NORTHEAST, offs, dims))
+          call create_pack_st (dom, AT_NODE, src, 1, 1, pa, NODE, -nidx (1, 0, NORTHEAST, offs, dims))
+          call create_pack_st (dom, AT_EDGE, src, 0, 1, pa, RT,    nidx (0, 1, NORTHEAST, offs, dims) * EDGE + RT)
+          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, DG,  -(nidx (0, 0, NORTHEAST, offs, dims) * EDGE + RT))
+          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, UP,    nidx (0, 0, NORTHEAST, offs, dims) * EDGE + UP)
        end if
     end if
 
@@ -465,11 +467,11 @@ contains
        if (s == SOUTHEAST) ij_node = (/ij_node(2), ij_node(1)/)
        call create_pack_st(dom, AT_EDGE, src, 0, LAST, pa, DG, &
             nidx (ij_node(1), ij_node(2), s_side, offs, dims) * EDGE + 2*s_side - 2)
-       ij_node = (/LAST_BDRY, 1/)
-       ij_send = (/1, LAST/)
+       ij_node = (/ LAST_BDRY, 1    /)
+       ij_send = (/ 1,         LAST /)
        if (s == SOUTHEAST) then
-          ij_node = (/ij_node(2), ij_node(1)/)
-          ij_send = (/ij_send(2), ij_send(1)/)
+          ij_node = (/ ij_node(2), ij_node(1) /)
+          ij_send = (/ ij_send(2), ij_send(1) /)
        end if
        call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, -nidx (ij_node(1), ij_node(2), s, offs, dims))
     end if
@@ -493,10 +495,10 @@ contains
     end if
 
     call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, &
-         NODE, (-1)**i*nidx(ij_node(1), ij_node(2), s_side, offs, dims))
+         NODE, (-1)**i * nidx (ij_node(1), ij_node(2), s_side, offs, dims))
 
     call create_pack_st (dom, AT_EDGE, src, ij_send(1), ij_send(2), pa, UP &
-         - 2*s_side + 2, (-1)**i*(nidx(0, 0, s_side, offs, dims)*EDGE + DG + i*(-2*s_side + 3)))
+         -2*s_side + 2, (-1)**i * (nidx (0, 0, s_side, offs, dims) * EDGE + DG + i * (-2*s_side + 3)))
 
     if (i == 0) return
 
@@ -507,21 +509,21 @@ contains
     end if
 
     ij_node = (/ LAST_BDRY - 1, LAST /)
-    ij_send = (/ 1, LAST /)
+    ij_send = (/ 1,             LAST /)
 
     if (s == SOUTHEAST) then
-       ij_node = (/ij_node(2), ij_node(1)/)
-       ij_send = (/ij_send(2), ij_send(1)/)
+       ij_node = (/ ij_node(2), ij_node(1) /)
+       ij_send = (/ ij_send(2), ij_send(1) /)
     end if
 
-    call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, nidx(ij_node(1), ij_node(2), s_side, offs, dims))
+    call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, nidx (ij_node(1), ij_node(2), s_side, offs, dims))
 
-    ij_node = (/LAST, LAST_BDRY/)
+    ij_node = (/ LAST, LAST_BDRY /)
 
-    if (s == NORTHWEST) ij_node = (/ij_node(2), ij_node(1)/)
+    if (s == NORTHWEST) ij_node = (/ ij_node(2), ij_node(1) /)
 
-    call create_pack_st (dom, AT_EDGE, src, LAST*(-s_side + 4), &
-         LAST*(s_side - 3), pa, DG, nidx(ij_node(1), ij_node(2), s_side, offs, dims)*EDGE + 2*s_side - 6)
+    call create_pack_st (dom, AT_EDGE, src, LAST * (-s_side + 4), LAST * (s_side - 3), &
+         pa, DG, nidx (ij_node(1), ij_node(2), s_side, offs, dims) * EDGE + 2*s_side - 6)
   end subroutine create_comm_pole
 
   subroutine comm_masks
@@ -533,13 +535,15 @@ contains
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
-             src_id  = grid(src_loc)%pack(AT_NODE,dest_glo+1)%elts(i)
+             src_id  = grid(src_loc )%pack(AT_NODE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
+             
              grid(dest_loc)%mask_n%elts(abs(dest_id)+1) = grid(src_loc)%mask_n%elts(abs(src_id)+1) 
           end do
           do i = 1, grid(src_loc)%pack(AT_EDGE,dest_glo+1)%length
-             src_id  = grid(src_loc)%pack(AT_EDGE,dest_glo+1)%elts(i)
+             src_id  = grid(src_loc )%pack(AT_EDGE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_EDGE,src_glo+1)%elts(i)
+             
              grid(dest_loc)%mask_e%elts(abs(dest_id)+1) = grid(src_loc)%mask_e%elts(abs(src_id)+1) 
           end do
        end do
@@ -558,8 +562,9 @@ contains
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%pack(AT_EDGE,dest_glo+1)%length
-             src_id  = grid(src_loc)%pack(AT_EDGE,dest_glo+1)%elts(i)
+             src_id  = grid(src_loc )%pack(AT_EDGE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_EDGE,src_glo+1)%elts(i)
+             
              call set (grid(dest_loc), dest_id, get(grid(src_loc), src_id))
           end do
        end do
@@ -580,7 +585,7 @@ contains
 
     if (.not. e == NODE) then
        offs = dom%patch%elts(p+1)%elts_start
-       call append (dom%pack(AT_EDGE,src+1), idx__fast(i, j, offs)*EDGE + e)
+       call append (dom%pack(AT_EDGE,src+1), idx__fast(i, j, offs) * EDGE + e)
     end if
   end subroutine unpack_comm_struct
 
@@ -602,7 +607,7 @@ contains
 
     if (s == EAST) then
        i_recv = i + PATCH_SIZE
-       j_recv = j + rot*(i + shift)
+       j_recv = j + rot * (i + shift)
        if (rot == 1) then
           i_pack = LAST - j
           j_pack = i
@@ -613,7 +618,7 @@ contains
     end if
 
     if (s == SOUTH) then
-       i_recv = i - rot*(j + shift)
+       i_recv = i - rot * (j + shift)
        j_recv = -1 - j
        if (rot == 1) then
           i_pack = LAST - j
@@ -626,7 +631,7 @@ contains
 
     if (s == WEST) then
        i_recv = -1 - i
-       j_recv = j - rot*(i + shift)
+       j_recv = j - rot * (i + shift)
        if (rot == 1) then
           i_pack = LAST - j
           j_pack = LAST - i
@@ -646,12 +651,15 @@ contains
     do src_glo = 1, N_GLO_DOMAIN
        unused_elements = 0
        do ii = 1, dom%recv_pa(src_glo)%length, 4
-          ngb_pa = dom%recv_pa(src_glo)%elts(ii)
-          c = dom%recv_pa(src_glo)%elts(ii+1)
-          p_par = dom%recv_pa(src_glo)%elts(ii+2)
-          s = dom%recv_pa(src_glo)%elts(ii+3)
-          n_par = -dom%patch%elts(p_par+1)%neigh(s+1)
-          typ = dom%bdry_patch%elts(n_par+1)%side
+          ngb_pa =  dom%recv_pa(src_glo)%elts(ii  )
+          c      =  dom%recv_pa(src_glo)%elts(ii+1)
+          p_par  =  dom%recv_pa(src_glo)%elts(ii+2)
+          s      =  dom%recv_pa(src_glo)%elts(ii+3)
+          
+          n_par  = -dom%patch%elts(p_par+1)%neigh(s+1)
+          
+          typ    =  dom%bdry_patch%elts(n_par+1)%side
+          
           if (typ < 1) return
           if (dom%neigh(typ) == POLE) then
              p_chd = dom%patch%elts(p_par+1)%children(s-3)
@@ -674,6 +682,7 @@ contains
           end if
           n_chd = -dom%patch%elts(p_chd+1)%neigh(s+1)
           dom%bdry_patch%elts(n_chd+1)%neigh = ngb_pa
+          
           if (.not. is_penta(dom, p_chd, s)) call create_comm (dom, p_chd, s + 1)
        end do
        dom%recv_pa(src_glo)%length = unused_elements
@@ -689,10 +698,12 @@ contains
        unused_elements = 0
        src_glo = glo_id(rank+1,src)
        do i = 1, grid(src)%send_pa_all%length, 4
-          b = grid(src)%send_pa_all%elts(i)
-          c = grid(src)%send_pa_all%elts(i+1)
+          b     = grid(src)%send_pa_all%elts(i  )
+          c     = grid(src)%send_pa_all%elts(i+1)
           p_chd = grid(src)%send_pa_all%elts(i+2)
+          
           s = grid(src)%send_pa_all%elts(i+3)
+          
           typ = grid(src)%bdry_patch%elts(b+1)%side
 
           if (typ < 1) return
@@ -726,14 +737,14 @@ contains
 
           dest = loc_id(dest+1)
           rot = grid(src)%neigh_rot(typ)
-          rot_shift = (rot_direction(grid(src), typ)*2 - 1)*rot
+          rot_shift = (rot_direction(grid(src), typ)*2 - 1) * rot
 
           call append (grid(dest+1)%recv_pa(src_glo+1), p_chd)
 
           if (is_pole) then
              call append (grid(dest+1)%recv_pa(src_glo+1), c)
           else
-             call append (grid(dest+1)%recv_pa(src_glo+1), modulo(c + rot_shift, 4))
+             call append (grid(dest+1)%recv_pa(src_glo+1), modulo (c + rot_shift, 4))
           end if
 
           call append (grid(dest+1)%recv_pa(src_glo+1), ngh_pa)
@@ -741,7 +752,7 @@ contains
           if (is_pole) then
              call append (grid(dest+1)%recv_pa(src_glo+1), s)
           else
-             call append (grid(dest+1)%recv_pa(src_glo+1), modulo(rot_shift + s + 2, 4) + 4*(s/4))
+             call append (grid(dest+1)%recv_pa(src_glo+1), modulo (rot_shift + s + 2, 4) + 4 * (s/4))
           end if
        end do
        grid(src)%send_pa_all%length = unused_elements
@@ -782,9 +793,11 @@ contains
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%pack(pos,dest_glo+1)%length
-             src_id  = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
+             src_id  = grid(src_loc )%pack(pos,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
+             
              field%data(dest_loc)%elts(abs(dest_id)+1) = field%data(src_loc)%elts(src_id+1)
+             
              if (dest_id < 0 .and. pos == AT_EDGE) &
                   field%data(dest_loc)%elts(abs(dest_id)+1) = - field%data(dest_loc)%elts(abs(dest_id)+1)
           end do
@@ -805,9 +818,11 @@ contains
           do i1 = 1, size(field)
              pos = field(i1)%pos
              do i = 1, grid(src_loc)%pack(pos,dest_glo+1)%length
-                src_id  = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
+                src_id  = grid(src_loc )%pack(pos,dest_glo+1)%elts(i)
                 dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
+                
                 field(i1)%data(dest_loc)%elts(abs(dest_id)+1) = field(i1)%data(src_loc)%elts(src_id+1)
+                
                 if (dest_id < 0 .and. pos == AT_EDGE) &
                      field(i1)%data(dest_loc)%elts(abs(dest_id)+1) = - field(i1)%data(dest_loc)%elts(abs(dest_id)+1)
              end do
@@ -829,9 +844,11 @@ contains
              do i1 = 1, size(field,1)
                 pos = field(i1,i2)%pos
                 do i = 1, grid(src_loc)%pack(pos,dest_glo+1)%length
-                   src_id  = grid(src_loc)%pack(pos,dest_glo+1)%elts(i)
+                   src_id  = grid(src_loc )%pack(pos,dest_glo+1)%elts(i)
                    dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
+                   
                    field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1) = field(i1,i2)%data(src_loc)%elts(src_id+1)
+                   
                    if (dest_id < 0 .and. pos == AT_EDGE) &
                         field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1) = - field(i1,i2)%data(dest_loc)%elts(abs(dest_id)+1)
                 end do
@@ -853,8 +870,9 @@ contains
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
-             src_id = grid(src_loc)%pack(AT_NODE,dest_glo+1)%elts(i)
+             src_id  = grid(src_loc )%pack(AT_NODE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
+             
              call set (grid(dest_loc), dest_id, get (grid(src_loc), src_id))
           end do
        end do
@@ -865,7 +883,7 @@ contains
     implicit none
     type(Domain) :: dom
 
-    domain_load = count(abs(dom%mask_n%elts(1+1:dom%node%length)) > ADJZONE) &
-         + count(abs(dom%mask_e%elts(EDGE+1:dom%midpt%length)) > ADJZONE)
+    domain_load = count (abs (dom%mask_n%elts(1+1:dom%node%length))     > ADJZONE) &
+                + count (abs (dom%mask_e%elts(EDGE+1:dom%midpt%length)) > ADJZONE)
   end function domain_load
 end module comm_mod
