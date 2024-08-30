@@ -3,6 +3,7 @@ program Held_Suarez
   ! Bulletin of the American Meteorological Society 75 (10), 1825-1830
   use main_mod
   use test_case_mod
+  use lnorms_mod
   implicit none
 
   integer        :: l
@@ -70,7 +71,7 @@ program Held_Suarez
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Numerical method parameters
   compressible             = .true.                 ! compressible equations
-  split_mean_perturbation  = .true.                 ! split prognostic variables into mean and fluctuations
+  split_mean_perturbation  = .false.                 ! split prognostic variables into mean and fluctuations
   uniform                  = .false.                ! hybrid vertical grid (based on A, B coefficients)
   adapt_dt                 = .false.                ! fixed time step
   default_thresholds       = .false.                ! thresholding type
@@ -132,7 +133,7 @@ program Held_Suarez
 
   ! Save initial conditions
   call omega_velocity
-  !call write_and_export (iwrite)
+  call write_and_export (iwrite)
 
   ! Compute hydrostatic error factors for topography
   if (NCAR_topo .or. analytic_topo=="mountains") then
