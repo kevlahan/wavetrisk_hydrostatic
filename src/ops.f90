@@ -954,7 +954,7 @@ contains
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
           mean_t => sol_mean(S_TEMP,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (column_mass, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
+             call apply_onescale_to_patch (column_mass, grid(d), p-1, k, -1, 2)
           end do
           nullify (mass, mean_m, mean_t, temp)
        end do
