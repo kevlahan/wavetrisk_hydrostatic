@@ -14,7 +14,7 @@ contains
     if (initialized) return ! initialize only once
     call init_arch_mod
     call init_domain_mod
-    shift_arr = reshape ((/0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0/), (/4, 4/))
+    shift_arr = reshape ((/ 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0 /), (/ 4, 4 /))
     initialized = .true.
   end subroutine init_comm_mod
 
@@ -72,9 +72,9 @@ contains
     if (i < 0 .or. j < 0 .or. i >= PATCH_SIZE .or. j >= PATCH_SIZE) return
 
     if (e == NODE) then
-       call create_pack_st (dom, AT_NODE, src, i, j, pa, e, id*orient)
+       call create_pack_st (dom, AT_NODE, src, i, j, pa, e, id * orient)
     else
-       call create_pack_st (dom, AT_EDGE, src, i, j, pa, e_pack, orient*(EDGE*id + e))
+       call create_pack_st (dom, AT_EDGE, src, i, j, pa, e_pack, orient * (EDGE*id + e))
     end if
   end subroutine create_pack_st2
 
@@ -144,8 +144,7 @@ contains
        do j = 1, BDRY_THICKNESS
           do i = 1, PATCH_SIZE
              call pack_idx (i - 1, j - 1, rot, s, shift, i_recv, j_recv, i_pack, j_pack)
-             call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, &
-                  idx(i_recv, j_recv, offs, dims), e_pack, orient)
+             call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
           end do
        end do
     end if
@@ -154,8 +153,7 @@ contains
        do i = 1, BDRY_THICKNESS
           do j = 1, PATCH_SIZE
              call pack_idx (i - 1, j - 1, rot, s, shift, i_recv, j_recv, i_pack, j_pack)
-             call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, &
-                  idx(i_recv, j_recv, offs, dims), e_pack, orient)
+             call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
           end do
        end do
     end if
@@ -163,9 +161,8 @@ contains
     if (s == SOUTH) then
        do j = 1, BDRY_THICKNESS
           do i = 1, PATCH_SIZE
-             call pack_idx(i - 1, j - 1, rot, s, shift, i_recv, j_recv, i_pack, j_pack)
-             call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, &
-                  idx(i_recv, j_recv, offs, dims), e_pack, orient)
+             call pack_idx (i - 1, j - 1, rot, s, shift, i_recv, j_recv, i_pack, j_pack)
+             call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
           end do
        end do
     end if
@@ -173,10 +170,8 @@ contains
     if (s == WEST) then
        do i = 1, BDRY_THICKNESS
           do j = 1, PATCH_SIZE
-             call pack_idx (i - 1, j - 1, rot, s, shift, i_recv, j_recv, &
-                  i_pack, j_pack)
-             call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, &
-                  idx(i_recv, j_recv, offs, dims), e_pack, orient)
+             call pack_idx (i - 1, j - 1, rot, s, shift, i_recv, j_recv, i_pack, j_pack)
+             call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e,  idx (i_recv, j_recv, offs, dims), e_pack, orient)
           end do
        end do
     end if
@@ -185,22 +180,18 @@ contains
        if (dom%neigh_rot(t_last) == 1) then
           do j = 1, BDRY_THICKNESS
              do i = 1, BDRY_THICKNESS - rot*(j + shift - 1)
-                call pack_idx(i - 1, j - 1, rot, s_adj, shift, i_recv, j_recv, i_pack, j_pack)
+                call pack_idx (i - 1, j - 1, rot, s_adj, shift, i_recv, j_recv, i_pack, j_pack)
                 i_recv = i_recv + PATCH_SIZE
-                call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, &
-                     idx(i_recv, j_recv, offs, dims), e_pack, orient)
+                call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
              end do
           end do
        else
           if (dom%neigh_rot(t_next) == 1) then
              do i = 1, BDRY_THICKNESS
                 do j = 1, BDRY_THICKNESS - rot*(i + shift - 1)
-                   call pack_idx (i - 1, j - 1, rot, s_adj, shift, &
-                        i_recv, j_recv, i_pack, j_pack)
+                   call pack_idx (i - 1, j - 1, rot, s_adj, shift, i_recv, j_recv, i_pack, j_pack)
                    j_recv = j_recv + PATCH_SIZE
-                   call create_pack_st2 (dom, src, i_pack, j_pack, &
-                        ngb_pa, e, idx(i_recv, j_recv, offs, dims), &
-                        e_pack, orient)
+                   call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
                 end do
              end do
           else
@@ -210,9 +201,7 @@ contains
                    j_recv = j - 1 + PATCH_SIZE
                    i_pack = i - 1
                    j_pack = j - 1
-                   call create_pack_st2 (dom, src, i_pack, j_pack, &
-                        ngb_pa, e, idx(i_recv, j_recv, offs, dims), &
-                        e_pack, orient)
+                   call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
                 end do
              end do
           end if
@@ -222,25 +211,23 @@ contains
     if (s == SOUTHEAST) then
        if (dom%neigh_rot(t_last) == 1) then
           do i = 1, BDRY_THICKNESS
-             do j = 1, BDRY_THICKNESS + rot*(i + shift - 1)
+             do j = 1, BDRY_THICKNESS + rot * (i + shift - 1)
                 i_recv = i - 1 + PATCH_SIZE
                 j_recv = -j + rot*(i + shift - 1)
                 i_pack = j - 1
                 j_pack = i - 1
-                call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, &
-                     idx(i_recv, j_recv, offs, dims), e_pack, orient)
+                call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e,  idx (i_recv, j_recv, offs, dims), e_pack, orient)
              end do
           end do
        else
           if (dom%neigh_rot(t_next) == 1) then
              do j = 1, BDRY_THICKNESS
-                do i = 1, BDRY_THICKNESS + rot*(j + shift - 1)
-                   i_recv = (PATCH_SIZE + i - 1) - rot*(j + shift - 1)
+                do i = 1, BDRY_THICKNESS + rot * (j + shift - 1)
+                   i_recv = (PATCH_SIZE + i - 1) - rot * (j + shift - 1)
                    j_recv = -1 - (j - 1)
                    i_pack = LAST - (j - 1)
                    j_pack = LAST - (i - 1)
-                   call create_pack_st2(dom, src, i_pack, j_pack, &
-                        ngb_pa, e, idx(i_recv, j_recv, offs, dims), e_pack, orient)
+                   call create_pack_st2(dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
                 end do
              end do
           else
@@ -250,8 +237,7 @@ contains
                    j_recv = -1 - (j - 1)
                    i_pack = i - 1
                    j_pack = LAST - (j - 1)
-                   call create_pack_st2 (dom, src, i_pack, j_pack, &
-                        ngb_pa, e, idx(i_recv, j_recv, offs, dims), e_pack, orient)
+                   call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
                 end do
              end do
           end if
@@ -261,36 +247,33 @@ contains
     if (s == SOUTHWEST) then
        if (dom%neigh_rot(t_last) == 1) then
           do j = 1, BDRY_THICKNESS
-             do i = 1, BDRY_THICKNESS - rot*(j + shift - 1)
+             do i = 1, BDRY_THICKNESS - rot * (j + shift - 1)
                 i_recv = -i - rot*(j + shift - 1)
                 j_recv = -1 - (j - 1)
                 i_pack = LAST - (j - 1)
                 j_pack = i - 1
-                call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, &
-                     idx(i_recv, j_recv, offs, dims), e_pack, orient)
+                call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
              end do
           end do
        else
           if (dom%neigh_rot(t_next) == 1) then
              do i = 1, BDRY_THICKNESS
-                do j = 1, BDRY_THICKNESS - rot*(i + shift - 1)
+                do j = 1, BDRY_THICKNESS - rot * (i + shift - 1)
                    i_recv = -1 - (i - 1)
                    j_recv = -j - rot*(i + shift - 1)
                    i_pack = j - 1
                    j_pack = LAST - (i - 1)
-                   call create_pack_st2 (dom, src, i_pack, j_pack, &
-                        ngb_pa, e, idx(i_recv, j_recv, offs, dims), e_pack, orient)
+                   call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
                 end do
              end do
           else
              do j = 1, BDRY_THICKNESS
-                do i = 1, BDRY_THICKNESS - rot*(j + shift - 1)
+                do i = 1, BDRY_THICKNESS - rot * (j + shift - 1)
                    i_recv = -1 - (i - 1)
                    j_recv = -1 - (j - 1)
                    i_pack = LAST - (i - 1)
                    j_pack = LAST - (j - 1)
-                   call create_pack_st2 (dom, src, i_pack, j_pack, &
-                        ngb_pa, e, idx(i_recv, j_recv, offs, dims), e_pack, orient)
+                   call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
                 end do
              end do
           end if
@@ -300,25 +283,23 @@ contains
     if (s == NORTHWEST) then
        if (dom%neigh_rot(t_last) == 1) then
           do i = 1, BDRY_THICKNESS
-             do j = 1, BDRY_THICKNESS + rot*(i + shift - 1)
+             do j = 1, BDRY_THICKNESS + rot * (i + shift - 1)
                 i_recv = -1 - (i - 1)
-                j_recv = (PATCH_SIZE + j - 1) - rot*(i + shift - 1)
+                j_recv = (PATCH_SIZE + j - 1) - rot * (i + shift - 1)
                 i_pack = LAST - (j - 1)
                 j_pack = LAST - (i - 1)
-                call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, &
-                     idx(i_recv, j_recv, offs, dims), e_pack, orient)
+                call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
              end do
           end do
        else
           if (dom%neigh_rot(t_next) == 1) then
              do j = 1, BDRY_THICKNESS
-                do i = 1, BDRY_THICKNESS + rot*(j + shift - 1)
+                do i = 1, BDRY_THICKNESS + rot * (j + shift - 1)
                    i_recv = -i + rot*(j + shift - 1)
                    j_recv = j - 1 + PATCH_SIZE
                    i_pack = j - 1
                    j_pack = i - 1
-                   call create_pack_st2 (dom, src, i_pack, j_pack, &
-                        ngb_pa, e, idx(i_recv, j_recv, offs, dims), e_pack, orient)
+                   call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
                 end do
              end do
           else
@@ -328,8 +309,7 @@ contains
                    j_recv = j - 1 + PATCH_SIZE
                    i_pack = LAST - (i - 1)
                    j_pack = j - 1
-                   call create_pack_st2 (dom, src, i_pack, j_pack, &
-                        ngb_pa, e, idx(i_recv, j_recv, offs, dims), e_pack, orient)
+                   call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
                 end do
              end do
           end if
@@ -350,11 +330,11 @@ contains
     else
        t_last = typ - 4
        if (dom%neigh_rot(t_last) == 1) then
-          rot_direction = modulo(t_last, 2)
+          rot_direction = modulo (t_last, 2)
           return
        else
-          t_next = (modulo(typ, 4) + 1) - 4
-          rot_direction = modulo(t_next, 2)
+          t_next = (modulo (typ, 4) + 1) - 4
+          rot_direction = modulo (t_next, 2)
           return
        end if
     end if
@@ -410,48 +390,42 @@ contains
     end do
 
     if (rot == 1 .and. typ == WEST) then
-       if (is_penta(dom, p, SOUTHWEST - 1)) then
-          call create_pack_st (dom, AT_EDGE, src, LAST, LAST, pa, RT, &
-               nidx(LAST_BDRY, LAST_BDRY, SOUTHWEST, offs, dims)*EDGE)
-       end if
+       if (is_penta (dom, p, SOUTHWEST - 1)) &
+            call create_pack_st (dom, AT_EDGE, src, LAST, LAST, pa, RT, nidx (LAST_BDRY, LAST_BDRY, SOUTHWEST, offs, dims) * EDGE)
     end if
 
     if (rot == 1 .and. typ == SOUTH) then
-       if (is_penta(dom, p, SOUTHWEST - 1)) then
-          call create_pack_st(dom, AT_EDGE, src, LAST, LAST, pa, UP, &
-               -nidx(LAST_BDRY, LAST_BDRY, SOUTHWEST, offs, dims)*EDGE)
-       end if
+       if (is_penta (dom, p, SOUTHWEST - 1)) &
+            call create_pack_st (dom, AT_EDGE, src, LAST, LAST, pa, UP, - nidx(LAST_BDRY, LAST_BDRY, SOUTHWEST, offs, dims) * EDGE)
     end if
-
+    
     if (rot == 0 .and. typ == EAST) then
-       if (is_penta(dom, p, SOUTHEAST - 1)) then
-          call create_pack_st(dom, AT_NODE, src, 1, 0, pa, NODE, nidx(0, LAST_BDRY, SOUTHEAST, offs, dims))
-       end if
+       if (is_penta (dom, p, SOUTHEAST - 1)) &
+            call create_pack_st (dom, AT_NODE, src, 1, 0, pa, NODE, nidx(0, LAST_BDRY, SOUTHEAST, offs, dims))
     end if
-
+    
     if (rot == 0 .and. typ == NORTH) then
-       if (is_penta(dom, p, NORTHWEST - 1)) then
-          call create_pack_st(dom, AT_NODE, src, 0, 1, pa, NODE, nidx(LAST_BDRY, 0, NORTHWEST, offs, dims))
-       end if
+       if (is_penta (dom, p, NORTHWEST - 1)) &
+            call create_pack_st (dom, AT_NODE, src, 0, 1, pa, NODE, nidx (LAST_BDRY, 0, NORTHWEST, offs, dims))
     end if
 
     if (rot == 1 .and. typ == EAST) then
-       if (is_penta(dom, p, NORTHEAST - 1)) then
+       if (is_penta (dom, p, NORTHEAST - 1)) then
           call create_pack_st (dom, AT_NODE, src, 0, 1, pa, NODE,  nidx(0, 1, NORTHEAST, offs, dims))
           call create_pack_st (dom, AT_NODE, src, 1, 1, pa, NODE, -nidx(1, 0, NORTHEAST, offs, dims))
-          call create_pack_st (dom, AT_EDGE, src, 0, 1, pa, RT,    nidx(0, 1, NORTHEAST, offs, dims)*EDGE + RT)
-          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, DG,  -(nidx(0, 0, NORTHEAST, offs, dims)*EDGE + RT))
-          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, UP,    nidx(0, 0, NORTHEAST, offs, dims)*EDGE + UP)
+          call create_pack_st (dom, AT_EDGE, src, 0, 1, pa, RT,    nidx(0, 1, NORTHEAST, offs, dims) * EDGE + RT)
+          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, DG,  -(nidx(0, 0, NORTHEAST, offs, dims) * EDGE + RT))
+          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, UP,    nidx(0, 0, NORTHEAST, offs, dims) * EDGE + UP)
        end if
     end if
 
     if (rot == 1 .and. typ == NORTH) then
-       if (is_penta(dom, p, NORTHEAST - 1)) then
-          call create_pack_st (dom, AT_NODE, src, 1, 0, pa, NODE,  nidx(1, 0, NORTHEAST, offs, dims))
-          call create_pack_st (dom, AT_NODE, src, 1, 1, pa, NODE, -nidx(0, 1, NORTHEAST, offs, dims))
-          call create_pack_st (dom, AT_EDGE, src, 1, 0, pa, UP,  -(nidx(0, 1, NORTHEAST, offs, dims)*EDGE + RT))
-          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, DG,  -(nidx(0, 0, NORTHEAST, offs, dims)*EDGE + UP))
-          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, RT,    nidx(0, 0, NORTHEAST, offs, dims)*EDGE + RT)
+       if (is_penta (dom, p, NORTHEAST - 1)) then
+          call create_pack_st (dom, AT_NODE, src, 1, 0, pa, NODE,  nidx (1, 0, NORTHEAST, offs, dims))
+          call create_pack_st (dom, AT_NODE, src, 1, 1, pa, NODE, -nidx (0, 1, NORTHEAST, offs, dims))
+          call create_pack_st (dom, AT_EDGE, src, 1, 0, pa, UP,  -(nidx (0, 1, NORTHEAST, offs, dims) * EDGE + RT))
+          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, DG,  -(nidx (0, 0, NORTHEAST, offs, dims) * EDGE + UP))
+          call create_pack_st (dom, AT_EDGE, src, 0, 0, pa, RT,    nidx (0, 0, NORTHEAST, offs, dims) * EDGE + RT)
        end if
     end if
   end subroutine create_comm
@@ -490,14 +464,14 @@ contains
        ij_node = (/0, 1/)
        if (s == SOUTHEAST) ij_node = (/ij_node(2), ij_node(1)/)
        call create_pack_st(dom, AT_EDGE, src, 0, LAST, pa, DG, &
-            nidx(ij_node(1), ij_node(2), s_side, offs, dims)*EDGE + 2*s_side - 2)
+            nidx (ij_node(1), ij_node(2), s_side, offs, dims) * EDGE + 2*s_side - 2)
        ij_node = (/LAST_BDRY, 1/)
        ij_send = (/1, LAST/)
        if (s == SOUTHEAST) then
           ij_node = (/ij_node(2), ij_node(1)/)
           ij_send = (/ij_send(2), ij_send(1)/)
        end if
-       call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, -nidx(ij_node(1), ij_node(2), s, offs, dims))
+       call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, -nidx (ij_node(1), ij_node(2), s, offs, dims))
     end if
 
     if (i == 1) then
@@ -507,7 +481,7 @@ contains
           ij_node = (/ij_node(2), ij_node(1)/)
           ij_send = (/ij_send(2), ij_send(1)/)
        end if
-       call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, nidx(ij_node(1), ij_node(2), s, offs, dims))
+       call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, nidx (ij_node(1), ij_node(2), s, offs, dims))
     end if
 
     ij_node = (/-i + 1, 1/)
@@ -532,8 +506,8 @@ contains
        if (s == SOUTHEAST) s_side = SOUTH
     end if
 
-    ij_node = (/LAST_BDRY - 1, LAST/)
-    ij_send = (/1, LAST/)
+    ij_node = (/ LAST_BDRY - 1, LAST /)
+    ij_send = (/ 1, LAST /)
 
     if (s == SOUTHEAST) then
        ij_node = (/ij_node(2), ij_node(1)/)
@@ -544,9 +518,7 @@ contains
 
     ij_node = (/LAST, LAST_BDRY/)
 
-    if (s == NORTHWEST) then
-       ij_node = (/ij_node(2), ij_node(1)/)
-    end if
+    if (s == NORTHWEST) ij_node = (/ij_node(2), ij_node(1)/)
 
     call create_pack_st (dom, AT_EDGE, src, LAST*(-s_side + 4), &
          LAST*(s_side - 3), pa, DG, nidx(ij_node(1), ij_node(2), s_side, offs, dims)*EDGE + 2*s_side - 6)
@@ -883,7 +855,7 @@ contains
           do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
              src_id = grid(src_loc)%pack(AT_NODE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
-             call set (grid(dest_loc), dest_id, get(grid(src_loc), src_id))
+             call set (grid(dest_loc), dest_id, get (grid(src_loc), src_id))
           end do
        end do
     end do
