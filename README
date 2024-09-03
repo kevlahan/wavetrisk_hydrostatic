@@ -85,18 +85,20 @@ CONTENTS
    5.3 SOLID BOUNDARIES
 
 6. MODEL DETAILS
-   6.1 PROGNOSTIC VARIABLES
-   6.2 PARAMETERS
-   6.3 HORIZONTAL COORDINATES
-   6.4 VERTICAL COORDINATES
-   6.5 GRID STRUCTURE
-   6.6 2D PROJECTION ONTO A LONGITUDE-LATITUDE GRID
-   6.7 BASIC GRID DATA TYPES
-   6.8 GRID ELEMENTS
-   6.9 INDEXING OF GRID ELEMENTS AND NEIGHBOURS
-   6.10 DATA OUTPUT
-   6.11 CALCULATIONS ON ADAPTED GRID
-   6.12 DIAGNOSTIC VARIABLES
+   6.1  PROGNOSTIC VARIABLES
+   6.2  PARAMETERS
+   6.3  HORIZONTAL COORDINATES
+   6.4  VERTICAL COORDINATES
+   6.5  GRID STRUCTURE
+   6.6  2D PROJECTION ONTO A LONGITUDE-LATITUDE GRID
+   6.7  BASIC GRID DATA TYPES
+   6.8  GRID ELEMENTS
+   6.9  INDEXING OF GRID ELEMENTS AND NEIGHBOURS
+   6.10 DOMAIN BOUNDARY CELLS ("HALO" OR "GHOST CELLS")
+   6.11 DATA OUTPUT
+   6.12 CALCULATIONS ON ADAPTED GRID
+   6.13 DIAGNOSTIC VARIABLES
+
 
 
 **********************************************************************************************************************************
@@ -108,6 +110,7 @@ Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suare
 2. A file setting various case-specific properties: test_case_module.f90 (sets initial conditions, defines the vertical grid,
    defines and reads/prints parameters for this test case).
 3. An example input parameter file test_case.in.
+
 
 ************************************************************
 1.1 SIMPLE PHYSICS PACKAGE
@@ -147,7 +150,8 @@ To clean instead of using `make clean` use `make clean PHYSICS=true`. This will 
 but will also clean the physics package itself.
 
 ** For an indepth description of a test case, the interface and the physics package additions see the mini-manual called 
-phsyics_package_manual under 'wavetrisk_hydrostatic/src/physics'.
+physics_package_manual under 'wavetrisk_hydrostatic/src/physics'.
+
 
 **********************************************************************************************************************************
 2. COMPILING
@@ -156,11 +160,13 @@ The compile options and their default values are given at the start of the Makef
 The code has been tested for the gfortran and ifort compilers and the openmpi and intelmpi mpi libraries. gfortran/openmpi is the
 recommended choice for portability, and because AMPI (see below) does not currently work with intel.
 
+
 ************************************************************
 2.1 PARALLEL AND SERIAL VERSIONS
 ARCH=mpi (default load balancing and checkpointing) or ARCH=ampi (AMPI load balancing and checkpointing) compiles
 a parallel version.
 ARCH=ser compiles a serial version, primarily for testing.
+
 
 ************************************************************
 2.2 LOAD BALANCING
@@ -189,9 +195,11 @@ CMK_NATIVE_CXX=icpc CMK_NATIVE_LDXX=icpc ./build AMPI-only ucx-linux-x86_64 smp 
 If PMIx is not available as a module, you need to build it yourself and then add --basedir=$HOME/pmix-3.1.5/build to
 the AMPI to the build command.
 
+
 ************************************************************
 2.3 OPTIMIZATION
 Default is OPTIM=2. Setting OPTIM=0 adds the flag -g and other compiler-dependent checks.
+
 
 ************************************************************
 2.4 COARSEST GRID
@@ -207,6 +215,7 @@ may be used, while if PATCH_LEVEL = 2 then up to 2560 cores may be used. These o
 The finest allowable grid is set by the parameter max_level in the input file (e.g. test_case.in). The finest grid actually
 used changes dynamically and depends on the solution and the tolerance parameter tol.
 
+
 ************************************************************
 2.5 EXAMPLES
 To compile test case Held_Suarez using mpi and ifort with J5 as the coarsest grid:
@@ -220,6 +229,7 @@ To compile test case jet using charm++/AMPI and gfortran with J5 as the coarsest
 make TEST_CASE=jet PARAM=param_J6 ARCH=ampi F90=gfortran
 
 !! Note that AMPI does not work properly with ifort !!
+
 
 
 **********************************************************************************************************************************
@@ -252,6 +262,7 @@ If running with bathymetry data (e.g. incompressible tsunami test case) you need
 ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute etopo topography data)
 
 5. Ensure that gtar is installed (required for file tar-ing and compression).
+
 
 ************************************************************
 3.1 MPI EXAMPLES
@@ -291,6 +302,7 @@ To restart from a saved checkpoint
 
 where directory_name is the directory containing the checkpoint to restart from. If you get a segmentation fault, check that parameters 
 DOMAIN_LEVEL and MIN_LEVEL and flag vert_diffuse are the same as in the run that generated the checkpoint.
+
 
 ************************************************************
 3.2 AMPI EXAMPLES
@@ -341,10 +353,12 @@ The virtualization ratio in this case is vp/p = 304/152 = 2.
 In this case the virtualization ratio is vp/p = 160/40 = 4.
 
 
+
 **********************************************************************************************************************************
 4. POST-PROCESSING DATA USING PARAVIEW AND MATLAB
 
 See also post/paraview_notes.
+
 
 ************************************************************
 4.1 VIEWING SPHERICAL DATA WITH PARAVIEW
@@ -413,6 +427,7 @@ run) or from data post-processed from saved checkpoints (e.g. Held_Suarez_J4L18.
 plots time history data from the log file saved during the run (e.g. Held_Suarez_log).  (See also 2D PROJECTION below.)
 Additional post-processing m-files are provided for specific test cases and applications.
 
+
 ************************************************************
 4.4 SPHERICAL HARMONICS GLOBAL AND LOCAL SPECTRAL ANALYSIS
 
@@ -430,8 +445,11 @@ SHTOOLS requires the libraries lapack, blas and fftw3.
 
 An example matlab m-file spherical_harmonic_analysis.m is also provided for visualizing the spectra produced by this test case.
 
+
+
 **********************************************************************************************************************************
 5. OCEAN MODEL
+
 
 ************************************************************
 5.1 BAROTROPIC-BARCOCLINIC MODE SPLITTING
@@ -488,6 +506,7 @@ M., Mittal, R., Meurdesoif, Y., and Hourdin, F.: DYNAMICO-1.0, an icosahedral hy
 consistency and versatility, Geosci. Model Dev., 8, 3131–3150, https://doi.org/10.5194/gmd-8-3131-2015, 2015.). The computational
 grid is based on bisections of the icosahedron.
 
+
 ************************************************************
 6.1 PROGNOSTIC VARIABLES
 
@@ -505,6 +524,7 @@ S_TEMP contains the mass-weighted thermodynamic variable theta, Phi = mu * theta
 
 S_VELO contains the three velocity components U, V, W at edges RT, DG and UP respectively (see below).
 
+
 ************************************************************
 6.2 PARAMETERS
 
@@ -515,6 +535,7 @@ The full list of parameters is given in shared.f90, together with their default 
 
 Cartesian (x,y,z) coordinates are used with spherical geometry for lengths and areas on the sphere.  Since the equations are
 written in vector invariant form, there are no explicit metric terms.
+
 
 ************************************************************
 6.4 VERTICAL COORDINATES
@@ -528,6 +549,7 @@ perturbation is therefore H + H0.
 
 The vertical coordinates are Lagrangian (i.e. they move as material surfaces) with periodic remapping onto a target (e.g. initial
 grid).  A collection of different conservative piecewise remapping routines are available.
+
 
 ************************************************************
 6.5 GRID STRUCTURE
@@ -551,12 +573,14 @@ larger PATCH_LEVEL is the fewer levels of tree structure must be traversed befor
 contain inactive nodes).  Each computation patch element is made up of one node for scalars and three edges for vectors
 U, V, W (see also GRID ELEMENTS below).
 
+
 ************************************************************
 6.6 2D PROJECTION ONTO A LONGITUDE-LATITUDE GRID
 
 The module projection_mod includes routines for projecting data from the sphere to a uniform longitude-latitude grid.  These can
 be used to save projections for post-processing, spherical harmonics, or for zonal averaging.  Note that these routines require
 a "full" (i.e. non-adaptive grid) which can be either min_lev, or computed using call fill_up_grid_and_IWT (level_save).
+
 
 ************************************************************
 6.7 BASIC GRID DATA TYPES
@@ -641,6 +665,7 @@ Note that within a patch similar notation is used for shifts in i and j (e.g. sh
                    \              \             \            \
                      -------------   ------------ ------------ 
 
+
 ************************************************************
 6.9 INDEXING OF GRID ELEMENTS AND NEIGHBOURS
 
@@ -664,14 +689,56 @@ The components of the grid elements are then found as:
 
 Wavelet coefficients are stored at the SAME nodes/edges as the nodes/edges they characterize.
 
+
 ************************************************************
-6.10 DATA OUTPUT
+6.10 DOMAIN BOUNDARY CELLS ("HALO" OR "GHOST CELLS")
+
+To support domain-based parallelization, each domain is extended by BDRY_THICKNESS rows and columns of cells associated to the
+8 neighouring domains.
+
+A routine is applied to nodes (scalars) using commands like:
+
+  call apply_bdry (routine, zlev, 0, 1)  (st = 0, en = 1)
+
+where (0,1) indicates the routine is applied to the EAST and NORTH ghost cells in addition to the the actual domain cells. Setting
+(0,1) instead of (0,0) automatically applies the routine to the poles (which are included in the en = 1 ghost cells).
+
+A routine is applied to edges (velocity) using commands like:
+
+  call apply_bdry (routine, zlev, 0, 0)  (st = 0, en = 0)
+
+since all edges are included in the actual domain.
+
+After applying these routines, the ghost nodes/edges are NOT correct for ghost cells outside (0,1) (for scalars) and (0,0) 
+(for velocity) for any variables modified by the routine.  The routine should indicate this by setting
+
+     variable%bdry_uptodate = .false.
+
+where variable is the name of the modified variable (e.g. sol). The ghost cells are then corrected by the update routine:
+
+     call update (variable, l)       to update at level l only
+     call update (variable, NONE)    to update at all levels
+
+The update command should be called by all routines requiring correct node values outside (0,1) and correct edge values outside (0,0).
+
+!! The update routine corrects ghost cell values only on (-(BDRY_THICKNESS-1), BDRY_THICKNESS), not (-BDRY_THICKNESS, BDRY_THICKNESS).
+Therefore, the default value
+
+     BDRY_THICKNESS = 2
+     
+ensures that nearest neighbours are correct for nodes evaluated on (0,1) (i.e. ghost cells -1, 2), which is sufficient provided
+no routine requires more than one nearest neighbour nodes/edges in each direction at the same level.
+
+
+************************************************************
+6.11 DATA OUTPUT
 
 Data is written for plotting by routines io.f90/write_primal and io.f90/write_dual.  The full state of the simulation is saved in
 io.f90/dump_adapt_mpi and read in again by io.f90/load_adapt_mpi.
 
+
 ************************************************************
-6.11 CALCULATIONS ON ADAPTED GRID
+6.12 CALCULATIONS ON ADAPTED GRID
 
 By default fields are calculated and operators are applied on the ENTIRE grid (including at nodes where the result can be obtained
 by restriction indicated by mask=12 and adjacent zone nodes indicated by mask=8) and the results are then over-written by correct
@@ -679,12 +746,14 @@ values.  (Note that the solution in the adjacent zone at fine scale j+1 are foun
 calculated at scale j+1 are not actually used.)
 
 This means that some operations on the entire grid could produce intermediate overflows, inf/NaN, or invalid indices due to
-incorrect values at these nodes or their neighbours. Functions and subroutines should take this into account.  Similarly,
+incorrect values at these nodes or their neighbours, even though default values have been set to "reasonable" default values
+when the grid is extended during adaptivity. Functions and subroutines should take this into account.  Similarly,
 circulation, vorticity and qe (potential vorticity are first computed incorrectly at pentagon points in step1 (or cal_vort) and
 then corrected in post_step1 (or post_vort).
 
+
 ************************************************************
-6.12 DIAGNOSTIC VARIABLES
+6.13 DIAGNOSTIC VARIABLES
 
 Diagnostic variables are derived from the prognostic variables defined in section 6.1. Diagnostic variables (or quantities) include
 temperature, zonal velocity, meridional velocity, OMEGA (vertical velocity D_t P = OMEGa [Pa/s]), vorticity, eddy kinetic energy,
