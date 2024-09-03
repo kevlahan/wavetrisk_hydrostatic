@@ -24,7 +24,7 @@ contains
     implicit none
     integer :: k, s, d
 
-    allocate(n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
+    allocate (n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
 
     n_active_edges = 0
     n_active_nodes = 0
@@ -91,8 +91,9 @@ contains
        do dest_loc = 1, size(grid)
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
-             src_id = grid(src_loc)%pack(AT_NODE,dest_glo+1)%elts(i)
+             src_id  = grid(src_loc )%pack(AT_NODE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
+             
              call set (grid(dest_loc), dest_id, get(grid(src_loc), src_id))
           end do
        end do
@@ -465,8 +466,9 @@ contains
     if (i == 0) then
        ij_node = (/0, 1/)
        if (s == SOUTHEAST) ij_node = (/ij_node(2), ij_node(1)/)
-       call create_pack_st(dom, AT_EDGE, src, 0, LAST, pa, DG, &
+       call create_pack_st (dom, AT_EDGE, src, 0, LAST, pa, DG, &
             nidx (ij_node(1), ij_node(2), s_side, offs, dims) * EDGE + 2*s_side - 2)
+       
        ij_node = (/ LAST_BDRY, 1    /)
        ij_send = (/ 1,         LAST /)
        if (s == SOUTHEAST) then

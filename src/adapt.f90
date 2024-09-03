@@ -204,45 +204,44 @@ contains
 
     integer :: d, k, l, l_start, v
 
-    if (tol > 0d0) then
-       call zero_float (wavelet)
+    call zero_float (wavelet)
 
-       if (present(l_start0)) then
-          l_start = l_start0
-          do k = 1, size(scaling,2)
-             do d = 1, size(grid)
-                velo => scaling(S_VELO,k)%data(d)%elts
-                call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
-                nullify (velo)
-             end do
-          end do
-       else
-          l_start = level_start
-       end if
-
-       call update_array_bdry (scaling, NONE, 16)
-
+    if (present(l_start0)) then
+       l_start = l_start0
        do k = 1, size(scaling,2)
-          do l = l_start, level_end-1
-             do d = 1, size(grid)
-                do v = scalars(1), scalars(2)
-                   scalar => scaling(v,k)%data(d)%elts
-                   wc_s   => wavelet(v,k)%data(d)%elts
-                   call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-                   nullify (scalar, wc_s)
-                end do
-                velo => scaling(S_VELO,k)%data(d)%elts
-                wc_u => wavelet(S_VELO,k)%data(d)%elts
-                call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
-                call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
-                nullify (velo, wc_u)
-             end do
-             wavelet(:,k)%bdry_uptodate = .false.
+          do d = 1, size(grid)
+             velo => scaling(S_VELO,k)%data(d)%elts
+             call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
+             nullify (velo)
           end do
        end do
-       call compress_wavelets (wavelet)
-       call inverse_wavelet_transform (wavelet, scaling)
+    else
+       l_start = level_start
     end if
+
+    scaling%bdry_uptodate = .false.
+    call update_array_bdry (scaling, NONE, 16)
+
+    do k = 1, size(scaling,2)
+       do l = l_start, level_end-1
+          do d = 1, size(grid)
+             do v = scalars(1), scalars(2)
+                scalar => scaling(v,k)%data(d)%elts
+                wc_s   => wavelet(v,k)%data(d)%elts
+                call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+                nullify (scalar, wc_s)
+             end do
+             velo => scaling(S_VELO,k)%data(d)%elts
+             wc_u => wavelet(S_VELO,k)%data(d)%elts
+             call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
+             call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
+             nullify (velo, wc_u)
+          end do
+          wavelet(:,k)%bdry_uptodate = .false.
+       end do
+    end do
+    call compress_wavelets (wavelet)
+    call inverse_wavelet_transform (wavelet, scaling)
   end subroutine WT_after_step
 
   subroutine WT_after_scalar_0 (scaling, wavelet, l_start0)

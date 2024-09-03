@@ -120,34 +120,37 @@ contains
     end do
 
     if (is_penta(dom, p_chd, IPLUSJMINUS-1)) &
-       dom%node%elts(idx(PATCH_SIZE, -1, offs_chd, dims_chd) + 1) = mid_pt( &
-            dom%node%elts(idx(PATCH_SIZE+1, 0, offs_par, dims_par)+1), &
-            dom%node%elts(idx(PATCH_SIZE,   0, offs_par, dims_par)+1))
+       dom%node%elts(idx (PATCH_SIZE, -1, offs_chd, dims_chd) + 1) = mid_pt( &
+            dom%node%elts(idx (PATCH_SIZE+1, 0, offs_par, dims_par)+1), &
+            dom%node%elts(idx (PATCH_SIZE,   0, offs_par, dims_par)+1))
 
     if (is_penta(dom, p_chd, IMINUSJPLUS-1)) &
-       dom%node%elts(idx(-1, PATCH_SIZE, offs_chd, dims_chd) + 1) = mid_pt( &
-            dom%node%elts(idx(0, PATCH_SIZE+1, offs_par, dims_par)+1), &
-            dom%node%elts(idx(0, PATCH_SIZE,   offs_par, dims_par)+1))
+       dom%node%elts(idx (-1, PATCH_SIZE, offs_chd, dims_chd) + 1) = mid_pt( &
+            dom%node%elts(idx (0, PATCH_SIZE+1, offs_par, dims_par)+1), &
+            dom%node%elts(idx (0, PATCH_SIZE,   offs_par, dims_par)+1))
 
     num = dom%node%length - dom%areas%length
     d = dom%id + 1
 
-    call extend (dom%ccentre, TRIAG*num, ORIGIN)
-    call apply_onescale_to_patch2 (ccentre, dom, p_chd, z_null, -2, 1)
+    call extend (dom%ccentre, TRIAG * num, ORIGIN)
+    call apply_onescale_to_patch2 (ccentre, dom, p_chd, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     call ccentre_penta (dom, p_chd)
-    call extend (dom%midpt, EDGE*num, ORIGIN)
-    call apply_onescale_to_patch2 (midpt, dom, p_chd, z_null, -1, 2)
-    call extend (dom%pedlen, EDGE*num, 0d0)
-    call extend (dom%len, EDGE*num, 0d0)
-    call apply_onescale_to_patch2 (lengths, dom, p_chd, z_null, -1, 2)
+    call extend (dom%midpt, EDGE * num, ORIGIN)
+    call apply_onescale_to_patch2 (midpt, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call extend (dom%pedlen, EDGE * num, 0d0)
+    call extend (dom%len, EDGE * num, 0d0)
+    call apply_onescale_to_patch2 (lengths, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
     tmp = ORIGIN
-    call extend (dom%areas, num, Areas(0d0, 0d0))
-    call apply_onescale_to_patch2 (cpt_areas, dom, p_chd, z_null, -1, 2)
-    call extend (dom%triarea, EDGE*num, 1d0)
-    call apply_onescale_to_patch (cpt_triarea, dom, p_chd, z_null, -1, 1)
-    call extend (dom%coriolis, TRIAG*num, 0d0)
-    call apply_onescale_to_patch (coriolis, dom, p_chd, z_null, -1, 1)
+    
+    call extend (dom%areas, num, Areas (0d0, 0d0))
+    call apply_onescale_to_patch2 (cpt_areas, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    
+    call extend (dom%triarea, EDGE * num, 1d0)
+    call apply_onescale_to_patch (cpt_triarea, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    
+    call extend (dom%coriolis, TRIAG * num, 0d0)
+    call apply_onescale_to_patch (coriolis, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     
     call extend (dom%surf_press,   num, 0d0)
     call extend (dom%press,        num, 0d0)
@@ -202,17 +205,17 @@ contains
     end if
     
     call extend (Laplacian_vector(S_DIVU)%data(d),     num,  0d0)
-    call extend (Laplacian_vector(S_ROTU)%data(d), EDGE*num, 0d0)
+    call extend (Laplacian_vector(S_ROTU)%data(d), EDGE * num, 0d0)
     do v = scalars(1), scalars(2)
-       call extend (horiz_flux(v)%data(d),       EDGE*num, 0d0)
+       call extend (horiz_flux(v)%data(d),       EDGE * num, 0d0)
        call extend (Laplacian_scalar(v)%data(d),      num, 0d0)
     end do
     
-    call extend (dom%overl_areas, EDGE*num, Overl_Area(0d0, 0d0))
-    call extend (dom%I_u_wgt,     EDGE*num, Iu_Wgt(0d0))
+    call extend (dom%overl_areas, EDGE * num, Overl_Area(0d0, 0d0))
+    call extend (dom%I_u_wgt,     EDGE * num, Iu_Wgt(0d0))
     call extend (dom%R_F_wgt,          num, RF_Wgt(0d0))
     call extend (dom%mask_n,           num, ZERO)
-    call extend (dom%mask_e,      EDGE*num, ZERO)
+    call extend (dom%mask_e,      EDGE * num, ZERO)
 
     call apply_interscale_to_patch3 (set_WT_wgts, dom, p, c, z_null, 0, 0)
     call apply_interscale_to_patch3 (set_RF_wgts, dom, p, c, z_null, 0, 0)

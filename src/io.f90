@@ -1371,8 +1371,8 @@ contains
     l2error = 0d0
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
-    call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
+    call apply_onescale2 (ccentre, level_end-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     call apply_onescale (check_d,  level_end-1, z_null,  0, 0)
 
     l2error = sqrt (sum_real (l2error))
@@ -1417,18 +1417,18 @@ contains
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
-    call apply_onescale2 (ccentre,    level_end-1, z_null, -2, 1)
-    call apply_onescale2 (midpt,      level_end-1, z_null, -1, 1)
+    call apply_onescale2 (ccentre,    level_end-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_onescale2 (midpt,      level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
 
     maxerror = 0d0
-    l2error = 0d0
+    l2error  = 0d0
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
-    call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
-    call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
-    call apply_onescale (check_d,  level_end-1, z_null,  0, 0)
+    call apply_onescale2 (ccentre, level_end-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale  (check_d,  level_end-1, z_null,  0, 0)
 
     l2error = sqrt (sum_real(l2error))
     maxerror = sync_max_real (maxerror)
@@ -1446,7 +1446,7 @@ contains
     implicit none
     integer :: d_HR
 
-    dom_id_from_HR_id = modulo(d_HR,2)*5 + modulo(d_HR/2-1,5)
+    dom_id_from_HR_id = modulo (d_HR, 2) * 5 + modulo (d_HR/2 - 1, 5)
   end function dom_id_from_HR_id
 
   integer function sub_dom_id_from_HR_sub_id (sub_id)

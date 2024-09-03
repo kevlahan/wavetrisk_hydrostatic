@@ -448,10 +448,10 @@ contains
        end do
 
        call init (grid(d)%areas,    grid(d)%node%length)
-       call init (grid(d)%pedlen,   grid(d)%node%length*EDGE)
-       call init (grid(d)%len,      grid(d)%node%length*EDGE)
-       call init (grid(d)%triarea,  grid(d)%node%length*TRIAG)
-       call init (grid(d)%coriolis, grid(d)%node%length*TRIAG)
+       call init (grid(d)%pedlen,   grid(d)%node%length * EDGE)
+       call init (grid(d)%len,      grid(d)%node%length * EDGE)
+       call init (grid(d)%triarea,  grid(d)%node%length * TRIAG)
+       call init (grid(d)%coriolis, grid(d)%node%length * TRIAG)
     end do
   end subroutine init_geometry
 
@@ -459,39 +459,39 @@ contains
     implicit none
     integer :: d, k, v
 
-    call apply_onescale2 (ccentre, min_level-1, z_null, -2, 1)
+    call apply_onescale2 (ccentre, min_level-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
 
     do d = 1, size(grid)
        call ccentre_penta (grid(d), 1)
     end do
 
-    call apply_onescale2 (midpt,      min_level-1, z_null, -1, 2)
-    call apply_onescale2 (cpt_areas,  min_level-1, z_null, -1, 2)
-    call apply_onescale2 (lengths,    min_level-1, z_null, -1, 2)
+    call apply_onescale2 (midpt,      min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale2 (cpt_areas,  min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale2 (lengths,    min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
-    call apply_onescale (cpt_triarea, min_level-1, z_null, -1, 1)
-    call apply_onescale (coriolis,    min_level-1, z_null, -1, 1)
+    call apply_onescale (cpt_triarea, min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale (coriolis,    min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     
     do d = 1, size(grid)
-       call init (grid(d)%surf_press,   grid(d)%node%length)
-       call init (grid(d)%press,        grid(d)%node%length)
-       call init (grid(d)%geopot,       grid(d)%node%length)
-       call init (grid(d)%u_zonal,      grid(d)%node%length)
-       call init (grid(d)%v_merid,      grid(d)%node%length)
-       call init (grid(d)%press_lower,  grid(d)%node%length)
-       call init (grid(d)%geopot_lower, grid(d)%node%length)
-       call init (grid(d)%bernoulli,    grid(d)%node%length)
-       call init (grid(d)%ke,           grid(d)%node%length)
-       call init (grid(d)%divu,         grid(d)%node%length)
-       call init (grid(d)%vort,   TRIAG*grid(d)%node%length)
-       call init (grid(d)%qe,      EDGE*grid(d)%node%length)
+       call init (grid(d)%surf_press,     grid(d)%node%length)
+       call init (grid(d)%press,          grid(d)%node%length)
+       call init (grid(d)%geopot,         grid(d)%node%length)
+       call init (grid(d)%u_zonal,        grid(d)%node%length)
+       call init (grid(d)%v_merid,        grid(d)%node%length)
+       call init (grid(d)%press_lower,    grid(d)%node%length)
+       call init (grid(d)%geopot_lower,   grid(d)%node%length)
+       call init (grid(d)%bernoulli,      grid(d)%node%length)
+       call init (grid(d)%ke,             grid(d)%node%length)
+       call init (grid(d)%divu,           grid(d)%node%length)
+       call init (grid(d)%vort,   TRIAG * grid(d)%node%length)
+       call init (grid(d)%qe,      EDGE * grid(d)%node%length)
        
-       call init (Laplacian_vector(S_DIVU)%data(d),      grid(d)%node%length)
-       call init (Laplacian_vector(S_ROTU)%data(d), EDGE*grid(d)%node%length)
+       call init (Laplacian_vector(S_DIVU)%data(d),        grid(d)%node%length)
+       call init (Laplacian_vector(S_ROTU)%data(d), EDGE * grid(d)%node%length)
        
        do v = scalars(1), scalars(2)
-          call init (horiz_flux(v)%data(d), EDGE*grid(d)%node%length)
-          call init (Laplacian_scalar(v)%data(d), grid(d)%node%length)
+          call init (horiz_flux(v)%data(d), EDGE * grid(d)%node%length)
+          call init (Laplacian_scalar(v)%data(d),  grid(d)%node%length)
        end do
        
        call init (topography%data(d), grid(d)%node%length)

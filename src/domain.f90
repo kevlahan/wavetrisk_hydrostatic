@@ -44,7 +44,7 @@
      type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack, unpk
      type(Int_Array), dimension(:,:), allocatable             :: src_patch
      
-     ! Physical quantities (should evaluate on -BDRY_THICKNESS, BDRY_THICKNESS since cannot use bdry_update)
+     ! Physical quantities (should evaluate on -(BDRY_THICKNESS-1), BDRY_THICKNESS since cannot use bdry_update)
      type(Float_Array) :: coriolis    ! Coriolis force
      type(Float_Array) :: surf_press  ! surface pressure (compressible) or surface Lagrange multiplier (incompressible)
      type(Float_Array) :: press       ! pressure (compressible case) or Lagrange multiplier (incompressible case)
@@ -216,7 +216,7 @@ contains
        else
           def_val = ref_density * (b_vert(k) - b_vert(k-1)) * max_depth
        end if
-       
+
        do v = scalars(1), scalars(2)
           if (split_mean_perturbation) then 
              call extend (sol(v,k)%data(d),      num, 0d0)     
@@ -267,7 +267,7 @@ contains
     integer :: l
 
     do l = level_start, level_end
-       call apply_onescale (routine, l, zlev, -BDRY_THICKNESS, BDRY_THICKNESS)
+       call apply_onescale (routine, l, zlev, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     end do
   end subroutine apply
 

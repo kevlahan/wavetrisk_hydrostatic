@@ -71,13 +71,13 @@ program Held_Suarez
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Numerical method parameters
   compressible             = .true.                 ! compressible equations
-  split_mean_perturbation  = .false.                 ! split prognostic variables into mean and fluctuations
+  split_mean_perturbation  = .false.                ! split prognostic variables into mean and fluctuations
   uniform                  = .false.                ! hybrid vertical grid (based on A, B coefficients)
   adapt_dt                 = .false.                ! fixed time step
   default_thresholds       = .false.                ! thresholding type
   remap                    = .true.                 ! use vertical remapping
-  iremap                   = 4                     ! remap every 4 dt
-  timeint_type             = "RK4"                  ! time integration scheme (use RK34, RK45 or RK4)
+  iremap                   = 4                      ! remap every 4 dt
+  timeint_type             = "RK3"                  ! time integration scheme (use RK34, RK45 or RK4)
   Laplace_order_init       = 2                      ! bi-Laplacian horizontal diffusion
   scale_aware              = .false.                ! do not use scale-aware viscosity
   analytic_topo            = "none"                 ! type of analytic topography (mountains or none if NCAR_topo = .false.)

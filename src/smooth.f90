@@ -69,8 +69,8 @@ contains
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
-    call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
-    call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
+    call apply_onescale2 (ccentre, level_end-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
     maxerror = 0d0
     l2error  = 0d0
@@ -102,14 +102,14 @@ contains
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
-    call apply_onescale2 (ccentre,    level_end-1, z_null, -2, 1)
-    call apply_onescale2 (midpt,      level_end-1, z_null, -1, 1)
+    call apply_onescale2 (ccentre,    level_end-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_onescale2 (midpt,      level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
-    call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
-    call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
+    call apply_onescale2 (ccentre, level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
     maxerror = 0d0
     l2error = 0d0

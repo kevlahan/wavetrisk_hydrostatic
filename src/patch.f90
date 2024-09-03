@@ -2,10 +2,10 @@ module patch_mod
   use param_mod
   use shared_mod
   implicit none
-
+  
   integer, parameter :: PATCH_SIZE = 2**PATCH_LEVEL
-  integer, parameter :: LAST = PATCH_SIZE - 1
-  integer, parameter :: LAST_BDRY = BDRY_THICKNESS - 1
+  integer, parameter :: LAST       = PATCH_SIZE - 1
+  integer, parameter :: LAST_BDRY  = BDRY_THICKNESS - 1
 
   type Patch
      integer                     :: elts_start
