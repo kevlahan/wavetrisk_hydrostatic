@@ -230,13 +230,10 @@ contains
        call abort
     end if
 
-    scaling%bdry_uptodate = .false.
-    wavelet%bdry_uptodate = .false.
     call update_array_bdry1 (wavelet, max (jmin, level_start), jmax)
     call update_array_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
-
     do l = jmin, jmax-1
        ! Prolong scalars to finer nodes existing at coarser grid (undo lifting)
        do k = 1, size(scaling,2)
@@ -323,13 +320,10 @@ contains
        call abort
     end if
 
-    scaling%bdry_uptodate = .false.
-    wavelet%bdry_uptodate = .false.
     call update_bdry1 (wavelet, max (jmin, level_start), jmax)
     call update_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
-
     do l = jmin, jmax-1
        ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
        do d = 1, size(grid)
@@ -376,13 +370,10 @@ contains
        call abort
     end if
 
-    scaling%bdry_uptodate = .false.
-    wavelet%bdry_uptodate = .false.
     call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax)
     call update_vector_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
-    
     do l = jmin, jmax-1
        ! Prolong scalar to finer nodes existing at coarser grid (undo lifting)
        do k = 1, size(scaling)
@@ -433,13 +424,10 @@ contains
        call abort
     end if
 
-    scaling%bdry_uptodate = .false.
-    wavelet%bdry_uptodate = .false.
     call update_bdry1 (wavelet, max (jmin, level_start), jmax)
     call update_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
-
     do l = jmin, jmax-1
        if (l > jmin) call update_bdry__finish (scaling, l) ! for next outer velocity
 
@@ -493,13 +481,10 @@ contains
        call abort
     end if
 
-    scaling%bdry_uptodate = .false.
-    wavelet%bdry_uptodate = .false.
     call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax)
     call update_vector_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
-
     do l = jmin, jmax-1
        if (l > jmin) call update_vector_bdry__finish (scaling, l) ! for next outer velocity
 
