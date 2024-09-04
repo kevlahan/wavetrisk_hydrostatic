@@ -133,7 +133,7 @@ program Held_Suarez
 
   ! Save initial conditions
   call omega_velocity
-  call write_and_export (iwrite)
+  !call write_and_export (iwrite)
 
   ! Compute hydrostatic error factors for topography
   if (NCAR_topo .or. analytic_topo=="mountains") then

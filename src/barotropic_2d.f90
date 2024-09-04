@@ -58,8 +58,8 @@ contains
     
     integer :: d, j, k, l
 
-    call update_vector_bdry (q(S_MASS,1:zlevels+1), NONE)
-    call update_vector_bdry (q(S_TEMP,1:zlevels),   NONE)
+    call update_bdry (q(S_MASS,1:zlevels+1), NONE)
+    call update_bdry (q(S_TEMP,1:zlevels),   NONE)
 
     do l = level_end, level_start, -1
        call total_height (q(S_MASS,1:zlevels), exner_fun(1), l) ! sum mass perturbations
@@ -331,8 +331,8 @@ contains
 
     integer :: d, j, l
 
-    call update_vector_bdry (q(S_MASS,1:zlevels), NONE)
-    call update_vector_bdry (q(S_VELO,1:zlevels), NONE)
+    call update_bdry (q(S_MASS,1:zlevels), NONE)
+    call update_bdry (q(S_VELO,1:zlevels), NONE)
 
     do l = level_end, level_start, -1
        ! Calculate vertically integrated velocity flux

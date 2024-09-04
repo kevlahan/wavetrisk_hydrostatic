@@ -852,8 +852,8 @@ contains
     character(9999)                  :: archive, bash_cmd, files
     logical, dimension(1:N_CHDRN)    :: required
 
-    call update_array_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE, 880)
-    if (vert_diffuse) call update_vector_bdry (wav_tke, NONE, 881)
+    call update_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE, 880)
+    if (vert_diffuse) call update_bdry (wav_tke, NONE, 881)
 
     do d = 1, size(grid)
        do k = zmin, zmax
@@ -1525,7 +1525,7 @@ contains
     write (isv, '(i4.4)') isave
 
     sol%bdry_uptodate = .false.
-    call update_array_bdry (sol, NONE, 883)
+    call update_bdry (sol, NONE, 883)
 
     call pre_levelout
 
@@ -1961,7 +1961,7 @@ contains
     implicit none
     integer :: d, j, k, l, p
 
-    call update_array_bdry (sol, NONE, 884)
+    call update_bdry (sol, NONE, 884)
 
     ! Compute surface pressure
     call cal_surf_press (sol)
@@ -2025,7 +2025,7 @@ contains
           end do
 
           trend(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
-          call update_vector_bdry (trend(S_MASS:S_TEMP,k), l, 887)
+          call update_bdry (trend(S_MASS:S_TEMP,k), l, 887)
        end do
     end do
 
@@ -2034,7 +2034,7 @@ contains
     call apply (cal_omega, z_null)
 
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
-    call update_vector_bdry (trend(S_TEMP,:), NONE, 888)
+    call update_bdry (trend(S_TEMP,:), NONE, 888)
   end subroutine omega_velocity
 
   subroutine cal_omega (dom, i, j, zlev, offs, dims)
@@ -2076,7 +2076,7 @@ contains
     implicit none
     integer :: d, j, k, l, p
 
-    call update_array_bdry (sol, NONE, 889)
+    call update_bdry (sol, NONE, 889)
 
     ! Compute surface pressure
     call cal_surf_press (sol)
@@ -2114,7 +2114,7 @@ contains
        end do
     end do
     trend(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
-    call update_vector_bdry (trend(S_MASS:S_TEMP,k), l, 891)
+    call update_bdry (trend(S_MASS:S_TEMP,k), l, 891)
 
     ! Compute Omega (velocity flux across interfaces)
     ! stored in trend(S_TEMP,1:zlevels)

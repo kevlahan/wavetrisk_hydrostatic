@@ -16,6 +16,22 @@ module comm_mpi_mod
   interface sync_min_real
      procedure :: sync_min_real_0, sync_min_real_1
   end interface sync_min_real
+
+  interface update_bdry
+     procedure :: update_bdry_0, update_bdry_1, update_bdry_2
+  end interface update_bdry
+
+  interface update_bdry1
+     procedure :: update_bdry1_0, update_bdry1_1, update_bdry1_2
+  end interface update_bdry1
+
+  interface update_bdry__start
+     procedure :: update_bdry__start_0, update_bdry__start_1, update_bdry__start_2
+  end interface update_bdry__start
+
+  interface update_bdry__finish
+     procedure :: update_bdry__finish_0, update_bdry__finish_1, update_bdry__finish_2
+  end interface update_bdry__finish
 contains
   subroutine init_comm_mpi
     ! Needed for compatibility with mpi code (not actually used in serial case)
@@ -90,16 +106,113 @@ contains
     call comm_masks
   end subroutine comm_masks_mpi
 
-  subroutine update_bdry1 (field, l_start, l_end, flag)
+  subroutine update_bdry_0 (field, l, flag)
+    implicit none
+    type(Float_Field) :: field
+    integer           :: l
+    integer, optional :: flag
+    
+    call cp_bdry_inside (field)
+  end subroutine update_bdry_0
+
+  subroutine update_bdry_1 (field, l, flag)
+    implicit none
+    type(Float_Field), dimension(:) :: field
+    
+    integer           :: l, i1, sz
+    integer, optional :: flag
+
+    sz = size(field)
+
+    do i1 = 1, sz
+       call cp_bdry_inside (field(i1))
+    end do
+  end subroutine update_bdry_1
+
+  subroutine update_bdry_2 (field, l, flag)
+    implicit none
+    type(Float_Field), dimension(:,:) :: field
+    integer                           :: l
+    
+    integer                :: i1, i2
+    integer, optional      :: flag
+    integer, dimension (2) :: sz
+
+    sz = shape(field)
+
+    do i2 = 1, sz(2)
+       do i1 = 1, sz(1)
+          call cp_bdry_inside (field(i1,i2))
+       end do
+    end do
+  end subroutine update_bdry_2
+
+  subroutine update_bdry__start_0 (field, l)
+    implicit none
+    type(Float_Field) :: field
+    integer           :: l
+    call cp_bdry_inside (field)
+  end subroutine update_bdry__start_0
+  
+  subroutine update_bdry__start_1 (field, l)
+    implicit none
+    type(Float_Field), dimension(:) :: field
+    integer                         :: l
+    
+    integer :: i1, sz
+    
+    sz = size(field)
+
+    do i1 = 1, sz
+       call cp_bdry_inside (field(i1))
+    end do
+  end subroutine update_bdry__start_1
+
+  subroutine update_bdry__start_2 (field, l)
+    implicit none
+    type(Float_Field), dimension(:,:) :: field
+    integer                           :: l
+
+    integer                :: i1, i2
+    integer, dimension (2) :: sz
+
+    sz = shape(field)
+
+    do i2 = 1, sz(2)
+       do i1 = 1, sz(1)
+          call cp_bdry_inside(field(i1,i2))
+       end do
+    end do
+  end subroutine update_bdry__start_2
+
+  subroutine update_bdry__finish_0 (field, l)
+    implicit none
+    type(Float_Field) :: field
+    integer           :: l
+  end subroutine update_bdry__finish_0
+
+  subroutine update_bdry__finish_1 (field, l)
+    implicit none
+    type(Float_Field), dimension(:) :: field
+    integer                         :: l
+  end subroutine update_bdry__finish_1
+
+  subroutine update_bdry__finish_2 (field, l)
+    implicit none
+    type(Float_Field), dimension(:,:) :: field
+    integer                           :: l
+  end subroutine update_bdry__finish_2
+
+  subroutine update_bdry1_0 (field, l_start, l_end, flag)
     implicit none
     type(Float_Field) :: field
     integer           :: l_start, l_end
     integer, optional :: flag
     
     call cp_bdry_inside(field)
-  end subroutine update_bdry1
+  end subroutine update_bdry1_0
 
-  subroutine update_vector_bdry1 (field, l_start, l_end, flag)
+  subroutine update_bdry1_1 (field, l_start, l_end, flag)
      implicit none
      integer                         :: l_start, l_end
      integer, optional               :: flag
@@ -112,9 +225,9 @@ contains
     do i1 = 1, sz
        call cp_bdry_inside (field(i1))
     end do
-  end subroutine update_vector_bdry1
+  end subroutine update_bdry1_1
 
-  subroutine update_array_bdry1 (field, l_start, l_end, flag)
+  subroutine update_bdry1_2 (field, l_start, l_end, flag)
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
     
@@ -129,7 +242,7 @@ contains
           call cp_bdry_inside (field(i1,i2))
        end do
     end do
-  end subroutine update_array_bdry1
+  end subroutine update_bdry1_2
 
   subroutine comm_nodes9_mpi (get, set, l)
     implicit none
@@ -152,103 +265,6 @@ contains
     implicit none
     call comm_patch_conn
   end subroutine comm_patch_conn_mpi
-
-  subroutine update_bdry (field, l, flag)
-    implicit none
-    type(Float_Field) :: field
-    integer           :: l
-    integer, optional :: flag
-    
-    call cp_bdry_inside (field)
-  end subroutine update_bdry
-
-  subroutine update_vector_bdry (field, l, flag)
-    implicit none
-    type(Float_Field), dimension(:) :: field
-    
-    integer           :: l, i1, sz
-    integer, optional :: flag
-
-    sz = size(field)
-
-    do i1 = 1, sz
-       call cp_bdry_inside (field(i1))
-    end do
-  end subroutine update_vector_bdry
-
-  subroutine update_array_bdry (field, l, flag)
-    implicit none
-    type(Float_Field), dimension(:,:) :: field
-    integer                           :: l
-    
-    integer                :: i1, i2
-    integer, optional      :: flag
-    integer, dimension (2) :: sz
-
-    sz = shape(field)
-
-    do i2 = 1, sz(2)
-       do i1 = 1, sz(1)
-          call cp_bdry_inside (field(i1,i2))
-       end do
-    end do
-  end subroutine update_array_bdry
-
-  subroutine update_bdry__start (field, l)
-    implicit none
-    type(Float_Field) :: field
-    integer           :: l
-    call cp_bdry_inside (field)
-  end subroutine update_bdry__start
-  
-  subroutine update_vector_bdry__start (field, l)
-    implicit none
-    type(Float_Field), dimension(:) :: field
-    integer                         :: l
-    
-    integer :: i1, sz
-    
-    sz = size(field)
-
-    do i1 = 1, sz
-       call cp_bdry_inside (field(i1))
-    end do
-  end subroutine update_vector_bdry__start
-
-  subroutine update_array_bdry__start (field, l)
-    implicit none
-    type(Float_Field), dimension(:,:) :: field
-    integer                           :: l
-
-    integer                :: i1, i2
-    integer, dimension (2) :: sz
-
-    sz = shape(field)
-
-    do i2 = 1, sz(2)
-       do i1 = 1, sz(1)
-          call cp_bdry_inside(field(i1,i2))
-       end do
-    end do
-  end subroutine update_array_bdry__start
-
-  subroutine update_bdry__finish (field, l)
-    implicit none
-    type(Float_Field) :: field
-    integer           :: l
-  end subroutine update_bdry__finish
-
-  subroutine update_vector_bdry__finish (field, l)
-    implicit none
-    type(Float_Field), dimension(:) :: field
-    integer                         :: l
-  end subroutine update_vector_bdry__finish
-
-  subroutine update_array_bdry__finish (field, l)
-    implicit none
-    type(Float_Field), dimension(:,:) :: field
-    integer                           :: l
-  end subroutine update_array_bdry__finish
 
   integer function sync_max_int (val)
     implicit none

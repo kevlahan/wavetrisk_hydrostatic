@@ -302,7 +302,7 @@ program flat_projection_data
             ! Add each temp & KE for each checkpoint for the climatology
             ! Update the boundary for the velocities
             sol%bdry_uptodate = .false.
-            call update_array_bdry (sol, NONE, 26)
+            call update_bdry (sol, NONE, 26)
             do k = 1, zlevels
                do d = 1, size(grid)
                   temp   => sol(S_TEMP,k)%data(d)%elts
@@ -407,12 +407,12 @@ contains
     if (trim (test_case) == "Simple_Physics") then
       call apply_onescale (cal_temp_dens, level_save, z_null, 0, 1)
       penal_node%bdry_uptodate = .false.
-      call update_vector_bdry (penal_node, NONE, 42)
+      call update_bdry (penal_node, NONE, 42)
     else
       call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     end if
     exner_fun%bdry_uptodate = .false.
-    call update_vector_bdry (exner_fun, NONE, 41)
+    call update_bdry (exner_fun, NONE, 41)
 
     ! Zonal averages
     do k = 1, zlevels
@@ -502,12 +502,12 @@ contains
     if (trim (test_case) == "Simple_Physics") then
       call apply_onescale (cal_temp_dens, level_save, z_null, 0, 1)
       penal_node%bdry_uptodate = .false.
-      call update_vector_bdry (penal_node, NONE, 42)
+      call update_bdry (penal_node, NONE, 42)
     else
       call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     end if
     exner_fun%bdry_uptodate = .false.
-    call update_vector_bdry (exner_fun, NONE, 42)
+    call update_bdry (exner_fun, NONE, 42)
 
     ! Zonal averages
     do k = 1, zlevels
@@ -568,7 +568,7 @@ contains
     call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     exner_fun%bdry_uptodate = .false.
-    call update_vector_bdry (exner_fun, NONE, 43)
+    call update_bdry (exner_fun, NONE, 43)
 
     ! Zonal averages
     do k = 1, zlevels
@@ -638,7 +638,7 @@ contains
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
     call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     exner_fun%bdry_uptodate = .false.
-    call update_vector_bdry (exner_fun, NONE, 44)
+    call update_bdry (exner_fun, NONE, 44)
 
     ! Latitude-longitude projections
     do k = 1, save_levels
@@ -696,11 +696,11 @@ contains
        if (trim(test_case)=="Simple_Physics" .and. climatology) then
          ! update the boundarys
          simple_phys_temp%bdry_uptodate = .false.
-         call update_vector_bdry (simple_phys_temp, NONE, 44)
+         call update_bdry (simple_phys_temp, NONE, 44)
          simple_phys_zonal%bdry_uptodate = .false.
-         call update_vector_bdry (simple_phys_zonal, NONE, 44)
+         call update_bdry (simple_phys_zonal, NONE, 44)
          simple_phys_merid%bdry_uptodate = .false.
-         call update_vector_bdry (simple_phys_merid, NONE, 44)
+         call update_bdry (simple_phys_merid, NONE, 44)
 
          ! save 2D projections
          call project_field_onto_plane(simple_phys_temp(k-1), level_save, 0.0_8)
@@ -711,7 +711,7 @@ contains
          field2d_simplephys(:,:,5+k-1) = field2d
 
          simple_phys_vels%bdry_uptodate= .false.
-         call update_vector_bdry(simple_phys_vels,NONE,27)
+         call update_bdry(simple_phys_vels,NONE,27)
          
          ! Calculate zonal and meridional velocity
          do d = 1, size(grid)

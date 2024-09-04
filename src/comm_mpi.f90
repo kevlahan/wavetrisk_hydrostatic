@@ -21,6 +21,30 @@ module comm_mpi_mod
   interface sync_min_real
      procedure :: sync_min_real_0, sync_min_real_1
   end interface sync_min_real
+
+  interface update_bdry
+     procedure :: update_bdry_0, update_bdry_1, update_bdry_2
+  end interface update_bdry
+
+  interface update_bdry1
+     procedure :: update_bdry1_0, update_bdry1_1, update_bdry1_2
+  end interface update_bdry1
+
+   interface update_bdry__start
+     procedure :: update_bdry__start_0, update_bdry__start_1, update_bdry__start_2
+  end interface update_bdry__start
+
+  interface update_bdry__start1 
+     procedure :: update_bdry__start1_0, update_bdry__start1_1, update_bdry__start1_2
+  end interface update_bdry__start1
+
+   interface update_bdry__finish
+     procedure :: update_bdry__finish_0, update_bdry__finish_1, update_bdry__finish_2
+  end interface update_bdry__finish
+  
+  interface update_bdry__finish1 
+     procedure :: update_bdry__finish1_0, update_bdry__finish1_1, update_bdry__finish1_2
+  end interface update_bdry__finish1
 contains
   subroutine init_comm_mpi
     implicit none
@@ -412,7 +436,7 @@ contains
     end if
   end subroutine deadlock_test
 
-  subroutine update_bdry1 (field, l_start, l_end, flag_in)
+  subroutine update_bdry1_0 (field, l_start, l_end, flag_in)
     implicit none
     type(Float_Field) :: field
     integer           :: l_start, l_end
@@ -429,9 +453,9 @@ contains
     call update_bdry__start1  (field, l_start, l_end)
     if (deadlock) call deadlock_test (flag_in)
     call update_bdry__finish1 (field, l_start, l_end)
-  end subroutine update_bdry1
+  end subroutine update_bdry1_0
 
-  subroutine update_vector_bdry1 (field, l_start, l_end, flag_in)
+  subroutine update_bdry1_1 (field, l_start, l_end, flag_in)
     implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
@@ -445,12 +469,12 @@ contains
        flag = 9999
     end if
 
-    call update_vector_bdry__start1  (field, l_start, l_end)
+    call update_bdry__start1  (field, l_start, l_end)
     if (deadlock) call deadlock_test (flag)
-    call update_vector_bdry__finish1 (field, l_start, l_end)
-  end subroutine update_vector_bdry1
+    call update_bdry__finish1 (field, l_start, l_end)
+  end subroutine update_bdry1_1
 
-  subroutine update_array_bdry1 (field, l_start, l_end, flag_in)
+  subroutine update_bdry1_2 (field, l_start, l_end, flag_in)
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
@@ -464,12 +488,12 @@ contains
        flag = 9999
     end if
 
-    call update_array_bdry__start1  (field, l_start, l_end)
+    call update_bdry__start1  (field, l_start, l_end)
     if (deadlock) call deadlock_test (flag)
-    call update_array_bdry__finish1 (field, l_start, l_end)
-  end subroutine update_array_bdry1
+    call update_bdry__finish1 (field, l_start, l_end)
+  end subroutine update_bdry1_2
 
-  subroutine update_bdry (field, l, flag_in)
+  subroutine update_bdry_0 (field, l, flag_in)
     implicit none
     type(Float_Field) :: field
     integer           :: l
@@ -486,9 +510,9 @@ contains
     call update_bdry__start  (field, l)
     if (deadlock) call deadlock_test (flag)
     call update_bdry__finish (field, l)
-  end subroutine update_bdry
+  end subroutine update_bdry_0
 
-  subroutine update_vector_bdry (field, l, flag_in)
+  subroutine update_bdry_1 (field, l, flag_in)
     implicit none
     ! Updates field array
     type(Float_Field), dimension(:) :: field
@@ -503,12 +527,12 @@ contains
        flag = 9999
     end if
 
-    call update_vector_bdry__start  (field, l)
+    call update_bdry__start  (field, l)
     if (deadlock) call deadlock_test (flag)
-    call update_vector_bdry__finish (field, l)
-  end subroutine update_vector_bdry
+    call update_bdry__finish (field, l)
+  end subroutine update_bdry_1
   
-  subroutine update_array_bdry (field, l, flag_in)
+  subroutine update_bdry_2 (field, l, flag_in)
     ! Updates field array
     implicit none
     type(Float_Field), dimension(:,:) :: field
@@ -523,12 +547,12 @@ contains
        flag = 9999
     end if
 
-    call update_array_bdry__start  (field, l)
+    call update_bdry__start  (field, l)
     if (deadlock) call deadlock_test (flag)
-    call update_array_bdry__finish (field, l)
-  end subroutine update_array_bdry
+    call update_bdry__finish (field, l)
+  end subroutine update_bdry_2
 
-  subroutine update_bdry__start (field, l)
+  subroutine update_bdry__start_0 (field, l)
     implicit none
     type(Float_Field) :: field
     integer           ::  l
@@ -538,35 +562,35 @@ contains
     else
        call update_bdry__start1 (field, l, l)
     endif
-  end subroutine update_bdry__start
+  end subroutine update_bdry__start_0
   
-  subroutine update_vector_bdry__start (field, l)
+  subroutine update_bdry__start_1 (field, l)
     ! Finishes boundary update for field arrays
     implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l
 
     if (l == NONE) then 
-       call update_vector_bdry__start1 (field, level_start-1, level_end)
+       call update_bdry__start1 (field, level_start-1, level_end)
     else
-       call update_vector_bdry__start1 (field, l, l)
+       call update_bdry__start1 (field, l, l)
     endif
-  end subroutine update_vector_bdry__start
+  end subroutine update_bdry__start_1
   
-  subroutine update_array_bdry__start (field, l)
+  subroutine update_bdry__start_2 (field, l)
     ! Finishes boundary update for field arrays
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l
 
     if (l == NONE) then 
-       call update_array_bdry__start1 (field, level_start-1, level_end)
+       call update_bdry__start1 (field, level_start-1, level_end)
     else
-       call update_array_bdry__start1 (field, l, l)
+       call update_bdry__start1 (field, l, l)
     endif
-  end subroutine update_array_bdry__start
+  end subroutine update_bdry__start_2
 
-  subroutine update_bdry__start1 (field, l_start, l_end)
+  subroutine update_bdry__start1_0 (field, l_start, l_end)
     use mpi
     implicit none
     type(Float_Field) :: field
@@ -641,9 +665,9 @@ contains
 
     ! Communicate inside domain
     call cp_bdry_inside (field)
-  end subroutine update_bdry__start1
+  end subroutine update_bdry__start1_0
 
-  subroutine update_vector_bdry__start1 (field, l_start, l_end)
+  subroutine update_bdry__start1_1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
     use mpi
     implicit none
@@ -737,9 +761,9 @@ contains
 
     ! Communicate inside domain
     call cp_bdry_inside_vector (field)
-  end subroutine update_vector_bdry__start1
+  end subroutine update_bdry__start1_1
 
-  subroutine update_array_bdry__start1 (field, l_start, l_end)
+  subroutine update_bdry__start1_2 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
     use mpi
     implicit none
@@ -839,9 +863,9 @@ contains
 
     ! Communicate inside domain
     call cp_bdry_inside_array (field)
-  end subroutine update_array_bdry__start1
+  end subroutine update_bdry__start1_2
 
-  subroutine update_bdry__finish (field, l)
+  subroutine update_bdry__finish_0 (field, l)
     implicit none
     type(Float_Field) :: field
     integer           :: l
@@ -851,35 +875,35 @@ contains
     else
        call update_bdry__finish1 (field, l, l)
     endif
-  end subroutine update_bdry__finish
+  end subroutine update_bdry__finish_0
   
-  subroutine update_vector_bdry__finish (field, l)
+  subroutine update_bdry__finish_1 (field, l)
     ! Finishes boundary update for field arrays
     implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l
 
     if (l == NONE) then 
-       call update_vector_bdry__finish1 (field, level_start-1, level_end)
+       call update_bdry__finish1 (field, level_start-1, level_end)
     else
-       call update_vector_bdry__finish1 (field, l, l)
+       call update_bdry__finish1 (field, l, l)
     endif
-  end subroutine update_vector_bdry__finish
+  end subroutine update_bdry__finish_1
   
-  subroutine update_array_bdry__finish (field, l)
+  subroutine update_bdry__finish_2 (field, l)
     ! Finishes boundary update for field arrays
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l
 
     if (l == NONE) then 
-       call update_array_bdry__finish1 (field, level_start-1, level_end)
+       call update_bdry__finish1 (field, level_start-1, level_end)
     else
-       call update_array_bdry__finish1 (field, l, l)
+       call update_bdry__finish1 (field, l, l)
     endif
-  end subroutine update_array_bdry__finish
+  end subroutine update_bdry__finish_2
 
-  subroutine update_bdry__finish1 (field, l_start, l_end)
+  subroutine update_bdry__finish1_0 (field, l_start, l_end)
     use mpi
     implicit none
     type(Float_Field) :: field
@@ -917,9 +941,9 @@ contains
 
     ! Assumes routine is either called for one level, or all levels ever to be updated
     if (l_start < l_end) field%bdry_uptodate = .true.
-  end subroutine update_bdry__finish1
+  end subroutine update_bdry__finish1_0
 
-  subroutine update_vector_bdry__finish1 (field, l_start, l_end)
+  subroutine update_bdry__finish1_1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
     use mpi
     implicit none
@@ -967,9 +991,9 @@ contains
 
     ! Assumes routine is either called for one level, or all levels ever to be updated
     if (l_start < l_end) field%bdry_uptodate = .true.
-  end subroutine update_vector_bdry__finish1
+  end subroutine update_bdry__finish1_1
   
-  subroutine update_array_bdry__finish1 (field, l_start, l_end)
+  subroutine update_bdry__finish1_2 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
     use mpi
     implicit none
@@ -1021,7 +1045,7 @@ contains
 
     ! Assumes routine is either called for one level, or all levels ever to be updated
     if (l_start < l_end) field%bdry_uptodate = .true.
-  end subroutine update_array_bdry__finish1
+  end subroutine update_bdry__finish1_2
   
   subroutine comm_nodes9_mpi (get, set, l)
     use mpi

@@ -817,15 +817,15 @@ contains
     sol_mean%bdry_uptodate   = .false.
 
     call update_bdry       (topography, NONE)
-    call update_array_bdry (sol,        NONE) 
-    call update_array_bdry (sol_mean,   NONE)
+    call update_bdry (sol,        NONE) 
+    call update_bdry (sol_mean,   NONE)
 
     ! SSO parameters (requires topography)
     if (NCAR_TOPO .and. sso) then
        call apply (cal_sso_param, z_null)
        
        sso_param%bdry_uptodate = .false.
-       call update_vector_bdry (sso_param, NONE)
+       call update_bdry (sso_param, NONE)
     end if
   end subroutine apply_initial_conditions_case
 
@@ -858,7 +858,7 @@ contains
     sol_mean%bdry_uptodate   = .false.
     
     call update_bdry       (topography, NONE)
-    call update_array_bdry (sol_mean,   NONE)
+    call update_bdry (sol_mean,   NONE)
     
     ! SSO parameters (requires topography)
     if (NCAR_topo .and. sso) then
@@ -873,7 +873,7 @@ contains
        end if
        sso_param%bdry_uptodate = .false.
        
-       call update_vector_bdry (sso_param, NONE)
+       call update_bdry (sso_param, NONE)
     end if
   end subroutine update_case
 
@@ -950,7 +950,7 @@ contains
 
     integer :: d, k, n_id, p
 
-    call update_array_bdry (sol, NONE, 27)
+    call update_bdry (sol, NONE, 27)
     
     ! Current surface pressure
     call cal_surf_press_HS (sol)

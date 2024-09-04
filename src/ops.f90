@@ -982,7 +982,7 @@ contains
 
     integer :: d, j, k, p
 
-    call update_array_bdry (q(S_MASS:S_TEMP,1:zlevels), NONE)
+    call update_bdry (q(S_MASS:S_TEMP,1:zlevels), NONE)
 
     call apply (set_surf_geopot, z_null)
 

@@ -47,7 +47,7 @@ contains
     
     do l = jmax-1, jmin-1, -1
        ! Compute scalar wavelet coefficients
-       call update_array_bdry (scaling(scalars(1):scalars(2),:), l+1)
+       call update_bdry (scaling(scalars(1):scalars(2),:), l+1)
 
        do k = 1, size(scaling,2)
           do d = 1, size(grid)
@@ -59,7 +59,7 @@ contains
              end do
           end do
        end do
-       call update_array_bdry (wavelet(scalars(1):scalars(2),:), l+1)
+       call update_bdry (wavelet(scalars(1):scalars(2),:), l+1)
 
        ! Restrict scalars (sub-sample and lift) and velocity (average) from fine grid l+1 to coarse grid l
        do k = 1, size(scaling,2)
@@ -80,7 +80,7 @@ contains
     scaling%bdry_uptodate                          = .false.
     wavelet(scalars(1):scalars(2),:)%bdry_uptodate = .false.
 
-    call update_vector_bdry (scaling(S_VELO,:), NONE)
+    call update_bdry (scaling(S_VELO,:), NONE)
 
     ! Compute vector wavelet coefficients
     do l = jmax-1, jmin-1, -1
@@ -178,7 +178,7 @@ contains
     wavelet%bdry_uptodate = .false.
     
     do l = jmax-1, jmin-1, -1
-       call update_vector_bdry (scaling, l+1)
+       call update_bdry (scaling, l+1)
 
        ! Compute scalar wavelet coefficients
        do k = 1, size(scaling)
@@ -189,7 +189,7 @@ contains
              nullify (scalar, wc_s)
           end do
        end do
-       call update_vector_bdry (wavelet, l+1)
+       call update_bdry (wavelet, l+1)
 
        ! Restrict scalars (sub-sample and lift) from fine grid l+1 to coarse grid l
        do k = 1, size(scaling)
@@ -230,8 +230,8 @@ contains
        call abort
     end if
 
-    call update_array_bdry1 (wavelet, max (jmin, level_start), jmax)
-    call update_array_bdry1 (scaling, jmin,                    jmax)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
+    call update_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
     do l = jmin, jmax-1
@@ -247,9 +247,9 @@ contains
           end do
        end do
 
-       if (l > jmin) call update_vector_bdry__finish (scaling(S_VELO,:), l) ! for next outer velocity
+       if (l > jmin) call update_bdry__finish (scaling(S_VELO,:), l) ! for next outer velocity
 
-       call update_array_bdry__start (scaling(scalars(1):scalars(2),:), l+1)
+       call update_bdry__start (scaling(scalars(1):scalars(2),:), l+1)
 
        ! Prolong outer velocities at finer edges (interpolate and add wavelet coefficients)
        do k = 1, size(scaling,2)
@@ -262,8 +262,8 @@ contains
           end do
        end do
 
-       call update_array_bdry__finish (scaling(scalars(1):scalars(2),:), l+1)
-       call update_vector_bdry__start (scaling(S_VELO,:),                l+1)
+       call update_bdry__finish (scaling(scalars(1):scalars(2),:), l+1)
+       call update_bdry__start (scaling(S_VELO,:),                l+1)
 
        ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
        do k = 1, size(scaling,2)
@@ -277,7 +277,7 @@ contains
           end do
        end do
 
-       call update_vector_bdry__finish (scaling(S_VELO,:), l+1)
+       call update_bdry__finish (scaling(S_VELO,:), l+1)
 
        ! Prolong inner velocities at finer edges (interpolate and add wavelet coefficients)
        do k = 1, size(scaling,2)
@@ -289,7 +289,7 @@ contains
           end do
        end do
 
-       if (l < jmax-1) call update_vector_bdry__start (scaling(S_VELO,:), l+1) ! for next outer velocity
+       if (l < jmax-1) call update_bdry__start (scaling(S_VELO,:), l+1) ! for next outer velocity
 
        scaling%bdry_uptodate = .false.
     end do
@@ -370,8 +370,8 @@ contains
        call abort
     end if
 
-    call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax)
-    call update_vector_bdry1 (scaling, jmin,                    jmax)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
+    call update_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
     do l = jmin, jmax-1
@@ -384,7 +384,7 @@ contains
              nullify (scalar, wc_s)
           end do
        end do
-       call update_vector_bdry (scaling, l+1)
+       call update_bdry (scaling, l+1)
 
        ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
        do k = 1, size(scaling)
@@ -481,12 +481,12 @@ contains
        call abort
     end if
 
-    call update_vector_bdry1 (wavelet, max (jmin, level_start), jmax)
-    call update_vector_bdry1 (scaling, jmin,                    jmax)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
+    call update_bdry1 (scaling, jmin,                    jmax)
 
     scaling%bdry_uptodate = .false.
     do l = jmin, jmax-1
-       if (l > jmin) call update_vector_bdry__finish (scaling, l) ! for next outer velocity
+       if (l > jmin) call update_bdry__finish (scaling, l) ! for next outer velocity
 
        ! Prolong outer velocities at finer edges (interpolate and add wavelet coefficients)
        do k = 1, size(scaling)
@@ -499,7 +499,7 @@ contains
           end do
        end do
 
-       call update_vector_bdry (scaling, l+1)
+       call update_bdry (scaling, l+1)
 
        ! Prolong inner velocities at finer edges (interpolate and add wavelet coefficients)
        do k = 1, size(scaling)
@@ -511,7 +511,7 @@ contains
           end do
        end do
 
-       if (l < jmax-1) call update_vector_bdry__start (scaling, l+1) ! for next outer velocity
+       if (l < jmax-1) call update_bdry__start (scaling, l+1) ! for next outer velocity
 
        scaling%bdry_uptodate = .false.
     end do

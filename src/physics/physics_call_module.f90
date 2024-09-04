@@ -46,7 +46,7 @@ contains
       dzonal => trend_zonal
       dmerid => trend_merid
 
-      call update_array_bdry (sol, NONE, 27)
+      call update_bdry (sol, NONE, 27)
 
       !Get Surface pressure of all domains on rank
       call cal_surf_press_phys(q)

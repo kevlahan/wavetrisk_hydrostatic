@@ -231,8 +231,8 @@ contains
     sol%bdry_uptodate      = .false.
     sol_mean%bdry_uptodate = .false.
 
-    call update_array_bdry (sol,        NONE)
-    call update_array_bdry (sol_mean,   NONE)
+    call update_bdry (sol,        NONE)
+    call update_bdry (sol_mean,   NONE)
   end subroutine apply_initial_conditions_case
 
   subroutine update_case

@@ -50,7 +50,7 @@ contains
     end do
     
     ! Make nodes and edges with significant wavelet coefficients active
-    call update_array_bdry1 (wav_coeff, level_start, level_end)
+    call update_bdry1 (wav_coeff, level_start, level_end)
     call mask_active
     call comm_masks_mpi (NONE)
     
@@ -87,7 +87,7 @@ contains
 
     integer :: d, k, l, v
 
-    call update_array_bdry (wav, NONE)
+    call update_bdry (wav, NONE)
     
     do k = 1, size (wav, 2)
        do l = level_start+1, level_end
@@ -131,7 +131,7 @@ contains
 
     integer :: d, k, l
 
-    call update_vector_bdry (wav, NONE)
+    call update_bdry (wav, NONE)
     do k = 1, size(wav)
        do d = 1, size (grid)
           do l = level_start+1, level_end
@@ -220,7 +220,7 @@ contains
     end if
 
     scaling%bdry_uptodate = .false.
-    call update_array_bdry (scaling, NONE, 16)
+    call update_bdry (scaling, NONE, 16)
 
     do k = 1, size(scaling,2)
        do l = l_start, level_end-1
@@ -297,7 +297,7 @@ contains
        l_start = l_start0
     end if
 
-    call update_vector_bdry (scaling, NONE)
+    call update_bdry (scaling, NONE)
 
     do k = 1, size (scaling)
        do l = l_start, level_end-1
@@ -340,7 +340,7 @@ contains
        end do
     end if
 
-    call update_vector_bdry (scaling, NONE)
+    call update_bdry (scaling, NONE)
 
     do k = 1, size(scaling)
        do l = l_start, level_end-1
@@ -444,7 +444,7 @@ contains
     end do
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=old_level_start)
     sol%bdry_uptodate = .false.
-    call update_array_bdry (sol, NONE, 17)
+    call update_bdry (sol, NONE, 17)
   end subroutine fill_up_grid_and_IWT
 
    subroutine fill_up_level

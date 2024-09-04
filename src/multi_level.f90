@@ -10,7 +10,7 @@ contains
 
     integer :: k, l, v
 
-    call update_array_bdry (q, NONE)
+    call update_bdry (q, NONE)
 
     ! Initialize trends
     do k = 1, zlevels
@@ -37,13 +37,13 @@ contains
        ! Calculate trend on all scales, from fine to coarse
        do l = level_end, level_start, -1
           ! Finish non-blocking communication of dq from previous level (l+1)
-          if (l < level_end) call update_vector_bdry__finish (dq(scalars(1):scalars(2),k), l+1) 
+          if (l < level_end) call update_bdry__finish (dq(scalars(1):scalars(2),k), l+1) 
 
           call basic_operators  (q, dq, k, l)
           call cal_scalar_trend (q, dq, k, l)
 
           ! Start non-blocking communication of dq for use at next level (l-1)
-          if (level_start /= level_end .and. l > level_start) call update_vector_bdry__start (dq(scalars(1):scalars(2),k), l) 
+          if (level_start /= level_end .and. l > level_start) call update_bdry__start (dq(scalars(1):scalars(2),k), l) 
 
           call velocity_trend_source (q, dq, k, l)
        end do
@@ -99,7 +99,7 @@ contains
        nullify (bernoulli, exner)
     end do
     horiz_flux%bdry_uptodate = .false.
-    if (level_start /= level_end) call update_vector_bdry (horiz_flux, l)
+    if (level_start /= level_end) call update_bdry (horiz_flux, l)
 
     if (Laplace_order == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity
   end subroutine basic_operators
@@ -112,7 +112,7 @@ contains
 
     integer :: d, j, v
 
-    call update_vector_bdry (horiz_flux, l)
+    call update_bdry (horiz_flux, l)
     
     do d = 1, size(grid)
        do v = scalars(1), scalars(2)
@@ -198,7 +198,7 @@ contains
     
     integer :: d, j, l, v
 
-    call update_vector_bdry (q(scalars(1):scalars(2),k), NONE)
+    call update_bdry (q(scalars(1):scalars(2),k), NONE)
     
     do l = level_end, level_start, -1
        ! Compute scalar fluxes
@@ -223,7 +223,7 @@ contains
           end if
        end do
        horiz_flux%bdry_uptodate = .false.
-       call update_vector_bdry (horiz_flux, l)
+       call update_bdry (horiz_flux, l)
 
        do d = 1, size(grid)
           do v = scalars(1), scalars(2)
@@ -236,7 +236,7 @@ contains
           end do
        end do
        Laplacian_scalar%bdry_uptodate = .false.
-       call update_vector_bdry (Laplacian_scalar, l)
+       call update_bdry (Laplacian_scalar, l)
     end do
   end subroutine cal_Laplacian_scalars
 

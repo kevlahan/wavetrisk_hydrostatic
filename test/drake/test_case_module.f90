@@ -933,7 +933,7 @@ contains
 
     integer :: d, k, p
 
-    call update_array_bdry (q, NONE, 27)
+    call update_bdry (q, NONE, 27)
 
     do k = 1, zlevels
        ! Scalars
