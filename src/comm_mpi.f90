@@ -21,7 +21,7 @@ module comm_mpi_mod
   interface sync_min_real
      procedure :: sync_min_real_0, sync_min_real_1
   end interface sync_min_real
-
+  
   interface update_bdry
      procedure :: update_bdry_0, update_bdry_1, update_bdry_2
   end interface update_bdry
@@ -30,7 +30,7 @@ module comm_mpi_mod
      procedure :: update_bdry1_0, update_bdry1_1, update_bdry1_2
   end interface update_bdry1
 
-   interface update_bdry__start
+  interface update_bdry__start
      procedure :: update_bdry__start_0, update_bdry__start_1, update_bdry__start_2
   end interface update_bdry__start
 
@@ -38,10 +38,10 @@ module comm_mpi_mod
      procedure :: update_bdry__start1_0, update_bdry__start1_1, update_bdry__start1_2
   end interface update_bdry__start1
 
-   interface update_bdry__finish
+  interface update_bdry__finish
      procedure :: update_bdry__finish_0, update_bdry__finish_1, update_bdry__finish_2
   end interface update_bdry__finish
-  
+
   interface update_bdry__finish1 
      procedure :: update_bdry__finish1_0, update_bdry__finish1_1, update_bdry__finish1_2
   end interface update_bdry__finish1
