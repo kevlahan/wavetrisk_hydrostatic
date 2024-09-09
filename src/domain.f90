@@ -166,6 +166,7 @@ contains
   end subroutine init_Domain
 
   integer function add_patch_Domain (self, level)
+    ! Add new patch to the domain
     implicit none
     type(Domain) :: self
     
@@ -174,13 +175,15 @@ contains
     p = self%patch%length
 
     call append (self%lev(level), p)
-    call append (self%patch, Patch(self%node%length, level, 0, 0, 0, .false.))
+    call append (self%patch, Patch (self%node%length, level, 0, 0, 0, .false.))
+    
     call extend_Domain (self, PATCH_SIZE**2)
     
     add_patch_Domain = p
   end function add_patch_Domain
 
   integer function add_bdry_patch_Domain (self, side)
+    ! Add boundary patch to the domain
     implicit none
     type(Domain) :: self
     integer      :: side
@@ -189,7 +192,7 @@ contains
 
     p = self%bdry_patch%length
 
-    call append (self%bdry_patch, Bdry_Patch(self%node%length, side, 0))
+    call append (self%bdry_patch, Bdry_Patch (self%node%length, side, 0))
 
     call extend_Domain (self, BDRY_THICKNESS * PATCH_SIZE)
 

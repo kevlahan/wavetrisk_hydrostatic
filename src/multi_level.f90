@@ -647,89 +647,15 @@ contains
 
     id(MM+1)   = idx (ij_mm(1), ij_mm(2), offs, dims)
 
-    id(VMP+1)  = ed_idx (ij_mp(1), ij_mp(2), hex_sides(:,(hex_s_offs(e+1) + 4) - 2 + 1), offs, dims)
-    id(VMPP+1) = ed_idx (ij_mp(1), ij_mp(2), hex_sides(:,hex_s_offs(e+1) + 1 + 4 + 1),   offs, dims)
-    id(UZP+1)  = ed_idx (ij_mp(1), ij_mp(2), hex_sides(:,hex_s_offs(e+1) + 0 + 4 + 1),   offs, dims)
-    id(WPPP+1) = ed_idx (ij_pp(1), ij_pp(2), hex_sides(:,(hex_s_offs(e+1) + 4) - 4 + 1), offs, dims)
-    id(WPP+1)  = ed_idx (ij_pp(1), ij_pp(2), hex_sides(:,hex_s_offs(e+1) + 1 + 2 + 1),   offs, dims)
-    id(VPM+1)  = ed_idx (ij_pm(1), ij_pm(2), hex_sides(:,hex_s_offs(e+1) + 1 + 4 + 1),   offs, dims)
-    id(VPMM+1) = ed_idx (ij_pm(1), ij_pm(2), hex_sides(:,(hex_s_offs(e+1) + 4) - 2 + 1), offs, dims)
-    id(UZM+1)  = ed_idx (ij_pm(1), ij_pm(2), hex_sides(:,(hex_s_offs(e+1) + 3) - 2 + 1), offs, dims)
-    id(WMMM+1) = ed_idx (ij_mm(1), ij_mm(2), hex_sides(:,hex_s_offs(e+1) + 1 + 2 + 1),   offs, dims)
-    id(WMM+1)  = ed_idx (ij_mm(1), ij_mm(2), hex_sides(:,(hex_s_offs(e+1) + 4) - 4 + 1), offs, dims)
+    id(VMP+1)  = ed_idx (ij_mp(1), ij_mp(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 2 + 1), offs, dims)
+    id(VMPP+1) = ed_idx (ij_mp(1), ij_mp(2), hex_sides (:, hex_s_offs(e+1) + 1  + 4 + 1), offs, dims)
+    id(UZP+1)  = ed_idx (ij_mp(1), ij_mp(2), hex_sides (:, hex_s_offs(e+1) + 0  + 4 + 1), offs, dims)
+    id(WPPP+1) = ed_idx (ij_pp(1), ij_pp(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 4 + 1), offs, dims)
+    id(WPP+1)  = ed_idx (ij_pp(1), ij_pp(2), hex_sides (:, hex_s_offs(e+1) + 1  + 2 + 1), offs, dims)
+    id(VPM+1)  = ed_idx (ij_pm(1), ij_pm(2), hex_sides (:, hex_s_offs(e+1) + 1  + 4 + 1), offs, dims)
+    id(VPMM+1) = ed_idx (ij_pm(1), ij_pm(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 2 + 1), offs, dims)
+    id(UZM+1)  = ed_idx (ij_pm(1), ij_pm(2), hex_sides (:,(hex_s_offs(e+1) + 3) - 2 + 1), offs, dims)
+    id(WMMM+1) = ed_idx (ij_mm(1), ij_mm(2), hex_sides (:, hex_s_offs(e+1) + 1  + 2 + 1), offs, dims)
+    id(WMM+1)  = ed_idx (ij_mm(1), ij_mm(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 4 + 1), offs, dims)
   end subroutine get_indices
-
-  subroutine post_refine
-    implicit none
-    integer :: d, p
-
-    level_end = sync_max_int (level_end)
-
-    do d = 1, n_domain(rank+1)
-       do p = 3, grid(d)%patch%length
-          call connect_children (grid(d), p-1)
-       end do
-    end do
-
-    call comm_patch_conn_mpi
-
-    do d = 1, size(grid)
-       call update_comm (grid(d))
-    end do
-
-    call comm_communication_mpi
-    call comm_nodes9_mpi (get_areas, set_areas, NONE)
-    call apply_to_penta (area_post_comm, NONE, z_null)
-  end subroutine post_refine
-
-   subroutine set_areas (dom, id, val)
-    implicit none
-    type(Domain)          :: dom
-    integer               :: id
-    real(8), dimension(7) :: val
-
-    real(8), dimension(4) :: area
-
-    area = val(1:4)
-    if (id < 0) area = (/area(2), area(1), area(4), area(3)/)
-
-    dom%overl_areas%elts(abs(id) + 1)%a     = area
-    dom%overl_areas%elts(abs(id) + 1)%split = val(5:6)
-    dom%areas%elts(abs(id) + 1)%hex_inv     = val(7)
-  end subroutine set_areas
-
-  subroutine get_areas (dom, id, val)
-    implicit none
-    real(8), dimension(7), intent(out) :: val
-    type(Domain)                       :: dom
-    integer                            :: id
-
-    real(8), dimension(7) :: area
-
-    area = 0d0
-    area(1:4) = dom%overl_areas%elts(id+1)%a
-    area(5:6) = dom%overl_areas%elts(id+1)%split
-    area(7)   = dom%areas%elts(id+1)%hex_inv
-    val       = area
-    return
-  end subroutine get_areas
-
-  subroutine area_post_comm (dom, p, c, offs, dims, zlev)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: c, p, zlev
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-    integer, dimension(N_BDRY+1)   :: offs
-
-    if (c == IPLUSJMINUS) then
-       id = idx(PATCH_SIZE, -1, offs, dims)
-       dom%overl_areas%elts(id+1)%a = 0d0
-    end if
-    if (c == IMINUSJPLUS) then
-       id = idx(-1, PATCH_SIZE, offs, dims)
-       dom%overl_areas%elts(id+1)%a = 0d0
-    end if
-  end subroutine area_post_comm
 end module multi_level_mod

@@ -59,9 +59,7 @@ module shared_mod
   integer, parameter :: TOLRNZ   = 16  ! active nodes
   integer, parameter :: ADJSPACE = 14  ! adjacent nodes in position (space) only 
   integer, parameter :: RESTRCT  = 12  ! nodes whose flux can be obtained by restriction from fine level
-  integer, parameter :: TRND     = 10  ! nodes where trend is uniformly accurate
   integer, parameter :: ADJZONE  = 8   ! adjacent zone nodes in either position (space) or scale
-  integer, parameter :: CONSIST  = 4   ! nodes added for consistency between adaptive velocity (edge) and mass (hexagon) nodes
   integer, parameter :: TRSK     = 2   ! nodes needed for TRISK operators
   
   integer, parameter :: INSIDE = 0

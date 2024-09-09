@@ -37,7 +37,7 @@ module patch_mod
 contains
   subroutine init_patch_mod
     implicit none
-    logical :: initialized = .False.
+    logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
     call init_shared_mod
@@ -45,13 +45,14 @@ contains
   end subroutine init_patch_mod
 
   subroutine init_Patch (self, elts_start, level, chdrn, neigh)
+    ! Initializes new patch
     implicit none
     type(Patch) :: self
     integer     :: elts_start, chdrn, level, neigh
 
     self%elts_start = elts_start
-    self%level = level
-    self%deleted = .False.
+    self%level      = level
+    self%deleted     = .false.
   end subroutine init_Patch
 
   subroutine init_Bdry_Patch (self, elts_start, side, neigh)

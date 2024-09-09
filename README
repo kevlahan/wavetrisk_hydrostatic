@@ -71,8 +71,10 @@ CONTENTS
    2.5 EXAMPLES
    
 3. RUNNING
-   3.1 MPI EXAMPLES
-   3.2 AMPI EXAMPLES
+   3.1 HOW TO PREPARE WORKING DIRECTORY
+   3.2 CHECKPOINTING AND RESTARTING
+   3.3 MPI EXAMPLES
+   3.4 AMPI EXAMPLES
    
 4. POST-PROCESSING DATA USING PARAVIEW AND MATLAB
    4.1 VIEWING SPHERICAL DATA WITH PARAVIEW
@@ -95,9 +97,8 @@ CONTENTS
    6.8  GRID ELEMENTS
    6.9  INDEXING OF GRID ELEMENTS AND NEIGHBOURS
    6.10 DOMAIN BOUNDARY CELLS ("HALO" OR "GHOST CELLS")
-   6.11 DATA OUTPUT
-   6.12 CALCULATIONS ON ADAPTED GRID
-   6.13 DIAGNOSTIC VARIABLES
+   6.11 CALCULATIONS ON ADAPTED GRID
+   6.12 DIAGNOSTIC VARIABLES
 
 
 
@@ -235,9 +236,12 @@ make TEST_CASE=jet PARAM=param_J6 ARCH=ampi F90=gfortran
 **********************************************************************************************************************************
 3. RUNNING
 
+************************************************************
+3.1 HOW TO PREPARE WORKING DIRECTORY FOR A RUN
+
 Initial steps (using test case Held_Suarez as an example).
 
-1. cd to the working directory (mkdir if necessary).
+1. cd to the working directory (mkdir if necessary), where working directory is where the code will be run.
 
 2. Provide symbolic links to all files required for execution:
 
@@ -263,9 +267,30 @@ ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute e
 
 5. Ensure that gtar is installed (required for file tar-ing and compression).
 
+************************************************************
+3.2 CHECKPOINTING AND RESTARTING
+
+The code checkpoints the data at an interval defined by the test case.  The full state of the simulation is saved by
+io.f90/dump_adapt_mpi and read in again by io.f90/load_adapt_mpi.
+
+When a checkpoint is written during a run, the run is restarted immediately from the saved checkpoint.  This allows for parallel load
+balancing and pruning of the adaptive data structure by deleting inactive patches which both occur only during checkpointing. A run
+can be restarted from a saved checkpoint.
+
+Note that patches that do not include significant cells (i.e. cells in the active zone plus the adjacent zone) are deleted from 
+the data structure ONLY when a checkpoint is saved.  Until then these non-significant cells (labelled with mask ZERO) are retained.  
+a restart the adaptive data structure changes.
+
+Even though non-significant patches are deleted, the adaptive grid always ensures the at least the 5 nearest neighbours of signicant cells
+(i.e. cells outside the adjacent zone) are included in each direction. This allows computation of operators that require at most 5 nearest 
+neighbours. Any such neighbours that are not signficant have the mask value ZERO. The inverse wavelet transform onto 
+the adaptive grid ensures these ZERO cells have correct data (by interpolation).
+
+Data is written for postprocessing by routines io.f90/write_primal and io.f90/write_dual at an interval defined by the test case. Only
+significant cells are saved (i.e. cells in the active zone plus adjacent zone).
 
 ************************************************************
-3.1 MPI EXAMPLES
+3.3 MPI EXAMPLES
 
 1. With ARCH=mpi, to run test case Held_Suarez with input file HS.in on a local machine with shared memory 40 cores
 
@@ -305,7 +330,7 @@ DOMAIN_LEVEL and MIN_LEVEL and flag vert_diffuse are the same as in the run that
 
 
 ************************************************************
-3.2 AMPI EXAMPLES
+3.4 AMPI EXAMPLES
 
 !!! Only works on a single node due to bugs in pieglobals implementation of charm++/AMPI.  !!!                            
 
@@ -689,6 +714,13 @@ The components of the grid elements are then found as:
 
 Wavelet coefficients are stored at the SAME nodes/edges as the nodes/edges they characterize.
 
+Note that scales (different grid resolutions) are referred to as "levels". For adjacent levels, "parents" refers to the coarse level l (coarser grid)
+and "child" (or "children") refers to the fine level l+1 (finer grid). Adjacent levels always differ by a factor of two in grid resolution.
+
+    	    call apply_interscale (routine, l, z_null, 0, 0)
+
+applies a subroutine "routine" which involves the coarser scale l and the finer scale l-1.  
+
 
 ************************************************************
 6.10 DOMAIN BOUNDARY CELLS ("HALO" OR "GHOST CELLS")
@@ -729,16 +761,8 @@ Therefore, the default value
 ensures that nearest neighbours are correct for nodes evaluated on (0,1) (i.e. ghost cells -1, 2), which is sufficient provided
 no routine requires more than one nearest neighbour nodes/edges in each direction at the same level.
 
-
 ************************************************************
-6.11 DATA OUTPUT
-
-Data is written for plotting by routines io.f90/write_primal and io.f90/write_dual.  The full state of the simulation is saved in
-io.f90/dump_adapt_mpi and read in again by io.f90/load_adapt_mpi.
-
-
-************************************************************
-6.12 CALCULATIONS ON ADAPTED GRID
+6.11 CALCULATIONS ON ADAPTED GRID
 
 By default fields are calculated and operators are applied on the ENTIRE grid (including at nodes where the result can be obtained
 by restriction indicated by mask=12 and adjacent zone nodes indicated by mask=8) and the results are then over-written by correct
@@ -753,7 +777,7 @@ then corrected in post_step1 (or post_vort).
 
 
 ************************************************************
-6.13 DIAGNOSTIC VARIABLES
+6.12 DIAGNOSTIC VARIABLES
 
 Diagnostic variables are derived from the prognostic variables defined in section 6.1. Diagnostic variables (or quantities) include
 temperature, zonal velocity, meridional velocity, OMEGA (vertical velocity D_t P = OMEGa [Pa/s]), vorticity, eddy kinetic energy,

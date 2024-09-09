@@ -841,7 +841,8 @@ contains
   subroutine dump_adapt_mpi (id, run_id)
     ! Save data in check point files for restart
     ! One file per domain
-    ! NOTE: modifies grid structure
+    !
+    ! NOTE: modifies adaptive grid structure by deleting any patches that do not contain cells in adjacent zone
     implicit none
     integer      :: id
     character(*) :: run_id
@@ -922,12 +923,14 @@ contains
           p_lev = 0
           do j = 1, grid(d)%lev(l)%length
              p_par = grid(d)%lev(l)%elts(j)
+
+             ! Do not save any child patches of a deleted parent patch (patches not in adjacent zone)
              if (grid(d)%patch%elts(p_par+1)%deleted) then
                 do c = 1, N_CHDRN
                    p_chd = grid(d)%patch%elts(p_par+1)%children(c)
                    if (p_chd > 0) grid(d)%patch%elts(p_chd+1)%deleted = .true. 
                 end do
-                cycle ! No data to write
+                cycle ! no data to write
              end if
 
              do k = zmin, zmax
@@ -946,23 +949,25 @@ contains
                 end do
              end if
 
-             ! Record whether patch needs to be refined
+             ! Record whether patch on finer grid is in adjacent zone (otherwise do not save)
              do c = 1, N_CHDRN
                 p_chd = grid(d)%patch%elts(p_par+1)%children(c)
                 if (p_chd > 0) then
-                   required(c) = check_child_required(grid(d), p_par, c-1)
+                   required(c) = check_child_required (grid(d), p_par, c-1)
+                   
                    grid(d)%patch%elts(p_chd+1)%deleted = .not. required(c) 
+                   
                    if (required(c) .and. p_lev+1 <= size(grid(d)%lev(l+1)%elts)) then
                       p_lev = p_lev + 1
-                      grid(d)%lev(l+1)%elts(p_lev) = p_chd ! ** grid modified **
+                      grid(d)%lev(l+1)%elts(p_lev) = p_chd 
                    end if
                 else
                    required(c) = .false.
                 end if
              end do
-             write (fid_gr(d)) required
+             write (fid_gr(d)) required ! save whether finer patch is required
           end do
-          if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev ! ** grid modified **
+          if (l+1 <= max_level) grid(d)%lev(l+1)%length = p_lev 
        end do
        close (fid_no(d)); close (fid_gr(d))
     end do
