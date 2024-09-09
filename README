@@ -279,7 +279,7 @@ can be restarted from a saved checkpoint.
 
 Note that patches that do not include significant cells (i.e. cells in the active zone plus the adjacent zone) are deleted from 
 the data structure ONLY when a checkpoint is saved.  Until then these non-significant cells (labelled with mask ZERO) are retained.  
-a restart the adaptive data structure changes.
+A checkpoint+restart therefore changes the adaptive data structure.
 
 Even though non-significant patches are deleted, the adaptive grid always ensures the at least the 5 nearest neighbours of signicant cells
 (i.e. cells outside the adjacent zone) are included in each direction. This allows computation of operators that require at most 5 nearest 
