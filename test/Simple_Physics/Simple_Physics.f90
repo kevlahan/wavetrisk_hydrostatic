@@ -25,7 +25,15 @@ program Simple_Physics
    ! Initialize random number generator
    call initialize_seed
 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ! Numerical parameters
+   adapt_dt       = .true.                           ! adapt time step
+   compressible   = .true.                           ! compressible physics
+   uniform        = .false.                          ! hybrid vertical pressure grid
+   cfl_num        = 1d0                              ! cfl number
+   Laplace_order_init = 2                            ! hyperdiffusion
+   timeint_type   = "RK4"                            ! time integration scheme (use RK34, RK45 or RK4)
+   iremap         = 10
+
    ! Standard (shared) parameter values for the simulation
    radius         = 6400      * KM                 ! mean radius of the Earth
    grav_accel     = 9.8       * METRE/SECOND**2    ! gravitational acceleration
@@ -45,35 +53,7 @@ program Simple_Physics
    T_0            = 250      * KELVIN              ! reference temperature
    u_0            = 30       * METRE/SECOND        ! geostrophic wind speed
    e_thick        = 10       * KM                  ! Eckman Layer Thickness in meters
-
-   ! Physics Package submodel parameters
-   radiation_mod  = .TRUE.                         ! (T) radiation module is on
-   turbulence_mod = .TRUE.                         ! (T) vertical diffusion module is on
-   convecAdj_mod  = .TRUE.                         ! (T) convective adjustment module is on
-   soil_mod       = .TRUE.                         ! (T) soil module is on
-   Nsoil          = 10                             ! Number of soil layers
-
-   ! Physics Package planet test case parameters
-   gas_molarmass  = 28.9702532_8  !8314.46261815324/R_d           ! molar mass of main gain (used to set ideal gas const in pacakage)
-   perihelion     = 150                            ! planet perihelion distance (MMkm)
-   aphelion       = 150                            ! planet aphelion distance (MMkm)
-   perihelion_day = 0.                             ! perihelion day
-   obliquity      = 0.                             ! planet axial tilt/obliquity
-   sea_surf       = 0.01_8                         ! sea surface roughness length scale (m)
-   soil_surf      = 0.01_8                         ! soil surface roughness length scale (m)
-   sea_interia    = 3000.                          ! sea thermal inertia (J/m^3K)
-   soil_interia   = 3000.                          ! soil thermal inertial (J/m^3K)
-   sea_albedo     = 0.112                          ! sea albedo
-   soil_albedo    = 0.112                          ! soil albedo
-   sea_emissive   = 1.                             ! sea emissivity
-   soil_emmisive  = 1.                             ! soil emissivity
-   emin_turb      = 1.e-16                         ! minimum turbulent kinetic energy
-   min_turbmix    = 100                            ! minimum turbulent mixing length (m)
-   sw_atten       = 0.99_8                         ! attenuation of shortwave radiation coefficient
-   lw_atten       = 0.08_8                         ! attenuation of longwave radiation coefficient
-   seasons        = .FALSE.                        ! seasons flag **** Does not do anything
-   diurnal        = .TRUE.                         ! diurnal cycle flag
-
+  
    ! Dimensions for scaling tendencies
    Tempdim        = T_0                            ! temperature scale (both theta and T from DYNAMICO)
    dTempdim       = 70       * KELVIN              ! temperature scale for tolerances
@@ -92,7 +72,7 @@ program Simple_Physics
 
    ! Read test case parameters
    call read_test_case_parameters
-
+   
    ! Initialize functions
    call assign_functions
 

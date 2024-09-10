@@ -5,6 +5,7 @@ module test_case_mod
    use comm_mpi_mod
    use utils_mod
    use init_mod
+   use init_physics_mod
    implicit none
 
    ! Standard variables
@@ -13,7 +14,7 @@ module test_case_mod
 
    ! Test case variables
    real(8) :: T_0 ! Reference Temperature
-   real(8) :: u_0, e_thick ! geostrophic wind speed, ekman layer thickness
+   real(8) :: u_0 ! geostrophic wind speed, ekman layer thickness
 
 contains
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Dynamics test case routines!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -514,22 +515,11 @@ contains
       open(unit=fid, file=filename, action='READ')
       read (fid,*) varname, test_case
       read (fid,*) varname, run_id
-      read (fid,*) varname, compressible
       read (fid,*) varname, max_level
       read (fid,*) varname, zlevels
-      read (fid,*) varname, uniform
-      read (fid,*) varname, remap
-      read (fid,*) varname, remapscalar_type
-      read (fid,*) varname, remapvelo_type
-      read (fid,*) varname, iremap
       read (fid,*) varname, default_thresholds
       read (fid,*) varname, tol
-      read (fid,*) varname, optimize_grid
-      read (fid,*) varname, adapt_dt
-      read (fid,*) varname, cfl_num
-      read (fid,*) varname, timeint_type
       read (fid,*) varname, press_save
-      read (fid,*) varname, Laplace_order_init
       read (fid,*) varname, dt_write
       read (fid,*) varname, CP_EVERY
       read (fid,*) varname, rebalance
