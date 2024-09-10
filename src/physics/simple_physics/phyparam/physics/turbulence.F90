@@ -77,7 +77,7 @@ CONTAINS
        ENDIF
     ENDDO
     !$acc end kernels
-    ! l'appelant fait des appels async donc on supprime ce wait. !$acc wait
+    ! appelant fait des appels async donc on supprime ce wait. !$acc wait
     !$acc end data
 
     !-----------------------------------------------------------------------
