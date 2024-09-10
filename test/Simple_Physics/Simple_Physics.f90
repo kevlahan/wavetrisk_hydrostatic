@@ -9,12 +9,11 @@ program Simple_Physics
    use ops_mod
    use test_case_mod
    use io_mod
-   ! use cases specific to Simple Physics
    use init_physics_mod
    use physics_call_mod
    use phys_processing_mod
-   implicit none
 
+   implicit none
    logical        :: aligned
    character(256) :: input_file
 
@@ -31,44 +30,40 @@ program Simple_Physics
    uniform        = .false.                          ! hybrid vertical pressure grid
    cfl_num        = 1d0                              ! cfl number
    Laplace_order_init = 2                            ! hyperdiffusion
-   timeint_type   = "RK4"                            ! time integration scheme (use RK34, RK45 or RK4)
-   iremap         = 10
+   timeint_type   = "RK3"                            ! time integration scheme (use RK34, RK45 or RK4)
+   iremap         = 10                               ! remap interval
 
    ! Standard (shared) parameter values for the simulation
-   radius         = 6400      * KM                 ! mean radius of the Earth
-   grav_accel     = 9.8       * METRE/SECOND**2    ! gravitational acceleration
-   p_0            = 1000      * hPa                ! reference pressure (mean surface pressure) in Pascals
-   p_top          = 0.01       * Pa                ! pressure at the top in Pascals
-   c_p            = 1004.0_8  * JOULE/(KG*KELVIN)  ! specific heat at constant pressure in joules per kilogram Kelvin
-   !R_d            = 296.945007 * JOULE/(KG*KELVIN)  ! ideal gas constant for dry air in joules per kilogram Kelvin
-   ! Set Rd to 287 whole number
-   R_d            = 287 * JOULE/(KG*KELVIN)
-   c_v            = c_p - R_d * JOULE/(KG*KELVIN)  ! specific heat at constant volume c_v = c_p - R_d
-   ref_density    = 1.204     * KM                 ! Reference density (km/m^3)
-
-   kappa          = R_d/c_p                        ! kappa
-   gamma          = c_p/c_v                        ! heat capacity ratio
+   radius         = 6400d0    * KM                   ! mean radius of the Earth
+   grav_accel     = 9.8d0     * METRE/SECOND**2      ! gravitational acceleration
+   p_0            = 1000d0    * hPa                  ! reference pressure (mean surface pressure) in Pascals
+   p_top          = 0.01d0    * Pa                   ! pressure at the top in Pascals
+   c_p            = 1004d0    * JOULE/(KG*KELVIN)    ! specific heat at constant pressure in joules per kilogram Kelvin
+   R_d            = 287d0     * JOULE/(KG*KELVIN)    ! set to a whole number
+   c_v            = c_p - R_d * JOULE/(KG*KELVIN)    ! specific heat at constant volume c_v = c_p - R_d
+   ref_density    = 1.204d0   * KG/METRE**3          ! reference density (kg/m^3)
+   kappa          = R_d / c_p                        ! kappa
+   gamma          = c_p / c_v                        ! heat capacity ratio
 
    ! Local initial conditions test case parameters
-   T_0            = 250      * KELVIN              ! reference temperature
-   u_0            = 30       * METRE/SECOND        ! geostrophic wind speed
-   e_thick        = 10       * KM                  ! Eckman Layer Thickness in meters
+   T_0            = 250d0      * KELVIN              ! reference temperature
+   u_0            = 30d0       * METRE/SECOND        ! geostrophic wind speed
+   e_thick        = 10d0       * KM                  ! Eckman Layer Thickness in meters
   
    ! Dimensions for scaling tendencies
-   Tempdim        = T_0                            ! temperature scale (both theta and T from DYNAMICO)
-   dTempdim       = 70       * KELVIN              ! temperature scale for tolerances
-   Pdim           = p_0                            ! pressure scale
-   dPdim          = 80       * hPa                 ! scale of surface pressure variation determining mass tolerance scale
+   Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
+   dTempdim       = 70d0       * KELVIN              ! temperature scale for tolerances
+   Pdim           = p_0                              ! pressure scale
+   dPdim          = 80d0       * hPa                 ! scale of surface pressure variation determining mass tolerance scale
 
    ! Dimensional scaling
-   specvoldim     = (R_d*Tempdim)/Pdim          ! specific volume scale
-   wave_speed     = sqrt(gamma*Pdim*specvoldim) ! acoustic wave speed
+   specvoldim     = (R_d * Tempdim) / Pdim           ! specific volume scale
+   wave_speed     = sqrt (gamma * Pdim * specvoldim) ! acoustic wave speed
 
-   Udim           = 30 * METRE/SECOND           ! velocity scale
-   Tdim           = 1  * DAY                    ! time scale - a solar day
-   Ldim           = Udim*Tdim                   ! length scale
-   Hdim           = wave_speed**2/grav_accel    ! vertical length scale
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   Udim           = u_0                              ! velocity scale
+   Tdim           = 1d0  * DAY                       ! time scale - a solar day
+   Ldim           = Udim * Tdim                      ! length scale
+   Hdim           = wave_speed**2 / grav_accel       ! vertical length scale
 
    ! Read test case parameters
    call read_test_case_parameters
@@ -90,20 +85,20 @@ program Simple_Physics
 
    ! Save initial conditions
    call print_test_case_parameters
-   call write_and_export (iwrite)
-   call mean_values(0)
+   
+   !call write_and_export (iwrite)
+   call mean_values (0) ! processing for the physics package mean values
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    if (rank == 0) write (6,'(A,/)') &
       '----------------------------------------------------- Start simulation run &
       ------------------------------------------------------'
    open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-   total_cpu_time = 0.0_8
+   
+   total_cpu_time = 0d0
    do while (time < time_end)
       call start_timing
       call time_step (dt_write, aligned) ! dynamics step
       !When no dynamics called use : call timestep_placeholder(dt_write, aligned)
-      if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
       call euler (sol(1:N_VARIABLE,1:ZLEVELS), wav_coeff(1:N_VARIABLE,1:ZLEVELS), trend_physics, dt) ! physics step
       call stop_timing
       call print_log
@@ -112,25 +107,21 @@ program Simple_Physics
          iwrite = iwrite+1
          if (remap) call remap_vertical_coordinates
 
-         if (modulo (iwrite, CP_EVERY) == 0) then
-            call write_checkpoint (run_id, rebalance) ! save checkpoint (and rebalance)
-
-            ! Save statistics
-            call combine_stats
-            if (rank == 0) call write_out_stats
-         end if
+         ! Save checkpoint (and rebalance)
+         if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance) 
 
          ! Save fields
          call write_and_export (iwrite)
-         call mean_values(iwrite) !processing for the physics package mean values
+         call mean_values      (iwrite) 
       end if
    end do
 
    call write_checkpoint (run_id, rebalance) ! checkpoint after final day
-   call mean_values(INT(time_end)) ! save means of final day
+   call mean_values(INT(time_end))           ! save means of final day
+   
    if (rank == 0) then
       close (12)
-      write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time
+      write (6,'(a,es11.4)') 'Total cpu time = ', total_cpu_time
    end if
    call finalize
 end program Simple_Physics
