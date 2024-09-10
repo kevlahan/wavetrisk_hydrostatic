@@ -7,7 +7,7 @@ program Held_Suarez
   implicit none
 
   integer        :: l
-  real(8)        :: area_sphere, dx_scaling, nu_scaling, res_scaling, rx0_max, rx1_max
+  real(8)        :: area_sphere, dx_scaling, nu_CAM, nu, nu_scaling, res_scaling, rx0_max, rx1_max
   logical        :: aligned
   character(256) :: input_file
 
@@ -43,9 +43,7 @@ program Held_Suarez
   k_s            = 1d0/4d0    / DAY                 ! cooling at surface
   delta_T        = 65d0       * KELVIN/METRE        ! meridional temperature gradient
   delta_theta    = 10d0       * KELVIN/METRE        ! vertical temperature gradient
-
   sigma_b        = 0.7d0                            ! normalized tropopause pressure height
-  sigma_c        = 1d0 - sigma_b
   
   ! Local test case parameters (Jablonowski and Williamson 2006 zonally symmetric initial conditions)
   u_0            = 70d0     * METRE/SECOND          ! maximum velocity of zonal wind
@@ -81,7 +79,7 @@ program Held_Suarez
   Laplace_order_init       = 2                      ! bi-Laplacian horizontal diffusion
   scale_aware              = .false.                ! do not use scale-aware viscosity
   analytic_topo            = "none"                 ! type of analytic topography (mountains or none if NCAR_topo = .false.)
-  log_min_mass             = .true.                ! compute minimum mass at each dt (for checking stability issues)
+  log_min_mass             = .false.                ! compute minimum mass at each dt (for checking stability issues)
   log_total_mass           = .false.                ! check whether total mass is conserved (for debugging)
 
   ! Average hexagon areas and horizontal resolution
@@ -89,15 +87,16 @@ program Held_Suarez
   Area_min    = area_sphere / (10d0 * 4d0**max_level)
   Area_max    = area_sphere / (10d0 * 4d0**min_level)
 
+  res_scaling = (120d0*KM) / (100d0*KM)                        ! ratio between TRiSK  and CAM dx, approximately (120/100)^4
   dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)              
   dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
-  dx_scaling  = 2d0 ** (dble (6 - max_level))       ! scaling factor compared to approximately J6 base CAM value
+  dx_scaling  = 2d0 ** (dble (6 - max_level))                  ! scaling factor compared to approximately J6 base CAM value
 
   ! Time adaptivity parameters
   if (adapt_dt) then
      cfl_max = 1d0                                             ! maximum cfl number
      cfl_min = cfl_max                                         ! minimum cfl number
-     T_cfl   = 5d-2 * DAY                                      ! time over which to increase cfl number from cfl_min to cfl_max
+     T_cfl   = 5d-1 * DAY                                      ! time over which to increase cfl number from cfl_min to cfl_max
      cfl_num = cfl_min                                         ! initialize cfl number
      dt_init = cfl_min * 0.85d0 * dx_min / (wave_speed + Udim) ! initial time step     (0.85 factor corrects for minimum dx)
      dt_max  = cfl_max * 0.85d0 * dx_min / (wave_speed + Udim) ! equilibrium time step (0.85 factor corrects for minimum dx)
@@ -110,11 +109,13 @@ program Held_Suarez
   ! note that wavetrisk J6 resolution is about 120 km while 1 degree CAM resolution is about 110 km
   !
   ! Rescale by difference in grid sizes to get equivalent viscosity
-  res_scaling        = 2d0                                                ! approximately (120/100)^4
-  nu_scaling         = res_scaling * dx_scaling**(2*Laplace_order_init)   ! rescale by maximum resolution
-  nu_sclr            = 1.0d15 * nu_scaling
-  nu_rotu            = 1.0d15 * nu_scaling
-  nu_divu            = 2.5d15 * nu_scaling
+  nu_scaling         = (res_scaling * dx_scaling)**(2*Laplace_order_init)
+  nu_CAM             = 1d15 * METRE**4/SECOND
+  nu                 = nu_CAM * nu_scaling
+  
+  nu_sclr            = nu         ! CAM value (scaled)
+  nu_rotu            = nu / 4d0   ! smaller to respect smaller stability limit for rotu Laplacian
+  nu_divu            = nu * 2.5d0 ! increase by CAM ratio
 
   ! Equivalent non-dimensional viscosities
   C_visc(S_MASS)     = nu_sclr * dt_max / (3d0 * Area_min**Laplace_order_init) 
@@ -133,7 +134,7 @@ program Held_Suarez
 
   ! Save initial conditions
   call omega_velocity
-  !call write_and_export (iwrite)
+  call write_and_export (iwrite)
 
   ! Compute hydrostatic error factors for topography
   if (NCAR_topo .or. analytic_topo=="mountains") then
@@ -153,38 +154,30 @@ program Held_Suarez
 
   do while (time < time_end)
      cfl_num = cfl (time) ! gradually increase cfl number
+     
      call start_timing
      call time_step (dt_write, aligned)
-     call euler (sol, wav_coeff, trend_physics, dt)
-     !if (time >= 200*DAY .and. modulo (istep, 100) == 0) call statistics
+     call euler (sol, wav_coeff, trend_HS, dt)
      call stop_timing
+     
      call print_log
 
      if (aligned) then
         iwrite = iwrite+1
-        
         if (remap) call remap_vertical_coordinates
 
-        ! Save fields
+        ! Save checkpoint (and rebalance)
+        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
+
+        ! Save fields (after reloading checkpoint)
         call omega_velocity
         call write_and_export (iwrite)
-        
-        ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) then
-           call write_checkpoint (run_id, rebalance) 
-
-           ! Save statistics
-           if (time >= 200*DAY .and. modulo (istep, 100) == 0) then
-              call combine_stats
-              if (rank == 0) call write_out_stats
-           end if
-        end if
      end if
   end do
 
   if (rank == 0) then
      close (12)
-     write (6,'(a,eS11.4)') 'Total cpu time = ', total_cpu_time
+     write (6,'(a,es11.4)') 'Total cpu time = ', total_cpu_time
   end if
   call finalize
 end program Held_Suarez

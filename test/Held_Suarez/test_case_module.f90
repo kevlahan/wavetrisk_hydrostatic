@@ -14,14 +14,30 @@ module test_case_mod
   real(8) :: time_start, total_cpu_time
 
   ! Test case variables
-  real(8) :: Area_max, Area_min, C_div, delta_T, delta_theta, dt_max, k_a, k_f, k_s, specvoldim, T_0, T_mean, T_tropo
+  real(8) :: Area_max, Area_min, C_div, dt_max, specvoldim
   real(8) :: topo_Area_min, topo_dx_min
-  real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T, sigma_b, sigma_c, u_0
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
 
   character(255) :: analytic_topo = "none" ! mountains or none (used if NCAR_topo = .false.)
-  
-  logical        :: scale_aware             = .false.
+
+  ! Held-Suarez model parameters
+  real(8) :: T_0            = 300d0      * KELVIN              ! reference temperature
+  real(8) :: T_mean         = 315d0      * KELVIN              ! mean temperature
+  real(8) :: T_tropo        = 200d0      * KELVIN              ! tropopause temperature
+  real(8) :: u_0            = 70d0       * METRE/SECOND        ! maximum velocity of zonal wind
+  real(8) :: k_a            = 1d0/40d0   / DAY                 ! cooling at free surface of atmosphere
+  real(8) :: k_f            = 1d0        / DAY                 ! Rayleigh friction
+  real(8) :: k_s            = 1d0/4d0    / DAY                 ! cooling at surface
+  real(8) :: delta_T        = 65d0       * KELVIN/METRE        ! meridional temperature gradient
+  real(8) :: delta_theta    = 10d0       * KELVIN/METRE        ! vertical temperature gradient
+  real(8) :: sigma_b        = 0.7d0                            ! normalized tropopause pressure height
+  real(8) :: gamma_T        = 5d-3       * KELVIN/METRE        ! temperature lapse rate
+  real(8) :: delta_T2       = 4.8d5      * KELVIN              ! empirical temperature difference
+  real(8) :: sigma_0        = 0.252d0                          ! value of sigma at reference level (level of the jet)
+  real(8) :: sigma_t        = 0.2d0                            ! value of sigma at the tropopauses
+
+  ! Model parameters 
+  logical :: scale_aware    = .false.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -281,11 +297,12 @@ contains
     implicit none
     real(8) :: p, p_s, lat, theta_equil, k_T
 
-    real(8) :: cs2, sigma, theta_force, theta_tropo
+    real(8) :: cs2, sigma, sigma_c, theta_force, theta_tropo
 
     cs2 = cos (lat)**2
 
     sigma = (p - p_top) / (p_s - p_top)
+    sigma_c = 1d0 - sigma_b
 
     k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
 
@@ -296,29 +313,6 @@ contains
     theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
     !theta_equil = Tempdim
   end subroutine cal_theta_eq
-
-  real(8) function set_temp (x_i, sigma)
-    ! From Jablonowski and Williamson (2006)
-    implicit none
-    type(Coord) :: x_i
-    real(8)     :: sigma
-
-    real(8) :: cs2, lon, lat, sn2, Tmean
-
-    call cart2sph (x_i, lon, lat)
-    sn2 = sin (lat)**2
-    cs2 = cos (lat)**2
-
-    if (sigma >= sigma_t) then
-       Tmean = T_0 * sigma**(R_d * Gamma_T / grav_accel)
-    else
-       Tmean = T_0 * sigma**(R_d * Gamma_T / grav_accel) + delta_T * (sigma_t - sigma)**5
-    end if
-
-    set_temp = Tmean + 0.75d0 * sigma * MATH_PI * u_0 / R_d * sin(sigma_v) * sqrt(cos(sigma_v)) * &
-         (2d0*u_0*cos(sigma_v)**1.5 * (-2d0*sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
-         + radius * omega * (8d0/5d0*cs2**1.5 * (sn2+2/3d0) - MATH_PI/4d0))
-  end function set_temp
 
   real(8) function surf_geopot_case (d, id)
     ! Set geopotential and topography
@@ -410,7 +404,7 @@ contains
   end subroutine init_topo
 
   subroutine vel_fun (lon, lat, u, v)
-    ! Zonal latitude-dependent wind
+    ! Random initial wind
     implicit none
     real(8) :: lon, lat, u, v
 
@@ -420,7 +414,7 @@ contains
 
     ! Zonal velocity component
     call random_number (r)
-    u = u_0 * cos (sigma_v)**1.5 * sin (2d0*lat)**2  + amp * 2d0 * (r - 0.5d0)
+    u = amp * 2d0 * (r - 0.5d0)
 
     ! Meridional velocity component
     call random_number (r)
@@ -942,7 +936,7 @@ contains
     read (fid) threshold
   end subroutine load_case
 
-  subroutine trend_physics (q, dq)
+  subroutine trend_HS (q, dq)
     ! Trend for Held-Suarez physics
     ! assumes Euler step
     implicit none
@@ -967,8 +961,8 @@ contains
           dvelo  => trend(S_VELO,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (cal_press_HS,          grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (trend_scalars_physics, grid(d), p-1, k, 0, 1)
-             call apply_onescale_to_patch (trend_velo_physics,    grid(d), p-1, k, 0, 0)
+             call apply_onescale_to_patch (trend_scalars_HS, grid(d), p-1, k, 0, 1)
+             call apply_onescale_to_patch (trend_velo_HS,    grid(d), p-1, k, 0, 0)
           end do
           nullify (dmass, dtemp, dvelo, mass, mean_m, temp, velo)
        end do
@@ -981,9 +975,9 @@ contains
        end if
     end do
     dq%bdry_uptodate = .false.
-  end subroutine trend_physics
+  end subroutine trend_HS
 
-  subroutine trend_scalars_physics (dom, i, j, zlev, offs, dims)
+  subroutine trend_scalars_HS (dom, i, j, zlev, offs, dims)
     ! Trend for physics step (relaxation to equilibrium temperature)
     implicit none
     type(Domain)                   :: dom
@@ -1013,9 +1007,9 @@ contains
     else
        dtemp(id) = - k_T * temp(id)
     end if
-  end subroutine trend_scalars_physics
+  end subroutine trend_scalars_HS
 
-  subroutine trend_velo_physics (dom, i, j, zlev, offs, dims)
+  subroutine trend_velo_HS (dom, i, j, zlev, offs, dims)
     ! Velocity trend for physics step (Rayleigh friction)
     implicit none
     type(Domain)                   :: dom
@@ -1025,7 +1019,7 @@ contains
 
     integer                    :: id, id_i
     integer, dimension(1:EDGE) :: id_e
-    real(8)                    :: k_v, sigma
+    real(8)                    :: k_v, sigma, sigma_c
 
     real(8), dimension(1:EDGE) :: drag
 
@@ -1034,9 +1028,11 @@ contains
     id_e = id_edge (id)
 
     sigma = (dom%press%elts(id_i) - p_top) / (dom%surf_press%elts(id_i) - p_top)
+    sigma_c = 1d0 - sigma_b
+    
     k_v = k_f * max (0d0, (sigma - sigma_b) / sigma_c)
     dvelo(id_e) = - k_v * velo(id_e)
-  end subroutine trend_velo_physics
+  end subroutine trend_velo_HS
 
   subroutine trend_velo_sso (dom, i, j, zlev, offs, dims)
     ! Include SSO drag velocity trend 
