@@ -146,24 +146,19 @@ CONTAINS
     ! They will be initialized in phyparm!
     IF (.not.firstcall) THEN
        ! Update physics soil temp if turned on
-       IF (soil_flag) THEN
-          tsoil(:,:) = extra_temp(:, 2:)
-       END IF
+       IF (soil_flag) tsoil(:,:) = extra_temp(:, 2:)
 
        ! Update physics surface temp
        tsurf(:) = extra_temp(ngrid,1)
     END IF
 
     ! Call phyparam physics
-    call phyparam(ngrid, nlayer, firstcall, lastcall, rjourvrai, gmtime, ptimestep, pplev, pplay, &
+    call phyparam (ngrid, nlayer, firstcall, lastcall, rjourvrai, gmtime, ptimestep, pplev, pplay, &
          pphi, pu, pv, pt, pdu, pdv, pdt, pdpsrf)
 
     ! Update output extra_temp with physics soil and surface temp
     extra_temp(ngrid,1) = tsurf(ngrid)
-    IF (soil_flag) THEN
-       extra_temp(:,2:) = tsoil(:,:)
-    END IF
-
+    IF (soil_flag) extra_temp(:,2:) = tsoil(:,:)
   END SUBROUTINE physics_call_single_col
 
 END MODULE single_column_mod

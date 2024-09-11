@@ -5,17 +5,33 @@ module test_case_mod
    use comm_mpi_mod
    use utils_mod
    use init_mod
+   use std_atm_profile_mod
    use init_physics_mod
    implicit none
 
    ! Standard variables
    integer :: CP_EVERY, resume_init
+   real(8) :: Area_max, Area_min, C_div
+   real(8) :: nu_sclr, nu_rotu, nu_divu
    real(8) :: dt_cfl, total_cpu_time, dPdim, R_ddim, specvoldim, dTempdim
 
-   ! Test case variables
-   real(8) :: T_0 ! Reference Temperature
-   real(8) :: u_0 ! geostrophic wind speed, ekman layer thickness
-
+   ! Held-Suarez model parameters
+  real(8) :: T_0            = 300d0      * KELVIN              ! reference temperature
+  real(8) :: T_mean         = 315d0      * KELVIN              ! mean temperature
+  real(8) :: T_tropo        = 200d0      * KELVIN              ! tropopause temperature
+  real(8) :: u_0            = 70d0       * METRE/SECOND        ! maximum velocity of zonal wind
+  real(8) :: k_a            = 1d0/40d0   / DAY                 ! cooling at free surface of atmosphere
+  real(8) :: k_f            = 1d0        / DAY                 ! Rayleigh friction
+  real(8) :: k_s            = 1d0/4d0    / DAY                 ! cooling at surface
+  real(8) :: delta_T        = 65d0       * KELVIN/METRE        ! meridional temperature gradient
+  real(8) :: delta_theta    = 10d0       * KELVIN/METRE        ! vertical temperature gradient
+  real(8) :: sigma_b        = 0.7d0                            ! normalized tropopause pressure height
+  real(8) :: gamma_T        = 5d-3       * KELVIN/METRE        ! temperature lapse rate
+  real(8) :: delta_T2       = 4.8d5      * KELVIN              ! empirical temperature difference
+  real(8) :: sigma_0        = 0.252d0                          ! value of sigma at reference level (level of the jet)
+  real(8) :: sigma_t        = 0.2d0                            ! value of sigma at the tropopauses
+  
+  logical :: scale_aware = .false.
 contains
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Dynamics test case routines!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    subroutine assign_functions
@@ -39,469 +55,505 @@ contains
    end subroutine assign_functions
 
    function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
-      ! Additional physics for the flux term of the scalar trend
-      ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
-      !
-      ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
-      use domain_mod
+    ! Additional physics for the flux term of the scalar trend
+    ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
+    !
+    ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
+    use domain_mod
+    implicit none
+
+    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
+    type(domain)                                         :: dom
+    integer                                              :: d, id, idE, idNE, idN, v, zlev
+    logical, optional                                    :: type
+
+    integer                    :: id_i
+    real(8), dimension(1:EDGE) :: d_e, grad, l_e
+    logical                    :: local_type
+
+    if (present(type)) then
+       local_type = type
+    else
+       local_type = .false.
+    end if
+
+    id_i = id + 1
+    d = dom%id + 1
+
+    if (Laplace_order == 0) then
+       physics_scalar_flux_case = 0d0
+    else
+       if (.not.local_type) then ! usual flux at edges E, NE, N
+          l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
+          d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
+       else ! flux at SW corner
+          l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
+          l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
+          l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
+          d_e(RT+1) =  - dom%len%elts(EDGE*idE+RT+1)
+          d_e(DG+1) =  - dom%len%elts(EDGE*idNE+DG+1)
+          d_e(UP+1) =  - dom%len%elts(EDGE*idN+UP+1)
+       end if
+
+       ! Calculate gradients
+       if (Laplace_order == 1) then
+          grad = grad_physics (q(v,zlev)%data(d)%elts)
+       elseif (Laplace_order == 2) then
+          grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
+       end if
+       physics_scalar_flux_case = (-1d0)**Laplace_order * grad * l_e
+    end if
+  contains
+    function grad_physics (scalar)
       implicit none
+      real(8), dimension(1:EDGE) :: grad_physics
+      real(8), dimension(:)      :: scalar
 
-      real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
-      type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
-      type(domain)                                         :: dom
-      integer                                              :: d, id, idE, idNE, idN, v, zlev
-      logical, optional                                    :: type
+      grad_physics(RT+1) = (visc(idE) * scalar(idE+1) - visc(id)   * scalar(id+1))   / d_e(RT+1)
+      grad_physics(DG+1) = (visc(id)  * scalar(id+1)  - visc(idNE) * scalar(idNE+1)) / d_e(DG+1)
+      grad_physics(UP+1) = (visc(idN) * scalar(idN+1) - visc(id)   * scalar(id+1))   / d_e(UP+1)
+    end function grad_physics
 
-      integer                    :: id_i
-      real(8), dimension(1:EDGE) :: d_e, grad, l_e
-      logical                    :: local_type
-
-      if (present(type)) then
-         local_type = type
-      else
-         local_type = .false.
-      end if
-
-      id_i = id + 1
-      d = dom%id + 1
-
-      if (Laplace_order == 0) then
-         physics_scalar_flux_case = 0.0_8
-      else
-         if (.not.local_type) then ! usual flux at edges E, NE, N
-            l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
-            d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
-         else ! flux at SW corner
-            l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
-            l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
-            l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
-            d_e(RT+1) = -dom%len%elts(EDGE*idE+RT+1)
-            d_e(DG+1) = -dom%len%elts(EDGE*idNE+DG+1)
-            d_e(UP+1) = -dom%len%elts(EDGE*idN+UP+1)
-         end if
-
-         ! Calculate gradients
-         if (Laplace_order == 1) then
-            grad = grad_physics (q(v,zlev)%data(d)%elts)
-         elseif (Laplace_order == 2) then
-            grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
-         end if
-
-         ! Complete scalar diffusion
-         physics_scalar_flux_case = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
-      end if
-   contains
-      function grad_physics (scalar)
-         implicit none
-         real(8), dimension(1:EDGE) :: grad_physics
-         real(8), dimension(:)      :: scalar
-
-         grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
-         grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
-         grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
-      end function grad_physics
-   end function physics_scalar_flux_case
-
-   function physics_velo_source_case (dom, i, j, zlev, offs, dims)
-      ! Additional physics for the source term of the velocity trend
-      use domain_mod
+    real(8) function visc (id)
+      ! Scale aware viscosity
+      ! factor 3 ensures that maximum stable C_visc matches theoretical estimate of 1/6^Laplace_order
       implicit none
-
-      real(8), dimension(1:EDGE)     :: physics_velo_source_case
-      type(domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      integer                    :: id, visc_scale
-      real(8), dimension(1:EDGE) :: diffusion
-
-      id = idx (i, j, offs, dims)
-
-      visc_scale = 1.0_8!(max_level/dom%level%elts(id+1))**(2*Laplace_order_init-1)
-
-      if (Laplace_order == 0) then
-         diffusion = 0.0_8
-      else
-         ! Calculate Laplacian of velocity
-         diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu()) * visc_scale
-      end if
-
-      ! Total physics for source term of velocity trend
-      physics_velo_source_case =  diffusion
-   contains
-      function grad_divu()
-         implicit none
-         real(8), dimension(3) :: grad_divu
-
-         integer :: idE, idN, idNE
-
-         idE  = idx (i+1, j,   offs, dims)
-         idN  = idx (i,   j+1, offs, dims)
-         idNE = idx (i+1, j+1, offs, dims)
-
-         grad_divu(RT+1) = (divu(idE+1) - divu(id+1))  /dom%len%elts(EDGE*id+RT+1)
-         grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1))/dom%len%elts(EDGE*id+DG+1)
-         grad_divu(UP+1) = (divu(idN+1) - divu(id+1))  /dom%len%elts(EDGE*id+UP+1)
-      end function grad_divu
-
-      function curl_rotu()
-         implicit none
-         real(8), dimension(3) :: curl_rotu
-
-         integer :: idS, idW
-
-         idS  = idx (i,   j-1, offs, dims)
-         idW  = idx (i-1, j,   offs, dims)
-
-         curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1))/dom%pedlen%elts(EDGE*id+RT+1)
-         curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+DG+1)
-         curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1))/dom%pedlen%elts(EDGE*id+UP+1)
-      end function curl_rotu
-   end function physics_velo_source_case
-
-   subroutine init_sol (dom, i, j, zlev, offs, dims)
-      !-----------------------------------------------------------------------------------
-      !
-      !   Description: Initialization routine to be called for each zlev and grid point.
-      !                Initializes the initial conditions:
-      !                    - potenital temp -> mass weighted potential temp
-      !                    - pressure at the layer center
-      !                    - Intepolates velocites from nodes to edges
-      !
-      !-----------------------------------------------------------------------------------
-      implicit none
-      type (Domain)                   :: dom
-      integer                         :: i, j, zlev
-      integer, dimension (N_BDRY+1)   :: offs
-      integer, dimension (2,N_BDRY+1) :: dims
-
-      type(Coord) :: x_i, x_E, x_N, x_NE
-      integer     :: id, d, idN, idE, idNE
-      real(8)     :: phi, p, p_s, pot_temp, sigma
-      real(8), dimension (1:EDGE)     :: uvw
-
-      d = dom%id+1
-
-      id   = idx(i,   j,   offs, dims)
-      idN  = idx(i,   j+1, offs, dims)
-      idE  = idx(i+1, j,   offs, dims)
-      idNE = idx(i+1, j+1, offs, dims)
-
-      x_i  = dom%node%elts(id+1)
-      x_E  = dom%node%elts(idE+1)
-      x_N  = dom%node%elts(idN+1)
-      x_NE = dom%node%elts(idNE+1)
-
-      ! Surface pressure
-      p_s = dom%surf_press%elts(id+1)
-
-      ! Pressure at level zlev (layer center)
-      p = 0.5 * (a_vert(zlev)+a_vert(zlev+1) + (b_vert(zlev)+b_vert(zlev+1))*p_s)
-
-      ! Mass/Area = rho*dz at level zlev
-      sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*p_s/grav_accel
-
-      ! Potential temperature
-      pot_temp = T_0 * (p/p_0)**(-kappa)
-      !     call cal_theta_eq (p, p_s, lat, theta_equil, k_T)
-
-      ! Mass-weighted potential temperature
-      sol(S_TEMP,zlev)%data(d)%elts(id+1) = sol(S_MASS,zlev)%data(d)%elts(id+1) * pot_temp
-
-      ! Set initial velocity field (of edges, zonal and meridonal should already be calculated for the entire domain)
-      ! Calculate u,v,w edge components fromm zonal and meridional
-      phi = dom%u_zonal%elts(id + 1)
-      phi = dom%v_merid%elts(id+1)
-      call interp_latlon_UVW (dom, i, j, zlev, offs, dims, uvw)
-      ! Set initial edge velocity
-      sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = uvw(RT+1)
-      sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = uvw(DG+1)
-      sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = uvw(UP+1)
-
-      ! Means are zero
-      sol_mean(S_MASS,zlev)%data(d)%elts(id+1)                      = 0d0
-      sol_mean(S_TEMP,zlev)%data(d)%elts(id+1)                      = 0d0
-      sol_mean(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
-   end subroutine init_sol
-
-   subroutine init_vels_and_surf(dom, i, j, zlev, offs, dims)
-      !-----------------------------------------------------------------------------------
-      !
-      !   Description: Initialize surface pressure, geoptentials and velocities
-      !                (zonal and meridional) at the node.
-      !
-      !   Author: Gabrielle Ching-Johnson
-      !
-      !-----------------------------------------------------------------------------------
-      implicit none
-      type (Domain)                   :: dom
-      integer                         :: i, j, zlev
-      integer, dimension (N_BDRY+1)   :: offs
-      integer, dimension (2,N_BDRY+1) :: dims
       integer :: id
-      type(Coord) :: x_i
 
-      id   = idx(i,   j,   offs, dims)
-      x_i  = dom%node%elts(id+1)
-
-      ! Set Surface pressure
-      dom%surf_press%elts(id+1) = surf_pressure (x_i)
-
-      call geopot_initialize(dom, i, j, zlev, offs, dims)
-
-      call vel_initialize(dom, i, j, zlev, offs, dims)
-
-   end subroutine init_vels_and_surf
-
-   real(8) function surf_geopot_case (d, id)
-      ! Surface geopotential set to zero
-      implicit none
-      integer :: d, id
-
-      ! Geopotential at sea level across sphere
-      surf_geopot_case = 0d0
-   end function surf_geopot_case
-
-   real(8) function surf_pressure (x_i)
-      ! Surface pressure
-      implicit none
-      type(Coord) :: x_i
-
-      surf_pressure = p_0
-   end function surf_pressure
-
-   subroutine geopot_initialize(dom, i, j, zlev, offs, dims)
-      !-----------------------------------------------------------------------------------
-      !
-      !   Description: Initialize geopotential at element node
-      !
-      !   Assumption: Surface pressure is set and grid has been set
-      !
-      !   Author: Gabrielle Ching-Johnson
-      !
-      !-----------------------------------------------------------------------------------
-      implicit none
-      type (Domain)                   :: dom
-      integer                         :: i, j, zlev
-      integer, dimension (N_BDRY+1)   :: offs
-      integer, dimension (2,N_BDRY+1) :: dims
-
-      real(8) :: p, p_s, phi
-      integer :: id_i
-
-      id_i = idx(i, j, offs, dims) + 1
-
-      p_s = dom%surf_press%elts(id_i)
-      ! Calculate pressure at the center of vertical layer
-      p = 0.5 * (a_vert(zlev)+a_vert(zlev+1) + (b_vert(zlev)+b_vert(zlev+1))*p_s)
-
-      ! Geopotential
-      phi = -R_d*T_0*LOG((p)/p_s)
-      dom%geopot%elts(id_i) = phi
-
-   end subroutine geopot_initialize
-
-   subroutine vel_initialize (dom, i, j, zlev, offs, dims)
-      !-----------------------------------------------------------------------------------
-      !
-      !   Description: Initialize velocities (zonal and meridional) at the element node
-      !                 using the theory of the ekman layer.
-      !
-      !   Assumption: Geopotential at the element has been set in dom%geopot%elts
-      !
-      !   Author: Gabrielle Ching-Johnson
-      !
-      !-----------------------------------------------------------------------------------
-      implicit none
-      type (Domain)                   :: dom
-      integer                         :: i, j, zlev
-      integer, dimension (N_BDRY+1)   :: offs
-      integer, dimension (2,N_BDRY+1) :: dims
-      integer :: id_i
-      real(8) :: phi, u, v, lat, lon
-      type(Coord) :: x_i
-
-      id_i = idx(i, j, offs, dims) + 1
-      x_i  = dom%node%elts(id_i)
-      call cart2sph (x_i, lon, lat)
-      phi = dom%geopot%elts(id_i)
-
-      u = u_0 * (1-(exp(-phi/(e_thick*grav_accel))*cos(phi/ (e_thick*grav_accel)))) ! Zonal velocity component
-      dom%u_zonal%elts(id_i) = u*cos(lat)
-      v = u_0 * (1-(exp(-phi/(e_thick*grav_accel))*sin(phi/ (e_thick*grav_accel)))) ! Meridional velocity component
-      dom%v_merid%elts(id_i) = v*cos(lat)
-   end subroutine vel_initialize
-
-   subroutine apply_initial_conditions_case
-      implicit none
-      integer :: k, l
-
-      do l = level_start, level_end
-         do k = 1, zlevels
-            ! Set velocities at the nodes for all domains
-            call apply_onescale(init_vels_and_surf, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-            ! Initialize prognostic variables
-            call apply_onescale (init_sol, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-         end do
-      end do
-   end subroutine apply_initial_conditions_case
-
-   subroutine initialize_a_b_vert_case
-      !-----------------------------------------------------------------------------------
-      !
-      !   Description: Initialize the vertical grid using equal pressure layers.
-      !
-      !-----------------------------------------------------------------------------------
-      implicit none
-      integer :: k
-
-      ! Allocate vertical grid parameters
-      allocate (a_vert(1:zlevels+1),    b_vert(1:zlevels+1))
-      allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
-
-      do k = 1, zlevels+1
-         a_vert(k) = dble(k-1)/dble(zlevels) * p_top
-         b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
-      end do
-
-      ! Set mass coefficients
-      a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
-      b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
-   end subroutine initialize_a_b_vert_case
-
-   subroutine initialize_thresholds_case
-      ! Set default thresholds based on dimensional scalings of norms
-      implicit none
-      integer :: k
-
-      lnorm(S_MASS,:) = dPdim/grav_accel
-      do k = 1, zlevels
-         lnorm(S_TEMP,k) = (a_vert_mass(k) + b_vert_mass(k)*Pdim/grav_accel)*dTempdim
-      end do
-      lnorm(S_TEMP,:) = lnorm(S_TEMP,:) + Tempdim*lnorm(S_MASS,:) ! Add component due to tendency in mass
-      lnorm(S_VELO,:) = Udim
-      threshold_def = tol * lnorm
-   end subroutine initialize_thresholds_case
-
-   subroutine initialize_dt_viscosity_case
-      ! Initializes viscosity
-      implicit none
-      real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
-
-      area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
-      dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
-
-      ! Diffusion constants
-      C_sclr = 2d-3       ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-      C_divu = 2d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-      C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
-
-      ! CFL limit for time step
-      dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
-      dt_init = dt_cfl
-
-      tau_sclr = dt_cfl / C_sclr
-      tau_divu = dt_cfl / C_divu
-      tau_rotu = dt_cfl / C_rotu
-
-      if (Laplace_order_init == 0) then
-         visc_sclr = 0.0_8
-         visc_divu = 0.0_8
-         visc_rotu = 0.0_8
-      elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-         visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
-         visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
-         visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
-      elseif (Laplace_order_init > 2) then
-         if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
-         stop
-      end if
-
-      if (rank == 0) then
-         write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ",dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
-         write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
-         write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
-            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
-            " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
-      end if
-   end subroutine initialize_dt_viscosity_case
-
-   function z_coords_case (eta_surf, z_s)
-      ! Dummy routine
-      ! (see upwelling test case for example)
-      implicit none
-      real(8)                       :: eta_surf, z_s ! free surface and bathymetry
-      real(8), dimension(0:zlevels) :: z_coords_case
-
-      z_coords_case = 0.0_8
-   end function z_coords_case
-
-   subroutine set_thresholds_case
-      ! Set thresholds dynamically (trend or sol must be known)
-      use lnorms_mod
-      use wavelet_mod
-      implicit none
-      integer                                     :: k
-      real(8), dimension(1:N_VARIABLE,zmin:zlevels) :: threshold_new
-      character(3), parameter                     :: order = "inf"
-
-      if (default_thresholds) then ! Initialize once
-         threshold_new = threshold_def
+      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         visc = C_visc(v) * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
       else
-         call cal_lnorm (order)
-         !threshold_new = max (tol*lnorm, threshold_def) ! Avoid very small thresholds before instability develops
-         threshold_new = tol*lnorm
+         visc = C_visc(v) * 3d0 * Area_min**Laplace_order / dt
       end if
+    end function visc
+  end function physics_scalar_flux_case
 
-      if (istep >= 10) then
-         threshold = 0.01*threshold_new + 0.99*threshold
-      else
-         threshold = threshold_new
-      end if
-   end subroutine set_thresholds_case
+  function physics_velo_source_case (dom, i, j, zlev, offs, dims)
+    ! Additional physics for the source term of the velocity trend
+    use domain_mod
+    implicit none
 
-   subroutine set_save_level_case
-      ! Determines closest vertical level to desired pressure
+    real(8), dimension(1:EDGE)     :: physics_velo_source_case
+    type(domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+    real(8), dimension(1:EDGE) :: blocking_drag, wave_drag
+
+    id = idx (i, j, offs, dims)
+
+    ! Scale aware viscosity
+    if (Laplace_order == 0) then
+       physics_velo_source_case = 0d0
+    else
+       physics_velo_source_case = (-1d0)**(Laplace_order-1) * (grad_divu () - curl_rotu ()) 
+    end if
+  contains
+    function grad_divu ()
       implicit none
-      integer :: k
-      real(8) :: dpress, p, save_press
+      real(8), dimension(1:EDGE) :: grad_divu
 
-      dpress = 1d16; save_zlev = 0
-      do k = 1, zlevels
-         p = 0.5 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*p_0)
-         if (abs(p-pressure_save(1)) < dpress) then
-            dpress = abs (p-pressure_save(1))
-            save_zlev = k
-            save_press = p
-         end if
-      end do
-      if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
+      integer :: idE, idN, idNE
+      
+      idE  = idx (i+1, j,   offs, dims)
+      idN  = idx (i,   j+1, offs, dims)
+      idNE = idx (i+1, j+1, offs, dims)
+
+      grad_divu(RT+1) = (visc_div(idE) * divu(idE+1) - visc_div(id)   * divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
+      grad_divu(DG+1) = (visc_div(id)  * divu(id+1)  - visc_div(idNE) * divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      grad_divu(UP+1) = (visc_div(idN) * divu(idN+1) - visc_div(id)   * divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
+    end function grad_divu
+
+    function curl_rotu ()
+      implicit none
+      real(8), dimension(1:EDGE) :: curl_rotu
+
+      integer :: idS, idW
+
+      idS  = idx (i,   j-1, offs, dims)
+      idW  = idx (i-1, j,   offs, dims)
+
+      curl_rotu(RT+1) = (visc_rot(id)  * vort(TRIAG*id +LORT+1) - visc_rot(idS) * vort(TRIAG*idS+UPLT+1)) &
+           / dom%pedlen%elts(EDGE*id+RT+1)
+      curl_rotu(DG+1) = (visc_rot(id)  * vort(TRIAG*id +LORT+1) - visc_rot(id)  * vort(TRIAG*id +UPLT+1)) &
+           / dom%pedlen%elts(EDGE*id+DG+1)
+      curl_rotu(UP+1) = (visc_rot(idW) * vort(TRIAG*idW+LORT+1) - visc_rot(id)  * vort(TRIAG*id +UPLT+1)) &
+           / dom%pedlen%elts(EDGE*id+UP+1)
+    end function curl_rotu
+    
+    real(8) function visc_div (id)
+      ! Scale aware viscosity
+      ! factor 3 ensures that maximum stable C_visc matches theoretical estimate of 1/24^Laplace_order
+      implicit none
+      integer :: id
+
+      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         visc_div = C_div * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
+      else
+         visc_div = C_div * 3d0 * Area_min**Laplace_order / dt
+      end if
+    end function visc_div
+
+    real(8) function visc_rot (id)
+      ! Scale aware viscosity
+      ! factor 3 ensures that maximum stable C_visc matches theoretical estimate of 1/24^Laplace_order
+      implicit none
+      integer :: id
+
+      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         visc_rot = C_visc(S_VELO) * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
+      else
+         visc_rot = C_visc(S_VELO) * 3d0 * Area_min**Laplace_order / dt
+      end if
+    end function visc_rot
+  end function physics_velo_source_case
+ 
+  subroutine init_sol (dom, i, j, zlev, offs, dims)
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer :: id, d, k
+    real(8) :: k_T, lat, lon, p, p_s, pot_temp
+    
+    d   = dom%id+1
+    id  = idx (i, j, offs, dims)
+
+    call cart2sph (dom%node%elts(id+1), lon, lat)
+
+    if (NCAR_topo) then ! surface pressure from multilevel topography
+       p_s = dom%surf_press%elts(id+1)
+    else                ! surface pressure from standard atmosphere
+       call std_surf_pres (topography%data(d)%elts(id+1), p_s)
+    end if
+    
+    do k = 1, zlevels
+       p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
+
+       call cal_theta_eq (p, p_s, lat, pot_temp, k_T)                          ! potential temperature
+
+       if (split_mean_perturbation) then
+          sol(S_MASS,k)%data(d)%elts(id+1) = 0d0
+          sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
+       else
+          sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
+          sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
+       end if
+       
+       sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+    end do
+  end subroutine init_sol
+
+  subroutine init_mean (dom, i, j, zlev, offs, dims)
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+
+    integer :: id, d, k
+    real(8) :: k_T, lat, lon, p, p_s, pot_temp
+    
+    d   = dom%id+1
+    id  = idx (i, j, offs, dims)
+
+    call cart2sph (dom%node%elts(id+1), lon, lat)
+
+    if (NCAR_topo) then ! surface pressure from multilevel topography
+       p_s = dom%surf_press%elts(id+1)
+    else                ! surface pressure from standard atmosphere
+       call std_surf_pres (topography%data(d)%elts(id+1), p_s)
+    end if
+
+    do k = 1, zlevels
+       p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
+
+       call cal_theta_eq (p, p_s, lat, pot_temp, k_T)                          ! potential temperature
+
+       if (split_mean_perturbation) then
+          sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
+          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
+       else
+          sol_mean(S_MASS,k)%data(d)%elts(id+1) = 0d0
+          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = 0d0
+       end if
+       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+    end do
+  end subroutine init_mean
+
+  subroutine initialize_thresholds_case
+    ! Set default thresholds based on dimensional scalings of norms
+    use lnorms_mod
+    implicit none
+
+    call cal_lnorm ("2")
+    lnorm(S_VELO,:) = Udim
+
+    threshold_def = tol * lnorm
+  end subroutine initialize_thresholds_case
+
+  subroutine set_thresholds_case
+    ! Set thresholds dynamically (trend or sol must be known)
+    use lnorms_mod
+    implicit none
+
+    if (default_thresholds) then
+       threshold = threshold_def
+    else
+       call cal_lnorm ("2")
+       threshold = tol * lnorm
+       threshold(S_VELO,:) = max (threshold(S_VELO,:), threshold_def(S_VELO,:))
+    end if
+  end subroutine set_thresholds_case
+
+  subroutine cal_theta_eq (p, p_s, lat, theta_equil, k_T)
+    ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
+    use domain_mod
+    implicit none
+    real(8) :: p, p_s, lat, theta_equil, k_T
+
+    real(8) :: cs2, sigma, sigma_c, theta_force, theta_tropo
+
+    cs2 = cos (lat)**2
+
+    sigma = (p - p_top) / (p_s - p_top)
+    sigma_c = 1d0 - sigma_b
+
+    k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
+
+    theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
+
+    theta_force = T_mean - delta_T * (1d0 - cs2) - delta_theta * cs2 * log (p / p_0)
+
+    theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
+    !theta_equil = Tempdim
+  end subroutine cal_theta_eq
+
+  real(8) function surf_geopot_case (d, id)
+    ! Set geopotential and topography
+    implicit none
+    integer :: d, id
+    
+    surf_geopot_case = grav_accel * topography%data(d)%elts(id)
+  end function surf_geopot_case
+
+  subroutine init_topo (dom, i, j, zlev, offs, dims)
+    ! Assigns analytic topography
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: d, id
+
+    d  = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    topography%data(d)%elts(id) = 0d0
+  end subroutine init_topo
+
+subroutine initialize_a_b_vert_case
+    implicit none
+    integer :: k
+
+    ! Allocate vertical grid parameters
+    allocate (a_vert(1:zlevels+1),    b_vert(1:zlevels+1))
+    allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
+
+    if (uniform) then
+       do k = 1, zlevels+1
+          a_vert(k) = dble(k-1)/dble(zlevels) * p_top
+          b_vert(k) = 1d0 - dble(k-1)/dble(zlevels)
+       end do
+    else
+       if (zlevels == 18) then
+          a_vert=(/0.00251499d0, 0.00710361d0, 0.01904260d0, 0.04607560d0, 0.08181860d0, &
+               0.07869805d0, 0.07463175d0, 0.06955308d0, 0.06339061d0, 0.05621774d0, 0.04815296d0, &
+               0.03949230d0, 0.03058456d0, 0.02193336d0, 0.01403670d0, 0.007458598d0, 0.002646866d0, &
+               0d0, 0d0 /)
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0.03756984d0, 0.08652625d0, 0.1476709d0, 0.221864d0, &
+               0.308222d0, 0.4053179d0, 0.509588d0, 0.6168328d0, 0.7209891d0, 0.816061d0, 0.8952581d0, &
+               0.953189d0, 0.985056d0, 1d0 /)
+       elseif (zlevels==26) then
+          a_vert=(/0.002194067d0, 0.004895209d0, 0.009882418d0, 0.01805201d0, 0.02983724d0, 0.04462334d0, 0.06160587d0, &
+               0.07851243d0, 0.07731271d0, 0.07590131d0, 0.07424086d0, 0.07228744d0, 0.06998933d0, 0.06728574d0, 0.06410509d0, &
+               0.06036322d0, 0.05596111d0, 0.05078225d0, 0.04468960d0, 0.03752191d0, 0.02908949d0, 0.02084739d0, 0.01334443d0, &
+               0.00708499d0, 0.00252136d0, 0d0, 0d0 /)
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0.01505309d0, 0.03276228d0, 0.05359622d0, &
+               0.07810627d0, 0.1069411d0, 0.1408637d0, 0.1807720d0, 0.2277220d0, 0.2829562d0, 0.3479364d0, 0.4243822d0, &
+               0.5143168d0, 0.6201202d0, 0.7235355d0, 0.8176768d0, 0.8962153d0, 0.9534761d0, 0.9851122d0, 1d0 /)
+       elseif (zlevels==30) then
+          a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
+               0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
+               0.131401270627975, 0.154586806893349, 0.181863352656364, 0.17459799349308, 0.166050657629967, &
+               0.155995160341263, 0.14416541159153, 0.130248308181763, 0.113875567913055, 0.0946138575673103, &
+               0.0753444507718086, 0.0576589405536652, 0.0427346378564835, 0.0316426791250706, 0.0252212174236774, &
+               0.0191967375576496, 0.0136180268600583, 0.00853108894079924, 0.00397881818935275, 0.0, 0.0 /)
+          b_vert = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0393548272550106, &
+               0.0856537595391273, 0.140122056007385, 0.204201176762581, 0.279586911201477, 0.368274360895157,  &
+               0.47261056303978, 0.576988518238068, 0.672786951065063, 0.753628432750702, 0.813710987567902, &
+               0.848494648933411, 0.881127893924713, 0.911346435546875, 0.938901245594025, 0.963559806346893, &
+               0.985112190246582, 1.0 /)
+       elseif (zlevels==32) then
+          a_vert = (/  0.00225523952394724d0, 0.00503169186413288d0, 0.0101579474285245d0, &
+               0.0185553170740604d0, 0.0297346755951211d0, 0.0392730012536049d0, &
+               0.0471144989132881d0, 0.0562404990196228d0, 0.0668004974722862d0, &
+               0.0807014182209969d0, 0.0949410423636436d0, 0.11169321089983d0, &
+               0.131401270627975d0, 0.154586806893349d0, 0.181863352656364d0, &
+               0.17459799349308d0, 0.166050657629967d0, 0.155995160341263d0, 0.14416541159153d0, &
+               0.130248308181763d0, 0.113875567913055d0, 0.0946138575673103d0, &
+               0.0753444507718086d0, 0.0576589405536652d0, 0.0427346378564835d0, &
+               0.0316426791250706d0, 0.0252212174236774d0, 0.0191967375576496d0, &
+               0.0136180268600583d0, 0.00853108894079924d0, 0.00397881818935275d0, 0d0, 0d0 /)
+
+          b_vert = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0.0393548272550106d0, &
+               0.0856537595391273d0, 0.140122056007385d0, 0.204201176762581d0, &
+               0.279586911201477d0, 0.368274360895157d0, 0.47261056303978d0, &
+               0.576988518238068d0, 0.672786951065063d0, 0.753628432750702d0, &
+               0.813710987567902d0, 0.848494648933411d0, 0.881127893924713d0, &
+               0.911346435546875d0, 0.938901245594025d0, 0.963559806346893d0, &
+               0.985112190246582d0, 1d0 /)
+       elseif (zlevels==49) then
+          a_vert=(/0.002251865d0, 0.003983890d0, 0.006704364d0, 0.01073231d0, 0.01634233d0, 0.02367119d0, &
+               0.03261456d0, 0.04274527d0, 0.05382610d0, 0.06512175d0, 0.07569850d0, 0.08454283d0, &
+               0.08396310d0, 0.08334103d0, 0.08267352d0, 0.08195725d0, 0.08118866d0, 0.08036393d0, &
+               0.07947895d0, 0.07852934d0, 0.07751036d0, 0.07641695d0, 0.07524368d0, 0.07398470d0, &
+               0.07263375d0, 0.07118414d0, 0.06962863d0, 0.06795950d0, 0.06616846d0, 0.06424658d0, &
+               0.06218433d0, 0.05997144d0, 0.05759690d0, 0.05504892d0, 0.05231483d0, 0.04938102d0, &
+               0.04623292d0, 0.04285487d0, 0.03923006d0, 0.03534049d0, 0.03116681d0, 0.02668825d0, &
+               0.02188257d0, 0.01676371d0, 0.01208171d0, 0.007959612d0, 0.004510297d0, 0.001831215d0, &
+               0d0, 0d0 /)
+
+          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, &
+               0.006755112d0, 0.01400364d0, 0.02178164d0, 0.03012778d0, 0.03908356d0, 0.04869352d0, &
+               0.05900542d0, 0.07007056d0, 0.08194394d0, 0.09468459d0, 0.1083559d0, 0.1230258d0, &
+               0.1387673d0, 0.1556586d0, 0.1737837d0, 0.1932327d0, 0.2141024d0, 0.2364965d0, &
+               0.2605264d0, 0.2863115d0, 0.3139801d0, 0.3436697d0, 0.3755280d0, 0.4097133d0, &
+               0.4463958d0, 0.4857576d0, 0.5279946d0, 0.5733168d0, 0.6219495d0, 0.6741346d0, &
+               0.7301315d0, 0.7897776d0, 0.8443334d0, 0.8923650d0, 0.9325572d0, 0.9637744d0, &
+               0.9851122d0, 1d0/)
+       else
+          if (rank == 0) then
+             write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+             write (6,'(a)'  ) "!                                                  !"
+             write (6,'(a)'  ) "!    zlevels choice not supported ... aborting     !"
+             write (6,'(a)'  ) "!                                                  !"
+             write (6,'(a,/)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+             call abort
+          end if
+       end if
+       a_vert = a_vert(zlevels+1:1:-1) * p_0
+       b_vert = b_vert(zlevels+1:1:-1)
+    end if
+
+    p_top = a_vert(zlevels+1) ! assumes b_vert(zlevels+1) = 0
+
+    ! Set mass coefficients
+    a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
+    b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
+  end subroutine initialize_a_b_vert_case
+
+  subroutine initialize_dt_viscosity_case
+  end subroutine initialize_dt_viscosity_case
+
+  function z_coords_case (eta_surf, z_s)
+    ! Dummy routine
+    ! (see upwelling test case for example)
+    implicit none
+    real(8)                       :: eta_surf, z_s ! free surface and bathymetry
+    real(8), dimension(0:zlevels) :: z_coords_case
+
+    z_coords_case = 0d0
+  end function z_coords_case
+
+  subroutine set_save_level_case
+    ! Determines closest vertical level to desired pressure
+    implicit none
+    integer :: k
+    real(8) :: dpress, p, save_press
+
+    dpress = 1d16; save_zlev = 0
+    do k = 1, zlevels
+       p = 0.5 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*p_0)
+       if (abs(p-pressure_save(1)) < dpress) then
+          dpress = abs (p-pressure_save(1))
+          save_zlev = k
+          save_press = p
+       end if
+    end do
+    if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
          " (approximate pressure = ", save_press/100, " hPa)"
-   end subroutine set_save_level_case
+  end subroutine set_save_level_case
 
-   subroutine initialize_seed
-      implicit none
+  subroutine initialize_seed
+    implicit none
+    integer                            :: k
+    integer, dimension(1:8)            :: values
+    integer, dimension(:), allocatable :: seed
 
-      integer                            :: k
-      integer, dimension(1:8)            :: values
-      integer, dimension(:), allocatable :: seed
+    call date_and_time (values=values)
+    call random_seed   (size=k)
+    
+    allocate (seed(1:k))
+    seed = values(8)
+    
+    call random_seed (put=seed)
+  end subroutine initialize_seed
 
-      call date_and_time (values=values)
-      call random_seed(size=k)
-      allocate (seed(1:k))
-      seed = values(8)
-      call random_seed (put=seed)
-   end subroutine initialize_seed
+  subroutine apply_initial_conditions_case
+    implicit none
 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Reading/Printing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   subroutine read_test_case_parameters
-      implicit none
-      integer            :: k, v
-      integer, parameter :: fid = 500, funit = 400
-      real(8)            :: press_save
-      character(255)     :: command, filename, varname
-      character(2)       :: var_file
+    call apply_bdry (init_topo, z_null, 0, 1)
+    topography%bdry_uptodate = .false.
+
+    call apply_bdry (init_mean, z_null, 0, 1)
+    call apply_bdry (init_sol,  z_null, 0, 1)
+    sol%bdry_uptodate        = .false.
+    sol_mean%bdry_uptodate   = .false.
+
+    call update_bdry (topography, NONE)
+    call update_bdry (sol,        NONE) 
+    call update_bdry (sol_mean,   NONE)
+  end subroutine apply_initial_conditions_case
+
+  subroutine update_case
+    ! Update sol_mean and topography on new grid
+    use wavelet_mod
+    implicit none
+    integer :: d, p
+
+    if (istep /= 0) then
+       do d = 1, size(grid)
+          do p = n_patch_old(d)+1, grid(d)%patch%length
+             call apply_onescale_to_patch (init_topo, grid(d), p-1, z_null, 0, 1)
+             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, 0, 1)
+          end do
+       end do
+    else ! need to set values over entire grid on restart
+       call apply_bdry (init_topo, z_null, 0, 1)
+       call apply_bdry (init_mean, z_null, 0, 1)
+    end if
+    topography%bdry_uptodate = .false.
+    sol_mean%bdry_uptodate   = .false.
+
+    call update_bdry (topography, NONE)
+    call update_bdry (sol_mean,   NONE)
+  end subroutine update_case
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Reading/Printing!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine read_test_case_parameters
+    implicit none
+    integer            :: k, v
+    integer, parameter :: fid = 500, funit = 400
+    real(8)            :: press_save
+    character(255)     :: command, filename, varname
+    character(2)       :: var_file
       logical            :: file_exists
 
       ! Find input parameters file name
@@ -661,15 +713,6 @@ contains
             sum (threshold(S_VELO,1:zlevels))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
       end if
    end subroutine print_log
-
-   subroutine update_case
-      ! Update means, bathymetry and penalization mask
-      ! not needed in this test case
-      use wavelet_mod
-      implicit none
-      integer :: d, k, l, p
-
-   end subroutine update_case
 
    subroutine dump_case (fid)
       implicit none

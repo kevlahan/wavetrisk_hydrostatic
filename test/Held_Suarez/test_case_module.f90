@@ -522,42 +522,6 @@ contains
     b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
   end subroutine initialize_a_b_vert_case
 
-  subroutine cal_AB
-    ! Computes A and B coefficients for hybrid vertical grid as in LMDZ
-    implicit none
-
-    integer                         :: l
-    real(8)                         :: snorm
-    real(8), dimension(1:zlevels)   :: dsig
-    real(8), dimension(1:zlevels+1) :: sig
-
-    snorm  = 0d0
-    do l = 1, zlevels
-       dsig(l) = 1d0 + 7 * sin (MATH_PI*(l-0.5d0)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
-       !dsig(l) = 1d0 + 7 * cos (MATH_PI/2*(l-0.5d0)/(zlevels+1))**2 ! Concentrated at top
-       !dsig(l) = 1d0 + 7 * sin (MATH_PI/2*(l-0.5d0)/(zlevels+1))**2 ! Concentrated at surface
-       snorm = snorm + dsig(l)
-    end do
-
-    do l = 1, zlevels
-       dsig(l) = dsig(l)/snorm
-    end do
-
-    sig(zlevels+1) = 0d0
-    do l = zlevels, 1, -1
-       sig(l) = sig(l+1) + dsig(l)
-    end do
-
-    b_vert(zlevels+1) = 0d0
-    do  l = 1, zlevels
-       b_vert(l) = exp (1d0 - 1/sig(l)**2)
-       a_vert(l) = (sig(l) - b_vert(l)) * p_0
-    end do
-    b_vert(1) = 1d0
-    a_vert(1) = 0d0
-    a_vert(zlevels+1) = (sig(zlevels+1) - b_vert(zlevels+1)) * p_0
-  end subroutine cal_AB
-
   subroutine read_test_case_parameters
     implicit none
     integer            :: k, v
@@ -810,7 +774,7 @@ contains
     sol%bdry_uptodate        = .false.
     sol_mean%bdry_uptodate   = .false.
 
-    call update_bdry       (topography, NONE)
+    call update_bdry (topography, NONE)
     call update_bdry (sol,        NONE) 
     call update_bdry (sol_mean,   NONE)
 
@@ -851,7 +815,7 @@ contains
     topography%bdry_uptodate = .false.
     sol_mean%bdry_uptodate   = .false.
     
-    call update_bdry       (topography, NONE)
+    call update_bdry (topography, NONE)
     call update_bdry (sol_mean,   NONE)
     
     ! SSO parameters (requires topography)

@@ -142,14 +142,16 @@ CONTAINS
 
     icount=icount+1
 
-    IF(abs(zday-zday_last-period_sort)<=ptimestep/unjours/10.) THEN
-       WRITELOG(*,*) 'zday, zday_last SORTIE ', zday, zday_last
-       LOG_INFO('phyparam')
-       zday_last=zday
-       lwrite = .TRUE.
-    ELSE
-       lwrite = .FALSE.
-    END IF
+    ! IF(abs(zday-zday_last-period_sort)<=ptimestep/unjours/10.) THEN
+    !    WRITELOG(*,*) 'zday, zday_last SORTIE ', zday, zday_last
+    !    LOG_INFO('phyparam')
+    !    zday_last=zday
+    !    lwrite = .TRUE.
+    ! ELSE
+    !    lwrite = .FALSE.
+    ! END IF
+
+    lwrite = .FALSE.
 
     !$acc kernels default(none)
     pdv(:,:)  = 0.

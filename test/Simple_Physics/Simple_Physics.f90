@@ -14,6 +14,7 @@ program Simple_Physics
    use phys_processing_mod
 
    implicit none
+   real(8)        :: area_sphere, dx_scaling, nu_CAM, nu, nu_scaling, res_scaling
    logical        :: aligned
    character(256) :: input_file
 
@@ -25,13 +26,14 @@ program Simple_Physics
    call initialize_seed
 
    ! Numerical parameters
-   adapt_dt       = .true.                           ! adapt time step
-   compressible   = .true.                           ! compressible physics
-   uniform        = .false.                          ! hybrid vertical pressure grid
-   cfl_num        = 1d0                              ! cfl number
-   Laplace_order_init = 2                            ! hyperdiffusion
-   timeint_type   = "RK3"                            ! time integration scheme (use RK34, RK45 or RK4)
-   iremap         = 10                               ! remap interval
+   split_mean_perturbation = .false.                 ! split mean and perturbation (T)
+   adapt_dt                = .false.                 ! adapt time step
+   compressible            = .true.                  ! compressible physics
+   uniform                 = .false.                 ! hybrid vertical pressure grid
+   cfl_num                 = 1d0                     ! cfl number
+   Laplace_order_init      = 2                       ! hyperdiffusion
+   timeint_type            = "RK4"                   ! time integration scheme (use RK34, RK45 or RK4)
+   iremap                  = 10                      ! remap interval
 
    ! Standard (shared) parameter values for the simulation
    radius         = 6400d0    * KM                   ! mean radius of the Earth
@@ -49,7 +51,7 @@ program Simple_Physics
    T_0            = 250d0      * KELVIN              ! reference temperature
    u_0            = 30d0       * METRE/SECOND        ! geostrophic wind speed
    e_thick        = 10d0       * KM                  ! Eckman Layer Thickness in meters
-  
+
    ! Dimensions for scaling tendencies
    Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
    dTempdim       = 70d0       * KELVIN              ! temperature scale for tolerances
@@ -65,9 +67,44 @@ program Simple_Physics
    Ldim           = Udim * Tdim                      ! length scale
    Hdim           = wave_speed**2 / grav_accel       ! vertical length scale
 
+   ! Average hexagon areas and horizontal resolution
+   area_sphere = 4d0*MATH_PI * radius**2 
+   Area_min    = area_sphere / (10d0 * 4d0**max_level)
+   Area_max    = area_sphere / (10d0 * 4d0**min_level)
+
+   res_scaling = (120d0*KM) / (100d0*KM)                        ! ratio between TRiSK  and CAM dx, approximately (120/100)^4
+   dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)              
+   dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
+   dx_scaling  = 2d0 ** (dble (6 - max_level))                  ! scaling factor compared to approximately J6 base CAM value
+
+   ! Time adaptivity parameters
+   if (adapt_dt) then
+      dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + Udim) ! initial time step     (0.85 factor corrects for minimum dx)
+   else
+      dt_init = 300d0 * SECOND * dx_scaling                     ! Lauritzen value
+   end if
+
+   ! CAM values for viscosity for 1 degree are 1e15 except 2.5e15 for divu
+   ! note that wavetrisk J6 resolution is about 120 km while 1 degree CAM resolution is about 110 km
+   !
+   ! Rescale by difference in grid sizes to get equivalent viscosity
+   nu_scaling         = (res_scaling * dx_scaling)**(2*Laplace_order_init)
+   nu_CAM             = 1d15 * METRE**4/SECOND
+   nu                 = nu_CAM * nu_scaling
+
+   nu_sclr            = nu         ! CAM value (scaled)
+   nu_rotu            = nu / 4d0   ! smaller to respect smaller stability limit for rotu Laplacian
+   nu_divu            = nu * 2.5d0 ! increase by CAM ratio
+
+   ! Equivalent non-dimensional viscosities
+   C_visc(S_MASS)     = nu_sclr * dt_init / (3d0 * Area_min**Laplace_order_init) 
+   C_visc(S_TEMP)     = nu_sclr * dt_init / (3d0 * Area_min**Laplace_order_init) 
+   C_visc(S_VELO)     = nu_rotu * dt_init / (3d0 * Area_min**Laplace_order_init) 
+   C_div              = nu_divu * dt_init / (3d0 * Area_min**Laplace_order_init)
+
    ! Read test case parameters
    call read_test_case_parameters
-   
+
    ! Initialize functions
    call assign_functions
 
@@ -86,8 +123,8 @@ program Simple_Physics
    ! Save initial conditions
    call print_test_case_parameters
    
-   !call write_and_export (iwrite)
-   call mean_values (0) ! processing for the physics package mean values
+   ! call write_and_export (iwrite)
+   !call mean_values (0) ! processing for the physics package mean values
 
    if (rank == 0) write (6,'(A,/)') &
       '----------------------------------------------------- Start simulation run &
@@ -97,9 +134,8 @@ program Simple_Physics
    total_cpu_time = 0d0
    do while (time < time_end)
       call start_timing
-      call time_step (dt_write, aligned) ! dynamics step
-      !When no dynamics called use : call timestep_placeholder(dt_write, aligned)
-      call euler (sol(1:N_VARIABLE,1:ZLEVELS), wav_coeff(1:N_VARIABLE,1:ZLEVELS), trend_physics, dt) ! physics step
+      call time_step (dt_write, aligned)                                                             ! dynamics step
+      call euler (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_physics, dt) ! physics step
       call stop_timing
       call print_log
 
@@ -112,12 +148,12 @@ program Simple_Physics
 
          ! Save fields
          call write_and_export (iwrite)
-         call mean_values      (iwrite) 
+         !call mean_values      (iwrite) 
       end if
    end do
 
    call write_checkpoint (run_id, rebalance) ! checkpoint after final day
-   call mean_values(INT(time_end))           ! save means of final day
+   call mean_values (int (time_end))           ! save means of final day
    
    if (rank == 0) then
       close (12)

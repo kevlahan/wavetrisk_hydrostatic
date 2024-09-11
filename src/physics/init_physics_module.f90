@@ -11,21 +11,17 @@ module init_physics_mod
    use init_mod
    use, intrinsic :: ISO_C_BINDING, only : C_BOOL ! require c booleans for physics
    implicit none
-
    ! Physics test case arguments (set in test case main program)
    real(8) :: e_thick
-   real(8) :: gas_molarmass, perihelion, aphelion, perihelion_day, obliquity, sea_surf, soil_surf, sea_interia
-   real(8) :: soil_interia, sea_emissive, soil_emmisive, min_turbmix
+   real(8) :: gas_molarmass, perihelion, aphelion, perihelion_day, obliquity, sea_surf, soil_surf, sea_inertia
+   real(8) :: soil_inertia, sea_emissive, soil_emmisive, min_turbmix
    real(8) :: sw_atten, lw_atten
    real    :: sea_albedo, soil_albedo, emin_turb
-   integer :: Nsoil     ! Number of soil layers
+   integer :: Nsoil                   
    logical :: radiation_mod, turbulence_mod, convecAdj_mod, seasons, diurnal
    
    logical(kind=C_BOOL) :: physics_firstcall_flag = .true. ! flag for the physics package, true if call physics for 1st time
-   
 contains
-
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Initialization Routines !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    subroutine init_physics
       !-----------------------------------------------------------------------------------
       !
@@ -41,9 +37,9 @@ contains
       !-----------------------------------------------------------------------------------
       use iniphyparam_mod,   only : iniphyparam
       use single_column_mod, only : initialize_extra_levels
+      use main_mod,          only : dt_new ! dynamics
       use read_param_mod
       use logging
-      use main_mod,          only : dt_new ! dynamics 
       implicit none
       
       character(255) :: command, param_file
@@ -55,7 +51,7 @@ contains
       soil_mod       = .true.                         ! (T) soil module is on
 
       ! Velocity (vertical mixing)
-      emin_turb      = 1d-16                          ! minimum turbulent kinetic energy
+      emin_turb      = 1e-16                          ! minimum turbulent kinetic energy
       gas_molarmass  = 28.9702532d0                   ! molar mass of main gain (used to set ideal gas const in pacakage)
       min_turbmix    = 100d0                          ! minimum turbulent mixing length [m]
 
@@ -70,13 +66,13 @@ contains
       ! Ocean
       sea_emissive   = 1d0                            ! sea emissivity
       sea_surf       = 0.01d0                         ! sea surface roughness length scale [m]
-      sea_interia    = 3000d0                         ! sea thermal inertia [J/m^3K]
+      sea_inertia    = 3000d0                         ! sea thermal inertia [J/m^3K]
 
       ! Soil
       Nsoil          = 10                             ! number of soil layers
-      soil_interia   = 3000.                          ! soil thermal inertial [J/m^3K]
-      sea_albedo     = 0.112d0                        ! sea albedo
-      soil_albedo    = 0.112d0                        ! soil albedo
+      soil_inertia   = 3000.                          ! soil thermal inertial [J/m^3K]
+      sea_albedo     = 0.112                          ! sea albedo
+      soil_albedo    = 0.112                          ! soil albedo
       soil_emmisive  = 1d0                            ! soil emissivity
       soil_surf      = 0.01d0                         ! soil surface roughness length scale [m]
 
@@ -91,7 +87,7 @@ contains
       flush_plugin       => flush_log_phys
 
       ! Write physics read in parameters to file (specific for each rank)
-      write(param_file, '(a,i4.4)') trim(run_id)//'.physics_params.', rank
+      write (param_file, '(a,i4.4)') trim(run_id)//'.physics_params.', rank
       call write_physics_params (9*rank,param_file)
 
       ! Call initialization of physics parameters
@@ -132,7 +128,7 @@ contains
          physics_write = .false.
       end if
 
-      open(unit=file_unit, file=trim(file_params), form="FORMATTED", action='WRITE', status='REPLACE')
+      open (unit=file_unit, file=trim(file_params), form="FORMATTED", action='WRITE', status='REPLACE')
 
       ! Print physics parameters
       write (file_unit,*) "planet_rat  = ", radius
@@ -147,8 +143,8 @@ contains
       write (file_unit,*) "obliquit    = ", obliquity
       write (file_unit,*) "Cd_mer      = ", sea_surf
       write (file_unit,*) "Cd_ter      = ", soil_surf
-      write (file_unit,*) "I_mer       = ", sea_interia
-      write (file_unit,*) "I_ter       = ", soil_interia
+      write (file_unit,*) "I_mer       = ", sea_inertia
+      write (file_unit,*) "I_ter       = ", soil_inertia
       write (file_unit,*) "alb_ter     = ", sea_albedo
       write (file_unit,*) "alb_mer     = ", soil_albedo
       write (file_unit,*) "emi_mer     = ", sea_emissive
@@ -217,10 +213,7 @@ contains
       !   Author: Gabrielle Ching-Johnson
       !
       !-----------------------------------------------------------------------------------
-      ! Physics use cases
       use comgeomfi, only : init_comgeomfi
-
-      ! Local variables
       real(8) :: lat(1), long(1)
 
       ! Dummy latatiude and longitude for initialization
@@ -297,7 +290,7 @@ contains
       if (trim(param_name) /= trim(name)) val = defval
    end subroutine
 
-   subroutine read_parami(name, defval, val, comment)
+   subroutine read_parami (name, defval, val, comment)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Physics plugin to read integers from a file
@@ -340,7 +333,7 @@ contains
       ! Read line from input file
       read (9*rank,*) param_name, equal_sign, val
 
-      if (trim(param_name) /= trim(name)) val = defval
+      if (trim (param_name) /= trim (name)) val = defval
    end subroutine
 
    subroutine flush_log_phys (lev, taglen, tag, buflen, bufsize, buf) BIND(C)
@@ -371,6 +364,4 @@ contains
          end do
       end if
     end subroutine flush_log_phys
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
 end module init_physics_mod
