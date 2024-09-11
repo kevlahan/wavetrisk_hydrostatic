@@ -1771,10 +1771,10 @@ contains
                dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1), &
                outv, dom%mask_n%elts(id_i), outl
        else  ! default case (compressible or incompressible)
-          outv(1) = rho_dz                                                    ! rho dz
+          outv(1) = rho_dz                                                       ! rho dz
           
           if (compressible) then 
-             outv(2) = rho_dz_theta / rho_dz * (dom%press%elts(id_i)/p_0)**kappa ! temperature in layer zlev (compressible)
+             outv(2) = theta2temp (rho_dz_theta/rho_dz, dom%press%elts(id_i))    ! temperature in layer zlev (compressible)
           else
              outv(2) = ref_density * (1d0 - rho_dz_theta / rho_dz)               ! density                   (incompressible)
           end if

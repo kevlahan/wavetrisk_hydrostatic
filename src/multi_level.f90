@@ -49,6 +49,7 @@ contains
        end do
        call velocity_trend_grad (q, dq, k)
     end do
+    dq%bdry_uptodate = .false.
   end subroutine trend_ml
 
   subroutine basic_operators (q, dq, k, l)

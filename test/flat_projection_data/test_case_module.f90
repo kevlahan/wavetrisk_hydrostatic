@@ -67,7 +67,7 @@ contains
     integer                                              :: d, id, idE, idNE, idN, v, zlev
     logical, optional                                    :: type
 
-    physics_scalar_flux_case = 0.0_8
+    physics_scalar_flux_case = 0d0
   end function physics_scalar_flux_case
 
   function physics_velo_source_case (dom, i, j, zlev, offs, dims)
@@ -878,7 +878,7 @@ contains
    full_mass = mass(id_i) + mean_m(id_i)
    full_theta = temp(id_i) + mean_t(id_i)
    potential_temp = full_theta/full_mass
-   temperature = potential_temp * ((dom%press%elts(id_i)/dom%surf_press%elts(id_i))**kappa)
+   temperature = theta2temp (potential_temp, dom%press%elts(id_i))
 
    ! sum the temperature
    temp1(id_i) = temp1(id_i) + temperature
