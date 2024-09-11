@@ -14,8 +14,6 @@ module time_integr_mod
   
   abstract interface
      subroutine dt_integrator (q, wav, trend_fun, h)
-       ! Euler time step
-       ! Stable for CFL<1, first order
        use domain_mod
        implicit none
        real(8)                           :: h      ! time step
