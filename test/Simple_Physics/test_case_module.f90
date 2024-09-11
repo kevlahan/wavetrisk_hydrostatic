@@ -1,21 +1,21 @@
 module test_case_mod
-   ! Description: Test case module for the Simple physics
-   ! Author: Gabrielle Ching-Johnson
-   ! Date Revised: November 1 2023
-   use comm_mpi_mod
-   use utils_mod
-   use init_mod
-   use std_atm_profile_mod
-   use init_physics_mod
-   implicit none
+  ! Description: Test case module for the Simple physics
+  ! Author: Gabrielle Ching-Johnson, Nicholas Kevlahan
+  ! Date Revised: September 11 2024
+  use comm_mpi_mod
+  use utils_mod
+  use init_mod
+  use std_atm_profile_mod
+  use init_physics_mod
+  implicit none
 
-   ! Standard variables
-   integer :: CP_EVERY, resume_init
-   real(8) :: Area_max, Area_min, C_div
-   real(8) :: nu_sclr, nu_rotu, nu_divu
-   real(8) :: dt_cfl, total_cpu_time, dPdim, R_ddim, specvoldim, dTempdim
+  ! Standard variables
+  integer :: CP_EVERY, resume_init
+  real(8) :: Area_max, Area_min, C_div
+  real(8) :: nu_sclr, nu_rotu, nu_divu
+  real(8) :: dt_cfl, total_cpu_time, dPdim, R_ddim, specvoldim, dTempdim
 
-   ! Held-Suarez model parameters
+  ! Held-Suarez model parameters
   real(8) :: T_0            = 300d0      * KELVIN              ! reference temperature
   real(8) :: T_mean         = 315d0      * KELVIN              ! mean temperature
   real(8) :: T_tropo        = 200d0      * KELVIN              ! tropopause temperature
@@ -30,31 +30,30 @@ module test_case_mod
   real(8) :: delta_T2       = 4.8d5      * KELVIN              ! empirical temperature difference
   real(8) :: sigma_0        = 0.252d0                          ! value of sigma at reference level (level of the jet)
   real(8) :: sigma_t        = 0.2d0                            ! value of sigma at the tropopauses
-  
+
   logical :: scale_aware = .false.
 contains
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Dynamics test case routines!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   subroutine assign_functions
-      ! Assigns generic pointer functions to functions defined in test cases
-      implicit none
+  subroutine assign_functions
+    ! Assigns generic pointer functions to functions defined in test cases
+    implicit none
 
-      ! Standard functions
-      apply_initial_conditions => apply_initial_conditions_case
-      dump                     => dump_case
-      load                     => load_case
-      initialize_a_b_vert      => initialize_a_b_vert_case
-      initialize_dt_viscosity  => initialize_dt_viscosity_case
-      initialize_thresholds    => initialize_thresholds_case
-      physics_scalar_flux      => physics_scalar_flux_case
-      physics_velo_source      => physics_velo_source_case
-      set_save_level           => set_save_level_case
-      set_thresholds           => set_thresholds_case
-      surf_geopot              => surf_geopot_case
-      update                   => update_case
-      z_coords                 => z_coords_case
-   end subroutine assign_functions
+    ! Standard functions
+    apply_initial_conditions => apply_initial_conditions_case
+    dump                     => dump_case
+    load                     => load_case
+    initialize_a_b_vert      => initialize_a_b_vert_case
+    initialize_dt_viscosity  => initialize_dt_viscosity_case
+    initialize_thresholds    => initialize_thresholds_case
+    physics_scalar_flux      => physics_scalar_flux_case
+    physics_velo_source      => physics_velo_source_case
+    set_save_level           => set_save_level_case
+    set_thresholds           => set_thresholds_case
+    surf_geopot              => surf_geopot_case
+    update                   => update_case
+    z_coords                 => z_coords_case
+  end subroutine assign_functions
 
-   function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     ! Additional physics for the flux term of the scalar trend
     ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
     !
@@ -157,7 +156,7 @@ contains
       real(8), dimension(1:EDGE) :: grad_divu
 
       integer :: idE, idN, idNE
-      
+
       idE  = idx (i+1, j,   offs, dims)
       idN  = idx (i,   j+1, offs, dims)
       idNE = idx (i+1, j+1, offs, dims)
@@ -183,7 +182,7 @@ contains
       curl_rotu(UP+1) = (visc_rot(idW) * vort(TRIAG*idW+LORT+1) - visc_rot(id)  * vort(TRIAG*id +UPLT+1)) &
            / dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
-    
+
     real(8) function visc_div (id)
       ! Scale aware viscosity
       ! factor 3 ensures that maximum stable C_visc matches theoretical estimate of 1/24^Laplace_order
@@ -210,7 +209,7 @@ contains
       end if
     end function visc_rot
   end function physics_velo_source_case
- 
+
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
     type (Domain)                   :: dom
@@ -220,7 +219,7 @@ contains
 
     integer :: id, d, k
     real(8) :: k_T, lat, lon, p, p_s, pot_temp
-    
+
     d   = dom%id+1
     id  = idx (i, j, offs, dims)
 
@@ -231,7 +230,7 @@ contains
     else                ! surface pressure from standard atmosphere
        call std_surf_pres (topography%data(d)%elts(id+1), p_s)
     end if
-    
+
     do k = 1, zlevels
        p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
 
@@ -244,7 +243,7 @@ contains
           sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
           sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        end if
-       
+
        sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
     end do
   end subroutine init_sol
@@ -258,7 +257,7 @@ contains
 
     integer :: id, d, k
     real(8) :: k_T, lat, lon, p, p_s, pot_temp
-    
+
     d   = dom%id+1
     id  = idx (i, j, offs, dims)
 
@@ -338,7 +337,7 @@ contains
     ! Set geopotential and topography
     implicit none
     integer :: d, id
-    
+
     surf_geopot_case = grav_accel * topography%data(d)%elts(id)
   end function surf_geopot_case
 
@@ -349,7 +348,7 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     integer :: d, id
 
     d  = dom%id + 1
@@ -358,7 +357,7 @@ contains
     topography%data(d)%elts(id) = 0d0
   end subroutine init_topo
 
-subroutine initialize_a_b_vert_case
+  subroutine initialize_a_b_vert_case
     implicit none
     integer :: k
 
@@ -499,10 +498,10 @@ subroutine initialize_a_b_vert_case
 
     call date_and_time (values=values)
     call random_seed   (size=k)
-    
+
     allocate (seed(1:k))
     seed = values(8)
-    
+
     call random_seed (put=seed)
   end subroutine initialize_seed
 
@@ -554,273 +553,296 @@ subroutine initialize_a_b_vert_case
     real(8)            :: press_save
     character(255)     :: command, filename, varname
     character(2)       :: var_file
-      logical            :: file_exists
+    logical            :: file_exists
 
-      ! Find input parameters file name
-      if (command_argument_count() >= 1) then
-         CALL getarg (1, filename)
-      else
-         filename = 'test_case.in'
-      end if
-      if (rank == 0) write (6,'(a,A)') "Input file = ", trim (filename)
+    ! Find input parameters file name
+    if (command_argument_count() >= 1) then
+       CALL getarg (1, filename)
+    else
+       filename = 'test_case.in'
+    end if
+    if (rank == 0) write (6,'(a,A)') "Input file = ", trim (filename)
 
-      open(unit=fid, file=filename, action='READ')
-      read (fid,*) varname, test_case
-      read (fid,*) varname, run_id
-      read (fid,*) varname, max_level
-      read (fid,*) varname, zlevels
-      read (fid,*) varname, default_thresholds
-      read (fid,*) varname, tol
-      read (fid,*) varname, press_save
-      read (fid,*) varname, dt_write
-      read (fid,*) varname, CP_EVERY
-      read (fid,*) varname, rebalance
-      read (fid,*) varname, time_end
-      read (fid,*) varname, resume_init
-      close(fid)
+    open(unit=fid, file=filename, action='READ')
+    read (fid,*) varname, test_case
+    read (fid,*) varname, run_id
+    read (fid,*) varname, max_level
+    read (fid,*) varname, zlevels
+    read (fid,*) varname, default_thresholds
+    read (fid,*) varname, tol
+    read (fid,*) varname, press_save
+    read (fid,*) varname, dt_write
+    read (fid,*) varname, CP_EVERY
+    read (fid,*) varname, rebalance
+    read (fid,*) varname, time_end
+    read (fid,*) varname, resume_init
+    close(fid)
 
-      allocate (pressure_save(1))
-      pressure_save(1) = 1.0d2*press_save
-      dt_write = dt_write * DAY
-      time_end = time_end * DAY
-      resume   = resume_init
-      Laplace_order = Laplace_order_init
+    allocate (pressure_save(1))
+    pressure_save(1) = 1.0d2*press_save
+    dt_write = dt_write * DAY
+    time_end = time_end * DAY
+    resume   = resume_init
+    Laplace_order = Laplace_order_init
 
-      ! Bins for zonal statistics
-      !nbins = sqrt (10*4**max_level/2) ! consistent with maximum resolution
-      nbins = 300
-      allocate (Nstats(zlevels,nbins), Nstats_glo(zlevels,nbins)) ; Nstats = 0 ; Nstats_glo = 0
-      allocate (zonal_avg(zlevels,nbins,nvar_zonal), zonal_avg_glo(zlevels,nbins,nvar_zonal))
-      zonal_avg = 0.0_8; zonal_avg_glo = 0.0_8
-      allocate (bounds(1:nbins-1))
-      dbin = 1.8d2/nbins
-      bounds = -90+dbin + dbin*(/ (ibin, ibin = 0, nbins-1) /)
+    ! Bins for zonal statistics
+    !nbins = sqrt (10*4**max_level/2) ! consistent with maximum resolution
+    nbins = 300
+    allocate (Nstats(zlevels,nbins), Nstats_glo(zlevels,nbins)) ; Nstats = 0 ; Nstats_glo = 0
+    allocate (zonal_avg(zlevels,nbins,nvar_zonal), zonal_avg_glo(zlevels,nbins,nvar_zonal))
+    zonal_avg = 0.0_8; zonal_avg_glo = 0.0_8
+    allocate (bounds(1:nbins-1))
+    dbin = 1.8d2/nbins
+    bounds = -90+dbin + dbin*(/ (ibin, ibin = 0, nbins-1) /)
 
-      ! Initialize rank 0 with saved statistics data if present
-      if (rank == 0) then
-         inquire (file = trim(run_id)//'.3.tgz', exist = file_exists)
-         if (file_exists) then
-            command = 'tar xzf '//trim(run_id)//'.3.tgz'
-            call system (trim(command))
+    ! Initialize rank 0 with saved statistics data if present
+    if (rank == 0) then
+       inquire (file = trim(run_id)//'.3.tgz', exist = file_exists)
+       if (file_exists) then
+          command = 'tar xzf '//trim(run_id)//'.3.tgz'
+          call system (trim(command))
 
-            write (var_file, '(i2.2)') 00
-            open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="UNFORMATTED", action='READ')
-            read (funit) Nstats
-            close (funit)
+          write (var_file, '(i2.2)') 00
+          open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="UNFORMATTED", action='READ')
+          read (funit) Nstats
+          close (funit)
 
-            do v = 1, nvar_zonal
-               write (var_file, '(i2)') v+10
-               open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='READ')
-               do k = zlevels, 1, -1
-                  read (funit,*) zonal_avg(k,:,v)
-               end do
-               close (funit)
-            end do
+          do v = 1, nvar_zonal
+             write (var_file, '(i2)') v+10
+             open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='READ')
+             do k = zlevels, 1, -1
+                read (funit,*) zonal_avg(k,:,v)
+             end do
+             close (funit)
+          end do
 
-            ! Convert variances to sums of squares for statistics computation
-            zonal_avg(:,:,2) = zonal_avg(:,:,2) * (Nstats - 1)
-            do v = 6, nvar_zonal
-               zonal_avg(:,:,v) = zonal_avg(:,:,v) * (Nstats - 1)
-            end do
-         end if
-      end if
-   end subroutine read_test_case_parameters
+          ! Convert variances to sums of squares for statistics computation
+          zonal_avg(:,:,2) = zonal_avg(:,:,2) * (Nstats - 1)
+          do v = 6, nvar_zonal
+             zonal_avg(:,:,v) = zonal_avg(:,:,v) * (Nstats - 1)
+          end do
+       end if
+    end if
+  end subroutine read_test_case_parameters
 
-   subroutine print_test_case_parameters
-      implicit none
+  subroutine print_test_case_parameters
+    implicit none
 
-      if (rank==0) then
-         write (6,'(a)') &
+    if (rank==0) then
+       write (6,'(a)') &
             '********************************************************** Parameters &
             ************************************************************'
-         write (6,'(a)')        "RUN PARAMETERS"
-         write (6,'(a,a)')      "test_case           = ", trim (test_case)
-         write (6,'(a,a)')      "run_id              = ", trim (run_id)
-         write (6,'(a,l1)')     "compressible        = ", compressible
-         write (6,'(a,i3)')     "min_level           = ", min_level
-         write (6,'(a,i3)')     "max_level           = ", max_level
-         write (6,'(a,i5)')     "number of domains   = ", N_GLO_DOMAIN
-         write (6,'(a,i5)')     "number of processors = ", n_process
-         write (6,'(a,i5)')     "DOMAIN_LEVEL        = ", DOMAIN_LEVEL
-         write (6,'(a,i5)')     "PATCH_LEVEL         = ", PATCH_LEVEL
-         write (6,'(a,i3)')     "zlevels             = ", zlevels
-         write (6,'(a,l1)')     "uniform             = ", uniform
-         write (6,'(a,l1)')     "remap               = ", remap
-         write (6,'(a,a)')      "remapscalar_type    = ", trim (remapscalar_type)
-         write (6,'(a,a)')      "remapvelo_type      = ", trim (remapvelo_type)
-         write (6,'(a,i3)')     "iremap              = ", iremap
-         write (6,'(a,l1)')     "default_thresholds  = ", default_thresholds
-         write (6,'(a,es10.4)') "tolerance           = ", tol
-         write (6,'(a,i1)')     "optimize_grid       = ", optimize_grid
-         write (6,'(a,l1)')     "adapt_dt            = ", adapt_dt
-         write (6,'(a,es10.4)') "cfl_num             = ", cfl_num
-         write (6,'(a,a)')      "timeint_type        = ", trim (timeint_type)
-         write (6,'(a,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
-         write (6,'(a,i1)')     "Laplace_order       = ", Laplace_order_init
-         write (6,'(a,i2)')     "n_diffuse           = ", n_diffuse
-         write (6,'(a,es10.4)') "dt_write (day)      = ", dt_write/DAY
-         write (6,'(a,i6)')     "CP_EVERY            = ", CP_EVERY
-         write (6,'(a,l1)')     "rebalance           = ", rebalance
-         write (6,'(a,es10.4)') "time_end (day)      = ", time_end/DAY
-         write (6,'(a,i6)')     "resume              = ", resume_init
+       write (6,'(a)')        "RUN PARAMETERS"
+       write (6,'(a,a)')      "test_case               = ", trim (test_case)
+       write (6,'(a,a)')      "run_id                  = ", trim (run_id)
+       write (6,'(a,l1)')     "compressible            = ", compressible
+       write (6,'(a,l1)')     "split_mean_perturbation = ", split_mean_perturbation 
+       write (6,'(a,i3)')     "min_level               = ", min_level
+       write (6,'(a,i3)')     "max_level               = ", max_level
+       write (6,'(a,i5)')     "number of domains       = ", N_GLO_DOMAIN
+       write (6,'(a,i5)')     "number of processors    = ", n_process
+       write (6,'(a,i5)')     "DOMAIN_LEVEL            = ", DOMAIN_LEVEL
+       write (6,'(a,i5)')     "PATCH_LEVEL             = ", PATCH_LEVEL
+       write (6,'(a,i3)')     "zlevels                 = ", zlevels
+       write (6,'(a,l1)')     "uniform                 = ", uniform
+       write (6,'(a,l1)')     "remap                   = ", remap
+       write (6,'(a,i3)')     "iremap                  = ", iremap
+       write (6,'(a,l1)')     "default_thresholds      = ", default_thresholds
+       write (6,'(a,es10.4)') "tolerance               = ", tol
+       write (6,'(a,i1)')     "optimize_grid           = ", optimize_grid
+       write (6,'(a,l1)')     "adapt_dt                = ", adapt_dt
+       write (6,'(a,a)')      "timeint_type            = ", trim (timeint_type)
 
-         write (6,'(/,a)')      "STANDARD PARAMETERS"
-         write (6,'(a,es10.4)') "radius              = ", radius
-         write (6,'(a,es10.4)') "omega               = ", omega
-         write (6,'(a,es10.4)') "p_0   (hPa)         = ", p_0/100
-         write (6,'(a,es10.4)') "p_top (hPa)         = ", p_top/100
-         write (6,'(a,es10.4)') "R_d                 = ", R_d
-         write (6,'(a,es10.4)') "c_p                 = ", c_p
-         write (6,'(a,es10.4)') "c_v                 = ", c_v
-         write (6,'(a,es10.4)') "gamma               = ", gamma
-         write (6,'(a,es10.4)') "kappa               = ", kappa
+       write (6,'(a,i1,/)')     "Laplace_order           = ", Laplace_order_init
+       write (6,'(a,/,a,/,/,a,es8.2,/,a,es8.2,/)') "Stability limits:", &
+            "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
+            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1d0/6d0)**Laplace_order_init, &
+            "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1d0/24d0)**Laplace_order_init
+       if (scale_aware) then
+          write (6,'(a,/)') "Scale-aware horizontal viscosity"
+       else
+          write (6,'(a,/)') "Horizontal viscosity based on dx_min"
+       end if
 
-         write (6,'(/,a)')      "TEST CASE PARAMETERS"
-         write (6,'(a,es10.4)') "T_0                 = ", T_0
-         write (6,'(a)') &
+       write (6,'(a)') "Non-dimensional viscosities"
+       write (6,'(3(a,es8.2/))') "C_visc(S_MASS)        = ", C_visc(S_MASS), "C_visc(S_TEMP)        = ", C_visc(S_TEMP), &
+            "C_visc(S_VELO)        = ", C_visc(S_VELO)
+
+       write (6,'(a)')        "Approximate viscosities on finest grid"
+       write (6,'(a,es8.2)') "nu_scalar                = ", nu_sclr
+       write (6,'(a,es8.2)') "nu_rot                   = ", nu_rotu
+       write (6,'(a,es8.2,/)') "nu_div                   = ", nu_divu
+
+       write (6,'(a,es10.4)') "dt_init                 = ", dt_init
+       write (6,'(a,es10.4)') "cfl_num                 = ", cfl_num
+       write (6,'(a,es10.4)') "dt_write         [d]     = ", dt_write / DAY
+       write (6,'(a,i3)')     "CP_EVERY                 = ", CP_EVERY
+       write (6,'(a,l1)')     "rebalance                = ", rebalance
+       write (6,'(a,es10.4)') "time_end         [d]     = ", time_end / DAY
+       write (6,'(a,i6)')     "resume                   = ", resume_init
+
+       write (6,'(/,a)')      "STANDARD PARAMETERS"
+       write (6,'(a,es10.4)') "radius          [km]     = ", radius / KM
+       write (6,'(a,es10.4)') "omega        [rad/s]     = ", omega
+       write (6,'(a,es10.4)') "ref_density [kg/m^3]     = ", ref_density
+       write (6,'(a,es10.4)') "p_0           [hPa]      = ", p_0/100d0
+       write (6,'(a,es10.4)') "p_top         [hPa]      = ", p_top/100d0
+       write (6,'(a,es10.4)') "R_d      [J/(kg K)]      = ", R_d
+       write (6,'(a,es10.4)') "c_p      [J/(kg K)]      = ", c_p
+       write (6,'(a,es10.4)') "c_v      [J/(kg K)]      = ", c_v
+       write (6,'(a,es10.4)') "gamma                    = ", gamma
+       write (6,'(a,es10.4)') "kappa                    = ", kappa
+       write (6,'(a,f10.1)')  "dx_max         [km]      = ", dx_max / KM
+       write (6,'(a,f10.1)')  "dx_min         [km]      = ", dx_min / KM
+
+       write (6,'(/,a)')      "TEST CASE PARAMETERS"
+       write (6,'(a,f5.1)')   "T_0             [K]      = ", T_0
+       write (6,'(a,i2)')     "Nsoil                    = ", Nsoil
+       write (6,'(a,es10.4,/)') "wave_speed    [m/s]      = ", wave_speed
+       write (6,'(a)') &
             '*********************************************************************&
             ************************************************************'
-      end if
-   end subroutine print_test_case_parameters
+    end if
+  end subroutine print_test_case_parameters
 
-   subroutine print_log
-      ! Prints out and saves logged data to a file
-      implicit none
+  subroutine print_log
+    ! Prints out and saves logged data to a file
+    implicit none
 
-      integer :: min_load, max_load
-      real(8) :: avg_load, rel_imbalance, timing
+    integer :: min_load, max_load, total_layers
+    real(8) :: avg_load, rel_imbalance, timing
 
-      timing = get_timing(); total_cpu_time = total_cpu_time + timing
+    timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
-      call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
+    call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
-      if (rank == 0) then
-         write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,4(a,es8.2,1x))') &
+    total_layers = size (threshold, 2)
+
+    if (rank == 0) then
+       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,2(a,es8.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
-            '  mass tol = ', sum (threshold(S_MASS,1:zlevels))/zlevels, &
-            ' temp tol = ', sum (threshold(S_TEMP,1:zlevels))/zlevels, &
-            ' velo tol = ', sum (threshold(S_VELO,1:zlevels))/zlevels, &
+            '  mass tol = ', sum (threshold(S_MASS,:))/total_layers, &
+            ' temp tol = ', sum (threshold(S_TEMP,:))/total_layers, &
+            ' velo tol = ', sum (threshold(S_VELO,:))/total_layers, &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
-            ' min rel mass = ', min_mass, &
-            ' mass error = ', mass_error, &
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
-         write (12,'(5(es15.9,1x),i2,1x,i12,1x,4(es15.9,1x))')  &
-            time/DAY, dt, sum (threshold(S_MASS,1:zlevels))/zlevels, sum (threshold(S_TEMP,1:zlevels))/zlevels, &
-            sum (threshold(S_VELO,1:zlevels))/zlevels, level_end, sum (n_active), min_mass, mass_error, rel_imbalance, timing
-      end if
-   end subroutine print_log
+       write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  &
+            time/DAY, dt, sum (threshold(S_MASS,:))/total_layers, sum (threshold(S_TEMP,:))/total_layers, &
+            sum (threshold(S_VELO,:))/total_layers, level_end, sum (n_active), rel_imbalance, timing
+    end if
+  end subroutine print_log
 
-   subroutine dump_case (fid)
-      implicit none
-      integer :: fid
+  subroutine dump_case (fid)
+    implicit none
+    integer :: fid
 
-      write (fid) itime
-      write (fid) iwrite
-      write (fid) threshold
-   end subroutine dump_case
+    write (fid) itime
+    write (fid) iwrite
+    write (fid) threshold
+  end subroutine dump_case
 
-   subroutine load_case (fid)
-      implicit none
-      integer :: fid
+  subroutine load_case (fid)
+    implicit none
+    integer :: fid
 
-      read (fid) itime
-      read (fid) iwrite
-      read (fid) threshold
-   end subroutine load_case
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    read (fid) itime
+    read (fid) iwrite
+    read (fid) threshold
+  end subroutine load_case
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Place holder subroutine for dynamics time step !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   subroutine timestep_placeholder(align_time, aligned)
-      !-----------------------------------------------------------------------------------
-      !
-      !   Description: Subroutine to call in place of dynamics time step if only calling
-      !                  the physics by itself. This will update the time and flags
-      !                  needed to know when to checkpoint.
-      !
-      !   Key Note: This is the REAL(8) case, used for physics only cases.
-      !             It includes hard coded dt case, commented out if desired
-      !
-      !   Author: Gabrielle Ching-Johnson
-      !
-      !-----------------------------------------------------------------------------------
-      use main_mod, ONLY : time_mult, dt_new
-      implicit none
-      real(8)              :: align_time
-      logical, intent(out) :: aligned
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Place holder subroutine for dynamics time step !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine timestep_placeholder (align_time, aligned)
+    !-----------------------------------------------------------------------------------
+    !
+    !   Description: Subroutine to call in place of dynamics time step if only calling
+    !                  the physics by itself. This will update the time and flags
+    !                  needed to know when to checkpoint.
+    !
+    !   Key Note: This is the REAL(8) case, used for physics only cases.
+    !             It includes hard coded dt case, commented out if desired
+    !
+    !   Author: Gabrielle Ching-Johnson
+    !
+    !-----------------------------------------------------------------------------------
+    use main_mod, ONLY : time_mult, dt_new
+    implicit none
+    real(8)              :: align_time
+    logical, intent(out) :: aligned
 
-      integer(8) :: idt, ialign
+    integer(8) :: idt, ialign
 
-      istep       = istep+1
-      istep_cumul = istep_cumul+1
+    istep       = istep+1
+    istep_cumul = istep_cumul+1
 
-      dt = dt_new
-      !dt = 1200.0_8 !hard_coded case
+    dt = dt_new
+    !dt = 1200.0_8 !hard_coded case
 
-      !  Check to see if need to write checkpoint
-      idt    = nint (dt*time_mult, 8)
-      ialign = nint (align_time*time_mult, 8)
-      if (ialign > 0 .and. istep > 20) then
-         aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
-         ! For case when dt is exact divisor of align_time:
-         !aligned = modulo(time + dt, align_time) < modulo(time,align_time)      !real(8) case
-      else
-         aligned = .false.
-      end if
+    !  Check to see if need to write checkpoint
+    idt    = nint (dt*time_mult, 8)
+    ialign = nint (align_time*time_mult, 8)
+    if (ialign > 0 .and. istep > 20) then
+       aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
+       ! For case when dt is exact divisor of align_time:
+       !aligned = modulo(time + dt, align_time) < modulo(time,align_time)      !real(8) case
+    else
+       aligned = .false.
+    end if
 
-      ! Update time
-      itime = itime + idt
-      time = time + dt
+    ! Update time
+    itime = itime + idt
+    time = time + dt
 
-   end subroutine timestep_placeholder
+  end subroutine timestep_placeholder
 
-   subroutine timestep_placeholder_real(align_time, aligned,dt_real)
-      !-----------------------------------------------------------------------------------
-      !
-      !   Description: Subroutine to call in place of dynamics time step if only calling
-      !                  the physics by itself. This will update the time and flags
-      !                  needed to know when to checkpoint.
-      !
-      !   Key Note: This is the REAL case, used for testing and physics only cases.
-      !             It includes hard coded dt case, commented out if desired
-      !
-      !   Author: Gabrielle Ching-Johnson
-      !
-      !-----------------------------------------------------------------------------------
-      use main_mod, ONLY : time_mult, dt_new
-      implicit none
-      !! REAL version
+  subroutine timestep_placeholder_real(align_time, aligned,dt_real)
+    !-----------------------------------------------------------------------------------
+    !
+    !   Description: Subroutine to call in place of dynamics time step if only calling
+    !                  the physics by itself. This will update the time and flags
+    !                  needed to know when to checkpoint.
+    !
+    !   Key Note: This is the REAL case, used for testing and physics only cases.
+    !             It includes hard coded dt case, commented out if desired
+    !
+    !   Author: Gabrielle Ching-Johnson
+    !
+    !-----------------------------------------------------------------------------------
+    use main_mod, ONLY : time_mult, dt_new
+    implicit none
+    !! REAL version
 
-      real              :: align_time, dt_real
-      logical, intent(out) :: aligned
+    real              :: align_time, dt_real
+    logical, intent(out) :: aligned
 
-      integer :: idt, ialign
+    integer :: idt, ialign
 
-      istep       = istep+1
-      istep_cumul = istep_cumul+1
+    istep       = istep+1
+    istep_cumul = istep_cumul+1
 
-      dt = dt_new
-      !dt = 1200.0 !hard coding dt
+    dt = dt_new
+    !dt = 1200.0 !hard coding dt
 
-      !  Check to see if need to write checkpoint
-      idt    = dt_real*time_mult
-      ialign = align_time*time_mult
-      if (ialign > 0 .and. istep > 20) then
-         ! For case when dt is exact divisor of align_time
-         !aligned = modulo(time + dt_real, align_time) < modulo(time,align_time) !real case
-         aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
-      else
-         aligned = .false.
-      end if
+    !  Check to see if need to write checkpoint
+    idt    = dt_real*time_mult
+    ialign = align_time*time_mult
+    if (ialign > 0 .and. istep > 20) then
+       ! For case when dt is exact divisor of align_time
+       !aligned = modulo(time + dt_real, align_time) < modulo(time,align_time) !real case
+       aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
+    else
+       aligned = .false.
+    end if
 
-      ! Update time
-      itime = itime + idt
-      time = time + dt_real
+    ! Update time
+    itime = itime + idt
+    time = time + dt_real
 
-   end subroutine timestep_placeholder_real
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  end subroutine timestep_placeholder_real
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 end module test_case_mod

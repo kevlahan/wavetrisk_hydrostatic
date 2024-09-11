@@ -32,8 +32,10 @@ program Simple_Physics
    uniform                 = .false.                 ! hybrid vertical pressure grid
    cfl_num                 = 1d0                     ! cfl number
    Laplace_order_init      = 2                       ! hyperdiffusion
-   timeint_type            = "RK4"                   ! time integration scheme (use RK34, RK45 or RK4)
+   timeint_type            = "RK3"                   ! time integration scheme (use RK34, RK45 or RK4)
    iremap                  = 10                      ! remap interval
+   log_min_mass             = .false.                ! compute minimum mass at each dt (for checking stability issues)
+   log_total_mass           = .false.                ! check whether total mass is conserved (for debugging)
 
    ! Standard (shared) parameter values for the simulation
    radius         = 6400d0    * KM                   ! mean radius of the Earth
