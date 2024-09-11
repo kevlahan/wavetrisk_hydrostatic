@@ -438,6 +438,24 @@ contains
     density_e = 0.5d0 * (rho(0) + rho(1:EDGE))
   end function density_e
 
+  real(8) function theta2temp (theta, p)
+    ! Convert potential temperature (theta) to temperature
+    ! requires pressure
+    implicit none
+    real(8) :: p, theta
+    
+    theta2temp = theta * (p / p_0)**kappa
+  end function theta2temp
+
+  real(8) function temp2theta (temp, p)
+    ! Convert temperature (temp) to potential temperature
+    ! requires pressure
+    implicit none
+    real(8) :: p, temp
+    
+    temp2theta =  temp / (p / p_0)**kappa
+  end function temp2theta
+  
   real(8) function pressure_i (dom, i, j, zlev, offs, dims, q)
     ! Pressure at layer zlev computed by integrated down
     implicit none
