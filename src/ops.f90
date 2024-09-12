@@ -978,7 +978,7 @@ contains
     implicit none
     ! Compute surface pressure and save in press_lower for upward integration
     ! Set geopotential to surface geopotential for upward integration
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
 
     integer :: d, j, k, p
 
