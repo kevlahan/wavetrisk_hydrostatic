@@ -292,7 +292,7 @@ CONTAINS
     ENDDO
     !$acc end kernels
 
-    WRITE(55,'(2e15.5)') zday,tsurf(ngrid/2+1)
+    !WRITE(55,'(2e15.5)') zday,tsurf(ngrid/2+1)
 
     IF (callsoil) THEN
        CALL soil_backward(ngrid,nsoilmx, zc,zd, tsurf,tsoil)
