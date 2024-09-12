@@ -52,22 +52,6 @@ program Simple_Physics
    ! Local initial conditions test case parameters
    T_0            = 250d0      * KELVIN              ! reference temperature
    u_0            = 30d0       * METRE/SECOND        ! geostrophic wind speed
-   e_thick        = 10d0       * KM                  ! Eckman Layer Thickness in meters
-
-   ! Dimensions for scaling tendencies
-   Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
-   dTempdim       = 70d0       * KELVIN              ! temperature scale for tolerances
-   Pdim           = p_0                              ! pressure scale
-   dPdim          = 80d0       * hPa                 ! scale of surface pressure variation determining mass tolerance scale
-
-   ! Dimensional scaling
-   specvoldim     = (R_d * Tempdim) / Pdim           ! specific volume scale
-   wave_speed     = sqrt (gamma * Pdim * specvoldim) ! acoustic wave speed
-
-   Udim           = u_0                              ! velocity scale
-   Tdim           = 1d0  * DAY                       ! time scale - a solar day
-   Ldim           = Udim * Tdim                      ! length scale
-   Hdim           = wave_speed**2 / grav_accel       ! vertical length scale
 
    ! Average hexagon areas and horizontal resolution
    area_sphere = 4d0*MATH_PI * radius**2 
@@ -81,7 +65,7 @@ program Simple_Physics
 
    ! Time adaptivity parameters
    if (adapt_dt) then
-      dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + Udim) ! initial time step     (0.85 factor corrects for minimum dx)
+      dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + Udim) ! initial time step (0.85 factor corrects for minimum dx)
    else
       dt_init = 300d0 * SECOND * dx_scaling                     ! Lauritzen value
    end if
@@ -103,6 +87,50 @@ program Simple_Physics
    C_visc(S_TEMP)     = nu_sclr * dt_init / (3d0 * Area_min**Laplace_order_init) 
    C_visc(S_VELO)     = nu_rotu * dt_init / (3d0 * Area_min**Laplace_order_init) 
    C_div              = nu_divu * dt_init / (3d0 * Area_min**Laplace_order_init)
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Physics Model Parameters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   radiation_mod  = .true.                           ! (T) radiation module is on
+   turbulence_mod = .true.                           ! (T) vertical diffusion module is on
+   convecAdj_mod  = .true.                           ! (T) convective adjustment module is on
+   soil_mod       = .true.                           ! (T) soil module is on
+
+   ! Physics Package planet test case parameters
+   gas_molarmass  = 28.9702532d0                     ! molar mass of main gain (used to set ideal gas const in pacakage)
+   perihelion     = 150d0                            ! planet perihelion distance [MMkm]
+   aphelion       = 150d0                            ! planet aphelion distance   [MMkm]
+   perihelion_day = 0d0                              ! perihelion day
+   obliquity      = 0d0                              ! planet axial tilt/obliquity
+   sea_surf       = 0.01d0                           ! sea surface roughness length scale  [m]
+   soil_surf      = 0.01d0                           ! soil surface roughness length scale [m]
+   sea_inertia    = 3000d0                           ! sea thermal  inertia [J/m^3K]
+   soil_inertia   = 3000d0                           ! soil thermal inertia [J/m^3K]
+   sea_emissive   = 1d0                              ! sea emissivity
+   soil_emmisive  = 1d0                              ! soil emissivity
+   min_turbmix    = 100d0                            ! minimum turbulent mixing length [m]
+   sw_atten       = 0.99d0                           ! attenuation of shortwave radiation coefficient
+   lw_atten       = 0.08d0                           ! attenuation of longwave radiation coefficient
+   seasons        = .false.                          ! seasons flag **** Does not do anything ****
+   diurnal        = .true.                           ! diurnal cycle flag
+
+   ! Single precision parameters
+   sea_albedo     = 0.112e0                          ! sea albedo
+   soil_albedo    = 0.112e0                          ! soil albedo
+   emin_turb      = 1e-16                            ! minimum turbulent kinetic energy
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   
+   ! Dimensions for scaling tendencies
+   Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
+   dTempdim       = 70d0       * KELVIN              ! temperature scale for tolerances
+   Pdim           = p_0                              ! pressure scale
+   dPdim          = 80d0       * hPa                 ! scale of surface pressure variation determining mass tolerance scale
+
+   ! Dimensional scaling
+   specvoldim     = (R_d * Tempdim) / Pdim           ! specific volume scale
+   wave_speed     = sqrt (gamma * Pdim * specvoldim) ! acoustic wave speed
+   Udim           = u_0                              ! velocity scale
+   Tdim           = 1d0  * DAY                       ! time scale - a solar day
+   Ldim           = Udim * Tdim                      ! length scale
+   Hdim           = wave_speed**2 / grav_accel       ! vertical length scale
 
    ! Read test case parameters
    call read_test_case_parameters
@@ -128,7 +156,7 @@ program Simple_Physics
    ! call write_and_export (iwrite)
    !call mean_values (0) ! processing for the physics package mean values
 
-   if (rank == 0) write (6,'(A,/)') &
+   if (rank == 0) write (6,'(a,/)') &
       '----------------------------------------------------- Start simulation run &
       ------------------------------------------------------'
    open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
@@ -136,7 +164,7 @@ program Simple_Physics
    total_cpu_time = 0d0
    do while (time < time_end)
       call start_timing
-      call time_step (dt_write, aligned)                                                             ! dynamics step
+      call time_step (dt_write, aligned)
       call euler (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_physics, dt) ! physics step
       call stop_timing
       call print_log

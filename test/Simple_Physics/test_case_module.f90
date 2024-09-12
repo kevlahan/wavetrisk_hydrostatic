@@ -568,6 +568,7 @@ contains
     read (fid,*) varname, run_id
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
+    read (fid,*) varname, Nsoil
     read (fid,*) varname, default_thresholds
     read (fid,*) varname, tol
     read (fid,*) varname, press_save
@@ -644,6 +645,7 @@ contains
        write (6,'(a,i5)')     "DOMAIN_LEVEL            = ", DOMAIN_LEVEL
        write (6,'(a,i5)')     "PATCH_LEVEL             = ", PATCH_LEVEL
        write (6,'(a,i3)')     "zlevels                 = ", zlevels
+       write (6,'(a,i3)')     "Nsoil                   = ", Nsoil
        write (6,'(a,l1)')     "uniform                 = ", uniform
        write (6,'(a,l1)')     "remap                   = ", remap
        write (6,'(a,i3)')     "iremap                  = ", iremap
