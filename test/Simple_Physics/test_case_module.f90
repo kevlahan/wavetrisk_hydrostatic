@@ -698,7 +698,11 @@ contains
 
        write (6,'(/,a)')      "TEST CASE PARAMETERS"
        write (6,'(a,f5.1)')   "T_0             [K]      = ", T_0
-       write (6,'(a,i2)')     "Nsoil                    = ", Nsoil
+       if (soil_mod) then
+          write (6,'(a)') "No soil column: surface fluxes only"
+       else
+          write (6,'(a,i2)')     "Nsoil                    = ", Nsoil
+       end if
        write (6,'(a,es10.4,/)') "wave_speed    [m/s]      = ", wave_speed
        write (6,'(a)') &
             '*********************************************************************&

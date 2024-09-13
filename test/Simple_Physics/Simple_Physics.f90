@@ -65,7 +65,7 @@ program Simple_Physics
 
    ! Time adaptivity parameters
    if (adapt_dt) then
-      dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + Udim) ! initial time step (0.85 factor corrects for minimum dx)
+      dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_0)  ! initial time step (0.85 factor corrects for minimum dx)
    else
       dt_init = 300d0 * SECOND * dx_scaling                     ! Lauritzen value
    end if
