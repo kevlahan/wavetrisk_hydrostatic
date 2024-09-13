@@ -19,7 +19,7 @@ module init_physics_mod
   
   real    :: sea_albedo, soil_albedo, emin_turb
   
-  integer :: Nsoil                                                             ! number of soil layers
+  integer :: Nsoil ! number of soil layers (physics model requires >=2 even if soil model not called)
   
   logical :: radiation_mod, turbulence_mod, convecAdj_mod, seasons, diurnal
 
@@ -32,7 +32,7 @@ contains
     !                main physics parameters.
     !
     !   Assumptions: Assumes that physics grid parameters has been initialized (ie called
-    !                init_soild_grid(_default)) and the wavetrisk parameters have been
+    !                init_soil_grid(_default)) and the wavetrisk parameters have been
     !                initialized (ie called initialize(run_id)).
     !
     !   Author: Gabrielle Ching-Johnson
@@ -53,15 +53,15 @@ contains
     flush_plugin       => flush_log_phys
 
     ! Write physics read in parameters to file (specific for each rank)
-    write (param_file, '(A,I4.4)') trim(run_id)//'.physics_params.', rank
+    write (param_file, '(a,i4.4)') trim(run_id)//'.physics_params.', rank
     call write_physics_params (9*rank, param_file)
 
-    !Initialization of physics parameters
-    open (unit=9*rank, file=trim (param_file), form="FORMATTED", action='READ')
+    ! Initialization of physics parameters
+    open (unit=9*rank, file=trim(param_file), form="FORMATTED", action='READ')
     
-    call iniphyparam (dt_new,  DAY, radius, grav_accel, R_d, c_p)
+    call iniphyparam (dt_new, DAY, radius, grav_accel, R_d, c_p)
     
-    close (9 * rank)
+    close (9*rank)
 
     ! Delete extra files
     write (command, '(a,a)') '\rm ', trim (param_file)
@@ -149,7 +149,7 @@ contains
     real(8) :: lat(1), long(1)
 
     if (.not. soil_mod) then
-       print*, 'STOP!! Cannot use default (init_soil_grid_default) to set zmin when soil_mod flag indicates false'
+       if (rank == 0) print*, 'STOP!! Cannot use default (init_soil_grid_default) to set zmin when soil_mod flag indicates false'
        stop
     end if
 
@@ -186,13 +186,14 @@ contains
     long(1) = 0d0
 
     ! Set the zmin (lowest vertical level index) (! See Assumptions)
+    ! and initialize the grid for the physics
     if (soil_mod) then
        zmin = - Nsoil
-       call init_comgeomfi (1, zlevels, long, lat, Nsoil) ! grid initialization for the physics
+       call init_comgeomfi (1, zlevels, long, lat, Nsoil) 
     else
        Nsoil = 0
        zmin  = 0
-       call init_comgeomfi (1, zlevels, long, lat)        ! grid initialization for the physics
+       call init_comgeomfi (1, zlevels, long, lat)        
     end if
   end subroutine init_soil_grid
 

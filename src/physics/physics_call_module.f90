@@ -83,7 +83,7 @@ contains
     !   Author: Gabrielle Ching-Johnson
     !
     !-----------------------------------------------------------------------------------
-    USE callkeys,          only : lverbose
+    USE callkeys,          only : lverbose ! print physics model parameters
     USE single_column_mod, only : change_latitude_longitude, physics_call_single_col
     implicit none
     type(Domain)                     :: dom                  

@@ -110,7 +110,7 @@ contains
     if (dom%mask_n%elts(id_i) == FROZEN) return
    
     active = .false.
-    do k = zmin, zlevels
+    do k = 1, zlevels ! do not adapt on soil layers
        do v = scalars(1), scalars(2)
           wc = abs (wav_coeff(v,k)%data(d)%elts(id_i)) 
           if (wc >= threshold(v,k) .or. l < level_fill) active = .true.
@@ -139,15 +139,15 @@ contains
     logical                    :: active
 
     id = idx (i, j, offs, dims)
-    d = dom%id + 1
-    l = dom%level%elts(id+1)
+    d  = dom%id + 1
+    l  = dom%level%elts(id+1)
 
     if (dom%mask_n%elts(id+1) == FROZEN) return
 
     active = .false.
     do e = 1, EDGE
        id_e = id_edge(id)
-       do k = 1, zlevels
+       do k = 1, zlevels ! do not adapt on soil layers 
           wc = abs (wav_coeff(S_VELO,k)%data(d)%elts(id_e(e)))
 
           if (wc >= threshold(S_VELO,k) .or. l < level_fill) active = .true.

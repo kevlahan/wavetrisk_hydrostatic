@@ -1552,7 +1552,7 @@ contains
                 mean_t  => sol_mean(S_TEMP,k)%data(d)%elts
                 exner   => exner_fun(k)%data(d)%elts
                 do j = 1, grid(d)%lev(l)%length
-                   call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, -1, 2)
+                   call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
                 end do
                 nullify (mass, mean_m, temp, mean_t, exner)
              end do
@@ -1726,7 +1726,7 @@ contains
        
        outl = nint (active_level%data(d)%elts(id_i))
 
-       rho_dz = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
+       rho_dz       = sol(S_MASS,zlev)%data(d)%elts(id_i) + sol_mean(S_MASS,zlev)%data(d)%elts(id_i)
        rho_dz_theta = sol(S_TEMP,zlev)%data(d)%elts(id_i) + sol_mean(S_TEMP,zlev)%data(d)%elts(id_i)
 
        if (.not. compressible .and. zlevels == 2) then ! two layer incompressible case (e.g. Drake)
