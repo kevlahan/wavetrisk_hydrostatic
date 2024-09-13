@@ -574,7 +574,6 @@ contains
     read (fid,*) varname, press_save
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
-    read (fid,*) varname, rebalance
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
     close(fid)
