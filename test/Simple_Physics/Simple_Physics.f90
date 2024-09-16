@@ -6,12 +6,12 @@
 !!!!!!!!!!!!!!!!!!!!!!!!
 program Simple_Physics
    use main_mod
-   use ops_mod
    use test_case_mod
    use io_mod
    use init_physics_mod
-   use physics_call_mod
+   use physics_simple_mod
    use phys_processing_mod
+   use callkeys, only : lverbose
 
    implicit none
    real(8)        :: area_sphere, dx_scaling, nu_CAM, nu, nu_scaling, res_scaling
@@ -25,17 +25,19 @@ program Simple_Physics
    ! Initialize random number generator
    call initialize_seed
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! Numerical parameters
    split_mean_perturbation = .false.                 ! split mean and perturbation (T)
    adapt_dt                = .false.                 ! adapt time step
+   default_thresholds      = .false.                 ! thresholding type
    compressible            = .true.                  ! compressible physics
    uniform                 = .false.                 ! hybrid vertical pressure grid
    cfl_num                 = 1d0                     ! cfl number
    Laplace_order_init      = 2                       ! hyperdiffusion
    timeint_type            = "RK3"                   ! time integration scheme (use RK34, RK45 or RK4)
    iremap                  = 10                      ! remap interval
-   log_min_mass             = .false.                ! compute minimum mass at each dt (for checking stability issues)
-   log_total_mass           = .false.                ! check whether total mass is conserved (for debugging)
+   log_min_mass            = .false.                 ! compute minimum mass at each dt (for checking stability issues)
+   log_total_mass          = .false.                 ! check whether total mass is conserved (for debugging)
 
    ! Standard (shared) parameter values for the simulation
    radius         = 6400d0    * KM                   ! mean radius of the Earth
@@ -53,6 +55,15 @@ program Simple_Physics
    T_0            = 250d0      * KELVIN              ! reference temperature
    u_0            = 30d0       * METRE/SECOND        ! geostrophic wind speed
 
+   ! Dimensions for scaling tendencies
+   Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
+   dTempdim       = 70d0       * KELVIN              ! temperature scale for tolerances
+   Pdim           = p_0                              ! pressure scale
+   dPdim          = 80d0       * hPa                 ! scale of surface pressure variation determining mass tolerance scale
+   specvoldim     = (R_d * Tempdim) / Pdim           ! specific volume scale
+
+   wave_speed     = sqrt (gamma * Pdim * specvoldim) ! acoustic wave speed
+
    ! Average hexagon areas and horizontal resolution
    area_sphere = 4d0*MATH_PI * radius**2 
    Area_min    = area_sphere / (10d0 * 4d0**max_level)
@@ -65,10 +76,16 @@ program Simple_Physics
 
    ! Time adaptivity parameters
    if (adapt_dt) then
-      dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_0)  ! initial time step (0.85 factor corrects for minimum dx)
+      cfl_max = 1d0                                             ! maximum cfl number
+      cfl_min = cfl_max/2d0                                         ! minimum cfl number
+      T_cfl   = DAY                                       ! time over which to increase cfl number from cfl_min to cfl_max
+      cfl_num = cfl_min                                         ! initialize cfl number
+      dt_init = cfl_min * 0.85d0 * dx_min / (wave_speed + u_0)  ! initial time step     (0.85 factor corrects for minimum dx)
+      dt_max  = dt_max
    else
       dt_init = 300d0 * SECOND * dx_scaling                     ! Lauritzen value
-   end if
+      dt_max  = dt_init
+  end if
 
    ! CAM values for viscosity for 1 degree are 1e15 except 2.5e15 for divu
    ! note that wavetrisk J6 resolution is about 120 km while 1 degree CAM resolution is about 110 km
@@ -88,11 +105,12 @@ program Simple_Physics
    C_visc(S_VELO)     = nu_rotu * dt_init / (3d0 * Area_min**Laplace_order_init) 
    C_div              = nu_divu * dt_init / (3d0 * Area_min**Laplace_order_init)
 
+   
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Physics Model Parameters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    radiation_mod  = .true.                           ! (T) radiation module is on
    turbulence_mod = .true.                           ! (T) vertical diffusion module is on
    convecAdj_mod  = .true.                           ! (T) convective adjustment module is on
-   soil_mod       = .true.                           ! (T) soil module is on
+   soil_mod       = .false.                          ! (T) soil module is on (if F use surface flux only)
 
    ! Physics Package planet test case parameters
    gas_molarmass  = 28.9702532d0                     ! molar mass of main gain (used to set ideal gas const in pacakage)
@@ -118,15 +136,7 @@ program Simple_Physics
    emin_turb      = 1e-16                            ! minimum turbulent kinetic energy
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    
-   ! Dimensions for scaling tendencies
-   Tempdim        = T_0                              ! temperature scale (both theta and T from DYNAMICO)
-   dTempdim       = 70d0       * KELVIN              ! temperature scale for tolerances
-   Pdim           = p_0                              ! pressure scale
-   dPdim          = 80d0       * hPa                 ! scale of surface pressure variation determining mass tolerance scale
-
    ! Dimensional scaling
-   specvoldim     = (R_d * Tempdim) / Pdim           ! specific volume scale
-   wave_speed     = sqrt (gamma * Pdim * specvoldim) ! acoustic wave speed
    Udim           = u_0                              ! velocity scale
    Tdim           = 1d0  * DAY                       ! time scale - a solar day
    Ldim           = Udim * Tdim                      ! length scale
@@ -146,6 +156,7 @@ program Simple_Physics
 
    ! Initialize the physics and physics function pointers
    call init_physics
+   lverbose = .false.
 
    ! Physics call initializations if checkpointing
    if (cp_idx > 0) call physics_checkpoint_restart
@@ -153,19 +164,22 @@ program Simple_Physics
    ! Save initial conditions
    call print_test_case_parameters
    
-   ! call write_and_export (iwrite)
+   call write_and_export (iwrite)
    !call mean_values (0) ! processing for the physics package mean values
 
    if (rank == 0) write (6,'(a,/)') &
       '----------------------------------------------------- Start simulation run &
       ------------------------------------------------------'
    open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-   
-   total_cpu_time = 0d0
+
+   total_cpu_time = 0d0; ; time_start = time
    do while (time < time_end)
+      cfl_num = cfl (time) ! gradually increase cfl number
+      
       call start_timing
       call time_step (dt_write, aligned)
-      call euler (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_physics, dt) ! physics step
+      !call euler (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_physics_simple, dt) ! physics step
+      !call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1)
       call stop_timing
       call print_log
 
@@ -177,13 +191,13 @@ program Simple_Physics
          if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance) 
 
          ! Save fields
-         call write_and_export (iwrite)
-         !call mean_values      (iwrite) 
+         call write_and_export (iwrite) ; lverbose = .false.
+         !call mean_values      (iwrite)
       end if
    end do
 
    call write_checkpoint (run_id, rebalance) ! checkpoint after final day
-   call mean_values (int (time_end))           ! save means of final day
+   !call mean_values (int (time_end))         ! save means of final day
    
    if (rank == 0) then
       close (12)

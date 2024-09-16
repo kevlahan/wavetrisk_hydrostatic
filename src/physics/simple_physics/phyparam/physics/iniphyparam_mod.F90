@@ -87,18 +87,16 @@ CONTAINS
     CALL check_mismatch('specific heat capacity', pcpp, cpp)
     LOG_WARN('iniphyparam')
 
-    WRITELOG(*,*) 'Activation de la physique:'
-    WRITELOG(*,*) ' R=',r
-    WRITELOG(*,*) ' Rayonnement ',callrad
-    WRITELOG(*,*) ' Diffusion verticale turbulente ', calldifv
-    WRITELOG(*,*) ' Ajustement convectif ',calladj
-    WRITELOG(*,*) ' Sol ',callsoil
-    WRITELOG(*,*) ' Cycle diurne ',diurnal
-
-    WRITELOG(*,*) 'unjours',unjours
-    WRITELOG(*,*) 'The radiative transfer is computed each ', &
-         &   iradia,' physical time-step or each ', &
-         &   iradia*ptimestep,' seconds'
+    WRITELOG(*,'(a)') 'Activation de la physique:'
+    WRITELOG(*,'(a,l)') ' Rayonnement                    ', callrad
+    WRITELOG(*,'(a,l)') ' Diffusion verticale turbulente ', calldifv
+    WRITELOG(*,'(a,l)') ' Ajustement convectif           ', calladj
+    WRITELOG(*,'(a,l)') ' Sol                            ', callsoil
+    WRITELOG(*,'(a,l)') ' Cycle diurne                   ', diurnal
+    WRITELOG(*,'(a,es10.4)') ' R       = ',r
+    WRITELOG(*,'(a,es10.4)') ' unjours = ',unjours
+    WRITELOG(*,'(a,i3,a,es10.4,a)') &
+         'The radiative transfer is computed each ', iradia,' physical time-step, or each ', iradia * ptimestep,' seconds.'
 
     LOG_INFO('iniphyparam')
 

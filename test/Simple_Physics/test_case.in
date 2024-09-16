@@ -3,7 +3,6 @@ run_id             Simple_Physics_J5 ! name of run (for saved data files)
 max_level	   5             ! maximum level of resolution
 zlevels            18            ! number of atmosphere layers
 Nsoil              10            ! number of soil layers	
-default_thresholds F             ! use default tolerances (T) or calculate tolerances dynamically (F)
 tol      	   2e-2          ! non-dimensional tolerance
 pressure_save      850           ! save vertical layer closest to this pressure (hPa)
 dt_write           1             ! save interval (days)

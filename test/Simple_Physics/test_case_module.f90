@@ -10,10 +10,11 @@ module test_case_mod
   implicit none
 
   ! Standard variables
-  integer :: CP_EVERY, resume_init
+  integer :: CP_EVERY, resume_init, time_start
   real(8) :: Area_max, Area_min, C_div
   real(8) :: nu_sclr, nu_rotu, nu_divu
-  real(8) :: dt_cfl, total_cpu_time, dPdim, R_ddim, specvoldim, dTempdim
+  real(8) :: cfl_max, cfl_min,  dt_cfl, dt_max, T_cfl
+  real(8) :: total_cpu_time, dPdim, R_ddim, specvoldim, dTempdim
 
   ! Held-Suarez model parameters
   real(8) :: T_0            = 300d0      * KELVIN              ! reference temperature
@@ -311,7 +312,7 @@ contains
   end subroutine set_thresholds_case
 
   subroutine cal_theta_eq (p, p_s, lat, theta_equil, k_T)
-    ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
+    ! Returns equilibrium Held-Suarez potential temperature theta_equil and Newton cooling constant k_T
     use domain_mod
     implicit none
     real(8) :: p, p_s, lat, theta_equil, k_T
@@ -332,6 +333,24 @@ contains
     theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
     !theta_equil = Tempdim
   end subroutine cal_theta_eq
+
+  real(8) function initial_theta (p, p_s)
+    ! Returns initial potential temperature (no latitude dependence)
+    use domain_mod
+    implicit none
+    real(8) :: p, p_s
+
+    real(8) :: sigma, sigma_c, theta_force, theta_tropo
+
+    sigma = (p - p_top) / (p_s - p_top)
+    sigma_c = 1d0 - sigma_b
+
+    theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
+
+    theta_force = T_mean - delta_theta * log (p / p_0)
+
+    initial_theta = max (theta_tropo, theta_force) 
+  end function initial_theta
 
   real(8) function surf_geopot_case (d, id)
     ! Set geopotential and topography
@@ -569,7 +588,6 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, Nsoil
-    read (fid,*) varname, default_thresholds
     read (fid,*) varname, tol
     read (fid,*) varname, press_save
     read (fid,*) varname, dt_write
@@ -753,11 +771,23 @@ contains
   subroutine load_case (fid)
     implicit none
     integer :: fid
-
+    
     read (fid) itime
     read (fid) iwrite
     read (fid) threshold
   end subroutine load_case
+
+  real(8) function cfl (t)
+    ! Gradually increase cfl number from cfl_min to cfl_max over T_cfl 
+    implicit none
+    real(8) :: t
+
+    if (t - time_start <= T_cfl) then
+       cfl = cfl_min + (cfl_max - cfl_min) * sin (MATH_PI/2d0 * (t - time_start) / T_cfl)
+    else
+       cfl = cfl_max
+    end if
+  end function cfl
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Place holder subroutine for dynamics time step !!!!!!!!!!!!!!!!!!!!!!!!!!!!!

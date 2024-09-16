@@ -4,6 +4,7 @@ program Held_Suarez
   use main_mod
   use test_case_mod
   use lnorms_mod
+  use physics_Held_Suarez_mod
   implicit none
 
   integer        :: l
@@ -150,14 +151,14 @@ program Held_Suarez
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
+  
   total_cpu_time = 0d0; time_start = time
-
   do while (time < time_end)
      cfl_num = cfl (time) ! gradually increase cfl number
      
      call start_timing
      call time_step (dt_write, aligned)
-     call euler (sol, wav_coeff, trend_HS, dt)
+     call euler (sol, wav_coeff, trend_physics_Held_Suarez, dt)
      call stop_timing
      
      call print_log

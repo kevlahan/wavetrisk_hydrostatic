@@ -8,7 +8,7 @@
 module phys_processing_mod
   ! Use cases
   use ops_mod
-  use physics_call_mod
+  use physics_simple_mod
   implicit none
 contains
   subroutine mean_values (iwrt)

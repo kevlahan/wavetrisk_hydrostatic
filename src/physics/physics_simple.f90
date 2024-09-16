@@ -1,5 +1,5 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! File Name: physics_call_module.f90
+! File Name: physics_simple.f90
 ! Author: Gabrielle Ching-Johnson, Nicholas Kevlahan
 !
 ! Date Revised: Sept 11 2024
@@ -9,14 +9,14 @@
 ! Assumes  trend will be used in an Euler step only (uses sol, not input q)
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-module physics_call_mod
+module physics_simple_mod
   use utils_mod
   use ops_mod
   use init_physics_mod
   implicit none
   type(Float_Field), dimension(:), allocatable, target :: dzonal, dmerid
 contains
-  subroutine trend_physics (q, dq)
+  subroutine trend_physics_simple (q, dq)
     !-----------------------------------------------------------------------------------
     !
     !   Description: Trend used to call the physics for each column on each domain. Also
@@ -51,7 +51,7 @@ contains
           grid(d)%u_zonal%elts = dzonal(k)%data(d)%elts
           grid(d)%v_merid%elts = dmerid(k)%data(d)%elts
           
-          !once all columns on domain has been updated, go patch by patch to change tendencies and update them
+          ! Once all columns on domain has been updated, go patch by patch to change tendencies and update them
           do p = 3, grid(d)%patch%length
              call apply_onescale_to_patch (update_velocity_tendencies, grid(d), p-1, k, 0, 0)
           end do
@@ -63,7 +63,7 @@ contains
     call update_bdry (sol(S_TEMP,zmin:0), NONE)
 
     dq = trend; q(S_TEMP,zmin:0) = sol(S_TEMP,zmin:0)
-  end subroutine trend_physics
+  end subroutine trend_physics_simple
 
   subroutine physics_call (dom, i, j, zlev, offs, dims)
     !-----------------------------------------------------------------------------------
@@ -198,7 +198,7 @@ contains
       real(8) :: dtheta, rho_dz   
 
       do k = 1, zlevels
-         ! Save zonal and meridional velocities in place holder (will be converted to edges once entire domain finished)
+         ! Save zonal and meridional velocities at nodes (interpolated to edges once entire domain finished)
          dzonal(k)%data(d)%elts(id_i) = phys_dzonal(k)
          dmerid(k)%data(d)%elts(id_i) = phys_dmeridional(k)
          
@@ -246,4 +246,4 @@ contains
 
     trend(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = uvw
   end subroutine update_velocity_tendencies
-end module physics_call_mod
+end module physics_simple_mod
