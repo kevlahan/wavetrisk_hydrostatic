@@ -235,7 +235,7 @@ contains
           sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        end if
        
-       sol(S_VELO,k)%data(d)%elts(id_e(id)) = 0d0
+       sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
     end do
   end subroutine init_sol
 
@@ -272,7 +272,7 @@ contains
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = 0d0
           sol_mean(S_TEMP,k)%data(d)%elts(id+1) = 0d0
        end if
-       sol_mean(S_VELO,k)%data(d)%elts(id_e(id)) = 0d0
+       sol_mean(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
     end do
   end subroutine init_mean
 
