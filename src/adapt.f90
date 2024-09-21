@@ -15,7 +15,7 @@ contains
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
     implicit none
     external           :: set_thresholds
-    logical, optional  :: type             ! recalculate thresholds if TRUE
+    logical, optional  :: type ! recalculate thresholds
     
     integer :: k, l, d
     logical :: local_type
@@ -29,28 +29,25 @@ contains
 
     if (local_type) call set_thresholds
 
-    call update_bdry1 (wav_coeff, level_start, level_end)
-
-    ! Initialize masks to zero
+    ! Initialize all masks to ZERO at scales > level_start
     call init_masks_zero
     
-    ! Active zone (wavelet coefficient >= TOLRNZ)
+    ! Active zone at all scales
     call mask_active
-    
+
     ! Adjacent zone at same scale
     call mask_adj_same_scale
 
-    ! Label edges whose flux can be obtained by restriction at same scale
+    ! Mask for restriction at same scale
     call mask_restrict_same_scale
 
     ! Determine whether any new patches are required
     if (refine ()) call post_refine
 
-    ! Include adjacent zone at finer scale after grid refinement and
-    ! label edges whose flux can be obtained by restriction
+    ! Adjacent zone at finer scale
     call mask_adj_finer_scale
 
-    ! Ensure consistency between adjacent zone nodes and edges
+    ! Ensure consistency between node and edge masks
     call complete_masks
 
     ! Set insignificant wavelet coefficients to zero
@@ -60,7 +57,7 @@ contains
     call update
   end subroutine adapt
 
-  subroutine init_adapt_mod
+ subroutine init_adapt_mod
     implicit none
     logical :: initialized = .false.
 
@@ -377,5 +374,5 @@ contains
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=old_level_start)
     sol%bdry_uptodate = .false.
     call update_bdry (sol, NONE, 17)
-  end subroutine fill_up_grid_and_IWT  
+  end subroutine fill_up_grid_and_IWT    
 end module adapt_mod

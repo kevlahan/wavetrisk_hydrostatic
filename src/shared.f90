@@ -52,7 +52,7 @@ module shared_mod
   integer, parameter :: NORTHEAST   = 5
   integer, parameter :: SOUTHEAST   = 6
   integer, parameter :: SOUTHWEST   = 7
-  integer, parameter :: NORTHWEST   = 8
+  integer, parameter :: NORTHWEST   = 8 
 
   ! Mask values
   integer, parameter :: FROZEN   = 32  ! nodes that should not be modified

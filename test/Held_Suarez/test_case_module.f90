@@ -235,7 +235,7 @@ contains
           sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        end if
        
-       sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+       sol(S_VELO,k)%data(d)%elts(id_e(id)) = 0d0
     end do
   end subroutine init_sol
 
@@ -249,8 +249,8 @@ contains
     integer :: id, d, k
     real(8) :: k_T, lat, lon, p, p_s, pot_temp
     
-    d   = dom%id+1
-    id  = idx (i, j, offs, dims)
+    d  = dom%id+1
+    id = idx (i, j, offs, dims)
 
     call cart2sph (dom%node%elts(id+1), lon, lat)
 
@@ -272,7 +272,7 @@ contains
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = 0d0
           sol_mean(S_TEMP,k)%data(d)%elts(id+1) = 0d0
        end if
-       sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+       sol_mean(S_VELO,k)%data(d)%elts(id_e(id)) = 0d0
     end do
   end subroutine init_mean
 

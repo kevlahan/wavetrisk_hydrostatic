@@ -1,6 +1,5 @@
 module multi_level_mod
   use ops_mod
-  use refine_patch_mod
   implicit none
 contains
   subroutine trend_ml (q, dq)
