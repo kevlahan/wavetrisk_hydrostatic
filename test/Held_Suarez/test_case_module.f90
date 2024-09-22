@@ -21,8 +21,10 @@ module test_case_mod
 
   character(255) :: analytic_topo = "none" ! mountains or none (used if NCAR_topo = .false.)
 
-  ! Model parameters 
-  logical :: scale_aware    = .false.
+  ! Model parameters
+  real(8) :: e_thick     = 10d0 * KM ! Ekman initial conditions
+  logical :: Ekman_ic    = .false.
+  logical :: scale_aware = .false.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -234,8 +236,13 @@ contains
           sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
           sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        end if
-       
-       sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
+
+       ! Initial velocity with Ekman layer velocity
+       if (ekman_ic) then
+          sol(S_VELO,k)%data(d)%elts(id_edge(id)) = vel_init (dom, i, j, zlev, offs, dims)
+       else
+          sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
+       end if
     end do
   end subroutine init_sol
 
@@ -275,6 +282,37 @@ contains
        sol_mean(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
     end do
   end subroutine init_mean
+
+  function vel_init (dom, i, j, zlev, offs, dims)
+    ! Ekman layer velocity profile
+    implicit none
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer, dimension (N_BDRY+1)   :: offs
+    integer, dimension (2,N_BDRY+1) :: dims
+    real(8), dimension (1:EDGE)     :: vel_init
+
+    integer     :: d, id
+    real(8)     :: lon, lat, phi, u, v
+    type(Coord) :: x_i
+
+    d   = dom%id + 1
+    id  = idx (i, j, offs, dims) + 1
+    
+    x_i = dom%node%elts(id+1)
+
+    call cart2sph (x_i, lon, lat)
+    
+    phi = surf_geopot_case (d, id)
+
+    u = u_0 * (1d0 - exp ( - phi / (e_thick * grav_accel)) * cos (phi / (e_thick * grav_accel))) ! zonal velocity 
+    v = u_0 * (1d0 - exp ( - phi / (e_thick * grav_accel)) * cos (phi / (e_thick * grav_accel))) ! meridional velocity
+    
+    dom%u_zonal%elts(id+1) = u * cos (lat)
+    dom%v_merid%elts(id+1) = v * cos (lat)
+    
+    call interp_latlon_UVW (dom, i, j, zlev, offs, dims, vel_init)
+  end function vel_init
 
   real(8) function surf_geopot_case (d, id)
     ! Set geopotential and topography

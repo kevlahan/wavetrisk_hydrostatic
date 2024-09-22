@@ -46,7 +46,8 @@ program Held_Suarez
   delta_theta    = 10d0       * KELVIN/METRE        ! vertical temperature gradient
   sigma_b        = 0.7d0                            ! normalized tropopause pressure height
   
-  ! Local test case parameters (Jablonowski and Williamson 2006 zonally symmetric initial conditions)
+  ! Local test case parameters
+  Ekman_ic       = .false.                          ! Ekman (T) or zero (F) velocity initial conditions
   u_0            = 70d0     * METRE/SECOND          ! maximum velocity of zonal wind
   gamma_T        = 5d-3     * KELVIN/METRE          ! temperature lapse rate
   delta_T2       = 4.8d5    * KELVIN                ! empirical temperature difference
@@ -70,7 +71,7 @@ program Held_Suarez
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Numerical method parameters
   compressible             = .true.                 ! compressible equations
-  split_mean_perturbation  = .false.                ! split prognostic variables into mean and fluctuations
+  split_mean_perturbation  = .true.                ! split prognostic variables into mean and fluctuations
   uniform                  = .false.                ! hybrid vertical grid (based on A, B coefficients)
   adapt_dt                 = .false.                ! fixed time step
   default_thresholds       = .false.                ! thresholding type
@@ -80,7 +81,7 @@ program Held_Suarez
   Laplace_order_init       = 2                      ! bi-Laplacian horizontal diffusion
   scale_aware              = .false.                ! do not use scale-aware viscosity
   analytic_topo            = "none"                 ! type of analytic topography (mountains or none if NCAR_topo = .false.)
-  log_min_mass             = .false.                ! compute minimum mass at each dt (for checking stability issues)
+  log_min_mass             = .true.                 ! compute minimum mass at each dt (for checking stability issues)
   log_total_mass           = .false.                ! check whether total mass is conserved (for debugging)
 
   ! Average hexagon areas and horizontal resolution
