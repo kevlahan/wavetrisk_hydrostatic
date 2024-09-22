@@ -248,7 +248,7 @@ module shared_mod
   real(8), dimension (12,3)                     :: unique_pent_locs
 
   character(255)                                :: run_id, test_case, timeint_type, topo_file
-  character(255)                                :: remap_type, remapscalar_type, remapvelo_type
+  character(255)                                :: remap_type, remapscalar_type, remapvelo_type, physics_type
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize, split_mean_perturbation

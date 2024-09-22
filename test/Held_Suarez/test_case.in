@@ -1,4 +1,5 @@
 test_case          Held_Suarez    ! name of test case
+physics_type       Held_Suarez    ! which physics (Held_Suarez or Simple)
 run_id             HSJ5J7         ! name of run (for saved data files)
 max_level	   7              ! maximum level of resolution
 zlevels            30             ! number of vertical levels

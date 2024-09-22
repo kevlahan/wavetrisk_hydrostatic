@@ -7,7 +7,7 @@ module test_case_mod
   use std_atm_profile_mod
   use io_mod
   use sso_mod
-  use physics_Held_Suarez_mod
+  use physics_trend_mod
   implicit none
 
   ! Standard variables
@@ -19,12 +19,12 @@ module test_case_mod
   real(8) :: topo_Area_min, topo_dx_min
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
 
-  character(255) :: analytic_topo = "none" ! mountains or none (used if NCAR_topo = .false.)
-
   ! Model parameters
-  real(8) :: e_thick     = 10d0 * KM ! Ekman initial conditions
-  logical :: Ekman_ic    = .false.
-  logical :: scale_aware = .false.
+  real(8)        :: e_thick       = 10d0 * KM ! Ekman initial conditions
+  character(255) :: analytic_topo = "none"    ! mountains or none (used if NCAR_topo = .false.)
+  
+  logical        :: Ekman_ic      = .false.   
+  logical        :: scale_aware   = .false.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -540,6 +540,7 @@ contains
 
     open (unit=fid, file=filename, action='READ')
     read (fid,*) varname, test_case
+    read (fid,*) varname, physics_type
     read (fid,*) varname, run_id
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
@@ -559,6 +560,13 @@ contains
     time_end = time_end * DAY
     resume   = resume_init
     Laplace_order = Laplace_order_init
+
+    select case (physics_type)
+    case ("Held_Suarez")
+       trend_physics => trend_physics_Held_Suarez ! which physics (Held_Suarez or simple)
+    case ("Simple")
+       trend_physics => trend_physics_simple      ! which physics (Held_Suarez or simple)
+    end select
 
     ! Bins for zonal statistics
     !nbins = sqrt (10*4**max_level/2) ! consistent with maximum resolution
@@ -610,6 +618,7 @@ contains
             ************************************************************'
        write (6,'(a)')        "RUN PARAMETERS"
        write (6,'(a,a)')      "test_case               = ", trim (test_case)
+       write (6,'(a,a)')      "physics_type            = ", trim (physics_type)
        write (6,'(a,a)')      "run_id                  = ", trim (run_id)
        write (6,'(a,l1)')     "compressible            = ", compressible
        write (6,'(a,l1)')     "split_mean_perturbation = ", split_mean_perturbation 

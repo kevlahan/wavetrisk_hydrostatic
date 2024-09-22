@@ -93,6 +93,11 @@ module init_mod
            end function Lu_diag
         end interface
       end subroutine solver
+      subroutine physics_fun (q, dq)
+        use domain_mod
+        implicit none
+        type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+      end subroutine physics_fun
    end interface
 
   ! General procedure pointers
@@ -120,6 +125,9 @@ module init_mod
 
   ! Elliptic solver 
   procedure (solver),      pointer :: elliptic_solver          => null ()
+
+  ! Physics trend
+  procedure (physics_fun), pointer :: trend_physics            => null ()
 contains
   subroutine init_init_mod
     implicit none
