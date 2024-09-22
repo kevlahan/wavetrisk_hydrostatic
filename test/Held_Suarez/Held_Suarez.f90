@@ -23,7 +23,7 @@ program Held_Suarez
   call read_test_case_parameters
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Standard (shared) parameter values for the simulation
+  !    Standard (shared) parameter values for the simulation
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   radius         = 6371d0    * KM                   ! mean radius of the Earth
   grav_accel     = 9.8d0     * METRE/SECOND**2      ! gravitational acceleration 
@@ -70,7 +70,7 @@ program Held_Suarez
   Hdim           = wave_speed**2 / grav_accel       ! vertical length scale
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Numerical method parameters
+  !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   compressible             = .true.                            ! compressible equations
   split_mean_perturbation  = .true.                            ! split prognostic variables into mean and fluctuations
@@ -135,7 +135,7 @@ program Held_Suarez
 
   ! Save initial conditions
   call omega_velocity
-  !call write_and_export (iwrite)
+  call write_and_export (iwrite)
 
   ! Compute hydrostatic error factors for topography
   if (NCAR_topo .or. analytic_topo=="mountains") then
@@ -174,7 +174,7 @@ program Held_Suarez
 
         ! Save fields (after reloading checkpoint)
         call omega_velocity
-        !call write_and_export (iwrite)
+        call write_and_export (iwrite)
      end if
   end do
 
