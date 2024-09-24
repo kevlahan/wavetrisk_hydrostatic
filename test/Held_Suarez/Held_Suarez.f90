@@ -106,8 +106,8 @@ program Held_Suarez
 
   ! Save initial conditions
   call omega_velocity
-  !call write_and_export (iwrite)
-  !if (physics_type == "Simple") call mean_values (0) ! processing for the physics package mean values
+  call write_and_export (iwrite)
+  if (physics_type == "Simple") call mean_values (0) ! processing for the physics package mean values
 
   ! Compute hydrostatic error factors for topography
   if (NCAR_topo .or. analytic_topo=="mountains") then
@@ -146,8 +146,8 @@ program Held_Suarez
 
         ! Save fields (after reloading checkpoint)
         call omega_velocity
-        !call write_and_export (iwrite)
-        !if (physics_type == "Simple") call mean_values (iwrite) 
+        call write_and_export (iwrite)
+        if (physics_type == "Simple") call mean_values (iwrite) 
      end if
   end do
 

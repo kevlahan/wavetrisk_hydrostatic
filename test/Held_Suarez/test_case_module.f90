@@ -779,7 +779,7 @@ contains
     real(8) :: area_sphere, dx_scaling, nu, nu_dim, C_max, nu_scaling
     
     real(8), parameter :: nu_CAM       = 1d15 * METRE**4/SECOND     ! CAM value for horizontal resolution dx = 120 km
-    real(8), parameter :: res_scaling  = (120d0*KM) / (100d0*KM)    ! ratio between TRiSK and CAM grid resolutions
+    real(8), parameter :: res_scaling  = (136d0*KM) / (100d0*KM)    ! ratio between TRiSK and CAM grid resolutions (TRiSK grid: 107 km <= dx <= 136 km at J6)
 
     dx_scaling  = 2d0 ** (dble (6 - max_level))                     ! scaling factor compared to approximately J6 base CAM value
     C_max       = 1d0/6d0**Laplace_order                            ! maximum stable non-dimensional viscosity for scalars and div u
@@ -808,14 +808,12 @@ contains
     nu_dim         = nu_scale (Area_min, dt_max)                    ! viscosity scale on finest grid
     nu_scaling     = (res_scaling * dx_scaling)**(2*Laplace_order)
     nu             = nu_CAM * nu_scaling                            ! scaled CAM viscosity
-    if (physics_type == "Simple") nu = nu * 1.5d0                   ! increase viscosity when using Simple Physics
-    
 
     ! Limit viscosity to stable values
     nu_sclr        = min (nu,          nu_dim * C_max                     )  
     nu_rotu        = min (nu,          nu_dim * C_max / 4d0**Laplace_order)
-    nu_divu        = min (nu * 2.5d0,  nu_dim * C_max                     ) ! increase by CAM ratio compared with other viscosities
-
+    nu_divu        = min (nu * 2.5d0,  nu_dim * C_max                     )
+    
     ! Equivalent non-dimensional viscosities
     C_visc(S_MASS) = nu_sclr / nu_dim 
     C_visc(S_TEMP) = nu_sclr / nu_dim 

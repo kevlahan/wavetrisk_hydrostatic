@@ -1526,7 +1526,9 @@ contains
     character(3)    :: layer
     character(1000) :: file_hex, isv, file_tri, scale
 
-    if (rank == 0) write(6,'(/,A,i4)') 'Saving fields ', isave
+    if (rank == 0) write(6,'(/,a,i4,/)') 'Saving fields ', isave
+    if (rank == 0) write (6,'(a,/)') '*************************************************************&
+         ********************************************************************'
     write (isv, '(i4.4)') isave
 
     sol%bdry_uptodate = .false.
