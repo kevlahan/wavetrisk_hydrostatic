@@ -154,4 +154,3 @@ clean:
 ifeq ($(PHYSICS), true)
 	$(MAKE) -C src/physics/simple_physics/phyparam clean
 endif
-

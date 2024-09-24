@@ -1,15 +1,14 @@
 module physics_Held_Suarez_mod
-  ! Module providing trend routine for Held and Suarez (1994) physics.
+  ! Trend using Held and Suarez physics model.
+  !
   ! Bulletin of the American Meteorological Society 75 (10), 1825-1830
   use ops_mod
   use sso_mod
   implicit none
 
   ! Held-Suarez model parameters
-  real(8) :: T_0            = 300d0      * KELVIN              ! reference temperature
   real(8) :: T_mean         = 315d0      * KELVIN              ! mean temperature
   real(8) :: T_tropo        = 200d0      * KELVIN              ! tropopause temperature
-  real(8) :: u_0            = 70d0       * METRE/SECOND        ! maximum velocity of zonal wind
   real(8) :: k_a            = 1d0/40d0   / DAY                 ! cooling at free surface of atmosphere
   real(8) :: k_f            = 1d0        / DAY                 ! Rayleigh friction
   real(8) :: k_s            = 1d0/4d0    / DAY                 ! cooling at surface
@@ -24,7 +23,8 @@ contains
   subroutine trend_physics_held_suarez (q, dq)
     ! Trend for Held-Suarez physics
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq 
+    type(Float_Field), dimension(1:N_VARIABLE,zmin:zmax), target  :: q  ! includes soil layers
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target  :: dq
 
     integer :: d, k, p
 

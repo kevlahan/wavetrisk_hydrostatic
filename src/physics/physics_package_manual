@@ -113,11 +113,10 @@ test case (for example to specify a planet) that should be set here.
 The parameters and the package default values are:
 
    ! Physics Package submodel parameters
-   radiation_mod  = .TRUE.                         ! (T) radiation module is on
-   turbulence_mod = .TRUE.                         ! (T) vertical diffusion module is on
-   convecAdj_mod  = .TRUE.                         ! (T) convective adjustment module is on
-   soil_mod       = .TRUE.                         ! (T) soil module is on
-   Nsoil          = 10                             ! Number of soil layers
+   radiation_model  = .TRUE.                         ! (T) radiation module is on
+   turbulence_model = .TRUE.                         ! (T) vertical diffusion module is on
+   convecAdj_model  = .TRUE.                         ! (T) convective adjustment module is on
+   soil_model       = .TRUE.                         ! (T) soil module is on
 
    ! Physics Package planet test case parameters
    gas_molarmass  = 28.                            ! molar mass of main gain (used to set ideal gas const in pacakage)
@@ -139,6 +138,8 @@ The parameters and the package default values are:
    lw_atten       = 0.08_8                         ! attenuation of longwave radiation coefficient
    seasons        = .TRUE.                         ! seasons flag **** Does not do anything
    diurnal        = .TRUE.                         ! diurnal cycle flag
+
+Nsoil is set in the test case (10 is the usual value).
 
 !! Addition Initialization Calls !!
 

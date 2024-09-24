@@ -38,6 +38,9 @@ contains
     character(255) :: command
     integer        :: d, k, l, v
 
+    ! Initialize Laplace order to specified value for test case
+    Laplace_order = Laplace_order_init
+
     ! Default elliptic solver (scheduled relaxation Jacobi method)
     elliptic_solver => SRJ
 

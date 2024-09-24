@@ -15,9 +15,9 @@ module test_case_mod
   real(8) :: time_start, total_cpu_time
 
   ! Test case variables
-  real(8) :: Area_max, Area_min, C_div, dt_max, specvoldim
+  real(8) :: Area_max, Area_min, C_div, dt_max
   real(8) :: topo_Area_min, topo_dx_min
-  real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu
+  real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
 
   ! Model parameters
   real(8)        :: e_thick       = 10d0 * KM ! Ekman initial conditions
@@ -106,18 +106,20 @@ contains
       grad_physics(DG+1) = (visc(id)  * scalar(id+1)  - visc(idNE) * scalar(idNE+1)) / d_e(DG+1)
       grad_physics(UP+1) = (visc(idN) * scalar(idN+1) - visc(id)   * scalar(id+1))   / d_e(UP+1)
     end function grad_physics
-
+    
     real(8) function visc (id)
       ! Scale aware viscosity
-      ! factor 3 ensures that maximum stable C_visc matches theoretical estimate of 1/6^Laplace_order
+      ! factor 1.5 ensures that maximum stable C_visc matches theoretical estimate of 1/6^Laplace_order
       implicit none
       integer :: id
+      real(8) :: Area
 
       if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         visc = C_visc(v) * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
+         Area = 1d0 / dom%areas%elts(id+1)%hex_inv
       else
-         visc = C_visc(v) * 3d0 * Area_min**Laplace_order / dt
+         Area = Area_min
       end if
+      visc = C_visc(v) * nu_scale (Area, dt)
     end function visc
   end function physics_scalar_flux_case
 
@@ -178,28 +180,32 @@ contains
     
     real(8) function visc_div (id)
       ! Scale aware viscosity
-      ! factor 3 ensures that maximum stable C_visc matches theoretical estimate of 1/24^Laplace_order
       implicit none
       integer :: id
+      real(8) :: Area
 
       if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         visc_div = C_div * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
+         Area = 1d0 / dom%areas%elts(id+1)%hex_inv
       else
-         visc_div = C_div * 3d0 * Area_min**Laplace_order / dt
+         Area = Area_min
       end if
+      
+      visc_div = C_div * nu_scale (Area, dt)
     end function visc_div
 
     real(8) function visc_rot (id)
       ! Scale aware viscosity
-      ! factor 3 ensures that maximum stable C_visc matches theoretical estimate of 1/24^Laplace_order
       implicit none
       integer :: id
-
+      real(8) :: Area
+      
       if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         visc_rot = C_visc(S_VELO) * 3d0 * dom%areas%elts(id+1)%hex_inv**(-Laplace_order) / dt
+         Area = 1d0 / dom%areas%elts(id+1)%hex_inv
       else
-         visc_rot = C_visc(S_VELO) * 3d0 * Area_min**Laplace_order / dt
+         Area = Area_min
       end if
+      
+      visc_rot = C_visc(S_VELO)* nu_scale (Area, dt)
     end function visc_rot
   end function physics_velo_source_case
 
@@ -544,6 +550,7 @@ contains
     read (fid,*) varname, run_id
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
+    read (fid,*) varname, Nsoil
     read (fid,*) varname, NCAR_topo
     read (fid,*) varname, sso
     read (fid,*) varname, topo_file
@@ -559,7 +566,6 @@ contains
     dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init
-    Laplace_order = Laplace_order_init
 
     select case (physics_type)
     case ("Held_Suarez")
@@ -629,6 +635,7 @@ contains
        write (6,'(a,i5)')     "DOMAIN_LEVEL            = ", DOMAIN_LEVEL
        write (6,'(a,i5)')     "PATCH_LEVEL             = ", PATCH_LEVEL
        write (6,'(a,i3)')     "zlevels                 = ", zlevels
+       write (6,'(a,i3)')     "Nsoil                   = ", Nsoil
        write (6,'(a,l1)')     "uniform                 = ", uniform
        write (6,'(a,l1)')     "remap                   = ", remap
        write (6,'(a,i3)')     "iremap                  = ", iremap
@@ -640,11 +647,11 @@ contains
        write (6,'(a,es10.4)') "cfl_num                 = ", cfl_num
        write (6,'(a,a)')      "timeint_type            = ", trim (timeint_type)
        
-       write (6,'(a,i1,/)')     "Laplace_order           = ", Laplace_order_init
+       write (6,'(a,i1,/)')     "Laplace_order           = ", Laplace_order
        write (6,'(a,/,a,/,/,a,es8.2,/,a,es8.2,/)') "Stability limits:", &
             "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
-            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1d0/6d0)**Laplace_order_init, &
-            "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1d0/24d0)**Laplace_order_init
+            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1d0/6d0)**Laplace_order, &
+            "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1d0/24d0)**Laplace_order
        if (scale_aware) then
           write (6,'(a,/)') "Scale-aware horizontal viscosity"
        else
@@ -766,7 +773,64 @@ contains
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
+    ! Evaluate viscosity (for finest grid), find equivalent non-dimensional viscosities C_visc and set time step
+    ! (based on CAM 120 km resolution value)
+    implicit none
+    real(8) :: area_sphere, dx_scaling, nu, nu_dim, C_max, nu_scaling
+    
+    real(8), parameter :: nu_CAM       = 1d15 * METRE**4/SECOND     ! CAM value for horizontal resolution dx = 120 km
+    real(8), parameter :: res_scaling  = (120d0*KM) / (100d0*KM)    ! ratio between TRiSK and CAM grid resolutions
+
+    dx_scaling  = 2d0 ** (dble (6 - max_level))                     ! scaling factor compared to approximately J6 base CAM value
+    C_max       = 1d0/6d0**Laplace_order                            ! maximum stable non-dimensional viscosity for scalars and div u
+
+    ! Average hexagon areas and horizontal resolution
+    area_sphere = 4d0*MATH_PI * radius**2 
+    Area_min    = area_sphere / (10d0 * 4d0**max_level)
+    Area_max    = area_sphere / (10d0 * 4d0**min_level)
+    dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)              
+    dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
+
+    ! Time step parameters
+    if (adapt_dt) then
+       cfl_max = 1d0                                                ! maximum cfl number
+       cfl_min = cfl_max                                            ! minimum cfl number
+       T_cfl   = 1d-1 * DAY                                         ! time over which to increase cfl number from cfl_min to cfl_max
+       cfl_num = cfl_min                                            ! initialize cfl number
+       dt_init = cfl_min * 0.85d0 * dx_min / (wave_speed + u_0)     ! initial time step     (0.85 factor corrects for minimum dx)
+       dt_max  = cfl_max * 0.85d0 * dx_min / (wave_speed + u_0)     ! equilibrium time step (0.85 factor corrects for minimum dx)
+    else
+       dt_init = 300d0 * SECOND * dx_scaling                        ! CAM value
+       dt_max  = dt_init
+    end if
+
+    ! Set viscosities
+    nu_dim         = nu_scale (Area_min, dt_max)                    ! viscosity scale on finest grid
+    nu_scaling     = (res_scaling * dx_scaling)**(2*Laplace_order)
+    nu             = nu_CAM * nu_scaling                            ! scaled CAM viscosity
+    if (physics_type == "Simple") nu = nu * 1.5d0                   ! increase viscosity when using Simple Physics
+    
+
+    ! Limit viscosity to stable values
+    nu_sclr        = min (nu,          nu_dim * C_max                     )  
+    nu_rotu        = min (nu,          nu_dim * C_max / 4d0**Laplace_order)
+    nu_divu        = min (nu * 2.5d0,  nu_dim * C_max                     ) ! increase by CAM ratio compared with other viscosities
+
+    ! Equivalent non-dimensional viscosities
+    C_visc(S_MASS) = nu_sclr / nu_dim 
+    C_visc(S_TEMP) = nu_sclr / nu_dim 
+    C_visc(S_VELO) = nu_rotu / nu_dim
+    C_div          = nu_divu / nu_dim
   end subroutine initialize_dt_viscosity_case
+
+  real(8) function nu_scale (Area, dt)
+    ! Viscosity scale
+    ! (factor 1.5 ensures stability limit matches theoretical value)
+    implicit none
+    real(8) :: Area, dt
+
+    nu_scale = 1.5d0 * Area**Laplace_order / dt
+  end function nu_scale
 
   subroutine apply_initial_conditions_case
     implicit none

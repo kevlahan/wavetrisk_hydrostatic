@@ -11,20 +11,63 @@ module init_physics_mod
   use init_mod
   use, intrinsic :: iso_c_binding, only : C_BOOL
   implicit none
-
+  
   ! Physics test case arguments (set in test case main program)
-  real(8) :: gas_molarmass, perihelion, aphelion, perihelion_day, obliquity, sea_surf, soil_surf, sea_inertia
-  real(8) :: soil_inertia, sea_emissive, soil_emmisive, min_turbmix
+  real(8) :: gas_molarmass, perihelion, aphelion, perihelion_day, obliquity, sea_surf, soil_surf 
+  real(8) :: sea_inertia, soil_inertia, sea_emissive, soil_emmisive, min_turbmix
   real(8) :: sw_atten, lw_atten
-  
   real    :: sea_albedo, soil_albedo, emin_turb
-  
-  integer :: Nsoil ! number of soil layers (physics model requires >=2 even if soil model not called)
-  
-  logical :: radiation_mod, turbulence_mod, convecAdj_mod, seasons, diurnal
+  logical :: radiation_model, soil_model, turbulence_model, convecAdj_model, seasons, diurnal
 
   logical(KIND=C_BOOL) :: physics_firstcall_flag = .true. ! flag for the physics package, true if call physics for 1st time
+  
+  integer :: Nsoil ! number of soil layers (physics model requires >=2 even if soil model not called)
 contains
+  subroutine init_simple_physics_params
+    implicit none
+    logical :: initialized_physics = .false.
+
+    if (initialized_physics) return ! initialize only once
+
+    call init_default_params
+    initialized_physics = .true.
+  end subroutine init_simple_physics_params
+
+  subroutine init_default_params
+    ! Initialize physics parameters to their default values
+    implicit none
+
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Default values values physics Model Parameters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
+    ! Sub-model activation
+    radiation_model  = .true.                         ! (T) radiation module is on
+    turbulence_model = .true.                         ! (T) vertical diffusion module is on
+    convecAdj_model  = .true.                         ! (T) convective adjustment module is on
+    soil_model       = .false.                        ! (T) soil module is on (if F use surface flux only)
+    seasons          = .false.                        ! seasons flag **** Does not do anything ****
+    diurnal          = .true.                         ! diurnal cycle flag
+
+    ! Physics Package planet test case parameters
+    gas_molarmass   = 28.9702532d0                    ! molar mass of main gain (used to set ideal gas const in pacakage)
+    perihelion      = 150d0                           ! planet perihelion distance [MMkm]
+    aphelion        = 150d0                           ! planet aphelion distance   [MMkm]
+    perihelion_day  = 0d0                             ! perihelion day
+    obliquity       = 0d0                             ! planet axial tilt/obliquity
+    sea_surf        = 0.01d0                          ! sea surface roughness length scale  [m]
+    soil_surf       = 0.01d0                          ! soil surface roughness length scale [m]
+    sea_inertia     = 3000d0                          ! sea thermal  inertia [J/m^3K]
+    soil_inertia    = 3000d0                          ! soil thermal inertia [J/m^3K]
+    sea_emissive    = 1d0                             ! sea emissivity
+    soil_emmisive   = 1d0                             ! soil emissivity
+    min_turbmix     = 100d0                           ! minimum turbulent mixing length [m]
+    sw_atten        = 0.99d0                          ! attenuation of shortwave radiation coefficient
+    lw_atten        = 0.08d0                          ! attenuation of longwave radiation coefficient
+
+    ! Single precision parameters
+    sea_albedo      = 0.112e0                          ! sea albedo
+    soil_albedo     = 0.112e0                          ! soil albedo
+    emin_turb       = 1e-16                            ! minimum turbulent kinetic energy
+  end subroutine init_default_params
+
   subroutine init_physics
     !-----------------------------------------------------------------------------------
     !
@@ -121,10 +164,10 @@ contains
     write (file_unit,*) "lmixmin = ", min_turbmix
     write (file_unit,*) "coefvis = ", sw_atten
     write (file_unit,*) "coefir = ", lw_atten
-    write (file_unit,*) "callrad = ", radiation_mod
-    write (file_unit,*) "calldifv = ", turbulence_mod
-    write (file_unit,*) "calladj = ", convecAdj_mod
-    write (file_unit,*) "callsoil = ", soil_mod
+    write (file_unit,*) "callrad = ", radiation_model
+    write (file_unit,*) "calldifv = ", turbulence_model
+    write (file_unit,*) "calladj = ", convecAdj_model
+    write (file_unit,*) "callsoil = ", soil_model
     write (file_unit,*) "season = ", seasons
     write (file_unit,*) "diurnal = ", diurnal
     write (file_unit,*) "lverbose = ", physics_write
@@ -148,8 +191,8 @@ contains
 
     real(8) :: lat(1), long(1)
 
-    if (.not. soil_mod) then
-       if (rank == 0) print*, 'STOP!! Cannot use default (init_soil_grid_default) to set zmin when soil_mod flag indicates false'
+    if (.not. soil_model) then
+       if (rank == 0) print*, 'STOP!! Cannot use default (init_soil_grid_default) to set zmin when soil_model flag indicates false'
        stop
     end if
 
@@ -171,7 +214,7 @@ contains
     !                and grid parameters. Also set number of soil levels and zmin.
     !
     !   Assumptions: Nsoil is set in Simple_Physics.f90 under the test case parameters.
-    !                for case where soil model is turned on (ie soil_mod flag = true)
+    !                for case where soil model is turned on (ie soil_model flag = true)
     !
     !
     !   Author: Gabrielle Ching-Johnson
@@ -187,7 +230,7 @@ contains
 
     ! Set the zmin (lowest vertical level index) (! See Assumptions)
     ! and initialize the grid for the physics
-    if (soil_mod) then
+    if (soil_model) then
        zmin = - Nsoil
        call init_comgeomfi (1, zlevels, long, lat, Nsoil) 
     else

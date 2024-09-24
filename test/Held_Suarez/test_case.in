@@ -2,7 +2,8 @@ test_case          Held_Suarez    ! name of test case
 physics_type       Held_Suarez    ! which physics (Held_Suarez or Simple)
 run_id             HSJ5J7         ! name of run (for saved data files)
 max_level	   7              ! maximum level of resolution
-zlevels            30             ! number of vertical levels
+zlevels            30             ! number of vertical layers
+Nsoil              10             ! number of soil layers (used only if physics_type = Simple)
 NCAR_topo          F              ! use realistic topography (compile with flag TOPO=.true.)		  
 sso                F              ! use SSO (subgrid scale orography) parameterization (Lott and Miller 1997) 
 topo_file          J05J07_120.0km ! smoothed NCAR topography file name

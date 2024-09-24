@@ -252,8 +252,8 @@ module shared_mod
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize, split_mean_perturbation
-  logical :: rebalance, remap, uniform, vert_diffuse
-  logical :: sigma_z, soil_mod, sso, tke_closure
+  logical :: rebalance, physics_model, remap, uniform, vert_diffuse
+  logical :: sigma_z, sso, tke_closure
 contains
   subroutine init_shared_mod
     logical :: initialized = .false.
@@ -355,10 +355,10 @@ contains
     mode_split              = .false.                           ! calculate barotropic free surface mode separately (T)
     NCAR_topo               = .false.                           ! use NCAR topography (requires pre-computation of float field topography) (T)
     penalize                = .false.                           ! include penalization of topography (T)
+    physics_model           = .false.                           ! use physics model sub-step for compressible cases (T)
     rebalance               = .true.                            ! rebalance computational load at each checkpoint if T
     remap                   = .true.                            ! remap Lagrangian coordinates (T) or no remapping (F)
     sigma_z                 = .false.                           ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)
-    soil_mod                = .false.                           ! simple physics with soil levels (T)
     split_mean_perturbation = .false.
     sso                     = .false.                           ! SSO (subgrid scale orography) parameterization for atmosphere
     tke_closure             = .false.                           ! use TKE closure for eddy viscosity (T) or analytic form (F)

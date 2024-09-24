@@ -96,7 +96,8 @@ module init_mod
       subroutine physics_fun (q, dq)
         use domain_mod
         implicit none
-        type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+        type(Float_Field), dimension(1:N_VARIABLE,zmin:zmax), target :: q
+        type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: dq
       end subroutine physics_fun
    end interface
 
