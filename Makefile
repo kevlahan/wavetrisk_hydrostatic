@@ -1,5 +1,5 @@
 # Default general options
-TEST_CASE  = Held_Suarez
+TEST_CASE  = climate
 PARAM      = param_J6
 ARCH       = mpi
 OPTIM      = 2

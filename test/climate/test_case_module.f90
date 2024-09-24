@@ -1,6 +1,5 @@
 module test_case_mod
-  ! Module file for Held & Suarez (1994) test case
-  ! uses Lott and Miller (1997) gravity wave/blocking model
+  ! Module file for climate test case
   use comm_mpi_mod
   use utils_mod
   use init_mod

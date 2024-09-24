@@ -1,6 +1,5 @@
-program Held_Suarez
-  ! Held & Suarez (1994) test case
-  ! Bulletin of the American Meteorological Society 75 (10), 1825-1830
+program climate
+  ! Climate simulation using Held-Suarez or Simple Physics subgrid scale model
   use main_mod
   use test_case_mod
   use lnorms_mod
@@ -156,4 +155,4 @@ program Held_Suarez
      write (6,'(a,es11.4)') 'Total cpu time = ', total_cpu_time
   end if
   call finalize
-end program Held_Suarez
+end program climate

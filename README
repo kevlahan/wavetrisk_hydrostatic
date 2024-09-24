@@ -105,9 +105,9 @@ CONTENTS
 **********************************************************************************************************************************
 1. TEST CASES
 
-Test cases are defined in separate subdirectories of test/ (e.g. test/Held_Suarez).  Each test case consists of three files:
+Test cases are defined in separate subdirectories of test/ (e.g. test/climate).  Each test case consists of three files:
 
-1. The main program (e.g. Held_Suarez.f90).
+1. The main program (e.g. climate.f90).
 2. A file setting various case-specific properties: test_case_module.f90 (sets initial conditions, defines the vertical grid,
    defines and reads/prints parameters for this test case).
 3. An example input parameter file test_case.in.
@@ -219,9 +219,9 @@ used changes dynamically and depends on the solution and the tolerance parameter
 
 ************************************************************
 2.5 EXAMPLES
-To compile test case Held_Suarez using mpi and ifort with J5 as the coarsest grid:
+To compile test case climate using mpi and ifort with J5 as the coarsest grid:
 
-make TEST_CASE=Held_Suarez PARAM=param_J5 ARCH=mpi F90=ifort
+make TEST_CASE=climate PARAM=param_J5 ARCH=mpi F90=ifort
 
 !! Always do "make clean" when compiling a new test case and when you modify the test case !!
 
@@ -239,15 +239,15 @@ make TEST_CASE=jet PARAM=param_J6 ARCH=ampi F90=gfortran
 ************************************************************
 3.1 HOW TO PREPARE WORKING DIRECTORY FOR A RUN
 
-Initial steps (using test case Held_Suarez as an example).
+Initial steps (using test case climate as an example).
 
 1. cd to the working directory (mkdir if necessary), where working directory is where the code will be run.
 
 2. Provide symbolic links to all files required for execution:
 
-ln -s wavetrisk_hydrostatic/bin/Held_Suarez
+ln -s wavetrisk_hydrostatic/bin/climate
 
-Also include Held_Suarez.user.so and charmrun, in addition to executable Held_Suarez, for AMPI.
+Also include climate.user.so and charmrun, in addition to executable climate, for AMPI.
 
 3. Provide a symbolic link to the Heikes and Randall optimized grids (if optimize_grid=HR_GRID):
 
@@ -257,7 +257,7 @@ The compressed Heikes and Randall grids J2, ... , J8 are provided in cmpressed f
 
 4. Copy input parameters file and edit as appropriate:
 
-cp wavetrisk_hydrostatic/test/Held_Suarez/test_case.in .
+cp wavetrisk_hydrostatic/test/climate/test_case.in .
 
 Note: the code runs significantly faster with mpirun than with srun when using the slurm scheduler.
 
@@ -292,9 +292,9 @@ significant cells are saved (i.e. cells in the active zone plus adjacent zone).
 ************************************************************
 3.3 MPI EXAMPLES
 
-1. With ARCH=mpi, to run test case Held_Suarez with input file HS.in on a local machine with shared memory 40 cores
+1. With ARCH=mpi, to run test case climate with input file HS.in on a local machine with shared memory 40 cores
 
-mpirun -n 40 ./Held_Suarez HS.in
+mpirun -n 40 ./climate HS.in
 
 Example slurm script for an mpi job (save in a file, such as up_job.sh):
 
@@ -388,7 +388,7 @@ See also post/paraview_notes.
 ************************************************************
 4.1 VIEWING SPHERICAL DATA WITH PARAVIEW
 
-The raw data files (e.g. Held_Suarez.1... and Held_Suarez.2...) must be converted to .vtk format for viewing and
+The raw data files (e.g. climate.1... and climate.2...) must be converted to .vtk format for viewing and
 data analysis with paraview and/or python:
  
 cd post
@@ -447,9 +447,9 @@ statistics.py   : taking the difference of two data sets in paraview using the p
 4.3 POST-PROCESS CHECKPOINTS FOR MATLAB PLOTTING OF 2-D PROJECTIONS ON LONGITUDE-LATITUDE PLANE
 
 The m-file plot_2d.m provides various options for plotting 2-D projections of the data, zonal statistics and time history
-statistics.  The zonal statistics can be plotted from in-line calculations (e.g. Held_Suarez_J4L18.3.tgz file saved during the
-run) or from data post-processed from saved checkpoints (e.g. Held_Suarez_J4L18.4.tgz) using test/flat_projection_data.  plot_2d.m
-plots time history data from the log file saved during the run (e.g. Held_Suarez_log).  (See also 2D PROJECTION below.)
+statistics.  The zonal statistics can be plotted from in-line calculations (e.g. climate_J4L18.3.tgz file saved during the
+run) or from data post-processed from saved checkpoints (e.g. climate_J4L18.4.tgz) using test/flat_projection_data.  plot_2d.m
+plots time history data from the log file saved during the run (e.g. climate_log).  (See also 2D PROJECTION below.)
 Additional post-processing m-files are provided for specific test cases and applications.
 
 
