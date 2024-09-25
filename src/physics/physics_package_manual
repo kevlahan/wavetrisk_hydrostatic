@@ -116,7 +116,7 @@ The parameters and the package default values are:
    radiation_model  = .TRUE.                         ! (T) radiation module is on
    turbulence_model = .TRUE.                         ! (T) vertical diffusion module is on
    convecAdj_model  = .TRUE.                         ! (T) convective adjustment module is on
-   soil_model       = .TRUE.                         ! (T) soil module is on
+   soil_model       = .TRUE.                         ! (T) soil module is on if Nsoil /= 0
 
    ! Physics Package planet test case parameters
    gas_molarmass  = 28.                            ! molar mass of main gain (used to set ideal gas const in pacakage)
@@ -139,7 +139,7 @@ The parameters and the package default values are:
    seasons        = .TRUE.                         ! seasons flag **** Does not do anything
    diurnal        = .TRUE.                         ! diurnal cycle flag
 
-Nsoil is set in the test case (10 is the usual value).
+Nsoil >= 0 is set in the test case (10 is usual value). If Nsoil = 0 (default) then a bottom surface flux boundary condition is used.
 
 !! Addition Initialization Calls !!
 
@@ -163,8 +163,9 @@ init_physics_module.f90 interface module. (See the below section for more on the
 
 !! Calling The Physics Step !!
 
-    Use `call euler (sol(1:N_VARIABLE,1:ZLEVELS), wav_coeff(1:N_VARIABLE,1:ZLEVELS), trend_physics, dt)`
-    *** trend_physics is found in the physics_call_module.f90 interface, all other variables are from wavetrisk. 
+    call Euler (sol(:,1:zlevels), wav_coeff(:,1:zlevels), trend_physics, dt)
+    
+    *** trend_physics => trend_physics_simple  found in the physics_simple.f90 interface, all other variables are from wavetrisk. 
 
 !! Mean Values Processing !!
 

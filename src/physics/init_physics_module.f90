@@ -20,9 +20,7 @@ module init_physics_mod
   logical :: radiation_model, soil_model, turbulence_model, convecAdj_model, seasons, diurnal
 
   logical(KIND=C_BOOL) :: physics_firstcall_flag = .true. ! flag for the physics package, true if call physics for 1st time
-  
-  integer :: Nsoil ! number of soil layers (physics model requires >=2 even if soil model not called)
-contains
+ contains
   subroutine init_simple_physics_params
     implicit none
     logical :: initialized_physics = .false.
@@ -37,12 +35,18 @@ contains
     ! Initialize physics parameters to their default values
     implicit none
 
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Default values values physics Model Parameters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Default values values physics Model Parameters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
     ! Sub-model activation
+    if (Nsoil /= 0) then
+       soil_model     = .true.                        
+    else
+       soil_model     = .false.                       ! use surface flux only
+    end if
+
     radiation_model  = .true.                         ! (T) radiation module is on
     turbulence_model = .true.                         ! (T) vertical diffusion module is on
     convecAdj_model  = .true.                         ! (T) convective adjustment module is on
-    soil_model       = .false.                        ! (T) soil module is on (if F use surface flux only)
     seasons          = .false.                        ! seasons flag **** Does not do anything ****
     diurnal          = .true.                         ! diurnal cycle flag
 
@@ -230,11 +234,11 @@ contains
 
     ! Set the zmin (lowest vertical level index) (! See Assumptions)
     ! and initialize the grid for the physics
-    if (soil_model) then
+   
+    if (Nsoil /= 0) then 
        zmin = - Nsoil
        call init_comgeomfi (1, zlevels, long, lat, Nsoil) 
-    else
-       Nsoil = 0
+    else ! Nsoil = 0 means there is no soil model
        zmin  = 0
        call init_comgeomfi (1, zlevels, long, lat)        
     end if
