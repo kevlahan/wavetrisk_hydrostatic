@@ -435,6 +435,9 @@ contains
     ! Theta parameters for barotropic-baroclinic mode splitting
     theta1              = 1d0                                     ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
     theta2              = 1d0                                     ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
+
+    ! Physics model
+    physics_type        = "Held_Suarez"                           ! physics model used if physics_model is T
   end subroutine init_shared_mod
 
   real(8) function eps ()
