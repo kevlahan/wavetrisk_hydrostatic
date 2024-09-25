@@ -167,9 +167,12 @@ module shared_mod
   integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
   integer :: max_level              ! maximum grid refinement levels in pseudo-horizontal directions
   integer :: level_fill             ! make all grid points active for scales l <= level_fill
-  integer :: zlevels                ! number of levels in vertical direction
+  
+  integer :: zlevels                ! number of layers in vertical direction
   integer :: zmax                   ! zmax=zlevels+1 for a separate free surface layer, zmax=zlevels otherwise
   integer :: zmin                   ! index of lowest vertical level,  1 for atmosphere, 0 for simple phys surf temp or -Nsoil for soil mod
+  integer :: Nsoil                  ! number of soil layers in vertical direction: k = [zmin 0], zmin <= 0
+  
   integer :: save_levels            ! number of vertical levels to save
   integer :: level_start, level_end, level_save, optimize_grid
   
@@ -384,8 +387,9 @@ contains
     save_levels             = 1                                 ! vertical level to save
     timeint_type            = "RK4"                             ! time integration scheme (RK3 is default for incompressible case)
     tol                     = 0d0                               ! relative tolerance for adaptivity (default is non-adaptive)
-    zlevels                 = 20                                ! number of vertical levels
+    zlevels                 = 20                                ! number of vertical layers
     zmin                    = 1                                 ! lowest vertical level index
+    Nsoil                   = 0                                 ! number of soil layers (if Nsoil = 0 then do not use soil model)
 
     ! Default physical parameters
     ! (these parameters are typically reset in test case file, but are needed for compilation)

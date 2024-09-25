@@ -33,36 +33,35 @@ contains
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target  :: q 
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target  :: dq
     
-    integer :: p, d, k
+    integer :: d, k
 
     call update_bdry (sol, NONE)
-
+    
+    call cal_surf_press (sol(:,1:zlevels))
+    
+    ! Initialize zonal and meridional velocity trends to zero
     dzonal = dq(S_MASS,1:zlevels); call zero_float (dzonal)
     dmerid = dzonal
-
-    call cal_surf_press (sol(:,1:zlevels))
 
     call apply_bdry (physics_call, z_null, 0, 1)
     physics_firstcall_flag = .false. ! update flag to false, once 1st call for all columns finished
 
-    ! Update the edge tendencies of a domain (can only occur once all velocities on a domain set)
+    ! Assign velocity tendencies at edges
     do k = 1, zlevels
        do d = 1, size(grid)
           grid(d)%u_zonal%elts = dzonal(k)%data(d)%elts
           grid(d)%v_merid%elts = dmerid(k)%data(d)%elts
-          
-          ! Once all columns on domain has been updated, go patch by patch to change tendencies and update them
-          do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (update_velocity_tendencies, grid(d), p-1, k, 0, 0)
-          end do
        end do
+       call apply_bdry (save_velocity_tendencies, k, 0, 0)
     end do
     trend%bdry_uptodate = .false.
 
     sol(S_TEMP,zmin:0)%bdry_uptodate = .false.
     call update_bdry (sol(S_TEMP,zmin:0), NONE)
-
-    dq = trend; q(S_TEMP,zmin:0) = sol(S_TEMP,zmin:0)
+    
+    q(S_TEMP,zmin:0) = sol(S_TEMP,zmin:0)
+    
+    dq = trend; dq%bdry_uptodate = .false.
   end subroutine trend_physics_simple
 
   subroutine physics_call (dom, i, j, zlev, offs, dims)
@@ -217,7 +216,7 @@ contains
     end subroutine save_tendencies
   end subroutine physics_call
 
-  subroutine update_velocity_tendencies (dom, i, j, zlev, offs, dims)
+  subroutine save_velocity_tendencies (dom, i, j, zlev, offs, dims)
     !-----------------------------------------------------------------------------------
     !
     !   Description: Subroutine used to update the trend hybrid structure for a single element/column
@@ -237,13 +236,14 @@ contains
     integer, dimension(N_BDRY+1)         :: offs
     integer, dimension(2,N_BDRY+1)       :: dims
 
-    integer                    :: id
+    integer                    :: d, id
     real(8), dimension(1:EDGE) :: uvw
 
+    d  = dom%id +1  
     id = idx (i, j, offs, dims)
 
     call interp_latlon_UVW (dom, i, j, zlev, offs, dims, uvw)
 
-    trend(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = uvw
-  end subroutine update_velocity_tendencies
+    trend(S_VELO,zlev)%data(d)%elts(id_edge(id)) = uvw
+  end subroutine save_velocity_tendencies
 end module physics_simple_mod

@@ -118,6 +118,7 @@ contains
       else
          Area = Area_min
       end if
+      
       visc = C_visc(v) * nu_scale (Area, dt)
     end function visc
   end function physics_scalar_flux_case
@@ -204,7 +205,7 @@ contains
          Area = Area_min
       end if
       
-      visc_rot = C_visc(S_VELO)* nu_scale (Area, dt)
+      visc_rot = C_visc(S_VELO) * nu_scale (Area, dt)
     end function visc_rot
   end function physics_velo_source_case
 
@@ -658,8 +659,8 @@ contains
        end if
 
        write (6,'(a)') "Non-dimensional viscosities"
-       write (6,'(3(a,es8.2/))') "C_visc(S_MASS)        = ", C_visc(S_MASS), "C_visc(S_TEMP)        = ", C_visc(S_TEMP), &
-            "C_visc(S_VELO)        = ", C_visc(S_VELO)
+       write (6,'(3(a,es8.2/))') "C_visc(S_MASS)           = ", C_visc(S_MASS), "C_visc(S_TEMP)           = ", C_visc(S_TEMP), &
+            "C_visc(S_VELO)           = ", C_visc(S_VELO)
 
        write (6,'(a)')        "Approximate viscosities on finest grid"
        write (6,'(a,es8.2)') "nu_scalar                = ", nu_sclr
@@ -778,7 +779,8 @@ contains
     real(8) :: area_sphere, dx_scaling, nu, nu_dim, C_max, nu_scaling
     
     real(8), parameter :: nu_CAM       = 1d15 * METRE**4/SECOND     ! CAM value for horizontal resolution dx = 120 km
-    real(8), parameter :: res_scaling  = (136d0*KM) / (100d0*KM)    ! ratio between TRiSK and CAM grid resolutions (TRiSK grid: 107 km <= dx <= 136 km at J6)
+    real(8), parameter :: res_scaling  = (136d0*KM) / (100d0*KM)    ! ratio between TRiSK and CAM grid resolutions
+                                                                    ! (TRiSK grid: 107 km <= dx <= 136 km at J6)
 
     dx_scaling  = 2d0 ** (dble (6 - max_level))                     ! scaling factor compared to approximately J6 base CAM value
     C_max       = 1d0/6d0**Laplace_order                            ! maximum stable non-dimensional viscosity for scalars and div u
@@ -814,6 +816,7 @@ contains
     nu_divu        = min (nu * 2.5d0,  nu_dim * C_max                     )
     
     ! Equivalent non-dimensional viscosities
+    ! (CAM non-dimensional viscosity is C =  (1e15 m^4/s) (300 s) / (120 km)^4 = 1.45e-3)
     C_visc(S_MASS) = nu_sclr / nu_dim 
     C_visc(S_TEMP) = nu_sclr / nu_dim 
     C_visc(S_VELO) = nu_rotu / nu_dim
