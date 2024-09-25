@@ -217,7 +217,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: k_T, lat, lon, p, p_s, pot_temp
+    real(8) :: k_T, lat, lon, p, p_s
     
     d   = dom%id+1
     id  = idx (i, j, offs, dims)
@@ -233,19 +233,17 @@ contains
     do k = 1, zlevels
        p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
 
-       call cal_theta_eq (p, p_s, lat, pot_temp, k_T)                          ! potential temperature
-
        if (split_mean_perturbation) then
           sol(S_MASS,k)%data(d)%elts(id+1) = 0d0
           sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
        else
           sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
-          sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
+          sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * theta_init (p)
        end if
 
        ! Initial velocity with Ekman layer velocity
        if (ekman_ic) then
-          sol(S_VELO,k)%data(d)%elts(id_edge(id)) = vel_init (dom, i, j, zlev, offs, dims)
+          call vel2uvw (dom, i, j, zlev, offs, dims)
        else
           sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
        end if
@@ -260,7 +258,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: k_T, lat, lon, p, p_s, pot_temp
+    real(8) :: k_T, lat, lon, p, p_s
     
     d  = dom%id+1
     id = idx (i, j, offs, dims)
@@ -276,11 +274,9 @@ contains
     do k = 1, zlevels
        p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
 
-       call cal_theta_eq (p, p_s, lat, pot_temp, k_T)                          ! potential temperature
-
        if (split_mean_perturbation) then
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
-          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
+          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * theta_init (p)
        else
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = 0d0
           sol_mean(S_TEMP,k)%data(d)%elts(id+1) = 0d0
@@ -288,37 +284,77 @@ contains
        sol_mean(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
     end do
   end subroutine init_mean
+  
+  real(8) function theta_init (p)
+    ! Initial potential temperature profile
+    implicit none
+    real(8) :: p
 
-  function vel_init (dom, i, j, zlev, offs, dims)
-    ! Ekman layer velocity profile
+    theta_init = T_0 * (p/p_0)**(-kappa)
+  end function theta_init
+
+  subroutine vel2uvw (dom, i, j, zlev, offs, dims)
+    ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
     implicit none
     type (Domain)                   :: dom
     integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
-    real(8), dimension (1:EDGE)     :: vel_init
+    external                        :: vel_fun
 
-    integer     :: d, id
-    real(8)     :: lon, lat, phi, u, v
-    type(Coord) :: x_i
+    integer      :: d, id, idE, idN, idNE
+    type (Coord) :: vel, x_i, x_E, x_N, x_NE
 
-    d   = dom%id + 1
-    id  = idx (i, j, offs, dims) + 1
-    
-    x_i = dom%node%elts(id+1)
+    d = dom%id+1
 
-    call cart2sph (x_i, lon, lat)
-    
-    phi = surf_geopot_case (d, id)
+    id   = idx(i,   j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
 
-    u = u_0 * (1d0 - exp ( - phi / (e_thick * grav_accel)) * cos (phi / (e_thick * grav_accel))) ! zonal velocity 
-    v = u_0 * (1d0 - exp ( - phi / (e_thick * grav_accel)) * cos (phi / (e_thick * grav_accel))) ! meridional velocity
+    x_i  = dom%node%elts(id  +1)
+    x_E  = dom%node%elts(idE +1)
+    x_N  = dom%node%elts(idN +1)
+    x_NE = dom%node%elts(idNE+1)
+
+    vel = vel_init ()
     
-    dom%u_zonal%elts(id+1) = u * cos (lat)
-    dom%v_merid%elts(id+1) = v * cos (lat)
-    
-    call interp_latlon_UVW (dom, i, j, zlev, offs, dims, vel_init)
-  end function vel_init
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = inner (direction (x_i,  x_E), vel)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = inner (direction (x_NE, x_i), vel)
+    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = inner (direction (x_i,  x_N), vel)
+  contains    
+    function vel_init ()
+      ! Zonal latitude-dependent wind
+      implicit none
+      type(Coord) :: vel_init
+
+      real(8)     :: D_e, lon, lat, p, p_s, phi, u, v
+      type(Coord) :: e_zonal, e_merid
+
+      call cart2sph (x_i, lon, lat)
+
+      if (NCAR_topo) then ! surface pressure from multilevel topography
+         p_s = dom%surf_press%elts(id+1)
+      else                ! surface pressure from standard atmosphere
+         call std_surf_pres (topography%data(d)%elts(id+1), p_s)
+      end if
+
+      p = 0.5d0 * (a_vert(zlev) + a_vert(zlev+1) + (b_vert(zlev) + b_vert(zlev+1)) * p_s) ! pressure at level k
+
+      phi = - R_d * T_0 * log (p / p_s) 
+      
+      D_e = e_thick * grav_accel
+
+      u = u_0 * (1d0 - exp (-phi/D_e) * cos (phi/D_e)) * cos (lat) ! zonal velocity 
+      v = u_0 * (1d0 - exp (-phi/D_e) * sin (phi/D_e)) * cos (lat) ! meridional velocity
+
+      e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
+      e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) 
+
+      ! Velocity vector
+      vel_init = u * e_zonal + v * e_merid
+    end function vel_init
+  end subroutine vel2uvw
 
   real(8) function surf_geopot_case (d, id)
     ! Set geopotential and topography
@@ -907,35 +943,6 @@ contains
        call update_bdry (sso_param, NONE)
     end if
   end subroutine update_case
-
-  subroutine vel2uvw (dom, i, j, zlev, offs, dims, vel_fun)
-    ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-    external                        :: vel_fun
-
-    integer      :: d, id, idE, idN, idNE
-    type (Coord) :: x_i, x_E, x_N, x_NE
-
-    d = dom%id+1
-
-    id   = idx(i,   j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-
-    x_i  = dom%node%elts(id+1)
-    x_E  = dom%node%elts(idE+1)
-    x_N  = dom%node%elts(idN+1)
-    x_NE = dom%node%elts(idNE+1)
-
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = proj_vel (vel_fun, x_i,  x_E)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel (vel_fun, x_NE, x_i)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel (vel_fun, x_i,  x_N)
-  end subroutine vel2uvw
 
   subroutine set_save_level_case
     implicit none
