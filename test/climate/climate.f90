@@ -104,7 +104,7 @@ program climate
 
   ! Save initial conditions
   call omega_velocity
-!  call write_and_export (iwrite)
+  call write_and_export (iwrite)
 !  if (physics_type == "Simple") call mean_values (0) ! processing for the physics package mean values
 
   ! Compute hydrostatic error factors for topography
@@ -144,7 +144,7 @@ program climate
 
         ! Save fields (after reloading checkpoint)
         call omega_velocity
-!        call write_and_export (iwrite)
+        call write_and_export (iwrite)
 !        if (physics_type == "Simple") call mean_values (iwrite) 
      end if
   end do

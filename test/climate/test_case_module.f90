@@ -243,7 +243,7 @@ contains
 
        ! Initial velocity with Ekman layer velocity
        if (ekman_ic) then
-          call vel2uvw (dom, i, j, zlev, offs, dims)
+          call vel2uvw (dom, i, j, k, offs, dims)
        else
           sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
        end if
@@ -341,7 +341,7 @@ contains
 
       p = 0.5d0 * (a_vert(zlev) + a_vert(zlev+1) + (b_vert(zlev) + b_vert(zlev+1)) * p_s) ! pressure at level k
 
-      phi = - R_d * T_0 * log (p / p_s) 
+      phi = - R_d * T_0 * log (p / p_s)
       
       D_e = e_thick * grav_accel
 
