@@ -5,6 +5,7 @@ module phyparam_mod
   implicit none
   private
   save
+  
   integer         :: icount
   real            :: zday_last
   logical         :: firstcall_alloc=.true.
@@ -12,6 +13,7 @@ module phyparam_mod
   real, parameter :: capcal_nosoil = 1e5
   real, parameter :: ref_temp      = 285.0
   real, parameter :: Tsoil_init    = 300.0
+
   public :: phyparam, alloc, precompute, zday_last, icount
 contains
   subroutine phyparam (              &
@@ -21,12 +23,12 @@ contains
        pplev, pplay, pPhi,           &
        pu, pv, pt,                   &
        pdU, pdV, pdt, pdPsrf )       &
-       bind(c, name='phyparam_phyparam')
+       bind (c, name='phyparam_phyparam')
     use,          intrinsic :: iso_c_binding
     use phys_const,     only : g, Rcp, r, unjours
     use soil_mod,       only : soil_forward, soil_backward
-    use soil_mod,       only : z0, inertie, Emissiv, Albedo  ! precomputed
-    use soil_mod,       only : Tsurf, Tsoil                  ! state variables
+    use soil_mod,       only : z0, pThermal_inertia, Emissiv, Albedo  ! precomputed
+    use soil_mod,       only : Tsurf, Tsoil                           ! state variables
     use turbulence,     only : Vdif
     use convection,     only : convadj
     USE radiative_mod,  only : radiative_tendencies
@@ -79,7 +81,8 @@ contains
     ! Local variables
     real ::                        & !
          zH(ngrid,nlayer),         & ! potential temperature
-         zpopsk(ngrid,nlayer),     & ! Exner function
+         zExner(ngrid,nlayer),     & ! Exner function
+         
          zZlev(ngrid,nlayer+1),    & ! height of layer interfaces
          zZlay(ngrid,nlayer),      & ! height of layer centres
 
@@ -94,10 +97,10 @@ contains
          zdVfr(ngrid,nlayer),      & ! partial tendencies for meridional velocity,
          zdHfr(ngrid,nlayer),      & ! partial tendencies for potential temperature,
 
-         zdTsrfr(ngrid),           & ! surface temperature
          zdTsrf(ngrid),            & ! total tendency of surface temperature
-
-         zflubid(ngrid),           & ! radiative + deep soil fluxes
+         zdTsrfr(ngrid),           & ! surface temperature
+         
+         zFluxid(ngrid),           & ! radiative + deep soil fluxes
          zPmer(ngrid)                ! sea-level pressure
 
     integer                       :: j, l, ig, igout
@@ -146,7 +149,7 @@ contains
     pdU     = 0.0
     pdT     = 0.0
     pdPsrf  = 0.0
-    zflubid = 0.0
+    zFluxid = 0.0
     zdTsrf  = 0.0
 
     ! Calcul du geopotentiel aux niveaux intercouches ponderation des altitudes au niveau des couches en dP/P
@@ -163,8 +166,8 @@ contains
     end do
 
     ! Transformation de la temperature en temperature potentielle
-    zpopsk = (pPlay / pPlev(:,1:nlayer))**Rcp ! surface pressure is used as reference pressure
-    zH     = pT / zpopsk
+    zExner = (pPlay / pPlev(:,1:nlayer))**Rcp ! surface pressure is used as reference pressure
+    zH     = pT / zExner
 
     
     !-----------------------------------------------------------------------------------------------
@@ -176,7 +179,7 @@ contains
     !
     !-----------------------------------------------------------------------------------------------
     if (callsoil) then
-       call soil_forward (ngrid, nsoilmx, pTimestep, inertie, Tsurf, Tsoil, zc, zd, CapCal, FluxGrd)
+       call soil_forward (ngrid, nsoilmx, pTimestep, pThermal_inertia, Tsurf, Tsoil, zc, zd, CapCal, FluxGrd)
     else
        CapCal  = CapCal_nosoil
        FluxGrd = 0.0
@@ -211,25 +214,25 @@ contains
     !
     !-----------------------------------------------------------------------------------------------
     if (calldifv) then
-       zflubid = FluxRad + FluxGrd
+       zFluxid = FluxRad + FluxGrd
 
        zdum1 = 0.0
        zdum2 = 0.0
-       zdum3 = pdT / zpopsk
+       zdum3 = pdT / zExner
 
        call Vdif (                        &
             ngrid, nlayer, zday,          &
             ptimestep, capcal, z0,        &
             pPlay, pPlev, zZlay, zZlev,   &
             pU, pV, zH, Tsurf, Emissiv,   &
-            zdum1, zdum2, zdum3, zflubid, &
+            zdum1, zdum2, zdum3, zFluxid, &
             zdUfr, zdVfr, zdHfr, zdTsrfr, &
             lverbose)
 
        pdV = pdV + zdVfr                              ! zonal velocity
        pdU = pdU + zdUfr                              ! meridional velocity
 
-       pdT    = pdT    + zdHfr * zpopsk               ! temperature
+       pdT    = pdT    + zdHfr * zExner               ! temperature
        zdTsrf = zdTsrf + zdTsrfr                      ! surface temperature
     else ! no vertical diffusion
        zdTsrf = zdTsrf + (FluxRad + FluxGrd) / CapCal ! surface temperature
@@ -248,7 +251,7 @@ contains
        call soil_backward (ngrid, nsoilmx, zc, zd, Tsurf, Tsoil)
        if (lverbose) then
           WRITELOG (*,*) 'surface ts, dts, dt'
-          WRITELOG (*,*) Tsurf(igout), zdTsrf(igout), ptimestep
+          WRITELOG (*,*) Tsurf(igout), zdTsrf(igout), pTimestep
           LOG_DBG ('phyparam')
        end if
     end if
@@ -258,7 +261,7 @@ contains
     !   5. Dry convective adjustment
     !-----------------------------------------------------------------------
     if (calladj) then
-       zdum1 = pdT / zpopsk
+       zdum1 = pdT / zExner
 
        zdUfr = 0.0
        zdVfr = 0.0
@@ -266,14 +269,14 @@ contains
 
        call convadj (                 &
             ngrid, nlayer, ptimestep, &
-            pPlay, pPlev, zpopsk,     &
+            pPlay, pPlev, zExner,     &
             pU, pV, zH,               &
             pdU, pdV, zdum1,          &
             zdUfr, zdVfr, zdHfr)
 
        pdU = pdU + zdUfr
        pdV = pdV + zdVfr
-       pdT = pdT + zdHfr * zpopsk
+       pdT = pdT + zdHfr * zExner
     end if
 
 
@@ -311,34 +314,34 @@ contains
     call nvtxendrange
   end subroutine phyparam
 
-  subroutine alloc (ngrid, nlayer) bind(c, name='phyparam_alloc')
+  subroutine alloc (ngrid, nlayer) bind (c, name='phyparam_alloc')
     use astronomy, only : iniorbit
-    use soil_mod,  only : Tsurf, Tsoil, z0, inertie, rnatur, Albedo, Emissiv
+    use soil_mod,  only : Tsurf, Tsoil, z0, pThermal_inertia, Rnatur, Albedo, Emissiv
     integer, intent(in), value :: ngrid, nlayer
 
     ! Allocate precomputed arrays
-    allocate (rnatur(ngrid), Albedo(ngrid), Emissiv(ngrid))
-    allocate (z0(ngrid),inertie(ngrid))
+    allocate (Rnatur(ngrid), Albedo(ngrid), Emissiv(ngrid))
+    allocate (z0(ngrid), pThermal_inertia(ngrid))
 
     ! Allocate arrays for internal state
     allocate (Tsurf(ngrid))
-    allocate (Tsoil(ngrid, nsoilmx))
+    allocate (Tsoil(ngrid,nsoilmx))
 
     call iniorbit
   end subroutine alloc
 
-  subroutine precompute() bind(c, name='phyparam_precompute')
+  subroutine precompute () bind (c, name='phyparam_precompute')
     ! Precompute time-independent arrays
-    use soil_mod, only: rnatur, inertie, z0, Emissiv, Albedo,  i_mer, i_ter, Cd_mer, Cd_ter,  alb_mer, alb_ter, emi_mer, emi_ter
+    use soil_mod, only: Rnatur, pThermal_inertia, z0, Emissiv, Albedo,  I_mer, I_ter, Cd_mer, Cd_ter,  Alb_mer, Alb_ter, Emi_mer, Emi_ter
 
-    rnatur(:)  = 1.0
-    inertie(:) = (1.0 - rnatur) * i_mer   + rnatur * i_ter
-    z0(:)      = (1.0 - rnatur) * Cd_mer  + rnatur * Cd_ter
-    Emissiv(:) = (1.0 - rnatur) * emi_mer + rnatur * emi_ter
-    Albedo(:)  = (1.0 - rnatur) * alb_mer + rnatur * alb_ter
+    Rnatur           = 1.0
+    pThermal_inertia = (1.0 - Rnatur) * I_mer   + Rnatur * i_ter
+    z0               = (1.0 - Rnatur) * Cd_mer  + Rnatur * Cd_ter
+    Emissiv          = (1.0 - Rnatur) * Emi_mer + Rnatur * Emi_ter
+    Albedo           = (1.0 - Rnatur) * Alb_mer + Rnatur * Alb_ter
   end subroutine precompute
 
-  subroutine coldstart(ngrid) bind(c, name='phyparam_coldstart')
+  subroutine coldstart (ngrid) bind (c, name='phyparam_coldstart')
     ! Create internal state to start a run without a restart file
     use soil_mod, only : Tsurf, Tsoil
     integer, intent(in), value :: ngrid

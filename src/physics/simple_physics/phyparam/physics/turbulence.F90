@@ -157,8 +157,10 @@ contains
     end do
 
     ! Diffusion tendency for zonal velocity
-    zU(:,1)      = zc(:,1)
-    zU(:,2:nlay) = zc(:,2:nlay) + zd(:,2:nlay) * zU(:,1:nlay-1)
+    zU(:,1) = zc(:,1)
+    do ilay = 2, nlay
+       zU(:,ilay) = zc(:,ilay) + zd(:,ilay) * zU(:,ilay-1)
+    end do
 
     !-----------------------------------------------------------------------
     !   Vertical integration for V
@@ -169,14 +171,16 @@ contains
 
     do ilay = nlay-1, 1, -1
        z1 = 1.0 / (za(:,ilay) + zb(:,ilay) + zb(:,ilay+1) * (1.0 - zd(:,ilay+1)))
+
        zc(:,ilay) = (za(:,ilay) * zV(:,ilay) + zb(:,ilay+1) * zc(:,ilay+1)) * z1
        zd(:,ilay) = zb(:,ilay) * z1
     end do
 
     ! Diffusion tendency for meridional velocity
-    zV(:,1)      = zc(:,1)
-    zV(:,2:nlay) = zc(:,2:nlay) + zd(:,2:nlay) * zV(:,1:nlay-1)
-
+    zV(:,1) = zc(:,1)
+    do ilay = 2, nlay
+       zV(:,ilay) = zc(:,ilay) + zd(:,ilay) * zV(:,ilay-1)
+    end do
 
     !------------------------------------------------------------------------
     !   Vertical integration for potential temperature H
@@ -185,11 +189,13 @@ contains
     zb(:,1)      = zcdh * zb0(:,1)
 
     z1 = 1.0 / (za(:,nlay) + zb(:,nlay))
+
     zc(:,nlay) = za(:,nlay) * zH(:,nlay) * z1
     zd(:,nlay) = zb(:,nlay) * z1
 
     do ilay = nlay-1, 1, -1
        z1 = 1.0 / (za(:,ilay) + zb(:,ilay) + zb(:,ilay+1) * (1.0 - zd(:,ilay+1)))
+
        zc(:,ilay) = (za(:,ilay) * zH(:,ilay)+ zb(:,ilay+1) * zc(:,ilay+1)) * z1
        zd(:,ilay) = zb(:,ilay) * z1
     end do
@@ -203,15 +209,16 @@ contains
     !-----------------------------------------------------------------------
     !   Compute evolution of surface temperature
     !-----------------------------------------------------------------------
-    z1 = pcapcal * pTsrf + Cpp * zb(:,1) * zc(:,1)         + zdPlanck * pTsrf + pFluxSrf * pTimestep
-    z2 = pcapcal         + Cpp * zb(:,1) * (1.0 - zd(:,1)) + zdPlanck
+    z1 = pCapCal * pTsrf + Cpp * zb(:,1) * zc(:,1)         + zdPlanck * pTsrf + pFluxSrf * pTimestep
+    z2 = pCapCal         + Cpp * zb(:,1) * (1.0 - zd(:,1)) + zdPlanck
 
     zTsrf2 = z1 / z2
 
     ! Diffusion tendency for potential temperature
-    zH(:,1)      = zc(:,1)      + zd(:,1)      * zTsrf2
-    zH(:,2:nlay) = zc(:,2:nlay) + zd(:,2:nlay) * zH(:,1:nlay-1)
-
+    zH(:,1) = zc(:,1) + zd(:,1) * zTsrf2
+    do ilay = 2, nlay
+       zH(:,ilay) = zc(:,ilay) + zd(:,ilay) * zH(:,ilay-1)
+    end do
 
     !-----------------------------------------------------------------------
     !   Complete pseudo-tendencies/solution at t+dt
