@@ -8,7 +8,7 @@ module phyparam_mod
   integer         :: icount
   real            :: zday_last
   logical         :: firstcall_alloc=.true.
-
+  
   real, parameter :: capcal_nosoil = 1e5
   real, parameter :: ref_temp      = 285.0
   real, parameter :: Tsoil_init    = 300.0
@@ -166,12 +166,11 @@ contains
     zpopsk = (pPlay / pPlev(:,1:nlayer))**Rcp ! surface pressure is used as reference pressure
     zH     = pT / zpopsk
 
-
+    
     !-----------------------------------------------------------------------------------------------
-    !  2. Vertical diffusion of heat in soil column
+    !  2. Soil temperatures
     !
-    !  First half split-step of implicit time integration forward sweep from
-    !  deep ground to surface.
+    !  First split-step of implicit time integration forward sweep from deep ground to surface.
     !
     !  Returns Lu coefficients zc, zd and CapCal, FluxGrd
     !
@@ -199,7 +198,7 @@ contains
 
 
     !-----------------------------------------------------------------------------------------------
-    !    3. Vertical diffusion (turbulent mixing)
+    !    3. Vertical diffusion (turbulent mixing) 
     !
     ! Second-order Strang splitting consisting of:
     !
@@ -236,10 +235,13 @@ contains
        zdTsrf = zdTsrf + (FluxRad + FluxGrd) / CapCal ! surface temperature
     end if
 
-    !-------------------------------------------------------------
-    !   Soil temperatures : 2nd half of implicit time integration
-    !   using updated Tsurf as input
-    !-------------------------------------------------------------
+    
+    !-----------------------------------------------------------------------------------
+    !   4. Soil temperatures
+    !
+    !   Second split step of implicit time integration using updated Tsurf as input
+    !
+    !-----------------------------------------------------------------------------------
     Tsurf = Tsurf + ptimestep * zdTsrf
 
     if (callsoil) then
@@ -253,7 +255,7 @@ contains
 
 
     !-----------------------------------------------------------------------
-    !   4. Dry convective adjustment
+    !   5. Dry convective adjustment
     !-----------------------------------------------------------------------
     if (calladj) then
        zdum1 = pdT / zpopsk
@@ -276,7 +278,7 @@ contains
 
 
     !-----------------------------------------------------------------------
-    !   Sorties
+    !   Data logging
     !-----------------------------------------------------------------------
     WRITELOG (*,*) 'zday, zday_last ', zday, zday_last, icount
     LOG_DBG ('phyparam')
