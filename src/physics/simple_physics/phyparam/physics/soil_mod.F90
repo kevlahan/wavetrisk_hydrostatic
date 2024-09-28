@@ -25,7 +25,7 @@ module soil_mod
 
   public :: init_soil, soil_forward, soil_backward, rnatur, Albedo, Emissiv, z0, inertie, Tsurf, Tsoil
 contains
-
+  
   ! -----------------------------------------------------------------------------------------------------
   !
   !   Auteur:  Frederic Hourdin     30/01/92
@@ -60,7 +60,7 @@ contains
   !           CapCal  =  b * dt
   !
   ! -----------------------------------------------------------------------------------------------------
-  pure subroutine soil_forward (ngrid, nsoil, ptimestep, ptherm_i, pTsrf, pTsoil, zc, zd, pcapcal, pfluxgrd)
+   pure subroutine soil_forward (ngrid, nsoil, ptimestep, ptherm_i, pTsrf, pTsoil, zc, zd, pcapcal, pfluxgrd)
     integer,                        intent(in)  :: ngrid     ! number of columns, of soil layers
     integer,                        intent(in)  :: nsoil     ! number of columns, of soil layers
     real,                           intent(in)  :: ptimestep ! time step
@@ -71,34 +71,34 @@ contains
     real, dimension(ngrid,nsoil-1), intent(out) :: zc, zd    ! Lu factorization for backward sweep
     real, dimension(ngrid),         intent(out) :: pCapCal   ! effective calorific capacity
     real, dimension(ngrid),         intent(out) :: pFluxGrd  ! conductive heat flux at the ground
-
+   
     integer                :: ig, jk
     real                   :: z1
     real, dimension(nsoil) :: zdz2
 
     ! Computation of the cGrd and dGrd coefficients the backward sweep :
-    zdz2 = dz2 / ptimestep   ! c_k + 0.5 A.11
+    zdz2 = dz2 / ptimestep   ! c_k + 0.5 A.11 
 
     z1 = zdz2(nsoil) + dz1(nsoil-1)
-
+    
     zc(:,nsoil-1) = zdz2(nsoil) * pTsoil(:,nsoil) / z1 ! b_n - 1 (A.17)
-    zd(:,nsoil-1) = dz1(nsoil-1)                  / z1 ! a_n - 1 (A.16)
+    zd(:,nsoil-1) = dz1(nsoil-1)                  / z1 ! a_n - 1 (A.16) 
 
     do jk = nsoil-1, 2, -1
        do ig = 1, ngrid
           z1 = 1.0 / (zdz2(jk) + dz1(jk-1) + dz1(jk) * (1.0 - zd(ig,jk)))
-
+          
           zc(ig,jk-1) = z1 * (pTsoil(ig,jk) * zdz2(jk) + dz1(jk) * zc(ig,jk)) ! b_k
           zd(ig,jk-1) = z1 * dz1(jk-1)                                        ! a_k
        end do
     end do
-
+    
     ! Surface diffusive flux and calorific capacity of ground
     do ig = 1, ngrid
        pFluxGrd(ig) = pTherm_i(ig) * dz1(1) * (zc(ig,1) + (zd(ig,1)-1.) * pTsoil(ig,1))                             ! f *  A.25
-
+       
        z1 = lambda * (1.0 - zd(ig,1)) + 1.0
-
+       
        pCapCal(ig)  = pTherm_i(ig) * ptimestep * (zdz2(1) + (1.0 - zd(ig,1)) * dz1(1)) / z1                         ! c_s A.30
        pFluxGrd(ig) = pFluxGrd(ig) + pCapCal(ig) * (pTsoil(ig,1) * z1 - lambda * zc(ig,1) - pTsrf(ig)) / ptimestep  ! f_s A.31
     end do
@@ -115,14 +115,14 @@ contains
     integer :: ig, jk
 
     pTsoil(:,1) = (lambda * zc(:,1) + pTsrf) / (lambda * (1.0 - zd(:,1)) + 1.0) ! A.27 re-arragend to solve for t_0.5
-    pTsoil(:,2:nsoil) = zc(:,1:nsoil-1) + zd(:,1:nsoil-1) * pTsoil(:,1:nsoil-1) ! A.15
+    pTsoil(:,2:nsoil) = zc(:,1:nsoil-1) + zd(:,1:nsoil-1) * pTsoil(:,1:nsoil-1) ! A.15 
   end subroutine soil_backward
 
   subroutine init_soil (nsoil)
     !   Ground levels
     !   grnd = z/l where l is the skin depth of the diurnal cycle:
     integer, intent(in) :: nsoil
-
+    
     real    :: rk, rk1, rk2
     integer :: jk
 
@@ -138,12 +138,12 @@ contains
     do jk = 1, nsoil-1
        rk1 = jk + 0.5
        rk2 = jk - 0.5
-       dz1(jk) = 1.0 / (fz(rk1) - fz(rk2))  ! d_k A.12
+       dz1(jk) = 1.0 / (fz(rk1) - fz(rk2))  ! d_k A.12 
     end do
     lambda = fz(0.5) * dz1(1)               ! mu A.28
 
     WRITELOG (*,*) 'Full layers, intermediate layers (seconds)'
-
+    
     do jk = 1, nsoil
        rk  = jk
        rk1 = jk + 0.5
