@@ -5,32 +5,28 @@ module phyparam_mod
   implicit none
   private
   save
-  
+
   integer         :: icount
   real            :: zday_last
   logical         :: firstcall_alloc=.true.
-  
+
   real, parameter :: capcal_nosoil = 1e5
   real, parameter :: ref_temp      = 285.0
   real, parameter :: Tsoil_init    = 300.0
 
   public :: phyparam, alloc, precompute, zday_last, icount
 contains
-  subroutine phyparam (              &
-       ngrid, nlayer,                &
-       firstcall, lastcall,          &
-       rjourvrai, gmtime, ptimestep, &
-       pplev, pplay, pPhi,           &
-       pu, pv, pt,                   &
-       pdU, pdV, pdt, pdPsrf )       &
-       bind (c, name='phyparam_phyparam')
+  subroutine phyparam (ngrid, nlayer, firstcall, lastcall, rjourvrai, gmtime, pTimestep, &
+       pPlev, pPlay, pPhi, pU, pV, pT, &
+       pdU, pdV, pdt, pdPsrf) bind (c, name='phyparam_phyparam')
+
     use,          intrinsic :: iso_c_binding
     use phys_const,     only : g, Rcp, r, unjours
     use soil_mod,       only : soil_forward, soil_backward
     use soil_mod,       only : z0, pThermal_inertia, Emissiv, Albedo  ! precomputed
     use soil_mod,       only : Tsurf, Tsoil                           ! state variables
     use turbulence,     only : Vdif
-    use convection,     only : convadj
+    use convection,     only : ConvAdj
     USE radiative_mod,  only : radiative_tendencies
     use writefield_mod, only : writefield
     use accelerator,    only : nvtxstartrange, nvtxendrange
@@ -82,7 +78,7 @@ contains
     real ::                        & !
          zH(ngrid,nlayer),         & ! potential temperature
          zExner(ngrid,nlayer),     & ! Exner function
-         
+
          zZlev(ngrid,nlayer+1),    & ! height of layer interfaces
          zZlay(ngrid,nlayer),      & ! height of layer centres
 
@@ -99,7 +95,7 @@ contains
 
          zdTsrf(ngrid),            & ! total tendency of surface temperature
          zdTsrfr(ngrid),           & ! surface temperature
-         
+
          zFluxid(ngrid),           & ! radiative + deep soil fluxes
          zPmer(ngrid)                ! sea-level pressure
 
@@ -169,7 +165,7 @@ contains
     zExner = (pPlay / pPlev(:,1:nlayer))**Rcp ! surface pressure is used as reference pressure
     zH     = pT / zExner
 
-    
+
     !-----------------------------------------------------------------------------------------------
     !  2. Soil temperatures
     !
@@ -180,7 +176,7 @@ contains
     !-----------------------------------------------------------------------------------------------
     if (callsoil) then
        call soil_forward (ngrid, nsoilmx, pTimestep, pThermal_inertia, Tsurf, Tsoil, zc, zd, CapCal, FluxGrd)
-    else
+    else ! no diffusion of heat in soil column
        CapCal  = CapCal_nosoil
        FluxGrd = 0.0
     end if
@@ -201,7 +197,7 @@ contains
 
 
     !-----------------------------------------------------------------------------------------------
-    !    3. Vertical diffusion (turbulent mixing) 
+    !    3. Vertical turbulent diffusion
     !
     ! Second-order Strang splitting consisting of:
     !
@@ -220,35 +216,34 @@ contains
        zdum2 = 0.0
        zdum3 = pdT / zExner
 
-       call Vdif (                        &
-            ngrid, nlayer, zday,          &
-            ptimestep, capcal, z0,        &
-            pPlay, pPlev, zZlay, zZlev,   &
-            pU, pV, zH, Tsurf, Emissiv,   &
+       call Vdif (ngrid, nlayer, zday, pTimestep, CapCal, z0, pPlay, pPlev, zZlay, zZlev, pU, pV, zH, Tsurf, Emissiv, &
             zdum1, zdum2, zdum3, zFluxid, &
             zdUfr, zdVfr, zdHfr, zdTsrfr, &
             lverbose)
 
-       pdV = pdV + zdVfr                              ! zonal velocity
-       pdU = pdU + zdUfr                              ! meridional velocity
+       ! Update pseudo-tendencies
+       pdV    = pdV    + zdVfr           ! zonal velocity
+       pdU    = pdU    + zdUfr           ! meridional velocity
+       pdT    = pdT    + zdHfr * zExner  ! temperature from potential temperature tendency
 
-       pdT    = pdT    + zdHfr * zExner               ! temperature
-       zdTsrf = zdTsrf + zdTsrfr                      ! surface temperature
-    else ! no vertical diffusion
-       zdTsrf = zdTsrf + (FluxRad + FluxGrd) / CapCal ! surface temperature
+       zdTsrf = zdTsrf + zdTsrfr
+    else ! no diffusion
+       zdTsrf = zdTsrf + (FluxRad + FluxGrd) / CapCal
     end if
 
-    
+    ! Surface temperature adjusted by vertical turbulent diffusion
+    Tsurf = Tsurf + ptimestep * zdTsrf
+
+
     !-----------------------------------------------------------------------------------
     !   4. Soil temperatures
     !
     !   Second split step of implicit time integration using updated Tsurf as input
     !
     !-----------------------------------------------------------------------------------
-    Tsurf = Tsurf + ptimestep * zdTsrf
-
     if (callsoil) then
        call soil_backward (ngrid, nsoilmx, zc, zd, Tsurf, Tsoil)
+
        if (lverbose) then
           WRITELOG (*,*) 'surface ts, dts, dt'
           WRITELOG (*,*) Tsurf(igout), zdTsrf(igout), pTimestep
@@ -258,22 +253,14 @@ contains
 
 
     !-----------------------------------------------------------------------
-    !   5. Dry convective adjustment
+    !   4. Dry convective adjustment
     !-----------------------------------------------------------------------
     if (calladj) then
        zdum1 = pdT / zExner
 
-       zdUfr = 0.0
-       zdVfr = 0.0
-       zdHfr = 0.0
+       call ConvAdj (ngrid, nlayer, ptimestep, pPlay, pPlev, zExner, pU, pV, zH, pdU, pdV, zdum1,  zdUfr, zdVfr, zdHfr)
 
-       call convadj (                 &
-            ngrid, nlayer, ptimestep, &
-            pPlay, pPlev, zExner,     &
-            pU, pV, zH,               &
-            pdU, pdV, zdum1,          &
-            zdUfr, zdVfr, zdHfr)
-
+       ! Update pseudo-tendencies
        pdU = pdU + zdUfr
        pdV = pdV + zdVfr
        pdT = pdT + zdHfr * zExner

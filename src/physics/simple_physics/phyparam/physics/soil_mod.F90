@@ -2,14 +2,48 @@ module soil_mod
   ! Vertical diffusion of heat in soil column
   !
   ! References refer to Frederic Hourdin's thesis
+  !
+  !   Auteur:  Frederic Hourdin     1992-01-30
+  !   -------
+  !
+  !   Computation of : 1. soil temperature evolution
+  !                    2. surface heat capacity CapCal
+  !                    3. surface conduction flux pCapCal
+  !
+  !
+  !   Method: implicit time integration
+  !   -------
+  !
+  !   Consecutive ground temperatures are related by:
+  !
+  !           T(k+1)  =  c(k) + d(k) * T(k)  (1)
+  !
+  !   the coefficients c and d are computed at the t-dt time-step.
+  !   routine structure:
+  !
+  !   1. New temperatures are computed  using (1)
+  !
+  !   2. C and d coefficients are computed from the new temperature
+  !     profile for the t+dt time-step
+  !
+  !   3. Coefficients a and b are computed where the diffusive
+  !     fluxes at the t+dt time-step is given by
+  !
+  !            fdiff  =  a + b Ts(t+dt)
+  !     or     fdiff  =  f0 + CapCal (Ts(t+dt) - Ts(t)) / dt
+  !
+  !          with f0  =  a + b (Ts(t))
+  !           CapCal  =  b * dt
+  !
+  ! -----------------------------------------------------------------------------------------------------
 #include "use_logging.h"
   implicit none
   private
   save
   real, parameter :: min_period = 20000.0
-  real, parameter :: dalph_soil = 2.0
-  real, parameter :: pi         = 2.0 * asin (1.0)
-  real, parameter :: fz1        = sqrt (min_period/pi)
+  real, parameter :: dAlph_soil = 2.0
+  real, parameter :: Pi         = 2.0 * asin (1.0)
+  real, parameter :: fz1        = sqrt (min_period / Pi)
 
   ! Common variables
   real, public ::  i_mer, i_ter, cd_mer, cd_ter, alb_mer, alb_ter, emi_mer, emi_ter
@@ -25,41 +59,6 @@ module soil_mod
 
   public :: init_soil, soil_forward, soil_backward, Rnatur, Albedo, Emissiv, z0, pThermal_inertia, Tsurf, Tsoil
 contains
-
-  ! -----------------------------------------------------------------------------------------------------
-  !
-  !   Auteur:  Frederic Hourdin     30/01/92
-  !   -------
-  !
-  !   Objet:  computation of : the soil temperature evolution
-  !   ------                   the surfacic heat capacity "capcal"
-  !                            the surface conduction flux pcapcal
-  !
-  !
-  !   Method: implicit time integration
-  !   -------
-  !   consecutive ground temperatures are related by:
-  !
-  !           T(k+1)  =  c(k) + d(k) * T(k)  (1)
-  !
-  !   the coefficients c and d are computed at the t-dt time-step.
-  !   routine structure:
-  !
-  !   1) New temperatures are computed  using (1)
-  !
-  !   2) C and d coefficients are computed from the new temperature
-  !     profile for the t+dt time-step
-  !
-  !   3) The coefficients a and b are computed where the diffusive
-  !     fluxes at the t+dt time-step is given by
-  !
-  !            fdiff  =  a + b ts(t+dt)
-  !     or     fdiff  =  f0 + capcal (ts(t+dt)-ts(t))/dt
-  !
-  !          with f0  =  a + b (ts(t))
-  !           CapCal  =  b * dt
-  !
-  ! -----------------------------------------------------------------------------------------------------
   pure subroutine soil_forward (ngrid, nsoil, pTimestep,pThermal_inertia, pTsrf, pTsoil, zc, zd, pCapCal, pFluxGrd)
     integer,                        intent(in)  :: ngrid             ! number of columns, of soil layers
     integer,                        intent(in)  :: nsoil             ! number of columns, of soil layers
@@ -106,7 +105,7 @@ contains
   end subroutine soil_forward
 
   pure subroutine soil_backward (ngrid, nsoil, zc, zd, pTsrf, pTsoil)
-    ! Soil temperatures using cgrd and dgrd  coefficient computed during the forward sweep
+    ! Soil temperatures using cGrd and dGrd  coefficient computed during the forward sweep
     integer,                         intent(in)    :: ngrid   ! number of columns
     integer,                         intent(in)    :: nsoil   ! number of soil layers
     real, dimension(ngrid, nsoil-1), intent(in)    :: zc, zd  ! Lu factorization
@@ -115,9 +114,9 @@ contains
 
     integer :: ig, jk
 
-    pTsoil(:,1)       = (lambda * zc(:,1) + pTsrf) / (lambda * (1.0 - zd(:,1)) + 1.0) ! (A.27) re-arragend to solve for t_0.5
+    pTsoil(:,1) = (lambda * zc(:,1) + pTsrf) / (lambda * (1.0 - zd(:,1)) + 1.0) ! (A.27) re-arragend to solve for t_0.5
     do jk = 1, nsoil-1
-       pTsoil(:,jk+1) = zc(:,jk) + zd(:,jk) * pTsoil(:,jk)                            ! (A.15)
+       pTsoil(:,jk+1) = zc(:,jk) + zd(:,jk) * pTsoil(:,jk)                      ! (A.15)
     end do
   end subroutine soil_backward
 
@@ -152,7 +151,7 @@ contains
        rk  = float (jk)
        rk1 = float (jk) + 0.5
        rk2 = float (jk) - 0.5
-       WRITELOG (*,*) fz (rk1) * fz (rk2) * pi, fz (rk) * fz (rk) * pi
+       WRITELOG (*,*) fz (rk1) * fz (rk2) * Pi, fz (rk) * fz (rk) * Pi
     end do
     LOG_INFO ('init_soil')
   end subroutine init_soil
@@ -160,6 +159,6 @@ contains
   real(8) function fz (rk)
     real :: rk
 
-    fz = fz1 * (dalph_soil**rk - 1.0) / (dalph_soil - 1.0)
+    fz = fz1 * (dAlph_soil**rk - 1.0) / (dAlph_soil - 1.0)
   end function fz
 end module soil_mod
