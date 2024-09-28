@@ -1,216 +1,161 @@
-MODULE soil_mod
-
+module soil_mod
+  ! Vertical diffusion of heat in soil column
+  !
+  ! References refer to Frederic Hourdin's thesis
 #include "use_logging.h"
+  implicit none
+  private
+  save
+  real, parameter :: min_period = 20000.0
+  real, parameter :: dalph_soil = 2.0
+  real, parameter :: pi         = 2.0 * asin (1.0)
+  real, parameter :: fz1        = sqrt (min_period/pi)
 
-  IMPLICIT NONE
-  PRIVATE
-  SAVE
+  ! Common variables
+  real, public ::  i_mer, i_ter, cd_mer, cd_ter, alb_mer, alb_ter, emi_mer, emi_ter
 
-  REAL, PARAMETER :: min_period=20000., dalph_soil=2.,  &
-       pi=2.*ASIN(1.), fz1=SQRT(min_period/pi)
+  ! Precomputed variables
+  real                              :: lambda
+  real, dimension(:),  allocatable  :: dz1, dz2
+  real, dimension(:),  allocatable  :: rnatur, Albedo, emissiv, z0, inertie
 
-  ! common variables
-  REAL, PUBLIC ::  I_mer,I_ter,Cd_mer,Cd_ter, &
-       &           alb_mer,alb_ter,emi_mer,emi_ter
+  ! Internal state, written to / read from disk at checkpoint / restart
+  real, dimension(:),   allocatable :: Tsurf
+  real, dimension(:,:), allocatable :: tsoil
 
-  ! precomputed variables
-  REAL :: lambda
-  REAL, ALLOCATABLE :: dz1(:),dz2(:)
-  !$OMP THREADPRIVATE(dz1,dz2)
-  !$acc declare create(dz1,dz2)
+  public :: init_soil, soil_forward, soil_backward, rnatur, Albedo, Emissiv, z0, inertie, Tsurf, Tsoil
+contains
 
-  REAL, ALLOCATABLE :: rnatur(:), albedo(:),emissiv(:), z0(:), inertie(:)
-  !$OMP THREADPRIVATE( rnatur, albedo, emissiv, z0, inertie)
-  !$acc declare create(rnatur, albedo, emissiv, z0, inertie)
-
-  ! internal state, written to / read from disk at checkpoint / restart
-  REAL, ALLOCATABLE :: tsurf(:), tsoil(:,:)
-  !$OMP THREADPRIVATE(tsurf, tsoil)
-  !$acc declare create(tsurf,tsoil)
-
-  PUBLIC :: init_soil, soil_forward, soil_backward, &
-       rnatur, albedo, emissiv, z0, inertie, &
-       tsurf, tsoil
-
-CONTAINS
-
-  FUNCTION fz(rk) RESULT(val)
-    !$acc routine seq
-    REAL :: val, rk
-    val = fz1*(dalph_soil**rk-1.)/(dalph_soil-1.)
-  END FUNCTION fz
-
-  SUBROUTINE init_soil(nsoil)
-    INTEGER, INTENT(IN) :: nsoil
-    REAL :: rk, rk1, rk2
-    INTEGER :: jk
-
-    !-----------------------------------------------------------------------
-    !   ground levels
-    !   grnd=z/l where l is the skin depth of the diurnal cycle:
-    !   --------------------------------------------------------
-
-    WRITELOG(*,*) 'nsoil,firstcall=',nsoil, .TRUE.
-
-    ALLOCATE(dz1(nsoil-1),dz2(nsoil))
-
-    !$acc kernels default(none) present(dz1, dz2)
-    !$acc loop private(rk1, rk2)
-    DO jk=1,nsoil
-       rk1=jk
-       rk2=jk-1
-       dz2(jk)=fz(rk1)-fz(rk2)  !numerator of c_k+0.5 A.11
-    ENDDO
-    !$acc loop private(rk1, rk2)
-    DO jk=1,nsoil-1
-       rk1=jk+.5
-       rk2=jk-.5
-       dz1(jk)=1./(fz(rk1)-fz(rk2))  ! d_k A.12 in Frederics these
-    ENDDO
-    !$acc end kernels
-
-    !$acc update host(dz1, dz2)
-    lambda=fz(.5)*dz1(1)  ! mu (A.28) in Frederics these
-
-    WRITELOG(*,*) 'full layers, intermediate layers (secoonds)'
-    DO jk=1,nsoil
-       rk=jk
-       rk1=jk+.5
-       rk2=jk-.5
-       WRITELOG(*,*) fz(rk1)*fz(rk2)*pi,        &
-            &        fz(rk)*fz(rk)*pi
-    ENDDO
-
-    LOG_INFO('init_soil')
-
-  END SUBROUTINE init_soil
-
-  !=======================================================================
+  ! -----------------------------------------------------------------------------------------------------
   !
   !   Auteur:  Frederic Hourdin     30/01/92
   !   -------
   !
-  !   objet:  computation of : the soil temperature evolution
-  !   ------                   the surfacic heat capacity "Capcal"
+  !   Objet:  computation of : the soil temperature evolution
+  !   ------                   the surfacic heat capacity "capcal"
   !                            the surface conduction flux pcapcal
   !
   !
   !   Method: implicit time integration
   !   -------
-  !   Consecutive ground temperatures are related by:
-  !           T(k+1) = C(k) + D(k)*T(k)  (1)
-  !   the coefficients C and D are computed at the t-dt time-step.
-  !   Routine structure:
-  !   1)new temperatures are computed  using (1)
-  !   2)C and D coefficients are computed from the new temperature
-  !     profile for the t+dt time-step
-  !   3)the coefficients A and B are computed where the diffusive
-  !     fluxes at the t+dt time-step is given by
-  !            Fdiff = A + B Ts(t+dt)
-  !     or     Fdiff = F0 + Capcal (Ts(t+dt)-Ts(t))/dt
-  !            with F0 = A + B (Ts(t))
-  !                 Capcal = B*dt
+  !   consecutive ground temperatures are related by:
   !
+  !           T(k+1)  =  c(k) + d(k) * T(k)  (1)
+  !
+  !   the coefficients c and d are computed at the t-dt time-step.
+  !   routine structure:
+  !
+  !   1) New temperatures are computed  using (1)
+  !
+  !   2) C and d coefficients are computed from the new temperature
+  !     profile for the t+dt time-step
+  !
+  !   3) The coefficients a and b are computed where the diffusive
+  !     fluxes at the t+dt time-step is given by
+  !
+  !            fdiff  =  a + b ts(t+dt)
+  !     or     fdiff  =  f0 + capcal (ts(t+dt)-ts(t))/dt
+  !
+  !          with f0  =  a + b (ts(t))
+  !           CapCal  =  b * dt
+  !
+  ! -----------------------------------------------------------------------------------------------------
+  pure subroutine soil_forward (ngrid, nsoil, ptimestep, ptherm_i, pTsrf, pTsoil, zc, zd, pcapcal, pfluxgrd)
+    integer,                        intent(in)  :: ngrid     ! number of columns, of soil layers
+    integer,                        intent(in)  :: nsoil     ! number of columns, of soil layers
+    real,                           intent(in)  :: ptimestep ! time step
+    real, dimension(ngrid),         intent(in)  :: ptherm_i  ! thermal inertia ??
+    real, dimension(ngrid),         intent(in)  :: pTsrf     ! surface temperature before heat conduction
+    real, dimension(ngrid,nsoil),   intent(in)  :: pTsoil    ! soil temperature before heat conduction
 
-  PURE SUBROUTINE soil_backward(ngrid,nsoil, zc,zd, ptsrf,ptsoil)
-    INTEGER, INTENT(IN) :: ngrid, nsoil         ! number of columns, of soil layers
-    REAL, INTENT(IN)    :: zc(ngrid, nsoil-1), zd(ngrid, nsoil-1) ! LU factorization
-    REAL, INTENT(IN)    :: ptsrf(ngrid)         ! new surface temperature
-    REAL, INTENT(INOUT) :: ptsoil(ngrid,nsoil)  ! soil temperature
-    INTEGER :: ig, jk
+    real, dimension(ngrid,nsoil-1), intent(out) :: zc, zd    ! Lu factorization for backward sweep
+    real, dimension(ngrid),         intent(out) :: pCapCal   ! effective calorific capacity
+    real, dimension(ngrid),         intent(out) :: pFluxGrd  ! conductive heat flux at the ground
 
-    !-----------------------------------------------------------------------
-    !  Computation of the soil temperatures using the Cgrd and Dgrd
-    !  coefficient computed during the forward sweep
-    !  -----------------------------------------------
+    integer                :: ig, jk
+    real                   :: z1
+    real, dimension(nsoil) :: zdz2
 
-    !  surface temperature => temperature in first soil layer
+    ! Computation of the cGrd and dGrd coefficients the backward sweep :
+    zdz2 = dz2 / ptimestep   ! c_k + 0.5 A.11
 
-    !$acc data copyin(zc(:,:),zd(:,:),ptsrf(:))        &
-    !$acc &    copyout(ptsoil(:,:))                    &
-    !$acc &
+    z1 = zdz2(nsoil) + dz1(nsoil-1)
 
-    !$acc kernels default(none)
-    DO ig=1,ngrid
-       ptsoil(ig,1)=(lambda*zc(ig,1)+ptsrf(ig))/                   &
-            &      (lambda*(1.-zd(ig,1))+1.)   ! A.27 re-arragend to solve for T_0.5 in Frederics these
-    ENDDO
+    zc(:,nsoil-1) = zdz2(nsoil) * pTsoil(:,nsoil) / z1 ! b_n - 1 (A.17)
+    zd(:,nsoil-1) = dz1(nsoil-1)                  / z1 ! a_n - 1 (A.16)
 
-    !   other temperatures
-    DO jk=1,nsoil-1
-       DO ig=1,ngrid
-          ptsoil(ig,jk+1)=zc(ig,jk)+zd(ig,jk)*ptsoil(ig,jk) ! A.15 in Frederics these
-       ENDDO
-    ENDDO
-    !$acc end kernels
-    !$acc end data
+    do jk = nsoil-1, 2, -1
+       do ig = 1, ngrid
+          z1 = 1.0 / (zdz2(jk) + dz1(jk-1) + dz1(jk) * (1.0 - zd(ig,jk)))
 
-  END SUBROUTINE Soil_backward
+          zc(ig,jk-1) = z1 * (pTsoil(ig,jk) * zdz2(jk) + dz1(jk) * zc(ig,jk)) ! b_k
+          zd(ig,jk-1) = z1 * dz1(jk-1)                                        ! a_k
+       end do
+    end do
 
-  PURE SUBROUTINE soil_forward(ngrid, nsoil, ptimestep, ptherm_i, ptsrf, ptsoil, &
-       &                       zc, zd, pcapcal, pfluxgrd)
+    ! Surface diffusive flux and calorific capacity of ground
+    do ig = 1, ngrid
+       pFluxGrd(ig) = pTherm_i(ig) * dz1(1) * (zc(ig,1) + (zd(ig,1)-1.) * pTsoil(ig,1))                             ! f *  A.25
 
-    INTEGER, INTENT(IN) :: ngrid, nsoil         ! number of columns, of soil layers
-    REAL, INTENT(IN)    :: ptimestep,         & ! time step
-         &                 ptherm_i(ngrid),   & ! thermal inertia ??
-         &                 ptsrf(ngrid),      & ! surface temperature before heat conduction
-         &                 ptsoil(ngrid, nsoil) ! soil temperature before heat conduction
-    REAL, INTENT(OUT)   :: zc(ngrid,nsoil-1),   &
-         &                 zd(ngrid, nsoil-1),  & ! LU factorization for backward sweep
-         &                 pcapcal(ngrid),    & ! effective calorific capacity
-         &                 pfluxgrd(ngrid)      ! conductive heat flux at the ground
-    REAL :: z1, zdz2(nsoil)
-    INTEGER :: jk, ig
+       z1 = lambda * (1.0 - zd(ig,1)) + 1.0
 
-    !-----------------------------------------------------------------------
-    !   Computation of the Cgrd and Dgrd coefficients the backward sweep :
-    !   ---------------------------------------------------------------
+       pCapCal(ig)  = pTherm_i(ig) * ptimestep * (zdz2(1) + (1.0 - zd(ig,1)) * dz1(1)) / z1                         ! c_s A.30
+       pFluxGrd(ig) = pFluxGrd(ig) + pCapCal(ig) * (pTsoil(ig,1) * z1 - lambda * zc(ig,1) - pTsrf(ig)) / ptimestep  ! f_s A.31
+    end do
+  end subroutine soil_forward
 
-    !$acc data copyin(dz1, dz2, ptsrf(:),ptherm_i(:),ptsoil(:,:))     &
-    !$acc &    copyout(zc(:,1:nsoil-1), zd(:,1:nsoil-1), pcapcal(:), pfluxgrd(:))               &
-    !$acc &    create(zdz2(:))
+  pure subroutine soil_backward (ngrid, nsoil, zc, zd, pTsrf, pTsoil)
+    ! Soil temperatures using cgrd and dgrd  coefficient computed during the forward sweep
+    integer,                         intent(in)    :: ngrid   ! number of columns
+    integer,                         intent(in)    :: nsoil   ! number of soil layers
+    real, dimension(ngrid, nsoil-1), intent(in)    :: zc, zd  ! Lu factorization
+    real, dimension(ngrid),          intent(in)    :: pTsrf   ! new surface temperature
+    real, dimension(ngrid,nsoil),    intent(inout) :: pTsoil  ! soil temperature
 
-    !$acc kernels default(none)
+    integer :: ig, jk
 
-    DO jk=1,nsoil
-       zdz2(jk)=dz2(jk)/ptimestep   ! c_k+0.5 A.11 in Frederics these
-    ENDDO
+    pTsoil(:,1) = (lambda * zc(:,1) + pTsrf) / (lambda * (1.0 - zd(:,1)) + 1.0) ! A.27 re-arragend to solve for t_0.5
+    pTsoil(:,2:nsoil) = zc(:,1:nsoil-1) + zd(:,1:nsoil-1) * pTsoil(:,1:nsoil-1) ! A.15
+  end subroutine soil_backward
 
-    !$acc loop private(z1)
-    DO ig=1,ngrid
-       z1=zdz2(nsoil)+dz1(nsoil-1)
-       zc(ig,nsoil-1)=zdz2(nsoil)*ptsoil(ig,nsoil)/z1 ! B__N-1 (A.17)
-       zd(ig,nsoil-1)=dz1(nsoil-1)/z1                 ! a_N-1 (A.16) in Frederics these
-    ENDDO
+  subroutine init_soil (nsoil)
+    !   Ground levels
+    !   grnd = z/l where l is the skin depth of the diurnal cycle:
+    integer, intent(in) :: nsoil
 
-    !$acc loop private(z1)
-    DO jk=nsoil-1,2,-1
-       DO ig=1,ngrid
-          z1=1./(zdz2(jk)+dz1(jk-1)+dz1(jk)*(1.-zd(ig,jk)))
-          zc(ig,jk-1)=                                                &
-               &      (ptsoil(ig,jk)*zdz2(jk)+dz1(jk)*zc(ig,jk))*z1  ! all the B_k ()
-          zd(ig,jk-1)=dz1(jk-1)*z1 ! all the a_ks
-       ENDDO
-    ENDDO
-    !-----------------------------------------------------------------------
-    !   computation of the surface diffusive flux from ground and
-    !   calorific capacity of the ground:
-    !   ---------------------------------
+    real    :: rk, rk1, rk2
+    integer :: jk
 
-    !$acc loop private(z1)
-    DO ig=1,ngrid
-       pfluxgrd(ig)=ptherm_i(ig)*dz1(1)*                              &
-            &   (zc(ig,1)+(zd(ig,1)-1.)*ptsoil(ig,1))               ! F* A.25 in Frederics these
-       z1=lambda*(1.-zd(ig,1))+1.
-       pcapcal(ig)=ptherm_i(ig)*                                      &
-            &   ptimestep*(zdz2(1)+(1.-zd(ig,1))*dz1(1))/z1         ! C_s A.30
-       pfluxgrd(ig)=pfluxgrd(ig)                                      &
-            &   +pcapcal(ig)*(ptsoil(ig,1)*z1-lambda*zc(ig,1)-ptsrf(ig))   &
-            &   /ptimestep                                           ! F_s A.31
-    ENDDO
-    !$acc end kernels
-    !$acc end data
+    WRITELOG (*,*) 'nsoil, firstcall  =  ', nsoil, .true.
 
-  END SUBROUTINE soil_forward
+    allocate (dz1(nsoil-1), dz2(nsoil))
 
-END MODULE soil_mod
+    do jk = 1, nsoil
+       rk1 = jk
+       rk2 = jk-1
+       dz2(jk) = fz(rk1) - fz(rk2)          ! numerator of c_k + 0.5 A.11
+    end do
+    do jk = 1, nsoil-1
+       rk1 = jk + 0.5
+       rk2 = jk - 0.5
+       dz1(jk) = 1.0 / (fz(rk1) - fz(rk2))  ! d_k A.12
+    end do
+    lambda = fz(0.5) * dz1(1)               ! mu A.28
+
+    WRITELOG (*,*) 'Full layers, intermediate layers (seconds)'
+
+    do jk = 1, nsoil
+       rk  = jk
+       rk1 = jk + 0.5
+       rk2 = jk - 0.5
+       WRITELOG (*,*) fz(rk1) * fz(rk2) * pi, fz(rk) * fz(rk) * pi
+    end do
+    LOG_INFO ('init_soil')
+  end subroutine init_soil
+
+  function fz (rk) result (val)
+    real :: val, rk
+
+    val = fz1 * (dalph_soil**rk - 1.0) / (dalph_soil - 1.0)
+  end function fz
+end module soil_mod

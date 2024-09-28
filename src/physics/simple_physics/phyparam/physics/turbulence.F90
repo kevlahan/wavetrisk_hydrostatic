@@ -3,71 +3,68 @@ module turbulence
   implicit none
   save
   private
-  real, parameter :: karman = 0.4
-  real            :: lmixmin = 100.0, emin_turb = 1e-8
-  pUblic          :: Vdif, lmixmin, emin_turb
+  real, parameter :: Karman = 0.4
+  real            :: LmixMin = 100.0, Emin_turb = 1e-8
+  public          :: Vdif, LmixMin, Emin_turb
 contains
   subroutine Vdif (ngrid, nlay, ptime, ptimestep, &
-       pcapcal, pz0, pplay, pplev, pzlay, pzlev, &
+       pcapcal, pz0, pplay, pplev, pZlay, pzlev, &
        pU, pV, pH, &
        ptsrf, pemis, &
        pdUfi, pdVfi, pdHfi, &
-       pfluxsrf, &
-       pdUdif, pdVdif, pdhdif, &
-       pdtsrf, &
-       lwrite, tendency)
-    use pHys_const, only: g,r,rcp,cpp
-    !=======================================================================
+       pFluxSrf, &
+       pdUdif, pdVdif, pdHdif, pdTSrf, &
+       lwrite)
+    use phys_const, only: g,r,rcp,Cpp
+    !============================================================================================
     !
-    !   Vertical diffusion for vertical turbulent diffusion
+    !   Complete physics time integration using input non-diffusion physics tendencies and computed
+    !   vertical turbulent diffusion tendencies.
+    !
+    !   Physics is advanced using explicit Forward Euler split step for non-diffusion
+    !   physics tendencies followed by implicit Backwards Euler for computed
+    !   vertical diffusion tendencies:
+    !
+    !   X(t+dt) = X(t) + dt * T_phys(X(t),t)  +  dt * T_diff(X(t+dt),t+dt)
+    !
+    !        ->    Y = X(t) + dt * T_phys(X(t),t)
+    !
+    !              X(t+dt) = Y + dt * T_diff(Y,t+dt)
     !
     !
-    !   PHysical are advanced using Forward Euler (first-order explicit) and
-    !   vertical diffusion is advanced using Backward Euler (first-order implicit)
+    !   where  T_phys and T_diff are physics and vertical diffusion tendencies.
     !
-    !      x(t+dt) = x(t) + dt * (dx/dt) pHys(t)  +  dt * (dx/dt) difv(t+dt)
-    !
-    !   If flag tendency = true, returns a pseudo "tendency" T(t) :
-    !
-    !   T(t) = ( -x(t) + dt * (dx/dt) pHys(t)  +  dt * (dx/dt) difv(t+dt) ) / dt
-    !
-    !   that can be used in Forward Euler:
-    !
-    !   x(t+dt) = x(t) + dt T(t)
-    !
-    !   If flag tendency = false, returns the solutions at the new time t+dt.
-    !
-    !=======================================================================
-    ! InpUt variables
+    !============================================================================================
+    ! Input variables
     integer,                       intent(in) :: ngrid                   ! number of columns
     integer,                       intent(in) :: nlay                    ! number of vertical layers
 
-    real,                          intent(in) :: ptime                   ! current time t
-    real,                          intent(in) :: ptimestep               ! time step dt
+    real,                          intent(in) :: pTime                   ! current time t
+    real,                          intent(in) :: pTimestep               ! time step dt
 
     ! Surface variables
-    real, dimension(ngrid),        intent(in) :: pcapcal                 ! surface conduction flux
-    real, dimension(ngrid),        intent(in) :: pemis                   ! emissivity of surface
-    real, dimension(ngrid),        intent(in) :: pfluxsrf                ! surface flux
+    real, dimension(ngrid),        intent(in) :: pCapCal                 ! surface conduction flux
+    real, dimension(ngrid),        intent(in) :: pEmis                   ! emissivity of surface
+    real, dimension(ngrid),        intent(in) :: pFluxSrf                ! surface flux
     real, dimension(ngrid),        intent(in) :: pz0                     ! z coordinate at surface [m]
-    real, dimension(ngrid),        intent(in) :: ptsrf                   ! surface temperature [K]
+    real, dimension(ngrid),        intent(in) :: pTsrf                   ! surface temperature [K]
 
     ! Layer centre variables
-    real, dimension(ngrid,nlay),   intent(in) :: pU, pV, pH              ! prognostic variables at time t
-    real, dimension(ngrid,nlay),   intent(in) :: pdUfi, pdVfi, pdHfi     ! pHysical tendencies at time t
-    real, dimension(ngrid,nlay),   intent(in) :: pplay                   ! pressure at middle of layers [Pa]
-    real, dimension(ngrid,nlay),   intent(in) :: pzlay                   ! z coordinate at middle of layers [m]
+    real, dimension(ngrid,nlay),   intent(in) :: pU, pV, pH              ! prognostic variables at time t from physics
+    real, dimension(ngrid,nlay),   intent(in) :: pdUfi, pdVfi, pdHfi     ! physics tendencies at time t (explicit scheme)
+    real, dimension(ngrid,nlay),   intent(in) :: pPlay                   ! pressure at middle of layers [Pa]
+    real, dimension(ngrid,nlay),   intent(in) :: pZlay                   ! z coordinate at middle of layers [m]
 
     ! Layer interface variables (interface pressure and z coordinate)
-    real, dimension(ngrid,nlay+1), intent(in) :: pplev                   ! pressure at interfaces between layers [Pa]
-    real, dimension(ngrid,nlay+1), intent(in) :: pzlev                   ! pressure at middle of layers [Pa]
+    real, dimension(ngrid,nlay+1), intent(in) :: pPlev                   ! pressure at interfaces between layers [Pa]
+    real, dimension(ngrid,nlay+1), intent(in) :: pZlev                   ! pressure at middle of layers [Pa]
 
     logical,                       intent(in) :: lwrite                  ! write diagnostics flag
-    logical,                       intent(in) :: tendency                ! returns pseudo-tendencies if T, solutions if F
 
-    ! OutpUt variables
-    real, dimension(ngrid),        intent(out) :: pdTsrf                 ! new surface temperature at time t+dt
-    real, dimension(ngrid,nlay),   intent(out) :: pdHdif, pdUdif, pdVdif ! pseudo-tendencies for Forward Euler
+    ! Output variables: pseudo-tendencies at t+dt
+    real, dimension(ngrid),        intent(out) :: pdTsrf                 ! surface temperature
+    real, dimension(ngrid,nlay),   intent(out) :: pdUdif, pdVdif         ! zonal and meridional velocities
+    real, dimension(ngrid,nlay),   intent(out) :: pdHdif                 ! potential temperature
 
     ! Local variables
     integer                       :: ilev, ig, ilay
@@ -75,166 +72,162 @@ contains
     integer                       :: cluvdb, pUtdat, pUtvdim, setname, setvdim
 
     real                          :: z4st, zcst1
-    real, dimension(ngrid)        :: z1, z2, zdplanck, zCdh, zCdv, zTsrf2, zu2
-    real, dimension(ngrid,nlay)   :: za, zb, zb0, zc, zd, zh, zu, zv
-    real, dimension(ngrid,nlay+1) :: zKv, zKh
+    real, dimension(ngrid)        :: z1, z2, zdPlanck, zcdh, zcdv, zTsrf2, zU2
+    real, dimension(ngrid,nlay)   :: zH, zU, zV                         ! intermediate prognostic variables at t+dt
+    real, dimension(ngrid,nlay)   :: za, zb, zb0, zc, zd
+    real, dimension(ngrid,nlay+1) :: zkV, zkH
 
     !------------------------------------------------------------------------------------------------------
     !   Initializations:
+    !
+    !   Computation of rho*dz and dt*rho/dz=dt*rho**2 g/dp with rho = p/RT  = p/(R Theta) (p/ps)**kappa
+    !
     !------------------------------------------------------------------------------------------------------
-    !   CompUtation of rho*dz and dt*rho/dz=dt*rho**2 g/dp with rho = p/RT  =p/ (R Theta) (p/ps)**kappa
-    !------------------------------------------------------------------------------------------------------
-    za(:,1:nlay) = (pplev(:,1:nlay) - pplev(:,2:nlay+1)) / g
+    za(:,1:nlay) = (pPlev(:,1:nlay) - pPlev(:,2:nlay+1)) / g
 
-    zcst1 = 4.0 * g * ptimestep / r**2
+    zcst1 = 4.0 * g * pTimestep / r**2
     do ilev = 2, nlay
-       zb0(:,ilev) = pplev(:,ilev) * (pplev(:,1) / pplev(:,ilev))**rcp / (pH(:,ilev-1) + pH(:,ilev))
-       zb0(:,ilev) = zcst1 * zb0(:,ilev) * zb0(:,ilev) / (pplay(:,ilev-1) - pplay(:,ilev))
+       zb0(:,ilev) = pPlev(:,ilev) * (pPlev(:,1) / pPlev(:,ilev))**rcp / (pH(:,ilev-1) + pH(:,ilev))
+       zb0(:,ilev) = zcst1 * zb0(:,ilev) * zb0(:,ilev) / (pPlay(:,ilev-1) - pPlay(:,ilev))
     end do
-    zb0(:,1) = ptimestep * pplev(:,1) / (r*pTsrf)
+    zb0(:,1) = pTimestep * pPlev(:,1) / (r*pTsrf)
 
     if (lwrite) then
        ig = ngrid/2 + 1
        WRITELOG (*,*) 'Pression (mbar) altitude (km),u,v,theta, rho dz'
        do ilay = 1, nlay
-          WRITELOG (*,*) 0.01 * pplay(ig,ilay), 0.001 * pzlay(ig,ilay), pU(ig,ilay), pV(ig,ilay), pH(ig,ilay), za(ig,ilay)
+          WRITELOG (*,*) 0.01 * pPlay(ig,ilay), 0.001 * pZlay(ig,ilay), pU(ig,ilay), pV(ig,ilay), pH(ig,ilay), za(ig,ilay)
        end do
        WRITELOG (*,*) 'Pression (mbar) altitude (km),zb'
        do ilev = 1, nlay
-          WRITELOG (*,*) 0.01 * pplev(ig,ilev), 0.001 * pzlev(ig,ilev), zb0(ig,ilev)
+          WRITELOG (*,*) 0.01 * pPlev(ig,ilev), 0.001 * pZlev(ig,ilev), zb0(ig,ilev)
        end do
        LOG_DBG('Vdif')
     endif
 
-    !-----------------------------------------------------------------------
-    !   2. Add pHysical tendencies (Forward Euler step)
-    !-----------------------------------------------------------------------
-    zu = pU + pdUfi * ptimestep
-    zv = pV + pdVfi * ptimestep
-    zh = pH + pdHfi * ptimestep
+    !-----------------------------------------------------------------------------------
+    !   2. Forward Euler split step using non-diffusion physics tendencies from input
+    !-----------------------------------------------------------------------------------
+    zU = pU + pdUfi * pTimestep
+    zV = pV + pdVfi * pTimestep
+    zH = pH + pdHfi * pTimestep
 
     !-----------------------------------------------------------------------
-    !   3. CompUte  drag coefficients Cd
+    !   3. Compute drag coefficients Cd
     !-----------------------------------------------------------------------
-    ! CompUte surface drag coefficents zCdv() and zCdh()
-    CALL Vdif_Cd (ngrid, pz0, g, pzlay, pU, pV, pTsrf, pH, zCdv, zCdh)
+    ! Surface drag coefficents zcdv() and zcdh()
+    CALL Vdif_Cd (ngrid, pz0, g, pZlay, pU, pV, pTsrf, pH, zcdv, zcdh)
 
-    ! CompUte zKv and zKh
-    CALL Vdif_k (ngrid, nlay, ptimestep, g, pzlev, pzlay, pz0, pU, pV, pH, zKv, zKh)
+    ! zkV and zkH
+    CALL Vdif_k (ngrid, nlay, pTimestep, g, pZlev, pZlay, pz0, pU, pV, pH, zkV, zkH)
 
-    zu2 = pU(:,1)**2 + pV(:,1)**2
-    zCdv = zCdv * sqrt (zu2)
-    zCdh = zCdh * sqrt (zu2)
+    zU2 = pU(:,1)**2 + pV(:,1)**2
+    zcdv = zcdv * sqrt (zU2)
+    zcdh = zcdh * sqrt (zU2)
 
     if (lwrite) then
        WRITELOG (*,*) 'Diagnostique diffusion verticale'
-       WRITELOG (*,*) 'LMIXMIN',lmixmin
+       WRITELOG (*,*) 'LmixXmin',LmixMin
 
-       WRITELOG (*,*) 'Coefficients Cd pour v et h'
-       WRITELOG (*,*) zCdv(ngrid/2+1), zCdh(ngrid/2+1)
+       WRITELOG (*,*) 'Coefficients Cd pour V et H'
+       WRITELOG (*,*) zcdv(ngrid/2+1), zcdh(ngrid/2+1)
 
-       WRITELOG (*,*) 'Coefficients K pour v et h'
+       WRITELOG (*,*) 'Coefficients K pour V et H'
        do ilev = 1, nlay
-          WRITELOG (*,*) zKv(ngrid/2+1,ilev), zKh(ngrid/2+1,ilev)
+          WRITELOG (*,*) zkV(ngrid/2+1,ilev), zkH(ngrid/2+1,ilev)
        end do
        LOG_DBG ('Vdif')
     endif
 
     !-----------------------------------------------------------------------
-    !   Vertical integration for u
+    !   Vertical integration for U
     !-----------------------------------------------------------------------
-    zb(:,2:nlay) = zKv(:,2:nlay) * zb0(:,2:nlay)
-    zb(:,1) = zCdv * zb0(:,1)
-
-    z1 = 1.0/ (za(:,nlay) + zb(:,nlay))
-    zc(:,nlay) = za(:,nlay) * zu(:,nlay) * z1
-    zd(:,nlay) = zb(:,nlay) * z1
-
-    do ilay = nlay-1, 1, -1
-       z1 = 1.0 / (za(:,ilay) + zb(:,ilay) + zb(:,ilay+1) * (1.0 - zd(:,ilay+1)))
-       zc(:,ilay) = (za(:,ilay) * zu(:,ilay) + zb(:,ilay+1) * zc(:,ilay+1)) * z1
-       zd(:,ilay) = zb(:,ilay) * z1
-    end do
-
-    zu(:,1) = zc(:,1)
-    zu(:,2:nlay) = zc(:,2:nlay) + zd(:,2:nlay) * zu(:,1:nlay-1)
-
-    !-----------------------------------------------------------------------
-    !   Vertical integration for v
-    !-----------------------------------------------------------------------
-    z1 = 1.0 / (za(:,nlay) + zb(:,nlay))
-    zc(:,nlay) = za(:,nlay) * zv(:,nlay) * z1
-    zd(:,nlay) = zb(:,nlay) * z1
-
-    do ilay = nlay-1, 1, -1
-       z1 = 1.0 / (za(:,ilay) + zb(:,ilay) + zb(:,ilay+1) * (1.0 - zd(:,ilay+1)))
-       zc(:,ilay) = (za(:,ilay) * zv(:,ilay) + zb(:,ilay+1) * zc(:,ilay+1)) * z1
-       zd(:,ilay) = zb(:,ilay) * z1
-    end do
-
-    zv(:,1)      = zc(:,1)
-    zv(:,2:nlay) = zc(:,2:nlay) + zd(:,2:nlay) * zv(:,1:nlay-1)
-
-    !------------------------------------------------------------------------
-    !   Vertical integration for h
-    !------------------------------------------------------------------------
-    zb(:,2:nlay) = zKh(:,2:nlay) * zb0(:,2:nlay)
-    zb(:,1)      = zCdh * zb0(:,1)
+    zb(:,2:nlay) = zkV(:,2:nlay) * zb0(:,2:nlay)
+    zb(:,1) = zcdv * zb0(:,1)
 
     z1 = 1.0 / (za(:,nlay) + zb(:,nlay))
-    zc(:,nlay) = za(:,nlay) * zh(:,nlay) * z1
+    zc(:,nlay) = zU(:,nlay) * za(:,nlay) * z1
+    zd(:,nlay) =              zb(:,nlay) * z1
+
+    do ilay = nlay-1, 1, -1
+       z1 = 1.0 / (za(:,ilay) + zb(:,ilay) + zb(:,ilay+1) * (1.0 - zd(:,ilay+1)))
+
+       zc(:,ilay) = (za(:,ilay) * zU(:,ilay) + zb(:,ilay+1) * zc(:,ilay+1)) * z1
+       zd(:,ilay) = zb(:,ilay) * z1
+    end do
+
+    ! Diffusion tendency for zonal velocity
+    zU(:,1)      = zc(:,1)
+    zU(:,2:nlay) = zc(:,2:nlay) + zd(:,2:nlay) * zU(:,1:nlay-1)
+
+    !-----------------------------------------------------------------------
+    !   Vertical integration for V
+    !-----------------------------------------------------------------------
+    z1 = 1.0 / (za(:,nlay) + zb(:,nlay))
+    zc(:,nlay) = zV(:,nlay) * za(:,nlay) * z1
+    zd(:,nlay) =              zb(:,nlay) * z1
+
+    do ilay = nlay-1, 1, -1
+       z1 = 1.0 / (za(:,ilay) + zb(:,ilay) + zb(:,ilay+1) * (1.0 - zd(:,ilay+1)))
+       zc(:,ilay) = (za(:,ilay) * zV(:,ilay) + zb(:,ilay+1) * zc(:,ilay+1)) * z1
+       zd(:,ilay) = zb(:,ilay) * z1
+    end do
+
+    ! Diffusion tendency for meridional velocity
+    zV(:,1)      = zc(:,1)
+    zV(:,2:nlay) = zc(:,2:nlay) + zd(:,2:nlay) * zV(:,1:nlay-1)
+
+
+    !------------------------------------------------------------------------
+    !   Vertical integration for potential temperature H
+    !------------------------------------------------------------------------
+    zb(:,2:nlay) = zkH(:,2:nlay) * zb0(:,2:nlay)
+    zb(:,1)      = zcdh * zb0(:,1)
+
+    z1 = 1.0 / (za(:,nlay) + zb(:,nlay))
+    zc(:,nlay) = za(:,nlay) * zH(:,nlay) * z1
     zd(:,nlay) = zb(:,nlay) * z1
 
     do ilay = nlay-1, 1, -1
        z1 = 1.0 / (za(:,ilay) + zb(:,ilay) + zb(:,ilay+1) * (1.0 - zd(:,ilay+1)))
-       zc(:,ilay) = (za(:,ilay) * zh(:,ilay)+ zb(:,ilay+1) * zc(:,ilay+1)) * z1
+       zc(:,ilay) = (za(:,ilay) * zH(:,ilay)+ zb(:,ilay+1) * zc(:,ilay+1)) * z1
        zd(:,ilay) = zb(:,ilay) * z1
     end do
 
     !------------------------------------------------------------------------
-    !   Add Planck contribution to the implicit scheme
+    !   Add Planck contribution to implicit scheme
     !------------------------------------------------------------------------
-    z4st = 4.0 * 5.67e-8 * ptimestep
-    zdplanck = z4st * pemis * pTsrf**3
+    z4st = 4.0 * 5.67e-8 * pTimestep
+    zdPlanck = z4st * pEmis * pTsrf**3
 
     !-----------------------------------------------------------------------
-    !   CompUte the evolution of the surface temperature
+    !   Compute evolution of surface temperature
     !-----------------------------------------------------------------------
-    z1 = pcapcal * pTsrf + cpp * zb(:,1) * zc(:,1)         + zdplanck * pTsrf + pfluxsrf * ptimestep
-    z2 = pcapcal         + cpp * zb(:,1) * (1.0 - zd(:,1)) + zdplanck
+    z1 = pcapcal * pTsrf + Cpp * zb(:,1) * zc(:,1)         + zdPlanck * pTsrf + pFluxSrf * pTimestep
+    z2 = pcapcal         + Cpp * zb(:,1) * (1.0 - zd(:,1)) + zdPlanck
 
     zTsrf2 = z1 / z2
-    zh(:,1) = zc(:,1) + zd(:,1) * zTsrf2
-    pdTsrf = (zTsrf2 - pTsrf) / ptimestep
+
+    ! Diffusion tendency for potential temperature
+    zH(:,1)      = zc(:,1)      + zd(:,1)      * zTsrf2
+    zH(:,2:nlay) = zc(:,2:nlay) + zd(:,2:nlay) * zH(:,1:nlay-1)
+
 
     !-----------------------------------------------------------------------
-    !   Final vertical integration
+    !   Complete pseudo-tendencies/solution at t+dt
     !-----------------------------------------------------------------------
-    zh(:,2:nlay) = zc(:,2:nlay) + zd(:,2:nlay) * zh(:,1:nlay-1)
-
-    !-----------------------------------------------------------------------
-    !   CompUte the vertical diffusion tendencies:
-    !   "tendency" (-u(t) + u(t+dt))/dt to be used as a tendency
-    !   in a Forward Euler step
-    !-----------------------------------------------------------------------
-
-    if (tendency) then ! pseudo tendencies
-       pdUdif = (-pU + zu - pdUfi * ptimestep) / ptimestep
-       pdVdif = (-pV + zv - pdVfi * ptimestep) / ptimestep
-       pdHdif = (-pH + zh - pdHfi * ptimestep) / ptimestep
-    else               ! new solution at t+dt
-       pdUdif = zu - pdUfi * ptimestep
-       pdVdif = zv - pdVfi * ptimestep
-       pdHdif = zh - pdHfi * ptimestep
-    end if
+    pdUdif = (-pU    + zU - pdUfi * pTimestep) / pTimestep
+    pdVdif = (-pV    + zV - pdVfi * pTimestep) / pTimestep
+    pdHdif = (-pH    + zH - pdHfi * pTimestep) / pTimestep
+    pdTsrf = (-pTsrf + zTsrf2 )                / pTimestep
 
     if (lwrite) then
        WRITELOG (*,*)
        WRITELOG (*,*) 'Diagnostique de la diffusion verticale'
-       WRITELOG (*,*) 'h avant et apres diffusion verticale'
+       WRITELOG (*,*) 'Potential temperature avant et apres diffusion verticale'
        WRITELOG (*,*) pTsrf(ngrid/2+1), zTsrf2(ngrid/2+1)
        do ilev = 1, nlay
-          WRITELOG (*,*) pH(ngrid/2+1,ilev), zh(ngrid/2+1,ilev)
+          WRITELOG (*,*) pH(ngrid/2+1,ilev), zH(ngrid/2+1,ilev)
        end do
        LOG_DBG ('Vdif')
     end if
@@ -243,7 +236,7 @@ contains
   pUre subroutine Vdif_Cd (ngrid, pz0, pg, pz, pU, pV, pts, pH, pCdv, pCdh)
     !=======================================================================
     !
-    !   Subject: compUtation of the surface drag coefficient using the
+    !   Subject: Computation of  surface drag coefficient using
     !   -------  approch developed by Louis for ECMWF.
     !
     !   Author: Frederic Hourdin  15 /10 /93
@@ -253,8 +246,8 @@ contains
 
     real,                   intent(in) :: pg    ! gravity [m/s^2]
 
-    real, dimension(ngrid), intent(in) :: pz0   ! surface roughness length scale [m]
-    real, dimension(ngrid), intent(in) :: pz    ! height of the first atmospHeric layer [m]
+    real, dimension(ngrid), intent(in) :: pZ0   ! surface roughness length scale [m]
+    real, dimension(ngrid), intent(in) :: pZ    ! height of the first atmospHeric layer [m]
     real, dimension(ngrid), intent(in) :: pU    ! zonal velocity (m/s) in the layer
     real, dimension(ngrid), intent(in) :: pV    ! meridional velocity (m/s) in the layer
     real, dimension(ngrid), intent(in) :: pTs   ! surface temperature [K]
@@ -264,75 +257,74 @@ contains
     real, dimension(ngrid), intent(out) :: pCdh ! Cd for potential temperature
 
     integer         :: ig
-    real            :: zu2, z1, zri, zCd0, zz
+    real            :: zU2, z1, zRi, zCd0, zz
     real, parameter :: b = 5.0, c = 5.0, d = 5.0, umin2 = 1e-12, c2b = 2.0 * b, c3bc = 3.0 * b * c, c3b = 3.0 * b
 
     !-----------------------------------------------------------------------
     !   couche de surface:
     !-----------------------------------------------------------------------
-    !        zu2 = pU**2 + pV**2 + umin2
-    !        pCdv = pz0 * (1.0 + sqrt (zu2))
+    !        zU2 = pU**2 + pV**2 + umin2
+    !        pCdv = pZ0 * (1.0 + sqrt (zU2))
     !        pCdh = pCdv
 !!!! WARNING, verifier la formule originale de Louis!
     do ig = 1, ngrid
-       zu2 = pU(ig)**2 +  pV(ig)**2 + umin2
+       zU2 = pU(ig)**2 +  pV(ig)**2 + umin2
 
-       zri = pg  * pz(ig) * (pH(ig) - pTs(ig)) / (pH(ig) * zu2)
-       z1  = 1.0 + pz(ig) / pz0(ig)
+       zRi = pg  * pZ(ig) * (pH(ig) - pTs(ig)) / (pH(ig) * zU2)
+       z1  = 1.0 + pZ(ig) / pZ0(ig)
 
-       zCd0 = karman / log (z1)
-       zCd0 = zCd0**2 * sqrt (zu2)
+       zCd0 = Karman / log (z1)
+       zCd0 = zCd0**2 * sqrt (zU2)
 
-       if (zri < 0.0) then
-          z1 = b * zri / (1.0 + c3bc * zCd0 * sqrt (- z1 * zri))
+       if (zRi < 0.0) then
+          z1 = b * zRi / (1.0 + c3bc * zCd0 * sqrt (- z1 * zRi))
 
           pCdv(ig) = zCd0 * (1.0 - 2.0 * z1)
           pCdh(ig) = zCd0 * (1.0 - 3.0 * z1)
        else
-          zz = sqrt (1.0 + d * zri)
+          zz = sqrt (1.0 + d * zRi)
 
-          pCdv(ig) = zCd0 / (1.0 + c2b * zri / zz)
-          pCdh(ig) = zCd0 / (1.0 + c3b * zri * zz)
+          pCdv(ig) = zCd0 / (1.0 + c2b * zRi / zz)
+          pCdh(ig) = zCd0 / (1.0 + c3b * zRi * zz)
        end if
     end do
   end subroutine Vdif_Cd
 
-  pUre subroutine Vdif_k (ngrid, nlay, ptimestep, pg, pzlev, pzlay, pz0, pU, pV, pH, pKv, pKh)
-    ! FIXME : pKh := pKv
+  pUre subroutine Vdif_k (ngrid, nlay, pTimestep, pg, pZlev, pZlay, pZ0, pU, pV, pH, pkV, pKh)
+    ! FIXME : pkH := pkV
     integer,                       intent(in)  :: ngrid, nlay
-    real,                          intent(in)  :: ptimestep, pg
-    real, dimension(ngrid),        intent(in)  :: pz0
-    real, dimension(ngrid,nlay),   intent(in)  :: pH, pU, pV, pzlay
-    real, dimension(ngrid,nlay+1), intent(in)  :: pzlev
-    real, dimension(ngrid,nlay+1), intent(out) :: pKh, pKv
+    real,                          intent(in)  :: pTimestep, pg
+    real, dimension(ngrid),        intent(in)  :: pZ0
+    real, dimension(ngrid,nlay),   intent(in)  :: pZlay
+    real, dimension(ngrid,nlay),   intent(in)  :: pH, pU, pV
+    real, dimension(ngrid,nlay+1), intent(in)  :: pZlev
+    real, dimension(ngrid,nlay+1), intent(out) :: pkH, pkV
 
     integer :: ig, il
-    real    :: lmix, zdu, zdv, zri, zdvodz2, zdz, z1
+    real    :: Lmix, zdU, zdV, zRi, zdVodz2, zdz, z1
 
-    pKv(:,1)      = 0.0
-    pKh(:,1)      = 0.0
-    pKv(:,nlay+1) = 0.0
-    pKh(:,nlay+1) = 0.0
+    pkV = 0.0
+    pkH = 0.0
 
     do il = 2 , nlay
        do ig = 1, ngrid
-          z1 = pzlev(ig,il) + pz0(ig)
-          lmix = karman * z1 / (1.0 + karman * z1 / lmixmin)
-          !           lmix = lmixmin
-          ! WARNING test lmix = lmixmin
-          zdu = pU(ig,il)    -    pU(ig,il-1)
-          zdv = pV(ig,il)    -    pV(ig,il-1)
-          zdz = pzlay(ig,il) - pzlay(ig,il-1)
+          z1 = pZlev(ig,il) + pZ0(ig)
+          Lmix = Karman * z1 / (1.0 + Karman * z1 / LmixMin)
+          !              Lmix = LmixMin
+          ! WARNING test Lmix = LmixMin
+          zdU = pU(ig,il)    -    pU(ig,il-1)
+          zdV = pV(ig,il)    -    pV(ig,il-1)
+          zdz = pZlay(ig,il) - pZlay(ig,il-1)
 
-          zdvodz2 = (zdu**2 + zdv**2) / zdz**2
-          if (zdvodz2 < 1.0e-5) then
-             pKv(ig,il) = lmix * sqrt (emin_turb)
+          zdVodz2 = (zdU**2 + zdV**2) / zdz**2
+          if (zdVodz2 < 1.0e-5) then
+             pkV(ig,il) = Lmix * sqrt (Emin_turb)
           else
-             zri = 2.0 * pg * (pH(ig,il) - pH(ig,il-1)) / (zdz * (pH(ig,il) + pH(ig,il-1)) * zdvodz2)
+             zRi = 2.0 * pg * (pH(ig,il) - pH(ig,il-1)) / (zdz * (pH(ig,il) + pH(ig,il-1)) * zdVodz2)
 
-             pKv(ig,il)= lmix * sqrt (max (lmix * lmix * zdvodz2 * (1.0 - zri/0.4), emin_turb))
+             pkV(ig,il)= Lmix * sqrt (max (Lmix**2 * zdVodz2 * (1.0 - zRi/0.4), Emin_turb))
           end if
-          pKh(ig,il) = pKv(ig,il)
+          pkH(ig,il) = pkV(ig,il)
        end do
     end do
   end subroutine Vdif_k

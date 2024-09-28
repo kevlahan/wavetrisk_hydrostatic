@@ -5,26 +5,29 @@ module phyparam_mod
   implicit none
   private
   save
-  integer :: icount
-  real    :: zday_last
-  logical :: firstcall_alloc=.true.
-  real, parameter :: ref_temp = 285.0, capcal_nosoil = 1e5, tsoil_init = 300.0
+  integer         :: icount
+  real            :: zday_last
+  logical         :: firstcall_alloc=.true.
+
+  real, parameter :: capcal_nosoil = 1e5
+  real, parameter :: ref_temp      = 285.0
+  real, parameter :: Tsoil_init    = 300.0
   public :: phyparam, alloc, precompute, zday_last, icount
 contains
   subroutine phyparam (              &
        ngrid, nlayer,                &
        firstcall, lastcall,          &
        rjourvrai, gmtime, ptimestep, &
-       pplev, pplay, pphi,           &
+       pplev, pplay, pPhi,           &
        pu, pv, pt,                   &
        pdU, pdV, pdt, pdPsrf )       &
        bind(c, name='phyparam_phyparam')
     use,          intrinsic :: iso_c_binding
-    use phys_const,     only : g, rcp, r, unjours
+    use phys_const,     only : g, Rcp, r, unjours
     use soil_mod,       only : soil_forward, soil_backward
-    use soil_mod,       only : z0, inertie, emissiv, albedo  ! precomputed
-    use soil_mod,       only : tsurf, tsoil                  ! state variables
-    use turbulence,     only : vdif
+    use soil_mod,       only : z0, inertie, Emissiv, Albedo  ! precomputed
+    use soil_mod,       only : Tsurf, Tsoil                  ! state variables
+    use turbulence,     only : Vdif
     use convection,     only : convadj
     USE radiative_mod,  only : radiative_tendencies
     use writefield_mod, only : writefield
@@ -32,15 +35,15 @@ contains
     use profiling,      only : profile_enter, profile_exit, id_phyparam
     !=======================================================================
     !
-    !   Top routine of the physical parametrisations of the LMDZ  climate model
-    !   20 parameters GCM for planetary atmospheres.
+    !   Physical parametrisations of LMDZ  20 parameter climate model
+    !   for planetary atmospheres.
     !
     !   Includes following sub-models:
     !
     !   1. Radiative transfer (long and shortwave) for CO2 and dust.
+    !   3. Convective adjustment.
+    !   4. Vertical heat diffusion in soil column.
     !   2. Vertical turbulent mixing
-    !   3. Convective adjsutment
-    !   4. Heat diffusion in the soil
     !
     !   Author:  Frederic Hourdin  1993-10-15
     !   Revised: Nicholas Kevlahan 2024-09-27
@@ -48,43 +51,43 @@ contains
     !=======================================================================
 
     ! Input variables
-    integer, intent(in), value ::  &
+    integer, intent(in), value ::  & !
          ngrid,                    & ! size of the horizontal grid.
          nlayer                      ! number of vertical layers.
-    logical(kind=c_bool), intent(in), value  :: &
+    logical(kind=c_bool), intent(in), value  :: & !
          firstcall,                & ! true at the first call
          lastcall                    ! true at the last call
-    real, intent(in), value     :: &
+    real, intent(in), value     :: & !
          rjourvrai,                & ! number of days counted from the north. spring equinox
          gmtime,                   & ! fraction of the day (ranges from 0 to 1)
          ptimestep                   ! timestep [s]
-    real, intent(in) ::            &
-         pplev(ngrid,nlayer+1),    & ! pressure at interfaces between layers [Pa]
-         pplay(ngrid,nlayer),      & ! pressure at the middle of the layers [Pa]
+    real, intent(in) ::            & !
+         pPlev(ngrid,nlayer+1),    & ! pressure at interfaces between layers [Pa]
+         pPlay(ngrid,nlayer),      & ! pressure at the middle of the layers [Pa]
          pPhi(ngrid,nlayer),       & ! geopotential at the middle of the layers [m^2/s^2]
          pU(ngrid,nlayer),         & ! zonal velocity [m/s]
          pV(ngrid,nlayer),         & ! meridional velocity [m/s]
          pT(ngrid,nlayer)            ! temperature [K]
 
     ! Output variables
-    real, intent(out)   ::         &
+    real, intent(out)   ::         & !
          pdU(ngrid,nlayer),        & ! tendency of zonal velocity[m/s^2]
          pdV(ngrid,nlayer),        & ! tendency of meridional velocity [m/s^2]
          pdT(ngrid,nlayer),        & ! tendency of temperature [K/s]
          pdPsrf(ngrid)               ! tendency of surface pressure [Pa/s]
 
     ! Local variables
-    real ::                        &
-         zh(ngrid,nlayer),         & ! potential temperature
+    real ::                        & !
+         zH(ngrid,nlayer),         & ! potential temperature
          zpopsk(ngrid,nlayer),     & ! Exner function
-         zzlev(ngrid,nlayer+1),    & ! height of layer interfaces
-         zzlay(ngrid,nlayer),      & ! height of layer centres
+         zZlev(ngrid,nlayer+1),    & ! height of layer interfaces
+         zZlay(ngrid,nlayer),      & ! height of layer centres
 
          zc(ngrid,nsoilmx-1),      & ! Lu coefficients for soil implicit solve
          zd(ngrid,nsoilmx-1),      &
 
-         fluxrad(ngrid),           & ! radiative flux at surface
-         fluxgrd(ngrid),           & ! heat flux from deep soil
+         FluxRad(ngrid),           & ! radiative flux at surface
+         FluxGrd(ngrid),           & ! heat flux from deep soil
          capcal(ngrid),            & ! effective heat capacity of soil
 
          zdUfr(ngrid,nlayer),      & ! partial tendencies for zonal velocity,
@@ -95,13 +98,12 @@ contains
          zdTsrf(ngrid),            & ! total tendency of surface temperature
 
          zflubid(ngrid),           & ! radiative + deep soil fluxes
-         zpmer(ngrid)                ! sea-level pressure
+         zPmer(ngrid)                ! sea-level pressure
 
     integer                       :: j, l, ig, igout
     real                          :: zday, zdtime, z1, z2
     real, dimension(ngrid,nlayer) :: zdum1, zdum2, zdum3
     logical                       :: lwrite
-    logical                       :: tendency = .true.
 
     call nvtxstartrange ("physics")
 
@@ -147,77 +149,83 @@ contains
     zflubid = 0.0
     zdTsrf  = 0.0
 
-    !-----------------------------------------------------------------------
-    !   Calcul du geopotentiel aux niveaux intercouches
-    !   ponderation des altitudes au niveau des couches en dp/p
-    !-----------------------------------------------------------------------
-    zzlay = pphi / g
-    zzlev(:,1) = 0.0
+    ! Calcul du geopotentiel aux niveaux intercouches ponderation des altitudes au niveau des couches en dP/P
+    zZlay = pPhi / g
+    zZlev(:,1) = 0.0
 
     do l = 2, nlayer
        do ig = 1, ngrid
-          z1 = (pplay(ig,l-1) + pplev(ig,l)) / (pplay(ig,l-1) - pplev(ig,l))
-          z2 = (pplev(ig,l)   + pplay(ig,l)) / (pplev(ig,l)   - pplay(ig,l))
+          z1 = (pPlay(ig,l-1) + pPlev(ig,l)) / (pPlay(ig,l-1) - pPlev(ig,l))
+          z2 = (pPlev(ig,l)   + pPlay(ig,l)) / (pPlev(ig,l)   - pPlay(ig,l))
 
-          zzlev(ig,l) = (z1 * zzlay(ig,l-1) + z2 * zzlay(ig,l)) / (z1 + z2)
+          zZlev(ig,l) = (z1 * zZlay(ig,l-1) + z2 * zZlay(ig,l)) / (z1 + z2)
        end do
     end do
 
-    !-----------------------------------------------------------------------
-    !   Transformation de la temperature en temperature potentielle
-    !-----------------------------------------------------------------------
-    zpopsk = (pplay / pplev(:,1:nlayer))**rcp ! surface pressure is used as reference pressure
-    zh     = pt / zpopsk
+    ! Transformation de la temperature en temperature potentielle
+    zpopsk = (pPlay / pPlev(:,1:nlayer))**Rcp ! surface pressure is used as reference pressure
+    zH     = pT / zpopsk
 
-    !-----------------------------------------------------------------------
-    !  Soil temperatures : 1st half of implicit time integration
-    !  forward sweep from deep ground to surface.
+
+    !-----------------------------------------------------------------------------------------------
+    !  2. Vertical diffusion of heat in soil column
     !
-    !  yields Lu coefficients zc, zd and capcal, fluxgrd
-    !-----------------------------------------------------------------------
+    !  First half split-step of implicit time integration forward sweep from
+    !  deep ground to surface.
+    !
+    !  Returns Lu coefficients zc, zd and CapCal, FluxGrd
+    !
+    !-----------------------------------------------------------------------------------------------
     if (callsoil) then
-       call soil_forward (ngrid, nsoilmx, ptimestep, inertie, tsurf, tsoil, zc, zd, capcal, fluxgrd)
+       call soil_forward (ngrid, nsoilmx, pTimestep, inertie, Tsurf, Tsoil, zc, zd, CapCal, FluxGrd)
     else
-       capcal  = capcal_nosoil
-       fluxgrd = 0.0
+       CapCal  = CapCal_nosoil
+       FluxGrd = 0.0
     end if
 
     if (lverbose) then
        WRITELOG (*,*) 'Surface heat capacity, conduction flux, Ts'
-       WRITELOG (*,*) capcal(igout), fluxgrd(igout), tsurf(igout)
+       WRITELOG (*,*) CapCal(igout), FluxGrd(igout), Tsurf(igout)
        LOG_DBG ('phyparam')
     end if
 
 
-    !-----------------------------------------------------------------------
-    !    2. Compute radiative tendencies
-    !-----------------------------------------------------------------------
-    if (callrad) call radiative_tendencies (lwrite, ngrid, igout, nlayer, gmtime, ptimestep*float(iradia), &
-         zday, pplev, pplay, pt,  pdT, fluxrad)
+    !-----------------------------------------------------------------------------------------------
+    !    2. Radiative tendencies
+    !-----------------------------------------------------------------------------------------------
+    if (callrad) &
+         call radiative_tendencies (lwrite, ngrid, igout, nlayer, gmtime, pTimestep * float(iradia), zDay, pPlev, pPlay, pT,  &
+         pdT, FluxRad)
 
 
-    !-----------------------------------------------------------------------
+    !-----------------------------------------------------------------------------------------------
     !    3. Vertical diffusion (turbulent mixing)
     !
-    ! kz is computed, then vertical diffusion is integrated in time implicitly
-    ! using a linear relationship between surface heat flux and
-    ! air temperature in lowest level (robin-type bc)
-    !-----------------------------------------------------------------------
+    ! Second-order Strang splitting consisting of:
+    !
+    ! 1. Explicit Forward Euler  split-step for physics tendencies computed above (soil and radiative)
+    !
+    ! 2. Implicit Backwards Euler split-step for vertical turbulent diffusion:
+    ! kz is computed and then vertical diffusion is integrated in time implicitly
+    ! using a linear relationship between surface heat flux and air temperature
+    ! in lowest level (Robin-type BC).
+    !
+    !-----------------------------------------------------------------------------------------------
     if (calldifv) then
-       zflubid = fluxrad + fluxgrd
+       zflubid = FluxRad + FluxGrd
 
        zdum1 = 0.0
        zdum2 = 0.0
        zdum3 = pdT / zpopsk
 
-       call vdif (                        &
+       call Vdif (                        &
             ngrid, nlayer, zday,          &
             ptimestep, capcal, z0,        &
-            pplay, pplev, zzlay, zzlev,   &
-            pU, pV, zH, Tsurf, emissiv,   &
+            pPlay, pPlev, zZlay, zZlev,   &
+            pU, pV, zH, Tsurf, Emissiv,   &
             zdum1, zdum2, zdum3, zflubid, &
             zdUfr, zdVfr, zdHfr, zdTsrfr, &
-            lverbose, tendency)
+            lverbose)
 
        pdV = pdV + zdVfr                              ! zonal velocity
        pdU = pdU + zdUfr                              ! meridional velocity
@@ -225,20 +233,20 @@ contains
        pdT    = pdT    + zdHfr * zpopsk               ! temperature
        zdTsrf = zdTsrf + zdTsrfr                      ! surface temperature
     else ! no vertical diffusion
-       zdTsrf = zdTsrf + (fluxrad + fluxgrd) / capcal ! surface temperature
+       zdTsrf = zdTsrf + (FluxRad + FluxGrd) / CapCal ! surface temperature
     end if
 
     !-------------------------------------------------------------
     !   Soil temperatures : 2nd half of implicit time integration
-    !   using updated tsurf as input
+    !   using updated Tsurf as input
     !-------------------------------------------------------------
     Tsurf = Tsurf + ptimestep * zdTsrf
 
     if (callsoil) then
-       call soil_backward (ngrid, nsoilmx, zc, zd, tsurf,tsoil)
+       call soil_backward (ngrid, nsoilmx, zc, zd, Tsurf, Tsoil)
        if (lverbose) then
           WRITELOG (*,*) 'surface ts, dts, dt'
-          WRITELOG (*,*) tsurf(igout), zdTsrf(igout), ptimestep
+          WRITELOG (*,*) Tsurf(igout), zdTsrf(igout), ptimestep
           LOG_DBG ('phyparam')
        end if
     end if
@@ -256,7 +264,7 @@ contains
 
        call convadj (                 &
             ngrid, nlayer, ptimestep, &
-            pplay, pplev, zpopsk,     &
+            pPlay, pPlev, zpopsk,     &
             pU, pV, zH,               &
             pdU, pdV, zdum1,          &
             zdUfr, zdVfr, zdHfr)
@@ -274,27 +282,27 @@ contains
     LOG_DBG ('phyparam')
 
     if (lwrite) then
-       zpmer = pplev(:,1) * exp (pphi(:,1) / (r * ref_temp))
+       zPmer = pPlev(:,1) * exp (pPhi(:,1) / (r * ref_temp))
 
        call writefield ('U',     'vent zonal moy',        'm/s',   pU)
        call writefield ('V',     'vent meridien moy',     'm/s',   pV)
        call writefield ('temp',  'temperature',           'K',     pT)
        call writefield ('theta', 'potential temperature', 'K',     zH)
-       call writefield ('geop',  'geopotential',          'm2/s2', pphi)
-       call writefield ('plev',  'plev',                  'Pa' ,   pplev(:,1:nlayer))
+       call writefield ('geop',  'geopotential',          'm2/s2', pPhi)
+       call writefield ('plev',  'plev',                  'Pa' ,   pPlev(:,1:nlayer))
 
        call writefield ('dU', 'dU',' ', pdU)
        call writefield ('dV', 'dV',' ', pdV)
        call writefield ('dT', 'dT',' ', pdT)
 
-       call writefield ('Ts','surface temper',       'K', Tsurf)
-       call writefield ('coslon','coslon',' ',            coslon)
-       call writefield ('sinlon','sinlon',' ',            sinlon)
-       call writefield ('coslat','coslat',' ',            coslat)
-       call writefield ('sinlat','sinlat',' ',            sinlat)
-       call writefield ('alb','alb',' ',                  albedo)
-       call writefield ('Ps','surface pressure',    'Pa', pplev(:,1))
-       call writefield ('slp','sea level pressure', 'Pa', zpmer)
+       call writefield ('Ts',     'Surface temperature', 'K',  Tsurf)
+       call writefield ('coslon', 'coslon',              ' ',  coslon)
+       call writefield ('sinlon', 'sinlon',              ' ',  sinlon)
+       call writefield ('coslat', 'coslat',              ' ',  coslat)
+       call writefield ('sinlat', 'sinlat',              ' ',  sinlat)
+       call writefield ('alb',    'Albedo',              ' ',  Albedo)
+       call writefield ('Ps',     'Surface pressure',    'Pa', pPlev(:,1))
+       call writefield ('slp',    'Sea level pressure',  'Pa', zPmer)
     end if
 
     call profile_exit (id_phyparam)
@@ -303,38 +311,38 @@ contains
 
   subroutine alloc (ngrid, nlayer) bind(c, name='phyparam_alloc')
     use astronomy, only : iniorbit
-    use soil_mod,  only : tsurf, tsoil, z0, inertie, rnatur, albedo, emissiv
+    use soil_mod,  only : Tsurf, Tsoil, z0, inertie, rnatur, Albedo, Emissiv
     integer, intent(in), value :: ngrid, nlayer
 
     ! Allocate precomputed arrays
-    allocate (rnatur(ngrid), albedo(ngrid), emissiv(ngrid))
+    allocate (rnatur(ngrid), Albedo(ngrid), Emissiv(ngrid))
     allocate (z0(ngrid),inertie(ngrid))
 
     ! Allocate arrays for internal state
-    allocate (tsurf(ngrid))
-    allocate (tsoil(ngrid, nsoilmx))
+    allocate (Tsurf(ngrid))
+    allocate (Tsoil(ngrid, nsoilmx))
 
     call iniorbit
   end subroutine alloc
 
   subroutine precompute() bind(c, name='phyparam_precompute')
     ! Precompute time-independent arrays
-    use soil_mod, only: rnatur, inertie, z0, emissiv, albedo,  i_mer, i_ter, Cd_mer, Cd_ter,  alb_mer, alb_ter, emi_mer, emi_ter
+    use soil_mod, only: rnatur, inertie, z0, Emissiv, Albedo,  i_mer, i_ter, Cd_mer, Cd_ter,  alb_mer, alb_ter, emi_mer, emi_ter
 
     rnatur(:)  = 1.0
     inertie(:) = (1.0 - rnatur) * i_mer   + rnatur * i_ter
     z0(:)      = (1.0 - rnatur) * Cd_mer  + rnatur * Cd_ter
-    emissiv(:) = (1.0 - rnatur) * emi_mer + rnatur * emi_ter
-    albedo(:)  = (1.0 - rnatur) * alb_mer + rnatur * alb_ter
+    Emissiv(:) = (1.0 - rnatur) * emi_mer + rnatur * emi_ter
+    Albedo(:)  = (1.0 - rnatur) * alb_mer + rnatur * alb_ter
   end subroutine precompute
 
   subroutine coldstart(ngrid) bind(c, name='phyparam_coldstart')
     ! Create internal state to start a run without a restart file
-    use soil_mod, only : tsurf, tsoil
+    use soil_mod, only : Tsurf, Tsoil
     integer, intent(in), value :: ngrid
 
-    tsurf  = tsoil_init
-    tsoil  = tsoil_init
+    Tsurf  = Tsoil_init
+    Tsoil  = Tsoil_init
     icount = 0
     if (.not. callsoil .and. firstcall_alloc .and. lverbose) then ! write only on first call (lverbose set by interface)
        WRITELOG (*,*) 'WARNING!! thermal conduction in the soil turned off'
