@@ -38,11 +38,7 @@ module init_physics_mod
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Default values values physics Model Parameters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     ! Sub-model activation
-    if (Nsoil /= 0) then
-       soil_model     = .true.                        
-    else
-       soil_model     = .false.                       ! use surface flux only
-    end if
+    
 
     radiation_model  = .true.                         ! (T) radiation module is on
     turbulence_model = .true.                         ! (T) vertical diffusion module is on
@@ -179,14 +175,14 @@ module init_physics_mod
     close (file_unit)
   end subroutine write_physics_params
 
-  subroutine init_soil_grid_default
+   subroutine init_soil_grid
     !-----------------------------------------------------------------------------------
     !
     !   Description: Initialize physics package with dummy longitude & latitude values
-    !                and grid parameters. Also set number of soil levels and zmin to
-    !                default value of the physics package (nsoilmx=10 currently)
+    !                and grid parameters. Also set number of soil levels and zmin.
     !
-    !   Notes: To be used when number of soil levels not set in Simple_Physics.f90.
+    !   Assumptions: Nsoil is set in test case (e.g. climate.f90).
+    !
     !
     !   Author: Gabrielle Ching-Johnson
     !
@@ -195,52 +191,22 @@ module init_physics_mod
 
     real(8) :: lat(1), long(1)
 
-    if (.not. soil_model) then
-       if (rank == 0) print*, 'STOP!! Cannot use default (init_soil_grid_default) to set zmin when soil_model flag indicates false'
-       stop
-    end if
-
-    ! Dummy latitude and longitude for initialization
-    lat(1)  = 0d0
-    long(1) = 0d0
-    
-    call init_comgeomfi(1, zlevels, long, lat) ! grid initialization for the physics
-
-    ! Set the number of soil levels and zmin (lowest vertical level index)
-    Nsoil = nsoilmx
-    zmin  = - Nsoil
-  end subroutine init_soil_grid_default
-
-  subroutine init_soil_grid
-    !-----------------------------------------------------------------------------------
-    !
-    !   Description: Initialize physics package with dummy longitude & latitude values
-    !                and grid parameters. Also set number of soil levels and zmin.
-    !
-    !   Assumptions: Nsoil is set in Simple_Physics.f90 under the test case parameters.
-    !                for case where soil model is turned on (ie soil_model flag = true)
-    !
-    !
-    !   Author: Gabrielle Ching-Johnson
-    !
-    !-----------------------------------------------------------------------------------
-    use comgeomfi, only : init_comgeomfi
-
-    real(8) :: lat(1), long(1)
-
     ! Dummy latitude and longitude for initialization
     lat(1)  = 0d0
     long(1) = 0d0
 
-    ! Set the zmin (lowest vertical level index) (! See Assumptions)
-    ! and initialize the grid for the physics
-   
-    if (Nsoil /= 0) then 
-       zmin = - Nsoil
-       call init_comgeomfi (1, zlevels, long, lat, Nsoil) 
+    if (Nsoil /= 0) then
+       soil_model = .true.
+       nsoilmx    =   Nsoil
+       zmin       = - Nsoil
+
+       call init_comgeomfi (1, zlevels, long, lat) 
     else ! Nsoil = 0 means there is no soil model
-       zmin  = 0
-       call init_comgeomfi (1, zlevels, long, lat)        
+       soil_model = .false.
+       nsoilmx    = 1
+       zmin       = 0
+       
+       call init_comgeomfi (1, zlevels, long, lat)
     end if
   end subroutine init_soil_grid
 

@@ -1,7 +1,7 @@
 module soil_mod
   ! Vertical diffusion of heat in soil column
   !
-  ! References refer to Frederic Hourdin's thesis
+  ! References refer to Frederic Hourdin thesis
   !
   !   Auteur:  Frederic Hourdin     1992-01-30
   !   -------

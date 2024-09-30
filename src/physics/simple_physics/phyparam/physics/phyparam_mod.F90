@@ -82,9 +82,6 @@ contains
          zZlev(ngrid,nlayer+1),    & ! height of layer interfaces
          zZlay(ngrid,nlayer),      & ! height of layer centres
 
-         zc(ngrid,nsoilmx-1),      & ! Lu coefficients for soil implicit solve
-         zd(ngrid,nsoilmx-1),      &
-
          FluxRad(ngrid),           & ! radiative flux at surface
          FluxGrd(ngrid),           & ! heat flux from deep soil
          capcal(ngrid),            & ! effective heat capacity of soil
@@ -98,6 +95,9 @@ contains
 
          zFluxid(ngrid),           & ! radiative + deep soil fluxes
          zPmer(ngrid)                ! sea-level pressure
+
+
+    real, dimension(:,:), allocatable ::   zc, zd ! Lu coefficients for soil implicit solve
 
     integer                       :: j, l, ig, igout
     real                          :: zday, zdtime, z1, z2
@@ -175,6 +175,8 @@ contains
     !
     !-----------------------------------------------------------------------------------------------
     if (callsoil) then
+       allocate (zc(ngrid,nsoilmx-1), zd(ngrid,nsoilmx-1))
+
        call soil_forward (ngrid, nsoilmx, pTimestep, pThermal_inertia, Tsurf, Tsoil, zc, zd, CapCal, FluxGrd)
     else ! no diffusion of heat in soil column
        CapCal  = CapCal_nosoil
@@ -225,9 +227,8 @@ contains
        pdV    = pdV    + zdVfr           ! zonal velocity
        pdU    = pdU    + zdUfr           ! meridional velocity
        pdT    = pdT    + zdHfr * zExner  ! temperature from potential temperature tendency
-
-       zdTsrf = zdTsrf + zdTsrfr
-    else ! no diffusion
+       zdTsrf = zdTsrf + zdTsrfr         ! surface temperature
+    else ! no vertical turbulent diffusion
        zdTsrf = zdTsrf + (FluxRad + FluxGrd) / CapCal
     end if
 
@@ -245,7 +246,7 @@ contains
        call soil_backward (ngrid, nsoilmx, zc, zd, Tsurf, Tsoil)
 
        if (lverbose) then
-          WRITELOG (*,*) 'surface ts, dts, dt'
+          WRITELOG (*,*) 'Surface Ts, dTs, dt'
           WRITELOG (*,*) Tsurf(igout), zdTsrf(igout), pTimestep
           LOG_DBG ('phyparam')
        end if
@@ -312,7 +313,7 @@ contains
 
     ! Allocate arrays for internal state
     allocate (Tsurf(ngrid))
-    allocate (Tsoil(ngrid,nsoilmx))
+    if (callsoil) allocate (Tsoil(ngrid,nsoilmx))
 
     call iniorbit
   end subroutine alloc
@@ -333,8 +334,8 @@ contains
     use soil_mod, only : Tsurf, Tsoil
     integer, intent(in), value :: ngrid
 
-    Tsurf  = Tsoil_init
-    Tsoil  = Tsoil_init
+    Tsurf = Tsoil_init
+    if (callsoil) Tsoil  = Tsoil_init
     icount = 0
     if (.not. callsoil .and. firstcall_alloc .and. lverbose) then ! write only on first call (lverbose set by interface)
        WRITELOG (*,*) 'WARNING!! thermal conduction in the soil turned off'
