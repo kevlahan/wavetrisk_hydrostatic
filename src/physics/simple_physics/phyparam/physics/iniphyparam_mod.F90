@@ -1,114 +1,110 @@
-MODULE iniphyparam_mod
+module iniphyparam_mod
 #include "use_logging.h"
-  IMPLICIT NONE
-  PRIVATE
-
-  REAL, PARAMETER :: perfect_gas_const = 8314.46261815324 ! NB using g instead of kg for mass
-
-  PUBLIC :: iniphyparam
-
-CONTAINS
-
-  SUBROUTINE read_params() BIND(C, name='phyparam_setup')
+  implicit none
+  private
+  real, parameter :: perfect_gas_const = 8314.46261815324 ! nb using g instead of kg for mass
+  public :: iniphyparam
+contains
+  subroutine read_params() bind(c, name='phyparam_setup')
     !$cython header void phyparam_setup();
     !$cython wrapper def setup() : phy.phyparam_setup()
     USE read_param_mod
 
-    USE phys_const, ONLY : planet_rad,g,r,cpp,rcp,dtphys,unjours,mugaz
+    USE phys_const, only : planet_rad, g, r, Cpp, rCp, dtPhys, Unjours, mugaz
     USE astronomy
-    USE planet, ONLY : coefir, coefvis
-    USE turbulence, ONLY : lmixmin, emin_turb
+    USE planet,     only : coefir, coefvis
+    USE turbulence, only : LmixMin, emin_turb
     USE soil_mod
     USE callkeys
 
-    CALL read_param('planet_rad',6.4e6 ,planet_rad,'planet_rad')
-    CALL read_param('g',9.8            ,g,'g')
-    CALL read_param('cpp',1004.        ,cpp,'cpp')
-    CALL read_param('mugaz',28.        ,mugaz,'mugaz')
-    r=perfect_gas_const/mugaz
-    rcp=r/cpp
+    call read_param ('planet_rad', 6.4e6, planet_rad,'planet_rad')
+    call read_param ('g',           9.8,  g,          'g')
+    call read_param ('cpp',      1004.0,  Cpp,        'Cpp')
+    call read_param ('mugaz',      28.0,  mugaz,      'mugaz')
 
-    CALL read_param('unjours', 86400.,  unjours,'unjours')
-    CALL read_param('year_day',360.    ,year_day,'year_day')
-    CALL read_param('periheli',150.    ,periheli,'periheli')
-    CALL read_param('aphelie',150.     ,aphelie,'aphelie')
-    CALL read_param('peri_day',0.      ,peri_day,'peri_day')
-    CALL read_param('obliquit',23.     ,obliquit,'obliquit')
+    r = perfect_gas_const / mugaz
+    rCp = r / Cpp
 
-    CALL read_param('Cd_mer',.01       ,Cd_mer,'Cd_mer')
-    CALL read_param('Cd_ter',.01       ,Cd_ter,'Cd_ter')
-    CALL read_param('I_mer',3000.      ,I_mer,'I_mer')
-    CALL read_param('I_ter',3000.      ,I_ter,'I_ter')
-    CALL read_param('alb_ter',.112     ,alb_ter,'alb_ter')
-    CALL read_param('alb_mer',.112     ,alb_mer,'alb_mer')
-    CALL read_param('emi_mer',1.       ,emi_mer,'emi_mer')
-    CALL read_param('emi_ter',1.       ,emi_ter,'emi_ter')
-    CALL read_param('emin_turb',1.e-16 ,emin_turb,'emin_turb')
-    CALL read_param('lmixmin',100.     ,lmixmin,'lmixmin')
+    call read_param ('unjours', 86400.0,  unjours,   'Unjours')
+    call read_param ('year_day',  360.0,  year_day,  'year_day')
+    call read_param ('periheli',  150.0,  periheli,  'periheli')
+    call read_param ('aphelie',   150.0,  aphelie,   'aphelie')
+    call read_param ('peri_day',  0.0,    peri_day,  'peri_day')
+    call read_param ('obliquit',  23.0,   obliquit,  'obliquit')
 
-    CALL read_param('coefvis',.99      ,coefvis,'coefvis')
-    CALL read_param('coefir',.08       ,coefir,'coefir')
+    call read_param ('cd_mer',    0.01,   Cd_mer,    'Cd_mer')
+    call read_param ('cd_ter',    0.01,   Cd_ter,    'Cd_ter')
+    call read_param ('i_mer',   3000.0,   i_mer,     'i_mer')
+    call read_param ('i_ter',   3000.0,   i_ter,     'i_ter')
+    call read_param ('alb_ter',  0.112,   alb_ter,   'alb_ter')
+    call read_param ('alb_mer',  0.112,   alb_mer,   'alb_mer')
+    call read_param ('emi_mer',   1.0,    emi_mer,   'emi_mer')
+    call read_param ('emi_ter',   1.0,    emi_ter,   'emi_ter')
+    call read_param ('emin_turb', 1e-16,  emin_turb, 'Emin_turb')
+    call read_param ('lmixmin',  100.0,   lmixmin,   'LmixMin')
 
-    CALL read_param('callrad',  .true.,  callrad,   'appel rayonnement')
-    CALL read_param('calldifv', .true.,  calldifv,  'appel difv')
-    CALL read_param('calladj',  .true.,  calladj,   'appel adj')
-    CALL read_param('callsoil', .true.,  callsoil,  'appel soil')
-    CALL read_param('season',   .true.,  season,    'with seasonal cycle')
-    CALL read_param('diurnal',  .true., diurnal,   'with diurnal cycle')
-    CALL read_param('lverbose', .true.,  lverbose,  'lverbose')
-    CALL read_param('period_sort', 1., period_sort, 'period sorties en jour')
+    call read_param ('coefvis',   0.99,   coefvis,   'coefvis')
+    call read_param ('coefir',    0.08,   coefir,    'coefir')
 
-  END SUBROUTINE read_params
+    call read_param ('callrad',  .true.,  callrad,    'with rayonnement')
+    call read_param ('calldifv', .true.,  calldifv,   'with vertical turbulent diffusion')
+    call read_param ('calladj',  .true.,  calladj,    'with adj')
+    call read_param ('callsoil', .true.,  callsoil,   'with soil')
+    call read_param ('season',   .true.,  season,     'with seasonal cycle')
+    call read_param ('diurnal',  .true.,  diurnal,    'with diurnal cycle')
+    call read_param ('lverbose', .true.,  lverbose,   'lverbose')
+    call read_param ('period_sort', 1.0, period_sort, 'period sorties en jour')
+  end subroutine read_params
 
-  SUBROUTINE iniphyparam(ptimestep, punjours, prad, pg, pr, pcpp)
-    USE profiling, ONLY : profile_register, id_phyparam
-    USE comgeomfi, ONLY : nsoilmx
-    USE soil_mod, ONLY : init_soil
-    USE phys_const, ONLY : planet_rad,g,r,cpp,rcp,dtphys,unjours
-    USE callkeys
-    REAL, INTENT(IN)  :: ptimestep, punjours, prad, pg, pr, pcpp
+  subroutine iniphyparam (pTimestep, pUnjours, pRad, pg, pR, pCpp)
+    USE profiling,  only : profile_register, id_phyparam
+    use comgeomfi,  only : nsoilmx
+    use soil_mod,   only : init_soil
+    use phys_const, only : planet_rad, g, r, Cpp, rCp, dtPhys, Unjours
+    use callkeys
+    real, intent(in)  :: pTimestep, pUnjours, pRad, pg, pr, pCpp
 
-    CALL profile_register('phyparam', id_phyparam)
+    call profile_register ('phyparam', id_phyparam)
 
-    CALL read_params
-    !   choice of the frequency of the computation of radiations
-    IF(diurnal) THEN
-       iradia=NINT(unjours/(20.*ptimestep))
-    ELSE
-       iradia=NINT(unjours/(4.*ptimestep))
-    ENDIF
-    iradia=1
-    dtphys=ptimestep
+    call read_params
 
-    CALL check_mismatch('day length (s)', punjours, unjours)
-    CALL check_mismatch('planetary radius (km)', prad/1000., planet_rad/1000.)
-    CALL check_mismatch('gravity', pg, g)
-    CALL check_mismatch('specific R', pr, r)
-    CALL check_mismatch('specific heat capacity', pcpp, cpp)
-    LOG_WARN('iniphyparam')
+    ! Choice of frequency of computation of radiation
+    if (diurnal) then
+       iradia = nint (Unjours / (20.0 * pTimestep))
+    else
+       iradia = nint (Unjours / ( 4.0 * pTimestep))
+    end if
+    iradia = 1
+    dtPhys = pTimestep
 
-    WRITELOG(*,'(a)') 'Activation de la physique:'
-    WRITELOG(*,'(a,l)') ' Rayonnement                    ', callrad
-    WRITELOG(*,'(a,l)') ' Diffusion verticale turbulente ', calldifv
-    WRITELOG(*,'(a,l)') ' Ajustement convectif           ', calladj
-    WRITELOG(*,'(a,l)') ' Sol                            ', callsoil
-    WRITELOG(*,'(a,l)') ' Cycle diurne                   ', diurnal
-    WRITELOG(*,'(a,es10.4)') ' R       = ',r
-    WRITELOG(*,'(a,es10.4)') ' unjours = ',unjours
-    WRITELOG(*,'(a,i3,a,es10.4,a)') &
-         'The radiative transfer is computed each ', iradia,' physical time-step, or each ', iradia * ptimestep,' seconds.'
+    call check_mismatch ('day length (s)',         pUnjours,    Unjours)
+    call check_mismatch ('planetary radius (km)',  pRad/1000.0, planet_rad/1000.0)
+    call check_mismatch ('gravity',                pg,          g)
+    call check_mismatch ('specific r',             pR,          r)
+    call check_mismatch ('specific heat capacity', pCpp,        Cpp)
+    LOG_WARN ('iniphyparam')
 
-    LOG_INFO('iniphyparam')
+    WRITELOG (*,'(a)')        'Activation de la physique:'
+    WRITELOG (*,'(a,l)')      ' rayonnement                    ', callrad
+    WRITELOG (*,'(a,l)')      ' diffusion verticale turbulente ', calldifv
+    WRITELOG (*,'(a,l)')      ' ajustement convectif           ', calladj
+    WRITELOG (*,'(a,l)')      ' sol                            ', callsoil
+    WRITELOG (*,'(a,l)')      ' cycle diurne                   ', diurnal
+    WRITELOG (*,'(a,es10.4)') ' r                              ', r
+    WRITELOG (*,'(a,es10.4)') ' unjours                        ', Unjours
+    WRITELOG (*,'(a,i3,a,es10.4,a)') 'Radiative transfer is computed each ', iradia,' time step, or each ', iradia * pTimestep,' s'
 
-    CALL init_soil(nsoilmx)
-  END SUBROUTINE iniphyparam
+    LOG_INFO ('iniphyparam')
 
-  SUBROUTINE check_mismatch(name, a,b)
-    CHARACTER(*), INTENT(IN) :: name
-    REAL, INTENT(IN) :: a,b
-    IF(a /= b) THEN
-       WRITELOG(*,*) 'Phys/dyn mismatch for ', name, ' : ',a,b
-    END IF
-  END SUBROUTINE check_mismatch
+    if (callsoil) call init_soil (nsoilmx)
+  end subroutine iniphyparam
 
-END MODULE iniphyparam_mod
+  subroutine check_mismatch (name, a, b)
+    character(*), intent(in) :: name
+    real,         intent(in) :: a, b
+
+    if (a /= b) then
+       WRITELOG (*,*) 'phys/dyn mismatch for ', name, ' : ', a, b
+    end if
+  end subroutine check_mismatch
+end module iniphyparam_mod
