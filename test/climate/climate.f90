@@ -29,7 +29,7 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   Ekman_ic         = .true.                         ! Ekman (T) or zero (F) velocity initial conditions
   u_0              =  30d0     * METRE/SECOND       ! geostrophic velocity
-  T_0              = 250d0     * KELVIN             ! reference temperature
+  T_0              = 285d0     * KELVIN             ! reference temperature (simple physics)
 
   radiation_model  = .true.                         ! radiation module 
   turbulence_model = .true.                         ! vertical diffusion module
@@ -46,9 +46,7 @@ program climate
   p_top          = 0.01d0    * Pa                   ! pressure at the top in Pascals
   call std_surf_pres (0d0, p_0)                     ! surface pressure from USA standard atmosphere model
   c_p            = 1004d0    * JOULE/(KG*KELVIN)    ! specific heat at constant pressure in joules per kilogram Kelvin
-  R_gas          = 8.31446261815324 * JOULE/KELVIN  ! ideal gas constant
-  Mu_gas         = 2.8d-5    / KG 
-  R_d            = (R_gas / mu_gas) / c_p           ! using simple physics parameters [J/(kg K)]
+  R_d            = 287d0     * JOULE/(KG*KELVIN)    ! set to a whole number
   ref_density    = 1.204d0   * KG/METRE**3          ! reference density 
   kappa          = R_d / c_p                        ! kappa
   c_v            = c_p - R_d                        ! specific heat at constant volume c_v = c_p - R_d

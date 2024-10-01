@@ -23,8 +23,6 @@ module test_case_mod
   character(255) :: analytic_topo = "none"    ! mountains or none (used if NCAR_topo = .false.)
 
   ! From simple physics
-  real(8)        :: Mu_gas, R_gas
-  
   logical        :: Ekman_ic      = .false.   
   logical        :: scale_aware   = .false.
 contains
