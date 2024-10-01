@@ -3,7 +3,7 @@ module soil_mod
   !
   ! References refer to Frederic Hourdin thesis
   !
-  !   Auteur:  Frederic Hourdin     1992-01-30
+  !   Auteur:  Frederic Hourdin  1992-01-30
   !   -------
   !
   !   Computation of : 1. soil temperature evolution
@@ -29,8 +29,8 @@ module soil_mod
   !   3. Coefficients a and b are computed where the diffusive
   !     fluxes at the t+dt time-step is given by
   !
-  !            fdiff  =  a + b Ts(t+dt)
-  !     or     fdiff  =  f0 + CapCal (Ts(t+dt) - Ts(t)) / dt
+  !            Fdiff  =  a + b Ts(t+dt)
+  !     or     Fdiff  =  f0 + CapCal (Ts(t+dt) - Ts(t)) / dt
   !
   !          with f0  =  a + b (Ts(t))
   !           CapCal  =  b * dt
@@ -59,9 +59,9 @@ module soil_mod
 
   public :: init_soil, soil_forward, soil_backward, Rnatur, Albedo, Emissiv, z0, pThermal_inertia, Tsurf, Tsoil
 contains
-  pure subroutine soil_forward (ngrid, nsoil, pTimestep,pThermal_inertia, pTsrf, pTsoil, zc, zd, pCapCal, pFluxGrd)
-    integer,                        intent(in)  :: ngrid             ! number of columns, of soil layers
-    integer,                        intent(in)  :: nsoil             ! number of columns, of soil layers
+  pure subroutine soil_forward (ngrid, nsoil, pTimestep, pThermal_inertia, pTsrf, pTsoil, zc, zd, pCapCal, pFluxGrd)
+    integer,                        intent(in)  :: ngrid             ! number of column
+    integer,                        intent(in)  :: nsoil             ! number of soil layers
 
     real,                           intent(in)  :: pTimestep         ! time step
     real, dimension(ngrid),         intent(in)  :: pThermal_inertia  ! thermal inertia
@@ -97,15 +97,15 @@ contains
     do ig = 1, ngrid
        z1 = lambda * (1.0 - zd(ig,1)) + 1.0
 
-       pCapCal(ig)  = pThermal_inertia(ig) * ptimestep * (zdz2(1) + (1.0 - zd(ig,1)) * dz1(1)) / z1                         ! c_s (A.30)
+       pCapCal(ig)  = pThermal_inertia(ig) * ptimestep * (zdz2(1) + (1.0 - zd(ig,1)) * dz1(1)) / z1                 ! c_s (A.30)
 
-       pFluxGrd(ig) = pThermal_inertia(ig) * dz1(1) * (zc(ig,1) + (zd(ig,1) - 1.0) * pTsoil(ig,1))                          ! f *  (A.25)
+       pFluxGrd(ig) = pThermal_inertia(ig) * dz1(1) * (zc(ig,1) + (zd(ig,1) - 1.0) * pTsoil(ig,1))                  ! f *  (A.25)
        pFluxGrd(ig) = pFluxGrd(ig) + pCapCal(ig) * (pTsoil(ig,1) * z1 - lambda * zc(ig,1) - pTsrf(ig)) / ptimestep  ! f_s (A.31)
     end do
   end subroutine soil_forward
 
   pure subroutine soil_backward (ngrid, nsoil, zc, zd, pTsrf, pTsoil)
-    ! Soil temperatures using cGrd and dGrd  coefficient computed during the forward sweep
+    ! Soil column temperatures using cGrd and dGrd  coefficient computed during the forward sweep
     integer,                         intent(in)    :: ngrid   ! number of columns
     integer,                         intent(in)    :: nsoil   ! number of soil layers
     real, dimension(ngrid, nsoil-1), intent(in)    :: zc, zd  ! Lu factorization
@@ -114,9 +114,10 @@ contains
 
     integer :: ig, jk
 
+    ! Soil column temperatures
     pTsoil(:,1) = (lambda * zc(:,1) + pTsrf) / (lambda * (1.0 - zd(:,1)) + 1.0) ! (A.27) re-arragend to solve for t_0.5
-    do jk = 1, nsoil-1
-       pTsoil(:,jk+1) = zc(:,jk) + zd(:,jk) * pTsoil(:,jk)                      ! (A.15)
+    do jk = 2, nsoil
+       pTsoil(:,jk) = zc(:,jk-1) + zd(:,jk-1) * pTsoil(:,jk-1)                  ! (A.15)
     end do
   end subroutine soil_backward
 

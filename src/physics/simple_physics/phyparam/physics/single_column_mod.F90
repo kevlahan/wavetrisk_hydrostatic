@@ -1,26 +1,83 @@
 !-------------------------------------------------------------------
 !
-!  file: single_column_mod.f90
-!  author: gabrielle ching-johnson
-!  date revised: may 18th 2023
+!  Author: Gabrielle Ching-Johnson
+!  Revised: 2023-05-18
+!  Revised: Nicholas Kevlahan 2024-10-01
 !
-!  description:
 !     module containing functions to be utilized when the dynamics
-!     will  be sending single columns to the physics.
+!     is sending single columns to the physics.
 !
 !-------------------------------------------------------------------
-
 module single_column_mod
   use,         intrinsic :: iso_c_binding
   use comgeomfi,    only :  nsoilmx, ngridmax, long, lati, sinlon, coslon, sinlat, coslat
   use callkeys,     only :  soil_flag => callsoil
   use phyparam_mod, only :  phyparam
-  use soil_mod,     only :  tsurf, tsoil
+  use soil_mod,     only :  Tsurf, Tsoil ! surface temperature and soil layer temperatures updated in simple physics
   implicit none
   private
-  integer :: extra_levels = 1   ! soil levels + surface level
-  public :: initialize_extra_levels, get_extra_levels, physics_call_single_col, change_latitude_longitude
+  integer :: extra_levels = 1   ! default value (surface layer only)
+  pUblic :: initialize_extra_levels, get_extra_levels, physics_call_single_col, change_latitude_longitude
 contains
+  subroutine physics_call_single_col (ngrid, nlayer, firstcall, lastcall, rJourvrai, &
+       gmTime, pTimestep, pPlev, pPlay, pPhi, pU, pV, pT, pPhi_surf, Tsurf_soil, &
+       pdU, pdV, pdT, pdPsrf)
+    !----------------------------------------------------------------
+    !
+    !   WrapPer routine dynamics will use to call the physics,
+    !   -----------  for a single column. it updates the surface and soil temps
+    !   -----------  for the column before the call and send back the newly
+    !   -----------  update temperatures.
+    !
+    !   extra notes: at the 1st call for each column, the dynamics wont know
+    !                what the soil and surface is set to, can send random nums
+    !                as phyparam() does cal coldstart() call which sets surface temperature Tsurf
+    !                and soil column temperatures Tsoil to 300k.
+    !
+    !
+    !   author: Gabrielle Ching-Johnson
+    !
+    !----------------------------------------------------------------
+
+    ! Input:
+    integer, value,                      intent(in)    :: ngrid      ! number of columns
+    integer, value,                      intent(in)    :: nlayer     ! number of vertical layers in atmosphere
+    real,    value,                      intent(in)    :: rJourvrai  ! number of days counted from the north. spring equinox
+    real,    value,                      intent(in)    :: gmTime     ! fraction of the day (ranges from 0 to 1)
+    real,    value,                      intent(in)    :: pTimestep  ! timestep [s]
+    real, dimension(ngrid,nlayer+1),     intent(in)    :: pPlev      ! pressure at layer interfaces [Pa]
+    real, dimension(ngrid,nlayer),       intent(in)    :: pPlay      ! pressure at layer centres    [Pa]
+    real, dimension(ngrid,nlayer),       intent(in)    :: pPhi       ! geopotential layer centres   [m^2/s^2]
+    real, dimension(ngrid),              intent(in)    :: pPhi_surf  ! surface geopotential         [m^2/s^2]
+    real, dimension(ngrid,nlayer),       intent(in)    :: pU         ! zonal velocity               [m/s]
+    real, dimension(ngrid,nlayer),       intent(in)    :: pV         ! meridional velocity          [m/s]
+    real, dimension(ngrid,nlayer),       intent(in)    :: pT         ! temperature                  [K]
+    logical(kind=c_bool), value,         intent(in)    :: firstcall  ! true at first call
+    logical(kind=c_bool), value,         intent(in)    :: lastcall   ! true at last call
+
+    real, dimension(ngrid,extra_levels), intent(inout) :: Tsurf_soil ! temperature for atmosphere and soil layers [K]
+
+    ! Output : physical tendencies
+    real, dimension(ngrid,nlayer),       intent(out)   :: pdU        ! tendency of zonal velocity      [m/s^2]
+    real, dimension(ngrid,nlayer),       intent(out)   :: pdV        ! tendency of meridional velocity [m/s^2]
+    real, dimension(ngrid,nlayer),       intent(out)   :: pdT        ! tendency of temperature         [K/s]
+    real, dimension(ngrid),              intent(out)   :: pdPsrf     ! tendency of surface pressure    [Pa/s]
+
+    ! Set current physics soil layers temperature from dynamics
+    if (.not. firstcall) then
+       if (soil_flag) Tsoil = Tsurf_soil(:, 2:)
+       Tsurf = Tsurf_soil(ngrid,1) ! surface temperature
+    end if
+
+    ! Call simple physics for this column
+    call phyparam (ngrid, nlayer, firstcall, lastcall, rJourvrai, gmTime, pTimestep, &
+         pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pT, &
+         pdU, pdV, pdT, pdPsrf)
+
+    ! Update with physics surface temperature and soil column termperatures
+    Tsurf_soil(:,1) = Tsurf                 ! surface temperature
+    if (soil_flag) Tsurf_soil(:,2:) = Tsoil ! soil column temperatures
+  end subroutine physics_call_single_col
 
   subroutine initialize_extra_levels (levels)
     !----------------------------------------------------------------
@@ -41,9 +98,9 @@ contains
        stop
     end if
 
-    if (soil_flag) then
+    if (soil_flag) then ! surface layer + soil column layers
        extra_levels = nsoilmx + 1
-    else
+    else                ! surface layer only
        extra_levels = 1
     end if
 
@@ -89,71 +146,4 @@ contains
     sinlon(1) = sin (long(1))
     coslon(1) = cos (long(1))
   end subroutine change_latitude_longitude
-
-  subroutine physics_call_single_col (ngrid, nlayer, firstcall, lastcall, rjourvrai, &
-       gmtime, ptimestep, pplev, pplay, pphi, pu, pv, pt, extra_temp, &
-       pdu, pdv, pdt, pdpsrf)
-    !----------------------------------------------------------------
-    !
-    !   Wrapper routine dynamics will use to call the physics,
-    !   -----------  for a single column. it updates the surface and soil temps
-    !   -----------  for the column before the call and send back the newly
-    !   -----------  update temperatures.
-    !
-    !   extra notes: at the 1st call for each column, the dynamics wont know
-    !                what the soil and surface is set to, can send random nums
-    !                as phyparam() does cal coldstart() call which sets the tsurf
-    !                and tsoil set to 300k.
-    !
-    !
-    !   author: Gabrielle Ching-Johnson
-    !
-    !----------------------------------------------------------------
-
-    ! Input:
-    integer,                         intent(in), value ::  &
-         ngrid,         & ! number of columns
-         nlayer           ! number of vertical layers
-    real,                    intent(in), value :: &
-         rjourvrai,     & ! number of days counted from the north. spring equinox
-         gmtime,        & ! fraction of the day (ranges from 0 to 1)
-         ptimestep        ! timestep [s]
-
-    real, dimension(ngrid,nlayer+1), intent(in) :: pplev ! pressure at  layer interfaces [Pa]
-
-    real, dimension(ngrid,nlayer),   intent(in) :: &
-         pplay,         & ! pressure at the middle of the layers (pa)
-         pphi,          & ! geopotential at the middle of the layers (m2s-2)
-         pu,            & ! u component of the wind (ms-1)
-         pv,            & ! v component of the wind (ms-1)
-         pt               ! temperature (k)
-
-    real, dimension(ngrid,extra_levels), intent(inout) :: extra_temp  ! surface and soil temp (k) of the column
-
-    ! Output : physical tendencies
-    real, dimension(ngrid,nlayer), intent(out) ::   &
-         pdu,           &                                 ! tendency of zonal velocity      [m/s^2]
-         pdv,           &                                 ! tendency of meridional velocity [m/s^2]
-         pdt                                              ! tendency of temperature         [K/s]
-    real, dimension(ngrid),        intent(out) ::  pdpsrf ! tendency of surface pressure    [Pa/s]
-
-    logical(kind=c_bool),   intent(in), value :: &
-         firstcall,                   & ! true at first call
-         lastcall                       ! true at last call
-
-    ! Check if first call or not, if not can't update tsoil/tsurf as they haven't be allocated: will be initialized in phyparm
-    if (.not. firstcall) then
-       if (soil_flag) tsoil = extra_temp(:, 2:) ! update physics soil temp if turned on
-       tsurf = extra_temp(ngrid,1)              ! update physics surface temp
-    end if
-
-    ! call phyparam physics
-    call phyparam (ngrid, nlayer, firstcall, lastcall, rjourvrai, gmtime, ptimestep, pplev, pplay, pphi, pu, pv, pt, &
-         pdu, pdv, pdt, pdpsrf)
-
-    ! update output extra_temp with physics soil and surface temp
-    extra_temp(ngrid,1) = tsurf(ngrid)
-
-    if (soil_flag) extra_temp(:,2:) = tsoil
-  end subroutine physics_call_single_col
 end module single_column_mod

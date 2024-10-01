@@ -8,23 +8,23 @@ module phyparam_mod
 
   integer         :: icount
   real            :: zday_last
-  logical         :: firstcall_alloc=.true.
+  logical         :: firstcall_alloc = .true.
 
-  real, parameter :: capcal_nosoil = 1e5
+  real, parameter :: CapCal_nosoil = 1e5
   real, parameter :: ref_temp      = 285.0
   real, parameter :: Tsoil_init    = 300.0
 
-  public :: phyparam, alloc, precompute, zday_last, icount
+  public :: phyparam, alloc, precompute, zDay_last, icount
 contains
-  subroutine phyparam (ngrid, nlayer, firstcall, lastcall, rjourvrai, gmtime, pTimestep, &
-       pPlev, pPlay, pPhi, pU, pV, pT, &
+  subroutine phyparam (ngrid, nlayer, firstcall, lastcall, rJourvrai, gmTime, pTimestep, &
+       pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pT, &
        pdU, pdV, pdt, pdPsrf) bind (c, name='phyparam_phyparam')
 
     use,          intrinsic :: iso_c_binding
     use phys_const,     only : g, Rcp, r, unjours
     use soil_mod,       only : soil_forward, soil_backward
     use soil_mod,       only : z0, pThermal_inertia, Emissiv, Albedo  ! precomputed
-    use soil_mod,       only : Tsurf, Tsoil                           ! state variables
+    use soil_mod,       only : Tsurf, Tsoil                           ! surface temperature, soil column temperatures
     use turbulence,     only : Vdif
     use convection,     only : ConvAdj
     USE radiative_mod,  only : radiative_tendencies
@@ -49,60 +49,63 @@ contains
     !=======================================================================
 
     ! Input variables
-    integer, intent(in), value ::  & !
-         ngrid,                    & ! size of the horizontal grid.
-         nlayer                      ! number of vertical layers.
-    logical(kind=c_bool), intent(in), value  :: & !
-         firstcall,                & ! true at the first call
-         lastcall                    ! true at the last call
-    real, intent(in), value     :: & !
-         rjourvrai,                & ! number of days counted from the north. spring equinox
-         gmtime,                   & ! fraction of the day (ranges from 0 to 1)
-         ptimestep                   ! timestep [s]
-    real, intent(in) ::            & !
-         pPlev(ngrid,nlayer+1),    & ! pressure at interfaces between layers [Pa]
-         pPlay(ngrid,nlayer),      & ! pressure at the middle of the layers [Pa]
-         pPhi(ngrid,nlayer),       & ! geopotential at the middle of the layers [m^2/s^2]
-         pU(ngrid,nlayer),         & ! zonal velocity [m/s]
-         pV(ngrid,nlayer),         & ! meridional velocity [m/s]
-         pT(ngrid,nlayer)            ! temperature [K]
+    integer, value,                  intent(in) :: ngrid     ! number of columns
+    integer, value,                  intent(in) :: nlayer    ! number of vertical layers.
+    real,    value,                  intent(in) :: rJourvrai ! number of days, counted from northern spring equinox
+    real,    value,                  intent(in) :: gmTime    ! fraction of  day (ranges from 0 to 1)
+    real,    value,                  intent(in) :: pTimestep ! timestep [s]
+
+    real, dimension(ngrid,nlayer),   intent(in) :: pPlay     ! pressure at layer centres    [Pa]
+    real, dimension(ngrid,nlayer+1), intent(in) :: pPlev     ! pressure at layer interfaces [Pa]
+    real, dimension(ngrid,nlayer),   intent(in) :: pPhi      ! geopotential atlayer centres [m^2/s^2]
+    real, dimension(ngrid),          intent(in) :: pPhi_surf ! surface geopotential         [m^2/s^2]
+
+    real, dimension(ngrid,nlayer),   intent(in) :: pU        ! zonal velocity      [m/s]
+    real, dimension(ngrid,nlayer),   intent(in) :: pV        ! meridional velocity [m/s]
+    real, dimension(ngrid,nlayer),   intent(in) :: pT        ! temperature         [K]
+
+    logical(kind=c_bool), value,     intent(in) :: firstcall ! true at the first call
+    logical(kind=c_bool), value,     intent(in) :: lastcall  ! true at the last call
 
     ! Output variables
-    real, intent(out)   ::         & !
-         pdU(ngrid,nlayer),        & ! tendency of zonal velocity[m/s^2]
-         pdV(ngrid,nlayer),        & ! tendency of meridional velocity [m/s^2]
-         pdT(ngrid,nlayer),        & ! tendency of temperature [K/s]
-         pdPsrf(ngrid)               ! tendency of surface pressure [Pa/s]
+    real, dimension(ngrid,nlayer), intent(out) :: pdU        ! tendency of zonal velocity      [m/s^2]
+    real, dimension(ngrid,nlayer), intent(out) :: pdV        ! tendency of meridional velocity [m/s^2]
+    real, dimension(ngrid,nlayer), intent(out) :: pdT        ! tendency of temperature         [K/s]
+    real, dimension(ngrid),        intent(out) :: pdPsrf     ! tendency of surface pressure    [Pa/s]
 
     ! Local variables
-    real ::                        & !
-         zH(ngrid,nlayer),         & ! potential temperature
-         zExner(ngrid,nlayer),     & ! Exner function
+    integer                                    :: j, l, ig, igout
+    real                                       :: zDay, zdtime, z1, z2
 
-         zZlev(ngrid,nlayer+1),    & ! height of layer interfaces
-         zZlay(ngrid,nlayer),      & ! height of layer centres
+    logical                                    :: lwrite
 
-         FluxRad(ngrid),           & ! radiative flux at surface
-         FluxGrd(ngrid),           & ! heat flux from deep soil
-         capcal(ngrid),            & ! effective heat capacity of soil
+    real, dimension(ngrid,nlayer)              :: zH         ! potential temperature [K]
+    real, dimension(ngrid,nlayer)              :: zExner     ! Exner function
 
-         zdUfr(ngrid,nlayer),      & ! partial tendencies for zonal velocity,
-         zdVfr(ngrid,nlayer),      & ! partial tendencies for meridional velocity,
-         zdHfr(ngrid,nlayer),      & ! partial tendencies for potential temperature,
+    real, dimension(ngrid,nlayer)              :: zdUfr      ! partial tendencies for zonal velocity        [m/s^2]
+    real, dimension(ngrid,nlayer)              :: zdVfr      ! partial tendencies for meridional velocity   [m/s^2]
+    real, dimension(ngrid,nlayer)              :: zdHfr      ! partial tendencies for potential temperature [K/s]
 
-         zdTsrf(ngrid),            & ! total tendency of surface temperature
-         zdTsrfr(ngrid),           & ! surface temperature
-
-         zFluxid(ngrid),           & ! radiative + deep soil fluxes
-         zPmer(ngrid)                ! sea-level pressure
+    real, dimension(ngrid,nlayer)              :: zdum1      ! dummy variable for zonal velocity tendency
+    real, dimension(ngrid,nlayer)              :: zdum2      ! dummy variable meridional velocity tendency
+    real, dimension(ngrid,nlayer)              :: zdum3      ! dummy variable for potential temperature tendency
 
 
-    real, dimension(:,:), allocatable ::   zc, zd ! Lu coefficients for soil implicit solve
+    real, dimension(ngrid,nlayer)              :: zZlay      ! height at layer centres    [m]
+    real, dimension(ngrid,nlayer+1)            :: zZlev      ! height at layer interfaces [m]
 
-    integer                       :: j, l, ig, igout
-    real                          :: zday, zdtime, z1, z2
-    real, dimension(ngrid,nlayer) :: zdum1, zdum2, zdum3
-    logical                       :: lwrite
+    real, dimension(ngrid)                     :: zdTsrf     ! total tendency of surface temperature     [K/s]
+    real, dimension(ngrid)                     :: zdTsrfr    ! intermediate surface temperature tendency [K/s]
+
+    real, dimension(ngrid)                     :: zFluxId    ! surface flux
+    real, dimension(ngrid)                     :: FluxRad    ! radiative flux at surface
+    real, dimension(ngrid)                     :: FluxGrd    ! heat flux from deep soil
+
+    real, dimension(ngrid)                     :: CapCal     ! effective heat capacity of soil
+
+    real, dimension(ngrid)                     :: zPmer      ! sea-level pressure
+
+    real, dimension(:,:), allocatable          :: zc, zd     ! LU coefficients for soil implicit solve
 
     call nvtxstartrange ("physics")
 
@@ -115,14 +118,13 @@ contains
     end if
 
     igout = ngrid/2 + 1
-    zday  = rjourvrai + gmtime
-
+    zDay  = rJourvrai + gmTime
 
     !-----------------------------------------------------------------------
     !    0. Allocate and initialize at first call
     !-----------------------------------------------------------------------
     if (firstcall) then
-       zday_last = zday - ptimestep / unjours
+       zDay_last = zDay - pTimestep / unjours
 
        ! Allocate only if very first call of entire run, especially in single column cases
        if (firstcall_alloc) call alloc (ngrid, nlayer)
@@ -148,10 +150,11 @@ contains
     zFluxid = 0.0
     zdTsrf  = 0.0
 
-    ! Calcul du geopotentiel aux niveaux intercouches ponderation des altitudes au niveau des couches en dP/P
+    ! Height at middle of layers
     zZlay = pPhi / g
-    zZlev(:,1) = 0.0
 
+    ! Height at layer interfaces
+    zZlev(:,1) = pPhi_surf / g ! surface height
     do l = 2, nlayer
        do ig = 1, ngrid
           z1 = (pPlay(ig,l-1) + pPlev(ig,l)) / (pPlay(ig,l-1) - pPlev(ig,l))
@@ -161,8 +164,12 @@ contains
        end do
     end do
 
-    ! Transformation de la temperature en temperature potentielle
-    zExner = (pPlay / pPlev(:,1:nlayer))**Rcp ! surface pressure is used as reference pressure
+    ! Exner function
+    do ig = 1, ngrid
+       zExner(ig,:) = ( pPlay(ig,:) / pPlev(:,1) )**Rcp ! surface pressure is used as reference pressure
+    end do
+
+    ! Potential temperature
     zH     = pT / zExner
 
 
@@ -194,7 +201,7 @@ contains
     !    2. Radiative tendencies
     !-----------------------------------------------------------------------------------------------
     if (callrad) &
-         call radiative_tendencies (lwrite, ngrid, igout, nlayer, gmtime, pTimestep * float(iradia), zDay, pPlev, pPlay, pT,  &
+         call radiative_tendencies (lwrite, ngrid, igout, nlayer, gmTime, pTimestep * float(iradia), zDay, pPlev, pPlay, pT,  &
          pdT, FluxRad)
 
 
@@ -218,7 +225,7 @@ contains
        zdum2 = 0.0
        zdum3 = pdT / zExner
 
-       call Vdif (ngrid, nlayer, zday, pTimestep, CapCal, z0, pPlay, pPlev, zZlay, zZlev, pU, pV, zH, Tsurf, Emissiv, &
+       call Vdif (ngrid, nlayer, zDay, pTimestep, CapCal, z0, pPlay, pPlev, zZlay, zZlev, pU, pV, zH, Tsurf, Emissiv, &
             zdum1, zdum2, zdum3, zFluxid, &
             zdUfr, zdVfr, zdHfr, zdTsrfr, &
             lverbose)
@@ -236,12 +243,12 @@ contains
     Tsurf = Tsurf + ptimestep * zdTsrf
 
 
-    !-----------------------------------------------------------------------------------
-    !   4. Soil temperatures
+    !--------------------------------------------------------------------------------------------------------
+    !   4. Soil column temperatures at t+dt
     !
-    !   Second split step of implicit time integration using updated Tsurf as input
+    !   Second split step of implicit time integration using updated Tsurf at d+dt as input
     !
-    !-----------------------------------------------------------------------------------
+    !--------------------------------------------------------------------------------------------------------
     if (callsoil) then
        call soil_backward (ngrid, nsoilmx, zc, zd, Tsurf, Tsoil)
 
@@ -255,6 +262,7 @@ contains
 
     !-----------------------------------------------------------------------
     !   4. Dry convective adjustment
+    !      (final values of tendencies at t+dt)
     !-----------------------------------------------------------------------
     if (calladj) then
        zdum1 = pdT / zExner
@@ -271,7 +279,7 @@ contains
     !-----------------------------------------------------------------------
     !   Data logging
     !-----------------------------------------------------------------------
-    WRITELOG (*,*) 'zday, zday_last ', zday, zday_last, icount
+    WRITELOG (*,*) 'zDay, zDay_last ', zDay, zDay_last, icount
     LOG_DBG ('phyparam')
 
     if (lwrite) then

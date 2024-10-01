@@ -14,7 +14,7 @@ module physics_simple_mod
   use ops_mod
   use init_physics_mod
   implicit none
-  type(Float_Field), dimension(:), allocatable, target :: dzonal, dmerid
+  type(Float_Field), dimension(:), allocatable, target :: dU, dV
 contains
   subroutine trend_physics_simple (q, dq)
     !-----------------------------------------------------------------------------------
@@ -40,8 +40,8 @@ contains
     call cal_surf_press (sol(:,1:zlevels))
     
     ! Initialize zonal and meridional velocity trends to zero
-    dzonal = dq(S_MASS,1:zlevels); call zero_float (dzonal)
-    dmerid = dzonal
+    dU = dq(S_MASS,1:zlevels); call zero_float (dU)
+    dV = dU
 
     call apply_bdry (physics_call, z_null, 0, 1)
     physics_firstcall_flag = .false. ! update flag to false, once 1st call for all columns finished
@@ -49,8 +49,8 @@ contains
     ! Assign velocity tendencies at edges
     do k = 1, zlevels
        do d = 1, size(grid)
-          grid(d)%u_zonal%elts = dzonal(k)%data(d)%elts
-          grid(d)%v_merid%elts = dmerid(k)%data(d)%elts
+          grid(d)%u_zonal%elts = dU(k)%data(d)%elts
+          grid(d)%v_merid%elts = dV(k)%data(d)%elts
        end do
        call apply_bdry (save_velocity_tendencies, k, 0, 0)
     end do
@@ -85,31 +85,33 @@ contains
     USE callkeys,          only : lverbose ! print physics model parameters
     USE single_column_mod, only : change_latitude_longitude, physics_call_single_col
     implicit none
-    type(Domain)                     :: dom                  
-    integer                          :: i, j, zlev
-    integer, dimension(N_BDRY+1)     :: offs
-    integer, dimension(2,N_BDRY+1)   :: dims
+    type(Domain)                   :: dom                  
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id, id_i
 
-    real(8), dimension(1:zlevels) :: &
-         phys_temp,&             ! temperature
-         phys_zonal,&            ! zonal velocity
-         phys_meridional, &      ! meridional velocity
-         phys_geopot,&           ! geopotential
-         phys_pres_lay, &        ! layer pressures
-         phys_dtemp,&            ! temperature tendencies
-         phys_dzonal,&           ! zonal velocity tendencies
-         phys_dmeridional, &     ! meridonal velcity tendencies
-         phys_dsurfpres          ! surface pressure tendency
+    real(8), dimension(1:zlevels) :: phys_U       ! zonal velocity
+    real(8), dimension(1:zlevels) :: phys_V       ! meridional velocity
+    real(8), dimension(1:zlevels) :: phys_T       ! temperature
+    real(8), dimension(1:zlevels) :: phys_Phi     ! geopotential
+    real(8), dimension(1:1)       :: phys_Phisurf ! surface geopotential
+    
+    real(8), dimension(1:zlevels) :: phys_dU      ! zonal velocity tendency
+    real(8), dimension(1:zlevels) :: phys_dV      ! meridional velocity tendency
+    real(8), dimension(1:zlevels) :: phys_dT      ! temperature tendency
+    real(8), dimension(1:zlevels) :: phys_dPsurf  ! surface pressure tendency
+    real(8), dimension(1:zlevels) :: phys_Play    ! pressure at layer centres
+    real(8), dimension(0:zlevels) :: phys_Plev    ! pressure at layer interfaces
 
-    real(8), dimension(1:Nsoil+1) :: surf_soil_temp !  surface temp and soil temperatures
-    real(8), dimension(0:zlevels) :: phys_pres_lev  !  interfaces pressure
+    real(8), dimension(1:Nsoil+1) :: Tsoil        !  surface temp and soil temperatures
 
-    real(8) :: latitude, longitude   ! coordinates of the 
-    real(8) :: nth_day, day_fraction ! day in simulation, fraction of the day
 
-    logical(kind=C_BOOL) :: lastcall_flag=.false.
+    real(8) :: latitude, longitude                ! coordinates of the column
+    real(8) :: nth_day, day_fraction              ! day in simulation, fraction of the day
+
+    logical(kind=C_BOOL) :: lastcall_flag = .false.
 
     d = dom%id +1
 
@@ -130,15 +132,18 @@ contains
     call change_latitude_longitude (latitude, longitude)
 
     ! Call physics for current column
-    phys_dtemp       = 0d0
-    phys_dzonal      = 0d0
-    phys_dmeridional = 0d0
-    phys_dsurfpres   = 0d0
+    phys_dU     = 0d0
+    phys_dV     = 0d0
+    phys_dT     = 0d0
+    phys_dPsurf = 0d0
+
+    ! Surface geopotential for this column
+    phys_Phisurf = grav_accel * topography%data(d)%elts(id_i)
     
     call physics_call_single_col (1, zlevels, &
          physics_firstcall_flag, lastcall_flag, nth_day, day_fraction, dt, &
-         phys_pres_lev, phys_pres_lay, phys_geopot, phys_zonal,  phys_meridional, phys_temp, surf_soil_temp, &
-         phys_dzonal, phys_dmeridional, phys_dtemp, phys_dsurfpres)
+         phys_Plev, phys_Play, phys_Phi, phys_Phisurf, phys_U, phys_V, phys_T,Tsoil, &
+         phys_dU, phys_dV, phys_dT, phys_dPsurf)
 
     lverbose = .false.
     
@@ -150,7 +155,7 @@ contains
       integer :: k
       real(8) :: rho_dz, rho_dz_theta, theta
 
-      phys_pres_lev(0) = dom%surf_press%elts(id_i)
+      phys_Plev(0) = dom%surf_press%elts(id_i)
       
       do k = 1, zlevels
          mass   =>      sol(S_MASS,k)%data(d)%elts
@@ -162,16 +167,17 @@ contains
          ! Get pressure at layer centers and interfaces of the column and geopotential at next interface (set in dom%geopot)
          call integrate_pressure_up (dom, i, j, zlev, offs, dims)
 
-         phys_pres_lev(k) = dom%press_lower%elts(id_i)
-         phys_pres_lay(k) = dom%press%elts(id_i)
-         phys_geopot(k)   = interp (dom%geopot_lower%elts(id_i), dom%geopot%elts(id_i))
+         phys_Plev(k) = dom%press_lower%elts(id_i)
+         phys_Play(k) = dom%press%elts(id_i)
+         phys_Phi(k)  = interp (dom%geopot_lower%elts(id_i), dom%geopot%elts(id_i))
 
          rho_dz       = mass(id_i) + mean_m(id_i)
          rho_dz_theta = temp(id_i) + mean_t(id_i)
 
          theta = rho_dz_theta / rho_dz
 
-         phys_temp(k) = theta2temp (theta, phys_pres_lay(k))
+         ! Temperature
+         phys_T(k) = theta2temp (theta, phys_Play(k))
 
          ! Convert the edge velocities to zonal and meridional velocities
          velo  => sol(S_VELO,k)%data(d)%elts
@@ -179,15 +185,16 @@ contains
          velo2 =>       grid(d)%v_merid%elts
          
          call interp_UVW_latlon (dom, i, j, k, offs, dims)
-         phys_zonal(k)      = velo1(id_i)
-         phys_meridional(k) = velo2(id_i)
+         phys_U(k) = velo1(id_i)
+         phys_V(k) = velo2(id_i)
 
          nullify (mass, temp, mean_m, mean_t, exner, velo, velo1, velo2)
       end do
 
-      ! Retrieve column surface and soil temperatures from hybrid structure
+      ! Retrieve surface temperature and soil column temperatures from dynamics
+      ! (Tsoil(1) is surface temperature)
       do k = zmin, 0
-         surf_soil_temp(abs(k)+1) = sol(S_TEMP,k)%data(d)%elts(id_i)
+         Tsoil(abs(k)+1) = sol(S_TEMP,k)%data(d)%elts(id_i)
       end do
     end subroutine pack_physics_vars
 
@@ -198,12 +205,12 @@ contains
 
       do k = 1, zlevels
          ! Save zonal and meridional velocities at nodes (interpolated to edges once entire domain finished)
-         dzonal(k)%data(d)%elts(id_i) = phys_dzonal(k)
-         dmerid(k)%data(d)%elts(id_i) = phys_dmeridional(k)
+         dU(k)%data(d)%elts(id_i) = phys_dU(k)
+         dV(k)%data(d)%elts(id_i) = phys_dV(k)
          
          rho_dz = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
          
-         dtheta = temp2theta (phys_dtemp(k), phys_pres_lay(k))
+         dtheta = temp2theta (phys_dT(k), phys_Play(k))
 
          trend(S_MASS,k)%data(d)%elts(id_i) = 0d0             ! no physics mass tendency due to hydrostatic approximation
          trend(S_TEMP,k)%data(d)%elts(id_i) = dtheta * rho_dz
@@ -211,7 +218,7 @@ contains
 
       ! Save column surface soil temp in temperature hybrid structure
       do k = zmin, 0
-         sol(S_TEMP,k)%data(d)%elts(id_i) = surf_soil_temp(abs(k)+1)
+         sol(S_TEMP,k)%data(d)%elts(id_i) = Tsoil(abs(k)+1)
       end do
     end subroutine save_tendencies
   end subroutine physics_call

@@ -1,8 +1,6 @@
-MODULE plugins_mod
-  IMPLICIT NONE
-
-CONTAINS
-
+module plugins_mod
+  implicit none
+contains
   SUBROUTINE mywritefield2(name, longname, unit, var)
     CHARACTER(*), INTENT(IN) :: name, longname, unit
     REAL, INTENT(IN)         :: var(:,:)
@@ -11,61 +9,54 @@ CONTAINS
   SUBROUTINE mywritefield1(name, longname, unit, var)
     CHARACTER(*), INTENT(IN) :: name, longname, unit
     REAL, INTENT(IN)         :: var(:)
-  END SUBROUTINE mywritefield1
+  end subroutine mywritefield1
+end module plugins_mod
 
-END MODULE plugins_mod
+program simple_physics
+  implicit none
 
+  integer, parameter :: nday = 30 ! n-day simulation
+  integer, parameter :: step_per_day = 24 ! 1h time step
 
-PROGRAM simple_physics
-  IMPLICIT NONE
+  integer, parameter :: ngrid=1000, llm=30
 
-  INTEGER, PARAMETER :: nday = 30 ! n-day simulation
-  INTEGER, PARAMETER :: step_per_day = 24 ! 1h time step
-
-  INTEGER, PARAMETER :: ngrid=1000, llm=30
-
-  REAL, PARAMETER :: unjours=86400.,    & ! solar day in seconds
+  real, parameter :: unjours=86400.,    & ! solar day in seconds
        &             radius=6.4e6,      & ! planetary radius
        &             g=9.8,             & ! gravity
-       &             cpp=1004.,         & ! Cp
-       &             kappa=287/cpp        !kappa=296.945007/cpp ! R/Cp
-  REAL, PARAMETER :: timestep=unjours/step_per_day ! physics time step (s)
+       &             cpp=1004.,         & ! cp
+       &             kappa=287/cpp        !kappa=296.945007/cpp ! r/cp
+  real, parameter :: timestep=unjours/step_per_day ! physics time step (s)
 
-  REAL :: psurf=1e5, ptop=1e-2, Temp=250. ! initial values of surface pressure, temperature
+  real :: psurf=1e5, ptop=1e-2, temp=250. ! initial values of surface pressure, temperature
 
-  REAL :: lon(ngrid), lat(ngrid), & ! in radian
-       &  pplev(ngrid,llm+1), &  ! pressure at interfaces
-       &  pplay(ngrid, llm),  &  ! pressure at full levels
-       &  pphi(ngrid, llm),   &  ! geopotential at full levels
-       &  pt(ngrid, llm), &      ! temperature at full levels
-       &  pu(ngrid, llm), &      ! zonal wind at full levels
-       &  pv(ngrid, llm)         ! meridional wind at full levels
+  real :: lon(ngrid), lat(ngrid), & ! in radian
+       &  pPlev(ngrid,llm+1), &  ! pressure at interfaces
+       &  pPlay(ngrid, llm),  &  ! pressure at full levels
+       &  pPhi(ngrid, llm),   &  ! geopotential at full levels
+       &  pPhi_surf(ngrid),    &  ! surface geopotential
+       &  pT(ngrid, llm), &      ! temperature at full levels
+       &  pU(ngrid, llm), &      ! zonal wind at full levels
+       &  pV(ngrid, llm)         ! meridional wind at full levels
 
-  !$acc data create(pplev, pplay, pphi, pt, pu, pv)
 
   CALL init_latlon(lat, lon)
-  !CALL readin_latlong(lat, lon) ! If want to read latitude and longitude coords from a file
   print *, 'LAT = ' , minval(lat), maxval(lat)
   print *, 'LON = ' , minval(lon), maxval(lon)
 
   CALL init_physics
 
-  CALL isothermal(kappa*cpp, temp, psurf, ptop, pplev, pplay, pphi, pt)
+  CALL isothermal (kappa*cpp, temp, psurf, ptop, pplev, pplay, pphi, pt)
 
-  pu(:,:)=0.
-  pv(:,:)=0.
+  pU = 0.0
+  pV = 0.0
 
-  CALL init_vitesse(kappa*cpp, temp, psurf, ptop, pplev, pplay, pphi, pt, pu, pv)
-  CALL geopot(kappa*cpp, pplev, pplay, pt, pphi)  !! Added by Gabrielle to mimick wavetrisk
+  CALL init_vitesse (kappa * cpp, Temp, pSurf, pTop, pPlev, pplay, pPhi, pPhi_surf, pT, pU, pV)
+  CALL geopot (kappa * cpp, pPlev, pPlay, pT, pPhi, pPhi_surf)  !! Added by Gabrielle to mimick wavetrisk
   CALL timeloop
   CALL output_function
-
-  !$acc end data
-
-CONTAINS
-
+contains
 !!!!!!!!!!!!!!! Added by Gabrielle Ching-Johnson !!!!!!!!!!!!!!!!
-  SUBROUTINE output_each_step(day, hour, tot_hour)
+  SUBROUTINE output_each_step (day, hour, tot_hour)
     !-----------------------------------------------------------------------
     !
     !   Description: Outputs mean values at desired step when called.
@@ -170,11 +161,12 @@ CONTAINS
   END SUBROUTINE output_function
 
 
-  SUBROUTINE init_vitesse(R, Temp, psurf, ptop, pplev, pplay, pphi, pt, pu, pv)
+  SUBROUTINE init_vitesse (R, Temp, pSurf, pTop, pPlev, pPlay, pPhi, pPhi_surf, pT, pU, pV)
     REAL, INTENT(IN)  :: R, Temp, psurf, ptop   ! perfect gas constant, temperature, surface and top pressure
     REAL, INTENT(OUT) :: pplev(ngrid,llm+1), &  ! pressure at interfaces
          &               pplay(ngrid, llm), &   ! pressure at full levels
          &               pphi(ngrid, llm), &    ! geopotential phi=gz at full levels
+         &               pPhi_surf(ngrid), &    ! surface geopotential
          &               pt(ngrid, llm), &      ! temperature at full levels
          &               pu(ngrid, llm), &      ! zonal wind speed at full levels
          &               pv(ngrid, llm)         ! meridional wind speed at full levels
@@ -183,16 +175,15 @@ CONTAINS
     REAL, PARAMETER :: d=10000 ! thickness of the eckman layer (in meter)
     REAL, PARAMETER :: U0=30 ! geostrophic wind speed (unit : m/s)
 
-    !$acc kernels default(present)
     DO l=1,llm
-       pu(:, l) = U0 * (1 - (exp(-pphi(:,l)/ (d*g)) * cos(pphi(:,l)/ (d*g))))
-       pv(:, l) = U0 * (1 - (exp(-pphi(:,l)/ (d*g)) * sin(pphi(:,l)/ (d*g))))
+       pU(:, l) = U0 * (1 - (exp(-pPhi(:,l)/ (d*g)) * cos(pphi(:,l)/ (d*g))))
+       pV(:, l) = U0 * (1 - (exp(-pPhi(:,l)/ (d*g)) * sin(pphi(:,l)/ (d*g))))
     END DO
 
 !!!! Added smoothing to vels to mimick wavetrisk, by Gabrielle !!!!
     DO l = 1,ngrid
-       pu(l,:) = cos(lat(l))*pu(l,:)
-       pv(l,:) = cos(lat(l))*pv(l,:)
+       pu(l,:) = cos(lat(l)) * pU(l,:)
+       pv(l,:) = cos(lat(l)) * pV(l,:)
     END DO
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc end kernels
@@ -304,126 +295,76 @@ CONTAINS
     !$acc end kernels
   END SUBROUTINE isothermal
 
-  PURE SUBROUTINE geopot(R, pplev, pplay, pt, pphi)
+  PURE SUBROUTINE geopot (R, pplev, pPlay, pt, pPhi, pPhi_surf)
     REAL, INTENT(IN) ::  R                      ! perfect gas constant
     REAL, INTENT(IN) ::  pplev(ngrid,llm+1), &  ! pressure at interfaces
          &               pplay(ngrid, llm), &   ! pressure at full levels
          &               pt(ngrid, llm)         ! temperature at full levels
-    REAL, INTENT(OUT) :: pphi(ngrid, llm)       ! geopotential phi=gz at full levels
+    REAL, INTENT(OUT) :: pPhi(ngrid, llm)       ! geopotential phi=gz at full levels
+    REAL, INTENT(OUT) :: pPhi_surf(ngrid)       ! geopotential phi=gz at full levels
     REAL :: rho, gdz, phi(ngrid)
     INTEGER :: l, ig
-    !$acc kernels create(phi) default(present)
-    phi(:)=0.
-    !$acc loop private(rho, gdz)
-    DO l=1,llm
-       DO ig=1, ngrid
-          ! rho = p/RT
-          rho = pplay(ig,l)/(R*pt(ig,l))
+
+    pPhi_surf = 0d0 ! assume zero surface geopotential
+    phi(:) = pPhi_surf
+
+    do l=1,llm
+       do ig=1, ngrid
+          ! rho = p/rt
+          rho = pplay(ig,l)/(r*pt(ig,l))
           gdz = pplev(ig,l)-pplev(ig,l+1)
           gdz  = (pplev(ig,l)-pplev(ig,l+1))/rho ! layer thickness * gravity
           pphi(ig,l) = phi(ig)+.5*gdz            ! geopotential at layer midpoint
           phi(ig) = phi(ig)+gdz                  ! geopotential at upper interface of layer
-       END DO
-    END DO
-    !$acc end kernels
-  END SUBROUTINE geopot
+       end do
+    end do
+  end subroutine geopot
 
-  SUBROUTINE timeloop
+  subroutine timeloop
     USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_BOOL
     USE phyparam_mod, ONLY : phyparam
     USE callkeys,     ONLY : lverbose
-    REAL :: &        ! arrays for tendencies of
-         &  pdt(ngrid, llm), &  ! temperature at full levels
-         &  pdu(ngrid, llm), &  ! zonal wind at full levels
-         &  pdv(ngrid, llm), &  ! meridional wind at full levels
-         &  pdpsrf(ngrid)       ! surface pressure
+    real, dimension(ngrid,llm) :: pdU    ! zonal velocity tendency
+    real, dimension(ngrid,llm) :: pdV    ! meridional velocity tendency
+    real, dimension(ngrid,llm) :: pdT    ! temperature tendency
+    real, dimension(ngrid)     :: pdPsrf ! surface pressure tendency
+    real, dimension(ngrid)     :: pPhi_surf! surface geopotential
 
-    LOGICAL(KIND=C_BOOL) :: firstcall, lastcall
-    REAL :: ptimestep, day_fraction, nth_day
-    INTEGER :: istep, iday
-    INTEGER, PARAMETER :: desired_write_day=7
-    real(8) :: total_time, day
+    integer                    :: istep, iday
+    integer, parameter         :: desired_write_day = 7
+    real                       :: ptimestep, day_fraction, nth_day
+    real(8)                    :: total_time, day
+    logical(kind=c_bool)       :: firstcall, lastcall
 
-    !day = 86400.0
-
-
-    !$acc data create(pdt, pdu, pdv, pdpsrf)
-
-    firstcall=.TRUE.
-    lastcall=.FALSE.
-    ptimestep = unjours/step_per_day
+    firstcall = .true.
+    lastcall  = .false.
+    ptimestep = unJours / step_per_day
 
     total_time = 0
     DO iday = 0, nday-1
-       PRINT *, 'Temperature at first level', pt(1,1), iday, nday-1
+       PRINT *, 'Temperature at first level', pT(1,1), iday, nday-1
        DO istep = 0, step_per_day-1
-
-!!! Physics call with fraction of the day calculated the same way as in wavetrisk
-          !  day_fraction = real(total_time/unjours)
-          !  nth_day = floor(day_fraction)
-          !  day_fraction = day_fraction - nth_day
-          !  CALL phyparam(ngrid,llm,                        &
-          !        firstcall,lastcall,                        &
-          !        nth_day, day_fraction, timestep, &
-          !        pplev,pplay,pphi,                          &
-          !        pu,pv,pt,                                  &
-          !        pdu,pdv,pdt,pdpsrf)
-
-          CALL phyparam(ngrid,llm,                        &
-               firstcall,lastcall,                        &
-               1.*iday, timestep*istep/unjours, timestep, &
-               pplev,pplay,pphi,                          &
-               pu,pv,pt,                                  &
-               pdu,pdv,pdt,pdpsrf)
+          call phyparam (ngrid, llm, firstcall,lastcall, 1.0*iday, timestep * istep/unjours, timestep, &
+               pPlev, pPlay, pPhi, pPhi_surf, &
+               pU, pV, pT,                    &
+               pdU, pdV, pdT, pdPsrf)
 
           total_time = total_time + timestep
-          firstcall=.FALSE.
-          lverbose=.FALSE.
+          firstcall = .false.
+          lverbose  = .false.
 
-          !$acc kernels default(present)
-          pt = pt + pdt*timestep
-          pu = pu + pdu*timestep
-          pv = pv + pdv*timestep
+          pT = pT + pdT * Timestep
+          pU = pU + pdU * Timestep
+          pV = pV + pdV * Timestep
 
-          !$acc end kernels
-          CALL geopot(kappa*cpp, pplev, pplay, pt, pphi)
+          CALL geopot (kappa*cpp, pplev, pplay, pt, pPhi, pPhi_surf)
        END DO
 !!!!!!!!!!!!!!!!!!!!!!!!! Added by Gabrielle Ching-Johnoson !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-       !Write at the end of every desired_write_day day mean values
-       IF ((mod(iday+1,desired_write_day) == 0 .or. iday == 0)) THEN
-          CALL output_each_step(iday+1, (istep)*(24/step_per_day), (24*(iday+1)*3600))
-       END IF
+       ! Write at the end of every desired_write_day day mean values
+       if ((mod(iday+1,desired_write_day) == 0 .or. iday == 0)) then
+          call output_each_step(iday+1, (istep)*(24/step_per_day), (24*(iday+1)*3600))
+       end if
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    END DO
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !$acc end data
-
-    ! INTEGER, INTENT(IN), VALUE :: &
-    !      ngrid,                 & ! Size of the horizontal grid.
-    !      nlayer                   ! Number of vertical layers.
-    ! LOGICAL(KIND=C_BOOL), INTENT(IN), VALUE  :: &
-    !      firstcall,             & ! True at the first call
-    !      lastcall                 ! True at the last call
-    ! REAL, INTENT(IN), VALUE     ::      &
-    !      rjourvrai,             & ! Number of days counted from the North. Spring equinox
-    !      gmtime,                & ! fraction of the day (ranges from 0 to 1)
-    !      ptimestep                ! timestep (s)
-    ! REAL, INTENT(IN) :: &
-    !      pplev(ngrid,nlayer+1), & ! Pressure at interfaces between layers (pa)
-    !      pplay(ngrid,nlayer),   & ! Pressure at the middle of the layers (Pa)
-    !      pphi(ngrid,nlayer),    & ! Geopotential at the middle of the layers (m2s-2)
-    !      pu(ngrid,nlayer),      & ! u component of the wind (ms-1)
-    !      pv(ngrid,nlayer),      & ! v component of the wind (ms-1)
-    !      pt(ngrid,nlayer)         ! Temperature (K)
-    ! REAL, INTENT(OUT)   ::      & ! output : physical tendencies
-    !      pdu(ngrid,nlayer),     &
-    !      pdv(ngrid,nlayer),     &
-    !      pdt(ngrid,nlayer),     &
-    !      pdpsrf(ngrid)
-
-    ! NB : pdpsrf = 0.
-
-  END SUBROUTINE timeloop
-
-END PROGRAM simple_physics
+    end do
+  end subroutine timeloop
+end program simple_physics
