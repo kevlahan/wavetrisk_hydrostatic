@@ -83,7 +83,7 @@ contains
     !
     !-----------------------------------------------------------------------------------
     USE callkeys,          only : lverbose ! print physics model parameters
-    USE single_column_mod, only : change_latitude_longitude, physics_call_single_col
+    USE single_column_mod, only : change_latitude_longitude, physics_call_single_col 
     implicit none
     type(Domain)                   :: dom                  
     integer                        :: i, j, zlev
@@ -142,7 +142,7 @@ contains
     
     call physics_call_single_col (1, zlevels, &
          physics_firstcall_flag, lastcall_flag, nth_day, day_fraction, dt, &
-         phys_Plev, phys_Play, phys_Phi, phys_Phisurf, phys_U, phys_V, phys_T,Tsoil, &
+         phys_Plev, phys_Play, phys_Phi, phys_Phisurf, phys_U, phys_V, phys_T, Tsoil, & 
          phys_dU, phys_dV, phys_dT, phys_dPsurf)
 
     lverbose = .false.

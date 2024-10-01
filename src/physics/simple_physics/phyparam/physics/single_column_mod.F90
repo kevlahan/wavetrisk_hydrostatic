@@ -20,7 +20,7 @@ module single_column_mod
   pUblic :: initialize_extra_levels, get_extra_levels, physics_call_single_col, change_latitude_longitude
 contains
   subroutine physics_call_single_col (ngrid, nlayer, firstcall, lastcall, rJourvrai, &
-       gmTime, pTimestep, pPlev, pPlay, pPhi, pU, pV, pT, pPhi_surf, Tsurf_soil, &
+       gmTime, pTimestep, pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pT, Tsurf_soil, &
        pdU, pdV, pdT, pdPsrf)
     !----------------------------------------------------------------
     !
@@ -87,7 +87,7 @@ contains
     !   levels = nsoilmx + 1 if soil model is turned on
     !   levels = 1           if soil model is not used
     !
-    !   author: gabrielle ching-johnson
+    !   author: Gabrielle Ching-Johnson
     !
     !----------------------------------------------------------------
     integer :: levels

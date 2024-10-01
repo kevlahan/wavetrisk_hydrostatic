@@ -166,11 +166,11 @@ contains
 
     ! Exner function
     do ig = 1, ngrid
-       zExner(ig,:) = ( pPlay(ig,:) / pPlev(:,1) )**Rcp ! surface pressure is used as reference pressure
+       zExner(ig,:) = ( pPlay(ig,:) / pPlev(ig,1) )**Rcp ! surface pressure is used as reference pressure
     end do
 
     ! Potential temperature
-    zH     = pT / zExner
+    zH = pT / zExner
 
 
     !-----------------------------------------------------------------------------------------------
