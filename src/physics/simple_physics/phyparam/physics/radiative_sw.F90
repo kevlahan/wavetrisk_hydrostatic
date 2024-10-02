@@ -1,147 +1,78 @@
-MODULE radiative_sw
-
+module radiative_sw
 #include "use_logging.h"
-
-  IMPLICIT NONE
-  SAVE
-
-  PRIVATE
-
-  PUBLIC :: sw
-
-CONTAINS
-
-  PURE SUBROUTINE monGATHER(ngrid, n,index, a,b)
-    INTEGER, INTENT(IN) :: ngrid, n, index(n)
-    REAL, INTENT(IN)    :: a(ngrid)
-    REAL, INTENT(OUT)   :: b(n)
-    INTEGER :: i
-    IF(n<ngrid) THEN
-       DO i=1,n
-          b(i)=a(index(i))
-       END DO
-    ELSE
-       b(:)=a(:)
-    END IF
-  END SUBROUTINE monGATHER
-
-  PURE subroutine monscatter(ngrid, n,index, b,a)
-    INTEGER, INTENT(IN) :: ngrid, n,index(n)
-    REAL, INTENT(IN)    :: b(n)
-    REAL, INTENT(OUT)   :: a(ngrid)
-    INTEGER :: i
-    IF(n<ngrid) THEN
-       a(:)=0.
-       DO i=1,n
-          a(index(i))=b(i)
-       END DO
-    ELSE
-       a(:)=b(:)
-    END IF
-  end subroutine monscatter
-
-  SUBROUTINE sw(ngrid,nlayer,ldiurn, coefvis,albedo, &
-       &        plevel,ps_rad,pmu,pfract,psolarf0, &
-       &        fsrfvis,dtsw, lverbose, lwrite)
-    USE phys_const, ONLY : cpp, g
-    USE writefield_mod, ONLY : writefield
-
+  implicit none
+  save
+  private
+  public :: sw
+contains
+  subroutine sw (ngrid, nlayer,ldiurn, CoefVis, Albedo, pLevel, pS_rad,pMu, pfract, pSolarf0, FsrFvis, dTsw, lverbose, lwrite)
     !=======================================================================
     !
     !   Rayonnement solaire en atmosphere non diffusante avec un
     !   coefficient d absorption gris.
     !
     !=======================================================================
+    USE phys_const,     only : Cpp, g
+    USE writefield_mod, only : writefield
+    integer,                         intent(in) :: ngrid            ! number of columns
+    integer,                         intent(in) :: nlayer           ! number of vertical layers
+    real,                            intent(in) :: pSolarf0         ! solar constant
+    real,                            intent(in) :: pS_rad, CoefVis  ! CoefVis = attenuation at p = pS_rad
+    real, dimension(ngrid),          intent(in) :: Albedo           ! Albedo
+    real, dimension(ngrid),          intent(in) :: pMu              ! cosine zenithal angle
+    real, dimension(ngrid),          intent(in) :: pFract           ! day fraction
+    real, dimension(ngrid,nlayer+1), intent(in) :: pLevel           ! pressure at interfaces
+    logical,                         intent(in) :: ldiurn, lverbose, lwrite
 
-    INTEGER, INTENT(IN) :: ngrid, nlayer
-    LOGICAL, INTENT(IN) :: ldiurn, lverbose, lwrite
-    REAL, INTENT(IN)    :: &
-         psolarf0,            & ! solar constant
-         ps_rad, coefvis,     & ! coefvis = attenuation at p=ps_rad
-         albedo(ngrid),       & ! albedo
-         pmu(ngrid),          & ! cosine zenithal angle
-         pfract(ngrid),       & ! day fraction
-         plevel(ngrid,nlayer+1) ! pressure at interfaces
-    REAL, INTENT(OUT) :: &
-         fsrfvis(ngrid),    & ! net surface flux
-         dtsw(ngrid,nlayer)   ! temperature tendency
+    ! Output
+    real, dimension(ngrid),          intent(out) :: FsrFvis         ! net surface flux
+    real, dimension(ngrid,nlayer),   intent(out) :: dTsw            ! temperature tendency
 
-    REAL :: buf1(ngrid), buf2(ngrid, nlayer+1) ! buffers for output
-    ! fluxes are non-zero only on those points where the sun shines (mu0>0)
-    ! We compute only on those ncount points and gather them to vectorize
-    INTEGER :: ncount, index(ngrid)
-    ! In the work arrays below, ngrid should be ncount but ncount is not known yet
-    REAL :: zalb(ngrid),                & ! albedo
-         &  zmu(ngrid),                 & ! cosine zenithal angle
-         &  zfract(ngrid),              & ! day fraction
-         &  flux_in(ngrid),             & ! incoming solar flux
-         &  flux_down(ngrid, nlayer+1), & ! downward flux
-         &  flux_up(ngrid, nlayer+1),   & ! upward flux
-         &  zplev(ngrid,nlayer+1),      & ! pressure at interfaces
-         &  zflux(ngrid),               & ! net surface flux
-         &  zdtsw(ngrid,nlayer),        & ! temperature tendency
-         &  zu(ngrid,nlayer+1)
-    INTEGER :: ig,l,igout
-    REAL :: tau0
+    ! Fluxes are non-zero only on those points where the sun shines (Mu0 > 0)
+    ! we compute only on those ncount points
+    integer                            :: ncount
+    integer, dimension(ngrid)          :: index
+    real,    dimension(ngrid)          :: buf1
+    real,    dimension(ngrid,nlayer+1) :: buf2
 
-    !$acc data copyin(albedo, pmu, pfract, plevel)      &
-    !$acc      copyout(fsrfvis, dtsw)                   &
-    !$acc      create(flux_in, flux_down, flux_up, zu)
+    integer                         :: ig,l,igout
+    real                            :: tau0
+    real, dimension(ngrid)          :: zAlb      ! Albedo
+    real, dimension(ngrid)          :: zMu       ! cosine zenithal angle
+    real, dimension(ngrid)          :: zFract    ! day fraction
+    real, dimension(ngrid)          :: Flux_in   ! incoming solar flux
+    real, dimension(ngrid)          :: zFlux     ! net surface flux
+    real, dimension(ngrid,nlayer)   :: zdtsw     ! temperature tendency
+    real, dimension(ngrid,nlayer+1) :: Flux_down ! downward flux
+    real, dimension(ngrid,nlayer+1) :: Flux_up   ! upward flux
+    real, dimension(ngrid,nlayer+1) :: zPlev     ! pressure at interfaces
+    real, dimension(ngrid,nlayer+1) :: zU        !
 
-#ifdef _OPENACC
+    if (ldiurn) then
+       ncount = 0
+       index = 0
+       do ig = 1, ngrid
+          if (pfract(ig) > 1e-6) then
+             ncount = ncount+1
+             index (ncount) = ig
+          end if
+       end do
+    else
+       ncount = ngrid
+    end  if
 
-    ! With OpenACC we skip the gather/scatter phase
-    ! therefore we read/write directly from/to arrays
-    !      zfract, zmu, zalb, dtsw
-    ! instead of buffers
-    !      zfract, zmu, zalb, zdtsw
-#define NCOUNT ngrid
+    call mongather (ngrid, ncount, index, pFract, zfract)
+    call mongather (ngrid, ncount, index, pMu,    zMu)
+    call mongather (ngrid, ncount, index, Albedo, zAlb)
+    do l=  1, nlayer+1
+       call mongather (ngrid, ncount, index, pLevel(:,l), zPlev(:,l))
+    end do
 
-#define ZFRACT pfract
-#define ZMU    pmu
-#define ZALB   albedo
-#define ZPLEV  plevel
-
-#define ZDTSW  dtsw
-#define ZFLUX  fsrfvis
-
-#else
-    ! on the CPU we compute only on sunny points (pfract(ig)>0)
-    ! we list their indices and pack the input arrays into buffers (mongather)
-    ! on exit we unpack the output flux and temperature tendencies from buffers to full-size arrays (monscatter)
-
-    IF (ldiurn) THEN
-       ncount=0
-       DO ig=1,ngrid
-          index(ig)=0
-       ENDDO
-       DO ig=1,ngrid
-          IF(pfract(ig).GT.1.e-6) THEN
-             ncount=ncount+1
-             index(ncount)=ig
-          ENDIF
-       ENDDO
-    ELSE
-       ncount=ngrid
-    ENDIF
-
-    CALL monGATHER(ngrid,ncount,index, pfract,zfract)
-    CALL monGATHER(ngrid,ncount,index, pmu,   zmu)
-    CALL monGATHER(ngrid,ncount,index, albedo,zalb)
-    DO l=1,nlayer+1
-       CALL monGATHER(ngrid,ncount,index, plevel(:,l),zplev(:,l))
-    ENDDO
-
-#endif
-
-    !$acc kernels default(none)
-
-    flux_in(:)=0.
-    flux_down(:,:)=0.
-    flux_up(:,:)=0.
-    ZDTSW(:,:)=0.
-    zu(:,:)=0.
-
+    Flux_in   = 0.0
+    Flux_down = 0.0
+    Flux_up   = 0.0
+    zdTsw     = 0.0
+    zU        = 0.0
 
     !-----------------------------------------------------------------------
     !   calcul des profondeurs optiques integres depuis p=0:
@@ -150,149 +81,139 @@ CONTAINS
     !-----------------------------------------------------------------------
     !   calcul de la transmission depuis le sommet de l atmosphere:
     !   -----------------------------------------------------------
-
-    DO ig=1,NCOUNT
-       flux_in(ig) = psolarf0*ZFRACT(ig)*ZMU(ig)
-    ENDDO
+    Flux_in(1:ncount) = pSolarf0 * zfract(1:ncount) * zMu(1:ncount)
 
     ! calcul de la partie homogene de l opacite
-    tau0=-.5*log(coefvis)/ps_rad
+    tau0 = -0.5 * log (CoefVis) / pS_rad
 
-    DO l=1,nlayer+1
-       DO ig=1,NCOUNT
-          zu(ig,l)=tau0*ZPLEV(ig,l)
-          !          flux_down(ig,l) = flux_in(ig)*exp(-zu(ig,l)/ZMU(ig))
-          flux_down(ig,l) = flux_in(ig)*exp(-zu(ig,l)/ABS(ZMU(ig)+1e-13))
-       ENDDO
-    ENDDO
+    zU(1:ncount,:) = tau0 * zPlev(1:ncount,:)
+
+    do l = 1, nlayer+1
+       Flux_down(1:ncount,l) = Flux_in(1:ncount) * exp (- zU(1:ncount,l) / abs (zMu(1:ncount) + 1e-13))
+    end do
 
     !-----------------------------------------------------------------------
     !   4. calcul du flux solaire arrivant sur le sol:
     !   ----------------------------------------------
-
-    DO ig=1,NCOUNT
-       ZFLUX(ig)     = (1.-ZALB(ig))*flux_down(ig,1) ! absorbed (net)
-       flux_up(ig,1) =      ZALB(ig)*flux_down(ig,1) ! reflected (up)
-    ENDDO
+    zFlux(1:ncount)     = (1.0 - zAlb(1:ncount)) * Flux_down(1:ncount,1) ! absorbed (net)
+    Flux_up(1:ncount,1) =        zAlb(1:ncount)  * Flux_down(1:ncount,1) ! reflected (up)
 
     !-----------------------------------------------------------------------
     !   5.calcul des transmissions depuis le sol, cas diffus:
     !   ------------------------------------------------------
-
-    DO l=2,nlayer+1
-       DO ig=1,NCOUNT
-          flux_up(ig,l)=flux_up(ig,1)*exp(-(zu(ig,1)-zu(ig,l))*1.66)
-       ENDDO
-    ENDDO
+    do l = 2, nlayer+1
+       flux_up(1:ncount,l) = Flux_up(1:ncount,1) * exp (- (zU(1:ncount,1) - zU(1:ncount,l)) * 1.66)
+    end do
 
     !-----------------------------------------------------------------------
     !   3. taux de chauffage, ray. solaire direct:
     !   ------------------------------------------
-
-    DO l=1,nlayer
-       DO ig=1,NCOUNT
-          ! m.cp.dT = dflux/dz
-          ! m = -(dp/dz)/g
-          ZDTSW(ig,l)=(g/cpp) &
-               &     * (flux_down(ig,l+1)-flux_down(ig,l)) &
-               &     / (ZPLEV(ig,l)-ZPLEV(ig,l+1))
-       ENDDO
-    ENDDO
+    ! m.cp.dt = dflux/dz
+    ! m = -(dp/dz)/g
+    zdTsw(1:ncount,1:nlayer) = (g/cpp) * (Flux_down(1:ncount,2:nlayer+1) - Flux_down(1:ncount,1:nlayer))  / (zplev(1:ncount,1:nlayer) - zplev(1:ncount,2:nlayer+1))
 
     !-----------------------------------------------------------------------
-    !   6.ajout a l echauffement de la contribution du ray. sol. reflechit:
+    !   6. ajout a l echauffement de la contribution du ray. sol. reflechit:
     !   -------------------------------------------------------------------
+    zdTsw(1:ncount,1:nlayer) = zdTsw(1:ncount,1:nlayer) + (g/Cpp) * (Flux_up(1:ncount,1:nlayer) - Flux_up(1:ncount,2:nlayer+1)) /( zPlev(1:ncount,1:nlayer) - zPlev(1:ncount,2:nlayer+1))
 
-    DO l=1,nlayer
-       DO ig=1,NCOUNT
-          ZDTSW(ig,l) = ZDTSW(ig,l) +                           &
-               &        (g/cpp)*(flux_up(ig,l)-flux_up(ig,l+1)) &
-               &        /(ZPLEV(ig,l)-ZPLEV(ig,l+1))
-       ENDDO
-    ENDDO
-
-    !$acc end kernels
 
     !------------------------
     !   Diagnostics
     !------------------------
+    if (lverbose) then
+       igout = ncount/2 + 1
 
-    IF (lverbose) THEN
-       igout=NCOUNT/2+1
+       WRITELOG (*,*) 'Diagnostique des transmission dans le spectre solaire'
+       WRITELOG (*,*) 'zfract, zmu, zalb, flux_in'
+       WRITELOG (*,*) ZFRACT(igout), ZMU(igout), ZALB(igout), flux_in(igout)
 
-       !$acc update host(ZFRACT, ZMU, ZALB, ZFLUX, ZDTSW, flux_in, flux_down, flux_up)
-       WRITELOG(*,*) 'Diagnostique des transmission dans le spectre solaire'
-       WRITELOG(*,*) 'zfract, zmu, zalb, flux_in'
-       WRITELOG(*,*) ZFRACT(igout), ZMU(igout), ZALB(igout), flux_in(igout)
-       IF (flux_in(igout)>0.) THEN
-          WRITELOG(*,*) 'Pression, quantite d abs, transmission'
-          DO l=1,nlayer+1
-             WRITELOG(*,*) zplev(igout,l),zu(igout,l),flux_down(igout,l)/flux_in(igout)
-          ENDDO
-       END IF
-       LOG_INFO('rad_sw')
+       if (flux_in(igout) > 0.0) then
+          WRITELOG (*,*) 'Pression, quantite d abs, transmission'
+          do l = 1, nlayer+1
+             WRITELOG (*,*) zplev(igout,l),zu(igout,l),flux_down(igout,l)/flux_in(igout)
+          end do
+       end if
+       LOG_INFO ('rad_sw')
 
-       WRITELOG(*,*) 'Diagnostique des taux de chauffage solaires:'
-       WRITELOG(*,*) ' 2 flux solaire net incident sur le sol'
-       WRITELOG(*,*) zflux(igout)
-       LOG_INFO('rad_sw')
+       WRITELOG (*,*) 'Diagnostique des taux de chauffage solaires:'
+       WRITELOG (*,*) ' 2 flux solaire net incident sur le sol'
+       WRITELOG (*,*) zflux(igout)
+       LOG_INFO ('rad_sw')
 
-       IF (flux_up(igout,1)>0.) THEN
-          WRITELOG(*,*) 'Diagnostique des taux de chauffage solaires'
-          WRITELOG(*,*) ' 3 transmission avec les sol'
-          WRITELOG(*,*) 'niveau     transmission'
-          DO l=1,nlayer+1
-             WRITELOG(*,*) l, flux_up(igout,l)/flux_up(igout,1)
-          ENDDO
-          LOG_INFO('rad_sw')
-       END IF
+       if (flux_up(igout,1) > 0.0) then
+          WRITELOG (*,*) 'Diagnostique des taux de chauffage solaires'
+          WRITELOG (*,*) ' 3 transmission avec les sol'
+          WRITELOG (*,*) 'niveau     transmission'
+          do l=  1, nlayer+1
+             WRITELOG (*,*) l, flux_up(igout,l) / flux_up(igout,1)
+          end do
+          LOG_INFO ('rad_sw')
+       end if
 
-       WRITELOG(*,*) 'Diagnostique des taux de chauffage solaires:'
-       WRITELOG(*,*) ' 3 taux de chauffage total'
-       DO l=1,nlayer
+       WRITELOG (*,*) 'Diagnostique des taux de chauffage solaires:'
+       WRITELOG (*,*) ' 3 taux de chauffage total'
+       do l = 1, nlayer
           WRITELOG(*,*) ZDTSW(igout,l)
-       ENDDO
-       LOG_INFO('rad_sw')
-    ENDIF
+       end do
+       LOG_INFO( 'rad_sw')
+    end if
 
-    !----------------------------
-    !   Outputs
-    !----------------------------
+    if (lwrite) then
+       call monscatter (ngrid, ncount, index, flux_in, buf1)
+       call writefield ('swtop','sw down toa','w/m2',buf1)
 
-#ifdef _OPENACC
-    ! with OpenACC we work directly in fsrfvis and dtsw
+       do l = 1, nlayer+1
+          call monscatter (ngrid, ncount, index, flux_down(:,l), buf2(:,l))
+       end do
+       call writefield ('swflux_down','downward sw flux','w/m2', buf2)
 
-    IF(lwrite) THEN
-       !$acc update host(flux_in, flux_down,flux_up)
-       CALL writefield('swtop','SW down TOA','W/m2',flux_in)
-       CALL writefield('swflux_down','Downward SW flux','W/m2',flux_down)
-       CALL writefield('swflux_up','Upward SW flux','W/m2',flux_up)
-    END IF
+       do l = 1, nlayer+1
+          call monscatter (ngrid, ncount, index, flux_up(:,l), buf2(:,l))
+       end do
+       call writefield ('swflux_up','upward sw flux','w/m2', buf2)
+    end if
 
-#else
-    IF(lwrite) THEN
-       CALL monscatter(ngrid,ncount,index, flux_in,buf1)
-       CALL writefield('swtop','SW down TOA','W/m2',buf1)
+    call monscatter (ngrid, ncount, index, zflux,fsrfvis)
+    do l = 1, nlayer
+       call monscatter (ngrid, ncount, index, zdTsw(:,l), dTsw(:,l))
+    end do
+  end subroutine sw
 
-       DO l=1,nlayer+1
-          CALL monscatter(ngrid,ncount,index, flux_down(:,l),buf2(:,l))
-       ENDDO
-       CALL writefield('swflux_down','Downward SW flux','W/m2',buf2)
+  pure subroutine mongather (ngrid, n,index, a,b)
+    integer,                   intent(in)  :: ngrid, n
+    integer, dimension(n),     intent(in)  :: index
+    real,    dimension(ngrid), intent(in)  :: a
 
-       DO l=1,nlayer+1
-          CALL monscatter(ngrid,ncount,index, flux_up(:,l),buf2(:,l))
-       ENDDO
-       CALL writefield('swflux_up','Upward SW flux','W/m2',buf2)
-    END IF
+    real,    dimension(n),     intent(out) :: b(n)
 
-    CALL monscatter(ngrid,ncount,index, zflux,fsrfvis)
-    DO l=1,nlayer
-       CALL monscatter(ngrid,ncount,index, zdtsw(:,l),dtsw(:,l))
-    ENDDO
-#endif
+    integer :: i
 
-    !$acc end data
+    if (n < ngrid) then
+       do i = 1, n
+          b(i) = a(index(i))
+       end do
+    else
+       b = a
+    end if
+  end subroutine mongather
 
-  END SUBROUTINE sw
+  pure subroutine monscatter (ngrid, n, index, b, a)
+    integer,                   intent(in)  :: ngrid, n
+    integer, dimension(n),     intent(in)  :: index
+    real, dimension(n),        intent(in)  :: b
 
-END MODULE radiative_sw
+    real, dimension(ngrid),    intent(out) :: a
+
+    integer :: i
+
+    if (n < ngrid) then
+       a = 0.0
+       do i=1,n
+          a(index(i)) = b(i)
+       end do
+    else
+       a = b
+    end if
+  end subroutine monscatter
+end module radiative_sw

@@ -46,21 +46,21 @@ module soil_mod
   real, parameter :: fz1        = sqrt (min_period / Pi)
 
   ! Common variables
-  real, public ::  i_mer, i_ter, cd_mer, cd_ter, alb_mer, alb_ter, emi_mer, emi_ter
+  real, public ::  I_mer, I_ter, Cd_mer, Cd_ter, Alb_mer, Alb_ter, Emi_mer, Emi_ter
 
   ! Precomputed variables
   real                              :: lambda
   real, dimension(:),  allocatable  :: dz1, dz2
-  real, dimension(:),  allocatable  :: Rnatur, Albedo, Emissiv, z0, pThermal_inertia
+  real, dimension(:),  allocatable  :: land, Albedo, Emissiv, Z0, pThermal_inertia
 
   ! Internal state, written to / read from disk at checkpoint / restart
   real, dimension(:),   allocatable :: Tsurf
   real, dimension(:,:), allocatable :: tsoil
 
-  public :: init_soil, soil_forward, soil_backward, Rnatur, Albedo, Emissiv, z0, pThermal_inertia, Tsurf, Tsoil
+  public :: init_soil, soil_forward, soil_backward, land, Albedo, Emissiv, Z0, pThermal_inertia, Tsurf, Tsoil
 contains
   pure subroutine soil_forward (ngrid, nsoil, pTimestep, pThermal_inertia, pTsrf, pTsoil, zc, zd, pCapCal, pFluxGrd)
-    integer,                        intent(in)  :: ngrid             ! number of column
+    integer,                        intent(in)  :: ngrid             ! number of columns
     integer,                        intent(in)  :: nsoil             ! number of soil layers
 
     real,                           intent(in)  :: pTimestep         ! time step
@@ -68,7 +68,7 @@ contains
     real, dimension(ngrid),         intent(in)  :: pTsrf             ! surface temperature before heat conduction
     real, dimension(ngrid,nsoil),   intent(in)  :: pTsoil            ! soil temperature before heat conduction
 
-    real, dimension(ngrid,nsoil-1), intent(out) :: zc, zd            ! Lu factorization for backward sweep
+    real, dimension(ngrid,nsoil-1), intent(out) :: zc, zd            ! LU factorization for backward sweep
 
     real, dimension(ngrid),         intent(out) :: pCapCal           ! effective calorific capacity
     real, dimension(ngrid),         intent(out) :: pFluxGrd          ! conductive heat flux at the ground
@@ -97,10 +97,10 @@ contains
     do ig = 1, ngrid
        z1 = lambda * (1.0 - zd(ig,1)) + 1.0
 
-       pCapCal(ig)  = pThermal_inertia(ig) * ptimestep * (zdz2(1) + (1.0 - zd(ig,1)) * dz1(1)) / z1                 ! c_s (A.30)
+       pCapCal(ig)  = pThermal_inertia(ig) * pTimestep * (zdz2(1) + (1.0 - zd(ig,1)) * dz1(1)) / z1                 ! c_s (A.30)
 
        pFluxGrd(ig) = pThermal_inertia(ig) * dz1(1) * (zc(ig,1) + (zd(ig,1) - 1.0) * pTsoil(ig,1))                  ! f *  (A.25)
-       pFluxGrd(ig) = pFluxGrd(ig) + pCapCal(ig) * (pTsoil(ig,1) * z1 - lambda * zc(ig,1) - pTsrf(ig)) / ptimestep  ! f_s (A.31)
+       pFluxGrd(ig) = pFluxGrd(ig) + pCapCal(ig) * (pTsoil(ig,1) * z1 - lambda * zc(ig,1) - pTsrf(ig)) / pTimestep  ! f_s (A.31)
     end do
   end subroutine soil_forward
 

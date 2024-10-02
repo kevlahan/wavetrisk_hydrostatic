@@ -23,7 +23,7 @@ contains
     use,          intrinsic :: iso_c_binding
     use phys_const,     only : g, Rcp, r, unjours
     use soil_mod,       only : soil_forward, soil_backward
-    use soil_mod,       only : z0, pThermal_inertia, Emissiv, Albedo  ! precomputed
+    use soil_mod,       only : Z0, pThermal_inertia, Emissiv, Albedo  ! precomputed
     use soil_mod,       only : Tsurf, Tsoil                           ! surface temperature, soil column temperatures
     use turbulence,     only : Vdif
     use convection,     only : ConvAdj
@@ -225,7 +225,7 @@ contains
        zdum2 = 0.0
        zdum3 = pdT / zExner
 
-       call Vdif (ngrid, nlayer, zDay, pTimestep, CapCal, z0, pPlay, pPlev, zZlay, zZlev, pU, pV, zH, Tsurf, Emissiv, &
+       call Vdif (ngrid, nlayer, zDay, pTimestep, CapCal, Z0, pPlay, pPlev, zZlay, zZlev, pU, pV, zH, Tsurf, Emissiv, &
             zdum1, zdum2, zdum3, zFluxid, &
             zdUfr, zdVfr, zdHfr, zdTsrfr, &
             lverbose)
@@ -290,7 +290,7 @@ contains
        call writefield ('temp',  'temperature',           'K',     pT)
        call writefield ('theta', 'potential temperature', 'K',     zH)
        call writefield ('geop',  'geopotential',          'm2/s2', pPhi)
-       call writefield ('plev',  'plev',                  'Pa' ,   pPlev(:,1:nlayer))
+       call writefield ('pLev',  'plev',                  'Pa' ,   pPlev(:,1:nlayer))
 
        call writefield ('dU', 'dU',' ', pdU)
        call writefield ('dV', 'dV',' ', pdV)
@@ -303,7 +303,7 @@ contains
        call writefield ('sinlat', 'sinlat',              ' ',  sinlat)
        call writefield ('alb',    'Albedo',              ' ',  Albedo)
        call writefield ('Ps',     'Surface pressure',    'Pa', pPlev(:,1))
-       call writefield ('slp',    'Sea level pressure',  'Pa', zPmer)
+       call writefield ('slP',    'Sea level pressure',  'Pa', zPmer)
     end if
 
     call profile_exit (id_phyparam)
@@ -312,12 +312,12 @@ contains
 
   subroutine alloc (ngrid, nlayer) bind (c, name='phyparam_alloc')
     use astronomy, only : iniorbit
-    use soil_mod,  only : Tsurf, Tsoil, z0, pThermal_inertia, Rnatur, Albedo, Emissiv
+    use soil_mod,  only : Tsurf, Tsoil, Z0, pThermal_inertia, land, Albedo, Emissiv
     integer, intent(in), value :: ngrid, nlayer
 
     ! Allocate precomputed arrays
-    allocate (Rnatur(ngrid), Albedo(ngrid), Emissiv(ngrid))
-    allocate (z0(ngrid), pThermal_inertia(ngrid))
+    allocate (land(ngrid), Albedo(ngrid), Emissiv(ngrid))
+    allocate (Z0(ngrid), pThermal_inertia(ngrid))
 
     ! Allocate arrays for internal state
     allocate (Tsurf(ngrid))
@@ -328,13 +328,14 @@ contains
 
   subroutine precompute () bind (c, name='phyparam_precompute')
     ! Precompute time-independent arrays
-    use soil_mod, only: Rnatur, pThermal_inertia, z0, Emissiv, Albedo,  I_mer, I_ter, Cd_mer, Cd_ter,  Alb_mer, Alb_ter, Emi_mer, Emi_ter
+    use soil_mod, only: land, pThermal_inertia, Z0, Emissiv, Albedo,  I_mer, I_ter, Cd_mer, Cd_ter,  Alb_mer, Alb_ter, Emi_mer, Emi_ter
 
-    Rnatur           = 1.0
-    pThermal_inertia = (1.0 - Rnatur) * I_mer   + Rnatur * i_ter
-    z0               = (1.0 - Rnatur) * Cd_mer  + Rnatur * Cd_ter
-    Emissiv          = (1.0 - Rnatur) * Emi_mer + Rnatur * Emi_ter
-    Albedo           = (1.0 - Rnatur) * Alb_mer + Rnatur * Alb_ter
+    land             = 1.0                                      ! proportion of land compared to sea, 0 <= land <= 1
+
+    pThermal_inertia = (1.0 - land) * I_mer   + land * I_ter    ! thermal inertia
+    Z0               = (1.0 - land) * Cd_mer  + land * Cd_ter   ! roughness length
+    Emissiv          = (1.0 - land) * Emi_mer + land * Emi_ter  ! emissivity
+    Albedo           = (1.0 - land) * Alb_mer + land * Alb_ter  ! zlbedo
   end subroutine precompute
 
   subroutine coldstart (ngrid) bind (c, name='phyparam_coldstart')

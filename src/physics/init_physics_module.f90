@@ -38,8 +38,6 @@ module init_physics_mod
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Default values values physics Model Parameters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     ! Sub-model activation
-    
-
     radiation_model  = .true.                         ! (T) radiation module is on
     turbulence_model = .true.                         ! (T) vertical diffusion module is on
     convecAdj_model  = .true.                         ! (T) convective adjustment module is on
@@ -54,8 +52,8 @@ module init_physics_mod
     obliquity       = 0d0                             ! planet axial tilt/obliquity
     sea_surf        = 0.01d0                          ! sea surface roughness length scale  [m]
     soil_surf       = 0.01d0                          ! soil surface roughness length scale [m]
-    sea_inertia     = 3000d0                          ! sea thermal  inertia [J/m^3K]
-    soil_inertia    = 3000d0                          ! soil thermal inertia [J/m^3K]
+    sea_inertia     = 3000d0                          ! sea thermal  inertia [J/(m^3 K)]
+    soil_inertia    = 3000d0                          ! soil thermal inertia [J/(m^3 K)]
     sea_emissive    = 1d0                             ! sea emissivity
     soil_emmisive   = 1d0                             ! soil emissivity
     min_turbmix     = 100d0                           ! minimum turbulent mixing length [m]
