@@ -19,9 +19,8 @@ module single_column_mod
   integer :: extra_levels = 1   ! default value (surface layer only)
   pUblic :: initialize_extra_levels, get_extra_levels, physics_call_single_col, change_latitude_longitude
 contains
-  subroutine physics_call_single_col (ngrid, nlayer, firstcall, lastcall, rJourvrai, &
-       gmTime, pTimestep, pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pT, Tsurf_soil, &
-       pdU, pdV, pdT, pdPsrf)
+  subroutine physics_call_single_col (ngrid, nlayer, mask, firstcall, lastcall, rJourvrai, &
+       gmTime, pTimestep, pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pT, Tsurf_soil)
     !----------------------------------------------------------------
     !
     !   WrapPer routine dynamics will use to call the physics,
@@ -42,6 +41,7 @@ contains
     ! Input:
     integer, value,                      intent(in)    :: ngrid      ! number of columns
     integer, value,                      intent(in)    :: nlayer     ! number of vertical layers in atmosphere
+    integer, value,                      intent(in)    :: mask       ! adaptive grid mask value
     real,    value,                      intent(in)    :: rJourvrai  ! number of days counted from the north. spring equinox
     real,    value,                      intent(in)    :: gmTime     ! fraction of the day (ranges from 0 to 1)
     real,    value,                      intent(in)    :: pTimestep  ! timestep [s]
@@ -49,34 +49,28 @@ contains
     real, dimension(ngrid,nlayer),       intent(in)    :: pPlay      ! pressure at layer centres    [Pa]
     real, dimension(ngrid,nlayer),       intent(in)    :: pPhi       ! geopotential layer centres   [m^2/s^2]
     real, dimension(ngrid),              intent(in)    :: pPhi_surf  ! surface geopotential         [m^2/s^2]
-    real, dimension(ngrid,nlayer),       intent(in)    :: pU         ! zonal velocity               [m/s]
-    real, dimension(ngrid,nlayer),       intent(in)    :: pV         ! meridional velocity          [m/s]
-    real, dimension(ngrid,nlayer),       intent(in)    :: pT         ! temperature                  [K]
     logical(kind=c_bool), value,         intent(in)    :: firstcall  ! true at first call
     logical(kind=c_bool), value,         intent(in)    :: lastcall   ! true at last call
 
-    real, dimension(ngrid,extra_levels), intent(inout) :: Tsurf_soil ! temperature for atmosphere and soil layers [K]
+    real, dimension(ngrid,nlayer),       intent(inout) :: pU         ! zonal velocity               [m/s]
+    real, dimension(ngrid,nlayer),       intent(inout) :: pV         ! meridional velocity          [m/s]
+    real, dimension(ngrid,nlayer),       intent(inout) :: pT         ! temperature                  [K]
 
-    ! Output : physical tendencies
-    real, dimension(ngrid,nlayer),       intent(out)   :: pdU        ! tendency of zonal velocity      [m/s^2]
-    real, dimension(ngrid,nlayer),       intent(out)   :: pdV        ! tendency of meridional velocity [m/s^2]
-    real, dimension(ngrid,nlayer),       intent(out)   :: pdT        ! tendency of temperature         [K/s]
-    real, dimension(ngrid),              intent(out)   :: pdPsrf     ! tendency of surface pressure    [Pa/s]
+    real, dimension(ngrid,extra_levels), intent(inout) :: Tsurf_soil ! temperature for surface and soil layers [K]
 
-    ! Set current physics soil layers temperature from dynamics
+    ! Set current physics soil layers temperature from dynamics (shared with soil_mod)
     if (.not. firstcall) then
-       if (soil_flag) Tsoil = Tsurf_soil(:, 2:)
+       if (soil_flag) Tsoil = Tsurf_soil(:,2:extra_levels)
        Tsurf = Tsurf_soil(ngrid,1) ! surface temperature
     end if
 
     ! Call simple physics for this column
-    call phyparam (ngrid, nlayer, firstcall, lastcall, rJourvrai, gmTime, pTimestep, &
-         pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pT, &
-         pdU, pdV, pdT, pdPsrf)
+    call phyparam (ngrid, nlayer, mask, firstcall, lastcall, rJourvrai, gmTime, pTimestep, &
+         pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pT)
 
-    ! Update with physics surface temperature and soil column termperatures
+    ! Update with physics surface temperature and soil column termperatures (from soil_mod)
     Tsurf_soil(:,1) = Tsurf                 ! surface temperature
-    if (soil_flag) Tsurf_soil(:,2:) = Tsoil ! soil column temperatures
+    if (soil_flag) Tsurf_soil(:,2:extra_levels) = Tsoil ! soil column temperatures
   end subroutine physics_call_single_col
 
   subroutine initialize_extra_levels (levels)

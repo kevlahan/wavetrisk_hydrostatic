@@ -18,7 +18,7 @@ program simple_physics
   integer, parameter :: nday = 30 ! n-day simulation
   integer, parameter :: step_per_day = 24 ! 1h time step
 
-  integer, parameter :: ngrid=1000, llm=30
+  integer, parameter :: ngrid=1000, llm=30, mask = 8
 
   real, parameter :: unjours=86400.,    & ! solar day in seconds
        &             radius=6.4e6,      & ! planetary radius
@@ -344,10 +344,9 @@ contains
     DO iday = 0, nday-1
        PRINT *, 'Temperature at first level', pT(1,1), iday, nday-1
        DO istep = 0, step_per_day-1
-          call phyparam (ngrid, llm, firstcall,lastcall, 1.0*iday, timestep * istep/unjours, timestep, &
+          call phyparam (ngrid, llm, mask, firstcall,lastcall, 1.0*iday, timestep * istep/unjours, timestep, &
                pPlev, pPlay, pPhi, pPhi_surf, &
-               pU, pV, pT,                    &
-               pdU, pdV, pdT, pdPsrf)
+               pU, pV, pT)
 
           total_time = total_time + timestep
           firstcall = .false.

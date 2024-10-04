@@ -63,7 +63,7 @@ module init_physics_mod
     ! Single precision parameters
     sea_albedo      = 0.112e0                          ! sea albedo
     soil_albedo     = 0.112e0                          ! soil albedo
-    emin_turb       = 1e-16                            ! minimum turbulent kinetic energy
+    Emin_turb       = 1e-16                            ! minimum turbulent kinetic energy
   end subroutine init_default_params
 
   subroutine init_physics
