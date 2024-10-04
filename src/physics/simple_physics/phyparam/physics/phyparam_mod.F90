@@ -110,10 +110,10 @@ contains
 
     ! Height at middle of layers
     zZlay = pPhi / g
-    
+
     ! Height at layer interfaces
     zZlev(:,1) = pPhi_surf / g ! surface height
-    
+
     z1 = (pPlay(:,1:nlayer-1) + pPlev(:,2:nlayer)) / (pPlay(:,1:nlayer-1) - pPlev(:,2:nlayer))
     z2 = (pPlev(:,2:nlayer)   + pPlay(:,2:nlayer)) / (pPlev(:,2:nlayer)   - pPlay(:,2:nlayer))
 
@@ -145,7 +145,7 @@ contains
     ! Turbulent diffusivity Kz is computed, and then vertical diffusion is integrated in time implicitly using
     ! a linear relationship between surface heat flux and air temperature in lowest level (Robin-type BC).
     if (calldifv) then
-       zExner = (pPlay/p_0)**Rcp
+       zExner = (pPlay/p_0)**Rcp 
        pH = pT / zExner
 
        zFluxId = FluxRad + FluxGrd
@@ -153,7 +153,7 @@ contains
        call Vdif (ngrid, nlayer, mask, zDay, pTimestep, CapCal, Emissiv, zFluxId, Z0, pPlay, pPlev, zZlay, zZlev, &
             pU, pV, pH, Tsurf)
     else ! no vertical turbulent diffusion
-       Tsurf = Tsurf + pTimestep * (FluxRad + FluxGrd) / CapCal 
+       Tsurf = Tsurf + pTimestep * (FluxRad + FluxGrd) / CapCal
     end if
 
     ! Soil column temperatures at t+dt
