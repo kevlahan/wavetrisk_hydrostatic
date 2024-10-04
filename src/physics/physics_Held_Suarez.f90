@@ -20,7 +20,7 @@ module physics_Held_Suarez_mod
   real(8) :: sigma_0        = 0.252d0                          ! value of sigma at reference level (level of the jet)
   real(8) :: sigma_t        = 0.2d0                            ! value of sigma at the tropopauses
 contains
-  subroutine trend_physics_held_suarez (q, dq)
+  subroutine trend_physics_Held_Suarez (q, dq)
     ! Trend for Held-Suarez physics
     implicit none
     type(Float_Field), dimension(1:N_VARIABLE,zmin:zmax), target  :: q  ! includes soil layers
@@ -70,7 +70,7 @@ contains
 
     ! Set output
     dq%bdry_uptodate = .false.
-  end subroutine trend_physics_held_suarez
+  end subroutine trend_physics_Held_Suarez
 
   subroutine trend_scalars (dom, i, j, zlev, offs, dims)
     ! Trend for physics step (relaxation to equilibrium temperature)
