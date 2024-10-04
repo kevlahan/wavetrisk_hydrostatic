@@ -64,9 +64,7 @@ contains
     real, dimension(ngrid,nlayer),   intent(inout) :: pT        ! temperature         [K]
 
     ! Local variables
-    integer                                        :: j, l, ig
     real                                           :: zDay, zdTime
-
     real, dimension(ngrid)                         :: zdTsrf     ! total tendency of surface temperature     [K/s]
     real, dimension(ngrid)                         :: zdTsrfr    ! intermediate surface temperature tendency [K/s]
     real, dimension(ngrid)                         :: zFluxId    ! surface flux
@@ -91,7 +89,7 @@ contains
        stop
     end if
 
-    zDay  = rJourvrai + gmTime
+    zDay = rJourvrai + gmTime
 
     ! Allocate and initialize at first call
     if (firstcall) then
@@ -112,10 +110,10 @@ contains
 
     ! Height at middle of layers
     zZlay = pPhi / g
-
+    
     ! Height at layer interfaces
     zZlev(:,1) = pPhi_surf / g ! surface height
-
+    
     z1 = (pPlay(:,1:nlayer-1) + pPlev(:,2:nlayer)) / (pPlay(:,1:nlayer-1) - pPlev(:,2:nlayer))
     z2 = (pPlev(:,2:nlayer)   + pPlay(:,2:nlayer)) / (pPlev(:,2:nlayer)   - pPlay(:,2:nlayer))
 
@@ -150,22 +148,24 @@ contains
        zExner = (pPlay/p_0)**Rcp
        pH = pT / zExner
 
-       zFluxid = FluxRad + FluxGrd
+       zFluxId = FluxRad + FluxGrd
 
        call Vdif (ngrid, nlayer, mask, zDay, pTimestep, CapCal, Emissiv, zFluxId, Z0, pPlay, pPlev, zZlay, zZlev, &
             pU, pV, pH, Tsurf)
-
-       pT = pH * zExner
     else ! no vertical turbulent diffusion
-       Tsurf = Tsurf + ptimestep * (FluxRad + FluxGrd) / CapCal
+       Tsurf = Tsurf + pTimestep * (FluxRad + FluxGrd) / CapCal 
     end if
 
     ! Soil column temperatures at t+dt
     ! (second split step of implicit time integration using updated Tsurf at d+dt as input)
     if (callsoil) call soil_backward (ngrid, nsoilmx, zc, zd, Tsurf, Tsoil)
 
-    ! Dry convective adjustment (final values of velocities and temperature at t+dt)
+    ! Dry convective adjustment
+    ! (final values of velocities and potential temperature at t+dt)
     if (calladj) call ConvAdj (ngrid, nlayer, pTimestep, pPlay, pPlev, zExner, pU, pV, pH)
+
+    ! Temperature at t+dt for output
+    pT = pH * zExner
 
     call profile_exit (id_phyparam)
     call nvtxendrange
