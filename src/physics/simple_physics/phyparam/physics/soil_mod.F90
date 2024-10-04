@@ -74,29 +74,34 @@ contains
     real, dimension(ngrid),         intent(out) :: pFluxGrd          ! conductive heat flux at the ground
 
     integer                :: ig, jk
-    real, dimension(nsoil) :: z1, zdz2
+    real                   :: z1
+    real, dimension(nsoil) :: zdz2
 
     ! Computation of the cgrd and dgrd coefficients the backward sweep :
-    zdz2 = dz2 / ptimestep                             ! c_k + 0.5 (A.11)
+    zdz2 = dz2 / pTimestep                             ! c_k + 0.5 (A.11)
 
     z1 = zdz2(nsoil) + dz1(nsoil-1)
 
     zc(:,nsoil-1) = zdz2(nsoil) * pTsoil(:,nsoil) / z1 ! b_n - 1 (A.17)
     zd(:,nsoil-1) = dz1(nsoil-1)                  / z1 ! a_n - 1 (A.16)
     do jk = nsoil-1, 2, -1
-       z1 = 1.0 / (zdz2(jk) + dz1(jk-1) + dz1(jk) * (1.0 - zd(:,jk)))
+       do ig = 1, ngrid
+          z1 = 1.0 / (zdz2(jk) + dz1(jk-1) + dz1(jk) * (1.0 - zd(ig,jk)))
 
-       zc(:,jk-1) = z1 * (pTsoil(:,jk) * zdz2(jk) + dz1(jk) * zc(:,jk)) ! b_k
-       zd(:,jk-1) = z1 * dz1(jk-1)                                      ! a_k
+          zc(ig,jk-1) = z1 * (pTsoil(ig,jk) * zdz2(jk) + dz1(jk) * zc(ig,jk)) ! b_k
+          zd(ig,jk-1) = z1 * dz1(jk-1)                                        ! a_k
+       end do
     end do
 
     ! Surface diffusive flux and calorific capacity of ground
-    z1 = 1.0 + lambda * (1.0 - zd(:,1))
+    do ig = 1, ngrid
+       z1 = lambda * (1.0 - zd(ig,1)) + 1.0
 
-    pCapCal  = pThermal_inertia * pTimestep * (zdz2(1) + (1.0 - zd(:,1)) * dz1(1)) / z1        ! c_s (A.30)
+       pCapCal(ig)  = pThermal_inertia(ig) * pTimestep * (zdz2(1) + (1.0 - zd(ig,1)) * dz1(1)) / z1                 ! c_s (A.30)
 
-    pFluxGrd = pThermal_inertia * dz1(1) * (zc(:,1) + (zd(:,1) - 1.0) * pTsoil(:,1))           ! f * (A.25)
-    pFluxGrd = pFluxGrd + pCapCal * (pTsoil(:,1) * z1 - lambda * zc(:,1) - pTsrf) / pTimestep  ! f_s (A.31)
+       pFluxGrd(ig) = pThermal_inertia(ig) * dz1(1) * (zc(ig,1) + (zd(ig,1) - 1.0) * pTsoil(ig,1))                  ! f * (A.25)
+       pFluxGrd(ig) = pFluxGrd(ig) + pCapCal(ig) * (pTsoil(ig,1) * z1 - lambda * zc(ig,1) - pTsrf(ig)) / pTimestep  ! f_s (A.31)
+    end do
   end subroutine soil_forward
 
   pure subroutine soil_backward (ngrid, nsoil, zc, zd, pTsrf, pTsoil)
