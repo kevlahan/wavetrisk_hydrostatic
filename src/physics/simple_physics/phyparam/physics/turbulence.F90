@@ -1,5 +1,4 @@
 module turbulence
-#include "use_logging.h"
   implicit none
   save
   private
@@ -9,7 +8,6 @@ module turbulence
   real    :: dVdZ2_min = 1e-6 ! minimum vertical gradient^2 of speed
   real    :: Ri_c      = 4e-1 ! critical Reynolds number
   real    :: LmixMin   = 1e+2 ! minimum mixing length
-  real    :: Kmax      = 1e0  ! maximum turbulent diffusivity
   real    :: p_0       = 1e5  ! reference pressure [Pa]
   public :: ADJZONE, dVdZ2_min, Emin_turb, LmixMin, p_0, Ri_c, Vdif
 contains
@@ -36,31 +34,24 @@ contains
     !
     !============================================================================================
     ! Input variables
-    integer,                       intent(in) :: ngrid                   ! number of columns
-    integer,                       intent(in) :: nlay                    ! number of vertical layers
-    integer,                       intent(in) :: mask                    ! adaptive grid mask value
+    integer,                       intent(in) :: ngrid     ! number of columns
+    integer,                       intent(in) :: nlay      ! number of vertical layers
+    integer,                       intent(in) :: mask      ! adaptive grid mask value
+    real,                          intent(in) :: pTime     ! current time t
+    real,                          intent(in) :: pTimestep ! time step dt
+    real, dimension(ngrid),        intent(in) :: pCapCal   ! surface conduction flux
+    real, dimension(ngrid),        intent(in) :: pEmis     ! emissivity of surface
+    real, dimension(ngrid),        intent(in) :: pFluxSrf  ! surface flux
+    real, dimension(ngrid),        intent(in) :: pZ0       ! surface roughness length   [m]
+    real, dimension(ngrid,nlay),   intent(in) :: pPlay     ! pressure at layers         [Pa]
+    real, dimension(ngrid,nlay+1), intent(in) :: pPlev     ! pressure at interfaces     [Pa]
+    real, dimension(ngrid,nlay),   intent(in) :: pZlay     ! z coordinate at layers     [m]
+    real, dimension(ngrid,nlay+1), intent(in) :: pZlev     ! z coordinate at interfaces [m]
 
-    real,                          intent(in) :: pTime                   ! current time t
-    real,                          intent(in) :: pTimestep               ! time step dt
-
-    ! Surface characteristic variables
-    real, dimension(ngrid),        intent(in) :: pCapCal                 ! surface conduction flux
-    real, dimension(ngrid),        intent(in) :: pEmis                   ! emissivity of surface
-    real, dimension(ngrid),        intent(in) :: pFluxSrf                ! surface flux
-    real, dimension(ngrid),        intent(in) :: pZ0                     ! surface roughness length [m]
-
-    ! Layer centre coordinates
-    real, dimension(ngrid,nlay),   intent(in) :: pPlay                   ! pressure at middle of layers     [Pa]
-    real, dimension(ngrid,nlay),   intent(in) :: pZlay                   ! z coordinate at middle of layers [m]
-
-    ! Layer interface coordinates
-    real, dimension(ngrid,nlay+1), intent(in) :: pPlev                   ! pressure at interfaces between layers [Pa]
-    real, dimension(ngrid,nlay+1), intent(in) :: pZlev                   ! pressure at middle of layers [Pa]
-
-    ! Input/output variables
-    real, dimension(ngrid,nlay),   intent(inout) :: pU, pV               ! zonal and meridional velocities [m/s]
-    real, dimension(ngrid,nlay),   intent(inout) :: pH                   ! potential temperature           [K]
-    real, dimension(ngrid),        intent(inout) :: pTsrf                ! surface temperature             [K]
+    ! Output variables: advanced using backwards Euler step
+    real, dimension(ngrid,nlay),   intent(inout) :: pU, pV ! zonal and meridional velocities [m/s]
+    real, dimension(ngrid,nlay),   intent(inout) :: pH     ! potential temperature           [K]
+    real, dimension(ngrid),        intent(inout) :: pTsrf  ! surface temperature             [K]
 
     ! Local variables
     integer                       :: ig, il
@@ -69,7 +60,7 @@ contains
     real, dimension(ngrid)        :: rho, T, z2, zdPlanck, zCdh, zCdv, zU2
     real, dimension(ngrid,nlay)   :: dZ, zb, zb0, z1, zc, zd
 
-    real, dimension(ngrid,nlay+1) :: zKv, zKh                            ! turbulent diffusivities
+    real, dimension(ngrid,nlay+1) :: zKv, zKh              ! turbulent diffusivities
 
     !  Initialization: computation of rho*dz and dt * rho/dz = dt * rho**2 G/dP with rho = P/(R T)  = p/(R Theta*(p/ps)**kappa)
     dZ(:,1:nlay) = (pPlev(:,1:nlay) - pPlev(:,2:nlay+1)) / G
@@ -246,11 +237,6 @@ contains
 
              ! Turbulent diffusivity
              pKv(ig,il)= Lmix * sqrt (max (Lmix**2 * dVdZ2 * (1.0 - Ri/Ri_c), Emin_turb))
-
-             !if (pKv(ig,il) > 10.0 .and. mask /= 0) write (6,'(a,i2,1x,6(a,es8.1))') &
-             !     "mask = ", mask, "Kv = ", pKv(ig,il), " Lmix = ", Lmix, " ||dudz||2 = ", dVdZ2, " theta = ", H, " N2 = ", N2, " Ri = ", Ri
-
-             !pKv(ig,il) = min (pKv(ig,il), Kmax)
           else
              pKv(ig,il) = Lmix * sqrt (Emin_turb)
           end if
