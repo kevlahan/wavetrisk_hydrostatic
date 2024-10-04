@@ -604,13 +604,6 @@ contains
     time_end = time_end * DAY
     resume   = resume_init
 
-    select case (physics_type)
-    case ("Held_Suarez")
-       trend_physics => trend_physics_Held_Suarez ! which physics (Held_Suarez or simple)
-    case ("Simple")
-       trend_physics => trend_physics_simple      ! which physics (Held_Suarez or simple)
-    end select
-
     ! Bins for zonal statistics
     !nbins = sqrt (10*4**max_level/2) ! consistent with maximum resolution
     nbins = 300

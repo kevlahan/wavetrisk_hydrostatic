@@ -127,12 +127,18 @@ program climate
      cfl_num = cfl (time) ! gradually increase cfl number
 
      call start_timing
-     
-     call time_step (dt_write, aligned)                                       ! dynamics step
-     call Euler (sol(:,1:zlevels), wav_coeff(:,1:zlevels), trend_physics, dt) ! physics step
-     
+
+     call time_step (dt_write, aligned) ! dynamics step
+
+     select case (physics_type)
+     case ("Held_Suarez")
+        call Euler (sol(:,1:zlevels), wav_coeff(:,1:zlevels), trend_physics_Held_Suarez, dt) ! physics step
+     case ("Simple")
+        call physics_simple_step 
+     end select
+
      call stop_timing
-     
+
      call print_log
 
      if (aligned) then
