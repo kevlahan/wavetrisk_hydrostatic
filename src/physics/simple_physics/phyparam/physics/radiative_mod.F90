@@ -7,7 +7,7 @@ module radiative_mod
   real, parameter :: pi = 2.0 * asin (1.0), Solarcst = 1370.0, Stephan = 5.67e-08, height_scale = 10000.0, Ps_rad = 1e5
   public          :: radiative_tendencies
 contains
-  subroutine radiative_tendencies (ngrid, nlayer, gmTime, zdTime, zDay, pPlev, pPlay, pT, FluxRad)
+  subroutine radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPlev, pPlay, pT, FluxRad)
     USE planet
     use phys_const,     only : planet_rad, unjours
     use astronomy,      only : orbite, solarlong
@@ -18,17 +18,17 @@ contains
     use writefield_mod, only : writefield
 
     ! Input variables
-    integer,                         intent(in)    :: ngrid   ! number of columns
-    integer,                         intent(in)    :: nlayer  ! number of layers
-    real,                            intent(in)    :: gmTime  ! fraction of the day
-    real,                            intent(in)    :: zdTime  ! time step [s]
-    real,                            intent(in)    :: zDay    ! elapsed days (and fraction thereof)
+    integer,                         intent(in)    :: ngrid     ! number of columns
+    integer,                         intent(in)    :: nlayer    ! number of layers
+    real,                            intent(in)    :: gmTime    ! fraction of the day
+    real,                            intent(in)    :: pTimestep ! time step [s]
+    real,                            intent(in)    :: zDay      ! elapsed days (and fraction thereof)
     real, dimension(ngrid,nlayer),   intent(in)    :: pPlay
     real, dimension(ngrid,nlayer+1), intent(in)    :: pPlev
 
     ! Output
-    real, dimension(ngrid,nlayer),   intent(inout) :: pT       ! temperature [K] (advanced from t -> t+dt)
-    real, dimension(ngrid),          intent(out)   :: FluxRad  ! net surface flux
+    real, dimension(ngrid,nlayer),   intent(inout) :: pT        ! temperature [K] (advanced from t -> t+dt)
+    real, dimension(ngrid),          intent(out)   :: FluxRad   ! net surface flux
 
     ! Local variables
     integer                       :: ig, l
@@ -67,6 +67,6 @@ contains
     FluxRad = Fluxrad - zPlanck
 
     ! Temperature at t+dt
-    pT = pT + (zdTsw + zdTlw) * zdTime
+    pT = pT + (zdTsw + zdTlw) * pTimestep
   end subroutine radiative_tendencies
 end MODULE radiative_mod

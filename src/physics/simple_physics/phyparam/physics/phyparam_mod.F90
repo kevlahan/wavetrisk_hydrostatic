@@ -64,7 +64,7 @@ contains
     real, dimension(ngrid,nlayer),   intent(inout) :: pT        ! temperature         [K]
 
     ! Local variables
-    real                                           :: zDay, zdTime
+    real                                           :: zDay       ! day
     real, dimension(ngrid)                         :: zdTsrf     ! total tendency of surface temperature     [K/s]
     real, dimension(ngrid)                         :: zdTsrfr    ! intermediate surface temperature tendency [K/s]
     real, dimension(ngrid)                         :: zFluxId    ! surface flux
@@ -118,6 +118,7 @@ contains
     z2 = (pPlev(:,2:nlayer)   + pPlay(:,2:nlayer)) / (pPlev(:,2:nlayer)   - pPlay(:,2:nlayer))
 
     zZlev(:,2:nlayer) = (z1 * zZlay(:,1:nlayer-1) + z2 * zZlay(:,2:nlayer)) / (z1 + z2)
+    
     ! Exner function for converting between temperature and potential temperature
     zExner = (pPlay/p_0)**Rcp
 
@@ -134,8 +135,7 @@ contains
     end if
 
     !  Radiative transfer split step
-    zdTime = pTimestep * float (iradia)
-    if (callrad) call radiative_tendencies (ngrid, nlayer, gmTime, zdTime, zDay, pPlev, pPlay, pT, FluxRad)
+    if (callrad) call radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPlev, pPlay, pT, FluxRad)
 
     ! Find potential temperature from temperature
     pH = pT / zExner
