@@ -8,12 +8,10 @@ module radiative_lw
 contains
   subroutine lw (ngrid, nlayer, CoefIR, Emissiv, pP, Ps_rad, pTsurf, pT, pFluxIR, pdTlw)
     use phys_const,     only : Cpp, G
-    use writefield_mod, only : writefield
     !===============================================================================================
-    !   Calcul de l evolution de la temperature sous l effet du rayonnement
-    !   infra-rouge.
+    !  Cooling rate due to long wave (infrared) radiation
     !
-    !   Pour simplifier, les transmissions sont precalculees et ne dependent que de l altitude.
+    !  To simplify, the absorpotion coefficients only depend only on height and are pre-calculated.
     !
     !===============================================================================================
 
@@ -33,66 +31,67 @@ contains
 
     integer                         :: ig, il, ilev
     real                            :: zcoef
-    real, dimension(ngrid)          :: dup, Flux, lwtr1, lwtr2
-    real, dimension(ngrid,nlayer)   :: zPlanck
+    real, dimension(ngrid)          :: dup, lwtr1, lwtr2, Flux
+    real, dimension(ngrid,nlayer+1) :: zPlanck
     real, dimension(ngrid,nlayer+1) :: zFluxup, zFluxdn, zFlux, zup
 
-    ! Quantites absorbants
-    if (lstrong) then ! absorption forte
+    ! Absorption coefficients
+    if (lstrong) then ! strong absorption
        zup = pP**2 / (2.0 * g)
        zcoef = - log (CoefIR) / sqrt (Ps_rad**2 / (2.0 * g))
-    else              ! absorption faible
+    else              ! weak absorption
        zup = pP
        zcoef = - log (CoefIR) / Ps_rad
     end if
 
-    ! Fonction de corps noir
+    ! Black body function
     zPlanck(:,1:nlayer) = Stephan * pT**4
 
-    ! Flux descendants
+    ! Downwards fluxes
     !
     ! Downwards flux at interface ilev is a sum of contributions from layers above it
     ! each contribution depends on the layer itself (zPlanck) and its lower (lwtr1) and upPer (lwtr2) interfaces
     do ilev = 1, nlayer
-       Flux   = 0.0
+       Flux  = 0.0
        dup   = zup(:,ilev) - zup(:,nlayer)
        lwtr1 = exp ( - zcoef * sqrt (dup))
        do il = nlayer-1, ilev, -1
+          dup  = zup(:,ilev) - zup(:,il)
           lwtr2 = lwtr1
-          dup   = zup(:,ilev) - zup(:,il)
-          lwtr1 = exp (- zcoef * sqrt (dup))
-          Flux   = Flux + zPlanck(:,il) * (lwtr1 - lwtr2)
+          lwtr1 = exp ( - zcoef * sqrt (dup))
+          Flux  = Flux + zPlanck(:,il) * (lwtr1 - lwtr2)
        end do
        zFluxdn(:,ilev) = Flux
     end do
+    zfluxdn(:,nlayer+1) = 0.0
+    
+    pFluxIr = Emissiv * zfluxdn(:,1)
 
-    zFluxdn(:,nlayer+1) = 0.0
-    pFluxIR = Emissiv * zFluxdn(:,1)
-
-    ! Flux montants
-
+    ! Upwards fluxes
+    
     ! Upwards lw flux at the surface (ilev=1)
     zFluxup(:,1) = Emissiv * Stephan *  pTsurf**4 + (1.0 - Emissiv) * zFluxdn(:,1)
 
     ! Upwards flux at interface ilev>1 equals the surface flux times an absorption coefficient
     ! plus a sum of contributions from layers below it (il<ilev).
     ! each contribution depends on the layer itself (zPlanck) and its lower (lwtr2) and upPer (lwtr1) interfaces
-    do ilev = 2, nlayer+1
+    do ilev = 2, nlayer + 1
        dup   = zup(:,1) - zup(:,ilev)
        lwtr1 = exp ( - zcoef * sqrt (dup))
-       Flux   = zFluxup(:,1) * lwtr1
-       do il = 1, ilev-1
+       Flux  = zfluxup(:,1) * lwtr1
+       do il = 1, ilev - 1
+          dup   = zup(:,il+1 ) - zup(:,ilev)
           lwtr2 = lwtr1
-          dup   = zup(:,il+1) - zup(:,ilev)
-          lwtr1 = exp (- zcoef * sqrt (dup))
-          Flux   = Flux + zPlanck(:,il) * (lwtr1 - lwtr2)
+          lwtr1 = exp ( - zcoef * sqrt (dup))
+          Flux  = Flux + zPlanck(:,il) * (lwtr1 - lwtr2)
        end do
+       zFluxup(:,ilev) = Flux
     end do
 
-    !  Flux nets
+    ! Net fluxes
     zFlux = zFluxup - zFluxdn
 
-    ! Taux de refroidissement
+    ! Cooling rate
     pdTlw(:,1:nlayer) = (zFlux(:,2:nlayer+1) - zFlux(:,1:nlayer)) * G / (Cpp * (pP(:,2:nlayer+1) - pP(:,1:nlayer)))
   end subroutine lw
 
