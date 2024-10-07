@@ -66,7 +66,7 @@ module init_physics_mod
     Emin_turb       = 1e-16                            ! minimum turbulent kinetic energy
   end subroutine init_default_params
 
-  subroutine init_physics
+  subroutine init_physics 
     !-----------------------------------------------------------------------------------
     !
     !   Description: Sets necessary function pointers for the physics and initializes the

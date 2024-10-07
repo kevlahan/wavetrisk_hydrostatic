@@ -118,6 +118,8 @@ contains
     z2 = (pPlev(:,2:nlayer)   + pPlay(:,2:nlayer)) / (pPlev(:,2:nlayer)   - pPlay(:,2:nlayer))
 
     zZlev(:,2:nlayer) = (z1 * zZlay(:,1:nlayer-1) + z2 * zZlay(:,2:nlayer)) / (z1 + z2)
+    ! Exner function for converting between temperature and potential temperature
+    zExner = (pPlay/p_0)**Rcp
 
     !  Soil temperatures
     !  First split step of implicit time integration forward sweep from deep ground to surface
@@ -135,6 +137,9 @@ contains
     zdTime = pTimestep * float (iradia)
     if (callrad) call radiative_tendencies (ngrid, nlayer, gmTime, zdTime, zDay, pPlev, pPlay, pT, FluxRad)
 
+    ! Find potential temperature from temperature
+    pH = pT / zExner
+
     ! Vertical turbulent diffusion split step
     !
     ! Second-order Strang splitting consisting of:
@@ -145,9 +150,6 @@ contains
     ! Turbulent diffusivity Kz is computed, and then vertical diffusion is integrated in time implicitly using
     ! a linear relationship between surface heat flux and air temperature in lowest level (Robin-type BC).
     if (calldifv) then
-       zExner = (pPlay/p_0)**Rcp 
-       pH = pT / zExner
-
        zFluxId = FluxRad + FluxGrd
 
        call Vdif (ngrid, nlayer, mask, zDay, pTimestep, CapCal, Emissiv, zFluxId, Z0, pPlay, pPlev, zZlay, zZlev, &
