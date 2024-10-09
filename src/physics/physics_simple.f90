@@ -18,7 +18,7 @@ contains
   subroutine physics_simple_step
     ! Uses simple physics modules to take a Backwards Euler step for physics using time step dt set by dynamics
     implicit none
-    integer :: d, k, l
+    integer :: d, k
     
     call update_bdry (sol, NONE)
 
