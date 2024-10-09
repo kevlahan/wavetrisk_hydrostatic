@@ -238,9 +238,9 @@ contains
        do v = scalars(1), scalars(2)
           if (split_mean_perturbation) then 
              call extend (sol(v,k)%data(d),      num, 0d0)     
-             call extend (sol_mean(v,k)%data(d), num, 1d0) 
+             call extend (sol_mean(v,k)%data(d), num, 0d0) 
           else
-             call extend (sol(v,k)%data(d),      num, 1d0) 
+             call extend (sol(v,k)%data(d),      num, 0d0) 
              call extend (sol_mean(v,k)%data(d), num, 0d0)     
           end if
        end do

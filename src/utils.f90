@@ -564,11 +564,11 @@ contains
     ! Interpolate from zonal, meridional velocity components at nodes to U, V, W velocity components at edges
     ! (assumes that dom%u_zonal and dom%v_merid have been set over all grid points)
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-    real(8), dimension (1:EDGE)     :: uvw
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8), dimension(1:EDGE)     :: uvw
 
     integer     :: id, idE, idN, idNE
     type(Coord) :: vel0
@@ -580,9 +580,9 @@ contains
 
     vel0 = vel (id)
 
-    uvw(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5d0*(vel0 + vel(idE)))
-    uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)) ,  0.5d0*(vel0 + vel(idNE)))
-    uvw(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5d0*(vel0 + vel(idN)))
+    uvw(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5d0 * (vel0 + vel (idE)))
+    uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)),   0.5d0 * (vel0 + vel (idNE)))
+    uvw(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5d0 * (vel0 + vel (idN)))
   contains
     type(Coord) function vel (id)
       ! Computes velocity at node id from its latitude and longitude components
@@ -593,8 +593,8 @@ contains
 
       call cart2sph (dom%node%elts(id+1), lon, lat)
 
-      e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
-      e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat))
+      e_zonal = Coord (-sin(lon),             cos(lon),                 0d0) 
+      e_merid = Coord (-cos(lon) * sin(lat), -sin(lon) * sin(lat), cos(lat))
 
       vel = dom%u_zonal%elts(id+1) * e_zonal + dom%v_merid%elts(id+1) * e_merid
     end function vel
@@ -639,7 +639,8 @@ contains
 
     ! Compute hexagon centroid from its vertices
     cent = centroid (                                                                 &
-         (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1),   &
+         (/ &
+         dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1),   &
          dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
          dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /), 6)
 

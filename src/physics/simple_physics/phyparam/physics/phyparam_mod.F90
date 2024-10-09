@@ -28,21 +28,19 @@ contains
     use writefield_mod, only : writefield
     use accelerator,    only : nvtxstartrange, nvtxendrange
     use profiling,      only : profile_enter, profile_exit, id_phyparam
-    !==============================================================================================
+    !=====================================================================================================
     !
-    !   Physical parametrisations of LMDZ  20 parameter climate model for planetary atmospheres
+    !   Physical parameterizations using the LMDZ 20-parameter climate model for planetary atmospheres
     !
-    !   Includes following sub-models:
-    !
-    !   1. radiative transfer (long and shortwave) for CO2 and dust
-    !   3. convective adjustment
-    !   4. vertical heat diffusion in soil column
-    !   2. vertical turbulent mixing
+    !   1. Radiative transfer (long and shortwave) for CO2 and dust.
+    !   2. Vertical diffusion of heat in soil column.
+    !   3. Vertical turbulent mixing of velocity and potential temperature.
+    !   4. Convective adjustment.
     !
     !   Author:  Frederic Hourdin  1993-10-15
-    !   Revised: Nicholas Kevlahan 2024-10-04
+    !   Revised: Nicholas Kevlahan 2024-10-10
     !
-    !==============================================================================================
+    !=====================================================================================================
 
     ! Input variables
     integer, value,                  intent(in)    :: ngrid     ! number of columns
@@ -92,8 +90,7 @@ contains
     ! Exner function for converting between temperature and potential temperature
     zExner = (pPlay/p_0)**Rcp
 
-    ! Temperature
-    pT = pTheta * zExner
+
 
     zDay = rJourvrai + gmTime
 
@@ -138,10 +135,13 @@ contains
     end if
 
     !  Radiative transfer split step
-    if (callrad) call radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPlev, pPlay, pT, FluxRad)
+    if (callrad) then
+       pT = pTheta * zExner
 
-    ! Find potential temperature from temperature
-    pTheta = pT / zExner
+       call radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPlev, pPlay, pT, FluxRad)
+
+       pTheta = pT / zExner
+    end if
 
     ! Vertical turbulent diffusion split step
     !
@@ -158,7 +158,11 @@ contains
        call Vdif (ngrid, nlayer, mask, zDay, pTimestep, CapCal, Emissiv, zFluxId, Z0, pPlay, pPlev, zZlay, zZlev, &
             pU, pV, pTheta, Tsurf)
     else ! no vertical turbulent diffusion
-       Tsurf = Tsurf + pTimestep * (FluxRad + FluxGrd) / CapCal
+       if (callrad) then
+          Tsurf = Tsurf + pTimestep * (FluxRad + FluxGrd) / CapCal
+       else
+          Tsurf = Tsurf + pTimestep * FluxGrd / CapCal
+       end if
     end if
 
     ! Soil column temperatures at t+dt
@@ -168,9 +172,6 @@ contains
     ! Dry convective adjustment
     ! (final values of velocities and potential temperature at t+dt)
     if (calladj) call ConvAdj (ngrid, nlayer, pTimestep, pPlay, pPlev, zExner, pU, pV, pTheta)
-
-    ! Temperature at t+dt for output
-    pT = pTheta * zExner
 
     call profile_exit (id_phyparam)
     call nvtxendrange
