@@ -62,7 +62,7 @@ contains
     tsurf_soil_avg = 0
 
     ! Calculate surface pressure, as pressure is calculated in temp_fun to get temperature
-    call cal_surf_press (sol)
+    call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
 !!! change to integrate_tri for adaptive grid !!!
     
