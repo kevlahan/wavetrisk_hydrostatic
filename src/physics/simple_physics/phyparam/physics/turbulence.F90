@@ -12,7 +12,7 @@ module turbulence
   public :: ADJZONE, dVdZ2_min, Emin_turb, LmixMin, p_0, Ri_c, Vdif
 contains
   subroutine Vdif (ngrid, nlay, mask, pTime, pTimestep, pCapCal, pEmis, pFluxSrf, pZ0, pPlay, pPlev, pZlay, pZlev, &
-       pU, pV, pH, pTsrf)
+       pU, pV, pTheta, pTsrf)
     use phys_const, only: g, R, Rcp, Cpp
     !============================================================================================
     !
@@ -50,7 +50,7 @@ contains
 
     ! Output variables: advanced using backwards Euler step
     real, dimension(ngrid,nlay),   intent(inout) :: pU, pV ! zonal and meridional velocities [m/s]
-    real, dimension(ngrid,nlay),   intent(inout) :: pH     ! potential temperature           [K]
+    real, dimension(ngrid,nlay),   intent(inout) :: pTheta ! potential temperature           [K]
     real, dimension(ngrid),        intent(inout) :: pTsrf  ! surface temperature             [K]
 
     ! Local variables
@@ -65,19 +65,19 @@ contains
     !  Initialization: computation of rho*dz and dt * rho/dz = dt * rho**2 G/dP with rho = P/(R T)  = p/(R Theta*(p/ps)**kappa)
     dZ(:,1:nlay) = (pPlev(:,1:nlay) - pPlev(:,2:nlay+1)) / G
 
-    zb0(:,1) = pTimestep * pPlev(:,1) / (R * pTsrf)                        ! dt * ho/dz at surface
+    zb0(:,1) = pTimestep * pPlev(:,1) / (R * pTsrf)                          ! dt * ho/dz at surface
     do il = 2, nlay
-       T   = 0.5 * (pH(:,il) + pH(:,il-1)) * (pPlev(:,il)/p_0)**Rcp        ! temperature at interface below level il
-       rho = pPlev(:,il) / (T*R)                                           ! density at lower interface below level il
+       T   = 0.5 * (pTheta(:,il) + pTheta(:,il-1)) * (pPlev(:,il)/p_0)**Rcp  ! temperature at interface below level il
+       rho = pPlev(:,il) / (T*R)                                             ! density at lower interface below level il
 
-       zb0(:,il) = pTimestep * rho**2 * G / (pPlay(:,il-1) - pPlay(:,il))  ! dt * rho/dz at interface below level il
+       zb0(:,il) = pTimestep * rho**2 * G / (pPlay(:,il-1) - pPlay(:,il))    ! dt * rho/dz at interface below level il
     end do
 
     ! Surface drag coefficients Cd
-    call Vdif_Cd (ngrid, mask, pZ0, G, pZlay(:,1), pU(:,1), pV(:,1), pH(:,1), pTsrf, zCdv, zCdh)
+    call Vdif_Cd (ngrid, mask, pZ0, G, pZlay(:,1), pU(:,1), pV(:,1), pTheta(:,1), pTsrf, zCdv, zCdh)
 
     ! Turbulent diffusion coefficients K
-    call Vdif_K (ngrid, nlay, mask, pTimestep, G, pZlev, pZlay, pZ0, pU, pV, pH, zKv, zKh)
+    call Vdif_K (ngrid, nlay, mask, pTimestep, G, pZlev, pZlay, pZ0, pU, pV, pTheta, zKv, zKh)
 
     ! Vertical integration for turbulent diffusion of velocities
     zb(:,1)      = zCdv          * zb0(:,1)       ! boundary condition
@@ -125,9 +125,9 @@ contains
        zd(:,il) = zb(:,il) * z1(:,il)
     end do
 
-    zc(:,nlay) = dZ(:,nlay) * pH(:,nlay) * z1(:,nlay)
+    zc(:,nlay) = dZ(:,nlay) * pTheta(:,nlay) * z1(:,nlay)
     do il = nlay-1, 1, -1
-       zc(:,il) = (dZ(:,il) * pH(:,il)+ zb(:,il+1) * zc(:,il+1)) * z1(:,il)
+       zc(:,il) = (dZ(:,il) * pTheta(:,il)+ zb(:,il+1) * zc(:,il+1)) * z1(:,il)
     end do
 
     ! Add Planck contribution to implicit scheme
@@ -140,25 +140,25 @@ contains
     pTsrf   = z1(:,1) / z2
 
     ! Potential temperature at t+dt
-    pH(:,1) = zc(:,1) + zd(:,1) * pTsrf
+    pTheta(:,1) = zc(:,1) + zd(:,1) * pTsrf
     do il = 2, nlay
-       pH(:,il) = zc(:,il) + zd(:,il) * pH(:,il-1)
+       pTheta(:,il) = zc(:,il) + zd(:,il) * pTheta(:,il-1)
     end do
   end subroutine Vdif
 
-  pure subroutine Vdif_Cd (ngrid, mask, pZ0, pG, pZ, pU, pV, pH, pTs, pCdv, pCdh)
+  pure subroutine Vdif_Cd (ngrid, mask, pZ0, pG, pZ, pU, pV, pTheta, pTs, pCdv, pCdh)
     ! Surface drag coefficient using approach developed by Louis for ECMWF.
 
     ! Input
-    integer,                intent(in) :: ngrid ! number of columns
-    integer,                intent(in) :: mask  ! adaptive grid mask
-    real,                   intent(in) :: pG    ! gravity                                 [m/s^2]
-    real, dimension(ngrid), intent(in) :: pZ0   ! surface roughness length scale          [m]
-    real, dimension(ngrid), intent(in) :: pZ    ! height of the first atmospheric layer   [m]
-    real, dimension(ngrid), intent(in) :: pU    ! zonal velocity in surface layer         [m/s]
-    real, dimension(ngrid), intent(in) :: pV    ! meridional velocity in surface layer    [m/s]
-    real, dimension(ngrid), intent(in) :: pH    ! potential temperature in surface layer  [K]
-    real, dimension(ngrid), intent(in) :: pTs   ! temperature at surface                  [K]
+    integer,                intent(in) :: ngrid  ! number of columns
+    integer,                intent(in) :: mask   ! adaptive grid mask
+    real,                   intent(in) :: pG     ! gravity                                 [m/s^2]
+    real, dimension(ngrid), intent(in) :: pZ0    ! surface roughness length scale          [m]
+    real, dimension(ngrid), intent(in) :: pZ     ! height of the first atmospheric layer   [m]
+    real, dimension(ngrid), intent(in) :: pU     ! zonal velocity in surface layer         [m/s]
+    real, dimension(ngrid), intent(in) :: pV     ! meridional velocity in surface layer    [m/s]
+    real, dimension(ngrid), intent(in) :: pTheta ! potential temperature in surface layer  [K]
+    real, dimension(ngrid), intent(in) :: pTs    ! temperature at surface                  [K]
 
     ! Output
     real, dimension(ngrid), intent(out) :: pCdv ! drag coefficient for velocity
@@ -177,8 +177,8 @@ contains
 
        Cd0 = (Karman/log(z1))**2 * U(ig)
 
-       ! Gradient Richardson number at surface (Ts = Hs)
-       Ri = 0.5 * pG/pTs(ig) * (pH(ig) - pTs(ig)) / U(ig)**2 * pZ(ig)
+       ! Gradient Richardson number at surface (T_s = Theta_s)
+       Ri = 0.5 * pG/pTs(ig) * (pTheta(ig) - pTs(ig)) / U(ig)**2 * pZ(ig)
 
        if (Ri < 0.0) then
           z1 = b * Ri / (1.0 + c3bc * Cd0 * sqrt (- z1 * Ri))
@@ -196,14 +196,14 @@ contains
     pCdh = pCdh * U
   end subroutine Vdif_Cd
 
-  subroutine Vdif_K (ngrid, nlay, mask, pTimestep, pG, pZlev, pZlay, pZ0, pU, pV, pH, pKv, pKh)
+  subroutine Vdif_K (ngrid, nlay, mask, pTimestep, pG, pZlev, pZlay, pZ0, pU, pV, pTheta, pKv, pKh)
     ! Turbulent diffusion coefficients for velocity (pKU) and potential temperature (pKh) using mixing length model
     ! (assumes Pr = 1 so that pKh = pKU: same diffusion coefficients for velocity and potential temperature)
     integer,                       intent(in)  :: ngrid, nlay, mask
     real,                          intent(in)  :: pTimestep, pG
     real, dimension(ngrid),        intent(in)  :: pZ0           ! roughness length
     real, dimension(ngrid,nlay),   intent(in)  :: pZlay
-    real, dimension(ngrid,nlay),   intent(in)  :: pU, pV, pH
+    real, dimension(ngrid,nlay),   intent(in)  :: pU, pV, pTheta
     real, dimension(ngrid,nlay+1), intent(in)  :: pZlev
 
     real, dimension(ngrid,nlay+1), intent(out) :: pKh, pKv      ! turbulent diffusivities
@@ -220,16 +220,16 @@ contains
 
           Lmix = Karman * z1 / (1.0 + Karman * z1 / LmixMin) ! mixing length
 
-          dU = pU(ig,il) - pU(ig,il-1)
-          dV = pV(ig,il) - pV(ig,il-1)
-          dH = pH(ig,il) - pH(ig,il-1)
+          dU = pU(ig,il)     - pU(ig,il-1)
+          dV = pV(ig,il)     - pV(ig,il-1)
+          dH = pTheta(ig,il) - pTheta(ig,il-1)
 
           dZ = pZlay(ig,il) - pZlay(ig,il-1)
 
           dVdZ2 = (dU**2 + dV**2) / dZ**2
 
-          if (mask>=16 .or.dVdZ2 > dVdZ2_min) then
-             H = 0.5 * (pH(ig,il) + pH(ig,il-1)) ! potential temperature at interface below layer il
+          if (dVdZ2 > dVdZ2_min) then
+             H = 0.5 * (pTheta(ig,il) + pTheta(ig,il-1)) ! potential temperature at interface below layer il
 
              N2 = pG/H * dH/dZ                   ! Brunt-Vaisala frequency squared
 

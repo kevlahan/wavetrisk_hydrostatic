@@ -15,7 +15,7 @@ module phyparam_mod
   public :: phyparam, alloc, precompute, zDay_last, icount
 contains
   subroutine phyparam (ngrid, nlayer, mask, firstcall, lastcall, rJourvrai, gmTime, pTimestep,  pPlev, pPlay, &
-       pPhi, pPhi_surf, pU, pV, pT) bind (c, name='phyparam_phyparam')
+       pPhi, pPhi_surf, pU, pV, pTheta) bind (c, name='phyparam_phyparam')
 
     use,          intrinsic :: iso_c_binding
     use phys_const,     only : g, Rcp, r, unjours
@@ -61,7 +61,7 @@ contains
     ! Ouput: velocities and temperature from implicit Euler step: t -> t+dt
     real, dimension(ngrid,nlayer),   intent(inout) :: pU        ! zonal velocity      [m/s]
     real, dimension(ngrid,nlayer),   intent(inout) :: pV        ! meridional velocity [m/s]
-    real, dimension(ngrid,nlayer),   intent(inout) :: pT        ! temperature         [K]
+    real, dimension(ngrid,nlayer),   intent(inout) :: pTheta    ! temperature         [K]
 
     ! Local variables
     real                                           :: zDay       ! day
@@ -72,7 +72,7 @@ contains
     real, dimension(ngrid)                         :: FluxGrd    ! heat flux from deep soil
     real, dimension(ngrid)                         :: CapCal     ! effective heat capacity of soil
     real, dimension(ngrid)                         :: zPmer      ! sea-level pressure
-    real, dimension(ngrid,nlayer)                  :: pH         ! potential temperature [K]
+    real, dimension(ngrid,nlayer)                  :: pT         ! potential temperature [K]
     real, dimension(ngrid,nlayer)                  :: zExner     ! Exner function
     real, dimension(ngrid,nlayer)                  :: zZlay      ! height at layer centres    [m]
     real, dimension(ngrid,2:nlayer)                :: z1, z2
@@ -88,6 +88,12 @@ contains
        print*,'ngridmax  = ', ngridmax
        stop
     end if
+
+    ! Exner function for converting between temperature and potential temperature
+    zExner = (pPlay/p_0)**Rcp
+
+    ! Temperature
+    pT = pTheta * zExner
 
     zDay = rJourvrai + gmTime
 
@@ -118,9 +124,6 @@ contains
     z2 = (pPlev(:,2:nlayer)   + pPlay(:,2:nlayer)) / (pPlev(:,2:nlayer)   - pPlay(:,2:nlayer))
 
     zZlev(:,2:nlayer) = (z1 * zZlay(:,1:nlayer-1) + z2 * zZlay(:,2:nlayer)) / (z1 + z2)
-    
-    ! Exner function for converting between temperature and potential temperature
-    zExner = (pPlay/p_0)**Rcp
 
     !  Soil temperatures
     !  First split step of implicit time integration forward sweep from deep ground to surface
@@ -138,7 +141,7 @@ contains
     if (callrad) call radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPlev, pPlay, pT, FluxRad)
 
     ! Find potential temperature from temperature
-    pH = pT / zExner
+    pTheta = pT / zExner
 
     ! Vertical turbulent diffusion split step
     !
@@ -153,7 +156,7 @@ contains
        zFluxId = FluxRad + FluxGrd
 
        call Vdif (ngrid, nlayer, mask, zDay, pTimestep, CapCal, Emissiv, zFluxId, Z0, pPlay, pPlev, zZlay, zZlev, &
-            pU, pV, pH, Tsurf)
+            pU, pV, pTheta, Tsurf)
     else ! no vertical turbulent diffusion
        Tsurf = Tsurf + pTimestep * (FluxRad + FluxGrd) / CapCal
     end if
@@ -164,10 +167,10 @@ contains
 
     ! Dry convective adjustment
     ! (final values of velocities and potential temperature at t+dt)
-    if (calladj) call ConvAdj (ngrid, nlayer, pTimestep, pPlay, pPlev, zExner, pU, pV, pH)
+    if (calladj) call ConvAdj (ngrid, nlayer, pTimestep, pPlay, pPlev, zExner, pU, pV, pTheta)
 
     ! Temperature at t+dt for output
-    pT = pH * zExner
+    pT = pTheta * zExner
 
     call profile_exit (id_phyparam)
     call nvtxendrange
@@ -179,8 +182,7 @@ contains
     integer, intent(in), value :: ngrid, nlayer
 
     ! Allocate precomputed arrays
-    allocate (land(ngrid), Albedo(ngrid), Emissiv(ngrid))
-    allocate (Z0(ngrid), pThermal_inertia(ngrid))
+    allocate (land(ngrid), Albedo(ngrid), Emissiv(ngrid), Z0(ngrid), pThermal_inertia(ngrid))
 
     ! Allocate arrays for internal state
     allocate (Tsurf(ngrid))
@@ -190,10 +192,10 @@ contains
   end subroutine alloc
 
   subroutine precompute () bind (c, name='phyparam_precompute')
-    ! Precompute time-independent arrays
+    ! Precompute time-independent arrays and set land or sea of each column (determines surface properties)
     use soil_mod, only: land, pThermal_inertia, Z0, Emissiv, Albedo,  I_mer, I_ter, Cd_mer, Cd_ter,  Alb_mer, Alb_ter, Emi_mer, Emi_ter
 
-    land             = 1.0                                      ! proportion of land compared to sea, 0 <= land <= 1
+    land             = 1.0                                      ! all columns are over land
 
     pThermal_inertia = (1.0 - land) * I_mer   + land * I_ter    ! thermal inertia
     Z0               = (1.0 - land) * Cd_mer  + land * Cd_ter   ! roughness length
@@ -203,11 +205,13 @@ contains
 
   subroutine coldstart (ngrid) bind (c, name='phyparam_coldstart')
     ! Create internal state to start a run without a restart file
+    ! (initializes soil column temperatures)
     use soil_mod, only : Tsurf, Tsoil
     integer, intent(in), value :: ngrid
 
-    Tsurf = Tsoil_init
-    if (callsoil) Tsoil  = Tsoil_init
     icount = 0
+
+    Tsurf                = Tsoil_init
+    if (callsoil) Tsoil  = Tsoil_init
   end subroutine coldstart
 end module phyparam_mod

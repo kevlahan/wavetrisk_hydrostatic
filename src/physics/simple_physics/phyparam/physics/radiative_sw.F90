@@ -28,8 +28,7 @@ contains
     real, dimension(ngrid),          intent(out) :: FsrFvis ! net surface flux
     real, dimension(ngrid,nlayer),   intent(out) :: dTsw    ! temperature tendency
 
-    ! Fluxes are non-zero only on those points where sun shines (Mu0 > 0)
-    ! we compute only on those ncount points
+    ! Fluxes are non-zero only on those ncount points where sun shines (Mu0 > 0)
     integer                            :: ncount
     integer, dimension(ngrid)          :: index
     real,    dimension(ngrid)          :: buf1

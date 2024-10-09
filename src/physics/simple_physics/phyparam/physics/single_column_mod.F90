@@ -20,7 +20,7 @@ module single_column_mod
   public :: initialize_extra_levels, get_extra_levels, physics_call_single_col, change_latitude_longitude
 contains
   subroutine physics_call_single_col (ngrid, nlayer, mask, firstcall, lastcall, rJourvrai, &
-       gmTime, pTimestep, pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pT, Tsurf_soil)
+       gmTime, pTimestep, pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pTheta, Tsurf_soil)
     !----------------------------------------------------------------
     !
     !   WrapPer routine dynamics will use to call the physics,
@@ -54,9 +54,10 @@ contains
 
     real, dimension(ngrid,nlayer),       intent(inout) :: pU         ! zonal velocity         [m/s]
     real, dimension(ngrid,nlayer),       intent(inout) :: pV         ! meridional velocity    [m/s]
-    real, dimension(ngrid,nlayer),       intent(inout) :: pT         ! temperature            [K]
+    real, dimension(ngrid,nlayer),       intent(inout) :: pTheta     ! potential temperature  [K]
 
     real, dimension(ngrid,extra_levels), intent(inout) :: Tsurf_soil ! temperature for surface and soil layers [K]
+
     ! Set current physics soil layers temperature from dynamics (shared with soil_mod)
     if (.not. firstcall) then
        Tsurf = Tsurf_soil(ngrid,1) ! surface temperature
@@ -65,7 +66,7 @@ contains
 
     ! Call simple physics for this column
     call phyparam (ngrid, nlayer, mask, firstcall, lastcall, rJourvrai, gmTime, pTimestep, &
-         pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pT)
+         pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pTheta)
 
     ! Update with physics surface temperature and soil column termperatures (from soil_mod)
     Tsurf_soil(:,1) = Tsurf                             ! surface temperature

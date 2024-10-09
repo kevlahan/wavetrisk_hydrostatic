@@ -9,13 +9,12 @@ module radiative_mod
 contains
   subroutine radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPlev, pPlay, pT, FluxRad)
     USE planet
-    use phys_const,     only : planet_rad, unjours
+    use phys_const,     only : planet_rad
     use astronomy,      only : orbite, solarlong
     USE solar,          only : solang, zenang, mucorr
-    use soil_mod,       only : albedo, emissiv, tsurf
+    use soil_mod,       only : Albedo, Emissiv, Tsurf
     USE radiative_sw,   only : sw
     USE radiative_lw,   only : lw
-    use writefield_mod, only : writefield
 
     ! Input variables
     integer,                         intent(in)    :: ngrid     ! number of columns
@@ -23,8 +22,8 @@ contains
     real,                            intent(in)    :: gmTime    ! fraction of the day
     real,                            intent(in)    :: pTimestep ! time step [s]
     real,                            intent(in)    :: zDay      ! elapsed days (and fraction thereof)
-    real, dimension(ngrid,nlayer),   intent(in)    :: pPlay
-    real, dimension(ngrid,nlayer+1), intent(in)    :: pPlev
+    real, dimension(ngrid,nlayer),   intent(in)    :: pPlay     ! pressure at layers
+    real, dimension(ngrid,nlayer+1), intent(in)    :: pPlev     ! pressure at interfaces
 
     ! Output
     real, dimension(ngrid,nlayer),   intent(inout) :: pT        ! temperature [K] (advanced from t -> t+dt)
@@ -33,13 +32,13 @@ contains
     ! Local variables
     integer                       :: ig, l
     real                          :: zls, zInsol, ztim1, ztim2, ztim3, dist_sol, declin
-    real, dimension(ngrid)        :: fract     ! day fraction
-    real, dimension(ngrid)        :: zFluxSW   ! short-wave flux at surface
-    real, dimension(ngrid)        :: zFluxlw   ! short-wave flux at surface
-    real, dimension(ngrid)        :: Mu0       ! cosine of zenithal angle
-    real, dimension(ngrid)        :: zPlanck
-    real, dimension(ngrid,nlayer) :: zdTsw     ! short-wave temperature tendency
-    real, dimension(ngrid,nlayer) :: zdTlw     ! long-wave temperature tendency
+    real, dimension(ngrid)        :: fract                      ! day fraction
+    real, dimension(ngrid)        :: zFluxSW                    ! short-wave flux at surface
+    real, dimension(ngrid)        :: zFluxlw                    ! short-wave flux at surface
+    real, dimension(ngrid)        :: Mu0                        ! cosine of zenithal angle
+    real, dimension(ngrid)        :: zPlanck                    ! black body function
+    real, dimension(ngrid,nlayer) :: zdTsw                      ! short-wave temperature tendency
+    real, dimension(ngrid,nlayer) :: zdTlw                      ! long-wave temperature tendency
 
     !  Insolation
     call solarlong (zday, zls)
@@ -67,6 +66,6 @@ contains
     FluxRad = Fluxrad - zPlanck
 
     ! Temperature at t+dt
-    pT = pT + (zdTsw + zdTlw) * pTimestep
+    pT = pT + pTimestep * (zdTsw + zdTlw)
   end subroutine radiative_tendencies
 end MODULE radiative_mod

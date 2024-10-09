@@ -1,12 +1,12 @@
 module convection
   implicit none
 contains
-  subroutine ConvAdj (ngrid, nlay, pTimestep, pPlay, pPlev, zExner, pU, pV, pH)
+  subroutine ConvAdj (ngrid, nlay, pTimestep, pPlay, pPlev, zExner, pU, pV, pTheta)
     !====================================================================================================================
     !
     !   Dry convective adjustment
     !
-    !   Layer is statically unstable if potential temperatures pH(above) < pH(below).
+    !   Layer is statically unstable if potential temperatures pTheta(above) < pTheta(below).
     !
     !====================================================================================================================
 
@@ -20,7 +20,7 @@ contains
     ! Output
     real, dimension(ngrid,nlay),   intent(inout)  :: pU     ! zonal velocity
     real, dimension(ngrid,nlay),   intent(inout)  :: pV     ! meridional velocity
-    real, dimension(ngrid,nlay),   intent(inout)  :: pH     ! potential temperature
+    real, dimension(ngrid,nlay),   intent(inout)  :: pTheta ! potential temperature
 
     integer                        :: Icol, ig, jcnt, l, jj
     integer, dimension(ngrid)      :: jadrs
@@ -32,7 +32,7 @@ contains
     vtest = .false.
     do l = 2, nlay
        do ig = 1, ngrid
-          if (pH(ig,l) < pH(ig,l-1)) vtest(ig) = .true.
+          if (pTheta(ig,l) < pTheta(ig,l-1)) vtest(ig) = .true.
        end do
     end do
 
@@ -41,7 +41,7 @@ contains
        if (vtest(ig)) then
           Icol = ig
           call sigma_levels     (ngrid, nlay, Icol, pPlev, zExner, sig, dsig, sdsig) ! compute sigma coordinates of unstable column Icol
-          call adjust_onecolumn (ngrid, nlay, Icol, sig, dsig, sdsig, pU, pV, pH)    ! convective adjustment of unstable column Icol
+          call adjust_onecolumn (ngrid, nlay, Icol, sig, dsig, sdsig, pU, pV, pTheta)    ! convective adjustment of unstable column Icol
        endif
     end do
   end subroutine ConvAdj
