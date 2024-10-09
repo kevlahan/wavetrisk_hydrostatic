@@ -73,35 +73,29 @@ contains
     real, dimension(ngrid),         intent(out) :: pCapCal           ! effective calorific capacity
     real, dimension(ngrid),         intent(out) :: pFluxGrd          ! conductive heat flux at the ground
 
-    integer                :: ig, jk
-    real                   :: z1
+    integer                :: il
+    real, dimension(ngrid) :: z1
     real, dimension(nsoil) :: zdz2
 
     ! Computation of the cgrd and dgrd coefficients the backward sweep :
-    zdz2 = dz2 / pTimestep                             ! c_k + 0.5 (A.11)
+    zdz2 = dz2 / pTimestep                                                                     ! c_k + 0.5 (A.11)
 
-    z1 = zdz2(nsoil) + dz1(nsoil-1)
+    zc(:,nsoil-1) = zdz2(nsoil) * pTsoil(:,nsoil) / (zdz2(nsoil) + dz1(nsoil-1))               ! b_n - 1   (A.17)
+    zd(:,nsoil-1) = dz1(nsoil-1)                  / (zdz2(nsoil) + dz1(nsoil-1))               ! a_n - 1   (A.16)
+    do il = nsoil-1, 2, -1
+       z1 = 1.0 / (zdz2(il) + dz1(il-1) + dz1(il) * (1.0 - zd(:,il)))
 
-    zc(:,nsoil-1) = zdz2(nsoil) * pTsoil(:,nsoil) / z1 ! b_n - 1 (A.17)
-    zd(:,nsoil-1) = dz1(nsoil-1)                  / z1 ! a_n - 1 (A.16)
-    do jk = nsoil-1, 2, -1
-       do ig = 1, ngrid
-          z1 = 1.0 / (zdz2(jk) + dz1(jk-1) + dz1(jk) * (1.0 - zd(ig,jk)))
-
-          zc(ig,jk-1) = z1 * (pTsoil(ig,jk) * zdz2(jk) + dz1(jk) * zc(ig,jk)) ! b_k
-          zd(ig,jk-1) = z1 * dz1(jk-1)                                        ! a_k
-       end do
+       zc(:,il-1) = z1 * (pTsoil(:,il) * zdz2(il) + dz1(il) * zc(:,il))                        ! b_k
+       zd(:,il-1) = z1 * dz1(il-1)                                                             ! a_k
     end do
 
     ! Surface diffusive flux and calorific capacity of ground
-    do ig = 1, ngrid
-       z1 = lambda * (1.0 - zd(ig,1)) + 1.0
+    z1 = lambda * (1.0 - zd(:,1)) + 1.0
 
-       pCapCal(ig)  = pThermal_inertia(ig) * pTimestep * (zdz2(1) + (1.0 - zd(ig,1)) * dz1(1)) / z1                 ! c_s (A.30)
+    pCapCal  = pThermal_inertia * pTimestep * (zdz2(1) + (1.0 - zd(:,1)) * dz1(1)) / z1        ! c_s (A.30)
 
-       pFluxGrd(ig) = pThermal_inertia(ig) * dz1(1) * (zc(ig,1) + (zd(ig,1) - 1.0) * pTsoil(ig,1))                  ! f * (A.25)
-       pFluxGrd(ig) = pFluxGrd(ig) + pCapCal(ig) * (pTsoil(ig,1) * z1 - lambda * zc(ig,1) - pTsrf(ig)) / pTimestep  ! f_s (A.31)
-    end do
+    pFluxGrd = pThermal_inertia * dz1(1) * (zc(:,1) + (zd(:,1) - 1.0) * pTsoil(:,1))           ! f * (A.25)
+    pFluxGrd = pFluxGrd + pCapCal * (pTsoil(:,1) * z1 - lambda * zc(:,1) - pTsrf) / pTimestep  ! f_s (A.31)
   end subroutine soil_forward
 
   pure subroutine soil_backward (ngrid, nsoil, zc, zd, pTsrf, pTsoil)
@@ -116,12 +110,12 @@ contains
     ! Output
     real, dimension(ngrid,nsoil),    intent(inout) :: pTsoil  ! soil temperature updated from t -> t+dt
 
-    integer :: ig, jk
+    integer :: il
 
     ! Soil column temperatures
     pTsoil(:,1) = (lambda * zc(:,1) + pTsrf) / (lambda * (1.0 - zd(:,1)) + 1.0) ! (A.27) re-arragend to solve for t_0.5
-    do jk = 2, nsoil
-       pTsoil(:,jk) = zc(:,jk-1) + zd(:,jk-1) * pTsoil(:,jk-1)                  ! (A.15)
+    do il = 2, nsoil
+       pTsoil(:,il) = zc(:,il-1) + zd(:,il-1) * pTsoil(:,il-1)                  ! (A.15)
     end do
   end subroutine soil_backward
 
@@ -131,21 +125,21 @@ contains
     integer, intent(in) :: nsoil
 
     real    :: rk, rk1, rk2
-    integer :: jk
+    integer :: il
 
     allocate (dz1(1:nsoil-1), dz2(1:nsoil))
 
-    do jk = 1, nsoil-1
-       rk1 = float (jk) + 0.5
-       rk2 = float (jk) - 0.5
-       dz1(jk) = 1.0 / (fz (rk1) - fz (rk2))  ! d_k (A.12)
+    do il = 1, nsoil-1
+       rk1 = float (il) + 0.5
+       rk2 = float (il) - 0.5
+       dz1(il) = 1.0 / (fz (rk1) - fz (rk2))  ! d_k (A.12)
     end do
     lambda = fz (0.5) * dz1(1)                ! mu (A.28)
 
-    do jk = 1, nsoil
-       rk1 = float (jk)
-       rk2 = float (jk) - 1.0
-       dz2(jk) = fz (rk1) - fz (rk2)          ! numerator of c_k + 0.5 (A.11)
+    do il = 1, nsoil
+       rk1 = float (il)
+       rk2 = float (il) - 1.0
+       dz2(il) = fz (rk1) - fz (rk2)          ! numerator of c_k + 0.5 (A.11)
     end do
   end subroutine init_soil
 
