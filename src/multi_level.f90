@@ -20,7 +20,7 @@ contains
     end do
 
     ! Compute surface pressure on all grids
-    call cal_surf_press (q)
+    call cal_surf_press (q(1:N_VARIABLE,1:zlevels))
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
@@ -36,13 +36,13 @@ contains
        ! Calculate trend on all scales, from fine to coarse
        do l = level_end, level_start, -1
           ! Finish non-blocking communication of dq from previous level (l+1)
-          if (l < level_end) call update_bdry__finish (dq(scalars(1):scalars(2),k), l+1) 
+          if (l < level_end) call update_bdry__finish (dq(scalars(1):scalars(2),k),l+1) 
 
           call basic_operators  (q, dq, k, l)
           call cal_scalar_trend (q, dq, k, l)
 
           ! Start non-blocking communication of dq for use at next level (l-1)
-          if (level_start /= level_end .and. l > level_start) call update_bdry__start (dq(scalars(1):scalars(2),k), l) 
+          if (level_start /= level_end .and. l > level_start) call update_bdry__start (dq(scalars(1):scalars(2),k),l) 
 
           call velocity_trend_source (q, dq, k, l)
        end do

@@ -34,7 +34,7 @@ contains
     call zero_float (dq)
     
     ! Current surface pressure
-    call cal_surf_press (q)
+    call cal_surf_press (q(1:N_VARIABLE,1:zlevels))
 
     do d = 1, size(grid)
        do k = 1, zlevels

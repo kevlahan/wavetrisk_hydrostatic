@@ -9,8 +9,8 @@ contains
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
     implicit none
-    real(8)                                   :: dt
-    type(Float_Field), dimension(:,:), target :: q
+    real(8)                                                      :: dt
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
 
     integer :: d, ibeg, iend, k, v
 
@@ -30,8 +30,8 @@ contains
     ! Explicit Euler step for intermediate velocity u_star
     ! remove external pressure gradient
     implicit none
-    real(8)                                   :: dt
-    type(Float_Field), dimension(:,:), target :: q
+    real(8)                                                      :: dt
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
 
     integer :: d, ibeg, iend, k
 
@@ -54,7 +54,7 @@ contains
     ! uses Bleck and Smith (J. Geophys. Res. 95, 3273–3285 1990) layer dilation method
     ! NOTE: individual layers no longer conserve mass (although total mass is conserved)
     implicit none
-    type(Float_Field), dimension(:,:), target :: q
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels+1), target :: q
     
     integer :: d, j, k, l
 

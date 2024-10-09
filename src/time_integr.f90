@@ -8,7 +8,7 @@ module time_integr_mod
      subroutine trend_fun (q, dq)
        use domain_mod
        implicit none
-       type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
+       type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
      end subroutine trend_fun
   end interface
   
@@ -16,8 +16,8 @@ module time_integr_mod
      subroutine dt_integrator (q, wav, trend_fun, h)
        use domain_mod
        implicit none
-       real(8)                           :: h      ! time step
-       type(Float_Field), dimension(:,:) :: q, wav ! solution and wavelet coefficients
+       real(8)                                              :: h      ! time step
+       type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav ! solution and wavelet coefficients
        
        interface
           subroutine trend_fun (q, dq)
@@ -44,8 +44,8 @@ contains
     ! Euler time step
     ! Stable for CFL<1, first order
     implicit none
-    real(8)                           :: h
-    type(Float_Field), dimension(:,:) :: q, wav
+    real(8)                                              :: h
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
 
     call trend_fun (q, trend)
     call RK_sub_step (q, trend, h, q)
@@ -57,8 +57,8 @@ contains
     ! Stable for hyperbolic equations for CFL<2
     ! Does not require extra solution variables.
     implicit none
-    real(8)                           :: h
-    type(Float_Field), dimension(:,:) :: q, wav
+    real(8)                                              :: h
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
 
     call manage_q1_mem
 
@@ -80,8 +80,8 @@ contains
     ! Fourth order accurate for linear equations, stable for CFL <= 2*sqrt(2) ~ 2.83.
     ! Does not require extra solution variables.
     implicit none
-    real(8)                           :: h
-    type(Float_Field), dimension(:,:) :: q, wav
+    real(8)                                              :: h
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
 
     call manage_q1_mem
 
@@ -107,8 +107,8 @@ contains
     ! Stable for hyperbolic equations for CFL<2
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     implicit none
-    real(8)                           :: h
-    type(Float_Field), dimension(:,:) :: q, wav
+    real(8)                                               :: h
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)  :: q, wav
 
     call manage_RK_mem
 
@@ -130,8 +130,8 @@ contains
     ! Stable for hyperbolic equations for CFL<2
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     implicit none
-    real(8)                           :: h
-    type(Float_Field), dimension(:,:) :: q, wav
+    real(8)                                              :: h
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
 
     call manage_RK_mem
 
@@ -156,8 +156,8 @@ contains
     ! Optimal fourth order, five stage strong stability preserving Runge-Kutta method stable with optimal maximum CFL coefficient of 1.51
     ! See A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011, Spiteri and Ruuth 2002
     implicit none
-    real(8)                           :: h
-    type(Float_Field), dimension(:,:) :: q, wav
+    real(8)                                              :: h
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
 
     real(8), dimension(5,5) :: alpha, beta
 
@@ -444,22 +444,22 @@ contains
   subroutine RK_split (h, sol1, sol2)
     ! Explicit Euler integration of velocity and scalars used in RK4_split
     implicit none
-    real(8)                           :: h
-    type(Float_Field), dimension(:,:) :: sol1
-    type(Float_Field), dimension(:,:) :: sol2
+    real(8)                                                :: h
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels+1) :: sol1
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels+1) :: sol2
 
     ! Compute explicit trends
-    call barotropic_correction (sol1)
-    call trend_ml (sol1, trend)
+    call barotropic_correction (sol1(1:N_VARIABLE,1:zlevels+1))
+    call trend_ml (sol1(1:N_VARIABLE,1:zlevels), trend)
     
     ! Explicit Euler step for scalars
-    call scalar_star (h, sol2)
+    call scalar_star (h, sol2(1:N_VARIABLE,1:zlevels))
     
     ! Explicit Euler step for intermediate 3D baroclinic velocities u_star
-    call u_star (h, sol2)
+    call u_star (h, sol2(1:N_VARIABLE,1:zlevels))
         
     ! Inverse wavelet transform of solution onto adaptive grid
-    call WT_after_step (sol2(:,1:zlevels), wav_coeff(:,1:zlevels))
+    call WT_after_step (sol2(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels))
   end subroutine RK_split
 
   subroutine free_surface_update
@@ -468,7 +468,7 @@ contains
 
     ! Backwards Euler step for new free surface, updates sol(S_MASS,zlevels+1)
     call eta_update
-    call barotropic_correction (sol)
+    call barotropic_correction (sol(1:N_VARIABLE,1:zlevels+1))
     
     ! Explicit Euler step to update 3D baroclinic velocities with new external pressure gradient
     call u_update

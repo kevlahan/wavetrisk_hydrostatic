@@ -1548,11 +1548,12 @@ contains
           do k = 1, zlevels
              ! Compute pressure, exner and geopotential
              do d = 1, size(grid)
-                mass    => sol(S_MASS,k)%data(d)%elts
+                mass    =>      sol(S_MASS,k)%data(d)%elts
+                temp    =>      sol(S_TEMP,k)%data(d)%elts
                 mean_m  => sol_mean(S_MASS,k)%data(d)%elts
-                temp    => sol(S_TEMP,k)%data(d)%elts
                 mean_t  => sol_mean(S_TEMP,k)%data(d)%elts
-                exner   => exner_fun(k)%data(d)%elts
+                
+                exner   =>       exner_fun(k)%data(d)%elts
                 do j = 1, grid(d)%lev(l)%length
                    call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
                 end do
@@ -1971,7 +1972,7 @@ contains
     call update_bdry (sol, NONE, 884)
 
     ! Compute surface pressure
-    call cal_surf_press (sol)
+    call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
     do k = 1, zlevels
        do l = level_end, level_start, -1
@@ -2086,7 +2087,7 @@ contains
     call update_bdry (sol, NONE, 889)
 
     ! Compute surface pressure
-    call cal_surf_press (sol)
+    call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
     do k = 1, zlevels
        do l = level_end, level_start, -1
