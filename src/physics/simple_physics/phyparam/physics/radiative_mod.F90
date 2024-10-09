@@ -36,7 +36,6 @@ contains
     real, dimension(ngrid)        :: zFluxSW                    ! short-wave flux at surface
     real, dimension(ngrid)        :: zFluxlw                    ! short-wave flux at surface
     real, dimension(ngrid)        :: Mu0                        ! cosine of zenithal angle
-    real, dimension(ngrid)        :: zPlanck                    ! black body function
     real, dimension(ngrid,nlayer) :: zdTsw                      ! short-wave temperature tendency
     real, dimension(ngrid,nlayer) :: zdTlw                      ! long-wave temperature tendency
 
@@ -60,10 +59,8 @@ contains
     call sw (ngrid, nlayer, diurnal, CoefVis, Albedo, pPlev, Ps_rad, mu0, fract, zInsol, zFluxSW, zdTsw)
     call lw (ngrid, nlayer, coefir, Emissiv, pPlev, Ps_rad, Tsurf, pT, zFluxlw, zdTlw)
 
-    ! 2.4 Surface fluxes
-    FluxRad = Emissiv * zFluxlw + zFluxsw * (1.0 - Albedo)
-    zPlanck = Emissiv * Stephan * Tsurf**4
-    FluxRad = Fluxrad - zPlanck
+    ! Surface fluxes
+    FluxRad = Emissiv * (zFluxlw + (1.0 - Albedo) * zFluxsw - Stephan * Tsurf**4) 
 
     ! Temperature at t+dt
     pT = pT + pTimestep * (zdTsw + zdTlw)
