@@ -104,7 +104,7 @@ module init_physics_mod
     
     close (9*rank)
 
-    ! Delete extra files
+    ! Delete extra files 
     write (command, '(a,a)') '\rm ', trim (param_file)
     call system (trim (command))
 
@@ -140,36 +140,36 @@ module init_physics_mod
     open (unit=file_unit, file=trim(file_params), form="FORMATTED", action='WRITE', status='REPLACE')
 
     ! Write physics parameters for reading by physics package
-    write (file_unit,*) "planet_rat = ", radius
-    write (file_unit,*) "g = ", grav_accel
-    write (file_unit,*) "cpp = ", c_p
-    write (file_unit,*) "mugaz = ", gas_molarmass 
-    write (file_unit,*) "unjours = ", DAY
-    write (file_unit,*) "year_day = ", int(YEAR / DAY)
-    write (file_unit,*) "periheli = ", perihelion
-    write (file_unit,*) "aphelie = ", aphelion
-    write (file_unit,*) "peri_day = ", perihelion_day
-    write (file_unit,*) "obliquit = ", obliquity
-    write (file_unit,*) "Cd_mer = ", sea_surf
-    write (file_unit,*) "Cd_ter = ", soil_surf
-    write (file_unit,*) "I_mer = ", sea_inertia
-    write (file_unit,*) "I_ter = ", soil_inertia
-    write (file_unit,*) "alb_ter = ", sea_albedo
-    write (file_unit,*) "alb_mer = ", soil_albedo
-    write (file_unit,*) "emi_mer = ", sea_emissive
-    write (file_unit,*) "emi_ter = ", soil_emmisive
-    write (file_unit,*) "emin_turb = ", emin_turb
-    write (file_unit,*) "lmixmin = ", min_turbmix
-    write (file_unit,*) "coefvis = ", sw_atten
-    write (file_unit,*) "coefir = ", lw_atten
-    write (file_unit,*) "callrad = ", radiation_model
-    write (file_unit,*) "calldifv = ", turbulence_model
-    write (file_unit,*) "calladj = ", convecAdj_model
-    write (file_unit,*) "callsoil = ", soil_model
-    write (file_unit,*) "season = ", seasons
-    write (file_unit,*) "diurnal = ", diurnal
-    write (file_unit,*) "lverbose = ", physics_write
-    write (file_unit,*) "period_sort = ", 1.
+    write (file_unit,*) "planet_rat  = ", radius
+    write (file_unit,*) "g           = ", grav_accel
+    write (file_unit,*) "cpp         = ", c_p
+    write (file_unit,*) "mugaz       = ", gas_molarmass 
+    write (file_unit,*) "unjours     = ", DAY
+    write (file_unit,*) "year_day    = ", int (YEAR / DAY)
+    write (file_unit,*) "periheli    = ", perihelion
+    write (file_unit,*) "aphelie     = ", aphelion
+    write (file_unit,*) "peri_day    = ", perihelion_day
+    write (file_unit,*) "obliquit    = ", obliquity
+    write (file_unit,*) "Cd_mer      = ", sea_surf
+    write (file_unit,*) "Cd_ter      = ", soil_surf
+    write (file_unit,*) "I_mer       = ", sea_inertia
+    write (file_unit,*) "I_ter       = ", soil_inertia
+    write (file_unit,*) "alb_ter     = ", sea_albedo
+    write (file_unit,*) "alb_mer     = ", soil_albedo
+    write (file_unit,*) "emi_mer     = ", sea_emissive
+    write (file_unit,*) "emi_ter     = ", soil_emmisive
+    write (file_unit,*) "emin_turb   = ", emin_turb
+    write (file_unit,*) "lmixmin     = ", min_turbmix
+    write (file_unit,*) "coefvis     = ", sw_atten
+    write (file_unit,*) "coefir      = ", lw_atten
+    write (file_unit,*) "callrad     = ", radiation_model
+    write (file_unit,*) "calldifv    = ", turbulence_model
+    write (file_unit,*) "calladj     = ", convecAdj_model
+    write (file_unit,*) "callsoil    = ", soil_model
+    write (file_unit,*) "season      = ", seasons
+    write (file_unit,*) "diurnal     = ", diurnal
+    write (file_unit,*) "lverbose    = ", physics_write
+    write (file_unit,*) "period_sort = ", 1.0
     close (file_unit)
   end subroutine write_physics_params
 
@@ -193,25 +193,22 @@ module init_physics_mod
     lat(1)  = 0d0
     long(1) = 0d0
 
+    call init_comgeomfi (1, zlevels, long, lat)
     if (Nsoil /= 0) then
        soil_model = .true.
        nsoilmx    =   Nsoil
        zmin       = - Nsoil
-
-       call init_comgeomfi (1, zlevels, long, lat) 
     else ! Nsoil = 0 means there is no soil model
        soil_model = .false.
        nsoilmx    = 1
        zmin       = 0
-       
-       call init_comgeomfi (1, zlevels, long, lat)
     end if
   end subroutine init_soil_grid
 
   subroutine physics_checkpoint_restart
     !-----------------------------------------------------------------------------------
     !
-    !   Description: Initialize physics cases for when checkpointing is used. Only to be
+    !   Description: Initialize physics cases for when checkpointing is used. sOnly to be
     !                called when cp_idx > 0.
     !
     !   Author: Gabrielle Ching-Johnson
