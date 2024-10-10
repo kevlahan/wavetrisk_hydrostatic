@@ -20,7 +20,7 @@ module single_column_mod
   public :: initialize_extra_levels, get_extra_levels, physics_call_single_col, change_latitude_longitude
 contains
   subroutine physics_call_single_col (ngrid, nlayer, mask, firstcall, lastcall, rJourvrai, &
-       gmTime, pTimestep, pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pTheta, Tsurf_soil)
+       gmTime, pTimestep, pPlay, pPint, pPhi, pPhi_surf, pUmag, pU, pV, pW, pTheta, Tsurf_soil)
     !----------------------------------------------------------------
     !
     !   WrapPer routine dynamics will use to call the physics,
@@ -45,15 +45,16 @@ contains
     real,    value,                      intent(in)    :: rJourvrai  ! number of days counted from the north. spring equinox
     real,    value,                      intent(in)    :: gmTime     ! fraction of the day (ranges from 0 to 1)
     real,    value,                      intent(in)    :: pTimestep  ! timestep [s]
-    real, dimension(ngrid,nlayer+1),     intent(in)    :: pPlev      ! pressure at interfaces [Pa]
+    real, dimension(ngrid,nlayer+1),     intent(in)    :: pPint      ! pressure at interfaces [Pa]
     real, dimension(ngrid,nlayer),       intent(in)    :: pPlay      ! pressure at layers     [Pa]
     real, dimension(ngrid,nlayer),       intent(in)    :: pPhi       ! geopotential at layers [m^2/s^2]
     real, dimension(ngrid),              intent(in)    :: pPhi_surf  ! surface geopotential   [m^2/s^2]
+    real, dimension(ngrid,nlayer),       intent(in)    :: pUmag      ! speed at nodes [m/s]
+
     logical(kind=c_bool), value,         intent(in)    :: firstcall  ! true at first call
     logical(kind=c_bool), value,         intent(in)    :: lastcall   ! true at last call
 
-    real, dimension(ngrid,nlayer),       intent(inout) :: pU         ! zonal velocity         [m/s]
-    real, dimension(ngrid,nlayer),       intent(inout) :: pV         ! meridional velocity    [m/s]
+    real, dimension(ngrid,nlayer),       intent(inout) :: pU, pV, pW ! velocities at edges    [m/s]
     real, dimension(ngrid,nlayer),       intent(inout) :: pTheta     ! potential temperature  [K]
 
     real, dimension(ngrid,extra_levels), intent(inout) :: Tsurf_soil ! temperature for surface and soil layers [K]
@@ -66,7 +67,7 @@ contains
 
     ! Call simple physics for this column
     call phyparam (ngrid, nlayer, mask, firstcall, lastcall, rJourvrai, gmTime, pTimestep, &
-         pPlev, pPlay, pPhi, pPhi_surf, pU, pV, pTheta)
+         pPlay, pPint, pPhi, pPhi_surf, pUmag, pU, pV, pW, pTheta)
 
     ! Update with physics surface temperature and soil column termperatures (from soil_mod)
     Tsurf_soil(:,1) = Tsurf                             ! surface temperature

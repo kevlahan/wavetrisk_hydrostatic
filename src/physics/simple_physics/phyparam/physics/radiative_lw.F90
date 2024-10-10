@@ -7,7 +7,7 @@ module radiative_lw
   real,    parameter :: Stephan = 5.67e-08
 contains
   subroutine lw (ngrid, nlayer, CoefIR, Emissiv, pP, Ps_rad, pTsurf, pT, pFluxIR, pdTlw)
-    use phys_const,     only : Cpp, G
+    use phys_const, only : Cpp, G
     !===============================================================================================
     !  Cooling rate due to long wave (infrared) radiation
     !
@@ -64,11 +64,11 @@ contains
        zFluxdn(:,ilev) = Flux
     end do
     zfluxdn(:,nlayer+1) = 0.0
-    
+
     pFluxIr = Emissiv * zfluxdn(:,1)
 
     ! Upwards fluxes
-    
+
     ! Upwards lw flux at the surface (ilev=1)
     zFluxup(:,1) = Emissiv * Stephan *  pTsurf**4 + (1.0 - Emissiv) * zFluxdn(:,1)
 

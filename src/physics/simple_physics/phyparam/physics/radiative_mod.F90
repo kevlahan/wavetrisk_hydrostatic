@@ -7,7 +7,7 @@ module radiative_mod
   real, parameter :: pi = 2.0 * asin (1.0), Solarcst = 1370.0, Stephan = 5.67e-08, height_scale = 10000.0, Ps_rad = 1e5
   public          :: radiative_tendencies
 contains
-  subroutine radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPlev, pPlay, pT, FluxRad)
+  subroutine radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPint, pT, FluxRad)
     USE planet
     use phys_const,     only : planet_rad
     use astronomy,      only : orbite, solarlong
@@ -22,8 +22,7 @@ contains
     real,                            intent(in)    :: gmTime    ! fraction of the day
     real,                            intent(in)    :: pTimestep ! time step [s]
     real,                            intent(in)    :: zDay      ! elapsed days (and fraction thereof)
-    real, dimension(ngrid,nlayer),   intent(in)    :: pPlay     ! pressure at layers
-    real, dimension(ngrid,nlayer+1), intent(in)    :: pPlev     ! pressure at interfaces
+    real, dimension(ngrid,nlayer+1), intent(in)    :: pPint     ! pressure at interfaces
 
     ! Output
     real, dimension(ngrid,nlayer),   intent(inout) :: pT        ! temperature [K] (advanced from t -> t+dt)
@@ -56,11 +55,11 @@ contains
     zInsol = solarcst / dist_sol**2
 
     ! Radiative tendencies and fluxes:
-    call sw (ngrid, nlayer, diurnal, CoefVis, Albedo, pPlev, Ps_rad, mu0, fract, zInsol, zFluxSW, zdTsw)
-    call lw (ngrid, nlayer, coefir, Emissiv, pPlev, Ps_rad, Tsurf, pT, zFluxlw, zdTlw)
+    call sw (ngrid, nlayer, diurnal, CoefVis, Albedo, pPint, Ps_rad, mu0, fract, zInsol, zFluxSW, zdTsw)
+    call lw (ngrid, nlayer, coefir, Emissiv, pPint, Ps_rad, Tsurf, pT, zFluxlw, zdTlw)
 
     ! Surface fluxes
-    FluxRad = Emissiv * (zFluxlw + (1.0 - Albedo) * zFluxsw - Stephan * Tsurf**4) 
+    FluxRad = Emissiv * (zFluxlw + (1.0 - Albedo) * zFluxsw - Stephan * Tsurf**4)
 
     ! Temperature at t+dt
     pT = pT + pTimestep * (zdTsw + zdTlw)

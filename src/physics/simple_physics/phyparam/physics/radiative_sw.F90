@@ -4,7 +4,7 @@ module radiative_sw
   private
   public :: sw
 contains
-  subroutine sw (ngrid, nlayer,ldiurn, CoefVis, Albedo, pLevel, pS_rad,pMu, pfract, pSolarf0, FsrFvis, dTsw)
+  subroutine sw (ngrid, nlayer,ldiurn, CoefVis, Albedo, pPint, pS_rad,pMu, pfract, pSolarf0, FsrFvis, dTsw)
     !=======================================================================
     !
     !   Rayonnement solaire en atmosphere non diffusante avec un
@@ -21,7 +21,7 @@ contains
     real, dimension(ngrid),          intent(in) :: Albedo   ! Albedo
     real, dimension(ngrid),          intent(in) :: pMu      ! cosine zenithal angle
     real, dimension(ngrid),          intent(in) :: pFract   ! day fraction
-    real, dimension(ngrid,nlayer+1), intent(in) :: pLevel   ! interface pressures
+    real, dimension(ngrid,nlayer+1), intent(in) :: pPint   ! interface pressures
     logical,                         intent(in) :: ldiurn   ! diurnal cycle
 
     ! Output
@@ -44,7 +44,7 @@ contains
     real, dimension(ngrid,nlayer)   :: zdtsw     ! temperature tendency
     real, dimension(ngrid,nlayer+1) :: Flux_down ! downward flux
     real, dimension(ngrid,nlayer+1) :: Flux_up   ! upward flux
-    real, dimension(ngrid,nlayer+1) :: zPlev     ! pressure at interfaces
+    real, dimension(ngrid,nlayer+1) :: zPint     ! pressure at interfaces
     real, dimension(ngrid,nlayer+1) :: zU        !
 
     if (ldiurn) then
@@ -64,7 +64,7 @@ contains
     call mongather (ngrid, ncount, index, pMu,    zMu)
     call mongather (ngrid, ncount, index, Albedo, zAlb)
     do l=  1, nlayer+1
-       call mongather (ngrid, ncount, index, pLevel(:,l), zPlev(:,l))
+       call mongather (ngrid, ncount, index, pPint(:,l), zPint(:,l))
     end do
 
     Flux_in   = 0.0
@@ -81,7 +81,7 @@ contains
     ! Partie homogene de l opacite
     tau0 = -0.5 * log (CoefVis) / Ps_rad
 
-    zU(1:ncount,:) = tau0 * zPlev(1:ncount,:)
+    zU(1:ncount,:) = tau0 * zPint(1:ncount,:)
 
     do l = 1, nlayer+1
        Flux_down(1:ncount,l) = Flux_in(1:ncount) * exp (- zU(1:ncount,l) / abs (zMu(1:ncount) + 1e-13))
@@ -100,11 +100,11 @@ contains
     ! m.cp.dt = dflux/dz
     ! m = -(dp/dz)/g
     zdTsw(1:ncount,1:nlayer) = (g/cpp) * (Flux_down(1:ncount,2:nlayer+1) - Flux_down(1:ncount,1:nlayer))  &
-         / (zplev(1:ncount,1:nlayer) - zplev(1:ncount,2:nlayer+1))
+         / (zPint(1:ncount,1:nlayer) - zPint(1:ncount,2:nlayer+1))
 
     ! Ajout l echauffement de la contribution du ray. sol. reflechit:
     zdTsw(1:ncount,1:nlayer) = zdTsw(1:ncount,1:nlayer) + (g/Cpp) * &
-         (Flux_up(1:ncount,1:nlayer) - Flux_up(1:ncount,2:nlayer+1)) / ( zPlev(1:ncount,1:nlayer) - zPlev(1:ncount,2:nlayer+1))
+         (Flux_up(1:ncount,1:nlayer) - Flux_up(1:ncount,2:nlayer+1)) / (zPint(1:ncount,1:nlayer) - zPint(1:ncount,2:nlayer+1))
 
     call monscatter (ngrid, ncount, index, zflux,fsrfvis)
     do l = 1, nlayer
