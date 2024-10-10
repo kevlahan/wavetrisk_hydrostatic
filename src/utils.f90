@@ -600,6 +600,46 @@ contains
     end function vel
   end subroutine interp_latlon_UVW
 
+  function latlon2uvw (dom, i, j, zlev, offs, dims)
+    ! Interpolate from zonal, meridional velocity components at nodes to U, V, W velocity components at edges
+    ! (assumes that dom%u_zonal and dom%v_merid have been set over all grid points)
+    implicit none
+    type (Domain)                  :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    real(8), dimension(1:EDGE)     :: latlon2uvw
+
+    integer     :: id, idE, idN, idNE
+    type(Coord) :: vel0
+
+    id   = idx (i,   j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+
+    vel0 = vel (id)
+
+    latlon2uvw(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5d0 * (vel0 + vel (idE)))
+    latlon2uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)),   0.5d0 * (vel0 + vel (idNE)))
+    latlon2uvw(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5d0 * (vel0 + vel (idN)))
+  contains
+    type(Coord) function vel (id)
+      ! Computes velocity at node id from its latitude and longitude components
+      integer :: id
+
+      real(8)     :: lat, lon
+      type(Coord) :: e_merid, e_zonal
+
+      call cart2sph (dom%node%elts(id+1), lon, lat)
+
+      e_zonal = Coord (-sin(lon),             cos(lon),                 0d0) 
+      e_merid = Coord (-cos(lon) * sin(lat), -sin(lon) * sin(lat), cos(lat))
+
+      vel = dom%u_zonal%elts(id+1) * e_zonal + dom%v_merid%elts(id+1) * e_merid
+    end function vel
+  end function latlon2uvw
+
   subroutine interp_UVW_latlon (dom, i, j, zlev, offs, dims)
     ! Interpolate velocity from U, V, W velocity components at edges to zonal, meridional velocity components at nodes
     ! Perot reconstruction based on Gauss theorem:
