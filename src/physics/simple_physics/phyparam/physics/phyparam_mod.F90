@@ -92,7 +92,9 @@ contains
     end if
 
     ! Exner function at layers (for converting between temperature and potential temperature)
-    zExner = (pPlay/p_0)**Rcp
+    do il = 1, nlayer
+       zExner(:,il) = (pPlay(:,il)/pPint(:,1))**Rcp  ! use surface pressure as reference pressure
+    end do
 
     zDay = rJourvrai + gmTime
 

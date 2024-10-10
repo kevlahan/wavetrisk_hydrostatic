@@ -9,6 +9,8 @@ module turbulence
   real    :: Ri_c      = 4e-1 ! critical Reynolds number
   real    :: LmixMin   = 1e+2 ! minimum mixing length
   real    :: p_0       = 1e5  ! reference pressure [Pa]
+  real    :: Kv_max    = 1e0 ! maximum turbulent diffusivity
+  real, parameter :: Stefan = 5.67e-8
   public :: ADJZONE, dVdZ2_min, Emin_turb, LmixMin, p_0, Ri_c, Vdif
 contains
   subroutine Vdif (ngrid, nlay, mask, pTime, pTimestep, pCapCal, pEmis, pFluxSrf, pZ0, pPlay, pPint, pZlay, pZint, pUmag, &
@@ -57,25 +59,23 @@ contains
     ! Local variables
     integer                       :: ig, il
     integer                       :: it1, it2
-    real                          :: z4st, zcst1
-    real, dimension(ngrid)        :: rho, T, z2, zdPlanck, zCdh, zCdv, zU2
+    real, dimension(ngrid)        :: rho, T, z2, zdPlanck, zCd_theta, zCdv, zU2
     real, dimension(ngrid,nlay)   :: dZ, zb, zb0, z1, zc, zd
 
     real, dimension(ngrid,nlay+1) :: zKv, zKtheta              ! turbulent diffusivities
 
-    !  Initialization: computation of rho*dz and dt * rho/dz = dt * rho**2 G/dP with rho = P/(R T)  = p/(R Theta*(p/ps)**kappa)
+    !  Initialization: computation of rho*dz and dt * rho/dz = dt * rho**2 G/dP with rho = P/(R T) = p/(R Theta*(p/ps)**kappa)
     dZ(:,1:nlay) = (pPint(:,1:nlay) - pPint(:,2:nlay+1)) / G
 
-    zb0(:,1) = pTimestep * pPint(:,1) / (R * pTsrf)                          ! dt * ho/dz at surface
+    zb0(:,1) = pTimestep * pPint(:,1) / (R * pTsrf)
     do il = 2, nlay
-       T   = 0.5 * (pTheta(:,il) + pTheta(:,il-1)) * (pPint(:,il)/p_0)**Rcp  ! temperature at interface below level il
-       rho = pPint(:,il) / (T*R)                                             ! density at lower interface below level il
-
-       zb0(:,il) = pTimestep * rho**2 * G / (pPlay(:,il-1) - pPlay(:,il))    ! dt * rho/dz at interface below level il
+       T         = 0.5 * (pTheta(:,il) + pTheta(:,il-1)) * (pPint(:,il)/pPint(:,1))**Rcp ! temperature at interface below level il
+       rho       = pPint(:,il) / (T*R)                                            ! density at lower interface below level il
+       zb0(:,il) = pTimestep * rho**2 * G / (pPlay(:,il-1) - pPlay(:,il))         ! dt * rho/dz at interface below level il
     end do
 
     ! Surface drag coefficients Cd
-    call Vdif_Cd (ngrid, mask, pZ0, G, pZlay(:,1), pUmag(:,1), pTheta(:,1), pTsrf, zCdv, zCdh)
+    call Vdif_Cd (ngrid, mask, pZ0, G, pZlay(:,1), pUmag(:,1), pTheta(:,1), pTsrf, zCdv, zCd_theta)
 
     ! Turbulent diffusion coefficients K
     call Vdif_K (ngrid, nlay, mask, G, pZlay, pZint, pZ0, pUmag, pTheta, zKv, zKtheta)
@@ -98,7 +98,7 @@ contains
     call velo_integration (ngrid, nlay, dZ, z1, zb, zd, pW)
 
     ! Vertical integration for potential temperature
-    zb(:,1)      = zCdh * zb0(:,1)               ! boundary condition
+    zb(:,1)      = zCd_theta * zb0(:,1)               ! boundary condition
     zb(:,2:nlay) = zKtheta(:,2:nlay) * zb0(:,2:nlay)
 
     z1(:,nlay) = 1.0 / (dZ(:,nlay) + zb(:,nlay))
@@ -115,8 +115,7 @@ contains
     end do
 
     ! Add Planck contribution to implicit scheme
-    z4st = 4.0 * 5.67e-8 * pTimestep
-    zdPlanck = z4st * pEmis * pTsrf**3
+    zdPlanck = pTimestep * 4.0 * Stefan * pEmis * pTsrf**3
 
     ! Surface temperature at t+dt
     z1(:,1) = pCapCal * pTsrf + Cpp * zb(:,1) * zc(:,1)         + zdPlanck * pTsrf + pFluxSrf * pTimestep
@@ -150,7 +149,7 @@ contains
     end do
   end subroutine velo_integration
 
-  pure subroutine Vdif_Cd (ngrid, mask, pZ0, pG, pZ, pUmag, pTheta, pTs, pCd_v, pCd_theta)
+  subroutine Vdif_Cd (ngrid, mask, pZ0, pG, pZ, pUmag, pTheta, pTs, pCd_v, pCd_theta)
     ! Surface drag coefficient using approach developed by Louis for ECMWF.
 
     ! Input
@@ -171,6 +170,7 @@ contains
     real                   :: z1, Ri, Cd0, Z
     real, dimension(ngrid) :: U
 
+    real            :: dTheta, dU, dUdZ2, dZ, N2
     real, parameter :: b = 5.0, c = 5.0, d = 5.0, c2b = 2.0 * b, c3bc = 3.0 * b * c, c3b = 3.0 * b
 
     do ig = 1, ngrid
@@ -181,7 +181,17 @@ contains
        Cd0 = (Karman/log(z1))**2 * U(ig)
 
        ! Gradient Richardson number at surface (T_s = Theta_s)
-       Ri = 0.5 * pG/pTs(ig) * (pTheta(ig) - pTs(ig)) / U(ig)**2 * pZ(ig)
+       dZ     = 0.5 * pZ(ig)
+
+       dU     = U(ig)
+       dUdZ2  = (dU/dZ)**2
+
+       dTheta = pTheta(ig) - pTs(ig)
+       N2     = pG/pTs(ig) * dTheta/dZ   ! Brunt-Vaisala frequency squared
+
+       Ri     = N2 / dUdZ2               ! gradient Richardson number
+
+       ! Ri     = pG/pTs(ig) *  / dUdZ2
 
        if (Ri < 0.0) then
           z1 = b * Ri / (1.0 + c3bc * Cd0 * sqrt (- z1 * Ri))
@@ -195,8 +205,10 @@ contains
           pCd_theta(ig) = Cd0 / (1.0 + c3b * Ri * Z)
        end if
     end do
-    pCd_v     = pCd_v * U
+    pCd_v     = pCd_v     * U
     pCd_theta = pCd_theta * U
+
+    !pCd_v = 0.0  ! required for stability in adaptive case??
   end subroutine Vdif_Cd
 
   subroutine Vdif_K (ngrid, nlay, mask, pG, pZlay, pZint, pZ0, pUmag, pTheta, pKv, pKtheta)
@@ -230,8 +242,8 @@ contains
           Lmix = Karman * z1 / (1.0 + Karman * z1 / LmixMin) ! mixing length
 
           dTheta = pTheta(ig,il) - pTheta(ig,il-1)
-          dU     = pUmag(ig,il) - pUmag(ig,il-1)
-          dZ     = pZlay(ig,il) - pZlay(ig,il-1)
+          dU     = pUmag(ig,il)  - pUmag(ig,il-1)
+          dZ     = pZlay(ig,il)  - pZlay(ig,il-1)
           dUdZ2  = (dU/dZ)**2
 
           if (dUdZ2 > dVdZ2_min) then
