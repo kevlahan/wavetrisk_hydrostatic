@@ -638,7 +638,7 @@ contains
     d  = dom%id+1
     id = idx (i, j,offs, dims)
 
-    call interp_latlon_UVW (dom, i, j, z_null, offs, dims, sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+    sol(S_VELO,zlev)%data(d)%elts(id_edge(id)) = latlon2uvw (dom, i, j, zlev, offs, dims)
   end subroutine init_velo
 
    subroutine init_mean (dom, i, j, zlev, offs, dims)

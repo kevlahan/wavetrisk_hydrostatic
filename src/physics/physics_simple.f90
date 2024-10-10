@@ -163,16 +163,16 @@ contains
 
   subroutine save_velocity (dom, i, j, zlev, offs, dims)
     ! Interpolates new zonal and meridional velocities to UVW and assigns to WAVETRISK data structure
-    type(Domain)                         :: dom 
-    integer                              :: i, j, zlev
-    integer, dimension(N_BDRY+1)         :: offs
-    integer, dimension(2,N_BDRY+1)       :: dims
+    type(Domain)                   :: dom 
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
 
     d  = dom%id + 1  
     id = idx (i, j, offs, dims)
 
-    call interp_latlon_UVW (dom, i, j, z_null, offs, dims, sol(S_VELO,zlev)%data(d)%elts(id_edge(id)))
+    sol(S_VELO,zlev)%data(d)%elts(id_edge(id)) = latlon2uvw (dom, i, j, zlev, offs, dims)
   end subroutine save_velocity
 end module physics_simple_mod
