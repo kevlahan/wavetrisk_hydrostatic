@@ -130,7 +130,7 @@ contains
        
        call count_active
      
-       !if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
+       if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
     end if
     call barrier
     
@@ -413,10 +413,10 @@ contains
        call dt_step (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
     end if
 
-    ! Split step routines
-    if (vert_diffuse) call vertical_diffusion
+    ! Split step physics routines and sub-models
+    if (vert_diffuse) call vertical_diffusion ! ocean (incompressible) models
 
-    if (physics_model) then
+    if (physics_model) then ! atmosphere (compressible) climate models
        select case (physics_type)
        case ("Held_Suarez")
           call Euler (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_physics_Held_Suarez, dt) 

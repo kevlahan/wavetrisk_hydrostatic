@@ -23,10 +23,12 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Local test case parameters (default values for many parameters set in physics module)
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  Ekman_ic                 = .false.                            ! Ekman (T) or zero (F) velocity initial conditions
+  physics_model            = .true.                            ! use physics model sub-step (type is determined in input)
+  Ekman_ic                 = .false.                           ! Ekman (T) or zero (F) velocity initial conditions
   u_0                      =  30d0     * METRE/SECOND          ! geostrophic velocity
   T_0                      = 285d0     * KELVIN                ! reference temperature (simple physics)
 
+  ! Simple physics submodel switches
   radiation_model          = .true.                            ! radiation module 
   turbulence_model         = .true.                            ! vertical diffusion module
   convecAdj_model          = .true.                            ! convective adjustment module
@@ -53,7 +55,6 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  physics_model            = .true.                            ! use physics model sub-step
   split_mean_perturbation  = .false.                           ! split prognostic variables into mean and fluctuations
   scale_aware              = .true.                            ! scale-aware viscosity
 
@@ -92,8 +93,8 @@ program climate
   call print_test_case_parameters
 
   ! Save initial conditions
-  !call omega_velocity
-  !call write_and_export (iwrite)
+  call omega_velocity
+  call write_and_export (iwrite)
   !if (physics_type == "Simple") call mean_values (0) ! processing for the physics package mean values
 
   ! Compute hydrostatic error factors for topography
