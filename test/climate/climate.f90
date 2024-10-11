@@ -3,8 +3,6 @@ program climate
   use main_mod
   use test_case_mod
   use lnorms_mod
-  use physics_trend_mod
-  use callkeys, only : lverbose
   implicit none
 
   integer        :: l
@@ -18,8 +16,6 @@ program climate
   
    ! Read test case parameters
   call read_test_case_parameters
-  
-  if (physics_type == "Simple") call init_simple_physics_params
   
   ! Initialize random number generator
   call initialize_seed
@@ -90,21 +86,14 @@ program climate
   ! Initialize functions
   call assign_functions
 
-  if (physics_type == "Simple") call init_soil_grid  ! initialize physics grid parameters (done before init call)
-
   ! Initialize variables
   call initialize (run_id)
-  if (physics_type == "Simple") then
-     call init_physics                               ! initialize physics and physics function pointers
-     lverbose = .false.
-     if (cp_idx > 0) call physics_checkpoint_restart ! physics call initializations if checkpointing
-  end if
 
   call print_test_case_parameters
 
   ! Save initial conditions
-  call omega_velocity
-  call write_and_export (iwrite)
+  !call omega_velocity
+  !call write_and_export (iwrite)
   !if (physics_type == "Simple") call mean_values (0) ! processing for the physics package mean values
 
   ! Compute hydrostatic error factors for topography
@@ -129,13 +118,6 @@ program climate
      call start_timing
 
      call time_step (dt_write, aligned) ! dynamics step
-
-     select case (physics_type)
-     case ("Held_Suarez")
-        call Euler (sol(:,1:zlevels), wav_coeff(:,1:zlevels), trend_physics_Held_Suarez, dt) ! physics step
-     case ("Simple")
-        call physics_simple_step 
-     end select
 
      call stop_timing
 

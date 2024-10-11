@@ -81,7 +81,7 @@ module init_physics_mod
     !-----------------------------------------------------------------------------------
     use iniphyparam_mod,   only : iniphyparam
     use single_column_mod, only : initialize_extra_levels
-    use main_mod,          only : dt_new
+    use shared_mod,        only : dt
     use read_param_mod
     use logging
     implicit none
@@ -100,7 +100,7 @@ module init_physics_mod
     ! Initialization of physics parameters
     open (unit=9*rank, file=trim(param_file), form="FORMATTED", action='READ')
     
-    call iniphyparam (dt_new, DAY, radius, grav_accel, R_d, c_p)
+    call iniphyparam (dt, DAY, radius, grav_accel, R_d, c_p)
     
     close (9*rank)
 
