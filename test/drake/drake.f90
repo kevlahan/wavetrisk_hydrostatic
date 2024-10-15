@@ -38,26 +38,27 @@ program Drake
      omega       =  omega_earth * T_norm
      grav_accel  =  g_earth * H_norm / U_norm**2
   else
-     radius      = radius_earth / scale                  ! mean radius of the small planet
-     omega       = omega_earth  / scale_omega            ! angular velocity (scaled for small planet to keep beta constant)
+     radius      = radius_earth / scale                    ! mean radius of the small planet
+     omega       = omega_earth  / scale_omega              ! angular velocity (scaled for small planet to keep beta constant)
      grav_accel  = g_earth
   end if
 
-  f0             = 2d0*omega*sin(45d0*DEG)               ! representative Coriolis parameter
-  beta           = 2d0*omega*cos(45d0*DEG) / radius      ! beta parameter at 45 degrees latitude
+  f0             = 2d0*omega*sin(45d0*DEG)                 ! representative Coriolis parameter
+  beta           = 2d0*omega*cos(45d0*DEG) / radius        ! beta parameter at 45 degrees latitude
 
   ! Free surface perturbation parameters
-  dH             =   0d0  * METRE / H_norm               ! initial perturbation to the free surface
-  pert_radius    =   1d3  * KM    / L_norm               ! radius of Gaussian free surface perturbation
-  lon_c          = -50d0  * DEG                          ! longitude location of perturbation
-  lat_c          =  25d0  * DEG                          ! latitude  location of perturbation
+  dH             =   0d0  * METRE / H_norm                 ! initial perturbation to the free surface
+  pert_radius    =   1d3  * KM    / L_norm                 ! radius of Gaussian free surface perturbation
+  lon_c          = -50d0  * DEG                            ! longitude location of perturbation
+  lat_c          =  25d0  * DEG                            ! latitude  location of perturbation
 
-  min_depth      = -50d0  * METRE / H_norm               ! minimum allowed depth (must be negative)
+  min_depth      = -50d0  * METRE / H_norm                 ! minimum allowed depth (must be negative)
   
   ! Numerical method parameters
-  default_thresholds = .true.
-  scale_aware        = .false.                           ! scale aware diffusion
-  mode_split         = .true.                            ! split barotropic mode if true
+  default_thresholds = .false.
+  Laplace_order_init = 2                                   ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
+  scale_aware        = .false.                             ! scale aware diffusion
+  mode_split         = .true.                              ! split barotropic mode if true
   adapt_dt           = .false.
   if (mode_split) then
      cfl_num         = 15d0
@@ -66,18 +67,16 @@ program Drake
      cfl_num         = 0.3d0                             
      timeint_type    = "RK45"                         
   end if
-  match_time         = .true.                           ! avoid very small time steps when saving 
-  compressible       = .false.                          ! always run with incompressible equations
-!  nstep_init         = 10                               ! take nstep_init small steps on restart
+  match_time         = .true.                             ! avoid very small time steps when saving 
+  compressible       = .false.                            ! always run with incompressible equations
+  log_min_mass       = .true.                             ! compute and print minimum relative mass
 
   ! Topography (etopo smoothing not yet implemented)
   alpha              = 1d-1
-  penalize           = .true.                           ! penalize land regions
-  etopo_bathy        = .false.                          ! etopo data for bathymetry
-  etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
-  etopo_res          = 4                                ! resolution of etopo or analytic data in arcminutes
-
-  Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
+  penalize           = .true.                             ! penalize land regions
+  etopo_bathy        = .false.                            ! etopo data for bathymetry
+  etopo_coast        = .false.                            ! etopo data for coastlines (i.e. penalization)
+  etopo_res          = 4                                  ! resolution of etopo or analytic data in arcminutes
  
   if (zlevels == 1) then
      sigma_z              = .false.
@@ -189,7 +188,7 @@ program Drake
   irebalance = 4*iadapt ! rebalance interval using charm++/AMPI
 
   ! Save initial conditions
-  !  call write_and_export (iwrite)
+  call write_and_export (iwrite)
 
   elliptic_solver => SRJ
 

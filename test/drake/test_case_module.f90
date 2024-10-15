@@ -159,8 +159,8 @@ contains
             "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order", &
             "                   C_visc(S_VELO) < (1/24)**Laplace_order"
        write (6,'(/,a,/)') "Scale-aware horizontal diffusion"
-       write (6,'(3(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS), "C_visc(S_TEMP) = ", C_visc(S_TEMP), &
-            "C_visc(S_VELO) = ", C_visc(S_VELO)
+       write (6,'(4(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS), "C_visc(S_TEMP) = ", C_visc(S_TEMP), &
+            "C_div = ", C_div, "C_visc(S_VELO) = ", C_visc(S_VELO)
        write (6,'(A,L1)')     "vert_diffuse                   = ", vert_diffuse
        write (6,'(A,L1)')     "tke_closure                    = ", tke_closure
        write (6,'(A,es10.4)') "dt_write [d]                   = ", dt_write/DAY
@@ -585,16 +585,16 @@ contains
     ! Set thresholds dynamically (trend or sol must be known)
     use lnorms_mod
     implicit none
-    integer :: k
-
-    if (istep < 10) then ! do not adapt on first few time steps
+    
+    call cal_lnorm ("2")
+    
+    if (maxval (lnorm(S_VELO,:)) < Udim / 1d2) then ! do not adapt until velocity is significant
        threshold = 1d20
     else
        if (default_thresholds) then
           threshold = threshold_def
        else
-          call cal_lnorm ("2")
-          threshold = max (tol * lnorm, threshold_def)
+          threshold = tol * lnorm
        end if
     end if
   end subroutine set_thresholds_case
@@ -614,10 +614,10 @@ contains
     ! Time step parameters
     dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc) ! initial time step     (0.85 factor corrects for minimum dx)
 
-    C_visc(S_MASS)     = 1d-3                                ! dimensionless viscosity of S_MASS
-    C_visc(S_TEMP)     = 1d-3                                ! dimensionless viscosity of S_TEMP
-    C_visc(S_VELO)     = 5d-4                                ! dimensionless viscosity of S_VELO (rotu, divu)
-    C_div              = 2.5d0 *  4d0**Laplace_order         ! dimensionless viscosity for divu
+    C_visc(S_MASS)     = 0d-3 ! dimensionless viscosity of S_MASS
+    C_visc(S_TEMP)     = 0d-3 ! dimensionless viscosity of S_TEMP
+    C_visc(S_VELO)     = 5d-4 ! dimensionless viscosity of S_VELO (rotu, divu)
+    C_div              = 5d-4 ! dimensionless viscosity for divu
   end subroutine initialize_dt_viscosity_case
 
   real(8) function nu_scale (Area, dt)
