@@ -594,12 +594,7 @@ contains
           threshold = threshold_def
        else
           call cal_lnorm ("2")
-          threshold = tol * lnorm
-          do k = 1, zlevels
-             threshold(S_MASS,k) = max (threshold(S_MASS,k), threshold_def(S_MASS,k))
-             threshold(S_TEMP,k) = max (threshold(S_TEMP,k), threshold_def(S_TEMP,k))
-             threshold(S_VELO,k) = max (threshold(S_VELO,k), threshold_def(S_VELO,k))
-          end do
+          threshold = max (tol * lnorm, threshold_def)
        end if
     end if
   end subroutine set_thresholds_case
