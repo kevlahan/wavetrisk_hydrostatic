@@ -4,8 +4,10 @@ module main_mod
   use adapt_mod
   use remap_mod
   use time_integr_mod
+#ifdef PHYSICS
   use physics_trend_mod
   use callkeys, only : lverbose
+#endif
   implicit none
   
   type Initial_State
@@ -40,10 +42,12 @@ contains
     character(255) :: command
     integer        :: d, k, l, v
 
+#ifdef PHYSICS
     if (physics_model .and. physics_type == "Simple") then
        call init_simple_physics_params
        call init_soil_grid
     end if
+#endif
 
     ! Initialize Laplace order to specified value for test case
     Laplace_order = Laplace_order_init
@@ -133,12 +137,14 @@ contains
        if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
     end if
     call barrier
-    
+
+#ifdef PHYSICS
     if (physics_model .and. physics_type == "Simple") then
        call init_physics
        lverbose = .false.
        if (cp_idx > 0) call physics_checkpoint_restart ! physics call initializations if checkpointing
     end if
+#endif
   end subroutine initialize
   
   subroutine count_active
@@ -416,6 +422,7 @@ contains
     ! Split step physics routines and sub-models
     if (vert_diffuse) call vertical_diffusion ! ocean (incompressible) models
 
+#ifdef PHYSICS
     if (physics_model) then ! atmosphere (compressible) climate models
        select case (physics_type)
        case ("Held_Suarez")
@@ -424,6 +431,7 @@ contains
           call physics_simple_step 
        end select
     end if
+#endif
 
     ! Adapt grid
     if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels for iWT
