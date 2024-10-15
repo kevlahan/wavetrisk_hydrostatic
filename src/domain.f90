@@ -212,7 +212,7 @@ contains
     call extend (self%node, num, ORIGIN)
 
     ! Atmosphere layers
-    do k = 1, zlevels
+    do k = 1, zmax
        ! Set reasonable default values for new boundary patches to avoid NaN if variable undefined in boundary
        if (compressible) then
           def_val = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
