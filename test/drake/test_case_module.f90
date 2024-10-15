@@ -8,7 +8,7 @@ Module test_case_mod
 
   ! Standard variables
   integer :: CP_EVERY, resume_init
-  real(8) :: dt_cfl, total_cpu_time
+  real(8) :: Area_max, Area_min, C_div, dt_cfl, total_cpu_time
   real(8) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
 
   ! Local variables
@@ -28,6 +28,7 @@ Module test_case_mod
 
   ! Drake land boundaries
   real(8),                   parameter :: lat_max = 60d0*DEG, lat_min = -35d0*DEG, lon_min = -15*DEG, lon_max = 15d0*DEG
+  logical                              :: scale_aware = .false. 
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -129,6 +130,7 @@ contains
        write (6,'(A,es10.4)') "scale                          = ", scale
        write (6,'(A,es10.4)') "scale_omega                    = ", scale_omega
        write (6,'(A,L1)')     "compressible                   = ", compressible
+       write (6,'(A,L1)')     "split_mean_perturbation        = ", split_mean_perturbation
        write (6,'(A,L1)')     "mode_split                     = ", mode_split
        write (6,'(A,L1)')     "penalize                       = ", penalize
        write (6,'(A,i3)')     "min_level                      = ", min_level
@@ -141,8 +143,6 @@ contains
        write (6,'(A,i3)')     "zlevels                        = ", zlevels
        write (6,'(A,i3)')     "save_zlev                      = ", save_zlev
        write (6,'(A,L1)')     "remap                          = ", remap
-       write (6,'(a,a)')      "remapscalar_type               = ", trim (remapscalar_type)
-       write (6,'(a,a)')      "remapvelo_type                 = ", trim (remapvelo_type)
        write (6,'(a,i3)')     "iremap                         = ", iremap
        write (6,'(A,L1)')     "sigma_z                        = ", sigma_z
        write (6,'(A,L1)')     "default_thresholds             = ", default_thresholds
@@ -151,15 +151,16 @@ contains
        write (6,'(A,L1)')     "adapt_dt                       = ", adapt_dt
        write (6,'(A,es10.4)') "cfl_num                        = ", cfl_num
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
-       write (6,'(A,i1)')     "Laplace_order                  = ", Laplace_order_init
+       write (6,'(/,A,i1)')     "Laplace_order                  = ", Laplace_order_init
+       write (6,'(a,l1)')     "scale_aware                    = ", scale_aware
+       write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
+       write (6,'(/,a,/,a,/,/,a,/,a,/)') "Stability limits:", &
+            "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
+            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order", &
+            "                   C_visc(S_VELO) < (1/24)**Laplace_order"
        write (6,'(/,a,/)') "Scale-aware horizontal diffusion"
        write (6,'(3(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS), "C_visc(S_TEMP) = ", C_visc(S_TEMP), &
             "C_visc(S_VELO) = ", C_visc(S_VELO)
-       write (6,'(a,/,a,/,/,a,/,a,/)') "Stability limits:", &
-            "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
-            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order", &
-            "                   C_visc(S_VELO) < (1/24)**Laplace_order"          
-       write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(A,L1)')     "vert_diffuse                   = ", vert_diffuse
        write (6,'(A,L1)')     "tke_closure                    = ", tke_closure
        write (6,'(A,es10.4)') "dt_write [d]                   = ", dt_write/DAY
@@ -236,14 +237,14 @@ contains
     real(8)                       :: bv, c_k, c1, drho, dz_l, eta, lat, rho, rho_above, z_k, z_s, z_above
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
-    type(Coord) :: x_i
+    type(Coord)                   :: x_i
 
     lat = 0d0 ! latitude to evaluate buoyancy
     
     eta = 0d0
     z_s = max_depth
     x_i = sph2cart (0d0, 0d0)
-    
+
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
     else
@@ -508,12 +509,14 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer  :: d, id
+    integer  :: d, id, k
 
     d  = dom%id+1
     id = idx (i, j, offs, dims) + 1
 
-    tke(zlev)%data(d)%elts(id) = e_min
+    do k = 1, zlevels
+       tke(k)%data(d)%elts(id) = e_min
+    end do
   end subroutine init_tke
 
   real(8) function buoyancy_init (x_i, z)
@@ -545,74 +548,91 @@ contains
        end if
     end if
   end function buoyancy_init
-  
-  subroutine set_thresholds_case
-    ! Set thresholds dynamically (trend or sol must be known)
-    use lnorms_mod
-    use wavelet_mod
-    implicit none
-    integer                                 :: k
-    real(8), dimension(1:N_VARIABLE,1:zmax) :: threshold_new
-    character(3), parameter                 :: order = "inf"
 
-    if (default_thresholds) then ! Initialize once
-       threshold_new = threshold_def
-    else
-       call cal_lnorm (order)
-       threshold_new = tol*lnorm
-       ! Correct for zero velocity case
-       do k = 1, zlevels
-          if (threshold_new(S_MASS,k) == 0d0) threshold_new(S_MASS,k) = 1d16
-          if (threshold_new(S_TEMP,k) == 0d0) threshold_new(S_TEMP,k) = 1d16
-          if (threshold_new(S_VELO,k) == 0d0) threshold_new(S_VELO,k) = 1d16
-       end do
-    end if
-
-    if (istep >= 10) then
-       threshold = 0.01d0*threshold_new + 0.99d0*threshold
-    else
-       threshold = threshold_new
-    end if
-  end subroutine set_thresholds_case
-
-  subroutine initialize_thresholds_case
+   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
+    use lnorms_mod
     implicit none
-    integer     :: k
-    real(8)     :: dz, theta, z
+    integer :: k
+    real(8) :: theta, dz, rho_dz, z
     type(Coord) :: x_i
 
     x_i = Coord (radius, 0d0, 0d0)
-    do k = 1, zlevels
-       dz = b_vert_mass(k) * max_depth
-       z = 0.5d0 * (b_vert(k)+b_vert(k-1)) * max_depth
 
-       theta = abs (buoyancy_init (x_i, z))   
+    threshold_def = 1d20
+
+    do k = 1, zlevels
+       dz    = b_vert_mass(k) * max_depth
+       z     = 0.5d0 * (b_vert(k) + b_vert(k-1)) * max_depth
+       theta = abs (buoyancy_init (x_i, z))
+
+       rho_dz = ref_density * dz
 
        if (theta < 1d-16) then
-          lnorm(S_MASS,k) = ref_density * Udim**2 / grav_accel
+          threshold_def(S_MASS,k) = tol * rho_dz * Udim**2 / grav_accel
        else
-          lnorm(S_MASS,k) = ref_density * Udim**2 / (grav_accel * theta)
+          threshold_def(S_MASS,k) = tol * rho_dz * Udim**2 / (grav_accel * theta)
+          threshold_def(S_TEMP,k) = threshold_def(S_MASS,k) * theta
        end if
-    
-       lnorm(S_TEMP,k) = ref_density * dz * theta
-       if (lnorm(S_TEMP,k) == 0d0) lnorm(S_TEMP,k) = 1d20
-
-       lnorm(S_VELO,k) = Udim
     end do
-
-    if (mode_split) lnorm(:,zlevels+1) = lnorm(:,zlevels) ! not used
-
-    threshold_def(S_MASS,:) = tol * lnorm(S_MASS,:)
-    threshold_def(S_TEMP,:) = tol * lnorm(S_TEMP,:)
-    threshold_def(S_VELO,:) = tol * lnorm(S_VELO,:)
+    
+    threshold_def(S_VELO,:) = tol * Udim
 
     if (test_elliptic) threshold_def(S_TEMP,:) = tol
   end subroutine initialize_thresholds_case
   
-  subroutine initialize_dt_viscosity_case 
-    ! Not used
+  subroutine set_thresholds_case
+    ! Set thresholds dynamically (trend or sol must be known)
+    use lnorms_mod
+    implicit none
+    integer :: k
+
+    if (istep < 10) then ! do not adapt on first few time steps
+       threshold = 1d20
+    else
+       if (default_thresholds) then
+          threshold = threshold_def
+       else
+          call cal_lnorm ("2")
+          threshold = tol * lnorm
+          do k = 1, zlevels
+             threshold(S_MASS,k) = max (threshold(S_MASS,k), threshold_def(S_MASS,k))
+             threshold(S_TEMP,k) = max (threshold(S_TEMP,k), threshold_def(S_TEMP,k))
+             threshold(S_VELO,k) = max (threshold(S_VELO,k), threshold_def(S_VELO,k))
+          end do
+       end if
+    end if
+  end subroutine set_thresholds_case
+
+  subroutine initialize_dt_viscosity_case
+    ! Evaluate viscosity time steps (for finest grid) 
+    implicit none
+    real(8) :: Area_sphere
+    
+    ! Average hexagon areas and horizontal resolution
+    Area_sphere = 4d0*MATH_PI * radius**2 
+    Area_min    = area_sphere / (10d0 * 4d0**max_level)
+    Area_max    = area_sphere / (10d0 * 4d0**min_level)
+    dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)              
+    dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
+
+    ! Time step parameters
+    dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc) ! initial time step     (0.85 factor corrects for minimum dx)
+
+    C_visc(S_MASS)     = 1d-3                                ! dimensionless viscosity of S_MASS
+    C_visc(S_TEMP)     = 1d-3                                ! dimensionless viscosity of S_TEMP
+    C_visc(S_VELO)     = 5d-4                                ! dimensionless viscosity of S_VELO (rotu, divu)
+    C_div              = 2.5d0 *  4d0**Laplace_order         ! dimensionless viscosity for divu
   end subroutine initialize_dt_viscosity_case
+
+  real(8) function nu_scale (Area, dt)
+    ! Viscosity scale
+    ! (factor 1.5 ensures stability limit matches theoretical value)
+    implicit none
+    real(8) :: Area, dt
+
+    nu_scale = 1.5d0 * Area**Laplace_order / dt
+  end function nu_scale
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
     ! Set depth 
@@ -629,9 +649,9 @@ contains
 
     ! Set bathymetry
     if (etopo_bathy) then ! set bathymetry coordinates using etopo data
-       call etopo_topography (dom, i, j, zlev, offs, dims, 'bathymetry')
+       call etopo_topography (dom, i, j, z_null, offs, dims, 'bathymetry')
     else
-       call analytic_topography (dom, i, j, zlev, offs, dims, "bathymetry")
+       call analytic_topography (dom, i, j, z_null, offs, dims, "bathymetry")
     end if
   end subroutine set_bathymetry
 
@@ -645,20 +665,22 @@ contains
 
     integer :: d, id, id_i, k
 
-    d = dom%id + 1
-    id = idx (i, j, offs, dims)
+    d   = dom%id + 1
+    id   = idx (i, j, offs, dims)
     id_i = id + 1
 
-    if (penalize) then
-       if (etopo_coast) then
-          call etopo_topography (dom, i, j, zlev, offs, dims, "penalize")
+    do k = 1, zmax
+       if (penalize) then
+          if (etopo_coast) then
+             call etopo_topography (dom, i, j, k, offs, dims, "penalize")
+          else
+             call analytic_topography (dom, i, j, k, offs, dims, "penalize")
+          end if
        else
-          call analytic_topography (dom, i, j, zlev, offs, dims, "penalize")
+          penal_node(k)%data(d)%elts(id_i)                = 0d0
+          penal_edge(k)%data(d)%elts(EDGE*id+1:EDGE*id_i) = 0d0   
        end if
-    else
-       penal_node(zlev)%data(d)%elts(id_i)                = 0d0
-       penal_edge(zlev)%data(d)%elts(EDGE*id+1:EDGE*id_i) = 0d0   
-    end if
+    end do
   end subroutine set_penal
 
   subroutine analytic_topography (dom, i, j, zlev, offs, dims, itype)
@@ -799,60 +821,62 @@ contains
 
   subroutine apply_initial_conditions_case
     implicit none
-    integer :: d, k, l
 
-    do l = level_start, level_end
-       call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       do k = 1, zmax
-          call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
-    end do
+    ! Initialize topography and land penalization
+    call apply_bdry (set_bathymetry, z_null, 0, 1)
+    call apply_bdry (set_penal,      z_null, 0, 1)
+    topography%bdry_uptodate = .false.
+    penal_node%bdry_uptodate = .false.
+    penal_edge%bdry_uptodate = .false.
+    
+    call update_bdry (topography, NONE)
+    call update_bdry (penal_node, NONE)
+    call update_bdry (penal_edge, NONE)
 
-    do l = level_start, level_end
-       call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       call apply_onescale (init_sol,  l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       if (vert_diffuse) then
-          do k = 1, zlevels
-             call apply_onescale (init_tke,  l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          end do
-       end if
-    end do
+    ! Initialize variables
+    call apply_bdry (init_mean, z_null, 0, 1)
+    call apply_bdry (init_sol,  z_null, 0, 1)
+    sol%bdry_uptodate        = .false.
+    sol_mean%bdry_uptodate   = .false.
+
+    call update_bdry (sol,        NONE) 
+    call update_bdry (sol_mean,   NONE)
+
+    ! Initialize tke
+    if (vert_diffuse) then
+       call apply_bdry (init_tke, z_null, 0, 1)
+       tke%bdry_uptodate = .false.
+       call update_bdry (tke, NONE)
+    end if
   end subroutine apply_initial_conditions_case
 
   subroutine update_case
-    ! Update means, bathymetry and penalization mask
-    use wavelet_mod
+    ! Update sol_mean and topography on new grid
     implicit none
-    integer :: d, k, l, p
+    integer :: d, p
 
     if (istep /= 0) then
        do d = 1, size(grid)
           do p = n_patch_old(d)+1, grid(d)%patch%length
-             call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-             do k = 1, zlevels
-                call apply_onescale_to_patch (set_penal, grid(d), p-1, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-             end do
-          end do
-       end do
-       call barrier
-
-       do d = 1, size(grid)
-          do p = n_patch_old(d)+1, grid(d)%patch%length
-             call apply_onescale_to_patch (init_mean, grid(d), p-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+             call apply_onescale_to_patch (set_bathymetry, grid(d), p-1, z_null, 0, 1)
+             call apply_onescale_to_patch (set_penal,      grid(d), p-1, z_null, 0, 1)
+             call apply_onescale_to_patch (init_mean,      grid(d), p-1, z_null, 0, 1)
           end do
        end do
     else ! need to set values over entire grid on restart
-       do l = level_start, level_end
-          call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-          do k = 1, zmax
-             call apply_onescale (set_penal, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
-          end do
-       end do
+       call apply_bdry (set_bathymetry, z_null, 0, 1)
+       call apply_bdry (set_penal,      z_null, 0, 1)
+       call apply_bdry (init_mean,      z_null, 0, 1)
+    end if
+    topography%bdry_uptodate = .false.
+    penal_node%bdry_uptodate = .false.
+    penal_edge%bdry_uptodate = .false.
+    sol_mean%bdry_uptodate   = .false.
 
-       do l = level_start, level_end
-          call apply_onescale (init_mean, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-       end do
-   end if
+    call update_bdry (topography, NONE)
+    call update_bdry (penal_node, NONE)
+    call update_bdry (penal_edge, NONE)
+    call update_bdry (sol_mean,   NONE)
   end subroutine update_case
 
   subroutine update_diagnostics
@@ -1046,7 +1070,6 @@ contains
     logical, optional                                    :: type
 
     integer                    :: id_i
-    real(8)                    :: visc
     real(8), dimension(1:EDGE) :: d_e, grad, l_e
     logical                    :: local_type
 
@@ -1059,7 +1082,7 @@ contains
     id_i = id + 1
     d = dom%id + 1
 
-    if (Laplace_order == 0 .or. maxval (C_visc(scalars(1):scalars(2))) == 0d0) then
+    if (Laplace_order == 0) then
        physics_scalar_flux_case = 0d0
     else
        if (.not.local_type) then ! usual flux at edges E, NE, N
@@ -1069,9 +1092,9 @@ contains
           l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
           l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
           l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
-          d_e(RT+1) = -dom%len%elts(EDGE*idE+RT+1)
-          d_e(DG+1) = -dom%len%elts(EDGE*idNE+DG+1)
-          d_e(UP+1) = -dom%len%elts(EDGE*idN+UP+1)
+          d_e(RT+1) =  - dom%len%elts(EDGE*idE+RT+1)
+          d_e(DG+1) =  - dom%len%elts(EDGE*idNE+DG+1)
+          d_e(UP+1) =  - dom%len%elts(EDGE*idN+UP+1)
        end if
 
        ! Calculate gradients
@@ -1080,13 +1103,7 @@ contains
        elseif (Laplace_order == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-
-       if (Laplace_order == 0) then
-          visc = 0d0
-       else ! scale aware viscosity
-          visc =  C_visc(v) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order_init)/dt
-       end if
-       physics_scalar_flux_case = visc * (-1)**Laplace_order * grad * l_e
+       physics_scalar_flux_case = (-1d0)**Laplace_order * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -1094,10 +1111,26 @@ contains
       real(8), dimension(1:EDGE) :: grad_physics
       real(8), dimension(:)      :: scalar
 
-      grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
-      grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
-      grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
+      grad_physics(RT+1) = (visc(idE) * scalar(idE+1) - visc(id)   * scalar(id+1))   / d_e(RT+1)
+      grad_physics(DG+1) = (visc(id)  * scalar(id+1)  - visc(idNE) * scalar(idNE+1)) / d_e(DG+1)
+      grad_physics(UP+1) = (visc(idN) * scalar(idN+1) - visc(id)   * scalar(id+1))   / d_e(UP+1)
     end function grad_physics
+    
+    real(8) function visc (id)
+      ! Scale aware viscosity
+      ! factor 1.5 ensures that maximum stable C_visc matches theoretical estimate of 1/6^Laplace_order
+      implicit none
+      integer :: id
+      real(8) :: Area
+
+      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         Area = 1d0 / dom%areas%elts(id+1)%hex_inv
+      else
+         Area = Area_min
+      end if
+      
+      visc = C_visc(v) * nu_scale (Area, dt)
+    end function visc
   end function physics_scalar_flux_case
 
   function physics_velo_source_case (dom, i, j, zlev, offs, dims)
@@ -1112,25 +1145,24 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: d, id, id_i, idE, idN, idNE
-    real(8)                    :: lat, lon, visc
+    real(8)                    :: lat, lon
     real(8), dimension(1:EDGE) :: horiz_diffusion, h1, h2, penal, u1, u2, vert_diffusion
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
-    id_i = id + 1
     
-    idE  = idx (i+1, j,   offs, dims) 
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
+    idE   = idx (i+1, j,   offs, dims)
+    idNE  = idx (i+1, j+1, offs, dims)
+    idN   = idx (i,   j+1, offs, dims)
 
+    ! Scale aware viscosity
     if (Laplace_order == 0) then
-       visc = 0d0
-    else ! scale aware viscosity
-       visc = C_visc(S_VELO) * dom%len%elts(EDGE*id+RT+1)**(2d0*Laplace_order)/dt
+       horiz_diffusion  = 0d0
+    else
+       horiz_diffusion  = (-1d0)**(Laplace_order-1) * (grad_divu () - curl_rotu ()) 
     end if
-    horiz_diffusion = visc * (-1d0)**Laplace_order * (curl_rot () - grad_div ())
 
-    ! Vertical diffusion
+       ! Vertical diffusion
     if (vert_diffuse) then ! using vertical diffusion module
        vert_diffusion = 0d0
     else
@@ -1160,7 +1192,7 @@ contains
 
     ! Penalization (friction = 1/dt)
     penal = - penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)/dt * velo(EDGE*id+RT+1:EDGE*id+UP+1)
-
+    
     physics_velo_source_case = horiz_diffusion + vert_diffusion + penal
   contains
     function bottom_drag ()
@@ -1169,42 +1201,75 @@ contains
 
       bottom_drag = - bottom_friction * u1 / h1
     end function bottom_drag
-    
+
     function wind_drag ()
       implicit none
       real(8), dimension(3) :: wind_drag
-      
+
       real(8), dimension(3) :: tau_wind
 
-      tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id_i),   dom%node%elts(idE+1))
-      tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id_i))
-      tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id_i),   dom%node%elts(idN+1))
+      tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
+      tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
+      tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
       wind_drag = tau_wind / (ref_density * h2)
     end function wind_drag
     
-    function grad_div ()
+    function grad_divu ()
       implicit none
-      real(8), dimension(3) :: grad_div
+      real(8), dimension(1:EDGE) :: grad_divu
 
-      grad_div(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
-      grad_div(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
-      grad_div(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
-    end function grad_div
+      grad_divu(RT+1) = (visc_div(idE) * divu(idE+1) - visc_div(id)   * divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
+      grad_divu(DG+1) = (visc_div(id)  * divu(id+1)  - visc_div(idNE) * divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      grad_divu(UP+1) = (visc_div(idN) * divu(idN+1) - visc_div(id)   * divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
+    end function grad_divu
 
-    function curl_rot ()
+    function curl_rotu ()
       implicit none
-      real(8), dimension(3) :: curl_rot
+      real(8), dimension(1:EDGE) :: curl_rotu
 
       integer :: idS, idW
 
-      idS = idx (i,   j-1, offs, dims)
-      idW = idx (i-1, j,   offs, dims)
+      idS  = idx (i,   j-1, offs, dims)
+      idW  = idx (i-1, j,   offs, dims)
 
-      curl_rot(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
-      curl_rot(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
-      curl_rot(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
-    end function curl_rot
+      curl_rotu(RT+1) = (visc_rot(id)  * vort(TRIAG*id +LORT+1) - visc_rot(idS) * vort(TRIAG*idS+UPLT+1)) &
+           / dom%pedlen%elts(EDGE*id+RT+1)
+      curl_rotu(DG+1) = (visc_rot(id)  * vort(TRIAG*id +LORT+1) - visc_rot(id)  * vort(TRIAG*id +UPLT+1)) &
+           / dom%pedlen%elts(EDGE*id+DG+1)
+      curl_rotu(UP+1) = (visc_rot(idW) * vort(TRIAG*idW+LORT+1) - visc_rot(id)  * vort(TRIAG*id +UPLT+1)) &
+           / dom%pedlen%elts(EDGE*id+UP+1)
+    end function curl_rotu
+    
+    real(8) function visc_div (id)
+      ! Scale aware viscosity
+      implicit none
+      integer :: id
+      real(8) :: Area
+
+      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         Area = 1d0 / dom%areas%elts(id+1)%hex_inv
+      else
+         Area = Area_min
+      end if
+      
+      visc_div = C_div * nu_scale (Area, dt)
+    end function visc_div
+
+    real(8) function visc_rot (id)
+      ! Scale aware viscosity
+      implicit none
+      integer :: id
+      real(8) :: Area
+      
+      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
+         Area = 1d0 / dom%areas%elts(id+1)%hex_inv
+      else
+         Area = Area_min
+      end if
+      
+      visc_rot = C_visc(S_VELO) * nu_scale (Area, dt)
+    end function visc_rot
   end function physics_velo_source_case
 
   real(8) function bottom_buoy_flux_case (dom, i, j, z_null, offs, dims)

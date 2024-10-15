@@ -6,6 +6,7 @@ program Drake
   use io_mod
   use vert_diffusion_mod
   implicit none
+  real(8) :: visc
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -14,7 +15,8 @@ program Drake
   ! Read test case parameters
   call read_test_case_parameters
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  
   ! Earth parameters
   radius_earth   = 6371.229d0 * KM                      ! radius of Earth
   omega_earth    = 7.29211d-5 * RAD/SECOND              ! rotation rate of Earth
@@ -54,8 +56,9 @@ program Drake
   
   ! Numerical method parameters
   default_thresholds = .true.
-
+  scale_aware        = .false.                           ! scale aware diffusion
   mode_split         = .true.                            ! split barotropic mode if true
+  adapt_dt           = .false.
   if (mode_split) then
      cfl_num         = 15d0
      timeint_type    = "RK3"                         
@@ -63,15 +66,9 @@ program Drake
      cfl_num         = 0.3d0                             
      timeint_type    = "RK45"                         
   end if
-  
   match_time         = .true.                           ! avoid very small time steps when saving 
   compressible       = .false.                          ! always run with incompressible equations
-
-  remapscalar_type   = "PPR"                            ! remapping scheme for scalars
-  remapvelo_type     = "PPR"                            ! remapping scheme for velocity
-
-  nstep_init         = 10                               ! take nstep_init small steps on restart
-  adapt_dt           = .false.
+!  nstep_init         = 10                               ! take nstep_init small steps on restart
 
   ! Topography (etopo smoothing not yet implemented)
   alpha              = 1d-1
@@ -80,14 +77,8 @@ program Drake
   etopo_coast        = .false.                          ! etopo data for coastlines (i.e. penalization)
   etopo_res          = 4                                ! resolution of etopo or analytic data in arcminutes
 
-  dx_min             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**max_level))              
-  dx_max             = sqrt (4d0/sqrt(3d0) * 4d0*MATH_PI*radius**2/(20d0*4d0**min_level))
-
   Laplace_order_init = 2                                ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
-  C_visc(S_MASS)     = 0d-3                             ! dimensionless viscosity of S_MASS
-  C_visc(S_TEMP)     = 0d-3                             ! dimensionless viscosity of S_TEMP
-  C_visc(S_VELO)     = 5d-4                             ! dimensionless viscosity of S_VELO (rotu, divu)
-
+ 
   if (zlevels == 1) then
      sigma_z              = .false.
      vert_diffuse         = .false.
@@ -124,40 +115,41 @@ program Drake
      u_wbc                =       1d0 * METRE/SECOND      ! estimated western boundary current speed
      k_T                  =       1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
   end if
-  
+
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   ! Characteristic scales
-  wave_speed         = sqrt (grav_accel*abs(max_depth))   ! inertia-gravity wave speed
-  dt_cfl             = cfl_num * dx_min / wave_speed
-  dt_init            = dt_cfl
+  wave_speed     = sqrt (grav_accel * abs(max_depth))                  ! inertia-gravity wave speed
 
-  visc_sclr(S_MASS)  = C_visc(S_MASS) * dx_min**(2d0*Laplace_order_init)/dt_cfl 
-  visc_sclr(S_TEMP)  = C_visc(S_TEMP) * dx_min**(2d0*Laplace_order_init)/dt_cfl 
-  visc_divu          = C_visc(S_VELO) * dx_min**(2d0*Laplace_order_init)/dt_cfl 
-  visc_rotu          = C_visc(S_VELO) * dx_min**(2d0*Laplace_order_init)/dt_cfl 
+  ! Initialize non-dimensional viscosities, cfl and time step
+  call initialize_dt_viscosity_case
 
+  ! Viscosity
+  visc           = C_visc(S_VELO) * 1.5d0 * Area_min**Laplace_order_init / dt_init   
+  
   ! Set bottom friction so lateral viscosity dominates
-  bottom_friction_case = 0.25d0 * (visc_rotu * beta**(2d0*Laplace_order_init))**(1d0/(2d0*Laplace_order_init+1d0))
+  bottom_friction_case = 0.25d0 * (visc * beta**(2d0*Laplace_order_init))**(1d0/(2d0*Laplace_order_init+1d0))
 
   Rd             = wave_speed / f0                                    ! barotropic Rossby radius of deformation             
   drho_dz        = drho / (mixed_layer-thermocline)                   ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)       ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                                  ! inertial layer
-  delta_M        = (visc_rotu/beta)**(1d0/(2d0*Laplace_order_init+1)) ! Munk layer scale
+  delta_M        = (visc/beta)**(1d0/(2d0*Laplace_order_init+1)) ! Munk layer scale
   delta_sm       = u_wbc / f0                                         ! barotropic submesoscale
   delta_S        = bottom_friction_case / (abs(max_depth) * beta)     ! Stommel layer scale
   Fr             = u_wbc / (bv*abs(max_depth))                        ! Froude number
-  Rey            = u_wbc * delta_sm**(2d0*Laplace_order_init-1d0) / visc_rotu ! Reynolds number of western boundary current
+  Rey            = u_wbc * delta_sm**(2d0*Laplace_order_init-1d0) / visc ! Reynolds number of western boundary current
   Ro             = u_wbc / (delta_M*f0)                               ! Rossby number (based on boundary current)
 
   ! Baroclinic wave speed
   if (zlevels == 2) then
-     c1 = sqrt (grav_accel*abs(drho)/ref_density*mixed_layer*(max_depth-mixed_layer)/abs(max_depth)) ! two-layer internal wave speed
+     c1 = sqrt (grav_accel * abs(drho) /ref_density * mixed_layer * (max_depth-mixed_layer) / abs(max_depth)) ! two-layer internal wave speed
   elseif (zlevels >= 3) then
-     c1 = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
+     c1 = bv * sqrt (abs(max_depth) / grav_accel) / MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
   endif
-  lambda0        = wave_speed / f0                              ! external scale
-  lambda1        = c1 / f0                                      ! mesoscale
-
+  lambda0        = wave_speed / f0                                   ! external scale
+  lambda1        = c1 / f0                                           ! mesoscale
+ 
   ! First baroclinic Rossby radius of deformation
   if (zlevels == 1) then
      Rb = 0d0
@@ -172,34 +164,37 @@ program Drake
   Ldim           = delta_I                            ! length scale 
   Tdim           = Ldim/Udim                          ! time scale
   Hdim           = abs (max_depth)                    ! vertical length scale
-  
+
   if (etopo_bathy .or. etopo_coast) call read_etopo_data
 
   s_test = radius/4d0  ! parameter for elliptic solver test
-  
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   ! Initialize functions
   call assign_functions
 
   ! Initialize variables
   call initialize (run_id)
 
+  call print_test_case_parameters
+
   ! Initialize random numbers
   call random_seed
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Set interval for adapting grid based on the horizontal advective velocity scale (i.e. advect no more than one grid point before adapting)
   iadapt     = 1        ! Drake unstable with trend computation over entire grid if iadapt > 1
   irebalance = 4*iadapt ! rebalance interval using charm++/AMPI
 
   ! Save initial conditions
-  call print_test_case_parameters
-  call write_and_export (iwrite)
+  !  call write_and_export (iwrite)
 
   elliptic_solver => SRJ
+
   
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
