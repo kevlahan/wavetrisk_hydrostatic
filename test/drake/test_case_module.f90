@@ -50,11 +50,11 @@ contains
     z_coords                 => z_coords_case
 
     ! Needed for vertical diffusion
-    bottom_friction  => bottom_friction_case
-    bottom_buoy_flux => bottom_buoy_flux_case
-    top_buoy_flux    => top_buoy_flux_case
-    wind_flux        => wind_flux_case
-    tau_mag          => tau_mag_case
+    bottom_friction          => bottom_friction_case
+    bottom_buoy_flux         => bottom_buoy_flux_case
+    top_buoy_flux            => top_buoy_flux_case
+    wind_flux                => wind_flux_case
+    tau_mag                  => tau_mag_case
   end subroutine assign_functions
 
   subroutine read_test_case_parameters
@@ -554,28 +554,20 @@ contains
     use lnorms_mod
     implicit none
     integer :: k
-    real(8) :: theta, dz, rho_dz, z
-    type(Coord) :: x_i
-
-    x_i = Coord (radius, 0d0, 0d0)
+    real(8) :: theta
 
     threshold_def = 1d20
 
     do k = 1, zlevels
-       dz    = b_vert_mass(k) * max_depth
-       z     = 0.5d0 * (b_vert(k) + b_vert(k-1)) * max_depth
-       theta = abs (buoyancy_init (x_i, z))
-
-       rho_dz = ref_density * dz
-
        if (theta < 1d-16) then
-          threshold_def(S_MASS,k) = tol * rho_dz * Udim**2 / grav_accel
+          threshold_def(S_MASS,k) = tol * Mudim    * Udim**2 / grav_accel
        else
-          threshold_def(S_MASS,k) = tol * rho_dz * Udim**2 / (grav_accel * theta)
-          threshold_def(S_TEMP,k) = threshold_def(S_MASS,k) * theta
+          theta = drho / ref_density
+
+          threshold_def(S_MASS,k) = tol * Mudim    * Udim**2 / (grav_accel * theta)
+          threshold_def(S_TEMP,k) = tol * Thetadim * Udim**2 / (grav_accel * theta)
        end if
     end do
-    
     threshold_def(S_VELO,:) = tol * Udim
 
     if (test_elliptic) threshold_def(S_TEMP,:) = tol
@@ -585,17 +577,20 @@ contains
     ! Set thresholds dynamically (trend or sol must be known)
     use lnorms_mod
     implicit none
+    integer            :: k
+    real(8), parameter :: min_val = 1d-3
     
     call cal_lnorm ("2")
-    
-    if (maxval (lnorm(S_VELO,:)) < Udim / 1d2) then ! do not adapt until velocity is significant
-       threshold = 1d20
+
+    threshold = 1d20
+    if (default_thresholds) then
+       threshold = threshold_def
     else
-       if (default_thresholds) then
-          threshold = threshold_def
-       else
-          threshold = tol * lnorm
-       end if
+       threshold(S_MASS,:) = tol * lnorm(S_MASS,:)
+       do k = 1, zlevels
+          if (lnorm(S_TEMP,k) > Thetadim * min_val) threshold(S_TEMP,k) = tol * lnorm(S_TEMP,k)
+          if (lnorm(S_VELO,k) > Udim     * min_val) threshold(S_VELO,k) = tol * lnorm(S_VELO,k)
+       end do
     end if
   end subroutine set_thresholds_case
 

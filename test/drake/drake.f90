@@ -6,7 +6,7 @@ program Drake
   use io_mod
   use vert_diffusion_mod
   implicit none
-  real(8) :: visc
+  real(8) :: dz, visc
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -15,9 +15,30 @@ program Drake
   ! Read test case parameters
   call read_test_case_parameters
 
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Numerical method parameters
+  
+  default_thresholds = .false.
+  Laplace_order_init = 2                                   ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
+  scale_aware        = .false.                             ! scale aware diffusion
+  mode_split         = .true.                              ! split barotropic mode if true
+  adapt_dt           = .false.
+  if (mode_split) then
+     cfl_num         = 15d0
+     timeint_type    = "RK3"                         
+  else
+     cfl_num         = 0.3d0                             
+     timeint_type    = "RK45"                         
+  end if
+  match_time         = .true.                             ! avoid very small time steps when saving 
+  compressible       = .false.                            ! always run with incompressible equations
+  log_min_mass       = .true.                             ! compute and print minimum relative mass
+
+  
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Earth parameters
+  
   radius_earth   = 6371.229d0 * KM                      ! radius of Earth
   omega_earth    = 7.29211d-5 * RAD/SECOND              ! rotation rate of Earth
   H_earth        =        4d0 * KM                      ! mean ocean depth of Earth
@@ -54,23 +75,6 @@ program Drake
 
   min_depth      = -50d0  * METRE / H_norm                 ! minimum allowed depth (must be negative)
   
-  ! Numerical method parameters
-  default_thresholds = .false.
-  Laplace_order_init = 2                                   ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
-  scale_aware        = .false.                             ! scale aware diffusion
-  mode_split         = .true.                              ! split barotropic mode if true
-  adapt_dt           = .false.
-  if (mode_split) then
-     cfl_num         = 15d0
-     timeint_type    = "RK3"                         
-  else
-     cfl_num         = 0.3d0                             
-     timeint_type    = "RK45"                         
-  end if
-  match_time         = .true.                             ! avoid very small time steps when saving 
-  compressible       = .false.                            ! always run with incompressible equations
-  log_min_mass       = .true.                             ! compute and print minimum relative mass
-
   ! Topography (etopo smoothing not yet implemented)
   alpha              = 1d-1
   penalize           = .true.                             ! penalize land regions
@@ -108,16 +112,17 @@ program Drake
      e_min                =  0d0                          ! minimum TKE
      patankar             = .false.                       ! avoid noise with zero initial velocity
      enhance_diff         = .false.
-     
+
      drho                 =      -2d0 * KG/METRE**3       ! density perturbation at free surface at poles
      tau_0                =     0.1d0 * NEWTON/METRE**2   ! maximum wind stress
      u_wbc                =       1d0 * METRE/SECOND      ! estimated western boundary current speed
      k_T                  =       1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
   end if
 
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Characteristic scales
+
   wave_speed     = sqrt (grav_accel * abs(max_depth))                  ! inertia-gravity wave speed
 
   ! Initialize non-dimensional viscosities, cfl and time step
@@ -125,7 +130,7 @@ program Drake
 
   ! Viscosity
   visc           = C_visc(S_VELO) * 1.5d0 * Area_min**Laplace_order_init / dt_init   
-  
+
   ! Set bottom friction so lateral viscosity dominates
   bottom_friction_case = 0.25d0 * (visc * beta**(2d0*Laplace_order_init))**(1d0/(2d0*Laplace_order_init+1d0))
 
@@ -159,17 +164,22 @@ program Drake
   end if
   
   ! Dimensional scaling
-  Udim           = u_wbc                              ! velocity scale
-  Ldim           = delta_I                            ! length scale 
-  Tdim           = Ldim/Udim                          ! time scale
-  Hdim           = abs (max_depth)                    ! vertical length scale
+  Ldim           = delta_I          ! length scale 
+  Hdim           = abs (max_depth)  ! vertical length scale
+  Tdim           = Ldim/Udim        ! time scale
 
+  dz = Hdim / dble(zlevels)         ! layer depth scale
+  
+  Mudim          = ref_density * dz ! rho_dz scale
+  Thetadim       =        drho * dz ! buoyancy scale
+  Udim           = u_wbc            ! velocity scale
+  
   if (etopo_bathy .or. etopo_coast) call read_etopo_data
 
   s_test = radius/4d0  ! parameter for elliptic solver test
 
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Initialize functions
   call assign_functions
 
@@ -181,22 +191,15 @@ program Drake
   ! Initialize random numbers
   call random_seed
 
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  ! Set interval for adapting grid based on the horizontal advective velocity scale (i.e. advect no more than one grid point before adapting)
-  iadapt     = 1        ! Drake unstable with trend computation over entire grid if iadapt > 1
-  irebalance = 4*iadapt ! rebalance interval using charm++/AMPI
-
   ! Save initial conditions
   call write_and_export (iwrite)
-
-  elliptic_solver => SRJ
-
   
+
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  if (rank == 0) write (6,'(A,/)') &
+  if (rank == 0) write (6,'(a,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
+
   total_cpu_time = 0d0
   do while (time < time_end)
      call start_timing

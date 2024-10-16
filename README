@@ -748,8 +748,8 @@ After applying these routines, the ghost nodes/edges are NOT correct for ghost c
 
 where variable is the name of the modified variable (e.g. sol). The ghost cells are then corrected by the update routine:
 
-     call update (variable, l)       to update at level l only
-     call update (variable, NONE)    to update at all levels
+     call update_bdry (variable, l)       to update at level l only
+     call update_bdry (variable, NONE)    to update at all levels
 
 The update command should be called by all routines requiring correct node values outside (0,1) and correct edge values outside (0,0).
 

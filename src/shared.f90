@@ -240,7 +240,7 @@ module shared_mod
   real(8)                                       :: e_min, Kt_const, Kt_0, Kv_0, Kv_bottom, rb_0
   real(8)                                       :: theta1, theta2, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
-  real(8)                                       :: Hdim, Ldim, Pdim, Tdim, Tempdim, Udim
+  real(8)                                       :: Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim
   real(8)                                       :: hex_int
   real(8), dimension(:),         allocatable    :: bounds, C_visc, pressure_save, visc_sclr
   real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass

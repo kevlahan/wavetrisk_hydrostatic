@@ -509,7 +509,7 @@ contains
 
     call init_RK_mem
 
-    allocate (threshold(1:N_VARIABLE,zmin:zlevels), threshold_def(1:N_VARIABLE,zmin:zlevels))
+    allocate (threshold(1:N_VARIABLE,zmin:zmax), threshold_def(1:N_VARIABLE,zmin:zmax))
   end subroutine init_structures
 
   subroutine cal_total_mass (initialize_total_mass)
