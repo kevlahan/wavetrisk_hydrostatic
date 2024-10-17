@@ -20,6 +20,26 @@ program climate
   ! Initialize random number generator
   call initialize_seed
 
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !    Numerical method parameters
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  split_mean_perturbation  = .false.                           ! split prognostic variables into mean and fluctuations
+  scale_aware              = .true.                            ! scale-aware viscosity
+
+  compressible             = .true.                            ! compressible equations
+  uniform                  = .false.                           ! hybrid vertical grid (based on A, B coefficients)
+  adapt_dt                 = .false.                           ! fixed time step
+  default_thresholds       = .false.                           ! thresholding type
+  remap                    = .true.                            ! use vertical remapping
+  iremap                   = 10                                ! remap interval
+  timeint_type             = "RK3"                             ! time integration scheme (use RK34, RK45, RK3 or RK4)
+  Laplace_order_init       = 2                                 ! bi-Laplacian horizontal diffusion
+  analytic_topo            = "none"                            ! type of analytic topography (mountains or none if NCAR_topo = .false.)
+
+  log_min_mass             = .true.                            ! compute minimum mass at each dt (for checking stability issues)
+  log_total_mass           = .false.                           ! check whether total mass is conserved (for debugging)
+
+
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Local test case parameters (default values for many parameters set in physics module)
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -50,41 +70,27 @@ program climate
   c_v                      = c_p - R_d                         ! specific heat at constant volume c_v = c_p - R_d
   gamma                    = c_p / c_v                         ! heat capacity ratio
   wave_speed               = sqrt (gamma * (R_d * T_0) )       ! acoustic wave speed
-  
-  
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !    Numerical method parameters
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  split_mean_perturbation  = .false.                           ! split prognostic variables into mean and fluctuations
-  scale_aware              = .true.                            ! scale-aware viscosity
-
-  compressible             = .true.                            ! compressible equations
-  uniform                  = .false.                           ! hybrid vertical grid (based on A, B coefficients)
-  adapt_dt                 = .false.                           ! fixed time step
-  default_thresholds       = .false.                           ! thresholding type
-  remap                    = .true.                            ! use vertical remapping
-  iremap                   = 10                                ! remap interval
-  timeint_type             = "RK3"                             ! time integration scheme (use RK34, RK45, RK3 or RK4)
-  Laplace_order_init       = 2                                 ! bi-Laplacian horizontal diffusion
-  analytic_topo            = "none"                            ! type of analytic topography (mountains or none if NCAR_topo = .false.)
-
-  log_min_mass             = .true.                            ! compute minimum mass at each dt (for checking stability issues)
-  log_total_mass           = .false.                           ! check whether total mass is conserved (for debugging)
-
+  max_depth                = wave_speed**2 / grav_accel        ! depth of atmosphere
+  dz                       = max_depth / dble (zlevels)        ! representative layer height
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Dimensional scaling
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  Udim                    = u_0                                ! velocity scale
-  Tdim                    = 1d0  * DAY                         ! time scale
-  Ldim                    = Udim * Tdim                        ! length scale
-  Hdim                    = wave_speed**2 / grav_accel         ! vertical length scale
-  Tempdim                 = T_0                                ! temperature scale (both theta and T from DYNAMICO)
-  Pdim                    = p_0                                ! pressure scale
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  Tdim                     = 1d0  * DAY                         ! time scale
+  Ldim                     = u_0 * Tdim                         ! length scale
+  Hdim                     = max_depth                          ! vertical length scale
+  Pdim                     = p_0                                ! pressure scale
+  Tempdim                  = T_0                                ! temperature scale (both theta and T from DYNAMICO)
   
+  Mudim                    = ref_density * dz                   ! mu scale
+  Thetadim                 = ref_density * dz * Tempdim         ! Theta scale
+  Udim                     = u_0                                ! velocity scale
   
-  ! Initialize functions
+
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !    Initialization
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   call assign_functions
 
   ! Initialize variables
