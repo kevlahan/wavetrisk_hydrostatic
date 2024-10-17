@@ -79,16 +79,16 @@ ifeq ($(ARCH),ser)
   PROC = ser
 else
    PROC = mpi
-   FLAGS_COMP += -DMPI
-   FLAGS_LINK += -DMPI
+   FLAGS_COMP += -DMPI -DPHYSICS
+   FLAGS_LINK += -DMPI -DPHYSICS
   ifeq ($(ARCH),mpi)
     COMPILER = $(MPIF90)
   else
     ARCH        = mpi
     F90         = $(AMPIF90)
     COMPILER    = $(AMPIF90)
-    FLAGS_COMP += -DAMPI -pieglobals
-    FLAGS_LINK += -DAMPI -pieglobals
+    FLAGS_COMP += -DAMPI -DPHYSICS -pieglobals
+    FLAGS_LINK += -DAMPI -DPHYSICS -pieglobals
   endif
 endif
 
