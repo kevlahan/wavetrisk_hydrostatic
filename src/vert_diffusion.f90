@@ -84,8 +84,8 @@ contains
 
     integer                         :: d, id, info, k, l
     real(8)                         :: eta, filt, turb, z
-    real(8), dimension(0:zlevels)   :: e, l_eps, l_m, Nsq,  dudzsq
-    real(8), dimension(1:zlevels)   :: dz
+    real(8), dimension(0:zlevels)   :: e, l_eps, l_m, Nsq,  dUdZ2
+    real(8), dimension(1:zlevels)   :: dz, Umag
     real(8), dimension(1:zlevels-1) :: dzl, diag, rhs, S1, S2
     real(8), dimension(1:zlevels-2) :: diag_l, diag_u
     type(Coord)                     :: p
@@ -105,9 +105,9 @@ contains
              turb = c_eps * sqrt (e(l)) / l_eps(l)
           end if
           
-          S1(l) = Kv(l)%data(d)%elts(id) * dudzsq(l) - Kt(l)%data(d)%elts(id) * Nsq(l)
+          S1(l) = Kv(l)%data(d)%elts(id) * dUdZ2(l) - Kt(l)%data(d)%elts(id) * Nsq(l)
           if (patankar .and. S1(l) <= 0d0) then ! Patankar "trick"
-             S1(l) = Kv(l)%data(d)%elts(id) * dudzsq(l)
+             S1(l) = Kv(l)%data(d)%elts(id) * dUdZ2(l)
              S2(l) = - turb - Kt(l)%data(d)%elts(id) * Nsq(l) / e(l)
           else
              S2(l) = - turb 
@@ -164,21 +164,26 @@ contains
   contains
     subroutine init_diffuse
       ! Initializations
+       use io_mod, only : kinetic_energy
       implicit none
       integer :: k, l
       real(8) :: Ri
 
       do k = 1, zlevels
          dz(k) = dz_i (dom, i, j, k, offs, dims, sol)
+         Umag(k) = sqrt (2d0 * kinetic_energy (dom, i, j, k, offs, dims))
       end do
 
-      do l = 1, zlevels-1
+       do l = 1, zlevels-1
          dzl(l) = interp (dz(l), dz(l+1))
       end do
-
+      
       do l = 0, zlevels
-         Nsq(l)    = N_sq    (dom, i, j, l, offs, dims, dz)
-         dudzsq(l) = dudz_sq (dom, i, j, l, offs, dims)
+         dUdZ2(l) = dUdZ_sq (l)
+      end do
+      
+      do l = 0, zlevels
+         Nsq(l) = N_sq (dom, i, j, l, offs, dims, dz)
       end do
 
       e(0) = e_0
@@ -191,24 +196,42 @@ contains
       ! Recompute eddy viscosity and eddy diffusivity after restart
       if (istep == 1) then
          do l = 0, zlevels
-            Ri = Richardson (Nsq(l), dudzsq(l))
+            Ri = Richardson (Nsq(l), dUdZ2(l))
             Kv(l)%data(d)%elts(id) = Kv_tke (e(l), l_m(l), Nsq(l))
             Kt(l)%data(d)%elts(id) = Kt_tke (Kv(l)%data(d)%elts(id), Nsq(l), Ri)
          end do
       end if
     end subroutine init_diffuse
 
+    real(8) function dUdZ_sq (l)
+      ! ||du_h/dz||^2 at interfaces 0 <= l <= zlevels
+      ! (computed from twice TRiSK form of kinetic energy to use data from only a single colum)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, l
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      real(8) :: dU, dZ
+
+      if (l == 0 .or. l == zlevels) then
+         dUdZ_sq = 0d0
+      else
+         dUdZ_sq = ( (Umag(l+1) - Umag(l)) / dzl(l) )**2
+      end if
+    end function dUdZ_sq
+
     subroutine update_Kv_Kt
       ! Update eddy diffusivity and eddy viscosity
       implicit none
       real(8) :: Ri
-      
+
       ! Length scales
       call l_scales (dz, Nsq, tau_mag (p), e, l_eps, l_m)
 
       ! Eddy viscosity and eddy diffusivity at interfaces
       do l = 0, zlevels
-         Ri = Richardson (Nsq(l), dudzsq(l))
+         Ri = Richardson (Nsq(l), dUdZ2(l))
          Kv(l)%data(d)%elts(id) = Kv_tke (e(l), l_m(l), Nsq(l))
          Kt(l)%data(d)%elts(id) = Kt_tke (Kv(l)%data(d)%elts(id), Nsq(l), Ri)
       end do
@@ -435,42 +458,6 @@ contains
       eval = grav_accel * (b_above - b_below) / dzl ! - g drho/dz / rho0
     end function eval
   end function N_sq
-
-  real(8) function dudz_sq  (dom, i, j, l, offs, dims)
-    ! ||du_h/dz||^2 at interfaces 0 <= l <= zlevels
-    ! Computed from twice TRiSK form of kinetic energy to use data from only a single column
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, l
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    if (l < zlevels .and. l > 0) then
-       dudz_sq = eval (l)
-    elseif (l == 0) then
-       dudz_sq = eval (1)
-    elseif (l == zlevels) then
-       dudz_sq = eval (zlevels-1)
-    end if
-  contains
-    real(8) function eval (l)
-      implicit none
-      integer :: l
-
-      integer :: d, id
-      real(8), dimension(1:EDGE) :: dudz, prim_dual
-
-      d = dom%id + 1
-      id = idx (i, j, offs, dims)
-
-      prim_dual = dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
-
-      dudz = (sol(S_VELO,l+1)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - sol(S_VELO,l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)) &
-           / interp_e (dz_e (dom, i, j, l, offs, dims, sol), dz_e (dom, i, j, l+1, offs, dims, sol))
-
-      eval = sum (dudz**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv
-    end function eval
-  end function dudz_sq 
 
   real(8) function Richardson (Nsq, dudzsq)
     ! Richardson number at interface  0 <= l <= zlevels
