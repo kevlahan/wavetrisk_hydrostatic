@@ -17,33 +17,37 @@ program Drake
 
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Numerical method parameters
+  !    Numerical method parameters
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  default_thresholds = .false.
-  Laplace_order_init = 2                                   ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
-  scale_aware        = .false.                             ! scale aware diffusion
-  mode_split         = .true.                              ! split barotropic mode if true
-  adapt_dt           = .false.
+  default_thresholds      = .true.
+  Laplace_order_init      = 2                               ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
+  scale_aware             = .true.                          ! scale aware diffusion
+  mode_split              = .true.                          ! split barotropic mode if true
+  split_mean_perturbation = .true.
+  adapt_dt                = .true.
+  nstep_init              = 10
   if (mode_split) then
-     cfl_num         = 15d0
-     timeint_type    = "RK3"                         
+     cfl_num              = 20d0
+     timeint_type         = "RK3"                         
   else
-     cfl_num         = 0.3d0                             
-     timeint_type    = "RK45"                         
+     cfl_num              = 0.3d0                             
+     timeint_type         = "RK45"                         
   end if
-  match_time         = .true.                             ! avoid very small time steps when saving 
-  compressible       = .false.                            ! always run with incompressible equations
-  log_min_mass       = .true.                             ! compute and print minimum relative mass
+  match_time              = .true.                         ! avoid very small time steps when saving 
+  compressible            = .false.                        ! always run with incompressible equations
+  log_min_mass            = .true.                         ! compute and print minimum relative mass
 
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Earth parameters
+  !    Earth parameters
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  radius_earth   = 6371.229d0 * KM                      ! radius of Earth
-  omega_earth    = 7.29211d-5 * RAD/SECOND              ! rotation rate of Earth
-  H_earth        =        4d0 * KM                      ! mean ocean depth of Earth
-  g_earth        = 9.80616d0  * METRE/SECOND**2         ! gravitational acceleration 
-  ref_density    =     1030d0 * KG/METRE**3             ! reference density at depth (seawater)
+  radius_earth   = 6371.229d0 * KM                         ! radius of Earth
+  omega_earth    = 7.29211d-5 * RAD/SECOND                 ! rotation rate of Earth
+  H_earth        =        4d0 * KM                         ! mean ocean depth of Earth
+  g_earth        =  9.80616d0 * METRE/SECOND**2            ! gravitational acceleration 
+  ref_density    =     1030d0 * KG/METRE**3                ! reference density at depth (seawater)
 
   ! Earth scaling factors
   L_norm         = radius_earth
@@ -53,11 +57,10 @@ program Drake
 
   ! Use normalized equation
   normalized = .false.
-
   if (normalized) then
      radius      = radius_earth / L_norm                     
-     omega       =  omega_earth * T_norm
-     grav_accel  =  g_earth * H_norm / U_norm**2
+     omega       = omega_earth * T_norm
+     grav_accel  = g_earth * H_norm / U_norm**2
   else
      radius      = radius_earth / scale                    ! mean radius of the small planet
      omega       = omega_earth  / scale_omega              ! angular velocity (scaled for small planet to keep beta constant)
@@ -76,53 +79,51 @@ program Drake
   min_depth      = -50d0  * METRE / H_norm                 ! minimum allowed depth (must be negative)
   
   ! Topography (etopo smoothing not yet implemented)
-  alpha              = 1d-1
-  penalize           = .true.                             ! penalize land regions
-  etopo_bathy        = .false.                            ! etopo data for bathymetry
-  etopo_coast        = .false.                            ! etopo data for coastlines (i.e. penalization)
-  etopo_res          = 4                                  ! resolution of etopo or analytic data in arcminutes
+  alpha          = 1d-1
+  penalize       = .true.                                  ! penalize land regions
+  etopo_bathy    = .false.                                 ! etopo data for bathymetry
+  etopo_coast    = .false.                                 ! etopo data for coastlines (i.e. penalization)
+  etopo_res      = 4                                       ! resolution of etopo or analytic data in arcminutes
  
   if (zlevels == 1) then
      sigma_z              = .false.
      vert_diffuse         = .false.
+
      max_depth            = -H_earth
      coords               = "uniform"
-     mixed_layer          = max_depth                     ! location of top (less dense) layer in two layer case
-     thermocline          = max_depth                     ! location of layer forced by surface wind stress
-     drho                 =     0d0 * KG/METRE**3         ! density perturbation at free surface
-     tau_0                =   0.4d0 * NEWTON/METRE**2     ! maximum wind stress
-     u_wbc                =     1d0 * METRE/SECOND        ! estimated western boundary current speed
-     k_T                  =     0d0                       ! relaxation to mean buoyancy profile
+     mixed_layer          = max_depth                      ! location of top (less dense) layer in two layer case
+     thermocline          = max_depth                      ! location of layer forced by surface wind stress
+     drho                 =     0d0 * KG/METRE**3          ! density perturbation at free surface
+     tau_0                =   0.4d0 * NEWTON/METRE**2      ! maximum wind stress
+     u_wbc                =     1d0 * METRE/SECOND         ! estimated western boundary current speed
+     
+     bottom_friction_case =    rb_0                        ! constant bottom friction
+     k_T                  =     0d0                        ! relaxation to mean buoyancy profile
   elseif (zlevels >= 2) then
      coords               = "uniform"
-     sigma_z              = .true.                        ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-     max_depth            =   -4000d0 * METRE             ! total depth, constant density at depth > thermocline
-     thermocline          =   -4000d0 * METRE             ! linear stratification region between thermocline and mixed_layer
-     mixed_layer          =    -200d0 * METRE             ! constant density at depth < mixed_layer
+     sigma_z              = .true.                         ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+     max_depth            =   -4000d0 * METRE              ! total depth, constant density at depth > thermocline
+     thermocline          =   -4000d0 * METRE              ! linear stratification region between thermocline and mixed_layer
+     mixed_layer          =    -200d0 * METRE              ! constant density at depth < mixed_layer
 
      remap                = .true.
-     iremap               =   5
-     
+     iremap               = 10
+
+     bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
      vert_diffuse         = .true.
-     tke_closure          = .false.
-     if (zlevels == 2) then
-        Kt_const         =  0d0 * METRE**2 / SECOND       ! eddy diffusion
-        Kv_bottom         = 4d0 * METRE**2 / SECOND       ! eddy viscosity
-     end if
-     e_min                =  0d0                          ! minimum TKE
-     patankar             = .false.                       ! avoid noise with zero initial velocity
-     enhance_diff         = .false.
+     tke_closure          = .true.
 
-     drho                 =      -2d0 * KG/METRE**3       ! density perturbation at free surface at poles
-     tau_0                =     0.1d0 * NEWTON/METRE**2   ! maximum wind stress
-     u_wbc                =       1d0 * METRE/SECOND      ! estimated western boundary current speed
-     k_T                  =       1d0 / (30d0 * DAY)      ! relaxation to mean buoyancy profile
+     drho                 =      -4d0 * KG/METRE**3        ! density perturbation at free surface at poles
+     tau_0                =     0.1d0 * NEWTON/METRE**2    ! maximum wind stress
+     u_wbc                =       1d0 * METRE/SECOND       ! estimated western boundary current speed
+     k_T                  =       1d0 / (30d0 * DAY)       ! relaxation to mean buoyancy profile
   end if
-
-
+  
+  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Characteristic scales
-
+  !    Characteristic scales
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  
   wave_speed     = sqrt (grav_accel * abs(max_depth))                  ! inertia-gravity wave speed
 
   ! Initialize non-dimensional viscosities, cfl and time step
@@ -131,14 +132,11 @@ program Drake
   ! Viscosity
   visc           = C_visc(S_VELO) * 1.5d0 * Area_min**Laplace_order_init / dt_init   
 
-  ! Set bottom friction so lateral viscosity dominates
-  bottom_friction_case = 0.25d0 * (visc * beta**(2d0*Laplace_order_init))**(1d0/(2d0*Laplace_order_init+1d0))
-
   Rd             = wave_speed / f0                                    ! barotropic Rossby radius of deformation             
   drho_dz        = drho / (mixed_layer-thermocline)                   ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)       ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                                  ! inertial layer
-  delta_M        = (visc/beta)**(1d0/(2d0*Laplace_order_init+1)) ! Munk layer scale
+  delta_M        = (visc/beta)**(1d0/(2d0*Laplace_order_init+1))      ! Munk layer scale
   delta_sm       = u_wbc / f0                                         ! barotropic submesoscale
   delta_S        = bottom_friction_case / (abs(max_depth) * beta)     ! Stommel layer scale
   Fr             = u_wbc / (bv*abs(max_depth))                        ! Froude number
@@ -149,7 +147,7 @@ program Drake
   if (zlevels == 2) then
      c1 = sqrt (grav_accel * abs(drho) /ref_density * mixed_layer * (max_depth-mixed_layer) / abs(max_depth)) ! two-layer internal wave speed
   elseif (zlevels >= 3) then
-     c1 = bv * sqrt (abs(max_depth) / grav_accel) / MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
+     c1 = bv * sqrt (abs(max_depth) / grav_accel) / MATH_PI * wave_speed                                      ! first baroclinic mode speed for linear stratification
   endif
   lambda0        = wave_speed / f0                                   ! external scale
   lambda1        = c1 / f0                                           ! mesoscale
@@ -162,25 +160,25 @@ program Drake
   else
      Rb = bv * abs(max_depth) / (MATH_PI*f0)
   end if
-  
+
+  dz = abs (max_depth) / dble(zlevels)         ! layer depth scale
+
   ! Dimensional scaling
   Ldim           = delta_I          ! length scale 
   Hdim           = abs (max_depth)  ! vertical length scale
   Tdim           = Ldim/Udim        ! time scale
-
-  dz = Hdim / dble(zlevels)         ! layer depth scale
   
   Mudim          = ref_density * dz ! rho_dz scale
   Thetadim       =        drho * dz ! buoyancy scale
   Udim           = u_wbc            ! velocity scale
   
+ 
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !    Initialization
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   if (etopo_bathy .or. etopo_coast) call read_etopo_data
 
-  s_test = radius/4d0  ! parameter for elliptic solver test
-
-
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Initialize functions
   call assign_functions
 
   ! Initialize variables
@@ -199,6 +197,7 @@ program Drake
   if (rank == 0) write (6,'(a,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   total_cpu_time = 0d0
   do while (time < time_end)

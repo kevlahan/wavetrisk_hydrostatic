@@ -21,7 +21,7 @@ module vert_diffusion_mod
   ! Modifiable parameters for 
   real(8)            :: Kt_max       = 1d2     ! maximum eddy diffusion
   logical            :: enhance_diff = .false. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
-  logical            :: patankar     = .true.  ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
+  logical            :: patankar     = .false.  ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
                                                ! or enforce minimum value e_0 of TKE (F)
                                                ! (Patankar trick can produce noisy solutions if velocity is very small)
 
@@ -372,20 +372,20 @@ contains
     k = 1
     diag_u(:,k) = - coeff (1) ! super-diagonal
     diag(:,k)   = 1d0 - diag_u(:,k) + dt * bottom_friction / dz(:,k)
-    rhs(:,k)    = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) 
+    rhs(:,k)    = sol(S_VELO,k)%data(d)%elts(id_edge(id)) 
 
     do k = 2, zlevels-1
        diag_u(:,k)   = - coeff ( 1) ! super-diagonal
        diag_l(:,k-1) = - coeff (-1) ! sub-diagonal
        diag(:,k)     = 1d0 - (diag_u(:,k) + diag_l(:,k-1))
-       rhs(:,k)      = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+       rhs(:,k)      = sol(S_VELO,k)%data(d)%elts(id_edge(id))
     end do
     
     ! Top layer
     k = zlevels
     diag_l(:,k-1) = - coeff (-1) ! sub-diagonal
     diag(:,k)     = 1d0 - diag_l(:,k-1)
-    rhs(:,k) = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) + dt * wind_flux (dom, i, j, z_null, offs, dims) / dz(:,k)
+    rhs(:,k) = sol(S_VELO,k)%data(d)%elts(id_edge(id)) + dt * wind_flux (dom, i, j, z_null, offs, dims) / dz(:,k)
 
     ! Solve tridiagonal linear system
     do e = 1, EDGE
@@ -645,11 +645,11 @@ contains
     dz_k = dz_e (dom, i, j, zlev, offs, dims, sol)
 
     if (zlev > 1 .and. zlev < zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (velo_flux(1) - velo_flux(-1)) / dz_k
+       dvelo(id_edge(id)) = (velo_flux(1) - velo_flux(-1)) / dz_k
     elseif  (zlev == 1) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (velo_flux(1) - bottom_friction * velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dz_k
+       dvelo(id_edge(id)) = (velo_flux(1) - bottom_friction * velo(id_edge(id))) / dz_k
     elseif (zlev == zlevels) then
-       dvelo(EDGE*id+RT+1:EDGE*id+UP+1) = (wind_flux (dom, i, j, z_null, offs, dims) - velo_flux(-1)) / dz_k 
+       dvelo(id_edge(id)) = (wind_flux (dom, i, j, z_null, offs, dims) - velo_flux(-1)) / dz_k 
     end if
   contains
     function velo_flux (l)
@@ -663,7 +663,7 @@ contains
       visc = Kv(zlev+min(0,l))%data(d)%elts(id+1)
       dzl = 0.5d0 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims, sol)) ! thickness of layer centred on interface
 
-      velo_flux = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) - velo(EDGE*id+RT+1:EDGE*id+UP+1)) / dzl
+      velo_flux = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(id_edge(id)) - velo(id_edge(id))) / dzl
     end function velo_flux
   end subroutine trend_velo_vert_diffuse
 end module vert_diffusion_mod

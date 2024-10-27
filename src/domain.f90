@@ -205,19 +205,21 @@ contains
     integer      :: num
     
     integer :: d, k, v
-    real(8) :: def_val
+    real(8) :: def_val, dz, z
 
     d = self%id + 1
 
     call extend (self%node, num, ORIGIN)
 
-    ! Atmosphere layers
+    ! Atmosphere/ocean layers
     do k = 1, zmax
        ! Set reasonable default values for new boundary patches to avoid NaN if variable undefined in boundary
        if (compressible) then
           def_val = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
        else
-          def_val = ref_density * (b_vert(k) - b_vert(k-1)) * max_depth
+          dz     = b_vert_mass(k) * max_depth
+          z      = 0.5d0 * (b_vert(k) + b_vert(k-1)) * max_depth
+          def_val = ref_density * dz
        end if
 
        do v = scalars(1), scalars(2)

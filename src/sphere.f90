@@ -316,6 +316,15 @@ contains
     ! Project velocity vector on direction given by points ep1, ep2
     proj_vel = inner (direction (ep1, ep2), vel)
   end function proj_vel
+
+  real(8) function hex_area_avg (l)
+    ! Average are of hexagonal cells at level l.
+    ! (area of sphere divided by number of hexagonal/penatagonal cells)
+    implicit none
+    integer, intent(in) :: l
+
+    hex_area_avg = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**dble(l) + 2d0)
+  end function hex_area_avg
 end module geom_mod
 
 

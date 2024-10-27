@@ -14,7 +14,7 @@ module test_case_mod
   real(8) :: time_start, total_cpu_time
 
   ! Test case variables
-  real(8) :: Area_max, Area_min, C_div, dt_max
+  real(8) :: Area_max, Area_min, C_div, dt_max, dz
   real(8) :: topo_Area_min, topo_dx_min
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
 
@@ -94,7 +94,7 @@ contains
        elseif (Laplace_order == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1d0)**Laplace_order * grad * l_e
+       physics_scalar_flux_case = (-1d0)**Laplace_order * C_visc(v) * nu_scale (dom, id) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -102,26 +102,10 @@ contains
       real(8), dimension(1:EDGE) :: grad_physics
       real(8), dimension(:)      :: scalar
 
-      grad_physics(RT+1) = (visc(idE) * scalar(idE+1) - visc(id)   * scalar(id+1))   / d_e(RT+1)
-      grad_physics(DG+1) = (visc(id)  * scalar(id+1)  - visc(idNE) * scalar(idNE+1)) / d_e(DG+1)
-      grad_physics(UP+1) = (visc(idN) * scalar(idN+1) - visc(id)   * scalar(id+1))   / d_e(UP+1)
+      grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
+      grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
+      grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
     end function grad_physics
-    
-    real(8) function visc (id)
-      ! Scale aware viscosity
-      ! factor 1.5 ensures that maximum stable C_visc matches theoretical estimate of 1/6^Laplace_order
-      implicit none
-      integer :: id
-      real(8) :: Area
-
-      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         Area = 1d0 / dom%areas%elts(id+1)%hex_inv
-      else
-         Area = Area_min
-      end if
-      
-      visc = C_visc(v) * nu_scale (Area, dt)
-    end function visc
   end function physics_scalar_flux_case
 
   function physics_velo_source_case (dom, i, j, zlev, offs, dims)
@@ -144,22 +128,22 @@ contains
     if (Laplace_order == 0) then
        physics_velo_source_case = 0d0
     else
-       physics_velo_source_case = (-1d0)**(Laplace_order-1) * (grad_divu () - curl_rotu ()) 
+       physics_velo_source_case = (-1d0)**(Laplace_order-1) * nu_scale (dom, id) * (C_div * grad_divu () - C_visc(S_VELO) * curl_rotu ()) 
     end if
   contains
     function grad_divu ()
       implicit none
       real(8), dimension(1:EDGE) :: grad_divu
-
-      integer :: idE, idN, idNE
       
+      integer :: idE, idN, idNE
+
       idE  = idx (i+1, j,   offs, dims)
       idN  = idx (i,   j+1, offs, dims)
       idNE = idx (i+1, j+1, offs, dims)
 
-      grad_divu(RT+1) = (visc_div(idE) * divu(idE+1) - visc_div(id)   * divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
-      grad_divu(DG+1) = (visc_div(id)  * divu(id+1)  - visc_div(idNE) * divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
-      grad_divu(UP+1) = (visc_div(idN) * divu(idN+1) - visc_div(id)   * divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
+      grad_divu(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
+      grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      grad_divu(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
     end function grad_divu
 
     function curl_rotu ()
@@ -171,43 +155,10 @@ contains
       idS  = idx (i,   j-1, offs, dims)
       idW  = idx (i-1, j,   offs, dims)
 
-      curl_rotu(RT+1) = (visc_rot(id)  * vort(TRIAG*id +LORT+1) - visc_rot(idS) * vort(TRIAG*idS+UPLT+1)) &
-           / dom%pedlen%elts(EDGE*id+RT+1)
-      curl_rotu(DG+1) = (visc_rot(id)  * vort(TRIAG*id +LORT+1) - visc_rot(id)  * vort(TRIAG*id +UPLT+1)) &
-           / dom%pedlen%elts(EDGE*id+DG+1)
-      curl_rotu(UP+1) = (visc_rot(idW) * vort(TRIAG*idW+LORT+1) - visc_rot(id)  * vort(TRIAG*id +UPLT+1)) &
-           / dom%pedlen%elts(EDGE*id+UP+1)
+      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
-    
-    real(8) function visc_div (id)
-      ! Scale aware viscosity
-      implicit none
-      integer :: id
-      real(8) :: Area
-
-      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         Area = 1d0 / dom%areas%elts(id+1)%hex_inv
-      else
-         Area = Area_min
-      end if
-      
-      visc_div = C_div * nu_scale (Area, dt)
-    end function visc_div
-
-    real(8) function visc_rot (id)
-      ! Scale aware viscosity
-      implicit none
-      integer :: id
-      real(8) :: Area
-      
-      if (scale_aware .and. dom%areas%elts(id+1)%hex_inv /= 0d0) then
-         Area = 1d0 / dom%areas%elts(id+1)%hex_inv
-      else
-         Area = Area_min
-      end if
-      
-      visc_rot = C_visc(S_VELO) * nu_scale (Area, dt)
-    end function visc_rot
   end function physics_velo_source_case
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
@@ -719,6 +670,11 @@ contains
        write (6,'(a,f10.1)')  "dx_min         [km]      = ", dx_min / KM
 
        write (6,'(/,a)')      "TEST CASE PARAMETERS"
+       if (Ekman_ic) then
+          write (6,'(a)')   "Ekman initial conditions"
+       else
+          write (6,'(a)')   "Zero velocity initial conditions"
+       end if
        write (6,'(a,f5.1)')   "T_0             [K]      = ", T_0
        write (6,'(a,es10.4)') "T_mean          [K]      = ", T_mean
        write (6,'(a,es10.4)') "T_tropo         [K]      = ", T_tropo
@@ -779,26 +735,37 @@ contains
 
   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
-    use lnorms_mod
     implicit none
+    integer :: k
+    real(8) :: p, rho_dz
 
-    call cal_lnorm ("2")
-    lnorm(S_VELO,:) = Udim
-
-    threshold_def = tol * lnorm
+    do k = 1, zlevels
+       p      = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_0) 
+       rho_dz = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
+     
+       threshold_def(S_MASS,:) = tol * rho_dz
+       threshold_def(S_TEMP,:) = tol * rho_dz * theta_init (p)
+       threshold_def(S_VELO,:) = tol * Udim
+    end do
   end subroutine initialize_thresholds_case
 
   subroutine set_thresholds_case
-    ! Set thresholds dynamically (trend or sol must be known)
+    ! Set thresholds dynamically
     use lnorms_mod
     implicit none
+    integer :: k
+    
+    call cal_lnorm ("2")
 
     if (default_thresholds) then
        threshold = threshold_def
     else
-       call cal_lnorm ("2")
        threshold = tol * lnorm
-       threshold(S_VELO,:) = max (threshold(S_VELO,:), threshold_def(S_VELO,:))
+       do k = 1, zlevels
+          if (threshold(S_MASS,k) < threshold_def(S_MASS,k)) threshold(S_MASS,k) = threshold_def(S_MASS,k)
+          if (threshold(S_TEMP,k) < threshold_def(S_TEMP,k)) threshold(S_TEMP,k) = threshold_def(S_TEMP,k)
+          if (threshold(S_VELO,k) < threshold_def(S_VELO,k)) threshold(S_VELO,k) = threshold_def(S_VELO,k)
+       end do
     end if
   end subroutine set_thresholds_case
 
@@ -836,7 +803,7 @@ contains
     end if
 
     ! Set viscosities
-    nu_dim         = nu_scale (Area_min, dt_max)                    ! viscosity scale on finest grid
+    nu_dim         = 1.5d0 * Area_min**Laplace_order / dt_init      ! viscosity scale on finest grid
     nu_scaling     = (res_scaling * dx_scaling)**(2*Laplace_order)
     nu             = nu_CAM * nu_scaling                            ! scaled CAM viscosity
 
@@ -853,11 +820,24 @@ contains
     C_div          = nu_divu / nu_dim
   end subroutine initialize_dt_viscosity_case
 
-  real(8) function nu_scale (Area, dt)
-    ! Viscosity scale
+  real(8) function nu_scale (dom, id)
+    ! Viscosity non-dimensional scaling
     ! (factor 1.5 ensures stability limit matches theoretical value)
     implicit none
-    real(8) :: Area, dt
+    integer      :: id
+    type(domain) :: dom
+
+    real(8) :: Area
+
+    if (scale_aware) then
+       if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
+          Area = 1d0 / dom%areas%elts(id+1)%hex_inv
+       else
+          Area = hex_area_avg (dom%level%elts(id+1))
+       end if
+    else
+       Area = Area_min
+    end if
 
     nu_scale = 1.5d0 * Area**Laplace_order / dt
   end function nu_scale
