@@ -21,28 +21,33 @@ module vert_diffusion_mod
   ! Modifiable parameters for 
   real(8)            :: Kt_max       = 1d2     ! maximum eddy diffusion
   logical            :: enhance_diff = .false. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
-  logical            :: patankar     = .false.  ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
+  logical            :: patankar     = .false. ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
                                                ! or enforce minimum value e_0 of TKE (F)
                                                ! (Patankar trick can produce noisy solutions if velocity is very small)
 
   ! Parameters for TKE closure eddy viscosity/diffusion scheme
-  logical, parameter :: implicit     = .true.  ! use backwards Euler (T) or forward Euler (F)
-  real(8), parameter :: c_e      = 1d0               
-  real(8), parameter :: c_eps    = 7d-1                ! factor in Ekman depth equation
-  real(8), parameter :: C_l      = 2d5                 ! Charnock constant
-  real(8), parameter :: c_m      = 1d-1                ! coefficient for eddy viscosity
-  real(8), parameter :: C_sfc    = 67.83d0
-  real(8), parameter :: e_0      = 1d-6/sqrt(2d0)      ! bottom boundary condition for TKE
-  real(8), parameter :: e_sfc_0  = 1d-4                ! minimum TKE at free surface
-  real(8), parameter :: eps_s    = 1d-20               
-  real(8), parameter :: kappa_VK = 4d-1                ! von Karman constant
-  real(8), parameter :: Kt_enh   = 1d2                 ! enhanced eddy diffusion
-  real(8), parameter :: Kv_enh   = 1d2                 ! enhanced eddy viscosity
-  real(8), parameter :: l_0      = 4d-2                ! default turbulent length scale
-  real(8), parameter :: Neps_sq  = 1d-20               ! background shear
-  real(8), parameter :: Nsq_min  = 1d-12               ! threshold for enhanced diffusion
-  real(8), parameter :: Ri_c     = 2d0 / (2d0 + c_eps/c_m) ! 0.22
-  real(8), parameter :: z_0      = 1d-1                ! roughness parameter of free surface
+  real(8) :: c_e       = 1.0d0               
+  real(8) :: c_eps     = 7.0d-1                ! factor in Ekman depth equation
+  real(8) :: C_l       = 2.0d5                 ! Charnock constant
+  real(8) :: c_m       = 1.0d-1                ! coefficient for eddy viscosity
+  real(8) :: C_sfc     = 6.783d1
+  real(8) :: e_0       = 1.0d-6/sqrt(2d0)      ! bottom boundary condition for TKE
+  real(8) :: e_min     = 1.0d-6                ! minimum TKE for vertical diffusion
+  real(8) :: e_sfc_0   = 1.0d-4                ! minimum TKE at free surface
+  real(8) :: eps_s     = 1.0d-20               
+  real(8) :: kappa_VK  = 4.0d-1                ! von Karman constant
+  real(8) :: Kt_0      = 1.2d-5                !  minimum/initial eddy diffusion
+  real(8) :: Kt_const  = 1.0d-6                ! analytic value for eddy diffusion (tke_closure = .false.)
+  real(8) :: Kt_enh    = 1.0d2                 ! enhanced eddy diffusion
+  real(8) :: Kv_0      = 1.2d-4                !  minimum/initial eddy viscosity
+  real(8) :: Kv_bottom = 2.0d-3                ! analytic value for eddy viscosity (tke_closure = .false.)
+  real(8) :: Kv_enh    = 1.0d2                 ! enhanced eddy viscosity
+  real(8) :: l_0       = 4.0d-2                ! default turbulent length scale
+  real(8) :: Neps_sq   = 1.0d-20               ! background shear
+  real(8) :: Nsq_min   = 1.0d-12               ! threshold for enhanced diffusion
+  real(8) :: Q_sr      = 0.0d0                 ! penetrative part of solar short wave radiation
+  real(8) :: rb_0      = 4.0d-4                ! bottom friction
+  real(8) :: z_0       = 1.0d-1                ! roughness parameter of free surface
 contains
   subroutine vertical_diffusion
     ! Backwards euler step for vertical diffusion
@@ -50,7 +55,7 @@ contains
     use time_integr_mod
     implicit none
     integer :: l
-    
+
     ! Compute eddy diffusivity and eddy viscosity at nodes and layer interfaces at all grid points
     do l = level_end, level_start, -1
        call apply_onescale (turbulence_model, l, z_null, 0, 1)
@@ -62,15 +67,12 @@ contains
     end if
 
     ! Apply vertical diffusion to each vertical column
-    if (implicit) then ! backwards Euler step 
-       do l = level_end, level_start, -1
-          call apply_onescale (backwards_euler_temp, l, z_null, 0, 1)
-          call apply_onescale (backwards_euler_velo, l, z_null, 0, 0)
-       end do
-    else ! forwards Euler step 
-       call Euler (sol, wav_coeff, trend_vertical_diffusion, dt)
-    end if
+    do l = level_end, level_start, -1
+       call apply_onescale (backwards_euler_temp, l, z_null, 0, 1)
+       call apply_onescale (backwards_euler_velo, l, z_null, 0, 0)
+    end do
     sol%bdry_uptodate = .false.
+
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine vertical_diffusion
 
@@ -96,7 +98,7 @@ contains
 
     if (tke_closure) then
        call init_diffuse
-       
+
        ! RHS terms
        do l = 1, zlevels-1
           if (e(l) == 0d0) then
@@ -104,7 +106,7 @@ contains
           else
              turb = c_eps * sqrt (e(l)) / l_eps(l)
           end if
-          
+
           S1(l) = Kv(l)%data(d)%elts(id) * dUdZ2(l) - Kt(l)%data(d)%elts(id) * Nsq(l)
           if (patankar .and. S1(l) <= 0d0) then ! Patankar "trick"
              S1(l) = Kv(l)%data(d)%elts(id) * dUdZ2(l)
@@ -116,7 +118,7 @@ contains
 
        ! Tridiagonal matrix and rhs entries for linear system
        l = 1
-       diag_u(l) = - coeff (dz(l+1), interp (Kv(l)%data(d)%elts(id), Kv(l+1)%data(d)%elts(id))) ! super-diagonal
+       diag_u(l) = - coeff (dz(l+1), interp (Kv(l)%data(d)%elts(id), Kv(l+1)%data(d)%elts(id)))      ! super-diagonal
        diag(l)   = 1d0 - diag_u(l) - dt * S2(l)
        rhs(l)    = e(l) + dt * S1(l)
 
@@ -128,7 +130,7 @@ contains
        end do
 
        l = zlevels-1
-       diag_l(l-1) = - coeff (dz(l), interp (Kv(l)%data(d)%elts(id), Kv(l-1)%data(d)%elts(id)))  ! sub-diagonal
+       diag_l(l-1) = - coeff (dz(l), interp (Kv(l)%data(d)%elts(id), Kv(l-1)%data(d)%elts(id)))      ! sub-diagonal
        diag(l)     = 1d0 - diag_l(l-1) - dt * S2(l)
        rhs(l)      = e(l) + dt * S1(l)
 
@@ -139,11 +141,11 @@ contains
        ! Backwards Euler step
        e(0) = e_0
        do l = 1, zlevels-1
-           e(l) = rhs(l)
+          e(l) = rhs(l)
           if (.not. patankar) e(l) = min (rhs(l), e_min) ! ensure TKE is non-negative
        end do
        e(zlevels) = max (C_sfc * tau_mag (p) / ref_density, e_sfc_0) ! free surface
-       
+
        call update_Kv_Kt
     else ! Analytic eddy diffusivity and eddy viscosity
        if (mode_split) then
@@ -164,7 +166,7 @@ contains
   contains
     subroutine init_diffuse
       ! Initializations
-       use io_mod, only : kinetic_energy
+      use io_mod, only : kinetic_energy
       implicit none
       integer :: k, l
       real(8) :: Ri
@@ -174,21 +176,21 @@ contains
          Umag(k) = sqrt (2d0 * kinetic_energy (dom, i, j, k, offs, dims))
       end do
 
-       do l = 1, zlevels-1
+      do l = 1, zlevels-1
          dzl(l) = interp (dz(l), dz(l+1))
       end do
-      
+
       do l = 0, zlevels
          dUdZ2(l) = dUdZ_sq (l)
       end do
-      
+
       do l = 0, zlevels
          Nsq(l) = N_sq (dom, i, j, l, offs, dims, dz)
       end do
 
       e(0) = e_0
       do l = 1, zlevels
-         e(l) = tke(l)%data(d)%elts(id)
+         e(l) = max (tke(l)%data(d)%elts(id), e_min)
       end do
 
       call l_scales (dz, Nsq, tau_mag (p), e, l_eps, l_m)
@@ -241,12 +243,12 @@ contains
          tke(l)%data(d)%elts(id) = e(l)
       end do
     end subroutine update_Kv_Kt
-    
+
     real(8) function coeff (dz, Kv)
       ! Computes entries of vertical Laplacian matrix
       implicit none
       real(8) :: dz, Kv
-      
+
       coeff = dt * c_e * Kv / (dzl(l) * dz)
     end function coeff
   end subroutine turbulence_model
@@ -281,7 +283,7 @@ contains
        dz(k) = dz_i (dom, i, j, k, offs, dims, sol)
        z(k) = z(k-1) + dz(k)
     end do
-    
+
     do l = 1, zlevels-1
        dzl(l) = interp (dz(l), dz(l+1))
     end do
@@ -296,7 +298,7 @@ contains
        diag_u(k)   = - coeff ( 1) ! super-diagonal
        diag_l(k-1) = - coeff (-1) ! sub-diagonal
        diag(k)     = 1d0 - (diag_u(k) + diag_l(k-1))
-       rhs(k)      = b() + dt * solar_flux () / dz(k)
+       rhs(k)      = b () + dt * solar_flux () / dz(k)
     end do
 
     ! Top layer
@@ -324,12 +326,12 @@ contains
       kk = k + min (0,l)
       coeff = dt * Kt(kk)%data(d)%elts(id) / (dzl(kk) * dz(k))
     end function coeff
-    
+
     real(8) function b ()
       ! Fluctuating buoyancy
       implicit none
       real(8) :: rho_dz
-      
+
       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
       b = sol(S_TEMP,k)%data(d)%elts(id) / rho_dz
     end function b
@@ -363,11 +365,11 @@ contains
     do k = 1, zlevels
        dz(:,k) = dz_e (dom, i, j, k, offs, dims, sol)
     end do
-    
+
     do l = 1, zlevels-1
        dzl(:,l) = interp_e (dz(:,l), dz(:,l+1))
     end do
-    
+
     ! Bottom layer
     k = 1
     diag_u(:,k) = - coeff (1) ! super-diagonal
@@ -380,7 +382,7 @@ contains
        diag(:,k)     = 1d0 - (diag_u(:,k) + diag_l(:,k-1))
        rhs(:,k)      = sol(S_VELO,k)%data(d)%elts(id_edge(id))
     end do
-    
+
     ! Top layer
     k = zlevels
     diag_l(:,k-1) = - coeff (-1) ! sub-diagonal
@@ -397,7 +399,7 @@ contains
        end do
     end do
   contains
-     function coeff (l)
+    function coeff (l)
       ! Computes coefficient above (l = 1) or below (l = -1) for vertical Laplacian matrix
       implicit none
       integer                    :: l
@@ -415,7 +417,7 @@ contains
     ! Downward irradiance
     implicit none
     real(8) :: depth ! depth below free surface
-    
+
     real(8), parameter :: R = 0.58d0
     real(8), parameter :: xi_0 = 0.35d0 * METRE
     real(8), parameter :: xi_1 =   23d0 * METRE
@@ -472,6 +474,10 @@ contains
     implicit none
     real(8) :: Ri
 
+    real(8) :: Ri_c
+
+    Ri_c = 2d0 / (2d0 + c_eps/c_m) 
+
     ! NEMO
     if (Ri < 0.2d0) then
        Prandtl = 1d0
@@ -514,7 +520,7 @@ contains
     l_eps = sqrt (l_up * l_dwn)
     l_m   = min (l_up, l_dwn)
   end subroutine l_scales
-    
+
   real(8) function Kt_tke (Kv, Nsq, Ri)
     ! TKE closure eddy diffusivity
     implicit none
@@ -531,7 +537,7 @@ contains
     real(8) :: e, l_m, Nsq
 
     Kv_tke = max (c_m * l_m * sqrt(e), Kv_0)
-    
+
     if (enhance_diff .and. Nsq <= Nsq_min) Kv_tke = Kv_enh ! enhanced vertical diffusion
   end function Kv_tke
 
@@ -591,11 +597,11 @@ contains
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
-      
+
     dmass(id_i) = 0d0
 
     dz_k = dz_i (dom, i, j, zlev, offs, dims, sol)
-    
+
     if (zlev > 1 .and. zlev < zlevels) then
        dtemp(id_i) = scalar_flux(1) - scalar_flux(-1)
     elseif (zlev == 1) then
@@ -641,7 +647,7 @@ contains
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
-    
+
     dz_k = dz_e (dom, i, j, zlev, offs, dims, sol)
 
     if (zlev > 1 .and. zlev < zlevels) then

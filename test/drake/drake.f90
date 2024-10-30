@@ -107,15 +107,16 @@ program Drake
      mixed_layer          =    -200d0 * METRE              ! constant density at depth < mixed_layer
 
      remap                = .true.
-     iremap               = 10
+     iremap               = 5
 
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
      vert_diffuse         = .true.
      tke_closure          = .true.
+     e_min                = 0d0
 
      drho                 =      -4d0 * KG/METRE**3        ! density perturbation at free surface at poles
      tau_0                =     0.1d0 * NEWTON/METRE**2    ! maximum wind stress
-     u_wbc                =       1d0 * METRE/SECOND       ! estimated western boundary current speed
+     u_wbc                =       1d0 * METRE/SECOND       ! estimated Western boundary current speed
      k_T                  =       1d0 / (30d0 * DAY)       ! relaxation to mean buoyancy profile
   end if
   

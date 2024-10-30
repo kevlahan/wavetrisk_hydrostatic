@@ -241,7 +241,7 @@ contains
        do k = 1, zlevels
           call extend (Kt(k)%data(d),      num, 0d0)
           call extend (Kv(k)%data(d),      num, 0d0)
-          call extend (tke(k)%data(d),     num, e_min)
+          call extend (tke(k)%data(d),     num, 0d0)
           call extend (wav_tke(k)%data(d), num, 0d0)
        end do
     end if

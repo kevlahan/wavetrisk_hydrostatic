@@ -234,10 +234,9 @@ module shared_mod
 
   real(8)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
   real(8)                                       :: dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
-  real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax, Q_sr
+  real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax
   real(8)                                       :: ref_density, ref_density_air, ref_density_water
   real(8)                                       :: mass_error, max_depth, min_depth, min_mass
-  real(8)                                       :: e_min, Kt_const, Kt_0, Kv_0, Kv_bottom, rb_0
   real(8)                                       :: theta1, theta2, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim
@@ -413,15 +412,8 @@ contains
     ! Parameters for ocean (incompressible) model
     c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
     c_s                 = 1500d0    * METRE / SECOND              ! sound speed for seawater
-    e_min               = 0d0       * METRE**2 / SECOND**2        ! minimum TKE for vertical diffusion
-    Kt_0                = 1.2d-5    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy diffusion
-    Kv_0                = 1.2d-4    * METRE**2 / SECOND           ! NEMO value for minimum/initial eddy viscosity
-    Kt_const            = 1d-6      * METRE**2 / SECOND           ! analytic value for eddy diffusion (tke_closure = .false.)
-    Kv_bottom           = 2d-3      * METRE**2 / SECOND           ! analytic value for eddy viscosity (tke_closure = .false.)
     max_depth           = 4d0       * KM                          ! maximum depth 
     min_depth           = max_depth                               ! minimum depth 
-    Q_sr                = 0d0       * WATT / METRE**2             ! penetrative part of solar short wave radiation
-    rb_0                = 4d-4      * METRE /SECOND               ! NEMO value for bottom friction
     H_rho               = c_s**2 / grav_accel                     ! density scale height
 
     ! Equation of state parameters for ocean model

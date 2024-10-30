@@ -604,10 +604,10 @@ contains
     ! Time step parameters
     dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc) ! initial time step (0.85 factor corrects for minimum dx)
 
-    C_visc(S_VELO)     = 1d-3                                ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
-    C_div              = 4d0**Laplace_order * C_visc(S_VELO) ! dimensionless viscosity for divu         < 2.8e-2
-    C_visc(S_MASS)     = 4d0**Laplace_order * C_visc(S_VELO) ! dimensionless viscosity of S_MASS        < 2.8e-2
-    C_visc(S_TEMP)     = 4d0**Laplace_order * C_visc(S_VELO) ! dimensionless viscosity of S_TEMP        < 2.8e-2
+    C_visc(S_VELO)     = 1d-3                                  ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
+    C_div              = 4d0**Laplace_order * C_visc(S_VELO)   ! dimensionless viscosity for divu         < 2.8e-2
+    C_visc(S_MASS)     = 4d0**Laplace_order * C_visc(S_VELO)   ! dimensionless viscosity of S_MASS        < 2.8e-2
+    C_visc(S_TEMP)     = 4d0**Laplace_order * C_visc(S_VELO)   ! dimensionless viscosity of S_TEMP        < 2.8e-2
   end subroutine initialize_dt_viscosity_case
 
   real(8) function nu_scale (dom, id)
