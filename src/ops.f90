@@ -731,18 +731,19 @@ contains
     integer                    :: id
     integer, dimension(1:EDGE) :: id_e
     real(8), dimension(1:EDGE) :: Qperp_e, physics
-
+    
     id =  idx (i, j, offs, dims)
-    id_e = id_edge (id)
 
-    ! Calculate Q_perp
-    Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
-
-    ! Calculate physics
-    physics = physics_velo_source (dom, i, j, zlev, offs, dims)
-
-    ! Trend
     if (dom%mask_n%elts(id+1) >= TRSK) then
+       id_e = id_edge (id)
+
+       ! Calculate Q_perp
+       Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
+
+       ! Calculate physics
+       physics = physics_velo_source (dom, i, j, zlev, offs, dims)
+
+       ! Trend
        dvelo(id_e) = - Qperp_e + physics * dom%len%elts(id_e)
     else
        dvelo(id_e) = 0d0
@@ -764,34 +765,34 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    idE  = idx (i+1, j,   offs, dims) 
-    idN  = idx (i,   j+1, offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-
-    id_e = id_edge (id) 
-
-    rho_dz(0:NORTHEAST)       = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
-    rho_dz_theta(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
-
-    ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
-    ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
-    theta(0)         = rho_dz_theta(0)         / rho_dz(0)
-    theta(EAST)      = rho_dz_theta(EAST)      / rho_dz(EAST)
-    theta(NORTHEAST) = rho_dz_theta(NORTHEAST) / rho_dz(NORTHEAST)
-    theta(NORTH)     = rho_dz_theta(NORTH)     / rho_dz(NORTH)
-
-    ! Interpolate potential temperature to edges
-    theta_e(RT+1) = interp (theta(0), theta(EAST))      
-    theta_e(DG+1) = interp (theta(0), theta(NORTHEAST)) 
-    theta_e(UP+1) = interp (theta(0), theta(NORTH))     
-
-    ! Calculate gradients
-    gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
-    gradE = gradi_e (exner,     dom, i, j, offs, dims)
-
-    ! Trend
     if (dom%mask_n%elts(id+1) >= TRSK) then
-       dvelo(id_e) = dvelo(id_e)/dom%len%elts(id_e) - gradB - theta_e * gradE
+       idE  = idx (i+1, j,   offs, dims) 
+       idN  = idx (i,   j+1, offs, dims)
+       idNE = idx (i+1, j+1, offs, dims)
+
+       id_e = id_edge (id) 
+
+       rho_dz(0:NORTHEAST)       = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
+       rho_dz_theta(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
+
+       ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
+       ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
+       theta(0)         = rho_dz_theta(0)         / rho_dz(0)
+       theta(EAST)      = rho_dz_theta(EAST)      / rho_dz(EAST)
+       theta(NORTHEAST) = rho_dz_theta(NORTHEAST) / rho_dz(NORTHEAST)
+       theta(NORTH)     = rho_dz_theta(NORTH)     / rho_dz(NORTH)
+
+       ! Interpolate potential temperature to edges
+       theta_e(RT+1) = interp (theta(0), theta(EAST))      
+       theta_e(DG+1) = interp (theta(0), theta(NORTHEAST)) 
+       theta_e(UP+1) = interp (theta(0), theta(NORTH))     
+
+       ! Calculate gradients
+       gradB = gradi_e (bernoulli, dom, i, j, offs, dims)
+       gradE = gradi_e (exner,     dom, i, j, offs, dims)
+
+       ! Trend
+       dvelo(id_e) = dvelo(id_e) / dom%len%elts(id_e) - gradB - theta_e * gradE
     else
        dvelo(id_e) = 0d0
     end if
