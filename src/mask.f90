@@ -79,24 +79,24 @@ contains
     integer :: l
 
     do l = level_end-1, level_start+1, -1
-       call apply_interscale (mask_edges_consist,  l, z_null, 0, 1) ! nearest neighbour edges
+       call apply_interscale (mask_edges_consist,  l, z_null, 0, 1) ! adds child/parent edge to adjacent mask if any of neighbour edges in adjacent mask
        call comm_masks_mpi (l+1)
-       call apply_interscale (mask_edges_consist2, l, z_null, 0, 0) ! second nearest neighbour edges
+       call apply_interscale (mask_edges_consist2, l, z_null, 0, 0) ! adds child/parent edge to adjacent mask if any of second neighbour edges in adjacent mask
        call comm_masks_mpi (l)
     end do
 
     if (level_start < level_end) then
-       call apply_interscale (mask_edges_consist, level_start, z_null, 0, 1)
-       call comm_masks_mpi (level_start)  ! new
+       call apply_interscale (mask_edges_consist, level_start, z_null, 0, 1) 
+       call comm_masks_mpi (level_start)  
        call comm_masks_mpi (level_start+1)
     end if
 
     do l = level_end-1, level_start+1, -1
-       call apply_onescale   (mask_nodes_if_all_edges, l+1, z_null, 0, 1)
-       call apply_interscale (prolong_node_adjzone,    l,   z_null, 0, 1)
+       call apply_onescale   (mask_nodes_if_all_edges, l+1, z_null, 0, 1) ! add node to adjacent mask if all neighbour edges in adjacent mask
+       call apply_interscale (prolong_node_adjzone,    l,   z_null, 0, 1) ! add parent to adjacent mask if child is in adjacent mask
     end do
     if (level_start+1 <= level_end) call apply_onescale (mask_nodes_if_all_edges, level_start+1, z_null, 0, 1)
-    call comm_masks_mpi (NONE) ! new
+    call comm_masks_mpi (NONE) 
   end subroutine complete_masks
 
   subroutine mask_tol_vars (dom, i, j, zlev, offs, dims)
@@ -724,12 +724,20 @@ contains
     integer :: mask, typ
 
     if (mask < typ) mask = typ
-  end subroutine set_at_least
+  end subroutine set_at_least 
 
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!
   ! TRiSK operator stencils !
   ! !!!!!!!!!!!!!!!!!!!!!!!!!
+  
+  subroutine mask_trsk
+    ! Label nodes/edges required for TRiSK operators
+    implicit none
+
+    call apply_bdry (mask_node_trsk, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+  end subroutine mask_trsk
+
   subroutine mask_node_trsk (dom, i, j, zlev, offs, dims)
     ! Add additional TRISK operator stencils needed for nodes
     implicit none

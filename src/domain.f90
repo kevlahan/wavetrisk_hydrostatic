@@ -432,6 +432,19 @@ contains
     end do
   end subroutine apply_onescale_to_patch2
 
+  subroutine apply_interscale (routine, l, zlev, st, en)
+    ! Applies interscale routine to coarse scale l and fine scale l+1
+    implicit none
+    external :: routine
+    integer  :: en, l, st, zlev
+
+    integer :: d
+
+    do d = 1, size(grid)
+       call apply_interscale_d (routine, grid(d), l, zlev, st, en)
+    end do
+  end subroutine apply_interscale
+
   subroutine apply_interscale_d (routine, dom, l, zlev, st, en)
     implicit none
     external     :: routine
@@ -445,18 +458,6 @@ contains
     end do
   end subroutine apply_interscale_d
   
-  subroutine apply_interscale (routine, l, zlev, st, en)
-    implicit none
-    external :: routine
-    integer  :: en, l, st, zlev
-
-    integer :: d
-
-    do d = 1, size(grid)
-       call apply_interscale_d (routine, grid(d), l, zlev, st, en)
-    end do
-  end subroutine apply_interscale
-
   subroutine apply_interscale_d2 (routine, dom, l, zlev, st, en)
     implicit none
     external     :: routine
