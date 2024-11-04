@@ -712,7 +712,11 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
 
-    dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims)
+    if (dom%mask_n%elts(id_i) >= TRSK) then
+       dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims)
+    else
+       dscalar(id_i) = 0d0
+    end if
   end subroutine scalar_trend
 
   subroutine du_source (dom, i, j, zlev, offs, dims)
@@ -738,7 +742,11 @@ contains
     physics = physics_velo_source (dom, i, j, zlev, offs, dims)
 
     ! Trend
-    dvelo(id_e) = - Qperp_e + physics * dom%len%elts(id_e)
+    if (dom%mask_n%elts(id+1) >= TRSK) then
+       dvelo(id_e) = - Qperp_e + physics * dom%len%elts(id_e)
+    else
+       dvelo(id_e) = 0d0
+    end if
   end subroutine du_source
 
   subroutine du_grad (dom, i, j, zlev, offs, dims)
@@ -782,7 +790,11 @@ contains
     gradE = gradi_e (exner,     dom, i, j, offs, dims)
 
     ! Trend
-    dvelo(id_e) = dvelo(id_e)/dom%len%elts(id_e) - gradB - theta_e*gradE
+    if (dom%mask_n%elts(id+1) >= TRSK) then
+       dvelo(id_e) = dvelo(id_e)/dom%len%elts(id_e) - gradB - theta_e * gradE
+    else
+       dvelo(id_e) = 0d0
+    end if
   end subroutine du_grad
 
   function Qperp (dom, i, j, zlev, offs, dims)
