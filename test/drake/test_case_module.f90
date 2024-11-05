@@ -152,13 +152,16 @@ contains
        write (6,'(A,es10.4)') "cfl_num                        = ", cfl_num
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
        write (6,'(/,A,i1)')     "Laplace_order                  = ", Laplace_order_init
-       write (6,'(a,l1)')     "scale_aware                    = ", scale_aware
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(/,a,/,a,/,/,a,/,a,/)') "Stability limits:", &
             "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
             "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order", &
             "                   C_visc(S_VELO) < (1/24)**Laplace_order"
-       write (6,'(/,a,/)') "Scale-aware horizontal diffusion"
+       if (scale_aware) then
+          write (6,'(/,a,/)') "Scale-aware horizontal diffusion"
+       else
+          write (6,'(/,a,/)') "Constant horizontal diffusion (not scale aware)"
+       end if
        write (6,'(4(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS), "C_visc(S_TEMP) = ", C_visc(S_TEMP), &
             "C_div = ", C_div, "C_visc(S_VELO) = ", C_visc(S_VELO)
        write (6,'(A,L1)')     "vert_diffuse                   = ", vert_diffuse
@@ -585,6 +588,7 @@ contains
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
        do k = 1, zlevels
+          if (tol * lnorm(S_MASS,k) > threshold(S_MASS,k) * min_val) threshold(S_MASS,k) = tol * lnorm(S_MASS,k)
           if (tol * lnorm(S_TEMP,k) > threshold(S_TEMP,k) * min_val) threshold(S_TEMP,k) = tol * lnorm(S_TEMP,k)
           if (tol * lnorm(S_VELO,k) > threshold(S_VELO,k) * min_val) threshold(S_VELO,k) = tol * lnorm(S_VELO,k)
        end do
