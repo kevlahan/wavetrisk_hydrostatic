@@ -17,7 +17,7 @@ module test_case_mod
   real(8) :: d2, h_0, lat_c, lon_c
   ! Drake
   integer               :: npts_penal
-  real(8)               :: drho, halocline, radius_earth, scale
+  real(8)               :: drho, halocline, mixed_layer, radius_earth, scale, thermocline
   real(8), dimension(2) :: density_drake, height
   ! Jet
   real(8) :: beta, f0, Tcline
@@ -238,9 +238,7 @@ contains
     read (fid,*) varname, cp_end
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
-    read (fid,*) varname, vert_diffuse
     read (fid,*) varname, save_zlev
-    read (fid,*) varname, uniform
     read (fid,*) varname, level_fill
     read (fid,*) varname, N
     read (fid,*) varname, local_spec

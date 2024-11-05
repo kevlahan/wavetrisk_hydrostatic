@@ -24,70 +24,74 @@ program spherical_harmonics
   ! Read test case parameters
   call read_test_case_parameters
   
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !     Parameters for each test case
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (trim (test_case) == 'DCMIP2012c4') then
-     compressible   = .true.                      ! Compressible equations
+     compressible   = .true.                             ! Compressible equations
 
-     radius         = 6.371229d6                  ! mean radius of the Earth in meters
-     grav_accel     = 9.80616d0                   ! gravitational acceleration in meters per second squared
-     omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
-     p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
-     ref_surf_press = p_0                         ! reference surface pressure
-     R_d            = 287d0                     ! ideal gas constant for dry air in joules per kilogram Kelvin
-     kappa          = 2d0/7d0                 ! kappa=R_d/c_p
+     radius         = 6.371229d6                         ! mean radius of the Earth in meters
+     grav_accel     = 9.80616d0                          ! gravitational acceleration in meters per second squared
+     omega          = 7.29212d-5                         ! Earth’s angular velocity in radians per second
+     p_0            = 1.0d5                              ! reference pressure (mean surface pressure) in Pascals
+     ref_surf_press = p_0                                ! reference surface pressure
+     R_d            = 287d0                              ! ideal gas constant for dry air in joules per kilogram Kelvin
+     kappa          = 2d0/7d0                            ! kappa=R_d/c_p
 
-     u_0            = 35d0                      ! maximum velocity of zonal wind
-     eta_0          = 0.252d0                     ! value of eta at reference level (level of the jet)
+     u_0            = 35d0                               ! maximum velocity of zonal wind
+     eta_0          = 0.252d0                            ! value of eta at reference level (level of the jet)
   elseif (trim (test_case) == "DCMIP2008c5") then
-     compressible   = .true.                      ! Compressible equations
+     compressible   = .true.                             ! Compressible equations
 
-     radius         = 6.371229d6                  ! mean radius of the Earth in meters
-     grav_accel     = 9.80616d0                   ! gravitational acceleration in meters per second squared
-     omega          = 7.29211d-5                  ! Earth’s angular velocity in radians per second
-     p_0            = 100145.6d0                  ! reference pressure (mean surface pressure) in Pascals
-     ref_surf_press = 930.0d2                     ! reference surface pressure
-     R_d            = 287.04d0                    ! ideal gas constant for dry air in joules per kilogram Kelvin
-     kappa          = 2d0/7d0                 ! kappa=R_d/c_p
+     radius         = 6.371229d6                         ! mean radius of the Earth in meters
+     grav_accel     = 9.80616d0                          ! gravitational acceleration in meters per second squared
+     omega          = 7.29211d-5                         ! Earth’s angular velocity in radians per second
+     p_0            = 100145.6d0                         ! reference pressure (mean surface pressure) in Pascals
+     ref_surf_press = 930.0d2                            ! reference surface pressure
+     R_d            = 287.04d0                           ! ideal gas constant for dry air in joules per kilogram Kelvin
+     kappa          = 2d0/7d0                            ! kappa=R_d/c_p
 
-     d2             = 1.5d6**2                    ! square of half width of Gaussian mountain profile in meters
-     h_0            = 2.0d3                       ! mountain height in meters
-     lon_c          = MATH_PI/2                   ! longitude location of mountain
-     lat_c          = MATH_PI/6                   ! latitude location of mountain
+     d2             = 1.5d6**2                           ! square of half width of Gaussian mountain profile in meters
+     h_0            = 2.0d3                              ! mountain height in meters
+     lon_c          = MATH_PI/2                          ! longitude location of mountain
+     lat_c          = MATH_PI/6                          ! latitude location of mountain
   elseif (trim (test_case) == "Held_Suarez") then
-     compressible   = .true.                      ! Compressible equations
+     compressible   = .true.                             ! Compressible equations
 
-     radius         = 6.371229d6                  ! mean radius of the Earth in meters
-     grav_accel     = 9.8d0                       ! gravitational acceleration in meters per second squared
-     omega          = 7.292d-5                    ! Earth’s angular velocity in radians per second
-     p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
-     ref_surf_press = p_0                         ! reference surface pressure
-     R_d            = 287d0                     ! ideal gas constant for dry air in joules per kilogram Kelvin
-     gamma          = c_p/c_v                     ! heat capacity ratio
-     kappa          = 2d0/7d0                 ! kappa=R_d/c_p
+     radius         = 6.371229d6                         ! mean radius of the Earth in meters
+     grav_accel     = 9.8d0                              ! gravitational acceleration in meters per second squared
+     omega          = 7.292d-5                           ! Earth’s angular velocity in radians per second
+     p_0            = 1.0d5                              ! reference pressure (mean surface pressure) in Pascals
+     ref_surf_press = p_0                                ! reference surface pressure
+     R_d            = 287d0                              ! ideal gas constant for dry air in joules per kilogram Kelvin
+     gamma          = c_p/c_v                            ! heat capacity ratio
+     kappa          = 2d0/7d0                            ! kappa=R_d/c_p
 
-     u_0            = 35d0                      ! maximum velocity of zonal wind
-     eta_0          = 0.252d0                     ! value of eta at reference level (level of the jet)
+     u_0            = 35d0                               ! maximum velocity of zonal wind
+     eta_0          = 0.252d0                            ! value of eta at reference level (level of the jet)
   elseif (trim (test_case) == "drake") then
-     radius_earth   = 6371.229d0 * KM              ! radius of Earth
-     grav_accel     = 9.80616d0  * METRE/SECOND**2 ! gravitational acceleration 
-     ref_density    = 1028d0     * KG/METRE**3     ! reference density at depth (seawater)
-     scale          = 6d0
-     radius         = radius_earth/scale           ! mean radius of the small planet
+     vert_diffuse   = .true.
+     mode_split     = .true.                             ! split barotropic mode if true
+     penalize       = .true.                             ! penalize land regions
+     compressible   = .false.                            ! always run with incompressible equations
+     split_mean_perturbation = .true.
 
-     mode_split     = .true.                       ! split barotropic mode if true
-     penalize       = .true.                       ! penalize land regions
-     compressible   = .false.                      ! always run with incompressible equations
-     npts_penal     = 4.5d0                        ! smooth mask over this many grid points
+     radius_earth   = 6371.229d0 * KM                    ! radius of Earth
+     grav_accel     = 9.80616d0  * METRE/SECOND**2       ! gravitational acceleration 
+     ref_density    = 1028d0     * KG/METRE**3           ! reference density at depth (seawater)
+     scale          = 6d0
+     radius         = radius_earth/scale                 ! mean radius of the small planet
+ 
+     npts_penal     = 4.5d0                              ! smooth mask over this many grid points
 
      coords         = "uniform"
-     drho           =    -8d0 * KG/METRE**3        ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-     max_depth      = -4000d0 * METRE              ! total depth
-     
-     if (zlevels >= 3) then                        ! location of top (less dense) layer 
-        halocline    = -4000d0 * METRE             
-     else
-        halocline    = -1000d0 * METRE             
-      end if
+     sigma_z        = .true.  
+     drho           =    -4d0 * KG/METRE**3              ! density perturbation at free surface (density of top layer is rho0 + drho/2)
+     max_depth      = -4000d0 * METRE                    ! total depth
+
+
+     thermocline    =   -4000d0 * METRE                  ! linear stratification region between thermocline and mixed_layer
+     mixed_layer    =    -200d0 * METRE                  ! constant density at depth < mixed_layer
   elseif (trim (test_case) == "jet") then
      radius          = 1000d0 * KM                       ! meridional width of zonal channel
      f0              = 1d-4  / SECOND                    ! Coriolis parameter
@@ -105,8 +109,8 @@ program spherical_harmonics
      write (6,'(A)') "Test case not supported"
      stop
   end if
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   resume = cp_beg
 
   ! Initialize functions
@@ -116,7 +120,10 @@ program spherical_harmonics
   call initialize (run_id)
 
   call print_test_case_parameters
-  
+
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !      Compute spectra for each checkpoint
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   do cp_idx = cp_beg, cp_end
      resume = NONE
      call restart (run_id)
@@ -132,7 +139,9 @@ program spherical_harmonics
      end if
   end do
 
-  ! Compute and save averages
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !      Compute and save averages
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (cp_end /= cp_beg .and. rank == 0) then
      if (zlevels /= 2) then
         call avg_spec ('curlu')
