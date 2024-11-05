@@ -732,11 +732,10 @@ contains
     integer, dimension(1:EDGE) :: id_e
     real(8), dimension(1:EDGE) :: Qperp_e, physics
     
-    id =  idx (i, j, offs, dims)
-
+    id   =  idx (i, j, offs, dims)
+    id_e = id_edge (id)
+    
     if (dom%mask_n%elts(id+1) >= TRSK) then
-       id_e = id_edge (id)
-
        ! Calculate Q_perp
        Qperp_e = Qperp (dom, i, j, z_null, offs, dims)
 
@@ -763,14 +762,13 @@ contains
     real(8), dimension(1:EDGE)      :: gradB, gradE, theta_e
     real(8), dimension(0:NORTHEAST) :: rho_dz, rho_dz_theta, theta
 
-    id = idx (i, j, offs, dims)
-
+    id   = idx (i, j, offs, dims)
+    id_e = id_edge (id)
+    
     if (dom%mask_n%elts(id+1) >= TRSK) then
        idE  = idx (i+1, j,   offs, dims) 
        idN  = idx (i,   j+1, offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
-
-       id_e = id_edge (id) 
 
        rho_dz(0:NORTHEAST)       = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
        rho_dz_theta(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
