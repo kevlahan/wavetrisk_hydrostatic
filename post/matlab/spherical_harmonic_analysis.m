@@ -1,12 +1,9 @@
 %% Load data
 clear; clc
-%figure
-%machine  = "if.mcmaster.ca";
-machine   = "nia-datamover1.scinet.utoronto.ca";
 
-dir_remote = "~/hydro/drake";                dir_local = "~/hydro/drake";
-%dir_remote = "~/proj/jet/gmd_paper/spectra"; dir_local = "~/hydro/jet";
-%dir_remote = "~/proj/drake/new/2layer_normal/spectra/global"; dir_local = "~/hydro/drake";
+machine    = "gra-dtn1.alliancecan.ca";
+
+dir_remote = "~/proj/drake/slow_rotation/J8Z60/spectra"; dir_local = "~/hydro/drake";
 
 % Transfer all spectrum files at once
 scp_cmd = "scp "+machine+":"""+dir_remote+"/*spec"" "+dir_local;
@@ -19,9 +16,13 @@ clear; clc;
 drake = true;
 if drake
     test_case = "drake";
-    run_id    = "12layer";
-    cp_min    =  48; cp_max = 48;
+    run_id    = "drakeJ8Z60";
     type      = "curlu";
+
+    avg       = true; cp_min=1; cp_max=1;
+    zlevels   = 60;
+    zmin      = 1;
+    zmax      = zlevels;
 else
     type      = "curlu";
     test_case = "jet";
@@ -29,30 +30,25 @@ else
     cp_min    = 271; cp_max = 271;
 end
 
+plot_spec   = true;     % plot spectrum
+plot_scales = true ;    % plot length scales
+power       = true;     % plot power law fit
+col_spec    = "b-";     % colour for energy spectrum
+col_power   = "r-";     % colour for power law
+
 % Set physical parameters
 KM = 1e-3;
 [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
 
-zlevels     = 12;
-zmin        = 3;
-zmax        = 3;
-
-plot_spec   = true;     % plot spectrum
-plot_scales = true ;    % plot length scales
-power       = true;     % plot power law fit
-avg         = false;    % plot averaged spectrum
-
-col_spec    = "b-";     % colour for energy spectrum
-col_power   = "r-";     % colour for power law
-
-% range for power law fit 
-range       = [deltaI lambda1] * KM; 
+% Range for power law fit 
+%range       = [deltaI lambda1] * KM; 
 %range     = [lambda1 deltaSM] * KM; 
-%range     = [deltaI  deltaSM] * KM;
+range     = [1.5*deltaI  deltaSM] * KM;
 
 %range     = [deltaI 1.5*deltaSM] * KM; % range for power law fit
 %range     = 2/3 * [deltaI lambda1] * KM; % range for power law fit
 
+fprintf("Layer    power law")
 pow_law = zeros(cp_max-cp_min+1,zlevels);
 for cp_id = cp_min:cp_max
     for zlev = zmin:zmax
@@ -62,15 +58,14 @@ for cp_id = cp_min:cp_max
         k         = compose("%04d",zlev);
         if avg % average spectrum
             file_base = run_id+"_"+k+"_"+type;
-            %file_base = run_id+"_"+type;
         else
             file_base = run_id+"_"+cp+"_"+k+"_"+type;
-            %file_base = run_id+"_"+cp+"_"+type;
         end
         
-        spec_file = "~/hydro/"+test_case+"/"+file_base+"_spec";
+        spec_file = "/Users/kevlahan/hydro/"+test_case+"/"+file_base+"_spec"; 
+        
         try
-            pspec = load(spec_file);
+            pspec = load (spec_file, '-ascii');
         catch ME
             fprintf('\n File %s not present ... continuing\n',spec_file)
             pause
@@ -96,26 +91,25 @@ for cp_id = cp_min:cp_max
         fit_indices = find(scales > range(2) & scales < range(1));
         [P,S] = polyfit(log10(scales(fit_indices)),log10(pspec(fit_indices,2)),1);
         st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P
-        
-        fprintf("\nFitted power law for checkpoint %d at zlevel %d is %.2f +/- %.2f\n",...
-            cp_id, zlev, -P(1), st_err(1));
 
-        pow_law(cp_id,zlev) = -P(1);
+        if avg
+            %fprintf("\n %3.0f    %.2f +/- %.2f", zlev, -P(1), st_err(1));
+            fprintf("\n %3.0f    %.2f", zlev, -P(1)); % no fit error
+        else
+            fprintf("\nFitted power law for checkpoint %d at zlevel %d is %.2f +/- %.2f\n",...
+                cp_id, zlev, -P(1), st_err(1));
+        end
+
+        pow_law (cp_id,zlev) = -P(1);
 
         if plot_spec
-            loglog(scales,pspec(:,2),col_spec,"linewidth",3,"DisplayName",name_type);hold on;grid on;
-
-            axis([1e0 1e4 1e-10 1e1]);
-            set (gca,"fontsize",20);
-            xlabel("\lambda (km)");ylabel("S(\lambda)");
-            set (gca,"Xdir","reverse");%legend;
-
+            loglog(scales, pspec(:,2),col_spec,"linewidth",3,"DisplayName",name_type);hold on;grid on;
             if plot_scales
                 if strcmp(test_case,"drake")
-                    plot_scale(lambda1*KM,"\lambda_1");
-                    plot_scale(deltaSM*KM,"\delta_{SM}");
                     plot_scale(deltaI*KM,"\delta_{I}");
-                    plot_scale(deltaM*KM,"\delta_{M}");
+                    %plot_scale(lambda1*KM,"\lambda_1");
+                    plot_scale(deltaSM*KM,"\delta_{SM}");
+                    %plot_scale(deltaM*KM,"\delta_{M}");
                 elseif strcmp(test_case,"jet")
                     plot_scale(deltaI*KM,"\delta_{I}");
                     plot_scale(lambda1*KM,"\lambda_1");
@@ -129,6 +123,16 @@ for cp_id = cp_min:cp_max
         end
     end
 end
+fprintf("\n")
+xmin = 10^(round(log10(min(scales))));
+xmax = 10^(round(log10(max(scales))));
+axis([xmin xmax 1e-10 1]);
+
+set (gca,"fontsize",20);
+xlabel("\lambda (km)");ylabel("S(\lambda)");
+set (gca,"Xdir","reverse"); %legend;
+title("Run: "+run_id)
+
 %% Plot power law profile with depth
 if drake
     cp1 = 34; cp2 = 34;
@@ -236,22 +240,23 @@ function [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(
 % Physical parameters of simulation
 
 if strcmp(test_case,"drake")
-    Laplace     =  2;    % 1 = Laplacian, 2 = bi-Laplacian
-    C_visc      =  1e-3; % non-dimensional viscosity
-    dx          =  1.25e3;  % minimum grid size
-    dt          =  126;  % time step
-    visc        =  C_visc * dx^(2*Laplace)/dt;
-    uwbc        =  0.8;  % velocity scale
-    scale_omega =  1;
-    scale_earth =  6;
-    omega       =  7.29211e-5/scale_omega;
-    radius      =  6371.229e3/scale_earth;
+    Laplace     =  2;       % 1 = Laplacian, 2 = bi-Laplacian
+    C_visc      =  1e-3;    % non-dimensional viscosity
+    dx          =  5e3;     % minimum grid size
+    dt          =  647;     % time step
+    uwbc        =  0.8;     % velocity scale
     g           =  9.80616;
     drho        = -2;
     ref_density =  1030;
-    H1          =  3e3;
-    H2          =  1e3;
-    H           =  H1 + H2;
+    H           =  4e3;
+    H2          =  200;
+    H1          =  H - H2;
+
+    visc        =  C_visc * dx^(2*Laplace)/dt;
+    scale_omega =  6;
+    scale_earth =  6;
+    omega       =  7.29211e-5/scale_omega;
+    radius      =  6371.229e3/scale_earth;
     theta       =  40; % latitude at which to calculate f0 and beta
     f0          =  2*omega*sin(deg2rad(theta));
     beta        =  2*omega*cos(deg2rad(theta))/radius;
@@ -287,10 +292,10 @@ deltaI     = sqrt(uwbc/beta);   % inertial layer
 Rey        = uwbc*deltaSM^(2*Laplace-1)/visc;
 
 fprintf('\nlambda0 = %2.1f km lambda1 = %2.1f km\n',lambda0*KM,lambda1*KM)
-fprintf('\ndeltaS = %2.1f km deltaI = %2.1f km deltaM = %2.1f km deltaSM = %2.1f km\n',...
+fprintf('deltaS = %2.1f km deltaI = %2.1f km deltaM = %2.1f km deltaSM = %2.1f km\n',...
     deltaS*KM, deltaI*KM, deltaM*KM, deltaSM*KM)
-fprintf('\nRey = %2.2e\n', Rey)
-visc^(1/(2*Laplace+1)) * KM
+fprintf('Rey = %2.2e\n\n', Rey)
+visc^(1/(2*Laplace+1)) * KM;
 end
 
 
