@@ -4,14 +4,13 @@ module phyparam_mod
   implicit none
   private
   save
-  integer         :: icount
-  real            :: zday_last
-  logical         :: firstcall_alloc = .true.
+  integer :: icount
+  real    :: zday_last
 
-  real, parameter :: CapCal_nosoil = 1e5
-  real, parameter :: ref_temp      = 285.0
-  real, parameter :: Tsoil_init    = 300.0
-
+  real    :: CapCal_nosoil   = 1e5
+  real    :: ref_temp        = 285.0
+  real    :: Tsoil_init      = 300.0
+  logical :: firstcall_alloc = .true.
   public :: phyparam, alloc, precompute, zDay_last, icount
 contains
   subroutine phyparam (ngrid, nlayer, mask, firstcall, lastcall, rJourvrai, gmTime, pTimestep, pPlay, pPint, &

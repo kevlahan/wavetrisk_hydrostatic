@@ -1,15 +1,14 @@
 module radiative_mod
   use comgeomfi
-  use callkeys, only : diurnal
+  use callkeys,   only : diurnal
+  use phys_const, only : pi, Stefan
   implicit none
   private
   save
-  real, parameter :: pi           = 2.0 * asin (1.0)
-  real, parameter :: SolarCst     = 1370.0
-  real, parameter :: Stefan       = 5.67e-08  ! Stefan-Boltzmann black body constant
-  real, parameter :: height_scale = 10000.0
-  real, parameter :: Ps_rad       = 1e5
-  public          :: radiative_tendencies
+  real, parameter :: SolarCst     = 1.37e3
+  real, parameter :: height_scale = 1.00e4
+  real, parameter :: Ps_rad       = 1.00e5
+  public :: radiative_tendencies
 contains
   subroutine radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPint, pT, FluxRad)
     USE planet

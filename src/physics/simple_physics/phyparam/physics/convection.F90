@@ -21,11 +21,11 @@ contains
     real, dimension(ngrid,nlay),   intent(inout) :: pU, pV, pW ! velocities
     real, dimension(ngrid,nlay),   intent(inout) :: pTheta     ! potential temperature
 
-    integer                        :: Icol, ig, jcnt, l, jj
-    integer, dimension(ngrid)      :: jadrs
-    real,    dimension(nlay)       :: sdSig, dsig
-    real,    dimension(nlay+1)     :: Sig
-    logical, dimension(ngrid)      :: vtest
+    integer                    :: Icol, ig, jcnt, l, jj
+    integer, dimension(ngrid)  :: jadrs
+    real,    dimension(nlay)   :: sdSig, dsig
+    real,    dimension(nlay+1) :: Sig
+    logical, dimension(ngrid)  :: vtest
 
     ! Label unstable layers
     vtest = .false.

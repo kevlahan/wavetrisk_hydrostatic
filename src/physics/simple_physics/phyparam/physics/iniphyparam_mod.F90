@@ -10,10 +10,10 @@ contains
     !$cython wrapper def setup() : phy.phyparam_setup()
     USE read_param_mod
 
-    USE phys_const, only : planet_rad, g, r, Cpp, rCp, dtPhys, Unjours, mugaz
+    USE phys_const, only : planet_rad, g, r, Cpp, rCp, dtPhys, Emin_turb, Unjours, mugaz
     USE astronomy
-    USE planet,     only : coefir, coefvis
-    USE turbulence, only : LmixMin, emin_turb
+    USE planet,     only : CoefIR, CoefVis
+    USE turbulence, only : LmixMin
     USE soil_mod
     USE callkeys
 
@@ -34,17 +34,17 @@ contains
 
     call read_param ('cd_mer',    0.01,   Cd_mer,    'Cd_mer')
     call read_param ('cd_ter',    0.01,   Cd_ter,    'Cd_ter')
-    call read_param ('i_mer',   3000.0,   i_mer,     'i_mer')
-    call read_param ('i_ter',   3000.0,   i_ter,     'i_ter')
+    call read_param ('i_mer',      3e3,   i_mer,     'i_mer')
+    call read_param ('i_ter',      3e3,   i_ter,     'i_ter')
     call read_param ('alb_ter',  0.112,   alb_ter,   'alb_ter')
     call read_param ('alb_mer',  0.112,   alb_mer,   'alb_mer')
     call read_param ('emi_mer',   1.0,    emi_mer,   'emi_mer')
     call read_param ('emi_ter',   1.0,    emi_ter,   'emi_ter')
-    call read_param ('emin_turb', 1e-16,  emin_turb, 'Emin_turb')
-    call read_param ('lmixmin',  100.0,   lmixmin,   'LmixMin')
+    call read_param ('emin_turb', 1e-16,  Emin_turb, 'Emin_turb')
+    call read_param ('lmixmin',    1e2,   lmixmin,   'LmixMin')
 
-    call read_param ('coefvis',   0.99,   coefvis,   'coefvis')
-    call read_param ('coefir',    0.08,   coefir,    'coefir')
+    call read_param ('coefvis',   0.99,   CoefVis,   'CoefVis')
+    call read_param ('coefir',    0.08,   CoefIR,    'CoefIR')
 
     call read_param ('callrad',  .true.,  callrad,    'with rayonnement')
     call read_param ('calldifv', .true.,  calldifv,   'with vertical turbulent diffusion')

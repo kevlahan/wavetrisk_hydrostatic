@@ -1,17 +1,15 @@
 module turbulence
+  use phys_const, only : Emin_turb, Stefan
   implicit none
   save
   private
-  integer :: ADJZONE   = 8    ! adjzone mask
-  real    :: Karman    = 4e-1 ! Karman constant
-  real    :: Emin_turb = 1e-8 ! minimum turbulent kinetic energy
-  real    :: dVdZ2_min = 1e-6 ! minimum vertical gradient^2 of speed
-  real    :: Ri_c      = 4e-1 ! critical Reynolds number
-  real    :: LmixMin   = 1e+2 ! minimum mixing length
-  real    :: p_0       = 1e5  ! reference pressure [Pa]
-  real    :: Kv_max    = 1e0 ! maximum turbulent diffusivity
-  real, parameter :: Stefan = 5.67e-8
-  public :: ADJZONE, dVdZ2_min, Emin_turb, LmixMin, p_0, Ri_c, Vdif
+  real    :: Karman    = 4e-1         ! Karman constant
+  real    :: dVdZ2_min = 1e-6         ! minimum vertical gradient^2 of speed
+  real    :: Ri_c      = 4e-1         ! critical Reynolds number
+  real    :: LmixMin   = 1e+2         ! minimum mixing length
+  real    :: p_0       = 1e+5         ! reference pressure [Pa]
+  real    :: Kv_max    = 1e+0         ! maximum turbulent diffusivity
+  public ::  dVdZ2_min, Emin_turb, LmixMin, p_0, Ri_c, Vdif
 contains
   subroutine Vdif (ngrid, nlay, mask, pTime, pTimestep, pCapCal, pEmis, pFluxSrf, pZ0, pPlay, pPint, pZlay, pZint, pUmag, &
        pU, pV, pW, pTheta, pTsrf)

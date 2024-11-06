@@ -36,10 +36,10 @@ module vert_diffusion_mod
   real(8) :: e_sfc_0   = 1.0d-4                ! minimum TKE at free surface
   real(8) :: eps_s     = 1.0d-20               
   real(8) :: kappa_VK  = 4.0d-1                ! von Karman constant
-  real(8) :: Kt_0      = 1.2d-5                !  minimum/initial eddy diffusion
+  real(8) :: Kt_0      = 1.2d-5                ! minimum/initial eddy diffusion
   real(8) :: Kt_const  = 1.0d-6                ! analytic value for eddy diffusion (tke_closure = .false.)
   real(8) :: Kt_enh    = 1.0d2                 ! enhanced eddy diffusion
-  real(8) :: Kv_0      = 1.2d-4                !  minimum/initial eddy viscosity
+  real(8) :: Kv_0      = 1.2d-4                ! minimum/initial eddy viscosity
   real(8) :: Kv_bottom = 2.0d-3                ! analytic value for eddy viscosity (tke_closure = .false.)
   real(8) :: Kv_enh    = 1.0d2                 ! enhanced eddy viscosity
   real(8) :: l_0       = 4.0d-2                ! default turbulent length scale

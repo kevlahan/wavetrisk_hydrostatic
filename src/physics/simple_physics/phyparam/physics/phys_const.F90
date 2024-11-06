@@ -1,5 +1,6 @@
-MODULE phys_const
+module phys_const
+  real            :: planet_rad, g, r, Cpp, Emin_turb, Rcp, dtPhys, unjours, MuGaz, omeg
 
-  REAL planet_rad,g,r,cpp,rcp,dtphys,unjours,mugaz,omeg
-
-END MODULE phys_const
+  real, parameter :: pi     = 2.0 * asin (1.0)
+  real, parameter :: Stefan = 5.67e-8 ! Stefan-Boltzmann blackbodyconstant
+end module phys_const
