@@ -20,15 +20,15 @@ program Drake
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  default_thresholds      = .true.
-  Laplace_order_init      = 2                               ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
-  scale_aware             = .true.                          ! scale aware diffusion
-  mode_split              = .true.                          ! split barotropic mode if true
+  default_thresholds      = .false.
+  Laplace_order_init      = 2                              ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
+  scale_aware             = .false.                        ! scale aware diffusion
+  mode_split              = .true.                         ! split barotropic mode if true
   split_mean_perturbation = .true.
   adapt_dt                = .true.
   nstep_init              = 10
   if (mode_split) then
-     cfl_num              = 20d0
+     cfl_num              = 30d0
      timeint_type         = "RK3"                         
   else
      cfl_num              = 0.3d0                             
@@ -191,7 +191,7 @@ program Drake
   call random_seed
 
   ! Save initial conditions
-  call write_and_export (iwrite)
+!  call write_and_export (iwrite)
   
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
