@@ -50,7 +50,7 @@ module vert_diffusion_mod
   real(8) :: z_0       = 1.0d-1                ! roughness parameter of free surface
 contains
   subroutine vertical_diffusion
-    ! Backwards euler step for vertical diffusion
+    ! Backwards Euler split step for vertical diffusion
     use adapt_mod
     use time_integr_mod
     implicit none
@@ -61,10 +61,7 @@ contains
        call apply_onescale (turbulence_model, l, z_null, 0, 1)
     end do
 
-    if (tke_closure) then
-       tke%bdry_uptodate = .false.
-       call WT_after_scalar (tke, wav_tke, level_start-1)
-    end if
+    if (tke_closure) tke%bdry_uptodate = .false.
 
     ! Apply vertical diffusion to each vertical column
     do l = level_end, level_start, -1
@@ -72,8 +69,6 @@ contains
        call apply_onescale (backwards_euler_velo, l, z_null, 0, 0)
     end do
     sol%bdry_uptodate = .false.
-
-    call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine vertical_diffusion
 
   subroutine turbulence_model (dom, i, j, z_null, offs, dims)
