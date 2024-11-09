@@ -22,13 +22,12 @@ contains
     call update_bdry (sol, NONE)
 
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
-
+    
     call apply_bdry (physics_call, z_null, 0, 1)
+
     physics_firstcall_flag = .false. ! update flag to false, once 1st call for all columns finished
 
     sol%bdry_uptodate = .false.
-
-    call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine physics_simple_step
 
   subroutine physics_call (dom, i, j, zlev, offs, dims)
