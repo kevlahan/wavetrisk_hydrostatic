@@ -72,9 +72,6 @@ contains
     end do
     sol(:,1:zlevels)%bdry_uptodate = .false.
 
-    ! Interpolate onto grid (conserves mass)
-    call WT_after_step (sol(:,1:zlevels), wav_coeff(:,1:zlevels), level_start-1)
-
     nullify (interpolate)
     deallocate (old_mass)
   end subroutine remap_vertical_coordinates
