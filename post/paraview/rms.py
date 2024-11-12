@@ -44,8 +44,8 @@ for t in range (t1, t2+1):
         # Compute rms
         rms = rms_int (vtk_data.GetOutput(), "density")
     
-        print("%7.4f" % (rms)) 
-        f.write("%3d  %7.4f" % (k, rms)) 
+        print("%14.8e" % (rms)) 
+        f.write("%3d %14.8e" % (k, rms)) 
 
     
 
