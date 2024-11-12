@@ -599,20 +599,22 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, id_e, id_i, k, l
-    real(8) :: dx, v_mag
+    integer                    :: d, e, id, id_e, id_i, k, l
+    integer, dimension(1:EDGE) :: ide
+    real(8)                    :: dx, v_mag
 
-    id = idx (i, j, offs, dims)
+    id   = idx (i, j, offs, dims)
     id_i = id + 1
-    d  = dom%id + 1
-    l  = dom%level%elts(id_i)
-        
+    ide  = id_edge(id)
+    d    = dom%id + 1
+    l    = dom%level%elts(id_i)
+
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        n_active_nodes(l) = n_active_nodes(l) + 1 
        if (adapt_dt) then
-          dx = minval (dom%len%elts(EDGE*id+RT+1:EDGE*id+UP+1))
+          dx = minval (dom%len%elts(ide))
           do k = 1, zlevels
-             v_mag = maxval (abs(sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)))
+             v_mag = maxval (abs(sol(S_VELO,k)%data(d)%elts(ide)))
              if (mode_split) then
                 dt_loc = min (dt_loc, cfl_num * dx / wave_speed, cfl_adv * dx / v_mag, cfl_bar * dx / c1)
              else
@@ -623,8 +625,7 @@ contains
     end if
 
     do e = 1, EDGE
-       id_e = EDGE * id + e 
-       if (dom%mask_e%elts(id_e) >= ADJZONE) n_active_edges(l) = n_active_edges(l) + 1
+       if (dom%mask_e%elts(ide(e)) >= ADJZONE) n_active_edges(l) = n_active_edges(l) + 1
     end do
   end subroutine cal_min_dt
 
