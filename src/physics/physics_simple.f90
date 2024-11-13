@@ -28,6 +28,7 @@ contains
     physics_firstcall_flag = .false. ! update flag to false, once 1st call for all columns finished
 
     sol%bdry_uptodate = .false.
+    call update_bdry (sol, NONE)
   end subroutine physics_simple_step
 
   subroutine physics_call (dom, i, j, zlev, offs, dims)
