@@ -42,10 +42,10 @@ for t in range (t1, t2+1):
         vtk_data.Update()
 
         # Compute rms
-        rms = rms_int (vtk_data.GetOutput(), "density")
+        rms = rms_int (vtk_data.GetOutput(), field)
     
         print("%14.8e" % (rms)) 
-        f.write("%3d %14.8e\n" % (k, rms)) 
+        f.write("%10.4e %3d %14.8e\n" % (t*dt, k, rms)) 
 
     
 
