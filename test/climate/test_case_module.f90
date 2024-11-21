@@ -12,7 +12,10 @@ module test_case_mod
   ! Standard variables
   integer :: CP_EVERY, resume_init
   real(8) :: time_start, total_cpu_time
+  logical :: print_tol = .false.              ! print tolerances for each layer
 
+  integer :: k1_tol
+  
   ! Test case variables
   real(8) :: Area_max, Area_min, C_div, dt_max, dz
   real(8) :: topo_Area_min, topo_dx_min
@@ -22,7 +25,10 @@ module test_case_mod
   real(8)        :: e_thick       = 10d0 * KM ! Ekman initial conditions
   character(255) :: analytic_topo = "none"    ! mountains or none (used if NCAR_topo = .false.)
 
-  ! From simple physics
+  ! Held-Suarez
+  logical        :: CAM           = .true.    ! use CAM values for time step and viscosity
+  
+  ! Simple physics
   logical        :: Ekman_ic      = .false.   
   logical        :: scale_aware   = .false.
 contains
@@ -128,7 +134,8 @@ contains
     if (Laplace_order == 0) then
        physics_velo_source_case = 0d0
     else
-       physics_velo_source_case = (-1d0)**(Laplace_order-1) * nu_scale (dom, id) * (C_div * grad_divu () - C_visc(S_VELO) * curl_rotu ()) 
+       physics_velo_source_case = (-1d0)**(Laplace_order-1) * nu_scale (dom, id) &
+            * (C_div * grad_divu () - C_visc(S_VELO) * curl_rotu ()) 
     end if
   contains
     function grad_divu ()
@@ -598,11 +605,12 @@ contains
 
   subroutine print_test_case_parameters
     implicit none
+    integer :: k
 
     if (rank==0) then
        write (6,'(a)') &
             '********************************************************** Parameters &
-            ************************************************************'
+            *************************************************************'
        write (6,'(a)')        "RUN PARAMETERS"
        write (6,'(a,a)')      "test_case               = ", trim (test_case)
        write (6,'(a,a)')      "physics_type            = ", trim (physics_type)
@@ -650,7 +658,7 @@ contains
 
        write (6,'(a,es10.4)') "dt_max           [s]     = ", dt_max
        write (6,'(a,es10.4)') "dt_write         [d]     = ", dt_write / DAY
-       write (6,'(a,i3)')     "CP_EVERY                 = ", CP_EVERY
+       write (6,'(a,i4)')     "CP_EVERY                 = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance                = ", rebalance
        write (6,'(a,es10.4)') "time_end         [d]     = ", time_end / DAY
        write (6,'(a,i6)')     "resume                   = ", resume_init
@@ -696,9 +704,16 @@ contains
        else
           write (6,'(a,a)')      "analytic_topo            = ", analytic_topo
        end if
+
+
+       write (6,'(a)') "Default thresholds for each layer"
+       write (6,'(a)') "Layer    S_MASS      S_TEMP      S_VELO"
+       do k = 1, zlevels
+          write (6,'(i3, 6x, 3(es8.2,4x))') k, threshold(S_MASS,k), threshold(S_TEMP,k), threshold(S_VELO,k)
+       end do
        write (6,'(a)') &
             '*********************************************************************&
-            ************************************************************'
+            *************************************************************'
     end if
   end subroutine print_test_case_parameters
 
@@ -706,7 +721,7 @@ contains
     ! Prints out and saves logged data to a file
     implicit none
 
-    integer :: min_load, max_load, total_layers
+    integer :: k, min_load, max_load, total_layers
     real(8) :: avg_load, rel_imbalance, timing
 
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
@@ -719,13 +734,20 @@ contains
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,2(a,es8.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
-            '  mass tol = ', sum (threshold(S_MASS,:))/total_layers, &
-            ' temp tol = ', sum (threshold(S_TEMP,:))/total_layers, &
-            ' velo tol = ', sum (threshold(S_VELO,:))/total_layers, &
+            '  mass tol = ', sum (threshold(S_MASS,k1_tol:zlevels))/(zlevels-k1_tol+1), &
+             ' temp tol = ', sum (threshold(S_TEMP,k1_tol:zlevels))/(zlevels-k1_tol+1), &
+             ' velo tol = ', sum (threshold(S_VELO,k1_tol:zlevels))/(zlevels-k1_tol+1), &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
+
+       if (print_tol) then
+          write (6,'(a)') "Layer    S_MASS      S_TEMP      S_VELO"
+          do k = 1, zlevels
+             write (6,'(i3, 6x, 3(es8.2,4x))') k, threshold(S_MASS,k), threshold(S_TEMP,k), threshold(S_VELO,k)
+          end do
+       end if
 
        write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  &
             time/DAY, dt, sum (threshold(S_MASS,:))/total_layers, sum (threshold(S_TEMP,:))/total_layers, &
@@ -737,35 +759,43 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer :: k
-    real(8) :: p, rho_dz
+    real(8) :: p, p_s, rho_dz
 
-    do k = 1, zlevels
-       p      = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_0) 
+    call std_surf_pres (0d0, p_s)
+
+    threshold_def = 1d16
+
+    do k = k1_tol, zlevels
+       p      = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s)
+
        rho_dz = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
-     
-       threshold_def(S_MASS,:) = tol * rho_dz
-       threshold_def(S_TEMP,:) = tol * rho_dz * theta_init (p)
-       threshold_def(S_VELO,:) = tol * Udim
+
+       threshold_def(S_MASS,k) = tol * rho_dz
+       threshold_def(S_TEMP,k) = tol * rho_dz * theta_init (p)
+       threshold_def(S_VELO,k) = tol * u_0
     end do
   end subroutine initialize_thresholds_case
-
+  
   subroutine set_thresholds_case
     ! Set thresholds dynamically
+    ! (the default thresholds are a lower bound for the adaptive thresholds)
     use lnorms_mod
     implicit none
     integer :: k
+    real(8) :: mass_norm, temp_norm, velo_norm
     
-    call cal_lnorm ("2")
+    threshold = 1d16
 
-    if (default_thresholds) then
-       threshold = threshold_def
-    else
-       threshold = tol * lnorm
-       do k = 1, zlevels
-          if (threshold(S_MASS,k) < threshold_def(S_MASS,k)) threshold(S_MASS,k) = threshold_def(S_MASS,k)
-          if (threshold(S_TEMP,k) < threshold_def(S_TEMP,k)) threshold(S_TEMP,k) = threshold_def(S_TEMP,k)
-          if (threshold(S_VELO,k) < threshold_def(S_VELO,k)) threshold(S_VELO,k) = threshold_def(S_VELO,k)
+    if (.not. default_thresholds) then
+       call cal_lnorm ("2")
+       
+       do k = k1_tol, zlevels
+          threshold(S_MASS,k) = max (0.1d0 * threshold_def(S_MASS,k), tol * lnorm(S_MASS,k))
+          threshold(S_TEMP,k) = max (0.1d0 * threshold_def(S_TEMP,k), tol * lnorm(S_TEMP,k))
+          threshold(S_VELO,k) = max (0.1d0 * threshold_def(S_VELO,k), tol * lnorm(S_VELO,k))
        end do
+    else
+       threshold = threshold_def
     end if
   end subroutine set_thresholds_case
 
@@ -789,35 +819,34 @@ contains
     dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)              
     dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
 
-    ! Time step parameters
-    if (adapt_dt) then
-       cfl_max = 1d0                                                ! maximum cfl number
-       cfl_min = cfl_max                                            ! minimum cfl number
-       T_cfl   = 1d-1 * DAY                                         ! time over which to increase cfl number from cfl_min to cfl_max
-       cfl_num = cfl_min                                            ! initialize cfl number
-       dt_init = cfl_min * 0.85d0 * dx_min / (wave_speed + u_0)     ! initial time step     (0.85 factor corrects for minimum dx)
-       dt_max  = cfl_max * 0.85d0 * dx_min / (wave_speed + u_0)     ! equilibrium time step (0.85 factor corrects for minimum dx)
-    else
-       dt_init = 300d0 * SECOND * dx_scaling                        ! CAM value
-       dt_max  = dt_init
+    if (physics_type == "Held_Suarez" .and. CAM) then           ! use CAM values for Held-Suarez simulations
+       adapt_dt = .false.
+       dt_init  = 300d0 * SECOND * dx_scaling                        
+
+       ! Set viscosities
+       nu_dim         = 1.5d0 * Area_min**Laplace_order / dt_init     ! viscosity scale on finest grid
+       nu_scaling     = (res_scaling * dx_scaling)**(2*Laplace_order)
+       nu             = nu_CAM * nu_scaling                           ! scaled CAM viscosity
+
+       ! Limit viscosity to stable values
+       nu_sclr        = min (nu,          nu_dim * C_max                     )  
+       nu_rotu        = min (nu,          nu_dim * C_max / 4d0**Laplace_order)
+       nu_divu        = min (nu * 2.5d0,  nu_dim * C_max                     )
+
+       ! Equivalent non-dimensional viscosities
+       ! (CAM non-dimensional viscosity is C =  (1e15 m^4/s) (300 s) / (120 km)^4 = 1.45e-3)
+       C_visc(S_MASS) = nu_sclr / nu_dim 
+       C_visc(S_TEMP) = nu_sclr / nu_dim 
+       C_visc(S_VELO) = nu_rotu / nu_dim
+       C_div          = nu_divu / nu_dim
+    else ! use standard values
+       dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_0)       ! initial time step     (0.85 factor corrects for minimum dx)
+
+       C_visc(S_VELO)     = 5d-4                                    ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
+       C_div              = 4d0**Laplace_order * C_visc(S_VELO)       ! dimensionless viscosity for divu         < 2.8e-2
+       C_visc(S_MASS)     = 4d0**Laplace_order * C_visc(S_VELO)       ! dimensionless viscosity of S_MASS        < 2.8e-2
+       C_visc(S_TEMP)     = 4d0**Laplace_order * C_visc(S_VELO)       ! dimensionless viscosity of S_TEMP        < 2.8e-2
     end if
-
-    ! Set viscosities
-    nu_dim         = 1.5d0 * Area_min**Laplace_order / dt_init      ! viscosity scale on finest grid
-    nu_scaling     = (res_scaling * dx_scaling)**(2*Laplace_order)
-    nu             = nu_CAM * nu_scaling                            ! scaled CAM viscosity
-
-    ! Limit viscosity to stable values
-    nu_sclr        = min (nu,          nu_dim * C_max                     )  
-    nu_rotu        = min (nu,          nu_dim * C_max / 4d0**Laplace_order)
-    nu_divu        = min (nu * 2.5d0,  nu_dim * C_max                     )
-    
-    ! Equivalent non-dimensional viscosities
-    ! (CAM non-dimensional viscosity is C =  (1e15 m^4/s) (300 s) / (120 km)^4 = 1.45e-3)
-    C_visc(S_MASS) = nu_sclr / nu_dim 
-    C_visc(S_TEMP) = nu_sclr / nu_dim 
-    C_visc(S_VELO) = nu_rotu / nu_dim
-    C_div          = nu_divu / nu_dim
   end subroutine initialize_dt_viscosity_case
 
   real(8) function nu_scale (dom, id)

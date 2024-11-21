@@ -31,12 +31,12 @@ program climate
   scale_aware              = .true.                            ! scale-aware viscosity
   adapt_dt                 = .true.                            ! adapt time step
   default_thresholds       = .true.                            ! thresholding type
-  k1_tol = 6; k2_tol = 10
-  cfl_num                  = 1d0                             ! CFL number
+  k1_tol                   = 5                                 ! adapt only only layers >= k1_tol
+  cfl_num                  = 1d0                               ! CFL number
 
   dt_phys                  = 0 * MINUTE                        ! interval for physics split step
   remap                    = .true.                            ! use vertical remapping
-  min_mass_remap           = 0.8d0                            ! minimum mass at which to remap
+  min_mass_remap           = 0.8d0                             ! minimum mass at which to remap
  
   split_mean_perturbation  = .false.                           ! split prognostic variables into mean and fluctuations
   compressible             = .true.                            ! compressible equations
