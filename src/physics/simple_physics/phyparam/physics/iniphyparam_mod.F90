@@ -3,13 +3,10 @@ module iniphyparam_mod
   implicit none
   private
   real, parameter :: perfect_gas_const = 8314.46261815324 ! nb using g instead of kg for mass
-  public :: iniphyparam
+  public          :: iniphyparam
 contains
-  subroutine read_params() bind(c, name='phyparam_setup')
-    !$cython header void phyparam_setup();
-    !$cython wrapper def setup() : phy.phyparam_setup()
+  subroutine read_params s() bind(c, name='phyparam_setup')
     USE read_param_mod
-
     USE phys_const, only : planet_rad, g, r, Cpp, rCp, dtPhys, Emin_turb, Unjours, mugaz
     USE astronomy
     USE planet,     only : CoefIR, CoefVis
@@ -68,14 +65,16 @@ contains
 
     call read_params
 
-    ! Choice of frequency of computation of radiation
-    if (diurnal) then
-       iradia = nint (Unjours / (20.0 * pTimestep))
-    else
-       iradia = nint (Unjours / ( 4.0 * pTimestep))
-    end if
-    iradia = 1
+    ! Frequency of computation of radiation
+    ! if (diurnal) then
+    !    iradia = nint (Unjours / (20.0 * pTimestep))
+    ! else
+    !    iradia = nint (Unjours / ( 4.0 * pTimestep))
+    ! end if
+    
+    ! Compute radiative transfer and physics every time step
     dtPhys = pTimestep
+    iradia = 1 
 
     call check_mismatch ('day length (s)',         pUnjours,    Unjours)
     call check_mismatch ('planetary radius (km)',  pRad/1000.0, planet_rad/1000.0)

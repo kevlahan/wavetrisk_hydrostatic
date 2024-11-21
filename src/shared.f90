@@ -233,10 +233,10 @@ module shared_mod
   integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
 
   real(8)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
-  real(8)                                       :: dbin, dt, dt_init, dt_write, dx_min, dx_max, time_end, time
+  real(8)                                       :: dbin, dt, dt_init, dt_phys, dt_write, dx_min, dx_max, time_end, time
   real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax
   real(8)                                       :: ref_density, ref_density_air, ref_density_water
-  real(8)                                       :: mass_error, max_depth, min_depth, min_mass
+  real(8)                                       :: mass_error, max_depth, min_depth, min_mass, min_mass_remap
   real(8)                                       :: theta1, theta2, visc_divu, visc_rotu
   real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(8)                                       :: Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim
@@ -373,9 +373,12 @@ contains
     cfl_bar                 = 1d0                                 ! baroclinic CFL number in mode split case
     cfl_num                 = 1d0                                 ! CFL number (barotropic CFL in mode split case)
     C_visc                  = 5d-4                                ! dimensionless diffusion coefficients
+    dt_phys                 = 30d0 * MINUTE                       ! intervale for physics split step
+    dt_write                = 5d0  * DAY                          ! intervale for writing data
     iadapt                  = 1                                   ! adapt horizontal grid every iadapt time step
     irebalance              = 5                                   ! interval for checking rebalance (only active if using AMPI)
     iremap                  = 10                                  ! remap every iremap time steps
+    min_mass_remap          = 0.5d0                               ! minimum relative layer mass at which to remap
     level_save              = level_start                         ! level to save
     Laplace_order_init      = 0                                   ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     n_diffuse               = 1                                   ! include diffusion every n_diffuse steps

@@ -72,6 +72,9 @@ contains
     end do
     sol(:,1:zlevels)%bdry_uptodate = .false.
 
+    ! Transform remapped solution onto adaptive grid (corrects values of some ZERO mask cells)
+    call WT_after_step (sol, wav_coeff, level_start-1) 
+
     nullify (interpolate)
     deallocate (old_mass)
   end subroutine remap_vertical_coordinates

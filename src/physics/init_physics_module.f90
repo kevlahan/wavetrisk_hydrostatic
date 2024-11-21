@@ -76,15 +76,20 @@ module init_physics_mod
     !                init_soil_grid(_default)) and the wavetrisk parameters have been
     !                initialized (ie called initialize(run_id)).
     !
+    !   if change dt_Phys and iradia in iniphyparam_mod.F90 to not compute every time step
+    !   need to use fixed time step in test case
+    !
     !   Author: Gabrielle Ching-Johnson
     !
     !-----------------------------------------------------------------------------------
     use iniphyparam_mod,   only : iniphyparam
     use single_column_mod, only : initialize_extra_levels
     use shared_mod,        only : dt
+    use phyparam_mod,      only : alloc, precompute, zday_last, icount
     use read_param_mod
     use logging
     implicit none
+    real(8) :: day_fraction, nth_day
     character(255) :: command, param_file
 
     ! Set physics function pointers (if using) ! it is here where I use soil_mod flag to set soil
@@ -110,6 +115,20 @@ module init_physics_mod
 
     ! Physics single column module extra levels initialization (as needs soil flag set in iniphyparam)
     call initialize_extra_levels (Nsoil+1)
+
+    if (cp_idx > 0) then
+       ! Set day in physics
+       day_fraction = (time - dt) / DAY
+       nth_day      = floor (day_fraction)
+       day_fraction = day_fraction - nth_day
+       zday_last    = nth_day + day_fraction - dt/DAY
+
+       ! Precompute time-independent arrays and set land or sea of each column (determines surface properties)
+       call alloc (1, zlevels)
+
+       ! Set land surface properties
+       call precompute ()
+    end if
   end subroutine init_physics
 
   subroutine write_physics_params (file_unit, file_params)
@@ -208,31 +227,14 @@ module init_physics_mod
   subroutine physics_checkpoint_restart
     !-----------------------------------------------------------------------------------
     !
-    !   Description: Initialize physics cases for when checkpointing is used. sOnly to be
+    !   Description: Initialize physics cases for when checkpointing is used. Only to be
     !                called when cp_idx > 0.
     !
     !   Author: Gabrielle Ching-Johnson
     !
     !-----------------------------------------------------------------------------------
-    use phyparam_mod, only : alloc, precompute, zday_last, icount
+    use phyparam_mod, only : alloc, precompute
 
-    real(8) :: day_fraction, nth_day
-
-    ! Set flag for first call to physics false (thus the soil levels will get updated)
-    physics_firstcall_flag = .false.
-
-    ! Call allocation for physics call (usually done on the physics first call)
-    call alloc(1, zlevels)
-
-    ! Call precompute for physics call (usually done on the physics first call)
-    call precompute ()
-
-    ! Set the previous day in physics
-    day_fraction = (time - dt) / DAY
-    nth_day      = floor (day_fraction)
-    day_fraction = day_fraction - nth_day
-
-    zday_last = nth_day + day_fraction - dt/DAY
   end subroutine physics_checkpoint_restart
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

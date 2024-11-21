@@ -13,22 +13,26 @@ module physics_simple_mod
   use ops_mod
   use init_physics_mod
   implicit none
+  real(8) :: phys_dt
 contains
-  subroutine physics_simple_step
+  subroutine physics_simple_step (h)
     ! Uses simple physics modules to take a Backwards Euler step for physics using time step dt set by dynamics
     implicit none
+    real(8) :: h ! time step
+    
     integer :: d, k
-    
-    call update_bdry (sol, NONE)
 
+    phys_dt = h
+    
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
-    
+
+    ! Compute simple physics split step on all columns
     call apply_bdry (physics_call, z_null, 0, 1)
-
-    physics_firstcall_flag = .false. ! update flag to false, once 1st call for all columns finished
-
     sol%bdry_uptodate = .false.
+
     call update_bdry (sol, NONE)
+
+    physics_firstcall_flag = .false.
   end subroutine physics_simple_step
 
   subroutine physics_call (dom, i, j, zlev, offs, dims)
@@ -72,7 +76,7 @@ contains
     id   = idx (i, j, offs, dims)
     id_i = id + 1
 
-    day_fraction = (time - dt) / DAY
+    day_fraction = (time - phys_dt) / DAY
     nth_day      = floor (day_fraction)
     day_fraction = day_fraction - nth_day
 
@@ -93,17 +97,17 @@ contains
 
     ! Backwards Euler step on current column
     call physics_call_single_col (1, zlevels, mask, &
-         physics_firstcall_flag, lastcall_flag, nth_day, day_fraction, dt, &
+         physics_firstcall_flag, lastcall_flag, nth_day, day_fraction, phys_dt, &
          phys_Play, phys_Pint, phys_Phi, phys_Phisurf, phys_Umag, &
          phys_U, phys_V, phys_W, phys_Theta, Tsoil) ! updated
 
-    ! Assign solution at t+dt
+    ! Assign solution at t+h
     do k = 1, zlevels
        sol(S_VELO,k)%data(d)%elts(id_edge(id)) = (/ phys_U(k), phys_V(k), phys_W(k) /)
        sol(S_TEMP,k)%data(d)%elts(id_i)        = rho_dz(k) * phys_Theta(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
     end do
 
-    ! Assign soil column solution at t+dt to WAVETRISK data structure
+    ! Assign soil column solution at t+phys_dt to WAVETRISK data structure
     do k = zmin, 0
        sol(S_TEMP,k)%data(d)%elts(id_i) = Tsoil(abs(k)+1)
     end do

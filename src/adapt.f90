@@ -212,7 +212,6 @@ contains
        l_start = level_start
     end if
 
-    scaling%bdry_uptodate = .false.
     call update_bdry (scaling, NONE, 16)
 
     do k = 1, size(scaling,2)

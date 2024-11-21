@@ -134,16 +134,12 @@ contains
        
        call count_active
      
-       if (trim (test_case) /= 'make_NCAR_topo') call write_checkpoint (run_id, .true.)
+       if (trim (test_case) /= "make_NCAR_topo") call write_checkpoint (run_id, .true.)
     end if
     call barrier
 
 #ifdef PHYSICS
-    if (physics_model .and. physics_type == "Simple") then
-       call init_physics
-       lverbose = .false.
-       if (cp_idx > 0) call physics_checkpoint_restart ! physics call initializations if checkpointing
-    end if
+    if (physics_model .and. physics_type == "Simple") call init_physics
 #endif
   end subroutine initialize
   
@@ -308,11 +304,6 @@ contains
     ! Initialize thresholds to default values (possibly based on mean values)
     call initialize_thresholds
 
-    ! Adapt on (new) threshold for this run
-    call adapt (set_thresholds, .true.) 
-    call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
-    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start)
-
     ! Initialize time step and viscosities
     call initialize_dt_viscosity
 
@@ -378,7 +369,7 @@ contains
     logical, intent(out) :: aligned
 
     integer(8) :: idt, ialign
-    real(8)    :: dx, dt_0
+    real(8)    :: dx
 
     istep       = istep+1
     istep_cumul = istep_cumul+1
@@ -388,10 +379,10 @@ contains
     n_patch_old = grid%patch%length
     n_node_old  = grid%node%length
 
-    idt    = nint (dt * time_mult, 8)
+    idt    = nint (dt         * time_mult, 8)
     ialign = nint (align_time * time_mult, 8)
     if (ialign > 0 .and. istep > 20) then
-       aligned = (modulo (itime+idt,ialign) < modulo (itime,ialign))
+       aligned = modulo (itime + idt, ialign) < modulo (itime, ialign)
     else
        aligned = .false.
     end if
@@ -401,10 +392,10 @@ contains
        idt = ialign - modulo (itime,ialign)
        dt = idt / time_mult
     end if
-
+    
     ! Take initial small time steps after restart
     if (istep <= nstep_init) dt = dt_init * (0.1d0 + (1d0 - 0.1d0) * sin (MATH_PI/2d0 * dble(istep-1)/dble(nstep_init-1)))
-    
+
     ! Diffusion
     if (modulo (istep_cumul, n_diffuse) == 0) then
        Laplace_order = Laplace_order_init
@@ -412,41 +403,59 @@ contains
        Laplace_order = 0
     end if
 
-    ! Take time step
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! Dynamics time step
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if (mode_split) then
        call dt_step_split (dt)
     else
        call dt_step (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
     end if
 
-    ! Split step physics routines and sub-models
+    
+     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! Physics split step
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
+    ! Ocean (incompressible) 
     if (vert_diffuse) call vertical_diffusion ! ocean (incompressible) models
 
+    ! Atmosphere (compressible) 
 #ifdef PHYSICS
-    if (physics_model) then ! atmosphere (compressible) climate models
+    if (physics_model) then
        select case (physics_type)
        case ("Held_Suarez")
           call Euler (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_physics_Held_Suarez, dt) 
        case ("Simple")
-          call physics_simple_step 
+          call physics_simple_step (dt)
        end select
     end if
 #endif
 
-    ! Adapt grid
-    if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels for iWT
+    
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! Vertical remapping
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    min_mass = cpt_min_mass () 
+    if (remap .and. min_mass < min_mass_remap) then
+       call remap_vertical_coordinates
+       iremap = 1
+    else
+       iremap = iremap + 1
+    end if
+
+    if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
+
+
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! Grid adaptation
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
+    
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol)
 
-    ! If necessary, remap vertical coordinates
-    if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
-    
-    ! Change in vertical layer depths
-    if (log_min_mass) min_mass = cpt_min_mass ()
 
-    ! Change in total mass
-    if (log_total_mass) call cal_total_mass (.false.)
-   
     itime = itime + idt
 
     if (match_time) then
@@ -454,10 +463,10 @@ contains
     else
        time = time + dt
     end if
-    
+
     ! Update time step and count active nodes
     dt_new = cpt_dt ()
-
+    
     ! Rebalance with AMPI
 #ifdef AMPI
     if (modulo (istep, irebalance) == 0) then

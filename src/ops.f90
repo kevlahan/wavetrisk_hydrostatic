@@ -991,9 +991,7 @@ contains
     ! Set geopotential to surface geopotential for upward integration
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
 
-    integer :: d, j, k, p
-
-    call update_bdry (q(S_MASS:S_TEMP,1:zlevels), NONE)
+    integer :: d, k, p
 
     call apply (set_surf_geopot, z_null)
 
@@ -1005,7 +1003,7 @@ contains
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
           mean_t => sol_mean(S_TEMP,k)%data(d)%elts
           do p = 3, grid(d)%patch%length
-             call apply_onescale_to_patch (column_mass, grid(d), p-1, k, -2, 1)
+             call apply_onescale_to_patch (column_mass, grid(d), p-1, k, 0, 1)
           end do
           nullify (mass, mean_m, mean_t, temp)
        end do
