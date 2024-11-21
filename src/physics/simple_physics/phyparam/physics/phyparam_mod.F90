@@ -181,14 +181,15 @@ contains
   end subroutine phyparam
 
   subroutine alloc (ngrid, nlayer) bind (c, name='phyparam_alloc')
+    ! Allocate surface property arrays, surface temperature, soil column arrays and orbital parameters used by physics module
     use astronomy, only : iniorbit
     use soil_mod,  only : Tsurf, Tsoil, Z0, pThermal_inertia, land, Albedo, Emissiv
     integer, intent(in), value :: ngrid, nlayer
 
-    ! Allocate precomputed arrays
+    ! Allocate surface property arraysc
     allocate (land(ngrid), Albedo(ngrid), Emissiv(ngrid), Z0(ngrid), pThermal_inertia(ngrid))
 
-    ! Allocate arrays for internal state
+    ! Allocate surface temperature and soil column
     allocate (Tsurf(ngrid))
     if (callsoil) allocate (Tsoil(ngrid,nsoilmx))
 
@@ -196,7 +197,7 @@ contains
   end subroutine alloc
 
   subroutine precompute () bind (c, name='phyparam_precompute')
-    ! Precompute time-independent arrays and set land or sea of each column (determines surface properties)
+    ! Set land surface properties
     use soil_mod, only: land, pThermal_inertia, Z0, Emissiv, Albedo,  I_mer, I_ter, Cd_mer, Cd_ter,  Alb_mer, Alb_ter, Emi_mer, Emi_ter
 
     land             = 1.0                                      ! all columns are over land

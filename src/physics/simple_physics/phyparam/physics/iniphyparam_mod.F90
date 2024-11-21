@@ -5,7 +5,7 @@ module iniphyparam_mod
   real, parameter :: perfect_gas_const = 8314.46261815324 ! nb using g instead of kg for mass
   public          :: iniphyparam
 contains
-  subroutine read_params s() bind(c, name='phyparam_setup')
+  subroutine read_params () bind(c, name='phyparam_setup')
     USE read_param_mod
     USE phys_const, only : planet_rad, g, r, Cpp, rCp, dtPhys, Emin_turb, Unjours, mugaz
     USE astronomy
