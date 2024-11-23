@@ -65,9 +65,9 @@ contains
     ! Remap variables on all levels
     do l = level_start, level_end
        if (compressible) then
-          call apply_onescale (remap_compressible,   l, z_null, 0, 1)
+          call apply_onescale (remap_compressible,   l, z_null, 0, 0)
        else
-          call apply_onescale (remap_incompressible, l, z_null, 0, 1)
+          call apply_onescale (remap_incompressible, l, z_null, 0, 0)
        end if
     end do
     sol(:,1:zlevels)%bdry_uptodate = .false.

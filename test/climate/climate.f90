@@ -21,7 +21,7 @@ program climate
    ! Read test case parameters
   call read_test_case_parameters
   
-  ! Initialize random number generator
+  ! Initialize random number generator 
   call initialize_seed
 
   
@@ -31,7 +31,6 @@ program climate
   scale_aware              = .true.                            ! scale-aware viscosity
   adapt_dt                 = .true.                            ! adapt time step
   default_thresholds       = .true.                            ! thresholding type
-  k1_tol                   = 5                                 ! adapt only only layers >= k1_tol
   cfl_num                  = 1d0                               ! CFL number
 
   dt_phys                  = 0 * MINUTE                        ! interval for physics split step

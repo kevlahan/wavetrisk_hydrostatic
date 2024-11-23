@@ -14,8 +14,6 @@ module test_case_mod
   real(8) :: time_start, total_cpu_time
   logical :: print_tol = .false.              ! print tolerances for each layer
 
-  integer :: k1_tol
-  
   ! Test case variables
   real(8) :: Area_max, Area_min, C_div, dt_max, dz
   real(8) :: topo_Area_min, topo_dx_min
@@ -734,9 +732,9 @@ contains
        write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,2(a,es8.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
-            '  mass tol = ', sum (threshold(S_MASS,k1_tol:zlevels))/(zlevels-k1_tol+1), &
-             ' temp tol = ', sum (threshold(S_TEMP,k1_tol:zlevels))/(zlevels-k1_tol+1), &
-             ' velo tol = ', sum (threshold(S_VELO,k1_tol:zlevels))/(zlevels-k1_tol+1), &
+            '  mass tol = ', sum (threshold(S_MASS,1:zlevels)) / dble (zlevels), &
+             ' temp tol = ', sum (threshold(S_TEMP,1:zlevels)) / dble (zlevels), &
+             ' velo tol = ', sum (threshold(S_VELO,1:zlevels)) / dble (zlevels), &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' balance = ', rel_imbalance, &
@@ -750,8 +748,8 @@ contains
        end if
 
        write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  &
-            time/DAY, dt, sum (threshold(S_MASS,:))/total_layers, sum (threshold(S_TEMP,:))/total_layers, &
-            sum (threshold(S_VELO,:))/total_layers, level_end, sum (n_active), rel_imbalance, timing
+            time/DAY, dt, sum (threshold(S_MASS,:))/dble(zlevels), sum (threshold(S_TEMP,:))/dble(zlevels), &
+            sum (threshold(S_VELO,:))/dble(zlevels), level_end, sum (n_active), rel_imbalance, timing
     end if
   end subroutine print_log
 
@@ -765,7 +763,7 @@ contains
 
     threshold_def = 1d16
 
-    do k = k1_tol, zlevels
+    do k = 1, zlevels
        p      = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s)
 
        rho_dz = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
@@ -782,14 +780,14 @@ contains
     use lnorms_mod
     implicit none
     integer :: k
-    real(8) :: mass_norm, temp_norm, velo_norm
+    logical, parameter :: print_norms = .false.
     
     threshold = 1d16
 
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
-       
-       do k = k1_tol, zlevels
+
+       do k = 1, zlevels
           threshold(S_MASS,k) = max (0.1d0 * threshold_def(S_MASS,k), tol * lnorm(S_MASS,k))
           threshold(S_TEMP,k) = max (0.1d0 * threshold_def(S_TEMP,k), tol * lnorm(S_TEMP,k))
           threshold(S_VELO,k) = max (0.1d0 * threshold_def(S_VELO,k), tol * lnorm(S_VELO,k))

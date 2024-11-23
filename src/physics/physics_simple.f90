@@ -2,7 +2,7 @@
 ! File Name: physics_simple.f90
 ! Author: Gabrielle Ching-Johnson, Nicholas Kevlahan
 !
-! Date Revised: 2024-10-10
+! Date Revised: 2024-11
 !
 ! Contains all subroutines needed to compute a Backwards Euler step using simple physics package
 !
@@ -20,28 +20,24 @@ contains
     implicit none
     real(8) :: h ! time step
     
-    integer :: d, k
-
     phys_dt = h
     
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
-    ! Compute simple physics split step on all columns
-    call apply_bdry (physics_call, z_null, 0, 1)
+    ! Compute Simple Physics split step on all columns
+    ! (0,0 since computing velocities)
+    call apply_bdry (physics_call, z_null, 0, 0)
     sol%bdry_uptodate = .false.
+    
+    call WT_after_step (sol, wav_coeff, level_start-1)
 
-    call update_bdry (sol, NONE)
-
-    physics_firstcall_flag = .false.
+    physics_firstcall_flag = .false.   
   end subroutine physics_simple_step
 
   subroutine physics_call (dom, i, j, zlev, offs, dims)
     !-----------------------------------------------------------------------------------
     !
     !   Backwards Euler physics step on a single element/column
-    !
-    !   Author:     Gabrielle Ching-Johnson
-    !   Revised by: Nicholas Kevlahan 2024-10
     !
     !-----------------------------------------------------------------------------------
     use callkeys,           only : lverbose ! print physics model parameters
