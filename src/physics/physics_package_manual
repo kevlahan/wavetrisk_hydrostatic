@@ -123,7 +123,7 @@ The parameters and the package default values are:
    perihelion     = 150                            ! planet perihelion distance (MMkm)
    aphelion       = 150                            ! planet aphelion distance (MMkm)
    perihelion_day = 0.                             ! perihelion day
-   obliquity      = 23.                            ! planet axial tilt/obliquity
+   obliquity      = 23.5                           ! planet axial tilt/obliquity
    sea_surf       = 0.01_8                         ! sea surface roughness length scale (m)
    soil_surf      = 0.01_8                         ! soil surface roughness length scale (m)
    sea_inertia    = 3000.                          ! sea thermal inertia (J/m^3K)
@@ -136,7 +136,6 @@ The parameters and the package default values are:
    min_turbmix    = 100                            ! minimum turbulent mixing length (m)
    sw_atten       = 0.99_8                         ! attenuation of shortwave radiation coefficient
    lw_atten       = 0.08_8                         ! attenuation of longwave radiation coefficient
-   seasons        = .TRUE.                         ! seasons flag **** Does not do anything
    diurnal        = .TRUE.                         ! diurnal cycle flag
 
 Nsoil >= 0 is set in the test case (10 is usual value). If Nsoil = 0 (default) then a bottom surface flux boundary condition is used.

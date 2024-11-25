@@ -47,7 +47,6 @@ contains
     call read_param ('calldifv', .true.,  calldifv,   'with vertical turbulent diffusion')
     call read_param ('calladj',  .true.,  calladj,    'with adj')
     call read_param ('callsoil', .true.,  callsoil,   'with soil')
-    call read_param ('season',   .true.,  season,     'with seasonal cycle')
     call read_param ('diurnal',  .true.,  diurnal,    'with diurnal cycle')
     call read_param ('lverbose', .true.,  lverbose,   'lverbose')
     call read_param ('period_sort', 1.0, period_sort, 'period sorties en jour')
@@ -71,10 +70,10 @@ contains
     ! else
     !    iradia = nint (Unjours / ( 4.0 * pTimestep))
     ! end if
-    
+
     ! Compute radiative transfer and physics every time step
     dtPhys = pTimestep
-    iradia = 1 
+    iradia = 1
 
     call check_mismatch ('day length (s)',         pUnjours,    Unjours)
     call check_mismatch ('planetary radius (km)',  pRad/1000.0, planet_rad/1000.0)

@@ -17,7 +17,7 @@ module init_physics_mod
   real(8) :: sea_inertia, soil_inertia, sea_emissive, soil_emmisive, min_turbmix
   real(8) :: sw_atten, lw_atten
   real    :: sea_albedo, soil_albedo, emin_turb
-  logical :: radiation_model, soil_model, turbulence_model, convecAdj_model, seasons, diurnal
+  logical :: radiation_model, soil_model, turbulence_model, convecAdj_model, diurnal
 
   logical(KIND=C_BOOL) :: physics_firstcall_flag = .true. ! flag for the physics package, true if call physics for 1st time
  contains
@@ -41,15 +41,14 @@ module init_physics_mod
     radiation_model  = .true.                         ! (T) radiation module is on
     turbulence_model = .true.                         ! (T) vertical diffusion module is on
     convecAdj_model  = .true.                         ! (T) convective adjustment module is on
-    seasons          = .false.                        ! seasons flag **** Does not do anything ****
     diurnal          = .true.                         ! diurnal cycle flag
 
-    ! Physics Package planet test case parameters
+    ! Physics Package planet test case parameters: set to Earth values by default
     gas_molarmass   = 28.9702532d0                    ! molar mass of main gain (used to set ideal gas const in pacakage)
     perihelion      = 150d0                           ! planet perihelion distance [MMkm]
     aphelion        = 150d0                           ! planet aphelion distance   [MMkm]
     perihelion_day  = 0d0                             ! perihelion day
-    obliquity       = 0d0                             ! planet axial tilt/obliquity
+    obliquity       = 23.5d0                          ! planet axial tilt/obliquity
     sea_surf        = 0.01d0                          ! sea surface roughness length scale  [m]
     soil_surf       = 0.01d0                          ! soil surface roughness length scale [m]
     sea_inertia     = 3000d0                          ! sea thermal  inertia [J/(m^3 K)]
@@ -185,7 +184,6 @@ module init_physics_mod
     write (file_unit,*) "calldifv    = ", turbulence_model
     write (file_unit,*) "calladj     = ", convecAdj_model
     write (file_unit,*) "callsoil    = ", soil_model
-    write (file_unit,*) "season      = ", seasons
     write (file_unit,*) "diurnal     = ", diurnal
     write (file_unit,*) "lverbose    = ", physics_write
     write (file_unit,*) "period_sort = ", 1.0
