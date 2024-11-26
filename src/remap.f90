@@ -20,7 +20,7 @@ contains
     ! Conserves mass, potential temperature and velocity divergence
     ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
-    integer :: l
+    integer :: l, pole
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -63,31 +63,29 @@ contains
     allocate (old_mass(1:zlevels)); old_mass = sol(S_MASS,1:zlevels)
 
     ! Remap variables on all levels
-    do l = level_start, level_end
-       if (compressible) then
-          call apply_onescale (remap_compressible,   l, z_null, 0, 0)
-       else
-          call apply_onescale (remap_incompressible, l, z_null, 0, 0)
-       end if
-    end do
+    if (compressible) then
+       call apply_node_edges (remap_compressible,   z_null)
+    else
+       call apply_node_edges (remap_incompressible, z_null)
+    end if
     sol(:,1:zlevels)%bdry_uptodate = .false.
 
-    ! Transform remapped solution onto adaptive grid (corrects values of some ZERO mask cells)
+    ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
     call WT_after_step (sol, wav_coeff, level_start-1) 
 
     nullify (interpolate)
     deallocate (old_mass)
   end subroutine remap_vertical_coordinates
 
-  subroutine remap_compressible (dom, i, j, z_null, offs, dims)
+  subroutine remap_compressible (dom, p_null, i, j, zlev, offs, dims, is_pole)
     ! Remap mass-weighted potential temperature and velocities
     ! (potential temperature is remapped and then multiplied by new mass)
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, z_null
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
+    type(Domain)                   :: dom
+    integer                        :: i, j, is_pole, p_null, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
     integer                               :: d, e, id, id_i, k
     integer, dimension (1:EDGE)           :: id_r
     
@@ -141,18 +139,20 @@ contains
        sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz_new(k) - sol_mean(S_MASS,k)%data(d)%elts(id_i)
        sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz_new(k) * theta_new(zlevels-k+1) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
 
-       do e = 1, EDGE
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(zlevels-k+1,e)
-       end do
+       if (is_pole /= 1) then ! do not remap velocities at pole
+          do e = 1, EDGE
+             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(zlevels-k+1,e)
+          end do
+       end if
     end do
   end subroutine remap_compressible
 
-  subroutine remap_incompressible (dom, i, j, z_null, offs, dims)
+  subroutine remap_incompressible (dom, p_null, i, j, z_null, offs, dims, is_pole)
     ! Remap mass-weighted potential temperature and velocities
     ! (potential temperature is remapped and then multiplied by new mass)
     implicit none
     type (Domain)                   :: dom
-    integer                         :: i, j, z_null
+    integer                         :: i, j, is_pole, p_null, z_null
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
@@ -210,10 +210,11 @@ contains
        ! New mass-weighted buoyancy
        sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
 
-       ! New velocity
-       do e = 1, EDGE
-          sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k,e)
-       end do
+       if (is_pole /= 1) then ! do not remap velocities at pole
+          do e = 1, EDGE
+             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k,e)
+          end do
+       end if
     end do
   end subroutine remap_incompressible
 

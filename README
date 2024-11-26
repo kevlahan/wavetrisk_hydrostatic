@@ -733,13 +733,21 @@ A routine is applied to nodes (scalars) using commands like:
   call apply_bdry (routine, zlev, 0, 1)  (st = 0, en = 1)
 
 where (0,1) indicates the routine is applied to the EAST and NORTH ghost cells in addition to the the actual domain cells. Setting
-(0,1) instead of (0,0) automatically applies the routine to the poles (which are included in the en = 1 ghost cells).
+(0,1) instead of (0,0) automatically applies the routine to the poles since the two poles are included as special nodes in the
+en = 1 ghost cells of two domains.
 
 A routine is applied to edges (velocity) using commands like:
 
-  call apply_bdry (routine, zlev, 0, 0)  (st = 0, en = 0)
+     call apply_bdry (routine, zlev, 0, 0)  (st = 0, en = 0)
 
-since all edges are included in the actual domain.
+since all edges are included in the actual domain. Routines modifying edge values should NOT be applied to (0,1).
+Instead, to include poles in routines that modify both nodes and edges (like remap and physics models), the routine
+apply_nodes_edges should be used:
+
+     call apply_nodes_edges (routine, zlev)
+
+This routine supplies an integer to the routine that is 1 if it being applied to edges, thus allowing the routine to exclude edge
+updates.
 
 After applying these routines, the ghost nodes/edges are NOT correct for ghost cells outside (0,1) (for scalars) and (0,0) 
 (for velocity) for any variables modified by the routine.  The routine should indicate this by setting

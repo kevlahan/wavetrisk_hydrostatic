@@ -25,16 +25,16 @@ contains
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
     ! Compute Simple Physics split step on all columns
-    ! (0,0 since computing velocities)
-    call apply_bdry (physics_call, z_null, 0, 0)
+    call apply_node_edges (physics_call,   z_null)
     sol%bdry_uptodate = .false.
-    
+
+    ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO cells)s
     call WT_after_step (sol, wav_coeff, level_start-1)
 
     physics_firstcall_flag = .false.   
   end subroutine physics_simple_step
 
-  subroutine physics_call (dom, i, j, zlev, offs, dims)
+  subroutine physics_call (dom, p_null, i, j, zlev, offs, dims, is_pole)
     !-----------------------------------------------------------------------------------
     !
     !   Backwards Euler physics step on a single element/column
@@ -45,7 +45,7 @@ contains
     use single_column_mod,  only : change_latitude_longitude, physics_call_single_col 
     implicit none
     type(Domain)                     :: dom                  
-    integer                          :: i, j, zlev
+    integer                          :: i, j, is_pole, p_null, zlev
     integer, dimension(N_BDRY+1)     :: offs
     integer, dimension(2,N_BDRY+1)   :: dims
 
@@ -99,7 +99,7 @@ contains
 
     ! Assign solution at t+h
     do k = 1, zlevels
-       sol(S_VELO,k)%data(d)%elts(id_edge(id)) = (/ phys_U(k), phys_V(k), phys_W(k) /)
+       if (is_pole /= 1) sol(S_VELO,k)%data(d)%elts(id_edge(id)) = (/ phys_U(k), phys_V(k), phys_W(k) /)
        sol(S_TEMP,k)%data(d)%elts(id_i)        = rho_dz(k) * phys_Theta(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
     end do
 

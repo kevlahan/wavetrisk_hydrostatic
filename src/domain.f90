@@ -264,11 +264,11 @@ contains
   !!! Subroutines for applying a routine to domains, patches, ... !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine apply (routine, zlev)
-    ! Applies routine over all levels and entire boundary
+    ! Applies routine over all levels and over entire boundary
     implicit none
-    external :: routine
     integer  :: zlev
-
+    external :: routine
+    
     integer :: l
 
     do l = level_start, level_end
@@ -277,18 +277,73 @@ contains
   end subroutine apply
 
   subroutine apply_bdry (routine, zlev, st, en)
+    ! Applies routine to nodes/edges at all levels and including boundary cells specified by (st,en)
     implicit none
-    external :: routine
     integer  :: en, st, zlev
-
+    external :: routine
+    
     integer :: l
 
     do l = level_start, level_end
        call apply_onescale (routine, l, zlev, st, en)
     end do
   end subroutine apply_bdry
+
+  subroutine apply_onescale (routine, l, zlev, st, en)
+     ! Applies routine to nodes/edges at all level l including boundary cells specified by (st,en)
+    implicit none
+    external :: routine
+    integer  :: en, l, st, zlev
+
+    integer :: d, j
+
+    do d = 1, size(grid)
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch (routine, grid(d), grid(d)%lev(l)%elts(j), zlev, st, en)
+       end do
+    end do
+  end subroutine apply_onescale
+
+  subroutine apply_onescale__int (routine, l, zlev, st, en, ival)
+    ! Applies routine to nodes/edges at all level l including boundary cells specified by (st,en)
+    ! and passes integer ival to routine
+    implicit none
+    external :: routine
+    integer  :: en, ival, l, st, zlev
+
+    integer               :: d, j
+    logical, dimension(2) :: pole_done
+
+    do d = 1, size(grid)
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch__int (routine, grid(d), grid(d)%lev(l)%elts(j), zlev, st, en, ival)
+       end do
+    end do
+  end subroutine apply_onescale__int
+
+  subroutine apply_node_edges (routine, zlev)
+    ! Applies routine to nodes/edges at all levels excluding boundary cells and poles
+    ! Separately applies routine to pole
+    ! The integer flag is_pole allows the routine to not apply the routine for edges if is_pole = 1
+    !
+    ! Routine needs to accept an integer which indicates pole (if equals 1) or non-pole (if equals 0)
+    !
+    ! Used to exclude edges when applying routine to pole
+    implicit none
+    integer  :: zlev
+    external :: routine
+
+    integer :: is_pole, l
+
+    do l = level_start, level_end
+       is_pole = 0; call apply_onescale__int (routine, l, zlev, 0, 0, is_pole)
+       is_pole = 1; call apply_to_pole       (routine, l, zlev,       is_pole, .true.)  ! apply routine to poles at scale l
+    end do
+  end subroutine apply_node_edges
   
   subroutine apply_onescale_to_patch (routine, dom, p, zlev, st, en)
+    ! Applies routine to nodes/edges at all level associated with p.
+    ! Includes boundary cells specified by (st,en).
     implicit none
     external     :: routine
     type(Domain) :: dom
@@ -312,35 +367,6 @@ contains
        end do
     end do
   end subroutine apply_onescale_to_patch
-
-  subroutine apply_onescale (routine, l, zlev, st, en)
-    implicit none
-    external :: routine
-    integer  :: en, l, st, zlev
-
-    integer :: d, k
-
-    do d = 1, size(grid)
-       do k = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (routine, grid(d), grid(d)%lev(l)%elts(k), zlev, st, en)
-       end do
-    end do
-  end subroutine apply_onescale
-
-  subroutine apply_onescale__int (routine, l, zlev, st, en, ival)
-    implicit none
-    external :: routine
-    integer  :: en, ival, l, st, zlev
-
-    integer               :: d, k
-    logical, dimension(2) :: pole_done
-
-    do d = 1, size(grid)
-       do k = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch__int (routine, grid(d), grid(d)%lev(l)%elts(k), zlev, st, en, ival)
-       end do
-    end do
-  end subroutine apply_onescale__int
 
   subroutine apply_onescale_d (routine, dom, l, zlev, st, en)
     implicit none
@@ -379,11 +405,11 @@ contains
     external :: routine
     integer  :: en, l, st, zlev
 
-    integer :: d, k
+    integer :: d, j
 
     do d = 1, size(grid)
-       do k = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch2 (routine, grid(d), grid(d)%lev(l)%elts(k), zlev, st, en)
+       do j = 1, grid(d)%lev(l)%length
+          call apply_onescale_to_patch2 (routine, grid(d), grid(d)%lev(l)%elts(j), zlev, st, en)
        end do
     end do
   end subroutine apply_onescale2
@@ -612,13 +638,11 @@ contains
 
   subroutine apply_to_pole (routine, l, zlev, ival, to_all)
     implicit none
-    external :: routine
     integer  :: ival, l, zlev
     logical  :: to_all
-
-    integer                        :: c, d, l_cur, p, p_par
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    external :: routine
+    
+    integer :: d
 
     do d = 1, size(grid)
        call apply_to_pole_d (routine, grid(d), l, zlev, ival, to_all)
@@ -627,10 +651,10 @@ contains
 
   subroutine apply_to_pole_d (routine, dom, l, zlev, ival, to_all)
     implicit none
-    external     :: routine
     type(Domain) :: dom
     integer      :: ival, l, zlev
     logical      :: to_all
+    external     :: routine
 
     integer                        :: c, l_cur, p, p_par
     integer, dimension(N_BDRY+1)   :: offs
@@ -644,7 +668,7 @@ contains
        p = 1
        do while (p > 0)
           p_par = p
-          p = dom%patch%elts(p_par+1)%children(c-4)
+          p     = dom%patch%elts(p_par+1)%children(c-4)
 
           if (.not. l == NONE) then
              l_cur = dom%patch%elts(p_par+1)%level

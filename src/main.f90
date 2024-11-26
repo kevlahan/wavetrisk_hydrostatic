@@ -300,7 +300,15 @@ contains
     call adapt (set_thresholds, .false.) 
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
-    
+
+    ! Initialize thresholds to default values (possibly based on mean values)
+    call initialize_thresholds
+
+    ! Adapt on (new) threshold for this run
+    call adapt (set_thresholds, .true.) 
+    call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
+    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start)
+
     ! Initialize thresholds to default values (possibly based on mean values)
     call initialize_thresholds
 
@@ -316,9 +324,9 @@ contains
     if (rank == 0) then
        write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
             'time [d] = ', time/DAY, &
-            '  mass threshold = ', sum (threshold(S_MASS,:))/size(threshold,2), &
-            ' temp threshold = ', sum (threshold(S_TEMP,:))/size(threshold,2), &
-            ' velo threshold = ', sum (threshold(S_VELO,:))/size(threshold,2), &
+            '  mass threshold = ', sum (threshold(S_MASS,1:zlevels)) / dble (zlevels), &
+             ' temp threshold = ', sum (threshold(S_TEMP,1:zlevels)) / dble (zlevels), &
+             ' velo threshold = ', sum (threshold(S_VELO,1:zlevels)) / dble (zlevels), &
             ' Jmax = ', level_end, &
             '  dof = ', sum (n_active)
        write (6,'(A)') &

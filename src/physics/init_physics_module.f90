@@ -114,20 +114,6 @@ module init_physics_mod
 
     ! Physics single column module extra levels initialization (as needs soil flag set in iniphyparam)
     call initialize_extra_levels (Nsoil+1)
-
-    if (cp_idx > 0) then
-       ! Set day in physics
-       day_fraction = (time - dt) / DAY
-       nth_day      = floor (day_fraction)
-       day_fraction = day_fraction - nth_day
-       zday_last    = nth_day + day_fraction - dt/DAY
-
-       ! Precompute time-independent arrays and set land or sea of each column (determines surface properties)
-       call alloc (1, zlevels)
-
-       ! Set land surface properties
-       call precompute ()
-    end if
   end subroutine init_physics
 
   subroutine write_physics_params (file_unit, file_params)

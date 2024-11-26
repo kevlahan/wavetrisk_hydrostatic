@@ -187,10 +187,7 @@ contains
   end subroutine compress_vector
 
   subroutine WT_after_step (scaling, wavelet, l_start0)
-    !  Everything needed in terms of forward and backward wavelet transform
-    !  after one time step (e.g. RK sub-step)
-    !    A) compute wavelets and perform backwards transform to conserve mass
-    !    B) interpolate values onto adapted grid for next step
+    ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
     implicit none
     type(Float_Field), dimension(:,:), target :: scaling, wavelet
     integer, optional                         :: l_start0
@@ -237,10 +234,7 @@ contains
   end subroutine WT_after_step
 
   subroutine WT_after_scalar_0 (scaling, wavelet, l_start0)
-    !  Everything needed in terms of forward and backward scalar wavelet transform
-    !  after one time step for a vector of scalars
-    !    A) compute wavelets and perform backwards transform to conserve mass
-    !    B) interpolate values onto adapted grid for next step
+    ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
     implicit none
     type(Float_Field), target :: scaling, wavelet
     integer, optional         :: l_start0
@@ -271,10 +265,7 @@ contains
   end subroutine WT_after_scalar_0
   
   subroutine WT_after_scalar_1 (scaling, wavelet, l_start0)
-    !  Everything needed in terms of forward and backward scalar wavelet transform
-    !  after one time step for a vector of scalars
-    !    A) compute wavelets and perform backwards transform to conserve mass
-    !    B) interpolate values onto adapted grid for next step
+    ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
     implicit none
     type(Float_Field), dimension(:), target :: scaling, wavelet
     integer, optional                       :: l_start0
@@ -307,10 +298,7 @@ contains
   end subroutine WT_after_scalar_1
 
   subroutine WT_after_velo (scaling, wavelet, l_start0)
-    !  Everything needed in terms of forward and backward velocity wavelet transform
-    !  after one time step (e.g. RK sub-step)
-    !    A) compute wavelets and perform backwards transform to conserve mass
-    !    B) interpolate values onto adapted grid for next step
+    ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
     implicit none
     type(Float_Field), dimension(:), target :: scaling, wavelet
     integer, optional                       :: l_start0

@@ -29,7 +29,7 @@ program climate
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   scale_aware              = .true.                            ! scale-aware viscosity
-  adapt_dt                 = .true.                            ! adapt time step
+  adapt_dt                 = .false.                            ! adapt time step
   default_thresholds       = .true.                            ! thresholding type
   cfl_num                  = 1d0                               ! CFL number
 
@@ -84,15 +84,15 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Dimensional scaling
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  Tdim                     = 1d0  * DAY                         ! time scale
-  Ldim                     = u_0 * Tdim                         ! length scale
-  Hdim                     = max_depth                          ! vertical length scale
-  Pdim                     = p_0                                ! pressure scale
-  Tempdim                  = T_0                                ! temperature scale (both theta and T from DYNAMICO)
+  Tdim                     = 1d0  * DAY                        ! time scale
+  Ldim                     = u_0 * Tdim                        ! length scale
+  Hdim                     = max_depth                         ! vertical length scale
+  Pdim                     = p_0                               ! pressure scale
+  Tempdim                  = T_0                               ! temperature scale (both theta and T from DYNAMICO)
   
-  Mudim                    = ref_density * dz                   ! mu scale
-  Thetadim                 = ref_density * dz * Tempdim         ! Theta scale
-  Udim                     = u_0                                ! velocity scale
+  Mudim                    = ref_density * dz                  ! mu scale
+  Thetadim                 = ref_density * dz * Tempdim        ! Theta scale
+  Udim                     = u_0                               ! velocity scale
   
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -108,7 +108,7 @@ program climate
 
   ! Save initial conditions
   call omega_velocity
-  !call write_and_export (iwrite)
+  call write_and_export (iwrite)
   !if (physics_type == "Simple") call mean_values (0) ! processing for the physics package mean values
 
   ! Compute hydrostatic error factors for topography
