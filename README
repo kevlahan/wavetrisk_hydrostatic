@@ -579,16 +579,19 @@ grid).  A collection of different conservative piecewise remapping routines are 
 ************************************************************
 6.5 GRID STRUCTURE
 
-The icosahedron is divided into a network of ten regular lozenge grids (with the exception of the POLES), each lozenge is then
+The icosahedron is divided into a network of ten regular lozenge grids (with the exception of the two POLES). Each lozenge is then
 divided into N_SUB_DOM = 4**DOMAIN_LEVEL regular sub-domains with the number of sub-domains on each processor given by
-n_domain(rank+1).
+n_domain(rank+1). The lozenges are in turn composed of patches of sub-lozenges, each composed of two triangular (primal) cells. 
+The lozenge cells each include one hexagon centre NODE (for scalars), three EDGES (for velocities/fluxes) and 
+two triangle centre NODEs (for circulation). (See Section 6.8.)
 
 There are two special nodes called POLEs. One connects the five lozenge vertices at the top of the network and the other connects
 the five lozenge grid vertices at the bottom of the network. The network is oriented so the POLEs are at the geographic north and
 south poles. The north pole and south poles are stored in the NORTHWEST and SOUTHEAST corner boundaries of two domains. The domains
 containing poles have grid(d)%pole_master(c/2-2) = .true., where c = NORTHWEST or SOUTHEAST. Applying a routine to the boundaries
-with options st = 0, en = 1 applies it to the poles. The routine apply_to_pole can be used when you do not want to apply the routine
-to the entire boundary strip with st = 0, en = 1.
+with options st = 0, en = 1 applies it to the poles. The boundary choice (0,1) should NOT be used for routines that modify variables
+defined at edges since the poles do not have associated edges (see Section 6.10). The routine apply_to_pole can be used when you do
+not want to apply a routine only to the poles.
 
 The coarsest level Jmin = DOMAIN_LEVEL + PATCH_LEVEL + 1 with PATCH_LEVEL>=2. The geometry of this coarsest level may be optimized
 by reading in a Heikes & Randall (1995) (optimize_grid = HR_GRID) grid of resolution Jmin-1 or using the Xu (2006) smoothing
@@ -740,11 +743,11 @@ A routine is applied to edges (velocity) using commands like:
 
      call apply_bdry (routine, zlev, 0, 0)  (st = 0, en = 0)
 
-since all edges are included in the actual domain. Routines modifying edge values should NOT be applied to (0,1).
-Instead, to include poles in routines that modify both nodes and edges (like remap and physics models), the routine
-apply_nodes_edges should be used:
+since all edges are included in the actual domain. Routines modifying edge values should NOT be applied to (0,1) since (0,1) includes
+the two poles which do not have associated edges (edge values would therefore be incorrect). Instead, to include poles in routines
+that modify both nodes and edges (like remap and physics models), the routine apply_no_bdry should be used:
 
-     call apply_nodes_edges (routine, zlev)
+     call apply_no_bdry (routine, zlev)
 
 This routine supplies an integer to the routine that is 1 if it being applied to edges, thus allowing the routine to exclude edge
 updates.

@@ -321,14 +321,13 @@ contains
     end do
   end subroutine apply_onescale__int
 
-  subroutine apply_node_edges (routine, zlev)
-    ! Applies routine to nodes/edges at all levels excluding boundary cells and poles
-    ! Separately applies routine to pole
-    ! The integer flag is_pole allows the routine to not apply the routine for edges if is_pole = 1
+  subroutine apply_no_bdry (routine, zlev)
+    ! Applies routine to nodes/edges at all levels excluding all boundary cells
+    !
+    ! The integer flag is_pole allows the routine to not update values for edges if is_pole = 1
     !
     ! Routine needs to accept an integer which indicates pole (if equals 1) or non-pole (if equals 0)
     !
-    ! Used to exclude edges when applying routine to pole
     implicit none
     integer  :: zlev
     external :: routine
@@ -339,7 +338,7 @@ contains
        is_pole = 0; call apply_onescale__int (routine, l, zlev, 0, 0, is_pole)
        is_pole = 1; call apply_to_pole       (routine, l, zlev,       is_pole, .true.)  ! apply routine to poles at scale l
     end do
-  end subroutine apply_node_edges
+  end subroutine apply_no_bdry
   
   subroutine apply_onescale_to_patch (routine, dom, p, zlev, st, en)
     ! Applies routine to nodes/edges at all level associated with p.

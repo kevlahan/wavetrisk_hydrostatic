@@ -25,7 +25,7 @@ contains
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
     ! Compute Simple Physics split step on all columns
-    call apply_node_edges (physics_call,   z_null)
+    call apply_no_bdry (physics_call,   z_null)
     sol%bdry_uptodate = .false.
 
     ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO cells)s
