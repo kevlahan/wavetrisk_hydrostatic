@@ -336,7 +336,7 @@ contains
 
     do l = level_start, level_end
        is_pole = 0; call apply_onescale__int (routine, l, zlev, 0, 0, is_pole)
-       is_pole = 1; call apply_to_pole       (routine, l, zlev,       is_pole, .true.)  ! apply routine to poles at scale l
+       is_pole = 1; call apply_to_pole       (routine, l, zlev,       is_pole, .true.)  
     end do
   end subroutine apply_no_bdry
   
