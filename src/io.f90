@@ -1544,8 +1544,12 @@ contains
     ! Compute surface pressure
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
-    ! Compute vertical velocity OMEGA (stored in trend(S_TEMP,:))
-    call omega_velocity
+    ! Compute vertical velocity (stored in trend(S_TEMP,:))
+    if (compressible) then
+       call omega_velocity    ! vertical velocity in pressure coordinates D_tP = OMEGA [Pa/s]
+    else
+       call vertical_velocity ! vertical velocity w [m/s]
+    end if
 
     do l = level_start, level_end
        write (scale, '(i2.2)') l
