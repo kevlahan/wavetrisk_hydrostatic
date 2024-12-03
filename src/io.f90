@@ -1973,12 +1973,12 @@ contains
   end subroutine baroclinic_velocity
 
   subroutine omega_velocity
-    ! Computes vertical velocity in pressure coordinates D_tP = OMEGA [Pa/s]
+    ! Computes vertical velocity in pressure coordinates D_t P = OMEGA [Pa/s]
     ! stored in trend(S_TEMP,1:zlevels)
     implicit none
     integer :: d, j, k, l, p
 
-    call update_bdry (sol, NONE, 884)
+    call update_bdry (sol, NONE)
 
     ! Compute surface pressure
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
@@ -2004,7 +2004,7 @@ contains
              nullify (h_flux)
           end do
           horiz_flux(S_MASS)%bdry_uptodate = .false.
-          call update_bdry (horiz_flux(S_MASS), l, 885)
+          call update_bdry (horiz_flux(S_MASS), l)
           do d = 1, size(grid)
              dscalar => trend(S_MASS,k)%data(d)%elts
              h_flux  => horiz_flux(S_MASS)%data(d)%elts
@@ -2031,7 +2031,7 @@ contains
              nullify (h_flux, scalar, velo)
           end do
           horiz_flux(S_TEMP)%bdry_uptodate = .false.
-          call update_bdry (horiz_flux(S_TEMP), l, 886)
+          call update_bdry (horiz_flux(S_TEMP), l)
           do d = 1, size(grid)
              dscalar =>    trend(S_TEMP,k)%data(d)%elts
              h_flux  => horiz_flux(S_TEMP)%data(d)%elts
@@ -2042,16 +2042,14 @@ contains
           end do
 
           trend(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
-          call update_bdry (trend(S_MASS:S_TEMP,k), l, 887)
+          call update_bdry (trend(S_MASS:S_TEMP,k), l)
        end do
     end do
 
     ! Compute Omega (velocity flux across interfaces)
     ! stored in trend(S_TEMP,1:zlevels)
     call apply (cal_omega, z_null)
-
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
-    call update_bdry (trend(S_TEMP,:), NONE, 888)
   end subroutine omega_velocity
 
   subroutine cal_omega (dom, i, j, zlev, offs, dims)
@@ -2070,7 +2068,7 @@ contains
     id_i = idx (i, j, offs, dims) + 1
 
     ! Vertically integrate div(mass flux) from top to bottom
-    ! results at interfaces
+    ! (results at interfaces)
     div_mass(zlevels+1) = 0d0 ! zero flux at top boundary
     do k = zlevels, 1, -1
        div_mass(k) = div_mass(k+1) + trend(S_MASS,k)%data(d)%elts(id_i)
@@ -2093,49 +2091,9 @@ contains
     implicit none
     integer :: d, j, k, l, p
 
-    call update_bdry (sol, NONE, 889)
+    call omega_velocity
 
-    ! Compute surface pressure
-    call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
-
-    do k = 1, zlevels
-       do l = level_end, level_start, -1
-          ! Divergence of mass flux at each vertical level
-          ! stored in trend(S_MASS,1:zlevels)
-          do d = 1, size(grid)
-             mass   =>      sol(S_MASS,k)%data(d)%elts
-             velo   =>      sol(S_VELO,k)%data(d)%elts
-             mean_m => sol_mean(S_MASS,k)%data(d)%elts
-             h_flux => horiz_flux(S_MASS)%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=7)
-             end do
-             nullify (mass, mean_m, velo)
-             if (l < level_end) then
-                dscalar => trend(S_MASS,k)%data(d)%elts
-                call cpt_or_restr_flux (grid(d), l)
-                nullify (dscalar)
-             end if
-             nullify (h_flux)
-          end do
-          horiz_flux(S_MASS)%bdry_uptodate = .false.
-          call update_bdry (horiz_flux(S_MASS), l, 890)
-          do d = 1, size(grid)
-             dscalar => trend(S_MASS,k)%data(d)%elts
-             h_flux  => horiz_flux(S_MASS)%data(d)%elts
-             do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-             end do
-             nullify (dscalar, h_flux)
-          end do
-       end do
-    end do
-    trend(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
-    call update_bdry (trend(S_MASS:S_TEMP,k), l, 891)
-
-    ! Compute Omega (velocity flux across interfaces)
-    ! stored in trend(S_TEMP,1:zlevels)
-    call apply (cal_w, z_null)
+    call apply_bdry (cal_w, z_null, 0, 1)
 
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
   end subroutine vertical_velocity
@@ -2148,28 +2106,17 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                         :: d, id_i, k
+    integer                         :: d, id, k
     real(8), dimension(1:zlevels)   :: u_gradP
     real(8), dimension(1:zlevels+1) :: div_mass
 
-    d    = dom%id + 1
-    id_i = idx (i, j, offs, dims) + 1
+    d   = dom%id + 1
+    id  = idx (i, j, offs, dims)
 
-    ! Vertically integrate div(mass flux) from top to bottom
-    !  d_t M = - div_mass(1), where M is the column mass
-    ! results at interfaces
-    div_mass(zlevels+1) = 0d0 ! zero flux at top boundary
-    do k = zlevels, 1, -1
-       div_mass(k) = div_mass(k+1) + trend(S_MASS,k)%data(d)%elts(id_i)
-    end do
-
+    
+    ! Vertical velocity w = - OMEGA / (rho_0 g) + (vertical projection of horizontal velocity)
     do k = 1, zlevels
-       ! Vertical mass flux through layers
-       trend(S_TEMP,k)%data(d)%elts(id_i) = - grav_accel * interp (div_mass(k), div_mass(k+1)) &
-            - interp (b_vert(k), b_vert(k+1)) * div_mass(1)
-
-       ! Vertical velocity
-       trend(S_TEMP,k)%data(d)%elts(id_i) = trend(S_TEMP,k)%data(d)%elts(id_i) / ref_density + proj_vel_vertical ()
+       trend(S_TEMP,k)%data(d)%elts(id+1) = - trend(S_TEMP,k)%data(d)%elts(id+1)/  ref_density * grav_accel + proj_vel_vertical () 
     end do
   contains
     real(8) function proj_vel_vertical ()
@@ -2177,11 +2124,12 @@ contains
       ! Uses Perot formula as also used for kinetic energy:
       ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_center) ) / cell_area
       implicit none
-      integer :: d, id, id_i, idE, idN, idNE, idS, idSW, idW, k
+      integer :: idE, idN, idNE, idS, idSW, idW
 
       idE  = idx (i+1, j,   offs, dims)
       idNE = idx (i+1, j+1, offs, dims)
       idN  = idx (i,   j+1, offs, dims)
+      
       idW  = idx (i-1, j,   offs, dims)
       idSW = idx (i-1, j-1, offs, dims)
       idS  = idx (i,   j-1, offs, dims)

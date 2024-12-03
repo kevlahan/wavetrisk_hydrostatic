@@ -73,7 +73,7 @@ contains
        
        ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case) etc
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, -1, 2)
+          call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
           call step1 (dq, q, grid(d), grid(d)%lev(l)%elts(j), k, 0)
        end do
        call apply_to_penta_d (post_step1, grid(d), l, z_null)
