@@ -29,7 +29,6 @@ program climate
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   scale_aware              = .true.                            ! scale-aware viscosity
-  adapt_dt                 = .false.                            ! adapt time step
   default_thresholds       = .true.                            ! thresholding type
   cfl_num                  = 1d0                               ! CFL number
 

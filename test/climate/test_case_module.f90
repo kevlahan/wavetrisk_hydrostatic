@@ -646,8 +646,8 @@ contains
        end if
 
        write (6,'(a)') "Non-dimensional viscosities"
-       write (6,'(3(a,es8.2/))') "C_visc(S_MASS)           = ", C_visc(S_MASS), "C_visc(S_TEMP)           = ", C_visc(S_TEMP), &
-            "C_visc(S_VELO)           = ", C_visc(S_VELO)
+       write (6,'(4(a,es8.2/))') "C_visc(S_MASS)           = ", C_visc(S_MASS), "C_visc(S_TEMP)           = ", C_visc(S_TEMP), &
+            "C_visc(S_VELO)           = ", C_visc(S_VELO), "C_div                    = ", C_div
 
        write (6,'(a)')        "Approximate viscosities on finest grid"
        write (6,'(a,es8.2)') "nu_scalar                = ", nu_sclr
@@ -719,9 +719,15 @@ contains
     ! Prints out and saves logged data to a file
     implicit none
 
-    integer :: k, min_load, max_load, total_layers
+    integer :: j, k, min_load, max_load, total_dof, total_layers
     real(8) :: avg_load, rel_imbalance, timing
 
+    total_dof = 0
+    do j = min_level, max_level
+       total_dof = total_dof + 4**j
+    end do
+    total_dof = 4 * 10 * total_dof
+    
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
@@ -729,14 +735,14 @@ contains
     total_layers = size (threshold, 2)
 
     if (rank == 0) then
-       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,2(a,es8.2,1x))') &
+       write (6,'(a,es12.6,4(a,es8.2),a,i2,3(a,es8.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
             '  mass tol = ', sum (threshold(S_MASS,1:zlevels)) / dble (zlevels), &
              ' temp tol = ', sum (threshold(S_TEMP,1:zlevels)) / dble (zlevels), &
              ' velo tol = ', sum (threshold(S_VELO,1:zlevels)) / dble (zlevels), &
             ' Jmax = ', level_end, &
-            ' dof = ', sum (n_active), &
+            ' grid compression = ', dble (total_dof) / dble(sum (n_active)), &
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
@@ -807,7 +813,7 @@ contains
     real(8), parameter :: res_scaling  = (136d0*KM) / (100d0*KM)    ! ratio between TRiSK and CAM grid resolutions
                                                                     ! (TRiSK grid: 107 km <= dx <= 136 km at J6)
 
-    dx_scaling  = 2d0 ** (dble (6 - max_level))                     ! scaling factor compared to approximately J6 base CAM value
+    dx_scaling  = res_scaling * 2d0 ** (dble (6 - max_level))       ! scaling factor compared to approximately J6 base CAM value
     C_max       = 1d0/6d0**Laplace_order                            ! maximum stable non-dimensional viscosity for scalars and div u
 
     ! Average hexagon areas and horizontal resolution
@@ -817,34 +823,25 @@ contains
     dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)              
     dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
 
-    if (physics_type == "Held_Suarez" .and. CAM) then           ! use CAM values for Held-Suarez simulations
-       adapt_dt = .false.
-       dt_init  = 300d0 * SECOND * dx_scaling                        
+    adapt_dt = .true.
+    dt_init  = 300d0 * SECOND * dx_scaling
 
-       ! Set viscosities
-       nu_dim         = 1.5d0 * Area_min**Laplace_order / dt_init     ! viscosity scale on finest grid
-       nu_scaling     = (res_scaling * dx_scaling)**(2*Laplace_order)
-       nu             = nu_CAM * nu_scaling                           ! scaled CAM viscosity
+    ! Set viscosities
+    nu_dim         = 1.5d0 * Area_min**Laplace_order / dt_init     ! viscosity scaling factor on finest grid
+    nu_scaling     = dx_scaling**(2*Laplace_order)
+    nu             = nu_CAM * nu_scaling                           ! scaled CAM viscosity
 
-       ! Limit viscosity to stable values
-       nu_sclr        = min (nu,          nu_dim * C_max                     )  
-       nu_rotu        = min (nu,          nu_dim * C_max / 4d0**Laplace_order)
-       nu_divu        = min (nu * 2.5d0,  nu_dim * C_max                     )
+    ! Limit viscosity to stable values
+    nu_sclr        = min (nu,         nu_dim * C_max                     )  
+    nu_rotu        = min (nu,         nu_dim * C_max / 4d0**Laplace_order)
+    nu_divu        = min (nu * 2.5d0, nu_dim * C_max                     ) ! increase nu_divu (max stable increase is 3.7)
 
-       ! Equivalent non-dimensional viscosities
-       ! (CAM non-dimensional viscosity is C =  (1e15 m^4/s) (300 s) / (120 km)^4 = 1.45e-3)
-       C_visc(S_MASS) = nu_sclr / nu_dim 
-       C_visc(S_TEMP) = nu_sclr / nu_dim 
-       C_visc(S_VELO) = nu_rotu / nu_dim
-       C_div          = nu_divu / nu_dim
-    else ! use standard values
-       dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_0)       ! initial time step     (0.85 factor corrects for minimum dx)
-
-       C_visc(S_VELO)     = 1d-3                                      ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
-       C_div              = 4d0**Laplace_order * C_visc(S_VELO)       ! dimensionless viscosity for divu         < 2.8e-2
-       C_visc(S_MASS)     = C_div                                     ! dimensionless viscosity of S_MASS        < 2.8e-2
-       C_visc(S_TEMP)     = C_div                                     ! dimensionless viscosity of S_TEMP        < 2.8e-2
-    end if
+    ! Equivalent non-dimensional viscosities
+    ! (CAM non-dimensional viscosity is C =  (1e15 m^4/s) (300 s) / (120 km)^4 = 1.45e-3)
+    C_visc(S_MASS) = nu_sclr / nu_dim 
+    C_visc(S_TEMP) = nu_sclr / nu_dim 
+    C_visc(S_VELO) = nu_rotu / nu_dim
+    C_div          = nu_divu / nu_dim
   end subroutine initialize_dt_viscosity_case
 
   real(8) function nu_scale (dom, id)
