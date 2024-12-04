@@ -2051,6 +2051,7 @@ contains
     call apply_bdry (cal_omega, z_null, 0, 1)
     
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
+    call update_bdry (trend(S_TEMP,1:zlevels), NONE)
   end subroutine omega_velocity
 
   subroutine cal_omega (dom, i, j, zlev, offs, dims)
@@ -2097,6 +2098,7 @@ contains
     call apply_bdry (cal_w, z_null, 0, 1)
 
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
+    call update_bdry (trend(S_TEMP,1:zlevels), NONE)
   end subroutine vertical_velocity
 
   subroutine cal_w (dom, i, j, zlev, offs, dims)
