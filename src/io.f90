@@ -1972,9 +1972,10 @@ contains
     end do
   end subroutine baroclinic_velocity
 
-  subroutine omega_velocity
+  subroutine OMEGA_velocity
     ! Computes vertical velocity in pressure coordinates D_t P = OMEGA [Pa/s]
     ! stored in trend(S_TEMP,1:zlevels)
+    ! note that OMEGA > 0 corresponds to negative vertical velocity (w < 0)
     implicit none
     integer :: d, j, k, l, p
 
@@ -2046,9 +2047,9 @@ contains
        end do
     end do
 
-    ! Compute Omega (velocity flux across interfaces)
-    ! stored in trend(S_TEMP,1:zlevels)
-    call apply (cal_omega, z_null)
+    ! Compute OMEGA
+    call apply_bdry (cal_omega, z_null, 0, 1)
+    
     trend(S_TEMP,1:zlevels)%bdry_uptodate = .false.
   end subroutine omega_velocity
 
@@ -2079,7 +2080,7 @@ contains
        u_gradP(k) = interp (b_vert(k), b_vert(k+1)) * trend(S_TEMP,k)%data(d)%elts(id_i)
     end do
 
-    ! Complete computation of omega
+    ! Complete computation of OMEGA
     do k = 1, zlevels
        trend(S_TEMP,k)%data(d)%elts(id_i) = - grav_accel * interp (div_mass(k), div_mass(k+1)) + u_gradP(k) 
     end do
@@ -2099,24 +2100,20 @@ contains
   end subroutine vertical_velocity
 
   subroutine cal_w (dom, i, j, zlev, offs, dims)
-    ! Vertical velocity
+    ! Vertical velocity w = - OMEGA / (rho_0 g) + (vertical projection of horizontal velocity)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                         :: d, id, k
-    real(8), dimension(1:zlevels)   :: u_gradP
-    real(8), dimension(1:zlevels+1) :: div_mass
+    integer :: d, id, k
 
     d   = dom%id + 1
     id  = idx (i, j, offs, dims)
 
-    
-    ! Vertical velocity w = - OMEGA / (rho_0 g) + (vertical projection of horizontal velocity)
     do k = 1, zlevels
-       trend(S_TEMP,k)%data(d)%elts(id+1) = - trend(S_TEMP,k)%data(d)%elts(id+1)/  ref_density * grav_accel + proj_vel_vertical () 
+       trend(S_TEMP,k)%data(d)%elts(id+1) = - trend(S_TEMP,k)%data(d)%elts(id+1) / (ref_density * grav_accel) + proj_vel_vertical () 
     end do
   contains
     real(8) function proj_vel_vertical ()
