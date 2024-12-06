@@ -12,59 +12,38 @@ module init_physics_mod
   use, intrinsic :: iso_c_binding, only : C_BOOL
   implicit none
   
-  ! Physics test case arguments (set in test case main program)
-  real(8) :: gas_molarmass, perihelion, aphelion, perihelion_day, obliquity, sea_surf, soil_surf 
-  real(8) :: sea_inertia, soil_inertia, sea_emissive, soil_emmisive, min_turbmix
-  real(8) :: sw_atten, lw_atten
-  real    :: sea_albedo, soil_albedo, emin_turb
-  logical :: radiation_model, soil_model, turbulence_model, convecAdj_model, diurnal
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Default values values physics Model Parameters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  ! Sub-model activation
+  logical :: convecAdj_model  = .true.                          ! convective adjustment module is on
+  logical :: diurnal          = .true.                          ! diurnal cycle flag
+  logical :: radiation_model  = .true.                          ! radiation module is on
+  logical :: soil_model       = .true.                          ! soil model
+  logical :: turbulence_model = .true.                          ! vertical diffusion module is on
+
+  ! Physics Package planet test case parameters: set to Earth values by default
+  real(8) :: gas_molarmass   = 28.9702532d0                     ! molar mass of main gain (used to set ideal gas const in pacakage)
+  real(8) :: perihelion      = 150d0                            ! planet perihelion distance [MMkm]
+  real(8) :: aphelion        = 150d0                            ! planet aphelion distance   [MMkm]
+  real(8) :: perihelion_day  = 0d0                              ! perihelion day
+  real(8) :: obliquity       = 23.5d0                           ! planet axial tilt/obliquity
+  real(8) :: sea_surf        = 0.01d0                           ! sea surface roughness length scale  [m]
+  real(8) :: soil_surf       = 0.01d0                           ! soil surface roughness length scale [m]
+  real(8) :: sea_inertia     = 3000d0                           ! sea thermal  inertia [J/(m^3 K)]
+  real(8) :: soil_inertia    = 3000d0                           ! soil thermal inertia [J/(m^3 K)]
+  real(8) :: sea_emissive    = 1d0                              ! sea emissivity
+  real(8) :: soil_emmisive   = 1d0                              ! soil emissivity
+  real(8) :: min_turbmix     = 100d0                            ! minimum turbulent mixing length [m]
+  real(8) :: sw_atten        = 0.99d0                           ! attenuation of shortwave radiation coefficient
+  real(8) :: lw_atten        = 0.08d0                           ! attenuation of longwave radiation coefficient
+
+  ! Single precision parameters
+  real(8) :: sea_albedo      = 0.112e0                          ! sea albedo
+  real(8) :: soil_albedo     = 0.112e0                          ! soil albedo
+  real(8) :: Emin_turb       = 1e-16                            ! minimum turbulent kinetic energy
 
   logical(KIND=C_BOOL) :: physics_firstcall_flag = .true. ! flag for the physics package, true if call physics for 1st time
- contains
-  subroutine init_simple_physics_params
-    implicit none
-    logical :: initialized_physics = .false.
-
-    if (initialized_physics) return ! initialize only once
-
-    call init_default_params
-    initialized_physics = .true.
-  end subroutine init_simple_physics_params
-
-  subroutine init_default_params
-    ! Initialize physics parameters to their default values
-    implicit none
-
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Default values values physics Model Parameters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
-    ! Sub-model activation
-    radiation_model  = .true.                         ! (T) radiation module is on
-    turbulence_model = .true.                         ! (T) vertical diffusion module is on
-    convecAdj_model  = .true.                         ! (T) convective adjustment module is on
-    diurnal          = .true.                         ! diurnal cycle flag
-
-    ! Physics Package planet test case parameters: set to Earth values by default
-    gas_molarmass   = 28.9702532d0                    ! molar mass of main gain (used to set ideal gas const in pacakage)
-    perihelion      = 150d0                           ! planet perihelion distance [MMkm]
-    aphelion        = 150d0                           ! planet aphelion distance   [MMkm]
-    perihelion_day  = 0d0                             ! perihelion day
-    obliquity       = 23.5d0                          ! planet axial tilt/obliquity
-    sea_surf        = 0.01d0                          ! sea surface roughness length scale  [m]
-    soil_surf       = 0.01d0                          ! soil surface roughness length scale [m]
-    sea_inertia     = 3000d0                          ! sea thermal  inertia [J/(m^3 K)]
-    soil_inertia    = 3000d0                          ! soil thermal inertia [J/(m^3 K)]
-    sea_emissive    = 1d0                             ! sea emissivity
-    soil_emmisive   = 1d0                             ! soil emissivity
-    min_turbmix     = 100d0                           ! minimum turbulent mixing length [m]
-    sw_atten        = 0.99d0                          ! attenuation of shortwave radiation coefficient
-    lw_atten        = 0.08d0                          ! attenuation of longwave radiation coefficient
-
-    ! Single precision parameters
-    sea_albedo      = 0.112e0                          ! sea albedo
-    soil_albedo     = 0.112e0                          ! soil albedo
-    Emin_turb       = 1e-16                            ! minimum turbulent kinetic energy
-  end subroutine init_default_params
-
+contains
   subroutine init_physics 
     !-----------------------------------------------------------------------------------
     !
@@ -142,6 +121,7 @@ module init_physics_mod
     end if
 
     open (unit=file_unit, file=trim(file_params), form="FORMATTED", action='WRITE', status='REPLACE')
+
 
     ! Write physics parameters for reading by physics package
     write (file_unit,*) "planet_rat  = ", radius
@@ -270,7 +250,7 @@ module init_physics_mod
     if (trim (param_name) /= trim (name)) val = defval
   end subroutine read_parami
 
-  subroutine read_paramb(name, defval, val, comment)
+  subroutine read_paramb (name, defval, val, comment)
     !-----------------------------------------------------------------------------------
     !
     !   Description: Physics plugin to read logicals from a file

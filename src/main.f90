@@ -43,10 +43,7 @@ contains
     integer        :: d, k, l, v
 
 #ifdef PHYSICS
-    if (physics_model .and. physics_type == "Simple") then
-       call init_simple_physics_params
-       call init_soil_grid
-    end if
+    if (physics_model .and. physics_type == "Simple") call init_soil_grid
 #endif
 
     ! Initialize Laplace order to specified value for test case
@@ -139,7 +136,7 @@ contains
     call barrier
 
 #ifdef PHYSICS
-    if (physics_model .and. physics_type == "Simple") call init_physics
+    if (physics_model .and. physics_type == "Simple") call init_physics 
 #endif
   end subroutine initialize
   
