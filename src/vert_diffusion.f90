@@ -58,7 +58,7 @@ contains
 
     ! Compute eddy diffusivity and eddy viscosity at nodes and layer interfaces at all grid points
     do l = level_end, level_start, -1
-       call apply_onescale (turbulence_model, l, z_null, 0, 1)
+       call apply_onescale (turbulent_diffusion, l, z_null, 0, 1)
     end do
 
     if (tke_closure) tke%bdry_uptodate = .false.
@@ -71,7 +71,7 @@ contains
     sol%bdry_uptodate = .false.
   end subroutine vertical_diffusion
 
-  subroutine turbulence_model (dom, i, j, z_null, offs, dims)
+  subroutine turbulent_diffusion (dom, i, j, z_null, offs, dims)
     ! Backwards Euler step for TKE closure equation (or analytic)
     implicit none
     type(Domain)                   :: dom
@@ -246,7 +246,7 @@ contains
 
       coeff = dt * c_e * Kv / (dzl(l) * dz)
     end function coeff
-  end subroutine turbulence_model
+  end subroutine turbulent_diffusion
 
   subroutine backwards_euler_temp (dom, i, j, z_null, offs, dims)
     ! Backwards Euler step for temp variable

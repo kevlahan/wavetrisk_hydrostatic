@@ -1,9 +1,8 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! File Name: init_physics_module.f90
-! Author: Gabrielle Ching-Johnson
-! Date Revised: Nov 5 2023
-! Description: Module contianing all initialization subroutines to initialize the Simple Physics
-!               package or checkpoint and physics package plugins to be set during initialization.
+! Author: Gabrielle Ching-Johnson and Nicholas Kevlahan
+! Date Revised: 2024-12-06
+! Description: all initialization subroutines for Simple Physics package 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 module init_physics_mod
   use comm_mpi_mod

@@ -146,9 +146,9 @@ contains
        vel(:,il) = zc(:,il) + zd(:,il) * vel(:,il-1)
     end do
   end subroutine velo_integration
-
+  
   subroutine Vdif_Cd (ngrid, mask, pZ0, pG, pZ, pUmag, pTheta, pTs, pCd_v, pCd_theta)
-    ! Surface drag coefficient using approach developed by Louis for ECMWF.
+    ! Simplied formulation  from  J-F Louis (1979) (Boundary Layer Meteorology 17, 187-202)
 
     ! Input
     integer,                intent(in) :: ngrid  ! number of columns
@@ -161,52 +161,41 @@ contains
     real, dimension(ngrid), intent(in) :: pTs    ! temperature at surface                 [K]
 
     ! Output
-    real, dimension(ngrid), intent(out) :: pCd_v ! drag coefficient for velocity
+    real, dimension(ngrid), intent(out) :: pCd_v     ! drag coefficient for velocity
     real, dimension(ngrid), intent(out) :: pCd_theta ! drag coefficient for potential temperature
 
     integer                :: ig
-    real                   :: z1, Ri, Cd0, Z
+    real                   :: a, c_X, F_X, Ri, z1
     real, dimension(ngrid) :: U
+    
+    real, parameter :: R = 0.74 ! (velocity drag) / (temperature drag) empirical relation
 
-    real            :: dTheta, dU, dUdZ2, dZ, N2
-    real, parameter :: b = 5.0, c = 5.0, d = 5.0, c2b = 2.0 * b, c3bc = 3.0 * b * c, c3b = 3.0 * b
+    ! Parameters fitted to implicit relationship between Monin-Obukhov scale height L and 
+    ! layer bulk Richardson number
+    real, parameter :: b = 4.7, C_u = 7.4, C_theta = 5.3
+
 
     do ig = 1, ngrid
        U(ig) = sqrt (pUmag(ig)**2 + Emin_turb)
 
-       z1  = 1.0 + pZ(ig) / pZ0(ig)
+       z1  = pZ(ig) / pZ0(ig)
 
-       Cd0 = (Karman/log(z1))**2 * U(ig)
+       a = Karman / log (z1)
 
-       ! Gradient Richardson number at surface (T_s = Theta_s)
-       dZ     = 0.5 * pZ(ig)
+       c_X = 2.0 * C_u * a**2 * b * sqrt (z1)
+       
+       Ri = pG * pZ(ig) * (pTheta(ig) - pTs(ig)) / (pTheta(ig) * U(ig)**2) ! bulk Richardson number at surface
 
-       dU     = U(ig)
-       dUdZ2  = (dU/dZ)**2
-
-       dTheta = pTheta(ig) - pTs(ig)
-       N2     = pG/pTs(ig) * dTheta/dZ   ! Brunt-Vaisala frequency squared
-
-       Ri     = N2 / dUdZ2               ! gradient Richardson number
-
-       ! Ri     = pG/pTs(ig) *  / dUdZ2
-
-       if (Ri < 0.0) then
-          z1 = b * Ri / (1.0 + c3bc * Cd0 * sqrt (- z1 * Ri))
-
-          pCd_v(ig)     = Cd0 * (1.0 - 2.0 * z1)
-          pCd_theta(ig) = Cd0 * (1.0 - 3.0 * z1)
-       else
-          Z = sqrt (1.0 + d * Ri)
-
-          pCd_v(ig)     = Cd0 / (1.0 + c2b * Ri / Z)
-          pCd_theta(ig) = Cd0 / (1.0 + c3b * Ri * Z)
+       if (Ri < 0.0) then ! unstable regime
+          F_X = 1.0 - 2.0 * b * Ri / (1.0 + C_X * sqrt (-Ri))
+       else               ! stable regime
+          F_X = 1.0 / (1.0 + b * Ri)**2
        end if
-    end do
-    pCd_v     = pCd_v     * U
-    pCd_theta = pCd_theta * U
 
-    !pCd_v = 0.0  ! required for stability in adaptive case??
+       ! Drag coefficients
+       pCd_v(ig)     = a**2 * U(ig) * F_X
+       pCd_theta(ig) = pCd_v(ig) / R
+    end do
   end subroutine Vdif_Cd
 
   subroutine Vdif_K (ngrid, nlay, mask, pG, pZlay, pZint, pZ0, pUmag, pTheta, pKv, pKtheta)
