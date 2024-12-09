@@ -1,365 +1,267 @@
-MODULE solar
-
-#include "use_logging.h"
-
-  IMPLICIT NONE
-  PRIVATE
-
-  REAL, PARAMETER :: pi_local = 4.0 * ATAN(1.0), deux_pi_local = 2.0 * pi_local
-
-  PUBLIC :: solang, zenang, mucorr
-
-CONTAINS
-
-  PURE SUBROUTINE solang ( kgrid,psilon,pcolon,psilat,pcolat, &
-       ptim1,ptim2,ptim3,pmu0,pfract )
-
-    !-----------------------------------------------------------------------
-    !          CALCULATES THE SOLAR ANGLE FOR ALL THE POINTS OF THE GRID
+module solar
+  use phys_const, only : pi
+  implicit none
+  private
+  public :: SolAng, ZenAng, MuCorr
+contains
+  pure subroutine SolAng (kgrid, pSiLon, pCoLon, pSiLat, pCoLat, pTim1, pTim2, pTim3, pMu0, pFract)
+    ! -----------------------------------------------------------------------
+    !          Calculates the solar angle for all the points of the grid (Frederic Hourdin)
     !
-    !     ==== INPUTS  ===
+    !     ==== inputs  ===
     !
-    ! PSILON(KGRID)   : SINUS OF THE LONGITUDE
-    ! PCOLON(KGRID)   : COSINUS OF THE LONGITUDE
-    ! PSILAT(KGRID)   : SINUS OF THE LATITUDE
-    ! PCOLAT(KGRID)   : COSINUS OF THE LATITUDE
-    ! PTIM1           : SIN(DECLI)
-    ! PTIM2           : COS(DECLI)*COS(TIME)
-    ! PTIM3           : SIN(DECLI)*SIN(TIME)
+    ! psilon(kgrid)   : sine   of the longitude
+    ! pcolon(kgrid)   : cosine of the longitude
+    ! psilat(kgrid)   : sine   of the latitude
+    ! pcolat(kgrid)   : cosine of the latitude
     !
-    !     ==== OUTPUTS ===
+    ! pTim1           : sin (decli)
+    ! pTim2           : cos (decli) * cos(Time)
+    ! pTim3           : sin (decli) * sin(Time)
     !
-    ! PMU0 (KGRID)    : SOLAR ANGLE
-    ! PFRACT(KGRID)   : DAY FRACTION OF THE TIME INTERVAL
+    !     ==== outputs ===
     !
-    !     REFERENCE.
-    !     ----------
+    ! pMu0  (kgrid)   : solar angle
+    ! pFract(kgrid)   : day fraction of the time interval
+    !        
     !
-    !         RADIATIVE PROCESSES IN METEOROLOGIE AND CLIMATOLOGIE
-    !         PALTRIDGE AND PLATT
-    !
-    !     AUTHOR.
-    !     -------
-    !        FREDERIC HOURDIN
-    !
-    !     MODIFICATIONS.
+    !     modifications.
     !     --------------
-    !        ORIGINAL :90-01-14
-    !                  92-02-14 CALCULATIONS DONE THE ENTIER GRID (J.Polcher)
-    !-----------------------------------------------------------------------
+    !        original :90-01-14
+    !                  92-02-14 calculations done the entier grid (j.polcher)
+    ! -----------------------------------------------------------------------
 
-    INTEGER, INTENT(IN)  :: kgrid
-    REAL,    INTENT(IN)  :: ptim1,ptim2,ptim3
-    REAL,    INTENT(IN)  :: psilon(kgrid), pcolon(kgrid)
-    REAL,    INTENT(IN)  :: psilat(kgrid), pcolat(kgrid)
-    REAL,    INTENT(OUT) :: pmu0(kgrid), pfract(kgrid)
+    integer,                intent(in)  :: kgrid
+    real,                   intent(in)  :: pTim1, pTim2, pTim3
+    real, dimension(kgrid), intent(in)  :: pSiLon, pCoLon, pSiLat, pCoLat
+    real, dimension(kgrid), intent(out) :: pMu0, pFract
 
-    INTEGER jl
-    REAL ztim1,ztim2,ztim3
-    !------------------------------------------------------------------------
-    !------------------------------------------------------------------------
-    !------------------------------------------------------------------------
-    !
-    !------------------------------------------------------------------------
-    !
-    !*     1.     INITIALISATION
-    !             --------------
-    !
-    !
-    !$acc kernels present(psilon, pcolon, psilat, pcolat, pmu0, pfract)
-    DO jl=1,kgrid
-       pmu0(jl)=0.
-       pfract(jl)=0.
-    ENDDO
-    !
-    !*     1.1     COMPUTATION OF THE SOLAR ANGLE
-    !              ------------------------------
-    !
-    !$acc loop private(ztim1, ztim2, ztim3)
-    DO jl=1,kgrid
-       ztim1=psilat(jl)*ptim1
-       ztim2=pcolat(jl)*ptim2
-       ztim3=pcolat(jl)*ptim3
-       pmu0(jl)=ztim1+ztim2*pcolon(jl)+ztim3*psilon(jl)
-    ENDDO
-    !
-    !*     1.2      DISTINCTION BETWEEN DAY AND NIGHT
-    !               ---------------------------------
-    !
-    DO jl=1,kgrid
-       IF (pmu0(jl).gt.0.) THEN
-          pfract(jl)=1.
-       ELSE
-          pmu0(jl)=0.
-          pfract(jl)=0.
-       ENDIF
-    ENDDO
-    !$acc end kernels
+    integer :: jl
+    real    :: Mu0, zTim1, zTim2, zTim3
+  
+    do jl = 1, kgrid
+       pmu0(jl)   = 0.0
+       pfract(jl) = 0.0
+    enddo
 
-  END SUBROUTINE solang
+    ! Computation of solar angle Mu0
+    do jl = 1, kgrid
+       zTim1 = pSiLat(jl) * pTim1
+       zTim2 = pCoLat(jl) * pTim2
+       zTim3 = pCoLat(jl) * pTim3
+       
+       Mu0 = zTim1 + zTim2 * pCoLon(jl) + zTim3 * pSiLon(jl)
 
-  SUBROUTINE zenang(klon,longi,gmtime,pdtrad,lat,long,              &
-       &                  pmu0,frac)
-    USE astronomy
+       if (Mu0 > 0.0) then ! day
+          pFract(jl) = 1.0
+       else                ! night
+          pMu0(jl)   = 0.0
+          pFract(jl) = 0.0
+       endif
+    enddo
+  end subroutine SolAng
 
+  subroutine ZenAng (klon, longi, gmTime, pdtrad, lat, long, pMu0, frac)
+    use astronomy
     !=============================================================
-    ! Auteur : O. Boucher (LMD/CNRS)
-    !          d apres les routines zenith et angle de Z.X. Li
-    ! Objet  : calculer les valeurs moyennes du cos de l angle zenithal
-    !          et l ensoleillement moyen entre gmtime1 et gmtime2
+    ! auteur : O. Boucher (lmd/cnrs)
+    !          d apres les routines zenith et angle de z.x. li
+    ! objet  : calculer les valeurs moyennes du cos de l angle zenithal
+    !          et l ensoleillement moyen entre gmTime1 et gmTime2
     !          connaissant la declinaison, la latitude et la longitude.
-    ! Rque   : Different de la routine angle en ce sens que zenang
-    !          fournit des moyennes de pmu0 et non des valeurs
+    ! rque   : different de la routine angle en ce sens que zenang
+    !          fournit des moyennes de pMu0 et non des valeurs
     !          instantanees, du coup frac prend toutes les valeurs
     !          entre 0 et 1.
-    ! Date   : premiere version le 13 decembre 1994
-    !          revu pour  GCM  le 30 septembre 1996
+    ! date   : premiere version le 13 decembre 1994
+    !          revu pour  gcm  le 30 septembre 1996
     !===============================================================
-    ! longi----INPUT : la longitude vraie de la terre dans son plan
+    ! longi----input : la longitude vraie de la terre dans son plan
     !                  solaire a partir de l equinoxe de printemps (degre)
-    ! gmtime---INPUT : temps universel en fraction de jour
-    ! pdtrad---INPUT : pas de temps du rayonnement (secondes)
-    ! lat------INPUT : latitude en degres
-    ! long-----INPUT : longitude en degres
-    ! pmu0-----OUTPUT: angle zenithal moyen entre gmtime et gmtime+pdtrad
-    ! frac-----OUTPUT: ensoleillement moyen entre gmtime et gmtime+pdtrad
+    ! gmTime---input : temps universel en fraction de jour
+    ! pdtrad---input : pas de temps du rayonnement (secondes)
+    ! lat------input : latitude en degres
+    ! long-----input : longitude en degres
+    ! pMu0-----output: angle zenithal moyen entre gmTime et gmTime+pdtrad
+    ! frac-----output: ensoleillement moyen entre gmTime et gmTime+pdtrad
     !================================================================
-    integer klon
-    !================================================================
-    real longi, gmtime, pdtrad
-    real lat(klon), long(klon), pmu0(klon), frac(klon)
-    !================================================================
-    integer i
-    real gmtime1, gmtime2
-    real incl
-    real omega1, omega2, omega
     ! omega1, omega2 : temps 1 et 2 exprime en radian avec 0 a midi.
     ! omega : heure en radian du coucher de soleil
     ! -omega est donc l heure en radian de lever du soleil
-    real omegadeb, omegafin
-    real zfrac1, zfrac2, z1_mu, z2_mu
-    ! declinaison en radian
-    real lat_sun
-    ! longitude solaire en radian
-    real lon_sun
-    ! latitude du pt de grille en radian
-    real latr
-    !================================================================
-    !
-    !     incl=R_incl * pi_local / 180.
-    WRITELOG(*,*) 'Obliquite =' ,obliquit
-    LOG_INFO('solar')
+    
+    integer               :: i, klon
+    real                  :: gmTime, gmTime1, gmTime2, incl, longi, omega, omega1, omega2, omegadeb, omegafin, pdTrad
+    real                  :: zfrac1, zfrac2, z1_mu, z2_mu
+    
+    real                  :: lat_sun     ! declinaison en radian
+    real                  :: latr        ! latitude du pt de grille en radian
+    real                  :: lon_sun     ! longitude solaire en radian
+    
+    real, dimension(klon) :: lat, long, pMu0, frac
 
-    incl=obliquit * pi_local / 180.
-    !
-    !     lon_sun = longi * pi_local / 180.0
+    incl = obliquit * pi / 180.0
+
     lon_sun = longi
-    lat_sun = ASIN (SIN(lon_sun)*SIN(incl) )
+    lat_sun = asin (sin (lon_sun) * sin(incl))
     !
-    gmtime1=gmtime*86400.
-    gmtime2=gmtime*86400.+pdtrad
+    gmTime1 =gmTime * 86400.0
+    gmTime2 =gmTime * 86400.0 + pdTrad
     !
-    DO i = 1, klon
-       !
-       !     latr = lat(i) * pi_local / 180.
+    do i = 1, klon
        latr = lat(i)
-       !
+
        !--pose probleme quand lat=+/-90 degres
        !
-       !      omega = -TAN(latr)*TAN(lat_sun)
-       !      omega = ACOS(omega)
-       !      IF (latr.GE.(pi_local/2.+lat_sun)
-       !     .    .OR. latr.LE.(-pi_local/2.+lat_sun)) THEN
+       !      omega = -tan(latr)*tan(lat_sun)
+       !      omega = acos(omega)
+       !      if (latr.ge.(pi/2.+lat_sun)
+       !     .    .or. latr.le.(-pi/2.+lat_sun)) then
        !         omega = 0.0       ! nuit polaire
-       !      ENDIF
-       !      IF (latr.GE.(pi_local/2.-lat_sun)
-       !     .          .OR. latr.LE.(-pi_local/2.-lat_sun)) THEN
-       !         omega = pi_local  ! journee polaire
-       !      ENDIF
+       !      endif
+       !      if (latr.ge.(pi/2.-lat_sun)
+       !     .          .or. latr.le.(-pi/2.-lat_sun)) then
+       !         omega = pi  ! journee polaire
+       !      endif
        !
        !--remplace par cela (le cas par defaut est different)
        !
        !--nuit polaire
-       omega=0.0
-       IF (latr.GE.(pi_local/2.-lat_sun)                                 &
-            &          .OR. latr.LE.(-pi_local/2.-lat_sun)) THEN
-          ! journee polaire
-          omega = pi_local
-       ENDIF
-       IF (latr.LT.(pi_local/2.+lat_sun).AND.                            &
-            &    latr.GT.(-pi_local/2.+lat_sun).AND.                           &
-            &    latr.LT.(pi_local/2.-lat_sun).AND.                            &
-            &    latr.GT.(-pi_local/2.-lat_sun)) THEN
-          omega = -TAN(latr)*TAN(lat_sun)
-          omega = ACOS(omega)
-       ENDIF
-       !
-       omega1 = gmtime1 + long(i)*86400.0/360.0
-       omega1 = omega1 / 86400.0*deux_pi_local
-       omega1 = MOD (omega1+deux_pi_local, deux_pi_local)
-       omega1 = omega1 - pi_local
-       !
-       omega2 = gmtime2 + long(i)*86400.0/360.0
-       omega2 = omega2 / 86400.0*deux_pi_local
-       omega2 = MOD (omega2+deux_pi_local, deux_pi_local)
-       omega2 = omega2 - pi_local
-       !
-       !--on est dans la meme journee locale
-       IF (omega1.LE.omega2) THEN
-          !
-          IF (omega2.LE.-omega .OR. omega1.GE.omega .OR. omega.LT.1e-5)  &
-               THEN
-             !--nuit
-             frac(i)=0.0
-             pmu0(i)=0.0
-             !--jour+nuit/jou
-          ELSE
-             omegadeb=MAX(-omega,omega1)
-             omegafin=MIN(omega,omega2)
-             frac(i)=(omegafin-omegadeb)/(omega2-omega1)
-             pmu0(i)=SIN(latr)*SIN(lat_sun) + COS(latr)*COS(lat_sun)*    &
-                  (SIN(omegafin)-SIN(omegadeb))/ (omegafin-omegadeb)
-          ENDIF
-          !
-          !---omega1 GT omega2 -- a cheval sur deux journees
-       ELSE
-          !
-          !-------------------entre omega1 et pi
-          !--nuit
-          IF (omega1.GE.omega) THEN
-             zfrac1=0.0
-             z1_mu =0.0
-             !--jour+nuit
-          ELSE
-             omegadeb=MAX(-omega,omega1)
-             omegafin=omega
-             zfrac1=omegafin-omegadeb
-             z1_mu =SIN(latr)*SIN(lat_sun) + COS(latr)*COS(lat_sun)*     &
-                  (SIN(omegafin)-SIN(omegadeb))/ (omegafin-omegadeb)
-          ENDIF
+       omega = 0.0
+       if (latr >= (pi/2.0 - lat_sun) .or. latr <= (-pi/2.0 - lat_sun)) then ! journee polaire
+          omega = pi
+       endif
+       if (latr < (pi/2.0 + lat_sun) .and. latr > (-pi/2.0 + lat_sun) .and. &
+           latr < (pi/2.0 - lat_sun) .and. latr > (-pi/2.0 - lat_sun)) then
+          omega = acos (- tan (latr) * tan (lat_sun))
+       endif
+
+       omega1 = gmTime1 + long(i) * 86400.0 / 360.0
+       omega1 = omega1 / 86400.0 * 2.0*pi
+       omega1 = mod (omega1 + 2.0*pi, 2.0*pi)
+       
+       omega1 = omega1 - pi
+
+       omega2 = gmTime2 + long(i) * 86400.0 / 360.0
+       omega2 = omega2 / 86400.0 * 2.0*pi
+       omega2 = mod (omega2 + 2.0*pi, 2.0*pi)
+       
+       omega2 = omega2 - pi
+
+       ! On est dans la meme journee locale
+       if (omega1 <= omega2) then
+          if (omega2 <= -omega .or. omega1 >= omega .or. omega < 1e-5) then !--nuit
+             frac(i) = 0.0
+             pMu0(i) = 0.0
+          else !--jour + nuit/jour
+             omegadeb = max (-omega, omega1)
+             omegafin = min ( omega, omega2)
+             
+             frac(i) = (omegafin - omegadeb) / (omega2 - omega1)
+             pMu0(i) = sin (latr) * sin (lat_sun) + cos (latr) * cos (lat_sun) * &
+                  (sin (omegafin) - sin (omegadeb)) / (omegafin - omegadeb)
+          endif
+       else  !---omega1 gt omega2 -- a cheval sur deux journees
+          if (omega1 >= omega) then !--nuit
+             zfrac1 = 0.0
+             z1_mu  = 0.0
+          else !--jour+nuit
+             omegadeb = max (-omega, omega1)
+             omegafin = omega
+             zfrac1 = omegafin - omegadeb
+             z1_mu  = sin (latr) * sin(lat_sun) + cos (latr) * cos (lat_sun) *     &
+                  (sin(omegafin) - sin (omegadeb)) / (omegafin - omegadeb)
+          endif
+
           !---------------------entre -pi et omega2
-          !--nuit
-          IF (omega2.LE.-omega) THEN
-             zfrac2=0.0
-             z2_mu =0.0
-             !--jour+nuit
-          ELSE
-             omegadeb=-omega
-             omegafin=MIN(omega,omega2)
-             zfrac2=omegafin-omegadeb
-             z2_mu =SIN(latr)*SIN(lat_sun) + COS(latr)*COS(lat_sun)*     &
-                  (SIN(omegafin)-SIN(omegadeb))/ (omegafin-omegadeb)
-             !
-          ENDIF
+          if (omega2 <= -omega) then  !--nuit
+             zfrac2 = 0.0
+             z2_mu  = 0.0
+          else  !--jour+nuit
+             omegadeb = -omega
+             omegafin = min (omega, omega2)
+             zfrac2 = omegafin - omegadeb
+             z2_mu = sin (latr) * sin (lat_sun) + cos (latr) * cos (lat_sun) *     &
+                  (sin (omegafin) - sin (omegadeb)) / (omegafin - omegadeb)
+          endif
+
           !-----------------------moyenne
-          frac(i)=(zfrac1+zfrac2)/(omega2+deux_pi_local-omega1)
-          pmu0(i)=(zfrac1*z1_mu+zfrac2*z2_mu)/MAX(zfrac1+zfrac2,1.E-10)
-          !
-          !---comparaison omega1 et omega2
-       ENDIF
-       !
-    ENDDO
-    !
-  END SUBROUTINE zenang
+          frac(i) = (zfrac1 + zfrac2) / (omega2 + 2.0*pi - omega1)
+          pMu0(i) = (zfrac1 * z1_mu + zfrac2 * z2_mu)   /max (zfrac1 + zfrac2, 1e-10)
+       endif
+    enddo
+  end subroutine zenang
 
-  PURE SUBROUTINE mucorr(npts,pdeclin, plat, pmu, pfract,phaut,prad)
-
-    !=======================================================================
-    !
-    !   Calcul of equivalent solar angle and and fraction of day whithout
-    !   diurnal cycle.
-    !
-    !   parmeters :
-    !   -----------
+  pure subroutine MuCorr (npts, pDeclin, pLat, pMu, pFract, pHaut, pRad)
+    !   Equivalent solar angle and fraction without diurnal cycle
     !
     !      Input :
     !      -------
     !         npts             number of points
-    !         pdeclin          solar declinaison
-    !         plat(npts)        latitude
-    !         phaut            hauteur typique de l atmosphere
-    !         prad             rayon planetaire
+    !         pDeclin          solar declination
+    !         pLat(npts)       latitude
+    !         pHaut            hauteur typique de l atmosphere
+    !         pRad             rayon planetaire
     !
     !      Output :
     !      --------
-    !         pmu(npts)          equivalent cosinus of the solar angle
-    !         pfract(npts)       fractionnal day
-    !
-    !=======================================================================
+    !         pMu   (npts)     equivalent cosine of solar angle
+    !         pFract(npts)     fractional day
+    
+    integer,               intent(in) :: npts
+    real,                  intent(in) :: pHaut, pRad, pDeclin
+    real, dimension(npts), intent(in) :: pLat
+    
+    real, dimension(npts), intent(out):: pMu, pFract
 
-    !-----------------------------------------------------------------------
-    !
-    !    0. Declarations :
-    !    -----------------
+    integer :: j
+    real    :: alph, ap, a, t, b, z, cz, sZ, tZ, Phi, cPhi, sPhi, tPhi
 
-    !     Arguments :
-    !     -----------
-    INTEGER, INTENT(IN) :: npts
-    REAL, INTENT(IN)    :: phaut, prad, pdeclin, plat(npts)
-    REAL, INTENT(OUT)   :: pmu(npts), pfract(npts)
-    !
-    !     Local variables :
-    !     -----------------
-    INTEGER j
-    REAL z,cz,sz,tz,phi,cphi,sphi,tphi
-    REAL ap,a,t,b
-    REAL alph
-
-    REAL, PARAMETER :: pi=2.*asin(1.)
-
-    !-----------------------------------------------------------------------
-
-    z = pdeclin
+    z  = pdeclin
     cz = cos (z)
-    sz = sin (z)
+    sZ = sin (z)
 
-    DO j = 1, npts
-
-       phi = plat(j)
-       cphi = cos(phi)
-       if (cphi.le.1.e-9) cphi=1.e-9
-       sphi = sin(phi)
-       tphi = sphi / cphi
-       b = cphi * cz
-       t = -tphi * sz / cz
-       a = 1.0 - t*t
+    do j = 1, npts
+       Phi = plat(j)
+       cPhi = cos (Phi)
+       if (cPhi <= 1e-9) cPhi = 1e-9
+       
+       sPhi = sin (Phi)
+       tPhi = sPhi / cPhi
+       
+       b  =   cPhi * cz
+       t  = - tPhi * sZ / cz
+       a  = 1.0 - t**2
        ap = a
 
-       IF(t.eq.0.) then
-          t=0.5*pi
-       ELSE
-          IF (a.lt.0.) a = 0.
-          t = sqrt(a) / t
-          IF (t.lt.0.) then
-             t = -atan (-t) + pi
-          ELSE
+       if (t == 0.0) then
+          t = 0.5 * pi
+       else
+          if (a < 0.0) a = 0.0
+          t = sqrt (a) / t
+          if (t < 0.0) then
+             t = - atan (-t) + pi
+          else
              t = atan(t)
-          ENDIF
-       ENDIF
+          end if
+       end if
 
-       pmu(j) = (sphi*sz*t) / pi + b*sin(t)/pi
-       pfract(j) = t / pi
-       IF (ap .lt.0.) then
-          pmu(j) = sphi * sz
+       pMu(j)    = (sPhi * sZ * t) / pi + b * sin (t) / pi
+       pFract(j) = t / pi
+       
+       if (ap < 0.0) then
+          pMu(j)    = sPhi * sZ
           pfract(j) = 1.0
-       ENDIF
-       IF (pmu(j).le.0.0) pmu(j) = 0.0
-       pmu(j) = pmu(j) / pfract(j)
-       IF (pmu(j).eq.0.) pfract(j) = 0.
+       end if
+       
+       if (pMu(j) <= 0.0) pMu(j) = 0.0
 
-    END DO
-
-    !-----------------------------------------------------------------------
-    !   correction de rotondite:
-    !   ------------------------
-
-    alph=phaut/prad
-    DO j=1,npts
-       ! !!!!!!
-       pmu(j)=sqrt(1224.*pmu(j)*pmu(j)+1.)/35.
-       !    $          (sqrt(alph*alph*pmu(j)*pmu(j)+2.*alph+1.)-alph*pmu(j))
-    END DO
-
-  END SUBROUTINE mucorr
-
-END MODULE solar
+       pMu(j) = pMu(j) / pFract(j)
+       if (pMu(j) == 0.0) pFract(j) = 0.0
+       
+       ! Correction de rotondite
+       pMu(j) = sqrt (1224.0 * pMu(j)**2 + 1.0) / 35.0  
+       !alph = pHaut / pRad
+       !pMu(j) = sqrt ((alph*pMu(j))**2 + 2.0 * alph + 1.0) - alph * pMu(j)
+    end do
+  end subroutine MuCorr
+end module solar

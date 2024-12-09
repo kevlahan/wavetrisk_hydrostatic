@@ -13,8 +13,8 @@ contains
   subroutine radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPint, pT, FluxRad)
     USE planet
     use phys_const,     only : planet_rad
-    use astronomy,      only : orbite, solarlong
-    USE solar,          only : solang, zenang, mucorr
+    use astronomy,      only : Orbite, SolarLong
+    USE solar,          only : SolAng, ZenAng, MuCorr
     use soil_mod,       only : Albedo, Emissiv, Tsurf
     USE radiative_sw,   only : sw
     USE radiative_lw,   only : lw
@@ -42,17 +42,17 @@ contains
     real, dimension(ngrid,nlayer) :: zdTlw                      ! long-wave temperature tendency
 
     !  Insolation
-    call solarlong (zday, zls)
-    call orbite (zls, dist_sol, declin)
+    call SolarLong (zDay, zls)
+    call Orbite (zls, dist_sol, declin)
 
     if (diurnal) then
        ztim1 =   sin (declin)
-       ztim2 =   cos (declin) * cos (2.0 * pi * (zday - 0.5))
-       ztim3 = - cos (declin) * sin (2.0 * pi * (zday - 0.5))
+       ztim2 =   cos (declin) * cos (2.0 * pi * (zDay - 0.5))
+       ztim3 = - cos (declin) * sin (2.0 * pi * (zDay - 0.5))
 
-       call solang (ngrid, sinlon, coslon, sinlat, coslat,  ztim1, ztim2, ztim3, mu0, fract)
+       call SolAng (ngrid, sinlon, coslon, sinlat, coslat,  ztim1, ztim2, ztim3, mu0, fract)
     else
-       call mucorr (ngrid, declin, lati, mu0, fract, height_scale, planet_rad)
+       call MuCorr (ngrid, declin, lati, mu0, fract, height_scale, planet_rad)
     end if
 
     zInsol = SolarCst / dist_sol**2
