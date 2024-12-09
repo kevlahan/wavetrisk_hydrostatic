@@ -1,7 +1,5 @@
-MODULE planet
-  IMPLICIT NONE
-  SAVE
-
-  REAL :: coefvis, coefir
-
-END MODULE planet
+module planet
+  implicit none
+  save
+  real :: coefvis, coefir
+end module planet

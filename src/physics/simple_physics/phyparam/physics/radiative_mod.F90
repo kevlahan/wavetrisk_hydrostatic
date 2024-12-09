@@ -33,8 +33,8 @@ contains
 
     ! Local variables
     integer                       :: ig, l
-    real                          :: zls, zInsol, ztim1, ztim2, ztim3, dist_sol, declin
-    real, dimension(ngrid)        :: fract                      ! day fraction
+    real                          :: zls, zInsol, zTim1, zTim2, zTim3, dist_sol, declin
+    real, dimension(ngrid)        :: Fract                      ! day fraction
     real, dimension(ngrid)        :: zFluxSW                    ! short-wave flux at surface
     real, dimension(ngrid)        :: zFluxlw                    ! short-wave flux at surface
     real, dimension(ngrid)        :: Mu0                        ! cosine of zenithal angle
@@ -46,19 +46,19 @@ contains
     call Orbite (zls, dist_sol, declin)
 
     if (diurnal) then
-       ztim1 =   sin (declin)
-       ztim2 =   cos (declin) * cos (2.0 * pi * (zDay - 0.5))
-       ztim3 = - cos (declin) * sin (2.0 * pi * (zDay - 0.5))
+       zTim1 =   sin (declin)
+       zTim2 =   cos (declin) * cos (2.0 * pi * (zDay - 0.5))
+       zTim3 = - cos (declin) * sin (2.0 * pi * (zDay - 0.5))
 
-       call SolAng (ngrid, sinlon, coslon, sinlat, coslat,  ztim1, ztim2, ztim3, mu0, fract)
+       call SolAng (ngrid, SinLon, CosLon, SinLat, CosLat,  zTim1, zTim2, zTim3, Mu0, Fract)
     else
-       call MuCorr (ngrid, declin, lati, mu0, fract, height_scale, planet_rad)
+       call MuCorr (ngrid, declin, lati, Mu0, Fract, height_scale, planet_rad)
     end if
 
     zInsol = SolarCst / dist_sol**2
 
     ! Radiative tendencies and fluxes:
-    call sw (ngrid, nlayer, diurnal, CoefVis, Albedo, pPint, Ps_rad, mu0, fract, zInsol, zFluxSW, zdTsw)
+    call sw (ngrid, nlayer, diurnal, CoefVis, Albedo, pPint, Ps_rad, Mu0, Fract, zInsol, zFluxSW, zdTsw)
     call lw (ngrid, nlayer, coefir, Emissiv, pPint, Ps_rad, Tsurf, pT, zFluxlw, zdTlw)
 
     ! Surface fluxes

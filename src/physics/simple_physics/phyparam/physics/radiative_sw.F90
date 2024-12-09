@@ -21,7 +21,7 @@ contains
     real, dimension(ngrid),          intent(in) :: Albedo   ! Albedo
     real, dimension(ngrid),          intent(in) :: pMu      ! cosine zenithal angle
     real, dimension(ngrid),          intent(in) :: pFract   ! day fraction
-    real, dimension(ngrid,nlayer+1), intent(in) :: pPint   ! interface pressures
+    real, dimension(ngrid,nlayer+1), intent(in) :: pPint    ! interface pressures
     logical,                         intent(in) :: ldiurn   ! diurnal cycle
 
     ! Output
