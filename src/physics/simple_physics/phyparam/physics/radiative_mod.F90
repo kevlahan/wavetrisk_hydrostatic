@@ -12,12 +12,12 @@ module radiative_mod
 contains
   subroutine radiative_tendencies (ngrid, nlayer, gmTime, pTimestep, zDay, pPint, pT, FluxRad)
     USE planet
-    use phys_const,     only : planet_rad
-    use astronomy,      only : Orbite, SolarLong
-    USE solar,          only : SolAng, ZenAng, MuCorr
-    use soil_mod,       only : Albedo, Emissiv, Tsurf
-    USE radiative_sw,   only : sw
-    USE radiative_lw,   only : lw
+    use phys_const,   only : planet_rad
+    use astronomy,    only : Orbite, SolarLon
+    USE solar,        only : SolAng, ZenAng, MuCorr
+    use soil_mod,     only : Albedo, Emissiv, Tsurf
+    USE radiative_sw, only : sw
+    USE radiative_lw, only : lw
 
     ! Input variables
     integer,                         intent(in)    :: ngrid     ! number of columns
@@ -26,40 +26,43 @@ contains
     real,                            intent(in)    :: pTimestep ! time step [s]
     real,                            intent(in)    :: zDay      ! elapsed days (and fraction thereof)
     real, dimension(ngrid,nlayer+1), intent(in)    :: pPint     ! pressure at interfaces
-
+cd 
     ! Output
     real, dimension(ngrid,nlayer),   intent(inout) :: pT        ! temperature [K] (advanced from t -> t+dt)
     real, dimension(ngrid),          intent(out)   :: FluxRad   ! net surface flux
 
     ! Local variables
     integer                       :: ig, l
-    real                          :: zls, zInsol, zTim1, zTim2, zTim3, dist_sol, declin
+    real                          :: zInsol, zTim1, zTim2, zTim3
+    real                          :: Dist_Sol                   ! distance between planet and Sun
+    real                          :: Declin                     ! solar declination angle
+    real                          :: zSolLon                    ! solar longitude
     real, dimension(ngrid)        :: Fract                      ! day fraction
     real, dimension(ngrid)        :: zFluxSW                    ! short-wave flux at surface
     real, dimension(ngrid)        :: zFluxlw                    ! short-wave flux at surface
-    real, dimension(ngrid)        :: Mu0                        ! cosine of zenithal angle
+    real, dimension(ngrid)        :: Mu0                        ! cosine of solar zenith angle
     real, dimension(ngrid,nlayer) :: zdTsw                      ! short-wave temperature tendency
     real, dimension(ngrid,nlayer) :: zdTlw                      ! long-wave temperature tendency
 
     !  Insolation
-    call SolarLong (zDay, zls)
-    call Orbite (zls, dist_sol, declin)
+    call SolarLon (zDay, zSolLon)
+    call Orbite (zSolLon, Dist_Sol, Declin)
 
     if (diurnal) then
-       zTim1 =   sin (declin)
-       zTim2 =   cos (declin) * cos (2.0 * pi * (zDay - 0.5))
-       zTim3 = - cos (declin) * sin (2.0 * pi * (zDay - 0.5))
+       zTim1 =   sin (Declin)
+       zTim2 =   cos (Declin) * cos (2.0*pi * (zDay - 0.5))
+       zTim3 = - cos (Declin) * sin (2.0*pi * (zDay - 0.5))
 
        call SolAng (ngrid, SinLon, CosLon, SinLat, CosLat,  zTim1, zTim2, zTim3, Mu0, Fract)
     else
-       call MuCorr (ngrid, declin, lati, Mu0, Fract, height_scale, planet_rad)
+       call MuCorr (ngrid, Declin, lati, Mu0, Fract, height_scale, planet_rad)
     end if
 
     zInsol = SolarCst / dist_sol**2
 
-    ! Radiative tendencies and fluxes:
+    ! Radiative tendencies and fluxes
     call sw (ngrid, nlayer, diurnal, CoefVis, Albedo, pPint, Ps_rad, Mu0, Fract, zInsol, zFluxSW, zdTsw)
-    call lw (ngrid, nlayer, coefir, Emissiv, pPint, Ps_rad, Tsurf, pT, zFluxlw, zdTlw)
+    call lw (ngrid, nlayer, CoefIR, Emissiv, pPint, Ps_rad, Tsurf, pT, zFluxlw, zdTlw)
 
     ! Surface fluxes
     FluxRad = Emissiv * (zFluxlw + (1.0 - Albedo) * zFluxsw - Stefan * Tsurf**4)
