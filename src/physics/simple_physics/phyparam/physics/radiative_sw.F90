@@ -4,7 +4,7 @@ module radiative_sw
   private
   public :: sw
 contains
-  subroutine sw (ngrid, nlayer,ldiurn, CoefVis, Albedo, pPint, pS_rad,pMu, pfract, pSolarf0, FsrFvis, dTsw)
+  subroutine sw (ngrid, nlayer,ldiurn, CoefVis, Albedo, pPint, pS_rad,pMu, pFract, pSolarf0, FsrFvis, dTsw)
     !=======================================================================
     !
     !   Rayonnement solaire en atmosphere non diffusante avec un
@@ -19,7 +19,7 @@ contains
     real,                            intent(in) :: CoefVis  ! CoefVis = attenuation at p = Ps_rad
     real,                            intent(in) :: Ps_rad   !
     real, dimension(ngrid),          intent(in) :: Albedo   ! Albedo
-    real, dimension(ngrid),          intent(in) :: pMu      ! cosine zenithal angle
+    real, dimension(ngrid),          intent(in) :: pMu      ! cosine of solar zenithal angle
     real, dimension(ngrid),          intent(in) :: pFract   ! day fraction
     real, dimension(ngrid,nlayer+1), intent(in) :: pPint    ! interface pressures
     logical,                         intent(in) :: ldiurn   ! diurnal cycle
@@ -45,13 +45,14 @@ contains
     real, dimension(ngrid,nlayer+1) :: Flux_down ! downward flux
     real, dimension(ngrid,nlayer+1) :: Flux_up   ! upward flux
     real, dimension(ngrid,nlayer+1) :: zPint     ! pressure at interfaces
-    real, dimension(ngrid,nlayer+1) :: zU        !
+    real, dimension(ngrid,nlayer+1) :: zU        ! 
 
+    ! Count number day cells 
     if (ldiurn) then
        ncount = 0
        index  = 0
        do ig = 1, ngrid
-          if (pfract(ig) > 1e-6) then
+          if (pFract(ig) > 1e-6) then
              ncount = ncount + 1
              index (ncount) = ig
           end if
@@ -60,7 +61,7 @@ contains
        ncount = ngrid
     end  if
 
-    call mongather (ngrid, ncount, index, pFract, zfract)
+    call mongather (ngrid, ncount, index, pFract, zFract)
     call mongather (ngrid, ncount, index, pMu,    zMu)
     call mongather (ngrid, ncount, index, Albedo, zAlb)
     do l=  1, nlayer+1
@@ -76,7 +77,7 @@ contains
     ! Profondeurs optiques integres depuis p=0:
 
     ! Transmission depuis le sommet de l atmosphere:
-    Flux_in(1:ncount) = pSolarf0 * zfract(1:ncount) * zMu(1:ncount)
+    Flux_in(1:ncount) = pSolarf0 * zFract(1:ncount) * zMu(1:ncount)
 
     ! Partie homogene de l opacite
     tau0 = -0.5 * log (CoefVis) / Ps_rad

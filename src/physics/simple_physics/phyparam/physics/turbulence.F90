@@ -9,7 +9,7 @@ module turbulence
   real    :: LmixMin   = 1e+2         ! minimum mixing length
   real    :: p_0       = 1e+5         ! reference pressure [Pa]
   real    :: Kv_max    = 1e+0         ! maximum turbulent diffusivity
-  public ::  dVdZ2_min, Emin_turb, LmixMin, p_0, Ri_c, Vdif
+  public ::  dVdZ2_min, LmixMin, p_0, Ri_c, Vdif
 contains
   subroutine Vdif (ngrid, nlay, mask, pTime, pTimestep, pCapCal, pEmis, pFluxSrf, pZ0, pPlay, pPint, pZlay, pZint, pUmag, &
        pU, pV, pW, pTheta, pTsrf)
@@ -164,9 +164,8 @@ contains
     real, dimension(ngrid), intent(out) :: pCd_v     ! drag coefficient for velocity
     real, dimension(ngrid), intent(out) :: pCd_theta ! drag coefficient for potential temperature
 
-    integer                :: ig
-    real                   :: a, c_X, F_X, Ri, z1
-    real, dimension(ngrid) :: U
+    integer         :: ig
+    real            :: a, c1_theta, c1_u, F_theta, F_u, Ri, z1
     
     real, parameter :: R = 0.74 ! (velocity drag) / (temperature drag) empirical relation
 
@@ -174,27 +173,27 @@ contains
     ! layer bulk Richardson number
     real, parameter :: b = 4.7, C_u = 7.4, C_theta = 5.3
 
-
     do ig = 1, ngrid
-       U(ig) = sqrt (pUmag(ig)**2 + Emin_turb)
-
        z1  = pZ(ig) / pZ0(ig)
 
        a = Karman / log (z1)
 
-       c_X = 2.0 * C_u * a**2 * b * sqrt (z1)
+       c1_u     = 2.0 * C_u     * a**2 * b * sqrt (z1)
+       c1_theta = 2.0 * C_theta * a**2 * b * sqrt (z1)
        
-       Ri = pG * pZ(ig) * (pTheta(ig) - pTs(ig)) / (pTheta(ig) * U(ig)**2) ! bulk Richardson number at surface
+       Ri = pG * pZ(ig) * (pTheta(ig) - pTs(ig)) / (pTheta(ig) * (pUmag(ig)**2 + Emin_turb)) ! bulk Richardson number at surface
 
        if (Ri < 0.0) then ! unstable regime
-          F_X = 1.0 - 2.0 * b * Ri / (1.0 + C_X * sqrt (-Ri))
+          F_u     = 1.0 - 2.0 * b * Ri / (1.0 + c1_u     * sqrt (-Ri))
+          F_theta = 1.0 - 2.0 * b * Ri / (1.0 + c1_theta * sqrt (-Ri))
        else               ! stable regime
-          F_X = 1.0 / (1.0 + b * Ri)**2
+          F_u     = 1.0 / (1.0 + b * Ri)**2
+          F_theta = F_u
        end if
 
        ! Drag coefficients
-       pCd_v(ig)     = a**2 * U(ig) * F_X
-       pCd_theta(ig) = pCd_v(ig) / R
+       pCd_v(ig)     = a**2 * pUmag(ig) * F_u   
+       pCd_theta(ig) = a**2 * pUmag(ig) * F_theta / R
     end do
   end subroutine Vdif_Cd
 
@@ -207,7 +206,7 @@ contains
     integer,                       intent(in)  :: mask         ! adaptive grid mask
     real,                          intent(in)  :: pG           ! gravitational acceleration
     real, dimension(ngrid),        intent(in)  :: pZ0          ! roughness length
-    real, dimension(ngrid,nlay),   intent(in)  :: pZlay        ! height of layerss
+    real, dimension(ngrid,nlay),   intent(in)  :: pZlay        ! height of layers
     real, dimension(ngrid,nlay+1), intent(in)  :: pZint        ! height of interfaces
     real, dimension(ngrid,nlay+1), intent(in)  :: pUmag        ! speed
     real, dimension(ngrid,nlay),   intent(in)  :: pTheta       ! potential temperature at layers
@@ -229,8 +228,8 @@ contains
           Lmix = Karman * z1 / (1.0 + Karman * z1 / LmixMin) ! mixing length
 
           dTheta = pTheta(ig,il) - pTheta(ig,il-1)
-          dU     = pUmag(ig,il)  - pUmag(ig,il-1)
-          dZ     = pZlay(ig,il)  - pZlay(ig,il-1)
+          dU     = pUmag (ig,il) - pUmag (ig,il-1)
+          dZ     = pZlay (ig,il) - pZlay (ig,il-1)
           dUdZ2  = (dU/dZ)**2
 
           if (dUdZ2 > dVdZ2_min) then

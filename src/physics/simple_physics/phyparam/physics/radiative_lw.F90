@@ -3,7 +3,7 @@ module radiative_lw
   save
   private
   public :: lw
-  logical, parameter :: lstrong =.true.
+  logical, parameter :: lstrong = .true.
   real,    parameter :: Stephan = 5.67e-08
 contains
   subroutine lw (ngrid, nlayer, CoefIR, Emissiv, pP, Ps_rad, pTsurf, pT, pFluxIR, pdTlw)
@@ -31,7 +31,7 @@ contains
 
     integer                         :: ig, il, ilev
     real                            :: zcoef
-    real, dimension(ngrid)          :: dup, lwtr1, lwtr2, Flux
+    real, dimension(ngrid)          :: dUp, lwtr1, lwtr2, Flux
     real, dimension(ngrid,nlayer+1) :: zPlanck
     real, dimension(ngrid,nlayer+1) :: zFluxup, zFluxdn, zFlux, zup
 
@@ -53,12 +53,12 @@ contains
     ! each contribution depends on the layer itself (zPlanck) and its lower (lwtr1) and upPer (lwtr2) interfaces
     do ilev = 1, nlayer
        Flux  = 0.0
-       dup   = zup(:,ilev) - zup(:,nlayer)
-       lwtr1 = exp ( - zcoef * sqrt (dup))
+       dUp   = zup(:,ilev) - zup(:,nlayer)
+       lwtr1 = exp ( - zcoef * sqrt (dUp))
        do il = nlayer-1, ilev, -1
-          dup  = zup(:,ilev) - zup(:,il)
+          dUp  = zup(:,ilev) - zup(:,il)
           lwtr2 = lwtr1
-          lwtr1 = exp ( - zcoef * sqrt (dup))
+          lwtr1 = exp ( - zcoef * sqrt (dUp))
           Flux  = Flux + zPlanck(:,il) * (lwtr1 - lwtr2)
        end do
        zFluxdn(:,ilev) = Flux
@@ -76,13 +76,13 @@ contains
     ! plus a sum of contributions from layers below it (il<ilev).
     ! each contribution depends on the layer itself (zPlanck) and its lower (lwtr2) and upPer (lwtr1) interfaces
     do ilev = 2, nlayer + 1
-       dup   = zup(:,1) - zup(:,ilev)
-       lwtr1 = exp ( - zcoef * sqrt (dup))
+       dUp   = zup(:,1) - zup(:,ilev)
+       lwtr1 = exp ( - zcoef * sqrt (dUp))
        Flux  = zfluxup(:,1) * lwtr1
        do il = 1, ilev - 1
-          dup   = zup(:,il+1 ) - zup(:,ilev)
+          dUp   = zup(:,il+1 ) - zup(:,ilev)
           lwtr2 = lwtr1
-          lwtr1 = exp ( - zcoef * sqrt (dup))
+          lwtr1 = exp ( - zcoef * sqrt (dUp))
           Flux  = Flux + zPlanck(:,il) * (lwtr1 - lwtr2)
        end do
        zFluxup(:,ilev) = Flux
@@ -95,20 +95,20 @@ contains
     pdTlw(:,1:nlayer) = (zFlux(:,2:nlayer+1) - zFlux(:,1:nlayer)) * G / (Cpp * (pP(:,2:nlayer+1) - pP(:,1:nlayer)))
   end subroutine lw
 
-  pure subroutine lwtr (ngrid, coef, lstrong, dup, transm)
+  pure subroutine lwtr (ngrid, coef, lstrong, dUp, transm)
     ! Input
     integer,                intent(in) :: ngrid
     real,                   intent(in) :: coef
     logical,                intent(in) :: lstrong
-    real, dimension(ngrid), intent(in) :: dup
+    real, dimension(ngrid), intent(in) :: dUp
 
     ! Output
     real, dimension(ngrid), intent(out) :: transm
 
     if (lstrong) then
-       transm = exp( - coef* sqrt (dup))
+       transm = exp( - coef * sqrt (dUp))
     else
-       transm = exp( - coef * dup)
+       transm = exp( - coef * dUp)
     end if
   end subroutine lwtr
 end module radiative_lw
