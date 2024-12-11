@@ -26,7 +26,7 @@ contains
     real,                            intent(in)    :: pTimestep ! time step [s]
     real,                            intent(in)    :: zDay      ! elapsed days (and fraction thereof)
     real, dimension(ngrid,nlayer+1), intent(in)    :: pPint     ! pressure at interfaces
-cd 
+ 
     ! Output
     real, dimension(ngrid,nlayer),   intent(inout) :: pT        ! temperature [K] (advanced from t -> t+dt)
     real, dimension(ngrid),          intent(out)   :: FluxRad   ! net surface flux
