@@ -1,14 +1,14 @@
-MODULE astronomy
+module astronomy
   implicit none
   save
   real            :: aphelie, periheli, year_day, peri_day, obliquit, timeperi, e_elips, p_elips
   real, parameter :: unitastr = 149.597927 ! millions of km
   real, parameter :: pi = 2.0 * asin (1.0)
 contains
-  subroutine SolarLong (pDay, pSolLong)
+  subroutine SolarLon (pDay, pSolLon)
     ! Called by radiation modules
     real, intent(in)   :: pDay      ! jour de l annee (le jour 0 correspondant a l equinoxe)
-    real, intent(out)  :: pSolLong  ! solar longitude
+    real, intent(out)  :: pSolLon  ! solar longitude
 
     real    :: zanom, xref, zx0, zdx, zteta, zz
     integer :: iter
@@ -37,11 +37,11 @@ contains
 
     zteta = 2.0 * atan (sqrt ((1.0 + e_elips) / (1.0 - e_elips)) * tan (zx0/2.0))
 
-    pSolLong =zteta - timeperi
+    pSolLon =zteta - timeperi
 
-    if (pSolLong < 0.0)     pSolLong = pSolLong + 2.0*pi
-    if (pSolLong >  2.0*pi) pSolLong = pSolLong - 2.0*pi
-  end subroutine SolarLong
+    if (pSolLon < 0.0)     pSolLon = pSolLon + 2.0*pi
+    if (pSolLon >  2.0*pi) pSolLon = pSolLon - 2.0*pi
+  end subroutine SolarLon
 
   subroutine iniorbit
     !=======================================================================
@@ -91,19 +91,19 @@ contains
     timeperi = 2.0 * atan (sqrt ((1.0 + e_elips) / (1.0 - e_elips)) * tan (zx0/2.0))
   end subroutine iniorbit
 
-  pure subroutine orbite (pls, pdist_sol, pdecli)
+  pure subroutine Orbite (pSolLon, pDist_sol, pDecli)
     !==============================================================================
     !
     !   Distance from sun and declimation as a function of the solar longitude ls
     !
     !==============================================================================
-    real, intent(in)  :: pls
-    real, intent(out) :: pdist_sol,pdecli
+    real, intent(in)  :: pSolLon    ! solar longitude
+    
+    real, intent(out) :: pDist_sol  ! distance between sun and planet
+    real, intent(out) :: pDecli     ! solar declination angle
 
-    ! Distance sun-planet
-    pdist_sol = p_elips / (1.0 + e_elips  *cos (pls+timeperi))
-
-    ! Solar declination
-    pdecli = asin (sin (pls) * sin (obliquit * pi/180.0))
-  end subroutine orbite
+    pDist_sol = p_Elips / (1.0 + e_Elips * cos (pSolLon + TimePeri))
+    
+    pDecli    = asin (sin (pSolLon) * sin (obliquit * pi/180.0))
+  end subroutine Orbite
 end module astronomy

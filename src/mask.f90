@@ -746,7 +746,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer :: id, p_Laplace
 
     id  = idx (i, j, offs, dims)
 
@@ -755,7 +755,8 @@ contains
        call div_grad_stencil (dom, i, j, offs, dims)
 
        ! Hyperdiffusion
-       if (Laplace_order == 2) then
+       p_Laplace = max (Laplace_order, Laplace_sclr, Laplace_divu, Laplace_rotu)
+       if (p_Laplace == 2) then
           call div_grad_stencil (dom, i+1, j,   offs, dims)
           call div_grad_stencil (dom, i+1, j+1, offs, dims)
           call div_grad_stencil (dom, i,   j+1, offs, dims)
@@ -774,7 +775,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, id_i, idE, idNE, idN
+    integer :: id, id_i, idE, idNE, idN, p_Laplace
 
     id  = idx (i, j, offs, dims)
     id_i = id + 1
@@ -815,9 +816,10 @@ contains
        call qe_stencil (dom, i-1, j+1, offs, dims)
 
        ! Diffusion
-       if (Laplace_order /= 0) then
+       p_Laplace = max (Laplace_order, Laplace_sclr, Laplace_divu, Laplace_rotu)
+       if (p_Laplace /= 0) then
           call Laplacian_u_stencil (dom, i, j, offs, dims)
-          if (Laplace_order == 2) then
+          if (p_Laplace == 2) then
              call Laplacian_u_stencil (dom, i+1, j,   offs, dims)
              call Laplacian_u_stencil (dom, i+1, j+1, offs, dims)
              call Laplacian_u_stencil (dom, i+1, j-1, offs, dims)

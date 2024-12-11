@@ -28,19 +28,23 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  scale_aware              = .true.                            ! scale-aware viscosity
-  default_thresholds       = .true.                            ! thresholding type
-  cfl_num                  = 1d0                               ! CFL number
-
-  dt_phys                  = 0 * MINUTE                        ! interval for physics split step
+  scale_aware              = .false.                            ! scale-aware viscosity
+  split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
+  default_thresholds       = .false.                            ! thresholding type
   remap                    = .true.                            ! use vertical remapping
-  min_mass_remap           = 0.8d0                             ! minimum mass at which to remap
- 
-  split_mean_perturbation  = .false.                           ! split prognostic variables into mean and fluctuations
   compressible             = .true.                            ! compressible equations
   uniform                  = .false.                           ! hybrid vertical grid (based on A, B coefficients)
+  
   timeint_type             = "RK3"                             ! time integration scheme (use RK34, RK45, RK3 or RK4)
-  Laplace_order_init       = 2                                 ! bi-Laplacian horizontal diffusion
+  cfl_num                  = 1d0                               ! CFL number
+  dt_phys                  = 0 * MINUTE                        ! interval for physics split step
+
+  min_mass_remap           = 0.5d0                             ! minimum mass at which to remap
+   
+  Laplace_sclr             = 2                                 ! bi-Laplacian horizontal diffusion
+  Laplace_divu             = 1                                 ! bi-Laplacian horizontal diffusion
+  Laplace_rotu             = 2                                 ! bi-Laplacian horizontal diffusion
+
   analytic_topo            = "none"                            ! type of analytic topography (mountains or none if NCAR_topo = .false.)
 
   log_min_mass             = .true.                            ! compute minimum mass at each dt (for checking stability issues)
@@ -107,7 +111,7 @@ program climate
 
   ! Save initial conditions
   call omega_velocity
-  call write_and_export (iwrite)
+  !call write_and_export (iwrite)
   !if (physics_type == "Simple") call mean_values (0) ! processing for the physics package mean values
 
   ! Compute hydrostatic error factors for topography

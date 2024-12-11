@@ -146,8 +146,7 @@ module shared_mod
   integer, parameter :: LON_x = 1, LAT_y = 2
 
   ! Indices of prognostic variables in sol, trend etc
-  integer, parameter    :: S_VELO = 1, S_MASS = 2, S_TEMP = 3
-  integer, parameter    :: S_DIVU = 1, S_ROTU = 2
+  integer, parameter    :: S_VELO = 1, S_MASS = 2, S_TEMP = 3, S_DIVU = 4, S_ROTU = 5
   integer               :: N_VECTOR, N_SCALAR, N_VARIABLE
   integer, dimension(2) :: scalars
 
@@ -224,8 +223,8 @@ module shared_mod
   ! Simulation variables
   integer                                       :: cp_idx, err_restart
   integer                                       :: iadapt, ibin, irebalance, iremap, istep, istep_cumul, iwrite
-  integer                                       :: n_diffuse, nbins, nstep_init, save_zlev
-  integer                                       :: resume, Laplace_order, Laplace_order_init
+  integer                                       :: n_diffuse, nbins, nstep_init, resume, save_zlev
+  integer                                       :: Laplace_divu, Laplace_rotu, Laplace_sclr, Laplace_order, Laplace_order_init
   integer                                       :: topo_min_level, topo_max_level
   integer(8)                                    :: itime
   integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
@@ -270,7 +269,7 @@ contains
     scalars = (/ N_VECTOR+1, N_VARIABLE /)
     allocate (MULT(1:N_VARIABLE), POSIT(1:N_VARIABLE))
     allocate (visc_sclr(scalars(1):scalars(2)))
-    allocate (C_visc(1:N_VARIABLE))
+    allocate (C_visc(1:N_VARIABLE+2))
        
     ! Specify the multiplicity per grid element of each quantity
     MULT(S_VELO) = EDGE
@@ -380,7 +379,12 @@ contains
     iremap                  = 10                                  ! remap every iremap time steps
     min_mass_remap          = 0.5d0                               ! minimum relative layer mass at which to remap
     level_save              = level_start                         ! level to save
-    Laplace_order_init      = 0                                   ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
+
+    ! Order of Laplacian diffusion  0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
+    Laplace_order_init      = 0                                   ! same for all prognostic variables
+    Laplace_sclr            = 0                                   ! scalars
+    Laplace_divu            = 0                                   ! div u
+    Laplace_rotu            = 0                                   ! rot u 
     n_diffuse               = 1                                   ! include diffusion every n_diffuse steps
     optimize_grid           = HR_GRID                             ! type of optimization of coarse grid
     remap_type              = "PPR"                               ! remapping scheme for scalars

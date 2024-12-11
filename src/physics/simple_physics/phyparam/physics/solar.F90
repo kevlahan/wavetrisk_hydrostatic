@@ -5,31 +5,34 @@ module solar
   public :: SolAng, ZenAng, MuCorr
 contains
   pure subroutine SolAng (kgrid, pSiLon, pCoLon, pSiLat, pCoLat, pTim1, pTim2, pTim3, pMu0, pFract)
-    ! -----------------------------------------------------------------------
-    !          Calculates the solar angle for all the points of the grid (Frederic Hourdin)
+    ! -----------------------------------------------------------------------------------------------
+    !   Computes solar angle pMu0 and day fraction of time interval pFract
+    !   day fraction is set to 1 if solar angle > 0 (day), otherwise
+    !   day fraction and solar angle are set to 0 (night)
     !
-    !     ==== inputs  ===
+    !     ==== Inputs  ===
     !
-    ! psilon(kgrid)   : sine   of the longitude
-    ! pcolon(kgrid)   : cosine of the longitude
-    ! psilat(kgrid)   : sine   of the latitude
-    ! pcolat(kgrid)   : cosine of the latitude
+    ! pSiLon(kgrid)   : sine   of longitude
+    ! pCoLon(kgrid)   : cosine of longitude
+    ! pSiLat(kgrid)   : sine   of latitude
+    ! pCoLat(kgrid)   : cosine of latitude
     !
     ! pTim1           : sin (decli)
     ! pTim2           : cos (decli) * cos(Time)
     ! pTim3           : sin (decli) * sin(Time)
     !
-    !     ==== outputs ===
+    !     ==== Outputs ===
     !
-    ! pMu0  (kgrid)   : solar angle
-    ! pFract(kgrid)   : day fraction of the time interval
+    ! pMu0  (kgrid)   : cosine of solar zenith angle
+    ! pFract(kgrid)   : day fraction of time interval
     !        
     !
-    !     modifications.
+    !      Modifications
     !     --------------
-    !        original :90-01-14
-    !                  92-02-14 calculations done the entier grid (j.polcher)
-    ! -----------------------------------------------------------------------
+    !        Original : 1990-01-14 (F Hourdin)
+    !                   1992-02-14 calculations done over entire grid       (J Polcher)
+    !                   2024-12-09 simplification and modernization of code (N Kevlahan)
+    ! -----------------------------------------------------------------------------------------------
 
     integer,                intent(in)  :: kgrid
     real,                   intent(in)  :: pTim1, pTim2, pTim3
@@ -37,34 +40,29 @@ contains
     real, dimension(kgrid), intent(out) :: pMu0, pFract
 
     integer :: jl
-    real    :: Mu0, zTim1, zTim2, zTim3
+    real    :: zTim1, zTim2, zTim3
   
-    do jl = 1, kgrid
-       pmu0(jl)   = 0.0
-       pfract(jl) = 0.0
-    enddo
-
-    ! Computation of solar angle Mu0
+    ! Computation of solar angle and day fraction
     do jl = 1, kgrid
        zTim1 = pSiLat(jl) * pTim1
        zTim2 = pCoLat(jl) * pTim2
        zTim3 = pCoLat(jl) * pTim3
        
-       Mu0 = zTim1 + zTim2 * pCoLon(jl) + zTim3 * pSiLon(jl)
+       pMu0(jl) = zTim1 + zTim2 * pCoLon(jl) + zTim3 * pSiLon(jl)  ! cosine of solar zenith angle
 
-       if (Mu0 > 0.0) then ! day
+       if (pMu0(jl) >  0.0) then ! day
           pFract(jl) = 1.0
-       else                ! night
-          pMu0(jl)   = 0.0
+       else                      ! night
+          pMu0(jl)   = 0.0 
           pFract(jl) = 0.0
-       endif
+       end if
     enddo
   end subroutine SolAng
 
   subroutine ZenAng (klon, longi, gmTime, pdtrad, lat, long, pMu0, frac)
     use astronomy
     !=============================================================
-    ! auteur : O. Boucher (lmd/cnrs)
+    ! auteur : O. Boucher (LMD/CNRS)
     !          d apres les routines zenith et angle de z.x. li
     ! objet  : calculer les valeurs moyennes du cos de l angle zenithal
     !          et l ensoleillement moyen entre gmTime1 et gmTime2
@@ -73,8 +71,8 @@ contains
     !          fournit des moyennes de pMu0 et non des valeurs
     !          instantanees, du coup frac prend toutes les valeurs
     !          entre 0 et 1.
-    ! date   : premiere version le 13 decembre 1994
-    !          revu pour  gcm  le 30 septembre 1996
+    ! date   : premiere version le 13 decembre  1994
+    !          revu pour gcm    le 30 septembre 1996
     !===============================================================
     ! longi----input : la longitude vraie de la terre dans son plan
     !                  solaire a partir de l equinoxe de printemps (degre)
@@ -104,8 +102,8 @@ contains
     lon_sun = longi
     lat_sun = asin (sin (lon_sun) * sin(incl))
     !
-    gmTime1 =gmTime * 86400.0
-    gmTime2 =gmTime * 86400.0 + pdTrad
+    gmTime1 = gmTime * 86400.0
+    gmTime2 = gmTime * 86400.0 + pdTrad
     !
     do i = 1, klon
        latr = lat(i)
@@ -189,7 +187,7 @@ contains
           pMu0(i) = (zfrac1 * z1_mu + zfrac2 * z2_mu)   /max (zfrac1 + zfrac2, 1e-10)
        endif
     enddo
-  end subroutine zenang
+  end subroutine ZenAng
 
   pure subroutine MuCorr (npts, pDeclin, pLat, pMu, pFract, pHaut, pRad)
     !   Equivalent solar angle and fraction without diurnal cycle

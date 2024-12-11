@@ -24,7 +24,7 @@ module test_case_mod
   character(255) :: analytic_topo = "none"    ! mountains or none (used if NCAR_topo = .false.)
 
   ! Held-Suarez
-  logical        :: CAM           = .true.    ! use CAM values for time step and viscosity
+  logical        :: CAM_scaling   = .false.    ! use CAM values for time step and viscosity
   
   ! Simple physics
   logical        :: Ekman_ic      = .false.   
@@ -64,7 +64,7 @@ contains
     integer                                              :: d, id, idE, idNE, idN, v, zlev
     logical, optional                                    :: type
 
-    integer                    :: id_i
+    integer                    :: id_i, p_sclr
     real(8), dimension(1:EDGE) :: d_e, grad, l_e
     logical                    :: local_type
 
@@ -77,7 +77,9 @@ contains
     id_i = id + 1
     d = dom%id + 1
 
-    if (Laplace_order == 0) then
+    p_sclr = max (Laplace_order, Laplace_sclr)
+
+    if (p_sclr == 0) then
        physics_scalar_flux_case = 0d0
     else
        if (.not.local_type) then ! usual flux at edges E, NE, N
@@ -91,14 +93,13 @@ contains
           d_e(DG+1) =  - dom%len%elts(EDGE*idNE+DG+1)
           d_e(UP+1) =  - dom%len%elts(EDGE*idN+UP+1)
        end if
-
        ! Calculate gradients
-       if (Laplace_order == 1) then
+       if (p_sclr == 1) then
           grad = grad_physics (q(v,zlev)%data(d)%elts)
-       elseif (Laplace_order == 2) then
+       elseif (p_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1d0)**Laplace_order * C_visc(v) * nu_scale (dom, id) * grad * l_e
+       physics_scalar_flux_case = (-1d0)**p_sclr * C_visc(v) * nu_scale (p_sclr, dom, id) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -123,17 +124,19 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer :: id, p_divu, p_rotu
     real(8), dimension(1:EDGE) :: blocking_drag, wave_drag
 
     id = idx (i, j, offs, dims)
 
     ! Scale aware viscosity
-    if (Laplace_order == 0) then
+    if (max (Laplace_order, Laplace_divu, Laplace_rotu) == 0) then
        physics_velo_source_case = 0d0
     else
-       physics_velo_source_case = (-1d0)**(Laplace_order-1) * nu_scale (dom, id) &
-            * (C_div * grad_divu () - C_visc(S_VELO) * curl_rotu ()) 
+       p_divu = max (Laplace_order, Laplace_divu)
+       p_rotu = max (Laplace_order, Laplace_rotu)
+       physics_velo_source_case =  (-1d0)**(p_divu-1) * C_visc(S_DIVU) * nu_scale (p_divu, dom, id) * grad_divu () &
+                                 - (-1d0)**(p_rotu-1) * C_visc(S_ROTU) * nu_scale (p_rotu, dom, id) * curl_rotu () 
     end if
   contains
     function grad_divu ()
@@ -646,8 +649,9 @@ contains
        end if
 
        write (6,'(a)') "Non-dimensional viscosities"
-       write (6,'(4(a,es8.2/))') "C_visc(S_MASS)           = ", C_visc(S_MASS), "C_visc(S_TEMP)           = ", C_visc(S_TEMP), &
-            "C_visc(S_VELO)           = ", C_visc(S_VELO), "C_div                    = ", C_div
+       write (6,'(4(a,es8.2/))') &
+            "C_visc(S_MASS)           = ", C_visc(S_MASS), "C_visc(S_TEMP)           = ", C_visc(S_TEMP), &
+            "C_visc(S_DIVU)           = ", C_visc(S_DIVU), "C_visc(S_ROTU)           = ", C_visc(S_ROTU)
 
        write (6,'(a)')        "Approximate viscosities on finest grid"
        write (6,'(a,es8.2)') "nu_scalar                = ", nu_sclr
@@ -794,9 +798,9 @@ contains
        call cal_lnorm ("2")
 
        do k = 1, zlevels
-          threshold(S_MASS,k) = max (0.1d0 * threshold_def(S_MASS,k), tol * lnorm(S_MASS,k))
-          threshold(S_TEMP,k) = max (0.1d0 * threshold_def(S_TEMP,k), tol * lnorm(S_TEMP,k))
-          threshold(S_VELO,k) = max (0.1d0 * threshold_def(S_VELO,k), tol * lnorm(S_VELO,k))
+          threshold(S_MASS,k) = max (0d0 * threshold_def(S_MASS,k), tol * lnorm(S_MASS,k))
+          threshold(S_TEMP,k) = max (0d0 * threshold_def(S_TEMP,k), tol * lnorm(S_TEMP,k))
+          threshold(S_VELO,k) = max (0d0 * threshold_def(S_VELO,k), tol * lnorm(S_VELO,k))
        end do
     else
        threshold = threshold_def
@@ -807,48 +811,67 @@ contains
     ! Evaluate viscosity (for finest grid), find equivalent non-dimensional viscosities C_visc and set time step
     ! (based on CAM 120 km resolution value)
     implicit none
+    integer :: p_sclr, p_divu, p_rotu
     real(8) :: area_sphere, dx_scaling, nu, nu_dim, C_max, nu_scaling
     
     real(8), parameter :: nu_CAM       = 1d15 * METRE**4/SECOND     ! CAM value for horizontal resolution dx = 120 km
-    real(8), parameter :: res_scaling  = (136d0*KM) / (100d0*KM)    ! ratio between TRiSK and CAM grid resolutions
-                                                                    ! (TRiSK grid: 107 km <= dx <= 136 km at J6)
+    real(8), parameter :: res_scaling  = (136d0*KM) / (100d0*KM)    ! ratio between TRiSK and CAM grid resolutions (TRiSK grid: 107 km <= dx <= 136 km at J6)
 
-    dx_scaling  = res_scaling * 2d0 ** (dble (6 - max_level))       ! scaling factor compared to approximately J6 base CAM value
-    C_max       = 1d0/6d0**Laplace_order                            ! maximum stable non-dimensional viscosity for scalars and div u
+    dx_scaling     = res_scaling * 2d0 ** (dble (6 - max_level))       ! scaling factor compared to approximately J6 base CAM value
+    C_max          = 1d0/6d0**Laplace_order                            ! maximum stable non-dimensional viscosity for scalars and div u
 
     ! Average hexagon areas and horizontal resolution
-    area_sphere = 4d0*MATH_PI * radius**2 
-    Area_min    = area_sphere / (10d0 * 4d0**max_level)
-    Area_max    = area_sphere / (10d0 * 4d0**min_level)
-    dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)              
-    dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
+    area_sphere    = 4d0*MATH_PI * radius**2 
+    Area_min       = area_sphere / (10d0 * 4d0**max_level)
+    Area_max       = area_sphere / (10d0 * 4d0**min_level)
+    dx_min         = sqrt (2d0 / sqrt(3d0) * Area_min)              
+    dx_max         = sqrt (2d0 / sqrt(3d0) * Area_max)
 
-    adapt_dt = .true.
-    dt_init  = 300d0 * SECOND * dx_scaling
+    adapt_dt       = .true.
+    dt_init        = 300d0 * SECOND * dx_scaling
 
     ! Set viscosities
-    nu_dim         = 1.5d0 * Area_min**Laplace_order / dt_init     ! viscosity scaling factor on finest grid
-    nu_scaling     = dx_scaling**(2*Laplace_order)
-    nu             = nu_CAM * nu_scaling                           ! scaled CAM viscosity
+    if (CAM_scaling) then
+       nu_dim         = 1.5d0 * Area_min**Laplace_order / dt_init     ! viscosity scaling factor on finest grid
+       nu_scaling     = dx_scaling**(2*Laplace_order)
+       nu             = nu_CAM * nu_scaling                           ! scaled CAM viscosity
 
-    ! Limit viscosity to stable values
-    nu_sclr        = min (nu,         nu_dim * C_max                     )  
-    nu_rotu        = min (nu,         nu_dim * C_max / 4d0**Laplace_order)
-    nu_divu        = min (nu * 2.5d0, nu_dim * C_max                     ) ! increase nu_divu (max stable increase is 3.7)
+       ! Limit viscosity to stable values
+       nu_sclr        = min (nu,         nu_dim * C_max                     )  
+       nu_rotu        = min (nu,         nu_dim * C_max / 4d0**Laplace_order)
+       nu_divu        = min (nu * 2.5d0, nu_dim * C_max                     ) ! increase nu_divu (max stable increase is 3.7)
 
-    ! Equivalent non-dimensional viscosities
-    ! (CAM non-dimensional viscosity is C =  (1e15 m^4/s) (300 s) / (120 km)^4 = 1.45e-3)
-    C_visc(S_MASS) = nu_sclr / nu_dim 
-    C_visc(S_TEMP) = nu_sclr / nu_dim 
-    C_visc(S_VELO) = nu_rotu / nu_dim
-    C_div          = nu_divu / nu_dim
+       ! Equivalent non-dimensional viscosities
+       ! (CAM non-dimensional viscosity is C =  (1e15 m^4/s) (300 s) / (120 km)^4 = 1.45e-3)
+       C_visc(S_MASS) = nu_sclr / nu_dim 
+       C_visc(S_TEMP) = nu_sclr / nu_dim 
+       C_visc(S_ROTU) = nu_rotu / nu_dim
+       C_visc(S_DIVU) = nu_divu / nu_dim
+    else
+
+       p_sclr = max (Laplace_order, Laplace_sclr)
+       p_divu = max (Laplace_order, Laplace_divu)
+       p_rotu = max (Laplace_order, Laplace_rotu)
+
+       ! Non-dimensional viscosities
+       C_visc(S_MASS) = (1d0/6d0)**p_sclr
+       C_visc(S_TEMP) = C_visc(S_MASS)
+
+       C_visc(S_DIVU) = (1d0/6d0)**p_divu 
+       C_visc(S_ROTU) = ((1d0/6d0)/4d0)**p_rotu
+
+       ! Equivalent dimensional viscosities
+       nu_sclr = 1.5d0 * Area_min**p_sclr / dt_init
+       nu_divu = 1.5d0 * Area_min**p_divu / dt_init
+       nu_rotu = 1.5d0 * Area_min**p_rotu / dt_init
+    end if
   end subroutine initialize_dt_viscosity_case
 
-  real(8) function nu_scale (dom, id)
+  real(8) function nu_scale (order, dom, id)
     ! Viscosity non-dimensional scaling
     ! (factor 1.5 ensures stability limit matches theoretical value)
     implicit none
-    integer      :: id
+    integer      :: id, order
     type(domain) :: dom
 
     real(8) :: Area
@@ -863,7 +886,7 @@ contains
        Area = Area_min
     end if
 
-    nu_scale = 1.5d0 * Area**Laplace_order / dt
+    nu_scale = 1.5d0 * Area**order / dt
   end function nu_scale
 
   subroutine apply_initial_conditions_case
