@@ -256,19 +256,21 @@ contains
     
     real(8) :: cs2, sigma, sigma_c, theta_force, theta_tropo
 
-    cs2 = cos (lat)**2
+    if (physics_type == "Held_Suarez") then
+       cs2 = cos (lat)**2
 
-    sigma = (p - p_top) / (p_s - p_top)
-    sigma_c = 1d0 - sigma_b
+       sigma = (p - p_top) / (p_s - p_top)
+       sigma_c = 1d0 - sigma_b
 
-    k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
+       k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
 
-    theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
-    theta_force = T_mean - delta_T * (1d0 - cs2) - delta_theta * cs2 * log (p / p_0)
+       theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
+       theta_force = T_mean - delta_T * (1d0 - cs2) - delta_theta * cs2 * log (p / p_0)
 
-    theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
-    !theta_equil = Tempdim
-    theta_equil = T_0 * (p/p_0)**(-kappa)                                                                                     
+       theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
+    else
+       theta_equil = T_0 * (p/p_0)**(-kappa)
+    end if
   end subroutine theta_init
 
   subroutine vel2uvw (dom, i, j, zlev, offs, dims)
