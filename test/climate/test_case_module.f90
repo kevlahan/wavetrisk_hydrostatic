@@ -850,11 +850,11 @@ contains
     dx_max         = sqrt (2d0 / sqrt(3d0) * Area_max)
 
     adapt_dt       = .false.
-
+    dt_init        = cfl_num * 0.85d0 * dx_min / (wave_speed + Udim)
+    
     ! Set viscosities
     if (CAM_scaling) then 
        dx_scaling     = 2d0 ** (dble (6 - max_level))                ! scaling factor compared to approximately J6 base CAM value
-       dt_init        = 300d0 * SECOND * dx_scaling                           
 
        nu             = nu_CAM * dx_scaling**4                       ! scaled CAM viscosity
        nu_dim         = (1.5d0 * Area_min**2 / dt_init)              ! viscosity scaling factor on finest grid
@@ -872,8 +872,6 @@ contains
        C_visc(S_DIVU) = nu_divu / nu_dim
        C_visc(S_ROTU) = nu_rotu / nu_dim
     else
-       dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + Udim)
-       
        p_sclr = max (Laplace_order, Laplace_sclr)
        p_divu = max (Laplace_order, Laplace_divu)
        p_rotu = max (Laplace_order, Laplace_rotu)
