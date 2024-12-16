@@ -4,7 +4,7 @@ module solar
   private
   public :: SolAng, ZenAng, MuCorr
 contains
-  pure subroutine SolAng (kgrid, pSiLon, pCoLon, pSiLat, pCoLat, pTim1, pTim2, pTim3, pMu0, pFract)
+  pure subroutine SolAng (ngrid, pSiLon, pCoLon, pSiLat, pCoLat, pTim1, pTim2, pTim3, pMu0, pFract)
     ! -----------------------------------------------------------------------------------------------
     !   Computes solar angle pMu0 and day fraction of time interval pFract
     !   day fraction is set to 1 if solar angle > 0 (day), otherwise
@@ -12,10 +12,10 @@ contains
     !
     !     ==== Inputs  ===
     !
-    ! pSiLon(kgrid)   : sine   of longitude
-    ! pCoLon(kgrid)   : cosine of longitude
-    ! pSiLat(kgrid)   : sine   of latitude
-    ! pCoLat(kgrid)   : cosine of latitude
+    ! pSiLon(ngrid)   : sine   of longitude
+    ! pCoLon(ngrid)   : cosine of longitude
+    ! pSiLat(ngrid)   : sine   of latitude
+    ! pCoLat(ngrid)   : cosine of latitude
     !
     ! pTim1           : sin (decli)
     ! pTim2           : cos (decli) * cos(Time)
@@ -23,8 +23,8 @@ contains
     !
     !     ==== Outputs ===
     !
-    ! pMu0  (kgrid)   : cosine of solar zenith angle
-    ! pFract(kgrid)   : day fraction of time interval
+    ! pMu0  (ngrid)   : cosine of solar zenith angle
+    ! pFract(ngrid)   : day fraction of time interval
     !        
     !
     !      Modifications
@@ -34,27 +34,27 @@ contains
     !                   2024-12-09 simplification and modernization of code (N Kevlahan)
     ! -----------------------------------------------------------------------------------------------
 
-    integer,                intent(in)  :: kgrid
+    integer,                intent(in)  :: ngrid
     real,                   intent(in)  :: pTim1, pTim2, pTim3
-    real, dimension(kgrid), intent(in)  :: pSiLon, pCoLon, pSiLat, pCoLat
-    real, dimension(kgrid), intent(out) :: pMu0, pFract
+    real, dimension(ngrid), intent(in)  :: pSiLon, pCoLon, pSiLat, pCoLat
+    real, dimension(ngrid), intent(out) :: pMu0, pFract
 
-    integer :: jl
+    integer :: ig
     real    :: zTim1, zTim2, zTim3
   
     ! Computation of solar angle and day fraction
-    do jl = 1, kgrid
-       zTim1 = pSiLat(jl) * pTim1
-       zTim2 = pCoLat(jl) * pTim2
-       zTim3 = pCoLat(jl) * pTim3
+    do ig = 1, ngrid
+       zTim1 = pSiLat(ig) * pTim1
+       zTim2 = pCoLat(ig) * pTim2
+       zTim3 = pCoLat(ig) * pTim3
        
-       pMu0(jl) = zTim1 + zTim2 * pCoLon(jl) + zTim3 * pSiLon(jl)  ! cosine of solar zenith angle
+       pMu0(ig) = zTim1 + zTim2 * pCoLon(ig) + zTim3 * pSiLon(ig)  ! cosine of solar zenith angle
 
-       if (pMu0(jl) >  0.0) then ! day
-          pFract(jl) = 1.0
+       if (pMu0(ig) >  0.0) then ! day
+          pFract(ig) = 1.0
        else                      ! night
-          pMu0(jl)   = 0.0 
-          pFract(jl) = 0.0
+          pMu0(ig)   = 0.0 
+          pFract(ig) = 0.0
        end if
     enddo
   end subroutine SolAng
@@ -189,37 +189,37 @@ contains
     enddo
   end subroutine ZenAng
 
-  pure subroutine MuCorr (npts, pDeclin, pLat, pMu, pFract, pHaut, pRad)
+  pure subroutine MuCorr (ngrid, pDeclin, pLat, pMu, pFract, pHaut, pRad)
     !   Equivalent solar angle and fraction without diurnal cycle
     !
     !      Input :
     !      -------
-    !         npts             number of points
+    !         ngrid             number of points
     !         pDeclin          solar declination
-    !         pLat(npts)       latitude
+    !         pLat(ngrid)       latitude
     !         pHaut            hauteur typique de l atmosphere
     !         pRad             rayon planetaire
     !
     !      Output :
     !      --------
-    !         pMu   (npts)     equivalent cosine of solar angle
-    !         pFract(npts)     fractional day
+    !         pMu   (ngrid)     equivalent cosine of solar angle
+    !         pFract(ngrid)     fractional day
     
-    integer,               intent(in) :: npts
+    integer,               intent(in) :: ngrid
     real,                  intent(in) :: pHaut, pRad, pDeclin
-    real, dimension(npts), intent(in) :: pLat
+    real, dimension(ngrid), intent(in) :: pLat
     
-    real, dimension(npts), intent(out):: pMu, pFract
+    real, dimension(ngrid), intent(out):: pMu, pFract
 
-    integer :: j
+    integer :: ig
     real    :: alph, ap, a, t, b, z, cz, sZ, tZ, Phi, cPhi, sPhi, tPhi
 
     z  = pdeclin
     cz = cos (z)
     sZ = sin (z)
 
-    do j = 1, npts
-       Phi = plat(j)
+    do ig = 1, ngrid
+       Phi = plat(ig)
        cPhi = cos (Phi)
        if (cPhi <= 1e-9) cPhi = 1e-9
        
@@ -243,23 +243,21 @@ contains
           end if
        end if
 
-       pMu(j)    = (sPhi * sZ * t) / pi + b * sin (t) / pi
-       pFract(j) = t / pi
+       pMu(ig)    = (sPhi * sZ * t) / pi + b * sin (t) / pi
+       pFract(ig) = t / pi
        
        if (ap < 0.0) then
-          pMu(j)    = sPhi * sZ
-          pfract(j) = 1.0
+          pMu(ig)    = sPhi * sZ
+          pfract(ig) = 1.0
        end if
        
-       if (pMu(j) <= 0.0) pMu(j) = 0.0
+       if (pMu(ig) <= 0.0) pMu(ig) = 0.0
 
-       pMu(j) = pMu(j) / pFract(j)
-       if (pMu(j) == 0.0) pFract(j) = 0.0
+       pMu(ig) = pMu(ig) / pFract(ig)
+       if (pMu(ig) == 0.0) pFract(ig) = 0.0
        
        ! Correction de rotondite
-       pMu(j) = sqrt (1224.0 * pMu(j)**2 + 1.0) / 35.0  
-       !alph = pHaut / pRad
-       !pMu(j) = sqrt ((alph*pMu(j))**2 + 2.0 * alph + 1.0) - alph * pMu(j)
+       pMu(ig) = sqrt (1224.0 * pMu(ig)**2 + 1.0) / 35.0  
     end do
   end subroutine MuCorr
 end module solar
