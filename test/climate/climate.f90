@@ -34,14 +34,14 @@ program climate
   remap                    = .true.                            ! use vertical remapping
   compressible             = .true.                            ! compressible equations
   uniform                  = .false.                           ! hybrid vertical grid (based on A, B coefficients)
-  CAM_scaling              = .true.                            ! use CAM values for time step and viscosity (based on horizontal resolution J6)
+  CAM_scaling              = .false.                           ! use CAM values for time step and viscosity (based on horizontal resolution J6)
   
   timeint_type             = "RK3"                             ! time integration scheme (use RK34, RK45, RK3 or RK4)
   cfl_num                  = 1d0                               ! CFL number
   dt_phys                  = 0 * MINUTE                        ! interval for physics split step
 
   min_mass_remap           = 0.5d0                             ! minimum mass at which to remap
-   
+
   Laplace_sclr             = 2                                 
   Laplace_divu             = 2                                 
   Laplace_rotu             = 2                                 

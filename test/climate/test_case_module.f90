@@ -821,15 +821,13 @@ contains
     implicit none
     integer :: k
 
-    threshold = 1d16
-
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
 
        do k = 1, zlevels
-          threshold(S_MASS,k) = max (0d0 * threshold_def(S_MASS,k), tol * lnorm(S_MASS,k))
-          threshold(S_TEMP,k) = max (0d0 * threshold_def(S_TEMP,k), tol * lnorm(S_TEMP,k))
-          threshold(S_VELO,k) = max (0d0 * threshold_def(S_VELO,k), tol * lnorm(S_VELO,k))
+          threshold(S_MASS,k) = max (0.1d0 * threshold_def(S_MASS,k), tol * lnorm(S_MASS,k))
+          threshold(S_TEMP,k) = max (0.1d0 * threshold_def(S_TEMP,k), tol * lnorm(S_TEMP,k))
+          threshold(S_VELO,k) = max (0.1d0 * threshold_def(S_VELO,k), tol * lnorm(S_VELO,k))
        end do
     else
        threshold = threshold_def
@@ -839,7 +837,6 @@ contains
   subroutine initialize_dt_viscosity_case
     ! Evaluate viscosity (for finest grid), find equivalent non-dimensional viscosities C_visc and set time step
     implicit none
-    integer :: p_sclr, p_divu, p_rotu
     real(8) :: area_sphere, dx_scaling, nu, nu_dim
 
     real(8), parameter :: nu_CAM = 1d15 * METRE**4/SECOND            ! CAM value for viscosity (assumes p=2 hyper viscosity) based on 120km resolution
@@ -851,7 +848,7 @@ contains
     dx_min         = sqrt (2d0 / sqrt(3d0) * Area_min)              
     dx_max         = sqrt (2d0 / sqrt(3d0) * Area_max)
 
-    adapt_dt       = .false.
+    adapt_dt       = .true.
     dt_init        = cfl_num * 0.85d0 * dx_min / (wave_speed + Udim)
     
     ! Set viscosities
@@ -859,9 +856,10 @@ contains
        dx_scaling     = 2d0 ** (dble (6 - max_level))                ! scaling factor compared to approximately J6 base CAM value
 
        nu             = nu_CAM * dx_scaling**4                       ! scaled CAM viscosity
-       nu_dim         = (1.5d0 * Area_min**2 / dt_init)              ! viscosity scaling factor on finest grid
        
        ! Limit viscosity to stable values
+       nu_dim         = 1.5d0 * Area_min**2 / dt_init                ! viscosity scaling factor on finest grid
+
        nu_sclr        = min (nu,         nu_dim * (1d0/6d0    )**2 )  
        nu_divu        = min (nu * 2.5d0, nu_dim * (1d0/6d0    )**2 ) ! increase nu_divu (max stable increase is 3.7)
        nu_rotu        = min (nu,         nu_dim * (1d0/6d0/4d0)**2 )
@@ -874,21 +872,17 @@ contains
        C_visc(S_DIVU) = nu_divu / nu_dim
        C_visc(S_ROTU) = nu_rotu / nu_dim
     else
-       p_sclr = max (Laplace_order, Laplace_sclr)
-       p_divu = max (Laplace_order, Laplace_divu)
-       p_rotu = max (Laplace_order, Laplace_rotu)
-
        ! Non-dimensional viscosities
-       C_visc(S_MASS) = 0.8*(1d0/6d0    )**p_sclr
+       C_visc(S_MASS) = (1d0/6d0)**Laplace_sclr
        C_visc(S_TEMP) = C_visc(S_MASS)
 
-       C_visc(S_DIVU) = 0.8*(1d0/6d0    )**p_divu
-       C_visc(S_ROTU) = 0.8*(1d0/6d0/4d0)**p_rotu 
+       C_visc(S_DIVU) = (1d0/6d0    )**Laplace_divu
+       C_visc(S_ROTU) = (1d0/6d0/4d0)**Laplace_rotu 
 
        ! Equivalent dimensional viscosities
-       nu_sclr = C_visc(S_MASS) * 1.5d0 * Area_min**p_sclr / dt_init
-       nu_divu = C_visc(S_DIVU) * 1.5d0 * Area_min**p_divu / dt_init
-       nu_rotu = C_visc(S_ROTU) * 1.5d0 * Area_min**p_rotu / dt_init
+       nu_sclr = C_visc(S_MASS) * 1.5d0 * Area_min**Laplace_sclr / dt_init
+       nu_divu = C_visc(S_DIVU) * 1.5d0 * Area_min**Laplace_divu / dt_init
+       nu_rotu = C_visc(S_ROTU) * 1.5d0 * Area_min**Laplace_rotu / dt_init
     end if
 
     tau_sclr = dt_init / C_visc(S_MASS)
