@@ -15,7 +15,7 @@ module test_case_mod
   logical :: print_tol = .false.              ! print tolerances for each layer
 
   ! Test case variables
-  real(8) :: Area_max, Area_min, C_div, dt_max, dz
+  real(8) :: Area_max, Area_min, C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
   real(8) :: topo_Area_min, topo_dx_min
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
 
@@ -64,7 +64,7 @@ contains
     integer                                              :: d, id, idE, idNE, idN, v, zlev
     logical, optional                                    :: type
 
-    integer                    :: id_i, p_sclr
+    integer                    :: p_sclr
     real(8), dimension(1:EDGE) :: d_e, grad, l_e
     logical                    :: local_type
 
@@ -74,7 +74,6 @@ contains
        local_type = .false.
     end if
 
-    id_i = id + 1
     d = dom%id + 1
 
     p_sclr = max (Laplace_order, Laplace_sclr)
@@ -83,15 +82,16 @@ contains
        physics_scalar_flux_case = 0d0
     else
        if (.not.local_type) then ! usual flux at edges E, NE, N
-          l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
-          d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
+          l_e =  dom%pedlen%elts(id_edge(id))
+          d_e =  dom%len%elts   (id_edge(id))
        else ! flux at SW corner
-          l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
+          l_e(RT+1) = dom%pedlen%elts(EDGE*idE +RT+1)
           l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
-          l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
-          d_e(RT+1) =  - dom%len%elts(EDGE*idE+RT+1)
+          l_e(UP+1) = dom%pedlen%elts(EDGE*idN +UP+1)
+          
+          d_e(RT+1) =  - dom%len%elts(EDGE*idE +RT+1)
           d_e(DG+1) =  - dom%len%elts(EDGE*idNE+DG+1)
-          d_e(UP+1) =  - dom%len%elts(EDGE*idN+UP+1)
+          d_e(UP+1) =  - dom%len%elts(EDGE*idN +UP+1)
        end if
        ! Calculate gradients
        if (p_sclr == 1) then
@@ -171,13 +171,13 @@ contains
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
-    type (Domain)                   :: dom
+    type(Domain)                    :: dom
     integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: k_T, lat, lon, p, p_s
+    real(8) :: k_T, lat, lon, p, p_s, pot_temp
     
     d   = dom%id+1
     id  = idx (i, j, offs, dims)
@@ -197,8 +197,10 @@ contains
           sol(S_MASS,k)%data(d)%elts(id+1) = 0d0
           sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
        else
+          call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
+          
           sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
-          sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * theta_init (p)
+          sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        end if
 
        ! Initial velocity with Ekman layer velocity
@@ -218,7 +220,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: k_T, lat, lon, p, p_s
+    real(8) :: k_T, lat, lon, p, p_s, pot_temp
     
     d  = dom%id+1
     id = idx (i, j, offs, dims)
@@ -235,8 +237,10 @@ contains
        p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
 
        if (split_mean_perturbation) then
+          call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
+          
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
-          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * theta_init (p)
+          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        else
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = 0d0
           sol_mean(S_TEMP,k)%data(d)%elts(id+1) = 0d0
@@ -245,13 +249,27 @@ contains
     end do
   end subroutine init_mean
   
-  real(8) function theta_init (p)
+  subroutine  theta_init (p, p_s, lat, theta_equil, k_T)
     ! Initial potential temperature profile
     implicit none
-    real(8) :: p
+    real(8) :: p, p_s, lat, theta_equil, k_T
+    
+    real(8) :: cs2, sigma, sigma_c, theta_force, theta_tropo
 
-    theta_init = T_0 * (p/p_0)**(-kappa)
-  end function theta_init
+    cs2 = cos (lat)**2
+
+    sigma = (p - p_top) / (p_s - p_top)
+    sigma_c = 1d0 - sigma_b
+
+    k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
+
+    theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
+    theta_force = T_mean - delta_T * (1d0 - cs2) - delta_theta * cs2 * log (p / p_0)
+
+    theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
+    !theta_equil = Tempdim
+    theta_equil = T_0 * (p/p_0)**(-kappa)                                                                                     
+  end subroutine theta_init
 
   subroutine vel2uvw (dom, i, j, zlev, offs, dims)
     ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
@@ -630,11 +648,11 @@ contains
        write (6,'(a,l1)')     "remap                   = ", remap
        write (6,'(a,i3)')     "iremap                  = ", iremap
        write (6,'(a,l1)')     "default_thresholds      = ", default_thresholds
-       write (6,'(a,es10.4)') "tolerance               = ", tol
+       write (6,'(a,es8.2)') "tolerance               = ", tol
        write (6,'(a,i1)')     "optimize_grid           = ", optimize_grid
        write (6,'(a,l1)')     "adapt_dt                = ", adapt_dt
-       write (6,'(a,es10.4)') "dt_init                 = ", dt_init
-       write (6,'(a,es10.4)') "cfl_num                 = ", cfl_num
+       write (6,'(a,es8.2)') "dt_init                 = ", dt_init
+       write (6,'(a,es8.2)') "cfl_num                 = ", cfl_num
        write (6,'(a,a)')      "timeint_type            = ", trim (timeint_type)
        
        write (6,'(a,i1,/)')     "Laplace_order           = ", Laplace_order
@@ -649,33 +667,41 @@ contains
        end if
 
        write (6,'(a)') "Non-dimensional viscosities"
-       write (6,'(4(a,es8.2/))') &
-            "C_visc(S_MASS)           = ", C_visc(S_MASS), "C_visc(S_TEMP)           = ", C_visc(S_TEMP), &
-            "C_visc(S_DIVU)           = ", C_visc(S_DIVU), "C_visc(S_ROTU)           = ", C_visc(S_ROTU)
+       write (6,'(3(a,es8.2/))') &
+            "C_visc(S_MASS)           = ", C_visc(S_MASS), &
+            "C_visc(S_DIVU)           = ", C_visc(S_DIVU), &
+            "C_visc(S_ROTU)           = ", C_visc(S_ROTU)
+       
+       write (6,'(a)') "Diffusion times [h]"
+       write (6,'(3(a,es8.2/))') &
+            "tau_sclr                 = ", tau_sclr / HOUR, &
+            "tau_divu                 = ", tau_divu / HOUR, &
+            "tau_rotu                 = ", tau_rotu / HOUR
 
        write (6,'(a)')        "Approximate viscosities on finest grid"
-       write (6,'(a,es8.2)') "nu_scalar                = ", nu_sclr
-       write (6,'(a,es8.2)') "nu_rot                   = ", nu_rotu
-       write (6,'(a,es8.2,/)') "nu_div                   = ", nu_divu
+       write (6,'(3(a,es8.2/))') &
+            "nu_scalar                = ", nu_sclr, &
+            "nu_div                   = ", nu_divu, &
+            "nu_rot                   = ", nu_rotu
 
-       write (6,'(a,es10.4)') "dt_max           [s]     = ", dt_max
-       write (6,'(a,es10.4)') "dt_write         [d]     = ", dt_write / DAY
+       write (6,'(a,es8.2)') "dt_init          [m]     = ", dt_init / MINUTE
+       write (6,'(a,es8.2)') "dt_write         [d]     = ", dt_write / DAY
        write (6,'(a,i4)')     "CP_EVERY                 = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance                = ", rebalance
-       write (6,'(a,es10.4)') "time_end         [d]     = ", time_end / DAY
+       write (6,'(a,es8.2)') "time_end         [d]     = ", time_end / DAY
        write (6,'(a,i6)')     "resume                   = ", resume_init
 
        write (6,'(/,a)')      "STANDARD PARAMETERS"
-       write (6,'(a,es10.4)') "radius          [km]     = ", radius / KM
-       write (6,'(a,es10.4)') "omega        [rad/s]     = ", omega
-       write (6,'(a,es10.4)') "ref_density [kg/m^3]     = ", ref_density
-       write (6,'(a,es10.4)') "p_0           [hPa]      = ", p_0/100d0
-       write (6,'(a,es10.4)') "p_top         [hPa]      = ", p_top/100d0
-       write (6,'(a,es10.4)') "R_d      [J/(kg K)]      = ", R_d
-       write (6,'(a,es10.4)') "c_p      [J/(kg K)]      = ", c_p
-       write (6,'(a,es10.4)') "c_v      [J/(kg K)]      = ", c_v
-       write (6,'(a,es10.4)') "gamma                    = ", gamma
-       write (6,'(a,es10.4)') "kappa                    = ", kappa
+       write (6,'(a,es8.2)') "radius          [km]     = ", radius / KM
+       write (6,'(a,es8.2)') "omega        [rad/s]     = ", omega
+       write (6,'(a,es8.2)') "ref_density [kg/m^3]     = ", ref_density
+       write (6,'(a,es8.2)') "p_0           [hPa]      = ", p_0/100d0
+       write (6,'(a,es8.2)') "p_top         [hPa]      = ", p_top/100d0
+       write (6,'(a,es8.2)') "R_d      [J/(kg K)]      = ", R_d
+       write (6,'(a,es8.2)') "c_p      [J/(kg K)]      = ", c_p
+       write (6,'(a,es8.2)') "c_v      [J/(kg K)]      = ", c_v
+       write (6,'(a,es8.2)') "gamma                    = ", gamma
+       write (6,'(a,es8.2)') "kappa                    = ", kappa
        write (6,'(a,f10.1)')  "dx_max         [km]      = ", dx_max / KM
        write (6,'(a,f10.1)')  "dx_min         [km]      = ", dx_min / KM
 
@@ -686,15 +712,15 @@ contains
           write (6,'(a)')   "Zero velocity initial conditions"
        end if
        write (6,'(a,f5.1)')   "T_0             [K]      = ", T_0
-       write (6,'(a,es10.4)') "T_mean          [K]      = ", T_mean
-       write (6,'(a,es10.4)') "T_tropo         [K]      = ", T_tropo
-       write (6,'(a,es10.4)') "sigma_b                  = ", sigma_b
-       write (6,'(a,es10.4)') "k_a           [1/d]      = ", k_a / DAY
-       write (6,'(a,es10.4)') "k_f           [1/d]      = ", k_f / DAY
-       write (6,'(a,es10.4)') "k_s           [1/d]      = ", k_s / DAY
-       write (6,'(a,es10.4)') "delta_T       [K/m]      = ", delta_T
-       write (6,'(a,es10.4)') "delta_theta   [K/m]      = ", delta_theta
-       write (6,'(a,es10.4,/)') "wave_speed    [m/s]      = ", wave_speed
+       write (6,'(a,es8.2)') "T_mean          [K]      = ", T_mean
+       write (6,'(a,es8.2)') "T_tropo         [K]      = ", T_tropo
+       write (6,'(a,es8.2)') "sigma_b                  = ", sigma_b
+       write (6,'(a,es8.2)') "k_a           [1/d]      = ", k_a / DAY
+       write (6,'(a,es8.2)') "k_f           [1/d]      = ", k_f / DAY
+       write (6,'(a,es8.2)') "k_s           [1/d]      = ", k_s / DAY
+       write (6,'(a,es8.2)') "delta_T       [K/m]      = ", delta_T
+       write (6,'(a,es8.2)') "delta_theta   [K/m]      = ", delta_theta
+       write (6,'(a,es8.2,/)') "wave_speed    [m/s]      = ", wave_speed
        write (6,'(a,l)')      "NCAR_topo                = ", NCAR_topo
        if (NCAR_topo) then
           write (6,'(a,l)')      "sso                      = ", sso
@@ -767,7 +793,7 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer :: k
-    real(8) :: p, p_s, rho_dz
+    real(8) :: p, p_s, lat, rho_dz, pot_temp, theta_equil, k_T
 
     call std_surf_pres (0d0, p_s)
 
@@ -778,8 +804,10 @@ contains
 
        rho_dz = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
 
+       call theta_init (p, p_s, lat, theta_equil, k_T)
+
        threshold_def(S_MASS,k) = tol * rho_dz
-       threshold_def(S_TEMP,k) = tol * rho_dz * theta_init (p)
+       threshold_def(S_TEMP,k) = tol * rho_dz * theta_equil
        threshold_def(S_VELO,k) = tol * u_0
     end do
   end subroutine initialize_thresholds_case
@@ -790,8 +818,7 @@ contains
     use lnorms_mod
     implicit none
     integer :: k
-    logical, parameter :: print_norms = .false.
-    
+
     threshold = 1d16
 
     if (.not. default_thresholds) then
@@ -809,62 +836,64 @@ contains
 
   subroutine initialize_dt_viscosity_case
     ! Evaluate viscosity (for finest grid), find equivalent non-dimensional viscosities C_visc and set time step
-    ! (based on CAM 120 km resolution value)
     implicit none
     integer :: p_sclr, p_divu, p_rotu
-    real(8) :: area_sphere, dx_scaling, nu, nu_dim, C_max, nu_scaling
-    
-    real(8), parameter :: nu_CAM       = 1d15 * METRE**4/SECOND     ! CAM value for horizontal resolution dx = 120 km
-    real(8), parameter :: res_scaling  = (136d0*KM) / (100d0*KM)    ! ratio between TRiSK and CAM grid resolutions (TRiSK grid: 107 km <= dx <= 136 km at J6)
+    real(8) :: area_sphere, dx_scaling, nu, nu_dim
 
-    dx_scaling     = res_scaling * 2d0 ** (dble (6 - max_level))       ! scaling factor compared to approximately J6 base CAM value
-    C_max          = 1d0/6d0**Laplace_order                            ! maximum stable non-dimensional viscosity for scalars and div u
+    real(8), parameter :: nu_CAM = 1d15 * METRE**4/SECOND            ! CAM value for viscosity (assumes p=2 hyper viscosity) based on 120km resolution
 
-    ! Average hexagon areas and horizontal resolution
+    ! Average hexagon areas and horizontal resolutions
     area_sphere    = 4d0*MATH_PI * radius**2 
     Area_min       = area_sphere / (10d0 * 4d0**max_level)
     Area_max       = area_sphere / (10d0 * 4d0**min_level)
     dx_min         = sqrt (2d0 / sqrt(3d0) * Area_min)              
     dx_max         = sqrt (2d0 / sqrt(3d0) * Area_max)
 
-    adapt_dt       = .true.
-    dt_init        = 300d0 * SECOND * dx_scaling
+    adapt_dt       = .false.
 
     ! Set viscosities
-    if (CAM_scaling) then
-       nu_dim         = 1.5d0 * Area_min**Laplace_order / dt_init     ! viscosity scaling factor on finest grid
-       nu_scaling     = dx_scaling**(2*Laplace_order)
-       nu             = nu_CAM * nu_scaling                           ! scaled CAM viscosity
+    if (CAM_scaling) then 
+       dx_scaling     = 2d0 ** (dble (6 - max_level))                ! scaling factor compared to approximately J6 base CAM value
+       dt_init        = 300d0 * SECOND * dx_scaling                           
 
+       nu             = nu_CAM * dx_scaling**4                       ! scaled CAM viscosity
+       nu_dim         = (1.5d0 * Area_min**2 / dt_init)              ! viscosity scaling factor on finest grid
+       
        ! Limit viscosity to stable values
-       nu_sclr        = min (nu,         nu_dim * C_max                     )  
-       nu_rotu        = min (nu,         nu_dim * C_max / 4d0**Laplace_order)
-       nu_divu        = min (nu * 2.5d0, nu_dim * C_max                     ) ! increase nu_divu (max stable increase is 3.7)
+       nu_sclr        = min (nu,         nu_dim * (1d0/6d0    )**2 )  
+       nu_divu        = min (nu * 2.5d0, nu_dim * (1d0/6d0    )**2 ) ! increase nu_divu (max stable increase is 3.7)
+       nu_rotu        = min (nu,         nu_dim * (1d0/6d0/4d0)**2 )
 
        ! Equivalent non-dimensional viscosities
-       ! (CAM non-dimensional viscosity is C =  (1e15 m^4/s) (300 s) / (120 km)^4 = 1.45e-3)
-       C_visc(S_MASS) = nu_sclr / nu_dim 
-       C_visc(S_TEMP) = nu_sclr / nu_dim 
-       C_visc(S_ROTU) = nu_rotu / nu_dim
-       C_visc(S_DIVU) = nu_divu / nu_dim
-    else
+       ! (CAM non-dimensional viscosity is C = (1e15 m^4/s) (300 s) / (120 km)^4 approx 1.45e-3)
+       C_visc(S_MASS) = nu_sclr / nu_dim
+       C_visc(S_TEMP) = nu_sclr / nu_dim
 
+       C_visc(S_DIVU) = nu_divu / nu_dim
+       C_visc(S_ROTU) = nu_rotu / nu_dim
+    else
+       dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + Udim)
+       
        p_sclr = max (Laplace_order, Laplace_sclr)
        p_divu = max (Laplace_order, Laplace_divu)
        p_rotu = max (Laplace_order, Laplace_rotu)
 
        ! Non-dimensional viscosities
-       C_visc(S_MASS) = (1d0/6d0)**p_sclr
+       C_visc(S_MASS) = 0.8*(1d0/6d0    )**p_sclr
        C_visc(S_TEMP) = C_visc(S_MASS)
 
-       C_visc(S_DIVU) = (1d0/6d0)**p_divu 
-       C_visc(S_ROTU) = ((1d0/6d0)/4d0)**p_rotu
+       C_visc(S_DIVU) = 0.8*(1d0/6d0    )**p_divu
+       C_visc(S_ROTU) = 0.8*(1d0/6d0/4d0)**p_rotu 
 
        ! Equivalent dimensional viscosities
-       nu_sclr = 1.5d0 * Area_min**p_sclr / dt_init
-       nu_divu = 1.5d0 * Area_min**p_divu / dt_init
-       nu_rotu = 1.5d0 * Area_min**p_rotu / dt_init
+       nu_sclr = C_visc(S_MASS) * 1.5d0 * Area_min**p_sclr / dt_init
+       nu_divu = C_visc(S_DIVU) * 1.5d0 * Area_min**p_divu / dt_init
+       nu_rotu = C_visc(S_ROTU) * 1.5d0 * Area_min**p_rotu / dt_init
     end if
+
+    tau_sclr = dt_init / C_visc(S_MASS)
+    tau_divu = dt_init / C_visc(S_DIVU)
+    tau_rotu = dt_init / C_visc(S_ROTU)
   end subroutine initialize_dt_viscosity_case
 
   real(8) function nu_scale (order, dom, id)
