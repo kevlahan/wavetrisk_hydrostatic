@@ -7,7 +7,7 @@ max_level	8           ! maximum level of resolution
 zlevels         60          ! number of vertical levels
 save_zlev      -1           ! vertical level at which to compute energy spectra (if -1, compute spectra at all levels)
 level_save      8           ! resolution level to interpolate to
-N               1600        ! resolution of interpolated grid (N/2 latitude x N longitude), N  <= sqrt(40*4^J)
+N               1600        ! resolution of interpolated grid (N/2 latitude x N longitude), N  <= sqrt(20*4^J)
 local_spec      F           ! compute local power spectrum
 lat0            0.0         ! latitude (in degrees) of local region
 lon0            0.0         ! longitude (in degrees) of local region	
