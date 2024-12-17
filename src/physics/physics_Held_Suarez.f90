@@ -1,7 +1,11 @@
 module physics_Held_Suarez_mod
-  ! Trend using Held and Suarez physics model.
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! 
+  !    Trend using Held and Suarez physics model
   !
-  ! Bulletin of the American Meteorological Society 75 (10), 1825-1830
+  !    Bulletin of the American Meteorological Society 75 (10), 1825-1830
+  !
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   use ops_mod
   use sso_mod
   implicit none
@@ -67,8 +71,6 @@ contains
           nullify (dvelo)
        end do
     end do
-
-    ! Set output
     dq%bdry_uptodate = .false.
   end subroutine trend_physics_Held_Suarez
 

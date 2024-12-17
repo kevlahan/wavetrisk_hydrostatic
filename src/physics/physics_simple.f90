@@ -28,9 +28,6 @@ contains
     call apply_no_bdry (physics_call,   z_null)
     sol%bdry_uptodate = .false.
 
-    ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO cells)s
-    call WT_after_step (sol, wav_coeff, level_start-1)
-
     physics_firstcall_flag = .false.   
   end subroutine physics_simple_step
 
