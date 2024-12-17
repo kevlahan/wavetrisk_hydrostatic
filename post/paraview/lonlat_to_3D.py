@@ -299,11 +299,11 @@ xmlWriter.SetFileName(sys.argv[1]+".vti")
 xmlWriter.SetInputData(rgrid)
 xmlWriter.Write()
 
-xmlWriter.SetFileName(sys.argv[1]+"_merid_avg.vti")
+xmlWriter.SetFileName(sys.argv[1]+"_zonal_avg.vti")
 xmlWriter.SetInputData(proj_img1)
 xmlWriter.Write()
 
-xmlWriter.SetFileName(sys.argv[1]+"_zonal_avg.vti")
+xmlWriter.SetFileName(sys.argv[1]+"_merid_avg.vti")
 xmlWriter.SetInputData(proj_img2)
 xmlWriter.Write()
 
