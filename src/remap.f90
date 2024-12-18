@@ -70,9 +70,6 @@ contains
     end if
     sol(:,1:zlevels)%bdry_uptodate = .false.
 
-    ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
-    call WT_after_step (sol, wav_coeff, level_start-1) 
-
     nullify (interpolate)
     deallocate (old_mass)
   end subroutine remap_vertical_coordinates

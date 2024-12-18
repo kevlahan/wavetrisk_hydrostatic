@@ -374,18 +374,18 @@ contains
     logical, intent(out) :: aligned
 
     integer(8) :: idt, ialign
-    real(8)    :: dx
-
+    
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !   Time step modification
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     istep       = istep+1
     istep_cumul = istep_cumul+1
 
-    dt = dt_new
-
-    n_patch_old = grid%patch%length
-    n_node_old  = grid%node%length
-
+    ! Check if saving data
+    dt     = dt_new
     idt    = nint (dt         * time_mult, 8)
     ialign = nint (align_time * time_mult, 8)
+
     if (ialign > 0 .and. istep > 20) then
        aligned = modulo (itime + idt, ialign) < modulo (itime, ialign)
     else
@@ -397,19 +397,10 @@ contains
        idt = ialign - modulo (itime,ialign)
        dt = idt / time_mult
     end if
+
     
-    ! Take initial small time steps after restart
-    if (istep <= nstep_init) dt = dt_init * (0.1d0 + (1d0 - 0.1d0) * sin (MATH_PI/2d0 * dble(istep-1)/dble(nstep_init-1)))
-
-    ! Diffusion
-    if (modulo (istep_cumul, n_diffuse) == 0) then
-       Laplace_order = Laplace_order_init
-    else
-       Laplace_order = 0
-    end if
-
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! Dynamics time step
+    !    Dynamics time step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if (mode_split) then
        call dt_step_split (dt)
@@ -419,7 +410,7 @@ contains
 
     
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! Physics split step
+    !    Physics split step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     ! Ocean (incompressible) 
@@ -435,11 +426,20 @@ contains
           call physics_simple_step (dt)
        end select
     end if
-#endif
+#endif 
 
-    
+
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! Vertical remapping
+    !    Grid adaptation
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
+    
+    call adapt (set_thresholds)
+    call inverse_wavelet_transform (wav_coeff, sol)
+
+      
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !    Vertical remapping
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     min_mass = cpt_min_mass () 
     if (remap .and. min_mass < min_mass_remap) then
@@ -448,19 +448,12 @@ contains
     else
        iremap = iremap + 1
     end if
-
     if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
-
-
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! Grid adaptation
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
     
-    call adapt (set_thresholds)
-    call inverse_wavelet_transform (wav_coeff, sol)
 
-
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !    Update time and time step
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     itime = itime + idt
 
     if (match_time) then

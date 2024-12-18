@@ -20,7 +20,10 @@ contains
     integer :: k, l, d
     logical :: local_type
 
-    ! Recalculate thresholds?
+    n_patch_old = grid%patch%length
+    n_node_old  = grid%node%length
+
+    ! Recalculate thresholds
     if (present(type)) then
        local_type = type
     else
@@ -56,9 +59,9 @@ contains
 
     ! Set insignificant wavelet coefficients to zero
     if (local_type) call compress_wavelets (wav_coeff)
-
+    
     ! Evaluate sol_mean, topography and penalization (as defined in test case) on new grid
-    call update
+    call update 
   end subroutine adapt
 
  subroutine init_adapt_mod

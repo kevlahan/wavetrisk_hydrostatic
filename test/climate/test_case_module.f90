@@ -821,13 +821,15 @@ contains
     implicit none
     integer :: k
 
+    threshold(S_VELO,k) = threshold_def(S_VELO,k)
+    
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
 
        do k = 1, zlevels
-          threshold(S_MASS,k) = max (0.1d0 * threshold_def(S_MASS,k), tol * lnorm(S_MASS,k))
-          threshold(S_TEMP,k) = max (0.1d0 * threshold_def(S_TEMP,k), tol * lnorm(S_TEMP,k))
-          threshold(S_VELO,k) = max (0.1d0 * threshold_def(S_VELO,k), tol * lnorm(S_VELO,k))
+          threshold(S_MASS,k) = tol * lnorm(S_MASS,k)
+          threshold(S_TEMP,k) = tol * lnorm(S_TEMP,k)
+          if (lnorm(S_VELO,k) > 1d-2) threshold(S_VELO,k) = tol * lnorm(S_VELO,k)
        end do
     else
        threshold = threshold_def
@@ -853,16 +855,16 @@ contains
     
     ! Set viscosities
     if (CAM_scaling) then 
-       dx_scaling     = 2d0 ** (dble (6 - max_level))                ! scaling factor compared to approximately J6 base CAM value
+       dx_scaling     = 2d0 ** (dble (6 - max_level))               ! scaling factor compared to approximately J6 base CAM value
 
-       nu             = nu_CAM * dx_scaling**4                       ! scaled CAM viscosity
+       nu             = nu_CAM * dx_scaling**4                      ! scaled CAM viscosity
        
        ! Limit viscosity to stable values
-       nu_dim         = 1.5d0 * Area_min**2 / dt_init                ! viscosity scaling factor on finest grid
+       nu_dim         = 1.5d0 * Area_min**2 / dt_init               ! viscosity scaling factor on finest grid
 
-       nu_sclr        = min (nu,         nu_dim * (1d0/6d0    )**2 )  
-       nu_divu        = min (nu * 2.5d0, nu_dim * (1d0/6d0    )**2 ) ! increase nu_divu (max stable increase is 3.7)
-       nu_rotu        = min (nu,         nu_dim * (1d0/6d0/4d0)**2 )
+       nu_sclr        = min (nu,         nu_dim * (1d0/6d0    )**2)  
+       nu_divu        = min (nu * 2.5d0, nu_dim * (1d0/6d0    )**2) ! increase nu_divu (max stable increase is 3.7)
+       nu_rotu        = min (nu,         nu_dim * (1d0/6d0/4d0)**2)
 
        ! Equivalent non-dimensional viscosities
        ! (CAM non-dimensional viscosity is C = (1e15 m^4/s) (300 s) / (120 km)^4 approx 1.45e-3)

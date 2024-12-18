@@ -30,7 +30,7 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   scale_aware              = .false.                           ! scale-aware viscosity
   split_mean_perturbation  = .true.                            ! split prognostic variables into mean and fluctuations
-  default_thresholds       = .true.                            ! thresholding type
+  default_thresholds       = .false.                            ! thresholding type
   remap                    = .true.                            ! use vertical remapping
   compressible             = .true.                            ! compressible equations
   uniform                  = .false.                           ! hybrid vertical grid (based on A, B coefficients)
@@ -48,7 +48,7 @@ program climate
 
   analytic_topo            = "none"                            ! type of analytic topography (mountains or none if NCAR_topo = .false.)
 
-  log_min_mass             = .true.                            ! compute minimum mass at each dt (for checking stability issues)
+  log_min_mass             = .false.                           ! compute minimum mass at each dt (for checking stability issues)
   log_total_mass           = .false.                           ! check whether total mass is conserved (for debugging)
 
 
@@ -113,7 +113,6 @@ program climate
   ! Save initial conditions
   call omega_velocity
   call write_and_export (iwrite)
-  !if (physics_type == "Simple") call mean_values (0) ! processing for the physics package mean values
 
   ! Compute hydrostatic error factors for topography
   if (NCAR_topo .or. analytic_topo=="mountains") then
@@ -148,7 +147,6 @@ program climate
         ! Save fields (after reloading checkpoint)
         call omega_velocity
         call write_and_export (iwrite)
-!        if (physics_type == "Simple") call mean_values (iwrite) 
      end if
   end do
 
