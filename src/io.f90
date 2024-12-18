@@ -1607,8 +1607,8 @@ contains
              file_hex = trim(run_id)//"_hex_"//trim(scale)//"_"//trim(layer)//"_"//trim(isv)
              file_tri = trim(run_id)//"_tri_"//trim(scale)//"_"//trim(layer)//"_"//trim(isv)
 
-             call write_level_mpi (write_hex, l, k, .true.,  trim(file_hex))
-             call write_level_mpi (write_tri, l, k, .false., trim(file_tri))
+             if (write_hex_data) call write_level_mpi (write_hex, l, k, .true.,  trim(file_hex))
+             if (write_tri_data) call write_level_mpi (write_tri, l, k, .false., trim(file_tri))
           end do
        else
           ! Barotropic velocity
@@ -1693,8 +1693,8 @@ contains
           file_hex = trim(run_id)//"_hex_"//trim(scale)//"_"//trim(isv)
           file_tri = trim(run_id)//"_tri_"//trim(scale)//"_"//trim(isv)
 
-          call write_level_mpi (write_hex, l, z_null, .true.,  trim(file_hex))
-          call write_level_mpi (write_tri, l, z_null, .false., trim(file_tri))
+          if (write_hex_data) call write_level_mpi (write_hex, l, z_null, .true.,  trim(file_hex))
+          if (write_tri_data) call write_level_mpi (write_tri, l, z_null, .false., trim(file_tri))
        end if
     end do
     call post_levelout
@@ -2161,30 +2161,34 @@ contains
 
     integer         :: info
     character(1300) :: bash_cmd, command, isv
-
+    
     write (isv, '(i4.4)') isave
 
-    bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_hex_*'//trim(isv)//' > '//trim(run_id)//'_tmp1"'
-    call system (trim(bash_cmd))
+    if (write_hex_data) then
+       bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_hex_*'//trim(isv)//' > '//trim(run_id)//'_tmp1"'
+       call system (trim(bash_cmd))
 
-    command = 'gtar caf '//trim(run_id)//"_hex_"//trim(isv)//'.tgz -T '//trim(run_id)//'_tmp1 --remove-files'
-    call system (trim(command), info)
-    if (info /= 0) then
-       if (rank == 0) write (6,'(a)') "gtar error info=0... aborting"
-       call abort
+       command = 'gtar caf '//trim(run_id)//"_hex_"//trim(isv)//'.tgz -T '//trim(run_id)//'_tmp1 --remove-files'
+       call system (trim(command), info)
+       if (info /= 0) then
+          if (rank == 0) write (6,'(a)') "gtar error info=0... aborting"
+          call abort
+       end if
     end if
 
-    bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_tri_*'//trim(isv)//' > '//trim(run_id)//'_tmp2"'
-    call system (trim(bash_cmd))
+    if (write_tri_data) then
+       bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_tri_*'//trim(isv)//' > '//trim(run_id)//'_tmp2"'
+       call system (trim(bash_cmd))
 
-    command = 'bash -c "gtar caf '//trim(run_id)//'_tri_'//trim(isv)//'.tgz -T '//trim(run_id)//'_tmp2 --remove-files"'
-    call system (trim(command), info)
-    if (info /= 0) then
-       if (rank == 0) write (6,'(a)') 'gtar error info=0 ... aborting'
-       call abort
+       command = 'bash -c "gtar caf '//trim(run_id)//'_tri_'//trim(isv)//'.tgz -T '//trim(run_id)//'_tmp2 --remove-files"'
+       call system (trim(command), info)
+       if (info /= 0) then
+          if (rank == 0) write (6,'(a)') 'gtar error info=0 ... aborting'
+          call abort
+       end if
+
+       command = '\rm -f '//trim(run_id)//'_tmp1 '//trim(run_id)//'_tmp2'
+       call system (trim(command))
     end if
-
-    command = '\rm -f '//trim(run_id)//'_tmp1 '//trim(run_id)//'_tmp2'
-    call system (trim(command))
   end subroutine compress_files
 end module io_mod

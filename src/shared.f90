@@ -253,7 +253,7 @@ module shared_mod
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize, split_mean_perturbation
-  logical :: rebalance, physics_model, remap, uniform, vert_diffuse
+  logical :: rebalance, physics_model, remap, write_hex_data, write_tri_data, uniform, vert_diffuse
   logical :: sigma_z, sso, tke_closure
 contains
   subroutine init_shared_mod
@@ -359,6 +359,8 @@ contains
     physics_model           = .false.                             ! use physics model sub-step for compressible cases (T)
     rebalance               = .true.                              ! rebalance computational load at each checkpoint if T
     remap                   = .true.                              ! remap Lagrangian coordinates (T) or no remapping (F)
+    write_hex_data          = .false.                             ! save hexagon (dual) grid data at each level
+    write_tri_data          = .true.                              ! save triangle (primal) grid data at each level
     sigma_z                 = .false.                             ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)
     split_mean_perturbation = .false.
     sso                     = .false.                             ! SSO (subgrid scale orography) parameterization for atmosphere
