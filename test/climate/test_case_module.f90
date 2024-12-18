@@ -821,11 +821,10 @@ contains
     implicit none
     integer :: k
 
-    threshold(S_VELO,k) = threshold_def(S_VELO,k)
-    
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
 
+       threshold(S_VELO,1:zlevels) = threshold_def(S_VELO,1:zlevels)
        do k = 1, zlevels
           threshold(S_MASS,k) = tol * lnorm(S_MASS,k)
           threshold(S_TEMP,k) = tol * lnorm(S_TEMP,k)
