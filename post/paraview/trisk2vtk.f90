@@ -191,9 +191,9 @@ program trisk2vtk
            write (iunit) outv(:,1)
 
            if (sim_type == "atm") then
-              write (iunit) 'SCALARS temperature float'//lf
+              write (iunit) 'SCALARS Temperature float'//lf
            else
-              write (iunit) 'SCALARS density float'//lf
+              write (iunit) 'SCALARS Density float'//lf
            end if
            write (iunit) 'LOOKUP_TABLE default'//lf
            write (iunit) outv(:,2)
@@ -210,11 +210,11 @@ program trisk2vtk
            write (iunit) 'LOOKUP_TABLE default'//lf
            write (iunit) outv(:,5)
 
-           write (iunit) 'SCALARS vorticity float'//lf
+           write (iunit) 'SCALARS Vorticity float'//lf
            write (iunit) 'LOOKUP_TABLE default'//lf
            write (iunit) outv(:,6)
 
-           write (iunit) 'SCALARS topography float'//lf
+           write (iunit) 'SCALARS Topography float'//lf
            write (iunit) 'LOOKUP_TABLE default'//lf
            write (iunit) outv(:,7)
 
@@ -223,9 +223,9 @@ program trisk2vtk
            write (iunit) outv(:,8)
 
            if (sim_type == "atm") then
-              write (iunit) 'SCALARS surf_press float'//lf
+              write (iunit) 'SCALARS Ps float'//lf
            else
-              write (iunit) 'SCALARS free_surface_pert float'//lf
+              write (iunit) 'SCALARS eta float'//lf
            end if
            write (iunit) 'LOOKUP_TABLE default'//lf
            write (iunit) outv(:,9)
@@ -234,7 +234,7 @@ program trisk2vtk
            write (iunit) 'LOOKUP_TABLE default'//lf
            write (iunit) outv(:,10)
 
-           write (iunit) 'SCALARS pressure float'//lf
+           write (iunit) 'SCALARS P_Ps float'//lf
            write (iunit) 'LOOKUP_TABLE default'//lf
            write (iunit) outv(:,11)
 
@@ -242,11 +242,11 @@ program trisk2vtk
            write (iunit) 'LOOKUP_TABLE default'//lf
            write (iunit) mask
 
-           write (iunit) 'SCALARS level int'//lf
+           write (iunit) 'SCALARS Level int'//lf
            write (iunit) 'LOOKUP_TABLE default'//lf
            write (iunit) level
         else ! 2 layer
-           write (iunit) 'SCALARS density float'//lf
+           write (iunit) 'SCALARS Density float'//lf
            write (iunit) 'LOOKUP_TABLE default'//lf
            write (iunit) outv(:,1)
 

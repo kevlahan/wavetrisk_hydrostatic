@@ -25,6 +25,10 @@
 #
 #    (3) vtkCellData are computed as the average of the values from the two 2D cells in adjacent layers.  
 #
+#
+# Author: Weiguang Guan and Nicholas Kevlahan (McMaster University)
+# Date  : 2024-12-18
+#
 # See https://raw.githubusercontent.com/Kitware/vtk-examples/refs/heads/gh-pages/src/Testing/Baseline/Cxx/GeometricObjects/TestLinearCellsDemo.png
 
 import os
@@ -43,7 +47,7 @@ def set_3d_dim(ugrid, attr_name) :
     num_points = coords.shape[0]
     weights    = np.zeros(num_points) 
 
-    # Get cell data array with attr_name (which could be 'pressure')
+    # Get cell data array with attr_name (which could be 'P_Ps')
     attrs = vtk_to_numpy(ugrid.GetCellData().GetArray(attr_name))
 
     cellformation = vtk_to_numpy(ugrid.GetCells().GetData())
@@ -55,7 +59,7 @@ def set_3d_dim(ugrid, attr_name) :
         size    = cellformation[startID]
         pnt_ids = cellformation[(startID+1):(startID+1+size)]
         for pnt in pnt_ids :
-            coords[pnt,2] = coords[pnt,2] * weights[pnt] + attrs[i] / P_scale
+            coords[pnt,2] = coords[pnt,2] * weights[pnt] + attrs[i] * P_scale
             weights[pnt] += 1
             coords[pnt,2] /= weights[pnt]
          
@@ -87,7 +91,7 @@ class Cell3D() :
         self.ugrid = vtk.vtkUnstructuredGrid()  # final result
         
         # Load DS1
-        ds1 = load_dataset(vtk_series[0], 'pressure')
+        ds1 = load_dataset(vtk_series[0], 'P_Ps')
 
         points1 = ds1.GetPoints()
         self.ugrid.SetPoints(points1)
@@ -114,8 +118,6 @@ class Cell3D() :
         points2 = ds2.GetPoints()
         coords2 = vtk_to_numpy(points2.GetData())
 
-        #coords2[:,2] = DIST_BETWEEN_LAYERS * cell_layer_id
-
         coords = np.concatenate((coords, coords2))
 
         points.SetData(numpy_to_vtk(coords))
@@ -124,7 +126,6 @@ class Cell3D() :
         # (2) Construct vtkCells
         num_points  = points.GetNumberOfPoints()
         num_points2 = ds2.GetNumberOfPoints()
-        #print(num_points, num_points2)
 
         cellformation = vtk_to_numpy(ds2.GetCells().GetData())
 
@@ -132,23 +133,21 @@ class Cell3D() :
         startID = 0
         # loop through cells in ds2
         for i in range(num_cells) :
-            size = cellformation[startID]
-            #print(ds2.GetCellType(i)) # should be VTK_POLYGON=7 or VTK_TRIANGLE=5
-            #print(ds2.GetCellSize(i)) # number of vertices of the cell
+            size     = cellformation[startID]
             pnt_ids  = cellformation[(startID+1):(startID+1+size)]
-            
+
             pnt_ids1 = pnt_ids + (num_points-2*num_points2)
             pnt_ids2 = pnt_ids + (num_points-  num_points2)
             
             pnt_ids  = np.concatenate((pnt_ids1, pnt_ids2))
 
-            if (size==3) : # Always is 3 in the test datasets.
+            if (size==3) :   # triangles
                 self.ugrid.InsertNextCell(vtk.VTK_WEDGE , len(pnt_ids), pnt_ids)
-            elif (size==5) :
+            elif (size==5) : # pentagons
                 self.ugrid.InsertNextCell(vtk.VTK_PENTAGONAL_PRISM , len(pnt_ids), pnt_ids)
-            elif (size==6) :
+            elif (size==6) : # hexagons
                 self.ugrid.InsertNextCell(vtk.VTK_HEXAGONAL_PRISM , len(pnt_ids), pnt_ids)
-            else : # will consider this later.
+            else : 
                 print("ERROR: We only support triangle, pentagon, hexagon cell types")
                 print("There is a cell containing", size, " vertices")
                 exit(1)
@@ -167,11 +166,12 @@ class Cell3D() :
                 self.attr_list[i] = np.concatenate((self.attr_list[i], attr))
 
     def construct(self) :
-        ds1 = load_dataset(self.vtk_series[0], 'pressure')
+        ds1 = load_dataset(self.vtk_series[0], 'P_Ps')
+        print("loading " + self.vtk_series[0])
 
         for i, file in enumerate(self.vtk_series[1:]) :
             print("loading " + file)
-            ds2 = load_dataset(file, 'pressure')
+            ds2 = load_dataset(file, 'P_Ps')
 
             # Construct cells between two layers and add them to ugrid
             self.add_cells(ds1, ds2, (i+1))
@@ -188,10 +188,13 @@ class Cell3D() :
 
         return self.ugrid
 
-    # This function returns four elements: unstructured grid, regular grid, 
-    # and two 2D images as projections
+    # Returns four elements: unstructured grid, regular grid, and two 2D images as projections
     def construct_3Dimage(self) :
-        depth_dim = len(self.vtk_series) # max_depth = number of vtk files in the series
+        P_dim = len(self.vtk_series) # max_depth = number of vtk files in the series
+        dP = 1.0/P_dim
+
+        P_min   = (0.0 + dP/4) * P_scale
+        P_max   = (1.0 - dP/4) * P_scale
 
         # Construct an unstructured grid
         ugrid = self.construct()
@@ -200,7 +203,11 @@ class Cell3D() :
         # vtkResampleToImage may re-order the attribute arrays !!!
         ugrid_to_image = vtk.vtkResampleToImage()
         ugrid_to_image.SetInputDataObject(ugrid)
-        ugrid_to_image.SetSamplingDimensions(lon_dim, lat_dim, depth_dim)
+        
+        ugrid_to_image.SetUseInputBounds(False)
+        ugrid_to_image.SetSamplingDimensions(lon_dim, lat_dim, P_dim)
+        ugrid_to_image.SetSamplingBounds(lon_min, lon_max, lat_min, lat_max, P_min, P_max)
+
         ugrid_to_image.Update()
 
         rgrid = ugrid_to_image.GetOutput()
@@ -211,8 +218,8 @@ class Cell3D() :
         img1 = vtk.vtkImageData()
         img2 = vtk.vtkImageData()
 
-        img1.SetDimensions(1, lat_dim, depth_dim);
-        img2.SetDimensions(lon_dim, 1, depth_dim);
+        img1.SetDimensions(1, lat_dim, P_dim);
+        img2.SetDimensions(lon_dim, 1, P_dim);
 
         img1.SetSpacing(rgrid.GetSpacing())
         img2.SetSpacing(rgrid.GetSpacing())
@@ -225,25 +232,18 @@ class Cell3D() :
             #print(self.attr_names[i])
 
             img3d = vtk_to_numpy(pnt_data.GetArray(i))
-            img3d = img3d.reshape((depth_dim, lat_dim, lon_dim))
-            #print("img3d shape:", img3d.shape)
+            img3d = img3d.reshape((P_dim, lat_dim, lon_dim))
 
             # discard the outer layers because they contain artifacts
             #merid_avg = np.mean(img3d[:,:,1:lon_dim-1], axis=2) # projection along lon
             #zonal_avg = np.mean(img3d[:,1:lat_dim-1,:], axis=1) # projection along lat
 
-            # Use all layers
-            merid_avg = np.mean(img3d, axis=2) # projection along lon, mean
-            zonal_avg = np.mean(img3d, axis=1) # projection along lat, mean
-            #merid_avg = np.sum(img3d, axis=2) # projection along lon, sum
-            #zonal_avg = np.sum(img3d, axis=1) # projection along lat, sum
+            merid_avg = np.mean(img3d, axis=2) # meridional average
+            zonal_avg = np.mean(img3d, axis=1) # zonal average
 
-            #merid_avg = img3d[:,:,lon_dim-1]
-            #zonal_avg = img3d[:,lat_dim-3,:]
-
-            attr1 = numpy_to_vtk(merid_avg.reshape(lat_dim*depth_dim))
+            attr1 = numpy_to_vtk(merid_avg.reshape(lat_dim*P_dim))
             attr1.SetName(name)
-            attr2 = numpy_to_vtk(zonal_avg.reshape(lon_dim*depth_dim))
+            attr2 = numpy_to_vtk(zonal_avg.reshape(lon_dim*P_dim))
             attr2.SetName(name)
 
             img1.GetPointData().AddArray(attr1)
@@ -253,15 +253,16 @@ class Cell3D() :
 
 ################################################################################
 # Main program
-if (len(sys.argv)<3) :
+if (len(sys.argv)<4) :
     print("""
-    Use: python lonlat_to_3D.py vtk_directory J
+    Use: python lonlat_to_3D.py vtk_directory J P_scale
     
     Generates a 3D vtk data file from a series of layers in directory folder.
     
     Input variables:
     folder  = directory containing n vtk files of lon-lat layer data DS1, DS2, DS3, ..., DSn
     J       = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
+    P_scale = scaling factor for P/Ps (for visualization)
     
     Saves four data files:
     DS.vtk            3D unstructured (lon,lat,P) data
@@ -276,12 +277,20 @@ if (len(sys.argv)<3) :
 
 outfile = sys.argv[1]+'.vtk'
 J       = float(sys.argv[2])
+P_scale = float(sys.argv[3])
 
 N       = int(np.sqrt(20*4**J))
+
 lat_dim = int(N/2)
 lon_dim = 2*lat_dim
 
-P_scale = 1000
+dlat = 360.0/lon_dim
+dlon = 180.0/lat_dim
+
+lon_min = -179.5
+lon_max =  180.0
+lat_min =  -87.0
+lat_max =   87.0
 
 print("\nInterpolating to uniform",lon_dim,"x",lat_dim,"grid\n")
 
