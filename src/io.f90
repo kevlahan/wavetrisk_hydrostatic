@@ -1806,7 +1806,7 @@ contains
           end if
 
           if (compressible) then 
-             outv(9) = dom%surf_press%elts(id_i)                                 ! surface pressure          (compressible)
+             outv(9) = dom%surf_press%elts(id_i)                                 ! surface pressure Ps       (compressible)
           else                                                                   ! free surface perturbation (incompressible)
              if (mode_split) then 
                 outv(9) = sol(S_MASS,zlevels+1)%data(d)%elts(id_i) / phi_node (d, id_i, zlev)
@@ -1816,7 +1816,7 @@ contains
           end if
 
           outv(10) = dom%geopot%elts(id_i) / grav_accel                          ! geopotential height
-          outv(11) = dom%press%elts(id_i)                                        ! layer pressure
+          outv(11) = dom%press%elts(id_i) / dom%surf_press%elts(id_i)            ! P/Ps
 
           ! Vertices of hexagon
           vertices = (/ &
@@ -1843,7 +1843,7 @@ contains
     real(8), dimension(0:EDGE)             :: rho_dz, rho_dz_theta
     real(8), dimension(0:EDGE)             :: temperature
     real(4), dimension(LORT:UPLT,nvar_out) :: outv
-    real(8), dimension(LORT:UPLT)          :: relvort, tri_area
+    real(8), dimension(LORT:UPLT)          :: Ps, relvort, tri_area
     real(8), dimension(2*EDGE)             :: hex_area
 
     type(Coord), dimension(LORT:UPLT,3)    :: vertices
@@ -1897,18 +1897,20 @@ contains
        outv(:,7:8) = 0.0
     end if
 
+    Ps = hex2tri2 (dom%surf_press%elts(neigh_id), hex_area, tri_area)                     ! surface pressure
+    
     if (compressible) then
-       outv(:,9) = hex2tri2 (dom%surf_press%elts(neigh_id),          hex_area, tri_area) ! surface pressure
-    else                                                                                 ! free surface perturbation
-       if (mode_split) then
+       outv(:,9) = Ps       
+    else                                                                                 
+       if (mode_split) then ! free surface perturbation
           outv(:,9) = hex2tri2 (sol(S_MASS,zlevels+1)%data(d)%elts(neigh_id), hex_area, tri_area) 
        else
           outv(:,9) = hex2tri2 (sol(S_MASS,1)%data(d)%elts(neigh_id), hex_area, tri_area) 
        end if
     end if
 
-    outv(:,10) = hex2tri2 (dom%geopot%elts(neigh_id) / grav_accel, hex_area, tri_area)   ! geopotential height
-    outv(:,11) = hex2tri2 (dom%press%elts(neigh_id),               hex_area, tri_area)   ! layer pressure
+    outv(:,10) = hex2tri2 (dom%geopot%elts(neigh_id) / grav_accel, hex_area, tri_area)      ! geopotential height
+    outv(:,11) = hex2tri2 (dom%press%elts(neigh_id),               hex_area, tri_area) / Ps ! P/Ps
 
     vertices(LORT,:) = dom%node%elts((/id, idE, idNE/)+1)
     vertices(UPLT,:) = dom%node%elts((/id, idNE, idN/)+1)
