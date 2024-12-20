@@ -32,6 +32,7 @@
 # See https://raw.githubusercontent.com/Kitware/vtk-examples/refs/heads/gh-pages/src/Testing/Baseline/Cxx/GeometricObjects/TestLinearCellsDemo.png
 
 import os
+from contextlib import suppress
 import sys
 import numpy as np
 import vtk
@@ -291,6 +292,10 @@ lon_min = -179.5
 lon_max =  180.0
 lat_min =  -87.0
 lat_max =   87.0
+
+# Remove .DS_store to avoid load error
+with suppress(OSError):
+    os.remove('.DS_Store')
 
 print("\nInterpolating to uniform",lon_dim,"x",lat_dim,"grid\n")
 
