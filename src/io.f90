@@ -1539,6 +1539,8 @@ contains
     sol%bdry_uptodate = .false.
     call update_bdry (sol, NONE, 883)
 
+    call omega_velocity
+
     call pre_levelout
 
     ! Compute surface pressure
