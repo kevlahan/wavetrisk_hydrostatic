@@ -30,7 +30,7 @@ program climate
   timeint_type             = "RK3"                            ! time integration scheme (use RK34, RK45, RK3 or RK4)
   cfl_num                  = 1d0                              ! CFL number
 
-  min_mass_remap           = 0.5d0                            ! minimum mass at which to remap
+  min_mass_remap           = 0.7d0                            ! minimum mass at which to remap
 
   analytic_topo            = "none"                           ! type of analytic topography (mountains or none if NCAR_topo = .false.)
 

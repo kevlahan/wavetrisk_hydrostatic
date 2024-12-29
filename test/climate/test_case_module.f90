@@ -651,7 +651,7 @@ contains
        write (6,'(a,i3)')     "Nsoil                   = ", Nsoil
        write (6,'(a,l1)')     "uniform                 = ", uniform
        write (6,'(a,l1)')     "remap                   = ", remap
-       write (6,'(a,i3)')     "iremap                  = ", iremap
+       write (6,'(a,f4.2)')   "min_mass_remap          = ", min_mass_remap 
        write (6,'(a,l1)')     "default_thresholds      = ", default_thresholds
        write (6,'(a,es8.2)') "tolerance               = ", tol
        write (6,'(a,i1)')     "optimize_grid           = ", optimize_grid
