@@ -7,7 +7,7 @@ module io_mod
   implicit none
 
   integer, dimension(2,4)                        :: HR_offs
-  data                                             HR_offs /0,0, 1,0, 1,1, 0,1/
+  data                                              HR_offs /0,0, 1,0, 1,1, 0,1/
 
   integer                                        :: ncells_hex_loc, ncells_tri_loc, nvar_out
   integer, dimension(:,:), allocatable           :: topo_count
@@ -1530,8 +1530,6 @@ contains
        write (6,'(a)') '**************************************************************&
             ********************************************************************'
        write (6,'(a,i4)') 'Saving field ', isave
-       write (6,'(a)') '*************************************************************&
-            *********************************************************************'
     end if
     
     write (isv, '(i4.4)') isave
@@ -1553,6 +1551,8 @@ contains
        call vertical_velocity ! vertical velocity w [m/s]
     end if
 
+    ncells_tri_loc = 0
+    
     do l = level_start, level_end
        write (scale, '(i2.2)') l
        if (compressible .or. zlevels /= 2 .or. .not. mode_split) then
@@ -1695,12 +1695,23 @@ contains
           file_hex = trim(run_id)//"_hex_"//trim(scale)//"_"//trim(isv)
           file_tri = trim(run_id)//"_tri_"//trim(scale)//"_"//trim(isv)
 
-          if (write_hex_data) call write_level_mpi (write_hex, l, z_null, .true.,  trim(file_hex))
-          if (write_tri_data) call write_level_mpi (write_tri, l, z_null, .false., trim(file_tri))
+          if (write_hex_data) call write_level_mpi (write_hex, l, 1, .true.,  trim(file_hex))
+          if (write_tri_data) call write_level_mpi (write_tri, l, 1, .false., trim(file_tri))
        end if
     end do
     call post_levelout
     call barrier
+
+    if (write_tri_data)  ncells_tri_loc = sum_int (ncells_tri_loc)
+
+    if (rank == 0) then
+       if (write_tri_data) write (6,'(a,i8,a,f6.1)') &
+            "Number of active cells = ", ncells_tri_loc, &
+            " compression ratio = ", dble (2 * (2 + 10 * 4**max_level)) / dble (ncells_tri_loc)
+
+       write (6,'(a)') '*************************************************************&
+            *********************************************************************'
+    end if
 
     if (rank == 0) call compress_files (isave)
     call barrier
@@ -1917,11 +1928,15 @@ contains
     vertices(LORT,:) = dom%node%elts((/id, idE, idNE/)+1)
     vertices(UPLT,:) = dom%node%elts((/id, idNE, idN/)+1)
 
-    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0) &
-         write (funit) coord2r4 (vertices(LORT,:), 3), outv(LORT,:), dom%mask_n%elts(id+1), outl
+    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0) then
+       write (funit) coord2r4 (vertices(LORT,:), 3), outv(LORT,:), dom%mask_n%elts(id+1), outl
+       if (zlev == 1) ncells_tri_loc = ncells_tri_loc + 1
+    end if
 
-    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0) &
-         write (funit) coord2r4 (vertices(UPLT,:), 3), outv(UPLT,:), dom%mask_n%elts(id+1), outl
+    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0) then
+       write (funit) coord2r4 (vertices(UPLT,:), 3), outv(UPLT,:), dom%mask_n%elts(id+1), outl
+       if (zlev == 1) ncells_tri_loc = ncells_tri_loc + 1
+    end if
   end subroutine write_tri
 
   subroutine barotropic_velocity (dom, i, j, zlev, offs, dims)

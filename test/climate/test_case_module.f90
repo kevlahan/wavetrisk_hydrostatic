@@ -23,6 +23,7 @@ module test_case_mod
   real(8), parameter :: nu_CAM        = 1d15 * METRE**4/SECOND      ! CAM hyperviscosity 
   real(8), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
   real(8), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
+  real(8), parameter :: Area_CAM      = sqrt(3d0)/2d0 * dx_CAM**2   ! CAM hexagon area
   real(8), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity
   
   real(8), parameter :: e_thick       = 10   * KM                   ! Ekman layer thickness
@@ -769,14 +770,14 @@ contains
     total_layers = size (threshold, 2)
 
     if (rank == 0) then
-       write (6,'(a,es12.6,4(a,es8.2),a,i2,3(a,es8.2,1x))') &
+       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,2(a,es9.2,1x))') &
             'time [d] = ', time/DAY, &
             ' dt [s] = ', dt, &
             '  mass tol = ', sum (threshold(S_MASS,1:zlevels)) / dble (zlevels), &
              ' temp tol = ', sum (threshold(S_TEMP,1:zlevels)) / dble (zlevels), &
              ' velo tol = ', sum (threshold(S_VELO,1:zlevels)) / dble (zlevels), &
             ' Jmax = ', level_end, &
-            ' grid compression = ', dble (total_dof) / dble(sum (n_active)), &
+            ' dof = ', sum (n_active), &
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
@@ -854,7 +855,7 @@ contains
 
     ! Non-dimensional viscosities
     C_visc = C_CAM 
-    C_visc(S_DIVU) = C_CAM * 2.5d0 ! boost divu viscosity by CAM factor
+    C_visc(S_DIVU) = C_CAM * 4d0 ! boost divu viscosity by CAM factor
 
     ! Ensure stability
     C_visc(S_MASS) = min (C_visc(S_MASS), (1d0/6d0    )**Laplace_sclr)
