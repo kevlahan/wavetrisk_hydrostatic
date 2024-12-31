@@ -196,12 +196,12 @@ module shared_mod
 
   ! Time
   real(8), parameter :: SECOND  = 1d0
-  real(8), parameter :: MINUTE  = 60d0  * SECOND
-  real(8), parameter :: HOUR    = 60d0  * MINUTE
-  real(8), parameter :: DAY     = 24d0  * HOUR
-  real(8), parameter :: WEEK    =   7d0 * DAY
-  real(8), parameter :: YEAR    = 365d0 * DAY
-   
+  real(8), parameter :: MINUTE  = 60  * SECOND
+  real(8), parameter :: HOUR    = 60  * MINUTE
+  real(8), parameter :: DAY     = 24  * HOUR
+  real(8), parameter :: WEEK    =   7 * DAY
+  real(8), parameter :: YEAR    = 365 * DAY
+
   ! Angle
   real(8), parameter :: RAD     = 1d0
   real(8), parameter :: DEG     = MATH_PI / 180d0
@@ -345,7 +345,7 @@ contains
     nstep_init              = -1                                  ! nstep_init gradually increasing small time steps after restart
     
     ! Default logical switches, most are reset in the input file
-    adapt_dt                = .true.                              ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
+    adapt_dt                = .false.                              ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
     compressible            = .true.                              ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds      = .true.                              ! use default thresholds (T) or calculate dynamically (F)
     fill                    = .false.                             ! fill up grid to level j_fill if true (T)

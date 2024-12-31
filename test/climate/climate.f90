@@ -20,57 +20,59 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  scale_aware              = .false.                          ! scale-aware viscosity
-  split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
-  default_thresholds       = .false.                          ! thresholding type
-  remap                    = .true.                           ! use vertical remapping
   compressible             = .true.                           ! compressible equations
-  uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
-  
-  timeint_type             = "RK3"                            ! time integration scheme (use RK34, RK45, RK3 or RK4)
-  cfl_num                  = 1d0                              ! CFL number
-
-  min_mass_remap           = 0.7d0                            ! minimum mass at which to remap
-
-  analytic_topo            = "none"                           ! type of analytic topography (mountains or none if NCAR_topo = .false.)
-
+  default_thresholds       = .false.                          ! thresholding type
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
   log_total_mass           = .false.                          ! check whether total mass is conserved (for debugging)
+  remap                    = .true.                           ! use vertical remapping
+  scale_aware              = .false.                          ! scale-aware viscosity
+  split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
+  uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
+  
+  analytic_topo            = "none"                           ! type of analytic topography (mountains or none if NCAR_topo = .false.)
+  cfl_num                  = 1d0                              ! CFL number
+  min_mass_remap           = 0.7d0                            ! minimum mass at which to remap
+  timeint_type             = "RK3"                            ! time integration scheme (use RK34, RK45, RK3 or RK4)
 
-
+  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   !    Local test case parameters (default values for many parameters set in physics module)
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   physics_model            = .true.                           ! use physics model sub-step (type is determined in input)
   Ekman_ic                 = .false.                          ! Ekman (T) or zero (F) velocity initial conditions
-  u_0                      =  30      * METRE/SECOND          ! geostrophic velocity
-  T_0                      = 285      * KELVIN                ! reference temperature (simple physics)
 
   ! Simple physics submodel switches
-  turbulence_model         = .true.                           ! vertical diffusion module
-  radiation_model          = .true.                           ! radiation module
   convecAdj_model          = .true.                           ! convective adjustment module
   diurnal                  = .true.                           ! diurnal cycle 
+  radiation_model          = .true.                           ! radiation module
+  turbulence_model         = .true.                           ! vertical diffusion module
 
+  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Standard (shared) parameter values for the simulation
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  radius                   = 6371     * KM                    ! mean radius of the Earth
+  c_p                      = 1004     * JOULE/(KG*KELVIN)     ! specific heat at constant pressure in joules per kilogram Kelvin
   grav_accel               = 9.8      * METRE/SECOND**2       ! gravitational acceleration 
   omega                    = 7.292d-5 * RAD/SECOND            ! Earth's angular velocity in radians per second
-  ref_density              = ref_density_air                  ! reference density of air
   p_top                    = 0.01     * Pa                    ! pressure at the top in Pascals
-  call std_surf_pres (0d0, p_0)                               ! surface pressure from USA standard atmosphere model
-  c_p                      = 1004     * JOULE/(KG*KELVIN)     ! specific heat at constant pressure in joules per kilogram Kelvin
   R_d                      = 287      * JOULE/(KG*KELVIN)     ! set to a whole number
-  ref_density              = 1.204    * KG/METRE**3           ! reference density 
-  kappa                    = R_d / c_p                        ! kappa
+  radius                   = 6371     * KM                    ! mean radius of the Earth
+  ref_density              = ref_density_air                  ! reference density of air
+  T_0                      = 285      * KELVIN                ! reference temperature (simple physics)
+  u_0                      =  30      * METRE/SECOND          ! geostrophic velocity
+  
+  ! Derived quantities
   c_v                      = c_p - R_d                        ! specific heat at constant volume c_v = c_p - R_d
   gamma                    = c_p / c_v                        ! heat capacity ratio
+  kappa                    = R_d / c_p                        ! kappa
+
   wave_speed               = sqrt (gamma * (R_d * T_0) )      ! acoustic wave speed
   max_depth                = wave_speed**2 / grav_accel       ! depth of atmosphere
   dz                       = max_depth / dble (zlevels)       ! representative layer height
-
+  
+  call std_surf_pres (0d0, p_0)                               ! reference pressure (USA standard atmosphere model)
+  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Dimensional scaling
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

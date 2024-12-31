@@ -2,42 +2,37 @@ module astronomy
   implicit none
   save
   real            :: aphelie, periheli, year_day, peri_day, obliquit, timeperi, e_elips, p_elips
-  real, parameter :: unitastr = 149.597927 ! millions of km
+  real, parameter :: UnitAstr = 149.597927 ! millions of km
   real, parameter :: pi = 2.0 * asin (1.0)
 contains
   subroutine SolarLon (pDay, pSolLon)
-    ! Called by radiation modules
-    real, intent(in)   :: pDay      ! jour de l annee (le jour 0 correspondant a l equinoxe)
+    ! Returns solar longitude given day (from equinox)
+    real, intent(in)   :: pDay     ! jour de l annee (le jour 0 correspondant a l equinoxe)
     real, intent(out)  :: pSolLon  ! solar longitude
 
-    real    :: zanom, xref, zx0, zdx, zteta, zz
+    real    :: zAnom, xref, zx0, zdx, zTheta, zz
     integer :: iter
 
-    ! Calcul de l angle polaire et de la distance au soleil :
-
-    ! Calcul de l zanomalie moyenne
-
+    ! Calcul de l angle polaire et de la distance au soleil (zAnomalie moyenne)
     zz    = (pDay - peri_day) / year_day
-    zanom = 2.0*pi * (zz - nint (zz))
-    xref  = abs (zanom)
+    zAnom = 2.0*pi * (zz - nint (zz))
+    xref  = abs (zAnom)
 
-    !  Resolution de l equation horaire  zx0 - e * sin (zx0) = xref
+    ! Resolution de l equation horaire  zx0 - e * sin (zx0) = xref
     !  (methode de Newton)
-
     zx0 = xref + e_elips * sin (xref)
     do iter = 1, 10
        zdx = - (zx0 - e_elips * sin (zx0) - xref) / (1.0 - e_elips * cos (zx0))
        zx0 = zx0 + zdx
     end do
-    
+
     zx0 = zx0 + zdx
-    if (zanom < 0.0) zx0 = -zx0
+    if (zAnom < 0.0) zx0 = -zx0
 
-    ! zteta est la longitude solaire
+    ! zTheta est la longitude solaire
+    zTheta = 2.0 * atan (sqrt ((1.0 + e_elips) / (1.0 - e_elips)) * tan (zx0/2.0))
 
-    zteta = 2.0 * atan (sqrt ((1.0 + e_elips) / (1.0 - e_elips)) * tan (zx0/2.0))
-
-    pSolLon =zteta - timeperi
+    pSolLon = zTheta - timeperi
 
     if (pSolLon < 0.0)     pSolLon = pSolLon + 2.0*pi
     if (pSolLon >  2.0*pi) pSolLon = pSolLon - 2.0*pi
@@ -58,25 +53,24 @@ contains
     !
     !
     !=======================================================================
-    real    :: zxref, zanom, zz, zx0, zdx
+    real    :: zxref, zAnom, zz, zx0, zdx
     integer :: iter
 
     e_elips = (aphelie - periheli) / (periheli + aphelie)
-    p_elips = 0.5 * (periheli + aphelie)*(1.0 - e_elips**2) / unitastr
+    p_elips = 0.5 * (periheli + aphelie)*(1.0 - e_elips**2) / UnitAstr
 
     !-----------------------------------------------------------------------
     ! calcul de l angle polaire et de la distance au soleil :
     ! -------------------------------------------------------
 
-    !  calcul de l zanomalie moyenne
+    !  calcul de l zAnomalie moyenne
 
     zz    = (year_day - peri_day) / year_day
-    zanom = 2.0*pi * (zz - nint (zz))
-    zxref = abs (zanom)
+    zAnom = 2.0*pi * (zz - nint (zz))
+    zxref = abs (zAnom)
 
-    !  resolution de l equation horaire  zx0 - e * sin (zx0) = zxref
-    !  methode de newton
-
+    ! Resolution de l equation horaire  zx0 - e * sin (zx0) = zxref
+    ! (methode de newton)
     zx0 = zxref + e_elips * sin (zxref)
     do  iter = 1, 100
        zdx = - (zx0 - e_elips * sin (zx0) - zxref) / (1.0 - e_elips * cos (zx0))
@@ -84,9 +78,7 @@ contains
     end do
 
     zx0 = zx0 + zdx
-    if (zanom < 0.0) zx0 = -zx0
-
-    ! zteta est la longitude solaire
+    if (zAnom < 0.0) zx0 = -zx0
 
     timeperi = 2.0 * atan (sqrt ((1.0 + e_elips) / (1.0 - e_elips)) * tan (zx0/2.0))
   end subroutine iniorbit
@@ -98,12 +90,12 @@ contains
     !
     !==============================================================================
     real, intent(in)  :: pSolLon    ! solar longitude
-    
+
     real, intent(out) :: pDist_sol  ! distance between sun and planet
     real, intent(out) :: pDecli     ! solar declination angle
 
     pDist_sol = p_Elips / (1.0 + e_Elips * cos (pSolLon + TimePeri))
-    
+
     pDecli    = asin (sin (pSolLon) * sin (obliquit * pi/180.0))
   end subroutine Orbite
 end module astronomy

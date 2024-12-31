@@ -752,9 +752,10 @@ contains
 
   subroutine print_log
     ! Prints out and saves logged data to a file
+    use calendar_mod
     implicit none
 
-    integer :: j, k, min_load, max_load, total_dof, total_layers
+    integer :: e_day, e_month, e_year, j, k, min_load, max_load, total_dof, total_layers
     real(8) :: avg_load, rel_imbalance, timing
 
     total_dof = 0
@@ -769,13 +770,16 @@ contains
 
     total_layers = size (threshold, 2)
 
+    ! Find date
+    call eday2ymd (int (time/DAY) + 80, e_year, e_month, e_day)
+
     if (rank == 0) then
-       write (6,'(a,es12.6,4(a,es8.2),a,i2,a,i12,2(a,es9.2,1x))') &
-            'time [d] = ', time/DAY, &
+       write (6,'(i2.2, a, i2.2, a, i2.2, f11.4, 4(a,es8.2),a,i2,a,i12,2(a,es9.2,1x))') &
+            e_year, '-', e_month, '-', e_day, time/DAY, &
             ' dt [s] = ', dt, &
             '  mass tol = ', sum (threshold(S_MASS,1:zlevels)) / dble (zlevels), &
-             ' temp tol = ', sum (threshold(S_TEMP,1:zlevels)) / dble (zlevels), &
-             ' velo tol = ', sum (threshold(S_VELO,1:zlevels)) / dble (zlevels), &
+            ' temp tol = ', sum (threshold(S_TEMP,1:zlevels)) / dble (zlevels), &
+            ' velo tol = ', sum (threshold(S_VELO,1:zlevels)) / dble (zlevels), &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' balance = ', rel_imbalance, &
@@ -839,23 +843,24 @@ contains
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
-    ! Set non-dimensional viscosities C_visc and time step
+    ! Set non-dimensional viscosities and time step
     implicit none
-    real(8) :: area_sphere, fac
+    real(8) :: Area_sphere
     
     ! Average hexagon areas and horizontal resolutions
-    area_sphere = 4d0*MATH_PI * radius**2 
+    Area_sphere = 4d0*MATH_PI * radius**2 
     Area_min    = area_sphere / (10d0 * 4d0**max_level)
     Area_max    = area_sphere / (10d0 * 4d0**min_level)
+
     dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)              
     dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
 
-    adapt_dt    = .true.
-    dt_init     = cfl_num * 0.85d0 * dx_min / (wave_speed + Udim)
+    ! Time step
+    dt_init     = dt_CAM * (dx_min / dx_CAM)
 
     ! Non-dimensional viscosities
     C_visc = C_CAM 
-    C_visc(S_DIVU) = C_CAM * 4d0 ! boost divu viscosity by CAM factor
+    C_visc(S_DIVU) = C_CAM * 5 ! boost divu (CAM boost is 2.5)
 
     ! Ensure stability
     C_visc(S_MASS) = min (C_visc(S_MASS), (1d0/6d0    )**Laplace_sclr)
