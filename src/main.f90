@@ -443,6 +443,7 @@ contains
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     min_mass = cpt_min_mass () 
     if (remap .and. min_mass < min_mass_remap) then
+       if (rank == 0 .and. log_min_mass) write (6,'(a)') 'Remapping vertical coordinates ...'
        call remap_vertical_coordinates
        iremap = 1
     else
@@ -579,24 +580,6 @@ contains
     level_end = sync_max_int (level_end)
   end function cpt_dt
 
-  real(8) function cpt_min_mass ()
-    ! Calculates minimum relative mass
-    implicit none
-    integer :: ierror, l
-
-    min_mass_loc = 1d16
-    if (tol /= 0d0) then
-       do l = level_start, level_end
-          call apply_onescale (cal_min_mass, l, z_null, 0, 0)
-       end do
-    else
-       call apply_onescale (cal_min_mass, max_level, z_null, 0, 0)
-    end if
-    
-    cpt_min_mass = sync_min_real (min_mass_loc)
-    if (log_min_mass .and. rank == 0) write (6,'(a,es10.4)') "Minimum relative mass = ", cpt_min_mass
-  end function cpt_min_mass
-
   subroutine cal_min_dt (dom, i, j, zlev, offs, dims)
     ! Calculates time step and number of active nodes and edges
     ! time step is smallest of barotropic time step, advective time step and internal wave time step for mode split case
@@ -636,8 +619,30 @@ contains
     end do
   end subroutine cal_min_dt
 
+  real(8) function cpt_min_mass ()
+    ! Calculates minimum relative mass
+    implicit none
+    integer :: ierror, l
+
+    min_mass_loc = 1d16
+    if (tol /= 0d0) then
+       call apply_bdry (cal_min_mass, z_null, 0, 1)
+    else
+       call apply_onescale (cal_min_mass, max_level, z_null, 0, 0)
+    end if
+    
+    cpt_min_mass = sync_min_real (min_mass_loc)
+
+    if (cpt_min_mass <= 0d0) then
+       write (6,'(a,i3,a)') "A layer has collapsed  ... aborting"
+       call abort
+    else
+       if (log_min_mass .and. rank == 0) write (6,'(a,es10.4)') "Minimum relative mass = ", cpt_min_mass
+    end if
+  end function cpt_min_mass
+
   subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
-    ! Calculates minimum relative mass and checks diffusion stability limits
+    ! Minimum relative mass in a single column
     use init_mod
     implicit none
     type(Domain)                   :: dom
@@ -645,38 +650,30 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                       :: d, e, id, id_e, id_i, k, l
-    real(8)                       :: col_mass, d_e, fac, rho_dz, init_mass, rho, z_s
-    real(8)                       :: beta_sclr, beta_divu, beta_rotu
-    real(8), dimension(1:zlevels) :: dz
+    integer                       :: d, id, k
+    real(8)                       :: Ps, z_s
     real(8), dimension(0:zlevels) :: z
+    real(8), dimension(1:zlevels) :: dz, init_rho_dz, rho_dz
 
-    id   = idx (i, j, offs, dims)
-    id_i = id + 1
+    id   = idx (i, j, offs, dims) + 1
     d    = dom%id + 1
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       col_mass = 0d0
+    if (dom%mask_n%elts(id) >= ADJZONE) then
        do k = 1, zlevels
-          rho_dz = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-          if (rho_dz < 0d0 .or. rho_dz /= rho_dz) then
-             write (6,'(A,i8,A,3(es9.2,1x),A,i2,A)') "Mass negative at id = ", id_i, &
-                  " with position ", dom%node%elts(id_i)%x,  dom%node%elts(id_i)%y, dom%node%elts(id_i)%z, &
-                  " vertical level k = ", k, " ... aborting"
-             call abort
-          end if
-          col_mass = col_mass + rho_dz
+          rho_dz(k) = sol(S_MASS,k)%data(d)%elts(id) + sol_mean(S_MASS,k)%data(d)%elts(id)
        end do
 
-       ! Measure relative change in mass
+       ! Relative change in mass
        if (compressible) then
+          Ps = grav_accel * sum (rho_dz) + p_top ! surface pressure
+
+          init_rho_dz = a_vert_mass + b_vert_mass * Ps / grav_accel
+
           do k = 1, zlevels
-             init_mass = a_vert_mass(k) + b_vert_mass(k) * col_mass
-             rho_dz = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-             min_mass_loc = min (min_mass_loc, rho_dz/init_mass)
+             min_mass_loc = min (min_mass_loc, rho_dz(k)/init_rho_dz(k))
           end do
        else
-          z_s = topography%data(d)%elts(id_i)
+          z_s = topography%data(d)%elts(id)
           if (sigma_z) then
              z = z_coords (0d0, z_s)
           else
@@ -685,10 +682,9 @@ contains
           dz = z(1:zlevels) - z(0:zlevels-1)
           
           do k = 1, zlevels
-             rho = porous_density (d, id_i, k)
-             init_mass = rho * dz(k)
-             rho_dz = sol(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
-             min_mass_loc = min (min_mass_loc, rho_dz/init_mass)
+             init_rho_dz(k) = porous_density (d, id, k) * dz(k)
+             
+             min_mass_loc = min (min_mass_loc, rho_dz(k)/init_rho_dz(k))
           end do
        end if
     end if
