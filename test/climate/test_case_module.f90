@@ -755,7 +755,7 @@ contains
     use calendar_mod
     implicit none
 
-    integer :: e_day, e_month, e_year, j, k, min_load, max_load, total_dof, total_layers
+    integer :: date, j, k, min_load, max_load, total_dof, total_layers
     real(8) :: avg_load, rel_imbalance, timing
 
     total_dof = 0
@@ -771,13 +771,12 @@ contains
     total_layers = size (threshold, 2)
 
     ! Find date
-    call eday2ymd (int (time/DAY) + 80, e_year, e_month, e_day)
+    call eday2date (int (time/DAY) + 80, date)
 
     if (rank == 0) then
-       write (6,'(i2.2, a, i2.2, a, i2.2, f11.4, 4(a,es8.2),a,i2,a,i12,2(a,es9.2,1x))') &
-            e_year, '-', e_month, '-', e_day, time/DAY, &
-            ' dt [s] = ', dt, &
-            '  mass tol = ', sum (threshold(S_MASS,1:zlevels)) / dble (zlevels), &
+       write (6,'(i0.8, f11.4, a, 3(a,es8.2),a,i2,a,i12,2(a,es9.2,1x))') &
+           date, time/DAY, ' d', &
+            ' mass tol = ', sum (threshold(S_MASS,1:zlevels)) / dble (zlevels), &
             ' temp tol = ', sum (threshold(S_TEMP,1:zlevels)) / dble (zlevels), &
             ' velo tol = ', sum (threshold(S_VELO,1:zlevels)) / dble (zlevels), &
             ' Jmax = ', level_end, &
@@ -793,7 +792,7 @@ contains
        end if
 
        write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  &
-            time/DAY, dt, sum (threshold(S_MASS,1:zlevels))/dble(zlevels), sum (threshold(S_TEMP,1:zlevels))/dble(zlevels), &
+            time, dt, sum (threshold(S_MASS,1:zlevels))/dble(zlevels), sum (threshold(S_TEMP,1:zlevels))/dble(zlevels), &
             sum (threshold(S_VELO,1:zlevels))/dble(zlevels), level_end, sum (n_active), rel_imbalance, timing
     end if
   end subroutine print_log
