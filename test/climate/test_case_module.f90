@@ -23,13 +23,13 @@ module test_case_mod
   real(8), parameter :: nu_CAM        = 1d15 * METRE**4/SECOND      ! CAM hyperviscosity 
   real(8), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
   real(8), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
-  real(8), parameter :: Area_CAM      = sqrt(3d0)/2d0 * dx_CAM**2   ! CAM hexagon area
+  real(8), parameter :: Area_CAM      = sqrt(3d0)/2 * dx_CAM**2     ! CAM hexagon area
   real(8), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity
   
   real(8), parameter :: e_thick       = 10   * KM                   ! Ekman layer thickness
   real(8), parameter :: nu_init       = 50   * DAY                  ! larger viscosity during spinup (four times)
   logical            :: Ekman_ic      = .false.                     ! Ekman flow initial conditions (zero velocity initial conditions if false)
-  logical            :: scale_aware   = .false.                     ! scale-aware viscosity
+  logical            :: scale_aware   = .false.                      ! scale-aware viscosity
   logical            :: print_tol     = .false.                     ! print tolerances for each layer
   character(255)     :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
 contains
@@ -102,7 +102,7 @@ contains
        elseif (p_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = init_nu () * (-1d0)**p_sclr * C_visc(v) *  nu_scale (p_sclr, dom, id) * grad * l_e
+       physics_scalar_flux_case = init_nu () * (-1)**p_sclr * C_visc(v) *  nu_scale (p_sclr, dom, id) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -138,8 +138,8 @@ contains
     else
        p_divu = max (Laplace_order, Laplace_divu)
        p_rotu = max (Laplace_order, Laplace_rotu)
-       physics_velo_source_case =  init_nu () * (-1d0)**(p_divu-1) * C_visc(S_DIVU) * nu_scale (p_divu, dom, id) * grad_divu () &
-                                              - (-1d0)**(p_rotu-1) * C_visc(S_ROTU) * nu_scale (p_rotu, dom, id) * curl_rotu () 
+       physics_velo_source_case =  init_nu () * (-1)**(p_divu-1) * C_visc(S_DIVU) * nu_scale (p_divu, dom, id) * grad_divu () &
+                                              - (-1)**(p_rotu-1) * C_visc(S_ROTU) * nu_scale (p_rotu, dom, id) * curl_rotu () 
     end if  
   contains
     function grad_divu ()
@@ -180,7 +180,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: k_T, lat, lon, p, p_s, pot_temp
+    real(8) :: k_T, lat, lon, p, P_s, pot_temp
     
     d   = dom%id+1
     id  = idx (i, j, offs, dims)
@@ -188,21 +188,21 @@ contains
     call cart2sph (dom%node%elts(id+1), lon, lat)
 
     if (NCAR_topo) then ! surface pressure from multilevel topography
-       p_s = dom%surf_press%elts(id+1)
+       P_s = dom%surf_press%elts(id+1)
     else                ! surface pressure from standard atmosphere
-       call std_surf_pres (topography%data(d)%elts(id+1), p_s)
+       call std_surf_pres (topography%data(d)%elts(id+1), P_s)
     end if
     
     do k = 1, zlevels
-       p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
+       p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * P_s) ! pressure at level k
 
        if (split_mean_perturbation) then
           sol(S_MASS,k)%data(d)%elts(id+1) = 0d0
           sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
        else
-          call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
+          call cal_theta_eq (p, P_s, lat, pot_temp, k_T)
           
-          sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
+          sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * P_s / grav_accel
           sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        end if
 
@@ -223,7 +223,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: k_T, lat, lon, p, p_s, pot_temp
+    real(8) :: k_T, lat, lon, p, P_s, pot_temp
     
     d  = dom%id+1
     id = idx (i, j, offs, dims)
@@ -231,18 +231,18 @@ contains
     call cart2sph (dom%node%elts(id+1), lon, lat)
 
     if (NCAR_topo) then ! surface pressure from multilevel topography
-       p_s = dom%surf_press%elts(id+1)
+       P_s = dom%surf_press%elts(id+1)
     else                ! surface pressure from standard atmosphere
-       call std_surf_pres (topography%data(d)%elts(id+1), p_s)
+       call std_surf_pres (topography%data(d)%elts(id+1), P_s)
     end if
 
     do k = 1, zlevels
-       p = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s) ! pressure at level k
+       p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * P_s) ! pressure at level k
 
        if (split_mean_perturbation) then
-          call cal_theta_eq (p, p_s, lat, pot_temp, k_T)
+          call cal_theta_eq (p, P_s, lat, pot_temp, k_T)
           
-          sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
+          sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * P_s / grav_accel
           sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        else
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = 0d0
@@ -252,23 +252,23 @@ contains
     end do
   end subroutine init_mean
   
-  subroutine  theta_init (p, p_s, lat, theta_equil, k_T)
+  subroutine  theta_init (p, P_s, lat, theta_equil, k_T)
     ! Initial potential temperature profile
     implicit none
-    real(8) :: p, p_s, lat, theta_equil, k_T
+    real(8) :: p, P_s, lat, theta_equil, k_T
     
     real(8) :: cs2, sigma, sigma_c, theta_force, theta_tropo
 
     if (physics_type == "Held_Suarez") then
        cs2 = cos (lat)**2
 
-       sigma = (p - p_top) / (p_s - p_top)
-       sigma_c = 1d0 - sigma_b
+       sigma = (p - P_top) / (P_s - P_top)
+       sigma_c = 1 - sigma_b
 
        k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
 
        theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
-       theta_force = T_mean - delta_T * (1d0 - cs2) - delta_theta * cs2 * log (p / p_0)
+       theta_force = T_mean - delta_T * (1 - cs2) - delta_theta * cs2 * log (p / p_0)
 
        theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
     else
@@ -311,25 +311,25 @@ contains
       implicit none
       type(Coord) :: vel_init
 
-      real(8)     :: D_e, lon, lat, p, p_s, phi, u, v
+      real(8)     :: D_e, lon, lat, p, P_s, phi, u, v
       type(Coord) :: e_zonal, e_merid
 
       call cart2sph (x_i, lon, lat)
 
       if (NCAR_topo) then ! surface pressure from multilevel topography
-         p_s = dom%surf_press%elts(id+1)
+         P_s = dom%surf_press%elts(id+1)
       else                ! surface pressure from standard atmosphere
-         call std_surf_pres (topography%data(d)%elts(id+1), p_s)
+         call std_surf_pres (topography%data(d)%elts(id+1), P_s)
       end if
 
-      p = 0.5d0 * (a_vert(zlev) + a_vert(zlev+1) + (b_vert(zlev) + b_vert(zlev+1)) * p_s) ! pressure at level k
+      p = 0.5 * (a_vert(zlev) + a_vert(zlev+1) + (b_vert(zlev) + b_vert(zlev+1)) * P_s) ! pressure at level k
 
-      phi = - R_d * T_0 * log (p / p_s)
+      phi = - R_d * T_0 * log (p / P_s)
       
       D_e = e_thick * grav_accel
 
-      u = u_0 * (1d0 - exp (-phi/D_e) * cos (phi/D_e)) * cos (lat) ! zonal velocity 
-      v = u_0 * (1d0 - exp (-phi/D_e) * sin (phi/D_e)) * cos (lat) ! meridional velocity
+      u = u_0 * (1 - exp (-phi/D_e) * cos (phi/D_e)) * cos (lat) ! zonal velocity 
+      v = u_0 * (1 - exp (-phi/D_e) * sin (phi/D_e)) * cos (lat) ! meridional velocity
 
       e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
       e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) 
@@ -363,7 +363,7 @@ contains
 
     select case (analytic_topo)
     case ("mountains")
-       width = 8d0 * dx_min
+       width = 8 * dx_min
        call cart2sph (grid(d)%node%elts(id), lon, lat)
        
        topography%data(d)%elts(id) = &
@@ -391,7 +391,7 @@ contains
       implicit none
       real(8) :: x, x0
 
-      prof = 0.5d0 * (1d0 - tanh ((x - x0)/((width/5d0)/radius)))
+      prof = 0.5 * (1 - tanh ((x - x0)/((width/5)/radius)))
     end function prof
     
     real(8) function ellipse_profile (lon_0, lat_0, e, height, sigma, theta)
@@ -411,7 +411,7 @@ contains
       dtheta = dx_min / radius
 
       sigma_x = sigma
-      sigma_y = sigma_x * sqrt (1d0 - e**2)
+      sigma_y = sigma_x * sqrt (1 - e**2)
 
       ! Transform coordinates (shift and rotate)
       lon_loc = lon - lon_0; lat_loc = lat - lat_0
@@ -422,7 +422,7 @@ contains
       rsq = (lon_rot/sigma_x)**2 + (lat_rot/sigma_y)**2
 
       ! Order of hyper Gaussian is 2 p
-      p = (log (0.01d0) / log (1d0 - npts_slope * dtheta/(2d0*sigma_y))) / 2d0
+      p = (log (0.01d0) / log (1 - npts_slope * dtheta/(2d0*sigma_y))) / 2
 
       ellipse_profile = height * exp__flush (-rsq**p)
     end function ellipse_profile
@@ -439,11 +439,11 @@ contains
 
     ! Zonal velocity component
     call random_number (r)
-    u = amp * 2d0 * (r - 0.5d0)
+    u = amp * 2 * (r - 0.5)
 
     ! Meridional velocity component
     call random_number (r)
-    v = amp * 2d0 * (r - 0.5d0)
+    v = amp * 2 * (r - 0.5)
   end subroutine vel_fun
 
   subroutine initialize_a_b_vert_case
@@ -456,8 +456,8 @@ contains
 
     if (uniform) then
        do k = 1, zlevels+1
-          a_vert(k) = dble(k-1)/dble(zlevels) * p_top
-          b_vert(k) = 1d0 - dble(k-1)/dble(zlevels)
+          a_vert(k) = dble(k-1)/dble(zlevels) * P_top
+          b_vert(k) = 1 - dble(k-1)/dble(zlevels)
        end do
     else
        if (zlevels == 18) then
@@ -540,7 +540,7 @@ contains
        b_vert = b_vert(zlevels+1:1:-1)
     end if
 
-    p_top = a_vert(zlevels+1) ! assumes b_vert(zlevels+1) = 0
+    P_top = a_vert(zlevels+1) ! assumes b_vert(zlevels+1) = 0
 
     ! Set mass coefficients
     a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
@@ -663,8 +663,8 @@ contains
        write (6,'(a,i1,/)')     "Laplace_order           = ", Laplace_order
        write (6,'(a,/,a,/,/,a,es8.2,/,a,es8.2,/)') "Stability limits:", &
             "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
-            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1d0/6d0)**Laplace_order, &
-            "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1d0/24d0)**Laplace_order
+            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1/6d0)**Laplace_order, &
+            "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1/24d0)**Laplace_order
        if (scale_aware) then
           write (6,'(a,/)') "Scale-aware horizontal viscosity"
        else
@@ -672,8 +672,9 @@ contains
        end if
 
        write (6,'(a)') "Non-dimensional viscosities"
-       write (6,'(3(a,es8.2/))') &
+       write (6,'(4(a,es8.2/))') &
             "C_visc(S_MASS)           = ", C_visc(S_MASS), &
+            "C_visc(S_TEMP)           = ", C_visc(S_TEMP), &
             "C_visc(S_DIVU)           = ", C_visc(S_DIVU), &
             "C_visc(S_ROTU)           = ", C_visc(S_ROTU)
        
@@ -700,8 +701,8 @@ contains
        write (6,'(a,es8.2)') "radius          [km]     = ", radius / KM
        write (6,'(a,es8.2)') "omega        [rad/s]     = ", omega
        write (6,'(a,es8.2)') "ref_density [kg/m^3]     = ", ref_density
-       write (6,'(a,es8.2)') "p_0           [hPa]      = ", p_0/100d0
-       write (6,'(a,es8.2)') "p_top         [hPa]      = ", p_top/100d0
+       write (6,'(a,es8.2)') "p_0           [hPa]      = ", p_0/100
+       write (6,'(a,es8.2)') "P_top         [hPa]      = ", P_top/100
        write (6,'(a,es8.2)') "R_d      [J/(kg K)]      = ", R_d
        write (6,'(a,es8.2)') "c_p      [J/(kg K)]      = ", c_p
        write (6,'(a,es8.2)') "c_v      [J/(kg K)]      = ", c_v
@@ -755,32 +756,27 @@ contains
     use calendar_mod
     implicit none
 
-    integer :: date, j, k, min_load, max_load, total_dof, total_layers
+    integer :: date, j, k, min_load, max_load, total_dof
     real(8) :: avg_load, rel_imbalance, timing
 
     total_dof = 0
     do j = min_level, max_level
-       total_dof = total_dof + 4**j
+       total_dof = total_dof + 4 * (2 + 10 * 4**j)
     end do
-    total_dof = 4 * 10 * total_dof
     
-    timing = get_timing(); total_cpu_time = total_cpu_time + timing
+    timing = get_timing (); total_cpu_time = total_cpu_time + timing
 
     call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
 
-    total_layers = size (threshold, 2)
-
     ! Find date
     call eday2date (int (time/DAY) + 80, date)
-
+    
     if (rank == 0) then
-       write (6,'(i0.8, f11.4, a, 3(a,es8.2),a,i2,a,i12,2(a,es9.2,1x))') &
-           date, time/DAY, ' d', &
-            ' mass tol = ', sum (threshold(S_MASS,1:zlevels)) / dble (zlevels), &
-            ' temp tol = ', sum (threshold(S_TEMP,1:zlevels)) / dble (zlevels), &
-            ' velo tol = ', sum (threshold(S_VELO,1:zlevels)) / dble (zlevels), &
+       write (6,'(i0.8, f11.4, a, a, i2, a, i12, 2(a, f7.2, 1x), a, es8.2)') &
+            date, time / DAY, ' d', &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
+            ' compression = ', dble (total_dof) / sum (n_active), &
             ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
@@ -791,9 +787,7 @@ contains
           end do
        end if
 
-       write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  &
-            time, dt, sum (threshold(S_MASS,1:zlevels))/dble(zlevels), sum (threshold(S_TEMP,1:zlevels))/dble(zlevels), &
-            sum (threshold(S_VELO,1:zlevels))/dble(zlevels), level_end, sum (n_active), rel_imbalance, timing
+       write (12,'(i0.8,2(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))') date, time, dt, level_end, sum (n_active), rel_imbalance, timing
     end if
   end subroutine print_log
 
@@ -801,18 +795,18 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer :: k
-    real(8) :: p, p_s, lat, rho_dz, pot_temp, theta_equil, k_T
+    real(8) :: p, P_s, lat, rho_dz, pot_temp, theta_equil, k_T
 
-    call std_surf_pres (0d0, p_s)
+    call std_surf_pres (0d0, P_s)
 
     threshold_def = 1d16
 
     do k = 1, zlevels
-       p      = 0.5d0 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_s)
+       p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * P_s)
 
        rho_dz = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
 
-       call theta_init (p, p_s, lat, theta_equil, k_T)
+       call theta_init (p, P_s, lat, theta_equil, k_T)
 
        threshold_def(S_MASS,k) = tol * rho_dz
        threshold_def(S_TEMP,k) = tol * rho_dz * theta_equil
@@ -847,30 +841,30 @@ contains
     real(8) :: Area_sphere
     
     ! Average hexagon areas and horizontal resolutions
-    Area_sphere = 4d0*MATH_PI * radius**2 
-    Area_min    = area_sphere / (10d0 * 4d0**max_level)
-    Area_max    = area_sphere / (10d0 * 4d0**min_level)
+    Area_sphere = 4*MATH_PI * radius**2 
+    Area_min    = Area_sphere / (10 * 4**max_level)
+    Area_max    = Area_sphere / (10 * 4**min_level)
 
-    dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)              
-    dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
+    dx_min      = sqrt (2 / sqrt(3d0) * Area_min)              
+    dx_max      = sqrt (2 / sqrt(3d0) * Area_max)
 
     ! Time step
     dt_init     = dt_CAM * (dx_min / dx_CAM)
 
     ! Non-dimensional viscosities
     C_visc = C_CAM 
-    C_visc(S_DIVU) = C_CAM * 5 ! boost divu (CAM boost is 2.5)
+    C_visc(S_DIVU) = 7.5 * C_CAM ! boost divu (CAM boost is 2.5)
 
     ! Ensure stability
-    C_visc(S_MASS) = min (C_visc(S_MASS), (1d0/6d0    )**Laplace_sclr)
-    C_visc(S_TEMP) = min (C_visc(S_TEMP), (1d0/6d0    )**Laplace_sclr)
-    C_visc(S_DIVU) = min (C_visc(S_DIVU), (1d0/6d0    )**Laplace_divu)
-    C_visc(S_ROTU) = min (C_visc(S_ROTU), (1d0/6d0/4d0)**Laplace_rotu)
+    C_visc(S_MASS) = min (C_visc(S_MASS), (1/6d0  )**Laplace_sclr)
+    C_visc(S_TEMP) = min (C_visc(S_TEMP), (1/6d0  )**Laplace_sclr)
+    C_visc(S_DIVU) = min (C_visc(S_DIVU), (1/6d0  )**Laplace_divu)
+    C_visc(S_ROTU) = min (C_visc(S_ROTU), (1/6d0/4)**Laplace_rotu)
 
     ! Viscosities
-    nu_sclr = C_visc(S_MASS) * 1.5d0 * Area_min**Laplace_sclr / dt_init
-    nu_divu = C_visc(S_DIVU) * 1.5d0 * Area_min**Laplace_divu / dt_init
-    nu_rotu = C_visc(S_ROTU) * 1.5d0 * Area_min**Laplace_rotu / dt_init
+    nu_sclr = C_visc(S_MASS) * 1.5 * Area_min**Laplace_sclr / dt_init
+    nu_divu = C_visc(S_DIVU) * 1.5 * Area_min**Laplace_divu / dt_init
+    nu_rotu = C_visc(S_ROTU) * 1.5 * Area_min**Laplace_rotu / dt_init
 
     ! Diffusion times
     tau_sclr = dt_init / C_visc(S_MASS)
@@ -889,7 +883,7 @@ contains
 
     if (scale_aware) then
        if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
-          Area = 1d0 / dom%areas%elts(id+1)%hex_inv
+          Area = 1 / dom%areas%elts(id+1)%hex_inv
        else
           Area = hex_area_avg (dom%level%elts(id+1))
        end if
@@ -897,7 +891,7 @@ contains
        Area = Area_min
     end if
     
-    nu_scale = 1.5d0 * Area**order / dt
+    nu_scale = 1.5 * Area**order / dt
   end function nu_scale
 
   real(8) function init_nu ()
@@ -1039,7 +1033,7 @@ contains
     real(8) :: t
 
     if (t - time_start <= T_cfl) then
-       cfl = cfl_min + (cfl_max - cfl_min) * sin (MATH_PI/2d0 * (t - time_start) / T_cfl)
+       cfl = cfl_min + (cfl_max - cfl_min) * sin (MATH_PI/2 * (t - time_start) / T_cfl)
     else
        cfl = cfl_max
     end if

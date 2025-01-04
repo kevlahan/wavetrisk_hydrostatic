@@ -155,7 +155,7 @@ contains
     close (file_unit)
   end subroutine write_physics_params
 
-   subroutine init_soil_grid
+  subroutine init_soil_grid
     !-----------------------------------------------------------------------------------
     !
     !   Description: Initialize physics package with dummy longitude & latitude values

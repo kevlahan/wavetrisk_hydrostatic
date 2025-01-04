@@ -25,14 +25,11 @@ program climate
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
   log_total_mass           = .false.                          ! check whether total mass is conserved (for debugging)
   remap                    = .true.                           ! use vertical remapping
-  scale_aware              = .false.                          ! scale-aware viscosity
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
   
   analytic_topo            = "none"                           ! type of analytic topography (mountains or none if NCAR_topo = .false.)
-  cfl_num                  = 1d0                              ! CFL number
   min_mass_remap           = 0.7d0                            ! minimum mass at which to remap
-  timeint_type             = "RK3"                            ! time integration scheme (use RK34, RK45, RK3 or RK4)
 
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -40,9 +37,8 @@ program climate
   !    Local test case parameters (default values for many parameters set in physics module)
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   physics_model            = .true.                           ! use physics model sub-step (type is determined in input)
-  Ekman_ic                 = .false.                          ! Ekman (T) or zero (F) velocity initial conditions
 
-  ! Simple physics submodel switches
+  ! Simple physics sub-models
   convecAdj_model          = .true.                           ! convective adjustment module
   diurnal                  = .true.                           ! diurnal cycle 
   radiation_model          = .true.                           ! radiation module
@@ -55,7 +51,6 @@ program climate
   c_p                      = 1004     * JOULE/(KG*KELVIN)     ! specific heat at constant pressure in joules per kilogram Kelvin
   grav_accel               = 9.8      * METRE/SECOND**2       ! gravitational acceleration 
   omega                    = 7.292d-5 * RAD/SECOND            ! Earth's angular velocity in radians per second
-  p_top                    = 0.01     * Pa                    ! pressure at the top in Pascals
   R_d                      = 287      * JOULE/(KG*KELVIN)     ! set to a whole number
   radius                   = 6371     * KM                    ! mean radius of the Earth
   ref_density              = ref_density_air                  ! reference density of air

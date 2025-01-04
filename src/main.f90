@@ -633,12 +633,7 @@ contains
     
     cpt_min_mass = sync_min_real (min_mass_loc)
 
-    if (cpt_min_mass <= 0d0) then
-       write (6,'(a,i3,a)') "A layer has collapsed  ... aborting"
-       call abort
-    else
-       if (log_min_mass .and. rank == 0) write (6,'(a,es10.4)') "Minimum relative mass = ", cpt_min_mass
-    end if
+    if (log_min_mass .and. rank == 0) write (6,'(a,es10.4)') "Minimum relative mass = ", cpt_min_mass
   end function cpt_min_mass
 
   subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
@@ -651,7 +646,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                       :: d, id, k
-    real(8)                       :: Ps, z_s
+    real(8)                       :: P_s, z_s
     real(8), dimension(0:zlevels) :: z
     real(8), dimension(1:zlevels) :: dz, init_rho_dz, rho_dz
 
@@ -661,13 +656,17 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) then
        do k = 1, zlevels
           rho_dz(k) = sol(S_MASS,k)%data(d)%elts(id) + sol_mean(S_MASS,k)%data(d)%elts(id)
+          if (rho_dz(k) <= 0d0 .or. rho_dz(k) /= rho_dz(k)) then
+             write (6,'(a)') "A layer has collapsed  ... aborting"
+             call abort
+          end if
        end do
 
        ! Relative change in mass
        if (compressible) then
-          Ps = grav_accel * sum (rho_dz) + p_top ! surface pressure
+          P_s = grav_accel * sum (rho_dz) + P_top ! surface pressure
 
-          init_rho_dz = a_vert_mass + b_vert_mass * Ps / grav_accel
+          init_rho_dz = a_vert_mass + b_vert_mass * P_s / grav_accel
 
           do k = 1, zlevels
              min_mass_loc = min (min_mass_loc, rho_dz(k)/init_rho_dz(k))
