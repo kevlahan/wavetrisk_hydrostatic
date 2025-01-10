@@ -28,10 +28,14 @@ module comm_mpi_mod
   interface update_bdry__start
      procedure :: update_bdry__start_0, update_bdry__start_1, update_bdry__start_2
   end interface update_bdry__start
-
+  
   interface update_bdry__finish
      procedure :: update_bdry__finish_0, update_bdry__finish_1, update_bdry__finish_2
   end interface update_bdry__finish
+
+  interface gather_vec
+     procedure :: gatherv_int, gatherv_real4, gatherv_real8
+  end interface gather_vec
 contains
   subroutine init_comm_mpi
     ! Needed for compatibility with mpi code (not actually used in serial case)
@@ -374,4 +378,43 @@ contains
     integer            :: N
     real(8), dimension(N) :: arr
   end subroutine sync_array
+
+  subroutine gatherv_int (n_loc, n_glo, vec_loc, vec_glo)
+    implicit none
+    integer                            :: n_loc
+    integer, dimension(n_process)      :: n_glo
+    integer, dimension(n_loc)          :: vec_loc
+    integer, dimension(:), allocatable :: vec_glo
+
+    vec_glo = vec_loc
+  end subroutine gatherv_int
+
+  subroutine gatherv_real4 (n_loc, n_glo, vec_loc, vec_glo)
+    implicit none
+    integer                            :: n_loc
+    integer, dimension(n_process)      :: n_glo
+    real(4), dimension(n_loc)          :: vec_loc
+    real(4), dimension(:), allocatable :: vec_glo
+
+    vec_glo = vec_loc
+  end subroutine gatherv_real4
+
+  subroutine gatherv_real8 (n_loc, n_glo, vec_loc, vec_glo)
+    implicit none
+    integer                            :: n_loc
+    integer, dimension(n_process)      :: n_glo
+    real(8), dimension(n_loc)          :: vec_loc
+    real(8), dimension(:), allocatable :: vec_glo
+
+    vec_glo = vec_loc
+  end subroutine gatherv_real8
+
+  subroutine gather_int (n_loc, n_glo, displs)
+    implicit none
+    integer                       :: n_loc
+    integer, dimension(n_process) :: n_glo, displs
+
+    n_glo = n_loc
+    displs = 0
+  end subroutine gather_int
 end module comm_mpi_mod

@@ -107,7 +107,6 @@ contains
   
   subroutine find_vertices
     ! Find all unique triangle cell vertices on adaptive grid
-    use mpi
     implicit none
     integer                       :: i, ibeg, iend, r
     integer, dimension(n_process) :: displs, ncell_glo, ncoord_unique_glo, nvertex_unique_glo, ncell_vert_index_glo
@@ -276,7 +275,7 @@ contains
   end subroutine unique_tri_points
   
   subroutine write_vtk (filename)
-    ! Each rank writes to vtk file
+    ! VTK file is written from rank 0
     implicit none
     character(*) :: filename
 
@@ -290,8 +289,6 @@ contains
     integer, parameter :: VTK_TRIANGLE = 5
     integer, parameter :: VTK_WEDGE    = 13
     real(8), parameter :: dr           = 100 * KM
-
-    vert_coord_unique = shift_vertices (1000*KM)
 
     vtk_type = VTK_TRIANGLE
 
