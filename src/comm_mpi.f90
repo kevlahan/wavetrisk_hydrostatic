@@ -45,6 +45,10 @@ module comm_mpi_mod
   interface update_bdry__finish1 
      procedure :: update_bdry__finish1_0, update_bdry__finish1_1, update_bdry__finish1_2
   end interface update_bdry__finish1
+
+  interface gather_vec
+     procedure :: gatherv_int, gatherv_real4, gatherv_real8
+  end interface gather_vec
 contains
   subroutine init_comm_mpi
     implicit none
@@ -1436,7 +1440,85 @@ contains
     implicit none
     real(8), dimension(len) :: in, inout
     integer                 :: len, type
-  
+    
     where (in /= sync_val) inout = in
   end subroutine sync
+
+  subroutine gatherv_int (n_loc, n_glo, vec_loc, vec_glo)
+    use mpi
+    implicit none
+    integer                            :: n_loc
+    integer, dimension(n_process)      :: n_glo
+    integer, dimension(n_loc)          :: vec_loc
+    integer, dimension(:), allocatable :: vec_glo
+
+    integer, dimension(n_process) :: displs
+
+    call gather_int (n_loc, n_glo, displs)
+
+    allocate (vec_glo(sum(n_glo)))
+
+    call MPI_Gatherv ( &
+         vec_loc, n_loc,         MPI_INTEGER, &
+         vec_glo, n_glo, displs, MPI_INTEGER, &
+         0, MPI_COMM_WORLD, ierror)
+  end subroutine gatherv_int
+
+  subroutine gatherv_real4 (n_loc, n_glo, vec_loc, vec_glo)
+    use mpi
+    implicit none
+    integer                            :: n_loc
+    integer, dimension(n_process)      :: n_glo
+    real(4), dimension(n_loc)          :: vec_loc
+    real(4), dimension(:), allocatable :: vec_glo
+
+    integer, dimension(n_process) :: displs
+
+    call gather_int (n_loc, n_glo, displs)
+
+    allocate (vec_glo(sum(n_glo)))
+
+    call MPI_Gatherv ( &
+         vec_loc, n_loc,         MPI_REAL, &
+         vec_glo, n_glo, displs, MPI_REAL, &
+         0, MPI_COMM_WORLD, ierror)
+  end subroutine gatherv_real4
+
+  subroutine gatherv_real8 (n_loc, n_glo, vec_loc, vec_glo)
+    use mpi
+    implicit none
+    integer                            :: n_loc
+    integer, dimension(n_process)      :: n_glo
+    real(8), dimension(n_loc)          :: vec_loc
+    real(8), dimension(:), allocatable :: vec_glo
+
+    integer, dimension(n_process) :: displs
+
+    call gather_int (n_loc, n_glo, displs)
+
+    allocate (vec_glo(sum(n_glo)))
+
+    call MPI_Gatherv ( &
+         vec_loc, n_loc,         MPI_DOUBLE_PRECISION, &
+         vec_glo, n_glo, displs, MPI_DOUBLE_PRECISION, &
+         0, MPI_COMM_WORLD, ierror)
+  end subroutine gatherv_real8
+
+  subroutine gather_int (n_loc, n_glo, displs)
+    use mpi
+    implicit none
+    integer                       :: n_loc
+    integer, dimension(n_process) :: n_glo, displs
+
+    integer :: r
+
+    call MPI_Gather (n_loc, 1, MPI_INTEGER, n_glo, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+
+    if (rank == 0) then
+       displs(1) = 0
+       do r = 2, n_process
+          displs(r) = displs(r-1) + n_glo(r-1)
+       end do
+    end if
+  end subroutine gather_int
 end module comm_mpi_mod

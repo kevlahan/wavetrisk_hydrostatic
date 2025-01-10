@@ -339,6 +339,21 @@ contains
        is_pole = 1; call apply_to_pole       (routine, l, zlev,       is_pole, .true.)  
     end do
   end subroutine apply_no_bdry
+
+  subroutine apply_d (routine, dom, zlev, st, en)
+    implicit none
+    external     :: routine
+    type(Domain) :: dom
+    integer      :: en, st, zlev
+
+    integer :: j, l
+    
+    do l = level_start, level_end
+       do j = 1, dom%lev(l)%length
+          call apply_onescale_to_patch (routine, dom, dom%lev(l)%elts(j), zlev, st, en)
+       end do
+    end do
+  end subroutine apply_d
   
   subroutine apply_onescale_to_patch (routine, dom, p, zlev, st, en)
     ! Applies routine to nodes/edges at all level associated with p.

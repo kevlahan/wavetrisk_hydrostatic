@@ -7,6 +7,7 @@ program climate
   use main_mod
   use test_case_mod
   use lnorms_mod
+  use io_vtk_mod
   implicit none
   logical :: aligned
 
@@ -22,7 +23,7 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
-  log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
+  log_min_mass             = .false.                           ! compute minimum mass at each dt (for checking stability issues)
   log_total_mass           = .false.                          ! check whether total mass is conserved (for debugging)
   remap                    = .true.                           ! use vertical remapping
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations

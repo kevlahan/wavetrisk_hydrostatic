@@ -250,6 +250,7 @@ module shared_mod
 
   character(255)                                :: run_id, test_case, timeint_type, topo_file
   character(255)                                :: remap_type, remapscalar_type, remapvelo_type, physics_type
+  character(1), parameter                       :: lf=char(10) ! line feed character
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize, split_mean_perturbation

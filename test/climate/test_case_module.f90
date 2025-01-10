@@ -27,7 +27,6 @@ module test_case_mod
   real(8), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity
   
   real(8), parameter :: e_thick       = 10   * KM                   ! Ekman layer thickness
-  real(8), parameter :: nu_init       = 50   * DAY                  ! larger viscosity during spinup (four times)
   logical            :: Ekman_ic      = .false.                     ! Ekman flow initial conditions (zero velocity initial conditions if false)
   logical            :: scale_aware   = .false.                      ! scale-aware viscosity
   logical            :: print_tol     = .false.                     ! print tolerances for each layer
@@ -102,7 +101,7 @@ contains
        elseif (p_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = init_nu () * (-1)**p_sclr * C_visc(v) *  nu_scale (p_sclr, dom, id) * grad * l_e
+       physics_scalar_flux_case = (-1)**p_sclr * C_visc(v) *  nu_scale (p_sclr, dom, id) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -138,8 +137,8 @@ contains
     else
        p_divu = max (Laplace_order, Laplace_divu)
        p_rotu = max (Laplace_order, Laplace_rotu)
-       physics_velo_source_case =  init_nu () * (-1)**(p_divu-1) * C_visc(S_DIVU) * nu_scale (p_divu, dom, id) * grad_divu () &
-                                              - (-1)**(p_rotu-1) * C_visc(S_ROTU) * nu_scale (p_rotu, dom, id) * curl_rotu () 
+       physics_velo_source_case = (-1)**(p_divu-1) * C_visc(S_DIVU) * nu_scale (p_divu, dom, id) * grad_divu () &
+                                - (-1)**(p_rotu-1) * C_visc(S_ROTU) * nu_scale (p_rotu, dom, id) * curl_rotu () 
     end if  
   contains
     function grad_divu ()
@@ -853,7 +852,7 @@ contains
 
     ! Non-dimensional viscosities
     C_visc = C_CAM 
-    C_visc(S_DIVU) = 7.5 * C_CAM ! boost divu (CAM boost is 2.5)
+    C_visc(S_DIVU) = 10 * C_CAM ! boost divu (CAM boost is 2.5)
 
     ! Ensure stability
     C_visc(S_MASS) = min (C_visc(S_MASS), (1/6d0  )**Laplace_sclr)
@@ -893,17 +892,6 @@ contains
     
     nu_scale = 1.5 * Area**order / dt
   end function nu_scale
-
-  real(8) function init_nu ()
-    ! Increase viscosity by fac during spin up to ensure stability
-    real(8), parameter :: fac = 4d0
-
-    if (time < nu_init) then
-       init_nu = fac
-    else
-       init_nu = 1d0
-    end if
-  end function init_nu
 
   subroutine apply_initial_conditions_case
     implicit none

@@ -1011,18 +1011,20 @@ contains
     if (save_tri(LORT)%data(d)%elts(id+1) == 1d0) integral = integral + FdTri(LORT)
     if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0) integral = integral + FdTri(UPLT)
   end subroutine fdA_tri
-
-  function hex2tri2 (sclr, hex_area, tri_area)
+  
+  real(4) function hex2tri2 (sclr, hex_area, tri_area, t)
     ! Interpolates sclr given at hexagons to triangles 
     implicit none
-    real(8), dimension(0:EDGE)    :: sclr
-    real(8), dimension(2*EDGE)    :: hex_area
-    real(8), dimension(LORT:UPLT) :: tri_area
-    
-    real(8), dimension(LORT:UPLT) :: hex2tri2
+    integer                       :: t
+    real(4)                       :: tri_area
+    real(4), dimension(0:EDGE)    :: sclr
+    real(4), dimension(2*EDGE)    :: hex_area
 
-    hex2tri2(LORT) = (sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)) / tri_area(LORT)
-    hex2tri2(UPLT) = (sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6)) / tri_area(UPLT)
+    if (t == LORT) then
+       hex2tri2 = (sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)) / tri_area
+    else
+       hex2tri2 = (sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6)) / tri_area
+    end if
   end function hex2tri2
 
   function hex2tri3 (sclr, hex_area, tri_area)

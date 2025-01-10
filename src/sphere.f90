@@ -20,6 +20,29 @@ contains
     dist = radius * asin (sqrt ((p%y * q%z - p%z * q%y)**2 + (p%z * q%x - p%x * q%z)**2 + (p%x * q%y - p%y * q%x)**2)/radius**2)
   end function dist
 
+  subroutine min_dist (p, q, dmin, imin)
+    ! Minimum distance between a point p and a vector of points q in R3
+    implicit none
+    integer                   :: imin
+    real(8)                   :: dmin
+    type(Coord)               :: p
+    type(Coord), dimension(:) :: q
+
+    integer                            :: i, n
+    real(8), dimension(:), allocatable :: diff_pq
+
+    n = size (q)
+    allocate (diff_pq(n))
+
+    diff_pq = 0d0
+    do i = 1, n
+       diff_pq(i) = sqrt ((p%x - q(i)%x)**2 + (p%y - q(i)%y)**2 + (p%z - q(i)%z)**2)
+    end do
+
+    dmin = minval (diff_pq)
+    imin = minloc (diff_pq, 1)
+  end subroutine min_dist
+
   real(8) function dist_sph (lon1, lat1, lon2, lat2)
     ! Distance between points on the sphere angular coordinates (lat1, lon1) and (lat2, lon2)
     implicit none
