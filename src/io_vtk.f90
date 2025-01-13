@@ -48,36 +48,28 @@ contains
     ! Save data for all vertical layers
     do k = 1, zlevels
        if (rank == 0) write (6,'(a,i2)') 'Saving layer ', k
-       
-       ! Pressure
-       do d = 1, size(grid)
-          mass    =>      sol(S_MASS,k)%data(d)%elts
-          temp    =>      sol(S_TEMP,k)%data(d)%elts
-          mean_m  => sol_mean(S_MASS,k)%data(d)%elts
-          mean_t  => sol_mean(S_TEMP,k)%data(d)%elts
-          exner   =>       exner_fun(k)%data(d)%elts
-          call apply_d (integrate_pressure_up, grid(d), k, 0, 1)
-          nullify (mass, mean_m, temp, mean_t, exner)
-       end do
 
-       ! Zonal and meridional velocities 
        do d = 1, size(grid)
-          velo  => sol(S_VELO,k)%data(d)%elts
-          velo1 => grid(d)%u_zonal%elts
-          velo2 => grid(d)%v_merid%elts
-          call apply_d (interp_UVW_latlon, grid(d), z_null, 0, 1)
-          nullify (velo, velo1, velo2)
-       end do
-
-       ! Vorticity
-       do d = 1, size(grid)
-          velo  => sol(S_VELO,k)%data(d)%elts
-          vort  => grid(d)%vort%elts
-          call apply_d (cal_vort, grid(d), z_null, -1, 1)
-          do l = level_start, level_end
+          mass   =>      sol(S_MASS,k)%data(d)%elts
+          temp   =>      sol(S_TEMP,k)%data(d)%elts
+          velo   =>      sol(S_VELO,k)%data(d)%elts
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+          exner  =>       exner_fun(k)%data(d)%elts
+          
+          velo1  => grid(d)%u_zonal%elts
+          velo2  => grid(d)%v_merid%elts
+          vort   => grid(d)%vort%elts
+          
+          call apply_d (integrate_pressure_up, grid(d), k,       0, 1) ! pressure
+          call apply_d (interp_UVW_latlon,     grid(d), z_null,  0, 1) ! zonal and meridional velocities
+          call apply_d (cal_vort,              grid(d), z_null, -1, 1) ! vorticity
+          
+          do l = level_start, level_end                                ! vorticity at pentagons
              call apply_to_penta_d (post_vort, grid(d), l, z_null)
           end do
-          nullify (velo, vort)
+
+          nullify (mass, temp, velo, mean_m, mean_t, exner, velo1, velo2, vort)
        end do
 
        ! Find adaptive grid and compute data for saving
