@@ -3,7 +3,7 @@ program Drake
   ! (inspired by Ferreira, Marshall and Rose 2011, J Climate 24, 992-1012)
   use main_mod
   use test_case_mod
-  use io_mod
+  use io_vtk_mod
   use vert_diffusion_mod
   implicit none
   real(8) :: dz, visc

@@ -1455,7 +1455,8 @@ contains
     integer, dimension(n_process) :: displs
 
     call gather_int (n_loc, n_glo, displs)
-
+    
+    if (allocated (vec_glo)) deallocate (vec_glo)
     allocate (vec_glo(sum(n_glo)))
 
     call MPI_Gatherv ( &
@@ -1476,6 +1477,7 @@ contains
 
     call gather_int (n_loc, n_glo, displs)
 
+    if (allocated (vec_glo)) deallocate (vec_glo)
     allocate (vec_glo(sum(n_glo)))
 
     call MPI_Gatherv ( &
@@ -1496,6 +1498,7 @@ contains
 
     call gather_int (n_loc, n_glo, displs)
 
+    if (allocated (vec_glo)) deallocate (vec_glo)
     allocate (vec_glo(sum(n_glo)))
 
     call MPI_Gatherv ( &
