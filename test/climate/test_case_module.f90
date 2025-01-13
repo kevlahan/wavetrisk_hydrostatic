@@ -45,7 +45,6 @@ contains
     initialize_thresholds    => initialize_thresholds_case
     physics_scalar_flux      => physics_scalar_flux_case
     physics_velo_source      => physics_velo_source_case
-    set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
     update                   => update_case
@@ -968,10 +967,6 @@ contains
        call update_bdry (sso_param, NONE)
     end if
   end subroutine update_case
-
-  subroutine set_save_level_case
-    implicit none
-  end subroutine set_save_level_case
 
   subroutine initialize_seed
     implicit none

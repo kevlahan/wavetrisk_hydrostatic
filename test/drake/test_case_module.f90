@@ -43,7 +43,6 @@ contains
     initialize_thresholds    => initialize_thresholds_case
     physics_scalar_flux      => physics_scalar_flux_case
     physics_velo_source      => physics_velo_source_case
-    set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
     update                   => update_case
@@ -64,7 +63,7 @@ contains
     implicit none
     integer            :: ilat, ilon, k
     integer, parameter :: fid = 500
-    real(8)            :: lat, lon, press_save
+    real(8)            :: lat, lon
     character(255)     :: filename, varname
 
     ! Find input parameters file name
@@ -107,9 +106,6 @@ contains
     call MPI_Bcast (resume_init,        1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror) 
 #endif
     
-    press_save = 0d0
-    allocate (pressure_save(1))
-    pressure_save(1) = press_save
     dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init
@@ -118,7 +114,6 @@ contains
   subroutine print_test_case_parameters
     implicit none
 
-    call set_save_level_case
 
     if (rank==0) then
        write (6,'(A)') &
@@ -885,10 +880,6 @@ contains
     implicit none 
 
   end subroutine init_diagnostics
-
-  subroutine set_save_level_case
-    ! Read from input file
-  end subroutine set_save_level_case
 
   subroutine initialize_a_b_vert_case
     ! Initialize hybrid sigma-coordinate vertical grid

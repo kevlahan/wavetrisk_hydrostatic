@@ -32,7 +32,6 @@ contains
     initialize_thresholds    => initialize_thresholds_case
     physics_scalar_flux      => physics_scalar_flux_case
     physics_velo_source      => physics_velo_source_case
-    set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
     update                   => update_case
@@ -81,7 +80,7 @@ contains
     implicit none
     integer            :: ilat, ilon, k
     integer, parameter :: fid = 500
-    real(8)            :: lat, lon, press_save
+    real(8)            :: lat, lon
     character(255)     :: filename, varname
 
     ! Find input parameters file name
@@ -105,9 +104,6 @@ contains
     read (fid,*) varname, resume_init
     close(fid)
 
-    press_save = 0.0_8
-    allocate (pressure_save(1))
-    pressure_save(1) = press_save
     dt_write = dt_write * HOUR
     time_end = time_end * HOUR
     resume   = resume_init
@@ -115,8 +111,6 @@ contains
 
   subroutine print_test_case_parameters
     implicit none
-
-    call set_save_level
 
     call cal_r_max
 
@@ -859,17 +853,6 @@ contains
 
     tau_mag_case = sqrt (tau_zonal**2 + tau_merid**2)
   end function tau_mag_case
-
-  subroutine set_save_level_case
-    ! Save top layer
-    implicit none
-    real(8) :: save_height
-
-    save_height = 0.5 * (b_vert(save_zlev)+b_vert(save_zlev-1)) * max_depth
-
-    if (rank==0) write (6,'(/,A,i2,A,es11.4,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate height = ", save_height, " [m])"
-  end subroutine set_save_level_case
 
   function z_coords_case (eta_surf, z_s)
     ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential

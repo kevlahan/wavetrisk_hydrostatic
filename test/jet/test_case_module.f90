@@ -48,7 +48,6 @@ contains
     initialize_thresholds    => initialize_thresholds_case
     physics_scalar_flux      => physics_scalar_flux_case
     physics_velo_source      => physics_velo_source_case
-    set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
     update                   => update_case
@@ -193,7 +192,7 @@ contains
 
     integer            :: ilat, ilon, k
     integer, parameter :: fid = 500
-    real(8)            :: lat, lon, press_save
+    real(8)            :: lat, lon
     character(255)     :: filename, varname
 
     if (command_argument_count() >= 1) then
@@ -236,9 +235,6 @@ contains
     call MPI_Bcast (resume_init, 1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
 #endif
 
-    press_save = 0d0
-    allocate (pressure_save(1))
-    pressure_save(1) = press_save
     dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init
@@ -246,8 +242,6 @@ contains
 
   subroutine print_test_case_parameters
     implicit none
-
-    call set_save_level
 
     call cal_r_max
 
@@ -1155,23 +1149,6 @@ contains
 
     tau_mag_case = sqrt (tau_zonal**2 + tau_merid**2)
   end function tau_mag_case
-
-  subroutine set_save_level_case
-    ! Compute depth of saved layer
-    implicit none
-    real(8) :: eta, z_s
-    real(8), dimension(0:zlevels) :: z
-
-    eta = 0d0; z_s = max_depth
-    if (sigma_z) then
-       z = z_coords_case (eta, z_s)
-    else
-       z = a_vert * eta + b_vert * z_s
-    end if
-
-    if (rank==0) write (6,'(/,A,i2,A,es11.4,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate height = ", interp (z(save_zlev),z(save_zlev-1)) , " [m])"
-  end subroutine set_save_level_case
 
   function z_coords_case (eta_surf, z_s)
     ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential

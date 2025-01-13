@@ -2,7 +2,7 @@ program jet
   ! Baroclinic jet test case based on the beta plane configuration in Soufflet et al (Ocean Modelling 98, 36-50, 2016)
   use main_mod
   use test_case_mod
-  use io_mod
+  use io_vtk_mod
   implicit none
   integer :: ierr
   logical :: aligned

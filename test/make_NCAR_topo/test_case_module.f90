@@ -17,7 +17,6 @@ contains
     apply_initial_conditions => apply_initial_conditions_case
     initialize_a_b_vert      => initialize_a_b_vert_case
     initialize_dt_viscosity  => initialize_dt_viscosity_case
-    set_save_level           => set_save_level_case
     initialize_thresholds    => initialize_thresholds_case
     set_thresholds           => set_thresholds_case
     update                   => update_case
@@ -241,11 +240,7 @@ contains
    
   end subroutine update_case
 
-  subroutine set_save_level_case
-    implicit none
-  end subroutine set_save_level_case
-
-   subroutine dump_case (fid)
+  subroutine dump_case (fid)
     implicit none
     integer :: fid
   end subroutine dump_case

@@ -113,7 +113,6 @@ module init_mod
   procedure (noarg_fun),   pointer :: initialize_a_b_vert      => null ()
   procedure (noarg_fun),   pointer :: initialize_dt_viscosity  => null ()
   procedure (noarg_fun),   pointer :: initialize_thresholds    => null ()
-  procedure (noarg_fun),   pointer :: set_save_level           => null ()
   procedure (noarg_fun),   pointer :: set_thresholds           => null ()
   procedure (int2_fun),    pointer :: surf_geopot              => null ()
   procedure (coord_fun),   pointer :: tau_mag                  => null ()
@@ -159,8 +158,7 @@ contains
     end if
 
     allocate (grid(n_domain(rank+1)))
-    allocate (sol(1:N_VARIABLE,zmin:zmax), sol_mean(1:N_VARIABLE,zmin:zmax))
-    allocate (sol_save(1:N_VARIABLE,1:save_levels), trend(1:N_VARIABLE,1:zmax))
+    allocate (sol(1:N_VARIABLE,zmin:zmax), sol_mean(1:N_VARIABLE,zmin:zmax), trend(1:N_VARIABLE,1:zmax))
     allocate (wav_coeff(1:N_VARIABLE,zmin:zmax))
     allocate (exner_fun(zmin:zmax+1))
     allocate (penal_node(zmin:zmax), penal_edge(zmin:zmax))
@@ -197,12 +195,6 @@ contains
           call init_Float_Field (tke(k), AT_NODE)
        end do
     end if
-    
-    do k = 1, save_levels
-       do v = 1, N_VARIABLE
-          call init_Float_Field (sol_save(v,k), POSIT(v))
-       end do
-    end do
 
     call init_Float_Field (Laplacian_vector(S_DIVU), AT_NODE)
     call init_Float_Field (Laplacian_vector(S_ROTU), AT_EDGE)
@@ -221,12 +213,6 @@ contains
           end do
           call init (sol(S_VELO,k)%data(d),      EDGE)
           call init (sol_mean(S_VELO,k)%data(d), EDGE)
-       end do
-       do k = 1, save_levels
-          do v = scalars(1), scalars(2)
-             call init (sol_save(v,k)%data(d), 1)
-          end do
-          call init (sol_save(S_VELO,k)%data(d), EDGE)
        end do
     end do
 

@@ -483,9 +483,9 @@ contains
     end do
 
     ! Temperature at save levels (saved in trend)
-    do k = 1, save_levels
-       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol_save(S_MASS,k)%data(d)%elts(id)
-       rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol_save(S_TEMP,k)%data(d)%elts(id)
+    do k = 1, zlevels
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
+       rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol(S_TEMP,k)%data(d)%elts(id)
 
        trend(1,k)%data(d)%elts(id) = rho_dz_theta / rho_dz * (pressure_save(k) / p_0)**kappa
     end do

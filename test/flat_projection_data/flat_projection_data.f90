@@ -619,7 +619,7 @@ contains
     ! Interpolate variables defined in valrange onto lon-lat grid of size (Nx(1):Nx(2), Ny(1):Ny(2), zlevels)
     use domain_mod
     implicit none
-    real(8), dimension (Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels) :: field
+    real(8), dimension (Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*zlevels) :: field
     
     integer :: d, j, k
 
@@ -632,7 +632,6 @@ contains
     call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
 
     ! Remap to pressure_save vertical levels for saving data
-    sol_save = sol(:,1:save_levels)
     call apply_onescale (interp_save, level_save, z_null, -1, 2)
 
     ! Calculate temperature at all vertical levels (saved in exner_fun) and temperature at interpolated saved vertical levels
@@ -641,14 +640,14 @@ contains
     call update_bdry (exner_fun, NONE, 44)
 
     ! Latitude-longitude projections
-    do k = 1, save_levels
+    do k = 1, zlevels
        ! Temperature
        call project_field_onto_plane (trend(1,k), level_save, 0.0_8)
        field(:,:,1+k-1) = field2d
 
        ! Calculate zonal and meridional velocities and vorticity
        do d = 1, size(grid)
-          velo  => sol_save(S_VELO,k)%data(d)%elts
+          velo  => sol(S_VELO,k)%data(d)%elts
           velo1 => grid(d)%u_zonal%elts
           velo2 => grid(d)%v_merid%elts
           vort  => grid(d)%vort%elts
@@ -1277,7 +1276,7 @@ contains
     character(9999)    :: s_time
 
     ! 2d projections
-    do v = 1, nvar_save*save_levels
+    do v = 1, nvar_save*zlevels
        write (var_file, '(i1)') v
        open (unit=funit, file=trim(run_id)//'.4.0'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
        do i = Ny(1), Ny(2)
@@ -1287,7 +1286,7 @@ contains
     end do
 
     if (trim(test_case)=="Simple_Physics" .and. climatology) then
-      do v = 1, 5*save_levels
+      do v = 1, 5*zlevels
          write (var_file, '(i2)') v+30
          open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
          do i = Ny(1), Ny(2)
@@ -1359,7 +1358,7 @@ contains
     integer, parameter :: funit = 400
 
     ! 2d projections
-    do v = 1, nvar_save * save_levels
+    do v = 1, nvar_save * zlevels
        write (var_file, '(i1)') v
        open (unit=funit, file=trim(run_id)//'.6.0'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
        do i = Ny(1), Ny(2)
@@ -1576,11 +1575,11 @@ contains
 
     allocate (zonal_av(1:zlevels,Ny(1):Ny(2),nvar_total))
     
-    allocate (field2d_av  (Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
-    allocate (field2d_incr(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
-    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*save_levels))
+    allocate (field2d_av  (Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*zlevels))
+    allocate (field2d_incr(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*zlevels))
+    allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*zlevels))
     
-    if (trim(test_case)=="Simple_Physics" .and. climatology) allocate (field2d_simplephys(Nx(1):Nx(2),Ny(1):Ny(2),5*save_levels))
+    if (trim(test_case)=="Simple_Physics" .and. climatology) allocate (field2d_simplephys(Nx(1):Nx(2),Ny(1):Ny(2),5*zlevels))
     
     field2d_av = 0d0; field2d_incr = 0d0; field2d_save = 0d0; zonal_av = 0d0
   end subroutine initialize_stat
@@ -1634,7 +1633,7 @@ contains
     end do
     p_s = p_top + grav_accel*p_s
 
-    do kk = 1, save_levels
+    do kk = 1, zlevels
        ! Find pressure at current levels (not interfaces)
        pressure_lower = p_s
        pressure_upper = 0.5d0 * (a_vert(1)+a_vert(2) + (b_vert(1)+b_vert(2))*p_s)
@@ -1648,14 +1647,14 @@ contains
        dpressure =  (pressure_save(kk)-pressure_upper)/(pressure_lower-pressure_upper)
 
        ! Linear interpolation
-       sol_save(S_MASS,kk)%data(d)%elts(id+1) = sol(S_MASS,k+1)%data(d)%elts(id+1) + &
+       sol(S_MASS,kk)%data(d)%elts(id+1) = sol(S_MASS,k+1)%data(d)%elts(id+1) + &
             dpressure * (sol(S_MASS,k)%data(d)%elts(id+1) - sol(S_MASS,k+1)%data(d)%elts(id+1))
        
-       sol_save(S_TEMP,kk)%data(d)%elts(id+1) = sol(S_TEMP,k+1)%data(d)%elts(id+1) + &
+       sol(S_TEMP,kk)%data(d)%elts(id+1) = sol(S_TEMP,k+1)%data(d)%elts(id+1) + &
             dpressure * (sol(S_TEMP,k)%data(d)%elts(id+1) - sol(S_TEMP,k+1)%data(d)%elts(id+1))
 
        do e = 1, EDGE
-          sol_save(S_VELO,kk)%data(d)%elts(EDGE*id+e) = sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e)  + &
+          sol(S_VELO,kk)%data(d)%elts(EDGE*id+e) = sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e)  + &
                dpressure * (sol(S_VELO,k)%data(d)%elts(EDGE*id+e) - sol(S_VELO,k+1)%data(d)%elts(EDGE*id+e))
        end do
 

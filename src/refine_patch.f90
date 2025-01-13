@@ -226,13 +226,6 @@ contains
     end do
     call extend (exner_fun(zmax+1)%data(d), num, 0d0)
 
-     do k = 1, save_levels
-       do v = scalars(1), scalars(2)
-          call extend (sol_save(v,k)%data(d), num, 0d0)
-       end do
-       call extend (sol_save(S_VELO,k)%data(d), EDGE * num, 0d0)
-    end do
-
     ! Initialize vertical diffusion variables to zero
     if (vert_diffuse) then
        call extend (Kt(0)%data(d), num, 0d0)

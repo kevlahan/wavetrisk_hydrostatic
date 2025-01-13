@@ -3,7 +3,7 @@ program turb
   ! Initials conditions are a set of 17 baroclinic jets in geostrophic balance.
   use main_mod
   use test_case_mod
-  use io_mod
+  use io_vtk_mod
   implicit none
   logical :: aligned
   

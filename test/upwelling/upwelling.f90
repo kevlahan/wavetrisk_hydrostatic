@@ -3,7 +3,7 @@ program upwelling
   ! An extension to the sphere of a test case used in ROMS and CROCO.
   use main_mod
   use test_case_mod
-  use io_mod
+  use io_vtk_mod
   implicit none
   logical :: aligned
 

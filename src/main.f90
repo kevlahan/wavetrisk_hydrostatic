@@ -92,9 +92,6 @@ contains
        call init_basic
        call init_structures (run_id)
 
-       ! Determine vertical level to save
-       call set_save_level
-
        ! Initialize time step and viscosities
        call initialize_dt_viscosity
 
@@ -266,9 +263,6 @@ contains
 
     ! Initialize basic structures
     call init_basic
-
-    ! Determine vertical level to save
-    call set_save_level
 
     ! Uncompress checkpoint data (needed for init_structures and load_adapt_mpi)
     if (rank == 0) then
@@ -849,10 +843,6 @@ contains
              if (k > 0) deallocate (trend(v,k)%data(d)%elts)
              deallocate (wav_coeff(v,k)%data(d)%elts)
           end do
-         
-          do k = 1, save_levels
-             deallocate (sol_save(v,k)%data(d)%elts) 
-          end do
        end do
        
        if (vert_diffuse) then
@@ -904,9 +894,6 @@ contains
           if (k > 0) deallocate (trend(v,k)%data)
           deallocate (wav_coeff(v,k)%data)
        end do
-       do k = 1, save_levels
-          deallocate (sol_save(v,k)%data)
-       end do
     end do
     
     if (vert_diffuse) then
@@ -924,7 +911,7 @@ contains
     deallocate (edge_level_start, node_level_start, n_active_edges, n_active_nodes)
     deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
     deallocate (threshold, threshold_def)
-    deallocate (sol, sol_mean, sol_save, trend, wav_coeff)       
+    deallocate (sol, sol_mean, trend, wav_coeff)       
     deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal_node, penal_edge)
     deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
     if (vert_diffuse) deallocate (Kv, Kt, tke, wav_tke)

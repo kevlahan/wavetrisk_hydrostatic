@@ -172,7 +172,6 @@ module shared_mod
   integer :: zmin                   ! index of lowest vertical level,  1 for atmosphere, 0 for simple phys surf temp or -Nsoil for soil mod
   integer :: Nsoil                  ! number of soil layers in vertical direction: k = [zmin 0], zmin <= 0
   
-  integer :: save_levels            ! number of vertical levels to save
   integer :: level_start, level_end, level_save, optimize_grid
   
   integer, dimension(AT_NODE:AT_EDGE) :: n_active ! number of active points at grid locations (node and edge)
@@ -254,7 +253,7 @@ module shared_mod
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize, split_mean_perturbation
-  logical :: rebalance, physics_model, remap, write_hex_data, write_tri_data, uniform, vert_diffuse
+  logical :: rebalance, physics_model, remap, uniform, vert_diffuse
   logical :: sigma_z, sso, tke_closure
 contains
   subroutine init_shared_mod
@@ -360,8 +359,6 @@ contains
     physics_model           = .false.                             ! use physics model sub-step for compressible cases (T)
     rebalance               = .true.                              ! rebalance computational load at each checkpoint if T
     remap                   = .true.                              ! remap Lagrangian coordinates (T) or no remapping (F)
-    write_hex_data          = .false.                             ! save hexagon (dual) grid data at each level
-    write_tri_data          = .true.                              ! save triangle (primal) grid data at each level
     sigma_z                 = .false.                             ! use Schepetkin/CROCO type sigma-z vertical coordinates (T) or A/B hybrid coordinates (F)
     split_mean_perturbation = .false.
     sso                     = .false.                             ! SSO (subgrid scale orography) parameterization for atmosphere
@@ -393,7 +390,6 @@ contains
     remap_type              = "PPR"                               ! remapping scheme for scalars
     remapscalar_type        = "PPR"                               ! remapping scheme for scalars
     remapvelo_type          = "PPR"                               ! remapping scheme for velocity
-    save_levels             = 1                                   ! vertical level to save
     timeint_type            = "RK4"                               ! time integration scheme (RK3 is default for incompressible case)
     tol                     = 0d0                                 ! relative tolerance for adaptivity (default is non-adaptive)
     zlevels                 = 20                                  ! number of vertical layers

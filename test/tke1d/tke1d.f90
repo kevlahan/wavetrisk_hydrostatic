@@ -5,7 +5,7 @@ program tke1d
   ! (see also Zilitinkevich, 1991; Mironov et al., 2000)
   use main_mod
   use test_case_mod
-  use io_mod
+  use io_vtk_mod
   use vert_diffusion_mod
   implicit none
   integer :: ialign, idt, it

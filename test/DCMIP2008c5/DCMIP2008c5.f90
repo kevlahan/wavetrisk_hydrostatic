@@ -2,7 +2,7 @@ program DCMIP2008c5
   ! DCMIP2008c5 test case 5: Mountain-induced Rossby wave
   use main_mod
   use test_case_mod
-  use io_mod  
+  use io_vtk_mod  
   implicit none
 
   logical :: aligned

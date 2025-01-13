@@ -51,7 +51,6 @@ contains
     initialize_thresholds    => initialize_thresholds_case
     physics_scalar_flux      => physics_scalar_flux_case
     physics_velo_source      => physics_velo_source_case
-    set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
     update                   => update_case
@@ -412,7 +411,6 @@ contains
   subroutine read_test_case_parameters
     implicit none
     integer        :: fid = 500
-    real(8)        :: press_save
     character(255) :: filename, varname
 
     ! Find input parameters file name
@@ -434,7 +432,6 @@ contains
     read (fid,*) varname, uniform
     read (fid,*) varname, level_save
     read (fid,*) varname, N
-    read (fid,*) varname, press_save
     read (fid,*) varname, lat_val
     read (fid,*) varname, lon_val
     read (fid,*) varname, zonal
@@ -460,7 +457,6 @@ contains
        write (6,'(A,L1)')     "uniform                = ", uniform
        write (6,'(A,i3)')     "level_save             = ", level_save
        write (6,'(A,i5)')     "N                      = ", N
-       write (6,'(A,es10.4)') "pressure_save (hPa)    = ", press_save
        write (6,'(A,es10.4)') "lat_val = ", lat_val
        write (6,'(A,es10.4)') "lon_val = ", lon_val
        write( 6,'(A,L1)')     "zonal average          = ", zonal
@@ -470,9 +466,6 @@ contains
        write (6,'(a,i3)')     "topo_max_level       = ", topo_max_level
        write (6,*) ' '
     end if
-
-    allocate (pressure_save(1))
-    pressure_save(1) = 100*press_save
 
     if (climatology) call check_climatology_mean_beg_2D
   end subroutine read_test_case_parameters
@@ -811,11 +804,6 @@ contains
     tau = 0.1_8
   end function tau
 
-  subroutine set_save_level_case
-    implicit none
-    save_zlev = zlevels
-  end subroutine set_save_level_case
-
   subroutine dump_case (fid)
     implicit none
     integer :: fid
@@ -838,17 +826,17 @@ contains
    implicit none
    integer :: k
 
-   ! allocate climatology summation arrays
-   allocate(simple_phys_temp(0:zlevels))
-   allocate(simple_phys_vels(0:zlevels))
-   allocate(simple_phys_zonal(0:zlevels))
-   allocate(simple_phys_merid(0:zlevels))
+   ! Allocate climatology summation arrays
+   allocate(simple_phys_temp(1:zlevels))
+   allocate(simple_phys_vels(1:zlevels))
+   allocate(simple_phys_zonal(1:zlevels))
+   allocate(simple_phys_merid(1:zlevels))
 
-   !Initialize arrays to zero ! Column 0 is for the sol_save, since simple_phys always has atlest zlevels 0:zmax in S_Temp
-   simple_phys_temp = sol(S_TEMP, 0:zlevels)
-   simple_phys_vels = sol(S_VELO, 0:zlevels)
-   simple_phys_zonal = sol(S_TEMP, 0:zlevels)
-   simple_phys_merid = sol(S_TEMP, 0:zlevels)
+   ! Initialize arrays to zero 
+   simple_phys_temp = sol(S_TEMP, 1:zlevels)
+   simple_phys_vels = sol(S_VELO, 1:zlevels)
+   simple_phys_zonal = sol(S_TEMP, 1:zlevels)
+   simple_phys_merid = sol(S_TEMP, 1:zlevels)
    do k = 0, zlevels
       call zero_float_field (simple_phys_temp(k), S_TEMP)
       call zero_float_field (simple_phys_vels(k), S_VELO)
@@ -1019,8 +1007,8 @@ contains
    end do
 
    ! Temperature at save levels (saved in trend)
-   do k = 1, save_levels
-      trend(1,k)%data(d)%elts(id+1) = sol_save(S_TEMP,k)%data(d)%elts(id+1)/sol_save(S_MASS,k)%data(d)%elts(id+1) * &
+   do k = 1, zlevels
+      trend(1,k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) * &
            (pressure_save(k)/p_0)**kappa
    end do
 

@@ -35,7 +35,6 @@ contains
     initialize_thresholds    => initialize_thresholds_case
     physics_scalar_flux      => physics_scalar_flux_case
     physics_velo_source      => physics_velo_source_case
-    set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
     update                   => update_case
@@ -238,7 +237,6 @@ contains
     read (fid,*) varname, cp_end
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
-    read (fid,*) varname, save_zlev
     read (fid,*) varname, level_fill
     read (fid,*) varname, N
     read (fid,*) varname, local_spec
@@ -250,13 +248,7 @@ contains
     read (fid,*) varname, angular_order
     close(fid)
 
-    if (save_zlev > zlevels) save_zlev = zlevels ! avoid incorrect choice of save_zlev
-
-    if (save_zlev == -1) then
-       k_min = 1 ; k_max = zlevels
-    else
-       k_min = save_zlev; k_max = save_zlev
-    end if
+    k_min = 1 ; k_max = zlevels
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters
@@ -486,10 +478,6 @@ contains
   subroutine initialize_dt_viscosity_case 
     implicit none
   end subroutine initialize_dt_viscosity_case
-
-  subroutine set_save_level_case
-    implicit none
-  end subroutine set_save_level_case
 
   subroutine dump_case (fid)
     implicit none

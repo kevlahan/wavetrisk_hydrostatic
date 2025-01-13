@@ -25,7 +25,6 @@ contains
     initialize_thresholds    => initialize_thresholds_case
     physics_scalar_flux      => physics_scalar_flux_case
     physics_velo_source      => physics_velo_source_case
-    set_save_level           => set_save_level_case
     set_thresholds           => set_thresholds_case
     surf_geopot              => surf_geopot_case
     update                   => update_case
@@ -353,7 +352,6 @@ contains
   subroutine read_test_case_parameters
     implicit none
     integer, parameter :: fid = 500
-    real(8)            :: press_save
     character(255)     :: filename, varname
 
     ! Find input parameters file name
@@ -381,7 +379,6 @@ contains
     read (fid,*) varname, adapt_dt
     read (fid,*) varname, cfl_num
     read (fid,*) varname, timeint_type
-    read (fid,*) varname, press_save
     read (fid,*) varname, Laplace_order_init
     read (fid,*) varname, n_diffuse
     read (fid,*) varname, dt_write
@@ -392,7 +389,6 @@ contains
     close(fid)
 
     allocate (pressure_save(1))
-    pressure_save(1) = 1.0d2*press_save
     dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init
@@ -597,25 +593,6 @@ contains
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = proj_vel(vel_fun, x_NE, x_i)
     sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = proj_vel(vel_fun, x_i,  x_N)
   end subroutine vel2uvw
-
-  subroutine set_save_level_case
-    ! Determines closest vertical level to desired pressure
-    implicit none
-    integer :: k
-    real(8) :: dpress, p, save_press
-
-    dpress = 1d16; save_zlev = 0
-    do k = 1, zlevels
-       p = 0.5 * (a_vert(k)+a_vert(k+1) + (b_vert(k)+b_vert(k+1))*ref_surf_press)
-       if (abs(p-pressure_save(1)) < dpress) then
-          dpress = abs(p-pressure_save(1))
-          save_zlev = k
-          save_press = p
-       end if
-    end do
-    if (rank==0) write (6,'(/,A,i2,A,f5.1,A,/)') "Saving vertical level ", save_zlev, &
-         " (approximate pressure = ", save_press/100, " hPa)"
-  end subroutine set_save_level_case
 
   subroutine dump_case (fid)
     implicit none

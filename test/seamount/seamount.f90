@@ -5,7 +5,7 @@ program Seamount
   ! Debreu and Kevlahan (2020).
   use main_mod
   use test_case_mod
-  use io_mod  
+  use io_tke_mod  
   implicit none
   integer :: l
   real(8) :: total_eta
