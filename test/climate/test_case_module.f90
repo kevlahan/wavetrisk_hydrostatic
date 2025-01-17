@@ -1,4 +1,4 @@
-module test_case_mod
+odule test_case_mod
   ! Module file for climate test case
   use comm_mpi_mod
   use utils_mod
@@ -785,7 +785,7 @@ contains
           end do
        end if
 
-       write (12,'(i0.8,2(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))') date, time, dt, level_end, sum (n_active), rel_imbalance, timing
+       write (12,'(i0.8,1x,2(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))') date, time, dt, level_end, sum (n_active), rel_imbalance, timing
     end if
   end subroutine print_log
 
