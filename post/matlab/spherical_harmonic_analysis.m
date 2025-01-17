@@ -15,14 +15,22 @@ end
 clear; clc; 
 drake = true;
 if drake
-    test_case = "drake";
-    run_id    = "drakeJ8Z60";
-    type      = "curlu";
-
-    avg       = true; cp_min=1; cp_max=1;
     zlevels   = 60;
-    zmin      = 1;
-    zmax      = zlevels;
+
+    test_case = "drake";
+    run_id    = "drakeJ8Z"+num2str(zlevels,'%2.2d');
+    type      = "curlu";
+    avg       = true; cp_min=1; cp_max=1;
+    
+    if zlevels == 60 
+        layers = [1 47 60];
+    elseif zlevels == 12
+        layers = [1 7 12];
+    elseif zlevels == 6
+        layers = [1 4 6];
+    elseif zlevels == 4
+        layers = [1 3 4];
+    end
 else
     type      = "curlu";
     test_case = "jet";
@@ -41,17 +49,12 @@ KM = 1e-3;
 [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
 
 % Range for power law fit 
-%range       = [deltaI lambda1] * KM; 
-%range     = [lambda1 deltaSM] * KM; 
 range     = [1.5*deltaI  deltaSM] * KM;
-
-%range     = [deltaI 1.5*deltaSM] * KM; % range for power law fit
-%range     = 2/3 * [deltaI lambda1] * KM; % range for power law fit
 
 fprintf("Layer    power law")
 pow_law = zeros(cp_max-cp_min+1,zlevels);
 for cp_id = cp_min:cp_max
-    for zlev = zmin:zmax
+    for zlev = layers
         % Load spectrum data
         name_type = "Layer "+zlev;
         cp        = compose("%04d",cp_id);
@@ -62,7 +65,7 @@ for cp_id = cp_min:cp_max
             file_base = run_id+"_"+cp+"_"+k+"_"+type;
         end
         
-        spec_file = "/Users/kevlahan/hydro/"+test_case+"/"+file_base+"_spec"; 
+        spec_file = file_base+"_spec"; 
         
         try
             pspec = load (spec_file, '-ascii');
@@ -83,7 +86,7 @@ for cp_id = cp_min:cp_max
         % Fit power law
         if ~exist('range','var') % use default range
             if strcmp(test_case,"drake")
-                range = [deltaI lambda1]; col_power = "r-"; % colour for power law
+                range = [deltaI deltaSM]; col_power = "r-"; % colour for power law
             elseif strcmp(test_case,"jet")
                 range = [deltaI lambda1]; col_power = "r-"; % colour for power law
             end
@@ -104,18 +107,7 @@ for cp_id = cp_min:cp_max
 
         if plot_spec
             loglog(scales, pspec(:,2),col_spec,"linewidth",3,"DisplayName",name_type);hold on;grid on;
-            if plot_scales
-                if strcmp(test_case,"drake")
-                    plot_scale(deltaI*KM,"\delta_{I}");
-                    %plot_scale(lambda1*KM,"\lambda_1");
-                    plot_scale(deltaSM*KM,"\delta_{SM}");
-                    %plot_scale(deltaM*KM,"\delta_{M}");
-                elseif strcmp(test_case,"jet")
-                    plot_scale(deltaI*KM,"\delta_{I}");
-                    plot_scale(lambda1*KM,"\lambda_1");
-                    plot_scale(deltaSM*KM,"\delta_{M}");
-                end
-            end
+           
             % Plot fit
             if power
                 powerlaw (scales, 1.5*pspec(:,2), range, -P(1), col_power)
@@ -123,15 +115,29 @@ for cp_id = cp_min:cp_max
         end
     end
 end
+
 fprintf("\n")
 xmin = 10^(round(log10(min(scales))));
 xmax = 10^(round(log10(max(scales))));
 axis([xmin xmax 1e-10 1]);
 
+if plot_scales
+    if strcmp(test_case,"drake")
+        plot_scale(deltaI*KM,"\delta_{I}");
+        %plot_scale(lambda1*KM,"\lambda_1");
+        plot_scale(deltaSM*KM,"\delta_{SM}");
+        %plot_scale(deltaM*KM,"\delta_{M}");
+    elseif strcmp(test_case,"jet")
+        plot_scale(deltaI*KM,"\delta_{I}");
+        plot_scale(lambda1*KM,"\lambda_1");
+        plot_scale(deltaSM*KM,"\delta_{M}");
+    end
+end
+
 set (gca,"fontsize",20);
 xlabel("\lambda (km)");ylabel("S(\lambda)");
 set (gca,"Xdir","reverse"); %legend;
-title("Run: "+run_id)
+%title("Run: "+run_id)
 
 %% Plot power law profile with depth
 if drake
@@ -231,9 +237,9 @@ end
 function plot_scale (scale,name)
 y = ylim;
 x = scale;
-h=loglog([x x], y, "k","linewidth",1.5);
+h = loglog([x x], y, "k","linewidth",1.5);
 set(get(get(h,"Annotation"),"LegendInformation"),"IconDisplayStyle","off");
-text(0.92*scale,10*y(1),name,"fontsize",16)
+text(0.92*scale, 10*y(1), name, "fontsize", 16)
 end
 
 function [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case)
@@ -246,7 +252,7 @@ if strcmp(test_case,"drake")
     dt          =  647;     % time step
     uwbc        =  0.8;     % velocity scale
     g           =  9.80616;
-    drho        = -2;
+    drho        = -4;
     ref_density =  1030;
     H           =  4e3;
     H2          =  200;
@@ -261,8 +267,11 @@ if strcmp(test_case,"drake")
     f0          =  2*omega*sin(deg2rad(theta));
     beta        =  2*omega*cos(deg2rad(theta))/radius;
     r_b         =  7e-8; % bottom friction
-    c0          =  sqrt(g*H);
-    c1          =  2.85; % internal wave speed
+
+    N_bv        = sqrt (g * abs(drho/H1)/ref_density); 
+    c0          = sqrt(g*H);
+    c1          = N_bv * sqrt(H/g)/pi * c0;
+    c1          = 2.85; % internal wave speed !! check
     deltaM      = (visc/beta)^(1/(2*Laplace+1)); % Munk layer
 elseif strcmp(test_case,"jet")
     visc        =  1.63e7; % hyperviscosity
@@ -289,13 +298,13 @@ lambda1    = c1/f0;             % internal radius of deformation
 deltaS     = r_b/beta;          % Stommel layer
 deltaSM    = uwbc/f0;           % submesoscale
 deltaI     = sqrt(uwbc/beta);   % inertial layer
-Rey        = uwbc*deltaSM^(2*Laplace-1)/visc;
+Rey        = uwbc*deltaSM^(2*Laplace-1)/visc; % Reynolds number
+Ro         = uwbc / (deltaM*f0); % Rossby number   
 
-fprintf('\nlambda0 = %2.1f km lambda1 = %2.1f km\n',lambda0*KM,lambda1*KM)
-fprintf('deltaS = %2.1f km deltaI = %2.1f km deltaM = %2.1f km deltaSM = %2.1f km\n',...
+fprintf('\nlambda0 = %2.1f km lambda1 = %2.1f km\n\n',lambda0*KM,lambda1*KM)
+fprintf('deltaS = %2.1f km deltaI = %2.1f km deltaM = %2.1f km deltaSM = %2.1f km\n\n',...
     deltaS*KM, deltaI*KM, deltaM*KM, deltaSM*KM)
-fprintf('Rey = %2.2e\n\n', Rey)
-visc^(1/(2*Laplace+1)) * KM;
+fprintf('Rey = %2.2e Ro = %2.2e N_bv = %2.2e\n\n', Rey, Ro, N_bv)
 end
 
 
