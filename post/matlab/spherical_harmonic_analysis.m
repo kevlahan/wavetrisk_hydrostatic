@@ -23,11 +23,11 @@ if drake
     avg       = true; cp_min=1; cp_max=1;
     
     if zlevels == 60 
-        layers = [1 47 60];
+        layers = [1 30 60];
     elseif zlevels == 12
         layers = [1 7 12];
     elseif zlevels == 6
-        layers = [1 4 6];
+        layers = [1 3 6];
     elseif zlevels == 4
         layers = [1 3 4];
     end
