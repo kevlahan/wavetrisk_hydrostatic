@@ -12,7 +12,6 @@ module io_vtk_mod
   type(coord), dimension(:), allocatable :: points_loc
 
   integer                                :: nvar = 12
-
   type(Float_Field), dimension(:), allocatable, target :: vel_vert ! vertical velocity
 contains
   subroutine write_and_export (isave)
@@ -47,7 +46,7 @@ contains
 
     ! Save data for all vertical layers
     do k = 1, zlevels
-       if (rank == 0) write (6,'(a,i2)') 'Saving layer ', k
+       if (rank == 0) write (6,'(a,i2)') '   Saving layer ', k
 
        do d = 1, size(grid)
           mass   =>      sol(S_MASS,k)%data(d)%elts
@@ -196,11 +195,11 @@ contains
     subroutine compute_data
       use utils_mod
       implicit none
-      integer, dimension(0:EDGE)    :: neigh_id
-      real(4), dimension(0:EDGE)    :: rho_dz, rho_dz_theta
-      real(4), dimension(0:EDGE)    :: temperature
-      real(4)                       :: Ps, tri_area
-      real(4), dimension(2*EDGE)    :: hex_area
+      integer, dimension(0:EDGE) :: neigh_id
+      real(4), dimension(0:EDGE) :: rho_dz, rho_dz_theta
+      real(4), dimension(0:EDGE) :: temperature
+      real(4)                    :: Ps, tri_area
+      real(4), dimension(2*EDGE) :: hex_area
 
       neigh_id = (/ id, idE, idNE, idN /) + 1
 
@@ -338,31 +337,29 @@ contains
     ! Write out type of each cell
     write (funit) 'CELL_TYPES '//trim(str2)//lf
     write (funit) cell_type
-
+    
     ! Write out cell data
     write (funit) 'CELL_DATA ' // trim(str2) // lf
 
-    if (k == 1) then
-       write (funit) 'SCALARS Level int'//lf
-       write (funit) 'LOOKUP_TABLE default'//lf
-       ivar = 1; write (funit) int (cell_data(ivar : nvar*(ncell-1) + ivar : nvar))
+    write (funit) 'SCALARS Level int'//lf
+    write (funit) 'LOOKUP_TABLE default'//lf
+    ivar = 1; write (funit) int (cell_data(ivar : nvar*(ncell-1) + ivar : nvar))
 
-       write (funit) 'SCALARS Topography float'//lf
-       write (funit) 'LOOKUP_TABLE default'//lf
-       ivar = 2; write (funit) cell_data(ivar : nvar*(ncell-1) + ivar : nvar)
+    write (funit) 'SCALARS Topography float'//lf
+    write (funit) 'LOOKUP_TABLE default'//lf
+    ivar = 2; write (funit) cell_data(ivar : nvar*(ncell-1) + ivar : nvar)
 
-       write (funit) 'SCALARS penalization float'//lf
-       write (funit) 'LOOKUP_TABLE default'//lf
-       ivar = 3; write (funit) cell_data(ivar : nvar*(ncell-1) + ivar : nvar)
+    write (funit) 'SCALARS penalization float'//lf
+    write (funit) 'LOOKUP_TABLE default'//lf
+    ivar = 3; write (funit) cell_data(ivar : nvar*(ncell-1) + ivar : nvar)
 
-       if (compressible) then
-          write (funit) 'SCALARS Ps float'//lf
-       else
-          write (funit) 'SCALARS eta float'//lf
-       end if
-       write (funit) 'LOOKUP_TABLE default'//lf
-       ivar = 4; write (funit) cell_data(ivar : nvar*(ncell-1) + ivar : nvar)
+    if (compressible) then
+       write (funit) 'SCALARS Ps float'//lf
+    else
+       write (funit) 'SCALARS eta float'//lf
     end if
+    write (funit) 'LOOKUP_TABLE default'//lf
+    ivar = 4; write (funit) cell_data(ivar : nvar*(ncell-1) + ivar : nvar)
 
     if (compressible) then
        write (funit) 'SCALARS Temperature float'//lf
