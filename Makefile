@@ -62,7 +62,7 @@ ifeq ($(F90),ifort)
     FLAGS_LINK += -module $(BUILD_DIR)
   endif
 else
-  FLAGS_COMP += -O$(OPTIM) -ffast-math -mtune=native -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch 
+  FLAGS_COMP += -O$(OPTIM) -mtune=native -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch 
   FLAGS_LINK += -O$(OPTIM) -J $(BUILD_DIR)
 endif
 
