@@ -48,7 +48,7 @@ def set_3d_dim(ugrid, attr_name) :
     num_points = coords.shape[0]
     weights    = np.zeros(num_points) 
 
-    # Get cell data array with attr_name (which could be 'P_Ps')
+    # Get cell data array with attr_name (which could be 'P/Ps')
     attrs = vtk_to_numpy(ugrid.GetCellData().GetArray(attr_name))
 
     cellformation = vtk_to_numpy(ugrid.GetCells().GetData())
@@ -92,7 +92,7 @@ class Cell3D() :
         self.ugrid = vtk.vtkUnstructuredGrid()  # final result
         
         # Load DS1
-        ds1 = load_dataset(vtk_series[0], 'P_Ps')
+        ds1 = load_dataset(vtk_series[0], 'P/Ps')
 
         points1 = ds1.GetPoints()
         self.ugrid.SetPoints(points1)
@@ -106,7 +106,7 @@ class Cell3D() :
             attr1 = ds1.GetCellData().GetArray(i)
             self.attr_names[i] = attr1.GetName()
 
-        print("Data =",self.attr_names,"\n")
+        print("Data =",self.attr_names)
 
     # Function to construct cells between two layers (ds1 and ds2) and
     # then add them to the unstructured grid (ugrid)
@@ -167,12 +167,12 @@ class Cell3D() :
                 self.attr_list[i] = np.concatenate((self.attr_list[i], attr))
 
     def construct(self) :
-        ds1 = load_dataset(self.vtk_series[0], 'P_Ps')
+        ds1 = load_dataset(self.vtk_series[0], 'P/Ps')
         print("loading " + self.vtk_series[0])
 
         for i, file in enumerate(self.vtk_series[1:]) :
             print("loading " + file)
-            ds2 = load_dataset(file, 'P_Ps')
+            ds2 = load_dataset(file, 'P/Ps')
 
             # Construct cells between two layers and add them to ugrid
             self.add_cells(ds1, ds2, (i+1))
@@ -254,31 +254,38 @@ class Cell3D() :
 
 ################################################################################
 # Main program
-if (len(sys.argv)<4) :
+if (len(sys.argv)<7) :
     print("""
-    Use: python lonlat_to_3D.py vtk_directory J P_scale
+    Use: python lonlat_to_3D.py z1 z2 t1 t2 J P_scale
     
     Generates a 3D vtk data file from a series of layers in directory folder.
     
     Input variables:
-    folder  = directory containing n vtk files of lon-lat layer data DS1, DS2, DS3, ..., DSn
+    run     = run
+    z1      = first vertical layer
+    z2      = last  vertical layer
+    t1      = first time
+    t2      = last time
     J       = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
     P_scale = scaling factor for P/Ps (for visualization)
     
     Saves four data files:
-    DS.vtk            3D unstructured (lon,lat,P) data
-    DS.vti            3D uniform      (lon,lat,P) image data
-    DS_zonal_avg.vti  2D uniform      (lat,P) zonally averaged image data
-    DS_merid_avg.vti  2D uniform      (lon,P) merdionally averaged image data
+    run_tttt.vtk            3D unstructured (lon,lat,P) data, where tttt is the time with leading zeros
+    run_tttt.vti            3D uniform      (lon,lat,P) image data
+    run_tttt_zonal_avg.vti  2D uniform      (lat,P) zonally averaged image data
+    run_tttt_merid_avg.vti  2D uniform      (lon,P) merdionally averaged image data
 
     Data has dimensions N x N/2 x K, where K is the number of vertical layers.
     The vertical coordinate is kPa.
     """)
     exit(0)
 
-outfile = sys.argv[1]+'.vtk'
-J       = float(sys.argv[2])
-P_scale = float(sys.argv[3])
+z1      = int(sys.argv[2])
+z2      = int(sys.argv[3])
+t1      = int(sys.argv[4])
+t2 = t1
+J       = float(sys.argv[5])
+P_scale = float(sys.argv[6])
 
 N       = int(np.sqrt(20*4**J))
 
@@ -288,43 +295,45 @@ lon_dim = 2*lat_dim
 dlat = 360.0/lon_dim
 dlon = 180.0/lat_dim
 
-lon_min = -179.5
-lon_max =  180.0
-lat_min =  -87.0
-lat_max =   87.0
+lon_min = -175.0
+lon_max =  175.0
+lat_min =  -80.0
+lat_max =   80.0
 
 # Remove .DS_store to avoid load error
 with suppress(OSError):
-    os.remove('.DS_Store')
+    os.remove(sys.argv[1]+'/.DS_Store')
 
 print("\nInterpolating to uniform",lon_dim,"x",lat_dim,"grid\n")
 
-vtk_series = sorted(os.listdir(sys.argv[1]))
-for i, file in enumerate(vtk_series) :
-    vtk_series[i] = sys.argv[1]+'/'+file
+for t in range (t1, t2+1):
+    print("\nProcessing time ",t)
+    vtk_series = []
+    for z in range (z1, z2+1):
+        vtk_series.append(sys.argv[1]+'_tri_lonlat_'+str(z).zfill(3)+"_"+str(t).zfill(4)+".vtk")
 
-cell3d = Cell3D(vtk_series)
-ugrid, rgrid, proj_img1, proj_img2 = cell3d.construct_3Dimage()
+    cell3d = Cell3D(vtk_series)
+    ugrid, rgrid, proj_img1, proj_img2 = cell3d.construct_3Dimage()
 
-# Write two projections
-xmlWriter = vtk.vtkXMLImageDataWriter()
+    # Write two projections
+    xmlWriter = vtk.vtkXMLImageDataWriter()
 
-xmlWriter.SetFileName(sys.argv[1]+".vti")
-xmlWriter.SetInputData(rgrid)
-xmlWriter.Write()
+    xmlWriter.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vti")
+    xmlWriter.SetInputData(rgrid)
+    xmlWriter.Write()
 
-xmlWriter.SetFileName(sys.argv[1]+"_zonal_avg.vti")
-xmlWriter.SetInputData(proj_img1)
-xmlWriter.Write()
+    xmlWriter.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+"_zonal_avg.vti")
+    xmlWriter.SetInputData(proj_img1)
+    xmlWriter.Write()
 
-xmlWriter.SetFileName(sys.argv[1]+"_merid_avg.vti")
-xmlWriter.SetInputData(proj_img2)
-xmlWriter.Write()
+    xmlWriter.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+"_merid_avg.vti")
+    xmlWriter.SetInputData(proj_img2)
+    xmlWriter.Write()
 
-# Write out 3D volume
-writer = vtk.vtkUnstructuredGridWriter()
-writer.SetFileTypeToBinary()
-writer.SetFileName(outfile)
-writer.SetInputData(ugrid)
-writer.Write()
+    # Write out 3D volume
+    writer = vtk.vtkUnstructuredGridWriter()
+    writer.SetFileTypeToBinary()
+    writer.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vtk")
+    writer.SetInputData(ugrid)
+    writer.Write()
 
