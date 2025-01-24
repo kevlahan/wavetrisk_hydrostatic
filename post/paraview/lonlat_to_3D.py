@@ -1,22 +1,26 @@
-# Usage:
+# Usage: python lonlat_to_3D.py z1 z2 t1 t2 J P_scale
+#    
+#    Generates a 3D and zonal/meridional projections from a series of vtp layers.
+#    
+#    Input variables:
+#    run     = run
+#    z1      = first vertical layer
+#    z2      = last  vertical layer
+#    t1      = first time
+#    t2      = last time
+#    J       = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
+#    P_scale = scaling factor for P/Ps (for visualization)
+#    
+#    Saves four data files:
+#    run_tttt.vtk            3D unstructured (lon,lat,P) data, where tttt is the time with leading zeros
+#    run_tttt.vti            3D uniform      (lon,lat,P) image data
+#    run_tttt_zonal_avg.vti  2D uniform      (lat,P) zonally averaged image data
+#    run_tttt_merid_avg.vti  2D uniform      (lon,P) merdionally averaged image data
 #
-#    python lonlat_to_3D.py J folder
+#    Data has dimensions N x N/2 x K, where K is the number of vertical layers.
+#    The vertical coordinate is kPa.
 #
-# Generates a 3D vtk data file from a series of layers in directory folder.
-#
-# J specifies the scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J).
-#
-# Input files:  vtk files (unstructured data) for each horizontal layers: folder/DS1, folder/DS2, folder/DS3, ..., folder/DSn.
-#
-# Output files: 4 vtk/vti files
-#
-#     DS.vtk            3D unstructured (lon,lat,P) data
-#     DS.vti            3D uniform      (lon,lat,P) image data
-#     DS_zonal_avg.vti  2D uniform      (lat,P) zonally averaged image data
-#     DS_merid_avg.vti  2D uniform      (lon,P) merdionally averaged image data
-#
-#
-# Elements of DS.vtk (also used to compute uniform grid data)
+# Elements of *.vtk (also used to compute uniform grid data)
 #
 #    (1) vtkPoints are a concatenated array of vtkPoints of DS1, DS2, DS3, ..., DNSn.
 #
@@ -27,7 +31,7 @@
 #
 #
 # Author: Weiguang Guan and Nicholas Kevlahan (McMaster University)
-# Date  : 2024-12-18
+# Date  : 2025-01-24
 #
 # See https://raw.githubusercontent.com/Kitware/vtk-examples/refs/heads/gh-pages/src/Testing/Baseline/Cxx/GeometricObjects/TestLinearCellsDemo.png
 
@@ -36,6 +40,8 @@ from contextlib import suppress
 import sys
 import numpy as np
 import vtk
+import csv
+import subprocess
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 
 ################################################################################
@@ -50,8 +56,8 @@ def set_3d_dim(ugrid, attr_name) :
 
     # Get cell data array with attr_name (which could be 'P/Ps')
     attrs = vtk_to_numpy(ugrid.GetCellData().GetArray(attr_name))
-
-    cellformation = vtk_to_numpy(ugrid.GetCells().GetData())
+    
+    cellformation = vtk_to_numpy(ugrid.GetPolys().GetData())
     num_cells     = ugrid.GetNumberOfCells()
 
     # Loop through cells 
@@ -74,8 +80,9 @@ def set_3d_dim(ugrid, attr_name) :
 ################################################################################
 # Function to load vtkUnstructuredGrid from a vtk file
 def load_dataset(file, attr_to_fill=None) :
-    vtkreader = vtk.vtkUnstructuredGridReader()
-    vtkreader.ReadAllScalarsOn()
+    #vtkreader = vtk.vtkUnstructuredGridReader()
+    vtkreader = vtk.vtkXMLPolyDataReader() 
+    #vtkreader.ReadAllScalarsOn()
     vtkreader.SetFileName(file)
     vtkreader.Update()
 
@@ -86,13 +93,46 @@ def load_dataset(file, attr_to_fill=None) :
     return ugrid
 
 ################################################################################
+# Functions to convert between images and numpy arrays
+def vtk_image_to_numpy(vtk_image):
+    """Convert VTK image data to a NumPy array."""
+    dimensions = vtk_image.GetDimensions()  # Get the dimensions of the image
+    point_data = vtk_image.GetPointData()
+    array = point_data.GetScalars()  # Get the scalar data (image values)
+    
+    np_array = vtk.util.numpy_support.vtk_to_numpy(array)
+    return np_array.reshape(dimensions[2], dimensions[1], dimensions[0])  # Reshape it to 3D
+
+def numpy_to_vtk_image(np_array):
+    """Convert a NumPy array to a VTK image."""
+    vtk_image = vtk.vtkImageData()
+    vtk_image.SetDimensions(np_array.shape[2], np_array.shape[1], np_array.shape[0])
+    
+    # Flatten the numpy array and set it to the image data
+    vtk_array = vtk.util.numpy_support.numpy_to_vtk(np_array.flatten(), deep=True, array_type=vtk.VTK_FLOAT)
+    vtk_image.GetPointData().SetScalars(vtk_array)
+    
+    return vtk_image
+
+def average_vtk_images(vtk_images):
+    """Average a list of VTK image arrays."""
+    numpy_arrays = [vtk_image_to_numpy(img) for img in vtk_images]
+    
+    # Compute the average of the arrays along the 0th axis (image stacking axis)
+    average_array = np.mean(numpy_arrays, axis=0)
+    
+    # Convert the averaged NumPy array back to VTK
+    return numpy_to_vtk_image(average_array)
+
+################################################################################
 class Cell3D() :
-    def __init__(self, vtk_series):
-        self.vtk_series = vtk_series
+    def __init__(self, vtp_series):
+        global data_names
+        self.vtp_series = vtp_series
         self.ugrid = vtk.vtkUnstructuredGrid()  # final result
         
         # Load DS1
-        ds1 = load_dataset(vtk_series[0], 'P/Ps')
+        ds1 = load_dataset(vtp_series[0], 'P/Ps')
 
         points1 = ds1.GetPoints()
         self.ugrid.SetPoints(points1)
@@ -106,7 +146,7 @@ class Cell3D() :
             attr1 = ds1.GetCellData().GetArray(i)
             self.attr_names[i] = attr1.GetName()
 
-        print("Data =",self.attr_names)
+        data_names = self.attr_names
 
     # Function to construct cells between two layers (ds1 and ds2) and
     # then add them to the unstructured grid (ugrid)
@@ -128,7 +168,7 @@ class Cell3D() :
         num_points  = points.GetNumberOfPoints()
         num_points2 = ds2.GetNumberOfPoints()
 
-        cellformation = vtk_to_numpy(ds2.GetCells().GetData())
+        cellformation = vtk_to_numpy(ds2.GetPolys().GetData())
 
         num_cells = ds2.GetNumberOfCells()
         startID = 0
@@ -137,21 +177,14 @@ class Cell3D() :
             size     = cellformation[startID]
             pnt_ids  = cellformation[(startID+1):(startID+1+size)]
 
-            pnt_ids1 = pnt_ids + (num_points-2*num_points2)
-            pnt_ids2 = pnt_ids + (num_points-  num_points2)
+            pnt_ids1 = pnt_ids + (num_points - 2*num_points2)
+            pnt_ids2 = pnt_ids + (num_points -   num_points2)
             
+            # 6 points in wedge cell
             pnt_ids  = np.concatenate((pnt_ids1, pnt_ids2))
 
-            if (size==3) :   # triangles
-                self.ugrid.InsertNextCell(vtk.VTK_WEDGE , len(pnt_ids), pnt_ids)
-            elif (size==5) : # pentagons
-                self.ugrid.InsertNextCell(vtk.VTK_PENTAGONAL_PRISM , len(pnt_ids), pnt_ids)
-            elif (size==6) : # hexagons
-                self.ugrid.InsertNextCell(vtk.VTK_HEXAGONAL_PRISM , len(pnt_ids), pnt_ids)
-            else : 
-                print("ERROR: We only support triangle, pentagon, hexagon cell types")
-                print("There is a cell containing", size, " vertices")
-                exit(1)
+            # Triangular cells
+            self.ugrid.InsertNextCell(vtk.VTK_WEDGE , len(pnt_ids), pnt_ids)
     
             startID = startID + 1 + size
 
@@ -167,10 +200,10 @@ class Cell3D() :
                 self.attr_list[i] = np.concatenate((self.attr_list[i], attr))
 
     def construct(self) :
-        ds1 = load_dataset(self.vtk_series[0], 'P/Ps')
-        print("loading " + self.vtk_series[0])
+        ds1 = load_dataset(self.vtp_series[0], 'P/Ps')
+        print("loading " + self.vtp_series[0])
 
-        for i, file in enumerate(self.vtk_series[1:]) :
+        for i, file in enumerate(self.vtp_series[1:]) :
             print("loading " + file)
             ds2 = load_dataset(file, 'P/Ps')
 
@@ -191,17 +224,16 @@ class Cell3D() :
 
     # Returns four elements: unstructured grid, regular grid, and two 2D images as projections
     def construct_3Dimage(self) :
-        P_dim = len(self.vtk_series) # max_depth = number of vtk files in the series
+        P_dim = len(self.vtp_series) # max_depth = number of vtk files in the series
         dP = 1.0/P_dim
 
-        P_min   = (0.0 + dP/4) * P_scale
-        P_max   = (1.0 - dP/4) * P_scale
+        P_min   = (0.0 + dP/2) * P_scale
+        P_max   = (1.0 - dP/2) * P_scale
 
         # Construct an unstructured grid
         ugrid = self.construct()
 
         # Resample ugrid to a regular grid
-        # vtkResampleToImage may re-order the attribute arrays !!!
         ugrid_to_image = vtk.vtkResampleToImage()
         ugrid_to_image.SetInputDataObject(ugrid)
         
@@ -219,6 +251,8 @@ class Cell3D() :
         img1 = vtk.vtkImageData()
         img2 = vtk.vtkImageData()
 
+        vertical_profile = []
+
         img1.SetDimensions(1, lat_dim, P_dim);
         img2.SetDimensions(lon_dim, 1, P_dim);
 
@@ -230,17 +264,15 @@ class Cell3D() :
 
         for i in range(self.num_attrs) :
             name = pnt_data.GetArray(i).GetName()
-            #print(self.attr_names[i])
 
             img3d = vtk_to_numpy(pnt_data.GetArray(i))
             img3d = img3d.reshape((P_dim, lat_dim, lon_dim))
 
-            # discard the outer layers because they contain artifacts
-            #merid_avg = np.mean(img3d[:,:,1:lon_dim-1], axis=2) # projection along lon
-            #zonal_avg = np.mean(img3d[:,1:lat_dim-1,:], axis=1) # projection along lat
+            merid_avg  = np.mean(img3d, axis=2)     # meridional average
+            zonal_avg  = np.mean(img3d, axis=1)     # zonal average
 
-            merid_avg = np.mean(img3d, axis=2) # meridional average
-            zonal_avg = np.mean(img3d, axis=1) # zonal average
+            profile = np.mean(img3d, axis=(1,2)).tolist()
+            vertical_profile.append(profile) # vertical profile averaged over sphere
 
             attr1 = numpy_to_vtk(merid_avg.reshape(lat_dim*P_dim))
             attr1.SetName(name)
@@ -250,11 +282,12 @@ class Cell3D() :
             img1.GetPointData().AddArray(attr1)
             img2.GetPointData().AddArray(attr2)
 
-        return ugrid, rgrid, img1, img2
+        return ugrid, rgrid, img1, img2, vertical_profile
+    
 
 ################################################################################
 # Main program
-if (len(sys.argv)<7) :
+if (len(sys.argv)<8) :
     print("""
     Use: python lonlat_to_3D.py z1 z2 t1 t2 J P_scale
     
@@ -265,6 +298,7 @@ if (len(sys.argv)<7) :
     z1      = first vertical layer
     z2      = last  vertical layer
     t1      = first time
+    t2      = last time
     t2      = last time
     J       = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
     P_scale = scaling factor for P/Ps (for visualization)
@@ -283,9 +317,9 @@ if (len(sys.argv)<7) :
 z1      = int(sys.argv[2])
 z2      = int(sys.argv[3])
 t1      = int(sys.argv[4])
-t2 = t1
-J       = float(sys.argv[5])
-P_scale = float(sys.argv[6])
+t2      = int(sys.argv[5])
+J       = float(sys.argv[6])
+P_scale = float(sys.argv[7])
 
 N       = int(np.sqrt(20*4**J))
 
@@ -295,8 +329,8 @@ lon_dim = 2*lat_dim
 dlat = 360.0/lon_dim
 dlon = 180.0/lat_dim
 
-lon_min = -175.0
-lon_max =  175.0
+lon_min = -180.0 
+lon_max =  180.0 - dlon*1.5
 lat_min =  -80.0
 lat_max =   80.0
 
@@ -304,31 +338,29 @@ lat_max =   80.0
 with suppress(OSError):
     os.remove(sys.argv[1]+'/.DS_Store')
 
+#script_path = 'xyz2lonlat.py'
+#arguments = ['SimpleJ5J7Z30', '1', '30', '1', '1', 'y']
+#print(['python3', script_path] + arguments)
+#subprocess.run(['python3', script_path] + arguments, capture_output=True, text=True)
+
 print("\nInterpolating to uniform",lon_dim,"x",lat_dim,"grid\n")
 
 for t in range (t1, t2+1):
     print("\nProcessing time ",t)
-    vtk_series = []
+    vtp_series = []
     for z in range (z1, z2+1):
-        vtk_series.append(sys.argv[1]+'_tri_lonlat_'+str(z).zfill(3)+"_"+str(t).zfill(4)+".vtk")
+        vtp_series.append(sys.argv[1]+'_tri_lonlat_'+str(z).zfill(3)+"_"+str(t).zfill(4)+".vtp")
 
-    cell3d = Cell3D(vtk_series)
-    ugrid, rgrid, proj_img1, proj_img2 = cell3d.construct_3Dimage()
+    cell3d = Cell3D(vtp_series)
+    ugrid, rgrid, proj_img1, proj_img2, vertical_profile = cell3d.construct_3Dimage()
 
-    # Write two projections
-    xmlWriter = vtk.vtkXMLImageDataWriter()
-
-    xmlWriter.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vti")
-    xmlWriter.SetInputData(rgrid)
-    xmlWriter.Write()
-
-    xmlWriter.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+"_zonal_avg.vti")
-    xmlWriter.SetInputData(proj_img1)
-    xmlWriter.Write()
-
-    xmlWriter.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+"_merid_avg.vti")
-    xmlWriter.SetInputData(proj_img2)
-    xmlWriter.Write()
+    # Save vertical profiles in csv file
+    with open(sys.argv[1]+"_"+str(t).zfill(4)+"_profile.csv", 'w', newline='') as file:
+        writer = csv.writer(file)
+        i = 0
+        for row in vertical_profile:
+            writer.writerow([data_names[i]]+row)
+            i += 1
 
     # Write out 3D volume
     writer = vtk.vtkUnstructuredGridWriter()
@@ -336,4 +368,21 @@ for t in range (t1, t2+1):
     writer.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vtk")
     writer.SetInputData(ugrid)
     writer.Write()
+
+    xmlWriter = vtk.vtkXMLImageDataWriter()
+
+    # Write 3D Cartesian grid data
+    xmlWriter.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vti")
+    xmlWriter.SetInputData(rgrid)
+    xmlWriter.Write()
+
+    # Write zonal projection
+    xmlWriter.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+"_zonal_avg.vti")
+    xmlWriter.SetInputData(proj_img1)
+    xmlWriter.Write()
+
+    # Write meridional projection
+    xmlWriter.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+"_merid_avg.vti")
+    xmlWriter.SetInputData(proj_img2)
+    xmlWriter.Write()
 
