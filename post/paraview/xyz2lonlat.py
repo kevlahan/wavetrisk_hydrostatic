@@ -157,9 +157,14 @@ for z in range (z1, z2+1):
             delaunay.Update()
             output = delaunay.GetOutput()
 
+            point2cell = vtk.vtkPointDataToCellData()
+            point2cell.SetInputData(output)
+            point2cell.Update()
+            output = point2cell.GetOutput()
+
             # Write out structured data
             writer = vtk.vtkXMLPolyDataWriter() 
-            writer.SetFileName(outfile+".vtp")  
+            writer.SetFileName(outfile+".vtp")
             writer.SetInputData(output)
             writer.Write()
         else:
