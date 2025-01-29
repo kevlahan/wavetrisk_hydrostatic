@@ -5,8 +5,10 @@
 #
 # Weiguang Guan     (SHARCNET)            2024-04-16
 # Nicholas Kevlahan (McMaster University) 2025-01-29
+import os
 import sys
 import numpy as np
+from utilities import *
 import vtk
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 
@@ -41,6 +43,9 @@ for z in range (z1, z2+1):
         vtkreader.ReadAllScalarsOn()
         vtkreader.SetFileName(infile+".vtk")
         vtkreader.Update()
+        
+        vtk_files = infile+".vtk"
+        delete_files(vtk_files)
 
         # Get the unstructed grid data
         ugrid = vtkreader.GetOutput()
@@ -70,7 +75,7 @@ for z in range (z1, z2+1):
         startIDs    = [0] * num_cells # start index in cell data "cellformation"
 
         startID = 0
-        for cell in range(num_cells) :    # loop through cells
+        for cell in range(num_cells) :              # loop through cells
             startIDs[cell] = startID
             size           = cellformation[startID] # number of vertices
             for i in range(size) :

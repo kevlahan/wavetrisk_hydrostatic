@@ -1,3 +1,6 @@
+import os
+import sys
+import fnmatch
 import numpy as np
 import vtk
 
@@ -38,3 +41,16 @@ def rms_int (data, field) :
     int_square = integrated.GetArray("square").GetTuple(0)[0]
 
     return(np.sqrt(int_square))
+
+def delete_files(pattern) :
+    # Deletes all files in current directory matching the given pattern.
+
+    directory = os.getcwd()
+    
+    for filename in os.listdir(directory):
+        if fnmatch.fnmatch(filename, pattern):
+            file_path = os.path.join(directory, filename)
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Failed to delete {file_path}: {e}")

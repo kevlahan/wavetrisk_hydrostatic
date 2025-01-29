@@ -1,24 +1,22 @@
 # Usage: python lonlat_to_3D.py nz t1 t2 J 
 #    
-#    Generates a 3D and zonal/meridional projections from a series of vtp layers.
+#    Generates a 3D and zonal/meridional projections from a series of vtk layers.
 #    
 #    Input variables:
-#    run     = run
-#    nz      = number of vertical layers
-#    t1      = first time
-#    t2      = last time
-#    J       = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
+#    run = run
+#    nz  = number of vertical layers
+#    t1  = first time
+#    t2  = last time
+#    J   = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
 #    
 #    Saves four data files:
 #    run_tttt.vtk            3D unstructured (lon,lat,P) data, where tttt is the time with leading zeros
 #    run_tttt.vti            3D uniform      (lon,lat,P) image data
-#    run_tttt_zonal.vti  2D uniform      (lat,P) zonally averaged image data
-#    run_tttt_merid.vti  2D uniform      (lon,P) merdionally averaged image data
+#    run_tttt_zonal.vti      2D uniform      (lat,P)     zonally averaged image data
+#    run_tttt_merid.vti      2D uniform      (lon,P)     meridionally averaged image data
 #
 #    Data has dimensions N x N/2 x K, where K is the number of vertical layers.
-#    The vertical coordinate is kPa.
-#
-# Elements of *.vtk (also used to compute uniform grid data)
+#    The vertical coordinate is P/Ps.
 #
 #    (1) vtkPoints are a concatenated array of vtkPoints of DS1, DS2, DS3, ..., DNSn.
 #
@@ -27,27 +25,23 @@
 #
 #    (3) vtkCellData are computed as the average of the values from the two 2D cells in adjacent layers.  
 #
-#
 # Author: Weiguang Guan and Nicholas Kevlahan (McMaster University)
-# Date  : 2025-01-24
-#
-# See https://raw.githubusercontent.com/Kitware/vtk-examples/refs/heads/gh-pages/src/Testing/Baseline/Cxx/GeometricObjects/TestLinearCellsDemo.png
+# Date  : Last revision 2025-01-24
 
 import os
-from contextlib import suppress
 import sys
+from utilities import *
+from contextlib import suppress
 import numpy as np
 import vtk
 import csv
 import subprocess
-import fnmatch
 import tarfile
-import glob
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 
 ################################################################################
 class Cell3D() :
-    def __init__(self, vtp_series):
+    def __init__(self, vtp_series) :
         global data_names
         self.vtp_series = vtp_series
         self.ugrid = vtk.vtkUnstructuredGrid()  # final result
@@ -95,6 +89,9 @@ class Cell3D() :
             attr_array.SetName(self.attr_names[i])
 
             self.ugrid.GetCellData().AddArray(attr_array)
+            
+        vtp_files = run+'_tri'+"*"+str(t).zfill(4)+".vtp"
+        delete_files(vtp_files)
 
         return self.ugrid
 
@@ -152,26 +149,21 @@ class Cell3D() :
 
         # Construct an unstructured grid
         ugrid = self.construct()
-        delete_files("*.vtp")
 
         # Resample ugrid to a regular grid
-        ugrid_to_image = vtk.vtkResampleToImage()
-        ugrid_to_image.SetInputDataObject(ugrid)
-        
-        ugrid_to_image.SetUseInputBounds(False)
-        ugrid_to_image.SetSamplingDimensions(lon_dim, lat_dim, vert_dim)
-        ugrid_to_image.SetSamplingBounds(lon_min, lon_max, lat_min, lat_max, vert_min, vert_max)
-        ugrid_to_image.Update()
-
-        rgrid = ugrid_to_image.GetOutput()
+        img = vtk.vtkResampleToImage()
+        img.SetInputDataObject(ugrid)        
+        img.SetUseInputBounds(False)
+        img.SetSamplingDimensions(lon_dim, lat_dim, vert_dim)
+        img.SetSamplingBounds(lon_min, lon_max, lat_min, lat_max, vert_min, vert_max)
+        img.Update()
+        rgrid = img.GetOutput()
 
         # Generate two projections
         pnt_data = rgrid.GetPointData()
 
         img1 = vtk.vtkImageData()
         img2 = vtk.vtkImageData()
-
-        vertical_profile = []
 
         img1.SetDimensions(1, lat_dim, vert_dim);
         img2.SetDimensions(lon_dim, 1, vert_dim);
@@ -182,6 +174,7 @@ class Cell3D() :
         img1.SetOrigin(rgrid.GetOrigin())
         img2.SetOrigin(rgrid.GetOrigin())
 
+        vertical_profile = []
         for i in range(self.num_attrs) :
             name = pnt_data.GetArray(i).GetName()
 
@@ -201,35 +194,31 @@ class Cell3D() :
 
             img1.GetPointData().AddArray(attr1)
             img2.GetPointData().AddArray(attr2)
-      
-        # Write out 3D volume
-        writer = vtk.vtkUnstructuredGridWriter()
-        writer.SetFileTypeToBinary()
-        writer.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vtk")
-        writer.SetInputData(ugrid)
-        writer.Write()
+
+        # Write out data
+        file_out = run+"_"+str(t).zfill(4)
 
         # Write image (uniform grid) data
         writer = vtk.vtkXMLImageDataWriter()
 
         # Write 3D Cartesian grid data
-        writer.SetFileName(run+"_"+str(t).zfill(4)+".vti")
+        writer.SetFileName(file_out+".vti")
         writer.SetInputData(rgrid)
         writer.Write()
 
         # Write zonal projection
-        writer.SetFileName(run+"_"+str(t).zfill(4)+"_zonal.vti")
+        writer.SetFileName(file_out+"_zonal.vti")
         writer.SetInputData(img1)
         writer.Write()
 
         # Write meridional projection
-        writer.SetFileName(run+"_"+str(t).zfill(4)+"_merid.vti")
+        writer.SetFileName(file_out+"_merid.vti")
         writer.SetInputData(img2)
         writer.Write()
 
         # Save vertical profiles in csv file
         vertical_profile = np.array(vertical_profile).T
-        with open(run+"_"+str(t).zfill(4)+"_profile.csv", 'w', newline='') as file:
+        with open(file_out+"_profile.csv", 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(data_names)
             for row in vertical_profile :
@@ -239,17 +228,17 @@ class Cell3D() :
 ###############################################################################################################################
 # Loads data from a vtk polydata file and sets vertical coordinate of interface based on attr_to_fill
 def load_dataset(file1, file2, attr_to_fill=None) :
-    vtkreader = vtk.vtkXMLPolyDataReader()
+    reader = vtk.vtkXMLPolyDataReader()
 
     # Layer below current interface
-    vtkreader.SetFileName(file1)
-    vtkreader.Update()
-    ugrid1 = vtkreader.GetOutput() 
+    reader.SetFileName(file1)
+    reader.Update()
+    ugrid1 = reader.GetOutput() 
 
     # Layer above current interface
-    vtkreader.SetFileName(file2)
-    vtkreader.Update()
-    ugrid2 = vtkreader.GetOutput()
+    reader.SetFileName(file2)
+    reader.Update()
+    ugrid2 = reader.GetOutput()
 
     if (attr_to_fill is not None) :
         set_vert_coord(ugrid1, ugrid2, attr_to_fill) # interface coordinate is average of coordinates of adjacent layers
@@ -306,11 +295,10 @@ def set_vert_coord(ugrid1, ugrid2, attr_name) :
 
 # Loads data from a vtk polydata file and sets vertical coordinate of top and bottom interfaces based on attr_to_fill
 def load_dataset_bdry(file, interface, attr_to_fill=None) :
-    vtkreader = vtk.vtkXMLPolyDataReader() 
-
-    vtkreader.SetFileName(file)
-    vtkreader.Update()
-    ugrid = vtkreader.GetOutput()
+    reader = vtk.vtkXMLPolyDataReader() 
+    reader.SetFileName(file)
+    reader.Update()
+    ugrid = reader.GetOutput()
 
     if (attr_to_fill is not None) :
         set_vert_coord_bdry(ugrid, interface) # set vertical coordinate to be scaled value of data given by attr_to_fill (P/Ps)
@@ -333,7 +321,7 @@ def set_vert_coord_bdry(ugrid, interface) :
     ugrid.GetPoints().SetData(numpy_to_vtk(coords))
     
 
-################################################################################
+#########################################################################################################################################
 # Functions to convert between images and numpy arrays
 def average_vti_images(vti_images) :
     """
@@ -403,7 +391,7 @@ def average_vti_images(vti_images) :
     return averaged_image
 
 
-def read_vti_images(file_list):
+def read_vti_images(file_list) :
     """
     Reads VTI image files from a list of file names.
     
@@ -496,46 +484,35 @@ def safe_extract(tar, path=".", members=None):
     
 
 def transform_to_lonlat(t) :
-    # Transform spherical data to lonlat vtp data
-    
-    script_path = 'xyz2lonlat.py'
-    arguments   = ['SimpleJ5J7Z30', '1', str(nz), str(t), str(t), 'y']
-    #print("    transforming all layers from xyz to lonlat")
-    subprocess.run(['python3', script_path] + arguments, capture_output=True, text=True)
+    # Transform spherical data to lonlat vtk data
 
-    files = run+'_tri'+"*"+str(t).zfill(4)+".vtk"
-    delete_files(files)
+    script_name = "xyz2lonlat.py"
+    arg1 = run
+    arg2 = '1'
+    arg3 = str(nz)
+    arg4 = str(t)
+    arg5 = str(t)
+    arg6 = 'y' # use Delaunay2D filter to remove gaps
+    subprocess.run(['python3', script_name, arg1, arg2, arg3, arg4, arg5, arg6])
 
-def delete_files(pattern) :
-    # Deletes all files in current directory matching the given pattern.
-
-    directory = os.getcwd()
-    
-    for filename in os.listdir(directory):
-        if fnmatch.fnmatch(filename, pattern):
-            file_path = os.path.join(directory, filename)
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"Failed to delete {file_path}: {e}")
-
-################################################################################
-# Main program
-if (len(sys.argv)<5) :
+                
+#########################################################################################################################################
+#    Main program
+#########################################################################################################################################
+if (len(sys.argv) < 5) :
     print("""
     Use: python lonlat_to_3D.py run nz t1 t2 J
     
-    Generates a 3D vtk data file from a series of layers in directory folder.
+    Generates a 3D data files, zonal/meridional projections and vertical profiles from a series of layers in directory folder.
     
     Input variables:
-    run     = run
-    nz      = number of vertical layers
-    t1      = first time
-    t2      = last time
-    J       = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
+    run = prefix name of files (run name)
+    nz  = number of vertical layers
+    t1  = first time
+    t2  = last time
+    J   = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
     
     Saves the following stypes of data files:
-    run_tttt.vtk            3D unstructured (lon,lat,P/Ps) data, where tttt is the time with leading zeros
     run_tttt.vti            3D uniform      (lon,lat,P/Ps) 3D image data
     run_tttt_zonal.vti      2D uniform      (lat,P/Ps)     zonally averaged image data
     run_tttt_merid.vti      2D uniform      (lon,P/Ps)     meridionally averaged image data
@@ -543,17 +520,18 @@ if (len(sys.argv)<5) :
     run_tttt_merid_mean.vti 2D uniform      (lon,P/Ps)     meridionally averaged image data averaged over times [t1,t2]
     run_tttt.csv            1D                             vertical profiles averaged over the sphere
 
-    Data has dimensions N x N/2 x K, where K is the number of vertical layers.
-    The vertical coordinate is kPa.
+    3D data has dimensions N x N/2 x nz.  The vertical coordinate is P/Ps.
     """)
     exit(0)
 
-run        = sys.argv[1]
-nz         = int(sys.argv[2])
-t1         = int(sys.argv[3])
-t2         = int(sys.argv[4])
-J          = float(sys.argv[5])
+# Input parameters
+run = sys.argv[1]
+nz  = int(sys.argv[2])
+t1  = int(sys.argv[3])
+t2  = int(sys.argv[4])
+J   = float(sys.argv[5])
 
+# Dimensions
 N        = int(np.sqrt(20*4**J))
 lat_dim  = int(N/2)
 lon_dim  = 2*lat_dim
@@ -562,23 +540,23 @@ vert_dim = nz
 dlat = 360.0/lon_dim
 dlon = 180.0/lat_dim
 
-lon_min = -180.0 
-lon_max =  180.0
-lat_min =  -80.0
-lat_max =   80.0
+lon_min  = -180.0 
+lon_max  =  180.0
+lat_min  =  -90.0 + dlat*6
+lat_max  =   90.0 - dlat*6
 
 # Remove .DS_store to avoid load error
 with suppress(OSError):
     os.remove(sys.argv[1]+'/.DS_Store')
 
-print("\nInterpolating to uniform",lon_dim,"x",lat_dim,"x",vert_dim,"grid")
+print("\nInterpolating to uniform", lon_dim, "x", lat_dim, "x", vert_dim, "grid")
 
 for t in range (t1, t2+1):
-    print("    processing time ",t)
+    print("    processing time ", t)
     
     untar_files(t)
 
-    transform_to_lonlat(t) # generate to vtp lonlat files
+    transform_to_lonlat(t) # compute lonlat projections
 
     vtp_series = []
     for z in range (1, nz+1):
@@ -590,4 +568,4 @@ for t in range (t1, t2+1):
 # Compute mean over all times
 time_mean()
 
-
+#########################################################################################################################################
