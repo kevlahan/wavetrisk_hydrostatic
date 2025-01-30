@@ -26,7 +26,7 @@
 #    (3) vtkCellData are computed as the average of the values from the two 2D cells in adjacent layers.  
 #
 # Author: Weiguang Guan and Nicholas Kevlahan (McMaster University)
-# Date  : Last revision 2025-01-24
+# Date  : Last revision 2025-01-30 (Nicholas Kevlahan)
 
 import os
 import sys
@@ -144,6 +144,10 @@ class Cell3D() :
     
     # Returns four elements: unstructured grid, regular grid, and two 2D images as projections
     def construct_3Dimage(self) :
+        global Ntot
+        global covarAvT, covarAvU, covarAvV, covarAvUV, covarAvVT
+        global meanAvT, meanAvU, meanAvV
+        
         vert_min   = 0.0 
         vert_max   = 1.0 
 
@@ -174,6 +178,9 @@ class Cell3D() :
         img1.SetOrigin(rgrid.GetOrigin())
         img2.SetOrigin(rgrid.GetOrigin())
 
+        Nzonal = lat_dim * vert_dim
+        Nmerid = lon_dim * vert_dim
+
         vertical_profile = []
         for i in range(self.num_attrs) :
             name = pnt_data.GetArray(i).GetName()
@@ -181,20 +188,42 @@ class Cell3D() :
             img3d = vtk_to_numpy(pnt_data.GetArray(i))
             img3d = img3d.reshape((vert_dim, lat_dim, lon_dim))
 
-            merid  = np.mean(img3d, axis=2)  # meridional average
-            zonal  = np.mean(img3d, axis=1)  # zonal average
+            zonal = np.mean(img3d, axis=2)  # zonal average
+            merid = np.mean(img3d, axis=1)  # meridional average
 
             profile = np.mean(img3d, axis=(1,2)).tolist()
             vertical_profile.append(profile) # vertical profile averaged over sphere
 
-            attr1 = numpy_to_vtk(merid.reshape(lat_dim*vert_dim))
+            attr1 = numpy_to_vtk(zonal.reshape(Nzonal))
             attr1.SetName(name)
-            attr2 = numpy_to_vtk(zonal.reshape(lon_dim*vert_dim))
+            attr2 = numpy_to_vtk(merid.reshape(Nmerid))
             attr2.SetName(name)
 
             img1.GetPointData().AddArray(attr1)
             img2.GetPointData().AddArray(attr2)
 
+        # Compute covariances
+        covarT, meanT, _ = compute_covar(pnt_data, "Temperature",        "Temperature")        # temperature 
+        covarU, meanU, _ = compute_covar(pnt_data, "VelocityZonal",      "VelocityZonal")      # zonal velocity
+        covarV, meanV, _ = compute_covar(pnt_data, "VelocityMeridional", "VelocityMeridional") # meridional velcoity
+        covarUV, _,    _ = compute_covar(pnt_data, "VelocityZonal",      "VelocityMeridional") # momentum flux
+        covarVT, _,    _ = compute_covar(pnt_data, "VelocityMeridional", "Temperature")        # eddy heat flux
+     
+        # Update average covariances
+        covarAvT,  newAvT, _ = combine_covariance(covarT,  meanT, meanT, Nzonal, covarAvT,  meanAvT, meanAvT, Ntot)
+        covarAvU,  newAvU, _ = combine_covariance(covarU,  meanU, meanU, Nzonal, covarAvU,  meanAvU, meanAvU, Ntot)
+        covarAvV,  newAvV, _ = combine_covariance(covarV,  meanV, meanV, Nzonal, covarAvV,  meanAvV, meanAvV, Ntot)
+        covarAvUV, _,      _ = combine_covariance(covarUV, meanU, meanV, Nzonal, covarAvUV, meanAvU, meanAvV, Ntot)
+        covarAvVT, _,      _ = combine_covariance(covarVT, meanV, meanT, Nzonal, covarAvVT, meanAvV, meanAvT, Ntot)
+
+        # Update average means
+        meanAvT = newAvT
+        meanAvU = newAvU
+        meanAvV = newAvV
+
+        # Update total number of samples for averages
+        Ntot    = Ntot + Nzonal
+        
         # Write out data
         file_out = run+"_"+str(t).zfill(4)
 
@@ -216,6 +245,36 @@ class Cell3D() :
         writer.SetInputData(img2)
         writer.Write()
 
+        # Write statistics
+        statistics = vtk.vtkImageData()
+        statistics.SetDimensions(1, lat_dim, vert_dim);
+        statistics.SetSpacing(rgrid.GetSpacing())
+        statistics.SetOrigin(rgrid.GetOrigin())
+        
+        add_scalar_data(covarT,                  Nzonal, "TemperatureVariance", statistics)
+        add_scalar_data(covarUV,                 Nzonal, "EddyMomentumFlux",    statistics)
+        add_scalar_data(covarVT,                 Nzonal, "EddyHeatFlux",        statistics)
+        add_scalar_data(0.5 * (covarU + covarV), Nzonal, "EddyKineticEnergy",   statistics)
+        
+        writer.SetFileName(file_out+"_statistics.vti")
+        writer.SetInputData(statistics)
+        writer.Write()
+
+        if t == t2: # write average statistics
+            statistics = vtk.vtkImageData()
+            statistics.SetDimensions(1, lat_dim, vert_dim);
+            statistics.SetSpacing(rgrid.GetSpacing())
+            statistics.SetOrigin(rgrid.GetOrigin())
+
+            add_scalar_data(covarAvT,                Nzonal, "TemperatureVariance", statistics)
+            add_scalar_data(covarAvUV,               Nzonal, "EddyMomentumFlux",    statistics)
+            add_scalar_data(covarAvVT,               Nzonal, "EddyHeatFlux",        statistics)
+            add_scalar_data(0.5*(covarAvU+covarAvV), Nzonal, "EddyKineticEnergy",   statistics)
+
+            writer.SetFileName(run+"_statistics_mean.vti")
+            writer.SetInputData(statistics)
+            writer.Write()
+
         # Save vertical profiles in csv file
         vertical_profile = np.array(vertical_profile).T
         with open(file_out+"_profile.csv", 'w', newline='') as file:
@@ -223,8 +282,8 @@ class Cell3D() :
             writer.writerow(data_names)
             for row in vertical_profile :
                 writer.writerow(row)
-                
 
+                
 ###############################################################################################################################
 # Loads data from a vtk polydata file and sets vertical coordinate of interface based on attr_to_fill
 def load_dataset(file1, file2, attr_to_fill=None) :
@@ -495,7 +554,71 @@ def transform_to_lonlat(t) :
     arg6 = 'y' # use Delaunay2D filter to remove gaps
     subprocess.run(['python3', script_name, arg1, arg2, arg3, arg4, arg5, arg6])
 
-                
+
+def covariance(data1, data2) :
+    # Stable one-pass covariance
+    # returns sample covariance, and means of both variables
+    
+    meanx = meany = C = n = 0
+    for x, y in zip(data1, data2):
+        n += 1
+        dx = x - meanx
+        meanx += dx / n
+        meany += (y - meany) / n
+        C += dx * (y - meany)
+
+    population_covar = C / n
+    
+    # Bessel's correction for sample variance
+    sample_covar = C / (n - 1)
+
+    return sample_covar, meanx, meany
+
+
+def combine_covariance(Cov1, meanx1, meany1, N1, Cov2, meanx2, meany2, N2) :
+    # Combines two covariances Cov1, Cov2 involving same variables x, y
+
+    # Total number of samples
+    N = N1 + N2
+
+    # Combined covariance
+    Cov = Cov1 + Cov2 + N1*N2/N * (meanx1 - meanx2) * (meany1 - meany2)
+
+    # Combined means
+    meanx = (N1 * meanx1 + N2 * meanx2) / N
+    meany = (N1 * meany1 + N2 * meany2) / N
+
+    return Cov, meanx, meany
+
+
+def compute_covar(pnt_data, var1, var2) :
+    # Computes covariance statistics for variables named var1, var2
+    # returns covariance and means of each variable
+
+    x = vtk_to_numpy(pnt_data.GetArray(var1))
+    y = vtk_to_numpy(pnt_data.GetArray(var2))
+
+    x = x.reshape((vert_dim, lat_dim, lon_dim))
+    y = y.reshape((vert_dim, lat_dim, lon_dim))
+    
+    covar = np.zeros((vert_dim,lat_dim))
+    meanx = np.zeros((vert_dim,lat_dim))
+    meany = np.zeros((vert_dim,lat_dim))
+        
+    for i in range(vert_dim):
+        for j in range(lat_dim):
+            (covar[i,j], meanx[i,j], meany[i,j]) = covariance(x[i,j,:],y[i,j,:])
+
+    return covar, meanx, meany
+
+def add_scalar_data(data, N, name, img) :
+    # Adds scalar data of total size N to vtk img with given name
+    
+    attr = numpy_to_vtk(data.reshape(N))
+    attr.SetName(name)
+    
+    img.GetPointData().AddArray(attr)
+    
 #########################################################################################################################################
 #    Main program
 #########################################################################################################################################
@@ -544,6 +667,17 @@ lon_min  = -180.0
 lon_max  =  180.0
 lat_min  =  -90.0 + dlat*6
 lat_max  =   90.0 - dlat*6
+
+# Initialize statistics variables
+Ntot      = 0
+covarAvT  = np.zeros((vert_dim,lat_dim))
+covarAvU  = np.zeros((vert_dim,lat_dim))
+covarAvV  = np.zeros((vert_dim,lat_dim))
+covarAvUV = np.zeros((vert_dim,lat_dim))
+covarAvVT = np.zeros((vert_dim,lat_dim))
+meanAvT   = np.zeros((vert_dim,lat_dim))
+meanAvU   = np.zeros((vert_dim,lat_dim))
+meanAvV   = np.zeros((vert_dim,lat_dim))
 
 # Remove .DS_store to avoid load error
 with suppress(OSError):
