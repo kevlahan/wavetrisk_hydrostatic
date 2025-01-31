@@ -38,6 +38,7 @@ import csv
 import subprocess
 import tarfile
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
+import scipy.ndimage
 
 ################################################################################
 class Cell3D() :
@@ -161,46 +162,49 @@ class Cell3D() :
         img.SetSamplingDimensions(lon_dim, lat_dim, vert_dim)
         img.SetSamplingBounds(lon_min, lon_max, lat_min, lat_max, vert_min, vert_max)
         img.Update()
-        rgrid = img.GetOutput()
-
-        # Generate two projections
+        
+        rgrid    = img.GetOutput()
         pnt_data = rgrid.GetPointData()
 
         img1 = vtk.vtkImageData()
         img2 = vtk.vtkImageData()
+        img3 = vtk.vtkImageData()
 
         img1.SetDimensions(1, lat_dim, vert_dim);
         img2.SetDimensions(lon_dim, 1, vert_dim);
+        img3.SetDimensions(lon_dim, lat_dim, vert_dim);
 
         img1.SetSpacing(rgrid.GetSpacing())
         img2.SetSpacing(rgrid.GetSpacing())
+        img3.SetSpacing(rgrid.GetSpacing())
 
         img1.SetOrigin(rgrid.GetOrigin())
-        img2.SetOrigin(rgrid.GetOrigin())
-
-        Nzonal = lat_dim * vert_dim
-        Nmerid = lon_dim * vert_dim
+        img3.SetOrigin(rgrid.GetOrigin())
 
         vertical_profile = []
         for i in range(self.num_attrs) :
             name = pnt_data.GetArray(i).GetName()
 
-            img3d = vtk_to_numpy(pnt_data.GetArray(i))
-            img3d = img3d.reshape((vert_dim, lat_dim, lon_dim))
+            # Extract 3D global data
+            globe = vtk_to_numpy(pnt_data.GetArray(i))
+            globe = globe.reshape(vert_dim, lat_dim, lon_dim)
+            globe = scipy.ndimage.gaussian_filter(globe, sigma=(1.0, 0, 0)) 
 
-            zonal = np.mean(img3d, axis=2)  # zonal average
-            merid = np.mean(img3d, axis=1)  # meridional average
+            zonal = np.mean(globe, axis=2)              # zonal average
+            merid = np.mean(globe, axis=1)              # meridional average
+            profl = np.mean(globe, axis=(1,2)).tolist() # vertical profile
 
-            profile = np.mean(img3d, axis=(1,2)).tolist()
-            vertical_profile.append(profile) # vertical profile averaged over sphere
-
-            attr1 = numpy_to_vtk(zonal.reshape(Nzonal))
-            attr1.SetName(name)
-            attr2 = numpy_to_vtk(merid.reshape(Nmerid))
-            attr2.SetName(name)
+            attr1 = numpy_to_vtk(zonal.reshape(Nzonal)); attr1.SetName(name)
+            attr2 = numpy_to_vtk(merid.reshape(Nmerid)); attr2.SetName(name)
+            attr3 = numpy_to_vtk(globe.reshape(Ngrid));  attr3.SetName(name)
 
             img1.GetPointData().AddArray(attr1)
             img2.GetPointData().AddArray(attr2)
+            img3.GetPointData().AddArray(attr3)
+            vertical_profile.append(profl) 
+
+            
+        pnt_data = img3.GetPointData() # use smoothed data
 
         # Compute covariances
         covarT, meanT, _ = compute_covar(pnt_data, "Temperature",        "Temperature")        # temperature 
@@ -210,11 +214,11 @@ class Cell3D() :
         covarVT, _,    _ = compute_covar(pnt_data, "VelocityMeridional", "Temperature")        # eddy heat flux
      
         # Update average covariances
-        covarAvT,  newAvT, _ = combine_covariance(covarT,  meanT, meanT, Nzonal, covarAvT,  meanAvT, meanAvT, Ntot)
-        covarAvU,  newAvU, _ = combine_covariance(covarU,  meanU, meanU, Nzonal, covarAvU,  meanAvU, meanAvU, Ntot)
-        covarAvV,  newAvV, _ = combine_covariance(covarV,  meanV, meanV, Nzonal, covarAvV,  meanAvV, meanAvV, Ntot)
-        covarAvUV, _,      _ = combine_covariance(covarUV, meanU, meanV, Nzonal, covarAvUV, meanAvU, meanAvV, Ntot)
-        covarAvVT, _,      _ = combine_covariance(covarVT, meanV, meanT, Nzonal, covarAvVT, meanAvV, meanAvT, Ntot)
+        covarAvT,  newAvT, _ = merge_covariance(covarT,  meanT, meanT, lon_dim, covarAvT,  meanAvT, meanAvT, Ntot)
+        covarAvU,  newAvU, _ = merge_covariance(covarU,  meanU, meanU, lon_dim, covarAvU,  meanAvU, meanAvU, Ntot)
+        covarAvV,  newAvV, _ = merge_covariance(covarV,  meanV, meanV, lon_dim, covarAvV,  meanAvV, meanAvV, Ntot)
+        covarAvUV, _,      _ = merge_covariance(covarUV, meanU, meanV, lon_dim, covarAvUV, meanAvU, meanAvV, Ntot)
+        covarAvVT, _,      _ = merge_covariance(covarVT, meanV, meanT, lon_dim, covarAvVT, meanAvV, meanAvT, Ntot)
 
         # Update average means
         meanAvT = newAvT
@@ -222,7 +226,7 @@ class Cell3D() :
         meanAvV = newAvV
 
         # Update total number of samples for averages
-        Ntot    = Ntot + Nzonal
+        Ntot    = Ntot + lon_dim
         
         # Write out data
         file_out = run+"_"+str(t).zfill(4)
@@ -232,7 +236,7 @@ class Cell3D() :
 
         # Write 3D Cartesian grid data
         writer.SetFileName(file_out+".vti")
-        writer.SetInputData(rgrid)
+        writer.SetInputData(img3)
         writer.Write()
 
         # Write zonal projection
@@ -243,21 +247,6 @@ class Cell3D() :
         # Write meridional projection
         writer.SetFileName(file_out+"_merid.vti")
         writer.SetInputData(img2)
-        writer.Write()
-
-        # Write statistics
-        statistics = vtk.vtkImageData()
-        statistics.SetDimensions(1, lat_dim, vert_dim);
-        statistics.SetSpacing(rgrid.GetSpacing())
-        statistics.SetOrigin(rgrid.GetOrigin())
-        
-        add_scalar_data(covarT,                  Nzonal, "TemperatureVariance", statistics)
-        add_scalar_data(covarUV,                 Nzonal, "EddyMomentumFlux",    statistics)
-        add_scalar_data(covarVT,                 Nzonal, "EddyHeatFlux",        statistics)
-        add_scalar_data(0.5 * (covarU + covarV), Nzonal, "EddyKineticEnergy",   statistics)
-        
-        writer.SetFileName(file_out+"_statistics.vti")
-        writer.SetInputData(statistics)
         writer.Write()
 
         if t == t2: # write average statistics
@@ -330,7 +319,7 @@ def set_vert_coord(ugrid1, ugrid2, attr_name) :
         for pnt in pnt_ids :
             coords1[pnt,2]  = coords1[pnt,2] * weights[pnt] + attrs1[i] # compute average value of data used for vertical coordinate
             weights[pnt]   += 1
-            coords1[pnt,2] /= weights[pnt] # increment weighted average
+            coords1[pnt,2] /= weights[pnt]                              # increment weighted average
         startID = startID + 1 + size
 
     # Loop through cells in layer above interfaces
@@ -342,7 +331,7 @@ def set_vert_coord(ugrid1, ugrid2, attr_name) :
         for pnt in pnt_ids :
             coords2[pnt,2] = coords2[pnt,2] * weights[pnt] + attrs2[i] # compute average value of data used for vertical coordinate
             weights[pnt]   += 1
-            coords2[pnt,2] /= weights[pnt] # increment weighted average
+            coords2[pnt,2] /= weights[pnt]                             # increment weighted average
         startID = startID + 1 + size
 
     # Interface vertical coordinate is average of vertical coordinates of adjacent layers
@@ -574,21 +563,32 @@ def covariance(data1, data2) :
 
     return sample_covar, meanx, meany
 
+def merge_covariance(cov1, mean1_x, mean1_y, n1,
+                     cov2, mean2_x, mean2_y, n2):
+    """
+    Merge a single covariance from two datasets with different means.
 
-def combine_covariance(Cov1, meanx1, meany1, N1, Cov2, meanx2, meany2, N2) :
-    # Combines two covariances Cov1, Cov2 involving same variables x, y
+    Parameters:
+        n1, n2           Sample sizes of the two datasets.
+        mean1_x, mean1_y Means of variables X and Y in dataset 1.
+        mean2_x, mean2_y Means of variables X and Y in dataset 2.
+        cov1, cov2       Covariance of (X, Y) in datasets 1 and 2.
 
-    # Total number of samples
-    N = N1 + N2
+    Returns:
+        Merged covariance and mean values.
 
-    # Combined covariance
-    Cov = Cov1 + Cov2 + N1*N2/N * (meanx1 - meanx2) * (meany1 - meany2)
+    """
+    n = n1 + n2
+    
+    delta_x = mean1_x - mean2_x
+    delta_y = mean1_y - mean2_y
 
-    # Combined means
-    meanx = (N1 * meanx1 + N2 * meanx2) / N
-    meany = (N1 * meany1 + N2 * meany2) / N
+    merged_cov = (n1 * cov1 + n2 * cov2 + (n1 * n2) / (n1 + n2) * delta_x * delta_y) / n
 
-    return Cov, meanx, meany
+    merged_mean_x = (n1 * mean1_x + n2 * mean2_x) / n
+    merged_mean_y = (n1 * mean1_y + n2 * mean2_y) / n
+    
+    return merged_cov, merged_mean_x, merged_mean_y
 
 
 def compute_covar(pnt_data, var1, var2) :
@@ -659,6 +659,10 @@ N        = int(np.sqrt(20*4**J))
 lat_dim  = int(N/2)
 lon_dim  = 2*lat_dim
 vert_dim = nz
+
+Ngrid    = lat_dim * lon_dim * vert_dim                                 
+Nmerid   = lon_dim * vert_dim
+Nzonal   = lat_dim * vert_dim
 
 dlat = 360.0/lon_dim
 dlon = 180.0/lat_dim
