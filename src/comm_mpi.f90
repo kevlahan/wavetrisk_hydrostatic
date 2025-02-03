@@ -455,7 +455,7 @@ contains
     end if
 
     call update_bdry__start1  (field, l_start, l_end)
-    if (deadlock) call deadlock_test (flag_in)
+    if (deadlock) call deadlock_test (flag)
     call update_bdry__finish1 (field, l_start, l_end)
   end subroutine update_bdry1_0
 
