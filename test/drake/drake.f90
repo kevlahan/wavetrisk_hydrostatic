@@ -67,8 +67,8 @@ program Drake
      grav_accel  = g_earth
   end if
 
-  f0             = 2d0*omega*sin(45d0*DEG)                 ! representative Coriolis parameter
-  beta           = 2d0*omega*cos(45d0*DEG) / radius        ! beta parameter at 45 degrees latitude
+  f0             = 2d0*omega*sin(40d0*DEG)                 ! representative Coriolis parameter
+  beta           = 2d0*omega*cos(40d0*DEG) / radius        ! beta parameter at 45 degrees latitude
 
   ! Free surface perturbation parameters
   dH             =   0d0  * METRE / H_norm                 ! initial perturbation to the free surface
@@ -191,7 +191,7 @@ program Drake
   call random_seed
 
   ! Save initial conditions
-!  call write_and_export (iwrite)
+  call write_and_export (iwrite)
   
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
