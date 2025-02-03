@@ -221,7 +221,7 @@ contains
     subroutine update_Kv_Kt
       ! Update eddy diffusivity and eddy viscosity
       implicit none
-      real(8) :: Ri
+      real(8) :: Ri ! Richardson number
 
       ! Length scales
       call l_scales (dz, Nsq, tau_mag (p), e, l_eps, l_m)
@@ -242,7 +242,8 @@ contains
     real(8) function coeff (dz, Kv)
       ! Computes entries of vertical Laplacian matrix
       implicit none
-      real(8) :: dz, Kv
+      real(8) :: dz  ! layer depth
+      real(8) :: Kv  ! eddy diffusivity
 
       coeff = dt * c_e * Kv / (dzl(l) * dz)
     end function coeff
@@ -413,7 +414,7 @@ contains
     implicit none
     real(8) :: depth ! depth below free surface
 
-    real(8), parameter :: R = 0.58d0
+    real(8), parameter :: R    = 0.58d0
     real(8), parameter :: xi_0 = 0.35d0 * METRE
     real(8), parameter :: xi_1 =   23d0 * METRE
 
@@ -469,7 +470,7 @@ contains
     implicit none
     real(8) :: Ri
 
-    real(8) :: Ri_c
+    real(8) :: Ri_c ! criticial Richardson number
 
     Ri_c = 2d0 / (2d0 + c_eps/c_m) 
 
@@ -487,10 +488,12 @@ contains
   subroutine l_scales (dz, Nsq, tau, tke, l_eps, l_m)
     ! Computes length scales l_eps and l_m at interfaces 0:zlevels for TKE closure for a single vertical column
     implicit none
-    real(8),                       intent (in)  :: tau
+    real(8),                       intent (in)  :: tau           ! wind stress
     real(8), dimension(1:zlevels), intent (in)  :: dz            ! layer thicknesses
-    real(8), dimension(0:zlevels), intent (in)  :: Nsq, tke
-    real(8), dimension(0:zlevels), intent (out) :: l_eps, l_m
+    real(8), dimension(0:zlevels), intent (in)  :: Nsq           ! Brunt-Vaisala frequency
+    real(8), dimension(0:zlevels), intent (in)  :: tke           ! turbulent kinetic energy
+    real(8), dimension(0:zlevels), intent (out) :: l_m           ! dissipation length scale for each interface
+    real(8), dimension(0:zlevels), intent (out) :: l_eps         ! mixing length scale for each interface
 
     real(8), dimension(0:zlevels) :: l_dwn, l_up
 
@@ -513,13 +516,15 @@ contains
 
     ! Returned length scales
     l_eps = sqrt (l_up * l_dwn)
-    l_m   = min (l_up, l_dwn)
+    l_m   = min  (l_up,  l_dwn)
   end subroutine l_scales
 
   real(8) function Kt_tke (Kv, Nsq, Ri)
     ! TKE closure eddy diffusivity
     implicit none
-    real(8) :: Kv, Nsq, Ri
+    real(8) :: Kv  ! eddy diffusivity
+    real(8) :: Nsq ! Brunt-Vaisala frequency
+    real(8) :: Ri  ! Richardson number 
 
     Kt_tke = min (Kt_max, max (Kv/Prandtl(Ri), Kt_0))
 
