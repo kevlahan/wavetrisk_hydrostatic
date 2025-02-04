@@ -90,7 +90,8 @@ contains
        write (6,'(a)') '*************************************************************&
             *********************************************************************'
     end if
-
+    call barrier
+    
     deallocate (vel_vert)
   end subroutine write_and_export
   
