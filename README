@@ -1,6 +1,6 @@
-See Wiki for information on compiling and running WAVETRISK. 
+See the `Wiki` for information on compiling and running `WAVETRISK`. 
 
-You must first clone the wiki for this repository using git 
+You must first `clone` the wiki for this repository using `git `
 
 `clone https://KevlahanMcMaster@bitbucket.org/kevlahan-code/wavetrisk_hydrostatic.git/wiki`
 
