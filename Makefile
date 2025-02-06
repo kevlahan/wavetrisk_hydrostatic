@@ -47,7 +47,7 @@ else
   MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
   ifeq ($(MACHINE),$(filter $(MACHINE), orc bul gra nia)) # module load CCEnv StdEnv/2023 
     LAPACK = -lflexiblas  # module load flexiblas
-  endif
+  endif 
 endif
 
 ifeq ($(TOPO), true)
@@ -62,7 +62,7 @@ ifeq ($(F90),ifort)
     FLAGS_LINK += -module $(BUILD_DIR)
   endif
 else
-  FLAGS_COMP += -O$(OPTIM) -mtune=native -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch 
+  FLAGS_COMP += -O$(OPTIM) -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch 
   FLAGS_LINK += -O$(OPTIM) -J $(BUILD_DIR)
 endif
 
