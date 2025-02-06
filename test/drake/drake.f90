@@ -191,6 +191,7 @@ program Drake
   call random_seed
 
   ! Save initial conditions
+  call vertical_diffusion
   call write_and_export (iwrite)
   
 
