@@ -4,7 +4,6 @@ program Drake
   use main_mod
   use test_case_mod
   use io_vtk_mod
-  use vert_diffusion_mod
   implicit none
   real(8) :: dz, visc
 
@@ -112,7 +111,6 @@ program Drake
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
      vert_diffuse         = .true.
      tke_closure          = .true.
-     e_min                = 0d0
 
      drho                 =      -4d0 * KG/METRE**3        ! density perturbation at free surface at poles
      tau_0                =     0.1d0 * NEWTON/METRE**2    ! maximum wind stress
@@ -191,10 +189,9 @@ program Drake
   call random_seed
 
   ! Save initial conditions
-  call vertical_diffusion
   call write_and_export (iwrite)
-  
 
+  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(a,/)') &
        '----------------------------------------------------- Start simulation run &

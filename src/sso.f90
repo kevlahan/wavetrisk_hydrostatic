@@ -1,5 +1,5 @@
 module sso_mod
-  ! SSO (subgrid scale orography) parameterization
+  ! SSO (subgrid scale orography) parameterization based on Lott and Miller (QJR Meteorol Soc 123, 101-127 1997)
   use domain_mod
   use comm_mod
   use comm_mpi_mod

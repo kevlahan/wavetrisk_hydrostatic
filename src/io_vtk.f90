@@ -3,6 +3,7 @@ module io_vtk_mod
   use ops_mod
   use utils_mod
   use multi_level_mod
+  use vert_diffusion_mod
   implicit none
   integer                                :: ncell, ncoord,  nvertex
   integer                                :: ncell_loc, ncoord_unique_loc, nvertex_unique_loc
@@ -25,6 +26,9 @@ contains
             ********************************************************************'
        write (6,'(a,i4)') 'Saving field ', isave
     end if
+
+    ! Recalculate eddy viscosity and diffusivity so they could be saved
+    if (vert_diffuse) call vertical_diffusion 
 
     ! Initialize vertical velocity
     vel_vert = sol(S_MASS,1:zlevels); call zero_float (vel_vert)

@@ -1,6 +1,10 @@
 module vert_diffusion_mod
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !
   ! Provides backwards Euler and forwards Euler time stepping for vertical diffusion of buoyancy (temp variable) and
-  ! velocity for ocean models. Backwards Euler is unconditionally stable and is the default choice.
+  ! velocity for ocean models. Backwards Euler is unconditionally stable and is the default choice.  Uses either a
+  ! one-equation model turbulent kinetic energy closure scheme to compute eddy viscosity Kv and eddy diffusivity Kt if
+  ! tke_closure = .true. (as in NEMO 10.1.3), or an analytic profile if tke_closure = .false.
   !
   ! This implementation assumes that sol_mean(S_TEMP,:) is zero (no buoyancy in the mean component)
   ! and flux boundary conditions at bathymetry and free surface.
@@ -13,41 +17,44 @@ module vert_diffusion_mod
   !        wind_flux                       (magnitude of wind stress tau)
   !        bottom_friction                 (bottom friction)
   !
-  ! Set tke_closure = .false. and Kt_const = Kv_bottom = 0 to turn off vertical diffusion, but include wind stress/bottom friction.
+  ! Set tke_closure = .false. and Kt_const = Kv_bottom = 0 to turn off vertical diffusion
+  ! but include wind stress/bottom friction.
+  !
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   use init_mod
   use utils_mod
   implicit none
 
-  ! Modifiable parameters for 
-  real(8)            :: Kt_max       = 1d2     ! maximum eddy diffusion
-  logical            :: enhance_diff = .false. ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
-  logical            :: patankar     = .false. ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
-                                               ! or enforce minimum value e_0 of TKE (F)
-                                               ! (Patankar trick can produce noisy solutions if velocity is very small)
+  ! Modifiable parameters for TKE closure
+  real(8) :: Kt_max       = 1d2           ! maximum eddy diffusion
+  logical :: enhance_diff = .false.       ! enhanced vertical diffusion in unstable regions (T) or rely on TKE closure values (F)
+  logical :: patankar     = .false.       ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
+                                          ! or enforce minimum value e_0 of TKE (F)
+                                          ! (Patankar trick can produce noisy solutions if velocity is very small)
 
-  ! Parameters for TKE closure eddy viscosity/diffusion scheme
+  ! Parameters for TKE closure 
   real(8) :: c_e       = 1.0d0               
-  real(8) :: c_eps     = 7.0d-1                ! factor in Ekman depth equation
-  real(8) :: C_l       = 2.0d5                 ! Charnock constant
-  real(8) :: c_m       = 1.0d-1                ! coefficient for eddy viscosity
-  real(8) :: C_sfc     = 6.783d1
-  real(8) :: e_0       = 1.0d-6/sqrt(2d0)      ! bottom boundary condition for TKE
-  real(8) :: e_min     = 1.0d-6                ! minimum TKE for vertical diffusion
-  real(8) :: e_sfc_0   = 1.0d-4                ! minimum TKE at free surface
-  real(8) :: eps_s     = 1.0d-20               
-  real(8) :: kappa_VK  = 4.0d-1                ! von Karman constant
-  real(8) :: Kt_0      = 1.2d-5                ! minimum/initial eddy diffusion
-  real(8) :: Kt_const  = 1.0d-6                ! analytic value for eddy diffusion (tke_closure = .false.)
-  real(8) :: Kt_enh    = 1.0d2                 ! enhanced eddy diffusion
-  real(8) :: Kv_0      = 1.2d-4                ! minimum/initial eddy viscosity
-  real(8) :: Kv_bottom = 2.0d-3                ! analytic value for eddy viscosity (tke_closure = .false.)
-  real(8) :: Kv_enh    = 1.0d2                 ! enhanced eddy viscosity
-  real(8) :: l_0       = 4.0d-2                ! default turbulent length scale
-  real(8) :: Neps_sq   = 1.0d-20               ! background shear
-  real(8) :: Nsq_min   = 1.0d-12               ! threshold for enhanced diffusion
-  real(8) :: Q_sr      = 0.0d0                 ! penetrative part of solar short wave radiation
-  real(8) :: rb_0      = 4.0d-4                ! bottom friction
-  real(8) :: z_0       = 1.0d-1                ! roughness parameter of free surface
+  real(8) :: c_eps     = 7.0d-1           ! factor in Ekman depth equation
+  real(8) :: C_l       = 2.0d5            ! Charnock constant
+  real(8) :: c_m       = 1.0d-1           ! coefficient for eddy viscosity
+  real(8) :: C_sfc     = 6.783d1          ! coefficient of surface value for TKE 
+  real(8) :: e_0       = 1.0d-6/sqrt(2d0) ! bottom boundary condition for TKE
+  real(8) :: e_min     = 1.0d-6           ! minimum TKE for vertical diffusion
+  real(8) :: e_sfc_0   = 1.0d-4           ! minimum TKE at free surface
+  real(8) :: eps_s     = 1.0d-20          ! background shear
+  real(8) :: kappa_VK  = 4.0d-1           ! von Karman constant
+  real(8) :: Kt_0      = 1.2d-5           ! minimum/initial eddy diffusion
+  real(8) :: Kt_const  = 1.0d-6           ! analytic value for eddy diffusion (tke_closure = .false.)
+  real(8) :: Kt_enh    = 1.0d2            ! enhanced eddy diffusion
+  real(8) :: Kv_0      = 1.2d-4           ! minimum/initial eddy viscosity
+  real(8) :: Kv_bottom = 2.0d-3           ! analytic value for eddy viscosity (tke_closure = .false.)
+  real(8) :: Kv_enh    = 1.0d2            ! enhanced eddy viscosity
+  real(8) :: l_0       = 4.0d-2           ! default turbulent length scale
+  real(8) :: Neps_sq   = 1.0d-20          ! background shear
+  real(8) :: Nsq_min   = 1.0d-12          ! threshold for enhanced diffusion
+  real(8) :: Q_sr      = 0.0d0            ! penetrative part of solar short wave radiation
+  real(8) :: rb_0      = 4.0d-4           ! bottom friction
+  real(8) :: z_0       = 1.0d-1           ! roughness parameter of free surface
 contains
   subroutine vertical_diffusion
     ! Backwards Euler split step for vertical diffusion
@@ -137,7 +144,7 @@ contains
        e(0) = e_0
        do l = 1, zlevels-1
           e(l) = rhs(l)
-          if (.not. patankar) e(l) = min (rhs(l), e_min) ! ensure TKE is non-negative
+          if (.not. patankar) e(l) = max (rhs(l), e_min)             ! ensure TKE is non-negative
        end do
        e(zlevels) = max (C_sfc * tau_mag (p) / ref_density, e_sfc_0) ! free surface
 
@@ -168,7 +175,7 @@ contains
 
       do k = 1, zlevels
          dz(k) = dz_i (dom, i, j, k, offs, dims, sol)
-         Umag(k) = sqrt (2d0 * kinetic_energy (dom, i, j, k, offs, dims))
+         Umag(k) = sqrt (2 * kinetic_energy (dom, i, j, k, offs, dims))
       end do
 
       do l = 1, zlevels-1
@@ -472,13 +479,13 @@ contains
 
     real(8) :: Ri_c ! criticial Richardson number
 
-    Ri_c = 2d0 / (2d0 + c_eps/c_m) 
+    Ri_c = 2 / (2d0 + c_eps/c_m) 
 
     ! NEMO
     if (Ri < 0.2d0) then
        Prandtl = 1d0
     elseif (Ri >= 0.2d0 .and. Ri <= 2d0) then
-       Prandtl = 5d0 * Ri
+       Prandtl = 5 * Ri
     else
        Prandtl = 10d0
     end if
@@ -488,33 +495,36 @@ contains
   subroutine l_scales (dz, Nsq, tau, tke, l_eps, l_m)
     ! Computes length scales l_eps and l_m at interfaces 0:zlevels for TKE closure for a single vertical column
     implicit none
-    real(8),                       intent (in)  :: tau           ! wind stress
-    real(8), dimension(1:zlevels), intent (in)  :: dz            ! layer thicknesses
-    real(8), dimension(0:zlevels), intent (in)  :: Nsq           ! Brunt-Vaisala frequency
-    real(8), dimension(0:zlevels), intent (in)  :: tke           ! turbulent kinetic energy
-    real(8), dimension(0:zlevels), intent (out) :: l_m           ! dissipation length scale for each interface
-    real(8), dimension(0:zlevels), intent (out) :: l_eps         ! mixing length scale for each interface
+    real(8),                       intent (in)  :: tau   ! wind stress
+    real(8), dimension(1:zlevels), intent (in)  :: dz    ! layer thicknesses
+    real(8), dimension(0:zlevels), intent (in)  :: Nsq   ! Brunt-Vaisala frequency
+    real(8), dimension(0:zlevels), intent (in)  :: tke   ! turbulent kinetic energy
+    real(8), dimension(0:zlevels), intent (out) :: l_m   ! dissipation length scale for each interface
+    real(8), dimension(0:zlevels), intent (out) :: l_eps ! mixing length scale for each interface
 
     real(8), dimension(0:zlevels) :: l_dwn, l_up
 
     integer :: l
 
+    ! First order approximation for mixing length l_k
     do l = 0, zlevels
-       l_dwn(l) = sqrt (2d0 * tke(l) / max (Nsq(l), Neps_sq))
+       l_dwn(l) = sqrt (2 * tke(l) / max (Nsq(l), Neps_sq))
     end do
     l_up = l_dwn
 
+    ! Upwards integration from bottom
     l_dwn(0) = l_0
     do l = 1, zlevels
-       l_dwn(l) = min (l_dwn(l-1) + dz(l), l_dwn(l))
+       l_dwn(l) = min (l_dwn(l), l_dwn(l-1) + dz(l))
     end do
 
+    ! Downward integration from surface
     l_up(zlevels) = max (l_0, kappa_VK * C_l / (ref_density * grav_accel) * tau)
     do l = zlevels-1, 0, -1
-       l_up(l) = min (l_up(l+1) + dz(l+1), l_up(l)) 
+       l_up(l) = min (l_up(l), l_up(l+1) + dz(l+1)) 
     end do
 
-    ! Returned length scales
+    ! Returned mixing length scales
     l_eps = sqrt (l_up * l_dwn)
     l_m   = min  (l_up,  l_dwn)
   end subroutine l_scales
@@ -523,7 +533,7 @@ contains
     ! TKE closure eddy diffusivity
     implicit none
     real(8) :: Kv  ! eddy diffusivity
-    real(8) :: Nsq ! Brunt-Vaisala frequency
+    real(8) :: Nsq ! Brunt-Vaisala frequency squared
     real(8) :: Ri  ! Richardson number 
 
     Kt_tke = min (Kt_max, max (Kv/Prandtl(Ri), Kt_0))
@@ -534,10 +544,12 @@ contains
   real(8) function Kv_tke (e, l_m, Nsq)
     ! TKE closure eddy viscosity
     implicit none
-    real(8) :: e, l_m, Nsq
+    real(8) :: e   ! tke
+    real(8) :: l_m ! mixing length for eddy viscosity
+    real(8) :: Nsq ! Brunt-Vaisala frequency squared
 
     Kv_tke = max (c_m * l_m * sqrt(e), Kv_0)
-
+    
     if (enhance_diff .and. Nsq <= Nsq_min) Kv_tke = Kv_enh ! enhanced vertical diffusion
   end function Kv_tke
 
@@ -552,7 +564,7 @@ contains
     ! Analytic eddy viscosity
     real(8) :: eta, z
 
-    Kv_analytic = Kv_bottom * (1d0 + 4d0 * exp ((z - eta) / abs(max_depth) ))
+    Kv_analytic = Kv_bottom * (1d0 + 4 * exp ((z - eta) / abs(max_depth) ))
   end function Kv_analytic
 
   subroutine trend_vertical_diffusion (q, dq)
@@ -667,7 +679,7 @@ contains
       real(8), dimension(3) :: dzl, visc
 
       visc = Kv(zlev+min(0,l))%data(d)%elts(id+1)
-      dzl = 0.5d0 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims, sol)) ! thickness of layer centred on interface
+      dzl = 0.5 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims, sol)) ! thickness of layer centred on interface
 
       velo_flux = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(id_edge(id)) - velo(id_edge(id))) / dzl
     end function velo_flux
