@@ -1,28 +1,12 @@
-# Usage: python lonlat_to_3D.py nz t1 t2 J 
+# Usage: python lonlat_to_3D.py run nz t1 t2 J 
 #    
 #    Generates a 3D and zonal/meridional projections from a series of vtk layers.
-#    
-#    Input variables:
-#    run = run
-#    nz  = number of vertical layers
-#    t1  = first time
-#    t2  = last time
-#    J   = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
-#    
-#    Saves four data files:
-#    run_tttt.vtk            3D unstructured (lon,lat,P) data, where tttt is the time with leading zeros
-#    run_tttt.vti            3D uniform      (lon,lat,P) image data
-#    run_tttt_zonal.vti      2D uniform      (lat,P)     zonally averaged image data
-#    run_tttt_merid.vti      2D uniform      (lon,P)     meridionally averaged image data
 #
-#    Data has dimensions N x N/2 x K, where K is the number of vertical layers.
+#    Data has dimensions N x N/2 x NZ, where NZ is the number of vertical layers.
 #    The vertical coordinate is P/Ps.
 #
-#    (1) vtkPoints are a concatenated array of vtkPoints of DS1, DS2, DS3, ..., DNSn.
-#
-#    (2) vtkCell are constructed by joining the two 2D cells in adjacent layers to produce a prism.
-#        (The type of the cell can be vtkWedge, vtkPentagonalPrism, or vtkHexigonalPrism, depending on the type of input 2D cells.)
-#
+#    (1) vtkPoints are a concatenated array of vtkPoints
+#    (2) vtkCell are constructed by joining the two 2D cells in adjacent layers to produce a vtkWedge prism.
 #    (3) vtkCellData are computed as the average of the values from the two 2D cells in adjacent layers.  
 #
 # Author: Weiguang Guan and Nicholas Kevlahan (McMaster University)
@@ -629,18 +613,20 @@ if (len(sys.argv) < 5) :
     Generates a 3D data files, zonal/meridional projections and vertical profiles from a series of layers in directory folder.
     
     Input variables:
-    run = prefix name of files (run name)
-    nz  = number of vertical layers
-    t1  = first time
-    t2  = last time
-    J   = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
+      run = prefix name of files (run name)
+      nz  = number of vertical layers
+      t1  = first time
+      t2  = last time
+      J   = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
     
-    Saves the following stypes of data files:
+    Saves the following types of data files:
     run_tttt.vti            3D uniform      (lon,lat,P/Ps) 3D image data
     run_tttt_zonal.vti      2D uniform      (lat,P/Ps)     zonally averaged image data
     run_tttt_merid.vti      2D uniform      (lon,P/Ps)     meridionally averaged image data
     run_tttt_zonal_mean.vti 2D uniform      (lat,P/Ps)     zonally averaged image data averaged over times [t1,t2]
     run_tttt_merid_mean.vti 2D uniform      (lon,P/Ps)     meridionally averaged image data averaged over times [t1,t2]
+    run_statistics_mean.vti 2D uniform      (lat,P/Ps)     statistics (temperature variance, eddy momentum flux,
+                                                           eddy heat flux, eddy kinetic energy)
     run_tttt.csv            1D                             vertical profiles averaged over the sphere
 
     3D data has dimensions N x N/2 x nz.  The vertical coordinate is P/Ps.
