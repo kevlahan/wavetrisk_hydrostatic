@@ -242,7 +242,7 @@ contains
 
       ! Assign tke
       do l = 1, zlevels
-         tke(l)%data(d)%elts(id) = e(l)
+         tke(l)%data(d)%elts(id) = max (e(l), e_min)
       end do
     end subroutine update_Kv_Kt
 
