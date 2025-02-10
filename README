@@ -1,13 +1,14 @@
-WAVETRISK Atmosphere and Ocean Adaptive Climate Model
+WAVETRISK Atmosphere and Ocean Adaptive Global Climate Model
 
-A dynamically adaptive wavelet-based experimental climate model that provides global three-dimensional atmosphere and ocean models.  
-`WAVETRISK` solves multilayer shallow water equations with a Lagrangian vertical coordinates Boussinesq form using a mimetic 
+A dynamically adaptive wavelet-based experimental climate model that provides global three-dimensional atmosphere or ocean models.  
+`WAVETRISK` solves the multilayer shallow water equations with Lagrangian vertical coordinates in Boussinesq form using a mimetic 
 method similar to that of `DYNAMICO`. Local horizontal grid resolution is adapted dynamically at each time 
 step using a multilevel wavelet-based method, providing very high local grid refinement that tracks dynamically important structures.
+The code is parallelized using mpi and scales well to at least <code>O(10<sup>3</sup>)</code> cores.
 
-See the `Wiki` `Home` for more information on the code, and instructions for compiling and running `WAVETRISK`. 
+See the `Wiki` `Home` for more information on the code, its approximation, models and instructions for compiling and running `WAVETRISK`. 
 
-You must first `clone` the wiki for this repository using `git` if you want to have a copy of the wiki on your local computer.
+Note: you must first `clone` the wiki for this repository using `git` if you want to have a copy of the wiki on your local computer.
 
 `clone https://KevlahanMcMaster@bitbucket.org/kevlahan-code/wavetrisk_hydrostatic.git/wiki`
 
