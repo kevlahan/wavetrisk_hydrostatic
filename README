@@ -10,6 +10,6 @@ See the `Wiki` `Home` for more information on the code, its approximation, model
 
 Note: you must first `clone` the wiki for this repository using `git` if you want to have a copy of the wiki on your local computer.
 
-`clone https://KevlahanMcMaster@bitbucket.org/kevlahan-code/wavetrisk_hydrostatic.git/wiki`
+`git clone https://KevlahanMcMaster@bitbucket.org/kevlahan-code/wavetrisk_hydrostatic.git/wiki`
 
 You must `git pull` in the local `wiki` directory to update the wiki.
