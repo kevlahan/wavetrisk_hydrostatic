@@ -12,7 +12,6 @@ program tke1d
   logical :: aligned
 
   ! Initialize mpi, shared variables and domains
-  write(6,*) 'hi1'
   call init_arch_mod 
   call init_comm_mpi_mod
 
