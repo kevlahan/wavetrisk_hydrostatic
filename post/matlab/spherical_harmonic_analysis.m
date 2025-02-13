@@ -15,7 +15,7 @@ end
 clear; clc; 
 drake = true;
 if drake
-    zlevels   = 60;
+    zlevels   = 12;
 
     test_case = "drake";
     run_id    = "drakeJ8Z"+num2str(zlevels,'%2.2d');
@@ -25,7 +25,7 @@ if drake
     if zlevels == 60 
         layers = [1 30 60];
     elseif zlevels == 12
-        layers = [1 7 12];
+        layers = [1:12];
     elseif zlevels == 6
         layers = [1 3 6];
     elseif zlevels == 4
@@ -38,18 +38,17 @@ else
     cp_min    = 271; cp_max = 271;
 end
 
+% Set physical parameters
+KM = 1e-3;
+[H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
+
+range = [deltaI deltaSM] * KM; % range for power law fit 
+
 plot_spec   = true;     % plot spectrum
 plot_scales = true ;    % plot length scales
 power       = true;     % plot power law fit
 col_spec    = "b-";     % colour for energy spectrum
 col_power   = "r-";     % colour for power law
-
-% Set physical parameters
-KM = 1e-3;
-[H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
-
-% Range for power law fit 
-range     = [1.5*deltaI  deltaSM] * KM;
 
 fprintf("Layer    power law")
 pow_law = zeros(cp_max-cp_min+1,zlevels);
@@ -249,7 +248,7 @@ if strcmp(test_case,"drake")
     Laplace     =  2;       % 1 = Laplacian, 2 = bi-Laplacian
     C_visc      =  1e-3;    % non-dimensional viscosity
     dx          =  5e3;     % minimum grid size
-    dt          =  647;     % time step
+    dt          =  674;     % time step
     uwbc        =  0.8;     % velocity scale
     g           =  9.80616;
     drho        = -4;
@@ -266,12 +265,12 @@ if strcmp(test_case,"drake")
     theta       =  40; % latitude at which to calculate f0 and beta
     f0          =  2*omega*sin(deg2rad(theta));
     beta        =  2*omega*cos(deg2rad(theta))/radius;
-    r_b         =  7e-8; % bottom friction
+    r_b         =  4e-4; % bottom friction
 
     N_bv        = sqrt (g * abs(drho/H1)/ref_density); 
     c0          = sqrt(g*H);
     c1          = N_bv * sqrt(H/g)/pi * c0;
-    c1          = 2.85; % internal wave speed !! check
+    c1          = 4.03; % internal wave speed
     deltaM      = (visc/beta)^(1/(2*Laplace+1)); % Munk layer
 elseif strcmp(test_case,"jet")
     visc        =  1.63e7; % hyperviscosity
