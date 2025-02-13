@@ -52,7 +52,7 @@ module vert_diffusion_mod
   real(8) :: Kt_max    = 1d2              ! maximum eddy diffusion
   
   real(8) :: l_0       = 4.0d-2           ! surface buoyancy minimum length scale
-  real(8) :: l_min     = 4.8d0            ! minimum mixing length: 4 Kv_0/(C_k sqrt(e_min)) 
+  real(8) :: l_min     = 1.0d-2           ! minimum mixing length: Kv_mol/(C_k sqrt(e_min)) 
 
   real(8) :: Neps_sq   = 1.0d-20          ! background shear
   real(8) :: Nsq_min   = 1.0d-12          ! threshold for enhanced diffusion
