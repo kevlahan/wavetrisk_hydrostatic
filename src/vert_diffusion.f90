@@ -42,8 +42,8 @@ module vert_diffusion_mod
   real(8) :: eps_s     = 1.0d-20          ! background shear
   real(8) :: kappa_VK  = 4.0d-1           ! von Karman constant
   
-  real(8) :: Kt_mol    = 1.0d-7           ! molecular diffusivity of seawater
-  real(8) :: Kv_mol    = 1.0d-6           ! molecular viscosity of seawater
+  real(8) :: Kt_mol    = 1.0d-7           ! molecular diffusivity of seawater (not used)
+  real(8) :: Kv_mol    = 1.0d-6           ! molecular viscosity of seawater (not used)
   real(8) :: Kt_0      = 1.2d-5           ! minimum/initial eddy diffusion (tke_closure = .true.)
   real(8) :: Kv_0      = 1.2d-4           ! minimum/initial eddy viscosity (tke_closure = .true.)
   real(8) :: Kt_enh    = 1.0d0            ! enhanced eddy diffusion for Nsq < Nsq_min
@@ -52,7 +52,7 @@ module vert_diffusion_mod
   real(8) :: Kt_max    = 1d2              ! maximum eddy diffusion
   
   real(8) :: l_0       = 4.0d-2           ! surface buoyancy minimum length scale
-  real(8) :: l_min     = 1.2d0            ! minimum mixing length: Kv_0 / C_k sqrt(e_min)
+  real(8) :: l_min     = 4.8d0            ! minimum mixing length: 4 Kv_0/(C_k sqrt(e_min)) 
 
   real(8) :: Neps_sq   = 1.0d-20          ! background shear
   real(8) :: Nsq_min   = 1.0d-12          ! threshold for enhanced diffusion
@@ -507,10 +507,8 @@ contains
     real(8), dimension(0:zlevels), intent (out) :: l_k   ! dissipation length scale (velocity)
     real(8), dimension(0:zlevels), intent (out) :: l_eps ! mixing length scale (buoyancy)
 
-    real(8)                       :: l_min
+    integer                       :: l
     real(8), dimension(0:zlevels) :: l_dwn, l_up
-
-    integer :: l
 
     ! First order approximation for mixing length
     do l = 0, zlevels
@@ -532,7 +530,7 @@ contains
 
     ! Returned mixing length scales
     l_eps = max (l_min, sqrt (l_up * l_dwn)) 
-    l_k   = max (l_min, min  (l_up,  l_dwn)) 
+    l_k   = max (l_min, min  (l_up,  l_dwn))
   end subroutine l_scales
 
   real(8) function Kt_tke (Kv, Nsq, Ri)

@@ -4,6 +4,7 @@ program Drake
   use main_mod
   use test_case_mod
   use io_vtk_mod
+  use vert_diffusion_mod
   implicit none
   real(8) :: dz, visc
 
@@ -70,12 +71,12 @@ program Drake
   beta           = 2d0*omega*cos(40d0*DEG) / radius        ! beta parameter at 45 degrees latitude
 
   ! Free surface perturbation parameters
-  dH             =   0d0  * METRE / H_norm                 ! initial perturbation to the free surface
-  pert_radius    =   1d3  * KM    / L_norm                 ! radius of Gaussian free surface perturbation
-  lon_c          = -50d0  * DEG                            ! longitude location of perturbation
-  lat_c          =  25d0  * DEG                            ! latitude  location of perturbation
+  dH             =   0d0 * METRE / H_norm                  ! initial perturbation to the free surface
+  pert_radius    =   1d3 * KM    / L_norm                  ! radius of Gaussian free surface perturbation
+  lon_c          = -50d0 * DEG                             ! longitude location of perturbation
+  lat_c          =  25d0 * DEG                             ! latitude  location of perturbation
 
-  min_depth      = -50d0  * METRE / H_norm                 ! minimum allowed depth (must be negative)
+  min_depth      = -50d0 * METRE / H_norm                  ! minimum allowed depth (must be negative)
   
   ! Topography (etopo smoothing not yet implemented)
   alpha          = 1d-1
@@ -92,9 +93,9 @@ program Drake
      coords               = "uniform"
      mixed_layer          = max_depth                      ! location of top (less dense) layer in two layer case
      thermocline          = max_depth                      ! location of layer forced by surface wind stress
-     drho                 =     0d0 * KG/METRE**3          ! density perturbation at free surface
-     tau_0                =   0.4d0 * NEWTON/METRE**2      ! maximum wind stress
-     u_wbc                =     1d0 * METRE/SECOND         ! estimated western boundary current speed
+     drho                 =       0d0 * KG/METRE**3        ! density perturbation at free surface
+     tau_0                =     0.4d0 * NEWTON/METRE**2    ! maximum wind stress
+     u_wbc                =       1d0 * METRE/SECOND       ! estimated western boundary current speed
      
      bottom_friction_case =    rb_0                        ! constant bottom friction
      k_T                  =     0d0                        ! relaxation to mean buoyancy profile
@@ -123,14 +124,11 @@ program Drake
   !    Characteristic scales
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  wave_speed     = sqrt (grav_accel * abs(max_depth))                  ! inertia-gravity wave speed
+  wave_speed     = sqrt (grav_accel * abs(max_depth))                 ! inertia-gravity wave speed
 
-  ! Initialize non-dimensional viscosities, cfl and time step
-  call initialize_dt_viscosity_case
+  call initialize_dt_viscosity_case                                   ! initialize non-dimensional viscosities, cfl and time step
 
-  ! Viscosity
-  visc           = C_visc(S_VELO) * 1.5d0 * Area_min**Laplace_order_init / dt_init   
-
+  visc           = C_visc(S_VELO) * 1.5d0 * Area_min**Laplace_order_init / dt_init ! viscosity  
   Rd             = wave_speed / f0                                    ! barotropic Rossby radius of deformation             
   drho_dz        = drho / (mixed_layer-thermocline)                   ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)       ! Brunt-Vaisala frequency
@@ -143,13 +141,13 @@ program Drake
   Ro             = u_wbc / (delta_M*f0)                               ! Rossby number (based on boundary current)
 
   ! Baroclinic wave speed
-  if (zlevels == 2) then
-     c1 = sqrt (grav_accel * abs(drho) /ref_density * mixed_layer * (max_depth-mixed_layer) / abs(max_depth)) ! two-layer internal wave speed
-  elseif (zlevels >= 3) then
-     c1 = bv * sqrt (abs(max_depth) / grav_accel) / MATH_PI * wave_speed                                      ! first baroclinic mode speed for linear stratification
+  if (zlevels == 2) then     ! two-layer internal wave speed
+     c1 = sqrt (grav_accel * abs(drho) /ref_density * mixed_layer * (max_depth-mixed_layer) / abs(max_depth)) 
+  elseif (zlevels >= 3) then ! first baroclinic mode speed for linear stratification
+     c1 = bv * sqrt (abs(max_depth) / grav_accel) / MATH_PI * wave_speed                                      
   endif
-  lambda0        = wave_speed / f0                                   ! external scale
-  lambda1        = c1 / f0                                           ! mesoscale
+  lambda0        = wave_speed / f0                                    ! external scale
+  lambda1        = c1 / f0                                            ! mesoscale
  
   ! First baroclinic Rossby radius of deformation
   if (zlevels == 1) then
@@ -160,16 +158,16 @@ program Drake
      Rb = bv * abs(max_depth) / (MATH_PI*f0)
   end if
 
-  dz = abs (max_depth) / dble(zlevels)         ! layer depth scale
+  dz = abs (max_depth) / dble(zlevels) ! layer depth scale
 
   ! Dimensional scaling
-  Ldim           = delta_I          ! length scale 
-  Hdim           = abs (max_depth)  ! vertical length scale
-  Tdim           = Ldim/Udim        ! time scale
+  Ldim           = delta_I             ! length scale 
+  Hdim           = abs (max_depth)     ! vertical length scale
+  Tdim           = Ldim/Udim           ! time scale
   
-  Mudim          = ref_density * dz ! rho_dz scale
-  Thetadim       =        drho * dz ! buoyancy scale
-  Udim           = u_wbc            ! velocity scale
+  Mudim          = ref_density * dz    ! rho_dz scale
+  Thetadim       =        drho * dz    ! buoyancy scale
+  Udim           = u_wbc               ! velocity scale
   
  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
