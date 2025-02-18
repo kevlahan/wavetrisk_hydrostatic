@@ -107,7 +107,7 @@ program Drake
      mixed_layer          =    -200d0 * METRE              ! constant density at depth < mixed_layer
 
      remap                = .true.
-     iremap               = 5
+     min_mass_remap       = 0.7d0
 
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
      vert_diffuse         = .true.
