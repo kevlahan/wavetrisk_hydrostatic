@@ -36,7 +36,7 @@ program Drake
   end if
   match_time              = .true.                         ! avoid very small time steps when saving 
   compressible            = .false.                        ! always run with incompressible equations
-  log_min_mass            = .true.                         ! compute and print minimum relative mass
+  log_min_mass            = .false.                         ! compute and print minimum relative mass
 
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

@@ -37,19 +37,21 @@ module vert_diffusion_mod
 
   real(8) :: e_0       = 1.0d-6/sqrt(2d0) ! bottom boundary condition for TKE: e_min/sqrt(2)
   real(8) :: e_min     = 1.0d-6           ! minimum TKE 
-  real(8) :: e_srf_0   = 1.0d-4           ! minimum TKE at free surface
+  real(8) :: e_min_srf = 1.0d-4           ! minimum TKE at free surface
 
   real(8) :: eps_s     = 1.0d-20          ! background shear
   real(8) :: kappa_VK  = 4.0d-1           ! von Karman constant
-  
+
+  real(8) :: Kt_max    = 1d-2             ! maximum eddy diffusion
+  real(8) :: Kt_min    = 1.2d-5           ! minimum/initial eddy diffusion 
   real(8) :: Kt_mol    = 1.0d-7           ! molecular diffusivity of seawater (not used)
+  real(8) :: Kv_max    = 1d-2             ! maximum eddy viscosity
+  real(8) :: Kv_min    = 1.2d-4           ! minimum/initial eddy viscosity 
   real(8) :: Kv_mol    = 1.0d-6           ! molecular viscosity of seawater (not used)
-  real(8) :: Kt_0      = 1.2d-5           ! minimum/initial eddy diffusion (tke_closure = .true.)
-  real(8) :: Kv_0      = 1.2d-4           ! minimum/initial eddy viscosity (tke_closure = .true.)
   real(8) :: Kt_enh    = 1.0d0            ! enhanced eddy diffusion for Nsq < Nsq_min
   real(8) :: Kv_bottom = 2.0d-3           ! analytic value for eddy viscosity (tke_closure = .false.)
   real(8) :: Kt_const  = 1.0d-6           ! analytic value for eddy diffusion (tke_closure = .false.)
-  real(8) :: Kt_max    = 1d2              ! maximum eddy diffusion
+
   
   real(8) :: l_0       = 4.0d-2           ! surface buoyancy minimum length scale
   real(8) :: l_min     = 1.0d-2           ! minimum mixing length: Kv_mol/(C_k sqrt(e_min)) 
@@ -103,7 +105,7 @@ contains
     d = dom%id + 1
     p = dom%node%elts(id)
 
-    if (tke_closure) then
+    if (tke_closure) then ! TKE model for eddy diffusivity and eddy viscosity
        call init_diffuse
 
        ! RHS terms
@@ -149,12 +151,12 @@ contains
        e(0) = e_0
        do l = 1, zlevels-1
           e(l) = rhs(l)
-          if (.not. patankar) e(l) = max (rhs(l), e_min)             ! ensure TKE is non-negative
+          if (.not. patankar) e(l) = max (rhs(l), e_min)               ! ensure TKE is non-negative
        end do
-       e(zlevels) = max (C_srf * tau_mag (p) / ref_density, e_srf_0) ! free surface
+       e(zlevels) = max (C_srf * tau_mag (p) / ref_density, e_min_srf) ! free surface boundary conduition
 
        call update_Kv_Kt
-    else ! Analytic eddy diffusivity and eddy viscosity
+    else ! analytic eddy diffusivity and eddy viscosity
        if (mode_split) then
           eta = sol(S_MASS,zlevels+1)%data(d)%elts(id)
        else
@@ -417,7 +419,7 @@ contains
 
       kk = k + min (0, l)
 
-      coeff = dt  * Kv(kk)%data(d)%elts(id+1) / (dzl(:,kk) * dz(:,k))
+      coeff = dt * Kv(kk)%data(d)%elts(id+1) / (dzl(:,kk) * dz(:,k))
     end function coeff
   end subroutine backwards_euler_velo
 
@@ -531,16 +533,16 @@ contains
     ! Returned mixing length scales
     l_eps = max (l_min, sqrt (l_up * l_dwn)) 
     l_k   = max (l_min, min  (l_up,  l_dwn))
-  end subroutine l_scales
+   end subroutine l_scales
 
   real(8) function Kt_tke (Kv, Nsq, Ri)
     ! TKE closure eddy diffusivity
     implicit none
-    real(8) :: Kv  ! eddy diffusivity
+    real(8) :: Kv  ! eddy viscosity
     real(8) :: Nsq ! Brunt-Vaisala frequency squared
     real(8) :: Ri  ! Richardson number 
 
-    Kt_tke = min (Kt_max, max (Kv/Prandtl(Ri), Kt_0))
+    Kt_tke = min (Kt_max, max (Kv/Prandtl(Ri), Kt_min))
 
     if (enhance_diff .and. Nsq <= Nsq_min) Kt_tke = Kt_enh ! enhanced vertical diffusion
   end function Kt_tke
@@ -552,7 +554,7 @@ contains
     real(8) :: l_k ! mixing length for eddy viscosity dissipation
     real(8) :: Nsq ! Brunt-Vaisala frequency squared
 
-    Kv_tke = max (C_k * l_k * sqrt(e), Kv_0)
+    Kv_tke = min (Kv_max, max (C_k * l_k * sqrt(e), Kv_min))
   end function Kv_tke
 
   real(8) function Kt_analytic ()
