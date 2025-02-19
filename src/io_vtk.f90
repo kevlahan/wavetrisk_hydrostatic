@@ -3,7 +3,7 @@ module io_vtk_mod
   use ops_mod
   use utils_mod
   use multi_level_mod
-  use vert_diffusion_mod
+  use vert_diffusion_mod 
   implicit none
   integer                                :: ncell, ncoord,  nvertex
   integer                                :: ncell_loc, ncoord_unique_loc, nvertex_unique_loc
@@ -245,49 +245,50 @@ contains
       outv(6)  = hex2tri2 (real(grid(d)%u_zonal%elts(neigh_id)),         hex_area, tri_area, t) ! zonal velocity
       outv(7)  = hex2tri2 (real(grid(d)%v_merid%elts(neigh_id)),         hex_area, tri_area, t) ! meridional velocity
       outv(8)  = hex2tri2 (real(vel_vert(zlev)%data(d)%elts(neigh_id)),  hex_area, tri_area, t) ! vertical velocity OMEGA 
-      outv(9)  = dom%vort%elts(TRIAG*id+t+1)                                                    ! vorticity
+      outv(9)  = rel_vort(t)                                                                    ! vorticity
       outv(10) = hex2tri2 (real(dom%geopot%elts(neigh_id) / grav_accel), hex_area, tri_area, t) ! geopotential height
       outv(11) = hex2tri2 (real(dom%press%elts(neigh_id) / Ps),          hex_area, tri_area, t) ! P/Ps
       outv(12) = hex2tri2 (real(rho_dz/ ref_density),                    hex_area, tri_area, t) ! dz
     end subroutine compute_data
 
     real function rel_vort (t)
-      ! Averages vorticity to get smooth field for visualization
       implicit none
       integer :: t
 
       integer :: idS, idW
 
-      idW = idx(i-1, j,   offs, dims)
-      idS = idx(i,   j-1, offs, dims)
+      idW = idx (i-1, j,   offs, dims)
+      idS = idx (i,   j-1, offs, dims)
 
       if (t == LORT) rel_vort = ( &
-           interp(dom%vort%elts(TRIAG*idS+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
-           *dom%len%elts(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)+ &
+           interp (dom%vort%elts(TRIAG*idS+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
+           * dom%len%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1) + &
            
-           interp(dom%vort%elts(TRIAG*id+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
-           *dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(id*EDGE+DG+1)+ &
+           interp (dom%vort%elts(TRIAG*id+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
+           * dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(id*EDGE+DG+1) + &
            
-           interp(dom%vort%elts(TRIAG*idE+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
-           *dom%len%elts(EDGE*idE+UP+1)*dom%pedlen%elts(EDGE*idE+UP+1)) &
+           interp (dom%vort%elts(TRIAG*idE+UPLT+1), dom%vort%elts(TRIAG*id+LORT+1)) &
+           * dom%len%elts(EDGE*idE+UP+1) * dom%pedlen%elts(EDGE*idE+UP+1)) &
            
-           / (dom%len%elts(EDGE*id+RT+1)*dom%pedlen%elts(EDGE*id+RT+1)+ &
-           dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
-           dom%len%elts(EDGE*idE+UP+1)*dom%pedlen%elts(EDGE*idE+UP+1))
+           / ( &
+           dom%len%elts(EDGE*id +RT+1) * dom%pedlen%elts(EDGE*id +RT+1) + &
+           dom%len%elts(EDGE*id +DG+1) * dom%pedlen%elts(EDGE*id +DG+1) + &
+           dom%len%elts(EDGE*idE+UP+1) * dom%pedlen%elts(EDGE*idE+UP+1) )
 
       if (t == UPLT) rel_vort = ( &
-           interp(dom%vort%elts(TRIAG*idW+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
-           *dom%len%elts(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)+ &
+           interp (dom%vort%elts(TRIAG*idW+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
+           * dom%len%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1) + &
            
-           interp(dom%vort%elts(TRIAG*id+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
-           *dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(id*EDGE+DG+1)+ &
+           interp (dom%vort%elts(TRIAG*id+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
+           * dom%len%elts(EDGE*id+DG+1) * dom%pedlen%elts(id*EDGE+DG+1) + &
            
-           interp(dom%vort%elts(TRIAG*idN+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
-           *dom%len%elts(EDGE*idN+RT+1)*dom%pedlen%elts(EDGE*idN+RT+1)) &
+           interp (dom%vort%elts(TRIAG*idN+LORT+1), dom%vort%elts(TRIAG*id+UPLT+1)) &
+           * dom%len%elts(EDGE*idN+RT+1) * dom%pedlen%elts(EDGE*idN+RT+1)) &
            
-           / (dom%len%elts(EDGE*id+UP+1)*dom%pedlen%elts(EDGE*id+UP+1)+ &
-           dom%len%elts(EDGE*id+DG+1)*dom%pedlen%elts(EDGE*id+DG+1)+ &
-           dom%len%elts(EDGE*idN+RT+1)*dom%pedlen%elts(EDGE*idN+RT+1))
+           / ( &
+           dom%len%elts(EDGE*id +UP+1) * dom%pedlen%elts(EDGE*id +UP+1) + &
+           dom%len%elts(EDGE*id +DG+1) * dom%pedlen%elts(EDGE*id +DG+1) + &
+           dom%len%elts(EDGE*idN+RT+1) * dom%pedlen%elts(EDGE*idN+RT+1) )
     end function rel_vort
   end subroutine unique_tri_points
 
