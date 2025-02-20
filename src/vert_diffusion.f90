@@ -26,42 +26,42 @@ module vert_diffusion_mod
   implicit none
 
   ! Parameters for TKE closure 
-  logical :: enhance_diff = .false.       ! enhanced vertical diffusion in unstable regions with very small Nsq < Nsq_min 
-  logical :: patankar     = .false.       ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
-                                          ! or enforce minimum value e_0 of TKE (F) (can produce noisy solutions if velocity is very small)
-  real(8) :: C_e       = 1.0d0               
-  real(8) :: C_eps     = 7.0d-1           ! factor in Ekman depth equation
-  real(8) :: C_l       = 2.0d5            ! Charnock constant
-  real(8) :: C_k       = 1.0d-1           ! coefficient for eddy viscosity
-  real(8) :: C_srf     = 6.783d1          ! coefficient of surface value for TKE 
+  logical :: enhance_diff = .false.         ! enhanced vertical diffusion in unstable regions with very small Nsq < Nsq_min 
+  logical :: patankar     = .false.         ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
+                                            ! or enforce minimum value e_0 of TKE (F) (can produce noisy solutions if velocity is very small)
+  real(8) :: C_e         = 1.0d0               
+  real(8) :: C_eps       = 7.0d-1           ! factor in Ekman depth equation
+  real(8) :: C_l         = 2.0d5            ! Charnock constant
+  real(8) :: C_k         = 1.0d-1           ! coefficient for eddy viscosity
+  real(8) :: C_srf       = 6.783d1          ! coefficient of surface value for TKE 
 
-  real(8) :: e_0       = 1.0d-6/sqrt(2d0) ! bottom boundary condition for TKE: e_min/sqrt(2)
-  real(8) :: e_min     = 1.0d-6           ! minimum TKE 
-  real(8) :: e_min_srf = 1.0d-4           ! minimum TKE at free surface
+  real(8) :: e_0         = 1.0d-6/sqrt(2d0) ! bottom boundary condition for TKE: e_min/sqrt(2)
+  real(8) :: e_min       = 1.0d-6           ! minimum TKE 
+  real(8) :: e_min_srf   = 1.0d-4           ! minimum TKE at free surface
 
-  real(8) :: eps_s     = 1.0d-20          ! background shear
-  real(8) :: kappa_VK  = 4.0d-1           ! von Karman constant
+  real(8) :: eps_s       = 1.0d-20          ! background shear
+  real(8) :: kappa_VK    = 4.0d-1           ! von Karman constant
 
-  real(8) :: Kt_max    = 1d-2             ! maximum eddy diffusion
-  real(8) :: Kt_min    = 1.2d-5           ! minimum/initial eddy diffusion 
-  real(8) :: Kt_mol    = 1.0d-7           ! molecular diffusivity of seawater (not used)
-  real(8) :: Kv_max    = 1d-2             ! maximum eddy viscosity
-  real(8) :: Kv_min    = 1.2d-4           ! minimum/initial eddy viscosity 
-  real(8) :: Kv_mol    = 1.0d-6           ! molecular viscosity of seawater (not used)
-  real(8) :: Kt_enh    = 1.0d0            ! enhanced eddy diffusion for Nsq < Nsq_min
-  real(8) :: Kv_bottom = 2.0d-3           ! analytic value for eddy viscosity (tke_closure = .false.)
-  real(8) :: Kt_const  = 1.0d-6           ! analytic value for eddy diffusion (tke_closure = .false.)
+  real(8) :: Kt_enh      = 1.0d0            ! enhanced eddy diffusion for Nsq < Nsq_min
+  real(8) :: Kt_max      = 1d-2             ! maximum eddy diffusion
+  real(8) :: Kt_min      = 1.2d-5           ! minimum/initial eddy diffusion 
+  real(8) :: Kt_mol      = 1.0d-7           ! molecular diffusivity of seawater (not used)
 
+  real(8) :: Kv_max      = 1d-2             ! maximum eddy viscosity
+  real(8) :: Kv_min      = 1.2d-4           ! minimum/initial eddy viscosity 
+  real(8) :: Kv_mol      = 1.0d-6           ! molecular viscosity of seawater (not used)
+
+  real(8) :: mixed_layer = -200   * METRE   ! lower boundary of mixed layer (used with tke_closure = .false.)
   
-  real(8) :: l_0       = 4.0d-2           ! surface buoyancy minimum length scale
-  real(8) :: l_min     = 1.0d-2           ! minimum mixing length: Kv_mol/(C_k sqrt(e_min)) 
+  real(8) :: l_0         = 4.0d-2 * METRE   ! surface buoyancy minimum length scale
+  real(8) :: l_min       = 1.0d-2 * METRE   ! minimum mixing length: Kv_mol/(C_k sqrt(e_min)) 
 
-  real(8) :: Neps_sq   = 1.0d-20          ! background shear
-  real(8) :: Nsq_min   = 1.0d-12          ! threshold for enhanced diffusion
+  real(8) :: Neps_sq     = 1.0d-20          ! background shear
+  real(8) :: Nsq_min     = 1.0d-12          ! threshold for enhanced diffusion
 
-  real(8) :: Q_sr      = 0.0d0            ! penetrative part of solar short wave radiation
-  real(8) :: rb_0      = 4.0d-4           ! bottom friction
-  real(8) :: z_0       = 1.0d-1           ! roughness parameter of free surface 
+  real(8) :: Q_sr        = 0.0d0            ! penetrative part of solar short wave radiation
+  real(8) :: rb_0        = 4.0d-4           ! bottom friction
+  real(8) :: z_0         = 1.0d-1           ! roughness parameter of free surface 
 contains
   subroutine vertical_diffusion
     ! Backwards Euler split step for vertical diffusion
@@ -164,11 +164,11 @@ contains
        end if
        z = topography%data(d)%elts(id)
 
-       Kt(0)%data(d)%elts(id) = Kt_analytic ()
+       Kt(0)%data(d)%elts(id) = Kt_analytic (z, eta)
        Kv(0)%data(d)%elts(id) = Kv_analytic (z, eta)
        do l = 1, zlevels
           z = z + dz_i (dom, i, j, l, offs, dims, sol)
-          Kt(l)%data(d)%elts(id) = Kt_analytic ()
+          Kt(l)%data(d)%elts(id) = Kt_analytic (z, eta)
           Kv(l)%data(d)%elts(id) = Kv_analytic (z, eta)
        end do
     end if
@@ -557,18 +557,19 @@ contains
     Kv_tke = min (Kv_max, max (C_k * l_k * sqrt(e), Kv_min))
   end function Kv_tke
 
-  real(8) function Kt_analytic ()
+  real(8) function Kt_analytic (z, eta)
     ! Analytic eddy diffusivity
     implicit none
-
-    Kt_analytic = Kt_const
+    real(8) :: eta, z
+    
+    Kt_analytic = Kt_min + Kt_max * exp (-10 * (z - eta) / mixed_layer)
   end function Kt_analytic
 
   real(8) function Kv_analytic (z, eta)
     ! Analytic eddy viscosity
     real(8) :: eta, z
 
-    Kv_analytic = Kv_bottom * (1d0 + 4 * exp ((z - eta) / abs(max_depth) ))
+    Kv_analytic = Kv_min + Kv_max * exp (-10 * (z - eta) / mixed_layer)
   end function Kv_analytic
 
   subroutine trend_vertical_diffusion (q, dq)
