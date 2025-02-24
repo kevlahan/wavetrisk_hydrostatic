@@ -271,8 +271,7 @@ contains
        write (6,'(A,i3)')     "max_level              = ", max_level
        write (6,'(A,i3)')     "zlevels                = ", zlevels
        write (6,'(A,l1)')     "vert_diffuse           = ", vert_diffuse
-       write (6,'(A,i3)')     "save_zlev              = ", save_zlev
-       write(6,'(A,l1)')      "uniform                = ", uniform
+       write (6,'(A,l1)')      "uniform                = ", uniform
        write (6,'(A,i3)')     "level_fill             = ", level_fill
        write (6,'(A,i5)')     "N                      = ", N
        write (6,'(a,l1)')     "local_spec             = ", local_spec

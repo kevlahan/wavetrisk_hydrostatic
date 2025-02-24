@@ -16,7 +16,7 @@ Module test_case_mod
   real(4), allocatable, dimension(:,:) :: etopo_data
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
   real(8)                              :: drho, drho_dz, f0, Fr, Ku, k_T, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
-  real(8)                              :: omega_earth, scale, scale_omega, mixed_layer, tau_0, thermocline, u_wbc 
+  real(8)                              :: omega_earth, scale, scale_omega, tau_0, thermocline, u_wbc 
   real(8),                      target :: bottom_friction_case
   logical                              :: etopo_bathy, etopo_coast
   logical                              :: aligned
@@ -82,7 +82,6 @@ contains
        read (fid,*) varname, scale_omega
        read (fid,*) varname, max_level
        read (fid,*) varname, zlevels
-       read (fid,*) varname, save_zlev
        read (fid,*) varname, tol
        read (fid,*) varname, dt_write
        read (fid,*) varname, CP_EVERY
@@ -98,7 +97,6 @@ contains
     call MPI_Bcast (scale_omega,        1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (max_level,          1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (zlevels,            1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (save_zlev,          1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (tol,                1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (dt_write,           1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (CP_EVERY,           1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
@@ -136,7 +134,6 @@ contains
        write (6,'(a,i5)')     "DOMAIN_LEVEL                   = ", DOMAIN_LEVEL
        write (6,'(a,i5)')     "PATCH_LEVEL                    = ", PATCH_LEVEL
        write (6,'(a,i3)')     "zlevels                        = ", zlevels
-       write (6,'(a,i3)')     "save_zlev                      = ", save_zlev
        write (6,'(a,L1)')     "remap                          = ", remap
        write (6,'(a,i3)')     "iremap                         = ", iremap
        write (6,'(a,L1)')     "sigma_z                        = ", sigma_z
@@ -197,9 +194,6 @@ contains
              write (6,'(a,es11.4)') "Kv_max              [m^2/s]    = ", Kv_max
              write (6,'(a,l1)')     "patankar                       = ", patankar
              write (6,'(a,l1)')     "enhance_diff                   = ", enhance_diff
-          else
-             write (6,'(a,es11.4)') "Kv_bottom           [m^2/s]    = ", Kv_bottom
-             write (6,'(a,es11.4)') "Kt_const            [m^2/s]    = ", Kt_const
           end if
        elseif (zlevels == 2) then
           write (6,'(a,es11.4)') "Ku                    [m^2/s]  = ", Ku

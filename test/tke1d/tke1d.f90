@@ -68,9 +68,6 @@ program tke1d
      T_ref           =   22 * CELSIUS
   end if
 
-  ! Vertical level to save
-  save_zlev          = zlevels-5
-
   ! Characteristic scales
   wave_speed         = sqrt (grav_accel*abs(max_depth))  ! inertia-gravity wave speed 
 

@@ -222,7 +222,7 @@ module shared_mod
   ! Simulation variables
   integer                                       :: cp_idx, err_restart
   integer                                       :: iadapt, ibin, irebalance, iremap, istep, istep_cumul, iwrite
-  integer                                       :: n_diffuse, nbins, nstep_init, resume, save_zlev
+  integer                                       :: n_diffuse, nbins, nstep_init, resume
   integer                                       :: Laplace_divu, Laplace_rotu, Laplace_sclr, Laplace_order, Laplace_order_init
   integer                                       :: topo_min_level, topo_max_level
   integer(8)                                    :: itime

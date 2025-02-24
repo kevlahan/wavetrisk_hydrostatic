@@ -196,9 +196,6 @@ contains
     c1      = bv * sqrt (abs(max_depth)/grav_accel)/MATH_PI * wave_speed ! first baroclinic mode speed for linear stratification
     Rb      = bv * abs(max_depth) / (MATH_PI*f0)                         ! first baroclinic Rossby radius of deformation
 
-    ! Vertical level to save
-    save_zlev = zlevels 
-
     dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init

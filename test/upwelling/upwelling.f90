@@ -63,9 +63,6 @@ program upwelling
   mu_1               = 0d0
   mu_2               = 0d0
   T_ref              = 14d0   * CELSIUS
-  
-  ! Vertical level to save
-  save_zlev          = zlevels/2
 
   ! Characteristic scales
   wave_speed         = sqrt (grav_accel*abs(max_depth))   ! inertia-gravity wave speed 

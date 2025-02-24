@@ -92,10 +92,6 @@ program jet
   mu_2               = 0d0
   T_ref              = 14d0   * CELSIUS
   
-  ! Vertical level to save
-  save_zlev          = zlevels
-!!$  save_zlev          = zlevels-5
-
   ! Characteristic scales
   L_pyc              = dz_b(2)                                      ! pycnocline
   drho               = drho_surf(2)                                 ! magnitude of density perturbation
