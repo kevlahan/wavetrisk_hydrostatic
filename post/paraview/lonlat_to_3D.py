@@ -131,7 +131,7 @@ class Cell3D() :
     def construct_3Dimage(self) :
         global Ntot
         global covarAvT, covarAvU, covarAvV, covarAvUV, covarAvVT
-        global meanAvT, meanAvU, meanAvV
+        global meanAvRho, meanAvT, meanAvU, meanAvV
         
         vert_min   = 0.0 
         vert_max   = 1.0 
@@ -190,6 +190,10 @@ class Cell3D() :
             
         pnt_data = img3.GetPointData() # use smoothed data
 
+        # Compute zonal projection of density and update average density
+        meanRho   = compute_mean_density (pnt_data)
+        meanAvRho = merge_mean(meanRho, lon_dim, meanAvRho, Ntot)
+
         # Compute covariances
         covarT, meanT, _ = compute_covar(pnt_data, "Temperature",        "Temperature")        # temperature 
         covarU, meanU, _ = compute_covar(pnt_data, "VelocityZonal",      "VelocityZonal")      # zonal velocity
@@ -239,10 +243,14 @@ class Cell3D() :
             statistics.SetSpacing(rgrid.GetSpacing())
             statistics.SetOrigin(rgrid.GetOrigin())
 
-            add_scalar_data(covarAvT,                Nzonal, "TemperatureVariance", statistics)
-            add_scalar_data(covarAvUV,               Nzonal, "EddyMomentumFlux",    statistics)
-            add_scalar_data(covarAvVT,               Nzonal, "EddyHeatFlux",        statistics)
-            add_scalar_data(0.5*(covarAvU+covarAvV), Nzonal, "EddyKineticEnergy",   statistics)
+            ke        = 0.5 * meanAvRho * (covarAvU + covarAvV) # eddy kinetic energy
+            mom_flux  = 0.5 * meanAvRho * covarAvUV             # eddy momentum flux
+            heat_flux =       meanAvRho * covarAvVT             # eddy heat flux                  
+
+            add_scalar_data(covarAvT,  Nzonal, "TemperatureVariance", statistics)
+            add_scalar_data(heat_flux, Nzonal, "EddyHeatFlux",        statistics)
+            add_scalar_data(mom_flux,  Nzonal, "EddyMomentumFlux",    statistics)
+            add_scalar_data(ke,        Nzonal, "EddyKineticEnergy",   statistics)
 
             writer.SetFileName(run+"_statistics_mean.vti")
             writer.SetInputData(statistics)
@@ -527,18 +535,28 @@ def transform_to_lonlat(t) :
     arg6 = 'y' # use Delaunay2D filter to remove gaps
     subprocess.run(['python3', script_name, arg1, arg2, arg3, arg4, arg5, arg6])
 
+    
+def mean (data) :
+    # Computes mean of data
+
+    mean = n = 0
+    for x, in zip(data):
+        n    += 1
+        mean += (x - mean) / n
+        
+    return mean
 
 def covariance(data1, data2) :
-    # Stable one-pass covariance
+    # Stable one-pass covariance of data1, data2
     # returns sample covariance, and means of both variables
     
     meanx = meany = C = n = 0
     for x, y in zip(data1, data2):
         n += 1
-        dx = x - meanx
+        dx     = x - meanx
         meanx += dx / n
         meany += (y - meany) / n
-        C += dx * (y - meany)
+        C     += dx * (y - meany)
 
     population_covar = C / n
     
@@ -546,6 +564,28 @@ def covariance(data1, data2) :
     sample_covar = C / (n - 1)
 
     return sample_covar, meanx, meany
+
+
+def merge_mean(mean1, n1, mean2, n2):
+    """
+    Merge a single mean from two datasets with different means.
+
+    Parameters:
+        n1, n2 Sample sizes of the two datasets.
+        mean1  Mean in dataset 1.
+        mean2  Mean in dataset 2.
+
+    Returns:
+        Merged mean values.
+
+    """
+    n = n1 + n2
+    
+    delta = mean1 - mean2
+
+    merged_mean = (n1 * mean1 + n2 * mean2) / n
+    
+    return merged_mean
 
 def merge_covariance(cov1, mean1_x, mean1_y, n1,
                      cov2, mean2_x, mean2_y, n2):
@@ -594,6 +634,27 @@ def compute_covar(pnt_data, var1, var2) :
             (covar[i,j], meanx[i,j], meany[i,j]) = covariance(x[i,j,:],y[i,j,:])
 
     return covar, meanx, meany
+
+
+def compute_mean_density (pnt_data) :
+    # Computes mean density
+    
+    T    = vtk_to_numpy(pnt_data.GetArray("Temperature"))
+    Ps   = vtk_to_numpy(pnt_data.GetArray("Ps"))
+    P_Ps = vtk_to_numpy(pnt_data.GetArray("P/Ps"))
+
+    T    =    T.reshape((vert_dim, lat_dim, lon_dim))
+    Ps   =   Ps.reshape((vert_dim, lat_dim, lon_dim))
+    P_Ps = P_Ps.reshape((vert_dim, lat_dim, lon_dim))
+
+    Rho  = P_Ps * Ps / (Rd * T) # density
+    
+    Rho_mean = np.zeros((vert_dim,lat_dim))
+    for i in range(vert_dim):
+        for j in range(lat_dim):
+            Rho_mean[i,j] = mean(Rho[i,j,:])
+
+    return Rho_mean
 
 def add_scalar_data(data, N, name, img) :
     # Adds scalar data of total size N to vtk img with given name
@@ -658,6 +719,9 @@ lon_max  =  180.0
 lat_min  =  -90.0 + dlat*6
 lat_max  =   90.0 - dlat*6
 
+# Physical constants
+Rd = 287.0
+
 # Initialize statistics variables
 Ntot      = 0
 covarAvT  = np.zeros((vert_dim,lat_dim))
@@ -665,6 +729,7 @@ covarAvU  = np.zeros((vert_dim,lat_dim))
 covarAvV  = np.zeros((vert_dim,lat_dim))
 covarAvUV = np.zeros((vert_dim,lat_dim))
 covarAvVT = np.zeros((vert_dim,lat_dim))
+meanAvRho = np.zeros((vert_dim,lat_dim))
 meanAvT   = np.zeros((vert_dim,lat_dim))
 meanAvU   = np.zeros((vert_dim,lat_dim))
 meanAvV   = np.zeros((vert_dim,lat_dim))
