@@ -400,7 +400,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id
-    real(8) :: exner, rho_dz, rho_dz_theta, p, theta
+    real(8) :: exner, rho_dz, rho_dz_theta, p, temp
 
     d = dom%id + 1
     id  = idx (i, j, offs, dims) + 1
@@ -409,11 +409,11 @@ contains
        rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
        rho_dz       = sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)
 
-       theta     = rho_dz_dtheta / rho_dz
-       p         = pressure_i (dom, i, j, zlev, offs, dims, sol)
-       exner     = c_p * (p/p_0)**kappa
+       temp = (rho_dz_dtheta / rho_dz) * (p/p_0)**kappa ! temperature
+       
+       p    = pressure_i (dom, i, j, zlev, offs, dims, sol)
 
-       density_i = p / (kappa * theta * exner) 
+       density_i = p / (R_d * temp) 
     else                   ! gravitational density using Boussinesq approximation
        density_i = ref_density * (1d0 - buoyancy (dom, i, j, zlev, offs, dims, q))
     end if
