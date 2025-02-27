@@ -5,16 +5,29 @@ import vtk
 from utilities import *
 
 # Input
-if (len(sys.argv)<5) :
-    print("\nUsage: python rms.py base_vtk_file k1 k2 t1 t2 field\n")
-    print("Example: python3 rms.py drakeJ8Z60_hex 54 54 120 120 5 density\n")
+if (len(sys.argv)<8) :
+    print("\nUsage: python rms.py base_vtk_file k1 k2 t1 t2 dt field\n")
+    print("Example: python3 rms.py drakeJ8Z60_tri 1 60 120 120 5 Vorticity\n")
     print("base_vtk_file = prefix of vtk files to load (e.g. drakeJ8Z60_hex)")
-    print("k1            = first vertical layer")
-    print("k2            = last  vertical layer")
-    print("t1            = first time count")
-    print("t2            = last  time count")
-    print("dt            = save interval (time = dt*count days)")
-    print("field         = field to analyze (vorticity, density, OMEGA, etc\n")
+    print("k1            = First vertical layer")
+    print("k2            = Last  vertical layer")
+    print("t1            = First time count")
+    print("t2            = Last  time count")
+    print("dt            = Save interval (time = dt*count days)")
+    print("field         = Field to analyze: \n \
+               Options = \n \
+                  Level \n \
+                  Topography \n \
+                  penalization \n \
+                  Ps/eta \n \
+                  Temperature/Density \n \
+                  VelocityZonal \n \
+                  VelocityMeridional \n \
+                  OMEGA/VelocityVertical \n \
+                  Vorticity \n \
+                  geopot_height \n \
+                  P/Ps \n \
+                  dz \n")
     print("Output is saved to base_vtk_file.txt")
     exit(0)
 
@@ -24,7 +37,7 @@ k2        = int(sys.argv[3])
 t1        = int(sys.argv[4])
 t2        = int(sys.argv[5])
 dt        = int(sys.argv[6])
-field     = sys.argv[7]
+field     = sys.argv[7] 
 
 outfile = file_base+"_rms.txt"
 f = open(outfile, "w")
