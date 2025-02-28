@@ -190,31 +190,32 @@ class Cell3D() :
             
         pnt_data = img3.GetPointData() # use smoothed data
 
-        # Compute zonal projection of density and update average density
-        meanRho   = compute_mean_density (pnt_data)
-        meanAvRho = merge_mean(meanRho, lon_dim, meanAvRho, Ntot)
+        if compressible=='y' :
+            # Compute zonal projection of density and update average density
+            meanRho   = compute_mean_density (pnt_data)
+            meanAvRho = merge_mean(meanRho, lon_dim, meanAvRho, Ntot)
 
-        # Compute covariances
-        covarT, meanT, _ = compute_covar(pnt_data, "Temperature",        "Temperature")        # temperature 
-        covarU, meanU, _ = compute_covar(pnt_data, "VelocityZonal",      "VelocityZonal")      # zonal velocity
-        covarV, meanV, _ = compute_covar(pnt_data, "VelocityMeridional", "VelocityMeridional") # meridional velcoity
-        covarUV, _,    _ = compute_covar(pnt_data, "VelocityZonal",      "VelocityMeridional") # momentum flux
-        covarVT, _,    _ = compute_covar(pnt_data, "VelocityMeridional", "Temperature")        # eddy heat flux
-     
-        # Update average covariances
-        covarAvT,  newAvT, _ = merge_covariance(covarT,  meanT, meanT, lon_dim, covarAvT,  meanAvT, meanAvT, Ntot)
-        covarAvU,  newAvU, _ = merge_covariance(covarU,  meanU, meanU, lon_dim, covarAvU,  meanAvU, meanAvU, Ntot)
-        covarAvV,  newAvV, _ = merge_covariance(covarV,  meanV, meanV, lon_dim, covarAvV,  meanAvV, meanAvV, Ntot)
-        covarAvUV, _,      _ = merge_covariance(covarUV, meanU, meanV, lon_dim, covarAvUV, meanAvU, meanAvV, Ntot)
-        covarAvVT, _,      _ = merge_covariance(covarVT, meanV, meanT, lon_dim, covarAvVT, meanAvV, meanAvT, Ntot)
+            # Compute covariances
+            covarT, meanT, _ = compute_covar(pnt_data, "Temperature",        "Temperature")        # temperature 
+            covarU, meanU, _ = compute_covar(pnt_data, "VelocityZonal",      "VelocityZonal")      # zonal velocity
+            covarV, meanV, _ = compute_covar(pnt_data, "VelocityMeridional", "VelocityMeridional") # meridional velcoity
+            covarUV, _,    _ = compute_covar(pnt_data, "VelocityZonal",      "VelocityMeridional") # momentum flux
+            covarVT, _,    _ = compute_covar(pnt_data, "VelocityMeridional", "Temperature")        # eddy heat flux
+        
+            # Update average covariances
+            covarAvT,  newAvT, _ = merge_covariance(covarT,  meanT, meanT, lon_dim, covarAvT,  meanAvT, meanAvT, Ntot)
+            covarAvU,  newAvU, _ = merge_covariance(covarU,  meanU, meanU, lon_dim, covarAvU,  meanAvU, meanAvU, Ntot)
+            covarAvV,  newAvV, _ = merge_covariance(covarV,  meanV, meanV, lon_dim, covarAvV,  meanAvV, meanAvV, Ntot)
+            covarAvUV, _,      _ = merge_covariance(covarUV, meanU, meanV, lon_dim, covarAvUV, meanAvU, meanAvV, Ntot)
+            covarAvVT, _,      _ = merge_covariance(covarVT, meanV, meanT, lon_dim, covarAvVT, meanAvV, meanAvT, Ntot)
 
-        # Update average means
-        meanAvT = newAvT
-        meanAvU = newAvU
-        meanAvV = newAvV
+            # Update average means
+            meanAvT = newAvT
+            meanAvU = newAvU
+            meanAvV = newAvV
 
-        # Update total number of samples for averages
-        Ntot    = Ntot + lon_dim
+            # Update total number of samples for averages
+            Ntot    = Ntot + lon_dim
         
         # Write out data
         file_out = run+"_"+str(t).zfill(4)
@@ -237,32 +238,33 @@ class Cell3D() :
         writer.SetInputData(img2)
         writer.Write()
 
-        if t == t2: # write average statistics
-            statistics = vtk.vtkImageData()
-            statistics.SetDimensions(1, lat_dim, vert_dim);
-            statistics.SetSpacing(rgrid.GetSpacing())
-            statistics.SetOrigin(rgrid.GetOrigin())
+        if compressible=='y' :
+            if t == t2: # write average statistics
+                statistics = vtk.vtkImageData()
+                statistics.SetDimensions(1, lat_dim, vert_dim);
+                statistics.SetSpacing(rgrid.GetSpacing())
+                statistics.SetOrigin(rgrid.GetOrigin())
 
-            ke        = 0.5 * meanAvRho * (covarAvU + covarAvV) # eddy kinetic energy
-            mom_flux  = 0.5 * meanAvRho * covarAvUV             # eddy momentum flux
-            heat_flux =       meanAvRho * covarAvVT             # eddy heat flux                  
+                ke        = 0.5 * meanAvRho * (covarAvU + covarAvV) # eddy kinetic energy
+                mom_flux  = 0.5 * meanAvRho * covarAvUV             # eddy momentum flux
+                heat_flux =       meanAvRho * covarAvVT             # eddy heat flux                  
 
-            add_scalar_data(covarAvT,  Nzonal, "TemperatureVariance", statistics)
-            add_scalar_data(heat_flux, Nzonal, "EddyHeatFlux",        statistics)
-            add_scalar_data(mom_flux,  Nzonal, "EddyMomentumFlux",    statistics)
-            add_scalar_data(ke,        Nzonal, "EddyKineticEnergy",   statistics)
+                add_scalar_data(covarAvT,  Nzonal, "TemperatureVariance", statistics)
+                add_scalar_data(heat_flux, Nzonal, "EddyHeatFlux",        statistics)
+                add_scalar_data(mom_flux,  Nzonal, "EddyMomentumFlux",    statistics)
+                add_scalar_data(ke,        Nzonal, "EddyKineticEnergy",   statistics)
+                
+                writer.SetFileName(run+"_statistics_mean.vti")
+                writer.SetInputData(statistics)
+                writer.Write()
 
-            writer.SetFileName(run+"_statistics_mean.vti")
-            writer.SetInputData(statistics)
-            writer.Write()
-
-        # Save vertical profiles in csv file
-        vertical_profile = np.array(vertical_profile).T
-        with open(file_out+"_profile.csv", 'w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(data_names)
-            for row in vertical_profile :
-                writer.writerow(row)
+                # Save vertical profiles in csv file
+                vertical_profile = np.array(vertical_profile).T
+                with open(file_out+"_profile.csv", 'w', newline='') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(data_names)
+                    for row in vertical_profile :
+                        writer.writerow(row)
 
                 
 ###############################################################################################################################
@@ -667,18 +669,19 @@ def add_scalar_data(data, N, name, img) :
 #########################################################################################################################################
 #    Main program
 #########################################################################################################################################
-if (len(sys.argv) < 5) :
+if (len(sys.argv) < 6) :
     print("""
-    Use: python lonlat_to_3D.py run nz t1 t2 J
+    Use: python lonlat_to_3D.py run compressible nz t1 t2 J
     
     Generates a 3D data files, zonal/meridional projections and vertical profiles from a series of layers in directory folder.
     
     Input variables:
-      run = prefix name of files (run name)
-      nz  = number of vertical layers
-      t1  = first time
-      t2  = last time
-      J   = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
+      run          = prefix name of files (run name)
+      compressible = y (compressible) or n (incompressible) simulation
+      nz           = number of vertical layers
+      t1           = first time
+      t2           = last time
+      J            = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
     
     Saves the following types of data files:
     run_tttt.vti            3D uniform      (lon,lat,P/Ps) 3D image data
@@ -695,11 +698,12 @@ if (len(sys.argv) < 5) :
     exit(0)
 
 # Input parameters
-run = sys.argv[1]
-nz  = int(sys.argv[2])
-t1  = int(sys.argv[3])
-t2  = int(sys.argv[4])
-J   = float(sys.argv[5])
+run          = sys.argv[1]
+compressible = sys.argv[2]
+nz           = int(sys.argv[3])
+t1           = int(sys.argv[4])
+t2           = int(sys.argv[5])
+J            = float(sys.argv[6])
 
 # Dimensions
 N        = int(np.sqrt(20*4**J))
