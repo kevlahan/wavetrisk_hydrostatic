@@ -94,7 +94,7 @@ class Cell3D() :
         coords2        = vtk_to_numpy(points2.GetData())
         num_cells2     = ds2.GetNumberOfCells()
         cellformation2 = vtk_to_numpy(ds2.GetPolys().GetData())
-        
+            
         # Add points and coordinates for upper interface
         coords = np.concatenate((coords, coords2))
         points.SetData(numpy_to_vtk(coords))
@@ -127,14 +127,10 @@ class Cell3D() :
             else :
                 self.attr_list[i] = np.concatenate((self.attr_list[i], attr))
     
-    # Returns four elements: unstructured grid, regular grid, and two 2D images as projections
     def construct_3Dimage(self) :
         global Ntot
         global covarAvT, covarAvU, covarAvV, covarAvUV, covarAvVT
         global meanAvRho, meanAvT, meanAvU, meanAvV
-        
-        vert_min   = 0.0 
-        vert_max   = 1.0 
 
         # Construct an unstructured grid
         ugrid = self.construct()
@@ -187,7 +183,13 @@ class Cell3D() :
             img3.GetPointData().AddArray(attr3)
             vertical_profile.append(profl) 
 
-            
+        # Write out 3D unstructured data
+        writer = vtk.vtkUnstructuredGridWriter()
+        writer.SetFileTypeToBinary()
+        writer.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vtk")
+        writer.SetInputData(ugrid)
+        writer.Write()
+        
         pnt_data = img3.GetPointData() # use smoothed data
 
         if compressible=='y' :
@@ -271,7 +273,7 @@ class Cell3D() :
 # Loads data from a vtk polydata file and sets vertical coordinate of interface based on attr_to_fill
 def load_dataset(file1, file2, attr_to_fill=None) :
     reader = vtk.vtkXMLPolyDataReader()
-
+        
     # Layer below current interface
     reader.SetFileName(file1)
     reader.Update()
@@ -311,9 +313,9 @@ def set_vert_coord(ugrid1, ugrid2, attr_name) :
         size    = cellformation1[startID]
         pnt_ids = cellformation1[(startID+1):(startID+1+size)]
         for pnt in pnt_ids :
-            coords1[pnt,2]  = coords1[pnt,2] * weights[pnt] + attrs1[i] # compute average value of data used for vertical coordinate
+            coords1[pnt,2]  = coords1[pnt,2] * weights[pnt] + attrs1[i] * vert_scale # compute average value of data used for vertical coordinate
             weights[pnt]   += 1
-            coords1[pnt,2] /= weights[pnt]                              # increment weighted average
+            coords1[pnt,2] /= weights[pnt]                                           # increment weighted average
         startID = startID + 1 + size
 
     # Loop through cells in layer above interfaces
@@ -323,9 +325,9 @@ def set_vert_coord(ugrid1, ugrid2, attr_name) :
         size    = cellformation2[startID]
         pnt_ids = cellformation2[(startID+1):(startID+1+size)]
         for pnt in pnt_ids :
-            coords2[pnt,2] = coords2[pnt,2] * weights[pnt] + attrs2[i] # compute average value of data used for vertical coordinate
+            coords2[pnt,2] = coords2[pnt,2] * weights[pnt] + attrs2[i] * vert_scale # compute average value of data used for vertical coordinate
             weights[pnt]   += 1
-            coords2[pnt,2] /= weights[pnt]                             # increment weighted average
+            coords2[pnt,2] /= weights[pnt]                                          # increment weighted average
         startID = startID + 1 + size
 
     # Interface vertical coordinate is average of vertical coordinates of adjacent layers
@@ -337,7 +339,7 @@ def set_vert_coord(ugrid1, ugrid2, attr_name) :
 
 # Loads data from a vtk polydata file and sets vertical coordinate of top and bottom interfaces based on attr_to_fill
 def load_dataset_bdry(file, interface, attr_to_fill=None) :
-    reader = vtk.vtkXMLPolyDataReader() 
+    reader = vtk.vtkXMLPolyDataReader()
     reader.SetFileName(file)
     reader.Update()
     ugrid = reader.GetOutput()
@@ -669,13 +671,14 @@ def add_scalar_data(data, N, name, img) :
 #########################################################################################################################################
 #    Main program
 #########################################################################################################################################
-if (len(sys.argv) < 6) :
+
+if (len(sys.argv) < 7) :
     print("""
-    Use: python lonlat_to_3D.py run compressible nz t1 t2 J
+    Use: python lonlat_to_3D.py run compressible nz t1 t2 J lon_min lon_max lat_min lat_max vert_min vert_max
     
     Generates a 3D data files, zonal/meridional projections and vertical profiles from a series of layers in directory folder.
     
-    Input variables:
+    Required input parameters:
       run          = prefix name of files (run name)
       compressible = y (compressible) or n (incompressible) simulation
       nz           = number of vertical layers
@@ -683,7 +686,16 @@ if (len(sys.argv) < 6) :
       t2           = last time
       J            = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
     
+    Optional parameters:
+      lon_min      = minimum longitude
+      lon_max      = maximum latitude
+      lat_min      = minimum longitude
+      lat_max      = maximum latitude
+      vert_min     = minimum vertical coordinate in (0,1)
+      vert_max     = maximum vertical coordinate in (0,1)
+    
     Saves the following types of data files:
+    run_tttt.vtk            3D unsructured  (lon,lat,P/Ps) 3D vtk data
     run_tttt.vti            3D uniform      (lon,lat,P/Ps) 3D image data
     run_tttt_zonal.vti      2D uniform      (lat,P/Ps)     zonally averaged image data
     run_tttt_merid.vti      2D uniform      (lon,P/Ps)     meridionally averaged image data
@@ -696,6 +708,8 @@ if (len(sys.argv) < 6) :
     3D data has dimensions N x N/2 x nz.  The vertical coordinate is P/Ps.
     """)
     exit(0)
+else :
+    print("Input parameters = ", sys.argv[1:])
 
 # Input parameters
 run          = sys.argv[1]
@@ -704,6 +718,21 @@ nz           = int(sys.argv[3])
 t1           = int(sys.argv[4])
 t2           = int(sys.argv[5])
 J            = float(sys.argv[6])
+
+# Dimensions are optional
+lon_min  = -180.0 
+lon_max  =  180.0
+lat_min  =  -90.0
+lat_max  =   90.0
+vert_min =    0.0 
+vert_max =    1.0 
+if len(sys.argv) > 8 :
+    lon_min  = float(sys.argv[7])
+    lon_max  = float(sys.argv[8])
+    lat_min  = float(sys.argv[9])
+    lat_max  = float(sys.argv[10])
+    vert_min = float(sys.argv[11])
+    vert_max = float(sys.argv[12])
 
 # Dimensions
 N        = int(np.sqrt(20*4**J))
@@ -717,14 +746,23 @@ Nzonal   = lat_dim * vert_dim
 
 dlat = 360.0/lon_dim
 dlon = 180.0/lat_dim
-
-lon_min  = -180.0 
-lon_max  =  180.0
-lat_min  =  -90.0 + dlat*6
-lat_max  =   90.0 - dlat*6
+lat_min  = lat_min + dlat*6
+lat_max  = lat_max - dlat*6
 
 # Physical constants
-Rd = 287.0
+Rd          = 287.0  # gas constant
+H           = 4000.0 # mean depth
+ref_density = 1030.0 # incompressible case
+vert_scale  = 1.0
+
+# Vertical scaling
+# if compressible=='y' :
+#     vert_scale = 1.0
+# else:
+#     vert_scale = -H
+
+vert_min = vert_scale * vert_min
+vert_max = vert_scale * vert_max
 
 # Initialize statistics variables
 Ntot      = 0
@@ -754,7 +792,7 @@ for t in range (t1, t2+1):
     vtp_series = []
     for z in range (1, nz+1):
         vtp_series.append(run+'_tri_lonlat_'+str(z).zfill(3)+'_'+str(t).zfill(4)+".vtp")
-
+            
     cell3d = Cell3D(vtp_series)
     cell3d.construct_3Dimage()
 
