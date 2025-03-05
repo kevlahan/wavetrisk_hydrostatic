@@ -116,6 +116,8 @@ for t in range (t1, t2+1):
         # separation line. If yes, we will move their vertices on one side horizontally
         # so that their lon coordinates are -180. Which side's vertices to be moved 
         # depends on numbers of vertices of that cell on both sides.
+
+        # Straight edges
         for cell in range(num_cells) :    # loop through cells
             startID = startIDs[cell]
             size = cellformation[startID] # number of vertices
@@ -123,18 +125,18 @@ for t in range (t1, t2+1):
             pids_neg = []
             for i in range(size) :
                 pid = cellformation[startID+1+i]
-                if   (coords[pid,0] < -90.0 and coords[pid,0] > -180.0) : # on negative side
+                if (coords[pid,0]<-90 and coords[pid,0]>-180) : # on the negative side
                     pids_neg.append(pid)
-                elif (coords[pid,0] >  90.0 and coords[pid,0] <  180.0) : # on positive side
+                elif (coords[pid,0]>90 and coords[pid,0]<180) : # on the positive side
                     pids_pos.append(pid)
 
             if (len(pids_pos)!=0 and len(pids_neg)!=0) : # the cell intersects with the line
-                if (len(pids_pos)>len(pids_neg)) :       # move points on the negative side
+                if (len(pids_pos)>len(pids_neg)) : # move points on the negative side
                     for pid in pids_neg :
                         coords[pid,0] = -180.0
-                    else :                               # move points on positive side
-                        for pid in pids_pos :
-                            coords[pid,0] = -180.0
+                else : # move points on the positive side
+                    for pid in pids_pos :
+                        coords[pid,0] = -180.0
 
         # Split points on the separation line
         last_pid = num_points
@@ -143,36 +145,36 @@ for t in range (t1, t2+1):
                 coords[pid,0] = -180.0 
                 points.InsertNextPoint(180.0, coords[pid,1], coords[pid,2])
                 coords = np.vstack((coords, [[180.0, coords[pid,1], coords[pid,2]]]))
-                
-                for cid in point2cells[pid] : # loop over all cells sharing point pid
-                    # Check cell is on positive or negative side
+               
+                for cid in point2cells[pid] : # loop over all the cells sharing the point pid
+                    # check the cell is on the positive or negative side
                     startID = startIDs[cid]
                     size = cellformation[startID] # number of vertices
                     is_pos = True
                     for i in range(size) :
                         p = cellformation[startID+1+i]
-                        if (coords[p,0] != -180.0) :
+                        if (coords[p,0]!=-180.0) :
                             if (coords[p,0]>0) :
                                 is_pos = True
                                 cellformation[startID+1+i] = last_pid
                             else :
                                 is_pos = False
-                                break
+                            break
                     
-                    # Replace pid with last_pid for those cells on positive-lon side
+                    # replace pid with last_pid for those cells on the positive-lon side
                     if (is_pos) :
                         loc = np.where(cellformation[startID+1:startID+1+size] == pid)
                         cells.ReplaceCellPointAtId(cid, int(loc[0][0]), last_pid)
-                        
+
                         startID = startIDs[cid]
-                        size    = cellformation[startID] # number of vertices
+                        size = cellformation[startID] # number of vertices
                         for i in range(size) :
-                            if (cellformation[startID+1+i] == pid) :
+                            if (cellformation[startID+1+i]==pid) :
                                 cellformation[startID+1+i] = last_pid
                                 break
 
                 last_pid += 1
-
+                
         # Update point data
         points.SetData(numpy_to_vtk(coords))
 
