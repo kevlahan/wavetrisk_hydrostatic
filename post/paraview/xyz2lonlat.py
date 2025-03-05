@@ -10,8 +10,36 @@ import sys
 import numpy as np
 from utilities import *
 import vtk
+import subprocess
+from contextlib import suppress
+import tarfile
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 
+def safe_extract(tar, path=".", members=None):
+    # Safely extract files, ensuring no files are extracted outside the target directory.
+
+    for member in tar.getmembers():
+        if not os.path.abspath(os.path.join(path, member.name)).startswith(os.path.abspath(path)):
+            raise Exception(f"Unsafe extraction attempt: {member.name}")
+    tar.extractall(path, members, filter="data")
+    
+def untar_files(t) :
+    # Untars time t data
+    
+    file = run+'_tri_'+str(t).zfill(4)+".vtk.tgz"
+    
+    directory = os.getcwd()
+    output_directory = directory
+    
+    tar_path = os.path.join(directory, file)
+    try:
+        with tarfile.open(tar_path, 'r:*') as tar:
+            safe_extract(tar, path=output_directory)
+    except tarfile.TarError as e:
+        print(f"    Error extracting {file}: {e}")
+    except Exception as e:
+        print(f"    Security issue extracting {file}: {e}")
+                    
 # Main program
 if (len(sys.argv)<7) :
     print("\nUsage: python xyz2lonlat.py run z1 z2 t1 t2 Delaunay\n")
@@ -26,26 +54,26 @@ if (len(sys.argv)<7) :
     print("python3 xyz2lonlat.py SimpleJ5J1Z30 1 30 0 100 y")
     exit(0)
 
-file_base = sys.argv[1]
+run       = sys.argv[1]
 z1        = int(sys.argv[2])
 z2        = int(sys.argv[3])
 t1        = int(sys.argv[4])
 t2        = int(sys.argv[5])
 Delaunay  = sys.argv[6]
 
-for z in range (z1, z2+1):
-    for t in range (t1, t2+1):
+for t in range (t1, t2+1):
+    untar_files(t)
+    for z in range (z1, z2+1):
         # Load the input vtk file
-        infile  = file_base+"_tri_"+str(z).zfill(3)+"_"+str(t).zfill(4)
-        outfile = file_base+"_tri_lonlat_"+str(z).zfill(3)+"_"+str(t).zfill(4)
+        infile  = run+"_tri_"+str(z).zfill(3)+"_"+str(t).zfill(4)
+        outfile = run+"_tri_lonlat_"+str(z).zfill(3)+"_"+str(t).zfill(4)
         #print("Transforming file "+infile+".vtk")
         vtkreader = vtk.vtkUnstructuredGridReader()
         vtkreader.ReadAllScalarsOn()
         vtkreader.SetFileName(infile+".vtk")
         vtkreader.Update()
         
-        vtk_files = infile+".vtk"
-        delete_files(vtk_files)
+        delete_files(infile+".vtk")
 
         # Get the unstructed grid data
         ugrid = vtkreader.GetOutput()
@@ -177,6 +205,5 @@ for z in range (z1, z2+1):
             writer.SetFileName(outfile+".vtk")
             writer.SetInputData(ugrid)
             writer.Write()
-
-                    
+            
 

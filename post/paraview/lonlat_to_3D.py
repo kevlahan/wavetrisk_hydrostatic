@@ -20,7 +20,6 @@ import numpy as np
 import vtk
 import csv
 import subprocess
-import tarfile
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 import scipy.ndimage
 
@@ -499,32 +498,6 @@ def avg_images(files) :
     writer.Write()
 
     return avg
-
-def untar_files(t) :
-    # Untars time t data
-    
-    file = run+'_tri_'+str(t).zfill(4)+".vtk.tgz"
-    
-    directory = os.getcwd()
-    output_directory = directory
-    
-    tar_path = os.path.join(directory, file)
-    try:
-        with tarfile.open(tar_path, 'r:*') as tar:
-            safe_extract(tar, path=output_directory)
-    except tarfile.TarError as e:
-        print(f"    Error extracting {file}: {e}")
-    except Exception as e:
-        print(f"    Security issue extracting {file}: {e}")
-
-        
-def safe_extract(tar, path=".", members=None):
-    # Safely extract files, ensuring no files are extracted outside the target directory.
-
-    for member in tar.getmembers():
-        if not os.path.abspath(os.path.join(path, member.name)).startswith(os.path.abspath(path)):
-            raise Exception(f"Unsafe extraction attempt: {member.name}")
-    tar.extractall(path, members, filter="data")
     
 
 def transform_to_lonlat(t) :
@@ -785,8 +758,6 @@ print("\nInterpolating to uniform", lon_dim, "x", lat_dim, "x", vert_dim, "grid"
 for t in range (t1, t2+1):
     print("    processing time ", t)
     
-    untar_files(t)
-
     transform_to_lonlat(t) # compute lonlat projections
 
     vtp_series = []
