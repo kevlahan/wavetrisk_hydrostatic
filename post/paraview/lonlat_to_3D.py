@@ -719,6 +719,9 @@ Nzonal   = lat_dim * vert_dim
 
 dlat = 360.0/lon_dim
 dlon = 180.0/lat_dim
+
+lon_min  = lon_min + dlon*4
+lon_max  = lon_max - dlon*4
 lat_min  = lat_min + dlat*6
 lat_max  = lat_max - dlat*6
 

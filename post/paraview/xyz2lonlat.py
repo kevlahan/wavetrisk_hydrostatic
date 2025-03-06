@@ -48,8 +48,8 @@ if (len(sys.argv)<7) :
     print("z2       = last  z layer")
     print("t1       = first time")
     print("t2       = last time")
-    print("Delaunay = y/n (interpolate to Delaunay grid to remove gaps)\n")
-    print("output is file_lonlat run_tri_zzz_tttt.vtk or or run_tri_zzz_tttt.vtp (Delaunay=y)\n")
+    print("Delaunay = 'y'/'n' (interpolate to Delaunay grid to remove gaps)\n")
+    print("output is file_lonlat run_tri_zzz_tttt.vtk or or run_tri_zzz_tttt.vtp (Delaunay == 'y')\n")
     print("Example:")
     print("python3 xyz2lonlat.py SimpleJ5J1Z30 1 30 0 100 y")
     exit(0)
@@ -60,6 +60,8 @@ z2        = int(sys.argv[3])
 t1        = int(sys.argv[4])
 t2        = int(sys.argv[5])
 Delaunay  = sys.argv[6]
+
+straight_edges = True # interpolate straight edges on longitude boundaries
 
 for t in range (t1, t2+1):
     untar_files(t)
@@ -116,65 +118,106 @@ for t in range (t1, t2+1):
         # separation line. If yes, we will move their vertices on one side horizontally
         # so that their lon coordinates are -180. Which side's vertices to be moved 
         # depends on numbers of vertices of that cell on both sides.
+        if straight_edges : # straight edges
+            for cell in range(num_cells) :    # loop through cells
+                startID = startIDs[cell]
+                size = cellformation[startID] # number of vertices
+                pids_pos = []
+                pids_neg = []
+                for i in range(size) :
+                    pid = cellformation[startID+1+i]
+                    if (  coords[pid,0] < -174.0 and coords[pid,0] > -178.0) : # on negative side
+                        pids_neg.append(pid)
+                    elif (coords[pid,0] >  174.0 and coords[pid,0] <  178.0) : # on positive side
+                        pids_pos.append(pid)
 
-        # Straight edges
-        for cell in range(num_cells) :    # loop through cells
-            startID = startIDs[cell]
-            size = cellformation[startID] # number of vertices
-            pids_pos = []
-            pids_neg = []
-            for i in range(size) :
-                pid = cellformation[startID+1+i]
-                if (coords[pid,0]<-90 and coords[pid,0]>-180) : # on the negative side
-                    pids_neg.append(pid)
-                elif (coords[pid,0]>90 and coords[pid,0]<180) : # on the positive side
-                    pids_pos.append(pid)
+                if (len(pids_pos)!= 0 and len(pids_neg) != 0) : # the cell intersects with line
+                    if (len(pids_pos)>len(pids_neg)) : # move points on negative side
+                        for pid in pids_neg :
+                            coords[pid,0] = -180.0
+                    else : # move points on positive side
+                        for pid in pids_pos :
+                            coords[pid,0] = -180.0
 
-            if (len(pids_pos)!=0 and len(pids_neg)!=0) : # the cell intersects with the line
-                if (len(pids_pos)>len(pids_neg)) : # move points on the negative side
-                    for pid in pids_neg :
-                        coords[pid,0] = -180.0
-                else : # move points on the positive side
-                    for pid in pids_pos :
-                        coords[pid,0] = -180.0
+            # Split points on the separation line
+            last_pid = num_points
+            for pid in range(num_points) :
+                if (coords[pid,0] == -180.0 or coords[pid,0] == 180.0) :
+                    coords[pid,0] = -180.0 
+                    points.InsertNextPoint(180.0, coords[pid,1], coords[pid,2])
+                    coords = np.vstack((coords, [[180.0, coords[pid,1], coords[pid,2]]]))
 
-        # Split points on the separation line
-        last_pid = num_points
-        for pid in range(num_points) :
-            if (coords[pid,0]==-180.0 or coords[pid,0]==180.0) :
-                coords[pid,0] = -180.0 
-                points.InsertNextPoint(180.0, coords[pid,1], coords[pid,2])
-                coords = np.vstack((coords, [[180.0, coords[pid,1], coords[pid,2]]]))
-               
-                for cid in point2cells[pid] : # loop over all the cells sharing the point pid
-                    # check the cell is on the positive or negative side
-                    startID = startIDs[cid]
-                    size = cellformation[startID] # number of vertices
-                    is_pos = True
-                    for i in range(size) :
-                        p = cellformation[startID+1+i]
-                        if (coords[p,0]!=-180.0) :
-                            if (coords[p,0]>0) :
-                                is_pos = True
-                                cellformation[startID+1+i] = last_pid
-                            else :
-                                is_pos = False
-                            break
-                    
-                    # replace pid with last_pid for those cells on the positive-lon side
-                    if (is_pos) :
-                        loc = np.where(cellformation[startID+1:startID+1+size] == pid)
-                        cells.ReplaceCellPointAtId(cid, int(loc[0][0]), last_pid)
-
+                    for cid in point2cells[pid] : # loop over all cells sharing point pid
+                        # check cell is on positive or negative side
                         startID = startIDs[cid]
                         size = cellformation[startID] # number of vertices
+                        is_pos = True
                         for i in range(size) :
-                            if (cellformation[startID+1+i]==pid) :
-                                cellformation[startID+1+i] = last_pid
+                            p = cellformation[startID+1+i]
+                            if (coords[p,0] != -180.0) :
+                                if (coords[p,0]>0) :
+                                    is_pos = True
+                                    cellformation[startID+1+i] = last_pid
+                                else :
+                                    is_pos = False
                                 break
 
+                        # replace pid with last_pid for those cells on positive-lon side
+                        if (is_pos) :
+                            loc = np.where(cellformation[startID+1:startID+1+size] == pid)
+                            cells.ReplaceCellPointAtId(cid, int(loc[0][0]), last_pid)
+
+                            startID = startIDs[cid]
+                            size = cellformation[startID] # number of vertices
+                            for i in range(size) :
+                                if (cellformation[startID+1+i] == pid) :
+                                    cellformation[startID+1+i] = last_pid
+                                    break
+                    last_pid += 1
+        else : # zig-zag
+            points_on_sep = set()
+            for cell in range(num_cells) :    # loop through cells
+                startID = startIDs[cell]
+                size = cellformation[startID] # number of vertices
+                pids_pos = []
+                pids_neg = []
+                for i in range(size) :
+                    pid = cellformation[startID+1+i]
+                    if (  coords[pid,0] < -90.0 and coords[pid,0] >= -180.0) : # on negative side
+                        pids_neg.append(pid)
+                    elif (coords[pid,0] >  90.0 and coords[pid,0] <=  180.0) : # on positive side
+                        pids_pos.append(pid)
+
+                if (len(pids_pos) > len(pids_neg)) : # positive triangle
+                    points_on_sep.update(pids_neg)
+                else : # negative triangle
+                    points_on_sep.update(pids_pos)
+                    startIDs[cell] = -startIDs[cell] # sign used to indicate which side cell should be placed on
+
+            # Split points on separation line
+            last_pid = num_points
+            for pid in points_on_sep :
+                # add a new point
+                if (coords[pid,0]>0) :
+                    new_lon = -360.0 + coords[pid,0]
+                else :
+                    new_lon =  360.0 + coords[pid,0]
+
+                points.InsertNextPoint(new_lon, coords[pid,1], coords[pid,2])
+                coords = np.vstack((coords, [[new_lon, coords[pid,1], coords[pid,2]]]))
+
+                # Let newly added point be vertices of some triangles
+                for cid in point2cells[pid] : # loop over all cells sharing point pid
+                    # replace pid with last_pid for those cells sharing pid
+                    startID = abs(startIDs[cid])
+                    size = cellformation[startID]
+                    if (startIDs[cid]>0 and coords[pid,0]<0) or (startIDs[cid]<0 and coords[pid,0]>0) : 
+                        loc = np.where(cellformation[startID+1:startID+1+size] == pid)
+                        loc  = int(loc[0][0])
+                        cells.ReplaceCellPointAtId(cid, loc, last_pid)
+                        cellformation[startID+1+loc] = last_pid
                 last_pid += 1
-                
+            
         # Update point data
         points.SetData(numpy_to_vtk(coords))
 
@@ -201,7 +244,7 @@ for t in range (t1, t2+1):
             writer.SetFileName(outfile+".vtp")
             writer.SetInputData(output)
             writer.Write()
-        else:
+        else :
             writer = vtk.vtkUnstructuredGridWriter()
             writer.SetFileTypeToBinary()
             writer.SetFileName(outfile+".vtk")
