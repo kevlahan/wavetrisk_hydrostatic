@@ -1,5 +1,7 @@
-Table = readtable('SimpleJ5J7Z30_profile.csv');
-VarNames= Table.Properties.VariableNames
+% Plots vertical profiles of averaged variables produced by lonlat_to_3D.py
+
+Data = readtable('SimpleJ5J7Z30_profile.csv');
+VarNames= Data.Properties.VariableNames
 
 OMEGA_Idx = find(strcmp(VarNames, 'P_Ps'));
 Ps_Idx    = find(strcmp(VarNames, 'Ps'));
@@ -10,7 +12,9 @@ v_Idx     = find(strcmp(VarNames, 'VelocityMeridional'));
 vort_Idx  = find(strcmp(VarNames, 'Vorticity'));
 dz_Idx    = find(strcmp(VarNames, 'dz'));
 
-semilogy(A{:,T_Idx},A{:,P_Ps_Idx}*1e5,'r-','LineWidth',1.5)
+semilogy(Data{:,T_Idx},Data{:,P_Ps_Idx}.*Data{:,Ps_Idx},'r-','LineWidth',2)
 grid on
 set(gca, 'YDir','reverse')
-xlabel('Temperature [K]'); ylabel('P/P_S')
+xlabel('Temperature [K]'); ylabel('P [Pa]')
+axis([120 340 1e3 1e5])
+set(gca,'fontsize',18)
