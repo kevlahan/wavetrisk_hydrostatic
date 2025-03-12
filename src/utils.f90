@@ -409,7 +409,7 @@ contains
        rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
        rho_dz       = sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)
 
-       temp = (rho_dz_dtheta / rho_dz) * (p/p_0)**kappa ! temperature
+       temp = (rho_dz_theta / rho_dz) * (p/p_0)**kappa ! temperature
        
        p    = pressure_i (dom, i, j, zlev, offs, dims, sol)
 
