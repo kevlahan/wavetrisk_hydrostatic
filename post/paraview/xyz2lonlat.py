@@ -6,6 +6,7 @@
 # Weiguang Guan     (SHARCNET)            2024-04-16
 # Nicholas Kevlahan (McMaster University) 2025-01-29
 import os
+import glob
 import sys
 import numpy as np
 from utilities import *
@@ -42,8 +43,10 @@ def untar_files(t) :
                     
 # Main program
 if (len(sys.argv)<7) :
-    print("\nUsage: python xyz2lonlat.py run z1 z2 t1 t2 Delaunay\n")
+    print("\nUsage: python xyz2lonlat.py run Jmin Jmax z1 z2 t1 t2 Delaunay\n")
     print("run      = file base name (without tri)")
+    print("Jmin     = minimum level")
+    print("Jmax     = maximum level")
     print("z1       = first z layer")
     print("z2       = last  z layer")
     print("t1       = first time")
@@ -51,17 +54,26 @@ if (len(sys.argv)<7) :
     print("Delaunay = 'y'/'n' (interpolate to Delaunay grid to remove gaps)\n")
     print("output is file_lonlat run_tri_zzz_tttt.vtk or or run_tri_zzz_tttt.vtp (Delaunay == 'y')\n")
     print("Example:")
-    print("python3 xyz2lonlat.py SimpleJ5J1Z30 1 30 0 100 y")
+    print("python3 xyz2lonlat.py SimpleJ5J1Z30 5 7 1 30 0 100 y")
     exit(0)
 
 run       = sys.argv[1]
-z1        = int(sys.argv[2])
-z2        = int(sys.argv[3])
-t1        = int(sys.argv[4])
-t2        = int(sys.argv[5])
-Delaunay  = sys.argv[6]
+Jmin      = int(sys.argv[2])
+Jmax      = int(sys.argv[3])
+z1        = int(sys.argv[4])
+z2        = int(sys.argv[5])
+t1        = int(sys.argv[6])
+t2        = int(sys.argv[7])
+Delaunay  = sys.argv[8]
 
-straight_edges = True # interpolate straight edges on longitude boundaries
+N        = int(np.sqrt(20*4**Jmax))
+lat_dim  = int(N/2)
+lon_dim  = 2*lat_dim
+
+dtheta_min = 360.0/lon_dim
+dtheta_max = dtheta_min * 2**(Jmax-Jmin)
+
+straight_edges = False # fix straight edges on longitude boundaries
 
 for t in range (t1, t2+1):
     untar_files(t)
@@ -74,8 +86,6 @@ for t in range (t1, t2+1):
         vtkreader.ReadAllScalarsOn()
         vtkreader.SetFileName(infile+".vtk")
         vtkreader.Update()
-        
-        delete_files(infile+".vtk")
 
         # Get the unstructed grid data
         ugrid = vtkreader.GetOutput()
@@ -114,28 +124,39 @@ for t in range (t1, t2+1):
                 
             startID = startID + 1 + size
 
-        # Loop over cells, for each which we check if it intersects with -180/180
-        # separation line. If yes, we will move their vertices on one side horizontally
+        # Loop over cells, check if it intersects with -180/180
+        # separation line. If yes, move its vertices on one side horizontally
         # so that their lon coordinates are -180. Which side's vertices to be moved 
         # depends on numbers of vertices of that cell on both sides.
         if straight_edges : # straight edges
             for cell in range(num_cells) :    # loop through cells
                 startID = startIDs[cell]
                 size = cellformation[startID] # number of vertices
+
+                # Fix with gaps near poles by shifting points near the poles to the poles
+                lats = [i for i in range(size)]
+                for i in range(size) :
+                    lats[i]   = abs(coords[cellformation[startID+1+i],1])
+                max_index = lats.index(max(lats))
+                pid_max   = cellformation[startID+1+max_index]
+                max_lat   = lats[max_index]
+                if (max_lat > 80.0) :
+                    coords[pid_max,1] =  np.sign(coords[pid_max,1]) * 90.0
+
                 pids_pos = []
                 pids_neg = []
                 for i in range(size) :
                     pid = cellformation[startID+1+i]
-                    if (  coords[pid,0] < -174.0 and coords[pid,0] > -178.0) : # on negative side
+                    if (  coords[pid,0] < -90.0 and coords[pid,0] > -180.0) : # vertex on negative side
                         pids_neg.append(pid)
-                    elif (coords[pid,0] >  174.0 and coords[pid,0] <  178.0) : # on positive side
+                    elif (coords[pid,0] >  90.0 and coords[pid,0] <  180.0) : # vertex on positive side
                         pids_pos.append(pid)
 
-                if (len(pids_pos)!= 0 and len(pids_neg) != 0) : # the cell intersects with line
-                    if (len(pids_pos)>len(pids_neg)) : # move points on negative side
+                if (len(pids_pos) != 0 and len(pids_neg) != 0) : # cell intersects with -180/180 line
+                    if (len(pids_pos) > len(pids_neg)) :         # move points on negative side
                         for pid in pids_neg :
                             coords[pid,0] = -180.0
-                    else : # move points on positive side
+                    else :                                       # move points on positive side
                         for pid in pids_pos :
                             coords[pid,0] = -180.0
 
@@ -162,7 +183,7 @@ for t in range (t1, t2+1):
                                     is_pos = False
                                 break
 
-                        # replace pid with last_pid for those cells on positive-lon side
+                        # Replace pid with last_pid for those cells on positive-lon side
                         if (is_pos) :
                             loc = np.where(cellformation[startID+1:startID+1+size] == pid)
                             cells.ReplaceCellPointAtId(cid, int(loc[0][0]), last_pid)
@@ -174,31 +195,32 @@ for t in range (t1, t2+1):
                                     cellformation[startID+1+i] = last_pid
                                     break
                     last_pid += 1
+                    
         else : # zig-zag
             points_on_sep = set()
             for cell in range(num_cells) :    # loop through cells
-                startID = startIDs[cell]
-                size = cellformation[startID] # number of vertices
+                startID  = startIDs[cell]
+                size     = cellformation[startID] # number of vertices                
                 pids_pos = []
                 pids_neg = []
                 for i in range(size) :
                     pid = cellformation[startID+1+i]
-                    if (  coords[pid,0] < -90.0 and coords[pid,0] >= -180.0) : # on negative side
+                    if (  coords[pid,0] < -365/5) : # on negative side
                         pids_neg.append(pid)
-                    elif (coords[pid,0] >  90.0 and coords[pid,0] <=  180.0) : # on positive side
+                    elif (coords[pid,0] >  365/5) : # on positive side
                         pids_pos.append(pid)
 
                 if (len(pids_pos) > len(pids_neg)) : # positive triangle
                     points_on_sep.update(pids_neg)
-                else : # negative triangle
+                else :                               # negative triangle
                     points_on_sep.update(pids_pos)
                     startIDs[cell] = -startIDs[cell] # sign used to indicate which side cell should be placed on
 
             # Split points on separation line
             last_pid = num_points
             for pid in points_on_sep :
-                # add a new point
-                if (coords[pid,0]>0) :
+                # Add a new point
+                if (coords[pid,0] > 0) :
                     new_lon = -360.0 + coords[pid,0]
                 else :
                     new_lon =  360.0 + coords[pid,0]
@@ -211,13 +233,27 @@ for t in range (t1, t2+1):
                     # replace pid with last_pid for those cells sharing pid
                     startID = abs(startIDs[cid])
                     size = cellformation[startID]
-                    if (startIDs[cid]>0 and coords[pid,0]<0) or (startIDs[cid]<0 and coords[pid,0]>0) : 
+                    if (startIDs[cid]>0 and coords[pid,0] < 0) or (startIDs[cid]<0 and coords[pid,0] > 0) : 
                         loc = np.where(cellformation[startID+1:startID+1+size] == pid)
                         loc  = int(loc[0][0])
                         cells.ReplaceCellPointAtId(cid, loc, last_pid)
                         cellformation[startID+1+loc] = last_pid
                 last_pid += 1
-            
+
+        
+        # Ensure no vertices are outside [-180,180] and that there are no gaps near -90, 90
+        num_points = coords.shape[0]
+        for pid in range(num_points) :
+            if   (coords[pid,0] >  180.0) :
+                coords[pid,0] = 180.0
+            elif (coords[pid,0] < -180.0) :
+                coords[pid,0] = -180.0
+
+            if   (coords[pid,1] >  90.0 - 1.1*dtheta_max) :
+                coords[pid,1] = 90.0
+            elif (coords[pid,1] < -90.0 + 1.1*dtheta_max) :
+                coords[pid,1] = -90.0
+
         # Update point data
         points.SetData(numpy_to_vtk(coords))
 
@@ -251,4 +287,5 @@ for t in range (t1, t2+1):
             writer.SetInputData(ugrid)
             writer.Write()
             
-
+for file in glob.glob("*tri_???_*.vtk"):
+    os.remove(file)

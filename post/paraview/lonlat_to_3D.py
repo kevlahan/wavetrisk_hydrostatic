@@ -505,12 +505,14 @@ def transform_to_lonlat(t) :
 
     script_name = "xyz2lonlat.py"
     arg1 = run
-    arg2 = '1'
-    arg3 = str(nz)
-    arg4 = str(t)
-    arg5 = str(t)
-    arg6 = 'y' # use Delaunay2D filter to remove gaps
-    subprocess.run(['python3', script_name, arg1, arg2, arg3, arg4, arg5, arg6])
+    arg2 = str(Jmin)
+    arg3 = str(Jmax)
+    arg4 = '1'
+    arg5 = str(nz)
+    arg6 = str(t)
+    arg7 = str(t)
+    arg8 = 'y' # use Delaunay2D filter to remove gaps
+    subprocess.run(['python3', script_name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8])
 
     
 def mean (data) :
@@ -645,19 +647,20 @@ def add_scalar_data(data, N, name, img) :
 #    Main program
 #########################################################################################################################################
 
-if (len(sys.argv) < 7) :
+if (len(sys.argv) < 8) :
     print("""
-    Use: python lonlat_to_3D.py run compressible nz t1 t2 J lon_min lon_max lat_min lat_max vert_min vert_max
+    Use: python lonlat_to_3D.py run compressible Jmin Jmax nz t1 t2 lon_min lon_max lat_min lat_max vert_min vert_max
     
     Generates a 3D data files, zonal/meridional projections and vertical profiles from a series of layers in directory folder.
     
     Required input parameters:
       run          = prefix name of files (run name)
       compressible = y (compressible) or n (incompressible) simulation
+      Jmin         = minimum level
+      Jmax         = maximum level
       nz           = number of vertical layers
       t1           = first time
       t2           = last time
-      J            = scale for the interpolation onto a uniform grid: N/2 x N where N = sqrt(20 4^J)
     
     Optional parameters:
       lon_min      = minimum longitude
@@ -666,9 +669,11 @@ if (len(sys.argv) < 7) :
       lat_max      = maximum latitude
       vert_min     = minimum vertical coordinate in (0,1)
       vert_max     = maximum vertical coordinate in (0,1)
+
+    Example: python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 1 365
     
     Saves the following types of data files:
-    run_tttt.vtk            3D unsructured  (lon,lat,P/Ps) 3D vtk data
+    run_tttt.vtk            3D unstructured  (lon,lat,P/Ps) 3D vtk data
     run_tttt.vti            3D uniform      (lon,lat,P/Ps) 3D image data
     run_tttt_zonal.vti      2D uniform      (lat,P/Ps)     zonally averaged image data
     run_tttt_merid.vti      2D uniform      (lon,P/Ps)     meridionally averaged image data
@@ -687,55 +692,46 @@ else :
 # Input parameters
 run          = sys.argv[1]
 compressible = sys.argv[2]
-nz           = int(sys.argv[3])
-t1           = int(sys.argv[4])
-t2           = int(sys.argv[5])
-J            = float(sys.argv[6])
+Jmin         = int(sys.argv[3])
+Jmax         = int(sys.argv[4])
+nz           = int(sys.argv[5])
+t1           = int(sys.argv[6])
+t2           = int(sys.argv[7])
 
-# Dimensions are optional
-lon_min  = -180.0 
-lon_max  =  180.0
-lat_min  =  -90.0
-lat_max  =   90.0
-vert_min =    0.0 
-vert_max =    1.0 
-if len(sys.argv) > 8 :
-    lon_min  = float(sys.argv[7])
-    lon_max  = float(sys.argv[8])
-    lat_min  = float(sys.argv[9])
-    lat_max  = float(sys.argv[10])
-    vert_min = float(sys.argv[11])
-    vert_max = float(sys.argv[12])
+# Dimensions (optional)
+if len(sys.argv) > 9 :
+    lon_min  = float(sys.argv[8])
+    lon_max  = float(sys.argv[9])
+    lat_min  = float(sys.argv[10])
+    lat_max  = float(sys.argv[11])
+    vert_min = float(sys.argv[12])
+    vert_max = float(sys.argv[13])
 
-# Dimensions
-N        = int(np.sqrt(20*4**J))
+# Grid dimensions
+N        = int(np.sqrt(2 * (10*4**Jmax + 2)))
 lat_dim  = int(N/2)
 lon_dim  = 2*lat_dim
 vert_dim = nz
 
+dtheta_min = 360.0/lon_dim
+dtheta_max = dtheta_min * 2**(Jmax - Jmin)
+
+lon_min  = -180.0 + dtheta_max
+lon_max  =  180.0 - dtheta_max
+lat_min  =  -90.0 + dtheta_max
+lat_max  =   90.0 - dtheta_max
+vert_min =    0.0 
+vert_max =    1.0
+
 Ngrid    = lat_dim * lon_dim * vert_dim                                 
 Nmerid   = lon_dim * vert_dim
 Nzonal   = lat_dim * vert_dim
-
-dlat = 360.0/lon_dim
-dlon = 180.0/lat_dim
-
-lon_min  = lon_min + dlon*4
-lon_max  = lon_max - dlon*4
-lat_min  = lat_min + dlat*6
-lat_max  = lat_max - dlat*6
 
 # Physical constants
 Rd          = 287.0  # gas constant
 H           = 4000.0 # mean depth
 ref_density = 1030.0 # incompressible case
 vert_scale  = 1.0
-
-# Vertical scaling
-# if compressible=='y' :
-#     vert_scale = 1.0
-# else:
-#     vert_scale = -H
 
 vert_min = vert_scale * vert_min
 vert_max = vert_scale * vert_max
