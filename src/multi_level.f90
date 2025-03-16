@@ -24,9 +24,9 @@ contains
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
-       if (max (Laplace_order, Laplace_sclr) == 2) call cal_Laplacian_scalars (q, k)
-       if (max (Laplace_order, Laplace_divu) >= 1) call cal_divu_ml (q(S_VELO,k))
-       if (max (Laplace_order, Laplace_divu) == 2) call cal_Laplacian_divu ! requires divu
+       if (Laplace_sclr == 2) call cal_Laplacian_scalars (q, k)
+       if (Laplace_divu /= 0) call cal_divu_ml (q(S_VELO,k))
+       if (Laplace_divu == 2) call cal_Laplacian_divu ! requires divu
 
        ! Calculate trend on all scales, from fine to coarse
        do l = level_end, level_start, -1
@@ -96,7 +96,7 @@ contains
     horiz_flux%bdry_uptodate = .false.
     if (level_start /= level_end) call update_bdry (horiz_flux, l)
 
-    if (max (Laplace_order, Laplace_rotu) == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity
+    if (Laplace_rotu == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity
   end subroutine basic_operators
 
   subroutine cal_scalar_trend (q, dq, k, l)
@@ -142,7 +142,7 @@ contains
        qe      => grid(d)%qe%elts
        vort    => grid(d)%vort%elts
        
-       if (max (Laplace_order, Laplace_divu) == 2) then
+       if (Laplace_divu == 2) then
           divu => Laplacian_vector(S_DIVU)%data(d)%elts
        else
           divu => grid(d)%divu%elts

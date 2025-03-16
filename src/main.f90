@@ -238,13 +238,22 @@ contains
     ! Fresh restart from checkpoint data (all structures reset)
     implicit none
     character(*) :: run_id
-    
+
     integer         :: l
     character(9999) :: archive, bash_cmd
-    
-    if (Laplace_order < 0 .and. &
-         (maxval (C_visc(S_MASS:S_TEMP)) > (1d0/6d0)**Laplace_order .or. C_visc(S_VELO) > (1d0/24d0)**Laplace_order) ) then
-         if (rank == 0) write (6,*) "Dimensional viscosity too large ... aborting"
+
+    if (Laplace_sclr /= 0 .and. maxval (C_visc(S_MASS:S_TEMP)) > (1/6d0)**Laplace_sclr) then
+       if (rank == 0) write (6,*) "Dimensional scalar viscosity too large ... aborting"
+       call abort
+    end if
+
+    if (Laplace_divu /= 0 .and. C_visc(S_DIVU) > (1/6d0)**Laplace_divu) then
+       if (rank == 0) write (6,*) "Dimensional divu viscosity too large ... aborting"
+       call abort
+    end if
+
+    if (Laplace_rotu /= 0 .and. C_visc(S_ROTU) > (1/6d0/4)**Laplace_rotu) then
+       if (rank == 0) write (6,*) "Dimensional rotu viscosity too large ... aborting"
        call abort
     end if
 
