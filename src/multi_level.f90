@@ -24,7 +24,7 @@ contains
 
     ! Compute each vertical level starting from surface
     do k = 1, zlevels
-       if (Laplace_divu /= 0 .or. Laplace_rotu /= 0) call cal_divu_ml (q(S_VELO,k))
+       if (Laplace_divu /= 0) call cal_divu_ml (q(S_VELO,k))
        if (Laplace_sclr == 2) call cal_Laplacian_scalars (q, k)
        if (Laplace_divu == 2) call cal_Laplacian_divu ! requires divu
 
