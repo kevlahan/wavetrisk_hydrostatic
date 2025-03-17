@@ -5,6 +5,7 @@ Module test_case_mod
   use utils_mod
   use init_mod
   use equation_of_state_mod
+  use vert_diffusion_mod
   implicit none
 
   ! Standard variables
@@ -143,7 +144,6 @@ contains
        write (6,'(A,L1)')     "adapt_dt                       = ", adapt_dt
        write (6,'(A,es10.4)') "dt_init                        = ", dt_init
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
-       write (6,'(A,i1)')     "Laplace_order                  = ", Laplace_order_init
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(A,es10.4)') "dt_write [h]                   = ", dt_write/HOUR
        write (6,'(A,i6)')     "CP_EVERY                       = ", CP_EVERY
@@ -562,8 +562,8 @@ contains
     d  = dom%id+1
     id = idx (i, j, offs, dims) + 1
 
-    Kt(zlev)%data(d)%elts(id) = Kt_0
-    Kv(zlev)%data(d)%elts(id) = Kv_0
+    Kt(zlev)%data(d)%elts(id) = Kt_min
+    Kv(zlev)%data(d)%elts(id) = Kv_min
   end subroutine init_eddy
 
   subroutine init_tke (dom, i, j, zlev, offs, dims)
@@ -742,7 +742,7 @@ contains
 
 
     C = 0.0_8 ! <= 1/2 if explicit
-    C_rotu = C / 4**Laplace_order_init
+    C_rotu = C / 4**Laplace_rotu
     C_divu = C
     C_mu   = C
     C_b    = C
@@ -753,16 +753,16 @@ contains
     tau_divu = dt_cfl / C_divu
     tau_rotu = dt_cfl / C_rotu
 
-    if (Laplace_order_init == 0) then
+    if (Laplace_rotu == 0) then
        visc_sclr = 0.0_8
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
-    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr(S_MASS) = dx_min**(2*Laplace_order_init) / tau_mu
-       visc_sclr(S_TEMP) = dx_min**(2*Laplace_order_init) / tau_b
-       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
-       visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
-    elseif (Laplace_order_init > 2) then
+    elseif (Laplace_rotu == 1 .or. Laplace_rotu == 2) then
+       visc_sclr(S_MASS) = dx_min**(2*Laplace_rotu) / tau_mu
+       visc_sclr(S_TEMP) = dx_min**(2*Laplace_rotu) / tau_b
+       visc_rotu = dx_min**(2*Laplace_rotu) / tau_rotu
+       visc_divu = dx_min**(2*Laplace_rotu) / tau_divu
+    elseif (Laplace_rotu > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if

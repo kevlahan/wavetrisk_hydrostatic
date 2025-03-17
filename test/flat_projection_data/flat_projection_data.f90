@@ -5,6 +5,7 @@ program flat_projection_data
   use io_mod
   use projection_mod
   use std_atm_profile_mod
+  use io_vtk_mod
   implicit none
   
   integer                                :: i, k, l, nt, Ncumul, p, d, nvar_total

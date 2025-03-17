@@ -34,8 +34,10 @@ program upwelling
   remapscalar_type   = "PPR"                         ! optimal remapping scheme
   remapvelo_type     = "PPR"                         ! optimal remapping scheme
   
-  Laplace_order_init = 1                              
-  Laplace_order = Laplace_order_init
+  Laplace_sclr = 1
+  Laplace_divu = 1
+  Laplace_rotu = 1                              
+
   vert_diffuse       = .true.                        ! include vertical diffusion
   tke_closure        = .false.                       ! use analytic scheme for eddy viscosity and eddy diffusion
          

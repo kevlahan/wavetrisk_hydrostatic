@@ -223,7 +223,7 @@ module shared_mod
   integer                                       :: cp_idx, err_restart
   integer                                       :: iadapt, ibin, irebalance, iremap, istep, istep_cumul, iwrite
   integer                                       :: n_diffuse, nbins, nstep_init, resume
-  integer                                       :: Laplace_divu, Laplace_rotu, Laplace_sclr, Laplace_order, Laplace_order_init
+  integer                                       :: Laplace_divu, Laplace_rotu, Laplace_sclr
   integer                                       :: topo_min_level, topo_max_level
   integer(8)                                    :: itime
   integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
@@ -381,7 +381,6 @@ contains
     level_save              = level_start                         ! level to save
 
     ! Order of Laplacian diffusion  0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
-    Laplace_order_init      = 2                                   ! same for all prognostic variables
     Laplace_sclr            = 2                                   ! scalars
     Laplace_divu            = 2                                   ! div u
     Laplace_rotu            = 2                                   ! rot u 

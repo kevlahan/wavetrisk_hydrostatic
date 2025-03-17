@@ -46,9 +46,6 @@ contains
     if (physics_model .and. physics_type == "Simple") call init_soil_grid
 #endif
 
-    ! Initialize Laplace order to specified value for test case
-    Laplace_order = Laplace_order_init
-
     ! Default elliptic solver (scheduled relaxation Jacobi method)
     elliptic_solver => SRJ
 

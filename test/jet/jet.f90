@@ -56,10 +56,6 @@ program jet
   theta1             = 0.8d0                           ! external pressure gradient (1 = fully implicit, 0.5 = Crank-Nicolson) stable if > 0.75
   theta2             = 0.8d0                           ! barotropic flow divergence (1 = fully implicit, 0.5 = Crank-Nicolson) stable if > 0.75
   
-  ! Horizontal diffusion
-  Laplace_order_init = 2                         
-  Laplace_order      = Laplace_order_init
-
   ! Vertical diffusion
   vert_diffuse       = .true.                       
   tke_closure        = .true.

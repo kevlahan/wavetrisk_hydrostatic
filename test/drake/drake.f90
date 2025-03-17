@@ -21,7 +21,6 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
   default_thresholds      = .false.
-  Laplace_order_init      = 2                              ! Laplacian if 1, bi-Laplacian if 2. No diffusion if 0.
   scale_aware             = .false.                        ! scale aware diffusion
   mode_split              = .true.                         ! split barotropic mode if true
   split_mean_perturbation = .true.
@@ -36,7 +35,7 @@ program Drake
   end if
   match_time              = .true.                         ! avoid very small time steps when saving 
   compressible            = .false.                        ! always run with incompressible equations
-  log_min_mass            = .false.                         ! compute and print minimum relative mass
+  log_min_mass            = .false.                        ! compute and print minimum relative mass
 
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -102,7 +101,7 @@ program Drake
   elseif (zlevels >= 2) then
      coords               = "uniform"
      sigma_z              = .true.                         ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-     max_depth            =   -4000d0 * METRE              ! total depth, constant density at depth > thermocline
+     max_depth            =   -4000d0 * METRE              ! total depth
      thermocline          =   -4000d0 * METRE              ! linear stratification region between thermocline and mixed_layer
      mixed_layer          =    -200d0 * METRE              ! constant density at depth < mixed_layer
 
@@ -111,12 +110,15 @@ program Drake
 
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
      vert_diffuse         = .true.
-     tke_closure          = .true.
+     tke_closure          = .false.
 
      drho                 =      -4d0 * KG/METRE**3        ! density perturbation at free surface at poles
      tau_0                =     0.1d0 * NEWTON/METRE**2    ! maximum wind stress
      u_wbc                =       1d0 * METRE/SECOND       ! estimated Western boundary current speed
      k_T                  =       1d0 / (30d0 * DAY)       ! relaxation to mean buoyancy profile
+
+     Kt_max               = 5e-3
+     Kv_max               = 5e-3
   end if
   
   
@@ -128,16 +130,16 @@ program Drake
 
   call initialize_dt_viscosity_case                                   ! initialize non-dimensional viscosities, cfl and time step
 
-  visc           = C_visc(S_VELO) * 1.5d0 * Area_min**Laplace_order_init / dt_init ! viscosity  
+  visc           = C_visc(S_VELO) * 1.5d0 * Area_min**Laplace_rotu / dt_init ! viscosity  
   Rd             = wave_speed / f0                                    ! barotropic Rossby radius of deformation             
   drho_dz        = drho / (mixed_layer-thermocline)                   ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)       ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                                  ! inertial layer
-  delta_M        = (visc/beta)**(1d0/(2d0*Laplace_order_init+1))      ! Munk layer scale
+  delta_M        = (visc/beta)**(1d0/(2d0*Laplace_rotu+1))      ! Munk layer scale
   delta_sm       = u_wbc / f0                                         ! barotropic submesoscale
   delta_S        = bottom_friction_case / (abs(max_depth) * beta)     ! Stommel layer scale
   Fr             = u_wbc / (bv*abs(max_depth))                        ! Froude number
-  Rey            = u_wbc * delta_sm**(2d0*Laplace_order_init-1d0) / visc ! Reynolds number of western boundary current
+  Rey            = u_wbc * delta_sm**(2d0*Laplace_rotu-1d0) / visc ! Reynolds number of western boundary current
   Ro             = u_wbc / (delta_M*f0)                               ! Rossby number (based on boundary current)
 
   ! Baroclinic wave speed

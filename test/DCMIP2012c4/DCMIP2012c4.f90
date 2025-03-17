@@ -3,7 +3,8 @@ program DCMIP2012c4
   ! Jablonowski and Williamson (2006) QJR Meteorol Soc (2006), 132, 2943–2975
   use main_mod
   use test_case_mod
-  use io_mod  
+  use io_mod
+  use io_vtk_mod
   implicit none
 
   logical :: aligned

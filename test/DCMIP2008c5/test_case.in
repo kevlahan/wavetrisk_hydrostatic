@@ -15,7 +15,6 @@ adapt_dt           T             ! adapt time step dynamically (T) or used fixed
 cfl_num            1.0           ! cfl number
 timeint_type       RK4          ! time integration method (RK33, RK34, RK45, RK4)
 pressure_save      700           ! save vertical layer closest to this pressure (hPa)
-Laplace_order      0             ! 0 = no diffusion, 1 = Laplacian diffusion, 2 = second order Laplacian hyperdiffusion
 n_diffuse          1             ! diffuse every n_diffuse time steps
 dt_write           0.25          ! save interval (days)
 CP_EVERY           6             ! checkpoint every CP_EVERY saves

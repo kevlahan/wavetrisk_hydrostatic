@@ -5,7 +5,7 @@ program Seamount
   ! Debreu and Kevlahan (2020).
   use main_mod
   use test_case_mod
-  use io_tke_mod  
+  use io_vtk_mod  
   implicit none
   integer :: l
   real(8) :: total_eta
@@ -52,8 +52,9 @@ program Seamount
   remapscalar_type   = "PPR"                                 ! optimal remapping scheme
   remapvelo_type     = "PPR"                                 ! optimal remapping scheme
 
-  Laplace_order_init = 1                             
-  Laplace_order      = Laplace_order_init
+  Laplace_sclr = 1
+  Laplace_divu = 1
+  Laplace_rotu = 1                             
   visc               = 50d0 * METRE**2/SECOND                ! viscosity
   
   theta1             = 0.8d0

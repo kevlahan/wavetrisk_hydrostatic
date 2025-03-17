@@ -18,7 +18,7 @@ module test_case_mod
   ! DCMIP2008c5
   real(8) :: d2, h_0, lat_c, lon_c
   ! Drake
-  real(8)               :: drho, halocline, mixed_layer
+  real(8)               :: drho, halocline
   real(8), dimension(2) :: density_drake, height
   ! Seamount
   real(8) :: delta, h0, lat_val, lon_val, width

@@ -68,9 +68,7 @@ contains
     id_i = id + 1
     d = dom%id + 1
 
-    if (Laplace_order == 0 .or. maxval (visc_sclr) == 0d0) then
-       physics_scalar_flux_case = 0d0
-    else
+    if (Laplace_sclr /= 0) then
        if (.not.local_type) then ! usual flux at edges E, NE, N
           l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
           d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
@@ -84,14 +82,14 @@ contains
        end if
 
        ! Calculate gradients
-       if (Laplace_order == 1) then
+       if (Laplace_sclr == 1) then
           grad = grad_physics (q(v,zlev)%data(d)%elts)
-       elseif (Laplace_order == 2) then
+       elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
 
        ! Complete scalar diffusion
-       physics_scalar_flux_case = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * visc_sclr(v) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -123,7 +121,7 @@ contains
     id = idx (i, j, offs, dims)
     id_i = id + 1
 
-    diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+    diffusion =  (-1)**(Laplace_rotu-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
 
     physics_velo_source_case = diffusion
   contains
@@ -239,7 +237,6 @@ contains
        write (6,'(A,L1)')     "adapt_dt                       = ", adapt_dt
        write (6,'(A,es10.4)') "cfl_num                        = ", cfl_num
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
-       write (6,'(A,i1)')     "Laplace_order                  = ", Laplace_order_init
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(A,es10.4)') "dt_write [d]                   = ", dt_write/DAY
        write (6,'(A,i6)')     "CP_EVERY                       = ", CP_EVERY
@@ -625,15 +622,15 @@ contains
     dt_cfl = min (cfl_num*dx_min/wave_speed, dx_min/c1)
     dt_init = dt_cfl
 
-    if (Laplace_order_init == 0) then
+    if (Laplace_rotu == 0) then
        visc_sclr = 0d0
        visc_divu = 0d0
        visc_rotu = 0d0
-    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
+    elseif (Laplace_rotu == 1 .or. Laplace_rotu == 2) then
        visc_sclr = visc
        visc_divu = visc
        visc_rotu = visc
-    elseif (Laplace_order_init >= 2) then
+    elseif (Laplace_rotu >= 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 supported)'
        stop
     end if

@@ -58,9 +58,9 @@ contains
     id_i = id + 1
     d = dom%id + 1
 
-    if (Laplace_order == 0) then
-       physics_scalar_flux_case = 0d0
-    else
+    physics_scalar_flux_case = 0d0
+    
+    if (Laplace_sclr /= 0) then
        if (.not.local_type) then ! usual flux at edges E, NE, N
           l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
           d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
@@ -74,14 +74,14 @@ contains
        end if
 
        ! Calculate gradients
-       if (Laplace_order == 1) then
+       if (Laplace_sclr == 1) then
           grad = grad_physics (q(v,zlev)%data(d)%elts)
-       elseif (Laplace_order == 2) then
+       elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
 
        ! Complete scalar diffusion
-       physics_scalar_flux_case = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * visc_sclr(v) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -111,11 +111,11 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    if (Laplace_order == 0) then
+    if (Laplace_rotu == 0) then
        diffusion = 0d0
     else
        ! Calculate Laplacian of velocity
-       diffusion =  (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+       diffusion =  (-1)**(Laplace_rotu-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
     end if
 
     ! Total physics for source term of velocity trend
@@ -379,7 +379,6 @@ contains
     read (fid,*) varname, adapt_dt
     read (fid,*) varname, cfl_num
     read (fid,*) varname, timeint_type
-    read (fid,*) varname, Laplace_order_init
     read (fid,*) varname, n_diffuse
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
@@ -392,7 +391,6 @@ contains
     dt_write = dt_write * DAY
     time_end = time_end * DAY
     resume   = resume_init
-    Laplace_order = Laplace_order_init
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters
@@ -425,7 +423,6 @@ contains
        write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
        write (6,'(a,a)')      "timeint_type        = ", trim (timeint_type)
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
-       write (6,'(A,i1)')     "Laplace_order       = ", Laplace_order_init
        write (6,'(A,i4)')     "n_diffuse           = ", n_diffuse
        write (6,'(A,es10.4)') "dt_write (min)      = ", dt_write/DAY
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
@@ -515,7 +512,7 @@ contains
     ! Diffusion constants
     C_sclr = 2d-3       ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
     C_divu = 1d-3    ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
-    C_rotu = C_sclr / 4**Laplace_order_init ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
+    C_rotu = C_sclr / 4**Laplace_rotu ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
 
     ! CFL limit for time step
     dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
@@ -525,15 +522,15 @@ contains
     tau_divu = dt_cfl / C_divu
     tau_rotu = dt_cfl / C_rotu
 
-    if (Laplace_order_init == 0) then
+    if (Laplace_rotu == 0) then
        visc_sclr = 0.0_8
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
-    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr = dx_min**(2*Laplace_order_init) / tau_sclr
-       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
-       visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
-    elseif (Laplace_order_init > 2) then
+    elseif (Laplace_rotu == 1 .or. Laplace_rotu == 2) then
+       visc_sclr = dx_min**(2*Laplace_rotu) / tau_sclr
+       visc_rotu = dx_min**(2*Laplace_rotu) / tau_rotu
+       visc_divu = dx_min**(2*Laplace_rotu) / tau_divu
+    elseif (Laplace_rotu > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if

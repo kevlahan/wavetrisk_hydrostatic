@@ -85,9 +85,9 @@ contains
        local_type = .false.
     end if
 
-    if (implicit_diff_sclr .or. Laplace_order == 0 .or. maxval (visc_sclr) == 0d0) then
-       physics_scalar_flux_case = 0d0
-    else
+    physics_scalar_flux_case = 0d0
+    
+    if (Laplace_sclr /= 0) then
        id_i = id + 1
        d = dom%id + 1
 
@@ -104,14 +104,14 @@ contains
        end if
 
        ! Calculate gradients
-       if (Laplace_order == 1) then
+       if (Laplace_sclr == 1) then
           grad = grad_physics (q(v,zlev)%data(d)%elts)
-       elseif (Laplace_order == 2) then
+       elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
 
        ! Complete scalar diffusion
-       physics_scalar_flux_case = (-1)**Laplace_order * visc_sclr(v) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * visc_sclr(v) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -146,7 +146,7 @@ contains
     if (implicit_diff_divu) then
        diffusion = - visc_rotu * curl_rotu()
     else
-       diffusion = (-1)**(Laplace_order-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+       diffusion = (-1)**(Laplace_rotu-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
     end if
 
     ! Penalization 
@@ -272,7 +272,6 @@ contains
        write (6,'(A,es10.4)') "tolerance                      = ", tol
        write (6,'(a,i5)')     "iadapt                         = ", iadapt
        write (6,'(A,i1)')     "optimize_grid                  = ", optimize_grid
-       write (6,'(A,i1)')     "Laplace_order                  = ", Laplace_order_init
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(A,L1)')     "vert_diffuse                   = ", vert_diffuse
        write (6,'(A,L1)')     "tke_closure                    = ", tke_closure
@@ -937,7 +936,7 @@ contains
     dt_init = dt_cfl
 
     C = 5d-3 ! <= 0.5 if explicit for Laplacian diffusion, <= 0.1 for hyperdiffusion
-    C_rotu = C / 4**Laplace_order_init  ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
+    C_rotu = C / 4**Laplace_rotu  ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
     C_divu = C
     C_mu   = 0d0
     C_b    = 0d0
@@ -948,16 +947,16 @@ contains
     tau_divu = dt_cfl / C_divu
     tau_rotu = dt_cfl / C_rotu
 
-    if (Laplace_order_init == 0) then
+    if (Laplace_rotu == 0) then
        visc_sclr = 0d0
        visc_divu = 0d0
        visc_rotu = 0d0
-    elseif (Laplace_order_init == 1 .or. Laplace_order_init == 2) then
-       visc_sclr(S_MASS) = dx_min**(2*Laplace_order_init) / tau_mu
-       visc_sclr(S_TEMP) = dx_min**(2*Laplace_order_init) / tau_b
-       visc_rotu = dx_min**(2*Laplace_order_init) / tau_rotu
-       visc_divu = dx_min**(2*Laplace_order_init) / tau_divu
-    elseif (Laplace_order_init > 2) then
+    elseif (Laplace_rotu == 1 .or. Laplace_rotu == 2) then
+       visc_sclr(S_MASS) = dx_min**(2*Laplace_rotu) / tau_mu
+       visc_sclr(S_TEMP) = dx_min**(2*Laplace_rotu) / tau_b
+       visc_rotu = dx_min**(2*Laplace_rotu) / tau_rotu
+       visc_divu = dx_min**(2*Laplace_rotu) / tau_divu
+    elseif (Laplace_rotu > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if

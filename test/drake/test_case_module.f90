@@ -143,12 +143,11 @@ contains
        write (6,'(a,L1)')     "adapt_dt                       = ", adapt_dt
        write (6,'(a,es10.4)') "cfl_num                        = ", cfl_num
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
-       write (6,'(/,a,i1)')     "Laplace_order                  = ", Laplace_order_init
        write (6,'(a,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(/,a,/,a,/,/,a,/,a,/)') "Stability limits:", &
             "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
-            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order", &
-            "                   C_visc(S_VELO) < (1/24)**Laplace_order"
+            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_sclr", &
+            "                   C_visc(S_VELO) < (1/24)**Laplace_rotu"
        if (scale_aware) then
           write (6,'(/,a,/)') "Scale-aware horizontal diffusion"
        else
@@ -600,31 +599,31 @@ contains
     dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc) ! initial time step (0.85 factor corrects for minimum dx)
 
     C_visc(S_VELO)     = 1d-3                                  ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
-    C_div              = 4d0**Laplace_order * C_visc(S_VELO)   ! dimensionless viscosity for divu         < 2.8e-2
-    C_visc(S_MASS)     = 4d0**Laplace_order * C_visc(S_VELO)   ! dimensionless viscosity of S_MASS        < 2.8e-2
-    C_visc(S_TEMP)     = 4d0**Laplace_order * C_visc(S_VELO)   ! dimensionless viscosity of S_TEMP        < 2.8e-2
+    C_div              = 4d0**Laplace_divu * C_visc(S_VELO)   ! dimensionless viscosity for divu         < 2.8e-2
+    C_visc(S_MASS)     = 4d0**Laplace_sclr * C_visc(S_VELO)   ! dimensionless viscosity of S_MASS        < 2.8e-2
+    C_visc(S_TEMP)     = 4d0**Laplace_sclr * C_visc(S_VELO)   ! dimensionless viscosity of S_TEMP        < 2.8e-2
   end subroutine initialize_dt_viscosity_case
 
-  real(8) function nu_scale (dom, id)
+  real(8) function nu_scale (order, dom, id)
     ! Viscosity non-dimensional scaling
     ! (factor 1.5 ensures stability limit matches theoretical value)
     implicit none
-    integer      :: id
+    integer      :: id, order
     type(domain) :: dom
 
     real(8) :: Area
 
     if (scale_aware) then
        if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
-          Area = 1d0 / dom%areas%elts(id+1)%hex_inv
+          Area = 1 / dom%areas%elts(id+1)%hex_inv
        else
           Area = hex_area_avg (dom%level%elts(id+1))
        end if
     else
        Area = Area_min
     end if
-
-    nu_scale = 1.5d0 * Area**Laplace_order / dt
+    
+    nu_scale = 1.5 * Area**order / dt
   end function nu_scale
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -1036,8 +1035,7 @@ contains
        z_coords_case(k) = eta_surf * a_vert(k) + z_0
     end do
   end function z_coords_case
-
-  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
+function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     ! Additional physics for the flux term of the scalar trend
     ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
     !
@@ -1051,7 +1049,6 @@ contains
     integer                                              :: d, id, idE, idNE, idN, v, zlev
     logical, optional                                    :: type
 
-    integer                    :: id_i
     real(8), dimension(1:EDGE) :: d_e, grad, l_e
     logical                    :: local_type
 
@@ -1062,30 +1059,29 @@ contains
     end if
 
     d = dom%id + 1
-    id_i = id + 1
 
-    if (Laplace_order == 0) then
-       physics_scalar_flux_case = 0d0
-    else
+    physics_scalar_flux_case = 0d0
+    
+    if (Laplace_sclr /= 0) then
        if (.not.local_type) then ! usual flux at edges E, NE, N
-          l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
-          d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
+          l_e =  dom%pedlen%elts(id_edge(id))
+          d_e =  dom%len%elts   (id_edge(id))
        else ! flux at SW corner
-          l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
+          l_e(RT+1) = dom%pedlen%elts(EDGE*idE +RT+1)
           l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
-          l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
-          d_e(RT+1) =  - dom%len%elts(EDGE*idE+RT+1)
+          l_e(UP+1) = dom%pedlen%elts(EDGE*idN +UP+1)
+          
+          d_e(RT+1) =  - dom%len%elts(EDGE*idE +RT+1)
           d_e(DG+1) =  - dom%len%elts(EDGE*idNE+DG+1)
-          d_e(UP+1) =  - dom%len%elts(EDGE*idN+UP+1)
+          d_e(UP+1) =  - dom%len%elts(EDGE*idN +UP+1)
        end if
-
        ! Calculate gradients
-       if (Laplace_order == 1) then
+       if (Laplace_sclr == 1) then
           grad = grad_physics (q(v,zlev)%data(d)%elts)
-       elseif (Laplace_order == 2) then
+       elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1d0)**Laplace_order * C_visc(v) * nu_scale (dom, id) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v) *  nu_scale (Laplace_sclr, dom, id) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -1121,12 +1117,13 @@ contains
     idNE  = idx (i+1, j+1, offs, dims)
     idN   = idx (i,   j+1, offs, dims)
 
-    ! Scale aware viscosity
-    if (Laplace_order == 0) then
-       horiz_diffusion  = 0d0
-    else
-       horiz_diffusion  = (-1d0)**(Laplace_order-1) * nu_scale (dom, id) * (C_div * grad_divu () - C_visc(S_VELO) * curl_rotu ()) 
-    end if
+    horiz_diffusion = 0d0
+
+    if (Laplace_divu /= 0) horiz_diffusion = &  
+         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
+
+    if (Laplace_rotu /= 0) horiz_diffusion = horiz_diffusion + &
+         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
 
        ! Vertical diffusion
     if (vert_diffuse) then ! using vertical diffusion module
