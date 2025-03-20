@@ -30,7 +30,7 @@ contains
 
        ! Calculate trend on all scales, from fine to coarse
        do l = level_end, level_start, -1
-          ! Finish non-blocking communication of dq from previous level (l+1)
+          ! Finish non-blocking communication of dq from level (l+1)
           if (l < level_end) call update_bdry__finish (dq(scalars(1):scalars(2),k),l+1) 
 
           call basic_operators  (q, dq, k, l)
@@ -155,6 +155,7 @@ contains
              call apply_onescale_to_patch (u_source, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
           end do
        end if
+
        nullify (mass, velo, mean_m, dvelo, h_mflux, divu, ke, qe, vort)
     end do
     dq(S_VELO,k)%bdry_uptodate = .false.
@@ -168,8 +169,8 @@ contains
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
     integer                                                      :: k
 
-    integer :: d, j, p
-    
+    integer :: d, p
+
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
        temp      => q(S_TEMP,k)%data(d)%elts
@@ -237,24 +238,25 @@ contains
   end subroutine cal_Laplacian_scalars
 
   subroutine cal_Laplacian_vector_rot (l)
-    ! Computes rot(rot(vort)) needed for second order vector Laplacian
+    ! Computes rot(rot(vorticity)) needed for second-order vector Laplacian
     implicit none
     integer :: l
     
     integer :: d, j
 
+    ! Compute rot(vorticity)
     do d = 1, size(grid)
        vort      => grid(d)%vort%elts
        Laplacian => Laplacian_vector(S_ROTU)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
        end do
        nullify (vort, Laplacian)
     end do
     Laplacian_vector(S_ROTU)%bdry_uptodate = .false.
 
-    ! Curl of rotational part of vector Laplacian, rot(rot(rot u))
-    !!! grid(d)%vort is now rot(rot(rot u)), not rot(u) !!!
+    ! Compute rot(rot(vorticity)) using previous result for rot(vorticity)
+    !!! grid(d)%vort is now rot(rot(vorticity)), not vorticity !!!
     do d = 1, size(grid)
        velo => Laplacian_vector(S_ROTU)%data(d)%elts
        vort => grid(d)%vort%elts
