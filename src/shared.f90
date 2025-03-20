@@ -376,7 +376,7 @@ contains
     dt_write                = 5d0  * DAY                          ! intervale for writing data
     iadapt                  = 1                                   ! adapt horizontal grid every iadapt time step
     irebalance              = 5                                   ! interval for checking rebalance (only active if using AMPI)
-    iremap                  = 10                                  ! remap every iremap time steps
+    iremap                  = 1                                   ! remap counter
     min_mass_remap          = 0.5d0                               ! minimum relative layer mass at which to remap
     level_save              = level_start                         ! level to save
 
