@@ -306,6 +306,9 @@ contains
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start)
 
+    ! Remap vertical coordinates
+    call remap_vertical_coordinates
+
     ! Initialize thresholds to default values (possibly based on mean values)
     call initialize_thresholds
 
