@@ -6,7 +6,6 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   use main_mod
   use test_case_mod
-  use lnorms_mod
   use io_vtk_mod
   implicit none
   logical :: aligned
@@ -14,27 +13,27 @@ program climate
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
-  
-  call read_test_case_parameters
-  
+  call read_test_case_parameters  
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  timeint_type             = "RK3"                            ! time integration scheme 
+  adapt_dt                 = .false.                          ! adapt time step
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
-  log_min_mass             = .false.                           ! compute minimum mass at each dt (for checking stability issues)
+  log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
   log_total_mass           = .false.                          ! check whether total mass is conserved (for debugging)
   remap                    = .true.                           ! use vertical remapping
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
-  
-  analytic_topo            = "none"                           ! type of analytic topography (mountains or none if NCAR_topo = .false.)
-  min_mass_remap           = 0.7d0                            ! minimum mass at which to remap
 
+  Laplace_sclr             = 2                                ! scalars
+  Laplace_divu             = 2                                ! div u
+  Laplace_rotu             = 2                                ! rot u 
+  min_mass_remap           = 0.7d0                            ! minimum mass at which to remap
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
   !    Local test case parameters (default values for many parameters set in physics module)
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   physics_model            = .true.                           ! use physics model sub-step (type is determined in input)
@@ -44,10 +43,9 @@ program climate
   diurnal                  = .true.                           ! diurnal cycle 
   radiation_model          = .true.                           ! radiation module
   turbulence_model         = .true.                           ! vertical diffusion module
-
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !    Standard (shared) parameter values for the simulation
+  !    Standard (shared) paraggmeter values for the simulation
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   c_p                      = 1004     * JOULE/(KG*KELVIN)     ! specific heat at constant pressure in joules per kilogram Kelvin
   grav_accel               = 9.8      * METRE/SECOND**2       ! gravitational acceleration 
@@ -80,8 +78,7 @@ program climate
   
   Mudim                    = ref_density * dz                 ! mu scale
   Thetadim                 = ref_density * dz * Tempdim       ! Theta scale
-  Udim                     = u_0                              ! velocity scale
-  
+  Udim                     = u_0                              ! velocity scale 
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Initialization
@@ -92,20 +89,19 @@ program climate
   call print_test_case_parameters
   
   open (unit = 12, file = trim(run_id)//'_log', action = 'WRITE', form = 'FORMATTED', position = 'APPEND')
-  call write_and_export (iwrite)
+  !call write_and_export (iwrite)
   
   total_cpu_time = 0d0; time_start = time
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Run simulation
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
-  if (rank == 0) write (6,'(A,/)') &
+  if (rank == 0) write (6,'(a,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
  
   do while (time < time_end)
      call start_timing ; call time_step (dt_write, aligned) ; call stop_timing
-
      call print_log
 
      if (aligned) then

@@ -13,7 +13,6 @@ module test_case_mod
   integer :: CP_EVERY, resume_init
   real(8) :: time_start, total_cpu_time
 
-
   ! Test case variables
   real(8) :: Area_max, Area_min, C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
   real(8) :: topo_Area_min, topo_dx_min
@@ -24,7 +23,7 @@ module test_case_mod
   real(8), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
   real(8), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
   real(8), parameter :: Area_CAM      = sqrt(3d0)/2 * dx_CAM**2     ! CAM hexagon area
-  real(8), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity
+  real(8), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity (1.4468e-03)
   
   real(8), parameter :: e_thick       = 10   * KM                   ! Ekman layer thickness
   logical            :: Ekman_ic      = .false.                     ! Ekman flow initial conditions (zero velocity initial conditions if false)
@@ -65,7 +64,6 @@ contains
     integer                                              :: d, id, idE, idNE, idN, v, zlev
     logical, optional                                    :: type
 
-    integer                    :: p_sclr
     real(8), dimension(1:EDGE) :: d_e, grad, l_e
     logical                    :: local_type
 
@@ -77,11 +75,9 @@ contains
 
     d = dom%id + 1
 
-    p_sclr = max (Laplace_order, Laplace_sclr)
-
-    if (p_sclr == 0) then
-       physics_scalar_flux_case = 0d0
-    else
+    physics_scalar_flux_case = 0d0
+    
+    if (Laplace_sclr /= 0) then
        if (.not.local_type) then ! usual flux at edges E, NE, N
           l_e =  dom%pedlen%elts(id_edge(id))
           d_e =  dom%len%elts   (id_edge(id))
@@ -95,12 +91,12 @@ contains
           d_e(UP+1) =  - dom%len%elts(EDGE*idN +UP+1)
        end if
        ! Calculate gradients
-       if (p_sclr == 1) then
+       if (Laplace_sclr == 1) then
           grad = grad_physics (q(v,zlev)%data(d)%elts)
-       elseif (p_sclr == 2) then
+       elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1)**p_sclr * C_visc(v) *  nu_scale (p_sclr, dom, id) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v) *  nu_scale (Laplace_sclr, dom, id) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -125,31 +121,28 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, p_divu, p_rotu
-    real(8), dimension(1:EDGE) :: blocking_drag, wave_drag
+    integer :: id
+    integer :: idE, idN, idNE
+
+    idE  = idx (i+1, j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
 
     id = idx (i, j, offs, dims)
 
     ! Scale aware viscosity
-    if (max (Laplace_order, Laplace_divu, Laplace_rotu) == 0) then
-       physics_velo_source_case = 0d0
-    else
-       p_divu = max (Laplace_order, Laplace_divu)
-       p_rotu = max (Laplace_order, Laplace_rotu)
-       physics_velo_source_case = (-1)**(p_divu-1) * C_visc(S_DIVU) * nu_scale (p_divu, dom, id) * grad_divu () &
-                                - (-1)**(p_rotu-1) * C_visc(S_ROTU) * nu_scale (p_rotu, dom, id) * curl_rotu () 
-    end if  
+    physics_velo_source_case = 0d0
+    
+    if (Laplace_divu /= 0) physics_velo_source_case = &  
+         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
+
+    if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
+         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
   contains
     function grad_divu ()
       implicit none
       real(8), dimension(1:EDGE) :: grad_divu
-      
-      integer :: idE, idN, idNE
-
-      idE  = idx (i+1, j,   offs, dims)
-      idN  = idx (i,   j+1, offs, dims)
-      idNE = idx (i+1, j+1, offs, dims)
-
+            
       grad_divu(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
       grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
       grad_divu(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
@@ -657,38 +650,22 @@ contains
        write (6,'(a,es8.2)') "dt_init                 = ", dt_init
        write (6,'(a,es8.2)') "cfl_num                 = ", cfl_num
        write (6,'(a,a)')      "timeint_type            = ", trim (timeint_type)
-       
-       write (6,'(a,i1,/)')     "Laplace_order           = ", Laplace_order
-       write (6,'(a,/,a,/,/,a,es8.2,/,a,es8.2,/)') "Stability limits:", &
-            "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
-            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_order = ", (1/6d0)**Laplace_order, &
-            "                   C_visc(S_VELO) < (1/24)**Laplace_order = ", (1/24d0)**Laplace_order
-       if (scale_aware) then
-          write (6,'(a,/)') "Scale-aware horizontal viscosity"
-       else
-          write (6,'(a,/)') "Horizontal viscosity based on dx_min"
+       write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
+       if (max (Laplace_sclr, Laplace_divu, Laplace_rotu) /= 0) then
+          if (scale_aware) then
+             write (6,'(a)') "Scale-aware horizontal viscosity"
+          else
+             write (6,'(a)') "Horizontal viscosity based on dx_min"
+          end if
        end if
+       if (Laplace_sclr /= 0) &
+            write (6,'(3(a,es8.2))') "C_sclr = ",  C_visc(S_MASS), " nu_sclr = ", nu_sclr, " tau_sclr = ", tau_sclr / HOUR
+       if (Laplace_divu /= 0) &
+            write (6,'(3(a,es8.2))') "C_divu = ",  C_visc(S_DIVU), " nu_divu = ", nu_divu, " tau_divu = ", tau_divu / HOUR
+       if (Laplace_rotu /= 0) &
+            write (6,'(3(a,es8.2))') "C_rotu = ",  C_visc(S_ROTU), " nu_rotu = ", nu_rotu, " tau_rotu = ", tau_rotu / HOUR
 
-       write (6,'(a)') "Non-dimensional viscosities"
-       write (6,'(4(a,es8.2/))') &
-            "C_visc(S_MASS)           = ", C_visc(S_MASS), &
-            "C_visc(S_TEMP)           = ", C_visc(S_TEMP), &
-            "C_visc(S_DIVU)           = ", C_visc(S_DIVU), &
-            "C_visc(S_ROTU)           = ", C_visc(S_ROTU)
-       
-       write (6,'(a)') "Diffusion times [h]"
-       write (6,'(3(a,es8.2/))') &
-            "tau_sclr                 = ", tau_sclr / HOUR, &
-            "tau_divu                 = ", tau_divu / HOUR, &
-            "tau_rotu                 = ", tau_rotu / HOUR
-
-       write (6,'(a)')        "Approximate viscosities on finest grid"
-       write (6,'(3(a,es8.2/))') &
-            "nu_scalar                = ", nu_sclr, &
-            "nu_div                   = ", nu_divu, &
-            "nu_rot                   = ", nu_rotu
-
-       write (6,'(a,es8.2)') "dt_init          [m]     = ", dt_init / MINUTE
+       write (6,'(/,a,es8.2)') "dt_init          [m]     = ", dt_init / MINUTE
        write (6,'(a,es8.2)') "dt_write         [d]     = ", dt_write / DAY
        write (6,'(a,i4)')     "CP_EVERY                 = ", CP_EVERY
        write (6,'(a,l1)')     "rebalance                = ", rebalance
@@ -850,9 +827,14 @@ contains
     ! Time step
     dt_init     = dt_CAM * (dx_min / dx_CAM)
 
-    ! Non-dimensional viscosities
-    C_visc = C_CAM 
-    C_visc(S_DIVU) = 10 * C_CAM ! boost divu (CAM boost is 2.5)
+    ! Non-dimensional viscosities 
+    C_visc = 0d0
+    if (Laplace_sclr /= 0) then
+       C_visc(S_MASS) = C_CAM
+       C_visc(S_TEMP) = C_CAM
+    end if
+    if (Laplace_divu /= 0) C_visc(S_DIVU) = C_CAM * 10
+    if (Laplace_rotu /= 0) C_visc(S_ROTU) = C_CAM
 
     ! Ensure stability
     C_visc(S_MASS) = min (C_visc(S_MASS), (1/6d0  )**Laplace_sclr)
@@ -866,9 +848,9 @@ contains
     nu_rotu = C_visc(S_ROTU) * 1.5 * Area_min**Laplace_rotu / dt_init
 
     ! Diffusion times
-    tau_sclr = dt_init / C_visc(S_MASS)
-    tau_divu = dt_init / C_visc(S_DIVU)
-    tau_rotu = dt_init / C_visc(S_ROTU)
+    if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS)
+    if (Laplace_divu /= 0) tau_divu = dt_init / C_visc(S_DIVU)
+    if (Laplace_rotu /= 0) tau_rotu = dt_init / C_visc(S_ROTU)
   end subroutine initialize_dt_viscosity_case
 
   real(8) function nu_scale (order, dom, id)
