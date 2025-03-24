@@ -249,12 +249,13 @@ contains
        vort      => grid(d)%vort%elts
        Laplacian => Laplacian_vector(S_ROTU)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 1)
+          call apply_onescale_to_patch (cal_Laplacian_rotu, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
        end do
        nullify (vort, Laplacian)
     end do
     Laplacian_vector(S_ROTU)%bdry_uptodate = .false.
-
+    call update_bdry (Laplacian_vector(S_ROTU), l)
+        
     ! Compute rot(rot(vorticity)) using previous result for rot(vorticity)
     !!! grid(d)%vort is now rot(rot(vorticity)), not vorticity !!!
     do d = 1, size(grid)
