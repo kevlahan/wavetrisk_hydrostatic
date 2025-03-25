@@ -1264,7 +1264,7 @@ contains
        call abort
     end if
     q%bdry_uptodate = .false.
-    call update_bdry1 (q, lmin, lmax)
+    call update_bdry1 (q, lmin, lmax, 909)
   end subroutine zero_float_field
 
   subroutine cal_zero_node (dom, i, j, zlev, offs, dims)
@@ -1349,7 +1349,7 @@ contains
        call abort
     end if
     q1%bdry_uptodate = .false.
-    call update_bdry1 (q1, lmin, lmax)
+    call update_bdry1 (q1, lmin, lmax, 910)
   end subroutine equals_float_field
 
   subroutine cal_equals_node (dom, i, j, zlev, offs, dims)

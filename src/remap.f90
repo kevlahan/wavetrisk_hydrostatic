@@ -59,7 +59,7 @@ contains
     end select
     
     ! Save old masses
-    call update_bdry (sol(:,1:zlevels), NONE)
+    call update_bdry (sol(:,1:zlevels), NONE, 900)
     allocate (old_mass(1:zlevels)); old_mass = sol(S_MASS,1:zlevels)
 
     ! Remap variables on all levels

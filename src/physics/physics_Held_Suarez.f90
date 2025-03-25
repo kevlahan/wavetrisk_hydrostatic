@@ -32,7 +32,7 @@ contains
 
     integer :: d, k, p
 
-    call update_bdry (q, NONE)
+    call update_bdry (q, NONE, 941)
 
     ! Assign shared variable
     call zero_float (dq)

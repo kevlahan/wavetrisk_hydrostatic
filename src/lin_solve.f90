@@ -60,8 +60,8 @@ contains
        end function Lu_diag
     end interface
 
-    call update_bdry (f, l)
-    if (log_iter) call update_bdry (u, l)
+    call update_bdry (f, l, 942)
+    if (log_iter) call update_bdry (u, l, 943)
 
     res = u; call zero_float_field (res, AT_NODE)
     call zero_float_field (wav_coeff(S_MASS,1), AT_NODE)
@@ -170,8 +170,8 @@ contains
        end function Lu_diag
     end interface
 
-    call update_bdry (f, l)
-    if (log_iter) call update_bdry (u, l)
+    call update_bdry (f, l, 944)
+    if (log_iter) call update_bdry (u, l, 945)
 
     call zero_float_field (wav_coeff(S_MASS,1), AT_NODE)
 
@@ -293,7 +293,7 @@ contains
        end function Lu_diag
     end interface
 
-    call update_bdry (f, l)
+    call update_bdry (f, l, 946)
 
     do iter = 1, iter_max
        call Jacobi_iteration (u, f, jac_wgt, Lu, Lu_diag, l)
@@ -326,8 +326,8 @@ contains
        end function Lu_diag
     end interface
 
-    Au   = Lu      (u, l); call update_bdry (Au,   l)
-    diag = Lu_diag (u, l); call update_bdry (diag, l)
+    Au   = Lu      (u, l); call update_bdry (Au,   l, 947)
+    diag = Lu_diag (u, l); call update_bdry (diag, l, 948)
 
     do d = 1, size(grid)
        mu1     =>  jac_wgt
@@ -382,8 +382,8 @@ contains
        end function Lu
     end interface
 
-    call update_bdry (f, l)
-    call update_bdry (u, l)
+    call update_bdry (f, l, 949)
+    call update_bdry (u, l, 950)
 
     res  = u; call zero_float_field (res,  AT_NODE, lmin_in=level_start)
     corr = u; call zero_float_field (corr, AT_NODE, lmin_in=level_start)
@@ -394,7 +394,7 @@ contains
     res0 = res
     p    = res0
     s    = res0
-    Ap   = Lu (p, l); call update_bdry (Ap, l)
+    Ap   = Lu (p, l); call update_bdry (Ap, l, 951)
     As   = Ap
 
     rho  = dp (res0, res, l)
@@ -403,7 +403,7 @@ contains
        alph = rho / dp (Ap, res0, l)
 
        call lc (s, 1d0, res, -alph, Ap, l)
-       As = Lu (s, l); call update_bdry (As, l)
+       As = Lu (s, l); call update_bdry (As, l, 952)
 
        omga = dp (As, s, l) / dp (As, As, l)
 
@@ -422,7 +422,7 @@ contains
 
        call lc (corr, 1d0, p, -omga, Ap, l)
        call lc (p, 1d0, res, b, corr, l)
-       Ap = Lu (p, l); call update_bdry (Ap, l)
+       Ap = Lu (p, l); call update_bdry (Ap, l, 953)
     end do
     u%bdry_uptodate = .false.
 
@@ -471,8 +471,8 @@ contains
 
     integer :: d, j
 
-    call update_bdry (s1, l)
-    call update_bdry (s2, l)
+    call update_bdry (s1, l, 954)
+    call update_bdry (s2, l, 955)
 
     dp_loc = 0d0
     do d = 1, size(grid)
@@ -524,7 +524,7 @@ contains
        nullify (scalar, scalar1, scalar2, mu1, mu2)
     end do
     s%bdry_uptodate = .false.
-    call update_bdry (s, l, 80)
+    call update_bdry (s, l, 956)
   end subroutine lc
 
   subroutine cal_lc (dom, i, j, zlev, offs, dims)
@@ -560,9 +560,9 @@ contains
        end function Lu
     end interface
 
-    call update_bdry (f, l)
+    call update_bdry (f, l, 957)
 
-    Au = Lu (u, l); call update_bdry (Au, l)
+    Au = Lu (u, l); call update_bdry (Au, l, 958)
 
     do d = 1, size(grid)
        scalar => res%data(d)%elts
@@ -629,7 +629,7 @@ contains
 
     integer :: d, j
 
-    call update_bdry (u, l)
+    call update_bdry (u, l, 959)
 
     elliptic_fun = u; call zero_float_field (elliptic_fun, AT_NODE, lmin_in=l)
 
@@ -643,7 +643,7 @@ contains
        nullify (scalar, h_flux)
     end do
     horiz_flux%bdry_uptodate = .false.
-    call update_bdry (horiz_flux(S_MASS), l)
+    call update_bdry (horiz_flux(S_MASS), l, 960)
 
     ! Compute divergence of fluxes
     do d = 1, size(grid)
@@ -659,7 +659,7 @@ contains
     call lc (elliptic_fun, 1d0, elliptic_fun, -10d0/s_test**2, u, l)
 
     elliptic_fun%bdry_uptodate = .false.
-    call update_bdry (elliptic_fun, l)
+    call update_bdry (elliptic_fun, l, 961)
   end function elliptic_fun
   
   function elliptic_fun_diag (q, l)
@@ -681,7 +681,7 @@ contains
     end do
 
     elliptic_fun_diag%bdry_uptodate = .false.
-    call update_bdry (elliptic_fun_diag, l)
+    call update_bdry (elliptic_fun_diag, l, 962)
   end function elliptic_fun_diag
 
   subroutine cal_elliptic_fun_diag  (dom, i, j, zlev, offs, dims)
@@ -727,7 +727,7 @@ contains
     real(8)                   :: nrm_err, nrm_sol
     type(Float_Field), target :: err
 
-    call update_bdry (u, l)
+    call update_bdry (u, l, 963)
 
     err = u
 

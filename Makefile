@@ -45,7 +45,7 @@ ifeq ($(SYSTEM),Darwin)
   endif
 else
   MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
-  ifeq ($(MACHINE),$(filter $(MACHINE), orc bul gra nia narval)) # module load CCEnv StdEnv
+  ifeq ($(MACHINE),$(filter $(MACHINE), orc bul gra nia narval)) # module load StdEnv netcdf 
     LAPACK = -lflexiblas  # module load flexiblas
   endif 
 endif

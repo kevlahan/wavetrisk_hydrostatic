@@ -83,7 +83,7 @@ contains
 
     integer :: d, k, l, v
 
-    call update_bdry (wav, NONE)
+    call update_bdry (wav, NONE, 901)
     
     do k = 1, size (wav, 2)
        do l = level_start+1, level_end
@@ -109,7 +109,7 @@ contains
 
     integer :: d, k, l
 
-    call update_bdry (wav, NONE)
+    call update_bdry (wav, NONE, 902)
     do d = 1, size (grid)
        do l = level_start+1, level_end
           wc_s => wav%data(d)%elts
@@ -127,7 +127,7 @@ contains
 
     integer :: d, k, l
 
-    call update_bdry (wav, NONE)
+    call update_bdry (wav, NONE, 903)
     do k = 1, size(wav)
        do d = 1, size (grid)
           do l = level_start+1, level_end
@@ -212,7 +212,7 @@ contains
        l_start = level_start
     end if
 
-    call update_bdry (scaling, NONE, 16)
+    call update_bdry (scaling, NONE, 904)
 
     do k = 1, size(scaling,2)
        do l = l_start, level_end-1
@@ -252,7 +252,7 @@ contains
        l_start = l_start0
     end if
 
-    call update_bdry (scaling, NONE)
+    call update_bdry (scaling, NONE, 905)
 
     do l = l_start, level_end-1
        do d = 1, size(grid)
@@ -283,7 +283,7 @@ contains
        l_start = l_start0
     end if
 
-    call update_bdry (scaling, NONE)
+    call update_bdry (scaling, NONE, 906)
 
     do k = 1, size (scaling)
        do l = l_start, level_end-1
@@ -323,7 +323,7 @@ contains
        end do
     end if
 
-    call update_bdry (scaling, NONE)
+    call update_bdry (scaling, NONE, 907)
 
     do k = 1, size(scaling)
        do l = l_start, level_end-1
@@ -367,6 +367,6 @@ contains
     end do
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=old_level_start)
     sol%bdry_uptodate = .false.
-    call update_bdry (sol, NONE, 17)
+    call update_bdry (sol, NONE, 908)
   end subroutine fill_up_grid_and_IWT    
 end module adapt_mod

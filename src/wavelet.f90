@@ -47,7 +47,7 @@ contains
     
     do l = jmax-1, jmin-1, -1
        ! Compute scalar wavelet coefficients
-       call update_bdry (scaling(scalars(1):scalars(2),:), l+1)
+       call update_bdry (scaling(scalars(1):scalars(2),:), l+1, 918)
 
        do k = 1, size(scaling,2)
           do d = 1, size(grid)
@@ -59,7 +59,7 @@ contains
              end do
           end do
        end do
-       call update_bdry (wavelet(scalars(1):scalars(2),:), l+1)
+       call update_bdry (wavelet(scalars(1):scalars(2),:), l+1, 919)
 
        ! Restrict scalars (sub-sample and lift) and velocity (average) from fine grid l+1 to coarse grid l
        do k = 1, size(scaling,2)
@@ -80,7 +80,7 @@ contains
     scaling%bdry_uptodate                          = .false.
     wavelet(scalars(1):scalars(2),:)%bdry_uptodate = .false.
 
-    call update_bdry (scaling(S_VELO,:), NONE)
+    call update_bdry (scaling(S_VELO,:), NONE, 920)
 
     ! Compute vector wavelet coefficients
     do l = jmax-1, jmin-1, -1
@@ -126,7 +126,7 @@ contains
     wavelet%bdry_uptodate = .false.
 
     do l = jmax-1, jmin-1, -1
-       call update_bdry (scaling, l+1)
+       call update_bdry (scaling, l+1, 921)
 
        ! Compute scalar wavelet coefficients
        do d = 1, size(grid)
@@ -135,7 +135,7 @@ contains
           call apply_interscale_d (Compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
           nullify (scalar, wc_s)
        end do
-       call update_bdry (wavelet, l+1)
+       call update_bdry (wavelet, l+1, 922)
 
        ! Restrict scalars (sub-sample and lift) from fine grid l+1 to coarse grid l
        do d = 1, size(grid)
@@ -178,7 +178,7 @@ contains
     wavelet%bdry_uptodate = .false.
     
     do l = jmax-1, jmin-1, -1
-       call update_bdry (scaling, l+1)
+       call update_bdry (scaling, l+1, 923)
 
        ! Compute scalar wavelet coefficients
        do k = 1, size(scaling)
@@ -189,7 +189,7 @@ contains
              nullify (scalar, wc_s)
           end do
        end do
-       call update_bdry (wavelet, l+1)
+       call update_bdry (wavelet, l+1, 924)
 
        ! Restrict scalars (sub-sample and lift) from fine grid l+1 to coarse grid l
        do k = 1, size(scaling)
@@ -230,8 +230,8 @@ contains
        call abort
     end if
 
-    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
-    call update_bdry1 (scaling, jmin,                    jmax)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 802)
+    call update_bdry1 (scaling, jmin,                    jmax, 803)
 
     scaling%bdry_uptodate = .false.
     do l = jmin, jmax-1
@@ -263,7 +263,7 @@ contains
        end do
 
        call update_bdry__finish (scaling(scalars(1):scalars(2),:), l+1)
-       call update_bdry__start (scaling(S_VELO,:),                l+1)
+       call update_bdry__start (scaling(S_VELO,:),                 l+1)
 
        ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
        do k = 1, size(scaling,2)
@@ -320,8 +320,8 @@ contains
        call abort
     end if
 
-    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
-    call update_bdry1 (scaling, jmin,                    jmax)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 809)
+    call update_bdry1 (scaling, jmin,                    jmax, 810)
 
     scaling%bdry_uptodate = .false.
     do l = jmin, jmax-1
@@ -332,7 +332,7 @@ contains
           call apply_interscale_d2 (Prolong_scalar, grid(d), l, z_null, 0, 1) ! needs wc
           nullify (scalar, wc_s)
        end do
-       call update_bdry (scaling, l+1)
+       call update_bdry (scaling, l+1, 925)
 
        ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
        do d = 1, size(grid)
@@ -370,8 +370,8 @@ contains
        call abort
     end if
 
-    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
-    call update_bdry1 (scaling, jmin,                    jmax)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 811)
+    call update_bdry1 (scaling, jmin,                    jmax, 812)
 
     scaling%bdry_uptodate = .false.
     do l = jmin, jmax-1
@@ -384,7 +384,7 @@ contains
              nullify (scalar, wc_s)
           end do
        end do
-       call update_bdry (scaling, l+1)
+       call update_bdry (scaling, l+1, 926)
 
        ! Prolong scalars at finer nodes not existing at coarser grid (interpolate and add wavelet coefficients)
        do k = 1, size(scaling)
@@ -424,8 +424,8 @@ contains
        call abort
     end if
 
-    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
-    call update_bdry1 (scaling, jmin,                    jmax)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 813)
+    call update_bdry1 (scaling, jmin,                    jmax, 814)
 
     scaling%bdry_uptodate = .false.
     do l = jmin, jmax-1
@@ -440,7 +440,7 @@ contains
           nullify (velo, wc_u)
        end do
 
-       call update_bdry (scaling, l+1)
+       call update_bdry (scaling, l+1, 927)
 
        ! Prolong inner velocities at finer edges (interpolate and add wavelet coefficients)
        do d = 1, size(grid)
@@ -481,8 +481,8 @@ contains
        call abort
     end if
 
-    call update_bdry1 (wavelet, max (jmin, level_start), jmax)
-    call update_bdry1 (scaling, jmin,                    jmax)
+    call update_bdry1 (wavelet, max (jmin, level_start), jmax, 817)
+    call update_bdry1 (scaling, jmin,                    jmax, 818)
 
     scaling%bdry_uptodate = .false.
     do l = jmin, jmax-1
@@ -499,7 +499,7 @@ contains
           end do
        end do
 
-       call update_bdry (scaling, l+1)
+       call update_bdry (scaling, l+1, 928)
 
        ! Prolong inner velocities at finer edges (interpolate and add wavelet coefficients)
        do k = 1, size(scaling)
@@ -789,7 +789,7 @@ contains
     integer :: d, l
    
     do l = level_end-1, level_start, -1
-       call update_bdry (q, l+1)
+       call update_bdry (q, l+1, 929)
 
        ! Restrict topography from fine grid l+1 to coarse grid l using full-weighting 
        do d = 1, size(grid)

@@ -58,8 +58,8 @@ contains
     
     integer :: d, j, k, l
 
-    call update_bdry (q(S_MASS,1:zlevels+1), NONE)
-    call update_bdry (q(S_TEMP,1:zlevels),   NONE)
+    call update_bdry (q(S_MASS,1:zlevels+1), NONE, 930)
+    call update_bdry (q(S_TEMP,1:zlevels),   NONE, 931)
 
     do l = level_end, level_start, -1
        call total_height (q(S_MASS,1:zlevels), exner_fun(1), l) ! sum mass perturbations
@@ -155,7 +155,7 @@ contains
     implicit none
     integer :: l
 
-    call update_bdry (sol(S_MASS,zlevels+1), NONE)
+    call update_bdry (sol(S_MASS,zlevels+1), NONE, 932)
     
     ! Flux divergence of vertically integrated velocity u_star, stored in trend(S_MASS,zlevels+1)
     call flux_divergence (sol, trend(S_MASS,zlevels+1))
@@ -192,7 +192,7 @@ contains
 
     integer :: d, j
 
-    call update_bdry (q, l)
+    call update_bdry (q, l, 933)
 
     elliptic_lo = q; call zero_float_field (elliptic_lo, AT_NODE)
     
@@ -207,7 +207,7 @@ contains
        nullify (h_flux, mass, scalar)
     end do
     horiz_flux(S_MASS)%bdry_uptodate = .false.
-    call update_bdry (horiz_flux(S_MASS), l)
+    call update_bdry (horiz_flux(S_MASS), l, 934)
 
     ! Calculate divergence
     do d = 1, size(grid)
@@ -219,7 +219,7 @@ contains
        nullify (dscalar, h_flux)
     end do
     Laplacian_scalar(S_MASS)%bdry_uptodate = .false.
-    call update_bdry (Laplacian_scalar(S_MASS), l)
+    call update_bdry (Laplacian_scalar(S_MASS), l, 935)
 
     ! Form complete linear operator 
     do d = 1, size(grid)
@@ -331,8 +331,8 @@ contains
 
     integer :: d, j, l
 
-    call update_bdry (q(S_MASS,1:zlevels), NONE)
-    call update_bdry (q(S_VELO,1:zlevels), NONE)
+    call update_bdry (q(S_MASS,1:zlevels), NONE, 936)
+    call update_bdry (q(S_VELO,1:zlevels), NONE, 937)
 
     do l = level_end, level_start, -1
        ! Calculate vertically integrated velocity flux
@@ -349,7 +349,7 @@ contains
           nullify (h_flux)
        end do
        horiz_flux(S_MASS)%bdry_uptodate = .false.
-       call update_bdry (horiz_flux(S_MASS), l)
+       call update_bdry (horiz_flux(S_MASS), l, 938)
 
        ! Calculate divergence of vertically integrated velocity flux
        do d = 1, size(grid)
@@ -361,7 +361,7 @@ contains
           nullify (dscalar, h_flux)
        end do
        div_flux%bdry_uptodate = .false.
-       call update_bdry (div_flux, l)
+       call update_bdry (div_flux, l, 939)
     end do
   end subroutine flux_divergence
 
@@ -455,7 +455,7 @@ contains
     implicit none
     integer :: d, j, l
 
-    call update_bdry (sol(S_MASS,zlevels+1), NONE)
+    call update_bdry (sol(S_MASS,zlevels+1), NONE, 940)
 
     call equals_float_field (sol(S_TEMP,zlevels+1), sol(S_MASS,zlevels+1), AT_NODE)
 

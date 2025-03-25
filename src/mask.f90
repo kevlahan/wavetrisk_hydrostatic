@@ -19,7 +19,7 @@ contains
     implicit none
     integer :: l
 
-    call update_bdry1 (wav_coeff, level_start, level_end)
+    call update_bdry1 (wav_coeff, level_start, level_end, 910)
 
     ! Set active grid at finest scale
     call apply_onescale (mask_tol_vars, level_end, z_null, 0, 1)

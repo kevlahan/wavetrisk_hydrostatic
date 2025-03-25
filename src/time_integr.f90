@@ -369,7 +369,7 @@ contains
     
     call manage_q1_mem
 
-    call update_bdry (sol(:,1:zlevels+1), NONE, 333)
+    call update_bdry (sol(:,1:zlevels+1), NONE, 968)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
@@ -393,7 +393,7 @@ contains
     
     call manage_q1_mem
 
-    call update_bdry (sol(:,1:zlevels+1), NONE, 333)
+    call update_bdry (sol(:,1:zlevels+1), NONE, 969)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
@@ -416,7 +416,7 @@ contains
     
     call manage_q1_mem
 
-    call update_bdry (sol(:,1:zlevels+1), NONE, 333)
+    call update_bdry (sol(:,1:zlevels+1), NONE, 970)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
@@ -432,7 +432,7 @@ contains
     implicit none        
     real(8) :: h
 
-    call update_bdry (sol(:,1:zlevels+1), NONE, 333)
+    call update_bdry (sol(:,1:zlevels+1), NONE, 971)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
     if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))

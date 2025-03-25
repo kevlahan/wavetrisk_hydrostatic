@@ -34,7 +34,7 @@ contains
     vel_vert = sol(S_MASS,1:zlevels); call zero_float (vel_vert)
 
     ! Update prognostic variable boundaries
-    sol%bdry_uptodate = .false.; call update_bdry (sol, NONE, 883)
+    sol%bdry_uptodate = .false.; call update_bdry (sol, NONE, 911)
 
     call pre_levelout
 
@@ -497,7 +497,7 @@ contains
     implicit none
     integer :: d, j, k, l, p
 
-    call update_bdry (sol, NONE)
+    call update_bdry (sol, NONE, 912)
 
     ! Compute surface pressure
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
@@ -523,7 +523,7 @@ contains
              nullify (h_flux)
           end do
           horiz_flux(S_MASS)%bdry_uptodate = .false.
-          call update_bdry (horiz_flux(S_MASS), l)
+          call update_bdry (horiz_flux(S_MASS), l, 913)
           
           do d = 1, size(grid)
              dscalar => trend(S_MASS,k)%data(d)%elts
@@ -550,7 +550,7 @@ contains
              nullify (h_flux, scalar, velo)
           end do
           horiz_flux(S_TEMP)%bdry_uptodate = .false.
-          call update_bdry (horiz_flux(S_TEMP), l)
+          call update_bdry (horiz_flux(S_TEMP), l, 914)
           do d = 1, size(grid)
              dscalar =>    vel_vert(k)%data(d)%elts
              h_flux  => horiz_flux(S_TEMP)%data(d)%elts
@@ -561,8 +561,8 @@ contains
           end do
 
           trend(S_MASS,k)%bdry_uptodate = .false.
-          call update_bdry (trend(S_MASS,k), l)
-          call update_bdry (vel_vert(k), l)
+          call update_bdry (trend(S_MASS,k), l, 915)
+          call update_bdry (vel_vert(k), l, 916)
        end do
     end do
 
@@ -617,7 +617,7 @@ contains
     call apply_bdry (cal_w, z_null, 0, 1)
 
     vel_vert%bdry_uptodate = .false.
-    call update_bdry (vel_vert, NONE)
+    call update_bdry (vel_vert, NONE, 917)
   end subroutine vertical_velocity
 
   subroutine cal_w (dom, i, j, zlev, offs, dims)

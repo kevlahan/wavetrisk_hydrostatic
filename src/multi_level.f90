@@ -9,7 +9,7 @@ contains
 
     integer :: k, l, v
 
-    call update_bdry (q, NONE)
+    call update_bdry (q, NONE, 967)
 
     ! Initialize trends
     do k = 1, zlevels
@@ -94,7 +94,7 @@ contains
        nullify (bernoulli, exner)
     end do
     horiz_flux%bdry_uptodate = .false.
-    if (level_start /= level_end) call update_bdry (horiz_flux, l)
+    if (level_start /= level_end) call update_bdry (horiz_flux, l, 968)
 
     if (Laplace_rotu == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity
   end subroutine basic_operators
@@ -107,7 +107,7 @@ contains
 
     integer :: d, j, v
 
-    call update_bdry (horiz_flux, l)
+    call update_bdry (horiz_flux, l, 969)
     
     do d = 1, size(grid)
        do v = scalars(1), scalars(2)
@@ -195,7 +195,7 @@ contains
     
     integer :: d, j, l, v
 
-    call update_bdry (q(scalars(1):scalars(2),k), NONE)
+    call update_bdry (q(scalars(1):scalars(2),k), NONE, 970)
     
     do l = level_end, level_start, -1
        ! Compute scalar fluxes
@@ -220,7 +220,7 @@ contains
           end if
        end do
        horiz_flux%bdry_uptodate = .false.
-       call update_bdry (horiz_flux, l)
+       call update_bdry (horiz_flux, l, 971)
 
        do d = 1, size(grid)
           do v = scalars(1), scalars(2)
@@ -233,7 +233,7 @@ contains
           end do
        end do
        Laplacian_scalar%bdry_uptodate = .false.
-       call update_bdry (Laplacian_scalar, l)
+       call update_bdry (Laplacian_scalar, l, 972)
     end do
   end subroutine cal_Laplacian_scalars
 
@@ -254,7 +254,7 @@ contains
        nullify (vort, Laplacian)
     end do
     Laplacian_vector(S_ROTU)%bdry_uptodate = .false.
-    call update_bdry (Laplacian_vector(S_ROTU), l)
+    call update_bdry (Laplacian_vector(S_ROTU), l, 973)
         
     ! Compute rot(rot(vorticity)) using previous result for rot(vorticity)
     !!! grid(d)%vort is now rot(rot(vorticity)), not vorticity !!!
@@ -293,7 +293,7 @@ contains
           end if
        end do
        horiz_flux(S_MASS)%bdry_uptodate = .false.
-       call update_bdry (horiz_flux(S_MASS), l)
+       call update_bdry (horiz_flux(S_MASS), l, 974)
 
        do d = 1, size(grid)
           dscalar => Laplacian_vector(S_DIVU)%data(d)%elts
@@ -304,7 +304,7 @@ contains
           nullify (dscalar, h_flux)
        end do
        Laplacian_vector(S_DIVU)%bdry_uptodate = .false.
-       call update_bdry (Laplacian_vector(S_DIVU), l)
+       call update_bdry (Laplacian_vector(S_DIVU), l, 975)
     end do
   end subroutine cal_Laplacian_divu
  
@@ -583,7 +583,7 @@ contains
     
     integer :: d, j, l
 
-    call update_bdry (q, NONE)
+    call update_bdry (q, NONE, 976)
 
     do l = level_end, level_start, -1
        ! Calculate velocity flux
@@ -602,7 +602,7 @@ contains
           nullify (h_flux)
        end do
        horiz_flux(S_MASS)%bdry_uptodate = .false.
-       call update_bdry (horiz_flux(S_MASS), l)
+       call update_bdry (horiz_flux(S_MASS), l, 977)
 
        ! Calculate divergence of vertically integrated velocity flux
        do d = 1, size(grid)

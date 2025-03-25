@@ -395,7 +395,7 @@ contains
     call apply_onescale (cal_assign_height, l, z_null, 0, 1)
 
     topography%bdry_uptodate = .false.
-    call update_bdry (topography, max_level)
+    call update_bdry (topography, max_level, 978)
 
     if (rank == 0) write (6,'(a,/)') " finished reading topography data."
   contains

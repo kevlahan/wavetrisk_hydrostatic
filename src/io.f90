@@ -804,8 +804,8 @@ contains
     character(9999)                  :: archive, bash_cmd, files
     logical, dimension(1:N_CHDRN)    :: required
 
-    call update_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE, 880)
-    if (vert_diffuse) call update_bdry (wav_tke, NONE, 881)
+    call update_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE, 964)
+    if (vert_diffuse) call update_bdry (wav_tke, NONE, 965)
 
     do d = 1, size(grid)
        do k = zmin, zmax
@@ -1126,7 +1126,7 @@ contains
     character(9999) :: filename
     character(9999) :: archive, bash_cmd, files
 
-    call update_bdry (topography, NONE, 882)
+    call update_bdry (topography, NONE, 966)
 
     allocate (topo_count(min_level:max_level,1:size(grid))); topo_count = 0
 
