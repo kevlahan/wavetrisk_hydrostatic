@@ -1,6 +1,6 @@
 **********************************************************************************************************************************
 PARAVIEW NOTES
-2025-03-06
+2025-03-26
 
 N. Kevlahan
 Department of Mathematics and Statistics
@@ -54,11 +54,15 @@ Paraview uses printf formats: e.g. %6.3f (standard) or %2.0e (scientific notatio
 
 Use "Interpret values as categories" for simple display of grid resolution levels.
 
+
 **********************************************************************************************************************************
 PREPARING SURFACE PLOTS
 
+Ensure you click "apply" to be able to use filters (like contour or smoothing).
+
 1. Use View->Equalize views to ensure equal window sizes.
-2. Set axis labels to 40 points, colorbar thickness to 30 and length to 0.6 (in general).
+2. Set axis labels to 40 points, colorbar thickness to 30 and length to 0.6 (in general). Check labels are clear when included in
+   paper/talk.
 3. Use "surface" (not slice).
 4. View -> Light inspector. In Key set Int to 1 to avoid dim colors. 
    Could also adjust Ele and Azi to ensure direct light (e.g. 0, 0 for z view).
