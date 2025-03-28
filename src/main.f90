@@ -607,7 +607,7 @@ contains
        if (adapt_dt) then
           dx = minval (dom%len%elts(ide))
           do k = 1, zlevels
-             v_mag = maxval (abs(sol(S_VELO,k)%data(d)%elts(ide)))
+             v_mag =  u_mag (dom, i, j, k, offs, dims)
              if (mode_split) then
                 dt_loc = min (dt_loc, cfl_num * dx / wave_speed, cfl_adv * dx / v_mag, cfl_bar * dx / c1)
              else
