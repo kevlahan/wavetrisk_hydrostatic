@@ -27,7 +27,7 @@ module test_case_mod
   
   real(8), parameter :: e_thick       = 10   * KM                   ! Ekman layer thickness
   logical            :: Ekman_ic      = .false.                     ! Ekman flow initial conditions (zero velocity initial conditions if false)
-  logical            :: scale_aware   = .false.                      ! scale-aware viscosity
+  logical            :: scale_aware   = .false.                     ! scale-aware viscosity
   logical            :: print_tol     = .false.                     ! print tolerances for each layer
   character(255)     :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
 contains
@@ -792,22 +792,14 @@ contains
   
   subroutine set_thresholds_case
     ! Set thresholds dynamically
-    ! (the default thresholds are a lower bound for the adaptive thresholds)
     use lnorms_mod
     implicit none
-    integer :: k
+
+    threshold = threshold_def
 
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
-
-       threshold(S_VELO,1:zlevels) = threshold_def(S_VELO,1:zlevels)
-       do k = 1, zlevels
-          threshold(S_MASS,k) = tol * lnorm(S_MASS,k)
-          threshold(S_TEMP,k) = tol * lnorm(S_TEMP,k)
-          if (lnorm(S_VELO,k) > 1d-2) threshold(S_VELO,k) = tol * lnorm(S_VELO,k)
-       end do
-    else
-       threshold = threshold_def
+       where (tol * lnorm > threshold) threshold = tol * lnorm
     end if
   end subroutine set_thresholds_case
 
@@ -826,15 +818,6 @@ contains
 
     ! Time step
     dt_init     = dt_CAM * (dx_min / dx_CAM)
-
-    ! Non-dimensional viscosities 
-    C_visc = 0d0
-    if (Laplace_sclr /= 0) then
-       C_visc(S_MASS) = C_CAM
-       C_visc(S_TEMP) = C_CAM
-    end if
-    if (Laplace_divu /= 0) C_visc(S_DIVU) = C_CAM * 10
-    if (Laplace_rotu /= 0) C_visc(S_ROTU) = C_CAM
 
     ! Ensure stability
     C_visc(S_MASS) = min (C_visc(S_MASS), (1/6d0  )**Laplace_sclr)

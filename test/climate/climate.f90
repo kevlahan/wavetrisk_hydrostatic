@@ -19,20 +19,16 @@ program climate
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   timeint_type             = "RK3"                            ! time integration scheme 
-  adapt_dt                 = .false.                          ! adapt time step
+  adapt_dt                 = .true.                           ! adapt time step
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
-  log_total_mass           = .false.                          ! check whether total mass is conserved (for debugging)
-  remap                    = .true.                           ! use vertical remapping
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
 
-  Laplace_sclr             = 2                                ! scalars
-  Laplace_divu             = 2                                ! div u
-  Laplace_rotu             = 2                                ! rot u 
-  min_mass_remap           = 0.7d0                            ! minimum mass at which to remap
-  
+  C_visc                   = C_CAM                            ! non-dimensional viscosity for scalars and rotu
+  C_visc(S_DIVU)           = (1/6d0)**Laplace_divu            ! non-dimensional viscosity for divu
+ 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Local test case parameters (default values for many parameters set in physics module)
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -45,11 +41,11 @@ program climate
   turbulence_model         = .true.                           ! vertical diffusion module
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !    Standard (shared) paraggmeter values for the simulation
+  !    Standard (shared) parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  c_p                      = 1004     * JOULE/(KG*KELVIN)     ! specific heat at constant pressure in joules per kilogram Kelvin
+  c_p                      = 1004     * JOULE/(KG*KELVIN)     ! specific heat at constant pressure
   grav_accel               = 9.8      * METRE/SECOND**2       ! gravitational acceleration 
-  omega                    = 7.292d-5 * RAD/SECOND            ! Earth's angular velocity in radians per second
+  omega                    = 7.292d-5 * RAD/SECOND            ! Earth's angular velocity
   R_d                      = 287      * JOULE/(KG*KELVIN)     ! set to a whole number
   radius                   = 6371     * KM                    ! mean radius of the Earth
   ref_density              = ref_density_air                  ! reference density of air
@@ -99,7 +95,6 @@ program climate
   if (rank == 0) write (6,'(a,/)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
- 
   do while (time < time_end)
      call start_timing ; call time_step (dt_write, aligned) ; call stop_timing
      call print_log
