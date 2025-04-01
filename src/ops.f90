@@ -252,6 +252,27 @@ contains
 
          dz = interp (dz0, mass(idN+1) + mean_m(idN+1)) 
          h_flux(EDGE*id+UP+1) = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1) * dz
+
+      elseif (itype == 8) then ! vorticity
+         u_prim_RT    = velo(EDGE*id  +RT+1) * dom%len%elts(EDGE*id  +RT+1)
+         u_prim_RT_N  = velo(EDGE*idN +RT+1) * dom%len%elts(EDGE*idN +RT+1)
+         u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
+         u_prim_DG    = velo(EDGE*id  +DG+1) * dom%len%elts(EDGE*id  +DG+1)
+         u_prim_DG_S  = velo(EDGE*idS +DG+1) * dom%len%elts(EDGE*idS +DG+1)
+         u_prim_DG_W  = velo(EDGE*idW +DG+1) * dom%len%elts(EDGE*idW +DG+1)
+         u_prim_UP    = velo(EDGE*id  +UP+1) * dom%len%elts(EDGE*id  +UP+1)
+         u_prim_UP_E  = velo(EDGE*idE +UP+1) * dom%len%elts(EDGE*idE +UP+1)
+         u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
+
+         circ_LORT   =   u_prim_RT   + u_prim_UP_E + u_prim_DG 
+         circ_UPLT   = -(u_prim_DG   + u_prim_UP   + u_prim_RT_N)
+         circ_W_LORT =   u_prim_RT_W + u_prim_UP   + u_prim_DG_W
+         circ_S_UPLT = -(u_prim_RT   + u_prim_DG_S + u_prim_UP_S)
+
+         vort(TRIAG*id +LORT+1) = circ_LORT   / dom%triarea%elts(TRIAG*id +LORT+1) 
+         vort(TRIAG*id +UPLT+1) = circ_UPLT   / dom%triarea%elts(TRIAG*id +UPLT+1)
+         vort(TRIAG*idW+LORT+1) = circ_W_LORT / dom%triarea%elts(TRIAG*idW+LORT+1)
+         vort(TRIAG*idS+UPLT+1) = circ_S_UPLT / dom%triarea%elts(TRIAG*idS+UPLT+1)
       elseif (itype == 0) then ! standard
          id_rhodz = (/ id, idN, idE, idS, idW, idNE /)
          do v = scalars(1), scalars(2)
@@ -311,9 +332,11 @@ contains
          qe(EDGE*id+DG+1) = interp (pv_UPLT,   pv_LORT)
          qe(EDGE*id+UP+1) = interp (pv_UPLT,   pv_W_LORT)
 
-         ! Vorticity (for velocity diffusion)
-         vort(TRIAG*id+LORT+1) = circ_LORT / dom%triarea%elts(TRIAG*id+LORT+1) 
-         vort(TRIAG*id+UPLT+1) = circ_UPLT / dom%triarea%elts(TRIAG*id+UPLT+1)
+         ! Vorticity (for rotu velocity diffusion)
+         vort(TRIAG*id +LORT+1) = circ_LORT   / dom%triarea%elts(TRIAG*id+LORT+1) 
+         vort(TRIAG*id +UPLT+1) = circ_UPLT   / dom%triarea%elts(TRIAG*id+UPLT+1)
+         vort(TRIAG*idW+LORT+1) = circ_W_LORT / dom%triarea%elts(TRIAG*idW+LORT+1)
+         vort(TRIAG*idS+UPLT+1) = circ_S_UPLT / dom%triarea%elts(TRIAG*idS+UPLT+1)
 
          ! Kinetic energy (TRiSK formula) 
          ke(id_i) = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT +  &
@@ -434,6 +457,18 @@ contains
 
          dz = interp (dz0, mass(idS+1) + mean_m(idS+1))
          h_flux(EDGE*idS+UP+1) = velo(EDGE*idS+UP+1) * dom%pedlen%elts(EDGE*idS+UP+1) * dz
+      elseif (itype == 8) then ! vorticity
+         u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
+         u_prim_RT_SW = velo(EDGE*idSW+RT+1) * dom%len%elts(EDGE*idSW+RT+1)
+         u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
+         u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
+         u_prim_UP_SW = velo(EDGE*idSW+UP+1) * dom%len%elts(EDGE*idSW+UP+1)
+
+         circ_SW_LORT =   u_prim_RT_SW + u_prim_UP_S  + u_prim_DG_SW
+         circ_SW_UPLT = -(u_prim_RT_W  + u_prim_DG_SW + u_prim_UP_SW)
+
+         vort(TRIAG*idSW+LORT+1) = circ_SW_LORT / dom%triarea%elts(TRIAG*idSW+LORT+1)
+         vort(TRIAG*idSW+UPLT+1) = circ_SW_UPLT / dom%triarea%elts(TRIAG*idSW+UPLT+1)
       elseif (itype == 0) then ! standard
          id_rhodz = (/ id, id, id, idS, idW, id, id, idSW /)
          do v = scalars(1), scalars(2)
@@ -467,9 +502,9 @@ contains
          qe(EDGE*idSW+DG+1) = interp (pv_SW_LORT, pv_SW_UPLT)
          qe(EDGE*idS +UP+1) = interp (pv_SW_LORT, pv_S_UPLT)
 
-         ! Vorticity (for velocity diffusion)
-         vort(TRIAG*idW+LORT+1) = circ_W_LORT / dom%triarea%elts(TRIAG*idW+LORT+1) 
-         vort(TRIAG*idS+UPLT+1) = circ_S_UPLT / dom%triarea%elts(TRIAG*idS+UPLT+1)
+         ! Vorticity (for rotu velocity diffusion)
+         vort(TRIAG*idSW+LORT+1) = circ_SW_LORT / dom%triarea%elts(TRIAG*idSW+LORT+1)
+         vort(TRIAG*idSW+UPLT+1) = circ_SW_UPLT / dom%triarea%elts(TRIAG*idSW+UPLT+1)
 
          ! Scalar fluxes
          do v = scalars(1), scalars(2)

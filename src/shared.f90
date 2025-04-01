@@ -371,13 +371,13 @@ contains
     cfl_adv                 = 1.4d0                               ! advective CFL number in mode split case
     cfl_bar                 = 1d0                                 ! baroclinic CFL number in mode split case
     cfl_num                 = 1d0                                 ! CFL number (barotropic CFL in mode split case)
-    C_visc                  = 5d-4                                ! dimensionless diffusion coefficients
+    C_visc                  = 1.5d-3                              ! dimensionless diffusion coefficients
     dt_phys                 = 30d0 * MINUTE                       ! intervale for physics split step
     dt_write                = 5d0  * DAY                          ! intervale for writing data
     iadapt                  = 1                                   ! adapt horizontal grid every iadapt time step
     irebalance              = 5                                   ! interval for checking rebalance (only active if using AMPI)
     iremap                  = 1                                   ! remap counter
-    min_mass_remap          = 0.5d0                               ! minimum relative layer mass at which to remap
+    min_mass_remap          = 0.9d0                               ! minimum relative layer mass compared to initial value at which to remap
     level_save              = level_start                         ! level to save
 
     ! Order of Laplacian diffusion  0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion

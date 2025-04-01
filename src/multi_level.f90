@@ -262,7 +262,7 @@ contains
        velo => Laplacian_vector(S_ROTU)%data(d)%elts
        vort => grid(d)%vort%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_vort, grid(d), grid(d)%lev(l)%elts(j), z_null, -1, 0)
+          call step1 (dom=grid(d), p=grid(d)%lev(l)%elts(j), itype=8)
        end do
        call apply_to_penta_d (post_vort, grid(d), l, z_null)
        nullify (velo, vort)
