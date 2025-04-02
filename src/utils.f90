@@ -27,8 +27,8 @@ module utils_mod
        integer, dimension(2,N_BDRY+1) :: dims
      end function routine_tri
   end interface
-  procedure (routine_hex), pointer :: arr_hex       => null ()
-  procedure (fun3),        pointer :: integrand     => null ()
+  procedure (routine_hex), pointer :: arr_hex   => null ()
+  procedure (fun3),        pointer :: integrand => null ()
   interface zero_float
      procedure :: zero_float_0, zero_float_1, zero_float_2
   end interface zero_float
@@ -1244,7 +1244,8 @@ contains
           do d = 1, size(grid)
              val1 => q%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_zero_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                call apply_onescale_to_patch (cal_zero_node, grid(d), grid(d)%lev(l)%elts(j), z_null, &
+                     -(BDRY_THICKNESS-1), BDRY_THICKNESS)
              end do
              nullify (val1)
           end do
@@ -1254,7 +1255,8 @@ contains
           do d = 1, size(grid)
              val1 => q%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_zero_edge, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+                call apply_onescale_to_patch (cal_zero_edge, grid(d), grid(d)%lev(l)%elts(j), z_null, &
+                     -(BDRY_THICKNESS-1), BDRY_THICKNESS)
              end do
              nullify (val1)
           end do
@@ -1263,8 +1265,6 @@ contains
        if (rank == 0) write (6,'(a)') "Unsupported type for zero_float_field ... aborting"
        call abort
     end if
-    q%bdry_uptodate = .false.
-    call update_bdry1 (q, lmin, lmax, 909)
   end subroutine zero_float_field
 
   subroutine cal_zero_node (dom, i, j, zlev, offs, dims)
@@ -1288,13 +1288,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id
+    integer :: id
 
     id = idx (i, j, offs, dims)
 
-    do e = 1, EDGE
-       val1(EDGE*id+e) = 0d0
-    end do
+    val1(id_edge (id)) = 0d0
   end subroutine cal_zero_edge
 
   subroutine equals_float_field (q1, q2, itype, lmin_in, lmax_in)
@@ -1328,7 +1326,8 @@ contains
              val1 => q1%data(d)%elts
              val2 => q2%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_equals_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+                call apply_onescale_to_patch (cal_equals_node, grid(d), grid(d)%lev(l)%elts(j), z_null, &
+                     -(BDRY_THICKNESS-1), BDRY_THICKNESS)
              end do
              nullify (val1, val2)
           end do
@@ -1339,7 +1338,8 @@ contains
              val1 => q1%data(d)%elts
              val2 => q2%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_equals_edge, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
+                call apply_onescale_to_patch (cal_equals_edge, grid(d), grid(d)%lev(l)%elts(j), z_null, &
+                     -(BDRY_THICKNESS-1), BDRY_THICKNESS)
              end do
              nullify (val1, val2)
           end do
@@ -1348,8 +1348,6 @@ contains
        if (rank == 0) write (6,'(a)') "Unsupported type for zero_float_field ... aborting"
        call abort
     end if
-    q1%bdry_uptodate = .false.
-    call update_bdry1 (q1, lmin, lmax, 910)
   end subroutine equals_float_field
 
   subroutine cal_equals_node (dom, i, j, zlev, offs, dims)
