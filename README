@@ -7,9 +7,3 @@ step using a multilevel wavelet-based method, providing very high local grid ref
 The code is parallelized using mpi and scales well to at least <code>O(10<sup>3</sup>)</code> cores.
 
 See the wiki `Users_manual.md` for more detailed information on the code, its approximation, models and instructions for compiling and running `WAVETRISK`. 
-
-Note: you must first `clone` the wiki for this repository using `git` if you want to have a copy of the wiki on your local computer.
-
-`git clone https://KevlahanMcMaster@bitbucket.org/kevlahan-code/wavetrisk_hydrostatic.git/wiki`
-
-You must `git pull` in the local `wiki` directory to update the wiki.
