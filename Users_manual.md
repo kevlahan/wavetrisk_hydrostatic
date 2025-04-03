@@ -482,10 +482,10 @@ The complete procedure to generate the multiscale topography is as follows:
 This generates a grid descriptor file (e.g. `J08_topo_grid.nc`) for ESMF/SCRIP software in `NetCDF` file format
 for the hexagons on a given non-adaptive WAVETRISK grid (e.g. the grid corresponding to the desired max_level).
 
-2. Compile and run the code
+2. Compile the code cube_to_target by running `make` in the directory `~/wavetrisk_hydrostatic/topo`. The executable is
 <pre>
 <code>
-    ~/wavetrisk_hydrostatic/topo/cube_to_target  
+    ~/wavetrisk_hydrostatic/bin/cube_to_target  
 </code>
 </pre>
 to generate the `NetCDF` file that provides the surface geopotential `phi_S = z/g` corresponding to the grid data saved in Step 1.  It is useful to use a script to specify appropriate parameters for `cube_to_target`. See example scripts for different finest grids in  `~/wavetrisk_hydrostatic/topo/scripts` where the parameter `--smoothing_scale` must be set to the approximate scale in kilometres of the finest grid of the test case using the topography (e.g. 120 km for finest level J=6 or 1 degree resolution).
