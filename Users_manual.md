@@ -190,7 +190,6 @@ To build for a multi-node machine, e.g. Compute Canada machine niagara, using gf
     ./build AMPI-only ucx-linux-x86_64 smp openpmix --with-production --force    
     module load NiaEnv/.2022a intel/2021u4 ucx/1.11.2 openmpi/4.1.2+ucx-1.11.2   
     CMK_NATIVE_CXX=icpc CMK_NATIVE_LDXX=icpc ./build AMPI-only ucx-linux-x86_64 smp openpmix icc ifort --with-production --force
-
 </code>
 </pre>
 If `PMIx` is not available as a module, you need to build it yourself and then add `--basedir=$HOME/pmix-3.1.5/build` to the `AMPI` to the build command.
@@ -210,14 +209,12 @@ Must do `make clean PHYSICS=true` before compiling with the physics sub-model. T
 <pre>
 <code>
     make TEST_CASE=climate PARAM=param_J5 PHYSICS=true
-
 </code>
 </pre>
 To compile test case climate using the `Held-Suarez` physics model and NCAR topography:
 <pre>
 <code>
     make TEST_CASE=climate PARAM=param_J5 TOPO=true
-
 </code>
 </pre>
 !! Always do "make clean" when compiling a new test case and when you modify the test case !!
@@ -226,7 +223,6 @@ To compile test case jet using `charm++/AMPI` and `gfortran` with `J5` as the co
 <pre>
 <code>
     make TEST_CASE=jet PARAM=param_J6 ARCH=ampi F90=gfortran
-
 </code>
 </pre>
 !! Note that AMPI does not work properly with ifort !!
@@ -240,7 +236,6 @@ Initial steps (using test case climate as an example).
 <pre>
 <code>
     ln -s wavetrisk_hydrostatic/bin/climate
-
 </code>
 </pre>
 Also include climate.user.so and charmrun, in addition to executable climate, for AMPI.
@@ -249,7 +244,6 @@ Also include climate.user.so and charmrun, in addition to executable climate, fo
 <pre>
 <code>
     ln -s path-to-grid_HR
-
 </code>
 </pre>
 
@@ -259,7 +253,6 @@ The compressed Heikes and Randall grids `J2, ... , J8` are provided in compresse
 <pre>
 <code>
     cp wavetrisk_hydrostatic/test/climate/test_case.in .
-
 </code>
 </pre>
 
@@ -267,7 +260,6 @@ If running with bathymetry data (e.g. incompressible tsunami test case) you need
 <pre>
 <code>
     ln -s ../extern/bathymetry/2arcminutes.smoothed bathymetry (to use 2 arcminute etopo topography data)
-
 </code>
 </pre>
 See [Section 5.2](#markdown-header-52-ncar-topography) for instruction on how to use NCAR global topography data.
@@ -287,7 +279,6 @@ Data is written for post processing by routines `io.f90/write_primal` and `io.f9
 <pre>
 <code>
     mpirun -n 40 ./climate HS.in
-
 </code>
 </pre>
 Example slurm script for an mpi job (save in a file, such as up_job.sh):   
@@ -303,7 +294,6 @@ Example slurm script for an mpi job (save in a file, such as up_job.sh):
     #SBATCH --output=upwelling_J8J10.log  # output file name       
     module load NiaEnv/.2022a gcc openmpi # modules used to compile the executable (up_J8 in this case)   
     srun -n 640 ./up_J8 upwelling.in    # command line to run   
-
 </code>
 </pre>
 Submit using `sbatch up_job.sh` (where `up_sh.sh` is the name of the slurm script file)   
@@ -320,7 +310,6 @@ Submit using `sbatch up_job.sh` (where `up_sh.sh` is the name of the slurm scrip
     pemap  specifies which cores to use for worker threads on each node    
     commap specifies which cores to use for communication threads on each socket (one per socket)  
     p = ppn  (number of sockets per node)  (number of nodes)  
-
 </code>
 </pre>
 !!  One core per socket must be reserved for communication threads. !!
@@ -344,7 +333,6 @@ Each node on the Compute Canada machine niagara has 2 sockets with 20 cores each
     #SBATCH --output=drake_charm.log                                                                               
     module load NiaEnv/.2022a gcc ucx/1.11.2 openmpi/4.1.2+ucx-1.11.2 openpmix/.experimental-3.1.5  
     srun ./drake_charm_J6 2layer.in +ppn 19 +vp 304 +pemap 1-19,21-39 +commap 0,20  
-
 </pre>
 </code>
 
@@ -354,7 +342,6 @@ In this case, p = (4 nodes)  (19 worker threads   2 sockets) = 152.  Cores 0 (on
 <pre>
 <code>
     ./charmrun +p 40 ./drake_charm_J6 2layer.in +vp 160 +balancer RefineLB +LBDebug 1  
-
 </code>
 </pre>
 In this case the virtualization ratio is `vp/p = 160/40 = 4`.
@@ -453,7 +440,6 @@ Physics submodels for the atmosphere (e.g. turbulent vertical diffusion of tempe
 <pre>
 <code>
     physics_model = .true.
-
 </code>
 </pre>
 which adds an implicit Euler physics time step. There are currently two atmosphere physics models included: `physics/physics_Held_Suarez.f90` (a basic relaxation model defined by Held & Suarez 1995) and `physics/physics_simple.f90` (Hourdin 1992's simple dry physics model). These models are selected using
@@ -461,7 +447,6 @@ which adds an implicit Euler physics time step. There are currently two atmosphe
 <code>
     physics_type = "Simple"   or
     physics_type = "Held_Suarez"
-
 </code>
 </pre>
 Each sub-model of Simple Physics can be turned on or off individually using the following flags:
@@ -471,7 +456,6 @@ Each sub-model of Simple Physics can be turned on or off individually using the 
     diurnal          = .true.    diurnal cycle 
     radiation_model  = .true.    radiation module
     turbulence_model = .true.    vertical diffusion module
-
 </code>
 </pre>
 All submodels are turned on by default. More physics models could be added to the physics module directory. When using the Simple Physics model the code must be compiled with the flag
@@ -491,7 +475,6 @@ The complete procedure to generate the multiscale topography is as follows:
 <pre>
 <code>
     call write_grid_coords  
-
 </code>
 </pre>
 This generates a grid descriptor file (e.g. `J08_topo_grid.nc`) for ESMF/SCRIP software in `NetCDF` file format
@@ -501,7 +484,6 @@ for the hexagons on a given non-adaptive WAVETRISK grid (e.g. the grid correspon
 <pre>
 <code>
     ~/wavetrisk_hydrostatic/topo/cube_to_target  
-
 </code>
 </pre>
 to generate the `NetCDF` file that provides the surface geopotential `phi_S = z/g` corresponding to the grid data saved in Step 1.  It is useful to use a script to specify appropriate parameters e.g. `J08.sh`.
@@ -510,7 +492,6 @@ The test case using the NCAR data (e.g. climate) must set the flag
 <pre>
 <code>
     NCAR_topo = .true.
-
 </code>
 </pre>
 to read in the `.nc` file generated in Step 2 to assign the topography data to the `type(Topo_Array) topography_data`, which must have the same `max_level` and domain configuration as the WAVETRISK grid that generated the data in Step 1.  The test case using the NCAR data must be compiled with the flag `TOPO=true`.
@@ -519,7 +500,6 @@ SSO parameterization based on ([Lott and Miller 1997](http:doi.org/10.1002/qj.49
 <pre>
 <code> 
     sso = .true.
-
 </code>
 </pre>
 which also requires `NCAR_topo=.true.` and the multiscale NCAR global topography data (See [Section 5.2](#markdown-header-52-ncar-topography)).
@@ -531,7 +511,6 @@ A test case using the SSO  must initialize and update at each time step the four
     sso_param(S_THETA)%data(d)%elts
     sso_param(S_GAMMA)%data(d)%elts
     sso_param(S_SIGMA)%data(d)%elts
-
 </code>
 </pre>
 by calling the subroutine `cal_sso_param` included in the `sso_mod` module. This is done in the routines `/test_case_module/apply_initial_conditions_case` and `/test_case_module/update_case` of the test case (see [Section 1.1](#markdown-header-11-climate) for an example).
@@ -567,7 +546,6 @@ The variables are stored in a `Type(Float_Array)` variable `sol` (see below), wi
          Total density is therefore ref_density (sol(S_MASS) - sol(S_TEMP)) / sol(S_MASS).
 
     S_VELO contains the three velocity components U, V, W at edges RT, DG and UP respectively (see below).
-
 </code>
 </pre> 
 ### 7.2 Parameters  
@@ -588,7 +566,6 @@ The coarsest level <code>MIN_LEVEL = DOMAIN_LEVEL + PATCH_LEVEL + 1</code> with 
 <pre>
 <code>
 N_GLO_DOMAIN = N_ICOSAH_LOZENGE N_SUB_DOM = 10 2<sup>2 DOMAIN_LEVEL</sup>
-
 </code>
 </pre>
 The data structure on each domain `d` is selected as `grid(d)` or `dom=grid(d)`, for example
@@ -596,7 +573,6 @@ The data structure on each domain `d` is selected as `grid(d)` or `dom=grid(d)`,
 <code>
     grid(d)%ke%elts               selects kinetic energy on domain d
     sol(S_VELO,zlev)%data(d)%elts selects velocity on domain d and vertical layer zlev
-
 </code>
 </pre>
 
@@ -679,7 +655,6 @@ The components of the grid elements are then found as:
     elts(id+1)        - one hexagon node grid element (scalars such mass, temperature)    
     elts(EDGEid+e+1)  - three edge elements e = RT, DG, UP, (stores vectors such as velocities and fluxes)  
     elts(TRIAGid+t+1) - two triangle grid elements t = LORT, UPLT (quantities defined on triangular grid cells, e.g. circulation)
-
 </code>
 </pre>
 Wavelet coefficients are stored at the SAME nodes/edges as the `nodes/edges` they characterize. Neighbouring nodes are indexed as follows:
@@ -719,14 +694,12 @@ The subroutine
 <pre>
 <code>
     call apply_onescale (routine, l, z_null, 0, 1)
-
 </code>
 </pre>
 applies the subroutine `routine` to a single scale `l`, while the subroutine 
 <pre>
 <code>
     call apply_interscale (routine, l, z_null, 0, 0)
-
 </code>
 </pre>
 applies a subroutine `routine` which involves the coarser scale `l` and the finer scale `l-1`.  
@@ -746,14 +719,12 @@ A routine is applied to edges (velocity) using commands like:
 <pre>
 <code>
     call apply_bdry (routine, zlev, 0, 0)  (st = 0, en = 0)
-
 </code>
 </pre>
 since all edges are included in the actual domain. Routines modifying edge values should NOT be applied to `(0,1)` since `(0,1)` includes the two poles which do not have associated edges (edge values would therefore be incorrect). Instead, to include poles in routines that modify both nodes and edges (like remap and physics models), the routine apply_no_bdry should be used:
 <pre>
 <code>
     call apply_no_bdry (routine, zlev)
-
 </code>
 </pre>
 This routine supplies an integer to the routine that is 1 if it being applied to edges, thus allowing the routine to exclude edge updates.
@@ -762,7 +733,6 @@ After applying these routines, the ghost nodes/edges are NOT correct for ghost c
 <pre>
 <code>
     variable%bdry_uptodate = .false.
-
 </code>
 </pre>
 where variable is the name of the modified variable (e.g. sol). The ghost cells are then corrected by the update routine:
@@ -770,7 +740,6 @@ where variable is the name of the modified variable (e.g. sol). The ghost cells 
 <code>
     call update_bdry (variable, l)    to update at level l only
     call update_bdry (variable, NONE) to update at all levels
-
 </code>
 </pre>
 The update command should be called by all routines requiring correct node values outside (0,1) and correct edge values outside `(0,0)`.
@@ -779,7 +748,6 @@ The update command should be called by all routines requiring correct node value
 <pre>
 <code>
     BDRY_THICKNESS = 2
-
 </code>
 </pre>   
 ensures that nearest neighbours are correct for nodes evaluated on `(0,1)` (i.e. ghost cells `-1, 2`), which is sufficient provided no routine requires more than one nearest neighbour nodes/edges in each direction at the same level.
@@ -802,7 +770,6 @@ Laplace order
       0          no horizontal diffusion
       1          Laplacian diffusion
       2          bi-Laplacian hyperdiffusion (default for all variables)
-
 </code>
 </pre>
 The non-dimensional viscosity is specified based on the maximum level of resolution (i.e. finest grid) for each variable using `C_visc(S_MASS)`, `C_visc(S_TEMP)`, `C_visc(S_DIVU)`, `C_visc(S_ROTU)`.  
