@@ -467,6 +467,8 @@ All submodels are turned on by default. More physics models could be added to th
 ### 5.2 NCAR topography  
 Generates smoothed multiscale topography data for WAVETRISK from NCAR topography NetCDF files using `cube_to_target` program that remaps topography data from cubed-sphere grid to target grid (non-adaptive WAVETRISK grid at max_level) grid using rigorous remapping ([Lauritzen, Nair and Ullrich 2015](http:/doi.org/10.5194/gmd-8-3975-2015)).  
 
+The modules `netcdf` and `netcdf netcdf-fortran` must be loaded.
+
 You must first generate the multiscale topography consistent with maximum resolution level `max_level` of the test case that will run. This can be done by suitably modifying the test case '~/wavetrisk_hydrostatic/test/make_NCAR_topo'. 
 
 The complete procedure to generate the multiscale topography is as follows:
