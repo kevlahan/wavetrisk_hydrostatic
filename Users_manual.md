@@ -473,12 +473,8 @@ You must first generate the multiscale topography consistent with maximum resolu
 
 The complete procedure to generate the multiscale topography is as follows:
 
-1. Pre-processing of coordinate data. Use test case `make_NCAR_topo` to generate the WAVETRISK grid coordinates for the required resolution levels: 
-<pre>
-<code>
-    call write_grid_coords  
-</code>
-</pre>
+1. Pre-processing of coordinate data. Use test case `make_NCAR_topo` to generate the WAVETRISK grid coordinates for the required resolution levels. The input script for the test case must specify the maximum resolution level, the name of the NCAR base topography file (e.g., `gmted2010_bedmachine-ncube0540-220518`) and the smoothing scale (e.g., 30 km for max_level = 8).
+
 This generates a grid descriptor file (e.g. `J08_topo_grid.nc`) for ESMF/SCRIP software in `NetCDF` file format
 for the hexagons on a given non-adaptive WAVETRISK grid (e.g. the grid corresponding to the desired max_level).
 
