@@ -473,23 +473,34 @@ You must first generate the multiscale topography consistent with maximum resolu
 
 The complete procedure to generate the multiscale topography is as follows:
 
-1. Pre-processing of coordinate data. Use test case `make_NCAR_topo` to generate the WAVETRISK grid coordinates for the required resolution levels. The input script for the test case must specify the maximum resolution level, the name of the NCAR base topography file (e.g., `gmted2010_bedmachine-ncube0540-220518`) and the smoothing scale (e.g., 30 km for max_level = 8). An example base NCAR topography files is provided in 
-<pre>
-<code>
-   ~/wavetrisk_hydrostatic/data/NCAR_topo
-</code>
-</pre>
-
-This generates a grid descriptor file (e.g. `J08_topo_grid.nc`) for ESMF/SCRIP software in `NetCDF` file format
-for the hexagons on a given non-adaptive WAVETRISK grid (e.g. the grid corresponding to the desired max_level).
-
-2. Compile the code cube_to_target by running `make` in the directory `~/wavetrisk_hydrostatic/topo`. The executable is
+1. Compile the code cube_to_target by running `make` in the directory `~/wavetrisk_hydrostatic/topo`. The executable is
 <pre>
 <code>
     ~/wavetrisk_hydrostatic/bin/cube_to_target  
 </code>
 </pre>
-to generate the `NetCDF` file that provides the surface geopotential `phi_S = z/g` corresponding to the grid data saved in Step 1.  It is useful to use a script to specify appropriate parameters for `cube_to_target`. See example scripts for different finest grids in  `~/wavetrisk_hydrostatic/topo/scripts` where the parameter `--smoothing_scale` must be set to the approximate scale in kilometres of the finest grid of the test case using the topography (e.g. 120 km for finest level J=6 or 1 degree resolution).
+to generate the `NetCDF` file that provides the surface geopotential `phi_S = z/g` corresponding to the grid data saved in Step 1.  
+
+It is useful to use a script to specify appropriate parameters for `cube_to_target`. See example scripts for different finest grids in  `~/wavetrisk_hydrostatic/topo/scripts` where the parameter `--smoothing_scale` must be set to the approximate scale in kilometres of the finest grid of the test case using the topography (e.g. 120 km for finest level J=6 or 1 degree resolution).
+
+2. Pre-processing of coordinate data. Compile the test case `make_NCAR_topo` with `PARAM` set to the coarsest grid resolution (e.g. `PARAM=param_J6`). Then specify the maximum grid resolution in the input file for `make_NCAR_topo` (e.g. `max_level=8`) to generate the WAVETRISK grid coordinates for all levels from `min_level` to `max_level`. 
+The input file must also specify the name of the NCAR base topography file (e.g., `gmted2010_bedmachine-ncube0540-220518`) and the smoothing scale (e.g., 30 km for max_level = 8). An example base NCAR topography file is provided in 
+<pre>
+<code>
+   ~/wavetrisk_hydrostatic/data/NCAR_topo
+</code>
+</pre>
+It is helpful to add symbolic links to the required data files and executables:
+<pre>
+<code>
+    gmted2010_bedmachine-ncube0540-220518
+    cube_to_target
+</code>
+</pre>
+Note that `make_NCAR_topo` must be run on a single core.
+
+This generates a grid descriptor file (e.g. `J08_topo_grid.nc`) for ESMF/SCRIP software in `NetCDF` file format
+for the hexagons on a given non-adaptive WAVETRISK grid (e.g. the grid corresponding to the desired max_level).
                         
 3. The test case using the NCAR data (e.g. climate) must set the flag
 <pre>
