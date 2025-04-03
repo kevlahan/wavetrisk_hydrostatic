@@ -6,8 +6,9 @@ module test_case_mod
   use std_atm_profile_mod
   use io_mod
   implicit none
-  integer         :: nsmth
+  integer         :: nsmth_Laplace
   real(8)         :: Area_max, Area_min, dt_nu, smth_scl
+  character(2)    :: restrict_type
   character(9999) :: topo_data
   logical         :: analytic_topo = .false.
 contains
@@ -187,6 +188,8 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, topo_data
     read (fid,*) varname, smth_scl
+    read (fid,*) varname, restrict_type
+    read (fid,*) varname, nsmth_Laplace
     close(fid)
   end subroutine read_test_case_parameters
 
@@ -208,6 +211,8 @@ contains
        write (6,'(a,a)')      "topo_data            = ", trim (topo_data)
        write (6,'(a,a)')      "topo_file            = ", trim (topo_file)
        write (6,'(a,es10.4)') "smth_scl             = ", smth_scl
+       write (6,'(a,i5)')     "nsmth_Laplace        = ", nsmth_Laplace
+       write (6,'(a,a)')      "restrict_type        = ", restrict_type
        write (6,'(a)') &
             '*********************************************************************&
             ************************************************************'
@@ -258,8 +263,8 @@ contains
     real(8) :: Area
 
     Area = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**l) ! average hexagonal cell area
-    dt_nu = Area/3d0 / dble (nsmth)                  ! amount of smoothing
-    do istep = 1, nsmth
+    dt_nu = Area/3d0 / dble (nsmth_Laplace)          ! amount of smoothing
+    do istep = 1, nsmth_Laplace
        call cal_trend_topo (l)
 
        call apply_onescale (Euler_step_topo, l, z_null, 0, 1)

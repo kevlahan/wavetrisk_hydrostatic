@@ -1,3 +1,5 @@
-max_level       6                                     ! maximum level of resolution
+max_level       8                                     ! maximum level of resolution
 topo_data       gmted2010_bedmachine-ncube0540-220518 ! NCAR topoography file 
-smth_scl        120                                   ! smoothing scale [km]
+smth_scl        30                                    ! smoothing scale [km]
+restrict_type   ss                                   ! ss (sub-sampling) or fw (full weighting restriction)
+nsmth_Laplace   0                                     ! number of Laplacian smoothing steps at each level

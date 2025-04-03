@@ -780,22 +780,36 @@ contains
     end if
   end subroutine Compute_velo_wavelets_penta
 
-  subroutine scalar_restriction (q, itype)
-    ! Restricts scalar using sub-sampling (itype = "ss") or full weighting restriction (itype = "fwr")
+  subroutine scalar_restriction (q, itype, fine, coarse)
+    ! Restricts scalar from level fine to level coarse (or level_end to level_start if fine and coarse not specified)
+    ! using sub-sampling (itype = "ss") or full weighting restriction (itype = "fwr")
     implicit none
-    type(Float_Field), target :: q
-    character(*)              :: itype
+    type(Float_Field), target   :: q
+    integer,           optional :: coarse, fine
+    character(*)                :: itype
 
-    integer :: d, l
-   
-    do l = level_end-1, level_start, -1
+    integer :: d, jmax, jmin, l
+
+    if (present(fine)) then
+       jmax = fine
+    else
+       jmax = level_end
+    end if
+    
+    if (present(coarse)) then
+       jmin = coarse
+    else
+       jmin = level_start
+    end if
+
+    do l = jmax-1, jmin, -1
        call update_bdry (q, l+1, 929)
 
        ! Restrict topography from fine grid l+1 to coarse grid l using full-weighting 
        do d = 1, size(grid)
           scalar => q%data(d)%elts
           select case (itype)
-          case ("fwr")
+          case ("fw")
              call apply_interscale_d (Restrict_fwr, grid(d), l, z_null, 0, 1) ! +1 to include poles
           case ("ss") 
              call apply_interscale_d (Restrict_ss,  grid(d), l, z_null, 0, 1) ! +1 to include poles

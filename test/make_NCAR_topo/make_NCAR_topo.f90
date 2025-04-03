@@ -7,7 +7,7 @@ program make_NCAR_topo
   implicit none
   integer         :: d, l
   real(8)         :: fine_mass
-  character(9999) :: cmd, grid_name, jmin_txt, jmax_txt, smth_txt, topo_desc 
+  character(9999) :: cmd, del_files, grid_name, jmin_txt, jmax_txt, smth_txt, topo_desc 
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -83,17 +83,21 @@ program make_NCAR_topo
      call assign_height (trim (topo_file))
   end if
 
-  ! Restrict topography
-  call scalar_restriction (topography, "ss")
+  ! Restrict and optional smooth topography to all levels
+  do l = max_level-1, min_level, -1
+     if (nsmth_Laplace /= 0) call smooth_topo (l)
+     call scalar_restriction (topography, restrict_type, fine=l+1, coarse=l) 
+  end do
   topography%bdry_uptodate = .false.
   call update_bdry (topography, NONE)
 
-  ! Set surface pressure at max_level to standard atmosphere value (stored in exern_fun(1))
+  ! Set surface pressure at max_level to standard atmosphere value (stored in exner_fun(1))
   call apply_onescale (surface_pressure, max_level, z_null, 0, 1)
   call update_bdry (exner_fun(1), max_level)
 
   ! Restrict surface pressure to coarser levels
-  call scalar_restriction (exner_fun(1), "ss")
+  call scalar_restriction (exner_fun(1), restrict_type)
+  exner_fun(1)%bdry_uptodate = .false.
   call update_bdry (exner_fun(1), NONE)
 
   ! Compute topography gradients at edges (stored in sol(S_VELO,1))
@@ -128,6 +132,13 @@ program make_NCAR_topo
 
   ! Save topography data on all non-adaptive levels
   call save_topo
+
+  ! Delete temporary files
+  if (rank == 0) then
+     write (del_files, '(a,a)') trim (topo_file)//'.nc ', trim (topo_desc)//'.nc'
+     cmd = 'bash -c "\rm '//trim(del_files)//'"'
+     call system (trim(cmd))
+  end if
 
   call finalize
 contains
