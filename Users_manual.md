@@ -491,14 +491,14 @@ You must first generate the multiscale topography consistent with maximum resolu
 
 The complete procedure to generate the multiscale topography is as follows:
 
-1. Pre-processing of coordinate data, first use `make_NCAR_topo` to generate the WAVETRISK grid coordinates for the required resolution levels: 
+1. Pre-processing of coordinate data. Use test case `make_NCAR_topo` to generate the WAVETRISK grid coordinates for the required resolution levels: 
 <pre>
 <code>
     call write_grid_coords  
 
 </code>
 </pre>
-to produce a grid descriptor file (e.g. `J08_topo_grid.nc`) for ESMF/SCRIP software in `NetCDF` file format
+This generates a grid descriptor file (e.g. `J08_topo_grid.nc`) for ESMF/SCRIP software in `NetCDF` file format
 for the hexagons on a given non-adaptive WAVETRISK grid (e.g. the grid corresponding to the desired max_level).
 
 2. Compile and run the code
@@ -508,17 +508,16 @@ for the hexagons on a given non-adaptive WAVETRISK grid (e.g. the grid correspon
 
 </code>
 </pre>
-to generate the `NetCDF` file that provides the surface geopotential `phi_S = z/g` corresponding to the grid data saved in Step 1.  It is practical to use a script to specify appropriate parameters e.g. `J08.sh`.
+to generate the `NetCDF` file that provides the surface geopotential `phi_S = z/g` corresponding to the grid data saved in Step 1.  It is useful to use a script to specify appropriate parameters e.g. `J08.sh`.
                         
-The test case using the NCAR data must set the flag
+The test case using the NCAR data (e.g. climate) must set the flag
 <pre>
 <code>
     NCAR_topo = .true.
 
 </code>
 </pre>
-to read in the `.nc` file generated in Step 2 to assign the topography data to the `type(Topo_Array) topography_data`,
-which must have the same `max_level` and domain configuration as the WAVETRISK grid that generated the data in Step 1.  The code must be compiled with the flag `TOPO=true`.
+to read in the `.nc` file generated in Step 2 to assign the topography data to the `type(Topo_Array) topography_data`, which must have the same `max_level` and domain configuration as the WAVETRISK grid that generated the data in Step 1.  The test case using the NCAR data must be compiled with the flag `TOPO=true`.
 ### 5.3 Subgrid scale orography model (SSO)
 SSO parameterization based on ([Lott and Miller 1997](http:doi.org/10.1002/qj.49712353704), [Japanese Meteorological Agency 2019](http://www.jma.go.jp/jma/jma-eng/jma-center/nwp/outline2019-nwp/pdf/outline2019_03.pdf)). Applicable in the case where there is a large scale separation between the underlying topography data (e.g. NCAR global model) and the finest horizontal grid resolution. This allows the blocking and wave drag effect of unresolved topography to be approximated using the mean and variance of the subgrid scale topography data over a computational grid cell. The `sso` model is activated using the flag
 <pre>
