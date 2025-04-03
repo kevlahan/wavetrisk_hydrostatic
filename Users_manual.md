@@ -157,14 +157,12 @@ Parallel:
 <code>
     ARCH=mpi  (default load balancing and checkpointing) 
     ARCH=ampi (AMPI load balancing and checkpointing)
-   
 </code>
 </pre>
 Serial (rimarily for testing:  
 <pre>
 <code>
     ARCH=ser 
-  
 </code>
 </pre>
 ### 2.2 Load balancing   
@@ -175,14 +173,12 @@ Serial (rimarily for testing:
     git clone https://github.com/UIUC-PPL/charm 
     cd charm/ 
     git fetch  &&  git checkout pieglobals-testing  (pieglobals are not included by default in version 7.0)
-
 </code>
 </pre>
 To build for a local machine ("standalone") with gfortran:
 <pre>
 <code>
     ./build AMPI-only multicore-linux-x86_64 --with-production --force
-
 </code>
 </pre>
 On niagara: `module load NiaEnv/.2022a gcc openmpi autotools`. 
