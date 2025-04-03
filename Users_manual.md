@@ -508,11 +508,9 @@ It is helpful to add symbolic links to the required data files and executables:
 </pre>
 Note that `make_NCAR_topo` must be run on a single core.
 
-This generates the following topography data files (e.g., for min_level=6, max_level=8):
+This generates the following topography data file (example for min_level=6, max_level=8 and 30 km smoothing):
 <pre>
 <code>
-    J06J08_topo_grid.nc   max_level WAVETRISK grid in `NetCDF` format for cube_to_target
-    J06J08_030.0km.nc     smoothed topography grid in `NetCDF` format for conversion to WAVETRISK format 
     J06J08_030.0km.tgz    topography data for WAVETRISK (including SSO parameters) restricted from max_level to all coarser grids
 </code>
 </pre>
