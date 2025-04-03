@@ -483,8 +483,17 @@ to generate the `NetCDF` file that provides the surface geopotential `phi_S = z/
 
 It is useful to use a script to specify appropriate parameters for `cube_to_target`. See example scripts for different finest grids in  `~/wavetrisk_hydrostatic/topo/scripts` where the parameter `--smoothing_scale` must be set to the approximate scale in kilometres of the finest grid of the test case using the topography (e.g. 120 km for finest level J=6 or 1 degree resolution).
 
-2. Pre-processing of topography data for WAVETRISK test case. Compile the test case `make_NCAR_topo` with `PARAM` set to the coarsest grid resolution (e.g. `PARAM=param_J6`). Then specify the maximum grid resolution in the input file for `make_NCAR_topo` (e.g. `max_level=8`) to generate the WAVETRISK grid coordinates for all levels from `min_level` to `max_level` by sub-sampling.
-The input file must also specify the name of the NCAR base topography file (e.g., `gmted2010_bedmachine-ncube0540-220518`) and the smoothing scale (e.g., 30 km for max_level = 8). An example base NCAR topography file is provided in 
+2. Pre-processing of topography data for WAVETRISK test case. Compile the test case `make_NCAR_topo` with `PARAM` set to the coarsest grid resolution (e.g. `PARAM=param_J6`). Then specify the maximum grid resolution in the input file for `make_NCAR_topo` (e.g. `max_level=8`) to generate the WAVETRISK grid coordinates for all levels from `min_level` to `max_level` by sub-sampling. An example input file is:
+<pre>
+<code>
+max_level       8                                     ! maximum level of resolution
+topo_data       gmted2010_bedmachine-ncube0540-220518 ! NCAR topoography file 
+smth_scl        30                                    ! smoothing scale [km]
+restrict_type   ss                                    ! ss (sub-sampling) or fw (full weighting restriction)
+nsmth_Laplace   0                                     ! number of Laplacian smoothing steps at each level
+</code>
+</pre>
+An example base NCAR topography file `gmted2010_bedmachine-ncube0540-220518` is provided in 
 <pre>
 <code>
    ~/wavetrisk_hydrostatic/data/NCAR_topo
