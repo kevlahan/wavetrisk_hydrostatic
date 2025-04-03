@@ -486,11 +486,11 @@ It is useful to use a script to specify appropriate parameters for `cube_to_targ
 2. Pre-processing of topography data for WAVETRISK test case. Compile the test case `make_NCAR_topo` with `PARAM` set to the coarsest grid resolution (e.g. `PARAM=param_J6`). Then specify the maximum grid resolution in the input file for `make_NCAR_topo` (e.g. `max_level=8`) to generate the WAVETRISK grid coordinates for all levels from `min_level` to `max_level` by sub-sampling. An example input file is:
 <pre>
 <code>
-max_level       8                                     ! maximum level of resolution
-topo_data       gmted2010_bedmachine-ncube0540-220518 ! NCAR topoography file 
-smth_scl        30                                    ! smoothing scale [km]
-restrict_type   ss                                    ! ss (sub-sampling) or fw (full weighting restriction)
-nsmth_Laplace   0                                     ! number of Laplacian smoothing steps at each level
+   max_level       8                                     ! maximum level of resolution
+   topo_data       gmted2010_bedmachine-ncube0540-220518 ! NCAR topoography file 
+   smth_scl        30                                    ! smoothing scale [km]
+   restrict_type   ss                                    ! ss (sub-sampling) or fw (full weighting restriction)
+   nsmth_Laplace   0                                     ! number of Laplacian smoothing steps at each level
 </code>
 </pre>
 An example base NCAR topography file `gmted2010_bedmachine-ncube0540-220518` is provided in 
