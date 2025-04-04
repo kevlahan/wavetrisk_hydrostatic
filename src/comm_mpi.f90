@@ -8,7 +8,7 @@ module comm_mpi_mod
   integer, dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
   real(8), dimension(2)              :: times
 
-  logical, parameter                 :: deadlock = .true. ! test for communication deadlocks
+  logical, parameter                 :: deadlock = .false. ! test for communication deadlocks
   
   interface sum_real
      procedure :: sum_real_0, sum_real_1
