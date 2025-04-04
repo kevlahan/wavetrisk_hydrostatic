@@ -803,5 +803,5 @@ Laplace order
 </pre>
 The non-dimensional viscosity is specified based on the maximum level of resolution (i.e. finest grid) for each variable using `C_visc(S_MASS)`, `C_visc(S_TEMP)`, `C_visc(S_DIVU)`, `C_visc(S_ROTU)`.  
 
-Note that for stability `C_visc(S_MASS,S_TEMP,S_DIVU) <= (1/6)^Laplace_order` and `C_visc(S_ROTU) <= (1/6/4)^(Laplace order)`. 
+Note that for stability `C_visc(S_MASS,S_TEMP,S_DIVU) <= (1/6)`<sup>Laplace order</sup> and `C_visc(S_ROTU) <= (1/6/4)`<sup>Laplace order</sup>. 
 The default value is `C_visc = 1.5e-3` and `C_visc(S_DIVU) = 0.0278` (maximum stable for hyperdiffusion) is recommended to guarantee stability when running the climate test cases with a large range of resolution levels.
