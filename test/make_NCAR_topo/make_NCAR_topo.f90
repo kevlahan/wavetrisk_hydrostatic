@@ -50,7 +50,7 @@ program make_NCAR_topo
      ! Write out grid coordinates for NCAR data
      write (jmin_txt,'(i2.2)') min_level
      write (jmax_txt,'(i2.2)') max_level
-     grid_name = 'J'//trim(jmin_txt)//'J'//trim(jmax_txt)
+     grid_name = trim(run_id)//'_J'//trim(jmin_txt)//'J'//trim(jmax_txt)
      topo_desc = trim(grid_name)//'_topo_grid'
 
      call write_grid_coords (topo_desc)

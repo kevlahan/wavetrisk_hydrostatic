@@ -185,6 +185,7 @@ contains
     if (rank == 0) write (6,'(a,A)') "Input file = ", trim (filename)
 
     open (unit=fid, file=filename, action='READ')
+    read (fid,*) varname, run_id
     read (fid,*) varname, max_level
     read (fid,*) varname, topo_data
     read (fid,*) varname, smth_scl
@@ -200,6 +201,7 @@ contains
             '********************************************************** Parameters &
             ************************************************************'
        write (6,'(a)')        "RUN PARAMETERS"
+       write (6,'(a,a)')      "run_id               = ", trim (run_id)
        write (6,'(a,i3)')     "min_level            = ", min_level
        write (6,'(a,i3)')     "max_level            = ", max_level
        write (6,'(a,i5)')     "number of domains    = ", N_GLO_DOMAIN
