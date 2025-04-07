@@ -469,7 +469,7 @@ Generates smoothed multiscale topography data for WAVETRISK from NCAR topography
 
 The modules `netcdf` and `netcdf netcdf-fortran` must be loaded.
 
-You must first generate the multiscale topography consistent with maximum resolution level `max_level` of the test case that will run. This can be done by suitably modifying the test case '~/wavetrisk_hydrostatic/test/make_NCAR_topo'. 
+You must first generate the multiscale topography for the desired range of levels from `min_level` (as set in the `PARAM` flag) and `max_level` (the maximum resolution level for the test case you want to run). Note that the test case can use any maximum level less than or equal to the `max_level` of the topography.
 
 The complete procedure to generate the multiscale topography is as follows:
 
@@ -515,6 +515,7 @@ This generates the following topography data file (example for min_level=6, max_
     J06J08_030.0km.tgz    topography data for WAVETRISK (including SSO parameters) restricted from max_level to all coarser grids
 </code>
 </pre>
+This multiscale topography data can be used with a test case compiled with `PARAM=param_J6` and `max_level` less than or equal to `8`.
 
                         
 3. The test case using the NCAR data (e.g. climate) must set the flag
