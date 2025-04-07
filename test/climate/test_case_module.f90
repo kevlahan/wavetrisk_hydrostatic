@@ -14,6 +14,7 @@ module test_case_mod
   real(8) :: time_start, total_cpu_time
 
   ! Test case variables
+  integer :: zmax_adapt = 30 ! highest layer that determines adaptive grid
   real(8) :: Area_max, Area_min, C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
   real(8) :: topo_Area_min, topo_dx_min
   real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
@@ -467,7 +468,7 @@ contains
           b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0.01505309d0, 0.03276228d0, 0.05359622d0, &
                0.07810627d0, 0.1069411d0, 0.1408637d0, 0.1807720d0, 0.2277220d0, 0.2829562d0, 0.3479364d0, 0.4243822d0, &
                0.5143168d0, 0.6201202d0, 0.7235355d0, 0.8176768d0, 0.8962153d0, 0.9534761d0, 0.9851122d0, 1d0 /)
-       elseif (zlevels==30) then
+       elseif (zlevels==30) then 
           a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
                0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
                0.131401270627975, 0.154586806893349, 0.181863352656364, 0.17459799349308, 0.166050657629967, &
@@ -777,7 +778,7 @@ contains
 
     threshold_def = 1d16
 
-    do k = 1, zlevels
+    do k = 1, zmax_adapt
        p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * P_s)
 
        rho_dz = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
@@ -799,7 +800,7 @@ contains
 
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
-       where (tol * lnorm > threshold) threshold = tol * lnorm
+       where (tol * lnorm(:,1:zmax_adapt) > threshold(:,1:zmax_adapt)) threshold(:,1:zmax_adapt) = tol * lnorm(:,1:zmax_adapt)
     end if
   end subroutine set_thresholds_case
 

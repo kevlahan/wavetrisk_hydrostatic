@@ -13,7 +13,7 @@ program climate
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
-  call read_test_case_parameters  
+  call read_test_case_parameters   
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
@@ -27,7 +27,10 @@ program climate
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
 
   C_visc                   = C_CAM                            ! non-dimensional viscosity for scalars and rotu
-  C_visc(S_DIVU)           = (1/6d0)**Laplace_divu            ! non-dimensional viscosity for divu
+  C_visc(S_DIVU)           = C_CAM * 10                       ! non-dimensional viscosity for divu
+
+  zmax_adapt               = zlevels - 3                      ! highest layer used to determine adaptive grid (about 18.6 hPa for 30 layers)
+                                                              ! (avoid refining on spurious reflection of upward propagating waves)
  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Local test case parameters (default values for many parameters set in physics module)
@@ -85,7 +88,7 @@ program climate
   call print_test_case_parameters
   
   open (unit = 12, file = trim(run_id)//'_log', action = 'WRITE', form = 'FORMATTED', position = 'APPEND')
-  !call write_and_export (iwrite)
+  call write_and_export (iwrite)
   
   total_cpu_time = 0d0; time_start = time
   
