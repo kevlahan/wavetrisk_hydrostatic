@@ -125,7 +125,7 @@ contains
        
        call count_active
      
-       if (trim (test_case) /= "make_NCAR_topo") call write_checkpoint (run_id, .true.)
+       if (trim (test_case) /= "make_NCAR_topo" .or. trim (test_case) /= "save_vtk_data") call write_checkpoint (run_id, .true.)
     end if
     call barrier
 
