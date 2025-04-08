@@ -1,5 +1,6 @@
-program flat_projection_data
-  ! Post-processing of checkpoint data to calculate flat projection
+program save_vtk_data
+  ! Reads data from checkpoints and saves in vtk files
+  ! (allows different post-processing data analysis from checkpoint data)
   use main_mod
   use test_case_mod
   use io_mod
@@ -27,206 +28,48 @@ program flat_projection_data
   call init_arch_mod 
   call init_comm_mpi_mod
 
-  ! Set the zonal nvar total - need 2 extra for simple physics
-  nvar_total = nvar_zonal
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Read test case parameters
   call read_test_case_parameters
   
   select case (test_case)
   case ("DCMIP2012c4")
-     compressible   = .true.                      ! Compressible equations
-     mean_split     = .false.
-
-     radius         = 6.371229d6                  ! mean radius of the Earth in meters
-     grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
-     omega          = 7.29212d-5                  ! Earth’s angular velocity in radians per second
-     p_0            = 1.0d5                       ! reference pressure (mean surface pressure) in Pascals
-     ref_surf_press = p_0                         ! reference surface pressure
-     R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
-     kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
-
-     u_0            = 35.0_8                      ! maximum velocity of zonal wind
-     eta_0          = 0.252_8                     ! value of eta at reference level (level of the jet)
+     compressible            = .true.                
+     split_mean_perturbation = .false.
   case ("DCMIP2008c5")
-     compressible   = .true.                      ! Compressible equations
-     mean_split     = .false.
-
-     radius         = 6.371229d6                  ! mean radius of the Earth in meters
-     grav_accel     = 9.80616_8                   ! gravitational acceleration in meters per second squared
-     omega          = 7.29211d-5                  ! Earth’s angular velocity in radians per second
-     p_0            = 100145.6_8                  ! reference pressure (mean surface pressure) in Pascals
-     ref_surf_press = 930.0d2                     ! reference surface pressure
-     R_d            = 287.04_8                    ! ideal gas constant for dry air in joules per kilogram Kelvin
-     kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
-
-     d2             = 1.5d6**2                    ! square of half width of Gaussian mountain profile in meters
-     h_0            = 2.0d3                       ! mountain height in meters
-     lon_c          = MATH_PI/2                   ! longitude location of mountain
-     lat_c          = MATH_PI/6                   ! latitude location of mountain
-  case ("Held_Suarez")
-     compressible   = .true.                      ! Compressible equations
-     mean_split     = .false.
-
-     radius         = 6.371d6                  ! mean radius of the Earth in meters
-     grav_accel     = 9.8_8                       ! gravitational acceleration in meters per second squared
-     omega          = 7.292d-5                    ! Earth’s angular velocity in radians per second
-     call std_surf_pres (0d0, p_0)
-     ref_surf_press = p_0                         ! reference surface pressure
-     R_d            = 287.0_8                     ! ideal gas constant for dry air in joules per kilogram Kelvin
-     gamma          = c_p/c_v                     ! heat capacity ratio
-     kappa          = 2.0_8/7.0_8                 ! kappa=R_d/c_p
-
-     T_0            = 300d0      * KELVIN              ! reference temperature
-     T_mean         = 315d0      * KELVIN              ! mean temperature
-     T_tropo        = 200d0      * KELVIN              ! tropopause temperature
-     k_a            = 1d0/40d0   / DAY                 ! cooling at free surface of atmosphere
-     k_f            = 1d0        / DAY                 ! Rayleigh friction
-     k_s            = 1d0/4d0    / DAY                 ! cooling at surface
-     delta_T        = 65d0       * KELVIN/METRE        ! meridional temperature gradient
-     delta_theta    = 10d0       * KELVIN/METRE        ! vertical temperature gradient
-
-     sigma_b        = 0.7d0                            ! normalized tropopause pressure height
-     sigma_c        = 1d0 - sigma_b
+     compressible            = .true.                
+     split_mean_perturbation = .false.
+  case ("climate") ! compile with PHYSICS=true
+     compressible            = .true.                    
+     split_mean_perturbation = .true.           
+     Nsoil                   = 10
+     physics_model           = .true.
+     physics_type            = "Simple"
   case ("drake")
-     scale          = 6                                  ! scale factor for small planet (1/6 Earth radius)
-     radius         = 6371.229/scale   * KM              ! mean radius of the small planet
-     grav_accel     = 9.80616          * METRE/SECOND**2 ! gravitational acceleration 
-     omega          = 7.29211d-5/scale * RAD/SECOND      ! angular velocity (scaled for small planet to keep beta constant)
-     p_top          = 0.0_8            * hPa             ! pressure at free surface
-     ref_density    = 1028             * KG/METRE**3     ! reference density at depth (seawater)
-
-     max_depth   = -4000 * METRE
-     halocline   = -1000 * METRE                      ! location of top (less dense) layer in two layer case
-     mixed_layer = -1000 * METRE                      ! location of layer forced by surface wind stress
-     drho        =    -8 * KG/METRE**3                ! density perturbation at free surface (density of top layer is rho0 + drho/2)
-     density_drake = (/ ref_density, ref_density + drho/2 /)    ! densities in each layer
-     height      = (/ abs(max_depth - halocline), abs(halocline) /) ! depths of each layer
-     npts_penal  = 4
-
-     mode_split     = .true.                             ! split barotropic mode if true
-     mean_split     = .true.
-     compressible   = .false.                            ! always run with incompressible equations
-     penalize       = .true.                             ! penalize land regions
+     compressible            = .false.
+     mode_split              = .true.          
+     split_mean_perturbation = .true.
   case ("seamount") 
-     scale          = 41.75d0                             
-     radius         = 6371.229/scale   * KM              
-     grav_accel     = 9.80616          * METRE/SECOND**2 
-     omega          = 7.29211d-5       * RAD/SECOND      
-     p_top          = 0.0_8            * hPa             
-     ref_density    = 1000             * KG/METRE**3     
-
-     max_depth   = -5000 * METRE
-     drho        =    -3 * KG/METRE**3               
-
-     mode_split     = .true.
-     mean_split     = .true.
-     compressible   = .false.                            
-     penalize       = .false.
-
-     lat_c          = 43.29 * DEG                               ! latitude of seamount
-     lon_c          =     0 * DEG                               ! longitude
-     h0             =  4500 * METRE                             ! height of seamount
-     width          =    40 * KM                                ! radius of seamount
-     delta          =   500 * METRE                             ! vertical decay of density
-
-     sigma_z        = .false.
-     coords         = "chebyshev"
-     stratification = "exponential"
+     compressible            = .false.                            
+     split_mean_perturbation = .true.
+     mode_split              = .true.
+     sigma_z                 = .false.
+     coords                  = "chebyshev"
+     stratification          = "exponential"
   case ("upwelling")
-     radius         = 240      * KM             
-     grav_accel     = 9.80616  * METRE/SECOND**2 
-     omega          = 6d-5     * RAD/SECOND      
-     p_top          = 0.0_8    * hPa             
-     ref_density    = 1027     * KG/METRE**3     
-
-     max_depth   =  -150 * METRE
-     min_depth   =   -25 * METRE
-     Tcline      =  - 50 * METRE
-     drho        =    -2.5 * KG/METRE**3
-
-     sigma_z        = .true.                       ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-     coords         = "croco"                      ! grid type for pure sigma grid ("croco" or "uniform")
-     mode_split     = .true.
-     mean_split     = .true.
-     compressible   = .false.                            
-     penalize       = .true.
-     vert_diffuse   = .true.
-
-     a_0            = 0.28 / CELSIUS
-     b_0            = 0.0_8
-     mu_1           = 0.0_8
-     mu_2           = 0.0_8
-     T_ref          = 14   * CELSIUS
-
-     alpha          = 1d-6    ! porosity
-     npts_penal     = 2.5
-
-     width          = 80 * KM                           ! width of channel in km
-     lat_width      = (width/radius)/DEG
-     lat_c          = 45                                ! centre of zonal channel (in degrees)
+     compressible            = .false.
+     split_mean_perturbation = .true.
+     sigma_z                 = .true.                       
+     coords                  = "croco"                      
+     mode_split              = .true.
+     vert_diffuse            = .true.
   case ("jet")
-     soufflet           = .false.                          ! set radius to exactly match Soufflet domain
-     lat_c              = 30d0                            ! centre of zonal channel (in degrees)
-     
-     if (soufflet) then
-        width           = 2000d0 * KM
-        beta            = 1.6d-11 / (METRE * SECOND)      ! beta parameter
-        f0              = 1d-4    / SECOND                ! Coriolis parameter
-        omega           = f0 / (2d0*sin(lat_c * DEG))     ! planet rotation
-        radius          = f0 / (beta * tan (lat_c * DEG)) ! planet radius to exactly match Soufflet beta plane
-        L_jet              = 0.8d0 * width                   ! width of jet transition region
-     else
-        lat_c           = 30d0                            ! centre of zonal channel (in degrees)
-        radius          = 1000d0 * KM                     ! meridional width of zonal channel
-        width           = radius                          ! zonal channel width
-        L_jet           = 0.4d0 * width                   ! width of jet transition region
-        f0              = 1d-4  / SECOND                  ! Coriolis parameter
-        omega           = f0 / (2d0*sin(lat_c*DEG))       ! planet rotation
-     end if
-
-     grav_accel         = 9.80616d0    * METRE/SECOND**2  ! gravitational acceleration 
-     ref_density        = 1027.75d0    * KG/METRE**3      ! reference density at depth (maximum density)
-
-     sigma_z            = .true.                        ! use sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-     coords             = "croco"                       ! grid type for pure sigma grid ("croco" or "uniform")
-     max_depth          = -4000d0 * METRE               ! total depth
-     min_depth          = -4000d0 * METRE               ! minimum depth
-     Tcline             =  -100d0 * METRE               ! position of thermocline
-
-     lat_width          = (width/radius)/DEG              ! width of zonal channel (in degrees)
-     
-     mode_split     = .true.
-     mean_split     = .true.
-     compressible   = .false.                            
-     penalize       = .false.
-     vert_diffuse   = .true.
-
-     a_0            = 0.28 / CELSIUS
-     b_0            = 0.0_8
-     mu_1           = 0.0_8
-     mu_2           = 0.0_8
-     T_ref          = 14   * CELSIUS
-
-     alpha          = 1d-2    ! porosity
-     npts_penal     = 4.5d0
-   case ("Simple_Physics")
-      radius         = 6400      * KM                 ! mean radius of the Earth
-      grav_accel     = 9.8       * METRE/SECOND**2    ! gravitational acceleration
-      p_0            = 1000      * hPa                ! reference pressure (mean surface pressure) in Pascals
-      p_top          = 0.01       * Pa                 ! pressure at the top in Pascals
-      c_p            = 1004.0_8  * JOULE/(KG*KELVIN)  ! specific heat at constant pressure in joules per kilogram Kelvin
-      R_d            = 287 * JOULE/(KG*KELVIN)         ! ideal gas constant for dry air in joules per kilogram Kelvin
-      c_v            = c_p - R_d * JOULE/(KG*KELVIN)  ! specific heat at constant volume c_v = c_p - R_d
-      ref_density    = 1.204     * KM                  ! Reference density (km/m^3)
-
-      kappa          = R_d/c_p                    ! kappa
-      gamma          = c_p/c_v  
-      zmin = -10
-      ref_surf_press = p_0
-      climatology = .false.
-      nvar_total = nvar_zonal + 3
-   case default
+     split_mean_perturbation = .true.
+     compressible            = .false.                            
+     mode_split              = .true.
+     penalize                = .false.
+     vert_diffuse            = .true.
+  case default
      if (rank == 0) write (6,'(a)') "Case not supported ... aborting"
      call abort
   end select
@@ -240,34 +83,7 @@ program flat_projection_data
   ! Initialize variables
   call initialize (run_id)
 
-  ! Initialize statistics
-  call initialize_projection (N)
-  if (trim (test_case) == "drake") then
-     call initialize_stat_drake
-  elseif (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
-     call initialize_stat_vertical
-  else
-     if (trim(test_case) == "Simple_Physics" .and. climatology) call init_physics_climatology
-     call initialize_stat
-  end if
-  
-  ! Save topography
-  if (NCAR_topo) then
-     call project_field_onto_plane (topography, level_end, 0d0)
-     if (rank == 0) then
-        topo_filename = trim(run_id)//'_topo_2D'
-        open (unit=400, file=trim(topo_filename), access="STREAM", form="UNFORMATTED", status="REPLACE")
-        do i = Ny(1), Ny(2)
-           write (funit) field2d(:,i)
-        end do
-        close (funit)
-
-        command = 'gtar czf '//trim(topo_filename)//'.tgz '//trim(run_id)//'_topo_2D --remove-files &'
-        call system (trim(command))
-     end if
-  end if
-
-  Nt = 0
+   Nt = 0
   do cp_idx = mean_beg, mean_end
      Nt = Nt + 1
      resume = NONE
@@ -275,117 +91,14 @@ program flat_projection_data
 
      ! Set means
      do l = level_start, level_end
-        do k = 1, zmax
+        do k = 1, zlevels
            call apply_onescale (init_mean, l, k, -BDRY_THICKNESS, BDRY_THICKNESS)
         end do
      end do
 
-     if  (trim (test_case) == "drake") then
-        if (zlevels == 2) then
-           drake_ke(Nt,1) = time
-           drake_ke(Nt,2:5) = energy_drake ('adaptive')
-           drake_enstrophy(Nt,1) = time
-           drake_enstrophy(Nt,2:6) = pot_enstrophy_drake ('adaptive')
-           if (cp_idx == cp_2d) call latlon_drake
-        elseif (zlevels == 1) then
-           drake_ke(Nt,1) = time
-           drake_ke(Nt,2) = energy_1layer ('adaptive')
-           drake_enstrophy(Nt,1) = time
-           drake_enstrophy(Nt,2) = pot_enstrophy_1layer ('adaptive')
-           if (cp_idx == cp_2d) call latlon_1layer
-        end if
-     elseif  (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet") then
-        call vertical_slice
-        if (rank == 0) call write_slice
-     elseif (trim (test_case) == "Simple_Physics") then
-         if (climatology) then
-            call cal_surf_press(sol(1:N_VARIABLE,1:zmax))
-            ! Add each temp & KE for each checkpoint for the climatology
-            ! Update the boundary for the velocities
-            sol%bdry_uptodate = .false.
-            call update_bdry (sol, NONE, 26)
-            do k = 1, zlevels
-               do d = 1, size(grid)
-                  temp   => sol(S_TEMP,k)%data(d)%elts
-                  temp1  => simple_phys_temp(k)%data(d)%elts
-                  mass   => sol(S_MASS,k)%data(d)%elts
-                  mean_m => sol_mean(S_MASS,k)%data(d)%elts
-                  mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-                  velo   => sol(S_VELO,k)%data(d)%elts
-                  velo_2d  => simple_phys_vels(k)%data(d)%elts
-                  velo1  => grid(d)%u_zonal%elts
-                  velo2  => grid(d)%v_merid%elts
-                  do p = 3, grid(d)%patch%length
-                     call apply_onescale_to_patch (climatology_add_temp, grid(d), p-1, k, 0, 1)
-                     call apply_onescale_to_patch(climatology_add_velocities, grid(d), p-1, k, 0, 0)
-                     call apply_onescale_to_patch (climatology_add_KE, grid(d), p-1, k, 0, 1)
-                     if (cp_idx==cp_2d) then
-                         call apply_onescale_to_patch (climatology_temp_mean, grid(d), p-1, k, 0, 1)
-                         call apply_onescale_to_patch (climatology_velocity_mean, grid(d), p-1, k, 0, 0)
-                         call apply_onescale_to_patch (climatology_KE_mean, grid(d), p-1, k, 0, 1)
-                     end if
-                  end do
-                  nullify(temp, temp1, mass, mean_m, mean_t, velo, velo_2d, velo1, velo2)
-               end do
-            end do
-         end if 
-         if (welford) then
-            call cal_zonal_av
-         else
-            call cal_zonal_average
-         end if
-
-      elseif (trim (test_case) == "Held_Suarez") then
-         
-         call latlon (field2d_incr); field2d_av = field2d_av + field2d_incr
-         
-         if (cp_idx == cp_2d) call latlon (field2d_save)
-         
-      else
-         if (welford) then
-           call cal_zonal_av
-        else
-           call cal_zonal_average
-        end if
-        if (cp_idx == cp_2d) call latlon (field2d_save)
-     end if
+     ! Save data
+     call write_and_export (cp_idx) 
   end do
-
-  if (trim (test_case) == "drake") then
-     if (rank==0) then
-        if (zlevels == 2) then
-           call write_out_drake
-        elseif (zlevels == 1) then
-           call write_out_1layer
-        end if
-     end if
-  elseif (.not. (trim (test_case) == "seamount" .or. trim (test_case) == "upwelling" .or. trim (test_case) == "jet")) then
-     if (.not. welford) then
-        zonal_av(:,:,1)   = zonal_av(:,:,1)   / Ncumul
-        zonal_av(:,:,3:5) = zonal_av(:,:,3:5) / Ncumul
-        if (trim (test_case) == "Simple_Physics") zonal_av(:,:,10:12) = zonal_av(:,:,10:12) / Ncumul
-        call barrier
-
-        do cp_idx = mean_beg, mean_end
-           resume = NONE
-           call restart (run_id)
-           call cal_variance
-        end do
-        call barrier
-     end if
-     
-     ! Finish covariance calculations
-     zonal_av(:,:,2)   = zonal_av(:,:,2)   / (Ncumul-1)
-     zonal_av(:,:,6:9) = zonal_av(:,:,6:9) / (Ncumul-1)
-
-     if (rank==0) then
-        call write_out
-        if (trim (test_case) == "Held_Suarez") then
-           field2d_av = field2d_av / dble (mean_end - mean_beg + 1)
-           call write_out_av
-        end if
-     end if
-  end if
   
   call finalize
 contains
@@ -405,13 +118,7 @@ contains
 
     ! Calculate temperature at all vertical levels (saved in exner_fun)
     call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
-    if (trim (test_case) == "Simple_Physics") then
-      call apply_onescale (cal_temp_dens, level_save, z_null, 0, 1)
-      penal_node%bdry_uptodate = .false.
-      call update_bdry (penal_node, NONE, 42)
-    else
-      call apply_onescale (cal_temp, level_save, z_null, 0, 1)
-    end if
+    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     exner_fun%bdry_uptodate = .false.
     call update_bdry (exner_fun, NONE, 41)
 
@@ -500,13 +207,7 @@ contains
 
     ! Calculate temperature at all vertical levels (saved in exner_fun)
     call cal_surf_press (sol(1:N_VARIABLE,1:zmax))
-    if (trim (test_case) == "Simple_Physics") then
-      call apply_onescale (cal_temp_dens, level_save, z_null, 0, 1)
-      penal_node%bdry_uptodate = .false.
-      call update_bdry (penal_node, NONE, 42)
-    else
-      call apply_onescale (cal_temp, level_save, z_null, 0, 1)
-    end if
+    call apply_onescale (cal_temp, level_save, z_null, 0, 1)
     exner_fun%bdry_uptodate = .false.
     call update_bdry (exner_fun, NONE, 42)
 
@@ -691,48 +392,6 @@ contains
        ! Project vertical velocity
        call project_field_onto_plane (trend(S_TEMP,k), level_save, 0d0)
        field(:,:,7+k-1) = field2d
-
-       ! Save climatology for simple Physics
-       if (trim(test_case)=="Simple_Physics" .and. climatology) then
-         ! update the boundarys
-         simple_phys_temp%bdry_uptodate = .false.
-         call update_bdry (simple_phys_temp, NONE, 44)
-         simple_phys_zonal%bdry_uptodate = .false.
-         call update_bdry (simple_phys_zonal, NONE, 44)
-         simple_phys_merid%bdry_uptodate = .false.
-         call update_bdry (simple_phys_merid, NONE, 44)
-
-         ! save 2D projections
-         call project_field_onto_plane(simple_phys_temp(k-1), level_save, 0.0_8)
-         field2d_simplephys(:,:,1+k-1) = field2d
-         call project_field_onto_plane(simple_phys_zonal(k-1), level_save, 0.0_8)
-         field2d_simplephys(:,:,4+k-1) = field2d
-         call project_field_onto_plane(simple_phys_merid(k-1), level_save, 0.0_8)
-         field2d_simplephys(:,:,5+k-1) = field2d
-
-         simple_phys_vels%bdry_uptodate= .false.
-         call update_bdry(simple_phys_vels,NONE,27)
-         
-         ! Calculate zonal and meridional velocity
-         do d = 1, size(grid)
-            temp  => simple_phys_temp(k-1)%data(d)%elts
-            velo  => simple_phys_vels(k-1)%data(d)%elts
-            velo1 => grid(d)%u_zonal%elts
-            velo2 => grid(d)%v_merid%elts
-            do j = 1, grid(d)%lev(level_save)%length
-               call apply_onescale_to_patch (interp_UVW_latlon, grid(d), grid(d)%lev(level_save)%elts(j), z_null,  0, 1)
-            end do
-            nullify (temp,velo, velo1, velo2)
-         end do
-         
-         ! Zonal Vel
-         call project_array_onto_plane ("u_zonal", level_save, 0d0)
-         field2d_simplephys(:,:,2+k-1) = field2d
-         
-         ! Meridional Vel
-         call project_array_onto_plane ("v_merid", level_save, 0d0)
-         field2d_simplephys(:,:,3+k-1) = field2d
-       end if
     end do
   end subroutine latlon
 
@@ -1286,20 +945,9 @@ contains
        close (funit)
     end do
 
-    if (trim(test_case)=="Simple_Physics" .and. climatology) then
-      do v = 1, 5*zlevels
-         write (var_file, '(i2)') v+30
-         open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
-         do i = Ny(1), Ny(2)
-            write (funit) field2d_simplephys(:,i,v)
-         end do
-         close (funit)
-      end do
-      call deallocate_climatology
-    end if
 
     !Save KE zonal averages for simple Physics (50 and 51)
-    if (trim(test_case)=="Simple_Physics")then
+    if (trim(test_case)=="climate")then
       do v = 10,12
          write (var_file, '(i2)') v+40
          open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE")
@@ -1580,8 +1228,6 @@ contains
     allocate (field2d_incr(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*zlevels))
     allocate (field2d_save(Nx(1):Nx(2),Ny(1):Ny(2),nvar_save*zlevels))
     
-    if (trim(test_case)=="Simple_Physics" .and. climatology) allocate (field2d_simplephys(Nx(1):Nx(2),Ny(1):Ny(2),5*zlevels))
-    
     field2d_av = 0d0; field2d_incr = 0d0; field2d_save = 0d0; zonal_av = 0d0
   end subroutine initialize_stat
 
@@ -1662,19 +1308,6 @@ contains
        ! For vertical velocity
        trend(S_TEMP,kk)%data(d)%elts(id+1) = trend(S_TEMP,k+1)%data(d)%elts(id+1) + &
             dpressure * (trend(S_TEMP,k)%data(d)%elts(id+1) - trend(S_TEMP,k+1)%data(d)%elts(id+1))
-       
-       if (trim(test_case)=="Simple_Physics" .and. climatology) then
-         simple_phys_temp(kk-1)%data(d)%elts(id+1) = simple_phys_temp(k+1)%data(d)%elts(id+1) + &
-            dpressure * (simple_phys_temp(k)%data(d)%elts(id+1) - simple_phys_temp(k+1)%data(d)%elts(id+1))
-         simple_phys_zonal(kk-1)%data(d)%elts(id+1) = simple_phys_zonal(k+1)%data(d)%elts(id+1) + &
-            dpressure * (simple_phys_zonal(k)%data(d)%elts(id+1) - simple_phys_zonal(k+1)%data(d)%elts(id+1))
-         simple_phys_merid(kk-1)%data(d)%elts(id+1) = simple_phys_merid(k+1)%data(d)%elts(id+1) + &
-            dpressure * (simple_phys_merid(k)%data(d)%elts(id+1) - simple_phys_merid(k+1)%data(d)%elts(id+1))
-         do e = 1, EDGE
-            simple_phys_vels(kk-1)%data(d)%elts(EDGE*id+e) = simple_phys_vels(k+1)%data(d)%elts(EDGE*id+e) + &
-               dpressure * (simple_phys_vels(k)%data(d)%elts(EDGE*id+e) - simple_phys_vels(k+1)%data(d)%elts(EDGE*id+e))
-         end do
-       end if
     end do
   end subroutine interp_save
-end program
+end program save_vtk_data

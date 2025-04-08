@@ -11,7 +11,7 @@ module test_case_mod
   integer :: mean_beg, mean_end, cp_2d, N
   real(8) :: npts_penal, ref_surf_press, scale
   real(8) :: dPdim, R_ddim, specvoldim, dTempdim
-  logical :: mean_split, zonal
+  logical :: zonal
 
   ! DCMIP2012c4
   real(8) :: eta_0, u_0 
@@ -30,8 +30,7 @@ module test_case_mod
   ! Jet
   real(8) :: beta, f0, L_jet
   logical :: soufflet
-  ! Simple Physics
-  logical :: climatology
+  ! Climate  logical :: climatology
   type(Float_Field), dimension(:), allocatable, target :: simple_phys_temp, simple_phys_zonal, simple_phys_merid, simple_phys_vels
   ! Held Suarez
   real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_mean, T_tropo
@@ -466,8 +465,6 @@ contains
        write (6,'(a,i3)')     "topo_max_level       = ", topo_max_level
        write (6,*) ' '
     end if
-
-    if (climatology) call check_climatology_mean_beg_2D
   end subroutine read_test_case_parameters
 
   subroutine topo_flat (dom, i, j, zlev, offs, dims, itype)
@@ -644,7 +641,7 @@ contains
              sol_mean(S_MASS,k)%data(d)%elts(id_i) = 0.0_8
              sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
           else
-             if (mean_split) then
+             if (split_mean_perturbation) then
                 sol_mean(S_MASS,k)%data(d)%elts(id_i) = rho * dz(k)
                 sol_mean(S_TEMP,k)%data(d)%elts(id_i) = rho * dz(k) * buoy_flat (eta, z_s, k)
              else
@@ -661,7 +658,7 @@ contains
              sol_mean(S_TEMP,k)%data(d)%elts(id_i) = 0.0_8
           end if
           sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_8   
-       elseif (trim (test_case) == "Held_Suarez") then
+       elseif (trim (test_case) == "climate") then
           call cart2sph (x_i, lon, lat)
 
           dom%surf_press%elts(id+1) = surf_pressure (d, id+1)
@@ -674,6 +671,9 @@ contains
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * p_s / grav_accel
           sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
           sol_mean(S_VELO,k)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+       else
+          if (rank == 0) write(6,'()') "Test case not supported"
+          stop
        end if
     end do
   end subroutine init_mean
@@ -821,206 +821,4 @@ contains
     read (fid) iwrite
     read (fid) threshold
   end subroutine load_case
-
-  subroutine init_physics_climatology
-   implicit none
-   integer :: k
-
-   ! Allocate climatology summation arrays
-   allocate(simple_phys_temp(1:zlevels))
-   allocate(simple_phys_vels(1:zlevels))
-   allocate(simple_phys_zonal(1:zlevels))
-   allocate(simple_phys_merid(1:zlevels))
-
-   ! Initialize arrays to zero 
-   simple_phys_temp = sol(S_TEMP, 1:zlevels)
-   simple_phys_vels = sol(S_VELO, 1:zlevels)
-   simple_phys_zonal = sol(S_TEMP, 1:zlevels)
-   simple_phys_merid = sol(S_TEMP, 1:zlevels)
-   do k = 0, zlevels
-      call zero_float_field (simple_phys_temp(k), S_TEMP)
-      call zero_float_field (simple_phys_vels(k), S_VELO)
-      call zero_float_field (simple_phys_zonal(k), S_TEMP)
-      call zero_float_field (simple_phys_merid(k), S_TEMP)
-   end do
-   
- end subroutine init_physics_climatology
-
- subroutine climatology_add_temp (dom, i, j, zlev, offs, dims)
-   implicit none
-   type (Domain)                  :: dom
-   integer                        :: i, j, zlev
-   integer, dimension(N_BDRY+1)   :: offs
-   integer, dimension(2,N_BDRY+1) :: dims
-
-   integer :: id_i, d
-   real(8) :: full_mass, full_theta, potential_temp, temperature
-   ! Get id of column and domain
-   id_i = idx (i, j, offs, dims) + 1
-   d = dom%id + 1
-
-   ! calulate the pressure
-   call cal_pressure(dom, i, j, zlev, offs, dims)
-
-   ! calculate the temperature
-   full_mass = mass(id_i) + mean_m(id_i)
-   full_theta = temp(id_i) + mean_t(id_i)
-   potential_temp = full_theta/full_mass
-   temperature = theta2temp (potential_temp, dom%press%elts(id_i))
-
-   ! sum the temperature
-   temp1(id_i) = temp1(id_i) + temperature
-
-   !calculate the density -> for the KEs
-   dom%ke%elts(id_i) = dom%press%elts(id_i)/(temperature*R_d)
-
- end subroutine climatology_add_temp
-
- subroutine climatology_add_velocities (dom, i, j, zlev, offs, dims)
-   implicit none
-   type (Domain)                  :: dom
-   integer                        :: i, j, zlev
-   integer, dimension(N_BDRY+1)   :: offs
-   integer, dimension(2,N_BDRY+1) :: dims
-
-   integer :: id, d, e
-
-   ! Get id of column and domain
-   id = idx (i, j, offs, dims)
-   d = dom%id + 1
-
-   !update the velocities
-   do e = RT,UP
-      velo_2d(EDGE*id+e+1) = velo_2d(EDGE*id+e+1) + velo(EDGE*id+e+1)
-   end do
- end subroutine climatology_add_velocities
-
- subroutine climatology_add_KE(dom, i, j, zlev, offs, dims)
-   implicit none
-   type (Domain)                  :: dom
-   integer                        :: i, j, zlev
-   integer, dimension(N_BDRY+1)   :: offs
-   integer, dimension(2,N_BDRY+1) :: dims
-
-   integer :: id_i, d, e
-
-   ! Get id of column and domain
-   id_i = idx (i, j, offs, dims) + 1
-   d = dom%id + 1
-
-   !Calculate the zonal and meridional velocities
-   call interp_UVW_latlon(dom, i, j, zlev, offs, dims)
-
-
-   ! !update the KE's
-   simple_phys_zonal(zlev)%data(d)%elts(id_i) = simple_phys_zonal(zlev)%data(d)%elts(id_i)+(0.5*dom%ke%elts(id_i)*(velo1(id_i)**2))
-   simple_phys_merid(zlev)%data(d)%elts(id_i) = simple_phys_merid(zlev)%data(d)%elts(id_i)+(0.5*dom%ke%elts(id_i)*(velo2(id_i)**2))
- end subroutine climatology_add_KE
-
- subroutine climatology_temp_mean(dom, i, j, zlev, offs, dims)
-   implicit none
-   type (Domain)                  :: dom
-   integer                        :: i, j, zlev
-   integer, dimension(N_BDRY+1)   :: offs
-   integer, dimension(2,N_BDRY+1) :: dims
-
-   integer :: id_i, d
-
-   ! Get id of column and domain
-   id_i = idx (i, j, offs, dims) + 1
-   d = dom%id + 1
-
-   temp1(id_i) = temp1(id_i)/(mean_end-mean_beg+1)
-
- end subroutine climatology_temp_mean
-
- subroutine climatology_velocity_mean(dom, i, j, zlev, offs, dims)
-   implicit none
-   type (Domain)                  :: dom
-   integer                        :: i, j, zlev
-   integer, dimension(N_BDRY+1)   :: offs
-   integer, dimension(2,N_BDRY+1) :: dims
-
-   integer :: id, d, e
-
-   ! Get id of column and domain
-   id = idx (i, j, offs, dims) 
-   d = dom%id + 1
-
-   do e = RT,UP
-      velo_2d(EDGE*id+e+1) = velo_2d(EDGE*id+e+1)/(mean_end-mean_beg+1)
-   end do
-
- end subroutine climatology_velocity_mean
-
- subroutine climatology_KE_mean(dom, i, j, zlev, offs, dims)
-   implicit none
-   type (Domain)                  :: dom
-   integer                        :: i, j, zlev
-   integer, dimension(N_BDRY+1)   :: offs
-   integer, dimension(2,N_BDRY+1) :: dims
-
-   integer :: id_i, d, e
-
-   ! Get id of column and domain
-   id_i = idx (i, j, offs, dims) + 1
-   d = dom%id + 1
-
-   simple_phys_zonal(zlev)%data(d)%elts(id_i) = simple_phys_zonal(zlev)%data(d)%elts(id_i)/(mean_end-mean_beg+1)
-   simple_phys_merid(zlev)%data(d)%elts(id_i) = simple_phys_merid(zlev)%data(d)%elts(id_i)/(mean_end-mean_beg+1)
-
-  end subroutine climatology_KE_mean
-
-  subroutine check_climatology_mean_beg_2D
-   implicit none
-
-   if (cp_2d .ne. mean_end) then
-      if (rank == 0) write(6,'(A)') "Attempting to get Simple physics climatology, but only works if mean_beg = cp_2d in input file"
-      stop
-   end if
-  end subroutine check_climatology_mean_beg_2D
-
-  subroutine cal_temp_dens (dom, i, j, zlev, offs, dims)
-   ! Compute temperature in compressible case
-   implicit none
-   type(Domain)                   :: dom
-   integer                        :: i, j, zlev
-   integer, dimension(N_BDRY+1)   :: offs
-   integer, dimension(2,N_BDRY+1) :: dims
-
-   integer :: id, d, k
-   real(8), dimension(1:zlevels) :: p
-
-   d = dom%id + 1
-   id = idx(i, j, offs, dims)
-
-   ! Integrate the pressure upwards
-   p(1) = dom%surf_press%elts(id+1) - 0.5*grav_accel*sol(S_MASS,1)%data(d)%elts(id+1)
-   do k = 2, zlevels
-      p(k) = p(k-1) - grav_accel*interp(sol(S_MASS,k)%data(d)%elts(id+1), sol(S_MASS,k-1)%data(d)%elts(id+1))
-   end do
-
-   ! Temperature at all vertical levels (saved in exner_fun) and density (saved in penal_node)
-   do k = 1, zlevels
-      exner_fun(k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) * (p(k)/p_0)**kappa
-      penal_node(k)%data(d)%elts(id+1) = p(k) / (exner_fun(k)%data(d)%elts(id+1) * R_d)
-   end do
-
-   ! Temperature at save levels (saved in trend)
-   do k = 1, zlevels
-      trend(1,k)%data(d)%elts(id+1) = sol(S_TEMP,k)%data(d)%elts(id+1)/sol(S_MASS,k)%data(d)%elts(id+1) * &
-           (pressure_save(k)/p_0)**kappa
-   end do
-
- end subroutine cal_temp_dens
-
- subroutine deallocate_climatology
-   ! Deallocated extra structures
-   implicit NONE
-   deallocate(simple_phys_temp)
-   deallocate(simple_phys_vels)
-   deallocate(simple_phys_zonal)
-   deallocate(simple_phys_merid)
- end subroutine deallocate_climatology
-
 end module test_case_mod
