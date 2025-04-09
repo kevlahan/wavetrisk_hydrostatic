@@ -43,7 +43,7 @@ def untar_files(t) :
                     
 # Main program
 if (len(sys.argv)<7) :
-    print("\nUsage: python xyz2lonlat.py run Jmin Jmax z1 z2 t1 t2 Delaunay\n")
+    print("\nUsage: python xyz2lonlat.py run Jmin Jmax z1 z2 t1 t2 Straight Delaunay\n")
     print("run      = file base name (without tri)")
     print("Jmin     = minimum level")
     print("Jmax     = maximum level")
@@ -51,10 +51,11 @@ if (len(sys.argv)<7) :
     print("z2       = last  z layer")
     print("t1       = first time")
     print("t2       = last time")
-    print("Delaunay = 'y'/'n' (interpolate to Delaunay grid to remove gaps)\n")
-    print("output is file_lonlat run_tri_zzz_tttt.vtk or or run_tri_zzz_tttt.vtp (Delaunay == 'y')\n")
+    print("straight = y/n (straight edges or jagged)")
+    print("Delaunay = y/n (interpolate to Delaunay grid to remove gaps)\n")
+    print("output is file_lonlat run_tri_zzz_tttt.vtk or or run_tri_zzz_tttt.vtp (Delaunay = y)\n")
     print("Example:")
-    print("python3 xyz2lonlat.py SimpleJ5J1Z30 5 7 1 30 0 100 y")
+    print("python3 xyz2lonlat.py SimpleJ5J1Z30 5 7 1 30 0 100 y y")
     exit(0)
 
 run       = sys.argv[1]
@@ -64,7 +65,8 @@ z1        = int(sys.argv[4])
 z2        = int(sys.argv[5])
 t1        = int(sys.argv[6])
 t2        = int(sys.argv[7])
-Delaunay  = sys.argv[8]
+straight  = sys.argv[8]
+Delaunay  = sys.argv[9]
 
 N        = int(np.sqrt(20*4**Jmax))
 lat_dim  = int(N/2)
@@ -72,8 +74,6 @@ lon_dim  = 2*lat_dim
 
 dtheta_min = 360.0/lon_dim
 dtheta_max = dtheta_min * 2**(Jmax-Jmin)
-
-straight_edges = False # fix straight edges on longitude boundaries
 
 for t in range (t1, t2+1):
     untar_files(t)
@@ -128,7 +128,7 @@ for t in range (t1, t2+1):
         # separation line. If yes, move its vertices on one side horizontally
         # so that their lon coordinates are -180. Which side's vertices to be moved 
         # depends on numbers of vertices of that cell on both sides.
-        if straight_edges : # straight edges
+        if straight=='y' :
             for cell in range(num_cells) :    # loop through cells
                 startID = startIDs[cell]
                 size = cellformation[startID] # number of vertices
@@ -249,9 +249,9 @@ for t in range (t1, t2+1):
             elif (coords[pid,0] < -180.0) :
                 coords[pid,0] = -180.0
 
-            if   (coords[pid,1] >  90.0 - 1.1*dtheta_max) :
+            if   (coords[pid,1] >  90.0 - 1.5*dtheta_max) :
                 coords[pid,1] = 90.0
-            elif (coords[pid,1] < -90.0 + 1.1*dtheta_max) :
+            elif (coords[pid,1] < -90.0 + 1.5*dtheta_max) :
                 coords[pid,1] = -90.0
 
         # Update point data

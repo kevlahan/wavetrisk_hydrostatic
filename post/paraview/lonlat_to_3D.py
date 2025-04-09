@@ -511,8 +511,9 @@ def transform_to_lonlat(t) :
     arg5 = str(nz)
     arg6 = str(t)
     arg7 = str(t)
-    arg8 = 'y' # use Delaunay2D filter to remove gaps
-    subprocess.run(['python3', script_name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8])
+    arg8 = 'n' # use straight edges
+    arg9 = 'y' # use Delaunay2D filter to remove gaps
+    subprocess.run(['python3', script_name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9])
 
     
 def mean (data) :
