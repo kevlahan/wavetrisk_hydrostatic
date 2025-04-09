@@ -366,6 +366,7 @@ In addition to visualization of the spherical data, vtk files are used for data 
                           z2       = last  z layer
                           t1       = first time
                           t2       = last time
+                          straight = y/n (straight or jagged longitude edges)
                           Delaunay = y/n (interpolate to Delaunay grid to remove gaps)
 
                       Output is file_lonlat run_tri_zzz_tttt.vtk or or run_tri_zzz_tttt.vtp (Delaunay=y)
