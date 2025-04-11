@@ -10,10 +10,12 @@
 #    (3) vtkCellData are computed as the average of the values from the two 2D cells in adjacent layers.  
 #
 # Author: Weiguang Guan and Nicholas Kevlahan (McMaster University)
-# Date  : Last revision 2025-01-30 (Nicholas Kevlahan)
+# Date : Last revision 2025-01-30 (Nicholas Kevlahan)
 
 import os
 import sys
+import glob
+import re
 from utilities import *
 from contextlib import suppress
 import numpy as np
@@ -24,8 +26,8 @@ from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 import scipy.ndimage
 
 ################################################################################
-class Cell3D() :
-    def __init__(self, vtp_series) :
+class Cell3D():
+    def __init__(self, vtp_series):
         global data_names
         self.vtp_series = vtp_series
         self.ugrid = vtk.vtkUnstructuredGrid()  # final result
@@ -41,7 +43,7 @@ class Cell3D() :
         self.attr_list  = [None] * self.num_attrs     # to store attribute arrays
         self.attr_names = [None] * self.num_attrs
 
-        for i in range(self.num_attrs) :
+        for i in range(self.num_attrs):
             attr1 = ds1.GetCellData().GetArray(i)
             self.attr_names[i] = attr1.GetName()
 
@@ -49,12 +51,12 @@ class Cell3D() :
         
         
     # Progressively constructs 3D wedge cells, from surface interface upwards   
-    def construct(self) :
+    def construct(self):
         # Bottom interface is ground: P/Ps=1 by definition
         file1 = self.vtp_series[0]
         ds1   = load_dataset_bdry(file1, 0, 'P/Ps')
         
-        for i, file2 in enumerate(self.vtp_series[1:]) : # loop through layers to (file2 is used to determine upper interface)
+        for i, file2 in enumerate(self.vtp_series[1:]): # loop through layers to (file2 is used to determine upper interface)
             ds2 = load_dataset(file1, file2, 'P/Ps') # upper interface
 
             # Construct cells between two layers and add them to ugrid
@@ -68,21 +70,20 @@ class Cell3D() :
         self.add_cells(ds1, ds2, (i+1))
 
         # Set attributes for the ugrid
-        for i in range(self.num_attrs) :
+        for i in range(self.num_attrs):
             attr_array = numpy_to_vtk(self.attr_list[i])
             attr_array.SetName(self.attr_names[i])
 
             self.ugrid.GetCellData().AddArray(attr_array)
             
-        vtp_files = run+'_tri'+"*"+str(t).zfill(4)+".vtp"
-        delete_files(vtp_files)
+        delete_files(run+'_tri'+'*'+str(t).zfill(4)+'.vtp')
 
         return self.ugrid
 
     # Function to construct cells between two layers (ds1 and ds2) and
     # then add them to the unstructured grid (ugrid)
     # Here, ugrid has already had vtkPoints from ds1
-    def add_cells(self, ds1, ds2, cell_layer_id=0) :
+    def add_cells(self, ds1, ds2, cell_layer_id=0):
         # Points and coordinates at all interfaces below current layer
         points         = self.ugrid.GetPoints()
         coords         = vtk_to_numpy(points.GetData())
@@ -102,7 +103,7 @@ class Cell3D() :
         
         startID = 0
         # loop through cells in ds2
-        for i in range(num_cells2) :
+        for i in range(num_cells2):
             size     = cellformation2[startID]
             pnt_ids  = cellformation2[(startID+1):(startID+1+size)]
 
@@ -118,15 +119,15 @@ class Cell3D() :
             startID = startID + 1 + size
 
         # Set the cell attributes from layer between lower and upper interfaces
-        for i in range(self.num_attrs) :
+        for i in range(self.num_attrs):
             attr = ds1.GetCellData().GetArray(i)
 
-            if (self.attr_list[i] is None) :
+            if (self.attr_list[i] is None):
                 self.attr_list[i] = attr
-            else :
+            else:
                 self.attr_list[i] = np.concatenate((self.attr_list[i], attr))
     
-    def construct_3Dimage(self) :
+    def construct_3Dimage(self):
         global Ntot
         global covarAvT, covarAvU, covarAvV, covarAvUV, covarAvVT
         global meanAvRho, meanAvT, meanAvU, meanAvV
@@ -161,13 +162,13 @@ class Cell3D() :
         img3.SetOrigin(rgrid.GetOrigin())
 
         vertical_profile = []
-        for i in range(self.num_attrs) :
+        for i in range(self.num_attrs):
             name = pnt_data.GetArray(i).GetName()
 
             # Extract 3D global data
             globe = vtk_to_numpy(pnt_data.GetArray(i))
             globe = globe.reshape(vert_dim, lat_dim, lon_dim)
-            globe = scipy.ndimage.gaussian_filter(globe, sigma=(1.0, 0, 0)) 
+            globe = scipy.ndimage.gaussian_filter(globe, sigma=(1, 0, 0)) 
 
             zonal = np.mean(globe, axis=2)              # zonal average
             merid = np.mean(globe, axis=1)              # meridional average
@@ -191,7 +192,7 @@ class Cell3D() :
         
         pnt_data = img3.GetPointData() # use smoothed data
 
-        if compressible=='y' :
+        if compressible=='y':
             # Compute zonal projection of density and update average density
             meanRho   = compute_mean_density (pnt_data)
             meanAvRho = merge_mean(meanRho, lon_dim, meanAvRho, Ntot)
@@ -239,7 +240,7 @@ class Cell3D() :
         writer.SetInputData(img2)
         writer.Write()
 
-        if compressible=='y' :
+        if compressible=='y':
             if t == t2: # write average statistics
                 statistics = vtk.vtkImageData()
                 statistics.SetDimensions(1, lat_dim, vert_dim);
@@ -254,23 +255,28 @@ class Cell3D() :
                 add_scalar_data(heat_flux, Nzonal, "EddyHeatFlux",        statistics)
                 add_scalar_data(mom_flux,  Nzonal, "EddyMomentumFlux",    statistics)
                 add_scalar_data(ke,        Nzonal, "EddyKineticEnergy",   statistics)
-                
-                writer.SetFileName(run+"_statistics_mean.vti")
+
+                if (t1 == t2):
+                    stats_file = run+str(t1).zfill(4)+"_stats_zonal.vti"
+                else:
+                    stats_file = run+"_statistics_zonal.vti"
+                    
+                writer.SetFileName(stats_file)
                 writer.SetInputData(statistics)
                 writer.Write()
 
                 # Save vertical profiles in csv file
                 vertical_profile = np.array(vertical_profile).T
-                with open(file_out+"_profile.csv", 'w', newline='') as file:
+                with open(file_out+".csv", 'w', newline='') as file:
                     writer = csv.writer(file)
                     writer.writerow(data_names)
-                    for row in vertical_profile :
+                    for row in vertical_profile:
                         writer.writerow(row)
 
                 
 ###############################################################################################################################
 # Loads data from a vtk polydata file and sets vertical coordinate of interface based on attr_to_fill
-def load_dataset(file1, file2, attr_to_fill=None) :
+def load_dataset(file1, file2, attr_to_fill=None):
     reader = vtk.vtkXMLPolyDataReader()
         
     # Layer below current interface
@@ -283,7 +289,7 @@ def load_dataset(file1, file2, attr_to_fill=None) :
     reader.Update()
     ugrid2 = reader.GetOutput()
 
-    if (attr_to_fill is not None) :
+    if (attr_to_fill is not None):
         set_vert_coord(ugrid1, ugrid2, attr_to_fill) # interface coordinate is average of coordinates of adjacent layers
 
     return ugrid2
@@ -291,7 +297,7 @@ def load_dataset(file1, file2, attr_to_fill=None) :
 #########################################################################################################################################
 # Sets third coordinate of a vertex on specified interface as  average of data defined by attr_name of all cells that share the vertex.
 # Currently, the vertical dimension is the scaled value of the average normalized pressure, P/Ps
-def set_vert_coord(ugrid1, ugrid2, attr_name) :
+def set_vert_coord(ugrid1, ugrid2, attr_name):
     # Load data from layers adjacent to current interface
     coords1        = vtk_to_numpy(ugrid1.GetPoints().GetData())
     num_points1    = coords1.shape[0]
@@ -308,10 +314,10 @@ def set_vert_coord(ugrid1, ugrid2, attr_name) :
     # Loop through in layer below interface
     weights = np.zeros(num_points1) 
     startID = 0
-    for i in range(num_cells1) :
+    for i in range(num_cells1):
         size    = cellformation1[startID]
         pnt_ids = cellformation1[(startID+1):(startID+1+size)]
-        for pnt in pnt_ids :
+        for pnt in pnt_ids:
             coords1[pnt,2]  = coords1[pnt,2] * weights[pnt] + attrs1[i] * vert_scale # compute average value of data used for vertical coordinate
             weights[pnt]   += 1
             coords1[pnt,2] /= weights[pnt]                                           # increment weighted average
@@ -320,30 +326,30 @@ def set_vert_coord(ugrid1, ugrid2, attr_name) :
     # Loop through cells in layer above interfaces
     startID = 0
     weights = np.zeros(num_points2) 
-    for i in range(num_cells2) :
+    for i in range(num_cells2):
         size    = cellformation2[startID]
         pnt_ids = cellformation2[(startID+1):(startID+1+size)]
-        for pnt in pnt_ids :
+        for pnt in pnt_ids:
             coords2[pnt,2] = coords2[pnt,2] * weights[pnt] + attrs2[i] * vert_scale # compute average value of data used for vertical coordinate
             weights[pnt]   += 1
             coords2[pnt,2] /= weights[pnt]                                          # increment weighted average
         startID = startID + 1 + size
 
     # Interface vertical coordinate is average of vertical coordinates of adjacent layers
-    coords1[:,2] = (coords1[:,2] + coords2[:,2])/2.0
+    coords1[:,2] = (coords1[:,2] + coords2[:,2])/2
     
     # Update vertical coordinate for this layer
     ugrid2.GetPoints().SetData(numpy_to_vtk(coords1))
 
 
 # Loads data from a vtk polydata file and sets vertical coordinate of top and bottom interfaces based on attr_to_fill
-def load_dataset_bdry(file, interface, attr_to_fill=None) :
+def load_dataset_bdry(file, interface, attr_to_fill=None):
     reader = vtk.vtkXMLPolyDataReader()
     reader.SetFileName(file)
     reader.Update()
     ugrid = reader.GetOutput()
 
-    if (attr_to_fill is not None) :
+    if (attr_to_fill is not None):
         set_vert_coord_bdry(ugrid, interface) # set vertical coordinate to be scaled value of data given by attr_to_fill (P/Ps)
 
     return ugrid
@@ -351,14 +357,14 @@ def load_dataset_bdry(file, interface, attr_to_fill=None) :
 
 #########################################################################################################################################
 # Sets third coordinate of a vertex for top and bottom interfaces
-def set_vert_coord_bdry(ugrid, interface) :
+def set_vert_coord_bdry(ugrid, interface):
     # Get point coordinate array
     coords = vtk_to_numpy(ugrid.GetPoints().GetData())
 
-    if interface == 0 :    # ground
-        coords[:,2] = 1.0 
-    elif interface == nz : # top of atmosphere
-        coords[:,2] = 0.0 
+    if interface == 0:    # ground
+        coords[:,2] = 1 
+    elif interface == nz: # top of atmosphere
+        coords[:,2] = 0 
 
     # Update vertical coordinate for this layer
     ugrid.GetPoints().SetData(numpy_to_vtk(coords))
@@ -366,7 +372,7 @@ def set_vert_coord_bdry(ugrid, interface) :
 
 #########################################################################################################################################
 # Functions to convert between images and numpy arrays
-def average_vti_images(vti_images) :
+def average_vti_images(vti_images):
     """
     Average the data arrays of a list of VTK image data objects.
     
@@ -434,7 +440,7 @@ def average_vti_images(vti_images) :
     return averaged_image
 
 
-def read_vti_images(file_list) :
+def read_vti_images(file_list):
     """
     Reads VTI image files from a list of file names.
     
@@ -455,10 +461,11 @@ def read_vti_images(file_list) :
     return vti_images
 
 
-def time_mean() :
+def time_mean():
     # Computes time means of meridional and zonal averages and vertical profile
-    zonal = avg_images("zonal")
-    merid = avg_images("merid")
+    zonal = avg_images("_zonal")
+    merid = avg_images("_merid")
+    avg_images("")
 
     dims       = zonal.GetDimensions() 
     point_data = zonal.GetPointData()
@@ -466,7 +473,7 @@ def time_mean() :
 
     data_names       = []
     vertical_profile = []
-    for i in range(num_attrs) :
+    for i in range(num_attrs):
         data_names.append(point_data.GetArrayName(i))
         array = vtk_to_numpy(point_data.GetArray(i))
         array = array.reshape((vert_dim, lat_dim))
@@ -475,32 +482,45 @@ def time_mean() :
 
     vertical_profile = np.array(vertical_profile).T
     
-    with open(run+"_profile.csv", 'w', newline='') as file :
+    with open(run+".csv", 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(data_names)
-        for row in vertical_profile :
+        for row in vertical_profile:
             writer.writerow(row)
-
+   
+    # Delete individual time files except if only process a single time
+    if (t1 != t2):
+        delete_files(run+'_????.vtk')
+        delete_files(run+'_????.csv')
         
-def avg_images(files) :
+        files = glob.glob(run+'*.vti')  # all files
+        matched_files = [f for f in files if re.search(r"\d{4}", f)]
+        for file in matched_files:
+            try:
+                os.remove(file)
+            except Exception as e:
+                print(f"Error deleting {file}: {e}")
+                
+        
+def avg_images(name):
     # Averages all image files containing files in name (e.g. zonal or merid)
     
     file_list = []
-    for t in range (t1, t2+1) :
-        file_list.append(run+'_'+str(t).zfill(4)+"_"+files+".vti")
+    for t in range (t1, t2+1):
+        file_list.append(run+'_'+str(t).zfill(4)+name+".vti")
     
     vti_images = read_vti_images(file_list)
     avg = average_vti_images(vti_images)
 
     writer = vtk.vtkXMLImageDataWriter()
-    writer.SetFileName(run+"_"+files+"_mean.vti")
+    writer.SetFileName(run+name+".vti")
     writer.SetInputData(avg)
     writer.Write()
 
     return avg
     
 
-def transform_to_lonlat(t) :
+def transform_to_lonlat(t):
     # Transform spherical data to lonlat vtk data
 
     script_name = "xyz2lonlat.py"
@@ -516,7 +536,7 @@ def transform_to_lonlat(t) :
     subprocess.run(['python3', script_name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9])
 
     
-def mean (data) :
+def mean (data):
     # Computes mean of data
 
     mean = n = 0
@@ -526,7 +546,7 @@ def mean (data) :
         
     return mean
 
-def covariance(data1, data2) :
+def covariance(data1, data2):
     # Stable one-pass covariance of data1, data2
     # returns sample covariance, and means of both variables
     
@@ -595,7 +615,7 @@ def merge_covariance(cov1, mean1_x, mean1_y, n1,
     return merged_cov, merged_mean_x, merged_mean_y
 
 
-def compute_covar(pnt_data, var1, var2) :
+def compute_covar(pnt_data, var1, var2):
     # Computes covariance statistics for variables named var1, var2
     # returns covariance and means of each variable
 
@@ -616,7 +636,7 @@ def compute_covar(pnt_data, var1, var2) :
     return covar, meanx, meany
 
 
-def compute_mean_density (pnt_data) :
+def compute_mean_density (pnt_data):
     # Computes mean density
     
     T    = vtk_to_numpy(pnt_data.GetArray("Temperature"))
@@ -636,7 +656,7 @@ def compute_mean_density (pnt_data) :
 
     return Rho_mean
 
-def add_scalar_data(data, N, name, img) :
+def add_scalar_data(data, N, name, img):
     # Adds scalar data of total size N to vtk img with given name
     
     attr = numpy_to_vtk(data.reshape(N))
@@ -648,7 +668,7 @@ def add_scalar_data(data, N, name, img) :
 #    Main program
 #########################################################################################################################################
 
-if (len(sys.argv) < 8) :
+if (len(sys.argv)<8):
     print("""
     Use: python lonlat_to_3D.py run compressible Jmin Jmax nz t1 t2 lon_min lon_max lat_min lat_max vert_min vert_max
     
@@ -672,22 +692,32 @@ if (len(sys.argv) < 8) :
       vert_max     = maximum vertical coordinate in (0,1)
 
     Example: python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 1 365
+        processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers from time 1 to 365
     
-    Saves the following types of data files:
-    run_tttt.vtk            3D unstructured  (lon,lat,P/Ps) 3D vtk data
-    run_tttt.vti            3D uniform      (lon,lat,P/Ps) 3D image data
-    run_tttt_zonal.vti      2D uniform      (lat,P/Ps)     zonally averaged image data
-    run_tttt_merid.vti      2D uniform      (lon,P/Ps)     meridionally averaged image data
-    run_tttt_zonal_mean.vti 2D uniform      (lat,P/Ps)     zonally averaged image data averaged over times [t1,t2]
-    run_tttt_merid_mean.vti 2D uniform      (lon,P/Ps)     meridionally averaged image data averaged over times [t1,t2]
-    run_statistics_mean.vti 2D uniform      (lat,P/Ps)     statistics (temperature variance, eddy momentum flux,
-                                                           eddy heat flux, eddy kinetic energy)
-    run_tttt.csv            1D                             vertical profiles averaged over the sphere
+
+    If t2 does not equal t1, the following time-averaged data are saved:
+    run.vti             3D uniform (lon,lat,P/Ps) 3D image data
+    run_zonal.vti       2D uniform (lat,P/Ps)     zonally averaged image data
+    run_merid.vti       2D uniform (lon,P/Ps)     meridionally averaged image data
+    run_zonal.vti       2D uniform (lat,P/Ps)     zonally averaged image data averaged over times [t1,t2]
+    run_merid.vti       2D uniform (lon,P/Ps)     meridionally averaged image data averaged over times [t1,t2]
+    run_stats_zonal.vti 2D uniform (lat,P/Ps)     statistics (temperature variance, eddy momentum flux, eddy heat flux, eddy kinetic energy)
+    run.csv             1D         (P/Ps)         vertical profiles averaged over the sphere
+    
+    If t2 equals t1 (single time), the following single time data are saved:
+    run_tttt.vtk             3D unstructured (lon,lat,P/Ps) 3D vtk data on adaptive grid
+    run_tttt.vti             3D uniform      (lon,lat,P/Ps) 3D image data
+    run_tttt_zonal.vti       2D uniform      (lat,P/Ps)     zonally averaged image data
+    run_tttt_merid.vti       2D uniform      (lon,P/Ps)     meridionally averaged image data
+    run_tttt_zonal.vti       2D uniform      (lat,P/Ps)     zonally averaged image data averaged over times [t1,t2]
+    run_tttt_merid.vti       2D uniform      (lon,P/Ps)     meridionally averaged image data averaged over times [t1,t2]
+    run_tttt_stats_zonal.vti 2D uniform      (lat,P/Ps)     statistics (temperature variance, eddy momentum flux, eddy heat flux, eddy kinetic energy)
+    run_tttt.csv             1D              (P/Ps)         vertical profiles averaged over the sphere
 
     3D data has dimensions N x N/2 x nz.  The vertical coordinate is P/Ps.
     """)
     exit(0)
-else :
+else:
     print("Input parameters = ", sys.argv[1:])
 
 # Input parameters
@@ -700,7 +730,7 @@ t1           = int(sys.argv[6])
 t2           = int(sys.argv[7])
 
 # Dimensions (optional)
-if len(sys.argv) > 9 :
+if len(sys.argv)>9:
     lon_min  = float(sys.argv[8])
     lon_max  = float(sys.argv[9])
     lat_min  = float(sys.argv[10])
@@ -708,31 +738,30 @@ if len(sys.argv) > 9 :
     vert_min = float(sys.argv[12])
     vert_max = float(sys.argv[13])
 
-# Grid dimensions
-N        = int(np.sqrt(2 * (10*4**Jmax + 2)))
-lat_dim  = int(N/2)
+# Grid dimensions (same number of rectangular cells as lozenge cells on the sphere) 
+lat_dim  = int(np.sqrt((10*4**Jmax + 2)/2))
 lon_dim  = 2*lat_dim
 vert_dim = nz
 
-dtheta_min = 360.0/lon_dim
+dtheta_min = 180/lat_dim
 dtheta_max = dtheta_min * 2**(Jmax - Jmin)
 
-lon_min  = -180.0 + dtheta_max
-lon_max  =  180.0 - dtheta_max
-lat_min  =  -90.0 + dtheta_max
-lat_max  =   90.0 - dtheta_max
-vert_min =    0.0 
-vert_max =    1.0
+lon_min  = -180 
+lon_max  =  180 
+lat_min  =  -90 
+lat_max  =   90 
+vert_min =    0 
+vert_max =    1
 
 Ngrid    = lat_dim * lon_dim * vert_dim                                 
 Nmerid   = lon_dim * vert_dim
 Nzonal   = lat_dim * vert_dim
 
 # Physical constants
-Rd          = 287.0  # gas constant
-H           = 4000.0 # mean depth
-ref_density = 1030.0 # incompressible case
-vert_scale  = 1.0
+Rd          = 287  # gas constant
+H           = 4000 # mean depth
+ref_density = 1030 # incompressible case
+vert_scale  = 1    # rescaling for P/Ps vertical coordinate
 
 vert_min = vert_scale * vert_min
 vert_max = vert_scale * vert_max
@@ -768,6 +797,7 @@ for t in range (t1, t2+1):
     cell3d.construct_3Dimage()
 
 # Compute mean over all times
-time_mean()
+if (t1 != t2):
+    time_mean()
 
 #########################################################################################################################################
