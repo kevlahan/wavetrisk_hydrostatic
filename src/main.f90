@@ -46,10 +46,9 @@ contains
     if (physics_model .and. physics_type == "Simple") call init_soil_grid
 #endif
 
-    ! Default elliptic solver (scheduled relaxation Jacobi method)
-    elliptic_solver => SRJ
+    elliptic_solver => SRJ              ! default elliptic solver (scheduled relaxation Jacobi method)
+    if (tol == 0d0) rebalance = .false. ! do not rebalance for non-adaptive grid
 
-    ! Time integrator
     call set_time_integrator
     
     if (max_level < min_level) then
@@ -82,15 +81,13 @@ contains
        call restart (run_id)
        resume = NONE
     else
-       ! Initialize vertical grid
-       call initialize_a_b_vert
+       call initialize_a_b_vert ! initialize vertical grid
 
        ! Initialize basic structures
        call init_basic
        call init_structures (run_id)
 
-       ! Initialize time step and viscosities
-       call initialize_dt_viscosity
+       call initialize_dt_viscosity ! initialize time step and viscosities
 
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
@@ -107,11 +104,8 @@ contains
           node_level_start = grid%node%length+1; edge_level_start = grid%midpt%length+1
           n_patch_old      = grid%patch%length;  n_node_old       = grid%node%length
 
-          ! Extend grid
-          call adapt (set_thresholds)
-
-          ! Apply initial conditions on new grid and count additional active wavelets at current level
-          call count_active
+          call adapt (set_thresholds) ! extend grid
+          call count_active           ! apply initial conditions on new grid and count new active wavelets
 
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit ! no further active grid points
        end do
