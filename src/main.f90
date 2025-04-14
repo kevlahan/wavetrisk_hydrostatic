@@ -47,7 +47,7 @@ contains
 #endif
 
     elliptic_solver => SRJ              ! default elliptic solver (scheduled relaxation Jacobi method)
-    if (tol == 0d0) rebalance = .false. ! do not rebalance for non-adaptive grid
+    if (min_level == max_level .or. tol == 0d0) rebalance = .false. ! do not rebalance for non-adaptive grid
 
     call set_time_integrator
     
@@ -359,7 +359,7 @@ contains
     call write_load_conn (cp_idx, run_id)
     call dump_adapt_mpi  (cp_idx, run_id)
     
-    call restart (run_id)
+    if (rebalance) call restart (run_id)
 !#endif
   end subroutine write_checkpoint
 
