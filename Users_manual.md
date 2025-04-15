@@ -116,6 +116,21 @@ There are two basic sub-models:
 >[7.11 Diagnostic variables](#markdown-header-711-diagnostic-variables)  
 >[7.12 Horizontal diffusion](#markdown-header-712-horizontal-diffusion)
 
+[8. Paraview visualization](#markdown-header-8-paraview-visualization)     
+>[ 8.1 Selecting objects to display](#markdown-header-81-selecting-objects-to-display)  
+>[ 8.2 Overlaying topography](#markdown-header-82-overlaying-topography)   
+>[ 8.3 Display time](#markdown-header-83-display-time)  
+>[ 8.4 Display text](#markdown-header-84-display-text)  
+>[ 8.5 Edit color bar](#markdown-header-85-edit-color-bar)  
+>[ 8.6 Number format](#markdown-header-86-number-format)  
+>[ 8.7 Surface plots](#markdown-header-87-surface-plots)  
+>[ 8.8 Slices through 3D data](#markdown-header-88-slices-through-3d-data)  
+>[ 8.9 Transform data](#markdown-header-89-transform-data)  
+>[ 8.10 Save current view point](#markdown-header-810-save-current-view-point)  
+>[ 8.11 Python scripting](#markdown-header-811-python-scripting)  
+>[ 8.12 Save animation](#markdown-header-812-save-animation)  
+>[ 8.13 Save state](#markdown-header-813-save-state)  
+
 ## 1. Standard test cases
 Test cases are defined in separate subdirectories of `test/` (e.g. `test/climate`).  Each test case consists of three files:
 1. The main program (e.g. `climate.f90, drake.f90`). This file specifies parameters and sub-models that are likely to be fixed for the given test case.  It also includes the time stepping loop, initializations and specifies output.
@@ -807,3 +822,99 @@ The non-dimensional viscosity is specified based on the maximum level of resolut
 
 Note that for stability `C_visc(S_MASS,S_TEMP,S_DIVU) <= (1/6)`<sup>Laplace order</sup> and `C_visc(S_ROTU) <= (1/6/4)`<sup>Laplace order</sup>. 
 The default value is `C_visc = 1.5e-3` and `C_visc(S_DIVU) = 0.0278` (maximum stable for hyperdiffusion) is recommended to guarantee stability when running the climate test cases with a large range of resolution levels.
+
+## 8. Paraview visualization
+This section provides some tips and suggestions for visualializing WAVETRISK data, which can be viewed directly on the sphere from the saved `.vtk.tgz` files.
+### 8.1 Selecting objects to display
+Load `vtk` data files. Click on the window and then in the pipeline browser: toggle `eye` icon to left of object to activate or de-activate its display in window. May need to open "Properties" window.
+
+### 8.2 Overlaying topography
+Load `vtk` data files again, click the `eye` icon and select `Mass` variable.  Open color map editor, check "Enable opacity mapping 
+for surface", set `Number of table values` to 2 with values 0 and 1. Click the `Gear` icon in `Mapping data` and verify that the opacity for value 0 is 0 and opacity for value 1 is 1.
+
+The `Color transfer function value` for 1 can be set to, e.g., (0.2, 0.2, 0.4) for land areas.
+
+### 8.3 Display time
+    Filters -> Annotation -> Annotate Time Filter
+Need to click on `Apply` to be able to format font and location.
+Uses `printf` format (e.g. `%4.2f`). Use shift and scale to convert filenumber to correct units.
+
+### 8.4 Display text
+    Sources -> Text
+Need to click on `Apply` in `Properties` to be able to format font and location.  Font size 22 points is a good choice for text in axes and labels.
+
+### 8.5 Edit color bar
+    View -> Color Map Editor 
+Click on `rainbow` with black e (upper right) to edit color bar legend. Click on `Gear` to get all properties. 
+Usually want to unclick `Add Range Labels`. Click on `heart` to change the colour palette: `Rainbow Desaturated` is a good choice in general.
+
+### 8.6 Number format
+Paraview uses printf formats: e.g. `%6.3f` (standard) or `%2.0e` (scientific notation).
+`%#f` always prints decimal point (usually don't want that!).
+
+Use `Interpret values as categories` for simple display of grid resolution levels.
+
+### 8.7 Surface plots
+Ensure you click "apply" in "Properties" to be able to use filters (like contour or smoothing).
+1. Use `View -> Equalize views` to ensure equal window sizes.
+2. Set axis labels to 40 points, colorbar thickness to 30 and length to 0.6 (in general). Check labels are clear when included in paper/talk.
+3. Use `surface` (not `slice`).
+4. `View -> Light` inspector. In `Key` set `Int` to 1 to avoid dim colors. 
+   Could also adjust Ele and Azi to ensure direct light (e.g. 0, 0 for z view).
+5. `View -> unclick Show frame decorations`.
+6. Print screenshot in `.png` format with compression set to 0 (no compression).
+
+### 8.8 Slices through 3D data
+1. Load dataset (e.g., `*.vti`), click `Apply` in "Properties".
+2. Add `Slice` filter and click open `Eye` in pipeline.
+3. In `Properties` panel select `Slice type -> Plane`.
+4. In `Plane parameters` panel unclick `Show plane` and select appropriate direction
+(`X Normal` for zonal slice, `Y Normal` for meridional slice, `Z Normal` for horizontal slice).
+5. Click appropriate `View direction` (`-X` for zonal slice, `-Y` for meridional slice, `-Z` for horizontal slice).
+6. Select depth in "Origin" boxes (e.g., `[0,0,1]` for P/Ps = 1 for a horizontal slice).
+Don't forget to rescale vertical data as appropriate (e.g. by factor 100 in z direction for P/Ps data).
+7. Select variable (e.g., `Vorticity`).
+7. Click `Apply`.
+
+### 8.9 Transform data
+    Filter -> Alphabetical -> Cell Data to Point Data
+To convert `Cell` data (e.g. hexagons) to `Point` data (that can be used by filters like contour).
+
+### 8.10 Save current view point
+Click on `camera+` icon to save current view point for future use.
+
+### 8.11 Python scripting
+    View -> Python Shell
+    Opens a python shell to run *.py python scripts.
+    Tools -> Start Trace
+Can record your modifications as a python script to reuse commands later or in a script.
+
+### 8.12 Save animation
+    File -> Save Animation
+Click on `Save All Views` and then save as `.jpeg` (don't click `transparent view`).
+
+Then convert `.jpeg` to `.mov` format usable in keynote (for example):
+
+    ffmpeg -r fps -i base%4d.jpeg -vcodec mpeg4 -q:v 10 base.mov
+
+For example
+
+    ffmpeg -r 12 -i test.%4d.jpeg -vcodec mpeg4 -q:v 10 test.mov
+
+where: `fps` is the number of frames per second, `base` is the base name of `.jpg` files and `%4d` is the frame numbering
+(e.g. `test.0001.jpeg`, `test.0002.jpeg` etc). 
+NB: need to include `-start_number` option if first file does not start at zero 0. 
+For example:
+
+    ffmpeg -r 12 -start_number 10 -i test.%4d.jpeg -vcodec mpeg4 --q:v 10 test.mov
+
+
+### 8.13 Save state
+To save the state of a session: 
+
+    File -> Save State...
+To load a saved state: 
+
+    File -> Load State...
+
+This save all aspects of a session including window layout, colour bars etc.
