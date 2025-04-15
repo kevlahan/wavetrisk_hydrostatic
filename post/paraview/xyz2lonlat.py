@@ -81,16 +81,15 @@ for t in range (t1, t2+1):
         # Load the input vtk file
         infile  = run+"_tri_"+str(z).zfill(3)+"_"+str(t).zfill(4)
         outfile = run+"_tri_lonlat_"+str(z).zfill(3)+"_"+str(t).zfill(4)
-        vtkreader = vtk.vtkUnstructuredGridReader()
+        vtkreader = vtk.vtkDataSetReader()
         vtkreader.ReadAllScalarsOn()
         vtkreader.SetFileName(infile+".vtk")
         vtkreader.Update()
 
-        # Get the unstructed grid data
-        ugrid = vtkreader.GetOutput()
+        data = vtkreader.GetOutput()
 
         # Get point data and convert them from (x,y,z) to (lon, lat, 0)
-        points     = ugrid.GetPoints()
+        points     = data.GetPoints()
         coords     = vtk_to_numpy(points.GetData())
         num_points = coords.shape[0]
 
@@ -105,9 +104,13 @@ for t in range (t1, t2+1):
         points.SetData(numpy_to_vtk(coords))
 
         # Get cell array
-        cells         = ugrid.GetCells()
+        if isinstance(data, vtk.vtkPolyData):
+            cells = data.GetPolys()
+        elif isinstance(data, vtk.vtkUnstructuredGrid):
+            cells = data.GetCells()
+            
         cellformation = vtk_to_numpy(cells.GetData())
-        num_cells     = ugrid.GetNumberOfCells()
+        num_cells     = data.GetNumberOfCells()
 
         # Create point to cell mapping and an array of start indices of cells
         point2cells = [ [] for _ in range(num_points) ] # a list of lists
@@ -236,15 +239,10 @@ for t in range (t1, t2+1):
             if (np.abs(coords[pid,0])>180):
                 coords[pid,0] = np.sign(coords[pid,0]) * 180
                 
-            if (np.abs(np.abs(coords[pid,1])-90)<dtheta_max):
-                coords[pid,1] = np.sign(coords[pid,1]) *  90
-            elif (np.abs(np.abs(coords[pid,0]))==180 and np.abs(np.abs(coords[pid,1])-90)<1.5*dtheta_max):
-                coords[pid,1] = np.sign(coords[pid,1]) *  90
-
         if Delaunay=='y':
             # Convert to point data
             cellToPoint = vtk.vtkCellDataToPointData()
-            cellToPoint.SetInputData(ugrid)
+            cellToPoint.SetInputData(data)
             cellToPoint.Update()
             output = cellToPoint.GetOutput()
 
@@ -272,6 +270,12 @@ for t in range (t1, t2+1):
                     if (np.abs(np.abs(coord[0])-180)<dtheta/4):
                         coord[0] = np.sign(coord[0]) * 180
                         points.SetPoint(pid, coord)
+                    if (np.abs(np.abs(coord[1])-90)<dtheta):
+                        coord[1] = np.sign(coord[1]) * 90
+                        points.SetPoint(pid, coord)
+                    if (np.abs(np.abs(coord[0]))==180 and np.abs(np.abs(coord[1])-90)<2*dtheta):
+                        coord[1] = np.sign(coord[1]) * 90
+                        points.SetPoint(pid, coord)
             points.Modified()
 
             # Write out structured data
@@ -283,7 +287,7 @@ for t in range (t1, t2+1):
             writer = vtk.vtkUnstructuredGridWriter()
             writer.SetFileTypeToBinary()
             writer.SetFileName(outfile+".vtk")
-            writer.SetInputData(ugrid)
+            writer.SetInputData(data)
             writer.Write()
             
 for file in glob.glob("*tri_???_????.vtk"):
