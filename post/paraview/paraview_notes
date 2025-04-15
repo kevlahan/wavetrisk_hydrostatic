@@ -84,8 +84,6 @@ Don't forget to rescale vertical data as appropriate (e.g. by factor 100 in z di
 7. Select variable (e.g., "Vorticity").
 7. Click "Apply"
 
-Don't forget to rescale appropriately (e.g. the P/Ps needs to be stretched if doing vertical slices).
-
 
 **********************************************************************************************************************************
 TRANSFORM DATA
