@@ -112,7 +112,7 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
     SHTOOLSMODPATH = /usr/local/include
     SHTOOLSLIBPATH = /usr/local/lib
   endif
-  LIBS       += -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm $(LAPACK)
+  LIBS       += -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm 
   FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
 endif
 
