@@ -254,15 +254,11 @@ contains
             **********************************************************'
        write (6,'(A,i4,/)') 'Restarting from checkpoint ', cp_idx
     end if
+    
+    if (resume == NONE) call deallocate_structures ! deallocate all dynamic arrays and variables
 
-    ! Deallocate all dynamic arrays and variables
-    if (resume == NONE) call deallocate_structures
-
-    ! Initialize vertical grid
-    call initialize_a_b_vert
-
-    ! Initialize basic structures
-    call init_basic
+    call initialize_a_b_vert ! initialize vertical grid
+    call init_basic          ! initialize basic structures
 
     ! Uncompress checkpoint data (needed for init_structures and load_adapt_mpi)
     if (rank == 0) then
@@ -272,60 +268,48 @@ contains
        call system (trim(bash_cmd))
     end if
     call barrier ! make sure all archive files have been uncompressed
-
-    ! Rebalance adaptive grid and re-initialize structures
-    call init_structures (run_id)
-
-    ! Load checkpoint data
-    call load_adapt_mpi (cp_idx, run_id)
-
-    ! Load topography data
-    if (NCAR_topo) call load_topo
     
-    ! Initialize time step counters
-    itime = nint (time * time_mult, 8)
-    istep = 0
-    
+    call init_structures (run_id)        ! rebalance adaptive grid and re-initialize structures
+    call load_adapt_mpi (cp_idx, run_id) ! load checkpoint data
+
     ! Compute masks based on active wavelets in saved data
     ! (do not re-calculate thresholds)
     call adapt (set_thresholds, .false.) 
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
 
-    ! Initialize thresholds to default values (possibly based on mean values)
-    call initialize_thresholds
+    if (trim(test_case) /= "spherical_harmonics") then
+       call initialize_thresholds ! initialize thresholds to default values (possibly based on mean values)
 
-    ! Adapt on (new) threshold for this run
-    call adapt (set_thresholds, .true.) 
-    call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
-    if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start)
+       ! Adapt on (new) threshold for this run
+       call adapt (set_thresholds, .true.) 
+       call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
+       if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start)
+       
+       if (NCAR_topo) call load_topo ! load topography data
 
-    ! Remap vertical coordinates
-    call remap_vertical_coordinates
+       ! Initialize time step counters
+       itime = nint (time * time_mult, 8)
+       istep = 0
 
-    ! Initialize thresholds to default values (possibly based on mean values)
-    call initialize_thresholds
+       call remap_vertical_coordinates                   ! remap vertical coordinates
+       call initialize_thresholds                        ! initialize thresholds to default values (possibly based on mean values)
+       call initialize_dt_viscosity                      ! initialize time step and viscosities
+       if (log_total_mass) call cal_total_mass (.true.)  ! initialize total mass value
+       dt_new = min (dt_init, cpt_dt ())                 ! initialize time step
 
-    ! Initialize time step and viscosities
-    call initialize_dt_viscosity
-
-    ! Initialize total mass value
-    if (log_total_mass) call cal_total_mass (.true.)
-
-    ! Initialize time step
-    dt_new = min (dt_init, cpt_dt ())
-
-    if (rank == 0) then
-       write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
-            'time [d] = ', time/DAY, &
-            '  mass threshold = ', sum (threshold(S_MASS,1:zlevels)) / dble (zlevels), &
-             ' temp threshold = ', sum (threshold(S_TEMP,1:zlevels)) / dble (zlevels), &
-             ' velo threshold = ', sum (threshold(S_VELO,1:zlevels)) / dble (zlevels), &
-            ' Jmax = ', level_end, &
-            '  dof = ', sum (n_active)
-       write (6,'(A)') &
-            '********************************************************** End Restart &
-            ***********************************************************'
+       if (rank == 0) then
+          write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
+               'time [d] = ', time/DAY, &
+               '  mass threshold = ', sum (threshold(S_MASS,1:zlevels)) / dble (zlevels), &
+               ' temp threshold = ', sum (threshold(S_TEMP,1:zlevels)) / dble (zlevels), &
+               ' velo threshold = ', sum (threshold(S_VELO,1:zlevels)) / dble (zlevels), &
+               ' Jmax = ', level_end, &
+               '  dof = ', sum (n_active)
+          write (6,'(A)') &
+               '********************************************************** End Restart &
+               ***********************************************************'
+       end if
     end if
 
 #ifdef AMPI

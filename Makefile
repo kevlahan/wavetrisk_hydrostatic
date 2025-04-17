@@ -10,12 +10,21 @@ BUILD_DIR  = build
 LIBS       =
 FLAGS_COMP = 
 LAPACK     = -llapack  # link to lapack library
+
 NETCDF     = -lnetcdff # link to netcdf library
 TOPO       = false     # use NCAR topography
 ifeq ($(TEST_CASE), make_NCAR_topo)
   TOPO = true
 endif
-PHYSICS    = false     # use simple dry physics
+
+PHYSICS = false
+ifeq ($(TEST_CASE), climate)
+  PHYSICS = true
+endif
+ifeq ($(TEST_CASE), spherical_harmonics)
+  PHYSICS = true
+endif
+
 PREFIX     = .
 
 # AMPI options
