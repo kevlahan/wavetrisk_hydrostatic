@@ -17,15 +17,15 @@ program spherical_harmonics
   real(8), dimension(:),   allocatable :: data, data_loc, lat_loc, lon_loc
   character(2)                         :: var_file
   character(130)                       :: command
-  
+
   call init_arch_mod 
   call init_comm_mpi_mod
   call read_test_case_parameters
-  
+
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !     Parameters (need radius for spectra)
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- if (trim (data_case) == "climate") then
+  if (trim (data_case) == "climate") then
      compressible            = .true.                    
      split_mean_perturbation = .true.           
      physics_model           = .true.
@@ -67,7 +67,7 @@ program spherical_harmonics
         call spec_latlon_1layer
      end if
   end do
-
+  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !      Compute and save averages
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -81,6 +81,9 @@ program spherical_harmonics
         call avg_spec ('u_local')
      end if
   end if
+  
+  if (rank == 0) call cleanup
+  
   call finalize
 contains
   subroutine avg_spec (data_type)
@@ -247,22 +250,7 @@ contains
     
     write (var_file1, '(i4.4)') cp_idx
     write (var_file2, '(i4.4)') k
-
-    ! Save latlon data
-    if (rank == 0) then
-       if (k /= 0) then
-          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type), access="STREAM", &
-               form="UNFORMATTED", status="REPLACE")
-       else
-          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//trim(data_type), access="STREAM", &
-               form="UNFORMATTED", status="REPLACE")
-       end if
-       do i = Ny(1), Ny(2)
-          write (10) field2d(:,i)
-       end do
-       close (10)
-    end if
-
+   
     lmax = N/4 - 1
     allocate (cilm(2, lmax+1, lmax+1))
 
@@ -279,7 +267,7 @@ contains
        open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
             form="FORMATTED", status="REPLACE")
     else
-        open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//trim(data_type)//'_spec', &
+       open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//trim(data_type)//'_spec', &
             form="FORMATTED", status="REPLACE")
     end if
     area = 4d0*MATH_PI*radius**2
@@ -342,7 +330,7 @@ contains
        write (10,'(i4,1x,2(es10.4,1x))') j, mtse(j) * area, sd(j) * area
     end do
     close (10)
-   
+
     ! Write out characteristics of local analysis
     write (6,'(a,i4)') "Spherical harmonic bandwidth of window = ", lwin
     do j = 1, ntaper
@@ -351,7 +339,6 @@ contains
     do j = 1, ntaper
        write (6,'(2(a,i3))') "Angular order of taper ", j," = ", taper_order(j)
     end do
-
     deallocate (eigenvalues, mtse, sd, taper_order, tapers)
   end subroutine local_spectrum
 
@@ -540,7 +527,23 @@ contains
     data_loc(idata_loc) = dom%press_lower%elts(id)
     call cart2sph (dom%node%elts(id), lon_loc(idata_loc), lat_loc(idata_loc))
   end subroutine define_data_hex
-end program spherical_harmonics
+
+  subroutine cleanup
+    implicit none
+
+    ! Delete intermediate files
+    command = '\rm -f '//trim(run_id)//'_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]*spec'
+    call system (trim(command))
+
+    ! Compress output
+    command = 'bash -c "ls -1 '//trim(run_id)//'*_spec > '//trim(run_id)//'_tmp1"'
+    call system (trim(command))
+    command = 'bash -c "gtar caf '//trim(run_id)//'_spec.tgz -T '//trim(run_id)//'_tmp1 --remove-files"'
+    call system (trim(command))
+    command = '\rm -f '//trim(run_id)//'_tmp1'
+    call system (trim(command))
+  end subroutine cleanup
+end program
 
 
 
