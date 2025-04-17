@@ -13,42 +13,54 @@ end
 
 %% Analyze spectrum data
 clear; clc; 
-drake = true;
+drake = false;
 if drake
-    zlevels   = 12;
+    zlevels   = 60;
 
     test_case = "drake";
     run_id    = "drakeJ8Z"+num2str(zlevels,'%2.2d');
     type      = "curlu";
-    avg       = true; cp_min=1; cp_max=1;
+    avg       = false; cp_min=120; cp_max=120;
+    power     = true;     % plot power law fit
     
     if zlevels == 60 
-        layers = [1 30 60];
+        layers = 1:60;
     elseif zlevels == 12
-        layers = [1:12];
+        layers = 1:12;
     elseif zlevels == 6
         layers = [1 3 6];
     elseif zlevels == 4
         layers = [1 3 4];
     end
 else
+    zlevels   = 30;
+    radius    = 6371.229e3;
+
+    test_case = "climate";
+    run_id    = "SimpleJ7Z30"
     type      = "curlu";
-    test_case = "jet";
-    run_id    = "jet";
-    cp_min    = 271; cp_max = 271;
+    avg       = true; cp_min=1; cp_max=1;
+    power     = false;     % plot power law fit
+    
+    layers    = [1 9 27];
 end
-
-% Set physical parameters
-KM = 1e-3;
-[H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
-
-range = [deltaI deltaSM] * KM; % range for power law fit 
 
 plot_spec   = true;     % plot spectrum
 plot_scales = true ;    % plot length scales
-power       = true;     % plot power law fit
-col_spec    = "b-";     % colour for energy spectrum
+col_spec    = "r-";     % colour for energy spectrum
 col_power   = "r-";     % colour for power law
+
+% Set physical parameters
+KM = 1e-3;
+if drake
+    [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
+end
+
+if drake
+    range = [deltaI deltaSM] * KM; % range for power law fit
+else
+    range = [2e3 6e2];
+end
 
 fprintf("Layer    power law")
 pow_law = zeros(cp_max-cp_min+1,zlevels);
@@ -63,9 +75,8 @@ for cp_id = cp_min:cp_max
         else
             file_base = run_id+"_"+cp+"_"+k+"_"+type;
         end
-        
         spec_file = file_base+"_spec"; 
-        
+                
         try
             pspec = load (spec_file, '-ascii');
         catch ME
@@ -116,9 +127,11 @@ for cp_id = cp_min:cp_max
 end
 
 fprintf("\n")
-xmin = 10^(round(log10(min(scales))));
-xmax = 10^(round(log10(max(scales))));
-axis([xmin xmax 1e-10 1]);
+xmin = 10^(floor(log10(min(scales))));
+xmax = 10^(ceil(log10(max(scales))));
+ymin = 10^(floor(log10(min(pspec(:,2)))));
+ymax = 10^(ceil(log10(max(pspec(:,2)))));
+axis([xmin xmax ymin ymax]);
 
 if plot_scales
     if strcmp(test_case,"drake")
@@ -292,18 +305,19 @@ end
 
 % Lengthscales
 KM = 1e-3;
-lambda0    = c0/f0;             % external radius of deformation
-lambda1    = c1/f0;             % internal radius of deformation
-deltaS     = r_b/beta;          % Stommel layer
-deltaSM    = uwbc/f0;           % submesoscale
-deltaI     = sqrt(uwbc/beta);   % inertial layer
-Rey        = uwbc*deltaSM^(2*Laplace-1)/visc; % Reynolds number
-Ro         = uwbc / (deltaM*f0); % Rossby number   
-
-fprintf('\nlambda0 = %2.1f km lambda1 = %2.1f km\n\n',lambda0*KM,lambda1*KM)
-fprintf('deltaS = %2.1f km deltaI = %2.1f km deltaM = %2.1f km deltaSM = %2.1f km\n\n',...
-    deltaS*KM, deltaI*KM, deltaM*KM, deltaSM*KM)
-fprintf('Rey = %2.2e Ro = %2.2e N_bv = %2.2e\n\n', Rey, Ro, N_bv)
+if strcmp(test_case,"drake")
+    lambda0    = c0/f0;             % external radius of deformation
+    lambda1    = c1/f0;             % internal radius of deformation
+    deltaS     = r_b/beta;          % Stommel layer
+    deltaSM    = uwbc/f0;           % submesoscale
+    deltaI     = sqrt(uwbc/beta);   % inertial layer
+    Rey        = uwbc*deltaSM^(2*Laplace-1)/visc; % Reynolds number
+    Ro         = uwbc / (deltaM*f0); % Rossby number
+    fprintf('\nlambda0 = %2.1f km lambda1 = %2.1f km\n\n',lambda0*KM,lambda1*KM)
+    fprintf('deltaS = %2.1f km deltaI = %2.1f km deltaM = %2.1f km deltaSM = %2.1f km\n\n',...
+        deltaS*KM, deltaI*KM, deltaM*KM, deltaSM*KM)
+    fprintf('Rey = %2.2e Ro = %2.2e N_bv = %2.2e\n\n', Rey, Ro, N_bv)
+end
 end
 
 
