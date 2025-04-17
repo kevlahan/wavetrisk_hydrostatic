@@ -223,7 +223,7 @@ The finest allowable grid is set by the parameter max_level in the input file (e
 Must do `make clean PHYSICS=true` before compiling with the physics sub-model. To compile test case climate using the `Simple Physics` physics model with `J5` as the coarsest grid:
 <pre>
 <code>
-    make TEST_CASE=climate PARAM=param_J5 PHYSICS=true
+    make TEST_CASE=climate PARAM=param_J5
 </code>
 </pre>
 To compile test case climate using the `Held-Suarez` physics model and NCAR topography:
