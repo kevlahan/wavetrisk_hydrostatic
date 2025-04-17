@@ -50,7 +50,7 @@ There are two basic sub-models:
 ##### WAVETRISK 2.2
 - Dynamic load balancing and automatic checkpointing using `charm++/AMPI`. (Only works on a single node due to bugs in `pieglobals` implementation of `charm++/AMPI`.)
 ##### WAVETRISK 2.1
-- Spherical harmonics test case and associated matlab m-file for computing energy spectra.
+- Spherical harmonics test case and associated matlab m-file for computing power spectra.
 - Ocean modelling test cases.
 - Vertical diffusion for ocean modelling using a TKE closure similar to that used in `NEMO`.
 - Option of implicit time step for horizontal diffusion.

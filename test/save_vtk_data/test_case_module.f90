@@ -7,6 +7,7 @@ module test_case_mod
   use ops_mod
   use std_atm_profile_mod
   use io_mod
+  use physics_trend_mod
   implicit none
   integer :: mean_beg, mean_end, cp_2d, N
   real(8) :: npts_penal, ref_surf_press, scale
@@ -30,12 +31,6 @@ module test_case_mod
   ! Jet
   real(8) :: beta, f0, L_jet
   logical :: soufflet
-  ! Climate  logical :: climatology
-  type(Float_Field), dimension(:), allocatable, target :: simple_phys_temp, simple_phys_zonal, simple_phys_merid, simple_phys_vels
-  ! Held Suarez
-  real(8) :: delta_T, delta_theta, sigma_b, sigma_c, k_a, k_f, k_s, T_mean, T_tropo
-  real(8) :: delta_T2, sigma_t, sigma_v, sigma_0, gamma_T
-  real(8) :: cfl_max, cfl_min, T_cfl
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -104,18 +99,11 @@ contains
        rgrc = radius*acos(sin(lat_c)*sin(lat) + cos(lat_c)*cos(lat)*cos(lon-lon_c))
 
        surf_geopot_case = grav_accel*h_0*exp__flush (-rgrc**2/d2)
-    elseif (trim (test_case) == "Held_Suarez") then
+    elseif (trim (test_case) == "climate") then
        if (NCAR_topo) then ! add non-zero surface geopotential
           surf_geopot_case = grav_accel * topography%data(d)%elts(id)
-       else ! surface geopotential from Jablonowski and Williamson (2006)
-          call cart2sph (grid(d)%node%elts(id), lon, lat)
-
-          c1 = u_0 * cos((1d0 - sigma_0) * MATH_PI/2d0)**1.5
-          cs2 = cos (lat)**2; sn2 = sin (lat)**2
-
-          surf_geopot_case = c1 * (c1 * (-2d0 * sn2**3 * (cs2 + 1d0/3d0) + 10d0/63d0) &
-               + radius * omega * (8d0/5d0 * cs2**1.5 * (sn2 + 2d0/3d0) - MATH_PI/4d0)) &
-               + grav_accel * topography%data(d)%elts(id)
+       else 
+          surf_geopot_case = 0d0
        end if
     elseif (trim (test_case) == "seamount") then
        rgrc = radius*acos(sin(lat_c)*sin(lat)+cos(lat_c)*cos(lat)*cos(lon-lon_c))
@@ -677,27 +665,6 @@ contains
        end if
     end do
   end subroutine init_mean
-
-  subroutine cal_theta_eq (p, p_s, lat, theta_equil, k_T)
-    ! Returns equilibrium potential temperature theta_equil and Newton cooling constant k_T
-    use domain_mod
-    implicit none
-    real(8) :: p, p_s, lat, theta_equil, k_T
-
-    real(8) :: cs2, sigma, theta_force, theta_tropo
-
-    cs2 = cos (lat)**2
-
-    sigma = (p - p_top) / (p_s - p_top)
-
-    k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
-
-    theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
-
-    theta_force = T_mean - delta_T * (1d0 - cs2) - delta_theta * cs2 * log (p / p_0)
-
-    theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
-  end subroutine cal_theta_eq
 
   real(8) function surf_pressure (d, id) 
     ! Surface pressure

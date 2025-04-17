@@ -83,7 +83,7 @@ program save_vtk_data
   ! Initialize variables
   call initialize (run_id)
 
-   Nt = 0
+  Nt = 0
   do cp_idx = mean_beg, mean_end
      Nt = Nt + 1
      resume = NONE
