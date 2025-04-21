@@ -10,7 +10,7 @@
 #    (3) vtkCellData are computed as the average of the values from the two 2D cells in adjacent layers.  
 #
 # Author: Weiguang Guan and Nicholas Kevlahan (McMaster University)
-# Date : Last revision 2025-01-30 (Nicholas Kevlahan)
+# Date : Last revision 2025-04-21 (Nicholas Kevlahan)
 
 import os
 import sys
@@ -23,6 +23,7 @@ import vtk
 import csv
 import subprocess
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
+from vtk.util import numpy_support
 import scipy.ndimage
 
 ################################################################################
@@ -135,6 +136,14 @@ class Cell3D():
         # Construct an unstructured grid
         ugrid = self.construct()
 
+         # Write out 3D unstructured data
+        if (t1 == t2):
+            writer = vtk.vtkUnstructuredGridWriter()
+            writer.SetFileTypeToBinary()
+            writer.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vtk")
+            writer.SetInputData(ugrid)
+            writer.Write()
+
         # Resample ugrid to a regular grid
         img = vtk.vtkResampleToImage()
         img.SetInputDataObject(ugrid)        
@@ -182,13 +191,6 @@ class Cell3D():
             img2.GetPointData().AddArray(attr2)
             img3.GetPointData().AddArray(attr3)
             vertical_profile.append(profl) 
-
-        # Write out 3D unstructured data
-        writer = vtk.vtkUnstructuredGridWriter()
-        writer.SetFileTypeToBinary()
-        writer.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vtk")
-        writer.SetInputData(ugrid)
-        writer.Write()
         
         pnt_data = img3.GetPointData() # use smoothed data
 
@@ -372,74 +374,6 @@ def set_vert_coord_bdry(ugrid, interface):
 
 #########################################################################################################################################
 # Functions to convert between images and numpy arrays
-def average_vti_images(vti_images):
-    """
-    Average the data arrays of a list of VTK image data objects.
-    
-    Args:
-        vti_images (list): A list of VTK image data objects to average.
-    
-    Returns:
-        vtk.vtkImageData: A new VTK image data object containing the averaged data arrays.
-    """
-    # Get the number of images
-    num_images = len(vti_images)
-    
-    # Get the first image's point data
-    first_image = vti_images[0]
-    point_data = first_image.GetPointData()
-
-    # Create an empty list to hold the accumulated data arrays
-    accumulated_arrays = {}
-    
-    # Iterate over the data arrays in the first image to initialize the accumulators
-    for i in range(point_data.GetNumberOfArrays()):
-        array_name = point_data.GetArrayName(i)
-        array = point_data.GetArray(i)
-        
-        # Initialize the accumulator with zeros
-        # Make sure the accumulator has the correct shape (num_tuples, num_components)
-        num_tuples = array.GetNumberOfTuples()
-        num_components = array.GetNumberOfComponents()
-        accumulated_arrays[array_name] = np.zeros((num_tuples, num_components))
-
-    # Accumulate the data from each image
-    for image in vti_images:
-        point_data = image.GetPointData()
-        
-        for i in range(point_data.GetNumberOfArrays()):
-            array_name = point_data.GetArrayName(i)
-            array = point_data.GetArray(i)
-            
-            # Accumulate the array values tuple by tuple
-            for j in range(array.GetNumberOfTuples()):
-                accumulated_arrays[array_name][j] += np.array(array.GetTuple(j))
-
-    # Create a new vtkImageData to hold the averaged arrays
-    averaged_image = vtk.vtkImageData()
-    averaged_image.SetDimensions(first_image.GetDimensions())
-    averaged_image.SetSpacing(first_image.GetSpacing())
-    averaged_image.SetOrigin(first_image.GetOrigin())
-    
-    # Add the averaged arrays back to the vtkImageData
-    for array_name, accumulated_array in accumulated_arrays.items():
-        # Average the accumulated data
-        averaged_array = accumulated_array / num_images
-        
-        # Create a VTK array and fill it with the averaged data
-        vtk_array = vtk.vtkFloatArray()
-        vtk_array.SetName(array_name)
-        vtk_array.SetNumberOfTuples(averaged_array.shape[0])
-        vtk_array.SetNumberOfComponents(averaged_array.shape[1])
-        
-        for idx in range(averaged_array.shape[0]):
-            vtk_array.SetTuple(idx, tuple(averaged_array[idx]))
-        
-        averaged_image.GetPointData().AddArray(vtk_array)
-
-    return averaged_image
-
-
 def read_vti_images(file_list):
     """
     Reads VTI image files from a list of file names.
@@ -463,9 +397,9 @@ def read_vti_images(file_list):
 
 def time_mean():
     # Computes time means of meridional and zonal averages and vertical profile
-    zonal = avg_images("_zonal")
-    merid = avg_images("_merid")
-    avg_images("")
+    zonal = avg_images("_zonal") # zonal projection
+    merid = avg_images("_merid") # meridional projection
+    avg_images("")               # complete 3D data
 
     dims       = zonal.GetDimensions() 
     point_data = zonal.GetPointData()
@@ -490,34 +424,67 @@ def time_mean():
    
     # Delete individual time files except if only process a single time
     if (t1 != t2):
-        delete_files(run+'_????.vtk')
-        delete_files(run+'_????.csv')
-        
-        files = glob.glob(run+'*.vti')  # all files
-        matched_files = [f for f in files if re.search(r"\d{4}", f)]
-        for file in matched_files:
-            try:
-                os.remove(file)
-            except Exception as e:
-                print(f"Error deleting {file}: {e}")
+        delete_files(run+'_[0-9][0-9][0-9][0-9].vtk')
+        delete_files(run+'_[0-9][0-9][0-9][0-9].csv')
+        delete_files(run+'_[0-9][0-9][0-9][0-9]_zonal.vti')
+        delete_files(run+'_[0-9][0-9][0-9][0-9]_merid.vti')
+        delete_files(run+'_[0-9][0-9][0-9][0-9].vti')
                 
-        
-def avg_images(name):
-    # Averages all image files containing files in name (e.g. zonal or merid)
-    
-    file_list = []
-    for t in range (t1, t2+1):
-        file_list.append(run+'_'+str(t).zfill(4)+name+".vti")
-    
-    vti_images = read_vti_images(file_list)
-    avg = average_vti_images(vti_images)
 
+def avg_images(file_type):
+    # Average all image files specified by file_type
+    vti_files = []
+    for t in range (t1, t2+1):
+        vti_files.append(run+'_'+str(t).zfill(4)+file_type+".vti")
+
+        # ---- Read the first file to get array names and metadata ----
+    reader = vtk.vtkXMLImageDataReader()
+    reader.SetFileName(vti_files[0])
+    reader.Update()
+    image       = reader.GetOutput()
+    point_data  = image.GetPointData()
+    n_arrays    = point_data.GetNumberOfArrays()
+    array_names = [point_data.GetArrayName(i) for i in range(n_arrays)]
+    npts        = image.GetNumberOfPoints()
+
+    # ---- Initialize dictionary to hold sums for each array ----
+    sums = {
+        name: np.zeros(npts, dtype=np.float32)
+        for name in array_names
+    }
+    nfiles = 0
+
+    # ---- Loop through all files and accumulate data ----
+    for filename in vti_files:
+        reader.SetFileName(filename)
+        reader.Update()
+        image      = reader.GetOutput()
+        point_data = image.GetPointData()
+       
+        for name in array_names:
+            array_vtk   = point_data.GetArray(name)
+            array_np    = numpy_support.vtk_to_numpy(array_vtk)
+            sums[name] += array_np
+           
+        nfiles += 1
+
+    # ---- Average and convert back to VTK arrays ----
+    output_image = vtk.vtkImageData()
+    output_image.DeepCopy(image)  # copy geometry and topology
+
+    for name in array_names:
+        avg_np = sums[name] / nfiles
+        avg_vtk = numpy_support.numpy_to_vtk(avg_np, deep=True)
+        avg_vtk.SetName(name)
+        output_image.GetPointData().AddArray(avg_vtk)
+
+    # ---- Write the averaged image ----
     writer = vtk.vtkXMLImageDataWriter()
-    writer.SetFileName(run+name+".vti")
-    writer.SetInputData(avg)
+    writer.SetFileName(run+file_type+".vti")
+    writer.SetInputData(output_image)
     writer.Write()
 
-    return avg
+    return output_image
     
 
 def transform_to_lonlat(t):

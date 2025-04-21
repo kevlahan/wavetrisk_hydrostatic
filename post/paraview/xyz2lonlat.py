@@ -290,5 +290,5 @@ for t in range (t1, t2+1):
             writer.SetInputData(data)
             writer.Write()
             
-for file in glob.glob("*tri_???_????.vtk"):
+for file in glob.glob("*tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk"):
     os.remove(file)

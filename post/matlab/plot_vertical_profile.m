@@ -1,6 +1,6 @@
 % Plots vertical profiles of averaged variables produced by lonlat_to_3D.py
 
-Data = readtable('SimpleJ5J7Z30_profile.csv');
+Data = readtable('SimpleJ5Z30.csv');
 VarNames= Data.Properties.VariableNames
 
 OMEGA_Idx = find(strcmp(VarNames, 'P_Ps'));
