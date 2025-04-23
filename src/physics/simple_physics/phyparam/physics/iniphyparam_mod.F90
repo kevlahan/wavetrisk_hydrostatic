@@ -82,15 +82,15 @@ contains
     call check_mismatch ('specific heat capacity', pCpp,        Cpp)
     LOG_WARN ('iniphyparam')
 
-    WRITELOG (*,'(a)')        'Activation de la physique:'
-    WRITELOG (*,'(a,l)')      ' rayonnement                    ', callrad
-    WRITELOG (*,'(a,l)')      ' diffusion verticale turbulente ', calldifv
-    WRITELOG (*,'(a,l)')      ' ajustement convectif           ', calladj
-    WRITELOG (*,'(a,l)')      ' sol                            ', callsoil
-    WRITELOG (*,'(a,l)')      ' cycle diurne                   ', diurnal
-    WRITELOG (*,'(a,es10.4)') ' r                              ', r
-    WRITELOG (*,'(a,es10.4)') ' unjours                        ', Unjours
-    WRITELOG (*,'(a,i3,a,es10.4,a)') 'Radiative transfer is computed each ', iradia,' time step, or each ', iradia * pTimestep,' s'
+    ! WRITELOG (*,'(a)')        'Activation de la physique:'
+    ! WRITELOG (*,'(a,l)')      ' rayonnement                    ', callrad
+    ! WRITELOG (*,'(a,l)')      ' diffusion verticale turbulente ', calldifv
+    ! WRITELOG (*,'(a,l)')      ' ajustement convectif           ', calladj
+    ! WRITELOG (*,'(a,l)')      ' sol                            ', callsoil
+    ! WRITELOG (*,'(a,l)')      ' cycle diurne                   ', diurnal
+    ! WRITELOG (*,'(a,es10.4)') ' r                              ', r
+    ! WRITELOG (*,'(a,es10.4)') ' unjours                        ', Unjours
+    ! WRITELOG (*,'(a,i3,a,es10.4,a)') 'Radiative transfer is computed each ', iradia,' time step, or each ', iradia * pTimestep,' s'
 
     LOG_INFO ('iniphyparam')
 
@@ -102,7 +102,7 @@ contains
     real,         intent(in) :: a, b
 
     if (a /= b) then
-       WRITELOG (*,*) 'phys/dyn mismatch for ', name, ' : ', a, b
+!       WRITELOG (*,*) 'phys/dyn mismatch for ', name, ' : ', a, b
     end if
   end subroutine check_mismatch
 end module iniphyparam_mod

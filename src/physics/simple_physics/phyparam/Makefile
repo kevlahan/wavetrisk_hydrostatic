@@ -8,7 +8,7 @@
 FFRONT ?= true
 
 F90 ?= gfortran
-F90FLAGS ?= -ffree-line-length-none -g -fbacktrace -fcheck=all -ffpe-trap=zero,overflow,invalid -std=f2003 -freal-4-real-8 #added real-real(8) flag
+F90FLAGS ?= -std=f2003
 
 NAMES = $(basename $(notdir $(wildcard physics/*.F90)))
 OBJECTS = $(addprefix obj/, $(addsuffix .o, $(NAMES)))

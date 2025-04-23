@@ -23,7 +23,7 @@ contains
        gmTime, pTimestep, pPlay, pPint, pPhi, pPhi_surf, pUmag, pU, pV, pW, pTheta, Tsurf_soil)
     !----------------------------------------------------------------
     !
-    !   WrapPer routine dynamics will use to call the physics,
+    !   Wrapper routine dynamics will use to call the physics,
     !   -----------  for a single column. it updates the surface and soil temps
     !   -----------  for the column before the call and send back the newly
     !   -----------  update temperatures.

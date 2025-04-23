@@ -28,7 +28,7 @@ CONTAINS
     STOP
 #endif
     IF(ANY(isnan)) THEN
-       WRITELOG(*,*) 'In subroutine ', caller, ' array ', name, ' has NaN . Offending indices :'
+!       WRITELOG(*,*) 'In subroutine ', caller, ' array ', name, ' has NaN . Offending indices :'
        DO i=1, SIZE(isnan,1)
           IF(isnan(i)) THEN
              WRITELOG(*,*) i, data(i)
@@ -49,7 +49,7 @@ CONTAINS
     STOP
 #endif
     IF(ANY(isnan)) THEN
-       WRITELOG(*,*) 'In subroutine ', caller, ' array ', name, ' has NaN . Offending indices :'
+       !WRITELOG(*,*) 'In subroutine ', trim(caller), ' array ', trim(name), ' has NaN . Offending indices :'
        DO i=1, SIZE(isnan,1)
           DO j=1, SIZE(isnan,2)
              IF(isnan(i,j)) THEN

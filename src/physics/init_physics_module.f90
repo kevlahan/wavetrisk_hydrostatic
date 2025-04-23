@@ -82,7 +82,7 @@ contains
     ! Initialization of physics parameters
     open (unit=9*rank, file=trim(param_file), form="FORMATTED", action='READ')
     
-    call iniphyparam (dt, DAY, radius, grav_accel, R_d, c_p)
+    call iniphyparam (real(dt), real(DAY), real(radius), real(grav_accel), real(R_d), real(c_p))
     
     close (9*rank)
 
@@ -169,7 +169,7 @@ contains
     !-----------------------------------------------------------------------------------
     use comgeomfi, only : init_comgeomfi, nsoilmx
 
-    real(8) :: lat(1), long(1)
+    real :: lat(1), long(1)
 
     ! Dummy latitude and longitude for initialization
     lat(1)  = 0d0
@@ -214,9 +214,9 @@ contains
     !
     !-----------------------------------------------------------------------------------
     character(*), intent(in)  :: name, comment
-    real(8),      intent(in)  :: defval
-    real(8),      intent(out) :: val
-
+    real,      intent(in)  :: defval
+    real,      intent(out) :: val
+    
     character(15) :: param_name
     character     :: equal_sign
 

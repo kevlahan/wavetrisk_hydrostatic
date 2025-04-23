@@ -13,14 +13,14 @@ module physics_simple_mod
   use ops_mod
   use init_physics_mod
   implicit none
-  real(8) :: phys_dt
+  real :: phys_dt
 contains
   subroutine physics_simple_step (h)
     ! Uses simple physics modules to take a Backwards Euler step for physics using time step dt set by dynamics
     implicit none
     real(8) :: h ! time step
     
-    phys_dt = h
+    phys_dt = real(h)
     
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
@@ -49,21 +49,21 @@ contains
     integer :: d, id, id_i, k, mask
 
     ! Variables needed for simple physics
-    real(8), dimension(1:zlevels) :: phys_Play               ! pressure at layer centres
-    real(8), dimension(0:zlevels) :: phys_Pint               ! pressure at layer interfaces
-    real(8), dimension(1:1)       :: phys_Phisurf            ! surface geopotential
+    real, dimension(1:zlevels) :: phys_Play               ! pressure at layer centres
+    real, dimension(0:zlevels) :: phys_Pint               ! pressure at layer interfaces
+    real, dimension(1:1)       :: phys_Phisurf            ! surface geopotential
 
-    real(8), dimension(1:zlevels) :: phys_Theta              ! potential temperature
-    real(8), dimension(1:zlevels) :: phys_Phi                ! geopotential
-    real(8), dimension(1:zlevels) :: phys_U, phys_V, phys_W  ! velocities at edges
-    real(8), dimension(1:zlevels) :: phys_Umag               ! speed at nodes
-    real(8), dimension(1:Nsoil+1) :: Tsoil                   ! surface temp and soil temperatures
+    real, dimension(1:zlevels) :: phys_Theta              ! potential temperature
+    real, dimension(1:zlevels) :: phys_Phi                ! geopotential
+    real, dimension(1:zlevels) :: phys_U, phys_V, phys_W  ! velocities at edges
+    real, dimension(1:zlevels) :: phys_Umag               ! speed at nodes
+    real, dimension(1:Nsoil+1) :: Tsoil                   ! surface temp and soil temperatures
 
 
-    real(8), dimension(1:zlevels) :: rho_dz
-    real(8)                       :: latitude, longitude     ! coordinates of the column
-    real(8)                       :: nth_day, day_fraction   ! day in simulation, fraction of the day
-    logical(kind=C_BOOL)          :: lastcall_flag = .false.
+    real, dimension(1:zlevels) :: rho_dz
+    real                       :: latitude, longitude     ! coordinates of the column
+    real                       :: nth_day, day_fraction   ! day in simulation, fraction of the day
+    logical(kind=C_BOOL)       :: lastcall_flag = .false.
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -77,7 +77,7 @@ contains
     call pack_physics_vars
 
     ! Get latitude and longitude of the column
-    call cart2sph (dom%node%elts(id_i), longitude, latitude)
+    call cart2sph (dom%node%elts(id_i), real(longitude,kind=8), real(latitude,kind=8))
 
     ! Update physics latitude and longitude
     call change_latitude_longitude (latitude, longitude)
@@ -96,13 +96,13 @@ contains
 
     ! Assign solution at t+h
     do k = 1, zlevels
-       if (is_pole /= 1) sol(S_VELO,k)%data(d)%elts(id_edge(id)) = (/ phys_U(k), phys_V(k), phys_W(k) /)
-       sol(S_TEMP,k)%data(d)%elts(id_i)        = rho_dz(k) * phys_Theta(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+       if (is_pole /= 1) sol(S_VELO,k)%data(d)%elts(id_edge(id)) = real((/ phys_U(k), phys_V(k), phys_W(k) /),kind=8)
+       sol(S_TEMP,k)%data(d)%elts(id_i)        = rho_dz(k) * real(phys_Theta(k),kind=8) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
     end do
 
     ! Assign soil column solution at t+phys_dt to WAVETRISK data structure
     do k = zmin, 0
-       sol(S_TEMP,k)%data(d)%elts(id_i) = Tsoil(abs(k)+1)
+       sol(S_TEMP,k)%data(d)%elts(id_i) = real(Tsoil(abs(k)+1),kind=8)
     end do
   contains
     subroutine pack_physics_vars
@@ -126,14 +126,14 @@ contains
          call integrate_pressure_up (dom, i, j, zlev, offs, dims)
 
          ! Input variables for simple physics module
-         phys_Pint(k)  = dom%press_lower%elts(id_i)
-         phys_Play(k)  = dom%press%elts(id_i)
-         phys_Phi(k)   = interp (dom%geopot_lower%elts(id_i), dom%geopot%elts(id_i))
-         phys_Umag(k)  = sqrt (2.0 * kinetic_energy (dom, i, j, k, offs, dims))
+         phys_Pint(k)  = real(dom%press_lower%elts(id_i))
+         phys_Play(k)  = real(dom%press%elts(id_i))
+         phys_Phi(k)   = real(interp (dom%geopot_lower%elts(id_i), dom%geopot%elts(id_i)))
+         phys_Umag(k)  = real(sqrt (2 * kinetic_energy (dom, i, j, k, offs, dims)))
          
-         phys_U(k)     = sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1)
-         phys_V(k)     = sol(S_VELO,k)%data(d)%elts(EDGE*id+DG+1)
-         phys_W(k)     = sol(S_VELO,k)%data(d)%elts(EDGE*id+UP+1)
+         phys_U(k)     = real(sol(S_VELO,k)%data(d)%elts(EDGE*id+RT+1))
+         phys_V(k)     = real(sol(S_VELO,k)%data(d)%elts(EDGE*id+DG+1))
+         phys_W(k)     = real(sol(S_VELO,k)%data(d)%elts(EDGE*id+UP+1))
          phys_Theta(k) = rho_dz_theta / rho_dz(k)
 
          nullify (mass, temp, mean_m, mean_t, exner)
@@ -142,7 +142,7 @@ contains
       ! Retrieve surface temperature and soil column temperatures from dynamics
       ! (Tsoil(1) is surface temperature)
       do k = zmin, 0
-         Tsoil(abs(k)+1) = sol(S_TEMP,k)%data(d)%elts(id_i)
+         Tsoil(abs(k)+1) = real(sol(S_TEMP,k)%data(d)%elts(id_i))
       end do
     end subroutine pack_physics_vars
   end subroutine physics_call

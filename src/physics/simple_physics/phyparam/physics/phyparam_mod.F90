@@ -198,7 +198,8 @@ contains
 
   subroutine precompute () bind (c, name='phyparam_precompute')
     ! Set land surface properties
-    use soil_mod, only: land, pThermal_inertia, Z0, Emissiv, Albedo,  I_mer, I_ter, Cd_mer, Cd_ter,  Alb_mer, Alb_ter, Emi_mer, Emi_ter
+    use soil_mod, only: land, pThermal_inertia, Z0, Emissiv, Albedo,  I_mer, I_ter, Cd_mer, Cd_ter,  &
+         Alb_mer, Alb_ter, Emi_mer, Emi_ter
 
     land             = 1.0                                      ! all columns are over land
 
