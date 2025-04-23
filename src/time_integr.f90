@@ -5,159 +5,155 @@ module time_integr_mod
   type(Float_Field), dimension(:,:), allocatable :: q1, q2, q3, q4, dq1
   
   interface
-     subroutine trend_fun (q, dq)
+     subroutine trend_sub (q, dq)
        use domain_mod
        implicit none
        type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-     end subroutine trend_fun
+     end subroutine trend_sub
   end interface
   
   abstract interface
-     subroutine dt_integrator (q, wav, trend_fun, h)
+     subroutine dt_integrator (q, wav, routine, h)
        use domain_mod
        implicit none
-       real(8)                                              :: h      ! time step
-       type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav ! solution and wavelet coefficients
-       
-       interface
-          subroutine trend_fun (q, dq)
-            use domain_mod
-            implicit none
-            type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
-          end subroutine trend_fun
-       end interface
+       real(8)                                              :: h      
+       type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
+       procedure (trend_sub)                                :: routine
      end subroutine dt_integrator
-  end interface
-  procedure (dt_integrator), pointer :: dt_step  => null ()
 
-  abstract interface
      subroutine dt_integrator_split (h)
-       ! Euler time step
-       ! Stable for CFL<1, first order
        implicit none
-       real(8) :: h ! time step
+       real(8) :: h 
      end subroutine dt_integrator_split
   end interface
+  
+  procedure (dt_integrator),       pointer :: dt_step        => null ()
   procedure (dt_integrator_split), pointer :: dt_step_split  => null ()
 contains
-  subroutine Euler (q, wav, trend_fun, h)
+  subroutine Euler (q, wav, routine, h)
     ! Euler time step
     ! Stable for CFL<1, first order
     implicit none
     real(8)                                              :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
+    procedure (trend_sub)                                :: routine
 
-    call trend_fun (q, trend)
+    call routine (q, trend)
     call RK_sub_step (q, trend, h, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine Euler
 
-  subroutine RK3 (q, wav, trend_fun, h)
+  subroutine RK3 (q, wav, routine, h)
     ! Optimal third order, three stage strong stability preserving Runge-Kutta method
     ! Stable for hyperbolic equations for CFL<2
     ! Does not require extra solution variables.
     implicit none
     real(8)                                              :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
+    procedure (trend_sub)                                :: routine
 
     call manage_q1_mem
 
-    call trend_fun (q, trend) 
+    call routine (q, trend) 
     call RK_sub_step (q, trend, h/3d0, q1)
     call WT_after_step (q1, wav)
 
-    call trend_fun (q1, trend) 
+    call routine (q1, trend) 
     call RK_sub_step (q, trend, h/2d0, q1)
     call WT_after_step (q1, wav)
 
-    call trend_fun (q1, trend) 
+    call routine (q1, trend) 
     call RK_sub_step (q, trend, h, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK3
   
-  subroutine RK4 (q, wav, trend_fun, h)
+  subroutine RK4 (q, wav, routine, h)
     ! Low storage four stage second order accurate Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
     ! Fourth order accurate for linear equations, stable for CFL <= 2*sqrt(2) ~ 2.83.
     ! Does not require extra solution variables.
     implicit none
     real(8)                                              :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
+    procedure (trend_sub)                                :: routine
 
     call manage_q1_mem
 
-    call trend_fun (q, trend) 
+    call routine (q, trend) 
     call RK_sub_step (q, trend, h/4d0, q1)
     call WT_after_step (q1, wav)
 
-    call trend_fun (q1, trend) 
+    call routine (q1, trend) 
     call RK_sub_step (q, trend, h/3d0, q1)
     call WT_after_step (q1, wav)
 
-    call trend_fun (q1, trend) 
+    call routine (q1, trend) 
     call RK_sub_step (q, trend, h/2d0, q1)
     call WT_after_step (q1, wav)
 
-    call trend_fun (q1, trend) 
+    call routine (q1, trend) 
     call RK_sub_step (q, trend, h, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK4
 
-  subroutine RK33_opt (q, wav, trend_fun, h)
+  subroutine RK33_opt (q, wav, routine, h)
     ! Optimal third order, three stage strong stability preserving Runge-Kutta method
     ! Stable for hyperbolic equations for CFL<2
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     implicit none
-    real(8)                                               :: h
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)  :: q, wav
+    real(8)                                              :: h
+    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
+    procedure (trend_sub)                                :: routine
 
     call manage_RK_mem
 
-    call trend_fun (q, trend) 
+    call routine (q, trend) 
     call RK_sub_step (q, trend, h, q1)
     call WT_after_step (q1, wav)
 
-    call trend_fun (q1, trend) 
+    call routine (q1, trend) 
     call RK_sub_step2 (q, q1, trend, (/ 0.75d0, 0.25d0 /), h/4d0, q2)
     call WT_after_step (q2, wav)
 
-    call trend_fun (q2, trend)
+    call routine (q2, trend)
     call RK_sub_step2 (q, q2, trend, (/ 1d0/3d0, 2d0/3d0 /), h*2d0/3d0, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK33_opt
 
-  subroutine RK34_opt (q, wav, trend_fun, h)
+  subroutine RK34_opt (q, wav, routine, h)
     ! Optimal third order, four stage strong stability preserving Runge-Kutta method
     ! Stable for hyperbolic equations for CFL<2
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     implicit none
     real(8)                                              :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
+    procedure (trend_sub)                                :: routine
 
     call manage_RK_mem
 
-    call trend_fun (q, trend) 
+    call routine (q, trend) 
     call RK_sub_step (q, trend, h/2d0, q1)
     call WT_after_step (q1, wav)
 
-    call trend_fun (q1, trend) 
+    call routine (q1, trend) 
     call RK_sub_step (q1, trend, h/2d0, q2)
     call WT_after_step (q2, wav)
 
-    call trend_fun (q2, trend)
+    call routine (q2, trend)
     call RK_sub_step2 (q, q2, trend, (/ 2d0/3d0, 1d0/3d0 /), h/6d0, q3)
     call WT_after_step (q3, wav)
 
-    call trend_fun (q3, trend) 
+    call routine (q3, trend) 
     call RK_sub_step (q3, trend, h/2d0, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK34_opt
 
-  subroutine RK45_opt (q, wav, trend_fun, h)
+  subroutine RK45_opt (q, wav, routine, h)
     ! Optimal fourth order, five stage strong stability preserving Runge-Kutta method stable with optimal maximum CFL coefficient of 1.51
     ! See A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011, Spiteri and Ruuth 2002
     implicit none
     real(8)                                              :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
+    procedure (trend_sub)                                :: routine
 
     real(8), dimension(5,5) :: alpha, beta
 
@@ -171,23 +167,23 @@ contains
 
     call manage_RK_mem
 
-    call trend_fun (q, trend) 
+    call routine (q, trend) 
     call RK_sub_step1 (q, trend, alpha(1,1), h * beta(1,1), q1)
     call WT_after_step (q1, wav)
 
-    call trend_fun (q1, trend)
+    call routine (q1, trend)
     call RK_sub_step2 (q, q1, trend, alpha(1:2,2), h * beta(2,2), q2)
     call WT_after_step (q2, wav)
 
-    call trend_fun (q2, trend)
+    call routine (q2, trend)
     call RK_sub_step2 (q, q2, trend, (/alpha(1,3), alpha(3,3)/), h * beta(3,3), q3)
     call WT_after_step (q3, wav)
 
-    call trend_fun (q3, trend)
+    call routine (q3, trend)
     call RK_sub_step2 (q, q3, trend, (/alpha(1,4), alpha(4,4)/), h * beta(4,4), q4)
     call WT_after_step (q4, wav)
 
-    call trend_fun (q4, dq1)
+    call routine (q4, dq1)
     call RK_sub_step4 (q, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), h * beta(4:5,5), q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK45_opt

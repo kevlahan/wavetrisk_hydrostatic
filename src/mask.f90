@@ -1,7 +1,7 @@
 module mask_mod
   ! Module containing routines that define masks on adaptive grid.
   ! (required by adapt_mod and refine_patch_mod)
-  use domain_mod
+  use domain_ops_mod
   use comm_mpi_mod
 contains
   subroutine init_masks_zero

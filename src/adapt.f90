@@ -14,8 +14,8 @@ contains
   subroutine adapt (set_thresholds, type)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
     implicit none
-    external           :: set_thresholds
-    logical, optional  :: type ! recalculate thresholds
+    procedure (noarg_sub) :: set_thresholds
+    logical, optional     :: type ! recalculate thresholds
     
     integer :: k, l, d
     logical :: local_type

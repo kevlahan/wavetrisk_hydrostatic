@@ -298,7 +298,7 @@ contains
     integer(4) :: isave, k
 
     integer(4)                            :: icell, ivar, ncell_tot, nvert
-    integer(4), dimension(:), allocatable :: cell_type
+    integer(4), dimension(:), allocatable :: cell_type, level_data
     character(3)                          :: layer
     character(4)                          :: isv
     character(12)                         :: str1, str2, str3
@@ -339,7 +339,9 @@ contains
 
     write (funit) 'SCALARS Level int'   //lf
     write (funit) 'LOOKUP_TABLE default'//lf
-    write (funit) int (cell_data(1:nvar*(ncell-1)+1:nvar))
+    level_data = int (cell_data(1:nvar*(ncell-1)+1:nvar),kind=4)
+    write (funit) level_data
+
     do ivar = 2, nvar
        select case (ivar)
        case (2)

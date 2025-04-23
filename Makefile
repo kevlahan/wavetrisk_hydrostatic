@@ -1,18 +1,17 @@
 # Default general options
-TEST_CASE  = climate
-PARAM      = param_J6
-ARCH       = mpi
-OPTIM      = 2
-F90        = gfortran
-MPIF90     = mpif90
-BIN_DIR    = bin
-BUILD_DIR  = build
-LIBS       =
-FLAGS_COMP = 
-LAPACK     = -llapack  # link to lapack library
-
-NETCDF     = -lnetcdff # link to netcdf library
-TOPO       = false     # use NCAR topography
+TEST_CASE     = climate
+PARAM         = param_J6
+ARCH          = mpi
+OPTIM         = 2
+COMPILER_TYPE = gnu      # gnu, amd, intel
+MPIF90        = mpif90   # mpif90 compiler
+BIN_DIR       = bin
+BUILD_DIR     = build
+LIBS          =
+FLAGS_COMP    = 
+LAPACK        = -llapack  # link to lapack library
+NETCDF        = -lnetcdff # link to netcdf library
+TOPO          = false     # use NCAR topography
 ifeq ($(TEST_CASE), make_NCAR_topo)
   TOPO = true
 endif
@@ -56,27 +55,30 @@ else
   MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
   ifeq ($(MACHINE),$(filter $(MACHINE), orc bul gra nia narval)) # module load StdEnv netcdf 
     LAPACK = -lflexiblas  # module load flexiblas
-  endif 
+  endif
+  ifeq ($(MACHINE),$(filter $(MACHINE), bbserv))
+    LAPACK = -I$(NETLIB_LAPACK_ROOT)/include -L$(NETLIB_LAPACK_ROOT)/lib64 -llapack
+  endif
 endif
 
 ifeq ($(TOPO), true)
   LIBS += $(NETCDF)  # module load netcdf netcdf-fortran
 endif
 
-ifeq ($(F90),ifort)
-  FLAGS_COMP += -O$(OPTIM) -c -Isrc/ppr -cpp -diag-disable 8291
-  FLAGS_LINK += -O$(OPTIM)
-  ifeq ($(ARCH),mpi) # problem with -module when using AMPI
-    FLAGS_COMP += -module $(BUILD_DIR)
-    FLAGS_LINK += -module $(BUILD_DIR)
-  endif
-else
-  FLAGS_COMP += -O$(OPTIM) -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch 
-  FLAGS_LINK += -O$(OPTIM) -J $(BUILD_DIR)
+ifeq ($(COMPILER_TYPE),gnu)        
+   F90 = gfortran
+   FLAGS_COMP += -O$(OPTIM) -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch 
+else ifeq ($(COMPILER_TYPE),amd)  
+   F90 = flang
+   FLAGS_COMP += -O$(OPTIM) -c -module $(BUILD_DIR) -cpp
+else ifeq ($(COMPILER_TYPE),intel) 
+   F90 = ifort
+   FLAGS_COMP += -O$(OPTIM) -c -Isrc/ppr -cpp -diag-disable 8291
 endif
+FLAGS_LINK += -O$(OPTIM)
 
 ifeq ($(OPTIM),0)
-  ifeq ($(F90),ifort)
+  ifeq ($(COMPILER_TYPE),intel)
     FLAGS_COMP += -g -traceback
   else
     FLAGS_COMP += -g -fbacktrace -fcheck=all
@@ -84,8 +86,8 @@ ifeq ($(OPTIM),0)
 endif
 
 ifeq ($(ARCH),ser)
-  COMPILER = $(F90)
-  PROC     = ser
+   COMPILER = $(F90)
+   PROC     = ser
 else
    PROC        = mpi
    FLAGS_COMP += -DMPI 
@@ -126,7 +128,7 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
 endif
 
 SRC = $(PARAM).f90 shared.f90 coord_arithmetic.f90 calendar.f90 sphere.f90  patch.f90 dyn_array.f90 \
-base_$(PROC).f90 spline.f90 domain.f90 init.f90 comm.f90 comm_$(PROC).f90 utils.f90 \
+base_$(PROC).f90 spline.f90 domain.f90 domain_ops.f90 init.f90 comm.f90 comm_$(PROC).f90 utils.f90 \
 projection.f90 equation_of_state.f90 wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 smooth.f90 ops.f90 \
 multi_level.f90 adapt.f90 lin_solve.f90 barotropic_2d.f90 time_integr.f90 io.f90 vert_diffusion.f90 io_vtk.f90 \
 remap.f90 std_atm_profile.f90 sso.f90

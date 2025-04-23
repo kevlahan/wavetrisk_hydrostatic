@@ -292,7 +292,7 @@ contains
        itime = nint (time * time_mult, 8)
        istep = 0
 
-       call remap_vertical_coordinates                   ! remap vertical coordinates
+       !call remap_vertical_coordinates                   ! remap vertical coordinates
        call initialize_thresholds                        ! initialize thresholds to default values (possibly based on mean values)
        call initialize_dt_viscosity                      ! initialize time step and viscosities
        if (log_total_mass) call cal_total_mass (.true.)  ! initialize total mass value

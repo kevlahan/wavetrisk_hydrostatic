@@ -1,6 +1,7 @@
 module init_mod
   use geom_mod
   use domain_mod
+  use domain_ops_mod
   use arch_mod
   implicit none
   real(8), parameter :: YANGLE = 0d0
@@ -16,31 +17,6 @@ module init_mod
        real(8), dimension(1:EDGE) :: fun2, eta, z
        real(8)                    :: ri
      end function fun2
-     real(8) function fun3 (dom, i, j, z_lev, offs, dims)
-       use domain_mod
-       implicit none
-       type(Domain)                   :: dom
-       integer                        :: i, j, z_lev
-       integer, dimension(N_BDRY+1)   :: offs
-       integer, dimension(2,N_BDRY+1) :: dims
-     end function fun3
-     function fun4 (dom, i, j, z_lev, offs, dims)
-       use domain_mod
-       implicit none
-       type(Domain)                   :: dom
-       integer                        :: i, j, z_lev
-       integer, dimension(N_BDRY+1)   :: offs
-       integer, dimension(2,N_BDRY+1) :: dims
-       real(8), dimension(1:EDGE)     :: fun4
-     end function fun4
-     subroutine sub4 (dom, i, j, z_lev, offs, dims)
-       use domain_mod
-       implicit none
-       type(Domain)                   :: dom
-       integer                        :: i, j, z_lev
-       integer, dimension(N_BDRY+1)   :: offs
-       integer, dimension(2,N_BDRY+1) :: dims
-     end subroutine sub4
      function fun5 (q, dom, id, idE, idNE, idN, v, zlev, type)
        use domain_mod
        implicit none
@@ -59,14 +35,14 @@ module init_mod
        implicit none
        integer :: d, id
      end function int2_fun
-     subroutine io_fun (fid)
+     subroutine io_sub (fid)
        implicit none
        integer :: fid
-     end subroutine io_fun
-     subroutine noarg_fun
+     end subroutine io_sub
+     subroutine noarg_sub
        implicit none
        integer :: fid
-     end subroutine noarg_fun
+     end subroutine noarg_sub
       function zcoords_fun (eta_surf, z_s)
         use shared_mod
         implicit none
@@ -106,18 +82,18 @@ module init_mod
 
   ! Pointers to variables and procedures that may be defined in test cases
   real(8),                 pointer :: bottom_friction
-  procedure (noarg_fun),   pointer :: apply_initial_conditions => null ()
+  procedure (noarg_sub),   pointer :: apply_initial_conditions => null ()
   procedure (fun3),        pointer :: bottom_buoy_flux         => null ()
-  procedure (io_fun),      pointer :: dump                     => null ()
-  procedure (io_fun),      pointer :: load                     => null ()
-  procedure (noarg_fun),   pointer :: initialize_a_b_vert      => null ()
-  procedure (noarg_fun),   pointer :: initialize_dt_viscosity  => null ()
-  procedure (noarg_fun),   pointer :: initialize_thresholds    => null ()
-  procedure (noarg_fun),   pointer :: set_thresholds           => null ()
+  procedure (io_sub),      pointer :: dump                     => null ()
+  procedure (io_sub),      pointer :: load                     => null ()
+  procedure (noarg_sub),   pointer :: initialize_a_b_vert      => null ()
+  procedure (noarg_sub),   pointer :: initialize_dt_viscosity  => null ()
+  procedure (noarg_sub),   pointer :: initialize_thresholds    => null ()
+  procedure (noarg_sub),   pointer :: set_thresholds           => null ()
   procedure (int2_fun),    pointer :: surf_geopot              => null ()
   procedure (coord_fun),   pointer :: tau_mag                  => null ()
   procedure (fun3),        pointer :: top_buoy_flux            => null ()
-  procedure (noarg_fun),   pointer :: update                   => null ()
+  procedure (noarg_sub),   pointer :: update                   => null ()
   procedure (fun4),        pointer :: wind_flux                => null ()
   procedure (fun4),        pointer :: physics_velo_source      => null ()
   procedure (fun5),        pointer :: physics_scalar_flux      => null ()

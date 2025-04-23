@@ -1,5 +1,5 @@
 module lnorms_mod
-  use domain_mod
+  use domain_ops_mod
   use comm_mpi_mod
   implicit none
   integer :: n_norm

@@ -1,5 +1,5 @@
 module comm_mpi_mod
-  use domain_mod
+  use domain_ops_mod
   use comm_mod
   implicit none
   integer                            :: nreq
