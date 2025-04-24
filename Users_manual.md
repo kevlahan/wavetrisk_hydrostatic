@@ -483,6 +483,7 @@ All submodels are turned on by default. More physics models could be added to th
     PHYSICS=true
 </code>
 </pre> 
+This flag is automatically set for the `climate` test case.
 ### 5.2 NCAR topography  
 Generates smoothed multiscale topography data for WAVETRISK from NCAR topography NetCDF files using `cube_to_target` program that remaps topography data from cubed-sphere grid to target grid (non-adaptive WAVETRISK grid at max_level) grid using rigorous remapping ([Lauritzen, Nair and Ullrich 2015](http:/doi.org/10.5194/gmd-8-3975-2015)).  
 
