@@ -3,25 +3,23 @@ TEST_CASE     = climate
 PARAM         = param_J6
 ARCH          = mpi
 OPTIM         = 2
-COMPILER_TYPE = gnu      # gnu, amd, intel
-MPIF90        = mpif90   # mpif90 compiler
+COMPILER_TYPE = gnu
+MPIF90        = mpif90
 BIN_DIR       = bin
 BUILD_DIR     = build
-LIBS          =
-FLAGS_COMP    = 
-LAPACK        = -llapack  # link to lapack library
-NETCDF        = -lnetcdff # link to netcdf library
-TOPO          = false     # use NCAR topography
+LAPACK        = -llapack
+NETCDF        = -lnetcdff
+TOPO          = false
 ifeq ($(TEST_CASE), make_NCAR_topo)
-  TOPO = true
+ TOPO = true
 endif
 
 PHYSICS = false
 ifeq ($(TEST_CASE), climate)
-  PHYSICS = true
+ PHYSICS = true
 endif
 ifeq ($(TEST_CASE), spherical_harmonics)
-  PHYSICS = true
+ PHYSICS = true
 endif
 
 PREFIX     = .
@@ -44,87 +42,87 @@ vpath %.f90 src
 
 SYSTEM = $(shell uname -a | cut -c 1-6 -)
 ifeq ($(SYSTEM),Darwin)
-  MACHINE = mac
-  LIBS   += -L/opt/homebrew/opt/lapack/lib
-  ifeq ($(TOPO), true)
-    NETCDF_DIR  = /opt/homebrew/Cellar/netcdf-fortran/4.6.1
-    FLAGS_COMP += -I$(NETCDF_DIR)/include
-    LIBS       += -L$(NETCDF_DIR)/lib $(NETCDF)
-  endif
+ MACHINE = mac
+ LIBS   += -L/opt/homebrew/opt/lapack/lib
+ ifeq ($(TOPO), true)
+  NETCDF_DIR  = /opt/homebrew/Cellar/netcdf-fortran/4.6.1
+  FLAGS_COMP += -I$(NETCDF_DIR)/include
+  LIBS       += -L$(NETCDF_DIR)/lib $(NETCDF)
+ endif
 else
-  MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
-  ifeq ($(MACHINE),$(filter $(MACHINE), orc bul gra nia narval)) # module load StdEnv netcdf 
-    LAPACK = -lflexiblas  # module load flexiblas
-  endif
-  ifeq ($(MACHINE),$(filter $(MACHINE), bbserv))
-    LAPACK = -I$(NETLIB_LAPACK_ROOT)/include -L$(NETLIB_LAPACK_ROOT)/lib64 -llapack
-  endif
+ MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
+ ifeq ($(MACHINE),$(filter $(MACHINE), orc bul gra nia narval)) # module load StdEnv netcdf 
+  LAPACK = -lflexiblas  # module load flexiblas
+ endif
+ ifeq ($(MACHINE),$(filter $(MACHINE), bbserv))
+  LAPACK = -I$(NETLIB_LAPACK_ROOT)/include -L$(NETLIB_LAPACK_ROOT)/lib64 -llapack
+ endif
 endif
 
 ifeq ($(TOPO), true)
-  LIBS += $(NETCDF)  # module load netcdf netcdf-fortran
+ LIBS += $(NETCDF)  # module load netcdf netcdf-fortran
 endif
 
-ifeq ($(COMPILER_TYPE),gnu)        
-   F90 = gfortran
-   FLAGS_COMP += -O$(OPTIM) -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch 
-else ifeq ($(COMPILER_TYPE),amd)  
-   F90 = flang
-   FLAGS_COMP += -O$(OPTIM) -c -module $(BUILD_DIR) -cpp
-else ifeq ($(COMPILER_TYPE),intel) 
-   F90 = ifort
-   FLAGS_COMP += -O$(OPTIM) -c -Isrc/ppr -cpp -diag-disable 8291
+ifeq ($(COMPILER_TYPE),gnu)
+ F90 = gfortran
+ FLAGS_COMP += -O$(OPTIM) -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch 
+else ifeq ($(COMPILER_TYPE),amd)
+ F90 = flang
+ FLAGS_COMP += -O$(OPTIM) -c -module $(BUILD_DIR) -cpp
+else ifeq ($(COMPILER_TYPE),intel)
+ F90 = ifort
+ FLAGS_COMP += -O$(OPTIM) -c -Isrc/ppr -cpp -diag-disable 8291
 endif
 FLAGS_LINK += -O$(OPTIM)
 
 ifeq ($(OPTIM),0)
-  ifeq ($(COMPILER_TYPE),intel)
-    FLAGS_COMP += -g -traceback
-  else
-    FLAGS_COMP += -g -fbacktrace -fcheck=all
-  endif
+ ifeq ($(COMPILER_TYPE),intel)
+   FLAGS_COMP += -g -traceback
+ else
+   FLAGS_COMP += -g -fbacktrace -fcheck=all
+ endif
 endif
 
 ifeq ($(ARCH),ser)
-   COMPILER = $(F90)
-   PROC     = ser
+ COMPILER = $(F90)
+ PROC     = ser
 else
-   PROC        = mpi
-   FLAGS_COMP += -DMPI 
-   FLAGS_LINK += -DMPI 
-  ifeq ($(ARCH),mpi)
-    COMPILER = $(MPIF90)
-  else
-    ARCH        = mpi
-    F90         = $(AMPIF90)
-    COMPILER    = $(AMPIF90)
-    FLAGS_COMP += -DAMPI -pieglobals
-    FLAGS_LINK += -DAMPI -pieglobals
-  endif
+ PROC        = mpi
+ FLAGS_COMP += -DMPI 
+ FLAGS_LINK += -DMPI 
+ifeq ($(ARCH),mpi)
+  COMPILER = $(MPIF90)
+else
+  ARCH        = mpi
+  F90         = $(AMPIF90)
+  COMPILER    = $(AMPIF90)
+  FLAGS_COMP += -DAMPI -pieglobals
+  FLAGS_LINK += -DAMPI -pieglobals
+endif
 endif
 
 ifeq ($(PHYSICS), true)
-   FLAGS_COMP += -DPHYSICS
-   FLAGS_LINK += -DPHYSICS
+ FLAGS_COMP += -DPHYSICS
+ FLAGS_LINK += -DPHYSICS
 endif
 
 LINKER += $(COMPILER)
 LIBS   += $(LAPACK)
 
 ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (MUST use gfortran/openmpi)
-  ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
-    # module load fftw
-    SHTOOLSLIBPATH = $(HOME)/SHTOOLS-4.7.1/lib
-    SHTOOLSMODPATH = $(HOME)/SHTOOLS-4.7.1/include
-  else ifeq ($(MACHINE), mac)
-    SHTOOLSMODPATH = /opt/homebrew/include
-    SHTOOLSLIBPATH = /opt/homebrew/lib
-  else
-    SHTOOLSMODPATH = /usr/local/include
-    SHTOOLSLIBPATH = /usr/local/lib
-  endif
-  LIBS       += -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm 
-  FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
+ ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
+  # module load fftw
+  SHTOOLSLIBPATH = $(HOME)/SHTOOLS-4.7.1/lib
+  SHTOOLSMODPATH = $(HOME)/SHTOOLS-4.7.1/include
+ else ifeq ($(MACHINE), mac)
+  SHTOOLSMODPATH = /opt/homebrew/include
+  SHTOOLSLIBPATH = /opt/homebrew/lib
+ else
+  SHTOOLSMODPATH = /usr/local/include
+  SHTOOLSLIBPATH = /usr/local/lib
+ endif
+ LIBS       += -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm 
+ FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
 endif
 
 SRC = $(PARAM).f90 shared.f90 coord_arithmetic.f90 calendar.f90 sphere.f90  patch.f90 dyn_array.f90 \
@@ -134,15 +132,15 @@ multi_level.f90 adapt.f90 lin_solve.f90 barotropic_2d.f90 time_integr.f90 io.f90
 remap.f90 std_atm_profile.f90 sso.f90
 
 ifeq ($(TOPO), true)
-  SRC += topo_grid_descriptor.f90
+ SRC += topo_grid_descriptor.f90
 endif
 
 ifeq ($(PHYSICS), true)
-  SIMPLEPHYSMODPATH = src/physics/simple_physics/phyparam/include
-  FLAGS_COMP       += -I$(SIMPLEPHYSMODPATH) # mod 
-  PHYSLIB_PATH      = src/physics/simple_physics/phyparam/driver
-  LIBS             += -L$(PHYSLIB_PATH) -lphyparam
-  -include src/physics/Makefile.inc
+ SIMPLEPHYSMODPATH = src/physics/simple_physics/phyparam/include
+ FLAGS_COMP       += -I$(SIMPLEPHYSMODPATH) # mod 
+ PHYSLIB_PATH      = src/physics/simple_physics/phyparam/driver
+ LIBS             += -L$(PHYSLIB_PATH) -lphyparam
+ -include src/physics/Makefile.inc
 endif
 
 SRC += main.f90 test_case_module.f90 test.f90
@@ -156,7 +154,7 @@ $(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
 	$(COMPILER) $(FLAGS_COMP) $< -o $@ 
 
 phys_package:
-	@echo "Compiling Physics Package"
+	@echo "Compiling Physics Package" 
 	@$(MAKE) -C src/physics/simple_physics/phyparam F90=mpif90
 
 topography:
