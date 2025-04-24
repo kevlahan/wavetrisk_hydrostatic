@@ -58,7 +58,16 @@ There are two basic sub-models:
 - Adaptive multigrid solver, using scheduled relaxation Jacobi (SRJ) iterations.
 
 ##### WAVETRISK 2.0
-- 3D hydrostatic extension of original 2D spherical code (`WAVETRISK 1.X`).
+- 3D hydrostatic extension of original 2D spherical code `WAVETRISK 1.0`.
+
+##### WAVETRISK 1.0
+- 2D shallow water equations on the sphere. 
+- Implemented in `fortran 2003` and parallelized using `mpi`.  
+- Hybrid tree-patch data structure where the patch size is can be chosen to optimize performance (`4x4` is typical).
+- Includes load balancing at each checkpoint write.
+
+##### WAVETRISK 0.1
+- 2D shallow water equations on the plane. Implemented in `matlab`.
 
 ## Contents 
 [1. Standard test cases](#markdown-header-1-standard-test-cases)
