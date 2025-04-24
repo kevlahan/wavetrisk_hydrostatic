@@ -130,6 +130,8 @@ contains
 
     integer :: d, j
 
+    u_source => du_source
+
     do d = 1, size(grid)
        mass    => q(S_MASS,k)%data(d)%elts
        velo    => q(S_VELO,k)%data(d)%elts
@@ -150,7 +152,7 @@ contains
           call cpt_or_restr_u_source (grid(d), k, l)
        else
           do j = 1, grid(d)%lev(level_end)%length
-             call apply_onescale_to_patch (du_source, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
+             call apply_onescale_to_patch (u_source, grid(d), grid(d)%lev(level_end)%elts(j), k, 0, 0)
           end do
        end if
 
