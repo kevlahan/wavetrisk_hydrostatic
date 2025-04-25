@@ -379,7 +379,6 @@ contains
        dt = idt / time_mult
     end if
 
-    
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Dynamics time step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -389,7 +388,6 @@ contains
        call dt_step (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
     end if
 
-    
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Physics split step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -408,16 +406,6 @@ contains
        end select
     end if
 #endif 
-
-
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !    Grid adaptation
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
-    
-    call adapt (set_thresholds)
-    call inverse_wavelet_transform (wav_coeff, sol)
-
       
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Vertical remapping
@@ -431,22 +419,14 @@ contains
        iremap = iremap + 1
     end if
     if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
-    
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !    Update time and time step
+    !    Grid adaptation
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    itime = itime + idt
-
-    if (match_time) then
-       time = itime/time_mult
-    else
-       time = time + dt
-    end if
-
-    ! Update time step and count active nodes
-    dt_new = cpt_dt ()
-    
+    if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
+    call adapt (set_thresholds)
+    call inverse_wavelet_transform (wav_coeff, sol)
+      
     ! Rebalance with AMPI
 #ifdef AMPI
     if (modulo (istep, irebalance) == 0) then
