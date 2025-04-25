@@ -311,12 +311,8 @@ contains
           
           id_par = idx (i_par, j_par, offs_par, dims_par) 
 
-          required = dom%mask_n%elts(id_par+1) >= ADJZONE               ! child is required if parent is in adjacent zone
-          do e = 1, EDGE
-             id_e = EDGE*id_par + e
-             required = required .or. dom%mask_e%elts(id_e) >= RESTRCT  ! child is required if parent edge can be obtained by restriction
-          end do
-          
+          required = dom%mask_n%elts(id_par+1) >= ADJSPACE .or. maxval (dom%mask_e%elts(id_edge(id_par))) >= RESTRCT 
+
           if (required) then
              check_child_required = .true.
              return
