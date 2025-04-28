@@ -6,7 +6,7 @@ module domain_ops_mod
   use domain_mod
   implicit none
   interface
-     real(dp) function fun3 (dom, i, j, zlev, offs, dims)
+     real(8) function fun3 (dom, i, j, zlev, offs, dims)
        use domain_mod
        implicit none
        type(Domain)                   :: dom
@@ -17,11 +17,11 @@ module domain_ops_mod
      function fun4 (dom, i, j, zlev, offs, dims)
        use domain_mod
        implicit none
-       type(Domain)                    :: dom
-       integer                         :: i, j, zlev
-       integer,  dimension(N_BDRY+1)   :: offs
-       integer,  dimension(2,N_BDRY+1) :: dims
-       real(dp), dimension(1:EDGE)     :: fun4
+       type(Domain)                   :: dom
+       integer                        :: i, j, zlev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+       real(8), dimension(1:EDGE)     :: fun4
      end function fun4
      subroutine sub4 (dom, i, j, zlev, offs, dims)
        use domain_mod
@@ -74,11 +74,11 @@ module domain_ops_mod
      end subroutine sub9
   end interface
 contains
-   subroutine apply (routine, zlev)
+  subroutine apply (routine, zlev)
     ! Applies routine over all levels and over entire boundary
     implicit none
-    integer  :: zlev
-    external :: routine
+    integer          :: zlev
+    procedure (sub4) :: routine
     
     integer :: l
 
@@ -90,8 +90,8 @@ contains
   subroutine apply_bdry (routine, zlev, st, en)
     ! Applies routine to nodes/edges at all levels and including boundary cells specified by (st,en)
     implicit none
-    integer  :: en, st, zlev
-    external :: routine
+    integer          :: en, st, zlev
+    procedure (sub4) :: routine
     
     integer :: l
 
@@ -103,8 +103,8 @@ contains
   subroutine apply_onescale (routine, l, zlev, st, en)
      ! Applies routine to nodes/edges at all level l including boundary cells specified by (st,en)
     implicit none
-    external :: routine
-    integer  :: en, l, st, zlev
+    integer          :: en, l, st, zlev
+    procedure (sub4) :: routine
 
     integer :: d, j
 
@@ -119,8 +119,8 @@ contains
     ! Applies routine to nodes/edges at all level l including boundary cells specified by (st,en)
     ! and passes integer ival to routine
     implicit none
-    external :: routine
-    integer  :: en, ival, l, st, zlev
+    integer          :: en, ival, l, st, zlev
+    procedure (sub8) :: routine
 
     integer               :: d, j
     logical, dimension(2) :: pole_done
@@ -132,6 +132,25 @@ contains
     end do
   end subroutine apply_onescale__int
 
+  subroutine apply_onescale_to_patch__int (routine, dom, p, zlev, st, en, ival)
+    implicit none
+    type(Domain)     :: dom
+    integer          :: en, ival, p, st, zlev
+    procedure (sub8) :: routine
+
+    integer :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    call get_offs_Domain(dom, p, offs, dims)
+
+    do j = st + 1, PATCH_SIZE + en
+       do i = st + 1, PATCH_SIZE + en
+          call routine (dom, p, i - 1, j - 1, zlev, offs, dims, ival)
+       end do
+    end do
+  end subroutine apply_onescale_to_patch__int
+
   subroutine apply_no_bdry (routine, zlev)
     ! Applies routine to nodes/edges at all levels excluding all boundary cells
     !
@@ -140,8 +159,8 @@ contains
     ! Routine needs to accept an integer which indicates pole (if equals 1) or non-pole (if equals 0)
     !
     implicit none
-    integer  :: zlev
-    external :: routine
+    integer          :: zlev
+    procedure (sub8) :: routine
 
     integer :: is_pole, l
 
@@ -153,9 +172,9 @@ contains
 
   subroutine apply_d (routine, dom, zlev, st, en)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, st, zlev
+    type(Domain)     :: dom
+    integer          :: en, st, zlev
+    procedure (sub4) :: routine
 
     integer :: j, l
     
@@ -170,9 +189,9 @@ contains
     ! Applies routine to nodes/edges at all level associated with p.
     ! Includes boundary cells specified by (st,en).
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, p, st, zlev
+    type(Domain)     :: dom
+    integer          :: en, p, st, zlev
+    procedure (sub4) :: routine
 
     integer                          :: i, j
     integer, dimension(N_BDRY+1)     :: offs
@@ -195,9 +214,9 @@ contains
 
   subroutine apply_onescale_d (routine, dom, l, zlev, st, en)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, l, st, zlev
+    type(Domain)     :: dom
+    integer          :: en, l, st, zlev
+    procedure (sub4) :: routine
 
     integer :: j
 
@@ -206,30 +225,11 @@ contains
     end do
   end subroutine apply_onescale_d
 
-  subroutine apply_onescale_to_patch__int (routine, dom, p, zlev, st, en, ival)
-    implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, ival, p, st, zlev
-
-    integer :: i, j
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    call get_offs_Domain(dom, p, offs, dims)
-
-    do j = st + 1, PATCH_SIZE + en
-       do i = st + 1, PATCH_SIZE + en
-          call routine (dom, p, i - 1, j - 1, zlev, offs, dims, ival)
-       end do
-    end do
-  end subroutine apply_onescale_to_patch__int
-
   subroutine apply_onescale2 (routine, l, zlev, st, en)
     implicit none
-    external :: routine
-    integer  :: en, l, st, zlev
-
+    integer          :: en, l, st, zlev
+    procedure (sub5) :: routine
+    
     integer :: d, j
 
     do d = 1, size(grid)
@@ -241,9 +241,9 @@ contains
 
   subroutine apply_onescale_to_patch5 (routine, dom, p, zlev, st, en)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, p, st, zlev
+    type(Domain)     :: dom
+    integer          :: en, p, st, zlev
+    procedure (sub5) :: routine
 
     integer                          :: i, j
     integer, dimension(N_BDRY+1)     :: offs
@@ -253,7 +253,7 @@ contains
 
     call get_offs_Domain5 (dom, p, offs, dims, inner_patch)
 
-    bdry = (/en, en, st, st/)
+    bdry = (/ en, en, st, st /)
 
     where (inner_patch) bdry = 0
 
@@ -266,9 +266,9 @@ contains
 
   subroutine apply_onescale_to_patch2 (routine, dom, p, zlev, st, en)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, p, st, zlev
+    type(Domain)     :: dom
+    integer          :: en, p, st, zlev
+    procedure (sub5) :: routine
 
     integer                        :: i, j
     integer, dimension(N_BDRY+1)   :: offs
@@ -286,9 +286,9 @@ contains
   subroutine apply_interscale (routine, l, zlev, st, en)
     ! Applies interscale routine to coarse scale l and fine scale l+1
     implicit none
-    external :: routine
-    integer  :: en, l, st, zlev
-
+    integer          :: en, l, st, zlev
+    procedure (sub6) :: routine
+    
     integer :: d
 
     do d = 1, size(grid)
@@ -298,9 +298,9 @@ contains
 
   subroutine apply_interscale_d (routine, dom, l, zlev, st, en)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, l, st, zlev
+    type(Domain)     :: dom
+    integer          :: en, l, st, zlev
+    procedure (sub6) :: routine
 
     integer :: j
 
@@ -311,9 +311,9 @@ contains
   
   subroutine apply_interscale_d2 (routine, dom, l, zlev, st, en)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, l, st, zlev
+    type(Domain)     :: dom
+    integer          :: en, l, st, zlev
+    procedure (sub6) :: routine
 
     integer :: j
 
@@ -324,9 +324,9 @@ contains
 
   subroutine apply_interscale_to_patch (routine, dom, p_par, zlev, st, en)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, p_par, st, zlev
+    type(Domain)     :: dom
+    integer          :: p_par, en, st, zlev
+    procedure (sub6) :: routine   
 
     integer                          :: c, i, i_chd, i_par, j, j_chd, j_par, p_chd
     integer, dimension(N_BDRY+1)     :: offs_chd, offs_par
@@ -360,9 +360,9 @@ contains
 
   subroutine apply_interscale_to_patch2 (routine, dom, p_par, zlev, st, en)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, st, p_par, zlev
+    type(Domain)     :: dom
+    integer          :: en, st, p_par, zlev
+    procedure (sub7) :: routine
 
     integer                          :: c, i, i_chd, i_par, j, j_chd, j_par, p_chd
     integer, dimension(N_BDRY+1)     :: offs_chd, offs_par
@@ -398,9 +398,9 @@ contains
 
   subroutine apply_interscale_to_patch22 (routine, dom, p_par, zlev, st, en)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: en, p_par, st, zlev
+    type(Domain)     :: dom
+    integer          :: en, p_par, st, zlev
+    procedure (sub6) :: routine
     
     integer                          :: c, i, i_chd, i_par, j, j_chd, j_par, p_chd
     integer, dimension(N_BDRY+1)     :: offs_chd, offs_par
@@ -431,9 +431,9 @@ contains
   
   subroutine apply_interscale_to_patch3 (routine, dom, p_par, c, zlev, st, en)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: c, en, p_par, st, zlev
+    type(Domain)     :: dom
+    integer          :: c, en, p_par, st, zlev
+    procedure (sub7) :: routine
     
     integer                          :: i, i_chd, i_par, j, j_chd, j_par, p_chd
     integer, dimension(N_BDRY+1)     :: offs_chd, offs_par
@@ -463,9 +463,9 @@ contains
 
   subroutine apply_to_pole (routine, l, zlev, ival, to_all)
     implicit none
-    integer  :: ival, l, zlev
-    logical  :: to_all
-    external :: routine
+    integer          :: ival, l, zlev
+    logical          :: to_all
+    procedure (sub8) :: routine
     
     integer :: d
 
@@ -476,10 +476,10 @@ contains
 
   subroutine apply_to_pole_d (routine, dom, l, zlev, ival, to_all)
     implicit none
-    type(Domain) :: dom
-    integer      :: ival, l, zlev
-    logical      :: to_all
-    external     :: routine
+    type(Domain)     :: dom
+    integer          :: ival, l, zlev
+    logical          :: to_all
+    procedure (sub8) :: routine
 
     integer                        :: c, l_cur, p, p_par
     integer, dimension(N_BDRY+1)   :: offs
@@ -518,9 +518,9 @@ contains
 
   subroutine apply_to_penta (routine, l, zlev)
     implicit none
-    external :: routine
-    integer  :: l, zlev
-
+    integer          :: l, zlev
+    procedure (sub9) :: routine
+    
     integer                        :: c, d, l_cur, p, p_par
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims
@@ -532,9 +532,9 @@ contains
 
   subroutine apply_to_penta_d (routine, dom, l, zlev)
     implicit none
-    external     :: routine
-    type(Domain) :: dom
-    integer      :: l, zlev
+    type(Domain)     :: dom
+    integer          :: l, zlev
+    procedure (sub9) :: routine
 
     integer                        :: c, d, l_cur, p, p_par
     integer, dimension(N_BDRY + 1) :: offs

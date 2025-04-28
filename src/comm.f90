@@ -8,11 +8,18 @@ module comm_mod
   real(dp)                           :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, min_mass_loc
 
   interface
-     type(Coord) function get (dom, id)
+     type(Coord) function coord_get (dom, id)
        use domain_mod
+       implicit none
        type(Domain) :: dom
        integer      :: id
-     end function get
+     end function coord_get
+     real(dp) function real_get (dom, id)
+       use domain_mod
+       implicit none
+       type(Domain) :: dom
+       integer      :: id
+     end function real_get
      subroutine get9 (dom, id, val)
        use domain_mod
        implicit none
@@ -20,13 +27,20 @@ module comm_mod
        type(Domain)                        :: dom
        integer                             :: id
      end subroutine get9
-     subroutine set (dom, id, val)
+     subroutine coord_set (dom, id, val)
        use domain_mod
        implicit none
        type(Domain) :: dom
        integer      :: id
        type(Coord)  :: val
-     end subroutine set
+     end subroutine coord_set
+     subroutine real_set (dom, id, val)
+       use domain_mod
+       implicit none
+       type(Domain) :: dom
+       integer      :: id
+       real(dp)     :: val
+     end subroutine real_set
      subroutine set9 (dom, id, val)
        use domain_mod
        implicit none
@@ -109,8 +123,9 @@ subroutine init_comm_mod
 
   subroutine comm_nodes3 (get, set)
     implicit none
-    type(Coord) :: get
-    integer     :: i, dest_id, dest_loc, dest_glo, src_glo, src_id, src_loc
+    integer              :: i, dest_id, dest_loc, dest_glo, src_glo, src_id, src_loc
+    procedure(coord_get) :: get
+    procedure(coord_set) :: set 
 
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)
@@ -580,10 +595,9 @@ subroutine init_comm_mod
 
   subroutine comm_edges (get, set)
     implicit none
-    external :: get, set
-    
-    real(dp) :: get
     integer  :: dest_glo, dest_id, dest_loc, i, src_id, src_glo, src_loc
+    procedure(real_get) :: get
+    procedure(real_set) :: set
 
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)
@@ -593,7 +607,7 @@ subroutine init_comm_mod
              src_id  = grid(src_loc )%pack(AT_EDGE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_EDGE,src_glo+1)%elts(i)
              
-             call set (grid(dest_loc), dest_id, get(grid(src_loc), src_id))
+             call set (grid(dest_loc), dest_id, get (grid(src_loc), src_id))
           end do
        end do
     end do
@@ -888,10 +902,9 @@ subroutine init_comm_mod
 
   subroutine comm_nodes (get, set)
     implicit none
-    external :: get, set
-
-    real(dp) :: get
-    integer  :: i, dest_id, dest_glo, dest_loc, src_id, src_glo, src_loc
+    integer             :: i, dest_id, dest_glo, dest_loc, src_id, src_glo, src_loc
+    procedure(real_get) :: get
+    procedure(real_set) :: set
 
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)

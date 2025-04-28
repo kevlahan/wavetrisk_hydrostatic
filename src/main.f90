@@ -279,9 +279,6 @@ contains
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, run_id)
 
-    ! Load topography data
-    if (NCAR_topo) call load_topo
-
     ! Initialize time step counters
     itime = nint (time * time_mult, 8)
     istep = 0
@@ -293,21 +290,11 @@ contains
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
 
     if (trim(test_case) /= "spherical_harmonics") then
+       if (NCAR_topo) call load_topo
        call initialize_thresholds
-
-       ! Remap vertical coordinates
-       call remap_vertical_coordinates
-
-       ! Initialize thresholds to default values (possibly based on mean values)
-       call initialize_thresholds
-
-       ! Initialize time step and viscosities
        call initialize_dt_viscosity
-
-       ! Initialize total mass value
        if (log_total_mass) call cal_total_mass (.true.)
 
-       ! Initialize time step
        dt_new = min (dt_init, cpt_dt ())
 
        if (rank == 0) then
@@ -345,18 +332,18 @@ contains
        write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time/DAY
     end if
     
-! #ifdef AMPI
-!     if (rank == 0) write (6,'(a)') "Checkpointing using AMPI ..."
-!     call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
-!     call MPI_Barrier (MPI_COMM_WORLD, ierror)
-!     call AMPI_Migrate (chkpt_info, ierror)
-!     if (log_total_mass) call cal_total_mass (.true.) 
-! #else
+#ifdef AMPI
+    if (rank == 0) write (6,'(a)') "Checkpointing using AMPI ..."
+    call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
+    call MPI_Barrier (MPI_COMM_WORLD, ierror)
+    call AMPI_Migrate (chkpt_info, ierror)
+    if (log_total_mass) call cal_total_mass (.true.) 
+#else
     call write_load_conn (cp_idx, run_id)
     call dump_adapt_mpi  (cp_idx, run_id)
     
     if (rebalance) call restart (run_id)
-!#endif
+#endif
   end subroutine write_checkpoint
 
   subroutine time_step (align_time, aligned)

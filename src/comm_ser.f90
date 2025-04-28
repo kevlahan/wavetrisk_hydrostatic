@@ -58,19 +58,19 @@ contains
     min_load = 1; max_load = 1; avg_load = 1.0_dp; rel_imbalance = 1.0_dp
   end subroutine cal_load_balance
 
-  subroutine write_level_mpi (out_rout, l, zlev, eval_pole, filename)
+  subroutine write_level_mpi (routine, l, zlev, eval_pole, filename)
     implicit none
-    external     :: out_rout
-    integer      :: fid, l, zlev
-    logical      :: eval_pole
-    character(*) :: filename
+    integer          :: fid, l, zlev
+    logical          :: eval_pole
+    character(*)     :: filename
+    procedure (sub8) :: routine
 
     integer, parameter :: funit = 300
     character(7)       :: var_file
     
     open (unit=funit, file=trim(filename), form='unformatted', status='replace')
-    if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .false.)
-    call apply_onescale__int (out_rout, l, zlev, 0, 0, funit)
+    if (eval_pole) call apply_to_pole (routine, l, zlev, funit, .false.)
+    call apply_onescale__int (routine, l, zlev, 0, 0, funit)
     close (funit)
   end subroutine write_level_mpi
 
@@ -250,17 +250,18 @@ contains
 
   subroutine comm_nodes9_mpi (get, set, l)
     implicit none
-    external :: get, set
-    integer  :: l
+    integer         :: l
+    procedure(get9) :: get
+    procedure(set9) :: set
     
     call comm_nodes9 (get, set) ! communicate inside domain
   end subroutine comm_nodes9_mpi
 
   subroutine comm_nodes3_mpi (get, set, l)
     implicit none
-    external    :: get, set
-    integer     :: l
-    type(Coord) :: get
+    integer              :: l
+    procedure(coord_get) :: get
+    procedure(coord_set) :: set 
     
     call comm_nodes3 (get, set) ! communicate inside domain
   end subroutine comm_nodes3_mpi

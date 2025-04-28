@@ -49,6 +49,15 @@ module comm_mpi_mod
   interface gather_vec
      procedure :: gatherv_int, gatherv_real4, gatherv_real8
   end interface gather_vec
+
+  interface
+     subroutine unpack_rout (dom, src, i, j, p, e)
+       use domain_mod
+       implicit none
+       type(Domain) :: dom
+       integer      :: e, i, j, p, src
+     end subroutine unpack_rout
+  end interface
 contains
   subroutine init_comm_mpi
     implicit none
@@ -151,13 +160,13 @@ contains
     avg = dble(load_sum)/dble(n_process)
   end subroutine get_load_balance
 
-  subroutine write_level_mpi (out_rout, l, zlev, eval_pole, filename)
+  subroutine write_level_mpi (routine, l, zlev, eval_pole, filename)
     use mpi
     implicit none
-    external       :: out_rout
-    integer        :: l, zlev
-    logical        :: eval_pole
-    character(*)   :: filename
+    integer          :: l, zlev
+    logical          :: eval_pole
+    character(*)     :: filename
+    procedure (sub8) :: routine
 
     integer            :: r
     integer, parameter :: funit = 300
@@ -174,9 +183,9 @@ contains
           open (unit=funit, file=trim(filename), form='unformatted', access='append', status='old')
        end if
 
-       if (eval_pole) call apply_to_pole (out_rout, l, zlev, funit, .true.)
+       if (eval_pole) call apply_to_pole (routine, l, zlev, funit, .true.)
 
-       call apply_onescale__int (out_rout, l, zlev, 0, 0, funit)
+       call apply_onescale__int (routine, l, zlev, 0, 0, funit)
 
        close (funit)
 
@@ -251,13 +260,12 @@ contains
 
   subroutine alltoall_dom (unpack_rout, N)
     implicit none
-    external :: unpack_rout
     integer  :: N
     
     integer               :: d_dest, d_src, dest, i, k, length, r_dest, r_src, src
     integer, dimension(N) :: st
 
-    send_buf_i%length = 0 ! reset
+    send_buf_i%length = 0    ! reset
     do r_dest = 1, n_process ! destination for inter process communication
        send_offsets(r_dest) = send_buf_i%length
        do d_src = 1, n_domain(rank+1)
@@ -1054,8 +1062,9 @@ contains
   subroutine comm_nodes9_mpi (get, set, l)
     use mpi
     implicit none
-    external :: get, set
     integer :: l
+    procedure(get9) :: get
+    procedure(set9) :: set
     
     real(dp), dimension(7) :: val
     integer               :: r_dest, r_src, d_src, d_dest, dest, id, i, k
@@ -1125,9 +1134,9 @@ contains
   subroutine comm_nodes3_mpi (get, set, l)
     use mpi
     implicit none
-    external    :: get, set
-    type(Coord) :: get
-    integer     :: l
+    integer              :: l
+    procedure(coord_get) :: get
+    procedure(coord_set) :: set 
     
     integer     :: r_dest, r_src, d_src, d_dest, dest, id, i, k
     type(Coord) :: c
