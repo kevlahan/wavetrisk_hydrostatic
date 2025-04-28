@@ -20,11 +20,11 @@ contains
     
     integer, parameter                            :: fid = 599
     
-    real(8)                                       :: balanced_wgt, imbalance_goal
-    real(8), dimension(n_process)                 :: wgt_cur_rank
+    real(dp)                                      :: balanced_wgt, imbalance_goal
+    real(dp), dimension(n_process)                :: wgt_cur_rank
     
-    real(8), parameter                            :: init_goal = 0.05d0 ! starting goal for maximum imbalance 
-    real(8), parameter                            :: incr_goal = 1.20d0 ! factor to increase goal by each iteration until domains fit
+    real(dp), parameter                           :: init_goal = 0.05_dp ! starting goal for maximum imbalance 
+    real(dp), parameter                           :: incr_goal = 1.20_dp ! factor to increase goal by each iteration until domains fit
 
     character(255)                                :: filename
     
@@ -52,7 +52,7 @@ contains
                    wgt_cur_rank(r) = wgt_cur_rank(r) + wgt_d(d+1)
                    d = d + 1
                 end do
-                if (wgt_cur_rank(r) > balanced_wgt * (1d0 + imbalance_goal)) then ! last domain unbalanced current rank -> put it on next rank
+                if (wgt_cur_rank(r) > balanced_wgt * (1.0_dp + imbalance_goal)) then ! last domain unbalanced current rank -> put it on next rank
                    wgt_cur_rank(r) = wgt_cur_rank(r) - wgt_d(d)
                    d = d - 1 
                 end if

@@ -4,11 +4,40 @@ module comm_mod
   implicit none
   integer, dimension(4,4)            :: shift_arr
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes
-  real(8)                            :: dt_loc, sync_val
-  real(8) :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, min_mass_loc
+  real(dp)                           :: dt_loc, sync_val
+  real(dp)                           :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, min_mass_loc
+
+  interface
+     type(Coord) function get (dom, id)
+       use domain_mod
+       type(Domain) :: dom
+       integer      :: id
+     end function get
+     subroutine get9 (dom, id, val)
+       use domain_mod
+       implicit none
+       real(dp), dimension(7), intent(out) :: val
+       type(Domain)                        :: dom
+       integer                             :: id
+     end subroutine get9
+     subroutine set (dom, id, val)
+       use domain_mod
+       implicit none
+       type(Domain) :: dom
+       integer      :: id
+       type(Coord)  :: val
+     end subroutine set
+     subroutine set9 (dom, id, val)
+       use domain_mod
+       implicit none
+       type(Domain)           :: dom
+       integer                :: id
+       real(dp), dimension(7) :: val
+     end subroutine set9
+  end interface
 contains
-  subroutine init_comm_mod
-    implicit none
+subroutine init_comm_mod
+  implicit none
     logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
@@ -41,12 +70,10 @@ contains
     end do
   end subroutine init_comm
 
-  subroutine comm_nodes9 (get, set)
+  subroutine comm_nodes9 (get9, set9)
     implicit none
-    external :: get, set
-    
-    integer               :: i, dest_glo, dest_id, dest_loc, src_glo, src_id, src_loc
-    real(8), dimension(7) :: val
+    integer                :: i, dest_glo, dest_id, dest_loc, src_glo, src_id, src_loc
+    real(dp), dimension(7) :: val
 
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)
@@ -55,8 +82,8 @@ contains
           do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
              src_id = grid(src_loc)%pack(AT_NODE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
-             call get (grid(src_loc), src_id, val)
-             call set (grid(dest_loc), dest_id, val)
+             call get9 (grid(src_loc), src_id, val)
+             call set9 (grid(dest_loc), dest_id, val)
           end do
        end do
     end do
@@ -82,7 +109,6 @@ contains
 
   subroutine comm_nodes3 (get, set)
     implicit none
-    external    :: get, set
     type(Coord) :: get
     integer     :: i, dest_id, dest_loc, dest_glo, src_glo, src_id, src_loc
 
@@ -556,7 +582,7 @@ contains
     implicit none
     external :: get, set
     
-    real(8)  :: get
+    real(dp) :: get
     integer  :: dest_glo, dest_id, dest_loc, i, src_id, src_glo, src_loc
 
     do src_loc = 1, size(grid)
@@ -864,8 +890,8 @@ contains
     implicit none
     external :: get, set
 
-    real(8) get
-    integer :: i, dest_id, dest_glo, dest_loc, src_id, src_glo, src_loc
+    real(dp) :: get
+    integer  :: i, dest_id, dest_glo, dest_loc, src_id, src_glo, src_loc
 
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)

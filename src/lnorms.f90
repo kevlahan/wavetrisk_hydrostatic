@@ -20,13 +20,13 @@ contains
     ! Initialize norms
     select case (order)
     case ("1")
-       lnorm = 0d0
+       lnorm = 0.0_dp
     case ("2")
-       lnorm = 0d0
+       lnorm = 0.0_dp
     case ("inf")
-       lnorm = 0d0
+       lnorm = 0.0_dp
     case ("min")
-       lnorm = 1d16
+       lnorm = 1e16_dp
     end select
 
     do k = zmin, zmax

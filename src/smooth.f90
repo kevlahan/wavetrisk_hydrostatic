@@ -5,12 +5,12 @@ module smooth_mod
   use init_mod
   use comm_mpi_mod
   implicit none
-  real(8)                                  :: maxerror, l2error
+  real(dp)                                 :: maxerror, l2error
   type(Coord), dimension(:,:), allocatable :: sums
 contains
   subroutine init_smooth_mod
     implicit none
-    logical :: initialized = .False.
+    logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
     call init_shared_mod
@@ -26,10 +26,10 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer     :: n
-    real(8)     :: alpha, beta, cosalpha, cosbeta, t
+    real(dp)    :: alpha, beta, cosalpha, cosbeta, t
     type(Coord) :: s, p_i, p_ip, p_im, p_j, v, v1, v2
     
-    call init_Coord (s, 0d0, 0d0, 0d0)
+    call init_Coord (s, 0.0_dp, 0.0_dp, 0.0_dp)
 
     p_i = dom%node%elts(idx(i, j, offs, dims) + 1)
 
@@ -53,7 +53,7 @@ contains
        alpha = acos (cosalpha)
        beta = acos (cosbeta)
        v = vector (p_j, p_i)
-       t = 1d0/tan(alpha) + (1d0/tan(beta))
+       t = 1/tan(alpha) + (1/tan(beta))
        s%x = s%x + v%x*t
        s%y = s%y + v%y*t
        s%z = s%z + v%z*t
@@ -63,7 +63,7 @@ contains
 
   subroutine smooth_Xu (tol)
     implicit none
-    real(8) :: tol
+    real(dp) :: tol
     
     integer :: k
 
@@ -72,8 +72,8 @@ contains
     call apply_onescale2 (ccentre, level_end-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
-    maxerror = 0d0
-    l2error  = 0d0
+    maxerror = 0.0_dp
+    l2error  = 0.0_dp
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
 
     l2error = sqrt (sum_real (l2error))
@@ -88,9 +88,9 @@ contains
     allocate (sums(maxval(grid(:)%node%length), size(grid)))
 
     k = 0
-    maxerror = 2d0*tol
+    maxerror = 2*tol
     do while(maxerror > tol)
-       maxerror = 0d0
+       maxerror = 0.0_dp
        call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
        call apply_onescale (Xu_smooth_cpt,    level_end-1, z_null, 0, 0)
@@ -111,8 +111,8 @@ contains
     call apply_onescale2 (ccentre, level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
-    maxerror = 0d0
-    l2error = 0d0
+    maxerror = 0.0_dp
+    l2error  = 0.0_dp
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
     l2error = sqrt (sum_real (l2error))
     maxerror = sync_max_real (maxerror)
@@ -197,7 +197,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer                :: id, idS, idW
-    real(8), dimension (3) :: error
+    real(dp), dimension (3) :: error
 
     id  = idx(i,   j,   offs, dims)
     idS = idx(i,   j-1, offs, dims)

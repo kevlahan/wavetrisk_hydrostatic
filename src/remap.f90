@@ -4,13 +4,17 @@ module remap_mod
   use init_mod
   use adapt_mod
   implicit none
+  real(dp), parameter :: Zero_r = 0.0_dp, OneFifth = 0.2_dp, Half = 0.5_dp, One = 1.0_dp
+  real(dp), parameter :: ThreeHalfth = 1.5_dp, Two = 2.0_dp, Three = 3.0_dp, Four = 4.0_dp, Six = 6.0_dp
+  real(dp), parameter :: eps_r = 1e-8_dp
   type(Float_Field), dimension(:), allocatable, target :: old_mass
   abstract interface
      subroutine interpolation (N, var_new, z_new, var_old, z_old)
+       use kind_mod
        implicit none
-       integer                 :: N
-       real(8), dimension(1:N) :: var_new, var_old
-       real(8), dimension(0:N) :: z_new, z_old
+       integer                  :: N
+       real(dp), dimension(1:N) :: var_new, var_old
+       real(dp), dimension(0:N) :: z_new, z_old
      end subroutine interpolation
   end interface
   procedure (interpolation), pointer :: interpolate => null ()
@@ -86,11 +90,11 @@ contains
     integer                               :: d, e, id, id_i, k
     integer, dimension (1:EDGE)           :: id_r
     
-    real(8)                               :: rho_dz, rho_dz_theta
-    real(8), dimension (1:zlevels)        :: rho_dz_new, theta_new, theta_old 
-    real(8), dimension (0:zlevels)        :: p_new, p_old
-    real(8), dimension (1:zlevels,1:EDGE) :: flux_new, flux_old
-    real(8), dimension (0:zlevels,1:EDGE) :: p_edge_new, p_edge_old
+    real(dp)                               :: rho_dz, rho_dz_theta
+    real(dp), dimension (1:zlevels)        :: rho_dz_new, theta_new, theta_old 
+    real(dp), dimension (0:zlevels)        :: p_new, p_old
+    real(dp), dimension (1:zlevels,1:EDGE) :: flux_new, flux_old
+    real(dp), dimension (0:zlevels,1:EDGE) :: p_edge_new, p_edge_old
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -104,8 +108,8 @@ contains
     call find_coordinates (p_new, p_old, d, id_i)
     do e = 1, EDGE
        call find_coordinates (p_edge_new(:,e), p_edge_old(:,e), d, id_r(e))
-       p_edge_new(:,e) = 0.5d0 * (p_new + p_edge_new(:,e))
-       p_edge_old(:,e) = 0.5d0 * (p_old + p_edge_old(:,e))
+       p_edge_new(:,e) = 0.5 * (p_new + p_edge_new(:,e))
+       p_edge_old(:,e) = 0.5 * (p_old + p_edge_old(:,e))
     end do
 
     ! Old variables
@@ -156,11 +160,11 @@ contains
     integer                               :: d, e, id, id_i, k
     integer, dimension (1:EDGE)           :: id_r
     
-    real(8)                               :: rho, rho_dz, rho_dz_theta
-    real(8), dimension (1:zlevels)        :: dz, rho_dz_new, theta_new, theta_old 
-    real(8), dimension (0:zlevels)        :: z_new, z_old
-    real(8), dimension (1:zlevels,1:EDGE) :: flux_new, flux_old
-    real(8), dimension (0:zlevels,1:EDGE) :: z_edge_new, z_edge_old
+    real(dp)                               :: rho, rho_dz, rho_dz_theta
+    real(dp), dimension (1:zlevels)        :: dz, rho_dz_new, theta_new, theta_old 
+    real(dp), dimension (0:zlevels)        :: z_new, z_old
+    real(dp), dimension (1:zlevels,1:EDGE) :: flux_new, flux_old
+    real(dp), dimension (0:zlevels,1:EDGE) :: z_edge_new, z_edge_old
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -175,8 +179,8 @@ contains
     dz = z_new(1:zlevels) - z_new(0:zlevels-1)
     do e = 1, EDGE
        call find_coordinates_incompressible (z_edge_new(:,e), z_edge_old(:,e), topography%data(d)%elts(id_r(e)), d, id_r(e))
-       z_edge_new(:,e) = 0.5d0 * (z_new + z_edge_new(:,e))
-       z_edge_old(:,e) = 0.5d0 * (z_old + z_edge_old(:,e))
+       z_edge_new(:,e) = 0.5 * (z_new + z_edge_new(:,e))
+       z_edge_old(:,e) = 0.5 * (z_old + z_edge_old(:,e))
     end do
 
     ! Old variables
@@ -219,8 +223,8 @@ contains
     ! Calculates old and new pressure-based z coordinates from top down
     implicit none
     integer                       :: d, id_i
-    real(8)                       :: rho_dz
-    real(8), dimension(0:zlevels) :: p_new, p_old
+    real(dp)                       :: rho_dz
+    real(dp), dimension(0:zlevels) :: p_new, p_old
 
     integer :: k
 
@@ -236,11 +240,11 @@ contains
     ! Calculates old and new z hybrid sigma coordinates
     implicit none
     integer                       :: d, id_i
-    real(8)                       :: z_s
-    real(8), dimension(0:zlevels) :: z_new, z_old
+    real(dp)                       :: z_s
+    real(dp), dimension(0:zlevels) :: z_new, z_old
 
     integer :: k
-    real(8) :: eta_surf, rho_dz
+    real(dp) :: eta_surf, rho_dz
 
     z_old(0) = z_s
     do k = 1, zlevels
@@ -263,21 +267,20 @@ contains
     !
     implicit none
     integer                 :: N
-    real(8), dimension(1:N) :: var_new, var_old
-    real(8), dimension(0:N) :: z_new, z_old
+    real(dp), dimension(1:N) :: var_new, var_old
+    real(dp), dimension(0:N) :: z_new, z_old
     
-    integer                 :: k
-    real(8)                 :: dz
-    real(8), parameter      :: Zero=0d0
-    real(8), dimension(0:N) :: FC
-    logical, parameter      :: NEUMANN = .false.
+    integer                  :: k
+    real(dp)                 :: dz
+    real(dp), dimension(0:N) :: FC
+    logical, parameter       :: NEUMANN = .false.
     
     do k = 1, N-1
        dz = z_new(k) - z_old(k)
-       FC(k) = min (dz, Zero) * var_old(k) + max (dz, Zero) * var_old(k+1)
+       FC(k) = min (dz, Zero_r) * var_old(k) + max (dz, Zero_r) * var_old(k+1)
     end do
-    FC(0) = 0d0
-    FC(N) = 0d0
+    FC(0) = 0.0_dp
+    FC(N) = 0.0_dp
     
     do k = 1, N
        var_new(k) = ((z_old(k)-z_old(k-1))*var_old(k) + FC(k)-FC(k-1)) / (z_new(k)-z_new(k-1))
@@ -297,16 +300,15 @@ contains
     ! default version: minmod(X,Y) is replaced with harmonic mean -------
     !                                                              X + Y
     implicit none
-    integer                 :: N
-    real(8), dimension(1:N) :: var_new, var_old
-    real(8), dimension(0:N) :: z_new, z_old
+    integer                  :: N
+    real(dp), dimension(1:N) :: var_new, var_old
+    real(dp), dimension(0:N) :: z_new, z_old
 
-    integer                 :: k, iter
-    real(8)                 :: cff, cff1, dh, dL, dR, dz
-    real(8), parameter      :: Zero=0d0, Half=0.5d0
-    real(8), dimension(0:N) :: aL, aR, FC
-    real(8), dimension(1:N) :: Hz
-    logical, parameter      :: ENHANCE = .true., NEUMANN = .false. 
+    integer                  :: k, iter
+    real(dp)                 :: cff, cff1, dh, dL, dR, dz
+    real(dp), dimension(0:N) :: aL, aR, FC
+    real(dp), dimension(1:N) :: Hz
+    logical, parameter       :: ENHANCE = .true., NEUMANN = .false. 
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -317,16 +319,16 @@ contains
     end do
 
     if (NEUMANN) then
-       FC(0) = Zero
-       FC(N) = Zero
+       FC(0) = Zero_r
+       FC(N) = Zero_r
     else
        FC(0) = FC(1)
        FC(N) = FC(N-1)
     end if
 
     do k = 1, N
-       if (FC(k)*FC(k-1) < Zero) then
-          cff = Zero
+       if (FC(k)*FC(k-1) < Zero_r) then
+          cff = Zero_r
        else
           cff = 2*FC(k)*FC(k-1) / (FC(k) + FC(k-1))
        end if
@@ -344,8 +346,8 @@ contains
           do k = 1, N
              dR = FC(k) - var_old(k)
              dL = var_old(k) - FC(k-1)
-             if (dR*dL < Zero) then
-                cff = Zero
+             if (dR*dL < Zero_r) then
+                cff = Zero_r
              else if (abs(dR) > abs(dL)) then
                 cff = dL
              else
@@ -360,7 +362,7 @@ contains
     ! Remapping: compute
     do k = 1, N-1 ! finite volume fluxes
        dz = z_new(k)-z_old(k)
-       if (dz > Zero) then
+       if (dz > Zero_r) then
           cff = aL(k+1)
           cff1 = aR(k+1) - aL(k+1)
           dh = Hz(k+1)
@@ -371,8 +373,8 @@ contains
        end if
        FC(k) = dz * (cff + Half*cff1*dz/dh)
     end do
-    FC(0) = Zero
-    FC(N) = Zero
+    FC(0) = Zero_r
+    FC(N) = Zero_r
 
     do k = 1, N
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k)-z_new(k-1))
@@ -384,18 +386,17 @@ contains
     ! Reconstruction by PPM code of Colella--Woodward, 1984.
     !
     implicit none
-    integer                 :: N
-    real(8), dimension(1:N) :: var_new, var_old
-    real(8), dimension(0:N) :: z_new, z_old
+    integer                  :: N
+    real(dp), dimension(1:N) :: var_new, var_old
+    real(dp), dimension(0:N) :: z_new, z_old
 
-    integer                 :: k, k1, k2
-    real(8)                 :: alpha, cff, cffL, cffR, dL, dR, dz
-    real(8), parameter      :: Zero=0d0, Half=0.5d0, One=1d0, ThreeHalfth=1.5d0, Two=2d0, Three=3d0
-    real(8), dimension(1:N) :: Hz
-    real(8), dimension(0:N) :: aL, aR, CF, FC, FC1
-    logical, parameter      :: LIMIT_INTERIOR = .false.
-    logical, parameter      :: LIMIT_SLOPES   = .true.
-    logical, parameter      :: NEUMANN        = .false.
+    integer                  :: k, k1, k2
+    real(dp)                 :: alpha, cff, cffL, cffR, dL, dR, dz
+    real(dp), dimension(1:N) :: Hz
+    real(dp), dimension(0:N) :: aL, aR, CF, FC, FC1
+    logical, parameter       :: LIMIT_INTERIOR = .false.
+    logical, parameter       :: LIMIT_SLOPES   = .true.
+    logical, parameter       :: NEUMANN        = .false.
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -412,11 +413,11 @@ contains
        if (LIMIT_SLOPES) then
           cffR = Two * (var_old(k+1) - var_old(k))
           cffL = Two * (var_old(k) - var_old(k-1))
-          if (cffR*cffL > Zero) then
+          if (cffR*cffL > Zero_r) then
              if (abs(cffL) < abs(cff)) cff = cffL
              if (abs(cffR) < abs(cff)) cff = cffR
           else
-             cff = Zero
+             cff = Zero_r
           end if
        end if
        FC1(k) = cff
@@ -447,9 +448,9 @@ contains
        do k = 1, N
           dR = aR(k) - var_old(k)
           dL = var_old(k) - aL(k)
-          if (dR*dL < Zero) then
-             dR = Zero
-             dL = Zero
+          if (dR*dL < Zero_r) then
+             dR = Zero_r
+             dL = Zero_r
           end if
           if (abs(dR) > Two*abs(dL)) dR = Two * dL
           if (abs(dL) > Two*abs(dR)) dL = Two * dR
@@ -472,7 +473,7 @@ contains
 
     do k = 1, N-1, +1       !<-- irreversible 
        dz = z_new(k) - z_old(k)
-       if (dz > Zero) then
+       if (dz > Zero_r) then
           alpha = Hz(k+1)   
           cff   = aL(k+1)
           cffR  = CF(k+1)
@@ -486,8 +487,8 @@ contains
        alpha = dz / alpha
        FC(k) = dz * (cff + alpha*(cffR - cffL*(Three - Two*alpha)))
     end do
-    FC(0) = Zero
-    FC(N) = Zero
+    FC(0) = Zero_r
+    FC(N) = Zero_r
 
     do k = 1, N
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
@@ -500,16 +501,15 @@ contains
     !------ --------- ------ --------------
     !
     implicit none
-    integer                 :: N
-    real(8), dimension(1:N) :: var_new, var_old
-    real(8), dimension(0:N) :: z_new,  z_old
+    integer                  :: N
+    real(dp), dimension(1:N) :: var_new, var_old
+    real(dp), dimension(0:N) :: z_new,  z_old
 
-    integer                 :: k
-    real(8)                 :: alpha, cff, cff1, dz
-    real(8), parameter      :: Half = 0.5d0, ThreeHalfth=1.5d0, Zero = 0d0, One = 1d0, Two = 2d0, Three = 3d0
-    real(8), dimension(1:N) :: Hz
-    real(8), dimension(0:N) :: dL, dR, FC, r
-    character(255)          :: bc = "PARABOLIC_CONTINUATION" ! options are 'NEUMANN', 'LINEAR_CONTINUATION', 'PARABOLIC_CONTINUATION'
+    integer                  :: k
+    real(dp)                 :: alpha, cff, cff1, dz
+    real(dp), dimension(1:N) :: Hz
+    real(dp), dimension(0:N) :: dL, dR, FC, r
+    character(255)           :: bc = "PARABOLIC_CONTINUATION" ! options are 'NEUMANN', 'LINEAR_CONTINUATION', 'PARABOLIC_CONTINUATION'
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -562,7 +562,7 @@ contains
 
     do k = 1, N-1
        dz = z_new(k) - z_old(k)
-       if (dz > Zero) then
+       if (dz > Zero_r) then
           alpha = Hz(k+1)   
           cff = dR(k+1)
           cff1 = dL(k+1)
@@ -574,8 +574,8 @@ contains
        alpha = dz / alpha
        FC(k) = dz * (r(k) + alpha*(cff - cff1*(Three - Two*abs(alpha))))
     end do
-    FC(0) = 0d0
-    FC(N) = 0d0
+    FC(0) = 0.0_dp
+    FC(N) = 0.0_dp
 
     do k = 1, N
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
@@ -592,17 +592,16 @@ contains
     ! reconciliation of side limits.
     !
     implicit none
-    integer                 :: N
-    real(8), dimension(1:N) :: var_new, var_old
-    real(8), dimension(0:N) :: z_new, z_old
+    integer                  :: N
+    real(dp), dimension(1:N) :: var_new, var_old
+    real(dp), dimension(0:N) :: z_new, z_old
 
-    integer                 :: k
-    real(8)                 :: alpha, cff, cffL, cffR, deltaL, deltaR, dz
-    real(8), parameter      :: Zero=0d0, Half=0.5d0, One=1d0, ThreeHalfth=1.5d0, Two=2d0, Three=3d0, eps = 1d-8
-    real(8), dimension(1:N) :: Hz
-    real(8), dimension(0:N) :: aL, aR, dL, dR, FC, r
-    logical, parameter      :: LIMIT_INTERIOR = .true.
-    logical, parameter      :: NEUMANN = .false.
+    integer                  :: k
+    real(dp)                 :: alpha, cff, cffL, cffR, deltaL, deltaR, dz
+    real(dp), dimension(1:N) :: Hz
+    real(dp), dimension(0:N) :: aL, aR, dL, dR, FC, r
+    logical, parameter       :: LIMIT_INTERIOR = .true.
+    logical, parameter       :: NEUMANN = .false.
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -616,9 +615,9 @@ contains
        deltaR = Hz(k) * FC(k)
        deltaL = Hz(k) * FC(k-1)
 
-       if (deltaR*deltaL < Zero) then
-          deltaR = Zero
-          deltaL = Zero
+       if (deltaR*deltaL < Zero_r) then
+          deltaR = Zero_r
+          deltaL = Zero_r
        end if
        cff = Hz(k-1) + Two*Hz(k) + Hz(k+1)
        cffR = cff * FC(k)
@@ -640,12 +639,12 @@ contains
     if (LIMIT_INTERIOR) then
        aR(N) = var_old(N)     ! Boundary conditions for strictly monotonic option: The only way to
        aL(N) = var_old(N)     ! avoid extrapolation toward the
-       dR(N) = Zero           ! boundary is to assume that field 
-       dL(N) = Zero           ! is simply constant within topmost 
+       dR(N) = Zero_r           ! boundary is to assume that field 
+       dL(N) = Zero_r           ! is simply constant within topmost 
        aR(1) = var_old(1)     ! and bottommost grid boxes. Note 
        aL(1) = var_old(1)     ! that even for NEUMANN boundary 
-       dR(1) = Zero           ! conditions, the extrapolated 
-       dL(1) = Zero           ! values aR(N) and aL(0) exceed corresponding grid box values.
+       dR(1) = Zero_r           ! conditions, the extrapolated 
+       dL(1) = Zero_r           ! values aR(N) and aL(0) exceed corresponding grid box values.
     else 
        aL(N) = aR(N-1)
        if (NEUMANN) then
@@ -668,8 +667,8 @@ contains
 
     ! Reconcile interfacial values aR, aL using WENO 
     do k = 1, N-1                        
-       deltaL = max (dL(k),   eps)
-       deltaR = max (dR(k+1), eps)
+       deltaL = max (dL(k),   eps_r)
+       deltaR = max (dR(k+1), eps_r)
        r(k) = (deltaR*aR(k) + deltaL*aL(k+1)) / (deltaR + deltaL)
     end do
 
@@ -692,9 +691,9 @@ contains
           deltaL = var_old(k) - r(k-1)        ! like in PPM 
           cffR = Two * deltaR
           cffL = Two * deltaL
-          if (deltaR*deltaL < Zero) then
-             deltaR = Zero
-             deltaL = Zero
+          if (deltaR*deltaL < Zero_r) then
+             deltaR = Zero_r
+             deltaL = Zero_r
           else if (abs(deltaR) > abs(cffL)) then
              deltaR = cffL
           else if (abs(deltaL) > abs(cffR)) then
@@ -712,7 +711,7 @@ contains
 
     do k = 1, N-1
        dz = z_new(k) - z_old(k)
-       if (dz > Zero) then
+       if (dz > Zero_r) then
           alpha = Hz(k+1)
           cff  = aL(k+1)
           cffL = dL(k+1)
@@ -726,8 +725,8 @@ contains
        alpha = dz/alpha
        FC(k) = dz * (cff + alpha*(cffL - cffR*(Three - Two*alpha)))
     end do
-    FC(0) = Zero
-    FC(N) = Zero
+    FC(0) = Zero_r
+    FC(N) = Zero_r
 
     do k = 1, N
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
@@ -741,18 +740,15 @@ contains
     ! (1) continuity of both value and first derivative at each interface
     ! (2) essentially non-oscillatory
     implicit none
-    integer                 :: N
-    real(8), dimension(1:N) :: var_new, var_old
-    real(8), dimension(0:N) :: z_new, z_old
+    integer                  :: N
+    real(dp), dimension(1:N) :: var_new, var_old
+    real(dp), dimension(0:N) :: z_new, z_old
 
-    integer                 :: k
-    real(8)                 :: alpha, Ampl, cff, cffL, cffR, deltaL, deltaR, dz, Hdd, rr
-    real(8), parameter      :: eps=1d-8
-    real(8), parameter      :: Half=0.5d0, OneFifth=0.2d0, ThreeHalfth=1.5d0 
-    real(8), parameter      :: Zero=0d0, One=1d0, Two=2d0, Three=3d0, Four=4d0, Six=6d0
-    real(8), dimension(1:N) :: Hz
-    real(8), dimension(0:N) :: aL, aR, dL, dR, d, FC, r, r1
-    logical, parameter      :: NEUMANN = .false.
+    integer                  :: k
+    real(dp)                 :: alpha, Ampl, cff, cffL, cffR, deltaL, deltaR, dz, Hdd, rr
+    real(dp), dimension(1:N) :: Hz
+    real(dp), dimension(0:N) :: aL, aR, dL, dR, d, FC, r, r1
+    logical, parameter       :: NEUMANN = .false.
     !
     ! Parabolic WENO reconstruction: The second and third loops below
     !---------- ---- --------------- compute left and right side limits
@@ -774,9 +770,9 @@ contains
        deltaR = Hz(k)*d(k)
        deltaL = Hz(k)*d(k-1)
 
-       if (deltaR*deltaL < Zero) then
-          deltaR = Zero
-          deltaL = Zero
+       if (deltaR*deltaL < Zero_r) then
+          deltaR = Zero_r
+          deltaL = Zero_r
        end if
        cff = Hz(k-1) + Two*Hz(k) + Hz(k+1)
        cffR = cff*d(k)
@@ -808,8 +804,8 @@ contains
     dL(1) = (Three*var_old(1) - Two*aL(1) - aR(1))**2
 
     do k = 1, N-1
-       deltaL = max (dL(k),   eps)
-       deltaR = max (dR(k+1), eps)
+       deltaL = max (dL(k),   eps_r)
+       deltaR = max (dR(k+1), eps_r)
        r1(k) = (deltaR*aR(k) + deltaL*aL(k+1)) / (deltaR + deltaL)
     end do      !--> discard aR,aL,dR,dL
 
@@ -838,19 +834,19 @@ contains
        deltaR = r1(k) - var_old(k)
        deltaL = var_old(k) - r1(k-1)
        cff = deltaR * deltaL
-       if (cff > eps) then
+       if (cff > eps_r) then
           cff = (deltaR + deltaL)/cff
        else
-          cff = Zero
+          cff = Zero_r
        end if
        cffL = cff * deltaL
        cffR = cff * deltaR
 
        if (cffL > Three) then
           cffL = cffL * deltaL
-          cffR = Zero
+          cffR = Zero_r
        elseif (cffR > Three) then
-          cffL = Zero
+          cffL = Zero_r
           cffR = cffR * deltaR
        else
           cffL = Four*deltaL - Two*deltaR
@@ -878,7 +874,7 @@ contains
        if (abs(d(k)) > abs(cffR)) d(k) = cffR
        if (abs(d(k)) > abs(cffL)) d(k) = cffL
 
-       if ((dL(k+1)-dR(k))*(var_old(k+1)-var_old(k)) > Zero) then
+       if ((dL(k+1)-dR(k))*(var_old(k+1)-var_old(k)) > Zero_r) then
           Hdd = Hz(k) * (d(k) - dR(k))
           rr = var_old(k) - r1(k-1)
        else
@@ -890,10 +886,10 @@ contains
        Ampl = OneFifth * Hdd * rr
        Hdd = abs (Hdd)
        cff = rr**2 + 0.0763636363636363636*Hdd * (rr + 0.004329004329004329*Hdd)
-       if (cff > eps) then
+       if (cff > eps_r) then
           Ampl = Ampl * (rr + 0.0363636363636363636*Hdd) / cff
        else
-          Ampl = Zero
+          Ampl = Zero_r
        end if
        r(k) = r1(k) + Ampl
     end do
@@ -901,8 +897,8 @@ contains
     if (NEUMANN) then
        r(0) = ThreeHalfth*var_old(1) - Half*r(1)
        r(N) = ThreeHalfth*var_old(N) - Half*r(N-1)
-       d(0) = Zero
-       d(N) = Zero
+       d(0) = Zero_r
+       d(N) = Zero_r
     else
        r(0) = Two*var_old(1) - r(1)
        r(N) = Two*var_old(N) - r(N-1)
@@ -925,7 +921,7 @@ contains
 
     do k = 1, N-1
        dz = z_new(k) - z_old(k)
-       if (dz > Zero) then
+       if (dz > Zero_r) then
           alpha = Hz(k+1)   
           cff   = aR(k+1)
           cffR  = dR(k+1)
@@ -937,10 +933,10 @@ contains
           cffL  =  dL(k)
        end if
        alpha = dz / alpha
-       FC(k) = dz * (r(k) + Half*dz*d(k) + alpha**2*(cff - cffR*(0.5d0-0.25d0*alpha) + cffL*(1d0-alpha*(1.25d0-0.5d0*alpha))))
+       FC(k) = dz * (r(k) + Half*dz*d(k) + alpha**2*(cff - cffR*(0.5_dp-0.25*alpha) + cffL*(1.0_dp-alpha*(1.25_dp-0.5*alpha))))
     end do
-    FC(0) = 0d0
-    FC(N) = 0d0
+    FC(0) = 0.0_dp
+    FC(N) = 0.0_dp
 
     do k = 1, N
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
@@ -951,9 +947,9 @@ contains
     ! PPR remapping using Engwirda and Kelley (2016) algorithms
     use ppr_1d
     implicit none
-    integer                 :: N
-    real(8), dimension(1:N) :: var_new, var_old
-    real(8), dimension(0:N) :: z_new, z_old
+    integer                  :: N
+    real(dp), dimension(1:N) :: var_new, var_old
+    real(dp), dimension(0:N) :: z_new, z_old
 
     ! PPR and limiter type
     integer,      parameter          :: order   = 2
@@ -961,7 +957,7 @@ contains
     
     integer, parameter               :: nvar = 1 ! number of variables to remap
     integer, parameter               :: ndof = 1 ! number of finite volume degrees of freedom per cell (1 for finite volume)
-    real(8), dimension(ndof,nvar,N)  :: f_old, f_new, init
+    real(dp), dimension(ndof,nvar,N) :: f_old, f_new, init
     type(rmap_work)                  :: work
     type(rmap_opts)                  :: opts
     type(rcon_ends), dimension(nvar) :: bc_l, bc_r

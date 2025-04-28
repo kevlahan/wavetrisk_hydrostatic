@@ -1,18 +1,19 @@
 module shared_mod
+  use kind_mod
   use param_mod
   implicit none
   
   type Coord
-     real(8) :: x, y, z
+     real(dp) :: x, y, z
   end type Coord
 
   type Coord_r4
-     real(4):: x, y, z
+     real(sp):: x, y, z
   end type Coord_r4
 
   type Areas
-     real(8), dimension(6) :: part
-     real(8)               :: hex_inv
+     real(dp), dimension(6) :: part
+     real(dp)               :: hex_inv
   end type Areas
 
   ! Domain parameters
@@ -160,7 +161,7 @@ module shared_mod
   integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 
   ! Define land and sea regions
-  real(8), parameter :: LAND = 1, SEA = 0
+  real(dp), parameter :: LAND = 1, SEA = 0
 
   ! Basic grid parameters
   integer, parameter :: z_null = -1 ! place holder argument for functions not currently using z levels
@@ -176,48 +177,48 @@ module shared_mod
   
   integer, dimension(AT_NODE:AT_EDGE) :: n_active ! number of active points at grid locations (node and edge)
   
-  real(8) :: tol ! relative tolerance for all variables
+  real(dp) :: tol ! relative tolerance for all variables
 
-  type(Coord), parameter :: ORIGIN = Coord (0d0, 0d0, 0d0)
+  type(Coord), parameter :: ORIGIN = Coord (0.0_dp, 0.0_dp, 0.0_dp)
 
   ! Basic constants (uses MKS system of units)
 
   ! Math
-  real(8), parameter :: MATH_PI = acos (-1d0)
+  real(dp), parameter :: MATH_PI = acos (-1.0_dp)
 
   ! Length
-  real(8), parameter :: METRE   = 1
-  real(8), parameter :: KM      = 1000 * METRE
+  real(dp), parameter :: METRE   = 1.0_dp
+  real(dp), parameter :: KM      = 1000 * METRE
 
   ! Mass
-  real(8), parameter :: KG      = 1
-  real(8), parameter :: GRAM    = KG / 1000
+  real(dp), parameter :: KG      = 1.0_dp
+  real(dp), parameter :: GRAM    = KG / 1000
 
   ! Time
-  real(8), parameter :: SECOND  = 1d0
-  real(8), parameter :: MINUTE  = 60  * SECOND
-  real(8), parameter :: HOUR    = 60  * MINUTE
-  real(8), parameter :: DAY     = 24  * HOUR
-  real(8), parameter :: WEEK    =   7 * DAY
-  real(8), parameter :: YEAR    = 365 * DAY
+  real(dp), parameter :: SECOND  = 1.0_dp
+  real(dp), parameter :: MINUTE  = 60  * SECOND
+  real(dp), parameter :: HOUR    = 60  * MINUTE
+  real(dp), parameter :: DAY     = 24  * HOUR
+  real(dp), parameter :: WEEK    =   7 * DAY
+  real(dp), parameter :: YEAR    = 365 * DAY
 
   ! Angle
-  real(8), parameter :: RAD     = 1d0
-  real(8), parameter :: DEG     = MATH_PI / 180d0
+  real(dp), parameter :: RAD     = 1.0_dp
+  real(dp), parameter :: DEG     = MATH_PI / 180
 
   ! Force
-  real(8), parameter :: NEWTON  = KG * METRE / SECOND**2
+  real(dp), parameter :: NEWTON  = KG * METRE / SECOND**2
 
   ! Pressure
-  real(8), parameter :: Pa      = NEWTON / METRE**2
-  real(8), parameter :: hPa     =  100d0 * Pa
-  real(8), parameter :: kPa     = 1000d0 * Pa
+  real(dp), parameter :: Pa      = NEWTON / METRE**2
+  real(dp), parameter :: hPa     =  100 * Pa
+  real(dp), parameter :: kPa     = 1000 * Pa
 
   ! Heat and energy
-  real(8), parameter :: KELVIN  = 1d0
-  real(8), parameter :: CELSIUS = KELVIN
-  real(8), parameter :: JOULE   = KG * METRE**2 / SECOND**2
-  real(8), parameter :: WATT    = JOULE / SECOND
+  real(dp), parameter :: KELVIN  = 1.0_dp
+  real(dp), parameter :: CELSIUS = KELVIN
+  real(dp), parameter :: JOULE   = KG * METRE**2 / SECOND**2
+  real(dp), parameter :: WATT    = JOULE / SECOND
   
   ! Simulation variables
   integer                                       :: cp_idx, err_restart
@@ -230,22 +231,22 @@ module shared_mod
   integer, dimension(:), allocatable            :: n_node_old, n_patch_old
   integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
 
-  real(8)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
-  real(8)                                       :: dbin, dt, dt_init, dt_phys, dt_write, dx_min, dx_max, time_end, time
-  real(8)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax
-  real(8)                                       :: ref_density, ref_density_air, ref_density_water
-  real(8)                                       :: mass_error, max_depth, min_depth, min_mass, min_mass_remap
-  real(8)                                       :: theta1, theta2, visc_divu, visc_rotu
-  real(8)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
-  real(8)                                       :: Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim
-  real(8)                                       :: hex_int
-  real(8), dimension(:),         allocatable    :: bounds, C_visc, pressure_save, visc_sclr
-  real(8), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
-  real(8), dimension(:,:),       allocatable    :: lnorm, threshold, threshold_def
-  real(8), dimension(:,:,:),     allocatable    :: zonal_avg, zonal_avg_glo
-  real(8), dimension(3)                         :: L_diffusion
-  real(8), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
-  real(8), dimension (12,3)                     :: unique_pent_locs
+  real(dp)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
+  real(dp)                                       :: dbin, dt, dt_init, dt_phys, dt_write, dx_min, dx_max, time_end, time
+  real(dp)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax
+  real(dp)                                       :: ref_density, ref_density_air, ref_density_water
+  real(dp)                                       :: mass_error, max_depth, min_depth, min_mass, min_mass_remap
+  real(dp)                                       :: theta1, theta2, visc_divu, visc_rotu
+  real(dp)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
+  real(dp)                                       :: Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim
+  real(dp)                                       :: hex_int
+  real(dp), dimension(:),         allocatable    :: bounds, C_visc, pressure_save, visc_sclr
+  real(dp), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
+  real(dp), dimension(:,:),       allocatable    :: lnorm, threshold, threshold_def
+  real(dp), dimension(:,:,:),     allocatable    :: zonal_avg, zonal_avg_glo
+  real(dp), dimension(3)                         :: L_diffusion
+  real(dp), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
+  real(dp), dimension (12,3)                     :: unique_pent_locs
 
   character(255)                                :: run_id, test_case, timeint_type, topo_file
   character(255)                                :: remap_type, remapscalar_type, remapvelo_type, physics_type
@@ -337,7 +338,7 @@ contains
     istep                   = 0
     istep_cumul             = 0
     iwrite                  = 0
-    time                    = 0d0
+    time                    = 0.0_dp
     max_level               = MIN_LEVEL
     level_start             = MIN_LEVEL
     level_end               = level_start
@@ -345,7 +346,7 @@ contains
     nstep_init              = -1                                  ! nstep_init gradually increasing small time steps after restart
     
     ! Default logical switches, most are reset in the input file
-    adapt_dt                = .false.                              ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
+    adapt_dt                = .false.                             ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
     compressible            = .true.                              ! compressible equations (T) or Boussinesq incompressible (F)
     default_thresholds      = .true.                              ! use default thresholds (T) or calculate dynamically (F)
     fill                    = .false.                             ! fill up grid to level j_fill if true (T)
@@ -367,17 +368,17 @@ contains
     vert_diffuse            = .false.                             ! include vertical diffusion in ocean models (T)
 
     ! Default numerical method values
-    alpha                   = 1d-2                                ! porosity
-    cfl_adv                 = 1.4d0                               ! advective CFL number in mode split case
-    cfl_bar                 = 1d0                                 ! baroclinic CFL number in mode split case
-    cfl_num                 = 1d0                                 ! CFL number (barotropic CFL in mode split case)
-    C_visc                  = 1.5d-3                              ! dimensionless diffusion coefficients
-    dt_phys                 = 30d0 * MINUTE                       ! intervale for physics split step
-    dt_write                = 5d0  * DAY                          ! intervale for writing data
+    alpha                   = 1e-2_dp                             ! porosity
+    cfl_adv                 = 1.4_dp                              ! advective CFL number in mode split case
+    cfl_bar                 = 1.0_dp                              ! baroclinic CFL number in mode split case
+    cfl_num                 = 1.0_dp                              ! CFL number (barotropic CFL in mode split case)
+    C_visc                  = 1.5e-3_dp                           ! dimensionless diffusion coefficients
+    dt_phys                 = 30 * MINUTE                         ! intervale for physics split step
+    dt_write                = 5  * DAY                            ! intervale for writing data
     iadapt                  = 1                                   ! adapt horizontal grid every iadapt time step
     irebalance              = 5                                   ! interval for checking rebalance (only active if using AMPI)
     iremap                  = 1                                   ! remap counter
-    min_mass_remap          = 0.9d0                               ! minimum relative layer mass compared to initial value at which to remap
+    min_mass_remap          = 0.9_dp                              ! minimum relative layer mass compared to initial value at which to remap
     level_save              = level_start                         ! level to save
 
     ! Order of Laplacian diffusion  0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
@@ -390,59 +391,59 @@ contains
     remapscalar_type        = "PPR"                               ! remapping scheme for scalars
     remapvelo_type          = "PPR"                               ! remapping scheme for velocity
     timeint_type            = "RK4"                               ! time integration scheme (RK3 is default for incompressible case)
-    tol                     = 0d0                                 ! relative tolerance for adaptivity (default is non-adaptive)
+    tol                     = 0.0_dp                                 ! relative tolerance for adaptivity (default is non-adaptive)
     zlevels                 = 20                                  ! number of vertical layers
     zmin                    = 1                                   ! lowest vertical level index
     Nsoil                   = 0                                   ! number of soil layers (if Nsoil = 0 then do not use soil model)
 
     ! Default physical parameters
     ! (these parameters are typically reset in test case file, but are needed for compilation)
-    c_p                 = 1004.64d0   * JOULE / (KG*KELVIN)       ! specific heat at constant pressure for air (= 3991.87 for seawater)
-    c_v                 = 717.6d0     * JOULE / (KG*KELVIN)       ! specfic heat at constant volume c_v = R_d - c_p
-    grav_accel          = 9.80616d0   * METRE / SECOND**2         ! gravitational acceleration
-    p_top               = 0d0         * hPa                       ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
-    R_d                 = 287d0       * JOULE / (KG*KELVIN)       ! ideal gas constant for dry air in joules per kilogram Kelvin
-    ref_density         = 0d0         * KG / METRE**3             ! set ref_density to correct default value below if not set in test case
-    ref_density_air     = 1.225d0     * KG / METRE**3             ! reference density (compressible case: atmosphere)
-    ref_density_water   = 1028d0      * KG / METRE**3             ! reference density (incompressible case: seawater)
-    omega               = 7.292d-05   * RAD / SECOND              ! rotation rate of Earth
-    radius              = 6371.22d0   * KM                        ! radius of Earth
-    p_0                 = 1000d0      * hPA                       ! standard pressure
-    visc_sclr           = 0d0         * METRE**2 / SECOND         ! kinematic viscosity of scalars 
-    visc_divu           = 0d0         * METRE**2 / SECOND         ! kinematic viscosity of divergence of velocity 
-    visc_rotu           = 0d0         * METRE**2 / SECOND         ! kinematic viscosity of vorticity 
+    c_p                 = 1004.64      * JOULE / (KG*KELVIN)       ! specific heat at constant pressure for air (= 3991.87 for seawater)
+    c_v                 = 717.6        * JOULE / (KG*KELVIN)       ! specfic heat at constant volume c_v = R_d - c_p
+    grav_accel          = 9.80616      * METRE / SECOND**2         ! gravitational acceleration
+    p_top               = 0            * hPa                       ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
+    R_d                 = 287          * JOULE / (KG*KELVIN)       ! ideal gas constant for dry air in joules per kilogram Kelvin
+    ref_density         = 0            * KG / METRE**3             ! set ref_density to correct default value below if not set in test case
+    ref_density_air     = 1.225        * KG / METRE**3             ! reference density (compressible case: atmosphere)
+    ref_density_water   = 1028.0       * KG / METRE**3             ! reference density (incompressible case: seawater)
+    omega               = 7.292e-05    * RAD / SECOND              ! rotation rate of Earth
+    radius              = 6371.22      * KM                        ! radius of Earth
+    p_0                 = 1000         * hPA                       ! standard pressure
+    visc_sclr           = 0            * METRE**2 / SECOND         ! kinematic viscosity of scalars 
+    visc_divu           = 0            * METRE**2 / SECOND         ! kinematic viscosity of divergence of velocity 
+    visc_rotu           = 0            * METRE**2 / SECOND         ! kinematic viscosity of vorticity 
 
-    kappa               = R_d/c_p                                 ! heat capacity ratio
+    kappa               = R_d/c_p                                  ! heat capacity ratio
 
     ! Parameters for ocean (incompressible) model
-    c1                  = 1d-16     * METRE / SECOND              ! value for internal wave speed (used for incompressible cases)
-    c_s                 = 1500d0    * METRE / SECOND              ! sound speed for seawater
-    max_depth           = 4d0       * KM                          ! maximum depth 
-    min_depth           = max_depth                               ! minimum depth 
-    H_rho               = c_s**2 / grav_accel                     ! density scale height
+    c1                  = 1e-16        * METRE / SECOND            ! value for internal wave speed (used for incompressible cases)
+    c_s                 = 1500         * METRE / SECOND            ! sound speed for seawater
+    max_depth           = 4            * KM                        ! maximum depth 
+    min_depth           = max_depth                                ! minimum depth 
+    H_rho               = c_s**2 / grav_accel                      ! density scale height
 
     ! Equation of state parameters for ocean model
     eos_nl              = .false.                                 ! nonlinear equation of state if true
-    a_0                 = 1.6550d-1 * KG / METRE**3 / CELSIUS     ! linear coefficient of thermal expansion for seawater 
-    b_0                 = 7.6554d-1 * KG / METRE**3 / (GRAM / KG) ! linear haline expansion coefficient for seawater
-    lambda_1            = 5.9520d-2                               ! cabbeling coefficient in T^2
-    lambda_2            = 5.4914d-4                               ! cabbeling coefficient in S^2
-    mu_1                = 1.4970d-4 / METRE                       ! thermobaric coefficient in temperature (pressure effect)
-    mu_2                = 1.1090d-5 / METRE                       ! thermobaric coefficient in salinity (pressure effect)
-    nu_0                = 2.4341d-3                               ! cabbeling coefficient in temperature S, T
-    T_ref               = 10d0      * CELSIUS                     ! reference temperature
-    S_ref               = 35d0      * GRAM / KG                   ! reference salinity
+    a_0                 = 1.6550e-1 * KG / METRE**3 / CELSIUS     ! linear coefficient of thermal expansion for seawater 
+    b_0                 = 7.6554e-1 * KG / METRE**3 / (GRAM / KG) ! linear haline expansion coefficient for seawater
+    lambda_1            = 5.9520e-2                               ! cabbeling coefficient in T^2
+    lambda_2            = 5.4914e-4                               ! cabbeling coefficient in S^2
+    mu_1                = 1.4970e-4 / METRE                       ! thermobaric coefficient in temperature (pressure effect)
+    mu_2                = 1.1090e-5 / METRE                       ! thermobaric coefficient in salinity (pressure effect)
+    nu_0                = 2.4341e-3                               ! cabbeling coefficient in temperature S, T
+    T_ref               = 10        * CELSIUS                     ! reference temperature
+    S_ref               = 35        * GRAM / KG                   ! reference salinity
 
     ! Theta parameters for barotropic-baroclinic mode splitting
-    theta1              = 1d0                                     ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
-    theta2              = 1d0                                     ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
+    theta1              = 1.0_dp                                     ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
+    theta2              = 1.0_dp                                     ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
 
     ! Physics model
-    physics_type        = "Held_Suarez"                           ! physics model used if physics_model is T
+    physics_type        = "Held_Suarez"                              ! physics model used if physics_model is T
   end subroutine init_shared_mod
 
-  real(8) function eps ()
-    eps = radius * 1d-13
+  real(dp) function eps ()
+    eps = radius * 1e-13_dp
   end function eps
 
   integer function max_nodes_per_level (lev, entity)
@@ -457,13 +458,13 @@ contains
     end if
   end function max_nodes_per_level
 
-  real(8) function exp__flush(x)
-    real(8) :: x
+  real(dp) function exp__flush(x)
+    real(dp) :: x
     
     if (x > -1.0d2) then
        exp__flush = exp (x)
     else
-       exp__flush = 0d0
+       exp__flush = 0.0_dp
     end if
   end function exp__flush
 

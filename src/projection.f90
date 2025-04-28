@@ -3,12 +3,12 @@ module projection_mod
   ! call initialize_projection first
   use comm_mpi_mod
   implicit none
-  integer, dimension(2)                :: Nx, Ny
-  real(8)                              :: dx_export, dy_export, kx_export, ky_export
-  real(8), dimension(2)                :: lon_lat_range
-  real(8), dimension(:),   allocatable :: lat, lon
-  real(8), dimension(:,:), allocatable :: field2d, xcoord_lat, xcoord_lon
-  real(8), dimension(:),   pointer     :: proj_sclr
+  integer, dimension(2)                 :: Nx, Ny
+  real(dp)                              :: dx_export, dy_export, kx_export, ky_export
+  real(dp), dimension(2)                :: lon_lat_range
+  real(dp), dimension(:),   allocatable :: lat, lon
+  real(dp), dimension(:,:), allocatable :: field2d, xcoord_lat, xcoord_lon
+  real(dp), dimension(:),   pointer     :: proj_sclr
 contains
   subroutine initialize_projection (m)
     ! Initialize 2d projection variables on lon-lat grid of size (-m/2, m/2) x (-m/4, m/4)
@@ -20,12 +20,12 @@ contains
     Nx = (/-m/2, m/2/)
     Ny = (/-m/4, m/4/)
 
-    lon_lat_range = (/2d0*MATH_PI, MATH_PI/)
+    lon_lat_range = (/ 2*MATH_PI, MATH_PI /)
     dx_export = lon_lat_range(1) / (Nx(2) - Nx(1) + 1)
     dy_export = lon_lat_range(2) / (Ny(2) - Ny(1) + 1)
     
-    kx_export = 1d0 / dx_export
-    ky_export = 1d0 / dy_export
+    kx_export = 1 / dx_export
+    ky_export = 1 / dy_export
 
     if (allocated(field2d)) deallocate (field2d)
     if (allocated(lat)) deallocate (lat)
@@ -33,20 +33,20 @@ contains
     if (allocated(xcoord_lat)) deallocate (xcoord_lat)
     if (allocated(xcoord_lon)) deallocate (xcoord_lon)
     
-    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2))) ; field2d = 0d0
+    allocate (field2d(Nx(1):Nx(2),Ny(1):Ny(2))) ; field2d = 0.0_dp
     allocate (lat(Ny(1):Ny(2)), lon(Nx(1):Nx(2)))
     allocate (xcoord_lat(Ny(1):Ny(2),1:2), xcoord_lon(Nx(1):Nx(2),1:2))
 
     do i = Nx(1), Nx(2)
-       lon(i) = -180d0 + dx_export * (i - Nx(1))/MATH_PI * 180d0
-       xcoord_lon(i,1) = lon(i) - dx_export/2d0 / DEG
-       xcoord_lon(i,2) = lon(i) + dx_export/2d0 / DEG
+       lon(i) = -180.0_dp + dx_export * (i - Nx(1))/MATH_PI * 180
+       xcoord_lon(i,1) = lon(i) - dx_export/2 / DEG
+       xcoord_lon(i,2) = lon(i) + dx_export/2 / DEG
     end do
 
     do i = Ny(1), Ny(2)
-       lat(i) = -90d0 + dy_export * (i - Ny(1))/MATH_PI * 180d0
-       xcoord_lat(i,1) = lat(i) - dy_export/2d0 / DEG
-       xcoord_lat(i,2) = lat(i) + dy_export/2d0 / DEG
+       lat(i) = -90.0_dp + dy_export * (i - Ny(1))/MATH_PI * 180
+       xcoord_lat(i,1) = lat(i) - dy_export/2 / DEG
+       xcoord_lat(i,2) = lat(i) + dy_export/2 / DEG
     end do
   end subroutine initialize_projection
   
@@ -54,15 +54,15 @@ contains
     ! Projects float field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     implicit none
     integer           :: l, itype
-    real(8)           :: default_val
+    real(dp)          :: default_val
     Type(Float_field) :: field
 
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
-    integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    integer                         :: d, i, j, jj, p, c, p_par, l_cur
+    integer                         :: id, idN, idE, idNE
+    real(dp)                        :: val, valN, valE, valNE
+    real(dp), dimension(2)          :: cC, cN, cE, cNE
+    integer,  dimension(N_BDRY+1)   :: offs
+    integer,  dimension(2,N_BDRY+1) :: dims
 
     field2d = default_val
     do d = 1, size(grid)
@@ -111,13 +111,13 @@ contains
     ! Projects float array from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     implicit none
     integer      :: l, itype
-    real(8)      :: default_val
+    real(dp)     :: default_val
     character(*) :: array
 
     integer                        :: d, i, j, jj, p, c, p_par, l_cur
     integer                        :: id, idN, idE, idNE
-    real(8)                        :: val, valN, valE, valNE
-    real(8), dimension(2)          :: cC, cN, cE, cNE
+    real(dp)                       :: val, valN, valE, valNE
+    real(dp), dimension(2)         :: cC, cN, cE, cNE
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -195,12 +195,12 @@ contains
   
   subroutine interp_tri_to_2d_and_fix_bdry (a0, b0, c0, val)
     implicit none
-    real(8), dimension(2) :: a0, b0, c0
-    real(8), dimension(3) :: val
+    real(dp), dimension(2) :: a0, b0, c0
+    real(dp), dimension(3) :: val
 
-    integer               :: i
-    integer, dimension(3) :: fixed
-    real(8), dimension(2) :: a, b, c
+    integer                :: i
+    integer,  dimension(3) :: fixed
+    real(dp), dimension(2) :: a, b, c
 
     a = a0
     b = b0
@@ -215,9 +215,9 @@ contains
     if (sum (abs (fixed)) > 1) write (0,'(A)') 'ALARM'
 
     if (sum (fixed) /= 0) then
-       a(1) = a(1) - sum (fixed) * 2d0*MATH_PI
-       b(1) = b(1) - sum (fixed) * 2d0*MATH_PI
-       c(1) = c(1) - sum (fixed) * 2d0*MATH_PI
+       a(1) = a(1) - sum (fixed) * 2*MATH_PI
+       b(1) = b(1) - sum (fixed) * 2*MATH_PI
+       c(1) = c(1) - sum (fixed) * 2*MATH_PI
        
        call interp_tri_to_2d (a, b, c, val)
     end if
@@ -225,21 +225,21 @@ contains
 
   subroutine interp_tri_to_2d (a, b, c, val)
     implicit none
-    real(8), dimension(2) :: a, b, c
-    real(8), dimension(3) :: val
+    real(dp), dimension(2) :: a, b, c
+    real(dp), dimension(3) :: val
 
-    integer               :: id_x, id_y
-    real(8)               :: ival, minx, maxx, miny, maxy
-    real(8), dimension(2) :: ll
-    real(8), dimension(3) :: bac
-    logical               :: inside
+    integer                :: id_x, id_y
+    real(dp)               :: ival, minx, maxx, miny, maxy
+    real(dp), dimension(2) :: ll
+    real(dp), dimension(3) :: bac
+    logical                :: inside
 
     minx = min (min (a(1), b(1)), c(1))
     maxx = max (max (a(1), b(1)), c(1))
     miny = min (min (a(2), b(2)), c(2))
     maxy = max (max (a(2), b(2)), c(2))
     
-    if (maxx - minx > MATH_PI/2d0) then
+    if (maxx - minx > MATH_PI/2) then
        write (0,'(A,i4,A)') 'ERROR (rank = ', rank, '): io-333 "export"'
        return
     end if
@@ -259,29 +259,30 @@ contains
 
   subroutine interp_tria (ll, coord1, coord2, coord3, values, ival, inside)
     implicit none
-    real(8), dimension(2) :: coord1, coord2, coord3
-    real(8), dimension(3) :: values
-    real(8)               :: ival
-    logical               :: inside
+    real(dp), dimension(2) :: coord1, coord2, coord3
+    real(dp), dimension(3) :: values
+    real(dp)               :: ival
+    logical                :: inside
 
-    real(8), dimension(2) :: ll
-    real(8), dimension(3) :: bc
+    real(dp), dimension(2) :: ll
+    real(dp), dimension(3) :: bc
 
     bc = bary_coord (ll, coord1, coord2, coord3)
     
-    inside = (0d0 < bc(1) .and. bc(1) < 1d0 .and. 0d0 < bc(2) .and. bc(2) < 1d0 .and. 0d0 < bc(3) .and. bc(3) < 1d0)
+    inside = (0.0_dp < bc(1) .and. bc(1) < 1.0_dp .and. 0.0_dp < bc(2) &
+         .and. bc(2) < 1.0_dp .and. 0.0_dp < bc(3) .and. bc(3) < 1.0_dp)
     
     if (inside) ival = sum (values * bc)
   end subroutine interp_tria
 
   function bary_coord (ll, a, b, c)
     implicit none
-    real(8), dimension(3) :: bary_coord
-    real(8), dimension(2) :: a, b, c, ll
+    real(dp), dimension(3) :: bary_coord
+    real(dp), dimension(2) :: a, b, c, ll
 
-    real(8)               :: det
-    real(8), dimension(3) :: bac
-    real(8), dimension(2) :: ca, cb, cll
+    real(dp)               :: det
+    real(dp), dimension(3) :: bac
+    real(dp), dimension(2) :: ca, cb, cll
 
     cb  = b - c
     ca  = a - c
@@ -292,23 +293,23 @@ contains
     bac(1) = ( cb(2) * cll(1) - cb(1) * cll(2)) / det
     bac(2) = (-ca(2) * cll(1) + ca(1) * cll(2)) / det
     
-    bac(3) = 1d0 - bac(1) - bac(2)
+    bac(3) = 1.0_dp - bac(1) - bac(2)
     
     bary_coord = bac
   end function bary_coord
 
   subroutine fix_boundary (a, b, c, fixed)
     implicit none
-    real(8), intent(inout) :: a
-    real(8), intent(in)    :: b, c
+    real(dp), intent(inout) :: a
+    real(dp), intent(in)    :: b, c
     integer, intent(out)   :: fixed
 
     fixed = 0
-    if (a < -MATH_PI/2d0 .and. (b > MATH_PI/2d0 .and. c > MATH_PI/2d0)) then
-       a = a + MATH_PI*2d0
+    if (a < -MATH_PI/2 .and. (b > MATH_PI/2 .and. c > MATH_PI/2)) then
+       a = a + MATH_PI*2
        fixed = 1
-    elseif (a > MATH_PI/2d0 .and. (b < -MATH_PI/2d0 .and. c < -MATH_PI/2d0)) then
-       a = a - MATH_PI*2d0
+    elseif (a > MATH_PI/2 .and. (b < -MATH_PI/2 .and. c < -MATH_PI/2)) then
+       a = a - MATH_PI*2
        fixed = -1
     end if
   end subroutine fix_boundary
@@ -316,7 +317,7 @@ contains
    subroutine cart2sph2 (cin, cout)
     implicit none
     type(Coord)                        :: cin
-    real(8), dimension(2), intent(out) :: cout
+    real(dp), dimension(2), intent(out) :: cout
 
     call cart2sph (cin, cout(1), cout(2))
   end subroutine cart2sph2

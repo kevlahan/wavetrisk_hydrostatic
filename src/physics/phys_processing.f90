@@ -37,18 +37,18 @@ contains
     integer                       :: iwrt
     integer                       :: k
     
-    real(8)                       :: area, high_lat_area, mid_lat_area, low_lat_area, low_lat_upper_lim, high_lat_lower_lim
-    real(8), dimension(1:zlevels) :: z, dz, T_avg, Total_Tavg, Pressure_avg, Geopot_avg
-    real(8), dimension(1:zlevels) :: Zonal_vel_avg, Meridional_avg, Zonal_KE_avg, Merid_KE_avg
-    real(8), dimension(1:zlevels) :: Low_Lat_avg, Mid_lat_avg, High_lat_avg
-    real(8), dimension(2)         :: mid_lat_range
-    real(8), dimension(0:Nsoil)   :: tsurf_soil_avg
+    real(dp)                       :: area, high_lat_area, mid_lat_area, low_lat_area, low_lat_upper_lim, high_lat_lower_lim
+    real(dp), dimension(1:zlevels) :: z, dz, T_avg, Total_Tavg, Pressure_avg, Geopot_avg
+    real(dp), dimension(1:zlevels) :: Zonal_vel_avg, Meridional_avg, Zonal_KE_avg, Merid_KE_avg
+    real(dp), dimension(1:zlevels) :: Low_Lat_avg, Mid_lat_avg, High_lat_avg
+    real(dp), dimension(2)         :: mid_lat_range
+    real(dp), dimension(0:Nsoil)   :: tsurf_soil_avg
     
     character(4)                  :: s_time
 
     ! Set the ranges
-    low_lat_upper_lim  = 23.5d0 * MATH_PI/180d0                       ! upper limit of low latitude range
-    high_lat_lower_lim = 66.5d0 * MATH_PI/180d0                       ! lower limit of high latitude range
+    low_lat_upper_lim  = 23.5_dp * MATH_PI/180.0_dp                       ! upper limit of low latitude range
+    high_lat_lower_lim = 66.5_dp * MATH_PI/180.0_dp                       ! lower limit of high latitude range
     mid_lat_range      = (/ low_lat_upper_lim , high_lat_lower_lim /) ! mid latitude range
 
     ! Set latitude averages and area to zero
@@ -106,8 +106,8 @@ contains
        Zonal_vel_avg  = Zonal_vel_avg / area
        Meridional_avg = Meridional_avg / area
        
-       Zonal_KE_avg   = 0.5d0 * Zonal_KE_avg / area
-       Merid_KE_avg   = 0.5d0 * Merid_KE_avg / area
+       Zonal_KE_avg   = 0.5_dp * Zonal_KE_avg / area
+       Merid_KE_avg   = 0.5_dp * Merid_KE_avg / area
        
        Low_Lat_avg    = Low_Lat_avg  / low_lat_area
        Mid_lat_avg    = Mid_lat_avg  / mid_lat_area
@@ -150,7 +150,7 @@ contains
        close (20)
     end if
   contains
-    real(8) function temp_fun (dom, i, j, zlev, offs, dims)
+    real(dp) function temp_fun (dom, i, j, zlev, offs, dims)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Calculates the temperature at center of zlev layer of an element
@@ -167,7 +167,7 @@ contains
       integer, dimension(2,N_BDRY+1) :: dims
 
       integer :: d, id_i
-      real(8) :: rho_dz, rho_dz_theta, potential_temp, temperature, lat, lon
+      real(dp) :: rho_dz, rho_dz_theta, potential_temp, temperature, lat, lon
 
       d = dom%id + 1
       id_i = idx (i, j, offs, dims) + 1
@@ -208,7 +208,7 @@ contains
       nullify (mass, temp, mean_m, mean_t, exner)
     end function temp_fun
 
-    real(8) function geopot_fun (dom, i, j, zlev, offs, dims)
+    real(dp) function geopot_fun (dom, i, j, zlev, offs, dims)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Calculates the geopotential of an element at the center of
@@ -232,7 +232,7 @@ contains
       geopot_fun = interp (dom%geopot_lower%elts(id_i), dom%geopot%elts(id_i))
     end function geopot_fun
 
-    real(8) function pressure_fun (dom, i, j, zlev, offs, dims)
+    real(dp) function pressure_fun (dom, i, j, zlev, offs, dims)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Calculates the pressure of an element at the center of
@@ -255,7 +255,7 @@ contains
       pressure_fun = dom%press%elts(id_i)
     end function pressure_fun
 
-    real(8) function zonal_fun (dom, i, j, zlev, offs, dims)
+    real(dp) function zonal_fun (dom, i, j, zlev, offs, dims)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Calculates the velocity of an element at the center of a zlev layer
@@ -286,7 +286,7 @@ contains
       nullify (velo, velo1, velo2)
     end function zonal_fun
 
-    real(8) function zonal_KE (dom, i, j, zlev, offs, dims)
+    real(dp) function zonal_KE (dom, i, j, zlev, offs, dims)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Calculates the Zonal Kinetic energy of an element at the center of
@@ -311,7 +311,7 @@ contains
       zonal_KE = dom%ke%elts(id_i) * dom%u_zonal%elts(id_i)**2
     end function zonal_KE
 
-    real(8) function merid_fun (dom, i, j, zlev, offs, dims)
+    real(dp) function merid_fun (dom, i, j, zlev, offs, dims)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Calculates the meridional velocity of an element at the center of
@@ -334,7 +334,7 @@ contains
       merid_fun = dom%v_merid%elts(id_i)
     end function merid_fun
 
-    real(8) function merid_KE (dom, i, j, zlev, offs, dims)
+    real(dp) function merid_KE (dom, i, j, zlev, offs, dims)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Calculates the meridional kinetic energy of an element at the center of
@@ -358,7 +358,7 @@ contains
       merid_KE = dom%ke%elts(id_i) * dom%v_merid%elts(id_i)**2
     end function merid_KE
 
-    real(8) function area_fun (dom, i, j, zlev, offs, dims)
+    real(dp) function area_fun (dom, i, j, zlev, offs, dims)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Defines mass for total mass integration and for zonal latitude regions.
@@ -371,8 +371,8 @@ contains
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      integer :: id_i
-      real(8) :: lat, lon
+      integer  :: id_i
+      real(dp) :: lat, lon
 
       id_i = idx (i, j, offs, dims) + 1
       
@@ -381,16 +381,16 @@ contains
       lat = abs (lat)
 
       if (lat >= mid_lat_range(1) .and. lat <= mid_lat_range(2)) then
-         mid_lat_area = mid_lat_area + 1d0 / dom%areas%elts(id_i)%hex_inv
+         mid_lat_area = mid_lat_area + 1.0_dp / dom%areas%elts(id_i)%hex_inv
       end if
       
-      if (lat >= high_lat_lower_lim) high_lat_area = high_lat_area + 1d0 / dom%areas%elts(id_i)%hex_inv
-      if (lat <= low_lat_upper_lim ) low_lat_area  = low_lat_area +  1d0 / dom%areas%elts(id_i)%hex_inv
+      if (lat >= high_lat_lower_lim) high_lat_area = high_lat_area + 1.0_dp / dom%areas%elts(id_i)%hex_inv
+      if (lat <= low_lat_upper_lim ) low_lat_area  = low_lat_area +  1.0_dp / dom%areas%elts(id_i)%hex_inv
 
-      area_fun = 1d0
+      area_fun = 1.0_dp
     end function area_fun
 
-    real(8) function surf_soil_temp_fun(dom, i, j, zlev, offs, dims)
+    real(dp) function surf_soil_temp_fun(dom, i, j, zlev, offs, dims)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Retrieve the temperature of the surface and/or soil layer of an element.
@@ -444,8 +444,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: id_i
-    real(8) :: lat, lon
+    integer  :: id_i
+    real(dp) :: lat, lon
 
     id_i = idx (i, j, offs, dims) + 1
 

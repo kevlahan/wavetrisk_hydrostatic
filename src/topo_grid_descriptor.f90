@@ -3,17 +3,17 @@ module topo_grid_descriptor_mod
   use utils_mod
   use init_mod
   implicit none
-  integer                              :: icol, loc_size, ncol
-  integer, dimension(:),   allocatable :: grid_dom
-  integer, dimension(:),   allocatable :: grid_id
-  integer, dimension(:),   allocatable :: loc_ids
-  integer, dimension(:),   allocatable :: loc_dom
-  real(8), dimension(:),   allocatable :: loc_area
-  real(8), dimension(:),   allocatable :: loc_center_lat
-  real(8), dimension(:),   allocatable :: loc_center_lon
-  real(8), dimension(:),   allocatable :: phi_s
-  real(8), dimension(:,:), allocatable :: loc_corner_lat
-  real(8), dimension(:,:), allocatable :: loc_corner_lon
+  integer                               :: icol, loc_size, ncol
+  integer, dimension(:),    allocatable :: grid_dom
+  integer, dimension(:),    allocatable :: grid_id
+  integer, dimension(:),    allocatable :: loc_ids
+  integer, dimension(:),    allocatable :: loc_dom
+  real(dp), dimension(:),   allocatable :: loc_area
+  real(dp), dimension(:),   allocatable :: loc_center_lat
+  real(dp), dimension(:),   allocatable :: loc_center_lon
+  real(dp), dimension(:),   allocatable :: phi_s
+  real(dp), dimension(:,:), allocatable :: loc_corner_lat
+  real(dp), dimension(:,:), allocatable :: loc_corner_lon
 #  include "netcdf.inc"
   !
   !  DATE CODED:  November 2023
@@ -331,8 +331,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, id_i, idS, idSW, idW
-    real(8) :: lat, lon
+    integer  :: d, id, id_i, idS, idSW, idW
+    real(dp) :: lat, lon
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
@@ -347,7 +347,7 @@ contains
     loc_ids(icol) = id                   ! id of node
     loc_dom(icol) = glo_id(rank+1,d) + 1 ! global domain label associated to node id
 
-    loc_area(icol) = 1d0 / dom%areas%elts(id_i)%hex_inv / radius**2 ! hexagon area (unit sphere)
+    loc_area(icol) = 1 / dom%areas%elts(id_i)%hex_inv / radius**2 ! hexagon area (unit sphere)
 
     call cart2sph (dom%node%elts(id_i), lon, lat) ! longitude and latitude coordinates of node in radians
     loc_center_lat(icol) = lat

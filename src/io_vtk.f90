@@ -8,8 +8,8 @@ module io_vtk_mod
   integer(4)                             :: ncell, ncoord,  nvertex
   integer(4)                             :: ncell_loc, ncoord_unique_loc, nvertex_unique_loc
   integer(4),  dimension(:), allocatable :: cell_vert_index,  cell_vert_index_loc
-  real(4),     dimension(:), allocatable :: cell_data_loc, vert_coord_unique_loc
-  real(4),     dimension(:), allocatable :: cell_data, vert_coord_unique
+  real(sp),    dimension(:), allocatable :: cell_data_loc, vert_coord_unique_loc
+  real(sp),    dimension(:), allocatable :: cell_data, vert_coord_unique
   type(coord), dimension(:), allocatable :: points_loc
 
   integer(4)                             :: nvar = 12
@@ -147,12 +147,12 @@ contains
     integer                                  :: idE, idN, idNE
     integer(4), dimension(1:EDGE)            :: new_vert_index
     integer, dimension(0:EDGE)               :: neigh_id
-    real(8)                                  :: dmin
+    real(dp)                                 :: dmin
 
     type(coord)                              :: p
     type(coord), dimension(LORT:UPLT,1:EDGE) :: vertex
 
-    real(4), dimension(nvar)                 :: outv
+    real(sp), dimension(nvar)                :: outv
     
     d    = dom%id + 1
     
@@ -165,7 +165,7 @@ contains
     vertex(UPLT,:) = dom%node%elts((/id, idNE, idN/)+1)
 
     do t = LORT, UPLT
-       if (save_tri(t)%data(d)%elts(id+1) == 1d0) then ! cell is active
+       if (save_tri(t)%data(d)%elts(id+1) == 1.0_dp) then ! cell is active
           ncell_loc = ncell_loc + 1
           
           do ivert = 1, 3
@@ -177,7 +177,7 @@ contains
                 ncoord_unique_loc  = ncoord_unique_loc  + 3
                 
                 points_loc = [points_loc, p]
-                vert_coord_unique_loc = [vert_coord_unique_loc, real(p%x), real(p%y), real(p%z)]
+                vert_coord_unique_loc = [vert_coord_unique_loc, real(p%x,kind=sp), real(p%y,kind=sp), real(p%z,kind=sp)]
                 
                 new_vert_index(ivert) = nvertex_unique_loc - 1 ! index of new vertex
              else                       
@@ -200,11 +200,11 @@ contains
     subroutine compute_data
       use utils_mod
       implicit none
-      integer, dimension(0:EDGE) :: neigh_id
-      real(4), dimension(0:EDGE) :: rho_dz, rho_dz_theta
-      real(4), dimension(0:EDGE) :: temperature
-      real(4)                    :: Ps, tri_area
-      real(4), dimension(2*EDGE) :: hex_area
+      integer,  dimension(0:EDGE) :: neigh_id
+      real(sp), dimension(0:EDGE) :: rho_dz, rho_dz_theta
+      real(sp), dimension(0:EDGE) :: temperature
+      real(sp)                    :: Ps, tri_area
+      real(sp), dimension(2*EDGE) :: hex_area
 
       neigh_id = (/ id, idE, idNE, idN /) + 1
 
@@ -217,7 +217,7 @@ contains
       hex_area(5) = dom%areas%elts(idNE+1)%part(5)
       hex_area(6) = dom%areas%elts(idN+1 )%part(6)
 
-      Ps = hex2tri2 (real(dom%surf_press%elts(neigh_id)), hex_area, tri_area, t) ! surface pressure
+      Ps = hex2tri2 (real(dom%surf_press%elts(neigh_id),kind=sp), hex_area, tri_area, t) ! surface pressure
 
       rho_dz       = sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id)
       rho_dz_theta = sol(S_TEMP,zlev)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,zlev)%data(d)%elts(neigh_id)
@@ -225,33 +225,33 @@ contains
       if (compressible) then
          temperature = rho_dz_theta/rho_dz * (dom%press%elts(neigh_id)/p_0)**kappa
       else
-         temperature = ref_density * (1d0 - rho_dz_theta/rho_dz)
+         temperature = ref_density * (1.0_dp - rho_dz_theta/rho_dz)
       end if
 
       ! Single layer data
       outv(1) = nint (active_level%data(d)%elts(id+1))                                          ! level
-      outv(2) = hex2tri2 (real(topography%data(d)%elts(neigh_id)),      hex_area, tri_area, t)  ! topography
+      outv(2) = hex2tri2 (real(topography%data(d)%elts(neigh_id),kind=sp),      hex_area, tri_area, t)  ! topography
       outv(3) = hex2tri2 (real(penal_node(1)%data(d)%elts(neigh_id)),   hex_area, tri_area, t)  ! penalization mask
       if (compressible) then
          outv(4) = Ps       
       else                                                                                 
          if (mode_split) then                                                                   ! free surface perturbation
-            outv(4) = hex2tri2 (real(sol(S_MASS,zlevels+1)%data(d)%elts(neigh_id)), hex_area, tri_area, t) 
+            outv(4) = hex2tri2 (real(sol(S_MASS,zlevels+1)%data(d)%elts(neigh_id),kind=sp), hex_area, tri_area, t) 
          else
-            outv(4) = hex2tri2 (real(sol(S_MASS,1)%data(d)%elts(neigh_id)),         hex_area, tri_area, t) 
+            outv(4) = hex2tri2 (real(sol(S_MASS,1)%data(d)%elts(neigh_id),kind=sp),         hex_area, tri_area, t) 
          end if
       end if
-      outv(5)  = hex2tri2 (real(temperature),                            hex_area, tri_area, t) ! temperature (compressible) or density (incompressible)
-      outv(6)  = hex2tri2 (real(grid(d)%u_zonal%elts(neigh_id)),         hex_area, tri_area, t) ! zonal velocity
-      outv(7)  = hex2tri2 (real(grid(d)%v_merid%elts(neigh_id)),         hex_area, tri_area, t) ! meridional velocity
-      outv(8)  = hex2tri2 (real(vel_vert(zlev)%data(d)%elts(neigh_id)),  hex_area, tri_area, t) ! vertical velocity OMEGA 
+      outv(5)  = hex2tri2 (real(temperature,kind=sp),                            hex_area, tri_area, t) ! temperature (compressible) or density (incompressible)
+      outv(6)  = hex2tri2 (real(grid(d)%u_zonal%elts(neigh_id),kind=sp),         hex_area, tri_area, t) ! zonal velocity
+      outv(7)  = hex2tri2 (real(grid(d)%v_merid%elts(neigh_id),kind=sp),         hex_area, tri_area, t) ! meridional velocity
+      outv(8)  = hex2tri2 (real(vel_vert(zlev)%data(d)%elts(neigh_id),kind=sp),  hex_area, tri_area, t) ! vertical velocity OMEGA 
       outv(9)  = rel_vort(t)                                                                    ! vorticity
-      outv(10) = hex2tri2 (real(dom%geopot%elts(neigh_id) / grav_accel), hex_area, tri_area, t) ! geopotential height
-      outv(11) = hex2tri2 (real(dom%press%elts(neigh_id) / Ps),          hex_area, tri_area, t) ! P/Ps
-      outv(12) = hex2tri2 (real(rho_dz/ ref_density),                    hex_area, tri_area, t) ! dz
+      outv(10) = hex2tri2 (real(dom%geopot%elts(neigh_id) / grav_accel,kind=sp), hex_area, tri_area, t) ! geopotential height
+      outv(11) = hex2tri2 (real(dom%press%elts(neigh_id) / Ps,kind=sp),          hex_area, tri_area, t) ! P/Ps
+      outv(12) = hex2tri2 (real(rho_dz/ ref_density,kind=sp),                    hex_area, tri_area, t) ! dz
     end subroutine compute_data
 
-    real function rel_vort (t)
+    real(sp) function rel_vort (t)
       implicit none
       integer :: t
 
@@ -487,11 +487,11 @@ contains
   function shift_vertices (dr)
     ! Shifts all vertices radially by dr
     implicit none
-    real(8)                    :: dr
-    real(4), dimension(ncoord) :: shift_vertices
+    real(dp)                    :: dr
+    real(sp), dimension(ncoord) :: shift_vertices
 
-    integer(4)     :: i
-    real(8)     :: nrm, r
+    integer(4)  :: i
+    real(dp)    :: nrm, r
     type(coord) :: p
 
     do i = 1, ncoord, 3
@@ -505,7 +505,7 @@ contains
        p%y = p%y * r
        p%z = p%z * r
 
-       shift_vertices(i:i+2) = [real(p%x), real(p%y), real(p%z)]
+       shift_vertices(i:i+2) = [real(p%x,kind=sp), real(p%y,kind=sp), real(p%z,kind=sp)]
     end do
   end function shift_vertices
 
@@ -517,9 +517,9 @@ contains
     integer(4), dimension(N_BDRY+1)   :: offs
     integer(4), dimension(2,N_BDRY+1) :: dims
 
-    integer(4)                       :: d, e, id, id_e, id_i, idE, idNE, idN, k
-    real(8)                       :: dz0
-    real(8), dimension (1:EDGE,2) :: dz
+    integer(4)                     :: d, e, id, id_e, id_i, idE, idNE, idN, k
+    real(dp)                       :: dz0
+    real(dp), dimension (1:EDGE,2) :: dz
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
@@ -647,21 +647,21 @@ contains
   subroutine cal_omega (dom, i, j, zlev, offs, dims)
     ! Velocity flux across interfaces
     implicit none
-    type(Domain)                   :: dom
+    type(Domain)                      :: dom
     integer(4)                        :: i, j, zlev
     integer(4), dimension(N_BDRY+1)   :: offs
     integer(4), dimension(2,N_BDRY+1) :: dims
 
-    integer(4)                         :: d, id_i, k
-    real(8), dimension(1:zlevels)   :: u_gradP
-    real(8), dimension(1:zlevels+1) :: div_mass
+    integer(4)                       :: d, id_i, k
+    real(dp), dimension(1:zlevels)   :: u_gradP
+    real(dp), dimension(1:zlevels+1) :: div_mass
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
     ! Vertically integrate div(mass flux) from top to bottom
     ! (results at interfaces)
-    div_mass(zlevels+1) = 0d0 ! zero flux at top boundary
+    div_mass(zlevels+1) = 0.0_dp ! zero flux at top boundary
     do k = zlevels, 1, -1
        div_mass(k) = div_mass(k+1) + trend(S_MASS,k)%data(d)%elts(id_i)
     end do
@@ -708,7 +708,7 @@ contains
        vel_vert(k)%data(d)%elts(id+1) = - vel_vert(k)%data(d)%elts(id+1) / (ref_density * grav_accel) + proj_vel_vert () 
     end do
   contains
-    real(8) function proj_vel_vert ()
+    real(dp) function proj_vel_vert ()
       ! Computes grad_zonal(z) * u_zonal + grad_merid(z) * u_merid at hexagon centres for vertical velocity computation.
       ! Uses Perot formula as also used for kinetic energy:
       ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_center) ) / cell_area
@@ -727,16 +727,16 @@ contains
 
       proj_vel_vert =  &
            (vert_vel (i,j,i+1,j,EDGE*id +RT+1) + vert_vel (i+1,j+1,i,j,EDGE*id  +DG+1) + vert_vel (i,j,i,j+1,EDGE*id +UP+1) + &
-           (vert_vel (i-1,j,i,j,EDGE*idW+RT+1) + vert_vel (i,j,i-1,j-1,EDGE*idSW+DG+1) + vert_vel (i,j-1,i,j,EDGE*idS+UP+1))) / 6d0
+           (vert_vel (i-1,j,i,j,EDGE*idW+RT+1) + vert_vel (i,j,i-1,j-1,EDGE*idSW+DG+1) + vert_vel (i,j-1,i,j,EDGE*idS+UP+1))) / 6
 
       nullify (velo)
     end function proj_vel_vert
 
-    real(8) function vert_vel (i1, j1, i2, j2, id_e)
+    real(dp) function vert_vel (i1, j1, i2, j2, id_e)
       implicit none
       integer(4) :: i1, j1, i2, j2, id_e
 
-      real(8) :: dl, dz
+      real(dp) :: dl, dz
 
       dz =  z_i (dom, i2, j2, k, offs, dims, sol) - z_i (dom, i1, j1, k, offs, dims, sol)
       dl = dom%len%elts(id_e)

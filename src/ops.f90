@@ -24,12 +24,12 @@ contains
     integer, dimension(0:N_BDRY) :: offs
     integer, dimension(2,N_BDRY) :: dims
 
-    real(8) :: u_prim_UP, u_dual_UP, u_prim_DG, u_prim_DG_S, u_prim_DG_W, u_dual_DG, u_prim_RT, u_dual_RT
-    real(8) :: u_prim_UP_S, u_dual_UP_S, u_prim_DG_SW, u_dual_DG_SW, u_prim_RT_W, u_dual_RT_W
-    real(8) :: circ_LORT, circ_UPLT, circ_S_UPLT, circ_W_LORT, pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
+    real(dp) :: u_prim_UP, u_dual_UP, u_prim_DG, u_prim_DG_S, u_prim_DG_W, u_dual_DG, u_prim_RT, u_dual_RT
+    real(dp) :: u_prim_UP_S, u_dual_UP_S, u_prim_DG_SW, u_dual_DG_SW, u_prim_RT_W, u_dual_RT_W
+    real(dp) :: circ_LORT, circ_UPLT, circ_S_UPLT, circ_W_LORT, pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
 
-    real(8), dimension(0:N_BDRY,scalars(1):scalars(2)) :: rho_dz
-    real(8), dimension(1:EDGE)                         :: physics_flux
+    real(dp), dimension(0:N_BDRY,scalars(1):scalars(2)) :: rho_dz
+    real(dp), dimension(1:EDGE)                         :: physics_flux
 
     logical :: S_bdry, W_bdry
 
@@ -167,10 +167,10 @@ contains
       integer                         :: idE, idN, idNE, idS, idSW, idW
       integer                         :: d, id_i, idE_i, idN_i, idNE_i, idS_i, idW_i, k
       integer, dimension(0:NORTHEAST) :: id_rhodz
-      real(8)                         :: circ_LORT, circ_UPLT, Phi_k, dz, dz0
-      real(8)                         :: u_prim_UP_E, u_prim_RT_N
-      real(8), dimension(0:EDGE)      :: csq, phi
-      real(8), dimension(4)           :: pv_mass
+      real(dp)                        :: circ_LORT, circ_UPLT, Phi_k, dz, dz0
+      real(dp)                        :: u_prim_UP_E, u_prim_RT_N
+      real(dp), dimension(0:EDGE)     :: csq, phi
+      real(dp), dimension(4)          :: pv_mass
 
       d = dom%id + 1
 
@@ -219,7 +219,7 @@ contains
          h_flux(EDGE*id+DG+1) = grav_accel * (scalar(id_i)/phi(0)  - scalar(idNE_i)/phi(2)) / dom%len%elts(EDGE*id+DG+1) 
          h_flux(EDGE*id+UP+1) = grav_accel * (scalar(idN_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*id+UP+1)
       elseif (itype == 4) then ! sum vertical flux
-         h_flux(EDGE*id+RT+1:EDGE*id+UP+1) = 0d0
+         h_flux(EDGE*id+RT+1:EDGE*id+UP+1) = 0.0_dp
          do k = 1, zlevels
             dz0 = q(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
 
@@ -238,9 +238,9 @@ contains
          h_flux(EDGE*id+DG+1) = velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
          h_flux(EDGE*id+UP+1) = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
       elseif (itype == 6) then ! surface pressure gradient flux (for vertical velocity)
-         h_flux(EDGE*id+RT+1) = (scalar(idE_i) - scalar(id_i))   * velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1) / 4d0
-         h_flux(EDGE*id+DG+1) = (scalar(id_i)  - scalar(idNE_i)) * velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1) / 4d0
-         h_flux(EDGE*id+UP+1) = (scalar(idN_i) - scalar(id_i))   * velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1) / 4d0
+         h_flux(EDGE*id+RT+1) = (scalar(idE_i) - scalar(id_i))   * velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1) / 4
+         h_flux(EDGE*id+DG+1) = (scalar(id_i)  - scalar(idNE_i)) * velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1) / 4
+         h_flux(EDGE*id+UP+1) = (scalar(idN_i) - scalar(id_i))   * velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1) / 4
       elseif (itype == 7) then ! mass flux (for vertical velocity)
          dz0 = mass(id+1) + mean_m(id+1)
 
@@ -341,7 +341,7 @@ contains
          ! Kinetic energy (TRiSK formula) 
          ke(id_i) = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT +  &
                      u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-              * dom%areas%elts(id_i)%hex_inv/4d0
+              * dom%areas%elts(id_i)%hex_inv/4
 
          ! Interpolate geopotential from interfaces to level
          Phi_k = interp (dom%geopot%elts(id_i), dom%geopot_lower%elts(id_i))
@@ -371,9 +371,9 @@ contains
       integer                         :: d, idS, idSW, idW
       integer                         :: id_i, idS_i, idSW_i, idW_i, k
       integer, dimension(0:SOUTHWEST) :: id_rhodz
-      real(8)                         :: circ_SW_LORT, circ_SW_UPLT, u_prim_RT_SW, u_prim_UP_SW, dz, dz0
-      real(8), dimension(0:EDGE)      :: csq, phi
-      real(8), dimension(2)           :: pv_mass
+      real(dp)                         :: circ_SW_LORT, circ_SW_UPLT, u_prim_RT_SW, u_prim_UP_SW, dz, dz0
+      real(dp), dimension(0:EDGE)      :: csq, phi
+      real(dp), dimension(2)           :: pv_mass
 
       d = dom%id + 1
 
@@ -420,9 +420,9 @@ contains
          h_flux(EDGE*idSW+DG+1) = - grav_accel * (scalar(id_i)/phi(0)  - scalar(idSW_i)/phi(2)) / dom%len%elts(EDGE*idSW+DG+1) 
          h_flux(EDGE*idS+UP+1)  = - grav_accel * (scalar(idS_i)/phi(3) - scalar(id_i)/phi(0))   / dom%len%elts(EDGE*idS+UP+1)
       elseif (itype == 4) then ! sum vertical flux
-         h_flux(EDGE*idW+RT+1)  = 0d0
-         h_flux(EDGE*idSW+DG+1) = 0d0
-         h_flux(EDGE*idS+UP+1)  = 0d0
+         h_flux(EDGE*idW+RT+1)  = 0.0_dp
+         h_flux(EDGE*idSW+DG+1) = 0.0_dp
+         h_flux(EDGE*idS+UP+1)  = 0.0_dp
          do k = 1, zlevels
             dz0 = q(S_MASS,k)%data(d)%elts(id_i) + sol_mean(S_MASS,k)%data(d)%elts(id_i)
 
@@ -443,9 +443,9 @@ contains
          h_flux(EDGE*idSW+DG+1) = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)
          h_flux(EDGE*idS+UP+1)  = velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)
       elseif (itype == 6) then ! surface pressure gradient flux (for vertical velocity)
-         h_flux(EDGE*idW+RT+1)  = - (scalar(idW_i) - scalar(id_i))   * velo(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)  / 4d0
-         h_flux(EDGE*idSW+DG+1) = - (scalar(id_i)  - scalar(idSW_i)) * velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) / 4d0
-         h_flux(EDGE*idS+UP+1)  = - (scalar(idS_i) - scalar(id_i))   * velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)  / 4d0
+         h_flux(EDGE*idW+RT+1)  = - (scalar(idW_i) - scalar(id_i))   * velo(EDGE*idW+RT+1)  * dom%pedlen%elts(EDGE*idW+RT+1)  / 4
+         h_flux(EDGE*idSW+DG+1) = - (scalar(id_i)  - scalar(idSW_i)) * velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1) / 4
+         h_flux(EDGE*idS+UP+1)  = - (scalar(idS_i) - scalar(id_i))   * velo(EDGE*idS+UP+1)  * dom%pedlen%elts(EDGE*idS+UP+1)  / 4
       elseif (itype == 7) then ! mass flux for vertical velocity
          dz0 = mass(id+1) + mean_m(id+1)
 
@@ -533,12 +533,12 @@ contains
 
     integer                      :: id, idS, idW, idSW, idN, idE, idNE
     integer, dimension(8)        :: id_rhodz
-    real(8)                      :: circ_LORT, circ_UPLT, circ_S_UPLT, circ_SW_LORT, circ_SW_UPLT, circ_W_LORT
-    real(8)                      :: pv, pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
-    real(8)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W
-    real(8)                      :: u_prim_DG_SW, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
-    real(8), dimension(3)        :: pv_mass
-    real(8), dimension(0:N_BDRY) :: rho_dz
+    real(dp)                      :: circ_LORT, circ_UPLT, circ_S_UPLT, circ_SW_LORT, circ_SW_UPLT, circ_W_LORT
+    real(dp)                      :: pv, pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
+    real(dp)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W
+    real(dp)                      :: u_prim_DG_SW, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
+    real(dp), dimension(3)        :: pv_mass
+    real(dp), dimension(0:N_BDRY) :: rho_dz
 
     ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
     ! Note that pedlen(EDGE*idSW+DG+1) = 0 in this case
@@ -750,7 +750,7 @@ contains
     if (dom%mask_n%elts(id_i) >= TRSK) then
        dscalar(id_i) = - div (h_flux, dom, i, j, offs, dims)
     else
-       dscalar(id_i) = 0d0
+       dscalar(id_i) = 0.0_dp
     end if
   end subroutine scalar_trend
 
@@ -765,7 +765,7 @@ contains
 
     integer                    :: id
     integer, dimension(1:EDGE) :: id_e
-    real(8), dimension(1:EDGE) :: Qperp_e, physics
+    real(dp), dimension(1:EDGE) :: Qperp_e, physics
     
     id   =  idx (i, j, offs, dims)
     id_e = id_edge (id)
@@ -780,7 +780,7 @@ contains
        ! Trend
        dvelo(id_e) = - Qperp_e + physics * dom%len%elts(id_e)
     else
-       dvelo(id_e) = 0d0
+       dvelo(id_e) = 0.0_dp
     end if
   end subroutine du_source
 
@@ -794,8 +794,8 @@ contains
 
     integer                         :: id, idE, idN, idNE
     integer, dimension(1:EDGE)      :: id_e
-    real(8), dimension(1:EDGE)      :: gradB, gradE, theta_e
-    real(8), dimension(0:NORTHEAST) :: rho_dz, rho_dz_theta, theta
+    real(dp), dimension(1:EDGE)      :: gradB, gradE, theta_e
+    real(dp), dimension(0:NORTHEAST) :: rho_dz, rho_dz_theta, theta
 
     id   = idx (i, j, offs, dims)
     id_e = id_edge (id)
@@ -827,21 +827,21 @@ contains
        ! Trend
        dvelo(id_e) = dvelo(id_e) / dom%len%elts(id_e) - gradB - theta_e * gradE
     else
-       dvelo(id_e) = 0d0
+       dvelo(id_e) = 0.0_dp
     end if
   end subroutine du_grad
 
   function Qperp (dom, i, j, zlev, offs, dims)
     ! Compute energy-conserving edge integrated Qperp [Aechtner thesis page 44]
     implicit none
-    real(8), dimension(3)          :: Qperp
+    real(dp), dimension(3)          :: Qperp
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer               :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
-    real(8), dimension(5) :: wgt1, wgt2
+    real(dp), dimension(5) :: wgt1, wgt2
 
     id   = idx (i, j, offs, dims)
 
@@ -903,14 +903,14 @@ contains
   function Qperp_Gassmann (dom, i, j, zlev, offs, dims)
     ! Compute energy-conserving edge integrated Qperp using Gassmann (2018) formula
     implicit none
-    real(8), dimension(3)          :: Qperp_Gassmann
+    real(dp), dimension(3)          :: Qperp_Gassmann
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer               :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
-    real(8), dimension(5) :: wgt1, wgt2
+    real(dp), dimension(5) :: wgt1, wgt2
 
     id   = idx (i, j, offs, dims)
 
@@ -1010,13 +1010,13 @@ contains
     integer      :: id, offs
 
     integer               :: i
-    real(8), dimension(5) :: get_weights, wgt
+    real(dp), dimension(5) :: get_weights, wgt
 
     wgt(1) = dom%areas%elts(id+1)%part(1+offs)
     do i = 2, 5
        wgt(i) = wgt(i-1) + dom%areas%elts(id+1)%part(modulo(i+offs-1,6)+1)
     end do
-    wgt = 0.5d0 - wgt*dom%areas%elts(id+1)%hex_inv
+    wgt = 0.5_dp - wgt*dom%areas%elts(id+1)%hex_inv
     get_weights = (/wgt(1), -wgt(2), wgt(3), -wgt(4), wgt(5)/)
   end function get_weights
 
@@ -1031,7 +1031,7 @@ contains
     call apply (set_surf_geopot, z_null)
 
     do d = 1, size(grid)
-       grid(d)%surf_press%elts = 0d0
+       grid(d)%surf_press%elts = 0.0_dp
        do k = 1, zlevels
           mass   =>        q(S_MASS,k)%data(d)%elts
           temp   =>        q(S_TEMP,k)%data(d)%elts
@@ -1057,7 +1057,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: rho_dz, rho_dz_theta
+    real(dp) :: rho_dz, rho_dz_theta
 
     id = idx (i, j, offs, dims) + 1
 
@@ -1104,7 +1104,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: rho_dz, rho_dz_theta, p_upper
+    real(dp) :: rho_dz, rho_dz_theta, p_upper
 
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -1139,7 +1139,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: rho_dz, rho_dz_theta, p_upper
+    real(dp) :: rho_dz, rho_dz_theta, p_upper
 
     id = idx (i, j, offs, dims) + 1
 
@@ -1164,8 +1164,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idS, idW, idSW, idN
-    real(8) :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
+    integer  :: id, idS, idW, idSW, idN
+    real(dp) :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
 
     ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
     ! Note that pedlen(EDGE*idSW+DG+1) = 0 in this case
@@ -1234,8 +1234,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idN
-    real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_UP_E, u_prim_RT_N
+    integer  :: id, idE, idN
+    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_UP_E, u_prim_RT_N
 
     id  = idx (i,   j,   offs, dims)
     idE = idx (i+1, j,   offs, dims)
@@ -1268,10 +1268,10 @@ contains
 
     Laplacian(EDGE*id+RT+1) = - (vort(TRIAG*id+LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
 
-    if (dom%pedlen%elts(EDGE*id+DG+1) /= 0d0) then
+    if (dom%pedlen%elts(EDGE*id+DG+1) /= 0.0_dp) then
        Laplacian(EDGE*id+DG+1) = - (vort(TRIAG*id+LORT+1) - vort(TRIAG*id+UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
     else
-       Laplacian(EDGE*id+DG+1) = 0d0
+       Laplacian(EDGE*id+DG+1) = 0.0_dp
     end if
 
     Laplacian(EDGE*id+UP+1) = - (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id+UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
@@ -1281,12 +1281,12 @@ contains
     ! Gradient of a scalar at nodes x_i
     ! output is at edges
     implicit none
-    real(8), dimension(3)          :: gradi_e
-    real(8), dimension(:), pointer :: scalar
-    type(Domain)                   :: dom
-    integer                        :: i, j
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    real(dp), dimension(3)          :: gradi_e
+    real(dp), dimension(:), pointer :: scalar
+    type(Domain)                    :: dom
+    integer                         :: i, j
+    integer, dimension(N_BDRY+1)    :: offs
+    integer, dimension(2,N_BDRY+1)  :: dims
 
     integer :: id, idE, idN, idNE
 
@@ -1304,12 +1304,12 @@ contains
     ! Curl of vorticity given at triangle circumcentres x_v, rot(rot(u))
     ! output is at edges x_e
     implicit none
-    real(8), dimension(:), pointer :: curl
-    real(8), dimension(3)          :: curlv_e
-    type(Domain)                   :: dom
-    integer                        :: i, j
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    real(dp), dimension(:), pointer :: curl
+    real(dp), dimension(3)          :: curlv_e
+    type(Domain)                    :: dom
+    integer                         :: i, j
+    integer, dimension(N_BDRY+1)    :: offs
+    integer, dimension(2,N_BDRY+1)  :: dims
 
     integer :: id, idS, idW
 
@@ -1322,14 +1322,14 @@ contains
     curlv_e(UP+1) = (curl(TRIAG*idW+LORT+1) - curl(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
   end function curlv_e
 
-  real(8) function div (hflux, dom, i, j, offs, dims)
+  real(dp) function div (hflux, dom, i, j, offs, dims)
     ! Divergence at nodes x_i given horizontal fluxes at edges x_e
     implicit none
-    real(8), dimension(:), pointer  :: hflux
-    type(Domain)                    :: dom
-    integer                         :: i, j
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+    real(dp), dimension(:), pointer  :: hflux
+    type(Domain)                     :: dom
+    integer                          :: i, j
+    integer, dimension (N_BDRY+1)    :: offs
+    integer, dimension (2,N_BDRY+1)  :: dims
 
     integer :: id, idW, idS, idSW
 
@@ -1365,8 +1365,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id
-    real(8) :: rho_dz_theta, exner
+    integer  :: d, id
+    real(dp) :: rho_dz_theta, exner
 
     id = idx (i, j, offs, dims) + 1
 
@@ -1377,7 +1377,7 @@ contains
 
        scalar(id) = dom%press%elts(id) / (kappa * rho_dz_theta * exner) 
     else ! gravitational density (Boussinesq approximation)
-       scalar(id) = ref_density * (1d0 - (mean_t(id) + temp(id)) / (mean_m(id) + mass(id)))
+       scalar(id) = ref_density * (1.0_dp - (mean_t(id) + temp(id)) / (mean_m(id) + mass(id)))
     end if
   end subroutine cal_density
 

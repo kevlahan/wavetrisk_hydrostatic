@@ -14,16 +14,18 @@ module time_integr_mod
   
   abstract interface
      subroutine dt_integrator (q, wav, routine, h)
+       use kind_mod
        use domain_mod
        implicit none
-       real(8)                                              :: h      
+       real(dp)                                             :: h      
        type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
        procedure (trend_sub)                                :: routine
      end subroutine dt_integrator
 
      subroutine dt_integrator_split (h)
+       use kind_mod
        implicit none
-       real(8) :: h 
+       real(dp) :: h 
      end subroutine dt_integrator_split
   end interface
   
@@ -34,7 +36,7 @@ contains
     ! Euler time step
     ! Stable for CFL<1, first order
     implicit none
-    real(8)                                              :: h
+    real(dp)                                             :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
     procedure (trend_sub)                                :: routine
 
@@ -48,18 +50,18 @@ contains
     ! Stable for hyperbolic equations for CFL<2
     ! Does not require extra solution variables.
     implicit none
-    real(8)                                              :: h
+    real(dp)                                             :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
     procedure (trend_sub)                                :: routine
 
     call manage_q1_mem
 
     call routine (q, trend) 
-    call RK_sub_step (q, trend, h/3d0, q1)
+    call RK_sub_step (q, trend, h/3, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
-    call RK_sub_step (q, trend, h/2d0, q1)
+    call RK_sub_step (q, trend, h/2, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
@@ -72,22 +74,22 @@ contains
     ! Fourth order accurate for linear equations, stable for CFL <= 2*sqrt(2) ~ 2.83.
     ! Does not require extra solution variables.
     implicit none
-    real(8)                                              :: h
+    real(dp)                                             :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
     procedure (trend_sub)                                :: routine
 
     call manage_q1_mem
 
     call routine (q, trend) 
-    call RK_sub_step (q, trend, h/4d0, q1)
+    call RK_sub_step (q, trend, h/4, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
-    call RK_sub_step (q, trend, h/3d0, q1)
+    call RK_sub_step (q, trend, h/3, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
-    call RK_sub_step (q, trend, h/2d0, q1)
+    call RK_sub_step (q, trend, h/2, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
@@ -100,7 +102,7 @@ contains
     ! Stable for hyperbolic equations for CFL<2
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     implicit none
-    real(8)                                              :: h
+    real(dp)                                              :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
     procedure (trend_sub)                                :: routine
 
@@ -111,11 +113,11 @@ contains
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
-    call RK_sub_step2 (q, q1, trend, (/ 0.75d0, 0.25d0 /), h/4d0, q2)
+    call RK_sub_step2 (q, q1, trend, (/ 0.75_dp, 0.25_dp /), h/4, q2)
     call WT_after_step (q2, wav)
 
     call routine (q2, trend)
-    call RK_sub_step2 (q, q2, trend, (/ 1d0/3d0, 2d0/3d0 /), h*2d0/3d0, q)
+    call RK_sub_step2 (q, q2, trend, (/ 1.0_dp/3, 2.0_dp/3 /), h * 2.0_dp/3, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK33_opt
 
@@ -124,26 +126,26 @@ contains
     ! Stable for hyperbolic equations for CFL<2
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     implicit none
-    real(8)                                              :: h
+    real(dp)                                             :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
     procedure (trend_sub)                                :: routine
 
     call manage_RK_mem
 
     call routine (q, trend) 
-    call RK_sub_step (q, trend, h/2d0, q1)
+    call RK_sub_step (q, trend, h/2, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
-    call RK_sub_step (q1, trend, h/2d0, q2)
+    call RK_sub_step (q1, trend, h/2, q2)
     call WT_after_step (q2, wav)
 
     call routine (q2, trend)
-    call RK_sub_step2 (q, q2, trend, (/ 2d0/3d0, 1d0/3d0 /), h/6d0, q3)
+    call RK_sub_step2 (q, q2, trend, (/ 2.0_dp/3, 1.0_dp/3 /), h/6, q3)
     call WT_after_step (q3, wav)
 
     call routine (q3, trend) 
-    call RK_sub_step (q3, trend, h/2d0, q)
+    call RK_sub_step (q3, trend, h/2, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK34_opt
 
@@ -151,19 +153,19 @@ contains
     ! Optimal fourth order, five stage strong stability preserving Runge-Kutta method stable with optimal maximum CFL coefficient of 1.51
     ! See A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011, Spiteri and Ruuth 2002
     implicit none
-    real(8)                                              :: h
+    real(dp)                                             :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
     procedure (trend_sub)                                :: routine
 
-    real(8), dimension(5,5) :: alpha, beta
+    real(dp), dimension(5,5) :: alpha, beta
 
-    alpha = reshape ((/1.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.444370494067_8, 0.555629505933_8, 0.0_8, 0.0_8, 0.0_8,  &
-         0.620101851385_8, 0.0_8, 0.379898148615_8, 0.0_8, 0.0_8, 0.178079954108_8, 0.0_8, 0.0_8, 0.821920045892_8, 0.0_8,  &
-         0.006833258840_8, 0.0_8, 0.517231672090_8, 0.127598311333_8, 0.348336757737_8/), (/5, 5/))
+    alpha = reshape ((/ 1.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.444370494067_dp, 0.555629505933_dp, 0.0_dp, 0.0_dp, 0.0_dp,  &
+         0.620101851385_dp, 0.0_dp, 0.379898148615_dp, 0.0_dp, 0.0_dp, 0.178079954108_dp, 0.0_dp, 0.0_dp, 0.821920045892_dp,  &
+         0.0_dp, 0.006833258840_dp, 0.0_dp, 0.517231672090_dp, 0.127598311333_dp, 0.348336757737_dp /), (/5, 5/))
 
-    beta = reshape ((/0.391752227004_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.36841059263_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, &
-         0.251891774247_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.544974750212_8, 0.0_8, 0.0_8, 0.0_8, 0.0_8, 0.0846041633821_8, &
-         0.226007483194_8/), (/5, 5/))
+    beta = reshape ((/0.391752227004_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.36841059263_dp, 0.0_dp, 0.0_dp, 0.0_dp,   &
+         0.0_dp, 0.0_dp, 0.251891774247_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.544974750212_dp, 0.0_dp, 0.0_dp, 0.0_dp,  &
+          0.0_dp, 0.0846041633821_dp, 0.226007483194_dp /), (/5, 5/))
 
     call manage_RK_mem
 
@@ -201,7 +203,7 @@ contains
 
   subroutine RK_sub_step (sols, trends, h, dest)
     implicit none
-    real(8)                                                             :: h
+    real(dp)                                                            :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sols
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trends
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
@@ -222,7 +224,7 @@ contains
 
   subroutine RK_sub_step1 (sols, trends, alpha, h, dest)
     implicit none
-    real(8)                                                             :: alpha, h
+    real(dp)                                                            :: alpha, h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sols
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trends
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
@@ -244,8 +246,8 @@ contains
 
   subroutine RK_sub_step2 (sol1, sol2, trends, alpha, h, dest)
     implicit none
-    real(8)                                                              :: h
-    real(8), dimension(2)                                                :: alpha
+    real(dp)                                                            :: h
+    real(dp),          dimension(2)                                     :: alpha
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sol1, sol2
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trends
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
@@ -268,8 +270,8 @@ contains
 
   subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, h, dest)
     implicit none
-    real(8), dimension(2)                                               :: h
-    real(8), dimension(4)                                               :: alpha
+    real(dp),          dimension(2)                                     :: h
+    real(dp),          dimension(4)                                     :: alpha
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: sol1, sol2, sol3, sol4
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels)                :: trend1, trend2
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
@@ -361,19 +363,19 @@ contains
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
     implicit none
-    real(8)  :: h
+    real(dp)  :: h
     
     call manage_q1_mem
 
     call update_bdry (sol(:,1:zlevels+1), NONE, 968)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
-    if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+    if (theta2 /= 1.0_dp) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
-    call RK_split (h/4d0, sol, q1)
-    call RK_split (h/3d0, q1,  q1)
-    call RK_split (h/2d0, q1,  q1)
-    call RK_split (h,     q1, sol)
+    call RK_split (h/4, sol, q1)
+    call RK_split (h/3, q1,  q1)
+    call RK_split (h/2, q1,  q1)
+    call RK_split (h,   q1, sol)
     call free_surface_update 
   end subroutine RK4_split
   
@@ -385,18 +387,18 @@ contains
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
     implicit none
-    real(8)  :: h
+    real(dp)  :: h
     
     call manage_q1_mem
 
     call update_bdry (sol(:,1:zlevels+1), NONE, 969)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
-    if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+    if (theta2 /= 1.0_dp) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
-    call RK_split (h/3d0, sol,  q1)
-    call RK_split (h/2d0,  q1,  q1)
-    call RK_split (h,      q1, sol)
+    call RK_split (h/3, sol,q1)
+    call RK_split (h/2, q1, q1)
+    call RK_split (h,   q1, sol)
     call free_surface_update 
   end subroutine RK3_split
 
@@ -408,17 +410,17 @@ contains
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
     implicit none
-    real(8)  :: h
+    real(dp)  :: h
     
     call manage_q1_mem
 
     call update_bdry (sol(:,1:zlevels+1), NONE, 970)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
-    if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+    if (theta2 /= 1.0_dp) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
-    call RK_split (h/2d0, sol, q1)
-    call RK_split (h,     q1, sol)
+    call RK_split (h/2, sol, q1)
+    call RK_split (h,   q1, sol)
     call free_surface_update 
   end subroutine RK2_split
 
@@ -426,12 +428,12 @@ contains
     ! Euler time step for barotropic mode splitting
     ! Stable for CFL<1, first order
     implicit none        
-    real(8) :: h
+    real(dp) :: h
 
     call update_bdry (sol(:,1:zlevels+1), NONE, 971)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
-    if (theta2 /= 1d0) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+    if (theta2 /= 1.0_dp) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
     call RK_split (h, sol, sol)
     call free_surface_update
@@ -440,7 +442,7 @@ contains
   subroutine RK_split (h, sol1, sol2)
     ! Explicit Euler integration of velocity and scalars used in RK4_split
     implicit none
-    real(8)                                                :: h
+    real(dp)                                               :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels+1) :: sol1
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels+1) :: sol2
 

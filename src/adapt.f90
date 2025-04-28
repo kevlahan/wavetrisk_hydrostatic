@@ -170,7 +170,7 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
     
-    if (dom%mask_n%elts(id_i) < ADJZONE) wc_s(id_i) = 0d0
+    if (dom%mask_n%elts(id_i) < ADJZONE) wc_s(id_i) = 0.0_dp
   end subroutine compress_scalar
 
   subroutine compress_vector (dom, i, j, zlev, offs, dims)
@@ -185,7 +185,7 @@ contains
     id = idx (i, j, offs, dims)
     
     do e = 1, EDGE
-       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0d0
+       if (dom%mask_e%elts(EDGE*id+e) < ADJZONE) wc_u(EDGE*id+e) = 0.0_dp
     end do
   end subroutine compress_vector
 

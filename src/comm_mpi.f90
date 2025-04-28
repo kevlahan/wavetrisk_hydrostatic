@@ -2,13 +2,13 @@ module comm_mpi_mod
   use domain_ops_mod
   use comm_mod
   implicit none
-  integer                            :: nreq
-  type(Int_Array)                    :: recv_buf_i, send_buf_i
-  type(Float_Array)                  :: recv_buf, send_buf
-  integer, dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
-  real(8), dimension(2)              :: times
+  integer                             :: nreq
+  type(Int_Array)                     :: recv_buf_i, send_buf_i
+  type(Float_Array)                   :: recv_buf, send_buf
+  integer,  dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
+  real(dp), dimension(2)              :: times
 
-  logical, parameter                 :: deadlock = .false. ! test for communication deadlocks
+  logical, parameter                  :: deadlock = .false. ! test for communication deadlocks
   
   interface sum_real
      procedure :: sum_real_0, sum_real_1
@@ -125,7 +125,7 @@ contains
     ! Finds load balance between processors
     implicit none
     integer :: min_load, max_load
-    real(8) :: avg_load, rel_imbalance
+    real(dp) :: avg_load, rel_imbalance
 
     call get_load_balance (min_load, avg_load, max_load)
     rel_imbalance = dble(max_load)/avg_load
@@ -135,7 +135,7 @@ contains
     use mpi
     implicit none
     integer :: mini, maxi
-    real(8) :: avg
+    real(dp) :: avg
 
     integer :: d, load, load_sum
 
@@ -231,7 +231,7 @@ contains
        end do
     end do
   contains
-    subroutine handle_neigh(dom, d0)
+    subroutine handle_neigh (dom, d0)
       implicit none
       type(Domain) :: dom
       integer      :: d0
@@ -426,8 +426,8 @@ contains
     integer :: flag
 
     logical            :: got_data
-    real(8)            :: t_start
-    real(8), parameter :: timeout_time = 1d2
+    real(dp)            :: t_start
+    real(dp), parameter :: timeout_time = 1e2_dp
 
     t_start = MPI_Wtime () 
     call MPI_Test (req, got_data, MPI_STATUS_IGNORE, ierror)
@@ -648,7 +648,7 @@ contains
     if (size(recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
-       recv_buf%elts = 0d0
+       recv_buf%elts = 0.0_dp
     end if
 
     ! Post all receives first so buffer is available
@@ -744,7 +744,7 @@ contains
     if (size(recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
-       recv_buf%elts = 0d0
+       recv_buf%elts = 0.0_dp
     end if
 
     ! Post all receives first so buffer is available
@@ -846,7 +846,7 @@ contains
     if (size(recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
-       recv_buf%elts = 0d0
+       recv_buf%elts = 0.0_dp
     end if
 
     ! Post all receives first so buffer is available
@@ -1057,7 +1057,7 @@ contains
     external :: get, set
     integer :: l
     
-    real(8), dimension(7) :: val
+    real(dp), dimension(7) :: val
     integer               :: r_dest, r_src, d_src, d_dest, dest, id, i, k
 
     send_buf%length = 0 ! reset
@@ -1071,7 +1071,7 @@ contains
              do i = 1, grid(d_src)%pack(AT_NODE,dest)%length
                 id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
                 k = send_buf%length
-                call extend (send_buf, 7, 0d0)
+                call extend (send_buf, 7, 0.0_dp)
                 call get (grid(d_src), id, val)
                 send_buf%elts(k+1:k+7) = val
              end do
@@ -1098,7 +1098,7 @@ contains
     if (size(recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
-       recv_buf%elts = 0d0
+       recv_buf%elts = 0.0_dp
     end if
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
@@ -1143,7 +1143,7 @@ contains
                 id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
                 c = get(grid(d_src), id)
                 k = send_buf%length
-                call extend (send_buf, 3, 0d0)
+                call extend (send_buf, 3, 0.0_dp)
                 send_buf%elts(k+1:k+3) = (/c%x, c%y, c%z/)
              end do
           end do
@@ -1169,7 +1169,7 @@ contains
     if (size(recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
-       recv_buf%elts = 0d0
+       recv_buf%elts = 0.0_dp
     end if
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
@@ -1294,12 +1294,12 @@ contains
     sync_min_int = val_glo
   end function sync_min_int
 
-  real(8) function sync_max_real_0 (val)
+  real(dp) function sync_max_real_0 (val)
     use mpi
     implicit none
-    real(8) :: val
+    real(dp) :: val
 
-    real(8) :: val_glo
+    real(dp) :: val_glo
     
     call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
     sync_max_real_0 = val_glo
@@ -1308,11 +1308,11 @@ contains
   function sync_max_real_1 (val)
     use mpi
     implicit none
-    real(8), dimension(:), allocatable :: sync_max_real_1
-    real(8), dimension(:)              :: val
+    real(dp), dimension(:), allocatable :: sync_max_real_1
+    real(dp), dimension(:)              :: val
 
     integer                            :: n
-    real(8), dimension(:), allocatable :: val_glo
+    real(dp), dimension(:), allocatable :: val_glo
 
     n = size (val,1)
     allocate (sync_max_real_1(n), val_glo(n))
@@ -1321,12 +1321,12 @@ contains
     sync_max_real_1 = val_glo
   end function sync_max_real_1
 
-  real(8) function sync_min_real_0 (val)
+  real(dp) function sync_min_real_0 (val)
     use mpi
     implicit none
-    real(8) :: val
+    real(dp) :: val
 
-    real(8) :: val_glo
+    real(dp) :: val_glo
     
     call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
     sync_min_real_0 = val_glo
@@ -1335,11 +1335,11 @@ contains
   function sync_min_real_1 (val)
     use mpi
     implicit none
-    real(8), dimension(:), allocatable :: sync_min_real_1
-    real(8), dimension(:)              :: val
+    real(dp), dimension(:), allocatable :: sync_min_real_1
+    real(dp), dimension(:)              :: val
 
     integer                            :: n
-    real(8), dimension(:), allocatable :: val_glo
+    real(dp), dimension(:), allocatable :: val_glo
 
     n = size (val,1)
     allocate (sync_min_real_1(n), val_glo(n))
@@ -1348,12 +1348,12 @@ contains
     sync_min_real_1 = val_glo
   end function sync_min_real_1
 
-  real(8) function sum_real_0 (val)
+  real(dp) function sum_real_0 (val)
     use mpi
     implicit none
-    real(8) :: val
+    real(dp) :: val
 
-    real(8) :: val_glo
+    real(dp) :: val_glo
     
     call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierror)
     sum_real_0 = val_glo
@@ -1362,11 +1362,11 @@ contains
   function sum_real_1 (val)
     use mpi
     implicit none
-    real(8), dimension(:), allocatable :: sum_real_1
-    real(8), dimension(:)              :: val
+    real(dp), dimension(:), allocatable :: sum_real_1
+    real(dp), dimension(:)              :: val
 
     integer                            :: n
-    real(8), dimension(:), allocatable :: val_glo
+    real(dp), dimension(:), allocatable :: val_glo
 
     n = size (val,1)
     allocate (sum_real_1(n), val_glo(n))
@@ -1411,7 +1411,7 @@ contains
     times(2) = MPI_Wtime()  
   end subroutine stop_timing
 
-  real(8) function get_timing()
+  real(dp) function get_timing()
     use mpi
     implicit none
     get_timing = times(2) - times(1)
@@ -1423,11 +1423,11 @@ contains
     ! (see project_field_onto_plane for example of use)
     use mpi
     implicit none
-    real(8), dimension(N) :: arr
+    real(dp), dimension(N) :: arr
     integer               :: N
     
     integer               :: myop
-    real(8), dimension(N) :: garr
+    real(dp), dimension(N) :: garr
 
     call MPI_Op_create (sync, .true., myop, ierror)  
     call MPI_Reduce (arr, garr, N, MPI_DOUBLE_PRECISION, myop, 0, MPI_COMM_WORLD, ierror)
@@ -1438,7 +1438,7 @@ contains
   subroutine sync (in, inout, len, type)
     use mpi
     implicit none
-    real(8), dimension(len) :: in, inout
+    real(dp), dimension(len) :: in, inout
     integer                 :: len, type
     
     where (in /= sync_val) inout = in
@@ -1491,8 +1491,8 @@ contains
     implicit none
     integer                            :: n_loc
     integer, dimension(n_process)      :: n_glo
-    real(8), dimension(n_loc)          :: vec_loc
-    real(8), dimension(:), allocatable :: vec_glo
+    real(dp), dimension(n_loc)          :: vec_loc
+    real(dp), dimension(:), allocatable :: vec_glo
 
     integer, dimension(n_process) :: displs
 

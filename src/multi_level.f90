@@ -426,8 +426,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer               :: id_par
-    real(8), dimension(4) :: sm_flux
+    integer                :: id_par
+    real(dp), dimension(4) :: sm_flux
 
     if (i_chd >= PATCH_SIZE .or. j_chd >= PATCH_SIZE) return
 
@@ -448,14 +448,14 @@ contains
 
   function interp_flux (dom, i, j, offs, dims)
     implicit none
-    real(8), dimension(4)          :: interp_flux
+    real(dp), dimension(4)         :: interp_flux
     type(Domain)                   :: dom
     integer                        :: i, j
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer, dimension(20) :: id
-    real(8)                :: wgt
+    real(dp)               :: wgt
     
     call get_indices (dom, i+1, j, RT, offs, dims, id)
 
@@ -478,16 +478,16 @@ contains
          dom%R_F_wgt%elts(idx(i-2, j+1, offs, dims)+1)%enc) ! LORT W
   end function interp_flux
 
-  real(8) function complete_coarse_flux (sm_flux, dom, i_par, j_par, i_chd, j_chd, e, offs_chd, dims_chd)
+  real(dp) function complete_coarse_flux (sm_flux, dom, i_par, j_par, i_chd, j_chd, e, offs_chd, dims_chd)
     implicit none
-    real(8), dimension(4)          :: sm_flux
+    real(dp), dimension(4)          :: sm_flux
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd
     integer, dimension(N_BDRY+1)   :: offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_chd
     
-    integer :: e
-    real(8) :: p_flux, c_flux
+    integer  :: e
+    real(dp) :: p_flux, c_flux
 
     if (e == RT) then
        p_flux = part_coarse_flux (dom, i_chd+1, j_chd, RT, offs_chd, dims_chd)
@@ -504,7 +504,7 @@ contains
     end if
   end function complete_coarse_flux
 
-  real(8) function part_coarse_flux (dom, i, j, e, offs, dims)
+  real(dp) function part_coarse_flux (dom, i, j, e, offs, dims)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, e
@@ -512,8 +512,8 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer, dimension(20) :: id
-    real(8), dimension(2)  :: area
-    real(8), dimension(4)  :: ol_area
+    real(dp), dimension(2) :: area
+    real(dp), dimension(4) :: ol_area
 
     call get_indices (dom, i, j, e, offs, dims, id)
 
@@ -537,7 +537,7 @@ contains
          - ol_area(1) * dscalar(id(PP+1)+1) + ol_area(2) * dscalar(id(MM+1)+1)
   end function part_coarse_flux
 
-  real(8) function coarse_flux (dom, i_par, j_par, i_chd, j_chd, offs_chd, dims_chd, e)
+  real(dp) function coarse_flux (dom, i_par, j_par, i_chd, j_chd, offs_chd, dims_chd, e)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i_par, j_par, i_chd, j_chd, e
@@ -567,13 +567,13 @@ contains
          + dom%overl_areas%elts(id_mm+1)%a(2)*dom%overl_areas%elts(id_mm+1)%a(4)*dom%areas%elts(id_mm+1)%hex_inv) &
          * (dscalar(id_pz+1) - dscalar(id_mz+1)) + &
          dom%overl_areas%elts(id_pp+1)%a(3)*dom%overl_areas%elts(id_pp+1)%a(4)*dom%areas%elts(id_pp+1)%hex_inv &
-         * 0.5d0 * (dscalar(id_pp2+1) - dscalar(id_mz+1)) + &
+         * 0.5_dp * (dscalar(id_pp2+1) - dscalar(id_mz+1)) + &
          dom%overl_areas%elts(id_pm+1)%a(3)*dom%overl_areas%elts(id_pm+1)%a(4)*dom%areas%elts(id_pm+1)%hex_inv &
-         * 0.5d0 * (dscalar(id_pm2+1) - dscalar(id_mz+1)) + &
+         * 0.5_dp * (dscalar(id_pm2+1) - dscalar(id_mz+1)) + &
          dom%overl_areas%elts(id_mp+1)%a(3)*dom%overl_areas%elts(id_mp+1)%a(4)*dom%areas%elts(id_mp+1)%hex_inv &
-         * 0.5d0 * (dscalar(id_pz+1) - dscalar(id_mp2+1)) + &
+         * 0.5_dp * (dscalar(id_pz+1) - dscalar(id_mp2+1)) + &
          dom%overl_areas%elts(id_mm+1)%a(3)*dom%overl_areas%elts(id_mm+1)%a(4)*dom%areas%elts(id_mm+1)%hex_inv &
-         * 0.5d0 * (dscalar(id_pz+1) - dscalar(id_mm2+1))
+         * 0.5_dp * (dscalar(id_pz+1) - dscalar(id_mm2+1))
   end function coarse_flux
 
   subroutine cal_divu_ml (q)

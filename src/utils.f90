@@ -5,12 +5,12 @@ module utils_mod
   use comm_mpi_mod
   use init_mod
   implicit none
-  real(8)                                 :: integral, rx0_max_loc, rx1_max_loc
-  real(8), dimension(:), pointer          :: val1, val2
+  real(dp)                                :: integral, rx0_max_loc, rx1_max_loc
+  real(dp), dimension(:), pointer         :: val1, val2
   type(Float_Field)                       :: active_level
   type(Float_Field), dimension(LORT:UPLT) :: save_tri   
   abstract interface
-     real(8) function routine_hex (dom, i, j, zlev, offs, dims)
+     real(dp) function routine_hex (dom, i, j, zlev, offs, dims)
        use domain_mod
        implicit none
        type (Domain)                  :: dom
@@ -18,7 +18,7 @@ module utils_mod
        integer, dimension(N_BDRY+1)   :: offs
        integer, dimension(2,N_BDRY+1) :: dims
      end function routine_hex
-     real(8) function routine_tri (dom, i, j, t, zlev, offs, dims)
+     real(dp) function routine_tri (dom, i, j, t, zlev, offs, dims)
        use domain_mod
        implicit none
        type (Domain)                  :: dom
@@ -33,7 +33,7 @@ module utils_mod
      procedure :: zero_float_0, zero_float_1, zero_float_2
   end interface zero_float
 contains
-  real(8) function z_i (dom, i, j, zlev, offs, dims, q)
+  real(dp) function z_i (dom, i, j, zlev, offs, dims, q)
     ! Position of vertical level zlev at nodes
     ! *** compressible case requires dom%surf_press ***
     implicit none
@@ -44,8 +44,8 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer                    :: d, id, l
-    real(8)                    :: dz, exner, rho_dz, rho_dz_theta, p
-    real(8), dimension(0:zlev) :: z
+    real(dp)                    :: dz, exner, rho_dz, rho_dz_theta, p
+    real(dp), dimension(0:zlev) :: z
 
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -70,7 +70,7 @@ contains
     z_i = interp (z(zlev-1), z(zlev))
   end function z_i
 
-  real(8) function zl_i (dom, i, j, zlev, offs, dims, q, pos)
+  real(dp) function zl_i (dom, i, j, zlev, offs, dims, q, pos)
     ! Position of interface below (l=-1) or above (l=1) vertical level zlev nodes
     ! *** compressible case requires dom%surf_press ***
     implicit none
@@ -82,7 +82,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id, l, lmax
-    real(8) :: dz, exner, rho_dz, rho_dz_theta, p
+    real(dp) :: dz, exner, rho_dz, rho_dz_theta, p
 
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -120,19 +120,19 @@ contains
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
-    real(8), dimension(1:EDGE)                :: zl_e
+    real(dp), dimension(1:EDGE)               :: zl_e
 
-    real(8), dimension(0:EDGE) :: z
+    real(dp), dimension(0:EDGE) :: z
 
     z(0)    = zl_i (dom, i,   j,   zlev, offs, dims, q, pos)
     z(RT+1) = zl_i (dom, i+1, j,   zlev, offs, dims, q, pos)
     z(DG+1) = zl_i (dom, i+1, j+1, zlev, offs, dims, q, pos)
     z(UP+1) = zl_i (dom, i,   j+1, zlev, offs, dims, q, pos)
 
-    zl_e = 0.5d0 * (z(0) + z(1:EDGE))
+    zl_e = 0.5 * (z(0) + z(1:EDGE))
   end function zl_e
 
-  real(8) function dz_i (dom, i, j, zlev, offs, dims, q)
+  real(dp) function dz_i (dom, i, j, zlev, offs, dims, q)
     ! Thickness of layer zlev at nodes
     implicit none
     type(Domain)                              :: dom
@@ -142,7 +142,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer :: d, id
-    real(8) :: exner, rho_dz, rho_dz_theta, p
+    real(dp) :: exner, rho_dz, rho_dz_theta, p
 
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -168,17 +168,17 @@ contains
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
-    real(8), dimension(1:EDGE)                :: dz_e
+    real(dp), dimension(1:EDGE)               :: dz_e
 
-    integer                    :: id
-    real(8), dimension(0:EDGE) :: dz
+    integer                     :: id
+    real(dp), dimension(0:EDGE) :: dz
 
     dz(0)    = dz_i (dom, i,   j,   zlev, offs, dims, q)
     dz(RT+1) = dz_i (dom, i+1, j,   zlev, offs, dims, q)
     dz(DG+1) = dz_i (dom, i+1, j+1, zlev, offs, dims, q)
     dz(UP+1) = dz_i (dom, i  , j+1, zlev, offs, dims, q)
 
-    dz_e = 0.5d0 * (dz(0) + dz(1:EDGE))
+    dz_e = 0.5 * (dz(0) + dz(1:EDGE))
   end function dz_e
 
   function dz_SW_e (dom, i, j, zlev, offs, dims, q)
@@ -189,10 +189,10 @@ contains
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
-    real(8), dimension(1:EDGE)                :: dz_SW_e
+    real(dp), dimension(1:EDGE)               :: dz_SW_e
 
-    integer                    :: d, id, idW, idSW, idS
-    real(8), dimension(0:EDGE) :: dz
+    integer                     :: d, id, idW, idSW, idS
+    real(dp), dimension(0:EDGE) :: dz
 
     d = dom%id + 1
 
@@ -206,10 +206,10 @@ contains
     dz(DG+1) = dz_i (dom, i-1, j-1, zlev, offs, dims, q)
     dz(UP+1) = dz_i (dom, i  , j-1, zlev, offs, dims, q)
 
-    dz_SW_e = 0.5d0 * (dz(0) + dz(1:EDGE))
+    dz_SW_e = 0.5 * (dz(0) + dz(1:EDGE))
   end function dz_SW_e
 
-  real(8) function dz_l (dom, i, j, zlev, offs, dims, q)
+  real(dp) function dz_l (dom, i, j, zlev, offs, dims, q)
     ! Thickness of layer associated with interface between layers zlev and zlev+1: z_(zlev+1) - z(zlev)
     implicit none
     type(Domain)                              :: dom
@@ -218,12 +218,12 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    real(8) :: dz, dz_above
+    real(dp) :: dz, dz_above
 
     dz        = dz_i (dom, i, j, zlev,   offs, dims, q)
     dz_above  = dz_i (dom, i, j, zlev+1, offs, dims, q)
 
-    dz_l = 0.5d0 * (dz + dz_above)
+    dz_l = 0.5 * (dz + dz_above)
   end function dz_l
 
   function eta_e (dom, i, j, zlev, offs, dims, q)
@@ -234,10 +234,10 @@ contains
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
-    real(8), dimension(1:EDGE)                :: eta_e
+    real(dp), dimension(1:EDGE)               :: eta_e
 
-    integer :: d, id, idE, idN, idNE
-    real(8) :: eta0
+    integer  :: d, id, idE, idN, idNE
+    real(dp) :: eta0
 
     d = dom%id + 1
     id   = idx (i,   j,   offs, dims)
@@ -257,7 +257,7 @@ contains
     end if
   end function eta_e
 
-  real(8) function porous_density (d, id_i, zlev)
+  real(dp) function porous_density (d, id_i, zlev)
     ! Porous density at nodes for incompressible case
     implicit none
     integer :: d, id_i, zlev
@@ -268,33 +268,33 @@ contains
   function porous_density_edge (d, id, zlev)
     ! Porous density at edges
     implicit none
-    integer                    :: d, id, zlev
-    real(8), dimension(1:EDGE) :: porous_density_edge
+    integer                     :: d, id, zlev
+    real(dp), dimension(1:EDGE) :: porous_density_edge
 
     porous_density_edge = ref_density * phi_edge (d, id, zlev)
   end function porous_density_edge
 
-  real(8) function phi_node (d, id_i, zlev)
+  real(dp) function phi_node (d, id_i, zlev)
     ! Returns porosity at node given by (d, id_i, zlev)
     implicit none
     integer :: d, id_i, zlev
 
-    phi_node = 1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i)
+    phi_node = 1.0_dp + (alpha - 1.0_dp) * penal_node(zlev)%data(d)%elts(id_i)
   end function phi_node
 
   function phi_edge (d, id, zlev)
     ! Returns porosity at edges associated to node given by (d, id_i, zlev)
     implicit none
-    integer                    :: d, e, id, id_e, zlev
-    real(8), dimension(1:EDGE) :: phi_edge
+    integer                     :: d, e, id, id_e, zlev
+    real(dp), dimension(1:EDGE) :: phi_edge
 
     do e = 1, EDGE
        id_e = EDGE*id+e
-       phi_edge(e) = 1d0 + (alpha - 1d0) * penal_edge(zlev)%data(d)%elts(id_e)
+       phi_edge(e) = 1.0_dp + (alpha - 1.0_dp) * penal_edge(zlev)%data(d)%elts(id_e)
     end do
   end function phi_edge
 
-  real(8) function potential_density (dom, i, j, zlev, offs, dims, q)
+  real(dp) function potential_density (dom, i, j, zlev, offs, dims, q)
     ! Potential density at nodes (neglect free surface perturbation)
     implicit none
     type(Domain)                              :: dom
@@ -303,8 +303,8 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, id_i
-    real(8) :: z
+    integer  :: d, id_i
+    real(dp) :: z
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
@@ -314,7 +314,7 @@ contains
     potential_density = density_i (dom, i, j, zlev, offs, dims, q) - ref_density * z / H_rho
   end function potential_density
 
-  real(8) function potential_buoyancy (dom, i, j, zlev, offs, dims, q)
+  real(dp) function potential_buoyancy (dom, i, j, zlev, offs, dims, q)
     ! Potential buoyancy at nodes (neglect free surface perturbation)
     implicit none
     type(Domain)                              :: dom
@@ -323,8 +323,8 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, id_i
-    real(8) :: z
+    integer  :: d, id_i
+    real(dp) :: z
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
@@ -334,7 +334,7 @@ contains
     potential_buoyancy = buoyancy (dom, i, j, zlev, offs, dims, q) + z / H_rho
   end function potential_buoyancy
 
-  real(8) function buoyancy (dom, i, j, zlev, offs, dims, q)
+  real(dp) function buoyancy (dom, i, j, zlev, offs, dims, q)
     ! at nodes
     implicit none
     type(Domain)                              :: dom
@@ -343,8 +343,8 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, id_i
-    real(8) :: rho_dz, rho_dz_theta
+    integer  :: d, id_i
+    real(dp) :: rho_dz, rho_dz_theta
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
@@ -363,8 +363,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id_i
-    real(8) :: rho_dz, rho_dz_theta
+    integer  :: id_i
+    real(dp) :: rho_dz, rho_dz_theta
 
     id_i = idx (i, j, offs, dims) + 1
 
@@ -374,7 +374,7 @@ contains
     scalar(id_i) = rho_dz_theta / rho_dz
   end subroutine cal_buoyancy
 
-  real(8) function rho_dz_i (dom, i, j, zlev, offs, dims)
+  real(dp) function rho_dz_i (dom, i, j, zlev, offs, dims)
     use domain_mod
     implicit none
     type (Domain)                  :: dom
@@ -390,7 +390,7 @@ contains
     rho_dz_i = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
   end function rho_dz_i
 
-  real(8) function density_i (dom, i, j, zlev, offs, dims, q)
+  real(dp) function density_i (dom, i, j, zlev, offs, dims, q)
     ! Density at nodes
     implicit none
     type(Domain)                              :: dom
@@ -399,8 +399,8 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, id
-    real(8) :: exner, rho_dz, rho_dz_theta, p, temp
+    integer  :: d, id
+    real(dp) :: exner, rho_dz, rho_dz_theta, p, temp
 
     d = dom%id + 1
     id  = idx (i, j, offs, dims) + 1
@@ -415,7 +415,7 @@ contains
 
        density_i = p / (R_d * temp) 
     else                   ! gravitational density using Boussinesq approximation
-       density_i = ref_density * (1d0 - buoyancy (dom, i, j, zlev, offs, dims, q))
+       density_i = ref_density * (1.0_dp - buoyancy (dom, i, j, zlev, offs, dims, q))
     end if
   end function density_i
 
@@ -428,37 +428,37 @@ contains
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
-    real(8), dimension(1:EDGE)                :: density_e
+    real(dp), dimension(1:EDGE)               :: density_e
 
-    real(8), dimension (0:EDGE) :: rho
+    real(dp), dimension (0:EDGE) :: rho
 
     rho(0)    = density_i (dom, i,   j,   zlev, offs, dims, q)
     rho(RT+1) = density_i (dom, i+1, j,   zlev, offs, dims, q)
     rho(DG+1) = density_i (dom, i+1, j+1, zlev, offs, dims, q)
     rho(UP+1) = density_i (dom, i  , j+1, zlev, offs, dims, q)
 
-    density_e = 0.5d0 * (rho(0) + rho(1:EDGE))
+    density_e = 0.5 * (rho(0) + rho(1:EDGE))
   end function density_e
 
-  real(8) function theta2temp (theta, p)
+  real(dp) function theta2temp (theta, p)
     ! Convert potential temperature (theta) to temperature
     ! requires pressure
     implicit none
-    real(8) :: p, theta
+    real(dp) :: p, theta
     
     theta2temp = theta * (p / p_0)**kappa
   end function theta2temp
 
-  real(8) function temp2theta (temp, p)
+  real(dp) function temp2theta (temp, p)
     ! Convert temperature (temp) to potential temperature
     ! requires pressure
     implicit none
-    real(8) :: p, temp
+    real(dp) :: p, temp
     
     temp2theta =  temp / (p / p_0)**kappa
   end function temp2theta
   
-  real(8) function pressure_i (dom, i, j, zlev, offs, dims, q)
+  real(dp) function pressure_i (dom, i, j, zlev, offs, dims, q)
     ! Pressure at layer zlev computed by integrated down
     implicit none
     type(Domain)                              :: dom
@@ -466,10 +466,10 @@ contains
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
-
-    integer                            :: d, id, k, l
-    real(8)                            :: rho_dz, rho_dz_theta
-    real(8), dimension(zlev-1:zlevels) :: p
+ 
+    integer                             :: d, id, k, l
+    real(dp)                            :: rho_dz, rho_dz_theta
+    real(dp), dimension(zlev-1:zlevels) :: p
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -490,7 +490,7 @@ contains
     pressure_i = interp (p(zlev-1), p(zlev)) ! pressure at layer zlev
   end function pressure_i
 
-  real(8) function dA_i (dom, i, j, zlev, offs, dims)
+  real(dp) function dA_i (dom, i, j, zlev, offs, dims)
     ! For checking areas
     use domain_mod
     implicit none
@@ -499,10 +499,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    dA_i = 1d0
+    dA_i = 1.0_dp
   end function dA_i
 
-  real(8) function free_surface (dom, i, j, zlev, offs, dims, q)
+  real(dp) function free_surface (dom, i, j, zlev, offs, dims, q)
     ! Computes free surface perturbations
     implicit none
     type(Domain)                              :: dom
@@ -511,13 +511,13 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, id_i, k
-    real(8) :: rho_dz, total_depth
+    integer  :: d, id_i, k
+    real(dp) :: rho_dz, total_depth
 
     d = dom%id + 1
     id_i  = idx (i, j, offs, dims) + 1
 
-    total_depth = 0d0
+    total_depth = 0.0_dp
     do k = 1, zlevels
        rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + q(S_MASS,k)%data(d)%elts(id_i)
        total_depth = total_depth + rho_dz /  porous_density (d, id_i, k)
@@ -525,24 +525,24 @@ contains
     free_surface = total_depth + topography%data(d)%elts(id_i)
   end function free_surface
 
-  real(8) function interp (e1, e2)
+  real(dp) function interp (e1, e2)
     ! Centred average interpolation of quantities e1 and e2
     implicit none
-    real(8) :: e1, e2
+    real(dp) :: e1, e2
 
-    interp = 0.5d0 * (e1 + e2)
+    interp = 0.5 * (e1 + e2)
   end function interp
 
   function interp_e (e1, e2)
     ! Centred average interpolation of edge quantities e1 and e2
     implicit none
-    real(8), dimension(1:EDGE) :: interp_e
-    real(8), dimension(1:EDGE) :: e1, e2
+    real(dp), dimension(1:EDGE) :: interp_e
+    real(dp), dimension(1:EDGE) :: e1, e2
 
-    interp_e = 0.5d0 * (e1 + e2)
+    interp_e = 0.5 * (e1 + e2)
   end function interp_e
 
-  real(8) function u_mag (dom, i, j, zlev, offs, dims)
+  real(dp) function u_mag (dom, i, j, zlev, offs, dims)
     ! Velocity magnitude using data from a single element
     implicit none
     type(Domain)                   :: dom
@@ -550,8 +550,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: id
-    real(8), dimension(1:EDGE) :: prim_dual, u
+    integer                     :: id
+    real(dp), dimension(1:EDGE) :: prim_dual, u
 
     id = idx (i, j, offs, dims)
 
@@ -570,7 +570,7 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: uvw
+    real(dp), dimension(1:EDGE)     :: uvw
 
     integer     :: id, idE, idN, idNE
     type(Coord) :: vel0
@@ -582,20 +582,20 @@ contains
 
     vel0 = vel (id)
 
-    uvw(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5d0 * (vel0 + vel (idE)))
-    uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)),   0.5d0 * (vel0 + vel (idNE)))
-    uvw(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5d0 * (vel0 + vel (idN)))
+    uvw(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5_dp * (vel0 + vel (idE)))
+    uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)),   0.5_dp * (vel0 + vel (idNE)))
+    uvw(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5_dp * (vel0 + vel (idN)))
   contains
     type(Coord) function vel (id)
       ! Computes velocity at node id from its latitude and longitude components
       integer :: id
 
-      real(8)     :: lat, lon
+      real(dp)    :: lat, lon
       type(Coord) :: e_merid, e_zonal
 
       call cart2sph (dom%node%elts(id+1), lon, lat)
 
-      e_zonal = Coord (-sin(lon),             cos(lon),                 0d0) 
+      e_zonal = Coord (-sin(lon),             cos(lon),                 0.0_dp) 
       e_merid = Coord (-cos(lon) * sin(lat), -sin(lon) * sin(lat), cos(lat))
 
       vel = dom%u_zonal%elts(id+1) * e_zonal + dom%v_merid%elts(id+1) * e_merid
@@ -610,7 +610,7 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: latlon2uvw
+    real(dp), dimension(1:EDGE)     :: latlon2uvw
 
     integer     :: id, idE, idN, idNE
     type(Coord) :: vel0
@@ -622,20 +622,20 @@ contains
 
     vel0 = vel (id)
 
-    latlon2uvw(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5d0 * (vel0 + vel (idE)))
-    latlon2uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)),   0.5d0 * (vel0 + vel (idNE)))
-    latlon2uvw(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5d0 * (vel0 + vel (idN)))
+    latlon2uvw(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5_dp * (vel0 + vel (idE)))
+    latlon2uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)),   0.5_dp * (vel0 + vel (idNE)))
+    latlon2uvw(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5_dp * (vel0 + vel (idN)))
   contains
     type(Coord) function vel (id)
       ! Computes velocity at node id from its latitude and longitude components
       integer :: id
 
-      real(8)     :: lat, lon
+      real(dp)     :: lat, lon
       type(Coord) :: e_merid, e_zonal
 
       call cart2sph (dom%node%elts(id+1), lon, lat)
 
-      e_zonal = Coord (-sin(lon),             cos(lon),                 0d0) 
+      e_zonal = Coord (-sin(lon),             cos(lon),                 0.0_dp) 
       e_merid = Coord (-cos(lon) * sin(lat), -sin(lon) * sin(lat), cos(lat))
 
       vel = dom%u_zonal%elts(id+1) * e_zonal + dom%v_merid%elts(id+1) * e_merid
@@ -659,7 +659,7 @@ contains
 
 
     integer     :: id, idN, idE, idNE, idS, idSW, idW
-    real(8)     :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
+    real(dp)    :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
     type(Coord) :: cent, e_zonal, e_merid, vel
 
     id   = idx (i,   j,   offs, dims)
@@ -699,7 +699,7 @@ contains
     call cart2sph (dom%node%elts(id+1), lon, lat)
 
     ! Zonal and meridional directions
-    e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
+    e_zonal = Coord (-sin(lon),           cos(lon),               0.0_dp) 
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat))
 
     ! Project velocity at node onto zonal and meridional directions
@@ -720,10 +720,10 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(2)          :: uvw2zonal_merid
+    real(dp), dimension(2)         :: uvw2zonal_merid
 
     integer     :: d, id, idN, idE, idNE, idS, idSW, idW
-    real(8)     :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
+    real(dp)    :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
     type(Coord) :: cent, e_zonal, e_merid, vel
 
     d = dom%id + 1
@@ -764,7 +764,7 @@ contains
     call cart2sph (dom%node%elts(id+1), lon, lat)
 
     ! Zonal and meridional directions
-    e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
+    e_zonal = Coord (-sin(lon),           cos(lon),               0.0_dp) 
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat))
 
     ! Project velocity at node onto zonal and meridional directions
@@ -804,16 +804,16 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: f_coriolis_edge
+    real(dp), dimension(1:EDGE)     :: f_coriolis_edge
 
     integer :: id
 
     id = idx (i, j, offs, dims)
 
-    f_coriolis_edge = dom%midpt%elts(EDGE*id+RT+1:EDGE*id+UP+1)%z / radius * 2d0*omega
+    f_coriolis_edge = dom%midpt%elts(EDGE*id+RT+1:EDGE*id+UP+1)%z / radius * 2*omega
   end function f_coriolis_edge
 
-  real(8) function f_coriolis_node (dom, i, j, zlev, offs, dims)
+  real(dp) function f_coriolis_node (dom, i, j, zlev, offs, dims)
     ! Coriolis parameter at nodes
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -824,10 +824,10 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    f_coriolis_node = dom%node%elts(id+1)%z / radius * 2d0*omega
+    f_coriolis_node = dom%node%elts(id+1)%z / radius * 2*omega
   end function f_coriolis_node
 
-  real(8) function integrate_hex (fun, zlev, level)
+  real(dp) function integrate_hex (fun, zlev, level)
     ! Integrate over adaptive hexagons, where the integrand is defined by the routine fun.
     ! If optional variable coarse_only = .true. the integration is carried out over level_start only.
     implicit none
@@ -837,7 +837,7 @@ contains
     integer :: j, d, l
 
     interface
-       real(8) function fun (dom, i, j, zlev, offs, dims)
+       real(dp) function fun (dom, i, j, zlev, offs, dims)
          use domain_mod
          implicit none
          type (Domain)                  :: dom
@@ -849,7 +849,7 @@ contains
 
     arr_hex => fun
 
-    integral = 0d0
+    integral = 0.0_dp
 
     if (present (level)) then ! integrate over a single scales
        call integrate_hex_scale (level, zlev)
@@ -909,7 +909,7 @@ contains
     end do
   end subroutine integrate_hex_scale
 
-  real(8) function hex2tri (dom, i, j, t, offs, dims, zlev)
+  real(dp) function hex2tri (dom, i, j, t, offs, dims, zlev)
     ! Float array arr_hex at triangles associated with node (i,j) computed from integral over hexagons
     implicit none
     integer :: i, j, t, zlev
@@ -939,7 +939,7 @@ contains
     hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
 
-  real(8) function integrate_tri (fun, zlev)
+  real(dp) function integrate_tri (fun, zlev)
     ! Integrate a function defined by fun over complete (non-overlapping) adaptive triangular grid.
     implicit none
     integer :: zlev
@@ -947,7 +947,7 @@ contains
     integer :: l
 
     interface
-       real(8) function fun (dom, i, j, zlev, offs, dims)
+       real(dp) function fun (dom, i, j, zlev, offs, dims)
          use domain_mod
          implicit none
          type (Domain)                  :: dom
@@ -961,7 +961,7 @@ contains
 
     call pre_levelout
     
-    integral = 0d0
+    integral = 0.0_dp
     do l = level_start, level_end
        call apply_onescale (fdA_tri, l, zlev, 0, 1)
     end do
@@ -981,9 +981,9 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                       :: d, id, idE, idN, idNE
-    real(8), dimension(LORT:UPLT) :: FdTri, tri_area
-    real(8), dimension(2*EDGE)    :: hex_area
-    real(8), dimension(0:EDGE)    :: val
+    real(dp), dimension(LORT:UPLT) :: FdTri, tri_area
+    real(dp), dimension(2*EDGE)    :: hex_area
+    real(dp), dimension(0:EDGE)    :: val
 
     d = dom%id + 1
 
@@ -1010,8 +1010,8 @@ contains
 
     FdTri = hex2tri3 (val, hex_area, tri_area)  
 
-    if (save_tri(LORT)%data(d)%elts(id+1) == 1d0) integral = integral + FdTri(LORT)
-    if (save_tri(UPLT)%data(d)%elts(id+1) == 1d0) integral = integral + FdTri(UPLT)
+    if (save_tri(LORT)%data(d)%elts(id+1) == 1.0_dp) integral = integral + FdTri(LORT)
+    if (save_tri(UPLT)%data(d)%elts(id+1) == 1.0_dp) integral = integral + FdTri(UPLT)
   end subroutine fdA_tri
   
   real(4) function hex2tri2 (sclr, hex_area, tri_area, t)
@@ -1032,11 +1032,11 @@ contains
   function hex2tri3 (sclr, hex_area, tri_area)
     ! Inteegrates sclr given at hexagons over triangles 
     implicit none
-    real(8), dimension(0:EDGE)    :: sclr
-    real(8), dimension(2*EDGE)    :: hex_area
-    real(8), dimension(LORT:UPLT) :: tri_area
+    real(dp), dimension(0:EDGE)    :: sclr
+    real(dp), dimension(2*EDGE)    :: hex_area
+    real(dp), dimension(LORT:UPLT) :: tri_area
     
-    real(8), dimension(LORT:UPLT) :: hex2tri3
+    real(dp), dimension(LORT:UPLT) :: hex2tri3
 
     hex2tri3(LORT) = sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)
     hex2tri3(UPLT) = sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6) 
@@ -1057,7 +1057,7 @@ contains
 
        do t = LORT, UPLT
           call init (save_tri(t)%data(d), num)
-          save_tri(t)%data(d)%elts(1:num) = 0d0
+          save_tri(t)%data(d)%elts(1:num) = 0.0_dp
        end do
 
        active_level%data(d)%elts = grid(d)%level%elts
@@ -1113,14 +1113,14 @@ contains
 
     mask_LORT = minval (dom%mask_n%elts(id_LORT+1))
     if (mask_LORT >= ADJZONE) then
-       save_tri(LORT)%data(d)%elts((/id_chd, idE_chd, idNE_chd/)+1) = 1d0
-       save_tri(UPLT)%data(d)%elts(idE_chd+1)                       = 1d0
+       save_tri(LORT)%data(d)%elts((/id_chd, idE_chd, idNE_chd/)+1) = 1.0_dp
+       save_tri(UPLT)%data(d)%elts(idE_chd+1)                       = 1.0_dp
     end if
 
     mask_UPLT = minval (dom%mask_n%elts(id_UPLT+1))
     if (mask_UPLT >= ADJZONE) then
-       save_tri(LORT)%data(d)%elts(idN_chd+1)                       = 1d0
-       save_tri(UPLT)%data(d)%elts((/id_chd, idNE_chd, idN_chd/)+1) = 1d0
+       save_tri(LORT)%data(d)%elts(idN_chd+1)                       = 1.0_dp
+       save_tri(UPLT)%data(d)%elts((/id_chd, idNE_chd, idN_chd/)+1) = 1.0_dp
     end if
   end subroutine mark_save_chd
 
@@ -1138,8 +1138,8 @@ contains
     id_par = idx (i_par, j_par, offs_par, dims_par)
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
-    if (save_tri(LORT)%data(d)%elts(id_chd+1) == 1d0) save_tri(LORT)%data(d)%elts(id_par+1) = 0d0
-    if (save_tri(UPLT)%data(d)%elts(id_chd+1) == 1d0) save_tri(UPLT)%data(d)%elts(id_par+1) = 0d0
+    if (save_tri(LORT)%data(d)%elts(id_chd+1) == 1.0_dp) save_tri(LORT)%data(d)%elts(id_par+1) = 0.0_dp
+    if (save_tri(UPLT)%data(d)%elts(id_chd+1) == 1.0_dp) save_tri(UPLT)%data(d)%elts(id_par+1) = 0.0_dp
   end subroutine mark_save_par
 
   subroutine zero_float_0 (q)
@@ -1150,7 +1150,7 @@ contains
     integer :: d
 
     do d = 1, size(grid)
-       q%data(d)%elts = 0d0
+       q%data(d)%elts = 0.0_dp
     end do
   end subroutine zero_float_0
 
@@ -1163,7 +1163,7 @@ contains
 
     do j = 1, size(q,1)
        do d = 1, size(grid)
-          q(j)%data(d)%elts = 0d0
+          q(j)%data(d)%elts = 0.0_dp
        end do
     end do
   end subroutine zero_float_1
@@ -1178,7 +1178,7 @@ contains
     do j1 = 1, size(q,1)
        do j2 = 1, size(q,2)
           do d = 1, size(grid)
-             q(j1,j2)%data(d)%elts = 0d0
+             q(j1,j2)%data(d)%elts = 0.0_dp
           end do
        end do
     end do
@@ -1193,7 +1193,7 @@ contains
 
     do j = 1, size(q,1)
        do d = 1, size(grid)
-          q(j)%data(d)%elts = 0d0
+          q(j)%data(d)%elts = 0.0_dp
        end do
     end do
   end subroutine zero_float_vector
@@ -1208,7 +1208,7 @@ contains
     do j1 = 1, size(q,1)
        do j2 = 1, size(q,2)
           do d = 1, size(grid)
-             q(j1,j2)%data(d)%elts = 0d0
+             q(j1,j2)%data(d)%elts = 0.0_dp
           end do
        end do
     end do
@@ -1278,7 +1278,7 @@ contains
 
     id = idx (i, j, offs, dims) + 1
 
-    val1(id) = 0d0
+    val1(id) = 0.0_dp
   end subroutine cal_zero_node
 
   subroutine cal_zero_edge (dom, i, j, zlev, offs, dims)
@@ -1292,7 +1292,7 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    val1(id_edge (id)) = 0d0
+    val1(id_edge (id)) = 0.0_dp
   end subroutine cal_zero_edge
 
   subroutine equals_float_field (q1, q2, itype, lmin_in, lmax_in)
@@ -1383,13 +1383,13 @@ contains
   subroutine smoothing_rbf (dx, npts, nsmth, data)
     ! Smooths data(lon,lat) over neighbouring region using radial basis functions
     implicit none
-    integer                 :: npts, nsmth
-    real(8)                 :: dx
-    real(8), dimension(:,:) :: data
+    integer                  :: npts, nsmth
+    real(dp)                 :: dx
+    real(dp), dimension(:,:) :: data
 
-    integer                              :: i, ismth, i0, ii, j, j0, jj, nx, ny
-    real(8)                              :: r, M_topo, sw_topo, topo_sum, wgt
-    real(8), allocatable, dimension(:,:) :: data_old
+    integer                               :: i, ismth, i0, ii, j, j0, jj, nx, ny
+    real(dp)                              :: r, M_topo, sw_topo, topo_sum, wgt
+    real(dp), allocatable, dimension(:,:) :: data_old
 
     nx = size(data,1); ny = size(data,2)
     allocate (data_old(nx,ny))
@@ -1399,8 +1399,8 @@ contains
     do ismth = 1, nsmth
        do i = 1, nx
           do j = 1, ny
-             sw_topo  = 0d0
-             topo_sum = 0d0
+             sw_topo  = 0.0_dp
+             topo_sum = 0.0_dp
              do ii = -npts, npts
                 do jj = -npts, npts
 
@@ -1427,11 +1427,11 @@ contains
   subroutine smoothing_shapiro (nsmth, data)
     ! Smooths data(lon,lat) over neighbouring region using shapiro (diffusion) filter
     implicit none
-    integer                 :: nsmth
-    real(8), dimension(:,:) :: data
+    integer                  :: nsmth
+    real(dp), dimension(:,:) :: data
 
     integer                              :: i, ii, ismth, jj, nx, ny
-    real(8), allocatable, dimension(:,:) :: data_old
+    real(dp), allocatable, dimension(:,:) :: data_old
 
     nx = size(data,1); ny = size(data,2)
     allocate (data_old(nx,ny))
@@ -1441,11 +1441,11 @@ contains
     do ismth = 1, nsmth
        ! Smooth in x-direction
        do jj = 1, ny
-          data(1,jj) = 0.25d0 * data_old(nx,jj) + 0.5d0 * data_old(1,jj) + 0.25d0 * data_old(2,jj)
+          data(1,jj) = 0.25 * data_old(nx,jj) + 0.5 * data_old(1,jj) + 0.25 * data_old(2,jj)
           do ii = 2, nx-1
-             data(ii,jj) = 0.25d0 * data_old(ii-1,jj) + 0.5d0 * data_old(ii,jj) + 0.25d0 * data_old(ii+1,jj)
+             data(ii,jj) = 0.25 * data_old(ii-1,jj) + 0.5 * data_old(ii,jj) + 0.25 * data_old(ii+1,jj)
           end do
-          data(nx,jj) = 0.25d0 * data_old(nx-1,jj) + 0.5d0 * data_old(nx,jj) + 0.25d0 * data_old(1,jj)
+          data(nx,jj) = 0.25 * data_old(nx-1,jj) + 0.5 * data_old(nx,jj) + 0.25 * data_old(1,jj)
        end do
        data_old = data
 
@@ -1453,13 +1453,13 @@ contains
        do ii = 1, nx
           i = ii + int(dble(ny)/dble(2))
           if (i > nx) i = mod(i,nx)
-          data(ii,1) = 0.25d0*data_old(i,1) + 0.5d0*data_old(i,1) + 0.25d0*data_old(i,2)
+          data(ii,1) = 0.25*data_old(i,1) + 0.5*data_old(i,1) + 0.25*data_old(i,2)
           do jj = 2, ny-1
-             data(ii,jj) = 0.25d0*data_old(ii,jj-1) + 0.5d0*data_old(ii,jj) + 0.25d0*data_old(ii,jj+1)
+             data(ii,jj) = 0.25*data_old(ii,jj-1) + 0.5*data_old(ii,jj) + 0.25*data_old(ii,jj+1)
           end do
           i = ii + int(dble(ny)/dble(2))
           if (i > nx) i = mod(i,nx)
-          data(ii,ny) = 0.25d0*data_old(i,ny-1) + 0.5d0*data_old(i,ny) + 0.25d0*data_old(i,ny)
+          data(ii,ny) = 0.25*data_old(i,ny-1) + 0.5*data_old(i,ny) + 0.25*data_old(i,ny)
        end do
        data_old = data
     end do
@@ -1489,15 +1489,15 @@ contains
     j0 = j
   end subroutine wrapij
 
-  real(8) function radial_basis_fun (dx, npts, r)
+  real(dp) function radial_basis_fun (dx, npts, r)
     ! Radial basis function for smoothing topography
     implicit none
     integer :: npts
-    real(8) :: dx, r
+    real(dp) :: dx, r
 
-    real(8) :: alph
+    real(dp) :: alph
 
-    alph = 1d0/(dx_max * dble(npts))
+    alph = 1 / (dx_max * dble(npts))
 
     radial_basis_fun = exp__flush (-(alph*r)**2)
   end function radial_basis_fun
@@ -1508,12 +1508,12 @@ contains
     ! the compressible version uses surface pressure instead of topography height
     implicit none
     integer :: l
-    real(8) :: rx0_max
+    real(dp) :: rx0_max
 
     integer :: ierror
 
-    rx0_max_loc = 0d0
-    rx0_max     = 0d0
+    rx0_max_loc = 0.0_dp
+    rx0_max     = 0.0_dp
 
     if (compressible) then
        call apply_onescale (cal_rx0_loc_P, l, z_null, 0, 1)
@@ -1531,12 +1531,12 @@ contains
     ! compute only over lowest layer (most unstable)
     implicit none
     integer :: l
-    real(8) :: rx1_max
+    real(dp) :: rx1_max
 
     integer :: ierror, k
 
-    rx1_max_loc = 0d0
-    rx1_max     = 0d0
+    rx1_max_loc = 0.0_dp
+    rx1_max     = 0.0_dp
 
     do k = 1, zlevels
        if (compressible) then
@@ -1559,7 +1559,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, idE, idNE, idN
-    real(8) :: h0, h1
+    real(dp) :: h0, h1
 
     id   = idx (i,   j,   offs, dims)
 
@@ -1580,7 +1580,7 @@ contains
        rx0_max_loc = max (rx0_max_loc, rx0 ())
     end if
   contains
-    real(8) function rx0 ()
+    real(dp) function rx0 ()
       implicit none
 
       rx0 = abs (h0 - h1) / (h0 + h1)
@@ -1597,7 +1597,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, idE, idNE, idN
-    real(8) :: z1, z2, z3, z4
+    real(dp) :: z1, z2, z3, z4
 
     id  = idx (i, j, offs, dims)
 
@@ -1622,14 +1622,14 @@ contains
        rx1_max_loc = max (rx1_max_loc, rx1 ())
     end if
   contains
-    real(8) function p (id, k)
+    real(dp) function p (id, k)
       implicit none
       integer :: id, k
 
       p = a_vert(k) + b_vert(k) * dom%surf_press%elts(id+1)
     end function p
 
-    real(8) function rx1 ()
+    real(dp) function rx1 ()
       implicit none
 
       rx1 = abs ( (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1) )
@@ -1646,7 +1646,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id, idE, idN, idNE
-    real(8) :: h0, h1
+    real(dp) :: h0, h1
 
     id   = idx (i,   j,   offs, dims)
 
@@ -1669,7 +1669,7 @@ contains
        rx0_max_loc = max (rx0_max_loc, rx0 ())
     end if
   contains
-    real(8) function rx0 ()
+    real(dp) function rx0 ()
       implicit none
 
       rx0 = abs (h0 - h1) / (h0 + h1)
@@ -1686,7 +1686,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: z1, z2, z3, z4
+    real(dp) :: z1, z2, z3, z4
 
     id  = idx (i, j, offs, dims)
 
@@ -1707,14 +1707,14 @@ contains
     rx1_max_loc = max (rx1_max_loc, rx1 ())
     !end if
   contains
-    real(8) function rx1 ()
+    real(dp) function rx1 ()
       implicit none
 
       rx1 = abs ( (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1) )
     end function rx1
   end subroutine cal_rx1_loc_Z
 
-  real(8) function theta_i (dom, i, j, zlev, offs, dims)
+  real(dp) function theta_i (dom, i, j, zlev, offs, dims)
     ! Potential temperature at layer centre
     implicit none
     type(Domain)                   :: dom
@@ -1723,7 +1723,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: rho_dz, rho_dz_theta
+    real(dp) :: rho_dz, rho_dz_theta
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -1734,7 +1734,7 @@ contains
     theta_i = rho_dz_theta / rho_dz
   end function theta_i
 
-  real(8) function N_i (dom, i, j, zlev, offs, dims)
+  real(dp) function N_i (dom, i, j, zlev, offs, dims)
     ! Brunt-Vaisala frequency at nodes at layer interface above layer zlev
     ! *** need zlev /= zlevels ***
     implicit none
@@ -1744,7 +1744,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: drho, dtheta, dz, rho_l, rho1, rho2, theta_l, theta1, theta2
+    real(dp) :: drho, dtheta, dz, rho_l, rho1, rho2, theta_l, theta1, theta2
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims)
@@ -1775,9 +1775,9 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: N_e
+    real(dp), dimension(1:EDGE)     :: N_e
 
-    N_e = 0.5d0 * ( &
+    N_e = 0.5 * ( &
          N_i (dom, i,   j,   zlev, offs, dims) + (/ &
          N_i (dom, i+1, j,   zlev, offs, dims),     &
          N_i (dom, i+1, j+1, zlev, offs, dims),     &

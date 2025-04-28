@@ -23,16 +23,16 @@ module patch_mod
   end type Bdry_Patch
 
   type Overl_Area
-     real(8), dimension(4) :: a
-     real(8), dimension(2) :: split  
+     real(dp), dimension(4) :: a
+     real(dp), dimension(2) :: split  
   end type Overl_Area
 
   type Iu_Wgt
-     real(8), dimension(9) :: enc  
+     real(dp), dimension(9) :: enc  
   end type Iu_Wgt
 
   type RF_Wgt
-     real(8), dimension(3) :: enc
+     real(dp), dimension(3) :: enc
   end type RF_Wgt
 contains
   subroutine init_patch_mod
@@ -66,8 +66,8 @@ contains
 
   subroutine init_Overl_Area (self, areas)
     implicit none
-    type(Overl_Area)      :: self
-    real(8), dimension(8) :: areas
+    type(Overl_Area)       :: self
+    real(dp), dimension(8) :: areas
 
     self%a = areas(1:4)
     self%split = areas(5:6)
@@ -75,16 +75,16 @@ contains
 
   subroutine init_Iu_Wgt (self, wgt)
     implicit none
-    type(Iu_Wgt)          :: self
-    real(8), dimension(9) :: wgt
+    type(Iu_Wgt)           :: self
+    real(dp), dimension(9) :: wgt
 
     self%enc = wgt
   end subroutine init_Iu_Wgt
 
   subroutine init_RF_Wgt (self, wgt)
     implicit none
-    type(RF_Wgt)          :: self
-    real(8), dimension(3) :: wgt
+    type(RF_Wgt)           :: self
+    real(dp), dimension(3) :: wgt
 
     self%enc = wgt
   end subroutine init_RF_Wgt

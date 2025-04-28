@@ -25,11 +25,11 @@ program climate
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
+  !if (domains_per_task < 8) rebalance = .false.               ! rebalance load at each checkpoint if worthwhile
 
   C_visc                   = C_CAM                            ! non-dimensional viscosity for scalars and rotu
   C_visc(S_DIVU)           = C_CAM * 10                       ! non-dimensional viscosity for divu
-
-  zmax_adapt               = zlevels - 3                      ! highest layer used to determine adaptive grid (about 18.6 hPa for 30 layers)
+  zmax_adapt               = zlevels                          ! highest layer used to determine adaptive grid (about 18.6 hPa for 30 layers)
                                                               ! (avoid refining on spurious reflection of upward propagating waves)
  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -48,7 +48,7 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   c_p                      = 1004     * JOULE/(KG*KELVIN)     ! specific heat at constant pressure
   grav_accel               = 9.8      * METRE/SECOND**2       ! gravitational acceleration 
-  omega                    = 7.292d-5 * RAD/SECOND            ! Earth's angular velocity
+  omega                    = 7.292e-5 * RAD/SECOND            ! Earth's angular velocity
   R_d                      = 287      * JOULE/(KG*KELVIN)     ! set to a whole number
   radius                   = 6371     * KM                    ! mean radius of the Earth
   ref_density              = ref_density_air                  ! reference density of air
@@ -64,7 +64,7 @@ program climate
   max_depth                = wave_speed**2 / grav_accel       ! depth of atmosphere
   dz                       = max_depth / dble (zlevels)       ! representative layer height
   
-  call std_surf_pres (0d0, p_0)                               ! reference pressure (USA standard atmosphere model)
+  call std_surf_pres (0.0_dp, p_0)                            ! reference pressure (USA standard atmosphere model)
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Dimensional scaling
@@ -90,7 +90,7 @@ program climate
   open (unit = 12, file = trim(run_id)//'_log', action = 'WRITE', form = 'FORMATTED', position = 'APPEND')
   call write_and_export (iwrite)
   
-  total_cpu_time = 0d0; time_start = time
+  total_cpu_time = 0.0_dp; time_start = time
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Run simulation
@@ -104,9 +104,8 @@ program climate
 
      if (aligned) then
         iwrite = iwrite + 1
-        if (remap) call remap_vertical_coordinates
+        call write_and_export (iwrite)
         if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
-        call write_and_export (iwrite) 
      end if
   end do
   close (12)

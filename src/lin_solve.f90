@@ -8,9 +8,9 @@ module lin_solve_mod
   logical :: test_elliptic = .false.  ! run elliptic test case
 
   ! Linear solver parameters
-  integer :: coarse_iter   = 50       ! maximum number of coarse scale bicgstab iterations for elliptic solver
-  real(8) :: fine_tol      = 1d-3     ! tolerance for fine scale jacobi iterations
-  real(8) :: coarse_tol    = 1d-3     ! tolerance for coarse scale bicgstab elliptic solver
+  integer  :: coarse_iter    = 50      ! maximum number of coarse scale bicgstab iterations for elliptic solver
+  real(dp) :: fine_tol      = 1e-3_dp  ! tolerance for fine scale jacobi iterations
+  real(dp) :: coarse_tol    = 1e-3_dp  ! tolerance for coarse scale bicgstab elliptic solver
 
   ! FMG parameters
   integer :: max_vcycle    = 3        ! maximum number of each V-cycle iterations
@@ -22,13 +22,13 @@ module lin_solve_mod
   ! SRJ parameters
   integer :: max_srj_iter  = 200      ! maximum number of SRJ iterations
   integer, parameter :: m  = 8        ! number of distinct relaxation parameters
-  real(8) ::            k1 = 3d-2     ! empirically optimized, 0 < k1 <= k2
-  real(8) ::            k2 = 1.8d0
+  real(dp) ::            k1 = 3e-2_dp ! empirically optimized, 0 < k1 <= k2
+  real(dp) ::            k2 = 1.8_dp
 
-  real(8)                        :: dp_loc, l2_loc
-  real(8)                        :: s_test
-  real(8), pointer               :: mu1, mu2
-  real(8), dimension(:), pointer :: scalar1, scalar2, scalar3
+  real(dp)                        :: dot_product_loc, l2_loc
+  real(dp)                        :: s_test
+  real(dp), pointer               :: mu1, mu2
+  real(dp), dimension(:), pointer :: scalar1, scalar2, scalar3
 contains
   subroutine FMG (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using the full multi-grid (FMG) algorithm with V-cycles
@@ -36,12 +36,12 @@ contains
     type(Float_Field), intent(in)    :: f
     type(Float_Field), intent(inout) :: u
     
-    integer                                       :: iter, l
-    integer, dimension(level_start:level_end)     :: iterations
-    real(8)                                       :: err, rel_err
-    real(8), dimension(level_start:level_end)     :: nrm_f
-    real(8), dimension(level_start:level_end,1:2) :: nrm_res
-    type(Float_Field)                             :: res
+    integer                                        :: iter, l
+    integer,  dimension(level_start:level_end)     :: iterations
+    real(dp)                                       :: err, rel_err
+    real(dp), dimension(level_start:level_end)     :: nrm_f
+    real(dp), dimension(level_start:level_end,1:2) :: nrm_res
+    type(Float_Field)                              :: res
     
     interface
        function Lu (u, l)
@@ -66,9 +66,9 @@ contains
     res = u; call zero_float_field (res, AT_NODE)
     call zero_float_field (wav_coeff(S_MASS,1), AT_NODE)
     
-    iterations = 0; nrm_res = 0d0
+    iterations = 0; nrm_res = 0.0_dp
     do l = level_start, level_end
-       nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0d0) nrm_f(l) = 1d0
+       nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0.0_dp) nrm_f(l) = 1.0_dp
        call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
 
@@ -104,7 +104,7 @@ contains
       ! Standard V-cycle iterations
       implicit none
       integer           :: j
-      real(8) :: nrm_rhs
+      real(dp) :: nrm_rhs
       type(Float_Field) :: corr
 
 
@@ -124,16 +124,16 @@ contains
 
       ! Coarsest scale
       j = level_start
-      nrm_rhs = l2 (res, j); if (nrm_rhs == tol) nrm_rhs = 1d0
+      nrm_rhs = l2 (res, j); if (nrm_rhs == tol) nrm_rhs = 1.0_dp
       call bicgstab (corr, res, nrm_rhs, Lu, j, coarse_tol, coarse_iter) ! exact solution on coarsest grid
 
       ! Up V-cycle
       do j = level_start+1, l
-         call lc (corr, 1d0, corr, 1d0, prol_fun(corr,j), j)
+         call lc (corr, 1.0_dp, corr, 1.0_dp, prol_fun(corr,j), j)
          call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)                 ! smoother
       end do
 
-      call lc (u, 1d0, u, 1d0, corr, l)                                   ! V-cycle correction to solution
+      call lc (u, 1.0_dp, u, 1.0_dp, corr, l)                                   ! V-cycle correction to solution
       call Jacobi (u, f, Lu, Lu_diag, l, post_iter)                       ! post-smooth to reduce zero eigenvalue error mode
       call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,2))                  ! normalized residual error
     end subroutine v_cycle
@@ -147,11 +147,11 @@ contains
     type(Float_Field), intent(in)    :: f
     type(Float_Field), intent(inout) :: u
     
-    integer                                       :: l, n
-    integer, dimension(level_start:level_end)     :: iterations
-    real(8), dimension(1:m)                       :: w
-    real(8), dimension(level_start:level_end)     :: nrm_f
-    real(8), dimension(level_start:level_end,1:2) :: nrm_res
+    integer                                        :: l, n
+    integer,  dimension(level_start:level_end)     :: iterations
+    real(dp), dimension(1:m)                       :: w
+    real(dp), dimension(level_start:level_end)     :: nrm_f
+    real(dp), dimension(level_start:level_end,1:2) :: nrm_res
 
     interface
        function Lu (u, l)
@@ -175,18 +175,18 @@ contains
 
     call zero_float_field (wav_coeff(S_MASS,1), AT_NODE)
 
-    iterations = 0; ; nrm_res = 0d0
+    iterations = 0; ; nrm_res = 0.0_dp
     do l = level_start, level_end
-       nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0d0) nrm_f(l) = 1d0
+       nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0.0_dp) nrm_f(l) = 1.0_dp
        if (log_iter) call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
 
     if (max_srj_iter < m) then ! do not use SRJ
-       w = 1d0
+       w = 1.0_dp
     else 
        max_srj_iter = m * (max_srj_iter / m) ! ensure that max_srj_iter is an integer multiple of m
        do n = 1, m
-          w(n) = 2d0 / (k1 + k2 - (k2 - k1) * cos (MATH_PI * (2d0*dble(n) - 1d0)/(2d0*dble(m))))
+          w(n) = 2.0_dp / (k1 + k2 - (k2 - k1) * cos (MATH_PI * (2.0_dp*real(n,kind=dp) - 1.0_dp)/(2.0_dp*dble(m))))
        end do
     end if
 
@@ -276,7 +276,7 @@ contains
     type(Float_Field), intent(inout) :: u
 
     integer            :: iter
-    real(8), parameter :: jac_wgt = 1d0
+    real(dp), parameter :: jac_wgt = 1.0_dp
 
     interface
        function Lu (u, l)
@@ -304,7 +304,7 @@ contains
     ! Performs a single weighted Jacobi iteration for equation Lu(u) = f
     implicit none
     integer,                   intent(in)    :: l
-    real(8),           target, intent(in)    :: jac_wgt ! weight
+    real(dp),           target, intent(in)    :: jac_wgt ! weight
     type(Float_Field), target, intent(in)    :: f
     type(Float_Field), target, intent(inout) :: u
 
@@ -364,13 +364,13 @@ contains
     implicit none
     integer,           intent(in)    :: l, iter_max
     integer, optional, intent(out)   :: iter_out
-    real(8),           intent(in)    :: nrm_f, tol_bicgstab
-    real(8), optional, intent(out)   :: err_out
+    real(dp),           intent(in)    :: nrm_f, tol_bicgstab
+    real(dp), optional, intent(out)   :: err_out
     type(Float_Field), intent(in)    :: f
     type(Float_Field), intent(inout) :: u
 
     integer           :: iter
-    real(8)           :: alph, b, err, nrm_res0, omga, rho, rho_old
+    real(dp)          :: alph, b, err, nrm_res0, omga, rho, rho_old
     type(Float_Field) :: Ap, As, corr, res, res0, p, s
 
     interface
@@ -397,31 +397,31 @@ contains
     Ap   = Lu (p, l); call update_bdry (Ap, l, 951)
     As   = Ap
 
-    rho  = dp (res0, res, l)
+    rho  = dot_product (res0, res, l)
     
     do iter = 1, iter_max
-       alph = rho / dp (Ap, res0, l)
+       alph = rho / dot_product (Ap, res0, l)
 
-       call lc (s, 1d0, res, -alph, Ap, l)
+       call lc (s, 1.0_dp, res, -alph, Ap, l)
        As = Lu (s, l); call update_bdry (As, l, 952)
 
-       omga = dp (As, s, l) / dp (As, As, l)
+       omga = dot_product (As, s, l) / dot_product (As, As, l)
 
        call lc (corr, alph, p, omga, s, l)
-       call lc (u, 1d0, u, 1d0, corr, l)
+       call lc (u, 1.0_dp, u, 1.0_dp, corr, l)
 
-       call lc (res, 1d0, s, -omga, As, l)
+       call lc (res, 1.0_dp, s, -omga, As, l)
 
        err = l2 (res, l) / nrm_f
        if (err <= tol_bicgstab) exit
 
        rho_old = rho
-       rho = dp (res0, res, l)
+       rho = dot_product (res0, res, l)
        
        b = (alph/omga) * (rho/rho_old)
 
-       call lc (corr, 1d0, p, -omga, Ap, l)
-       call lc (p, 1d0, res, b, corr, l)
+       call lc (corr, 1.0_dp, p, -omga, Ap,   l)
+       call lc (p,    1.0_dp, res,   b, corr, l)
        Ap = Lu (p, l); call update_bdry (Ap, l, 953)
     end do
     u%bdry_uptodate = .false.
@@ -430,7 +430,7 @@ contains
     if (present(iter_out)) iter_out = iter
   end subroutine bicgstab
 
-  real(8) function l2 (s, l)
+  real(dp) function l2 (s, l)
     ! Returns l_2 norm of scalar s at scale l
     implicit none
     integer,                   intent(in) :: l
@@ -438,7 +438,7 @@ contains
 
     integer :: d, j
 
-    l2_loc = 0d0
+    l2_loc = 0.0_dp
     do d = 1, size(grid)
        scalar => s%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
@@ -463,7 +463,7 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) l2_loc = l2_loc + scalar(id)**2
   end subroutine cal_l2
 
-  real(8) function dp (s1, s2, l)
+  real(dp) function dot_product (s1, s2, l)
     ! Calculates dot product of s1 and s2 at scale l
     implicit none
     integer,                   intent(in) :: l
@@ -474,7 +474,7 @@ contains
     call update_bdry (s1, l, 954)
     call update_bdry (s2, l, 955)
 
-    dp_loc = 0d0
+    dot_product_loc = 0.0_dp
     do d = 1, size(grid)
        scalar1 => s1%data(d)%elts
        scalar2 => s2%data(d)%elts
@@ -484,8 +484,8 @@ contains
        nullify (scalar1, scalar2)
     end do
 
-    dp = sum_real (dp_loc)
-  end function dp
+    dot_product = sum_real (dot_product_loc)
+  end function dot_product
 
   subroutine cal_dotproduct (dom, i, j, zlev, offs, dims)
     implicit none
@@ -498,14 +498,14 @@ contains
 
     id = idx (i, j, offs, dims) + 1
 
-    dp_loc = dp_loc + scalar1(id) * scalar2(id)
+    dot_product_loc = dot_product_loc + scalar1(id) * scalar2(id)
   end subroutine cal_dotproduct
 
   subroutine lc (s, a1, s1, a2, s2, l)
     ! Calculates linear combination of scalars s = a1*s1 + a2*s2 at scale l
     implicit none
     integer,                   intent(in)    :: l
-    real(8),           target, intent(in)    :: a1, a2
+    real(dp),          target, intent(in)    :: a1, a2
     type(Float_Field), target, intent(inout) :: s
     type(Float_Field), target, intent(in)    :: s1, s2
 
@@ -595,8 +595,8 @@ contains
     ! Normalized residual error ||f - Lu(u)||/||f|| at scale l
     implicit none
     integer,           intent(in)    :: l
-    real(8),           intent(in)    :: nrm_f
-    real(8),           intent(out)   :: err
+    real(dp),          intent(in)    :: nrm_f
+    real(dp),          intent(out)   :: err
     type(Float_Field), intent(in)    :: f, u
     
     type(Float_Field) :: res
@@ -656,7 +656,7 @@ contains
     end do
 
     ! Add constant term
-    call lc (elliptic_fun, 1d0, elliptic_fun, -10d0/s_test**2, u, l)
+    call lc (elliptic_fun, 1.0_dp, elliptic_fun, -10.0_dp/s_test**2, u, l)
 
     elliptic_fun%bdry_uptodate = .false.
     call update_bdry (elliptic_fun, l, 961)
@@ -691,7 +691,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer            :: id, id_i, idE, idNE, idN, idW, idSW, idS
-    real(8)            :: wgt
+    real(dp)           :: wgt
     logical, parameter :: exact = .true.
 
     id = idx (i, j, offs, dims)
@@ -712,19 +712,19 @@ contains
             dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) + &
             dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
     else ! average value (error less than about 5%)
-       wgt = 2d0 * sqrt (3d0)
+       wgt = 2.0_dp * sqrt (3.0_dp)
     end if
-    scalar(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv - 10d0/s_test**2
+    scalar(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv - 10.0_dp/s_test**2
   end subroutine cal_elliptic_fun_diag
 
-  real(8) function relative_error (u, l)
+  real(dp) function relative_error (u, l)
     ! Relative error of test elliptic problem
     implicit none
     integer,                   intent(in) :: l
     type(Float_Field), target, intent(in) :: u
 
     integer                   :: d, j
-    real(8)                   :: nrm_err, nrm_sol
+    real(dp)                   :: nrm_err, nrm_sol
     type(Float_Field), target :: err
 
     call update_bdry (u, l, 963)
@@ -760,13 +760,13 @@ contains
     scalar(id) = scalar1(id) - exact_sol (dom%node%elts(id))
   end subroutine cal_err
 
-  real(8) function exact_sol (p)
+  real(dp) function exact_sol (p)
     implicit none
     type (Coord) :: p
 
-    real(8) :: r
+    real(dp) :: r
 
-    r = geodesic (p, sph2cart (0d0, 0d0))
+    r = geodesic (p, sph2cart (0.0_dp, 0.0_dp))
 
     exact_sol = s_test**2 * exp (-(r/s_test)**2) 
   end function exact_sol

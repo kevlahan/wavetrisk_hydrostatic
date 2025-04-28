@@ -8,12 +8,12 @@ module dyn_arrays
   end type int_Array
 
   type Float_Array
-     real(8), dimension(:), allocatable :: elts
+     real(dp), dimension(:), allocatable :: elts
      integer                            :: length
   end type Float_Array
 
   type Topo_Array
-     real(8),     dimension(:), allocatable :: elts
+     real(dp),     dimension(:), allocatable :: elts
      type(Coord), dimension(:), allocatable :: node
   end type Topo_Array
 
@@ -98,7 +98,7 @@ contains
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
-    arr%elts = 0d0
+    arr%elts = 0.0_dp
   end subroutine init_Float_Array
 
   subroutine init_Coord_Array (arr, N)
@@ -120,9 +120,9 @@ contains
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
     do i = 1, 6
-       arr%elts%part(i) = 0d0
+       arr%elts%part(i) = 0.0_dp
     end do
-    arr%elts%hex_inv = 0d0
+    arr%elts%hex_inv = 0.0_dp
   end subroutine init_Areas_Array
 
   subroutine init_Overl_Area_Array (arr, N)
@@ -135,10 +135,10 @@ contains
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
     do i = 1, 4
-       arr%elts%a(i) = 0d0
+       arr%elts%a(i) = 0.0_dp
     end do
     do i = 1, 2
-       arr%elts%split(i) = 0d0
+       arr%elts%split(i) = 0.0_dp
     end do
   end subroutine init_Overl_Area_Array
 
@@ -152,7 +152,7 @@ contains
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
     do i = 1, 9
-       arr%elts%enc(i) = 0d0
+       arr%elts%enc(i) = 0.0_dp
     end do
   end subroutine init_Iu_Wgt_Array
 
@@ -166,7 +166,7 @@ contains
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
     do i = 1, 3
-       arr%elts%enc(i) = 0d0
+       arr%elts%enc(i) = 0.0_dp
     end do
   end subroutine init_RF_Wgt_Array
 
@@ -216,7 +216,7 @@ contains
   subroutine append_Float_Array (arr, item)
     implicit none
     type(Float_Array) :: arr
-    real(8)           :: item
+    real(dp)           :: item
 
     if (arr%length ==  size(arr%elts)) call dbl_alloc_Float_Array (arr, arr%length + 1)
 
@@ -271,7 +271,7 @@ contains
   subroutine append_RF_Wgt_Array (arr, item)
     implicit none
     type(RF_Wgt_Array) :: arr
-    type(RF_Wgt) :: item
+    type(RF_Wgt)       :: item
 
     if (arr%length == size(arr%elts)) call dbl_alloc_RF_Wgt_Array (arr, arr%length + 1)
 
@@ -315,7 +315,7 @@ contains
   subroutine extend_Float_Array(arr, N, items)
     type(Float_Array) :: arr
     integer           :: N
-    real(8)           :: items
+    real(dp)           :: items
 
     if (arr%length + N > size(arr%elts)) call dbl_alloc_Float_Array (arr, arr%length + N)
 
@@ -442,15 +442,15 @@ contains
     type(Float_Array) :: arr
     integer           :: N
 
-    integer                            :: ierr
-    real(8), dimension(:), allocatable :: tmparr
+    integer                             :: ierr
+    real(dp), dimension(:), allocatable :: tmparr
 
     allocate (tmparr(2*N), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
        stop
     endif
-    tmparr = 0d0
+    tmparr = 0.0_dp
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -459,7 +459,7 @@ contains
        write(0,*) "ERROR: not enough memory"
        stop
     endif
-    arr%elts = 0d0
+    arr%elts = 0.0_dp
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Float_Array
@@ -507,9 +507,9 @@ contains
        stop
     endif
     do i = 1, 6
-      tmparr%part(i) = 0d0
+      tmparr%part(i) = 0.0_dp
     end do
-    tmparr%hex_inv = 0d0
+    tmparr%hex_inv = 0.0_dp
     tmparr(1:size(arr%elts)) = arr%elts
 
     deallocate (arr%elts)
@@ -519,9 +519,9 @@ contains
        stop
     endif
     do i = 1, 6
-       arr%elts%part(i) = 0d0
+       arr%elts%part(i) = 0.0_dp
     end do
-    arr%elts%hex_inv = 0d0
+    arr%elts%hex_inv = 0.0_dp
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Areas_Array
@@ -541,10 +541,10 @@ contains
        stop
     endif
     do i = 1, 4
-       tmparr%a(i) = 0d0
+       tmparr%a(i) = 0.0_dp
     end do
     do i = 1, 2
-       tmparr%split(i) = 0d0
+       tmparr%split(i) = 0.0_dp
     end do
     tmparr(1:size(arr%elts)) = arr%elts
 
@@ -555,10 +555,10 @@ contains
        stop
     endif
     do i = 1, 4
-       arr%elts%a(i) = 0d0
+       arr%elts%a(i) = 0.0_dp
     end do
     do i = 1, 2
-       arr%elts%split(i) = 0d0
+       arr%elts%split(i) = 0.0_dp
     end do
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
@@ -579,7 +579,7 @@ contains
        stop
     endif
     do i = 1, 9
-       tmparr%enc(i) = 0d0
+       tmparr%enc(i) = 0.0_dp
     end do
     tmparr(1:size(arr%elts)) = arr%elts
 
@@ -590,7 +590,7 @@ contains
        stop
     endif
     do i = 1, 9
-       arr%elts%enc(i) = 0d0
+       arr%elts%enc(i) = 0.0_dp
     end do
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
@@ -611,7 +611,7 @@ contains
        stop
     endif
     do i = 1, 3
-       tmparr%enc(i) = 0d0
+       tmparr%enc(i) = 0.0_dp
     end do
     tmparr(1:size(arr%elts)) = arr%elts
 
@@ -622,7 +622,7 @@ contains
        stop
     endif
     do i = 1, 3
-       arr%elts%enc(i) = 0d0
+       arr%elts%enc(i) = 0.0_dp
     end do
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)

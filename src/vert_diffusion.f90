@@ -26,42 +26,42 @@ module vert_diffusion_mod
   implicit none
 
   ! Parameters for TKE closure 
-  logical :: enhance_diff = .false.         ! enhanced vertical diffusion in unstable regions with very small Nsq < Nsq_min 
-  logical :: patankar     = .false.         ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
-                                            ! or enforce minimum value e_0 of TKE (F) (can produce noisy solutions if velocity is very small)
-  real(8) :: C_e         = 1.0d0               
-  real(8) :: C_eps       = 7.0d-1           ! factor in Ekman depth equation
-  real(8) :: C_l         = 2.0d5            ! Charnock constant
-  real(8) :: C_k         = 1.0d-1           ! coefficient for eddy viscosity
-  real(8) :: C_srf       = 6.783d1          ! coefficient of surface value for TKE 
+  logical :: enhance_diff = .false.              ! enhanced vertical diffusion in unstable regions with very small Nsq < Nsq_min 
+  logical :: patankar     = .false.              ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)
+                                                 ! or enforce minimum value e_0 of TKE (F) (can produce noisy solutions if velocity is very small)
+  real(dp) :: C_e         = 1.0_dp               
+  real(dp) :: C_eps       = 7.0e-1_dp            ! factor in Ekman depth equation
+  real(dp) :: C_l         = 2.0e5_dp             ! Charnock constant
+  real(dp) :: C_k         = 1.0e-1_dp            ! coefficient for eddy viscosity
+  real(dp) :: C_srf       = 6.783e1_dp           ! coefficient of surface value for TKE 
 
-  real(8) :: e_0         = 1.0d-6/sqrt(2d0) ! bottom boundary condition for TKE: e_min/sqrt(2)
-  real(8) :: e_min       = 1.0d-6           ! minimum TKE 
-  real(8) :: e_min_srf   = 1.0d-4           ! minimum TKE at free surface
+  real(dp) :: e_0         = 1.0e-6/sqrt(2.0_dp)  ! bottom boundary condition for TKE: e_min/sqrt(2)
+  real(dp) :: e_min       = 1.0e-6_dp            ! minimum TKE 
+  real(dp) :: e_min_srf   = 1.0e-4_dp            ! minimum TKE at free surface
 
-  real(8) :: eps_s       = 1.0d-20          ! background shear
-  real(8) :: kappa_VK    = 4.0d-1           ! von Karman constant
+  real(dp) :: eps_s       = 1.0e-20_dp           ! background shear
+  real(dp) :: kappa_VK    = 4.0e-1_dp            ! von Karman constant
 
-  real(8) :: Kt_enh      = 1.0d0            ! enhanced eddy diffusion for Nsq < Nsq_min
-  real(8) :: Kt_max      = 1d-2             ! maximum eddy diffusion
-  real(8) :: Kt_min      = 1.2d-5           ! minimum/initial eddy diffusion 
-  real(8) :: Kt_mol      = 1.0d-7           ! molecular diffusivity of seawater (not used)
+  real(dp) :: Kt_enh      = 1.0_dp               ! enhanced eddy diffusion for Nsq < Nsq_min
+  real(dp) :: Kt_max      = 1.0e-2_dp            ! maximum eddy diffusion
+  real(dp) :: Kt_min      = 1.2e-5_dp            ! minimum/initial eddy diffusion 
+  real(dp) :: Kt_mol      = 1.0e-7_dp            ! molecular diffusivity of seawater (not used)
 
-  real(8) :: Kv_max      = 1d-2             ! maximum eddy viscosity
-  real(8) :: Kv_min      = 1.2d-4           ! minimum/initial eddy viscosity 
-  real(8) :: Kv_mol      = 1.0d-6           ! molecular viscosity of seawater (not used)
+  real(dp) :: Kv_max      = 1.0e-2_dp            ! maximum eddy viscosity
+  real(dp) :: Kv_min      = 1.2e-4_dp            ! minimum/initial eddy viscosity 
+  real(dp) :: Kv_mol      = 1.0e-6_dp            ! molecular viscosity of seawater (not used)
 
-  real(8) :: mixed_layer =   -200 * METRE   ! lower boundary of mixed layer (used with tke_closure = .false.)
+  real(dp) :: mixed_layer =   -200 * METRE       ! lower boundary of mixed layer (used with tke_closure = .false.)
   
-  real(8) :: l_0         = 4.0d-2 * METRE   ! surface buoyancy minimum length scale
-  real(8) :: l_min       = 1.0d-2 * METRE   ! minimum mixing length: Kv_mol/(C_k sqrt(e_min)) 
+  real(dp) :: l_0         = 4.0e-2 * METRE       ! surface buoyancy minimum length scale
+  real(dp) :: l_min       = 1.0e-2 * METRE       ! minimum mixing length: Kv_mol/(C_k sqrt(e_min)) 
 
-  real(8) :: Neps_sq     = 1.0d-20          ! background shear
-  real(8) :: Nsq_min     = 1.0d-12          ! threshold for enhanced diffusion
+  real(dp) :: Neps_sq     = 1.0e-20_dp           ! background shear
+  real(dp) :: Nsq_min     = 1.0e-12_dp           ! threshold for enhanced diffusion
 
-  real(8) :: Q_sr        = 0.0d0            ! penetrative part of solar short wave radiation
-  real(8) :: rb_0        = 4.0d-4           ! bottom friction
-  real(8) :: z_0         = 1.0d-1           ! roughness parameter of free surface 
+  real(dp) :: Q_sr        = 0.0_dp               ! penetrative part of solar short wave radiation
+  real(dp) :: rb_0        = 4.0e-4_dp            ! bottom friction
+  real(dp) :: z_0         = 1.0e-1_dp            ! roughness parameter of free surface 
 contains
   subroutine vertical_diffusion
     ! Backwards Euler split step for vertical diffusion
@@ -94,12 +94,12 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                         :: d, id, info, k, l
-    real(8)                         :: eta, filt, turb, z
-    real(8), dimension(0:zlevels)   :: e, l_eps, l_k, Nsq,  dUdZ2
-    real(8), dimension(1:zlevels)   :: dz, Umag
-    real(8), dimension(1:zlevels-1) :: dzl, diag, rhs, S1, S2
-    real(8), dimension(1:zlevels-2) :: diag_l, diag_u
-    type(Coord)                     :: p
+    real(dp)                         :: eta, filt, turb, z
+    real(dp), dimension(0:zlevels)   :: e, l_eps, l_k, Nsq,  dUdZ2
+    real(dp), dimension(1:zlevels)   :: dz, Umag
+    real(dp), dimension(1:zlevels-1) :: dzl, diag, rhs, S1, S2
+    real(dp), dimension(1:zlevels-2) :: diag_l, diag_u
+    type(Coord)                      :: p
 
     id = idx (i, j, offs, dims) + 1
     d = dom%id + 1
@@ -110,14 +110,14 @@ contains
 
        ! RHS terms
        do l = 1, zlevels-1
-          if (e(l) == 0d0) then
-             turb = 0d0
+          if (e(l) == 0.0_dp) then
+             turb = 0.0_dp
           else
              turb = C_eps * sqrt (e(l)) / l_eps(l)
           end if
 
           S1(l) = Kv(l)%data(d)%elts(id) * dUdZ2(l) - Kt(l)%data(d)%elts(id) * Nsq(l)
-          if (patankar .and. S1(l) <= 0d0) then ! Patankar "trick"
+          if (patankar .and. S1(l) <= 0.0_dp) then ! Patankar "trick"
              S1(l) = Kv(l)%data(d)%elts(id) * dUdZ2(l)
              S2(l) = - turb - Kt(l)%data(d)%elts(id) * Nsq(l) / e(l)
           else
@@ -128,19 +128,19 @@ contains
        ! Tridiagonal matrix and rhs entries for linear system
        l = 1
        diag_u(l) = - coeff (dz(l+1), interp (Kv(l)%data(d)%elts(id), Kv(l+1)%data(d)%elts(id)))      ! super-diagonal
-       diag(l)   = 1d0 - diag_u(l) - dt * S2(l)
+       diag(l)   = 1.0_dp - diag_u(l) - dt * S2(l)
        rhs(l)    = e(l) + dt * S1(l)
 
        do l = 2, zlevels-2
           diag_u(l)   = - coeff (dz(l+1), interp (Kv(l)%data(d)%elts(id), Kv(l+1)%data(d)%elts(id))) ! super-diagonal
           diag_l(l-1) = - coeff (dz(l),   interp (Kv(l)%data(d)%elts(id), Kv(l-1)%data(d)%elts(id))) ! sub-diagonal
-          diag(l)     = 1d0 - (diag_u(l) + diag_l(l-1)) - dt * S2(l)
+          diag(l)     = 1.0_dp - (diag_u(l) + diag_l(l-1)) - dt * S2(l)
           rhs(l)      = e(l) + dt * S1(l)
        end do
 
        l = zlevels-1
        diag_l(l-1) = - coeff (dz(l), interp (Kv(l)%data(d)%elts(id), Kv(l-1)%data(d)%elts(id)))      ! sub-diagonal
-       diag(l)     = 1d0 - diag_l(l-1) - dt * S2(l)
+       diag(l)     = 1.0_dp - diag_l(l-1) - dt * S2(l)
        rhs(l)      = e(l) + dt * S1(l)
 
        ! Solve tridiagonal linear system
@@ -178,7 +178,7 @@ contains
       use io_mod, only : kinetic_energy
       implicit none
       integer :: k, l
-      real(8) :: Ri
+      real(dp) :: Ri
 
       do k = 1, zlevels
          dz(k) = dz_i (dom, i, j, k, offs, dims, sol)
@@ -214,7 +214,7 @@ contains
       end if
     end subroutine init_diffuse
 
-    real(8) function dUdZ_sq (l)
+    real(dp) function dUdZ_sq (l)
       ! ||du_h/dz||^2 at interfaces 0 <= l <= zlevels
       ! (computed from twice TRiSK form of kinetic energy to use data from only a single colum)
       implicit none
@@ -223,10 +223,10 @@ contains
       integer, dimension(N_BDRY+1)   :: offs
       integer, dimension(2,N_BDRY+1) :: dims
 
-      real(8) :: dU, dZ
+      real(dp) :: dU, dZ
 
       if (l == 0 .or. l == zlevels) then
-         dUdZ_sq = 0d0
+         dUdZ_sq = 0.0_dp
       else
          dUdZ_sq = ( (Umag(l+1) - Umag(l)) / dzl(l) )**2
       end if
@@ -235,7 +235,7 @@ contains
     subroutine update_Kv_Kt
       ! Update eddy diffusivity and eddy viscosity
       implicit none
-      real(8) :: Ri ! Richardson number
+      real(dp) :: Ri ! Richardson number
 
       ! Length scales
       call l_scales (dz, Nsq, tau_mag (p), e, l_eps, l_k)
@@ -253,11 +253,11 @@ contains
       end do
     end subroutine update_Kv_Kt
 
-    real(8) function coeff (dz, Kv)
+    real(dp) function coeff (dz, Kv)
       ! Computes entries of vertical Laplacian matrix
       implicit none
-      real(8) :: dz  ! layer depth
-      real(8) :: Kv  ! eddy diffusivity
+      real(dp) :: dz  ! layer depth
+      real(dp) :: Kv  ! eddy diffusivity
 
       coeff = dt * C_e * Kv / (dzl(l) * dz)
     end function coeff
@@ -272,11 +272,11 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                         :: d, id, info, k, l
-    real(8)                         :: eta, rho_dz, theta
+    real(dp)                         :: eta, rho_dz, theta
 
-    real(8), dimension(0:zlevels)   :: z
-    real(8), dimension(1:zlevels)   :: diag, dz, rhs
-    real(8), dimension(1:zlevels-1) :: diag_l, diag_u, dzl
+    real(dp), dimension(0:zlevels)   :: z
+    real(dp), dimension(1:zlevels)   :: diag, dz, rhs
+    real(dp), dimension(1:zlevels-1) :: diag_l, diag_u, dzl
 
     id = idx (i, j, offs, dims) + 1
     d = dom%id + 1
@@ -301,20 +301,20 @@ contains
     ! Bottom layer
     k = 1
     diag_u(k) = - coeff (1) ! super-diagonal
-    diag(k)   = 1d0 - diag_u(k)
+    diag(k)   = 1.0_dp - diag_u(k)
     rhs(k)    = b() + dt * ( - bottom_buoy_flux (dom, i, j, z_null, offs, dims) + solar_flux ()) / dz(k)
 
     do k = 2, zlevels-1
        diag_u(k)   = - coeff ( 1) ! super-diagonal
        diag_l(k-1) = - coeff (-1) ! sub-diagonal
-       diag(k)     = 1d0 - (diag_u(k) + diag_l(k-1))
+       diag(k)     = 1.0_dp - (diag_u(k) + diag_l(k-1))
        rhs(k)      = b () + dt * solar_flux () / dz(k)
     end do
 
     ! Top layer
     k = zlevels
     diag_l(k-1) = - coeff (-1) ! sub-diagonal
-    diag(k)     = 1d0 - diag_u(k-1)
+    diag(k)     = 1.0_dp - diag_u(k-1)
     rhs(k)      = b() + dt * (top_buoy_flux (dom, i, j, z_null, offs, dims) + Q_sr/(ref_density*c_p)) / dz(k)
 
     ! Solve tridiagonal linear system
@@ -327,7 +327,7 @@ contains
        sol(S_TEMP,k)%data(d)%elts(id) = rho_dz * rhs(k)
     end do
   contains
-    real(8) function coeff (l)
+    real(dp) function coeff (l)
       ! Coefficient at interface above (l = 1) or below (l = -1) vertical level k for vertical Laplacian matrix
       implicit none
       integer :: l
@@ -337,16 +337,16 @@ contains
       coeff = dt * Kt(kk)%data(d)%elts(id) / (dzl(kk) * dz(k))
     end function coeff
 
-    real(8) function b ()
+    real(dp) function b ()
       ! Fluctuating buoyancy
       implicit none
-      real(8) :: rho_dz
+      real(dp) :: rho_dz
 
       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
       b = sol(S_TEMP,k)%data(d)%elts(id) / rho_dz
     end function b
 
-    real(8) function solar_flux ()
+    real(dp) function solar_flux ()
       ! Net solar flux in layer 1 <= k < zlevels
       implicit none
 
@@ -363,10 +363,10 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                                :: d, e, id, info, k, l
-    real(8), dimension(1:EDGE,1:zlevels)   :: diag, dz, rhs
-    real(8), dimension(1:EDGE,1:zlevels-1) :: diag_l, diag_u, dzl
-    real(8), dimension(1:zlevels)          :: dd, r
-    real(8), dimension(1:zlevels-1)        :: dl, du
+    real(dp), dimension(1:EDGE,1:zlevels)   :: diag, dz, rhs
+    real(dp), dimension(1:EDGE,1:zlevels-1) :: diag_l, diag_u, dzl
+    real(dp), dimension(1:zlevels)          :: dd, r
+    real(dp), dimension(1:zlevels-1)        :: dl, du
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
@@ -383,20 +383,20 @@ contains
     ! Bottom layer
     k = 1
     diag_u(:,k) = - coeff (1) ! super-diagonal
-    diag(:,k)   = 1d0 - diag_u(:,k) + dt * bottom_friction / dz(:,k)
+    diag(:,k)   = 1.0_dp - diag_u(:,k) + dt * bottom_friction / dz(:,k)
     rhs(:,k)    = sol(S_VELO,k)%data(d)%elts(id_edge(id)) 
 
     do k = 2, zlevels-1
        diag_u(:,k)   = - coeff ( 1) ! super-diagonal
        diag_l(:,k-1) = - coeff (-1) ! sub-diagonal
-       diag(:,k)     = 1d0 - (diag_u(:,k) + diag_l(:,k-1))
+       diag(:,k)     = 1.0_dp - (diag_u(:,k) + diag_l(:,k-1))
        rhs(:,k)      = sol(S_VELO,k)%data(d)%elts(id_edge(id))
     end do
 
     ! Top layer
     k = zlevels
     diag_l(:,k-1) = - coeff (-1) ! sub-diagonal
-    diag(:,k)     = 1d0 - diag_l(:,k-1)
+    diag(:,k)     = 1.0_dp - diag_l(:,k-1)
     rhs(:,k) = sol(S_VELO,k)%data(d)%elts(id_edge(id)) + dt * wind_flux (dom, i, j, z_null, offs, dims) / dz(:,k)
 
     ! Solve tridiagonal linear system
@@ -413,7 +413,7 @@ contains
       ! Computes coefficient above (l = 1) or below (l = -1) for vertical Laplacian matrix
       implicit none
       integer                    :: l
-      real(8), dimension(1:EDGE) :: coeff
+      real(dp), dimension(1:EDGE) :: coeff
 
       integer :: kk
 
@@ -423,26 +423,26 @@ contains
     end function coeff
   end subroutine backwards_euler_velo
 
-  real(8) function irradiance (depth)
+  real(dp) function irradiance (depth)
     ! Downward irradiance
     implicit none
-    real(8) :: depth ! depth below free surface
+    real(dp) :: depth ! depth below free surface
 
-    real(8), parameter :: R    = 0.58d0
-    real(8), parameter :: xi_0 = 0.35d0 * METRE
-    real(8), parameter :: xi_1 =   23d0 * METRE
+    real(dp), parameter :: R    = 0.58_dp
+    real(dp), parameter :: xi_0 = 0.35 * METRE
+    real(dp), parameter :: xi_1 =   23 * METRE
 
-    irradiance = Q_sr * (R * exp (-depth/xi_0) + (1d0 - R) * exp (-depth/xi_1))
+    irradiance = Q_sr * (R * exp (-depth/xi_0) + (1.0_dp - R) * exp (-depth/xi_1))
   end function irradiance
 
-  real(8) function N_sq  (dom, i, j, l, offs, dims, dz)
+  real(dp) function N_sq  (dom, i, j, l, offs, dims, dz)
     ! Brunt-Vaisala number N^2 = -g drho/dz / rho0 at interface 0 <= l <= zlevels
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, l
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:zlevels)  :: dz
+    real(dp), dimension(1:zlevels)  :: dz
 
     if (l < zlevels .and. l > 0) then
        N_sq = eval (l)
@@ -452,13 +452,13 @@ contains
        N_sq = eval(zlevels-1)
     end if
   contains
-    real(8) function eval (l)
+    real(dp) function eval (l)
       implicit none
       integer :: l
 
       integer :: d, id
-      real(8) :: dzl
-      real(8) :: b_above, b_below ! buoyancy above and below interface l
+      real(dp) :: dzl
+      real(dp) :: b_above, b_below ! buoyancy above and below interface l
 
       d = dom%id + 1
       id = idx (i, j, offs, dims) + 1
@@ -471,46 +471,46 @@ contains
     end function eval
   end function N_sq
 
-  real(8) function Richardson (Nsq, dudzsq)
+  real(dp) function Richardson (Nsq, dudzsq)
     ! Richardson number at interface  0 <= l <= zlevels
     implicit none
-    real(8) :: Nsq, dudzsq
+    real(dp) :: Nsq, dudzsq
 
     Richardson = Nsq / (dudzsq + eps_s)
   end function Richardson
 
-  real(8) function Prandtl (Ri)
+  real(dp) function Prandtl (Ri)
     ! Computes Prandtl number given Richardson number
     implicit none
-    real(8) :: Ri
+    real(dp) :: Ri
 
-    real(8) :: Ri_c ! critical Richardson number
+    real(dp) :: Ri_c ! critical Richardson number
 
-    Ri_c = 2 / (2d0 + C_eps/C_k) 
+    Ri_c = 2 / (2.0_dp + C_eps/C_k) 
 
     ! NEMO
-    if (Ri < 0.2d0) then
-       Prandtl = 1d0
-    elseif (Ri >= 0.2d0 .and. Ri <= 2d0) then
+    if (Ri < 0.2e0_dp) then
+       Prandtl = 1.0_dp
+    elseif (Ri >= 0.2_dp .and. Ri <= 2_dp) then
        Prandtl = 5 * Ri
     else
-       Prandtl = 10d0
+       Prandtl = 10.0_dp
     end if
-!!$    Prandtl = max (0.1d0, Ri_c / max (Ri_c, Ri)) ! CROCO
+!!$    Prandtl = max (0.1e0_dp, Ri_c / max (Ri_c, Ri)) ! CROCO
   end function prandtl
 
   subroutine l_scales (dz, Nsq, tau, tke, l_eps, l_k)
     ! Computes length scales l_eps and l_m at interfaces 0:zlevels for TKE closure for a single vertical column
     implicit none
-    real(8),                       intent (in)  :: tau   ! wind stress
-    real(8), dimension(1:zlevels), intent (in)  :: dz    ! layer thicknesses
-    real(8), dimension(0:zlevels), intent (in)  :: Nsq   ! Brunt-Vaisala frequency
-    real(8), dimension(0:zlevels), intent (in)  :: tke   ! turbulent kinetic energy
-    real(8), dimension(0:zlevels), intent (out) :: l_k   ! dissipation length scale (velocity)
-    real(8), dimension(0:zlevels), intent (out) :: l_eps ! mixing length scale (buoyancy)
+    real(dp),                       intent (in)  :: tau   ! wind stress
+    real(dp), dimension(1:zlevels), intent (in)  :: dz    ! layer thicknesses
+    real(dp), dimension(0:zlevels), intent (in)  :: Nsq   ! Brunt-Vaisala frequency
+    real(dp), dimension(0:zlevels), intent (in)  :: tke   ! turbulent kinetic energy
+    real(dp), dimension(0:zlevels), intent (out) :: l_k   ! dissipation length scale (velocity)
+    real(dp), dimension(0:zlevels), intent (out) :: l_eps ! mixing length scale (buoyancy)
 
     integer                       :: l
-    real(8), dimension(0:zlevels) :: l_dwn, l_up
+    real(dp), dimension(0:zlevels) :: l_dwn, l_up
 
     ! First order approximation for mixing length
     do l = 0, zlevels
@@ -535,39 +535,39 @@ contains
     l_k   = max (l_min, min  (l_up,  l_dwn))
    end subroutine l_scales
 
-  real(8) function Kt_tke (Kv, Nsq, Ri)
+  real(dp) function Kt_tke (Kv, Nsq, Ri)
     ! TKE closure eddy diffusivity
     implicit none
-    real(8) :: Kv  ! eddy viscosity
-    real(8) :: Nsq ! Brunt-Vaisala frequency squared
-    real(8) :: Ri  ! Richardson number 
+    real(dp) :: Kv  ! eddy viscosity
+    real(dp) :: Nsq ! Brunt-Vaisala frequency squared
+    real(dp) :: Ri  ! Richardson number 
 
     Kt_tke = min (Kt_max, max (Kv/Prandtl(Ri), Kt_min))
 
     if (enhance_diff .and. Nsq <= Nsq_min) Kt_tke = Kt_enh ! enhanced vertical diffusion
   end function Kt_tke
 
-  real(8) function Kv_tke (e, l_k, Nsq)
+  real(dp) function Kv_tke (e, l_k, Nsq)
     ! TKE closure eddy viscosity
     implicit none
-    real(8) :: e   ! tke
-    real(8) :: l_k ! mixing length for eddy viscosity dissipation
-    real(8) :: Nsq ! Brunt-Vaisala frequency squared
+    real(dp) :: e   ! tke
+    real(dp) :: l_k ! mixing length for eddy viscosity dissipation
+    real(dp) :: Nsq ! Brunt-Vaisala frequency squared
 
     Kv_tke = min (Kv_max, max (C_k * l_k * sqrt(e), Kv_min))
   end function Kv_tke
 
-  real(8) function Kt_analytic (z, eta)
+  real(dp) function Kt_analytic (z, eta)
     ! Analytic eddy diffusivity
     implicit none
-    real(8) :: eta, z
+    real(dp) :: eta, z
     
     Kt_analytic = Kt_min + Kt_max * exp (-20 * (z - eta) / mixed_layer)
   end function Kt_analytic
 
-  real(8) function Kv_analytic (z, eta)
+  real(dp) function Kv_analytic (z, eta)
     ! Analytic eddy viscosity
-    real(8) :: eta, z
+    real(dp) :: eta, z
 
     Kv_analytic = Kv_min + Kv_max * exp (-20 * (z - eta) / mixed_layer)
   end function Kv_analytic
@@ -610,12 +610,12 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id_i
-    real(8) :: dz_k
+    real(dp) :: dz_k
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
-    dmass(id_i) = 0d0
+    dmass(id_i) = 0.0_dp
 
     dz_k = dz_i (dom, i, j, zlev, offs, dims, sol)
 
@@ -628,13 +628,13 @@ contains
     end if
     dtemp(id_i) = porous_density (d, id_i, zlev) * dtemp(id_i)
   contains
-    real(8) function scalar_flux (l)
+    real(dp) function scalar_flux (l)
       ! Computes flux at interface below (l=-1) or above (l=1) vertical level zlev
       implicit none
       integer :: l
       integer :: dzl
 
-      real(8) :: b_0, b_l, mass_0, mass_l, temp_0, temp_l, visc
+      real(dp) :: b_0, b_l, mass_0, mass_l, temp_0, temp_l, visc
 
       visc = Kt(zlev+min(0,l))%data(d)%elts(id_i)
 
@@ -660,7 +660,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: d, id
-    real(8), dimension(1:EDGE) :: dz_k
+    real(dp), dimension(1:EDGE) :: dz_k
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
@@ -679,9 +679,9 @@ contains
       ! Flux at upper interface (l=1) or lower interface (l=-1)
       implicit none
       integer               :: l
-      real(8), dimension(3) :: velo_flux
+      real(dp), dimension(3) :: velo_flux
 
-      real(8), dimension(3) :: dzl, visc
+      real(dp), dimension(3) :: dzl, visc
 
       visc = Kv(zlev+min(0,l))%data(d)%elts(id+1)
       dzl = 0.5 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims, sol)) ! thickness of layer centred on interface

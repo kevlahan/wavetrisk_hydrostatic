@@ -6,10 +6,10 @@ module io_mod
   use utils_mod
   implicit none
   integer, dimension(2,4)              :: HR_offs
-  data                                    HR_offs /0,0, 1,0, 1,1, 0,1/
+  data                                    HR_offs / 0,0, 1,0, 1,1, 0,1 /
   integer                              :: next_fid, nvar_out
   integer, dimension(:,:), allocatable :: topo_count
-  real(8)                              :: vmin, vmax
+  real(dp)                             :: vmin, vmax
 contains
   subroutine init_io_mod
     implicit none
@@ -36,8 +36,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idN, idE
-    real(8) :: vort
+    integer  :: id, idN, idE
+    real(dp) :: vort
 
     id  = idx(i,   j,   offs, dims)
     idN = idx(i,   j+1, offs, dims)
@@ -61,7 +61,7 @@ contains
     end if
   end subroutine vort_extrema
 
-  real(8) function topo (dom, i, j, zlev, offs, dims)
+  real(dp) function topo (dom, i, j, zlev, offs, dims)
     use domain_mod
     implicit none
     type (Domain)                  :: dom
@@ -77,7 +77,7 @@ contains
     topo = topography%data(d)%elts(id)
   end function topo
 
-  real(8) function pot_energy (dom, i, j, zlev, offs, dims)
+  real(dp) function pot_energy (dom, i, j, zlev, offs, dims)
     use domain_mod
     implicit none
     type (Domain)                  :: dom
@@ -86,7 +86,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id
-    real(8) :: rho_dz
+    real(dp) :: rho_dz
 
     id = idx (i, j, offs, dims)
 
@@ -94,14 +94,14 @@ contains
     pot_energy = rho_dz**2
   end function pot_energy
 
-  real(8) function total_ke (itype)
+  real(dp) function total_ke (itype)
     ! Computes total kinetic energy
     implicit none
     character(*) :: itype
 
     integer :: k
 
-    total_ke = 0d0
+    total_ke = 0.0_dp
     do k = 1, zlevels
        total_ke = total_ke + integrate_hex (kinetic_energy, k)
     end do
@@ -135,8 +135,8 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id, idW, idSW, idS
-    real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(8) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
+    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
+    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims)
@@ -163,19 +163,19 @@ contains
 
     ke(id+1) = sqrt( (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT + &
          u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-         * dom%areas%elts(id+1)%hex_inv/(4d0*MATH_PI*radius**2)) 
+         * dom%areas%elts(id+1)%hex_inv/(4.0_dp*MATH_PI*radius**2)) 
   end subroutine cal_umag
 
-  real(8) function kinetic_energy (dom, i, j, zlev, offs, dims)
+  real(dp) function kinetic_energy (dom, i, j, zlev, offs, dims)
     ! Kinetic energy u^2/2 at level zlev using approximation to TRiSK formula
     type (Domain)                  :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idW, idSW, idS
-    real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(8) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
+    integer  :: d, id, idW, idSW, idS
+    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
+    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims)
@@ -202,19 +202,19 @@ contains
 
     kinetic_energy = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT + &
          u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-         * dom%areas%elts(id+1)%hex_inv/4d0 
+         * dom%areas%elts(id+1)%hex_inv/4.0_dp 
   end function kinetic_energy
 
-  real(8) function layer1_ke (dom, i, j, zlev, offs, dims)
+  real(dp) function layer1_ke (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idW, idSW, idS
-    real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(8) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
+    integer  :: d, id, idW, idSW, idS
+    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
+    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
 
     id = idx (i, j, offs, dims)
 
@@ -244,22 +244,22 @@ contains
        layer1_ke = (sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1))  &
             * (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
             + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-            * dom%areas%elts(id+1)%hex_inv/4
+            * dom%areas%elts(id+1)%hex_inv/4.0_dp
     else
-       layer1_ke = 0d0
+       layer1_ke = 0.0_dp
     end if
   end function layer1_ke
 
-  real(8) function layer2_ke (dom, i, j, zlev, offs, dims)
+  real(dp) function layer2_ke (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idW, idSW, idS
-    real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(8) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
+    integer  :: d, id, idW, idSW, idS
+    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
+    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
 
     id = idx (i, j, offs, dims)
 
@@ -291,20 +291,20 @@ contains
             + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
             * dom%areas%elts(id+1)%hex_inv/4
     else
-       layer2_ke = 0d0
+       layer2_ke = 0.0_dp
     end if
   end function layer2_ke
 
-  real(8) function one_layer_ke (dom, i, j, zlev, offs, dims)
+  real(dp) function one_layer_ke (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idW, idSW, idS
-    real(8) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(8) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
+    integer  :: d, id, idW, idSW, idS
+    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
+    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
 
     id = idx (i, j, offs, dims)
 
@@ -336,22 +336,22 @@ contains
             + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
             * dom%areas%elts(id+1)%hex_inv/4
     else
-       one_layer_ke = 0d0
+       one_layer_ke = 0.0_dp
     end if
   end function one_layer_ke
 
-  real(8) function barotropic_ke (dom, i, j, zlev, offs, dims)
+  real(dp) function barotropic_ke (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: d, id, idE, idNE, idN, idW, idSW, idS
-    integer, dimension(1:EDGE) :: id_edge, id_node
-    real(8)                    :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(8)                    :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-    real(8), dimension(1:EDGE) :: u
+    integer                     :: d, id, idE, idNE, idN, idW, idSW, idS
+    integer,  dimension(1:EDGE) :: id_edge, id_node
+    real(dp)                    :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
+    real(dp)                    :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
+    real(dp), dimension(1:EDGE) :: u
 
     id = idx (i, j, offs, dims)
 
@@ -394,14 +394,14 @@ contains
             + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
             * dom%areas%elts(id+1)%hex_inv/4
     else
-       barotropic_ke = 0d0
+       barotropic_ke = 0.0_dp
     end if
   contains
     function barotropic_velo ()
-      real(8), dimension(1:EDGE) :: barotropic_velo
+      real(dp), dimension(1:EDGE) :: barotropic_velo
 
-      integer                    :: e, id_e, k
-      real(8), dimension(1:EDGE) :: dz
+      integer                     :: e, id_e, k
+      real(dp), dimension(1:EDGE) :: dz
 
       do e = 1, EDGE
          id_e = EDGE*id_edge(e) + e
@@ -416,7 +416,7 @@ contains
     end function barotropic_velo
   end function barotropic_ke
 
-  real(8) function pot_enstrophy (dom, i, j, zlev, offs, dims)
+  real(dp) function pot_enstrophy (dom, i, j, zlev, offs, dims)
     ! Computes potential enstrophy in two layer mode split case
     implicit none
     type(Domain)                   :: dom
@@ -425,7 +425,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id, id_i
-    real(8) :: f, h, w
+    real(dp) :: f, h, w
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
@@ -444,9 +444,9 @@ contains
        else ! single layer
           h = (sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i)) / ref_density
        end if
-       pot_enstrophy = 0.5d0 * (w / h)**2
+       pot_enstrophy = 0.5_dp * (w / h)**2
     else
-       pot_enstrophy = 0d0
+       pot_enstrophy = 0.0_dp
     end if
   end function pot_enstrophy
 
@@ -458,16 +458,16 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                       :: id, d, k
-    real(8)                       :: rho_dz, rho_dz_lower, rho_dz_theta
-    real(8), dimension(1:zlevels) :: p
+    integer                        :: id, d, k
+    real(dp)                       :: rho_dz, rho_dz_lower, rho_dz_theta
+    real(dp), dimension(1:zlevels) :: p
 
     d = dom%id + 1
     id = idx(i, j, offs, dims) + 1
 
     ! Integrate the pressure upwards
     rho_dz = sol_mean(S_MASS,1)%data(d)%elts(id) + sol(S_MASS,1)%data(d)%elts(id)
-    p(1) = dom%surf_press%elts(id) - 0.5d0 * grav_accel * rho_dz
+    p(1) = dom%surf_press%elts(id) - 0.5_dp * grav_accel * rho_dz
     do k = 2, zlevels
        rho_dz_lower = rho_dz
        rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
@@ -501,7 +501,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: rho_dz, pressure_lower, pressure_upper
+    real(dp) :: rho_dz, pressure_lower, pressure_upper
 
     d = dom%id + 1
     id = idx(i, j, offs, dims) + 1
@@ -568,8 +568,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: bin, d, id_i
-    real(8) :: lat, lon, temperature, Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new
+    integer  :: bin, d, id_i
+    real(dp) :: lat, lon, temperature, Tprime, Uprime, Vprime, Tprime_new, Uprime_new, Vprime_new
 
     d = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
@@ -626,15 +626,15 @@ contains
     use mpi
 #endif
     implicit none
-    integer                                  :: bin, k
-    real(8), dimension(nvar_zonal)           :: temp
-    integer, dimension(n_process)            :: Nstats_loc
-    real(8), dimension(n_process*nvar_zonal) :: zonal_avg_loc
+    integer                                   :: bin, k
+    real(dp), dimension(nvar_zonal)           :: temp
+    integer,  dimension(n_process)            :: Nstats_loc
+    real(dp), dimension(n_process*nvar_zonal) :: zonal_avg_loc
 
 #ifdef MPI
     ! Collect statistics data on rank 0 for combining
-    Nstats_glo    = 0d0
-    zonal_avg_glo = 0d0
+    Nstats_glo    = 0.0_dp
+    zonal_avg_glo = 0.0_dp
     do k = 1, zlevels
        do bin = 1, nbins
           call MPI_Gather (Nstats(k,bin), 1, MPI_INTEGER, Nstats_loc, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
@@ -652,9 +652,9 @@ contains
 #endif
   contains
     subroutine combine_var
-      integer :: m, nA, nB, nAB, r
-      real(8) :: delta_KE, delta_T, delta_U, delta_V
-      real(8) :: mA_T, mB_T, mA_U, mB_U, mA_V, mB_V, mA_zonal, mB_zonal, mA_merid, mB_merid, mA_VT, mB_VT, mA_UV, mB_UV
+      integer  :: m, nA, nB, nAB, r
+      real(dp) :: delta_KE, delta_T, delta_U, delta_V
+      real(dp) :: mA_T, mB_T, mA_U, mB_U, mA_V, mB_V, mA_zonal, mB_zonal, mA_merid, mB_merid, mA_VT, mB_VT, mA_UV, mB_UV
 
       do r = 0, n_process-1
          nA = Nstats_glo(k,bin)
@@ -709,7 +709,7 @@ contains
     integer            :: ibin, info, k, v
     integer, parameter :: funit = 400
     character(2)       :: var_file
-    character(1300)     :: bash_cmd, command
+    character(1300)    :: bash_cmd, command
 
     write (6,'(/,a)') 'Saving statistics'
 
@@ -1265,8 +1265,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                            :: d, id, ii, jj, l, n_topo
-    real(8), dimension(:), allocatable :: distance
+    integer                             :: d, id, ii, jj, l, n_topo
+    real(dp), dimension(:), allocatable :: distance
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -1286,13 +1286,13 @@ contains
 
   subroutine proj_xz_plane (cin, cout)
     implicit none
-    type(Coord)                        :: cin
-    real(8), dimension(2), intent(out) :: cout
+    type(Coord)                         :: cin
+    real(dp), dimension(2), intent(out) :: cout
 
     if (cin%y > 0) then
-       cout = (/cin%x-radius, cin%z/)
+       cout = (/ cin%x-radius, cin%z /)
     else
-       cout = (/cin%x+radius, cin%z/)
+       cout = (/ cin%x+radius, cin%z /)
     end if
   end subroutine proj_xz_plane
 
@@ -1303,11 +1303,11 @@ contains
   end subroutine error
 
   subroutine read_lonlat_from_binary (arr, n, fid)
-    !     Use: real(8) arr(n_lon,n_lat)
+    !     Use: real(dp) arr(n_lon,n_lat)
     !     call read_lonlat_from_binary(arr(1,1),n_lon*n_lat,fid)
     implicit none
-    integer               :: n, fid
-    real(8), dimension(n) :: arr
+    integer                :: n, fid
+    real(dp), dimension(n) :: arr
 
     integer :: i
 
@@ -1323,13 +1323,13 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(19+1)                :: filename
 
-    maxerror = 0d0
-    l2error = 0d0
+    maxerror = 0.0_dp
+    l2error  = 0.0_dp
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
     call apply_onescale2 (ccentre, level_end-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
-    call apply_onescale (check_d,  level_end-1, z_null,  0, 0)
+    call apply_onescale  (check_d,  level_end-1, z_null,  0, 0)
 
     l2error = sqrt (sum_real (l2error))
     maxerror = sync_max_real (maxerror)
@@ -1377,8 +1377,8 @@ contains
     call apply_onescale2 (midpt,      level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
 
-    maxerror = 0d0
-    l2error  = 0d0
+    maxerror = 0.0_dp
+    l2error  = 0.0_dp
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
@@ -1431,8 +1431,8 @@ contains
 
   subroutine zrotate (c_in, c_out, angle)
     implicit none
-    real(8),      intent(in) :: angle
-    type(Coord),  intent(in) :: c_in
+    real(dp),    intent(in)  :: angle
+    type(Coord), intent(in)  :: c_in
     type(Coord), intent(out) :: c_out
 
     c_out%x =  c_in%x * cos(angle) - c_in%y * sin(angle)
@@ -1457,7 +1457,7 @@ contains
        if (l == 1) then
           if (owner(d_glo+1) == rank) then
              read(fid,*) node
-             call zrotate (node, node_r, -0.5d0) ! icosahedron orientation good for tsunami
+             call zrotate (node, node_r, -0.5_dp) ! icosahedron orientation good for tsunami
              grid(d_loc+1)%node%elts(idx(ij(1), ij(2), offs, dims) + 1) = project_on_sphere(node_r)
           else ! if domain is on another process, still read to get to correct position in file
              read(fid,*)

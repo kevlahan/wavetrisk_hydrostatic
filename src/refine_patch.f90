@@ -172,84 +172,84 @@ contains
     
     call apply_onescale_to_patch2 (midpt, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     
-    call extend (dom%pedlen, EDGE * num, 0d0)
-    call extend (dom%len,    EDGE * num, 0d0)
+    call extend (dom%pedlen, EDGE * num, 0.0_dp)
+    call extend (dom%len,    EDGE * num, 0.0_dp)
     
     call apply_onescale_to_patch2 (lengths, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
     tmp = ORIGIN
     
-    call extend (dom%areas, num, Areas (0d0, 0d0))
+    call extend (dom%areas, num, Areas (0.0_dp, 0.0_dp))
     call apply_onescale_to_patch2 (cpt_areas, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     
-    call extend (dom%triarea, EDGE * num, 1d0)
+    call extend (dom%triarea, EDGE * num, 1.0_dp)
     call apply_onescale_to_patch (cpt_triarea, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     
-    call extend (dom%coriolis, TRIAG * num, 0d0)
+    call extend (dom%coriolis, TRIAG * num, 0.0_dp)
     call apply_onescale_to_patch (coriolis, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
     ! Initialize domain variables to zero
-    call extend (dom%surf_press,    num, 0d0)
-    call extend (dom%press,         num, 0d0)
-    call extend (dom%geopot,        num, 0d0)
-    call extend (dom%u_zonal,       num, 0d0)
-    call extend (dom%v_merid,       num, 0d0)
-    call extend (dom%press_lower,   num, 0d0)
-    call extend (dom%geopot_lower,  num, 0d0)
-    call extend (dom%bernoulli,     num, 0d0)
-    call extend (dom%ke,            num, 0d0)
-    call extend (dom%divu,          num, 0d0)
+    call extend (dom%surf_press,    num, 0.0_dp)
+    call extend (dom%press,         num, 0.0_dp)
+    call extend (dom%geopot,        num, 0.0_dp)
+    call extend (dom%u_zonal,       num, 0.0_dp)
+    call extend (dom%v_merid,       num, 0.0_dp)
+    call extend (dom%press_lower,   num, 0.0_dp)
+    call extend (dom%geopot_lower,  num, 0.0_dp)
+    call extend (dom%bernoulli,     num, 0.0_dp)
+    call extend (dom%ke,            num, 0.0_dp)
+    call extend (dom%divu,          num, 0.0_dp)
     
-    call extend (dom%qe,      EDGE * num, 0d0)
-    call extend (dom%vort,   TRIAG * num, 0d0)
+    call extend (dom%qe,      EDGE * num, 0.0_dp)
+    call extend (dom%vort,   TRIAG * num, 0.0_dp)
 
-    call extend (topography%data(d), num, 0d0)
+    call extend (topography%data(d), num, 0.0_dp)
 
     ! Initialize float fields and float arrays to zero
     if (sso) then
        do k = 1, 4
-          call extend (sso_param(k)%data(d), num, 0d0)
+          call extend (sso_param(k)%data(d), num, 0.0_dp)
        end do
     end if
     
     do k = zmin, zmax
-       call extend (penal_node(k)%data(d),        num, 0d0)
-       call extend (penal_edge(k)%data(d), EDGE * num, 0d0)
-       call extend (exner_fun(k)%data(d),         num, 0d0)
+       call extend (penal_node(k)%data(d),        num, 0.0_dp)
+       call extend (penal_edge(k)%data(d), EDGE * num, 0.0_dp)
+       call extend (exner_fun(k)%data(d),         num, 0.0_dp)
        
        do v = scalars(1), scalars(2)
-          if (k > 0) call extend (trend(v,k)%data(d), num, 0d0)
-          call extend (wav_coeff(v,k)%data(d), num, 0d0)
+          if (k > 0) call extend (trend(v,k)%data(d), num, 0.0_dp)
+          call extend (wav_coeff(v,k)%data(d), num, 0.0_dp)
        end do
-       if (k > 0) call extend (trend(S_VELO,k)%data(d),     EDGE*num, 0d0)
-       call extend (wav_coeff(S_VELO,k)%data(d), EDGE * num, 0d0)
+       if (k > 0) call extend (trend(S_VELO,k)%data(d),     EDGE*num, 0.0_dp)
+       call extend (wav_coeff(S_VELO,k)%data(d), EDGE * num, 0.0_dp)
     end do
-    call extend (exner_fun(zmax+1)%data(d), num, 0d0)
+    call extend (exner_fun(zmax+1)%data(d), num, 0.0_dp)
 
     ! Initialize vertical diffusion variables to zero
     if (vert_diffuse) then
-       call extend (Kt(0)%data(d), num, 0d0)
-       call extend (Kv(0)%data(d), num, 0d0)
+       call extend (Kt(0)%data(d), num, 0.0_dp)
+       call extend (Kv(0)%data(d), num, 0.0_dp)
        do k = 1, zlevels
-          call extend (Kt(k)%data(d),      num, 0d0)
-          call extend (Kv(k)%data(d),      num, 0d0)
-          call extend (tke(k)%data(d),     num, 0d0)
-          call extend (wav_tke(k)%data(d), num, 0d0)
+          call extend (Kt(k)%data(d),      num, 0.0_dp)
+          call extend (Kv(k)%data(d),      num, 0.0_dp)
+          call extend (tke(k)%data(d),     num, 0.0_dp)
+          call extend (wav_tke(k)%data(d), num, 0.0_dp)
        end do
     end if
 
     ! Initialize Laplacian diffusion variables to zero
-    call extend (Laplacian_vector(S_DIVU)%data(d),     num,  0d0)
-    call extend (Laplacian_vector(S_ROTU)%data(d), EDGE * num, 0d0)
+    call extend (Laplacian_vector(S_DIVU)%data(d),     num,  0.0_dp)
+    call extend (Laplacian_vector(S_ROTU)%data(d), EDGE * num, 0.0_dp)
     do v = scalars(1), scalars(2)
-       call extend (horiz_flux(v)%data(d),       EDGE * num, 0d0)
-       call extend (Laplacian_scalar(v)%data(d),      num, 0d0)
+       call extend (horiz_flux(v)%data(d),       EDGE * num, 0.0_dp)
+       call extend (Laplacian_scalar(v)%data(d),      num, 0.0_dp)
     end do
     
     ! Initialize mask and wavelet variables to zero
-    call extend (dom%overl_areas, EDGE * num, Overl_Area(0d0, 0d0))
-    call extend (dom%I_u_wgt,     EDGE * num, Iu_Wgt (0d0))
-    call extend (dom%R_F_wgt,            num, RF_Wgt (0d0))
+    call extend (dom%overl_areas, EDGE * num, Overl_Area(0.0_dp, 0.0_dp))
+    call extend (dom%I_u_wgt,     EDGE * num, Iu_Wgt (0.0_dp))
+    call extend (dom%R_F_wgt,            num, RF_Wgt (0.0_dp))
     call extend (dom%mask_n,             num, ZERO)
     call extend (dom%mask_e,      EDGE * num, ZERO)
     
@@ -431,11 +431,11 @@ contains
 
   subroutine set_areas (dom, id, val)
     implicit none
-    type(Domain)          :: dom
-    integer               :: id
-    real(8), dimension(7) :: val
+    type(Domain)           :: dom
+    integer                :: id
+    real(dp), dimension(7) :: val
 
-    real(8), dimension(4) :: area
+    real(dp), dimension(4) :: area
 
     area = val(1:4)
     if (id < 0) area = (/area(2), area(1), area(4), area(3)/)
@@ -447,13 +447,13 @@ contains
 
   subroutine get_areas (dom, id, val)
     implicit none
-    real(8), dimension(7), intent(out) :: val
+    real(dp), dimension(7), intent(out) :: val
     type(Domain)                       :: dom
     integer                            :: id
 
-    real(8), dimension(7) :: area
+    real(dp), dimension(7) :: area
 
-    area = 0d0
+    area = 0.0_dp
     
     area(1:4) = dom%overl_areas%elts(id+1)%a
     area(5:6) = dom%overl_areas%elts(id+1)%split
@@ -473,11 +473,11 @@ contains
 
     if (c == IPLUSJMINUS) then
        id = idx (PATCH_SIZE, -1, offs, dims)
-       dom%overl_areas%elts(id+1)%a = 0d0
+       dom%overl_areas%elts(id+1)%a = 0.0_dp
     end if
     if (c == IMINUSJPLUS) then
        id = idx (-1, PATCH_SIZE, offs, dims)
-       dom%overl_areas%elts(id+1)%a = 0d0
+       dom%overl_areas%elts(id+1)%a = 0.0_dp
     end if
   end subroutine area_post_comm
 

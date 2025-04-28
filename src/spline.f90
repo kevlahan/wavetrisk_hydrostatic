@@ -1,5 +1,6 @@
 module spline_mod
   ! Routines for cubic spline interpolation
+  use kind_mod
   implicit none
 contains
   subroutine splint (xa, ya, y2a, n, x, y)
@@ -10,12 +11,12 @@ contains
     !
     ! (adopted from Numerical Recipes in FORTRAN 77)
     !
-    integer               :: n
-    real(8)               :: x, y
-    real(8), dimension(n) :: xa, y2a, ya
+    integer                :: n
+    real(dp)               :: x, y
+    real(dp), dimension(n) :: xa, y2a, ya
     
-    integer :: k, khi, klo
-    real(8) :: a, b, h
+    integer  :: k, khi, klo
+    real(dp) :: a, b, h
 
     klo = 1
     khi = n
@@ -30,11 +31,11 @@ contains
     end if
 
     h = xa(khi) - xa(klo)
-    if (h == 0d0) write(6,*)"bad xa input in splint"
+    if (h == 0.0_dp) write(6,*)"bad xa input in splint"
 
     a = (xa(khi) - x) / h
     b = (x - xa(klo)) / h
-    y = a * ya(klo) + b * ya(khi) + ((a**3-a)*y2a(klo) + (b**3-b) * y2a(khi)) * (h**2)/6d0
+    y = a * ya(klo) + b * ya(khi) + ((a**3-a)*y2a(klo) + (b**3-b) * y2a(khi)) * (h**2)/6
 
     return
   end subroutine splint
@@ -51,40 +52,40 @@ contains
     !
     ! (adopted from Numerical Recipes in FORTRAN 77)
     !
-    integer               :: n
-    real(8)               :: yp1, ypn
-    real(8), dimension(n) :: x, y, y2
+    integer                :: n
+    real(dp)               :: yp1, ypn
+    real(dp), dimension(n) :: x, y, y2
     
-    integer                  :: i, k
-    integer, parameter       :: nmax = 4000 ! largest anticipated value of n
-    real(8)                  :: p, qn, sig, un
-    real(8), dimension(nmax) :: u
+    integer                   :: i, k
+    integer, parameter        :: nmax = 4000 ! largest anticipated value of n
+    real(dp)                  :: p, qn, sig, un
+    real(dp), dimension(nmax) :: u
 
-    if (yp1 > 0.99d30) then
-       y2(1) = 0d0
-       u(1)  = 0d0
+    if (yp1 > 0.99e30_dp) then
+       y2(1) = 0.0_dp
+       u(1)  = 0.0_dp
     else
-       y2(1) = -0.5d0
-       u(1) = (3d0 / (x(2) - x(1))) * ((y(2) - y(1)) / (x(2) - x(1)) - yp1)
+       y2(1) = -0.5_dp
+       u(1) = (3 / (x(2) - x(1))) * ((y(2) - y(1)) / (x(2) - x(1)) - yp1)
     end if
 
     do i = 2, n-1
        sig = (x(i) - x(i-1)) / (x(i+1) - x(i-1))
-       p = sig * y2(i-1) + 2d0
-       y2(i) = (sig - 1d0) / p
-       u(i) = (6d0 * ((y(i+1) - y(i)) / (x(i+1) - x(i)) - (y(i) - y(i-1)) / &
+       p = sig * y2(i-1) + 2.0_dp
+       y2(i) = (sig - 1.0_dp) / p
+       u(i) = (6 * ((y(i+1) - y(i)) / (x(i+1) - x(i)) - (y(i) - y(i-1)) / &
             (x(i)-x(i-1))) / (x(i+1) - x(i-1)) - sig * u(i-1)) / p
     end do
 
-    if (ypn > 0.99d30) then
-       qn = 0d0
-       un = 0d0
+    if (ypn > 0.99e30_dp) then
+       qn = 0.0_dp
+       un = 0.0_dp
     else
-       qn = 0.5d0
-       un = (3d0 / (x(n) - x(n-1))) * (ypn - (y(n) - y(n-1)) / (x(n) - x(n-1)))
+       qn = 0.5_dp
+       un = (3 / (x(n) - x(n-1))) * (ypn - (y(n) - y(n-1)) / (x(n) - x(n-1)))
     end if
 
-    y2(n) = (un - qn * u(n-1)) / (qn * y2(n-1) + 1d0)
+    y2(n) = (un - qn * u(n-1)) / (qn * y2(n-1) + 1.0_dp)
 
     do k = n-1, 1, -1
        y2(k) = y2(k) * y2(k+1) + u(k)

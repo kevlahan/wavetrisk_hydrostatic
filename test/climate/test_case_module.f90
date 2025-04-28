@@ -1,6 +1,6 @@
 module test_case_mod
   ! Module file for climate test case
-  use comm_mpi_mod
+  !use comm_mpi_mod
   use utils_mod
   use init_mod
   use std_atm_profile_mod
@@ -10,27 +10,27 @@ module test_case_mod
   implicit none
 
   ! Standard variables
-  integer :: CP_EVERY, resume_init
-  real(8) :: time_start, total_cpu_time
+  integer :: CP_EVERY, domains_per_task, resume_init
+  real(dp) :: time_start, total_cpu_time
 
   ! Test case variables
   integer :: zmax_adapt = 30 ! highest layer that determines adaptive grid
-  real(8) :: Area_max, Area_min, C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
-  real(8) :: topo_Area_min, topo_dx_min
-  real(8) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
+  real(dp) :: Area_max, Area_min, C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
+  real(dp) :: topo_Area_min, topo_dx_min
+  real(dp) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
 
   ! Model parameters
-  real(8), parameter :: nu_CAM        = 1d15 * METRE**4/SECOND      ! CAM hyperviscosity 
-  real(8), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
-  real(8), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
-  real(8), parameter :: Area_CAM      = sqrt(3d0)/2 * dx_CAM**2     ! CAM hexagon area
-  real(8), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity (1.4468e-03)
+  real(dp), parameter :: nu_CAM        = 1d15 * METRE**4/SECOND      ! CAM hyperviscosity 
+  real(dp), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
+  real(dp), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
+  real(dp), parameter :: Area_CAM      = sqrt(3.0_dp)/2 * dx_CAM**2  ! CAM hexagon area
+  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity (1.4468e-03)
   
-  real(8), parameter :: e_thick       = 10   * KM                   ! Ekman layer thickness
-  logical            :: Ekman_ic      = .false.                     ! Ekman flow initial conditions (zero velocity initial conditions if false)
-  logical            :: scale_aware   = .false.                     ! scale-aware viscosity
-  logical            :: print_tol     = .false.                     ! print tolerances for each layer
-  character(255)     :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
+  real(dp), parameter :: e_thick       = 10   * KM                   ! Ekman layer thickness
+  logical            :: Ekman_ic      = .false.                      ! Ekman flow initial conditions (zero velocity initial conditions if false)
+  logical            :: scale_aware   = .false.                      ! scale-aware viscosity
+  logical            :: print_tol     = .false.                      ! print tolerances for each layer
+  character(255)     :: analytic_topo = "none"                       ! mountains or none (used if NCAR_topo = .false.)
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -59,13 +59,13 @@ contains
     use domain_mod
     implicit none
 
-    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
+    real(dp), dimension(1:EDGE)                           :: physics_scalar_flux_case
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
     type(domain)                                         :: dom
     integer                                              :: d, id, idE, idNE, idN, v, zlev
     logical, optional                                    :: type
 
-    real(8), dimension(1:EDGE) :: d_e, grad, l_e
+    real(dp), dimension(1:EDGE) :: d_e, grad, l_e
     logical                    :: local_type
 
     if (present(type)) then
@@ -76,7 +76,7 @@ contains
 
     d = dom%id + 1
 
-    physics_scalar_flux_case = 0d0
+    physics_scalar_flux_case = 0.0_dp
     
     if (Laplace_sclr /= 0) then
        if (.not.local_type) then ! usual flux at edges E, NE, N
@@ -102,8 +102,8 @@ contains
   contains
     function grad_physics (scalar)
       implicit none
-      real(8), dimension(1:EDGE) :: grad_physics
-      real(8), dimension(:)      :: scalar
+      real(dp), dimension(1:EDGE) :: grad_physics
+      real(dp), dimension(:)      :: scalar
 
       grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
       grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
@@ -116,7 +116,7 @@ contains
     use domain_mod
     implicit none
 
-    real(8), dimension(1:EDGE)     :: physics_velo_source_case
+    real(dp), dimension(1:EDGE)     :: physics_velo_source_case
     type(domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -132,7 +132,7 @@ contains
     id = idx (i, j, offs, dims)
 
     ! Scale aware viscosity
-    physics_velo_source_case = 0d0
+    physics_velo_source_case = 0.0_dp
     
     if (Laplace_divu /= 0) physics_velo_source_case = &  
          + (-1)**(Laplace_divu-1) * C_visc(S_DIVU) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
@@ -142,7 +142,7 @@ contains
   contains
     function grad_divu ()
       implicit none
-      real(8), dimension(1:EDGE) :: grad_divu
+      real(dp), dimension(1:EDGE) :: grad_divu
             
       grad_divu(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
       grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
@@ -151,7 +151,7 @@ contains
 
     function curl_rotu ()
       implicit none
-      real(8), dimension(1:EDGE) :: curl_rotu
+      real(dp), dimension(1:EDGE) :: curl_rotu
 
       integer :: idS, idW
 
@@ -172,7 +172,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: k_T, lat, lon, p, P_s, pot_temp
+    real(dp) :: k_T, lat, lon, p, P_s, pot_temp
     
     d   = dom%id+1
     id  = idx (i, j, offs, dims)
@@ -189,8 +189,8 @@ contains
        p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * P_s) ! pressure at level k
 
        if (split_mean_perturbation) then
-          sol(S_MASS,k)%data(d)%elts(id+1) = 0d0
-          sol(S_TEMP,k)%data(d)%elts(id+1) = 0d0
+          sol(S_MASS,k)%data(d)%elts(id+1) = 0.0_dp
+          sol(S_TEMP,k)%data(d)%elts(id+1) = 0.0_dp
        else
           call cal_theta_eq (p, P_s, lat, pot_temp, k_T)
           
@@ -202,7 +202,7 @@ contains
        if (ekman_ic) then
           call vel2uvw (dom, i, j, k, offs, dims)
        else
-          sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
+          sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
        end if
     end do
   end subroutine init_sol
@@ -215,7 +215,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(8) :: k_T, lat, lon, p, P_s, pot_temp
+    real(dp) :: k_T, lat, lon, p, P_s, pot_temp
     
     d  = dom%id+1
     id = idx (i, j, offs, dims)
@@ -237,19 +237,19 @@ contains
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * P_s / grav_accel
           sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        else
-          sol_mean(S_MASS,k)%data(d)%elts(id+1) = 0d0
-          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = 0d0
+          sol_mean(S_MASS,k)%data(d)%elts(id+1) = 0.0_dp
+          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = 0.0_dp
        end if
-       sol_mean(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
+       sol_mean(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
     end do
   end subroutine init_mean
   
   subroutine  theta_init (p, P_s, lat, theta_equil, k_T)
     ! Initial potential temperature profile
     implicit none
-    real(8) :: p, P_s, lat, theta_equil, k_T
+    real(dp) :: p, P_s, lat, theta_equil, k_T
     
-    real(8) :: cs2, sigma, sigma_c, theta_force, theta_tropo
+    real(dp) :: cs2, sigma, sigma_c, theta_force, theta_tropo
 
     if (physics_type == "Held_Suarez") then
        cs2 = cos (lat)**2
@@ -257,7 +257,7 @@ contains
        sigma = (p - P_top) / (P_s - P_top)
        sigma_c = 1 - sigma_b
 
-       k_T = k_a + (k_s - k_a) * max (0d0, (sigma - sigma_b) / sigma_c) * cs2**2
+       k_T = k_a + (k_s - k_a) * max (0.0_dp, (sigma - sigma_b) / sigma_c) * cs2**2
 
        theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
        theta_force = T_mean - delta_T * (1 - cs2) - delta_theta * cs2 * log (p / p_0)
@@ -275,7 +275,6 @@ contains
     integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
-    external                        :: vel_fun
 
     integer      :: d, id, idE, idN, idNE
     type (Coord) :: vel, x_i, x_E, x_N, x_NE
@@ -303,7 +302,7 @@ contains
       implicit none
       type(Coord) :: vel_init
 
-      real(8)     :: D_e, lon, lat, p, P_s, phi, u, v
+      real(dp)     :: D_e, lon, lat, p, P_s, phi, u, v
       type(Coord) :: e_zonal, e_merid
 
       call cart2sph (x_i, lon, lat)
@@ -323,7 +322,7 @@ contains
       u = u_0 * (1 - exp (-phi/D_e) * cos (phi/D_e)) * cos (lat) ! zonal velocity 
       v = u_0 * (1 - exp (-phi/D_e) * sin (phi/D_e)) * cos (lat) ! meridional velocity
 
-      e_zonal = Coord (-sin(lon),           cos(lon),               0d0) 
+      e_zonal = Coord (-sin(lon),           cos(lon),               0.0_dp) 
       e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) 
 
       ! Velocity vector
@@ -331,7 +330,7 @@ contains
     end function vel_init
   end subroutine vel2uvw
 
-  real(8) function surf_geopot_case (d, id)
+  real(dp) function surf_geopot_case (d, id)
     ! Set geopotential and topography
     implicit none
     integer :: d, id
@@ -348,7 +347,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id
-    real(8) :: lat, lon, width
+    real(dp) :: lat, lon, width
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -362,43 +361,43 @@ contains
             tanh_profile (4d3*METRE,  65*DEG,   95*DEG,  25*DEG,  40*DEG) + & ! Himalayas
             tanh_profile (4d3*METRE, -60*DEG,  -50*DEG, -60*DEG, -10*DEG)     ! Andes
     case ("none")
-       topography%data(d)%elts(id) = 0d0
+       topography%data(d)%elts(id) = 0.0_dp
     end select
   contains
-    real(8) function tanh_profile (height, lon_min, lon_max, lat_min, lat_max)
+    real(dp) function tanh_profile (height, lon_min, lon_max, lat_min, lat_max)
       implicit none
-      real(8), intent(in) :: height, lon_min, lon_max, lat_min, lat_max
+      real(dp), intent(in) :: height, lon_min, lon_max, lat_min, lat_max
 
       tanh_profile = height * (profile1d (lat, lat_min, lat_max) * profile1d (lon, lon_min, lon_max))
     end function tanh_profile
 
-    real(8) function profile1d (x, xmin, xmax)
+    real(dp) function profile1d (x, xmin, xmax)
       implicit none
-      real(8) :: x, xmin, xmax
+      real(dp) :: x, xmin, xmax
 
       profile1d = prof (x, xmax) - prof (x, xmin)
     end function profile1d
 
-    real(8) function prof (x, x0)
+    real(dp) function prof (x, x0)
       implicit none
-      real(8) :: x, x0
+      real(dp) :: x, x0
 
       prof = 0.5 * (1 - tanh ((x - x0)/((width/5)/radius)))
     end function prof
     
-    real(8) function ellipse_profile (lon_0, lat_0, e, height, sigma, theta)
+    real(dp) function ellipse_profile (lon_0, lat_0, e, height, sigma, theta)
       ! Elliptical smoothed mountain, ellipticity 0 < e <= 1
       ! Minimum resolution of gradient = N
       implicit none
-      real(8), intent(in) :: lon_0, lat_0 ! centre of ellipse (in radians)
-      real(8), intent(in) :: e            ! ellipticity
-      real(8), intent(in) :: height       ! height of ellipse (in metres)
-      real(8), intent(in) :: sigma        ! size of ellipse (in radians)
-      real(8), intent(in) :: theta        ! orientation (in radians)
+      real(dp), intent(in) :: lon_0, lat_0 ! centre of ellipse (in radians)
+      real(dp), intent(in) :: e            ! ellipticity
+      real(dp), intent(in) :: height       ! height of ellipse (in metres)
+      real(dp), intent(in) :: sigma        ! size of ellipse (in radians)
+      real(dp), intent(in) :: theta        ! orientation (in radians)
 
-      real(8)            :: dtheta, p, lat_loc, lat_rot, lon_loc, lon_rot, rsq, sigma_x, sigma_y
+      real(dp)            :: dtheta, p, lat_loc, lat_rot, lon_loc, lon_rot, rsq, sigma_x, sigma_y
 
-      real(8), parameter :: npts_slope = 5d0 ! resolve slope with this many cells
+      real(dp), parameter :: npts_slope = 5.0_dp ! resolve slope with this many cells
 
       dtheta = dx_min / radius
 
@@ -414,7 +413,7 @@ contains
       rsq = (lon_rot/sigma_x)**2 + (lat_rot/sigma_y)**2
 
       ! Order of hyper Gaussian is 2 p
-      p = (log (0.01d0) / log (1 - npts_slope * dtheta/(2d0*sigma_y))) / 2
+      p = (log (0.01_dp) / log (1 - npts_slope * dtheta/(2*sigma_y))) / 2
 
       ellipse_profile = height * exp__flush (-rsq**p)
     end function ellipse_profile
@@ -423,11 +422,11 @@ contains
   subroutine vel_fun (lon, lat, u, v)
     ! Random initial wind
     implicit none
-    real(8) :: lon, lat, u, v
+    real(dp) :: lon, lat, u, v
 
-    real(8) :: rgrc
-    real(8) :: lat_c, lon_c, r
-    real(8) :: amp = 1d0 ! amplitude of random noise
+    real(dp) :: rgrc
+    real(dp) :: lat_c, lon_c, r
+    real(dp) :: amp = 1.0_dp ! amplitude of random noise
 
     ! Zonal velocity component
     call random_number (r)
@@ -449,25 +448,25 @@ contains
     if (uniform) then
        do k = 1, zlevels+1
           a_vert(k) = dble(k-1)/dble(zlevels) * P_top
-          b_vert(k) = 1 - dble(k-1)/dble(zlevels)
+          b_vert(k) = 1.0_dp - dble(k-1)/dble(zlevels)
        end do
     else
        if (zlevels == 18) then
-          a_vert=(/0.00251499d0, 0.00710361d0, 0.01904260d0, 0.04607560d0, 0.08181860d0, &
-               0.07869805d0, 0.07463175d0, 0.06955308d0, 0.06339061d0, 0.05621774d0, 0.04815296d0, &
-               0.03949230d0, 0.03058456d0, 0.02193336d0, 0.01403670d0, 0.007458598d0, 0.002646866d0, &
-               0d0, 0d0 /)
-          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0.03756984d0, 0.08652625d0, 0.1476709d0, 0.221864d0, &
-               0.308222d0, 0.4053179d0, 0.509588d0, 0.6168328d0, 0.7209891d0, 0.816061d0, 0.8952581d0, &
-               0.953189d0, 0.985056d0, 1d0 /)
+          a_vert=(/0.00251499_dp, 0.00710361_dp, 0.01904260_dp, 0.04607560_dp, 0.08181860_dp, &
+               0.07869805_dp, 0.07463175_dp, 0.06955308_dp, 0.06339061_dp, 0.05621774_dp, 0.04815296_dp, &
+               0.03949230_dp, 0.03058456_dp, 0.02193336_dp, 0.01403670_dp, 0.007458598_dp, 0.002646866_dp, &
+               0.0_dp, 0.0_dp /)
+          b_vert=(/0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.03756984_dp, 0.08652625_dp, 0.1476709_dp, 0.221864_dp, &
+               0.308222_dp, 0.4053179_dp, 0.509588_dp, 0.6168328_dp, 0.7209891_dp, 0.816061_dp, 0.8952581_dp, &
+               0.953189_dp, 0.985056_dp, 1.0_dp /)
        elseif (zlevels==26) then
-          a_vert=(/0.002194067d0, 0.004895209d0, 0.009882418d0, 0.01805201d0, 0.02983724d0, 0.04462334d0, 0.06160587d0, &
-               0.07851243d0, 0.07731271d0, 0.07590131d0, 0.07424086d0, 0.07228744d0, 0.06998933d0, 0.06728574d0, 0.06410509d0, &
-               0.06036322d0, 0.05596111d0, 0.05078225d0, 0.04468960d0, 0.03752191d0, 0.02908949d0, 0.02084739d0, 0.01334443d0, &
-               0.00708499d0, 0.00252136d0, 0d0, 0d0 /)
-          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0.01505309d0, 0.03276228d0, 0.05359622d0, &
-               0.07810627d0, 0.1069411d0, 0.1408637d0, 0.1807720d0, 0.2277220d0, 0.2829562d0, 0.3479364d0, 0.4243822d0, &
-               0.5143168d0, 0.6201202d0, 0.7235355d0, 0.8176768d0, 0.8962153d0, 0.9534761d0, 0.9851122d0, 1d0 /)
+          a_vert=(/0.002194067_dp, 0.004895209_dp, 0.009882418_dp, 0.01805201_dp, 0.02983724_dp, 0.04462334_dp, 0.06160587_dp, &
+               0.07851243_dp, 0.07731271_dp, 0.07590131_dp, 0.07424086_dp, 0.07228744_dp, 0.06998933_dp, 0.06728574_dp,  &
+               0.06410509_dp, 0.06036322_dp, 0.05596111_dp, 0.05078225_dp, 0.04468960_dp, 0.03752191_dp, 0.02908949_dp,  &
+               0.02084739_dp, 0.01334443_dp, 0.00708499_dp, 0.00252136_dp, 0.0_dp, 0.0_dp /)
+          b_vert=(/0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.01505309_dp, 0.03276228_dp, 0.05359622_dp, &
+               0.07810627_dp, 0.1069411_dp, 0.1408637_dp, 0.1807720_dp, 0.2277220_dp, 0.2829562_dp, 0.3479364_dp, 0.4243822_dp, &
+               0.5143168_dp, 0.6201202_dp, 0.7235355_dp, 0.8176768_dp, 0.8962153_dp, 0.9534761_dp, 0.9851122_dp, 1.0_dp /)
        elseif (zlevels==30) then 
           a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
                0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
@@ -481,43 +480,44 @@ contains
                0.848494648933411, 0.881127893924713, 0.911346435546875, 0.938901245594025, 0.963559806346893, &
                0.985112190246582, 1.0 /)
        elseif (zlevels==32) then
-          a_vert = (/  0.00225523952394724d0, 0.00503169186413288d0, 0.0101579474285245d0, &
-               0.0185553170740604d0, 0.0297346755951211d0, 0.0392730012536049d0, &
-               0.0471144989132881d0, 0.0562404990196228d0, 0.0668004974722862d0, &
-               0.0807014182209969d0, 0.0949410423636436d0, 0.11169321089983d0, &
-               0.131401270627975d0, 0.154586806893349d0, 0.181863352656364d0, &
-               0.17459799349308d0, 0.166050657629967d0, 0.155995160341263d0, 0.14416541159153d0, &
-               0.130248308181763d0, 0.113875567913055d0, 0.0946138575673103d0, &
-               0.0753444507718086d0, 0.0576589405536652d0, 0.0427346378564835d0, &
-               0.0316426791250706d0, 0.0252212174236774d0, 0.0191967375576496d0, &
-               0.0136180268600583d0, 0.00853108894079924d0, 0.00397881818935275d0, 0d0, 0d0 /)
+          a_vert = (/  0.00225523952394724_dp, 0.00503169186413288_dp, 0.0101579474285245_dp, &
+               0.0185553170740604_dp, 0.0297346755951211_dp, 0.0392730012536049_dp, &
+               0.0471144989132881_dp, 0.0562404990196228_dp, 0.0668004974722862_dp, &
+               0.0807014182209969_dp, 0.0949410423636436_dp, 0.11169321089983_dp, &
+               0.131401270627975_dp, 0.154586806893349_dp, 0.181863352656364_dp, &
+               0.17459799349308_dp, 0.166050657629967_dp, 0.155995160341263_dp, 0.14416541159153_dp, &
+               0.130248308181763_dp, 0.113875567913055_dp, 0.0946138575673103_dp, &
+               0.0753444507718086_dp, 0.0576589405536652_dp, 0.0427346378564835_dp, &
+               0.0316426791250706_dp, 0.0252212174236774_dp, 0.0191967375576496_dp, &
+               0.0136180268600583_dp, 0.00853108894079924_dp, 0.00397881818935275_dp, 0.0_dp, 0.0_dp /)
 
-          b_vert = (/ 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0.0393548272550106d0, &
-               0.0856537595391273d0, 0.140122056007385d0, 0.204201176762581d0, &
-               0.279586911201477d0, 0.368274360895157d0, 0.47261056303978d0, &
-               0.576988518238068d0, 0.672786951065063d0, 0.753628432750702d0, &
-               0.813710987567902d0, 0.848494648933411d0, 0.881127893924713d0, &
-               0.911346435546875d0, 0.938901245594025d0, 0.963559806346893d0, &
-               0.985112190246582d0, 1d0 /)
+          b_vert = (/ 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp,  &
+               0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0393548272550106_dp, &
+               0.0856537595391273_dp, 0.140122056007385_dp, 0.204201176762581_dp, &
+               0.279586911201477_dp, 0.368274360895157_dp, 0.47261056303978_dp, &
+               0.576988518238068_dp, 0.672786951065063_dp, 0.753628432750702_dp, &
+               0.813710987567902_dp, 0.848494648933411_dp, 0.881127893924713_dp, &
+               0.911346435546875_dp, 0.938901245594025_dp, 0.963559806346893_dp, &
+               0.985112190246582_dp, 1.0_dp /)
        elseif (zlevels==49) then
-          a_vert=(/0.002251865d0, 0.003983890d0, 0.006704364d0, 0.01073231d0, 0.01634233d0, 0.02367119d0, &
-               0.03261456d0, 0.04274527d0, 0.05382610d0, 0.06512175d0, 0.07569850d0, 0.08454283d0, &
-               0.08396310d0, 0.08334103d0, 0.08267352d0, 0.08195725d0, 0.08118866d0, 0.08036393d0, &
-               0.07947895d0, 0.07852934d0, 0.07751036d0, 0.07641695d0, 0.07524368d0, 0.07398470d0, &
-               0.07263375d0, 0.07118414d0, 0.06962863d0, 0.06795950d0, 0.06616846d0, 0.06424658d0, &
-               0.06218433d0, 0.05997144d0, 0.05759690d0, 0.05504892d0, 0.05231483d0, 0.04938102d0, &
-               0.04623292d0, 0.04285487d0, 0.03923006d0, 0.03534049d0, 0.03116681d0, 0.02668825d0, &
-               0.02188257d0, 0.01676371d0, 0.01208171d0, 0.007959612d0, 0.004510297d0, 0.001831215d0, &
-               0d0, 0d0 /)
+          a_vert=(/0.002251865_dp, 0.003983890_dp, 0.006704364_dp, 0.01073231_dp, 0.01634233_dp, 0.02367119_dp, &
+               0.03261456_dp, 0.04274527_dp, 0.05382610_dp, 0.06512175_dp, 0.07569850_dp, 0.08454283_dp, &
+               0.08396310_dp, 0.08334103_dp, 0.08267352_dp, 0.08195725_dp, 0.08118866_dp, 0.08036393_dp, &
+               0.07947895_dp, 0.07852934_dp, 0.07751036_dp, 0.07641695_dp, 0.07524368_dp, 0.07398470_dp, &
+               0.07263375_dp, 0.07118414_dp, 0.06962863_dp, 0.06795950_dp, 0.06616846_dp, 0.06424658_dp, &
+               0.06218433_dp, 0.05997144_dp, 0.05759690_dp, 0.05504892_dp, 0.05231483_dp, 0.04938102_dp, &
+               0.04623292_dp, 0.04285487_dp, 0.03923006_dp, 0.03534049_dp, 0.03116681_dp, 0.02668825_dp, &
+               0.02188257_dp, 0.01676371_dp, 0.01208171_dp, 0.007959612_dp, 0.004510297_dp, 0.001831215_dp, &
+               0.0_dp, 0.0_dp /)
           
-          b_vert=(/0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, 0d0, &
-               0.006755112d0, 0.01400364d0, 0.02178164d0, 0.03012778d0, 0.03908356d0, 0.04869352d0, &
-               0.05900542d0, 0.07007056d0, 0.08194394d0, 0.09468459d0, 0.1083559d0, 0.1230258d0, &
-               0.1387673d0, 0.1556586d0, 0.1737837d0, 0.1932327d0, 0.2141024d0, 0.2364965d0, &
-               0.2605264d0, 0.2863115d0, 0.3139801d0, 0.3436697d0, 0.3755280d0, 0.4097133d0, &
-               0.4463958d0, 0.4857576d0, 0.5279946d0, 0.5733168d0, 0.6219495d0, 0.6741346d0, &
-               0.7301315d0, 0.7897776d0, 0.8443334d0, 0.8923650d0, 0.9325572d0, 0.9637744d0, &
-               0.9851122d0, 1d0/)
+          b_vert=(/0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
+               0.006755112_dp, 0.01400364_dp, 0.02178164_dp, 0.03012778_dp, 0.03908356_dp, 0.04869352_dp, &
+               0.05900542_dp, 0.07007056_dp, 0.08194394_dp, 0.09468459_dp, 0.1083559_dp, 0.1230258_dp, &
+               0.1387673_dp, 0.1556586_dp, 0.1737837_dp, 0.1932327_dp, 0.2141024_dp, 0.2364965_dp, &
+               0.2605264_dp, 0.2863115_dp, 0.3139801_dp, 0.3436697_dp, 0.3755280_dp, 0.4097133_dp, &
+               0.4463958_dp, 0.4857576_dp, 0.5279946_dp, 0.5733168_dp, 0.6219495_dp, 0.6741346_dp, &
+               0.7301315_dp, 0.7897776_dp, 0.8443334_dp, 0.8923650_dp, 0.9325572_dp, 0.9637744_dp, &
+               0.9851122_dp, 1.0_dp/)
        else
           if (rank == 0) then
              write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
@@ -578,12 +578,14 @@ contains
     time_end = time_end * DAY
     resume   = resume_init
 
+    domains_per_task = int (real(N_GLO_DOMAIN,kind=dp)/n_process, kind=dp)
+
     ! Bins for zonal statistics
     !nbins = sqrt (10*4**max_level/2) ! consistent with maximum resolution
     nbins = 300
     allocate (Nstats(zlevels,nbins), Nstats_glo(zlevels,nbins)) ; Nstats = 0 ; Nstats_glo = 0
     allocate (zonal_avg(zlevels,nbins,nvar_zonal), zonal_avg_glo(zlevels,nbins,nvar_zonal))
-    zonal_avg = 0d0; zonal_avg_glo = 0d0
+    zonal_avg = 0.0_dp; zonal_avg_glo = 0.0_dp
     allocate (bounds(1:nbins-1))
     dbin = 1.8d2/nbins
     bounds = -90+dbin + dbin*(/ (ibin, ibin = 0, nbins-1) /)
@@ -733,7 +735,7 @@ contains
     implicit none
 
     integer :: date, j, k, min_load, max_load, total_dof
-    real(8) :: avg_load, rel_imbalance, timing
+    real(dp) :: avg_load, rel_imbalance, timing
 
     total_dof = 0
     do j = min_level, max_level
@@ -772,9 +774,9 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer :: k
-    real(8) :: p, P_s, lat, rho_dz, pot_temp, theta_equil, k_T
+    real(dp) :: p, P_s, lat, rho_dz, pot_temp, theta_equil, k_T
 
-    call std_surf_pres (0d0, P_s)
+    call std_surf_pres (0.0_dp, P_s)
 
     threshold_def = 1d16
 
@@ -789,8 +791,12 @@ contains
        threshold_def(S_TEMP,k) = tol * rho_dz * theta_equil
        threshold_def(S_VELO,k) = tol * u_0
     end do
+    
+    threshold_def(S_MASS,1:zlevels) = sqrt (sum (threshold_def(S_MASS,1:zlevels)**2/zlevels))
+    threshold_def(S_TEMP,1:zlevels) = sqrt (sum (threshold_def(S_TEMP,1:zlevels)**2/zlevels))
+    threshold_def(S_VELO,1:zlevels) = sqrt (sum (threshold_def(S_VELO,1:zlevels)**2/zlevels))
   end subroutine initialize_thresholds_case
-  
+
   subroutine set_thresholds_case
     ! Set thresholds dynamically
     use lnorms_mod
@@ -802,29 +808,33 @@ contains
        call cal_lnorm ("2")
        where (tol * lnorm(:,1:zmax_adapt) > threshold(:,1:zmax_adapt)) threshold(:,1:zmax_adapt) = tol * lnorm(:,1:zmax_adapt)
     end if
+    
+    threshold(S_MASS,1:zlevels) = sqrt (sum (threshold_def(S_MASS,1:zlevels)**2/zlevels))
+    threshold(S_TEMP,1:zlevels) = sqrt (sum (threshold_def(S_TEMP,1:zlevels)**2/zlevels))
+    threshold(S_VELO,1:zlevels) = sqrt (sum (threshold_def(S_VELO,1:zlevels)**2/zlevels))
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
     ! Set non-dimensional viscosities and time step
     implicit none
-    real(8) :: Area_sphere
+    real(dp) :: Area_sphere
     
     ! Average hexagon areas and horizontal resolutions
     Area_sphere = 4*MATH_PI * radius**2 
     Area_min    = Area_sphere / (10 * 4**max_level)
     Area_max    = Area_sphere / (10 * 4**min_level)
 
-    dx_min      = sqrt (2 / sqrt(3d0) * Area_min)              
-    dx_max      = sqrt (2 / sqrt(3d0) * Area_max)
+    dx_min      = sqrt (2 / sqrt(3.0_dp) * Area_min)              
+    dx_max      = sqrt (2 / sqrt(3.0_dp) * Area_max)
 
     ! Time step
     dt_init     = dt_CAM * (dx_min / dx_CAM)
 
     ! Ensure stability
-    C_visc(S_MASS) = min (C_visc(S_MASS), (1/6d0  )**Laplace_sclr)
-    C_visc(S_TEMP) = min (C_visc(S_TEMP), (1/6d0  )**Laplace_sclr)
-    C_visc(S_DIVU) = min (C_visc(S_DIVU), (1/6d0  )**Laplace_divu)
-    C_visc(S_ROTU) = min (C_visc(S_ROTU), (1/6d0/4)**Laplace_rotu)
+    C_visc(S_MASS) = min (C_visc(S_MASS), (1/6.0_dp  )**Laplace_sclr)
+    C_visc(S_TEMP) = min (C_visc(S_TEMP), (1/6.0_dp  )**Laplace_sclr)
+    C_visc(S_DIVU) = min (C_visc(S_DIVU), (1/6.0_dp  )**Laplace_divu)
+    C_visc(S_ROTU) = min (C_visc(S_ROTU), (1/6.0_dp/4)**Laplace_rotu)
 
     ! Viscosities
     nu_sclr = C_visc(S_MASS) * 1.5 * Area_min**Laplace_sclr / dt_init
@@ -837,17 +847,17 @@ contains
     if (Laplace_rotu /= 0) tau_rotu = dt_init / C_visc(S_ROTU)
   end subroutine initialize_dt_viscosity_case
 
-  real(8) function nu_scale (order, dom, id)
+  real(dp) function nu_scale (order, dom, id)
     ! Viscosity non-dimensional scaling
     ! (factor 1.5 ensures stability limit matches theoretical value)
     implicit none
     integer      :: id, order
     type(domain) :: dom
 
-    real(8) :: Area
+    real(dp) :: Area
 
     if (scale_aware) then
-       if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
+       if (dom%areas%elts(id+1)%hex_inv /= 0.0_dp) then
           Area = 1 / dom%areas%elts(id+1)%hex_inv
        else
           Area = hex_area_avg (dom%level%elts(id+1))
@@ -971,16 +981,16 @@ contains
     ! Dummy routine
     ! (see upwelling test case for example)
     implicit none
-    real(8)                       :: eta_surf, z_s ! free surface and bathymetry
-    real(8), dimension(0:zlevels) :: z_coords_case
+    real(dp)                       :: eta_surf, z_s ! free surface and bathymetry
+    real(dp), dimension(0:zlevels) :: z_coords_case
 
-    z_coords_case = 0d0
+    z_coords_case = 0.0_dp
   end function z_coords_case
 
-  real(8) function cfl (t)
+  real(dp) function cfl (t)
     ! Gradually increase cfl number from cfl_min to cfl_max over T_cfl 
     implicit none
-    real(8) :: t
+    real(dp) :: t
 
     if (t - time_start <= T_cfl) then
        cfl = cfl_min + (cfl_max - cfl_min) * sin (MATH_PI/2 * (t - time_start) / T_cfl)

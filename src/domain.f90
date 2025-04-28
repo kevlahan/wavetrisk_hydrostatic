@@ -77,13 +77,13 @@
   type(Float_Field), dimension(:,:), allocatable, target :: sol, sol_mean, trend
   type(Float_Field), dimension(:,:), allocatable, target :: wav_coeff
 
-  real(8), dimension(:), pointer :: diag, mass, mass1, h_flux, h_mflux
-  real(8), dimension(:), pointer :: dmass, dtemp, dscalar, scalar, scalar_2d, temp, temp1
-  real(8), dimension(:), pointer :: velo, velo1, velo2, velo_2d, dvelo, dvelo_2d
-  real(8), dimension(:), pointer :: mean_m, mean_t
-  real(8), dimension(:), pointer :: Laplacian
-  real(8), dimension(:), pointer :: bernoulli, divu, exner, ke, qe, vort
-  real(8), dimension(:), pointer :: wc_s, wc_u
+  real(dp), dimension(:), pointer :: diag, mass, mass1, h_flux, h_mflux
+  real(dp), dimension(:), pointer :: dmass, dtemp, dscalar, scalar, scalar_2d, temp, temp1
+  real(dp), dimension(:), pointer :: velo, velo1, velo2, velo_2d, dvelo, dvelo_2d
+  real(dp), dimension(:), pointer :: mean_m, mean_t
+  real(dp), dimension(:), pointer :: Laplacian
+  real(dp), dimension(:), pointer :: bernoulli, divu, exner, ke, qe, vort
+  real(dp), dimension(:), pointer :: wc_s, wc_u
 contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! Initialization subroutines !!!
@@ -204,8 +204,8 @@ contains
     type(Domain) :: self
     integer      :: num
     
-    integer :: d, k, v
-    real(8) :: def_val, dz, z
+    integer  :: d, k, v
+    real(dp) :: def_val, dz, z
 
     d = self%id + 1
 
@@ -218,36 +218,36 @@ contains
           def_val = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
        else
           dz     = b_vert_mass(k) * max_depth
-          z      = 0.5d0 * (b_vert(k) + b_vert(k-1)) * max_depth
+          z      = 0.5 * (b_vert(k) + b_vert(k-1)) * max_depth
           def_val = ref_density * dz
        end if
 
        do v = scalars(1), scalars(2)
           if (split_mean_perturbation) then 
-             call extend (sol(v,k)%data(d),      num, 0d0)     
+             call extend (sol(v,k)%data(d),      num, 0.0_dp)     
              call extend (sol_mean(v,k)%data(d), num, def_val) 
           else
              call extend (sol(v,k)%data(d),      num, def_val) 
-             call extend (sol_mean(v,k)%data(d), num, 0d0)     
+             call extend (sol_mean(v,k)%data(d), num, 0.0_dp)     
           end if
        end do
-       call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0d0)
-       call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0d0)
+       call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0.0_dp)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0.0_dp)
     end do
 
     ! Soil layers
     do k = zmin, 0
        do v = scalars(1), scalars(2)
           if (split_mean_perturbation) then 
-             call extend (sol(v,k)%data(d),      num, 0d0)     
-             call extend (sol_mean(v,k)%data(d), num, 0d0) 
+             call extend (sol(v,k)%data(d),      num, 0.0_dp)     
+             call extend (sol_mean(v,k)%data(d), num, 0.0_dp) 
           else
-             call extend (sol(v,k)%data(d),      num, 0d0) 
-             call extend (sol_mean(v,k)%data(d), num, 0d0)     
+             call extend (sol(v,k)%data(d),      num, 0.0_dp) 
+             call extend (sol_mean(v,k)%data(d), num, 0.0_dp)     
           end if
        end do
-       call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0d0)
-       call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0d0)
+       call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0.0_dp)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0.0_dp)
     end do
   end subroutine extend_Domain
 

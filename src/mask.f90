@@ -109,9 +109,9 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, e, id, id_e, id_i, k, l, v
-    real(8) :: wc
-    logical :: active
+    integer  :: d, e, id, id_e, id_i, k, l, v
+    real(dp) :: wc
+    logical  :: active
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)

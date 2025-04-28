@@ -2,8 +2,8 @@ module comm_mpi_mod
   use domain_ops_mod
   use comm_mod
   implicit none
-  integer, dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
-  real(8), dimension(2)              :: times
+  integer,  dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
+  real(dp), dimension(2)              :: times
 
   interface sum_real
      procedure :: sum_real_0, sum_real_1
@@ -52,10 +52,10 @@ contains
 
   subroutine cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
     implicit none
-    integer :: min_load, max_load
-    real(8) :: avg_load, rel_imbalance
+    integer  :: min_load, max_load
+    real(dp) :: avg_load, rel_imbalance
 
-    min_load = 1; max_load = 1; avg_load = 1d0; rel_imbalance = 1d0
+    min_load = 1; max_load = 1; avg_load = 1.0_dp; rel_imbalance = 1.0_dp
   end subroutine cal_load_balance
 
   subroutine write_level_mpi (out_rout, l, zlev, eval_pole, filename)
@@ -284,17 +284,17 @@ contains
     sync_min_int = val
   end function sync_min_int
 
-  real(8) function sync_max_real_0 (val)
+  real(dp) function sync_max_real_0 (val)
     implicit none
-    real(8) :: val
+    real(dp) :: val
     
     sync_max_real_0 = val
   end function sync_max_real_0
   
   function sync_max_real_1 (val)
     implicit none
-    real(8), dimension(:), allocatable :: sync_max_real_1
-    real(8), dimension(:)              :: val
+    real(dp), dimension(:), allocatable :: sync_max_real_1
+    real(dp), dimension(:)              :: val
 
     integer :: n
 
@@ -304,17 +304,17 @@ contains
     sync_max_real_1 = val
   end function sync_max_real_1
 
-  real(8) function sync_min_real_0 (val)
+  real(dp) function sync_min_real_0 (val)
     implicit none
-    real(8) :: val
+    real(dp) :: val
     
     sync_min_real_0 = val
   end function sync_min_real_0
   
   function sync_min_real_1 (val)
     implicit none
-    real(8), dimension(:), allocatable :: sync_min_real_1
-    real(8), dimension(:)              :: val
+    real(dp), dimension(:), allocatable :: sync_min_real_1
+    real(dp), dimension(:)              :: val
 
     integer :: n
 
@@ -324,19 +324,19 @@ contains
     sync_min_real_1 = val
   end function sync_min_real_1
 
-  real(8) function sum_real_0 (val)
+  real(dp) function sum_real_0 (val)
     implicit none
-    real(8) :: val
+    real(dp) :: val
     
     sum_real_0 = val
   end function sum_real_0
 
   function sum_real_1 (val)
     implicit none
-    real(8), dimension(:), allocatable :: sum_real_1
-    real(8), dimension(:) :: val
+    real(dp), dimension(:), allocatable :: sum_real_1
+    real(dp), dimension(:) :: val
     
-    integer               :: n
+    integer :: n
 
     allocate (sum_real_1(n))
 
@@ -368,15 +368,15 @@ contains
     call cpu_time(times(2))
   end subroutine stop_timing
 
- real(8) function get_timing()
+ real(dp) function get_timing()
     implicit none
     get_timing = times(2) - times(1)
   end function get_timing  
 
   subroutine sync_array (arr, N)
     implicit none
-    integer            :: N
-    real(8), dimension(N) :: arr
+    integer                :: N
+    real(dp), dimension(N) :: arr
   end subroutine sync_array
 
   subroutine gatherv_int (n_loc, n_glo, vec_loc, vec_glo)
@@ -401,10 +401,10 @@ contains
 
   subroutine gatherv_real8 (n_loc, n_glo, vec_loc, vec_glo)
     implicit none
-    integer                            :: n_loc
-    integer, dimension(n_process)      :: n_glo
-    real(8), dimension(n_loc)          :: vec_loc
-    real(8), dimension(:), allocatable :: vec_glo
+    integer                             :: n_loc
+    integer, dimension(n_process)       :: n_glo
+    real(dp), dimension(n_loc)          :: vec_loc
+    real(dp), dimension(:), allocatable :: vec_glo
 
     vec_glo = vec_loc
   end subroutine gatherv_real8

@@ -18,7 +18,7 @@ contains
   subroutine physics_simple_step (h)
     ! Uses simple physics modules to take a Backwards Euler step for physics using time step dt set by dynamics
     implicit none
-    real(8) :: h ! time step
+    real(dp) :: h ! time step
     
     phys_dt = real(h)
     
@@ -41,10 +41,10 @@ contains
     use io_mod,             only : kinetic_energy
     use single_column_mod,  only : change_latitude_longitude, physics_call_single_col 
     implicit none
-    type(Domain)                     :: dom                  
-    integer                          :: i, j, is_pole, p_null, zlev
-    integer, dimension(N_BDRY+1)     :: offs
-    integer, dimension(2,N_BDRY+1)   :: dims
+    type(Domain)                   :: dom                  
+    integer                        :: i, j, is_pole, p_null, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: d, id, id_i, k, mask
 
@@ -77,7 +77,7 @@ contains
     call pack_physics_vars
 
     ! Get latitude and longitude of the column
-    call cart2sph (dom%node%elts(id_i), real(longitude,kind=8), real(latitude,kind=8))
+    call cart2sph (dom%node%elts(id_i), real(longitude,kind=dp), real(latitude,kind=dp))
 
     ! Update physics latitude and longitude
     call change_latitude_longitude (latitude, longitude)
@@ -96,19 +96,19 @@ contains
 
     ! Assign solution at t+h
     do k = 1, zlevels
-       if (is_pole /= 1) sol(S_VELO,k)%data(d)%elts(id_edge(id)) = real((/ phys_U(k), phys_V(k), phys_W(k) /),kind=8)
-       sol(S_TEMP,k)%data(d)%elts(id_i)        = rho_dz(k) * real(phys_Theta(k),kind=8) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+       if (is_pole /= 1) sol(S_VELO,k)%data(d)%elts(id_edge(id)) = real((/ phys_U(k), phys_V(k), phys_W(k) /),kind=dp)
+       sol(S_TEMP,k)%data(d)%elts(id_i)        = rho_dz(k) * real(phys_Theta(k),kind=dp) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
     end do
 
     ! Assign soil column solution at t+phys_dt to WAVETRISK data structure
     do k = zmin, 0
-       sol(S_TEMP,k)%data(d)%elts(id_i) = real(Tsoil(abs(k)+1),kind=8)
+       sol(S_TEMP,k)%data(d)%elts(id_i) = real(Tsoil(abs(k)+1),kind=dp)
     end do
   contains
     subroutine pack_physics_vars
       ! Gathers all required variables from wavetrisk data structure for all layers of column into physics data structure 
-      integer :: k
-      real(8) :: rho_dz_theta
+      integer  :: k
+      real(dp) :: rho_dz_theta
 
       phys_Pint(0)  = dom%surf_press%elts(id_i)
 

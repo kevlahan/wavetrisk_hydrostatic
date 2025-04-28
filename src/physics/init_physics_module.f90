@@ -21,25 +21,25 @@ module init_physics_mod
   logical :: turbulence_model = .true.                          ! vertical diffusion module is on
 
   ! Physics Package planet test case parameters: set to Earth values by default
-  real(8) :: gas_molarmass   = 28.9702532d0                     ! molar mass of main gain (used to set ideal gas const in pacakage)
-  real(8) :: perihelion      = 150d0                            ! planet perihelion distance [MMkm]
-  real(8) :: aphelion        = 150d0                            ! planet aphelion distance   [MMkm]
-  real(8) :: perihelion_day  = 0d0                              ! perihelion day
-  real(8) :: obliquity       = 23.5d0                           ! planet axial tilt/obliquity
-  real(8) :: sea_surf        = 0.01d0                           ! sea surface roughness length scale  [m]
-  real(8) :: soil_surf       = 0.01d0                           ! soil surface roughness length scale [m]
-  real(8) :: sea_inertia     = 3000d0                           ! sea thermal  inertia [J/(m^3 K)]
-  real(8) :: soil_inertia    = 3000d0                           ! soil thermal inertia [J/(m^3 K)]
-  real(8) :: sea_emissive    = 1d0                              ! sea emissivity
-  real(8) :: soil_emmisive   = 1d0                              ! soil emissivity
-  real(8) :: min_turbmix     = 100d0                            ! minimum turbulent mixing length [m]
-  real(8) :: sw_atten        = 0.99d0                           ! attenuation of shortwave radiation coefficient
-  real(8) :: lw_atten        = 0.08d0                           ! attenuation of longwave radiation coefficient
+  real(dp) :: gas_molarmass   = 28.9702532_dp                     ! molar mass of main gain (used to set ideal gas const in pacakage)
+  real(dp) :: perihelion      = 150_dp                            ! planet perihelion distance [MMkm]
+  real(dp) :: aphelion        = 150_dp                            ! planet aphelion distance   [MMkm]
+  real(dp) :: perihelion_day  = 0.0_dp                            ! perihelion day
+  real(dp) :: obliquity       = 23.5_dp                           ! planet axial tilt/obliquity
+  real(dp) :: sea_surf        = 0.01_dp                           ! sea surface roughness length scale  [m]
+  real(dp) :: soil_surf       = 0.01_dp                           ! soil surface roughness length scale [m]
+  real(dp) :: sea_inertia     = 3000_dp                           ! sea thermal  inertia [J/(m^3 K)]
+  real(dp) :: soil_inertia    = 3000_dp                           ! soil thermal inertia [J/(m^3 K)]
+  real(dp) :: sea_emissive    = 1.0_dp                            ! sea emissivity
+  real(dp) :: soil_emmisive   = 1.0_dp                            ! soil emissivity
+  real(dp) :: min_turbmix     = 100_dp                            ! minimum turbulent mixing length [m]
+  real(dp) :: sw_atten        = 0.99_dp                           ! attenuation of shortwave radiation coefficient
+  real(dp) :: lw_atten        = 0.08_dp                           ! attenuation of longwave radiation coefficient
 
   ! Single precision parameters
-  real(8) :: sea_albedo      = 0.112e0                          ! sea albedo
-  real(8) :: soil_albedo     = 0.112e0                          ! soil albedo
-  real(8) :: Emin_turb       = 1e-16                            ! minimum turbulent kinetic energy
+  real(dp) :: sea_albedo      = 0.112_dp                          ! sea albedo
+  real(dp) :: soil_albedo     = 0.112_dp                          ! soil albedo
+  real(dp) :: Emin_turb       = 1e-16_dp                          ! minimum turbulent kinetic energy
 
   logical(KIND=C_BOOL) :: physics_firstcall_flag = .true. ! flag for the physics package, true if call physics for 1st time
 contains
@@ -66,7 +66,7 @@ contains
     use read_param_mod
     use logging
     implicit none
-    real(8) :: day_fraction, nth_day
+    real(dp)       :: day_fraction, nth_day
     character(255) :: command, param_file
 
     ! Set physics function pointers (if using) ! it is here where I use soil_mod flag to set soil
@@ -172,8 +172,8 @@ contains
     real :: lat(1), long(1)
 
     ! Dummy latitude and longitude for initialization
-    lat(1)  = 0d0
-    long(1) = 0d0
+    lat(1)  = 0.0_dp
+    long(1) = 0.0_dp
 
     call init_comgeomfi (1, zlevels, long, lat)
     if (Nsoil /= 0) then

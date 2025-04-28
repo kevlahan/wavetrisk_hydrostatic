@@ -9,7 +9,7 @@ contains
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
     implicit none
-    real(8)                                                      :: dt
+    real(dp)                                                      :: dt
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
 
     integer :: d, ibeg, iend, k, v
@@ -30,7 +30,7 @@ contains
     ! Explicit Euler step for intermediate velocity u_star
     ! remove external pressure gradient
     implicit none
-    real(8)                                                      :: dt
+    real(dp)                                                     :: dt
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
 
     integer :: d, ibeg, iend, k
@@ -90,8 +90,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: d, id
-    real(8) :: eta, rho_dz, rho_dz_theta, mean_theta, theta, dz
+    integer  :: d, id
+    real(dp) :: eta, rho_dz, rho_dz_theta, mean_theta, theta, dz
     
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -179,7 +179,8 @@ contains
       id = idx (i, j, offs, dims) + 1
 
       sol(S_TEMP,zlevels+1)%data(d)%elts(id) = - sol(S_MASS,zlevels+1)%data(d)%elts(id) &
-           + dt * (theta2 * trend(S_MASS,zlevels+1)%data(d)%elts(id) + (1d0 - theta2) * trend(S_TEMP,zlevels+1)%data(d)%elts(id)) &
+           + dt * (theta2 * trend(S_MASS,zlevels+1)%data(d)%elts(id) &
+           + (1.0_dp - theta2) * trend(S_TEMP,zlevels+1)%data(d)%elts(id)) &
            / ref_density
     end subroutine cal_rhs_elliptic
   end subroutine rhs_elliptic
@@ -279,7 +280,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer            :: d, id, id_i, idE, idNE, idN, idW, idSW, idS
-    real(8)            :: depth, depth_e, Laplace_diag, wgt
+    real(dp)           :: depth, depth_e, Laplace_diag, wgt
     logical, parameter :: exact = .false.
 
     d    = dom%id + 1
@@ -290,7 +291,7 @@ contains
        depth = abs (topography%data(d)%elts(id_i)) + dscalar(id_i) / phi_node (d, id_i, zlevels)
 
        if (.not. exact) then ! average value 
-          wgt = 2d0 * sqrt (3d0) * depth
+          wgt = 2 * sqrt (3.0_dp) * depth
        else ! true local value
           idE  = idx (i+1, j,   offs, dims) 
           idNE = idx (i+1, j+1, offs, dims) 
@@ -319,7 +320,7 @@ contains
        end if
 
        Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
-       scalar(id_i) = theta1 * theta2 * Laplace_diag - 1d0
+       scalar(id_i) = theta1 * theta2 * Laplace_diag - 1.0_dp
     end if
   end subroutine cal_elliptic_lo_diag
 
@@ -377,7 +378,7 @@ contains
     do d = 1, size(grid)
        scalar_2d => q_2d%data(d)%elts
        
-       q_2d%data(d)%elts = 0d0
+       q_2d%data(d)%elts = 0.0_dp
        do k = 1, zlevels
           mass   =>               q(k)%data(d)%elts
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
@@ -398,8 +399,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id
-    real(8) :: dz, rho_dz
+    integer  :: d, id
+    real(dp) :: dz, rho_dz
     
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1

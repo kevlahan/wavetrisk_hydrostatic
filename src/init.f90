@@ -4,34 +4,36 @@ module init_mod
   use domain_ops_mod
   use arch_mod
   implicit none
-  real(8), parameter :: YANGLE = 0d0
+  real(dp), parameter :: YANGLE = 0.0_dp
   
   abstract interface
-     real(8) function fun1 (eta, ri, z)
+     real(dp) function fun1 (eta, ri, z)
+       use shared_mod
        implicit none
-       real(8) :: eta, ri, z
+       real(dp) :: eta, ri, z
      end function fun1
      function fun2 (eta, ri, z)
        use shared_mod
        implicit none
-       real(8), dimension(1:EDGE) :: fun2, eta, z
-       real(8)                    :: ri
+       real(dp), dimension(1:EDGE) :: fun2, eta, z
+       real(dp)                    :: ri
      end function fun2
      function fun5 (q, dom, id, idE, idNE, idN, v, zlev, type)
        use domain_mod
        implicit none
-       real(8), dimension(1:EDGE)                           :: fun5
+       real(dp),          dimension(1:EDGE)                 :: fun5
        type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
        type(domain)                                         :: dom
        integer                                              :: d, id, idE, idNE, idN, v, zlev
        logical, optional                                    :: type
      end function fun5
-     real(8) function coord_fun (p)
+     real(dp) function coord_fun (p)
        use geom_mod
        implicit none
        type(Coord) :: p
      end function coord_fun
-     real(8) function int2_fun (d, id)
+     real(dp) function int2_fun (d, id)
+       use shared_mod
        implicit none
        integer :: d, id
      end function int2_fun
@@ -46,8 +48,8 @@ module init_mod
       function zcoords_fun (eta_surf, z_s)
         use shared_mod
         implicit none
-        real(8)                       :: eta_surf, z_s 
-        real(8), dimension(0:zlevels) :: zcoords_fun
+        real(dp)                       :: eta_surf, z_s 
+        real(dp), dimension(0:zlevels) :: zcoords_fun
       end function zcoords_fun
       subroutine solver (u, f, Lu, Lu_diag)
         use domain_mod
@@ -81,7 +83,7 @@ module init_mod
   procedure (sub4),        pointer :: u_source                 => null ()
 
   ! Pointers to variables and procedures that may be defined in test cases
-  real(8),                 pointer :: bottom_friction
+  real(dp),                 pointer :: bottom_friction
   procedure (noarg_sub),   pointer :: apply_initial_conditions => null ()
   procedure (fun3),        pointer :: bottom_buoy_flux         => null ()
   procedure (io_sub),      pointer :: dump                     => null ()
@@ -125,7 +127,7 @@ contains
        zmax = zlevels
     end if
 
-    if (ref_density == 0d0) then ! ref_density not set in test case: choose correct default value
+    if (ref_density == 0.0_dp) then ! ref_density not set in test case: choose correct default value
        if (compressible) then
           ref_density = ref_density_air
        else
@@ -223,13 +225,13 @@ contains
   subroutine init_coordinates
     implicit none
     integer                     :: d, d_glo, i, ii, j, jj, k, loz
-    real(8), dimension(4)       :: lat
-    real(8), dimension(10)      :: lon
+    real(dp),    dimension(4)   :: lat
+    real(dp),    dimension(10)  :: lon
     type(Coord)                 :: ne, se, sw, nw
     type(Coord), dimension(2,2) :: cnr
 
-    lat = (/ - MATH_PI/2d0, - atan (1d0/2d0), atan (1d0/2d0), MATH_PI/2d0 /)
-    lon = (/ ((MATH_PI * dble(k))/5d0, k = 0, 10-1) /)
+    lat = (/ - MATH_PI/2.0_dp, - atan (0.5_dp), atan (0.5_dp), MATH_PI/2.0_dp /)
+    lon = (/ ((MATH_PI * real(k,kind=dp))/5.0_dp, k = 0, 10-1) /)
 
     do ii = 1, 2
        do jj = 1, 5
@@ -262,7 +264,7 @@ contains
   contains
     subroutine  yrotate (c_in, c_out, angle)
       implicit none
-      real(8),     intent(in)  :: angle
+      real(dp),    intent(in)  :: angle
       type(Coord), intent(in)  :: c_in
       type(Coord), intent(out) :: c_out
 
@@ -409,13 +411,13 @@ contains
        call init (grid(d)%ccentre, grid(d)%node%length * TRIAG)
 
        do i = 1, grid(d)%node%length*TRIAG
-          call init_Coord (grid(d)%ccentre%elts(i), 0d0, 0d0, 0d0)
+          call init_Coord (grid(d)%ccentre%elts(i), 0.0_dp, 0.0_dp, 0.0_dp)
        end do
 
        call init (grid(d)%midpt, grid(d)%node%length * EDGE)
 
        do i = 1, grid(d)%node%length*EDGE
-          call init_Coord (grid(d)%midpt%elts(i), 0d0, 0d0, 0d0)
+          call init_Coord (grid(d)%midpt%elts(i), 0.0_dp, 0.0_dp, 0.0_dp)
        end do
 
        call init (grid(d)%areas,    grid(d)%node%length)
@@ -788,10 +790,10 @@ contains
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
 
-    dom%coriolis%elts(TRIAG*id+LORT+1) = dom%ccentre%elts(TRIAG*id+LORT+1)%z/radius * 2d0*omega * &
+    dom%coriolis%elts(TRIAG*id+LORT+1) = dom%ccentre%elts(TRIAG*id+LORT+1)%z/radius * 2.0_dp*omega * &
          (dom%areas%elts(id+1)%part(1) + dom%areas%elts(idE+1)%part(3) + dom%areas%elts(idNE+1)%part(5))
 
-    dom%coriolis%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*id+UPLT+1)%z/radius * 2d0*omega * &
+    dom%coriolis%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*id+UPLT+1)%z/radius * 2.0_dp*omega * &
          (dom%areas%elts(id+1)%part(2) + dom%areas%elts(idNE+1)%part(4) + dom%areas%elts(idN+1)%part(6))
   end subroutine coriolis
 

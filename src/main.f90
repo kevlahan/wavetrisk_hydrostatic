@@ -17,7 +17,7 @@ module main_mod
   
   integer                                        :: chkpt_info
   integer,             dimension(:), allocatable :: node_level_start, edge_level_start
-  real(8)                                        :: dt_new, initial_total_mass, time_mult
+  real(dp)                                       :: dt_new, initial_total_mass, time_mult
   type(Initial_State), dimension(:), allocatable :: ini_st
 contains
   subroutine init_basic
@@ -30,7 +30,7 @@ contains
     call init_wavelet_mod
     call init_mask_mod
     call init_adapt_mod
-    time_mult = 1d0
+    time_mult = 1.0_dp
   end subroutine init_basic
 
   subroutine initialize (run_id)
@@ -47,7 +47,7 @@ contains
 #endif
 
     elliptic_solver => SRJ              ! default elliptic solver (scheduled relaxation Jacobi method)
-    if (min_level == max_level .or. tol == 0d0) rebalance = .false. ! do not rebalance for non-adaptive grid
+    if (min_level == max_level .or. tol == 0.0_dp) rebalance = .false. ! do not rebalance for non-adaptive grid
 
     call set_time_integrator
     
@@ -233,17 +233,17 @@ contains
     integer         :: l
     character(9999) :: archive, bash_cmd
 
-    if (Laplace_sclr /= 0 .and. maxval (C_visc(S_MASS:S_TEMP)) > (1/6d0)**Laplace_sclr) then
+    if (Laplace_sclr /= 0 .and. maxval (C_visc(S_MASS:S_TEMP)) > (1/6.0_dp)**Laplace_sclr) then
        if (rank == 0) write (6,*) "Dimensional scalar viscosity too large ... aborting"
        call abort
     end if
 
-    if (Laplace_divu /= 0 .and. C_visc(S_DIVU) > (1/6d0)**Laplace_divu) then
+    if (Laplace_divu /= 0 .and. C_visc(S_DIVU) > (1/6.0_dp)**Laplace_divu) then
        if (rank == 0) write (6,*) "Dimensional divu viscosity too large ... aborting"
        call abort
     end if
 
-    if (Laplace_rotu /= 0 .and. C_visc(S_ROTU) > (1/6d0/4)**Laplace_rotu) then
+    if (Laplace_rotu /= 0 .and. C_visc(S_ROTU) > (1/6.0_dp/4)**Laplace_rotu) then
        if (rank == 0) write (6,*) "Dimensional rotu viscosity too large ... aborting"
        call abort
     end if
@@ -294,11 +294,6 @@ contains
 
     if (trim(test_case) /= "spherical_harmonics") then
        call initialize_thresholds
-
-       ! Adapt on (new) threshold for this run
-       call adapt (set_thresholds, .true.) 
-       call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start)
-       if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start)
 
        ! Remap vertical coordinates
        call remap_vertical_coordinates
@@ -368,7 +363,7 @@ contains
     use vert_diffusion_mod
     use lnorms_mod
     implicit none
-    real(8)              :: align_time
+    real(dp)             :: align_time
     logical, intent(out) :: aligned
 
     integer(8) :: idt, ialign
@@ -509,7 +504,7 @@ contains
     call apply_interscale (mask_adj_child, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
     
     call record_init_state (ini_st)
-    if (time_end > 0d0) time_mult = huge (itime)/2/time_end
+    if (time_end > 0.0_dp) time_mult = huge (itime)/2/time_end
 
     allocate (n_patch_old(size(grid)), n_node_old(size(grid))); n_patch_old = 2
 
@@ -523,11 +518,11 @@ contains
     implicit none
     logical :: initialize_total_mass
     
-    integer :: k
-    real(8) :: total_mass, mass_error
+    integer      :: k
+    real(dp)     :: total_mass, mass_error
     character(3) :: int_type = "hex"
 
-    total_mass = 0d0
+    total_mass = 0.0_dp
     do k = 1, zlevels
        select case (int_type)
        case ("hex") ! coarsest level only
@@ -550,13 +545,13 @@ contains
     end if
   end subroutine cal_total_mass
 
-  real(8) function cpt_dt ()
+  real(dp) function cpt_dt ()
     ! Calculates time step, minimum relative mass and active nodes and edges
     implicit none
     integer               :: l, ierror, level_end_glo
     integer, dimension(2) :: n_active_loc
     
-    if (adapt_dt) dt_loc = 1d16
+    if (adapt_dt) dt_loc = 1e16_dp
     n_active_nodes = 0
     n_active_edges = 0
 
@@ -589,7 +584,7 @@ contains
 
     integer                    :: d, e, id, id_e, id_i, k, l
     integer, dimension(1:EDGE) :: ide
-    real(8)                    :: dx, v_mag
+    real(dp)                   :: dx, v_mag
 
     id   = idx (i, j, offs, dims)
     id_i = id + 1
@@ -617,13 +612,13 @@ contains
     end do
   end subroutine cal_min_dt
 
-  real(8) function cpt_min_mass ()
+  real(dp) function cpt_min_mass ()
     ! Calculates minimum relative mass
     implicit none
     integer :: ierror, l
 
-    min_mass_loc = 1d16
-    if (tol /= 0d0) then
+    min_mass_loc = 1e16_dp
+    if (tol /= 0.0_dp) then
        call apply_bdry (cal_min_mass, z_null, 0, 1)
     else
        call apply_onescale (cal_min_mass, max_level, z_null, 0, 0)
@@ -643,10 +638,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                       :: d, id, k
-    real(8)                       :: P_s, z_s
-    real(8), dimension(0:zlevels) :: z
-    real(8), dimension(1:zlevels) :: dz, init_rho_dz, rho_dz
+    integer                        :: d, id, k
+    real(dp)                       :: P_s, z_s
+    real(dp), dimension(0:zlevels) :: z
+    real(dp), dimension(1:zlevels) :: dz, init_rho_dz, rho_dz
 
     id   = idx (i, j, offs, dims) + 1
     d    = dom%id + 1
@@ -654,7 +649,7 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) then
        do k = 1, zlevels
           rho_dz(k) = sol(S_MASS,k)%data(d)%elts(id) + sol_mean(S_MASS,k)%data(d)%elts(id)
-          if (rho_dz(k) <= 0d0 .or. rho_dz(k) /= rho_dz(k)) then
+          if (rho_dz(k) <= 0.0_dp .or. rho_dz(k) /= rho_dz(k)) then
              write (6,'(a)') "A layer has collapsed  ... aborting"
              call abort
           end if
@@ -672,7 +667,7 @@ contains
        else
           z_s = topography%data(d)%elts(id)
           if (sigma_z) then
-             z = z_coords (0d0, z_s)
+             z = z_coords (0.0_dp, z_s)
           else
              z = b_vert * z_s ! assumes zero free surface perturbation initial condition
           end if
@@ -693,7 +688,7 @@ contains
     integer                                         :: l, n_full, fillin, n_lev_cur, recommended_level_start
     integer, dimension(2*(level_end-level_start+1)) :: n_active_all_loc, n_active_all
     integer, dimension(level_start:level_end)       :: n_active_per_lev
-    real(8)                                         :: dt
+    real(dp)                                        :: dt
 
     dt = cpt_dt () ! to set n_active_*
 
