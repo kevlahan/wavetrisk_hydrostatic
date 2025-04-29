@@ -44,7 +44,7 @@ SYSTEM = $(shell uname -a | cut -c 1-6 -)
 ifeq ($(SYSTEM),Darwin)
  MACHINE = mac
  LIBS   += -L/opt/homebrew/opt/lapack/lib
- ifeq ($(TOPO), true)
+ifeq ($(TOPO), true)
   NETCDF_DIR  = /opt/homebrew/Cellar/netcdf-fortran/4.6.1
   FLAGS_COMP += -I$(NETCDF_DIR)/include
   LIBS       += -L$(NETCDF_DIR)/lib $(NETCDF)
@@ -57,10 +57,6 @@ else
  ifeq ($(MACHINE),$(filter $(MACHINE), bbserv))
   LAPACK = -I$(NETLIB_LAPACK_ROOT)/include -L$(NETLIB_LAPACK_ROOT)/lib64 -llapack
  endif
-endif
-
-ifeq ($(TOPO), true)
- LIBS += $(NETCDF)  # module load netcdf netcdf-fortran
 endif
 
 ifeq ($(COMPILER_TYPE),gnu)
