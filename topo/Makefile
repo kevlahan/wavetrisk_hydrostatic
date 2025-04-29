@@ -1,5 +1,5 @@
 FC      = $(shell nf-config --fc)
-LDFLAGS = -L/opt/homebrew/Cellar/netcdf-fortran/4.6.1/lib -lnetcdff 
+LDFLAGS = -L/opt/homebrew/Cellar/netcdf-fortran/4.6.2/lib -lnetcdff 
 FFLAGS  = -c $(shell nf-config --fflags) -O 
 EXEDIR  = ../bin
 EXENAME = cube_to_target

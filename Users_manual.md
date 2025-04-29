@@ -496,7 +496,7 @@ This flag is automatically set for the `climate` test case.
 ### 5.2 NCAR topography  
 Generates smoothed multiscale topography data for WAVETRISK from NCAR topography NetCDF files using `cube_to_target` program that remaps topography data from cubed-sphere grid to target grid (non-adaptive WAVETRISK grid at max_level) grid using rigorous remapping ([Lauritzen, Nair and Ullrich 2015](http:/doi.org/10.5194/gmd-8-3975-2015)).  
 
-The modules `netcdf` and `netcdf netcdf-fortran` must be loaded.
+The modules `netcdf` and `netcdf-fortran` must be loaded.
 
 You must first generate the multiscale topography for the desired range of levels from `min_level` (as set in the `PARAM` flag) and `max_level` (the maximum resolution level for the test case you want to run). Note that the test case can use any maximum level less than or equal to the `max_level` of the topography.
 
@@ -508,9 +508,13 @@ The complete procedure to generate the multiscale topography is as follows:
     ~/wavetrisk_hydrostatic/bin/cube_to_target  
 </code>
 </pre>
-to generate the `NetCDF` file that provides the surface geopotential `phi_S = z/g` corresponding to the grid data saved in Step 1.  
-
-It is useful to use a script to specify appropriate parameters for `cube_to_target`.  
+to generate the `NetCDF` file that provides the surface geopotential `phi_S = z/g` corresponding to the grid data saved in Step 1.  You will need to set the path to the `netcdff` library in `~/wavetrisk_hydrostatic/topo/makefile`, for example
+<pre>
+<code>
+  LDFLAGS = -L/opt/homebrew/Cellar/netcdf-fortran/4.6.2/lib -lnetcdff
+</code>
+</pre>
+The `netcdf` library in `~/wavetrisk_hydrostatic/Makefile` must also be set.
 
 2. Pre-processing of topography data for WAVETRISK test case. Compile the test case `make_NCAR_topo` with `PARAM` set to the coarsest grid resolution (e.g. `PARAM=param_J6`). Then specify the maximum grid resolution in the input file for `make_NCAR_topo` (e.g. `max_level=8`) to generate the WAVETRISK grid coordinates for all levels from `min_level` to `max_level` by sub-sampling. An example input file is:
 <pre>
@@ -523,17 +527,17 @@ It is useful to use a script to specify appropriate parameters for `cube_to_targ
    nsmth_Laplace   0                                     ! number of Laplacian smoothing steps at each level
 </code>
 </pre>
-An example base NCAR topography file `gmted2010_bedmachine-ncube0540-220518` is provided in 
+An example base NCAR topography file for a 3 km resolution cubed sphere is provided in 
 <pre>
 <code>
-   ~/wavetrisk_hydrostatic/data/NCAR_topo
+   ~/wavetrisk_hydrostatic/data/NCAR_topo/gmted2010_bedmachine-ncube0540-220518.tgz
 </code>
 </pre>
 It is helpful to add symbolic links to the required data files and executables:
 <pre>
 <code>
-    gmted2010_bedmachine-ncube0540-220518
-    cube_to_target
+    ln -s ~/wavetrisk_hydrostatic/data/gmted2010_bedmachine-ncube0540-220518
+    ln -s ~/wavetrisk_hydrostatic/bin/cube_to_target
 </code>
 </pre>
 Note that `make_NCAR_topo` must be run on a single core.
@@ -553,7 +557,7 @@ This multiscale topography data can be used with a test case compiled with `PARA
     NCAR_topo = .true.
 </code>
 </pre>
-to read in the `.nc` file generated in Step 2 to assign the topography data to the `type(Topo_Array) topography_data`, which must have the same `max_level` and domain configuration as the WAVETRISK grid that generated the data in Step 1.  The test case using the NCAR data must be compiled with the flag `TOPO=true`.
+to read in the `.nc` file generated in Step 2 to assign the topography data to the `type(Topo_Array) topography_data`, which must have the same `max_level` and domain configuration as the WAVETRISK grid that generated the data in Step 1.  The test case using the NCAR data must be compiled with the flag `TOPO=true` and the modules `netcdff` must be loaded when compiling and running.
 ### 5.3 Subgrid scale orography model (SSO)
 SSO parameterization based on ([Lott and Miller 1997](http:doi.org/10.1002/qj.49712353704), [Japanese Meteorological Agency 2019](http://www.jma.go.jp/jma/jma-eng/jma-center/nwp/outline2019-nwp/pdf/outline2019_03.pdf)). Applicable in the case where there is a large scale separation between the underlying topography data (e.g. NCAR global model) and the finest horizontal grid resolution. This allows the blocking and wave drag effect of unresolved topography to be approximated using the mean and variance of the subgrid scale topography data over a computational grid cell. The `sso` model is activated using the flag
 <pre>

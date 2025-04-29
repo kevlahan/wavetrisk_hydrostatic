@@ -14,7 +14,7 @@ module test_case_mod
   real(dp) :: time_start, total_cpu_time
 
   ! Test case variables
-  integer :: zmax_adapt = 30 ! highest layer that determines adaptive grid
+  integer  :: zmax_adapt = 30 ! highest layer that determines adaptive grid
   real(dp) :: Area_max, Area_min, C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
   real(dp) :: topo_Area_min, topo_dx_min
   real(dp) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
@@ -27,10 +27,10 @@ module test_case_mod
   real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity (1.4468e-03)
   
   real(dp), parameter :: e_thick       = 10   * KM                   ! Ekman layer thickness
-  logical            :: Ekman_ic      = .false.                      ! Ekman flow initial conditions (zero velocity initial conditions if false)
-  logical            :: scale_aware   = .false.                      ! scale-aware viscosity
-  logical            :: print_tol     = .false.                      ! print tolerances for each layer
-  character(255)     :: analytic_topo = "none"                       ! mountains or none (used if NCAR_topo = .false.)
+  logical             :: Ekman_ic      = .false.                      ! Ekman flow initial conditions (zero velocity initial conditions if false)
+  logical             :: scale_aware   = .false.                      ! scale-aware viscosity
+  logical             :: print_tol     = .false.                      ! print tolerances for each layer
+  character(255)      :: analytic_topo = "none"                       ! mountains or none (used if NCAR_topo = .false.)
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -579,46 +579,6 @@ contains
     resume   = resume_init
 
     domains_per_task = int (real(N_GLO_DOMAIN,kind=dp)/n_process, kind=dp)
-
-    ! Bins for zonal statistics
-    !nbins = sqrt (10*4**max_level/2) ! consistent with maximum resolution
-    nbins = 300
-    allocate (Nstats(zlevels,nbins), Nstats_glo(zlevels,nbins)) ; Nstats = 0 ; Nstats_glo = 0
-    allocate (zonal_avg(zlevels,nbins,nvar_zonal), zonal_avg_glo(zlevels,nbins,nvar_zonal))
-    zonal_avg = 0.0_dp; zonal_avg_glo = 0.0_dp
-    allocate (bounds(1:nbins-1))
-    dbin = 1.8d2/nbins
-    bounds = -90+dbin + dbin*(/ (ibin, ibin = 0, nbins-1) /)
-
-    ! Initialize rank 0 with saved statistics data if present
-    if (rank == 0) then
-       inquire (file = trim(run_id)//'.3.tgz', exist = file_exists)
-       if (file_exists) then
-          command = 'gtar xzf '//trim(run_id)//'.3.tgz'
-          write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-          call system (trim(bash_cmd))
-
-          write (var_file, '(i2.2)') 00
-          open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="UNFORMATTED", action='READ')
-          read (funit) Nstats
-          close (funit)
-
-          do v = 1, nvar_zonal
-             write (var_file, '(i2)') v+10
-             open (unit=funit, file=trim(run_id)//'.3.'//var_file, form="FORMATTED", action='READ')
-             do k = zlevels, 1, -1
-                read (funit,*) zonal_avg(k,:,v)
-             end do
-             close (funit)
-          end do
-
-          ! Convert variances to sums of squares for statistics computation
-          zonal_avg(:,:,2) = zonal_avg(:,:,2) * (Nstats - 1)
-          do v = 6, nvar_zonal
-             zonal_avg(:,:,v) = zonal_avg(:,:,v) * (Nstats - 1)
-          end do
-       end if
-    end if
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters

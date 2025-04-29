@@ -44,10 +44,10 @@ SYSTEM = $(shell uname -a | cut -c 1-6 -)
 ifeq ($(SYSTEM),Darwin)
  MACHINE = mac
  LIBS   += -L/opt/homebrew/opt/lapack/lib
-ifeq ($(TOPO), true)
-  NETCDF_DIR  = /opt/homebrew/Cellar/netcdf-fortran/4.6.1
+ ifeq ($(TOPO), true)
+  NETCDF_DIR  = /opt/homebrew/Cellar/netcdf-fortran/4.6.2
   FLAGS_COMP += -I$(NETCDF_DIR)/include
-  LIBS       += -L$(NETCDF_DIR)/lib $(NETCDF)
+  LIBS       += -L$(NETCDF_DIR)/lib
  endif
 else
  MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
@@ -57,6 +57,10 @@ else
  ifeq ($(MACHINE),$(filter $(MACHINE), bbserv))
   LAPACK = -I$(NETLIB_LAPACK_ROOT)/include -L$(NETLIB_LAPACK_ROOT)/lib64 -llapack
  endif
+endif
+
+ifeq ($(TOPO), true)
+  LIBS += $(NETCDF)  # bbserv: module load netcdf netcdf-fortran
 endif
 
 ifeq ($(COMPILER_TYPE),gnu)

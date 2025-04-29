@@ -25,7 +25,7 @@ program climate
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
-  !if (domains_per_task < 8) rebalance = .false.               ! rebalance load at each checkpoint if worthwhile
+  if (domains_per_task < 8) rebalance = .false.               ! rebalance load at each checkpoint if worthwhile
 
   C_visc                   = C_CAM                            ! non-dimensional viscosity for scalars and rotu
   C_visc(S_DIVU)           = C_CAM * 10                       ! non-dimensional viscosity for divu
