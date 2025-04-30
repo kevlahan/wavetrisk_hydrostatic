@@ -751,10 +751,6 @@ contains
        threshold_def(S_TEMP,k) = tol * rho_dz * theta_equil
        threshold_def(S_VELO,k) = tol * u_0
     end do
-    
-    threshold_def(S_MASS,1:zlevels) = sqrt (sum (threshold_def(S_MASS,1:zlevels)**2)/zlevels)
-    threshold_def(S_TEMP,1:zlevels) = sqrt (sum (threshold_def(S_TEMP,1:zlevels)**2)/zlevels)
-    threshold_def(S_VELO,1:zlevels) = sqrt (sum (threshold_def(S_VELO,1:zlevels)**2)/zlevels)
   end subroutine initialize_thresholds_case
 
   subroutine set_thresholds_case
@@ -768,10 +764,6 @@ contains
        call cal_lnorm ("2")
        where (tol * lnorm(:,1:zmax_adapt) > threshold(:,1:zmax_adapt)) threshold(:,1:zmax_adapt) = tol * lnorm(:,1:zmax_adapt)
     end if
-    
-    threshold(S_MASS,1:zlevels) = sqrt (sum (threshold_def(S_MASS,1:zlevels)**2)/zlevels)
-    threshold(S_TEMP,1:zlevels) = sqrt (sum (threshold_def(S_TEMP,1:zlevels)**2)/zlevels)
-    threshold(S_VELO,1:zlevels) = sqrt (sum (threshold_def(S_VELO,1:zlevels)**2)/zlevels)
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
