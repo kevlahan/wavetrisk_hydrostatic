@@ -14,6 +14,8 @@ ifeq ($(TEST_CASE), make_NCAR_topo)
  TOPO = true
 endif
 
+LIBS = $(LAPACK)
+
 PHYSICS = false
 ifeq ($(TEST_CASE), climate)
  PHYSICS = true
@@ -51,11 +53,18 @@ ifeq ($(SYSTEM),Darwin)
  endif
 else
  MACHINE = $(shell uname -n | sed -e "s/[^a-z].*//")
+
  ifeq ($(MACHINE),$(filter $(MACHINE), orc bul gra nia narval)) # module load StdEnv netcdf 
   LAPACK = -lflexiblas  # module load flexiblas
  endif
+
  ifeq ($(MACHINE),$(filter $(MACHINE), bbserv))
-  LAPACK = -I$(NETLIB_LAPACK_ROOT)/include -L$(NETLIB_LAPACK_ROOT)/lib64 -llapack
+  FLAGS_COMP += -I$(NETLIB_LAPACK_ROOT)/include
+  LIBS       += -L$(NETLIB_LAPACK_ROOT)/lib64
+  ifeq ($(TOPO), true)
+   FLAGS_COMP += -I$(NETCDF_FORTRAN_ROOT)/include
+   LIBS       += -L$(NETCDF_FORTRAN_ROOT)/lib
+  endif
  endif
 endif
 
