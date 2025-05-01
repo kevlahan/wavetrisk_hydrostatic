@@ -264,6 +264,8 @@ contains
     ! Load checkpoint data
     call load_adapt_mpi (cp_idx, run_id)
 
+    if (NCAR_topo) call load_topo
+
     ! Initialize time step counters
     itime = nint (time * time_mult, 8)
     istep = 0
@@ -275,7 +277,6 @@ contains
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
 
     if (trim(test_case) /= "spherical_harmonics") then
-       if (NCAR_topo) call load_topo
        call initialize_thresholds
        call initialize_dt_viscosity
        if (Laplace_sclr /= 0 .and. maxval (C_visc(S_MASS:S_TEMP)) > (1/6.0_dp)**Laplace_sclr) then
