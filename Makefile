@@ -58,12 +58,12 @@ else
   LAPACK = -lflexiblas  # module load flexiblas
  endif
 
- ifeq ($(MACHINE),$(filter $(MACHINE), bbserv))
+ ifeq ($(MACHINE),$(filter $(MACHINE), bbserv))  # module load gcc mvapich netlib-lapack 
   FLAGS_COMP += -I$(NETLIB_LAPACK_ROOT)/include
   LIBS       += -L$(NETLIB_LAPACK_ROOT)/lib64
-  ifeq ($(TOPO), true)
+  ifeq ($(TOPO), true)                           # module load gcc mvapich netlib-lapack netcdf-fortran
    FLAGS_COMP += -I$(NETCDF_FORTRAN_ROOT)/include
-   LIBS       += -L$(NETCDF_FORTRAN_ROOT)/lib
+   LIBS       += -Wl,-rpath $(NETCDF_FORTRAN_ROOT)/lib -L$(NETCDF_FORTRAN_ROOT)/lib
   endif
  endif
 endif
