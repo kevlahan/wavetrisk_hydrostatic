@@ -233,21 +233,6 @@ contains
     integer         :: l
     character(9999) :: archive, bash_cmd
 
-    if (Laplace_sclr /= 0 .and. maxval (C_visc(S_MASS:S_TEMP)) > (1/6.0_dp)**Laplace_sclr) then
-       if (rank == 0) write (6,*) "Dimensional scalar viscosity too large ... aborting"
-       call abort
-    end if
-
-    if (Laplace_divu /= 0 .and. C_visc(S_DIVU) > (1/6.0_dp)**Laplace_divu) then
-       if (rank == 0) write (6,*) "Dimensional divu viscosity too large ... aborting"
-       call abort
-    end if
-
-    if (Laplace_rotu /= 0 .and. C_visc(S_ROTU) > (1/6.0_dp/4)**Laplace_rotu) then
-       if (rank == 0) write (6,*) "Dimensional rotu viscosity too large ... aborting"
-       call abort
-    end if
-
     if (rank == 0) then
        write (6,'(A,/)') &
             '********************************************************* Begin Restart &
@@ -293,6 +278,23 @@ contains
        if (NCAR_topo) call load_topo
        call initialize_thresholds
        call initialize_dt_viscosity
+       if (Laplace_sclr /= 0 .and. maxval (C_visc(S_MASS:S_TEMP)) > (1/6.0_dp)**Laplace_sclr) then
+          if (rank == 0) then
+             write (6,*) "Dimensional scalar viscosity too large ... aborting"
+             call abort
+          end if
+       elseif (Laplace_divu /= 0 .and. C_visc(S_DIVU) > (1/6.0_dp)**Laplace_divu) then
+          if (rank == 0) then
+             write (6,*) "Dimensional divu viscosity too large ... aborting"
+             call abort
+          end if
+       elseif (Laplace_rotu /= 0 .and. C_visc(S_ROTU) > (1/6.0_dp/4)**Laplace_rotu) then
+          if (rank == 0) then
+             write (6,*) "Dimensional rotu viscosity too large ... aborting"
+             call abort
+          end if
+       end if
+       
        if (log_total_mass) call cal_total_mass (.true.)
 
        dt_new = min (dt_init, cpt_dt ())
