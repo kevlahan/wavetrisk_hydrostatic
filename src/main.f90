@@ -616,7 +616,7 @@ contains
     
     cpt_min_mass = sync_min_real (min_mass_loc)
 
-    if (log_min_mass .and. rank == 0) write (6,'(a,es10.4)') "Minimum relative mass = ", cpt_min_mass
+    if (log_min_mass .and. rank == 0) write (6,'(a,es11.4)') "Minimum relative mass = ", cpt_min_mass
   end function cpt_min_mass
 
   subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
