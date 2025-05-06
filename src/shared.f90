@@ -386,7 +386,7 @@ contains
     Laplace_divu            = 2                                   ! div u
     Laplace_rotu            = 2                                   ! rot u 
     n_diffuse               = 1                                   ! include diffusion every n_diffuse steps
-    optimize_grid           = HR_GRID                             ! type of optimization of coarse grid
+    optimize_grid           = XU_GRID                             ! type of optimization of coarse grid
     remap_type              = "PPR"                               ! remapping scheme for scalars
     remapscalar_type        = "PPR"                               ! remapping scheme for scalars
     remapvelo_type          = "PPR"                               ! remapping scheme for velocity
@@ -443,7 +443,8 @@ contains
   end subroutine init_shared_mod
 
   real(dp) function eps ()
-    eps = radius * 1e-13_dp
+    ! Minimum absolute error in metres
+    eps = radius * epsilon (1.0_dp)
   end function eps
 
   integer function max_nodes_per_level (lev, entity)

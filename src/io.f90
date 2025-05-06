@@ -1,12 +1,9 @@
 module io_mod
   use domain_mod
   use ops_mod
-  use smooth_mod
   use adapt_mod
   use utils_mod
   implicit none
-  integer, dimension(2,4)              :: HR_offs
-  data                                    HR_offs / 0,0, 1,0, 1,1, 0,1 /
   integer                              :: next_fid, nvar_out
   integer, dimension(:,:), allocatable :: topo_count
   real(dp)                             :: vmin, vmax
@@ -21,13 +18,6 @@ contains
     nvar_out = 11
     initialized = .true.
   end subroutine init_io_mod
-
-  integer function get_fid ()
-    implicit none
-
-    get_fid  = next_fid
-    next_fid = next_fid + 1
-  end function get_fid
 
   subroutine vort_extrema (dom, i, j, zlev, offs, dims)
     implicit none
@@ -1313,158 +1303,4 @@ contains
 
     read(fid) (arr(i),i=1,n)
   end subroutine read_lonlat_from_binary
-
-  subroutine read_HR_optim_grid
-    ! Reads in Heikes & Randall (1995) optimized grid from file in directory grid_HR
-    ! Need to provide a symbolic link to grid_HR in working directory
-    implicit none
-    integer                        :: d_glo, d_HR, d_sub, fid, loz, p, r
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    character(19+1)                :: filename
-
-    maxerror = 0.0_dp
-    l2error  = 0.0_dp
-
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call apply_onescale2 (ccentre, level_end-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-    call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
-    call apply_onescale  (check_d,  level_end-1, z_null,  0, 0)
-
-    l2error = sqrt (sum_real (l2error))
-    maxerror = sync_max_real (maxerror)
-
-    if (rank == 0) then
-       write (6,'(A)') '-------------------------------------------------------&
-            ---------------------------------------------------------------------------'
-       write (6,'(A,i2,A,/)') 'Heikes-Randall optimizations of level ', level_start-1, ' grid:'
-       write (6,'(A,2(es8.2,A))') 'Grid quality before optimization = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
-    end if
-
-    fid = get_fid()
-    if (level_start /= level_end) then
-       write (0,'(i2,1x,i2)') level_end, level_start
-       write (0,'(A)') "Reading HR grid points for level_start not equal to level_end not implemented"
-       return
-    end if
-
-    do r = 1, n_process
-#ifdef MPI
-       if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
-          call MPI_Barrier (MPI_Comm_World, ierror)
-          cycle 
-       end if
-#endif
-
-       write (filename, '(A,I1)')  "grid_HR/J", level_start-1
-       open (unit=fid, file=filename, status='OLD')
-
-       p = 1
-       do d_HR = 1, N_ICOSAH_LOZENGE
-          loz = dom_id_from_HR_id(d_HR)
-          do d_sub = 1, N_SUB_DOM
-             d_glo = loz * N_SUB_DOM + sub_dom_id_from_HR_sub_id (d_sub)
-             if (owner(d_glo+1) == rank) call get_offs_Domain (grid(loc_id(d_glo+1)+1), p, offs, dims)
-             call coord_from_file (d_glo, PATCH_LEVEL, fid, offs, dims, (/0, 0/))
-          end do
-       end do
-       close(fid)
-    end do
-
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)
-
-    call apply_onescale2 (ccentre,    level_end-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-    call apply_onescale2 (midpt,      level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
-    call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
-
-    maxerror = 0.0_dp
-    l2error  = 0.0_dp
-
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)
-
-    call apply_onescale2 (ccentre, level_end-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
-    call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
-    call apply_onescale  (check_d,  level_end-1, z_null,  0, 0)
-
-    l2error = sqrt (sum_real(l2error))
-    maxerror = sync_max_real (maxerror)
-    if (rank == 0) then
-       write (6,'(A,2(es8.2,A))') 'Grid quality after optimization  = ', maxerror, ' m (linf) ', l2error, ' m (l2)'
-       write (6,'(A)') '(distance between midpoints of primal and dual edges)'
-       write (6,'(A)') '-------------------------------------------------------&
-            ---------------------------------------------------------------------------'
-    end if
-  end subroutine read_HR_optim_grid
-
-  integer function dom_id_from_HR_id (d_HR)
-    ! d_HR: lozenge id as used by Heikes & Randall (starts from 1)
-    ! results: domain id (starts from 0)
-    implicit none
-    integer :: d_HR
-
-    dom_id_from_HR_id = modulo (d_HR, 2) * 5 + modulo (d_HR/2 - 1, 5)
-  end function dom_id_from_HR_id
-
-  integer function sub_dom_id_from_HR_sub_id (sub_id)
-    ! sub_id: lozenge sub id as used by Heikes & Randall (starts from 1)
-    ! results: sub domain id (starts from 0)
-    implicit none
-    integer :: sub_id
-
-    integer :: id, i, j, halv_sub_dom, l, jdiv, idiv
-
-    i = 0
-    j = 0
-    id = sub_id - 1
-    halv_sub_dom = N_SUB_DOM/2
-    do l = DOMAIN_LEVEL-1, 0, -1
-       jdiv = id/halv_sub_dom
-       j = j + jdiv*2**l
-       id = modulo (id+4**l,4**(l+1))
-       idiv = id/halv_sub_dom
-       i = i + idiv*2**l
-       halv_sub_dom = halv_sub_dom/4
-       id = modulo (id,4**l)
-    end do
-    sub_dom_id_from_HR_sub_id = j*N_SUB_DOM_PER_DIM + i
-  end function sub_dom_id_from_HR_sub_id
-
-  subroutine zrotate (c_in, c_out, angle)
-    implicit none
-    real(dp),    intent(in)  :: angle
-    type(Coord), intent(in)  :: c_in
-    type(Coord), intent(out) :: c_out
-
-    c_out%x =  c_in%x * cos(angle) - c_in%y * sin(angle)
-    c_out%y =  c_in%x * sin(angle) + c_in%y * cos(angle)
-    c_out%z =  c_in%z
-  end subroutine zrotate
-
-  recursive subroutine coord_from_file (d_glo, l, fid, offs, dims, ij0)
-    implicit none
-    integer,                        intent(in) :: d_glo, l, fid
-    integer, dimension(2),          intent(in) :: ij0
-    integer, dimension(N_BDRY+1),   intent(in) :: offs
-    integer, dimension(2,N_BDRY+1), intent(in) :: dims
-
-    integer               :: d_loc, k
-    integer, dimension(2) :: ij
-    type(Coord)           :: node, node_r
-
-    d_loc = loc_id(d_glo+1)
-    do k = 1, 4
-       ij = ij0 + HR_offs(:,k) * 2**(l-1)
-       if (l == 1) then
-          if (owner(d_glo+1) == rank) then
-             read(fid,*) node
-             call zrotate (node, node_r, -0.5_dp) ! icosahedron orientation good for tsunami
-             grid(d_loc+1)%node%elts(idx(ij(1), ij(2), offs, dims) + 1) = project_on_sphere(node_r)
-          else ! if domain is on another process, still read to get to correct position in file
-             read(fid,*)
-          end if
-       else
-          call coord_from_file (d_glo, l-1, fid, offs, dims, ij)
-       end if
-    end do
-  end subroutine coord_from_file
 end module io_mod

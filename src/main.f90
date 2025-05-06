@@ -4,6 +4,7 @@ module main_mod
   use adapt_mod
   use remap_mod
   use time_integr_mod
+  use coarse_grid_mod
 #ifdef PHYSICS
   use physics_trend_mod
   use callkeys, only : lverbose
@@ -46,8 +47,13 @@ contains
     if (physics_model .and. physics_type == "Simple") call init_soil_grid
 #endif
 
-    elliptic_solver => SRJ              ! default elliptic solver (scheduled relaxation Jacobi method)
-    if (min_level == max_level .or. tol == 0.0_dp) rebalance = .false. ! do not rebalance for non-adaptive grid
+    elliptic_solver => SRJ ! default elliptic solver (scheduled relaxation Jacobi method)
+    
+    if (min_level == max_level .or. tol == 0.0_dp) then
+       rebalance = .false. ! do not rebalance for non-adaptive grid
+    else
+       rebalance = .true.
+    end if
 
     call set_time_integrator
     
@@ -98,7 +104,7 @@ contains
        call count_active
 
        do while (level_end < max_level)
-          if (rank == 0) write (6,'(A,i2,A,i2)') 'Initial refinement Level ', level_end, ' -> ', level_end+1
+          if (rank == 0) write (6,'(a,i2,a,i2)') 'Initial refinement Level ', level_end, ' -> ', level_end+1
 
           ! Set current number of nodes
           node_level_start = grid%node%length+1; edge_level_start = grid%midpt%length+1
@@ -110,7 +116,7 @@ contains
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit ! no further active grid points
        end do
        
-       if (rank == 0) write (6,'(A,/)') &
+       if (rank == 0) write (6,'(a,/)') &
             '------------------------------------------------- Finished adapting initial grid &
             -------------------------------------------------'
        if (rank==0) write (6,'(a,i12,/)') 'Initial number of active wavelets = ', sum (n_active)
@@ -234,10 +240,10 @@ contains
     character(9999) :: archive, bash_cmd
 
     if (rank == 0) then
-       write (6,'(A,/)') &
+       write (6,'(a,/)') &
             '********************************************************* Begin Restart &
             **********************************************************'
-       write (6,'(A,i4,/)') 'Restarting from checkpoint ', cp_idx
+       write (6,'(a,i4,/)') 'Restarting from checkpoint ', cp_idx
     end if
 
     ! Deallocate all dynamic arrays and variables
@@ -465,7 +471,7 @@ contains
     character(*) :: run_id
 
     level_start = min_level
-    level_end = level_start
+    level_end   = level_start
     
     ! Distribute and balance grid over processors (necessary for correct restart!)
     call distribute_grid (cp_idx, run_id)
@@ -474,8 +480,12 @@ contains
     call init_comm_mpi
     call init_geometry
 
-    if (optimize_grid == XU_GRID) call smooth_Xu (1.0d6*eps())
-    if (optimize_grid == HR_GRID) call read_HR_optim_grid
+    select case (optimize_grid)
+    case (XU_GRID)
+       call smooth_Xu
+    case (HR_GRID)
+       call read_HR_optim_grid
+    end select
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
     call precompute_geometry
@@ -484,7 +494,7 @@ contains
     edge_level_start = 0
     node_level_start = 0
 
-    if (rank == 0) write (6,'(A,i2,A)') 'Make level J_min = ', min_level, ' ...'
+    if (rank == 0) write (6,'(a,i2,a)') 'Make level J_min = ', min_level, ' ...'
     
     call init_wavelets
     call init_masks
