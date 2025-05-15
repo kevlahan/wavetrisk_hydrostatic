@@ -116,7 +116,6 @@ ifeq ($(PHYSICS), true)
 endif
 
 LINKER += $(COMPILER)
-LIBS   += $(LAPACK)
 
 ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (MUST use gfortran/openmpi)
  ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))

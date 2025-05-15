@@ -97,7 +97,7 @@ contains
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v) *  nu_scale (Laplace_sclr, dom, id) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) *  nu_scale (Laplace_sclr, dom, id) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -135,10 +135,10 @@ contains
     physics_velo_source_case = 0.0_dp
     
     if (Laplace_divu /= 0) physics_velo_source_case = &  
-         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
+         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
 
     if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
-         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
+         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
   contains
     function grad_divu ()
       implicit none
@@ -622,11 +622,11 @@ contains
           end if
        end if
        if (Laplace_sclr /= 0) &
-            write (6,'(3(a,es8.2))') "C_sclr = ",  C_visc(S_MASS), " nu_sclr = ", nu_sclr, " tau_sclr = ", tau_sclr / HOUR
+            write (6,'(3(a,es8.2))') "C_sclr = ",  C_visc(S_MASS,1), " nu_sclr = ", nu_sclr, " tau_sclr = ", tau_sclr / HOUR
        if (Laplace_divu /= 0) &
-            write (6,'(3(a,es8.2))') "C_divu = ",  C_visc(S_DIVU), " nu_divu = ", nu_divu, " tau_divu = ", tau_divu / HOUR
+            write (6,'(3(a,es8.2))') "C_divu = ",  C_visc(S_DIVU,1), " nu_divu = ", nu_divu, " tau_divu = ", tau_divu / HOUR
        if (Laplace_rotu /= 0) &
-            write (6,'(3(a,es8.2))') "C_rotu = ",  C_visc(S_ROTU), " nu_rotu = ", nu_rotu, " tau_rotu = ", tau_rotu / HOUR
+            write (6,'(3(a,es8.2))') "C_rotu = ",  C_visc(S_ROTU,1), " nu_rotu = ", nu_rotu, " tau_rotu = ", tau_rotu / HOUR
 
        write (6,'(/,a,es8.2)') "dt_init          [m]     = ", dt_init / MINUTE
        write (6,'(a,es8.2)') "dt_write         [d]     = ", dt_write / DAY
@@ -783,20 +783,20 @@ contains
     dt_init     = dt_CAM * (dx_min / dx_CAM)
 
     ! Ensure stability
-    C_visc(S_MASS) = min (C_visc(S_MASS), (1/6.0_dp  )**Laplace_sclr)
-    C_visc(S_TEMP) = min (C_visc(S_TEMP), (1/6.0_dp  )**Laplace_sclr)
-    C_visc(S_DIVU) = min (C_visc(S_DIVU), (1/6.0_dp  )**Laplace_divu)
-    C_visc(S_ROTU) = min (C_visc(S_ROTU), (1/6.0_dp/4)**Laplace_rotu)
+    C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/6.0_dp  )**Laplace_sclr)
+    C_visc(S_TEMP,:) = min (C_visc(S_TEMP,:), (1/6.0_dp  )**Laplace_sclr)
+    C_visc(S_DIVU,:) = min (C_visc(S_DIVU,:), (1/6.0_dp  )**Laplace_divu)
+    C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/6.0_dp/4)**Laplace_rotu)
 
     ! Viscosities
-    nu_sclr = C_visc(S_MASS) * 1.5 * Area_min**Laplace_sclr / dt_init
-    nu_divu = C_visc(S_DIVU) * 1.5 * Area_min**Laplace_divu / dt_init
-    nu_rotu = C_visc(S_ROTU) * 1.5 * Area_min**Laplace_rotu / dt_init
+    nu_sclr = C_visc(S_MASS,1) * 1.5 * Area_min**Laplace_sclr / dt_init
+    nu_divu = C_visc(S_DIVU,1) * 1.5 * Area_min**Laplace_divu / dt_init
+    nu_rotu = C_visc(S_ROTU,1) * 1.5 * Area_min**Laplace_rotu / dt_init
 
     ! Diffusion times
-    if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS)
-    if (Laplace_divu /= 0) tau_divu = dt_init / C_visc(S_DIVU)
-    if (Laplace_rotu /= 0) tau_rotu = dt_init / C_visc(S_ROTU)
+    if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS,1)
+    if (Laplace_divu /= 0) tau_divu = dt_init / C_visc(S_DIVU,1)
+    if (Laplace_rotu /= 0) tau_rotu = dt_init / C_visc(S_ROTU,1)
   end subroutine initialize_dt_viscosity_case
 
   real(dp) function nu_scale (order, dom, id)

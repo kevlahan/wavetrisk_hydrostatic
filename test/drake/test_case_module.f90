@@ -8,7 +8,7 @@ Module test_case_mod
 
   ! Standard variables
   integer :: CP_EVERY, resume_init
-  real(8) :: Area_max, Area_min, C_div, dt_cfl, total_cpu_time
+  real(8) :: Area_max, Area_min, dt_cfl, total_cpu_time
   real(8) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
 
   ! Local variables
@@ -144,17 +144,13 @@ contains
        write (6,'(a,es10.4)') "cfl_num                        = ", cfl_num
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
        write (6,'(a,i1)')     "n_diffuse                      = ", n_diffuse
-       write (6,'(/,a,/,a,/,/,a,/,a,/)') "Stability limits:", &
-            "[Klemp 2017 Damping Characteristics of Horizontal Laplacian Diffusion Filters Mon Weather Rev 145, 4365-4379.]", &
-            "C_visc(S_MASS) and C_visc(S_TEMP) <  (1/6)**Laplace_sclr", &
-            "                   C_visc(S_VELO) < (1/24)**Laplace_rotu"
        if (scale_aware) then
           write (6,'(/,a,/)') "Scale-aware horizontal diffusion"
        else
           write (6,'(/,a,/)') "Constant horizontal diffusion (not scale aware)"
        end if
-       write (6,'(4(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS), "C_visc(S_TEMP) = ", C_visc(S_TEMP), &
-            "C_div = ", C_div, "C_visc(S_VELO) = ", C_visc(S_VELO)
+       write (6,'(4(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS,1), "C_visc(S_TEMP) = ", C_visc(S_TEMP,1), &
+            "C_visc(S_DIVU) = ", C_visc(S_DIVU,1), "C_visc(S_ROTU) = ", C_visc(S_ROTU,1)
        write (6,'(a,L1)')     "vert_diffuse                   = ", vert_diffuse
        write (6,'(a,L1)')     "tke_closure                    = ", tke_closure
        write (6,'(a,es10.4)') "dt_write [d]                   = ", dt_write/DAY
@@ -598,10 +594,10 @@ contains
     ! Time step parameters
     dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc) ! initial time step (0.85 factor corrects for minimum dx)
 
-    C_visc(S_VELO)     = 1d-3                                  ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
-    C_div              = 4d0**Laplace_divu * C_visc(S_VELO)   ! dimensionless viscosity for divu         < 2.8e-2
-    C_visc(S_MASS)     = 4d0**Laplace_sclr * C_visc(S_VELO)   ! dimensionless viscosity of S_MASS        < 2.8e-2
-    C_visc(S_TEMP)     = 4d0**Laplace_sclr * C_visc(S_VELO)   ! dimensionless viscosity of S_TEMP        < 2.8e-2
+    C_visc(S_ROTU,:) = 1d-3                                 ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
+    C_visc(S_DIVU,:) = 4d0**Laplace_divu * C_visc(S_ROTU,:) ! dimensionless viscosity for divu         < 2.8e-2
+    C_visc(S_MASS,:) = 4d0**Laplace_sclr * C_visc(S_ROTU,:) ! dimensionless viscosity of S_MASS        < 2.8e-2
+    C_visc(S_TEMP,:) = 4d0**Laplace_sclr * C_visc(S_ROTU,:) ! dimensionless viscosity of S_MASS        < 2.8e-2
   end subroutine initialize_dt_viscosity_case
 
   real(8) function nu_scale (order, dom, id)
@@ -1081,7 +1077,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v) *  nu_scale (Laplace_sclr, dom, id) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) *  nu_scale (Laplace_sclr, dom, id) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -1120,10 +1116,10 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     horiz_diffusion = 0d0
 
     if (Laplace_divu /= 0) horiz_diffusion = &  
-         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
+         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
 
     if (Laplace_rotu /= 0) horiz_diffusion = horiz_diffusion + &
-         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
+         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
 
        ! Vertical diffusion
     if (vert_diffuse) then ! using vertical diffusion module

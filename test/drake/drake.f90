@@ -130,16 +130,16 @@ program Drake
 
   call initialize_dt_viscosity_case                                   ! initialize non-dimensional viscosities, cfl and time step
 
-  visc           = C_visc(S_VELO) * 1.5d0 * Area_min**Laplace_rotu / dt_init ! viscosity  
+  visc           = C_visc(S_VELO,1) * 1.5d0 * Area_min**Laplace_rotu / dt_init ! viscosity  
   Rd             = wave_speed / f0                                    ! barotropic Rossby radius of deformation             
   drho_dz        = drho / (mixed_layer-thermocline)                   ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)       ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                                  ! inertial layer
-  delta_M        = (visc/beta)**(1d0/(2d0*Laplace_rotu+1))      ! Munk layer scale
+  delta_M        = (visc/beta)**(1d0/(2d0*Laplace_rotu+1))            ! Munk layer scale
   delta_sm       = u_wbc / f0                                         ! barotropic submesoscale
   delta_S        = bottom_friction_case / (abs(max_depth) * beta)     ! Stommel layer scale
   Fr             = u_wbc / (bv*abs(max_depth))                        ! Froude number
-  Rey            = u_wbc * delta_sm**(2d0*Laplace_rotu-1d0) / visc ! Reynolds number of western boundary current
+  Rey            = u_wbc * delta_sm**(2d0*Laplace_rotu-1d0) / visc    ! Reynolds number of western boundary current
   Ro             = u_wbc / (delta_M*f0)                               ! Rossby number (based on boundary current)
 
   ! Baroclinic wave speed

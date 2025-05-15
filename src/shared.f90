@@ -240,9 +240,9 @@ module shared_mod
   real(dp)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(dp)                                       :: Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim
   real(dp)                                       :: hex_int
-  real(dp), dimension(:),         allocatable    :: bounds, C_visc, pressure_save, visc_sclr
+  real(dp), dimension(:),         allocatable    :: bounds, pressure_save, visc_sclr
   real(dp), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
-  real(dp), dimension(:,:),       allocatable    :: lnorm, threshold, threshold_def
+  real(dp), dimension(:,:),       allocatable    :: C_visc, lnorm, threshold, threshold_def
   real(dp), dimension(:,:,:),     allocatable    :: zonal_avg, zonal_avg_glo
   real(dp), dimension(3)                         :: L_diffusion
   real(dp), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
@@ -270,7 +270,6 @@ contains
     scalars = (/ N_VECTOR+1, N_VARIABLE /)
     allocate (MULT(1:N_VARIABLE), POSIT(1:N_VARIABLE))
     allocate (visc_sclr(scalars(1):scalars(2)))
-    allocate (C_visc(1:N_VARIABLE+2))
        
     ! Specify the multiplicity per grid element of each quantity
     MULT(S_VELO) = EDGE
@@ -280,11 +279,12 @@ contains
     POSIT(S_VELO) = AT_EDGE
     POSIT(scalars(1):scalars(2)) = AT_NODE
 
-    ! i                        nghb_pt
-    ! 1    1    1    0   -1   -1    0    1    1    0   -1
-    ! 2    0    1    1    0   -1   -1    0    1    1    0
+    ! nghb_pt are offsets of neighbours of a node (i,j)
+    !                 E    NE   N    W    SW   S    E    NE   N    S
+    !   offset in i   1    1    0   -1   -1    0    1    1    0   -1
+    !   offset in j   0    1    1    0   -1   -1    0    1    1    0
     nghb_pt  = reshape ((/ 1, 0, 1, 1, 0, 1, -1, 0, -1, -1, 0, -1, 1, 0, 1, 1, 0, 1, -1, 0 /), (/2, 10/))
-    
+
     ! i  j       end_pt
     ! 1  1    0    1    0
     ! 1  2    1    0    0
@@ -372,7 +372,6 @@ contains
     cfl_adv                 = 1.4_dp                              ! advective CFL number in mode split case
     cfl_bar                 = 1.0_dp                              ! baroclinic CFL number in mode split case
     cfl_num                 = 1.0_dp                              ! CFL number (barotropic CFL in mode split case)
-    C_visc                  = 1.5e-3_dp                           ! dimensionless diffusion coefficients
     dt_phys                 = 30 * MINUTE                         ! intervale for physics split step
     dt_write                = 5  * DAY                            ! intervale for writing data
     iadapt                  = 1                                   ! adapt horizontal grid every iadapt time step

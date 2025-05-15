@@ -135,6 +135,7 @@ contains
        end if
     end if
 
+    allocate (C_visc(1:N_VARIABLE+2,zmin:zmax)); C_visc = 1.5e-3_dp                        
     allocate (grid(n_domain(rank+1)))
     allocate (sol(1:N_VARIABLE,zmin:zmax), sol_mean(1:N_VARIABLE,zmin:zmax), trend(1:N_VARIABLE,1:zmax))
     allocate (wav_coeff(1:N_VARIABLE,zmin:zmax))

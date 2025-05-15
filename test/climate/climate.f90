@@ -26,8 +26,8 @@ program climate
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
 
-  C_visc                   = C_CAM                            ! non-dimensional viscosity for scalars and rotu
-  C_visc(S_DIVU)           = C_CAM * 10                       ! non-dimensional viscosity for divu
+  C_visc                   = C_CAM * 10                       ! non-dimensional viscosity for scalars and rotu
+  C_visc(S_DIVU,:)         = C_CAM * 10                       ! non-dimensional viscosity for divu
   zmax_adapt               = zlevels                          ! highest layer used to determine adaptive grid (about 18.6 hPa for 30 layers)
                                                               ! (avoid refining on spurious reflection of upward propagating waves)
  

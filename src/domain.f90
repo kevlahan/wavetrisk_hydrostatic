@@ -460,6 +460,7 @@ contains
   end function nidx
 
   integer function idx2 (i, j, noffs, offs, dims)
+    ! Index of node (i+noffs(1), j+noffs(2))
     implicit none
     integer                        :: i, j
     integer, dimension(2)          :: noffs
