@@ -14,23 +14,27 @@ module test_case_mod
   real(dp) :: time_start, total_cpu_time
 
   ! Test case variables
-  integer  :: zmax_adapt = 30 ! highest layer that determines adaptive grid
   real(dp) :: Area_max, Area_min, C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
   real(dp) :: topo_Area_min, topo_dx_min
   real(dp) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
 
   ! Model parameters
+  logical             :: Ekman_ic      = .false.                     ! Ekman flow initial conditions (zero velocity initial conditions if false)
+  logical             :: scale_aware   = .false.                     ! scale-aware viscosity
+  logical             :: sponge        = .true.                      ! sponge layer for divergence damping
+
+  integer,  parameter :: fac_sponge    = 8                           ! sponge layer viscosity increase factor (from CAM)
+  real(dp), parameter :: p_sponge      = 30   * hPa                  ! lower boundary of sponge layer
+  
   real(dp), parameter :: nu_CAM        = 1d15 * METRE**4/SECOND      ! CAM hyperviscosity 
   real(dp), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
   real(dp), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
   real(dp), parameter :: Area_CAM      = sqrt(3.0_dp)/2 * dx_CAM**2  ! CAM hexagon area
-  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity (1.4468e-03)
+  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity (1.45e-03)
   
   real(dp), parameter :: e_thick       = 10   * KM                   ! Ekman layer thickness
-  logical             :: Ekman_ic      = .false.                      ! Ekman flow initial conditions (zero velocity initial conditions if false)
-  logical             :: scale_aware   = .false.                      ! scale-aware viscosity
-  logical             :: print_tol     = .false.                      ! print tolerances for each layer
-  character(255)      :: analytic_topo = "none"                       ! mountains or none (used if NCAR_topo = .false.)
+  logical             :: print_tol     = .false.                     ! print tolerances for each layer
+  character(255)      :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -740,7 +744,7 @@ contains
 
     threshold_def = 1d16
 
-    do k = 1, zmax_adapt
+    do k = 1, zlevels
        p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * P_s)
 
        rho_dz = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
@@ -762,13 +766,14 @@ contains
 
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
-       where (tol * lnorm(:,1:zmax_adapt) > threshold(:,1:zmax_adapt)) threshold(:,1:zmax_adapt) = tol * lnorm(:,1:zmax_adapt)
+       where (tol * lnorm > threshold) threshold = tol * lnorm
     end if
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
     ! Set non-dimensional viscosities and time step
     implicit none
+    integer  :: k
     real(dp) :: Area_sphere
     
     ! Average hexagon areas and horizontal resolutions
@@ -782,6 +787,13 @@ contains
     ! Time step
     dt_init     = dt_CAM * (dx_min / dx_CAM)
 
+    ! Sponge layer for divergence damping
+    if (sponge) then
+       do k = 1, zlevels
+          C_visc(S_DIVU,k) = C_visc(S_DIVU,k) * ramp ()
+       end do
+    end if
+    
     ! Ensure stability
     C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/6.0_dp  )**Laplace_sclr)
     C_visc(S_TEMP,:) = min (C_visc(S_TEMP,:), (1/6.0_dp  )**Laplace_sclr)
@@ -797,6 +809,16 @@ contains
     if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS,1)
     if (Laplace_divu /= 0) tau_divu = dt_init / C_visc(S_DIVU,1)
     if (Laplace_rotu /= 0) tau_rotu = dt_init / C_visc(S_ROTU,1)
+  contains
+    real(dp) function ramp ()
+      ! Ramp function for sponge layer 
+      implicit none
+      real(dp) :: p
+
+      p = a_vert_mass(k) + b_vert_mass(k) * p_0 ! layer pressure
+
+      ramp =  merge (fac_sponge * sin (MATH_PI * (p_0 - p)/(p_0 - p_top))**2, 1.0_dp, p <= p_sponge)
+    end function ramp
   end subroutine initialize_dt_viscosity_case
 
   real(dp) function nu_scale (order, dom, id)

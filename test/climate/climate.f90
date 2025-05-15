@@ -24,12 +24,11 @@ program climate
   default_thresholds       = .false.                          ! thresholding type
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
+  sponge                   = .false.                          ! use sponge layer in upper layers to avoid reflection
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
 
-  C_visc                   = C_CAM * 10                       ! non-dimensional viscosity for scalars and rotu
+  C_visc                   = C_CAM                            ! non-dimensional viscosity for scalars and rotu
   C_visc(S_DIVU,:)         = C_CAM * 10                       ! non-dimensional viscosity for divu
-  zmax_adapt               = zlevels                          ! highest layer used to determine adaptive grid (about 18.6 hPa for 30 layers)
-                                                              ! (avoid refining on spurious reflection of upward propagating waves)
  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Local test case parameters (default values for many parameters set in physics module)
