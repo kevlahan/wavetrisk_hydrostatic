@@ -26,7 +26,7 @@ module test_case_mod
   integer,  parameter :: fac_sponge    = 8                           ! sponge layer viscosity increase factor (from CAM)
   real(dp), parameter :: p_sponge      = 30   * hPa                  ! lower boundary of sponge layer
   
-  real(dp), parameter :: nu_CAM        = 1d15 * METRE**4/SECOND      ! CAM hyperviscosity 
+  real(dp), parameter :: nu_CAM        = 1e15 * METRE**4/SECOND      ! CAM hyperviscosity 
   real(dp), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
   real(dp), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
   real(dp), parameter :: Area_CAM      = sqrt(3.0_dp)/2 * dx_CAM**2  ! CAM hexagon area
@@ -817,7 +817,7 @@ contains
 
       p = a_vert_mass(k) + b_vert_mass(k) * p_0 ! layer pressure
 
-      ramp =  merge (fac_sponge * sin (MATH_PI * (p_0 - p)/(p_0 - p_top))**2, 1.0_dp, p <= p_sponge)
+      ramp =  merge (fac_sponge * sin (MATH_PI/2 * (p_0 - p)/(p_0 - p_top))**2, 1.0_dp, p <= p_sponge)
     end function ramp
   end subroutine initialize_dt_viscosity_case
 
