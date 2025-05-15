@@ -740,6 +740,8 @@ contains
 
     integer :: d, i, k, l, v, r
 
+    deallocate (C_visc)
+
     ! Deallocate init_RK_mem allocations
     do k = 1, zmax
        do d = 1, n_domain(rank+1)

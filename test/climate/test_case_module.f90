@@ -23,7 +23,7 @@ module test_case_mod
   logical             :: scale_aware   = .false.                     ! scale-aware viscosity
   logical             :: sponge        = .true.                      ! sponge layer for divergence damping
 
-  integer,  parameter :: fac_sponge    = 8                           ! sponge layer viscosity increase factor (from CAM)
+  integer,  parameter :: fac_sponge    = 7                           ! sponge layer viscosity increase factor (from CAM)
   real(dp), parameter :: p_sponge      = 30   * hPa                  ! lower boundary of sponge layer
   
   real(dp), parameter :: nu_CAM        = 1e15 * METRE**4/SECOND      ! CAM hyperviscosity 
@@ -787,6 +787,10 @@ contains
     ! Time step
     dt_init     = dt_CAM * (dx_min / dx_CAM)
 
+    ! Non-dimensional viscosity
+    C_visc           = C_CAM
+    C_visc(S_DIVU,:) = C_CAM * 2.5
+
     ! Sponge layer for divergence damping
     if (sponge) then
        do k = 1, zlevels
@@ -815,9 +819,13 @@ contains
       implicit none
       real(dp) :: p
 
-      p = a_vert_mass(k) + b_vert_mass(k) * p_0 ! layer pressure
+      p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_0) 
 
-      ramp =  merge (fac_sponge * sin (MATH_PI/2 * (p_0 - p)/(p_0 - p_top))**2, 1.0_dp, p <= p_sponge)
+      if (p > p_sponge) then
+         ramp = 1.0_dp
+      else ! sponge layer
+         ramp = 1.0_dp + (fac_sponge - 1.0_dp) * sin (MATH_PI/2 * (p_sponge - p)/(p_sponge - p_top))**2
+      end if
     end function ramp
   end subroutine initialize_dt_viscosity_case
 
