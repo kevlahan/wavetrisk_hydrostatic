@@ -19,10 +19,11 @@ module coarse_grid_mod
   integer, dimension(2,4)                  :: HR_offs 
   data                                        HR_offs / 0,0, 1,0, 1,1, 0,1 /
   real(dp)                                 :: dx, linf_err, l2_err
-  type(Coord), dimension(:,:), allocatable :: sums
+  type(Coord), dimension(:,:), allocatable :: new_node
 contains
   subroutine smooth_Xu
     implicit none
+    integer  ::  d
     real(dp) :: tol
 
     tol = 1e9_dp * eps () ! tolerance in [m], about 1.4 m on Earth or relative error of O(1e-7)
@@ -40,14 +41,18 @@ contains
        write (6,'(a,2(es8.2,a))') 'Grid quality before optimization = ', linf_err, ' (linf) ', l2_err, ' (l2)'
     end if
         
-    allocate (sums(maxval(grid(:)%node%length), size(grid)))
+    allocate (new_node(maxval(grid(:)%node%length), size(grid)))
 
     linf_err = 2*tol
-    do while(linf_err > tol)
-       linf_err = 0.0_dp
+    do while (linf_err > tol)
        call comm_nodes3_mpi (get_coord, set_coord, NONE)
+       call apply_onescale2 (ccentre,    min_level-1, z_null, -BDRY_THICKNESS,     BDRY_THICKNESS)
+       call apply_onescale2 (midpt,      min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+       call apply_onescale2 (cpt_areas,  min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
        call apply_onescale (Xu_smooth_cpt,    level_end-1, z_null, 0, 0)
+
+       linf_err = 0.0_dp
        call apply_onescale (Xu_smooth_assign, level_end-1, z_null, 0, 0)
        linf_err = sync_max_real (linf_err)
     end do
@@ -65,7 +70,7 @@ contains
        write (6,'(a,/)') '-------------------------------------------------&
             ----------------------------------------------------------------------'
     end if
-    deallocate (sums)
+    deallocate (new_node)
   end subroutine smooth_Xu
 
   subroutine read_HR_optim_grid
@@ -136,21 +141,6 @@ contains
     end if
   end subroutine read_HR_optim_grid
 
-  subroutine Xu_smooth_assign (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    integer id
-
-    id = idx(i, j, offs, dims)
-
-    linf_err = max  (linf_err, dist (dom%node%elts(id+1), sums(id+1,dom%id+1)))
-
-    dom%node%elts(id+1) = sums(id+1,dom%id+1)
-  end subroutine Xu_smooth_assign
-
   subroutine Xu_smooth_cpt (dom, i, j, zlev, offs, dims)
     ! Algorithm 1 of Xu (2006)
     implicit none
@@ -159,46 +149,62 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer     :: n
-    real(dp)    :: alpha, beta, cosalpha, cosbeta, t
-    type(Coord) :: s, p_i, p_ip, p_im, p_j, v, v1, v2
+    integer     :: d, id, n
+    real(dp)    :: alpha, beta, cosalpha, cosbeta
+    type(Coord) :: s, p_i, p_ip, p_im, p_j, v1, v2
     
-    call init_Coord (s, 0.0_dp, 0.0_dp, 0.0_dp)
+    d = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
     
-    p_i = dom%node%elts(idx(i, j, offs, dims) + 1)
+    p_i = dom%node%elts(id)
 
     ! Do not move pentagon nodes 
     if (i == 0 .and. j == 0 .and. dom%penta(SOUTHWEST)) then 
-       sums(idx(i,j,offs,dims)+1,dom%id+1) = p_i 
+       new_node(id,d) = p_i 
        return
     end if
 
-    do n = 1, 6
+    call init_Coord (s, 0.0_dp, 0.0_dp, 0.0_dp)
+    
+    do n = 1, 6 ! sum over hexagon vertices
        p_j  = dom%node%elts(idx2(i, j, nghb_pt(:,n),                  offs, dims) + 1)
        p_ip = dom%node%elts(idx2(i, j, nghb_pt(:,modulo(n,   6) + 1), offs, dims) + 1)
        p_im = dom%node%elts(idx2(i, j, nghb_pt(:,modulo(n-2, 6) + 1), offs, dims) + 1)
        
        v1 = vector (p_im, p_j)
        v2 = vector (p_im, p_i)
-       cosalpha = inner (v1, v2) / (norm(v1) * norm(v2))
+       cosalpha = inner (v1, v2) / (norm (v1) * norm (v2))
+       alpha = acos (cosalpha)
        
        v1 = vector (p_ip, p_j)
        v2 = vector (p_ip, p_i)
-       cosbeta = inner (v1, v2) / (norm(v1) * norm(v2))
-       
-       alpha = acos (cosalpha)
+       cosbeta = inner (v1, v2) / (norm (v1) * norm (v2))
        beta  = acos (cosbeta)
-       v = vector (p_j, p_i)
-       t = 1/tan(alpha) + (1/tan(beta))
-       
-       s%x = s%x + v%x*t
-       s%y = s%y + v%y*t
-       s%z = s%z + v%z*t
+
+       s = s + (1/tan(alpha) + 1/tan(beta))/4 * (p_i - p_j)
     end do
-    sums(idx(i,j,offs,dims)+1,dom%id+1) = project_on_sphere (s)
+
+    new_node(id,d) = project_on_sphere (dom%areas%elts(id)%hex_inv * s) 
   end subroutine Xu_smooth_cpt
 
-   subroutine init_smooth_mod
+  subroutine Xu_smooth_assign (dom, i, j, zlev, offs, dims)
+    ! Update node position
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    integer ::  d, id
+
+    d  = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    linf_err = max  (linf_err, dist (dom%node%elts(id), new_node(id,d)))
+
+    dom%node%elts(id) = new_node(id,d)
+  end subroutine Xu_smooth_assign
+
+  subroutine init_smooth_mod
     implicit none
     logical :: initialized = .false.
 
@@ -224,9 +230,9 @@ contains
     idW  = idx(i-1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
 
-    call check_triag (dom, id*TRIAG+LORT, (/TRIAG*idE+UPLT, TRIAG*id+UPLT, TRIAG*idS+UPLT/), &
+    call check_triag (dom, TRIAG*id + LORT, (/TRIAG*idE + UPLT, TRIAG*id  + UPLT, TRIAG*idS + UPLT/), &
          (/id, idE, idNE/), (/EDGE*idE+UP, EDGE*id+DG, EDGE*id+RT/))
-    call check_triag (dom, id*TRIAG+UPLT, (/TRIAG*idN+LORT, TRIAG*idW+LORT, TRIAG*id+LORT/), &
+    call check_triag (dom, TRIAG*id + UPLT, (/TRIAG*idN + LORT, TRIAG*idW + LORT, TRIAG*id  + LORT/), &
          (/id, idNE, idN/), (/EDGE*idN+RT, EDGE*id+UP, EDGE*id+DG/))
   end subroutine check_grid
 
@@ -264,16 +270,16 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer                :: id, idS, idW
-    real(dp), dimension (3) :: error
+    real(dp), dimension(3) :: error
 
     id  = idx(i,   j,   offs, dims)
     idS = idx(i,   j-1, offs, dims)
     idW = idx(i-1, j,   offs, dims)
 
     error = (/ &
-         dist(dom%midpt%elts(EDGE*id+RT+1), mid_pt(dom%ccentre%elts(TRIAG*id +LORT+1),dom%ccentre%elts(TRIAG*idS+UPLT+1))), &
-         dist(dom%midpt%elts(EDGE*id+DG+1), mid_pt(dom%ccentre%elts(TRIAG*id +LORT+1),dom%ccentre%elts(TRIAG*id +UPLT+1))), &
-         dist(dom%midpt%elts(EDGE*id+UP+1), mid_pt(dom%ccentre%elts(TRIAG*idW+LORT+1),dom%ccentre%elts(TRIAG*id +UPLT+1)) )/)
+         dist (dom%midpt%elts(EDGE*id+RT+1), mid_pt (dom%ccentre%elts(TRIAG*id +LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1))), &
+         dist (dom%midpt%elts(EDGE*id+DG+1), mid_pt (dom%ccentre%elts(TRIAG*id +LORT+1), dom%ccentre%elts(TRIAG*id +UPLT+1))), &
+         dist (dom%midpt%elts(EDGE*id+UP+1), mid_pt (dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*id +UPLT+1)) ) /)
 
     linf_err = max (linf_err, maxval (error))
     l2_err = l2_err + sum (error**2)

@@ -97,13 +97,11 @@ contains
   type(Coord) function project_on_sphere (p)
     implicit none
     type(Coord) :: p
-    real(dp)     :: nrm
+    real(dp)    :: nrm
     
     nrm = sqrt (p%x**2 + p%y**2 + p%z**2)
-    p%x = p%x*(radius/nrm)
-    p%y = p%y*(radius/nrm)
-    p%z = p%z*(radius/nrm)
-    project_on_sphere = p
+
+    project_on_sphere = (radius/nrm) * p
   end function project_on_sphere
 
   subroutine arc_inters (arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, does_inters, troubles)
@@ -111,7 +109,7 @@ contains
     type(Coord) :: arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, neg_int_pt, normal1, normal2
     
     real(dp) :: inpr
-    logical :: does_inters, troubles
+    logical  :: does_inters, troubles
     
     inters_pt = arc2_no2
     does_inters = .true.
