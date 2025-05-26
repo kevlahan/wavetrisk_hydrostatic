@@ -104,27 +104,30 @@ contains
   end subroutine refine_patch1
 
   subroutine refine_patch2 (dom, p_par, c0)
+    ! Sets and initializes all structures for new patches
     implicit none
     type(Domain) :: dom
     integer      :: p_par, c0
     
-    type(Coord), dimension(6)      :: tmp
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-    integer                        :: c, d, i, id_par, i_chd, i_par, j, j_chd, j_par, k, lev, num, p_chd, s, v
+    integer                        :: c, d, i, i_chd, i_par, j, j_chd, j_par, k, lev, num, p_chd, s, v
+    integer                        :: id_chd, idE_chd, idNE_chd, idN_chd
+    integer                        :: id_par, idE_par, idNE_par, idN_par
 
     call get_offs_Domain (dom, p_par, offs_par, dims_par)
 
+    ! Build patch structures
     lev = dom%patch%elts(p_par+1)%level
     c = c0 + 1
     p_chd = dom%patch%elts(p_par+1)%children(c)
     do k = 1, 2
-       call attach_bdry (dom, p_par, c-1, modulo(c + k - 2, N_CHDRN), side (dom, p_par, modulo(c + k - 2, N_CHDRN)))
-       call attach_bdry (dom, p_par, c-1, modulo(c + k, N_CHDRN), -(modulo(c + k, N_CHDRN) + 1))
-       call connect_cousin (dom, p_par, p_chd, modulo(c + k - 2, N_CHDRN), modulo(c + k - 2, N_CHDRN), modulo(c - 2*k + 2, N_CHDRN))
+       call attach_bdry    (dom, p_par, c-1,   modulo(c + k - 2, N_CHDRN), side (dom, p_par, modulo(c + k - 2, N_CHDRN)))
+       call attach_bdry    (dom, p_par, c-1,   modulo(c + k,     N_CHDRN), -(modulo(c + k,     N_CHDRN) + 1))
+       call connect_cousin (dom, p_par, p_chd, modulo(c + k - 2, N_CHDRN),   modulo(c + k - 2, N_CHDRN), modulo(c - 2*k + 2, N_CHDRN))
     end do
 
-    call attach_bdry (dom, p_par, c-1, c + 3, side (dom, p_par, c + 3))
+    call attach_bdry    (dom, p_par, c-1,   c + 3, side (dom, p_par, c + 3))
     call connect_cousin (dom, p_par, p_chd, c + 3, c + 3, modulo(c + 1, N_CHDRN))
 
     call attach_bdry (dom, p_par, c-1, modulo(c + 1, N_CHDRN) + 4, -(modulo(c + 1, N_CHDRN) + 4 + 1))
@@ -133,59 +136,73 @@ contains
 
     call get_offs_Domain (dom, p_chd, offs_chd, dims_chd)
 
+    ! Set refined cell nodes and edges
     do j = 0, PATCH_SIZE/2 + 1
-       j_chd = (j - 1)*2
+       j_chd = (j - 1) * 2
        j_par = j - 1 + chd_offs(2,c)
        do i = 0, PATCH_SIZE/2 + 1
-          i_chd = (i - 1)*2
+          i_chd = (i - 1) * 2
           i_par = i - 1 + chd_offs(1,c)
-          id_par = idx(i_par, j_par, offs_par, dims_par)
 
-          dom%node%elts(idx(i_chd, j_chd, offs_chd, dims_chd) + 1) = dom%node%elts(id_par+1)
+          id_par = idx (i_par, j_par, offs_par, dims_par)
+          id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
+          
+          idE_chd  = idx (i_chd+1, j_chd,   offs_chd, dims_chd)
+          idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
+          idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
 
-          dom%node%elts(idx(i_chd + 1, j_chd,     offs_chd, dims_chd) + 1) = dom%midpt%elts(EDGE*id_par+RT+1)
-          dom%node%elts(idx(i_chd + 1, j_chd + 1, offs_chd, dims_chd) + 1) = dom%midpt%elts(EDGE*id_par+DG+1)
-          dom%node%elts(idx(i_chd,     j_chd + 1, offs_chd, dims_chd) + 1) = dom%midpt%elts(EDGE*id_par+UP+1)
+          dom%node%elts(id_chd+1)   = dom%node%elts(id_par+1)            
+          
+          dom%node%elts(idE_chd +1) = dom%midpt%elts(EDGE*id_par+RT+1)
+          dom%node%elts(idNE_chd+1) = dom%midpt%elts(EDGE*id_par+DG+1)
+          dom%node%elts(idN_chd +1) = dom%midpt%elts(EDGE*id_par+UP+1)
        end do
     end do
 
-    if (is_penta (dom, p_chd, IPLUSJMINUS-1)) &
-         dom%node%elts(idx(PATCH_SIZE, -1, offs_chd, dims_chd) + 1) = &
-         mid_pt ( &
-         dom%node%elts(idx(PATCH_SIZE + 1, 0, offs_par, dims_par) + 1), &
-         dom%node%elts(idx(PATCH_SIZE,     0, offs_par, dims_par) + 1) )
+    ! Set pentagon nodes
+    if (is_penta (dom, p_chd, IPLUSJMINUS-1)) then
+       id_chd  = idx (PATCH_SIZE,  -1, offs_chd, dims_chd)
+       
+       idE_par = idx (PATCH_SIZE+1, 0, offs_par, dims_par)
+       idN_par = idx (PATCH_SIZE,   0, offs_par, dims_par) 
 
-    if (is_penta (dom, p_chd, IMINUSJPLUS-1)) &
-         dom%node%elts(idx(-1, PATCH_SIZE, offs_chd, dims_chd) + 1) = &
-         mid_pt ( &
-         dom%node%elts(idx(0, PATCH_SIZE+1, offs_par, dims_par)+1), &
-         dom%node%elts(idx(0, PATCH_SIZE,   offs_par, dims_par)+1) )
+       dom%node%elts(id_chd+1) = mid_pt (dom%node%elts(idE_par+1), dom%node%elts(idN_par+1))
+    end if
 
+    if (is_penta (dom, p_chd, IMINUSJPLUS-1)) then
+       id_chd   = idx (-1, PATCH_SIZE,   offs_chd, dims_chd)
+       
+       idE_par  = idx ( 0, PATCH_SIZE,   offs_par, dims_par)
+       idNE_par = idx ( 0, PATCH_SIZE+1, offs_par, dims_par)
+         
+       dom%node%elts(id_chd+1) = mid_pt (dom%node%elts(idE_par+1), dom%node%elts(idNE_par+1))
+    end if
+
+    ! Set geometric quantities
+    ! (circumcentres, midpoints, and primal/dual edge lengths, areas, hexagon/triangle areas and coriolis)
     num = dom%node%length - dom%areas%length
-    d = dom%id + 1
+    d   = dom%id + 1
 
     call extend (dom%ccentre, TRIAG * num, ORIGIN)
     call apply_onescale_to_patch2 (ccentre, dom, p_chd, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     
     call ccentre_penta (dom, p_chd)
-    call extend (dom%midpt, EDGE * num, ORIGIN)
+    call extend (dom%midpt, EDGE*num, ORIGIN)
     
     call apply_onescale_to_patch2 (midpt, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     
-    call extend (dom%pedlen, EDGE * num, 0.0_dp)
-    call extend (dom%len,    EDGE * num, 0.0_dp)
+    call extend (dom%pedlen, EDGE*num, 0.0_dp)
+    call extend (dom%len,    EDGE*num, 0.0_dp)
     
     call apply_onescale_to_patch2 (lengths, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
-
-    tmp = ORIGIN
     
     call extend (dom%areas, num, Areas (0.0_dp, 0.0_dp))
     call apply_onescale_to_patch2 (cpt_areas, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     
-    call extend (dom%triarea, EDGE * num, 1.0_dp)
+    call extend (dom%triarea, EDGE*num, 1.0_dp)
     call apply_onescale_to_patch (cpt_triarea, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     
-    call extend (dom%coriolis, TRIAG * num, 0.0_dp)
+    call extend (dom%coriolis, TRIAG*num, 0.0_dp)
     call apply_onescale_to_patch (coriolis, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
     ! Initialize domain variables to zero
@@ -200,8 +217,8 @@ contains
     call extend (dom%ke,            num, 0.0_dp)
     call extend (dom%divu,          num, 0.0_dp)
     
-    call extend (dom%qe,      EDGE * num, 0.0_dp)
-    call extend (dom%vort,   TRIAG * num, 0.0_dp)
+    call extend (dom%qe,      EDGE*num, 0.0_dp)
+    call extend (dom%vort,   TRIAG*num, 0.0_dp)
 
     call extend (topography%data(d), num, 0.0_dp)
 
@@ -213,16 +230,16 @@ contains
     end if
     
     do k = zmin, zmax
-       call extend (penal_node(k)%data(d),        num, 0.0_dp)
-       call extend (penal_edge(k)%data(d), EDGE * num, 0.0_dp)
-       call extend (exner_fun(k)%data(d),         num, 0.0_dp)
+       call extend (penal_node(k)%data(d),      num, 0.0_dp)
+       call extend (penal_edge(k)%data(d), EDGE*num, 0.0_dp)
+       call extend (exner_fun(k)%data(d),       num, 0.0_dp)
        
        do v = scalars(1), scalars(2)
           if (k > 0) call extend (trend(v,k)%data(d), num, 0.0_dp)
           call extend (wav_coeff(v,k)%data(d), num, 0.0_dp)
        end do
-       if (k > 0) call extend (trend(S_VELO,k)%data(d),     EDGE*num, 0.0_dp)
-       call extend (wav_coeff(S_VELO,k)%data(d), EDGE * num, 0.0_dp)
+       if (k > 0) call extend (trend(S_VELO,k)%data(d), EDGE*num, 0.0_dp)
+       call extend (wav_coeff(S_VELO,k)%data(d), EDGE*num, 0.0_dp)
     end do
     call extend (exner_fun(zmax+1)%data(d), num, 0.0_dp)
 
@@ -239,19 +256,19 @@ contains
     end if
 
     ! Initialize Laplacian diffusion variables to zero
-    call extend (Laplacian_vector(S_DIVU)%data(d),     num,  0.0_dp)
-    call extend (Laplacian_vector(S_ROTU)%data(d), EDGE * num, 0.0_dp)
+    call extend (Laplacian_vector(S_DIVU)%data(d),      num, 0.0_dp)
+    call extend (Laplacian_vector(S_ROTU)%data(d), EDGE*num, 0.0_dp)
     do v = scalars(1), scalars(2)
-       call extend (horiz_flux(v)%data(d),       EDGE * num, 0.0_dp)
+       call extend (horiz_flux(v)%data(d),       EDGE*num, 0.0_dp)
        call extend (Laplacian_scalar(v)%data(d),      num, 0.0_dp)
     end do
     
     ! Initialize mask and wavelet variables to zero
-    call extend (dom%overl_areas, EDGE * num, Overl_Area(0.0_dp, 0.0_dp))
-    call extend (dom%I_u_wgt,     EDGE * num, Iu_Wgt (0.0_dp))
-    call extend (dom%R_F_wgt,            num, RF_Wgt (0.0_dp))
-    call extend (dom%mask_n,             num, ZERO)
-    call extend (dom%mask_e,      EDGE * num, ZERO)
+    call extend (dom%overl_areas, EDGE*num, Overl_Area(0.0_dp, 0.0_dp))
+    call extend (dom%I_u_wgt,     EDGE*num, Iu_Wgt (0.0_dp))
+    call extend (dom%R_F_wgt,          num, RF_Wgt (0.0_dp))
+    call extend (dom%mask_n,           num, ZERO)
+    call extend (dom%mask_e,      EDGE*num, ZERO)
     
     call apply_interscale_to_patch3 (set_WT_wgts, dom, p_par, c, z_null, 0, 0)
     call apply_interscale_to_patch3 (set_RF_wgts, dom, p_par, c, z_null, 0, 0)
