@@ -231,8 +231,8 @@ contains
     type(Coord)                 :: ne, se, sw, nw
     type(Coord), dimension(2,2) :: cnr
 
-    lat = (/ - MATH_PI/2.0_dp, - atan (0.5_dp), atan (0.5_dp), MATH_PI/2.0_dp /)
-    lon = (/ ((MATH_PI * real(k,kind=dp))/5.0_dp, k = 0, 10-1) /)
+    lat = (/ - MATH_PI/2, - atan (0.5_dp), atan (0.5_dp), MATH_PI/2 /)
+    lon = (/ ((MATH_PI * real(k,kind=dp))/5, k = 0, 10-1) /)
 
     do ii = 1, 2
        do jj = 1, 5
@@ -279,7 +279,7 @@ contains
       integer :: i, j, l
 
       if (l > 0) then
-         c = mid_pt (get_J0_coord(i/2, j/2, l-1), get_J0_coord((i+1)/2, (j+1)/2, l-1))
+         c = mid_pt (get_J0_coord (i/2, j/2, l-1), get_J0_coord ((i+1)/2, (j+1)/2, l-1))
          return
       else
          c = cnr (i+1,j+1)
@@ -516,7 +516,7 @@ contains
           do i = 1, N_SUB_DOM_PER_DIM
              do j = 1, N_SUB_DOM_PER_DIM
                 split = N_SUB_DOM_PER_DIM * (j-1) + (i-1)
-                d_glo = N_SUB_DOM*loz + split
+                d_glo = N_SUB_DOM * loz + split
 
                 if (.not. owner(d_glo+1) == rank) then
                    ! check if pole master on other rank
@@ -528,23 +528,23 @@ contains
                 d = loc_id(d_glo+1)
                 grid(d+1)%neigh = NONE
 
-                neigh_over_pole = (/5*ii - 5 + modulo(jj+1, 5), 5*ii - 5 + modulo(jj - 3, 5)/)
+                neigh_over_pole = (/ 5*ii - 5 + modulo(jj+1, 5), 5*ii - 5 + modulo(jj - 3, 5) /)
 
                 if (ii-1 == 1 .and. i-1 == 0 .and. j-1 == N_SUB_DOM_PER_DIM - 1) then
                    grid(d+1)%neigh(NORTHWEST) = POLE
                    grid(d+1)%neigh_over_pole = N_SUB_DOM*neigh_over_pole + split
 
                    if (.not. pole_assigned(1)) then
-                      grid(d+1)%pole_master(2) = .True.
-                      pole_assigned(1) = .True.
+                      grid(d+1)%pole_master(2) = .true.
+                      pole_assigned(1)         = .true.
                    end if
                 else
                    if (ii-1 == 0 .and. j-1 == 0 .and. i-1 == N_SUB_DOM_PER_DIM - 1) then
                       grid(d+1)%neigh(SOUTHEAST) = POLE
                       grid(d+1)%neigh_over_pole = N_SUB_DOM*neigh_over_pole + split
                       if (.not. pole_assigned(2)) then
-                         grid(d+1)%pole_master(1) = .True.
-                         pole_assigned(2) = .True.
+                         grid(d+1)%pole_master(1) = .true.
+                         pole_assigned(2)         = .true.
                       end if
                    end if
                 end if
@@ -554,24 +554,24 @@ contains
                 grid(d+1)%neigh_pa_over_pole%elts(min_level*2-1:min_level*2) = 1
                 grid(d+1)%neigh_rot = 0
 
-                grid(d+1)%neigh(NORTH) = N_SUB_DOM*loz + N_SUB_DOM_PER_DIM*j + (i-1)
-                grid(d+1)%neigh(EAST)  = N_SUB_DOM*loz + N_SUB_DOM_PER_DIM*(j-1) + i-1 + 1
-                grid(d+1)%neigh(SOUTH) = N_SUB_DOM*loz + N_SUB_DOM_PER_DIM*(j - 2) + (i-1)
-                grid(d+1)%neigh(WEST) = (N_SUB_DOM*loz + N_SUB_DOM_PER_DIM*(j-1) + i-1) - 1
+                grid(d+1)%neigh(NORTH) = N_SUB_DOM*loz + N_SUB_DOM_PER_DIM * j     + i-1
+                grid(d+1)%neigh(EAST)  = N_SUB_DOM*loz + N_SUB_DOM_PER_DIM * (j-1) + i-1 + 1
+                grid(d+1)%neigh(SOUTH) = N_SUB_DOM*loz + N_SUB_DOM_PER_DIM * (j-2) + i-1
+                grid(d+1)%neigh(WEST)  = N_SUB_DOM*loz + N_SUB_DOM_PER_DIM * (j-1) + i-1 - 1
 
                 if (i < N_SUB_DOM_PER_DIM) then
-                   if (j < N_SUB_DOM_PER_DIM) grid(d+1)%neigh(IJPLUS)      = N_SUB_DOM*loz + N_SUB_DOM_PER_DIM*j     + i-1 + 1
-                   if (j-1 > 0)               grid(d+1)%neigh(IPLUSJMINUS) = N_SUB_DOM*loz + N_SUB_DOM_PER_DIM*(j-2) + i-1 + 1
+                   if (j < N_SUB_DOM_PER_DIM) grid(d+1)%neigh(IJPLUS)      = N_SUB_DOM * loz + N_SUB_DOM_PER_DIM * j     + i-1 + 1
+                   if (j-1 > 0)               grid(d+1)%neigh(IPLUSJMINUS) = N_SUB_DOM * loz + N_SUB_DOM_PER_DIM * (j-2) + i-1 + 1
                 end if
 
                 if (i-1 > 0) then
-                   if (j < N_SUB_DOM_PER_DIM) grid(d+1)%neigh(IMINUSJPLUS) = (N_SUB_DOM*loz + N_SUB_DOM_PER_DIM*j+i-1)     - 1
-                   if (j-1 > 0)               grid(d+1)%neigh(IJMINUS)     = (N_SUB_DOM*loz + N_SUB_DOM_PER_DIM*(j-2)+i-1) - 1
+                   if (j < N_SUB_DOM_PER_DIM) grid(d+1)%neigh(IMINUSJPLUS) = (N_SUB_DOM * loz + N_SUB_DOM_PER_DIM * j+i    -1) - 1
+                   if (j-1 > 0)               grid(d+1)%neigh(IJMINUS)     = (N_SUB_DOM * loz + N_SUB_DOM_PER_DIM * (j-2)+i-1) - 1
                 end if
 
                 if (j == N_SUB_DOM_PER_DIM) then
                    rot = ii-1
-                   ngb_loz = (5 + modulo(ii + jj - 2, 5))*N_SUB_DOM
+                   ngb_loz = N_SUB_DOM * (5 + modulo(ii + jj - 2, 5))
                    call set_dom_neigh (d, NORTH, ngb_loz, i-1, 0, NORTH, rot)
 
                    if (i < N_SUB_DOM_PER_DIM) then
@@ -579,13 +579,13 @@ contains
                    end if
 
                    if (i-1 > 0) then
-                      call set_dom_neigh (d, IMINUSJPLUS, ngb_loz, i - 2, 0, NORTH, rot)
+                      call set_dom_neigh (d, IMINUSJPLUS, ngb_loz, i-2, 0, NORTH, rot)
                    end if
                 end if
 
                 if (i == N_SUB_DOM_PER_DIM) then
                    rot = 1 - (ii-1)
-                   ngb_loz = (0 + modulo(jj, 5))*N_SUB_DOM
+                   ngb_loz = N_SUB_DOM * (0 + modulo(jj, 5))
                    call set_dom_neigh (d, EAST, ngb_loz, 0, j-1, EAST, rot)
 
                    if (j < N_SUB_DOM_PER_DIM) call set_dom_neigh (d, IJPLUS,      ngb_loz, 0, j,   EAST, rot)
@@ -594,9 +594,9 @@ contains
 
                 if (j-1 == 0) then
                    rot = 1 - (ii-1)
-                   ngb_loz = (0 + modulo(ii + jj - 3, 5))*N_SUB_DOM
+                   ngb_loz = N_SUB_DOM * (0 + modulo(ii + jj - 3, 5))
 
-                   call set_dom_neigh (d, SOUTH, ngb_loz, i-1, N_SUB_DOM_PER_DIM - 1, SOUTH, rot)
+                   call set_dom_neigh (d, SOUTH, ngb_loz, i-1, N_SUB_DOM_PER_DIM-1, SOUTH, rot)
 
                    if (i < N_SUB_DOM_PER_DIM) call set_dom_neigh (d, IPLUSJMINUS, ngb_loz, i,   N_SUB_DOM_PER_DIM-1, SOUTH, rot)
                    if (i-1 > 0)               call set_dom_neigh (d, IJMINUS,     ngb_loz, i-2, N_SUB_DOM_PER_DIM-1, SOUTH, rot)
@@ -604,12 +604,12 @@ contains
 
                 if (i-1 == 0) then
                    rot = ii-1
-                   ngb_loz = (5 + modulo(jj - 2, 5))*N_SUB_DOM
+                   ngb_loz = N_SUB_DOM * (5 + modulo(jj - 2, 5))
 
-                   call set_dom_neigh(d, WEST, ngb_loz, N_SUB_DOM_PER_DIM - 1, j-1, WEST, rot)
+                   call set_dom_neigh(d, WEST, ngb_loz, N_SUB_DOM_PER_DIM-1, j-1, WEST, rot)
 
-                   if (j < N_SUB_DOM_PER_DIM) call set_dom_neigh (d, IMINUSJPLUS, ngb_loz, N_SUB_DOM_PER_DIM-1, j,   WEST, rot)
-                   if (j-1 > 0)             call set_dom_neigh (d, IJMINUS,     ngb_loz, N_SUB_DOM_PER_DIM-1, j-2, WEST, rot)
+                   if (j   < N_SUB_DOM_PER_DIM) call set_dom_neigh (d, IMINUSJPLUS, ngb_loz, N_SUB_DOM_PER_DIM-1, j,   WEST, rot)
+                   if (j-1 > 0)                 call set_dom_neigh (d, IJMINUS,     ngb_loz, N_SUB_DOM_PER_DIM-1, j-2, WEST, rot)
                 end if
                 do s = 1, N_BDRY
                    grid(d+1)%bdry_patch%elts(s+1)%neigh = 1
@@ -628,6 +628,7 @@ contains
   end subroutine set_penta
 
   subroutine assign_coord (dom, p, ne, se, sw, nw)
+    ! Assign coordinates on patches at all levels
     implicit none
     type(Domain) :: dom
     integer      :: p
@@ -636,40 +637,51 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     integer                        :: i, j, l, pc_incr, pf_offs
+    integer                        :: id_par, idE_par, idNE_par, idN_par
+    integer                        :: idE_chd, idNE_chd, idN_chd
 
     call get_offs_Domain (dom, p, offs, dims)
 
+    dom%node%elts(offs(1)+1) = project_on_sphere (sw)
+    
+    dom%node%elts(offs(EAST     +1) + 1) = project_on_sphere (se)
     dom%node%elts(offs(NORTHEAST+1) + 1) = project_on_sphere (ne)
-    dom%node%elts(offs(EAST+1) + 1)      = project_on_sphere (se)
-    dom%node%elts(offs(1) + 1)           = project_on_sphere (sw)
-    dom%node%elts(offs(NORTH+1) + 1)     = project_on_sphere (nw)
+    dom%node%elts(offs(NORTH    +1) + 1) = project_on_sphere (nw)
 
     do l = 1, PATCH_LEVEL
-       pc_incr = 2**(PATCH_LEVEL - l + 1)
-       pf_offs = pc_incr/2
+       pc_incr = 2**(PATCH_LEVEL-l+1) ! coarse (parent) index
+       pf_offs = pc_incr/2            ! fine (child) index
 
        do j = 1, PATCH_SIZE, pc_incr
           do i = 1, PATCH_SIZE, pc_incr
-             dom%node%elts(idx(i+pf_offs-1, j-1, offs, dims) + 1) = mid_pt(dom%node%elts(idx(i-1, j-1, offs, dims) + 1), &
-                  dom%node%elts(idx(i + pc_incr - 1, j-1, offs, dims) + 1))
-
-             dom%node%elts(idx(i-1, j+pf_offs-1, offs, dims) + 1) = mid_pt(dom%node%elts(idx(i-1, j-1, offs, dims) + 1), &
-                  dom%node%elts(idx(i-1, j+pc_incr-1, offs, dims) + 1))
-
-             dom%node%elts(idx(i+pf_offs-1, j+pf_offs-1, offs, dims) + 1) = &
-                  mid_pt(dom%node%elts(idx(i+pc_incr-1, j+pc_incr-1, offs, dims) + 1), &
-                  dom%node%elts(idx(i-1, j-1, offs, dims) + 1))
+             id_par = idx (i-1, j-1, offs, dims)
+             
+             idE_par  = idx (i-1+pc_incr, j-1,          offs, dims)
+             idNE_par = idx (i-1+pc_incr, j-1+pc_incr, offs, dims)
+             idN_par  = idx (i-1,         j-1+pc_incr, offs, dims)
+             
+             idE_chd  = idx (i-1+pf_offs, j-1,         offs, dims) 
+             idNE_chd = idx (i-1+pf_offs, j-1+pf_offs, offs, dims)
+             idN_chd  = idx (i-1,         j-1+pf_offs, offs, dims)
+             
+             dom%node%elts(idE_chd+1)  = mid_pt (dom%node%elts(idE_par +1), dom%node%elts(id_par+1))
+             dom%node%elts(idNE_chd+1) = mid_pt (dom%node%elts(idNE_par+1), dom%node%elts(id_par+1))
+             dom%node%elts(idN_chd+1)  = mid_pt (dom%node%elts(idN_par +1), dom%node%elts(id_par+1))
           end do
 
           i = PATCH_SIZE
-          dom%node%elts(idx(i, j+pf_offs-1, offs, dims) + 1) = mid_pt(dom%node%elts(idx(i, j-1, offs, dims) + 1), &
-               dom%node%elts(idx(i, j+pc_incr-1, offs, dims) + 1))
+          id_par  = idx (i, j-1,         offs, dims)
+          idN_par = idx (i, j-1+pc_incr, offs, dims)
+          idN_chd = idx (i, j-1+pf_offs, offs, dims)
+          dom%node%elts(idN_chd+1) = mid_pt (dom%node%elts(idN_par+1), dom%node%elts(id_par+1))
        end do
 
        j = PATCH_SIZE
        do i = 1, PATCH_SIZE, pc_incr
-          dom%node%elts(idx(i+pf_offs - 1, j, offs, dims) + 1) = mid_pt(dom%node%elts(idx(i-1, j, offs, dims) + 1), &
-               dom%node%elts(idx(i+pc_incr-1, j, offs, dims) + 1))
+          id_par  = idx (i-1,         j, offs, dims)
+          idE_par = idx (i-1+pc_incr, j, offs, dims) 
+          idE_chd = idx (i-1+pf_offs, j, offs, dims)
+          dom%node%elts(idE_chd+1) = mid_pt (dom%node%elts(idE_par+1), dom%node%elts(id_par+1))
        end do
     end do
   end subroutine assign_coord
@@ -766,15 +778,16 @@ contains
     
     integer :: id, idN, idE, idNE
 
-    id   = idx(i,   j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
+    id = idx(i, j, offs, dims)
+
     idE  = idx(i+1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
-
-    dom%triarea%elts(TRIAG*id+LORT+1) = dom%areas%elts(id+1)%part(1) + dom%areas%elts(idE+1)%part(3) &
-         + dom%areas%elts(idNE+1)%part(5)
-    dom%triarea%elts(TRIAG*id+UPLT+1) = dom%areas%elts(id+1)%part(2) + dom%areas%elts(idNE+1)%part(4) &
-         + dom%areas%elts(idN+1)%part(6)
+    idN  = idx(i,   j+1, offs, dims)
+    
+    dom%triarea%elts(TRIAG*id+LORT+1) = &
+         dom%areas%elts(id+1)%part(1) + dom%areas%elts(idE +1)%part(3) + dom%areas%elts(idNE+1)%part(5)
+    dom%triarea%elts(TRIAG*id+UPLT+1) = &
+         dom%areas%elts(id+1)%part(2) + dom%areas%elts(idNE+1)%part(4) + dom%areas%elts(idN+1)%part(6)
   end subroutine cpt_triarea
 
   subroutine coriolis (dom, i, j, zlev, offs, dims)
@@ -786,10 +799,11 @@ contains
 
     integer :: id, idN, idE, idNE
 
-    id   = idx (i,   j,   offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
+    id = idx (i, j, offs, dims)
+    
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
 
     dom%coriolis%elts(TRIAG*id+LORT+1) = dom%ccentre%elts(TRIAG*id+LORT+1)%z/radius * 2.0_dp*omega * &
          (dom%areas%elts(id+1)%part(1) + dom%areas%elts(idE+1)%part(3) + dom%areas%elts(idNE+1)%part(5))
@@ -812,7 +826,11 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    dom%level%elts(idx(i,j,offs,dims)+1) = dom%patch%elts(p+1)%level
+    integer :: id
+
+    id = idx (i, j, offs, dims)
+    
+    dom%level%elts(id+1) = dom%patch%elts(p+1)%level
   end subroutine set_level
 
   subroutine midpt (dom, p, i, j, zlev, offs, dims)
@@ -824,18 +842,19 @@ contains
     
     integer :: id, idN, idE, idNE
 
-    id   = idx(i,   j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
+    id = idx(i, j, offs, dims)
+
     idE  = idx(i+1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
-
+    idN  = idx(i,   j+1, offs, dims)
+  
     if (j >= PATCH_SIZE + 1) then
-       dom%midpt%elts(EDGE*id+RT+1) = mid_pt(dom%node%elts(id+1), dom%node%elts(idE+1))
+       dom%midpt%elts(EDGE*id+RT+1) = mid_pt (dom%node%elts(idE+1), dom%node%elts(id+1))
        return
     end if
 
     if (i >= PATCH_SIZE + 1) then
-       dom%midpt%elts(EDGE*id+UP+1) = mid_pt(dom%node%elts(id+1), dom%node%elts(idN+1))
+       dom%midpt%elts(EDGE*id+UP+1) = mid_pt (dom%node%elts(idN+1), dom%node%elts(id+1))
        return
     end if
 
@@ -858,9 +877,9 @@ contains
        end if
     end if
 
-    dom%midpt%elts(EDGE*id+RT+1) = mid_pt(dom%node%elts(id+1),   dom%node%elts(idE+1))
-    dom%midpt%elts(EDGE*id+DG+1) = mid_pt(dom%node%elts(idNE+1), dom%node%elts(id+1))
-    dom%midpt%elts(EDGE*id+UP+1) = mid_pt(dom%node%elts(id+1),   dom%node%elts(idN+1))
+    dom%midpt%elts(EDGE*id+RT+1) = mid_pt (dom%node%elts(idE +1), dom%node%elts(id+1))
+    dom%midpt%elts(EDGE*id+DG+1) = mid_pt (dom%node%elts(idNE+1), dom%node%elts(id+1))
+    dom%midpt%elts(EDGE*id+UP+1) = mid_pt (dom%node%elts(idN +1), dom%node%elts(id+1))
 
     if (j == PATCH_SIZE) then
        if (i == PATCH_SIZE .and. is_penta(dom, p, IJPLUS - 1)) dom%midpt%elts(EDGE*id+DG+1) = dom%ccentre%elts(TRIAG*id+LORT+1)

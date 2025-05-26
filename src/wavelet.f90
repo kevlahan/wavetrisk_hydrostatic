@@ -740,7 +740,7 @@ contains
             + velo(idx(-1, PATCH_SIZE, offs, dims)*EDGE + RT+1))
 
        if (dom%mask_e%elts(EDGE*id_chd+UP+1) >= ADJZONE) then
-          wc_u(EDGE*id_chd+UP+1)  = wc_u(EDGE*id_chd +UP+1) - v
+          wc_u(EDGE*id_chd +UP+1) = wc_u(EDGE*id_chd +UP+1) - v
           wc_u(EDGE*idN_chd+UP+1) = wc_u(EDGE*idN_chd+UP+1) + v
        end if
     else 
@@ -1417,11 +1417,13 @@ contains
     type(Coord), dimension(6)   :: hex
     type(Coord), dimension(3,2) :: tri
     type(Coord)                 :: inters_pt0, inters_pt1, pt
-    integer                     :: i
+    integer                     :: i, id_chd
     logical                     :: does_inters0, does_inters1, troubles
 
     area = 0.0_dp
     typ = 0
+
+    id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
     hex = (/ (dom%ccentre%elts(tri_idx(i_chd, j_chd, no_adj_tri(:,i + &
          hex_s_offs(-e+3)+1), offs_chd, dims_chd)+1), i = 0, 6-1) /)
@@ -1433,7 +1435,7 @@ contains
          dom%ccentre%elts(tri_idx(i_par, j_par, adj_tri(:,1,e+1), offs_par, dims_par)+1), &
          dom%ccentre%elts(tri_idx(i_par, j_par, bfly_tri(:,1,e+1), offs_par, dims_par)+1)/), (/3, 2/))
 
-    pt = dom%node%elts(idx(i_chd, j_chd, offs_chd, dims_chd)+1)
+    pt = dom%node%elts(id_chd+1)
 
     area(1) = triarea(hex(6), hex(1), pt)
     area(2) = triarea(hex(3), hex(4), pt)
@@ -1665,7 +1667,10 @@ contains
 
     function get_coord (i, j, e)
       type(Coord) ::  get_coord
+      integer     :: id
       integer     :: i, j, e
+
+      id = idx (i, j, offs, dims)
 
       if (i == -1) then
          if (j == -1 .and. is_penta (dom, p, IJMINUS-1)) then
@@ -1683,7 +1688,7 @@ contains
                get_coord = dom%node%elts(nidx(0, 1, JPLUS, offs, dims)+1)
                return
             else
-               get_coord = dom%node%elts(idx(i, j, offs, dims)+1)
+               get_coord = dom%node%elts(id+1)
                return
             end if
          end if
@@ -1696,7 +1701,7 @@ contains
                get_coord = dom%node%elts(nidx(1, 0, IJPLUS, offs, dims)+1)
                return
             else
-               get_coord = dom%node%elts(idx(i, j, offs, dims)+1)
+               get_coord = dom%node%elts(id+1)
                return
             end if
          end if

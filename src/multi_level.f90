@@ -454,28 +454,40 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer, dimension(20) :: id
+    integer                :: id, idE, idNE, idN, idSE, id2SE, id2W, idN2W
+    integer, dimension(20) :: id_edges
     real(dp)               :: wgt
     
-    call get_indices (dom, i+1, j, RT, offs, dims, id)
+    call get_indices (dom, i+1, j, RT, offs, dims, id_edges)
 
-    interp_flux(1) = - sum (h_flux(id((/WPM,UZM,VMM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1, j-2, offs, dims)+1)%enc) &
-         - sum ((h_flux(id((/VPM,WMMM,UMZ/)+1)+1) - h_flux(id((/UPZ,VPMM,WMM/)+1)+1)) * &
-         dom%R_F_wgt%elts(idx(i+1, j-1, offs, dims)+1)%enc) ! UPLT S
+    id = idx (i, j, offs, dims)
+    
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    
+    idSE  = idx (i+1, j-1, offs, dims)
+    id2SE = idx (i+1, j-2, offs, dims)
+    id2W  = idx (i-2, j,   offs, dims)
+    idN2W = idx (i-2, j+1, offs, dims)
 
-    interp_flux(2) = sum (h_flux(id((/WMP,UZP,VPP/)+1)+1)* dom%R_F_wgt%elts(idx(i, j, offs, dims)+1)%enc) &
-         + sum ((h_flux(id((/VMP,WPPP,UPZ/)+1)+1) - h_flux(id((/UMZ,VMPP,WPP/)+1)+1))* &
-         dom%R_F_wgt%elts(idx(i, j+1, offs, dims)+1)%enc) ! LORT
+    interp_flux(1) = - sum (h_flux(id_edges((/WPM,UZM,VMM/)+1)+1) * dom%R_F_wgt%elts(id2SE+1)%enc) &
+         - sum ((h_flux(id_edges((/VPM,WMMM,UMZ/)+1)+1) - h_flux(id_edges((/UPZ,VPMM,WMM/)+1)+1)) * &
+         dom%R_F_wgt%elts(idSE+1)%enc) ! UPLT S
 
-    call get_indices (dom, i, j+1, UP, offs, dims, id)
+    interp_flux(2) = sum (h_flux(id_edges((/WMP,UZP,VPP/)+1)+1)* dom%R_F_wgt%elts(id+1)%enc) &
+         + sum ((h_flux(id_edges((/VMP,WPPP,UPZ/)+1)+1) - h_flux(id_edges((/UMZ,VMPP,WPP/)+1)+1))* &
+         dom%R_F_wgt%elts(idN+1)%enc) ! LORT
 
-    interp_flux(3) = - sum (h_flux(id((/UZM,VMM,WPM/)+1)+1) * dom%R_F_wgt%elts(idx(i+1, j, offs, dims)+1)%enc) &
-         - sum((h_flux(id((/WMMM,UMZ,VPM/)+1)+1) - h_flux(id((/VPMM,WMM,UPZ/)+1)+1))* &
-         dom%R_F_wgt%elts(idx(i+1, j+1, offs, dims)+1)%enc) ! UPLT
+    call get_indices (dom, i, j+1, UP, offs, dims, id_edges)
 
-    interp_flux(4) = sum (h_flux(id((/UZP,VPP,WMP/)+1)+1) * dom%R_F_wgt%elts(idx(i-2, j, offs, dims)+1)%enc) &
-         + sum ((h_flux(id((/WPPP,UPZ,VMP/)+1)+1) - h_flux(id((/VMPP,WPP,UMZ/)+1)+1))* &
-         dom%R_F_wgt%elts(idx(i-2, j+1, offs, dims)+1)%enc) ! LORT W
+    interp_flux(3) = - sum (h_flux(id_edges((/UZM,VMM,WPM/)+1)+1) * dom%R_F_wgt%elts(idE+1)%enc) &
+         - sum ((h_flux(id_edges((/WMMM,UMZ,VPM/)+1)+1) - h_flux(id_edges((/VPMM,WMM,UPZ/)+1)+1))* &
+         dom%R_F_wgt%elts(idNE+1)%enc) ! UPLT
+
+    interp_flux(4) = sum (h_flux(id_edges((/UZP,VPP,WMP/)+1)+1) * dom%R_F_wgt%elts(id2W+1)%enc) &
+         + sum ((h_flux(id_edges((/WPPP,UPZ,VMP/)+1)+1) - h_flux(id_edges((/VMPP,WPP,UMZ/)+1)+1))* &
+         dom%R_F_wgt%elts(idN2W+1)%enc) ! LORT W
   end function interp_flux
 
   real(dp) function complete_coarse_flux (sm_flux, dom, i_par, j_par, i_chd, j_chd, e, offs_chd, dims_chd)
@@ -511,30 +523,32 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer, dimension(20) :: id
+    integer                :: id
+    integer, dimension(20) :: id_edges
     real(dp), dimension(2) :: area
     real(dp), dimension(4) :: ol_area
 
-    call get_indices (dom, i, j, e, offs, dims, id)
+    id = idx (i, j, offs, dims)
 
-    area = dom%overl_areas%elts(idx(i, j, offs, dims) + 1)%a(1:2)
+    call get_indices (dom, i, j, e, offs, dims, id_edges)
 
-    ol_area(1:2) = dom%overl_areas%elts(idx(i, j, offs, dims) + 1)%split
-    ol_area(3:4) = dom%overl_areas%elts(idx(i, j, offs, dims) + 1)%a(3:4) - ol_area(1:2)
+    area         = dom%overl_areas%elts(id+1)%a(1:2)
+    ol_area(1:2) = dom%overl_areas%elts(id+1)%split
+    ol_area(3:4) = dom%overl_areas%elts(id+1)%a(3:4) - ol_area(1:2)
 
     area(1) = area(1) + ol_area(1) + ol_area(4)
     area(2) = area(2) + ol_area(2) + ol_area(3)
     area = area / sum(area)
 
-    ol_area(1) = dom%overl_areas%elts(id(PP+1)+1)%split(1)
-    ol_area(2) = dom%overl_areas%elts(id(MM+1)+1)%split(2)
-    ol_area(3) = dom%overl_areas%elts(id(MP+1)+1)%a(3) - dom%overl_areas%elts(id(MP+1)+1)%split(1)
-    ol_area(4) = dom%overl_areas%elts(id(PM+1)+1)%a(4) - dom%overl_areas%elts(id(PM+1)+1)%split(2)
+    ol_area(1) = dom%overl_areas%elts(id_edges(PP+1)+1)%split(1)
+    ol_area(2) = dom%overl_areas%elts(id_edges(MM+1)+1)%split(2)
+    ol_area(3) = dom%overl_areas%elts(id_edges(MP+1)+1)%a(3) - dom%overl_areas%elts(id_edges(MP+1)+1)%split(1)
+    ol_area(4) = dom%overl_areas%elts(id_edges(PM+1)+1)%a(4) - dom%overl_areas%elts(id_edges(PM+1)+1)%split(2)
 
-    part_coarse_flux = sum (h_flux(id((/UPZ,UMZ/)+1)+1)*area) - sum (h_flux(id((/VMM,WMP/)+1)+1))*area(2) &
-         - sum (h_flux(id((/WPM,VPP/)+1)+1))*area(1) &
-         + ol_area(3) * dscalar(id(MP+1)+1) - ol_area(4) * dscalar(id(PM+1)+1)  &
-         - ol_area(1) * dscalar(id(PP+1)+1) + ol_area(2) * dscalar(id(MM+1)+1)
+    part_coarse_flux = sum (h_flux(id_edges((/UPZ,UMZ/)+1)+1)*area) - sum (h_flux(id_edges((/VMM,WMP/)+1)+1))*area(2) &
+         - sum (h_flux(id_edges((/WPM,VPP/)+1)+1))*area(1) &
+         + ol_area(3) * dscalar(id_edges(MP+1)+1) - ol_area(4) * dscalar(id_edges(PM+1)+1)  &
+         - ol_area(1) * dscalar(id_edges(PP+1)+1) + ol_area(2) * dscalar(id_edges(MM+1)+1)
   end function part_coarse_flux
 
   real(dp) function coarse_flux (dom, i_par, j_par, i_chd, j_chd, offs_chd, dims_chd, e)
@@ -616,45 +630,45 @@ contains
     end do
   end subroutine cal_divu_ml
 
-  subroutine get_indices (dom, i, j, e, offs, dims, id)
+  subroutine get_indices (dom, i, j, e, offs, dims, id_edges)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, e
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    integer, dimension(20)         :: id
-    
-    integer, dimension(2)  :: ij_mp, ij_pp, ij_pm, ij_mm
+    integer, dimension(20)         :: id_edges
 
-    id(UMZ+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 1 + 1), offs, dims)
-    id(UPZ+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 4 + 1), offs, dims)
-    id(WMP+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 0 + 1), offs, dims)
-    id(VPP+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 5 + 1), offs, dims)
-    id(WPM+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 3 + 1), offs, dims)
-    id(VMM+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 2 + 1), offs, dims)
+    integer, dimension(2) :: ij_mp, ij_pp, ij_pm, ij_mm
+
+    id_edges(UMZ+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 1 + 1), offs, dims)
+    id_edges(UPZ+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 4 + 1), offs, dims)
+    id_edges(WMP+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 0 + 1), offs, dims)
+    id_edges(VPP+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 5 + 1), offs, dims)
+    id_edges(WPM+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 3 + 1), offs, dims)
+    id_edges(VMM+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 2 + 1), offs, dims)
 
     ij_mp = (/i, j/) + nghb_pt(:,hex_s_offs(e+1) + 0 + 1)
-    id(MP+1) = idx(ij_mp(1), ij_mp(2), offs, dims)
+    id_edges(MP+1) = idx (ij_mp(1), ij_mp(2), offs, dims)
 
     ij_pp = (/i, j/) + nghb_pt(:,hex_s_offs(e+1) + 5 + 1)
-    id(PP+1) = idx(ij_pp(1), ij_pp(2), offs, dims)
+    id_edges(PP+1) = idx (ij_pp(1), ij_pp(2), offs, dims)
 
     ij_pm = (/i, j/) + nghb_pt(:,hex_s_offs(e+1) + 3 + 1)
-    id(PM+1) = idx(ij_pm(1), ij_pm(2), offs, dims)
+    id_edges(PM+1) = idx (ij_pm(1), ij_pm(2), offs, dims)
 
     ij_mm = (/i, j/) + nghb_pt(:,hex_s_offs(e+1) + 2 + 1)
 
-    id(MM+1)   = idx (ij_mm(1), ij_mm(2), offs, dims)
+    id_edges(MM+1)   = idx (ij_mm(1), ij_mm(2), offs, dims)
 
-    id(VMP+1)  = ed_idx (ij_mp(1), ij_mp(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 2 + 1), offs, dims)
-    id(VMPP+1) = ed_idx (ij_mp(1), ij_mp(2), hex_sides (:, hex_s_offs(e+1) + 1  + 4 + 1), offs, dims)
-    id(UZP+1)  = ed_idx (ij_mp(1), ij_mp(2), hex_sides (:, hex_s_offs(e+1) + 0  + 4 + 1), offs, dims)
-    id(WPPP+1) = ed_idx (ij_pp(1), ij_pp(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 4 + 1), offs, dims)
-    id(WPP+1)  = ed_idx (ij_pp(1), ij_pp(2), hex_sides (:, hex_s_offs(e+1) + 1  + 2 + 1), offs, dims)
-    id(VPM+1)  = ed_idx (ij_pm(1), ij_pm(2), hex_sides (:, hex_s_offs(e+1) + 1  + 4 + 1), offs, dims)
-    id(VPMM+1) = ed_idx (ij_pm(1), ij_pm(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 2 + 1), offs, dims)
-    id(UZM+1)  = ed_idx (ij_pm(1), ij_pm(2), hex_sides (:,(hex_s_offs(e+1) + 3) - 2 + 1), offs, dims)
-    id(WMMM+1) = ed_idx (ij_mm(1), ij_mm(2), hex_sides (:, hex_s_offs(e+1) + 1  + 2 + 1), offs, dims)
-    id(WMM+1)  = ed_idx (ij_mm(1), ij_mm(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 4 + 1), offs, dims)
+    id_edges(VMP+1)  = ed_idx (ij_mp(1), ij_mp(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 2 + 1), offs, dims)
+    id_edges(VMPP+1) = ed_idx (ij_mp(1), ij_mp(2), hex_sides (:, hex_s_offs(e+1) + 1  + 4 + 1), offs, dims)
+    id_edges(UZP+1)  = ed_idx (ij_mp(1), ij_mp(2), hex_sides (:, hex_s_offs(e+1) + 0  + 4 + 1), offs, dims)
+    id_edges(WPPP+1) = ed_idx (ij_pp(1), ij_pp(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 4 + 1), offs, dims)
+    id_edges(WPP+1)  = ed_idx (ij_pp(1), ij_pp(2), hex_sides (:, hex_s_offs(e+1) + 1  + 2 + 1), offs, dims)
+    id_edges(VPM+1)  = ed_idx (ij_pm(1), ij_pm(2), hex_sides (:, hex_s_offs(e+1) + 1  + 4 + 1), offs, dims)
+    id_edges(VPMM+1) = ed_idx (ij_pm(1), ij_pm(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 2 + 1), offs, dims)
+    id_edges(UZM+1)  = ed_idx (ij_pm(1), ij_pm(2), hex_sides (:,(hex_s_offs(e+1) + 3) - 2 + 1), offs, dims)
+    id_edges(WMMM+1) = ed_idx (ij_mm(1), ij_mm(2), hex_sides (:, hex_s_offs(e+1) + 1  + 2 + 1), offs, dims)
+    id_edges(WMM+1)  = ed_idx (ij_mm(1), ij_mm(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 4 + 1), offs, dims)
   end subroutine get_indices
 end module multi_level_mod
