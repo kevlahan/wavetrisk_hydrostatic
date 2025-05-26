@@ -644,25 +644,25 @@ contains
 
     dom%node%elts(offs(1)+1) = project_on_sphere (sw)
     
-    dom%node%elts(offs(EAST     +1) + 1) = project_on_sphere (se)
-    dom%node%elts(offs(NORTHEAST+1) + 1) = project_on_sphere (ne)
-    dom%node%elts(offs(NORTH    +1) + 1) = project_on_sphere (nw)
+    dom%node%elts(offs(EAST     +1)+1) = project_on_sphere (se)
+    dom%node%elts(offs(NORTHEAST+1)+1) = project_on_sphere (ne)
+    dom%node%elts(offs(NORTH    +1)+1) = project_on_sphere (nw)
 
     do l = 1, PATCH_LEVEL
        pc_incr = 2**(PATCH_LEVEL-l+1) ! coarse (parent) index
        pf_offs = pc_incr/2            ! fine (child) index
 
-       do j = 1, PATCH_SIZE, pc_incr
-          do i = 1, PATCH_SIZE, pc_incr
-             id_par = idx (i-1, j-1, offs, dims)
+       do j = 0, PATCH_SIZE-1, pc_incr
+          do i = 0, PATCH_SIZE-1, pc_incr
+             id_par = idx (i, j, offs, dims)
              
-             idE_par  = idx (i-1+pc_incr, j-1,          offs, dims)
-             idNE_par = idx (i-1+pc_incr, j-1+pc_incr, offs, dims)
-             idN_par  = idx (i-1,         j-1+pc_incr, offs, dims)
+             idE_par  = idx (i+pc_incr, j,          offs, dims)
+             idNE_par = idx (i+pc_incr, j+pc_incr, offs, dims)
+             idN_par  = idx (i,         j+pc_incr, offs, dims)
              
-             idE_chd  = idx (i-1+pf_offs, j-1,         offs, dims) 
-             idNE_chd = idx (i-1+pf_offs, j-1+pf_offs, offs, dims)
-             idN_chd  = idx (i-1,         j-1+pf_offs, offs, dims)
+             idE_chd  = idx (i+pf_offs, j,         offs, dims) 
+             idNE_chd = idx (i+pf_offs, j+pf_offs, offs, dims)
+             idN_chd  = idx (i,         j+pf_offs, offs, dims)
              
              dom%node%elts(idE_chd+1)  = mid_pt (dom%node%elts(idE_par +1), dom%node%elts(id_par+1))
              dom%node%elts(idNE_chd+1) = mid_pt (dom%node%elts(idNE_par+1), dom%node%elts(id_par+1))
@@ -670,17 +670,17 @@ contains
           end do
 
           i = PATCH_SIZE
-          id_par  = idx (i, j-1,         offs, dims)
-          idN_par = idx (i, j-1+pc_incr, offs, dims)
-          idN_chd = idx (i, j-1+pf_offs, offs, dims)
+          id_par  = idx (i, j,         offs, dims)
+          idN_par = idx (i, j+pc_incr, offs, dims)
+          idN_chd = idx (i, j+pf_offs, offs, dims)
           dom%node%elts(idN_chd+1) = mid_pt (dom%node%elts(idN_par+1), dom%node%elts(id_par+1))
        end do
 
        j = PATCH_SIZE
-       do i = 1, PATCH_SIZE, pc_incr
-          id_par  = idx (i-1,         j, offs, dims)
-          idE_par = idx (i-1+pc_incr, j, offs, dims) 
-          idE_chd = idx (i-1+pf_offs, j, offs, dims)
+       do i = 0, PATCH_SIZE-1, pc_incr
+          id_par  = idx (i,         j, offs, dims)
+          idE_par = idx (i+pc_incr, j, offs, dims) 
+          idE_chd = idx (i+pf_offs, j, offs, dims)
           dom%node%elts(idE_chd+1) = mid_pt (dom%node%elts(idE_par+1), dom%node%elts(id_par+1))
        end do
     end do
