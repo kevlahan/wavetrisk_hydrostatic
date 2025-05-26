@@ -16,8 +16,7 @@ module coarse_grid_mod
   use comm_mpi_mod
   implicit none
   integer                                  :: ncell, next_fid
-  integer, dimension(2,4)                  :: HR_offs 
-  data                                        HR_offs / 0,0, 1,0, 1,1, 0,1 /
+  integer,     dimension(2,4), parameter   :: HR_offs = reshape ( [0,0, 1,0, 1,1, 0,1], [2,4] ) 
   real(dp)                                 :: dx, linf_err, l2_err
   type(Coord), dimension(:,:), allocatable :: new_node
 contains
@@ -64,10 +63,11 @@ contains
 
        p = 1
        do d_HR = 1, N_ICOSAH_LOZENGE
-          loz = dom_id_from_HR_id(d_HR)
+          loz = dom_id_from_HR_id (d_HR)
           do d_sub = 1, N_SUB_DOM
              d_glo = loz * N_SUB_DOM + sub_dom_id_from_HR_sub_id (d_sub)
              if (owner(d_glo+1) == rank) call get_offs_Domain (grid(loc_id(d_glo+1)+1), p, offs, dims)
+             
              call coord_from_file (d_glo, PATCH_LEVEL, fid, offs, dims, (/ 0, 0 /))
           end do
        end do
@@ -96,20 +96,20 @@ contains
     integer, dimension(N_BDRY+1),   intent(in) :: offs
     integer, dimension(2,N_BDRY+1), intent(in) :: dims
 
-    integer               :: d_loc, k
+    integer               :: d_loc, id, k
     integer, dimension(2) :: ij
-    type(Coord)           :: node, node_r
+    type(Coord)           :: node
 
     d_loc = loc_id(d_glo+1)
     do k = 1, 4
        ij = ij0 + HR_offs(:,k) * 2**(l-1)
+       id = idx (ij(1), ij(2), offs, dims) 
        if (l == 1) then
           if (owner(d_glo+1) == rank) then
-             read(fid,*) node
-             call zrotate (node, node_r, -0.5_dp) ! icosahedron orientation good for tsunami
-             grid(d_loc+1)%node%elts(idx(ij(1), ij(2), offs, dims) + 1) = project_on_sphere(node_r)
+             read (fid,*) node
+             grid(d_loc+1)%node%elts(id+1) = project_on_sphere (node)
           else ! if domain is on another process, still read to get to correct position in file
-             read(fid,*)
+             read (fid,*)
           end if
        else
           call coord_from_file (d_glo, l-1, fid, offs, dims, ij)
@@ -352,17 +352,6 @@ contains
     get_fid  = next_fid
     next_fid = next_fid + 1
   end function get_fid
-  
-  subroutine zrotate (c_in, c_out, angle)
-    implicit none
-    real(dp),    intent(in)  :: angle
-    type(Coord), intent(in)  :: c_in
-    type(Coord), intent(out) :: c_out
-
-    c_out%x =  c_in%x * cos(angle) - c_in%y * sin(angle)
-    c_out%y =  c_in%x * sin(angle) + c_in%y * cos(angle)
-    c_out%z =  c_in%z
-  end subroutine zrotate
 
   subroutine grid_error
     ! Computes error
@@ -377,4 +366,17 @@ contains
     l2_err   = sqrt (sum_real (l2_err)) / (dx * 3*ncell)
     linf_err = sync_max_real (linf_err) / dx
   end subroutine grid_error
+
+  subroutine zrotate (c_in, c_out, angle)
+    ! Rotates a point by longitude angle around pole
+    ! (used to rotate entire grid)
+    implicit none
+    real(dp),    intent(in)  :: angle
+    type(Coord), intent(in)  :: c_in
+    type(Coord), intent(out) :: c_out
+
+    c_out%x =  c_in%x * cos (angle) - c_in%y * sin (angle)
+    c_out%y =  c_in%x * sin (angle) + c_in%y * cos (angle)
+    c_out%z =  c_in%z
+  end subroutine zrotate
 end module coarse_grid_mod
