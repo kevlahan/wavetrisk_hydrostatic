@@ -101,7 +101,8 @@ contains
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) *  nu_scale (Laplace_sclr, dom, id) * grad * l_e
+       !physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) *  nu_scale (Laplace_sclr, dom, id) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -109,9 +110,14 @@ contains
       real(dp), dimension(1:EDGE) :: grad_physics
       real(dp), dimension(:)      :: scalar
 
-      grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
-      grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
-      grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
+      grad_physics(RT+1) = (nu_scale (Laplace_sclr, dom, idE) * scalar(idE+1) - nu_scale (Laplace_sclr, dom, id  ) * scalar(id+1)) &
+           / d_e(RT+1)
+      
+      grad_physics(DG+1) = (nu_scale (Laplace_sclr, dom, id) * scalar(id+1) - nu_scale (Laplace_sclr, dom, idNE) * scalar(idNE+1)) &
+           / d_e(DG+1)
+      
+      grad_physics(UP+1) = (nu_scale (Laplace_sclr, dom, idN) * scalar(idN+1) - nu_scale (Laplace_sclr, dom, id  ) * scalar(id+1)) &
+           / d_e(UP+1)
     end function grad_physics
   end function physics_scalar_flux_case
 
@@ -139,18 +145,23 @@ contains
     physics_velo_source_case = 0.0_dp
     
     if (Laplace_divu /= 0) physics_velo_source_case = &  
-         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
+         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * grad_divu ()
 
     if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
-         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
+         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * curl_rotu ()
   contains
     function grad_divu ()
       implicit none
       real(dp), dimension(1:EDGE) :: grad_divu
             
-      grad_divu(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
-      grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
-      grad_divu(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
+      grad_divu(RT+1) = (nu_scale (Laplace_divu, dom, idE) * divu(idE+1) - nu_scale (Laplace_divu, dom, id  ) * divu(id+1))   &
+           / dom%len%elts(EDGE*id+RT+1)
+      
+      grad_divu(DG+1) = (nu_scale (Laplace_divu, dom, id ) * divu(id+1)  - nu_scale (Laplace_divu, dom, idNE) * divu(idNE+1)) &
+           / dom%len%elts(EDGE*id+DG+1)
+      
+      grad_divu(UP+1) = (nu_scale (Laplace_divu, dom, idN) * divu(idN+1) - nu_scale (Laplace_divu, dom, id  ) * divu(id+1))   &
+           / dom%len%elts(EDGE*id+UP+1)
     end function grad_divu
 
     function curl_rotu ()
@@ -162,9 +173,14 @@ contains
       idS  = idx (i,   j-1, offs, dims)
       idW  = idx (i-1, j,   offs, dims)
 
-      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
-      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
-      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+      curl_rotu(RT+1) = (nu_scale (Laplace_rotu, dom, id ) * vort(TRIAG*id +LORT+1) &
+           - nu_scale (Laplace_rotu, dom, idS) * vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+      
+      curl_rotu(DG+1) = (nu_scale (Laplace_rotu, dom, id ) * vort(TRIAG*id +LORT+1) &
+           - nu_scale (Laplace_rotu, dom, id ) * vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+      
+      curl_rotu(UP+1) = (nu_scale (Laplace_rotu, dom, idW) * vort(TRIAG*idW+LORT+1) &
+           - nu_scale (Laplace_rotu, dom, id ) * vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
   end function physics_velo_source_case
 
@@ -774,18 +790,15 @@ contains
     ! Set non-dimensional viscosities and time step
     implicit none
     integer  :: k
-    real(dp) :: Area_sphere
     
-    ! Average hexagon areas and horizontal resolutions
-    Area_sphere = 4*MATH_PI * radius**2 
-    Area_min    = Area_sphere / (10 * 4**max_level)
-    Area_max    = Area_sphere / (10 * 4**min_level)
+    ! Average hexagon areas and associated horizontal resolutions
+    Area_min = hex_area_avg (max_level)
+    Area_max = hex_area_avg (min_level)
 
-    dx_min      = sqrt (2 / sqrt(3.0_dp) * Area_min)              
-    dx_max      = sqrt (2 / sqrt(3.0_dp) * Area_max)
+    dx_min   = sqrt (2 / sqrt(3.0_dp) * Area_min)              
+    dx_max   = sqrt (2 / sqrt(3.0_dp) * Area_max)
 
-    ! Time step
-    dt_init     = dt_CAM * (dx_min / dx_CAM)
+    dt_init  = dt_CAM * (dx_min / dx_CAM)
 
     ! Non-dimensional viscosity
     C_visc           = C_CAM
@@ -805,9 +818,9 @@ contains
     C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/6.0_dp/4)**Laplace_rotu)
 
     ! Viscosities
-    nu_sclr = C_visc(S_MASS,1) * 1.5 * Area_min**Laplace_sclr / dt_init
-    nu_divu = C_visc(S_DIVU,1) * 1.5 * Area_min**Laplace_divu / dt_init
-    nu_rotu = C_visc(S_ROTU,1) * 1.5 * Area_min**Laplace_rotu / dt_init
+    nu_sclr = C_visc(S_MASS,1) * Area_min**Laplace_sclr / dt_init
+    nu_divu = C_visc(S_DIVU,1) * Area_min**Laplace_divu / dt_init
+    nu_rotu = C_visc(S_ROTU,1) * Area_min**Laplace_rotu / dt_init
 
     ! Diffusion times
     if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS,1)
@@ -831,7 +844,6 @@ contains
 
   real(dp) function nu_scale (order, dom, id)
     ! Viscosity non-dimensional scaling
-    ! (factor 1.5 ensures stability limit matches theoretical value)
     implicit none
     integer      :: id, order
     type(domain) :: dom
@@ -844,11 +856,10 @@ contains
        else
           Area = hex_area_avg (dom%level%elts(id+1))
        end if
+       nu_scale = Area**order / dt
     else
-       Area = Area_min
+       nu_scale = Area_min**order / dt
     end if
-    
-    nu_scale = 1.5 * Area**order / dt
   end function nu_scale
 
   subroutine apply_initial_conditions_case
