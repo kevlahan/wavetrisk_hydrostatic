@@ -57,9 +57,8 @@ contains
           cycle 
        end if
 #endif
-
        write (filename, '(a,i1)')  "grid_HR/J", level_start-1
-       open (unit=fid, file=filename, status='OLD')
+       open (unit = fid, file = filename, status = "old", form = "unformatted", access = "stream", action = "read")
 
        p = 1
        do d_HR = 1, N_ICOSAH_LOZENGE
@@ -71,7 +70,7 @@ contains
              call coord_from_file (d_glo, PATCH_LEVEL, fid, offs, dims, (/ 0, 0 /))
           end do
        end do
-       close(fid)
+       close (fid)
     end do
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
@@ -105,12 +104,8 @@ contains
        ij = ij0 + HR_offs(:,k) * 2**(l-1)
        id = idx (ij(1), ij(2), offs, dims) 
        if (l == 1) then
-          if (owner(d_glo+1) == rank) then
-             read (fid,*) node
-             grid(d_loc+1)%node%elts(id+1) = project_on_sphere (node)
-          else ! if domain is on another process, still read to get to correct position in file
-             read (fid,*)
-          end if
+          read (fid) node
+          if (owner(d_glo+1) == rank) grid(d_loc+1)%node%elts(id+1) = project_on_sphere (node)
        else
           call coord_from_file (d_glo, l-1, fid, offs, dims, ij)
        end if
