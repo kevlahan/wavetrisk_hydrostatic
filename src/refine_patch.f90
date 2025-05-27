@@ -122,17 +122,17 @@ contains
     c = c0 + 1
     p_chd = dom%patch%elts(p_par+1)%children(c)
     do k = 1, 2
-       call attach_bdry    (dom, p_par, c-1,   modulo(c + k - 2, N_CHDRN), side (dom, p_par, modulo(c + k - 2, N_CHDRN)))
-       call attach_bdry    (dom, p_par, c-1,   modulo(c + k,     N_CHDRN), -(modulo(c + k,     N_CHDRN) + 1))
-       call connect_cousin (dom, p_par, p_chd, modulo(c + k - 2, N_CHDRN),   modulo(c + k - 2, N_CHDRN), modulo(c - 2*k + 2, N_CHDRN))
+       call attach_bdry    (dom, p_par, c-1,   modulo (c+k-2, N_CHDRN), side (dom, p_par, modulo (c+k-2, N_CHDRN)))
+       call attach_bdry    (dom, p_par, c-1,   modulo (c+k,   N_CHDRN), - (modulo (c+k,   N_CHDRN) + 1))
+       call connect_cousin (dom, p_par, p_chd, modulo (c+k-2, N_CHDRN),    modulo (c+k-2, N_CHDRN), modulo (c-2*k+2, N_CHDRN))
     end do
 
-    call attach_bdry    (dom, p_par, c-1,   c + 3, side (dom, p_par, c + 3))
-    call connect_cousin (dom, p_par, p_chd, c + 3, c + 3, modulo(c + 1, N_CHDRN))
+    call attach_bdry    (dom, p_par, c-1, c+3, side (dom, p_par, c+3))
+    call connect_cousin (dom, p_par, p_chd, c+3, c+3, modulo (c+1, N_CHDRN))
 
-    call attach_bdry (dom, p_par, c-1, modulo(c + 1, N_CHDRN) + 4, -(modulo(c + 1, N_CHDRN) + 4 + 1))
-    call attach_bdry (dom, p_par, c-1, modulo(c,     N_CHDRN) + 4, side (dom, p_par, modulo(c, N_CHDRN)))
-    call attach_bdry (dom, p_par, c-1, modulo(c + 2, N_CHDRN) + 4, side (dom, p_par, modulo(c-1, N_CHDRN)))
+    call attach_bdry (dom, p_par, c-1, modulo (c+1, N_CHDRN)+4, -(modulo (c+1, N_CHDRN)+4 + 1))
+    call attach_bdry (dom, p_par, c-1, modulo (c,   N_CHDRN)+4, side (dom, p_par, modulo(c,   N_CHDRN)))
+    call attach_bdry (dom, p_par, c-1, modulo (c+2, N_CHDRN)+4, side (dom, p_par, modulo(c-1, N_CHDRN)))
 
     call get_offs_Domain (dom, p_chd, offs_chd, dims_chd)
 
