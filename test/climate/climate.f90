@@ -23,8 +23,9 @@ program climate
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
+  scale_aware              = .true.                           ! scale-aware viscosity
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
-  sponge                   = .true.                          ! use sponge layer in upper layers to avoid reflection
+  sponge                   = .true.                           ! use sponge layer in upper layers to avoid reflection
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

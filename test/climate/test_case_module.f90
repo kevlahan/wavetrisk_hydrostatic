@@ -1,6 +1,5 @@
 module test_case_mod
   ! Module file for climate test case
-  !use comm_mpi_mod
   use utils_mod
   use init_mod
   use std_atm_profile_mod
@@ -19,20 +18,19 @@ module test_case_mod
   real(dp) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
 
   ! Model parameters
-  logical             :: Ekman_ic      = .false.                     ! Ekman flow initial conditions (zero velocity initial conditions if false)
   logical             :: scale_aware   = .false.                     ! scale-aware viscosity
   logical             :: sponge        = .true.                      ! sponge layer for divergence damping
 
-  integer,  parameter :: fac_sponge    = 7                           ! sponge layer viscosity increase factor (from CAM)
+  integer,  parameter :: fac_sponge    = 8                           ! sponge layer viscosity increase factor (from CAM)
   real(dp), parameter :: p_sponge      = 30   * hPa                  ! lower boundary of sponge layer
-  
+
+  ! CAM-SE values for J6 (120 km resolution)
   real(dp), parameter :: nu_CAM        = 1e15 * METRE**4/SECOND      ! CAM hyperviscosity 
   real(dp), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
   real(dp), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
   real(dp), parameter :: Area_CAM      = sqrt(3.0_dp)/2 * dx_CAM**2  ! CAM hexagon area
   real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity (1.45e-03)
   
-  real(dp), parameter :: e_thick       = 10   * KM                   ! Ekman layer thickness
   logical             :: print_tol     = .false.                     ! print tolerances for each layer
   character(255)      :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
 contains
@@ -62,15 +60,14 @@ contains
     ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
     use domain_mod
     implicit none
-
-    real(dp), dimension(1:EDGE)                           :: physics_scalar_flux_case
+    real(dp), dimension(1:EDGE)                          :: physics_scalar_flux_case
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
     type(domain)                                         :: dom
     integer                                              :: d, id, idE, idNE, idN, v, zlev
     logical, optional                                    :: type
 
     real(dp), dimension(1:EDGE) :: d_e, grad, l_e
-    logical                    :: local_type
+    logical                     :: local_type
 
     if (present(type)) then
        local_type = type
@@ -101,8 +98,7 @@ contains
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       !physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) *  nu_scale (Laplace_sclr, dom, id) * grad * l_e
-       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) * nu_scale (Laplace_sclr, dom, id) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -110,14 +106,9 @@ contains
       real(dp), dimension(1:EDGE) :: grad_physics
       real(dp), dimension(:)      :: scalar
 
-      grad_physics(RT+1) = (nu_scale (Laplace_sclr, dom, idE) * scalar(idE+1) - nu_scale (Laplace_sclr, dom, id  ) * scalar(id+1)) &
-           / d_e(RT+1)
-      
-      grad_physics(DG+1) = (nu_scale (Laplace_sclr, dom, id) * scalar(id+1) - nu_scale (Laplace_sclr, dom, idNE) * scalar(idNE+1)) &
-           / d_e(DG+1)
-      
-      grad_physics(UP+1) = (nu_scale (Laplace_sclr, dom, idN) * scalar(idN+1) - nu_scale (Laplace_sclr, dom, id  ) * scalar(id+1)) &
-           / d_e(UP+1)
+      grad_physics(RT+1) = (scalar(idE+1) -  scalar(id  +1)) / d_e(RT+1)
+      grad_physics(DG+1) = (scalar(id +1) -  scalar(idNE+1)) / d_e(DG+1)
+      grad_physics(UP+1) = (scalar(idN+1) -  scalar(id  +1)) / d_e(UP+1)
     end function grad_physics
   end function physics_scalar_flux_case
 
@@ -125,8 +116,7 @@ contains
     ! Additional physics for the source term of the velocity trend
     use domain_mod
     implicit none
-
-    real(dp), dimension(1:EDGE)     :: physics_velo_source_case
+    real(dp), dimension(1:EDGE)    :: physics_velo_source_case
     type(domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -136,32 +126,27 @@ contains
     integer :: idE, idN, idNE
 
     idE  = idx (i+1, j,   offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
 
     id = idx (i, j, offs, dims)
 
     ! Scale aware viscosity
     physics_velo_source_case = 0.0_dp
-    
+
     if (Laplace_divu /= 0) physics_velo_source_case = &  
-         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * grad_divu ()
+         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
 
     if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
-         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * curl_rotu ()
+         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
   contains
     function grad_divu ()
       implicit none
       real(dp), dimension(1:EDGE) :: grad_divu
             
-      grad_divu(RT+1) = (nu_scale (Laplace_divu, dom, idE) * divu(idE+1) - nu_scale (Laplace_divu, dom, id  ) * divu(id+1))   &
-           / dom%len%elts(EDGE*id+RT+1)
-      
-      grad_divu(DG+1) = (nu_scale (Laplace_divu, dom, id ) * divu(id+1)  - nu_scale (Laplace_divu, dom, idNE) * divu(idNE+1)) &
-           / dom%len%elts(EDGE*id+DG+1)
-      
-      grad_divu(UP+1) = (nu_scale (Laplace_divu, dom, idN) * divu(idN+1) - nu_scale (Laplace_divu, dom, id  ) * divu(id+1))   &
-           / dom%len%elts(EDGE*id+UP+1)
+      grad_divu(RT+1) = (divu(idE+1) - divu(id  +1)) / dom%len%elts(EDGE*id+RT+1)
+      grad_divu(DG+1) = (divu(id +1) - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      grad_divu(UP+1) = (divu(idN+1) - divu(id  +1)) / dom%len%elts(EDGE*id+UP+1)
     end function grad_divu
 
     function curl_rotu ()
@@ -173,14 +158,9 @@ contains
       idS  = idx (i,   j-1, offs, dims)
       idW  = idx (i-1, j,   offs, dims)
 
-      curl_rotu(RT+1) = (nu_scale (Laplace_rotu, dom, id ) * vort(TRIAG*id +LORT+1) &
-           - nu_scale (Laplace_rotu, dom, idS) * vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
-      
-      curl_rotu(DG+1) = (nu_scale (Laplace_rotu, dom, id ) * vort(TRIAG*id +LORT+1) &
-           - nu_scale (Laplace_rotu, dom, id ) * vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
-      
-      curl_rotu(UP+1) = (nu_scale (Laplace_rotu, dom, idW) * vort(TRIAG*idW+LORT+1) &
-           - nu_scale (Laplace_rotu, dom, id ) * vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
   end function physics_velo_source_case
 
@@ -191,7 +171,7 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer :: id, d, k
+    integer  :: id, d, k
     real(dp) :: k_T, lat, lon, p, P_s, pot_temp
     
     d   = dom%id+1
@@ -217,13 +197,7 @@ contains
           sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * P_s / grav_accel
           sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
        end if
-
-       ! Initial velocity with Ekman layer velocity
-       if (ekman_ic) then
-          call vel2uvw (dom, i, j, k, offs, dims)
-       else
-          sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
-       end if
+       sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
     end do
   end subroutine init_sol
 
@@ -287,68 +261,6 @@ contains
        theta_equil = T_0 * (p/p_0)**(-kappa)
     end if
   end subroutine theta_init
-
-  subroutine vel2uvw (dom, i, j, zlev, offs, dims)
-    ! Sets the velocities on the computational grid given a function vel_fun that provides zonal and meridional velocities
-    implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
-    integer      :: d, id, idE, idN, idNE
-    type (Coord) :: vel, x_i, x_E, x_N, x_NE
-
-    d = dom%id+1
-
-    id   = idx(i,   j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-
-    x_i  = dom%node%elts(id  +1)
-    x_E  = dom%node%elts(idE +1)
-    x_N  = dom%node%elts(idN +1)
-    x_NE = dom%node%elts(idNE+1)
-
-    vel = vel_init ()
-    
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) = inner (direction (x_i,  x_E), vel)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) = inner (direction (x_NE, x_i), vel)
-    sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) = inner (direction (x_i,  x_N), vel)
-  contains    
-    function vel_init ()
-      ! Zonal latitude-dependent wind
-      implicit none
-      type(Coord) :: vel_init
-
-      real(dp)     :: D_e, lon, lat, p, P_s, phi, u, v
-      type(Coord) :: e_zonal, e_merid
-
-      call cart2sph (x_i, lon, lat)
-
-      if (NCAR_topo) then ! surface pressure from multilevel topography
-         P_s = dom%surf_press%elts(id+1)
-      else                ! surface pressure from standard atmosphere
-         call std_surf_pres (topography%data(d)%elts(id+1), P_s)
-      end if
-
-      p = 0.5 * (a_vert(zlev) + a_vert(zlev+1) + (b_vert(zlev) + b_vert(zlev+1)) * P_s) ! pressure at level k
-
-      phi = - R_d * T_0 * log (p / P_s)
-      
-      D_e = e_thick * grav_accel
-
-      u = u_0 * (1 - exp (-phi/D_e) * cos (phi/D_e)) * cos (lat) ! zonal velocity 
-      v = u_0 * (1 - exp (-phi/D_e) * sin (phi/D_e)) * cos (lat) ! meridional velocity
-
-      e_zonal = Coord (-sin(lon),           cos(lon),               0.0_dp) 
-      e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) 
-
-      ! Velocity vector
-      vel_init = u * e_zonal + v * e_merid
-    end function vel_init
-  end subroutine vel2uvw
 
   real(dp) function surf_geopot_case (d, id)
     ! Set geopotential and topography
@@ -438,24 +350,6 @@ contains
       ellipse_profile = height * exp__flush (-rsq**p)
     end function ellipse_profile
   end subroutine init_topo
-
-  subroutine vel_fun (lon, lat, u, v)
-    ! Random initial wind
-    implicit none
-    real(dp) :: lon, lat, u, v
-
-    real(dp) :: rgrc
-    real(dp) :: lat_c, lon_c, r
-    real(dp) :: amp = 1.0_dp ! amplitude of random noise
-
-    ! Zonal velocity component
-    call random_number (r)
-    u = amp * 2 * (r - 0.5)
-
-    ! Meridional velocity component
-    call random_number (r)
-    v = amp * 2 * (r - 0.5)
-  end subroutine vel_fun
 
   subroutine initialize_a_b_vert_case
     implicit none
@@ -666,16 +560,12 @@ contains
        write (6,'(a,es8.2)') "c_v      [J/(kg K)]      = ", c_v
        write (6,'(a,es8.2)') "gamma                    = ", gamma
        write (6,'(a,es8.2)') "kappa                    = ", kappa
-       write (6,'(a,f10.1)')  "dx_max         [km]      = ", dx_max / KM
-       write (6,'(a,f10.1)')  "dx_min         [km]      = ", dx_min / KM
+       write (6,'(a,f10.1)') "dx_max         [km]      = ", dx_max / KM
+       write (6,'(a,f10.1)') "dx_min         [km]      = ", dx_min / KM
 
-       write (6,'(/,a)')      "TEST CASE PARAMETERS"
-       if (Ekman_ic) then
-          write (6,'(a)')   "Ekman initial conditions"
-       else
-          write (6,'(a)')   "Zero velocity initial conditions"
-       end if
-       write (6,'(a,f5.1)')   "T_0             [K]      = ", T_0
+       write (6,'(/,a)')     "TEST CASE PARAMETERS"
+       write (6,'(a)')       "Zero velocity initial conditions"
+       write (6,'(a,f5.1)')  "T_0             [K]      = ", T_0
        write (6,'(a,es8.2)') "T_mean          [K]      = ", T_mean
        write (6,'(a,es8.2)') "T_tropo         [K]      = ", T_tropo
        write (6,'(a,es8.2)') "sigma_b                  = ", sigma_b
@@ -800,9 +690,9 @@ contains
 
     dt_init  = dt_CAM * (dx_min / dx_CAM)
 
-    ! Non-dimensional viscosity
-    C_visc           = C_CAM
-    C_visc(S_DIVU,:) = C_CAM * 2.5
+    ! Non-dimensional viscosity (1.34 factor accounts for difference in computing nu from C_visc)
+    C_visc           = 4.0_dp/3 * C_CAM
+    C_visc(S_DIVU,:) = 4.0_dp/3 * C_CAM * 2.5 ! CAM-SE factor
 
     ! Sponge layer for divergence damping
     if (sponge) then
@@ -810,7 +700,7 @@ contains
           C_visc(S_DIVU,k) = C_visc(S_DIVU,k) * ramp ()
        end do
     end if
-    
+
     ! Ensure stability
     C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/6.0_dp  )**Laplace_sclr)
     C_visc(S_TEMP,:) = min (C_visc(S_TEMP,:), (1/6.0_dp  )**Laplace_sclr)
