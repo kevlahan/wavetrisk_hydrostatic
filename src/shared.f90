@@ -221,15 +221,15 @@ module shared_mod
   real(dp), parameter :: WATT    = JOULE / SECOND
   
   ! Simulation variables
-  integer                                       :: cp_idx, err_restart
-  integer                                       :: iadapt, ibin, irebalance, iremap, istep, istep_cumul, iwrite
-  integer                                       :: n_diffuse, nbins, nstep_init, resume
-  integer                                       :: Laplace_divu, Laplace_rotu, Laplace_sclr
-  integer                                       :: topo_min_level, topo_max_level
-  integer(8)                                    :: itime
-  integer, parameter                            :: nvar_zonal = 9   ! number of zonal statistics to calculate
-  integer, dimension(:), allocatable            :: n_node_old, n_patch_old
-  integer, dimension(:,:), allocatable          :: Nstats, Nstats_glo
+  integer                                        :: cp_idx, err_restart
+  integer                                        :: iadapt, ibin, irebalance, iremap, iremap_max, istep, istep_cumul, iwrite
+  integer                                        :: n_diffuse, nbins, nstep_init, resume
+  integer                                        :: Laplace_divu, Laplace_rotu, Laplace_sclr
+  integer                                        :: topo_min_level, topo_max_level
+  integer(8)                                     :: itime
+  integer, parameter                             :: nvar_zonal = 9   ! number of zonal statistics to calculate
+  integer, dimension(:), allocatable             :: n_node_old, n_patch_old
+  integer, dimension(:,:), allocatable           :: Nstats, Nstats_glo
 
   real(dp)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
   real(dp)                                       :: dbin, dt, dt_init, dt_phys, dt_write, dx_min, dx_max, time_end, time
@@ -248,9 +248,9 @@ module shared_mod
   real(dp), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(dp), dimension (12,3)                     :: unique_pent_locs
 
-  character(255)                                :: run_id, test_case, timeint_type, topo_file
-  character(255)                                :: remap_type, remapscalar_type, remapvelo_type, physics_type
-  character(1), parameter                       :: lf=char(10) ! line feed character
+  character(255)                                 :: run_id, test_case, timeint_type, topo_file
+  character(255)                                 :: remap_type, remapscalar_type, remapvelo_type, physics_type
+  character(1), parameter                        :: lf=char(10) ! line feed character
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
   logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize, split_mean_perturbation
@@ -377,6 +377,7 @@ contains
     iadapt                  = 1                                   ! adapt horizontal grid every iadapt time step
     irebalance              = 5                                   ! interval for checking rebalance (only active if using AMPI)
     iremap                  = 1                                   ! remap counter
+    iremap_max              = 5                                   ! maximum remap interval (every iremap_max dt)
     min_mass_remap          = 0.9_dp                              ! minimum relative layer mass compared to initial value at which to remap
     level_save              = level_start                         ! level to save
 
