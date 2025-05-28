@@ -131,18 +131,18 @@ contains
     call connect_cousin (dom, p_par, p_chd, c+3, c+3, modulo (c+1, N_CHDRN))
 
     call attach_bdry (dom, p_par, c-1, modulo (c+1, N_CHDRN)+4, -(modulo (c+1, N_CHDRN)+4 + 1))
-    call attach_bdry (dom, p_par, c-1, modulo (c,   N_CHDRN)+4, side (dom, p_par, modulo(c,   N_CHDRN)))
-    call attach_bdry (dom, p_par, c-1, modulo (c+2, N_CHDRN)+4, side (dom, p_par, modulo(c-1, N_CHDRN)))
+    call attach_bdry (dom, p_par, c-1, modulo (c,   N_CHDRN)+4, side (dom, p_par, modulo (c,   N_CHDRN)))
+    call attach_bdry (dom, p_par, c-1, modulo (c+2, N_CHDRN)+4, side (dom, p_par, modulo (c-1, N_CHDRN)))
 
     call get_offs_Domain (dom, p_chd, offs_chd, dims_chd)
 
     ! Set refined cell nodes and edges
-    do j = 0, PATCH_SIZE/2 + 1
-       j_chd = (j - 1) * 2
-       j_par = j - 1 + chd_offs(2,c)
-       do i = 0, PATCH_SIZE/2 + 1
-          i_chd = (i - 1) * 2
-          i_par = i - 1 + chd_offs(1,c)
+    do j = -1, PATCH_SIZE/2
+       j_chd = 2 * j
+       j_par = j + chd_offs(2,c)
+       do i = -1, PATCH_SIZE/2
+          i_chd = 2 * i
+          i_par = i + chd_offs(1,c)
 
           id_par = idx (i_par, j_par, offs_par, dims_par)
           id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
@@ -151,7 +151,7 @@ contains
           idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
           idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
 
-          dom%node%elts(id_chd+1)   = dom%node%elts(id_par+1)            
+          dom%node%elts(id_chd+1) = dom%node%elts(id_par+1)            
           
           dom%node%elts(idE_chd +1) = dom%midpt%elts(EDGE*id_par+RT+1)
           dom%node%elts(idNE_chd+1) = dom%midpt%elts(EDGE*id_par+DG+1)
@@ -206,16 +206,16 @@ contains
     call apply_onescale_to_patch (coriolis, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
 
     ! Initialize domain variables to zero
-    call extend (dom%surf_press,    num, 0.0_dp)
-    call extend (dom%press,         num, 0.0_dp)
-    call extend (dom%geopot,        num, 0.0_dp)
-    call extend (dom%u_zonal,       num, 0.0_dp)
-    call extend (dom%v_merid,       num, 0.0_dp)
-    call extend (dom%press_lower,   num, 0.0_dp)
-    call extend (dom%geopot_lower,  num, 0.0_dp)
-    call extend (dom%bernoulli,     num, 0.0_dp)
-    call extend (dom%ke,            num, 0.0_dp)
-    call extend (dom%divu,          num, 0.0_dp)
+    call extend (dom%surf_press,   num, 0.0_dp)
+    call extend (dom%press,        num, 0.0_dp)
+    call extend (dom%geopot,       num, 0.0_dp)
+    call extend (dom%u_zonal,      num, 0.0_dp)
+    call extend (dom%v_merid,      num, 0.0_dp)
+    call extend (dom%press_lower,  num, 0.0_dp)
+    call extend (dom%geopot_lower, num, 0.0_dp)
+    call extend (dom%bernoulli,    num, 0.0_dp)
+    call extend (dom%ke,           num, 0.0_dp)
+    call extend (dom%divu,         num, 0.0_dp)
     
     call extend (dom%qe,      EDGE*num, 0.0_dp)
     call extend (dom%vort,   TRIAG*num, 0.0_dp)
