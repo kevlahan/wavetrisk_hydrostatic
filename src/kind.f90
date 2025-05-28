@@ -1,6 +1,7 @@
 module kind_mod
-  ! Sets variable kinds
+  ! Sets variable kinds                                                                                       
+  use, intrinsic :: iso_fortran_env
   implicit none
-  integer, parameter :: sp = selected_real_kind(p=6,  r=37 )             ! single precision
-  integer, parameter :: dp = selected_real_kind(p=15, r=307)             ! double precision
+  integer, parameter :: sp = REAL32 ! single precision
+  integer, parameter :: dp = REAL64 ! double precision
 end module kind_mod
