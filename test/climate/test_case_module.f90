@@ -685,8 +685,8 @@ contains
     Area_min = hex_area_avg (max_level)
     Area_max = hex_area_avg (min_level)
 
-    dx_min   = sqrt (2 / sqrt(3.0_dp) * Area_min)              
-    dx_max   = sqrt (2 / sqrt(3.0_dp) * Area_max)
+    dx_min   = dx_avg (max_level)
+    dx_max   = dx_avg (min_level)
 
     dt_init  = dt_CAM * (dx_min / dx_CAM)
 

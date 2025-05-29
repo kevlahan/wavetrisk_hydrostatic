@@ -29,8 +29,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(19+1)                :: filename
 
-    ncell = 2 + 10 * 4**(level_end-1)
-    dx    = sqrt (2 / sqrt(3.0_dp) * 4*MATH_PI * radius**2  / ncell) ! average edge lengths
+    dx = dx_avg (level_start-1) ! average edge lengths
 
     ! Initial error
     call grid_error
@@ -119,8 +118,7 @@ contains
 
     tol = 1e9_dp * eps () ! tolerance in [m], about 1.4 m on Earth or relative error of O(1e-7)
 
-    ncell = 2 + 10 * 4**(level_end-1)
-    dx    = sqrt (2 / sqrt(3.0_dp) * 4*MATH_PI * radius**2  / ncell) ! average edge lengths
+    dx = dx_avg (level_end-1)
     
     ! Initial error
     call grid_error
@@ -358,7 +356,7 @@ contains
 
     l2_err   = 0.0_dp; linf_err = 0.0_dp
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
-    l2_err   = sqrt (sum_real (l2_err)) / (dx * 3*ncell)
+    l2_err   = sqrt (sum_real (l2_err)) / (dx * 3 * number_hex (level_end-1))
     linf_err = sync_max_real (linf_err) / dx
   end subroutine grid_error
 
