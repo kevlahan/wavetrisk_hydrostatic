@@ -1,5 +1,4 @@
 module geom_mod
-  use param_mod
   use shared_mod
   use coord_arithmetic_mod
   implicit none
@@ -343,6 +342,14 @@ contains
     ! Project velocity vector on direction given by points ep1, ep2
     proj_vel = inner (direction (ep1, ep2), vel)
   end function proj_vel
+
+  real(dp) function dx_avg (l)
+    ! Average grid size at level l
+    implicit none
+    integer, intent(in) :: l
+
+    dx_avg = sqrt (2 / sqrt(3.0_dp) * hex_area_avg (l)) 
+  end function dx_avg
 
   real(dp) function hex_area_avg (l)
     ! Average are of hexagonal cells at level l.
