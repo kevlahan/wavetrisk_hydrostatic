@@ -61,17 +61,14 @@ program vertices2wavetrisk
         i = i + 1
 
         call min_dist (vertHR, vert_data, dmin, jmin) ! find closest vertex to Heikes & Randall vertex
-        if (dmin > dx) then
-           write (6,'(2(a,es10.4))') "WARNING: minimum distance ", dmin, " >  dx = ", dx
-           stop
-        else
-           if (dmin > dmax) dmax = dmin
-        end if
+        
+        if (dmin > dmax) dmax = dmin
+
         write (20,'(3(es24.17e2,1x))') vert_data(jmin)
      end do
-     close (10); close (20)
      write (6,'(a,i1,a,es8.2)') "Max diff in vertices at level ", l, " is ", dmax
+     if (dmax > dx) write (6,'(a,es10.4)') "WARNING: minimum distance > dx_avg = ", dx
      
-     deallocate (distance, vert_data)
+     close (10); close (20); deallocate (distance, vert_data)
   end do
 end program vertices2wavetrisk
