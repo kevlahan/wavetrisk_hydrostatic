@@ -84,7 +84,7 @@ program climate
   call print_test_case_parameters
   
   open (unit = 12, file = trim(run_id)//'_log', action = 'WRITE', form = 'FORMATTED', position = 'APPEND')
-  call write_and_export (iwrite)
+  !call write_and_export (iwrite)
   
   total_cpu_time = 0.0_dp; time_start = time
   

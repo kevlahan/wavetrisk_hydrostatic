@@ -483,8 +483,8 @@ contains
     select case (optimize_grid)
     case (XU_GRID)
        call smooth_Xu
-    case (HR_GRID)
-       call read_HR_optim_grid
+    case (DATA_GRID)
+       call read_optim_grid
     end select
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)

@@ -1,8 +1,9 @@
 # Default general options
 TEST_CASE     = climate
-PARAM         = param_J6
+PARAM         = param_J5
 ARCH          = mpi
 OPTIM         = 2
+FLAGS_COMP    = -ffast-math -march=native -funroll-loops -flto
 COMPILER_TYPE = gnu
 MPIF90        = mpif90
 BIN_DIR       = bin

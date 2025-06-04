@@ -18,16 +18,16 @@ module coarse_grid_mod
   integer                                  :: ncell, next_fid
   integer,     dimension(2,4), parameter   :: HR_offs = reshape ( [0,0, 1,0, 1,1, 0,1], [2,4] ) 
   real(dp)                                 :: dx, linf_err, l2_err
-  type(Coord), dimension(:,:), allocatable :: new_node
+  type(Coord), dimension(:,:), allocatable :: new_node 
 contains
-  subroutine read_HR_optim_grid
-    ! Reads in Heikes & Randall (1995) optimized grid from file in directory grid_HR
-    ! Need to provide a symbolic link to grid_HR in working directory
+  subroutine read_optim_grid  
+    ! Reads in optimized grid from directory grids
+    ! Need to provide a symbolic link to grids directory in working directory
     implicit none
     integer                        :: d_glo, d_HR, d_sub, fid, loz, p, r
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    character(19+1)                :: filename
+    character(999)                 :: filename
 
     dx = dx_avg (level_start-1) ! average edge lengths
 
@@ -36,8 +36,7 @@ contains
     if (rank == 0) then
        write (6,'(a)') '-------------------------------------------------------&
             ---------------------------------------------------------------------------'
-       write (6,'(a,i2,a,/)') 'Heikes-Randall optimizations of level ', level_start-1, ' grid:'
-       write (6,'(a,2(es8.2,a))') 'Grid quality before optimization = ', linf_err, ' (linf) ', l2_err, ' (l2)'
+       write (6,'(a,2(es8.2,a))') 'Grid quality of non-optimized grid = ', linf_err, ' (linf) ', l2_err, ' (l2)'
 
     end if
 
@@ -45,7 +44,7 @@ contains
     fid = get_fid()
     if (level_start /= level_end) then
        write (0,'(i2,1x,i2)') level_end, level_start
-       write (0,'(a)') "Reading HR grid points for level_start not equal to level_end not implemented"
+       write (0,'(a)') "Reading optimized vertices for level_start not equal to level_end not implemented"
        return
     end if
 
@@ -56,8 +55,8 @@ contains
           cycle 
        end if
 #endif
-       write (filename, '(a,i1)')  "grid_HR/J", level_start-1
-       open (unit = fid, file = filename, status = "old", form = "unformatted", access = "stream", action = "read")
+       write (filename, '(a,a,a,i3.3)')  "grids/", trim (grid_type), "_WT_", level_start-1
+       open (unit = fid, file = trim(filename), status = "old", form = "formatted", access = "stream", action = "read")
 
        p = 1
        do d_HR = 1, N_ICOSAH_LOZENGE
@@ -80,12 +79,12 @@ contains
     ! Final error
     call grid_error
     if (rank == 0) then
-       write (6,'(a,2(es8.2,a))') 'Grid quality after optimization  = ', linf_err, ' (linf) ', l2_err, ' (l2)'
+       write (6,'(a,a,a,2(es8.2,a))') 'Grid quality of ', trim (filename), ' = ', linf_err, ' (linf) ', l2_err, ' (l2)'
        write (6,'(a)') '(relative distance between midpoints of primal and dual grid edges compared to average edge length)'
        write (6,'(a)') '-------------------------------------------------------&
             ---------------------------------------------------------------------------'
     end if
-  end subroutine read_HR_optim_grid
+  end subroutine read_optim_grid
 
   recursive subroutine coord_from_file (d_glo, l, fid, offs, dims, ij0)
     implicit none
@@ -103,7 +102,7 @@ contains
        ij = ij0 + HR_offs(:,k) * 2**(l-1)
        id = idx (ij(1), ij(2), offs, dims) 
        if (l == 1) then
-          read (fid) node
+          read (fid,*) node
           if (owner(d_glo+1) == rank) grid(d_loc+1)%node%elts(id+1) = project_on_sphere (node)
        else
           call coord_from_file (d_glo, l-1, fid, offs, dims, ij)

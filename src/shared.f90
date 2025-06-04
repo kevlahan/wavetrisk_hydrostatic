@@ -158,7 +158,7 @@ module shared_mod
   integer, dimension(:), allocatable :: MULT, POSIT
 
   ! Grid optimization choices
-  integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
+  integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, DATA_GRID = 2
 
   ! Define land and sea regions
   real(dp), parameter :: LAND = 1, SEA = 0
@@ -248,7 +248,7 @@ module shared_mod
   real(dp), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(dp), dimension (12,3)                     :: unique_pent_locs
 
-  character(255)                                 :: run_id, test_case, timeint_type, topo_file
+  character(255)                                 :: grid_type, run_id, test_case, timeint_type, topo_file
   character(255)                                 :: remap_type, remapscalar_type, remapvelo_type, physics_type
   character(1), parameter                        :: lf=char(10) ! line feed character
   
@@ -386,12 +386,16 @@ contains
     Laplace_divu            = 2                                   ! div u
     Laplace_rotu            = 2                                   ! rot u 
     n_diffuse               = 1                                   ! include diffusion every n_diffuse steps
-    optimize_grid           = HR_GRID                             ! type of optimization of coarse grid
+
+    grid_type               = "HRJT95"                            ! type of coarse data grid
+    optimize_grid           = DATA_GRID                           ! type of optimization of coarse grid
+
     remap_type              = "PPR"                               ! remapping scheme for scalars
     remapscalar_type        = "PPR"                               ! remapping scheme for scalars
     remapvelo_type          = "PPR"                               ! remapping scheme for velocity
+
     timeint_type            = "RK4"                               ! time integration scheme (RK3 is default for incompressible case)
-    tol                     = 0.0_dp                                 ! relative tolerance for adaptivity (default is non-adaptive)
+    tol                     = 0.0_dp                              ! relative tolerance for adaptivity (default is non-adaptive)
     zlevels                 = 20                                  ! number of vertical layers
     zmin                    = 1                                   ! lowest vertical level index
     Nsoil                   = 0                                   ! number of soil layers (if Nsoil = 0 then do not use soil model)
