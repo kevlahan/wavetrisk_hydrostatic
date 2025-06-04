@@ -387,7 +387,7 @@ contains
     Laplace_rotu            = 2                                   ! rot u 
     n_diffuse               = 1                                   ! include diffusion every n_diffuse steps
 
-    grid_type               = "HRJT95"                            ! type of coarse data grid
+    grid_type               = "HR95JT"                            ! type of coarse data grid
     optimize_grid           = DATA_GRID                           ! type of optimization of coarse grid
 
     remap_type              = "PPR"                               ! remapping scheme for scalars
