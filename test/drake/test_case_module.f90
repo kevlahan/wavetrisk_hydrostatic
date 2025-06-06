@@ -585,11 +585,11 @@ contains
     ! Evaluate viscosity time steps (for finest grid) 
     implicit none
 
-    ! Average hexagon areas and horizontal resolution
-    Area_max    = hex_area_avg (min_level)
-    Area_min    = hex_area_avg (max_level)
-    dx_max      = sqrt (2d0 / sqrt(3d0) * Area_max)
-    dx_min      = sqrt (2d0 / sqrt(3d0) * Area_min)
+    ! Average hexagon areas and horizontal resolutions
+    Area_max = hex_area_avg (min_level)
+    Area_min = hex_area_avg (max_level)
+    dx_max   = dx_avg (min_level)
+    dx_min   = dx_avg (max_level)
 
     ! Time step parameters
     dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc) ! initial time step (0.85 factor corrects for minimum dx)

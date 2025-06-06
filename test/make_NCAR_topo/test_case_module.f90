@@ -154,19 +154,19 @@ contains
     integer :: k
 
     ! Allocate vertical grid parameters
-    allocate (a_vert(1:zlevels+1),    b_vert(1:zlevels+1))
+    allocate (a_vert(0:zlevels),    b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    do k = 1, zlevels+1
-       a_vert(k) = dble(k-1)/dble(zlevels) * p_top
-       b_vert(k) = 1d0 - dble(k-1)/dble(zlevels)
+    do k = 0, zlevels
+       a_vert(k) = dble(k)/dble(zlevels) * p_top
+       b_vert(k) = 1d0 - dble(k)/dble(zlevels)
     end do
-    a_vert = a_vert(zlevels+1:1:-1) * p_0
-    b_vert = b_vert(zlevels+1:1:-1)
+    a_vert = a_vert(zlevels:0:-1) * p_0
+    b_vert = b_vert(zlevels:0:-1)
 
     ! Set mass coefficients
-    a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
-    b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
+    a_vert_mass = (a_vert(0:zlevels-1) - a_vert(1:zlevels))/grav_accel
+    b_vert_mass =  b_vert(0:zlevels-1) - b_vert(1:zlevels)
   end subroutine initialize_a_b_vert_case
 
   subroutine read_test_case_parameters

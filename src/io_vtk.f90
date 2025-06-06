@@ -554,23 +554,23 @@ contains
     integer(4), dimension(N_BDRY+1)   :: offs
     integer(4), dimension(2,N_BDRY+1) :: dims
 
-    integer(4)                       :: d, id_i, k
-    real(dp), dimension(1:zlevels)   :: u_gradP
-    real(dp), dimension(1:zlevels+1) :: div_mass
+    integer(4)                     :: d, id_i, k
+    real(dp), dimension(1:zlevels) :: u_gradP
+    real(dp), dimension(0:zlevels) :: div_mass
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
 
     ! Vertically integrate div(mass flux) from top to bottom
     ! (results at interfaces)
-    div_mass(zlevels+1) = 0.0_dp ! zero flux at top boundary
-    do k = zlevels, 1, -1
-       div_mass(k) = div_mass(k+1) + trend(S_MASS,k)%data(d)%elts(id_i)
+    div_mass(zlevels) = 0.0_dp ! zero flux at top interface
+    do k = zlevels-1, 0, -1
+       div_mass(k) = div_mass(k+1) + trend(S_MASS,k+1)%data(d)%elts(id_i)
     end do
 
     ! u.gradP at layers
     do k = 1, zlevels
-       u_gradP(k) = interp (b_vert(k), b_vert(k+1)) * vel_vert(k)%data(d)%elts(id_i)
+       u_gradP(k) = interp (b_vert(k-1), b_vert(k)) * vel_vert(k)%data(d)%elts(id_i)
     end do
 
     ! Complete computation of OMEGA
@@ -596,7 +596,7 @@ contains
   subroutine cal_w (dom, i, j, zlev, offs, dims)
     ! Vertical velocity w = - OMEGA / (rho_0 g) + (vertical projection of horizontal velocity)
     implicit none
-    type(Domain)                   :: dom
+    type(Domain)                      :: dom
     integer(4)                        :: i, j, zlev
     integer(4), dimension(N_BDRY+1)   :: offs
     integer(4), dimension(2,N_BDRY+1) :: dims

@@ -102,7 +102,7 @@ contains
     real,         intent(in) :: a, b
 
     if (a /= b) then
-!       WRITELOG (*,*) 'phys/dyn mismatch for ', name, ' : ', a, b
+       !       WRITELOG (*,*) 'phys/dyn mismatch for ', name, ' : ', a, b
     end if
   end subroutine check_mismatch
 end module iniphyparam_mod

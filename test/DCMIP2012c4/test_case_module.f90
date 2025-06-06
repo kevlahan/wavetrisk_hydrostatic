@@ -179,7 +179,7 @@ contains
     p_s = dom%surf_press%elts(id+1)
 
     ! Pressure at level zlev
-    p = 0.5 * (a_vert(zlev)+a_vert(zlev+1) + (b_vert(zlev)+b_vert(zlev+1))*p_s)
+    p = 0.5 * (a_vert(zlev-1)+a_vert(zlev) + (b_vert(zlev-1)+b_vert(zlev))*p_s)
 
     ! Normalized pressure
     sigma = p / p_s
@@ -294,13 +294,13 @@ contains
     integer :: k
 
     ! Allocate vertical grid parameters
-    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
+    allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (uniform) then
-       do k = 1, zlevels+1
-          a_vert(k) = dble(k-1)/dble(zlevels) * p_top
-          b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
+       do k = 0, zlevels
+          a_vert(k) = dble(k)/dble(zlevels) * p_top
+          b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
        end do
     else
        if (zlevels==18) then
@@ -355,56 +355,17 @@ contains
        end if
 
        ! DCMIP order is opposite to ours
-       a_vert = a_vert(zlevels+1:1:-1) * p_0
-       b_vert = b_vert(zlevels+1:1:-1)
+       a_vert = a_vert(zlevels:0:-1) * p_0
+       b_vert = b_vert(zlevels:0:-1)
     end if
 
-    ! LMDZ grid
-    !call cal_AB
-
     ! Set pressure at infinity
-    p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
+    p_top = a_vert(zlevels) ! note that b_vert at top level is 0, a_vert is small but non-zero
 
     ! Set mass coefficients 
-    a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1)) / grav_accel
-    b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
+    a_vert_mass = (a_vert(0:zlevels-1) - a_vert(1:zlevels)) / grav_accel
+    b_vert_mass =  b_vert(0:zlevels-1) - b_vert(1:zlevels)
   end subroutine initialize_a_b_vert_case
-
-  subroutine cal_AB
-    ! Computes A and B coefficients for hybrid vertical grid as in LMDZ
-    implicit none
-
-    integer                         :: l
-    real(8)                         :: snorm
-    real(8), dimension(1:zlevels)   :: dsig
-    real(8), dimension(1:zlevels+1) :: sig
-
-    snorm  = 0.0_8
-    do l = 1, zlevels
-       dsig(l) = 1.0_8 + 7 * sin (MATH_PI*(l-0.5_8)/(zlevels+1))**2 ! LMDZ standard (concentrated near top and surface)
-       !dsig(l) = 1.0_8 + 7 * cos (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at top
-       !dsig(l) = 1.0_8 + 7 * sin (MATH_PI/2*(l-0.5_8)/(zlevels+1))**2 ! Concentrated at surface
-       snorm = snorm + dsig(l)
-    end do
-
-    do l = 1, zlevels
-       dsig(l) = dsig(l)/snorm
-    end do
-
-    sig(zlevels+1) = 0.0_8
-    do l = zlevels, 1, -1
-       sig(l) = sig(l+1) + dsig(l)
-    end do
-
-    b_vert(zlevels+1) = 0.0_8
-    do  l = 1, zlevels
-       b_vert(l) = exp (1.0_8 - 1/sig(l)**2)
-       a_vert(l) = (sig(l) - b_vert(l)) * p_0
-    end do
-    b_vert(1) = 1.0_8
-    a_vert(1) = 0.0_8
-    a_vert(zlevels+1) = (sig(zlevels+1) - b_vert(zlevels+1)) * p_0
-  end subroutine cal_AB
 
   subroutine read_test_case_parameters
     implicit none

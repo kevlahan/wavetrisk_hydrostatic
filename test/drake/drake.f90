@@ -120,8 +120,19 @@ program Drake
      Kt_max               = 5e-3
      Kv_max               = 5e-3
   end if
-  
-  
+
+
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !    Initialization
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  if (etopo_bathy .or. etopo_coast) call read_etopo_data
+
+  call assign_functions
+
+  ! Initialize variables
+  call initialize (run_id)
+
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Characteristic scales
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -130,7 +141,8 @@ program Drake
 
   call initialize_dt_viscosity_case                                   ! initialize non-dimensional viscosities, cfl and time step
 
-  visc           = C_visc(S_VELO,1) * 1.5d0 * Area_min**Laplace_rotu / dt_init ! viscosity  
+  visc           = C_visc(S_VELO,1) * 1.5d0 * Area_min**Laplace_rotu / dt_init ! viscosity
+
   Rd             = wave_speed / f0                                    ! barotropic Rossby radius of deformation             
   drho_dz        = drho / (mixed_layer-thermocline)                   ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)       ! Brunt-Vaisala frequency
@@ -170,27 +182,9 @@ program Drake
   Mudim          = ref_density * dz    ! rho_dz scale
   Thetadim       =        drho * dz    ! buoyancy scale
   Udim           = u_wbc               ! velocity scale
-  
- 
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !    Initialization
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  if (etopo_bathy .or. etopo_coast) call read_etopo_data
-
-  call assign_functions
-
-  ! Initialize variables
-  call initialize (run_id)
 
   call print_test_case_parameters
-
-  ! Initialize random numbers
-  call random_seed
-
-  ! Save initial conditions
-  call write_and_export (iwrite)
-
+  call write_and_export (iwrite) ! save initial conditions
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(a,/)') &

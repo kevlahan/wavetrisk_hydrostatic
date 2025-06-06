@@ -222,7 +222,7 @@ contains
   subroutine find_coordinates (p_new, p_old, d, id_i)
     ! Calculates old and new pressure-based z coordinates from top down
     implicit none
-    integer                       :: d, id_i
+    integer                        :: d, id_i
     real(dp)                       :: rho_dz
     real(dp), dimension(0:zlevels) :: p_new, p_old
 
@@ -233,7 +233,7 @@ contains
        rho_dz = sol_mean(S_MASS,zlevels-k+1)%data(d)%elts(id_i) + old_mass(zlevels-k+1)%data(d)%elts(id_i)
        p_old(k) = p_old(k-1) + grav_accel * rho_dz 
     end do
-    p_new = a_vert(zlevels+1:1:-1) + b_vert(zlevels+1:1:-1) * p_old(zlevels)
+    p_new = a_vert(zlevels:0:-1) + b_vert(zlevels:0:-1) * p_old(zlevels)
   end subroutine find_coordinates
 
   subroutine find_coordinates_incompressible (z_new, z_old, z_s, d, id_i)

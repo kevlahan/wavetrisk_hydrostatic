@@ -186,7 +186,7 @@ contains
     end if
     
     do k = 1, zlevels
-       p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * P_s) ! pressure at level k
+       p = 0.5 * (a_vert(k-1) + a_vert(k) + (b_vert(k-1) + b_vert(k)) * P_s) ! pressure at level k
 
        if (split_mean_perturbation) then
           sol(S_MASS,k)%data(d)%elts(id+1) = 0.0_dp
@@ -223,7 +223,7 @@ contains
     end if
 
     do k = 1, zlevels
-       p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * P_s) ! pressure at level k
+       p = 0.5 * (a_vert(k-1) + a_vert(k) + (b_vert(k-1) + b_vert(k)) * P_s) ! pressure at level k
 
        if (split_mean_perturbation) then
           call cal_theta_eq (p, P_s, lat, pot_temp, k_T)
@@ -356,13 +356,13 @@ contains
     integer :: k
 
     ! Allocate vertical grid parameters
-    allocate (a_vert(1:zlevels+1),    b_vert(1:zlevels+1))
+    allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (uniform) then
-       do k = 1, zlevels+1
-          a_vert(k) = dble(k-1)/dble(zlevels) * P_top
-          b_vert(k) = 1.0_dp - dble(k-1)/dble(zlevels)
+       do k = 0, zlevels
+          a_vert(k) = dble(k)/dble(zlevels) * P_top
+          b_vert(k) = 1.0_dp - dble(k)/dble(zlevels)
        end do
     else
        if (zlevels == 18) then
@@ -442,15 +442,15 @@ contains
              call abort
           end if
        end if
-       a_vert = a_vert(zlevels+1:1:-1) * p_0
-       b_vert = b_vert(zlevels+1:1:-1)
+       a_vert = a_vert(zlevels:0:-1) * p_0
+       b_vert = b_vert(zlevels:0:-1)
     end if
 
-    P_top = a_vert(zlevels+1) ! assumes b_vert(zlevels+1) = 0
+    P_top = a_vert(zlevels) ! assumes b_vert(zlevels) = 0
 
     ! Set mass coefficients
-    a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
-    b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
+    a_vert_mass = (a_vert(0:zlevels-1) - a_vert(1:zlevels)) / grav_accel
+    b_vert_mass =  b_vert(0:zlevels-1) - b_vert(1:zlevels)
   end subroutine initialize_a_b_vert_case
 
   subroutine read_test_case_parameters
@@ -651,7 +651,7 @@ contains
     threshold_def = 1d16
 
     do k = 1, zlevels
-       p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * P_s)
+       p = 0.5 * (a_vert(k-1) + a_vert(k) + (b_vert(k-1) + b_vert(k)) * P_s)
 
        rho_dz = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
 
@@ -722,7 +722,7 @@ contains
       implicit none
       real(dp) :: p
 
-      p = 0.5 * (a_vert(k) + a_vert(k+1) + (b_vert(k) + b_vert(k+1)) * p_0) 
+      p = 0.5 * (a_vert(k-1) + a_vert(k) + (b_vert(k-1) + b_vert(k)) * p_0) 
 
       if (p > p_sponge) then
          ramp = 1.0_dp

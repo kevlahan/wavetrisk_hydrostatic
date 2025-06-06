@@ -985,7 +985,7 @@ contains
     ! Non-dimensional pressure based vertical coordinates p_k/p_s
     write (var_file, '(i2)') 22
     open (unit=funit, file=trim(run_id)//'.4.'//var_file, access="STREAM", form="UNFORMATTED", status="REPLACE") 
-    write (funit) (0.5d0*((a_vert(k)+a_vert(k+1))/ref_surf_press + b_vert(k)+b_vert(k+1)), k = zlevels, 1, -1)
+    write (funit) (0.5d0*((a_vert(k-1)+a_vert(k))/ref_surf_press + b_vert(k-1)+b_vert(k)), k = zlevels, 1, -1)
     close (funit)
 
     ! Compress files

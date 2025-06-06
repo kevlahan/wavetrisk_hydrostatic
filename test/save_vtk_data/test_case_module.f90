@@ -184,16 +184,10 @@ contains
     real(8), dimension(6) :: p
 
     ! Allocate vertical grid parameters
-    if (trim(test_case) == "drake" .or. trim(test_case) == "seamount" .or. trim(test_case) == "upwelling" &
-         .or. trim(test_case) == "jet") then
-       allocate (a_vert(0:zlevels), b_vert(0:zlevels))
-       allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
-    else
-       allocate (a_vert(1:zlevels+1),    b_vert(1:zlevels+1))
-       allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
-    end if
+    allocate (a_vert(0:zlevels), b_vert(0:zlevels))
+    allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
-    if (trim (test_case) == 'DCMIP2008c5'.or. trim (test_case) == 'DCMIP2012c4' .or. trim (test_case) == 'Held_Suarez') then
+    if (trim (test_case) == 'DCMIP2008c5'.or. trim (test_case) == 'DCMIP2012c4' .or. trim (test_case) == 'climate') then
        if (zlevels==18) then
           a_vert=(/0.00251499_8, 0.00710361_8, 0.01904260_8, 0.04607560_8, 0.08181860_8, &
                0.07869805_8, 0.07463175_8, 0.06955308_8, 0.06339061_8, 0.05621774_8, 0.04815296_8, &
@@ -309,18 +303,20 @@ contains
              b_vert(k) = p(1)*z**5 + p(2)*z**4 + p(3)*z**3 + p(4)*z**2 + p(5)*z + p(6)
           end do
        end if
-       a_vert = 1.0_8 - b_vert
+       a_vert = 1.0_dp - b_vert
+    else 
+         do k = 0, zlevels
+            a_vert(k) = dble(k)/dble(zlevels) * p_top
+            b_vert(k) = 1.0_dp - dble(k)/dble(zlevels)
+         end do
+    end if
 
-       ! Vertical grid spacing
+    if (compressible) then
+       a_vert_mass = (a_vert(0:zlevels-1) - a_vert(1:zlevels)) / grav_accel
+       b_vert_mass =  b_vert(0:zlevels-1) - b_vert(1:zlevels)
+    else
        a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
        b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
-    else 
-         do k = 1, zlevels+1
-            a_vert(k) = dble(k-1)/dble(zlevels) * p_top
-            b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
-         end do
-       a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1))/grav_accel
-       b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1) 
     end if
   end subroutine initialize_a_b_vert_case
 

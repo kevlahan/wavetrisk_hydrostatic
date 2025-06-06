@@ -44,8 +44,8 @@ contains
     real, dimension(ngrid,nlayer+1) :: Flux_up   ! upward flux
     real, dimension(ngrid,nlayer+1) :: zPint     ! pressure at interfaces
     real, dimension(ngrid,nlayer+1) :: zU
-    
-    ! Count number day cells 
+
+    ! Count number day cells
     if (Diurn) then
        ncount = 0
        index  = 0
@@ -101,20 +101,20 @@ contains
        zdTsw(1:ncount,l) = (g/cpp) * (Flux_down(1:ncount,l+1) - Flux_down(1:ncount,l))  &
             / (zPint(1:ncount,l) - zPint(1:ncount,l+1))
     end do
-    
+
     ! Ajout l echauffement de la contribution du ray. sol. reflechit:
     do l = 1, nlayer
        zdTsw(1:ncount,l) = zdTsw(1:ncount,l) &
             + (g/Cpp) * (Flux_up(1:ncount,l) - Flux_up(1:ncount,l+1)) / (zPint(1:ncount,l) - zPint(1:ncount,l+1))
     end do
-    
+
     call monscatter (ngrid, ncount, index, zflux, FsrfVis)
     do l = 1, nlayer
        call monscatter (ngrid, ncount, index, zdTsw(:,l), dTsw(:,l))
     end do
   end subroutine sw
-  
-  pure subroutine mongather (ngrid, n, index, a, b) 
+
+  pure subroutine mongather (ngrid, n, index, a, b)
     ! Input:
     integer,                   intent(in)  :: ngrid, n
     integer, dimension(n),     intent(in)  :: index
@@ -134,7 +134,7 @@ contains
     end if
   end subroutine mongather
 
-  pure subroutine monscatter (ngrid, n, index, b, a) 
+  pure subroutine monscatter (ngrid, n, index, b, a)
     ! Input
     integer,                   intent(in)  :: ngrid, n
     integer, dimension(n),     intent(in)  :: index

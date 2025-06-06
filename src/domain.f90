@@ -212,7 +212,7 @@ contains
     call extend (self%node, num, ORIGIN)
 
     ! Atmosphere/ocean layers
-    do k = 1, zmax
+    do k = 1, zlevels
        ! Set reasonable default values for new boundary patches to avoid NaN if variable undefined in boundary
        if (compressible) then
           def_val = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
@@ -234,6 +234,21 @@ contains
        call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0.0_dp)
        call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0.0_dp)
     end do
+
+    ! Free surface
+    if (mode_split) then
+       do v = scalars(1), scalars(2)
+          if (split_mean_perturbation) then 
+             call extend (sol(v,k)%data(d),      num, 0.0_dp)     
+             call extend (sol_mean(v,k)%data(d), num, 0.0_dp) 
+          else
+             call extend (sol(v,k)%data(d),      num, 0.0_dp) 
+             call extend (sol_mean(v,k)%data(d), num, 0.0_dp)     
+          end if
+       end do
+       call extend (sol(S_VELO,k)%data(d),      EDGE * num, 0.0_dp)
+       call extend (sol_mean(S_VELO,k)%data(d), EDGE * num, 0.0_dp)
+    end if
 
     ! Soil layers
     do k = zmin, 0

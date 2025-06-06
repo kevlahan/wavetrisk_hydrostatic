@@ -146,7 +146,7 @@ contains
        vel(:,il) = zc(:,il) + zd(:,il) * vel(:,il-1)
     end do
   end subroutine velo_integration
-  
+
   subroutine Vdif_Cd (ngrid, mask, pZ0, pG, pZ, pUmag, pTheta, pTs, pCd_v, pCd_theta)
     ! Simplied formulation  from  J-F Louis (1979) (Boundary Layer Meteorology 17, 187-202)
 
@@ -166,10 +166,10 @@ contains
 
     integer         :: ig
     real            :: a, c1_theta, c1_u, F_theta, F_u, Ri, z1
-    
+
     real, parameter :: R = 0.74 ! (velocity drag) / (temperature drag) empirical relation
 
-    ! Parameters fitted to implicit relationship between Monin-Obukhov scale height L and 
+    ! Parameters fitted to implicit relationship between Monin-Obukhov scale height L and
     ! layer bulk Richardson number
     real, parameter :: b = 4.7, C_u = 7.4, C_theta = 5.3
 
@@ -180,7 +180,7 @@ contains
 
        c1_u     = 2.0 * C_u     * a**2 * b * sqrt (z1)
        c1_theta = 2.0 * C_theta * a**2 * b * sqrt (z1)
-       
+
        Ri = pG * pZ(ig) * (pTheta(ig) - pTs(ig)) / (pTheta(ig) * (pUmag(ig)**2 + Emin_turb)) ! bulk Richardson number at surface
 
        if (Ri < 0.0) then ! unstable regime
@@ -192,7 +192,7 @@ contains
        end if
 
        ! Drag coefficients
-       pCd_v(ig)     = a**2 * pUmag(ig) * F_u   
+       pCd_v(ig)     = a**2 * pUmag(ig) * F_u
        pCd_theta(ig) = a**2 * pUmag(ig) * F_theta / R
     end do
   end subroutine Vdif_Cd

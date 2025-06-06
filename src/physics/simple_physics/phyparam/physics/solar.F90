@@ -25,7 +25,7 @@ contains
     !
     ! pMu0  (ngrid)   : cosine of solar zenith angle
     ! pFract(ngrid)   : day fraction of time interval
-    !        
+    !
     !
     !      Modifications
     !     --------------
@@ -41,19 +41,19 @@ contains
 
     integer :: ig
     real    :: zTim1, zTim2, zTim3
-  
+
     ! Computation of solar angle and day fraction
     do ig = 1, ngrid
        zTim1 = pSiLat(ig) * pTim1
        zTim2 = pCoLat(ig) * pTim2
        zTim3 = pCoLat(ig) * pTim3
-       
+
        pMu0(ig) = zTim1 + zTim2 * pCoLon(ig) + zTim3 * pSiLon(ig)  ! cosine of solar zenith angle
 
        if (pMu0(ig) >  0.0) then ! day
           pFract(ig) = 1.0
        else                      ! night
-          pMu0(ig)   = 0.0 
+          pMu0(ig)   = 0.0
           pFract(ig) = 0.0
        end if
     enddo
@@ -86,15 +86,15 @@ contains
     ! omega1, omega2 : temps 1 et 2 exprime en radian avec 0 a midi.
     ! omega : heure en radian du coucher de soleil
     ! -omega est donc l heure en radian de lever du soleil
-    
+
     integer               :: i, klon
     real                  :: gmTime, gmTime1, gmTime2, incl, longi, omega, omega1, omega2, omegadeb, omegafin, pdTrad
     real                  :: zfrac1, zfrac2, z1_mu, z2_mu
-    
+
     real                  :: lat_sun     ! declinaison en radian
     real                  :: latr        ! latitude du pt de grille en radian
     real                  :: lon_sun     ! longitude solaire en radian
-    
+
     real, dimension(klon) :: lat, long, pMu0, frac
 
     incl = obliquit * pi / 180.0
@@ -129,20 +129,20 @@ contains
           omega = pi
        endif
        if (latr < (pi/2.0 + lat_sun) .and. latr > (-pi/2.0 + lat_sun) .and. &
-           latr < (pi/2.0 - lat_sun) .and. latr > (-pi/2.0 - lat_sun)) then
+            latr < (pi/2.0 - lat_sun) .and. latr > (-pi/2.0 - lat_sun)) then
           omega = acos (- tan (latr) * tan (lat_sun))
        endif
 
        omega1 = gmTime1 + long(i) * 86400.0 / 360.0
        omega1 = omega1 / 86400.0 * 2.0*pi
        omega1 = mod (omega1 + 2.0*pi, 2.0*pi)
-       
+
        omega1 = omega1 - pi
 
        omega2 = gmTime2 + long(i) * 86400.0 / 360.0
        omega2 = omega2 / 86400.0 * 2.0*pi
        omega2 = mod (omega2 + 2.0*pi, 2.0*pi)
-       
+
        omega2 = omega2 - pi
 
        ! On est dans la meme journee locale
@@ -153,7 +153,7 @@ contains
           else !--jour + nuit/jour
              omegadeb = max (-omega, omega1)
              omegafin = min ( omega, omega2)
-             
+
              frac(i) = (omegafin - omegadeb) / (omega2 - omega1)
              pMu0(i) = sin (latr) * sin (lat_sun) + cos (latr) * cos (lat_sun) * &
                   (sin (omegafin) - sin (omegadeb)) / (omegafin - omegadeb)
@@ -204,11 +204,11 @@ contains
     !      --------
     !         pMu   (ngrid)     equivalent cosine of solar angle
     !         pFract(ngrid)     fractional day
-    
+
     integer,               intent(in) :: ngrid
     real,                  intent(in) :: pHaut, pRad, pDeclin
     real, dimension(ngrid), intent(in) :: pLat
-    
+
     real, dimension(ngrid), intent(out):: pMu, pFract
 
     integer :: ig
@@ -222,10 +222,10 @@ contains
        Phi = plat(ig)
        cPhi = cos (Phi)
        if (cPhi <= 1e-9) cPhi = 1e-9
-       
+
        sPhi = sin (Phi)
        tPhi = sPhi / cPhi
-       
+
        b  =   cPhi * cz
        t  = - tPhi * sZ / cz
        a  = 1.0 - t**2
@@ -245,19 +245,19 @@ contains
 
        pMu(ig)    = (sPhi * sZ * t) / pi + b * sin (t) / pi
        pFract(ig) = t / pi
-       
+
        if (ap < 0.0) then
           pMu(ig)    = sPhi * sZ
           pfract(ig) = 1.0
        end if
-       
+
        if (pMu(ig) <= 0.0) pMu(ig) = 0.0
 
        pMu(ig) = pMu(ig) / pFract(ig)
        if (pMu(ig) == 0.0) pFract(ig) = 0.0
-       
+
        ! Correction de rotondite
-       pMu(ig) = sqrt (1224.0 * pMu(ig)**2 + 1.0) / 35.0  
+       pMu(ig) = sqrt (1224.0 * pMu(ig)**2 + 1.0) / 35.0
     end do
   end subroutine MuCorr
 end module solar

@@ -179,7 +179,7 @@ contains
     p_s = dom%surf_press%elts(id+1)
 
     ! Pressure at level zlev
-    p = 0.5 * (a_vert(zlev)+a_vert(zlev+1) + (b_vert(zlev)+b_vert(zlev+1))*p_s)
+    p = 0.5 * (a_vert(zlev-1)+a_vert(zlev) + (b_vert(zlev-1)+b_vert(zlev))*p_s)
 
     ! Mass/Area = rho*dz at level zlev
     sol(S_MASS,zlev)%data(d)%elts(id+1) = a_vert_mass(zlev) + b_vert_mass(zlev)*p_s/grav_accel
@@ -276,13 +276,13 @@ contains
     integer :: k
 
     ! Allocate vertical grid parameters
-    allocate (a_vert(1:zlevels+1), b_vert(1:zlevels+1))
+    allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (uniform) then
-       do k = 1, zlevels+1
-          a_vert(k) = dble(k-1)/dble(zlevels) * p_top
-          b_vert(k) = 1.0_8 - dble(k-1)/dble(zlevels)
+       do k = 0, zlevels
+          a_vert(k) = dble(k)/dble(zlevels) * p_top
+          b_vert(k) = 1.0_8 - dble(k)/dble(zlevels)
        end do
     else
        if (zlevels==18) then
@@ -337,16 +337,16 @@ contains
        end if
 
        ! DCMIP order is opposite to ours
-       a_vert = a_vert(zlevels+1:1:-1) * p_0
-       b_vert = b_vert(zlevels+1:1:-1)
+       a_vert = a_vert(zlevels:0:-1) * p_0
+       b_vert = b_vert(zlevels:0:-1)
     end if
 
     ! Set pressure at infinity
-    p_top = a_vert(zlevels+1) ! note that b_vert at top level is 0, a_vert is small but non-zero
+    p_top = a_vert(zlevels) ! note that b_vert at top level is 0, a_vert is small but non-zero
 
     ! Set mass coefficients
-    a_vert_mass = (a_vert(1:zlevels) - a_vert(2:zlevels+1)) / grav_accel
-    b_vert_mass =  b_vert(1:zlevels) - b_vert(2:zlevels+1)
+    a_vert_mass = (a_vert(0:zlevels-1) - a_vert(1:zlevels)) / grav_accel
+    b_vert_mass =  b_vert(0:zlevels-1) - b_vert(1:zlevels)
   end subroutine initialize_a_b_vert_case
 
   subroutine read_test_case_parameters
