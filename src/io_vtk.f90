@@ -229,13 +229,13 @@ contains
       end if
 
       ! Single layer data
-      outv(1) = nint (active_level%data(d)%elts(id+1))                                          ! level
+      outv(1) = nint (active_level%data(d)%elts(id+1))                                                  ! level
       outv(2) = hex2tri2 (real(topography%data(d)%elts(neigh_id),kind=sp),      hex_area, tri_area, t)  ! topography
-      outv(3) = hex2tri2 (real(penal_node(1)%data(d)%elts(neigh_id)),   hex_area, tri_area, t)  ! penalization mask
+      outv(3) = hex2tri2 (real(penal_node(1)%data(d)%elts(neigh_id)),           hex_area, tri_area, t)  ! penalization mask
       if (compressible) then
          outv(4) = Ps       
       else                                                                                 
-         if (mode_split) then                                                                   ! free surface perturbation
+         if (mode_split) then                                                                           ! free surface perturbation
             outv(4) = hex2tri2 (real(sol(S_MASS,zlevels+1)%data(d)%elts(neigh_id),kind=sp), hex_area, tri_area, t) 
          else
             outv(4) = hex2tri2 (real(sol(S_MASS,1)%data(d)%elts(neigh_id),kind=sp),         hex_area, tri_area, t) 
@@ -245,7 +245,7 @@ contains
       outv(6)  = hex2tri2 (real(grid(d)%u_zonal%elts(neigh_id),kind=sp),         hex_area, tri_area, t) ! zonal velocity
       outv(7)  = hex2tri2 (real(grid(d)%v_merid%elts(neigh_id),kind=sp),         hex_area, tri_area, t) ! meridional velocity
       outv(8)  = hex2tri2 (real(vel_vert(zlev)%data(d)%elts(neigh_id),kind=sp),  hex_area, tri_area, t) ! vertical velocity OMEGA 
-      outv(9)  = rel_vort(t)                                                                    ! vorticity
+      outv(9)  = rel_vort(t)                                                                            ! vorticity
       outv(10) = hex2tri2 (real(dom%geopot%elts(neigh_id) / grav_accel,kind=sp), hex_area, tri_area, t) ! geopotential height
       outv(11) = hex2tri2 (real(dom%press%elts(neigh_id) / Ps,kind=sp),          hex_area, tri_area, t) ! P/Ps
       outv(12) = hex2tri2 (real(rho_dz/ ref_density,kind=sp),                    hex_area, tri_area, t) ! dz
@@ -463,7 +463,7 @@ contains
     end do
   end subroutine baroclinic_velocity
 
-  subroutine OMEGA_velocity
+  subroutine omega_velocity
     ! Computes vertical velocity in pressure coordinates D_t P = OMEGA [Pa/s]
     ! stored in vel_vert
     ! note that OMEGA > 0 corresponds to negative vertical velocity (w < 0)
@@ -535,7 +535,7 @@ contains
 
           trend(S_MASS,k)%bdry_uptodate = .false.
           call update_bdry (trend(S_MASS,k), l, 915)
-          call update_bdry (vel_vert(k), l, 916)
+          call update_bdry (vel_vert(k),     l, 916)
        end do
     end do
 
@@ -575,7 +575,7 @@ contains
 
     ! Complete computation of OMEGA
     do k = 1, zlevels
-       vel_vert(k)%data(d)%elts(id_i) = - grav_accel * interp (div_mass(k), div_mass(k+1)) + u_gradP(k) 
+       vel_vert(k)%data(d)%elts(id_i) = - grav_accel * interp (div_mass(k-1), div_mass(k)) + u_gradP(k) 
     end do
   end subroutine cal_omega
 

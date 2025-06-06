@@ -103,6 +103,7 @@ contains
        id = idx (ij(1), ij(2), offs, dims) 
        if (l == 1) then
           read (fid,*) node
+          call zrotate (node, node, -0.5_dp) ! rotate around pole (for backwards compatibility)
           if (owner(d_glo+1) == rank) grid(d_loc+1)%node%elts(id+1) = project_on_sphere (node)
        else
           call coord_from_file (d_glo, l-1, fid, offs, dims, ij)

@@ -12,6 +12,7 @@ Module test_case_mod
   real(8) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
 
   ! Local variables
+  real(8)                              :: C_Drake = 1e-3_dp
   integer                              :: bathy_per_deg, etopo_res
   real(4), allocatable, dimension(:,:) :: etopo_data
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
@@ -594,7 +595,7 @@ contains
     ! Time step parameters
     dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc) ! initial time step (0.85 factor corrects for minimum dx)
 
-    C_visc(S_ROTU,:) = 1d-3                                 ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
+    C_visc(S_ROTU,:) = C_Drake                              ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
     C_visc(S_DIVU,:) = 4d0**Laplace_divu * C_visc(S_ROTU,:) ! dimensionless viscosity for divu         < 2.8e-2
     C_visc(S_MASS,:) = 4d0**Laplace_sclr * C_visc(S_ROTU,:) ! dimensionless viscosity of S_MASS        < 2.8e-2
     C_visc(S_TEMP,:) = 4d0**Laplace_sclr * C_visc(S_ROTU,:) ! dimensionless viscosity of S_MASS        < 2.8e-2
