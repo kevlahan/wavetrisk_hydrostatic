@@ -15,14 +15,12 @@ program Drake
   ! Read test case parameters
   call read_test_case_parameters
 
-  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  
   default_thresholds      = .false.
-  scale_aware             = .false.                        ! scale aware diffusion
-  mode_split              = .true.                         ! split barotropic mode if true
+  scale_aware             = .true.                    
+  mode_split              = .true.                     
   split_mean_perturbation = .true.
   adapt_dt                = .true.
   nstep_init              = 10
@@ -41,7 +39,6 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Earth parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  
   radius_earth   = 6371.229d0 * KM                         ! radius of Earth
   omega_earth    = 7.29211d-5 * RAD/SECOND                 ! rotation rate of Earth
   H_earth        =        4d0 * KM                         ! mean ocean depth of Earth
@@ -125,8 +122,10 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Characteristic scales
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+  Area_min       = hex_area_avg (max_level)
+  dx_min         = dx_avg (max_level)
   wave_speed     = sqrt (grav_accel * abs(max_depth))                 ! inertia-gravity wave speed
+  dt_init        = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc)   ! average time step
   visc           = C_Drake * Area_min**Laplace_rotu / dt_init         ! viscosity
   Rd             = wave_speed / f0                                    ! barotropic Rossby radius of deformation             
   drho_dz        = drho / (mixed_layer-thermocline)                   ! density gradient
@@ -136,7 +135,7 @@ program Drake
   delta_sm       = u_wbc / f0                                         ! barotropic submesoscale
   delta_S        = bottom_friction_case / (abs(max_depth) * beta)     ! Stommel layer scale
   Fr             = u_wbc / (bv*abs(max_depth))                        ! Froude number
-  Rey            = u_wbc * delta_sm**(2d0*Laplace_rotu-1d0) / visc    ! Reynolds number of western boundary current
+  Rey            = u_wbc * delta_sm**(2*Laplace_rotu-1d0) / visc      ! Reynolds number of western boundary current
   Ro             = u_wbc / (delta_M*f0)                               ! Rossby number (based on boundary current)
 
   ! Baroclinic wave speed

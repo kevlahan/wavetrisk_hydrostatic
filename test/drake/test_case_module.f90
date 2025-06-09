@@ -9,10 +9,11 @@ Module test_case_mod
   ! Standard variables
   integer :: CP_EVERY, resume_init
   real(8) :: Area_max, Area_min, dt_cfl, total_cpu_time
+  real(8) :: nu_sclr, nu_divu, nu_rotu, tau_sclr, tau_divu, tau_rotu
   real(8) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
 
   ! Local variables
-  real(8)                              :: C_Drake = 1e-3_dp
+  real(8)                              :: C_Drake = 1.5e-3_dp
   integer                              :: bathy_per_deg, etopo_res
   real(4), allocatable, dimension(:,:) :: etopo_data
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
@@ -544,12 +545,12 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer     :: k
-    real(8)     :: dz, b, rho_dz, z
+    real(dp)    :: dz, b, rho_dz, z
     type(Coord) :: x_i
 
-    x_i = Coord (0d0, 0d0, radius)
+    x_i = Coord (0.0_dp, 0.0_dp, radius)
 
-    threshold_def = 1d20
+    threshold_def = 1e16_dp
     
     do k = 1, zlevels
        dz     = b_vert_mass(k) * max_depth
@@ -564,21 +565,15 @@ contains
   end subroutine initialize_thresholds_case
 
   subroutine set_thresholds_case
-    ! Set thresholds dynamically (trend or sol must be known)
+    ! Set thresholds dynamically
     use lnorms_mod
     implicit none
-    integer            :: k
-    real(8), parameter :: min_val = 1d-1
 
     threshold = threshold_def
 
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
-       do k = 1, zlevels
-          if (tol * lnorm(S_MASS,k) > threshold(S_MASS,k) * min_val) threshold(S_MASS,k) = tol * lnorm(S_MASS,k)
-          if (tol * lnorm(S_TEMP,k) > threshold(S_TEMP,k) * min_val) threshold(S_TEMP,k) = tol * lnorm(S_TEMP,k)
-          if (tol * lnorm(S_VELO,k) > threshold(S_VELO,k) * min_val) threshold(S_VELO,k) = tol * lnorm(S_VELO,k)
-       end do
+       where (tol * lnorm > threshold) threshold = tol * lnorm
     end if
   end subroutine set_thresholds_case
 
@@ -592,13 +587,25 @@ contains
     dx_max   = dx_avg (min_level)
     dx_min   = dx_avg (max_level)
 
-    ! Time step parameters
     dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc) ! initial time step (0.85 factor corrects for minimum dx)
 
-    C_visc(S_ROTU,:) = C_Drake                              ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
-    C_visc(S_DIVU,:) = 4d0**Laplace_divu * C_visc(S_ROTU,:) ! dimensionless viscosity for divu         < 2.8e-2
-    C_visc(S_MASS,:) = 4d0**Laplace_sclr * C_visc(S_ROTU,:) ! dimensionless viscosity of S_MASS        < 2.8e-2
-    C_visc(S_TEMP,:) = 4d0**Laplace_sclr * C_visc(S_ROTU,:) ! dimensionless viscosity of S_MASS        < 2.8e-2
+    C_visc = C_Drake ! dimensionless viscosity of S_VELO (rotu) < 1.7e-3
+
+    ! Ensure stability
+    C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/6.0_dp  )**Laplace_sclr)
+    C_visc(S_TEMP,:) = min (C_visc(S_TEMP,:), (1/6.0_dp  )**Laplace_sclr)
+    C_visc(S_DIVU,:) = min (C_visc(S_DIVU,:), (1/6.0_dp  )**Laplace_divu)
+    C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/6.0_dp/4)**Laplace_rotu)
+
+    ! Viscosities
+    nu_sclr = C_visc(S_MASS,1) * Area_min**Laplace_sclr / dt_init
+    nu_divu = C_visc(S_DIVU,1) * Area_min**Laplace_divu / dt_init
+    nu_rotu = C_visc(S_ROTU,1) * Area_min**Laplace_rotu / dt_init
+
+    ! Diffusion times
+    if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS,1)
+    if (Laplace_divu /= 0) tau_divu = dt_init / C_visc(S_DIVU,1)
+    if (Laplace_rotu /= 0) tau_rotu = dt_init / C_visc(S_ROTU,1)
   end subroutine initialize_dt_viscosity_case
 
   real(8) function nu_scale (order, dom, id)
@@ -1032,6 +1039,7 @@ contains
        z_coords_case(k) = eta_surf * a_vert(k) + z_0
     end do
   end function z_coords_case
+  
 function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     ! Additional physics for the flux term of the scalar trend
     ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
