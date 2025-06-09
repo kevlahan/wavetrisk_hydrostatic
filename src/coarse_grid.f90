@@ -17,7 +17,7 @@ module coarse_grid_mod
   implicit none
   integer                                  :: ncell, next_fid
   integer,     dimension(2,4), parameter   :: HR_offs = reshape ( [0,0, 1,0, 1,1, 0,1], [2,4] ) 
-  real(dp)                                 :: dx, linf_err, l2_err
+  real(dp)                                 :: dx_coarse, linf_err, l2_err
   type(Coord), dimension(:,:), allocatable :: new_node 
 contains
   subroutine read_optim_grid  
@@ -29,7 +29,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(999)                 :: filename
 
-    dx = dx_avg (level_start-1) ! average edge lengths
+    dx_coarse = dx_avg (level_start-1) ! average edge lengths
 
     ! Initial error
     call grid_error
@@ -118,7 +118,7 @@ contains
 
     tol = 1e9_dp * eps () ! tolerance in [m], about 1.4 m on Earth or relative error of O(1e-7)
 
-    dx = dx_avg (level_end-1)
+    dx_coarse = dx_avg (level_end-1)
     
     ! Initial error
     call grid_error
@@ -356,8 +356,8 @@ contains
 
     l2_err   = 0.0_dp; linf_err = 0.0_dp
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
-    l2_err   = sqrt (sum_real (l2_err)) / (dx * 3 * number_hex (level_end-1))
-    linf_err = sync_max_real (linf_err) / dx
+    l2_err   = sqrt (sum_real (l2_err)) / (dx_coarse * 3 * number_hex (level_end-1))
+    linf_err = sync_max_real (linf_err) / dx_coarse
   end subroutine grid_error
 
   subroutine zrotate (c_in, c_out, angle)
