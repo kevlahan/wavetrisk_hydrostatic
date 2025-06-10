@@ -1254,8 +1254,7 @@ contains
           do d = 1, size(grid)
              val1 => q%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_zero_edge, grid(d), grid(d)%lev(l)%elts(j), z_null, &
-                     -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+                call apply_onescale_to_patch (cal_zero_edge, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
              end do
              nullify (val1)
           end do
@@ -1294,7 +1293,7 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    val1(id_edge (id)) = 0.0_dp
+    val1(id_edge(id)) = 0.0_dp
   end subroutine cal_zero_edge
 
   subroutine equals_float_field (q1, q2, itype, lmin_in, lmax_in)
@@ -1378,9 +1377,7 @@ contains
 
     id = idx (i, j, offs, dims) 
 
-    do e = 1, EDGE
-       val1(EDGE*id+e) = val2(EDGE*id+e)
-    end do
+    val1(id_edge(id)) = val2(id_edge(id))
   end subroutine cal_equals_edge
 
   subroutine smoothing_rbf (dx, npts, nsmth, data)
