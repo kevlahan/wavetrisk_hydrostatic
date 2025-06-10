@@ -83,7 +83,7 @@ contains
     integer :: l
 
     do l = level_start, level_end
-       call apply_onescale (routine, l, zlev, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+       call apply_onescale (routine, l, zlev, -BDRY_THICKNESS, BDRY_THICKNESS)
     end do
   end subroutine apply
 

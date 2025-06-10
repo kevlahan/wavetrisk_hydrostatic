@@ -22,6 +22,7 @@ module shared_mod
   integer, parameter :: N_ICOSAH_LOZENGE  = 10                           ! number of lozenges (coarse regular domains) in icosahedron
   
   integer, parameter :: BDRY_THICKNESS    =  2                           ! thickness of boundary overlaps between lozenges (ghost points or halo)
+                                                                         ! DO NOT CHANGE
                                                                          ! Note: boundary nodes cells are updated for neighbours
                                                                          ! -(BDRY_THICKNESS-1), BDRY_THICKNESS), NOT -(BDRY_THICKNESS, BDRY_THICKNESS)
   

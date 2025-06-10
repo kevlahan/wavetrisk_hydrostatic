@@ -44,7 +44,7 @@
      type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack, unpk
      type(Int_Array), dimension(:,:), allocatable             :: src_patch
      
-     ! Physical quantities (should evaluate on -(BDRY_THICKNESS-1), BDRY_THICKNESS since cannot use bdry_update)
+     ! Physical quantities
      type(Float_Array) :: coriolis    ! Coriolis force
      type(Float_Array) :: surf_press  ! surface pressure (compressible) or surface Lagrange multiplier (incompressible)
      type(Float_Array) :: press       ! pressure (compressible case) or Lagrange multiplier (incompressible case)
@@ -110,11 +110,11 @@ contains
     call init_patch_mod
     call init_arch_mod
 
-    sides_dims = reshape ((/PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
+    sides_dims = reshape ((/ PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
          BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, PATCH_SIZE, &
          BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, BDRY_THICKNESS, &
          BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS, &
-         BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS/), (/2, 9/))
+         BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS /), (/2, 9/))
 
     chd_offs = reshape ((/PATCH_SIZE/2, PATCH_SIZE/2, PATCH_SIZE/2, 0, 0, 0, 0, PATCH_SIZE/2/), (/2, 4/))
 

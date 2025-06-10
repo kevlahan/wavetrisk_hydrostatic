@@ -433,18 +433,18 @@ contains
     implicit none
     integer :: d, k, v
 
-    call apply_onescale2 (ccentre, min_level-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_onescale2 (ccentre, min_level-1, z_null, -2, 1)
 
     do d = 1, size(grid)
        call ccentre_penta (grid(d), 1)
     end do
 
-    call apply_onescale2 (midpt,      min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
-    call apply_onescale2 (cpt_areas,  min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
-    call apply_onescale2 (lengths,    min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale2 (midpt,      min_level-1, z_null, -1, 1)
+    call apply_onescale2 (cpt_areas,  min_level-1, z_null, -1, 2)
+    call apply_onescale2 (lengths,    min_level-1, z_null, -1, 2)
 
-    call apply_onescale (cpt_triarea, min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
-    call apply_onescale (coriolis,    min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale (cpt_triarea, min_level-1, z_null, -1, 1)
+    call apply_onescale (coriolis,    min_level-1, z_null, -1, 1)
     
     do d = 1, size(grid)
        call init (grid(d)%surf_press,     grid(d)%node%length)

@@ -184,26 +184,26 @@ contains
     d   = dom%id + 1
 
     call extend (dom%ccentre, TRIAG * num, ORIGIN)
-    call apply_onescale_to_patch2 (ccentre, dom, p_chd, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_onescale_to_patch2 (ccentre, dom, p_chd, z_null, -2, 1)
     
     call ccentre_penta (dom, p_chd)
     call extend (dom%midpt, EDGE*num, ORIGIN)
     
-    call apply_onescale_to_patch2 (midpt, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale_to_patch2 (midpt, dom, p_chd, z_null, -1, 1)
     
     call extend (dom%pedlen, EDGE*num, 0.0_dp)
     call extend (dom%len,    EDGE*num, 0.0_dp)
     
-    call apply_onescale_to_patch2 (lengths, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale_to_patch2 (lengths, dom, p_chd, z_null, -1, 2)
     
     call extend (dom%areas, num, Areas (0.0_dp, 0.0_dp))
-    call apply_onescale_to_patch2 (cpt_areas, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale_to_patch2 (cpt_areas, dom, p_chd, z_null, -1, 2)
     
     call extend (dom%triarea, EDGE*num, 1.0_dp)
-    call apply_onescale_to_patch (cpt_triarea, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale_to_patch (cpt_triarea, dom, p_chd, z_null, -1, 1)
     
     call extend (dom%coriolis, TRIAG*num, 0.0_dp)
-    call apply_onescale_to_patch (coriolis, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    call apply_onescale_to_patch (coriolis, dom, p_chd, z_null, -1, 1)
 
     ! Initialize domain variables to zero
     call extend (dom%surf_press,   num, 0.0_dp)
