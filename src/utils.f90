@@ -1244,8 +1244,7 @@ contains
           do d = 1, size(grid)
              val1 => q%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_zero_node, grid(d), grid(d)%lev(l)%elts(j), z_null, &
-                     -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+                call apply_onescale_to_patch (cal_zero_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify (val1)
           end do
@@ -1265,6 +1264,9 @@ contains
        if (rank == 0) write (6,'(a)') "Unsupported type for zero_float_field ... aborting"
        call abort
     end if
+
+    q%bdry_uptodate = .false.
+    call update_bdry1 (q, lmin, lmax, 909)
   end subroutine zero_float_field
 
   subroutine cal_zero_node (dom, i, j, zlev, offs, dims)
@@ -1326,8 +1328,7 @@ contains
              val1 => q1%data(d)%elts
              val2 => q2%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_equals_node, grid(d), grid(d)%lev(l)%elts(j), z_null, &
-                     -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+                call apply_onescale_to_patch (cal_equals_node, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
              end do
              nullify (val1, val2)
           end do
@@ -1338,8 +1339,7 @@ contains
              val1 => q1%data(d)%elts
              val2 => q2%data(d)%elts
              do j = 1, grid(d)%lev(l)%length
-                call apply_onescale_to_patch (cal_equals_edge, grid(d), grid(d)%lev(l)%elts(j), z_null, &
-                     -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+                call apply_onescale_to_patch (cal_equals_edge, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 0)
              end do
              nullify (val1, val2)
           end do
@@ -1348,6 +1348,9 @@ contains
        if (rank == 0) write (6,'(a)') "Unsupported type for zero_float_field ... aborting"
        call abort
     end if
+
+    q1%bdry_uptodate = .false.
+    call update_bdry1 (q1, lmin, lmax, 910)
   end subroutine equals_float_field
 
   subroutine cal_equals_node (dom, i, j, zlev, offs, dims)
