@@ -233,7 +233,8 @@ module shared_mod
   integer, dimension(:,:), allocatable           :: Nstats, Nstats_glo
 
   real(dp)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
-  real(dp)                                       :: dbin, dt, dt_init, dt_phys, dt_write, dx_min, dx_max, time_end, time
+  real(dp)                                       :: Area_max, Area_min, dx_min, dx_max
+  real(dp)                                       :: dbin, dt, dt_init, dt_phys, dt_write,time_end, time
   real(dp)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax
   real(dp)                                       :: ref_density, ref_density_air, ref_density_water
   real(dp)                                       :: mass_error, max_depth, min_depth, min_mass, min_mass_remap

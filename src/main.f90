@@ -21,19 +21,6 @@ module main_mod
   real(dp)                                       :: dt_new, initial_total_mass, time_mult
   type(Initial_State), dimension(:), allocatable :: ini_st
 contains
-  subroutine init_basic
-    implicit none
-    call init_comm_mod
-    call init_init_mod
-    call init_refine_patch_mod
-    call init_time_integr_mod
-    call init_io_mod
-    call init_wavelet_mod
-    call init_mask_mod
-    call init_adapt_mod
-    time_mult = 1.0_dp
-  end subroutine init_basic
-
   subroutine initialize (run_id)
     ! Initialize from checkpoint or adapt to initialize conditions
     ! Solution is saved and restarted to balance load
@@ -84,16 +71,10 @@ contains
 
     if (resume >= 0) then
        cp_idx = resume
-       call restart (run_id)
+       call restart
        resume = NONE
     else
-       call initialize_a_b_vert ! initialize vertical grid
-
-       ! Initialize basic structures
        call init_basic
-       call init_structures (run_id)
-
-       call initialize_dt_viscosity ! initialize time step and viscosities
 
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
@@ -231,60 +212,69 @@ contains
     end if
   end subroutine set_time_integrator
 
-  subroutine restart (run_id)
-    ! Fresh restart from checkpoint data (all structures reset)
+   subroutine write_checkpoint (run_id, rebal)
     implicit none
     character(*) :: run_id
+    logical      :: rebal
 
-    integer         :: l
+    cp_idx = cp_idx + 1 
+
+    if (rank == 0) then
+       write (6,'(/,a,/)') &
+            '************************************************************************&
+            **********************************************************'
+       write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time/DAY
+    end if
+    
+#ifdef AMPI
+    if (rank == 0) write (6,'(a)') "Checkpointing using AMPI ..."
+    call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
+    call MPI_Barrier (MPI_COMM_WORLD, ierror)
+    call AMPI_Migrate (chkpt_info, ierror)
+    if (log_total_mass) call cal_total_mass (.true.) 
+#else
+    call write_load_conn (cp_idx)
+    call dump_adapt_mpi  (cp_idx)
+    
+    if (rebalance) call restart
+#endif
+  end subroutine write_checkpoint
+
+  subroutine restart 
+    ! Fresh restart from checkpoint data (all structures reset)
+    implicit none
     character(9999) :: archive, bash_cmd
 
+    if (resume == NONE) call deallocate_structures  ! deallocate all dynamic arrays and variables
+    
     if (rank == 0) then
        write (6,'(a,/)') &
             '********************************************************* Begin Restart &
             **********************************************************'
        write (6,'(a,i4,/)') 'Restarting from checkpoint ', cp_idx
     end if
-
-    ! Deallocate all dynamic arrays and variables
-    if (resume == NONE) call deallocate_structures
-
-    ! Initialize vertical grid
-    call initialize_a_b_vert
-
-    ! Initialize basic structures
-    call init_basic
-
-    ! Uncompress checkpoint data (needed for init_structures and load_adapt_mpi)
+    
+    ! Uncompress checkpoint data 
     if (rank == 0) then
        write (archive, '(a,i4.4,a)') trim(run_id)//'_checkpoint_' , cp_idx, '.tgz'
        write (6, '(a,a,/)') 'Loading file ', trim(archive)
        bash_cmd = 'bash -c "'//'gtar xzf '//trim(archive)//'"'
        call system (trim(bash_cmd))
     end if
-    call barrier ! make sure all archive files have been uncompressed
+    call barrier 
+    call init_basic
 
-    ! Rebalance adaptive grid and re-initialize structures
-    call init_structures (run_id)
-
-    ! Load checkpoint data
-    call load_adapt_mpi (cp_idx, run_id)
-
-    if (NCAR_topo) call load_topo
-
-    ! Initialize time step counters
-    itime = nint (time * time_mult, 8)
-    istep = 0
+    call load_adapt_mpi (cp_idx)  ! load checkpoint data
+    if (NCAR_topo) call load_topo ! load topography data
 
     ! Compute masks based on active wavelets in saved data
-    ! (do not re-calculate thresholds)
     call adapt (set_thresholds, .false.) 
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
 
     if (trim(test_case) /= "spherical_harmonics") then
-       call initialize_thresholds
        call initialize_dt_viscosity
+       call initialize_thresholds
        if (Laplace_sclr /= 0 .and. maxval (C_visc(S_MASS:S_TEMP,:)) > (1/6.0_dp)**Laplace_sclr) then
           if (rank == 0) then
              write (6,*) "Dimensional scalar viscosity too large ... aborting"
@@ -304,6 +294,7 @@ contains
        
        if (log_total_mass) call cal_total_mass (.true.)
 
+       itime = nint (time * time_mult, 8)
        dt_new = min (dt_init, cpt_dt ())
 
        if (rank == 0) then
@@ -326,34 +317,6 @@ contains
     call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierror)
 #endif
   end subroutine restart
-
-  subroutine write_checkpoint (run_id, rebal)
-    implicit none
-    character(*) :: run_id
-    logical      :: rebal
-
-    cp_idx = cp_idx + 1 
-
-    if (rank == 0) then
-       write (6,'(/,a,/)') &
-            '************************************************************************&
-            **********************************************************'
-       write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time/DAY
-    end if
-    
-#ifdef AMPI
-    if (rank == 0) write (6,'(a)') "Checkpointing using AMPI ..."
-    call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
-    call MPI_Barrier (MPI_COMM_WORLD, ierror)
-    call AMPI_Migrate (chkpt_info, ierror)
-    if (log_total_mass) call cal_total_mass (.true.) 
-#else
-    call write_load_conn (cp_idx, run_id)
-    call dump_adapt_mpi  (cp_idx, run_id)
-    
-    if (rebalance) call restart (run_id)
-#endif
-  end subroutine write_checkpoint
 
   subroutine time_step (align_time, aligned)
     use vert_diffusion_mod
@@ -387,7 +350,6 @@ contains
        dt = idt / time_mult
     end if
 
-    
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Dynamics time step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -396,7 +358,6 @@ contains
     else
        call dt_step (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
     end if
-
     
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Physics split step
@@ -417,15 +378,12 @@ contains
     end if
 #endif 
 
-
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Grid adaptation
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
-    
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol)
-
       
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Vertical remapping
@@ -439,7 +397,6 @@ contains
        iremap = iremap + 1
     end if
     if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
-    
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Update time and time step
@@ -465,16 +422,35 @@ contains
 #endif
   end subroutine time_step
 
-  subroutine init_structures (run_id)
-    ! Initialize dynamical arrays and structures
+  subroutine init_basic
     implicit none
-    character(*) :: run_id
+    call initialize_a_b_vert
+    call init_comm_mod
+    call init_init_mod
+    call init_refine_patch_mod
+    call init_time_integr_mod
+    call init_io_mod
+    call init_wavelet_mod
+    call init_mask_mod
+    call init_adapt_mod
+    call init_structures
 
     level_start = min_level
     level_end   = level_start
-    
-    ! Distribute and balance grid over processors (necessary for correct restart!)
-    call distribute_grid (cp_idx, run_id)
+    Area_max = hex_area_avg (min_level)
+    Area_min = hex_area_avg (max_level)
+    dx_max    = dx_avg (min_level)
+    dx_min    = dx_avg (max_level)
+    time_mult = 1.0_dp
+    istep     = 0
+  end subroutine init_basic
+
+  subroutine init_structures
+    ! Initialize dynamical arrays and structures
+    implicit none
+
+    ! Distribute and balance grid over processors 
+    call distribute_grid (cp_idx)
     
     call init_grid
     call init_comm_mpi

@@ -73,12 +73,11 @@ contains
     call comm_communication_mpi
   end subroutine init_comm_mpi
 
-  subroutine write_load_conn (id, run_id)
+  subroutine write_load_conn (id)
     ! Write out load distribution and connectivity for load balancing
     use mpi
     implicit none
-    integer      :: id
-    character(*) :: run_id
+    integer :: id
     
     integer                                           :: d, ii, r, sz
     integer, parameter                                :: fid = 599

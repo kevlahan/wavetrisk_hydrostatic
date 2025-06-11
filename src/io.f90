@@ -779,14 +779,13 @@ contains
     end do
   end subroutine write_u_wc
 
-  subroutine dump_adapt_mpi (id, run_id)
+  subroutine dump_adapt_mpi (id)
     ! Save data in check point files for restart
     ! One file per domain
     !
     ! NOTE: modifies adaptive grid structure by deleting any patches that do not contain cells in adjacent zone
     implicit none
-    integer      :: id
-    character(*) :: run_id
+    integer :: id
 
     integer                          :: c, d, ibeg, iend, info, j, k, l, p_chd, p_lev, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
@@ -958,12 +957,11 @@ contains
     end if
   end subroutine write_scalar
 
-  subroutine load_adapt_mpi (id, run_id)
+  subroutine load_adapt_mpi (id)
     ! Read data from check point files for restart
     ! One file per domain
     implicit none
-    integer      :: id
-    character(*) :: run_id
+    integer :: id
 
     integer                          :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr

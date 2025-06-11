@@ -74,11 +74,10 @@ contains
     close (funit)
   end subroutine write_level_mpi
 
-  subroutine write_load_conn (id, run_id)
+  subroutine write_load_conn (id)
     ! write out load distribution and connectivity for load balancing
     implicit none
-    integer        :: id
-    character(*)   :: run_id
+    integer :: id
     
     character(255) :: filename
     integer        :: d, fid, n_active_d

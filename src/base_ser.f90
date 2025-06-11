@@ -24,10 +24,9 @@ contains
     initialized = .true.
   end subroutine init_arch_mod
 
-  subroutine distribute_grid (cp_idx, run_id)
+  subroutine distribute_grid (cp_idx)
     implicit none
-    integer      :: cp_idx
-    character(*) :: run_id
+    integer :: cp_idx
 
     integer :: p, d
 

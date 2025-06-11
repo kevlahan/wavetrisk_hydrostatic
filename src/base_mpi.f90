@@ -7,12 +7,11 @@ module arch_mod
   integer, dimension(N_GLO_DOMAIN)     :: loc_id, owner
   integer, dimension(:,:), allocatable :: glo_id
 contains
-  subroutine distribute_grid (cp_idx, run_id)
+  subroutine distribute_grid (cp_idx)
     ! Uses simple next-fit algorithm to allocate each domain to a processor (does not use adjacency information)
     ! Attempts to balance the total load using load data for each domain from checkpoint
     implicit none
-    integer        :: cp_idx
-    character(255) :: run_id
+    integer :: cp_idx
 
     integer                                       :: d, r, n_domain_floor
     integer, dimension(N_GLO_DOMAIN)              :: wgt_d
