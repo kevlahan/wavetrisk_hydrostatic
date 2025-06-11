@@ -13,7 +13,7 @@ module test_case_mod
   real(dp) :: time_start, total_cpu_time
 
   ! Test case variables
-  real(dp) :: Area_max, Area_min, C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
+  real(dp) :: C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
   real(dp) :: topo_Area_min, topo_dx_min
   real(dp) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
 
@@ -681,13 +681,6 @@ contains
     implicit none
     integer  :: k
     
-    ! Average hexagon areas and associated horizontal resolutions
-    Area_min = hex_area_avg (max_level)
-    Area_max = hex_area_avg (min_level)
-
-    dx_min   = dx_avg (max_level)
-    dx_max   = dx_avg (min_level)
-
     dt_init  = dt_CAM * (dx_min / dx_CAM)
 
     ! Non-dimensional viscosity (1.34 factor accounts for difference in computing nu from C_visc)

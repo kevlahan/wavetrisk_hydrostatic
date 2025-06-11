@@ -31,11 +31,6 @@ program make_NCAR_topo
   resume        = -1                          ! fresh start
   analytic_topo = .false.                     ! use analytic topography
 
-  Area_min  = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**max_level)
-  Area_max  = 4d0*MATH_PI * radius**2 / (10d0 * 4d0**min_level)
-  dx_min    = sqrt (2d0 / sqrt(3d0) * Area_min)              
-  dx_max    = sqrt (2d0 / sqrt(3d0) * Area_max)
-
   ! Initialize functions
   call assign_functions
 

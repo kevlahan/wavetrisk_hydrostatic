@@ -11,39 +11,36 @@ program Drake
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
-
-  ! Read test case parameters
   call read_test_case_parameters
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  default_thresholds      = .false.
+  default_thresholds      = .true.
   scale_aware             = .true.                    
   mode_split              = .true.                     
   split_mean_perturbation = .true.
-  adapt_dt                = .true.
+  adapt_dt                = .false.
   nstep_init              = 10
   if (mode_split) then
-     cfl_num              = 30d0
+     cfl_num              = 30.0_dp
      timeint_type         = "RK3"                         
   else
      cfl_num              = 0.3d0                             
      timeint_type         = "RK45"                         
   end if
-  match_time              = .true.                         ! avoid very small time steps when saving 
-  compressible            = .false.                        ! always run with incompressible equations
-  log_min_mass            = .false.                        ! compute and print minimum relative mass
-
+  match_time              = .true.                 
+  compressible            = .false.                
+  log_min_mass            = .false.                
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Earth parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  radius_earth   = 6371.229d0 * KM                         ! radius of Earth
-  omega_earth    = 7.29211d-5 * RAD/SECOND                 ! rotation rate of Earth
-  H_earth        =        4d0 * KM                         ! mean ocean depth of Earth
-  g_earth        =  9.80616d0 * METRE/SECOND**2            ! gravitational acceleration 
-  ref_density    =     1030d0 * KG/METRE**3                ! reference density at depth (seawater)
+  radius_earth   = 6371.229d0 * KM                      
+  omega_earth    = 7.29211d-5 * RAD/SECOND              
+  H_earth        =        4d0 * KM                     
+  g_earth        =  9.80616d0 * METRE/SECOND**2        
+  ref_density    =     1030d0 * KG/METRE**3            
 
   ! Earth scaling factors
   L_norm         = radius_earth
@@ -65,12 +62,6 @@ program Drake
 
   f0             = 2d0*omega*sin(40d0*DEG)                 ! representative Coriolis parameter
   beta           = 2d0*omega*cos(40d0*DEG) / radius        ! beta parameter at 45 degrees latitude
-
-  ! Free surface perturbation parameters
-  dH             =   0d0 * METRE / H_norm                  ! initial perturbation to the free surface
-  pert_radius    =   1d3 * KM    / L_norm                  ! radius of Gaussian free surface perturbation
-  lon_c          = -50d0 * DEG                             ! longitude location of perturbation
-  lat_c          =  25d0 * DEG                             ! latitude  location of perturbation
 
   min_depth      = -50d0 * METRE / H_norm                  ! minimum allowed depth (must be negative)
   
@@ -118,7 +109,6 @@ program Drake
      Kv_max               = 5e-3
   end if
 
-  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Characteristic scales
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -161,7 +151,7 @@ program Drake
   ! Dimensional scaling
   Ldim           = delta_I             ! length scale 
   Hdim           = abs (max_depth)     ! vertical length scale
-  Tdim           = Ldim/Udim           ! time scale
+  Tdim           = Ldim / Udim         ! time scale
   
   Mudim          = ref_density * dz    ! rho_dz scale
   Thetadim       =        drho * dz    ! buoyancy scale
@@ -170,11 +160,9 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Initialization
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
   if (etopo_bathy .or. etopo_coast) call read_etopo_data
   call assign_functions
   call initialize (run_id)
-
   call print_test_case_parameters
   call write_and_export (iwrite) ! save initial conditions
   
@@ -183,7 +171,6 @@ program Drake
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
   total_cpu_time = 0d0
   do while (time < time_end)
      call start_timing
@@ -195,13 +182,8 @@ program Drake
 
      if (aligned) then
         iwrite = iwrite + 1
-        if (remap) call remap_vertical_coordinates
-
-        ! Save checkpoint (and rebalance)
         if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
-
-        ! Save fields
-        call write_and_export (iwrite)
+        call write_and_export (iwrite) ! save fields
      end if
   end do
 

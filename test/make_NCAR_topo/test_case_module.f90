@@ -7,7 +7,7 @@ module test_case_mod
   use io_mod
   implicit none
   integer         :: nsmth_Laplace
-  real(8)         :: Area_max, Area_min, dt_nu, smth_scl
+  real(8)         :: dt_nu, smth_scl
   character(2)    :: restrict_type
   character(9999) :: topo_data
   logical         :: analytic_topo = .false.
