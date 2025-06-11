@@ -23,10 +23,10 @@ program Drake
   adapt_dt                = .false.
   nstep_init              = 10
   if (mode_split) then
-     cfl_num              = 30.0_dp
+     cfl_num              = 20.0_dp
      timeint_type         = "RK3"                         
   else
-     cfl_num              = 0.3d0                             
+     cfl_num              = 0.3_dp                             
      timeint_type         = "RK45"                         
   end if
   match_time              = .true.                 
@@ -36,11 +36,11 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Earth parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  radius_earth   = 6371.229d0 * KM                      
-  omega_earth    = 7.29211d-5 * RAD/SECOND              
-  H_earth        =        4d0 * KM                     
-  g_earth        =  9.80616d0 * METRE/SECOND**2        
-  ref_density    =     1030d0 * KG/METRE**3            
+  radius_earth   =   6371.229 * KM                      
+  omega_earth    = 7.29211e-5 * RAD/SECOND              
+  H_earth        =          4 * KM                     
+  g_earth        =    9.80616 * METRE/SECOND**2        
+  ref_density    =       1030 * KG/METRE**3            
 
   ! Earth scaling factors
   L_norm         = radius_earth
@@ -60,13 +60,13 @@ program Drake
      grav_accel  = g_earth
   end if
 
-  f0             = 2d0*omega*sin(40d0*DEG)                 ! representative Coriolis parameter
-  beta           = 2d0*omega*cos(40d0*DEG) / radius        ! beta parameter at 45 degrees latitude
+  f0             = 2*omega * sin (40 * DEG)                ! representative Coriolis parameter
+  beta           = 2*omega * cos (40 * DEG) / radius       ! beta parameter at 45 degrees latitude
 
-  min_depth      = -50d0 * METRE / H_norm                  ! minimum allowed depth (must be negative)
+  min_depth      = -50 * METRE / H_norm                    ! minimum allowed depth (must be negative)
   
   ! Topography (etopo smoothing not yet implemented)
-  alpha          = 1d-1
+  alpha          = 1e-1_dp
   penalize       = .true.                                  ! penalize land regions
   etopo_bathy    = .false.                                 ! etopo data for bathymetry
   etopo_coast    = .false.                                 ! etopo data for coastlines (i.e. penalization)
@@ -80,33 +80,33 @@ program Drake
      coords               = "uniform"
      mixed_layer          = max_depth                      ! location of top (less dense) layer in two layer case
      thermocline          = max_depth                      ! location of layer forced by surface wind stress
-     drho                 =       0d0 * KG/METRE**3        ! density perturbation at free surface
-     tau_0                =     0.4d0 * NEWTON/METRE**2    ! maximum wind stress
-     u_wbc                =       1d0 * METRE/SECOND       ! estimated western boundary current speed
+     drho                 =       0 * KG/METRE**3          ! density perturbation at free surface
+     tau_0                =     0.4 * NEWTON/METRE**2      ! maximum wind stress
+     u_wbc                =       1 * METRE/SECOND         ! estimated western boundary current speed
      
      bottom_friction_case =    rb_0                        ! constant bottom friction
-     k_T                  =     0d0                        ! relaxation to mean buoyancy profile
+     k_T                  =     0.0_dp                     ! relaxation to mean buoyancy profile
   elseif (zlevels >= 2) then
      coords               = "uniform"
      sigma_z              = .true.                         ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-     max_depth            =   -4000d0 * METRE              ! total depth
-     thermocline          =   -4000d0 * METRE              ! linear stratification region between thermocline and mixed_layer
-     mixed_layer          =    -200d0 * METRE              ! constant density at depth < mixed_layer
+     max_depth            =   -4000 * METRE                ! total depth
+     thermocline          =   -4000 * METRE                ! linear stratification region between thermocline and mixed_layer
+     mixed_layer          =    -200 * METRE                ! constant density at depth < mixed_layer
 
      remap                = .true.
-     min_mass_remap       = 0.7d0
+     min_mass_remap       = 0.7_dp
 
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
      vert_diffuse         = .true.
      tke_closure          = .false.
 
-     drho                 =      -4d0 * KG/METRE**3        ! density perturbation at free surface at poles
-     tau_0                =     0.1d0 * NEWTON/METRE**2    ! maximum wind stress
-     u_wbc                =       1d0 * METRE/SECOND       ! estimated Western boundary current speed
-     k_T                  =       1d0 / (30d0 * DAY)       ! relaxation to mean buoyancy profile
+     drho                 =      -4 * KG/METRE**3          ! density perturbation at free surface at poles
+     tau_0                =     0.1 * NEWTON/METRE**2      ! maximum wind stress
+     u_wbc                =       1 * METRE/SECOND         ! estimated Western boundary current speed
+     k_T                  =       1 / (30 * DAY)           ! relaxation to mean buoyancy profile
 
-     Kt_max               = 5e-3
-     Kv_max               = 5e-3
+     Kt_max               = 5e-3_dp
+     Kv_max               = 5e-3_dp
   end if
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -115,7 +115,7 @@ program Drake
   Area_min       = hex_area_avg (max_level)
   dx_min         = dx_avg (max_level)
   wave_speed     = sqrt (grav_accel * abs(max_depth))                 ! inertia-gravity wave speed
-  dt_init        = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc)   ! average time step
+  dt_init        = cfl_num * 0.85 * dx_min / (wave_speed + u_wbc)     ! average time step
   visc           = C_Drake * Area_min**Laplace_rotu / dt_init         ! viscosity
   Rd             = wave_speed / f0                                    ! barotropic Rossby radius of deformation             
   drho_dz        = drho / (mixed_layer-thermocline)                   ! density gradient
@@ -125,7 +125,7 @@ program Drake
   delta_sm       = u_wbc / f0                                         ! barotropic submesoscale
   delta_S        = bottom_friction_case / (abs(max_depth) * beta)     ! Stommel layer scale
   Fr             = u_wbc / (bv*abs(max_depth))                        ! Froude number
-  Rey            = u_wbc * delta_sm**(2*Laplace_rotu-1d0) / visc      ! Reynolds number of western boundary current
+  Rey            = u_wbc * delta_sm**(2*Laplace_rotu-1) / visc        ! Reynolds number of western boundary current
   Ro             = u_wbc / (delta_M*f0)                               ! Rossby number (based on boundary current)
 
   ! Baroclinic wave speed
@@ -169,7 +169,7 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(a,/)') &
        '----------------------------------------------------- Start simulation run &
-       ------------------------------------------------------'
+       -------------------------------------------------------'
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   total_cpu_time = 0d0
   do while (time < time_end)
