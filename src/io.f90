@@ -4,7 +4,6 @@ module io_mod
   use adapt_mod
   use utils_mod
   implicit none
-  integer                              :: next_fid, nvar_out
   integer, dimension(:,:), allocatable :: topo_count
   real(dp)                             :: vmin, vmax
 contains
@@ -14,11 +13,9 @@ contains
 
     if (initialized) return ! initialize only once
     call init_domain_mod
-    next_fid = 100
-    nvar_out = 11
     initialized = .true.
   end subroutine init_io_mod
-
+  
   subroutine vort_extrema (dom, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom

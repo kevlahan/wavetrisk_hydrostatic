@@ -15,7 +15,8 @@ module coarse_grid_mod
   use init_mod
   use comm_mpi_mod
   implicit none
-  integer                                  :: ncell, next_fid
+  integer                                  :: ncell
+  integer                                  :: next_fid = 100
   integer,     dimension(2,4), parameter   :: HR_offs = reshape ( [0,0, 1,0, 1,1, 0,1], [2,4] ) 
   real(dp)                                 :: dx_coarse, linf_err, l2_err
   type(Coord), dimension(:,:), allocatable :: new_node 
@@ -36,7 +37,7 @@ contains
     if (rank == 0) then
        write (6,'(a)') '-------------------------------------------------------&
             ---------------------------------------------------------------------------'
-       write (6,'(a,2(es8.2,a))') 'Grid quality of non-optimized grid = ', linf_err, ' (linf) ', l2_err, ' (l2)'
+       write (6,'(a,2(es8.2,a))') 'Grid quality of non-optimized grid  = ', linf_err, ' (linf) ', l2_err, ' (l2)'
 
     end if
 

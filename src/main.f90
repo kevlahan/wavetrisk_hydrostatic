@@ -75,6 +75,7 @@ contains
        resume = NONE
     else
        call init_basic
+       call init_structures
 
        if (rank == 0) write (6,'(/,A,/)') &
             '----------------------------------------------------- Adapting initial grid &
@@ -246,29 +247,28 @@ contains
     character(9999) :: archive, bash_cmd
 
     if (resume == NONE) call deallocate_structures  ! deallocate all dynamic arrays and variables
+    call init_basic
     
     if (rank == 0) then
        write (6,'(a,/)') &
             '********************************************************* Begin Restart &
             **********************************************************'
        write (6,'(a,i4,/)') 'Restarting from checkpoint ', cp_idx
-    end if
-    
-    ! Uncompress checkpoint data 
-    if (rank == 0) then
+
+       ! Uncompress checkpoint data 
        write (archive, '(a,i4.4,a)') trim(run_id)//'_checkpoint_' , cp_idx, '.tgz'
        write (6, '(a,a,/)') 'Loading file ', trim(archive)
        bash_cmd = 'bash -c "'//'gtar xzf '//trim(archive)//'"'
        call system (trim(bash_cmd))
     end if
-    call barrier 
-    call init_basic
-
+    call barrier
+    
+    call init_structures          ! initialize coarsest grid and distribute load
     call load_adapt_mpi (cp_idx)  ! load checkpoint data
     if (NCAR_topo) call load_topo ! load topography data
 
     ! Compute masks based on active wavelets in saved data
-    call adapt (set_thresholds, .false.) 
+    call adapt (set_thresholds, .false.)  
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=level_start-1)
     if (vert_diffuse) call inverse_scalar_transform (wav_tke, tke, jmin_in=level_start-1)
 
@@ -428,17 +428,14 @@ contains
     call init_comm_mod
     call init_init_mod
     call init_refine_patch_mod
-    call init_time_integr_mod
+    call init_time_integr_mod 
     call init_io_mod
     call init_wavelet_mod
     call init_mask_mod
     call init_adapt_mod
-    call init_structures
 
-    level_start = min_level
-    level_end   = level_start
-    Area_max = hex_area_avg (min_level)
-    Area_min = hex_area_avg (max_level)
+    Area_max  = hex_area_avg (min_level)
+    Area_min  = hex_area_avg (max_level)
     dx_max    = dx_avg (min_level)
     dx_min    = dx_avg (max_level)
     time_mult = 1.0_dp
@@ -449,7 +446,10 @@ contains
     ! Initialize dynamical arrays and structures
     implicit none
 
-    ! Distribute and balance grid over processors 
+    level_start = min_level
+    level_end   = level_start
+
+    ! Distribute and balance grid over processors (necessary for correct restart!)
     call distribute_grid (cp_idx)
     
     call init_grid
