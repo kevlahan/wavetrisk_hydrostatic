@@ -13,18 +13,18 @@ end
 
 %% Analyze spectrum data
 clear; clc; 
-drake = false;
+drake = true;
 if drake
     zlevels   = 60;
 
     test_case = "drake";
     run_id    = "drakeJ8Z"+num2str(zlevels,'%2.2d');
     type      = "curlu";
-    avg       = false; cp_min=120; cp_max=120;
+    avg       = true; cp_min=120; cp_max=120;
     power     = true;     % plot power law fit
     
     if zlevels == 60 
-        layers = 1:60;
+        layers = [1 6 30 60];
     elseif zlevels == 12
         layers = 1:12;
     elseif zlevels == 6
@@ -47,7 +47,7 @@ end
 
 plot_spec   = true;     % plot spectrum
 plot_scales = true ;    % plot length scales
-col_spec    = "r-";     % colour for energy spectrum
+col_spec    = "b-";     % colour for energy spectrum
 col_power   = "r-";     % colour for power law
 
 % Set physical parameters
@@ -64,6 +64,7 @@ end
 
 fprintf("Layer    power law")
 pow_law = zeros(cp_max-cp_min+1,zlevels);
+ymin = 1e16; ymax = -1e16;
 for cp_id = cp_min:cp_max
     for zlev = layers
         % Load spectrum data
@@ -123,15 +124,16 @@ for cp_id = cp_min:cp_max
                 powerlaw (scales, 1.5*pspec(:,2), range, -P(1), col_power)
             end
         end
+        ymin = min (ymin, 10^(floor(log10(min(pspec(:,2))))));
+        ymax = max (ymax, 10^(ceil(log10(max(pspec(:,2))))));
     end
 end
 
 fprintf("\n")
+
 xmin = 10^(floor(log10(min(scales))));
 xmax = 10^(ceil(log10(max(scales))));
-ymin = 10^(floor(log10(min(pspec(:,2)))));
-ymax = 10^(ceil(log10(max(pspec(:,2)))));
-axis([xmin xmax ymin ymax]);
+axis([xmin xmax ymin ymax])
 
 if plot_scales
     if strcmp(test_case,"drake")
