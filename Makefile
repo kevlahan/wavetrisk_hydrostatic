@@ -3,7 +3,7 @@ TEST_CASE     = climate
 PARAM         = param_J5
 ARCH          = mpi
 OPTIM         = 2
-FLAGS_COMP    = -ffast-math -march=native -funroll-loops -flto
+FLAGS_COMP    = -ffast-math -march=native -funroll-loops
 COMPILER_TYPE = gnu
 MPIF90        = mpif90
 BIN_DIR       = bin
@@ -29,8 +29,7 @@ PREFIX     = .
 
 # AMPI options
 CHARM_DIR   = ~/charm
-CHARM_BUILD = ucx-linux-x86_64-openpmix-smp
-#CHARM_BUILD  = multicore-linux-x86_64 
+CHARM_BUILD = multicore-linux-x86_64
 AMPIF90     = $(CHARM_DIR)/$(CHARM_BUILD)/bin/mpif90.ampi
 
 # Link to test case module file	
@@ -106,8 +105,8 @@ else
   ARCH        = mpi
   F90         = $(AMPIF90)
   COMPILER    = $(AMPIF90)
-  FLAGS_COMP += -DAMPI -pieglobals
-  FLAGS_LINK += -DAMPI -pieglobals
+  FLAGS_COMP += -DAMPI -fPIC -shared 
+  FLAGS_LINK += -DAMPI 
 endif
 endif
 
