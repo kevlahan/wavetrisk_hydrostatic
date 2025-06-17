@@ -8,21 +8,21 @@ module lin_solve_mod
   logical :: test_elliptic = .false.  ! run elliptic test case
 
   ! Linear solver parameters
-  integer  :: coarse_iter    = 50      ! maximum number of coarse scale bicgstab iterations for elliptic solver
+  integer  :: coarse_iter   = 50       ! maximum number of coarse scale bicgstab iterations for elliptic solver
   real(dp) :: fine_tol      = 1e-3_dp  ! tolerance for fine scale jacobi iterations
   real(dp) :: coarse_tol    = 1e-3_dp  ! tolerance for coarse scale bicgstab elliptic solver
 
   ! FMG parameters
-  integer :: max_vcycle    = 3        ! maximum number of each V-cycle iterations
-  integer :: down_iter     = 2        ! down V-cycle smoothing iterations
-  integer :: up_iter       = 2        ! up V-cycle smoothing iterations
-  integer :: post_iter     = 4        ! post V-cycle smoothing iterations
-  integer :: pre_iter      = 2        ! pre V-cycle smoothing iterations
+  integer :: max_vcycle     = 3        ! maximum number of each V-cycle iterations
+  integer :: down_iter      = 2        ! down V-cycle smoothing iterations
+  integer :: up_iter        = 2        ! up V-cycle smoothing iterations
+  integer :: post_iter      = 4        ! post V-cycle smoothing iterations
+  integer :: pre_iter       = 2        ! pre V-cycle smoothing iterations
 
   ! SRJ parameters
-  integer :: max_srj_iter  = 200      ! maximum number of SRJ iterations
-  integer, parameter :: m  = 8        ! number of distinct relaxation parameters
-  real(dp) ::            k1 = 3e-2_dp ! empirically optimized, 0 < k1 <= k2
+  integer :: max_srj_iter   = 200      ! maximum number of SRJ iterations
+  integer, parameter ::  m  = 8        ! number of distinct relaxation parameters
+  real(dp) ::            k1 = 3e-2_dp  ! empirically optimized, 0 < k1 <= k2
   real(dp) ::            k2 = 1.8_dp
 
   real(dp)                        :: dot_product_loc, l2_loc
@@ -60,8 +60,8 @@ contains
        end function Lu_diag
     end interface
 
-    call update_bdry (f, l, 942)
-    if (log_iter) call update_bdry (u, l, 943)
+    call update_bdry (f, NONE, 942)
+    if (log_iter) call update_bdry (u, NONE, 943)
 
     res = u; call zero_float_field (res, AT_NODE)
     call zero_float_field (wav_coeff(S_MASS,1), AT_NODE)
@@ -107,7 +107,6 @@ contains
       real(dp) :: nrm_rhs
       type(Float_Field) :: corr
 
-
       ! Initialize
       corr = u
       do j = level_start, l
@@ -133,7 +132,7 @@ contains
          call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)                 ! smoother
       end do
 
-      call lc (u, 1.0_dp, u, 1.0_dp, corr, l)                                   ! V-cycle correction to solution
+      call lc (u, 1.0_dp, u, 1.0_dp, corr, l)                             ! V-cycle correction to solution
       call Jacobi (u, f, Lu, Lu_diag, l, post_iter)                       ! post-smooth to reduce zero eigenvalue error mode
       call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,2))                  ! normalized residual error
     end subroutine v_cycle
@@ -170,8 +169,8 @@ contains
        end function Lu_diag
     end interface
 
-    call update_bdry (f, l, 944)
-    if (log_iter) call update_bdry (u, l, 945)
+    call update_bdry (f, NONE, 944)
+    if (log_iter) call update_bdry (u, NONE, 945)
 
     call zero_float_field (wav_coeff(S_MASS,1), AT_NODE)
 
@@ -304,7 +303,7 @@ contains
     ! Performs a single weighted Jacobi iteration for equation Lu(u) = f
     implicit none
     integer,                   intent(in)    :: l
-    real(dp),           target, intent(in)    :: jac_wgt ! weight
+    real(dp),          target, intent(in)    :: jac_wgt ! weight
     type(Float_Field), target, intent(in)    :: f
     type(Float_Field), target, intent(inout) :: u
 
@@ -330,7 +329,7 @@ contains
     diag = Lu_diag (u, l); call update_bdry (diag, l, 948)
 
     do d = 1, size(grid)
-       mu1     =>  jac_wgt
+       mu1     => jac_wgt
        scalar  =>    u%data(d)%elts
        scalar1 =>    f%data(d)%elts
        scalar2 =>   Au%data(d)%elts
@@ -362,12 +361,12 @@ contains
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
     implicit none
-    integer,           intent(in)    :: l, iter_max
-    integer, optional, intent(out)   :: iter_out
+    integer,            intent(in)    :: l, iter_max
+    integer, optional,  intent(out)   :: iter_out
     real(dp),           intent(in)    :: nrm_f, tol_bicgstab
     real(dp), optional, intent(out)   :: err_out
-    type(Float_Field), intent(in)    :: f
-    type(Float_Field), intent(inout) :: u
+    type(Float_Field),  intent(in)    :: f
+    type(Float_Field),  intent(inout) :: u
 
     integer           :: iter
     real(dp)          :: alph, b, err, nrm_res0, omga, rho, rho_old
@@ -594,10 +593,10 @@ contains
   subroutine res_err (f, u, Lu, nrm_f, l, err)
     ! Normalized residual error ||f - Lu(u)||/||f|| at scale l
     implicit none
-    integer,           intent(in)    :: l
-    real(dp),          intent(in)    :: nrm_f
-    real(dp),          intent(out)   :: err
-    type(Float_Field), intent(in)    :: f, u
+    integer,           intent(in)  :: l
+    real(dp),          intent(in)  :: nrm_f
+    real(dp),          intent(out) :: err
+    type(Float_Field), intent(in)  :: f, u
     
     type(Float_Field) :: res
 
@@ -692,7 +691,7 @@ contains
 
     integer            :: id, id_i, idE, idNE, idN, idW, idSW, idS
     real(dp)           :: wgt
-    logical, parameter :: exact = .true.
+    logical, parameter :: exact = .false.
 
     id = idx (i, j, offs, dims)
     id_i = id + 1
@@ -724,7 +723,7 @@ contains
     type(Float_Field), target, intent(in) :: u
 
     integer                   :: d, j
-    real(dp)                   :: nrm_err, nrm_sol
+    real(dp)                  :: nrm_err, nrm_sol
     type(Float_Field), target :: err
 
     call update_bdry (u, l, 963)
