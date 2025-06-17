@@ -1,25 +1,25 @@
 module lin_solve_mod
-  ! Module providing two adaptive multi-grid linear equation solvers: FMG (full multi-grid) and SRJ (Scheduled Relaxation Jacobi)
+  ! Module providing two adaptive multi-grid linear equation solvers: Full Multigrid and Scheduled Relaxation Jacobi
   use comm_mpi_mod
   use wavelet_mod
   use shared_mod
   implicit none
 
-  logical :: test_elliptic = .false.  ! run elliptic test case
+  logical :: test_elliptic = .false.   ! run elliptic test case
 
   ! Linear solver parameters
   integer  :: coarse_iter   = 50       ! maximum number of coarse scale bicgstab iterations for elliptic solver
   real(dp) :: fine_tol      = 1e-3_dp  ! tolerance for fine scale jacobi iterations
   real(dp) :: coarse_tol    = 1e-3_dp  ! tolerance for coarse scale bicgstab elliptic solver
 
-  ! FMG parameters
+  ! Full multigrid parameters
   integer :: max_vcycle     = 3        ! maximum number of each V-cycle iterations
   integer :: down_iter      = 2        ! down V-cycle smoothing iterations
   integer :: up_iter        = 2        ! up V-cycle smoothing iterations
   integer :: post_iter      = 4        ! post V-cycle smoothing iterations
   integer :: pre_iter       = 2        ! pre V-cycle smoothing iterations
 
-  ! SRJ parameters
+  ! Scheduled Relaxation Jacobi parameters
   integer :: max_srj_iter   = 200      ! maximum number of SRJ iterations
   integer, parameter ::  m  = 8        ! number of distinct relaxation parameters
   real(dp) ::            k1 = 3e-2_dp  ! empirically optimized, 0 < k1 <= k2
@@ -30,8 +30,8 @@ module lin_solve_mod
   real(dp), pointer               :: mu1, mu2
   real(dp), dimension(:), pointer :: scalar1, scalar2, scalar3
 contains
-  subroutine FMG (u, f, Lu, Lu_diag)
-    ! Solves linear equation L(u) = f using the full multi-grid (FMG) algorithm with V-cycles
+  subroutine Full_Multigrid (u, f, Lu, Lu_diag)
+    ! Solves linear equation L(u) = f using the Full Multigrid algorithm with V-cycles
     implicit none
     type(Float_Field), intent(in)    :: f
     type(Float_Field), intent(inout) :: u
@@ -59,7 +59,7 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-
+    print*, "fmg"
     call update_bdry (f, NONE, 942)
     if (log_iter) call update_bdry (u, NONE, 943)
 
@@ -129,16 +129,16 @@ contains
       ! Up V-cycle
       do j = level_start+1, l
          call lc (corr, 1.0_dp, corr, 1.0_dp, prol_fun(corr,j), j)
-         call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)                 ! smoother
+         call Jacobi (corr, res, Lu, Lu_diag, j, up_iter)                ! smoother
       end do
 
-      call lc (u, 1.0_dp, u, 1.0_dp, corr, l)                             ! V-cycle correction to solution
-      call Jacobi (u, f, Lu, Lu_diag, l, post_iter)                       ! post-smooth to reduce zero eigenvalue error mode
-      call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,2))                  ! normalized residual error
+      call lc (u, 1.0_dp, u, 1.0_dp, corr, l)                            ! V-cycle correction to solution
+      call Jacobi (u, f, Lu, Lu_diag, l, post_iter)                      ! post-smooth to reduce zero eigenvalue error mode
+      call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,2))                 ! normalized residual error
     end subroutine v_cycle
-  end subroutine FMG
+  end subroutine Full_Multigrid
 
-  subroutine SRJ (u, f, Lu, Lu_diag)
+  subroutine Scheduled_Relaxation_Jacobi (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with scheduled relaxation Jacobi (SRJ) iterations 
     ! (Adsuara et al J Comput Phys v 332, 2017)
     ! parameters m, k1 and k2 were chosen empirically to give optimal convergence on fine non uniform grids
@@ -168,7 +168,7 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-
+    print*, 'hi_srj'
     call update_bdry (f, NONE, 944)
     if (log_iter) call update_bdry (u, NONE, 945)
 
@@ -227,7 +227,7 @@ contains
       end do
       u%bdry_uptodate = .false.
     end subroutine SRJ_iter
-  end subroutine SRJ
+  end subroutine Scheduled_Relaxation_Jacobi
 
   subroutine restrict (scaling, coarse)
     ! Wavelet restriction

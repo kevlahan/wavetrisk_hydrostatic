@@ -261,7 +261,7 @@ contains
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
-       write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
+       write (6,'(A,es11.4)') "porosity                       = ", porosity
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction_case / DAY
        write (6,'(A,es11.4)') "seamount latitude       [deg]  = ", lat_c / DEG
@@ -358,14 +358,14 @@ contains
     z_s = topography%data(d)%elts(id_i)
 
     if (zlev == zlevels+1) then ! 2D barotropic mode
-       phi = 1d0 + (alpha - 1d0) * penal_node(zlevels)%data(d)%elts(id_i)
+       phi = 1d0 + (porosity - 1d0) * penal_node(zlevels)%data(d)%elts(id_i)
 
        sol(S_MASS,zlev)%data(d)%elts(id_i) = phi * eta_surf ! free surface perturbation
        sol(S_TEMP,zlev)%data(d)%elts(id_i) = 0d0
     else ! 3D layers
        dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * z_s
 
-       porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
+       porous_density = ref_density * (1d0 + (porosity - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
 
        if (zlev == zlevels) then
           sol(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * eta_surf
@@ -403,7 +403,7 @@ contains
     else
        dz = a_vert_mass(zlev) * eta_surf + b_vert_mass(zlev) * z_s
 
-       porous_density = ref_density * (1d0 + (alpha - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
+       porous_density = ref_density * (1d0 + (porosity - 1d0) * penal_node(zlev)%data(d)%elts(id_i))
 
        sol_mean(S_MASS,zlev)%data(d)%elts(id_i) = porous_density * dz
        sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) * buoyancy_init (z_s, x_i, zlev)

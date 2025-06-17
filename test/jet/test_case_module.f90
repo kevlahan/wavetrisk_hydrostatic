@@ -304,7 +304,7 @@ contains
        write (6,'(A,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(A,es11.4)') "c1 wave speed           [m/s]  = ", c1
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
-       write (6,'(A,es11.4)') "alpha (porosity)               = ", alpha
+       write (6,'(A,es11.4)') "porosity                       = ", porosity
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1d0/bottom_friction_case / DAY
        write (6,'(A,es11.4)') "f0                    [rad/s]  = ", f0

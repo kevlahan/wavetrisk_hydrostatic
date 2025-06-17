@@ -279,7 +279,7 @@ contains
     implicit none
     integer :: d, id_i, zlev
 
-    phi_node = 1.0_dp + (alpha - 1.0_dp) * penal_node(zlev)%data(d)%elts(id_i)
+    phi_node = 1.0_dp + (porosity - 1.0_dp) * penal_node(zlev)%data(d)%elts(id_i)
   end function phi_node
 
   function phi_edge (d, id, zlev)
@@ -290,7 +290,7 @@ contains
 
     do e = 1, EDGE
        id_e = EDGE*id+e
-       phi_edge(e) = 1.0_dp + (alpha - 1.0_dp) * penal_edge(zlev)%data(d)%elts(id_e)
+       phi_edge(e) = 1.0_dp + (porosity - 1.0_dp) * penal_edge(zlev)%data(d)%elts(id_e)
     end do
   end function phi_edge
 

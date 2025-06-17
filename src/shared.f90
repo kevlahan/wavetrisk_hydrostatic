@@ -232,11 +232,11 @@ module shared_mod
   integer, dimension(:), allocatable             :: n_node_old, n_patch_old
   integer, dimension(:,:), allocatable           :: Nstats, Nstats_glo
 
-  real(dp)                                       :: alpha, a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
+  real(dp)                                       :: a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
   real(dp)                                       :: Area_max, Area_min, dx_min, dx_max
   real(dp)                                       :: dbin, dt, dt_init, dt_phys, dt_write,time_end, time
   real(dp)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax
-  real(dp)                                       :: ref_density, ref_density_air, ref_density_water
+  real(dp)                                       :: porosity, ref_density, ref_density_air, ref_density_water
   real(dp)                                       :: mass_error, max_depth, min_depth, min_mass, min_mass_remap
   real(dp)                                       :: theta1, theta2, visc_divu, visc_rotu
   real(dp)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
@@ -250,6 +250,7 @@ module shared_mod
   real(dp), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(dp), dimension (12,3)                     :: unique_pent_locs
 
+  character(3)                                   :: linear_solver = "FMG"
   character(255)                                 :: grid_type, run_id, test_case, timeint_type, topo_file
   character(255)                                 :: remap_type, remapscalar_type, remapvelo_type, physics_type
   character(1), parameter                        :: lf=char(10) ! line feed character
@@ -370,7 +371,7 @@ contains
     vert_diffuse            = .false.                             ! include vertical diffusion in ocean models (T)
 
     ! Default numerical method values
-    alpha                   = 1e-2_dp                             ! porosity
+    porosity                = 1e-1_dp                             ! porosity
     cfl_adv                 = 1.4_dp                              ! advective CFL number in mode split case
     cfl_bar                 = 1.0_dp                              ! baroclinic CFL number in mode split case
     cfl_num                 = 1.0_dp                              ! CFL number (barotropic CFL in mode split case)
@@ -440,9 +441,11 @@ contains
     T_ref               = 10        * CELSIUS                     ! reference temperature
     S_ref               = 35        * GRAM / KG                   ! reference salinity
 
-    ! Theta parameters for barotropic-baroclinic mode splitting
-    theta1              = 1.0_dp                                     ! external pressure gradient in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
-    theta2              = 1.0_dp                                     ! barotropic flow divergence in barotropic-baroclinic splitting (1 = fully implicit, 0.5 = Crank-Nicolson)
+    ! Theta parameters for barotropic-baroclinic mode splitting: 1 = fully implicit, 0.5 = Crank-Nicolson
+    ! (avoid theta = 0.5 due to free surface standing wave instability)
+    ! NEMO uses theta = 0.55 to ensure stability while avoiding over-damping  
+    theta1              = 0.55_dp                                     ! external pressure gradient
+    theta2              = 0.55_dp                                     ! barotropic flow divergence
 
     ! Physics model
     physics_type        = "Held_Suarez"                              ! physics model used if physics_model is T

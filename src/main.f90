@@ -34,7 +34,13 @@ contains
     if (physics_model .and. physics_type == "Simple") call init_soil_grid
 #endif
 
-    elliptic_solver => SRJ ! default elliptic solver (scheduled relaxation Jacobi method)
+    ! Linear solver
+    select case (linear_solver)
+    case ("FMG")
+       elliptic_solver => Full_Multigrid
+    case ("SRJ")
+       elliptic_solver => Scheduled_Relaxation_Jacobi
+    end select
     
     if (min_level == max_level .or. tol == 0.0_dp) then
        rebalance = .false. ! do not rebalance for non-adaptive grid

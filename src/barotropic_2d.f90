@@ -9,7 +9,7 @@ contains
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
     implicit none
-    real(dp)                                                      :: dt
+    real(dp)                                                     :: dt
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
 
     integer :: d, ibeg, iend, k, v
@@ -96,7 +96,7 @@ contains
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
     
-    rho_dz = mean_m(id) + mass(id)
+    rho_dz       = mean_m(id) + mass(id)
     rho_dz_theta = mean_t(id) + temp(id)
 
     ! Full buoyancy
@@ -185,7 +185,7 @@ contains
     end subroutine cal_rhs_elliptic
   end subroutine rhs_elliptic
 
-    function elliptic_lo (q, l)
+  function elliptic_lo (q, l)
     ! Calculates linear operator L(eta) for barotropic elliptic equation for free surface perturbation at scale l
     implicit none
     integer                   :: l
@@ -287,41 +287,39 @@ contains
     id   = idx (i, j, offs, dims)
     id_i = id + 1
 
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       depth = abs (topography%data(d)%elts(id_i)) + dscalar(id_i) / phi_node (d, id_i, zlevels)
+    depth = abs (topography%data(d)%elts(id_i)) + dscalar(id_i) / phi_node (d, id_i, zlevels)
 
-       if (.not. exact) then ! average value 
-          wgt = 2 * sqrt (3.0_dp) * depth
-       else ! true local value
-          idE  = idx (i+1, j,   offs, dims) 
-          idNE = idx (i+1, j+1, offs, dims) 
-          idN  = idx (i,   j+1, offs, dims) 
-          idW  = idx (i-1, j,   offs, dims) 
-          idSW = idx (i-1, j-1, offs, dims) 
-          idS  = idx (i,   j-1, offs, dims)
+    if (.not. exact) then ! average value 
+       wgt = 2 * sqrt (3.0_dp) * depth
+    else ! true local value
+       idE  = idx (i+1, j,   offs, dims) 
+       idNE = idx (i+1, j+1, offs, dims) 
+       idN  = idx (i,   j+1, offs, dims) 
+       idW  = idx (i-1, j,   offs, dims) 
+       idSW = idx (i-1, j-1, offs, dims) 
+       idS  = idx (i,   j-1, offs, dims)
 
-          depth_e = abs (topography%data(d)%elts(idE+1)) + dscalar(idE+1) / phi_node (d, idE+1, zlevels)
-          wgt = dom%pedlen%elts(EDGE*id+RT+1) / dom%len%elts(EDGE*id+RT+1) * interp (depth_e, depth)
+       depth_e = abs (topography%data(d)%elts(idE+1)) + dscalar(idE+1) / phi_node (d, idE+1, zlevels)
+       wgt = dom%pedlen%elts(EDGE*id+RT+1) / dom%len%elts(EDGE*id+RT+1) * interp (depth_e, depth)
 
-          depth_e = abs (topography%data(d)%elts(idNE+1)) + dscalar(idNE+1) / phi_node (d, idNE+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*id+DG+1) / dom%len%elts(EDGE*id+DG+1) * interp (depth_e, depth)
+       depth_e = abs (topography%data(d)%elts(idNE+1)) + dscalar(idNE+1) / phi_node (d, idNE+1, zlevels)
+       wgt = wgt + dom%pedlen%elts(EDGE*id+DG+1) / dom%len%elts(EDGE*id+DG+1) * interp (depth_e, depth)
 
-          depth_e = abs (topography%data(d)%elts(idN+1)) + dscalar(idN+1) / phi_node (d, idN+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*id+UP+1) / dom%len%elts(EDGE*id+UP+1) * interp (depth_e, depth)
+       depth_e = abs (topography%data(d)%elts(idN+1)) + dscalar(idN+1) / phi_node (d, idN+1, zlevels)
+       wgt = wgt + dom%pedlen%elts(EDGE*id+UP+1) / dom%len%elts(EDGE*id+UP+1) * interp (depth_e, depth)
 
-          depth_e = abs (topography%data(d)%elts(idW+1)) + dscalar(idW+1) / phi_node (d, idW+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*idW+RT+1) / dom%len%elts(EDGE*idW+RT+1) * interp (depth_e, depth)
+       depth_e = abs (topography%data(d)%elts(idW+1)) + dscalar(idW+1) / phi_node (d, idW+1, zlevels)
+       wgt = wgt + dom%pedlen%elts(EDGE*idW+RT+1) / dom%len%elts(EDGE*idW+RT+1) * interp (depth_e, depth)
 
-          depth_e = abs (topography%data(d)%elts(idSW+1)) + dscalar(idSW+1) / phi_node (d, idSW+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) * interp (depth_e, depth)
+       depth_e = abs (topography%data(d)%elts(idSW+1)) + dscalar(idSW+1) / phi_node (d, idSW+1, zlevels)
+       wgt = wgt + dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) * interp (depth_e, depth)
 
-          depth_e = abs (topography%data(d)%elts(idS+1)) + dscalar(idS+1) / phi_node (d, idS+1, zlevels)
-          wgt = wgt + dom%pedlen%elts(EDGE*idS+UP+1) / dom%len%elts(EDGE*idS+UP+1) * interp (depth_e, depth)
-       end if
-
-       Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
-       scalar(id_i) = theta1 * theta2 * Laplace_diag - 1.0_dp
+       depth_e = abs (topography%data(d)%elts(idS+1)) + dscalar(idS+1) / phi_node (d, idS+1, zlevels)
+       wgt = wgt + dom%pedlen%elts(EDGE*idS+UP+1) / dom%len%elts(EDGE*idS+UP+1) * interp (depth_e, depth)
     end if
+
+    Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
+    scalar(id_i) = theta1 * theta2 * Laplace_diag - 1.0_dp
   end subroutine cal_elliptic_lo_diag
 
   subroutine flux_divergence (q, div_flux)

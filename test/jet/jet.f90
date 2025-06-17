@@ -42,7 +42,7 @@ program jet
   log_min_mass       = .false.                         ! compute minimum mass and mass conservation (if true)
   match_time         = .true.                          ! avoid very small time steps when saving (if false) 
   penalize           = .true.                          ! penalize land regions
-  alpha              = 1d-2                            ! porosity used in penalization
+  porosity              = 1d-2                            ! porosity used in penalization
   npts_penal         = 4.5d0                           ! number of points to smooth over in penalization
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme
