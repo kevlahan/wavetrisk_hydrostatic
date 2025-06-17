@@ -59,7 +59,7 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-    print*, "fmg"
+
     call update_bdry (f, NONE, 942)
     if (log_iter) call update_bdry (u, NONE, 943)
 
@@ -168,7 +168,7 @@ contains
          type(Float_Field), target :: Lu_diag, u
        end function Lu_diag
     end interface
-    print*, 'hi_srj'
+
     call update_bdry (f, NONE, 944)
     if (log_iter) call update_bdry (u, NONE, 945)
 
