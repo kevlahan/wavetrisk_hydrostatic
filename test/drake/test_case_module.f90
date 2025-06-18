@@ -13,21 +13,25 @@ Module test_case_mod
 
   ! Local variables
   real(8)                              :: C_Drake = 1e-3_dp
-  integer                              :: bathy_per_deg, etopo_res
-  real(4), allocatable, dimension(:,:) :: etopo_data
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
   real(8)                              :: drho, drho_dz, f0, Fr, Ku, k_T, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
   real(8)                              :: omega_earth, scale, scale_omega, tau_0, thermocline, u_wbc 
   real(8),                      target :: bottom_friction_case
   real(8), allocatable, dimension(:,:) :: analytic_data
-  logical                              :: etopo_bathy, etopo_coast
   logical                              :: aligned
   logical                              :: normalized
   character(255)                       :: coords
 
   ! Drake land boundaries
   real(8),                   parameter :: lat_max = 60*DEG, lat_min = -35*DEG, lon_min = -15*DEG, lon_max = 15*DEG
-  logical                              :: scale_aware = .false. 
+  logical                              :: scale_aware = .false.
+
+  ! Etopo data (etopo smoothing not yet implemented)
+  integer                              :: bathy_per_deg
+  integer                              :: etopo_res   = 4
+  real(4), allocatable, dimension(:,:) :: etopo_data
+  logical                              :: etopo_bathy = .false.
+  logical                              :: etopo_coast = .false.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -109,6 +113,7 @@ contains
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters
+    use init_mod
     implicit none
 
     if (rank==0) then
@@ -124,6 +129,7 @@ contains
        write (6,'(a,L1)')     "split_mean_perturbation        = ", split_mean_perturbation
        write (6,'(a,L1)')     "mode_split                     = ", mode_split
        write (6,'(a,L1)')     "penalize                       = ", penalize
+       write (6,'(a,es11.4)') "porosity                       = ", porosity
        write (6,'(a,i3)')     "min_level                      = ", min_level
        write (6,'(a,i3)')     "max_level                      = ", max_level
        write (6,'(a,i3)')     "level_fill                     = ", level_fill
@@ -158,13 +164,14 @@ contains
        write (6,'(a,i6)')     "resume                         = ", resume_init
        write (6,'(a,i3)')     "etopo_res                      = ", etopo_res
 
-       write (6,'(/,A)')      "STANDARD PARAMETERS"
+       write (6,'(/,a)')      "STANDARD PARAMETERS"
        write (6,'(a,es10.4)') "radius                   [km]  = ", radius / KM
        write (6,'(a,es10.4)') "omega                 [rad/s]  = ", omega
        write (6,'(a,es10.4)') "ref density          [kg/m^3]  = ", ref_density
        write (6,'(a,es10.4)') "grav accel            [m/s^2]  = ", grav_accel
 
-       write (6,'(/,A)')      "TEST CASE PARAMETERS"
+       write (6,'(/,a)')      "TEST CASE PARAMETERS"
+       write (6,'(a,a)')      "Linear solver                  = ", linear_solver
        write (6,'(a,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
        write (6,'(a,es11.4)') "mixed_layer               [m]  = ", abs (mixed_layer)
        write (6,'(a,es11.4)') "thermocline               [m]  = ", abs (thermocline)
@@ -174,7 +181,6 @@ contains
        write (6,'(a,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
        write (6,'(a,es11.4)') "c1 wave speed           [m/s]  = ", c1
        write (6,'(a,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
-       write (6,'(a,es11.4)') "alpha (porosity)               = ", alpha
        write (6,'(a,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(a,es11.4)') "bottom drag decay time    [d]  = ", abs(max_depth)/bottom_friction_case / DAY
        if (vert_diffuse)  then
@@ -191,7 +197,7 @@ contains
        elseif (zlevels == 2) then
           write (6,'(a,es11.4)') "Ku                    [m^2/s]  = ", Ku
        end if
-       write (6,'(a,es11.4)') "buoyancy relaxation       [d]  = ", 1d0/k_T / DAY
+       write (6,'(a,es11.4)') "buoyancy relaxation       [d]  = ", 1/k_T / DAY
        write (6,'(a,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(a,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(a,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
@@ -226,11 +232,11 @@ contains
     real(8), dimension(0:zlevels) :: z
     type(Coord)                   :: x_i
 
-    lat = 0d0 ! latitude to evaluate buoyancy
+    lat = 0.0_dp ! latitude to evaluate buoyancy
     
-    eta = 0d0
+    eta = 0.0_dp
     z_s = max_depth
-    x_i = sph2cart (0d0, 0d0)
+    x_i = sph2cart (0.0_dp, 0.0_dp)
 
     if (sigma_z) then
        z = z_coords_case (eta, z_s)
@@ -252,15 +258,15 @@ contains
     end do
 
     write (6,'(/,a)') " Interface      V        c1      CFL_c1"
-    c1 = 0d0
+    c1 = 0.0_dp
     do k = 1, zlevels-1
        z_above = interp (z(k),   z(k+1))
        z_k     = interp (z(k-1), z(k))
        dz_l    = z_above - z_k
        
-       rho_above = ref_density * (1d0 - buoyancy_init (x_i, z_above))
-       rho  = ref_density * (1d0 - buoyancy_init (x_i, z_k))
-       drho = rho_above - rho
+       rho_above = ref_density * (1.0_dp - buoyancy_init (x_i, z_above))
+       rho       = ref_density * (1.0_dp - buoyancy_init (x_i, z_k))
+       drho      = rho_above - rho
        
        bv = sqrt(grav_accel * abs(drho)/dz_l/rho)
        c_k = bv * abs(max_depth) / MATH_PI
@@ -339,9 +345,9 @@ contains
     allocate (analytic_data(nlon,nlat))
 
     do jj = 1, nlat
-       lat = -90d0 + dble (jj-1) / dble (BATHY_PER_DEG)
+       lat = -90.0_dp + dble (jj-1) / dble (BATHY_PER_DEG)
        do ii = 1, nlon
-          lon = -180d0 + dble (ii-1) / dble (BATHY_PER_DEG)
+          lon = -180.0_dp + dble (ii-1) / dble (BATHY_PER_DEG)
 
           analytic_data(ii,jj) = drake_land (lon*DEG, lat*DEG)
        end do
@@ -389,16 +395,16 @@ contains
        if (k == zlevels) then
           sol(S_MASS,k)%data(d)%elts(id_i) = rho * eta
        else
-          sol(S_MASS,k)%data(d)%elts(id_i) = 0d0
+          sol(S_MASS,k)%data(d)%elts(id_i) = 0.0_dp
        end if
-       sol(S_TEMP,k)%data(d)%elts(id_i)        = 0d0
-       sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
+       sol(S_TEMP,k)%data(d)%elts(id_i)        = 0.0_dp
+       sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
     end do
 
     if (mode_split) then
        sol(S_MASS,zlevels+1)%data(d)%elts(id_i)        = eta
-       sol(S_TEMP,zlevels+1)%data(d)%elts(id_i)        = 0d0
-       sol(S_VELO,zlevels+1)%data(d)%elts(id_edge(id)) = 0d0
+       sol(S_TEMP,zlevels+1)%data(d)%elts(id_i)        = 0.0_dp
+       sol(S_VELO,zlevels+1)%data(d)%elts(id_edge(id)) = 0.0_dp
     end if
   end subroutine init_sol
 
@@ -439,13 +445,13 @@ contains
        
        sol_mean(S_MASS,k)%data(d)%elts(id_i)        = rho_dz
        sol_mean(S_TEMP,k)%data(d)%elts(id_i)        = rho_dz * buoyancy_init (x_i, z_k)
-       sol_mean(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
+       sol_mean(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
     end do
 
     if (mode_split) then
-       sol_mean(S_MASS,zlevels+1)%data(d)%elts(id_i)        = 0d0
-       sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i)        = 0d0
-       sol_mean(S_VELO,zlevels+1)%data(d)%elts(id_edge(id)) = 0d0
+       sol_mean(S_MASS,zlevels+1)%data(d)%elts(id_i)        = 0.0_dp
+       sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i)        = 0.0_dp
+       sol_mean(S_VELO,zlevels+1)%data(d)%elts(id_edge(id)) = 0.0_dp
     end if
   end subroutine init_mean
 
@@ -454,7 +460,7 @@ contains
     implicit none
     integer :: d, id
 
-    surf_geopot_case = grav_accel * 0d0
+    surf_geopot_case = grav_accel * 0.0_dp
   end function surf_geopot_case
 
   subroutine init_tke (dom, i, j, zlev, offs, dims)
@@ -487,12 +493,12 @@ contains
     call cart2sph (x_i, lon, lat)
     
     if (zlevels == 1) then
-       buoyancy_init = 0d0
+       buoyancy_init = 0.0_dp
     elseif (zlevels == 2) then
        if (z >= mixed_layer) then
           buoyancy_init = - drho / ref_density
        else
-          buoyancy_init = 0d0
+          buoyancy_init = 0.0_dp
        end if
     elseif (zlevels >= 3) then
        if (z >= mixed_layer) then                           ! constant density perturbation near surface
@@ -500,7 +506,7 @@ contains
        elseif (z <= mixed_layer .and. z > thermocline) then ! linear stratification
           buoyancy_init = - (z - thermocline)/(mixed_layer - thermocline) * drho / ref_density
        elseif (z <= thermocline) then                       ! zero density perturbation at depth
-          buoyancy_init = 0d0
+          buoyancy_init = 0.0_dp
        end if
     end if
   end function buoyancy_init
@@ -518,13 +524,13 @@ contains
     
     do k = 1, zlevels
        dz     = b_vert_mass(k) * max_depth
-       z      = 0.5d0 * (b_vert(k) + b_vert(k-1)) * max_depth
+       z      = 0.5 * (b_vert(k) + b_vert(k-1)) * max_depth
        rho_dz = ref_density * dz
        b      = abs (buoyancy_init (x_i, z))
 
        threshold_def(S_MASS,k) = tol * rho_dz
+       if (b > 1e-10_dp) threshold_def(S_TEMP,k) = tol * (rho_dz * b)
        threshold_def(S_VELO,k) = tol * Udim
-       if (b > 1d-10) threshold_def(S_TEMP,k) = tol * (rho_dz * b)    
     end do
   end subroutine initialize_thresholds_case
 
@@ -544,10 +550,11 @@ contains
   subroutine initialize_dt_viscosity_case
     ! Evaluate viscosity time steps (for finest grid) 
     implicit none
-    dt_init = cfl_num * 0.85d0 * dx_min / (wave_speed + u_wbc) ! initial time step (0.85 factor corrects for minimum dx)
+    
+    dt_init = cfl_num * 0.85 * dx_min / wave_speed ! initial time step (0.85 factor corrects for minimum dx)
 
     C_visc = C_Drake 
-    C_visc(S_Divu,:) = 10 * C_Drake
+    C_visc(S_DIVU,:) = 10 * C_Drake
 
     ! Ensure stability
     C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/6.0_dp  )**Laplace_sclr)
@@ -574,7 +581,7 @@ contains
        Area = Area_min
     end if
     
-    nu_scale = 1.34 * Area**order / dt
+    nu_scale = 1.5 * Area**order / dt
   end function nu_scale
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -619,8 +626,8 @@ contains
              call analytic_topography (dom, i, j, k, offs, dims, "penalize")
           end if
        else
-          penal_node(k)%data(d)%elts(id+1)        = 0d0
-          penal_edge(k)%data(d)%elts(id_edge(id)) = 0d0   
+          penal_node(k)%data(d)%elts(id+1)        = 0.0_dp
+          penal_edge(k)%data(d)%elts(id_edge(id)) = 0.0_dp
        end if
     end do
   end subroutine set_penal
@@ -672,7 +679,7 @@ contains
     real(dp) :: lat, lon, shift, width
 
     width = dx_max
-    shift = 2.5d0 * width / radius
+    shift = 2.5 * width / radius
 
     call cart2sph (p, lon, lat)
 
@@ -689,7 +696,7 @@ contains
       implicit none
       real(dp) :: x, x0
 
-      prof = 0.5 * (1d0 - tanh ((x - x0)/(width/radius)))
+      prof = 0.5 * (1.0_dp - tanh ((x - x0)/(width/radius)))
     end function prof
   end function penal
 
@@ -698,9 +705,9 @@ contains
     real(8)           :: lat, lon
 
     if ((lat<lat_max .and. lat>lat_min) .and. (lon<lon_max .and. lon>lon_min)) then
-       drake_land = 1d0
+       drake_land = 1.0_dp
     else
-       drake_land = 0d0
+       drake_land = 0.0_dp
     end if
   end function drake_land
 
@@ -745,16 +752,16 @@ contains
 
     select case (itype)
     case ("bathymetry")
-       if (etopo_data(s, t) > 0d0) then ! land
+       if (etopo_data(s, t) > 0.0_dp) then ! land
           topo_value = min_depth
        else ! sea: topography is less than zero
           topo_value = max (min (etopo_data(s, t), min_depth), max_depth)
        end if
     case ("penalize")
-       if (etopo_data(s, t) > 0d0) then ! land
-          topo_value = 1d0
+       if (etopo_data(s, t) > 0.0_dp) then ! land
+          topo_value = 1.0_dp
        else ! sea: topography is less than zero
-          topo_value = 0d0
+          topo_value = 0.0_dp
        end if
     end select
   end function topo_value
@@ -851,27 +858,27 @@ contains
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
 
     if (zlevels == 1) then
-       a_vert(0) = 0d0; a_vert(1) = 1d0
-       b_vert(0) = 1d0; b_vert(1) = 0d0
+       a_vert(0) = 0.0_dp; a_vert(1) = 1.0_dp
+       b_vert(0) = 1.0_dp; b_vert(1) = 0.0_dp
     elseif (zlevels == 2) then 
-       a_vert(0) = 0d0; a_vert(1) = 0d0;                   a_vert(2) = 1d0
-       b_vert(0) = 1d0; b_vert(1) = mixed_layer/max_depth; b_vert(2) = 0d0
+       a_vert(0) = 0.0_dp; a_vert(1) = 0.0_dp;                   a_vert(2) = 1.0_dp
+       b_vert(0) = 1.0_dp; b_vert(1) = mixed_layer/max_depth; b_vert(2) = 0.0_dp
     elseif (zlevels >= 3) then
        if (trim (coords) == "chebyshev") then
           do k = 0, zlevels
-             b_vert(k) = (1d0 + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2d0
+             b_vert(k) = (1.0_dp + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2
           end do
        elseif (trim (coords) == "chebyshev_half") then
           do k = 0, zlevels
-             b_vert(k) = 1d0 - sin (dble(k)/dble(zlevels) * MATH_PI/2d0)
+             b_vert(k) = 1.0_dp - sin (dble(k)/dble(zlevels) * MATH_PI/2)
           end do
        else ! default coordinates are uniform (not used if sigma_z = .true.)
           coords = "uniform"
           do k = 0, zlevels
-             b_vert(k) = 1d0 - dble(k)/dble(zlevels)
+             b_vert(k) = 1.0_dp - dble(k)/dble(zlevels)
           end do
        end if
-       a_vert = 1d0 - b_vert
+       a_vert = 1.0_dp - b_vert
     end if
 
     ! Vertical grid spacing
@@ -945,7 +952,7 @@ contains
 
     id_i = idx (i, j, offs, dims) + 1
 
-    dmass(id_i) = 0d0
+    dmass(id_i) = 0.0_dp
     dtemp(id_i) = - k_T * (temp(id_i) - mass(id_i) * mean_t(id_i)/mean_m(id_i))
   end subroutine trend_scalars
 
@@ -960,7 +967,7 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    dvelo(id_edge(id)) = 0d0
+    dvelo(id_edge(id)) = 0.0_dp
   end subroutine trend_velo
 
   function z_coords_case (eta_surf, z_s)
@@ -977,27 +984,27 @@ contains
     real(8)                       :: cff, cff1, cff2, hc, z_0
     real(8), dimension(0:zlevels) :: Cs, sc
 
-    real(8), parameter            :: theta_b = 0d0, theta_s = 7d0
-    real(8), parameter            :: hc_min = -200d0 * METRE ! minimum depth of uniform layer region
+    real(8), parameter            :: theta_b = 0.0_dp, theta_s = 7.0_dp
+    real(8), parameter            :: hc_min = -200 * METRE ! minimum depth of uniform layer region
     
     hc = abs (min (mixed_layer, hc_min)) 
     
-    cff1 = 1d0 / sinh (theta_s)
-    cff2 = 0.5d0 / tanh (0.5d0 * theta_s)
+    cff1 = 1.0_dp / sinh (theta_s)
+    cff2 = 0.5 / tanh (0.5 * theta_s)
     
-    sc(0) = -1d0
-    Cs(0) = -1d0
-    cff = 1d0 / dble(zlevels)
+    sc(0) = -1.0_dp
+    Cs(0) = -1.0_dp
+    cff = 1.0_dp / dble(zlevels)
     do k = 1, zlevels
        sc(k) = cff * dble (k - zlevels)
-       Cs(k) = (1d0 - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5d0)) - 0.5d0)
+       Cs(k) = (1.0_dp - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5_dp)) - 0.5_dp)
     end do
 
     z_coords_case(0) = z_s
     do k = 1, zlevels
        cff = hc * (sc(k) - Cs(k))
        z_0 = cff - Cs(k) * z_s
-       a_vert(k) = 1d0 - z_0 / z_s
+       a_vert(k) = 1.0_dp - z_0 / z_s
        z_coords_case(k) = eta_surf * a_vert(k) + z_0
     end do
   end function z_coords_case
@@ -1027,7 +1034,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
 
     d = dom%id + 1
 
-    physics_scalar_flux_case = 0d0
+    physics_scalar_flux_case = 0.0_dp
     
     if (Laplace_sclr /= 0) then
        if (.not.local_type) then ! usual flux at edges E, NE, N
@@ -1075,7 +1082,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
 
     integer                    :: d, id, idE, idN, idNE
     real(8)                    :: lat, lon
-    real(8), dimension(1:EDGE) :: horiz_diffusion, h1, h2, penal, u1, u2, vert_diffusion
+    real(8), dimension(1:EDGE) :: horiz_diffusion, h_bot, h_top, penal, u_bot, u_top, vert_diffusion
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -1084,7 +1091,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     idNE  = idx (i+1, j+1, offs, dims)
     idN   = idx (i,   j+1, offs, dims)
 
-    horiz_diffusion = 0d0
+    horiz_diffusion = 0.0_dp
 
     if (Laplace_divu /= 0) horiz_diffusion = &  
          + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
@@ -1092,31 +1099,42 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     if (Laplace_rotu /= 0) horiz_diffusion = horiz_diffusion + &
          - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
 
-       ! Vertical diffusion
+    ! Vertical diffusion
     if (vert_diffuse) then ! using vertical diffusion module
-       vert_diffusion = 0d0
+       vert_diffusion = 0.0_dp
     else
        ! Layer thicknesses and velocities
-       if (zlevels == 2) then
-          h1 = dz_e (dom, i, j, 1, offs, dims, sol)
-          h2 = dz_e (dom, i, j, 2, offs, dims, sol)
-
-          u1 = sol(S_VELO,1)%data(d)%elts(id_edge(id))
-          u2 = sol(S_VELO,2)%data(d)%elts(id_edge(id))
-       elseif (zlevels == 1) then
-          h1 = dz_e (dom, i, j, 1, offs, dims, sol);    h2 = h1
-          u1 = sol(S_VELO,1)%data(d)%elts(id_edge(id)); u2 = u1
+       if (zlevels == 1) then
+          h_bot = dz_e (dom, i, j, 1, offs, dims, sol)
+          h_top = dz_e (dom, i, j, 1, offs, dims, sol)
+          
+          u_bot = sol(S_VELO,1)%data(d)%elts(id_edge(id))
+          u_top = sol(S_VELO,1)%data(d)%elts(id_edge(id))  
+       else
+          h_bot = dz_e (dom, i, j, 1,       offs, dims, sol)
+          h_top = dz_e (dom, i, j, zlevels, offs, dims, sol)
+          
+          u_bot = sol(S_VELO,1      )%data(d)%elts(id_edge(id))
+          u_top = sol(S_VELO,zlevels)%data(d)%elts(id_edge(id))  
        end if
 
        ! Vertical diffusion
-       if (zlevels == 2) then
-          if (zlev == 1) then
-             vert_diffusion = - Ku / (h1 * (h1 + h2)/2d0) * (u1 - u2) + bottom_drag ()
-          elseif (zlev == 2) then
-             vert_diffusion = - Ku / (h2 * (h1 + h2)/2d0) * (u2 - u1) + wind_drag ()
-          end if
-       elseif (zlevels == 1) then
+       if (zlevels == 1) then
           vert_diffusion = bottom_drag () + wind_drag ()
+       elseif (zlevels == 2) then
+          if (zlev == 1) then
+             vert_diffusion = - Ku / (h_bot * (h_bot + h_top)/2) * (u_bot - u_top) + bottom_drag ()
+          elseif (zlev == 2) then
+             vert_diffusion = - Ku / (h_top * (h_bot + h_top)/2) * (u_top - u_bot) + wind_drag ()
+          end if
+       else
+          if (zlev == 1) then
+             vert_diffusion = bottom_drag ()
+          elseif (zlev == zlevels) then
+             vert_diffusion = wind_drag ()
+          else
+             vert_diffusion = 0.0_dp
+          end if
        end if
     end if
 
@@ -1129,7 +1147,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
       implicit none
       real(8), dimension(3) :: bottom_drag
 
-      bottom_drag = - bottom_friction * u1 / h1
+      bottom_drag = - bottom_friction * u_bot / h_bot
     end function bottom_drag
 
     function wind_drag ()
@@ -1142,7 +1160,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-      wind_drag = tau_wind / (ref_density * h2)
+      wind_drag = tau_wind / (ref_density * h_top)
     end function wind_drag
 
     function grad_divu ()
@@ -1177,7 +1195,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    bottom_buoy_flux_case = 0d0
+    bottom_buoy_flux_case = 0.0_dp
   end function bottom_buoy_flux_case
 
   real(8) function top_buoy_flux_case (dom, i, j, z_null, offs, dims)
@@ -1188,7 +1206,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    top_buoy_flux_case = 0d0
+    top_buoy_flux_case = 0.0_dp
   end function top_buoy_flux_case
 
   function wind_flux_case (dom, i, j, zlev, offs, dims)
@@ -1206,22 +1224,18 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
 
     id = idx (i, j, offs, dims)
 
-    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
-       d = dom%id + 1
-       idE  = idx (i+1, j,   offs, dims)
-       idN  = idx (i,   j+1, offs, dims)
-       idNE = idx (i+1, j+1, offs, dims)
+    d = dom%id + 1
+    idE  = idx (i+1, j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
 
-       tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
-       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
-       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
+    tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
+    tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
+    tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-       rho = porous_density (d, id+1, zlevels)
+    rho = porous_density (d, id+1, zlevels)
 
-       wind_flux_case = tau_wind / rho 
-    else
-       wind_flux_case = 0d0
-    end if
+    wind_flux_case = tau_wind / rho 
   end function wind_flux_case
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
@@ -1232,14 +1246,14 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
 
     logical, parameter :: merid_stress = .false.
 
-    peak = (abs(lat)*180d0/MATH_PI - 35d0) / 20d0
-    tau_zonal = -tau_0 * 1.2d0 * exp (-peak**2) * sin (abs(lat)*6d0) - 5d-3*exp(-(lat*180d0/MATH_PI/10d0)**2)
+    peak = (abs(lat) * 180/MATH_PI - 35.0_dp) / 20
+    tau_zonal = -tau_0 * 1.2 * exp (-peak**2) * sin (abs(lat)*6) - 5e-3 * exp (-(lat * 180/MATH_PI/10)**2)
 
     if (merid_stress) then
-       peak = lat*180d0/MATH_PI / 15d0
-       tau_merid = -tau_0 * 2.5d0 * exp (-peak**2) * sin (2d0*lat) * peak**2
+       peak = lat * 180/MATH_PI / 15
+       tau_merid = -tau_0 * 2.5 * exp (-peak**2) * sin (2*lat) * peak**2
     else
-       tau_merid = 0d0
+       tau_merid = 0.0_dp
     end if
   end subroutine wind_stress
 
