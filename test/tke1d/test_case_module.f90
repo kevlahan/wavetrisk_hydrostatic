@@ -165,7 +165,7 @@ contains
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction_case / DAY
        write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
-       write (6,'(A,es11.4)') "dx_min                   [km]  = ", dx_min   / KM
+       write (6,'(A,es11.4)') "dx_avg(max_level)                   [km]  = ", dx_avg(max_level)   / KM
        write (6,'(a,es11.4)') "r_max                          = ", r_max
        write (6,'(A)') &
             '*********************************************************************&
@@ -661,7 +661,7 @@ contains
        c_k = bv * abs(max_depth) / MATH_PI
        c1 = max (c1, c_k)
 
-       write (6, '(3x, i4, 5x,3(es9.2,1x))') k, bv, c_k, c1*dt_init/dx_min
+       write (6, '(3x, i4, 5x,3(es9.2,1x))') k, bv, c_k, c1*dt_init/dx_avg(max_level)
     end do
     write (6,'(/,a,es10.4)') "Maximum internal wave speed = ", c1
     write (6,'(A)') &
@@ -735,7 +735,7 @@ contains
     real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
 
     area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
-    dx_min = 0.891 * sqrt (4/sqrt(3.0_8) * area) ! edge length of average triangle
+    dx_avg(max_level) = 0.891 * sqrt (4/sqrt(3.0_8) * area) ! edge length of average triangle
 
     area = 4*MATH_PI*radius**2/(20*4**min_level)
     dx_max = sqrt (4/sqrt(3.0_8) * area)
@@ -758,10 +758,10 @@ contains
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_rotu == 1 .or. Laplace_rotu == 2) then
-       visc_sclr(S_MASS) = dx_min**(2*Laplace_rotu) / tau_mu
-       visc_sclr(S_TEMP) = dx_min**(2*Laplace_rotu) / tau_b
-       visc_rotu = dx_min**(2*Laplace_rotu) / tau_rotu
-       visc_divu = dx_min**(2*Laplace_rotu) / tau_divu
+       visc_sclr(S_MASS) = dx_avg(max_level)**(2*Laplace_rotu) / tau_mu
+       visc_sclr(S_TEMP) = dx_avg(max_level)**(2*Laplace_rotu) / tau_b
+       visc_rotu = dx_avg(max_level)**(2*Laplace_rotu) / tau_rotu
+       visc_divu = dx_avg(max_level)**(2*Laplace_rotu) / tau_divu
     elseif (Laplace_rotu > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -769,7 +769,7 @@ contains
 
     if (rank == 0) then
        write (6,'(/,4(a,es8.2),a,/)') &
-            "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_mu = ", tau_mu/HOUR, " [h]"
+            "dx_max  = ", dx_max/KM, " dx_avg(max_level)  = ", dx_avg(max_level)/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_mu = ", tau_mu/HOUR, " [h]"
        write (6,'(4(a,es8.2),/)') "C_mu = ", C_mu,  " C_b = ", C_mu, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &

@@ -14,7 +14,6 @@ module test_case_mod
 
   ! Test case variables
   real(dp) :: C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
-  real(dp) :: topo_Area_min, topo_dx_min
   real(dp) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
 
   ! Model parameters
@@ -286,7 +285,7 @@ contains
 
     select case (analytic_topo)
     case ("mountains")
-       width = 8 * dx_min
+       width = 8 * dx_avg(max_level)
        call cart2sph (grid(d)%node%elts(id), lon, lat)
        
        topography%data(d)%elts(id) = &
@@ -331,7 +330,7 @@ contains
 
       real(dp), parameter :: npts_slope = 5.0_dp ! resolve slope with this many cells
 
-      dtheta = dx_min / radius
+      dtheta = dx_avg(max_level) / radius
 
       sigma_x = sigma
       sigma_y = sigma_x * sqrt (1 - e**2)
@@ -532,7 +531,7 @@ contains
           if (scale_aware) then
              write (6,'(a)') "Scale-aware horizontal viscosity"
           else
-             write (6,'(a)') "Horizontal viscosity based on dx_min"
+             write (6,'(a)') "Horizontal viscosity based on dx_avg(max_level)"
           end if
        end if
        if (Laplace_sclr /= 0) &
@@ -560,8 +559,8 @@ contains
        write (6,'(a,es8.2)') "c_v      [J/(kg K)]      = ", c_v
        write (6,'(a,es8.2)') "gamma                    = ", gamma
        write (6,'(a,es8.2)') "kappa                    = ", kappa
-       write (6,'(a,f10.1)') "dx_max         [km]      = ", dx_max / KM
-       write (6,'(a,f10.1)') "dx_min         [km]      = ", dx_min / KM
+       write (6,'(a,f10.1)') "dx_max         [km]      = ", dx_avg(min_level) / KM
+       write (6,'(a,f10.1)') "dx_avg(max_level)         [km]      = ", dx_avg(max_level) / KM
 
        write (6,'(/,a)')     "TEST CASE PARAMETERS"
        write (6,'(a)')       "Zero velocity initial conditions"
@@ -648,7 +647,7 @@ contains
 
     call std_surf_pres (0.0_dp, P_s)
 
-    threshold_def = 1d16
+    threshold_def = 1e16_dp
 
     do k = 1, zlevels
        p = 0.5 * (a_vert(k-1) + a_vert(k) + (b_vert(k-1) + b_vert(k)) * P_s)
@@ -681,11 +680,11 @@ contains
     implicit none
     integer  :: k
     
-    dt_init  = dt_CAM * (dx_min / dx_CAM)
+    dt_init  = dt_CAM * (dx_avg(max_level) / dx_CAM)
 
     ! Non-dimensional viscosity (1.34 factor accounts for difference in computing nu from C_visc)
     C_visc           = 4.0_dp/3 * C_CAM
-    C_visc(S_DIVU,:) = 4.0_dp/3 * C_CAM * 2.5 ! CAM-SE factor
+    C_visc(S_DIVU,:) = 4.0_dp/3 * C_CAM * 10 ! CAM-SE factor
 
     ! Sponge layer for divergence damping
     if (sponge) then
@@ -701,9 +700,9 @@ contains
     C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/6.0_dp/4)**Laplace_rotu)
 
     ! Viscosities
-    nu_sclr = C_visc(S_MASS,1) * Area_min**Laplace_sclr / dt_init
-    nu_divu = C_visc(S_DIVU,1) * Area_min**Laplace_divu / dt_init
-    nu_rotu = C_visc(S_ROTU,1) * Area_min**Laplace_rotu / dt_init
+    nu_sclr = C_visc(S_MASS,1) * Area_avg(max_level)**Laplace_sclr / dt_init
+    nu_divu = C_visc(S_DIVU,1) * Area_avg(max_level)**Laplace_divu / dt_init
+    nu_rotu = C_visc(S_ROTU,1) * Area_avg(max_level)**Laplace_rotu / dt_init
 
     ! Diffusion times
     if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS,1)
@@ -734,15 +733,11 @@ contains
     real(dp) :: Area
 
     if (scale_aware) then
-       if (dom%areas%elts(id+1)%hex_inv /= 0.0_dp) then
-          Area = 1 / dom%areas%elts(id+1)%hex_inv
-       else
-          Area = hex_area_avg (dom%level%elts(id+1))
-       end if
-       nu_scale = Area**order / dt
+       Area = Area_avg (dom%level%elts(id+1))
     else
-       nu_scale = Area_min**order / dt
+       Area = Area_avg(max_level)
     end if
+    nu_scale = 1.34 * Area**order / dt
   end function nu_scale
 
   subroutine apply_initial_conditions_case

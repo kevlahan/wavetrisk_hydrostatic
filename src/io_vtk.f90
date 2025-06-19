@@ -172,7 +172,7 @@ contains
              p = vertex(t,ivert)
              call min_dist (p, points_loc, dmin, imin)
 
-             if (dmin > dx_min/4) then ! add vertex if is not already present
+             if (dmin > dx_avg(max_level)/4) then ! add vertex if is not already present
                 nvertex_unique_loc = nvertex_unique_loc + 1
                 ncoord_unique_loc  = ncoord_unique_loc  + 3
                 

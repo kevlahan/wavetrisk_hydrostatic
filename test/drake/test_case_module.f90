@@ -200,8 +200,8 @@ contains
        write (6,'(a,es11.4)') "buoyancy relaxation       [d]  = ", 1/k_T / DAY
        write (6,'(a,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(a,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
-       write (6,'(a,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
-       write (6,'(a,es11.4)') "dx_min                   [km]  = ", dx_min   / KM
+       write (6,'(a,es11.4)') "dx_max                   [km]  = ", dx_avg(min_level) / KM
+       write (6,'(a,es11.4)') "dx_avg(max_level)                   [km]  = ", dx_avg(max_level) / KM
        write (6,'(a,es11.4)') "dt_cfl                   [s]   = ", dt_cfl
        write (6,'(a,es11.4)') "External scale l0        [km]  = ", lambda0  / KM
        write (6,'(a,es11.4)') "Internal scale l1        [km]  = ", lambda1  / KM
@@ -214,8 +214,8 @@ contains
        write (6,'(a,es11.4)') "Rossby number                  = ", Ro
        write (6,'(a,es11.4)') "Froude number                  = ", Fr
        write (6,'(a,es11.4)') "Re (delta_I u_wbc / nu)        = ", Rey 
-       write (6,'(a,es11.4)') "Resolution of Munk layer       = ", delta_M / dx_min
-       write (6,'(a,es11.4)') "Resolution of Taylor scale     = ", delta_I / sqrt(Rey) / dx_min
+       write (6,'(a,es11.4)') "Resolution of Munk layer       = ", delta_M / dx_avg(max_level)
+       write (6,'(a,es11.4)') "Resolution of Taylor scale     = ", delta_I / sqrt(Rey) / dx_avg(max_level)
        write (6,'(a)') &
             '*********************************************************************&
             ************************************************************'
@@ -272,10 +272,10 @@ contains
        c_k = bv * abs(max_depth) / MATH_PI
        c1 = max (c1, c_k)
        
-       write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c_k, c_k*dt_init/dx_min
+       write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c_k, c_k*dt_init/dx_avg(max_level)
     end do
     write (6,'(/,a,es8.2)') "Maximum internal wave speed [m/s] = ", c1
-    write (6,'(a,es8.2)')   "Maximum baroclinic CFL number     = ", c1*dt_init/dx_min
+    write (6,'(a,es8.2)')   "Maximum baroclinic CFL number     = ", c1*dt_init/dx_avg(max_level)
     write (6,'(A)') &
          '*********************************************************************&
          *************************************************************'
@@ -353,7 +353,7 @@ contains
        end do
     end do
 
-    call smoothing_rbf (dx_max, npts, nsmth, analytic_data)
+    call smoothing_rbf (dx_avg(max_level), npts, nsmth, analytic_data)
   end subroutine analytic_topo_data
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
@@ -551,7 +551,7 @@ contains
     ! Evaluate viscosity time steps (for finest grid) 
     implicit none
     
-    dt_init = cfl_num * 0.85 * dx_min / wave_speed ! initial time step (0.85 factor corrects for minimum dx)
+    dt_init = cfl_num * 0.85 * dx_avg(max_level) / wave_speed ! initial time step (0.85 factor corrects for minimum dx)
 
     C_visc = C_Drake 
     C_visc(S_DIVU,:) = 10 * C_Drake
@@ -572,13 +572,9 @@ contains
     real(8) :: Area
 
     if (scale_aware) then
-       if (dom%areas%elts(id+1)%hex_inv /= 0d0) then
-          Area = 1 / dom%areas%elts(id+1)%hex_inv
-       else
-          Area = hex_area_avg (dom%level%elts(id+1))
-       end if
+       Area = Area_avg (dom%level%elts(id+1))
     else
-       Area = Area_min
+       Area = Area_avg(max_level)
     end if
     
     nu_scale = 1.5 * Area**order / dt
@@ -678,7 +674,7 @@ contains
 
     real(dp) :: lat, lon, shift, width
 
-    width = dx_max
+    width = dx_avg(max_level)
     shift = 2.5 * width / radius
 
     call cart2sph (p, lon, lat)

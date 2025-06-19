@@ -267,8 +267,8 @@ contains
        write (6,'(A,es11.4)') "seamount latitude       [deg]  = ", lat_c / DEG
        write (6,'(A,es11.4)') "f0 at seamount        [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at seamount   [rad/ms]  = ", beta
-       write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
-       write (6,'(A,es11.4)') "dx_min                   [km]  = ", dx_min   / KM
+       write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_avg(min_level) / KM
+       write (6,'(A,es11.4)') "dx_min                   [km]  = ", dx_avg(max_level) / KM
        write (6,'(A,es11.4)') "barotropic Rossby radius [km]  = ", Rd / KM
        write (6,'(A,es11.4,/)') "baroclinic Rossby radius [km]  = ", Rb / KM
        write (6,'(A,es11.4)') "Rossby number                  = ", Ro
@@ -610,16 +610,10 @@ contains
   subroutine initialize_dt_viscosity_case 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
-
-    area = 4d0*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
-    dx_min = sqrt (4/sqrt(3d0) * area)         ! edge length of average triangle
-
-    area = 4d0*MATH_PI*radius**2/(20*4**min_level)
-    dx_max = sqrt (4/sqrt(3d0) * area)
+    real(8) :: C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_min/wave_speed, dx_min/c1)
+    dt_cfl = min (cfl_num*dx_avg(max_level)/wave_speed, dx_avg(max_level)/c1)
     dt_init = dt_cfl
 
     if (Laplace_rotu == 0) then
@@ -637,7 +631,8 @@ contains
 
     if (rank == 0) then
        write (6,'(/,4(a,es8.2),a,/)') &
-            "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
+            "dx_max  = ", dx_avg(min_level)/KM, " dx_min = ", dx_avg(max_level)/KM, " [km] dt_cfl = ", &
+            dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
        write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &

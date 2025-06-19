@@ -233,7 +233,6 @@ module shared_mod
   integer, dimension(:,:), allocatable           :: Nstats, Nstats_glo
 
   real(dp)                                       :: a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
-  real(dp)                                       :: Area_max, Area_min, dx_min, dx_max
   real(dp)                                       :: dbin, dt, dt_init, dt_phys, dt_write,time_end, time
   real(dp)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax
   real(dp)                                       :: porosity, ref_density, ref_density_air, ref_density_water
@@ -242,7 +241,7 @@ module shared_mod
   real(dp)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(dp)                                       :: Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim
   real(dp)                                       :: hex_int
-  real(dp), dimension(:),         allocatable    :: bounds, pressure_save, visc_sclr
+  real(dp), dimension(:),         allocatable    :: Area_avg, bounds, dx_avg, pressure_save, visc_sclr
   real(dp), dimension(:),         allocatable    :: a_vert, b_vert, a_vert_mass, b_vert_mass
   real(dp), dimension(:,:),       allocatable    :: C_visc, lnorm, threshold, threshold_def
   real(dp), dimension(:,:,:),     allocatable    :: zonal_avg, zonal_avg_glo

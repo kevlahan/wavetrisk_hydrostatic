@@ -343,23 +343,6 @@ contains
     proj_vel = inner (direction (ep1, ep2), vel)
   end function proj_vel
 
-  real(dp) function dx_avg (l)
-    ! Average grid size at level l
-    implicit none
-    integer, intent(in) :: l
-
-    dx_avg = sqrt (2 / sqrt(3.0_dp) * hex_area_avg (l)) 
-  end function dx_avg
-
-  real(dp) function hex_area_avg (l)
-    ! Average are of hexagonal cells at level l.
-    ! (area of sphere divided by number of hexagonal/penatagonal cells)
-    implicit none
-    integer, intent(in) :: l
-
-    hex_area_avg = 4*MATH_PI * radius**2 / number_hex (l)
-  end function hex_area_avg
-
   integer function number_hex (l)
     ! Number of hexagonal/pentagonal cells for level l
     ! (Heikes, Randall, Konor 2013 MWR 141, 4450-4469 doi:10.1175/MWR-D-12-00236.1)

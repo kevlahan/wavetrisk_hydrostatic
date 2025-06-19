@@ -102,7 +102,7 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   wave_speed     = sqrt (grav_accel * abs (max_depth))                        ! inertia-gravity wave speed
   dt_init        = cfl_num * 0.85 * dx_avg (max_level) / wave_speed           ! average time step
-  visc           = C_Drake * hex_area_avg (max_level)**Laplace_rotu / dt_init ! viscosity
+  visc           = C_Drake * Area_avg (max_level)**Laplace_rotu / dt_init     ! viscosity
   Rd             = wave_speed / f0                                            ! barotropic Rossby radius of deformation             
   drho_dz        = drho / (mixed_layer - thermocline)                         ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)               ! Brunt-Vaisala frequency

@@ -1497,7 +1497,7 @@ contains
 
     real(dp) :: alph
 
-    alph = 1 / (dx_max * dble(npts))
+    alph = 1 / (dx_avg(min_level) * dble(npts))
 
     radial_basis_fun = exp__flush (-(alph*r)**2)
   end function radial_basis_fun

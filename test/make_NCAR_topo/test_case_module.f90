@@ -79,7 +79,7 @@ contains
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
     
-    width = 8d0 * dx_min
+    width = 8d0 * dx_avg(max_level)
     call cart2sph (grid(d)%node%elts(id), lon, lat)
 
     topography%data(d)%elts(id) = &
@@ -121,7 +121,7 @@ contains
 
       real(8), parameter :: npts_slope = 5d0 ! resolve slope with this many cells
 
-      dtheta = dx_min / radius
+      dtheta = dx_avg(max_level) / radius
 
       sigma_x = sigma
       sigma_y = sigma_x * sqrt (1d0 - e**2)

@@ -504,10 +504,7 @@ contains
   subroutine initialize_dt_viscosity_case
     ! Initializes viscosity
     implicit none
-    real(8) :: area, C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
-
-    area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
-    dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
+    real(8) :: C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
 
     ! Diffusion constants
     C_sclr = 2d-3       ! <= 1.75e-2 for hyperdiffusion (lower than exact limit 1/6^2 = 2.8e-2 due to non-uniform grid)
@@ -515,7 +512,7 @@ contains
     C_rotu = C_sclr / 4**Laplace_rotu ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
 
     ! CFL limit for time step
-    dt_cfl = cfl_num*dx_min/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
+    dt_cfl = cfl_num*dx_avg(max_level)/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
     dt_init = dt_cfl
 
     tau_sclr = dt_cfl / C_sclr
@@ -527,16 +524,17 @@ contains
        visc_divu = 0.0_8
        visc_rotu = 0.0_8
     elseif (Laplace_rotu == 1 .or. Laplace_rotu == 2) then
-       visc_sclr = dx_min**(2*Laplace_rotu) / tau_sclr
-       visc_rotu = dx_min**(2*Laplace_rotu) / tau_rotu
-       visc_divu = dx_min**(2*Laplace_rotu) / tau_divu
+       visc_sclr = dx_avg(max_level)**(2*Laplace_rotu) / tau_sclr
+       visc_rotu = dx_avg(max_level)**(2*Laplace_rotu) / tau_rotu
+       visc_divu = dx_avg(max_level)**(2*Laplace_rotu) / tau_divu
     elseif (Laplace_rotu > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
     end if
 
     if (rank == 0) then
-       write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
+       write (6,'(/,3(a,es8.2),a,/)') "dx_min  = ", dx_avg(max_level)/KM, " [km] dt_cfl = ", &
+            dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
        write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2))') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &

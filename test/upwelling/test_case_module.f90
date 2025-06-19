@@ -264,8 +264,8 @@ contains
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction_case / DAY
        write (6,'(A,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(A,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
-       write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
-       write (6,'(A,es11.4)') "dx_min                   [km]  = ", dx_min   / KM
+       write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_avg(min_level)   / KM
+       write (6,'(A,es11.4)') "dx_avg                   [km]  = ", dx_avg(max_level)   / KM
        write (6,'(A,es11.4)') "barotropic Rossby radius [km]  = ", Rd / KM
        write (6,'(a,es11.4)') "r_max                          = ", r_max
        write (6,'(A)') &
@@ -614,7 +614,7 @@ contains
        c_k = bv * abs(max_depth) / MATH_PI
        c1 = max (c1, c_k)
 
-       write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c_k, c1*dt_init/dx_min
+       write (6, '(3x, i3, 5x,3(es9.2,1x))') k, bv, c_k, c1*dt_init/dx_avg(max_level)
     end do
     write (6,'(/,a,es10.4)') "Maximum internal wave speed = ", c1
     write (6,'(A)') &
@@ -685,16 +685,10 @@ contains
   subroutine initialize_dt_viscosity_case 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
-
-    area = 4d0*MATH_PI*radius**2/(20d0*4**max_level) ! average area of a triangle
-    dx_min = 0.891d0 * sqrt (4d0/sqrt(3d0) * area) ! edge length of average triangle
-
-    area = 4d0*MATH_PI*radius**2/(20d0*4**min_level)
-    dx_max = sqrt (4d0/sqrt(3d0) * area)
+    real(8) :: C, C_b, C_divu, C_mu, C_rotu, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_min/wave_speed, 1.4d0*dx_min/u_wbc, 1.2d0*dx_min/c1)
+    dt_cfl = min (cfl_num*dx_avg(max_level)/wave_speed, 1.4d0*dx_avg(max_level)/u_wbc, 1.2d0*dx_avg(max_level)/c1)
     dt_init = dt_cfl
 
     C = 5d-3 ! <= 1/2 if explicit
@@ -714,10 +708,10 @@ contains
        visc_divu = 0d0
        visc_rotu = 0d0
     elseif (Laplace_rotu == 1 .or. Laplace_rotu == 2) then
-       visc_sclr(S_MASS) = dx_min**(2*Laplace_rotu) / tau_mu
-       visc_sclr(S_TEMP) = dx_min**(2*Laplace_rotu) / tau_b
-       visc_rotu = dx_min**(2*Laplace_rotu) / tau_rotu
-       visc_divu = dx_min**(2*Laplace_rotu) / tau_divu
+       visc_sclr(S_MASS) = dx_avg(max_level)**(2*Laplace_rotu) / tau_mu
+       visc_sclr(S_TEMP) = dx_avg(max_level)**(2*Laplace_rotu) / tau_b
+       visc_rotu = dx_avg(max_level)**(2*Laplace_rotu) / tau_rotu
+       visc_divu = dx_avg(max_level)**(2*Laplace_rotu) / tau_divu
     elseif (Laplace_rotu > 2) then
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 or 2 supported)'
        stop
@@ -725,7 +719,8 @@ contains
 
     if (rank == 0) then
        write (6,'(/,4(a,es8.2),a,/)') &
-            "dx_max  = ", dx_max/KM, " dx_min  = ", dx_min/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_mu = ", tau_mu/HOUR, " [h]"
+            "dx_max  = ", dx_avg(min_level)/KM, " dx_min= ", dx_avg(max_level)/KM, " [km] dt_cfl = ", &
+            dt_cfl, " [s] tau_mu = ", tau_mu/HOUR, " [h]"
        write (6,'(4(a,es8.2),/)') "C_mu = ", C_mu,  " C_b = ", C_mu, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
@@ -733,14 +728,14 @@ contains
     end if
 
     ! Penalization parameterss
-    dlat = 0.5d0*dble(npts_penal+2) * (dx_max/radius) / DEG ! widen channel to account for boundary smoothing
+    dlat = 0.5d0*dble(npts_penal+2) * (dx_avg(min_level)/radius) / DEG ! widen channel to account for boundary smoothing
 
     width_S = 90d0 + (lat_c - (lat_width/2 + dlat))
     width_N = 90d0 - (lat_c + (lat_width/2 + dlat))
 
     ! Smoothing exponent for land mass
-    n_smth_S = 4d0*radius * width_S*DEG / (dx_max * dble(npts_penal+2))
-    n_smth_N = 4d0*radius * width_N*DEG / (dx_max * dble(npts_penal+2))
+    n_smth_S = 4d0*radius * width_S*DEG / (dx_avg(min_level) * dble(npts_penal+2))
+    n_smth_N = 4d0*radius * width_N*DEG / (dx_avg(min_level) * dble(npts_penal+2))
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -802,11 +797,11 @@ contains
     case ("bathymetry")
        n_coarse = 8 ! ensure r_max is small enough
        nsmth = n_coarse * 2**(l - min_level) 
-       dx    = dx_max / 2**(l - min_level) 
+       dx    = dx_avg(min_level) / 2**(l - min_level) 
        topography%data(d)%elts(id_i) = max_depth + smooth (surf_geopot_case, d, id_i, dx, nsmth) / grav_accel
     case ("penalize") ! analytic land mass with smoothing
        nsmth = npts_penal * 2**(l - min_level) 
-       dx    = dx_max / 2**(l - min_level) 
+       dx    = dx_avg(min_level) / 2**(l - min_level) 
        penal_node(zlev)%data(d)%elts(id_i) = smooth (mask, d, id_i, dx, nsmth)
 
        q(RT+1) = dom%node%elts(idx(i+1, j,   offs, dims)+1)

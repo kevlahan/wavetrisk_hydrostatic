@@ -750,13 +750,6 @@ contains
 
   subroutine initialize_dt_viscosity_case 
     implicit none
-    real(8) :: area
-
-    area = 4d0*MATH_PI*radius**2/(20d0*4**max_level) ! average area of a triangle
-    dx_min = sqrt (4/sqrt(3.0_8) * area)         ! edge length of average triangle
-
-    area = 4d0*MATH_PI*radius**2/(20d0*4**min_level)
-    dx_max = sqrt (4d0/sqrt(3d0) * area)
   end subroutine initialize_dt_viscosity_case
 
   real(8) function tau (p)

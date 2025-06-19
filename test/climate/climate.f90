@@ -25,7 +25,7 @@ program climate
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
   scale_aware              = .true.                           ! scale-aware viscosity
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
-  sponge                   = .true.                           ! use sponge layer in upper layers to avoid reflection
+  sponge                   = .false.                           ! use sponge layer in upper layers to avoid reflection
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -84,7 +84,7 @@ program climate
   call print_test_case_parameters
   
   open (unit = 12, file = trim(run_id)//'_log', action = 'WRITE', form = 'FORMATTED', position = 'APPEND')
-  !call write_and_export (iwrite)
+  call write_and_export (iwrite)
   
   total_cpu_time = 0.0_dp; time_start = time
   

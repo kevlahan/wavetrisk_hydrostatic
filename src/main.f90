@@ -430,6 +430,8 @@ contains
 
   subroutine init_basic
     implicit none
+    integer :: l
+    
     call initialize_a_b_vert
     call init_comm_mod
     call init_init_mod
@@ -440,10 +442,12 @@ contains
     call init_mask_mod
     call init_adapt_mod
 
-    Area_max  = hex_area_avg (min_level)
-    Area_min  = hex_area_avg (max_level)
-    dx_max    = dx_avg (min_level)
-    dx_min    = dx_avg (max_level)
+    allocate (dx_avg(min_level:max_level), Area_avg(min_level:max_level))
+    do l = min_level, max_level
+       Area_avg(l) = 4*MATH_PI * radius**2 / number_hex (l)
+       dx_avg(l)   = sqrt (2 / sqrt(3.0_dp) * Area_avg(l))
+    end do
+
     time_mult = 1.0_dp
     istep     = 0
   end subroutine init_basic
@@ -722,7 +726,7 @@ contains
 
     integer :: d, i, k, l, v, r
 
-    deallocate (C_visc)
+    deallocate (Area_avg, C_visc, dx_avg)
 
     ! Deallocate init_RK_mem allocations
     do k = 1, zmax

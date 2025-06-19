@@ -59,7 +59,7 @@ program spherical_harmonics
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   do cp_idx = cp_beg, cp_end
      resume = NONE
-     call restart (run_id)
+     call restart
      
      if (trim (spec_type) == 'sphere') then
         call spec_sphere
@@ -393,11 +393,11 @@ contains
        idata_loc = 0
 
        if (hex) then
-          if (rank==0) call apply_to_pole (define_data_hex, min_level-1, z_null, 1, .false.)
+          if (rank==0) call apply_to_pole (define_data_hex_pole, min_level-1, z_null, 1, .false.)
           call apply_onescale (define_data_hex, l, z_null, 0, 0)
        else
-          if (rank==0) call apply_to_pole (define_data_triag, min_level-1, z_null, 1, .false.)
-          call apply_onescale (define_data_triag, l, z_null, 0, 0)
+          if (rank==0) call apply_to_pole (define_data_tri_pole, min_level-1, z_null, 1, .false.)
+          call apply_onescale (define_data_tri, l, z_null, 0, 0)
        end if
 
        ! Collect data lengths and compute displacements on rank 0
@@ -486,7 +486,30 @@ contains
     deallocate (cilm, pspectrum)
   end subroutine spectrum_sphere
 
-  subroutine define_data_triag (dom, i, j, zlev, offs, dims)
+  subroutine define_data_tri_pole (dom, p, i, j, zlev, offs, dims, ival)
+    use domain_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: ival, i, j, p, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, id_t
+
+    id = idx (i, j, offs, dims)
+
+    idata_loc = idata_loc + 1
+    id_t = TRIAG*id + LORT + 1
+    data_loc(idata_loc) = dom%vort%elts(id_t)
+    call cart2sph (dom%ccentre%elts(id_t), lon_loc(idata_loc), lat_loc(idata_loc))
+
+    idata_loc = idata_loc + 1
+    id_t = TRIAG*id + UPLT + 1
+    data_loc(idata_loc) = dom%vort%elts(id_t)
+    call cart2sph (dom%ccentre%elts(id_t), lon_loc(idata_loc), lat_loc(idata_loc))
+  end subroutine define_data_tri_pole
+
+  subroutine define_data_tri (dom, i, j, zlev, offs, dims)
     ! Stores vorticity and associated latitude-longitude coordinates for spherical harmonic calculation
     ! (data on triangles)
     implicit none
@@ -508,11 +531,28 @@ contains
     id_t = TRIAG*id + UPLT + 1
     data_loc(idata_loc) = dom%vort%elts(id_t)
     call cart2sph (dom%ccentre%elts(id_t), lon_loc(idata_loc), lat_loc(idata_loc))
-  end subroutine define_data_triag
+  end subroutine define_data_tri
 
-   subroutine define_data_hex (dom, i, j, zlev, offs, dims)
-     ! Stores vorticity and associated latitude-longitude coordinates for spherical harmonic calculation
-     ! (data on triangles)
+  subroutine define_data_hex_pole (dom, p, i, j, zlev, offs, dims, ival)
+    use domain_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: ival, i, j, p, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, id_t
+
+    id = idx (i, j, offs, dims) + 1
+
+    idata_loc = idata_loc + 1
+    data_loc(idata_loc) = dom%press_lower%elts(id)
+    call cart2sph (dom%node%elts(id), lon_loc(idata_loc), lat_loc(idata_loc))
+  end subroutine define_data_hex_pole
+
+  subroutine define_data_hex (dom, i, j, zlev, offs, dims)
+    ! Stores vorticity and associated latitude-longitude coordinates for spherical harmonic calculation
+    ! (data on triangles)
     implicit none
     type (Domain)                  :: dom
     integer                        :: i, j, zlev
