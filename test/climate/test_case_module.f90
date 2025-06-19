@@ -28,7 +28,7 @@ module test_case_mod
   real(dp), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
   real(dp), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
   real(dp), parameter :: Area_CAM      = sqrt(3.0_dp)/2 * dx_CAM**2  ! CAM hexagon area
-  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (sqrt(3.0_dp) * Area_CAM)**2) ! CAM non-dimensional viscosity
+  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (sqrt(3.0_dp) * Area_CAM)**2 ! CAM non-dimensional viscosity
   
   logical             :: print_tol     = .false.                     ! print tolerances for each layer
   character(255)      :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
@@ -684,7 +684,7 @@ contains
 
     ! Non-dimensional viscosity
     C_visc = C_CAM
-    C_visc(S_DIVU,:) = C_CAM * 2.5
+    C_visc(S_DIVU,:) = C_CAM * 10
 
     ! Sponge layer for divergence damping
     if (sponge) then
