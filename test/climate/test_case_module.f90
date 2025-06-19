@@ -28,7 +28,7 @@ module test_case_mod
   real(dp), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
   real(dp), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
   real(dp), parameter :: Area_CAM      = sqrt(3.0_dp)/2 * dx_CAM**2  ! CAM hexagon area
-  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / dx_CAM**4 ! CAM non-dimensional viscosity (1.45e-03)
+  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (sqrt(3.0_dp * Area_CAM)**2) ! CAM non-dimensional viscosity
   
   logical             :: print_tol     = .false.                     ! print tolerances for each layer
   character(255)      :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
@@ -560,7 +560,7 @@ contains
        write (6,'(a,es8.2)') "gamma                    = ", gamma
        write (6,'(a,es8.2)') "kappa                    = ", kappa
        write (6,'(a,f10.1)') "dx_max         [km]      = ", dx_avg(min_level) / KM
-       write (6,'(a,f10.1)') "dx_avg(max_level)         [km]      = ", dx_avg(max_level) / KM
+       write (6,'(a,f10.1)') "dx_min         [km]      = ", dx_avg(max_level) / KM
 
        write (6,'(/,a)')     "TEST CASE PARAMETERS"
        write (6,'(a)')       "Zero velocity initial conditions"
@@ -679,12 +679,12 @@ contains
     ! Set non-dimensional viscosities and time step
     implicit none
     integer  :: k
-    
-    dt_init  = dt_CAM * (dx_avg(max_level) / dx_CAM)
 
-    ! Non-dimensional viscosity (1.34 factor accounts for difference in computing nu from C_visc)
-    C_visc           = 4.0_dp/3 * C_CAM
-    C_visc(S_DIVU,:) = 4.0_dp/3 * C_CAM * 10 ! CAM-SE factor
+    dt_init  = dt_CAM * dx_avg(max_level) / dx_CAM
+
+    ! Non-dimensional viscosity
+    C_visc = C_CAM
+    C_visc(S_DIVU,:) = C_CAM * 2.5
 
     ! Sponge layer for divergence damping
     if (sponge) then
@@ -693,16 +693,16 @@ contains
        end do
     end if
 
-    ! Ensure stability
-    C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/6.0_dp  )**Laplace_sclr)
-    C_visc(S_TEMP,:) = min (C_visc(S_TEMP,:), (1/6.0_dp  )**Laplace_sclr)
-    C_visc(S_DIVU,:) = min (C_visc(S_DIVU,:), (1/6.0_dp  )**Laplace_divu)
-    C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/6.0_dp/4)**Laplace_rotu)
+    ! Ensure stability (1/9 factor instead of Klemp (2017) value of 1/6 due to difference in definition of C_visc)
+    C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/9.0_dp  )**Laplace_sclr)
+    C_visc(S_TEMP,:) = min (C_visc(S_TEMP,:), (1/9.0_dp  )**Laplace_sclr)
+    C_visc(S_DIVU,:) = min (C_visc(S_DIVU,:), (1/9.0_dp  )**Laplace_divu)
+    C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/9.0_dp/4)**Laplace_rotu)
 
     ! Viscosities
-    nu_sclr = C_visc(S_MASS,1) * Area_avg(max_level)**Laplace_sclr / dt_init
-    nu_divu = C_visc(S_DIVU,1) * Area_avg(max_level)**Laplace_divu / dt_init
-    nu_rotu = C_visc(S_ROTU,1) * Area_avg(max_level)**Laplace_rotu / dt_init
+    nu_sclr = C_visc(S_MASS,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_divu / dt_init
+    nu_divu = C_visc(S_DIVU,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_divu / dt_init
+    nu_rotu = C_visc(S_ROTU,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_rotu / dt_init
 
     ! Diffusion times
     if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS,1)
@@ -725,7 +725,7 @@ contains
   end subroutine initialize_dt_viscosity_case
 
   real(dp) function nu_scale (order, dom, id)
-    ! Viscosity non-dimensional scaling
+    ! Non-dimensional viscosity scaling for diffusion on hexagonal grid
     implicit none
     integer      :: id, order
     type(domain) :: dom
@@ -733,11 +733,11 @@ contains
     real(dp) :: Area
 
     if (scale_aware) then
-       Area = Area_avg (dom%level%elts(id+1))
+       Area = Area_avg(dom%level%elts(id+1))
     else
        Area = Area_avg(max_level)
     end if
-    nu_scale = 1.34 * Area**order / dt
+    nu_scale = (sqrt (3.0_dp) * Area)**order / dt
   end function nu_scale
 
   subroutine apply_initial_conditions_case

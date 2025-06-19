@@ -30,7 +30,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(999)                 :: filename
 
-    dx_coarse = dx_avg (level_start-1) ! average edge lengths
+    dx_coarse = dx_avg (min_level) ! average edge lengths
 
     ! Initial error
     call grid_error
@@ -119,7 +119,7 @@ contains
 
     tol = 1e9_dp * eps () ! tolerance in [m], about 1.4 m on Earth or relative error of O(1e-7)
 
-    dx_coarse = dx_avg (level_end-1)
+    dx_coarse = dx_avg (min_level)
     
     ! Initial error
     call grid_error
