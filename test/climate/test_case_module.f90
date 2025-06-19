@@ -28,7 +28,7 @@ module test_case_mod
   real(dp), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
   real(dp), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
   real(dp), parameter :: Area_CAM      = sqrt(3.0_dp)/2 * dx_CAM**2  ! CAM hexagon area
-  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (sqrt(3.0_dp * Area_CAM)**2) ! CAM non-dimensional viscosity
+  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (sqrt(3.0_dp) * Area_CAM)**2) ! CAM non-dimensional viscosity
   
   logical             :: print_tol     = .false.                     ! print tolerances for each layer
   character(255)      :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
@@ -700,7 +700,7 @@ contains
     C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/9.0_dp/4)**Laplace_rotu)
 
     ! Viscosities
-    nu_sclr = C_visc(S_MASS,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_divu / dt_init
+    nu_sclr = C_visc(S_MASS,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_sclr / dt_init
     nu_divu = C_visc(S_DIVU,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_divu / dt_init
     nu_rotu = C_visc(S_ROTU,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_rotu / dt_init
 
