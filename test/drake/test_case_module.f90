@@ -551,20 +551,20 @@ contains
     ! Evaluate viscosity time steps (for finest grid) 
     implicit none
     
-    dt_init = cfl_num * 0.85 * dx_avg(max_level) / wave_speed ! initial time step (0.85 factor corrects for minimum dx)
+    dt_init = cfl_num * dx_avg(max_level) / wave_speed 
 
     C_visc = C_Drake 
     C_visc(S_DIVU,:) = 10 * C_Drake
 
     ! Ensure stability
-    C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/6.0_dp  )**Laplace_sclr)
-    C_visc(S_TEMP,:) = min (C_visc(S_TEMP,:), (1/6.0_dp  )**Laplace_sclr)
-    C_visc(S_DIVU,:) = min (C_visc(S_DIVU,:), (1/6.0_dp  )**Laplace_divu)
-    C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/6.0_dp/4)**Laplace_rotu)
+    C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/9.0_dp  )**Laplace_sclr)
+    C_visc(S_TEMP,:) = min (C_visc(S_TEMP,:), (1/9.0_dp  )**Laplace_sclr)
+    C_visc(S_DIVU,:) = min (C_visc(S_DIVU,:), (1/9.0_dp  )**Laplace_divu)
+    C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/9.0_dp/4)**Laplace_rotu)
   end subroutine initialize_dt_viscosity_case
 
   real(8) function nu_scale (order, dom, id)
-    ! Viscosity non-dimensional scaling
+    ! Non-dimensional viscosity scaling for diffusion on hexagonal grid
     implicit none
     integer      :: id, order
     type(domain) :: dom
@@ -577,7 +577,7 @@ contains
        Area = Area_avg(max_level)
     end if
     
-    nu_scale = 1.5 * Area**order / dt
+    nu_scale = (sqrt (3.0_dp) * Area)**order / dt
   end function nu_scale
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
