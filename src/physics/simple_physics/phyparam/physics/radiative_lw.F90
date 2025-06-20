@@ -11,7 +11,7 @@ contains
     !===============================================================================================
     !  Cooling rate due to long wave (infrared) radiation
     !
-    !  To simplify, the absorpotion coefficients only depend only on height and are pre-calculated.
+    !  To simplify, the absorption coefficients depend only on height and are pre-calculated.
     !
     !===============================================================================================
 
