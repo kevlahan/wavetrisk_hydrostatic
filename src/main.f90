@@ -10,25 +10,39 @@ module main_mod
   use callkeys, only : lverbose
 #endif
   implicit none
+  integer                            :: chkpt_info
+  integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
+  real(dp)                           :: dt_new, initial_total_mass, time_mult
+  real(dp)                           :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, dt_loc, min_mass_loc
   
   type Initial_State
      integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
   end type Initial_State
-  
-  integer                                        :: chkpt_info
-  integer,             dimension(:), allocatable :: node_level_start, edge_level_start
-  real(dp)                                       :: dt_new, initial_total_mass, time_mult
   type(Initial_State), dimension(:), allocatable :: ini_st
 contains
   subroutine initialize (run_id)
     ! Initialize from checkpoint or adapt to initialize conditions
-    ! Solution is saved and restarted to balance load
+    ! (solution is saved and restarted to balance load)
     implicit none
     character(*) :: run_id
     
-    character(255) :: command
-    integer        :: d, k, l, v
+    if (max_level < min_level) then
+       if (rank == 0) then
+          write (6,'(//,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          write (6,'(a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          write (6,'(a)')   "!!                                                                                 !!"
+          write (6,'(2(a,i2),a)') "!!                max_level < min_level: ", max_level, " < ", min_level, &
+               " ... aborting                      !!"
+          write (6,'(a)')   "!!                                                                                 !!"
+          write (6,'(a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          write (6,'(a,//)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+       end if
+       call abort
+    end if
+
+    allocate (n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
+    n_active_edges = 0; n_active_nodes = 0
 
 #ifdef PHYSICS
     if (physics_model .and. physics_type == "Simple") call init_soil_grid
@@ -49,20 +63,6 @@ contains
     end if
 
     call set_time_integrator
-    
-    if (max_level < min_level) then
-       if (rank == 0) then
-          write (6,'(//,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-          write (6,'(a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-          write (6,'(a)')   "!!                                                                                 !!"
-          write (6,'(2(a,i2),a)') "!!                max_level < min_level: ", max_level, " < ", min_level, &
-               " ... aborting                      !!"
-          write (6,'(a)')   "!!                                                                                 !!"
-          write (6,'(a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-          write (6,'(a,//)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-       end if
-       call abort
-    end if
 
     ! Check validity of various parameter choices
     if (compressible .and. mode_split) then
@@ -83,7 +83,7 @@ contains
        call init_basic
        call init_structures
 
-       if (rank == 0) write (6,'(/,A,/)') &
+       if (rank == 0) write (6,'(/,a,/)') &
             '----------------------------------------------------- Adapting initial grid &
             ------------------------------------------------------'
        if (NCAR_topo) call load_topo
@@ -536,7 +536,7 @@ contains
   real(dp) function cpt_dt ()
     ! Calculates time step, minimum relative mass and active nodes and edges
     implicit none
-    integer               :: l, ierror, level_end_glo
+    integer               :: ierror, level_end_glo
     integer, dimension(2) :: n_active_loc
     
     if (adapt_dt) dt_loc = 1e16_dp
@@ -544,9 +544,7 @@ contains
     n_active_edges = 0
 
     ! Calculate minimum time step, number of active nodes and edges
-    do l = level_start, level_end
-       call apply_onescale (cal_min_dt, l, z_null, 0, 0)
-    end do
+    call apply_no_bdry (cal_min_dt, z_null)
 
     ! Time step
     if (adapt_dt) then
@@ -560,13 +558,14 @@ contains
     n_active = sum_int_vector (n_active_loc, 2)
     level_end = sync_max_int (level_end)
   end function cpt_dt
-
-  subroutine cal_min_dt (dom, i, j, zlev, offs, dims)
+  
+  subroutine cal_min_dt (dom, p, i, j, zlev, offs, dims, ival)
     ! Calculates time step and number of active nodes and edges
     ! time step is smallest of barotropic time step, advective time step and internal wave time step for mode split case
+    use domain_mod
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j, zlev
+    integer                        :: ival, i, j, p, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -603,73 +602,65 @@ contains
   real(dp) function cpt_min_mass ()
     ! Calculates minimum relative mass
     implicit none
-    integer :: ierror, l
 
     min_mass_loc = 1e16_dp
-    if (tol /= 0.0_dp) then
-       call apply_bdry (cal_min_mass, z_null, 0, 1)
-    else
-       call apply_onescale (cal_min_mass, max_level, z_null, 0, 0)
-    end if
+    call apply_no_bdry (cal_min_mass, z_null)
     
     cpt_min_mass = sync_min_real (min_mass_loc)
 
     if (log_min_mass .and. rank == 0) write (6,'(a,es11.4)') "Minimum relative mass = ", cpt_min_mass
+    !if (log_min_mass) write (6,'(a,i3,a,2(es8.2,1x))') "Minimum relative mass on rank ", rank, " = ", min_mass_loc, cpt_min_mass
   end function cpt_min_mass
 
-  subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
-    ! Minimum relative mass in a single column
+  subroutine cal_min_mass (dom, p, i, j, zlev, offs, dims, ival)
+    ! Minimum mass compared to initial mass in a vertical column
     use init_mod
+    use, intrinsic :: ieee_arithmetic
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j, zlev
+    integer                        :: ival, i, j, p, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                        :: d, id, k
-    real(dp)                       :: P_s, z_s
+    real(dp)                       :: mass_ratio, P_s, z_s
     real(dp), dimension(0:zlevels) :: z
     real(dp), dimension(1:zlevels) :: dz, init_rho_dz, rho_dz
 
-    id   = idx (i, j, offs, dims) + 1
-    d    = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+    d  = dom%id + 1
 
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       do k = 1, zlevels
-          rho_dz(k) = sol(S_MASS,k)%data(d)%elts(id) + sol_mean(S_MASS,k)%data(d)%elts(id)
-          if (rho_dz(k) <= 0.0_dp .or. rho_dz(k) /= rho_dz(k)) then
-             write (6,'(a)') "A layer has collapsed  ... aborting"
-             call abort
-          end if
-       end do
+    do k = 1, zlevels
+       rho_dz(k) = sol(S_MASS,k)%data(d)%elts(id) + sol_mean(S_MASS,k)%data(d)%elts(id)
+    end do
 
-       ! Relative change in mass
-       if (compressible) then
-          P_s = grav_accel * sum (rho_dz) + P_top ! surface pressure
-
-          init_rho_dz = a_vert_mass + b_vert_mass * P_s / grav_accel
-
-          do k = 1, zlevels
-             min_mass_loc = min (min_mass_loc, rho_dz(k)/init_rho_dz(k))
-          end do
+    if (compressible) then
+       P_s = grav_accel * sum (rho_dz) + P_top ! surface pressure
+       init_rho_dz = a_vert_mass + b_vert_mass * P_s / grav_accel
+    else
+       z_s = topography%data(d)%elts(id)
+       if (sigma_z) then
+          z = z_coords (0.0_dp, z_s)
        else
-          z_s = topography%data(d)%elts(id)
-          if (sigma_z) then
-             z = z_coords (0.0_dp, z_s)
-          else
-             z = b_vert * z_s ! assumes zero free surface perturbation initial condition
-          end if
-          dz = z(1:zlevels) - z(0:zlevels-1)
-          
-          do k = 1, zlevels
-             init_rho_dz(k) = porous_density (d, id, k) * dz(k)
-             
-             min_mass_loc = min (min_mass_loc, rho_dz(k)/init_rho_dz(k))
-          end do
+          z = b_vert * z_s ! assumes zero free surface perturbation initial condition
        end if
+       dz = z(1:zlevels) - z(0:zlevels-1)
+
+       do k = 1, zlevels
+          init_rho_dz(k) = porous_density (d, id, k) * dz(k)
+       end do
+    end if
+
+    mass_ratio = minval (rho_dz / abs (init_rho_dz))
+
+    if (mass_ratio <= 0.0_dp .or. ieee_is_nan (mass_ratio)) then
+       write (6,'(a)') "A layer has collapsed ... aborting"
+       call abort
+    else
+       min_mass_loc = min (min_mass_loc, mass_ratio)
     end if
   end subroutine cal_min_mass
-  
+
   integer function write_active_per_level ()
     ! Write out distribution of active nodes over levels
     implicit none

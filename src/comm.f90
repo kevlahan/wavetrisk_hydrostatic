@@ -2,10 +2,8 @@ module comm_mod
   use arch_mod
   use domain_mod
   implicit none
-  integer, dimension(4,4)            :: shift_arr
-  integer, dimension(:), allocatable :: n_active_edges, n_active_nodes
-  real(dp)                           :: dt_loc, sync_val
-  real(dp)                           :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, min_mass_loc
+  integer, dimension(4,4) :: shift_arr
+  real(dp)                :: sync_val
 
   interface
      type(Coord) function coord_get (dom, id)
@@ -67,10 +65,6 @@ subroutine init_comm_mod
     implicit none
     integer :: k, s, d
 
-    allocate (n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
-
-    n_active_edges = 0
-    n_active_nodes = 0
     do d = 1, size(grid)
        do s = 1, N_BDRY
           if (.not. is_penta(grid(d), 1, s - 1)) then
