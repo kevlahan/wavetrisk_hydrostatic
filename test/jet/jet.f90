@@ -5,7 +5,6 @@ program jet
   use io_vtk_mod
   implicit none
   integer :: ierr
-  logical :: aligned
 
   ! Initialize mpi, shared variables and domainss
   call init_arch_mod 
@@ -40,7 +39,6 @@ program jet
   ! Numerical method parameters
   default_thresholds = .true.                          ! use default threshold
   log_min_mass       = .false.                         ! compute minimum mass and mass conservation (if true)
-  match_time         = .true.                          ! avoid very small time steps when saving (if false) 
   penalize           = .true.                          ! penalize land regions
   porosity              = 1d-2                            ! porosity used in penalization
   npts_penal         = 4.5d0                           ! number of points to smooth over in penalization
@@ -133,7 +131,6 @@ program jet
 
   ! Save initial conditions
   call print_test_case_parameters
-  call write_and_export (iwrite)  
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
@@ -143,7 +140,7 @@ program jet
   do while (time < time_end)
      call start_timing
      
-     call time_step (dt_write, aligned)
+     call time_step
 
      if (tau_nudge /= 0d0) then
         if (modulo (istep, 10) == 0) call zonal_mean (zonal, y2)
@@ -155,22 +152,6 @@ program jet
      call update_diagnostics
  
      call print_log
-
-     if (aligned) then
-        iwrite = iwrite + 1
-        call remap_vertical_coordinates
-
-        ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) then
-           call deallocate_diagnostics
-           call write_checkpoint (run_id, rebalance)
-           call init_diagnostics !! resets diagnostics !!
-        end if
-
-        ! Save fields
-        call vertical_velocity
-        call write_and_export (iwrite)
-     end if
   end do
   if (rank == 0) then
      write (6,'(A,ES11.4)') 'Total cpu time = ', total_cpu_time

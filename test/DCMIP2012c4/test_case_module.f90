@@ -6,7 +6,7 @@ module test_case_mod
   implicit none
 
   ! Standard variables
-  integer :: CP_EVERY, resume_init
+  integer :: resume_init
   real(8) :: dt_cfl, total_cpu_time, dPdim, R_ddim, specvoldim, dTempdim
 
   ! Test case variables
@@ -614,7 +614,6 @@ contains
     implicit none
     integer :: fid
 
-    write (fid) itime
     write (fid) iwrite
     write (fid) threshold
   end subroutine dump_case
@@ -623,7 +622,6 @@ contains
     implicit none
     integer :: fid
 
-    read (fid) itime
     read (fid) iwrite
     read (fid) threshold
   end subroutine load_case

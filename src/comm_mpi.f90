@@ -132,11 +132,16 @@ contains
   subroutine cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
     ! Finds load balance between processors
     implicit none
-    integer :: min_load, max_load
+    integer  :: min_load, max_load
     real(dp) :: avg_load, rel_imbalance
 
     call get_load_balance (min_load, avg_load, max_load)
-    rel_imbalance = dble(max_load)/avg_load
+
+    if (avg_load /= 0.0_dp) then 
+       rel_imbalance = real (max_load, kind=dp) / avg_load
+    else
+       rel_imbalance = 1.0_dp
+    end if
   end subroutine cal_load_balance
 
   subroutine get_load_balance (mini, avg, maxi)
@@ -156,7 +161,7 @@ contains
     call MPI_Reduce (load, mini,     1, MPI_INTEGER, MPI_MIN, 0, MPI_COMM_WORLD, ierror)
     call MPI_Reduce (load, load_sum, 1, MPI_INTEGER, MPI_SUM, 0, MPI_COMM_WORLD, ierror)
 
-    avg = dble(load_sum)/dble(n_process)
+    avg = real (load_sum, kind=dp) / real (n_process, kind=dp)
   end subroutine get_load_balance
 
   subroutine write_level_mpi (routine, l, zlev, eval_pole, filename)

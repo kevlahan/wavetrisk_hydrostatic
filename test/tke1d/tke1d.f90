@@ -9,7 +9,6 @@ program tke1d
   use vert_diffusion_mod
   implicit none
   integer :: ialign, idt, it
-  logical :: aligned
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -78,8 +77,6 @@ program tke1d
   Hdim               = abs (max_depth)                    ! vertical length scale
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  time_mult = 1.0_8
-  
   ! Initialize functions
   call assign_functions
 
@@ -88,7 +85,6 @@ program tke1d
 
   ! Save initial conditions
   call print_test_case_parameters
-  call write_and_export (iwrite)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
@@ -99,24 +95,10 @@ program tke1d
   do while (time < time_end)
      istep = istep + 1
      call vertical_diffusion
-     time = time + dt
      min_mass = cpt_min_mass ()
-     dt = cpt_dt ()
    
      call print_log
 
-     if (modulo (time, dt_write) == 0 .and. istep > 20) then
-        iwrite = iwrite + 1
-        call remap_vertical_coordinates
-        if (remap .and. modulo (istep, iremap) == 0) call remap_vertical_coordinates
-
-        ! Save fields
-        call write_and_export (iwrite)
-        call avg_temp (iwrite)
-
-        ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
-     end if
   end do
   call finalize
 end program tke1d

@@ -7,7 +7,7 @@ Module test_case_mod
   implicit none
 
   ! Standard variables
-  integer :: CP_EVERY, resume_init
+  integer :: resume_init
   real(8) :: dt_cfl, total_cpu_time
   real(8) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
 
@@ -286,24 +286,21 @@ contains
     implicit none
 
     integer :: min_load, max_load
-    real(8) :: avg_load, rel_imbalance, timing
+    real(8) :: avg_load, timing
 
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
-    call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
-    
     if (rank == 0) then
        open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-       write (6,'(a,f10.4,a,i2,a,i12,2(a,es9.2,1x))') &
+       write (6,'(a,f10.4,a,i2,a,i12,a,es9.2)') &
             'time [d] = ', time / DAY, &
             ' Jmax = ',    level_end, &
             ' dof = ',     sum (n_active), &
-            ' balance = ', rel_imbalance, &
             ' cpu = ',     timing
 
-       write (12,'(5(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))')  time/DAY, dt, &
+       write (12,'(5(es15.9,1x),i2,1x,i12,1x,es15.9)')  time/DAY, dt, &
             threshold(S_MASS,zlevels), threshold(S_TEMP,zlevels), threshold(S_VELO,zlevels), &
-            level_end, sum (n_active), rel_imbalance, timing
+            level_end, sum (n_active), timing
        close (12)
     end if
   end subroutine print_log
@@ -886,7 +883,6 @@ contains
     implicit none
     integer :: fid
 
-    write (fid) itime
     write (fid) iwrite
     write (fid) threshold
   end subroutine dump_case
@@ -895,7 +891,6 @@ contains
     implicit none
     integer :: fid
 
-    read (fid) itime
     read (fid) iwrite
     read (fid) threshold
   end subroutine load_case

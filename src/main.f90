@@ -1,5 +1,6 @@
 module main_mod
   use io_mod
+  use io_vtk_mod
   use wavelet_mod
   use adapt_mod
   use remap_mod
@@ -12,7 +13,7 @@ module main_mod
   implicit none
   integer                            :: chkpt_info
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
-  real(dp)                           :: dt_new, initial_total_mass, time_mult
+  real(dp)                           :: dt_new, initial_total_mass, next_save_time
   real(dp)                           :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, dt_loc, min_mass_loc
   
   type Initial_State
@@ -40,9 +41,6 @@ contains
        end if
        call abort
     end if
-
-    allocate (n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
-    n_active_edges = 0; n_active_nodes = 0
 
 #ifdef PHYSICS
     if (physics_model .and. physics_type == "Simple") call init_soil_grid
@@ -112,8 +110,8 @@ contains
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        
        call count_active
-     
-       if (trim (test_case) /= "make_NCAR_topo" .or. trim (test_case) /= "save_vtk_data") call write_checkpoint (run_id, .true.)
+       call write_and_export ! save initial conditions
+       if (trim (test_case) /= "make_NCAR_topo" .or. trim (test_case) /= "save_vtk_data") call write_checkpoint 
     end if
     call barrier
 
@@ -219,12 +217,8 @@ contains
     end if
   end subroutine set_time_integrator
 
-   subroutine write_checkpoint (run_id, rebal)
+  subroutine write_checkpoint 
     implicit none
-    character(*) :: run_id
-    logical      :: rebal
-
-    cp_idx = cp_idx + 1 
 
     if (rank == 0) then
        write (6,'(/,a,/)') &
@@ -243,8 +237,10 @@ contains
     call write_load_conn (cp_idx)
     call dump_adapt_mpi  (cp_idx)
     
-    if (rebalance) call restart
+    if (rebalance .and. time < time_end) call restart
 #endif
+    
+    cp_idx = cp_idx + 1 
   end subroutine write_checkpoint
 
   subroutine restart 
@@ -302,8 +298,8 @@ contains
        
        if (log_total_mass) call cal_total_mass (.true.)
 
-       itime = nint (time * time_mult, 8)
        dt_new = min (dt_init, cpt_dt ())
+       next_save_time = time + dt_write
 
        if (rank == 0) then
           write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
@@ -326,37 +322,11 @@ contains
 #endif
   end subroutine restart
 
-  subroutine time_step (align_time, aligned)
+  subroutine time_step 
     use vert_diffusion_mod
-    use lnorms_mod
     implicit none
-    real(dp)             :: align_time
-    logical, intent(out) :: aligned
 
-    integer(8) :: idt, ialign
-    
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !   Time step modification
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    istep       = istep+1
-    istep_cumul = istep_cumul+1
-
-    ! Check if saving data
-    dt     = dt_new
-    idt    = nint (dt         * time_mult, 8)
-    ialign = nint (align_time * time_mult, 8)
-
-    if (ialign > 0 .and. istep > 20) then
-       aligned = modulo (itime + idt, ialign) < modulo (itime, ialign)
-    else
-       aligned = .false.
-    end if
-    
-    ! Modify time step
-    if (aligned .and. match_time) then
-       idt = ialign - modulo (itime,ialign)
-       dt = idt / time_mult
-    end if
+    dt  = dt_new
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Dynamics time step
@@ -407,18 +377,15 @@ contains
     if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !    Update time and time step
+    !    Update time and time step and save data
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    itime = itime + idt
+    istep       = istep       + 1
+    istep_cumul = istep_cumul + 1
+    time        = time + dt
+    dt_new      = cpt_dt ()
 
-    if (match_time) then
-       time = itime/time_mult
-    else
-       time = time + dt
-    end if
-
-    ! Update time step and count active nodes
-    dt_new = cpt_dt ()
+    if (time >= iwrite * dt_write)            call write_and_export
+    if (time >= cp_idx * dt_write * cp_every) call write_checkpoint
     
     ! Rebalance with AMPI
 #ifdef AMPI
@@ -444,14 +411,16 @@ contains
     call init_mask_mod
     call init_adapt_mod
 
+    allocate (n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
+    n_active_edges = 0; n_active_nodes = 0
+
     allocate (dx_avg(min_level:max_level), Area_avg(min_level:max_level))
     do l = min_level, max_level
        Area_avg(l) = 4*MATH_PI * radius**2 / number_hex (l)
        dx_avg(l)   = sqrt (2 / sqrt(3.0_dp) * Area_avg(l))
     end do
 
-    time_mult = 1.0_dp
-    istep     = 0
+    istep = 0
   end subroutine init_basic
 
   subroutine init_structures
@@ -492,7 +461,6 @@ contains
     call apply_interscale (mask_adj_child, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
     
     call record_init_state (ini_st)
-    if (time_end > 0.0_dp) time_mult = huge (itime)/2/time_end
 
     allocate (n_patch_old(size(grid)), n_node_old(size(grid))); n_patch_old = 2
 

@@ -222,12 +222,11 @@ module shared_mod
   real(dp), parameter :: WATT    = JOULE / SECOND
   
   ! Simulation variables
-  integer                                        :: cp_idx, err_restart
+  integer                                        :: cp_idx, cp_every, err_restart
   integer                                        :: iadapt, ibin, irebalance, iremap, iremap_max, istep, istep_cumul, iwrite
   integer                                        :: n_diffuse, nbins, nstep_init, resume
   integer                                        :: Laplace_divu, Laplace_rotu, Laplace_sclr
   integer                                        :: topo_min_level, topo_max_level
-  integer(8)                                     :: itime
   integer, parameter                             :: nvar_zonal = 9   ! number of zonal statistics to calculate
   integer, dimension(:), allocatable             :: n_node_old, n_patch_old
   integer, dimension(:,:), allocatable           :: Nstats, Nstats_glo
@@ -255,7 +254,7 @@ module shared_mod
   character(1), parameter                        :: lf=char(10) ! line feed character
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
-  logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize, split_mean_perturbation
+  logical :: log_iter, log_min_mass, log_total_mass, mode_split, NCAR_topo, penalize, split_mean_perturbation
   logical :: rebalance, physics_model, remap, uniform, vert_diffuse
   logical :: sigma_z, sso, tke_closure
 contains
@@ -335,7 +334,8 @@ contains
     ! Initialize values
     ! (these parameters may be reset in the test case file, but are needed for compilation)
     resume                  = NONE
-    cp_idx                  = NONE
+    cp_every                = 1
+    cp_idx                  = 0
     err_restart             = 0
     istep                   = 0
     istep_cumul             = 0
@@ -355,7 +355,6 @@ contains
     log_iter                = .false.                             ! print residual error in elliptic solver (T)
     log_min_mass            = .false.                             ! compute minimum mass, relatively expensive (T)
     log_total_mass          = .false.                             ! mass conservation, relatively expensive (F)
-    match_time              = .false.                             ! match time exactly for data saving (T)
     mode_split              = .false.                             ! calculate barotropic free surface mode separately (T)
     NCAR_topo               = .false.                             ! use NCAR topography (requires pre-computation of float field topography) (T)
     penalize                = .false.                             ! include penalization of topography (T)

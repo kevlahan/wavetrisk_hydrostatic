@@ -7,8 +7,6 @@ program DCMIP2012c4
   use io_vtk_mod
   implicit none
 
-  logical :: aligned
-
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -66,7 +64,6 @@ program DCMIP2012c4
 
   ! Save initial conditions
   call print_test_case_parameters
-  call write_and_export (iwrite)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
@@ -75,20 +72,8 @@ program DCMIP2012c4
   open (unit=12, file=trim(run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)
-     ! Time step
-     call start_timing; call time_step (dt_write, aligned); call stop_timing
+     call start_timing; call time_step; call stop_timing
      call print_log
-
-     if (aligned) then
-        iwrite = iwrite+1
-        !if (remap) call remap_vertical_coordinates
-
-        ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
-
-        ! Save fields
-        call write_and_export (iwrite)
-     end if
   end do
 
   if (rank == 0) then

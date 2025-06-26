@@ -7,7 +7,7 @@ Module test_case_mod
   implicit none
 
   ! Standard variables
-  integer                              :: bathy_per_deg, CP_EVERY, npts_penal, resume_init
+  integer                              :: bathy_per_deg, npts_penal, resume_init
   real(8)                              :: dt_cfl, tau_diffusion, total_cpu_time
   real(8)                              :: dPdim, R_ddim, specvoldim, dTempdim
 
@@ -963,7 +963,6 @@ contains
     implicit none
     integer :: fid
 
-    write (fid) itime
     write (fid) iwrite
     write (fid) threshold
   end subroutine dump_case
@@ -972,7 +971,6 @@ contains
     implicit none
     integer :: fid
 
-    read (fid) itime
     read (fid) iwrite
     read (fid) threshold
   end subroutine load_case

@@ -15,16 +15,14 @@ module io_vtk_mod
   integer(4)                             :: nvar = 12
   type(Float_Field), dimension(:), allocatable, target :: vel_vert ! vertical velocity
 contains
-  subroutine write_and_export (isave)
+  subroutine write_and_export
     implicit none
-    integer(4) :: isave
-
     integer(4) :: d, k, l
 
     if (rank == 0) then
        write (6,'(a)') '**************************************************************&
             ********************************************************************'
-       write (6,'(a,i4)') 'Saving field ', isave
+       write (6,'(a,i4)') 'Saving field ', iwrite
     end if
 
     ! Recalculate eddy viscosity and diffusivity so they could be saved
@@ -80,12 +78,12 @@ contains
 
        ! Save layer data to vtk file
        call barrier
-       if (rank == 0) call write_vtk (isave, k)
+       if (rank == 0) call write_vtk (k)
     end do
     call post_levelout
     
     if (rank == 0) then
-       call compress_files (isave)
+       call compress_files 
        
        write (6,'(2(a,i8),a,f6.1)') &
             "Number of active cells = ", ncell, " number of unique vertices = ", nvertex, &
@@ -97,6 +95,8 @@ contains
     call barrier
     
     deallocate (vel_vert)
+
+    iwrite = iwrite + 1
   end subroutine write_and_export
   
   subroutine find_vertices (k)
@@ -292,10 +292,10 @@ contains
     end function rel_vort
   end subroutine unique_tri_points
 
-  subroutine write_vtk (isave, k)
+  subroutine write_vtk (k)
     ! VTK file is written from rank 0
     implicit none
-    integer(4) :: isave, k
+    integer(4) :: k
 
     integer(4)                            :: icell, ivar, ncell_tot, nvert
     integer(4), dimension(:), allocatable :: cell_type, level_data
@@ -312,7 +312,7 @@ contains
     write (str1(1:12),'(i12)')  nvertex
     write (str2(1:12),'(i12)')  ncell
     write (str3(1:12),'(i12)')  ncell * (1 + nvert)
-    write (isv,       '(i4.4)') isave
+    write (isv,       '(i4.4)') int (iwrite, kind=4)
     write (layer,     '(i3.3)') k
 
     filename = trim(run_id)//"_tri_"//trim(layer)//"_"//trim(isv)//".vtk"
@@ -647,15 +647,13 @@ contains
     end function vert_vel
   end subroutine cal_w
 
-  subroutine compress_files (isave)
+  subroutine compress_files
     implicit none
-    integer(4) :: isave
-
     integer(4)      :: info
     character(4)    :: isv
     character(1300) :: bash_cmd, command
 
-    write (isv, '(i4.4)') isave
+    write (isv, '(i4.4)') iwrite
 
     bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_tri_*'//trim(isv)//'.vtk > '//trim(run_id)//'_tmp1"'
     call system (trim(bash_cmd))

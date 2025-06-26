@@ -25,7 +25,6 @@ program upwelling
   ! Numerical method parameters
   default_thresholds = .true.                        ! use default threshold
   adapt_dt           = .true.                        ! adapt time step
-  match_time         = .true.                        ! avoid very small time steps when saving (if false) 
   mode_split         = .true.                        ! split barotropic mode if true
   penalize           = .true.                        ! penalize land regions
   npts_penal         = 2                             ! number of points to smooth over in penalization
@@ -92,7 +91,6 @@ program upwelling
 
   ! Save initial conditions
   call print_test_case_parameters
-  call write_and_export (iwrite)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
@@ -102,28 +100,10 @@ program upwelling
   total_cpu_time = 0.0_8
   do while (time < time_end)
      call start_timing
-     call time_step (dt_write, aligned)
+     call time_step 
      call stop_timing
 
-     call update_diagnostics
-
      call print_log
-
-     if (aligned) then
-        iwrite = iwrite + 1
-        call remap_vertical_coordinates
-
-        ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) then
-           call deallocate_diagnostics
-           call write_checkpoint (run_id, rebalance)
-           call init_diagnostics !! resets diagnostics !!
-        end if
-
-        ! Save fields
-        call vertical_velocity
-        call write_and_export (iwrite)
-     end if
   end do
 
   if (rank == 0) then

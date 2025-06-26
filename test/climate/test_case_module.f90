@@ -9,7 +9,7 @@ module test_case_mod
   implicit none
 
   ! Standard variables
-  integer :: CP_EVERY, domains_per_task, resume_init
+  integer  :: domains_per_task, resume_init
   real(dp) :: time_start, total_cpu_time
 
   ! Test case variables
@@ -603,8 +603,8 @@ contains
     use calendar_mod
     implicit none
 
-    integer :: date, j, k, min_load, max_load, total_dof
-    real(dp) :: avg_load, rel_imbalance, timing
+    integer  :: date, j, k, min_load, max_load, total_dof
+    real(dp) :: avg_load, timing
 
     total_dof = 0
     do j = min_level, max_level
@@ -613,18 +613,14 @@ contains
     
     timing = get_timing (); total_cpu_time = total_cpu_time + timing
 
-    call cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
-
     ! Find date
     call eday2date (int (time/DAY) + 80, date)
     
     if (rank == 0) then
-       write (6,'(i0.8, f11.4, a, a, i2, a, i12, 2(a, f7.2, 1x), a, es8.2)') &
+       write (6,'(i0.8, f11.4, a, a, i2, a, i12, a, es8.2)') &
             date, time / DAY, ' d', &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
-            ' compression = ', dble (total_dof) / sum (n_active), &
-            ' balance = ', rel_imbalance, &
             ' cpu = ', timing
 
        if (print_tol) then
@@ -634,8 +630,8 @@ contains
           end do
        end if
 
-       write (12,'(i0.8,1x,2(es15.9,1x),i2,1x,i12,1x,2(es15.9,1x))') &
-            date, time, dt, level_end, sum (n_active), rel_imbalance, timing
+       write (12,'(i0.8,1x,2(es15.9,1x),i2,1x,i12,1x,es15.9)') &
+            date, time, dt, level_end, sum (n_active), timing
     end if
   end subroutine print_log
 
@@ -684,7 +680,7 @@ contains
 
     ! Non-dimensional viscosity
     C_visc = C_CAM
-    C_visc(S_DIVU,:) = C_CAM * 10
+    C_visc(S_DIVU,:) = C_CAM * 20
 
     ! Sponge layer for divergence damping
     if (sponge) then
@@ -834,7 +830,6 @@ contains
     implicit none
     integer :: fid
 
-    write (fid) itime
     write (fid) iwrite
     write (fid) threshold
   end subroutine dump_case
@@ -843,7 +838,6 @@ contains
     implicit none
     integer :: fid
 
-    read (fid) itime
     read (fid) iwrite
     read (fid) threshold
   end subroutine load_case

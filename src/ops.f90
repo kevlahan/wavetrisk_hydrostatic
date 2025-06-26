@@ -1246,9 +1246,18 @@ contains
     u_prim_UP   = velo(EDGE*id+UP +1) * dom%len%elts(EDGE*id +UP+1)
     u_prim_UP_E = velo(EDGE*idE+UP+1) * dom%len%elts(EDGE*idE+UP+1)
     u_prim_RT_N = velo(EDGE*idN+RT+1) * dom%len%elts(EDGE*idN+RT+1)
-
-    vort(TRIAG*id+LORT+1) =   (u_prim_RT + u_prim_UP_E + u_prim_DG  ) / dom%triarea%elts(TRIAG*id+LORT+1)
-    vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N) / dom%triarea%elts(TRIAG*id+UPLT+1)
+    
+    if (dom%triarea%elts(TRIAG*id+LORT+1) > eps ()) then
+       vort(TRIAG*id+LORT+1) =   (u_prim_RT + u_prim_UP_E + u_prim_DG  ) / dom%triarea%elts(TRIAG*id+LORT+1)
+    else
+       vort(TRIAG*id+LORT+1) = 0.0_dp
+    endif
+    
+    if (dom%triarea%elts(TRIAG*id+UPLT+1) > eps ()) then
+       vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N) / dom%triarea%elts(TRIAG*id+UPLT+1)
+    else
+       vort(TRIAG*id+UPLT+1) = 0.0_dp
+    end if
   end subroutine cal_vort
 
   subroutine cal_Laplacian_rotu (dom, i, j, zlev, offs, dims)

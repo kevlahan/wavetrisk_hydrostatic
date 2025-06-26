@@ -764,7 +764,6 @@ contains
     implicit none
     integer :: fid
 
-    write (fid) itime
     write (fid) iwrite
     write (fid) threshold
   end subroutine dump_case
@@ -773,7 +772,6 @@ contains
     implicit none
     integer :: fid
 
-    read (fid) itime
     read (fid) iwrite
     read (fid) threshold
   end subroutine load_case

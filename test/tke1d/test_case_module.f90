@@ -9,7 +9,7 @@ Module test_case_mod
   implicit none
 
   ! Standard variables
-  integer                              :: CP_EVERY, resume_init
+  integer                              :: resume_init
   real(8)                              :: dt_cfl,  tau_diffusion, total_cpu_time
   real(8)                              :: dPdim, R_ddim, specvoldim, dTempdim
   real(8), target                      :: bottom_friction_case
@@ -164,8 +164,6 @@ contains
        write (6,'(A,es11.4)') "max wind stress       [N/m^2]  = ", tau_0
        write (6,'(A,es11.4)') "bottom friction         [m/s]  = ", bottom_friction_case
        write (6,'(A,es11.4)') "bottom drag decay         [d]  = ", 1/bottom_friction_case / DAY
-       write (6,'(A,es11.4)') "dx_max                   [km]  = ", dx_max   / KM
-       write (6,'(A,es11.4)') "dx_avg(max_level)                   [km]  = ", dx_avg(max_level)   / KM
        write (6,'(a,es11.4)') "r_max                          = ", r_max
        write (6,'(A)') &
             '*********************************************************************&
@@ -734,13 +732,6 @@ contains
     implicit none
     real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
 
-    area = 4*MATH_PI*radius**2/(20*4**max_level) ! average area of a triangle
-    dx_avg(max_level) = 0.891 * sqrt (4/sqrt(3.0_8) * area) ! edge length of average triangle
-
-    area = 4*MATH_PI*radius**2/(20*4**min_level)
-    dx_max = sqrt (4/sqrt(3.0_8) * area)
-
-
     C = 0.0_8 ! <= 1/2 if explicit
     C_rotu = C / 4**Laplace_rotu
     C_divu = C
@@ -769,7 +760,7 @@ contains
 
     if (rank == 0) then
        write (6,'(/,4(a,es8.2),a,/)') &
-            "dx_max  = ", dx_max/KM, " dx_avg(max_level)  = ", dx_avg(max_level)/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_mu = ", tau_mu/HOUR, " [h]"
+            "dx_max  = ", dx_avg(min_level)/KM, " dx_min = ", dx_avg(max_level)/KM, " [km] dt_cfl = ", dt_cfl, " [s] tau_mu = ", tau_mu/HOUR, " [h]"
        write (6,'(4(a,es8.2),/)') "C_mu = ", C_mu,  " C_b = ", C_mu, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
        write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
             " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
@@ -895,7 +886,6 @@ contains
     implicit none
     integer :: fid
 
-    write (fid) itime
     write (fid) iwrite
     write (fid) threshold
   end subroutine dump_case
@@ -904,7 +894,6 @@ contains
     implicit none
     integer :: fid
 
-    read (fid) itime
     read (fid) iwrite
     read (fid) threshold
   end subroutine load_case

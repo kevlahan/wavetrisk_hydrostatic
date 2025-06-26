@@ -8,7 +8,6 @@ program climate
   use test_case_mod
   use io_vtk_mod
   implicit none
-  logical :: aligned
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -82,11 +81,8 @@ program climate
   call initialize_seed
   call initialize (run_id)
   call print_test_case_parameters
-  
-  open (unit = 12, file = trim(run_id)//'_log', action = 'WRITE', form = 'FORMATTED', position = 'APPEND')
-  call write_and_export (iwrite)
-  
   total_cpu_time = 0.0_dp; time_start = time
+  open (unit = 12, file = trim(run_id)//'_log', action = 'WRITE', form = 'FORMATTED', position = 'APPEND')
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Run simulation
@@ -95,14 +91,8 @@ program climate
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
   do while (time < time_end)
-     call start_timing ; call time_step (dt_write, aligned) ; call stop_timing
+     call start_timing ; call time_step; call stop_timing
      call print_log
-
-     if (aligned) then
-        iwrite = iwrite + 1
-        call write_and_export (iwrite)
-        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
-     end if
   end do
   close (12)
   if (rank == 0) write (6,'(a,es11.4)') 'Total cpu time = ', total_cpu_time

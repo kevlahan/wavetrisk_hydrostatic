@@ -18,7 +18,6 @@ program Drake
   compressible            = .false.
   default_thresholds      = .true.
   log_min_mass            = .false.
-  match_time              = .true.
   mode_split              = .true.
   penalize                = .true.                
   scale_aware             = .true.                    
@@ -150,7 +149,6 @@ program Drake
   call assign_functions
   call initialize (run_id)
   call print_test_case_parameters
-  call write_and_export (iwrite) 
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(a,/)') &
@@ -160,17 +158,11 @@ program Drake
   total_cpu_time = 0.0_dp
   do while (time < time_end)
      call start_timing
-     call time_step (dt_write, aligned)
+     call time_step 
      if (k_T /= 0.0_dp) call euler (sol, wav_coeff, trend_relax, dt)
      call stop_timing
 
      call print_log
-
-     if (aligned) then
-        iwrite = iwrite + 1
-        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint (run_id, rebalance)
-        call write_and_export (iwrite) 
-     end if
   end do
   if (rank == 0) write (6,'(a,es11.4)') 'Total cpu time = ', total_cpu_time
   call finalize

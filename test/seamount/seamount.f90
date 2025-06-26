@@ -9,7 +9,6 @@ program Seamount
   implicit none
   integer :: l
   real(8) :: total_eta
-  logical :: aligned
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -42,7 +41,6 @@ program Seamount
   delta          =   500 * METRE                             ! vertical decay of density
   
   ! Numerical method parameters
-  match_time         = .false.                               ! avoid very small time steps when saving 
   mode_split         = .true.                                ! split barotropic mode if true
   penalize           = .false.                               ! no penalization
   timeint_type       = "RK4"                                 ! always use RK4
@@ -93,7 +91,6 @@ program Seamount
 
   ! Save initial conditions
   call print_test_case_parameters
-  call write_and_export (iwrite)
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
@@ -103,28 +100,10 @@ program Seamount
   total_cpu_time = 0d0
   do while (time < time_end)
      call start_timing
-     call time_step (dt_write, aligned)
+     call time_step
      call stop_timing
-
-     call update_diagnostics
-
      tke_sea = total_ke ("adaptive") / (4*MATH_PI*radius**2)
      call print_log
-
-     if (aligned) then
-        iwrite = iwrite + 1
-        if (remap) call remap_vertical_coordinates
-
-        ! Save checkpoint (and rebalance)
-        if (modulo (iwrite, CP_EVERY) == 0) then
-           call deallocate_diagnostics
-           call write_checkpoint (run_id, rebalance)
-           call init_diagnostics !! resets diagnostics !!
-        end if
-
-        ! Save fields
-        call write_and_export (iwrite)
-     end if
   end do
 
   if (rank == 0) then
