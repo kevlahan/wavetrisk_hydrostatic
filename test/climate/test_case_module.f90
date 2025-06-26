@@ -830,16 +830,12 @@ contains
     implicit none
     integer :: fid
 
-    write (fid) iwrite
-    write (fid) threshold
   end subroutine dump_case
 
   subroutine load_case (fid)
     implicit none
     integer :: fid
 
-    read (fid) iwrite
-    read (fid) threshold
   end subroutine load_case
 
   function z_coords_case (eta_surf, z_s)

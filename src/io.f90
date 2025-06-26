@@ -834,7 +834,9 @@ contains
     do d = 1, size(grid)
        write (fid_no(d)) istep_cumul
        write (fid_no(d)) time
-       call dump (fid_no(d))
+       write (fid_no(d)) 
+       write (fid_no(d)) iwrite
+       write (fid_no(d)) threshold
 
        ! Write data at coarsest scale (scaling functions)
        call apply_to_pole_d (write_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
@@ -960,7 +962,7 @@ contains
     implicit none
     integer :: id
 
-    integer                          :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, r, v
+    integer                          :: c, d, i, ibeg, iend, itime, j, k, l, old_n_patch, p_chd, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     character(9999)                  :: filename_gr, filename_no
     character(9999)                  :: bash_cmd, cmd_archive, files
@@ -989,7 +991,9 @@ contains
     do d = 1, size(grid)
        read (fid_no(d)) istep_cumul
        read (fid_no(d)) time
-       call load (fid_no(d))
+       read (fid_no(d)) 
+       read (fid_no(d)) iwrite
+       read (fid_no(d)) threshold
 
        call apply_to_pole_d (read_scalar, grid(d), min_level-1, z_null, fid_no(d), .true.)
 
