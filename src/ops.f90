@@ -368,9 +368,9 @@ contains
 
     subroutine comp_SW
       implicit none
-      integer                         :: d, idS, idSW, idW
-      integer                         :: id_i, idS_i, idSW_i, idW_i, k
-      integer, dimension(0:SOUTHWEST) :: id_rhodz
+      integer                          :: d, idS, idSW, idW
+      integer                          :: id_i, idS_i, idSW_i, idW_i, k
+      integer,  dimension(0:SOUTHWEST) :: id_rhodz
       real(dp)                         :: circ_SW_LORT, circ_SW_UPLT, u_prim_RT_SW, u_prim_UP_SW, dz, dz0
       real(dp), dimension(0:EDGE)      :: csq, phi
       real(dp), dimension(2)           :: pv_mass
@@ -531,8 +531,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                      :: id, idS, idW, idSW, idN, idE, idNE
-    integer, dimension(8)        :: id_rhodz
+    integer                       :: id, idS, idW, idSW, idN, idE, idNE
+    integer,  dimension(8)        :: id_rhodz
     real(dp)                      :: circ_LORT, circ_UPLT, circ_S_UPLT, circ_SW_LORT, circ_SW_UPLT, circ_W_LORT
     real(dp)                      :: pv, pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
     real(dp)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W
@@ -763,8 +763,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: id
-    integer, dimension(1:EDGE) :: id_e
+    integer                     :: id
+    integer,  dimension(1:EDGE) :: id_e
     real(dp), dimension(1:EDGE) :: Qperp_e, physics
     
     id   =  idx (i, j, offs, dims)
@@ -787,13 +787,13 @@ contains
   subroutine du_grad (dom, i, j, zlev, offs, dims)
     ! Add gradients of Bernoulli and Exner to dvelo [DYNAMICO (23)-(25)]
     implicit none
-    type(Domain)                     :: dom
-    integer                          :: i, j, zlev
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                         :: id, idE, idN, idNE
-    integer, dimension(1:EDGE)      :: id_e
+    integer                          :: id, idE, idN, idNE
+    integer,  dimension(1:EDGE)      :: id_e
     real(dp), dimension(1:EDGE)      :: gradB, gradE, theta_e
     real(dp), dimension(0:NORTHEAST) :: rho_dz, rho_dz_theta, theta
 
@@ -834,7 +834,7 @@ contains
   function Qperp (dom, i, j, zlev, offs, dims)
     ! Compute energy-conserving edge integrated Qperp [Aechtner thesis page 44]
     implicit none
-    real(dp), dimension(3)          :: Qperp
+    real(dp), dimension(3)         :: Qperp
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
@@ -903,13 +903,13 @@ contains
   function Qperp_Gassmann (dom, i, j, zlev, offs, dims)
     ! Compute energy-conserving edge integrated Qperp using Gassmann (2018) formula
     implicit none
-    real(dp), dimension(3)          :: Qperp_Gassmann
+    real(dp), dimension(3)         :: Qperp_Gassmann
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer               :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
+    integer                :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
     real(dp), dimension(5) :: wgt1, wgt2
 
     id   = idx (i, j, offs, dims)
@@ -928,27 +928,27 @@ contains
     wgt2 = get_weights(dom, idE, 3)
 
     Qperp_Gassmann(RT+1) = &
-                                ! Adjacent neighbour edges (Gassmann rule 1)
+         ! Adjacent neighbour edges (Gassmann rule 1)
          h_mflux(EDGE*id +DG+1) * qe(EDGE*idE+UP+1)*wgt1(1) + &
          h_mflux(EDGE*idS+UP+1) * qe(EDGE*idS+DG+1)*wgt1(5) + &
          h_mflux(EDGE*idS+DG+1) * qe(EDGE*idS+UP+1)*wgt2(1) + &
          h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +DG+1)*wgt2(5) + &
          
-                                ! Second neighbour edges (Gassmann rule 2)
+         ! Second neighbour edges (Gassmann rule 2)
          h_mflux(EDGE*id  +UP+1) * qe(EDGE*id +DG+1)*wgt1(2) + &
          h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idS+UP+1)*wgt1(4) + &
          h_mflux(EDGE*idSE+UP+1) * qe(EDGE*idS+DG+1)*wgt2(2) + &
          h_mflux(EDGE*idE +DG+1) * qe(EDGE*idE+UP+1)*wgt2(4)
 
-    if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3)
+    if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! hexagon, third neighbour edge (Gassmann rule 3)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idW+RT+1)*interp (qe(EDGE*idW+RT+1),qe(EDGE*id+RT+1))*wgt1(3)
-    else ! Pentagon, second neighbour edge (Gassmann rule 2)
+    else                                             ! pentagon, second neighbour edge (Gassmann rule 2)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idW+RT+1)*qe(EDGE*idS+UP+1)*wgt1(3)
     end if
 
-    if (dom%pedlen%elts(EDGE*idSE+UP+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3)
+    if (dom%pedlen%elts(EDGE*idSE+UP+1)/=0.0_8) then ! hexagon, third neighbour edge (Gassmann rule 3)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idE+RT+1)*interp (qe(EDGE*idE+RT+1),qe(EDGE*id+RT+1))*wgt2(3)
-    else ! Pentagon, second neighbour edge (Gassmann rule 2)
+    else                                             ! pentagon, second neighbour edge (Gassmann rule 2)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idE+RT+1)*qe(EDGE*idS+DG+1)*wgt2(3)
     end if
 
@@ -957,19 +957,19 @@ contains
     wgt2 = get_weights(dom, idNE, 4)
 
     Qperp_Gassmann(DG+1) = &
-                                ! Adjacent neighbour edges (Gassmann rule 1)
+         ! Adjacent neighbour edges (Gassmann rule 1)
          h_mflux(EDGE*id +UP+1) * qe(EDGE*idN+RT+1)*wgt1(1) + &
          h_mflux(EDGE*id +RT+1) * qe(EDGE*idE+UP+1)*wgt1(5) + &
          h_mflux(EDGE*idE+UP+1) * qe(EDGE*id +RT+1)*wgt2(1) + &
          h_mflux(EDGE*idN+RT+1) * qe(EDGE*id +UP+1)*wgt2(5) + &
          
-                                ! Second neighbour edges (Gassmann rule 2)
+         ! Second neighbour edges (Gassmann rule 2)
          h_mflux(EDGE*idW +RT+1) * qe(EDGE*id +UP+1)*wgt1(2) + &
          h_mflux(EDGE*idS +UP+1) * qe(EDGE*id +RT+1)*wgt1(4) + &
          h_mflux(EDGE*idNE+RT+1) * qe(EDGE*idE+UP+1)*wgt2(2) + &
          h_mflux(EDGE*idNE+UP+1) * qe(EDGE*idN+RT+1)*wgt2(4) + &
          
-                                ! Third neighbour edges (Gassmann rule 3 = TRSK)
+         ! Third neighbour edges (Gassmann rule 3 = TRSK rule)
          h_mflux(EDGE*idSW+DG+1) * interp (qe(EDGE*idSW+DG+1), qe(EDGE*id+DG+1))*wgt1(3) + &
          h_mflux(EDGE*idNE+DG+1) * interp (qe(EDGE*idNE+DG+1), qe(EDGE*id+DG+1))*wgt2(3)
 
@@ -978,27 +978,27 @@ contains
     wgt2 = get_weights(dom, idN, 5)
 
     Qperp_Gassmann(UP+1) = &
-                                ! Adjacent neighbour edges (Gassmann rule 1)
+         ! Adjacent neighbour edges (Gassmann rule 1)
          h_mflux(EDGE*idW+RT+1)  * qe(EDGE*idW+DG+1)*wgt1(1) + &
          h_mflux(EDGE*id +DG+1)  * qe(EDGE*idN+RT+1)*wgt1(5) + &
          h_mflux(EDGE*idN+RT+1)  * qe(EDGE*id +DG+1)*wgt2(1) + &
          h_mflux(EDGE*idW+DG+1)  * qe(EDGE*idW+RT+1)*wgt2(5) + &
          
-                                ! Second neighbour edges (Gassmann rule 2)
+         ! Second neighbour edges (Gassmann rule 2)
          h_mflux(EDGE*idSW+DG+1) * qe(EDGE*idW+RT+1)*wgt1(2) + &
          h_mflux(EDGE*id+RT+1)   * qe(EDGE*id +DG+1)*wgt1(4) + &
          h_mflux(EDGE*idN+DG+1)  * qe(EDGE*idN+RT+1)*wgt2(2) + &         
          h_mflux(EDGE*idNW+RT+1) * qe(EDGE*idW+DG+1)*wgt2(4)
 
-    if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3 = TRSK)
+    if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! hexagon, third neighbour edge (Gassmann rule 3 = TRSK rule)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idS+UP+1)*interp (qe(EDGE*idS+UP+1),qe(EDGE*id+UP+1))*wgt1(3)
-    else ! Pentagon, second neighbour edge (Gassmann rule 2)
+    else                                             ! pentagon, second neighbour edge (Gassmann rule 2)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idS+UP+1)*qe(EDGE*idW+RT+1)*wgt1(3)
     end if
 
-    if (dom%pedlen%elts(EDGE*idNW+RT+1)/=0.0_8) then ! Hexagon, third neighbour edge (Gassmann rule 3)
+    if (dom%pedlen%elts(EDGE*idNW+RT+1) /= 0.0_8) then ! hexagon, third neighbour edge (Gassmann rule 3)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idN+UP+1)*interp (qe(EDGE*idN+UP+1),qe(EDGE*id+UP+1))*wgt2(3)
-    else ! Pentagon, second neighbour edge (Gassmann rule 2)
+    else                                               ! pentagon, second neighbour edge (Gassmann rule 2)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idN+UP+1)*qe(EDGE*idW+DG+1)*wgt2(3)
     end if
   end function Qperp_Gassmann
@@ -1009,7 +1009,7 @@ contains
     type(Domain) :: dom
     integer      :: id, offs
 
-    integer               :: i
+    integer                :: i
     real(dp), dimension(5) :: get_weights, wgt
 
     wgt(1) = dom%areas%elts(id+1)%part(1+offs)
@@ -1017,7 +1017,7 @@ contains
        wgt(i) = wgt(i-1) + dom%areas%elts(id+1)%part(modulo(i+offs-1,6)+1)
     end do
     wgt = 0.5_dp - wgt*dom%areas%elts(id+1)%hex_inv
-    get_weights = (/wgt(1), -wgt(2), wgt(3), -wgt(4), wgt(5)/)
+    get_weights = (/ wgt(1), -wgt(2), wgt(3), -wgt(4), wgt(5) /)
   end function get_weights
 
   subroutine cal_surf_press (q)
@@ -1056,7 +1056,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer  :: id
     real(dp) :: rho_dz, rho_dz_theta
 
     id = idx (i, j, offs, dims) + 1
@@ -1103,9 +1103,9 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id
+    integer  :: d, id
     real(dp) :: rho_dz, rho_dz_theta, p_upper
-
+    
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
@@ -1114,7 +1114,7 @@ contains
     dom%geopot_lower%elts(id) = dom%geopot%elts(id)
     if (compressible) then ! compressible case:, rho = P / (kappa theta pi)
        p_upper = dom%press_lower%elts(id) - grav_accel * rho_dz
-       
+
        dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
 
        exner(id) = c_p * (dom%press%elts(id)/p_0)**kappa
@@ -1124,7 +1124,7 @@ contains
        p_upper = dom%press_lower%elts(id) - grav_accel * (rho_dz - rho_dz_theta)
 
        dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
-       
+
        dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel*rho_dz / (ref_density * phi_node (d, id, zlev))
     end if
     dom%press_lower%elts(id) = p_upper
@@ -1138,7 +1138,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer  :: id
     real(dp) :: rho_dz, rho_dz_theta, p_upper
 
     id = idx (i, j, offs, dims) + 1

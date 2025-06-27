@@ -76,6 +76,7 @@ contains
     if (resume >= 0) then
        cp_idx = resume
        call restart
+       cp_idx = cp_idx + 1
        resume = NONE
     else
        call init_basic
