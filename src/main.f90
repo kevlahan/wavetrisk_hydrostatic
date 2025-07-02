@@ -13,7 +13,7 @@ module main_mod
   implicit none
   integer                            :: chkpt_info
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
-  real(dp)                           :: dt_new, initial_total_mass, next_save_time
+  real(dp)                           :: dt_new, initial_total_mass, time_mult
   real(dp)                           :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, dt_loc, min_mass_loc
   
   type Initial_State
@@ -76,7 +76,6 @@ contains
     if (resume >= 0) then
        cp_idx = resume
        call restart
-       cp_idx = cp_idx + 1
        resume = NONE
     else
        call init_basic
@@ -111,7 +110,7 @@ contains
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        
        call count_active
-       call write_and_export ! save initial conditions
+       call write_and_export
        if (trim (test_case) /= "make_NCAR_topo" .or. trim (test_case) /= "save_vtk_data") call write_checkpoint 
     end if
     call barrier
@@ -221,11 +220,12 @@ contains
   subroutine write_checkpoint 
     implicit none
 
+    cp_idx = cp_idx + 1
     if (rank == 0) then
        write (6,'(/,a,/)') &
             '************************************************************************&
             **********************************************************'
-       write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time/DAY
+       write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time / DAY
     end if
     
 #ifdef AMPI
@@ -240,8 +240,6 @@ contains
     
     if (rebalance .and. time < time_end) call restart
 #endif
-    
-    cp_idx = cp_idx + 1 
   end subroutine write_checkpoint
 
   subroutine restart 
@@ -298,9 +296,9 @@ contains
        end if
        
        if (log_total_mass) call cal_total_mass (.true.)
-
+       
+       itime  = nint (time * time_mult, 8)
        dt_new = min (dt_init, cpt_dt ())
-       next_save_time = time + dt_write
 
        if (rank == 0) then
           write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
@@ -326,8 +324,26 @@ contains
   subroutine time_step 
     use vert_diffusion_mod
     implicit none
+    integer(8) :: idt, ialign
+    logical    :: save_data
 
-    dt  = dt_new
+    ! New time step
+    istep       = istep       + 1
+    istep_cumul = istep_cumul + 1
+    dt          = dt_new
+    idt         = nint (dt       * time_mult, 8)
+    ialign      = nint (dt_write * time_mult, 8)
+   
+    if (ialign > 0) then ! check whether to save data
+       save_data = modulo (itime + idt, ialign) < modulo (itime, ialign)
+    else
+       save_data = .false.
+    end if
+
+    if (save_data .and. match_time) then ! modify time step 
+       idt = ialign - modulo (itime, ialign)
+       dt  = idt / time_mult
+    end if
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Dynamics time step
@@ -378,16 +394,21 @@ contains
     if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !    Update time and time step and save data
+    !    Update time step and save data
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    istep       = istep       + 1
-    istep_cumul = istep_cumul + 1
-    time        = time + dt
-    dt_new      = cpt_dt ()
-
-    if (time >= iwrite * dt_write)            call write_and_export
-    if (time >= cp_idx * dt_write * cp_every) call write_checkpoint
+    itime = itime + idt
+    if (match_time) then
+       time = itime / time_mult
+    else
+       time = time + dt
+    end if
+    dt_new = cpt_dt ()
     
+    if (save_data) then
+       if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint
+       call write_and_export
+    end if
+
     ! Rebalance with AMPI
 #ifdef AMPI
     if (modulo (istep, irebalance) == 0) then
@@ -462,6 +483,7 @@ contains
     call apply_interscale (mask_adj_child, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
     
     call record_init_state (ini_st)
+    if (time_end > 0.0_dp) time_mult = huge (itime)/2 / time_end
 
     allocate (n_patch_old(size(grid)), n_node_old(size(grid))); n_patch_old = 2
 

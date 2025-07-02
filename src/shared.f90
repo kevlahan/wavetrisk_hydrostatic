@@ -222,17 +222,19 @@ module shared_mod
   real(dp), parameter :: WATT    = JOULE / SECOND
   
   ! Simulation variables
-  integer                                        :: cp_idx, cp_every, err_restart
-  integer                                        :: iadapt, ibin, irebalance, iremap, iremap_max, istep, istep_cumul, iwrite
+  integer                                        :: cp_idx, cp_every, cp_init, err_restart
+  integer                                        :: iadapt, ibin, irebalance, iremap, iremap_max
+  integer                                        :: istep, istep_cumul, iwrite, iwrite_init
   integer                                        :: n_diffuse, nbins, nstep_init, resume
   integer                                        :: Laplace_divu, Laplace_rotu, Laplace_sclr
   integer                                        :: topo_min_level, topo_max_level
+  integer(8)                                     :: itime
   integer, parameter                             :: nvar_zonal = 9   ! number of zonal statistics to calculate
   integer, dimension(:), allocatable             :: n_node_old, n_patch_old
   integer, dimension(:,:), allocatable           :: Nstats, Nstats_glo
 
   real(dp)                                       :: a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
-  real(dp)                                       :: dbin, dt, dt_init, dt_phys, dt_write,time_end, time
+  real(dp)                                       :: dbin, dt, dt_init, dt_phys, dt_write, time_end, time
   real(dp)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax
   real(dp)                                       :: porosity, ref_density, ref_density_air, ref_density_water
   real(dp)                                       :: mass_error, max_depth, min_depth, min_mass, min_mass_remap
@@ -254,7 +256,7 @@ module shared_mod
   character(1), parameter                        :: lf=char(10) ! line feed character
   
   logical :: adapt_dt, compressible, default_thresholds, eos_nl, fill, implicit_diff_sclr, implicit_diff_divu
-  logical :: log_iter, log_min_mass, log_total_mass, mode_split, NCAR_topo, penalize, split_mean_perturbation
+  logical :: log_iter, log_min_mass, log_total_mass, match_time, mode_split, NCAR_topo, penalize, split_mean_perturbation
   logical :: rebalance, physics_model, remap, uniform, vert_diffuse
   logical :: sigma_z, sso, tke_closure
 contains
@@ -335,11 +337,13 @@ contains
     ! (these parameters may be reset in the test case file, but are needed for compilation)
     resume                  = NONE
     cp_every                = 1
-    cp_idx                  = 0
+    cp_idx                  = NONE
+    cp_init                 = 0
     err_restart             = 0
     istep                   = 0
     istep_cumul             = 0
     iwrite                  = 0
+    iwrite_init             = 0
     time                    = 0.0_dp
     max_level               = MIN_LEVEL
     level_start             = MIN_LEVEL

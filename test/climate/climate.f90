@@ -21,8 +21,9 @@ program climate
   adapt_dt                 = .true.                           ! adapt time step
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
-  log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
-  scale_aware              = .true.                           ! scale-aware viscosity
+  log_min_mass             = .false.                           ! compute minimum mass at each dt (for checking stability issues)
+  match_time               = .true.
+  scale_aware              = .false.                           ! scale-aware viscosity
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
   sponge                   = .false.                           ! use sponge layer in upper layers to avoid reflection
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
@@ -80,14 +81,14 @@ program climate
   call assign_functions
   call initialize_seed
   call initialize (run_id)
-  call print_test_case_parameters
-  total_cpu_time = 0.0_dp; time_start = time
+  call print_test_case_parameters 
+  total_cpu_time = 0.0_dp
   open (unit = 12, file = trim(run_id)//'_log', action = 'WRITE', form = 'FORMATTED', position = 'APPEND')
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Run simulation
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
-  if (rank == 0) write (6,'(a,/)') &
+  if (rank == 0) write (6,'(a)') &
        '----------------------------------------------------- Start simulation run &
        ------------------------------------------------------'
   do while (time < time_end)

@@ -22,7 +22,7 @@ contains
     if (rank == 0) then
        write (6,'(a)') '**************************************************************&
             ********************************************************************'
-       write (6,'(a,i4)') 'Saving field ', iwrite
+       write (6,'(a,i4,a,es10.4)') 'Saving field ', iwrite, ' at time [day] = ', time / DAY
     end if
 
     ! Recalculate eddy viscosity and diffusivity so they could be saved
@@ -89,11 +89,10 @@ contains
             "Number of active cells = ", ncell, " number of unique vertices = ", nvertex, &
             " compression ratio = ", dble (2 * (2 + 10 * 4**max_level)) / dble (ncell)
 
-       write (6,'(a)') '*************************************************************&
+       write (6,'(a,/)') '*************************************************************&
             *********************************************************************'
     end if
     call barrier
-    
     deallocate (vel_vert)
 
     iwrite = iwrite + 1

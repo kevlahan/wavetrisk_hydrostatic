@@ -9,8 +9,8 @@ module test_case_mod
   implicit none
 
   ! Standard variables
-  integer  :: domains_per_task, resume_init
-  real(dp) :: time_start, total_cpu_time
+  integer  :: domains_per_task, resume_init, time_start
+  real(dp) :: total_cpu_time
 
   ! Test case variables
   real(dp) :: C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
