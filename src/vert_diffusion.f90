@@ -59,9 +59,14 @@ module vert_diffusion_mod
   real(dp) :: Neps_sq     = 1.0e-20_dp           ! background shear
   real(dp) :: Nsq_min     = 1.0e-12_dp           ! threshold for enhanced diffusion
 
-  real(dp) :: Q_sr        = 0.0_dp               ! penetrative part of solar short wave radiation
   real(dp) :: rb_0        = 4.0e-4_dp            ! bottom friction
-  real(dp) :: z_0         = 1.0e-1_dp            ! roughness parameter of free surface 
+  real(dp) :: z_0         = 1.0e-1_dp            ! roughness parameter of free surface
+
+  ! NEMO 2-band solar forcing (5.4)
+  real(dp) :: Q_sr        = 0.0_dp               ! incoming solar heat flux (171.25 W/m^2?)
+  real(dp) :: R           = 0.58_dp              ! fraction of Qsr that resides in almost non-penetrative wavebands
+  real(dp) :: xi_0        = 0.35 * METRE         ! longwave penetration depth 
+  real(dp) :: xi_1        =   23 * METRE         ! shortwave penetration depth (400 nm to 700 nm)
 contains
   subroutine vertical_diffusion
     ! Backwards Euler split step for vertical diffusion
@@ -350,9 +355,17 @@ contains
       ! Net solar flux in layer 1 <= k < zlevels
       implicit none
 
-      solar_flux = Q_sr * (irradiance (eta-z(k)) - irradiance (eta-z(k-1))) / (ref_density * c_p)
+      solar_flux = (irradiance (eta-z(k)) - irradiance (eta-z(k-1))) / (ref_density * c_p)
     end function solar_flux
   end subroutine backwards_euler_temp
+
+  real(dp) function irradiance (depth)
+    ! Downward irradiance
+    implicit none
+    real(dp) :: depth ! depth below free surface
+
+    irradiance = Q_sr * (R * exp (-depth/xi_0) + (1.0_dp - R) * exp (-depth/xi_1))
+  end function irradiance
 
   subroutine backwards_euler_velo (dom, i, j, z_null, offs, dims)
     ! Backwards Euler step for velocity variable
@@ -422,18 +435,6 @@ contains
       coeff = dt * Kv(kk)%data(d)%elts(id+1) / (dzl(:,kk) * dz(:,k))
     end function coeff
   end subroutine backwards_euler_velo
-
-  real(dp) function irradiance (depth)
-    ! Downward irradiance
-    implicit none
-    real(dp) :: depth ! depth below free surface
-
-    real(dp), parameter :: R    = 0.58_dp
-    real(dp), parameter :: xi_0 = 0.35 * METRE
-    real(dp), parameter :: xi_1 =   23 * METRE
-
-    irradiance = Q_sr * (R * exp (-depth/xi_0) + (1.0_dp - R) * exp (-depth/xi_1))
-  end function irradiance
 
   real(dp) function N_sq  (dom, i, j, l, offs, dims, dz)
     ! Brunt-Vaisala number N^2 = -g drho/dz / rho0 at interface 0 <= l <= zlevels
