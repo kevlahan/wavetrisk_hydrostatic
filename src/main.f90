@@ -104,9 +104,9 @@ contains
        
        call count_active
        if (trim (test_case) /= "make_NCAR_topo" .or. trim (test_case) /= "save_vtk_data") call write_checkpoint 
+       call write_and_export
     end if
     call barrier
-    call write_and_export
 
 #ifdef PHYSICS
     if (physics_model .and. physics_type == "Simple") call init_physics 
