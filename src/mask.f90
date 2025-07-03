@@ -726,46 +726,56 @@ contains
     if (mask < typ) mask = typ
   end subroutine set_at_least 
 
-
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!
-  ! TRiSK operator stencils !
-  ! !!!!!!!!!!!!!!!!!!!!!!!!!
-  
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !    TRiSK operator stencils 
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine mask_trsk
     ! Label nodes/edges required for TRiSK operators
     implicit none
+    integer :: p_Laplace
+    
+    p_Laplace = max (Laplace_sclr, Laplace_divu, Laplace_rotu)
 
-    call apply_bdry (mask_node_trsk, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
+    call apply_bdry (mask_div_grad_trsk, z_null, 0, 1)
+    if (p_Laplace == 2) call apply_bdry (mask_hyperdiffusion_trsk, z_null, 0, 0)
   end subroutine mask_trsk
 
-  subroutine mask_node_trsk (dom, i, j, zlev, offs, dims)
-    ! Add additional TRISK operator stencils needed for nodes
+  subroutine mask_div_grad_trsk (dom, i, j, zlev, offs, dims)
+    ! TRISK operator stencil for divergence of fluxes and Laplacian diffusion
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, p_Laplace
+    integer :: id
 
-    id  = idx (i, j, offs, dims)
+    id  = idx (i, j, offs, dims) + 1
 
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       ! Stencil for divergence of fluxes and Laplacian diffusion
-       call div_grad_stencil (dom, i, j, offs, dims)
+    if (dom%mask_n%elts(id) >= ADJZONE) call div_grad_stencil (dom, i, j, offs, dims) 
+  end subroutine mask_div_grad_trsk
 
-       ! Hyperdiffusion
-       p_Laplace = max (Laplace_sclr, Laplace_divu, Laplace_rotu)
-       if (p_Laplace == 2) then
-          call div_grad_stencil (dom, i+1, j,   offs, dims)
-          call div_grad_stencil (dom, i+1, j+1, offs, dims)
-          call div_grad_stencil (dom, i,   j+1, offs, dims)
-          call div_grad_stencil (dom, i-1, j,   offs, dims)
-          call div_grad_stencil (dom, i-1, j-1, offs, dims)
-          call div_grad_stencil (dom, i,   j-1, offs, dims)
-       end if
+  subroutine mask_hyperdiffusion_trsk (dom, i, j, zlev, offs, dims)
+    ! TRISK operator stencil for hyperdiffusion
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    integer :: id
+
+    id  = idx (i, j, offs, dims) + 1
+
+    if (dom%mask_n%elts(id) >= ADJZONE) then
+       call div_grad_stencil (dom, i+1, j,   offs, dims)
+       call div_grad_stencil (dom, i+1, j+1, offs, dims)
+       call div_grad_stencil (dom, i,   j+1, offs, dims)
+       call div_grad_stencil (dom, i-1, j,   offs, dims)
+       call div_grad_stencil (dom, i-1, j-1, offs, dims)
+       call div_grad_stencil (dom, i,   j-1, offs, dims)
     end if
-  end subroutine mask_node_trsk
+  end subroutine mask_hyperdiffusion_trsk
 
   subroutine mask_edge_trsk (dom, i, j, zlev, offs, dims)
     ! Add additional TRISK operator stencils needed for edges
@@ -785,9 +795,9 @@ contains
        idE  = idx (i+1, j,   offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
        idN  = idx (i,   j+1, offs, dims)
-       call set_at_least (dom%mask_n%elts(idE+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idE +1), TRSK)
        call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
-       call set_at_least (dom%mask_n%elts(idN+1),  TRSK)
+       call set_at_least (dom%mask_n%elts(idN +1), TRSK)
 
        ! Kinetic energy stencil
        call mask_ke_trsk (dom, i,   j,   zlev, offs, dims)
@@ -850,20 +860,20 @@ contains
     idSW   = idx (i-1, j-1, offs, dims)
     idS    = idx (i,   j-1, offs, dims)
 
-    call set_at_least (dom%mask_n%elts(id+1),   TRSK)
-    call set_at_least (dom%mask_n%elts(idE+1),  TRSK)
+    call set_at_least (dom%mask_n%elts(id  +1), TRSK)
+    call set_at_least (dom%mask_n%elts(idE +1), TRSK)
     call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
-    call set_at_least (dom%mask_n%elts(idN+1),  TRSK)
-    call set_at_least (dom%mask_n%elts(idW+1),  TRSK)
+    call set_at_least (dom%mask_n%elts(idN +1), TRSK)
+    call set_at_least (dom%mask_n%elts(idW +1), TRSK)
     call set_at_least (dom%mask_n%elts(idSW+1), TRSK)
-    call set_at_least (dom%mask_n%elts(idS+1),  TRSK)
+    call set_at_least (dom%mask_n%elts(idS +1), TRSK)
 
-    call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),   TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),   TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),   TRSK) 
-    call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id +RT+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id +DG+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id +UP+1),  TRSK) 
+    call set_at_least (dom%mask_e%elts(EDGE*idW +RT+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
   end subroutine div_grad_stencil
 
   subroutine mask_ke_trsk (dom, i, j, zlev, offs, dims)
@@ -881,12 +891,12 @@ contains
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
 
-    call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),   TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),   TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),   TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id  +RT+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id  +DG+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id  +UP+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idW +RT+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
   end subroutine mask_ke_trsk
 
   subroutine qe_stencil (dom, i, j, offs, dims)
@@ -907,9 +917,9 @@ contains
     idS    = idx (i,   j-1, offs, dims)
 
     ! Circulation stencil
-    call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),  TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),  TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id +RT+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id +DG+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id +UP+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idE+UP+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idN+RT+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idW+DG+1), TRSK)
@@ -918,12 +928,12 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1), TRSK)
 
     ! Potential vorticity stencil
-    call set_at_least (dom%mask_n%elts(id+1),   TRSK)
-    call set_at_least (dom%mask_n%elts(idE+1),  TRSK)
+    call set_at_least (dom%mask_n%elts(id  +1), TRSK)
+    call set_at_least (dom%mask_n%elts(idE +1), TRSK)
     call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
-    call set_at_least (dom%mask_n%elts(idN+1),  TRSK)
-    call set_at_least (dom%mask_n%elts(idW+1),  TRSK)
-    call set_at_least (dom%mask_n%elts(idS+1),  TRSK)
+    call set_at_least (dom%mask_n%elts(idN +1), TRSK)
+    call set_at_least (dom%mask_n%elts(idW +1), TRSK)
+    call set_at_least (dom%mask_n%elts(idS+ 1), TRSK)
   end subroutine qe_stencil
 
   subroutine Laplacian_u_stencil (dom, i, j, offs, dims)
@@ -958,11 +968,11 @@ contains
     idSW   = idx (i-1, j-1, offs, dims)
     idS    = idx (i,   j-1, offs, dims)
 
-    call set_at_least (dom%mask_e%elts(EDGE*id+RT+1),   TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*id+DG+1),   TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*id+UP+1),   TRSK) 
-    call set_at_least (dom%mask_e%elts(EDGE*idW+RT+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id  +RT+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id  +DG+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id  +UP+1), TRSK) 
+    call set_at_least (dom%mask_e%elts(EDGE*idW +RT+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*idS+UP+1),  TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
   end subroutine divu_stencil
 end module mask_mod

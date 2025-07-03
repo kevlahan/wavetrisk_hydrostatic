@@ -147,7 +147,6 @@ contains
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(A,es10.4)') "dt_write [h]                   = ", dt_write/HOUR
        write (6,'(A,i6)')     "CP_EVERY                       = ", CP_EVERY
-       write (6,'(a,l1)')     "rebalance                      = ", rebalance
        write (6,'(A,es10.4)') "time_end [h]                   = ", time_end/HOUR
        write (6,'(A,i6)')     "resume                         = ", resume_init
 

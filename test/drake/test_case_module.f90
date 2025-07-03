@@ -159,7 +159,6 @@ contains
        write (6,'(a,L1)')     "tke_closure                    = ", tke_closure
        write (6,'(a,es10.4)') "dt_write [d]                   = ", dt_write/DAY
        write (6,'(a,i6)')     "CP_EVERY                       = ", CP_EVERY
-       write (6,'(a,l1)')     "rebalance                      = ", rebalance
        write (6,'(a,es10.4)') "time_end [d]                   = ", time_end/DAY
        write (6,'(a,i6)')     "resume                         = ", resume_init
        write (6,'(a,i3)')     "etopo_res                      = ", etopo_res

@@ -54,12 +54,6 @@ contains
        elliptic_solver => Scheduled_Relaxation_Jacobi
     end select
     
-    if (min_level == max_level .or. tol == 0.0_dp) then
-       rebalance = .false. ! do not rebalance for non-adaptive grid
-    else
-       rebalance = .true.
-    end if
-
     call set_time_integrator
 
     ! Check validity of various parameter choices
@@ -76,7 +70,6 @@ contains
     if (resume >= 0) then
        cp_idx = resume
        call restart
-       resume = NONE
     else
        call init_basic
        call init_structures
@@ -110,10 +103,10 @@ contains
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        
        call count_active
-       call write_and_export
        if (trim (test_case) /= "make_NCAR_topo" .or. trim (test_case) /= "save_vtk_data") call write_checkpoint 
     end if
     call barrier
+    call write_and_export
 
 #ifdef PHYSICS
     if (physics_model .and. physics_type == "Simple") call init_physics 
@@ -237,8 +230,7 @@ contains
 #else
     call write_load_conn (cp_idx)
     call dump_adapt_mpi  (cp_idx)
-    
-    if (rebalance .and. time < time_end) call restart
+    call restart
 #endif
   end subroutine write_checkpoint
 
@@ -299,7 +291,6 @@ contains
        
        itime  = nint (time * time_mult, 8)
        dt_new = min (dt_init, cpt_dt ())
-       resume = cp_idx ! to disable saving for first time step
 
        if (rank == 0) then
           write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
@@ -405,8 +396,8 @@ contains
     dt_new = cpt_dt ()
 
     if (save_data) then
-       if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint
        call write_and_export
+       if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint
     end if
 
     ! Rebalance with AMPI

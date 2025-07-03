@@ -543,8 +543,8 @@ contains
 
        write (6,'(/,a,es8.2)') "dt_init          [m]     = ", dt_init / MINUTE
        write (6,'(a,es8.2)') "dt_write         [d]     = ", dt_write / DAY
+       write (6,'(a,l1)')     "match_time               = ", match_time
        write (6,'(a,i4)')     "CP_EVERY                 = ", CP_EVERY
-       write (6,'(a,l1)')     "rebalance                = ", rebalance
        write (6,'(a,es8.2)') "time_end         [d]     = ", time_end / DAY
        write (6,'(a,i6)')     "resume                   = ", resume_init
 

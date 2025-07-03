@@ -399,7 +399,6 @@ contains
     read (fid,*) varname, timeint_type
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
-    read (fid,*) varname, rebalance
     read (fid,*) varname, time_end
     read (fid,*) varname, resume_init
     close(fid)
@@ -441,7 +440,6 @@ contains
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(A,es10.4)') "dt_write (days)     = ", dt_write/DAY
        write (6,'(A,i6)')     "CP_EVERY            = ", CP_EVERY
-       write (6,'(a,l1)')     "rebalance           = ", rebalance
        write (6,'(A,es10.4)') "time_end (days)     = ", time_end/DAY
        write (6,'(A,i6)')     "resume              = ", resume_init
 
