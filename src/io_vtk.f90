@@ -5,14 +5,13 @@ module io_vtk_mod
   use multi_level_mod
   use vert_diffusion_mod 
   implicit none
-  integer(4)                             :: ncell, ncoord,  nvertex
-  integer(4)                             :: ncell_loc, ncoord_unique_loc, nvertex_unique_loc
-  integer(4),  dimension(:), allocatable :: cell_vert_index,  cell_vert_index_loc
-  real(sp),    dimension(:), allocatable :: cell_data_loc, vert_coord_unique_loc
-  real(sp),    dimension(:), allocatable :: cell_data, vert_coord_unique
-  type(coord), dimension(:), allocatable :: points_loc
-
-  integer(4)                             :: nvar = 12
+  integer(4)                                   :: nvar = 12
+  integer(4)                                   :: ncell, ncoord,  nvertex
+  integer(4)                                   :: ncell_loc, ncoord_unique_loc, nvertex_unique_loc
+  integer(4),  dimension(:),       allocatable :: cell_vert_index,  cell_vert_index_loc
+  real(sp),    dimension(:),       allocatable :: cell_data_loc, vert_coord_unique_loc
+  real(sp),    dimension(:),       allocatable :: cell_data, vert_coord_unique
+  type(coord), dimension(:),       allocatable :: points_loc
   type(Float_Field), dimension(:), allocatable, target :: vel_vert ! vertical velocity
 contains
   subroutine write_and_export
@@ -20,9 +19,9 @@ contains
     integer(4) :: d, k, l
 
     if (rank == 0) then
-       write (6,'(a)') '**************************************************************&
+       write (6,'(/,a,/)') '**************************************************************&
             ********************************************************************'
-       write (6,'(a,i4,a,es10.4)') 'Saving field ', iwrite, ' at time [day] = ', time / DAY
+       write (6,'(a,i4,a,es10.4,/)') 'Saving field ', iwrite, ' at time [day] = ', time / DAY
     end if
 
     ! Recalculate eddy viscosity and diffusivity so they could be saved
@@ -48,7 +47,7 @@ contains
 
     ! Save data for all vertical layers
     do k = 1, zlevels
-       if (rank == 0) write (6,'(a,i2)') '   Saving layer ', k
+!       if (rank == 0) write (6,'(a,i2)') '   Saving layer ', k
 
        do d = 1, size(grid)
           mass   =>      sol(S_MASS,k)%data(d)%elts
@@ -85,7 +84,7 @@ contains
     if (rank == 0) then
        call compress_files 
        
-       write (6,'(2(a,i8),a,f6.1)') &
+       write (6,'(2(a,i8),a,f6.1,/)') &
             "Number of active cells = ", ncell, " number of unique vertices = ", nvertex, &
             " compression ratio = ", dble (2 * (2 + 10 * 4**max_level)) / dble (ncell)
 

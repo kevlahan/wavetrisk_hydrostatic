@@ -299,6 +299,7 @@ contains
        
        itime  = nint (time * time_mult, 8)
        dt_new = min (dt_init, cpt_dt ())
+       resume = cp_idx ! to disable saving for first time step
 
        if (rank == 0) then
           write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
@@ -325,7 +326,7 @@ contains
     use vert_diffusion_mod
     implicit none
     integer(8) :: idt, ialign
-    logical    :: save_data
+    logical    :: save_data 
 
     ! New time step
     istep       = istep       + 1
@@ -333,16 +334,19 @@ contains
     dt          = dt_new
     idt         = nint (dt       * time_mult, 8)
     ialign      = nint (dt_write * time_mult, 8)
-   
-    if (ialign > 0) then ! check whether to save data
-       save_data = modulo (itime + idt, ialign) < modulo (itime, ialign)
+
+    ! Check whether to save data
+    if (ialign > 0 .and. cp_idx /= resume) then
+       save_data = (modulo (itime+idt, ialign) < modulo (itime, ialign))
     else
+       resume    = NONE 
        save_data = .false.
     end if
 
-    if (save_data .and. match_time) then ! modify time step 
-       idt = ialign - modulo (itime, ialign)
-       dt  = idt / time_mult
+    ! Adjust time step to match save time exactly
+    if (save_data .and. match_time) then
+       idt = ialign - modulo (itime,ialign)
+       dt = idt / time_mult
     end if
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -396,14 +400,10 @@ contains
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Update time step and save data
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    itime = itime + idt
-    if (match_time) then
-       time = itime / time_mult
-    else
-       time = time + dt
-    end if
+    itime  = itime + idt
+    time   = itime / time_mult
     dt_new = cpt_dt ()
-    
+
     if (save_data) then
        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint
        call write_and_export
@@ -442,7 +442,8 @@ contains
        dx_avg(l)   = sqrt (2 / sqrt(3.0_dp) * Area_avg(l))
     end do
 
-    istep = 0
+    istep     = 0
+    time_mult = 1.0_dp
   end subroutine init_basic
 
   subroutine init_structures
