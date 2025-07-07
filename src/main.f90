@@ -70,6 +70,7 @@ contains
     if (resume >= 0) then
        cp_idx = resume
        call restart
+       iwrite = iwrite + 1
     else
        call init_basic
        call init_structures
@@ -103,9 +104,9 @@ contains
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        
        call count_active
-       if (trim (test_case) /= "make_NCAR_topo" .or. trim (test_case) /= "save_vtk_data") call write_checkpoint 
-       call write_and_export
+       if (trim (test_case) /= "make_NCAR_topo" .or. trim (test_case) /= "save_vtk_data") call write_checkpoint
     end if
+    call write_and_export (vtk_grid)
     call barrier
 
 #ifdef PHYSICS
@@ -396,8 +397,9 @@ contains
     dt_new = cpt_dt ()
 
     if (save_data) then
-       call write_and_export
+       iwrite = iwrite + 1
        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint
+       call write_and_export (vtk_grid)
     end if
 
     ! Rebalance with AMPI

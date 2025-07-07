@@ -250,7 +250,7 @@ module shared_mod
   real(dp), dimension (10*2**(2*DOMAIN_LEVEL),3) :: nonunique_pent_locs
   real(dp), dimension (12,3)                     :: unique_pent_locs
 
-  character(3)                                   :: linear_solver = "FMG"
+  character(3)                                   :: linear_solver = "FMG", vtk_grid = "tri"
   character(255)                                 :: grid_type, run_id, test_case, timeint_type, topo_file
   character(255)                                 :: remap_type, remapscalar_type, remapvelo_type, physics_type
   character(1), parameter                        :: lf=char(10) ! line feed character
