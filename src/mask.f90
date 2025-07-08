@@ -730,18 +730,15 @@ contains
   !    TRiSK operator stencils 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine mask_trsk
-    ! Label nodes/edges required for TRiSK operators
+    ! Label nodes/edges required to compute TRiSK operators for active nodes and edges
     implicit none
-    integer :: p_Laplace
-    
-    p_Laplace = max (Laplace_sclr, Laplace_divu, Laplace_rotu)
 
-    call apply_bdry (mask_div_grad_trsk, z_null, 0, 1)
-    if (p_Laplace == 2) call apply_bdry (mask_hyperdiffusion_trsk, z_null, 0, 0)
+    call apply_bdry (nodes_trsk, z_null, 0, 1)
+    call apply_bdry (edges_trsk, z_null, 0, 0) 
   end subroutine mask_trsk
 
-  subroutine mask_div_grad_trsk (dom, i, j, zlev, offs, dims)
-    ! TRISK operator stencil for divergence of fluxes and Laplacian diffusion
+  subroutine nodes_trsk (dom, i, j, zlev, offs, dims)
+    ! TRISK operator stencils needed for acive nodes
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -750,137 +747,116 @@ contains
 
     integer :: id
 
-    id  = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id) >= ADJZONE) call div_grad_stencil (dom, i, j, offs, dims) 
-  end subroutine mask_div_grad_trsk
-
-  subroutine mask_hyperdiffusion_trsk (dom, i, j, zlev, offs, dims)
-    ! TRISK operator stencil for hyperdiffusion
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    id = idx (i, j, offs, dims)
     
-    integer :: id
-
-    id  = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id) >= ADJZONE) then
-       call div_grad_stencil (dom, i+1, j,   offs, dims)
-       call div_grad_stencil (dom, i+1, j+1, offs, dims)
-       call div_grad_stencil (dom, i,   j+1, offs, dims)
-       call div_grad_stencil (dom, i-1, j,   offs, dims)
-       call div_grad_stencil (dom, i-1, j-1, offs, dims)
-       call div_grad_stencil (dom, i,   j-1, offs, dims)
+    if (dom%mask_n%elts(id+1) >= ADJZONE) then
+       call remap_trsk (dom, i, j, offs, dims)
+       
+       if (Laplace_sclr == 1 )call      Laplacian_sclr_trsk (dom, i, j, offs, dims) 
+       if (Laplace_sclr == 2) call hyperLaplacian_sclr_trsk (dom, i, j, offs, dims)
     end if
-  end subroutine mask_hyperdiffusion_trsk
+  end subroutine nodes_trsk
 
-  subroutine mask_edge_trsk (dom, i, j, zlev, offs, dims)
-    ! Add additional TRISK operator stencils needed for edges
+  subroutine edges_trsk (dom, i, j, zlev, offs, dims)
+    ! TRISK operator stencils needed for active edges
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, id_i, idE, idNE, idN, p_Laplace
+    integer :: id
 
-    id  = idx (i, j, offs, dims)
-    id_i = id + 1
+    id = idx (i, j, offs, dims)
 
-    if (maxval (dom%mask_e%elts(EDGE*id+1:EDGE*id_i)) >= ADJZONE) then
-       ! Mask for remap
-       idE  = idx (i+1, j,   offs, dims)
-       idNE = idx (i+1, j+1, offs, dims)
-       idN  = idx (i,   j+1, offs, dims)
-       call set_at_least (dom%mask_n%elts(idE +1), TRSK)
-       call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
-       call set_at_least (dom%mask_n%elts(idN +1), TRSK)
+    if (maxval (dom%mask_e%elts(id_edge(id))) >= ADJZONE) then
+       call gradB_trsk (dom, i, j, offs, dims) ! gradient of Bernoulli function
+       call gradK_trsk (dom, i, j, offs, dims) ! gradient of kinetic energy
+       call Qperp_trsk (dom, i, j, offs, dims) ! Qperp
 
-       ! Kinetic energy stencil
-       call mask_ke_trsk (dom, i,   j,   zlev, offs, dims)
-       call mask_ke_trsk (dom, i+1, j,   zlev, offs, dims)
-       call mask_ke_trsk (dom, i+1, j+1, zlev, offs, dims)
-       call mask_ke_trsk (dom, i,   j+1, zlev, offs, dims)
-
-       ! Stencil for gradients of Bernoulli function
-       call set_at_least (dom%mask_e%elts(EDGE*id+RT+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*id+DG+1), TRSK)
-       call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), TRSK)
-
-       ! Qperp stencil
-       call div_grad_stencil (dom, i+1, j,   offs, dims)
-       call div_grad_stencil (dom, i+1, j+1, offs, dims)
-       call div_grad_stencil (dom, i,   j+1, offs, dims)
-
-       call qe_stencil (dom, i,   j,   offs, dims)
-       call qe_stencil (dom, i+1, j,   offs, dims)
-       call qe_stencil (dom, i+1, j+1, offs, dims)
-       call qe_stencil (dom, i,   j+1, offs, dims)
-       call qe_stencil (dom, i-1, j,   offs, dims) 
-       call qe_stencil (dom, i-1, j-1, offs, dims) 
-       call qe_stencil (dom, i,   j-1, offs, dims) 
-       call qe_stencil (dom, i+1, j-1, offs, dims) 
-       call qe_stencil (dom, i-1, j+1, offs, dims)
-
-       ! Diffusion
-       p_Laplace = max (Laplace_sclr, Laplace_divu, Laplace_rotu)
-       if (p_Laplace /= 0) then
-          call Laplacian_u_stencil (dom, i, j, offs, dims)
-          if (p_Laplace == 2) then
-             call Laplacian_u_stencil (dom, i+1, j,   offs, dims)
-             call Laplacian_u_stencil (dom, i+1, j+1, offs, dims)
-             call Laplacian_u_stencil (dom, i+1, j-1, offs, dims)
-             call Laplacian_u_stencil (dom, i,   j+1, offs, dims)
-             call Laplacian_u_stencil (dom, i-1, j,   offs, dims)
-             call Laplacian_u_stencil (dom, i-1, j-1, offs, dims)
-             call Laplacian_u_stencil (dom, i,   j-1, offs, dims)
-          end if
-       end if
+       if (Laplace_rotu == 1) call      Laplacian_u_trsk (dom, i, j, offs, dims)
+       if (Laplace_rotu == 2) call hyperLaplacian_u_trsk (dom, i, j, offs, dims)
     end if
-  end subroutine mask_edge_trsk
-
-  subroutine div_grad_stencil (dom, i, j, offs, dims)
-    ! Stencil for flux-divergence operator
+  end subroutine edges_trsk
+  
+  subroutine gradB_trsk (dom, i, j, offs, dims)
+    ! Gradient of Bernoulli function
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idNE, idN, idW, idSW, idS
+    integer :: id
 
-    id     = idx (i,   j,   offs, dims)
-    idE    = idx (i+1, j,   offs, dims)
-    idNE   = idx (i+1, j+1, offs, dims)
-    idN    = idx (i,   j+1, offs, dims)
-    idW    = idx (i-1, j,   offs, dims)
-    idSW   = idx (i-1, j-1, offs, dims)
-    idS    = idx (i,   j-1, offs, dims)
+    id = idx (i, j, offs, dims)
+    
+    call set_at_least (dom%mask_e%elts(EDGE*id+RT+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id+DG+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), TRSK)
+  end subroutine gradB_trsk
 
-    call set_at_least (dom%mask_n%elts(id  +1), TRSK)
+  subroutine gradK_trsk (dom, i, j, offs, dims)
+    ! Gradient of kinetic energy
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    call ke_trsk (dom, i,   j,   offs, dims)
+    call ke_trsk (dom, i+1, j,   offs, dims)
+    call ke_trsk (dom, i+1, j+1, offs, dims)
+    call ke_trsk (dom, i,   j+1, offs, dims)
+  end subroutine gradK_trsk
+
+  subroutine Qperp_trsk (dom, i, j, offs, dims)
+    ! Gradient of kinetic energy
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    call div_grad_trsk (dom, i+1, j,   offs, dims)
+    call div_grad_trsk (dom, i+1, j+1, offs, dims)
+    call div_grad_trsk (dom, i,   j+1, offs, dims)
+    
+    call qe_trsk (dom, i,   j,   offs, dims)
+    call qe_trsk (dom, i+1, j,   offs, dims)
+    call qe_trsk (dom, i+1, j+1, offs, dims)
+    call qe_trsk (dom, i,   j+1, offs, dims)
+    call qe_trsk (dom, i-1, j,   offs, dims) 
+    call qe_trsk (dom, i-1, j-1, offs, dims) 
+    call qe_trsk (dom, i,   j-1, offs, dims) 
+    call qe_trsk (dom, i+1, j-1, offs, dims) 
+    call qe_trsk (dom, i-1, j+1, offs, dims)
+  end subroutine Qperp_trsk
+
+  subroutine remap_trsk (dom, i, j, offs, dims)
+    ! Remap stencil
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: idE, idNE, idN
+
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+
     call set_at_least (dom%mask_n%elts(idE +1), TRSK)
     call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
     call set_at_least (dom%mask_n%elts(idN +1), TRSK)
-    call set_at_least (dom%mask_n%elts(idW +1), TRSK)
-    call set_at_least (dom%mask_n%elts(idSW+1), TRSK)
-    call set_at_least (dom%mask_n%elts(idS +1), TRSK)
+  end subroutine remap_trsk
 
-    call set_at_least (dom%mask_e%elts(EDGE*id +RT+1),  TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*id +DG+1),  TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*id +UP+1),  TRSK) 
-    call set_at_least (dom%mask_e%elts(EDGE*idW +RT+1), TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
-    call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
-  end subroutine div_grad_stencil
-
-  subroutine mask_ke_trsk (dom, i, j, zlev, offs, dims)
+  subroutine ke_trsk (dom, i, j, offs, dims)
     ! Kinetic energy stencil
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j, zlev
+    integer                        :: i, j
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -897,9 +873,9 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*idW +RT+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
-  end subroutine mask_ke_trsk
+  end subroutine ke_trsk
 
-  subroutine qe_stencil (dom, i, j, offs, dims)
+  subroutine qe_trsk (dom, i, j, offs, dims)
     ! Stencil for qe 
     implicit none
     type(Domain)                   :: dom
@@ -934,9 +910,53 @@ contains
     call set_at_least (dom%mask_n%elts(idN +1), TRSK)
     call set_at_least (dom%mask_n%elts(idW +1), TRSK)
     call set_at_least (dom%mask_n%elts(idS+ 1), TRSK)
-  end subroutine qe_stencil
+  end subroutine qe_trsk
 
-  subroutine Laplacian_u_stencil (dom, i, j, offs, dims)
+  subroutine Laplacian_sclr_trsk (dom, i, j, offs, dims)
+    ! Stencil of Laplacian hyperdiffusion of scalars
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    call div_grad_trsk (dom, i, j, offs, dims)
+  end subroutine Laplacian_sclr_trsk
+
+  subroutine hyperLaplacian_sclr_trsk (dom, i, j, offs, dims)
+    ! Stencil of Laplacian hyperdiffusion of scalars
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    call div_grad_trsk (dom, i+1, j,   offs, dims)
+    call div_grad_trsk (dom, i+1, j+1, offs, dims)
+    call div_grad_trsk (dom, i,   j+1, offs, dims)
+    call div_grad_trsk (dom, i-1, j,   offs, dims)
+    call div_grad_trsk (dom, i-1, j-1, offs, dims)
+    call div_grad_trsk (dom, i,   j-1, offs, dims)
+  end subroutine hyperLaplacian_sclr_trsk
+
+  subroutine hyperLaplacian_u_trsk (dom, i, j, offs, dims)
+    ! Stencil of Laplacian hyperdiffusion of velocity
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    call Laplacian_u_trsk (dom, i+1, j,   offs, dims)
+    call Laplacian_u_trsk (dom, i+1, j+1, offs, dims)
+    call Laplacian_u_trsk (dom, i+1, j-1, offs, dims)
+    call Laplacian_u_trsk (dom, i,   j+1, offs, dims)
+    call Laplacian_u_trsk (dom, i-1, j,   offs, dims)
+    call Laplacian_u_trsk (dom, i-1, j-1, offs, dims)
+    call Laplacian_u_trsk (dom, i,   j-1, offs, dims)
+  end subroutine hyperLaplacian_u_trsk
+
+  subroutine Laplacian_u_trsk (dom, i, j, offs, dims)
     ! Stencil for Laplacian(u) operators
     implicit none
     type(Domain)                   :: dom
@@ -944,13 +964,13 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call divu_stencil (dom, i,   j,   offs, dims)
-    call divu_stencil (dom, i+1, j,   offs, dims)
-    call divu_stencil (dom, i+1, j+1, offs, dims)
-    call divu_stencil (dom, i,   j+1, offs, dims)
-  end subroutine Laplacian_u_stencil
+    call divu_trsk (dom, i,   j,   offs, dims)
+    call divu_trsk (dom, i+1, j,   offs, dims)
+    call divu_trsk (dom, i+1, j+1, offs, dims)
+    call divu_trsk (dom, i,   j+1, offs, dims)
+  end subroutine Laplacian_u_trsk
 
-  subroutine divu_stencil (dom, i, j, offs, dims)
+  subroutine divu_trsk (dom, i, j, offs, dims)
     ! Stencil for divu operator
     implicit none
     type(Domain)                   :: dom
@@ -974,5 +994,39 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*idW +RT+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
-  end subroutine divu_stencil
+  end subroutine divu_trsk
+
+  subroutine div_grad_trsk (dom, i, j, offs, dims)
+    ! Stencil for flux-divergence operator
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, idE, idNE, idN, idW, idSW, idS
+
+    id     = idx (i,   j,   offs, dims)
+    idE    = idx (i+1, j,   offs, dims)
+    idNE   = idx (i+1, j+1, offs, dims)
+    idN    = idx (i,   j+1, offs, dims)
+    idW    = idx (i-1, j,   offs, dims)
+    idSW   = idx (i-1, j-1, offs, dims)
+    idS    = idx (i,   j-1, offs, dims)
+
+    call set_at_least (dom%mask_n%elts(id  +1), TRSK)
+    call set_at_least (dom%mask_n%elts(idE +1), TRSK)
+    call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
+    call set_at_least (dom%mask_n%elts(idN +1), TRSK)
+    call set_at_least (dom%mask_n%elts(idW +1), TRSK)
+    call set_at_least (dom%mask_n%elts(idSW+1), TRSK)
+    call set_at_least (dom%mask_n%elts(idS +1), TRSK)
+
+    call set_at_least (dom%mask_e%elts(EDGE*id  +RT+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id  +DG+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*id  +UP+1), TRSK) 
+    call set_at_least (dom%mask_e%elts(EDGE*idW +RT+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
+    call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
+  end subroutine div_grad_trsk
 end module mask_mod

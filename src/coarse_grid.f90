@@ -73,8 +73,8 @@ contains
     end do
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call apply_onescale2 (ccentre,    level_end-1, z_null, -2, 1)
-    call apply_onescale2 (midpt,      level_end-1, z_null, -1, 1)
+    call apply_onescale2 (ccentre,    level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    call apply_onescale2 (midpt,      level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
     call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
 
     ! Final error
@@ -136,11 +136,11 @@ contains
     linf_err = 2*tol
     do while (linf_err > tol)
        call comm_nodes3_mpi (get_coord, set_coord, NONE)
-       call apply_onescale2 (ccentre,    min_level-1, z_null, -2, 1)
-       call apply_onescale2 (midpt,      min_level-1, z_null, -1, 1)
-       call apply_onescale2 (cpt_areas,  min_level-1, z_null, -1, 2)
+       call apply_onescale2 (ccentre,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+       call apply_onescale2 (midpt,     level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+       call apply_onescale2 (cpt_areas, level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
 
-       call apply_onescale (Xu_smooth_cpt,    level_end-1, z_null, 0, 0)
+       call apply_onescale (Xu_smooth_cpt, level_end-1, z_null, 0, 0)
 
        linf_err = 0.0_dp
        call apply_onescale (Xu_smooth_assign, level_end-1, z_null, 0, 0)
@@ -148,9 +148,9 @@ contains
     end do
     
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call apply_onescale2 (ccentre,   level_end-1, z_null, -2, 1)
-    call apply_onescale2 (midpt,     level_end-1, z_null, -1, 1)
-    call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
+    call apply_onescale2 (ccentre,    level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-2)
+    call apply_onescale2 (midpt,      level_end-1, z_null, -(BDRY_THICKNESS-2), BDRY_THICKNESS-1)
+    call apply_onescale2 (check_grid, level_end-1, z_null, 0, 0)
 
     ! Final error
     call grid_error
@@ -352,8 +352,8 @@ contains
     implicit none
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call apply_onescale2 (ccentre, level_end-1, z_null, -2, 1)
-    call apply_onescale2 (midpt,   level_end-1, z_null, -1, 1)
+    call apply_onescale2 (ccentre, level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
 
     l2_err   = 0.0_dp; linf_err = 0.0_dp
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)

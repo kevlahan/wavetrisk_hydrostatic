@@ -179,47 +179,40 @@ contains
     end if
 
     ! Set geometric quantities
-    ! (circumcentres, midpoints, and primal/dual edge lengths, areas, hexagon/triangle areas and coriolis)
+    ! (circumcentres, midpoints, primal/dual edge lengths, areas, hexagon/triangle areas and coriolis)
     num = dom%node%length - dom%areas%length
     d   = dom%id + 1
 
-    call extend (dom%ccentre, TRIAG * num, ORIGIN)
-    call apply_onescale_to_patch2 (ccentre, dom, p_chd, z_null, -2, 1)
-    
+    call extend (dom%ccentre,   TRIAG*num, ORIGIN)
+    call extend (dom%midpt,     EDGE*num,  ORIGIN)
+    call extend (dom%pedlen,    EDGE*num,  0.0_dp)
+    call extend (dom%len,       EDGE*num,  0.0_dp)
+    call extend (dom%areas,          num,  Areas (0.0_dp, 0.0_dp))
+    call extend (dom%triarea,   EDGE*num,  1.0_dp)
+    call extend (dom%coriolis, TRIAG*num,  0.0_dp)
+
+    call apply_onescale_to_patch2 (ccentre,     dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
     call ccentre_penta (dom, p_chd)
-    call extend (dom%midpt, EDGE*num, ORIGIN)
-    
-    call apply_onescale_to_patch2 (midpt, dom, p_chd, z_null, -1, 1)
-    
-    call extend (dom%pedlen, EDGE*num, 0.0_dp)
-    call extend (dom%len,    EDGE*num, 0.0_dp)
-    
-    call apply_onescale_to_patch2 (lengths, dom, p_chd, z_null, -1, 2)
-    
-    call extend (dom%areas, num, Areas (0.0_dp, 0.0_dp))
-    call apply_onescale_to_patch2 (cpt_areas, dom, p_chd, z_null, -1, 2)
-    
-    call extend (dom%triarea, EDGE*num, 1.0_dp)
-    call apply_onescale_to_patch (cpt_triarea, dom, p_chd, z_null, -1, 1)
-    
-    call extend (dom%coriolis, TRIAG*num, 0.0_dp)
-    call apply_onescale_to_patch (coriolis, dom, p_chd, z_null, -1, 1)
+    call apply_onescale_to_patch2 (midpt,       dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    call apply_onescale_to_patch2 (lengths,     dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    call apply_onescale_to_patch2 (ped_lengths, dom, p_chd, z_null, -(BDRY_THICKNESS-2), BDRY_THICKNESS-1)
+    call apply_onescale_to_patch2 (cpt_areas,   dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    call apply_onescale_to_patch  (cpt_triarea, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    call apply_onescale_to_patch  (coriolis,    dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
 
     ! Initialize domain variables to zero
-    call extend (dom%surf_press,   num, 0.0_dp)
-    call extend (dom%press,        num, 0.0_dp)
-    call extend (dom%geopot,       num, 0.0_dp)
-    call extend (dom%u_zonal,      num, 0.0_dp)
-    call extend (dom%v_merid,      num, 0.0_dp)
-    call extend (dom%press_lower,  num, 0.0_dp)
-    call extend (dom%geopot_lower, num, 0.0_dp)
-    call extend (dom%bernoulli,    num, 0.0_dp)
-    call extend (dom%ke,           num, 0.0_dp)
-    call extend (dom%divu,         num, 0.0_dp)
-    
-    call extend (dom%qe,      EDGE*num, 0.0_dp)
-    call extend (dom%vort,   TRIAG*num, 0.0_dp)
-
+    call extend (dom%surf_press,     num, 0.0_dp)
+    call extend (dom%press,          num, 0.0_dp)
+    call extend (dom%geopot,         num, 0.0_dp)
+    call extend (dom%u_zonal,        num, 0.0_dp)
+    call extend (dom%v_merid,        num, 0.0_dp)
+    call extend (dom%press_lower,    num, 0.0_dp)
+    call extend (dom%geopot_lower,   num, 0.0_dp)
+    call extend (dom%bernoulli,      num, 0.0_dp)
+    call extend (dom%ke,             num, 0.0_dp)
+    call extend (dom%divu,           num, 0.0_dp)
+    call extend (dom%qe,        EDGE*num, 0.0_dp)
+    call extend (dom%vort,     TRIAG*num, 0.0_dp)
     call extend (topography%data(d), num, 0.0_dp)
 
     ! Initialize float fields and float arrays to zero
@@ -280,7 +273,7 @@ contains
 
   subroutine add_second_level
     implicit none
-    integer :: d, c
+    integer :: c, d
 
     do d = 1, size(grid)
        do c = 1, N_CHDRN
@@ -308,7 +301,7 @@ contains
     ! child is required if parent node is in the adjacent zone or parent edge can be obtained by restriction
     implicit none
     type(Domain) :: dom
-    integer      :: p_par, c
+    integer      :: c, p_par
 
     integer                        :: e, j0, j_par, i0, i_par, id_e, id_par
     integer                        :: st, en

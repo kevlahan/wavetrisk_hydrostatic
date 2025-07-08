@@ -20,15 +20,9 @@ module shared_mod
   integer, parameter :: N_BDRY            =  8                           ! number of boundary patches associated to each patch
   integer, parameter :: POLE              = -2                           ! label for two pole points
   integer, parameter :: N_ICOSAH_LOZENGE  = 10                           ! number of lozenges (coarse regular domains) in icosahedron
-  
-  integer, parameter :: BDRY_THICKNESS    =  2                           ! thickness of boundary overlaps between lozenges (ghost points or halo)
-                                                                         ! DO NOT CHANGE
-                                                                         ! Note: boundary nodes cells are updated for neighbours
-                                                                         ! -(BDRY_THICKNESS-1), BDRY_THICKNESS), NOT -(BDRY_THICKNESS, BDRY_THICKNESS)
-  
-          
+  integer, parameter :: BDRY_THICKNESS    =  3                           ! width of halo/ghost cells boundary >= 3
   integer, parameter :: N_CHDRN           =  4                           ! number of children nodes associated to each parent node
-  
+
   integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL              ! number of subdomains per lozenge in each direction
   integer, parameter :: N_SUB_DOM         = N_SUB_DOM_PER_DIM**2         ! total number of sub-domains per lozenge
   integer, parameter :: N_GLO_DOMAIN      = N_ICOSAH_LOZENGE * N_SUB_DOM ! total number of domains at coarsest level (number of cores must be <= N_GLO_DOMAIN)

@@ -21,11 +21,11 @@ program climate
   adapt_dt                 = .true.                           ! adapt time step
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
-  log_min_mass             = .false.                           ! compute minimum mass at each dt (for checking stability issues)
-  match_time               = .true.
-  scale_aware              = .false.                           ! scale-aware viscosity
+  log_min_mass             = .false.                          ! compute minimum mass at each dt (for checking stability issues)
+  match_time               = .true.                           ! match save data times exactly
+  scale_aware              = .false.                          ! scale-aware viscosity
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
-  sponge                   = .false.                           ! use sponge layer in upper layers to avoid reflection
+  sponge                   = .false.                          ! use sponge layer in upper layers to avoid reflection
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

@@ -96,11 +96,8 @@ contains
   type(Coord) function project_on_sphere (p)
     implicit none
     type(Coord) :: p
-    real(dp)    :: nrm
     
-    nrm = sqrt (p%x**2 + p%y**2 + p%z**2)
-
-    project_on_sphere = (radius/nrm) * p
+    project_on_sphere = (radius / (norm (p) + eps ())) * p
   end function project_on_sphere
 
   subroutine arc_inters (arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, does_inters, troubles)
@@ -250,7 +247,7 @@ contains
     norm = sqrt (c%x**2 + c%y**2 + c%z**2)
   end function norm
 
-  type(Coord) function mid_pt(p, q)
+  type(Coord) function mid_pt (p, q)
     implicit none
     type(Coord) :: p, q
 
@@ -263,7 +260,7 @@ contains
     
     real(dp) :: nrm
 
-    nrm = sqrt (self%x**2 + self%y**2 + self%z**2)
+    nrm = sqrt (self%x**2 + self%y**2 + self%z**2) + eps ()
     if(nrm >= eps()) then
        normalize_Coord = Coord (self%x/nrm, self%y/nrm, self%z/nrm)
     else

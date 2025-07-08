@@ -514,6 +514,7 @@ contains
        write (6,'(a,i5)')     "number of processors    = ", n_process
        write (6,'(a,i5)')     "DOMAIN_LEVEL            = ", DOMAIN_LEVEL
        write (6,'(a,i5)')     "PATCH_LEVEL             = ", PATCH_LEVEL
+       write (6,'(a,i5)')     "BDRY_THICKNESS          = ", BDRY_THICKNESS
        write (6,'(a,i3)')     "zlevels                 = ", zlevels
        write (6,'(a,i3)')     "Nsoil                   = ", Nsoil
        write (6,'(a,l1)')     "uniform                 = ", uniform

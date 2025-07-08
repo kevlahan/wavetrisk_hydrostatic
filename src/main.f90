@@ -70,7 +70,6 @@ contains
     if (resume >= 0) then
        cp_idx = resume
        call restart
-       iwrite = iwrite + 1
     else
        call init_basic
        call init_structures
