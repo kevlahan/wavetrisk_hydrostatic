@@ -353,6 +353,7 @@ contains
     log_iter                = .false.                             ! print residual error in elliptic solver (T)
     log_min_mass            = .false.                             ! compute minimum mass, relatively expensive (T)
     log_total_mass          = .false.                             ! mass conservation, relatively expensive (F)
+    match_time              = .false.                             ! exactly match time interval dt_write when saving data (F)
     mode_split              = .false.                             ! calculate barotropic free surface mode separately (T)
     NCAR_topo               = .false.                             ! use NCAR topography (requires pre-computation of float field topography) (T)
     penalize                = .false.                             ! include penalization of topography (T)
