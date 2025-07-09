@@ -327,10 +327,10 @@ contains
     ialign      = nint (dt_write * time_mult, 8)
 
     ! Check whether to save data
-    if (ialign > 0 .and. cp_idx /= resume) then
+    if (ialign > 0 .and. istep > 1) then
        save_data = (modulo (itime+idt, ialign) < modulo (itime, ialign))
     else
-       resume    = NONE 
+       resume    = NONE
        save_data = .false.
     end if
 
@@ -593,7 +593,6 @@ contains
     cpt_min_mass = sync_min_real (min_mass_loc)
 
     if (log_min_mass .and. rank == 0) write (6,'(a,es11.4)') "Minimum relative mass = ", cpt_min_mass
-    !if (log_min_mass) write (6,'(a,i3,a,2(es8.2,1x))') "Minimum relative mass on rank ", rank, " = ", min_mass_loc, cpt_min_mass
   end function cpt_min_mass
 
   subroutine cal_min_mass (dom, p, i, j, zlev, offs, dims, ival)
