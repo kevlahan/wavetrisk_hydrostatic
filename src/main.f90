@@ -317,14 +317,14 @@ contains
     use vert_diffusion_mod
     implicit none
     integer(8) :: idt, ialign
-    logical    :: save_data = .false.
+    logical    :: save_data 
 
     ! New time step
     istep       = istep       + 1
     istep_cumul = istep_cumul + 1
     dt          = dt_new
     idt         = nint (dt * time_mult, 8)
-    
+
     ! Check whether to save data
     if (dt_write <= time_end) then
        ialign = nint (dt_write * time_mult, 8)
@@ -332,6 +332,7 @@ contains
           save_data = (modulo (itime+idt, ialign) < modulo (itime, ialign))
        else
           resume = NONE
+          save_data = .false.
        end if
 
        if (save_data .and. match_time) then ! adjust time step to match save time exactly
