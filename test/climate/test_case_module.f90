@@ -248,12 +248,12 @@ contains
        cs2 = cos (lat)**2
 
        sigma = (p - P_top) / (P_s - P_top)
-       sigma_c = 1 - sigma_b
+       sigma_c = 1.0_dp - sigma_b
 
        k_T = k_a + (k_s - k_a) * max (0.0_dp, (sigma - sigma_b) / sigma_c) * cs2**2
 
        theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
-       theta_force = T_mean - delta_T * (1 - cs2) - delta_theta * cs2 * log (p / p_0)
+       theta_force = T_mean - delta_T * (1.0_dp - cs2) - delta_theta * cs2 * log (p / p_0)
 
        theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
     else
@@ -640,7 +640,7 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer :: k
-    real(dp) :: p, P_s, lat, rho_dz, pot_temp, theta_equil, k_T
+    real(dp) :: p, P_s, rho_dz, pot_temp, theta_equil, k_T
 
     call std_surf_pres (0.0_dp, P_s)
 
@@ -651,7 +651,7 @@ contains
 
        rho_dz = a_vert_mass(k) + b_vert_mass(k) * p_0 / grav_accel
 
-       call theta_init (p, P_s, lat, theta_equil, k_T)
+       call theta_init (p, P_s, 0.0_dp, theta_equil, k_T)
 
        threshold_def(S_MASS,k) = tol * rho_dz
        threshold_def(S_TEMP,k) = tol * rho_dz * theta_equil
