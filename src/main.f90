@@ -317,27 +317,27 @@ contains
     use vert_diffusion_mod
     implicit none
     integer(8) :: idt, ialign
-    logical    :: save_data 
+    logical    :: save_data = .false.
 
     ! New time step
     istep       = istep       + 1
     istep_cumul = istep_cumul + 1
     dt          = dt_new
-    idt         = nint (dt       * time_mult, 8)
-    ialign      = nint (dt_write * time_mult, 8)
-
+    idt         = nint (dt * time_mult, 8)
+    
     ! Check whether to save data
-    if (ialign > 0 .and. istep > 1) then
-       save_data = (modulo (itime+idt, ialign) < modulo (itime, ialign))
-    else
-       resume    = NONE
-       save_data = .false.
-    end if
+    if (dt_write <= time_end) then
+       ialign = nint (dt_write * time_mult, 8)
+       if (ialign > 0 .and. istep > 1) then
+          save_data = (modulo (itime+idt, ialign) < modulo (itime, ialign))
+       else
+          resume = NONE
+       end if
 
-    ! Adjust time step to match save time exactly
-    if (save_data .and. match_time) then
-       idt = ialign - modulo (itime,ialign)
-       dt = idt / time_mult
+       if (save_data .and. match_time) then ! adjust time step to match save time exactly
+          idt = ialign - modulo (itime,ialign)
+          dt = idt / time_mult
+       end if
     end if
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
