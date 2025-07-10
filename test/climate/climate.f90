@@ -6,7 +6,6 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   use main_mod
   use test_case_mod
-  use io_vtk_mod
   implicit none
 
   ! Initialize mpi, shared variables and domains
@@ -22,7 +21,6 @@ program climate
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
   log_min_mass             = .false.                          ! compute minimum mass at each dt (for checking stability issues)
-  match_time               = .true.                           ! match save data times exactly
   scale_aware              = .false.                          ! scale-aware viscosity
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
   sponge                   = .false.                          ! use sponge layer in upper layers to avoid reflection

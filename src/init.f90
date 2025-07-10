@@ -400,8 +400,7 @@ contains
                 split = N_SUB_DOM_PER_DIM * (j-1) + (i-1)
                 d_glo = N_SUB_DOM * loz + split
 
-                if (.not. owner(d_glo+1) == rank) then
-                   ! check if pole master on other rank
+                if (.not. owner(d_glo+1) == rank) then ! check if pole master on other rank
                    if (ii-1 == 1 .and. i-1 == 0 .and. j-1 == N_SUB_DOM_PER_DIM - 1) pole_assigned(1) = .true.
                    if (ii-1 == 0 .and. j-1 == 0 .and. i-1 == N_SUB_DOM_PER_DIM - 1) pole_assigned(2) = .true.
                    cycle
@@ -410,7 +409,7 @@ contains
                 d = loc_id(d_glo+1)
                 grid(d+1)%neigh = NONE
 
-                neigh_over_pole = (/ 5*ii - 5 + modulo(jj+1, 5), 5*ii - 5 + modulo(jj - 3, 5) /)
+                neigh_over_pole = (/ 5*ii - 5 + modulo (jj+1, 5), 5*ii - 5 + modulo (jj - 3, 5) /)
 
                 if (ii-1 == 1 .and. i-1 == 0 .and. j-1 == N_SUB_DOM_PER_DIM - 1) then
                    grid(d+1)%neigh(NORTHWEST) = POLE
@@ -588,7 +587,7 @@ contains
     idNW = idx (i-1, j+1, offs, dims)
     idSE = idx (i+1, j-1, offs, dims)
 
-    call init_Areas (area, dom%node%elts(id+1), &
+    call init_Areas ( area, dom%node%elts(id+1), &
          
          (/ dom%ccentre%elts(TRIAG*id  +LORT+1), &
             dom%ccentre%elts(TRIAG*id  +UPLT+1), &
@@ -602,7 +601,7 @@ contains
             dom%midpt%elts(EDGE*id  +UP+1), &
             dom%midpt%elts(EDGE*idW +RT+1), &
             dom%midpt%elts(EDGE*idSW+DG+1), &
-            dom%midpt%elts(EDGE*idS +UP+1)/) )
+            dom%midpt%elts(EDGE*idS +UP+1) /) )
 
     if (j >= PATCH_SIZE + 1) then
        dom%areas%elts(id+1)%part(4:6) = area%part(4:6)
@@ -623,9 +622,9 @@ contains
     
     integer, dimension(2) :: ij
 
-    ij = (/i, j/)
+    ij = (/ i, j /)
     if (rot == 1) then
-       ij(modulo(s, 2) + 1) = N_SUB_DOM_PER_DIM - 1 - ij(modulo(s, 2) + 1)
+       ij(modulo (s, 2) + 1) = N_SUB_DOM_PER_DIM - 1 - ij(modulo (s, 2) + 1)
        ij = (/ij(2), ij(1)/)
     end if
 
@@ -695,7 +694,6 @@ contains
        dom%ccentre%elts(TRIAG*idW+LORT+1) = circumcentre(dom%node%elts(idW+1), dom%node%elts(idN+1), dom%node%elts(idNE+1))
        dom%ccentre%elts(TRIAG*id +UPLT+1) = dom%ccentre%elts(TRIAG*idW+LORT+1)
     end if
-
     if (is_penta(dom, p, IMINUSJPLUS - 1)) then
        i = -1
        j = PATCH_SIZE
@@ -706,7 +704,7 @@ contains
        idS  = idx (i,   j-1, offs, dims)
 
        dom%ccentre%elts(TRIAG*idS+UPLT+1) = circumcentre (dom%node%elts(idS+1), dom%node%elts(idNE+1), dom%node%elts(idE+1))
-       dom%ccentre%elts(TRIAG*id+LORT+1) = dom%ccentre%elts(TRIAG*idS+UPLT+1)
+       dom%ccentre%elts(TRIAG*id +LORT+1) = dom%ccentre%elts(TRIAG*idS+UPLT+1)
     end if
 
     if (is_penta(dom, p, IJPLUS - 1)) then
@@ -766,21 +764,19 @@ contains
        end if
     end if
 
-    ! if (norm(dom%node%elts(idE+1)) == 0.0_dp .or. norm(dom%node%elts(idNE+1)) == 0.0_dp &
-    !      .or. norm(dom%node%elts(idN+1)) == 0.0_dp) print*, 'hi'
     dom%midpt%elts(EDGE*id+RT+1) = mid_pt (dom%node%elts(idE +1), dom%node%elts(id+1))
     dom%midpt%elts(EDGE*id+DG+1) = mid_pt (dom%node%elts(idNE+1), dom%node%elts(id+1))
     dom%midpt%elts(EDGE*id+UP+1) = mid_pt (dom%node%elts(idN +1), dom%node%elts(id+1))
 
     if (j == PATCH_SIZE) then
-       if (i == PATCH_SIZE .and. is_penta(dom, p, IJPLUS - 1)) dom%midpt%elts(EDGE*id+DG+1) = dom%ccentre%elts(TRIAG*id+LORT+1)
+       if (i == PATCH_SIZE .and. is_penta (dom, p, IJPLUS - 1)) dom%midpt%elts(EDGE*id+DG+1) = dom%ccentre%elts(TRIAG*id+LORT+1)
     end if
   end subroutine midpt
 
   subroutine lengths (dom, p, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
-    integer                        ::  p, i, j, zlev
+    integer                        :: p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
@@ -815,7 +811,7 @@ contains
   subroutine ped_lengths (dom, p, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
-    integer                        ::  p, i, j, zlev
+    integer                        :: p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     

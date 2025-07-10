@@ -727,10 +727,42 @@ contains
   end subroutine set_at_least 
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !    Second neighbour operator stencils for trend computation 
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine mask_second_neighbours
+    ! Label nodes/edges that are up to second nearest neighbours of adajcent zone nodes as TRSK
+    implicit none
+
+    call apply_bdry (second_neigh, z_null, 0, 0) 
+  end subroutine mask_second_neighbours
+
+  subroutine second_neigh (dom, i, j, zlev,  offs, dims)
+    ! Second neighbours (uses qe stencil)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id, ii, jj
+  
+    id = idx (i, j, offs, dims)
+
+    if (maxval (dom%mask_e%elts(id_edge(id))) >= ADJZONE) then
+       do ii = -1, 1
+          do jj = -1, 1
+             call qe_trsk (dom, i+ii, j+jj, zlev, offs, dims)
+          end do
+       end do
+    end if
+  end subroutine second_neigh
+
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    TRiSK operator stencils 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine mask_trsk
     ! Label nodes/edges required to compute TRiSK operators for active nodes and edges
+    ! (used for testing)
     implicit none
 
     call apply_bdry (nodes_trsk, z_null, 0, 1)
@@ -750,10 +782,10 @@ contains
     id = idx (i, j, offs, dims)
     
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       call remap_trsk (dom, i, j, offs, dims)
-       
-       if (Laplace_sclr == 1 )call      Laplacian_sclr_trsk (dom, i, j, offs, dims) 
-       if (Laplace_sclr == 2) call hyperLaplacian_sclr_trsk (dom, i, j, offs, dims)
+       call remap_trsk (dom, i, j, zlev,  offs, dims)
+
+       if (Laplace_sclr == 1) call Laplacian_sclr_trsk      (dom, i, j, zlev, offs, dims) 
+       if (Laplace_sclr == 2) call hyperLaplacian_sclr_trsk (dom, i, j, zlev, offs, dims)
     end if
   end subroutine nodes_trsk
 
@@ -770,20 +802,20 @@ contains
     id = idx (i, j, offs, dims)
 
     if (maxval (dom%mask_e%elts(id_edge(id))) >= ADJZONE) then
-       call gradB_trsk (dom, i, j, offs, dims) ! gradient of Bernoulli function
-       call gradK_trsk (dom, i, j, offs, dims) ! gradient of kinetic energy
-       call Qperp_trsk (dom, i, j, offs, dims) ! Qperp
+       call gradB_trsk (dom, i, j, zlev,  offs, dims) ! gradient of Bernoulli function
+       call gradK_trsk (dom, i, j, zlev,  offs, dims) ! gradient of kinetic energy
+       call Qperp_trsk (dom, i, j, zlev,  offs, dims) ! Qperp
 
-       if (Laplace_rotu == 1) call      Laplacian_u_trsk (dom, i, j, offs, dims)
-       if (Laplace_rotu == 2) call hyperLaplacian_u_trsk (dom, i, j, offs, dims)
+       if (Laplace_rotu == 1) call      Laplacian_u_trsk (dom, i, j, zlev,  offs, dims)
+       if (Laplace_rotu == 2) call hyperLaplacian_u_trsk (dom, i, j, zlev,  offs, dims)
     end if
   end subroutine edges_trsk
   
-  subroutine gradB_trsk (dom, i, j, offs, dims)
+  subroutine gradB_trsk (dom, i, j, zlev,  offs, dims)
     ! Gradient of Bernoulli function
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -796,48 +828,46 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), TRSK)
   end subroutine gradB_trsk
 
-  subroutine gradK_trsk (dom, i, j, offs, dims)
+  subroutine gradK_trsk (dom, i, j, zlev,  offs, dims)
     ! Gradient of kinetic energy
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call ke_trsk (dom, i,   j,   offs, dims)
-    call ke_trsk (dom, i+1, j,   offs, dims)
-    call ke_trsk (dom, i+1, j+1, offs, dims)
-    call ke_trsk (dom, i,   j+1, offs, dims)
+    call ke_trsk (dom, i,   j,   zlev, offs, dims)
+    call ke_trsk (dom, i+1, j,   zlev, offs, dims)
+    call ke_trsk (dom, i+1, j+1, zlev, offs, dims)
+    call ke_trsk (dom, i,   j+1, zlev, offs, dims)
   end subroutine gradK_trsk
-
-  subroutine Qperp_trsk (dom, i, j, offs, dims)
+  
+  subroutine Qperp_trsk (dom, i, j, zlev,  offs, dims)
     ! Gradient of kinetic energy
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call div_grad_trsk (dom, i+1, j,   offs, dims)
-    call div_grad_trsk (dom, i+1, j+1, offs, dims)
-    call div_grad_trsk (dom, i,   j+1, offs, dims)
-    
-    call qe_trsk (dom, i,   j,   offs, dims)
-    call qe_trsk (dom, i+1, j,   offs, dims)
-    call qe_trsk (dom, i+1, j+1, offs, dims)
-    call qe_trsk (dom, i,   j+1, offs, dims)
-    call qe_trsk (dom, i-1, j,   offs, dims) 
-    call qe_trsk (dom, i-1, j-1, offs, dims) 
-    call qe_trsk (dom, i,   j-1, offs, dims) 
-    call qe_trsk (dom, i+1, j-1, offs, dims) 
-    call qe_trsk (dom, i-1, j+1, offs, dims)
+    integer :: ii, jj
+
+    call div_grad_trsk (dom, i+1, j,   zlev, offs, dims)
+    call div_grad_trsk (dom, i+1, j+1, zlev, offs, dims)
+    call div_grad_trsk (dom, i,   j+1, zlev, offs, dims)
+
+    do ii = -1, 1
+       do jj = -1, 1
+          call qe_trsk (dom, i+ii, j+jj, zlev, offs, dims)
+       end do
+    end do
   end subroutine Qperp_trsk
 
-  subroutine remap_trsk (dom, i, j, offs, dims)
+  subroutine remap_trsk (dom, i, j, zlev,  offs, dims)
     ! Remap stencil
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -852,11 +882,11 @@ contains
     call set_at_least (dom%mask_n%elts(idN +1), TRSK)
   end subroutine remap_trsk
 
-  subroutine ke_trsk (dom, i, j, offs, dims)
+  subroutine ke_trsk (dom, i, j, zlev,  offs, dims)
     ! Kinetic energy stencil
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -875,15 +905,15 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
   end subroutine ke_trsk
 
-  subroutine qe_trsk (dom, i, j, offs, dims)
+  subroutine qe_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil for qe 
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idNE, idN, idW, idS
+    integer :: id, idE, idN, idNE, idS, idSE, idW
 
     id     = idx (i,   j,   offs, dims)
     idE    = idx (i+1, j,   offs, dims)
@@ -891,6 +921,7 @@ contains
     idN    = idx (i,   j+1, offs, dims)
     idW    = idx (i-1, j,   offs, dims)
     idS    = idx (i,   j-1, offs, dims)
+    idSE   = idx (i+1, j-1, offs, dims)
 
     ! Circulation stencil
     call set_at_least (dom%mask_e%elts(EDGE*id +RT+1), TRSK)
@@ -909,72 +940,73 @@ contains
     call set_at_least (dom%mask_n%elts(idNE+1), TRSK)
     call set_at_least (dom%mask_n%elts(idN +1), TRSK)
     call set_at_least (dom%mask_n%elts(idW +1), TRSK)
-    call set_at_least (dom%mask_n%elts(idS+ 1), TRSK)
+    call set_at_least (dom%mask_n%elts(idSE+1), TRSK)
   end subroutine qe_trsk
 
-  subroutine Laplacian_sclr_trsk (dom, i, j, offs, dims)
+  subroutine Laplacian_sclr_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil of Laplacian hyperdiffusion of scalars
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call div_grad_trsk (dom, i, j, offs, dims)
+    call div_grad_trsk (dom, i, j, zlev,  offs, dims)
   end subroutine Laplacian_sclr_trsk
 
-  subroutine hyperLaplacian_sclr_trsk (dom, i, j, offs, dims)
+  subroutine hyperLaplacian_sclr_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil of Laplacian hyperdiffusion of scalars
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: ii, jj
     
-    call div_grad_trsk (dom, i+1, j,   offs, dims)
-    call div_grad_trsk (dom, i+1, j+1, offs, dims)
-    call div_grad_trsk (dom, i,   j+1, offs, dims)
-    call div_grad_trsk (dom, i-1, j,   offs, dims)
-    call div_grad_trsk (dom, i-1, j-1, offs, dims)
-    call div_grad_trsk (dom, i,   j-1, offs, dims)
+    do ii = -1, 1
+       do jj = -1, 1
+          call div_grad_trsk (dom, i+ii, j+jj, zlev, offs, dims)
+       end do
+    end do
   end subroutine hyperLaplacian_sclr_trsk
 
-  subroutine hyperLaplacian_u_trsk (dom, i, j, offs, dims)
+  subroutine hyperLaplacian_u_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil of Laplacian hyperdiffusion of velocity
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call Laplacian_u_trsk (dom, i+1, j,   offs, dims)
-    call Laplacian_u_trsk (dom, i+1, j+1, offs, dims)
-    call Laplacian_u_trsk (dom, i+1, j-1, offs, dims)
-    call Laplacian_u_trsk (dom, i,   j+1, offs, dims)
-    call Laplacian_u_trsk (dom, i-1, j,   offs, dims)
-    call Laplacian_u_trsk (dom, i-1, j-1, offs, dims)
-    call Laplacian_u_trsk (dom, i,   j-1, offs, dims)
+    integer :: ii, jj
+
+    do ii = -1, 1
+       do jj = -1, 1
+          call Laplacian_u_trsk (dom, i+ii, j+jj, zlev, offs, dims)
+       end do
+    end do
   end subroutine hyperLaplacian_u_trsk
 
-  subroutine Laplacian_u_trsk (dom, i, j, offs, dims)
+  subroutine Laplacian_u_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil for Laplacian(u) operators
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    call divu_trsk (dom, i,   j,   offs, dims)
-    call divu_trsk (dom, i+1, j,   offs, dims)
-    call divu_trsk (dom, i+1, j+1, offs, dims)
-    call divu_trsk (dom, i,   j+1, offs, dims)
+    call divu_trsk (dom, i,   j,   zlev, offs, dims)
+    call divu_trsk (dom, i+1, j,   zlev, offs, dims)
+    call divu_trsk (dom, i+1, j+1, zlev, offs, dims)
+    call divu_trsk (dom, i,   j+1, zlev, offs, dims)
   end subroutine Laplacian_u_trsk
 
-  subroutine divu_trsk (dom, i, j, offs, dims)
+  subroutine divu_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil for divu operator
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -996,11 +1028,11 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
   end subroutine divu_trsk
 
-  subroutine div_grad_trsk (dom, i, j, offs, dims)
+  subroutine div_grad_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil for flux-divergence operator
     implicit none
     type(Domain)                   :: dom
-    integer                        :: i, j
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 

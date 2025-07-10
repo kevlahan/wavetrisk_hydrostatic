@@ -130,19 +130,20 @@ contains
 
     id = idx (i, j, offs, dims)
 
-    ! Scale aware viscosity
     physics_velo_source_case = 0.0_dp
 
-    if (Laplace_divu /= 0) physics_velo_source_case = &  
-         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
+    if (maxval (dom%mask_e%elts(id_edge(id))) >= ADJZONE) then
+       if (Laplace_divu /= 0) physics_velo_source_case = &  
+            + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
 
-    if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
-         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
+       if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
+            - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
+    end if
   contains
     function grad_divu ()
       implicit none
       real(dp), dimension(1:EDGE) :: grad_divu
-            
+
       grad_divu(RT+1) = (divu(idE+1) - divu(id  +1)) / dom%len%elts(EDGE*id+RT+1)
       grad_divu(DG+1) = (divu(id +1) - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
       grad_divu(UP+1) = (divu(idN+1) - divu(id  +1)) / dom%len%elts(EDGE*id+UP+1)

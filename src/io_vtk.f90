@@ -5,6 +5,8 @@ module io_vtk_mod
   use multi_level_mod
   use vert_diffusion_mod 
   implicit none
+  integer, parameter                                   :: HEX_VERT = 6 ! number of hexagon vertices
+  integer, parameter                                   :: TRI_VERT = 3 ! number of triangle vertices
   integer(4)                                           :: nvar = 12
   integer(4)                                           :: ncell, ncoord,  nvert, nvertex
   integer(4)                                           :: ncell_loc, ncoord_unique_loc, nvertex_unique_loc
@@ -257,18 +259,17 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                                 :: d, id, imin, ivert, t
-    integer                                 :: idE, idN, idNE
-    integer(4), dimension(nvert)            :: new_vert_index
-    integer, dimension(0:EDGE)              :: neigh_id
-    real(dp)                                :: dmin
+    integer                                    :: d, id, imin, ivert, t
+    integer                                    :: idE, idN, idNE
+    integer(4), dimension(nvert)               :: new_vert_index
+    integer, dimension(0:EDGE)                 :: neigh_id
+    real(dp)                                   :: dmin
 
-    type(coord)                             :: p
-    type(coord), dimension(LORT:UPLT,nvert) :: vertex
-
-    real(sp), dimension(nvar)               :: outv
+    type(coord)                                :: p
+    type(coord), dimension(LORT:UPLT,TRI_VERT) :: vertex
+    real(sp), dimension(nvar)                  :: outv
     
-    d    = dom%id + 1
+    d = dom%id + 1
     
     id   = idx (i,   j,   offs, dims)
     idE  = idx (i+1, j,   offs, dims)
@@ -282,7 +283,7 @@ contains
        if (save_tri(t)%data(d)%elts(id+1) == 1.0_dp) then             ! cell is active
           ncell_loc = ncell_loc + 1
           
-          do ivert = 1, 3
+          do ivert = 1, TRI_VERT
              p = vertex(t,ivert)
              call min_dist (p, points_loc, dmin, imin)
 
@@ -385,8 +386,7 @@ contains
     integer                        :: ival, i, j, p, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-
-
+    
     integer                      :: d, id, idE, idNE, idN, idW, idSW, idS, ivert
     real(sp),    dimension(nvar) :: outv
     type(coord), dimension(6)    :: vert
@@ -397,7 +397,7 @@ contains
     if (dom%mask_n%elts(id+1) >= ADJZONE) then
        ncell_loc = ncell_loc + 1
 
-       ncoord_unique_loc  = ncoord_unique_loc  + 6 * 3
+       ncoord_unique_loc  = ncoord_unique_loc  + HEX_VERT * 3
 
        idE  = idx (i+1, j,   offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
@@ -413,7 +413,7 @@ contains
             dom%ccentre%elts(TRIAG*idW +LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
             dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1) /)
 
-       do ivert = 1, 6
+       do ivert = 1, HEX_VERT
           vert_coord_unique_loc = &
                [vert_coord_unique_loc, real(vert(ivert)%x,kind=sp), real(vert(ivert)%y,kind=sp), real(vert(ivert)%z,kind=sp)]
        end do

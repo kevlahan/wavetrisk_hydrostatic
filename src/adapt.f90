@@ -53,9 +53,8 @@ contains
     ! Ensure consistency between node and edge masks
     call complete_masks
 
-    ! Add nodes/edges required for TRiSK operators
-    ! (only affects ZERO mask nodes/edges that are second nearest neighbours of nodes in adjacent mask)
-    call mask_trsk
+    ! Label ZERO mask nodes/edges that are second nearest neighbours of nodes in adjacent zone mask where trends are be computed
+    call mask_second_neighbours
 
     ! Set insignificant wavelet coefficients to zero
     if (local_type) call compress_wavelets (wav_coeff)
