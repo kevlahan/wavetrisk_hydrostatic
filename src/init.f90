@@ -253,10 +253,10 @@ contains
 
                 d = loc_id(d_glo+1)
                 call assign_coord (grid(d+1), 1, &
-                     get_J0_coord(i,   j,   DOMAIN_LEVEL), &
-                     get_J0_coord(i,   j-1, DOMAIN_LEVEL), &
-                     get_J0_coord(i-1, j-1, DOMAIN_LEVEL), &
-                     get_J0_coord(i-1, j,   DOMAIN_LEVEL))
+                     get_J0_coord (i,   j,   DOMAIN_LEVEL), &
+                     get_J0_coord (i,   j-1, DOMAIN_LEVEL), &
+                     get_J0_coord (i-1, j-1, DOMAIN_LEVEL), &
+                     get_J0_coord (i-1, j,   DOMAIN_LEVEL))
              end do
           end do
        end do
@@ -301,7 +301,7 @@ contains
 
        call init (grid(d)%midpt, grid(d)%node%length * EDGE)
 
-       do i = 1, grid(d)%node%length*EDGE
+       do i = 1, grid(d)%node%length * EDGE
           call init_Coord (grid(d)%midpt%elts(i), 0.0_dp, 0.0_dp, 0.0_dp)
        end do
 

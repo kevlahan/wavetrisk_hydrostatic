@@ -1157,7 +1157,7 @@ contains
                 c = get(grid(d_src), id)
                 k = send_buf%length
                 call extend (send_buf, 3, 0.0_dp)
-                send_buf%elts(k+1:k+3) = (/c%x, c%y, c%z/)
+                send_buf%elts(k+1:k+3) = (/ c%x, c%y, c%z /)
              end do
           end do
        end do

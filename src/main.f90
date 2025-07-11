@@ -473,7 +473,7 @@ contains
     call init_masks
     call add_second_level
 
-    call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, +BDRY_THICKNESS)
+    call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     call apply_interscale (mask_adj_child, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
     
     call record_init_state (ini_st)

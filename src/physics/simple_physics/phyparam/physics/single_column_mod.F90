@@ -69,7 +69,7 @@ contains
     call phyparam (ngrid, nlayer, mask, firstcall, lastcall, rJourvrai, gmTime, pTimestep, &
          pPlay, pPint, pPhi, pPhi_surf, pUmag, pU, pV, pW, pTheta)
 
-    ! Update with physics surface temperature and soil column termperatures (from soil_mod)
+    ! Update with physics surface temperature and soil column temperatures (from soil_mod)
     Tsurf_soil(:,1) = Tsurf                             ! surface temperature
     if (soil_flag) Tsurf_soil(:,2:extra_levels) = Tsoil ! soil column temperatures
   end subroutine physics_call_single_col

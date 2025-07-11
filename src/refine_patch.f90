@@ -183,7 +183,7 @@ contains
     num = dom%node%length - dom%areas%length
     d   = dom%id + 1
 
-    call extend (dom%ccentre,   TRIAG*num, ORIGIN)
+    call extend (dom%ccentre,  TRIAG*num,  ORIGIN)
     call extend (dom%midpt,     EDGE*num,  ORIGIN)
     call extend (dom%pedlen,    EDGE*num,  0.0_dp)
     call extend (dom%len,       EDGE*num,  0.0_dp)
