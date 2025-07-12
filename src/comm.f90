@@ -78,6 +78,46 @@ subroutine init_comm_mod
     end do
   end subroutine init_comm
 
+  subroutine comm_nodes (get, set)
+    implicit none
+    integer             :: i, dest_id, dest_glo, dest_loc, src_id, src_glo, src_loc
+    procedure(real_get) :: get
+    procedure(real_set) :: set
+
+    do src_loc = 1, size(grid)
+       src_glo = glo_id(rank+1,src_loc)
+       do dest_loc = 1, size(grid)
+          dest_glo = glo_id(rank+1,dest_loc)
+          do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
+             src_id  = grid(src_loc )%pack(AT_NODE,dest_glo+1)%elts(i)
+             dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo +1)%elts(i)
+             
+             call set (grid(dest_loc), dest_id, get (grid(src_loc), src_id))
+          end do
+       end do
+    end do
+  end subroutine comm_nodes
+
+  subroutine comm_nodes3 (get, set)
+    implicit none
+    integer              :: i, dest_id, dest_loc, dest_glo, src_glo, src_id, src_loc
+    procedure(coord_get) :: get
+    procedure(coord_set) :: set 
+
+    do src_loc = 1, size(grid)
+       src_glo = glo_id(rank+1,src_loc)
+       do dest_loc = 1, size(grid)
+          dest_glo = glo_id(rank+1,dest_loc)
+          do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
+             src_id  = grid(src_loc )%pack(AT_NODE,dest_glo+1)%elts(i)
+             dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo +1)%elts(i)
+             
+             call set (grid(dest_loc), dest_id, get(grid(src_loc), src_id))
+          end do
+       end do
+    end do
+  end subroutine comm_nodes3
+
   subroutine comm_nodes9 (get9, set9)
     implicit none
     integer                :: i, dest_glo, dest_id, dest_loc, src_glo, src_id, src_loc
@@ -90,12 +130,28 @@ subroutine init_comm_mod
           do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
              src_id = grid(src_loc)%pack(AT_NODE,dest_glo+1)%elts(i)
              dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
-             call get9 (grid(src_loc), src_id, val)
+             call get9 (grid(src_loc),   src_id, val)
              call set9 (grid(dest_loc), dest_id, val)
           end do
        end do
     end do
   end subroutine comm_nodes9
+
+  type(Coord) function get_coord (dom, id)
+    type(Domain) :: dom
+    integer      :: id
+
+    get_coord = dom%node%elts(id+1)
+  end function get_coord
+
+  subroutine set_coord (dom, id, val)
+    implicit none
+    type(Domain) :: dom
+    integer      :: id
+    type(Coord)  :: val
+
+    dom%node%elts(abs(id)+1) = val
+  end subroutine set_coord
 
   subroutine create_pack_st2 (dom, src, i, j, pa, e, id, e_pack, orient)
     implicit none
@@ -114,26 +170,6 @@ subroutine init_comm_mod
        call create_pack_st (dom, AT_EDGE, src, i, j, pa, e_pack, orient * (EDGE*id + e))
     end if
   end subroutine create_pack_st2
-
-  subroutine comm_nodes3 (get, set)
-    implicit none
-    integer              :: i, dest_id, dest_loc, dest_glo, src_glo, src_id, src_loc
-    procedure(coord_get) :: get
-    procedure(coord_set) :: set 
-
-    do src_loc = 1, size(grid)
-       src_glo = glo_id(rank+1,src_loc)
-       do dest_loc = 1, size(grid)
-          dest_glo = glo_id(rank+1,dest_loc)
-          do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
-             src_id  = grid(src_loc )%pack(AT_NODE,dest_glo+1)%elts(i)
-             dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
-             
-             call set (grid(dest_loc), dest_id, get(grid(src_loc), src_id))
-          end do
-       end do
-    end do
-  end subroutine comm_nodes3
 
   subroutine create_comm_e (dom, p, s, e)
     implicit none
@@ -217,7 +253,7 @@ subroutine init_comm_mod
     if (s == NORTHEAST) then
        if (dom%neigh_rot(t_last) == 1) then
           do j = 1, BDRY_THICKNESS
-             do i = 1, BDRY_THICKNESS - rot*(j + shift - 1)
+             do i = 1, BDRY_THICKNESS - rot * (j + shift - 1)
                 call pack_idx (i - 1, j - 1, rot, s_adj, shift, i_recv, j_recv, i_pack, j_pack)
                 i_recv = i_recv + PATCH_SIZE
                 call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
@@ -226,7 +262,7 @@ subroutine init_comm_mod
        else
           if (dom%neigh_rot(t_next) == 1) then
              do i = 1, BDRY_THICKNESS
-                do j = 1, BDRY_THICKNESS - rot*(i + shift - 1)
+                do j = 1, BDRY_THICKNESS - rot * (i + shift - 1)
                    call pack_idx (i - 1, j - 1, rot, s_adj, shift, i_recv, j_recv, i_pack, j_pack)
                    j_recv = j_recv + PATCH_SIZE
                    call create_pack_st2 (dom, src, i_pack, j_pack, ngb_pa, e, idx (i_recv, j_recv, offs, dims), e_pack, orient)
@@ -396,13 +432,6 @@ subroutine init_comm_mod
     end do
   end subroutine comm_communication
 
-  type(Coord) function get_coord (dom, id)
-    type(Domain) :: dom
-    integer      :: id
-
-    get_coord = dom%node%elts(id+1)
-  end function get_coord
-
   subroutine create_comm (dom, p, s)
     implicit none
     type(Domain)                   :: dom
@@ -421,7 +450,7 @@ subroutine init_comm_mod
 
     src = dom%neigh(typ)
     rot = dom%neigh_rot(typ)
-    pa = dom%bdry_patch%elts(b+1)%neigh
+    pa  = dom%bdry_patch%elts(b+1)%neigh
 
     do e = 1, EDGE + 1
        call create_comm_e (dom, p, s, e - 1)
@@ -478,7 +507,7 @@ subroutine init_comm_mod
     integer                        :: b, lev, pa, s_side, src, typ
     integer, dimension(2)          :: ij_node, ij_send
 
-    !  side s of patch p is a pole and i-th connection over this pole is available
+    !  Side s of patch p is a pole and i-th connection over this pole is available
     b = -dom%patch%elts(p+1)%neigh(s)
     typ = dom%bdry_patch%elts(b+1)%side
 
@@ -488,7 +517,7 @@ subroutine init_comm_mod
 
     lev = dom%patch%elts(p+1)%level
     src = dom%neigh_over_pole(i+1)
-    pa = dom%neigh_pa_over_pole%elts(i+2*lev+1)
+    pa  = dom%neigh_pa_over_pole%elts(i+2*lev+1)
 
     call get_offs_Domain (dom, p, offs, dims)
 
@@ -499,7 +528,7 @@ subroutine init_comm_mod
     end if
 
     if (i == 0) then
-       ij_node = (/0, 1/)
+       ij_node = (/ 0, 1 /)
        if (s == SOUTHEAST) ij_node = (/ij_node(2), ij_node(1)/)
        call create_pack_st (dom, AT_EDGE, src, 0, LAST, pa, DG, &
             nidx (ij_node(1), ij_node(2), s_side, offs, dims) * EDGE + 2*s_side - 2)
@@ -514,21 +543,21 @@ subroutine init_comm_mod
     end if
 
     if (i == 1) then
-       ij_node = (/LAST_BDRY, 0/)
-       ij_send = (/0, LAST/)
+       ij_node = (/ LAST_BDRY, 0    /)
+       ij_send = (/ 0,         LAST /)
        if (s == SOUTHEAST) then
-          ij_node = (/ij_node(2), ij_node(1)/)
-          ij_send = (/ij_send(2), ij_send(1)/)
+          ij_node = (/ ij_node(2), ij_node(1) /)
+          ij_send = (/ ij_send(2), ij_send(1) /)
        end if
        call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, nidx (ij_node(1), ij_node(2), s, offs, dims))
     end if
 
-    ij_node = (/-i + 1, 1/)
-    ij_send = (/0, LAST/)
+    ij_node = (/ -i + 1, 1    /)
+    ij_send = (/ 0,      LAST /)
 
     if (s == SOUTHEAST) then
-       ij_node = (/ij_node(2), ij_node(1)/)
-       ij_send = (/ij_send(2), ij_send(1)/)
+       ij_node = (/ ij_node(2), ij_node(1) /)
+       ij_send = (/ ij_send(2), ij_send(1) /)
     end if
 
     call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, &
@@ -573,7 +602,7 @@ subroutine init_comm_mod
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
              src_id  = grid(src_loc )%pack(AT_NODE,dest_glo+1)%elts(i)
-             dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
+             dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo +1)%elts(i)
              
              grid(dest_loc)%mask_n%elts(abs(dest_id)+1) = grid(src_loc)%mask_n%elts(abs(src_id)+1) 
           end do
@@ -703,7 +732,7 @@ subroutine init_comm_mod
              p_chd = dom%patch%elts(p_par+1)%children(c+1)
           end if
           if (p_chd == 0) then
-             dom%recv_pa(src_glo)%elts(unused_elements + 1:unused_elements + 4) = (/ngb_pa, c, p_par, s/)
+             dom%recv_pa(src_glo)%elts(unused_elements + 1:unused_elements + 4) = (/ ngb_pa, c, p_par, s /)
              unused_elements = unused_elements + 4
              cycle
           end if
@@ -760,8 +789,7 @@ subroutine init_comm_mod
           end if
 
           if (ngh_pa == 0) then
-             grid(src)%send_pa_all%elts(unused_elements + &
-                  1:unused_elements + 4) = (/b, c, p_chd, s/)
+             grid(src)%send_pa_all%elts(unused_elements + 1:unused_elements + 4) = (/ b, c, p_chd, s /)
              unused_elements = unused_elements + 4
              cycle
           else 
@@ -798,23 +826,14 @@ subroutine init_comm_mod
   subroutine create_pack_st (dom, unpk_pos, src, i, j, pa, e, id)
     implicit none
     type(Domain) :: dom
-    integer :: e, i, id, j, pa, src, unpk_pos
+    integer      :: e, i, id, j, pa, src, unpk_pos
 
     call append (dom%send_conn(src+1),      i)
-    call append  (dom%send_conn(src+1),     j)
+    call append (dom%send_conn(src+1),      j)
     call append (dom%send_conn(src+1),     pa)
     call append (dom%send_conn(src+1),      e)
     call append (dom%unpk(unpk_pos,src+1), id)
   end subroutine create_pack_st
-
-  subroutine set_coord (dom, id, val)
-    implicit none
-    type(Domain) :: dom
-    integer      :: id
-    type(Coord)  :: val
-
-    dom%node%elts(abs(id) + 1) = val
-  end subroutine set_coord
 
   subroutine cp_bdry_inside (field)
     implicit none
@@ -830,7 +849,7 @@ subroutine init_comm_mod
           dest_glo = glo_id(rank+1,dest_loc)
           do i = 1, grid(src_loc)%pack(pos,dest_glo+1)%length
              src_id  = grid(src_loc )%pack(pos,dest_glo+1)%elts(i)
-             dest_id = grid(dest_loc)%unpk(pos,src_glo+1)%elts(i)
+             dest_id = grid(dest_loc)%unpk(pos,src_glo +1)%elts(i)
              
              field%data(dest_loc)%elts(abs(dest_id)+1) = field%data(src_loc)%elts(src_id+1)
              
@@ -893,26 +912,6 @@ subroutine init_comm_mod
        end do
     end do
   end subroutine cp_bdry_inside_array
-
-  subroutine comm_nodes (get, set)
-    implicit none
-    integer             :: i, dest_id, dest_glo, dest_loc, src_id, src_glo, src_loc
-    procedure(real_get) :: get
-    procedure(real_set) :: set
-
-    do src_loc = 1, size(grid)
-       src_glo = glo_id(rank+1,src_loc)
-       do dest_loc = 1, size(grid)
-          dest_glo = glo_id(rank+1,dest_loc)
-          do i = 1, grid(src_loc)%pack(AT_NODE,dest_glo+1)%length
-             src_id  = grid(src_loc )%pack(AT_NODE,dest_glo+1)%elts(i)
-             dest_id = grid(dest_loc)%unpk(AT_NODE,src_glo+1)%elts(i)
-             
-             call set (grid(dest_loc), dest_id, get (grid(src_loc), src_id))
-          end do
-       end do
-    end do
-  end subroutine comm_nodes
   
   integer function domain_load (dom)
     implicit none

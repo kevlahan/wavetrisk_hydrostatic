@@ -1062,6 +1062,80 @@ contains
     ! Assumes routine is either called for one level, or all levels ever to be updated
     if (l_start < l_end) field%bdry_uptodate = .true.
   end subroutine update_bdry__finish1_2
+
+  subroutine comm_nodes3_mpi (get, set, l)
+    use mpi
+    implicit none
+    integer              :: l
+    procedure(coord_get) :: get
+    procedure(coord_set) :: set 
+    
+    integer     :: r_dest, r_src, d_src, d_dest, dest, id, i, k
+    type(Coord) :: c
+
+    send_buf%length = 0 ! reset
+    do r_dest = 1, n_process ! destination for inter process communication
+       send_offsets(r_dest) = send_buf%length
+       do d_src = 1, n_domain(rank+1)
+          if (r_dest == rank+1) cycle ! TODO communicate inside domain
+          do d_dest = 1, n_domain(r_dest)
+             dest = glo_id(r_dest,d_dest)+1
+             do i = 1, grid(d_src)%pack(AT_NODE,dest)%length
+                id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
+                c = get (grid(d_src), id)
+                k = send_buf%length
+                call extend (send_buf, 3, 0.0_dp)
+                send_buf%elts(k+1:k+3) = (/ c%x, c%y, c%z /)
+             end do
+          end do
+       end do
+       send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+    end do
+
+    ! Determine recv buff lengths
+    recv_buf%length = 0
+    do r_src = 1, n_process 
+       recv_offsets(r_src) = recv_buf%length
+       do d_src = 1, n_domain(r_src)
+          if (r_src == rank+1) cycle 
+          do d_dest = 1, n_domain(rank+1)
+             do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
+                recv_buf%length = recv_buf%length + 3
+             end do
+          end do
+       end do
+       recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
+    end do
+
+    if (size(recv_buf%elts) < recv_buf%length) then
+       deallocate (recv_buf%elts)
+       allocate   (recv_buf%elts(recv_buf%length))
+       recv_buf%elts = 0.0_dp
+    end if
+
+    call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
+                        recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, &
+                        MPI_COMM_WORLD, ierror)
+
+    call comm_nodes3 (get, set) ! communicate inside domain
+
+    k = 0
+    do r_src = 1, n_process 
+       if (r_src == rank+1) cycle ! inside domain
+       do d_src = 1, n_domain(r_src)
+          do d_dest = 1, n_domain(rank+1)
+             do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
+                id = grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%elts(i)
+                c%x = recv_buf%elts(k+1) 
+                c%y = recv_buf%elts(k+2) 
+                c%z = recv_buf%elts(k+3) 
+                call set (grid(d_dest), id, c)
+                k = k + 3
+             end do
+          end do
+       end do
+    end do
+  end subroutine comm_nodes3_mpi
   
   subroutine comm_nodes9_mpi (get, set, l)
     use mpi
@@ -1085,7 +1159,7 @@ contains
                 id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
                 k = send_buf%length
                 call extend (send_buf, 7, 0.0_dp)
-                call get (grid(d_src), id, val)
+                call get    (grid(d_src), id, val)
                 send_buf%elts(k+1:k+7) = val
              end do
           end do
@@ -1093,7 +1167,7 @@ contains
        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
     end do
 
-    ! determine recv buff lengths
+    ! Determine recv buff lengths
     recv_buf%length = 0
     do r_src = 1, n_process 
        recv_offsets(r_src) = recv_buf%length
@@ -1134,80 +1208,6 @@ contains
        end do
     end do
   end subroutine comm_nodes9_mpi
-
-  subroutine comm_nodes3_mpi (get, set, l)
-    use mpi
-    implicit none
-    integer              :: l
-    procedure(coord_get) :: get
-    procedure(coord_set) :: set 
-    
-    integer     :: r_dest, r_src, d_src, d_dest, dest, id, i, k
-    type(Coord) :: c
-
-    send_buf%length = 0 ! reset
-    do r_dest = 1, n_process ! destination for inter process communication
-       send_offsets(r_dest) = send_buf%length
-       do d_src = 1, n_domain(rank+1)
-          if (r_dest == rank+1) cycle ! TODO communicate inside domain
-          do d_dest = 1, n_domain(r_dest)
-             dest = glo_id(r_dest,d_dest)+1
-             do i = 1, grid(d_src)%pack(AT_NODE,dest)%length
-                id = grid(d_src)%pack(AT_NODE,dest)%elts(i)
-                c = get(grid(d_src), id)
-                k = send_buf%length
-                call extend (send_buf, 3, 0.0_dp)
-                send_buf%elts(k+1:k+3) = (/ c%x, c%y, c%z /)
-             end do
-          end do
-       end do
-       send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
-    end do
-
-    ! Determine recv buff lengths
-    recv_buf%length = 0
-    do r_src = 1, n_process 
-       recv_offsets(r_src) = recv_buf%length
-       do d_src = 1, n_domain(r_src)
-          if (r_src == rank+1) cycle 
-          do d_dest = 1, n_domain(rank+1)
-             do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
-                recv_buf%length = recv_buf%length + 3
-             end do
-          end do
-       end do
-       recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
-    end do
-
-    if (size(recv_buf%elts) < recv_buf%length) then
-       deallocate (recv_buf%elts)
-       allocate (recv_buf%elts(recv_buf%length))
-       recv_buf%elts = 0.0_dp
-    end if
-
-    call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
-                        recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, &
-                        MPI_COMM_WORLD, ierror)
-
-    call comm_nodes3 (get, set) ! communicate inside domain
-
-    k = 0
-    do r_src = 1, n_process 
-       if (r_src == rank+1) cycle ! inside domain
-       do d_src = 1, n_domain(r_src)
-          do d_dest = 1, n_domain(rank+1)
-             do i = 1, grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%length
-                id = grid(d_dest)%unpk(AT_NODE,glo_id(r_src,d_src)+1)%elts(i)
-                c%x = recv_buf%elts(k+1) 
-                c%y = recv_buf%elts(k+2) 
-                c%z = recv_buf%elts(k+3) 
-                call set (grid(d_dest), id, c)
-                k = k + 3
-             end do
-          end do
-       end do
-    end do
-  end subroutine comm_nodes3_mpi
 
   subroutine comm_patch_conn_mpi
     use mpi
