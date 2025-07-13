@@ -191,12 +191,15 @@ contains
     call extend (dom%triarea,   EDGE*num,  1.0_dp)
     call extend (dom%coriolis, TRIAG*num,  0.0_dp)
 
-    call apply_onescale_to_patch2 (ccentre,     dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    call apply_onescale_to_patch2 (ccentre,     dom, p_chd, z_null, -BDRY_THICKNESS, BDRY_THICKNESS-1)
     call ccentre_penta (dom, p_chd)
     call apply_onescale_to_patch2 (midpt,       dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-    call apply_onescale_to_patch2 (lengths,     dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-    call apply_onescale_to_patch2 (ped_lengths, dom, p_chd, z_null, -(BDRY_THICKNESS-2), BDRY_THICKNESS-1)
-    call apply_onescale_to_patch2 (cpt_areas,   dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    if (BDRY_THICKNESS == 2) then
+       call apply_onescale_to_patch2 (lengths,  dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    elseif (BDRY_THICKNESS == 3) then
+       call apply_onescale_to_patch2 (lengths,  dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    end if
+    call apply_onescale_to_patch2 (cpt_areas,   dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     call apply_onescale_to_patch  (cpt_triarea, dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
     call apply_onescale_to_patch  (coriolis,    dom, p_chd, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
 

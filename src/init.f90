@@ -316,18 +316,22 @@ contains
   subroutine precompute_geometry
     implicit none
     integer :: d, k, v
-
-    call apply_onescale2 (ccentre,     min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+ 
+    call apply_onescale2 (ccentre,     min_level-1, z_null, -BDRY_THICKNESS, BDRY_THICKNESS-1)
     do d = 1, size(grid)
        call ccentre_penta (grid(d), 1)
     end do
     call apply_onescale2 (midpt,       min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-    call apply_onescale2 (lengths,     min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-    call apply_onescale2 (ped_lengths, min_level-1, z_null, -(BDRY_THICKNESS-2), BDRY_THICKNESS-1)
-    call apply_onescale2 (cpt_areas,   min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    call apply_onescale2 (cpt_areas,   min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
+    if (BDRY_THICKNESS == 2) then
+       call apply_onescale2 (lengths,  min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)       
+    elseif (BDRY_THICKNESS == 3) then
+       call apply_onescale2 (lengths,  min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    end if
+    call apply_onescale2 (lengths,     min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS)
     call apply_onescale  (cpt_triarea, min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
     call apply_onescale  (coriolis,    min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-    
+
     do d = 1, size(grid)
        call init (grid(d)%surf_press,   grid(d)%node%length)
        call init (grid(d)%press,        grid(d)%node%length)
@@ -776,16 +780,18 @@ contains
   subroutine lengths (dom, p, i, j, zlev, offs, dims)
     implicit none
     type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
+    integer                        ::  p, i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: id, idN, idE, idNE
+    integer :: id, idS, idW, idN, idE, idNE
 
     id   = idx (i,   j,   offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
 
     if (j >= PATCH_SIZE + 1) then
        dom%len%elts(EDGE*id+RT+1) = dist (dom%node%elts(id+1), dom%node%elts(idE+1))
@@ -797,36 +803,21 @@ contains
        return
     end if
 
-    dom%len%elts(EDGE*id+RT+1) = dist (dom%node%elts(id  +1), dom%node%elts(idE+1))
-    dom%len%elts(EDGE*id+DG+1) = dist (dom%node%elts(idNE+1), dom%node%elts(id +1))
-    dom%len%elts(EDGE*id+UP+1) = dist (dom%node%elts(id  +1), dom%node%elts(idN+1))
+    dom%len%elts(EDGE*id+RT+1)    = dist (dom%node%elts(id+1),   dom%node%elts(idE+1))
+    dom%len%elts(EDGE*id+DG+1)    = dist (dom%node%elts(idNE+1), dom%node%elts(id+1))
+    dom%len%elts(EDGE*id+UP+1)    = dist (dom%node%elts(id+1),   dom%node%elts(idN+1))
+    dom%pedlen%elts(EDGE*id+RT+1) = dist (dom%ccentre%elts(TRIAG*idS+UPLT+1), dom%ccentre%elts(LORT+TRIAG*id+1))
+    dom%pedlen%elts(EDGE*id+DG+1) = dist (dom%ccentre%elts(TRIAG*id+UPLT+1),  dom%ccentre%elts(LORT+TRIAG*id+1))
+    dom%pedlen%elts(EDGE*id+UP+1) = dist (dom%ccentre%elts(TRIAG*id+UPLT+1),  dom%ccentre%elts(LORT+TRIAG*idW+1))
 
-    if (i == -1 .and. j == -1 .and. is_penta (dom, p, IJMINUS - 1)) &
-         dom%len%elts(EDGE*id+1) = dist (dom%node%elts(idE+1), dom%node%elts(idN+1))
+    if (i == -1 .and. j == -1 .and. is_penta (dom, p, IJMINUS - 1)) then
+       dom%pedlen%elts(EDGE*id+DG+1) = 0
+       dom%len%elts(EDGE*id+1) = dist (dom%node%elts(idE+1), dom%node%elts(idN+1))
+    end if
 
     if (i == PATCH_SIZE .and. j == PATCH_SIZE .and. is_penta(dom, p, IJPLUS - 1)) &
        dom%len%elts(EDGE*id+DG+1) = dist (dom%node%elts(idE+1), dom%node%elts(idN+1))
   end subroutine lengths
-
-  subroutine ped_lengths (dom, p, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
-    integer :: id, idS, idW
-
-    id  = idx (i,   j,   offs, dims)
-    idS = idx (i,   j-1, offs, dims)
-    idW = idx (i-1, j,   offs, dims)
-    
-    dom%pedlen%elts(EDGE*id+RT+1) = dist (dom%ccentre%elts(TRIAG*idS+UPLT+1), dom%ccentre%elts(LORT+TRIAG*id +1))
-    dom%pedlen%elts(EDGE*id+DG+1) = dist (dom%ccentre%elts(TRIAG*id +UPLT+1), dom%ccentre%elts(LORT+TRIAG*id +1))
-    dom%pedlen%elts(EDGE*id+UP+1) = dist (dom%ccentre%elts(TRIAG*id +UPLT+1), dom%ccentre%elts(LORT+TRIAG*idW+1))
-
-    if (i == -1 .and. j == -1 .and. is_penta (dom, p, IJMINUS - 1)) dom%pedlen%elts(EDGE*id+DG+1) = 0
-  end subroutine ped_lengths
 
   subroutine cpt_triarea (dom, i, j, zlev, offs, dims)
     implicit none
