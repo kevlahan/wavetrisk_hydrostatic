@@ -735,7 +735,7 @@ contains
        id_chd  = idx (0, LAST-1, offs_chd, dims_chd)
        idN_chd = idx (0, LAST,   offs_chd, dims_chd)
 
-       v = -(Iu_Base_Wgt(8) + dble(dom%I_u_wgt%elts(idN_chd+1)%enc(8)))*( &
+       v = -(Iu_Base_Wgt(8) + real (dom%I_u_wgt%elts(idN_chd+1)%enc(8),kind=dp))*( &
              velo(idx(0, PATCH_SIZE, offs, dims)*EDGE + UP+1) &
             + velo(idx(-1, PATCH_SIZE, offs, dims)*EDGE + RT+1))
 
@@ -750,7 +750,7 @@ contains
           id_chd  = idx (LAST-1, 0, offs_chd, dims_chd)
           idE_chd = idx (LAST,   0, offs_chd, dims_chd)
 
-          v = (Iu_Base_Wgt(7) + dble(dom%I_u_wgt%elts(idE_chd+1)%enc(7)))*( &
+          v = (Iu_Base_Wgt(7) + real (dom%I_u_wgt%elts(idE_chd+1)%enc(7), kind=dp))*( &
                velo(idx(PATCH_SIZE, 0, offs, dims)*EDGE+RT+1) +velo(idx(PATCH_SIZE,-1, offs, dims)*EDGE+UP+1))
 
           if (dom%mask_e%elts(EDGE*id_chd+RT+1) >= ADJZONE) then
@@ -940,12 +940,12 @@ contains
 
     velo_interp_penta_corr = (/  &
          (Iu_Base_Wgt(9) &
-         + dble (dom%I_u_wgt%elts(idx__fast(i_chd+end_pt(1,2,UP+1), j_chd+end_pt(2,2,UP+1), offs_chd(1))+1)%enc(9))) * &
+         + real (dom%I_u_wgt%elts(idx__fast(i_chd+end_pt(1,2,UP+1), j_chd+end_pt(2,2,UP+1), offs_chd(1))+1)%enc(9),kind=dp)) * &
          ((-velo(idx(0, -1, offs, dims)*EDGE+UP+1) - (-velo(idx(-1, -1, offs, dims)*EDGE+1))) - &
           (velo(ed_idx(i+end_pt(1,1,UP+1), j+end_pt(2,1,UP+1), hex_sides(:,hex_s_offs(UP+1)+0+1), offs, dims)+1) - &
            velo(ed_idx(i+opp_no(1,2,UP+1), j+opp_no(2,2,UP+1), hex_sides(:,hex_s_offs(UP+1)+1+1), offs, dims)+1))), &
          (Iu_Base_Wgt(6) &
-         + dble (dom%I_u_wgt%elts(idx__fast(i_chd + end_pt(1,2,RT+1), j_chd + end_pt(2,2,RT+1), offs_chd(1))+1)%enc(6))) * &
+         + real (dom%I_u_wgt%elts(idx__fast(i_chd + end_pt(1,2,RT+1), j_chd + end_pt(2,2,RT+1), offs_chd(1))+1)%enc(6),kind=dp)) * &
          (velo(idx(-1, -1, offs, dims)*EDGE+1) + velo(idx(-1, 0, offs, dims)*EDGE + RT+1) &
          - (velo(ed_idx(i+opp_no(1,1,RT+1), j+opp_no(2,1,RT+1), hex_sides(:,hex_s_offs(RT+1)+1+1), offs, dims)+1) &
          -  velo(ed_idx(i+end_pt(1,1,RT+1), j+end_pt(2,1,RT+1), hex_sides(:,hex_s_offs(RT+1)+2+1), offs, dims)+1))) /)
@@ -1071,7 +1071,7 @@ contains
 
     real(dp), dimension(9) :: wgt
 
-    wgt = Iu_Base_Wgt + dble (dom%I_u_wgt%elts(ide+1)%enc)
+    wgt = Iu_Base_Wgt + real (dom%I_u_wgt%elts(ide+1)%enc, kind=dp)
 
     Interp_outer_velo = sum (wgt * (/ &
          velo(EDGE * idx(i_par, j_par, offs, dims) + e), &
@@ -1117,7 +1117,7 @@ contains
        id_chd  = idx (0, LAST-1, offs_chd, dims_chd)
        idN_chd = idx (0, LAST,   offs_chd, dims_chd)
 
-       v = (Iu_Base_Wgt(8) + dble (dom%I_u_wgt%elts(idN_chd+1)%enc(8)))*( &
+       v = (Iu_Base_Wgt(8) + real (dom%I_u_wgt%elts(idN_chd+1)%enc(8),kind=dp))*( &
               velo(EDGE*idx( 0, PATCH_SIZE, offs, dims)+UP+1) &
             + velo(EDGE*idx(-1, PATCH_SIZE, offs, dims)+RT+1))
 
@@ -1128,7 +1128,7 @@ contains
           id_chd  = idx (LAST-1, 0, offs_chd, dims_chd)
           idE_chd = idx (LAST,   0, offs_chd, dims_chd)
 
-          v = -(Iu_Base_Wgt(7) + dble(dom%I_u_wgt%elts(idE_chd+1)%enc(7)))*( &
+          v = -(Iu_Base_Wgt(7) + real (dom%I_u_wgt%elts(idE_chd+1)%enc(7),kind=dp))*( &
                  velo(EDGE*idx(PATCH_SIZE,  0, offs, dims)+RT+1) &
                + velo(EDGE*idx(PATCH_SIZE, -1, offs, dims)+UP+1))
 

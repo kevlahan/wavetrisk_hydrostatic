@@ -22,7 +22,7 @@ module main_mod
   end type Initial_State
   type(Initial_State), dimension(:), allocatable :: ini_st
 contains
-  subroutine initialize (run_id)
+  subroutine initialize (run_id) 
     ! Initialize from checkpoint or adapt to initialize conditions
     ! (solution is saved and restarted to balance load)
     implicit none
@@ -60,6 +60,12 @@ contains
     if (compressible .and. mode_split) then
        if (rank == 0) write (6,'(a)') "Cannot use mode splitting with compressible dynamics ... aborting"
        call abort
+    end if
+
+    ! Ensure data and check point is saved at least once
+    if (dt_write > time_end) then
+       dt_write = time_end
+       CP_EVERY = 1
     end if
 
 #ifdef AMPI
@@ -544,13 +550,12 @@ contains
     level_end = sync_max_int (level_end)
   end function cpt_dt
   
-  subroutine cal_min_dt (dom, p, i, j, zlev, offs, dims, ival)
+  subroutine cal_min_dt (dom, i, j, zlev, offs, dims)
     ! Calculates time step and number of active nodes and edges
     ! time step is smallest of barotropic time step, advective time step and internal wave time step for mode split case
-    use domain_mod
     implicit none
     type(Domain)                   :: dom
-    integer                        :: ival, i, j, p, zlev
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -596,13 +601,13 @@ contains
     if (log_min_mass .and. rank == 0) write (6,'(a,es11.4)') "Minimum relative mass = ", cpt_min_mass
   end function cpt_min_mass
 
-  subroutine cal_min_mass (dom, p, i, j, zlev, offs, dims, ival)
+  subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
     ! Minimum mass compared to initial mass in a vertical column
     use init_mod
     use, intrinsic :: ieee_arithmetic
     implicit none
     type(Domain)                   :: dom
-    integer                        :: ival, i, j, p, zlev
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 

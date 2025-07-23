@@ -72,6 +72,14 @@ module domain_ops_mod
        integer, dimension(N_BDRY+1)   :: offs
        integer, dimension(2,N_BDRY+1) :: dims
      end subroutine sub9
+      subroutine sub10 (dom, p, i, j, zlev, offs, dims)
+       use domain_mod
+       implicit none
+       type(Domain)                   :: dom
+       integer                        :: i, j, p, zlev
+       integer, dimension(N_BDRY+1)   :: offs
+       integer, dimension(2,N_BDRY+1) :: dims
+     end subroutine sub10
   end interface
 contains
   subroutine apply (routine, zlev)
@@ -150,8 +158,37 @@ contains
        end do
     end do
   end subroutine apply_onescale_to_patch__int
-
+  
   subroutine apply_no_bdry (routine, zlev)
+    ! Applies routine to nodes and/or edges at all levels including poles but excluding all boundary cells
+    implicit none
+    integer          :: zlev 
+    procedure (sub4) :: routine
+
+    integer :: l
+
+    do l = level_start, level_end
+       call apply_onescale (routine, l, zlev, 0, 0)
+       call apply_to_pole2 (routine, l, zlev)  
+    end do
+  end subroutine apply_no_bdry
+
+  subroutine apply_no_bdry_to_patch (routine, dom, p, zlev)
+    ! Applies routine to nodes and/or edges at all levels including poles but excluding all boundary cells
+    implicit none
+    type(Domain)     :: dom
+    integer          :: p, zlev
+    procedure (sub4) :: routine
+
+    integer :: l
+
+    l = dom%patch%elts(p+1)%level
+    
+    call apply_onescale_to_patch (routine, dom, p, zlev, 0, 0)
+    call apply_to_pole2          (routine, l, zlev)
+  end subroutine apply_no_bdry_to_patch
+
+  subroutine apply_no_bdry2 (routine, zlev)
     ! Applies routine to nodes/edges at all levels excluding all boundary cells
     !
     ! The integer flag is_pole allows the routine to not update values for edges if is_pole = 1
@@ -168,7 +205,7 @@ contains
        is_pole = 0; call apply_onescale__int (routine, l, zlev, 0, 0, is_pole)
        is_pole = 1; call apply_to_pole       (routine, l, zlev,       is_pole, .true.)  
     end do
-  end subroutine apply_no_bdry
+  end subroutine apply_no_bdry2
 
   subroutine apply_d (routine, dom, zlev, st, en)
     implicit none
@@ -201,7 +238,7 @@ contains
 
     call get_offs_Domain (dom, p, offs, dims, inner_bdry)
 
-    bdry = (/en, en, st, st/)
+    bdry = (/ en, en, st, st /)
 
     where (inner_bdry) bdry = 0
 
@@ -516,11 +553,82 @@ contains
     end do
   end subroutine apply_to_pole_d
 
+  subroutine apply_to_pole_patch (routine, dom, p_par, zlev)
+    implicit none
+    type(Domain)     :: dom
+    integer          :: p_par, zlev
+    procedure (sub4) :: routine
+
+    integer                        :: c, p
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    do c = SOUTHEAST, NORTHWEST, 2
+       if (.not. dom%penta(c))         cycle
+       if (.not. dom%neigh(c) == POLE) cycle
+       p = 1
+       do while (p > 0)
+          p_par = p
+          p     = dom%patch%elts(p_par+1)%children(c-4)
+
+          call get_offs_Domain (dom, p_par, offs, dims)
+
+          if (c == NORTHWEST) then     ! north pole
+             call routine (dom, 0, PATCH_SIZE, zlev, offs, dims) 
+          elseif (c == SOUTHEAST) then ! south pole
+             call routine (dom, PATCH_SIZE, 0, zlev, offs, dims) 
+          end if
+       end do
+    end do
+  end subroutine apply_to_pole_patch
+
+  subroutine apply_to_pole2 (routine, l, zlev)
+    implicit none
+    type(Domain)      :: dom
+    integer           :: l, zlev
+    procedure (sub4) :: routine
+
+    integer                        :: c, d, l_cur, p, p_par
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    do d = 1, size(grid)
+       do c = SOUTHEAST, NORTHWEST, 2
+          if (.not. grid(d)%penta(c))         cycle
+          if (.not. grid(d)%neigh(c) == POLE) cycle
+
+          p = 1
+          do while (p > 0)
+             p_par = p
+             p     = grid(d)%patch%elts(p_par+1)%children(c-4)
+
+             if (.not. l == NONE) then
+                l_cur = grid(d)%patch%elts(p_par+1)%level
+                if (l_cur < l) then
+                   cycle
+                else
+                   if (l_cur > l) exit
+                end if
+             end if
+
+             call get_offs_Domain (grid(d), p_par, offs, dims)
+
+             if (c == NORTHWEST) then     ! north pole
+                call routine (grid(d), 0, PATCH_SIZE, zlev, offs, dims)
+             elseif (c == SOUTHEAST) then ! south pole
+                call routine (grid(d), PATCH_SIZE, 0, zlev, offs, dims) 
+             end if
+
+          end do
+       end do
+    end do
+  end subroutine apply_to_pole2
+
   subroutine apply_to_penta (routine, l, zlev)
     implicit none
     integer          :: l, zlev
     procedure (sub9) :: routine
-    
+
     integer                        :: c, d, l_cur, p, p_par
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims

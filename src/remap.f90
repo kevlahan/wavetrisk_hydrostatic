@@ -68,9 +68,9 @@ contains
 
     ! Remap variables on all levels
     if (compressible) then
-       call apply_no_bdry (remap_compressible,   z_null)
+       call apply_no_bdry2 (remap_compressible,   z_null)
     else
-       call apply_no_bdry (remap_incompressible, z_null)
+       call apply_no_bdry2 (remap_incompressible, z_null)
     end if
     sol(:,1:zlevels)%bdry_uptodate = .false.
 

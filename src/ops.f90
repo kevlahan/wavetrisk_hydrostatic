@@ -1277,7 +1277,7 @@ contains
 
     Laplacian(EDGE*id+RT+1) = - (vort(TRIAG*id+LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
 
-    if (dom%pedlen%elts(EDGE*id+DG+1) /= 0.0_dp) then
+    if (dom%pedlen%elts(EDGE*id+DG+1) > eps ()) then
        Laplacian(EDGE*id+DG+1) = - (vort(TRIAG*id+LORT+1) - vort(TRIAG*id+UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
     else
        Laplacian(EDGE*id+DG+1) = 0.0_dp

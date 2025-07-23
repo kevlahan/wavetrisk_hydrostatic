@@ -17,18 +17,18 @@ module shared_mod
   end type Areas
 
   ! Domain parameters
-  integer, parameter :: N_BDRY            =  8                           ! number of boundary patches associated to each patch
-  integer, parameter :: POLE              = -2                           ! label for two pole points
-  integer, parameter :: N_ICOSAH_LOZENGE  = 10                           ! number of lozenges (coarse regular domains) in icosahedron
-  integer, parameter :: BDRY_THICKNESS    =  3                           ! width of halo/ghost cells boundary >= 3 for hyperdiffusion (>=2 in general)
-  integer, parameter :: N_CHDRN           =  4                           ! number of children nodes associated to each parent node
+  integer, parameter :: N_BDRY            =  8                             ! number of boundary patches associated to each patch
+  integer, parameter :: POLE              = -2                             ! label for two pole points
+  integer, parameter :: N_ICOSAH_LOZENGE  = 10                             ! number of lozenges (coarse regular domains) in icosahedron
+  integer, parameter :: BDRY_THICKNESS    =  3                             ! width of halo/ghost cells boundary (DO NOT MODIFY)
+  integer, parameter :: N_CHDRN           =  4                             ! number of children nodes associated to each parent node
 
-  integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL              ! number of subdomains per lozenge in each direction
-  integer, parameter :: N_SUB_DOM         = N_SUB_DOM_PER_DIM**2         ! total number of sub-domains per lozenge
-  integer, parameter :: N_GLO_DOMAIN      = N_ICOSAH_LOZENGE * N_SUB_DOM ! total number of domains at coarsest level (number of cores must be <= N_GLO_DOMAIN)
-  integer, parameter :: PATCH_LEVEL       = MIN_LEVEL - DOMAIN_LEVEL - 1 ! patch level: MIN_LEVEL = DOMAIN_LEVEL + PATCH_LEVEL + 1
+  integer, parameter :: N_SUB_DOM_PER_DIM = 2**DOMAIN_LEVEL                ! number of subdomains per lozenge in each direction
+  integer, parameter :: N_SUB_DOM         = N_SUB_DOM_PER_DIM**2           ! total number of sub-domains per lozenge
+  integer, parameter :: N_GLO_DOMAIN      = N_ICOSAH_LOZENGE * N_SUB_DOM   ! total number of domains at coarsest level (number of cores must be <= N_GLO_DOMAIN)
+  integer, parameter :: PATCH_LEVEL       = MIN_LEVEL - (DOMAIN_LEVEL + 1) ! patch level: MIN_LEVEL = DOMAIN_LEVEL+1 + PATCH_LEVEL
   
-  integer, dimension(:), allocatable :: n_domain                         ! number of subdomains on each processor
+  integer, dimension(:), allocatable :: n_domain                           ! number of subdomains on each processor
 
   ! Shifts on regular (i,j) grid
   integer, parameter :: JPLUS       = 1

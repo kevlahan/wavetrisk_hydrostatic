@@ -25,7 +25,7 @@ contains
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
     ! Compute Simple Physics split step on all columns
-    call apply_no_bdry (physics_call, z_null)
+    call apply_no_bdry2 (physics_call, z_null)
     
     sol%bdry_uptodate      = .false.
     physics_firstcall_flag = .false.   

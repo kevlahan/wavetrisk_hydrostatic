@@ -379,11 +379,11 @@ contains
     end function vort_tri
   end subroutine unique_tri_cells
 
-  subroutine hex_cells (dom, p, i, j, zlev, offs, dims, ival)
+  subroutine hex_cells (dom, i, j, zlev, offs, dims)
     use domain_mod
     implicit none
     type(Domain)                   :: dom
-    integer                        :: ival, i, j, p, zlev
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
