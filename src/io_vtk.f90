@@ -353,7 +353,7 @@ contains
       outv(6)  = hex2tri2 (real(dom%u_zonal%elts(neigh_id),             kind=sp), hex_area, tri_area, t) ! zonal velocity
       outv(7)  = hex2tri2 (real(dom%v_merid%elts(neigh_id),             kind=sp), hex_area, tri_area, t) ! meridional velocity
       outv(8)  = hex2tri2 (real(vel_vert(zlev)%data(d)%elts(neigh_id),  kind=sp), hex_area, tri_area, t) ! vertical velocity OMEGA 
-      outv(9)  = real (dom%vort%elts(TRIAG*id+t+1),                     kind=sp)                         ! vorticity
+      outv(9)  = vort_tri (t)                                                                            ! vorticity (hexagon equivalant)
       outv(10) = hex2tri2 (real(dom%geopot%elts(neigh_id) / grav_accel, kind=sp), hex_area, tri_area, t) ! geopotential height
       outv(11) = hex2tri2 (real(dom%press%elts(neigh_id) / Ps,          kind=sp), hex_area, tri_area, t) ! P/Ps
       outv(12) = hex2tri2 (real(rho_dz/ ref_density,                    kind=sp), hex_area, tri_area, t) ! dz
