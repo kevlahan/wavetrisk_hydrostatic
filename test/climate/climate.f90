@@ -1,7 +1,7 @@
 program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !
-  !    Climate simulation using Held and Suarez (1994) or Simple Physics (Hourdin 1993) subgrid scale model
+  !   Climate simulation using Held and Suarez (1994) or Simple Physics (Hourdin 1993) subgrid scale model
   !
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   use main_mod
@@ -16,11 +16,10 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  timeint_type             = "RK3"                            ! time integration scheme 
   adapt_dt                 = .true.                           ! adapt time step
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
-  log_min_mass             = .false.                          ! compute minimum mass at each dt (for checking stability issues)
+  log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
   scale_aware              = .false.                          ! scale-aware viscosity
   split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
   sponge                   = .false.                          ! use sponge layer in upper layers to avoid reflection
@@ -54,9 +53,12 @@ program climate
   gamma                    = c_p / c_v                        ! heat capacity ratio
   kappa                    = R_d / c_p                        ! kappa
 
-  wave_speed               = sqrt (gamma * (R_d * T_0) )      ! acoustic wave speed
-  max_depth                = wave_speed**2 / grav_accel       ! depth of atmosphere
+  max_depth                = R_d * T_0 / grav_accel           ! scale height for dry air
   dz                       = max_depth / dble (zlevels)       ! representative layer height
+
+  c_s                      = sqrt (gamma * (R_d * T_0) )      ! acoustic wave speed
+  c_g                      = sqrt (grav_accel * max_depth)    ! gravity wave speed
+  wave_speed               = max (c_g, c_s)                   ! wave speed used for CFL number 
   
   call std_surf_pres (0.0_dp, p_0)                            ! reference pressure (USA standard atmosphere model)
   

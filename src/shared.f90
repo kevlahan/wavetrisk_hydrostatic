@@ -146,7 +146,7 @@ module shared_mod
   integer               :: N_VECTOR, N_SCALAR, N_VARIABLE
   integer, dimension(2) :: scalars
 
-  ! Indices of SSO
+  ! Indices of sub scale orography model (SSO)
   integer, parameter    :: S_MU = 1, S_THETA = 2, S_GAMMA = 3, S_SIGMA = 4
 
   ! Number of each variable per grid element (at hexagon nodes, triangle nodes, or edges) 
@@ -233,7 +233,7 @@ module shared_mod
   real(dp)                                       :: porosity, ref_density, ref_density_air, ref_density_water
   real(dp)                                       :: mass_error, max_depth, min_depth, min_mass, min_mass_remap
   real(dp)                                       :: theta1, theta2, visc_divu, visc_rotu
-  real(dp)                                       :: c1, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
+  real(dp)                                       :: c1, c_g, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
   real(dp)                                       :: Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim
   real(dp)                                       :: hex_int
   real(dp), dimension(:),         allocatable    :: Area_avg, bounds, dx_avg, pressure_save, visc_sclr
@@ -367,19 +367,20 @@ contains
     vert_diffuse            = .false.                             ! include vertical diffusion in ocean models (T)
 
     ! Default numerical method values
-    porosity                = 1e-1_dp                             ! porosity
-    cfl_adv                 = 1.4_dp                              ! advective CFL number in mode split case
-    cfl_bar                 = 1.0_dp                              ! baroclinic CFL number in mode split case
-    cfl_num                 = 1.0_dp                              ! CFL number (barotropic CFL in mode split case)
-    dt_phys                 = 30 * MINUTE                         ! intervale for physics split step
-    dt_write                = 5  * DAY                            ! intervale for writing data
+    cfl_adv                 = 1.0_dp                              ! advective CFL number for ocean (mode split case)
+    cfl_bar                 = 0.5_dp                              ! baroclinic CFL number for ocean (mod split case)
+    cfl_num                 = 0.4_dp                              ! advective CFL number for atmosphere (based on acoustic speed). Set cfl_num = cfl_adv for ocean.
+
+    dt_phys                 = 30 * MINUTE                         ! interval for physics split step
+    dt_write                = 5  * DAY                            ! interval for writing data
     iadapt                  = 1                                   ! adapt horizontal grid every iadapt time step
     irebalance              = 5                                   ! interval for checking rebalance (only active if using AMPI)
     iremap                  = 1                                   ! remap counter
     iremap_max              = 5                                   ! maximum remap interval (every iremap_max dt)
     min_mass_remap          = 0.9_dp                              ! minimum relative layer mass compared to initial value at which to remap
     level_save              = level_start                         ! level to save
-
+    porosity                = 1e-1_dp                             ! porosity
+    
     ! Order of Laplacian diffusion  0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     Laplace_sclr            = 2                                   ! scalars
     Laplace_divu            = 2                                   ! div u
@@ -393,37 +394,41 @@ contains
     remapscalar_type        = "PPR"                               ! remapping scheme for scalars
     remapvelo_type          = "PPR"                               ! remapping scheme for velocity
 
-    timeint_type            = "RK4"                               ! time integration scheme (RK3 is default for incompressible case)
+    timeint_type            = "RK3"                               ! time integration scheme (RK3 is default for incompressible case)
     tol                     = 0.0_dp                              ! relative tolerance for adaptivity (default is non-adaptive)
-    zlevels                 = 20                                  ! number of vertical layers
+    zlevels                 = 30                                  ! number of vertical layers
     zmin                    = 1                                   ! lowest vertical level index
     Nsoil                   = 0                                   ! number of soil layers (if Nsoil = 0 then do not use soil model)
 
     ! Default physical parameters
     ! (these parameters are typically reset in test case file, but are needed for compilation)
-    c_p                 = 1004.64      * JOULE / (KG*KELVIN)       ! specific heat at constant pressure for air (= 3991.87 for seawater)
-    c_v                 = 717.6        * JOULE / (KG*KELVIN)       ! specfic heat at constant volume c_v = R_d - c_p
-    grav_accel          = 9.80616      * METRE / SECOND**2         ! gravitational acceleration
-    p_top               = 0            * hPa                       ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
-    R_d                 = 287          * JOULE / (KG*KELVIN)       ! ideal gas constant for dry air in joules per kilogram Kelvin
-    ref_density         = 0            * KG / METRE**3             ! set ref_density to correct default value below if not set in test case
-    ref_density_air     = 1.225        * KG / METRE**3             ! reference density (compressible case: atmosphere)
-    ref_density_water   = 1028.0       * KG / METRE**3             ! reference density (incompressible case: seawater)
-    omega               = 7.292e-05    * RAD / SECOND              ! rotation rate of Earth
-    radius              = 6371.22      * KM                        ! radius of Earth
-    p_0                 = 1000         * hPA                       ! standard pressure
-    visc_sclr           = 0            * METRE**2 / SECOND         ! kinematic viscosity of scalars 
-    visc_divu           = 0            * METRE**2 / SECOND         ! kinematic viscosity of divergence of velocity 
-    visc_rotu           = 0            * METRE**2 / SECOND         ! kinematic viscosity of vorticity 
+    c_p                 = 1004.64      * JOULE / (KG*KELVIN)      ! specific heat at constant pressure for air (= 3991.87 for seawater)
+    c_v                 = 717.6        * JOULE / (KG*KELVIN)      ! specfic heat at constant volume c_v = R_d - c_p
+    grav_accel          = 9.80616      * METRE / SECOND**2        ! gravitational acceleration
+    p_top               = 0            * hPa                      ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
+    R_d                 = 287          * JOULE / (KG*KELVIN)      ! ideal gas constant for dry air in joules per kilogram Kelvin
+    ref_density         = 0            * KG / METRE**3            ! set ref_density to correct default value below if not set in test case
+    ref_density_air     = 1.225        * KG / METRE**3            ! reference density (compressible case: atmosphere)
+    ref_density_water   = 1028.0       * KG / METRE**3            ! reference density (incompressible case: seawater)
+    omega               = 7.292e-05    * RAD / SECOND             ! rotation rate of Earth
+    radius              = 6371.22      * KM                       ! radius of Earth
+    p_0                 = 1000         * hPA                      ! standard pressure
+    visc_sclr           = 0            * METRE**2 / SECOND        ! kinematic viscosity of scalars 
+    visc_divu           = 0            * METRE**2 / SECOND        ! kinematic viscosity of divergence of velocity 
+    visc_rotu           = 0            * METRE**2 / SECOND        ! kinematic viscosity of vorticity 
 
-    kappa               = R_d/c_p                                  ! heat capacity ratio
+    kappa               = R_d/c_p                                 ! heat capacity ratio
+
+    ! Parameters for atmosphere (compressible) model
+    c_g                 = 287          * METRE / SECOND           ! gravity wave speed for atmosphere ( 198 m/s for ocean)
+    c_s                 = 340          * METRE / SECOND           ! sound speed for atmosphere        (1500 m/s for ocean)
+    wave_speed          = c_s                                     ! wave speed used for CFL number (use c_g for ocean)
 
     ! Parameters for ocean (incompressible) model
-    c1                  = 1e-16        * METRE / SECOND            ! value for internal wave speed (used for incompressible cases)
-    c_s                 = 1500         * METRE / SECOND            ! sound speed for seawater
-    max_depth           = 4            * KM                        ! maximum depth 
-    min_depth           = max_depth                                ! minimum depth 
-    H_rho               = c_s**2 / grav_accel                      ! density scale height
+    c1                  = 1e-16        * METRE / SECOND           ! value for internal wave speed (used for incompressible cases)
+    max_depth           = 4            * KM                       ! maximum depth 
+    min_depth           = max_depth                               ! minimum depth 
+    H_rho               = c_s**2 / grav_accel                     ! density scale height
 
     ! Equation of state parameters for ocean model
     eos_nl              = .false.                                 ! nonlinear equation of state if true
@@ -440,11 +445,11 @@ contains
     ! Theta parameters for barotropic-baroclinic mode splitting: 1 = fully implicit, 0.5 = Crank-Nicolson
     ! (avoid theta = 0.5 due to free surface standing wave instability)
     ! NEMO uses theta = 0.55 to ensure stability while avoiding over-damping  
-    theta1              = 0.55_dp                                     ! external pressure gradient
-    theta2              = 0.55_dp                                     ! barotropic flow divergence
+    theta1              = 0.55_dp                                 ! external pressure gradient
+    theta2              = 0.55_dp                                 ! barotropic flow divergence
 
     ! Physics model
-    physics_type        = "Held_Suarez"                              ! physics model used if physics_model is T
+    physics_type        = "Held_Suarez"                           ! physics model used if physics_model is T
   end subroutine init_shared_mod
 
   real(dp) function eps ()

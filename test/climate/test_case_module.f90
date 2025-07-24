@@ -682,7 +682,7 @@ contains
 
     ! Non-dimensional viscosity
     C_visc = C_CAM
-    C_visc(S_DIVU,:) = C_CAM * 20
+    C_visc(S_DIVU,:) = C_CAM * 10
 
     ! Sponge layer for divergence damping
     if (sponge) then
