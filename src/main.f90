@@ -559,9 +559,10 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: d, e, id, id_e, id_i, k, l
-    integer, dimension(1:EDGE) :: ide
-    real(dp)                   :: dx, v_mag
+    integer                        :: d, e, id, id_e, id_i, k, l
+    integer,  dimension(1:EDGE)    :: ide
+    real(dp)                       :: acoustic_speed, dx, p_top, rho_dz, theta, v_mag
+    real(dp), dimension(0:zlevels) :: p
 
     id   = idx (i, j, offs, dims)
     id_i = id + 1
@@ -573,12 +574,22 @@ contains
        n_active_nodes(l) = n_active_nodes(l) + 1 
        if (adapt_dt) then
           dx = minval (dom%len%elts(ide))
-          do k = 1, zlevels
-             v_mag =  u_mag (dom, i, j, k, offs, dims)
-             if (mode_split) then
-                dt_loc = min (dt_loc, cfl_num * dx / wave_speed, cfl_adv * dx / v_mag, cfl_bar * dx / c1)
+          p(zlevels) = p_top
+          do l = zlevels-1, 0, -1
+             k = l + 1 
+
+             rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i) 
+             p(l)   = p(l+1) + grav_accel * rho_dz
+             theta  = theta_i (dom, i, j, k, offs, dims)
+             
+             acoustic_speed = sqrt (gamma * (R_d * theta2temp (theta, interp (p(l), p(l+1)))))
+
+             v_mag = u_mag (dom, i, j, k, offs, dims)
+             
+             if (compressible) then
+                dt_loc = min (dt_init, dt_loc, cfl_num * dx / (v_mag + acoustic_speed))
              else
-                dt_loc = min (dt_loc, cfl_num * dx / (v_mag + wave_speed))
+                dt_loc = min (dt_init, dt_loc, cfl_num * dx / wave_speed)
              end if
           end do
        end if

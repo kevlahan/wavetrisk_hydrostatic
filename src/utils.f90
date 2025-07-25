@@ -43,7 +43,7 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer                    :: d, id, l
+    integer                     :: d, id, l
     real(dp)                    :: dz, exner, rho_dz, rho_dz_theta, p
     real(dp), dimension(0:zlev) :: z
 
@@ -81,7 +81,7 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, id, l, lmax
+    integer  :: d, id, l, lmax
     real(dp) :: dz, exner, rho_dz, rho_dz_theta, p
 
     d = dom%id + 1
@@ -141,7 +141,7 @@ contains
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
 
-    integer :: d, id
+    integer  :: d, id
     real(dp) :: exner, rho_dz, rho_dz_theta, p
 
     d = dom%id + 1
@@ -455,7 +455,7 @@ contains
     implicit none
     real(dp) :: p, temp
     
-    temp2theta =  temp / (p / p_0)**kappa
+    temp2theta = temp / (p / p_0)**kappa
   end function temp2theta
   
   real(dp) function pressure_i (dom, i, j, zlev, offs, dims, q)
@@ -463,8 +463,8 @@ contains
     implicit none
     type(Domain)                              :: dom
     integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
+    integer,           dimension(N_BDRY+1)    :: offs
+    integer,           dimension(2,N_BDRY+1)  :: dims
     type(Float_Field), dimension(:,:), target :: q
  
     integer                             :: d, id, k, l
@@ -475,7 +475,7 @@ contains
     id = idx (i, j, offs, dims) + 1
 
     p(zlevels) = p_top
-    do l = zlevels-1, zlev, -1
+    do l = zlevels-1, zlev-1, -1
        k = l + 1 ! layer index
        rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + q(S_MASS,k)%data(d)%elts(id) 
 
@@ -570,7 +570,7 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    real(dp), dimension(1:EDGE)     :: uvw
+    real(dp), dimension(1:EDGE)    :: uvw
 
     integer     :: id, idE, idN, idNE
     type(Coord) :: vel0
@@ -606,10 +606,10 @@ contains
     ! Interpolate from zonal, meridional velocity components at nodes to U, V, W velocity components at edges
     ! (assumes that dom%u_zonal and dom%v_merid have been set over all grid points)
     implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type (Domain)                   :: dom
+    integer                         :: i, j, zlev
+    integer,  dimension(N_BDRY+1)   :: offs
+    integer,  dimension(2,N_BDRY+1) :: dims
     real(dp), dimension(1:EDGE)     :: latlon2uvw
 
     integer     :: id, idE, idN, idNE
@@ -630,7 +630,7 @@ contains
       ! Computes velocity at node id from its latitude and longitude components
       integer :: id
 
-      real(dp)     :: lat, lon
+      real(dp)    :: lat, lon
       type(Coord) :: e_merid, e_zonal
 
       call cart2sph (dom%node%elts(id+1), lon, lat)
@@ -656,7 +656,6 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-
 
     integer     :: id, idN, idE, idNE, idS, idSW, idW
     real(dp)    :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
@@ -716,11 +715,11 @@ contains
     !
     ! also used for kinetic energy
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(dp), dimension(2)         :: uvw2zonal_merid
+    type(Domain)                    :: dom
+    integer                         :: i, j, zlev
+    integer,  dimension(N_BDRY+1)   :: offs
+    integer,  dimension(2,N_BDRY+1) :: dims
+    real(dp), dimension(2)          :: uvw2zonal_merid
 
     integer     :: d, id, idN, idE, idNE, idS, idSW, idW
     real(dp)    :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
@@ -800,10 +799,10 @@ contains
 
   function f_coriolis_edge (dom, i, j, zlev, offs, dims)
     ! Coriolis parameter at edges
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                    :: dom
+    integer                         :: i, j, zlev
+    integer,  dimension(N_BDRY+1)   :: offs
+    integer,  dimension(2,N_BDRY+1) :: dims
     real(dp), dimension(1:EDGE)     :: f_coriolis_edge
 
     integer :: id
@@ -912,10 +911,10 @@ contains
   real(dp) function hex2tri (dom, i, j, t, offs, dims, zlev)
     ! Float array arr_hex at triangles associated with node (i,j) computed from integral over hexagons
     implicit none
-    integer :: i, j, t, zlev
-    type(Domain)                     :: dom
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims
+    integer                        :: i, j, t, zlev
+    type(Domain)                   :: dom
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
 
     integer :: id, idE, idNE, idN
 
@@ -980,7 +979,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                       :: d, id, idE, idN, idNE
+    integer                        :: d, id, idE, idN, idNE
     real(dp), dimension(LORT:UPLT) :: FdTri, tri_area
     real(dp), dimension(2*EDGE)    :: hex_area
     real(dp), dimension(0:EDGE)    :: val
@@ -1017,10 +1016,10 @@ contains
   real(4) function hex2tri2 (sclr, hex_area, tri_area, t)
     ! Interpolates sclr given at hexagons to triangles 
     implicit none
-    integer                       :: t
-    real(4)                       :: tri_area
-    real(4), dimension(0:EDGE)    :: sclr
-    real(4), dimension(2*EDGE)    :: hex_area
+    integer                    :: t
+    real(4)                    :: tri_area
+    real(4), dimension(0:EDGE) :: sclr
+    real(4), dimension(2*EDGE) :: hex_area
 
     if (t == LORT) then
        hex2tri2 = (sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)) / tri_area
@@ -1492,7 +1491,7 @@ contains
   real(dp) function radial_basis_fun (dx, npts, r)
     ! Radial basis function for smoothing topography
     implicit none
-    integer :: npts
+    integer  :: npts
     real(dp) :: dx, r
 
     real(dp) :: alph
@@ -1507,7 +1506,7 @@ contains
     ! (also called the Beckman-Haidvogel number)
     ! the compressible version uses surface pressure instead of topography height
     implicit none
-    integer :: l
+    integer  :: l
     real(dp) :: rx0_max
 
     integer :: ierror
@@ -1530,7 +1529,7 @@ contains
     ! note that rx1 < 1 is almost impossible to achieve and rx1 <= 5 is usually okay in oceanographic simulations
     ! compute only over lowest layer (most unstable)
     implicit none
-    integer :: l
+    integer  :: l
     real(dp) :: rx1_max
 
     integer :: ierror, k
@@ -1558,7 +1557,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idNE, idN
+    integer  :: id, idE, idNE, idN
     real(dp) :: h0, h1
 
     id   = idx (i,   j,   offs, dims)
@@ -1596,7 +1595,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, idE, idNE, idN
+    integer  :: id, idE, idNE, idN
     real(dp) :: z1, z2, z3, z4
 
     id  = idx (i, j, offs, dims)
@@ -1645,7 +1644,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idE, idN, idNE
+    integer  :: d, id, idE, idN, idNE
     real(dp) :: h0, h1
 
     id   = idx (i,   j,   offs, dims)
@@ -1685,7 +1684,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
+    integer  :: id
     real(dp) :: z1, z2, z3, z4
 
     id  = idx (i, j, offs, dims)
@@ -1722,7 +1721,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id
+    integer  :: d, id
     real(dp) :: rho_dz, rho_dz_theta
 
     d  = dom%id + 1
@@ -1743,7 +1742,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id
+    integer  :: d, id
     real(dp) :: drho, dtheta, dz, rho_l, rho1, rho2, theta_l, theta1, theta2
 
     d  = dom%id + 1
@@ -1771,10 +1770,10 @@ contains
   function N_e (dom, i, j, zlev, offs, dims)
     ! Brunt-Vaisala frequency at edges at layer interfaces
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                    :: dom
+    integer                         :: i, j, zlev
+    integer,  dimension(N_BDRY+1)   :: offs
+    integer,  dimension(2,N_BDRY+1) :: dims
     real(dp), dimension(1:EDGE)     :: N_e
 
     N_e = 0.5 * ( &

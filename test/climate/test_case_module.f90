@@ -525,7 +525,6 @@ contains
        write (6,'(a,es8.2)') "tolerance               = ", tol
        write (6,'(a,i1)')     "optimize_grid           = ", optimize_grid
        write (6,'(a,l1)')     "adapt_dt                = ", adapt_dt
-       write (6,'(a,es8.2)') "dt_init                 = ", dt_init
        write (6,'(a,es8.2)') "cfl_num                 = ", cfl_num
        write (6,'(a,a)')      "timeint_type            = ", trim (timeint_type)
        write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
@@ -543,7 +542,7 @@ contains
        if (Laplace_rotu /= 0) &
             write (6,'(3(a,es8.2))') "C_rotu = ",  C_visc(S_ROTU,1), " nu_rotu = ", nu_rotu, " tau_rotu = ", tau_rotu / HOUR
 
-       write (6,'(/,a,es8.2)') "dt_init          [m]     = ", dt_init / MINUTE
+       write (6,'(/,a,es8.2)') "dt_init          [s]     = ", dt_init / SECOND
        write (6,'(a,es8.2)') "dt_write         [d]     = ", dt_write / DAY
        write (6,'(a,l1)')     "match_time               = ", match_time
        write (6,'(a,i4)')     "CP_EVERY                 = ", CP_EVERY
@@ -619,8 +618,9 @@ contains
     call eday2date (int (time/DAY) + 80, date)
     
     if (rank == 0) then
-       write (6,'(i0.8, f11.4, a, a, i2, a, i12, a, es8.2)') &
+       write (6,'(i0.8, f11.4, a, a, f7.1, a, a, i2, a, i12, a, es8.2)') &
             date, time / DAY, ' d', &
+            ' dt = ', dt, ' s', &
             ' Jmax = ', level_end, &
             ' dof = ', sum (n_active), &
             ' cpu = ', timing
