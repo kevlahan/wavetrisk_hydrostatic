@@ -582,7 +582,7 @@ contains
              p(l)   = p(l+1) + grav_accel * rho_dz
              theta  = theta_i (dom, i, j, k, offs, dims)
              
-             acoustic_speed = sqrt (gamma * (R_d * theta2temp (theta, interp (p(l), p(l+1)))))
+             acoustic_speed = sqrt (gamma * R_d * theta2temp (theta, interp (p(l), p(l+1))))
 
              v_mag = u_mag (dom, i, j, k, offs, dims)
              
