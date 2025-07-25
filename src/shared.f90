@@ -369,7 +369,7 @@ contains
     ! Default numerical method values
     cfl_adv                 = 1.0_dp                              ! advective CFL number for ocean (mode split case)
     cfl_bar                 = 0.5_dp                              ! baroclinic CFL number for ocean (mod split case)
-    cfl_num                 = 0.5_dp                              ! advective CFL number for atmosphere (based on acoustic speed). Set cfl_num = cfl_adv for ocean.
+    cfl_num                 = 0.8_dp                              ! advective CFL number for atmosphere (based on acoustic speed). Set cfl_num = cfl_adv for ocean.
 
     dt_phys                 = 30 * MINUTE                         ! interval for physics split step
     dt_write                = 5  * DAY                            ! interval for writing data
