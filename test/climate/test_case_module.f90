@@ -678,7 +678,7 @@ contains
     implicit none
     integer  :: k
 
-    dt_init  = dt_CAM * dx_avg(max_level) / dx_CAM
+    dt_init = cfl_num * dx_avg(max_level) / (u_0 + c_s) 
 
     ! Non-dimensional viscosity
     C_visc = C_CAM
