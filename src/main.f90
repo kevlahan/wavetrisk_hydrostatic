@@ -559,44 +559,47 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                        :: d, e, id, id_e, id_i, k, l
+    integer                        :: d, e, id, id_e, id_i, k, l, lev
     integer,  dimension(1:EDGE)    :: ide
-    real(dp)                       :: acoustic_speed, dx, p_top, rho_dz, theta, v_mag
+    real(dp)                       :: acoustic_speed, dx, p_k, p_top, rho_dz, T, theta, v_mag
     real(dp), dimension(0:zlevels) :: p
 
+    d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
     ide  = id_edge(id)
-    d    = dom%id + 1
-    l    = dom%level%elts(id_i)
+
+    lev  = dom%level%elts(id_i)
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       n_active_nodes(l) = n_active_nodes(l) + 1 
+       n_active_nodes(lev) = n_active_nodes(lev) + 1 
        if (adapt_dt) then
           dx = minval (dom%len%elts(ide))
-          p(zlevels) = p_top
+          
+          P(zlevels) = p_top
           do l = zlevels-1, 0, -1
              k = l + 1 
-
-             rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i) 
-             p(l)   = p(l+1) + grav_accel * rho_dz
-             theta  = theta_i (dom, i, j, k, offs, dims)
-             
-             acoustic_speed = sqrt (gamma * R_d * theta2temp (theta, interp (p(l), p(l+1))))
-
              v_mag = u_mag (dom, i, j, k, offs, dims)
-             
              if (compressible) then
-                dt_loc = min (dt_init, dt_loc, cfl_num * dx / (v_mag + acoustic_speed))
+                rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i) 
+                P(l)   = P(l+1) + grav_accel * rho_dz
+                P_k    = interp (P(l), P(l+1))
+                
+                theta  = theta_i (dom, i, j, k, offs, dims)
+                T      = theta2temp (theta, P_k)
+
+                acoustic_speed = sqrt (gamma * R_d * T)
+
+                dt_loc = min (dt_loc, cfl_num * dx / (v_mag + acoustic_speed))
              else
-                dt_loc = min (dt_init, dt_loc, cfl_num * dx / wave_speed)
+                dt_loc = min (dt_loc, cfl_num * dx / (v_mag + wave_speed))
              end if
           end do
        end if
     end if
 
     do e = 1, EDGE
-       if (dom%mask_e%elts(ide(e)) >= ADJZONE) n_active_edges(l) = n_active_edges(l) + 1
+       if (dom%mask_e%elts(ide(e)) >= ADJZONE) n_active_edges(lev) = n_active_edges(lev) + 1
     end do
   end subroutine cal_min_dt
 
