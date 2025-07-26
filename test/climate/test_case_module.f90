@@ -17,7 +17,6 @@ module test_case_mod
   real(dp) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
 
   ! Model parameters
-  logical             :: scale_aware   = .false.                     ! scale-aware viscosity
   logical             :: sponge        = .true.                      ! sponge layer for divergence damping
 
   integer,  parameter :: fac_sponge    = 8                           ! sponge layer viscosity increase factor (from CAM)
@@ -534,8 +533,8 @@ contains
        write (6,'(a,i4)')      "CP_EVERY                = ", CP_EVERY
        write (6,'(a,es8.2)')   "time_end       [d]      = ", time_end / DAY
        write (6,'(a,i6)')      "resume                  = ", resume_init
-
-        write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
+       
+       write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
        if (max (Laplace_sclr, Laplace_divu, Laplace_rotu) /= 0) then
           if (scale_aware) then
              write (6,'(a)') "Scale-aware horizontal viscosity"

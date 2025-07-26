@@ -24,7 +24,6 @@ Module test_case_mod
 
   ! Drake land boundaries
   real(8),                   parameter :: lat_max = 60*DEG, lat_min = -35*DEG, lon_min = -15*DEG, lon_max = 15*DEG
-  logical                              :: scale_aware = .false.
 
   ! Etopo data (etopo smoothing not yet implemented)
   integer                              :: bathy_per_deg
