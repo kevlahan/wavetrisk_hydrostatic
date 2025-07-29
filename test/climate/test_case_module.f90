@@ -131,13 +131,11 @@ contains
 
     physics_velo_source_case = 0.0_dp
 
-    if (maxval (dom%mask_e%elts(id_edge(id))) >= ADJZONE) then
-       if (Laplace_divu /= 0) physics_velo_source_case = &  
-            + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
+    if (Laplace_divu /= 0) physics_velo_source_case = &  
+         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
 
-       if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
-            - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
-    end if
+    if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
+         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
   contains
     function grad_divu ()
       implicit none
@@ -475,11 +473,12 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, Nsoil
+    read (fid,*) varname, scale_aware
     read (fid,*) varname, NCAR_topo
     read (fid,*) varname, sso
     read (fid,*) varname, topo_file
     read (fid,*) varname, topo_min_level
-    read (fid,*) varname, topo_max_level   
+    read (fid,*) varname, topo_max_level
     read (fid,*) varname, tol
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
@@ -508,8 +507,6 @@ contains
        write (6,'(a,a)')      "run_id                  = ", trim (run_id)
        write (6,'(a,l1)')     "compressible            = ", compressible
        write (6,'(a,l1)')     "split_mean_perturbation = ", split_mean_perturbation 
-       write (6,'(a,i1,/)')   "optimize_grid           = ", optimize_grid
-       write (6,'(a,es8.2)')  "tolerance               = ", tol
        write (6,'(a,i3)')     "min_level               = ", min_level
        write (6,'(a,i3)')     "max_level               = ", max_level
        write (6,'(a,i5)')     "number of domains       = ", N_GLO_DOMAIN
@@ -523,17 +520,12 @@ contains
        write (6,'(a,l1)')     "remap                   = ", remap
        write (6,'(a,f4.2)')   "min_mass_remap          = ", min_mass_remap 
        write (6,'(a,l1)')     "default_thresholds      = ", default_thresholds
-
-       write (6,'(a,a)')       "timeint_type            = ", trim (timeint_type)
-       write (6,'(a,l1)')      "adapt_dt                = ", adapt_dt
-       write (6,'(a,es8.2)')   "cfl_num                 = ", cfl_num
-       write (6,'(a,es8.2)')   "dt_init        [s]      = ", dt_init / SECOND
-       write (6,'(a,es8.2)')   "dt_write       [d]      = ", dt_write / DAY
-       write (6,'(a,l1)')      "match_time              = ", match_time
-       write (6,'(a,i4)')      "CP_EVERY                = ", CP_EVERY
-       write (6,'(a,es8.2)')   "time_end       [d]      = ", time_end / DAY
-       write (6,'(a,i6)')      "resume                  = ", resume_init
-       
+       write (6,'(a,es8.2)') "tolerance               = ", tol
+       write (6,'(a,i1)')     "optimize_grid           = ", optimize_grid
+       write (6,'(a,l1)')     "adapt_dt                = ", adapt_dt
+       write (6,'(a,es8.2)') "dt_init                 = ", dt_init
+       write (6,'(a,es8.2)') "cfl_num                 = ", cfl_num
+       write (6,'(a,a)')      "timeint_type            = ", trim (timeint_type)
        write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
        if (max (Laplace_sclr, Laplace_divu, Laplace_rotu) /= 0) then
           if (scale_aware) then
@@ -548,6 +540,13 @@ contains
             write (6,'(3(a,es8.2))') "C_divu = ",  C_visc(S_DIVU,1), " nu_divu = ", nu_divu, " tau_divu = ", tau_divu / HOUR
        if (Laplace_rotu /= 0) &
             write (6,'(3(a,es8.2))') "C_rotu = ",  C_visc(S_ROTU,1), " nu_rotu = ", nu_rotu, " tau_rotu = ", tau_rotu / HOUR
+
+       write (6,'(/,a,es8.2)') "dt_init          [m]     = ", dt_init / MINUTE
+       write (6,'(a,es8.2)') "dt_write         [d]     = ", dt_write / DAY
+       write (6,'(a,l1)')     "match_time               = ", match_time
+       write (6,'(a,i4)')     "CP_EVERY                 = ", CP_EVERY
+       write (6,'(a,es8.2)') "time_end         [d]     = ", time_end / DAY
+       write (6,'(a,i6)')     "resume                   = ", resume_init
 
        write (6,'(/,a)')      "STANDARD PARAMETERS"
        write (6,'(a,es8.2)') "radius          [km]     = ", radius / KM
@@ -618,7 +617,7 @@ contains
     call eday2date (int (time/DAY) + 80, date)
     
     if (rank == 0) then
-       write (6,'(i0.8, f11.4, a, a, f7.1, a, a, i2, a, i12, a, es8.2)') &
+       write (6,'(i0.8, f11.4, a, a, f8.1, a, a, i2, a, i12, a, es8.2)') &
             date, time / DAY, ' d', &
             ' dt = ', dt, ' s', &
             ' Jmax = ', level_end, &
@@ -682,7 +681,7 @@ contains
 
     ! Non-dimensional viscosity
     C_visc = C_CAM
-    C_visc(S_DIVU,:) = C_CAM * 10
+    C_visc(S_DIVU,:) = (1/9.0_dp)**Laplace_divu
 
     ! Sponge layer for divergence damping
     if (sponge) then
