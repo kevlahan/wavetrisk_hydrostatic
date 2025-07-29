@@ -1060,29 +1060,25 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     real(8), dimension(1:EDGE)     :: wind_flux_case
-
+    
     integer                    :: d, id, idE, idN, idNE
     real(8)                    :: rho
     real(8), dimension(1:EDGE) :: tau_wind
 
     id = idx (i, j, offs, dims)
 
-    if (maxval (dom%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1)) >= ADJZONE) then
-       d = dom%id + 1
-       idE  = idx (i+1, j,   offs, dims)
-       idN  = idx (i,   j+1, offs, dims)
-       idNE = idx (i+1, j+1, offs, dims)
+    d = dom%id + 1
+    idE  = idx (i+1, j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
 
-       tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
-       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
-       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
+    tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
+    tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
+    tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-       rho = porous_density (d, id+1, zlevels)
+    rho = porous_density (d, id+1, zlevels)
 
-       wind_flux_case = tau_wind / rho  * (1d0 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
-    else
-       wind_flux_case = 0d0
-    end if
+    wind_flux_case = tau_wind / rho  * (1d0 - penal_edge(zlevels)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1))
   end function wind_flux_case
 end module test_case_mod
 
