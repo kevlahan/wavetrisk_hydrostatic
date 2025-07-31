@@ -82,7 +82,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer :: id
+    integer  :: id
     real(dp) :: k_T, lat, lon, sigma, theta_equil
 
     id = idx (i, j, offs, dims) + 1
@@ -105,9 +105,7 @@ contains
 
     integer                    :: id, id_i
     integer, dimension(1:EDGE) :: id_e
-    real(dp)                    :: k_v, sigma, sigma_c
-
-    real(dp), dimension(1:EDGE) :: drag
+    real(dp)                   :: k_v, sigma, sigma_c
 
     id   = idx (i, j, offs, dims)
     id_i = id + 1
