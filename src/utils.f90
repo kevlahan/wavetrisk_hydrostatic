@@ -1375,9 +1375,25 @@ contains
     integer :: e, id
 
     id = idx (i, j, offs, dims) 
-
+    
     val1(id_edge(id)) = val2(id_edge(id))
   end subroutine cal_equals_edge
+
+  real(dp) function nu_scale (order, dom, id)
+    ! Non-dimensional viscosity scaling for diffusion on hexagonal grid
+    implicit none
+    integer      :: id, order
+    type(domain) :: dom
+
+    real(dp) :: Area
+
+    if (scale_aware) then
+       Area = Area_avg(dom%level%elts(id+1))
+    else
+       Area = Area_avg(max_level)
+    end if
+    nu_scale = (sqrt (3.0_dp) * Area)**order / dt
+  end function nu_scale
 
   subroutine smoothing_rbf (dx, npts, nsmth, data)
     ! Smooths data(lon,lat) over neighbouring region using radial basis functions

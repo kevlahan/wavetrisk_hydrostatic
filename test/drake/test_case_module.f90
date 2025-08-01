@@ -558,23 +558,6 @@ contains
     C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/9.0_dp/4)**Laplace_rotu)
   end subroutine initialize_dt_viscosity_case
 
-  real(8) function nu_scale (order, dom, id)
-    ! Non-dimensional viscosity scaling for diffusion on hexagonal grid
-    implicit none
-    integer      :: id, order
-    type(domain) :: dom
-
-    real(8) :: Area
-
-    if (scale_aware) then
-       Area = Area_avg (dom%level%elts(id+1))
-    else
-       Area = Area_avg(max_level)
-    end if
-    
-    nu_scale = (sqrt (3.0_dp) * Area)**order / dt
-  end function nu_scale
-
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
     ! Set depth 
     implicit none

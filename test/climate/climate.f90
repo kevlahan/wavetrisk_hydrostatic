@@ -16,12 +16,16 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  ! Diffusion
+  Laplace_sclr = 2                                            ! scalars
+  Laplace_divu = 1                                            ! divu
+  Laplace_rotu = 2                                            ! rotu
+  
   adapt_dt                 = .true.                           ! adapt time step
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
-  split_mean_perturbation  = .true.                           ! split prognostic variables into mean and fluctuations
-  sponge                   = .false.                          ! use sponge layer in upper layers to avoid reflection
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

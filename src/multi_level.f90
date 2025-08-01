@@ -618,7 +618,7 @@ contains
        horiz_flux(S_MASS)%bdry_uptodate = .false.
        call update_bdry (horiz_flux(S_MASS), l, 977)
 
-       ! Calculate divergence of vertically integrated velocity flux
+       ! Calculate divergence of velocity flux
        do d = 1, size(grid)
           dscalar => grid(d)%divu%elts
           h_flux  => horiz_flux(S_MASS)%data(d)%elts

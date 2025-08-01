@@ -26,10 +26,58 @@ contains
 
     ! Compute Simple Physics split step on all columns
     call apply_no_bdry2 (physics_call, z_null)
-    
+
     sol%bdry_uptodate      = .false.
     physics_firstcall_flag = .false.   
   end subroutine physics_simple_step
+
+  subroutine Rayleigh_friction (dom, i, j, zlev, offs, dims)
+    ! Rayleigh friction in atmospheric boundary layer
+    ! (based on Held-Suarez)
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    character(5) :: smth = "tropo"          ! where to apply Rayleigh friction (tropo, strat)
+    real(dp)     :: k_f     = 1.0_dp  / DAY ! Rayleigh friction
+    real(dp)     :: sigma_b1 = 0.7_dp       ! normalized tropopause pressure height
+    real(dp)     :: sigma_b2 = 0.1_dp       ! normalized stratosphere friction pressure height
+
+    integer                        :: d, id, id_i, k, l
+    integer,  dimension(1:EDGE)    :: id_e
+    real(dp)                       :: fac, k_v, P_k, rho_dz, sigma
+    real(dp), dimension(0:zlevels) :: Pl
+    real(dp), dimension(1:zlevels) :: Pk
+
+    d = dom%id + 1
+    
+    id   = idx (i, j, offs, dims)
+    id_i = id + 1
+    id_e = id_edge (id)
+    
+    Pl(zlevels) = p_top
+    do l = zlevels-1, 0, -1
+       k = l + 1
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i) 
+       Pl(l)  = Pl(l+1) + grav_accel * rho_dz
+       Pk(k) = interp (Pl(l), Pl(l+1))
+    end do
+
+    do k = 1, zlevels
+       sigma = (Pk(k) - p_top) / (Pl(0) - p_top)
+
+       select case (smth)
+       case ("tropo")
+          k_v = k_f * max (0.0_dp,   (sigma - sigma_b1) / (1.0_dp - sigma_b1))
+       case ("strat")
+          k_v = k_f * max (0.0_dp, - (sigma - sigma_b2) / sigma_b2)
+       end select
+
+       sol(S_VELO,k)%data(d)%elts(id_e) = (1.0_dp - dt * fac * k_v) * sol(S_VELO,k)%data(d)%elts(id_e)
+    end do
+  end subroutine Rayleigh_friction
 
   subroutine physics_call (dom, p_null, i, j, zlev, offs, dims, is_pole)
     !-----------------------------------------------------------------------------------

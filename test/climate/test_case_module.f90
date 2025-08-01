@@ -16,18 +16,14 @@ module test_case_mod
   real(dp) :: C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
   real(dp) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
 
-  ! Model parameters
-  logical             :: sponge        = .true.                      ! sponge layer for divergence damping
-
-  integer,  parameter :: fac_sponge    = 8                           ! sponge layer viscosity increase factor (from CAM)
-  real(dp), parameter :: p_sponge      = 30   * hPa                  ! lower boundary of sponge layer
-
   ! CAM-SE values for J6 (120 km resolution)
   real(dp), parameter :: nu_CAM        = 1e15 * METRE**4/SECOND      ! CAM hyperviscosity 
   real(dp), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
   real(dp), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
   real(dp), parameter :: Area_CAM      = sqrt(3.0_dp)/2 * dx_CAM**2  ! CAM hexagon area
-  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (sqrt(3.0_dp) * Area_CAM)**2 ! CAM non-dimensional viscosity
+
+  ! CAM non-dimensional viscosity: 6.43e-4
+  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (sqrt(3.0_dp) * Area_CAM)**2 
   
   logical             :: print_tol     = .false.                     ! print tolerances for each layer
   character(255)      :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
@@ -52,8 +48,7 @@ contains
   end subroutine assign_functions
 
   function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
-    ! Additional physics for the flux term of the scalar trend
-    ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
+    ! Scalar diffusion flux
     !
     ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
     use domain_mod
@@ -675,26 +670,13 @@ contains
   subroutine initialize_dt_viscosity_case
     ! Set non-dimensional viscosities and time step
     implicit none
-    integer  :: k
 
     dt_init = cfl_num * dx_avg(max_level) / (u_0 + c_s) 
 
-    ! Non-dimensional viscosity
-    C_visc = C_CAM
-    C_visc(S_DIVU,:) = (1/9.0_dp)**Laplace_divu
-
-    ! Sponge layer for divergence damping
-    if (sponge) then
-       do k = 1, zlevels
-          C_visc(S_DIVU,k) = C_visc(S_DIVU,k) * ramp ()
-       end do
-    end if
-
-    ! Ensure stability (1/9 factor instead of Klemp (2017) value of 1/6 due to difference in definition of C_visc)
-    C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/9.0_dp  )**Laplace_sclr)
-    C_visc(S_TEMP,:) = min (C_visc(S_TEMP,:), (1/9.0_dp  )**Laplace_sclr)
-    C_visc(S_DIVU,:) = min (C_visc(S_DIVU,:), (1/9.0_dp  )**Laplace_divu)
-    C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/9.0_dp/4)**Laplace_rotu)
+    ! Non-dimensional viscosities
+    C_visc(S_MASS:S_TEMP,:) = 0.9 * (1/9.0_dp  )**Laplace_sclr
+    C_visc(S_DIVU,:)        = 0.1 * (1/9.0_dp  )**Laplace_divu
+    C_visc(S_ROTU,:)        = 0.9 * (1/9.0_dp/4)**Laplace_rotu
 
     ! Viscosities
     nu_sclr = C_visc(S_MASS,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_sclr / dt_init
@@ -705,37 +687,7 @@ contains
     if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS,1)
     if (Laplace_divu /= 0) tau_divu = dt_init / C_visc(S_DIVU,1)
     if (Laplace_rotu /= 0) tau_rotu = dt_init / C_visc(S_ROTU,1)
-  contains
-    real(dp) function ramp ()
-      ! Ramp function for sponge layer 
-      implicit none
-      real(dp) :: p
-
-      p = 0.5 * (a_vert(k-1) + a_vert(k) + (b_vert(k-1) + b_vert(k)) * p_0) 
-
-      if (p > p_sponge) then
-         ramp = 1.0_dp
-      else ! sponge layer
-         ramp = 1.0_dp + (fac_sponge - 1.0_dp) * sin (MATH_PI/2 * (p_sponge - p)/(p_sponge - p_top))**2
-      end if
-    end function ramp
   end subroutine initialize_dt_viscosity_case
-
-  real(dp) function nu_scale (order, dom, id)
-    ! Non-dimensional viscosity scaling for diffusion on hexagonal grid
-    implicit none
-    integer      :: id, order
-    type(domain) :: dom
-
-    real(dp) :: Area
-
-    if (scale_aware) then
-       Area = Area_avg(dom%level%elts(id+1))
-    else
-       Area = Area_avg(max_level)
-    end if
-    nu_scale = (sqrt (3.0_dp) * Area)**order / dt
-  end function nu_scale
 
   subroutine apply_initial_conditions_case
     implicit none
