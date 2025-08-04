@@ -1395,6 +1395,25 @@ contains
     nu_scale = (sqrt (3.0_dp) * Area)**order / dt
   end function nu_scale
 
+  real(dp) function max_stable_Cvisc (type)
+    ! Maximum stable non-dimensional viscosities
+    character (4) :: type
+    
+    real(dp), parameter :: fac      = 1/7.0_dp
+    real(dp), parameter :: fac_rotu = fac/4
+
+    max_stable_Cvisc = 1e16_dp
+    
+    select case (type)
+    case ("sclr")
+       if (Laplace_sclr /= 0) max_stable_Cvisc = fac**Laplace_sclr
+    case ("divu")
+       if (Laplace_divu /= 0) max_stable_Cvisc = fac*Laplace_divu
+    case ("rotu")
+       if (Laplace_rotu /= 0) max_stable_Cvisc = fac_rotu**Laplace_rotu
+    end select
+  end function max_stable_Cvisc
+
   subroutine smoothing_rbf (dx, npts, nsmth, data)
     ! Smooths data(lon,lat) over neighbouring region using radial basis functions
     implicit none

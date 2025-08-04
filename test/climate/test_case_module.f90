@@ -674,19 +674,32 @@ contains
     dt_init = cfl_num * dx_avg(max_level) / (u_0 + c_s) 
 
     ! Non-dimensional viscosities
-    C_visc(S_MASS:S_TEMP,:) = 0.9 * (1/9.0_dp  )**Laplace_sclr
-    C_visc(S_DIVU,:)        = 0.1 * (1/9.0_dp  )**Laplace_divu
-    C_visc(S_ROTU,:)        = 0.9 * (1/9.0_dp/4)**Laplace_rotu
+    C_visc(S_MASS:S_TEMP,:) = max_stable_Cvisc ("sclr")
+    C_visc(S_DIVU,:)        = max_stable_Cvisc ("divu") * 0.1
+    C_visc(S_ROTU,:)        = max_stable_Cvisc ("rotu")
 
     ! Viscosities
-    nu_sclr = C_visc(S_MASS,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_sclr / dt_init
-    nu_divu = C_visc(S_DIVU,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_divu / dt_init
-    nu_rotu = C_visc(S_ROTU,1) * (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_rotu / dt_init
+    nu_sclr = C_visc(S_MASS,1) * nu_sc ("sclr")
+    nu_divu = C_visc(S_DIVU,1) * nu_sc ("divu")
+    nu_rotu = C_visc(S_ROTU,1) * nu_sc ("rotu")
 
     ! Diffusion times
     if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS,1)
     if (Laplace_divu /= 0) tau_divu = dt_init / C_visc(S_DIVU,1)
     if (Laplace_rotu /= 0) tau_rotu = dt_init / C_visc(S_ROTU,1)
+  contains
+    real(dp) function nu_sc (type)
+      character (4) :: type
+      
+      select case (type)
+      case ("sclr")
+         nu_sc = (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_sclr / dt_init
+      case ("divu")
+         nu_sc = (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_divu / dt_init
+      case ("rotu")
+         nu_sc = (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_rotu / dt_init
+      end select
+    end function nu_sc
   end subroutine initialize_dt_viscosity_case
 
   subroutine apply_initial_conditions_case

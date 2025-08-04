@@ -242,6 +242,7 @@ contains
 
   subroutine restart 
     ! Fresh restart from checkpoint data (all structures reset)
+    use utils_mod
     implicit none
     character(9999) :: archive, bash_cmd
 
@@ -274,21 +275,21 @@ contains
     if (trim(test_case) /= "spherical_harmonics") then
        call initialize_dt_viscosity
        call initialize_thresholds
+       
        ! Check stability (Klemp 2017, Monthly Weather Rev 145)
-       ! (1/9 factor instead of 1/6 due to difference in definition of C_visc)
-       if (Laplace_sclr /= 0 .and. maxval (C_visc(S_MASS:S_TEMP,:)) > (1/9.0_dp)**Laplace_sclr) then
+       if (maxval (C_visc(S_MASS:S_TEMP,:)) > max_stable_Cvisc ("sclr")) then
           if (rank == 0) then
-             write (6,*) "Dimensional scalar viscosity too large ... aborting"
+             write (6,*) "scalars viscosity too large ... aborting"
              call abort
           end if
-       elseif (Laplace_divu /= 0 .and. maxval (C_visc(S_DIVU,:)) > (1/9.0_dp)**Laplace_divu) then
+       elseif (maxval (C_visc(S_DIVU,:)) > max_stable_Cvisc ("divu")) then
           if (rank == 0) then
-             write (6,*) "Dimensional divu viscosity too large ... aborting"
+             write (6,*) "divu viscosity too large ... aborting"
              call abort
           end if
-       elseif (Laplace_rotu /= 0 .and. maxval (C_visc(S_ROTU,:)) > (1/9.0_dp/4)**Laplace_rotu) then
+       elseif (maxval (C_visc(S_ROTU,:)) > max_stable_Cvisc ("rotu")) then
           if (rank == 0) then
-             write (6,*) "Dimensional rotu viscosity too large ... aborting"
+             write (6,*) "rotu viscosity too large ... aborting"
              call abort
           end if
        end if
