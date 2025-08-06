@@ -45,8 +45,12 @@ contains
        call vertical_velocity ! vertical velocity w [m/s]
     end if
 
-    ! Save data for all vertical layers
-    do k = 1, zlevels
+    if (zmin <= 0) then       ! save surface temperature if available
+       call find_vertices (0, type)                                    
+       if (rank == 0) call write_vtk (0, type)
+    end if
+
+    do k = 1, zlevels         ! save data for atmosphere layers
        do d = 1, size(grid)
           mass   =>      sol(S_MASS,k)%data(d)%elts
           temp   =>      sol(S_TEMP,k)%data(d)%elts
@@ -299,7 +303,13 @@ contains
                 new_vert_index(ivert) = imin - 1                      ! index of existing vertex
              end if
           end do
-          call compute_data                                           ! compute cell data
+          
+          if (zlev >= 1) then
+             call compute_data                                        ! compute cell data
+          elseif (zlev == 0) then
+             call compute_data_surf
+          end if
+          
           cell_vert_index_loc = [cell_vert_index_loc, new_vert_index] ! add to cell vertices array
           cell_data_loc       = [cell_data_loc,                 outv] ! add to cell data array
        end if
@@ -358,6 +368,34 @@ contains
       outv(11) = hex2tri2 (real(dom%press%elts(neigh_id) / Ps,          kind=sp), hex_area, tri_area, t) ! P/Ps
       outv(12) = hex2tri2 (real(rho_dz/ ref_density,                    kind=sp), hex_area, tri_area, t) ! dz
     end subroutine compute_data
+
+    subroutine compute_data_surf
+      use utils_mod
+      implicit none
+      integer,  dimension(0:EDGE)  :: neigh_id
+      real(sp), dimension(0:EDGE)  :: temperature
+      real(sp)                     :: tri_area
+      real(sp), dimension(2*nvert) :: hex_area
+
+      neigh_id = (/ id, idE, idNE, idN /) + 1
+
+      tri_area = dom%triarea%elts(TRIAG*id+t+1)
+
+      hex_area(1) = dom%areas%elts(id+1  )%part(1)
+      hex_area(2) = dom%areas%elts(id+1  )%part(2)
+      hex_area(3) = dom%areas%elts(idE+1 )%part(3)
+      hex_area(4) = dom%areas%elts(idNE+1)%part(4)
+      hex_area(5) = dom%areas%elts(idNE+1)%part(5)
+      hex_area(6) = dom%areas%elts(idN+1 )%part(6)
+
+      temperature = sol(S_TEMP,0)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,0)%data(d)%elts(neigh_id) ! surface temperature
+
+      outv = 0.0
+      outv(1) = nint (active_level%data(d)%elts(id+1))                                                  ! level
+      outv(2) = hex2tri2 (real(topography%data(d)%elts(neigh_id),kind=sp),      hex_area, tri_area, t)  ! topography
+      outv(3) = hex2tri2 (real(penal_node(1)%data(d)%elts(neigh_id),kind=sp),   hex_area, tri_area, t)  ! penalization mask
+      outv(5) = hex2tri2 (real(temperature,kind=sp),                            hex_area, tri_area, t)  ! surface temperature 
+    end subroutine compute_data_surf
 
     real(sp) function vort_tri (t)
       ! Triangle vorticity equivalent to hexagon vorticity
