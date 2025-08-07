@@ -675,7 +675,7 @@ contains
 
     ! Non-dimensional viscosities
     C_visc(S_MASS:S_TEMP,:) = max_stable_Cvisc ("sclr")
-    C_visc(S_DIVU,:)        = max_stable_Cvisc ("divu") * 0.1
+    C_visc(S_DIVU,:)        = max_stable_Cvisc ("divu") * 0.15
     C_visc(S_ROTU,:)        = max_stable_Cvisc ("rotu")
 
     ! Viscosities
