@@ -650,24 +650,19 @@ if (len(sys.argv)<8):
       nz           = number of vertical layers
       seasons      = y (seasonal statistics) n (process files t1 to t2)
       season       = spring, summer, fall, winter
-      t1           = first time
-      t2           = last time
-    
-    Optional parameters:
-      lon_min      = minimum longitude
-      lon_max      = maximum latitude
-      lat_min      = minimum longitude
-      lat_max      = maximum latitude
-      vert_min     = minimum vertical coordinate in (0,1)
-      vert_max     = maximum vertical coordinate in (0,1)
+      t1           = first time (if seasons = n)
+      t2           = last time  (if seasons = n)
 
-    Example: python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 1 365
+    Example 1: python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 n 1 365
         processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers from time 1 to 365
+
+    Example 2: python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 y spring
+        processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for spring
 
     !! Need to edit lonlat_to_3D.py to specify which seasonal statistics to compute (spring, summer, fall or winter) !!
     
 
-    If t2 does not equal t1, the following time-averaged data are saved:
+    If t2 does not equal t1, the following time-averaged data are saved (with suffix _season if season = y):
     run.vti             3D uniform (lon,lat,P/Ps) 3D image data
     run_zonal.vti       2D uniform (lat,P/Ps)     zonally averaged image data
     run_merid.vti       2D uniform (lon,P/Ps)     meridionally averaged image data
@@ -692,13 +687,6 @@ if (len(sys.argv)<8):
 else:
     print("Input parameters = ", sys.argv[1:])
 
-# Seasonal statistics parameters  (assumes data starts around spring equinox)
-start_date  = datetime(1, 3, 22)  # year 1 start
-step_days   = 5                   # save interval in days
-n_years     = 5                   # total number of years (set to 0 to get first year only)
-Tmax        = 365                 # last data set
-half_window = 3                   # number indices on each side (±3 -> 6+1 files)
-
 # Input parameters
 run          = sys.argv[1]
 compressible = sys.argv[2]
@@ -710,18 +698,9 @@ if sys.argv[6] in ("y"):
     season  = sys.argv[7]
 else:
     seasons = False
-    season = "all"
-t1           = int(sys.argv[8])
-t2           = int(sys.argv[9])
-
-# Dimensions (optional)
-if len(sys.argv)>11:
-    lon_min  = float(sys.argv[10])
-    lon_max  = float(sys.argv[11])
-    lat_min  = float(sys.argv[12])
-    lat_max  = float(sys.argv[13])
-    vert_min = float(sys.argv[14])
-    vert_max = float(sys.argv[15])
+    season  = "all"
+    t1      = int(sys.argv[7])
+    t2      = int(sys.argv[8])
 
 SEASON_MMDD = {
     "spring": (3,  20),
@@ -729,6 +708,13 @@ SEASON_MMDD = {
     "fall":   (9,  22),
     "winter": (12, 21),
 }
+
+# Seasonal statistics parameters  (assumes data starts around spring equinox)
+start_date  = datetime(1, 3, 22)  # year 1 start
+step_days   = 5                   # save interval in days
+n_years     = 5                   # total number of years (set to 0 to get first year only)
+Tmax        = 365                 # last data set
+half_window = 3                   # number indices on each side (±3 -> 6+1 files)
 
 # Grid dimensions (same number of rectangular cells as lozenge cells on the sphere) 
 lat_dim  = int(np.sqrt((10*4**Jmax + 2)/2))
