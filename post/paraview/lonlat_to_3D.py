@@ -791,7 +791,7 @@ if seasons:
 else:
     idxs = range (t1, t2+1)
 
-print(f"File indices to process: ", idxs,"\n")
+print(f"File indices to process: ", list(idxs),"\n")
 
 for t in idxs:
     print("    processing file with index ", t)
