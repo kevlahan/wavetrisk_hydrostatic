@@ -260,7 +260,7 @@ class Cell3D():
                 add_scalar_data(ke,        Nzonal, "EddyKineticEnergy",   statistics)
 
                 if (len(idxs)==1):
-                    stats_file = run+str(idxs(1)).zfill(4)+"_stats_zonal_"+season+".vti"
+                    stats_file = run+str(idxs[0]).zfill(4)+"_stats_zonal_"+season+".vti"
                 else:
                     stats_file = run+"_statistics_zonal_"+season+".vti"
                     
