@@ -289,6 +289,7 @@ for t in range (t1, t2+1):
             writer.SetFileName(outfile+".vtk")
             writer.SetInputData(data)
             writer.Write()
-            
-for file in glob.glob("*tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk"):
-    os.remove(file)
+
+# Do not remove .vtk files
+#for file in glob.glob("*tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk"):
+#    os.remove(file)
