@@ -25,6 +25,7 @@ import subprocess
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from vtk.util import numpy_support
 import scipy.ndimage
+from datetime import datetime, timedelta
 
 ################################################################################
 class Cell3D():
@@ -137,7 +138,7 @@ class Cell3D():
         ugrid = self.construct()
 
          # Write out 3D unstructured data
-        if (t1 == t2):
+        if (len(idxs)==1):
             writer = vtk.vtkUnstructuredGridWriter()
             writer.SetFileTypeToBinary()
             writer.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vtk")
@@ -228,22 +229,22 @@ class Cell3D():
         writer = vtk.vtkXMLImageDataWriter()
 
         # Write 3D Cartesian grid data
-        writer.SetFileName(file_out+".vti")
+        writer.SetFileName(file_out+"_"+season+".vti")
         writer.SetInputData(img3)
         writer.Write()
 
         # Write zonal projection
-        writer.SetFileName(file_out+"_zonal.vti")
+        writer.SetFileName(file_out+"_zonal_"+season+".vti")
         writer.SetInputData(img1)
         writer.Write()
 
         # Write meridional projection
-        writer.SetFileName(file_out+"_merid.vti")
+        writer.SetFileName(file_out+"_merid_"+season+".vti")
         writer.SetInputData(img2)
         writer.Write()
 
         if compressible=='y':
-            if t == t2: # write average statistics
+            if t == idxs[-1]: # write average statistics
                 statistics = vtk.vtkImageData()
                 statistics.SetDimensions(1, lat_dim, vert_dim);
                 statistics.SetSpacing(rgrid.GetSpacing())
@@ -258,10 +259,10 @@ class Cell3D():
                 add_scalar_data(mom_flux,  Nzonal, "EddyMomentumFlux",    statistics)
                 add_scalar_data(ke,        Nzonal, "EddyKineticEnergy",   statistics)
 
-                if (t1 == t2):
-                    stats_file = run+str(t1).zfill(4)+"_stats_zonal.vti"
+                if (len(idxs)==1):
+                    stats_file = run+str(idxs(1)).zfill(4)+"_stats_zonal_"+season+".vti"
                 else:
-                    stats_file = run+"_statistics_zonal.vti"
+                    stats_file = run+"_statistics_zonal_"+season+".vti"
                     
                 writer.SetFileName(stats_file)
                 writer.SetInputData(statistics)
@@ -269,7 +270,7 @@ class Cell3D():
 
                 # Save vertical profiles in csv file
                 vertical_profile = np.array(vertical_profile).T
-                with open(file_out+".csv", 'w', newline='') as file:
+                with open(file_out+"_"+season+".csv", 'w', newline='') as file:
                     writer = csv.writer(file)
                     writer.writerow(data_names)
                     for row in vertical_profile:
@@ -416,28 +417,28 @@ def time_mean():
 
     vertical_profile = np.array(vertical_profile).T
     
-    with open(run+".csv", 'w', newline='') as file:
+    with open(run+"_"+season+".csv", 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(data_names)
         for row in vertical_profile:
             writer.writerow(row)
    
     # Delete individual time files except if only process a single time
-    if (t1 != t2):
-        delete_files(run+'_[0-9][0-9][0-9][0-9].vtk')
-        delete_files(run+'_[0-9][0-9][0-9][0-9].csv')
-        delete_files(run+'_[0-9][0-9][0-9][0-9]_zonal.vti')
-        delete_files(run+'_[0-9][0-9][0-9][0-9]_merid.vti')
-        delete_files(run+'_[0-9][0-9][0-9][0-9].vti')
+    if (len(idxs)!=1):
+        delete_files(run+'_[0-9][0-9][0-9][0-9]'+'_'+season+'.vtk')
+        delete_files(run+'_[0-9][0-9][0-9][0-9]'+'_'+season+'.csv')
+        delete_files(run+'_[0-9][0-9][0-9][0-9]'+'_zonal_'+season+'.vti')
+        delete_files(run+'_[0-9][0-9][0-9][0-9]'+'_merid_'+season+'.vti')
+        delete_files(run+'_[0-9][0-9][0-9][0-9]'+'_'+season+'.vti')
                 
 
 def avg_images(file_type):
     # Average all image files specified by file_type
     vti_files = []
-    for t in range (t1, t2+1):
-        vti_files.append(run+'_'+str(t).zfill(4)+file_type+".vti")
+    for t in idxs:
+        vti_files.append(run+'_'+str(t).zfill(4)+file_type+"_"+season+'.vti')
 
-        # ---- Read the first file to get array names and metadata ----
+    # ---- Read the first file to get array names and metadata ----
     reader = vtk.vtkXMLImageDataReader()
     reader.SetFileName(vti_files[0])
     reader.Update()
@@ -480,7 +481,7 @@ def avg_images(file_type):
 
     # ---- Write the averaged image ----
     writer = vtk.vtkXMLImageDataWriter()
-    writer.SetFileName(run+file_type+".vti")
+    writer.SetFileName(run+file_type+'_'+season+'.vti')
     writer.SetInputData(output_image)
     writer.Write()
 
@@ -647,6 +648,8 @@ if (len(sys.argv)<8):
       Jmin         = minimum level
       Jmax         = maximum level
       nz           = number of vertical layers
+      seasons      = y (seasonal statistics) n (process files t1 to t2)
+      season       = spring, summer, fall, winter
       t1           = first time
       t2           = last time
     
@@ -660,6 +663,8 @@ if (len(sys.argv)<8):
 
     Example: python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 1 365
         processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers from time 1 to 365
+
+    !! Need to edit lonlat_to_3D.py to specify which seasonal statistics to compute (spring, summer, fall or winter) !!
     
 
     If t2 does not equal t1, the following time-averaged data are saved:
@@ -687,23 +692,43 @@ if (len(sys.argv)<8):
 else:
     print("Input parameters = ", sys.argv[1:])
 
+# Seasonal statistics parameters  (assumes data starts around spring equinox)
+start_date  = datetime(1, 3, 22)  # year 1 start
+step_days   = 5                   # save interval in days
+n_years     = 5                   # total number of years (set to 0 to get first year only)
+Tmax        = 365                 # last data set
+half_window = 3                   # number indices on each side (±3 -> 6+1 files)
+
 # Input parameters
 run          = sys.argv[1]
 compressible = sys.argv[2]
 Jmin         = int(sys.argv[3])
 Jmax         = int(sys.argv[4])
 nz           = int(sys.argv[5])
-t1           = int(sys.argv[6])
-t2           = int(sys.argv[7])
+if sys.argv[6] in ("y"):
+    seasons = True
+    season  = sys.argv[7]
+else:
+    seasons = False
+    season = "all"
+t1           = int(sys.argv[8])
+t2           = int(sys.argv[9])
 
 # Dimensions (optional)
-if len(sys.argv)>9:
-    lon_min  = float(sys.argv[8])
-    lon_max  = float(sys.argv[9])
-    lat_min  = float(sys.argv[10])
-    lat_max  = float(sys.argv[11])
-    vert_min = float(sys.argv[12])
-    vert_max = float(sys.argv[13])
+if len(sys.argv)>11:
+    lon_min  = float(sys.argv[10])
+    lon_max  = float(sys.argv[11])
+    lat_min  = float(sys.argv[12])
+    lat_max  = float(sys.argv[13])
+    vert_min = float(sys.argv[14])
+    vert_max = float(sys.argv[15])
+
+SEASON_MMDD = {
+    "spring": (3,  20),
+    "summer": (6,  21),
+    "fall":   (9,  22),
+    "winter": (12, 21),
+}
 
 # Grid dimensions (same number of rectangular cells as lozenge cells on the sphere) 
 lat_dim  = int(np.sqrt((10*4**Jmax + 2)/2))
@@ -749,10 +774,41 @@ meanAvV   = np.zeros((vert_dim,lat_dim))
 with suppress(OSError):
     os.remove(sys.argv[1]+'/.DS_Store')
 
-print("\nInterpolating to uniform", lon_dim, "x", lat_dim, "x", vert_dim, "grid")
+print("\nInterpolating to uniform", lon_dim, "x", lat_dim, "x", vert_dim, "grid\n")
+print("Season = ", season,"\n")
 
-for t in range (t1, t2+1):
-    print("    processing time ", t)
+if seasons:
+    def ceil_div(a, b): return -(-a // b)
+    mm, dd = SEASON_MMDD[season]
+    idxs = []
+    for year_offset in range(n_years + 1):
+        Y = start_date.year + year_offset
+        season_date = datetime(Y, mm, dd)
+
+        # Only consider seasons on/after Mar 20 and not before the global start
+        march20 = datetime(Y, 3, 20)
+        target  = max(season_date, march20, start_date)
+
+        # Nominal center index (t=1 at start_date), can be > Tmax
+        days = (target - start_date).days
+        t_center_nom = 1 + ceil_div(max(0, days), step_days)
+
+        # Build window around the nominal center, then clip to [1, Tmax]
+        t1_raw = t_center_nom - half_window
+        t2_raw = t_center_nom + half_window
+        t1 = max(1, t1_raw)
+        t2 = min(Tmax, t2_raw)
+        if t1 > t2:
+            continue
+
+        idxs = idxs + list(range(t1, t2 + 1))
+else:
+    idxs = range (t1, t2+1)
+
+print(f"File indices to process: ", idxs,"\n")
+
+for t in idxs:
+    print("    processing file with index ", t)
     
     transform_to_lonlat(t) # compute lonlat projections
 
@@ -764,7 +820,7 @@ for t in range (t1, t2+1):
     cell3d.construct_3Dimage()
 
 # Compute mean over all times
-if (t1 != t2):
+if (len(idxs)!=1):
     time_mean()
 
 #########################################################################################################################################
