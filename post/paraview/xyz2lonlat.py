@@ -189,7 +189,7 @@ for t in range (t1, t2+1):
                     
         else: # zig-zag
             points_on_sep = set()
-            for cell in range(num_cells):    # loop through cells
+            for cell in range(num_cells):         # loop through cells
                 startID  = startIDs[cell]
                 size     = cellformation[startID] # number of vertices                
                 pids_pos = []
@@ -201,9 +201,9 @@ for t in range (t1, t2+1):
                     elif (coords[pid,0]> 90): # on positive side
                         pids_pos.append(pid)
 
-                if (len(pids_pos)>len(pids_neg)): # positive triangle
+                if (len(pids_pos)>len(pids_neg)):    # positive triangle
                     points_on_sep.update(pids_neg)
-                else:                               # negative triangle
+                else:                                # negative triangle
                     points_on_sep.update(pids_pos)
                     startIDs[cell] = -startIDs[cell] # sign used to indicate which side cell should be placed on
 
@@ -267,10 +267,10 @@ for t in range (t1, t2+1):
                 for j in range(3):
                     pid = pt_ids.GetId(j)
                     coord = list(points.GetPoint(pid))
-                    if (np.abs(np.abs(coord[0])-180)<dtheta/4):
+                    if (np.abs(np.abs(coord[0])-180)<dtheta): # modify to avoid gaps if necessary
                         coord[0] = np.sign(coord[0]) * 180
                         points.SetPoint(pid, coord)
-                    if (np.abs(np.abs(coord[1])-90)<dtheta):
+                    if (np.abs(np.abs(coord[1])-90)<dtheta):  # modify to avoid gaps if necessary
                         coord[1] = np.sign(coord[1]) * 90
                         points.SetPoint(pid, coord)
                     if (np.abs(np.abs(coord[0]))==180 and np.abs(np.abs(coord[1])-90)<2*dtheta):
@@ -290,6 +290,6 @@ for t in range (t1, t2+1):
             writer.SetInputData(data)
             writer.Write()
 
-# Do not remove .vtk files
+# Do not remove all  .vtk files
 #for file in glob.glob("*tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk"):
 #    os.remove(file)
