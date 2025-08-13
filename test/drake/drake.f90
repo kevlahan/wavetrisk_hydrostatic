@@ -20,7 +20,6 @@ program Drake
   log_min_mass            = .false.
   mode_split              = .true.
   penalize                = .true.                
-  scale_aware             = .true.                    
   split_mean_perturbation = .true.
 
   timeint_type            = "RK3"

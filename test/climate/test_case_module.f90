@@ -91,7 +91,7 @@ contains
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) * nu_scale (Laplace_sclr, dom, id) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) * nu_scale (Laplace_sclr, .false., dom, id) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -127,10 +127,10 @@ contains
     physics_velo_source_case = 0.0_dp
 
     if (Laplace_divu /= 0) physics_velo_source_case = &  
-         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, dom, id) * grad_divu ()
+         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, .false., dom, id) * grad_divu ()
 
     if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
-         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, dom, id) * curl_rotu ()
+         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, .false.,  dom, id) * curl_rotu ()
   contains
     function grad_divu ()
       implicit none
@@ -468,7 +468,6 @@ contains
     read (fid,*) varname, max_level
     read (fid,*) varname, zlevels
     read (fid,*) varname, Nsoil
-    read (fid,*) varname, scale_aware
     read (fid,*) varname, NCAR_topo
     read (fid,*) varname, sso
     read (fid,*) varname, topo_file
@@ -522,13 +521,6 @@ contains
        write (6,'(a,es8.2)') "cfl_num                 = ", cfl_num
        write (6,'(a,a)')      "timeint_type            = ", trim (timeint_type)
        write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
-       if (max (Laplace_sclr, Laplace_divu, Laplace_rotu) /= 0) then
-          if (scale_aware) then
-             write (6,'(a)') "Scale-aware horizontal viscosity"
-          else
-             write (6,'(a)') "Horizontal viscosity based on dx_avg(max_level)"
-          end if
-       end if
        if (Laplace_sclr /= 0) &
             write (6,'(3(a,es8.2))') "C_sclr = ",  C_visc(S_MASS,1), " nu_sclr = ", nu_sclr, " tau_sclr = ", tau_sclr / HOUR
        if (Laplace_divu /= 0) &

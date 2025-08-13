@@ -1379,11 +1379,12 @@ contains
     val1(id_edge(id)) = val2(id_edge(id))
   end subroutine cal_equals_edge
 
-  real(dp) function nu_scale (order, dom, id)
+  real(dp) function nu_scale (order, scale_aware, dom, id)
     ! Non-dimensional viscosity scaling for diffusion on hexagonal grid
     implicit none
     integer      :: id, order
     type(domain) :: dom
+    logical      :: scale_aware
 
     real(dp) :: Area
 
