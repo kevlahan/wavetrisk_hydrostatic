@@ -553,49 +553,63 @@ contains
   
   subroutine cal_min_dt (dom, i, j, zlev, offs, dims)
     ! Calculates time step and number of active nodes and edges
-    ! time step is smallest of barotropic time step, advective time step and internal wave time step for mode split case
+    ! (uses exact local CFL stability formula for hexagons/pentagons)
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                        :: d, e, id, id_e, id_i, k, l, lev
-    integer,  dimension(1:EDGE)    :: ide
-    real(dp)                       :: acoustic_speed, dx, p_k, p_top, rho_dz, T, theta, v_mag
-    real(dp), dimension(0:zlevels) :: p
+    integer                        :: d, e, id, idW, idSW, idS, id_i, k, l, lev
+    integer,  dimension(1:2*EDGE)  :: ide
+    real(dp)                       :: acoustic_speed, Area, P_k, P_top, rho_dz, T, theta
+    real(dp), dimension(1:2*EDGE)  :: F_e, pedlen, v_mag
+    real(dp), dimension(0:zlevels) :: P
+
+    real(dp), parameter            :: r = 2.5_dp ! stability factor for RK3
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
-    ide  = id_edge(id)
-
+    
+    idW   = idx (i-1, j,   offs, dims)
+    idSW  = idx (i-1, j-1, offs, dims)
+    idS   = idx (i,   j-1, offs, dims)
+    
+    ide  = (/ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 /) 
+    
     lev  = dom%level%elts(id_i)
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        n_active_nodes(lev) = n_active_nodes(lev) + 1 
+
        if (adapt_dt) then
-          dx = minval (dom%len%elts(ide))
-          
-          P(zlevels) = p_top
-          do l = zlevels-1, 0, -1
-             k = l + 1 
-             v_mag = u_mag (dom, i, j, k, offs, dims)
-             if (compressible) then
+          pedlen = dom%pedlen%elts(ide)
+          Area   = 1/dom%areas%elts(id_i)%hex_inv
+
+          if (compressible) then
+             P(zlevels) = p_top
+             do l = zlevels-1, 0, -1
+                k = l + 1 
                 rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i) 
                 P(l)   = P(l+1) + grav_accel * rho_dz
                 P_k    = interp (P(l), P(l+1))
-                
+
                 theta  = theta_i (dom, i, j, k, offs, dims)
                 T      = theta2temp (theta, P_k)
 
                 acoustic_speed = sqrt (gamma * R_d * T)
-
-                dt_loc = min (dt_loc, cfl_num * dx / (v_mag + acoustic_speed))
-             else
-                dt_loc = min (dt_loc, cfl_num * dx / (v_mag + wave_speed))
-             end if
-          end do
+                
+                F_e = (abs (sol(S_VELO,k)%data(d)%elts(ide)) + acoustic_speed) * pedlen
+                     
+                dt_loc = min (dt_loc, cfl_num * r * Area / sum (F_e))
+             end do
+          else
+             do k = 1, zlevels
+                F_e = (abs (sol(S_VELO,k)%data(d)%elts(ide)) + wave_speed) * pedlen
+                dt_loc = min (dt_loc, cfl_num * r * Area / sum (F_e))
+             end do
+          end if
        end if
     end if
 
