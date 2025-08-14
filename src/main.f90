@@ -563,7 +563,7 @@ contains
     integer                        :: d, e, id, idW, idSW, idS, id_i, k, l, lev
     integer,  dimension(1:2*EDGE)  :: ide
     real(dp)                       :: acoustic_speed, Area, P_k, P_top, rho_dz, T, theta
-    real(dp), dimension(1:2*EDGE)  :: F_e, pedlen, v_mag
+    real(dp), dimension(1:2*EDGE)  :: F_e, pedlen
     real(dp), dimension(0:zlevels) :: P
 
     real(dp), parameter            :: r = 2.5_dp ! stability factor for RK3
