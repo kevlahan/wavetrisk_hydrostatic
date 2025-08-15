@@ -99,9 +99,9 @@ contains
       real(dp), dimension(1:EDGE) :: grad_physics
       real(dp), dimension(:)      :: scalar
 
-      grad_physics(RT+1) = (scalar(idE+1) -  scalar(id  +1)) / d_e(RT+1)
-      grad_physics(DG+1) = (scalar(id +1) -  scalar(idNE+1)) / d_e(DG+1)
-      grad_physics(UP+1) = (scalar(idN+1) -  scalar(id  +1)) / d_e(UP+1)
+      grad_physics(RT+1) = (scalar(idE+1) - scalar(id  +1)) / d_e(RT+1)
+      grad_physics(DG+1) = (scalar(id +1) - scalar(idNE+1)) / d_e(DG+1)
+      grad_physics(UP+1) = (scalar(idN+1) - scalar(id  +1)) / d_e(UP+1)
     end function grad_physics
   end function physics_scalar_flux_case
 
@@ -667,7 +667,7 @@ contains
 
     ! Non-dimensional viscosities
     C_visc(S_MASS:S_TEMP,:) = max_stable_Cvisc ("sclr")
-    C_visc(S_DIVU,:)        = max_stable_Cvisc ("divu") * 0.15
+    C_visc(S_DIVU,:)        = max_stable_Cvisc ("divu") * 0.05
     C_visc(S_ROTU,:)        = max_stable_Cvisc ("rotu")
 
     ! Viscosities
