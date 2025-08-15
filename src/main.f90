@@ -196,7 +196,7 @@ contains
           r_stab = sqrt (3.0_dp)
        case ("RK4")
           dt_step_split => RK4_split
-          r_stab = 2.78_dp
+          r_stab = 2 * sqrt (2.0_dp)
        case default
           dt_step_split => RK3_split
        end select
@@ -210,7 +210,7 @@ contains
           r_stab = sqrt (3.0_dp)
        case ("RK4")
           dt_step => RK4
-          r_stab = 2.78_dp
+          r_stab = 2 * sqrt (2.0_dp)
        case default
           dt_step => RK3
           r_stab = sqrt (3.0_dp)
