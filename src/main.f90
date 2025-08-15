@@ -14,7 +14,7 @@ module main_mod
   integer                            :: chkpt_info
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
   real(dp)                           :: dt_new, initial_total_mass, time_mult
-  real(dp)                           :: beta_sclr_loc, beta_divu_loc, beta_rotu_loc, dt_loc, min_mass_loc
+  real(dp)                           :: dt_loc, min_mass_loc, r_stab
   
   type Initial_State
      integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
@@ -180,38 +180,49 @@ contains
   end subroutine record_init_state
 
   subroutine set_time_integrator
-    ! Selects time integration scheme as specified in test case
+    ! Sets time integration scheme and associated stability factor as specified in test case
     implicit none
 
     if (mode_split) then 
        select case (timeint_type)
        case ("Euler")
           dt_step_split => Euler_split
+          r_stab = 1.0_dp
        case ("RK2")
           dt_step_split => RK2_split
+          r_stab = 2.0_dp
        case ("RK3")
           dt_step_split => RK3_split
+          r_stab = sqrt (3.0_dp)
        case ("RK4")
           dt_step_split => RK4_split
+          r_stab = 2.78_dp
        case default
-          dt_step_split => RK4_split
+          dt_step_split => RK3_split
        end select
     else
        select case (timeint_type)
        case ("Euler")
           dt_step => Euler
+          r_stab = 1.0_dp
        case ("RK3")
-          dt_step => RK3 
+          dt_step => RK3
+          r_stab = sqrt (3.0_dp)
        case ("RK4")
-          dt_step => RK4 
-       case default
           dt_step => RK4
+          r_stab = 2.78_dp
+       case default
+          dt_step => RK3
+          r_stab = sqrt (3.0_dp)
        case ("RK33")
-          dt_step => RK33_opt 
+          dt_step => RK33_opt
+          r_stab = sqrt (3.0_dp)
        case ("RK34")
-          dt_step => RK34_opt 
+          dt_step => RK34_opt
+          r_stab = 2.0_dp
        case ("RK45")
           dt_step => RK45_opt
+          r_stab = 3.28_dp
        end select
     end if
   end subroutine set_time_integrator
@@ -562,11 +573,9 @@ contains
 
     integer                        :: d, e, id, idW, idSW, idS, id_i, k, l, lev
     integer,  dimension(1:2*EDGE)  :: ide
-    real(dp)                       :: acoustic_speed, Area, P_k, P_top, rho_dz, T, theta
+    real(dp)                       :: acoustic_speed, P_k, P_top, rho_dz, T, theta
     real(dp), dimension(1:2*EDGE)  :: F_e, pedlen
     real(dp), dimension(0:zlevels) :: P
-
-    real(dp), parameter            :: r = 2.5_dp ! stability factor for RK3
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -585,7 +594,6 @@ contains
 
        if (adapt_dt) then
           pedlen = dom%pedlen%elts(ide)
-          Area   = 1/dom%areas%elts(id_i)%hex_inv
 
           if (compressible) then
              P(zlevels) = p_top
@@ -602,12 +610,13 @@ contains
                 
                 F_e = (abs (sol(S_VELO,k)%data(d)%elts(ide)) + acoustic_speed) * pedlen
                      
-                dt_loc = min (dt_loc, cfl_num * r * Area / sum (F_e))
+                dt_loc = min (dt_loc, cfl_num * r_stab / (dom%areas%elts(id_i)%hex_inv * sum (F_e)))
              end do
           else
              do k = 1, zlevels
                 F_e = (abs (sol(S_VELO,k)%data(d)%elts(ide)) + wave_speed) * pedlen
-                dt_loc = min (dt_loc, cfl_num * r * Area / sum (F_e))
+                
+                dt_loc = min (dt_loc, cfl_num * r_stab / (dom%areas%elts(id_i)%hex_inv * sum (F_e)))
              end do
           end if
        end if
