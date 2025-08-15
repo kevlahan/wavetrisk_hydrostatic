@@ -123,7 +123,7 @@ contains
 
   subroutine RK34_opt (q, wav, routine, h)
     ! Optimal third order, four stage strong stability preserving Runge-Kutta method
-    ! Stable for hyperbolic equations for CFL<2
+    ! Stable for hyperbolic equations for CFL<2.65
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     implicit none
     real(dp)                                             :: h
@@ -150,8 +150,8 @@ contains
   end subroutine RK34_opt
 
   subroutine RK45_opt (q, wav, routine, h)
-    ! Optimal fourth order, five stage strong stability preserving Runge-Kutta method stable with optimal maximum CFL coefficient of 1.51
-    ! See A. Balan, G. May and J. Schoberl: "A Stable Spectral Difference Method for Triangles", 2011, Spiteri and Ruuth 2002
+    ! Optimal fourth order, five stage strong stability preserving Runge-Kutta method stable with optimal maximum CFL coefficient of 2
+    ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
     implicit none
     real(dp)                                             :: h
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
