@@ -14,7 +14,7 @@ module main_mod
   integer                            :: chkpt_info
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
   real(dp)                           :: dt_new, initial_total_mass, time_mult
-  real(dp)                           :: dt_loc, min_mass_loc, r_stab
+  real(dp)                           :: dt_loc, min_mass_loc
   
   type Initial_State
      integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
@@ -610,13 +610,13 @@ contains
                 
                 F_e = (abs (sol(S_VELO,k)%data(d)%elts(ide)) + acoustic_speed) * pedlen
                      
-                dt_loc = min (dt_loc, cfl_num * r_stab / (dom%areas%elts(id_i)%hex_inv * sum (F_e)))
+                dt_loc = min (dt_loc, dt_init, cfl_num * r_stab / (dom%areas%elts(id_i)%hex_inv * sum (F_e)))
              end do
           else
              do k = 1, zlevels
                 F_e = (abs (sol(S_VELO,k)%data(d)%elts(ide)) + wave_speed) * pedlen
                 
-                dt_loc = min (dt_loc, cfl_num * r_stab / (dom%areas%elts(id_i)%hex_inv * sum (F_e)))
+                dt_loc = min (dt_loc, dt_init, cfl_num * r_stab / (dom%areas%elts(id_i)%hex_inv * sum (F_e)))
              end do
           end if
        end if

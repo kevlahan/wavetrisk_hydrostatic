@@ -663,7 +663,7 @@ contains
     ! Set non-dimensional viscosities and time step
     implicit none
 
-    dt_init = cfl_num * dx_avg(max_level) / (u_0 + c_s) 
+    dt_init = cfl_num * r_stab * dx_avg(max_level)/4 / (u_0 + c_s) 
 
     ! Non-dimensional viscosities
     C_visc(S_MASS:S_TEMP,:) = max_stable_Cvisc ("sclr")

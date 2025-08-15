@@ -541,7 +541,7 @@ contains
     ! Evaluate viscosity time steps (for finest grid) 
     implicit none
     
-    dt_init = cfl_num * dx_avg(max_level) / wave_speed 
+    dt_init = cfl_num * r_stab * dx_avg(max_level)/4 / wave_speed
 
     C_visc = C_Drake 
     C_visc(S_DIVU,:) = 10 * C_Drake

@@ -233,7 +233,7 @@ module shared_mod
   real(dp)                                       :: porosity, ref_density, ref_density_air, ref_density_water
   real(dp)                                       :: mass_error, max_depth, min_depth, min_mass, min_mass_remap
   real(dp)                                       :: theta1, theta2, visc_divu, visc_rotu
-  real(dp)                                       :: c1, c_g, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, R_d, wave_speed
+  real(dp)                                       :: c1, c_g, c_p, c_s, c_v, gamma, H_rho, kappa, p_0, p_top, r_stab, R_d, wave_speed
   real(dp)                                       :: Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim
   real(dp)                                       :: hex_int
   real(dp), dimension(:),         allocatable    :: Area_avg, bounds, dx_avg, pressure_save, visc_sclr
@@ -394,7 +394,8 @@ contains
     remapscalar_type        = "PPR"                               ! remapping scheme for scalars
     remapvelo_type          = "PPR"                               ! remapping scheme for velocity
 
-    timeint_type            = "RK45"                               ! time integration scheme (RK3 is default for incompressible case)
+    timeint_type            = "RK3"                               ! time integration scheme 
+    r_stab                  = sqrt (3.0_dp)                       ! stability factor
     tol                     = 0.0_dp                              ! relative tolerance for adaptivity (default is non-adaptive)
     zlevels                 = 30                                  ! number of vertical layers
     zmin                    = 1                                   ! lowest vertical level index
