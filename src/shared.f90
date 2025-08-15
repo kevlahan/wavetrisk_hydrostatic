@@ -394,8 +394,8 @@ contains
     remapscalar_type        = "PPR"                               ! remapping scheme for scalars
     remapvelo_type          = "PPR"                               ! remapping scheme for velocity
 
-    timeint_type            = "RK3"                               ! time integration scheme 
-    r_stab                  = sqrt (3.0_dp)                       ! stability factor
+    timeint_type            = "RK4"                               ! time integration scheme 
+    r_stab                  = 2 * sqrt (2.0_dp)                   ! stability factor
     tol                     = 0.0_dp                              ! relative tolerance for adaptivity (default is non-adaptive)
     zlevels                 = 30                                  ! number of vertical layers
     zmin                    = 1                                   ! lowest vertical level index
