@@ -12,7 +12,7 @@ Module test_case_mod
   real(8) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
 
   ! Local variables
-  real(8)                              :: C_Drake = 1e-3_dp
+  real(8)                              :: C_Drake = 0.9_dp
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
   real(8)                              :: drho, drho_dz, f0, Fr, Ku, k_T, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
   real(8)                              :: omega_earth, scale, scale_omega, tau_0, thermocline, u_wbc 
@@ -540,17 +540,12 @@ contains
   subroutine initialize_dt_viscosity_case
     ! Evaluate viscosity time steps (for finest grid) 
     implicit none
-    
-    dt_init = cfl_num * r_stab * dx_avg(max_level)/4 / wave_speed
+    real(dp), parameter :: rho = 1.15_dp ! correction factor for pentagons
 
-    C_visc = C_Drake 
-    C_visc(S_DIVU,:) = 10 * C_Drake
+    dt_init = r_adv * dx_avg(max_level)/4 / wave_speed / rho
+    dt = dt_init
 
-    ! Ensure stability
-    C_visc(S_MASS,:) = min (C_visc(S_MASS,:), (1/9.0_dp  )**Laplace_sclr)
-    C_visc(S_TEMP,:) = min (C_visc(S_TEMP,:), (1/9.0_dp  )**Laplace_sclr)
-    C_visc(S_DIVU,:) = min (C_visc(S_DIVU,:), (1/9.0_dp  )**Laplace_divu)
-    C_visc(S_ROTU,:) = min (C_visc(S_ROTU,:), (1/9.0_dp/4)**Laplace_rotu)
+    C_visc = 0.9_dp
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -1022,7 +1017,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) *  nu_scale (Laplace_sclr, .false., dom, id) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) *  nu_scale (Laplace_sclr, zlev) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -1061,10 +1056,10 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     horiz_diffusion = 0.0_dp
 
     if (Laplace_divu /= 0) horiz_diffusion = &  
-         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, .false., dom, id) * grad_divu ()
+         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, zlev) * grad_divu ()
 
     if (Laplace_rotu /= 0) horiz_diffusion = horiz_diffusion + &
-         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, .false., dom, id) * curl_rotu ()
+         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, zlev) * curl_rotu ()
 
     ! Vertical diffusion
     if (vert_diffuse) then ! using vertical diffusion module

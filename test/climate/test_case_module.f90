@@ -13,10 +13,9 @@ module test_case_mod
   real(dp) :: total_cpu_time
 
   ! Test case variables
-  real(dp) :: C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
-  real(dp) :: cfl_max, cfl_min, T_cfl, T_0, u_0
+  real(dp) :: dz, T_0, u_0
 
-  ! CAM-SE values for J6 (120 km resolution)
+  ! CAM-SE values for 120 km resolution (approximately J6)
   real(dp), parameter :: nu_CAM = 1e15 * METRE**4/SECOND      ! CAM hyperviscosity 
   real(dp), parameter :: dt_CAM = 300  * SECOND               ! CAM time step
   real(dp), parameter :: dx_CAM = 120  * KM                   ! CAM horizontal resolution
@@ -126,7 +125,7 @@ contains
     physics_velo_source_case = 0.0_dp
 
     if (Laplace_divu /= 0) physics_velo_source_case = &  
-         + (-1)**(Laplace_divu-1) * nu_scale (S_DIVU, zlev, dom, i, j, offs, dims) * grad_divu ()
+         + (-1)**(Laplace_divu-1) * nu_scale (S_DIVU, zlev) * grad_divu ()
 
     if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
          - (-1)**(Laplace_rotu-1) * nu_scale (S_ROTU, zlev) * curl_rotu ()
@@ -522,13 +521,13 @@ contains
        write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
        if (Laplace_sclr /= 0) &
             write (6,'(3(a,es8.2))') "C_sclr = ",  &
-            C_visc(S_MASS,1), " nu_sclr = ", nu_scale (S_MASS,1), " tau_sclr = ", tau_sclr / HOUR
+            C_visc(S_MASS,1), " nu_sclr = ", nu_scale (S_MASS,1), " tau_sclr = ", dt_init / C_visc(S_MASS,1) / HOUR
        if (Laplace_divu /= 0) &
             write (6,'(3(a,es8.2))') "C_divu = ",  &
-            C_visc(S_DIVU,1), " nu_divu = ", nu_scale (S_DIVU,1), " tau_divu = ", tau_divu / HOUR
+            C_visc(S_DIVU,1), " nu_divu = ", nu_scale (S_DIVU,1), " tau_divu = ", dt_init / C_visc(S_DIVU,1) / HOUR
        if (Laplace_rotu /= 0) &
             write (6,'(3(a,es8.2))') "C_rotu = ",  &
-            C_visc(S_ROTU,1), " nu_rotu = ", nu_scale (S_ROTU,1), " tau_rotu = ", tau_rotu / HOUR
+            C_visc(S_ROTU,1), " nu_rotu = ", nu_scale (S_ROTU,1), " tau_rotu = ", dt_init / C_visc(S_ROTU,1) / HOUR
 
        write (6,'(/,a,es8.2)') "dt_init          [s]     = ", dt_init / SECOND
        write (6,'(a,es8.2)') "dt_write         [d]     = ", dt_write / DAY
@@ -670,12 +669,8 @@ contains
     dt = dt_init
 
     ! Non-dimensional viscosities (C_visc <= 1 for diffusive stability)
-    C_visc = 0.9_dp
-    
-    ! Diffusion times
-    tau_sclr = dt_init / C_visc(S_MASS,1)
-    tau_divu = dt_init / C_visc(S_DIVU,1)
-    tau_rotu = dt_init / C_visc(S_ROTU,1)
+    C_visc           = 0.1_dp
+    C_visc(S_ROTU,:) = 0.8_dp
   end subroutine initialize_dt_viscosity_case
 
   subroutine apply_initial_conditions_case
@@ -789,16 +784,4 @@ contains
 
     z_coords_case = 0.0_dp
   end function z_coords_case
-
-  real(dp) function cfl (t)
-    ! Gradually increase cfl number from cfl_min to cfl_max over T_cfl 
-    implicit none
-    real(dp) :: t
-
-    if (t - time_start <= T_cfl) then
-       cfl = cfl_min + (cfl_max - cfl_min) * sin (MATH_PI/2 * (t - time_start) / T_cfl)
-    else
-       cfl = cfl_max
-    end if
-  end function cfl
 end module test_case_mod

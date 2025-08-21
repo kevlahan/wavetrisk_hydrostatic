@@ -22,7 +22,6 @@ program Drake
   penalize                = .true.                
   split_mean_perturbation = .true.
 
-  timeint_type            = "RK3"
   if (mode_split) then
      cfl_num              = 15.0_dp
   else
