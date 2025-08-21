@@ -16,12 +16,6 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  ! Diffusion
-  Laplace_sclr = 2                                            ! scalars
-  Laplace_divu = 1                                            ! divu
-  Laplace_rotu = 2                                            ! rotu
-  
   adapt_dt                 = .true.                           ! adapt time step
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type

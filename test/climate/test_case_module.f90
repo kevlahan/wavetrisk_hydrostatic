@@ -14,16 +14,15 @@ module test_case_mod
 
   ! Test case variables
   real(dp) :: C_div, dt_max, dz, tau_sclr, tau_divu, tau_rotu
-  real(dp) :: cfl_max, cfl_min, T_cfl, nu_sclr, nu_rotu, nu_divu, T_0, u_0
+  real(dp) :: cfl_max, cfl_min, T_cfl, T_0, u_0
 
   ! CAM-SE values for J6 (120 km resolution)
-  real(dp), parameter :: nu_CAM        = 1e15 * METRE**4/SECOND      ! CAM hyperviscosity 
-  real(dp), parameter :: dt_CAM        = 300  * SECOND               ! CAM time step
-  real(dp), parameter :: dx_CAM        = 120  * KM                   ! CAM horizontal resolution
-  real(dp), parameter :: Area_CAM      = sqrt(3.0_dp)/2 * dx_CAM**2  ! CAM hexagon area
+  real(dp), parameter :: nu_CAM = 1e15 * METRE**4/SECOND      ! CAM hyperviscosity 
+  real(dp), parameter :: dt_CAM = 300  * SECOND               ! CAM time step
+  real(dp), parameter :: dx_CAM = 120  * KM                   ! CAM horizontal resolution
 
-  ! CAM non-dimensional viscosity: 6.43e-4
-  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (sqrt(3.0_dp) * Area_CAM)**2 
+  ! CAM non-dimensional viscosity for RK4: 0.8 (0.1 for DIVU)
+  real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (2.77 * (dx_CAM**2/24/1.65)**2)
   
   logical             :: print_tol     = .false.                     ! print tolerances for each layer
   character(255)      :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
@@ -91,7 +90,7 @@ contains
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) * nu_scale (Laplace_sclr, .false., dom, id) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * nu_scale (v, zlev) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -127,10 +126,10 @@ contains
     physics_velo_source_case = 0.0_dp
 
     if (Laplace_divu /= 0) physics_velo_source_case = &  
-         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, .false., dom, id) * grad_divu ()
+         + (-1)**(Laplace_divu-1) * nu_scale (S_DIVU, zlev, dom, i, j, offs, dims) * grad_divu ()
 
     if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
-         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, .false.,  dom, id) * curl_rotu ()
+         - (-1)**(Laplace_rotu-1) * nu_scale (S_ROTU, zlev) * curl_rotu ()
   contains
     function grad_divu ()
       implicit none
@@ -522,13 +521,16 @@ contains
        write (6,'(a,a)')      "timeint_type            = ", trim (timeint_type)
        write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
        if (Laplace_sclr /= 0) &
-            write (6,'(3(a,es8.2))') "C_sclr = ",  C_visc(S_MASS,1), " nu_sclr = ", nu_sclr, " tau_sclr = ", tau_sclr / HOUR
+            write (6,'(3(a,es8.2))') "C_sclr = ",  &
+            C_visc(S_MASS,1), " nu_sclr = ", nu_scale (S_MASS,1), " tau_sclr = ", tau_sclr / HOUR
        if (Laplace_divu /= 0) &
-            write (6,'(3(a,es8.2))') "C_divu = ",  C_visc(S_DIVU,1), " nu_divu = ", nu_divu, " tau_divu = ", tau_divu / HOUR
+            write (6,'(3(a,es8.2))') "C_divu = ",  &
+            C_visc(S_DIVU,1), " nu_divu = ", nu_scale (S_DIVU,1), " tau_divu = ", tau_divu / HOUR
        if (Laplace_rotu /= 0) &
-            write (6,'(3(a,es8.2))') "C_rotu = ",  C_visc(S_ROTU,1), " nu_rotu = ", nu_rotu, " tau_rotu = ", tau_rotu / HOUR
+            write (6,'(3(a,es8.2))') "C_rotu = ",  &
+            C_visc(S_ROTU,1), " nu_rotu = ", nu_scale (S_ROTU,1), " tau_rotu = ", tau_rotu / HOUR
 
-       write (6,'(/,a,es8.2)') "dt_init          [m]     = ", dt_init / MINUTE
+       write (6,'(/,a,es8.2)') "dt_init          [s]     = ", dt_init / SECOND
        write (6,'(a,es8.2)') "dt_write         [d]     = ", dt_write / DAY
        write (6,'(a,l1)')     "match_time               = ", match_time
        write (6,'(a,i4)')     "CP_EVERY                 = ", CP_EVERY
@@ -660,38 +662,20 @@ contains
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
-    ! Set non-dimensional viscosities and time step
+    ! Set non-dimensional viscosities and time step (use default C_visc = 0.75)
     implicit none
+    real(dp), parameter :: rho = 1.15_dp ! correction factor for pentagons
 
-    dt_init = cfl_num * r_stab * dx_avg(max_level)/4 / (u_0 + c_s) 
+    dt_init = r_adv * dx_avg(max_level)/4 / (u_0 + c_s) / rho
+    dt = dt_init
 
-    ! Non-dimensional viscosities
-    C_visc(S_MASS:S_TEMP,:) = max_stable_Cvisc ("sclr")
-    C_visc(S_DIVU,:)        = max_stable_Cvisc ("divu") * 0.05
-    C_visc(S_ROTU,:)        = max_stable_Cvisc ("rotu")
-
-    ! Viscosities
-    nu_sclr = C_visc(S_MASS,1) * nu_sc ("sclr")
-    nu_divu = C_visc(S_DIVU,1) * nu_sc ("divu")
-    nu_rotu = C_visc(S_ROTU,1) * nu_sc ("rotu")
-
+    ! Non-dimensional viscosities (C_visc <= 1 for diffusive stability)
+    C_visc = 0.9_dp
+    
     ! Diffusion times
-    if (Laplace_sclr /= 0) tau_sclr = dt_init / C_visc(S_MASS,1)
-    if (Laplace_divu /= 0) tau_divu = dt_init / C_visc(S_DIVU,1)
-    if (Laplace_rotu /= 0) tau_rotu = dt_init / C_visc(S_ROTU,1)
-  contains
-    real(dp) function nu_sc (type)
-      character (4) :: type
-      
-      select case (type)
-      case ("sclr")
-         nu_sc = (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_sclr / dt_init
-      case ("divu")
-         nu_sc = (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_divu / dt_init
-      case ("rotu")
-         nu_sc = (sqrt (3.0_dp) * Area_avg(max_level))**Laplace_rotu / dt_init
-      end select
-    end function nu_sc
+    tau_sclr = dt_init / C_visc(S_MASS,1)
+    tau_divu = dt_init / C_visc(S_DIVU,1)
+    tau_rotu = dt_init / C_visc(S_ROTU,1)
   end subroutine initialize_dt_viscosity_case
 
   subroutine apply_initial_conditions_case

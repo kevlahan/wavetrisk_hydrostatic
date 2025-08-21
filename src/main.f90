@@ -187,42 +187,52 @@ contains
        select case (timeint_type)
        case ("Euler")
           dt_step_split => Euler_split
-          r_stab = 1.0_dp
+          r_adv = 1.0_dp
+          r_dif = 2.0_dp
        case ("RK2")
           dt_step_split => RK2_split
-          r_stab = 2.0_dp
+          r_adv = 1.0_dp
+          r_dif = 2.0_dp
        case ("RK3")
           dt_step_split => RK3_split
-          r_stab = sqrt (3.0_dp)
+          r_adv = sqrt (3.0_dp)
+          r_dif = 2.51_dp
        case ("RK4")
           dt_step_split => RK4_split
-          r_stab = 2 * sqrt (2.0_dp)
+          r_adv = 2 * sqrt (2.0_dp)
+          r_dif = 2.77_dp
        case default
           dt_step_split => RK3_split
+          r_adv = sqrt (3.0_dp)
+          r_dif = 2.51_dp
        end select
     else
        select case (timeint_type)
        case ("Euler")
           dt_step => Euler
-          r_stab = 1.0_dp
+          r_adv = 1.0_dp
+          r_dif = 2.0_dp
        case ("RK3")
           dt_step => RK3
-          r_stab = sqrt (3.0_dp)
+          r_adv = sqrt (3.0_dp)
+          r_dif = 2.5_dp
        case ("RK4")
           dt_step => RK4
-          r_stab = 2 * sqrt (2.0_dp)
+          r_adv = 2 * sqrt (2.0_dp)
+          r_dif = 2.77_dp
        case default
           dt_step => RK3
-          r_stab = sqrt (3.0_dp)
+          r_adv = sqrt (3.0_dp)
+          r_dif = 2.5_dp
        case ("RK33")
           dt_step => RK33_opt
-          r_stab = sqrt (3.0_dp)
+          r_adv = sqrt (3.0_dp)
        case ("RK34")
           dt_step => RK34_opt
-          r_stab = 2.0_dp
+          r_adv = 2.0_dp
        case ("RK45")
           dt_step => RK45_opt
-          r_stab = 3.28_dp
+          r_adv = 3.28_dp
        end select
     end if
   end subroutine set_time_integrator
@@ -287,29 +297,12 @@ contains
        call initialize_dt_viscosity
        call initialize_thresholds
        
-       ! Check stability (Klemp 2017, Monthly Weather Rev 145)
-       if (maxval (C_visc(S_MASS:S_TEMP,:)) > max_stable_Cvisc ("sclr")) then
-          if (rank == 0) then
-             write (6,*) "scalars viscosity too large ... aborting"
-             call abort
-          end if
-       elseif (maxval (C_visc(S_DIVU,:)) > max_stable_Cvisc ("divu")) then
-          if (rank == 0) then
-             write (6,*) "divu viscosity too large ... aborting"
-             call abort
-          end if
-       elseif (maxval (C_visc(S_ROTU,:)) > max_stable_Cvisc ("rotu")) then
-          if (rank == 0) then
-             write (6,*) "rotu viscosity too large ... aborting"
-             call abort
-          end if
-       end if
-       
        if (log_total_mass) call cal_total_mass (.true.)
        
        itime  = nint (time * time_mult, 8)
        dt_new = min (dt_init, cpt_dt ())
-
+       dt     = dt_new
+       
        if (rank == 0) then
           write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
                'time [d] = ', time/DAY, &
@@ -565,6 +558,7 @@ contains
   subroutine cal_min_dt (dom, i, j, zlev, offs, dims)
     ! Calculates time step and number of active nodes and edges
     ! (uses exact local CFL stability formula for hexagons/pentagons)
+    use utils_mod
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, zlev
@@ -573,9 +567,10 @@ contains
 
     integer                        :: d, e, id, idW, idSW, idS, id_i, k, l, lev
     integer,  dimension(1:2*EDGE)  :: ide
-    real(dp)                       :: acoustic_speed, P_k, P_top, rho_dz, T, theta
-    real(dp), dimension(1:2*EDGE)  :: F_e, pedlen
+    real(dp)                       :: acoustic_speed, dt_adv, dt_dif, P_k, rho_dz, T, theta
+    real(dp), dimension(1:2*EDGE)  :: l_e
     real(dp), dimension(0:zlevels) :: P
+    real(dp), dimension(1:zlevels) :: alpha
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -593,7 +588,7 @@ contains
        n_active_nodes(lev) = n_active_nodes(lev) + 1 
 
        if (adapt_dt) then
-          pedlen = dom%pedlen%elts(ide)
+          l_e = dom%pedlen%elts(ide)
 
           if (compressible) then
              P(zlevels) = p_top
@@ -607,17 +602,17 @@ contains
                 T      = theta2temp (theta, P_k)
 
                 acoustic_speed = sqrt (gamma * R_d * T)
-                
-                F_e = (abs (sol(S_VELO,k)%data(d)%elts(ide)) + acoustic_speed) * pedlen
-                     
-                dt_loc = min (dt_loc, dt_init, cfl_num * r_stab / (dom%areas%elts(id_i)%hex_inv * sum (F_e)))
+
+                alpha(k) = sum ((abs (sol(S_VELO,k)%data(d)%elts(ide)) + acoustic_speed) * l_e)
              end do
+             dt_adv = cfl_num * r_adv / (dom%areas%elts(id_i)%hex_inv * maxval (alpha)) ! advective time step
+             dt_loc = min (dt_loc, dt_init, dt_adv)
           else
              do k = 1, zlevels
-                F_e = (abs (sol(S_VELO,k)%data(d)%elts(ide)) + wave_speed) * pedlen
-                
-                dt_loc = min (dt_loc, dt_init, cfl_num * r_stab / (dom%areas%elts(id_i)%hex_inv * sum (F_e)))
+                alpha(k) = sum ((abs (sol(S_VELO,k)%data(d)%elts(ide)) + acoustic_speed) * l_e)
              end do
+             dt_adv = cfl_num * r_adv / (dom%areas%elts(id_i)%hex_inv * maxval (alpha)) ! advective time step
+             dt_loc = min (dt_loc, dt_init, dt_adv)
           end if
        end if
     end if
@@ -625,6 +620,71 @@ contains
     do e = 1, EDGE
        if (dom%mask_e%elts(ide(e)) >= ADJZONE) n_active_edges(lev) = n_active_edges(lev) + 1
     end do
+  contains
+    ! Routines to compute exact amplification factors for diffusive stability on adaptive grid
+    ! Example: dt_dif = r_dif / theta_max_sclr ()**Laplace_sclr / nu_scale (S_MASS,1)
+    
+    real(dp) function theta_max_sclr ()
+      ! Maximum amplification factor for scalar diffusion
+      ! (conservative Gershgorin bounds to include irregular pentagons:
+      ! about 33% too conservative compared to sharp bounds for regular hexagons)
+      implicit none
+      real(dp) :: sigma
+
+      sigma = sum (hex_pedlen (dom, i, j, offs, dims) / hex_len (dom, i, j, offs, dims)) * dom%areas%elts(id+1)%hex_inv 
+
+      theta_max_sclr = 2.0_dp * sigma
+    end function theta_max_sclr
+
+    real(dp) function theta_max_divu ()
+      ! Maximum amplification factor for divergence diffusion
+      ! (conservative Gershgorin bounds to include irregular pentagons:
+      ! about 33% too conservative compared to sharp bounds for regular hexagons)
+      implicit none
+      integer                     :: idE, idNE, idN
+      real(dp)                    :: chi, chiE, chiNE, chiN
+      real(dp), dimension(1:EDGE) :: theta
+
+      idE  = idx (i+1, j,   offs, dims)
+      idNE = idx (i+1, j+1, offs, dims)
+      idN  = idx (i,   j+1, offs, dims)
+
+      chi   = sum (hex_pedlen (dom, i,   j,   offs, dims)) * dom%areas%elts(id  +1)%hex_inv
+      chiE  = sum (hex_pedlen (dom, i+1, j,   offs, dims)) * dom%areas%elts(idE +1)%hex_inv
+      chiNE = sum (hex_pedlen (dom, i+1, j+1, offs, dims)) * dom%areas%elts(idNE+1)%hex_inv
+      chiN  = sum (hex_pedlen (dom, i,   j+1, offs, dims)) * dom%areas%elts(idN +1)%hex_inv
+
+      theta(RT+1) = (chi + chiE ) / dom%len%elts(EDGE*id+RT+1)
+      theta(DG+1) = (chi + chiNE) / dom%len%elts(EDGE*id+DG+1)
+      theta(UP+1) = (chi + chiN ) / dom%len%elts(EDGE*id+UP+1)
+
+      theta_max_divu = maxval (theta)
+    end function theta_max_divu
+
+    real(dp) function theta_max_rotu ()
+      ! Maximum amplification factor for curl-curl diffusion
+      ! (conservative Gershgorin bounds to include irregular pentagons:
+      ! about 15% too conservative compared to sharp bounds for regular hexagons)
+      implicit none
+      integer                     :: id, idW, idS
+      real(dp)                    :: chi_LORT, chi_LORT_W, chi_UPLT, chi_UPLT_S
+      real(dp), dimension(1:EDGE) :: theta
+
+      id  = idx (i,   j,   offs, dims)
+      idW = idx (i-1, j,   offs, dims)
+      idS = idx (i,   j-1, offs, dims)
+
+      chi_UPLT_S = tri_perim (dom, i,   j-1, UPLT, offs, dims) / dom%triarea%elts(TRIAG*idS+UPLT+1)
+      chi_LORT   = tri_perim (dom, i,   j,   LORT, offs, dims) / dom%triarea%elts(TRIAG*id +LORT+1)
+      chi_UPLT   = tri_perim (dom, i,   j,   UPLT, offs, dims) / dom%triarea%elts(TRIAG*id +UPLT+1)
+      chi_LORT_W = tri_perim (dom, i-1, j,   LORT, offs, dims) / dom%triarea%elts(TRIAG*idW+LORT+1)
+
+      theta(RT+1) = (chi_UPLT_S + chi_LORT  ) / dom%pedlen%elts(EDGE*id+RT+1)
+      theta(DG+1) = (chi_LORT   + chi_UPLT  ) / dom%pedlen%elts(EDGE*id+DG+1)
+      theta(UP+1) = (chi_UPLT   + chi_LORT_W) / dom%pedlen%elts(EDGE*id+UP+1)
+
+      theta_max_rotu = maxval (theta)
+    end function theta_max_rotu
   end subroutine cal_min_dt
 
   real(dp) function cpt_min_mass ()

@@ -342,11 +342,9 @@ contains
 
   integer function number_hex (l)
     ! Number of hexagonal/pentagonal cells for level l
-    ! (Heikes, Randall, Konor 2013 MWR 141, 4450-4469 doi:10.1175/MWR-D-12-00236.1)
-    ! (for the dodecahedron, l = 0, number_hex = 12)
     integer :: l
 
-    number_hex = 5 * 2**(2*(l-1) + 3) + 2
+    number_hex = 10 * 4**l + 2
   end function number_hex
 end module geom_mod
 

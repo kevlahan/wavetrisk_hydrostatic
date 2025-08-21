@@ -1379,41 +1379,47 @@ contains
     val1(id_edge(id)) = val2(id_edge(id))
   end subroutine cal_equals_edge
 
-  real(dp) function nu_scale (order, scale_aware, dom, id)
-    ! Non-dimensional viscosity scaling for diffusion on hexagonal grid
+  real(dp) function nu_scale (type, zlev, dom, i, j, offs, dims)
+    ! Viscosity for diffusion on hexagonal C-grids
+    ! include dom, id for scale-aware viscosity
+    ! (conservative Gershgorin estimate to be consisistent with pentagons and irregular grid
+    ! uses 1/8 factor instead of 1/6 for regular hexagonal grid)
     implicit none
-    integer      :: id, order
-    type(domain) :: dom
-    logical      :: scale_aware
+    integer                                  :: type, zlev
+    type(domain),                   optional :: dom
+    integer,                        optional :: i, j
+    integer, dimension(N_BDRY+1),   optional :: offs
+    integer, dimension(2,N_BDRY+1), optional :: dims
 
-    real(dp) :: Area
+    integer  :: id, order
+    real(dp) :: Area, dx, Perimeter
 
-    if (scale_aware) then
-       Area = Area_avg(dom%level%elts(id+1))
-    else
-       Area = Area_avg(max_level)
+    ! Correction factors for irregular grid
+    ! (determined by experiment to satisfy local stability on adaptive grids)
+    real(dp), parameter :: rho_sclr = 1.10_dp
+    real(dp), parameter :: rho_divu = 1.10_dp 
+    real(dp), parameter :: rho_rotu = 1.65_dp 
+
+    if (present (dom)) then ! scale aware based on A = P dx / 4 for regular polygons
+       id        = idx (i, j, offs, dims)
+       Perimeter = sum (hex_pedlen (dom, i, j, offs, dims))
+       Area      = 1 / dom%areas%elts(id+1)%hex_inv
+       dx        = 4 * Area / Perimeter 
+    else                    ! viscosity based on max_level
+       dx = dx_avg (max_level)
     end if
-    nu_scale = (sqrt (3.0_dp) * Area)**order / dt
-  end function nu_scale
-
-  real(dp) function max_stable_Cvisc (type)
-    ! Maximum stable non-dimensional viscosities
-    character (4) :: type
-    
-    real(dp), parameter :: fac      = 1/7.0_dp
-    real(dp), parameter :: fac_rotu = fac/4
-
-    max_stable_Cvisc = 1e16_dp
     
     select case (type)
-    case ("sclr")
-       if (Laplace_sclr /= 0) max_stable_Cvisc = fac**Laplace_sclr
-    case ("divu")
-       if (Laplace_divu /= 0) max_stable_Cvisc = fac*Laplace_divu
-    case ("rotu")
-       if (Laplace_rotu /= 0) max_stable_Cvisc = fac_rotu**Laplace_rotu
+    case (S_MASS)
+       nu_scale = C_visc(S_MASS,zlev) * r_dif/dt * (dx**2/8  / rho_sclr)**Laplace_sclr
+    case (S_TEMP)
+       nu_scale = C_visc(S_TEMP,zlev) * r_dif/dt * (dx**2/8  / rho_sclr)**Laplace_sclr
+    case (S_DIVU)
+       nu_scale = C_visc(S_DIVU,zlev) * r_dif/dt * (dx**2/8  / rho_divu)**Laplace_divu
+    case (S_ROTU)
+       nu_scale = C_visc(S_ROTU,zlev) * r_dif/dt * (dx**2/24 / rho_rotu)**Laplace_rotu
     end select
-  end function max_stable_Cvisc
+  end function nu_scale
 
   subroutine smoothing_rbf (dx, npts, nsmth, data)
     ! Smooths data(lon,lat) over neighbouring region using radial basis functions
@@ -1818,4 +1824,91 @@ contains
          N_i (dom, i+1, j+1, zlev, offs, dims),     &
          N_i (dom, i,   j+1, zlev, offs, dims) /))
   end function N_e
+
+  real(dp) function hex_perim (dom, i, j, offs, dims)
+    ! Perimeter of hexagon associated to i, j
+    use domain_mod
+    implicit none
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                   :: dom
+
+    integer :: id, idW, idSW, idS
+    
+    id   = idx (i,   j,   offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    hex_perim = &
+         dom%pedlen%elts(EDGE*id +RT+1) + dom%len%elts(EDGE*id  +DG+1) + dom%len%elts(EDGE*id +UP+1) + &
+         dom%pedlen%elts(EDGE*idW+RT+1) + dom%len%elts(EDGE*idSW+DG+1) + dom%len%elts(EDGE*idS+UP+1)
+  end function hex_perim
+
+  real(dp) function tri_perim (dom, i, j, t, offs, dims)
+    ! Perimeter of triangles associated to i, j
+    implicit none
+    integer                        :: i, j, t
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                   :: dom
+
+    integer :: d, id, idE, idN
+
+    id  = idx (i,   j,   offs, dims)
+    idE = idx (i+1, j,   offs, dims)
+    idN = idx (i,   j+1, offs, dims)
+
+    if (t == LORT) then
+       tri_perim = dom%len%elts(EDGE*id+RT+1) + dom%len%elts(EDGE*idE+UP+1) + dom%len%elts(EDGE*id+DG+1) 
+    elseif (t == UPLT) then
+       tri_perim = dom%len%elts(EDGE*id+DG+1) + dom%len%elts(EDGE*id +UP+1) + dom%len%elts(EDGE*idN+RT+1)
+    end if
+  end function tri_perim
+
+  function hex_pedlen (dom, i, j, offs, dims)
+    ! The six primary grid edges (hexagon edges) associated to hexagon i, j
+    implicit none
+    integer                         :: i, j
+    integer,  dimension(N_BDRY+1)   :: offs
+    integer,  dimension(2,N_BDRY+1) :: dims
+    type(Domain)                    :: dom
+    real(dp), dimension(1:2*EDGE)   :: hex_pedlen
+
+    integer                       :: id, idW, idSW, idS
+    integer,  dimension(1:2*EDGE) :: ide
+    
+    id   = idx (i,   j,   offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    ide = (/ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 /)
+
+    hex_pedlen = dom%pedlen%elts(ide)
+  end function hex_pedlen
+
+   function hex_len (dom, i, j, offs, dims)
+    ! The six dual grid edges (distances to neighbour hexagons) associated to hexagon i, j
+    implicit none
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                   :: dom
+
+    integer,  dimension(1:2*EDGE) :: ide
+    real(dp), dimension(1:2*EDGE) :: hex_len
+
+    integer :: id, idW, idSW, idS
+
+    id   = idx (i, j, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    ide = (/ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 /)
+    
+    hex_len = dom%len%elts(ide)
+  end function hex_len
 end module utils_mod
