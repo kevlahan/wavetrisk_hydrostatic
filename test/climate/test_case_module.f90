@@ -669,8 +669,7 @@ contains
     dt = dt_init
 
     ! Non-dimensional viscosities (C_visc <= 1 for diffusive stability)
-    C_visc           = 0.1_dp
-    C_visc(S_ROTU,:) = 0.8_dp
+    C_visc = 0.8_dp
   end subroutine initialize_dt_viscosity_case
 
   subroutine apply_initial_conditions_case
