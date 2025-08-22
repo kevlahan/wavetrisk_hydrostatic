@@ -12,6 +12,8 @@ program climate
   call init_arch_mod 
   call init_comm_mpi_mod
   call read_test_case_parameters   
+
+  Laplace_divu = 1
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
