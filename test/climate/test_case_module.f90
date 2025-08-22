@@ -670,6 +670,7 @@ contains
 
     ! Non-dimensional viscosities (C_visc <= 1 for diffusive stability)
     C_visc = 0.8_dp
+    if (Laplace_divu == 1) C_visc(S_DIVU,:) = 0.04_dp
   end subroutine initialize_dt_viscosity_case
 
   subroutine apply_initial_conditions_case
