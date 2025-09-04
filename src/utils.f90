@@ -1391,8 +1391,8 @@ contains
     integer, dimension(N_BDRY+1),   optional :: offs
     integer, dimension(2,N_BDRY+1), optional :: dims
 
-    integer  :: id, order
-    real(dp) :: Area, dx, Perimeter
+    integer  :: order
+    real(dp) :: dx
 
     ! Correction factors for irregular grid
     ! (determined by experiment to satisfy local stability on adaptive grids)
@@ -1401,10 +1401,7 @@ contains
     real(dp), parameter :: rho_rotu = 1.65_dp 
 
     if (present (dom)) then ! scale aware based on A = P dx / 4 for regular polygons
-       id        = idx (i, j, offs, dims)
-       Perimeter = sum (hex_pedlen (dom, i, j, offs, dims))
-       Area      = 1 / dom%areas%elts(id+1)%hex_inv
-       dx        = 4 * Area / Perimeter 
+       dx = hex_dx (dom, i, j, offs, dims)
     else                    ! viscosity based on max_level
        dx = dx_avg (max_level)
     end if
@@ -1906,9 +1903,28 @@ contains
     idW  = idx (i-1, j,   offs, dims)
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
-
-    ide = (/ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 /)
     
+    ide = (/ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 /)
+
     hex_len = dom%len%elts(ide)
   end function hex_len
+
+  real(dp) function hex_dx (dom, i, j, offs, dims)
+    ! Equivalent dx for a hexagon
+    implicit none
+    integer                        :: i, j
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                   :: dom
+
+    integer  :: id
+    real(dp) :: Area, Perimeter
+    
+    id = idx (i,   j,   offs, dims)
+
+    Perimeter = sum (hex_pedlen (dom, i, j, offs, dims))
+    Area      = 1 / dom%areas%elts(id+1)%hex_inv
+    
+    hex_dx = 4 * Area / Perimeter
+  end function hex_dx
 end module utils_mod

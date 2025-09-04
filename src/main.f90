@@ -565,31 +565,30 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                        :: d, e, id, idW, idSW, idS, id_i, k, l, lev
+    integer                        :: d, e, id, id_i, idW, idSW, idS, k, l, lev
     integer,  dimension(1:2*EDGE)  :: ide
     real(dp)                       :: acoustic_speed, dt_adv, dt_dif, P_k, rho_dz, T, theta
-    real(dp), dimension(1:2*EDGE)  :: l_e
     real(dp), dimension(0:zlevels) :: P
-    real(dp), dimension(1:zlevels) :: alpha
+    real(dp), dimension(1:2*EDGE)  :: dx, speed
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
-    
+
     idW   = idx (i-1, j,   offs, dims)
     idSW  = idx (i-1, j-1, offs, dims)
     idS   = idx (i,   j-1, offs, dims)
-    
+
     ide  = (/ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 /) 
     
     lev  = dom%level%elts(id_i)
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       n_active_nodes(lev) = n_active_nodes(lev) + 1 
-
+       n_active_nodes(lev) = n_active_nodes(lev) + 1
+       
+       dx = dom%len%elts(ide)
+       
        if (adapt_dt) then
-          l_e = dom%pedlen%elts(ide)
-
           if (compressible) then
              P(zlevels) = p_top
              do l = zlevels-1, 0, -1
@@ -602,17 +601,18 @@ contains
                 T      = theta2temp (theta, P_k)
 
                 acoustic_speed = sqrt (gamma * R_d * T)
+                speed          = abs (sol(S_VELO,k)%data(d)%elts(ide))
 
-                alpha(k) = sum ((abs (sol(S_VELO,k)%data(d)%elts(ide)) + acoustic_speed) * l_e)
+                dt_adv = minval (cfl_num * dx / (speed + acoustic_speed))
+                dt_loc = min (dt_loc, dt_adv)
              end do
-             dt_adv = cfl_num * r_adv / (dom%areas%elts(id_i)%hex_inv * maxval (alpha)) ! advective time step
-             dt_loc = min (dt_loc, dt_init, dt_adv)
           else
              do k = 1, zlevels
-                alpha(k) = sum ((abs (sol(S_VELO,k)%data(d)%elts(ide)) + acoustic_speed) * l_e)
+                speed = abs (sol(S_VELO,k)%data(d)%elts(ide))
+                
+                dt_adv = minval (cfl_num * dx / (speed + wave_speed))
+                dt_loc = min (dt_loc, dt_adv)
              end do
-             dt_adv = cfl_num * r_adv / (dom%areas%elts(id_i)%hex_inv * maxval (alpha)) ! advective time step
-             dt_loc = min (dt_loc, dt_init, dt_adv)
           end if
        end if
     end if
