@@ -5,7 +5,7 @@ program Drake
   use main_mod
   use test_case_mod
   implicit none
-  real(dp) :: dz, visc
+  real(dp) :: Area_min, dx_min, dz, visc
 
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -97,9 +97,12 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Characteristic scales
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  Area_min       = 4*MATH_PI * radius**2 / number_hex (max_level)
+  dx_min         = sqrt (2 / sqrt(3.0_dp) * Area_min)
+  
   wave_speed     = sqrt (grav_accel * abs (max_depth))                        ! inertia-gravity wave speed
-  dt_init        = cfl_num * 0.85 * dx_avg (max_level) / wave_speed           ! average time step
-  visc           = C_Drake * Area_avg (max_level)**Laplace_rotu / dt_init     ! viscosity
+  dt_init        = cfl_num * 0.85 * dx_min / wave_speed                       ! average time step
+  visc           = C_Drake * Area_min**Laplace_rotu / dt_init                 ! viscosity
   Rd             = wave_speed / f0                                            ! barotropic Rossby radius of deformation             
   drho_dz        = drho / (mixed_layer - thermocline)                         ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)               ! Brunt-Vaisala frequency
@@ -135,10 +138,10 @@ program Drake
   ! Dimensional scaling
   Hdim           = abs (max_depth)                                            ! vertical length scale
   Ldim           = delta_I                                                    ! length scale
-  Mudim          = ref_density * dz                                           ! rho_dz scale
-  Tdim           = Ldim / Udim                                                ! time scale
-  Thetadim       =        drho * dz                                           ! buoyancy scale
   Udim           = u_wbc                                                      ! velocity scale
+  Tdim           = Ldim / Udim                                                ! time scale
+  Mudim          = ref_density * dz                                           ! rho_dz scale
+  Thetadim       =        drho * dz                                           ! buoyancy scale
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Initialization

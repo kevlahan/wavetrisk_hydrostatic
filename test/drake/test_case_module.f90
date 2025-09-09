@@ -540,9 +540,8 @@ contains
   subroutine initialize_dt_viscosity_case
     ! Evaluate viscosity time steps (for finest grid) 
     implicit none
-    real(dp), parameter :: rho = 1.15_dp ! correction factor for pentagons
 
-    dt_init = r_adv * dx_avg(max_level)/4 / wave_speed / rho
+    dt_init = cfl_num * dx_avg(max_level) / (u_wbc + wave_speed)
     dt = dt_init
 
     C_visc = 0.9_dp
@@ -1017,7 +1016,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1)**Laplace_sclr * C_visc(v,zlev) *  nu_scale (Laplace_sclr, zlev) * grad * l_e
+       physics_scalar_flux_case = (-1)**Laplace_sclr * nu_scale (v, zlev) * grad * l_e
     end if
   contains
     function grad_physics (scalar)
@@ -1054,12 +1053,12 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     idN   = idx (i,   j+1, offs, dims)
 
     horiz_diffusion = 0.0_dp
-
+    
     if (Laplace_divu /= 0) horiz_diffusion = &  
-         + (-1)**(Laplace_divu-1) * C_visc(S_DIVU,zlev) * nu_scale (Laplace_divu, zlev) * grad_divu ()
+         + (-1)**(Laplace_divu-1) * nu_scale (S_DIVU, zlev) * grad_divu ()
 
-    if (Laplace_rotu /= 0) horiz_diffusion = horiz_diffusion + &
-         - (-1)**(Laplace_rotu-1) * C_visc(S_ROTU,zlev) * nu_scale (Laplace_rotu, zlev) * curl_rotu ()
+    if (Laplace_rotu /= 0) horiz_diffusion =  horiz_diffusion  + &
+         - (-1)**(Laplace_rotu-1) * nu_scale (S_ROTU, zlev) * curl_rotu ()
 
     ! Vertical diffusion
     if (vert_diffuse) then ! using vertical diffusion module
