@@ -565,21 +565,16 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                        :: d, e, id, id_i, idW, idSW, idS, k, l, lev
-    integer,  dimension(1:2*EDGE)  :: ide
+    integer                        :: d, e, id, id_i, k, l, lev
+    integer,  dimension(1:EDGE)    :: ide
     real(dp)                       :: acoustic_speed, dt_adv, dt_dif, P_k, rho_dz, T, theta
     real(dp), dimension(0:zlevels) :: P
-    real(dp), dimension(1:2*EDGE)  :: dx, speed
+    real(dp), dimension(1:EDGE)    :: dx, speed
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
-
-    idW   = idx (i-1, j,   offs, dims)
-    idSW  = idx (i-1, j-1, offs, dims)
-    idS   = idx (i,   j-1, offs, dims)
-
-    ide  = (/ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 /) 
+    ide  = id_edge (id)
     
     lev  = dom%level%elts(id_i)
 
