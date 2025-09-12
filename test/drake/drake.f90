@@ -6,6 +6,7 @@ program Drake
   use test_case_mod
   implicit none
   real(dp) :: Area_min, dx_min, dz, visc
+  logical  :: relax = .false.
 
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -14,7 +15,7 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  adapt_dt                = .false.
+  adapt_dt                = .true.
   compressible            = .false.
   default_thresholds      = .true.
   log_min_mass            = .false.
@@ -60,6 +61,7 @@ program Drake
 
   porosity       = 0.1_dp                                  ! porosity
   min_depth      = -50 * METRE / H_norm                    ! minimum allowed depth (must be negative)
+  k_T            =       1 / (30 * DAY)                    ! relaxation time to mean buoyancy profile (if relax = .true.)
   
   if (zlevels == 1) then
      sigma_z              = .false.
@@ -67,31 +69,32 @@ program Drake
 
      max_depth            = -H_earth
      coords               = "uniform"
-     mixed_layer          = max_depth                      ! location of top (less dense) layer in two layer case
-     thermocline          = max_depth                      ! location of layer forced by surface wind stress
+     z_mixed              = max_depth                      ! location of top (less dense) layer in two layer case
+     z_linear             = max_depth                      ! location of layer forced by surface wind stress
      drho                 =       0 * KG/METRE**3          ! density perturbation at free surface
      tau_0                =     0.4 * NEWTON/METRE**2      ! maximum wind stress
      u_wbc                =       1 * METRE/SECOND         ! estimated western boundary current speed
      
      bottom_friction_case =    rb_0                        ! constant bottom friction
-     k_T                  =    0.0_dp                      ! relaxation to mean buoyancy profile
+     relax                =    .false.
   elseif (zlevels >= 2) then
-     vert_diffuse         = .true.
-     remap                = .true.
+     relax                = .false.                        ! relax to mean vertical stratification
+     remap                = .true.                         ! remap vertical coordinates
      sigma_z              = .true.                         ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
-     tke_closure          = .false.
+     tke_closure          = .false.                        ! use analytic profiles for eddy viscosity/diffusivity
+     vert_diffuse         = .true.                         ! use vertical diffusion model
      
      coords               = "uniform"
      max_depth            =   -4000 * METRE                ! total depth
-     thermocline          =   -4000 * METRE                ! linear stratification region between thermocline and mixed_layer
-     mixed_layer          =    -200 * METRE                ! constant density at depth < mixed_layer
+     z_mixed              =    -200 * METRE                ! bottom of constant density surface mixed 
+     z_linear             =    -500 * METRE                ! bottom of linear stratification layer below mixed layer
+                                                           ! (set z_linear = max_depth for constant/linear stratification)
 
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
   
      drho                 =      -4 * KG/METRE**3          ! density perturbation at free surface at poles
      tau_0                =     0.1 * NEWTON/METRE**2      ! maximum wind stress
      u_wbc                =       1 * METRE/SECOND         ! estimated western boundary current speed
-     k_T                  =       1 / (30 * DAY)           ! relaxation to mean buoyancy profile
   end if
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -104,7 +107,7 @@ program Drake
   dt_init        = cfl_num * 0.85 * dx_min / wave_speed                       ! average time step
   visc           = C_Drake * Area_min**Laplace_rotu / dt_init                 ! viscosity
   Rd             = wave_speed / f0                                            ! barotropic Rossby radius of deformation             
-  drho_dz        = drho / (mixed_layer - thermocline)                         ! density gradient
+  drho_dz        = drho / (z_mixed - z_linear)                                ! density gradient
   bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)               ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                                          ! inertial layer
   delta_M        = (visc/beta)**(1.0_dp/(2*Laplace_rotu + 1))                 ! Munk layer scale
@@ -160,7 +163,7 @@ program Drake
   do while (time < time_end)
      call start_timing
      call time_step 
-     if (k_T /= 0.0_dp) call euler (sol, wav_coeff, trend_relax, dt)
+     if (relax) call euler (sol, wav_coeff, trend_relax, dt)
      call stop_timing
 
      call print_log

@@ -15,10 +15,11 @@ Module test_case_mod
   real(8)                              :: C_Drake = 0.9_dp
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
   real(8)                              :: drho, drho_dz, f0, Fr, Ku, k_T, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
-  real(8)                              :: omega_earth, scale, scale_omega, tau_0, thermocline, u_wbc 
+  real(8)                              :: omega_earth, scale, scale_omega, tau_0, u_wbc, z_mixed, z_linear
   real(8),                      target :: bottom_friction_case
   real(8), allocatable, dimension(:,:) :: analytic_data
   logical                              :: aligned
+  logical                              :: piecewise_density = .true.
   logical                              :: normalized
   character(255)                       :: coords
 
@@ -146,10 +147,19 @@ contains
        write (6,'(a,L1)')     "adapt_dt                       = ", adapt_dt
        write (6,'(a,es10.4)') "cfl_num                        = ", cfl_num
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
-       write (6,'(a,i1)')     "n_diffuse                      = ", n_diffuse
-       write (6,'(4(a,es8.2/))') "C_visc(S_MASS) = ", C_visc(S_MASS,1), "C_visc(S_TEMP) = ", C_visc(S_TEMP,1), &
-            "C_visc(S_DIVU) = ", C_visc(S_DIVU,1), "C_visc(S_ROTU) = ", C_visc(S_ROTU,1)
-       write (6,'(a,L1)')     "vert_diffuse                   = ", vert_diffuse
+
+       write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
+       if (Laplace_sclr /= 0) &
+            write (6,'(3(a,es8.2))') "C_sclr = ",  &
+            C_visc(S_MASS,1), " nu_sclr = ", nu_scale (S_MASS,1), " tau_sclr = ", dt_init / C_visc(S_MASS,1) / HOUR
+       if (Laplace_divu /= 0) &
+            write (6,'(3(a,es8.2))') "C_divu = ",  &
+            C_visc(S_DIVU,1), " nu_divu = ", nu_scale (S_DIVU,1), " tau_divu = ", dt_init / C_visc(S_DIVU,1) / HOUR
+       if (Laplace_rotu /= 0) &
+            write (6,'(3(a,es8.2))') "C_rotu = ",  &
+            C_visc(S_ROTU,1), " nu_rotu = ", nu_scale (S_ROTU,1), " tau_rotu = ", dt_init / C_visc(S_ROTU,1) / HOUR
+
+       write (6,'(/,a,L1)')   "vert_diffuse                   = ", vert_diffuse
        write (6,'(a,L1)')     "tke_closure                    = ", tke_closure
        write (6,'(a,es10.4)') "dt_write [d]                   = ", dt_write/DAY
        write (6,'(a,i6)')     "CP_EVERY                       = ", CP_EVERY
@@ -165,9 +175,9 @@ contains
 
        write (6,'(/,a)')      "TEST CASE PARAMETERS"
        write (6,'(a,a)')      "Linear solver                  = ", linear_solver
-       write (6,'(a,es11.4)') "max_depth                 [m]  = ", abs (max_depth)
-       write (6,'(a,es11.4)') "mixed_layer               [m]  = ", abs (mixed_layer)
-       write (6,'(a,es11.4)') "thermocline               [m]  = ", abs (thermocline)
+       write (6,'(a,es11.4)') "max_depth                 [m]  = ", max_depth
+       write (6,'(a,es11.4)') "z_mixed                   [m]  = ", z_mixed
+       write (6,'(a,es11.4)') "z_linear                  [m]  = ", z_linear
        write (6,'(a,a)')      "vertical coordinates           = ", trim (coords)
        write (6,'(a,es11.4)') "density perturbation [kg/m^3]  = ", drho
        write (6,'(a,es11.4)') "Brunt-Vaisala freq      [1/s]  = ", bv
@@ -194,8 +204,8 @@ contains
        write (6,'(a,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(a,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(a,es11.4)') "dx_max                   [km]  = ", dx_avg(min_level) / KM
-       write (6,'(a,es11.4)') "dx_avg(max_level)                   [km]  = ", dx_avg(max_level) / KM
-       write (6,'(a,es11.4)') "dt_cfl                   [s]   = ", dt_cfl
+       write (6,'(a,es11.4)') "dx_avg(max_level)        [km]  = ", dx_avg(max_level) / KM
+       write (6,'(a,es11.4)') "dt_init                   [s]  = ", dt_init
        write (6,'(a,es11.4)') "External scale l0        [km]  = ", lambda0  / KM
        write (6,'(a,es11.4)') "Internal scale l1        [km]  = ", lambda1  / KM
        write (6,'(a,es11.4)') "Inertial layer           [km]  = ", delta_I  / KM
@@ -285,8 +295,9 @@ contains
 
     if (rank == 0) then
        open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
-       write (6,'(a,f10.4,a,i2,a,i12,a,es9.2)') &
+       write (6,'(a,f10.4,a,f8.1, a,i2,a,i12,a,es9.2)') &
             'time [d] = ', time / DAY, &
+            ' dt [s] = ', dt, &
             ' Jmax = ',    level_end, &
             ' dof = ',     sum (n_active), &
             ' cpu = ',     timing
@@ -485,21 +496,33 @@ contains
     if (zlevels == 1) then
        buoyancy_init = 0.0_dp
     elseif (zlevels == 2) then
-       if (z >= mixed_layer) then
+       if (z >= z_mixed) then
           buoyancy_init = - drho / ref_density
        else
           buoyancy_init = 0.0_dp
        end if
     elseif (zlevels >= 3) then
-       if (z >= mixed_layer) then                           ! constant density perturbation near surface
-          buoyancy_init = - drho / ref_density
-       elseif (z <= mixed_layer .and. z > thermocline) then ! linear stratification
-          buoyancy_init = - (z - thermocline)/(mixed_layer - thermocline) * drho / ref_density
-       elseif (z <= thermocline) then                       ! zero density perturbation at depth
-          buoyancy_init = 0.0_dp
-       end if
+       buoyancy_init = (ref_density - density (z)) / ref_density
     end if
   end function buoyancy_init
+
+  real(8) function density (z)
+    implicit none
+    real(dp) :: z
+    real(dp) :: eps_l ! thickness of linear stratification layer
+
+    if (z_linear == max_depth) then  ! constant/linear stratification
+       if (z >= z_mixed) then ! constant density perturbation near surface
+          density = ref_density + drho
+       else                       ! linear stratification
+          density = ref_density + (z - z_linear) / (z_mixed - z_linear) * drho
+       end if
+    else ! tanh stratification
+       eps_l = (z_mixed - z_linear) / 3 
+       
+       density = ref_density + drho/2 * ( 1.0_dp + tanh ( (z - z_mixed + 2 * eps_l) / eps_l) );
+    end if
+  end function density
 
   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
@@ -544,7 +567,7 @@ contains
     dt_init = cfl_num * dx_avg(max_level) / (u_wbc + wave_speed)
     dt = dt_init
 
-    C_visc = 0.9_dp
+    C_visc = 0.5_dp
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -824,8 +847,8 @@ contains
        a_vert(0) = 0.0_dp; a_vert(1) = 1.0_dp
        b_vert(0) = 1.0_dp; b_vert(1) = 0.0_dp
     elseif (zlevels == 2) then 
-       a_vert(0) = 0.0_dp; a_vert(1) = 0.0_dp;                   a_vert(2) = 1.0_dp
-       b_vert(0) = 1.0_dp; b_vert(1) = mixed_layer/max_depth; b_vert(2) = 0.0_dp
+       a_vert(0) = 0.0_dp; a_vert(1) = 0.0_dp;            a_vert(2) = 1.0_dp
+       b_vert(0) = 1.0_dp; b_vert(1) = z_mixed/max_depth; b_vert(2) = 0.0_dp
     elseif (zlevels >= 3) then
        if (trim (coords) == "chebyshev") then
           do k = 0, zlevels
@@ -947,8 +970,12 @@ contains
 
     real(8), parameter            :: theta_b = 0.0_dp, theta_s = 7.0_dp
     real(8), parameter            :: hc_min = -200 * METRE ! minimum depth of uniform layer region
-    
-    hc = abs (min (mixed_layer, hc_min)) 
+
+    if (z_linear == max_depth) then ! uniform to bottom of mixed layer
+       hc = abs (min (z_mixed, hc_min))
+    else                            ! uniform to bottom of linear layer
+       hc = abs (min (z_linear, hc_min))
+    end if
     
     cff1 = 1.0_dp / sinh (theta_s)
     cff2 = 0.5 / tanh (0.5 * theta_s)
