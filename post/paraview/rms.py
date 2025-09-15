@@ -49,7 +49,7 @@ for t in range (t1, t2+1):
         print("rms %s of %s is" % (field, infile), end=" ")
 
         # Load the input vtk file
-        vtk_data = vtk.vtkUnstructuredGridReader()
+        vtk_data = vtk.vtkDataSetReader()
         vtk_data.ReadAllScalarsOn()
         vtk_data.SetFileName(infile)
         vtk_data.Update()
