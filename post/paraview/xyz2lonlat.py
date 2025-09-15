@@ -291,5 +291,5 @@ for t in range (t1, t2+1):
             writer.Write()
 
 # Do not remove all  .vtk files
-#for file in glob.glob("*tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk"):
-#    os.remove(file)
+for file in glob.glob("*tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk"):
+    os.remove(file)
