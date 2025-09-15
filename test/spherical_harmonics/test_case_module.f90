@@ -102,6 +102,8 @@ contains
     read (fid,*) varname, angular_order
     close(fid)
 
+    resume = cp_beg
+
     k_min = 1 ; k_max = zlevels
   end subroutine read_test_case_parameters
 

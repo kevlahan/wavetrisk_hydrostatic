@@ -515,12 +515,12 @@ contains
        if (z >= z_mixed) then ! constant density perturbation near surface
           density = ref_density + drho
        else                       ! linear stratification
-          density = ref_density + (z - z_linear) / (z_mixed - z_linear) * drho
+          density = ref_density + drho * (z - z_linear) / (z_mixed - z_linear)
        end if
     else ! tanh stratification
        eps_l = (z_mixed - z_linear) / 3 
        
-       density = ref_density + drho/2 * ( 1.0_dp + tanh ( (z - z_mixed + 2 * eps_l) / eps_l) );
+       density = ref_density + drho * ( 1.0_dp + tanh ( (z - z_mixed + 2 * eps_l) / eps_l) ) / 2;
     end if
   end function density
 

@@ -572,8 +572,10 @@ contains
     implicit none
 
     ! Delete intermediate files
-    command = '\rm -f '//trim(run_id)//'_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]*spec'
-    call system (trim(command))
+    if (cp_beg /= cp_end) then
+       command = '\rm -f '//trim(run_id)//'_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]*spec'
+       call system (trim(command))
+    end if
 
     ! Compress output
     command = 'bash -c "ls -1 '//trim(run_id)//'*_spec > '//trim(run_id)//'_tmp1"'
