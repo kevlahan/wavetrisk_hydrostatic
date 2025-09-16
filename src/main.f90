@@ -111,7 +111,7 @@ contains
        call count_active
        if (trim (test_case) /= "make_NCAR_topo" .or. trim (test_case) /= "save_vtk_data") call write_checkpoint
     end if
-    call write_and_export (vtk_grid)
+    if (trim (test_case) /= "spherical_harmonics") call write_and_export (vtk_grid)
     call barrier
 
 #ifdef PHYSICS
