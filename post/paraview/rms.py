@@ -39,7 +39,7 @@ t2    = int(sys.argv[5])
 dt    = int(sys.argv[6])
 field = sys.argv[7] 
 
-outfile = run+"+"+field+"_rms.txt"
+outfile = run+"_"+field+"_rms.txt"
 f = open (outfile, "w")
 
 for t in range (t1, t2+1):
