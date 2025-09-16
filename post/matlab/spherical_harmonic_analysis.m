@@ -15,13 +15,13 @@ end
 clear; clc; 
 drake = true;
 if drake
-    zlevels   = 60;
+    zlevels   = 12;
 
     test_case = "drake";
     run_id    = "drakeJ8Z"+num2str(zlevels,'%2.2d');
-    type      = "curlu";
+    type      = "u";
     avg       = true; cp_min=120; cp_max=120;
-    power     = true;     % plot power law fit
+    power     = false;     % plot power law fit
     
     if zlevels == 60 
         layers = [1 6 30 60];
@@ -46,7 +46,7 @@ else
 end
 
 plot_spec   = true;     % plot spectrum
-plot_scales = true ;    % plot length scales
+plot_scales = false ;    % plot length scales
 col_spec    = "b-";     % colour for energy spectrum
 col_power   = "r-";     % colour for power law
 

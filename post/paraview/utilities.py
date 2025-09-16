@@ -3,8 +3,32 @@ import sys
 import fnmatch
 import numpy as np
 import vtk
+import tarfile
 
 # Contains various useful functions
+
+def safe_extract(tar, path=".", members=None):
+    # Safely extract files, ensuring no files are extracted outside the target directory.
+
+    for member in tar.getmembers():
+        if not os.path.abspath(os.path.join(path, member.name)).startswith(os.path.abspath(path)):
+            raise Exception(f"Unsafe extraction attempt: {member.name}")
+    tar.extractall(path, members, filter="data")
+    
+def untar_files (file):
+    # Untars time t data
+
+    directory = os.getcwd()
+    output_directory = directory
+    
+    tar_path = os.path.join(directory, file)
+    try:
+        with tarfile.open(tar_path, 'r:*') as tar:
+            safe_extract(tar, path=output_directory)
+    except tarfile.TarError as e:
+        print(f"    Error extracting {file}: {e}")
+    except Exception as e:
+        print(f"    Security issue extracting {file}: {e}")
 
 def Calculate (data_cells, field, formula, result_name) :
     # Computes formula applied to the specified field the data_cells

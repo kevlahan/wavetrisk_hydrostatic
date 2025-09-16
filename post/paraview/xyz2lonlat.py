@@ -13,33 +13,7 @@ from utilities import *
 import vtk
 import subprocess
 from contextlib import suppress
-import tarfile
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
-
-def safe_extract(tar, path=".", members=None):
-    # Safely extract files, ensuring no files are extracted outside the target directory.
-
-    for member in tar.getmembers():
-        if not os.path.abspath(os.path.join(path, member.name)).startswith(os.path.abspath(path)):
-            raise Exception(f"Unsafe extraction attempt: {member.name}")
-    tar.extractall(path, members, filter="data")
-    
-def untar_files(t):
-    # Untars time t data
-    
-    file = run+'_tri_'+str(t).zfill(4)+".vtk.tgz"
-    
-    directory = os.getcwd()
-    output_directory = directory
-    
-    tar_path = os.path.join(directory, file)
-    try:
-        with tarfile.open(tar_path, 'r:*') as tar:
-            safe_extract(tar, path=output_directory)
-    except tarfile.TarError as e:
-        print(f"    Error extracting {file}: {e}")
-    except Exception as e:
-        print(f"    Security issue extracting {file}: {e}")
                     
 # Main program
 if (len(sys.argv)<7):
@@ -59,24 +33,25 @@ if (len(sys.argv)<7):
     exit(0)
 
 run       = sys.argv[1]
-Jmin      = int(sys.argv[2])
-Jmax      = int(sys.argv[3])
-z1        = int(sys.argv[4])
-z2        = int(sys.argv[5])
-t1        = int(sys.argv[6])
-t2        = int(sys.argv[7])
+Jmin      = int (sys.argv[2])
+Jmax      = int (sys.argv[3])
+z1        = int (sys.argv[4])
+z2        = int (sys.argv[5])
+t1        = int (sys.argv[6])
+t2        = int (sys.argv[7])
 straight  = sys.argv[8]
 Delaunay  = sys.argv[9]
 
 # Grid dimensions (same number of rectangular cells as lozenge cells on the sphere) 
-lat_dim  = int(np.sqrt((10*4**Jmax + 2)/2))
+lat_dim  = int (np.sqrt((10*4**Jmax + 2)/2))
 lon_dim  = 2*lat_dim
 
 dtheta_min = 180/lat_dim
 dtheta_max = dtheta_min * 2**(Jmax - Jmin)
 
 for t in range (t1, t2+1):
-    untar_files(t)
+    file = run+'_tri_'+str(t).zfill(4)+".vtk.tgz"
+    untar_files (file)
     for z in range (z1, z2+1):
         # Load the input vtk file
         infile  = run+"_tri_"+str(z).zfill(3)+"_"+str(t).zfill(4)
@@ -267,7 +242,7 @@ for t in range (t1, t2+1):
                 for j in range(3):
                     pid = pt_ids.GetId(j)
                     coord = list(points.GetPoint(pid))
-                    if (np.abs(np.abs(coord[0])-180)<dtheta): # modify to avoid gaps if necessary
+                    if (np.abs(np.abs(coord[0])-180)<2*dtheta): # modify to avoid gaps if necessary
                         coord[0] = np.sign(coord[0]) * 180
                         points.SetPoint(pid, coord)
                     if (np.abs(np.abs(coord[1])-90)<dtheta):  # modify to avoid gaps if necessary
@@ -290,6 +265,6 @@ for t in range (t1, t2+1):
             writer.SetInputData(data)
             writer.Write()
 
-# Do not remove all  .vtk files
-for file in glob.glob("*tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk"):
-    os.remove(file)
+    # Remove all .vtk files
+    for file in glob.glob("*tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk"):
+        os.remove(file)
