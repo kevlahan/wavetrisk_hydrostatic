@@ -14,7 +14,9 @@ import vtk
 import subprocess
 from contextlib import suppress
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
-                    
+
+verbose = True # echo file being processed
+
 # Main program
 if (len(sys.argv)<7):
     print("\nUsage: python xyz2lonlat.py run Jmin Jmax z1 z2 t1 t2 Delaunay\n")
@@ -41,19 +43,22 @@ t2        = int (sys.argv[7])
 Delaunay  = sys.argv[8]
 
 # Grid dimensions (same number of rectangular cells as lozenge cells on the sphere) 
-lat_dim  = int (np.sqrt((10*4**Jmax + 2)/2))
-lon_dim  = 2*lat_dim
+lat_dim = int (np.sqrt((10*4**Jmax + 2)/2))
+lon_dim = 2*lat_dim
 
 dtheta_min = 180/lat_dim
 dtheta_max = dtheta_min * 2**(Jmax - Jmin)
 
 for t in range (t1, t2+1):
     file = run+'_tri_'+str(t).zfill(4)+".vtk.tgz"
+    if verbose: print ("Uncompressing file ", file)
     untar_files (file)
     for z in range (z1, z2+1):
         # Load the input vtk file
         infile  = run+"_tri_"+str(z).zfill(3)+"_"+str(t).zfill(4)
         outfile = run+"_tri_lonlat_"+str(z).zfill(3)+"_"+str(t).zfill(4)
+        if verbose: print ("Processing file ", infile)
+        
         vtkreader = vtk.vtkDataSetReader()
         vtkreader.ReadAllScalarsOn()
         vtkreader.SetFileName(infile+".vtk")
