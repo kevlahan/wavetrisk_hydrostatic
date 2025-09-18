@@ -52,10 +52,11 @@ ifeq ($(SYSTEM),Darwin)
   LIBS       += -L$(NETCDF_DIR)/lib
  endif
 else
- MACHINE := $(shell hostname -s)
- $(info Machine name: $(MACHINE))
+ MACHINE := $(shell scontrol show config 2>/dev/null | \
+   awk -F= '/^ClusterName/{sub(/^[[:space:]]+/,"",$$2); sub(/[[:space:]]+$$/,"",$$2); print tolower($$2); exit}')
+ $(info Machine: $(CLUSTER))
 
- ifeq ($(MACHINE),$(filter $(MACHINE), l5 narval)) # Compute Canada machines: module load StdEnv netcdf 
+ ifeq ($(MACHINE),$(filter $(MACHINE), nibi trillium narval)) # Compute Canada machines: module load StdEnv netcdf 
   LAPACK = -lflexiblas  # module load flexiblas
  endif
 
