@@ -15,16 +15,17 @@ end
 clear; clc; 
 drake = true;
 if drake
-    zlevels   = 12;
+    zlevels   = 60;
 
     test_case = "drake";
     run_id    = "drakeJ8Z"+num2str(zlevels,'%2.2d');
     type      = "u";
-    avg       = true; cp_min=120; cp_max=120;
-    power     = false;     % plot power law fit
+    avg       = true; cp_min=25; cp_max=25;
+    power     = true;     % plot power law fit
     
     if zlevels == 60 
-        layers = [1 6 30 60];
+        layers = [1 6 25 55 60];
+        %layers = 1:60;
     elseif zlevels == 12
         layers = 1:12;
     elseif zlevels == 6
@@ -46,7 +47,7 @@ else
 end
 
 plot_spec   = true;     % plot spectrum
-plot_scales = false ;    % plot length scales
+plot_scales = true ;    % plot length scales
 col_spec    = "b-";     % colour for energy spectrum
 col_power   = "r-";     % colour for power law
 
@@ -58,6 +59,7 @@ end
 
 if drake
     range = [deltaI deltaSM] * KM; % range for power law fit
+    range = [deltaI*0.8 deltaSM*1.2] * KM;
 else
     range = [2e3 6e2];
 end
@@ -138,7 +140,7 @@ axis([xmin xmax ymin ymax])
 if plot_scales
     if strcmp(test_case,"drake")
         plot_scale(deltaI*KM,"\delta_{I}");
-        %plot_scale(lambda1*KM,"\lambda_1");
+        plot_scale(lambda1*KM,"\lambda_1");
         plot_scale(deltaSM*KM,"\delta_{SM}");
         %plot_scale(deltaM*KM,"\delta_{M}");
     elseif strcmp(test_case,"jet")
@@ -253,7 +255,7 @@ y = ylim;
 x = scale;
 h = loglog([x x], y, "k","linewidth",1.5);
 set(get(get(h,"Annotation"),"LegendInformation"),"IconDisplayStyle","off");
-text(0.92*scale, 10*y(1), name, "fontsize", 16)
+text(0.92*scale, 2.5*y(1), name, "fontsize", 16)
 end
 
 function [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case)
@@ -269,8 +271,8 @@ if strcmp(test_case,"drake")
     drho        = -4;
     ref_density =  1030;
     H           =  4e3;
-    H2          =  200;
-    H1          =  H - H2;
+    H_linear    =  300;     % depth of linear scaling range
+    drho_dz     = drho / H_linear;
 
     visc        =  C_visc * dx^(2*Laplace)/dt;
     scale_omega =  6;
@@ -282,10 +284,9 @@ if strcmp(test_case,"drake")
     beta        =  2*omega*cos(deg2rad(theta))/radius;
     r_b         =  4e-4; % bottom friction
 
-    N_bv        = sqrt (g * abs(drho/H1)/ref_density); 
+    N_bv        = sqrt (g * abs(drho_dz)/ref_density); 
     c0          = sqrt(g*H);
     c1          = N_bv * sqrt(H/g)/pi * c0;
-    c1          = 4.03; % internal wave speed
     deltaM      = (visc/beta)^(1/(2*Laplace+1)); % Munk layer
 elseif strcmp(test_case,"jet")
     visc        =  1.63e7; % hyperviscosity
