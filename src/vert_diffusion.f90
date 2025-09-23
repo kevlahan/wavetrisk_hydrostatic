@@ -62,11 +62,12 @@ module vert_diffusion_mod
   real(dp) :: rb_0        = 4.0e-4_dp            ! bottom friction
   real(dp) :: z_0         = 1.0e-1_dp            ! roughness parameter of free surface
 
-  ! NEMO 2-band solar forcing (5.4)
-  real(dp) :: Q_sr        = 0.0_dp               ! incoming solar heat flux (171.25 W/m^2?)
+  ! NEMO 2-band solar forcing (5.4) modified for buoyancy
+  real(dp) :: Q_sr        = 0.0_dp               ! incoming solar heat flux (set to 171.25 W/m^2 average value to include solar forcing)
   real(dp) :: R           = 0.58_dp              ! fraction of Qsr that resides in almost non-penetrative wavebands
   real(dp) :: xi_0        = 0.35 * METRE         ! longwave penetration depth 
   real(dp) :: xi_1        =   23 * METRE         ! shortwave penetration depth (400 nm to 700 nm)
+  real(dp) :: alpha_k                            ! thermal expansion coefficient
 contains
   subroutine vertical_diffusion
     ! Backwards Euler split step for vertical diffusion
@@ -74,6 +75,8 @@ contains
     use time_integr_mod
     implicit none
     integer :: l
+
+    alpha_k = a_0 / ref_density
 
     ! Compute eddy diffusivity and eddy viscosity at nodes and layer interfaces at all grid points
     do l = level_end, level_start, -1
@@ -98,7 +101,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                         :: d, id, info, k, l
+    integer                          :: d, id, info, k, l
     real(dp)                         :: eta, filt, turb, z
     real(dp), dimension(0:zlevels)   :: e, l_eps, l_k, Nsq,  dUdZ2
     real(dp), dimension(1:zlevels)   :: dz, Umag
@@ -269,7 +272,7 @@ contains
   end subroutine turbulent_diffusion
 
   subroutine backwards_euler_temp (dom, i, j, z_null, offs, dims)
-    ! Backwards Euler step for temp variable
+    ! Backwards Euler step for buoyancy
     implicit none
     type(Domain)                   :: dom
     integer                        :: i, j, z_null
@@ -320,7 +323,7 @@ contains
     k = zlevels
     diag_l(k-1) = - coeff (-1) ! sub-diagonal
     diag(k)     = 1.0_dp - diag_u(k-1)
-    rhs(k)      = b() + dt * (top_buoy_flux (dom, i, j, z_null, offs, dims) + Q_sr/(ref_density*c_p)) / dz(k)
+    rhs(k)      = b() + dt * (top_buoy_flux (dom, i, j, z_null, offs, dims) + Q_sr * alpha_k /(ref_density*c_p)) / dz(k)
 
     ! Solve tridiagonal linear system
     call dgtsv (zlevels, 1, diag_l, diag, diag_u, rhs, zlevels, info)
@@ -352,10 +355,10 @@ contains
     end function b
 
     real(dp) function solar_flux ()
-      ! Net solar flux in layer 1 <= k < zlevels
+      ! Net solar flux in layer 1 <= k < zlevels from NEMO modified for buoyancy
       implicit none
 
-      solar_flux = (irradiance (eta-z(k)) - irradiance (eta-z(k-1))) / (ref_density * c_p)
+      solar_flux = (irradiance (eta-z(k)) - irradiance (eta-z(k-1))) * alpha_k / (ref_density * c_p)
     end function solar_flux
   end subroutine backwards_euler_temp
 
