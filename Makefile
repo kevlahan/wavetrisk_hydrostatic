@@ -54,13 +54,13 @@ ifeq ($(SYSTEM),Darwin)
 else
  MACHINE := $(shell scontrol show config 2>/dev/null | \
    awk -F= '/^ClusterName/{sub(/^[[:space:]]+/,"",$$2); sub(/[[:space:]]+$$/,"",$$2); print tolower($$2); exit}')
- $(info Machine: $(CLUSTER))
+ $(info Machine: $(MACHINE))
 
  ifeq ($(MACHINE),$(filter $(MACHINE), nibi trillium narval)) # Compute Canada machines: module load StdEnv netcdf 
   LAPACK = -lflexiblas  # module load flexiblas
  endif
 
- ifeq ($(MACHINE),$(filter $(MACHINE), bbserv))  # module load gcc mvapich netlib-lapack 
+ ifeq ($(MACHINE),$(filter $(MACHINE), bbcluster2))  # module load gcc mvapich netlib-lapack 
   FLAGS_COMP += -I$(NETLIB_LAPACK_ROOT)/include
   LIBS       += -L$(NETLIB_LAPACK_ROOT)/lib64
   ifeq ($(TOPO), true)                           # module load gcc mvapich netlib-lapack netcdf-fortran
