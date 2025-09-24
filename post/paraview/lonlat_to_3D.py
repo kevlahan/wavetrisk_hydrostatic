@@ -201,11 +201,11 @@ class Cell3D():
             meanAvRho = merge_mean(meanRho, lon_dim, meanAvRho, Ntot)
 
             # Compute covariances
-            covarT, meanT, _ = compute_covar(pnt_data, "Temperature",        "Temperature")        # temperature 
-            covarU, meanU, _ = compute_covar(pnt_data, "VelocityZonal",      "VelocityZonal")      # zonal velocity
-            covarV, meanV, _ = compute_covar(pnt_data, "VelocityMeridional", "VelocityMeridional") # meridional velcoity
-            covarUV, _,    _ = compute_covar(pnt_data, "VelocityZonal",      "VelocityMeridional") # momentum flux
-            covarVT, _,    _ = compute_covar(pnt_data, "VelocityMeridional", "Temperature")        # eddy heat flux
+            covarT, meanT, _ = compute_covar(pnt_data, "Temperature",         "Temperature")         # temperature 
+            covarU, meanU, _ = compute_covar(pnt_data, "Velocity_Zonal",      "Velocity_Zonal")      # zonal velocity
+            covarV, meanV, _ = compute_covar(pnt_data, "Velocity_Meridional", "Velocity_Meridional") # meridional velcoity
+            covarUV, _,    _ = compute_covar(pnt_data, "Velocity_Zonal",      "Velocity_Meridional") # momentum flux
+            covarVT, _,    _ = compute_covar(pnt_data, "Velocity_Meridional", "Temperature")         # eddy heat flux
         
             # Update average covariances
             covarAvT,  newAvT, _ = merge_covariance(covarT,  meanT, meanT, lon_dim, covarAvT,  meanAvT, meanAvT, Ntot)
