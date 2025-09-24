@@ -64,9 +64,9 @@ module vert_diffusion_mod
 
   ! NEMO 2-band solar forcing (5.4) modified for buoyancy
   real(dp) :: Q_sr        = 0.0_dp               ! incoming solar heat flux (set to 171.25 W/m^2 average value to include solar forcing)
-  real(dp) :: R           = 0.58_dp              ! fraction of Qsr that resides in almost non-penetrative wavebands
-  real(dp) :: xi_0        = 0.35 * METRE         ! longwave penetration depth 
-  real(dp) :: xi_1        =   23 * METRE         ! shortwave penetration depth (400 nm to 700 nm)
+  real(dp) :: R_lw        = 0.58_dp              ! fraction of Qsr that in almost non-penetrative (longwave) wavebands
+  real(dp) :: xi_lw       = 0.35 * METRE         ! longwave penetration depth 
+  real(dp) :: xi_sw       =   23 * METRE         ! shortwave penetration depth (400 nm to 700 nm)
   real(dp) :: alpha_k                            ! thermal expansion coefficient
 contains
   subroutine vertical_diffusion
@@ -185,7 +185,7 @@ contains
       ! Initializations
       use io_mod, only : kinetic_energy
       implicit none
-      integer :: k, l
+      integer  :: k, l
       real(dp) :: Ri
 
       do k = 1, zlevels
@@ -279,7 +279,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                         :: d, id, info, k, l
+    integer                          :: d, id, info, k, l
     real(dp)                         :: eta, rho_dz, theta
 
     real(dp), dimension(0:zlevels)   :: z
@@ -367,7 +367,7 @@ contains
     implicit none
     real(dp) :: depth ! depth below free surface
 
-    irradiance = Q_sr * (R * exp (-depth/xi_0) + (1.0_dp - R) * exp (-depth/xi_1))
+    irradiance = Q_sr * (R_lw * exp (-depth/xi_lw) + (1.0_dp - R_lw) * exp (-depth/xi_sw))
   end function irradiance
 
   subroutine backwards_euler_velo (dom, i, j, z_null, offs, dims)
@@ -378,7 +378,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                                :: d, e, id, info, k, l
+    integer                                 :: d, e, id, info, k, l
     real(dp), dimension(1:EDGE,1:zlevels)   :: diag, dz, rhs
     real(dp), dimension(1:EDGE,1:zlevels-1) :: diag_l, diag_u, dzl
     real(dp), dimension(1:zlevels)          :: dd, r
@@ -442,10 +442,10 @@ contains
   real(dp) function N_sq  (dom, i, j, l, offs, dims, dz)
     ! Brunt-Vaisala number N^2 = -g drho/dz / rho0 at interface 0 <= l <= zlevels
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, l
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain)                    :: dom
+    integer                         :: i, j, l
+    integer,  dimension(N_BDRY+1)   :: offs
+    integer,  dimension(2,N_BDRY+1) :: dims
     real(dp), dimension(1:zlevels)  :: dz
 
     if (l < zlevels .and. l > 0) then
@@ -460,7 +460,7 @@ contains
       implicit none
       integer :: l
 
-      integer :: d, id
+      integer  :: d, id
       real(dp) :: dzl
       real(dp) :: b_above, b_below ! buoyancy above and below interface l
 
@@ -613,7 +613,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id_i
+    integer  :: d, id_i
     real(dp) :: dz_k
 
     d = dom%id + 1
@@ -663,7 +663,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                    :: d, id
+    integer                     :: d, id
     real(dp), dimension(1:EDGE) :: dz_k
 
     d = dom%id + 1
@@ -681,8 +681,8 @@ contains
   contains
     function velo_flux (l)
       ! Flux at upper interface (l=1) or lower interface (l=-1)
-      implicit none
-      integer               :: l
+      implicit none 
+      integer                :: l
       real(dp), dimension(3) :: velo_flux
 
       real(dp), dimension(3) :: dzl, visc
