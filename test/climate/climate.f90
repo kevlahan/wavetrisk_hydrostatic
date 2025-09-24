@@ -19,9 +19,10 @@ program climate
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   adapt_dt                 = .true.                           ! adapt time step
+  if (physics_type == "Held_Suarez") adapt_dt = .false.
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
-  log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
+  log_min_mass             = .false.                           ! compute minimum mass at each dt (for checking stability issues)
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -45,7 +46,7 @@ program climate
   radius                   = 6371     * KM                    ! mean radius of the Earth
   ref_density              = ref_density_air                  ! reference density of air
   T_0                      = 285      * KELVIN                ! reference temperature (simple physics)
-  u_0                      =  30      * METRE/SECOND          ! geostrophic velocity
+  u_0                      =  50      * METRE/SECOND          ! geostrophic velocity
   
   ! Derived quantities
   c_v                      = c_p - R_d                        ! specific heat at constant volume c_v = c_p - R_d
