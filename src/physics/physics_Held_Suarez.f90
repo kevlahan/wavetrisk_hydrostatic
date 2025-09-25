@@ -16,7 +16,7 @@ module physics_Held_Suarez_mod
   real(dp) :: k_a            = 1.0_dp/40.0_dp / DAY                 ! cooling at free surface of atmosphere
   real(dp) :: k_f            = 1.0_dp         / DAY                 ! Rayleigh friction
   real(dp) :: k_s            = 0.25_dp        / DAY                 ! cooling at surface
-  real(dp) :: delta_T        = 65.0_dp        * KELVIN/METRE        ! meridional temperature gradient
+  real(dp) :: delta_T        = 60.0_dp        * KELVIN/METRE        ! meridional temperature gradient
   real(dp) :: delta_theta    = 10.0_dp        * KELVIN/METRE        ! vertical temperature gradient
   real(dp) :: sigma_b        = 0.7_dp                               ! normalized tropopause pressure height
   real(dp) :: gamma_T        = 5e-3_dp        * KELVIN/METRE        ! temperature lapse rate
@@ -83,16 +83,18 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer  :: id
-    real(dp) :: k_T, lat, lon, sigma, theta_equil
+    real(dp) :: k_T, lat, lon, rho_dz, rho_dz_dtheta, sigma, theta_equil
 
     id = idx (i, j, offs, dims) + 1
 
-    call cart2sph (dom%node%elts(id), lon, lat)
+    rho_dz        = mean_m(id) + mass(id)
+    rho_dz_dtheta = mean_t(id) + temp(id)
 
+    call cart2sph (dom%node%elts(id), lon, lat)
     call cal_theta_eq (dom%press%elts(id), dom%surf_press%elts(id), lat, theta_equil, k_T)
 
     dmass(id) = 0.0_dp
-    dtemp(id) = - k_T * temp(id)
+    dtemp(id) = - k_T * (rho_dz_dtheta - rho_dz * theta_equil)
   end subroutine trend_scalars
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
@@ -147,9 +149,10 @@ contains
     implicit none
     real(dp) :: p, p_s, lat, theta_equil, k_T
 
-    real(dp) :: cs2, sigma, sigma_c, theta_force, theta_tropo
+    real(dp) :: cs2, sn2, sigma, sigma_c, theta_force, theta_tropo
 
     cs2 = cos (lat)**2
+    sn2 = sin (lat)**2
 
     sigma = (p - p_top) / (p_s - p_top)
     sigma_c = 1.0_dp - sigma_b
@@ -158,7 +161,7 @@ contains
 
     theta_tropo = T_tropo * (p / p_0)**(-kappa)  ! potential temperature at tropopause
 
-    theta_force = T_mean - delta_T * (1.0_dp - cs2) - delta_theta * cs2 * log (p / p_0)
+    theta_force = T_mean - delta_T * sn2 - delta_theta * cs2 * log (p / p_0)
 
     theta_equil = max (theta_tropo, theta_force) ! equilibrium temperature
   end subroutine cal_theta_eq
