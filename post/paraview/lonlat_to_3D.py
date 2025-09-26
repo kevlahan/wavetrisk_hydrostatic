@@ -203,8 +203,8 @@ class Cell3D():
             # Compute covariances
             covarT, meanT, _ = compute_covar(pnt_data, "Temperature",         "Temperature")         # temperature 
             covarU, meanU, _ = compute_covar(pnt_data, "Velocity_Zonal",      "Velocity_Zonal")      # zonal velocity
-            covarV, meanV, _ = compute_covar(pnt_data, "Velocity_Meridional", "Velocity_Meridional") # meridional velcoity
-            covarUV, _,    _ = compute_covar(pnt_data, "Velocity_Zonal",      "Velocity_Meridional") # momentum flux
+            covarV, meanV, _ = compute_covar(pnt_data, "Velocity_Meridional", "Velocity_Meridional") # meridional velocity
+            covarUV, _,    _ = compute_covar(pnt_data, "Velocity_Meridional", "Velocity_Zonal")      # momentum flux
             covarVT, _,    _ = compute_covar(pnt_data, "Velocity_Meridional", "Temperature")         # eddy heat flux
         
             # Update average covariances
@@ -250,9 +250,9 @@ class Cell3D():
                 statistics.SetSpacing(rgrid.GetSpacing())
                 statistics.SetOrigin(rgrid.GetOrigin())
 
-                ke        = 0.5 * meanAvRho * (covarAvU + covarAvV) # eddy kinetic energy
-                mom_flux  = 0.5 * meanAvRho * covarAvUV             # eddy momentum flux
-                heat_flux =       meanAvRho * covarAvVT             # eddy heat flux                  
+                ke        = 0.5 * (covarAvU + covarAvV) # eddy kinetic energy
+                mom_flux  = covarAvUV                   # eddy momentum flux
+                heat_flux = covarAvVT                   # eddy heat flux                  
 
                 add_scalar_data(covarAvT,  Nzonal, "TemperatureVariance", statistics)
                 add_scalar_data(heat_flux, Nzonal, "EddyHeatFlux",        statistics)
