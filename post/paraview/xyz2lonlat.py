@@ -15,7 +15,7 @@ import subprocess
 from contextlib import suppress
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 
-verbose = True # echo file being processed
+verbose = False # echo file being processed
 
 # Main program
 if (len(sys.argv)<7):
@@ -53,6 +53,8 @@ for t in range (t1, t2+1):
     file = run+'_tri_'+str(t).zfill(4)+".vtk.tgz"
     if verbose: print ("Uncompressing file ", file)
     untar_files (file)
+    file_vtk = run+"_tri_"+str(0).zfill(3)+"_"+str(t).zfill(4)+".vtk"
+    os.remove(file_vtk)
     for z in range (z1, z2+1):
         # Load the input vtk file
         infile  = run+"_tri_"+str(z).zfill(3)+"_"+str(t).zfill(4)
@@ -206,6 +208,6 @@ for t in range (t1, t2+1):
         writer.SetInputData(polydata)
         writer.Write()
 
-    # Remove all .vtk files
-    for file in glob.glob("*tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk"):
-        os.remove(file)
+        # Remove vtk file
+        file_vtk = run+"_tri_"+str(z).zfill(3)+"_"+str(t).zfill(4)+".vtk"
+        os.remove(file_vtk)
