@@ -649,18 +649,19 @@ if (len(sys.argv)<8):
       nz           = number of vertical layers
       seasons      = y (seasonal statistics) n (process files t1 to t2)
       season       = spring, summer, fall, winter
-      t1           = first time (if seasons = n)
-      t2           = last time  (if seasons = n)
+      t1           = first index (if seasons = n)
+      t2           = last index  (if seasons = n)
+
+    !! Must set edit start_date if not March 22 !!!
 
     Example 1: python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 n 1 365
-        processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers from time 1 to 365
+        processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for *.vtk.tgz data files 
+        with indices 1 to 365 
 
-    Example 2: python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 y spring
-        processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for spring
-
-    !! Need to edit lonlat_to_3D.py to specify which seasonal statistics to compute (spring, summer, fall or winter) !!
+    Example 2 (seasonal statistics): python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 y spring 1 365
+        processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for spring 
+        for *.vtk.tgz data  with indices 1 to 365 saved every 5 days
     
-
     If t2 does not equal t1, the following time-averaged data are saved (with suffix _season if season = y):
     run.vti             3D uniform (lon,lat,P/Ps) 3D image data
     run_zonal.vti       2D uniform (lat,P/Ps)     zonally averaged image data
@@ -686,6 +687,9 @@ if (len(sys.argv)<8):
 else:
     print("Input parameters = ", sys.argv[1:])
 
+# Edit if necessary
+start_date = datetime(1, 3, 22)  # year 1 start date
+
 # Input parameters
 run          = sys.argv[1]
 compressible = sys.argv[2]
@@ -693,27 +697,19 @@ Jmin         = int(sys.argv[3])
 Jmax         = int(sys.argv[4])
 nz           = int(sys.argv[5])
 if sys.argv[6] in ("y"):
-    seasons = True
-    season  = sys.argv[7]
+    seasons   = True
+    season    = sys.argv[7]
+    t1        = int(sys.argv[8])
+    t2        = int(sys.argv[9])
+    step_days = int(sys.argv[10])
+
+    total_days = t2 * step_days
+    n_years    = total_days // 365   
 else:
     seasons = False
-    season  = "all"
-    t1      = int(sys.argv[7])
-    t2      = int(sys.argv[8])
-
-SEASON_MMDD = {
-    "spring": (3,  20),
-    "summer": (6,  21),
-    "fall":   (9,  22),
-    "winter": (12, 21),
-}
-
-# Seasonal statistics parameters  (assumes data starts around spring equinox)
-start_date  = datetime(1, 3, 22)  # year 1 start
-step_days   = 5                   # save interval in days
-n_years     = 5                   # total number of years (set to 0 to get first year only)
-Tmax        = 365                 # last data set
-half_window = 3                   # number indices on each side (±3 -> 6+1 files)
+    season    = "all"
+    t1        = int(sys.argv[7])
+    t2        = int(sys.argv[8])
 
 # Grid dimensions (same number of rectangular cells as lozenge cells on the sphere) 
 lat_dim  = int(np.sqrt((10*4**Jmax + 2)/2))
@@ -763,32 +759,39 @@ print("\nInterpolating to uniform", lon_dim, "x", lat_dim, "x", vert_dim, "grid\
 print("Season = ", season,"\n")
 
 if seasons:
-    def ceil_div(a, b): return -(-a // b)
-    mm, dd = SEASON_MMDD[season]
+    def ceil_div(a, b):
+        return -(-a // b)
+
+    # Start dates only; end is the next season's start 
+    SEASON_START = {
+        'spring': (3, 1),   # Mar 1
+        'summer': (6, 1),   # Jun 1
+        'fall':   (9, 1),   # Sep 1
+        'winter': (12, 1),  # Dec 1
+    }
+    
+    SEASON_ORDER = ['spring', 'summer', 'fall', 'winter']
+    
+    SEASON_MONTHS = {
+        'spring': {3, 4, 5},
+        'summer': {6, 7, 8},
+        'fall':   {9, 10, 11},
+        'winter': {12, 1, 2},
+    }
+
+    if season not in SEASON_MONTHS:
+        raise ValueError("season must be one of: spring, summer, fall, winter")
+
+    allowed = SEASON_MONTHS[season]
     idxs = []
-    for year_offset in range(n_years + 1):
-        Y = start_date.year + year_offset
-        season_date = datetime(Y, mm, dd)
-
-        # Only consider seasons on/after Mar 20 and not before the global start
-        march20 = datetime(Y, 3, 20)
-        target  = max(season_date, march20, start_date)
-
-        # Nominal center index (t=1 at start_date), can be > Tmax
-        days = (target - start_date).days
-        t_center_nom = 1 + ceil_div(max(0, days), step_days)
-
-        # Build window around the nominal center, then clip to [1, Tmax]
-        t1_raw = t_center_nom - half_window
-        t2_raw = t_center_nom + half_window
-        t1 = max(1, t1_raw)
-        t2 = min(Tmax, t2_raw)
-        if t1 > t2:
-            continue
-
-        idxs = idxs + list(range(t1, t2 + 1))
+    for t in range(t1, t2 + 1):  
+        dt = start_date + timedelta(days=t * step_days)
+        if dt.month in allowed:
+            idxs.append(t)
 else:
-    idxs = range (t1, t2+1)
+    idxs = range (t1, t2 + 1)
+    
+idxs = sorted(set(idxs)) # remove duplicates and sort
 
 print(f"File indices to process: ", list(idxs),"\n")
 
