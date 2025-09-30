@@ -658,7 +658,7 @@ if (len(sys.argv)<8):
         processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for *.vtk.tgz data files 
         with indices 1 to 365 
 
-    Example 2 (seasonal statistics): python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 y spring 1 365
+    Example 2 (seasonal statistics): python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 y spring 1 365 5
         processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for spring 
         for *.vtk.tgz data  with indices 1 to 365 saved every 5 days
     
