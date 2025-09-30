@@ -54,7 +54,8 @@ for t in range (t1, t2+1):
     if verbose: print ("Uncompressing file ", file)
     untar_files (file)
     file_vtk = run+"_tri_"+str(0).zfill(3)+"_"+str(t).zfill(4)+".vtk"
-    os.remove(file_vtk)
+    if os.path.exists(file_vtk):
+        os.remove(file_vtk)
     for z in range (z1, z2+1):
         # Load the input vtk file
         infile  = run+"_tri_"+str(z).zfill(3)+"_"+str(t).zfill(4)
