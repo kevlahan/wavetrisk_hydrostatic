@@ -13,7 +13,7 @@ program climate
   call init_comm_mpi_mod
   call read_test_case_parameters   
 
-  Laplace_divu = 1
+  Laplace_divu = 2
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
@@ -22,7 +22,7 @@ program climate
   if (physics_type == "Held_Suarez") adapt_dt = .false.
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
-  log_min_mass             = .false.                           ! compute minimum mass at each dt (for checking stability issues)
+  log_min_mass             = .false.                          ! compute minimum mass at each dt (for checking stability issues)
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -31,6 +31,7 @@ program climate
   physics_model            = .true.                           ! use physics model sub-step (type is determined in input)
 
   ! Simple physics sub-models
+  obliquity                = 23.5_dp                          ! seasons
   convecAdj_model          = .true.                           ! convective adjustment module
   diurnal                  = .true.                           ! diurnal cycle 
   radiation_model          = .true.                           ! radiation module
