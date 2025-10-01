@@ -14,7 +14,7 @@ Module test_case_mod
   ! Local variables
   real(8)                              :: C_Drake = 0.9_dp
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
-  real(8)                              :: drho, drho_dz, f0, Fr, Ku, k_T, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
+  real(8)                              :: drho, f0, h_linear, Fr, Ku, k_T, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
   real(8)                              :: omega_earth, scale, scale_omega, tau_0, u_wbc, z_mixed, z_linear
   real(8),                      target :: bottom_friction_case
   real(8), allocatable, dimension(:,:) :: analytic_data
@@ -201,6 +201,12 @@ contains
           write (6,'(a,es11.4)') "Ku                    [m^2/s]  = ", Ku
        end if
        write (6,'(a,es11.4)') "buoyancy relaxation       [d]  = ", 1/k_T / DAY
+       write (6,'(a,es8.2)') "Q_sr                   [W/m^2]  = ", Q_sr
+       if (Q_sr /= 0.0_dp) then
+          write (6,'(a,es8.2)') "R_lw                            = ", R_lw
+          write (6,'(a,es8.2)') "xi_lw                      [m]  = ", xi_lw
+          write (6,'(a,es8.2)') "xi_sw                      [m]  = ", xi_sw
+       end if
        write (6,'(a,es11.4)') "f0 at 45 deg          [rad/s]  = ", f0
        write (6,'(a,es11.4,/)') "beta at 45 deg       [rad/ms]  = ", beta
        write (6,'(a,es11.4)') "dx_max                   [km]  = ", dx_avg(min_level) / KM

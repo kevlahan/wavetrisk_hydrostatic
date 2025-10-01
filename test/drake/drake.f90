@@ -36,7 +36,8 @@ program Drake
   omega_earth    = 7.29211e-5 * RAD/SECOND              
   H_earth        =          4 * KM                     
   g_earth        =    9.80616 * METRE/SECOND**2        
-  ref_density    =       1030 * KG/METRE**3            
+  ref_density    =       1030 * KG/METRE**3
+  c_p            =    3991.87 * JOULE/(KG*KELVIN) ! specific heat at constant pressure for seawater
 
   ! Earth scaling factors
   L_norm         = radius_earth
@@ -87,14 +88,18 @@ program Drake
      coords               = "uniform"
      max_depth            =   -4000 * METRE                ! total depth
      z_mixed              =    -200 * METRE                ! bottom of constant density surface mixed 
-     z_linear             =    -500 * METRE                ! bottom of linear stratification layer below mixed layer
-                                                           ! (set z_linear = max_depth for constant/linear stratification)
+     z_linear             =    -500 * METRE                ! bottom of linear stratification layer below mixed layer (set z_linear = max_depth for constant/linear stratification)
 
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
-  
+
      drho                 =      -4 * KG/METRE**3          ! density perturbation at free surface at poles
-     tau_0                =     0.1 * NEWTON/METRE**2      ! maximum wind stress
-     u_wbc                =       1 * METRE/SECOND         ! estimated western boundary current speed
+     tau_0                =     0.4 * NEWTON/METRE**2      ! maximum wind stress
+     u_wbc                =       4 * METRE/SECOND         ! estimated western boundary current speed (tanh)
+
+     ! Solar flux
+     Q_sr           =             0 * WATT/METRE**2        ! incoming solar radiation heat flux (set to zero to turn off solar forcing)
+     R_lw           =           1.0_dp                     ! proportion of flux in longwave
+     xi_lw          =           200 * METRE                ! penetration depth of solar flux
   end if
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -106,9 +111,9 @@ program Drake
   wave_speed     = sqrt (grav_accel * abs (max_depth))                        ! inertia-gravity wave speed
   dt_init        = cfl_num * 0.85 * dx_min / wave_speed                       ! average time step
   visc           = C_Drake * Area_min**Laplace_rotu / dt_init                 ! viscosity
-  Rd             = wave_speed / f0                                            ! barotropic Rossby radius of deformation             
-  drho_dz        = drho / (z_mixed - z_linear)                                ! density gradient
-  bv             = sqrt (grav_accel * abs(drho_dz)/ref_density)               ! Brunt-Vaisala frequency
+  Rd             = wave_speed / f0                                            ! barotropic Rossby radius of deformation
+  h_linear       = z_mixed - z_linear                                         ! approximate thickness of linear stratification region
+  bv             = sqrt (- grav_accel/ref_density * drho/h_linear)            ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                                          ! inertial layer
   delta_M        = (visc/beta)**(1.0_dp/(2*Laplace_rotu + 1))                 ! Munk layer scale
   delta_sm       = u_wbc / f0                                                 ! barotropic submesoscale
@@ -122,18 +127,16 @@ program Drake
      c1 = sqrt (grav_accel * abs (drho) /ref_density * mixed_layer &           
           * (max_depth - mixed_layer) / abs (max_depth)) 
   elseif (zlevels >= 3) then                                                  
-     c1 = bv * sqrt (abs (max_depth) / grav_accel) / MATH_PI * wave_speed                                      
+     c1 = bv * h_linear / MATH_PI                                   
   endif
   lambda0        = wave_speed / f0                                            ! external scale
-  lambda1        = c1 / f0                                                    ! mesoscale
+  lambda1        = c1         / f0                                            ! mesoscale
  
   ! First baroclinic Rossby radius of deformation
   if (zlevels == 1) then
      Rb = 0.0_dp
-  elseif (zlevels == 2) then
-     Rb = c1 / f0                                 
   else
-     Rb = bv * abs (max_depth) / (MATH_PI * f0)
+     Rb = lambda1                               
   end if
 
   dz = abs (max_depth) / dble (zlevels)                                       ! layer depth scale
