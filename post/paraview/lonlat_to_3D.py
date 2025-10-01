@@ -793,7 +793,7 @@ else:
     
 idxs = sorted(set(idxs)) # remove duplicates and sort
 
-print(f"File indices to process: ", list(idxs),"\n")
+print(len(idxs), "file indices to process:", list(idxs),"\n")
 
 for t in idxs:
     print("    processing file with index ", t)
