@@ -539,18 +539,21 @@ contains
 
     x_i = Coord (0.0_dp, 0.0_dp, radius)
 
-    threshold_def = 1e16_dp
-    
-    do k = 1, zlevels
-       dz     = b_vert_mass(k) * max_depth
-       z      = 0.5 * (b_vert(k) + b_vert(k-1)) * max_depth
-       rho_dz = ref_density * dz
-       b      = abs (buoyancy_init (x_i, z))
+    if (tol == 0.0_dp) then
+       threshold_def = 0.0_dp
+    else
+       threshold_def = 1e16_dp
+       do k = 1, zlevels
+          dz     = b_vert_mass(k) * max_depth
+          z      = 0.5 * (b_vert(k) + b_vert(k-1)) * max_depth
+          rho_dz = ref_density * dz
+          b      = abs (buoyancy_init (x_i, z))
 
-       threshold_def(S_MASS,k) = tol * rho_dz
-       if (b > 1e-10_dp) threshold_def(S_TEMP,k) = tol * (rho_dz * b)
-       threshold_def(S_VELO,k) = tol * Udim
-    end do
+          threshold_def(S_MASS,k) = tol * rho_dz
+          if (b > 1e-10_dp) threshold_def(S_TEMP,k) = tol * (rho_dz * b)
+          threshold_def(S_VELO,k) = tol * Udim
+       end do
+    end if
   end subroutine initialize_thresholds_case
 
   subroutine set_thresholds_case
@@ -573,7 +576,7 @@ contains
     dt_init = cfl_num * dx_avg(max_level) / (u_wbc + wave_speed)
     dt = dt_init
 
-    C_visc = 0.5_dp
+    C_visc = 0.3_dp
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
