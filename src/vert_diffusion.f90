@@ -566,8 +566,7 @@ contains
     implicit none
     real(dp) :: eta, z
     
-    !Kt_analytic = Kt_min + Kt_max * exp (-20 * (z - eta) / z_mixed)
-    Kt_analytic =  Kt_min + Kt_max * (1.0_dp - tanh ((z - z_mixed - z_mixed/4) / (z_mixed/4))) / 2
+    Kt_analytic = Kt_min + Kt_max * exp (-20 * (z - eta) / z_mixed)
   end function Kt_analytic
 
   real(dp) function Kv_analytic (z, eta)
