@@ -15,7 +15,7 @@ Module test_case_mod
   real(8)                              :: C_Drake = 0.9_dp
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
   real(8)                              :: drho, f0, h_linear, Fr, Ku, k_T, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
-  real(8)                              :: omega_earth, scale, scale_omega, tau_0, u_wbc, z_mixed, z_linear
+  real(8)                              :: omega_earth, scale, scale_omega, tau_0, u_wbc, z_linear
   real(8),                      target :: bottom_friction_case
   real(8), allocatable, dimension(:,:) :: analytic_data
   logical                              :: aligned

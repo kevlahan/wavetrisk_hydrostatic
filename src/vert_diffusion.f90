@@ -51,7 +51,7 @@ module vert_diffusion_mod
   real(dp) :: Kv_min      = 1.2e-4_dp            ! minimum/initial eddy viscosity 
   real(dp) :: Kv_mol      = 1.0e-6_dp            ! molecular viscosity of seawater (not used)
 
-  real(dp) :: mixed_layer =   -200 * METRE       ! lower boundary of mixed layer (used with tke_closure = .false.)
+  real(dp) :: z_mixed     =   -200 * METRE       ! lower boundary of mixed layer (used with tke_closure = .false.)
   
   real(dp) :: l_0         = 4.0e-2 * METRE       ! surface buoyancy minimum length scale
   real(dp) :: l_min       = 1.0e-2 * METRE       ! minimum mixing length: Kv_mol/(C_k sqrt(e_min)) 
@@ -566,14 +566,15 @@ contains
     implicit none
     real(dp) :: eta, z
     
-    Kt_analytic = Kt_min + Kt_max * exp (-20 * (z - eta) / mixed_layer)
+    !Kt_analytic = Kt_min + Kt_max * exp (-20 * (z - eta) / z_mixed)
+    Kt_analytic =  Kt_min + Kt_max * (1.0_dp - tanh ((z - z_mixed - z_mixed/4) / (z_mixed/4))) / 2
   end function Kt_analytic
 
   real(dp) function Kv_analytic (z, eta)
     ! Analytic eddy viscosity
     real(dp) :: eta, z
 
-    Kv_analytic = Kv_min + Kv_max * exp (-20 * (z - eta) / mixed_layer)
+    Kv_analytic = Kv_min + Kv_max * exp (-20 * (z - eta) / z_mixed)
   end function Kv_analytic
 
   subroutine trend_vertical_diffusion (q, dq)

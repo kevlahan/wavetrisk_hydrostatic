@@ -79,7 +79,7 @@ program Drake
      bottom_friction_case =    rb_0                        ! constant bottom friction
      relax                =    .false.
   elseif (zlevels >= 2) then
-     relax                = .false.                        ! relax to mean vertical stratification
+     relax                = .true.                        ! relax to mean vertical stratification
      remap                = .true.                         ! remap vertical coordinates
      sigma_z              = .true.                         ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      tke_closure          = .false.                        ! use analytic profiles for eddy viscosity/diffusivity
@@ -93,7 +93,7 @@ program Drake
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
 
      drho                 =      -4 * KG/METRE**3          ! density perturbation at free surface at poles
-     tau_0                =     0.4 * NEWTON/METRE**2      ! maximum wind stress
+     tau_0                =     0.1 * NEWTON/METRE**2      ! maximum wind stress
      u_wbc                =       4 * METRE/SECOND         ! estimated western boundary current speed (tanh)
 
      ! Solar flux
@@ -124,8 +124,7 @@ program Drake
 
   ! First baroclinic mode speed for linear stratification
   if (zlevels == 2) then                                                      
-     c1 = sqrt (grav_accel * abs (drho) /ref_density * mixed_layer &           
-          * (max_depth - mixed_layer) / abs (max_depth)) 
+     c1 = sqrt (grav_accel * abs (drho) /ref_density * abs(z_mixed) * (z_mixed - max_depth) / abs (max_depth)) 
   elseif (zlevels >= 3) then                                                  
      c1 = bv * h_linear / MATH_PI                                   
   endif
