@@ -12,58 +12,28 @@ if ~strcmp(machine,"mac")
 end
 
 %% Analyze spectrum data
-clear; clc; 
-drake = true;
-if drake
-    zlevels   = 60;
+clear; clc; global KM
 
-    test_case = "drake";
-    run_id    = "drakeJ8Z"+num2str(zlevels,'%2.2d');
-    type      = "u";
-    avg       = true; cp_min=25; cp_max=25;
-    power     = true;     % plot power law fit
-    
-    if zlevels == 60 
-        layers = [1 6 25 55 60];
-        %layers = 1:60;
-    elseif zlevels == 12
-        layers = 1:12;
-    elseif zlevels == 6
-        layers = [1 3 6];
-    elseif zlevels == 4
-        layers = [1 3 4];
-    end
-else
-    zlevels   = 30;
-    radius    = 6371.229e3;
+test_case = "drake"; % drake, jet, Simple
+level     = 8;   % resolution level
+zlevels   = 60;  % numer of vertical layers
 
-    test_case = "climate";
-    run_id    = "SimpleJ7Z30"
-    type      = "curlu";
-    avg       = true; cp_min=1; cp_max=1;
-    power     = false;     % plot power law fit
-    
-    layers    = [1 9 27];
-end
+run_id    = test_case+"J"+num2str(level,'%1.1d')+"Z"+num2str(zlevels,'%2.2d');     % naming convention
+[H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case); % set physical parameters
 
-plot_spec   = true;     % plot spectrum
-plot_scales = true ;    % plot length scales
-col_spec    = "b-";     % colour for energy spectrum
-col_power   = "r-";     % colour for power law
+range       = [deltaI deltaSM] * KM; % range for power law fit    
+layers      = 1:zlevels;             % vertical layers to analyze
 
-% Set physical parameters
-KM = 1e-3;
-if drake
-    [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case);
-end
+type        = "u";                   % u, curlu or divu
+avg         = true;                  % analyze average spectrum or individual spectra
+cp_min=1; cp_max=cp_min;             % checkpoints for individual spectrum
+power       = true;                  % plot power law fit
+plot_spec   = true;                  % plot spectrum
+plot_scales = true ;                 % plot length scales
+col_spec    = "b-";                  % colour for energy spectrum
+col_power   = "r-";                  % colour for power law
 
-if drake
-    range = [deltaI deltaSM] * KM; % range for power law fit
-    range = [deltaI*0.8 deltaSM*1.2] * KM;
-else
-    range = [2e3 6e2];
-end
-
+% Results
 fprintf("Layer    power law")
 pow_law = zeros(cp_max-cp_min+1,zlevels);
 ymin = 1e16; ymax = -1e16;
@@ -261,12 +231,14 @@ end
 function [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case)
 % Physical parameters of simulation
 
+global KM
+
 if strcmp(test_case,"drake")
     Laplace     =  2;       % 1 = Laplacian, 2 = bi-Laplacian
     C_visc      =  1e-3;    % non-dimensional viscosity
     dx          =  5e3;     % minimum grid size
     dt          =  674;     % time step
-    uwbc        =  0.8;     % velocity scale
+    uwbc        =  0.7;       % velocity scale
     g           =  9.80616;
     drho        = -4;
     ref_density =  1030;
@@ -284,9 +256,10 @@ if strcmp(test_case,"drake")
     beta        =  2*omega*cos(deg2rad(theta))/radius;
     r_b         =  4e-4; % bottom friction
 
-    N_bv        = sqrt (g * abs(drho_dz)/ref_density); 
+    N_bv        = sqrt (-g/ref_density * drho/H_linear); 
+
     c0          = sqrt(g*H);
-    c1          = N_bv * sqrt(H/g)/pi * c0;
+    c1          = N_bv * H_linear / pi;
     deltaM      = (visc/beta)^(1/(2*Laplace+1)); % Munk layer
 elseif strcmp(test_case,"jet")
     visc        =  1.63e7; % hyperviscosity
@@ -304,13 +277,16 @@ elseif strcmp(test_case,"jet")
     c0          =  sqrt(g*H);
     c1          =  3.16; % m/s
     deltaM      = (visc/beta)^(1/5)/1e3; % Munk layer
-end
+elseif test_case == "Simple"
+    radius      = 6371.229e3;
+end  
 
 % Lengthscales
 KM = 1e-3;
 if strcmp(test_case,"drake")
     lambda0    = c0/f0;             % external radius of deformation
     lambda1    = c1/f0;             % internal radius of deformation
+    lambda1    = 200 * KM           % tanh profile approximation
     deltaS     = r_b/beta;          % Stommel layer
     deltaSM    = uwbc/f0;           % submesoscale
     deltaI     = sqrt(uwbc/beta);   % inertial layer
