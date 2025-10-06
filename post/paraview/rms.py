@@ -4,7 +4,8 @@ import vtk
 import glob
 from utilities import *
 
-Omega_planet = 7.29211e-5/6  # planet rotation
+Omega_planet  = 7.29211e-5 / 6  # planet rotation
+Radius_planet = 6371.229e3 / 6 # planet radius
 
 def compute_rms (data, field, lat1, lat2) :
     # Integrated zonal rms statistics between latitudes lat1 and lat2
@@ -65,23 +66,38 @@ def compute_rms (data, field, lat1, lat2) :
         phi   = math.radians(ctrs.GetPoint(i)[1]) # latitude
 
         if rms_type == "scalar":
-            f = scalar.GetTuple1(i)
+            sclr = scalar.GetTuple1(i)
             
-            num += (f * f) * A
+            num += (sclr * sclr) * A
         elif rms_type == "Rossby":
             omega = vorticity.GetTuple1(i)
-            Ro = omega / (2.0 * Omega_planet * math.sin(phi))
+            f     = (2.0 * Omega_planet * math.sin(phi))
+            Ro    = omega / f
             
             num += (Ro * Ro) * A
         elif rms_type == "speed":
-            u = zonal.GetTuple1(i)
-            v = meridional.GetTuple1(i)
+            u     = zonal.GetTuple1(i)
+            v     = meridional.GetTuple1(i)
+            speed = math.sqrt(u * u + v * v)
             
-            num += math.sqrt(u * u + v * v) * A
-
+            num += speed * A
+        elif rms_type == "deltaSM":
+            u     = zonal.GetTuple1(i)
+            v     = meridional.GetTuple1(i)
+            f     = 2.0 * Omega_planet * math.sin(phi)
+            speed = math.sqrt(u * u + v * v)
+            
+            num +=  (speed / f) * A
+        elif rms_type == "deltaI":
+            u     = zonal.GetTuple1(i)
+            v     = meridional.GetTuple1(i)
+            speed = math.sqrt(u * u + v * v)
+            beta  = 2.0 * Omega_planet * math.cos(phi) / Radius_planet
+            
+            num += math.sqrt(speed / beta) * A
+    
     # Area-weighted RMS
     return float(math.sqrt(num / den))
-
 
 
 #################################################################################################
@@ -100,7 +116,7 @@ if (len(sys.argv)<10) :
     print("t1       = First time count")
     print("t2       = Last  time count")
     print("dt       = Save interval (time = dt*count days)")
-    print("rms_type = scalar, Rossby or speed")
+    print("rms_type = scalar, Rossby, speed, deltaSM")
     print("field    = Field to analyze: \n \
                Options = \n \
                   Level \n \
@@ -138,6 +154,12 @@ elif rms_type == "Rossby":
 elif rms_type == "speed":
     field = ""
     outfile = run+"_speed_rms.txt"
+elif rms_type == "deltaSM":
+    field = ""
+    outfile = run+"_deltaSM_rms.txt"
+elif rms_type == "deltaI":
+    field = ""
+    outfile = run+"_deltaI_rms.txt"
     
 f = open (outfile, "w")
 
