@@ -2,6 +2,7 @@ import os
 import sys
 import fnmatch
 import numpy as np
+import math
 import vtk
 import tarfile
 
@@ -48,23 +49,6 @@ def Calculate (data_cells, field, formula, result_name) :
 def rms_sum (arr):
     # Vector rms
     return np.sqrt(np.mean(np.square(arr)))
-
-def rms_int (data, field) :
-    # Integrated rms
-
-    data_cells = data.GetCellData()
-    
-    Calculate (data_cells, field, "np.square(v)", "square")
-    
-    integrate = vtk.vtkIntegrateAttributes()
-    integrate.SetInputData(data)
-    integrate.SetDivideAllCellDataByVolume(1)
-    integrate.Update()
-
-    integrated = integrate.GetOutput().GetCellData()
-    int_square = integrated.GetArray("square").GetTuple(0)[0]
-
-    return(np.sqrt(int_square))
 
 def delete_files(pattern) :
     # Deletes all files in current directory matching the given pattern.
