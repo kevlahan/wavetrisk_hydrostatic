@@ -14,30 +14,40 @@ end
 %% Analyze spectrum data
 clear; clc; global KM
 
-test_case = "drake"; % drake, jet, Simple
-level     = 8;   % resolution level
-zlevels   = 60;  % numer of vertical layers
+test_case = "drake";     % drake, jet, Simple
+level     = 8;           % resolution level
+zlevels   = 60;          % number of vertical layers
+layers    = 1:zlevels;   % vertical layers to analyze
+%layers    = [23 31 54];
+type      = "u";         % u, curlu or divu
+avg       = true;        % analyze average spectrum or individual spectra
+power     = true;        % plot power law fit
+plot_spec = true;        % plot spectrum
 
-run_id    = test_case+"J"+num2str(level,'%1.1d')+"Z"+num2str(zlevels,'%2.2d');     % naming convention
-[H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case); % set physical parameters
+if avg
+    cp_min = 1; cp_max=cp_min; 
+else
+    cp_min = 118; cp_max = 118;
+end
 
-range       = [deltaI deltaSM] * KM; % range for power law fit    
-layers      = 1:zlevels;             % vertical layers to analyze
+% Set physical parameters
+[H, lambda0, lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case); 
+range       = [deltaI 1.2*lambda1] * KM; % range for power law fit   
 
-type        = "u";                   % u, curlu or divu
-avg         = true;                  % analyze average spectrum or individual spectra
-cp_min=1; cp_max=cp_min;             % checkpoints for individual spectrum
-power       = true;                  % plot power law fit
-plot_spec   = true;                  % plot spectrum
-plot_scales = true ;                 % plot length scales
-col_spec    = "b-";                  % colour for energy spectrum
-col_power   = "r-";                  % colour for power law
+plot_scales = true ;     % plot length scales
+col_spec    = "b-";      % colour for energy spectrum
+col_power   = "r-";      % colour for power law
 
-% Results
-fprintf("Layer    power law")
+% Plot spectra
+run_id = test_case+"J"+num2str(level,'%1.1d')+"Z"+num2str(zlevels,'%2.2d');  % naming convention
+
 pow_law = zeros(cp_max-cp_min+1,zlevels);
 ymin = 1e16; ymax = -1e16;
 for cp_id = cp_min:cp_max
+    if ~avg
+        fprintf('\nPower law exponents for checkpoint %d\n', cp_id)
+    end 
+    fprintf("Layer     p")
     for zlev = layers
         % Load spectrum data
         name_type = "Layer "+zlev;
@@ -78,13 +88,9 @@ for cp_id = cp_min:cp_max
         [P,S] = polyfit(log10(scales(fit_indices)),log10(pspec(fit_indices,2)),1);
         st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P
 
-        if avg
-            %fprintf("\n %3.0f    %.2f +/- %.2f", zlev, -P(1), st_err(1));
-            fprintf("\n %3.0f    %.2f", zlev, -P(1)); % no fit error
-        else
-            fprintf("\nFitted power law for checkpoint %d at zlevel %d is %.2f +/- %.2f\n",...
-                cp_id, zlev, -P(1), st_err(1));
-        end
+
+        %fprintf("\n %3.0f    %.2f +/- %.2f", zlev, -P(1), st_err(1));
+        fprintf("\n %3.0f    %.2f", zlev, -P(1)); % no fit error
 
         pow_law (cp_id,zlev) = -P(1);
 
@@ -111,7 +117,7 @@ if plot_scales
     if strcmp(test_case,"drake")
         plot_scale(deltaI*KM,"\delta_{I}");
         plot_scale(lambda1*KM,"\lambda_1");
-        plot_scale(deltaSM*KM,"\delta_{SM}");
+        %plot_scale(deltaSM*KM,"\delta_{SM}");
         %plot_scale(deltaM*KM,"\delta_{M}");
     elseif strcmp(test_case,"jet")
         plot_scale(deltaI*KM,"\delta_{I}");
@@ -286,9 +292,8 @@ KM = 1e-3;
 if strcmp(test_case,"drake")
     lambda0    = c0/f0;             % external radius of deformation
     lambda1    = c1/f0;             % internal radius of deformation
-    lambda1    = 200 * KM           % tanh profile approximation
     deltaS     = r_b/beta;          % Stommel layer
-    deltaSM    = uwbc/f0;           % submesoscale
+    deltaSM    = 100e3;           % submesoscale
     deltaI     = sqrt(uwbc/beta);   % inertial layer
     Rey        = uwbc*deltaSM^(2*Laplace-1)/visc; % Reynolds number
     Ro         = uwbc / (deltaM*f0); % Rossby number
