@@ -1,11 +1,27 @@
 # Computes area integrated rms of either specified scalar or Rossby number in a zonal band  from longitude-latitude vtp files
+# Usage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field
+# rms_type = scalar, Rossby, speed, deltaSM, deltaI
+# field    = Field to analyze:
+#                Options =
+#                   Level 
+#                   Topography
+#                   Penalization
+#                   Ps/Eta
+#                   Temperature/Density
+#                   Velocity_Zonal
+#                   Velocity_Meridional 
+#                   OMEGA/Velocity_Vertical 
+#                   Vorticity 
+#                   Geopot_Height 
+#                   P/Ps
+#                   dz
 import sys
 import vtk
 import glob
 from utilities import *
 
 Omega_planet  = 7.29211e-5 / 6  # planet rotation
-Radius_planet = 6371.229e3 / 6 # planet radius
+Radius_planet = 6371.229e3 / 6  # planet radius
 
 def compute_rms (data, field, lat1, lat2) :
     # Integrated zonal rms statistics between latitudes lat1 and lat2
@@ -108,15 +124,18 @@ def compute_rms (data, field, lat1, lat2) :
 
 # Input
 if (len(sys.argv)<10) :
-    print("\nUsage: python rms.py base_vtk_file k1 k2 t1 t2 dt rms_type field\n")
-    print("Example: python3 rms.py drakeJ8Z60 1 60 120 120 5 Rossby \n")
+    print("\nUsage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field\n")
+    print("Example 1: python3 rms.py drakeJ8Z60 1 60 120 120 5 Rossby \n")
+    print("Example 2: python3 rms.py drakeJ8Z60 1 60 120 120 5 scalar Vorticity \n")
     print("run      = run prefix of vtp files to load (e.g. drakeJ8Z60)")
     print("k1       = First vertical layer")
     print("k2       = Last  vertical layer")
     print("t1       = First time count")
     print("t2       = Last  time count")
     print("dt       = Save interval (time = dt*count days)")
-    print("rms_type = scalar, Rossby, speed, deltaSM")
+    print("lat1     = Minimum latitude")
+    print("lat2     = Maximum latitude")
+    print("rms_type = scalar, Rossby, speed, deltaSM, deltaI")
     print("field    = Field to analyze: \n \
                Options = \n \
                   Level \n \
