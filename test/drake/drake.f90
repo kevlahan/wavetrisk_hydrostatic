@@ -98,9 +98,9 @@ program Drake
      u_wbc                =       4 * METRE/SECOND         ! estimated western boundary current speed (tanh)
 
      ! Solar flux
-     Q_sr           =             0 * WATT/METRE**2        ! incoming solar radiation heat flux (set to zero to turn off solar forcing)
-     R_lw           =           1.0_dp                     ! proportion of flux in longwave
-     xi_lw          =           200 * METRE                ! penetration depth of solar flux
+     Q_sr                 =       0 * WATT/METRE**2        ! incoming solar radiation heat flux (set to zero to turn off solar forcing)
+     R_lw                 =     1.0_dp                     ! proportion of flux in longwave
+     xi_lw                =     200 * METRE                ! penetration depth of solar flux
   end if
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

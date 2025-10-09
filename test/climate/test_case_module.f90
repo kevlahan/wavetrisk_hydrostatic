@@ -574,7 +574,6 @@ contains
           write (6,'(a,a)')      "analytic_topo            = ", analytic_topo
        end if
 
-
        write (6,'(a)') "Default thresholds for each layer"
        write (6,'(a)') "Layer    S_MASS      S_TEMP      S_VELO"
        do k = 1, zlevels
@@ -661,16 +660,13 @@ contains
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
-    ! Set non-dimensional viscosities and time step (use default C_visc = 0.75)
+    ! Set non-dimensional viscosities and time step 
     implicit none
-    real(dp), parameter :: rho = 1.15_dp ! correction factor for pentagons
 
-    dt_init = r_adv * dx_avg(max_level)/4 / (u_0 + c_s) / rho
+    dt_init = cfl_num * dx_avg(max_level) / (u_0 + c_s)
     dt = dt_init
 
-    ! Non-dimensional viscosities (C_visc <= 1 for diffusive stability)
-    C_visc = 1.0_dp
-    if (Laplace_divu == 1) C_visc(S_DIVU,:) = 0.05_dp
+    C_visc = 0.1_dp
   end subroutine initialize_dt_viscosity_case
 
   subroutine apply_initial_conditions_case
