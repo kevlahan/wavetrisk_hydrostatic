@@ -209,6 +209,7 @@ for t in range (t1, t2+1):
         writer.SetInputData(polydata)
         writer.Write()
 
-        # Remove vtk file
-        file_vtk = run+"_tri_"+str(z).zfill(3)+"_"+str(t).zfill(4)+".vtk"
-        os.remove(file_vtk)
+    # Remove vtk files for time t
+    pattern = f"{run}_tri_*_{str(t).zfill(4)}.vtk"
+    for file in glob.glob(pattern):
+        os.remove(file)
