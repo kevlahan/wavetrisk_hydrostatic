@@ -12,13 +12,12 @@ if ~strcmp(machine,"mac")
 end
 
 %% Analyze spectrum data
-clear; clc; global KM
+clear; clc; global KM; format short e
 
 test_case = "drake";     % drake, jet, Simple
 level     = 8;           % resolution level
 zlevels   = 60;          % number of vertical layers
 layers    = 1:zlevels;   % vertical layers to analyze
-%layers    = [23 31 54];
 type      = "u";         % u, curlu or divu
 avg       = true;        % analyze average spectrum or individual spectra
 power     = true;        % plot power law fit
@@ -32,7 +31,7 @@ end
 
 % Set physical parameters
 [H, lambda0, lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case); 
-range       = [deltaI 1.2*lambda1] * KM; % range for power law fit   
+%range       = [deltaI deltaSM] * KM; % range for power law fit   for tanh
 
 plot_scales = true ;     % plot length scales
 col_spec    = "b-";      % colour for energy spectrum
@@ -59,7 +58,7 @@ for cp_id = cp_min:cp_max
             file_base = run_id+"_"+cp+"_"+k+"_"+type;
         end
         spec_file = file_base+"_spec"; 
-                
+        
         try
             pspec = load (spec_file, '-ascii');
         catch ME
@@ -69,36 +68,24 @@ for cp_id = cp_min:cp_max
         end
 
         % Plot energy spectra
-        if strcmp(type,"u") % velocity spectrum
-            pspec(:,2) = pspec(:,2);
-        else                % convert vorticity spectrum to energy spectrum integrated over shells
+        if ~strcmp(type,"u") % convert vorticity spectrum to energy spectrum integrated over shells 
             pspec(:,2) = pspec(:,2)./pspec(:,1).^2;
         end
         scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
 
         % Fit power law
-        if ~exist('range','var') % use default range
-            if strcmp(test_case,"drake")
-                range = [deltaI deltaSM]; col_power = "r-"; % colour for power law
-            elseif strcmp(test_case,"jet")
-                range = [deltaI lambda1]; col_power = "r-"; % colour for power law
-            end
-        end
         fit_indices = find(scales > range(2) & scales < range(1));
         [P,S] = polyfit(log10(scales(fit_indices)),log10(pspec(fit_indices,2)),1);
-        st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P
-
-
+        st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P        
+        
         %fprintf("\n %3.0f    %.2f +/- %.2f", zlev, -P(1), st_err(1));
         fprintf("\n %3.0f    %.2f", zlev, -P(1)); % no fit error
-
+         
         pow_law (cp_id,zlev) = -P(1);
-
+        
         if plot_spec
             loglog(scales, pspec(:,2),col_spec,"linewidth",3,"DisplayName",name_type);hold on;grid on;
-           
-            % Plot fit
-            if power
+            if power % plot fit
                 powerlaw (scales, 1.5*pspec(:,2), range, -P(1), col_power)
             end
         end
@@ -116,8 +103,8 @@ axis([xmin xmax ymin ymax])
 if plot_scales
     if strcmp(test_case,"drake")
         plot_scale(deltaI*KM,"\delta_{I}");
-        plot_scale(lambda1*KM,"\lambda_1");
-        %plot_scale(deltaSM*KM,"\delta_{SM}");
+        %plot_scale(lambda1*KM,"\lambda_1");
+        plot_scale(deltaSM*KM,"\delta_{SM}");
         %plot_scale(deltaM*KM,"\delta_{M}");
     elseif strcmp(test_case,"jet")
         plot_scale(deltaI*KM,"\delta_{I}");
@@ -240,18 +227,19 @@ function [H, lambda0,lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(
 global KM
 
 if strcmp(test_case,"drake")
+    H_linear    = 3800;     % depth of linear scaling range (constant/linear)
+    %H_linear    = 300;      % depth of linear scaling range (tanh)
+    uwbc        =  1.0;     % velocity scale 
+    
     Laplace     =  2;       % 1 = Laplacian, 2 = bi-Laplacian
     C_visc      =  1e-3;    % non-dimensional viscosity
     dx          =  5e3;     % minimum grid size
     dt          =  674;     % time step
-    uwbc        =  0.7;       % velocity scale
     g           =  9.80616;
     drho        = -4;
     ref_density =  1030;
-    H           =  4e3;
-    H_linear    =  300;     % depth of linear scaling range
-    drho_dz     = drho / H_linear;
-
+    H           =  4e3;     % full depth
+    
     visc        =  C_visc * dx^(2*Laplace)/dt;
     scale_omega =  6;
     scale_earth =  6;
@@ -262,6 +250,9 @@ if strcmp(test_case,"drake")
     beta        =  2*omega*cos(deg2rad(theta))/radius;
     r_b         =  4e-4; % bottom friction
 
+    % Average Brunt-Vaisala frequency over full depth
+    %N_bv        = sqrt(-g * drho/ref_density * H_linear) / H; 
+    % Average Brunt-Vaisala frequency over linear layer
     N_bv        = sqrt (-g/ref_density * drho/H_linear); 
 
     c0          = sqrt(g*H);
@@ -285,7 +276,7 @@ elseif strcmp(test_case,"jet")
     deltaM      = (visc/beta)^(1/5)/1e3; % Munk layer
 elseif test_case == "Simple"
     radius      = 6371.229e3;
-end  
+end
 
 % Lengthscales
 KM = 1e-3;
@@ -293,7 +284,7 @@ if strcmp(test_case,"drake")
     lambda0    = c0/f0;             % external radius of deformation
     lambda1    = c1/f0;             % internal radius of deformation
     deltaS     = r_b/beta;          % Stommel layer
-    deltaSM    = 100e3;           % submesoscale
+    deltaSM    = uwbc/f0;           % submesoscale
     deltaI     = sqrt(uwbc/beta);   % inertial layer
     Rey        = uwbc*deltaSM^(2*Laplace-1)/visc; % Reynolds number
     Ro         = uwbc / (deltaM*f0); % Rossby number
