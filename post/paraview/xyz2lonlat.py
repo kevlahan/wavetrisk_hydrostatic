@@ -14,6 +14,7 @@ import vtk
 import subprocess
 from contextlib import suppress
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
+from pathlib import Path
 
 verbose = False # echo file being processed
 
@@ -51,6 +52,9 @@ dtheta_max = dtheta_min * 2**(Jmax - Jmin)
 
 for t in range (t1, t2+1):
     file = run+'_tri_'+str(t).zfill(4)+".vtk.tgz"
+    p = Path(file).expanduser()
+    if not p.is_file():
+        sys.exit(f"ERROR: file not found: {p}")   # exits with code 1
     if verbose: print ("Uncompressing file ", file)
     untar_files (file)
     file_vtk = run+"_tri_"+str(0).zfill(3)+"_"+str(t).zfill(4)+".vtk"

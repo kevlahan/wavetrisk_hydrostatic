@@ -19,6 +19,7 @@ import sys
 import vtk
 import glob
 from utilities import *
+from pathlib import Path
 
 Omega_planet  = 7.29211e-5 / 6  # planet rotation
 Radius_planet = 6371.229e3 / 6  # planet radius
@@ -185,6 +186,10 @@ f = open (outfile, "w")
 for t in range (t1, t2+1):
     for k in range (k1, k2+1):
         infile = run+"_tri_lonlat_"+str(k).zfill(3)+"_"+str(t).zfill(4)+".vtp"
+
+        p = Path(infile).expanduser()
+        if not p.is_file():
+            sys.exit(f"ERROR: file not found: {p}")   # exits with code 1
 
         if rms_type == "scalar":
             print("rms %s of %s is" % (field, infile), end=" ")
