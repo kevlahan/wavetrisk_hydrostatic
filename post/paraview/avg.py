@@ -1,6 +1,6 @@
 # Computes area integrated averages of either specified scalar or Rossby number in a zonal band  from longitude-latitude vtp files
-# Usage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field
-# rms_type = scalar, Rossby, speed, deltaSM, deltaI
+# Usage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 avg_type field
+# avg_type = Scalar, Rossby, Speed, DeltaSM, DeltaI, VertFluxKE
 # field    = Field to analyze:
 #                Options =
 #                   Level 
@@ -56,10 +56,13 @@ def compute_avg (data, field, lat1, lat2) :
     band_with_area = cellsz.GetOutput()
 
     area_arr = band_with_area.GetCellData().GetArray("Area")
+
+    if avg_type == "Scalar":
+        scalar = band_with_area.GetCellData().GetArray(field)
     
-    scalar     = band_with_area.GetCellData().GetArray(field)
-    zonal      = band_with_area.GetCellData().GetArray("Velocity_Zonal")
-    meridional = band_with_area.GetCellData().GetArray("Velocity_Meridional")
+    zonal      = band_with_area.GetCellData().GetArray("VelocityZonal")
+    meridional = band_with_area.GetCellData().GetArray("VelocityMeridional")
+    vertical   = band_with_area.GetCellData().GetArray("VelocityVertical")
     vorticity  = band_with_area.GetCellData().GetArray("Vorticity")
 
     ncell = band_with_area.GetNumberOfCells()
@@ -82,7 +85,7 @@ def compute_avg (data, field, lat1, lat2) :
         theta = math.radians(ctrs.GetPoint(i)[0]) # longitude 
         phi   = math.radians(ctrs.GetPoint(i)[1]) # latitude
 
-        if avg_type == "scalar":
+        if avg_type == "Scalar":
             sclr = scalar.GetTuple1(i)
             
             num += sclr * A
@@ -92,23 +95,30 @@ def compute_avg (data, field, lat1, lat2) :
             Ro    = omega / f
             
             num += Ro * A
-        elif avg_type == "speed":
+        elif avg_type == "Speed":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
             
             num += math.sqrt(u * u + v * v) * A
-        elif avg_type == "deltaSM":
+        elif avg_type == "DeltaSM":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
             f     = 2.0 * Omega_planet * math.sin(phi)
             
             num +=  math.sqrt(u * u + v * v) / f * A
-        elif avg_type == "deltaI":
+        elif avg_type == "DeltaI":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
             beta  = 2.0 * Omega_planet * math.cos(phi) / Radius_planet
             
             num +=  math.sqrt(math.sqrt(u * u + v * v) / beta) * A
+        elif avg_type == "VertFluxKE":
+            u     = zonal.GetTuple1(i)
+            v     = meridional.GetTuple1(i)
+            w     = vertical.GetTuple1(i)
+            KE    = 0.5 * (u * u + v * v)
+            
+            num += KE * w * A
     
     # Area-weighted average
     return num / den 
@@ -160,23 +170,14 @@ dt       = int(sys.argv[6])
 lat1     = float(sys.argv[7])
 lat2     = float(sys.argv[8])
 avg_type = sys.argv[9]
-if avg_type == "scalar":
+if avg_type == "Scalar":
     field = sys.argv[10] 
 
-if avg_type == "scalar":
+if avg_type == "Scalar":
     outfile = run+"_"+field+"_avg.txt"
-elif avg_type == "Rossby":
+else:
     field = ""
-    outfile = run+"_Rossby_avg.txt"
-elif avg_type == "speed":
-    field = ""
-    outfile = run+"_speed_avg.txt"
-elif avg_type == "deltaSM":
-    field = ""
-    outfile = run+"_deltaSM_avg.txt"
-elif avg_type == "deltaI":
-    field = ""
-    outfile = run+"_deltaI_avg.txt"
+    outfile = run+'_'+avg_type+"_avg.txt"
     
 f = open (outfile, "w")
 

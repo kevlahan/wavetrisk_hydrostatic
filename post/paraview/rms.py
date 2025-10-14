@@ -1,6 +1,6 @@
 # Computes area integrated rms of either specified scalar or Rossby number in a zonal band  from longitude-latitude vtp files
 # Usage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field
-# rms_type = scalar, Rossby, speed, deltaSM, deltaI
+# rms_type = Scalar, Rossby, Speed, DeltaSM, DeltaI, VertFluxKE
 # field    = Field to analyze:
 #                Options =
 #                   Level 
@@ -58,8 +58,9 @@ def compute_rms (data, field, lat1, lat2) :
     area_arr = band_with_area.GetCellData().GetArray("Area")
     
     scalar     = band_with_area.GetCellData().GetArray(field)
-    zonal      = band_with_area.GetCellData().GetArray("Velocity_Zonal")
-    meridional = band_with_area.GetCellData().GetArray("Velocity_Meridional")
+    zonal      = band_with_area.GetCellData().GetArray("VelocityZonal")
+    meridional = band_with_area.GetCellData().GetArray("VelocityMeridional")
+    vertical   = band_with_area.GetCellData().GetArray("VelocityVertical")
     vorticity  = band_with_area.GetCellData().GetArray("Vorticity")
 
     ncell = band_with_area.GetNumberOfCells()
@@ -82,7 +83,7 @@ def compute_rms (data, field, lat1, lat2) :
         theta = math.radians(ctrs.GetPoint(i)[0]) # longitude 
         phi   = math.radians(ctrs.GetPoint(i)[1]) # latitude
 
-        if rms_type == "scalar":
+        if rms_type == "Scalar":
             sclr = scalar.GetTuple1(i)
             
             num += (sclr * sclr) * A
@@ -92,23 +93,30 @@ def compute_rms (data, field, lat1, lat2) :
             Ro    = omega / f
             
             num += (Ro * Ro) * A
-        elif rms_type == "speed":
+        elif rms_type == "Speed":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
 
             num +=  (u * u + v * v) * A
-        elif rms_type == "deltaSM":
+        elif rms_type == "DeltaSM":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
             f     = 2.0 * Omega_planet * math.sin(phi)
             
             num +=  (u * u + v * v) / (f * f) * A
-        elif rms_type == "deltaI":
+        elif rms_type == "DeltaI":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
             beta  = 2.0 * Omega_planet * math.cos(phi) / Radius_planet
             
             num +=  math.sqrt(u * u + v * v) / beta * A
+        elif rms_type == "VertFluxKE":
+            u     = zonal.GetTuple1(i)
+            v     = meridional.GetTuple1(i)
+            w     = vertical.GetTuple1(i)
+            KE    = 0.5 * (u * u + v * v)
+            
+            num += (KE * w) * (KE * w)  * A
     
     # Area-weighted RMS
     return float(math.sqrt(num / den))
@@ -124,7 +132,7 @@ def compute_rms (data, field, lat1, lat2) :
 if (len(sys.argv)<10) :
     print("\nUsage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field\n")
     print("Example 1: python3 rms.py drakeJ8Z60 1 60 120 120 5 Rossby \n")
-    print("Example 2: python3 rms.py drakeJ8Z60 1 60 120 120 5 scalar Vorticity \n")
+    print("Example 2: python3 rms.py drakeJ8Z60 1 60 120 120 5 Scalar Vorticity \n")
     print("run      = run prefix of vtp files to load (e.g. drakeJ8Z60)")
     print("k1       = First vertical layer")
     print("k2       = Last  vertical layer")
@@ -160,23 +168,14 @@ dt       = int(sys.argv[6])
 lat1     = float(sys.argv[7])
 lat2     = float(sys.argv[8])
 rms_type = sys.argv[9]
-if rms_type == "scalar":
+if rms_type == "Scalar":
     field = sys.argv[10] 
 
-if rms_type == "scalar":
+if rms_type == "Scalar":
     outfile = run+"_"+field+"_rms.txt"
-elif rms_type == "Rossby":
+else:
     field = ""
-    outfile = run+"_Rossby_rms.txt"
-elif rms_type == "speed":
-    field = ""
-    outfile = run+"_speed_rms.txt"
-elif rms_type == "deltaSM":
-    field = ""
-    outfile = run+"_deltaSM_rms.txt"
-elif rms_type == "deltaI":
-    field = ""
-    outfile = run+"_deltaI_rms.txt"
+    outfile = run+'_'+rms_type+"_rms.txt"
     
 f = open (outfile, "w")
 
