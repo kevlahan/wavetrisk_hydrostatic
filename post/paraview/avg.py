@@ -1,5 +1,5 @@
-# Computes area integrated rms of either specified scalar or Rossby number in a zonal band  from longitude-latitude vtp files
-# Usage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field
+# Computes area integrated averages of either specified scalar or Rossby number in a zonal band  from longitude-latitude vtp files
+# Usage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field
 # rms_type = scalar, Rossby, speed, deltaSM, deltaI
 # field    = Field to analyze:
 #                Options =
@@ -24,8 +24,8 @@ from pathlib import Path
 Omega_planet  = 7.29211e-5 / 6  # planet rotation
 Radius_planet = 6371.229e3 / 6  # planet radius
 
-def compute_rms (data, field, lat1, lat2) :
-    # Integrated zonal rms statistics between latitudes lat1 and lat2
+def compute_avg (data, field, lat1, lat2) :
+    # Integrated zonal average statistics between latitudes lat1 and lat2
 
     # --- normalize zonal region ---
     if lat1 > lat2:
@@ -70,7 +70,7 @@ def compute_rms (data, field, lat1, lat2) :
     centers.Update()
     ctrs = centers.GetOutput()
 
-    # --- accumulate area-weighted means ---
+    # --- accumulate area-weighted mean ---
     num = 0.0
     den = 0.0
     for i in range(ncell):
@@ -82,49 +82,49 @@ def compute_rms (data, field, lat1, lat2) :
         theta = math.radians(ctrs.GetPoint(i)[0]) # longitude 
         phi   = math.radians(ctrs.GetPoint(i)[1]) # latitude
 
-        if rms_type == "scalar":
+        if avg_type == "scalar":
             sclr = scalar.GetTuple1(i)
             
-            num += (sclr * sclr) * A
-        elif rms_type == "Rossby":
+            num += sclr * A
+        elif avg_type == "Rossby":
             omega = vorticity.GetTuple1(i)
             f     = 2.0 * Omega_planet * math.sin(phi)
             Ro    = omega / f
             
-            num += (Ro * Ro) * A
-        elif rms_type == "speed":
+            num += Ro * A
+        elif avg_type == "speed":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
-
-            num +=  (u * u + v * v) * A
-        elif rms_type == "deltaSM":
+            
+            num += math.sqrt(u * u + v * v) * A
+        elif avg_type == "deltaSM":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
             f     = 2.0 * Omega_planet * math.sin(phi)
             
-            num +=  (u * u + v * v) / (f * f) * A
-        elif rms_type == "deltaI":
+            num +=  math.sqrt(u * u + v * v) / f * A
+        elif avg_type == "deltaI":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
             beta  = 2.0 * Omega_planet * math.cos(phi) / Radius_planet
             
-            num +=  math.sqrt(u * u + v * v) / beta * A
+            num +=  math.sqrt(math.sqrt(u * u + v * v) / beta) * A
     
-    # Area-weighted RMS
-    return float(math.sqrt(num / den))
+    # Area-weighted average
+    return num / den 
 
 
 #################################################################################################
 #
-#  Computes rms statistics of specified scalar or of Rossby number
+#  Computes averages statistics of specified scalar or other statistical quantities
 #
 #################################################################################################
 
 # Input
 if (len(sys.argv)<10) :
-    print("\nUsage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field\n")
-    print("Example 1: python3 rms.py drakeJ8Z60 1 60 120 120 5 Rossby \n")
-    print("Example 2: python3 rms.py drakeJ8Z60 1 60 120 120 5 scalar Vorticity \n")
+    print("\nUsage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 avg_type field\n")
+    print("Example 1: python3 avg.py drakeJ8Z60 1 60 120 120 5 Rossby \n")
+    print("Example 2: python3 avg.py drakeJ8Z60 1 60 120 120 5 scalar Vorticity \n")
     print("run      = run prefix of vtp files to load (e.g. drakeJ8Z60)")
     print("k1       = First vertical layer")
     print("k2       = Last  vertical layer")
@@ -133,7 +133,7 @@ if (len(sys.argv)<10) :
     print("dt       = Save interval (time = dt*count days)")
     print("lat1     = Minimum latitude")
     print("lat2     = Maximum latitude")
-    print("rms_type = scalar, Rossby, speed, deltaSM, deltaI")
+    print("avg_type = scalar, Rossby, speed, deltaSM, deltaI")
     print("field    = Field to analyze: \n \
                Options = \n \
                   Level \n \
@@ -148,7 +148,7 @@ if (len(sys.argv)<10) :
                   Geopot_Height \n \
                   P/Ps \n \
                   dz \n")
-    print("Output is saved to run_[rms_type].txt")
+    print("Output is saved to run_[avg_type].txt")
     exit(0)
 
 run      = sys.argv[1]
@@ -159,24 +159,24 @@ t2       = int(sys.argv[5])
 dt       = int(sys.argv[6])
 lat1     = float(sys.argv[7])
 lat2     = float(sys.argv[8])
-rms_type = sys.argv[9]
-if rms_type == "scalar":
+avg_type = sys.argv[9]
+if avg_type == "scalar":
     field = sys.argv[10] 
 
-if rms_type == "scalar":
-    outfile = run+"_"+field+"_rms.txt"
-elif rms_type == "Rossby":
+if avg_type == "scalar":
+    outfile = run+"_"+field+"_avg.txt"
+elif avg_type == "Rossby":
     field = ""
-    outfile = run+"_Rossby_rms.txt"
-elif rms_type == "speed":
+    outfile = run+"_Rossby_avg.txt"
+elif avg_type == "speed":
     field = ""
-    outfile = run+"_speed_rms.txt"
-elif rms_type == "deltaSM":
+    outfile = run+"_speed_avg.txt"
+elif avg_type == "deltaSM":
     field = ""
-    outfile = run+"_deltaSM_rms.txt"
-elif rms_type == "deltaI":
+    outfile = run+"_deltaSM_avg.txt"
+elif avg_type == "deltaI":
     field = ""
-    outfile = run+"_deltaI_rms.txt"
+    outfile = run+"_deltaI_avg.txt"
     
 f = open (outfile, "w")
 
@@ -188,10 +188,10 @@ for t in range (t1, t2+1):
         if not p.is_file():
             sys.exit(f"ERROR: file not found: {p}")   # exits with code 1
 
-        if rms_type == "scalar":
-            print("rms %s of %s is" % (field, infile), end=" ")
+        if avg_type == "scalar":
+            print("avg %s of %s is" % (field, infile), end=" ")
         else:
-            print("rms %s of %s is" % (rms_type, infile), end=" ")
+            print("avg %s of %s is" % (avg_type, infile), end=" ")
 
         # Load the input vtk file
         reader = vtk.vtkXMLPolyDataReader()
@@ -199,11 +199,11 @@ for t in range (t1, t2+1):
         reader.Update()
         data = reader.GetOutput()
 
-        # Compute rms
-        rms = compute_rms (data, field, lat1, lat2)
+        # Compute avg
+        avg = compute_avg (data, field, lat1, lat2)
 
-        print("%14.8e" % (rms)) 
-        f.write("%10.4e %3d %14.8e\n" % (t*dt, k, rms))
+        print("%14.8e" % (avg)) 
+        f.write("%10.4e %3d %14.8e\n" % (t*dt, k, avg))
 
     for file in glob.glob(run+'_tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk'):
         os.remove(file)
