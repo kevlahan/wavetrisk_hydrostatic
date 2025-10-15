@@ -1,6 +1,6 @@
 # Computes area integrated rms of either specified scalar or Rossby number in a zonal band  from longitude-latitude vtp files
 # Usage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field
-# rms_type = Scalar, Rossby, Speed, DeltaSM, DeltaI, VertFluxKE
+# rms_type = Scalar, Rossby, KE, DeltaSM, DeltaI, VertFluxKE
 # field    = Field to analyze:
 #                Options =
 #                   Level 
@@ -58,9 +58,9 @@ def compute_rms (data, field, lat1, lat2) :
     area_arr = band_with_area.GetCellData().GetArray("Area")
     
     scalar     = band_with_area.GetCellData().GetArray(field)
-    zonal      = band_with_area.GetCellData().GetArray("VelocityZonal")
-    meridional = band_with_area.GetCellData().GetArray("VelocityMeridional")
-    vertical   = band_with_area.GetCellData().GetArray("VelocityVertical")
+    zonal      = band_with_area.GetCellData().GetArray("Velocity_Zonal")
+    meridional = band_with_area.GetCellData().GetArray("Velocity_Meridional")
+    vertical   = band_with_area.GetCellData().GetArray("Velocity_Vertical")
     vorticity  = band_with_area.GetCellData().GetArray("Vorticity")
 
     ncell = band_with_area.GetNumberOfCells()
@@ -93,11 +93,12 @@ def compute_rms (data, field, lat1, lat2) :
             Ro    = omega / f
             
             num += (Ro * Ro) * A
-        elif rms_type == "Speed":
+        elif rms_type == "KE":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
+            KE    = 0.5 * (u * u + v * v)
 
-            num +=  (u * u + v * v) * A
+            num += (KE * KE) * A
         elif rms_type == "DeltaSM":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
@@ -187,7 +188,7 @@ for t in range (t1, t2+1):
         if not p.is_file():
             sys.exit(f"ERROR: file not found: {p}")   # exits with code 1
 
-        if rms_type == "scalar":
+        if rms_type == "Scalar":
             print("rms %s of %s is" % (field, infile), end=" ")
         else:
             print("rms %s of %s is" % (rms_type, infile), end=" ")

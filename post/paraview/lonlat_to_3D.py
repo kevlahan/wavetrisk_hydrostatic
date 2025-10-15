@@ -637,7 +637,7 @@ def add_scalar_data(data, N, name, img):
 
 if (len(sys.argv)<8):
     print("""
-    Use: python lonlat_to_3D.py run compressible Jmin Jmax nz t1 t2 lon_min lon_max lat_min lat_max vert_min vert_max
+    Use: python lonlat_to_3D.py run compressible Jmin Jmax nz seasons season t1 t2 step_days
     
     Generates a 3D data files, zonal/meridional projections and vertical profiles from a series of layers in directory folder.
     

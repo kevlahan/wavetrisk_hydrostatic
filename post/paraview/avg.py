@@ -1,6 +1,6 @@
 # Computes area integrated averages of either specified scalar or Rossby number in a zonal band  from longitude-latitude vtp files
 # Usage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 avg_type field
-# avg_type = Scalar, Rossby, Speed, DeltaSM, DeltaI, VertFluxKE
+# avg_type = Scalar, Rossby, KE, DeltaSM, DeltaI, VertFluxKE
 # field    = Field to analyze:
 #                Options =
 #                   Level 
@@ -60,9 +60,9 @@ def compute_avg (data, field, lat1, lat2) :
     if avg_type == "Scalar":
         scalar = band_with_area.GetCellData().GetArray(field)
     
-    zonal      = band_with_area.GetCellData().GetArray("VelocityZonal")
-    meridional = band_with_area.GetCellData().GetArray("VelocityMeridional")
-    vertical   = band_with_area.GetCellData().GetArray("VelocityVertical")
+    zonal      = band_with_area.GetCellData().GetArray("Velocity_Zonal")
+    meridional = band_with_area.GetCellData().GetArray("Velocity_Meridional")
+    vertical   = band_with_area.GetCellData().GetArray("Velocity_Vertical")
     vorticity  = band_with_area.GetCellData().GetArray("Vorticity")
 
     ncell = band_with_area.GetNumberOfCells()
@@ -95,11 +95,11 @@ def compute_avg (data, field, lat1, lat2) :
             Ro    = omega / f
             
             num += Ro * A
-        elif avg_type == "Speed":
+        elif avg_type == "KE":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
             
-            num += math.sqrt(u * u + v * v) * A
+            num += 0.5 * math.sqrt(u * u + v * v) * A
         elif avg_type == "DeltaSM":
             u     = zonal.GetTuple1(i)
             v     = meridional.GetTuple1(i)
@@ -189,10 +189,10 @@ for t in range (t1, t2+1):
         if not p.is_file():
             sys.exit(f"ERROR: file not found: {p}")   # exits with code 1
 
-        if avg_type == "scalar":
-            print("avg %s of %s is" % (field, infile), end=" ")
+        if avg_type == "Scalar":
+            print("Average %s of %s is" % (field, infile), end=" ")
         else:
-            print("avg %s of %s is" % (avg_type, infile), end=" ")
+            print("Average %s of %s is" % (avg_type, infile), end=" ")
 
         # Load the input vtk file
         reader = vtk.vtkXMLPolyDataReader()
