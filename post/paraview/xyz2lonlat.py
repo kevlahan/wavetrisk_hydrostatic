@@ -4,7 +4,7 @@
 # Usage: python xyz2lonlat.py input_vtk_file output_vtk_file
 #
 # Weiguang Guan     (SHARCNET)            2024-04-16
-# Nicholas Kevlahan (McMaster University) 2025-01-29
+# Nicholas Kevlahan (McMaster University) 2025-10-16
 import os
 import glob
 import sys
@@ -16,7 +16,7 @@ from contextlib import suppress
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from pathlib import Path
 
-verbose = False # echo file being processed
+verbose = True # echo file being processed 
 
 # Main program
 if (len(sys.argv)<7):
@@ -51,24 +51,34 @@ dtheta_min = 180/lat_dim
 dtheta_max = dtheta_min * 2**(Jmax - Jmin)
 
 for t in range (t1, t2+1):
-    file = run+'_tri_'+str(t).zfill(4)+".vtk.tgz"
-    p = Path(file).expanduser()
-    if not p.is_file():
-        sys.exit(f"ERROR: file not found: {p}")   # exits with code 1
-    if verbose: print ("Uncompressing file ", file)
-    untar_files (file)
-    file_vtk = run+"_tri_"+str(0).zfill(3)+"_"+str(t).zfill(4)+".vtk"
-    if os.path.exists(file_vtk):
-        os.remove(file_vtk)
     for z in range (z1, z2+1):
         # Load the input vtk file
-        infile  = run+"_tri_"+str(z).zfill(3)+"_"+str(t).zfill(4)
-        outfile = run+"_tri_lonlat_"+str(z).zfill(3)+"_"+str(t).zfill(4)
-        if verbose: print ("Processing file ", infile)
+        vtk_file = f"{run}_tri_{z:03d}_{t:04d}.vtk"
+        vtp_file = f"{run}_tri_lonlat_{z:03d}_{t:04d}.vtp"
+
+        # Uncompress *.vtk.tgz if necessary
+        p = Path(vtk_file).expanduser()
+        if not p.exists():
+            tar_file = f"{run}_tri_{t:04d}.vtk.tgz"
+            
+            p = Path(tar_file).expanduser()
+            if not p.exists():
+                sys.exit(f"ERROR: file not found: {p}")   # exits with code 1
+                if verbose: print ("Uncompressing file ", file)
+                
+            untar_files (tar_file)
+
+            # Remove surface data *.vtk file
+            surface_vtk = f"{run}_tri_000_{t:04d}.vtk"
+            p = Path(surface_vtk).expanduser()
+            if p.exists():
+                os.remove(surface_vtk)
+
+        if verbose: print ("Processing file", vtk_file)
         
         vtkreader = vtk.vtkDataSetReader()
         vtkreader.ReadAllScalarsOn()
-        vtkreader.SetFileName(infile+".vtk")
+        vtkreader.SetFileName(vtk_file)
         vtkreader.Update()
 
         data = vtkreader.GetOutput()
@@ -209,11 +219,11 @@ for t in range (t1, t2+1):
 
         # Write out structured data
         writer = vtk.vtkXMLPolyDataWriter() 
-        writer.SetFileName(outfile+".vtp")
+        writer.SetFileName(vtp_file)
         writer.SetInputData(polydata)
         writer.Write()
 
-    # Remove vtk files for time t
-    pattern = f"{run}_tri_*_{str(t).zfill(4)}.vtk"
-    for file in glob.glob(pattern):
-        os.remove(file)
+        # Remove vtk file
+        os.remove(vtk_file)
+
+  
