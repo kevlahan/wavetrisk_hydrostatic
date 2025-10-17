@@ -5,18 +5,14 @@
 #
 # Weiguang Guan     (SHARCNET)            2024-04-16
 # Nicholas Kevlahan (McMaster University) 2025-10-16
-import os
-import glob
-import sys
+import os, glob, subprocess, sys, tarfile
 import numpy as np
-from utilities import *
 import vtk
-import subprocess
 from contextlib import suppress
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from pathlib import Path
 
-verbose = True # echo file being processed 
+verbose = False # echo file being processed 
 
 # Main program
 if (len(sys.argv)<7):
@@ -50,6 +46,8 @@ lon_dim = 2*lat_dim
 dtheta_min = 180/lat_dim
 dtheta_max = dtheta_min * 2**(Jmax - Jmin)
 
+wdir = str(Path.cwd().resolve())
+
 for t in range (t1, t2+1):
     for z in range (z1, z2+1):
         # Load the input vtk file
@@ -66,7 +64,8 @@ for t in range (t1, t2+1):
                 sys.exit(f"ERROR: file not found: {p}")   # exits with code 1
                 if verbose: print ("Uncompressing file ", file)
                 
-            untar_files (tar_file)
+            with tarfile.open(tar_file, "r:gz") as tar:
+                tar.extractall(wdir, filter="data")
 
             # Remove surface data *.vtk file
             surface_vtk = f"{run}_tri_000_{t:04d}.vtk"

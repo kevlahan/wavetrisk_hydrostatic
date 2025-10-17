@@ -47,8 +47,8 @@ def prep_once_rank0_then_barrier(comm: MPI.Comm, tgz_path: str, dest_dir: str,
             # still enter barrier so others can receive the error broadcast below
         else:
             # Extract once into the destination directory
-            with tarfile.open(tgz, "r:gz") as tar:
-                tar.extractall(dest)
+            with tarfile.open(tgz_path, "r:gz") as tar:
+                tar.extractall(dest, filter="data")
             # Publish a .ready marker (atomic rename helps NFS)
             tmp = dest / ".ready.tmp"
             tmp.write_text("ok")
@@ -82,6 +82,15 @@ def try_mpi():
     except Exception:
         return None
 
+def run_xyz_layers_serial(run, Jmin, Jmax, nz, t):
+    """Pure serial fallback that mirrors the per-layer work."""
+    failures = []
+    for z in range(1, nz + 1):
+        rc = run_one(z, run, Jmin, Jmax, t)
+        if rc != 0:
+            failures.append((z, rc))
+    return failures
+    
 def run_xyz_layers(run, Jmin, Jmax, nz, t):
     """
     Runs z=1..nz. If launched under MPI (mpirun/srun with mpi4py), distributes
@@ -106,10 +115,11 @@ def run_xyz_layers(run, Jmin, Jmax, nz, t):
     data_root = prep_once_rank0_then_barrier(comm, tgz_path, dest_dir)
 
     # Remove surface data *.vtk file
-    surface_vtk = f"{run}_tri_000_{t:04d}.vtk"
-    p = Path(surface_vtk).expanduser()
-    if p.exists():
-        os.remove(surface_vtk)
+    if rank == 0:
+        surface_vtk = f"{run}_tri_000_{t:04d}.vtk"
+        p = Path(surface_vtk).expanduser()
+        if p.exists():
+            os.remove(surface_vtk)
 
     failures = []
     for z in range(1 + rank, nz + 1, size):

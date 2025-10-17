@@ -1,4 +1,6 @@
-# Usage: python lonlat_to_3D.py run nz t1 t2 J 
+# Usage example (serial): python lonlat_to_3D.py SimpleJ5Z30 y 5 5 30 y fall 163 168
+# Usage example (mpi):    python lonlat_to_3D.py --nprocs 4 SimpleJ5Z30 y 5 5 30 y fall 163 168 --step-days 5
+# 
 #    
 #    Generates a 3D and zonal/meridional projections from a series of vtk layers.
 #
@@ -12,20 +14,39 @@
 # Author: Weiguang Guan and Nicholas Kevlahan (McMaster University)
 # Date : Last revision 2025-04-21 (Nicholas Kevlahan)
 
-import os
-import sys
-import glob
-import re
+import csv, os, sys, glob, re, argparse, textwrap
 from utilities import *
 from contextlib import suppress
 import numpy as np
 import vtk
-import csv
 import subprocess
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from vtk.util import numpy_support
 import scipy.ndimage
 from datetime import datetime, timedelta
+from pathlib import Path
+from xyz2lonlat_layers import run_xyz_layers, run_xyz_layers_serial
+
+def run_xyz_layers_mpi(nprocs, run, Jmin, Jmax, nz, t, launcher="mpirun", workdir=None):
+    here = Path(__file__).resolve().parent
+    script = here / "xyz2lonlat_layers.py"   # same directory
+
+    # Keep threaded libs to 1 thread per rank
+    env = os.environ.copy()
+    for v in ("OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS","NUMEXPR_NUM_THREADS"):
+        env.setdefault(v, "1")
+
+    cmd = [
+        launcher, "-n", str(nprocs),
+        sys.executable, "-m", "mpi4py", str(script),
+        run, str(Jmin), str(Jmax), str(nz), str(t),
+    ]
+
+    # working directory: default to current shell CWD (data dir), or override
+    cwd = Path(workdir).resolve() if workdir else Path.cwd().resolve()
+
+    # >>> the missing call <<<
+    subprocess.run(cmd, check=True, cwd=cwd, env=env)
 
 ################################################################################
 class Cell3D():
@@ -141,7 +162,7 @@ class Cell3D():
         if (len(idxs)==1):
             writer = vtk.vtkUnstructuredGridWriter()
             writer.SetFileTypeToBinary()
-            writer.SetFileName(sys.argv[1]+"_"+str(t).zfill(4)+".vtk")
+            writer.SetFileName(f"{run}_{t:04d}.vtk")
             writer.SetInputData(ugrid)
             writer.Write()
 
@@ -223,23 +244,23 @@ class Cell3D():
             Ntot    = Ntot + lon_dim
         
         # Write out data
-        file_out = run+"_"+str(t).zfill(4)
+        file_out = f"{run}_{t:04d}"
 
         # Write image (uniform grid) data
         writer = vtk.vtkXMLImageDataWriter()
 
         # Write 3D Cartesian grid data
-        writer.SetFileName(file_out+"_"+season+".vti")
+        writer.SetFileName(f"{file_out}_{season}.vti")
         writer.SetInputData(img3)
         writer.Write()
 
         # Write zonal projection
-        writer.SetFileName(file_out+"_zonal_"+season+".vti")
+        writer.SetFileName(f"{file_out}_zonal_{season}.vti")
         writer.SetInputData(img1)
         writer.Write()
 
         # Write meridional projection
-        writer.SetFileName(file_out+"_merid_"+season+".vti")
+        writer.SetFileName(f"{file_out}_merid_{season}.vti")
         writer.SetInputData(img2)
         writer.Write()
 
@@ -260,9 +281,9 @@ class Cell3D():
                 add_scalar_data(ke,        Nzonal, "EddyKineticEnergy",   statistics)
 
                 if (len(idxs)==1):
-                    stats_file = run+str(idxs[0]).zfill(4)+"_stats_zonal_"+season+".vti"
+                    stats_file = f"{run}_{idxs[0]:04d}_statistics_zonal_{season}.vti"
                 else:
-                    stats_file = run+"_statistics_zonal_"+season+".vti"
+                    stats_file = f"{run}_statistics_zonal_{season}.vti"
                     
                 writer.SetFileName(stats_file)
                 writer.SetInputData(statistics)
@@ -270,7 +291,8 @@ class Cell3D():
 
                 # Save vertical profiles in csv file
                 vertical_profile = np.array(vertical_profile).T
-                with open(file_out+"_"+season+".csv", 'w', newline='') as file:
+                csv_file = f"{file_out}_{season}.csv"
+                with open(csv_file, 'w', newline='') as file:
                     writer = csv.writer(file)
                     writer.writerow(data_names)
                     for row in vertical_profile:
@@ -630,86 +652,159 @@ def add_scalar_data(data, N, name, img):
     attr.SetName(name)
     
     img.GetPointData().AddArray(attr)
-    
-#########################################################################################################################################
-#    Main program
-#########################################################################################################################################
 
-if (len(sys.argv)<8):
-    print("""
-    Use: python lonlat_to_3D.py run compressible Jmin Jmax nz seasons season t1 t2 step_days
-    
-    Generates a 3D data files, zonal/meridional projections and vertical profiles from a series of layers in directory folder.
-    
-    Required input parameters:
-      run          = prefix name of files (run name)
-      compressible = y (compressible) or n (incompressible) simulation
-      Jmin         = minimum level
-      Jmax         = maximum level
-      nz           = number of vertical layers
-      seasons      = y (seasonal statistics) n (process files t1 to t2)
-      season       = spring, summer, fall, winter
-      t1           = first index (if seasons = n)
-      t2           = last index  (if seasons = n)
+class _Fmt(argparse.ArgumentDefaultsHelpFormatter,
+           argparse.RawDescriptionHelpFormatter):
+    pass
 
-    !! Must set edit start_date if not March 22 !!!
+DOC = textwrap.dedent("""\
+  Example 1:
+    python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 n 1 365
+      processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers
+      for *.vtk.tgz data files with indices 1 to 365
 
-    Example 1: python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 n 1 365
-        processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for *.vtk.tgz data files 
-        with indices 1 to 365 
+  Example 2 (seasonal statistics):
+    python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 y spring 1 365 --step-days 5
+      processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for spring
+      for *.vtk.tgz data with indices 1 to 365 saved every 5 days
 
-    Example 2 (seasonal statistics): python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 y spring 1 365 5
-        processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for spring 
-        for *.vtk.tgz data  with indices 1 to 365 saved every 5 days
-    
-    If t2 does not equal t1, the following time-averaged data are saved (with suffix _season if season = y):
+  Example 3 (seasonal statistics starting from June 21):
+    python lonlat_to_3D.py SimpleJ5J7Z30 y 5 7 30 y spring 1 365 --step-days 5 --start-date 0001-06-21
+      processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for spring
+      for *.vtk.tgz data with indices 1 to 365 saved every 5 days with first data from June 21.
+
+  Include --nprocs tasks (where tasks is number of MPI ranks) to parallelize *.vtp layer computation.
+
+  If t2 ≠ t1, the following time-averaged data are saved (suffix _season if seasons == 'y'):
     run.vti             3D uniform (lon,lat,P/Ps) 3D image data
     run_zonal.vti       2D uniform (lat,P/Ps)     zonally averaged image data
     run_merid.vti       2D uniform (lon,P/Ps)     meridionally averaged image data
     run_zonal.vti       2D uniform (lat,P/Ps)     zonally averaged image data averaged over times [t1,t2]
     run_merid.vti       2D uniform (lon,P/Ps)     meridionally averaged image data averaged over times [t1,t2]
-    run_stats_zonal.vti 2D uniform (lat,P/Ps)     statistics (temperature variance, eddy momentum flux, eddy heat flux, eddy kinetic energy)
-    run.csv             1D         (P/Ps)         vertical profiles averaged over the sphere
-    
-    If t2 equals t1 (single time), the following single time data are saved:
-    run_tttt.vtk             3D unstructured (lon,lat,P/Ps) 3D vtk data on adaptive grid
+    run_stats_zonal.vti 2D uniform (lat,P/Ps)     statistics (temp variance, eddy momentum/heat flux, EKE)
+    run.csv             1D (P/Ps)                 vertical profiles averaged over the sphere
+
+  If t2 == t1 (single time), the following are saved:
+    run_tttt.vtk             3D unstructured (lon,lat,P/Ps) 3D vtk on adaptive grid
     run_tttt.vti             3D uniform      (lon,lat,P/Ps) 3D image data
     run_tttt_zonal.vti       2D uniform      (lat,P/Ps)     zonally averaged image data
     run_tttt_merid.vti       2D uniform      (lon,P/Ps)     meridionally averaged image data
     run_tttt_zonal.vti       2D uniform      (lat,P/Ps)     zonally averaged image data averaged over times [t1,t2]
     run_tttt_merid.vti       2D uniform      (lon,P/Ps)     meridionally averaged image data averaged over times [t1,t2]
-    run_tttt_stats_zonal.vti 2D uniform      (lat,P/Ps)     statistics (temperature variance, eddy momentum flux, eddy heat flux, eddy kinetic energy)
+    run_tttt_stats_zonal.vti 2D uniform      (lat,P/Ps)     statistics (temp variance, eddy momentum/heat flux, EKE)
     run_tttt.csv             1D              (P/Ps)         vertical profiles averaged over the sphere
 
-    3D data has dimensions N x N/2 x nz.  The vertical coordinate is P/Ps.
-    """)
-    exit(0)
-else:
-    print("Input parameters = ", sys.argv[1:])
+  3D data has dimensions N x N/2 x nz. The vertical coordinate is P/Ps.
+""")
 
-# Edit if necessary
-start_date = datetime(1, 3, 22)  # year 1 start date
+DEFAULT_START_DATE_STR = "0001-03-22"
+
+def parse_start_date(s: str) -> datetime:
+    """
+    Accepts:
+      - YYYY-MM-DD (ISO), e.g., 2025-03-22
+      - M-D (year defaults to 0001), e.g., 3-22 or 03-22
+      - M/D likewise, e.g., 3/22
+    Returns a datetime at 00:00:00.
+    """
+    if not s:
+        return datetime(1, 3, 22)
+    # try ISO first
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        pass
+    # allow M-D or M/D with default year=0001
+    s2 = s.replace("/", "-")
+    try:
+        m, d = map(int, s2.split("-"))
+        return datetime(1, m, d)
+    except Exception:
+        raise argparse.ArgumentTypeError("Use YYYY-MM-DD or M-D (year defaults to 0001).")
+
+def parse_args():
+    p = argparse.ArgumentParser(
+        prog="lonlat_to_3D.py",
+        description=
+        """
+Generates a 3D data files, zonal/meridional projections and vertical profiles
+from a series of layers in directory folder.
+        
+        """,
+        epilog=DOC,
+        formatter_class=_Fmt,
+    )
+    
+    p.add_argument("--nprocs", type=int, default=1, help="MPI ranks to use for computing lon/lat layer data projections")
+
+    # required positionals
+    p.add_argument("run")
+    p.add_argument("compressible", choices=["y","n","Y","N"])
+    p.add_argument("Jmin", type=int)
+    p.add_argument("Jmax", type=int)
+    p.add_argument("nz",   type=int)
+
+    # seasons flag (y/n), then conditionally the season name
+    p.add_argument("seasons", choices=["y","n","Y","N"],
+                   help="y => seasonal mode (needs season + step-days); n => all")
+    p.add_argument("season", nargs="?", default="all",
+                   help="season name (required if seasons=='y')")
+    # common time bounds
+    p.add_argument("t1", type=int)
+    p.add_argument("t2", type=int)
+
+    # only used in seasonal mode; optional flag is more robust than a positional
+    p.add_argument("--step-days", type=int, default=5,
+                   help="day stride (seasonal mode); default 5")
+
+    p.add_argument(
+        "--start-date",
+        type=parse_start_date,
+        default=parse_start_date(DEFAULT_START_DATE_STR),
+        help="reference start date. Formats: YYYY-MM-DD or M-D (year defaults to 0001).",
+    )
+    
+    if len(sys.argv) == 1:  # no args → show full help + examples
+        print()
+        p.print_help(); sys.exit(0)
+
+    a = p.parse_args()
+    
+    seasons = a.seasons.lower() == "y"
+    if seasons and (a.season == "all"):
+        p.error("seasonal mode requires a season name (e.g., 'spring').")
+
+    for k, v in sorted(vars(a).items()):
+        print(f"{k:>12}: {v}")
+
+    # unpack to variable names
+    run          = a.run
+    compressible = a.compressible
+    Jmin         = a.Jmin
+    Jmax         = a.Jmax
+    nz           = a.nz
+    t1           = a.t1
+    t2           = a.t2
+    season       = a.season if seasons else "all"
+    step_days    = a.step_days if seasons else 5
+    start_date   = a.start_date 
+
+    if seasons:
+        total_days = t2 * step_days
+        n_years    = total_days // 365
+    else:
+        total_days = None
+        n_years    = None
+
+    return a.nprocs, run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, total_days, n_years
+
+    
+#########################################################################################################################################
+#    Main program
+#########################################################################################################################################
 
 # Input parameters
-run          = sys.argv[1]
-compressible = sys.argv[2]
-Jmin         = int(sys.argv[3])
-Jmax         = int(sys.argv[4])
-nz           = int(sys.argv[5])
-if sys.argv[6] in ("y"):
-    seasons   = True
-    season    = sys.argv[7]
-    t1        = int(sys.argv[8])
-    t2        = int(sys.argv[9])
-    step_days = int(sys.argv[10])
-
-    total_days = t2 * step_days
-    n_years    = total_days // 365   
-else:
-    seasons = False
-    season    = "all"
-    t1        = int(sys.argv[7])
-    t2        = int(sys.argv[8])
+(nprocs, run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, total_days, n_years) = parse_args()
 
 # Grid dimensions (same number of rectangular cells as lozenge cells on the sphere) 
 lat_dim  = int(np.sqrt((10*4**Jmax + 2)/2))
@@ -798,7 +893,13 @@ print(len(idxs), "file indices to process:", list(idxs),"\n")
 for t in idxs:
     print("    processing file with index ", t)
     
-    transform_to_lonlat(t) # compute lonlat projections
+    #transform_to_lonlat(t) # compute lonlat projections
+    if nprocs > 1:
+        run_xyz_layers_mpi(nprocs, run, Jmin, Jmax, nz, t)
+    else:
+        failures = run_xyz_layers_serial(run, Jmin, Jmax, nz, t)
+        if failures:
+            print("Failures:", failures)
 
     vtp_series = []
     for z in range (1, nz+1):
