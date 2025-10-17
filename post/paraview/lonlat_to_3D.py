@@ -509,22 +509,6 @@ def avg_images(file_type):
 
     return output_image
     
-
-def transform_to_lonlat(t):
-    # Transform spherical data to lonlat vtk data
-
-    script_name = "xyz2lonlat.py"
-    arg1 = run
-    arg2 = str(Jmin)
-    arg3 = str(Jmax)
-    arg4 = '1'
-    arg5 = str(nz)
-    arg6 = str(t)
-    arg7 = str(t)
-    arg8 = 'y' # use Delaunay2D filter to remove gaps
-    subprocess.run(['python3', script_name, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8])
-
-    
 def mean (data):
     # Computes mean of data
 
@@ -893,7 +877,6 @@ print(len(idxs), "file indices to process:", list(idxs),"\n")
 for t in idxs:
     print("    processing file with index ", t)
     
-    #transform_to_lonlat(t) # compute lonlat projections
     if nprocs > 1:
         run_xyz_layers_mpi(nprocs, run, Jmin, Jmax, nz, t)
     else:
