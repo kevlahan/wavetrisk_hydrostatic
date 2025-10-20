@@ -25,7 +25,43 @@
 from pathlib import Path
 import subprocess
 from mpi4py import MPI
-import os, tarfile, time, sys
+import  argparse, os, tarfile, time, sys, textwrap
+
+class _Fmt(argparse.ArgumentDefaultsHelpFormatter,
+           argparse.RawDescriptionHelpFormatter):
+    pass
+
+def parse_args():
+    epilog = textwrap.dedent("""\
+      Examples
+        mpirun -n 4 python -m mpi4py xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 365
+        python xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 365
+    """)
+    p = argparse.ArgumentParser(
+        prog="xyz2lonlat_layers.py",
+        description="Convert all vertical layers of spherical <run>_tri_<t>.vtk.tgz to longitude-latitude data <run>_lonlat_<z>_<t>.vtp.",
+        formatter_class=_Fmt,
+        epilog=epilog,
+    )
+    p.add_argument("run")
+    p.add_argument("Jmin", type=int)
+    p.add_argument("Jmax", type=int)
+    p.add_argument("nz",   type=int)
+    p.add_argument("t",    type=int)
+    p.add_argument("--wdir", type=Path, default=None, help="Working/data directory")
+    p.add_argument(
+    "--prep-quiet",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help="Suppress prep/untar messages",
+)
+
+    if len(sys.argv) == 1:  # no args → show full help + examples
+        print()
+        p.print_help(); sys.exit(0)
+
+    a = p.parse_args()
+    return a
 
 def prep_once_rank0_then_barrier(comm: MPI.Comm, tgz_path: str, dest_dir: str,
                                  timeout_s: int = 300, verbose: bool = True) -> str:
@@ -91,7 +127,7 @@ def run_xyz_layers_serial(run, Jmin, Jmax, nz, t):
             failures.append((z, rc))
     return failures
     
-def run_xyz_layers(run, Jmin, Jmax, nz, t):
+def run_xyz_layers(run, Jmin, Jmax, nz, t, prep_quiet):
     """
     Runs z=1..nz. If launched under MPI (mpirun/srun with mpi4py), distributes
     work across ranks; otherwise runs serial. Returns a list of (z, rc) failures.
@@ -138,10 +174,24 @@ def run_xyz_layers(run, Jmin, Jmax, nz, t):
     else:
         return []  # non-root ranks return an empty list
 
-# CLI wrapper (still works from terminal)
 if __name__ == "__main__":
-    run, Jmin, Jmax, nz, t = sys.argv[1:6]
-    fails = run_xyz_layers(run, int(Jmin), int(Jmax), int(nz), int(t))
-    if fails:
-        print("Failures:", fails, file=sys.stderr)
-        sys.exit(1)
+    a = parse_args()
+
+    # optional: change working dir if requested
+    if a.wdir is not None:
+        from os import chdir
+        chdir(a.wdir.resolve())
+
+    # call your existing driver function
+    # (these names assume you already have them defined above)
+    # Example: try_mpi() returns MPI.COMM_WORLD or None
+    comm = try_mpi()
+    rank = comm.Get_rank() if comm else 0
+    if rank == 0 and not a.prep_quiet:
+        print(f"Converting layers for run={a.run}, J=[{a.Jmin},{a.Jmax}], nz={a.nz}, t={a.t}")
+
+    failures = run_xyz_layers(a.run, a.Jmin, a.Jmax, a.nz, a.t, a.prep_quiet)
+    # gather/report if you like; many users just rely on per-rank prints
+    if (comm is None) or (comm and rank == 0):
+        if failures:
+            print("Failures:", failures)
