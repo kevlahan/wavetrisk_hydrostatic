@@ -14,7 +14,7 @@ Module test_case_mod
   ! Local variables
   real(8)                              :: C_Drake = 0.9_dp
   real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
-  real(8)                              :: drho, f0, h_linear, Fr, Ku, k_T, lambda0, lambda1, Rb, Rd, Rey, Ro, radius_earth
+  real(8)                              :: drho, f0, h_linear, Ku, k_T, lambda0, lambda1, Rd, Rey, Ro, radius_earth
   real(8)                              :: omega_earth, scale, scale_omega, tau_0, u_wbc, z_linear
   real(8),                      target :: bottom_friction_case
   real(8), allocatable, dimension(:,:) :: analytic_data
@@ -212,16 +212,13 @@ contains
        write (6,'(a,es11.4)') "dx_max                   [km]  = ", dx_avg(min_level) / KM
        write (6,'(a,es11.4)') "dx_avg(max_level)        [km]  = ", dx_avg(max_level) / KM
        write (6,'(a,es11.4)') "dt_init                   [s]  = ", dt_init
-       write (6,'(a,es11.4)') "External scale l0        [km]  = ", lambda0  / KM
+       write (6,'(/,a,es11.4)') "External scale l0        [km]  = ", lambda0  / KM
        write (6,'(a,es11.4)') "Internal scale l1        [km]  = ", lambda1  / KM
        write (6,'(a,es11.4)') "Inertial layer           [km]  = ", delta_I  / KM
        write (6,'(a,es11.4)') "Munk layer               [km]  = ", delta_M  / KM
        write (6,'(a,es11.4)') "Stommel layer            [km]  = ", delta_S  / KM
        write (6,'(a,es11.4)') "submesoscale             [km]  = ", delta_sm / KM
-       write (6,'(a,es11.4)') "barotropic Rossby radius [km]  = ", Rd / KM
-       write (6,'(a,es11.4,/)') "baroclinic Rossby radius [km]  = ", Rb / KM
        write (6,'(a,es11.4)') "Rossby number                  = ", Ro
-       write (6,'(a,es11.4)') "Froude number                  = ", Fr
        write (6,'(a,es11.4)') "Re (delta_I u_wbc / nu)        = ", Rey 
        write (6,'(a,es11.4)') "Resolution of Munk layer       = ", delta_M / dx_avg(max_level)
        write (6,'(a,es11.4)') "Resolution of Taylor scale     = ", delta_I / sqrt(Rey) / dx_avg(max_level)
@@ -660,7 +657,7 @@ contains
        pN  = dom%node%elts(idN +1)
     
        penal_node(zlev)%data(d)%elts(id+1) = penal (p)
-       
+
        penal_edge(zlev)%data(d)%elts(EDGE*id+RT+1) = 0.5 * (penal (p) + penal (pE))
        penal_edge(zlev)%data(d)%elts(EDGE*id+DG+1) = 0.5 * (penal (p) + penal (pNE))
        penal_edge(zlev)%data(d)%elts(EDGE*id+UP+1) = 0.5 * (penal (p) + penal (pN))
@@ -1136,7 +1133,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     end if
 
     ! Penalization (friction = 1/dt)
-    penal = - penal_edge(zlev)%data(d)%elts(id_edge(id))/dt * velo(id_edge(id))
+    penal = - penal_edge(zlev)%data(d)%elts(id_edge(id)) / dt * velo(id_edge(id))
 
     physics_velo_source_case = horiz_diffusion + vert_diffusion + penal
   contains

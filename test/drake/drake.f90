@@ -16,7 +16,7 @@ program Drake
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   timeint_type            = "RK3" 
-  adapt_dt                = .false.
+  adapt_dt                = .true.
   compressible            = .false.
   default_thresholds      = .true.
   log_min_mass            = .false.
@@ -27,7 +27,7 @@ program Drake
   if (mode_split) then
      cfl_num              = 15.0_dp
   else
-     cfl_num              =  1.0_dp                             
+     cfl_num              =  0.9_dp                             
   end if
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -61,11 +61,12 @@ program Drake
   f0             = 2*omega * sin (40 * DEG)                ! representative Coriolis parameter
   beta           = 2*omega * cos (40 * DEG) / radius       ! beta parameter at 45 degrees latitude
 
-  porosity       = 0.1_dp                                  ! porosity
+  porosity       = 0.2_dp                                  ! porosity
   min_depth      = -50 * METRE / H_norm                    ! minimum allowed depth (must be negative)
   k_T            =       1 / (30 * DAY)                    ! relaxation time to mean buoyancy profile (if relax = .true.)
   
   if (zlevels == 1) then
+     relax                = .false.
      sigma_z              = .false.
      vert_diffuse         = .false.
 
@@ -78,18 +79,18 @@ program Drake
      u_wbc                =       1 * METRE/SECOND         ! estimated western boundary current speed
      
      bottom_friction_case =    rb_0                        ! constant bottom friction
-     relax                =    .false.
   elseif (zlevels >= 2) then
-     relax                = .true.                        ! relax to mean vertical stratification
+     relax                = .true.                         ! relax to mean vertical stratification
      remap                = .true.                         ! remap vertical coordinates
-     sigma_z              = .true.                         ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+     sigma_z              = .false.                        ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      tke_closure          = .false.                        ! use analytic profiles for eddy viscosity/diffusivity
      vert_diffuse         = .true.                         ! use vertical diffusion model
      
      coords               = "uniform"
      max_depth            =   -4000 * METRE                ! total depth
      z_mixed              =    -200 * METRE                ! bottom of constant density surface mixed 
-     z_linear             =    -500 * METRE                ! bottom of linear stratification layer below mixed layer (set z_linear = max_depth for constant/linear stratification)
+     z_linear             =    -500 * METRE                ! bottom of linear stratification layer below mixed layer
+                                                           ! (set z_linear = max_depth for constant/linear stratification)
 
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
 
@@ -108,38 +109,33 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   Area_min       = 4*MATH_PI * radius**2 / number_hex (max_level)
   dx_min         = sqrt (2 / sqrt(3.0_dp) * Area_min)
+  dz             = abs (max_depth) / dble (zlevels)                           ! layer depth scale
   
   wave_speed     = sqrt (grav_accel * abs (max_depth))                        ! inertia-gravity wave speed
   dt_init        = cfl_num * 0.85 * dx_min / wave_speed                       ! average time step
   visc           = C_Drake * Area_min**Laplace_rotu / dt_init                 ! viscosity
-  Rd             = wave_speed / f0                                            ! barotropic Rossby radius of deformation
-  h_linear       = z_mixed - z_linear                                         ! approximate thickness of linear stratification region
-  bv             = sqrt (- grav_accel/ref_density * drho/h_linear)            ! Brunt-Vaisala frequency
   delta_I        = sqrt (u_wbc/beta)                                          ! inertial layer
   delta_M        = (visc/beta)**(1.0_dp/(2*Laplace_rotu + 1))                 ! Munk layer scale
   delta_sm       = u_wbc / f0                                                 ! barotropic submesoscale
   delta_S        = bottom_friction_case / (abs(max_depth) * beta)             ! Stommel layer scale
-  Fr             = u_wbc / (bv * abs(max_depth))                              ! Froude number
   Rey            = u_wbc * delta_sm**(2*Laplace_rotu - 1) / visc              ! Reynolds number of western boundary current
   Ro             = u_wbc / (delta_M*f0)                                       ! Rossby number (based on boundary current)
 
   ! First baroclinic mode speed for linear stratification
-  if (zlevels == 2) then                                                      
-     c1 = sqrt (grav_accel * abs (drho) /ref_density * abs(z_mixed) * (z_mixed - max_depth) / abs (max_depth)) 
-  elseif (zlevels >= 3) then                                                  
-     c1 = bv * h_linear / MATH_PI                                   
-  endif
-  lambda0        = wave_speed / f0                                            ! external scale
-  lambda1        = c1         / f0                                            ! mesoscale
- 
-  ! First baroclinic Rossby radius of deformation
   if (zlevels == 1) then
-     Rb = 0.0_dp
+     c1 = 0.0_dp
   else
-     Rb = lambda1                               
-  end if
+     h_linear       = z_mixed - z_linear                                      ! approximate thickness of linear stratification region
+     bv             = sqrt (- grav_accel/ref_density * drho/h_linear)         ! Brunt-Vaisala frequency
+     if (zlevels == 2) then                                                      
+        c1 = sqrt (grav_accel * abs (drho) /ref_density * abs(z_mixed) * (z_mixed - max_depth) / abs (max_depth)) 
+     elseif (zlevels >= 3) then                                                  
+        c1 = bv * h_linear / MATH_PI                                   
+     endif
 
-  dz = abs (max_depth) / dble (zlevels)                                       ! layer depth scale
+  end if
+  lambda0        = wave_speed / f0                                            ! external scale
+  lambda1        = c1 / f0                                                    ! mesoscale
 
   ! Dimensional scaling
   Hdim           = abs (max_depth)                                            ! vertical length scale

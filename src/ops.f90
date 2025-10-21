@@ -1104,13 +1104,15 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer  :: d, id
-    real(dp) :: rho_dz, rho_dz_theta, p_upper
+    real(dp) :: dz, rho_dz, rho_dz_theta, p_upper
     
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
     rho_dz       = mean_m(id) + mass(id)
     rho_dz_theta = mean_t(id) + temp(id)
+    dz           = rho_dz / porous_density (d, id, zlev)
+    
     dom%geopot_lower%elts(id) = dom%geopot%elts(id)
     if (compressible) then ! compressible case:, rho = P / (kappa theta pi)
        p_upper = dom%press_lower%elts(id) - grav_accel * rho_dz
@@ -1125,7 +1127,7 @@ contains
 
        dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
 
-       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel*rho_dz / (ref_density * phi_node (d, id, zlev))
+       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel * dz
     end if
     dom%press_lower%elts(id) = p_upper
   end subroutine integrate_pressure_up
