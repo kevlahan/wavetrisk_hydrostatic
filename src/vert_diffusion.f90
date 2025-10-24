@@ -413,7 +413,7 @@ contains
     k = zlevels
     diag_l(:,k-1) = - coeff (-1) ! sub-diagonal
     diag(:,k)     = 1.0_dp - diag_l(:,k-1)
-    rhs(:,k) = sol(S_VELO,k)%data(d)%elts(id_edge(id)) + dt * wind_flux (dom, i, j, z_null, offs, dims) / dz(:,k)
+    rhs(:,k) = sol(S_VELO,k)%data(d)%elts(id_edge(id)) + dt * wind_flux (dom, i, j, zlevels, offs, dims) / dz(:,k)
 
     ! Solve tridiagonal linear system
     do e = 1, EDGE
