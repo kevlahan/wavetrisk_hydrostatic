@@ -16,7 +16,7 @@ clear; clc; global KM; format short e
 
 test_case = "drake";     % drake, jet, Simple
 level     = 8;           % resolution level
-zlevels   = 60;          % number of vertical layers
+zlevels   = 12;          % number of vertical layers
 layers    = 1:zlevels;   % vertical layers to analyze
 type      = "u";         % u, curlu or divu
 avg       = true;        % analyze average spectrum or individual spectra
@@ -31,44 +31,42 @@ end
 
 % Set physical parameters
 [H, lambda0, lambda1, deltaS, deltaSM, deltaI, deltaM, radius] = params(test_case); 
-%range       = [deltaI deltaSM] * KM; % range for power law fit   for tanh
+range       = [deltaI deltaSM] * KM; % range for power law fit   for tanh
 
 plot_scales = true ;     % plot length scales
 col_spec    = "b-";      % colour for energy spectrum
 col_power   = "r-";      % colour for power law
 
-% Plot spectra
 run_id = test_case+"J"+num2str(level,'%1.1d')+"Z"+num2str(zlevels,'%2.2d');  % naming convention
+tmpdir = "temp_spec"; mkdir(tmpdir);
 
 pow_law = zeros(cp_max-cp_min+1,zlevels);
 ymin = 1e16; ymax = -1e16;
 for cp_id = cp_min:cp_max
     if ~avg
+        cp = compose("%04d",cp_id);
+        tgzfile = run_id+"_"+cp+"_spec.tgz";
+        
         fprintf('\nPower law exponents for checkpoint %d\n', cp_id)
+    else
+        tgzfile = run_id+"_spec.tgz"; 
     end 
+    untar(tgzfile, tmpdir); % uncompress spectrum tar file
+
     fprintf("Layer     p")
     for zlev = layers
         % Load spectrum data
         name_type = "Layer "+zlev;
-        cp        = compose("%04d",cp_id);
         k         = compose("%04d",zlev);
         if avg % average spectrum
             file_base = run_id+"_"+k+"_"+type;
         else
             file_base = run_id+"_"+cp+"_"+k+"_"+type;
         end
-        spec_file = file_base+"_spec"; 
-        
-        try
-            pspec = load (spec_file, '-ascii');
-        catch ME
-            fprintf('\n File %s not present ... continuing\n',spec_file)
-            pause
-            continue
-        end
+        pspec = load (tmpdir+"/"+file_base+"_spec", '-ascii');
 
         % Plot energy spectra
-        if ~strcmp(type,"u") % convert vorticity spectrum to energy spectrum integrated over shells 
+        if ~strcmp(type,"u") % convert vorticity spectrum to energy spectrum integrated over shells
             pspec(:,2) = pspec(:,2)./pspec(:,1).^2;
         end
         scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
@@ -93,6 +91,7 @@ for cp_id = cp_min:cp_max
         ymax = max (ymax, 10^(ceil(log10(max(pspec(:,2))))));
     end
 end
+rmdir(tmpdir, 's'); % delete temporary directory
 
 fprintf("\n")
 
