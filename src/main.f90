@@ -15,7 +15,7 @@ module main_mod
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
   real(dp)                           :: dt_new, initial_total_mass, time_mult
   real(dp)                           :: dt_loc, min_mass_loc
-  
+
   type Initial_State
      integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
@@ -27,7 +27,7 @@ contains
     ! (solution is saved and restarted to balance load)
     implicit none
     character(*) :: run_id
-    
+
     if (max_level < min_level) then
        if (rank == 0) then
           write (6,'(//,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
@@ -53,7 +53,7 @@ contains
     case ("SRJ")
        elliptic_solver => Scheduled_Relaxation_Jacobi
     end select
-    
+
     call set_time_integrator
 
     ! Check validity of various parameter choices
@@ -84,7 +84,7 @@ contains
             '----------------------------------------------------- Adapting initial grid &
             ------------------------------------------------------'
        if (NCAR_topo) call load_topo
-       
+
        ! Apply initial conditions 
        call count_active
 
@@ -100,30 +100,30 @@ contains
 
           if (n_active(AT_NODE) == 0 .and. n_active(AT_EDGE) == 0) exit ! no further active grid points
        end do
-       
+
        if (rank == 0) write (6,'(a,/)') &
             '------------------------------------------------- Finished adapting initial grid &
             -------------------------------------------------'
        if (rank==0) write (6,'(a,i12,/)') 'Initial number of active wavelets = ', sum (n_active)
-       
+
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
-       
        call count_active
-       if (trim (test_case) /= "make_NCAR_topo" .or. trim (test_case) /= "save_vtk_data") call write_checkpoint
+
+       if (trim (test_case) /= "make_NCAR_topo") call write_checkpoint
     end if
-    if (trim (test_case) /= "spherical_harmonics") call write_and_export (vtk_grid)
+    if (trim (test_case) /= "make_NCAR_topo" .and. trim (test_case) /= "spherical_harmonics") call write_and_export (vtk_grid)
     call barrier
 
 #ifdef PHYSICS
     if (physics_model .and. physics_type == "Simple") call init_physics 
 #endif
   end subroutine initialize
-  
+
   subroutine count_active
     ! Apply initial conditions and count  number of active node and edge wavelets
     implicit none
     integer :: d, k, l, v
-    
+
     call apply_initial_conditions
     call forward_wavelet_transform (sol, wav_coeff) 
 
@@ -158,13 +158,13 @@ contains
 
   subroutine record_init_state (init_state)
     implicit none
-     type(Initial_State), dimension(:), allocatable :: init_state
+    type(Initial_State), dimension(:), allocatable :: init_state
 
-     integer :: d, i, v
+    integer :: d, i, v
 
-     allocate (init_state(size(grid)))
+    allocate (init_state(size(grid)))
 
-     do d = 1, size(grid)
+    do d = 1, size(grid)
        init_state(d)%n_patch      = grid(d)%patch%length
        init_state(d)%n_bdry_patch = grid(d)%bdry_patch%length
        init_state(d)%n_node       = grid(d)%node%length
@@ -247,7 +247,7 @@ contains
             **********************************************************'
        write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time / DAY
     end if
-    
+
 #ifdef AMPI
     if (rank == 0) write (6,'(a)') "Checkpointing using AMPI ..."
     call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
@@ -269,7 +269,7 @@ contains
 
     if (resume == NONE) call deallocate_structures  ! deallocate all dynamic arrays and variables
     call init_basic
-    
+
     if (rank == 0) then
        write (6,'(a,/)') &
             '********************************************************* Begin Restart &
@@ -283,7 +283,7 @@ contains
        call system (trim(bash_cmd))
     end if
     call barrier
-    
+
     call init_structures          ! initialize coarsest grid and distribute load
     call load_adapt_mpi (cp_idx)  ! load checkpoint data
     if (NCAR_topo) call load_topo ! load topography data
@@ -296,13 +296,13 @@ contains
     if (trim(test_case) /= "spherical_harmonics") then
        call initialize_dt_viscosity
        call initialize_thresholds
-       
+
        if (log_total_mass) call cal_total_mass (.true.)
-       
+
        itime  = nint (time * time_mult, 8)
        dt_new = min (dt_init, cpt_dt ())
        dt     = dt_new
-       
+
        if (rank == 0) then
           write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
                'time [d] = ', time/DAY, &
@@ -360,11 +360,11 @@ contains
     else
        call dt_step (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
     end if
-    
+
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Physics split step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
+
     ! Ocean (incompressible) 
     if (vert_diffuse) call vertical_diffusion ! ocean (incompressible) models
 
@@ -386,7 +386,7 @@ contains
     if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol)
-      
+
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Vertical remapping
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -426,7 +426,7 @@ contains
   subroutine init_basic
     implicit none
     integer :: l
-    
+
     call initialize_a_b_vert
     call init_comm_mod
     call init_init_mod
@@ -459,7 +459,7 @@ contains
 
     ! Distribute and balance grid over processors (necessary for correct restart!)
     call distribute_grid (cp_idx)
-    
+
     call init_grid
     call init_comm_mpi
     call init_geometry
@@ -479,14 +479,14 @@ contains
     node_level_start = 0
 
     if (rank == 0) write (6,'(a,i2,a)') 'Make level J_min = ', min_level, ' ...'
-    
+
     call init_wavelets
     call init_masks
     call add_second_level
 
     call apply_onescale2 (set_level, level_start, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
     call apply_interscale (mask_adj_child, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
-    
+
     call record_init_state (ini_st)
     if (time_end > 0.0_dp) time_mult = huge (itime)/2 / time_end
 
@@ -501,7 +501,7 @@ contains
     ! Compute total mass over all vertical layers
     implicit none
     logical :: initialize_total_mass
-    
+
     integer      :: k
     real(dp)     :: total_mass, mass_error
     character(3) :: int_type = "hex"
@@ -534,7 +534,7 @@ contains
     implicit none
     integer               :: ierror, level_end_glo
     integer, dimension(2) :: n_active_loc
-    
+
     if (adapt_dt) dt_loc = 1e16_dp
     n_active_nodes = 0
     n_active_edges = 0
@@ -554,7 +554,7 @@ contains
     n_active = sum_int_vector (n_active_loc, 2)
     level_end = sync_max_int (level_end)
   end function cpt_dt
-  
+
   subroutine cal_min_dt (dom, i, j, zlev, offs, dims)
     ! Calculates time step and number of active nodes and edges
     ! (uses exact local CFL stability formula for hexagons/pentagons)
@@ -575,14 +575,14 @@ contains
     id   = idx (i, j, offs, dims)
     id_i = id + 1
     ide  = id_edge (id)
-    
+
     lev  = dom%level%elts(id_i)
 
     if (dom%mask_n%elts(id_i) >= ADJZONE) then
        n_active_nodes(lev) = n_active_nodes(lev) + 1
-       
+
        dx = dom%len%elts(ide)
-       
+
        if (adapt_dt) then
           if (compressible) then
              P(zlevels) = p_top
@@ -604,7 +604,7 @@ contains
           else
              do k = 1, zlevels
                 speed = abs (sol(S_VELO,k)%data(d)%elts(ide))
-                
+
                 dt_adv = minval (cfl_num * dx / (speed + wave_speed))
                 dt_loc = min (dt_loc, dt_adv)
              end do
@@ -618,7 +618,7 @@ contains
   contains
     ! Routines to compute exact amplification factors for diffusive stability on adaptive grid
     ! Example: dt_dif = r_dif / theta_max_sclr ()**Laplace_sclr / nu_scale (S_MASS,1)
-    
+
     real(dp) function theta_max_sclr ()
       ! Maximum amplification factor for scalar diffusion
       ! (conservative Gershgorin bounds to include irregular pentagons:
@@ -688,7 +688,7 @@ contains
 
     min_mass_loc = 1e16_dp
     call apply_no_bdry (cal_min_mass, z_null)
-    
+
     cpt_min_mass = sync_min_real (min_mass_loc)
 
     if (log_min_mass .and. rank == 0) write (6,'(a,es11.4)') "Minimum relative mass = ", cpt_min_mass
@@ -754,12 +754,12 @@ contains
     dt = cpt_dt () ! to set n_active_*
 
     n_lev_cur = level_end - level_start + 1
-    
+
     n_active_all_loc = (/n_active_nodes(level_start:level_end), n_active_edges(level_start:level_end)/)
-    
+
     ! Sum n_active_all_loc up across all processes and distribute result n_active_all_glo among all processes
     n_active_all = sum_int_vector (n_active_all_loc, n_lev_cur*2)
-    
+
     n_active_nodes(level_start:level_end) = n_active_all(1:n_lev_cur)
     n_active_edges(level_start:level_end) = n_active_all(n_lev_cur+1:n_lev_cur*2)
     n_active_per_lev = n_active_edges(level_start:level_end) + n_active_nodes(level_start:level_end)
@@ -828,12 +828,12 @@ contains
     do d = 1, size(grid)
        deallocate (grid(d)%mask_n%elts)
        deallocate (grid(d)%mask_e%elts)
-       
+
        deallocate (grid(d)%level%elts)
-       
+
        deallocate (grid(d)%R_F_wgt%elts)
        deallocate (grid(d)%I_u_wgt%elts)
-       
+
        deallocate (grid(d)%overl_areas%elts)
        deallocate (grid(d)%triarea%elts)
        deallocate (grid(d)%len%elts)
@@ -855,13 +855,13 @@ contains
        deallocate (grid(d)%ke%elts)
        deallocate (grid(d)%divu%elts)
        deallocate (grid(d)%coriolis%elts)
-       
+
        deallocate (grid(d)%node%elts) 
        deallocate (grid(d)%bdry_patch%elts) 
        deallocate (grid(d)%patch%elts) 
        deallocate (grid(d)%neigh_pa_over_pole%elts)
        deallocate (grid(d)%send_pa_all%elts)
-       
+
        do i = 1, N_GLO_DOMAIN
           deallocate (grid(d)%recv_pa(i)%elts)
           deallocate (grid(d)%send_conn(i)%elts)
@@ -885,7 +885,7 @@ contains
 
        deallocate (Laplacian_vector(S_DIVU)%data(d)%elts)
        deallocate (Laplacian_vector(S_ROTU)%data(d)%elts)
-       
+
        do v = scalars(1), scalars(2)
           deallocate (horiz_flux(v)%data(d)%elts)
           deallocate (Laplacian_scalar(v)%data(d)%elts)
@@ -906,7 +906,7 @@ contains
              deallocate (wav_coeff(v,k)%data(d)%elts)
           end do
        end do
-       
+
        if (vert_diffuse) then
           deallocate (Kt(0)%data(d)%elts)
           deallocate (Kv(0)%data(d)%elts)
@@ -925,7 +925,7 @@ contains
           end do
        end if
     end do
-    
+
     deallocate (topography%data)
     if (sso) then
        do k = 1, 4
@@ -943,7 +943,7 @@ contains
        deallocate (exner_fun(k)%data)
     end do
     deallocate (exner_fun(zmax+1)%data)
-    
+
     do v = scalars(1), scalars(2)
        deallocate (horiz_flux(v)%data)
        deallocate (Laplacian_scalar(v)%data)
@@ -957,7 +957,7 @@ contains
           deallocate (wav_coeff(v,k)%data)
        end do
     end do
-    
+
     if (vert_diffuse) then
        deallocate (Kv(0)%data)
        deallocate (Kt(0)%data)
