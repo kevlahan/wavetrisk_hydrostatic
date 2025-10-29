@@ -135,7 +135,7 @@ contains
        end if
     end if
 
-    allocate (C_visc(1:N_VARIABLE+2,zmin:zmax)); C_visc = 1.0_dp
+    allocate (C_visc(1:N_VARIABLE+2,zmin:zmax)); C_visc = 0.3_dp; C_visc(S_DIVU,:) = 0.5_dp
     if (Laplace_divu == 1) C_visc(S_DIVU,:) = 0.1_dp
 
     allocate (grid(n_domain(rank+1)))

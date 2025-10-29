@@ -379,7 +379,7 @@ contains
     iremap_max              = 5                                   ! maximum remap interval (every iremap_max dt)
     min_mass_remap          = 0.9_dp                              ! minimum relative layer mass compared to initial value at which to remap
     level_save              = level_start                         ! level to save
-    porosity                = 0.2_dp                              ! porosity
+    porosity                = 1e-2_dp                             ! porosity for solid regions when using penalization
     
     ! Order of Laplacian diffusion  0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
     Laplace_sclr            = 2                                   ! scalars

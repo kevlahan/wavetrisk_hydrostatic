@@ -73,10 +73,10 @@ contains
     if (command_argument_count() >= 1) then
        CALL getarg (1, filename)
     else
-       filename = 'test_case.in'
+       filename = "test_case.in"
     end if
     if (rank == 0) then
-       write (6,'(A,A)') "Input file = ", trim (filename)
+       write (6,'(a,a)') "Input file = ", trim (filename)
        open(unit=fid, file=filename, action='READ')
        
        read (fid,*) varname, test_case
@@ -117,10 +117,10 @@ contains
     implicit none
 
     if (rank==0) then
-       write (6,'(A)') &
+       write (6,'(a)') &
             '********************************************************** Parameters &
             ************************************************************'
-       write (6,'(A)')        "RUN PARAMETERS"
+       write (6,'(a)')        "RUN PARAMETERS"
        write (6,'(a,a)')      "test_case                      = ", trim (test_case)
        write (6,'(a,a)')      "run_id                         = ", trim (run_id)
        write (6,'(a,es10.4)') "scale                          = ", scale
@@ -175,9 +175,9 @@ contains
 
        write (6,'(/,a)')      "TEST CASE PARAMETERS"
        write (6,'(a,a)')      "Linear solver                  = ", linear_solver
-       write (6,'(a,es11.4)') "max_depth                 [m]  = ", max_depth
        write (6,'(a,es11.4)') "z_mixed                   [m]  = ", z_mixed
        write (6,'(a,es11.4)') "z_linear                  [m]  = ", z_linear
+       write (6,'(a,es11.4)') "max_depth                 [m]  = ", max_depth
        write (6,'(a,a)')      "vertical coordinates           = ", trim (coords)
        write (6,'(a,es11.4)') "density perturbation [kg/m^3]  = ", drho
        write (6,'(a,es11.4)') "Brunt-Vaisala freq      [1/s]  = ", bv
@@ -562,7 +562,7 @@ contains
 
     if (.not. default_thresholds) then
        call cal_lnorm ("2")
-       where (tol * lnorm > threshold) threshold = tol * lnorm
+       where (tol * lnorm > threshold_def * epsilon (1.0_dp)) threshold = tol * lnorm
     end if
   end subroutine set_thresholds_case
 
@@ -573,7 +573,8 @@ contains
     dt_init = cfl_num * dx_avg(max_level) / (u_wbc + wave_speed)
     dt = dt_init
 
-    C_visc = 0.3_dp
+    C_visc           = 0.3_dp
+    C_visc(S_DIVU,:) = 0.5_dp
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
@@ -591,7 +592,7 @@ contains
 
     ! Set bathymetry
     if (etopo_bathy) then ! set bathymetry coordinates using etopo data
-       call etopo_topography    (dom, i, j, z_null, offs, dims, 'bathymetry')
+       call etopo_topography    (dom, i, j, z_null, offs, dims, "bathymetry")
     else
        call analytic_topography (dom, i, j, z_null, offs, dims, "bathymetry")
     end if
@@ -665,30 +666,32 @@ contains
   end subroutine analytic_topography
 
   real(dp) function penal (p)
+    ! Smooth mask over dx_min grid points
     implicit none
     type(coord) :: p
 
-    real(dp) :: lat, lon, shift, width
-
-    width = dx_avg(max_level)
-    shift = 2.5 * width / radius
+    real(dp) :: lat, lon, shift, smth_dtheta
+    
+    smth_dtheta = dx_avg(min_level) / radius ! smooth over about two grid points (radians)
+    
+    shift = 2.5 * smth_dtheta
 
     call cart2sph (p, lon, lat)
 
     penal = profile1d (lat, lat_min+shift, lat_max-shift) * profile1d (lon, lon_min+shift, lon_max-shift)
   contains
-    real(dp) function profile1d (x, xmin, xmax)
+    real(dp) function profile1d (theta, theta_min, theta_max)
       implicit none
-      real(dp) :: x, xmin, xmax
+      real(dp) :: theta, theta_min, theta_max
 
-      profile1d = prof (x, xmax) - prof (x, xmin)
+      profile1d = prof (theta, theta_max) - prof (theta, theta_min)
     end function profile1d
 
-    real(dp) function prof (x, x0)
+    real(dp) function prof (theta, theta0)
       implicit none
-      real(dp) :: x, x0
+      real(dp) :: theta, theta0
 
-      prof = 0.5 * (1.0_dp - tanh ((x - x0)/(width/radius)))
+      prof = 0.5 * (1.0_dp - tanh ((theta - theta0)/smth_dtheta))
     end function prof
   end function penal
 
@@ -1229,8 +1232,16 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
 
     rho = porous_density (d, id+1, zlevels)
 
-    wind_flux_case = tau_wind / rho 
+    wind_flux_case = 0.0_dp
+    if (zlev == zlevels) wind_flux_case = tau_wind / rho * ocean_mask (d, id, zlev) 
   end function wind_flux_case
+  
+  integer function ocean_mask (d, id, zlev)
+    ! Returns 1 for ocean and 0 for land (where penalization is significant)
+    integer, intent(in) :: d, id, zlev
+
+    ocean_mask = merge (0, 1, penal_node(zlev)%data(d)%elts(id+1) > 0.05_dp)
+  end function ocean_mask
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     ! Idealized zonally and temporally averaged zonal and meridional wind stresses

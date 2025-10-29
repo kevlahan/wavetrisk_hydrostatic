@@ -18,7 +18,7 @@ program Drake
   timeint_type            = "RK3" 
   adapt_dt                = .true.
   compressible            = .false.
-  default_thresholds      = .true.
+  default_thresholds      = .false. ! needed because do not have good initial estimate of layer dependence on variable norms
   log_min_mass            = .false.
   mode_split              = .true.
   penalize                = .true.                
@@ -39,6 +39,8 @@ program Drake
   g_earth        =    9.80616 * METRE/SECOND**2        
   ref_density    =       1030 * KG/METRE**3
   c_p            =    3991.87 * JOULE/(KG*KELVIN) ! specific heat at constant pressure for seawater
+
+  porosity       = 1.0e-2_dp
 
   ! Earth scaling factors
   L_norm         = radius_earth
@@ -61,7 +63,6 @@ program Drake
   f0             = 2*omega * sin (40 * DEG)                ! representative Coriolis parameter
   beta           = 2*omega * cos (40 * DEG) / radius       ! beta parameter at 45 degrees latitude
 
-  porosity       = 0.2_dp                                  ! porosity
   min_depth      = -50 * METRE / H_norm                    ! minimum allowed depth (must be negative)
   k_T            =       1 / (30 * DAY)                    ! relaxation time to mean buoyancy profile (if relax = .true.)
   
@@ -87,16 +88,17 @@ program Drake
      vert_diffuse         = .true.                         ! use vertical diffusion model
      
      coords               = "uniform"
-     max_depth            =   -4000 * METRE                ! total depth
-     z_mixed              =    -200 * METRE                ! bottom of constant density surface mixed 
+
+     z_mixed              =    -200 * METRE                ! bottom of constant density surface mixed
      z_linear             =    -500 * METRE                ! bottom of linear stratification layer below mixed layer
                                                            ! (set z_linear = max_depth for constant/linear stratification)
-
+     max_depth            =   -4000 * METRE                ! total depth
+     
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
 
      drho                 =      -4 * KG/METRE**3          ! density perturbation at free surface at poles
      tau_0                =     0.1 * NEWTON/METRE**2      ! maximum wind stress
-     u_wbc                =       4 * METRE/SECOND         ! estimated western boundary current speed (tanh)
+     u_wbc                =       1 * METRE/SECOND         ! estimated western boundary current speed (tanh)
 
      ! Solar flux
      Q_sr                 =       0 * WATT/METRE**2        ! incoming solar radiation heat flux (set to zero to turn off solar forcing)
@@ -167,6 +169,6 @@ program Drake
 
      call print_log
   end do
-  if (rank == 0) write (6,'(a,es11.4)') 'Total cpu time = ', total_cpu_time
+  if (rank == 0) write (6,'(a,es11.4)') "Total cpu time = ", total_cpu_time
   call finalize
 end program Drake
