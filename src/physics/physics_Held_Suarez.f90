@@ -83,7 +83,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer  :: id
-    real(dp) :: k_T, lat, lon, rho_dz, rho_dz_dtheta, sigma, theta_equil
+    real(dp) :: k_T, lat, lon, rho_dz, rho_dz_dtheta, theta_equil
 
     id = idx (i, j, offs, dims) + 1
 

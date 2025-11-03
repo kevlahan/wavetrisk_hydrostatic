@@ -78,8 +78,7 @@ contains
     type(Domain) :: dom
     integer      :: p_par, c0
     
-    integer                   :: c, d, i, i_chd, i_par, id_par, j, j_chd, j_par, k, lev, num, p_chd, s
-    type(Coord), dimension(6) :: tmp
+    integer                   :: c, lev, num, p_chd
     
     !  Main difficulty: in order to precompute geometry, weights etc
     !         nodes outside the patch are needed that might not be part of the grid yet
@@ -111,7 +110,7 @@ contains
     
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-    integer                        :: c, d, i, i_chd, i_par, j, j_chd, j_par, k, lev, num, p_chd, s, v
+    integer                        :: c, d, i, i_chd, i_par, j, j_chd, j_par, k, lev, num, p_chd, v
     integer                        :: id_chd, idE_chd, idNE_chd, idN_chd
     integer                        :: id_par, idE_par, idNE_par, idN_par
 
@@ -302,7 +301,7 @@ contains
     type(Domain) :: dom
     integer      :: c, p_par
 
-    integer                        :: e, j0, j_par, i0, i_par, id_e, id_par
+    integer                        :: j0, j_par, i0, i_par, id_par
     integer                        :: st, en
     integer, dimension(N_BDRY+1)   :: offs_par
     integer, dimension(2,N_BDRY+1) :: dims_par

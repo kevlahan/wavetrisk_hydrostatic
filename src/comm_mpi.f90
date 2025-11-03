@@ -79,12 +79,13 @@ contains
     implicit none
     integer :: id
     
-    integer                                           :: d, ii, r, sz
-    integer, parameter                                :: fid = 599
-    integer, dimension(n_process)                     :: displs, rcounts
-    integer, dimension(:), allocatable                :: n_active_loc
-    integer, dimension(N_GLO_DOMAIN*(N_GLO_DOMAIN+1)) :: n_active_glo
-    character(255)                                    :: filename
+    integer                            :: d, ii, r, sz
+    integer, parameter                 :: fid = 599
+    integer, dimension(n_process)      :: displs, rcounts
+    integer, dimension(:), allocatable :: n_active_glo, n_active_loc
+    character(255)                     :: filename
+
+    allocate (n_active_glo(N_GLO_DOMAIN*(N_GLO_DOMAIN+1)))
 
     ! Size of load data for current rank
     sz = size(grid) * (N_GLO_DOMAIN+1)
@@ -137,7 +138,7 @@ contains
 
     call get_load_balance (min_load, avg_load, max_load)
 
-    if (avg_load /= 0.0_dp) then 
+    if (avg_load > eps(1.0_dp)) then 
        rel_imbalance = real (max_load, kind=dp) / avg_load
     else
        rel_imbalance = 1.0_dp
@@ -184,7 +185,7 @@ contains
        if (r == 1) then ! first process opens without append to delete old file if existing
           open (unit=funit, file=trim(filename), form='unformatted', status='replace')
        else
-          open (unit=funit, file=trim(filename), form='unformatted', access='append', status='old')
+          open (unit=funit, file=trim(filename), form='unformatted', position='append', status='old')
        end if
 
        if (eval_pole) call apply_to_pole (routine, l, zlev, funit, .true.)
@@ -437,18 +438,23 @@ contains
     implicit none
     integer :: flag
 
-    logical            :: got_data
-    real(dp)            :: t_start
+    logical             :: got_data
+    real(dp)            :: now, t_start
     real(dp), parameter :: timeout_time = 1e2_dp
 
-    t_start = MPI_Wtime () 
-    call MPI_Test (req, got_data, MPI_STATUS_IGNORE, ierror)
-    do while (.not. got_data .and. MPI_Wtime()-t_start < timeout_time) 
-       call MPI_Test (req, got_data, MPI_STATUS_IGNORE, ierror)
+    call MPI_Test(req, got_data, MPI_STATUS_IGNORE, ierror)
+    t_start = MPI_Wtime()
+    now     = t_start
+    do while (.not. got_data .and. (now - t_start) < timeout_time)
+       call MPI_Test(req, got_data, MPI_STATUS_IGNORE, ierror)
+
+       ! update cached time AFTER the test
+       now = MPI_Wtime()
     end do
+    
     if (.not. got_data) then
        write (6,'(a,i4,a,i5)') "ERROR: boundary update deadlocked at call ", flag, " on rank ", rank
-       call abort
+       call abort_run
     end if
   end subroutine deadlock_test
 
@@ -612,7 +618,7 @@ contains
     type(Float_Field) :: field
     integer           :: l_start, l_end
     
-    integer :: d_src, d_dest, dest, i, id, k, lev, multipl, r, r_dest, r_src
+    integer :: d_src, d_dest, dest, i, id, lev, multipl, r, r_dest, r_src
 
     if (field%bdry_uptodate) return
 
@@ -690,7 +696,7 @@ contains
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
     
-    integer :: d_dest, d_src, dest, i, i1, id, k, lev, multipl, pos, r, r_dest, r_src
+    integer :: d_dest, d_src, dest, i, i1, id, lev, multipl, pos, r, r_dest, r_src
     logical :: ret
 
     ! Check if boundaries of all field elements are up to date
@@ -786,7 +792,7 @@ contains
     type(Float_Field), dimension(:,:) :: field
     integer                           ::  l_start, l_end
     
-    integer :: d_dest, d_src, dest, i, i1, i2, id, k, lev, multipl, pos, r, r_dest, r_src
+    integer :: d_dest, d_src, dest, i, i1, i2, id, lev, multipl, pos, r, r_dest, r_src
     logical :: ret
 
     ! Check if boundaries of all field elements are up to date
@@ -925,7 +931,7 @@ contains
     type(Float_Field) :: field
     integer           :: l_start, l_end
     
-    integer :: r_dest, r_src, d_src, d_dest, dest, id, i, k, multipl, lev
+    integer :: r_src, d_src, d_dest, id, i, k, multipl, lev
 
     if (field%bdry_uptodate) return
 
@@ -966,7 +972,7 @@ contains
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
     
-    integer :: d_dest, d_src, dest, id, i, i1, k, lev, multipl, pos, r_dest, r_src
+    integer :: d_dest, d_src, id, i, i1, k, lev, multipl, pos, r_src
     logical :: ret
 
     ! Check if boundaries of all field elements are up to date
@@ -1016,7 +1022,7 @@ contains
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
     
-    integer :: d_dest, d_src, dest, i, i1, i2, id, k, lev, multipl, pos, r_dest, r_src
+    integer :: d_dest, d_src, i, i1, i2, id, k, lev, multipl, pos, r_src
     logical :: ret
 
     ! Check if boundaries of all field elements are up to date
@@ -1085,7 +1091,7 @@ contains
                 c = get (grid(d_src), id)
                 k = send_buf%length
                 call extend (send_buf, 3, 0.0_dp)
-                send_buf%elts(k+1:k+3) = (/ c%x, c%y, c%z /)
+                send_buf%elts(k+1:k+3) = [c%x, c%y, c%z]
              end do
           end do
        end do
@@ -1402,8 +1408,8 @@ contains
   function sum_int_vector (val, n)
     use mpi
     implicit none
-    integer, dimension(n) :: sum_int_vector
     integer               :: n
+    integer, dimension(n) :: sum_int_vector
     integer, dimension(n) :: val
 
     integer, dimension(n) :: val_glo
@@ -1430,31 +1436,31 @@ contains
     get_timing = times(2) - times(1)
   end function get_timing
 
-  subroutine sync_array (arr, N)
+  subroutine sync_array (arr, n)
     ! Synchronizes arr, with subsections computed on different ranks
     ! the complete array is broadcast to all ranks
     ! (see project_field_onto_plane for example of use)
     use mpi
     implicit none
-    real(dp), dimension(N) :: arr
-    integer               :: N
+    integer                :: n
+    real(dp), dimension(n) :: arr
     
-    integer               :: myop
-    real(dp), dimension(N) :: garr
+    integer                :: myop
+    real(dp), dimension(n) :: garr
 
     call MPI_Op_create (sync, .true., myop, ierror)  
-    call MPI_Reduce (arr, garr, N, MPI_DOUBLE_PRECISION, myop, 0, MPI_COMM_WORLD, ierror)
-    if (rank == 0) arr(1:N) = garr(1:N)
-    call MPI_Bcast (arr, N, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror) 
+    call MPI_Reduce (arr, garr, n, MPI_DOUBLE_PRECISION, myop, 0, MPI_COMM_WORLD, ierror)
+    if (rank == 0) arr(1:n) = garr(1:N)
+    call MPI_Bcast (arr, n, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror) 
   end subroutine sync_array
 
   subroutine sync (in, inout, len, type)
     use mpi
     implicit none
+    integer                  :: len, type
     real(dp), dimension(len) :: in, inout
-    integer                 :: len, type
     
-    where (in /= sync_val) inout = in
+    where (abs (in - sync_val) > eps(1.0_dp)) inout = in
   end subroutine sync
 
   subroutine gatherv_int (n_loc, n_glo, vec_loc, vec_glo)

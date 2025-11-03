@@ -90,9 +90,9 @@
         aa2231 = amat(2,2) * amat(3,1)
 
         adet =  &
-        amat(1,1) *  (aa2233 - aa2332) - &
-	    amat(1,2) *  (aa2133 - aa2331) + &
-	    amat(1,3) *  (aa2132 - aa2231)
+             amat(1,1) *  (aa2233 - aa2332) - &
+             amat(1,2) *  (aa2133 - aa2331) + &
+             amat(1,3) *  (aa2132 - aa2231)
 
         aa1233 = amat(1,2) * amat(3,3)
         aa1332 = amat(1,3) * amat(3,2)
@@ -140,7 +140,7 @@
 
     !-------------------------------- C = C + scal * A * B !
 
-        if (scal .eq. +1.d0) then
+        if (abs(scal-1.d0) < epsilon (1.0_8)) then
 
         cmat(1,1) = cmat(1,1) & 
              + ( amat(1,1) * bmat(1,1) &
@@ -157,7 +157,7 @@
                + amat(2,2) * bmat(2,2) )
 
         else &
-        if (scal .eq. -1.d0) then
+             if (abs(scal+1.0_8) < epsilon (1.0_8)) then
 
         cmat(1,1) = cmat(1,1) & 
              - ( amat(1,1) * bmat(1,1) &
@@ -211,7 +211,7 @@
 
     !-------------------------------- C = C + scal * A * B !
 
-        if (scal .eq. +1.d0) then
+        if (abs(scal-1.0_8) < epsilon (1.0_8)) then
 
         cmat(1,1) = cmat(1,1) + & 
                ( amat(1,1) * bmat(1,1) &
@@ -253,7 +253,7 @@
                + amat(3,3) * bmat(3,3) )
 
         else &
-        if (scal .eq. -1.d0) then
+        if (abs(scal+1.0_8) < epsilon (1.0_8)) then
 
         cmat(1,1) = cmat(1,1) - & 
                ( amat(1,1) * bmat(1,1) &

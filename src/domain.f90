@@ -7,6 +7,10 @@
   use arch_mod
   implicit none
 
+  interface init_field
+     procedure :: init_Float_Field, init_Int_Field, init_Logical_Field
+  end interface init_field
+
   integer, dimension(2,N_BDRY+1) :: sides_dims
   integer, dimension(2,4)        :: chd_offs
 
@@ -59,12 +63,24 @@
      type(Float_Array) :: divu        ! divergence of velocity
      type(Float_Array) :: qe          !
   end type Domain
-
+  
   type Float_Field
      integer                                      :: pos
      logical                                      :: bdry_uptodate
      type(Float_Array), dimension(:), allocatable :: data
   end type Float_Field
+
+  type Int_Field
+     integer                                      :: pos
+     logical                                      :: bdry_uptodate
+     type(Int_Array), dimension(:), allocatable :: data
+  end type Int_Field
+
+  type Logical_Field
+     integer                                      :: pos
+     logical                                      :: bdry_uptodate
+     type(Logical_Array), dimension(:), allocatable :: data
+  end type Logical_Field
 
   type(Domain), dimension(:), allocatable, target        :: grid
 
@@ -99,9 +115,30 @@ contains
     allocate (self%data(n_domain(rank+1)))
   end subroutine init_Float_Field
 
+  subroutine init_Int_Field (self, pos)
+    implicit none
+    type(Int_Field) :: self
+    integer         :: pos
+
+    self%bdry_uptodate = .false.
+    self%pos = pos
+
+    allocate (self%data(n_domain(rank+1)))
+  end subroutine init_Int_Field
+
+   subroutine init_Logical_Field (self, pos)
+    implicit none
+    type(Logical_Field) :: self
+    integer             :: pos
+
+    self%bdry_uptodate = .false.
+    self%pos = pos
+
+    allocate (self%data(n_domain(rank+1)))
+  end subroutine init_Logical_Field
+
   subroutine init_domain_mod
     implicit none
-    integer :: i, v
     logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
@@ -110,13 +147,13 @@ contains
     call init_patch_mod
     call init_arch_mod
 
-    sides_dims = reshape ((/ PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
+    sides_dims = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
          BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, PATCH_SIZE, &
          BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, BDRY_THICKNESS, &
          BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS, &
-         BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS /), (/2, 9/))
+         BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS], [2, 9])
 
-    chd_offs = reshape ((/PATCH_SIZE/2, PATCH_SIZE/2, PATCH_SIZE/2, 0, 0, 0, 0, PATCH_SIZE/2/), (/2, 4/))
+    chd_offs = reshape ([PATCH_SIZE/2, PATCH_SIZE/2, PATCH_SIZE/2, 0, 0, 0, 0, PATCH_SIZE/2], [2, 4])
 
     initialized = .true.
   end subroutine init_domain_mod
@@ -342,13 +379,13 @@ contains
     idx__fast = PATCH_SIZE*j + i + offs
   end function idx__fast
 
-  function id_edge (id) 
-    ! Returns vector with the indices of the three edges associated to node id
+  pure function id_edge(id) result(edges)
+    ! Returns indices of the three edges associated with node id
     implicit none
-    integer                    :: id
-    integer, dimension(1:EDGE) :: id_edge
-    
-    id_edge = EDGE*id + (/ RT, DG, UP /) + 1
+    integer, intent(in) :: id
+    integer             :: edges(EDGE)        ! EDGE must be 3 here
+
+    edges = EDGE*id + [ RT, DG, UP ] + 1
   end function id_edge
 
   function idx_hex (dom, i, j, offs, dims)
@@ -360,7 +397,7 @@ contains
     integer, dimension(2,N_BDRY + 1) :: dims 
     integer, dimension(1:2*EDGE+1)   :: idx_hex
 
-    integer :: id, idE, idNE, idN, idW, idSW, idS
+    integer :: id, idE, idNE, idN, idSW, idS
 
     id   = idx (i,   j,   offs, dims)
     
@@ -372,7 +409,7 @@ contains
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
 
-    idx_hex = (/ id, idE, idNE, idN, idS, idSW, idS /)
+    idx_hex = [ id, idE, idNE, idN, idS, idSW, idS ]
   end function idx_hex
 
   function idx_hex_LORT (dom, i, j, offs, dims)
@@ -394,7 +431,7 @@ contains
     id2NE = idx (i+2, j+2, offs, dims)
     id2EN = idx (i+2, j+1, offs, dims)
 
-    idx_hex_LORT = (/ id, idE, idNE, id2E, id2NE, id2EN /)
+    idx_hex_LORT = [ id, idE, idNE, id2E, id2NE, id2EN ]
   end function idx_hex_LORT
 
   function idx_hex_LORT2 (dom, i, j, offs, dims)
@@ -412,7 +449,7 @@ contains
     idE  = idx (i+1, j,   offs, dims) 
     idNE = idx (i+1, j+1, offs, dims)
     
-    idx_hex_LORT2 = (/ id, idE, idNE /)
+    idx_hex_LORT2 = [ id, idE, idNE ]
   end function idx_hex_LORT2
 
   function idx_hex_UPLT (dom, i, j, offs, dims)
@@ -434,7 +471,7 @@ contains
     id2NE = idx (i+2, j+2, offs, dims)
     id2N  = idx (i,   j+2, offs, dims)
 
-    idx_hex_UPLT = (/ id, idNE, idN, id2N, id2NE, idE2N/)
+    idx_hex_UPLT = [ id, idNE, idN, id2N, id2NE, idE2N ]
   end function idx_hex_UPLT
 
   function idx_hex_UPLT2 (dom, i, j, offs, dims)
@@ -452,7 +489,7 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i+1, j,   offs, dims)
     
-    idx_hex_UPLT2 = (/ id, idNE, idN /)
+    idx_hex_UPLT2 = [ id, idNE, idN ]
   end function idx_hex_UPLT2
 
   integer function tri_idx (i, j, tri, offs, dims)
@@ -496,10 +533,10 @@ contains
     ed_idx = EDGE*idx(i + ed(1), j + ed(2), offs, dims) + ed(3)
   end function ed_idx
 
-  logical function is_penta (dom, p, s)
+  pure logical function is_penta (dom, p, s)
     implicit none
-    type(Domain) :: dom
-    integer      :: p, s
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p, s
 
     integer :: n, side
     logical :: penta
@@ -558,9 +595,9 @@ contains
     ! For patch given as `c0`-th child of `p_par0` find neighbour with respect to side `s0`
     ! result as `c`-th child of patch `p_par`
     implicit none
-    type(Domain)         :: self
-    integer, intent(in)  :: p_par0, c0, s0
-    integer, intent(out) :: p_par, c
+    type(Domain), intent(in)  :: self
+    integer,      intent(in)  :: p_par0, c0, s0
+    integer,      intent(out) :: p_par, c
     
     integer :: s_par
 
@@ -595,7 +632,9 @@ contains
     type(Domain) :: self
     integer      :: c, p_par, s_chd
 
-    integer :: c1, n_par, n_side, p_chd, p_par1, s_help, s_par, typ
+    integer :: c1, n_par, p_par1, s_help, s_par, typ
+
+    find_neigh_patch_Domain = 0
 
     call find_neigh_patch2_Domain (self, p_par, c, s_chd, n_par, c1)
 
@@ -659,17 +698,27 @@ contains
 
     if (present(inner_patch)) inner_patch = .false.
 
-    do i = 1, N_BDRY
+    do i = 1, min (N_BDRY, 4)
        n = self%patch%elts(p+1)%neigh(i)
        if (n > 0) then
           offs(i+1) = self%patch%elts(n+1)%elts_start
           dims(:,i+1) = PATCH_SIZE
-          if (present(inner_patch) .and. i <= 4) inner_patch(i) = .true.
-       else
-          if (n < 0) then
-             offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
-             dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
-          end if
+          if (present(inner_patch)) inner_patch(i) = .true.
+       else if (n < 0) then
+          offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
+          dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
+          if (present(inner_patch)) inner_patch(i) = .true.   
+       end if
+    end do
+
+    do i = 5, N_BDRY
+       n = self%patch%elts(p+1)%neigh(i)
+       if (n > 0) then
+          offs(i+1) = self%patch%elts(n+1)%elts_start
+          dims(:,i+1) = PATCH_SIZE
+       else if (n < 0) then
+          offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
+          dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
        end if
     end do
   end subroutine get_offs_Domain5
@@ -681,25 +730,34 @@ contains
     integer, dimension(N_BDRY+1)    :: offs
     integer, dimension(2,N_BDRY+1)  :: dims
     logical, dimension(4), optional :: inner_bdry
-
+    
     integer :: i, n
 
     offs = -1
-    dims = 0
+    dims =  0
     offs(1) = self%patch%elts(p+1)%elts_start
 
-    do i = 1, N_BDRY
+    do i = 1, min (N_BDRY, 4)
        n = self%patch%elts(p+1)%neigh(i)
        if (n > 0) then
           offs(i+1) = self%patch%elts(n+1)%elts_start
           dims(:,i+1) = PATCH_SIZE
-          if (present(inner_bdry) .and. i <= 4) inner_bdry(i) = .true. 
-       else
-          if (n < 0) then
-             offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
-             dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
-             if (present(inner_bdry) .and. i <= 4) inner_bdry(i) = self%bdry_patch%elts(-n+1)%side < 0
-          end if
+          if (present(inner_bdry)) inner_bdry(i) = .true.
+       else if (n < 0) then
+          offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
+          dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
+          if (present(inner_bdry)) inner_bdry(i) = self%bdry_patch%elts(-n+1)%side < 0
+       end if
+    end do
+
+    do i = 5, N_BDRY
+       n = self%patch%elts(p+1)%neigh(i)
+       if (n > 0) then
+          offs(i+1) = self%patch%elts(n+1)%elts_start
+          dims(:,i+1) = PATCH_SIZE
+       else if (n < 0) then
+          offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
+          dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
        end if
     end do
   end subroutine get_offs_Domain

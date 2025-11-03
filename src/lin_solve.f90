@@ -38,7 +38,7 @@ contains
     
     integer                                        :: iter, l
     integer,  dimension(level_start:level_end)     :: iterations
-    real(dp)                                       :: err, rel_err
+    real(dp)                                       :: rel_err
     real(dp), dimension(level_start:level_end)     :: nrm_f
     real(dp), dimension(level_start:level_end,1:2) :: nrm_res
     type(Float_Field)                              :: res
@@ -68,7 +68,7 @@ contains
     
     iterations = 0; nrm_res = 0.0_dp
     do l = level_start, level_end
-       nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0.0_dp) nrm_f(l) = 1.0_dp
+       nrm_f(l) = l2 (f, l); if (nrm_f(l) <= eps(1.0_dp)) nrm_f(l) = 1.0_dp
        call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
 
@@ -123,7 +123,7 @@ contains
 
       ! Coarsest scale
       j = level_start
-      nrm_rhs = l2 (res, j); if (nrm_rhs == tol) nrm_rhs = 1.0_dp
+      nrm_rhs = l2 (res, j); if (nrm_rhs <= eps(1.0_dp)) nrm_rhs = 1.0_dp
       call bicgstab (corr, res, nrm_rhs, Lu, j, coarse_tol, coarse_iter) ! exact solution on coarsest grid
 
       ! Up V-cycle
@@ -176,7 +176,7 @@ contains
 
     iterations = 0; ; nrm_res = 0.0_dp
     do l = level_start, level_end
-       nrm_f(l) = l2 (f, l); if (nrm_f(l) == 0.0_dp) nrm_f(l) = 1.0_dp
+       nrm_f(l) = l2 (f, l); if (nrm_f(l) <= eps(1.0_dp)) nrm_f(l) = 1.0_dp
        if (log_iter) call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,1))
     end do
 
@@ -337,7 +337,7 @@ contains
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_jacobi, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (mu1, scalar, scalar1, scalar1, scalar2, scalar3)
+       nullify (mu1, scalar, scalar1, scalar2, scalar3)
     end do
     u%bdry_uptodate = .false.
   end subroutine Jacobi_iteration
@@ -369,7 +369,7 @@ contains
     type(Float_Field),  intent(inout) :: u
 
     integer           :: iter
-    real(dp)          :: alph, b, err, nrm_res0, omga, rho, rho_old
+    real(dp)          :: alph, b, err, omga, rho, rho_old
     type(Float_Field) :: Ap, As, corr, res, res0, p, s
 
     interface
@@ -396,15 +396,16 @@ contains
     Ap   = Lu (p, l); call update_bdry (Ap, l, 951)
     As   = Ap
 
-    rho  = dot_product (res0, res, l)
-    
+    rho  = dot_product_ff (res0, res, l)
+
+    err = 1.0e16_dp
     do iter = 1, iter_max
-       alph = rho / dot_product (Ap, res0, l)
+       alph = rho / dot_product_ff (Ap, res0, l)
 
        call lc (s, 1.0_dp, res, -alph, Ap, l)
        As = Lu (s, l); call update_bdry (As, l, 952)
 
-       omga = dot_product (As, s, l) / dot_product (As, As, l)
+       omga = dot_product_ff (As, s, l) / dot_product_ff (As, As, l)
 
        call lc (corr, alph, p, omga, s, l)
        call lc (u, 1.0_dp, u, 1.0_dp, corr, l)
@@ -415,7 +416,7 @@ contains
        if (err <= tol_bicgstab) exit
 
        rho_old = rho
-       rho = dot_product (res0, res, l)
+       rho = dot_product_ff (res0, res, l)
        
        b = (alph/omga) * (rho/rho_old)
 
@@ -462,7 +463,7 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) l2_loc = l2_loc + scalar(id)**2
   end subroutine cal_l2
 
-  real(dp) function dot_product (s1, s2, l)
+  real(dp) function dot_product_ff (s1, s2, l)
     ! Calculates dot product of s1 and s2 at scale l
     implicit none
     integer,                   intent(in) :: l
@@ -483,8 +484,8 @@ contains
        nullify (scalar1, scalar2)
     end do
 
-    dot_product = sum_real (dot_product_loc)
-  end function dot_product
+    dot_product_ff = sum_real (dot_product_loc)
+  end function dot_product_ff
 
   subroutine cal_dotproduct (dom, i, j, zlev, offs, dims)
     implicit none
@@ -668,7 +669,7 @@ contains
     type(Float_Field), target :: elliptic_fun_diag, q
 
     integer :: d, j
-
+    
     elliptic_fun_diag = q
 
     do d = 1, size(grid)
@@ -732,7 +733,7 @@ contains
 
     do d = 1, size(grid)
        scalar  => err%data(d)%elts
-       scalar1 =>   u%data(d)%elts
+       scalar1 =>  u%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_err, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do

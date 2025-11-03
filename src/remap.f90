@@ -24,7 +24,6 @@ contains
     ! Conserves mass, potential temperature and velocity divergence
     ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     implicit none
-    integer :: l, pole
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -59,7 +58,7 @@ contains
        interpolate => remapPPR
     case default
        if (rank == 0) write (6,'(a)') "Invalid remapping choice ... aborting"
-       call abort
+       call abort_run
     end select
     
     ! Save old masses
@@ -160,8 +159,8 @@ contains
     integer                               :: d, e, id, id_i, k
     integer, dimension (1:EDGE)           :: id_r
     
-    real(dp)                               :: rho, rho_dz, rho_dz_theta
-    real(dp), dimension (1:zlevels)        :: dz, rho_dz_new, theta_new, theta_old 
+    real(dp)                               :: rho, rho_dz
+    real(dp), dimension (1:zlevels)        :: dz, theta_new, theta_old 
     real(dp), dimension (0:zlevels)        :: z_new, z_old
     real(dp), dimension (1:zlevels,1:EDGE) :: flux_new, flux_old
     real(dp), dimension (0:zlevels,1:EDGE) :: z_edge_new, z_edge_old
@@ -273,7 +272,6 @@ contains
     integer                  :: k
     real(dp)                 :: dz
     real(dp), dimension(0:N) :: FC
-    logical, parameter       :: NEUMANN = .false.
     
     do k = 1, N-1
        dz = z_new(k) - z_old(k)
@@ -397,6 +395,8 @@ contains
     logical, parameter       :: LIMIT_INTERIOR = .false.
     logical, parameter       :: LIMIT_SLOPES   = .true.
     logical, parameter       :: NEUMANN        = .false.
+
+    aL = 0.0_dp
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -603,6 +603,8 @@ contains
     logical, parameter       :: LIMIT_INTERIOR = .true.
     logical, parameter       :: NEUMANN = .false.
 
+    r = 0.0_dp; aL = 0.0_dp
+
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
     end do
@@ -755,8 +757,13 @@ contains
     ! aL,aR of the field var_old assuming monotonized parabolic distributions
     ! within each grid box. Also computed are dL,dR, which are then used
     ! as a measure of quadratic variation during sabsequent WENO
-    ! reconciliation of side limits.    
-    !
+    ! reconciliation of side limits.
+
+
+    if (N < 2) error stop "N must be >= 2"
+
+    r1 = 0.0_dp; r = 0.0_dp; aL = 0.0_dp
+    
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
     end do

@@ -196,7 +196,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer :: e, id_chd, id_par, idE_chd, idN_chd, idNE_chd, idNW_chd, idS_chd, idSE_chd, idW_chd
+    integer :: id_chd, id_par, idE_chd, idN_chd, idNE_chd, idNW_chd, idS_chd, idSE_chd, idW_chd
 
     id_par = idx (i_par, j_par, offs_par, dims_par) 
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd) 

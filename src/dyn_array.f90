@@ -2,18 +2,23 @@ module dyn_arrays
   use geom_mod
   use patch_mod
 
-  type int_Array
+  type Int_Array
      integer, dimension(:), allocatable :: elts
      integer                            :: length
-  end type int_Array
-
+  end type Int_Array
+  
   type Float_Array
      real(dp), dimension(:), allocatable :: elts
-     integer                            :: length
+     integer                             :: length
   end type Float_Array
 
+  type Logical_Array
+     logical, dimension(:), allocatable :: elts
+     integer                            :: length
+  end type Logical_Array
+
   type Topo_Array
-     real(dp),     dimension(:), allocatable :: elts
+     real(dp),    dimension(:), allocatable :: elts
      type(Coord), dimension(:), allocatable :: node
   end type Topo_Array
 
@@ -53,8 +58,8 @@ module dyn_arrays
   end type Bdry_Patch_Array
 
   interface init
-     module procedure init_Int_Array, init_Float_Array, init_Coord_Array, &
-          init_Areas_Array, &
+     module procedure init_Float_Array, init_Int_Array, init_Logical_Array, &
+           init_Coord_Array, init_Areas_Array, &
           init_Overl_Area_Array, init_Iu_Wgt_Array, init_RF_Wgt_Array, &
           init_Patch_Array, init_Bdry_Patch_Array
   end interface init
@@ -81,6 +86,16 @@ module dyn_arrays
           dbl_alloc_Patch_Array, dbl_alloc_Bdry_Patch_Array
   end interface dbl_alloc
 contains
+  subroutine init_Float_Array (arr, N)
+    implicit none
+    type(Float_Array) :: arr
+    integer           :: N
+
+    arr%length = N
+    allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
+    arr%elts = 0.0_dp
+  end subroutine init_Float_Array
+
   subroutine init_Int_Array (arr, N)
     implicit none
     type(Int_Array) :: arr
@@ -91,15 +106,15 @@ contains
     arr%elts = 0
   end subroutine init_Int_Array
 
-  subroutine init_Float_Array (arr, N)
+  subroutine init_Logical_Array (arr, N)
     implicit none
-    type(Float_Array) :: arr
-    integer           :: N
+    type(Logical_Array) :: arr
+    integer            :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
-    arr%elts = 0.0_dp
-  end subroutine init_Float_Array
+    arr%elts = .false.
+  end subroutine init_Logical_Array
 
   subroutine init_Coord_Array (arr, N)
     implicit none

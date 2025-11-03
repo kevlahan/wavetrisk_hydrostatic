@@ -101,7 +101,7 @@ contains
     type(Float_Field), target :: q
     integer                   :: k
 
-    integer :: d, j, p
+    integer :: d, p
 
     do d = 1, size(grid)
        velo => q%data(d)%elts
@@ -352,8 +352,8 @@ contains
 
        d  = dom%id + 1
 
-       id_node = (/ idE, idNE, idN /)
-       id_edge = (/ id,  id,   id /)
+       id_node = [idE, idNE, idN]
+       id_edge = [id,  id,   id ]
        u = barotropic_velo ()
        u_prim_RT = u(1) * dom%len%elts(EDGE*id+RT+1)
        u_prim_DG = u(2) * dom%len%elts(EDGE*id+DG+1)
@@ -363,7 +363,7 @@ contains
        u_dual_DG = u(2) * dom%pedlen%elts(EDGE*id+DG+1)
        u_dual_UP = u(3) * dom%pedlen%elts(EDGE*id+UP+1)
 
-       id_node = (/ idW, idSW, idS /)
+       id_node = [ idW, idSW, idS ]
        id_edge = id_node
        u = barotropic_velo ()
        u_prim_RT_W  = u(1) * dom%len%elts(EDGE*idW +RT+1)
@@ -393,8 +393,10 @@ contains
       do e = 1, EDGE
          id_e = EDGE*id_edge(e) + e
 
+         dz = 0.0_dp
          do k = 1, 2
-            dz(k) = interp (sol_mean(S_MASS,k)%data(d)%elts(id+1)         + sol(S_MASS,k)%data(d)%elts(id+1), &
+            dz(k) = interp (&
+                 sol_mean(S_MASS,k)%data(d)%elts(id+1)         + sol(S_MASS,k)%data(d)%elts(id+1), &
                  sol_mean(S_MASS,k)%data(d)%elts(id_node(e)+1) + sol(S_MASS,k)%data(d)%elts(id_node(e)+1))
          end do
 
@@ -483,7 +485,7 @@ contains
     ! Assumes that temperature has already been calculated and stored in exner_fun
     implicit none
     type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
+    integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -641,7 +643,7 @@ contains
     subroutine combine_var
       integer  :: m, nA, nB, nAB, r
       real(dp) :: delta_KE, delta_T, delta_U, delta_V
-      real(dp) :: mA_T, mB_T, mA_U, mB_U, mA_V, mB_V, mA_zonal, mB_zonal, mA_merid, mB_merid, mA_VT, mB_VT, mA_UV, mB_UV
+      real(dp) :: mA_T, mB_T, mA_zonal, mB_zonal, mA_merid, mB_merid, mA_VT, mB_VT, mA_UV, mB_UV
 
       do r = 0, n_process-1
          nA = Nstats_glo(k,bin)
@@ -693,12 +695,12 @@ contains
   subroutine write_out_stats
     ! Writes out zonal average statistics
     implicit none
-    integer            :: ibin, info, k, v
+    integer            :: info, k, v
     integer, parameter :: funit = 400
     character(2)       :: var_file
     character(1300)    :: bash_cmd, command
 
-    write (6,'(/,a)') 'Saving statistics'
+    write (6,'(a)') 'Saving statistics'
 
     ! Find sample covariances from sums of squares
     zonal_avg_glo(:,:,2) = zonal_avg_glo(:,:,2) / (Nstats_glo - 1)
@@ -750,7 +752,7 @@ contains
     call system (trim(command), info)
     if (info /= 0) then
        if (rank == 0) write (6,'(a)') "gtar error info=0 ... aborting"
-       call abort
+       call abort_run
     end if
 
     command = '\rm -f '//trim(run_id)//'tmp'
@@ -765,7 +767,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id, info, fid, k
+    integer :: e, id, fid, k
 
     id = idx(i, j, offs, dims)
 
@@ -925,7 +927,7 @@ contains
        
        if (info /= 0) then
           if (rank == 0) write (6,'(a)') 'gtar error info=0 .. aborting'
-          call abort
+          call abort_run
        end if
     end if
     call barrier ! make sure data is archived before restarting
@@ -963,10 +965,10 @@ contains
     implicit none
     integer :: id
 
-    integer                          :: c, d, i, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, r, v
+    integer                          :: c, d, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
     character(9999)                  :: filename_gr, filename_no
-    character(9999)                  :: bash_cmd, cmd_archive, files
+    character(9999)                  :: bash_cmd, files
     logical, dimension(1:N_CHDRN)    :: required
 
     do r = 1, n_process
@@ -1148,7 +1150,7 @@ contains
 
     ! Compress topography data
     archive = trim (topo_file)//'.tgz'
-    write (6, '(/,a,a,/)') 'Saving topography file ', trim (archive)
+    write (6, '(a,a)') 'Saving topography file ', trim (archive)
     write (files, '(a,a,a,a,a,a,a)') trim (topo_file), '.', '??', '.', '?????', ' ', trim (filename)
     bash_cmd = 'bash -c "gtar czf '//trim (archive)//' '//trim (files)//' --remove-files"'
     call system (trim(bash_cmd))
@@ -1190,7 +1192,7 @@ contains
     ! Uncompress topography data
     if (rank == 0) then
        write (archive, '(a)') trim (topo_file)//".tgz"
-       write (6,'(/,a,a,/)') 'Loading topography file ', trim(archive)
+       write (6,'(a,a)') 'Loading topography file ', trim(archive)
        bash_cmd = 'bash -c "gtar xzf '//trim(archive)//'"'
        call system (trim(bash_cmd))
     end if
@@ -1281,9 +1283,9 @@ contains
     real(dp), dimension(2), intent(out) :: cout
 
     if (cin%y > 0) then
-       cout = (/ cin%x-radius, cin%z /)
+       cout = [ cin%x-radius, cin%z ]
     else
-       cout = (/ cin%x+radius, cin%z /)
+       cout = [ cin%x+radius, cin%z ]
     end if
   end subroutine proj_xz_plane
 

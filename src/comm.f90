@@ -56,7 +56,7 @@ subroutine init_comm_mod
     call init_arch_mod
     call init_domain_mod
     
-    shift_arr = reshape ((/ 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0 /), (/ 4, 4 /))
+    shift_arr = reshape ([ 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0 ], [ 4, 4 ])
     
     initialized = .true.
   end subroutine init_comm_mod
@@ -156,7 +156,7 @@ subroutine init_comm_mod
   subroutine create_pack_st2 (dom, src, i, j, pa, e, id, e_pack, orient)
     implicit none
     type(Domain) :: dom
-    integer      :: src, i, j, u, pa, e, id, e_pack, orient
+    integer      :: src, i, j, pa, e, id, e_pack, orient
 
     ! if PATCH_SIZE == 4 (i.e. PATCH_LEVEL == 2) and BDRY_THICKNESS == 3
     ! then some halo cells have their partner not on a neighbouring patch
@@ -173,9 +173,11 @@ subroutine init_comm_mod
 
   subroutine create_comm_e (dom, p, s, e)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: b, e, e_pack, i, i_pack, i_recv, j, j_pack, j_recv, ngb_pa
-    integer                        :: orient, p, rot, s, s_adj, shift, src, t_last, t_next, typ
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p, s, e
+    
+    integer                        :: b, e_pack, i, i_pack, i_recv, j, j_pack, j_recv, ngb_pa
+    integer                        :: orient, rot, s_adj, shift, src, t_last, t_next, typ
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
@@ -194,16 +196,16 @@ subroutine init_comm_mod
     orient = (-1)**rot
     if (s > 4) then
        t_last = typ - 4
-       t_next = modulo(typ - 4, 4) + 1
+       t_next = modulo (typ - 4, 4) + 1
        if (dom%neigh_rot(t_last) == 1) then
           s_adj = s - 4
           shift = shift_arr(e+1,s_adj)
-          e_pack = modulo(e + rot*(modulo(s_adj, 2) + 1), 3)
+          e_pack = modulo (e + rot * (modulo (s_adj, 2) + 1), 3)
        else
           if (dom%neigh_rot(t_next) == 1) then
-             s_adj = modulo(s - 4, 4) + 1
+             s_adj = modulo (s - 4, 4) + 1
              shift = shift_arr(e+1,s_adj)
-             e_pack = modulo(e + rot*(modulo(s_adj, 2) + 1), 3)
+             e_pack = modulo (e + rot * (modulo(s_adj, 2) + 1), 3)
           else
              shift = 0
              e_pack = e
@@ -528,36 +530,36 @@ subroutine init_comm_mod
     end if
 
     if (i == 0) then
-       ij_node = (/ 0, 1 /)
-       if (s == SOUTHEAST) ij_node = (/ij_node(2), ij_node(1)/)
+       ij_node = [ 0, 1 ]
+       if (s == SOUTHEAST) ij_node = [ij_node(2), ij_node(1)]
        call create_pack_st (dom, AT_EDGE, src, 0, LAST, pa, DG, &
             nidx (ij_node(1), ij_node(2), s_side, offs, dims) * EDGE + 2*s_side - 2)
        
-       ij_node = (/ LAST_BDRY, 1    /)
-       ij_send = (/ 1,         LAST /)
+       ij_node = [ LAST_BDRY, 1    ]
+       ij_send = [ 1,         LAST ]
        if (s == SOUTHEAST) then
-          ij_node = (/ ij_node(2), ij_node(1) /)
-          ij_send = (/ ij_send(2), ij_send(1) /)
+          ij_node = [ ij_node(2), ij_node(1) ]
+          ij_send = [ ij_send(2), ij_send(1) ]
        end if
        call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, -nidx (ij_node(1), ij_node(2), s, offs, dims))
     end if
 
     if (i == 1) then
-       ij_node = (/ LAST_BDRY, 0    /)
-       ij_send = (/ 0,         LAST /)
+       ij_node = [ LAST_BDRY, 0    ]
+       ij_send = [ 0,         LAST ]
        if (s == SOUTHEAST) then
-          ij_node = (/ ij_node(2), ij_node(1) /)
-          ij_send = (/ ij_send(2), ij_send(1) /)
+          ij_node = [ ij_node(2), ij_node(1) ]
+          ij_send = [ ij_send(2), ij_send(1) ]
        end if
        call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, nidx (ij_node(1), ij_node(2), s, offs, dims))
     end if
 
-    ij_node = (/ -i + 1, 1    /)
-    ij_send = (/ 0,      LAST /)
+    ij_node = [ -i + 1, 1    ]
+    ij_send = [ 0,      LAST ]
 
     if (s == SOUTHEAST) then
-       ij_node = (/ ij_node(2), ij_node(1) /)
-       ij_send = (/ ij_send(2), ij_send(1) /)
+       ij_node = [ ij_node(2), ij_node(1) ]
+       ij_send = [ ij_send(2), ij_send(1) ]
     end if
 
     call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, &
@@ -574,19 +576,19 @@ subroutine init_comm_mod
        if (s == SOUTHEAST) s_side = SOUTH
     end if
 
-    ij_node = (/ LAST_BDRY - 1, LAST /)
-    ij_send = (/ 1,             LAST /)
+    ij_node = [ LAST_BDRY - 1, LAST ]
+    ij_send = [ 1,             LAST ]
 
     if (s == SOUTHEAST) then
-       ij_node = (/ ij_node(2), ij_node(1) /)
-       ij_send = (/ ij_send(2), ij_send(1) /)
+       ij_node = [ ij_node(2), ij_node(1) ]
+       ij_send = [ ij_send(2), ij_send(1) ]
     end if
 
     call create_pack_st (dom, AT_NODE, src, ij_send(1), ij_send(2), pa, NODE, nidx (ij_node(1), ij_node(2), s_side, offs, dims))
 
-    ij_node = (/ LAST, LAST_BDRY /)
+    ij_node = [ LAST, LAST_BDRY ]
 
-    if (s == NORTHWEST) ij_node = (/ ij_node(2), ij_node(1) /)
+    if (s == NORTHWEST) ij_node = [ ij_node(2), ij_node(1) ]
 
     call create_pack_st (dom, AT_EDGE, src, LAST * (-s_side + 4), LAST * (s_side - 3), &
          pa, DG, nidx (ij_node(1), ij_node(2), s_side, offs, dims) * EDGE + 2*s_side - 6)
@@ -594,7 +596,7 @@ subroutine init_comm_mod
 
   subroutine comm_masks
     implicit none
-    integer dest_glo, dest_id, dest_loc, i, k, src_glo, src_id, src_loc
+    integer dest_glo, dest_id, dest_loc, i, src_glo, src_id, src_loc
 
     do src_loc = 1, size(grid)
        src_glo = glo_id(rank+1,src_loc)
@@ -732,7 +734,7 @@ subroutine init_comm_mod
              p_chd = dom%patch%elts(p_par+1)%children(c+1)
           end if
           if (p_chd == 0) then
-             dom%recv_pa(src_glo)%elts(unused_elements + 1:unused_elements + 4) = (/ ngb_pa, c, p_par, s /)
+             dom%recv_pa(src_glo)%elts(unused_elements + 1:unused_elements + 4) = [ ngb_pa, c, p_par, s ]
              unused_elements = unused_elements + 4
              cycle
           end if
@@ -789,7 +791,7 @@ subroutine init_comm_mod
           end if
 
           if (ngh_pa == 0) then
-             grid(src)%send_pa_all%elts(unused_elements + 1:unused_elements + 4) = (/ b, c, p_chd, s /)
+             grid(src)%send_pa_all%elts(unused_elements + 1:unused_elements + 4) = [ b, c, p_chd, s ]
              unused_elements = unused_elements + 4
              cycle
           else 

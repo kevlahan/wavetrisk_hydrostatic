@@ -20,13 +20,13 @@ contains
     type(Domain)                                                :: dom
     type(Float_Field), dimension(1:N_VARIABLE,1:zmax), optional :: dq, q
 
-    integer                      :: i, j, id,  n, e, s, w, ne, sw, v
+    integer                      :: j, id,  n, e, s, w, ne, sw, v
     integer, dimension(0:N_BDRY) :: offs
     integer, dimension(2,N_BDRY) :: dims
 
     real(dp) :: u_prim_UP, u_dual_UP, u_prim_DG, u_prim_DG_S, u_prim_DG_W, u_dual_DG, u_prim_RT, u_dual_RT
     real(dp) :: u_prim_UP_S, u_dual_UP_S, u_prim_DG_SW, u_dual_DG_SW, u_prim_RT_W, u_dual_RT_W
-    real(dp) :: circ_LORT, circ_UPLT, circ_S_UPLT, circ_W_LORT, pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
+    real(dp) :: circ_S_UPLT, circ_W_LORT, pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
 
     real(dp), dimension(0:N_BDRY,scalars(1):scalars(2)) :: rho_dz
     real(dp), dimension(1:EDGE)                         :: physics_flux
@@ -193,6 +193,8 @@ contains
          phi(1) = phi_node (d, idE_i,  zlevels)
          phi(2) = phi_node (d, idNE_i, zlevels)
          phi(3) = phi_node (d, idN_i,  zlevels)
+      else
+         phi = 1.0_dp
       end if
 
       if (itype == 1) then ! scalar gradient flux         
@@ -274,7 +276,7 @@ contains
          vort(TRIAG*idW+LORT+1) = circ_W_LORT / dom%triarea%elts(TRIAG*idW+LORT+1)
          vort(TRIAG*idS+UPLT+1) = circ_S_UPLT / dom%triarea%elts(TRIAG*idS+UPLT+1)
       elseif (itype == 0) then ! standard
-         id_rhodz = (/ id, idN, idE, idS, idW, idNE /)
+         id_rhodz = [ id, idN, idE, idS, idW, idNE ]
          do v = scalars(1), scalars(2)
             rho_dz(0:NORTHEAST,v) = q(v,zlev)%data(d)%elts(id_rhodz+1) + sol_mean(v,zlev)%data(d)%elts(id_rhodz+1)
          end do
@@ -391,6 +393,8 @@ contains
          phi(1) = phi_node (d, idW_i,  zlevels)
          phi(2) = phi_node (d, idSW_i, zlevels)
          phi(3) = phi_node (d, idS_i,  zlevels)
+      else
+         phi = 1.0_dp
       end if
 
       if (itype == 1) then ! scalar gradient flux
@@ -470,7 +474,7 @@ contains
          vort(TRIAG*idSW+LORT+1) = circ_SW_LORT / dom%triarea%elts(TRIAG*idSW+LORT+1)
          vort(TRIAG*idSW+UPLT+1) = circ_SW_UPLT / dom%triarea%elts(TRIAG*idSW+UPLT+1)
       elseif (itype == 0) then ! standard
-         id_rhodz = (/ id, id, id, idS, idW, id, id, idSW /)
+         id_rhodz = [ id, id, id, idS, idW, id, id, idSW ]
          do v = scalars(1), scalars(2)
             rho_dz(0:SOUTHWEST,v) = q(v,zlev)%data(d)%elts(id_rhodz+1) + sol_mean(v,zlev)%data(d)%elts(id_rhodz+1)
          end do
@@ -534,7 +538,7 @@ contains
     integer                       :: id, idS, idW, idSW, idN, idE, idNE
     integer,  dimension(8)        :: id_rhodz
     real(dp)                      :: circ_LORT, circ_UPLT, circ_S_UPLT, circ_SW_LORT, circ_SW_UPLT, circ_W_LORT
-    real(dp)                      :: pv, pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
+    real(dp)                      :: pv_LORT, pv_UPLT, pv_S_UPLT, pv_SW_LORT, pv_SW_UPLT, pv_W_LORT
     real(dp)                      :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W
     real(dp)                      :: u_prim_DG_SW, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
     real(dp), dimension(3)        :: pv_mass
@@ -550,7 +554,7 @@ contains
        idW  = idx (-1,  0, offs, dims)
        idSW = idx (-1, -1, offs, dims)
 
-       id_rhodz = (/ id, idN, idE, idS, idW, id, id, idSW /)
+       id_rhodz = [ id, idN, idE, idS, idW, id, id, idSW ]
        rho_dz(0:SOUTHWEST) = mass(id_rhodz+1) + mean_m(id_rhodz+1)
 
        u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
@@ -599,7 +603,7 @@ contains
        idNE = idx (PATCH_SIZE+1,  1, offs, dims)
        idSW = idx (PATCH_SIZE-1, -1, offs, dims)
 
-       id_rhodz = (/ id, id, idE, idS, idW, idNE, id, idSW /)
+       id_rhodz = [ id, id, idE, idS, idW, idNE, id, idSW ]
        rho_dz(0:SOUTHWEST) = mass(id_rhodz+1) + mean_m(id_rhodz+1)
 
        u_prim_RT_SW = velo(EDGE*idSW+RT+1) * dom%len%elts(EDGE*idSW+RT+1)
@@ -648,7 +652,7 @@ contains
        idNE = idx ( 1, PATCH_SIZE+1, offs, dims)
        idSW = idx (-1, PATCH_SIZE-1, offs, dims)
 
-       id_rhodz = (/ id, idN, id, idS, idW, idNE, id, idSW /)
+       id_rhodz = [ id, idN, id, idS, idW, idNE, id, idSW ]
        rho_dz(0:SOUTHWEST) = mass(id_rhodz+1) + mean_m(id_rhodz+1)
 
        u_prim_UP    = velo(EDGE*id  +UP+1) * dom%len%elts(EDGE*id  +UP+1)
@@ -696,7 +700,7 @@ contains
        idS = idx (PATCH_SIZE,   PATCH_SIZE-1, offs, dims)
        idW = idx (PATCH_SIZE-1, PATCH_SIZE,   offs, dims)
 
-       id_rhodz(1:5) = (/ id, idN, idE, idS, idW /)
+       id_rhodz(1:5) = [ id, idN, idE, idS, idW ]
        rho_dz(0:WEST) = mass(id_rhodz(1:5)+1) + mean_m(id_rhodz(1:5)+1)
 
        u_prim_RT   = velo(EDGE*id +RT+1) * dom%len%elts(EDGE*id +RT+1)
@@ -805,8 +809,8 @@ contains
        idN  = idx (i,   j+1, offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
 
-       rho_dz(0:NORTHEAST)       = mean_m((/id,idN,idE,id,id,idNE/)+1) + mass((/id,idN,idE,id,id,idNE/)+1)
-       rho_dz_theta(0:NORTHEAST) = mean_t((/id,idN,idE,id,id,idNE/)+1) + temp((/id,idN,idE,id,id,idNE/)+1)
+       rho_dz(0:NORTHEAST)       = mean_m([id,idN,idE,id,id,idNE]+1) + mass([id,idN,idE,id,id,idNE]+1)
+       rho_dz_theta(0:NORTHEAST) = mean_t([id,idN,idE,id,id,idNE]+1) + temp([id,idN,idE,id,id,idNE]+1)
 
        ! See DYNAMICO between (23)-(25), geopotential still known from step1_up
        ! the theta multiplying the Exner gradient is the edge-averaged non-mass-weighted potential temperature
@@ -940,13 +944,13 @@ contains
          h_mflux(EDGE*idSE+UP+1) * qe(EDGE*idS+DG+1)*wgt2(2) + &
          h_mflux(EDGE*idE +DG+1) * qe(EDGE*idE+UP+1)*wgt2(4)
 
-    if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! hexagon, third neighbour edge (Gassmann rule 3)
+    if (dom%pedlen%elts(EDGE*idSW+DG+1) > eps (radius)) then ! hexagon, third neighbour edge (Gassmann rule 3)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idW+RT+1)*interp (qe(EDGE*idW+RT+1),qe(EDGE*id+RT+1))*wgt1(3)
     else                                             ! pentagon, second neighbour edge (Gassmann rule 2)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idW+RT+1)*qe(EDGE*idS+UP+1)*wgt1(3)
     end if
 
-    if (dom%pedlen%elts(EDGE*idSE+UP+1)/=0.0_8) then ! hexagon, third neighbour edge (Gassmann rule 3)
+    if (dom%pedlen%elts(EDGE*idSE+UP+1) > eps (radius)) then ! hexagon, third neighbour edge (Gassmann rule 3)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idE+RT+1)*interp (qe(EDGE*idE+RT+1),qe(EDGE*id+RT+1))*wgt2(3)
     else                                             ! pentagon, second neighbour edge (Gassmann rule 2)
        Qperp_Gassmann(RT+1) = Qperp_Gassmann(RT+1) + h_mflux(EDGE*idE+RT+1)*qe(EDGE*idS+DG+1)*wgt2(3)
@@ -990,13 +994,13 @@ contains
          h_mflux(EDGE*idN+DG+1)  * qe(EDGE*idN+RT+1)*wgt2(2) + &         
          h_mflux(EDGE*idNW+RT+1) * qe(EDGE*idW+DG+1)*wgt2(4)
 
-    if (dom%pedlen%elts(EDGE*idSW+DG+1)/=0.0_8) then ! hexagon, third neighbour edge (Gassmann rule 3 = TRSK rule)
+    if (dom%pedlen%elts(EDGE*idSW+DG+1) > eps (radius)) then ! hexagon, third neighbour edge (Gassmann rule 3 = TRSK rule)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idS+UP+1)*interp (qe(EDGE*idS+UP+1),qe(EDGE*id+UP+1))*wgt1(3)
     else                                             ! pentagon, second neighbour edge (Gassmann rule 2)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idS+UP+1)*qe(EDGE*idW+RT+1)*wgt1(3)
     end if
 
-    if (dom%pedlen%elts(EDGE*idNW+RT+1) /= 0.0_8) then ! hexagon, third neighbour edge (Gassmann rule 3)
+    if (dom%pedlen%elts(EDGE*idNW+RT+1) > eps (radius)) then ! hexagon, third neighbour edge (Gassmann rule 3)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idN+UP+1)*interp (qe(EDGE*idN+UP+1),qe(EDGE*id+UP+1))*wgt2(3)
     else                                               ! pentagon, second neighbour edge (Gassmann rule 2)
        Qperp_Gassmann(UP+1) = Qperp_Gassmann(UP+1) + h_mflux(EDGE*idN+UP+1)*qe(EDGE*idW+DG+1)*wgt2(3)
@@ -1017,7 +1021,7 @@ contains
        wgt(i) = wgt(i-1) + dom%areas%elts(id+1)%part(modulo(i+offs-1,6)+1)
     end do
     wgt = 0.5_dp - wgt*dom%areas%elts(id+1)%hex_inv
-    get_weights = (/ wgt(1), -wgt(2), wgt(3), -wgt(4), wgt(5) /)
+    get_weights = [ wgt(1), -wgt(2), wgt(3), -wgt(4), wgt(5) ]
   end function get_weights
 
   subroutine cal_surf_press (q)
@@ -1249,13 +1253,13 @@ contains
     u_prim_UP_E = velo(EDGE*idE+UP+1) * dom%len%elts(EDGE*idE+UP+1)
     u_prim_RT_N = velo(EDGE*idN+RT+1) * dom%len%elts(EDGE*idN+RT+1)
     
-    if (dom%triarea%elts(TRIAG*id+LORT+1) > eps ()) then
+    if (dom%triarea%elts(TRIAG*id+LORT+1) > eps (radius**2)) then
        vort(TRIAG*id+LORT+1) =   (u_prim_RT + u_prim_UP_E + u_prim_DG  ) / dom%triarea%elts(TRIAG*id+LORT+1)
     else
        vort(TRIAG*id+LORT+1) = 0.0_dp
     endif
     
-    if (dom%triarea%elts(TRIAG*id+UPLT+1) > eps ()) then
+    if (dom%triarea%elts(TRIAG*id+UPLT+1) > eps (radius**2)) then
        vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N) / dom%triarea%elts(TRIAG*id+UPLT+1)
     else
        vort(TRIAG*id+UPLT+1) = 0.0_dp
@@ -1279,7 +1283,7 @@ contains
 
     Laplacian(EDGE*id+RT+1) = - (vort(TRIAG*id+LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
 
-    if (dom%pedlen%elts(EDGE*id+DG+1) > eps ()) then
+    if (dom%pedlen%elts(EDGE*id+DG+1) > eps (radius)) then
        Laplacian(EDGE*id+DG+1) = - (vort(TRIAG*id+LORT+1) - vort(TRIAG*id+UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
     else
        Laplacian(EDGE*id+DG+1) = 0.0_dp

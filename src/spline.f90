@@ -31,7 +31,7 @@ contains
     end if
 
     h = xa(khi) - xa(klo)
-    if (h == 0.0_dp) write(6,*)"bad xa input in splint"
+    if (abs(h) <= epsilon (1.0_8)) write(6,*)"bad xa input in splint"
 
     a = (xa(khi) - x) / h
     b = (x - xa(klo)) / h

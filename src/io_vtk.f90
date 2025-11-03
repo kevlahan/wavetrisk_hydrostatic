@@ -24,7 +24,7 @@ contains
 
     if (rank == 0) then
        write (6,'(/,a,/)') '**************************************************************&
-            ********************************************************************'
+            & ********************************************************************'
        write (6,'(a,i4,a,es10.4,/)') 'Saving field ', iwrite, ' at time [day] = ', time / DAY
     end if
 
@@ -88,7 +88,7 @@ contains
             " compression ratio = ", dble (2 * (2 + 10 * 4**max_level)) / dble (ncell)
 
        write (6,'(a,/)') '*************************************************************&
-            *********************************************************************'
+            &*********************************************************************'
     end if
     call barrier
     deallocate (vel_vert)
@@ -100,7 +100,7 @@ contains
     integer(4)   :: k
     character(3) :: type
 
-    integer(4)                            :: icell, ivar, ivert, ncell_tot
+    integer(4)                            :: icell, ivar, ivert
     integer(4), dimension(:), allocatable :: cell_type, level_data
     character(3)                          :: layer
     character(4)                          :: isv
@@ -117,7 +117,8 @@ contains
     write (layer,     '(i3.3)') k
 
     filename = trim(run_id)//"_"//trim(type)//"_"//trim(layer)//"_"//trim(isv)//".vtk"
-    open (unit=funit, file=trim(filename), form="unformatted", access='stream', status='replace', convert='BIG_ENDIAN')
+    open (unit=funit, file=trim(filename), form='unformatted', access='stream', status='replace')
+
     
     ! Write vtk header
     write (funit) '# vtk DataFile Version 2.0'//lf
@@ -214,7 +215,7 @@ contains
     integer(4)   :: k
     character(3) :: type
     
-    integer(4)                       :: i, ibeg, iend, r
+    integer(4)                       :: i, r
     integer(4), dimension(n_process) :: displs, ncell_glo, ncoord_unique_glo, nvertex_unique_glo, ncell_vert_index_glo
 
     allocate (cell_data_loc(0), cell_vert_index_loc(0), points_loc(0), vert_coord_unique_loc(0))
@@ -266,7 +267,6 @@ contains
     integer                                    :: d, id, imin, ivert, t
     integer                                    :: idE, idN, idNE
     integer(4), dimension(nvert)               :: new_vert_index
-    integer, dimension(0:EDGE)                 :: neigh_id
     real(dp)                                   :: dmin
 
     type(coord)                                :: p
@@ -280,11 +280,11 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
 
-    vertex(LORT,:) = dom%node%elts((/id, idE, idNE/)+1)
-    vertex(UPLT,:) = dom%node%elts((/id, idNE, idN/)+1)
+    vertex(LORT,:) = dom%node%elts([id, idE, idNE]+1)
+    vertex(UPLT,:) = dom%node%elts([id, idNE, idN]+1)
 
     do t = LORT, UPLT
-       if (save_tri(t)%data(d)%elts(id+1) == 1.0_dp) then             ! cell is active
+       if (save_tri(t)%data(d)%elts(id+1)) then             ! cell is active
           ncell_loc = ncell_loc + 1
           
           do ivert = 1, TRI_VERT
@@ -324,21 +324,21 @@ contains
       real(sp)                     :: Ps, tri_area
       real(sp), dimension(2*nvert) :: hex_area
 
-      neigh_id = (/ id, idE, idNE, idN /) + 1
+      neigh_id = [id, idE, idNE, idN] + 1
 
-      tri_area = dom%triarea%elts(TRIAG*id+t+1)
+      tri_area = real(dom%triarea%elts(TRIAG*id+t+1), kind=sp)
 
-      hex_area(1) = dom%areas%elts(id+1  )%part(1)
-      hex_area(2) = dom%areas%elts(id+1  )%part(2)
-      hex_area(3) = dom%areas%elts(idE+1 )%part(3)
-      hex_area(4) = dom%areas%elts(idNE+1)%part(4)
-      hex_area(5) = dom%areas%elts(idNE+1)%part(5)
-      hex_area(6) = dom%areas%elts(idN+1 )%part(6)
+      hex_area(1) = real(dom%areas%elts(id+1  )%part(1), kind=sp)
+      hex_area(2) = real(dom%areas%elts(id+1  )%part(2), kind=sp)
+      hex_area(3) = real(dom%areas%elts(idE+1 )%part(3), kind=sp)
+      hex_area(4) = real(dom%areas%elts(idNE+1)%part(4), kind=sp)
+      hex_area(5) = real(dom%areas%elts(idNE+1)%part(5), kind=sp)
+      hex_area(6) = real(dom%areas%elts(idN+1 )%part(6), kind=sp)
 
       Ps = hex2tri2 (real(dom%surf_press%elts(neigh_id),kind=sp), hex_area, tri_area, t) ! surface pressure
 
-      rho_dz       = sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id)
-      rho_dz_theta = sol(S_TEMP,zlev)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,zlev)%data(d)%elts(neigh_id)
+      rho_dz       = real(sol(S_MASS,zlev)%data(d)%elts(neigh_id) + sol_mean(S_MASS,zlev)%data(d)%elts(neigh_id), kind=sp)
+      rho_dz_theta = real(sol(S_TEMP,zlev)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,zlev)%data(d)%elts(neigh_id), kind=sp)
 
       if (compressible) then
          temperature = real(rho_dz_theta/rho_dz * (dom%press%elts(neigh_id)/p_0)**kappa, kind=sp)
@@ -347,7 +347,7 @@ contains
       end if
 
       ! Single layer data
-      outv(1) = nint (active_level%data(d)%elts(id+1))                                                  ! level
+      outv(1) = active_level%data(d)%elts(id+1)                                                         ! level
       outv(2) = hex2tri2 (real(topography%data(d)%elts(neigh_id),kind=sp),      hex_area, tri_area, t)  ! topography
       outv(3) = hex2tri2 (real(penal_node(1)%data(d)%elts(neigh_id),kind=sp),   hex_area, tri_area, t)  ! penalization mask
       if (compressible) then
@@ -377,21 +377,21 @@ contains
       real(sp)                     :: tri_area
       real(sp), dimension(2*nvert) :: hex_area
 
-      neigh_id = (/ id, idE, idNE, idN /) + 1
+      neigh_id = [id, idE, idNE, idN] + 1
 
-      tri_area = dom%triarea%elts(TRIAG*id+t+1)
+      tri_area = real(dom%triarea%elts(TRIAG*id+t+1), kind=sp)
 
-      hex_area(1) = dom%areas%elts(id+1  )%part(1)
-      hex_area(2) = dom%areas%elts(id+1  )%part(2)
-      hex_area(3) = dom%areas%elts(idE+1 )%part(3)
-      hex_area(4) = dom%areas%elts(idNE+1)%part(4)
-      hex_area(5) = dom%areas%elts(idNE+1)%part(5)
-      hex_area(6) = dom%areas%elts(idN+1 )%part(6)
+      hex_area(1) = real(dom%areas%elts(id+1  )%part(1), kind=sp)
+      hex_area(2) = real(dom%areas%elts(id+1  )%part(2), kind=sp)
+      hex_area(3) = real(dom%areas%elts(idE+1 )%part(3), kind=sp)
+      hex_area(4) = real(dom%areas%elts(idNE+1)%part(4), kind=sp)
+      hex_area(5) = real(dom%areas%elts(idNE+1)%part(5), kind=sp)
+      hex_area(6) = real(dom%areas%elts(idN+1 )%part(6), kind=sp)
 
-      temperature = sol(S_TEMP,0)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,0)%data(d)%elts(neigh_id) ! surface temperature
+      temperature = real(sol(S_TEMP,0)%data(d)%elts(neigh_id) + sol_mean(S_TEMP,0)%data(d)%elts(neigh_id), kind=sp) ! surface temperature
 
       outv = 0.0
-      outv(1) = nint (active_level%data(d)%elts(id+1))                                                  ! level
+      outv(1) = active_level%data(d)%elts(id+1)                                                         ! level
       outv(2) = hex2tri2 (real(topography%data(d)%elts(neigh_id),kind=sp),      hex_area, tri_area, t)  ! topography
       outv(3) = hex2tri2 (real(penal_node(1)%data(d)%elts(neigh_id),kind=sp),   hex_area, tri_area, t)  ! penalization mask
       outv(5) = hex2tri2 (real(temperature,kind=sp),                            hex_area, tri_area, t)  ! surface temperature 
@@ -404,15 +404,17 @@ contains
       
       select case (t)
       case (LORT)
-         vort_tri = ( &
+         vort_tri = real(( &
               dom%areas%elts(id  +1)%part(1) * vorticity (dom, i,   j,   offs, dims) + &
               dom%areas%elts(idE +1)%part(3) * vorticity (dom, i+1, j,   offs, dims) + &
-              dom%areas%elts(idNE+1)%part(5) * vorticity (dom, i+1, j+1, offs, dims)) / dom%triarea%elts(TRIAG*id+LORT+1)
+              dom%areas%elts(idNE+1)%part(5) * vorticity (dom, i+1, j+1, offs, dims)) / dom%triarea%elts(TRIAG*id+LORT+1), kind=sp)
       case (UPLT)
-         vort_tri = ( &
+         vort_tri = real(( &
               dom%areas%elts(id  +1)%part(2) * vorticity (dom, i,   j,   offs, dims) + &
               dom%areas%elts(idNE+1)%part(4) * vorticity (dom, i+1, j+1, offs, dims) + &
-              dom%areas%elts(idN +1)%part(6) * vorticity (dom, i,   j+1, offs, dims)) / dom%triarea%elts(TRIAG*id+UPLT+1)
+              dom%areas%elts(idN +1)%part(6) * vorticity (dom, i,   j+1, offs, dims)) / dom%triarea%elts(TRIAG*id+UPLT+1), kind=sp)
+      case default
+         vort_tri = 0.0_dp
       end select
     end function vort_tri
   end subroutine unique_tri_cells
@@ -446,10 +448,10 @@ contains
        idS  = idx (i,   j-1, offs, dims)
        
        ! Vertices of hexagon
-       vert = (/ &
+       vert = [ &
             dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
             dom%ccentre%elts(TRIAG*idW +LORT+1), dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
-            dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1) /)
+            dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS +UPLT+1) ]
 
        do ivert = 1, HEX_VERT
           vert_coord_unique_loc = &
@@ -476,7 +478,7 @@ contains
       end if
 
       ! Single layer data
-      outv(1) = nint (active_level%data(d)%elts(id+1))              ! level
+      outv(1) = active_level%data(d)%elts(id+1)                     ! level
       outv(2) = real (topography%data(d)%elts(id+1), kind=sp)       ! topography
       outv(3) = real (dom%mask_n%elts(id+1),         kind=sp)       ! mask
       if (compressible) then
@@ -606,7 +608,7 @@ contains
     ! stored in vel_vert
     ! note that OMEGA > 0 corresponds to negative vertical velocity (w < 0)
     implicit none
-    integer(4) :: d, j, k, l, p
+    integer(4) :: d, j, k, l
 
     call update_bdry (sol, NONE, 912)
 
@@ -721,7 +723,6 @@ contains
     ! Computes vertical velocity w [m/s]
     ! stored in trend(S_TEMP,1:zlevels)
     implicit none
-    integer(4) :: d, j, k, l, p
 
     call omega_velocity
 
@@ -789,24 +790,19 @@ contains
     implicit none
     character(3) :: type
     
-    integer(4)      :: info
     character(4)    :: isv
     character(1300) :: bash_cmd, command
 
     write (isv, '(i4.4)') iwrite
 
     bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_'//trim(type)//'_*'//trim(isv)//'.vtk > '//trim(run_id)//'_tmp1"'
-    call system (trim(bash_cmd))
+    call execute_command_line (trim(bash_cmd))
 
     command = 'bash -c &
-         "gtar caf '//trim(run_id)//'_'//trim(type)//'_'//trim(isv)//'.vtk.tgz -T '//trim(run_id)//'_tmp1 --remove-files"'
-    call system (trim(command), info)
-    if (info /= 0) then
-       if (rank == 0) write (6,'(a)') 'gtar error info = 0 ... aborting'
-       call abort
-    end if
+         & "gtar caf '//trim(run_id)//'_'//trim(type)//'_'//trim(isv)//'.vtk.tgz -T '//trim(run_id)//'_tmp1 --remove-files"'
+    call execute_command_line (trim(command))
 
     command = '\rm -f '//trim(run_id)//'_tmp1'
-    call system (trim(command))
+    call execute_command_line (trim(command))
   end subroutine compress_files
 end module io_vtk_mod

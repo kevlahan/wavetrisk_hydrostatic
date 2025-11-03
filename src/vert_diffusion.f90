@@ -101,8 +101,8 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                          :: d, id, info, k, l
-    real(dp)                         :: eta, filt, turb, z
+    integer                          :: d, id, info, l
+    real(dp)                         :: eta, turb, z
     real(dp), dimension(0:zlevels)   :: e, l_eps, l_k, Nsq,  dUdZ2
     real(dp), dimension(1:zlevels)   :: dz, Umag
     real(dp), dimension(1:zlevels-1) :: dzl, diag, rhs, S1, S2
@@ -118,7 +118,7 @@ contains
 
        ! RHS terms
        do l = 1, zlevels-1
-          if (e(l) == 0.0_dp) then
+          if (e(l) < eps (1.0_dp)) then
              turb = 0.0_dp
           else
              turb = C_eps * sqrt (e(l)) / l_eps(l)
@@ -226,12 +226,7 @@ contains
       ! ||du_h/dz||^2 at interfaces 0 <= l <= zlevels
       ! (computed from twice TRiSK form of kinetic energy to use data from only a single colum)
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, l
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
-      real(dp) :: dU, dZ
+      integer :: l
 
       if (l == 0 .or. l == zlevels) then
          dUdZ_sq = 0.0_dp
@@ -280,7 +275,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                          :: d, id, info, k, l
-    real(dp)                         :: eta, rho_dz, theta
+    real(dp)                         :: eta, rho_dz
 
     real(dp), dimension(0:zlevels)   :: z
     real(dp), dimension(1:zlevels)   :: diag, dz, rhs
@@ -448,6 +443,7 @@ contains
     integer,  dimension(2,N_BDRY+1) :: dims
     real(dp), dimension(1:zlevels)  :: dz
 
+    N_sq = 0.0_dp
     if (l < zlevels .and. l > 0) then
        N_sq = eval (l)
     elseif (l == 0) then
@@ -636,9 +632,8 @@ contains
       ! Computes flux at interface below (l=-1) or above (l=1) vertical level zlev
       implicit none
       integer :: l
-      integer :: dzl
 
-      real(dp) :: b_0, b_l, mass_0, mass_l, temp_0, temp_l, visc
+      real(dp) :: b_0, b_l, dz_l, mass_0, mass_l, temp_0, temp_l, visc
 
       visc = Kt(zlev+min(0,l))%data(d)%elts(id_i)
 
@@ -650,9 +645,9 @@ contains
       temp_l = sol_mean(S_TEMP,zlev+l)%data(d)%elts(id_i) + sol(S_TEMP,zlev+l)%data(d)%elts(id_i)
       b_l = temp_l / mass_l
 
-      dzl = interp (dz_k,  dz_i(dom, i, j, zlev+l, offs, dims, sol)) ! thickness of layer centred on interface
+      dz_l = interp (dz_k,  dz_i(dom, i, j, zlev+l, offs, dims, sol)) ! thickness of layer centred on interface
 
-      scalar_flux = l * visc * (b_l - b_0) / dzl
+      scalar_flux = l * visc * (b_l - b_0) / dz_l
     end function scalar_flux
   end subroutine trend_scalars_vert_diffuse
 

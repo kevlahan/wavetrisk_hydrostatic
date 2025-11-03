@@ -62,11 +62,10 @@ contains
     use iniphyparam_mod,   only : iniphyparam
     use single_column_mod, only : initialize_extra_levels
     use shared_mod,        only : dt
-    use phyparam_mod,      only : alloc, precompute, zday_last, icount
+    use phyparam_mod,      only : alloc, precompute
     use read_param_mod
     use logging
     implicit none
-    real(dp)       :: day_fraction, nth_day
     character(255) :: command, param_file
 
     ! Set physics function pointers (if using) ! it is here where I use soil_mod flag to set soil

@@ -130,8 +130,7 @@ contains
     integer          :: en, ival, l, st, zlev
     procedure (sub8) :: routine
 
-    integer               :: d, j
-    logical, dimension(2) :: pole_done
+    integer :: d, j
 
     do d = 1, size(grid)
        do j = 1, grid(d)%lev(l)%length
@@ -238,7 +237,7 @@ contains
 
     call get_offs_Domain (dom, p, offs, dims, inner_bdry)
 
-    bdry = (/ en, en, st, st /)
+    bdry = [ en, en, st, st ]
 
     where (inner_bdry) bdry = 0
 
@@ -290,7 +289,7 @@ contains
 
     call get_offs_Domain5 (dom, p, offs, dims, inner_patch)
 
-    bdry = (/ en, en, st, st /)
+    bdry = [ en, en, st, st ]
 
     where (inner_patch) bdry = 0
 
@@ -379,7 +378,7 @@ contains
 
        call get_offs_Domain (dom, p_chd, offs_chd, dims_chd, inner_bdry)
 
-       bdry = (/en, en, st, st/)
+       bdry = [en, en, st, st]
 
        where (inner_bdry) bdry = 0
 
@@ -417,7 +416,7 @@ contains
 
        call get_offs_Domain (dom, p_chd, offs_chd, dims_chd, inner_bdry)
 
-       bdry = (/en, en, st, st/)
+       bdry = [en, en, st, st]
 
        where (inner_bdry) bdry = 0
 
@@ -452,7 +451,7 @@ contains
 
        call get_offs_Domain (dom, p_chd, offs_chd, dims_chd)
 
-       bdry = (/en, en, st, st/)
+       bdry = [en, en, st, st]
 
        do j = bdry(JMINUS) + 1, PATCH_SIZE/2 + bdry(JPLUS)
           j_chd = (j - 1)*2
@@ -485,7 +484,7 @@ contains
 
     call get_offs_Domain (dom, p_chd, offs_chd, dims_chd, inner_bdry)
 
-    bdry = (/en, en, st, st/)
+    bdry = [en, en, st, st]
 
     do j = bdry(JMINUS) + 1, PATCH_SIZE/2 + bdry(JPLUS)
        j_chd = (j - 1)*2
@@ -584,9 +583,8 @@ contains
 
   subroutine apply_to_pole2 (routine, l, zlev)
     implicit none
-    type(Domain)      :: dom
-    integer           :: l, zlev
-    procedure (sub4) :: routine
+    integer         :: l, zlev
+    procedure(sub4) :: routine
 
     integer                        :: c, d, l_cur, p, p_par
     integer, dimension(N_BDRY+1)   :: offs
@@ -629,9 +627,7 @@ contains
     integer          :: l, zlev
     procedure (sub9) :: routine
 
-    integer                        :: c, d, l_cur, p, p_par
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    integer :: d
 
     do d = 1, size(grid)
        call apply_to_penta_d(routine, grid(d), l, zlev)
@@ -644,7 +640,7 @@ contains
     integer          :: l, zlev
     procedure (sub9) :: routine
 
-    integer                        :: c, d, l_cur, p, p_par
+    integer                        :: c, l_cur, p, p_par
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 

@@ -17,7 +17,6 @@ contains
     procedure (noarg_sub) :: set_thresholds
     logical, optional     :: type ! recalculate thresholds
     
-    integer :: k, l, d
     logical :: local_type
 
     n_patch_old = grid%patch%length
@@ -106,7 +105,7 @@ contains
     implicit none
     type(Float_Field), target :: wav
 
-    integer :: d, k, l
+    integer :: d, l
 
     call update_bdry (wav, NONE, 902)
     do d = 1, size (grid)
@@ -241,7 +240,7 @@ contains
     type(Float_Field), target :: scaling, wavelet
     integer, optional         :: l_start0
 
-    integer :: d, j, k, l, l_start
+    integer :: d, l, l_start
 
     call zero_float (wavelet)
 
@@ -272,7 +271,7 @@ contains
     type(Float_Field), dimension(:), target :: scaling, wavelet
     integer, optional                       :: l_start0
     
-    integer :: d, j, k, l, l_start
+    integer :: d, k, l, l_start
 
     call zero_float (wavelet)
 
@@ -305,7 +304,7 @@ contains
     type(Float_Field), dimension(:), target :: scaling, wavelet
     integer, optional                       :: l_start0
     
-    integer :: d, j, k, l, l_start
+    integer :: d, k, l, l_start
 
     call zero_float (wavelet)
 

@@ -29,41 +29,44 @@ MODULE calendar_mod
 
 CONTAINS
 
-!===============================================================================
+  !===============================================================================
+  subroutine eday2date(eday, date)
+    implicit none
+    integer, intent(in)  :: eday          ! elapsed days since (year 0)-01-01
+    integer, intent(out) :: date          ! coded yyyymmdd
 
-SUBROUTINE eday2date(eday,date)
+    integer :: k, year, month, day
+    ! cumulative day-of-year starts for a 365-day year (no leap): Jan=0, Feb=31, ... Dec=334
+    integer, parameter :: dsm(12) = (/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /)
 
-   implicit none
+    ! Year number (handles negative eday too)
+    if (eday >= 0) then
+       year = eday / 365
+    else
+       ! floor division for negatives, using integer arithmetic
+       year = - ((-eday + 364) / 365)
+    end if
 
-   integer :: eday,date
+    ! Day index within the year: 0..364 (use MODULO to avoid negative remainder)
+    day = modulo(eday, 365)
 
-   integer :: k,year,month,day
+    ! Month: initialize to 1, then bump while day >= start of that month
+    month = 1
+    do k = 2, 12
+       if (day >= dsm(k)) month = k
+    end do
 
-   !----------------------------------------------------------------------------
-   ! PURPOSE:
-   !   compute the calendar date: year/month/day
-   ! INPUT:
-   !   an integer :: number of elapsed days
-   ! OUTPUT:
-   !   coded (yyyymmdd) calendar date
-   ! NOTE:
-   !   this calendar has a year zero (but no day or month zero)
-   !----------------------------------------------------------------------------
+    ! Day-of-month: 1..(28..31)
+    day = day - dsm(month) + 1
 
-   year = eday/365       ! calandar year (note: Fortran truncation)
-   day  = mod(eday,365)  ! elapsed days within current year
-   DO k=1,12
-     IF (day .ge. dsm(k)) month=k   ! calendar month
-   END DO
-   day = day-dsm(month) + 1         ! calendar day
-  
-   date = year*10000 + month*100 + day  ! coded calendar date
+    ! Pack into yyyymmdd
+    date = year*10000 + month*100 + day
+  end subroutine eday2date
 
-END SUBROUTINE eday2date
 
-!===============================================================================
+  !===============================================================================
 
-SUBROUTINE eday2ymd (eday,year,month,day)
+  SUBROUTINE eday2ymd (eday,year,month,day)
 
    implicit none
 
@@ -89,7 +92,8 @@ SUBROUTINE eday2ymd (eday,year,month,day)
    END DO
    day = day-dsm(month) + 1         ! calendar day
 
-END SUBROUTINE eday2ymd 
+ END SUBROUTINE eday2ymd
+
 
 !===============================================================================
 

@@ -47,7 +47,7 @@ contains
 
     integer                        :: d, id, id_i, k, l
     integer,  dimension(1:EDGE)    :: id_e
-    real(dp)                       :: fac, k_v, P_k, rho_dz, sigma
+    real(dp)                       :: k_v, rho_dz, sigma
     real(dp), dimension(0:zlevels) :: Pl
     real(dp), dimension(1:zlevels) :: Pk
 
@@ -73,9 +73,11 @@ contains
           k_v = k_f * max (0.0_dp,   (sigma - sigma_b1) / (1.0_dp - sigma_b1))
        case ("strat")
           k_v = k_f * max (0.0_dp, - (sigma - sigma_b2) / sigma_b2)
+       case default
+          k_v = 0.0_dp
        end select
 
-       sol(S_VELO,k)%data(d)%elts(id_e) = (1.0_dp - dt * fac * k_v) * sol(S_VELO,k)%data(d)%elts(id_e)
+       sol(S_VELO,k)%data(d)%elts(id_e) = (1.0_dp - dt * k_v) * sol(S_VELO,k)%data(d)%elts(id_e)
     end do
   end subroutine Rayleigh_friction
 
@@ -85,7 +87,6 @@ contains
     !   Backwards Euler physics step on a single element/column
     !
     !-----------------------------------------------------------------------------------
-    use callkeys,           only : lverbose ! print physics model parameters
     use io_mod,             only : kinetic_energy
     use single_column_mod,  only : change_latitude_longitude, physics_call_single_col 
     implicit none
@@ -158,7 +159,7 @@ contains
       integer  :: k
       real(dp) :: rho_dz_theta
 
-      phys_Pint(0)  = dom%surf_press%elts(id_i)
+      phys_Pint(0)  = real (dom%surf_press%elts(id_i), kind=4)
 
       do k = 1, zlevels
          mass   =>      sol(S_MASS,k)%data(d)%elts

@@ -5,10 +5,10 @@ module utils_mod
   use comm_mpi_mod
   use init_mod
   implicit none
-  real(dp)                                :: integral, rx0_max_loc, rx1_max_loc
-  real(dp), dimension(:), pointer         :: val1, val2
-  type(Float_Field)                       :: active_level
-  type(Float_Field), dimension(LORT:UPLT) :: save_tri   
+  real(dp)                                  :: integral, rx0_max_loc, rx1_max_loc
+  real(dp), dimension(:), pointer           :: val1, val2
+  type(Int_Field)                           :: active_level
+  type(Logical_Field), dimension(LORT:UPLT) :: save_tri   
   abstract interface
      real(dp) function routine_hex (dom, i, j, zlev, offs, dims)
        use domain_mod
@@ -170,7 +170,6 @@ contains
     type(Float_Field), dimension(:,:), target :: q
     real(dp), dimension(1:EDGE)               :: dz_e
 
-    integer                     :: id
     real(dp), dimension(0:EDGE) :: dz
 
     dz(0)    = dz_i (dom, i,   j,   zlev, offs, dims, q)
@@ -400,7 +399,7 @@ contains
     type(Float_Field), dimension(:,:), target :: q
 
     integer  :: d, id
-    real(dp) :: exner, rho_dz, rho_dz_theta, p, temp
+    real(dp) :: rho_dz, rho_dz_theta, p, temp
 
     d = dom%id + 1
     id  = idx (i, j, offs, dims) + 1
@@ -409,10 +408,10 @@ contains
        rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
        rho_dz       = sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)
 
-       temp = (rho_dz_theta / rho_dz) * (p/p_0)**kappa ! temperature
-       
        p    = pressure_i (dom, i, j, zlev, offs, dims, sol)
 
+       temp = (rho_dz_theta / rho_dz) * (p/p_0)**kappa ! temperature
+       
        density_i = p / (R_d * temp) 
     else                   ! gravitational density using Boussinesq approximation
        density_i = ref_density * (1.0_dp - buoyancy (dom, i, j, zlev, offs, dims, q))
@@ -680,10 +679,10 @@ contains
 
     ! Compute hexagon centroid from its vertices
     cent = centroid (                                                                 &
-         (/ &
+         [ &
          dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1),   &
          dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
-         dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /), 6)
+         dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) ], 6)
 
     ! Velocity at node from Perot formula
     vel = dom%areas%elts(id+1)%hex_inv * ( &
@@ -746,9 +745,9 @@ contains
 
     ! Compute hexagon centroid from its vertices
     cent = centroid (                                                                 &
-         (/ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1),   &
+         [ dom%ccentre%elts(TRIAG*id+LORT+1),   dom%ccentre%elts(TRIAG*id+UPLT+1),   &
             dom%ccentre%elts(TRIAG*idW+LORT+1),  dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
-            dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) /), 6)
+            dom%ccentre%elts(TRIAG*idSW+LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1) ], 6)
 
     ! Velocity at node from Perot formula
     vel = dom%areas%elts(id+1)%hex_inv * ( &
@@ -832,8 +831,6 @@ contains
     implicit none
     integer           :: zlev
     integer, optional :: level
-
-    integer :: j, d, l
 
     interface
        real(dp) function fun (dom, i, j, zlev, offs, dims)
@@ -921,19 +918,22 @@ contains
     id   = idx (i,   j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
 
-    if (t == LORT) then
+    select case (t)
+    case (LORT)
        idE = idx (i+1, j, offs, dims)
        hex2tri = &
             arr_hex (dom, i,   j,   zlev, offs, dims) * dom%areas%elts(id+1)%part(1)  + &
             arr_hex (dom, i+1, j+1, zlev, offs, dims) * dom%areas%elts(idNE+1)%part(5) + &
             arr_hex (dom, i+1, j,   zlev, offs, dims) * dom%areas%elts(idE+1)%part(3)
-    elseif (t == UPLT) then
+    case (UPLT)
        idN = idx (i, j+1, offs, dims)
        hex2tri = &
             arr_hex (dom, i,   j,   zlev, offs, dims) * dom%areas%elts(id+1)%part(2)  + &
             arr_hex (dom, i+1, j+1, zlev, offs, dims) * dom%areas%elts(idNE+1)%part(4) + &
             arr_hex (dom, i,   j+1, zlev, offs, dims) * dom%areas%elts(idN+1)%part(6)
-    end if
+    case default
+       hex2tri = 0.0_dp
+    end select
 
     hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
@@ -1009,8 +1009,8 @@ contains
 
     FdTri = hex2tri3 (val, hex_area, tri_area)  
 
-    if (save_tri(LORT)%data(d)%elts(id+1) == 1.0_dp) integral = integral + FdTri(LORT)
-    if (save_tri(UPLT)%data(d)%elts(id+1) == 1.0_dp) integral = integral + FdTri(UPLT)
+    if (save_tri(LORT)%data(d)%elts(id+1)) integral = integral + FdTri(LORT)
+    if (save_tri(UPLT)%data(d)%elts(id+1)) integral = integral + FdTri(UPLT)
   end subroutine fdA_tri
   
   real(4) function hex2tri2 (sclr, hex_area, tri_area, t)
@@ -1043,12 +1043,12 @@ contains
 
   subroutine pre_levelout
     implicit none
-    integer :: d, l, max_output_level, num, t
+    integer :: d, l, num, t
 
     ! FIXME cleaner would be to use init_io routine
-    call init_Float_Field (active_level,   AT_NODE)
-    call init_Float_Field (save_tri(LORT), AT_NODE)
-    call init_Float_Field (save_tri(UPLT), AT_NODE)
+    call init_Field (active_level,   AT_NODE)
+    call init_Field (save_tri(LORT), AT_NODE)
+    call init_Field (save_tri(UPLT), AT_NODE)
 
     do d = 1, size(grid)
        num = grid(d)%node%length
@@ -1056,7 +1056,7 @@ contains
 
        do t = LORT, UPLT
           call init (save_tri(t)%data(d), num)
-          save_tri(t)%data(d)%elts(1:num) = 0.0_dp
+          save_tri(t)%data(d)%elts(1:num) = .false.
        end do
 
        active_level%data(d)%elts = grid(d)%level%elts
@@ -1112,14 +1112,14 @@ contains
 
     mask_LORT = minval (dom%mask_n%elts(id_LORT+1))
     if (mask_LORT >= ADJZONE) then
-       save_tri(LORT)%data(d)%elts((/id_chd, idE_chd, idNE_chd/)+1) = 1.0_dp
-       save_tri(UPLT)%data(d)%elts(idE_chd+1)                       = 1.0_dp
+       save_tri(LORT)%data(d)%elts([id_chd, idE_chd, idNE_chd]+1) = .true.
+       save_tri(UPLT)%data(d)%elts(idE_chd+1)                       = .true.
     end if
 
     mask_UPLT = minval (dom%mask_n%elts(id_UPLT+1))
     if (mask_UPLT >= ADJZONE) then
-       save_tri(LORT)%data(d)%elts(idN_chd+1)                       = 1.0_dp
-       save_tri(UPLT)%data(d)%elts((/id_chd, idNE_chd, idN_chd/)+1) = 1.0_dp
+       save_tri(LORT)%data(d)%elts(idN_chd+1)                       = .true.
+       save_tri(UPLT)%data(d)%elts([id_chd, idNE_chd, idN_chd]+1) = .true.
     end if
   end subroutine mark_save_chd
 
@@ -1137,8 +1137,8 @@ contains
     id_par = idx (i_par, j_par, offs_par, dims_par)
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
-    if (save_tri(LORT)%data(d)%elts(id_chd+1) == 1.0_dp) save_tri(LORT)%data(d)%elts(id_par+1) = 0.0_dp
-    if (save_tri(UPLT)%data(d)%elts(id_chd+1) == 1.0_dp) save_tri(UPLT)%data(d)%elts(id_par+1) = 0.0_dp
+    if (save_tri(LORT)%data(d)%elts(id_chd+1)) save_tri(LORT)%data(d)%elts(id_par+1) = .false.
+    if (save_tri(UPLT)%data(d)%elts(id_chd+1)) save_tri(UPLT)%data(d)%elts(id_par+1) = .false.
   end subroutine mark_save_par
 
   subroutine zero_float_0 (q)
@@ -1260,7 +1260,7 @@ contains
        end do
     else
        if (rank == 0) write (6,'(a)') "Unsupported type for zero_float_field ... aborting"
-       call abort
+       call abort_run
     end if
 
     q%bdry_uptodate = .false.
@@ -1344,7 +1344,7 @@ contains
        end do
     else
        if (rank == 0) write (6,'(a)') "Unsupported type for zero_float_field ... aborting"
-       call abort
+       call abort_run
     end if
 
     q1%bdry_uptodate = .false.
@@ -1372,7 +1372,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: e, id
+    integer :: id
 
     id = idx (i, j, offs, dims) 
     
@@ -1391,7 +1391,6 @@ contains
     integer, dimension(N_BDRY+1),   optional :: offs
     integer, dimension(2,N_BDRY+1), optional :: dims
 
-    integer  :: order
     real(dp) :: dx
 
     ! Correction factors for irregular grid
@@ -1415,6 +1414,8 @@ contains
        nu_scale = C_visc(S_DIVU,zlev) * r_dif/dt * (dx**2/8  / rho_divu)**Laplace_divu
     case (S_ROTU)
        nu_scale = C_visc(S_ROTU,zlev) * r_dif/dt * (dx**2/24 / rho_rotu)**Laplace_rotu
+    case default
+       nu_scale = 0.0_dp
     end select
   end function nu_scale
 
@@ -1548,8 +1549,6 @@ contains
     integer  :: l
     real(dp) :: rx0_max
 
-    integer :: ierror
-
     rx0_max_loc = 0.0_dp
     rx0_max     = 0.0_dp
 
@@ -1571,7 +1570,7 @@ contains
     integer  :: l
     real(dp) :: rx1_max
 
-    integer :: ierror, k
+    integer :: k
 
     rx1_max_loc = 0.0_dp
     rx1_max     = 0.0_dp
@@ -1816,10 +1815,10 @@ contains
     real(dp), dimension(1:EDGE)     :: N_e
 
     N_e = 0.5 * ( &
-         N_i (dom, i,   j,   zlev, offs, dims) + (/ &
+         N_i (dom, i,   j,   zlev, offs, dims) + [ &
          N_i (dom, i+1, j,   zlev, offs, dims),     &
          N_i (dom, i+1, j+1, zlev, offs, dims),     &
-         N_i (dom, i,   j+1, zlev, offs, dims) /))
+         N_i (dom, i,   j+1, zlev, offs, dims) ])
   end function N_e
 
   real(dp) function hex_perim (dom, i, j, offs, dims)
@@ -1851,17 +1850,20 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     type(Domain)                   :: dom
 
-    integer :: d, id, idE, idN
+    integer :: id, idE, idN
 
     id  = idx (i,   j,   offs, dims)
     idE = idx (i+1, j,   offs, dims)
     idN = idx (i,   j+1, offs, dims)
 
-    if (t == LORT) then
+    select case (t)
+    case (LORT) 
        tri_perim = dom%len%elts(EDGE*id+RT+1) + dom%len%elts(EDGE*idE+UP+1) + dom%len%elts(EDGE*id+DG+1) 
-    elseif (t == UPLT) then
+    case (UPLT) 
        tri_perim = dom%len%elts(EDGE*id+DG+1) + dom%len%elts(EDGE*id +UP+1) + dom%len%elts(EDGE*idN+RT+1)
-    end if
+    case default
+       tri_perim = 0.0_dp
+    end select
   end function tri_perim
 
   function hex_pedlen (dom, i, j, offs, dims)
@@ -1881,7 +1883,7 @@ contains
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
 
-    ide = (/ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 /)
+    ide = [ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 ]
 
     hex_pedlen = dom%pedlen%elts(ide)
   end function hex_pedlen
@@ -1904,7 +1906,7 @@ contains
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
     
-    ide = (/ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 /)
+    ide = [ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 ]
 
     hex_len = dom%len%elts(ide)
   end function hex_len

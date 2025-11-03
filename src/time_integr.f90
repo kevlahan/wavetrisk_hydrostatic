@@ -113,11 +113,11 @@ contains
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
-    call RK_sub_step2 (q, q1, trend, (/ 0.75_dp, 0.25_dp /), h/4, q2)
+    call RK_sub_step2 (q, q1, trend, [ 0.75_dp, 0.25_dp ], h/4, q2)
     call WT_after_step (q2, wav)
 
     call routine (q2, trend)
-    call RK_sub_step2 (q, q2, trend, (/ 1.0_dp/3, 2.0_dp/3 /), h * 2.0_dp/3, q)
+    call RK_sub_step2 (q, q2, trend, [ 1.0_dp/3, 2.0_dp/3 ], h * 2.0_dp/3, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK33_opt
 
@@ -141,7 +141,7 @@ contains
     call WT_after_step (q2, wav)
 
     call routine (q2, trend)
-    call RK_sub_step2 (q, q2, trend, (/ 2.0_dp/3, 1.0_dp/3 /), h/6, q3)
+    call RK_sub_step2 (q, q2, trend, [ 2.0_dp/3, 1.0_dp/3 ], h/6, q3)
     call WT_after_step (q3, wav)
 
     call routine (q3, trend) 
@@ -159,19 +159,19 @@ contains
 
     real(dp), dimension(5,5) :: alpha, beta
 
-    alpha = reshape ((/ &
+    alpha = reshape ([ &
          1.0_dp,            0.0_dp,            0.0_dp,            0.0_dp,            0.0_dp, &
          0.444370494067_dp, 0.555629505933_dp, 0.0_dp,            0.0_dp,            0.0_dp, &
          0.620101851385_dp, 0.0_dp,            0.379898148615_dp, 0.0_dp,            0.0_dp, &
          0.178079954108_dp, 0.0_dp,            0.0_dp,            0.821920045892_dp, 0.0_dp, &
-         0.006833258840_dp, 0.0_dp,            0.517231672090_dp, 0.127598311333_dp, 0.348336757737_dp /), (/5, 5/))
+         0.006833258840_dp, 0.0_dp,            0.517231672090_dp, 0.127598311333_dp, 0.348336757737_dp ], [5, 5])
 
-    beta = reshape ((/&
+    beta = reshape ([&
          0.391752227004_dp, 0.0_dp,           0.0_dp,            0.0_dp,             0.0_dp, &
          0.0_dp,            0.36841059263_dp, 0.0_dp,            0.0_dp,             0.0_dp, &
          0.0_dp,            0.0_dp,           0.251891774247_dp, 0.0_dp,             0.0_dp, &
          0.0_dp,            0.0_dp,           0.0_dp,            0.544974750212_dp,  0.0_dp, &
-         0.0_dp,            0.0_dp,           0.0_dp,            0.0846041633821_dp, 0.226007483194_dp /), (/5, 5/))
+         0.0_dp,            0.0_dp,           0.0_dp,            0.0846041633821_dp, 0.226007483194_dp ], [5, 5])
 
     call manage_RK_mem
 
@@ -184,15 +184,15 @@ contains
     call WT_after_step (q2, wav)
 
     call routine (q2, trend)
-    call RK_sub_step2 (q, q2, trend, (/alpha(1,3), alpha(3,3)/), h * beta(3,3), q3)
+    call RK_sub_step2 (q, q2, trend, [alpha(1,3), alpha(3,3)], h * beta(3,3), q3)
     call WT_after_step (q3, wav)
 
     call routine (q3, trend)
-    call RK_sub_step2 (q, q3, trend, (/alpha(1,4), alpha(4,4)/), h * beta(4,4), q4)
+    call RK_sub_step2 (q, q3, trend, [alpha(1,4), alpha(4,4)], h * beta(4,4), q4)
     call WT_after_step (q4, wav)
 
     call routine (q4, dq1)
-    call RK_sub_step4 (q, q2, q3, q4, trend, dq1, (/alpha(1,5), alpha(3:5,5)/), h * beta(4:5,5), q)
+    call RK_sub_step4 (q, q2, q3, q4, trend, dq1, [alpha(1,5), alpha(3:5,5)], h * beta(4:5,5), q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK45_opt
 
@@ -376,7 +376,7 @@ contains
     call update_bdry (sol(:,1:zlevels+1), NONE, 968)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
-    if (theta2 /= 1.0_dp) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+    if (abs (theta2 - 1.0_dp) > eps(1.0_dp)) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
     call RK_split (h/4, sol, q1)
     call RK_split (h/3, q1,  q1)
@@ -400,7 +400,7 @@ contains
     call update_bdry (sol(:,1:zlevels+1), NONE, 969)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
-    if (theta2 /= 1.0_dp) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+    if (abs (theta2 - 1.0_dp) > eps(1.0_dp)) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
     call RK_split (h/3, sol,q1)
     call RK_split (h/2, q1, q1)
@@ -423,7 +423,7 @@ contains
     call update_bdry (sol(:,1:zlevels+1), NONE, 970)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
-    if (theta2 /= 1.0_dp) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+    if (abs (theta2 - 1.0_dp) > eps(1.0_dp)) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
     call RK_split (h/2, sol, q1)
     call RK_split (h,   q1, sol)
@@ -439,7 +439,7 @@ contains
     call update_bdry (sol(:,1:zlevels+1), NONE, 971)
 
     ! Compute flux divergence of vertically integrated velocity at previous time step
-    if (theta2 /= 1.0_dp) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
+    if (abs (theta2 - 1.0_dp) > eps(1.0_dp)) call flux_divergence (sol, trend(S_TEMP,zlevels+1))
 
     call RK_split (h, sol, sol)
     call free_surface_update

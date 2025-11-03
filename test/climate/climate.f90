@@ -13,8 +13,6 @@ program climate
   call init_comm_mpi_mod
   call read_test_case_parameters   
 
-  Laplace_divu = 2
-  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -23,12 +21,13 @@ program climate
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
   log_min_mass             = .false.                          ! compute minimum mass at each dt (for checking stability issues)
+  topo_test                = .false.                          ! no physics model stationary flow test
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
-
+  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Local test case parameters (default values for many parameters set in physics module)
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  physics_model            = .true.                           ! use physics model sub-step (type is determined in input)
+  if (.not. topo_test) physics_model = .true.                 ! use physics model sub-step (type is determined in input)
 
   ! Simple physics sub-models
   obliquity                = 23.5_dp                          ! seasons
@@ -91,7 +90,7 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
   if (rank == 0) write (6,'(a)') &
        '----------------------------------------------------- Start simulation run &
-       ------------------------------------------------------'
+       & ------------------------------------------------------'
   do while (time < time_end)
      call start_timing ; call time_step; call stop_timing
      call print_log

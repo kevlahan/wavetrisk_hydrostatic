@@ -23,7 +23,7 @@ contains
     integer                            :: d, id, idE, idNE, idN, k, nlev
     integer, dimension(1:EDGE)         :: id_e
 
-    real(dp)                           :: mu, gamma, sigma, p, theta, N1, N2
+    real(dp)                           :: mu, gamma, sigma, theta
     real(dp)                           :: B, C, H, H_eff, H_env, H_peak, r, Z_block
     real(dp)                           :: N_above, N_below, N_av, phi_av, psi_av, rho_av, rho_dz
     real(dp)                           :: lat, lon
@@ -116,6 +116,7 @@ contains
     N_av    = 0.0_dp
     u_av    = 0.0_dp
     rho_av  = 0.0_dp
+    phi_av  = 0.0_dp
     psi_av  = 0.0_dp
     nlev = 0
     do k = 1, zlevels
@@ -204,13 +205,13 @@ contains
     integer  :: d, id, ii, jj, n_topo
     real(dp) :: distance, dx, h, hx, hy, h_sq, hx_sq, hy_sq, hxhy, total_area
     real(dp) :: K, L, M
-    real(dp) :: gamma, mu, sigma, theta, topo_Area_min
+    real(dp) :: theta, topo_Area_min
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims)
 
     ! Include all finest grid topography in a disk of radius dx
-    dx  = dom%len%elts(EDGE*id+RT+1) / sqrt(3.0_dp)                       ! current cell radius
+    dx  = dom%len%elts(EDGE*id+RT+1) / sqrt(3.0_dp)                  ! current cell radius
 
     topo_Area_min = 4*MATH_PI * radius**2 / (10 * 4**topo_max_level) ! topography cell area
 
@@ -251,7 +252,7 @@ contains
 
     ! SSO parameters
     sso_param(S_MU)%data(d)%elts(id+1) = sqrt (h_sq * topo_Area_min / total_area)
-    sso_param(S_THETA)%data(d)%elts(id+1) = 0.5 * atan2 (M, L)
+    sso_param(S_THETA)%data(d)%elts(id+1) = 0.5 * atan2 (M, L) ; theta = sso_param(S_THETA)%data(d)%elts(id+1)
     sso_param(S_GAMMA)%data(d)%elts(id+1) = sqrt ( (K - sqrt (L**2 + M**2)) / (K + sqrt (L**2 + M**2)) )
     if (circle) then
        sso_param(S_SIGMA)%data(d)%elts(id+1) = sqrt (hx_sq + hy_sq)

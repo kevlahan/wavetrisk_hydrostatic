@@ -50,7 +50,7 @@ contains
   subroutine barrier
   end subroutine barrier
 
-  subroutine abort
+  subroutine abort_run
     stop
-  end subroutine abort
+  end subroutine abort_run
 end module arch_mod

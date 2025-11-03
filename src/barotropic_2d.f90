@@ -91,7 +91,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     
     integer  :: d, id
-    real(dp) :: eta, rho_dz, rho_dz_theta, mean_theta, theta, dz
+    real(dp) :: eta, rho_dz, rho_dz_theta, theta
     
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
@@ -132,7 +132,7 @@ contains
     ! Explicit Euler velocity update with new external pressure gradient
     ! penalization is advanced using a backwards Euler scheme
     implicit none
-    integer :: d, ibeg, iend, k, l
+    integer :: d, ibeg, iend, k
     
     ! External pressure gradient
     call grad_eta

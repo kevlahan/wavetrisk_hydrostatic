@@ -24,6 +24,8 @@ module test_case_mod
   real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (2.77 * (dx_CAM**2/24/1.65)**2)
   
   logical             :: print_tol     = .false.                     ! print tolerances for each layer
+  logical             :: topo_test     = .false.                     ! equilibrium test for topography: no physics, constant temperature
+  
   character(255)      :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
 contains
   subroutine assign_functions
@@ -162,7 +164,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer  :: id, d, k
-    real(dp) :: k_T, lat, lon, p, P_s, pot_temp
+    real(dp) :: k_T, lat, lon, p, P_s, theta_init
     
     d   = dom%id+1
     id  = idx (i, j, offs, dims)
@@ -182,10 +184,14 @@ contains
           sol(S_MASS,k)%data(d)%elts(id+1) = 0.0_dp
           sol(S_TEMP,k)%data(d)%elts(id+1) = 0.0_dp
        else
-          call cal_theta_eq (p, P_s, lat, pot_temp, k_T)
-          
+          if (topo_test) then
+             theta_init = T_tropo * (p/p_0)**(-kappa)         ! constant potential temperature
+          else
+             call cal_theta_eq (p, P_s, lat, theta_init, k_T) ! Held-Suarez equilibrium potential temperature
+          end if
+
           sol(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * P_s / grav_accel
-          sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * pot_temp
+          sol(S_TEMP,k)%data(d)%elts(id+1) = sol(S_MASS,k)%data(d)%elts(id+1) * theta_init
        end if
        sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
     end do
@@ -199,7 +205,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer :: id, d, k
-    real(dp) :: k_T, lat, lon, p, P_s, pot_temp
+    real(dp) :: k_T, lat, lon, p, P_s, theta_init
     
     d  = dom%id+1
     id = idx (i, j, offs, dims)
@@ -216,10 +222,14 @@ contains
        p = 0.5 * (a_vert(k-1) + a_vert(k) + (b_vert(k-1) + b_vert(k)) * P_s) ! pressure at level k
 
        if (split_mean_perturbation) then
-          call cal_theta_eq (p, P_s, lat, pot_temp, k_T)
-          
+          if (topo_test) then
+             theta_init = T_tropo * (p/p_0)**(-kappa)         ! constant potential temperature
+          else
+             call cal_theta_eq (p, P_s, lat, theta_init, k_T) ! Held-Suarez equilibrium potential temperature
+          end if
+
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = a_vert_mass(k) + b_vert_mass(k) * P_s / grav_accel
-          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * pot_temp
+          sol_mean(S_TEMP,k)%data(d)%elts(id+1) = sol_mean(S_MASS,k)%data(d)%elts(id+1) * theta_init
        else
           sol_mean(S_MASS,k)%data(d)%elts(id+1) = 0.0_dp
           sol_mean(S_TEMP,k)%data(d)%elts(id+1) = 0.0_dp
@@ -356,35 +366,35 @@ contains
        end do
     else
        if (zlevels == 18) then
-          a_vert=(/0.00251499_dp, 0.00710361_dp, 0.01904260_dp, 0.04607560_dp, 0.08181860_dp, &
+          a_vert=[0.00251499_dp, 0.00710361_dp, 0.01904260_dp, 0.04607560_dp, 0.08181860_dp, &
                0.07869805_dp, 0.07463175_dp, 0.06955308_dp, 0.06339061_dp, 0.05621774_dp, 0.04815296_dp, &
                0.03949230_dp, 0.03058456_dp, 0.02193336_dp, 0.01403670_dp, 0.007458598_dp, 0.002646866_dp, &
-               0.0_dp, 0.0_dp /)
-          b_vert=(/0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.03756984_dp, 0.08652625_dp, 0.1476709_dp, 0.221864_dp, &
+               0.0_dp, 0.0_dp ]
+          b_vert=[0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.03756984_dp, 0.08652625_dp, 0.1476709_dp, 0.221864_dp, &
                0.308222_dp, 0.4053179_dp, 0.509588_dp, 0.6168328_dp, 0.7209891_dp, 0.816061_dp, 0.8952581_dp, &
-               0.953189_dp, 0.985056_dp, 1.0_dp /)
+               0.953189_dp, 0.985056_dp, 1.0_dp ]
        elseif (zlevels==26) then
-          a_vert=(/0.002194067_dp, 0.004895209_dp, 0.009882418_dp, 0.01805201_dp, 0.02983724_dp, 0.04462334_dp, 0.06160587_dp, &
+          a_vert=[0.002194067_dp, 0.004895209_dp, 0.009882418_dp, 0.01805201_dp, 0.02983724_dp, 0.04462334_dp, 0.06160587_dp, &
                0.07851243_dp, 0.07731271_dp, 0.07590131_dp, 0.07424086_dp, 0.07228744_dp, 0.06998933_dp, 0.06728574_dp,  &
                0.06410509_dp, 0.06036322_dp, 0.05596111_dp, 0.05078225_dp, 0.04468960_dp, 0.03752191_dp, 0.02908949_dp,  &
-               0.02084739_dp, 0.01334443_dp, 0.00708499_dp, 0.00252136_dp, 0.0_dp, 0.0_dp /)
-          b_vert=(/0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.01505309_dp, 0.03276228_dp, 0.05359622_dp, &
+               0.02084739_dp, 0.01334443_dp, 0.00708499_dp, 0.00252136_dp, 0.0_dp, 0.0_dp ]
+          b_vert=[0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.01505309_dp, 0.03276228_dp, 0.05359622_dp, &
                0.07810627_dp, 0.1069411_dp, 0.1408637_dp, 0.1807720_dp, 0.2277220_dp, 0.2829562_dp, 0.3479364_dp, 0.4243822_dp, &
-               0.5143168_dp, 0.6201202_dp, 0.7235355_dp, 0.8176768_dp, 0.8962153_dp, 0.9534761_dp, 0.9851122_dp, 1.0_dp /)
+               0.5143168_dp, 0.6201202_dp, 0.7235355_dp, 0.8176768_dp, 0.8962153_dp, 0.9534761_dp, 0.9851122_dp, 1.0_dp ]
        elseif (zlevels==30) then 
-          a_vert = (/ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
+          a_vert = [ 0.00225523952394724, 0.00503169186413288, 0.0101579474285245, 0.0185553170740604, 0.0306691229343414, &
                0.0458674766123295, 0.0633234828710556, 0.0807014182209969, 0.0949410423636436, 0.11169321089983, & 
                0.131401270627975, 0.154586806893349, 0.181863352656364, 0.17459799349308, 0.166050657629967, &
                0.155995160341263, 0.14416541159153, 0.130248308181763, 0.113875567913055, 0.0946138575673103, &
                0.0753444507718086, 0.0576589405536652, 0.0427346378564835, 0.0316426791250706, 0.0252212174236774, &
-               0.0191967375576496, 0.0136180268600583, 0.00853108894079924, 0.00397881818935275, 0.0, 0.0 /)
-          b_vert = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0393548272550106, &
+               0.0191967375576496, 0.0136180268600583, 0.00853108894079924, 0.00397881818935275, 0.0, 0.0 ]
+          b_vert = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0393548272550106, &
                0.0856537595391273, 0.140122056007385, 0.204201176762581, 0.279586911201477, 0.368274360895157,  &
                0.47261056303978, 0.576988518238068, 0.672786951065063, 0.753628432750702, 0.813710987567902, &
                0.848494648933411, 0.881127893924713, 0.911346435546875, 0.938901245594025, 0.963559806346893, &
-               0.985112190246582, 1.0 /)
+               0.985112190246582, 1.0 ]
        elseif (zlevels==32) then
-          a_vert = (/  0.00225523952394724_dp, 0.00503169186413288_dp, 0.0101579474285245_dp, &
+          a_vert = [  0.00225523952394724_dp, 0.00503169186413288_dp, 0.0101579474285245_dp, &
                0.0185553170740604_dp, 0.0297346755951211_dp, 0.0392730012536049_dp, &
                0.0471144989132881_dp, 0.0562404990196228_dp, 0.0668004974722862_dp, &
                0.0807014182209969_dp, 0.0949410423636436_dp, 0.11169321089983_dp, &
@@ -393,18 +403,18 @@ contains
                0.130248308181763_dp, 0.113875567913055_dp, 0.0946138575673103_dp, &
                0.0753444507718086_dp, 0.0576589405536652_dp, 0.0427346378564835_dp, &
                0.0316426791250706_dp, 0.0252212174236774_dp, 0.0191967375576496_dp, &
-               0.0136180268600583_dp, 0.00853108894079924_dp, 0.00397881818935275_dp, 0.0_dp, 0.0_dp /)
+               0.0136180268600583_dp, 0.00853108894079924_dp, 0.00397881818935275_dp, 0.0_dp, 0.0_dp ]
 
-          b_vert = (/ 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp,  &
+          b_vert = [ 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp,  &
                0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0393548272550106_dp, &
                0.0856537595391273_dp, 0.140122056007385_dp, 0.204201176762581_dp, &
                0.279586911201477_dp, 0.368274360895157_dp, 0.47261056303978_dp, &
                0.576988518238068_dp, 0.672786951065063_dp, 0.753628432750702_dp, &
                0.813710987567902_dp, 0.848494648933411_dp, 0.881127893924713_dp, &
                0.911346435546875_dp, 0.938901245594025_dp, 0.963559806346893_dp, &
-               0.985112190246582_dp, 1.0_dp /)
+               0.985112190246582_dp, 1.0_dp ]
        elseif (zlevels==49) then
-          a_vert=(/0.002251865_dp, 0.003983890_dp, 0.006704364_dp, 0.01073231_dp, 0.01634233_dp, 0.02367119_dp, &
+          a_vert=[0.002251865_dp, 0.003983890_dp, 0.006704364_dp, 0.01073231_dp, 0.01634233_dp, 0.02367119_dp, &
                0.03261456_dp, 0.04274527_dp, 0.05382610_dp, 0.06512175_dp, 0.07569850_dp, 0.08454283_dp, &
                0.08396310_dp, 0.08334103_dp, 0.08267352_dp, 0.08195725_dp, 0.08118866_dp, 0.08036393_dp, &
                0.07947895_dp, 0.07852934_dp, 0.07751036_dp, 0.07641695_dp, 0.07524368_dp, 0.07398470_dp, &
@@ -412,16 +422,16 @@ contains
                0.06218433_dp, 0.05997144_dp, 0.05759690_dp, 0.05504892_dp, 0.05231483_dp, 0.04938102_dp, &
                0.04623292_dp, 0.04285487_dp, 0.03923006_dp, 0.03534049_dp, 0.03116681_dp, 0.02668825_dp, &
                0.02188257_dp, 0.01676371_dp, 0.01208171_dp, 0.007959612_dp, 0.004510297_dp, 0.001831215_dp, &
-               0.0_dp, 0.0_dp /)
+               0.0_dp, 0.0_dp ]
           
-          b_vert=(/0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
+          b_vert=[0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
                0.006755112_dp, 0.01400364_dp, 0.02178164_dp, 0.03012778_dp, 0.03908356_dp, 0.04869352_dp, &
                0.05900542_dp, 0.07007056_dp, 0.08194394_dp, 0.09468459_dp, 0.1083559_dp, 0.1230258_dp, &
                0.1387673_dp, 0.1556586_dp, 0.1737837_dp, 0.1932327_dp, 0.2141024_dp, 0.2364965_dp, &
                0.2605264_dp, 0.2863115_dp, 0.3139801_dp, 0.3436697_dp, 0.3755280_dp, 0.4097133_dp, &
                0.4463958_dp, 0.4857576_dp, 0.5279946_dp, 0.5733168_dp, 0.6219495_dp, 0.6741346_dp, &
                0.7301315_dp, 0.7897776_dp, 0.8443334_dp, 0.8923650_dp, 0.9325572_dp, 0.9637744_dp, &
-               0.9851122_dp, 1.0_dp/)
+               0.9851122_dp, 1.0_dp]
        else
           if (rank == 0) then
              write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
@@ -429,7 +439,7 @@ contains
              write (6,'(a)'  ) "!    zlevels choice not supported ... aborting     !"
              write (6,'(a)'  ) "!                                                  !"
              write (6,'(a,/)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-             call abort
+             call abort_run
           end if
        end if
        a_vert = a_vert(zlevels:0:-1) * p_0
@@ -445,11 +455,8 @@ contains
 
   subroutine read_test_case_parameters
     implicit none
-    integer            :: k, v
-    integer, parameter :: fid = 500, funit = 400
-    character(255)     :: bash_cmd, command, filename, varname
-    character(2)       :: var_file
-    logical            :: file_exists
+    integer, parameter :: fid = 500
+    character(255)     :: filename, varname
 
     ! Find input parameters file name
     if (command_argument_count() >= 1) then
@@ -482,7 +489,7 @@ contains
     time_end = time_end * DAY
     resume   = resume_init
 
-    domains_per_task = int (real(N_GLO_DOMAIN,kind=dp)/n_process, kind=dp)
+    domains_per_task = int (real(N_GLO_DOMAIN,kind=dp)/n_process)
   end subroutine read_test_case_parameters
 
   subroutine print_test_case_parameters
@@ -492,7 +499,7 @@ contains
     if (rank==0) then
        write (6,'(a)') &
             '********************************************************** Parameters &
-            *************************************************************'
+            & *************************************************************'
        write (6,'(a)')        "RUN PARAMETERS"
        write (6,'(a,a)')      "test_case               = ", trim (test_case)
        write (6,'(a,a)')      "physics_type            = ", trim (physics_type)
@@ -581,7 +588,7 @@ contains
        end do
        write (6,'(a)') &
             '*********************************************************************&
-            *************************************************************'
+            & *************************************************************'
     end if
   end subroutine print_test_case_parameters
 
@@ -590,8 +597,8 @@ contains
     use calendar_mod
     implicit none
 
-    integer  :: date, j, k, min_load, max_load, total_dof
-    real(dp) :: avg_load, timing
+    integer  :: date, j, k, total_dof
+    real(dp) :: timing
 
     total_dof = 0
     do j = min_level, max_level
@@ -627,7 +634,7 @@ contains
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
     integer :: k
-    real(dp) :: p, P_s, rho_dz, pot_temp, theta_equil, k_T
+    real(dp) :: p, P_s, rho_dz, theta_equil, k_T
 
     call std_surf_pres (0.0_dp, P_s)
 

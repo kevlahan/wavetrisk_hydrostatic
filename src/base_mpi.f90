@@ -14,8 +14,8 @@ contains
     integer :: cp_idx
 
     integer                                       :: d, r, n_domain_floor
-    integer, dimension(N_GLO_DOMAIN)              :: wgt_d
-    integer, dimension(N_GLO_DOMAIN,N_GLO_DOMAIN) :: adj_line
+    integer, dimension(:),   allocatable          :: wgt_d
+    integer, dimension(:,:), allocatable          :: adj_line
     
     integer, parameter                            :: fid = 599
     
@@ -26,6 +26,8 @@ contains
     real(dp), parameter                           :: incr_goal = 1.20_dp ! factor to increase goal by each iteration until domains fit
 
     character(255)                                :: filename
+
+    allocate (wgt_d(N_GLO_DOMAIN), adj_line(N_GLO_DOMAIN,N_GLO_DOMAIN))
     
     if (rank == 0) then
        if (cp_idx >= 0 .and. n_process > 1 .and. n_process < N_GLO_DOMAIN) then
@@ -116,7 +118,7 @@ contains
                " ... aborting             !!"
           write (6,'(a,/)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
        end if
-       call abort
+       call abort_run
     end if
   end subroutine init_arch_mod
 
@@ -128,7 +130,7 @@ contains
     call MPI_Barrier (MPI_Comm_World, ierror)
   end subroutine barrier
 
-  subroutine abort
+  subroutine abort_run
     call MPI_Abort (MPI_Comm_World, 1, ierror)
-  end subroutine abort
+  end subroutine abort_run
 end module arch_mod

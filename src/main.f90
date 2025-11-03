@@ -39,7 +39,7 @@ contains
           write (6,'(a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
           write (6,'(a,//)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
        end if
-       call abort
+       call abort_run
     end if
 
 #ifdef PHYSICS
@@ -59,7 +59,7 @@ contains
     ! Check validity of various parameter choices
     if (compressible .and. mode_split) then
        if (rank == 0) write (6,'(a)') "Cannot use mode splitting with compressible dynamics ... aborting"
-       call abort
+       call abort_run
     end if
 
     ! Ensure data and check point is saved at least once
@@ -82,7 +82,7 @@ contains
 
        if (rank == 0) write (6,'(/,a,/)') &
             '----------------------------------------------------- Adapting initial grid &
-            ------------------------------------------------------'
+            & ------------------------------------------------------'
        if (NCAR_topo) call load_topo
 
        ! Apply initial conditions 
@@ -103,7 +103,7 @@ contains
 
        if (rank == 0) write (6,'(a,/)') &
             '------------------------------------------------- Finished adapting initial grid &
-            -------------------------------------------------'
+            & -------------------------------------------------'
        if (rank==0) write (6,'(a,i12,/)') 'Initial number of active wavelets = ', sum (n_active)
 
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
@@ -122,7 +122,7 @@ contains
   subroutine count_active
     ! Apply initial conditions and count  number of active node and edge wavelets
     implicit none
-    integer :: d, k, l, v
+    integer :: d, k, v
 
     call apply_initial_conditions
     call forward_wavelet_transform (sol, wav_coeff) 
@@ -244,7 +244,7 @@ contains
     if (rank == 0) then
        write (6,'(/,a,/)') &
             '************************************************************************&
-            **********************************************************'
+            &**********************************************************'
        write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time / DAY
     end if
 
@@ -273,7 +273,7 @@ contains
     if (rank == 0) then
        write (6,'(a,/)') &
             '********************************************************* Begin Restart &
-            **********************************************************'
+            & **********************************************************'
        write (6,'(a,i4,/)') 'Restarting from checkpoint ', cp_idx
 
        ! Uncompress checkpoint data 
@@ -313,7 +313,7 @@ contains
                '  dof = ', sum (n_active)
           write (6,'(A)') &
                '********************************************************** End Restart &
-               ***********************************************************'
+               & ***********************************************************'
        end if
     end if
 
@@ -337,6 +337,7 @@ contains
     idt         = nint (dt * time_mult, 8)
 
     ! Check whether to save data
+    save_data = .false.
     if (dt_write <= time_end) then
        ialign = nint (dt_write * time_mult, 8)
        if (ialign > 0 .and. istep > 1) then
@@ -488,7 +489,12 @@ contains
     call apply_interscale (mask_adj_child, level_start-1, z_null, 0, 1) ! level 0 = TOLRNZ => level 1 = ADJZONE
 
     call record_init_state (ini_st)
-    if (time_end > 0.0_dp) time_mult = huge (itime)/2 / time_end
+
+    if (time_end > 0.0_dp) then
+       time_mult = 0.5_dp * real( huge(itime), kind=dp ) / time_end
+    else
+       time_mult = 0.0_dp
+    end if
 
     allocate (n_patch_old(size(grid)), n_node_old(size(grid))); n_patch_old = 2
 
@@ -532,7 +538,6 @@ contains
   real(dp) function cpt_dt ()
     ! Calculates time step, minimum relative mass and active nodes and edges
     implicit none
-    integer               :: ierror, level_end_glo
     integer, dimension(2) :: n_active_loc
 
     if (adapt_dt) dt_loc = 1e16_dp
@@ -567,7 +572,7 @@ contains
 
     integer                        :: d, e, id, id_i, k, l, lev
     integer,  dimension(1:EDGE)    :: ide
-    real(dp)                       :: acoustic_speed, dt_adv, dt_dif, P_k, rho_dz, T, theta
+    real(dp)                       :: acoustic_speed, dt_adv, P_k, rho_dz, T, theta
     real(dp), dimension(0:zlevels) :: P
     real(dp), dimension(1:EDGE)    :: dx, speed
 
@@ -737,63 +742,11 @@ contains
 
     if (mass_ratio <= 0.0_dp .or. ieee_is_nan (mass_ratio)) then
        write (6,'(a)') "A layer has collapsed ... aborting"
-       call abort
+       call abort_run
     else
        min_mass_loc = min (min_mass_loc, mass_ratio)
     end if
   end subroutine cal_min_mass
-
-  integer function write_active_per_level ()
-    ! Write out distribution of active nodes over levels
-    implicit none
-    integer                                         :: l, n_full, fillin, n_lev_cur, recommended_level_start
-    integer, dimension(2*(level_end-level_start+1)) :: n_active_all_loc, n_active_all
-    integer, dimension(level_start:level_end)       :: n_active_per_lev
-    real(dp)                                        :: dt
-
-    dt = cpt_dt () ! to set n_active_*
-
-    n_lev_cur = level_end - level_start + 1
-
-    n_active_all_loc = (/n_active_nodes(level_start:level_end), n_active_edges(level_start:level_end)/)
-
-    ! Sum n_active_all_loc up across all processes and distribute result n_active_all_glo among all processes
-    n_active_all = sum_int_vector (n_active_all_loc, n_lev_cur*2)
-
-    n_active_nodes(level_start:level_end) = n_active_all(1:n_lev_cur)
-    n_active_edges(level_start:level_end) = n_active_all(n_lev_cur+1:n_lev_cur*2)
-    n_active_per_lev = n_active_edges(level_start:level_end) + n_active_nodes(level_start:level_end)
-
-    if (rank == 0) write (6,'(6X,A,A,3(1X,A))') '   N_p   ','   N_u   ','of all active', 'of full level', 'fill-in'
-
-    recommended_level_start = level_start
-
-    do l = level_start, level_end
-       n_full = max_nodes_per_level(l) + max_nodes_per_level(l,EDGE)
-
-       ! Fill-in: additional nodes on level `l` if it'd become lowest level 
-       ! minus the nodes on lower levels which would be removed
-       fillin = n_full-n_active_per_lev(l)-sum(n_active_per_lev(level_start:l-1))
-
-       if (rank == 0) then
-          write (6,'(A,I2,I9,I9,2(1X,F9.1,A),1X,I9,1X,F9.1,A)') &
-               'lev', l, n_active_nodes(l), n_active_edges(l), &
-               float(n_active_per_lev(l))/float(sum(n_active(AT_NODE:AT_EDGE)))*100.0, '%', &
-               float(n_active_per_lev(l))/float(n_full)*100.0, '%', &
-               fillin, float(fillin)/float(sum(n_active(AT_NODE:AT_EDGE)))*100.0, '%'
-       end if
-
-       if (fillin <= 0) recommended_level_start = l
-    end do
-
-    if (rank == 0) then
-       write (6,'(A,I9,I9,2(1X,F9.1,A),9X,I9)') 'total', n_active(AT_NODE:AT_EDGE), 100.0, '%', &
-            float(sum(n_active(AT_NODE:AT_EDGE)))/float(n_full)*100.0, '%', &
-            n_full/sum(n_active(AT_NODE:AT_EDGE))
-    end if
-
-    write_active_per_level = recommended_level_start
-  end function write_active_per_level
 
   subroutine deallocate_structures
     ! Deallocate all dynamic arrays and structures for clean restart

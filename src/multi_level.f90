@@ -272,7 +272,7 @@ contains
   subroutine cal_Laplacian_divu
     ! Computes Laplacian of divu, div(grad divu)
     implicit none
-    integer :: d, j, l, v
+    integer :: d, j, l
 
     do l = level_end, level_start, -1
        ! Compute scalar fluxes
@@ -456,7 +456,6 @@ contains
 
     integer                :: id, idE, idNE, idN, idSE, id2SE, id2W, idN2W
     integer, dimension(20) :: id_edges
-    real(dp)               :: wgt
     
     call get_indices (dom, i+1, j, RT, offs, dims, id_edges)
 
@@ -471,22 +470,22 @@ contains
     id2W  = idx (i-2, j,   offs, dims)
     idN2W = idx (i-2, j+1, offs, dims)
 
-    interp_flux(1) = - sum (h_flux(id_edges((/WPM,UZM,VMM/)+1)+1) * dom%R_F_wgt%elts(id2SE+1)%enc) &
-         - sum ((h_flux(id_edges((/VPM,WMMM,UMZ/)+1)+1) - h_flux(id_edges((/UPZ,VPMM,WMM/)+1)+1)) * &
+    interp_flux(1) = - sum (h_flux(id_edges([WPM,UZM,VMM]+1)+1) * dom%R_F_wgt%elts(id2SE+1)%enc) &
+         - sum ((h_flux(id_edges([VPM,WMMM,UMZ]+1)+1) - h_flux(id_edges([UPZ,VPMM,WMM]+1)+1)) * &
          dom%R_F_wgt%elts(idSE+1)%enc) ! UPLT S
 
-    interp_flux(2) = sum (h_flux(id_edges((/WMP,UZP,VPP/)+1)+1)* dom%R_F_wgt%elts(id+1)%enc) &
-         + sum ((h_flux(id_edges((/VMP,WPPP,UPZ/)+1)+1) - h_flux(id_edges((/UMZ,VMPP,WPP/)+1)+1))* &
+    interp_flux(2) = sum (h_flux(id_edges([WMP,UZP,VPP]+1)+1)* dom%R_F_wgt%elts(id+1)%enc) &
+         + sum ((h_flux(id_edges([VMP,WPPP,UPZ]+1)+1) - h_flux(id_edges([UMZ,VMPP,WPP]+1)+1))* &
          dom%R_F_wgt%elts(idN+1)%enc) ! LORT
 
     call get_indices (dom, i, j+1, UP, offs, dims, id_edges)
 
-    interp_flux(3) = - sum (h_flux(id_edges((/UZM,VMM,WPM/)+1)+1) * dom%R_F_wgt%elts(idE+1)%enc) &
-         - sum ((h_flux(id_edges((/WMMM,UMZ,VPM/)+1)+1) - h_flux(id_edges((/VPMM,WMM,UPZ/)+1)+1))* &
+    interp_flux(3) = - sum (h_flux(id_edges([UZM,VMM,WPM]+1)+1) * dom%R_F_wgt%elts(idE+1)%enc) &
+         - sum ((h_flux(id_edges([WMMM,UMZ,VPM]+1)+1) - h_flux(id_edges([VPMM,WMM,UPZ]+1)+1))* &
          dom%R_F_wgt%elts(idNE+1)%enc) ! UPLT
 
-    interp_flux(4) = sum (h_flux(id_edges((/UZP,VPP,WMP/)+1)+1) * dom%R_F_wgt%elts(id2W+1)%enc) &
-         + sum ((h_flux(id_edges((/WPPP,UPZ,VMP/)+1)+1) - h_flux(id_edges((/VMPP,WPP,UMZ/)+1)+1))* &
+    interp_flux(4) = sum (h_flux(id_edges([UZP,VPP,WMP]+1)+1) * dom%R_F_wgt%elts(id2W+1)%enc) &
+         + sum ((h_flux(id_edges([WPPP,UPZ,VMP]+1)+1) - h_flux(id_edges([VMPP,WPP,UMZ]+1)+1))* &
          dom%R_F_wgt%elts(idN2W+1)%enc) ! LORT W
   end function interp_flux
 
@@ -501,6 +500,7 @@ contains
     integer  :: e
     real(dp) :: p_flux, c_flux
 
+    complete_coarse_flux = 0.0_dp
     if (e == RT) then
        p_flux = part_coarse_flux (dom, i_chd+1, j_chd, RT, offs_chd, dims_chd)
        c_flux = coarse_flux (dom, i_par, j_par, i_chd+1, j_chd, offs_chd, dims_chd, RT)
@@ -545,8 +545,8 @@ contains
     ol_area(3) = dom%overl_areas%elts(id_edges(MP+1)+1)%a(3) - dom%overl_areas%elts(id_edges(MP+1)+1)%split(1)
     ol_area(4) = dom%overl_areas%elts(id_edges(PM+1)+1)%a(4) - dom%overl_areas%elts(id_edges(PM+1)+1)%split(2)
 
-    part_coarse_flux = sum (h_flux(id_edges((/UPZ,UMZ/)+1)+1)*area) - sum (h_flux(id_edges((/VMM,WMP/)+1)+1))*area(2) &
-         - sum (h_flux(id_edges((/WPM,VPP/)+1)+1))*area(1) &
+    part_coarse_flux = sum (h_flux(id_edges([UPZ,UMZ]+1)+1)*area) - sum (h_flux(id_edges([VMM,WMP]+1)+1))*area(2) &
+         - sum (h_flux(id_edges([WPM,VPP]+1)+1))*area(1) &
          + ol_area(3) * dscalar(id_edges(MP+1)+1) - ol_area(4) * dscalar(id_edges(PM+1)+1)  &
          - ol_area(1) * dscalar(id_edges(PP+1)+1) + ol_area(2) * dscalar(id_edges(MM+1)+1)
   end function part_coarse_flux
@@ -647,16 +647,16 @@ contains
     id_edges(WPM+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 3 + 1), offs, dims)
     id_edges(VMM+1) = ed_idx (i, j, hex_sides(:,hex_s_offs(e+1) + 2 + 1), offs, dims)
 
-    ij_mp = (/i, j/) + nghb_pt(:,hex_s_offs(e+1) + 0 + 1)
+    ij_mp = [i, j] + nghb_pt(:,hex_s_offs(e+1) + 0 + 1)
     id_edges(MP+1) = idx (ij_mp(1), ij_mp(2), offs, dims)
 
-    ij_pp = (/i, j/) + nghb_pt(:,hex_s_offs(e+1) + 5 + 1)
+    ij_pp = [i, j] + nghb_pt(:,hex_s_offs(e+1) + 5 + 1)
     id_edges(PP+1) = idx (ij_pp(1), ij_pp(2), offs, dims)
 
-    ij_pm = (/i, j/) + nghb_pt(:,hex_s_offs(e+1) + 3 + 1)
+    ij_pm = [i, j] + nghb_pt(:,hex_s_offs(e+1) + 3 + 1)
     id_edges(PM+1) = idx (ij_pm(1), ij_pm(2), offs, dims)
 
-    ij_mm = (/i, j/) + nghb_pt(:,hex_s_offs(e+1) + 2 + 1)
+    ij_mm = [i, j] + nghb_pt(:,hex_s_offs(e+1) + 2 + 1)
 
     id_edges(MM+1)   = idx (ij_mm(1), ij_mm(2), offs, dims)
 

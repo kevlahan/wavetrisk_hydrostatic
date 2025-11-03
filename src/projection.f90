@@ -17,10 +17,10 @@ contains
     
     integer :: i
 
-    Nx = (/-m/2, m/2/)
-    Ny = (/-m/4, m/4/)
+    Nx = [-m/2, m/2]
+    Ny = [-m/4, m/4]
 
-    lon_lat_range = (/ 2*MATH_PI, MATH_PI /)
+    lon_lat_range = [ 2*MATH_PI, MATH_PI ]
     dx_export = lon_lat_range(1) / (Nx(2) - Nx(1) + 1)
     dy_export = lon_lat_range(2) / (Ny(2) - Ny(1) + 1)
     
@@ -53,11 +53,11 @@ contains
   subroutine project_field_onto_plane (field, l, default_val)
     ! Projects float field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     implicit none
-    integer           :: l, itype
+    integer           :: l
     real(dp)          :: default_val
     Type(Float_field) :: field
 
-    integer                         :: d, i, j, jj, p, c, p_par, l_cur
+    integer                         :: d, i, j, jj
     integer                         :: id, idN, idE, idNE
     real(dp)                        :: val, valN, valE, valNE
     real(dp), dimension(2)          :: cC, cN, cE, cNE
@@ -86,16 +86,16 @@ contains
                 valNE = field%data(d)%elts(idNE+1)
 
                 if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry (cNE, [cNE(1), cN(2)], cC, [valNE, valN, val])
+                   call interp_tri_to_2d_and_fix_bdry ([cNE(1), cN(2)], [cC(1), cN(2)], cC, [valN, valN, val])
                 else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, [valNE, valN, val])
                 end if
                 if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry (cC, [cC(1), cE(2)], cNE, [val, valE, valNE])
+                   call interp_tri_to_2d_and_fix_bdry ([cC(1), cE(2)], [cNE(1), cE(2)], cNE, [valE, valE, valNE])
                 else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, [val, valE, valNE])
                 end if
              end do
           end do
@@ -110,11 +110,11 @@ contains
   subroutine project_array_onto_plane (array, l, default_val)
     ! Projects float array from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     implicit none
-    integer      :: l, itype
+    integer      :: l
     real(dp)     :: default_val
     character(*) :: array
 
-    integer                        :: d, i, j, jj, p, c, p_par, l_cur
+    integer                        :: d, i, j, jj
     integer                        :: id, idN, idE, idNE
     real(dp)                       :: val, valN, valE, valNE
     real(dp), dimension(2)         :: cC, cN, cE, cNE
@@ -171,16 +171,16 @@ contains
                 valNE = proj_sclr(idNE+1)
 
                 if (abs (cN(2) - MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cNE, (/cNE(1), cN(2)/), cC, (/valNE, valN, val/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cNE(1), cN(2)/), (/cC(1), cN(2)/), cC, (/valN, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry (cNE, [cNE(1), cN(2)], cC, [valNE, valN, val])
+                   call interp_tri_to_2d_and_fix_bdry ([cNE(1), cN(2)], [cC(1), cN(2)], cC, [valN, valN, val])
                 else
-                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, (/valNE, valN, val/))
+                   call interp_tri_to_2d_and_fix_bdry (cNE, cN, cC, [valNE, valN, val])
                 end if
                 if (abs (cE(2) + MATH_PI/2) < sqrt (1d-15)) then
-                   call interp_tri_to_2d_and_fix_bdry (cC, (/cC(1), cE(2)/), cNE, (/val, valE, valNE/))
-                   call interp_tri_to_2d_and_fix_bdry ((/cC(1), cE(2)/), (/cNE(1), cE(2)/), cNE, (/valE, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry (cC, [cC(1), cE(2)], cNE, [val, valE, valNE])
+                   call interp_tri_to_2d_and_fix_bdry ([cC(1), cE(2)], [cNE(1), cE(2)], cNE, [valE, valE, valNE])
                 else
-                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, (/val, valE, valNE/))
+                   call interp_tri_to_2d_and_fix_bdry (cC, cE, cNE, [val, valE, valNE])
                 end if
              end do
           end do
@@ -198,7 +198,6 @@ contains
     real(dp), dimension(2) :: a0, b0, c0
     real(dp), dimension(3) :: val
 
-    integer                :: i
     integer,  dimension(3) :: fixed
     real(dp), dimension(2) :: a, b, c
 
@@ -231,7 +230,6 @@ contains
     integer                :: id_x, id_y
     real(dp)               :: ival, minx, maxx, miny, maxy
     real(dp), dimension(2) :: ll
-    real(dp), dimension(3) :: bac
     logical                :: inside
 
     minx = min (min (a(1), b(1)), c(1))
@@ -248,7 +246,7 @@ contains
        if (id_x < lbound (field2d,1) .or. id_x > ubound (field2d,1)) cycle
        do id_y = floor (ky_export*miny), ceiling (ky_export*maxy)
           if (id_y < lbound (field2d,2) .or. id_y > ubound (field2d,2)) cycle
-          ll = (/ dx_export*id_x, dy_export*id_y /)
+          ll = [ dx_export*id_x, dy_export*id_y ]
 
           call interp_tria (ll, a, b, c, val, ival, inside)
 

@@ -127,7 +127,7 @@ contains
        zmax = zlevels
     end if
 
-    if (ref_density == 0.0_dp) then ! ref_density not set in test case: choose correct default value
+    if (ref_density <= eps (ref_density_air)) then ! ref_density not set in test case: choose correct default value
        if (compressible) then
           ref_density = ref_density_air
        else
@@ -210,7 +210,7 @@ contains
        p = add_patch_Domain (grid(d), min_level-1)
 
        grid(d)%patch%elts(p+1)%children = 0
-       grid(d)%patch%elts(p+1)%neigh    = (/ ( i_ , i_ = -1, -N_BDRY, -1 ) /)
+       grid(d)%patch%elts(p+1)%neigh    = [ ( i_ , i_ = -1, -N_BDRY, -1 ) ]
     end do
 
     do loz = 1, N_ICOSAH_LOZENGE
@@ -232,8 +232,8 @@ contains
     type(Coord)                 :: ne, se, sw, nw
     type(Coord), dimension(2,2) :: cnr
 
-    lat = (/ - MATH_PI/2, - atan (0.5_dp), atan (0.5_dp), MATH_PI/2 /)
-    lon = (/ ((MATH_PI * real(k,kind=dp))/5, k = 0, 10-1) /)
+    lat = [ - MATH_PI/2, - atan (0.5_dp), atan (0.5_dp), MATH_PI/2 ]
+    lon = [ ((MATH_PI * real(k,kind=dp))/5, k = 0, 10-1) ]
 
     do ii = 1, 2
        do jj = 1, 5
@@ -292,7 +292,7 @@ contains
 
   subroutine init_geometry
     implicit none
-    integer :: d, i, v
+    integer :: d, i
 
     do d = 1, size(grid)
        call init (grid(d)%ccentre, grid(d)%node%length * TRIAG)
@@ -389,7 +389,7 @@ contains
     implicit none
     logical, dimension(2) :: pole_assigned
     integer, dimension(2) :: neigh_over_pole
-    integer               :: d, d_glo, i, ii, j, jj, k, loz, ngb_loz, rot, s, split
+    integer               :: d, d_glo, i, ii, j, jj, loz, ngb_loz, rot, s, split
 
     pole_assigned = .false.
 
@@ -410,7 +410,7 @@ contains
                 d = loc_id(d_glo+1)
                 grid(d+1)%neigh = NONE
 
-                neigh_over_pole = (/ 5*ii - 5 + modulo (jj+1, 5), 5*ii - 5 + modulo (jj - 3, 5) /)
+                neigh_over_pole = [ 5*ii - 5 + modulo (jj+1, 5), 5*ii - 5 + modulo (jj - 3, 5) ]
 
                 if (ii-1 == 1 .and. i-1 == 0 .and. j-1 == N_SUB_DOM_PER_DIM - 1) then
                    grid(d+1)%neigh(NORTHWEST) = POLE
@@ -590,19 +590,19 @@ contains
 
     call init_Areas ( area, dom%node%elts(id+1), &
          
-         (/ dom%ccentre%elts(TRIAG*id  +LORT+1), &
+         [ dom%ccentre%elts(TRIAG*id  +LORT+1), &
             dom%ccentre%elts(TRIAG*id  +UPLT+1), &
             dom%ccentre%elts(TRIAG*idW +LORT+1), &
             dom%ccentre%elts(TRIAG*idSW+UPLT+1), &
             dom%ccentre%elts(TRIAG*idSW+LORT+1), &
-            dom%ccentre%elts(TRIAG*idS +UPLT+1) /), &
+            dom%ccentre%elts(TRIAG*idS +UPLT+1) ], &
          
-         (/ dom%midpt%elts(EDGE*id  +RT+1), &
+         [ dom%midpt%elts(EDGE*id  +RT+1), &
             dom%midpt%elts(EDGE*id  +DG+1), &
             dom%midpt%elts(EDGE*id  +UP+1), &
             dom%midpt%elts(EDGE*idW +RT+1), &
             dom%midpt%elts(EDGE*idSW+DG+1), &
-            dom%midpt%elts(EDGE*idS +UP+1) /) )
+            dom%midpt%elts(EDGE*idS +UP+1) ] )
 
     if (j >= PATCH_SIZE + 1) then
        dom%areas%elts(id+1)%part(4:6) = area%part(4:6)
@@ -623,10 +623,10 @@ contains
     
     integer, dimension(2) :: ij
 
-    ij = (/ i, j /)
+    ij = [ i, j ]
     if (rot == 1) then
        ij(modulo (s, 2) + 1) = N_SUB_DOM_PER_DIM - 1 - ij(modulo (s, 2) + 1)
-       ij = (/ij(2), ij(1)/)
+       ij = [ij(2), ij(1)]
     end if
 
     sub_dom_id = ij(2) * N_SUB_DOM_PER_DIM + ij(1)

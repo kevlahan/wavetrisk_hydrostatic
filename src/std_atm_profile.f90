@@ -23,6 +23,7 @@ module std_atm_profile_mod
   ! Parameters for barometric formula for U.S. Standard Atmosphere.
 
   integer, parameter  :: nreg = 15  ! number of regions
+  real(dp), parameter :: eps = epsilon (1.0_dp)
 
   real(dp), parameter :: hb(nreg) = & ! height at bottom of layer (m)
        (/ 0.0_dp, 1.1e4_dp, 2.0e4_dp, 3.2e4_dp, 4.7e4_dp, 5.1e4_dp, 7.1e4_dp, 8.6e4_dp, &
@@ -56,10 +57,10 @@ CONTAINS
     real(dp), intent(out) :: pstd(:)   ! std pressure in Pa
 
     integer :: i, ii, k, nlev
-    character(len=*), parameter :: routine = 'std_atm_pres'
     !----------------------------------------------------------------------------
 
     nlev = size(height)
+    ii = 0
     do k = 1, nlev
        if (height(k) < 0.0_dp) then
           ! Extrapolate below mean sea level using troposphere lapse rate.
@@ -74,7 +75,7 @@ CONTAINS
           end do find_region
        end if
 
-       if (lb(ii) /= 0.0_dp) then
+       if (abs(lb(ii)) > eps) then
           pstd(k) = pb(ii) * ( tb(ii) / (tb(ii) + lb(ii)*(height(k) - hb(ii)) ) )**(c1/lb(ii))
        else
           pstd(k) = pb(ii) * exp( -c1*(height(k) - hb(ii))/tb(ii) )
@@ -91,10 +92,10 @@ CONTAINS
     real(dp), intent(in)  :: z_s  ! height of surface above sea level in meters
     real(dp), intent(out) :: pstd ! std pressure in Pa
 
-    integer                     :: i, ii, k, nlev
-    character(len=*), parameter :: routine = 'std_surf_pres'
+    integer                     :: i, ii
     !----------------------------------------------------------------------------
 
+    ii = 0
     if (z_s < 0.0_dp) then ! extrapolate below mean sea level using troposphere lapse rate.
        ii = 1
     else
@@ -107,7 +108,7 @@ CONTAINS
        end do find_region
     end if
 
-    if (lb(ii) /= 0.0_dp) then
+    if (abs(lb(ii)) > eps) then
        pstd = pb(ii) * ( tb(ii) / (tb(ii) + lb(ii)*(z_s - hb(ii)) ) )**(c1/lb(ii))
     else
        pstd = pb(ii) * exp( -c1 * (z_s - hb(ii))/tb(ii) )
@@ -124,11 +125,10 @@ CONTAINS
     real(dp), intent(out)  :: height(:) ! height above sea level in meters
 
     integer :: i, ii, k, nlev
-    logical :: found_region
-    character(len=*), parameter :: routine = 'std_atm_height'
     !----------------------------------------------------------------------------
 
     nlev = size(height)
+    ii = 0
     do k = 1, nlev
 
        if (pstd(k) <= pb(nreg)) then
@@ -145,7 +145,7 @@ CONTAINS
           end do find_region
        end if
 
-       if (lb(ii) /= 0.0_dp) then
+       if (abs(lb(ii)) > eps) then
           height(k) = hb(ii) + (tb(ii)/lb(ii)) * ( (pb(ii)/pstd(k))**(lb(ii)/c1) - 1.0_dp)
        else
           height(k) = hb(ii) + (tb(ii)/c1)*log(pb(ii)/pstd(k))
@@ -164,10 +164,10 @@ CONTAINS
 
     ! local vars
     integer :: i, ii, k, nlev
-    character(len=*), parameter :: routine = 'std_atm_temp'
     !----------------------------------------------------------------------------
 
     nlev = size(height)
+    ii = 0
     do k = 1, nlev
        if (height(k) < 0.0_dp) then
           ii = 1
@@ -181,7 +181,7 @@ CONTAINS
           end do find_region
        end if
 
-       if (lb(ii) /= 0.0_dp) then
+       if (abs(lb(ii)) > eps) then
           temp(k) = tb(ii) + lb(ii)*(height(k) - hb(ii))
        else
           temp(k) = tb(ii)

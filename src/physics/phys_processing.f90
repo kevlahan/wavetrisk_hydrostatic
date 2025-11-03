@@ -38,7 +38,7 @@ contains
     integer                       :: k
     
     real(dp)                       :: area, high_lat_area, mid_lat_area, low_lat_area, low_lat_upper_lim, high_lat_lower_lim
-    real(dp), dimension(1:zlevels) :: z, dz, T_avg, Total_Tavg, Pressure_avg, Geopot_avg
+    real(dp), dimension(1:zlevels) :: z, T_avg, Total_Tavg, Pressure_avg, Geopot_avg
     real(dp), dimension(1:zlevels) :: Zonal_vel_avg, Meridional_avg, Zonal_KE_avg, Merid_KE_avg
     real(dp), dimension(1:zlevels) :: Low_Lat_avg, Mid_lat_avg, High_lat_avg
     real(dp), dimension(2)         :: mid_lat_range

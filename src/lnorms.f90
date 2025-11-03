@@ -10,7 +10,7 @@ contains
     implicit none
     character(*) :: order
 
-    integer :: k, v
+    integer :: k
 
     ! Count number of active cells
     n_norm = 0

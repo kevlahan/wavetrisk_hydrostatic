@@ -97,7 +97,7 @@ contains
     implicit none
     type(Coord) :: p
     
-    project_on_sphere = (radius / (norm (p) + eps ())) * p
+    project_on_sphere = (radius / (norm (p) + eps (radius))) * p
   end function project_on_sphere
 
   subroutine arc_inters (arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, does_inters, troubles)
@@ -111,12 +111,12 @@ contains
     does_inters = .true.
     troubles    = .false.
 
-    if (norm(vector(arc1_no2, arc2_no2)) < eps()) return
+    if (norm(vector(arc1_no2, arc2_no2)) < eps(radius)) return
 
     normal1 = cross (arc1_no1, arc1_no2)
     inpr = inner (normal1, arc2_no1) * inner(normal1, arc2_no2)
     if (inpr > 0.0_dp) then
-       if (inpr < (eps()*radius**2)**2) troubles = .true.
+       if (inpr < (eps(1.0_dp)*radius**2)**2) troubles = .true.
        does_inters = .false.
        return
     end if
@@ -125,7 +125,7 @@ contains
     inpr = inner (normal2, arc1_no1) * inner (normal2, arc1_no2)
 
     if (inpr > 0.0_dp) then
-       if (inpr < (eps()*radius**2)**2) troubles = .true.
+       if (inpr < (eps(1.0_dp)*radius**2)**2) troubles = .true.
        does_inters = .false.
        return
     end if
@@ -206,7 +206,7 @@ contains
 
     centre = cross (Coord(A%x - B%x, A%y - B%y, A%z - B%z), Coord(C%x - B%x, C%y - B%y, C%z - B%z))
 
-    if (norm(centre) < eps()) then
+    if (norm(centre) < eps(radius)) then
        circumcentre = centre
        return
     end if
@@ -260,8 +260,8 @@ contains
     
     real(dp) :: nrm
 
-    nrm = sqrt (self%x**2 + self%y**2 + self%z**2) + eps ()
-    if(nrm >= eps()) then
+    nrm = sqrt (self%x**2 + self%y**2 + self%z**2) + eps (radius)
+    if(nrm >= eps(radius)) then
        normalize_Coord = Coord (self%x/nrm, self%y/nrm, self%z/nrm)
     else
        normalize_Coord = ORIGIN
@@ -290,7 +290,7 @@ contains
        self%part(i) = triarea (centre, corners(i), midpts(i)) + triarea (centre, corners(i), midpts(modulo(i,6)+1))
     end do
     self%hex_inv = 1.0_dp
-    if (sum(self%part) /= 0.0_dp) self%hex_inv = 1.0_dp / sum (self%part)
+    if (sum(self%part) > eps(radius**2)) self%hex_inv = 1.0_dp / sum (self%part)
   end subroutine init_Areas
 
   subroutine wrap_lonlat (lat, lon)

@@ -39,7 +39,7 @@ contains
 
     if (jmax < jmin) then
        write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
-       call abort
+       call abort_run
     end if
 
     call zero_float (wavelet)
@@ -103,7 +103,7 @@ contains
     integer, optional         :: jmin_in, jmax_in
     type(Float_Field), target :: scaling, wavelet
     
-    integer :: d, jmin, jmax, k, l
+    integer :: d, jmin, jmax, l
 
     if (present(jmin_in)) then
        jmin = jmin_in
@@ -119,7 +119,7 @@ contains
 
     if (jmax < jmin) then
        write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
-       call abort
+       call abort_run
     end if
 
     call zero_float (wavelet)
@@ -171,7 +171,7 @@ contains
 
     if (jmax < jmin) then
        write (6,'(a)') "ERROR: jmax < jmin in wavelet routine .. abort"
-       call abort
+       call abort_run
     end if
 
     call zero_float (wavelet)
@@ -227,7 +227,7 @@ contains
 
     if (jmax < jmin) then
        write (6,'(a)') "ERROR: jmax < jmin in wavelet routine ... abort"
-       call abort
+       call abort_run
     end if
 
     call update_bdry1 (wavelet, max (jmin, level_start), jmax, 802)
@@ -317,7 +317,7 @@ contains
 
     if (jmax < jmin) then
        write (6,'(a)') "ERROR: jmax < jmin in wavelet routine ... abort"
-       call abort
+       call abort_run
     end if
 
     call update_bdry1 (wavelet, max (jmin, level_start), jmax, 809)
@@ -367,7 +367,7 @@ contains
 
     if (jmax < jmin) then
        write (6,'(a)') "ERROR: jmax < jmin in wavelet routine ... abort"
-       call abort
+       call abort_run
     end if
 
     call update_bdry1 (wavelet, max (jmin, level_start), jmax, 811)
@@ -421,7 +421,7 @@ contains
 
     if (jmax < jmin) then
        write (6,'(a)') "ERROR: jmax < jmin in wavelet routine ... abort"
-       call abort
+       call abort_run
     end if
 
     call update_bdry1 (wavelet, max (jmin, level_start), jmax, 813)
@@ -478,7 +478,7 @@ contains
 
     if (jmax < jmin) then
        write (6,'(a)') "ERROR: jmax < jmin in wavelet routine ... abort"
-       call abort
+       call abort_run
     end if
 
     call update_bdry1 (wavelet, max (jmin, level_start), jmax, 817)
@@ -938,7 +938,7 @@ contains
     i_chd = 0
     j_chd = 0
 
-    velo_interp_penta_corr = (/  &
+    velo_interp_penta_corr = [  &
          (Iu_Base_Wgt(9) &
          + real (dom%I_u_wgt%elts(idx__fast(i_chd+end_pt(1,2,UP+1), j_chd+end_pt(2,2,UP+1), offs_chd(1))+1)%enc(9),kind=dp)) * &
          ((-velo(idx(0, -1, offs, dims)*EDGE+UP+1) - (-velo(idx(-1, -1, offs, dims)*EDGE+1))) - &
@@ -948,7 +948,7 @@ contains
          + real (dom%I_u_wgt%elts(idx__fast(i_chd + end_pt(1,2,RT+1), j_chd + end_pt(2,2,RT+1), offs_chd(1))+1)%enc(6),kind=dp)) * &
          (velo(idx(-1, -1, offs, dims)*EDGE+1) + velo(idx(-1, 0, offs, dims)*EDGE + RT+1) &
          - (velo(ed_idx(i+opp_no(1,1,RT+1), j+opp_no(2,1,RT+1), hex_sides(:,hex_s_offs(RT+1)+1+1), offs, dims)+1) &
-         -  velo(ed_idx(i+end_pt(1,1,RT+1), j+end_pt(2,1,RT+1), hex_sides(:,hex_s_offs(RT+1)+2+1), offs, dims)+1))) /)
+         -  velo(ed_idx(i+end_pt(1,1,RT+1), j+end_pt(2,1,RT+1), hex_sides(:,hex_s_offs(RT+1)+2+1), offs, dims)+1))) ]
   end function velo_interp_penta_corr
 
   subroutine Reconstruct_outer_velo (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
@@ -959,7 +959,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
 
-    integer  :: e, id_chd, id_par, id1, id2
+    integer  :: e, id_par, id1, id2
     real(dp) :: u
     
     id_par = idx (i_par, j_par, offs_par, dims_par)
@@ -1073,7 +1073,7 @@ contains
 
     wgt = Iu_Base_Wgt + real (dom%I_u_wgt%elts(ide+1)%enc, kind=dp)
 
-    Interp_outer_velo = sum (wgt * (/ &
+    Interp_outer_velo = sum (wgt * [ &
          velo(EDGE * idx(i_par, j_par, offs, dims) + e), &
          velo(ed_idx(i_par + end_pt(1,2,e), j_par + end_pt(2,2,e), hex_sides(:,hex_s_offs(e)+2+1), offs, dims) + 1), &
          velo(ed_idx(i_par + end_pt(1,1,e), j_par + end_pt(2,1,e), hex_sides(:,hex_s_offs(e)+3+1), offs, dims) + 1), &
@@ -1090,7 +1090,7 @@ contains
          velo(ed_idx(i_par + end_pt(1,2,e), j_par + end_pt(2,2,e), hex_sides(:,hex_s_offs(e)+5+1), offs, dims) + 1), &
          
          velo(ed_idx(i_par + end_pt(1,1,e), j_par + end_pt(2,1,e), hex_sides(:,hex_s_offs(e)+0+1), offs, dims) + 1) - &
-         velo(ed_idx(i_par + opp_no(1,2,e), j_par + opp_no(2,2,e), hex_sides(:,hex_s_offs(e)+1+1), offs, dims) + 1) /))
+         velo(ed_idx(i_par + opp_no(1,2,e), j_par + opp_no(2,2,e), hex_sides(:,hex_s_offs(e)+1+1), offs, dims) + 1) ])
   end function Interp_outer_velo
 
   subroutine Reconstruct_velo_penta (dom, p, c, offs, dims, z_null)
@@ -1193,11 +1193,11 @@ contains
     real(dp), dimension(6)         :: wgt
 
     if (e == UP) then
-       id_enc = (/idx(i0-2, j0, offs, dims), idx(i0-2,j0+1, offs, dims), idx(i0+1, j0, offs, dims), idx(i0+1, j0+1, offs, dims)/)
+       id_enc = [idx(i0-2, j0, offs, dims), idx(i0-2,j0+1, offs, dims), idx(i0+1, j0, offs, dims), idx(i0+1, j0+1, offs, dims)]
        i = i0
        j = j0+1
     elseif (e == RT) then
-       id_enc = (/idx(i0, j0, offs, dims), idx(i0, j0+1, offs, dims), idx(i0+1, j0-2, offs, dims), idx(i0+1, j0-1, offs, dims)/)
+       id_enc = [idx(i0, j0, offs, dims), idx(i0, j0+1, offs, dims), idx(i0+1, j0-2, offs, dims), idx(i0+1, j0-1, offs, dims)]
        i = i0+1
        j = j0
     else
@@ -1205,33 +1205,33 @@ contains
        stop
     end if
 
-    ije(:,UMZ+1) = (/i, j, 0/) + hex_sides(:,hex_s_offs(e+1)+1+1)
-    ije(:,UPZ+1) = (/i, j, 0/) + hex_sides(:,hex_s_offs(e+1)+4+1)
-    ije(:,WMP+1) = (/i, j, 0/) + hex_sides(:,hex_s_offs(e+1)+0+1)
-    ije(:,VPP+1) = (/i, j, 0/) + hex_sides(:,hex_s_offs(e+1)+5+1)
-    ije(:,WPM+1) = (/i, j, 0/) + hex_sides(:,hex_s_offs(e+1)+3+1)
-    ije(:,VMM+1) = (/i, j, 0/) + hex_sides(:,hex_s_offs(e+1)+2+1)
+    ije(:,UMZ+1) = [i, j, 0] + hex_sides(:,hex_s_offs(e+1)+1+1)
+    ije(:,UPZ+1) = [i, j, 0] + hex_sides(:,hex_s_offs(e+1)+4+1)
+    ije(:,WMP+1) = [i, j, 0] + hex_sides(:,hex_s_offs(e+1)+0+1)
+    ije(:,VPP+1) = [i, j, 0] + hex_sides(:,hex_s_offs(e+1)+5+1)
+    ije(:,WPM+1) = [i, j, 0] + hex_sides(:,hex_s_offs(e+1)+3+1)
+    ije(:,VMM+1) = [i, j, 0] + hex_sides(:,hex_s_offs(e+1)+2+1)
 
-    ij_nbp_mp = (/i, j/) + nghb_pt(:,hex_s_offs(e+1)+0+1)
-    ij_nbp_pp = (/i, j/) + nghb_pt(:,hex_s_offs(e+1)+5+1)
-    ij_nbp_pm = (/i, j/) + nghb_pt(:,hex_s_offs(e+1)+3+1)
-    ij_nbp_mm = (/i, j/) + nghb_pt(:,hex_s_offs(e+1)+2+1)
+    ij_nbp_mp = [i, j] + nghb_pt(:,hex_s_offs(e+1)+0+1)
+    ij_nbp_pp = [i, j] + nghb_pt(:,hex_s_offs(e+1)+5+1)
+    ij_nbp_pm = [i, j] + nghb_pt(:,hex_s_offs(e+1)+3+1)
+    ij_nbp_mm = [i, j] + nghb_pt(:,hex_s_offs(e+1)+2+1)
 
-    ije(:,VMP +1) = (/ij_nbp_mp(1), ij_nbp_mp(2), 0/) + hex_sides (:,hex_s_offs(e+1)+4-2+1)
-    ije(:,VMPP+1) = (/ij_nbp_mp(1), ij_nbp_mp(2), 0/) + hex_sides (:,hex_s_offs(e+1)+1+4+1)
-    ije(:,UZP +1) = (/ij_nbp_mp(1), ij_nbp_mp(2), 0/) + hex_sides (:,hex_s_offs(e+1)+0+4+1)
-    ije(:,WPPP+1) = (/ij_nbp_pp(1), ij_nbp_pp(2), 0/) + hex_sides (:,hex_s_offs(e+1)+4-4+1)
-    ije(:,WPP +1) = (/ij_nbp_pp(1), ij_nbp_pp(2), 0/) + hex_sides (:,hex_s_offs(e+1)+1+2+1)
-    ije(:,VPM +1) = (/ij_nbp_pm(1), ij_nbp_pm(2), 0/) + hex_sides (:,hex_s_offs(e+1)+1+4+1)
-    ije(:,VPMM+1) = (/ij_nbp_pm(1), ij_nbp_pm(2), 0/) + hex_sides (:,hex_s_offs(e+1)+4-2+1)
-    ije(:,UZM +1) = (/ij_nbp_pm(1), ij_nbp_pm(2), 0/) + hex_sides (:,hex_s_offs(e+1)+3-2+1)
-    ije(:,WMMM+1) = (/ij_nbp_mm(1), ij_nbp_mm(2), 0/) + hex_sides (:,hex_s_offs(e+1)+1+2+1)
-    ije(:,WMM +1) = (/ij_nbp_mm(1), ij_nbp_mm(2), 0/) + hex_sides (:,hex_s_offs(e+1)+4-4+1)
+    ije(:,VMP +1) = [ij_nbp_mp(1), ij_nbp_mp(2), 0] + hex_sides (:,hex_s_offs(e+1)+4-2+1)
+    ije(:,VMPP+1) = [ij_nbp_mp(1), ij_nbp_mp(2), 0] + hex_sides (:,hex_s_offs(e+1)+1+4+1)
+    ije(:,UZP +1) = [ij_nbp_mp(1), ij_nbp_mp(2), 0] + hex_sides (:,hex_s_offs(e+1)+0+4+1)
+    ije(:,WPPP+1) = [ij_nbp_pp(1), ij_nbp_pp(2), 0] + hex_sides (:,hex_s_offs(e+1)+4-4+1)
+    ije(:,WPP +1) = [ij_nbp_pp(1), ij_nbp_pp(2), 0] + hex_sides (:,hex_s_offs(e+1)+1+2+1)
+    ije(:,VPM +1) = [ij_nbp_pm(1), ij_nbp_pm(2), 0] + hex_sides (:,hex_s_offs(e+1)+1+4+1)
+    ije(:,VPMM+1) = [ij_nbp_pm(1), ij_nbp_pm(2), 0] + hex_sides (:,hex_s_offs(e+1)+4-2+1)
+    ije(:,UZM +1) = [ij_nbp_pm(1), ij_nbp_pm(2), 0] + hex_sides (:,hex_s_offs(e+1)+3-2+1)
+    ije(:,WMMM+1) = [ij_nbp_mm(1), ij_nbp_mm(2), 0] + hex_sides (:,hex_s_offs(e+1)+1+2+1)
+    ije(:,WMM +1) = [ij_nbp_mm(1), ij_nbp_mm(2), 0] + hex_sides (:,hex_s_offs(e+1)+4-4+1)
 
     k = 1
     if (dist(dom%ccentre%elts(tri_idx(i_par,j_par,adj_tri(:,k+1,e+1),offs_par, dims_par)+1), &
          dom%ccentre%elts(tri_idx(ije(1,UZP+1),ije(2,UZP+1), &
-         adj_tri(:,-k+2,ije(3,UZP+1)+1),offs,dims)+1)) < eps()) then ! COINCIDE
+         adj_tri(:,-k+2,ije(3,UZP+1)+1),offs,dims)+1)) < eps(radius)) then ! COINCIDE
        dom%R_F_wgt%elts(id_enc(1)+1)%enc = 0.0_dp
        dom%R_F_wgt%elts(id_enc(2)+1)%enc = 0.0_dp
     else
@@ -1245,12 +1245,12 @@ contains
        end if
 
        wgt = interp_F_wgts (e, k, ije_lcsd, dom%ccentre%elts(tri_idx(i_par, j_par, adj_tri(:,k+1,e+1), offs_par, dims_par)+1), &
-            ije, (/VPP, WMP, UZP, UPZ, WPP, VMP, UMZ, WPPP, VMPP/))
+            ije, [VPP, WMP, UZP, UPZ, WPP, VMP, UMZ, WPPP, VMPP])
 
        if (e == RT) then
-          wgt = (/wgt(2), wgt(3), wgt(1), wgt(5), wgt(6), wgt(4)/)
+          wgt = [wgt(2), wgt(3), wgt(1), wgt(5), wgt(6), wgt(4)]
        else if (e == UP) then
-          wgt = (/wgt(3), wgt(1), wgt(2), wgt(6), wgt(4), wgt(5)/)
+          wgt = [wgt(3), wgt(1), wgt(2), wgt(6), wgt(4), wgt(5)]
        end if
 
        dom%R_F_wgt%elts(id_enc(1)+1)%enc = wgt(1:3)
@@ -1258,8 +1258,10 @@ contains
     end if
 
     k = 0
-    if (dist(dom%ccentre%elts(tri_idx(i_par,j_par,adj_tri(:,k+1,e+1),offs_par, dims_par)+1), &
-         dom%ccentre%elts(tri_idx(ije(1,UZM+1),ije(2,UZM+1), adj_tri(:,-k+2,ije(3,UZM+1)+1),offs,dims)+1)) < eps()) then ! Coincide
+    if (dist (&
+         dom%ccentre%elts(tri_idx(i_par,j_par,adj_tri(:,k+1,e+1),offs_par, dims_par)+1), &
+         dom%ccentre%elts(tri_idx(ije(1,UZM+1),ije(2,UZM+1), adj_tri(:,-k+2,ije(3,UZM+1)+1),offs,dims)+1)) &
+         < eps(radius)) then ! Coincide
        dom%R_F_wgt%elts(id_enc(3)+1)%enc = 0.0_dp
        dom%R_F_wgt%elts(id_enc(4)+1)%enc = 0.0_dp
     else
@@ -1273,12 +1275,12 @@ contains
        end if
 
        wgt = interp_F_wgts (e, k, ije_lcsd, dom%ccentre%elts(tri_idx(i_par, j_par, adj_tri(:,k+1,e+1), offs_par, dims_par)+1), &
-            ije, (/VMM, WPM, UZM, UMZ, WMM, VPM, UPZ, WMMM, VPMM/))
+            ije, [VMM, WPM, UZM, UMZ, WMM, VPM, UPZ, WMMM, VPMM])
 
        if (e == UP) then
-          wgt = (/wgt(3), wgt(1), wgt(2), wgt(6), wgt(4), wgt(5)/)
+          wgt = [wgt(3), wgt(1), wgt(2), wgt(6), wgt(4), wgt(5)]
        else if (e == RT) then
-          wgt = (/wgt(2), wgt(3), wgt(1), wgt(5), wgt(6), wgt(4)/)
+          wgt = [wgt(2), wgt(3), wgt(1), wgt(5), wgt(6), wgt(4)]
        end if
 
        dom%R_F_wgt%elts(id_enc(3)+1)%enc = wgt(1:3)
@@ -1313,7 +1315,7 @@ contains
       G(:,6) = coords_to_row (ije(:,stencil(8)+1), x, y) - coords_to_row (ije(:,stencil(9)+1), x, y)
 
       endpt = endpt_o
-      b = coords_to_row_perp ((/dom%ccentre%elts(id_tri+1), endpt/), x, y)
+      b = coords_to_row_perp ([dom%ccentre%elts(id_tri+1), endpt], x, y)
       ipiv = 0
       info = 0
       call dgesv (6, 1, G, 6, ipiv, b, 6, info)
@@ -1387,7 +1389,7 @@ contains
        call init (grid(d)%R_F_wgt, num)
 
        do i = 1, num
-          call init_RF_Wgt (grid(d)%R_F_wgt%elts(i), (/0.0_dp, 0.0_dp, 0.0_dp/))
+          call init_RF_Wgt (grid(d)%R_F_wgt%elts(i), [0.0_dp, 0.0_dp, 0.0_dp])
        end do
 
        do k = zmin, zmax
@@ -1425,15 +1427,15 @@ contains
 
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd)
 
-    hex = (/ (dom%ccentre%elts(tri_idx(i_chd, j_chd, no_adj_tri(:,i + &
-         hex_s_offs(-e+3)+1), offs_chd, dims_chd)+1), i = 0, 6-1) /)
+    hex = [ (dom%ccentre%elts(tri_idx(i_chd, j_chd, no_adj_tri(:,i + &
+         hex_s_offs(-e+3)+1), offs_chd, dims_chd)+1), i = 0, 6-1) ]
 
-    tri = reshape((/dom%ccentre%elts(tri_idx(i_par, j_par, bfly_tri(:,4,e+1), &
+    tri = reshape([dom%ccentre%elts(tri_idx(i_par, j_par, bfly_tri(:,4,e+1), &
          offs_par, dims_par)+1), dom%ccentre%elts(tri_idx(i_par, j_par, adj_tri(:,2,e+1), offs_par, dims_par)+1), &
          dom%ccentre%elts(tri_idx(i_par, j_par, bfly_tri(:,3,e+1), &
          offs_par, dims_par)+1), dom%ccentre%elts(tri_idx(i_par, j_par, bfly_tri(:,2,e+1), offs_par, dims_par)+1), &
          dom%ccentre%elts(tri_idx(i_par, j_par, adj_tri(:,1,e+1), offs_par, dims_par)+1), &
-         dom%ccentre%elts(tri_idx(i_par, j_par, bfly_tri(:,1,e+1), offs_par, dims_par)+1)/), (/3, 2/))
+         dom%ccentre%elts(tri_idx(i_par, j_par, bfly_tri(:,1,e+1), offs_par, dims_par)+1)], [3, 2])
 
     pt = dom%node%elts(id_chd+1)
 
@@ -1611,7 +1613,7 @@ contains
 
        G = 0.0_dp
 
-       G(:,1) = coords_to_row (i0, j0, (/0, 0/), (/0, 0, e0/), e0)
+       G(:,1) = coords_to_row (i0, j0, [0, 0], [0, 0, e0], e0)
 
        G(:,2) = coords_to_row (i0, j0, end_pt(:,-k+3,e0+1), hex_sides(:,hex_s_offs(e0+1)+2+3*k-3+1), e0)
 
@@ -1756,7 +1758,7 @@ contains
     real(dp), dimension(2) :: coord2local
     type(Coord)            :: c, x, y
 
-    coord2local = (/ inner(c, x), inner(c, y) /)
+    coord2local = [ inner(c, x), inner(c, y) ]
   end function coord2local
 
   subroutine init_wavelet_mod
@@ -1767,7 +1769,7 @@ contains
     call init_shared_mod
     call init_domain_mod
 
-    Iu_Base_Wgt = (/16.0_dp, -1.0_dp, 1.0_dp, 1.0_dp, -1.0_dp, -1.0_dp, -1.0_dp, 1.0_dp, 1.0_dp/) / 16.0_dp
+    Iu_Base_Wgt = [16.0_dp, -1.0_dp, 1.0_dp, 1.0_dp, -1.0_dp, -1.0_dp, -1.0_dp, 1.0_dp, 1.0_dp] / 16.0_dp
     initialized = .true.
   end subroutine init_wavelet_mod
 
@@ -1782,6 +1784,7 @@ contains
 
     call normalize2 (coord2local(dirvec, x, y), u, v)
     xy = coord2local (midpt, x, y)
-    coords_to_rowd = (/ u, u*xy(1), u*xy(2), v, v*xy(1), v*xy(2) /)
+    coords_to_rowd = [u, u*xy(1), u*xy(2), v, v*xy(1), v*xy(2) ]
   end function coords_to_rowd
 end module wavelet_mod
+

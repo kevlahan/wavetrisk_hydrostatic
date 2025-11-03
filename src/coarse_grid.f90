@@ -36,7 +36,7 @@ contains
     call grid_error
     if (rank == 0) then
        write (6,'(a)') '-------------------------------------------------------&
-            ---------------------------------------------------------------------------'
+            & ---------------------------------------------------------------------------'
        write (6,'(a,2(es8.2,a))') 'Grid quality of non-optimized grid  = ', linf_err, ' (linf) ', l2_err, ' (l2)'
 
     end if
@@ -66,7 +66,7 @@ contains
              d_glo = loz * N_SUB_DOM + sub_dom_id_from_HR_sub_id (d_sub)
              if (owner(d_glo+1) == rank) call get_offs_Domain (grid(loc_id(d_glo+1)+1), p, offs, dims)
              
-             call coord_from_file (d_glo, PATCH_LEVEL, fid, offs, dims, (/ 0, 0 /))
+             call coord_from_file (d_glo, PATCH_LEVEL, fid, offs, dims, [ 0, 0])
           end do
        end do
        close (fid)
@@ -83,7 +83,7 @@ contains
        write (6,'(a,a,a,2(es8.2,a))') 'Grid quality of ', trim (filename), ' = ', linf_err, ' (linf) ', l2_err, ' (l2)'
        write (6,'(a)') '(relative distance between midpoints of primal and dual grid edges compared to average edge length)'
        write (6,'(a)') '-------------------------------------------------------&
-            ---------------------------------------------------------------------------'
+            & ---------------------------------------------------------------------------'
     end if
   end subroutine read_optim_grid
 
@@ -114,10 +114,9 @@ contains
 
   subroutine smooth_Xu
     implicit none
-    integer  ::  d
     real(dp) :: tol
 
-    tol = 1e9_dp * eps () ! tolerance in [m], about 1.4 m on Earth or relative error of O(1e-7)
+    tol = 1e9_dp * eps (radius) ! tolerance in [m], about 1.4 m on Earth or relative error of O(1e-7)
 
     dx_coarse = dx_avg (min_level)
     
@@ -126,7 +125,7 @@ contains
     
     if (rank == 0) then
        write (6,'(a)') '-------------------------------------------------------&
-            ---------------------------------------------------------------------------'
+            & ---------------------------------------------------------------------------'
        write (6,'(a,i2/)') 'Xu (2006) diffusion optimization of level ', level_end-1
        write (6,'(a,2(es8.2,a))') 'Grid quality before optimization = ', linf_err, ' (linf) ', l2_err, ' (l2)'
     end if
@@ -158,7 +157,7 @@ contains
        write (6,'(a,2(es8.2,a))') 'Grid quality after optimization  = ', linf_err, ' (linf) ', l2_err, ' (l2)'
        write (6,'(a)') '(relative distance between midpoints of primal and dual grid edges compared to average edge length)'
        write (6,'(a,/)') '-------------------------------------------------&
-            ----------------------------------------------------------------------'
+            & ----------------------------------------------------------------------'
     end if
     deallocate (new_node)
   end subroutine smooth_Xu
@@ -252,10 +251,10 @@ contains
     idW  = idx(i-1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
 
-    call check_triag (dom, TRIAG*id + LORT, (/TRIAG*idE + UPLT, TRIAG*id  + UPLT, TRIAG*idS + UPLT/), &
-         (/id, idE, idNE/), (/EDGE*idE+UP, EDGE*id+DG, EDGE*id+RT/))
-    call check_triag (dom, TRIAG*id + UPLT, (/TRIAG*idN + LORT, TRIAG*idW + LORT, TRIAG*id  + LORT/), &
-         (/id, idNE, idN/), (/EDGE*idN+RT, EDGE*id+UP, EDGE*id+DG/))
+    call check_triag (dom, TRIAG*id + LORT, [TRIAG*idE + UPLT, TRIAG*id  + UPLT, TRIAG*idS + UPLT], &
+         [id, idE, idNE], [EDGE*idE+UP, EDGE*id+DG, EDGE*id+RT])
+    call check_triag (dom, TRIAG*id + UPLT, [TRIAG*idN + LORT, TRIAG*idW + LORT, TRIAG*id  + LORT], &
+         [id, idNE, idN], [EDGE*idN+RT, EDGE*id+UP, EDGE*id+DG])
   end subroutine check_grid
 
   subroutine check_triag (dom, id, id_neigh, id_cnr, id_side)
@@ -279,7 +278,7 @@ contains
     end do
 
     if (any (does_inters) .or. any (troubles)) then
-       dom%node%elts(id_cnr(1)+1)%x = dom%node%elts(id_cnr(1)+1)%x + 1.0d7*eps()
+       dom%node%elts(id_cnr(1)+1)%x = dom%node%elts(id_cnr(1)+1)%x + 1.0d7*eps(radius)
        dom%node%elts(id_cnr(1)+1) = project_on_sphere(dom%node%elts(id_cnr(1)+1))
     end if
   end subroutine check_triag
@@ -298,10 +297,10 @@ contains
     idS = idx(i,   j-1, offs, dims)
     idW = idx(i-1, j,   offs, dims)
 
-    error = (/ &
+    error = [ &
          dist (dom%midpt%elts(EDGE*id+RT+1), mid_pt (dom%ccentre%elts(TRIAG*id +LORT+1), dom%ccentre%elts(TRIAG*idS+UPLT+1))), &
          dist (dom%midpt%elts(EDGE*id+DG+1), mid_pt (dom%ccentre%elts(TRIAG*id +LORT+1), dom%ccentre%elts(TRIAG*id +UPLT+1))), &
-         dist (dom%midpt%elts(EDGE*id+UP+1), mid_pt (dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*id +UPLT+1)) ) /)
+         dist (dom%midpt%elts(EDGE*id+UP+1), mid_pt (dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*id +UPLT+1)) ) ]
 
     linf_err = max (linf_err, maxval (error))
     l2_err = l2_err + sum (error**2)
@@ -367,7 +366,7 @@ contains
     implicit none
     real(dp),    intent(in)  :: angle
     type(Coord), intent(in)  :: c_in
-    type(Coord), intent(out) :: c_out
+    type(Coord), intent(inout) :: c_out
 
     c_out%x =  c_in%x * cos (angle) - c_in%y * sin (angle)
     c_out%y =  c_in%x * sin (angle) + c_in%y * cos (angle)

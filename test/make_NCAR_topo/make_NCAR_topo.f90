@@ -15,7 +15,7 @@ program make_NCAR_topo
   
   if (n_process > 1) then
      if (rank == 0) write (6,'(/,a,/)') '!!! Must run make_NCAR_topo on a single core ... aborting !!!'
-     call abort
+     call abort_run
   end if
 
   ! Read test case parameters
