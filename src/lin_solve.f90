@@ -329,34 +329,29 @@ contains
     diag = Lu_diag (u, l); call update_bdry (diag, l, 948)
 
     do d = 1, size(grid)
-       mu1     => jac_wgt
-       scalar  =>    u%data(d)%elts
-       scalar1 =>    f%data(d)%elts
-       scalar2 =>   Au%data(d)%elts
-       scalar3 => diag%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_jacobi, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (mu1, scalar, scalar1, scalar2, scalar3)
     end do
     u%bdry_uptodate = .false.
+  contains
+    subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: d, id
+
+      d = dom%id + 1
+      id = idx (i, j, offs, dims) + 1
+
+      if (dom%mask_n%elts(id) >= ADJZONE) &
+           u%data(d)%elts(id) = u%data(d)%elts(id) +  jac_wgt * (f%data(d)%elts(id) - Au%data(d)%elts(id)) / diag%data(d)%elts(id)
+    end subroutine cal_jacobi
   end subroutine Jacobi_iteration
 
-  subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: d, id
-
-    d = dom%id + 1
-    id = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id) >= ADJZONE) scalar(id) = scalar(id) + mu1 * (scalar1(id) - scalar2(id)) / scalar3(id)
-  end subroutine cal_jacobi
-  
   subroutine bicgstab (u, f, nrm_f, Lu, l, tol_bicgstab, iter_max, err_out, iter_out)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
@@ -565,31 +560,27 @@ contains
     Au = Lu (u, l); call update_bdry (Au, l, 958)
 
     do d = 1, size(grid)
-       scalar => res%data(d)%elts
-       scalar1 =>  f%data(d)%elts
-       scalar2 => Au%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_res, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (scalar, scalar1, scalar2)
     end do
 
     res%bdry_uptodate = .false.
+  contains
+    subroutine cal_res (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: id
+
+      id = idx (i, j, offs, dims) + 1
+
+      if (dom%mask_n%elts(id) >= ADJZONE) res%data(d)%elts(id) = f%data(d)%elts(id) -  Au%data(d)%elts(id)
+    end subroutine cal_res
   end subroutine residual
-
-  subroutine cal_res (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx (i, j, offs, dims) + 1
-
-    if (dom%mask_n%elts(id) >= ADJZONE) scalar(id) = scalar1(id) - scalar2(id)
-  end subroutine cal_res
 
   subroutine res_err (f, u, Lu, nrm_f, l, err)
     ! Normalized residual error ||f - Lu(u)||/||f|| at scale l
@@ -609,14 +600,14 @@ contains
          type(Float_Field), target :: Lu, u
        end function Lu
     end interface
-    
+
     res = u; call zero_float_field (res, AT_NODE, l)
 
     call residual (f, u, Lu, l, res)
 
     err = l2 (res, l) / nrm_f
   end subroutine res_err
-  
+
   function elliptic_fun (u, l)
     ! Test elliptic equation
     !
@@ -647,12 +638,9 @@ contains
 
     ! Compute divergence of fluxes
     do d = 1, size(grid)
-       dscalar => elliptic_fun%data(d)%elts
-       h_flux  => horiz_flux(S_MASS)%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
-          call apply_onescale_to_patch (cal_div, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
+          call apply_onescale_to_patch (div_flux, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (dscalar, h_flux)
     end do
 
     ! Add constant term
@@ -660,8 +648,29 @@ contains
 
     elliptic_fun%bdry_uptodate = .false.
     call update_bdry (elliptic_fun, l, 961)
-  end function elliptic_fun
-  
+  contains
+    subroutine div_flux (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: id, idS, idW, idSW
+
+      id   = idx (i,   j,   offs, dims)
+      idS  = idx (i,   j-1, offs, dims)
+      idW  = idx (i-1, j,   offs, dims)
+      idSW = idx (i-1, j-1, offs, dims)
+
+      elliptic_fun%data(d)%elts(id) = ( &
+           horiz_flux(S_MASS)%data(d)%elts(EDGE*id  +RT+1) - horiz_flux(S_MASS)%data(d)%elts(EDGE*idW+RT+1) + &
+           horiz_flux(S_MASS)%data(d)%elts(EDGE*idSW+DG+1) - horiz_flux(S_MASS)%data(d)%elts(EDGE*id +DG+1) +  &
+           horiz_flux(S_MASS)%data(d)%elts(EDGE*id  +UP+1) - horiz_flux(S_MASS)%data(d)%elts(EDGE*idS+UP+1) ) &
+           * dom%areas%elts(id+1)%hex_inv
+    end subroutine div_flux
+  End function elliptic_fun
+
   function elliptic_fun_diag (q, l)
     ! Local approximation of diagonal of elliptic operator
     implicit none
@@ -669,53 +678,51 @@ contains
     type(Float_Field), target :: elliptic_fun_diag, q
 
     integer :: d, j
-    
+
     elliptic_fun_diag = q
 
     do d = 1, size(grid)
-       scalar => elliptic_fun_diag%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_elliptic_fun_diag, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (scalar)
     end do
 
     elliptic_fun_diag%bdry_uptodate = .false.
     call update_bdry (elliptic_fun_diag, l, 962)
+  contains
+    subroutine cal_elliptic_fun_diag  (dom, i, j, zlev, offs, dims)
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer            :: id, id_i, idE, idNE, idN, idW, idSW, idS
+      real(dp)           :: wgt
+      logical, parameter :: exact = .false.
+
+      id = idx (i, j, offs, dims)
+      id_i = id + 1
+
+      if (exact) then ! true local value
+         idE  = idx (i+1, j,   offs, dims) 
+         idNE = idx (i+1, j+1, offs, dims) 
+         idN  = idx (i,   j+1, offs, dims) 
+         idW  = idx (i-1, j,   offs, dims) 
+         idSW = idx (i-1, j-1, offs, dims) 
+         idS  = idx (i,   j-1, offs, dims)
+         wgt = &
+              dom%pedlen%elts(EDGE*id  +RT+1) / dom%len%elts(EDGE*id  +RT+1) + &
+              dom%pedlen%elts(EDGE*id  +DG+1) / dom%len%elts(EDGE*id  +DG+1) + &
+              dom%pedlen%elts(EDGE*id  +UP+1) / dom%len%elts(EDGE*id  +UP+1) + &
+              dom%pedlen%elts(EDGE*idW +RT+1) / dom%len%elts(EDGE*idW +RT+1) + &
+              dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) + &
+              dom%pedlen%elts(EDGE*idS +UP+1) / dom%len%elts(EDGE*idS +UP+1)
+      else ! average value (error less than about 5%)
+         wgt = 2.0_dp * sqrt (3.0_dp)
+      end if
+      elliptic_fun_diag%data(d)%elts(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv - 10.0_dp/s_test**2
+    end subroutine cal_elliptic_fun_diag
   end function elliptic_fun_diag
-
-  subroutine cal_elliptic_fun_diag  (dom, i, j, zlev, offs, dims)
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer            :: id, id_i, idE, idNE, idN, idW, idSW, idS
-    real(dp)           :: wgt
-    logical, parameter :: exact = .false.
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-
-    if (exact) then ! true local value
-       idE  = idx (i+1, j,   offs, dims) 
-       idNE = idx (i+1, j+1, offs, dims) 
-       idN  = idx (i,   j+1, offs, dims) 
-       idW  = idx (i-1, j,   offs, dims) 
-       idSW = idx (i-1, j-1, offs, dims) 
-       idS  = idx (i,   j-1, offs, dims)
-       wgt = &
-            dom%pedlen%elts(EDGE*id+RT+1)   / dom%len%elts(EDGE*id+RT+1)   + &
-            dom%pedlen%elts(EDGE*id+DG+1)   / dom%len%elts(EDGE*id+DG+1)   + &
-            dom%pedlen%elts(EDGE*id+UP+1)   / dom%len%elts(EDGE*id+UP+1)   + &
-            dom%pedlen%elts(EDGE*idW+RT+1)  / dom%len%elts(EDGE*idW+RT+1)  + &
-            dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) + &
-            dom%pedlen%elts(EDGE*idS+UP+1)  / dom%len%elts(EDGE*idS+UP+1)
-    else ! average value (error less than about 5%)
-       wgt = 2.0_dp * sqrt (3.0_dp)
-    end if
-    scalar(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv - 10.0_dp/s_test**2
-  end subroutine cal_elliptic_fun_diag
 
   real(dp) function relative_error (u, l)
     ! Relative error of test elliptic problem
@@ -732,33 +739,30 @@ contains
     err = u
 
     do d = 1, size(grid)
-       scalar  => err%data(d)%elts
-       scalar1 =>  u%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_err, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (scalar, scalar1)
     end do
 
     ! Compute relative error
     nrm_sol = l2 (u,   l)
     nrm_err = l2 (err, l)
     relative_error = nrm_err / nrm_sol
+  contains
+    subroutine cal_err (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: id
+
+      id = idx (i, j, offs, dims) + 1
+
+      err%data(d)%elts(id) = u%data(d)%elts(id) - exact_sol(dom%node%elts(id))
+    end subroutine cal_err
   end function relative_error
-
-  subroutine cal_err (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx (i, j, offs, dims) + 1
-
-    scalar(id) = scalar1(id) - exact_sol (dom%node%elts(id))
-  end subroutine cal_err
 
   real(dp) function exact_sol (p)
     implicit none

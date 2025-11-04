@@ -196,7 +196,7 @@ contains
     call update_bdry (q, l, 933)
 
     elliptic_lo = q; call zero_float_field (elliptic_lo, AT_NODE)
-    
+
     ! Calculate external pressure gradient flux
     do d = 1, size(grid)
        h_flux =>       horiz_flux(S_MASS)%data(d)%elts
@@ -224,31 +224,26 @@ contains
 
     ! Form complete linear operator 
     do d = 1, size(grid)
-       dscalar => Laplacian_scalar(S_MASS)%data(d)%elts
-       scalar  =>              elliptic_lo%data(d)%elts
-       mass    =>                        q%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (complete_elliptic_lo, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (dscalar, mass, scalar)
     end do
-
     elliptic_lo%bdry_uptodate = .false.
+  contains
+    subroutine complete_elliptic_lo (dom, i, j, zlev, offs, dims)
+      implicit none
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer :: id
+
+      id = idx (i, j, offs, dims) + 1
+
+      elliptic_lo%data(d)%elts(id) = theta1 * theta2 * dt**2 * Laplacian_scalar(S_MASS)%data(d)%elts(id) - q%data(d)%elts(id)
+    end subroutine complete_elliptic_lo
   end function elliptic_lo
-
-  subroutine complete_elliptic_lo (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer :: id
-
-    id = idx (i, j, offs, dims) + 1
-
-    scalar(id) = theta1 * theta2 * dt**2 * dscalar(id) - mass(id)
-  end subroutine complete_elliptic_lo
 
   function elliptic_lo_diag (q, l)
     ! Local approximation of diagonal of elliptic operator
@@ -263,64 +258,61 @@ contains
     elliptic_lo_diag = q; call zero_float_field (elliptic_lo_diag, AT_NODE)
 
     do d = 1, size(grid)
-       dscalar => Laplacian_scalar(S_TEMP)%data(d)%elts
-       scalar  =>         elliptic_lo_diag%data(d)%elts
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_elliptic_lo_diag, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
-       nullify (dscalar, scalar)
     end do
     elliptic_lo_diag%bdry_uptodate = .false.
+  contains
+    subroutine cal_elliptic_lo_diag  (dom, i, j, zlev, offs, dims)
+      type(Domain)                   :: dom
+      integer                        :: i, j, zlev
+      integer, dimension(N_BDRY+1)   :: offs
+      integer, dimension(2,N_BDRY+1) :: dims
+
+      integer            :: d, id, id_i, idE, idNE, idN, idW, idSW, idS
+      real(dp)           :: depth, depth_e, Laplace_diag, wgt
+      logical, parameter :: exact = .false.
+
+      d    = dom%id + 1
+      id   = idx (i, j, offs, dims)
+      id_i = id + 1
+
+      depth = abs (topography%data(d)%elts(id_i)) + Laplacian_scalar(S_TEMP)%data(d)%elts(id_i) / phi_node (d, id_i, zlevels)
+
+      if (.not. exact) then ! average value 
+         wgt = 2 * sqrt (3.0_dp) * depth
+      else ! true local value
+         idE  = idx (i+1, j,   offs, dims) 
+         idNE = idx (i+1, j+1, offs, dims) 
+         idN  = idx (i,   j+1, offs, dims) 
+         idW  = idx (i-1, j,   offs, dims) 
+         idSW = idx (i-1, j-1, offs, dims) 
+         idS  = idx (i,   j-1, offs, dims)
+
+         depth_e = abs (topography%data(d)%elts(idE+1)) + dscalar(idE+1) / phi_node (d, idE+1, zlevels)
+         wgt = dom%pedlen%elts(EDGE*id+RT+1) / dom%len%elts(EDGE*id+RT+1) * interp (depth_e, depth)
+
+         depth_e = abs (topography%data(d)%elts(idNE+1)) + dscalar(idNE+1) / phi_node (d, idNE+1, zlevels)
+         wgt = wgt + dom%pedlen%elts(EDGE*id+DG+1) / dom%len%elts(EDGE*id+DG+1) * interp (depth_e, depth)
+
+         depth_e = abs (topography%data(d)%elts(idN+1)) + dscalar(idN+1) / phi_node (d, idN+1, zlevels)
+         wgt = wgt + dom%pedlen%elts(EDGE*id+UP+1) / dom%len%elts(EDGE*id+UP+1) * interp (depth_e, depth)
+
+         depth_e = abs (topography%data(d)%elts(idW+1)) + dscalar(idW+1) / phi_node (d, idW+1, zlevels)
+         wgt = wgt + dom%pedlen%elts(EDGE*idW+RT+1) / dom%len%elts(EDGE*idW+RT+1) * interp (depth_e, depth)
+
+         depth_e = abs (topography%data(d)%elts(idSW+1)) + dscalar(idSW+1) / phi_node (d, idSW+1, zlevels)
+         wgt = wgt + dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) * interp (depth_e, depth)
+
+         depth_e = abs (topography%data(d)%elts(idS+1)) + dscalar(idS+1) / phi_node (d, idS+1, zlevels)
+         wgt = wgt + dom%pedlen%elts(EDGE*idS+UP+1) / dom%len%elts(EDGE*idS+UP+1) * interp (depth_e, depth)
+      end if
+
+      Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
+      elliptic_lo_diag%data(d)%elts(id_i) = theta1 * theta2 * Laplace_diag - 1.0_dp
+    end subroutine cal_elliptic_lo_diag
   end function elliptic_lo_diag
-
-  subroutine cal_elliptic_lo_diag  (dom, i, j, zlev, offs, dims)
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer            :: d, id, id_i, idE, idNE, idN, idW, idSW, idS
-    real(dp)           :: depth, depth_e, Laplace_diag, wgt
-    logical, parameter :: exact = .false.
-
-    d    = dom%id + 1
-    id   = idx (i, j, offs, dims)
-    id_i = id + 1
-
-    depth = abs (topography%data(d)%elts(id_i)) + dscalar(id_i) / phi_node (d, id_i, zlevels)
-
-    if (.not. exact) then ! average value 
-       wgt = 2 * sqrt (3.0_dp) * depth
-    else ! true local value
-       idE  = idx (i+1, j,   offs, dims) 
-       idNE = idx (i+1, j+1, offs, dims) 
-       idN  = idx (i,   j+1, offs, dims) 
-       idW  = idx (i-1, j,   offs, dims) 
-       idSW = idx (i-1, j-1, offs, dims) 
-       idS  = idx (i,   j-1, offs, dims)
-
-       depth_e = abs (topography%data(d)%elts(idE+1)) + dscalar(idE+1) / phi_node (d, idE+1, zlevels)
-       wgt = dom%pedlen%elts(EDGE*id+RT+1) / dom%len%elts(EDGE*id+RT+1) * interp (depth_e, depth)
-
-       depth_e = abs (topography%data(d)%elts(idNE+1)) + dscalar(idNE+1) / phi_node (d, idNE+1, zlevels)
-       wgt = wgt + dom%pedlen%elts(EDGE*id+DG+1) / dom%len%elts(EDGE*id+DG+1) * interp (depth_e, depth)
-
-       depth_e = abs (topography%data(d)%elts(idN+1)) + dscalar(idN+1) / phi_node (d, idN+1, zlevels)
-       wgt = wgt + dom%pedlen%elts(EDGE*id+UP+1) / dom%len%elts(EDGE*id+UP+1) * interp (depth_e, depth)
-
-       depth_e = abs (topography%data(d)%elts(idW+1)) + dscalar(idW+1) / phi_node (d, idW+1, zlevels)
-       wgt = wgt + dom%pedlen%elts(EDGE*idW+RT+1) / dom%len%elts(EDGE*idW+RT+1) * interp (depth_e, depth)
-
-       depth_e = abs (topography%data(d)%elts(idSW+1)) + dscalar(idSW+1) / phi_node (d, idSW+1, zlevels)
-       wgt = wgt + dom%pedlen%elts(EDGE*idSW+DG+1) / dom%len%elts(EDGE*idSW+DG+1) * interp (depth_e, depth)
-
-       depth_e = abs (topography%data(d)%elts(idS+1)) + dscalar(idS+1) / phi_node (d, idS+1, zlevels)
-       wgt = wgt + dom%pedlen%elts(EDGE*idS+UP+1) / dom%len%elts(EDGE*idS+UP+1) * interp (depth_e, depth)
-    end if
-
-    Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
-    scalar(id_i) = theta1 * theta2 * Laplace_diag - 1.0_dp
-  end subroutine cal_elliptic_lo_diag
 
   subroutine flux_divergence (q, div_flux)
     ! Returns flux divergence of vertical integrated velocity in divF using solution q, stored in div_flux
