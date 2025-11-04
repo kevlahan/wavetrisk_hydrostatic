@@ -1297,7 +1297,7 @@ contains
 
       integer                  :: id_tri, info
       integer, dimension(3)    :: ije_lcsd
-      integer, dimension(6)    :: ipiv
+!      integer, dimension(6)    :: ipiv ! needed for dgesv
       real(dp), dimension(6,6) :: G
       real(dp), dimension(6)   :: b
       type(Coord)              :: endpt, x, y
@@ -1316,9 +1316,10 @@ contains
 
       endpt = endpt_o
       b = coords_to_row_perp ([dom%ccentre%elts(id_tri+1), endpt], x, y)
-      ipiv = 0
-      info = 0
-      call dgesv (6, 1, G, 6, ipiv, b, 6, info)
+
+      !call dgesv (6, 1, G, 6, ipiv, b, 6, info)
+      call LU (6, G, b, info)
+      
       interp_F_wgts = b
     end function interp_F_wgts
 
@@ -1595,7 +1596,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                  :: k, id, info
-    integer,  dimension(6)   :: ipiv
+!    integer,  dimension(6)   :: ipiv ! needed for dgesv
     real(dp), dimension(9)   :: weights
     real(dp), dimension(6)   :: b
     real(dp), dimension(6,6) :: G
@@ -1632,10 +1633,8 @@ contains
             vector (dom%node%elts(idx2(i0, j0, end_pt(:,1,e0+1), offs, dims)+1), &
             dom%node%elts(idx2(i0, j0, end_pt(:,2,e0+1), offs, dims)+1)), x, y)
 
-       ipiv = 0
-       info = 0
-
-       call dgesv (6, 1, G, 6, ipiv, b, 6, info)
+       !call dgesv (6, 1, G, 6, ipiv, b, 6, info)
+       call LU (6, G, b, info)
 
        weights(1)           = weights(1) + b(1)
        weights(2*k:2*k+1)   = weights(2*k:2*k+1) + b(2:3)
@@ -1758,7 +1757,7 @@ contains
     real(dp), dimension(2) :: coord2local
     type(Coord)            :: c, x, y
 
-    coord2local = [ inner(c, x), inner(c, y) ]
+    coord2local = [inner(c, x), inner(c, y)]
   end function coord2local
 
   subroutine init_wavelet_mod
@@ -1782,9 +1781,92 @@ contains
     real(dp)               :: u, v
     real(dp), dimension(2) :: xy
 
-    call normalize2 (coord2local(dirvec, x, y), u, v)
+    call normalize2 (coord2local (dirvec, x, y), u, v)
     xy = coord2local (midpt, x, y)
-    coords_to_rowd = [u, u*xy(1), u*xy(2), v, v*xy(1), v*xy(2) ]
+    coords_to_rowd = [u, u*xy(1), u*xy(2), v, v*xy(1), v*xy(2)]
   end function coords_to_rowd
+
+  subroutine LU (n, A, b, info)
+    ! Solves nxn linear system Ax = b using LU decomposition with partial pivoting
+    ! result is returned in b
+    implicit none
+    integer, intent(in)    :: n
+    integer, intent(out)   :: info
+    real(8), intent(inout) :: A(n,n), b(n)
+
+    integer  :: i, j, k, p
+    integer  :: ipiv(n)
+    real(dp) :: tmp, pivot_abs, cand_abs
+
+    info = 0
+    ipiv = 0
+
+    ! Argument checks 
+    if (n < 0) then; info = -1;  return; end if
+    if (n == 0) return
+
+    ! LU factorization (A = P * L * U) with partial pivoting
+    do k = 1, n
+       ! pivot index p = argmax_{i=k..n} |A(i,k)|
+        p  = k
+        pivot_abs = abs (a(k,k))
+        do i = k+1, n
+          cand_abs = abs( A(i,k))
+          if (cand_abs > pivot_abs) then
+            pivot_abs = cand_abs
+            p = i
+          end if
+        end do
+        ipiv(k) = p
+
+        ! Singular if pivot is zero
+        if (abs (A(p,k)) <= eps (1.0_dp)) then
+          info = k
+          return
+        end if
+
+        ! Swap rows p and k in A
+        if (p /= k) then
+          do j = 1, n
+            tmp = A(p,j);  A(p,j) = A(k,j);  A(k,j) = tmp
+          end do
+        end if
+
+        ! Compute multipliers below the pivot
+        A(k+1:n,k) = A(k+1:n,k) / A(k,k)
+
+        ! Rank-1 update of the trailing submatrix
+        do i = k+1, n
+          tmp = A(i,k)
+          if (abs (tmp) > eps (1.0_dp)) A(i,k+1:n) = A(i,k+1:n) - tmp * A(k,k+1:n)
+        end do
+    end do
+
+    ! Apply row permutations to B  (B := P * B)
+    do k = 1, n
+       p = ipiv(k)
+       if (p /= k) then
+          tmp = b(p);  b(p) = b(k);  b(k) = tmp
+       end if
+    end do
+
+    ! Solve L * Y = B  (unit-lower L in A)
+    do k = 1, n-1
+      do i = k+1, n
+         tmp = A(i,k)
+         if (abs(tmp) > eps (1.0_dp)) b(i) = b(i) - tmp * b(k)
+      end do
+    end do
+    
+    ! Solve U * X = Y  (upper U in A), result X overwrites B
+    do i = n, 1, -1
+       b(i) = b(i) / A(i,i) ! divide row i
+       ! Eliminate above
+       do k = 1, i-1
+          tmp = A(k,i)
+          if (abs(tmp) > eps (1.0_dp)) b(k) = b(k) - tmp * b(i)
+       end do
+    end do
+  end subroutine LU
 end module wavelet_mod
 
