@@ -388,5 +388,4 @@ contains
     velo(EDGE*id+RT+1:EDGE*id+UP+1) = gradi_e (scalar, dom, i, j, offs, dims)
 
   end subroutine cal_grad_topo
-  
 end module test_case_mod

@@ -62,7 +62,7 @@ contains
 
   function z_coords_case (eta_surf, z_s)
     implicit none
-    real(8)                       :: eta_surf, z_s 
+    real(8), intent(in)           :: eta_surf, z_s 
     real(8), dimension(0:zlevels) :: z_coords_case
   end function z_coords_case
 

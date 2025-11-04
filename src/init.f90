@@ -48,7 +48,7 @@ module init_mod
       function zcoords_fun (eta_surf, z_s)
         use shared_mod
         implicit none
-        real(dp)                       :: eta_surf, z_s 
+        real(dp),           intent(in) :: eta_surf, z_s 
         real(dp), dimension(0:zlevels) :: zcoords_fun
       end function zcoords_fun
       subroutine solver (u, f, Lu, Lu_diag)

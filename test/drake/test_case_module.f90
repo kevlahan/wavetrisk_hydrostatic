@@ -1,4 +1,4 @@
-Module test_case_mod
+module test_case_mod
   use comm_mpi_mod
   use utils_mod
   use init_mod
@@ -22,6 +22,7 @@ Module test_case_mod
   logical                              :: piecewise_density = .true.
   logical                              :: normalized
   character(255)                       :: coords
+  character(10)                        :: stratification
 
   ! Drake land boundaries
   real(8),                   parameter :: lat_max = 60*DEG, lat_min = -35*DEG, lon_min = -15*DEG, lon_max = 15*DEG
@@ -64,9 +65,7 @@ contains
     use mpi
 #endif
     implicit none
-    integer            :: ilat, ilon, k
     integer, parameter :: fid = 500
-    real(8)            :: lat, lon
     character(255)     :: filename, varname
 
     ! Find input parameters file name
@@ -119,7 +118,7 @@ contains
     if (rank==0) then
        write (6,'(a)') &
             '********************************************************** Parameters &
-            ************************************************************'
+            &************************************************************'
        write (6,'(a)')        "RUN PARAMETERS"
        write (6,'(a,a)')      "test_case                      = ", trim (test_case)
        write (6,'(a,a)')      "run_id                         = ", trim (run_id)
@@ -202,7 +201,7 @@ contains
        end if
        write (6,'(a,es11.4)') "buoyancy relaxation       [d]  = ", 1/k_T / DAY
        write (6,'(a,es8.2)') "Q_sr                   [W/m^2]  = ", Q_sr
-       if (Q_sr /= 0.0_dp) then
+       if (abs(Q_sr) <= eps (1.0_dp)) then
           write (6,'(a,es8.2)') "R_lw                            = ", R_lw
           write (6,'(a,es8.2)') "xi_lw                      [m]  = ", xi_lw
           write (6,'(a,es8.2)') "xi_sw                      [m]  = ", xi_sw
@@ -224,7 +223,7 @@ contains
        write (6,'(a,es11.4)') "Resolution of Taylor scale     = ", delta_I / sqrt(Rey) / dx_avg(max_level)
        write (6,'(a)') &
             '*********************************************************************&
-            ************************************************************'
+            &************************************************************'
 
        call print_density
     end if
@@ -284,15 +283,14 @@ contains
     write (6,'(a,es8.2)')   "Maximum baroclinic CFL number     = ", c1*dt_init/dx_avg(max_level)
     write (6,'(A)') &
          '*********************************************************************&
-         *************************************************************'
+         &*************************************************************'
   end subroutine print_density
 
   subroutine print_log
     ! Prints out and saves logged data to a file
     implicit none
 
-    integer :: min_load, max_load
-    real(8) :: avg_load, timing
+    real(8) :: timing
 
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
@@ -369,14 +367,12 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: eta, phi, rho, z_k, z_s
+    real(8)                       :: eta, rho, z_k, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
 
     type(Coord) :: x_i
     
-    real(8) :: h0, r, lat, lat_c, lon, lon_c
-
     d    = dom%id + 1
     id   = idx (i, j, offs, dims) 
     id_i = id + 1
@@ -421,7 +417,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: eta, phi, rho, rho_dz, z_k, z_s
+    real(8)                       :: eta, rho, rho_dz, z_k, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
 
@@ -492,21 +488,22 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
-    real(8) :: eps_rho, lat, lon
-
-    call cart2sph (x_i, lon, lat)
+    real(8) :: lat, lon
     
-    if (zlevels == 1) then
+    call cart2sph (x_i, lon, lat)
+
+    select case (zlevels)
+    case (1)
        buoyancy_init = 0.0_dp
-    elseif (zlevels == 2) then
+    case (2)
        if (z >= z_mixed) then
           buoyancy_init = - drho / ref_density
        else
           buoyancy_init = 0.0_dp
        end if
-    elseif (zlevels >= 3) then
+    case default ! zlevels >= 3
        buoyancy_init = (ref_density - density (z)) / ref_density
-    end if
+    end select
   end function buoyancy_init
 
   real(8) function density (z)
@@ -514,17 +511,20 @@ contains
     real(dp) :: z
     real(dp) :: eps_l ! thickness of linear stratification layer
 
-    if (z_linear == max_depth) then  ! constant/linear stratification
+    select case (stratification)
+    case ("linear")
        if (z >= z_mixed) then ! constant density perturbation near surface
           density = ref_density + drho
        else                       ! linear stratification
           density = ref_density + drho * (z - z_linear) / (z_mixed - z_linear)
        end if
-    else ! tanh stratification
+    case ("tanh")
        eps_l = (z_mixed - z_linear) / 3 
-       
-       density = ref_density + drho * ( 1.0_dp + tanh ( (z - z_mixed + 2 * eps_l) / eps_l) ) / 2;
-    end if
+       density = ref_density + drho * ( 1.0_dp + tanh ( (z - z_mixed + 2 * eps_l) / eps_l) ) / 2
+    case default
+       eps_l = (z_mixed - z_linear) / 3 
+       density = ref_density + drho * ( 1.0_dp + tanh ( (z - z_mixed + 2 * eps_l) / eps_l) ) / 2
+    end select
   end function density
 
   subroutine initialize_thresholds_case
@@ -536,7 +536,7 @@ contains
 
     x_i = Coord (0.0_dp, 0.0_dp, radius)
 
-    if (tol == 0.0_dp) then
+    if (abs(tol) <= eps (1.0_dp)) then
        threshold_def = 0.0_dp
     else
        threshold_def = 1e16_dp
@@ -637,7 +637,6 @@ contains
     character(*)                   :: itype
 
     integer     :: d, id, idE, idNE, idN
-    real(8)     :: lat, lon, mask, shift, width
     type(coord) :: p, pE, pNE, pN
 
     d  = dom%id + 1
@@ -716,7 +715,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(*)                   :: itype
 
-    integer :: d, id, id_i, is0, it0, s, t
+    integer :: d, id, id_i, is0, it0
     real(8) :: lat, lon, mask, s0, t0
 
     d    = dom%id + 1
@@ -758,6 +757,8 @@ contains
        else ! sea: topography is less than zero
           topo_value = 0.0_dp
        end if
+    case default
+       topo_value = 0.0_dp
     end select
   end function topo_value
 
@@ -963,14 +964,14 @@ contains
     dvelo(id_edge(id)) = 0.0_dp
   end subroutine trend_velo
 
-  function z_coords_case (eta_surf, z_s)
+  function z_coords_case (eta_surf, z_s) 
     ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
     ! near the free surface over strong bathymetry gradients.
     ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
     !
     ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
     implicit none
-    real(8)                       :: eta_surf, z_s ! free surface and bathymetry
+    real(8),          intent (in) :: eta_surf, z_s ! free surface and bathymetry
     real(8), dimension(0:zlevels) :: z_coords_case
 
     integer                       :: k
@@ -980,11 +981,14 @@ contains
     real(8), parameter            :: theta_b = 0.0_dp, theta_s = 7.0_dp
     real(8), parameter            :: hc_min = -200 * METRE ! minimum depth of uniform layer region
 
-    if (z_linear == max_depth) then ! uniform to bottom of mixed layer
+    select case (stratification)
+    case ("linear")
        hc = abs (min (z_mixed, hc_min))
-    else                            ! uniform to bottom of linear layer
+    case ("tanh")
        hc = abs (min (z_linear, hc_min))
-    end if
+    case default
+       hc = abs (min (z_linear, hc_min))
+    end select
     
     cff1 = 1.0_dp / sinh (theta_s)
     cff2 = 0.5 / tanh (0.5 * theta_s)
@@ -1078,7 +1082,6 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                    :: d, id, idE, idN, idNE
-    real(8)                    :: lat, lon
     real(8), dimension(1:EDGE) :: horiz_diffusion, h_bot, h_top, penal, u_bot, u_top, vert_diffusion
 
     d    = dom%id + 1

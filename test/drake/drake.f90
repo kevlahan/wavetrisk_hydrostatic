@@ -89,9 +89,9 @@ program Drake
      
      coords               = "uniform"
 
+     stratification       = "tanh"                         ! type of stratification (tanh, linear)
      z_mixed              =    -200 * METRE                ! bottom of constant density surface mixed
      z_linear             =    -500 * METRE                ! bottom of linear stratification layer below mixed layer
-                                                           ! (set z_linear = max_depth for constant/linear stratification)
      max_depth            =   -4000 * METRE                ! total depth
      
      bottom_friction_case = rb_0                           ! constant bottom friction equal to NEMO value 4e-4
@@ -158,7 +158,7 @@ program Drake
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(a,/)') &
        '----------------------------------------------------- Start simulation run &
-       -------------------------------------------------------'
+       &-------------------------------------------------------'
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   total_cpu_time = 0.0_dp
   do while (time < time_end)

@@ -628,7 +628,7 @@ contains
     ! Dummy routine
     ! (see upwelling test case for example)
     implicit none
-    real(8)                       :: eta_surf, z_s ! free surface and bathymetry
+    real(8), intent(in)           :: eta_surf, z_s ! free surface and bathymetry
     real(8), dimension(0:zlevels) :: z_coords_case
 
     z_coords_case = 0.0_8
