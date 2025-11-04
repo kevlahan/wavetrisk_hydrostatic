@@ -3,7 +3,8 @@ TEST_CASE     = climate
 PARAM         = param_J5
 ARCH          = mpi
 OPTIM         = 2
-FLAGS_COMP    = -g -Wall -Wextra -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines -ffpe-trap=invalid,zero,overflow -fbacktrace -ftrapping-math -march=native -funroll-loops 
+FLAGS_COMP    = -g -Wall -Wextra -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines \
+	        -ffpe-trap=invalid,zero,overflow -fbacktrace -ftrapping-math -march=native -funroll-loops 
 COMPILER_TYPE = gnu
 MPIF90        = mpif90
 BIN_DIR       = bin

@@ -117,8 +117,7 @@ contains
     write (layer,     '(i3.3)') k
 
     filename = trim(run_id)//"_"//trim(type)//"_"//trim(layer)//"_"//trim(isv)//".vtk"
-    open (unit=funit, file=trim(filename), form='unformatted', access='stream', status='replace')
-
+    open (unit=funit, file=trim(filename), form="unformatted", access='stream', status='replace', convert='BIG_ENDIAN')
     
     ! Write vtk header
     write (funit) '# vtk DataFile Version 2.0'//lf

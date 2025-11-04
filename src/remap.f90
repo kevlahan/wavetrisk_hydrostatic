@@ -306,7 +306,9 @@ contains
     real(dp)                 :: cff, cff1, dh, dL, dR, dz
     real(dp), dimension(0:N) :: aL, aR, FC
     real(dp), dimension(1:N) :: Hz
-    logical, parameter       :: ENHANCE = .true., NEUMANN = .false. 
+    logical, parameter       :: ENHANCE = .true., NEUMANN = .false.
+
+    if (N < 2) error stop "N must be >= 2"
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)
@@ -395,6 +397,8 @@ contains
     logical, parameter       :: LIMIT_INTERIOR = .false.
     logical, parameter       :: LIMIT_SLOPES   = .true.
     logical, parameter       :: NEUMANN        = .false.
+
+    if (N < 2) error stop "N must be >= 2"
 
     aL = 0.0_dp
 
@@ -758,7 +762,6 @@ contains
     ! within each grid box. Also computed are dL,dR, which are then used
     ! as a measure of quadratic variation during sabsequent WENO
     ! reconciliation of side limits.
-
 
     if (N < 2) error stop "N must be >= 2"
 
