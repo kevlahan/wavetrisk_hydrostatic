@@ -64,6 +64,8 @@ contains
     B = 1.0_dp - 0.18 * gamma - 0.04 * gamma**2
     C =          0.48 * gamma + 0.30 * gamma**2
 
+    Z_block = 0.0_dp
+
     ! Unit vectors
     call cart2sph (dom%node%elts(id+1), lon, lat)
 
@@ -96,11 +98,10 @@ contains
           psi(k) = theta - phi(k)                              ! angle of incident flow with respect to principal axis of ellipse
        end if
     end do
-
+    
     ! Find blocking height
     if (blocking_drag) then
        H = 0.0_dp
-       Z_block = 0.0_dp
        do k = zlevels, 1, -1
           if (z(k) <= H_peak) then
              H = H + N_bv(k) * dz_i (dom, i, j, k, offs, dims, sol) / umag(k) ! non-dimensional height
