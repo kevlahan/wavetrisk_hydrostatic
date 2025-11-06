@@ -4,6 +4,7 @@ module wavelet_mod
   use utils_mod
   implicit none
   real(dp), dimension(9) :: Iu_Base_Wgt
+  logical,     parameter :: lapack = .true. ! use lapack or local LU routine
 
   interface forward_scalar_transform
      procedure :: forward_scalar_transform_0, forward_scalar_transform_1
@@ -1296,8 +1297,8 @@ contains
       type(Coord)              :: endpt_o
 
       integer                  :: id_tri, info
-      integer, dimension(3)    :: ije_lcsd
-!      integer, dimension(6)    :: ipiv ! needed for dgesv
+      integer,  dimension(3)   :: ije_lcsd
+      integer,  dimension(6)   :: ipiv
       real(dp), dimension(6,6) :: G
       real(dp), dimension(6)   :: b
       type(Coord)              :: endpt, x, y
@@ -1317,9 +1318,12 @@ contains
       endpt = endpt_o
       b = coords_to_row_perp ([dom%ccentre%elts(id_tri+1), endpt], x, y)
 
-      !call dgesv (6, 1, G, 6, ipiv, b, 6, info)
-      call LU (6, G, b, info)
-      
+      if (lapack) then
+         call dgesv (6, 1, G, 6, ipiv, b, 6, info)
+      else
+         call LU (6, G, b, info)
+      end if
+     
       interp_F_wgts = b
     end function interp_F_wgts
 
@@ -1596,7 +1600,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
 
     integer                  :: k, id, info
-!    integer,  dimension(6)   :: ipiv ! needed for dgesv
+    integer,  dimension(6)   :: ipiv
     real(dp), dimension(9)   :: weights
     real(dp), dimension(6)   :: b
     real(dp), dimension(6,6) :: G
@@ -1633,9 +1637,12 @@ contains
             vector (dom%node%elts(idx2(i0, j0, end_pt(:,1,e0+1), offs, dims)+1), &
             dom%node%elts(idx2(i0, j0, end_pt(:,2,e0+1), offs, dims)+1)), x, y)
 
-       !call dgesv (6, 1, G, 6, ipiv, b, 6, info)
-       call LU (6, G, b, info)
-
+       if (lapack) then
+          call dgesv (6, 1, G, 6, ipiv, b, 6, info)
+       else
+          call LU (6, G, b, info)
+       end if
+       
        weights(1)           = weights(1) + b(1)
        weights(2*k:2*k+1)   = weights(2*k:2*k+1) + b(2:3)
        weights(2*k+4:2*k+5) = b(4:5)
@@ -1787,8 +1794,9 @@ contains
   end function coords_to_rowd
 
   subroutine LU (n, A, b, info)
-    ! Solves nxn linear system Ax = b using LU decomposition with partial pivoting
-    ! result is returned in b
+    ! Solve linear system using LU decomposition with partial pivoting
+    ! result is returned in b and A is replaced by the factors L and U from the factorization
+    ! A = P L U (the unit diagonal elements of L are not stored).
     implicit none
     integer, intent(in)    :: n
     integer, intent(out)   :: info
@@ -1802,16 +1810,16 @@ contains
     ipiv = 0
 
     ! Argument checks 
-    if (n < 0) then; info = -1;  return; end if
+    if (n <  0) then; info = -1;  return; end if
     if (n == 0) return
 
     ! LU factorization (A = P * L * U) with partial pivoting
     do k = 1, n
        ! pivot index p = argmax_{i=k..n} |A(i,k)|
         p  = k
-        pivot_abs = abs (a(k,k))
+        pivot_abs = abs (A(k,k))
         do i = k+1, n
-          cand_abs = abs( A(i,k))
+          cand_abs = abs (A(i,k))
           if (cand_abs > pivot_abs) then
             pivot_abs = cand_abs
             p = i
@@ -1860,8 +1868,9 @@ contains
     
     ! Solve U * X = Y  (upper U in A), result X overwrites B
     do i = n, 1, -1
-       b(i) = b(i) / A(i,i) ! divide row i
-       ! Eliminate above
+       ! divide row i
+       b(i) = b(i) / A(i,i)
+       ! eliminate above
        do k = 1, i-1
           tmp = A(k,i)
           if (abs(tmp) > eps (1.0_dp)) b(k) = b(k) - tmp * b(i)
