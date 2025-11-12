@@ -7,32 +7,33 @@ module test_case_mod
   implicit none
 
   ! Standard variables
-  integer :: resume_init
-  real(8) :: dt_cfl, total_cpu_time
-  real(8) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
+  integer  :: resume_init
+  real(dp) :: dt_cfl, total_cpu_time
+  real(dp) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
 
   ! Local variables
-  real(8)                              :: C_Drake = 0.9_dp
-  real(8)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
-  real(8)                              :: drho, f0, h_linear, Ku, k_T, lambda0, lambda1, Rd, Rey, Ro, radius_earth
-  real(8)                              :: omega_earth, scale, scale_omega, tau_0, u_wbc, z_linear
-  real(8),                      target :: bottom_friction_case
-  real(8), allocatable, dimension(:,:) :: analytic_data
-  logical                              :: aligned
-  logical                              :: piecewise_density = .true.
-  logical                              :: normalized
-  character(255)                       :: coords
-  character(10)                        :: stratification
+  real(dp)                              :: beta, bv, delta_I, delta_M, delta_S, delta_sm
+  real(dp)                              :: drho, f0, h_linear, Ku, k_T, lambda0, lambda1, Rd, Rey, Ro, radius_earth
+  real(dp)                              :: omega_earth, scale, scale_omega, tau_0, u_wbc, z_linear
+  real(dp),                      target :: bottom_friction_case
+  real(dp), allocatable, dimension(:,:) :: analytic_data
+  logical                               :: aligned
+  logical                               :: piecewise_density = .true.
+  logical                               :: normalized
 
+  real(dp)                              :: C_Drake = 0.3_dp
+  character(255)                        :: coords         = "uniform" ! not used if sigma_z = .true.
+  character(10)                         :: stratification = "tanh"
+  
   ! Drake land boundaries
-  real(8),                   parameter :: lat_max = 60*DEG, lat_min = -35*DEG, lon_min = -15*DEG, lon_max = 15*DEG
+  real(8),                   parameter  :: lat_max = 60*DEG, lat_min = -35*DEG, lon_min = -15*DEG, lon_max = 15*DEG
 
   ! Etopo data (etopo smoothing not yet implemented)
-  integer                              :: bathy_per_deg
-  integer                              :: etopo_res   = 4
-  real(4), allocatable, dimension(:,:) :: etopo_data
-  logical                              :: etopo_bathy = .false.
-  logical                              :: etopo_coast = .false.
+  integer                               :: bathy_per_deg
+  integer                               :: etopo_res   = 4
+  real(4), allocatable, dimension(:,:)  :: etopo_data
+  logical                               :: etopo_bathy = .false.
+  logical                               :: etopo_coast = .false.
 contains
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
@@ -139,7 +140,6 @@ contains
        write (6,'(a,i3)')     "zlevels                        = ", zlevels
        write (6,'(a,L1)')     "remap                          = ", remap
        write (6,'(a,i3)')     "iremap                         = ", iremap
-       write (6,'(a,L1)')     "sigma_z                        = ", sigma_z
        write (6,'(a,L1)')     "default_thresholds             = ", default_thresholds
        write (6,'(a,es10.4)') "tolerance                      = ", tol
        write (6,'(a,i1)')     "optimize_grid                  = ", optimize_grid
@@ -174,10 +174,15 @@ contains
 
        write (6,'(/,a)')      "TEST CASE PARAMETERS"
        write (6,'(a,a)')      "Linear solver                  = ", linear_solver
+       write (6,'(a,a)')      "Stratification                 = ", trim (stratification)
        write (6,'(a,es11.4)') "z_mixed                   [m]  = ", z_mixed
        write (6,'(a,es11.4)') "z_linear                  [m]  = ", z_linear
        write (6,'(a,es11.4)') "max_depth                 [m]  = ", max_depth
-       write (6,'(a,a)')      "vertical coordinates           = ", trim (coords)
+       if (sigma_z) then
+          write (6, '(a)')    "vertical coordinates           =  hybrid sigma-z"
+       else
+          write (6,'(a,a)')   "vertical coordinates           = ", trim (coords)
+       end if
        write (6,'(a,es11.4)') "density perturbation [kg/m^3]  = ", drho
        write (6,'(a,es11.4)') "Brunt-Vaisala freq      [1/s]  = ", bv
        write (6,'(a,es11.4)') "c0 wave speed           [m/s]  = ", wave_speed
@@ -573,7 +578,7 @@ contains
     dt_init = cfl_num * dx_avg(max_level) / (u_wbc + wave_speed)
     dt = dt_init
 
-    C_visc           = 0.3_dp
+    C_visc           = C_Drake
     C_visc(S_DIVU,:) = 0.5_dp
   end subroutine initialize_dt_viscosity_case
 

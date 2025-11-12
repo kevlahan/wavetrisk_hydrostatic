@@ -83,11 +83,9 @@ program Drake
   elseif (zlevels >= 2) then
      relax                = .true.                         ! relax to mean vertical stratification
      remap                = .true.                         ! remap vertical coordinates
-     sigma_z              = .false.                        ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
+     sigma_z              = .true.                         ! sigma-z Schepetkin/CROCO type vertical coordinates (pure sigma grid if false)
      tke_closure          = .false.                        ! use analytic profiles for eddy viscosity/diffusivity
      vert_diffuse         = .true.                         ! use vertical diffusion model
-     
-     coords               = "uniform"
 
      stratification       = "tanh"                         ! type of stratification (tanh, linear)
      z_mixed              =    -200 * METRE                ! bottom of constant density surface mixed
@@ -115,7 +113,7 @@ program Drake
   
   wave_speed     = sqrt (grav_accel * abs (max_depth))                        ! inertia-gravity wave speed
   dt_init        = cfl_num * 0.85 * dx_min / wave_speed                       ! average time step
-  visc           = C_Drake * Area_min**Laplace_rotu / dt_init                 ! viscosity
+  visc           = C_Drake * 2.51/dt_init * (dx_min**2/24/1.65)**Laplace_rotu ! viscosity for RK3
   delta_I        = sqrt (u_wbc/beta)                                          ! inertial layer
   delta_M        = (visc/beta)**(1.0_dp/(2*Laplace_rotu + 1))                 ! Munk layer scale
   delta_sm       = u_wbc / f0                                                 ! barotropic submesoscale

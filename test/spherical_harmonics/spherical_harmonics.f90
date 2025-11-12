@@ -15,7 +15,6 @@ program spherical_harmonics
 
   integer                              :: idata_loc, nmax
   real(8), dimension(:),   allocatable :: data, data_loc, lat_loc, lon_loc
-  character(2)                         :: var_file
   character(130)                       :: command
 
   call init_arch_mod 
@@ -171,7 +170,7 @@ contains
     use domain_mod
     use multi_level_mod
     implicit none
-    integer :: d, i, j, k, l
+    integer :: d, j, k, l
 
     call initialize_projection (N)
 
@@ -242,7 +241,7 @@ contains
     integer                                 :: k
     character(*)                            :: data_type
 
-    integer                                 :: ierr, i, j, lmax
+    integer                                 :: ierr, j, lmax
     real(8)                                 :: area
     real(8), dimension (:,:,:), allocatable :: cilm      ! spherical harmonic coefficients
     real(8), dimension (:),     allocatable :: pspectrum ! global power spectrum of the function
@@ -303,7 +302,6 @@ contains
     real(8), dimension (2, lmax+1, lmax+1) :: cilm
    
     integer                               :: ierr, j
-    character(4)                          :: var_file
 
     real(8)                               :: area
     real(8), dimension (:), allocatable   :: eigenvalues ! concentration factors of the concentration windows
@@ -541,7 +539,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, id_t
+    integer :: id
 
     id = idx (i, j, offs, dims) + 1
 
@@ -559,7 +557,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id, id_t
+    integer :: id
 
     id = idx (i, j, offs, dims) + 1
 

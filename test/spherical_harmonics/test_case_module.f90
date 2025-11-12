@@ -35,8 +35,10 @@ contains
     real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
     type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
     type(domain)                                         :: dom
-    integer                                              :: d, id, idE, idNE, idN, v, zlev
+    integer                                              :: id, idE, idNE, idN, v, zlev
     logical, optional                                    :: type
+
+    physics_scalar_flux_case = 0.0_dp
   end function physics_scalar_flux_case
 
   function physics_velo_source_case (dom, i, j, zlev, offs, dims)
@@ -47,11 +49,15 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
+
+    physics_velo_source_case = 0.0_dp
   end function physics_velo_source_case
 
   real(8) function surf_geopot_case (d, id)
     implicit none
     integer :: d, id
+
+    surf_geopot_case = 0.0_dp
   end function surf_geopot_case
 
   subroutine initialize_a_b_vert_case
@@ -61,9 +67,12 @@ contains
   end subroutine initialize_a_b_vert_case
 
   function z_coords_case (eta_surf, z_s)
+    ! dummy routine
     implicit none
     real(8), intent(in)           :: eta_surf, z_s 
     real(8), dimension(0:zlevels) :: z_coords_case
+
+    z_coords_case = 0.0_dp
   end function z_coords_case
 
   subroutine read_test_case_parameters
@@ -113,7 +122,7 @@ contains
     if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
-            ************************************************************'
+            &************************************************************'
        write (6,'(A,A)')      "test_case              = ", trim (test_case)
        write (6,'(A,A)')      "data_case              = ", trim (data_case)
        write (6,'(A,A)')      "spec_type              = ", trim (spec_type)
@@ -157,7 +166,7 @@ contains
     ! Dummy routine
     implicit none
     type (Domain)                   :: dom
-    integer                         :: i, j, k, zlev
+    integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
   end subroutine init_sol
