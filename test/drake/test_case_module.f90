@@ -8,7 +8,7 @@ module test_case_mod
 
   ! Standard variables
   integer  :: resume_init
-  real(dp) :: dt_cfl, total_cpu_time
+  real(dp) :: dt_cfl, total_cpu_time 
   real(dp) :: g_earth, H_earth, H_norm, L_norm, U_norm, T_norm
 
   ! Local variables
@@ -83,6 +83,7 @@ contains
        read (fid,*) varname, run_id
        read (fid,*) varname, scale
        read (fid,*) varname, scale_omega
+       read (fid,*) varname, stratification
        read (fid,*) varname, max_level
        read (fid,*) varname, zlevels
        read (fid,*) varname, tol
@@ -98,6 +99,7 @@ contains
     call MPI_Bcast (run_id,           255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)    
     call MPI_Bcast (scale,              1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (scale_omega,        1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (stratification,   255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror) 
     call MPI_Bcast (max_level,          1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (zlevels,            1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (tol,                1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
@@ -520,8 +522,8 @@ contains
     case ("linear")
        if (z >= z_mixed) then ! constant density perturbation near surface
           density = ref_density + drho
-       else                       ! linear stratification
-          density = ref_density + drho * (z - z_linear) / (z_mixed - z_linear)
+       else                   ! linear stratification
+          density = ref_density + drho * (1.0_dp - (z_mixed - z) / (z_mixed - max_depth))
        end if
     case ("tanh")
        eps_l = (z_mixed - z_linear) / 3 

@@ -87,7 +87,6 @@ program Drake
      tke_closure          = .false.                        ! use analytic profiles for eddy viscosity/diffusivity
      vert_diffuse         = .true.                         ! use vertical diffusion model
 
-     stratification       = "tanh"                         ! type of stratification (tanh, linear)
      z_mixed              =    -200 * METRE                ! bottom of constant density surface mixed
      z_linear             =    -500 * METRE                ! bottom of linear stratification layer below mixed layer
      max_depth            =   -4000 * METRE                ! total depth
