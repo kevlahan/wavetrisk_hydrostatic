@@ -2,6 +2,7 @@ test_case          drake         ! name of test case
 run_id             drakeJ6J8Z60  ! name of run (for saved data)
 scale       	   6             ! scaling factor for radius: radius = radius_earth/scale
 scale_omega        6             ! scaling factor for omega: omega = omega_earth/scale	
+stratification     tanh          ! stratification (tanh or linear)
 max_level	   8             ! maximum level of resolution
 zlevels            6             ! number of vertical levels
 tol      	   2e-2          ! non-dimensional tolerance
