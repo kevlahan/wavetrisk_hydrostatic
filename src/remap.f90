@@ -62,8 +62,8 @@ contains
     end select
     
     ! Save old masses
-    call update_bdry (sol(:,1:zlevels), NONE, 900)
-    allocate (old_mass(1:zlevels)); old_mass = sol(S_MASS,1:zlevels)
+    call update_bdry (sol, NONE, 900)
+    old_mass = sol(S_MASS,1:zlevels)
 
     ! Remap variables on all levels
     if (compressible) then
@@ -71,7 +71,7 @@ contains
     else
        call apply_no_bdry2 (remap_incompressible, z_null)
     end if
-    sol(:,1:zlevels)%bdry_uptodate = .false.
+    sol%bdry_uptodate = .false.
 
     nullify (interpolate)
     deallocate (old_mass)
@@ -86,65 +86,67 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer                               :: d, e, id, id_i, k
-    integer, dimension (1:EDGE)           :: id_r
+    integer                                :: d, e, id, id_i, k
+    integer, dimension (1:EDGE)            :: id_r
     
     real(dp)                               :: rho_dz, rho_dz_theta
     real(dp), dimension (1:zlevels)        :: rho_dz_new, theta_new, theta_old 
     real(dp), dimension (0:zlevels)        :: p_new, p_old
     real(dp), dimension (1:zlevels,1:EDGE) :: flux_new, flux_old
     real(dp), dimension (0:zlevels,1:EDGE) :: p_edge_new, p_edge_old
-
+    
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
     id_i = id + 1
 
-    id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
-    id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
-    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
+       id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
+       id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
 
-    ! Find old and new pressure coordinates
-    call find_coordinates (p_new, p_old, d, id_i)
-    do e = 1, EDGE
-       call find_coordinates (p_edge_new(:,e), p_edge_old(:,e), d, id_r(e))
-       p_edge_new(:,e) = 0.5 * (p_new + p_edge_new(:,e))
-       p_edge_old(:,e) = 0.5 * (p_old + p_edge_old(:,e))
-    end do
-
-    ! Old variables
-    do k = 1, zlevels
-       rho_dz       = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
-       rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
-
-       theta_old(zlevels-k+1) = rho_dz_theta / rho_dz
-
+       ! Find old and new pressure coordinates
+       call find_coordinates (p_new, p_old, d, id_i)
        do e = 1, EDGE
-          flux_old(zlevels-k+1,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
+          call find_coordinates (p_edge_new(:,e), p_edge_old(:,e), d, id_r(e))
+          p_edge_new(:,e) = 0.5 * (p_new + p_edge_new(:,e))
+          p_edge_old(:,e) = 0.5 * (p_old + p_edge_old(:,e))
        end do
-    end do
 
-    ! Interpolate rho_dz
-    rho_dz_new = (p_new(zlevels:1:-1) - p_new(zlevels-1:0:-1)) / grav_accel
-  
-    ! Interpolate theta
-    call interpolate (zlevels, theta_new, p_new, theta_old, p_old)
-        
-    ! Interpolate velocities
-    do e = 1, EDGE
-       call interpolate (zlevels, flux_new(:,e), p_edge_new(:,e), flux_old(:,e), p_edge_old(:,e))
-    end do
+       ! Old variables
+       do k = 1, zlevels
+          rho_dz       = sol_mean(S_MASS,k)%data(d)%elts(id_i) + sol(S_MASS,k)%data(d)%elts(id_i)
+          rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id_i) + sol(S_TEMP,k)%data(d)%elts(id_i)
 
-    ! Remapped variables
-    do k = 1, zlevels
-       sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz_new(k) - sol_mean(S_MASS,k)%data(d)%elts(id_i)
-       sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz_new(k) * theta_new(zlevels-k+1) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+          theta_old(zlevels-k+1) = rho_dz_theta / rho_dz
 
-       if (is_pole /= 1) then ! do not remap velocities at pole
           do e = 1, EDGE
-             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(zlevels-k+1,e)
+             flux_old(zlevels-k+1,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
           end do
-       end if
-    end do
+       end do
+
+       ! Interpolate rho_dz
+       rho_dz_new = (p_new(zlevels:1:-1) - p_new(zlevels-1:0:-1)) / grav_accel
+
+       ! Interpolate theta
+       call interpolate (zlevels, theta_new, p_new, theta_old, p_old)
+
+       ! Interpolate velocities
+       do e = 1, EDGE
+          call interpolate (zlevels, flux_new(:,e), p_edge_new(:,e), flux_old(:,e), p_edge_old(:,e))
+       end do
+
+       ! Remapped variables
+       do k = 1, zlevels
+          sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz_new(k) - sol_mean(S_MASS,k)%data(d)%elts(id_i)
+          sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz_new(k) * theta_new(zlevels-k+1) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+
+          if (is_pole /= 1) then ! do not remap velocities at pole
+             do e = 1, EDGE
+                sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(zlevels-k+1,e)
+             end do
+          end if
+       end do
+    end if
   end subroutine remap_compressible
 
   subroutine remap_incompressible (dom, p_null, i, j, z_null, offs, dims, is_pole)
@@ -169,53 +171,56 @@ contains
     id   = idx (i, j, offs, dims)
     id_i = id + 1
 
-    id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
-    id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
-    id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
-    
-    ! Find old and new vertical coordinates
-    call find_coordinates_incompressible (z_new, z_old,topography%data(d)%elts(id_i), d, id_i)
-    dz = z_new(1:zlevels) - z_new(0:zlevels-1)
-    do e = 1, EDGE
-       call find_coordinates_incompressible (z_edge_new(:,e), z_edge_old(:,e), topography%data(d)%elts(id_r(e)), d, id_r(e))
-       z_edge_new(:,e) = 0.5 * (z_new + z_edge_new(:,e))
-       z_edge_old(:,e) = 0.5 * (z_old + z_edge_old(:,e))
-    end do
+    if (dom%mask_n%elts(id_i) >= ADJZONE) then
+       id_r(RT+1) = idx (i+1, j,   offs, dims) + 1
+       id_r(DG+1) = idx (i+1, j+1, offs, dims) + 1
+       id_r(UP+1) = idx (i,   j+1, offs, dims) + 1
 
-    ! Old variables
-    do k = 1, zlevels
-       theta_old(k) = buoyancy (dom, i, j, k, offs, dims, sol) ! old buoyancy
+       ! Find old and new vertical coordinates
+       call find_coordinates_incompressible (z_new, z_old, topography%data(d)%elts(id_i), d, id_i)
+       dz = z_new(1:zlevels) - z_new(0:zlevels-1)
+
        do e = 1, EDGE
-          flux_old(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
+          call find_coordinates_incompressible (z_edge_new(:,e), z_edge_old(:,e), topography%data(d)%elts(id_r(e)), d, id_r(e))
+          z_edge_new(:,e) = 0.5 * (z_new + z_edge_new(:,e))
+          z_edge_old(:,e) = 0.5 * (z_old + z_edge_old(:,e))
        end do
-    end do
 
-    ! Remap density
-    call interpolate (zlevels, theta_new, z_new, theta_old, z_old)
-
-    ! Interpolate velocity
-    do e = 1, EDGE
-       call interpolate (zlevels, flux_new(:,e), z_edge_new(:,e), flux_old(:,e), z_edge_old(:,e))
-    end do
-    
-    ! Interpolated variables
-    do k = 1, zlevels
-       ! New full mass
-       rho = porous_density (d, id_i, k)
-       rho_dz =  rho * dz(k)
-
-       ! New perturbation mass
-       sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz - sol_mean(S_MASS,k)%data(d)%elts(id_i)
-
-       ! New mass-weighted buoyancy
-       sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
-
-       if (is_pole /= 1) then ! do not remap velocities at pole
+       ! Old variables
+       do k = 1, zlevels
+          theta_old(k) = buoyancy (dom, i, j, k, offs, dims, sol) ! old buoyancy
           do e = 1, EDGE
-             sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k,e)
+             flux_old(k,e) = sol(S_VELO,k)%data(d)%elts(EDGE*id+e)
           end do
-       end if
-    end do
+       end do
+
+       ! Remap density
+       call interpolate (zlevels, theta_new, z_new, theta_old, z_old)
+
+       ! Interpolate velocity
+       do e = 1, EDGE
+          call interpolate (zlevels, flux_new(:,e), z_edge_new(:,e), flux_old(:,e), z_edge_old(:,e))
+       end do
+
+       ! Interpolated variables
+       do k = 1, zlevels
+          ! New full mass
+          rho = porous_density (d, id_i, k)
+          rho_dz =  rho * dz(k)
+
+          ! New perturbation mass
+          sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz - sol_mean(S_MASS,k)%data(d)%elts(id_i)
+
+          ! New mass-weighted buoyancy
+          sol(S_TEMP,k)%data(d)%elts(id_i) = rho_dz * theta_new(k) - sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+
+          if (is_pole /= 1) then ! do not remap velocities at pole
+             do e = 1, EDGE
+                sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = flux_new(k,e)
+             end do
+          end if
+       end do
+    end if
   end subroutine remap_incompressible
 
   subroutine find_coordinates (p_new, p_old, d, id_i)
@@ -238,7 +243,7 @@ contains
   subroutine find_coordinates_incompressible (z_new, z_old, z_s, d, id_i)
     ! Calculates old and new z hybrid sigma coordinates
     implicit none
-    integer                       :: d, id_i
+    integer                        :: d, id_i
     real(dp)                       :: z_s
     real(dp), dimension(0:zlevels) :: z_new, z_old
 
@@ -265,7 +270,7 @@ contains
     ! in each grid box, (i.e. similar to donor-cell first-order upstream advection).
     !
     implicit none
-    integer                 :: N
+    integer                  :: N
     real(dp), dimension(1:N) :: var_new, var_old
     real(dp), dimension(0:N) :: z_new, z_old
     

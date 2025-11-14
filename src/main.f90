@@ -392,7 +392,7 @@ contains
     !    Vertical remapping
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     min_mass = cpt_min_mass () 
-    if (remap .and. min_mass < min_mass_remap .or. iremap == iremap_max) then
+    if (remap .and. min_mass < min_mass_remap) then
        if (rank == 0 .and. log_min_mass) write (6,'(a)') 'Remapping vertical coordinates ...'
        call remap_vertical_coordinates
        iremap = 1

@@ -217,7 +217,7 @@ module shared_mod
   
   ! Simulation variables
   integer                                        :: cp_idx, cp_every, cp_init, err_restart
-  integer                                        :: iadapt, ibin, irebalance, iremap, iremap_max
+  integer                                        :: iadapt, ibin, irebalance, iremap
   integer                                        :: istep, istep_cumul, iwrite, iwrite_init
   integer                                        :: n_diffuse, nbins, nstep_init, resume
   integer                                        :: Laplace_divu, Laplace_rotu, Laplace_sclr
@@ -376,7 +376,6 @@ contains
     iadapt                  = 1                                   ! adapt horizontal grid every iadapt time step
     irebalance              = 5                                   ! interval for checking rebalance (only active if using AMPI)
     iremap                  = 1                                   ! remap counter
-    iremap_max              = 5                                   ! maximum remap interval (every iremap_max dt)
     min_mass_remap          = 0.9_dp                              ! minimum relative layer mass compared to initial value at which to remap
     level_save              = level_start                         ! level to save
     porosity                = 1e-2_dp                             ! porosity for solid regions when using penalization
