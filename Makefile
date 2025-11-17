@@ -134,7 +134,8 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
   FLAGS_COMP    += -I$(SHTOOLSMODPATH) -m64
  else ifeq ($(MACHINE), bbcluster2)
   # ml gcc mvapich netlib-lapack shtools fftw
-  LIBS       += -L$(SHTOOLS_ROOT)/lib -L$(FFTW_ROOT)/lib
+  LIBS       += -L$(SHTOOLS_ROOT)/lib -Wl,-rpath,$(SHTOOLs_ROOT)/lib
+  LIBS       += -L$(FFTW_ROOT)/lib    -Wl,-rpath,$(FFTW_ROOT)/lib	
   FLAGS_COMP += -I$(SHTOOLS_ROOT)/include -m64
  else
    SHTOOLSLIBPATH = /usr/local/lib
