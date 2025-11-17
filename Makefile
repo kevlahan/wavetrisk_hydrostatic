@@ -122,7 +122,7 @@ LINKER += $(COMPILER)
 
 ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (MUST use gfortran/openmpi)
  ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
-  # module load fftw
+  # ml fftw
   SHTOOLSLIBPATH = $(HOME)/SHTOOLS-4.7.1/lib
   SHTOOLSMODPATH = $(HOME)/SHTOOLS-4.7.1/include
   LIBS          += -L$(SHTOOLSLIBPATH)
@@ -133,6 +133,7 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
   LIBS          += -L$(SHTOOLSLIBPATH) 
   FLAGS_COMP    += -I$(SHTOOLSMODPATH) -m64
  else ifeq ($(MACHINE), bbcluster2)
+  # ml gcc mvapich netlib-lapack shtools fftw
   LIBS       += -L$(SHTOOLS_ROOT)/lib -L$(FFTW_ROOT)/lib
   FLAGS_COMP += -I$(SHTOOLS_ROOT)/include -m64
  else
