@@ -125,15 +125,24 @@ ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries 
   # module load fftw
   SHTOOLSLIBPATH = $(HOME)/SHTOOLS-4.7.1/lib
   SHTOOLSMODPATH = $(HOME)/SHTOOLS-4.7.1/include
+  LIBS          += -L$(SHTOOLSLIBPATH)
+  FLAGS_COMP    += -I$(SHTOOLSMODPATH) -m64	
  else ifeq ($(MACHINE), mac)
-  SHTOOLSMODPATH = /opt/homebrew/include
   SHTOOLSLIBPATH = /opt/homebrew/lib
+  SHTOOLSMODPATH = /opt/homebrew/include
+  LIBS          += -L$(SHTOOLSLIBPATH) 
+  FLAGS_COMP    += -I$(SHTOOLSMODPATH) -m64
+ else ifeq ($(MACHINE), bbcluster2)
+  LIBS       += -L$(SHTOOLS_ROOT)/lib -L$(FFTW_ROOT)/lib
+  FLAGS_COMP += -I$(SHTOOLS_ROOT)/include -m64
  else
-  SHTOOLSMODPATH = /usr/local/include
-  SHTOOLSLIBPATH = /usr/local/lib
+   SHTOOLSLIBPATH = /usr/local/lib
+   SHTOOLSMODPATH = /usr/local/include
+   LIBS          += -L$(SHTOOLSLIBPATH) 
+   FLAGS_COMP    += -I$(SHTOOLSMODPATH) -m64
  endif
- LIBS       += -L$(SHTOOLSLIBPATH) -lSHTOOLS -lfftw3 -lm 
- FLAGS_COMP += -I$(SHTOOLSMODPATH) -m64 -fPIC
+ LIBS       += -lSHTOOLS -lfftw3 -lm
+ FLAGS_COMP += -fPIC
 endif
 
 SRC = kind.f90 $(PARAM).f90 shared.f90 coord_arithmetic.f90 calendar.f90 geom.f90  patch.f90 dyn_array.f90 \
