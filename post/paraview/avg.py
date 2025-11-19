@@ -16,6 +16,8 @@
 #                   Geopot_Height 
 #                   P/Ps
 #                   dz
+#
+# module load gcc python py-numpy py-scipy vtk
 import sys
 import vtk
 import glob

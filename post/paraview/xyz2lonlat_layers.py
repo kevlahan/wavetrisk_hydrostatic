@@ -21,7 +21,9 @@
 #   Jmax = maximum level
 #   nz   = number of vertical layers
 #   t1   = first time (save index)
-#   t2   = last time (save index)
+#   t2   = last time  (save index)
+#
+# module load gcc mvapich python py-numpy py-scipy py-mpi4py vtk
 
 from pathlib import Path
 import subprocess
