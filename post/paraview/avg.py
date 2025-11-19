@@ -1,21 +1,25 @@
 # Computes area integrated averages of either specified scalar or Rossby number in a zonal band
-# from longitude-latitude vtp files. 
+# from longitude-latitude vtp files.
+#
 # Usage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 scl_Omega scl_radius avg_type field
+#
 # avg_type = Scalar, Rossby, KE, DeltaSM, DeltaI, VertFluxKE
-# field    = Field to analyze:
-#                Options =
-#                   Level 
-#                   Topography
-#                   Penalization
-#                   Ps/Eta
-#                   Temperature/Density
-#                   Velocity_Zonal
-#                   Velocity_Meridional 
-#                   OMEGA/Velocity_Vertical 
-#                   Vorticity 
-#                   Geopot_Height 
-#                   P/Ps
-#                   dz
+#
+# field (optional) selects field to analyze if avg_type = Scalar
+#
+# Options for field:
+#                    Level 
+#                    Topography
+#                    Penalization
+#                    Ps/Eta
+#                    Temperature/Density
+#                    Velocity_Zonal
+#                    Velocity_Meridional 
+#                    OMEGA/Velocity_Vertical 
+#                    Vorticity 
+#                    Geopot_Height 
+#                    P/Ps
+#                    dz
 #
 # module load gcc python py-numpy py-scipy vtk
 import sys
