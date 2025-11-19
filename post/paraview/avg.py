@@ -1,5 +1,6 @@
-# Computes area integrated averages of either specified scalar or Rossby number in a zonal band  from longitude-latitude vtp files
-# Usage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 avg_type field
+# Computes area integrated averages of either specified scalar or Rossby number in a zonal band
+# from longitude-latitude vtp files. 
+# Usage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 scl_Omega scl_radius avg_type field
 # avg_type = Scalar, Rossby, KE, DeltaSM, DeltaI, VertFluxKE
 # field    = Field to analyze:
 #                Options =
@@ -20,9 +21,6 @@ import vtk
 import glob
 from utilities import *
 from pathlib import Path
-
-Omega_planet  = 7.29211e-5 / 6  # planet rotation
-Radius_planet = 6371.229e3 / 6  # planet radius
 
 def compute_avg (data, field, lat1, lat2) :
     # Integrated zonal average statistics between latitudes lat1 and lat2
@@ -92,7 +90,7 @@ def compute_avg (data, field, lat1, lat2) :
         elif avg_type == "Rossby":
             omega = vorticity.GetTuple1(i)
             f     = 2.0 * Omega_planet * math.sin(phi)
-            Ro    = omega / f
+            Ro    = abs(omega / f)
             
             num += Ro * A
         elif avg_type == "KE":
@@ -132,19 +130,21 @@ def compute_avg (data, field, lat1, lat2) :
 
 # Input
 if (len(sys.argv)<10) :
-    print("\nUsage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 avg_type field\n")
-    print("Example 1: python3 avg.py drakeJ8Z60 1 60 120 120 5 Rossby \n")
-    print("Example 2: python3 avg.py drakeJ8Z60 1 60 120 120 5 scalar Vorticity \n")
-    print("run      = run prefix of vtp files to load (e.g. drakeJ8Z60)")
-    print("k1       = First vertical layer")
-    print("k2       = Last  vertical layer")
-    print("t1       = First time count")
-    print("t2       = Last  time count")
-    print("dt       = Save interval (time = dt*count days)")
-    print("lat1     = Minimum latitude")
-    print("lat2     = Maximum latitude")
-    print("avg_type = scalar, Rossby, speed, deltaSM, deltaI")
-    print("field    = Field to analyze: \n \
+    print("\nUsage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 scl_Omega scl_radius avg_type field\n")
+    print("Example 1: python avg.py drakeJ8Z60 1 60 120 120 5 15 50 Rossby \n")
+    print("Example 2: python avg.py drakeJ8Z60 1 60 120 120 5 15 50 scalar Vorticity \n")
+    print("run        = run prefix of vtp files to load (e.g. drakeJ8Z60)")
+    print("k1         = First vertical layer")
+    print("k2         = Last  vertical layer")
+    print("t1         = First time count")
+    print("t2         = Last  time count")
+    print("dt         = Save interval (time = dt*count days)")
+    print("lat1       = Minimum latitude")
+    print("lat2       = Maximum latitude")
+    print("scl_Omega  = scaling factor for Omega:  Omega_Earth /scl_Omega")
+    print("scl_radius = scaling factor for radius: radius_Earth/scl_radius")
+    print("avg_type   = scalar, Rossby, speed, deltaSM, deltaI")
+    print("field      = Field to analyze: \n \
                Options = \n \
                   Level \n \
                   Topography \n \
@@ -161,38 +161,41 @@ if (len(sys.argv)<10) :
     print("Output is saved to run_[avg_type].txt")
     exit(0)
 
-run      = sys.argv[1]
-k1       = int(sys.argv[2])
-k2       = int(sys.argv[3])
-t1       = int(sys.argv[4])
-t2       = int(sys.argv[5])
-dt       = int(sys.argv[6])
-lat1     = float(sys.argv[7])
-lat2     = float(sys.argv[8])
-avg_type = sys.argv[9]
+run        = sys.argv[1]
+k1         = int(sys.argv[2])
+k2         = int(sys.argv[3])
+t1         = int(sys.argv[4])
+t2         = int(sys.argv[5])
+dt         = int(sys.argv[6])
+lat1       = float(sys.argv[7])
+lat2       = float(sys.argv[8])
+scl_Omega  = float(sys.argv[9])
+scl_radius = float(sys.argv[10])
+avg_type   = sys.argv[11]
 if avg_type == "Scalar":
-    field = sys.argv[10] 
+    field = sys.argv[12] 
 
 if avg_type == "Scalar":
     outfile = run+"_"+field+"_avg.txt"
 else:
     field = ""
     outfile = run+'_'+avg_type+"_avg.txt"
+
+Omega_planet  = 7.29211e-5 / scl_Omega  # planet rotation
+Radius_planet = 6371.229e3 / scl_radius # planet radius
     
 f = open (outfile, "w")
 
-for t in range (t1, t2+1):
-    for k in range (k1, k2+1):
+for k in range(k1, k2+1):
+    sum_avg = 0.0
+    ntime   = 0
+    for t in range(t1, t2+1):
         infile = run+"_tri_lonlat_"+str(k).zfill(3)+"_"+str(t).zfill(4)+".vtp"
+        print(f"Processing file: {infile}", flush=True)
 
         p = Path(infile).expanduser()
         if not p.is_file():
             sys.exit(f"ERROR: file not found: {p}")   # exits with code 1
-
-        if avg_type == "Scalar":
-            print("Average %s of %s is" % (field, infile), end=" ")
-        else:
-            print("Average %s of %s is" % (avg_type, infile), end=" ")
 
         # Load the input vtk file
         reader = vtk.vtkXMLPolyDataReader()
@@ -200,16 +203,19 @@ for t in range (t1, t2+1):
         reader.Update()
         data = reader.GetOutput()
 
-        # Compute avg
-        avg = compute_avg (data, field, lat1, lat2)
+        # Compute avg at this time
+        avg = compute_avg(data, field, lat1, lat2)
 
-        print("%14.8e" % (avg)) 
-        f.write("%10.4e %3d %14.8e\n" % (t*dt, k, avg))
+        sum_avg += avg
+        ntime   += 1
 
-    for file in glob.glob(run+'_tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk'):
-        os.remove(file)
+    avg_t = sum_avg / ntime
+   
+    # Save: here we write k and ⟨avg⟩ over [t1,t2]
+    f.write("%3d %14.8e\n" % (k, avg_t))
 
+# Clean up temporary .vtk files (once, at the end)
+for file in glob.glob(run+'_tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk'):
+    os.remove(file)
 
-
-    
 
