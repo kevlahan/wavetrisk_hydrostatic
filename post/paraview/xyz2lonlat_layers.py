@@ -4,23 +4,24 @@
 # Can be run in parallel using mpi (where ntasks <= number of layers) or in serial.
 #
 # To run in serial:
-#   python3 xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 365
+#   python3 xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 365 1 10
 #
-# To run using mpi:
-#   mpirun -n 4 python xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 365
+# To run using mpi (number of tasks <= nz)
+#   mpirun -n 30 python xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 1 10
 #
 # To use as a module:
 #   from xyz2lonlat_layers import run_xyz_layers
 #
 # Calling:
-#   run_xyz_layers(run, Jmin, Jmax, nz, t)
+#   run_xyz_layers(run, Jmin, Jmax, nz, t1, t2)
 #
 # Input parameters:
 #   run = prefix for run without _tri (e.g. SimpleJ8Z60)
 #   Jmin = minimum level
 #   Jmax = maximum level
 #   nz   = number of vertical layers
-#   t    = time (save index)
+#   t1   = first time (save index)
+#   t2   = last time (save index)
 
 from pathlib import Path
 import subprocess
@@ -47,7 +48,8 @@ def parse_args():
     p.add_argument("Jmin", type=int)
     p.add_argument("Jmax", type=int)
     p.add_argument("nz",   type=int)
-    p.add_argument("t",    type=int)
+    p.add_argument("t1",    type=int)
+    p.add_argument("t2",    type=int)
     p.add_argument("--wdir", type=Path, default=None, help="Working/data directory")
     p.add_argument(
     "--prep-quiet",
@@ -118,61 +120,78 @@ def try_mpi():
     except Exception:
         return None
 
-def run_xyz_layers_serial(run, Jmin, Jmax, nz, t):
+def run_xyz_layers_serial(run, Jmin, Jmax, nz, t1, t2):
     """Pure serial fallback that mirrors the per-layer work."""
     failures = []
-    for z in range(1, nz + 1):
-        rc = run_one(z, run, Jmin, Jmax, t)
-        if rc != 0:
-            failures.append((z, rc))
-    return failures
-    
-def run_xyz_layers(run, Jmin, Jmax, nz, t, prep_quiet):
+    for t in range(t1, t2+1):
+        print(f"Processing file: {run}_tri_{t:04d}.vtk.tgz", flush=True)
+        for z in range(1, nz + 1):
+            rc = run_one(z, run, Jmin, Jmax, t)
+            if rc != 0:
+                failures.append((z, rc))
+                return failures
+
+def run_xyz_layers(run, Jmin, Jmax, nz, t1, t2, prep_quiet):
     """
-    Runs z=1..nz. If launched under MPI (mpirun/srun with mpi4py), distributes
-    work across ranks; otherwise runs serial. Returns a list of (z, rc) failures.
+    Runs z=1..nz for times t1..t2. If launched under MPI (mpirun/srun with mpi4py),
+    distributes work across ranks; otherwise runs serial. Returns a list of
+    (t, z, rc) failures on rank 0 (or on the only rank in serial).
     """
     comm = try_mpi()
     rank = comm.Get_rank() if comm else 0
     size = comm.Get_size() if comm else 1
 
     # Ensure all ranks agree on the working directory
-    # (either run mpirun with --wdir /abs/path OR broadcast Path.cwd())
     wdir = str(Path.cwd().resolve()) if rank == 0 else None
-    wdir = comm.bcast(wdir, root=0)
+    if comm:
+        wdir = comm.bcast(wdir, root=0)
     os.chdir(wdir)
 
-    # Build tar name and destination = SAME DIRECTORY AS THE TAR
-    tar_file = f"{run}_tri_{t:04d}.vtk.tgz"
-    tgz_path = str(Path(wdir) / tar_file)
-    dest_dir = wdir  # same directory
-
-    # Untar once on rank 0, wait for all
-    data_root = prep_once_rank0_then_barrier(comm, tgz_path, dest_dir)
-
-    # Remove surface data *.vtk file
-    if rank == 0:
-        surface_vtk = f"{run}_tri_000_{t:04d}.vtk"
-        p = Path(surface_vtk).expanduser()
-        if p.exists():
-            os.remove(surface_vtk)
-
+    # Accumulate failures over all times
     failures = []
-    for z in range(1 + rank, nz + 1, size):
-        rc = run_one(z, run, Jmin, Jmax, t)
-        if rc != 0:
-            failures.append((z, rc))
 
+    for t in range(t1, t2+1):
+        tar_file = f"{run}_tri_{t:04d}.vtk.tgz"
+        if rank == 0:
+            print(f"Processing file: {tar_file}", flush=True)
+
+        tgz_path = str(Path(wdir) / tar_file)
+        dest_dir = wdir
+
+        # Untar once on rank 0, barrier for others
+        try:
+            data_root = prep_once_rank0_then_barrier(comm, tgz_path, dest_dir)
+        except SystemExit as e:
+            # If prep_once calls sys.exit, you'll see it here
+            print(f"[rank {rank}] ERROR in prep for t={t}: {e}")
+            # Either re-raise or record as failure and continue:
+            failures.append((t, 0, int(getattr(e, 'code', 1))))
+            continue
+
+        # Remove surface data *.vtk file on rank 0
+        if rank == 0:
+            surface_vtk = f"{run}_tri_000_{t:04d}.vtk"
+            p = Path(surface_vtk).expanduser()
+            if p.exists():
+                os.remove(surface_vtk)
+
+        # Loop over z levels on this rank
+        for z in range(1 + rank, nz + 1, size):
+            rc = run_one(z, run, Jmin, Jmax, t)
+            if rc != 0:
+                print(f"[rank {rank}] run_one failed: t={t}, z={z}, rc={rc}")
+                failures.append((t, z, rc))
+
+    # Gather failures from all ranks
     if comm:
         all_fail = comm.gather(failures, root=0)
         if rank == 0:
             failures = [x for sub in all_fail for x in sub]
 
-    # return failures on rank 0 (or always, if serial)
     if (comm and rank == 0) or (comm is None) or size == 1:
         return failures
     else:
-        return []  # non-root ranks return an empty list
+        return []
 
 if __name__ == "__main__":
     a = parse_args()
@@ -188,9 +207,9 @@ if __name__ == "__main__":
     comm = try_mpi()
     rank = comm.Get_rank() if comm else 0
     if rank == 0 and not a.prep_quiet:
-        print(f"Converting layers for run={a.run}, J=[{a.Jmin},{a.Jmax}], nz={a.nz}, t={a.t}")
+        print(f"Converting layers for run={a.run}, J=[{a.Jmin},{a.Jmax}], nz={a.nz}, t1={a.t1}, t2={a.t2}")
 
-    failures = run_xyz_layers(a.run, a.Jmin, a.Jmax, a.nz, a.t, a.prep_quiet)
+    failures = run_xyz_layers(a.run, a.Jmin, a.Jmax, a.nz, a.t1, a.t2, a.prep_quiet)
     # gather/report if you like; many users just rely on per-rank prints
     if (comm is None) or (comm and rank == 0):
         if failures:
