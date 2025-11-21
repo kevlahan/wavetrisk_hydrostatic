@@ -21,7 +21,7 @@ level      = 8;           % resolution level
 zlevels    = 60;          % number of vertical layers
 type       = "u";         % u, curlu or divu
 avg        = true;        % analyze average spectrum or individual spectra
-power      = true;       % plot power law fit
+power      = true;        % plot power law fit
 plot_spec  = true;        % plot spectrum
 
 if tanh_strat
@@ -62,7 +62,7 @@ run_id = test_case+"J"+num2str(level,'%1.1d')+"Z"+num2str(zlevels,'%2.2d');  % n
 tmpdir = dir+"temp_spec"; mkdir(tmpdir)
 
 % Ensure each plot uses different colors
-figure;
+figure('Visible','on','Units','pixels','Position',[100 700 800 600]);
 pbaspect([4 3 1]); 
 set(gca,'XScale','log','YScale','log');
 ax = gca;
@@ -112,7 +112,7 @@ for cp_id = cp_min:cp_max
         pow_law (cp_id,zlev) = -P(1);
         
         if plot_spec
-            name_type = "z = "+compose('%5.0f',Z(zlev))+" [m], p = "+compose('%2.1f', P(1));
+            name_type = "z = "+compose('%5.0f',Z(zlev))+" m, p = "+compose('%2.1f', -P(1));
 
             hp(p) = loglog(scales, pspec(:,2), "linewidth", 3, "DisplayName", name_type); hold on; grid on
             p = p+1;
@@ -146,10 +146,11 @@ if plot_scales
 end
 
 set (gca,"fontsize",20);
-xlabel("\lambda (km)");ylabel("S(\lambda)"); legend(hp,'Location', 'best','FontName', 'Menlo');
+xlabel("\lambda (km)");ylabel("S(\lambda)"); 
+legend(hp,'Location', 'best','FontName', 'Menlo');
 set (gca,"Xdir","reverse");
 if tanh_strat
-    title("tanh stratification")
+    title("Tanh stratification")
 else
     title("Constant/linear stratification")
 end
@@ -335,11 +336,31 @@ if strcmp(test_case,"drake")
         deltaS*KM, deltaRh*KM, deltaM*KM, deltaSM*KM)
     fprintf('Rey = %2.2e Ro = %2.2e N_bv = %2.2e\n\n', Rey, Ro, N_bv)
 end
+
 % Layer depths
-Z = [-3800 -3430 -3100 -2800 -2540 -2300 -2090 -1900 -1730 -1580 -1440 -1320 -1210 -1100 -1020 ...
-      -946 -874 -809 -751 -698 -650 -606 -566 -530 -497 -466 -438 -412 -389 -366 -346 -326 -308  ...
-      -291 -275 -260 -245 -231 -218 -205 -193 -181 -170 -159 -148 -138 -127 -117 -107 -97.4 -87.8 -78.3 -68.8 ...
-      -59.5 -50.2 -41.0 -31.9 -22.7 -13.6 -4.54];
+Z_tanh = [ ...
+    -3.8000e+03  -3.4300e+03  -3.1000e+03  -2.8000e+03  -2.5400e+03  -2.3000e+03  -2.0900e+03  -1.9000e+03  -1.7300e+03  -1.5800e+03  -1.4400e+03  ...
+    -1.3200e+03  -1.2100e+03  -1.1100e+03  -1.0200e+03  -9.4600e+02  -8.7400e+02  -8.0900e+02  -7.5100e+02  -6.9800e+02  -6.5000e+02  -6.0600e+02  ...
+    -5.6600e+02  -5.3000e+02  -4.9700e+02  -4.6600e+02  -4.3800e+02  -4.1200e+02  -3.8900e+02  -3.6600e+02  -3.4600e+02  -3.2600e+02  -3.0800e+02  ...
+    -2.9100e+02  -2.7500e+02  -2.6000e+02  -2.4500e+02  -2.3100e+02  -2.1800e+02  -2.0500e+02  -1.9300e+02  -1.8100e+02  -1.7000e+02  -1.5900e+02  ...
+    -1.4800e+02  -1.3800e+02  -1.2700e+02  -1.1700e+02  -1.0700e+02  -9.7400e+01  -8.7800e+01  -7.8300e+01  -6.8800e+01  -5.9500e+01  -5.0200e+01  ...
+    -4.1000e+01 -3.1900e+01  -2.2700e+01  -1.3600e+01  -4.5400e+00];
+
+
+Z_linear = [ ...
+    -3.7900e+03  -3.3900e+03  -3.0400e+03  -2.7200e+03  -2.4400e+03  -2.1900e+03  -1.9600e+03  -1.7600e+03  -1.5800e+03  -1.4200e+03  -1.2800e+03  ...
+    -1.1600e+03  -1.0400e+03  -9.4300e+02  -8.5300e+02  -7.7200e+02  -7.0000e+02  -6.3600e+02  -5.7800e+02  -5.2600e+02  -4.8000e+02  -4.3800e+02  ...
+    -4.0100e+02  -3.6700e+02  -3.3700e+02  -3.0900e+02  -2.8500e+02  -2.6200e+02  -2.4200e+02  -2.2300e+02  -2.0700e+02  -1.9100e+02  -1.7700e+02  ...
+    -1.6500e+02  -1.5300e+02  -1.4200e+02  -1.3200e+02  -1.2300e+02  -1.1400e+02  -1.0600e+02  -9.8400e+01  -9.1300e+01  -8.4600e+01  -7.8300e+01  ...
+    -7.2300e+01  -6.6500e+01  -6.1000e+01  -5.5800e+01  -5.0700e+01  -4.5800e+01  -4.1000e+01  -3.6400e+01  -3.1900e+01  -2.7500e+01  -2.3100e+01  ...
+    -1.8800e+01  -1.4600e+01  -1.0400e+01  -6.2200e+00  -2.0700e+00];
+
+if tanh_strat
+    Z = Z_tanh;
+else
+    Z = Z_linear;
+end
+
 end
 
 

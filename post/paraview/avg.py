@@ -1,5 +1,5 @@
-# Computes area integrated averages of either specified scalar or Rossby number in a zonal band
-# from longitude-latitude vtp files.
+# Computes area integrated averages and standard deviations (over time) 
+# of either specified scalar or Rossby number in a zonal band from longitude-latitude vtp files.
 #
 # Usage: python avg.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 scl_Omega scl_radius avg_type field
 #
@@ -21,10 +21,11 @@
 #                    P/Ps
 #                    dz
 #
-# module load gcc python py-numpy py-scipy vtk
+# module load gcc mvapich python py-numpy py-scipy vtk
 import sys
 import vtk
 import glob
+import math
 from utilities import *
 from pathlib import Path
 
@@ -192,9 +193,14 @@ Radius_planet = 6371.229e3 / scl_radius # planet radius
     
 f = open (outfile, "w")
 
+import math
+
 for k in range(k1, k2+1):
-    sum_avg = 0.0
-    ntime   = 0
+
+    ntime = 0
+    mean  = 0.0      # running mean
+    M2    = 0.0      # running sum of squares of differences from the mean
+
     for t in range(t1, t2+1):
         infile = run+"_tri_lonlat_"+str(k).zfill(3)+"_"+str(t).zfill(4)+".vtp"
         print(f"Processing file: {infile}", flush=True)
@@ -209,16 +215,33 @@ for k in range(k1, k2+1):
         reader.Update()
         data = reader.GetOutput()
 
-        # Compute avg at this time
-        avg = compute_avg(data, field, lat1, lat2)
+        # Value at this time
+        x = compute_avg(data, field, lat1, lat2)
 
-        sum_avg += avg
-        ntime   += 1
+        # --- Welford update ---
+        ntime += 1
+        delta  = x - mean
+        mean  += delta / ntime
+        delta2 = x - mean
+        M2    += delta * delta2
+        # ----------------------
 
-    avg_t = sum_avg / ntime
-   
-    # Save: here we write k and ⟨avg⟩ over [t1,t2]
-    f.write("%3d %14.8e\n" % (k, avg_t))
+    # After the loop over t, compute variance / std
+
+    if ntime > 1:
+        # sample variance (divide by n-1)
+        variance = M2 / (ntime - 1)
+    else:
+        variance = 0.0
+
+    # Guard against tiny negative due to rounding
+    std_t = math.sqrt(max(variance, 0.0))
+
+    # mean is just 'mean'
+    avg_t = mean
+
+    # Save: k, mean, std deviation
+    f.write("%3d %14.8e %14.8e\n" % (k, avg_t, std_t))
 
 # Clean up temporary .vtk files (once, at the end)
 for file in glob.glob(run+'_tri_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9].vtk'):
