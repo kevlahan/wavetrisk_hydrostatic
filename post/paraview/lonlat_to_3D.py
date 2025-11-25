@@ -181,8 +181,8 @@ class Cell3D():
         img2 = vtk.vtkImageData()
         img3 = vtk.vtkImageData()
 
-        img1.SetDimensions(1, lat_dim, vert_dim);
-        img2.SetDimensions(lon_dim, 1, vert_dim);
+        img1.SetDimensions(1,       lat_dim, vert_dim);
+        img2.SetDimensions(lon_dim, 1,       vert_dim);
         img3.SetDimensions(lon_dim, lat_dim, vert_dim);
 
         img1.SetSpacing(rgrid.GetSpacing())

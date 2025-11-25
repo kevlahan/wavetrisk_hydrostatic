@@ -1,5 +1,5 @@
 # Computes area integrated rms of either specified scalar or Rossby number in a zonal band  from longitude-latitude vtp files
-# Usage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field
+# Usage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 scl_Omega scl_radius rms_type field
 # rms_type = Scalar, Rossby, KE, DeltaSM, DeltaI, VertFluxKE
 # field    = Field to analyze:
 #                Options =
@@ -15,14 +15,13 @@
 #                   Geopot_Height 
 #                   P/Ps
 #                   dz
+# Example:
+# python rms.py drakeJ8Z60 60 60 1 14 5 15 50 6 6 Scalar Vorticity
 import sys
 import vtk
 import glob
 from utilities import *
 from pathlib import Path
-
-Omega_planet  = 7.29211e-5 / 6  # planet rotation
-Radius_planet = 6371.229e3 / 6  # planet radius
 
 def compute_rms (data, field, lat1, lat2) :
     # Integrated zonal rms statistics between latitudes lat1 and lat2
@@ -131,17 +130,19 @@ def compute_rms (data, field, lat1, lat2) :
 
 # Input
 if (len(sys.argv)<10) :
-    print("\nUsage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 rms_type field\n")
-    print("Example 1: python3 rms.py drakeJ8Z60 1 60 120 120 5 Rossby \n")
-    print("Example 2: python3 rms.py drakeJ8Z60 1 60 120 120 5 Scalar Vorticity \n")
-    print("run      = run prefix of vtp files to load (e.g. drakeJ8Z60)")
-    print("k1       = First vertical layer")
-    print("k2       = Last  vertical layer")
-    print("t1       = First time count")
-    print("t2       = Last  time count")
-    print("dt       = Save interval (time = dt*count days)")
-    print("lat1     = Minimum latitude")
-    print("lat2     = Maximum latitude")
+    print("\nUsage: python rms.py base_vtk_file k1 k2 t1 t2 dt lat1 lat2 scl_Omega scl_radius  rms_type field\n")
+    print("Example 1: python3 rms.py drakeJ8Z60 1 60 120 120 5 15 50 6 6 Rossby \n")
+    print("Example 2: python3 rms.py drakeJ8Z60 1 60 120 120 5 15 50 6 6 Scalar Vorticity \n")
+    print("run        = run prefix of vtp files to load (e.g. drakeJ8Z60)")
+    print("k1         = First vertical layer")
+    print("k2         = Last  vertical layer")
+    print("t1         = First time count")
+    print("t2         = Last  time count")
+    print("dt         = Save interval (time = dt*count days)")
+    print("lat1       = Minimum latitude")
+    print("lat2       = Maximum latitude")
+    print("scl_Omega  = scaling factor for Omega:  Omega_Earth /scl_Omega")
+    print("scl_radius = scaling factor for radius: radius_Earth/scl_radius")
     print("rms_type = scalar, Rossby, speed, deltaSM, deltaI")
     print("field    = Field to analyze: \n \
                Options = \n \
@@ -160,23 +161,28 @@ if (len(sys.argv)<10) :
     print("Output is saved to run_[rms_type].txt")
     exit(0)
 
-run      = sys.argv[1]
-k1       = int(sys.argv[2])
-k2       = int(sys.argv[3])
-t1       = int(sys.argv[4])
-t2       = int(sys.argv[5])
-dt       = int(sys.argv[6])
-lat1     = float(sys.argv[7])
-lat2     = float(sys.argv[8])
-rms_type = sys.argv[9]
+run        = sys.argv[1]
+k1         = int(sys.argv[2])
+k2         = int(sys.argv[3])
+t1         = int(sys.argv[4])
+t2         = int(sys.argv[5])
+dt         = int(sys.argv[6])
+lat1       = float(sys.argv[7])
+lat2       = float(sys.argv[8])
+scl_Omega  = float(sys.argv[9])
+scl_radius = float(sys.argv[10])
+rms_type   = sys.argv[11]
 if rms_type == "Scalar":
-    field = sys.argv[10] 
+    field = sys.argv[12] 
 
 if rms_type == "Scalar":
     outfile = run+"_"+field+"_rms.txt"
 else:
     field = ""
     outfile = run+'_'+rms_type+"_rms.txt"
+
+Omega_planet  = 7.29211e-5 / scl_Omega  # planet rotation
+Radius_planet = 6371.229e3 / scl_radius  # planet radius
     
 f = open (outfile, "w")
 
