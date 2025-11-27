@@ -113,6 +113,9 @@ contains
     end if
     if (trim (test_case) /= "make_NCAR_topo" .and. trim (test_case) /= "spherical_harmonics") call write_and_export (vtk_grid)
     call barrier
+    
+    call initialize_dt_viscosity
+    call initialize_thresholds
 
 #ifdef PHYSICS
     if (physics_model .and. physics_type == "Simple") call init_physics 
