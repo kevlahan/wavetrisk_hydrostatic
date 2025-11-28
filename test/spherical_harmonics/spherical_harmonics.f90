@@ -86,21 +86,30 @@ program spherical_harmonics
   call finalize
 contains
   subroutine avg_spec (data_type)
+    ! Computes mean and variance of saved spectra. Saves mean and standard deviation.
     implicit none
     character(*) :: data_type
 
-    integer                            :: cp, j, jj, k, lmax
-    real(8), dimension(:), allocatable :: pspec, pspec_av
-    character(4)                       :: var_file1, var_file2
+    integer                             :: cp, j, jj, k, lmax, ntime
+    real(dp), dimension(:), allocatable :: delta, delta2, M2, mean, pspec, variance
+    character(4)                        :: var_file1, var_file2
 
     lmax = N/4 - 1
 
-    allocate (pspec(lmax+1), pspec_av(lmax+1))
-
+    allocate (delta(lmax+1), delta2(lmax+1), mean(lmax+1), M2(lmax+1), pspec(lmax+1), variance(lmax+1))
+    
     do k = k_min, k_max
-       pspec = 0d0; pspec_av = 0d0
        write (var_file2, '(i4.4)') k
+
+       mean     = 0.0_dp
+       M2       = 0.0_dp
+       pspec    = 0.0_dp
+       variance = 0.0_dp
+
+       ntime = 0
        do cp = cp_beg, cp_end
+
+          ! Read spectrum data
           write (var_file1, '(i4.4)') cp
           open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
                form="FORMATTED", status="OLD")
@@ -108,19 +117,24 @@ contains
              read (10,*) jj, pspec(j)
           end do
           close (10)
-          pspec_av = pspec_av + pspec
-       end do
-       pspec_av = pspec_av / (cp_end - cp_beg + 1)
 
-       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', &
-            form="FORMATTED", status="REPLACE")
+          ! Welford algorithm
+          ntime  = ntime + 1
+          delta  = pspec - mean
+          mean   = mean + delta / ntime
+          delta2 = pspec - mean
+          M2     = M2 + delta * delta2
+          
+       end do
+       variance = M2 / (ntime - 1)
+
+       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
        do j = 1, lmax + 1
-          write (10,'(i4,1x,es10.4)') j, pspec_av(j)
+          write (10,'(i4, 1x, 2(es10.4, 1x))') j, mean(j), sqrt (variance(j))
        end do
        close (10)
+       
     end do
-
-    deallocate (pspec, pspec_av)
   end subroutine avg_spec
 
   subroutine avg_local_spec (data_type)
@@ -153,8 +167,7 @@ contains
        mtse_av = mtse_av / (cp_end - cp_beg + 1)
        sd_av   = sd_av   / (cp_end - cp_beg + 1)
 
-       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', &
-            form="FORMATTED", status="REPLACE")
+       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
        do j = 1, lmax - lwin + 1
           write (10,'(i4,1x,2(es10.4,1x))') j, mtse_av(j), sd_av(j)
        end do
