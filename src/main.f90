@@ -109,9 +109,9 @@ contains
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        call count_active
 
-       if (trim (test_case) /= "make_NCAR_topo") call write_checkpoint
+       !if (trim (test_case) /= "make_NCAR_topo") call write_checkpoint
     end if
-    if (trim (test_case) /= "make_NCAR_topo" .and. trim (test_case) /= "spherical_harmonics") call write_and_export (vtk_grid)
+    !if (trim (test_case) /= "make_NCAR_topo" .and. trim (test_case) /= "spherical_harmonics") call write_and_export (vtk_grid)
     call barrier
     
     call initialize_dt_viscosity
@@ -383,19 +383,6 @@ contains
        end select
     end if
 #endif 
-    
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !    Vertical remapping
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    min_mass = cpt_min_mass () 
-    if (remap .and. min_mass < min_mass_remap) then
-       if (rank == 0 .and. log_min_mass) write (6,'(a)') 'Remapping vertical coordinates ...'
-       call remap_vertical_coordinates
-       iremap = 1
-    else
-       iremap = iremap + 1
-    end if
-    if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Grid adaptation
@@ -403,6 +390,19 @@ contains
     if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol)
+    
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !    Vertical remapping
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    min_mass = cpt_min_mass () 
+    if (remap .and. min_mass < min_mass_remap .or. iremap == iremap_max) then
+       if (rank == 0 .and. log_min_mass) write (6,'(a)') 'Remapping vertical coordinates ...'
+       call remap_vertical_coordinates
+       iremap = 1
+    else
+       iremap = iremap + 1
+    end if
+    if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Update time step and save data
