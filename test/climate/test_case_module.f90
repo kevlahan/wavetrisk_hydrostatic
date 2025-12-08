@@ -548,6 +548,8 @@ contains
        write (6,'(a,es8.2)') "omega        [rad/s]     = ", omega
        write (6,'(a,es8.2)') "ref_density [kg/m^3]     = ", ref_density
        write (6,'(a,es8.2)') "p_0           [hPa]      = ", p_0/100
+       write (6,'(a,es8.2)') "T_0           [K]        = ", T_0
+       write (6,'(a,es8.2)') "u_0           [m/s]      = ", u_0
        write (6,'(a,es8.2)') "P_top         [hPa]      = ", P_top/100
        write (6,'(a,es8.2)') "R_d      [J/(kg K)]      = ", R_d
        write (6,'(a,es8.2)') "c_p      [J/(kg K)]      = ", c_p
@@ -633,7 +635,7 @@ contains
   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
-    integer :: k
+    integer  :: k
     real(dp) :: p, P_s, rho_dz, theta_equil, k_T
 
     call std_surf_pres (0.0_dp, P_s)
@@ -670,10 +672,8 @@ contains
     ! Set non-dimensional viscosities and time step 
     implicit none
 
-    dt_init = cfl_num * dx_avg(max_level) / (u_0 + c_s)
+    dt_init = r_adv * dx_avg(max_level)/4 / (u_0 + c_s)
     dt = dt_init
-
-    C_visc = 0.1_dp
   end subroutine initialize_dt_viscosity_case
 
   subroutine apply_initial_conditions_case
