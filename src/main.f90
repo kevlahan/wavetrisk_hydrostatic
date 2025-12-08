@@ -109,9 +109,9 @@ contains
        call adapt (set_thresholds) ; dt_new = cpt_dt ()
        call count_active
 
-       !if (trim (test_case) /= "make_NCAR_topo") call write_checkpoint
+       if (trim (test_case) /= "make_NCAR_topo") call write_checkpoint
     end if
-    !if (trim (test_case) /= "make_NCAR_topo" .and. trim (test_case) /= "spherical_harmonics") call write_and_export (vtk_grid)
+    if (trim (test_case) /= "make_NCAR_topo" .and. trim (test_case) /= "spherical_harmonics") call write_and_export (vtk_grid)
     call barrier
     
     call initialize_dt_viscosity
