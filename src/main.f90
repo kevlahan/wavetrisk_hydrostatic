@@ -302,9 +302,10 @@ contains
 
        if (log_total_mass) call cal_total_mass (.true.)
 
-       itime  = nint (time * time_mult, 8)
-       dt_new = min (dt_init, cpt_dt ())
-       dt     = dt_new
+       itime = nint (time * time_mult, 8)
+       
+       dt_new = cpt_dt ()
+       dt = dt_new
 
        if (rank == 0) then
           write (6,'(/,A,es12.6,3(A,es8.2),A,I2,A,I9,/)') &
