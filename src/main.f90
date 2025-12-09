@@ -607,15 +607,15 @@ contains
                 acoustic_speed = sqrt (gamma * R_d * T)
                 speed          = abs (sol(S_VELO,k)%data(d)%elts(ide))
 
-                dt_adv = minval (cfl_num * dx / (speed + acoustic_speed))
-                dt_loc = min (dt_loc, dt_adv)
+                dt_adv = cfl_safety * minval (r_adv * dx/4 / (speed + acoustic_speed))
+                dt_loc = min (dt_init, dt_loc, dt_adv)
              end do
           else
              do k = 1, zlevels
                 speed = abs (sol(S_VELO,k)%data(d)%elts(ide))
 
-                dt_adv = minval (cfl_num * dx / (speed + wave_speed))
-                dt_loc = min (dt_loc, dt_adv)
+                dt_adv = cfl_safety * minval (r_adv * dx/4 / (speed + wave_speed))
+                dt_loc = min (dt_init, dt_loc, dt_adv)
              end do
           end if
        end if
@@ -627,6 +627,17 @@ contains
   contains
     ! Routines to compute exact amplification factors for diffusive stability on adaptive grid
     ! Example: dt_dif = r_dif / theta_max_sclr ()**Laplace_sclr / nu_scale (S_MASS,1)
+    
+    function dt_max_diffusive () 
+      ! Maximum diffusive time step
+      implicit none
+      real(dp), dimension(3) :: dt_max_diffusive
+
+      dt_max_diffusive = [ &
+           r_dif / theta_max_sclr ()**Laplace_sclr / nu_scale (S_MASS,1), &
+           r_dif / theta_max_divu ()**Laplace_divu / nu_scale (S_DIVU,1), &
+           r_dif / theta_max_rotu ()**Laplace_rotu / nu_scale (S_ROTU,1) ]
+    end function dt_max_diffusive
 
     real(dp) function theta_max_sclr ()
       ! Maximum amplification factor for scalar diffusion

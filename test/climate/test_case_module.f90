@@ -523,7 +523,7 @@ contains
        write (6,'(a,i1)')     "optimize_grid           = ", optimize_grid
        write (6,'(a,l1)')     "adapt_dt                = ", adapt_dt
        write (6,'(a,es8.2)') "dt_init                 = ", dt_init
-       write (6,'(a,es8.2)') "cfl_num                 = ", cfl_num
+       write (6,'(a,es8.2)') "cfl_safety                 = ", cfl_safety
        write (6,'(a,a)')      "timeint_type            = ", trim (timeint_type)
        write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
        if (Laplace_sclr /= 0) &
@@ -672,7 +672,7 @@ contains
     ! Set non-dimensional viscosities and time step 
     implicit none
 
-    dt_init = r_adv * dx_avg(max_level)/4 / (u_0 + c_s)
+    dt_init = cfl_safety * r_adv * dx_avg(max_level)/4 / (u_0 + c_s)
     dt = dt_init
   end subroutine initialize_dt_viscosity_case
 

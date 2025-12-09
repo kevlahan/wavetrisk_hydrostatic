@@ -377,7 +377,7 @@ contains
     read (fid,*) varname, tol
     read (fid,*) varname, optimize_grid
     read (fid,*) varname, adapt_dt
-    read (fid,*) varname, cfl_num
+    read (fid,*) varname, cfl_safety
     read (fid,*) varname, timeint_type
     read (fid,*) varname, n_diffuse
     read (fid,*) varname, dt_write
@@ -419,7 +419,7 @@ contains
        write (6,'(A,es10.4)') "tolerance           = ", tol
        write (6,'(A,i1)')     "optimize_grid       = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt            = ", adapt_dt
-       write (6,'(A,es10.4)') "cfl_num             = ", cfl_num
+       write (6,'(A,es10.4)') "cfl_safety             = ", cfl_safety
        write (6,'(a,a)')      "timeint_type        = ", trim (timeint_type)
        write (6,'(A,es10.4)') "pressure_save (hPa) = ", pressure_save(1)/100
        write (6,'(A,i4)')     "n_diffuse           = ", n_diffuse
@@ -510,7 +510,7 @@ contains
     C_rotu = C_sclr / 4**Laplace_rotu ! <= 1.09e-3 for hyperdiffusion (lower than exact limit 1/24^2 = 1.7e-3 due to non-uniform grid)
 
     ! CFL limit for time step
-    dt_cfl = cfl_num*dx_avg(max_level)/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
+    dt_cfl = cfl_safety*dx_avg(max_level)/(wave_speed+Udim) * 0.85 ! corrected for dynamic value
     dt_init = dt_cfl
 
     tau_sclr = dt_cfl / C_sclr

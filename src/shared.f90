@@ -229,7 +229,7 @@ module shared_mod
 
   real(dp)                                       :: a_0, b_0, lambda_1, lambda_2, mu_1, mu_2, nu_0, T_ref, S_ref
   real(dp)                                       :: dbin, dt, dt_init, dt_phys, dt_write, time_end, time
-  real(dp)                                       :: omega, radius, grav_accel, cfl_adv, cfl_bar, cfl_num, kmax
+  real(dp)                                       :: omega, radius, grav_accel, cfl_safety, kmax
   real(dp)                                       :: porosity, ref_density, ref_density_air, ref_density_water
   real(dp)                                       :: mass_error, max_depth, min_depth, min_mass, min_mass_remap
   real(dp)                                       :: gamma, kappa, p_0, p_top, theta1, theta2, visc_divu, visc_rotu
@@ -367,10 +367,7 @@ contains
     vert_diffuse            = .false.                             ! include vertical diffusion in ocean models (T)
 
     ! Default numerical method values
-    cfl_adv                 = 1.0_dp                              ! advective CFL number for ocean (mode split case)
-    cfl_bar                 = 0.5_dp                              ! baroclinic CFL number for ocean (mod split case)
-    cfl_num                 = 0.95_dp                             ! advective CFL number for atmosphere (based on acoustic speed). 
-
+    cfl_safety              = 0.9_dp                              ! safety factor for maximum stable advectice time step
     dt_phys                 = 30 * MINUTE                         ! interval for physics split step
     dt_write                = 5  * DAY                            ! interval for writing data
     iadapt                  = 1                                   ! adapt horizontal grid every iadapt time step

@@ -193,7 +193,7 @@ contains
     read (fid,*) varname, iremap
     read (fid,*) varname, log_iter
     read (fid,*) varname, tol
-    read (fid,*) varname, cfl_num
+    read (fid,*) varname, cfl_safety
     read (fid,*) varname, dt_write
     read (fid,*) varname, CP_EVERY
     read (fid,*) varname, time_end
@@ -238,7 +238,7 @@ contains
        write (6,'(A,es10.4)') "tolerance                      = ", tol
        write (6,'(A,i1)')     "optimize_grid                  = ", optimize_grid
        write (6,'(A,L1)')     "adapt_dt                       = ", adapt_dt
-       write (6,'(A,es10.4)') "cfl_num                        = ", cfl_num
+       write (6,'(A,es10.4)') "cfl_safety                        = ", cfl_safety
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(A,es10.4)') "dt_write [d]                   = ", dt_write/DAY
@@ -687,7 +687,7 @@ contains
     real(8) :: C, C_b, C_divu, C_mu, C_rotu, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_avg(max_level)/wave_speed, 1.4d0*dx_avg(max_level)/u_wbc, 1.2d0*dx_avg(max_level)/c1)
+    dt_cfl = min (cfl_safety*dx_avg(max_level)/wave_speed, 1.4d0*dx_avg(max_level)/u_wbc, 1.2d0*dx_avg(max_level)/c1)
     dt_init = dt_cfl
 
     C = 5d-3 ! <= 1/2 if explicit

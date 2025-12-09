@@ -5,7 +5,7 @@ zlevels            20             ! number of vertical levels
 remap              T             ! remap vertical grid
 iremap             1            ! remap every iremap time steps
 tol      	   4e-3          ! non-dimensional tolerance
-cfl_num            15            ! cfl number for barotropic mode
+cfl_safety            15            ! cfl number for barotropic mode
 dt_write           40             ! save interval (days)
 CP_EVERY           1             ! checkpoint every CP_EVERY saves
 time_end           40          ! final time (days)

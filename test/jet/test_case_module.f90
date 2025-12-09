@@ -212,7 +212,7 @@ contains
        read (fid,*) varname, iremap
        read (fid,*) varname, log_iter
        read (fid,*) varname, tol
-       read (fid,*) varname, cfl_num
+       read (fid,*) varname, cfl_safety
        read (fid,*) varname, dt_write
        read (fid,*) varname, CP_EVERY
        read (fid,*) varname, time_end
@@ -228,7 +228,7 @@ contains
     call MPI_Bcast (iremap,      1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (log_iter,    1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (tol,         1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (cfl_num,     1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (cfl_safety,     1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (dt_write,    1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (CP_EVERY,    1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
     call MPI_Bcast (time_end,    1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
@@ -282,7 +282,7 @@ contains
 
        write (6,'(/,A)')      "TIME INTEGRATION PARAMETERS"
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
-       write (6,'(A,es10.4)') "cfl_num                        = ", cfl_num
+       write (6,'(A,es10.4)') "cfl_safety                        = ", cfl_safety
        write (6,'(A,L1)')     "adapt_dt                       = ", adapt_dt
        write (6,'(A,L1)')   "mode_split                      = ", mode_split
        write (6,'(A,F4.2)') "theta1                          = ", theta1
@@ -924,7 +924,7 @@ contains
     real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
 
     ! Initial CFL limit for time step
-    dt_cfl = min (cfl_num*dx_avg(max_level)/wave_speed, 1.4d0*dx_avg(max_level)/Udim, 1.2d0*dx_avg(max_level)/c1)
+    dt_cfl = min (cfl_safety*dx_avg(max_level)/wave_speed, 1.4d0*dx_avg(max_level)/Udim, 1.2d0*dx_avg(max_level)/c1)
     dt_init = dt_cfl
 
     C = 5d-3 ! <= 0.5 if explicit for Laplacian diffusion, <= 0.1 for hyperdiffusion

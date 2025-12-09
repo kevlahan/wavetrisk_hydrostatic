@@ -16,7 +16,7 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  adapt_dt                 = .false.                          ! adapt time step
+  adapt_dt                 = .true.                          ! adapt time step
   if (physics_type == "Held_Suarez") adapt_dt = .false.
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type

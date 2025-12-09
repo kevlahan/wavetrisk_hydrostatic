@@ -1,7 +1,7 @@
 program Drake
   ! Simplified Drake passage test case on small planet
   ! (inspired by Ferreira, Marshall and Rose 2011, J Climate 24, 992-1012)
-  use io_vtk_mod
+  !use io_vtk_mod
   use main_mod
   use test_case_mod
   implicit none
@@ -20,14 +20,14 @@ program Drake
   compressible            = .false.
   default_thresholds      = .false. ! needed because do not have good initial estimate of layer dependence on variable norms
   log_min_mass            = .false.
-  mode_split              = .true.
+  mode_split              = .false.
   penalize                = .true.                
   split_mean_perturbation = .true.
 
-  if (mode_split) then
-     cfl_num              = 15.0_dp
+   if (mode_split) then
+     cfl_safety              = 15.0_dp
   else
-     cfl_num              =  0.9_dp                             
+     cfl_safety              = 0.8_dp                            
   end if
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -40,7 +40,7 @@ program Drake
   ref_density    =       1030 * KG/METRE**3
   c_p            =    3991.87 * JOULE/(KG*KELVIN) ! specific heat at constant pressure for seawater
 
-  porosity       = 1.0e-2_dp
+  porosity       = 3.0e-1_dp
 
   ! Earth scaling factors
   L_norm         = radius_earth
@@ -64,7 +64,8 @@ program Drake
   beta           = 2*omega * cos (40 * DEG) / radius       ! beta parameter at 45 degrees latitude
 
   min_depth      = -50 * METRE / H_norm                    ! minimum allowed depth (must be negative)
-  k_T            =       1 / (30 * DAY)                    ! relaxation time to mean buoyancy profile (if relax = .true.)
+  !k_T            =       1 / (30 * DAY)                    ! relaxation time to mean buoyancy profile (if relax = .true.)
+  k_T            =       1 / (60 * DAY)                    ! relaxation time to mean buoyancy profile (if relax = .true.)
   
   if (zlevels == 1) then
      relax                = .false.
@@ -111,7 +112,7 @@ program Drake
   dz             = abs (max_depth) / dble (zlevels)                           ! layer depth scale
   
   wave_speed     = sqrt (grav_accel * abs (max_depth))                        ! inertia-gravity wave speed
-  dt_init        = cfl_num * 0.85 * dx_min / wave_speed                       ! average time step
+  dt_init        = cfl_safety * 0.85 * dx_min / wave_speed                       ! average time step
   visc           = C_Drake * 2.51/dt_init * (dx_min**2/24/1.65)**Laplace_rotu ! viscosity for RK3
   delta_I        = sqrt (u_wbc/beta)                                          ! inertial layer
   delta_M        = (visc/beta)**(1.0_dp/(2*Laplace_rotu + 1))                 ! Munk layer scale
@@ -160,10 +161,10 @@ program Drake
   total_cpu_time = 0.0_dp
   do while (time < time_end)
      call start_timing
-     call time_step 
+     call time_step
      if (relax) call euler (sol, wav_coeff, trend_relax, dt)
      call stop_timing
-
+      
      call print_log
   end do
   if (rank == 0) write (6,'(a,es11.4)') "Total cpu time = ", total_cpu_time

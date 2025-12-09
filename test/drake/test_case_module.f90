@@ -146,7 +146,7 @@ contains
        write (6,'(a,es10.4)') "tolerance                      = ", tol
        write (6,'(a,i1)')     "optimize_grid                  = ", optimize_grid
        write (6,'(a,L1)')     "adapt_dt                       = ", adapt_dt
-       write (6,'(a,es10.4)') "cfl_num                        = ", cfl_num
+       write (6,'(a,es10.4)') "cfl_safety                        = ", cfl_safety
        write (6,'(a,a)')      "timeint_type                   = ", trim (timeint_type)
 
        write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
@@ -478,7 +478,7 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer  :: d, id, k
+    integer :: d, id, k
 
     d  = dom%id+1
     id = idx (i, j, offs, dims) + 1
@@ -577,7 +577,7 @@ contains
     ! Evaluate viscosity time steps (for finest grid) 
     implicit none
 
-    dt_init = cfl_num * dx_avg(max_level) / (u_wbc + wave_speed)
+    dt_init = cfl_safety * dx_avg(max_level) / (u_wbc + wave_speed)
     dt = dt_init
 
     C_visc           = C_Drake
@@ -678,7 +678,7 @@ contains
 
     real(dp) :: lat, lon, shift, smth_dtheta
     
-    smth_dtheta = dx_avg(min_level) / radius ! smooth over about two grid points (radians)
+    smth_dtheta = dx_avg(max_level) / radius ! smooth over about two grid points (radians)
     
     shift = 2.5 * smth_dtheta
 
