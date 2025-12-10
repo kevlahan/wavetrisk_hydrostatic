@@ -1379,17 +1379,14 @@ contains
     val1(id_edge(id)) = val2(id_edge(id))
   end subroutine cal_equals_edge
 
-  real(dp) function nu_scale (type, zlev, dom, i, j, offs, dims)
+  real(dp) function nu_scale (type, zlev, dx_loc)
     ! Viscosity for diffusion on hexagonal C-grids
     ! include dom, id for scale-aware viscosity
     ! (conservative Gershgorin estimate to be consisistent with pentagons and irregular grid
     ! uses 1/8 factor instead of 1/6 for regular hexagonal grid)
     implicit none
-    integer                                  :: type, zlev
-    type(domain),                   optional :: dom
-    integer,                        optional :: i, j
-    integer, dimension(N_BDRY+1),   optional :: offs
-    integer, dimension(2,N_BDRY+1), optional :: dims
+    integer            :: type, zlev
+    real(dp), optional :: dx_loc
 
     real(dp) :: dx
 
@@ -1399,10 +1396,10 @@ contains
     real(dp), parameter :: rho_divu = 1.10_dp 
     real(dp), parameter :: rho_rotu = 1.65_dp 
 
-    if (present (dom)) then ! scale aware based on A = P dx / 4 for regular polygons
-       dx = hex_dx (dom, i, j, offs, dims)
-    else                    ! viscosity based on max_level
-       dx = dx_avg (max_level)
+    if (present(dx_loc)) then
+       dx = dx_loc
+    else
+       dx = dx_avg(max_level)
     end if
     
     select case (type)
@@ -1888,7 +1885,7 @@ contains
     hex_pedlen = dom%pedlen%elts(ide)
   end function hex_pedlen
 
-   function hex_len (dom, i, j, offs, dims)
+  function hex_len (dom, i, j, offs, dims)
     ! The six dual grid edges (distances to neighbour hexagons) associated to hexagon i, j
     implicit none
     integer                        :: i, j
@@ -1922,7 +1919,7 @@ contains
     integer  :: id
     real(dp) :: Area, Perimeter
     
-    id = idx (i,   j,   offs, dims)
+    id = idx (i, j, offs, dims)
 
     Perimeter = sum (hex_pedlen (dom, i, j, offs, dims))
     Area      = 1 / dom%areas%elts(id+1)%hex_inv
