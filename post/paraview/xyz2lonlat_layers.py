@@ -7,7 +7,7 @@
 #   python3 xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 365 1 10
 #
 # To run using mpi (number of tasks <= nz)
-#   mpirun -n 30 python xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 1 10
+#   srun -n 30 python -m mpi4py xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 1 10
 #
 # To use as a module:
 #   from xyz2lonlat_layers import run_xyz_layers
@@ -75,10 +75,15 @@ def prep_once_rank0_then_barrier(comm: MPI.Comm, tgz_path: str, dest_dir: str,
     Non-root ranks poll for .ready after the Barrier to cover NFS lag.
     Returns absolute dest_dir.
     """
-    rank = comm.Get_rank()
+    comm = try_mpi()
+    rank = comm.Get_rank() if comm else 0
+    size = comm.Get_size() if comm else 1
     tgz  = Path(tgz_path).expanduser().resolve()
     dest = Path(dest_dir).expanduser().resolve()
     ready = dest / ".ready"
+
+    if rank == 0:
+        print(f"[xyz2lonlat_layers] Number of MPI tasks = {size}", flush=True)
 
     if rank == 0:
         dest.mkdir(parents=True, exist_ok=True)

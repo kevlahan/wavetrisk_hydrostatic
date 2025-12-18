@@ -1,5 +1,5 @@
 # Usage example (serial): python lonlat_to_3D.py SimpleJ5Z30 y 5 5 30 y fall 163 168
-# Usage example (mpi):    python lonlat_to_3D.py --nprocs 4 SimpleJ5Z30 y 5 5 30 y fall 163 168 --step-days 5
+# Usage example (mpi):    srun -n 30 python -m mpi4py lonlat_to_3D.py SimpleJ5Z30 y 5 5 30 y fall 163 168 --step-days 5
 # 
 #    
 #    Generates a 3D and zonal/meridional projections from a series of vtk layers.
@@ -12,7 +12,7 @@
 #    (3) vtkCellData are computed as the average of the values from the two 2D cells in adjacent layers.  
 #
 # Author: Weiguang Guan and Nicholas Kevlahan (McMaster University)
-# Date : Last revision 2025-04-21 (Nicholas Kevlahan)
+# Date : Last revision 2025-12-17 (Nicholas Kevlahan)
 
 import csv, os, sys, glob, re, argparse, textwrap
 from utilities import *
@@ -26,27 +26,7 @@ import scipy.ndimage
 from datetime import datetime, timedelta
 from pathlib import Path
 from xyz2lonlat_layers import run_xyz_layers, run_xyz_layers_serial
-
-def run_xyz_layers_mpi(nprocs, run, Jmin, Jmax, nz, t, launcher="mpirun", workdir=None):
-    here = Path(__file__).resolve().parent
-    script = here / "xyz2lonlat_layers.py"   # same directory
-
-    # Keep threaded libs to 1 thread per rank
-    env = os.environ.copy()
-    for v in ("OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS","NUMEXPR_NUM_THREADS"):
-        env.setdefault(v, "1")
-
-    cmd = [
-        launcher, "-n", str(nprocs),
-        sys.executable, "-m", "mpi4py", str(script),
-        run, str(Jmin), str(Jmax), str(nz), str(t),
-    ]
-
-    # working directory: default to current shell CWD (data dir), or override
-    cwd = Path(workdir).resolve() if workdir else Path.cwd().resolve()
-
-    # >>> the missing call <<<
-    subprocess.run(cmd, check=True, cwd=cwd, env=env)
+from mpi4py import MPI
 
 ################################################################################
 class Cell3D():
@@ -657,8 +637,6 @@ DOC = textwrap.dedent("""\
       processes compressible data from run SimpleJ5J7Z30 with levels 5 to 7 and 30 layers for spring
       for *.vtk.tgz data with indices 1 to 365 saved every 5 days with first data from June 21.
 
-  Include --nprocs tasks (where tasks is number of MPI ranks) to parallelize *.vtp layer computation.
-
   If t2 ≠ t1, the following time-averaged data are saved (suffix _season if seasons == 'y'):
     run.vti             3D uniform (lon,lat,P/Ps) 3D image data
     run_zonal.vti       2D uniform (lat,P/Ps)     zonally averaged image data
@@ -719,8 +697,6 @@ from a series of layers in directory folder.
         formatter_class=_Fmt,
     )
     
-    p.add_argument("--nprocs", type=int, default=1, help="MPI ranks to use for computing lon/lat layer data projections")
-
     # required positionals
     p.add_argument("run")
     p.add_argument("compressible", choices=["y","n","Y","N"])
@@ -780,7 +756,7 @@ from a series of layers in directory folder.
         total_days = None
         n_years    = None
 
-    return a.nprocs, run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, total_days, n_years
+    return run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, total_days, n_years
 
     
 #########################################################################################################################################
@@ -788,7 +764,7 @@ from a series of layers in directory folder.
 #########################################################################################################################################
 
 # Input parameters
-(nprocs, run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, total_days, n_years) = parse_args()
+(run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, total_days, n_years) = parse_args()
 
 # Grid dimensions (same number of rectangular cells as lozenge cells on the sphere) 
 lat_dim  = int(np.sqrt((10*4**Jmax + 2)/2))
@@ -874,16 +850,21 @@ idxs = sorted(set(idxs)) # remove duplicates and sort
 
 print(len(idxs), "file indices to process:", list(idxs),"\n")
 
-for t in idxs:
-    print("    processing file with index ", t)
-    
-    if nprocs > 1:
-        run_xyz_layers_mpi(nprocs, run, Jmin, Jmax, nz, t)
-    else:
-        failures = run_xyz_layers_serial(run, Jmin, Jmax, nz, t)
-        if failures:
-            print("Failures:", failures)
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
 
+for t in idxs:
+    print("    Processing file with index ", t)
+    
+    failures = run_xyz_layers(run, Jmin, Jmax, nz, t, t, True)
+    if failures:
+        print("Failures:", failures)
+
+    comm.Barrier()          # ensure all .vtp files are finished
+
+    if rank != 0:
+        continue            # only rank 0 continues past here
+   
     vtp_series = []
     for z in range (1, nz+1):
         vtp_series.append(run+'_tri_lonlat_'+str(z).zfill(3)+'_'+str(t).zfill(4)+".vtp")
