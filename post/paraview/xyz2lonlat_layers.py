@@ -67,19 +67,19 @@ def parse_args():
 
     return p.parse_args()
 
-def prep_once_rank0_then_barrier(comm, tgz_path: str, dest_dir: str,
+def prep_once_rank0_then_barrier(comm, tgz_path: str, dest_dir: str, tag: str,
                                  timeout_s: int = 300) -> str:
     """
-    Rank 0 extracts tgz_path into dest_dir and writes dest/.ready when finished.
-    All ranks wait (Barrier). Non-root ranks poll for .ready to cover NFS lag.
-    Returns absolute dest_dir.
+    Rank 0 extracts tgz_path into dest_dir and writes a unique ready marker.
+    All ranks wait (Barrier). Non-root ranks poll for the marker to cover NFS lag.
     """
     tgz  = Path(tgz_path).expanduser().resolve()
     dest = Path(dest_dir).expanduser().resolve()
-    ready = dest / ".ready"
+
+    ready = dest / f".ready_{tag}"
+    tmp   = dest / f".ready_{tag}.tmp"
 
     if comm is None:
-        # Serial: just extract (no barrier)
         dest.mkdir(parents=True, exist_ok=True)
         if not tgz.exists():
             raise FileNotFoundError(f"tar not found: {tgz}")
@@ -96,7 +96,6 @@ def prep_once_rank0_then_barrier(comm, tgz_path: str, dest_dir: str,
         else:
             with tarfile.open(str(tgz), "r:gz") as tar:
                 tar.extractall(dest, filter="data")
-            tmp = dest / ".ready.tmp"
             tmp.write_text("ok")
             os.replace(tmp, ready)
 
@@ -110,7 +109,6 @@ def prep_once_rank0_then_barrier(comm, tgz_path: str, dest_dir: str,
             time.sleep(0.1)
 
     return str(dest)
-
 
 for v in ("OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS","NUMEXPR_NUM_THREADS"):
     os.environ.setdefault(v, "1")
@@ -161,7 +159,7 @@ def run_xyz_layers(run, Jmin, Jmax, nz, t1, t2, prep_quiet):
 
         # Untar once on rank 0, barrier for others
         try:
-            _ = prep_once_rank0_then_barrier(comm, tgz_path, dest_dir)
+            _ = prep_once_rank0_then_barrier(comm, tgz_path, dest_dir, tag=f"{t:04d}")
         except Exception as e:
             if rank == 0:
                 print(f"[prep] ERROR for t={t}: {e}", file=sys.stderr, flush=True)
