@@ -425,14 +425,15 @@ def time_mean():
         for row in vertical_profile:
             writer.writerow(row)
    
-    # Delete individual time files except if only process a single time
+    # Delete individual time files except if not processing a single time
     if (len(idxs)!=1):
-        delete_files(run+'_[0-9][0-9][0-9][0-9]'+'_'+season+'.vtk')
-        delete_files(run+'_[0-9][0-9][0-9][0-9]'+'_'+season+'.csv')
-        delete_files(run+'_[0-9][0-9][0-9][0-9]'+'_zonal_'+season+'.vti')
-        delete_files(run+'_[0-9][0-9][0-9][0-9]'+'_merid_'+season+'.vti')
-        delete_files(run+'_[0-9][0-9][0-9][0-9]'+'_'+season+'.vti')
-                
+        for i in idxs:
+             tag = f"_{i:04d}"
+             delete_files(f"{run}{tag}_{season}.vtk")
+             delete_files(f"{run}{tag}_{season}.csv")
+             delete_files(f"{run}{tag}_zonal_{season}.vti")
+             delete_files(f"{run}{tag}_merid_{season}.vti")
+             delete_files(f"{run}{tag}_{season}.vti")
 
 def avg_images(file_type):
     # Average all image files specified by file_type
@@ -734,8 +735,9 @@ from a series of layers in directory folder.
     if seasons and (a.season == "all"):
         p.error("seasonal mode requires a season name (e.g., 'spring').")
 
-    for k, v in sorted(vars(a).items()):
-        print(f"{k:>12}: {v}")
+    if rank==0:
+        for k, v in sorted(vars(a).items()):
+            print(f"{k:>12}: {v}", flush=True)
 
     # unpack to variable names
     run          = a.run
@@ -762,6 +764,8 @@ from a series of layers in directory folder.
 #########################################################################################################################################
 #    Main program
 #########################################################################################################################################
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
 
 # Input parameters
 (run, compressible, Jmin, Jmax, nz, seasons, season, t1, t2, step_days, start_date, total_days, n_years) = parse_args()
@@ -810,8 +814,9 @@ meanAvV   = np.zeros((vert_dim,lat_dim))
 with suppress(OSError):
     os.remove(sys.argv[1]+'/.DS_Store')
 
-print("\nInterpolating to uniform", lon_dim, "x", lat_dim, "x", vert_dim, "grid\n")
-print("Season = ", season,"\n")
+if rank == 0:
+    print(f"\nInterpolating to uniform {lon_dim} x {lat_dim} x {vert_dim} grid\n", flush=True)
+    print(f"Season = {season}\n", flush=True)
 
 if seasons:
     def ceil_div(a, b):
@@ -848,14 +853,13 @@ else:
     
 idxs = sorted(set(idxs)) # remove duplicates and sort
 
-print(len(idxs), "file indices to process:", list(idxs),"\n")
-
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
+if rank == 0:
+     print(f"{len(idxs)} file indices to process: {list(idxs)}\n", flush=True)
 
 for t in idxs:
-    print("    Processing file with index ", t)
-    
+    if rank == 0:
+        print(f"    Processing file with index {t}", flush=True)
+        
     failures = run_xyz_layers(run, Jmin, Jmax, nz, t, t, True)
     if failures:
         print("Failures:", failures)
@@ -873,7 +877,7 @@ for t in idxs:
     cell3d.construct_3Dimage()
 
 # Compute mean over all times
-if (len(idxs)!=1):
+if rank == 0 and len(idxs)!=1:
     time_mean()
 
 #########################################################################################################################################

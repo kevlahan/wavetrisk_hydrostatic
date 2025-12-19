@@ -37,8 +37,8 @@ class _Fmt(argparse.ArgumentDefaultsHelpFormatter,
 def parse_args():
     epilog = textwrap.dedent("""\
       Examples
-        mpirun -n 4 python -m mpi4py xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 365
-        python xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 365
+        mpirun -n 4 python -m mpi4py xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 1 10
+        python xyz2lonlat_layers.py SimpleJ5Z30 5 5 30 1 10
     """)
     p = argparse.ArgumentParser(
         prog="xyz2lonlat_layers.py",
@@ -50,59 +50,58 @@ def parse_args():
     p.add_argument("Jmin", type=int)
     p.add_argument("Jmax", type=int)
     p.add_argument("nz",   type=int)
-    p.add_argument("t1",    type=int)
-    p.add_argument("t2",    type=int)
+    p.add_argument("t1",   type=int)
+    p.add_argument("t2",   type=int)
     p.add_argument("--wdir", type=Path, default=None, help="Working/data directory")
     p.add_argument(
-    "--prep-quiet",
-    action=argparse.BooleanOptionalAction,
-    default=True,
-    help="Suppress prep/untar messages",
-)
+        "--prep-quiet",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Suppress prep/untar messages",
+    )
 
-    if len(sys.argv) == 1:  # no args → show full help + examples
+    if len(sys.argv) == 1:
         print()
-        p.print_help(); sys.exit(0)
+        p.print_help()
+        sys.exit(0)
 
-    a = p.parse_args()
-    return a
+    return p.parse_args()
 
-def prep_once_rank0_then_barrier(comm: MPI.Comm, tgz_path: str, dest_dir: str,
-                                 timeout_s: int = 300, verbose: bool = True) -> str:
+def prep_once_rank0_then_barrier(comm, tgz_path: str, dest_dir: str,
+                                 timeout_s: int = 300) -> str:
     """
-    Rank 0 extracts tgz_path into dest_dir (same dir as tar is fine).
-    Writes dest/.ready when finished. All ranks then pass a Barrier.
-    Non-root ranks poll for .ready after the Barrier to cover NFS lag.
+    Rank 0 extracts tgz_path into dest_dir and writes dest/.ready when finished.
+    All ranks wait (Barrier). Non-root ranks poll for .ready to cover NFS lag.
     Returns absolute dest_dir.
     """
-    comm = try_mpi()
-    rank = comm.Get_rank() if comm else 0
-    size = comm.Get_size() if comm else 1
     tgz  = Path(tgz_path).expanduser().resolve()
     dest = Path(dest_dir).expanduser().resolve()
     ready = dest / ".ready"
 
-    if rank == 0:
-        print(f"[xyz2lonlat_layers] Number of MPI tasks = {size}", flush=True)
+    if comm is None:
+        # Serial: just extract (no barrier)
+        dest.mkdir(parents=True, exist_ok=True)
+        if not tgz.exists():
+            raise FileNotFoundError(f"tar not found: {tgz}")
+        with tarfile.open(str(tgz), "r:gz") as tar:
+            tar.extractall(dest, filter="data")
+        return str(dest)
+
+    rank = comm.Get_rank()
 
     if rank == 0:
         dest.mkdir(parents=True, exist_ok=True)
         if not tgz.exists():
             print(f"[prep] ERROR: tar not found: {tgz}", file=sys.stderr, flush=True)
-            # still enter barrier so others can receive the error broadcast below
         else:
-            # Extract once into the destination directory
-            with tarfile.open(tgz_path, "r:gz") as tar:
+            with tarfile.open(str(tgz), "r:gz") as tar:
                 tar.extractall(dest, filter="data")
-            # Publish a .ready marker (atomic rename helps NFS)
             tmp = dest / ".ready.tmp"
             tmp.write_text("ok")
             os.replace(tmp, ready)
 
-    # Everyone waits until rank 0 finishes the extraction
     comm.Barrier()
 
-    # Handle NFS attribute caching on non-root ranks
     if rank != 0:
         t0 = time.time()
         while not ready.exists():
@@ -111,6 +110,7 @@ def prep_once_rank0_then_barrier(comm: MPI.Comm, tgz_path: str, dest_dir: str,
             time.sleep(0.1)
 
     return str(dest)
+
 
 for v in ("OMP_NUM_THREADS","OPENBLAS_NUM_THREADS","MKL_NUM_THREADS","NUMEXPR_NUM_THREADS"):
     os.environ.setdefault(v, "1")
@@ -127,39 +127,33 @@ def try_mpi():
     except Exception:
         return None
 
-def run_xyz_layers_serial(run, Jmin, Jmax, nz, t1, t2):
-    """Pure serial fallback that mirrors the per-layer work."""
+def run_xyz_layers_serial(run, Jmin, Jmax, nz, t1, t2, prep_quiet):
     failures = []
-    for t in range(t1, t2+1):
-        print(f"Processing file: {run}_tri_{t:04d}.vtk.tgz", flush=True)
+    for t in range(t1, t2 + 1):
+        if not prep_quiet:
+            print(f"Processing file: {run}_tri_{t:04d}.vtk.tgz", flush=True)
         for z in range(1, nz + 1):
             rc = run_one(z, run, Jmin, Jmax, t)
             if rc != 0:
-                failures.append((z, rc))
-                return failures
+                failures.append((t, z, rc))
+    return failures
+
 
 def run_xyz_layers(run, Jmin, Jmax, nz, t1, t2, prep_quiet):
-    """
-    Runs z=1..nz for times t1..t2. If launched under MPI (mpirun/srun with mpi4py),
-    distributes work across ranks; otherwise runs serial. Returns a list of
-    (t, z, rc) failures on rank 0 (or on the only rank in serial).
-    """
     comm = try_mpi()
     rank = comm.Get_rank() if comm else 0
     size = comm.Get_size() if comm else 1
 
-    # Ensure all ranks agree on the working directory
     wdir = str(Path.cwd().resolve()) if rank == 0 else None
     if comm:
         wdir = comm.bcast(wdir, root=0)
     os.chdir(wdir)
 
-    # Accumulate failures over all times
     failures = []
 
-    for t in range(t1, t2+1):
+    for t in range(t1, t2 + 1):
         tar_file = f"{run}_tri_{t:04d}.vtk.tgz"
-        if rank == 0:
+        if rank == 0 and not prep_quiet:
             print(f"Processing file: {tar_file}", flush=True)
 
         tgz_path = str(Path(wdir) / tar_file)
@@ -167,57 +161,49 @@ def run_xyz_layers(run, Jmin, Jmax, nz, t1, t2, prep_quiet):
 
         # Untar once on rank 0, barrier for others
         try:
-            data_root = prep_once_rank0_then_barrier(comm, tgz_path, dest_dir)
-        except SystemExit as e:
-            # If prep_once calls sys.exit, you'll see it here
-            print(f"[rank {rank}] ERROR in prep for t={t}: {e}")
-            # Either re-raise or record as failure and continue:
-            failures.append((t, 0, int(getattr(e, 'code', 1))))
+            _ = prep_once_rank0_then_barrier(comm, tgz_path, dest_dir)
+        except Exception as e:
+            if rank == 0:
+                print(f"[prep] ERROR for t={t}: {e}", file=sys.stderr, flush=True)
+            failures.append((t, 0, 1))
             continue
 
         # Remove surface data *.vtk file on rank 0
         if rank == 0:
             surface_vtk = f"{run}_tri_000_{t:04d}.vtk"
-            p = Path(surface_vtk).expanduser()
+            p = Path(surface_vtk)
             if p.exists():
-                os.remove(surface_vtk)
+                p.unlink()
 
-        # Loop over z levels on this rank
+        # Work-share over z
         for z in range(1 + rank, nz + 1, size):
             rc = run_one(z, run, Jmin, Jmax, t)
             if rc != 0:
-                print(f"[rank {rank}] run_one failed: t={t}, z={z}, rc={rc}")
+                print(f"[rank {rank}] run_one failed: t={t}, z={z}, rc={rc}", flush=True)
                 failures.append((t, z, rc))
 
-    # Gather failures from all ranks
     if comm:
         all_fail = comm.gather(failures, root=0)
         if rank == 0:
             failures = [x for sub in all_fail for x in sub]
+        else:
+            failures = []
 
-    if (comm and rank == 0) or (comm is None) or size == 1:
-        return failures
-    else:
-        return []
-
+    return failures
 if __name__ == "__main__":
     a = parse_args()
 
-    # optional: change working dir if requested
     if a.wdir is not None:
-        from os import chdir
-        chdir(a.wdir.resolve())
+        os.chdir(a.wdir.resolve())
 
-    # call your existing driver function
-    # (these names assume you already have them defined above)
-    # Example: try_mpi() returns MPI.COMM_WORLD or None
     comm = try_mpi()
     rank = comm.Get_rank() if comm else 0
+
     if rank == 0 and not a.prep_quiet:
         print(f"Converting layers for run={a.run}, J=[{a.Jmin},{a.Jmax}], nz={a.nz}, t1={a.t1}, t2={a.t2}")
 
     failures = run_xyz_layers(a.run, a.Jmin, a.Jmax, a.nz, a.t1, a.t2, a.prep_quiet)
-    # gather/report if you like; many users just rely on per-rank prints
-    if (comm is None) or (comm and rank == 0):
+
+    if (comm is None) or (rank == 0):
         if failures:
             print("Failures:", failures)
