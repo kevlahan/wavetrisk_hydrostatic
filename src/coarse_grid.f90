@@ -19,7 +19,7 @@ module coarse_grid_mod
   integer                                  :: next_fid = 100
   integer,     dimension(2,4), parameter   :: HR_offs = reshape ( [0,0, 1,0, 1,1, 0,1], [2,4] ) 
   real(dp)                                 :: dx_coarse, linf_err, l2_err
-  type(Coord), dimension(:,:), allocatable :: new_node 
+  type(coord), dimension(:,:), allocatable :: new_node
 contains
   subroutine read_optim_grid  
     ! Reads in optimized grid from directory grids
@@ -96,6 +96,7 @@ contains
 
     integer               :: d_loc, id, k
     integer, dimension(2) :: ij
+    real(dp), parameter   :: theta = -0.5_dp ! rotate grid around pole (for backwards compatibility)
     type(Coord)           :: node
 
     d_loc = loc_id(d_glo+1)
@@ -104,11 +105,15 @@ contains
        id = idx (ij(1), ij(2), offs, dims) 
        if (l == 1) then
           read (fid,*) node
-          call zrotate (node, node, -0.5_dp) ! rotate around pole (for backwards compatibility)
+          call zrotate (node, node, theta) 
           if (owner(d_glo+1) == rank) grid(d_loc+1)%node%elts(id+1) = project_on_sphere (node)
        else
           call coord_from_file (d_glo, l-1, fid, offs, dims, ij)
        end if
+    end do
+
+    do k = 1, 12
+       call zrotate (penta_node(k), penta_node(k), theta)
     end do
   end subroutine coord_from_file
 
