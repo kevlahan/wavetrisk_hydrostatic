@@ -458,6 +458,7 @@ contains
   subroutine init_structures
     ! Initialize dynamical arrays and structures
     implicit none
+    integer :: ip
 
     level_start = min_level
     level_end   = level_start
@@ -469,12 +470,19 @@ contains
     call init_comm_mpi
     call init_geometry
 
+    ! Computational grid at min_level
     select case (optimize_grid)
     case (XU_GRID)
        call smooth_Xu
     case (DATA_GRID)
        call read_optim_grid
     end select
+
+    ! Coordinates of pentagon nodes
+    do ip = 1, 12
+       call zrotate (penta_node_std(ip), penta_node(ip), theta_grid)
+       penta_node(ip) = radius * penta_node(ip)
+    end do
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
     call precompute_geometry

@@ -222,7 +222,7 @@ contains
 
     integer     :: i, j
     type(Coord) :: cc
-    real(dp)     :: area
+    real(dp)    :: area
 
     ! Arithmetic mean used as center
     cc = points(1)

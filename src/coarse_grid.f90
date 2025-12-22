@@ -96,7 +96,6 @@ contains
 
     integer               :: d_loc, id, k
     integer, dimension(2) :: ij
-    real(dp), parameter   :: theta = -0.5_dp ! rotate grid around pole (for backwards compatibility)
     type(Coord)           :: node
 
     d_loc = loc_id(d_glo+1)
@@ -105,15 +104,11 @@ contains
        id = idx (ij(1), ij(2), offs, dims) 
        if (l == 1) then
           read (fid,*) node
-          call zrotate (node, node, theta) 
+          call zrotate (node, node, theta_grid) 
           if (owner(d_glo+1) == rank) grid(d_loc+1)%node%elts(id+1) = project_on_sphere (node)
        else
           call coord_from_file (d_glo, l-1, fid, offs, dims, ij)
        end if
-    end do
-
-    do k = 1, 12
-       call zrotate (penta_node(k), penta_node(k), theta)
     end do
   end subroutine coord_from_file
 
@@ -228,6 +223,8 @@ contains
     linf_err = max  (linf_err, dist (dom%node%elts(id), new_node(id,d)))
 
     dom%node%elts(id) = new_node(id,d)
+
+    call zrotate (dom%node%elts(id), dom%node%elts(id), theta_grid) 
   end subroutine Xu_smooth_assign
 
   subroutine init_smooth_mod
