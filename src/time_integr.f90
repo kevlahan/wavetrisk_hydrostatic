@@ -17,15 +17,15 @@ module time_integr_mod
        use kind_mod
        use domain_mod
        implicit none
-       real(dp)                                             :: h      
-       type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q, wav
-       procedure (trend_sub)                                :: routine
+       real(dp),                                             intent(in)    :: h      
+       type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: q, wav
+       procedure (trend_sub)                                               :: routine
      end subroutine dt_integrator
 
      subroutine dt_integrator_split (h)
        use kind_mod
        implicit none
-       real(dp) :: h 
+       real(dp), intent(in) :: h 
      end subroutine dt_integrator_split
   end interface
   
