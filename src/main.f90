@@ -270,7 +270,7 @@ contains
     implicit none
     character(9999) :: archive, bash_cmd
 
-    if (resume == NONE) call deallocate_structures  ! deallocate all dynamic arrays and variables
+    call deallocate_structures  ! deallocate all dynamic arrays and variables
     call init_basic
 
     if (rank == 0) then
@@ -347,7 +347,6 @@ contains
        if (ialign > 0 .and. istep > 1) then
           save_data = (modulo (itime+idt, ialign) < modulo (itime, ialign))
        else
-          resume = NONE
           save_data = .false.
        end if
 
@@ -777,127 +776,136 @@ contains
 
     integer :: d, i, k, l, v, r
 
-    deallocate (Area_avg, C_visc, dx_avg)
+    if (.not. allocated (grid)) return  
+
+    if (allocated (Area_avg)) deallocate (Area_avg)
+    if (allocated (C_visc))   deallocate (C_visc)
+    if (allocated (dx_avg))   deallocate (dx_avg)
 
     ! Deallocate init_RK_mem allocations
     do k = 1, zmax
        do d = 1, n_domain(rank+1)
           do v = 1, N_VARIABLE
-             deallocate (q1(v,k)%data(d)%elts)
-             deallocate (q2(v,k)%data(d)%elts)
-             deallocate (q3(v,k)%data(d)%elts)
-             deallocate (q4(v,k)%data(d)%elts)
-             deallocate (dq1(v,k)%data(d)%elts)
+             if (allocated (q1(v,k)%data(d)%elts))  deallocate (q1(v,k)%data(d)%elts)
+             if (allocated (q2(v,k)%data(d)%elts))  deallocate (q2(v,k)%data(d)%elts)
+             if (allocated (q3(v,k)%data(d)%elts))  deallocate (q3(v,k)%data(d)%elts)
+             if (allocated (q4(v,k)%data(d)%elts))  deallocate (q4(v,k)%data(d)%elts)
+             if (allocated (dq1(v,k)%data(d)%elts)) deallocate (dq1(v,k)%data(d)%elts)
           end do
        end do
        do v = 1, N_VARIABLE
-          deallocate (q1(v,k)%data)
-          deallocate (q2(v,k)%data)
-          deallocate (q3(v,k)%data)
-          deallocate (q4(v,k)%data)
-          deallocate (dq1(v,k)%data)
+          if (allocated (q1(v,k)%data))  deallocate (q1(v,k)%data)
+          if (allocated (q2(v,k)%data))  deallocate (q2(v,k)%data)
+          if (allocated (q3(v,k)%data))  deallocate (q3(v,k)%data)
+          if (allocated (q4(v,k)%data))  deallocate (q4(v,k)%data)
+          if (allocated (dq1(v,k)%data)) deallocate (dq1(v,k)%data)
        end do
     end do
-    deallocate (q1, q2, q3, q4, dq1)
+
+    if (allocated (q1))  deallocate (q1)
+    if (allocated (q2))  deallocate (q2)
+    if (allocated (q3))  deallocate (q3)
+    if (allocated (q4))  deallocate (q4)
+    if (allocated (dq1)) deallocate (dq1)
 
     ! Deallocate grid structure elements
     do d = 1, size(grid)
-       deallocate (grid(d)%mask_n%elts)
-       deallocate (grid(d)%mask_e%elts)
+       if (allocated (grid(d)%mask_n%elts))             deallocate (grid(d)%mask_n%elts)
+       if (allocated (grid(d)%mask_e%elts))             deallocate (grid(d)%mask_e%elts)
 
-       deallocate (grid(d)%level%elts)
+       if (allocated (grid(d)%level%elts))              deallocate (grid(d)%level%elts)
 
-       deallocate (grid(d)%R_F_wgt%elts)
-       deallocate (grid(d)%I_u_wgt%elts)
+       if (allocated (grid(d)%R_F_wgt%elts))            deallocate (grid(d)%R_F_wgt%elts)
+       if (allocated (grid(d)%I_u_wgt%elts))            deallocate (grid(d)%I_u_wgt%elts)
 
-       deallocate (grid(d)%overl_areas%elts)
-       deallocate (grid(d)%triarea%elts)
-       deallocate (grid(d)%len%elts)
-       deallocate (grid(d)%pedlen%elts)
-       deallocate (grid(d)%areas%elts)
-       deallocate (grid(d)%midpt%elts)
-       deallocate (grid(d)%ccentre%elts)
+       if (allocated (grid(d)%overl_areas%elts))        deallocate (grid(d)%overl_areas%elts)
+       if (allocated (grid(d)%triarea%elts))            deallocate (grid(d)%triarea%elts)
+       if (allocated (grid(d)%len%elts))                deallocate (grid(d)%len%elts)
+       if (allocated (grid(d)%pedlen%elts))             deallocate (grid(d)%pedlen%elts)
+       if (allocated (grid(d)%areas%elts))              deallocate (grid(d)%areas%elts)
+       if (allocated (grid(d)%midpt%elts))              deallocate (grid(d)%midpt%elts)
+       if (allocated (grid(d)%ccentre%elts))            deallocate (grid(d)%ccentre%elts)
 
-       deallocate (grid(d)%surf_press%elts)
-       deallocate (grid(d)%press%elts)
-       deallocate (grid(d)%geopot%elts)
-       deallocate (grid(d)%u_zonal%elts)
-       deallocate (grid(d)%v_merid%elts)
-       deallocate (grid(d)%press_lower%elts)
-       deallocate (grid(d)%geopot_lower%elts)
-       deallocate (grid(d)%vort%elts)
-       deallocate (grid(d)%qe%elts)
-       deallocate (grid(d)%bernoulli%elts)
-       deallocate (grid(d)%ke%elts)
-       deallocate (grid(d)%divu%elts)
-       deallocate (grid(d)%coriolis%elts)
+       if (allocated (grid(d)%surf_press%elts))         deallocate (grid(d)%surf_press%elts)
+       if (allocated (grid(d)%press%elts))              deallocate (grid(d)%press%elts)
+       if (allocated (grid(d)%geopot%elts))             deallocate (grid(d)%geopot%elts)
+       if (allocated (grid(d)%u_zonal%elts))            deallocate (grid(d)%u_zonal%elts)
+       if (allocated (grid(d)%v_merid%elts))            deallocate (grid(d)%v_merid%elts)
+       if (allocated (grid(d)%press_lower%elts))        deallocate (grid(d)%press_lower%elts)
+       if (allocated (grid(d)%geopot_lower%elts))       deallocate (grid(d)%geopot_lower%elts)
+       if (allocated (grid(d)%vort%elts))               deallocate (grid(d)%vort%elts)
+       if (allocated (grid(d)%qe%elts))                 deallocate (grid(d)%qe%elts)
+       if (allocated (grid(d)%bernoulli%elts))          deallocate (grid(d)%bernoulli%elts)
+       if (allocated (grid(d)%ke%elts))                 deallocate (grid(d)%ke%elts)
+       if (allocated (grid(d)%divu%elts))               deallocate (grid(d)%divu%elts)
+       if (allocated (grid(d)%coriolis%elts))           deallocate (grid(d)%coriolis%elts)
 
-       deallocate (grid(d)%node%elts) 
-       deallocate (grid(d)%bdry_patch%elts) 
-       deallocate (grid(d)%patch%elts) 
-       deallocate (grid(d)%neigh_pa_over_pole%elts)
-       deallocate (grid(d)%send_pa_all%elts)
+       if (allocated (grid(d)%node%elts))               deallocate (grid(d)%node%elts) 
+       if (allocated (grid(d)%bdry_patch%elts))         deallocate (grid(d)%bdry_patch%elts) 
+       if (allocated (grid(d)%patch%elts))              deallocate (grid(d)%patch%elts) 
+       if (allocated (grid(d)%neigh_pa_over_pole%elts)) deallocate (grid(d)%neigh_pa_over_pole%elts)
+       if (allocated (grid(d)%send_pa_all%elts))        deallocate (grid(d)%send_pa_all%elts)
 
        do i = 1, N_GLO_DOMAIN
-          deallocate (grid(d)%recv_pa(i)%elts)
-          deallocate (grid(d)%send_conn(i)%elts)
+          if (allocated (grid(d)%recv_pa(i)%elts))   deallocate (grid(d)%recv_pa(i)%elts)
+          if (allocated (grid(d)%send_conn(i)%elts)) deallocate (grid(d)%send_conn(i)%elts)
           do k = AT_NODE, AT_EDGE
-             deallocate (grid(d)%pack(k,i)%elts)
-             deallocate (grid(d)%unpk(k,i)%elts)
+             if (allocated(grid(d)%pack(k,i)%elts)) deallocate (grid(d)%pack(k,i)%elts)
+             if (allocated(grid(d)%unpk(k,i)%elts)) deallocate (grid(d)%unpk(k,i)%elts)
           end do
        end do
 
        do i = lbound(grid(d)%lev,1), ubound(grid(d)%lev,1)
-          deallocate (grid(d)%lev(i)%elts)
+          if (allocated (grid(d)%lev(i)%elts)) deallocate (grid(d)%lev(i)%elts)
        end do
        deallocate (grid(d)%lev)
 
        do l = min_level, max_level
           do r = 1, n_process
-             deallocate (grid(d)%src_patch(r,l)%elts) 
+             if (allocated (grid(d)%src_patch(r,l)%elts)) deallocate (grid(d)%src_patch(r,l)%elts) 
           end do
        end do
        deallocate (grid(d)%src_patch)
 
-       deallocate (Laplacian_vector(S_DIVU)%data(d)%elts)
-       deallocate (Laplacian_vector(S_ROTU)%data(d)%elts)
+       if (allocated(Laplacian_vector(S_DIVU)%data(d)%elts)) deallocate (Laplacian_vector(S_DIVU)%data(d)%elts)
+       if (allocated(Laplacian_vector(S_ROTU)%data(d)%elts)) deallocate (Laplacian_vector(S_ROTU)%data(d)%elts)
 
        do v = scalars(1), scalars(2)
-          deallocate (horiz_flux(v)%data(d)%elts)
-          deallocate (Laplacian_scalar(v)%data(d)%elts)
+          if (allocated(horiz_flux(v)%data(d)%elts))       deallocate (horiz_flux(v)%data(d)%elts)
+          if (allocated(Laplacian_scalar(v)%data(d)%elts)) deallocate (Laplacian_scalar(v)%data(d)%elts)
        end do
 
        do k = zmin, zmax
-          deallocate (penal_node(k)%data(d)%elts)
-          deallocate (penal_edge(k)%data(d)%elts)
-          deallocate (exner_fun(k)%data(d)%elts)
+          if (allocated(penal_node(k)%data(d)%elts))  deallocate (penal_node(k)%data(d)%elts)
+          if (allocated (penal_edge(k)%data(d)%elts)) deallocate (penal_edge(k)%data(d)%elts)
+          if (allocated (exner_fun(k)%data(d)%elts))  deallocate (exner_fun(k)%data(d)%elts)
        end do
-       deallocate (exner_fun(zmax+1)%data(d)%elts)
+       if (allocated (exner_fun(zmax+1)%data(d)%elts)) deallocate (exner_fun(zmax+1)%data(d)%elts)
 
        do v = 1, N_VARIABLE
           do k = zmin, zmax
-             deallocate (sol(v,k)%data(d)%elts)
-             deallocate (sol_mean(v,k)%data(d)%elts)
-             if (k > 0) deallocate (trend(v,k)%data(d)%elts)
-             deallocate (wav_coeff(v,k)%data(d)%elts)
+             if (allocated(sol(v,k)%data(d)%elts))               deallocate (sol(v,k)%data(d)%elts)
+             if (allocated(sol_mean(v,k)%data(d)%elts))          deallocate (sol_mean(v,k)%data(d)%elts)
+             if (k > 0 .and. allocated(trend(v,k)%data(d)%elts)) deallocate (trend(v,k)%data(d)%elts)
+             if (allocated(wav_coeff(v,k)%data(d)%elts))         deallocate (wav_coeff(v,k)%data(d)%elts)
           end do
        end do
 
        if (vert_diffuse) then
-          deallocate (Kt(0)%data(d)%elts)
-          deallocate (Kv(0)%data(d)%elts)
+          if (allocated (Kt(0)%data(d)%elts)) deallocate (Kt(0)%data(d)%elts)
+          if (allocated (Kv(0)%data(d)%elts)) deallocate (Kv(0)%data(d)%elts)
           do k = 1, zlevels
-             deallocate (Kt(k)%data(d)%elts)
-             deallocate (Kv(k)%data(d)%elts)
-             deallocate (tke(k)%data(d)%elts)
-             deallocate (wav_tke(k)%data(d)%elts)
+             if (allocated (Kt(i)%data(d)%elts))      deallocate (Kt(k)%data(d)%elts)
+             if (allocated (Kv(k)%data(d)%elts))      deallocate (Kv(k)%data(d)%elts)
+             if (allocated (tke(k)%data(d)%elts))     deallocate (tke(k)%data(d)%elts)
+             if (allocated (wav_tke(k)%data(d)%elts)) deallocate (wav_tke(k)%data(d)%elts)
           end do
        end if
 
        if (NCAR_topo) then
           do l = min_level, max_level
-             deallocate (topography_data(l,d)%node)
-             deallocate (topography_data(l,d)%elts)
+             if (allocated (topography_data(l,d)%node)) deallocate (topography_data(l,d)%node)
+             if (allocated (topography_data(l,d)%elts)) deallocate (topography_data(l,d)%elts)
           end do
        end if
     end do
@@ -905,54 +913,84 @@ contains
     deallocate (topography%data)
     if (sso) then
        do k = 1, 4
-          deallocate (sso_param(k)%data)
+          if (allocated (sso_param(k)%data)) deallocate (sso_param(k)%data)
        end do
     end if
-    if (NCAR_topo) deallocate (topography_data)
+    if (NCAR_topo .and. allocated (topography_data)) deallocate (topography_data)
 
-    deallocate (Laplacian_vector(S_DIVU)%data)
-    deallocate (Laplacian_vector(S_ROTU)%data)
+    if (allocated (Laplacian_vector(S_DIVU)%data))  deallocate (Laplacian_vector(S_DIVU)%data)
+    if (allocated (Laplacian_vector(S_ROTU)%data))  deallocate (Laplacian_vector(S_ROTU)%data)
 
     do k = zmin, zmax
-       deallocate (penal_node(k)%data)
-       deallocate (penal_edge(k)%data)
-       deallocate (exner_fun(k)%data)
+       if (allocated(penal_node(k)%data)) deallocate (penal_node(k)%data)
+       if (allocated(penal_edge(k)%data)) deallocate (penal_edge(k)%data)
+       if (allocated(exner_fun(k)%data))  deallocate (exner_fun(k)%data)
     end do
-    deallocate (exner_fun(zmax+1)%data)
+    if (allocated(exner_fun(zmax+1)%data)) deallocate (exner_fun(zmax+1)%data)
 
     do v = scalars(1), scalars(2)
-       deallocate (horiz_flux(v)%data)
-       deallocate (Laplacian_scalar(v)%data)
+       if (allocated (horiz_flux(v)%data))       deallocate (horiz_flux(v)%data)
+       if (allocated (Laplacian_scalar(v)%data)) deallocate (Laplacian_scalar(v)%data)
     end do
 
     do v = 1, N_VARIABLE
        do k = zmin, zmax
-          deallocate (sol(v,k)%data)
-          deallocate (sol_mean(v,k)%data)
-          if (k > 0) deallocate (trend(v,k)%data)
-          deallocate (wav_coeff(v,k)%data)
+          if (allocated (sol(v,k)%data))               deallocate (sol(v,k)%data)
+          if (allocated (sol_mean(v,k)%data))          deallocate (sol_mean(v,k)%data)
+          if (k > 0 .and. allocated (trend(v,k)%data)) deallocate (trend(v,k)%data)
+          if (allocated (wav_coeff(v,k)%data))         deallocate (wav_coeff(v,k)%data)
        end do
     end do
 
     if (vert_diffuse) then
-       deallocate (Kv(0)%data)
-       deallocate (Kt(0)%data)
+       if (allocated (Kv(0)%data)) deallocate (Kv(0)%data)
+       if (allocated (Kt(0)%data)) deallocate (Kt(0)%data)
        do k = 1, zlevels
-          deallocate (Kv(k)%data)
-          deallocate (Kt(k)%data)
-          deallocate (tke(k)%data)
-          deallocate (wav_tke(k)%data)
+          if (allocated (Kv(k)%data))      deallocate (Kv(k)%data)
+          if (allocated (Kt(k)%data))      deallocate (Kt(k)%data)
+          if (allocated (tke(k)%data))     deallocate (tke(k)%data)
+          if (allocated (wav_tke(k)%data)) deallocate (wav_tke(k)%data)
        end do
     end if
 
-    deallocate (grid, n_patch_old, n_node_old)
-    deallocate (edge_level_start, node_level_start, n_active_edges, n_active_nodes)
-    deallocate (a_vert, b_vert, a_vert_mass, b_vert_mass)
-    deallocate (threshold, threshold_def)
-    deallocate (sol, sol_mean, trend, wav_coeff)       
-    deallocate (exner_fun, horiz_flux, Laplacian_scalar, Laplacian_vector, lnorm, penal_node, penal_edge)
-    deallocate (glo_id, ini_st, recv_lengths, recv_offsets, req, send_lengths, send_offsets)
-    if (vert_diffuse) deallocate (Kv, Kt, tke, wav_tke)
+    if (allocated (grid))             deallocate (grid)
+    if (allocated (n_node_old))       deallocate (n_node_old)
+    if (allocated (n_patch_old))      deallocate (n_patch_old)
+    if (allocated (edge_level_start)) deallocate (edge_level_start)
+    if (allocated (node_level_start)) deallocate (node_level_start)
+    if (allocated (n_active_edges))   deallocate (n_active_edges)
+    if (allocated (n_active_nodes))   deallocate (n_active_nodes)
+    if (allocated (a_vert))           deallocate (a_vert)
+    if (allocated (b_vert))           deallocate (b_vert)
+    if (allocated (a_vert_mass))      deallocate (a_vert_mass)
+    if (allocated (b_vert_mass))      deallocate (b_vert_mass)
+    if (allocated (threshold))        deallocate (threshold)
+    if (allocated (threshold_def))    deallocate (threshold_def)
+    if (allocated (sol))              deallocate (sol)
+    if (allocated (sol_mean))         deallocate (sol_mean)
+    if (allocated (trend))            deallocate (trend)
+    if (allocated (wav_coeff))        deallocate (wav_coeff)
+    if (allocated (exner_fun))        deallocate (exner_fun)
+    if (allocated (horiz_flux))       deallocate (horiz_flux)
+    if (allocated (Laplacian_scalar)) deallocate (Laplacian_scalar)
+    if (allocated (Laplacian_vector)) deallocate (Laplacian_vector)
+    if (allocated (lnorm))            deallocate (lnorm)
+    if (allocated (penal_edge))       deallocate (penal_edge)
+    if (allocated (penal_node))       deallocate (penal_node)
+    if (allocated (glo_id))           deallocate (glo_id)
+    if (allocated (ini_st))           deallocate (ini_st)
+    if (allocated (recv_lengths))     deallocate (recv_lengths)
+    if (allocated (recv_offsets))     deallocate (recv_offsets)
+    if (allocated (req))              deallocate (req)
+    if (allocated (send_lengths))     deallocate (send_lengths)
+    if (allocated (send_offsets))     deallocate (send_offsets)
+    
+    if (vert_diffuse) then
+       if (allocated (Kv))      deallocate (Kv)
+       if (allocated (Kt))      deallocate (Kt)
+       if (allocated (tke))     deallocate (tke)
+       if (allocated (wav_tke)) deallocate (wav_tke)
+    end if
 
     nullify (mass, dscalar, h_flux, velo, dvelo, bernoulli, divu, exner, ke, qe, scalar, temp, vort, wc_s, wc_u)
   end subroutine deallocate_structures

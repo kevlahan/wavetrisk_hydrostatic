@@ -439,7 +439,7 @@ contains
     tmparr = 0
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate (arr%elts)
+    if (allocated (arr%elts)) deallocate (arr%elts)
     allocate (arr%elts(size(tmparr)), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
@@ -468,7 +468,7 @@ contains
     tmparr = 0.0_dp
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate (arr%elts)
+    if (allocated (arr%elts)) deallocate (arr%elts)
     allocate (arr%elts(size(tmparr)), stat=ierr)
     if (ierr /= 0) then
        write(0,*) "ERROR: not enough memory"
@@ -496,7 +496,7 @@ contains
     tmparr = ORIGIN
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate (arr%elts)
+    if (allocated (arr%elts)) deallocate (arr%elts)
     allocate (arr%elts(size(tmparr)), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
@@ -527,7 +527,7 @@ contains
     tmparr%hex_inv = 0.0_dp
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate (arr%elts)
+    if (allocated (arr%elts)) deallocate (arr%elts)
     allocate (arr%elts(size(tmparr)), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
@@ -563,7 +563,7 @@ contains
     end do
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate (arr%elts)
+    if (allocated (arr%elts)) deallocate (arr%elts)
     allocate (arr%elts(size(tmparr)), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
@@ -598,7 +598,7 @@ contains
     end do
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate (arr%elts)
+    if (allocated (arr%elts)) deallocate (arr%elts)
     allocate (arr%elts(size(tmparr)), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
@@ -630,7 +630,7 @@ contains
     end do
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate (arr%elts)
+    if (allocated (arr%elts)) deallocate (arr%elts)
     allocate (arr%elts(size(tmparr)), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
@@ -669,7 +669,7 @@ contains
     tmparr%deleted = .false.
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate (arr%elts)
+    if (allocated (arr%elts)) deallocate (arr%elts)
     allocate (arr%elts(size(tmparr)), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
@@ -708,12 +708,12 @@ contains
     tmparr%neigh      = 0
     tmparr(1:size(arr%elts)) = arr%elts
 
-    deallocate (arr%elts)
+    if (allocated (arr%elts)) deallocate (arr%elts)
     allocate (arr%elts(size(tmparr)), stat=ierr)
     if (ierr /= 0) then
        write(0,'(A)') "ERROR: not enough memory"
        stop
-    endif
+    endif 
     arr%elts%elts_start = 0
     arr%elts%side       = 0
     arr%elts%neigh      = 0
