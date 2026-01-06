@@ -16,11 +16,12 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Numerical method parameters
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  adapt_dt                 = .true.                          ! adapt time step
+  !Laplace_divu = 1
+  adapt_dt                 = .false.                          ! adapt time step
   if (physics_type == "Held_Suarez") adapt_dt = .false.
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
-  log_min_mass             = .true.                          ! compute minimum mass at each dt (for checking stability issues)
+  log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
   topo_test                = .false.                          ! no physics model stationary flow test
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
   

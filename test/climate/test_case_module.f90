@@ -16,9 +16,10 @@ module test_case_mod
   real(dp) :: dz, T_0, u_0
 
   ! CAM-SE values for 120 km resolution (approximately J6)
-  real(dp), parameter :: nu_CAM = 1e15 * METRE**4/SECOND      ! CAM hyperviscosity 
-  real(dp), parameter :: dt_CAM = 300  * SECOND               ! CAM time step
-  real(dp), parameter :: dx_CAM = 120  * KM                   ! CAM horizontal resolution
+  integer,  parameter :: level_CAM = 6
+  real(dp), parameter :: nu_CAM    = 1e15 * METRE**4/SECOND      ! CAM hyperviscosity 
+  real(dp), parameter :: dt_CAM    = 300  * SECOND               ! CAM time step
+  real(dp), parameter :: dx_CAM    = 120  * KM                   ! CAM horizontal resolution
 
   ! CAM non-dimensional viscosity for RK4: 0.8 (0.1 for DIVU)
   real(dp), parameter :: C_CAM         = nu_CAM * dt_CAM / (2.77 * (dx_CAM**2/24/1.65)**2)
@@ -115,15 +116,29 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
-    integer :: idE, idN, idNE
+    integer                        :: ip, id, idE, idN, idNE
+    real(dp), dimension(1:zlevels) :: C_temp 
+    logical                        :: penta 
+    
+    id = idx (i, j, offs, dims)
 
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
 
-    id = idx (i, j, offs, dims)
-
+    ! Decrease divu viscosity near pentagons to avoid spurious vorticity generation
+    penta  = .false.
+    C_temp = C_visc(S_DIVU,1:zlevels)
+    if (Laplace_divu == 1) then
+       do ip = 1, 12
+          if (geodesic (dom%node%elts(id+1), penta_node(ip)) < 1.5 * dx_avg(min_level)) then
+             penta = .true.
+             C_visc(S_DIVU,1:zlevels) = 0.05_dp
+             exit
+          end if
+       end do
+    end if
+    
     physics_velo_source_case = 0.0_dp
 
     if (Laplace_divu /= 0) physics_velo_source_case = &  
@@ -131,6 +146,8 @@ contains
 
     if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
          - (-1)**(Laplace_rotu-1) * nu_scale (S_ROTU, zlev) * curl_rotu ()
+
+    if (penta) C_visc(S_DIVU,1:zlevels) = C_temp
   contains
     function grad_divu ()
       implicit none
@@ -519,11 +536,11 @@ contains
        write (6,'(a,l1)')     "remap                   = ", remap
        write (6,'(a,f4.2)')   "min_mass_remap          = ", min_mass_remap 
        write (6,'(a,l1)')     "default_thresholds      = ", default_thresholds
-       write (6,'(a,es8.2)') "tolerance               = ", tol
+       write (6,'(a,es8.2)')  "tolerance               = ", tol
        write (6,'(a,i1)')     "optimize_grid           = ", optimize_grid
        write (6,'(a,l1)')     "adapt_dt                = ", adapt_dt
-       write (6,'(a,es8.2)') "dt_init                 = ", dt_init
-       write (6,'(a,es8.2)') "cfl_safety                 = ", cfl_safety
+       write (6,'(a,es8.2)')  "dt_init                 = ", dt_init
+       write (6,'(a,es8.2)')  "cfl_safety              = ", cfl_safety
        write (6,'(a,a)')      "timeint_type            = ", trim (timeint_type)
        write (6,'(/,3(a,i1))') "Laplace_sclr = ", Laplace_sclr, " Laplace_divu = ", Laplace_divu, " Laplace_rotu = ", Laplace_rotu
        if (Laplace_sclr /= 0) &
@@ -669,12 +686,18 @@ contains
   end subroutine set_thresholds_case
 
   subroutine initialize_dt_viscosity_case
-    ! Set non-dimensional viscosities and time step 
+    ! Set time step and non-dimensional viscosities
     implicit none
 
-    dt_init = cfl_safety * r_adv * dx_avg(max_level)/4 / (u_0 + c_s)
+    !dt_init = dt_CAM * 2.0**(level_CAM - max_level)                   ! scaled CAM value         (300s for J6)
+    !dt_init = cfl_safety * dx_avg(max_level) / (u_0 + c_s)            ! basic CFL: 0.9 dx/U      (293s cw for J6)
+    dt_init = cfl_safety * r_adv * dx_avg(max_level)/4 / (u_0 + c_s)  ! precise CFL: 0.9 0.7 dx/U = 0.64 dx/U (207s cw for J6)
     dt = dt_init
-  end subroutine initialize_dt_viscosity_case
+
+    C_visc(S_MASS:S_TEMP,:) = 0.05_dp
+    C_visc(S_DIVU,:)        = 0.30_dp
+    C_visc(S_ROTU,:)        = 0.90_dp
+  end subroutine initialize_dt_viscosity_case 
 
   subroutine apply_initial_conditions_case
     implicit none
