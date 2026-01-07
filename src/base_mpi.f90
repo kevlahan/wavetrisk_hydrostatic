@@ -1,8 +1,8 @@
 module arch_mod
   use shared_mod
   use geom_mod
+  use mpi_f08
   implicit none
-  include 'mpif.h'
   integer                              :: ierror, n_process, rank
   integer, dimension(N_GLO_DOMAIN)     :: loc_id, owner
   integer, dimension(:,:), allocatable :: glo_id

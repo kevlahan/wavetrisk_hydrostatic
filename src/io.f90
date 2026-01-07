@@ -612,7 +612,7 @@ contains
     !   T.F. Chan, G.H. Golub & R.J. LeVeque (1983):
     !   "Algorithms for computing the sample variance: Analysis and recommendations." The American Statistician 37: 242–247.
 #ifdef MPI    
-    use mpi
+    use mpi_f08
 #endif
     implicit none
     integer                                   :: bin, k
@@ -629,8 +629,7 @@ contains
           call MPI_Gather (Nstats(k,bin), 1, MPI_INTEGER, Nstats_loc, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
 
           temp = zonal_avg(k,bin,:)
-          call MPI_Gather (temp, nvar_zonal, MPI_DOUBLE_PRECISION, zonal_avg_loc, nvar_zonal, MPI_DOUBLE_PRECISION, &
-               0, MPI_COMM_WORLD, ierror)
+          call MPI_Gather (temp, nvar_zonal, MPI_REAL8, zonal_avg_loc, nvar_zonal, MPI_REAL8, 0, MPI_COMM_WORLD, ierror)
 
           if (rank == 0) call combine_var
        end do

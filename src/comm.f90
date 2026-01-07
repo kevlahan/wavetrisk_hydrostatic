@@ -194,6 +194,8 @@ subroutine init_comm_mod
     rot = dom%neigh_rot(typ)
     ngb_pa = dom%bdry_patch%elts(b+1)%neigh
     orient = (-1)**rot
+    t_last = 0
+    t_next = 0
     if (s > 4) then
        t_last = typ - 4
        t_next = modulo (typ - 4, 4) + 1
@@ -400,6 +402,8 @@ subroutine init_comm_mod
 
     integer :: t_last, t_next
 
+    t_last = 0
+    t_next = 0
     if (typ <= 4) then
        rot_direction = modulo(typ, 2)
        return

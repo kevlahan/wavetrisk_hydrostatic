@@ -1,14 +1,17 @@
 module comm_mpi_mod
   use domain_ops_mod
   use comm_mod
+  use mpi_f08
   implicit none
-  integer                             :: nreq
-  type(Int_Array)                     :: recv_buf_i, send_buf_i
-  type(Float_Array)                   :: recv_buf, send_buf
-  integer,  dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
-  real(dp), dimension(2)              :: times
+  integer                        :: nreq
+  type(Int_Array)                :: recv_buf_i, send_buf_i
+  type(Float_Array)              :: recv_buf, send_buf
+  integer,           allocatable :: recv_lengths(:), recv_offsets(:), send_lengths(:), send_offsets(:)
+  type(MPI_Request), allocatable :: req(:)
+  type(MPI_Datatype), parameter  :: MPI_DP = MPI_REAL8
+  real(dp), dimension(2)         :: times
 
-  logical, parameter                  :: deadlock = .true. ! test for communication deadlocks
+  logical, parameter             :: deadlock = .true. ! test for communication deadlocks
   
   interface sum_real
      procedure :: sum_real_0, sum_real_1
@@ -68,14 +71,12 @@ contains
     recv_offsets = 0
     send_lengths = 0
     send_offsets = 0
-    req          = 0
     call init_comm
     call comm_communication_mpi
   end subroutine init_comm_mpi
 
   subroutine write_load_conn (id)
     ! Write out load distribution and connectivity for load balancing
-    use mpi
     implicit none
     integer :: id
     
@@ -146,7 +147,6 @@ contains
   end subroutine cal_load_balance
 
   subroutine get_load_balance (mini, avg, maxi)
-    use mpi
     implicit none
     integer :: mini, maxi
     real(dp) :: avg
@@ -166,7 +166,6 @@ contains
   end subroutine get_load_balance
 
   subroutine write_level_mpi (routine, l, zlev, eval_pole, filename)
-    use mpi
     implicit none
     integer          :: l, zlev
     logical          :: eval_pole
@@ -178,7 +177,7 @@ contains
             
     do r = 1, n_process
        if (r /= rank+1) then ! write only if our turn, otherwise only wait at barrier
-          call MPI_Barrier (MPI_Comm_World, ierror)
+          call MPI_Barrier (MPI_COMM_WORLD)
           cycle 
        end if
 
@@ -194,7 +193,7 @@ contains
 
        close (funit)
 
-       call MPI_Barrier (MPI_Comm_World, ierror)
+       call MPI_Barrier (MPI_COMM_WORLD)
     end do
   end subroutine write_level_mpi
 
@@ -307,7 +306,6 @@ contains
   end subroutine alltoall_dom
 
   subroutine check_alltoall_lengths
-    use mpi
     implicit none
     integer, dimension(n_process) :: test_recv_len
 
@@ -315,11 +313,10 @@ contains
 
     write (3000+rank,*) test_recv_len-recv_lengths
     close (3000+rank)
-    call MPI_Barrier (MPI_Comm_World, ierror)
+    call MPI_Barrier (MPI_COMM_WORLD)
   end subroutine check_alltoall_lengths
 
   subroutine alltoall
-    use mpi
     implicit none
     integer :: i
 
@@ -345,7 +342,6 @@ contains
 
   subroutine comm_masks_mpi (l)
     ! Communication of mask information in a subdomain between different processes
-    use mpi
     implicit none
     integer :: l
     
@@ -433,29 +429,25 @@ contains
     end do
   end subroutine comm_masks_mpi
 
-  subroutine deadlock_test (flag)
-    ! Detects deadlock and aborts
+  subroutine deadlock_test(flag)
     implicit none
-    integer :: flag
+    integer, intent(in) :: flag
 
-    logical             :: got_data
-    real(dp)            :: now, t_start
+    logical  :: all_done
+    real(dp) :: now, t_start
     real(dp), parameter :: timeout_time = 1e2_dp
 
-    call MPI_Test(req, got_data, MPI_STATUS_IGNORE, ierror)
     t_start = MPI_Wtime()
-    now     = t_start
-    do while (.not. got_data .and. (now - t_start) < timeout_time)
-       call MPI_Test(req, got_data, MPI_STATUS_IGNORE, ierror)
+    do
+       call MPI_Testall(nreq, req(1:nreq), all_done, MPI_STATUSES_IGNORE)
+       if (all_done) exit
 
-       ! update cached time AFTER the test
        now = MPI_Wtime()
+       if ((now - t_start) >= timeout_time) then
+          write (6,'(a,i0,a,i0)') "ERROR: boundary update deadlocked at call ", flag, " on rank ", rank
+          call abort_run
+       end if
     end do
-    
-    if (.not. got_data) then
-       write (6,'(a,i4,a,i5)') "ERROR: boundary update deadlocked at call ", flag, " on rank ", rank
-       call abort_run
-    end if
   end subroutine deadlock_test
 
   subroutine update_bdry1_0 (field, l_start, l_end, flag_in)
@@ -613,7 +605,6 @@ contains
   end subroutine update_bdry__start_2
 
   subroutine update_bdry__start1_0 (field, l_start, l_end)
-    use mpi
     implicit none
     type(Float_Field) :: field
     integer           :: l_start, l_end
@@ -674,15 +665,15 @@ contains
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
-            MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1 : recv_offsets(r)+recv_lengths(r)), &
+                recv_lengths(r), MPI_DP, r-1, 1, MPI_COMM_WORLD, req(nreq) )
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
-            MPI_COMM_WORLD, req(nreq), ierror)
+      call MPI_Isend( send_buf%elts(send_offsets(r)+1 : send_offsets(r)+send_lengths(r)), &
+                send_lengths(r), MPI_DP, r-1, 1, MPI_COMM_WORLD, req(nreq) )
     end do
 
     ! Communicate inside domain
@@ -691,7 +682,6 @@ contains
 
   subroutine update_bdry__start1_1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
-    use mpi
     implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
@@ -770,14 +760,14 @@ contains
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DP, r-1, 1, &
             MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
+       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DP, r-1, 1, &
             MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
@@ -787,7 +777,6 @@ contains
 
   subroutine update_bdry__start1_2 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
-    use mpi
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           ::  l_start, l_end
@@ -872,14 +861,14 @@ contains
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DP, r-1, 1, &
             MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DOUBLE_PRECISION, r-1, 1, &
+       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DP, r-1, 1, &
             MPI_COMM_WORLD, req(nreq), ierror)
     end do
 
@@ -926,7 +915,6 @@ contains
   end subroutine update_bdry__finish_2
 
   subroutine update_bdry__finish1_0 (field, l_start, l_end)
-    use mpi
     implicit none
     type(Float_Field) :: field
     integer           :: l_start, l_end
@@ -941,7 +929,7 @@ contains
        multipl = 1
     end if
 
-    call MPI_Waitall (nreq, req, MPI_STATUSES_IGNORE, ierror)
+    call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE)
 
     k = 0
     do r_src = 1, n_process 
@@ -967,7 +955,6 @@ contains
 
   subroutine update_bdry__finish1_1 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
-    use mpi
     implicit none
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
@@ -1017,7 +1004,6 @@ contains
   
   subroutine update_bdry__finish1_2 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
-    use mpi
     implicit none
     type(Float_Field), dimension(:,:) :: field
     integer                           :: l_start, l_end
@@ -1034,7 +1020,7 @@ contains
     end do
     if (ret) return
 
-    call MPI_Waitall (nreq, req, MPI_STATUSES_IGNORE, ierror)
+   call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE) 
 
     k = 0
     do r_src = 1, n_process 
@@ -1070,7 +1056,6 @@ contains
   end subroutine update_bdry__finish1_2
 
   subroutine comm_nodes3_mpi (get, set, l)
-    use mpi
     implicit none
     integer              :: l
     procedure(coord_get) :: get
@@ -1119,8 +1104,8 @@ contains
        recv_buf%elts = 0.0_dp
     end if
 
-    call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
-                        recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, &
+    call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DP, &
+                        recv_buf%elts, recv_lengths, recv_offsets, MPI_DP, &
                         MPI_COMM_WORLD, ierror)
 
     call comm_nodes3 (get, set) ! communicate inside domain
@@ -1144,7 +1129,6 @@ contains
   end subroutine comm_nodes3_mpi
   
   subroutine comm_nodes9_mpi (get, set, l)
-    use mpi
     implicit none
     integer :: l
     procedure(get9) :: get
@@ -1194,8 +1178,8 @@ contains
        recv_buf%elts = 0.0_dp
     end if
 
-    call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DOUBLE_PRECISION, &
-                        recv_buf%elts, recv_lengths, recv_offsets, MPI_DOUBLE_PRECISION, &
+    call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DP, &
+                        recv_buf%elts, recv_lengths, recv_offsets, MPI_DP, &
                         MPI_COMM_WORLD, ierror)
 
     call comm_nodes9 (get, set) ! communicate inside domain
@@ -1216,7 +1200,6 @@ contains
   end subroutine comm_nodes9_mpi
 
   subroutine comm_patch_conn_mpi
-    use mpi
     implicit none
     integer               :: r_src, r_dest, d_src, d_dest, i, b, c, p, s, d_glo, k, rot, d, ngh_pa, typ, l_par, rot_shift
     integer, dimension(4) :: st
@@ -1292,7 +1275,6 @@ contains
   end subroutine comm_patch_conn_mpi
 
   integer function sync_max_int (val)
-    use mpi
     implicit none
     integer :: val
     
@@ -1303,7 +1285,6 @@ contains
   end function sync_max_int
 
   integer function sync_min_int (val)
-    use mpi
     implicit none
     integer :: val
     
@@ -1314,18 +1295,16 @@ contains
   end function sync_min_int
 
   real(dp) function sync_max_real_0 (val)
-    use mpi
     implicit none
     real(dp) :: val
 
     real(dp) :: val_glo
     
-    call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, 1, MPI_DP, MPI_MAX, MPI_COMM_WORLD, ierror)
     sync_max_real_0 = val_glo
   end function sync_max_real_0
 
   function sync_max_real_1 (val)
-    use mpi
     implicit none
     real(dp), dimension(:), allocatable :: sync_max_real_1
     real(dp), dimension(:)              :: val
@@ -1336,23 +1315,21 @@ contains
     n = size (val,1)
     allocate (sync_max_real_1(n), val_glo(n))
 
-    call MPI_Allreduce (val, val_glo, n, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, n, MPI_DP, MPI_MAX, MPI_COMM_WORLD, ierror)
     sync_max_real_1 = val_glo
   end function sync_max_real_1
 
   real(dp) function sync_min_real_0 (val)
-    use mpi
     implicit none
     real(dp) :: val
 
     real(dp) :: val_glo
     
-    call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, 1, MPI_DP, MPI_MIN, MPI_COMM_WORLD, ierror)
     sync_min_real_0 = val_glo
   end function sync_min_real_0
 
   function sync_min_real_1 (val)
-    use mpi
     implicit none
     real(dp), dimension(:), allocatable :: sync_min_real_1
     real(dp), dimension(:)              :: val
@@ -1363,23 +1340,21 @@ contains
     n = size (val,1)
     allocate (sync_min_real_1(n), val_glo(n))
 
-    call MPI_Allreduce (val, val_glo, n, MPI_DOUBLE_PRECISION, MPI_MIN, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, n, MPI_DP, MPI_MIN, MPI_COMM_WORLD, ierror)
     sync_min_real_1 = val_glo
   end function sync_min_real_1
 
   real(dp) function sum_real_0 (val)
-    use mpi
     implicit none
     real(dp) :: val
 
     real(dp) :: val_glo
     
-    call MPI_Allreduce (val, val_glo, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, 1, MPI_DP, MPI_SUM, MPI_COMM_WORLD, ierror)
     sum_real_0 = val_glo
   end function sum_real_0
 
   function sum_real_1 (val)
-    use mpi
     implicit none
     real(dp), dimension(:), allocatable :: sum_real_1
     real(dp), dimension(:)              :: val
@@ -1390,12 +1365,11 @@ contains
     n = size (val,1)
     allocate (sum_real_1(n), val_glo(n))
     
-    call MPI_Allreduce (val, val_glo, n, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, n, MPI_DP, MPI_SUM, MPI_COMM_WORLD, ierror)
     sum_real_1 = val_glo
   end function sum_real_1
 
   integer function sum_int (val)
-    use mpi
     implicit none
     integer :: val
 
@@ -1406,7 +1380,6 @@ contains
   end function sum_int
 
   function sum_int_vector (val, n)
-    use mpi
     implicit none
     integer               :: n
     integer, dimension(n) :: sum_int_vector
@@ -1419,52 +1392,57 @@ contains
   end function sum_int_vector
 
   subroutine start_timing
-    use mpi
     implicit none
     times(1) = MPI_Wtime()  
   end subroutine start_timing
 
   subroutine stop_timing
-    use mpi
     implicit none
     times(2) = MPI_Wtime()  
   end subroutine stop_timing
 
   real(dp) function get_timing()
-    use mpi
     implicit none
     get_timing = times(2) - times(1)
   end function get_timing
 
   subroutine sync_array (arr, n)
-    ! Synchronizes arr, with subsections computed on different ranks
-    ! the complete array is broadcast to all ranks
-    ! (see project_field_onto_plane for example of use)
-    use mpi
+    use mpi_f08
     implicit none
-    integer                :: n
-    real(dp), dimension(n) :: arr
-    
-    integer                :: myop
-    real(dp), dimension(n) :: garr
+    integer, intent(in) :: n
+    real(dp), intent(inout) :: arr(n)
 
-    call MPI_Op_create (sync, .true., myop, ierror)  
-    call MPI_Reduce (arr, garr, n, MPI_DOUBLE_PRECISION, myop, 0, MPI_COMM_WORLD, ierror)
-    if (rank == 0) arr(1:n) = garr(1:N)
-    call MPI_Bcast (arr, n, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror) 
+    real(dp), allocatable :: vloc(:), vmax(:)
+    integer,  allocatable :: mloc(:), mmax(:)
+    integer               :: i
+
+    allocate(vloc(n), vmax(n), mloc(n), mmax(n))
+
+    do i = 1, n
+       if (abs(arr(i) - sync_val) > eps(1.0_dp)) then
+          mloc(i) = 1
+          vloc(i) = arr(i)
+       else
+          mloc(i) = 0
+          vloc(i) = -huge(1.0_dp)   ! neutral element for MAX
+       end if
+    end do
+
+    call MPI_Allreduce(mloc, mmax, n, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD)
+    call MPI_Allreduce(vloc, vmax, n, MPI_REAL8,   MPI_MAX, MPI_COMM_WORLD)
+
+    do i = 1, n
+       if (mmax(i) == 1) then
+          arr(i) = vmax(i)
+       else
+          arr(i) = sync_val
+       end if
+    end do
+
+    deallocate(vloc, vmax, mloc, mmax)
   end subroutine sync_array
 
-  subroutine sync (in, inout, len, type)
-    use mpi
-    implicit none
-    integer                  :: len, type
-    real(dp), dimension(len) :: in, inout
-    
-    where (abs (in - sync_val) > eps(1.0_dp)) inout = in
-  end subroutine sync
-
   subroutine gatherv_int (n_loc, n_glo, vec_loc, vec_glo)
-    use mpi
     implicit none
     integer                            :: n_loc
     integer, dimension(n_process)      :: n_glo
@@ -1474,7 +1452,7 @@ contains
     integer, dimension(n_process) :: displs
 
     call gather_int (n_loc, n_glo, displs)
-    
+
     if (allocated (vec_glo)) deallocate (vec_glo)
     allocate (vec_glo(sum(n_glo)))
 
@@ -1485,7 +1463,6 @@ contains
   end subroutine gatherv_int
 
   subroutine gatherv_real4 (n_loc, n_glo, vec_loc, vec_glo)
-    use mpi
     implicit none
     integer                            :: n_loc
     integer, dimension(n_process)      :: n_glo
@@ -1506,7 +1483,6 @@ contains
   end subroutine gatherv_real4
 
   subroutine gatherv_real8 (n_loc, n_glo, vec_loc, vec_glo)
-    use mpi
     implicit none
     integer                            :: n_loc
     integer, dimension(n_process)      :: n_glo
@@ -1521,13 +1497,12 @@ contains
     allocate (vec_glo(sum(n_glo)))
 
     call MPI_Gatherv ( &
-         vec_loc, n_loc,         MPI_DOUBLE_PRECISION, &
-         vec_glo, n_glo, displs, MPI_DOUBLE_PRECISION, &
+         vec_loc, n_loc,         MPI_DP, &
+         vec_glo, n_glo, displs, MPI_DP, &
          0, MPI_COMM_WORLD, ierror)
   end subroutine gatherv_real8
 
   subroutine gather_int (n_loc, n_glo, displs)
-    use mpi
     implicit none
     integer                       :: n_loc
     integer, dimension(n_process) :: n_glo, displs
