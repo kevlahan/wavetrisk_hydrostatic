@@ -185,14 +185,8 @@ contains
   end function physics_velo_source_case
 
   subroutine read_test_case_parameters
-#ifdef MPI
-    use mpi
-#endif
     implicit none
-
-    integer            :: ilat, ilon, k
     integer, parameter :: fid = 500
-    real(8)            :: lat, lon
     character(255)     :: filename, varname
 
     if (command_argument_count() >= 1) then
@@ -220,19 +214,19 @@ contains
        close(fid)
     end if
 #ifdef MPI
-    call MPI_Bcast (test_case, 255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (run_id,    255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)    
-    call MPI_Bcast (max_level,   1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (zlevels,     1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (remap,       1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (iremap,      1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (log_iter,    1, MPI_LOGICAL,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (tol,         1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (cfl_safety,     1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (dt_write,    1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (CP_EVERY,    1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (time_end,    1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (resume_init, 1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (test_case, 255, MPI_BYTE,    0, MPI_COMM_WORLD)
+    call MPI_Bcast (run_id,    255, MPI_BYTE,    0, MPI_COMM_WORLD)    
+    call MPI_Bcast (max_level,   1, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (zlevels,     1, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (remap,       1, MPI_LOGICAL, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (iremap,      1, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (log_iter,    1, MPI_LOGICAL, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (tol,         1, MPI_DP,      0, MPI_COMM_WORLD)
+    call MPI_Bcast (cfl_safety,  1, MPI_DP,      0, MPI_COMM_WORLD)
+    call MPI_Bcast (dt_write,    1, MPI_DP,      0, MPI_COMM_WORLD)
+    call MPI_Bcast (CP_EVERY,    1, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (time_end,    1, MPI_DP,      0, MPI_COMM_WORLD)
+    call MPI_Bcast (resume_init, 1, MPI_INTEGER, 0, MPI_COMM_WORLD)
 #endif
 
     dt_write = dt_write * DAY
@@ -248,7 +242,7 @@ contains
     if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
-            ************************************************************'
+            &************************************************************'
        write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,A)')      "test_case                      = ", trim (test_case)
        write (6,'(A,A)')      "run_id                         = ", trim (run_id)
@@ -317,7 +311,7 @@ contains
        write (6,'(A,i4)')     "Nproj                          = ", Nproj
        write (6,'(A)') &
             '*********************************************************************&
-            ************************************************************'
+            &************************************************************'
 
        call print_density
     end if
@@ -376,7 +370,7 @@ contains
   subroutine apply_initial_conditions_case
     use ops_mod
     implicit none
-    integer :: d, k, l, p
+    integer :: k, l
 
     do l = level_end, level_start, -1
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
@@ -574,7 +568,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: density, eta, lat, lon, phi, rho, z_k, z_s
+    real(8)                       :: eta, lat, lon, phi, rho, z_k, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
     type(Coord)                   :: p 
@@ -641,7 +635,7 @@ contains
     integer, dimension (2,N_BDRY+1) :: dims
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: eta, phi, rho, z_s
+    real(8)                       :: eta, rho, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
 
@@ -725,8 +719,6 @@ contains
     implicit none
     integer :: d, id
     
-    real(8) :: lat, lon
-
     surf_geopot_case = grav_accel * 0d0
   end function surf_geopot_case
 
@@ -855,7 +847,7 @@ contains
     write (6,'(a,es8.2)')   "Maximum baroclinic CFL number     = ", c1*dt_init/dx_avg(max_level)
     write (6,'(A)') &
          '*********************************************************************&
-         ************************************************************'
+         &************************************************************'
   end subroutine print_density
 
   subroutine set_thresholds_case
@@ -863,7 +855,7 @@ contains
     use lnorms_mod
     use wavelet_mod
     implicit none
-    integer                                 :: k, v
+    integer                                 :: k
     real(8), dimension(1:N_VARIABLE,1:zmax) :: threshold_new
     character(3), parameter                 :: order = "inf"
 
@@ -895,7 +887,6 @@ contains
     real(8)                       :: eta, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
-    type(Coord)                   :: x_i
 
     eta = 0d0
     z_s = max_depth
@@ -921,7 +912,7 @@ contains
   subroutine initialize_dt_viscosity_case 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
+    real(8) :: C, C_b, C_divu, C_mu, C_rotu, dlat, tau_b, tau_divu, tau_mu, tau_rotu
 
     ! Initial CFL limit for time step
     dt_cfl = min (cfl_safety*dx_avg(max_level)/wave_speed, 1.4d0*dx_avg(max_level)/Udim, 1.2d0*dx_avg(max_level)/c1)
@@ -1211,11 +1202,8 @@ contains
 
   subroutine cal_r_max
     ! Calculates minimum relative mass and checks diffusion stability limits
-#ifdef MPI
-    use mpi
-#endif
     implicit none
-    integer :: ierror, k, l
+    integer :: k, l
 
     r_max_loc = 1d-16
     do l = level_start, level_end
@@ -1225,7 +1213,7 @@ contains
     end do
 
 #ifdef MPI
-    call MPI_Allreduce (r_max_loc, r_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (r_max_loc, r_max, 1, MPI_DP, MPI_MAX, MPI_COMM_WORLD)
 #else
     r_max = r_max_loc
 #endif
@@ -1239,7 +1227,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idE, idN, idNE, idS, idSW, idW, k
+    integer :: d, id, idE, idN, idNE, idS, idSW, idW
     real(8) :: dz0, dz_e, r_loc
 
     id   = idx (i,   j,   offs, dims)

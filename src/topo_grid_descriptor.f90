@@ -55,14 +55,10 @@ contains
   subroutine write_grid_coords (topo_desc)
     ! Find grid coordinates on each domain at finest level over entire grid
     ! saves results to netcdf coordinate file
-#ifdef MPI
-    use mpi
-#endif
-
     implicit none
     character(255)                        :: topo_desc
     
-    integer                               :: d, i, i_node, j, l
+    integer                               :: i, l
     integer                               :: grid_size          ! number of nodes
     integer, parameter                    :: grid_corners = 6   ! hexagons
     integer,  dimension(:),   allocatable :: grid_dom
@@ -98,23 +94,18 @@ contains
     allocate (grid_corner_lat(1:grid_corners,1:grid_size), grid_corner_lon(1:grid_corners,1:grid_size))
 
 #ifdef MPI
-    call MPI_Gather (loc_dom, loc_size, MPI_INTEGER, grid_dom, loc_size, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Gather (loc_ids,  loc_size, MPI_INTEGER, grid_id,  loc_size, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Gather (loc_dom, loc_size, MPI_INTEGER, grid_dom, loc_size, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Gather (loc_ids, loc_size, MPI_INTEGER, grid_id,  loc_size, MPI_INTEGER, 0, MPI_COMM_WORLD)
 
-    call MPI_Gather (loc_area, loc_size, MPI_DOUBLE_PRECISION, grid_area, loc_size, MPI_DOUBLE_PRECISION, 0, &
-         MPI_COMM_WORLD, ierror)
+    call MPI_Gather (loc_area, loc_size, MPI_DP, grid_area, loc_size, MPI_DP, 0,  MPI_COMM_WORLD)
 
-    call MPI_Gather (loc_center_lat, loc_size, MPI_DOUBLE_PRECISION, grid_center_lat, loc_size, MPI_DOUBLE_PRECISION, 0, &
-         MPI_COMM_WORLD, ierror)
+    call MPI_Gather (loc_center_lat, loc_size, MPI_DP, grid_center_lat, loc_size, MPI_DP, 0, MPI_COMM_WORLD)
 
-    call MPI_Gather (loc_center_lon, loc_size, MPI_DOUBLE_PRECISION, grid_center_lon, loc_size, MPI_DOUBLE_PRECISION, 0, &
-         MPI_COMM_WORLD, ierror)
+    call MPI_Gather (loc_center_lon, loc_size, MPI_DP, grid_center_lon, loc_size, MPI_DP, 0,  MPI_COMM_WORLD)
 
     do i = 1, grid_corners
-       call MPI_Gather (loc_corner_lat(i,:), loc_size, MPI_DOUBLE_PRECISION, grid_corner_lat(i,:), loc_size, &
-            MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-       call MPI_Gather (loc_corner_lon(i,:), loc_size, MPI_DOUBLE_PRECISION, grid_corner_lon(i,:), loc_size, &
-            MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+       call MPI_Gather (loc_corner_lat(i,:), loc_size, MPI_DP, grid_corner_lat(i,:), loc_size, MPI_DP, 0, MPI_COMM_WORLD)
+       call MPI_Gather (loc_corner_lon(i,:), loc_size, MPI_DP, grid_corner_lon(i,:), loc_size, MPI_DP, 0, MPI_COMM_WORLD)
     end do
 #else
     grid_dom = loc_dom; grid_id = loc_ids; grid_area = loc_area; grid_center_lat = loc_center_lat; 
@@ -135,8 +126,6 @@ contains
       !-----------------------------------------------------------------------
       integer  :: ncstat             ! general netCDF status variable
       integer  :: nc_grid_id         ! netCDF grid dataset id
-      integer  :: nc_lon_id          ! netCDF grid dataset id
-      integer  :: nc_lat_id          ! netCDF grid dataset id
       integer  :: nc_gridsize_id     ! netCDF grid size dim id
       integer  :: nc_gridcorn_id     ! netCDF grid corner dim id
       integer  :: nc_gridrank_id     ! netCDF grid rank dim id
@@ -152,9 +141,6 @@ contains
 
       integer, dimension(2) :: nc_dims2_id ! netCDF dim id array for 2-d arrays
       integer, dimension(2) :: grid_dims
-      integer               :: status      ! return value for error control of netcdf routine
-
-      character (len=255)   :: file_out
 
       !-----------------------------------------------------------------------
       !
@@ -383,7 +369,7 @@ contains
     implicit none
     character(*), intent(in) :: fname
 
-    integer :: d, j, l
+    integer :: l
 
     ! Compute topography on finest grid
     l = max_level
@@ -401,11 +387,8 @@ contains
   contains
     subroutine read_geopotential
       ! Reads netcdf geopotential data onto a single core and saves the data as its wavelet coefficients
-#ifdef MPI
-      use mpi
-#endif
       implicit none
-      integer :: dimid, domid, idxid, ierror, ncid, status,  phisid
+      integer :: dimid, domid, idxid, ncid, status,  phisid
       !********************************************
       !
       ! Get dimension on rank 0
@@ -420,7 +403,7 @@ contains
          if (status /=  NF_NOERR) call handle_err (status)
       end if
 #ifdef MPI
-      call MPI_Bcast (ncol, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+      call MPI_Bcast (ncol, 1, MPI_INTEGER, 0, MPI_COMM_WORLD)
 #endif
       allocate (grid_dom(1:ncol), grid_id(1:ncol), phi_s(1:ncol))
 
@@ -447,9 +430,9 @@ contains
          if (status /= NF_NOERR) call handle_err (status)
       end if
 #ifdef MPI
-      call MPI_Bcast (grid_dom, ncol, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-      call MPI_Bcast (grid_id,  ncol, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-      call MPI_Bcast (phi_s,    ncol, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+      call MPI_Bcast (grid_dom, ncol, MPI_INTEGER, 0, MPI_COMM_WORLD)
+      call MPI_Bcast (grid_id,  ncol, MPI_INTEGER, 0, MPI_COMM_WORLD)
+      call MPI_Bcast (phi_s,    ncol, MPI_DP,      0, MPI_COMM_WORLD)
 #endif
     end subroutine read_geopotential
   end subroutine assign_height

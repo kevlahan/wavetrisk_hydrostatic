@@ -899,7 +899,6 @@ contains
 
   subroutine cal_r_max
     ! Calculates minimum relative mass and checks diffusion stability limits
-    use mpi
     implicit none
     integer :: ierror, k, l
 
@@ -910,7 +909,7 @@ contains
        end do
     end do
 
-    call MPI_Allreduce (r_max_loc, r_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (r_max_loc, r_max, 1, MPI_DP, MPI_MAX, MPI_COMM_WORLD)
   end subroutine cal_r_max
 
   subroutine cal_rmax_loc (dom, i, j, zlev, offs, dims)

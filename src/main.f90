@@ -69,8 +69,8 @@ contains
     end if
 
 #ifdef AMPI
-    call MPI_Info_create (chkpt_info, ierror)
-    call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
+    call MPI_Info_create (chkpt_info)
+    call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint")
 #endif
 
     if (resume >= 0) then
@@ -253,9 +253,9 @@ contains
 
 #ifdef AMPI
     if (rank == 0) write (6,'(a)') "Checkpointing using AMPI ..."
-    call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint", ierror)
-    call MPI_Barrier (MPI_COMM_WORLD, ierror)
-    call AMPI_Migrate (chkpt_info, ierror)
+    call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint")
+    call MPI_Barrier (MPI_COMM_WORLD)
+    call AMPI_Migrate (chkpt_info)
     if (log_total_mass) call cal_total_mass (.true.) 
 #else
     call write_load_conn (cp_idx)
@@ -323,8 +323,8 @@ contains
 
 #ifdef AMPI
     if (rank == 0) write (6,'(/,a)') "Rebalancing using AMPI ..."
-    call MPI_Barrier (MPI_COMM_WORLD, ierror)
-    call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierror)
+    call MPI_Barrier (MPI_COMM_WORLD)
+    call AMPI_Migrate (AMPI_INFO_LB_SYNC)
 #endif
   end subroutine restart
 
@@ -421,8 +421,8 @@ contains
 #ifdef AMPI
     if (modulo (istep, irebalance) == 0) then
        if (rank == 0) write (6,'(a)') "Checking load balance and rebalancing if necessary using AMPI ..."
-       call MPI_Barrier (MPI_COMM_WORLD, ierror)
-       call AMPI_Migrate (AMPI_INFO_LB_SYNC, ierror)
+       call MPI_Barrier (MPI_COMM_WORLD)
+       call AMPI_Migrate (AMPI_INFO_LB_SYNC)
     end if
 #endif
   end subroutine time_step
@@ -773,10 +773,13 @@ contains
   subroutine deallocate_structures
     ! Deallocate all dynamic arrays and structures for clean restart
     implicit none
-
+    
     integer :: d, i, k, l, v, r
+    integer :: istat
+    character(len=256) :: emsg
 
-    if (.not. allocated (grid)) return  
+    if (.not. allocated (grid)) return
+    if (size(grid) <= 0) return
 
     if (allocated (Area_avg)) deallocate (Area_avg)
     if (allocated (C_visc))   deallocate (C_visc)
@@ -813,6 +816,14 @@ contains
        if (allocated (grid(d)%mask_n%elts))             deallocate (grid(d)%mask_n%elts)
        if (allocated (grid(d)%mask_e%elts))             deallocate (grid(d)%mask_e%elts)
 
+       if (allocated(grid(d)%level%elts)) then
+          deallocate(grid(d)%level%elts, stat=istat, errmsg=emsg)
+          if (istat /= 0) then
+             write(*,*) "rank", rank, "d", d, "dealloc level%elts failed:", trim(emsg)
+             error stop
+          end if
+       end if
+       
        if (allocated (grid(d)%level%elts))              deallocate (grid(d)%level%elts)
 
        if (allocated (grid(d)%R_F_wgt%elts))            deallocate (grid(d)%R_F_wgt%elts)
@@ -884,10 +895,12 @@ contains
 
        do v = 1, N_VARIABLE
           do k = zmin, zmax
-             if (allocated(sol(v,k)%data(d)%elts))               deallocate (sol(v,k)%data(d)%elts)
-             if (allocated(sol_mean(v,k)%data(d)%elts))          deallocate (sol_mean(v,k)%data(d)%elts)
-             if (k > 0 .and. allocated(trend(v,k)%data(d)%elts)) deallocate (trend(v,k)%data(d)%elts)
-             if (allocated(wav_coeff(v,k)%data(d)%elts))         deallocate (wav_coeff(v,k)%data(d)%elts)
+             if (allocated(sol(v,k)%data(d)%elts))       deallocate (sol(v,k)%data(d)%elts)
+             if (allocated(sol_mean(v,k)%data(d)%elts))  deallocate (sol_mean(v,k)%data(d)%elts)
+             if (allocated(wav_coeff(v,k)%data(d)%elts)) deallocate (wav_coeff(v,k)%data(d)%elts)
+          end do
+          do k = 1, zlevels
+             if (allocated(trend(v,k)%data(d)%elts)) deallocate (trend(v,k)%data(d)%elts)
           end do
        end do
 
@@ -935,10 +948,12 @@ contains
 
     do v = 1, N_VARIABLE
        do k = zmin, zmax
-          if (allocated (sol(v,k)%data))               deallocate (sol(v,k)%data)
-          if (allocated (sol_mean(v,k)%data))          deallocate (sol_mean(v,k)%data)
-          if (k > 0 .and. allocated (trend(v,k)%data)) deallocate (trend(v,k)%data)
-          if (allocated (wav_coeff(v,k)%data))         deallocate (wav_coeff(v,k)%data)
+          if (allocated (sol(v,k)%data))       deallocate (sol(v,k)%data)
+          if (allocated (sol_mean(v,k)%data))  deallocate (sol_mean(v,k)%data)
+          if (allocated (wav_coeff(v,k)%data)) deallocate (wav_coeff(v,k)%data)
+       end do
+       do k = 1, zlevels
+          if (allocated (trend(v,k)%data)) deallocate (trend(v,k)%data)
        end do
     end do
 

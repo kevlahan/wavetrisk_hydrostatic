@@ -3,15 +3,17 @@ module comm_mpi_mod
   use comm_mod
   use mpi_f08
   implicit none
-  integer                        :: nreq
-  type(Int_Array)                :: recv_buf_i, send_buf_i
-  type(Float_Array)              :: recv_buf, send_buf
-  integer,           allocatable :: recv_lengths(:), recv_offsets(:), send_lengths(:), send_offsets(:)
-  type(MPI_Request), allocatable :: req(:)
-  type(MPI_Datatype), parameter  :: MPI_DP = MPI_REAL8
-  real(dp), dimension(2)         :: times
+  integer                         :: nreq
+  type(Int_Array)                 :: recv_buf_i, send_buf_i
+  type(Float_Array)               :: recv_buf,   send_buf
+  integer,            allocatable :: recv_lengths(:), recv_offsets(:), send_lengths(:), send_offsets(:)
+  type(MPI_Request),  allocatable :: req(:)
+  real(dp), dimension(2)          :: times
 
-  logical, parameter             :: deadlock = .true. ! test for communication deadlocks
+  integer, save                   :: next_tag = 100     ! avoid low tags used elsewhere
+  logical, parameter              :: deadlock = .false. ! test for communication deadlocks (use for debug only as it is slow)
+  type(MPI_Datatype), parameter   :: MPI_DP   = MPI_DOUBLE_PRECISION
+  type(MPI_Datatype), parameter   :: MPI_SP   = MPI_REAL
   
   interface sum_real
      procedure :: sum_real_0, sum_real_1
@@ -71,64 +73,98 @@ contains
     recv_offsets = 0
     send_lengths = 0
     send_offsets = 0
+    req = MPI_REQUEST_NULL  
     call init_comm
     call comm_communication_mpi
   end subroutine init_comm_mpi
 
+  integer function get_unique_tag ()
+    implicit none
+    
+    get_unique_tag = next_tag
+    next_tag = next_tag + 1
+    if (next_tag > MPI_TAG_UB - 10) then
+       error stop "MPI tag space exhausted"
+    end if
+  end function get_unique_tag
+
   subroutine write_load_conn (id)
-    ! Write out load distribution and connectivity for load balancing
     implicit none
     integer :: id
-    
-    integer                            :: d, ii, r, sz
-    integer, parameter                 :: fid = 599
-    integer, dimension(n_process)      :: displs, rcounts
-    integer, dimension(:), allocatable :: n_active_glo, n_active_loc
-    character(255)                     :: filename
 
-    allocate (n_active_glo(N_GLO_DOMAIN*(N_GLO_DOMAIN+1)))
+    integer                       :: d, ii, r, sz
+    integer, parameter            :: fid = 599
+    integer, dimension(n_process) :: displs, rcounts
+    integer, allocatable          :: n_active_glo(:), n_active_loc(:)
+    character(255)                :: filename
+    integer                       :: n_tot
 
     ! Size of load data for current rank
     sz = size(grid) * (N_GLO_DOMAIN+1)
 
     ! Gather rcounts on root
-    call MPI_Gather (sz, 1, MPI_INTEGER, rcounts, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Gather (sz, 1, MPI_INTEGER, rcounts, 1, MPI_INTEGER, 0, MPI_COMM_WORLD)
 
-    ! Set displacements for contiguous positions
-    displs(1) = 0
-    do r = 2, n_process
-       displs(r) = displs(r-1) + rcounts(r-1)
-    end do
+    ! Root computes displacements and total; others will receive via Bcast
+    if (rank == 0) then
+       displs(1) = 0
+       do r = 2, n_process
+          displs(r) = displs(r-1) + rcounts(r-1)
+       end do
+       n_tot = sum(rcounts)
+    else
+       displs = 0
+       n_tot  = 0
+    end if
 
-    ! Set load data on this rank
+    ! Make rcounts/displs/n_tot defined on all ranks (avoids UB)
+    call MPI_Bcast (rcounts, n_process, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (displs,  n_process, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (n_tot,   1,         MPI_INTEGER, 0, MPI_COMM_WORLD)
+
+    ! Local load data
     allocate (n_active_loc(sz))
     n_active_loc = 0
-    ii = 1 
+    ii = 1
     do d = 1, size(grid)
        n_active_loc(ii) = domain_load(grid(d))
-       
-       n_active_loc(ii+1:ii+N_GLO_DOMAIN) = (grid(d)%pack(AT_NODE,:)%length + grid(d)%pack(AT_EDGE,:)%length + &
-            grid(d)%unpk(AT_NODE,:)%length + grid(d)%unpk(AT_EDGE,:)%length)/2
+
+       n_active_loc(ii+1:ii+N_GLO_DOMAIN) = ( &
+            grid(d)%pack(AT_NODE,:)%length + grid(d)%pack(AT_EDGE,:)%length + &
+            grid(d)%unpk(AT_NODE,:)%length + grid(d)%unpk(AT_EDGE,:)%length ) / 2
        
        ii = ii + 1 + N_GLO_DOMAIN
     end do
 
-    ! Gather all load data onto rank 0
-    call MPI_Gatherv (n_active_loc, sz, MPI_INTEGER, n_active_glo, rcounts, displs, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
-    deallocate (n_active_loc)
+    ! Global buffer only needed on root; allocate size 0 elsewhere
+    if (allocated (n_active_glo)) deallocate (n_active_glo)
+    if (rank == 0) then
+       allocate (n_active_glo(n_tot))
+    else
+       allocate (n_active_glo(0))
+    end if
 
-    ! Write out load data
-    if (rank==0) then
-       write (filename, '(A,A,I4.4)')  trim (run_id), "_conn.", id
-       open (unit = fid, file = trim(filename), recl = 333333, status = 'REPLACE')
+    call MPI_Gatherv (n_active_loc, sz, MPI_INTEGER, &
+         n_active_glo, rcounts, displs, MPI_INTEGER, &
+         0, MPI_COMM_WORLD)
+
+    deallocate(n_active_loc)
+
+    ! Write out on root (your existing logic, but now n_active_glo is correctly sized)
+    if (rank == 0) then
+       write (filename, '(A,A,I4.4)') trim(run_id), "_conn.", id
+       open (unit=fid, file=trim(filename), recl=333333, status='REPLACE')
 
        ii = 1
        do d = 1, N_GLO_DOMAIN
           write (fid,'(I10, 99999(1X,I8))') n_active_glo(ii:ii+N_GLO_DOMAIN)
           ii = ii + 1 + N_GLO_DOMAIN
        end do
+
        close (fid)
     end if
+
+    deallocate (n_active_glo)
   end subroutine write_load_conn
 
   subroutine cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
@@ -158,9 +194,9 @@ contains
        load = load + domain_load(grid(d))
     end do
 
-    call MPI_Reduce (load, maxi,     1, MPI_INTEGER, MPI_MAX, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Reduce (load, mini,     1, MPI_INTEGER, MPI_MIN, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Reduce (load, load_sum, 1, MPI_INTEGER, MPI_SUM, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Reduce (load, maxi,     1, MPI_INTEGER, MPI_MAX, 0, MPI_COMM_WORLD)
+    call MPI_Reduce (load, mini,     1, MPI_INTEGER, MPI_MIN, 0, MPI_COMM_WORLD)
+    call MPI_Reduce (load, load_sum, 1, MPI_INTEGER, MPI_SUM, 0, MPI_COMM_WORLD)
 
     avg = real (load_sum, kind=dp) / real (n_process, kind=dp)
   end subroutine get_load_balance
@@ -309,7 +345,7 @@ contains
     implicit none
     integer, dimension(n_process) :: test_recv_len
 
-    call MPI_Alltoall (send_lengths, 1, MPI_INTEGER, test_recv_len, 1, MPI_INTEGER, MPI_COMM_WORLD, ierror)
+    call MPI_Alltoall (send_lengths, 1, MPI_INTEGER, test_recv_len, 1, MPI_INTEGER, MPI_COMM_WORLD)
 
     write (3000+rank,*) test_recv_len-recv_lengths
     close (3000+rank)
@@ -320,7 +356,7 @@ contains
     implicit none
     integer :: i
 
-    call MPI_Alltoall (send_lengths, 1, MPI_INTEGER, recv_lengths, 1, MPI_INTEGER, MPI_COMM_WORLD, ierror)
+    call MPI_Alltoall (send_lengths, 1, MPI_INTEGER, recv_lengths, 1, MPI_INTEGER, MPI_COMM_WORLD)
 
     recv_offsets(1) = 0
 
@@ -337,7 +373,7 @@ contains
     end if
 
     call MPI_Alltoallv (send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, recv_buf_i%elts, &
-         recv_lengths, recv_offsets, MPI_INTEGER, MPI_COMM_WORLD, ierror)
+         recv_lengths, recv_offsets, MPI_INTEGER, MPI_COMM_WORLD)
   end subroutine alltoall
 
   subroutine comm_masks_mpi (l)
@@ -400,7 +436,7 @@ contains
     ! Call check_alltoall_lengths()
     call MPI_Alltoallv (send_buf_i%elts, send_lengths, send_offsets, MPI_INTEGER, &
                         recv_buf_i%elts, recv_lengths, recv_offsets, MPI_INTEGER, &
-                        MPI_COMM_WORLD, ierror)
+                        MPI_COMM_WORLD)
 
     ! Communicate inside domain
     call comm_masks
@@ -429,22 +465,28 @@ contains
     end do
   end subroutine comm_masks_mpi
 
-  subroutine deadlock_test(flag)
+  subroutine deadlock_test (flag)
     implicit none
     integer, intent(in) :: flag
 
     logical  :: all_done
     real(dp) :: now, t_start
-    real(dp), parameter :: timeout_time = 1e2_dp
+    real(dp), parameter :: timeout_time = 100.0_dp  ! seconds
+
+    ! Nothing to wait for
+    if (nreq <= 0) return
 
     t_start = MPI_Wtime()
+
     do
-       call MPI_Testall(nreq, req(1:nreq), all_done, MPI_STATUSES_IGNORE)
+       call MPI_Testall (nreq, req(1:nreq), all_done, MPI_STATUSES_IGNORE)
        if (all_done) exit
 
        now = MPI_Wtime()
        if ((now - t_start) >= timeout_time) then
-          write (6,'(a,i0,a,i0)') "ERROR: boundary update deadlocked at call ", flag, " on rank ", rank
+          write (6,'(a,i0,a,i0)') &
+               "ERROR: boundary update deadlocked at call ", flag, &
+               " on rank ", rank
           call abort_run
        end if
     end do
@@ -609,9 +651,12 @@ contains
     type(Float_Field) :: field
     integer           :: l_start, l_end
     
-    integer :: d_src, d_dest, dest, i, id, lev, multipl, r, r_dest, r_src
+    integer :: d_src, d_dest, dest, i, id, lev, multipl, r, r_dest, r_src, tag
 
     if (field%bdry_uptodate) return
+
+    tag = get_unique_tag ()
+    field%bdry_tag = tag
 
     if (field%pos == AT_EDGE) then
        multipl = EDGE
@@ -666,14 +711,14 @@ contains
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
        call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1 : recv_offsets(r)+recv_lengths(r)), &
-                recv_lengths(r), MPI_DP, r-1, 1, MPI_COMM_WORLD, req(nreq) )
+                recv_lengths(r), MPI_DP, r-1, tag, MPI_COMM_WORLD, req(nreq) )
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-      call MPI_Isend( send_buf%elts(send_offsets(r)+1 : send_offsets(r)+send_lengths(r)), &
-                send_lengths(r), MPI_DP, r-1, 1, MPI_COMM_WORLD, req(nreq) )
+      call MPI_Isend (send_buf%elts(send_offsets(r)+1 : send_offsets(r)+send_lengths(r)), &
+                send_lengths(r), MPI_DP, r-1, tag, MPI_COMM_WORLD, req(nreq) )
     end do
 
     ! Communicate inside domain
@@ -686,7 +731,7 @@ contains
     type(Float_Field), dimension(:) :: field
     integer                         :: l_start, l_end
     
-    integer :: d_dest, d_src, dest, i, i1, id, lev, multipl, pos, r, r_dest, r_src
+    integer :: d_dest, d_src, dest, i, i1, id, lev, multipl, pos, r, r_dest, r_src, tag
     logical :: ret
 
     ! Check if boundaries of all field elements are up to date
@@ -695,7 +740,10 @@ contains
        if (.not. field(i1)%bdry_uptodate) ret=.false.
     end do
     if (ret) return
-
+    
+    tag = get_unique_tag ()
+    field%bdry_tag = tag
+    
     send_buf%length = 0 ! reset
 
     do r_dest = 1, n_process ! destination for inter process communication
@@ -760,15 +808,13 @@ contains
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DP, r-1, 1, &
-            MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DP, r-1, tag, MPI_COMM_WORLD, req(nreq))
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DP, r-1, 1, &
-            MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DP, r-1, tag, MPI_COMM_WORLD, req(nreq))
     end do
 
     ! Communicate inside domain
@@ -781,7 +827,7 @@ contains
     type(Float_Field), dimension(:,:) :: field
     integer                           ::  l_start, l_end
     
-    integer :: d_dest, d_src, dest, i, i1, i2, id, lev, multipl, pos, r, r_dest, r_src
+    integer :: d_dest, d_src, dest, i, i1, i2, id, lev, multipl, pos, r, r_dest, r_src, tag
     logical :: ret
 
     ! Check if boundaries of all field elements are up to date
@@ -792,6 +838,9 @@ contains
        end do
     end do
     if (ret) return
+
+    tag = get_unique_tag ()
+    field%bdry_tag = tag
 
     send_buf%length = 0 ! reset
 
@@ -861,15 +910,13 @@ contains
     do r = 1, n_process
        if (r == rank+1 .or. recv_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DP, r-1, 1, &
-            MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Irecv (recv_buf%elts(recv_offsets(r)+1), recv_lengths(r), MPI_DP, r-1, tag, MPI_COMM_WORLD, req(nreq))
     end do
 
     do r = 1, n_process
        if (r == rank+1 .or. send_lengths(r) == 0) cycle
        nreq = nreq + 1
-       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DP, r-1, 1, &
-            MPI_COMM_WORLD, req(nreq), ierror)
+       call MPI_Isend (send_buf%elts(send_offsets(r)+1), send_lengths(r), MPI_DP, r-1, tag, MPI_COMM_WORLD, req(nreq))
     end do
 
     ! Communicate inside domain
@@ -929,7 +976,9 @@ contains
        multipl = 1
     end if
 
-    call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE)
+    if (field%bdry_tag == -1) error stop "finish without start"
+
+    if (nreq > 0) call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE)
 
     k = 0
     do r_src = 1, n_process 
@@ -948,9 +997,12 @@ contains
           end do
        end do
     end do
-
+    
     ! Assumes routine is either called for one level, or all levels ever to be updated
     if (l_start < l_end) field%bdry_uptodate = .true.
+
+    ! Mark exchange completed
+    field%bdry_tag = -1
   end subroutine update_bdry__finish1_0
 
   subroutine update_bdry__finish1_1 (field, l_start, l_end)
@@ -961,7 +1013,7 @@ contains
     
     integer :: d_dest, d_src, id, i, i1, k, lev, multipl, pos, r_src
     logical :: ret
-
+    
     ! Check if boundaries of all field elements are up to date
     ret = .true.
     do i1 = 1, size(field)
@@ -969,8 +1021,11 @@ contains
     end do
     if (ret) return
 
-    call MPI_Waitall (nreq, req, MPI_STATUSES_IGNORE, ierror)
-    
+    if (.not. all( field(:)%bdry_uptodate .or. field(:)%bdry_tag /= -1 )) &
+         error stop "finish without matching start for some field"
+
+    if (nreq > 0) call MPI_Waitall (nreq, req, MPI_STATUSES_IGNORE)
+
     k = 0
     do r_src = 1, n_process 
        if (r_src == rank+1) cycle ! inside domain
@@ -1000,8 +1055,11 @@ contains
 
     ! Assumes routine is either called for one level, or all levels ever to be updated
     if (l_start < l_end) field%bdry_uptodate = .true.
+
+    ! Mark exchange completed
+    field(:)%bdry_tag = -1
   end subroutine update_bdry__finish1_1
-  
+
   subroutine update_bdry__finish1_2 (field, l_start, l_end)
     ! Communicates boundary data in field, where fields is a Float_Field array
     implicit none
@@ -1020,7 +1078,10 @@ contains
     end do
     if (ret) return
 
-   call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE) 
+    if (.not. all ( field(:,:)%bdry_uptodate .or. field(:,:)%bdry_tag /= -1 )) &
+         error stop "finish without matching start for some field"
+
+    if (nreq > 0) call MPI_Waitall (nreq, req, MPI_STATUSES_IGNORE)
 
     k = 0
     do r_src = 1, n_process 
@@ -1053,6 +1114,9 @@ contains
 
     ! Assumes routine is either called for one level, or all levels ever to be updated
     if (l_start < l_end) field%bdry_uptodate = .true.
+
+    ! Mark exchange completed
+    field(:,:)%bdry_tag = -1
   end subroutine update_bdry__finish1_2
 
   subroutine comm_nodes3_mpi (get, set, l)
@@ -1106,7 +1170,7 @@ contains
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DP, &
                         recv_buf%elts, recv_lengths, recv_offsets, MPI_DP, &
-                        MPI_COMM_WORLD, ierror)
+                        MPI_COMM_WORLD)
 
     call comm_nodes3 (get, set) ! communicate inside domain
 
@@ -1135,7 +1199,7 @@ contains
     procedure(set9) :: set
     
     real(dp), dimension(7) :: val
-    integer               :: r_dest, r_src, d_src, d_dest, dest, id, i, k
+    integer                :: r_dest, r_src, d_src, d_dest, dest, id, i, k
 
     send_buf%length = 0 ! reset
 
@@ -1172,7 +1236,7 @@ contains
        recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
     end do
 
-    if (size(recv_buf%elts) < recv_buf%length) then
+    if (size (recv_buf%elts) < recv_buf%length) then
        deallocate (recv_buf%elts)
        allocate (recv_buf%elts(recv_buf%length))
        recv_buf%elts = 0.0_dp
@@ -1180,7 +1244,7 @@ contains
 
     call MPI_Alltoallv (send_buf%elts, send_lengths, send_offsets, MPI_DP, &
                         recv_buf%elts, recv_lengths, recv_offsets, MPI_DP, &
-                        MPI_COMM_WORLD, ierror)
+                        MPI_COMM_WORLD)
 
     call comm_nodes9 (get, set) ! communicate inside domain
 
@@ -1280,7 +1344,7 @@ contains
     
     integer :: val_glo
 
-    call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD)
     sync_max_int = val_glo
   end function sync_max_int
 
@@ -1290,7 +1354,7 @@ contains
     
     integer :: val_glo
 
-    call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD)
     sync_min_int = val_glo
   end function sync_min_int
 
@@ -1300,7 +1364,7 @@ contains
 
     real(dp) :: val_glo
     
-    call MPI_Allreduce (val, val_glo, 1, MPI_DP, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, 1, MPI_DP, MPI_MAX, MPI_COMM_WORLD)
     sync_max_real_0 = val_glo
   end function sync_max_real_0
 
@@ -1309,13 +1373,13 @@ contains
     real(dp), dimension(:), allocatable :: sync_max_real_1
     real(dp), dimension(:)              :: val
 
-    integer                            :: n
+    integer                             :: n
     real(dp), dimension(:), allocatable :: val_glo
 
     n = size (val,1)
     allocate (sync_max_real_1(n), val_glo(n))
 
-    call MPI_Allreduce (val, val_glo, n, MPI_DP, MPI_MAX, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, n, MPI_DP, MPI_MAX, MPI_COMM_WORLD)
     sync_max_real_1 = val_glo
   end function sync_max_real_1
 
@@ -1325,7 +1389,7 @@ contains
 
     real(dp) :: val_glo
     
-    call MPI_Allreduce (val, val_glo, 1, MPI_DP, MPI_MIN, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, 1, MPI_DP, MPI_MIN, MPI_COMM_WORLD)
     sync_min_real_0 = val_glo
   end function sync_min_real_0
 
@@ -1334,13 +1398,13 @@ contains
     real(dp), dimension(:), allocatable :: sync_min_real_1
     real(dp), dimension(:)              :: val
 
-    integer                            :: n
+    integer                             :: n
     real(dp), dimension(:), allocatable :: val_glo
 
     n = size (val,1)
     allocate (sync_min_real_1(n), val_glo(n))
 
-    call MPI_Allreduce (val, val_glo, n, MPI_DP, MPI_MIN, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, n, MPI_DP, MPI_MIN, MPI_COMM_WORLD)
     sync_min_real_1 = val_glo
   end function sync_min_real_1
 
@@ -1350,7 +1414,7 @@ contains
 
     real(dp) :: val_glo
     
-    call MPI_Allreduce (val, val_glo, 1, MPI_DP, MPI_SUM, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, 1, MPI_DP, MPI_SUM, MPI_COMM_WORLD)
     sum_real_0 = val_glo
   end function sum_real_0
 
@@ -1359,13 +1423,13 @@ contains
     real(dp), dimension(:), allocatable :: sum_real_1
     real(dp), dimension(:)              :: val
 
-    integer                            :: n
+    integer                             :: n
     real(dp), dimension(:), allocatable :: val_glo
 
     n = size (val,1)
     allocate (sum_real_1(n), val_glo(n))
     
-    call MPI_Allreduce (val, val_glo, n, MPI_DP, MPI_SUM, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, n, MPI_DP, MPI_SUM, MPI_COMM_WORLD)
     sum_real_1 = val_glo
   end function sum_real_1
 
@@ -1375,7 +1439,7 @@ contains
 
     integer :: val_glo
     
-    call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD)
     sum_int = val_glo
   end function sum_int
 
@@ -1387,18 +1451,18 @@ contains
 
     integer, dimension(n) :: val_glo
     
-    call MPI_Allreduce (val, val_glo, n, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierror)
+    call MPI_Allreduce (val, val_glo, n, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD)
     sum_int_vector = val_glo
   end function sum_int_vector
 
   subroutine start_timing
     implicit none
-    times(1) = MPI_Wtime()  
+    times(1) = MPI_Wtime ()  
   end subroutine start_timing
 
   subroutine stop_timing
     implicit none
-    times(2) = MPI_Wtime()  
+    times(2) = MPI_Wtime ()  
   end subroutine stop_timing
 
   real(dp) function get_timing()
@@ -1407,16 +1471,15 @@ contains
   end function get_timing
 
   subroutine sync_array (arr, n)
-    use mpi_f08
     implicit none
-    integer, intent(in) :: n
+    integer,  intent(in)    :: n
     real(dp), intent(inout) :: arr(n)
 
     real(dp), allocatable :: vloc(:), vmax(:)
     integer,  allocatable :: mloc(:), mmax(:)
     integer               :: i
 
-    allocate(vloc(n), vmax(n), mloc(n), mmax(n))
+    allocate (vloc(n), vmax(n), mloc(n), mmax(n))
 
     do i = 1, n
        if (abs(arr(i) - sync_val) > eps(1.0_dp)) then
@@ -1428,8 +1491,8 @@ contains
        end if
     end do
 
-    call MPI_Allreduce(mloc, mmax, n, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD)
-    call MPI_Allreduce(vloc, vmax, n, MPI_REAL8,   MPI_MAX, MPI_COMM_WORLD)
+    call MPI_Allreduce (mloc, mmax, n, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD)
+    call MPI_Allreduce (vloc, vmax, n, MPI_REAL8,   MPI_MAX, MPI_COMM_WORLD)
 
     do i = 1, n
        if (mmax(i) == 1) then
@@ -1439,7 +1502,7 @@ contains
        end if
     end do
 
-    deallocate(vloc, vmax, mloc, mmax)
+    deallocate (vloc, vmax, mloc, mmax)
   end subroutine sync_array
 
   subroutine gatherv_int (n_loc, n_glo, vec_loc, vec_glo)
@@ -1450,16 +1513,20 @@ contains
     integer, dimension(:), allocatable :: vec_glo
 
     integer, dimension(n_process) :: displs
+    integer                       :: n_tot
 
-    call gather_int (n_loc, n_glo, displs)
+    call gather_int(n_loc, n_glo, displs)
 
-    if (allocated (vec_glo)) deallocate (vec_glo)
-    allocate (vec_glo(sum(n_glo)))
+    n_tot = 0
+    if (rank == 0) n_tot = sum(n_glo)
+
+    if (allocated(vec_glo)) deallocate(vec_glo)
+    allocate(vec_glo(n_tot))   ! size 0 on non-root is fine
 
     call MPI_Gatherv ( &
          vec_loc, n_loc,         MPI_INTEGER, &
          vec_glo, n_glo, displs, MPI_INTEGER, &
-         0, MPI_COMM_WORLD, ierror)
+         0, MPI_COMM_WORLD)
   end subroutine gatherv_int
 
   subroutine gatherv_real4 (n_loc, n_glo, vec_loc, vec_glo)
@@ -1470,46 +1537,54 @@ contains
     real(4), dimension(:), allocatable :: vec_glo
 
     integer, dimension(n_process) :: displs
+    integer                       :: n_tot
 
     call gather_int (n_loc, n_glo, displs)
 
-    if (allocated (vec_glo)) deallocate (vec_glo)
-    allocate (vec_glo(sum(n_glo)))
+    n_tot = 0
+    if (rank == 0) n_tot = sum (n_glo)
+
+    if (allocated (vec_glo)) deallocate(vec_glo)
+    allocate (vec_glo(n_tot))   ! size 0 on non-root is fine
 
     call MPI_Gatherv ( &
-         vec_loc, n_loc,         MPI_REAL, &
-         vec_glo, n_glo, displs, MPI_REAL, &
-         0, MPI_COMM_WORLD, ierror)
+         vec_loc, n_loc, MPI_SP, &
+         vec_glo, n_glo, displs, MPI_SP, &
+         0, MPI_COMM_WORLD)
   end subroutine gatherv_real4
 
   subroutine gatherv_real8 (n_loc, n_glo, vec_loc, vec_glo)
     implicit none
-    integer                            :: n_loc
-    integer, dimension(n_process)      :: n_glo
+    integer                             :: n_loc
+    integer,  dimension(n_process)      :: n_glo
     real(dp), dimension(n_loc)          :: vec_loc
     real(dp), dimension(:), allocatable :: vec_glo
 
     integer, dimension(n_process) :: displs
+    integer                       :: n_tot
 
-    call gather_int (n_loc, n_glo, displs)
+    call gather_int(n_loc, n_glo, displs)
 
-    if (allocated (vec_glo)) deallocate (vec_glo)
-    allocate (vec_glo(sum(n_glo)))
+    n_tot = 0
+    if (rank == 0) n_tot = sum (n_glo)
+
+    if ( allocated (vec_glo)) deallocate (vec_glo)
+    allocate (vec_glo(n_tot))   ! size 0 on non-root is fine
 
     call MPI_Gatherv ( &
          vec_loc, n_loc,         MPI_DP, &
          vec_glo, n_glo, displs, MPI_DP, &
-         0, MPI_COMM_WORLD, ierror)
+         0, MPI_COMM_WORLD)
   end subroutine gatherv_real8
 
   subroutine gather_int (n_loc, n_glo, displs)
     implicit none
     integer                       :: n_loc
     integer, dimension(n_process) :: n_glo, displs
+    integer                       :: r
 
-    integer :: r
-
-    call MPI_Gather (n_loc, 1, MPI_INTEGER, n_glo, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+    ! Only rank 0 receives valid n_glo from MPI_Gather
+    call MPI_Gather (n_loc, 1, MPI_INTEGER, n_glo, 1, MPI_INTEGER, 0, MPI_COMM_WORLD)
 
     if (rank == 0) then
        displs(1) = 0
@@ -1517,5 +1592,9 @@ contains
           displs(r) = displs(r-1) + n_glo(r-1)
        end do
     end if
+
+    ! Make arrays defined on all ranks (prevents UB if anyone inspects them)
+    call MPI_Bcast (n_glo,  n_process, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (displs, n_process, MPI_INTEGER, 0, MPI_COMM_WORLD)
   end subroutine gather_int
 end module comm_mpi_mod

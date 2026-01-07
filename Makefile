@@ -1,10 +1,18 @@
 # Default general options
-TEST_CASE     = climate
-PARAM         = param_J5
-ARCH          = mpi
-OPTIM         = 2
-FLAGS_COMP    = -g -Wall -Wextra -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines \
-	        -ffpe-trap=invalid,zero,overflow -fbacktrace -ftrapping-math -march=native -funroll-loops 
+TEST_CASE = climate
+PARAM     = param_J5
+ARCH      = mpi
+DEBUG    ?= false
+ifeq ($(DEBUG),true)
+  # Run with: srun --export=ALL,ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 ...
+  SANFLAGS   := -fsanitize=address,undefined -fno-omit-frame-pointer
+  FLAGS_COMP := -O0 -g2 -Wall -Wextra -Wno-trampolines -fcheck=all $(SANFLAGS)
+  FLAGS_LINK := $(SANFLAGS)
+else
+  FLAGS_COMP := -O2 -g -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines \
+                -ffpe-trap=invalid,zero,overflow -fbacktrace -ftrapping-math -march=native -funroll-loops
+  FLAGS_LINK :=
+endif
 COMPILER_TYPE = gnu
 MPIF90        = mpif90
 BIN_DIR       = bin
@@ -77,22 +85,13 @@ endif
 
 ifeq ($(COMPILER_TYPE),gnu)
  F90 = gfortran
- FLAGS_COMP += -O$(OPTIM) -c -J$(BUILD_DIR) -cpp -fallow-argument-mismatch 
+ FLAGS_COMP += -c -J$(BUILD_DIR) -cpp 
 else ifeq ($(COMPILER_TYPE),amd)
  F90 = flang
- FLAGS_COMP += -O$(OPTIM) -c -module $(BUILD_DIR) -cpp
+ FLAGS_COMP += -c -module $(BUILD_DIR) -cpp
 else ifeq ($(COMPILER_TYPE),intel)
  F90 = ifort
- FLAGS_COMP += -O$(OPTIM) -c -Isrc/ppr -cpp -diag-disable 8291
-endif
-FLAGS_LINK += -O$(OPTIM)
-
-ifeq ($(OPTIM),0)
- ifeq ($(COMPILER_TYPE),intel)
-   FLAGS_COMP += -g -traceback
- else
-   FLAGS_COMP += -g -fbacktrace -fcheck=all
- endif
+ FLAGS_COMP += -c -Isrc/ppr -cpp -diag-disable 8291
 endif
 
 ifeq ($(ARCH),ser)

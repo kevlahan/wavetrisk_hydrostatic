@@ -62,9 +62,6 @@ contains
   end subroutine assign_functions
 
   subroutine read_test_case_parameters
-#ifdef MPI
-    use mpi
-#endif
     implicit none
     integer, parameter :: fid = 500
     character(255)     :: filename, varname
@@ -95,18 +92,18 @@ contains
     end if
 
 #ifdef MPI
-    call MPI_Bcast (test_case,        255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (run_id,           255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror)    
-    call MPI_Bcast (scale,              1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (scale_omega,        1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (stratification,   255, MPI_BYTE,             0, MPI_COMM_WORLD, ierror) 
-    call MPI_Bcast (max_level,          1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (zlevels,            1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (tol,                1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (dt_write,           1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (CP_EVERY,           1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (time_end,           1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-    call MPI_Bcast (resume_init,        1, MPI_INTEGER,          0, MPI_COMM_WORLD, ierror) 
+    call MPI_Bcast (test_case,        255, MPI_BYTE,    0, MPI_COMM_WORLD)
+    call MPI_Bcast (run_id,           255, MPI_BYTE,    0, MPI_COMM_WORLD)    
+    call MPI_Bcast (scale,              1, MPI_DP,      0, MPI_COMM_WORLD)
+    call MPI_Bcast (scale_omega,        1, MPI_DP,      0, MPI_COMM_WORLD)
+    call MPI_Bcast (stratification,   255, MPI_BYTE,    0, MPI_COMM_WORLD) 
+    call MPI_Bcast (max_level,          1, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (zlevels,            1, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (tol,                1, MPI_DP,      0, MPI_COMM_WORLD)
+    call MPI_Bcast (dt_write,           1, MPI_DP,      0, MPI_COMM_WORLD)
+    call MPI_Bcast (CP_EVERY,           1, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (time_end,           1, MPI_DP,      0, MPI_COMM_WORLD)
+    call MPI_Bcast (resume_init,        1, MPI_INTEGER, 0, MPI_COMM_WORLD) 
 #endif
     
     dt_write = dt_write * DAY

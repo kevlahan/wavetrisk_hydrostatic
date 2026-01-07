@@ -52,7 +52,7 @@ contains
     do r = 1, n_process
 #ifdef MPI
        if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
-          call MPI_Barrier (MPI_Comm_World, ierror)
+          call MPI_Barrier (MPI_Comm_World)
           cycle 
        end if
 #endif

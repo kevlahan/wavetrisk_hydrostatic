@@ -412,7 +412,7 @@ contains
        end if
 
        ! Collect data lengths and compute displacements on rank 0
-       call MPI_Gather (n_loc, 1, MPI_INTEGER, n_glo, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+       call MPI_Gather (n_loc, 1, MPI_INTEGER, n_glo, 1, MPI_INTEGER, 0, MPI_COMM_WORLD)
        if (rank==0) then
           displs(1) = 0
           do j = 2, n_process
@@ -421,12 +421,9 @@ contains
        end if
 
        ! Gather data of different lengths onto rank 0
-       call mpi_gatherv (data_loc, n_loc, MPI_DOUBLE_PRECISION, data, n_glo, displs, &
-            MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-       call mpi_gatherv (lat_loc,  n_loc, MPI_DOUBLE_PRECISION, lat,  n_glo, displs, &
-            MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
-       call mpi_gatherv (lon_loc,  n_loc, MPI_DOUBLE_PRECISION, lon,  n_glo, displs, &
-            MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierror)
+       call mpi_gatherv (data_loc, n_loc, MPI_DOUBLE_PRECISION, data, n_glo, displs, MPI_DP, 0, MPI_COMM_WORLD)
+       call mpi_gatherv (lat_loc,  n_loc, MPI_DOUBLE_PRECISION, lat,  n_glo, displs, MPI_DP, 0, MPI_COMM_WORLD)
+       call mpi_gatherv (lon_loc,  n_loc, MPI_DOUBLE_PRECISION, lon,  n_glo, displs, MPI_DP, 0, MPI_COMM_WORLD)
 
        ! Calculate spherical harmonics power spectrum on rank 0
        if (rank == 0) call spectrum_sphere ("vort_lsq", k)

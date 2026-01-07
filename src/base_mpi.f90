@@ -3,7 +3,7 @@ module arch_mod
   use geom_mod
   use mpi_f08
   implicit none
-  integer                              :: ierror, n_process, rank
+  integer                              :: n_process, rank
   integer, dimension(N_GLO_DOMAIN)     :: loc_id, owner
   integer, dimension(:,:), allocatable :: glo_id
 contains
@@ -76,7 +76,7 @@ contains
           end do
        end if
     end if
-    call MPI_Bcast (owner, N_GLO_DOMAIN, MPI_INTEGER, 0, MPI_COMM_WORLD, ierror)
+    call MPI_Bcast (owner, N_GLO_DOMAIN, MPI_INTEGER, 0, MPI_COMM_WORLD)
 
     n_domain = 0
     do d = 1, N_GLO_DOMAIN
@@ -102,9 +102,9 @@ contains
 
     call init_shared_mod
 
-    call MPI_Init (ierror)
-    call MPI_Comm_Size (MPI_COMM_WORLD, n_process, ierror)
-    call MPI_Comm_Rank (MPI_COMM_WORLD, rank,      ierror)
+    call MPI_Init ()
+    call MPI_Comm_Size (MPI_COMM_WORLD, n_process)
+    call MPI_Comm_Rank (MPI_COMM_WORLD, rank)
 
     allocate (n_domain(n_process))
     n_domain = 0
@@ -123,14 +123,14 @@ contains
   end subroutine init_arch_mod
 
   subroutine finalize
-    call MPI_Finalize (ierror)
+    call MPI_Finalize ()
   end subroutine finalize
 
   subroutine barrier
-    call MPI_Barrier (MPI_Comm_World, ierror)
+    call MPI_Barrier (MPI_Comm_World)
   end subroutine barrier
 
   subroutine abort_run
-    call MPI_Abort (MPI_Comm_World, 1, ierror)
+    call MPI_Abort (MPI_Comm_World, 1)
   end subroutine abort_run
 end module arch_mod

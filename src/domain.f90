@@ -65,24 +65,27 @@
   end type Domain
   
   type Float_Field
-     integer                                      :: pos
-     logical                                      :: bdry_uptodate
-     type(Float_Array), dimension(:), allocatable :: data
+     integer                        :: pos
+     integer                        :: bdry_tag = -1
+     logical                        :: bdry_uptodate
+     type(Float_Array), allocatable :: data(:)
   end type Float_Field
 
   type Int_Field
-     integer                                      :: pos
-     logical                                      :: bdry_uptodate
-     type(Int_Array), dimension(:), allocatable :: data
+     integer                      :: pos
+     integer                      :: bdry_tag = -1
+     logical                      :: bdry_uptodate
+     type(Int_Array), allocatable :: data(:)
   end type Int_Field
 
   type Logical_Field
-     integer                                      :: pos
-     logical                                      :: bdry_uptodate
-     type(Logical_Array), dimension(:), allocatable :: data
+     integer                          :: pos
+     integer                          :: bdry_tag = -1
+     logical                          :: bdry_uptodate
+     type(Logical_Array), allocatable :: data(:)
   end type Logical_Field
 
-  type(Domain), dimension(:), allocatable, target        :: grid
+  type(Domain), allocatable, target :: grid(:)
 
   type(Float_Field),                              target :: topography
   type(Topo_Array),  dimension(:,:), allocatable         :: topography_data
