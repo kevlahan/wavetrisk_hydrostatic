@@ -1,191 +1,243 @@
-# Default general options
-TEST_CASE = climate
-PARAM     = param_J5
-ARCH      = mpi
-DEBUG    ?= false
-ifeq ($(DEBUG),true)
-  # Run with: srun --export=ALL,ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 ...
-  SANFLAGS   := -fsanitize=address,undefined -fno-omit-frame-pointer
-  FLAGS_COMP := -O0 -g2 -Wall -Wextra -Wno-trampolines -fcheck=all $(SANFLAGS)
-  FLAGS_LINK := $(SANFLAGS)
-else
-  FLAGS_COMP := -O2 -g -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines \
-                -ffpe-trap=invalid,zero,overflow -fbacktrace -ftrapping-math -march=native -funroll-loops
-  FLAGS_LINK :=
-endif
-COMPILER_TYPE = gnu
-MPIF90        = mpif90
-BIN_DIR       = bin
-BUILD_DIR     = build
-LAPACK        = -llapack
-NETCDF        = -lnetcdff
-TOPO          = false
-ifeq ($(TEST_CASE), make_NCAR_topo)
- TOPO = true
-endif
+# =========================
+# User-configurable options
+# ARCH options = ser | mpi | ampi
+# =========================
+DEBUG         ?= false
+TEST_CASE     ?= climate
+PARAM         ?= param_J5
+ARCH          ?= mpi
+MPIF90        ?= mpif90
+PREFIX        ?= .
+SRC_DIR       ?= src
+BIN_DIR       ?= bin
+BUILD_DIR     ?= build
+MODDIR        ?= $(BUILD_DIR)/mod
 
-LIBS = $(LAPACK)
+# Libraries
+LAPACK        ?= -llapack
+NETCDF        ?= -lnetcdff
 
-PHYSICS = false
-ifeq ($(TEST_CASE), climate)
- PHYSICS = true
+# =========================
+# Derived toggles
+# =========================
+TOPO    := false
+PHYSICS := false
+ifeq ($(TEST_CASE),make_NCAR_topo)
+TOPO := true
 endif
-ifeq ($(TEST_CASE), spherical_harmonics)
- PHYSICS = true
+ifeq ($(TEST_CASE),$(filter $(TEST_CASE),climate spherical_harmonics))
+PHYSICS := true
 endif
 
-PREFIX     = .
-
-# AMPI options
-CHARM_DIR   = ~/charm
-CHARM_BUILD = multicore-linux-x86_64
-AMPIF90     = $(CHARM_DIR)/$(CHARM_BUILD)/bin/mpif90.ampi
-
-# Link to test case module file	
-$(shell ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 src)
-$(shell ln -nsf ../test/$(TEST_CASE)/$(TEST_CASE).f90 src/test.f90)
-
-# Make directories
-$(shell mkdir -p $(PREFIX)/$(BUILD_DIR))
-$(shell mkdir -p $(PREFIX)/$(BIN_DIR))	
-
-vpath %.f90 src
-
-SYSTEM = $(shell uname -a | cut -c 1-6 -)
-ifeq ($(SYSTEM),Darwin)
- MACHINE = mac
- LIBS   += -L/opt/homebrew/opt/lapack/lib
- ifeq ($(TOPO), true)
-  NETCDF_DIR  = /opt/homebrew/Cellar/netcdf-fortran/4.6.2
-  FLAGS_COMP += -I$(NETCDF_DIR)/include
-  LIBS       += -L$(NETCDF_DIR)/lib
- endif
-else
- MACHINE := $(shell scontrol show config 2>/dev/null | \
-   awk -F= '/^ClusterName/{sub(/^[[:space:]]+/,"",$$2); sub(/[[:space:]]+$$/,"",$$2); print tolower($$2); exit}')
- $(info Machine: $(MACHINE))
-
- ifeq ($(MACHINE),$(filter $(MACHINE), nibi trillium narval)) # Compute Canada machines: module load StdEnv netcdf 
-  LAPACK = -lflexiblas  # module load flexiblas
- endif
-
- ifeq ($(MACHINE),$(filter $(MACHINE), bbcluster2))  # module load gcc mvapich netlib-lapack 
-  FLAGS_COMP += -I$(NETLIB_LAPACK_ROOT)/include
-  LIBS       += -L$(NETLIB_LAPACK_ROOT)/lib64
-  ifeq ($(TOPO), true)                           # module load gcc mvapich netlib-lapack netcdf-fortran
-   FLAGS_COMP += -I$(NETCDF_FORTRAN_ROOT)/include
-   LIBS       += -Wl,-rpath $(NETCDF_FORTRAN_ROOT)/lib -L$(NETCDF_FORTRAN_ROOT)/lib
-  endif
- endif
-endif
-
-ifeq ($(TOPO), true)
-  LIBS += $(NETCDF)  # bbserv: module load netcdf netcdf-fortran
-endif
-
-ifeq ($(COMPILER_TYPE),gnu)
- F90 = gfortran
- FLAGS_COMP += -c -J$(BUILD_DIR) -cpp 
-else ifeq ($(COMPILER_TYPE),amd)
- F90 = flang
- FLAGS_COMP += -c -module $(BUILD_DIR) -cpp
-else ifeq ($(COMPILER_TYPE),intel)
- F90 = ifort
- FLAGS_COMP += -c -Isrc/ppr -cpp -diag-disable 8291
-endif
-
+# =========================
+# Toolchain selection
+# =========================
 ifeq ($(ARCH),ser)
- COMPILER = $(F90)
- PROC     = ser
+FC   := gfortran
+PROC := ser
+else ifeq ($(ARCH),mpi)
+FC   := $(MPIF90)
+PROC := mpi
+else ifeq ($(ARCH),ampi)
+CHARM_DIR   ?= $(HOME)/charm
+CHARM_BUILD ?= multicore-linux-x86_64
+FC          := $(CHARM_DIR)/$(CHARM_BUILD)/bin/mpif90.ampi
+PROC        := mpi
 else
- PROC        = mpi
- FLAGS_COMP += -DMPI 
- FLAGS_LINK += -DMPI 
-ifeq ($(ARCH),mpi)
-  COMPILER = $(MPIF90)
+$(error Unknown ARCH='$(ARCH)'; use ser|mpi|ampi)
+endif
+
+LD := $(FC)
+
+# =========================
+# Flags (clean separation)
+# =========================
+CPPFLAGS += -cpp
+ifeq ($(ARCH),ser)
+# nothing
 else
-  ARCH        = mpi
-  F90         = $(AMPIF90)
-  COMPILER    = $(AMPIF90)
-  FLAGS_COMP += -DAMPI -fPIC -shared 
-  FLAGS_LINK += -DAMPI 
+CPPFLAGS += -DMPI
+endif
+ifeq ($(ARCH),ampi)
+CPPFLAGS += -DAMPI
+endif
+ifeq ($(PHYSICS),true)
+CPPFLAGS += -DPHYSICS
+endif
+
+# Debug vs release
+ifeq ($(DEBUG),true)
+SANFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
+FFLAGS   += -O0 -g2 -Wall -Wextra -Wno-trampolines -fcheck=all $(SANFLAGS)
+else
+FFLAGS   += -O2 -g -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines \
+-ffpe-trap=invalid,zero,overflow -fbacktrace -ftrapping-math -march=native -funroll-loops
+endif
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+  # Force non-executable stack (ELF/GNU ld); fixes ".note.GNU-stack is executable" warnings
+  LDFLAGS += -Wl,-z,noexecstack
+endif
+
+# Modules/includes
+FFLAGS   += -J$(MODDIR) -I$(MODDIR)
+
+# Link libraries
+LDLIBS   += $(LAPACK)
+
+# =========================
+# Machine / platform tweaks
+# =========================
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+MACHINE := mac
+# Homebrew lapack path (adjust if you want)
+LDLIBS  += -L/opt/homebrew/opt/lapack/lib
+
+ifeq ($(TOPO),true)
+NETCDF_DIR ?= /opt/homebrew/Cellar/netcdf-fortran/4.6.2
+CPPFLAGS   += -I$(NETCDF_DIR)/include
+LDFLAGS    += -L$(NETCDF_DIR)/lib
+endif
+else
+MACHINE := $(shell scontrol show config 2>/dev/null | \
+awk -F= '/^ClusterName/{sub(/^[[:space:]]+/,"",$$2); sub(/[[:space:]]+$$/,"",$$2); print tolower($$2); exit}')
+
+$(info Machine: $(MACHINE))
+
+# Compute Canada: prefer flexiblas if you load it
+ifeq ($(MACHINE),$(filter $(MACHINE),nibi trillium narval))
+LAPACK  := -lflexiblas
+LDLIBS  += $(LAPACK)
+endif
+
+# bbcluster2
+ifeq ($(MACHINE),bbcluster2)
+ifdef NETLIB_LAPACK_ROOT
+CPPFLAGS += -I$(NETLIB_LAPACK_ROOT)/include
+LDFLAGS  += -L$(NETLIB_LAPACK_ROOT)/lib64
+endif
+ifeq ($(TOPO),true)
+ifdef NETCDF_FORTRAN_ROOT
+CPPFLAGS += -I$(NETCDF_FORTRAN_ROOT)/include
+LDFLAGS  += -L$(NETCDF_FORTRAN_ROOT)/lib -Wl,-rpath,$(NETCDF_FORTRAN_ROOT)/lib
+endif
+endif
 endif
 endif
 
-ifeq ($(PHYSICS), true)
- FLAGS_COMP += -DPHYSICS
- FLAGS_LINK += -DPHYSICS
+ifeq ($(TOPO),true)
+LDLIBS += $(NETCDF)
 endif
 
-LINKER += $(COMPILER)
-
-ifeq ($(TEST_CASE), spherical_harmonics) # add shtools and supporting libraries (MUST use gfortran/openmpi)
- ifeq ($(MACHINE),$(filter $(MACHINE),orc bul gra nia))
-  # ml fftw
-  SHTOOLSLIBPATH = $(HOME)/SHTOOLS-4.7.1/lib
-  SHTOOLSMODPATH = $(HOME)/SHTOOLS-4.7.1/include
-  LIBS          += -L$(SHTOOLSLIBPATH)
-  FLAGS_COMP    += -I$(SHTOOLSMODPATH) -m64	
- else ifeq ($(MACHINE), mac)
-  SHTOOLSLIBPATH = /opt/homebrew/lib
-  SHTOOLSMODPATH = /opt/homebrew/include
-  LIBS          += -L$(SHTOOLSLIBPATH) 
-  FLAGS_COMP    += -I$(SHTOOLSMODPATH) -m64
- else ifeq ($(MACHINE), bbcluster2)
-  # ml gcc mvapich netlib-lapack shtools fftw
-  LIBS       += -L$(SHTOOLS_ROOT)/lib -Wl,-rpath,$(SHTOOLs_ROOT)/lib
-  LIBS       += -L$(FFTW_ROOT)/lib    -Wl,-rpath,$(FFTW_ROOT)/lib	
-  FLAGS_COMP += -I$(SHTOOLS_ROOT)/include -m64
- else
-   SHTOOLSLIBPATH = /usr/local/lib
-   SHTOOLSMODPATH = /usr/local/include
-   LIBS          += -L$(SHTOOLSLIBPATH) 
-   FLAGS_COMP    += -I$(SHTOOLSMODPATH) -m64
- endif
- LIBS       += -lSHTOOLS -lfftw3 -lm
- FLAGS_COMP += -fPIC
+# ==================================================
+# Optional SHTOOLS / FFTW for spherical_harmonics
+# ==================================================
+ifeq ($(TEST_CASE),spherical_harmonics)
+ifeq ($(MACHINE),mac)
+CPPFLAGS += -I/opt/homebrew/include
+LDFLAGS  += -L/opt/homebrew/lib
+else ifeq ($(MACHINE),bbcluster2)
+CPPFLAGS += -I$(SHTOOLS_ROOT)/include
+LDFLAGS  += -L$(SHTOOLS_ROOT)/lib -Wl,-rpath,$(SHTOOLS_ROOT)/lib \
+            -L$(FFTW_ROOT)/lib    -Wl,-rpath,$(FFTW_ROOT)/lib
+else
+CPPFLAGS += -I/usr/local/include
+LDFLAGS  += -L/usr/local/lib
+endif
+LDLIBS   += -lSHTOOLS -lfftw3 -lm
+FFLAGS   += -fPIC
 endif
 
-SRC = kind.f90 $(PARAM).f90 shared.f90 coord_arithmetic.f90 calendar.f90 geom.f90  patch.f90 dyn_array.f90 \
-base_$(PROC).f90 spline.f90 domain.f90 domain_ops.f90 init.f90 comm.f90 comm_$(PROC).f90 utils.f90 \
-projection.f90 equation_of_state.f90 wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 coarse_grid.f90 ops.f90 \
-multi_level.f90 adapt.f90 lin_solve.f90 barotropic_2d.f90 time_integr.f90 io.f90 vert_diffusion.f90 io_vtk.f90 \
-remap.f90 std_atm_profile.f90 sso.f90
+# ==================================================
+# Test case source links
+# (done as real build steps, not parse-time)
+# ==================================================
+TESTMOD_SRC := $(SRC_DIR)/test_case_module.f90
+TEST_SRC    := $(SRC_DIR)/test.f90
 
-ifeq ($(TOPO), true)
- SRC += topo_grid_descriptor.f90
+.DEFAULT_GOAL := all
+
+all: $(EXE)
+
+$(TESTMOD_SRC):
+	ln -nsf ../test/$(TEST_CASE)/test_case_module.f90 $@
+
+$(TEST_SRC):
+	ln -nsf ../test/$(TEST_CASE)/$(TEST_CASE).f90 $@
+
+# =========================
+# Sources / objects
+# =========================
+vpath %.f90 $(SRC_DIR)
+
+SRC = kind.f90 $(PARAM).f90 shared.f90 coord_arithmetic.f90 calendar.f90 geom.f90 patch.f90 dyn_array.f90 \
+      base_$(PROC).f90 spline.f90 domain.f90 domain_ops.f90 init.f90 comm.f90 comm_$(PROC).f90 utils.f90 \
+      projection.f90 equation_of_state.f90 wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 coarse_grid.f90 ops.f90 \
+      multi_level.f90 adapt.f90 lin_solve.f90 barotropic_2d.f90 time_integr.f90 io.f90 vert_diffusion.f90 io_vtk.f90 \
+      remap.f90 std_atm_profile.f90 sso.f90
+
+ifeq ($(TOPO),true)
+SRC += topo_grid_descriptor.f90
 endif
 
-ifeq ($(PHYSICS), true)
- SIMPLEPHYSMODPATH = src/physics/simple_physics/phyparam/include
- FLAGS_COMP       += -I$(SIMPLEPHYSMODPATH) # mod 
- PHYSLIB_PATH      = src/physics/simple_physics/phyparam/driver
- LIBS             += -L$(PHYSLIB_PATH) -lphyparam
- -include src/physics/Makefile.inc
+ifeq ($(PHYSICS),true)
+SIMPLEPHYSMODPATH := $(SRC_DIR)/physics/simple_physics/phyparam/include
+PHYSLIB_PATH      := $(SRC_DIR)/physics/simple_physics/phyparam/driver
+CPPFLAGS          += -I$(SIMPLEPHYSMODPATH)
+LDFLAGS           += -L$(PHYSLIB_PATH)
+LDLIBS            += -lphyparam
+-include $(SRC_DIR)/physics/Makefile.inc
 endif
 
+# Ensure the link-generated test sources are built before compiling objects that USE them
 SRC += main.f90 test_case_module.f90 test.f90
 
-OBJ = $(patsubst %.f90,$(BUILD_DIR)/%.o,$(SRC))
+OBJ := $(addprefix $(BUILD_DIR)/,$(SRC:.f90=.o))
 
-$(PREFIX)/$(BIN_DIR)/$(TEST_CASE): $(OBJ)
-	$(LINKER) $(FLAGS_LINK) -o $@ $^ $(LIBS) 
+# =========================
+# Targets
+# =========================
+EXE := $(PREFIX)/$(BIN_DIR)/$(TEST_CASE)
 
-$(BUILD_DIR)/%.o: %.f90 shared.f90 $(PARAM).f90
-	$(COMPILER) $(FLAGS_COMP) $< -o $@ 
+.PHONY: all clean phys_package topography dirs
+all: $(EXE)
 
+dirs: $(BUILD_DIR) $(BIN_DIR) $(MODDIR)
+
+$(BUILD_DIR):
+	mkdir -p $@
+
+$(BIN_DIR):
+	mkdir -p $@
+
+$(MODDIR): | $(BUILD_DIR)
+	mkdir -p $@
+
+# Link
+$(EXE): $(OBJ) | dirs
+	$(LD) $(LDFLAGS) -o $@ $(OBJ) $(LDLIBS)
+
+# Compile (ensure mod dir exists; ensure test symlinks exist)
+$(BUILD_DIR)/%.o: %.f90 | dirs
+	$(FC) $(CPPFLAGS) $(FFLAGS) -c $< -o $@
+
+# Force creation of the symlinked test sources before they compile
+$(BUILD_DIR)/test_case_module.o: $(TESTMOD_SRC)
+$(BUILD_DIR)/test.o:            $(TEST_SRC)
+
+# Optional helper targets
 phys_package:
-	@echo "Compiling Physics Package" 
-	@$(MAKE) -C src/physics/simple_physics/phyparam F90=mpif90
+	$(MAKE) -C $(SRC_DIR)/physics/simple_physics/phyparam F90=$(MPIF90)
 
 topography:
-	@echo "Compiling NCAR topography package"
-	@$(MAKE) -C topo 
-	@$(MAKE) -C topo clean
+	$(MAKE) -C topo
+	$(MAKE) -C topo clean
 
 clean:
-	\rm -f $(BUILD_DIR)/* src/test_case_module.f90 src/test.f90
-
-ifeq ($(PHYSICS), true)
-	$(MAKE) -C src/physics/simple_physics/phyparam clean
+	rm -rf $(BUILD_DIR) $(SRC_DIR)/test_case_module.f90 $(SRC_DIR)/test.f90
+ifeq ($(PHYSICS),true)
+	$(MAKE) -C $(SRC_DIR)/physics/simple_physics/phyparam clean
 endif
+

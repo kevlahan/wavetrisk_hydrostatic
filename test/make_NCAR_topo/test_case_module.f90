@@ -173,8 +173,6 @@ contains
     implicit none
     integer, parameter :: fid = 500
     character(255)     :: filename, varname
-    character(2)       :: var_file
-    logical            :: file_exists
 
     ! Find input parameters file name
     if (command_argument_count () >= 1) then
@@ -199,7 +197,7 @@ contains
     if (rank==0) then
        write (6,'(a)') &
             '********************************************************** Parameters &
-            ************************************************************'
+            &************************************************************'
        write (6,'(a)')        "RUN PARAMETERS"
        write (6,'(a,a)')      "run_id               = ", trim (run_id)
        write (6,'(a,i3)')     "min_level            = ", min_level
@@ -217,7 +215,7 @@ contains
        write (6,'(a,a)')      "restrict_type        = ", restrict_type
        write (6,'(a)') &
             '*********************************************************************&
-            ************************************************************'
+            &************************************************************'
     end if
   end subroutine print_test_case_parameters
 
