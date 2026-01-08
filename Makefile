@@ -2,6 +2,10 @@
 # User-configurable options
 # ARCH options = ser | mpi | ampi
 # requires gnu compiler collection and openmpi/mpich for parallel version
+# Build modes:
+#   DEBUG=false  → optimized
+#   DEBUG=asan   → ASan/UBSan (Linux/HPC only)
+#   DEBUG=check  → Fortran runtime + FP traps (portable)
 # ===========================================================================
 DEBUG         ?= false
 TEST_CASE     ?= climate
@@ -77,8 +81,11 @@ endif
 # Identify shell
 UNAME_S := $(shell uname -s)
 
-# Debug vs release
-ifeq ($(DEBUG),true)
+# =========================
+# Build flags by mode
+# =========================
+ifeq ($(DEBUG),asan)
+
 ifeq ($(UNAME_S),Darwin)
 $(error DEBUG=true is not supported on macOS (ASan/UBSan + mpif90 + -flat_namespace). Please use DEBUG=true on Linux/HPC)
 endif
@@ -88,11 +95,20 @@ SANFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
 FFLAGS   += -O0 -g2 -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines -fcheck=all $(SANFLAGS)
 LDFLAGS  += $(SANFLAGS) -Wl,-undefined,error
 
+else ifeq ($(DEBUG),check)
+# Portable heavy runtime checking (no sanitizers)
+FFLAGS += -O0 -g -Wall -Wextra -Wno-unused-dummy-argument -fcheck=all \
+          -finit-real=snan \
+          -finit-integer=-999999 \
+          -finit-logical=true \
+          -ffpe-trap=invalid,zero,overflow \
+          -ftrapping-math \
+          -fbacktrace
 else
-
-FFLAGS   += -O2 -g -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines \
--ffpe-trap=invalid,zero,overflow -fbacktrace -ftrapping-math -march=native -funroll-loops
-
+ # Optimized build
+ FFLAGS += -O2 -g -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines \
+           -fbacktrace \
+           -march=native -funroll-loops
 endif
 
 
