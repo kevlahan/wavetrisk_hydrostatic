@@ -74,17 +74,28 @@ ifeq ($(PHYSICS),true)
 CPPFLAGS += -DPHYSICS
 endif
 
+# Identify shell
+UNAME_S := $(shell uname -s)
+
 # Debug vs release
 ifeq ($(DEBUG),true)
-# run with export ASAN_OPTIONS=abort_on_error=1:detect_leaks=0
-SANFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
-FFLAGS   += -O0 -g2 -Wall -Wextra -Wno-trampolines -fcheck=all $(SANFLAGS)
-else
-FFLAGS   += -O2 -g -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines \
--ffpe-trap=invalid,zero,overflow -fbacktrace -ftrapping-math -march=native -funroll-loops
+ifeq ($(UNAME_S),Darwin)
+$(error DEBUG=true is not supported on macOS (ASan/UBSan + mpif90 + -flat_namespace). Please use DEBUG=true on Linux/HPC)
 endif
 
-UNAME_S := $(shell uname -s)
+# Run with export ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 when using mpi and > 1 tasks
+SANFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
+FFLAGS   += -O0 -g2 -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines -fcheck=all $(SANFLAGS)
+LDFLAGS  += $(SANFLAGS) -Wl,-undefined,error
+
+else
+
+FFLAGS   += -O2 -g -Wall -Wextra -Wno-unused-dummy-argument -Wno-trampolines \
+-ffpe-trap=invalid,zero,overflow -fbacktrace -ftrapping-math -march=native -funroll-loops
+
+endif
+
+
 ifeq ($(UNAME_S),Linux)
   # Force non-executable stack (ELF/GNU ld); fixes ".note.GNU-stack is executable" warnings
   LDFLAGS += -Wl,-z,noexecstack
@@ -99,7 +110,6 @@ LDLIBS   += $(LAPACK)
 # =========================
 # Machine / platform tweaks
 # =========================
-UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 MACHINE := mac
 # Homebrew lapack path (adjust if you want)
