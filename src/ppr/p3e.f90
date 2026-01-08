@@ -79,10 +79,13 @@
         real*8  :: fhat(+4, nvar)
         real*8  :: ivec(+4,-2:+2)
         real*8  :: cmat(+4,+4)
-        
+
         integer, parameter :: NSIZ = +4
-        real*8 , parameter :: ZERO = 1.d-14  
-   
+        real*8 , parameter :: ZERO = 1.d-14
+
+        edge = 0.0d0
+        dfdx = 0.0d0
+
         head = +3 ; tail = npos - 2
 
         if (npos.le.4) then

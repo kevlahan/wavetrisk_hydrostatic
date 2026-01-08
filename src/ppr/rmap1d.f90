@@ -92,6 +92,8 @@
         if (nnew.lt.2) return
         if (nvar.lt.1) return
 
+        fnew = 0.0d0
+
     !------------- calc. grid-spacing and check uniformity !
 
         same = (xpos(npos)& 
@@ -214,7 +216,6 @@
     !       NDOF-by-NVAR-by-NNEW-1 .
     ! XTOL  min. grid-cell thickness . 
     !
-
         implicit none    
     
     !------------------------------------------- arguments !
@@ -242,7 +243,12 @@
         integer :: kmin(  +1:nvar)
         integer :: kmax(  +1:nvar)
         
-        integer, parameter :: INTB = -1   ! integral basis  
+        integer, parameter :: INTB = -1   ! integral basis
+
+        fnew = 0.0d0
+
+        vvlo = 0.0d0
+        vvhi = 0.0d0
 
     !------------- remap FDAT from XPOS to XNEW using FHAT !
 
@@ -309,12 +315,11 @@
             &  (xxhi-xmid) / max(xhat,XTOL)
 
     !------------------------------- integral basis vector !
-    
                 call bfun1d(INTB,mdof, &
                             sslo,vvlo)
                 call bfun1d(INTB,mdof, &
                             sshi,vvhi)
-                
+
                 ivec =  vvhi - vvlo
 
     !--------- integrate FHAT across the overlap XXLO:XXHI !

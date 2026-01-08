@@ -12,9 +12,10 @@ module remap_mod
      subroutine interpolation (N, var_new, z_new, var_old, z_old)
        use kind_mod
        implicit none
-       integer                  :: N
-       real(dp), dimension(1:N) :: var_new, var_old
-       real(dp), dimension(0:N) :: z_new, z_old
+       integer,                  intent(in)  :: N
+       real(dp), dimension(1:N), intent(in)  :: var_old
+       real(dp), dimension(0:N), intent(in)  :: z_old, z_new
+       real(dp), dimension(1:N), intent(out) :: var_new
      end subroutine interpolation
   end interface
   procedure (interpolation), pointer :: interpolate => null ()
@@ -270,10 +271,11 @@ contains
     ! in each grid box, (i.e. similar to donor-cell first-order upstream advection).
     !
     implicit none
-    integer                  :: N
-    real(dp), dimension(1:N) :: var_new, var_old
-    real(dp), dimension(0:N) :: z_new, z_old
-    
+    integer,                  intent(in)  :: N
+    real(dp), dimension(1:N), intent(in)  :: var_old
+    real(dp), dimension(0:N), intent(in)  :: z_old, z_new
+    real(dp), dimension(1:N), intent(out) :: var_new
+
     integer                  :: k
     real(dp)                 :: dz
     real(dp), dimension(0:N) :: FC
@@ -303,9 +305,10 @@ contains
     ! default version: minmod(X,Y) is replaced with harmonic mean -------
     !                                                              X + Y
     implicit none
-    integer                  :: N
-    real(dp), dimension(1:N) :: var_new, var_old
-    real(dp), dimension(0:N) :: z_new, z_old
+    integer,                  intent(in)  :: N
+    real(dp), dimension(1:N), intent(in)  :: var_old
+    real(dp), dimension(0:N), intent(in)  :: z_old, z_new
+    real(dp), dimension(1:N), intent(out) :: var_new
 
     integer                  :: k, iter
     real(dp)                 :: cff, cff1, dh, dL, dR, dz
@@ -391,9 +394,10 @@ contains
     ! Reconstruction by PPM code of Colella--Woodward, 1984.
     !
     implicit none
-    integer                  :: N
-    real(dp), dimension(1:N) :: var_new, var_old
-    real(dp), dimension(0:N) :: z_new, z_old
+    integer,                  intent(in)  :: N
+    real(dp), dimension(1:N), intent(in)  :: var_old
+    real(dp), dimension(0:N), intent(in)  :: z_old, z_new
+    real(dp), dimension(1:N), intent(out) :: var_new
 
     integer                  :: k, k1, k2
     real(dp)                 :: alpha, cff, cffL, cffR, dL, dR, dz
@@ -510,9 +514,10 @@ contains
     !------ --------- ------ --------------
     !
     implicit none
-    integer                  :: N
-    real(dp), dimension(1:N) :: var_new, var_old
-    real(dp), dimension(0:N) :: z_new,  z_old
+    integer,                  intent(in)  :: N
+    real(dp), dimension(1:N), intent(in)  :: var_old
+    real(dp), dimension(0:N), intent(in)  :: z_old, z_new
+    real(dp), dimension(1:N), intent(out) :: var_new
 
     integer                  :: k
     real(dp)                 :: alpha, cff, cff1, dz
@@ -601,9 +606,10 @@ contains
     ! reconciliation of side limits.
     !
     implicit none
-    integer                  :: N
-    real(dp), dimension(1:N) :: var_new, var_old
-    real(dp), dimension(0:N) :: z_new, z_old
+    integer,                  intent(in)  :: N
+    real(dp), dimension(1:N), intent(in)  :: var_old
+    real(dp), dimension(0:N), intent(in)  :: z_old, z_new
+    real(dp), dimension(1:N), intent(out) :: var_new
 
     integer                  :: k
     real(dp)                 :: alpha, cff, cffL, cffR, deltaL, deltaR, dz
@@ -751,9 +757,10 @@ contains
     ! (1) continuity of both value and first derivative at each interface
     ! (2) essentially non-oscillatory
     implicit none
-    integer                  :: N
-    real(dp), dimension(1:N) :: var_new, var_old
-    real(dp), dimension(0:N) :: z_new, z_old
+    integer,                  intent(in)  :: N
+    real(dp), dimension(1:N), intent(in)  :: var_old
+    real(dp), dimension(0:N), intent(in)  :: z_old, z_new
+    real(dp), dimension(1:N), intent(out) :: var_new
 
     integer                  :: k
     real(dp)                 :: alpha, Ampl, cff, cffL, cffR, deltaL, deltaR, dz, Hdd, rr
@@ -962,9 +969,10 @@ contains
     ! PPR remapping using Engwirda and Kelley (2016) algorithms
     use ppr_1d
     implicit none
-    integer                  :: N
-    real(dp), dimension(1:N) :: var_new, var_old
-    real(dp), dimension(0:N) :: z_new, z_old
+    integer,                  intent(in)  :: N
+    real(dp), dimension(1:N), intent(in)  :: var_old
+    real(dp), dimension(0:N), intent(in)  :: z_old, z_new
+    real(dp), dimension(1:N), intent(out) :: var_new
 
     ! PPR and limiter type
     integer,      parameter          :: order   = 2
@@ -1010,8 +1018,10 @@ contains
 
     ! Initialize method workspace
     call work%init (N+1, nvar, opts)
-
+    
     ! Remap
+    f_old = 0.0_dp
+    f_new = 0.0_dp
     f_old(ndof,nvar,:) = var_old
     call rmap1d (N+1, N+1, nvar, ndof, z_old, z_new, f_old, f_new, bc_l, bc_r, work, opts)
     var_new = f_new(ndof,nvar,:)

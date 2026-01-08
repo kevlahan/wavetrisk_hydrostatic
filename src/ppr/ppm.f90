@@ -86,22 +86,23 @@
         real*8  :: wval(+1:+2)
         real*8  :: uhat(+1:+3)
         real*8  :: lhat(+1:+3)
-        
+
+        fhat = 0.0d0
+
         head = +1; tail = npos - 1
 
-        if (npos.eq.2) then
-    !----- default to reduced order if insufficient points !
-        do  ivar = +1, nvar
-            fhat(1,ivar,+1) = &
-        &   fdat(1,ivar,+1)
-            fhat(2,ivar,+1) = 0.d0
-            fhat(3,ivar,+1) = 0.d0
-        end do
+        ! Always make fhat defined on early return
+        if (npos <= 2) then
+           fhat = 0.0d0
+           if (npos == 2) then
+              do ivar = 1, nvar
+                 fhat(1, ivar, 1) = fdat(1, ivar, 1)
+              end do
+           end if
+           return
         end if
 
-        if (npos.le.2) return
-
-    !------------------- reconstruct function on each cell !
+        !------------------- reconstruct function on each cell !
 
         uhat = +0.d+0
         lhat = +0.d+0

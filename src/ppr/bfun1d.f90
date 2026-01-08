@@ -53,6 +53,8 @@
         integer, intent( in) :: isel,ndof
         real*8 , intent( in) :: sval
         real*8 , intent(out) :: bfun(:)
+
+        bfun = 0.0d0
         
         select case (isel)
         case (-1)
