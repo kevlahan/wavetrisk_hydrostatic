@@ -629,7 +629,7 @@ contains
           call MPI_Gather (Nstats(k,bin), 1, MPI_INTEGER, Nstats_loc, 1, MPI_INTEGER, 0, MPI_COMM_WORLD)
 
           temp = zonal_avg(k,bin,:)
-          call MPI_Gather (temp, nvar_zonal, MPI_REAL8, zonal_avg_loc, nvar_zonal, MPI_REAL8, 0, MPI_COMM_WORLD)
+          call MPI_Gather (temp, nvar_zonal, MPI_DP, zonal_avg_loc, nvar_zonal, MPI_DP, 0, MPI_COMM_WORLD)
 
           if (rank == 0) call combine_var
        end do
