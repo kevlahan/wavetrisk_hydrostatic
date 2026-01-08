@@ -1,7 +1,8 @@
-# =========================
+# ===========================================================================
 # User-configurable options
 # ARCH options = ser | mpi | ampi
-# =========================
+# requires gnu compiler collection and openmpi/mpich for parallel version
+# ===========================================================================
 DEBUG         ?= false
 TEST_CASE     ?= climate
 PARAM         ?= param_J5
@@ -47,6 +48,14 @@ else
 $(error Unknown ARCH='$(ARCH)'; use ser|mpi|ampi)
 endif
 
+# =========================
+# Require GNU compiler collection
+# =========================
+ifeq ($(shell command -v gfortran >/dev/null 2>&1 || echo no),no)
+  $(error GNU Fortran compiler (gfortran) not found. Please load/install GCC.)
+endif
+$(info Using GNU Fortran compiler: $(shell gfortran --version | head -n 1))
+
 LD := $(FC)
 
 # =========================
@@ -67,6 +76,7 @@ endif
 
 # Debug vs release
 ifeq ($(DEBUG),true)
+# run with export ASAN_OPTIONS=abort_on_error=1:detect_leaks=0
 SANFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
 FFLAGS   += -O0 -g2 -Wall -Wextra -Wno-trampolines -fcheck=all $(SANFLAGS)
 else
