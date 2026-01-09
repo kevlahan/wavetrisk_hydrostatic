@@ -10,8 +10,10 @@ module comm_mpi_mod
   type(MPI_Request),  allocatable :: req(:)
   real(dp), dimension(2)          :: times
 
-  integer, save                   :: next_tag = 100     ! avoid low tags used elsewhere
-  logical, parameter              :: deadlock = .false. ! test for communication deadlocks (use for debug only as it is slow)
+  integer,            parameter   :: TAG_BDRY_S = 1100
+  integer,            parameter   :: TAG_BDRY_V = 1101
+  integer,            parameter   :: TAG_BDRY_A = 1102
+  logical,            parameter   :: deadlock = .false. ! test for communication deadlocks (use for debug only as it is slow)
   type(MPI_Datatype), parameter   :: MPI_DP   = MPI_DOUBLE_PRECISION
   type(MPI_Datatype), parameter   :: MPI_SP   = MPI_REAL
   
@@ -77,16 +79,6 @@ contains
     call init_comm
     call comm_communication_mpi
   end subroutine init_comm_mpi
-
-  integer function get_unique_tag ()
-    implicit none
-    
-    get_unique_tag = next_tag
-    next_tag = next_tag + 1
-    if (next_tag > MPI_TAG_UB - 10) then
-       error stop "MPI tag space exhausted"
-    end if
-  end function get_unique_tag
 
   subroutine write_load_conn (id)
     implicit none
@@ -655,7 +647,7 @@ contains
 
     if (field%bdry_uptodate) return
 
-    tag = get_unique_tag ()
+    tag = TAG_BDRY_S
     field%bdry_tag = tag
 
     if (field%pos == AT_EDGE) then
@@ -741,7 +733,7 @@ contains
     end do
     if (ret) return
     
-    tag = get_unique_tag ()
+    tag = TAG_BDRY_V
     field%bdry_tag = tag
     
     send_buf%length = 0 ! reset
@@ -838,8 +830,8 @@ contains
        end do
     end do
     if (ret) return
-
-    tag = get_unique_tag ()
+    
+    tag = TAG_BDRY_A
     field%bdry_tag = tag
 
     send_buf%length = 0 ! reset
