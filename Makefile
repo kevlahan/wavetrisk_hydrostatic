@@ -1,6 +1,6 @@
 # ===========================================================================
 # User-configurable options
-# ARCH options = ser | mpi | ampi
+# MODE options = ser | mpi | ampi
 # requires gnu compiler collection and openmpi/mpich for parallel version
 # Build modes:
 #   DEBUG=false  → optimized
@@ -10,7 +10,7 @@
 DEBUG         ?= false
 TEST_CASE     ?= climate
 PARAM         ?= param_J5
-ARCH          ?= mpi
+MODE          ?= mpi
 MPIF90        ?= mpif90
 PREFIX        ?= .
 SRC_DIR       ?= src
@@ -37,19 +37,19 @@ endif
 # =========================
 # Toolchain selection
 # =========================
-ifeq ($(ARCH),ser)
+ifeq ($(MODE),ser)
 FC   := gfortran
 PROC := ser
-else ifeq ($(ARCH),mpi)
+else ifeq ($(MODE),mpi)
 FC   := $(MPIF90)
 PROC := mpi
-else ifeq ($(ARCH),ampi)
+else ifeq ($(MODE),ampi)
 CHARM_DIR   ?= $(HOME)/charm
 CHARM_BUILD ?= multicore-linux-x86_64
 FC          := $(CHARM_DIR)/$(CHARM_BUILD)/bin/mpif90.ampi
 PROC        := mpi
 else
-$(error Unknown ARCH='$(ARCH)'; use ser|mpi|ampi)
+$(error Unknown MODE='$(MODE)'; use ser|mpi|ampi)
 endif
 
 # =========================
@@ -66,12 +66,12 @@ LD := $(FC)
 # Flags (clean separation)
 # =========================
 CPPFLAGS += -cpp
-ifeq ($(ARCH),ser)
+ifeq ($(MODE),ser)
 # nothing
 else
 CPPFLAGS += -DMPI
 endif
-ifeq ($(ARCH),ampi)
+ifeq ($(MODE),ampi)
 CPPFLAGS += -DAMPI
 endif
 ifeq ($(PHYSICS),true)
