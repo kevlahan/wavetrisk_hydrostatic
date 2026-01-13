@@ -694,10 +694,10 @@ contains
   subroutine write_out_stats
     ! Writes out zonal average statistics
     implicit none
-    integer            :: info, k, v
-    integer, parameter :: funit = 400
-    character(2)       :: var_file
-    character(1300)    :: bash_cmd, command
+    integer                   :: k, v
+    integer, parameter        :: funit = 400
+    character(2)              :: var_file
+    character(:), allocatable :: cmd, tmpfile, pattern, archive
 
     write (6,'(a)') 'Saving statistics'
 
@@ -743,19 +743,12 @@ contains
     close (funit)
 
     ! Compress files
-    command = 'ls -1 '//trim(run_id)//'.3.?? > '//trim(run_id)//'tmp'
-    write (bash_cmd,'(a,a,a)') 'bash -c "', trim (command), '"'
-    call system (trim(bash_cmd))
+    tmpfile = trim(run_id) // 'tmp'
+    pattern = trim(run_id) // '.3.??'
+    archive = trim(run_id) // '.3.tgz'
 
-    command = 'gtar czf '//trim(run_id)//'.3.tgz -T '//trim(run_id)//'tmp --remove-files &'
-    call system (trim(command), info)
-    if (info /= 0) then
-       if (rank == 0) write (6,'(a)') "gtar error info=0 ... aborting"
-       call abort_run
-    end if
-
-    command = '\rm -f '//trim(run_id)//'tmp'
-    call system (trim(command))
+    cmd = 'ls -1 ' // pattern // ' | gtar czf ' // archive // ' -T - --remove-files'
+    call execute_command_line (cmd)
   end subroutine write_out_stats
 
   subroutine write_u_wc (dom, p, i, j, offs, dims, fid)
@@ -785,10 +778,12 @@ contains
     implicit none
     integer :: id
 
-    integer                          :: c, d, ibeg, iend, info, j, k, l, p_chd, p_lev, p_par, r, v
+    integer                          :: c, d, ibeg, iend, j, k, l, p_chd, p_lev, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
-    character(9999)                  :: filename_gr, filename_no
-    character(9999)                  :: archive, bash_cmd, files
+    character(4)                     :: cp4, id4
+    character(5)                     :: gid5
+    character(:), allocatable        :: filename_no, filename_gr
+    character(:), allocatable        :: archive, cmd, files
     logical, dimension(1:N_CHDRN)    :: required
 
     call update_bdry (wav_coeff(scalars(1):scalars(2),zmin:zmax), NONE, 964)
@@ -813,6 +808,8 @@ contains
        end if
     end do
 
+    write (id4,'(i4.4)')  id
+    
     do r = 1, n_process
 #ifdef MPI       
        if (r /= rank+1) then ! write only if our turn, otherwise wait at barrier
@@ -821,14 +818,16 @@ contains
        end if
 #endif       
        do d = 1, size(grid)
-          fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
-          fid_gr(d) = id*1000 + 3000000 + glo_id(rank+1,d)
+          fid_no(d) = 1000000 + id*1000 + glo_id(rank+1,d)
+          fid_gr(d) = 3000000 + id*1000 + glo_id(rank+1,d)
 
-          write (filename_no, '(A,A,I4.4,A,I5.5)') trim (run_id), "_coef.", id, "_", glo_id(rank+1,d)
-          write (filename_gr, '(A,A,I4.4,A,I5.5)') trim (run_id), "_grid.", id, "_", glo_id(rank+1,d)
+          write (gid5,'(i5.5)') glo_id(rank+1,d)
+          
+          filename_no = trim(run_id) // '_coef.' // id4 // '_' // gid5
+          filename_gr = trim(run_id) // '_grid.' // id4 // '_' // gid5
 
-          open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='WRITE', status='REPLACE')
-          open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='WRITE', status='REPLACE')
+          open (unit=fid_no(d), file=filename_no, form="UNFORMATTED", action='WRITE', status='REPLACE')
+          open (unit=fid_gr(d), file=filename_gr, form="UNFORMATTED", action='WRITE', status='REPLACE')
        end do
     end do
 
@@ -916,18 +915,16 @@ contains
     ! Archive checkpoint (overwriting existing checkpoint if present)
     call barrier ! make sure all processors have written data
     if (rank == 0) then
-       write (files, '(a,a,i4.4,a,a,a,i4.4)') &
-            trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
+       write (cp4,'(i4.4)') cp_idx
+       archive = trim(run_id) // '_checkpoint_' // cp4 // '.tgz'
 
-       write (archive, '(a,i4.4,a)') trim(run_id)//'_checkpoint_' , cp_idx, '.tgz'
+       files = &
+            trim(run_id) // '_grid.' // cp4 // '_????? ' // &
+            trim(run_id) // '_coef.' // cp4 // '_????? ' // &
+            trim(run_id) // '_conn.' // cp4
 
-       bash_cmd = 'bash -c "gtar cfz '//trim(archive)//' '//trim(files)//' --remove-files"'
-       call system (trim(bash_cmd), info)
-       
-       if (info /= 0) then
-          if (rank == 0) write (6,'(a)') 'gtar error info=0 .. aborting'
-          call abort_run
-       end if
+       cmd = 'gtar cfz ' // archive // ' ' // files // ' --remove-files'
+       call execute_command_line (cmd)
     end if
     call barrier ! make sure data is archived before restarting
   end subroutine dump_adapt_mpi
@@ -966,10 +963,14 @@ contains
 
     integer                          :: c, d, ibeg, iend, j, k, l, old_n_patch, p_chd, p_par, r, v
     integer, dimension(1:size(grid)) :: fid_no, fid_gr
-    character(9999)                  :: filename_gr, filename_no
-    character(9999)                  :: bash_cmd, files
+    Character(4)                     :: cp4, id4
+    character(5)                     :: gid5
+    character(:), allocatable        :: filename_no, filename_gr
+    character(:), allocatable        :: cmd, files
     logical, dimension(1:N_CHDRN)    :: required
 
+    write (id4,'(i4.4)')  id
+    
     do r = 1, n_process
 #ifdef MPI
        if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
@@ -978,18 +979,20 @@ contains
        end if
 #endif
        do d = 1, size(grid)
-          fid_no(d) = id*1000 + 1000000 + glo_id(rank+1,d)
-          fid_gr(d) = id*1000 + 3000000 + glo_id(rank+1,d)
+          fid_no(d) = 1000000 + id*1000 + glo_id(rank+1,d)
+          fid_gr(d) = 3000000 + id*1000 + glo_id(rank+1,d)
 
-          write (filename_no, '(A,A,I4.4,A,I5.5)') trim(run_id), "_coef.", id, "_", glo_id(rank+1,d)
-          write (filename_gr, '(A,A,I4.4,A,I5.5)') trim(run_id), "_grid.", id, "_", glo_id(rank+1,d)
+          write (gid5,'(i5.5)') glo_id(rank+1,d)
 
-          open (unit=fid_no(d), file=trim(filename_no), form="UNFORMATTED", action='READ', status='OLD')
-          open (unit=fid_gr(d), file=trim(filename_gr), form="UNFORMATTED", action='READ', status='OLD')
+          filename_no = trim(run_id) // '_coef.' // id4 // '_' // gid5
+          filename_gr = trim(run_id) // '_grid.' // id4 // '_' // gid5
+
+          open (unit=fid_no(d), file=filename_no, form="UNFORMATTED", action='READ', status='OLD')
+          open (unit=fid_gr(d), file=filename_gr, form="UNFORMATTED", action='READ', status='OLD')
        end do
     end do
 
-    ! Load coarsest scale solution (scaling functions)
+       ! Load coarsest scale solution (scaling functions)
     do d = 1, size(grid)
        read (fid_no(d)) istep_cumul
        read (fid_no(d)) time
@@ -1072,13 +1075,16 @@ contains
     ! Delete temporary files
     call barrier ! Do not delete files before everyone has read them
     if (rank == 0) then
-       write (files, '(a,a,i4.4,a,a,a,i4.4)') &
-            trim (run_id), '{_grid,_coef}.', cp_idx , '_????? ', trim (run_id), '_conn.', cp_idx
-       
-       bash_cmd = 'bash -c "\rm '//trim(files)//'"'
-       call system (trim(bash_cmd))
+       write (cp4,'(i4.4)') cp_idx
+
+       files = &
+            trim(run_id) // '_grid.' // cp4 // '_????? ' // &
+            trim(run_id) // '_coef.' // cp4 // '_????? ' // &
+            trim(run_id) // '_conn.' // cp4
+
+       cmd = '\rm -f ' // files
+       call execute_command_line (cmd)
     end if
-    call barrier
   end subroutine load_adapt_mpi
 
   subroutine read_scalar (dom, p, i, j, zlev, offs, dims, fid)
@@ -1114,9 +1120,11 @@ contains
     ! !! saves topgraphy data on a non-adaptive grid !!
     !
     implicit none
-    integer         :: d, d_glo, j, l
-    character(9999) :: filename
-    character(9999) :: archive, bash_cmd, files
+    integer                   :: d, d_glo, j, l
+    character(2)              :: l2
+    character(5)              :: d5
+    character(9999    )       :: filename
+    character(:), allocatable :: archive, cmd, files
 
     call update_bdry (topography, NONE, 966)
 
@@ -1127,8 +1135,12 @@ contains
        do d = 1, size(grid)
           d_glo = glo_id(rank+1,d) + 1
 
-          write (filename, '(a,a,i2.2,a,i5.5)') trim (topo_file), '.', l, '.', d_glo           
-          open (unit=10, file=trim (filename), form="UNFORMATTED", action='WRITE', status='REPLACE')
+          write(l2,'(i2.2)') l
+          write(d5,'(i5.5)') d_glo
+
+          filename = trim(topo_file) // '.' // l2 // '.' // d5
+
+          open (unit=10, file=filename, form="UNFORMATTED", action='WRITE', status='REPLACE')
 
           mass   => exner_fun(1)%data(d)%elts
           scalar => topography%data(d)%elts
@@ -1149,10 +1161,12 @@ contains
 
     ! Compress topography data
     archive = trim (topo_file)//'.tgz'
-    write (6, '(a,a)') 'Saving topography file ', trim (archive)
-    write (files, '(a,a,a,a,a,a,a)') trim (topo_file), '.', '??', '.', '?????', ' ', trim (filename)
-    bash_cmd = 'bash -c "gtar czf '//trim (archive)//' '//trim (files)//' --remove-files"'
-    call system (trim(bash_cmd))
+    write (6, '(a,a)') 'Saving topography file ', archive
+
+    files = topo_file // '.??.????? ' // filename
+
+    cmd = 'gtar czf ' // archive // ' ' // files // ' --remove-files'
+    call execute_command_line (cmd)
   end subroutine save_topo
 
   subroutine write_topo (dom, i, j, zlev, offs, dims)
@@ -1186,14 +1200,14 @@ contains
     implicit none
     integer         :: d, d_glo, i, ii, l, r
     character(9999) :: filename
-    character(9999) :: archive, bash_cmd, files
+    character(:), allocatable :: archive, cmd, files
 
     ! Uncompress topography data
     if (rank == 0) then
-       write (archive, '(a)') trim (topo_file)//".tgz"
-       write (6,'(a,a)') 'Loading topography file ', trim(archive)
-       bash_cmd = 'bash -c "gtar xzf '//trim(archive)//'"'
-       call system (trim(bash_cmd))
+       archive = trim(topo_file) // '.tgz'
+       write (6,'(a,a)') 'Loading topography file ', archive
+       cmd = 'gtar xzf ' // archive
+       call execute_command_line(cmd)
     end if
     call barrier
 
@@ -1242,9 +1256,9 @@ contains
     ! Remove temporary files
     call barrier ! do not delete files before everyone has read them
     if (rank == 0) then
-       write (files,   '(a,a,a,a,a,a,a,a)') trim (topo_file), '.', '??', '.', '?????', ' ', trim (topo_file)//'.count'
-       bash_cmd = 'bash -c "\rm '//trim(files)//'"' 
-       call system (trim(bash_cmd))
+       files = trim(topo_file) // '.??.????? ' // trim(topo_file) // '.count'
+       cmd   = '\rm -f ' // files
+       call execute_command_line (cmd)
     end if
   end subroutine load_topo
 

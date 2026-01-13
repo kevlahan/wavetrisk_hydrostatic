@@ -3,7 +3,7 @@ module io_vtk_mod
   use ops_mod
   use utils_mod
   use multi_level_mod
-  use vert_diffusion_mod 
+  use vert_diffusion_mod
   implicit none
   integer, parameter                                   :: HEX_VERT = 6 ! number of hexagon vertices
   integer, parameter                                   :: TRI_VERT = 3 ! number of triangle vertices
@@ -19,7 +19,7 @@ contains
   subroutine write_and_export (type)
     implicit none
     character(3) :: type ! "tri" or "hex"
-    
+
     integer(4) :: d, k, l
 
     if (rank == 0) then
@@ -58,15 +58,15 @@ contains
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
           mean_t => sol_mean(S_TEMP,k)%data(d)%elts
           exner  =>       exner_fun(k)%data(d)%elts
-          
+
           velo1  => grid(d)%u_zonal%elts
           velo2  => grid(d)%v_merid%elts
           vort   => grid(d)%vort%elts
-          
+
           call apply_d (integrate_pressure_up, grid(d), k,       0, 1) ! pressure
           call apply_d (interp_UVW_latlon,     grid(d), z_null,  0, 1) ! zonal and meridional velocities
           call apply_d (cal_vort,              grid(d), z_null, -1, 1) ! vorticity
-          
+
           do l = level_start, level_end                                ! vorticity at pentagons
              call apply_to_penta_d (post_vort, grid(d), l, z_null)
           end do
@@ -75,14 +75,14 @@ contains
        end do
        call find_vertices (k, type)                                    ! find grid and compute data for saving
        call barrier
-
-       if (rank == 0) call write_vtk (k, type)                         ! save layer data to vtk file
+       
+       call write_vtk (k, type)                                        ! save layer data to vtk file
     end do
     call post_levelout
-    
+
     if (rank == 0) then
-       call compress_files (type)
-       
+       call compress_files (type, "vtk")
+
        write (6,'(2(a,i8),a,f6.1,/)') &
             "Number of active cells = ", ncell, " number of unique vertices = ", nvertex, &
             " compression ratio = ", dble (2 * (2 + 10 * 4**max_level)) / dble (ncell)
@@ -91,7 +91,7 @@ contains
             &*********************************************************************'
     end if
     call barrier
-    deallocate (vel_vert)
+    deallocate (vel_vert, vert_coord_unique)
   end subroutine write_and_export
 
   subroutine write_vtk (k, type)
@@ -118,19 +118,19 @@ contains
 
     filename = trim(run_id)//"_"//trim(type)//"_"//trim(layer)//"_"//trim(isv)//".vtk"
     open (unit=funit, file=trim(filename), form="unformatted", access='stream', status='replace', convert='BIG_ENDIAN')
-    
+
     ! Write vtk header
     write (funit) '# vtk DataFile Version 2.0'//lf
     write (funit) 'WAVETRISK adaptive data'   //lf              
     write (funit) 'BINARY'                    //lf
-    
+
     select case (type)
     case ("tri")
        write (funit) 'DATASET POLYDATA'//lf
 
        write (funit) 'POINTS '//trim(str1)//' float'//lf
        write (funit) vert_coord_unique
-       
+
        write (funit) 'POLYGONS '//trim(str2)//trim(str3)//lf
        do icell = 1, ncell
           write (funit) nvert, cell_vert_index(nvert*(icell-1)+1:3*(icell-1)+nvert)
@@ -205,7 +205,6 @@ contains
        write (funit) cell_data(ivar:nvar*(ncell-1)+ivar:nvar)
     end do
     close (funit)
-    deallocate (vert_coord_unique)
   end subroutine write_vtk
 
   subroutine find_vertices (k, type)
@@ -213,7 +212,7 @@ contains
     implicit none
     integer(4)   :: k
     character(3) :: type
-    
+
     integer(4)                       :: i, r
     integer(4), dimension(n_process) :: displs, ncell_glo, ncoord_unique_glo, nvertex_unique_glo, ncell_vert_index_glo
 
@@ -250,7 +249,7 @@ contains
           end do
        end if
     end if
-    
+
     deallocate (cell_data_loc, cell_vert_index_loc, points_loc, vert_coord_unique_loc)
   end subroutine find_vertices
 
@@ -271,9 +270,9 @@ contains
     type(coord)                                :: p
     type(coord), dimension(LORT:UPLT,TRI_VERT) :: vertex
     real(sp), dimension(nvar)                  :: outv
-    
+
     d = dom%id + 1
-    
+
     id   = idx (i,   j,   offs, dims)
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
@@ -285,7 +284,7 @@ contains
     do t = LORT, UPLT
        if (save_tri(t)%data(d)%elts(id+1)) then             ! cell is active
           ncell_loc = ncell_loc + 1
-          
+
           do ivert = 1, TRI_VERT
              p = vertex(t,ivert)
              call min_dist (p, points_loc, dmin, imin)
@@ -293,22 +292,22 @@ contains
              if (dmin > dx_avg(max_level)/4) then                     ! add vertex if is not already present
                 nvertex_unique_loc = nvertex_unique_loc + 1
                 ncoord_unique_loc  = ncoord_unique_loc  + 3
-                
+
                 points_loc = [points_loc, p]
                 vert_coord_unique_loc = [vert_coord_unique_loc, real(p%x,kind=sp), real(p%y,kind=sp), real(p%z,kind=sp)]
-                
+
                 new_vert_index(ivert) = nvertex_unique_loc - 1        ! index of new vertex
              else                       
                 new_vert_index(ivert) = imin - 1                      ! index of existing vertex
              end if
           end do
-          
+
           if (zlev >= 1) then
              call compute_data                                        ! compute cell data
           elseif (zlev == 0) then
              call compute_data_surf
           end if
-          
+
           cell_vert_index_loc = [cell_vert_index_loc, new_vert_index] ! add to cell vertices array
           cell_data_loc       = [cell_data_loc,                 outv] ! add to cell data array
        end if
@@ -400,7 +399,7 @@ contains
       ! Triangle vorticity equivalent to hexagon vorticity
       implicit none
       integer :: t
-      
+
       select case (t)
       case (LORT)
          vort_tri = real(( &
@@ -425,7 +424,7 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
-    
+
     integer                      :: d, id, idE, idNE, idN, idW, idSW, idS, ivert
     real(sp),    dimension(nvar) :: outv
     type(coord), dimension(6)    :: vert
@@ -441,11 +440,11 @@ contains
        idE  = idx (i+1, j,   offs, dims)
        idNE = idx (i+1, j+1, offs, dims)
        idN  = idx (i,   j+1, offs, dims)
-       
+
        idW  = idx (i-1, j,   offs, dims)
        idSW = idx (i-1, j-1, offs, dims)
        idS  = idx (i,   j-1, offs, dims)
-       
+
        ! Vertices of hexagon
        vert = [ &
             dom%ccentre%elts(TRIAG*id  +LORT+1), dom%ccentre%elts(TRIAG*id  +UPLT+1), &
@@ -537,7 +536,7 @@ contains
 
     do i = 1, ncoord, 3
        p = coord (vert_coord_unique(i), vert_coord_unique(i+1), vert_coord_unique(i+2))
-       
+
        nrm = sqrt (p%x**2 + p%y**2 + p%z**2)
 
        r = (radius + dr) / nrm
@@ -636,7 +635,7 @@ contains
           end do
           horiz_flux(S_MASS)%bdry_uptodate = .false.
           call update_bdry (horiz_flux(S_MASS), l, 913)
-          
+
           do d = 1, size(grid)
              dscalar => trend(S_MASS,k)%data(d)%elts
              h_flux  => horiz_flux(S_MASS)%data(d)%elts
@@ -680,7 +679,7 @@ contains
 
     ! Compute OMEGA
     call apply_bdry (cal_omega, z_null, 0, 1)
-    
+
     vel_vert%bdry_uptodate = .false.
     call update_bdry (vel_vert, NONE)
   end subroutine omega_velocity
@@ -758,7 +757,7 @@ contains
       idE  = idx (i+1, j,   offs, dims)
       idNE = idx (i+1, j+1, offs, dims)
       idN  = idx (i,   j+1, offs, dims)
-      
+
       idW  = idx (i-1, j,   offs, dims)
       idSW = idx (i-1, j-1, offs, dims)
       idS  = idx (i,   j-1, offs, dims)
@@ -785,23 +784,20 @@ contains
     end function vert_vel
   end subroutine cal_w
 
-  subroutine compress_files (type)
+  subroutine compress_files (type, format)
     implicit none
-    character(3) :: type
-    
-    character(4)    :: isv
-    character(1300) :: bash_cmd, command
+    character(*), intent(in) :: format
+    character(*), intent(in) :: type
+
+    character(4)              :: isv
+    character(:), allocatable :: cmd, pattern, tarfile
 
     write (isv, '(i4.4)') iwrite
 
-    bash_cmd = 'bash -c "ls -1 '//trim(run_id)//'_'//trim(type)//'_*'//trim(isv)//'.vtk > '//trim(run_id)//'_tmp1"'
-    call execute_command_line (trim(bash_cmd))
+    pattern = trim (run_id) // '_' // type // '_*' // isv // '.' // format
+    tarfile = trim (run_id) // '_' // type // '_'  // isv // '.' // format // '.tgz'
+    cmd     = 'gtar caf "' // tarfile // '" ' // pattern // ' --remove-files'
 
-    command = 'bash -c &
-         & "gtar caf '//trim(run_id)//'_'//trim(type)//'_'//trim(isv)//'.vtk.tgz -T '//trim(run_id)//'_tmp1 --remove-files"'
-    call execute_command_line (trim(command))
-
-    command = '\rm -f '//trim(run_id)//'_tmp1'
-    call execute_command_line (trim(command))
+    call execute_command_line (cmd)
   end subroutine compress_files
 end module io_vtk_mod

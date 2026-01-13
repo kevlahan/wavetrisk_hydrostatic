@@ -15,7 +15,6 @@ program spherical_harmonics
 
   integer                              :: idata_loc, nmax
   real(8), dimension(:),   allocatable :: data, data_loc, lat_loc, lon_loc
-  character(130)                       :: command
 
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -578,20 +577,17 @@ contains
 
   subroutine cleanup
     implicit none
+    character(:), allocatable :: cmd
 
     ! Delete intermediate files
     if (cp_beg /= cp_end) then
-       command = '\rm -f '//trim(run_id)//'_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]*spec'
-       call system (trim(command))
+       cmd = 'rm -f ' // trim(run_id) // '_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]*spec'
+       call execute_command_line (cmd)
     end if
 
     ! Compress output
-    command = 'bash -c "ls -1 '//trim(run_id)//'*_spec > '//trim(run_id)//'_tmp1"'
-    call system (trim(command))
-    command = 'bash -c "gtar caf '//trim(run_id)//'_spec.tgz -T '//trim(run_id)//'_tmp1 --remove-files"'
-    call system (trim(command))
-    command = '\rm -f '//trim(run_id)//'_tmp1'
-    call system (trim(command))
+    cmd = 'ls -1 ' // trim(run_id) // '*_spec | gtar caf ' // trim(run_id) // '_spec.tgz -T - --remove-files'
+    call execute_command_line (cmd)
   end subroutine cleanup
 end program
 

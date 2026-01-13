@@ -59,15 +59,15 @@ program make_NCAR_topo
      write (cmd,'(a)') &
           "./cube_to_target &
           
-          --no_ridges --smoothing_over_ocean &
+          &--no_ridges --smoothing_over_ocean &
           
-          --grid_descriptor_file="//"'"//trim(topo_desc)//"' &
+          &--grid_descriptor_file="//"'"//trim(topo_desc)//"' &
           
-          --intermediate_cs_name="//"'"//trim(topo_data)//"' &
+          &--intermediate_cs_name="//"'"//trim(topo_data)//"' &
           
-          --output_grid="//"'"//trim(grid_name)//"' &
+          &--output_grid="//"'"//trim(grid_name)//"' &
           
-          --smoothing_scale="//trim(smth_txt)// &
+          &--smoothing_scale="//trim(smth_txt)// &
           
           " -u Nicholas Kevlahan kevlahan@mcmaster.ca -q"//" ." 
 

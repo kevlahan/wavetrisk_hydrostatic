@@ -2,6 +2,7 @@
 # User-configurable options
 # MODE options = ser | mpi | ampi
 # requires gnu compiler collection and openmpi/mpich for parallel version
+#
 # Build modes:
 #   DEBUG=false  → optimized
 #   DEBUG=asan   → ASan/UBSan (Linux/HPC only)
@@ -25,11 +26,7 @@ NETCDF        ?= -lnetcdff
 # =========================
 # Derived toggles
 # =========================
-TOPO    := false
 PHYSICS := false
-ifeq ($(TEST_CASE),make_NCAR_topo)
-TOPO := true
-endif
 ifeq ($(TEST_CASE),$(filter $(TEST_CASE),climate spherical_harmonics))
 PHYSICS := true
 endif
@@ -129,13 +126,10 @@ LDLIBS   += $(LAPACK)
 ifeq ($(UNAME_S),Darwin)
 MACHINE := mac
 # Homebrew lapack path (adjust if you want)
-LDLIBS  += -L/opt/homebrew/opt/lapack/lib
-
-ifeq ($(TOPO),true)
+LDLIBS     += -L/opt/homebrew/opt/lapack/lib
 NETCDF_DIR ?= /opt/homebrew/Cellar/netcdf-fortran/4.6.2
 CPPFLAGS   += -I$(NETCDF_DIR)/include
 LDFLAGS    += -L$(NETCDF_DIR)/lib
-endif
 else
 MACHINE := $(shell scontrol show config 2>/dev/null | \
 awk -F= '/^ClusterName/{sub(/^[[:space:]]+/,"",$$2); sub(/[[:space:]]+$$/,"",$$2); print tolower($$2); exit}')
@@ -154,18 +148,14 @@ ifdef NETLIB_LAPACK_ROOT
 CPPFLAGS += -I$(NETLIB_LAPACK_ROOT)/include
 LDFLAGS  += -L$(NETLIB_LAPACK_ROOT)/lib64
 endif
-ifeq ($(TOPO),true)
 ifdef NETCDF_FORTRAN_ROOT
 CPPFLAGS += -I$(NETCDF_FORTRAN_ROOT)/include
 LDFLAGS  += -L$(NETCDF_FORTRAN_ROOT)/lib -Wl,-rpath,$(NETCDF_FORTRAN_ROOT)/lib
 endif
 endif
 endif
-endif
 
-ifeq ($(TOPO),true)
 LDLIBS += $(NETCDF)
-endif
 
 # ==================================================
 # Optional SHTOOLS / FFTW for spherical_harmonics
@@ -212,11 +202,7 @@ SRC = kind.f90 $(PARAM).f90 shared.f90 coord_arithmetic.f90 calendar.f90 geom.f9
       base_$(PROC).f90 spline.f90 domain.f90 domain_ops.f90 init.f90 comm.f90 comm_$(PROC).f90 utils.f90 \
       projection.f90 equation_of_state.f90 wavelet.f90 lnorms.f90 mask.f90 refine_patch.f90 coarse_grid.f90 ops.f90 \
       multi_level.f90 adapt.f90 lin_solve.f90 barotropic_2d.f90 time_integr.f90 io.f90 vert_diffusion.f90 io_vtk.f90 \
-      remap.f90 std_atm_profile.f90 sso.f90
-
-ifeq ($(TOPO),true)
-SRC += topo_grid_descriptor.f90
-endif
+      remap.f90 std_atm_profile.f90 sso.f90 topo_grid_descriptor.f90
 
 ifeq ($(PHYSICS),true)
 SIMPLEPHYSMODPATH := $(SRC_DIR)/physics/simple_physics/phyparam/include
@@ -261,15 +247,11 @@ $(BUILD_DIR)/%.o: %.f90 | dirs
 
 # Force creation of the symlinked test sources before they compile
 $(BUILD_DIR)/test_case_module.o: $(TESTMOD_SRC)
-$(BUILD_DIR)/test.o:            $(TEST_SRC)
+$(BUILD_DIR)/test.o:             $(TEST_SRC)
 
 # Optional helper targets
 phys_package:
 	$(MAKE) -C $(SRC_DIR)/physics/simple_physics/phyparam F90=$(MPIF90)
-
-topography:
-	$(MAKE) -C topo
-	$(MAKE) -C topo clean
 
 clean:
 	rm -rf $(BUILD_DIR) $(SRC_DIR)/test_case_module.f90 $(SRC_DIR)/test.f90

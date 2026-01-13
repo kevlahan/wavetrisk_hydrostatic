@@ -268,7 +268,8 @@ contains
     ! Fresh restart from checkpoint data (all structures reset)
     use utils_mod
     implicit none
-    character(9999) :: archive, bash_cmd
+    character(4)                :: cp4
+    character(:), allocatable :: archive, cmd
 
     call deallocate_structures  ! deallocate all dynamic arrays and variables
     call init_basic
@@ -279,11 +280,14 @@ contains
             &**********************************************************'
        write (6,'(a,i4,/)') 'Restarting from checkpoint ', cp_idx
 
-       ! Uncompress checkpoint data 
-       write (archive, '(a,i4.4,a)') trim(run_id)//'_checkpoint_' , cp_idx, '.tgz'
-       write (6, '(a,a,/)') 'Loading file ', trim(archive)
-       bash_cmd = 'bash -c "'//'gtar xzf '//trim(archive)//'"'
-       call system (trim(bash_cmd))
+       ! Uncompress checkpoint data
+       write (cp4,'(i4.4)') cp_idx
+       archive = trim(run_id) // '_checkpoint_' // cp4 // '.tgz'
+
+       write (6, '(a,a,/)') 'Loading file ', archive
+
+       cmd  = 'gtar xzf ' // archive
+       call execute_command_line (cmd)
     end if
     call barrier
 
