@@ -175,12 +175,7 @@ def main():
                 l2n, linfn = normalized_errors(a, b)
                 if err_fh is not None:
                     err_fh.write(
-#                        f"{label:<10} "
                         f"{nA:<32} "
-#                        f"{nB:<32} "
-#                        f"{k:<24} "
-#                        f"{a.GetNumberOfTuples():>8d} "
-#                        f"{a.GetNumberOfComponents():>5d} "
                         f"{l2n:>14.8e} "
                         f"{linfn:>14.8e}\n"
                     )
