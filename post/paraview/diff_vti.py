@@ -2,6 +2,7 @@
 import argparse
 import sys
 import re
+import os
 import numpy as np
 
 from vtkmodules.vtkIOXML import vtkXMLImageDataReader, vtkXMLImageDataWriter
@@ -57,7 +58,6 @@ def build_map(dobj, label, strict_dupes=False):
         m[k] = (name, arr)
     return m
 
-
 def subtract_arrays(arrA, arrB, out_name):
     nA, nB = arrA.GetNumberOfTuples(), arrB.GetNumberOfTuples()
     cA, cB = arrA.GetNumberOfComponents(), arrB.GetNumberOfComponents()
@@ -74,6 +74,42 @@ def subtract_arrays(arrA, arrB, out_name):
     out.SetName(out_name)   # keep A's original field name
     return out
 
+def normalized_errors(a, b):
+    """
+    Return (l2_norm, linf_norm) where:
+      l2_norm  = ||a-b||_2 / ||a||_2
+      linf_norm = ||a-b||_inf / ||a||_inf
+
+    Arrays may be multi-component; treated as flattened vectors.
+    If the denominator is 0, returns inf if numerator>0 else 0.
+    """
+    na = vtk_to_numpy(a)
+    nb = vtk_to_numpy(b)
+
+    if na.shape != nb.shape:
+        raise ValueError(f"shape mismatch {na.shape} vs {nb.shape}")
+
+    # Flatten including components
+    da = na.ravel()
+    db = nb.ravel()
+    diff = da - db
+
+    # Promote to float for norms even if inputs are ints
+    diff_f = diff.astype(np.float64, copy=False)
+    da_f = da.astype(np.float64, copy=False)
+
+    num_l2 = float(np.linalg.norm(diff_f))
+    den_l2 = float(np.linalg.norm(da_f))
+
+    num_inf = float(np.max(np.abs(diff_f))) if diff_f.size else 0.0
+    den_inf = float(np.max(np.abs(da_f))) if da_f.size else 0.0
+
+    def safe_div(num, den):
+        if den == 0.0:
+            return 0.0 if num == 0.0 else float("inf")
+        return num / den
+
+    return safe_div(num_l2, den_l2), safe_div(num_inf, den_inf)
 
 def main():
     ap = argparse.ArgumentParser()
@@ -106,7 +142,15 @@ def main():
     out_img.GetCellData().Initialize()
     out_img.GetFieldData().Initialize()
 
-    def process(label, DA_A, DA_B, DA_out):
+    # ---- NEW: open an errors file unless --list ----
+    base, _ = os.path.splitext(args.out)
+    err_path = base + "_errors.txt"
+    err_fh = None
+    if not args.list:
+        err_fh = open(err_path, "w", encoding="utf-8")
+        err_fh.write("Field                             rel l2 err    rel linf err\n")
+
+    def process(label, DA_A, DA_B, DA_out, err_fh):
         mapA = build_map(DA_A, label + " A", strict_dupes=args.strict_dupes)
         mapB = build_map(DA_B, label + " B", strict_dupes=args.strict_dupes)
 
@@ -124,7 +168,23 @@ def main():
             nA, a = mapA[k]
             nB, b = mapB[k]
             try:
+                # write diff array (existing behavior)
                 DA_out.AddArray(subtract_arrays(a, b, nA))
+
+                # ---- compute and record normalized errors ----
+                l2n, linfn = normalized_errors(a, b)
+                if err_fh is not None:
+                    err_fh.write(
+#                        f"{label:<10} "
+                        f"{nA:<32} "
+#                        f"{nB:<32} "
+#                        f"{k:<24} "
+#                        f"{a.GetNumberOfTuples():>8d} "
+#                        f"{a.GetNumberOfComponents():>5d} "
+                        f"{l2n:>14.8e} "
+                        f"{linfn:>14.8e}\n"
+                    )
+
                 ok += 1
             except Exception as e:
                 skip += 1
@@ -146,26 +206,37 @@ def main():
 
         return 0
 
-    if args.mode in ("point", "all"):
-        process("PointData", A.GetPointData(), B.GetPointData(), out_img.GetPointData())
+    try:
+        if args.mode in ("point", "all"):
+            process("PointData", A.GetPointData(), B.GetPointData(), out_img.GetPointData(), err_fh)
 
-    if args.mode in ("cell", "all"):
-        process("CellData", A.GetCellData(), B.GetCellData(), out_img.GetCellData())
+        if args.mode in ("cell", "all"):
+            process("CellData", A.GetCellData(), B.GetCellData(), out_img.GetCellData(), err_fh)
 
-    if args.mode in ("field", "all"):
-        process("FieldData", A.GetFieldData(), B.GetFieldData(), out_img.GetFieldData())
+        if args.mode in ("field", "all"):
+            process("FieldData", A.GetFieldData(), B.GetFieldData(), out_img.GetFieldData(), err_fh)
 
-    if args.list:
+        if args.list:
+            return 0
+
+        w = vtkXMLImageDataWriter()
+        w.SetFileName(args.out)
+        w.SetInputData(out_img)
+        if w.Write() != 1:
+            raise RuntimeError(f"Failed to write {args.out}")
+        print(f"Wrote: {args.out}")
+
+        if err_fh is not None:
+            err_fh.flush()
+            err_fh.close()
+            print(f"Wrote: {err_path}")
+
         return 0
-
-    w = vtkXMLImageDataWriter()
-    w.SetFileName(args.out)
-    w.SetInputData(out_img)
-    if w.Write() != 1:
-        raise RuntimeError(f"Failed to write {args.out}")
-    print(f"Wrote: {args.out}")
-    return 0
+    finally:
+        if err_fh is not None and not err_fh.closed:
+            err_fh.close()
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
