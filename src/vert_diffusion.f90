@@ -394,7 +394,7 @@ contains
     ! Bottom layer
     k = 1
     diag_u(:,k) = - coeff (1) ! super-diagonal
-    diag(:,k)   = 1.0_dp - diag_u(:,k) + dt * bottom_friction / dz(:,k)
+    diag(:,k)   = 1.0_dp - diag_u(:,k) + dt * phi_edge (d, id, 1) * bottom_friction / dz(:,k)
     rhs(:,k)    = sol(S_VELO,k)%data(d)%elts(id_edge(id)) 
 
     do k = 2, zlevels-1
@@ -669,7 +669,7 @@ contains
     if (zlev > 1 .and. zlev < zlevels) then
        dvelo(id_edge(id)) = (velo_flux(1) - velo_flux(-1)) / dz_k
     elseif  (zlev == 1) then
-       dvelo(id_edge(id)) = (velo_flux(1) - bottom_friction * velo(id_edge(id))) / dz_k
+       dvelo(id_edge(id)) = (velo_flux(1) - phi_edge (d, id, 1) * bottom_friction * velo(id_edge(id))) / dz_k
     elseif (zlev == zlevels) then
        dvelo(id_edge(id)) = (wind_flux (dom, i, j, z_null, offs, dims) - velo_flux(-1)) / dz_k 
     end if

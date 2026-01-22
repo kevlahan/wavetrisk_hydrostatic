@@ -1151,7 +1151,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
       implicit none
       real(8), dimension(3) :: bottom_drag
 
-      bottom_drag = - bottom_friction * u_bot / h_bot
+      bottom_drag = - phi_edge (d, id, zlev) * bottom_friction * u_bot / h_bot
     end function bottom_drag
 
     function wind_drag ()
@@ -1164,7 +1164,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-      wind_drag = tau_wind / (ref_density * h_top)
+      wind_drag = phi_edge (d, id, zlevels) * tau_wind / (ref_density * h_top)
     end function wind_drag
 
     function grad_divu ()
@@ -1240,15 +1240,8 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     rho = porous_density (d, id+1, zlevels)
 
     wind_flux_case = 0.0_dp
-    if (zlev == zlevels) wind_flux_case = tau_wind / rho * ocean_mask (d, id, zlev) 
+    if (zlev == zlevels) wind_flux_case = phi_edge (d, id, zlevels) * tau_wind / rho
   end function wind_flux_case
-  
-  integer function ocean_mask (d, id, zlev)
-    ! Returns 1 for ocean and 0 for land (where penalization is significant)
-    integer, intent(in) :: d, id, zlev
-
-    ocean_mask = merge (0, 1, penal_node(zlev)%data(d)%elts(id+1) > 0.05_dp)
-  end function ocean_mask
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     ! Idealized zonally and temporally averaged zonal and meridional wind stresses
