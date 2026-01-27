@@ -76,7 +76,7 @@ contains
        call find_vertices (k, type)                                    ! find grid and compute data for saving
        call barrier
        
-       call write_vtk (k, type)                                        ! save layer data to vtk file
+       if (rank == 0) call write_vtk (k, type)                         ! save layer data to vtk file
     end do
     call post_levelout
 
