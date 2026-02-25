@@ -268,7 +268,7 @@ contains
     ! Fresh restart from checkpoint data (all structures reset)
     use utils_mod
     implicit none
-    character(4)                :: cp4
+    character(4)              :: cp4
     character(:), allocatable :: archive, cmd
 
     call deallocate_structures  ! deallocate all dynamic arrays and variables

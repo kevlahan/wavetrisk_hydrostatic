@@ -992,7 +992,7 @@ contains
        end do
     end do
 
-       ! Load coarsest scale solution (scaling functions)
+    ! Load coarsest scale solution (scaling functions)
     do d = 1, size(grid)
        read (fid_no(d)) istep_cumul
        read (fid_no(d)) time

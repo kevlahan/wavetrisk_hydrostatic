@@ -207,15 +207,15 @@ contains
     implicit none
     integer :: fid
 
-    write (fid) iwrite
-    write (fid) threshold
   end subroutine dump_case
 
   subroutine load_case (fid)
     implicit none
     integer :: fid
 
-    read (fid) iwrite
-    read (fid) threshold
+    if (trim(data_case) /= "climate") then
+       read (fid) iwrite
+       read (fid) threshold
+    end if
   end subroutine load_case
 end module test_case_mod
