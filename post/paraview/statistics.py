@@ -238,8 +238,8 @@ def compute_rms (data, field, lat1, lat2) :
 if (len(sys.argv)<10) :
     print("Computes either averages or rms for given layers at given times. Returns mean and standard deviation over all times.")
     print("\nUsage: python statistics.py avg_type base_vtk_file k1 k2 t1 t2 dt lat1 lat2 scl_Omega scl_radius field_type field\n")
-    print("Example 1: python statistics.py avg drakeJ8Z60 1 60 120 120 5 15 50 Rossby \n")
-    print("Example 2: python statistics.py rms drakeJ8Z60 1 60 120 120 5 15 50 scalar Vorticity \n")
+    print("Example 1: python statistics.py avg drakeJ8Z60 1 60 120 120 5 15 50 6 6 Rossby \n")
+    print("Example 2: python statistics.py rms drakeJ8Z60 1 60 120 120 5 15 50 6 6 Scalar Vorticity \n")
     print("stat_type  = avg or rms")
     print("run        = run prefix of vtp files to load (e.g. drakeJ8Z60)")
     print("k1         = First vertical layer")

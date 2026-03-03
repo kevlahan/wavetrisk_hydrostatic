@@ -1,6 +1,6 @@
 # Usage example (serial): python lonlat_to_3D.py SimpleJ5Z30 y 5 5 30 y fall 163 168
 # Usage example (mpi):    srun -n 30 python -m mpi4py lonlat_to_3D.py SimpleJ5Z30 y 5 5 30 y fall 163 168 --step-days 5
-# 
+#                         srun -n 30 python -m mpi4py lonlat_to_3D.py SimpleJ5Z30 y 5 5 30 n 163 168 --step-days 5
 #    
 #    Generates a 3D and zonal/meridional projections from a series of vtk layers.
 #

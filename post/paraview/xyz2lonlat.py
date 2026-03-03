@@ -244,10 +244,10 @@ if __name__ == "__main__":
                     for j in range(3):
                         pid = pt_ids.GetId(j)
                         coord = list(points.GetPoint(pid))
-                        if (np.abs(np.abs(coord[0])-180)<2*dtheta):  # modify to avoid gaps if necessary
+                        if (np.abs(np.abs(coord[0])-180) < 3*dtheta): # modify to avoid gaps if necessary                           
                             coord[0] = np.sign(coord[0]) * 180
                             points.SetPoint(pid, coord)
-                        if (np.abs(np.abs(coord[1])-90)<2*dtheta): # modify to avoid gaps if necessary
+                        if (np.abs(np.abs(coord[1])- 90) < 3*dtheta): # modify to avoid gaps if necessary                            
                             coord[1] = np.sign(coord[1]) * 90
                             points.SetPoint(pid, coord)
                 points.Modified()
