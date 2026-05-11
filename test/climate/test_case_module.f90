@@ -14,7 +14,6 @@ module test_case_mod
 
   ! Test case variables
   real(dp) :: dz, T_0, u_0
-  real(dp), parameter :: theta0 = 300 * KELVIN 
 
   ! CAM-SE values for 120 km resolution (approximately J6)
   integer,  parameter :: level_CAM = 6
@@ -203,7 +202,7 @@ contains
           sol(S_TEMP,k)%data(d)%elts(id+1) = 0.0_dp
        else
           if (topo_test) then
-             theta_init = theta0                              ! constant potential temperature
+             theta_init = T_0 * (p/p_0)**(-kappa)             ! constant temperature atmosphere
           else
              call cal_theta_eq (p, P_s, lat, theta_init, k_T) ! Held-Suarez equilibrium potential temperature
           end if
@@ -241,7 +240,7 @@ contains
 
        if (split_mean_perturbation) then
           if (topo_test) then
-             theta_init = theta0                              ! constant potential temperature
+             theta_init = T_0 * (p/p_0)**(-kappa)             ! constant temperature atmosphere
           else
              call cal_theta_eq (p, P_s, lat, theta_init, k_T) ! Held-Suarez equilibrium potential temperature
           end if
