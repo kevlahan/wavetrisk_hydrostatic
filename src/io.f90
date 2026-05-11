@@ -1163,7 +1163,7 @@ contains
     archive = trim (topo_file)//'.tgz'
     write (6, '(a,a)') 'Saving topography file ', archive
 
-    files = topo_file // '.??.????? ' // filename
+    files = trim(topo_file) // '.??.????? ' // trim(filename)
 
     cmd = 'gtar czf ' // archive // ' ' // files // ' --remove-files'
     call execute_command_line (cmd)
