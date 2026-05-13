@@ -1,10 +1,10 @@
 !
-!  dESCRIPTION:  Remap topo data from cubed-sphere grid to target grid using rigorous remapping
+!  DESCRIPTION:  Remap topo data from cubed-sphere grid to target grid using rigorous remapping
 !                (Lauritzen, Nair and Ullrich, 2010, J. Comput. Phys.)
 !
-!  author: Peter Hjort Lauritzen (pel@ucar.edu), aMP/CGd/NCaR 
-!          Julio Bacmeister, aMP/CGd/NCaR 
-!          adam Herrington, aMP/CGd/NCaR
+!  author: Peter Hjort Lauritzen (pel@ucar.edu), AMP/CGD/NCAR 
+!          Julio Bacmeister, AMP/CGD/NCAR 
+!          adam Herrington, AMP/CGD/NCAR
 !
 ! ex: ./cube_to_target --help to get list of long and short option names.
 !
@@ -19,37 +19,33 @@ program convterr
   implicit none
 #     include         <netcdf.inc>
 
-  integer :: ncube                   ! dimension of intermediate cubed-sphere grid
-
+  integer :: ncube                                 ! dimension of intermediate cubed-sphere grid
   integer :: alloc_error 
-  !
-  ! turn extra debugging on/off
-  ! 
-  logical :: ldbg=.false.
+  logical :: ldbg = .false.                        ! turn extra debugging on/off
   real(r8):: wt
-  integer :: ii,ip,jx,jy,jp,np,counti !counters,dimensions
-  integer :: jmax_segments,jall,jall_anticipated !overlap segments
-  integer, parameter :: ngauss = 3               !quadrature for line integrals
+  integer :: ii, ip, jx, jy, jp, np, counti        ! counters,dimensions
+  integer :: jmax_segments, jall, jall_anticipated ! overlap segments
+  integer, parameter :: ngauss = 3                 ! quadrature for line integrals
 
   integer                               :: ntarget, ncorner, nrank, nlon, nlat               ! target grid dimensions
-  logical                               :: ltarget_latlon,lpole                              ! if target grid lat-lon
+  logical                               :: ltarget_latlon, lpole                             ! if target grid lat-lon
   integer , allocatable, dimension(:)   :: dom, idx
-  real(r8), allocatable, dimension(:)   :: rrfac_target,target_rrfac
+  real(r8), allocatable, dimension(:)   :: rrfac_target, target_rrfac
   real(r8), allocatable, dimension(:,:) :: target_corner_lon, target_corner_lat              ! target grid coordinates
   real(r8), allocatable, dimension(:)   :: target_center_lon, target_center_lat, target_area, area_target !target grid coordinates
 
-  real(r8), allocatable, dimension(:,:) :: weights_all                        !overlap weights
-  integer , allocatable, dimension(:)   :: weights_lgr_index_all              !overlap index
-  integer , allocatable, dimension(:,:) :: weights_eul_index_all              !overlap index
+  real(r8), allocatable, dimension(:,:) :: weights_all                        ! overlap weights
+  integer , allocatable, dimension(:)   :: weights_lgr_index_all              ! overlap index
+  integer , allocatable, dimension(:,:) :: weights_eul_index_all              ! overlap index
   integer :: ix,iy  , i
   !
   ! volume of topography
   !
   real(r8) :: vol_target, vol_target_un, area_target_total,vol_source,area_source,mea_source
 
-  logical :: lphis_gll=.false.
-  logical :: llandfrac=.false. !if landfrac is on the intermediate cubed-sphere file it will be mapped to target grid
-  logical :: lzero_negative_peaks  = .TRUE.
+  logical :: lphis_gll             = .false.
+  logical :: llandfrac             = .false. ! if landfrac is true the intermediate cubed-sphere file it will be mapped to target grid
+  logical :: lzero_negative_peaks  = .true.
   !
   ! for internal filtering
   !
@@ -60,46 +56,35 @@ program convterr
   !
   ! namelist variables
   !
-  logical :: ldevelopment_diags    = .false.
-  logical :: lread_smooth_topofile = .false.
-  logical :: luse_prefilter        = .false.
-  logical :: lstop_after_smoothing = .false.
-  logical :: lrrfac_manipulation   = .false.
+  logical :: ldevelopment_diags          = .false.
+  logical :: lread_smooth_topofile       = .false.
+  logical :: luse_prefilter              = .false.
+  logical :: lstop_after_smoothing       = .false.
+  logical :: lrrfac_manipulation         = .false.
   !
   ! Cubed sphere terr is band-pass filtered using circular kernels
   !                             *Radii* of smoothing circles
-  integer :: ncube_sph_smooth_coarse = -1
-  integer :: ncube_sph_smooth_fine   =  0
-  !
-  ! namelist variables for detection of sub-grid scale orientation
-  ! i.e., "ridge finding"
-  !
-  logical :: lfind_ridges = .TRUE.
-  !                             Ridge analysis takes place on
-  !                             squares of 2*NW+1
-  integer :: nwindow_halfwidth =  0
-  !                             
-  !                             for backwards compat with CESM2.0
-  !                             Not used, 0 here for naming
-  integer :: nridge_subsample = 0 !
-  !
-  logical :: lridgetiles = .false.
+  integer :: ncube_sph_smooth_coarse     = -1
+  integer :: ncube_sph_smooth_fine       =  0
+  integer :: nwindow_halfwidth           =  0      ! for backwards compat with CESM2.0 (not used)
+  integer :: nridge_subsample            =  0  
+  integer :: rrfac_max                   =  1
+  
+  logical :: lfind_ridges                = .true.  ! ridge analysis takes place on squares of 2*NW+1 (subgrid scale orientation detection)
+  logical :: lridgetiles                 = .false.
+  logical :: lregional_refinement        = .false. ! set in read_target_grid if rrfac is on file (called rrfac)
+  logical :: lread_pre_smoothtopo        = .false. ! use pre-smoothed (on intermediate cubed-sphere grid) topo file
+  logical :: lwrite_rrfac_to_topo_file   = .false. ! for debugging write rrfac on target grid to topo file
+  logical :: linterp_phis                = .false. ! interpolate PHIS to grid center (instead of area average remapping; used for GLL grids)
+  logical :: lsmoothing_over_ocean       = .false. ! default is that no smoothing is applied where landfrac=0; turn off
+  logical :: ldistance_weighted_smoother = .false. ! use distance weighted smoother instead of Laplacian smoother
 
-  logical :: lregional_refinement = .false. !set in read_target_grid if rrfac is on file
-  integer :: rrfac_max = 1
-  logical :: lread_pre_smoothtopo = .false.      !use pre-smoothed (on intermediate cubed-sphere grid) topo file
-  logical :: lwrite_rrfac_to_topo_file = .false. !for debugging write rrfac on target grid to topo file
-  logical :: linterp_phis = .false.              !interpolate PHIS to grid center (instead of area average remapping; used for GLL grids)
-  logical :: lsmoothing_over_ocean = .false.      !default is that no smoothing is applied where landfrac=0; turn off
-  logical :: ldistance_weighted_smoother = .false.!use distance weighted smoother instead of Laplacian smoother
+  real (r8):: nu_lap                     = -1
+  integer  :: smooth_phis_numcycle       = -1
+  real (r8):: smoothing_scale            =  0
 
-  real (r8):: nu_lap = -1
-  integer  :: smooth_phis_numcycle=-1
-  real (r8):: smoothing_scale=0
-  !
   integer :: UNIT, ioptarg
-
-  integer :: NSCL_f, NSCL_c, nhalo,nsw
+  integer :: NSCL_f, NSCL_c, nhalo, nsw
 
   !++JTB
   integer :: iopt_ridge_seed = 2
@@ -449,7 +434,7 @@ program convterr
   end if
 
   if (ncube_sph_smooth_fine > 0) then 
-     luse_prefilter=.TRUE.
+     luse_prefilter=.true.
   else
      luse_prefilter=.false.
   end if
@@ -590,10 +575,10 @@ program convterr
         rrfac(ix,iy,ip) = rrfac(ix,iy,ip) + wt*(target_rrfac(i))/da(ix,iy)
      end do
   else
-     write (6,*) " NO refinement: RRFaC = 1. everywhere "
+     write (6,*) " NO refinement: RRFAC = 1. everywhere "
      rrfac = 1d0
   endif
-  write (6,*) "MinMaX RRFaC RaW MaPPEd FIELd",minval(rrfac),maxval(rrfac)
+  write (6,*) "MinMax RRFAC raw mapped field",minval(rrfac),maxval(rrfac)
 
   !++jtb
   NSCL_c = 2*ncube_sph_smooth_coarse
@@ -618,8 +603,8 @@ program convterr
         rrfac = real(NinT(rrfac))
         where (rrfac.gt.rrfac_max) rrfac = rrfac_max
         where (rrfac.lt.1.0) rrfac = 1.0
-        write (6,*) "RRFaC Massaged .... "
-        write (6,*) "MinMaX RRFaC FinaL",minval(rrfac),maxval(rrfac)
+        write (6,*) "rrfac Massaged .... "
+        write (6,*) "MinMaX rrfac final",minval(rrfac),maxval(rrfac)
      end if
 
 
@@ -1163,7 +1148,7 @@ subroutine wrtncdf_unstructured (n, dom, idx, terr, landfrac, sgh, sgh30, landm_
      status = nf_def_var (foutid,'rrfac', NF_DOUBLE, 1, nid(1), rrfacid)
      if (status /= NF_NOERR) then
         call handle_err(status)
-        write (6,*) "RRFaC error"
+        write (6,*) "RRFAC error"
      end if
   end if
 
