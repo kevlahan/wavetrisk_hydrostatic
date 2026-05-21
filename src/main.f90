@@ -448,8 +448,8 @@ contains
     allocate (n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
     n_active_edges = 0; n_active_nodes = 0
 
-    allocate (dx_avg(min_level:max_level), Area_avg(min_level:max_level))
-    do l = min_level, max_level
+    allocate (dx_avg(min_level-1:max_level), Area_avg(min_level-1:max_level))
+    do l = min_level-1, max_level
        Area_avg(l) = 4*MATH_PI * radius**2 / number_hex (l)
        dx_avg(l)   = sqrt (2 / sqrt(3.0_dp) * Area_avg(l))
     end do

@@ -96,27 +96,37 @@ contains
   type(Coord) function project_on_sphere (p)
     implicit none
     type(Coord) :: p
-    
-    project_on_sphere = (radius / (norm (p) + eps (radius))) * p
+
+    real(dp) :: r
+
+    r = norm (p)
+
+    if (r < eps(radius)) then
+       project_on_sphere = ORIGIN
+    else
+       project_on_sphere = radius * p / r
+    end if
   end function project_on_sphere
 
   subroutine arc_inters (arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, does_inters, troubles)
     implicit none
     type(Coord) :: arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, neg_int_pt, normal1, normal2
     
-    real(dp) :: inpr
+    real(dp) :: inpr, tol
     logical  :: does_inters, troubles
     
     inters_pt = arc2_no2
     does_inters = .true.
-    troubles    = .false.
+    troubles    = .false.   
+
+    tol = eps(radius)**4
 
     if (norm(vector(arc1_no2, arc2_no2)) < eps(radius)) return
 
     normal1 = cross (arc1_no1, arc1_no2)
     inpr = inner (normal1, arc2_no1) * inner(normal1, arc2_no2)
     if (inpr > 0.0_dp) then
-       if (inpr < (eps(1.0_dp)*radius**2)**2) troubles = .true.
+       if (inpr < tol) troubles = .true.
        does_inters = .false.
        return
     end if
@@ -125,7 +135,7 @@ contains
     inpr = inner (normal2, arc1_no1) * inner (normal2, arc1_no2)
 
     if (inpr > 0.0_dp) then
-       if (inpr < (eps(1.0_dp)*radius**2)**2) troubles = .true.
+       if (inpr < tol) troubles = .true.
        does_inters = .false.
        return
     end if
@@ -290,7 +300,7 @@ contains
        self%part(i) = triarea (centre, corners(i), midpts(i)) + triarea (centre, corners(i), midpts(modulo(i,6)+1))
     end do
     self%hex_inv = 1.0_dp
-    if (sum(self%part) > eps(radius**2)) self%hex_inv = 1.0_dp / sum (self%part)
+    if (sum(self%part) > eps(radius)**2) self%hex_inv = 1.0_dp / sum (self%part)
   end subroutine init_Areas
 
   subroutine wrap_lonlat (lat, lon)

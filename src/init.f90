@@ -296,13 +296,11 @@ contains
 
     do d = 1, size(grid)
        call init (grid(d)%ccentre, grid(d)%node%length * TRIAG)
-
-       do i = 1, grid(d)%node%length*TRIAG
+       do i = 1, grid(d)%node%length * TRIAG
           call init_Coord (grid(d)%ccentre%elts(i), 0.0_dp, 0.0_dp, 0.0_dp)
        end do
-
+       
        call init (grid(d)%midpt, grid(d)%node%length * EDGE)
-
        do i = 1, grid(d)%node%length * EDGE
           call init_Coord (grid(d)%midpt%elts(i), 0.0_dp, 0.0_dp, 0.0_dp)
        end do
@@ -916,10 +914,10 @@ contains
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
 
-    dom%coriolis%elts(TRIAG*id+LORT+1) = dom%ccentre%elts(TRIAG*id+LORT+1)%z/radius * 2.0_dp*omega * &
+    dom%coriolis%elts(TRIAG*id+LORT+1) = dom%ccentre%elts(TRIAG*id+LORT+1)%z/radius * 2*omega * &
          (dom%areas%elts(id+1)%part(1) + dom%areas%elts(idE+1)%part(3) + dom%areas%elts(idNE+1)%part(5))
 
-    dom%coriolis%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*id+UPLT+1)%z/radius * 2.0_dp*omega * &
+    dom%coriolis%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*id+UPLT+1)%z/radius * 2*omega * &
          (dom%areas%elts(id+1)%part(2) + dom%areas%elts(idNE+1)%part(4) + dom%areas%elts(idN+1)%part(6))
   end subroutine coriolis
 
@@ -943,4 +941,53 @@ contains
     
     dom%level%elts(id+1) = dom%patch%elts(p+1)%level
   end subroutine set_level
+
+  subroutine check_grid (dom, p, i, j, zlev, offs, dims)
+    implicit none
+    integer                        :: i, j, p, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain) :: dom
+    integer      :: id, idE, idN, idNE, idS, idW
+
+    id   = idx(i,   j,   offs, dims)
+    idN  = idx(i,   j+1, offs, dims)
+    idS  = idx(i,   j-1, offs, dims)
+    idE  = idx(i+1, j,   offs, dims)
+    idW  = idx(i-1, j,   offs, dims)
+    idNE = idx(i+1, j+1, offs, dims)
+
+    call check_triag (dom, id*TRIAG+LORT, (/TRIAG*idE+UPLT, TRIAG*id+UPLT, TRIAG*idS+UPLT/), &
+         (/id, idE, idNE/), (/EDGE*idE+UP, EDGE*id+DG, EDGE*id+RT/))
+    call check_triag (dom, id*TRIAG+UPLT, (/TRIAG*idN+LORT, TRIAG*idW+LORT, TRIAG*id+LORT/), &
+         (/id, idNE, idN/), (/EDGE*idN+RT, EDGE*id+UP, EDGE*id+DG/))
+  end subroutine check_grid
+
+  subroutine check_triag (dom, id, id_neigh, id_cnr, id_side)
+    ! Fix overlap problems
+    implicit none
+    type(Domain)          :: dom
+    integer               :: id
+    integer, dimension(3) :: id_neigh, id_cnr, id_side
+    
+    integer                   :: i
+    type(Coord)               :: cc_fine
+    type(Coord), dimension(3) :: inters_pt
+    logical,     dimension(3) :: does_inters, troubles
+
+    cc_fine = circumcentre (dom%midpt%elts(id_side(1)+1), dom%midpt%elts(id_side(3)+1), dom%midpt%elts(id_side(2)+1))
+
+    do i = 1, 3
+       call arc_inters (dom%ccentre%elts(id+1), dom%ccentre%elts(id_neigh(i)+1), &
+            cc_fine, circumcentre (dom%node%elts(id_cnr(i)+1), dom%midpt%elts(id_side(O2(1,i))+1), &
+            dom%midpt%elts(id_side(O2(2,i))+1)), &
+            inters_pt(i), does_inters(i), troubles(i))
+    end do 
+
+    if (any (does_inters) .or. any (troubles)) then
+       dom%node%elts(id_cnr(1)+1)%x = dom%node%elts(id_cnr(1)+1)%x + 1e-6 * dx_avg(min_level-1)
+       dom%node%elts(id_cnr(1)+1) = project_on_sphere (dom%node%elts(id_cnr(1)+1)) 
+    end if
+  end subroutine check_triag
 end module init_mod

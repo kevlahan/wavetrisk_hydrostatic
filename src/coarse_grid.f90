@@ -18,7 +18,7 @@ module coarse_grid_mod
   integer                                  :: ncell
   integer                                  :: next_fid = 100
   integer,     dimension(2,4), parameter   :: HR_offs = reshape ( [0,0, 1,0, 1,1, 0,1], [2,4] ) 
-  real(dp)                                 :: dx_coarse, linf_err, l2_err
+  real(dp)                                 :: dx_coarse, linf_err, l2_err, linf_err_loc, l2_err_loc
   type(coord), dimension(:,:), allocatable :: new_node
 contains
   subroutine read_optim_grid  
@@ -30,7 +30,7 @@ contains
     integer, dimension(2,N_BDRY+1) :: dims
     character(999)                 :: filename
 
-    dx_coarse = dx_avg (min_level) ! average edge lengths
+    dx_coarse = dx_avg (min_level-1) ! average edge lengths
 
     ! Initial error
     call grid_error
@@ -73,9 +73,9 @@ contains
     end do
 
     call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call apply_onescale2 (ccentre,    level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-    call apply_onescale2 (midpt,      level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-    call apply_onescale2 (check_grid, level_end-1, z_null,  0, 0)
+    call apply_onescale2 (ccentre,    min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    call apply_onescale2 (midpt,      min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+    call apply_onescale2 (check_grid, min_level-1, z_null,  0, 0)
 
     ! Final error
     call grid_error
@@ -116,13 +116,12 @@ contains
     implicit none
     real(dp) :: tol
 
-    tol = 1e9_dp * eps (radius) ! tolerance in [m], about 1.4 m on Earth or relative error of O(1e-7)
+    tol = 1e-4
 
-    dx_coarse = dx_avg (min_level)
+    dx_coarse = dx_avg (min_level-1)
     
     ! Initial error
     call grid_error
-    
     if (rank == 0) then
        write (6,'(a)') '-------------------------------------------------------&
             &---------------------------------------------------------------------------'
@@ -132,25 +131,20 @@ contains
         
     allocate (new_node(maxval(grid(:)%node%length), size(grid)))
 
-    linf_err = 2*tol
     do while (linf_err > tol)
        call comm_nodes3_mpi (get_coord, set_coord, NONE)
-       call apply_onescale2 (ccentre,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-       call apply_onescale2 (midpt,     level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-       call apply_onescale2 (cpt_areas, level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-
        call apply_onescale (Xu_smooth_cpt, level_end-1, z_null, 0, 0)
 
-       linf_err = 0.0_dp
+       linf_err_loc = 0.0_dp
        call apply_onescale (Xu_smooth_assign, level_end-1, z_null, 0, 0)
-       linf_err = sync_max_real (linf_err)
-    end do
-    
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call apply_onescale2 (ccentre,    level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-2)
-    call apply_onescale2 (midpt,      level_end-1, z_null, -(BDRY_THICKNESS-2), BDRY_THICKNESS-1)
-    call apply_onescale2 (check_grid, level_end-1, z_null, 0, 0)
+       linf_err = sync_max_real (linf_err_loc)
 
+       call comm_nodes3_mpi (get_coord, set_coord, NONE)
+       call apply_onescale2 (ccentre,   min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+       call apply_onescale2 (midpt,     min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
+       call apply_onescale2 (check_grid, min_level-1, z_null, 0, 0)
+    end do
+  
     ! Final error
     call grid_error
     if (rank == 0) then
@@ -202,10 +196,10 @@ contains
        cosbeta = inner (v1, v2) / (norm (v1) * norm (v2))
        beta  = acos (cosbeta)
 
-       s = s + (1/tan(alpha) + 1/tan(beta))/4 * (p_i - p_j)
+       s = s + (1/tan(alpha) + 1/tan(beta)) * (p_i - p_j)
     end do
 
-    new_node(id,d) = project_on_sphere (dom%areas%elts(id)%hex_inv * s) 
+    new_node(id,d) = project_on_sphere (s)
   end subroutine Xu_smooth_cpt
 
   subroutine Xu_smooth_assign (dom, i, j, zlev, offs, dims)
@@ -215,16 +209,17 @@ contains
     integer                        :: i, j, zlev
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims
+    
     integer ::  d, id
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
-    linf_err = max  (linf_err, dist (dom%node%elts(id), new_node(id,d)))
+    linf_err_loc = max  (linf_err_loc, dist (dom%node%elts(id), new_node(id,d))/dx_coarse)
 
     dom%node%elts(id) = new_node(id,d)
 
-    call zrotate (dom%node%elts(id), dom%node%elts(id), theta_grid) 
+    !call zrotate (dom%node%elts(id), dom%node%elts(id), theta_grid) 
   end subroutine Xu_smooth_assign
 
   subroutine init_smooth_mod
@@ -236,54 +231,6 @@ contains
     call init_domain_mod
     initialized = .true.
   end subroutine init_smooth_mod
-
-  subroutine check_grid (dom, p, i, j, zlev, offs, dims)
-    implicit none
-    integer                        :: i, j, p, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
-    type(Domain) :: dom
-    integer      :: id, idE, idN, idNE, idS, idW
-
-    id   = idx(i,   j,   offs, dims)
-    idN  = idx(i,   j+1, offs, dims)
-    idS  = idx(i,   j-1, offs, dims)
-    idE  = idx(i+1, j,   offs, dims)
-    idW  = idx(i-1, j,   offs, dims)
-    idNE = idx(i+1, j+1, offs, dims)
-
-    call check_triag (dom, TRIAG*id + LORT, [TRIAG*idE + UPLT, TRIAG*id  + UPLT, TRIAG*idS + UPLT], &
-         [id, idE, idNE], [EDGE*idE+UP, EDGE*id+DG, EDGE*id+RT])
-    call check_triag (dom, TRIAG*id + UPLT, [TRIAG*idN + LORT, TRIAG*idW + LORT, TRIAG*id  + LORT], &
-         [id, idNE, idN], [EDGE*idN+RT, EDGE*id+UP, EDGE*id+DG])
-  end subroutine check_grid
-
-  subroutine check_triag (dom, id, id_neigh, id_cnr, id_side)
-    implicit none
-    type(Domain)          :: dom
-    integer               :: id
-    integer, dimension(3) :: id_neigh, id_cnr, id_side
-    
-    integer                   :: i
-    type(Coord)               :: cc_fine
-    type(Coord), dimension(3) :: inters_pt
-    logical, dimension(3)     :: does_inters, troubles
-
-    cc_fine = circumcentre (dom%midpt%elts(id_side(1)+1), dom%midpt%elts(id_side(3)+1), dom%midpt%elts(id_side(2)+1))
-
-    do i = 1, 3
-       call arc_inters (dom%ccentre%elts(id+1), dom%ccentre%elts(id_neigh(i)+1), &
-            cc_fine, circumcentre (dom%node%elts(id_cnr(i)+1), dom%midpt%elts(id_side(O2(1,i))+1), &
-            dom%midpt%elts(id_side(O2(2,i))+1)), &
-            inters_pt(i), does_inters(i), troubles(i))
-    end do
-
-    if (any (does_inters) .or. any (troubles)) then
-       dom%node%elts(id_cnr(1)+1)%x = dom%node%elts(id_cnr(1)+1)%x + 1.0d7*eps(radius)
-       dom%node%elts(id_cnr(1)+1) = project_on_sphere(dom%node%elts(id_cnr(1)+1))
-    end if
-  end subroutine check_triag
 
   subroutine check_d (dom, i, j, zlev, offs, dims)
     implicit none
@@ -304,8 +251,8 @@ contains
          dist (dom%midpt%elts(EDGE*id+DG+1), mid_pt (dom%ccentre%elts(TRIAG*id +LORT+1), dom%ccentre%elts(TRIAG*id +UPLT+1))), &
          dist (dom%midpt%elts(EDGE*id+UP+1), mid_pt (dom%ccentre%elts(TRIAG*idW+LORT+1), dom%ccentre%elts(TRIAG*id +UPLT+1)) ) ]
 
-    linf_err = max (linf_err, maxval (error))
-    l2_err = l2_err + sum (error**2)
+    linf_err_loc = max (linf_err_loc, maxval (error))
+    l2_err_loc = l2_err_loc + sum (error**2)
   end subroutine check_d
   
   integer function dom_id_from_HR_id (d_HR)
@@ -356,10 +303,10 @@ contains
     call apply_onescale2 (ccentre, level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
     call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
 
-    l2_err   = 0.0_dp; linf_err = 0.0_dp
+    l2_err_loc   = 0.0_dp; linf_err_loc = 0.0_dp
     call  apply_onescale (check_d, level_end-1, z_null, 0, 0)
-    l2_err   = sqrt (sum_real (l2_err)) / (dx_coarse * 3 * number_hex (level_end-1))
-    linf_err = sync_max_real (linf_err) / dx_coarse
+    l2_err   = sqrt (sum_real (l2_err_loc)) / (dx_coarse * 3 * number_hex (level_end-1))
+    linf_err = sync_max_real (linf_err_loc) / dx_coarse
   end subroutine grid_error
 
   subroutine zrotate (c_in, c_out, angle)
