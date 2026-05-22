@@ -72,10 +72,7 @@ contains
        close (fid)
     end do
 
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)
-    call apply_onescale2 (ccentre,    min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-    call apply_onescale2 (midpt,      min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-    call apply_onescale2 (check_grid, min_level-1, z_null,  0, 0)
+    call update_geom_check_grid
 
     ! Final error
     call grid_error
@@ -86,6 +83,45 @@ contains
             &---------------------------------------------------------------------------'
     end if
   end subroutine read_optim_grid
+
+  subroutine smooth_Xu
+    implicit none
+    real(dp) :: tol
+
+    tol = 1e-6
+
+    dx_coarse = dx_avg (min_level-1)
+    
+    ! Initial error
+    call grid_error
+    if (rank == 0) then
+       write (6,'(a)') '-------------------------------------------------------&
+            &---------------------------------------------------------------------------'
+       write (6,'(a,i2/)') 'Xu (2006) diffusion optimization of level ', level_end-1
+       write (6,'(a,2(es8.2,a))') 'Grid quality before optimization = ', linf_err, ' (linf) ', l2_err, ' (l2)'
+    end if
+        
+    allocate (new_node(maxval(grid(:)%node%length), size(grid)))
+
+    do while (linf_err > tol)
+       linf_err_loc = 0.0_dp
+       call apply_onescale (Xu_smooth_cpt,    min_level-1, z_null, 0, 0)
+       call apply_onescale (Xu_smooth_assign, min_level-1, z_null, 0, 0)
+       linf_err = sync_max_real (linf_err_loc)
+       
+       call update_geom_check_grid
+    end do
+  
+    ! Final error
+    call grid_error
+    if (rank == 0) then
+       write (6,'(a,2(es8.2,a))') 'Grid quality after optimization  = ', linf_err, ' (linf) ', l2_err, ' (l2)'
+       write (6,'(a)') '(relative distance between midpoints of primal and dual grid edges compared to average edge length)'
+       write (6,'(a,/)') '-------------------------------------------------&
+            &----------------------------------------------------------------------'
+    end if
+    deallocate (new_node)
+  end subroutine smooth_Xu
 
   recursive subroutine coord_from_file (d_glo, l, fid, offs, dims, ij0)
     implicit none
@@ -112,49 +148,26 @@ contains
     end do
   end subroutine coord_from_file
 
-  subroutine smooth_Xu
+  subroutine update_geom_check_grid
     implicit none
-    real(dp) :: tol
+    integer :: d
 
-    tol = 1e-4
+    ! Communicate nodes
+    call comm_nodes3_mpi (get_coord, set_coord, NONE)
 
-    dx_coarse = dx_avg (min_level-1)
-    
-    ! Initial error
-    call grid_error
-    if (rank == 0) then
-       write (6,'(a)') '-------------------------------------------------------&
-            &---------------------------------------------------------------------------'
-       write (6,'(a,i2/)') 'Xu (2006) diffusion optimization of level ', level_end-1
-       write (6,'(a,2(es8.2,a))') 'Grid quality before optimization = ', linf_err, ' (linf) ', l2_err, ' (l2)'
-    end if
-        
-    allocate (new_node(maxval(grid(:)%node%length), size(grid)))
-
-    do while (linf_err > tol)
-       call comm_nodes3_mpi (get_coord, set_coord, NONE)
-       call apply_onescale (Xu_smooth_cpt, level_end-1, z_null, 0, 0)
-
-       linf_err_loc = 0.0_dp
-       call apply_onescale (Xu_smooth_assign, level_end-1, z_null, 0, 0)
-       linf_err = sync_max_real (linf_err_loc)
-
-       call comm_nodes3_mpi (get_coord, set_coord, NONE)
-       call apply_onescale2 (ccentre,   min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-       call apply_onescale2 (midpt,     min_level-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
-       call apply_onescale2 (check_grid, min_level-1, z_null, 0, 0)
+    ! Update geometry
+    call apply_onescale2 (ccentre, min_level-1, z_null, -2, 1)
+    do d = 1, size(grid)
+       call ccentre_penta (grid(d), 1)
     end do
-  
-    ! Final error
-    call grid_error
-    if (rank == 0) then
-       write (6,'(a,2(es8.2,a))') 'Grid quality after optimization  = ', linf_err, ' (linf) ', l2_err, ' (l2)'
-       write (6,'(a)') '(relative distance between midpoints of primal and dual grid edges compared to average edge length)'
-       write (6,'(a,/)') '-------------------------------------------------&
-            &----------------------------------------------------------------------'
-    end if
-    deallocate (new_node)
-  end subroutine smooth_Xu
+    call apply_onescale2 (midpt,   min_level-1, z_null, -1, 2)
+
+    ! Fix grid
+    call apply_onescale2 (check_grid, min_level-1, z_null,  0, 0)
+
+    ! Communicate new nodes
+    call comm_nodes3_mpi (get_coord, set_coord, NONE)   
+  end subroutine update_geom_check_grid
 
   subroutine Xu_smooth_cpt (dom, i, j, zlev, offs, dims)
     ! Algorithm 1 of Xu (2006)
@@ -181,7 +194,7 @@ contains
 
     call init_Coord (s, 0.0_dp, 0.0_dp, 0.0_dp)
     
-    do n = 1, 6 ! sum over hexagon vertices
+    do n = 1, 6 ! sum over hexagon vertices 
        p_j  = dom%node%elts(idx2(i, j, nghb_pt(:,n),                  offs, dims) + 1)
        p_ip = dom%node%elts(idx2(i, j, nghb_pt(:,modulo(n,   6) + 1), offs, dims) + 1)
        p_im = dom%node%elts(idx2(i, j, nghb_pt(:,modulo(n-2, 6) + 1), offs, dims) + 1)

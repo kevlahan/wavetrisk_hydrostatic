@@ -311,6 +311,7 @@ contains
        call init (grid(d)%triarea,  grid(d)%node%length * TRIAG)
        call init (grid(d)%coriolis, grid(d)%node%length * TRIAG)
     end do
+    
   end subroutine init_geometry
 
   subroutine precompute_geometry
@@ -972,7 +973,7 @@ contains
   end subroutine check_grid
 
   subroutine check_triag (dom, id, id_neigh, id_cnr, id_side)
-    ! Fix intersection problems
+    ! Fix coarse/fine hexagon edge intersections problems
     implicit none
     type(Domain)          :: dom
     integer               :: id
@@ -982,7 +983,7 @@ contains
     real(dp)                  :: shift 
     type(Coord)               :: cc_coarse, cc_coarse_neigh, cc_fine, cc_fine_neigh
     type(Coord), dimension(3) :: inters_pt
-    logical,     dimension(3) :: does_inters, troubles
+    logical,     dimension(3) :: degenerate, intersects
 
     cc_coarse = dom%ccentre%elts(id+1)
     cc_fine = circumcentre (dom%midpt%elts(id_side(1)+1), dom%midpt%elts(id_side(3)+1), dom%midpt%elts(id_side(2)+1))
@@ -996,12 +997,12 @@ contains
             cc_fine, &
             cc_fine_neigh, &
             inters_pt(i), &
-            does_inters(i), &
-            troubles(i) )
+            intersects(i), &
+            degenerate(i) )
     end do 
 
-    ! Shift slightly problem nodes
-    if (any (does_inters) .or. any (troubles)) then
+    ! Shift x-coordinate of the node slightly to avoid coarse/fine hexagon edge intersections
+    if (any (intersects) .or. any (degenerate)) then
        shift = 1e-6 * dx_avg(min_level-1)
        dom%node%elts(id_cnr(1)+1)%x = dom%node%elts(id_cnr(1)+1)%x + shift
        

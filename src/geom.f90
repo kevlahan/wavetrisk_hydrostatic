@@ -110,7 +110,7 @@ contains
   end function project_on_sphere
   
   subroutine arc_intersect_test (arc1_node1, arc1_node2, arc2_node1, arc2_node2, &
-       intersection_pt, does_intersect, troubles)
+       intersection_pt, intersects, degenerate)
     ! Determines whether two great-circle arcs on sphere intersect.
     !
     ! Uses signed orientation (same-side) tests with respect to planes of two great circles.
@@ -118,27 +118,27 @@ contains
     ! If arcs intersect, corresponding spherical intersection point is computed from cross product
     ! of two great-circle normals and projected onto sphere.
     !
-    ! Near-degenerate/tangent configurations are flagged as `troubles` to be corrected.
+    ! Near-degenerate/tangent configurations are flagged as `degenerate` to be corrected.
     implicit none
 
     type(Coord), intent(in)  :: arc1_node1, arc1_node2
     type(Coord), intent(in)  :: arc2_node1, arc2_node2
 
     type(Coord), intent(out) :: intersection_pt ! intersection point 
-    logical,     intent(out) :: does_intersect  ! flags intersections/non-intersections
-    logical,     intent(out) :: troubles        ! flags degenerate and near-zero cases
+    logical,     intent(out) :: intersects      ! flags intersections
+    logical,     intent(out) :: degenerate      ! flags degenerate and near-zero cases
     
     real(dp)    :: side_product ! product of signed distances/orientations relative to great-circle plane.
     real(dp)    :: tol, nx
     type(Coord) :: neg_intersection_pt, normal1, normal2, x
     
-    does_intersect = .true.
-    troubles       = .false.
+    intersects = .true.
+    degenerate = .false.
 
     ! Scale-aware tolerance for near-degenerate cases
     tol = eps(radius**4)
 
-    ! Degenerate endpoint/coincident point case.
+    ! Degenerate endpoint/coincident point case
     if (norm(vector(arc1_node2, arc2_node2)) < eps(radius)) then
        intersection_pt = arc2_node2
        return
@@ -148,42 +148,42 @@ contains
     side_product = inner(normal1, arc2_node1) * inner(normal1, arc2_node2)
     
     if (side_product > tol) then
-       does_intersect = .false.
+       intersects = .false.
        return
     elseif (abs(side_product) <= tol) then
-       troubles = .true.
+       degenerate = .true.
     end if
 
     normal2 = cross(arc2_node1, arc2_node2)
     side_product = inner(normal2, arc1_node1) * inner(normal2, arc1_node2)
     if (side_product > tol) then
-       does_intersect = .false.
+       intersects = .false.
        return
     elseif (abs(side_product) <= tol) then
-       troubles = .true.
+       degenerate = .true.
     end if
 
-    ! Intersection of the two great circles.
+    ! Intersection of the two great circles
     x  = cross(normal1, normal2)
     nx = norm(x)
 
-    ! Nearly parallel great circles: intersection direction is ill-conditioned.
+    ! Nearly parallel great circles: intersection direction is ill-conditioned
     if (nx <= 100.0_dp * eps(radius**2)) then
        intersection_pt = arc2_node2
-       does_intersect  = .false.
-       troubles        = .true.
+       intersects = .false.
+       degenerate = .true.
        return
     end if
 
     intersection_pt = project_on_sphere (x)
     neg_intersection_pt = (-1.0_dp) * intersection_pt
 
-    ! Choose the antipodal intersection point closer to arc1_node1.
+    ! Choose the antipodal intersection point closer to arc1_node1
     if (norm(vector(neg_intersection_pt, arc1_node1)) < norm(vector(intersection_pt, arc1_node1))) then
        intersection_pt = neg_intersection_pt
     end if
 
-    does_intersect = .true.
+    intersects = .true.
 
   end subroutine arc_intersect_test
 

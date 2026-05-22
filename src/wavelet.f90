@@ -1423,9 +1423,9 @@ contains
 
     type(Coord), dimension(6)   :: hex
     type(Coord), dimension(3,2) :: tri
-    type(Coord)                 :: inters_pt0, inters_pt1, pt
+    type(Coord)                 :: intersection_pt0, intersection_pt1, pt
     integer                     :: i, id_chd
-    logical                     :: does_inters0, does_inters1, troubles
+    logical                     :: intersects0, intersects1, degenerate
 
     area = 0.0_dp
     typ = 0
@@ -1448,35 +1448,35 @@ contains
     area(2) = triarea(hex(3), hex(4), pt)
 
     do i = 1, 2
-       call arc_intersect_test (tri(1,i), tri(2,i), hex(3*i-2), hex(3*i-1), inters_pt0, does_inters0, troubles)
-       call arc_intersect_test (tri(3,i), tri(2,i), hex(3*i),   hex(3*i-1), inters_pt1, does_inters1, troubles)
-       if (does_inters0 .and. does_inters1) then
-          area(i+4) = triarea(inters_pt0, tri(2,i), hex(3*i-1))
-          area(i+6) = triarea(tri(2,i), hex(3*i-1), inters_pt1)
+       call arc_intersect_test (tri(1,i), tri(2,i), hex(3*i-2), hex(3*i-1), intersection_pt0, intersects0, degenerate)
+       call arc_intersect_test (tri(3,i), tri(2,i), hex(3*i),   hex(3*i-1), intersection_pt1, intersects1, degenerate)
+       if (intersects0 .and. intersects1) then
+          area(i+4) = triarea(intersection_pt0, tri(2,i), hex(3*i-1))
+          area(i+6) = triarea(tri(2,i), hex(3*i-1), intersection_pt1)
           area(i+2) = area(i+4) + area(i+6)
-          area(i) = area(i) + triarea(hex(3*i-2), inters_pt0, pt)     + triarea(inters_pt0, pt, tri(2,i))
-          area(-i+3) = area(-i+3) + triarea(inters_pt1, hex(3*i), pt) + triarea(tri(2,i), pt, inters_pt1)
+          area(i) = area(i) + triarea(hex(3*i-2), intersection_pt0, pt)     + triarea(intersection_pt0, pt, tri(2,i))
+          area(-i+3) = area(-i+3) + triarea(intersection_pt1, hex(3*i), pt) + triarea(tri(2,i), pt, intersection_pt1)
           typ(-i+3) = INSIDE
        else
-          if (.not. does_inters0 .and. .not. does_inters1) then
+          if (.not. intersects0 .and. .not. intersects1) then
              area(i+2) = 0.0_dp
-             call arc_intersect_test (tri(2,1), tri(2,2), hex(3*i-2), hex(3*i-1), inters_pt0, does_inters0, troubles)
-             call arc_intersect_test (tri(2,2), tri(2,1), hex(3*i-1), hex(3*i),   inters_pt1, does_inters1, troubles)
-             if (.not. does_inters0 .and. does_inters1) then
-                area(i) = area(i) + triarea(hex(3*i-2), hex(3*i-1), pt) + triarea(hex(3*i-1), inters_pt1, pt)
-                area(-i+3) = area(-i+3) + triarea(inters_pt1, hex(3*i), pt)
+             call arc_intersect_test (tri(2,1), tri(2,2), hex(3*i-2), hex(3*i-1), intersection_pt0, intersects0, degenerate)
+             call arc_intersect_test (tri(2,2), tri(2,1), hex(3*i-1), hex(3*i),   intersection_pt1, intersects1, degenerate)
+             if (.not. intersects0 .and. intersects1) then
+                area(i) = area(i) + triarea(hex(3*i-2), hex(3*i-1), pt) + triarea(hex(3*i-1), intersection_pt1, pt)
+                area(-i+3) = area(-i+3) + triarea(intersection_pt1, hex(3*i), pt)
                 typ(-i+3) = OUTER2
              else
-                if (does_inters0 .and. .not. does_inters1) then
-                   area(i) = area(i) + triarea(hex(3*i-2), inters_pt0, pt)
-                   area(-i+3) = area(-i+3) + triarea(hex(3*i-1), hex(3*i), pt) + triarea(inters_pt0, hex(3*i-1), pt)
+                if (intersects0 .and. .not. intersects1) then
+                   area(i) = area(i) + triarea(hex(3*i-2), intersection_pt0, pt)
+                   area(-i+3) = area(-i+3) + triarea(hex(3*i-1), hex(3*i), pt) + triarea(intersection_pt0, hex(3*i-1), pt)
                    typ(-i+3) = OUTER1
                 else
-                   write(0,*) 'ERROR: overlap area', dom%id, offs_chd(1), i_chd, j_chd, 'A', does_inters0, does_inters1
+                   write(0,*) 'ERROR: overlap area', dom%id, offs_chd(1), i_chd, j_chd, 'A', intersects0, intersects1
                 end if
              end if
           else
-             write(0,*) 'ERROR: overlap area', dom%id, offs_chd(1), i_chd, j_chd, 'B', does_inters0, does_inters1
+             write(0,*) 'ERROR: overlap area', dom%id, offs_chd(1), i_chd, j_chd, 'B', intersects0, intersects1
           end if
        end if
     end do

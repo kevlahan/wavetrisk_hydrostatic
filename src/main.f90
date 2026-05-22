@@ -472,6 +472,7 @@ contains
     call init_grid
     call init_comm_mpi
     call init_geometry
+    call update_geom_check_grid
 
     ! Computational grid at min_level
     select case (optimize_grid)
