@@ -6,13 +6,15 @@ module geom_mod
      subroutine vel_lonlat (lon, lat, u, v)
        use kind_mod
        implicit none
-       real(dp) :: lon, lat, u, v
+       real(dp), intent(in) :: lon, lat, u, v
      end subroutine vel_lonlat
   end interface
 contains
   type(Coord) function direction (init, term)
     implicit none
-    type(Coord) :: init, term, v
+    type(Coord), intent(in) :: init, term
+    
+    type(Coord) :: v
 
     v = vector (init, term)
     direction = normalize_Coord (v)
@@ -21,7 +23,7 @@ contains
   real(dp) function dist (p, q)
     ! Geodesic distance between points on the sphere with coordinates p and q
     implicit none
-    type(Coord) :: p, q
+    type(Coord), intent(in) :: p, q
 
     dist = radius * asin (sqrt ((p%y * q%z - p%z * q%y)**2 + (p%z * q%x - p%x * q%z)**2 + (p%x * q%y - p%y * q%x)**2)/radius**2)
   end function dist
@@ -29,10 +31,10 @@ contains
   subroutine min_dist (p, q, dmin, imin)
     ! Minimum distance between a point p and a vector of points q in R3
     implicit none
-    integer                   :: imin
-    real(dp)                   :: dmin
-    type(Coord)               :: p
-    type(Coord), dimension(:) :: q
+    type(Coord),               intent(in)  :: p
+    type(Coord), dimension(:), intent(in)  :: q
+    integer,                   intent(out) :: imin
+    real(dp),                  intent(out) :: dmin
 
     integer                             :: i, n
     real(dp), dimension(:), allocatable :: diff_pq
@@ -52,8 +54,7 @@ contains
   real(dp) function dist_sph (lon1, lat1, lon2, lat2)
     ! Distance between points on the sphere angular coordinates (lat1, lon1) and (lat2, lon2)
     implicit none
-
-    real(dp) :: lat1, lat2, lon1, lon2
+    real(dp), intent(in) :: lat1, lat2, lon1, lon2
 
     type(Coord) :: x1, x2
     
@@ -66,7 +67,7 @@ contains
   real(dp) function geodesic (p, q)
     ! Great circle (minimum) distance between points with coordinates p and q
     implicit none
-    type (Coord) :: p, q
+    type (Coord), intent(in) :: p, q
 
     real(dp) :: lat1, lat2, lon1, lon2
 
@@ -78,8 +79,8 @@ contains
   subroutine cart2sph (c, lon, lat)
     ! Angular coordinates (in radians) of a point with coordinates c on the sphere
     implicit none
-    type(Coord) :: c
-    real(dp)     :: lat, lon
+    type(Coord), intent(in)  :: c
+    real(dp),    intent(out) :: lat, lon
 
     lat = asin (c%z/radius)
     lon = atan2 (c%y, c%x)
@@ -88,14 +89,14 @@ contains
   type(Coord) function sph2cart (lon, lat)
     ! Cartesian coordinates of point with longitude lon and latitude lat on the sphere
     implicit none
-    real(dp) :: lon, lat
+    real(dp), intent(in) :: lon, lat
     
     sph2cart = radius * Coord (cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat))
   end function sph2cart
 
   type(Coord) function project_on_sphere (p)
     implicit none
-    type(Coord) :: p
+    type(Coord), intent(in) :: p
 
     real(dp) :: r
 
@@ -107,73 +108,109 @@ contains
        project_on_sphere = radius * p / r
     end if
   end function project_on_sphere
-
-  subroutine arc_inters (arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, does_inters, troubles)
+  
+  subroutine arc_intersect_test (arc1_node1, arc1_node2, arc2_node1, arc2_node2, &
+       intersection_pt, does_intersect, troubles)
+    ! Determines whether two great-circle arcs on sphere intersect.
+    !
+    ! Uses signed orientation (same-side) tests with respect to planes of two great circles.
+    !
+    ! If arcs intersect, corresponding spherical intersection point is computed from cross product
+    ! of two great-circle normals and projected onto sphere.
+    !
+    ! Near-degenerate/tangent configurations are flagged as `troubles` to be corrected.
     implicit none
-    type(Coord) :: arc1_no1, arc1_no2, arc2_no1, arc2_no2, inters_pt, neg_int_pt, normal1, normal2
+
+    type(Coord), intent(in)  :: arc1_node1, arc1_node2
+    type(Coord), intent(in)  :: arc2_node1, arc2_node2
+
+    type(Coord), intent(out) :: intersection_pt ! intersection point 
+    logical,     intent(out) :: does_intersect  ! flags intersections/non-intersections
+    logical,     intent(out) :: troubles        ! flags degenerate and near-zero cases
     
-    real(dp) :: inpr, tol
-    logical  :: does_inters, troubles
+    real(dp)    :: side_product ! product of signed distances/orientations relative to great-circle plane.
+    real(dp)    :: tol, nx
+    type(Coord) :: neg_intersection_pt, normal1, normal2, x
     
-    inters_pt = arc2_no2
-    does_inters = .true.
-    troubles    = .false.   
+    does_intersect = .true.
+    troubles       = .false.
 
-    tol = eps(radius)**4
+    ! Scale-aware tolerance for near-degenerate cases
+    tol = eps(radius**4)
 
-    if (norm(vector(arc1_no2, arc2_no2)) < eps(radius)) return
-
-    normal1 = cross (arc1_no1, arc1_no2)
-    inpr = inner (normal1, arc2_no1) * inner(normal1, arc2_no2)
-    if (inpr > 0.0_dp) then
-       if (inpr < tol) troubles = .true.
-       does_inters = .false.
+    ! Degenerate endpoint/coincident point case.
+    if (norm(vector(arc1_node2, arc2_node2)) < eps(radius)) then
+       intersection_pt = arc2_node2
        return
     end if
 
-    normal2 = cross (arc2_no1, arc2_no2)
-    inpr = inner (normal2, arc1_no1) * inner (normal2, arc1_no2)
+    normal1 = cross(arc1_node1, arc1_node2)
+    side_product = inner(normal1, arc2_node1) * inner(normal1, arc2_node2)
+    
+    if (side_product > tol) then
+       does_intersect = .false.
+       return
+    elseif (abs(side_product) <= tol) then
+       troubles = .true.
+    end if
 
-    if (inpr > 0.0_dp) then
-       if (inpr < tol) troubles = .true.
-       does_inters = .false.
+    normal2 = cross(arc2_node1, arc2_node2)
+    side_product = inner(normal2, arc1_node1) * inner(normal2, arc1_node2)
+    if (side_product > tol) then
+       does_intersect = .false.
+       return
+    elseif (abs(side_product) <= tol) then
+       troubles = .true.
+    end if
+
+    ! Intersection of the two great circles.
+    x  = cross(normal1, normal2)
+    nx = norm(x)
+
+    ! Nearly parallel great circles: intersection direction is ill-conditioned.
+    if (nx <= 100.0_dp * eps(radius**2)) then
+       intersection_pt = arc2_node2
+       does_intersect  = .false.
+       troubles        = .true.
        return
     end if
 
-    inters_pt = project_on_sphere (cross(normal1, normal2))
-    call init_Coord (neg_int_pt, -inters_pt%x, -inters_pt%y, -inters_pt%z)
+    intersection_pt = project_on_sphere (x)
+    neg_intersection_pt = (-1.0_dp) * intersection_pt
 
-    if (norm(vector(neg_int_pt, arc1_no1)) < norm (vector (inters_pt, arc1_no1))) then
-       inters_pt = neg_int_pt
+    ! Choose the antipodal intersection point closer to arc1_node1.
+    if (norm(vector(neg_intersection_pt, arc1_node1)) < norm(vector(intersection_pt, arc1_node1))) then
+       intersection_pt = neg_intersection_pt
     end if
 
-    does_inters = .true.
-  end subroutine arc_inters
+    does_intersect = .true.
+
+  end subroutine arc_intersect_test
 
   type(Coord) function vector (init, term)
     implicit none
-    type(Coord) :: init, term
+    type(Coord), intent(in) :: init, term
 
     vector = Coord (term%x - init%x, term%y - init%y, term%z - init%z)
   end function vector
   
   real(dp) function inner (u, v)
     implicit none
-    type(Coord) :: u, v
+    type(Coord), intent(in) :: u, v
 
     inner = u%x*v%x + u%y*v%y + u%z*v%z
   end function inner
 
-  type(Coord) function cross(u, v)
+  type(Coord) function cross (u, v)
     implicit none
-    type(Coord) :: u, v
+    type(Coord), intent(in) :: u, v
 
     cross = Coord (u%y*v%z - u%z*v%y, u%z*v%x - u%x*v%z, u%x*v%y - u%y*v%x)
   end function cross
 
   real(dp) function triarea (A, B, C)
     implicit none
-    type(Coord) :: A, B, C
+    type(Coord), intent(in) :: A, B, C
 
     real(dp) :: ab, ac, bc, s, t
 
@@ -195,7 +232,7 @@ contains
 
   real(dp) function distn (p, q)
     implicit none
-    type(Coord) :: p, q
+    type(Coord), intent(in) :: p, q
 
     real(dp) :: sindist
 
@@ -210,7 +247,7 @@ contains
 
   type(Coord) function circumcentre (A, B, C)
     implicit none
-    type(Coord) :: A, B, C
+    type(Coord), intent(in) :: A, B, C
 
     type(Coord) :: centre
 
@@ -227,8 +264,8 @@ contains
     ! Computes centroid of polygon given coordinates for its n nodes
     ! Simple area-weighted average (second-order accurate, stable)
     implicit none
-    integer                   :: n
-    type(Coord), dimension(n) :: points
+    integer,                   intent(in) :: n
+    type(Coord), dimension(n), intent(in) :: points
 
     integer     :: i, j
     type(Coord) :: cc
@@ -252,21 +289,21 @@ contains
 
   real(dp) function norm (c)
     implicit none
-    type(Coord) :: c
+    type(Coord), intent(in) :: c
 
     norm = sqrt (c%x**2 + c%y**2 + c%z**2)
   end function norm
 
   type(Coord) function mid_pt (p, q)
     implicit none
-    type(Coord) :: p, q
+    type(Coord), intent(in) :: p, q
 
     mid_pt = project_on_sphere (Coord (p%x + q%x, p%y + q%y, p%z + q%z))
   end function mid_pt
 
   type(Coord) function normalize_Coord (self)
     implicit none
-    type(Coord) :: self
+    type(Coord), intent(in) :: self
     
     real(dp) :: nrm
 
@@ -280,9 +317,9 @@ contains
 
   subroutine init_Coord (self, x, y, z)
     implicit none
-    type(Coord) :: self
-    real(dp)    :: x, y, z
-
+    real(dp),    intent(in)  :: x, y, z
+    type(Coord), intent(out) :: self
+    
     self%x = x
     self%y = y
     self%z = z
@@ -290,9 +327,9 @@ contains
 
   subroutine init_Areas (self, centre, corners, midpts)
     implicit none
-    type(Areas)               :: self
-    type(Coord)               :: centre
-    type(Coord), dimension(6) :: corners, midpts
+    type(Coord),               intent(in)  :: centre
+    type(Coord), dimension(6), intent(in)  :: corners, midpts
+    type(Areas),               intent(out) :: self
     
     integer :: i
 
@@ -306,7 +343,7 @@ contains
   subroutine wrap_lonlat (lat, lon)
     ! Wraps longitude and latitude onto [-pi,pi] and [-pi/2,pi/2]
     implicit none
-    real(dp) :: lat, lon
+    real(dp), intent(inout) :: lat, lon
 
     if (lat > MATH_PI/2) then
        lat =  MATH_PI/2 - mod (lat, MATH_PI/2)
@@ -327,7 +364,7 @@ contains
     ! Finds velocity in direction from points ep1 to ep2 at mid-point of this vector
     ! given a function for zonal u and meridional v velocities as a function of longitude and latitude
     implicit none
-    type(Coord) :: ep1, ep2
+    type(Coord), intent(in) :: ep1, ep2
     
     type(Coord) :: co, e_zonal, e_merid, vel
     real(dp)    :: lon, lat, u_zonal, v_merid
@@ -352,7 +389,7 @@ contains
 
   integer function number_hex (l)
     ! Number of hexagonal/pentagonal cells for level l
-    integer :: l
+    integer, intent(in) :: l
 
     number_hex = 10 * 4**l + 2
   end function number_hex

@@ -1448,8 +1448,8 @@ contains
     area(2) = triarea(hex(3), hex(4), pt)
 
     do i = 1, 2
-       call arc_inters (tri(1,i), tri(2,i), hex(3*i-2), hex(3*i-1), inters_pt0, does_inters0, troubles)
-       call arc_inters (tri(3,i), tri(2,i), hex(3*i),   hex(3*i-1), inters_pt1, does_inters1, troubles)
+       call arc_intersect_test (tri(1,i), tri(2,i), hex(3*i-2), hex(3*i-1), inters_pt0, does_inters0, troubles)
+       call arc_intersect_test (tri(3,i), tri(2,i), hex(3*i),   hex(3*i-1), inters_pt1, does_inters1, troubles)
        if (does_inters0 .and. does_inters1) then
           area(i+4) = triarea(inters_pt0, tri(2,i), hex(3*i-1))
           area(i+6) = triarea(tri(2,i), hex(3*i-1), inters_pt1)
@@ -1460,8 +1460,8 @@ contains
        else
           if (.not. does_inters0 .and. .not. does_inters1) then
              area(i+2) = 0.0_dp
-             call arc_inters (tri(2,1), tri(2,2), hex(3*i-2), hex(3*i-1), inters_pt0, does_inters0, troubles)
-             call arc_inters (tri(2,2), tri(2,1), hex(3*i-1), hex(3*i),   inters_pt1, does_inters1, troubles)
+             call arc_intersect_test (tri(2,1), tri(2,2), hex(3*i-2), hex(3*i-1), inters_pt0, does_inters0, troubles)
+             call arc_intersect_test (tri(2,2), tri(2,1), hex(3*i-1), hex(3*i),   inters_pt1, does_inters1, troubles)
              if (.not. does_inters0 .and. does_inters1) then
                 area(i) = area(i) + triarea(hex(3*i-2), hex(3*i-1), pt) + triarea(hex(3*i-1), inters_pt1, pt)
                 area(-i+3) = area(-i+3) + triarea(inters_pt1, hex(3*i), pt)

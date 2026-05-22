@@ -958,35 +958,53 @@ contains
     idW  = idx(i-1, j,   offs, dims)
     idNE = idx(i+1, j+1, offs, dims)
 
-    call check_triag (dom, id*TRIAG+LORT, (/TRIAG*idE+UPLT, TRIAG*id+UPLT, TRIAG*idS+UPLT/), &
-         (/id, idE, idNE/), (/EDGE*idE+UP, EDGE*id+DG, EDGE*id+RT/))
-    call check_triag (dom, id*TRIAG+UPLT, (/TRIAG*idN+LORT, TRIAG*idW+LORT, TRIAG*id+LORT/), &
-         (/id, idNE, idN/), (/EDGE*idN+RT, EDGE*id+UP, EDGE*id+DG/))
+    call check_triag (dom, &
+         TRIAG*id + LORT, &
+         (/ TRIAG*idE + UPLT, TRIAG*id + UPLT, TRIAG*idS + UPLT /), &
+         (/ id, idE, idNE /), &
+         (/ EDGE*idE + UP, EDGE*id + DG, EDGE*id + RT /) )
+    
+    call check_triag (dom, &
+         TRIAG*id + UPLT, &
+         (/ TRIAG*idN + LORT, TRIAG*idW + LORT, TRIAG*id + LORT /), &
+         (/ id, idNE, idN /), &
+         (/ EDGE*idN + RT, EDGE*id + UP, EDGE*id + DG /) )
   end subroutine check_grid
 
   subroutine check_triag (dom, id, id_neigh, id_cnr, id_side)
-    ! Fix overlap problems
+    ! Fix intersection problems
     implicit none
     type(Domain)          :: dom
     integer               :: id
     integer, dimension(3) :: id_neigh, id_cnr, id_side
     
     integer                   :: i
-    type(Coord)               :: cc_fine
+    real(dp)                  :: shift 
+    type(Coord)               :: cc_coarse, cc_coarse_neigh, cc_fine, cc_fine_neigh
     type(Coord), dimension(3) :: inters_pt
     logical,     dimension(3) :: does_inters, troubles
 
+    cc_coarse = dom%ccentre%elts(id+1)
     cc_fine = circumcentre (dom%midpt%elts(id_side(1)+1), dom%midpt%elts(id_side(3)+1), dom%midpt%elts(id_side(2)+1))
 
     do i = 1, 3
-       call arc_inters (dom%ccentre%elts(id+1), dom%ccentre%elts(id_neigh(i)+1), &
-            cc_fine, circumcentre (dom%node%elts(id_cnr(i)+1), dom%midpt%elts(id_side(O2(1,i))+1), &
-            dom%midpt%elts(id_side(O2(2,i))+1)), &
-            inters_pt(i), does_inters(i), troubles(i))
+       cc_coarse_neigh = dom%ccentre%elts(id_neigh(i)+1)
+       cc_fine_neigh = circumcentre (dom%node%elts(id_cnr(i)+1), dom%midpt%elts(id_side(O2(1,i))+1), dom%midpt%elts(id_side(O2(2,i))+1))
+       call arc_intersect_test ( &
+            cc_coarse, &
+            cc_coarse_neigh, &
+            cc_fine, &
+            cc_fine_neigh, &
+            inters_pt(i), &
+            does_inters(i), &
+            troubles(i) )
     end do 
 
+    ! Shift slightly problem nodes
     if (any (does_inters) .or. any (troubles)) then
-       dom%node%elts(id_cnr(1)+1)%x = dom%node%elts(id_cnr(1)+1)%x + 1e-6 * dx_avg(min_level-1)
+       shift = 1e-6 * dx_avg(min_level-1)
+       dom%node%elts(id_cnr(1)+1)%x = dom%node%elts(id_cnr(1)+1)%x + shift
+       
        dom%node%elts(id_cnr(1)+1) = project_on_sphere (dom%node%elts(id_cnr(1)+1)) 
     end if
   end subroutine check_triag
