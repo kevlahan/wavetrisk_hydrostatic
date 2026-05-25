@@ -6,6 +6,7 @@ program climate
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   use main_mod
   use test_case_mod
+  use io_vtk_mod
   implicit none
 
   ! Initialize mpi, shared variables and domains
@@ -22,8 +23,9 @@ program climate
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
-  topo_test                = .false.                          ! no physics model stationary flow test
+  topo_test                = .true.                          ! no physics model stationary flow test
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
+  !optimize_grid            = XU_GRID
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Local test case parameters (default values for many parameters set in physics module)
@@ -82,7 +84,15 @@ program climate
   call assign_functions
   call initialize_seed
   call initialize (run_id)
-  call print_test_case_parameters 
+  call print_test_case_parameters
+
+  if (topo_test .and. time_end < 1e-16_dp) then ! save initial tendencies in prognostic variables
+     if (rank == 0) write (6,'(a)') "Saving trend data"
+     call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend(1:N_VARIABLE,1:zlevels))
+     sol = trend
+     call write_and_export (vtk_grid)
+  end if
+  
   total_cpu_time = 0.0_dp
   open (unit = 12, file = trim(run_id)//'_log', action = 'WRITE', form = 'FORMATTED', position = 'APPEND')
   
