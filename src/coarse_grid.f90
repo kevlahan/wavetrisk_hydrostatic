@@ -89,7 +89,8 @@ contains
     real(dp) :: tol
 
     dx_coarse = dx_avg (min_level-1)
-
+    allocate (new_node(maxval(grid(:)%node%length), size(grid)))
+    
     ! Initial error
     call grid_error
     if (rank == 0) then
@@ -98,9 +99,7 @@ contains
        write (6,'(a,i2/)') 'Xu (2006) diffusion optimization of level ', level_end-1
        write (6,'(a,2(es8.2,a))') 'Grid quality before optimization = ', linf_err, ' (linf) ', l2_err, ' (l2)'
     end if
-        
-    allocate (new_node(maxval(grid(:)%node%length), size(grid)))
-    check_new = .false.
+
     tol = 1e-6_dp
     do while (linf_err > tol)
        linf_err_loc = 0.0_dp

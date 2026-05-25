@@ -990,7 +990,9 @@ contains
 
     do i = 1, 3
        cc_coarse_neigh = dom%ccentre%elts(id_neigh(i)+1)
-       cc_fine_neigh = circumcentre (dom%node%elts(id_cnr(i)+1), dom%midpt%elts(id_side(O2(1,i))+1), dom%midpt%elts(id_side(O2(2,i))+1))
+       cc_fine_neigh = circumcentre (dom%node%elts(id_cnr(i)+1),         &
+                                     dom%midpt%elts(id_side(O2(1,i))+1), &
+                                     dom%midpt%elts(id_side(O2(2,i))+1))
        call arc_intersect_test ( &
             cc_coarse, &
             cc_coarse_neigh, &
