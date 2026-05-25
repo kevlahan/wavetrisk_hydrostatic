@@ -471,7 +471,7 @@ contains
     ! Minimum absolute error with respect to scale
     
     real(dp) :: scale
-    eps = scale * epsilon (1.0_dp)
+    eps = abs(scale) * epsilon (1.0_dp)
   end function eps
 
   integer function max_nodes_per_level (lev, entity)

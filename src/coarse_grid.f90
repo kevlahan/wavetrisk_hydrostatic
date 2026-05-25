@@ -88,10 +88,8 @@ contains
     implicit none
     real(dp) :: tol
 
-    tol = 1e-6
-
     dx_coarse = dx_avg (min_level-1)
-    
+
     ! Initial error
     call grid_error
     if (rank == 0) then
@@ -102,7 +100,8 @@ contains
     end if
         
     allocate (new_node(maxval(grid(:)%node%length), size(grid)))
-
+    check_new = .false.
+    tol = 1e-6_dp
     do while (linf_err > tol)
        linf_err_loc = 0.0_dp
        call apply_onescale (Xu_smooth_cpt,    min_level-1, z_null, 0, 0)
@@ -121,6 +120,9 @@ contains
             &----------------------------------------------------------------------'
     end if
     deallocate (new_node)
+
+    ! Rotate grid
+    call apply_onescale (rotate_grid, min_level-1, z_null,  0, 0)
   end subroutine smooth_Xu
 
   recursive subroutine coord_from_file (d_glo, l, fid, offs, dims, ij0)
@@ -223,17 +225,30 @@ contains
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     
-    integer ::  d, id
+    integer :: d, id
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims) + 1
 
-    linf_err_loc = max  (linf_err_loc, dist (dom%node%elts(id), new_node(id,d))/dx_coarse)
+    linf_err_loc = max (linf_err_loc, dist (dom%node%elts(id), new_node(id,d))/dx_coarse)
 
     dom%node%elts(id) = new_node(id,d)
-
-    !call zrotate (dom%node%elts(id), dom%node%elts(id), theta_grid) 
   end subroutine Xu_smooth_assign
+
+  subroutine rotate_grid (dom, i, j, zlev, offs, dims)
+    ! Rotate entire grid
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY + 1) :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+
+    call zrotate (dom%node%elts(id), dom%node%elts(id), theta_grid) 
+  end subroutine rotate_grid
 
   subroutine init_smooth_mod
     implicit none

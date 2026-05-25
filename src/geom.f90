@@ -128,25 +128,34 @@ contains
     logical,     intent(out) :: intersects      ! flags intersections
     logical,     intent(out) :: degenerate      ! flags degenerate and near-zero cases
     
-    real(dp)    :: side_product ! product of signed distances/orientations relative to great-circle plane.
-    real(dp)    :: tol, nx
+    real(dp)    :: side_product ! Product of signed distances/orientations relative to great-circle plane with normal given by
+                                ! cross product of arc end points.
+                                ! Measures whether two endpoints lie on same side or opposite sides of great-circle plane:
+                                ! > 0 same side
+                                ! < 0 opposite side
+                                ! ~ 0 one point nearly on plane
+    
+    real(dp)    :: dneg, dpos, tol, nx
+    
     type(Coord) :: neg_intersection_pt, normal1, normal2, x
     
     intersects = .true.
     degenerate = .false.
 
-    ! Scale-aware tolerance for near-degenerate cases
-    tol = eps(radius**4)
-
-    ! Degenerate endpoint/coincident point case
-    if (norm(vector(arc1_node2, arc2_node2)) < eps(radius)) then
+    ! Coincident arc endpoints case
+    tol = 100.0_dp * eps(radius)
+    if (norm(vector(arc1_node2, arc2_node2)) < tol) then
        intersection_pt = arc2_node2
        return
     end if
 
+    ! Empirical scale-aware tolerance for side_product (smaller than worst case radius**6)
+    tol = 100.0_dp * eps(radius**4)
+
+    ! Test end points of arc2 relative to great-circle plane of arc1
     normal1 = cross(arc1_node1, arc1_node2)
-    side_product = inner(normal1, arc2_node1) * inner(normal1, arc2_node2)
-    
+    side_product = inner(normal1, arc2_node1) &
+                 * inner(normal1, arc2_node2)
     if (side_product > tol) then
        intersects = .false.
        return
@@ -154,8 +163,10 @@ contains
        degenerate = .true.
     end if
 
+    ! Test end points of arc1 relative to great-circle plane of arc2
     normal2 = cross(arc2_node1, arc2_node2)
-    side_product = inner(normal2, arc1_node1) * inner(normal2, arc1_node2)
+    side_product = inner(normal2, arc1_node1) &
+                 * inner(normal2, arc1_node2)
     if (side_product > tol) then
        intersects = .false.
        return
@@ -166,21 +177,27 @@ contains
     ! Intersection of the two great circles
     x  = cross(normal1, normal2)
     nx = norm(x)
-
-    ! Nearly parallel great circles: intersection direction is ill-conditioned
-    if (nx <= 100.0_dp * eps(radius**2)) then
+    tol = 100.0_dp * eps(radius**4)
+    if (nx <= tol) then ! nearly parallel great circles: intersection direction is ill-conditioned
        intersection_pt = arc2_node2
        intersects = .false.
        degenerate = .true.
        return
     end if
 
+    ! Choose antipodal intersection point closer to arc1_node1
     intersection_pt = project_on_sphere (x)
     neg_intersection_pt = (-1.0_dp) * intersection_pt
 
-    ! Choose the antipodal intersection point closer to arc1_node1
-    if (norm(vector(neg_intersection_pt, arc1_node1)) < norm(vector(intersection_pt, arc1_node1))) then
+    ! Distances from two antipodal intersection candidates to reference arc endpoint.
+    dneg = norm(vector(neg_intersection_pt, arc1_node1))
+    dpos = norm(vector(intersection_pt,     arc1_node1))
+
+    tol = 100.0_dp * eps(radius)
+    if (dneg < dpos - tol) then
        intersection_pt = neg_intersection_pt
+    elseif (abs(dneg - dpos) <= tol) then
+       degenerate = .true.
     end if
 
     intersects = .true.
