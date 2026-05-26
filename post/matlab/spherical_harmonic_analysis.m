@@ -12,16 +12,16 @@ if ~strcmp(machine,"mac")
 end
 
 %% Analyze spectrum data
-clear; clc; global KM; global tanh_strat; format short e
+clear; clc; close all; global KM; global tanh_strat; format short e
 
-dir        = "~/hydro/drake/J8Z60_tanh/";
-tanh_strat = true;        % tanh profile (or linear)
-test_case  = "drake";     % drake, jet, Simple
-level      = 8;           % resolution level
-zlevels    = 60;          % number of vertical layers
-type       = "u";         % u, curlu or divu
-avg        = true;        % analyze average spectrum or individual spectra
-power      = true;        % plot power law fit
+dir        = "~/hydro/topo/HS_J6Z32/";
+tanh_strat = true;        % tanh profile (or linear) for drake case
+test_case  = "HS";        % prefix for test case
+level      = 5;           % resolution level
+zlevels    = 32;          % number of vertical layers
+type       = "topo";      % u, curlu, divu or topo
+avg        = false;        % analyze average spectrum or individual spectra
+power      = false;       % plot power law fit
 plot_spec  = true;        % plot spectrum
 
 if tanh_strat
@@ -29,18 +29,22 @@ if tanh_strat
 else
     layers = [1 14 46 60]; % linear
 end
-%layers     = 1:zlevels;   % vertical layers to analyze
+layers = 1:4:zlevels;   % vertical layers to analyze
 
 if avg
     cp_min = 1; cp_max=cp_min; 
 else
-    cp_min = 118; cp_max = 118;
+    cp_min = 0; cp_max = 0;
 end
 
 % Set physical parameters
-[H, lambda0, lambda1, deltaS, deltaSM, deltaRh, deltaM, radius, Z] = params(test_case);
+if strcmp(test_case,"drake")
+    [H, lambda0, lambda1, deltaS, deltaSM, deltaRh, deltaM, radius, Z] = params();
+else
+    radius = 6371e3;
+end
 
-% Power law fitting
+% Power law fitting ranges
 range = zeros(zlevels,2);
 if tanh_strat
     range( 1:15,1) = 250; range(1 :15,2) = 80;
@@ -54,7 +58,7 @@ else
     range(31:60,1) = 140; range(31:60,2) = 50;
 end
   
-plot_scales = true ;     % plot length scales
+plot_scales = false ;     % plot length scales
 col_spec    = "b-";      % colour for energy spectrum
 col_power   = "k-";      % colour for power law
 
@@ -70,28 +74,39 @@ ax.ColorOrder = parula(numel(layers));
 ax.ColorOrderIndex = 1;  
 hp = zeros(size(layers));
 
-pow_law = zeros(cp_max-cp_min+1,zlevels);
+if power
+    pow_law = zeros(cp_max-cp_min+1,zlevels);
+end
+
 ymin = 1e16; ymax = -1e16;
 for cp_id = cp_min:cp_max
     if ~avg
         cp = compose("%04d",cp_id);
-        tgzfile = dir+run_id+"_"+cp+"_spec.tgz";
-        
-        fprintf('\nPower law exponents for checkpoint %d\n', cp_id)
+        tgzfile = dir+run_id+"_spec.tgz";
+        if power
+            fprintf('\nPower law exponents for checkpoint %d\n', cp_id)
+        end
     else
         tgzfile = dir+run_id+"_spec.tgz"; 
     end 
     untar(tgzfile, tmpdir); % uncompress spectrum tar file
 
-    fprintf("Layer     p")
-    p = 1;
+    if power
+        fprintf("Layer     p")
+        p = 1;
+    end
+
     for zlev = fliplr(layers)
         % Load data
         k = compose("%04d",zlev);
-        if avg % average spectrum
-            file_base = run_id+"_"+k+"_"+type;
+        if strcmp(type,"topo")
+            file_base = run_id+"_"+cp+"_"+type;
         else
-            file_base = run_id+"_"+cp+"_"+k+"_"+type;
+            if avg % average spectrum
+                file_base = run_id+"_"+k+"_"+type;
+            else
+                file_base = run_id+"_"+cp+"_"+k+"_"+type;
+            end
         end
         pspec = load (tmpdir+"/"+file_base+"_spec", '-ascii');
 
@@ -102,21 +117,27 @@ for cp_id = cp_min:cp_max
         scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
 
         % Fit power law
-        fit_indices = find(scales > range(zlev,2) & scales < range(zlev,1));
-        [P,S] = polyfit(log10(scales(fit_indices)), log10(pspec(fit_indices,2)), 1);
-        st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P        
-        
-        %fprintf("\n %3.0f    %.2f +/- %.2f", zlev, -P(1), st_err(1));
-        fprintf("\n %3.0f    %.2f", zlev, -P(1)); % no fit error
-         
-        pow_law (cp_id,zlev) = -P(1);
-        
-        if plot_spec
-            name_type = "z = "+compose('%5.0f',Z(zlev))+" m, p = "+compose('%2.1f', -P(1));
+        if power
+            fit_indices = find(scales > range(zlev,2) & scales < range(zlev,1));
+            [P,S] = polyfit(log10(scales(fit_indices)), log10(pspec(fit_indices,2)), 1);
+            st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P
 
-            hp(p) = loglog(scales, pspec(:,2), "linewidth", 3, "DisplayName", name_type); hold on; grid on
-            p = p+1;
+            %fprintf("\n %3.0f    %.2f +/- %.2f", zlev, -P(1), st_err(1));
+            fprintf("\n %3.0f    %.2f", zlev, -P(1)); % no fit error
+            pow_law (cp_id,zlev) = -P(1);
+        end
+
+        if plot_spec
+            if strcmp(test_case,"drake")
+                name_type = "z = "+compose('%5.0f',Z(zlev))+" m, p = "+compose('%2.1f', -P(1));
+
+                hp(p) = loglog(scales, pspec(:,2), "linewidth", 3, "DisplayName", name_type); hold on; grid on
+            else
+                loglog(scales, pspec(:,2), "linewidth", 3);hold on; grid on;
+            end
+            
             if power % plot fit
+                p = p+1;
                 powerlaw (scales, 1.2*pspec(:,2), [range(zlev,1) range(zlev,2)], -P(1))
             end
         end
@@ -147,12 +168,17 @@ end
 
 set (gca,"fontsize",20);
 xlabel("\lambda (km)");ylabel("S(\lambda)"); 
-legend(hp,'Location', 'best','FontName', 'Menlo');
+if strcmp(test_case,"drake")
+    legend(hp,'Location', 'best','FontName', 'Menlo');
+end
 set (gca,"Xdir","reverse");
-if tanh_strat
-    title("Tanh stratification")
-else
-    title("Constant/linear stratification")
+
+if strcmp(test_case,"drake")
+    if tanh_strat
+        title("Tanh stratification")
+    else
+        title("Constant/linear stratification")
+    end
 end
 
 %% Plot power law profile with depth
@@ -259,83 +285,61 @@ set(get(get(h,"Annotation"),"LegendInformation"),"IconDisplayStyle","off");
 text(0.92*scale, 2.5*y(1), name, "fontsize", 16)
 end
 
-function [H, lambda0,lambda1, deltaS, deltaSM, deltaRh, deltaM, radius, Z] = params(test_case)
+function [H, lambda0,lambda1, deltaS, deltaSM, deltaRh, deltaM, radius, Z] = params()
 % Physical parameters of simulation
 
 global KM; global tanh_strat
 
-if strcmp(test_case,"drake")
-    if tanh_strat
-        H_linear = 3800;     % depth of linear scaling range (constant/linear)
-    else
-        H_linear = 300;      % depth of linear scaling range (tanh)
-    end
-
-    H_mixed     =  200;     % depth of mixed layer
-    H_mode      = 1000;     % 
-
-    uwbc        =  1.0;     % velocity scale 
-    
-    Laplace     =  2;       % 1 = Laplacian, 2 = bi-Laplacian
-    C_visc      =  1e-3;    % non-dimensional viscosity
-    dx          =  5e3;     % minimum grid size
-    dt          =  674;     % time step
-    g           =  9.80616;
-    drho        = -4;
-    ref_density =  1030;
-    H           =  4e3;     % full depth
-    
-    visc        =  8.87e8;
-    scale_omega =  6;
-    scale_earth =  6;
-    omega       =  7.29211e-5/scale_omega;
-    radius      =  6371.229e3/scale_earth;
-    theta       =  40; % latitude at which to calculate f0 and beta
-    f0          =  2*omega*sin(deg2rad(theta));
-    beta        =  2*omega*cos(deg2rad(theta))/radius;
-    r_b         =  4e-4; % bottom friction
-
-    % Brunt-Vaisala frequency
-    N_bv        = sqrt (- g * drho/ref_density / H_linear);
-    
-    c0          = sqrt(g*H);
-    c1          = N_bv * H_mode / pi;
-    deltaM      = (visc/beta)^(1/(2*Laplace+1)); % Munk layer
-elseif strcmp(test_case,"jet")
-    visc        =  1.63e7; % hyperviscosity
-    uwbc        =  1.4;
-    omega       =  1e-4;
-    radius      =  1000e3;
-    g           =  9.80616;
-    drho        = -4;
-    ref_density =  1027.8; 
-    H           =  4e3;
-    theta       =  45; % latitude at which to calculate f0 and beta
-    f0          =  2*omega*sin(deg2rad(theta));
-    beta        =  2*omega*cos(deg2rad(theta))/radius;
-    r_b         =  5e-3;
-    c0          =  sqrt(g*H);
-    c1          =  3.16; % m/s
-    deltaM      = (visc/beta)^(1/5)/1e3; % Munk layer
-elseif test_case == "Simple"
-    radius      = 6371.229e3;
+if tanh_strat
+    H_linear = 3800;     % depth of linear scaling range (constant/linear)
+else
+    H_linear = 300;      % depth of linear scaling range (tanh)
 end
+
+H_mixed     =  200;     % depth of mixed layer
+H_mode      = 1000;     %
+
+uwbc        =  1.0;     % velocity scale
+
+Laplace     =  2;       % 1 = Laplacian, 2 = bi-Laplacian
+C_visc      =  1e-3;    % non-dimensional viscosity
+dx          =  5e3;     % minimum grid size
+dt          =  674;     % time step
+g           =  9.80616;
+drho        = -4;
+ref_density =  1030;
+H           =  4e3;     % full depth
+
+visc        =  8.87e8;
+scale_omega =  6;
+scale_earth =  6;
+omega       =  7.29211e-5/scale_omega;
+radius      =  6371.229e3/scale_earth;
+theta       =  40; % latitude at which to calculate f0 and beta
+f0          =  2*omega*sin(deg2rad(theta));
+beta        =  2*omega*cos(deg2rad(theta))/radius;
+r_b         =  4e-4; % bottom friction
+
+% Brunt-Vaisala frequency
+N_bv        = sqrt (- g * drho/ref_density / H_linear);
+
+c0          = sqrt(g*H);
+c1          = N_bv * H_mode / pi;
+deltaM      = (visc/beta)^(1/(2*Laplace+1)); % Munk layer
 
 % Lengthscales
 KM = 1e-3;
-if strcmp(test_case,"drake")
-    lambda0    = c0/f0;             % external radius of deformation
-    lambda1    = c1/f0;             % internal radius of deformation
-    deltaS     = r_b/beta;          % Stommel layer
-    deltaSM    = uwbc/f0;           % submesoscale
-    deltaRh    = sqrt(uwbc/beta); % Rhine layer
-    Rey        = uwbc * deltaSM^(2*Laplace-1)/visc; % Reynolds number
-    Ro         = uwbc / (deltaM*f0); % Rossby number
-    fprintf('\nlambda0 = %2.1f km lambda1 = %2.1f km\n\n',lambda0*KM,lambda1*KM)
-    fprintf('deltaS = %2.1f km deltaI = %2.1f km deltaM = %2.1f km deltaSM = %2.1f km\n\n',...
-        deltaS*KM, deltaRh*KM, deltaM*KM, deltaSM*KM)
-    fprintf('Rey = %2.2e Ro = %2.2e N_bv = %2.2e\n\n', Rey, Ro, N_bv)
-end
+lambda0    = c0/f0;             % external radius of deformation
+lambda1    = c1/f0;             % internal radius of deformation
+deltaS     = r_b/beta;          % Stommel layer
+deltaSM    = uwbc/f0;           % submesoscale
+deltaRh    = sqrt(uwbc/beta); % Rhine layer
+Rey        = uwbc * deltaSM^(2*Laplace-1)/visc; % Reynolds number
+Ro         = uwbc / (deltaM*f0); % Rossby number
+fprintf('\nlambda0 = %2.1f km lambda1 = %2.1f km\n\n',lambda0*KM,lambda1*KM)
+fprintf('deltaS = %2.1f km deltaI = %2.1f km deltaM = %2.1f km deltaSM = %2.1f km\n\n',...
+    deltaS*KM, deltaRh*KM, deltaM*KM, deltaSM*KM)
+fprintf('Rey = %2.2e Ro = %2.2e N_bv = %2.2e\n\n', Rey, Ro, N_bv)
 
 % Layer depths
 Z_tanh = [ ...
