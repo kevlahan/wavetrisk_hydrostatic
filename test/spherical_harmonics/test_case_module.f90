@@ -86,7 +86,7 @@ contains
     else
        filename = 'spherical_harmonics.in'
     end if
-    if (rank == 0) write (6,'(A,A)') "Input file = ", trim (filename)
+    if (rank == 0) write (6,'(/,a,a,/)') "Input file = ", trim (filename)
 
     test_case = "spherical_harmonics"
 
@@ -120,46 +120,58 @@ contains
     implicit none
 
     if (rank==0) then
-       write (6,'(A)') &
-            '********************************************************** Parameters &
+       write (6,'(a)') &
+            '***********************************************************************&
             &************************************************************'
-       write (6,'(A,A)')      "test_case              = ", trim (test_case)
-       write (6,'(A,A)')      "data_case              = ", trim (data_case)
-       write (6,'(A,A)')      "spec_type              = ", trim (spec_type)
+       write (6,'(/,a,/)')        "SPHERICAL HARMONICS SPECTRUM PARAMETERS"
+       write (6,'(a,a)')      "spec_type               = ", trim (spec_type)
+       write (6,'(a,a)')      "run_id                  = ", trim (run_id)
+       write (6,'(a,a)')      "data_case               = ", trim (data_case)
+       write (6,'(a,i3)')     "min_level               = ", min_level
+       write (6,'(a,i3)')     "max_level               = ", max_level
+       write (6,'(a,i3)')     "zlevels                 = ", zlevels
        if (trim(data_case) == "climate") then
-          write (6,'(A,A)')   "physics_type           = ", trim (physics_type)
-          write (6,'(A,I0)')  "Nsoil                  = ", Nsoil
+          write (6,'(a,a)')   "physics_type            = ", trim (physics_type)
+          if (trim(physics_type) == "Simple") &
+               write (6,'(a,I0)')  "Nsoil                  = ", Nsoil
        end if
-       write (6,'(A,A)')      "run_id                 = ", trim (run_id)
-       write (6,'(A,i5)')     "number of domains      = ", N_GLO_DOMAIN
-       write (6,'(A,i5)')     "number of processors   = ", n_process
-       write (6,'(A,i5)')     "DOMAIN_LEVEL           = ", DOMAIN_LEVEL
-       write (6,'(A,i5)')     "PATCH_LEVEL            = ", PATCH_LEVEL
-       write (6,'(A,i4)')     "First checkpoint       = ", cp_beg
-       write (6,'(A,i4)')     "Last checkpoint        = ", cp_end
-       write (6,'(A,i3)')     "min_level              = ", min_level
-       write (6,'(A,i3)')     "max_level              = ", max_level
-       write (6,'(A,i3)')     "zlevels                = ", zlevels
-       write (6,'(A,l1)')     "vert_diffuse           = ", vert_diffuse
-       write (6,'(A,i3)')     "level_fill             = ", level_fill
-       write (6,'(A,i5)')     "N                      = ", N
-       write (6,'(a,l1)')     "local_spec             = ", local_spec
-       write (6,'(A,es11.4)') "lat0                   = ", lat0
-       write (6,'(A,es11.4)') "lon0                   = ", lon0
-       write (6,'(A,es10.4)') "theta0                 = ", theta0
-       write (6,'(A,es10.4)') "concentration          = ", concentration
-       write (6,'(A,i3)')     "ntaper                 = ", ntaper
-       write (6,'(A,i3)')     "angular_order          = ", angular_order
+       write (6,'(a,i5)')     "number of domains       = ", N_GLO_DOMAIN
+       write (6,'(a,i5)')     "number of processors    = ", n_process
+       write (6,'(a,i5)')     "DOMAIN_LEVEL            = ", DOMAIN_LEVEL
+       write (6,'(a,i5)')     "PATCH_LEVEL             = ", PATCH_LEVEL
+       write (6,'(a,i5)')     "BDRY_THICKNESS          = ", BDRY_THICKNESS
+       write (6,'(a,l1)')     "split_mean_perturbation = ", split_mean_perturbation
+       write (6,'(a,l1)')     "mode_split              = ", mode_split
+       write (6,'(a,i4)')     "First checkpoint        = ", cp_beg
+       write (6,'(a,i4)')     "Last checkpoint         = ", cp_end
+       write (6,'(a,l1)')     "vert_diffuse            = ", vert_diffuse
+       write (6,'(a,i3)')     "level_fill              = ", level_fill
+       write (6,'(a,i5)')     "N                       = ", N
+       write (6,'(a,l1)')     "local_spec              = ", local_spec
+       write (6,'(a,f4.1)')   "lat0                    = ", lat0
+       write (6,'(a,f4.1)')   "lon0                    = ", lon0
+       write (6,'(a,f4.1)')   "theta0                  = ", theta0
+       write (6,'(a,f4.2)') "concentration           = ", concentration
+       write (6,'(a,i3)')     "ntaper                  = ", ntaper
+       write (6,'(a,i3)')     "angular_order           = ", angular_order
        write (6,*) ' '
     end if
   end subroutine print_test_case_parameters
-
+  
   subroutine apply_initial_conditions_case
     implicit none
+
+    if (NCAR_topo) call apply_bdry (assign_NCAR_topo, z_null, 0, 1)
+    topography%bdry_uptodate = .false.
+    call update_bdry (topography, NONE)
   end subroutine apply_initial_conditions_case
 
   subroutine update_case
     implicit none
+
+    if (NCAR_topo) call apply_bdry (assign_NCAR_topo, z_null, 0, 1)
+    topography%bdry_uptodate = .false.
+    call update_bdry (topography, NONE)
   end subroutine update_case
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)

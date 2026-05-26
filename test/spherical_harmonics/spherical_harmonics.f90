@@ -25,8 +25,12 @@ program spherical_harmonics
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (trim (data_case) == "climate") then
      compressible            = .true.                    
-     split_mean_perturbation = .true.           
+     split_mean_perturbation = .false.           
      physics_model           = .true.
+     NCAR_topo               = .false.
+     topo_file               = "ss_J05J07_060.0km"
+     topo_min_level          = 5
+     topo_max_level          = 7
   elseif (trim (data_case) == "drake") then
      vert_diffuse            = .true.
      mode_split              = .true.                    
@@ -189,8 +193,14 @@ contains
     ! Fill up grid to level l and inverse wavelet transform onto the uniform grid at level l
     l = level_fill
     call fill_up_grid_and_IWT (l)
+
+    ! Spectrum of topography
+    field2d = 0d0
+    call project_array_onto_plane ("topo", l, 0d0)
+    if (rank == 0) call spectrum_lon_lat ("topo", 0)
+    
     do k = 1, zlevels
-       if (rank == 0) write (6,'(A,i3,A,i6,A,f10.2,A)') "Energy spectrum of vertical layer ", k, &
+       if (rank == 0) write (6,'(a,i3,a,i6,a,f10.2,a)') "Energy spectrum of vertical layer ", k, &
             " at checkpoint ", cp_idx, " at ", time/DAY, " days"
       
        ! Set mean on filled grid
@@ -365,7 +375,7 @@ contains
     call fill_up_grid_and_IWT (l)
 
     do k = k_min, k_max
-       if (rank == 0) write (6,'(A,i3,A,i6,A,f10.2,A)') "Energy spectrum of vertical layer ", k, &
+       if (rank == 0) write (6,'(a,i3,a,i6,a,f10.2,a)') "Energy spectrum of vertical layer ", k, &
             " at checkpoint ", cp_idx, " at ", time/DAY, " days"
        ! Vorticity on triangles
        do d = 1, size(grid)
