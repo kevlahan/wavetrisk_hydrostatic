@@ -522,7 +522,8 @@ contains
        write (6,'(a,a)')      "physics_type            = ", trim (physics_type)
        write (6,'(a,a)')      "run_id                  = ", trim (run_id)
        write (6,'(a,l1)')     "compressible            = ", compressible
-       write (6,'(a,l1)')     "split_mean_perturbation = ", split_mean_perturbation 
+       write (6,'(a,l1)')     "split_mean_perturbation = ", split_mean_perturbation
+       write (6,'(a,l1)')     "topo_test               = ", topo_test
        write (6,'(a,i3)')     "min_level               = ", min_level
        write (6,'(a,i3)')     "max_level               = ", max_level
        write (6,'(a,i5)')     "number of domains       = ", N_GLO_DOMAIN

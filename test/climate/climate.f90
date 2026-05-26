@@ -23,9 +23,8 @@ program climate
   compressible             = .true.                           ! compressible equations
   default_thresholds       = .false.                          ! thresholding type
   log_min_mass             = .true.                           ! compute minimum mass at each dt (for checking stability issues)
-  topo_test                = .true.                          ! no physics model stationary flow test
+  topo_test                = .false.                          ! no physics model stationary flow test
   uniform                  = .false.                          ! hybrid vertical grid (based on A, B coefficients)
-  !optimize_grid            = XU_GRID
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Local test case parameters (default values for many parameters set in physics module)

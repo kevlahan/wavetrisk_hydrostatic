@@ -149,6 +149,8 @@ contains
           proj_sclr => grid(d)%divu%elts
        case ("qe")
           proj_sclr => grid(d)%qe%elts
+       case ("topo")
+          proj_sclr => topography%data(d)%elts
        end select
        
        do jj = 1, grid(d)%lev(l)%length
