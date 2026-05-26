@@ -85,11 +85,18 @@ program climate
   call initialize (run_id)
   call print_test_case_parameters
 
-  if (topo_test .and. time_end < 1e-16_dp) then ! save initial tendencies in prognostic variables
+  ! Save initial tendencies in prognostic variables when testing topography
+  if (topo_test .and. time_end < 1e-16_dp) then
      if (rank == 0) write (6,'(a)') "Saving trend data"
+
      call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend(1:N_VARIABLE,1:zlevels))
      sol = trend
      call write_and_export (vtk_grid)
+     
+     ! Save checkpoint with trend data for spectrum computation
+     call WT_after_step (sol, wav_coeff, level_start-1)
+     call write_load_conn (0)
+     call dump_adapt_mpi  (0)
   end if
   
   total_cpu_time = 0.0_dp
