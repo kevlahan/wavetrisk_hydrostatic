@@ -127,11 +127,15 @@ NC_CONFIG ?= nc-config
 
 FFLAGS += $(shell $(NF_CONFIG) --fflags)
 
-LDLIBS += $(shell $(NF_CONFIG) --flibs)
+NETCDF_FLIBS := $(shell $(NF_CONFIG) --flibs)
+NETCDF_CLIBS := $(shell $(NC_CONFIG) --libs 2>/dev/null)
 
-ifneq ($(shell command -v $(NC_CONFIG) >/dev/null 2>&1 && echo yes),)
-LDLIBS += $(shell $(NC_CONFIG) --libs)
-endif
+LDLIBS += $(NETCDF_FLIBS) $(NETCDF_CLIBS)
+
+NETCDF_LIBDIRS := $(patsubst -L%,%,$(filter -L%,$(NETCDF_FLIBS) $(NETCDF_CLIBS)))
+
+# Runtime library search paths
+LDFLAGS += $(foreach d,$(NETCDF_LIBDIRS),-Wl,-rpath,$(d))
 
 # =========================
 # Machine / platform tweaks
