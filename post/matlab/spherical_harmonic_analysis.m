@@ -12,16 +12,16 @@ if ~strcmp(machine,"mac")
 end
 
 %% Analyze spectrum data
-clear; clc; close all; global KM; global tanh_strat; format short e
+clear; clc; global KM; global tanh_strat; format short e
 
 dir        = "~/hydro/topo/HS_J6Z32/";
 tanh_strat = true;        % tanh profile (or linear) for drake case
 test_case  = "HS";        % prefix for test case
-level      = 5;           % resolution level
+level      = 9;           % resolution level
 zlevels    = 32;          % number of vertical layers
 type       = "topo";      % u, curlu, divu or topo
 avg        = false;        % analyze average spectrum or individual spectra
-power      = false;       % plot power law fit
+power      = true;       % plot power law fit
 plot_spec  = true;        % plot spectrum
 
 if tanh_strat
@@ -57,6 +57,7 @@ else
     range( 1:30,1) = 170; range( 1:30,2) = 50;
     range(31:60,1) = 140; range(31:60,2) = 50;
 end
+range(:,1) = 3800; range(:,2) = 550;
   
 plot_scales = false ;     % plot length scales
 col_spec    = "b-";      % colour for energy spectrum
@@ -78,8 +79,10 @@ if power
     pow_law = zeros(cp_max-cp_min+1,zlevels);
 end
 
-ymin = 1e16; ymax = -1e16;
+ymin = 1e16; ymax = -1e16; 
+cp_idx = 0;
 for cp_id = cp_min:cp_max
+    cp_idx = cp_idx + 1;
     if ~avg
         cp = compose("%04d",cp_id);
         tgzfile = dir+run_id+"_spec.tgz";
@@ -124,7 +127,7 @@ for cp_id = cp_min:cp_max
 
             %fprintf("\n %3.0f    %.2f +/- %.2f", zlev, -P(1), st_err(1));
             fprintf("\n %3.0f    %.2f", zlev, -P(1)); % no fit error
-            pow_law (cp_id,zlev) = -P(1);
+            pow_law (cp_idx,zlev) = -P(1);
         end
 
         if plot_spec
