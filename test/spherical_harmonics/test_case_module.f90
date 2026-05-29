@@ -133,7 +133,13 @@ contains
        if (trim(data_case) == "climate") then
           write (6,'(a,a)')   "physics_type            = ", trim (physics_type)
           if (trim(physics_type) == "Simple") &
-               write (6,'(a,I0)')  "Nsoil                  = ", Nsoil
+               write (6,'(a,i0)')  "Nsoil                  = ", Nsoil
+          write (6,'(a,l1)')   "NCAR_topo              = ", NCAR_topo
+          if (NCAR_topo) then
+             write (6,'(a,a)') "topo_file              = ", trim (topo_file)
+             write (6,'(a,i3)') "topo_min_level         = ", topo_min_level
+             write (6,'(a,i3)') "topo_max_level         = ", topo_max_level
+          end if
        end if
        write (6,'(a,i5)')     "number of domains       = ", N_GLO_DOMAIN
        write (6,'(a,i5)')     "number of processors    = ", n_process

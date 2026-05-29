@@ -27,10 +27,10 @@ program spherical_harmonics
      compressible            = .true.                    
      split_mean_perturbation = .false.           
      physics_model           = .true.
-     NCAR_topo               = .false.
-     topo_file               = "ss_J05J07_060.0km"
-     topo_min_level          = 5
-     topo_max_level          = 7
+     NCAR_topo               = .true.
+     topo_file               = "ss_J08J08_030.0km"
+     topo_min_level          = 8
+     topo_max_level          = 8
   elseif (trim (data_case) == "drake") then
      vert_diffuse            = .true.
      mode_split              = .true.                    
@@ -263,8 +263,8 @@ contains
     integer                                 :: k
     character(*)                            :: data_type
 
-    integer                                 :: ierr, j, lmax
-    real(8)                                 :: area
+    integer                                 :: ierr, j, l, lmax
+    real(8)                                 :: area, power_l, rms_l
     real(8), dimension (:,:,:), allocatable :: cilm      ! spherical harmonic coefficients
     real(8), dimension (:),     allocatable :: pspectrum ! global power spectrum of the function
     character(4)                            :: var_file1, var_file2
@@ -291,9 +291,18 @@ contains
        open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//trim(data_type)//'_spec', &
             form="FORMATTED", status="REPLACE")
     end if
+
+    ! power_l = usual power spectrum (as for turbulence)
+    ! rms_l   = RMS spectrum used for topography:
+    ! Ermakov et al (2018) Power laws of topography and gravity spectra of the solar system bodies.
+    ! J Geophys Res: Planets, 123, 2038–2064. Equations (4, 6, 8)
     area = 4d0*MATH_PI*radius**2
-    do j = 1, lmax + 1
-       write (10,'(i4,1x,es10.4)') j, pspectrum(j) * area
+    do j = 2, lmax + 1
+       l = j - 1
+       power_l = pspectrum(j) * area
+       rms_l   = sqrt (power_l / real(2*l + 1, kind=dp))
+
+       write (10,'(i6,1x,es16.8,1x,es16.8)') l, power_l, rms_l
     end do
     close (10)
 
