@@ -27,7 +27,7 @@ program spherical_harmonics
      compressible            = .true.                    
      split_mean_perturbation = .false.           
      physics_model           = .true.
-     NCAR_topo               = .true.
+     NCAR_topo               = .false.
      topo_file               = "ss_J08J08_030.0km"
      topo_min_level          = 8
      topo_max_level          = 8
