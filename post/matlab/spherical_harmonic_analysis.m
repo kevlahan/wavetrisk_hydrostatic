@@ -17,7 +17,7 @@ clear; clc; global KM; global tanh_strat; format short e
 dir        = "~/hydro/topo/HS_J6Z32/";
 tanh_strat = true;        % tanh profile (or linear) for drake case
 test_case  = "HS";        % prefix for test case
-level      = 9;           % resolution level
+level      = 8;           % resolution level
 zlevels    = 32;          % number of vertical layers
 type       = "topo";      % u, curlu, divu or topo
 avg        = false;        % analyze average spectrum or individual spectra
@@ -57,8 +57,10 @@ else
     range( 1:30,1) = 170; range( 1:30,2) = 50;
     range(31:60,1) = 140; range(31:60,2) = 50;
 end
-range(:,1) = 3800; range(:,2) = 550;
-  
+if strcmp(type,"topo")
+    range(:,1) = 1000; range(:,2) = 300;
+end
+
 plot_scales = false ;     % plot length scales
 col_spec    = "b-";      % colour for energy spectrum
 col_power   = "k-";      % colour for power law
@@ -90,7 +92,7 @@ for cp_id = cp_min:cp_max
             fprintf('\nPower law exponents for checkpoint %d\n', cp_id)
         end
     else
-        tgzfile = dir+run_id+"_spec.tgz"; 
+        tgzfile = dir+run_id+"_spec.tgz";
     end 
     untar(tgzfile, tmpdir); % uncompress spectrum tar file
 
@@ -112,17 +114,23 @@ for cp_id = cp_min:cp_max
             end
         end
         pspec = load (tmpdir+"/"+file_base+"_spec", '-ascii');
+        power = pspec(:,2); % energy spectrum (equivalent to usual amplitude squared integrated over shells)
+        %rms = pspec(:,3); % RMS energy spectrum used in geodesy rms = sqrt(power/(2l+1))
 
         % Plot energy spectra
-        if ~strcmp(type,"u") % convert vorticity spectrum to energy spectrum integrated over shells
-            pspec(:,2) = pspec(:,2)./pspec(:,1).^2;
+
+        % Convert vorticity/divergence spectrum to equivalent velocity
+        % spectrum
+        if any(strcmp(type, ["divu","curlu"]))
+            power = power./pspec(:,1).^2;
         end
+       
         scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
 
         % Fit power law
         if power
             fit_indices = find(scales > range(zlev,2) & scales < range(zlev,1));
-            [P,S] = polyfit(log10(scales(fit_indices)), log10(pspec(fit_indices,2)), 1);
+            [P,S] = polyfit(log10(scales(fit_indices)), log10(power(fit_indices)), 1);
             st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P
 
             %fprintf("\n %3.0f    %.2f +/- %.2f", zlev, -P(1), st_err(1));
@@ -134,18 +142,18 @@ for cp_id = cp_min:cp_max
             if strcmp(test_case,"drake")
                 name_type = "z = "+compose('%5.0f',Z(zlev))+" m, p = "+compose('%2.1f', -P(1));
 
-                hp(p) = loglog(scales, pspec(:,2), "linewidth", 3, "DisplayName", name_type); hold on; grid on
+                hp(p) = loglog(scales, power, "linewidth", 3, "DisplayName", name_type); hold on; grid on
             else
-                loglog(scales, pspec(:,2), "linewidth", 3);hold on; grid on;
+                loglog(scales, power, "linewidth", 3);hold on; grid on;
             end
             
             if power % plot fit
                 p = p+1;
-                powerlaw (scales, 1.2*pspec(:,2), [range(zlev,1) range(zlev,2)], -P(1))
+                powerlaw (scales, 1.2*power, [range(zlev,1) range(zlev,2)], -P(1))
             end
         end
-        ymin = min (ymin, 10^(floor(log10(min(pspec(:,2))))));
-        ymax = max (ymax, 10^(ceil(log10(max(pspec(:,2))))));
+        ymin = min (ymin, 10^(floor(log10(min(power)))));
+        ymax = max (ymax, 10^(ceil(log10(max(power)))));
     end
 end
 rmdir(tmpdir, 's'); % delete temporary directory
