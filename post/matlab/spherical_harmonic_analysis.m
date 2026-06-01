@@ -14,15 +14,15 @@ end
 %% Analyze spectrum data
 clear; clc; global KM; global tanh_strat; format short e
 
-dir        = "~/hydro/topo/HS_J6Z32/";
-tanh_strat = true;        % tanh profile (or linear) for drake case
-test_case  = "HS";        % prefix for test case
-level      = 8;           % resolution level
-zlevels    = 32;          % number of vertical layers
-type       = "topo";      % u, curlu, divu or topo
-avg        = false;        % analyze average spectrum or individual spectra
-power      = true;       % plot power law fit
-plot_spec  = true;        % plot spectrum
+dir           = "~/hydro/topo/HS_J6Z32/";
+tanh_strat    = true;        % tanh profile (or linear) for drake case
+test_case     = "HS";        % prefix for test case
+level         = 9;           % resolution level
+zlevels       = 32;          % number of vertical layers
+type          = "topo";      % u, curlu, divu or topo
+avg           = false;       % analyze average spectrum or individual spectra
+power_law_fit = true;        % plot power law fit
+plot_spec     = true;        % plot spectrum
 
 if tanh_strat
     layers = [1 23 54 60]; % tanh
@@ -30,6 +30,7 @@ else
     layers = [1 14 46 60]; % linear
 end
 layers = 1:4:zlevels;   % vertical layers to analyze
+layers = 1;
 
 if avg
     cp_min = 1; cp_max=cp_min; 
@@ -58,7 +59,7 @@ else
     range(31:60,1) = 140; range(31:60,2) = 50;
 end
 if strcmp(type,"topo")
-    range(:,1) = 1000; range(:,2) = 300;
+    range(:,1) = 1000; range(:,2) = 100;
 end
 
 plot_scales = false ;     % plot length scales
@@ -69,15 +70,18 @@ run_id = test_case+"J"+num2str(level,'%1.1d')+"Z"+num2str(zlevels,'%2.2d');  % n
 tmpdir = dir+"temp_spec"; mkdir(tmpdir)
 
 % Ensure each plot uses different colors
-figure('Visible','on','Units','pixels','Position',[100 700 800 600]);
-pbaspect([4 3 1]); 
+%figure('Visible','on','Units','pixels','Position',[100 700 800 600]);pbaspect([4 3 1]); 
+ncurve = numel(layers);
 set(gca,'XScale','log','YScale','log');
 ax = gca;
-ax.ColorOrder = parula(numel(layers));    
+ax.ColorOrder = parula(ncurve);    
 ax.ColorOrderIndex = 1;  
-hp = zeros(size(layers));
+hp = zeros(ncurve);
 
-if power
+% Generic colours (e.g. when plotting different resolution levels)
+c = parula(9);
+
+if power_law_fit
     pow_law = zeros(cp_max-cp_min+1,zlevels);
 end
 
@@ -88,7 +92,7 @@ for cp_id = cp_min:cp_max
     if ~avg
         cp = compose("%04d",cp_id);
         tgzfile = dir+run_id+"_spec.tgz";
-        if power
+        if power_law_fit
             fprintf('\nPower law exponents for checkpoint %d\n', cp_id)
         end
     else
@@ -96,7 +100,7 @@ for cp_id = cp_min:cp_max
     end 
     untar(tgzfile, tmpdir); % uncompress spectrum tar file
 
-    if power
+    if power_law_fit
         fprintf("Layer     p")
         p = 1;
     end
@@ -114,8 +118,8 @@ for cp_id = cp_min:cp_max
             end
         end
         pspec = load (tmpdir+"/"+file_base+"_spec", '-ascii');
-        power = pspec(:,2); % energy spectrum (equivalent to usual amplitude squared integrated over shells)
-        %rms = pspec(:,3); % RMS energy spectrum used in geodesy rms = sqrt(power/(2l+1))
+        power = pspec(:,2); % power (variance) spectrum (equivalent to usual amplitude squared integrated over shells)
+        rms   = pspec(:,3); % RMS power spectrum used in geodesy rms = sqrt(power/(2l+1))
 
         % Plot energy spectra
 
@@ -128,7 +132,7 @@ for cp_id = cp_min:cp_max
         scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
 
         % Fit power law
-        if power
+        if power_law_fit
             fit_indices = find(scales > range(zlev,2) & scales < range(zlev,1));
             [P,S] = polyfit(log10(scales(fit_indices)), log10(power(fit_indices)), 1);
             st_err = sqrt(diag(inv(S.R)*inv(S.R'))*S.normr^2/S.df); % error in coefficients from covariance matrix of P
@@ -142,12 +146,14 @@ for cp_id = cp_min:cp_max
             if strcmp(test_case,"drake")
                 name_type = "z = "+compose('%5.0f',Z(zlev))+" m, p = "+compose('%2.1f', -P(1));
 
-                hp(p) = loglog(scales, power, "linewidth", 3, "DisplayName", name_type); hold on; grid on
+                hp(p) = loglog(scales, power, "linewidth", 2, "DisplayName", name_type); hold on; grid on
             else
-                loglog(scales, power, "linewidth", 3);hold on; grid on;
+                name_type = "J = "+compose('%1.0d',level);    
+
+                hp(level) = loglog(scales, power, "linewidth", 2,"DisplayName", name_type,'Color', c(level-6+1,:));hold on; grid on;
             end
             
-            if power % plot fit
+            if power_law_fit % plot fit
                 p = p+1;
                 powerlaw (scales, 1.2*power, [range(zlev,1) range(zlev,2)], -P(1))
             end
@@ -163,6 +169,7 @@ fprintf("\n")
 xmin = 10^(floor(log10(min(scales))));
 xmax = 10^(ceil(log10(max(scales))));
 axis([xmin xmax ymin ymax]); 
+axis([1e1 1e5 1e14 1e20]); 
 
 if plot_scales
     if strcmp(test_case,"drake")
@@ -285,7 +292,7 @@ else
 end
 
 loglog(scales(k1:k2),scales(k1:k2).^(-p) * power(knorm)/scales(knorm)^(-p),...
-    'k', "linewidth", 3, "DisplayName", str);
+    'k', "linewidth", 2, "DisplayName", str);
 end
 
 function plot_scale (scale,name)
