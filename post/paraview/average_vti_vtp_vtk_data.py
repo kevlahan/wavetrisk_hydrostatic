@@ -1,8 +1,8 @@
-# Average all .vti or .vtp files in current directory.
+# Average all .vtk, .vti, or .vtp files in current directory.
 # Automatically averages both point-data and cell-data arrays.
 #
 # Assumptions:
-#   - directory contains either .vti files or .vtp files, not both
+#   - directory contains only one of: .vtk, .vti, .vtp
 #   - all files have identical geometry/topology
 #   - all files have identical point-data and cell-data arrays
 #   - array shapes/components match across files
@@ -17,31 +17,73 @@ from vtk.util import numpy_support
 # Detect file type
 # ------------------------------------------------------------
 
+vtk_files = sorted(glob.glob("*.vtk"))
 vti_files = sorted(glob.glob("*.vti"))
 vtp_files = sorted(glob.glob("*.vtp"))
 
-if vti_files and vtp_files:
-    raise RuntimeError("Found both .vti and .vtp files. Keep only one type.")
+types_present = sum(bool(x) for x in (vtk_files, vti_files, vtp_files))
+
+if types_present > 1:
+    raise RuntimeError("Found more than one file type among .vtk, .vti, .vtp. Keep only one type.")
 
 if vti_files:
     files = vti_files
     Reader = vtk.vtkXMLImageDataReader
     Writer = vtk.vtkXMLImageDataWriter
     output_name = "average.vti"
+    filetype = "vti"
+
 elif vtp_files:
     files = vtp_files
     Reader = vtk.vtkXMLPolyDataReader
     Writer = vtk.vtkXMLPolyDataWriter
     output_name = "average.vtp"
+    filetype = "vtp"
+
+elif vtk_files:
+    files = vtk_files
+    Reader = vtk.vtkDataSetReader
+    Writer = vtk.vtkDataSetWriter
+    output_name = "average.vtk"
+    filetype = "vtk"
+
 else:
-    raise FileNotFoundError("No .vti or .vtp files found.")
+    raise FileNotFoundError("No .vtk, .vti, or .vtp files found.")
 
 
 def read_dataset(filename):
     reader = Reader()
     reader.SetFileName(filename)
+
+    # Important for legacy .vtk files: read all arrays, not only active/default ones.
+    if filetype == "vtk":
+        reader.ReadAllScalarsOn()
+        reader.ReadAllVectorsOn()
+        reader.ReadAllTensorsOn()
+        reader.ReadAllNormalsOn()
+        reader.ReadAllColorScalarsOn()
+        reader.ReadAllFieldsOn()
+
     reader.Update()
     return reader.GetOutput()
+
+
+def dataset_signature(data):
+    if filetype == "vti":
+        return (
+            data.GetClassName(),
+            tuple(data.GetExtent()),
+            tuple(data.GetOrigin()),
+            tuple(data.GetSpacing()),
+            data.GetNumberOfPoints(),
+            data.GetNumberOfCells(),
+        )
+
+    return (
+        data.GetClassName(),
+        data.GetNumberOfPoints(),
+        data.GetNumberOfCells(),
+    )
 
 
 def get_array_names(data_attributes):
@@ -92,18 +134,17 @@ def accumulate(data_attributes, sums, filename, association_name):
 
 
 def replace_with_averages(data_attributes, sums, nfiles):
-    # Remove original arrays to avoid duplicate names
+    # Remove original arrays to avoid duplicate names.
     for name in list(sums.keys()):
         data_attributes.RemoveArray(name)
 
-    # Add averaged arrays
+    # Add averaged arrays.
     for name, total in sums.items():
         avg_np = total / nfiles
         avg_vtk = numpy_support.numpy_to_vtk(avg_np, deep=True)
         avg_vtk.SetName(name)
         data_attributes.AddArray(avg_vtk)
 
-    # Set active scalars if any arrays exist
     if sums:
         data_attributes.SetActiveScalars(next(iter(sums.keys())))
 
@@ -114,12 +155,14 @@ def replace_with_averages(data_attributes, sums, nfiles):
 
 first = read_dataset(files[0])
 
+sig0 = dataset_signature(first)
 npoints = first.GetNumberOfPoints()
 ncells = first.GetNumberOfCells()
 
 point_sums = initialize_sums(first.GetPointData())
 cell_sums  = initialize_sums(first.GetCellData())
 
+print(f"Detected file type: .{filetype}")
 print(f"Found {len(files)} files")
 print(f"Number of points: {npoints}")
 print(f"Number of cells:  {ncells}")
@@ -136,16 +179,12 @@ for ifile, filename in enumerate(files, start=1):
 
     data = read_dataset(filename)
 
-    if data.GetNumberOfPoints() != npoints:
+    sig = dataset_signature(data)
+    if sig != sig0:
         raise RuntimeError(
-            f"{filename}: number of points differs "
-            f"({data.GetNumberOfPoints()} vs {npoints})"
-        )
-
-    if data.GetNumberOfCells() != ncells:
-        raise RuntimeError(
-            f"{filename}: number of cells differs "
-            f"({data.GetNumberOfCells()} vs {ncells})"
+            f"{filename}: geometry/topology signature differs.\n"
+            f"Expected: {sig0}\n"
+            f"Found:    {sig}"
         )
 
     accumulate(data.GetPointData(), point_sums, filename, "point")
@@ -170,7 +209,14 @@ replace_with_averages(output.GetCellData(),  cell_sums,  len(files))
 writer = Writer()
 writer.SetFileName(output_name)
 writer.SetInputData(output)
-writer.Write()
+
+if filetype == "vtk":
+    writer.SetFileTypeToBinary()
+    # For debugging legacy VTK output, you can instead use:
+    # writer.SetFileTypeToASCII()
+
+if writer.Write() != 1:
+    raise RuntimeError(f"Failed to write {output_name}")
 
 print()
 print(f"✅ Averaged {len(files)} files")
