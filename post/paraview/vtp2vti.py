@@ -145,29 +145,49 @@ def interpolate_vtp_to_cell_centered_vti(vtp_filename,
 
     print(f"Wrote {vti_filename}")
 
-
 if __name__ == "__main__":
 
-    if len(sys.argv) not in (2, 3):
-        print("Usage:")
-        print("  python vtp_to_cell_vti.py input.vtp [output.vti]")
-        sys.exit(1)
+    if len(sys.argv) == 1:
+        vtp_files = sorted(
+            f for f in os.listdir(".")
+            if f.lower().endswith(".vtp")
+        )
 
-    input_file = sys.argv[1]
+        if not vtp_files:
+            raise RuntimeError("No .vtp files found in current directory.")
 
-    if len(sys.argv) == 3:
-        output_file = sys.argv[2]
-    else:
+        for input_file in vtp_files:
+            root, _ = os.path.splitext(input_file)
+            output_file = root + ".vti"
+
+            print()
+            print(f"Converting {input_file} -> {output_file}")
+
+            interpolate_vtp_to_cell_centered_vti(
+                input_file,
+                output_file
+            )
+
+    elif len(sys.argv) in (2, 3):
+        input_file = sys.argv[1]
+
         root, ext = os.path.splitext(input_file)
 
         if ext.lower() != ".vtp":
-            raise RuntimeError(
-                "Automatic output naming requires a .vtp input file."
-            )
+            raise RuntimeError("Input file must be a .vtp file.")
 
-        output_file = root + ".vti"
+        if len(sys.argv) == 3:
+            output_file = sys.argv[2]
+        else:
+            output_file = root + ".vti"
 
-    interpolate_vtp_to_cell_centered_vti(
-        input_file,
-        output_file
-    )
+        interpolate_vtp_to_cell_centered_vti(
+            input_file,
+            output_file
+        )
+
+    else:
+        print("Usage:")
+        print("  python vtp_to_cell_vti.py")
+        print("  python vtp_to_cell_vti.py input.vtp [output.vti]")
+        sys.exit(1)
