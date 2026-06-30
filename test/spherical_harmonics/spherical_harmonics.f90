@@ -13,8 +13,8 @@ program spherical_harmonics
   use io_vtk_mod
   implicit none
 
-  integer                              :: idata_loc, nmax
-  real(8), dimension(:),   allocatable :: data, data_loc, lat_loc, lon_loc
+  integer                            :: idata_loc, nmax
+  real(8), dimension(:), allocatable :: data, data_loc, lat_loc, lon_loc
 
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -23,14 +23,16 @@ program spherical_harmonics
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !     Parameters (need radius for spectra)
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  omega = 0.0_dp ! do not include Earth's rotation in spectral flux
+  
   if (trim (data_case) == "climate") then
      compressible            = .true.                    
      split_mean_perturbation = .false.           
      physics_model           = .true.
-     NCAR_topo               = .false.
-     topo_file               = "ss_J08J08_030.0km"
-     topo_min_level          = 8
-     topo_max_level          = 8
+     NCAR_topo               = .true.
+     topo_file               = "lp_J09J09_015.0km"
+     topo_min_level          = 9
+     topo_max_level          = 9
   elseif (trim (data_case) == "drake") then
      vert_diffuse            = .true.
      mode_split              = .true.                    
@@ -67,6 +69,7 @@ program spherical_harmonics
         call spec_sphere
      elseif (trim (spec_type) == 'latlon') then
         call spec_latlon_1layer
+        call flux_latlon_1layer
      end if
   end do
   
@@ -77,6 +80,8 @@ program spherical_harmonics
      call avg_spec ('curlu')
      call avg_spec ('divu')
      call avg_spec ('u')
+     call avg_spec ('transfer')
+     call avg_spec ('flux')
      if (local_spec) then
         call avg_spec ('curlu_local')
         call avg_spec ('divu_local')
@@ -88,98 +93,6 @@ program spherical_harmonics
   
   call finalize
 contains
-  subroutine avg_spec (data_type)
-    ! Computes mean and variance of saved spectra. Saves mean and standard deviation.
-    implicit none
-    character(*) :: data_type
-
-    integer                             :: cp, j, jj, k, lmax, ntime
-    real(dp), dimension(:), allocatable :: delta, delta2, M2, mean, pspec, variance
-    character(4)                        :: var_file1, var_file2
-
-    lmax = N/4 - 1
-
-    allocate (delta(lmax+1), delta2(lmax+1), mean(lmax+1), M2(lmax+1), pspec(lmax+1), variance(lmax+1))
-    
-    do k = k_min, k_max
-       write (var_file2, '(i4.4)') k
-
-       mean     = 0.0_dp
-       M2       = 0.0_dp
-       pspec    = 0.0_dp
-       variance = 0.0_dp
-
-       ntime = 0
-       do cp = cp_beg, cp_end
-
-          ! Read spectrum data
-          write (var_file1, '(i4.4)') cp
-          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
-               form="FORMATTED", status="OLD")
-          do j = 1, lmax + 1
-             read (10,*) jj, pspec(j)
-          end do
-          close (10)
-
-          ! Welford algorithm
-          ntime  = ntime + 1
-          delta  = pspec - mean
-          mean   = mean + delta / ntime
-          delta2 = pspec - mean
-          M2     = M2 + delta * delta2
-          
-       end do
-       variance = M2 / (ntime - 1)
-
-       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
-       do j = 1, lmax + 1
-          write (10,'(i4, 1x, 2(es10.4, 1x))') j, mean(j), sqrt (variance(j))
-       end do
-       close (10)
-       
-    end do
-  end subroutine avg_spec
-
-  subroutine avg_local_spec (data_type)
-    implicit none
-    character(*) :: data_type
-
-    integer                            :: cp, j, jj, k, lmax
-    real(8), dimension(:), allocatable :: mtse, mtse_av, sd, sd_av
-    character(4)                       :: var_file1, var_file2
-
-    lmax = N/4 - 1
-    
-    allocate (mtse(lmax-lwin+1),    sd(lmax-lwin+1))
-    allocate (mtse_av(lmax-lwin+1), sd_av(lmax-lwin+1))
-    
-    do k = k_min, k_max
-       write (var_file2, '(i4.4)') k
-       mtse = 0d0; mtse_av = 0d0; sd = 0d0; sd_av = 0d0
-       do cp = cp_beg, cp_end
-          write (var_file1, '(i4.4)') cp
-          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
-               form="FORMATTED", status="OLD")
-          do j = 1, lmax - lwin + 1
-             read (10,*) jj, mtse(j), sd(j)
-          end do
-          close (10)
-          mtse_av = mtse_av + mtse
-          sd_av = sd_av + sd
-       end do
-       mtse_av = mtse_av / (cp_end - cp_beg + 1)
-       sd_av   = sd_av   / (cp_end - cp_beg + 1)
-
-       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
-       do j = 1, lmax - lwin + 1
-          write (10,'(i4,1x,2(es10.4,1x))') j, mtse_av(j), sd_av(j)
-       end do
-       close (10)
-    end do
-
-    deallocate (mtse, mtse_av, sd, sd_av)
-  end subroutine avg_local_spec
-
   subroutine spec_latlon_1layer
     ! Compute energy spectra of div-free and curl-free parts of the velocity field from 2d latitude-longitude projections
     ! of vorticity and div(u) respectively.
@@ -242,6 +155,260 @@ contains
     deallocate (field2d)
   end subroutine spec_latlon_1layer
 
+  subroutine flux_latlon_1layer
+    ! Computes spectral transfer function and spectral flux for each layer
+    !! Must call spec_latlon_1layer first to fill up grid !!
+    use SHTOOLS
+    implicit none
+    integer  :: d, ierr, j, k, lmax, ll, mm
+    real(dp) :: Tk
+    character(4) :: var_file1, var_file2
+    
+    ! Spherical harmonic coefficients
+    ! u_lm(1,l+1,m+1) are cosine coefficients C_lm, l = 0, ... , lmax, m = 0, ..., l
+    ! u_lm(2,l+1,m+1) are sine   coefficients S_lm, l = 0, ... , lmax, m = 0, ..., l
+    real(dp), allocatable :: u_lm(:,:,:), v_lm(:,:,:), nl_u_lm(:,:,:), nl_v_lm(:,:,:)
+
+    ! Spectral transfer function T
+    real(dp), allocatable :: transfer_l(:)
+
+    ! Spectral flux Pi
+    real(dp), allocatable :: flux_l(:)
+
+    write (var_file1, '(i4.4)') cp_idx
+
+    lmax = N/4 - 1
+    allocate (u_lm(2, lmax+1, lmax+1), v_lm(2, lmax+1, lmax+1), nl_u_lm(2, lmax+1, lmax+1), nl_v_lm(2, lmax+1, lmax+1))
+    allocate (flux_l(0:lmax), transfer_l(0:lmax))
+    
+    call initialize_projection (N)
+    
+    do k = 1, zlevels
+       if (rank == 0) write (6,'(a,i3,a,i6,a,f10.2,a)') "Spectral flux of vertical layer ", k, &
+            " at checkpoint ", cp_idx, " at ", time/DAY, " days"
+
+       ! Compute spherical harmonics coefficients of zonal and meridional velocity
+       do d = 1, size(grid)
+          velo  => sol(S_VELO,k)%data(d)%elts
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
+          call apply_d (interp_UVW_latlon, grid(d), z_null, 0, 1)
+          nullify (velo, velo1, velo2)
+       end do
+       field2d = 0d0
+       call project_array_onto_plane ("u_zonal", level_fill, 0.0_dp)
+       call SHExpandDH (transpose(dble(field2d(Nx(1):Nx(2)-1,Ny(2):Ny(1)+1:-1))), N/2, u_lm, lmax, norm=1, sampling=2, &
+            exitstatus=ierr)
+
+       field2d = 0d0
+       call project_array_onto_plane ("v_merid", level_fill, 0.0_dp)
+       call SHExpandDH (transpose(dble(field2d(Nx(1):Nx(2)-1,Ny(2):Ny(1)+1:-1))), N/2, v_lm, lmax, norm=1, sampling=2, &
+            exitstatus=ierr)
+
+       ! Compute spherical harmonics coefficients of zonal and meridional components of nonlinear term
+       do d = 1, size(grid)
+          mass      => sol(S_MASS,k)%data(d)%elts
+          temp      => sol(S_TEMP,k)%data(d)%elts
+          velo      => sol(S_VELO,k)%data(d)%elts
+          mean_m    => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t    => sol_mean(S_TEMP,k)%data(d)%elts
+          exner     => exner_fun(k)%data(d)%elts
+          bernoulli => grid(d)%bernoulli%elts
+          ke        => grid(d)%ke%elts
+          vort      => grid(d)%vort%elts
+          qe        => grid(d)%qe%elts
+          
+          do j = 1, grid(d)%lev(level_fill)%length
+             call step1 (trend, sol, grid(d), grid(d)%lev(level_fill)%elts(j), k, 0)
+          end do
+          call apply_to_penta_d (post_step1, grid(d), level_fill, z_null)
+          nullify (mass, temp, velo, mean_m, mean_t, exner, bernoulli, ke, qe, vort)
+       end do
+       
+       do d = 1, size(grid)
+          dvelo   => trend(S_VELO,1)%data(d)%elts
+          h_mflux => horiz_flux(S_MASS)%data(d)%elts
+          ke      => grid(d)%ke%elts
+          qe      => grid(d)%qe%elts
+          
+          do j = 1, grid(d)%lev(level_fill)%length
+             call apply_onescale_to_patch (cal_nl, grid(d), grid(d)%lev(level_fill)%elts(j), k, 0, 1)
+          end do
+          nullify (dvelo, h_mflux, ke, qe)
+       end do
+       call update_bdry (trend(S_VELO,1), level_fill)
+
+       do d = 1, size(grid)
+          velo  => trend(S_VELO,1)%data(d)%elts
+          velo1 => grid(d)%u_zonal%elts
+          velo2 => grid(d)%v_merid%elts
+          call apply_d (interp_UVW_latlon, grid(d), z_null, 0, 1)
+          nullify (velo, velo1, velo2)
+       end do
+       field2d = 0d0
+       call project_array_onto_plane ("u_zonal", level_fill, 0.0_dp)
+       call SHExpandDH (transpose(dble(field2d(Nx(1):Nx(2)-1,Ny(2):Ny(1)+1:-1))), N/2, nl_u_lm, lmax, norm=1, sampling=2, &
+            exitstatus=ierr)
+
+       field2d = 0d0
+       call project_array_onto_plane ("v_merid", level_fill, 0.0_dp)
+       call SHExpandDH (transpose(dble(field2d(Nx(1):Nx(2)-1,Ny(2):Ny(1)+1:-1))), N/2, nl_v_lm, lmax, norm=1, sampling=2, &
+            exitstatus=ierr)
+       
+       ! Spectral transfer at each total spherical wavenumber ll
+       ! T_ll = sum_m Re[ u_lm^* N_u,lm + v_lm^* N_v,lm ]
+       do ll = 0, lmax
+          Tk = 0.0_dp
+
+          do mm = 0, ll
+             Tk = Tk &
+                  + u_lm(1,ll+1,mm+1) * nl_u_lm(1,ll+1,mm+1) &
+                  + v_lm(1,ll+1,mm+1) * nl_v_lm(1,ll+1,mm+1)
+
+             if (mm > 0) then
+                Tk = Tk &
+                     + u_lm(2,ll+1,mm+1) * nl_u_lm(2,ll+1,mm+1) &
+                     + v_lm(2,ll+1,mm+1) * nl_v_lm(2,ll+1,mm+1)
+             end if
+          end do
+
+          transfer_l(ll) = transfer_l(ll) + Tk
+       end do
+
+       ! Cumulative spectral flux:
+       !
+       ! flux_l(ll) = - sum_{j=0}^{ll} transfer_l(j)
+       !
+       ! Positive flux_l means net transfer from degrees <= ll to degrees > ll,
+       flux_l(0) = -transfer_l(0)
+
+       do ll = 1, lmax
+          flux_l(ll) = flux_l(ll-1) - transfer_l(ll)
+       end do
+       
+       ! Save data
+       write (var_file2, '(i4.4)') k
+       open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_transfer_spec', form="FORMATTED", status="REPLACE")
+       open (unit=11, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_flux_spec',     form="FORMATTED", status="REPLACE")
+       do ll = 0, lmax
+          write (10,'(i6,1x,es16.8)') ll, transfer_l(ll)
+          write (11,'(i6,1x,es16.8)') ll, flux_l(ll)
+       end do
+       close (10); close (11)
+    end do
+  end subroutine flux_latlon_1layer
+
+  subroutine cal_nl (dom, i, j, zlev, offs, dims)
+    ! Nonlinear terms for energy flux computation
+    use ops_mod
+    use io_mod
+    implicit none
+    type(Domain)                   :: dom
+    integer                        :: i, j, zlev
+    integer, dimension(N_BDRY+1)   :: offs
+    integer, dimension(2,N_BDRY+1) :: dims
+
+    integer :: id
+    integer :: id_e(1:EDGE)
+
+    id   = idx (i, j, offs, dims)
+    id_e = id_edge (id)
+
+    dvelo(id_e) = - Qperp (dom, i, j, z_null, offs, dims) - gradi_e (ke, dom, i, j, offs, dims)
+  end subroutine cal_nl
+
+  subroutine avg_spec (data_type)
+    ! Computes mean and variance of saved spectra. Saves mean and standard deviation.
+    implicit none
+    character(*) :: data_type
+
+    integer                             :: cp, k, l, ll, lmax, ntime
+    real(dp), dimension(:), allocatable :: delta, delta2, M2, mean, pspec, variance
+    character(4)                        :: var_file1, var_file2
+
+    lmax = N/4 - 1
+
+    allocate (delta(0:lmax), delta2(0:lmax), mean(0:lmax), M2(0:lmax), pspec(0:lmax), variance(0:lmax))
+    
+    do k = k_min, k_max
+       write (var_file2, '(i4.4)') k
+
+       mean     = 0.0_dp
+       M2       = 0.0_dp
+       pspec    = 0.0_dp
+       variance = 0.0_dp
+
+       ntime = 0
+       do cp = cp_beg, cp_end
+
+          ! Read spectrum data
+          write (var_file1, '(i4.4)') cp
+          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
+               form="FORMATTED", status="OLD")
+          do l = 0, lmax
+             read (10,*) ll, pspec(l)
+          end do
+          close (10)
+
+          ! Welford algorithm
+          ntime  = ntime + 1
+          delta  = pspec - mean
+          mean   = mean + delta / ntime
+          delta2 = pspec - mean
+          M2     = M2 + delta * delta2
+          
+       end do
+       variance = M2 / (ntime - 1)
+
+       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
+       do l = 0, lmax
+          write (10,'(i4, 1x, 2(es16.8, 1x))') l, mean(l), sqrt (variance(l))
+       end do
+       close (10)
+       
+    end do
+  end subroutine avg_spec
+
+  subroutine avg_local_spec (data_type)
+    implicit none
+    character(*) :: data_type
+
+    integer                            :: cp, j, jj, k, lmax
+    real(8), dimension(:), allocatable :: mtse, mtse_av, sd, sd_av
+    character(4)                       :: var_file1, var_file2
+
+    lmax = N/4 - 1
+    
+    allocate (mtse(lmax-lwin+1),    sd(lmax-lwin+1))
+    allocate (mtse_av(lmax-lwin+1), sd_av(lmax-lwin+1))
+    
+    do k = k_min, k_max
+       write (var_file2, '(i4.4)') k
+       mtse = 0d0; mtse_av = 0d0; sd = 0d0; sd_av = 0d0
+       do cp = cp_beg, cp_end
+          write (var_file1, '(i4.4)') cp
+          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
+               form="FORMATTED", status="OLD")
+          do j = 1, lmax - lwin + 1
+             read (10,*) jj, mtse(j), sd(j)
+          end do
+          close (10)
+          mtse_av = mtse_av + mtse
+          sd_av = sd_av + sd
+       end do
+       mtse_av = mtse_av / (cp_end - cp_beg + 1)
+       sd_av   = sd_av   / (cp_end - cp_beg + 1)
+
+       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
+       do j = 1, lmax - lwin + 1
+          write (10,'(i4,1x,2(es16.8,1x))') j, mtse_av(j), sd_av(j)
+       end do
+       close (10)
+    end do
+
+    deallocate (mtse, mtse_av, sd, sd_av)
+  end subroutine avg_local_spec
+
   subroutine spectrum_lon_lat (data_type, k)
     use SHTOOLS
     implicit none
@@ -263,9 +430,14 @@ contains
     integer                                 :: k
     character(*)                            :: data_type
 
-    integer                                 :: ierr, j, l, lmax
+    integer                                 :: ierr, l, lmax
     real(8)                                 :: area, power_l, rms_l
-    real(8), dimension (:,:,:), allocatable :: cilm      ! spherical harmonic coefficients
+
+    ! Spherical harmonic coefficients
+    ! cilm(1,l+1,m+1) are cosine coefficients C_lm, l = 0, ... , lmax, m = 0, ..., l
+    ! cilm(2,l+1,m+1) are sine   coefficients S_lm, l = 0, ... , lmax, m = 0, ..., l
+    real(8), dimension (:,:,:), allocatable :: cilm
+    
     real(8), dimension (:),     allocatable :: pspectrum ! global power spectrum of the function
     character(4)                            :: var_file1, var_file2
     
@@ -280,7 +452,7 @@ contains
     if (ierr /= 0) write(6,'(a,i1,a)') "Error status = ", ierr, " for routine SHExpandDH"
 
     ! Calculate power spectrum
-    allocate (pspectrum(lmax+1))
+    allocate (pspectrum(0:lmax))
     call SHPowerSpectrum (cilm, lmax, pspectrum, exitstatus=ierr)
     if (ierr /= 0) write(6,'(a,i1,a)') "Error status = ", ierr, " for routine SHPowerSpectrum"
 
@@ -297,12 +469,11 @@ contains
     ! Ermakov et al (2018) Power laws of topography and gravity spectra of the solar system bodies.
     ! J Geophys Res: Planets, 123, 2038–2064. Equations (4, 6, 8)
     area = 4d0*MATH_PI*radius**2
-    do j = 2, lmax + 1
-       l = j - 1
-       power_l = pspectrum(j) * area
-       rms_l   = sqrt (power_l / real(2*l + 1, kind=dp))
+    do l = 0, lmax
+       power_l = pspectrum(l) * area
+       rms_l   = sqrt(power_l / real(2*l + 1, kind=dp))
 
-       write (10,'(i6,1x,es16.8,1x,es16.8)') l, power_l, rms_l
+       write(10,'(i6,1x,es16.8,1x,es16.8)') l, power_l, rms_l
     end do
     close (10)
 
@@ -332,7 +503,7 @@ contains
     integer                                :: lmax
     real(8), dimension (2, lmax+1, lmax+1) :: cilm
    
-    integer                               :: ierr, j
+    integer                               :: ierr, j, l
 
     real(8)                               :: area
     real(8), dimension (:), allocatable   :: eigenvalues ! concentration factors of the concentration windows
@@ -341,24 +512,31 @@ contains
     integer, dimension (:), allocatable   :: taper_order ! array containing the angular orders of the spherical harmonic coefficients in each column of the array tapers
                                                          ! (each window has non-zero coefficients for a single angular order that is specified in the array taper_order)
     real(8), dimension (:,:), allocatable :: tapers      ! array of the windowing functions, arranged in columns (obtained from SHReturnTapers)
-                                                         ! (each window has non-zero coefficients for a single angular order that is specified in the array taper_order)
+    ! (each window has non-zero coefficients for a single angular order that is specified in the array taper_order)
 
-    allocate (eigenvalues((lwin+1)**2), mtse(lmax-lwin+1), sd(lmax-lwin+1), taper_order((lwin+1)**2), tapers(lwin+1,(lwin+1)**2))
+    allocate(eigenvalues((lwin+1)**2), &
+         mtse(0:lmax-lwin), &
+         sd(0:lmax-lwin), &
+         taper_order((lwin+1)**2), &
+         tapers(lwin+1,(lwin+1)**2))
 
     ! Compute the eigenfunctions of the spherical-cap concentration problem
-    call SHReturnTapers (theta0*DEG, lwin, tapers, eigenvalues, taper_order, exitstatus=ierr)
+    call SHReturnTapers(theta0*DEG, lwin, tapers, eigenvalues, taper_order, exitstatus=ierr)
     if (ierr /= 0) write(6,'(a,i1,a)') "Error status = ", ierr, " for routine SHReturnTapers"
 
     ! Compute localized multitaper power spectrum
-    call SHMultiTaperSE (mtse, sd, cilm, lmax, tapers, taper_order, lwin, ntaper, lat=lat0, lon=lon0+180, norm=1, exitstatus=ierr)
+    call SHMultiTaperSE(mtse, sd, cilm, lmax, tapers, taper_order, lwin, ntaper, &
+         lat=lat0, lon=lon0+180, norm=1, exitstatus=ierr)
     if (ierr /= 0) write(6,'(a,i1,a)') "Error status = ", ierr, " for routine SHMultiTaperSE"
 
     ! Save data
     area = 2d0*MATH_PI*radius**2 * (1d0 - cos(theta0*DEG))
-    do j = 1, lmax - lwin + 1
-       write (10,'(i4,1x,2(es10.4,1x))') j, mtse(j) * area, sd(j) * area
+
+    do l = 0, lmax - lwin
+       write(10,'(i4,1x,2(es10.4,1x))') l, mtse(l) * area, sd(l) * area
     end do
-    close (10)
+
+    close(10)
 
     ! Write out characteristics of local analysis
     write (6,'(a,i4)') "Spherical harmonic bandwidth of window = ", lwin
