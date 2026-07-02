@@ -224,6 +224,8 @@ contains
           call apply_to_penta_d (post_step1, grid(d), level_fill, z_null)
           nullify (mass, temp, velo, mean_m, mean_t, exner, bernoulli, ke, qe, vort)
        end do
+       horiz_flux(S_MASS)%bdry_uptodate = .false.
+       call update_bdry (horiz_flux(S_MASS), level_fill)
        
        do d = 1, size(grid)
           dvelo   => trend(S_VELO,1)%data(d)%elts
@@ -236,6 +238,7 @@ contains
           end do
           nullify (dvelo, h_mflux, ke, qe)
        end do
+       trend(S_VELO,1)%bdry_uptodate = .false.
        call update_bdry (trend(S_VELO,1), level_fill)
 
        do d = 1, size(grid)
@@ -255,24 +258,22 @@ contains
        call SHExpandDH (transpose(dble(field2d(Nx(1):Nx(2)-1,Ny(2):Ny(1)+1:-1))), N/2, nl_v_lm, lmax, norm=1, sampling=2, &
             exitstatus=ierr)
        
-       ! Spectral transfer at each total spherical wavenumber ll
+       ! Spectral transfer at each total spherical wavenumber ll for current layer
        ! T_ll = sum_m Re[ u_lm^* N_u,lm + v_lm^* N_v,lm ]
-       do ll = 0, lmax
-          Tk = 0.0_dp
+       transfer_l = 0.0_dp
 
+       do ll = 0, lmax
           do mm = 0, ll
-             Tk = Tk &
+             transfer_l(ll) = transfer_l(ll) &
                   + u_lm(1,ll+1,mm+1) * nl_u_lm(1,ll+1,mm+1) &
                   + v_lm(1,ll+1,mm+1) * nl_v_lm(1,ll+1,mm+1)
 
              if (mm > 0) then
-                Tk = Tk &
+                transfer_l(ll) = transfer_l(ll) &
                      + u_lm(2,ll+1,mm+1) * nl_u_lm(2,ll+1,mm+1) &
                      + v_lm(2,ll+1,mm+1) * nl_v_lm(2,ll+1,mm+1)
              end if
           end do
-
-          transfer_l(ll) = transfer_l(ll) + Tk
        end do
 
        ! Cumulative spectral flux:
@@ -280,8 +281,9 @@ contains
        ! flux_l(ll) = - sum_{j=0}^{ll} transfer_l(j)
        !
        ! Positive flux_l means net transfer from degrees <= ll to degrees > ll,
-       flux_l(0) = -transfer_l(0)
+       flux_l = 0.0_dp
 
+       flux_l(0) = -transfer_l(0)
        do ll = 1, lmax
           flux_l(ll) = flux_l(ll-1) - transfer_l(ll)
        end do
@@ -308,13 +310,13 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: id
-    integer :: id_e(1:EDGE)
+    integer  :: id
+    integer  :: id_e(1:EDGE)
 
     id   = idx (i, j, offs, dims)
     id_e = id_edge (id)
 
-    dvelo(id_e) = - Qperp (dom, i, j, z_null, offs, dims) - gradi_e (ke, dom, i, j, offs, dims)
+    dvelo(id_e) = - Qperp (dom, i, j, z_null, offs, dims)  - gradi_e (ke, dom, i, j, offs, dims)
   end subroutine cal_nl
 
   subroutine avg_spec (data_type)
