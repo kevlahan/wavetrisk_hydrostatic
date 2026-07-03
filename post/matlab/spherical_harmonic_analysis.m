@@ -14,14 +14,14 @@ end
 %% Analyze spectrum data
 clear; clc; global KM; global tanh_strat; format short e
 
-dir           = "~/hydro/topo/HS_J6Z32/";
+dir           = "~/hydro/drake/J8Z60_tanh/";
 tanh_strat    = true;        % tanh profile (or linear) for drake case
-test_case     = "HS";        % prefix for test case
-level         = 9;           % resolution level
-zlevels       = 32;          % number of vertical layers
-type          = "topo";      % u, curlu, divu or topo
-avg           = false;       % analyze average spectrum or individual spectra
-power_law_fit = true;        % plot power law fit
+test_case     = "drake";        % prefix for test case
+level         = 8;           % resolution level
+zlevels       = 60;          % number of vertical layers
+type          = "u";      % u, curlu, divu or topo
+avg           = true;       % analyze average spectrum or individual spectra
+power_law_fit = false;       % plot power law fit
 plot_spec     = true;        % plot spectrum
 
 if tanh_strat
@@ -29,8 +29,6 @@ if tanh_strat
 else
     layers = [1 14 46 60]; % linear
 end
-layers = 1:4:zlevels;   % vertical layers to analyze
-layers = 1;
 
 if avg
     cp_min = 1; cp_max=cp_min; 
@@ -70,16 +68,33 @@ run_id = test_case+"J"+num2str(level,'%1.1d')+"Z"+num2str(zlevels,'%2.2d');  % n
 tmpdir = dir+"temp_spec"; mkdir(tmpdir)
 
 % Ensure each plot uses different colors
-%figure('Visible','on','Units','pixels','Position',[100 700 800 600]);pbaspect([4 3 1]); 
-ncurve = numel(layers);
-set(gca,'XScale','log','YScale','log');
-ax = gca;
-ax.ColorOrder = parula(ncurve);    
-ax.ColorOrderIndex = 1;  
-hp = zeros(ncurve);
+figure('Visible','on','Units','pixels','Position',[100 700 800 600]);pbaspect([4 3 1]);
 
-% Generic colours (e.g. when plotting different resolution levels)
-c = parula(9);
+ncurve = numel(layers);
+if ncurve <= 8
+    colors = [                 % Okabe-Ito color blind palette
+        0.0000 0.4470 0.6980   % blue
+        0.8359 0.3686 0.0000   % vermillion
+        0.0000 0.6196 0.4510   % bluish green
+        0.9412 0.8941 0.2588   % yellow
+        0.3373 0.7059 0.9137   % sky blue
+        0.8000 0.4745 0.6549   % reddish purple
+        0.9020 0.6235 0.0000   % orange
+        0.0000 0.0000 0.0000   % black
+        ];
+else
+    colors = parula(ncurve);
+end
+ax = gca;
+ax.XScale = 'log';
+if any(type == ["flux", "transfer"])
+    ax.YScale = 'lin';
+else
+    ax.YScale = 'log';
+end
+
+hp = gobjects(ncurve,1);
+icurve = 0;
 
 if power_law_fit
     pow_law = zeros(cp_max-cp_min+1,zlevels);
@@ -91,7 +106,7 @@ for cp_id = cp_min:cp_max
     cp_idx = cp_idx + 1;
     if ~avg
         cp = compose("%04d",cp_id);
-        tgzfile = dir+run_id+"_spec.tgz";
+        tgzfile = dir+run_id+"_spec.tgz"; 
         if power_law_fit
             fprintf('\nPower law exponents for checkpoint %d\n', cp_id)
         end
@@ -102,10 +117,10 @@ for cp_id = cp_min:cp_max
 
     if power_law_fit
         fprintf("Layer     p")
-        p = 1;
     end
 
     for zlev = fliplr(layers)
+
         % Load data
         k = compose("%04d",zlev);
         if strcmp(type,"topo")
@@ -118,19 +133,20 @@ for cp_id = cp_min:cp_max
             end
         end
         pspec = load (tmpdir+"/"+file_base+"_spec", '-ascii');
-        power = pspec(:,2); % power (variance) spectrum (equivalent to usual amplitude squared integrated over shells)
-        rms   = pspec(:,3); % RMS power spectrum used in geodesy rms = sqrt(power/(2l+1))
+
+        % Skip mean mode
+        scales = 2*pi*radius/1e3./sqrt(pspec(2:end,1).*(pspec(2:end,1)+1)); % equivalent length scale (Jeans relation)
+        power  = pspec(2:end,2); % power (variance) spectrum (equivalent to usual amplitude squared integrated over shells)
+        rms    = pspec(2:end,3); % RMS power spectrum used in geodesy rms = sqrt(power/(2l+1))
 
         % Plot energy spectra
 
         % Convert vorticity/divergence spectrum to equivalent velocity
         % spectrum
         if any(strcmp(type, ["divu","curlu"]))
-            power = power./pspec(:,1).^2;
+            power = power./pspec(2:end,1).^2;
         end
-       
-        scales = 2*pi*radius/1e3./sqrt(pspec(:,1).*(pspec(:,1)+1)); % equivalent length scale (Jeans relation)
-
+           
         % Fit power law
         if power_law_fit
             fit_indices = find(scales > range(zlev,2) & scales < range(zlev,1));
@@ -143,23 +159,52 @@ for cp_id = cp_min:cp_max
         end
 
         if plot_spec
+            icurve = icurve + 1;
+
             if strcmp(test_case,"drake")
-                name_type = "z = "+compose('%5.0f',Z(zlev))+" m, p = "+compose('%2.1f', -P(1));
+                if power_law_fit
+                    name_type = "z = "+compose('%5.0f',Z(zlev))+" m, p = "+compose('%2.1f', -P(1));
+                else
+                    name_type = "z = "+compose('%5.0f',Z(zlev))+" m";
+                end
 
-                hp(p) = loglog(scales, power, "linewidth", 2, "DisplayName", name_type); hold on; grid on
+                if any(type == ["flux", "transfer"])
+                    y = power/max(abs(power));
+                    h = semilogx(scales, y, ...
+                        "LineWidth", 2, ...
+                        "DisplayName", name_type, ...
+                        "Color", colors(icurve,:));
+                else
+                    y = power;
+                    h = loglog(scales, y, ...
+                        "LineWidth", 2, ...
+                        "DisplayName", name_type, ...
+                        "Color", colors(icurve,:));
+                end
             else
-                name_type = "J = "+compose('%1.0d',level);    
+                name_type = "J = "+compose('%1.0d',level);
 
-                hp(level) = loglog(scales, power, "linewidth", 2,"DisplayName", name_type,'Color', c(level-6+1,:));hold on; grid on;
+                h = loglog(scales, power, ...
+                    "LineWidth", 2, ...
+                    "DisplayName", name_type, ...
+                    "Color", colors(icurve,:));
             end
-            
+            hold on
+            grid on
+            hp(icurve) = h;
+
             if power_law_fit % plot fit
-                p = p+1;
                 powerlaw (scales, 1.2*power, [range(zlev,1) range(zlev,2)], -P(1))
             end
+
+            if strcmp(ax.YScale,'log')
+                ymin = min (ymin, 10^(floor(log10(min(power)))));
+                ymax = max (ymax, 10^(ceil(log10(max(power)))));
+            else
+                ymin = min (ymin, 1.5*min(y));
+                ymax = max (ymax, 1.5*max(y));
+            end
         end
-        ymin = min (ymin, 10^(floor(log10(min(power)))));
-        ymax = max (ymax, 10^(ceil(log10(max(power)))));
     end
 end
 rmdir(tmpdir, 's'); % delete temporary directory
@@ -168,8 +213,8 @@ fprintf("\n")
 
 xmin = 10^(floor(log10(min(scales))));
 xmax = 10^(ceil(log10(max(scales))));
-axis([xmin xmax ymin ymax]); 
-axis([1e1 1e5 1e14 1e20]); 
+xlim([xmin xmax])
+ylim([ymin ymax])
 
 if plot_scales
     if strcmp(test_case,"drake")
@@ -185,9 +230,18 @@ if plot_scales
 end
 
 set (gca,"fontsize",20);
-xlabel("\lambda (km)");ylabel("S(\lambda)"); 
+xlabel("\lambda [km]")
+
+if strcmp(type,"flux")
+    ylabel("\Pi(\lambda)/\Pi_{max}")
+elseif strcmp(type,"transfer")
+    ylabel("T(\lambda)/T_{max}")
+else
+    ylabel("S(\lambda)")
+end
 if strcmp(test_case,"drake")
-    legend(hp,'Location', 'best','FontName', 'Menlo');
+    hp = hp(isgraphics(hp));   % remove invalid handles
+    legend(hp, 'Location', 'best', 'FontName', 'Menlo');
 end
 set (gca,"Xdir","reverse");
 
