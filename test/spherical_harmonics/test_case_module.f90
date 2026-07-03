@@ -4,10 +4,13 @@ module test_case_mod
   use init_mod
   use ops_mod
   use io_mod
+  use vert_diffusion_mod
   implicit none
   integer        :: angular_order, cp_beg, cp_end, lwin, N, ntaper, k_min, k_max
-  real(8)        :: concentration, lat0, lon0, theta0
+  real(8)        :: concentration, lat0, lon0, theta0, z_linear
   character(255) :: data_case, spec_type
+  character(10)  :: stratification = "tanh"
+  character(255) :: coords         = "uniform" ! not used if sigma_z = .true.
   logical        :: local_spec
 contains
   subroutine assign_functions
@@ -59,21 +62,6 @@ contains
 
     surf_geopot_case = 0.0_dp
   end function surf_geopot_case
-
-  subroutine initialize_a_b_vert_case
-    implicit none
-    allocate (a_vert(0:zlevels),      b_vert(0:zlevels))
-    allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
-  end subroutine initialize_a_b_vert_case
-
-  function z_coords_case (eta_surf, z_s)
-    ! dummy routine
-    implicit none
-    real(8), intent(in)           :: eta_surf, z_s 
-    real(8), dimension(0:zlevels) :: z_coords_case
-
-    z_coords_case = 0.0_dp
-  end function z_coords_case
 
   subroutine read_test_case_parameters
     implicit none
@@ -163,9 +151,18 @@ contains
        write (6,*) ' '
     end if
   end subroutine print_test_case_parameters
-  
+
   subroutine apply_initial_conditions_case
     implicit none
+
+    ! Initialize variables
+    call apply_bdry (init_mean, z_null, 0, 1)
+    call apply_bdry (init_sol,  z_null, 0, 1)
+    sol%bdry_uptodate      = .false.
+    sol_mean%bdry_uptodate = .false.
+
+    call update_bdry (sol,      NONE) 
+    call update_bdry (sol_mean, NONE)
 
     if (NCAR_topo) call apply_bdry (assign_NCAR_topo, z_null, 0, 1)
     topography%bdry_uptodate = .false.
@@ -187,10 +184,29 @@ contains
     integer                         :: i, j, zlev
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
+
+    integer :: d, id, id_i, k
+
+    d    = dom%id + 1
+    id   = idx (i, j, offs, dims)
+    id_i = id + 1
+
+    do k = 1, zlevels
+       sol(S_MASS,k)%data(d)%elts(id_i)        = 0.0_dp
+       sol(S_TEMP,k)%data(d)%elts(id_i)        = 0.0_dp
+       sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
+    end do
+
+    if (mode_split) then
+       sol(S_MASS,zlevels+1)%data(d)%elts(id_i)        = 0.0_dp
+       sol(S_TEMP,zlevels+1)%data(d)%elts(id_i)        = 0.0_dp
+       sol(S_VELO,zlevels+1)%data(d)%elts(id_edge(id)) = 0.0_dp
+    end if
   end subroutine init_sol
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
     ! Initialize mean values
+    ! In split mean perturbation need to set sol_mean(S_MASS,:)
     use utils_mod
     implicit none
     type (Domain)                   :: dom
@@ -198,17 +214,132 @@ contains
     integer, dimension (N_BDRY+1)   :: offs
     integer, dimension (2,N_BDRY+1) :: dims
 
-    integer :: d, id, k
+    integer                       :: d, id, id_i, k
+    real(8)                       :: eta, rho, rho_dz, z_s
+    real(8), dimension(1:zlevels) :: dz
+    real(8), dimension(0:zlevels) :: z
    
-    d    = dom%id+1
-    id   = idx (i, j, offs, dims) 
+    d    = dom%id + 1
+    id   = idx (i, j, offs, dims)
+    id_i = id + 1
+  
+    if (trim (data_case) == "drake") then ! include mean component or rho_dz
+       eta = 0.0_dp    ! no free surface perturbation
+       z_s = max_depth ! no bathymetry
 
-    do k = 1, zlevels
-       sol_mean(S_MASS,k)%data(d)%elts(id+1)        = 0d0
-       sol_mean(S_TEMP,k)%data(d)%elts(id+1)        = 0d0
-       sol_mean(S_VELO,k)%data(d)%elts(id_edge(id)) = 0d0
-    end do
+       if (sigma_z) then
+          z = z_coords_case (eta, z_s)
+       else
+          z = a_vert * eta + b_vert * z_s
+       end if
+       dz = z(1:zlevels) - z(0:zlevels-1)
+
+       do k = 1, zlevels
+          rho = ref_density ! do not include penalization
+          rho_dz = rho * dz(k)
+
+          sol_mean(S_MASS,k)%data(d)%elts(id_i)        = rho_dz ! needed for Qperp in spectral flux computation
+          sol_mean(S_TEMP,k)%data(d)%elts(id_i)        = 0.0_dp !! Assume not needed !!
+          sol_mean(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
+       end do
+    else
+       do k = 1, zlevels
+          sol_mean(S_MASS,k)%data(d)%elts(id_i)        = 0.0_dp 
+          sol_mean(S_TEMP,k)%data(d)%elts(id_i)        = 0.0_dp
+          sol_mean(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
+       end do
+    end if
+   
+    if (mode_split) then
+       sol_mean(S_MASS,zlevels+1)%data(d)%elts(id_i)        = 0.0_dp
+       sol_mean(S_TEMP,zlevels+1)%data(d)%elts(id_i)        = 0.0_dp
+       sol_mean(S_VELO,zlevels+1)%data(d)%elts(id_edge(id)) = 0.0_dp
+    end if
   end subroutine init_mean
+
+  function z_coords_case (eta_surf, z_s) 
+    ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
+    ! near the free surface over strong bathymetry gradients.
+    ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
+    !
+    ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
+    implicit none
+    real(8),          intent (in) :: eta_surf, z_s ! free surface and bathymetry
+    real(8), dimension(0:zlevels) :: z_coords_case
+
+    integer                       :: k
+    real(8)                       :: cff, cff1, cff2, hc, z_0
+    real(8), dimension(0:zlevels) :: Cs, sc
+
+    real(8), parameter            :: theta_b = 0.0_dp, theta_s = 7.0_dp
+    real(8), parameter            :: hc_min = -200 * METRE ! minimum depth of uniform layer region
+
+    select case (stratification)
+    case ("linear")
+       hc = abs (min (z_mixed, hc_min))
+    case ("tanh")
+       hc = abs (min (z_linear, hc_min))
+    case default
+       hc = abs (min (z_linear, hc_min))
+    end select
+    hc = hc_min
+    
+    cff1 = 1.0_dp / sinh (theta_s)
+    cff2 = 0.5 / tanh (0.5 * theta_s)
+    
+    sc(0) = -1.0_dp
+    Cs(0) = -1.0_dp
+    cff = 1.0_dp / dble(zlevels)
+    do k = 1, zlevels
+       sc(k) = cff * dble (k - zlevels)
+       Cs(k) = (1.0_dp - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5_dp)) - 0.5_dp)
+    end do
+
+    z_coords_case(0) = z_s
+    do k = 1, zlevels
+       cff = hc * (sc(k) - Cs(k))
+       z_0 = cff - Cs(k) * z_s
+       a_vert(k) = 1.0_dp - z_0 / z_s
+       z_coords_case(k) = eta_surf * a_vert(k) + z_0
+    end do
+  end function z_coords_case
+
+  subroutine initialize_a_b_vert_case
+    ! Initialize hybrid sigma-coordinate vertical grid
+    implicit none
+    integer :: k
+
+    allocate (a_vert(0:zlevels), b_vert(0:zlevels))
+    allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
+
+    if (zlevels == 1) then
+       a_vert(0) = 0.0_dp; a_vert(1) = 1.0_dp
+       b_vert(0) = 1.0_dp; b_vert(1) = 0.0_dp
+    elseif (zlevels == 2) then 
+       a_vert(0) = 0.0_dp; a_vert(1) = 0.0_dp;            a_vert(2) = 1.0_dp
+       b_vert(0) = 1.0_dp; b_vert(1) = z_mixed/max_depth; b_vert(2) = 0.0_dp
+    elseif (zlevels >= 3) then
+       if (trim (coords) == "chebyshev") then
+          do k = 0, zlevels
+             b_vert(k) = (1.0_dp + cos (dble(k)/dble(zlevels) * MATH_PI)) / 2
+          end do
+       elseif (trim (coords) == "chebyshev_half") then
+          do k = 0, zlevels
+             b_vert(k) = 1.0_dp - sin (dble(k)/dble(zlevels) * MATH_PI/2)
+          end do
+       else ! default coordinates are uniform (not used if sigma_z = .true.)
+          coords = "uniform"
+          do k = 0, zlevels
+             b_vert(k) = 1.0_dp - dble(k)/dble(zlevels)
+          end do
+       end if
+       a_vert = 1.0_dp - b_vert
+    end if
+
+    ! Vertical grid spacing
+    a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
+    b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
+  end subroutine initialize_a_b_vert_case
 
   subroutine set_thresholds_case
   end subroutine set_thresholds_case
@@ -236,4 +367,5 @@ contains
        read (fid) threshold
     end if
   end subroutine load_case
+  
 end module test_case_mod

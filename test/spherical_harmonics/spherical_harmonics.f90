@@ -40,6 +40,12 @@ program spherical_harmonics
      compressible            = .false.                   
      split_mean_perturbation = .true.
 
+     ref_density             =  1030 * KG/METRE**3
+     sigma_z                 = .true.                ! sigma-z Schepetkin/CROCO type vertical coordinates
+     stratification          = "tanh"                ! tanh or linear (determines vertical coordinates)
+     z_mixed                 =  -200 * METRE         ! bottom of constant density surface mixed
+     z_linear                =  -500 * METRE         ! bottom of linear stratification layer below mixed layer
+     max_depth               = -4000 * METRE         ! total depth
      radius                  = radius/6                     
   elseif (trim (data_case) == "jet") then
      mode_split              = .true.                    
@@ -160,8 +166,7 @@ contains
     !! Must call spec_latlon_1layer first to fill up grid !!
     use SHTOOLS
     implicit none
-    integer  :: d, ierr, j, k, lmax, ll, mm
-    real(dp) :: Tk
+    integer      :: d, ierr, j, k, lmax, ll, mm
     character(4) :: var_file1, var_file2
     
     ! Spherical harmonic coefficients
