@@ -10,26 +10,49 @@ scp_cmd = "scp "+machine+":"""+dir_remote+"/*spec"" "+dir_local;
 if ~strcmp(machine,"mac")
     unix (sprintf(scp_cmd));
 end
+%%
+Z_tanh = [ ...
+    -3.8000e+03  -3.4300e+03  -3.1000e+03  -2.8000e+03  -2.5400e+03  -2.3000e+03  -2.0900e+03  -1.9000e+03  -1.7300e+03  -1.5800e+03  -1.4400e+03  ...
+    -1.3200e+03  -1.2100e+03  -1.1100e+03  -1.0200e+03  -9.4600e+02  -8.7400e+02  -8.0900e+02  -7.5100e+02  -6.9800e+02  -6.5000e+02  -6.0600e+02  ...
+    -5.6600e+02  -5.3000e+02  -4.9700e+02  -4.6600e+02  -4.3800e+02  -4.1200e+02  -3.8900e+02  -3.6600e+02  -3.4600e+02  -3.2600e+02  -3.0800e+02  ...
+    -2.9100e+02  -2.7500e+02  -2.6000e+02  -2.4500e+02  -2.3100e+02  -2.1800e+02  -2.0500e+02  -1.9300e+02  -1.8100e+02  -1.7000e+02  -1.5900e+02  ...
+    -1.4800e+02  -1.3800e+02  -1.2700e+02  -1.1700e+02  -1.0700e+02  -9.7400e+01  -8.7800e+01  -7.8300e+01  -6.8800e+01  -5.9500e+01  -5.0200e+01  ...
+    -4.1000e+01 -3.1900e+01  -2.2700e+01  -1.3600e+01  -4.5400e+00];
+
+Z_linear = [ ...
+    -3.7900e+03  -3.3900e+03  -3.0400e+03  -2.7200e+03  -2.4400e+03  -2.1900e+03  -1.9600e+03  -1.7600e+03  -1.5800e+03  -1.4200e+03  -1.2800e+03  ...
+    -1.1600e+03  -1.0400e+03  -9.4300e+02  -8.5300e+02  -7.7200e+02  -7.0000e+02  -6.3600e+02  -5.7800e+02  -5.2600e+02  -4.8000e+02  -4.3800e+02  ...
+    -4.0100e+02  -3.6700e+02  -3.3700e+02  -3.0900e+02  -2.8500e+02  -2.6200e+02  -2.4200e+02  -2.2300e+02  -2.0700e+02  -1.9100e+02  -1.7700e+02  ...
+    -1.6500e+02  -1.5300e+02  -1.4200e+02  -1.3200e+02  -1.2300e+02  -1.1400e+02  -1.0600e+02  -9.8400e+01  -9.1300e+01  -8.4600e+01  -7.8300e+01  ...
+    -7.2300e+01  -6.6500e+01  -6.1000e+01  -5.5800e+01  -5.0700e+01  -4.5800e+01  -4.1000e+01  -3.6400e+01  -3.1900e+01  -2.7500e+01  -2.3100e+01  ...
+    -1.8800e+01  -1.4600e+01  -1.0400e+01  -6.2200e+00  -2.0700e+00];
+
 
 %% Analyze spectrum data
-clear; clc; global KM; global tanh_strat; format short e
+clc; global KM; global tanh_strat; format short e
 
-dir           = "~/hydro/drake/J8Z60_tanh/";
-tanh_strat    = true;        % tanh profile (or linear) for drake case
+dir           = "~/hydro/drake/J8Z60_linear/";
+tanh_strat    = false;        % tanh profile (or linear) for drake case
 test_case     = "drake";        % prefix for test case
 level         = 8;           % resolution level
 zlevels       = 60;          % number of vertical layers
-type          = "u";      % u, curlu, divu or topo
+type          = "flux";      % u, curlu, divu or topo
 avg           = true;       % analyze average spectrum or individual spectra
 power_law_fit = false;       % plot power law fit
 plot_spec     = true;        % plot spectrum
+
+if tanh_strat
+    Z = Z_tanh;
+else
+    Z = Z_linear;
+end
 
 if tanh_strat
     layers = [1 23 54 60]; % tanh
 else
     layers = [1 14 46 60]; % linear
 end
-
+layers = 1:2:zlevels;
 if avg
     cp_min = 1; cp_max=cp_min; 
 else
@@ -69,6 +92,7 @@ tmpdir = dir+"temp_spec"; mkdir(tmpdir)
 
 % Ensure each plot uses different colors
 figure('Visible','on','Units','pixels','Position',[100 700 800 600]);pbaspect([4 3 1]);
+%figure('Visible','on','Units','pixels','Position',[100 700 1600 1200]);pbaspect([4 3 1]);
 
 ncurve = numel(layers);
 if ncurve <= 8
@@ -138,6 +162,8 @@ for cp_id = cp_min:cp_max
         scales = 2*pi*radius/1e3./sqrt(pspec(2:end,1).*(pspec(2:end,1)+1)); % equivalent length scale (Jeans relation)
         power  = pspec(2:end,2); % power (variance) spectrum (equivalent to usual amplitude squared integrated over shells)
         rms    = pspec(2:end,3); % RMS power spectrum used in geodesy rms = sqrt(power/(2l+1))
+
+        disp([scales(20) zlev Z_tanh(zlev) sign(power(20))])
 
         % Plot energy spectra
 
