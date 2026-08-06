@@ -403,6 +403,7 @@ contains
     end if
   end subroutine wrap_lonlat
 
+  
   function proj_vel (velocity, ep1, ep2) result(val)
     ! Finds velocity in direction from points ep1 to ep2 at mid-point of this vector
     ! given a function for zonal u and meridional v velocities as a function of longitude and latitude
@@ -432,6 +433,7 @@ contains
     val = inner (direction (ep1, ep2), vel)
   end function proj_vel
 
+  
   function number_hex (l) result(val)
     ! Number of hexagonal/pentagonal cells for level l
     integer, intent(in) :: l
@@ -439,6 +441,8 @@ contains
 
     val = 10 * 4**l + 2
   end function number_hex
+
+  
 end module geom_mod
 
 
