@@ -21,9 +21,26 @@ module vert_diffusion_mod
   !   but still include wind stress/bottom friction.
   !
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  use init_mod
-  use utils_mod
+
+  use kind_mod,   only : dp
+  use shared_mod, only : Coord, EDGE, METRE, N_BDRY, N_VARIABLE, a_0, c_p, dt, eps, grav_accel, istep, level_start, level_end, &
+       mode_split,ref_density, tke_closure, S_MASS, S_TEMP, S_VELO,  zlevels, zmax, z_null      
+
+  use arch_mod,       only : rank
+  use domain_ops_mod, only : apply_onescale, apply_onescale_to_patch
+  use init_mod,       only : bottom_buoy_flux, bottom_friction, tau_mag, top_buoy_flux, wind_flux
+  use utils_mod,      only : dz_e, dz_i, free_surface, interp, interp_e, phi_edge, porous_density
+
+   use domain_mod, only : Domain, Float_Field, grid, Kv, Kt, dtemp, dmass, dvelo, mass, temp, velo, mean_m, mean_t, &
+       sol, sol_mean, tke, topography, id_edge, idx
+  
   implicit none
+
+  private
+  public :: trend_vertical_diffusion, vertical_diffusion
+  public :: enhance_diff, patankar, C_e, C_eps, C_l, C_k, C_srf, e_0, e_min, e_min_srf, eps_s, kappa_VK
+  public :: Kt_enh, Kt_max, Kt_min, Kt_mol, Kv_max, Kv_min, Kv_mol, rb_0, l_0, l_min, Neps_sq, Nsq_min, z_0, z_mixed
+  public :: Q_sr, R_lw, xi_lw, xi_sw, alpha_k
 
   ! Parameters for TKE closure 
   logical :: enhance_diff = .false.              ! enhanced vertical diffusion in unstable regions with very small Nsq < Nsq_min 
@@ -68,11 +85,37 @@ module vert_diffusion_mod
   real(dp) :: xi_lw       = 0.35 * METRE         ! longwave penetration depth 
   real(dp) :: xi_sw       =   23 * METRE         ! shortwave penetration depth (400 nm to 700 nm)
   real(dp) :: alpha_k                            ! thermal expansion coefficient
+
+  
+  interface
+     
+   subroutine dgtsv(n, nrhs, dl, d, du, b, ldb, info)
+      use kind_mod, only : dp
+      implicit none
+
+      integer, intent(in)    :: n
+      integer, intent(in)    :: nrhs
+      integer, intent(in)    :: ldb
+
+      real(dp), intent(inout) :: dl(*)
+      real(dp), intent(inout) :: d(*)
+      real(dp), intent(inout) :: du(*)
+      real(dp), intent(inout) :: b(ldb,*)
+
+      integer, intent(out) :: info
+    end subroutine dgtsv
+    
+end interface
+
+
 contains
+
+  
   subroutine vertical_diffusion
     ! Backwards Euler split step for vertical diffusion
     use adapt_mod
     use time_integr_mod
+    
     implicit none
     integer :: l
 
@@ -92,14 +135,17 @@ contains
     end do
     sol%bdry_uptodate = .false.
   end subroutine vertical_diffusion
+  
 
   subroutine turbulent_diffusion (dom, i, j, z_null, offs, dims)
     ! Backwards Euler step for TKE closure equation (or analytic)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, z_null
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, z_null
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer                          :: d, id, info, l
     real(dp)                         :: eta, turb, z
@@ -180,7 +226,9 @@ contains
           Kv(l)%data(d)%elts(id) = Kv_analytic (z, eta)
        end do
     end if
+    
   contains
+    
     subroutine init_diffuse
       ! Initializations
       use io_mod, only : kinetic_energy
@@ -220,24 +268,31 @@ contains
             Kt(l)%data(d)%elts(id) = Kt_tke (Kv(l)%data(d)%elts(id), Nsq(l), Ri)
          end do
       end if
+      
     end subroutine init_diffuse
+    
 
-    real(dp) function dUdZ_sq (l)
+    function dUdZ_sq (l) result(val)
       ! ||du_h/dz||^2 at interfaces 0 <= l <= zlevels
       ! (computed from twice TRiSK form of kinetic energy to use data from only a single colum)
+      
       implicit none
-      integer :: l
+      
+      integer, intent(in) :: l
+      real(dp)            :: val
 
       if (l == 0 .or. l == zlevels) then
-         dUdZ_sq = 0.0_dp
+         val = 0.0_dp
       else
-         dUdZ_sq = ( (Umag(l+1) - Umag(l)) / dzl(l) )**2
+         val = ( (Umag(l+1) - Umag(l)) / dzl(l) )**2
       end if
     end function dUdZ_sq
 
     subroutine update_Kv_Kt
       ! Update eddy diffusivity and eddy viscosity
+      
       implicit none
+      
       real(dp) :: Ri ! Richardson number
 
       ! Length scales
@@ -255,24 +310,31 @@ contains
          tke(l)%data(d)%elts(id) = max (e(l), e_min)
       end do
     end subroutine update_Kv_Kt
+    
 
-    real(dp) function coeff (dz, Kv)
+    function coeff (dz, Kv) result(val)
       ! Computes entries of vertical Laplacian matrix
+      
       implicit none
-      real(dp) :: dz  ! layer depth
-      real(dp) :: Kv  ! eddy diffusivity
+      
+      real(dp), intent(in) :: dz  ! layer depth
+      real(dp), intent(in) :: Kv  ! eddy diffusivity
+      real(dp)             :: val
 
-      coeff = dt * C_e * Kv / (dzl(l) * dz)
+      val = dt * C_e * Kv / (dzl(l) * dz)
     end function coeff
   end subroutine turbulent_diffusion
+  
 
   subroutine backwards_euler_temp (dom, i, j, z_null, offs, dims)
     ! Backwards Euler step for buoyancy
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, z_null
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, z_null
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer                          :: d, id, info, k, l
     real(dp)                         :: eta, rho_dz
@@ -329,49 +391,68 @@ contains
        rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
        sol(S_TEMP,k)%data(d)%elts(id) = rho_dz * rhs(k)
     end do
+    
   contains
-    real(dp) function coeff (l)
+    
+    function coeff (l) result(val)
       ! Coefficient at interface above (l = 1) or below (l = -1) vertical level k for vertical Laplacian matrix
       implicit none
-      integer :: l
+      integer, intent(in) :: l
+      real(dp)            :: val
+      
       integer :: kk
 
       kk = k + min (0,l)
-      coeff = dt * Kt(kk)%data(d)%elts(id) / (dzl(kk) * dz(k))
+      
+      val = dt * Kt(kk)%data(d)%elts(id) / (dzl(kk) * dz(k))
     end function coeff
 
-    real(dp) function b ()
+    function b () result(val)
       ! Fluctuating buoyancy
+      
       implicit none
+      
       real(dp) :: rho_dz
+      real(dp) :: val
 
       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
-      b = sol(S_TEMP,k)%data(d)%elts(id) / rho_dz
+      
+      val = sol(S_TEMP,k)%data(d)%elts(id) / rho_dz
     end function b
 
-    real(dp) function solar_flux ()
+    function solar_flux () result(val)
       ! Net solar flux in layer 1 <= k < zlevels from NEMO modified for buoyancy
+      
       implicit none
-
-      solar_flux = (irradiance (eta-z(k)) - irradiance (eta-z(k-1))) * alpha_k / (ref_density * c_p)
+      
+      real(dp) :: val
+      
+      val = (irradiance (eta-z(k)) - irradiance (eta-z(k-1))) * alpha_k / (ref_density * c_p)
     end function solar_flux
   end subroutine backwards_euler_temp
+  
 
-  real(dp) function irradiance (depth)
+  function irradiance (depth) result(val)
     ! Downward irradiance
+    
     implicit none
-    real(dp) :: depth ! depth below free surface
+    
+    real(dp), intent(in) :: depth ! depth below free surface
+    real(dp)             :: val
 
-    irradiance = Q_sr * (R_lw * exp (-depth/xi_lw) + (1.0_dp - R_lw) * exp (-depth/xi_sw))
+    val = Q_sr * (R_lw * exp (-depth/xi_lw) + (1.0_dp - R_lw) * exp (-depth/xi_sw))
   end function irradiance
+  
 
   subroutine backwards_euler_velo (dom, i, j, z_null, offs, dims)
     ! Backwards Euler step for velocity variable
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, z_null
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, z_null
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer                                 :: d, e, id, info, k, l
     real(dp), dimension(1:EDGE,1:zlevels)   :: diag, dz, rhs
@@ -419,42 +500,51 @@ contains
           sol(S_VELO,k)%data(d)%elts(EDGE*id+e) = r(k)
        end do
     end do
+    
   contains
-    function coeff (l)
+    
+    function coeff (l) result(val)
       ! Computes coefficient above (l = 1) or below (l = -1) for vertical Laplacian matrix
+      
       implicit none
-      integer                    :: l
-      real(dp), dimension(1:EDGE) :: coeff
+      
+      integer, intent(in) :: l
+      real(dp)            :: val(EDGE)
 
       integer :: kk
 
       kk = k + min (0, l)
 
-      coeff = dt * Kv(kk)%data(d)%elts(id+1) / (dzl(:,kk) * dz(:,k))
+      val = dt * Kv(kk)%data(d)%elts(id+1) / (dzl(:,kk) * dz(:,k))
     end function coeff
+    
   end subroutine backwards_euler_velo
+  
 
-  real(dp) function N_sq  (dom, i, j, l, offs, dims, dz)
+  function N_sq  (dom, i, j, l, offs, dims, dz) result(val)
     ! Brunt-Vaisala number N^2 = -g drho/dz / rho0 at interface 0 <= l <= zlevels
+    
     implicit none
-    type(Domain)                    :: dom
-    integer                         :: i, j, l
-    integer,  dimension(N_BDRY+1)   :: offs
-    integer,  dimension(2,N_BDRY+1) :: dims
-    real(dp), dimension(1:zlevels)  :: dz
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, l
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp),     intent(in)    :: dz(1:zlevels)
+    real(dp)                    :: val
 
-    N_sq = 0.0_dp
+    val = 0.0_dp
     if (l < zlevels .and. l > 0) then
-       N_sq = eval (l)
+       val = eval (l)
     elseif (l == 0) then
-       N_sq = eval (1)
+       val = eval (1)
     elseif (l == zlevels) then
-       N_sq = eval(zlevels-1)
+       val = eval(zlevels-1)
     end if
   contains
     real(dp) function eval (l)
       implicit none
-      integer :: l
+      integer, intent(in) :: l
 
       integer  :: d, id
       real(dp) :: dzl
@@ -471,18 +561,26 @@ contains
     end function eval
   end function N_sq
 
-  real(dp) function Richardson (Nsq, dudzsq)
+  
+  function Richardson (Nsq, dudzsq) result(val)
     ! Richardson number at interface  0 <= l <= zlevels
+    
     implicit none
-    real(dp) :: Nsq, dudzsq
+    
+    real(dp), intent(in) :: Nsq, dudzsq
+    real(dp)             :: val
 
-    Richardson = Nsq / (dudzsq + eps_s)
+   val= Nsq / (dudzsq + eps_s)
   end function Richardson
 
-  real(dp) function Prandtl (Ri)
+  
+  function Prandtl (Ri) result(val)
     ! Computes Prandtl number given Richardson number
+    
     implicit none
-    real(dp) :: Ri
+    
+    real(dp), intent(in) :: Ri
+    real(dp)             :: val
 
     real(dp) :: Ri_c ! critical Richardson number
 
@@ -490,18 +588,21 @@ contains
 
     ! NEMO
     if (Ri < 0.2e0_dp) then
-       Prandtl = 1.0_dp
+       val = 1.0_dp
     elseif (Ri >= 0.2_dp .and. Ri <= 2_dp) then
-       Prandtl = 5 * Ri
+       val = 5 * Ri
     else
-       Prandtl = 10.0_dp
+       val = 10.0_dp
     end if
-!!$    Prandtl = max (0.1e0_dp, Ri_c / max (Ri_c, Ri)) ! CROCO
-  end function prandtl
+!!$    val = max (0.1e0_dp, Ri_c / max (Ri_c, Ri)) ! CROCO
+  end function Prandtl
+  
 
   subroutine l_scales (dz, Nsq, tau, tke, l_eps, l_k)
     ! Computes length scales l_eps and l_m at interfaces 0:zlevels for TKE closure for a single vertical column
+    
     implicit none
+    
     real(dp),                       intent (in)  :: tau   ! wind stress
     real(dp), dimension(1:zlevels), intent (in)  :: dz    ! layer thicknesses
     real(dp), dimension(0:zlevels), intent (in)  :: Nsq   ! Brunt-Vaisala frequency
@@ -509,8 +610,8 @@ contains
     real(dp), dimension(0:zlevels), intent (out) :: l_k   ! dissipation length scale (velocity)
     real(dp), dimension(0:zlevels), intent (out) :: l_eps ! mixing length scale (buoyancy)
 
-    integer                       :: l
-    real(dp), dimension(0:zlevels) :: l_dwn, l_up
+    integer  :: l
+    real(dp) :: l_dwn(0:zlevels), l_up(0:zlevels)
 
     ! First order approximation for mixing length
     do l = 0, zlevels
@@ -533,49 +634,68 @@ contains
     ! Returned mixing length scales
     l_eps = max (l_min, sqrt (l_up * l_dwn)) 
     l_k   = max (l_min, min  (l_up,  l_dwn))
-   end subroutine l_scales
+  end subroutine l_scales
 
-  real(dp) function Kt_tke (Kv, Nsq, Ri)
+  
+  function Kt_tke (Kv, Nsq, Ri) result(val)
     ! TKE closure eddy diffusivity
+
     implicit none
-    real(dp) :: Kv  ! eddy viscosity
-    real(dp) :: Nsq ! Brunt-Vaisala frequency squared
-    real(dp) :: Ri  ! Richardson number 
 
-    Kt_tke = min (Kt_max, max (Kv/Prandtl(Ri), Kt_min))
+    real(dp), intent(in) :: Kv  ! eddy viscosity
+    real(dp), intent(in) :: Nsq ! Brunt-Vaisala frequency squared
+    real(dp), intent(in) :: Ri  ! Richardson number
+    real(dp)             :: val
 
-    if (enhance_diff .and. Nsq <= Nsq_min) Kt_tke = Kt_enh ! enhanced vertical diffusion
+   val = min (Kt_max, max (Kv/Prandtl(Ri), Kt_min))
+
+    if (enhance_diff .and. Nsq <= Nsq_min) val = Kt_enh ! enhanced vertical diffusion
   end function Kt_tke
+  
 
-  real(dp) function Kv_tke (e, l_k, Nsq)
+  function Kv_tke (e, l_k, Nsq) result(val)
     ! TKE closure eddy viscosity
     implicit none
-    real(dp) :: e   ! tke
-    real(dp) :: l_k ! mixing length for eddy viscosity dissipation
-    real(dp) :: Nsq ! Brunt-Vaisala frequency squared
+    real(dp), intent(in) :: e   ! tke
+    real(dp), intent(in) :: l_k ! mixing length for eddy viscosity dissipation
+    real(dp), intent(in) :: Nsq ! Brunt-Vaisala frequency squared
+    real(dp)             :: val
 
-    Kv_tke = min (Kv_max, max (C_k * l_k * sqrt(e), Kv_min))
+    val = min (Kv_max, max (C_k * l_k * sqrt(e), Kv_min))
   end function Kv_tke
 
-  real(dp) function Kt_analytic (z, eta)
+  
+  function Kt_analytic (z, eta) result(val)
     ! Analytic eddy diffusivity
-    implicit none
-    real(dp) :: eta, z
     
-    Kt_analytic = Kt_min + Kt_max * exp (-20 * (z - eta) / z_mixed)
+    implicit none
+    
+    real(dp), intent(in) :: eta, z
+    real(dp)             :: val
+    
+    val = Kt_min + Kt_max * exp (-20 * (z - eta) / z_mixed)
   end function Kt_analytic
 
-  real(dp) function Kv_analytic (z, eta)
-    ! Analytic eddy viscosity
-    real(dp) :: eta, z
 
-    Kv_analytic = Kv_min + Kv_max * exp (-20 * (z - eta) / z_mixed)
+  function Kv_analytic (z, eta) result(val)
+    ! Analytic eddy viscosity
+
+    implicit none
+
+    real(dp), intent(in) :: eta, z
+    real(dp)             :: val
+
+    val = Kv_min + Kv_max * exp (-20 * (z - eta) / z_mixed)
   end function Kv_analytic
 
+  
   subroutine trend_vertical_diffusion (q, dq)
     ! Trend for eddy diffusivity and eddy viscosity for forward Euler time step
+    
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q, dq
+    
+    type(Float_Field), target, intent(in)    :: q(1:N_VARIABLE,1:zmax)
+    type(Float_Field), target, intent(inout) :: dq(1:N_VARIABLE,1:zmax)
 
     integer :: d, k, p
 
@@ -599,15 +719,18 @@ contains
     end do
     dq%bdry_uptodate = .false.
   end subroutine trend_vertical_diffusion
+  
 
   subroutine trend_scalars_vert_diffuse (dom, i, j, zlev, offs, dims)
     ! Vertical eddy diffusivity of buoyancy
     ! (layer height is not diffused)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer  :: d, id_i
     real(dp) :: dz_k
@@ -627,11 +750,16 @@ contains
        dtemp(id_i) = Kt(zlevels)%data(d)%elts(id_i) * top_buoy_flux (dom, i, j, z_null, offs, dims) - scalar_flux(-1)
     end if
     dtemp(id_i) = porous_density (d, id_i, zlev) * dtemp(id_i)
+    
   contains
-    real(dp) function scalar_flux (l)
+    
+    function scalar_flux (l) result(val)
       ! Computes flux at interface below (l=-1) or above (l=1) vertical level zlev
+      
       implicit none
-      integer :: l
+      
+      integer, intent(in) :: l
+      real(dp)            :: val
 
       real(dp) :: b_0, b_l, dz_l, mass_0, mass_l, temp_0, temp_l, visc
 
@@ -647,19 +775,23 @@ contains
 
       dz_l = interp (dz_k,  dz_i(dom, i, j, zlev+l, offs, dims, sol)) ! thickness of layer centred on interface
 
-      scalar_flux = l * visc * (b_l - b_0) / dz_l
+      val = l * visc * (b_l - b_0) / dz_l
     end function scalar_flux
+    
   end subroutine trend_scalars_vert_diffuse
-
+  
+  
   subroutine trend_velo_vert_diffuse (dom, i, j, zlev, offs, dims)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                     :: d, id
-    real(dp), dimension(1:EDGE) :: dz_k
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer  :: d, id
+    real(dp) :: dz_k(EDGE)
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
@@ -673,19 +805,25 @@ contains
     elseif (zlev == zlevels) then
        dvelo(id_edge(id)) = (wind_flux (dom, i, j, z_null, offs, dims) - velo_flux(-1)) / dz_k 
     end if
-  contains
-    function velo_flux (l)
-      ! Flux at upper interface (l=1) or lower interface (l=-1)
-      implicit none 
-      integer                :: l
-      real(dp), dimension(3) :: velo_flux
 
-      real(dp), dimension(3) :: dzl, visc
+  contains
+    function velo_flux (l) result(val)
+      ! Flux at upper interface (l=1) or lower interface (l=-1)
+
+      implicit none
+
+      integer, intent(in) :: l
+      real(dp)            :: val(3)
+
+      real(dp) :: dzl(3), visc(3)
 
       visc = Kv(zlev+min(0,l))%data(d)%elts(id+1)
       dzl = 0.5 * (dz_k + dz_e (dom, i, j, zlev+l, offs, dims, sol)) ! thickness of layer centred on interface
 
-      velo_flux = l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(id_edge(id)) - velo(id_edge(id))) / dzl
+      val= l * visc * (sol(S_VELO,zlev+l)%data(d)%elts(id_edge(id)) - velo(id_edge(id))) / dzl
     end function velo_flux
+
   end subroutine trend_velo_vert_diffuse
+
+
 end module vert_diffusion_mod

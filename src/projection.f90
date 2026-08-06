@@ -1,8 +1,23 @@
 module projection_mod
   ! Routines to implement projection onto 2D lon-lat grid
   ! call initialize_projection first
-  use comm_mpi_mod
+  
+  use kind_mod,     only : dp
+  use shared_mod,   only : Coord, MATH_PI, N_BDRY, DEG
+  
+  use arch_mod,     only : rank
+  use comm_mod,     only : sync_val
+  use comm_mpi_mod, only : sync_array
+  use domain_mod,   only : Float_Field, get_offs_Domain, grid, topography, idx
+  use geom_mod,     only : cart2sph
+  use patch_mod,    only : PATCH_SIZE
+  
   implicit none
+
+  private
+  public :: initialize_projection, project_field_onto_plane, project_array_onto_plane
+  public :: Nx, Ny, dx_export, dy_export, kx_export, ky_export, lon_lat_range, lat, lon, field2d, xcoord_lat, xcoord_lon, proj_sclr
+  
   integer, dimension(2)                 :: Nx, Ny
   real(dp)                              :: dx_export, dy_export, kx_export, ky_export
   real(dp), dimension(2)                :: lon_lat_range
@@ -13,7 +28,7 @@ contains
   subroutine initialize_projection (m)
     ! Initialize 2d projection variables on lon-lat grid of size (-m/2, m/2) x (-m/4, m/4)
     implicit none
-    integer :: m
+    integer, intent(in) :: m
     
     integer :: i
 
@@ -27,9 +42,9 @@ contains
     kx_export = 1 / dx_export
     ky_export = 1 / dy_export
 
-    if (allocated(field2d)) deallocate (field2d)
-    if (allocated(lat)) deallocate (lat)
-    if (allocated(lon)) deallocate (lon)
+    if (allocated(field2d))    deallocate (field2d)
+    if (allocated(lat))        deallocate (lat)
+    if (allocated(lon))        deallocate (lon)
     if (allocated(xcoord_lat)) deallocate (xcoord_lat)
     if (allocated(xcoord_lon)) deallocate (xcoord_lon)
     
@@ -53,9 +68,9 @@ contains
   subroutine project_field_onto_plane (field, l, default_val)
     ! Projects float field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     implicit none
-    integer           :: l
-    real(dp)          :: default_val
-    Type(Float_field) :: field
+    integer,           intent(in) :: l
+    real(dp),          intent(in) :: default_val
+    Type(Float_field), intent(in) :: field
 
     integer                         :: d, i, j, jj
     integer                         :: id, idN, idE, idNE
@@ -110,9 +125,9 @@ contains
   subroutine project_array_onto_plane (array, l, default_val)
     ! Projects float array from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     implicit none
-    integer      :: l
-    real(dp)     :: default_val
-    character(*) :: array
+    integer,      intent(in) :: l
+    real(dp),     intent(in) :: default_val
+    character(*), intent(in) :: array
 
     integer                        :: d, i, j, jj
     integer                        :: id, idN, idE, idNE
@@ -275,10 +290,10 @@ contains
     if (inside) ival = sum (values * bc)
   end subroutine interp_tria
 
-  function bary_coord (ll, a, b, c)
+  function bary_coord (ll, a, b, c) result(val)
     implicit none
-    real(dp), dimension(3) :: bary_coord
-    real(dp), dimension(2) :: a, b, c, ll
+    real(dp), intent(in) :: a(2), b(2), c(2), ll(2)
+    real(dp)             :: val(3)    
 
     real(dp)               :: det
     real(dp), dimension(3) :: bac
@@ -295,14 +310,14 @@ contains
     
     bac(3) = 1.0_dp - bac(1) - bac(2)
     
-    bary_coord = bac
+    val = bac
   end function bary_coord
 
   subroutine fix_boundary (a, b, c, fixed)
     implicit none
     real(dp), intent(inout) :: a
     real(dp), intent(in)    :: b, c
-    integer, intent(out)   :: fixed
+    integer,  intent(out)   :: fixed
 
     fixed = 0
     if (a < -MATH_PI/2 .and. (b > MATH_PI/2 .and. c > MATH_PI/2)) then
@@ -316,8 +331,8 @@ contains
 
    subroutine cart2sph2 (cin, cout)
     implicit none
-    type(Coord)                        :: cin
-    real(dp), dimension(2), intent(out) :: cout
+    type(Coord), intent(in)  :: cin
+    real(dp),    intent(out) :: cout(2)
 
     call cart2sph (cin, cout(1), cout(2))
   end subroutine cart2sph2

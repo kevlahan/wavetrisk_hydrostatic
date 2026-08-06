@@ -1,8 +1,12 @@
 module coord_arithmetic_mod
   ! Defines arithmetic operations for coord type variables
   ! includes vector addition/subtraction, scalar multiplication/division
-  use shared_mod
+
+  use kind_mod,   only : dp
+  use shared_mod, only : coord
+  
   implicit none
+  
   private
 
   public operator (+)

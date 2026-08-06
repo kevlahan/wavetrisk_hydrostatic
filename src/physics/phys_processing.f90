@@ -7,9 +7,25 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 module phys_processing_mod
   ! Use cases
-  use ops_mod
-  use physics_simple_mod
+
+  use kind_mod,   only : dp
+  use shared_mod, only : HOUR, MATH_PI, N_BDRY, N_VARIABLE, Nsoil, S_MASS, S_TEMP, S_VELO, &
+       grav_accel, R_d, p_0, run_id, zlevels, z_null, level_start, level_end, time, zlevels, zmin, z_null
+
+  use arch_mod,       only : rank
+  use comm_mpi_mod,   only : sum_real
+  use domain_mod,     only : DOMAIN, grid, exner, exner_fun, mass, temp, mean_m, mean_t, velo, velo1, velo2, sol, sol_mean, idx
+  use domain_ops_mod, only : apply_bdry
+  use geom_mod,       only : cart2sph
+  use ops_mod,        only : cal_surf_press, integrate_pressure_up
+  use utils_mod,      only :  integrate_hex, interp, interp_UVW_latlon, theta2temp
+  
   implicit none
+
+  private
+
+  public :: get_coordinates, mean_values
+  
 contains
   subroutine mean_values (iwrt)
     !-----------------------------------------------------------------------------------
@@ -160,11 +176,13 @@ contains
       !                 the Kintic Energies.
       !
       !-----------------------------------------------------------------------------------
+
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+      
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1) 
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: d, id_i
       real(dp) :: rho_dz, rho_dz_theta, potential_temp, temperature, lat, lon
@@ -219,11 +237,13 @@ contains
       !              and stored in dom%geopot and dom%geopot_lower.
       !
       !-----------------------------------------------------------------------------------
+        
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: id_i
 
@@ -242,12 +262,14 @@ contains
       !        - pressure at the zlevel interfaces are already calculated and stored in dom%press
       !
       !-----------------------------------------------------------------------------------
+      
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
 
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
+      
       integer :: id_i
 
       id_i = idx (i, j, offs, dims) + 1
@@ -264,12 +286,14 @@ contains
       !                    meridional integration is called.
       !
       !-----------------------------------------------------------------------------------
+         
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
 
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
+      
       integer :: d, id_i
 
       d = dom%id + 1
@@ -297,12 +321,13 @@ contains
       !        - density was already calculated and stored in dom%ke, from the temp call
       !
       !-----------------------------------------------------------------------------------
+      
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
 
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
       integer :: d, id_i
 
       d = dom%id + 1
@@ -321,11 +346,13 @@ contains
       !        - velocity was already calculated and stored in dom%v_merid, from zonal velocity call
       !
       !-----------------------------------------------------------------------------------
+          
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: id_i
 
@@ -345,11 +372,13 @@ contains
       !        - density was already calculated and stored in dom%ke, from the temp call
       !
       !-----------------------------------------------------------------------------------
+      
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: id_i
 
@@ -364,12 +393,13 @@ contains
       !   Description: Defines mass for total mass integration and for zonal latitude regions.
       !
       !-----------------------------------------------------------------------------------
-
+      
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer  :: id_i
       real(dp) :: lat, lon
@@ -390,7 +420,7 @@ contains
       area_fun = 1.0_dp
     end function area_fun
 
-    real(dp) function surf_soil_temp_fun(dom, i, j, zlev, offs, dims)
+    real(dp) function surf_soil_temp_fun (dom, i, j, zlev, offs, dims)
       !-----------------------------------------------------------------------------------
       !
       !   Description: Retrieve the temperature of the surface and/or soil layer of an element.
@@ -398,12 +428,14 @@ contains
       !   Notes: zleve will be 0 or a negative number indicating soil layer or surface.
       !
       !-----------------------------------------------------------------------------------
+      
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
 
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
+   
       integer :: d, id_i
 
       d = dom%id + 1
@@ -438,11 +470,13 @@ contains
     !   Description: Retrieve latitude and longitude of an element
     !
     !-----------------------------------------------------------------------------------
+
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
     
     integer  :: id_i
     real(dp) :: lat, lon

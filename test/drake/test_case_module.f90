@@ -1,9 +1,20 @@
 module test_case_mod
+  
+#ifdef MPI
+  use mpi_f08
+#endif
+  
+  use kind_mod
+  use shared_mod
+  use arch_mod
   use comm_mpi_mod
-  use utils_mod
+  use domain_mod
+  use domain_ops_mod
+  use geom_mod
   use init_mod
+  use utils_mod
   use vert_diffusion_mod
-  use lin_solve_mod
+  
   implicit none
 
   ! Standard variables
@@ -26,7 +37,7 @@ module test_case_mod
   character(10)                         :: stratification = "tanh"
   
   ! Drake land boundaries
-  real(8),                   parameter  :: lat_max = 60*DEG, lat_min = -35*DEG, lon_min = -15*DEG, lon_max = 15*DEG
+  real(dp),                   parameter  :: lat_max = 60*DEG, lat_min = -35*DEG, lon_min = -15*DEG, lon_max = 15*DEG
 
   ! Etopo data (etopo smoothing not yet implemented)
   integer                               :: bathy_per_deg
@@ -34,7 +45,11 @@ module test_case_mod
   real(4), allocatable, dimension(:,:)  :: etopo_data
   logical                               :: etopo_bathy = .false.
   logical                               :: etopo_coast = .false.
+
+
 contains
+
+  
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
     implicit none
@@ -236,9 +251,9 @@ contains
   subroutine print_density
     implicit none
     integer                       :: k
-    real(8)                       :: bv, c_k, c1, drho, dz_l, eta, lat, rho, rho_above, z_k, z_s, z_above
-    real(8), dimension(1:zlevels) :: dz
-    real(8), dimension(0:zlevels) :: z
+    real(dp)                       :: bv, c_k, c1, drho, dz_l, eta, lat, rho, rho_above, z_k, z_s, z_above
+    real(dp), dimension(1:zlevels) :: dz
+    real(dp), dimension(0:zlevels) :: z
     type(Coord)                   :: x_i
 
     lat = 0.0_dp ! latitude to evaluate buoyancy
@@ -294,7 +309,7 @@ contains
     ! Prints out and saves logged data to a file
     implicit none
 
-    real(8) :: timing
+    real(dp) :: timing
 
     timing = get_timing(); total_cpu_time = total_cpu_time + timing
 
@@ -340,7 +355,7 @@ contains
     !integer, parameter :: npts = 2, nsmth = 12 ! yes, but internal grid refinement 
     !integer, parameter :: npts = 3, nsmth = 8 ! yes
     !integer, parameter :: nsmth = 20 ! shapiro
-    real(8)            :: lat, lon
+    real(dp)            :: lat, lon
 
     bathy_per_deg  = 60/etopo_res ! topography data per degree
 
@@ -364,16 +379,18 @@ contains
 
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Initialize mean values for an entire vertical column
+    
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: eta, rho, z_k, z_s
-    real(8), dimension(1:zlevels) :: dz
-    real(8), dimension(0:zlevels) :: z
+    real(dp)                       :: eta, rho, z_k, z_s
+    real(dp), dimension(1:zlevels) :: dz
+    real(dp), dimension(0:zlevels) :: z
 
     type(Coord) :: x_i
     
@@ -414,16 +431,18 @@ contains
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
     ! Initialize mean values for an entire vertical column
+    
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: eta, rho, rho_dz, z_k, z_s
-    real(8), dimension(1:zlevels) :: dz
-    real(8), dimension(0:zlevels) :: z
+    real(dp)                       :: eta, rho, rho_dz, z_k, z_s
+    real(dp), dimension(1:zlevels) :: dz
+    real(dp), dimension(0:zlevels) :: z
 
     type(Coord) :: x_i
 
@@ -459,22 +478,25 @@ contains
     end if
   end subroutine init_mean
 
-  real(8) function surf_geopot_case (d, id)
+  function surf_geopot_case (d, id) result(val)
     ! Surface geopotential: postive if greater than mean seafloor
     implicit none
-    integer :: d, id
+    integer, intent(in) :: d, id
+    real(dp)            :: val
 
-    surf_geopot_case = grav_accel * 0.0_dp
+    val = grav_accel * 0.0_dp
   end function surf_geopot_case
 
   subroutine init_tke (dom, i, j, zlev, offs, dims)
     ! Initialize TKE
+    
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
-
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+   
     integer :: d, id, k
 
     d  = dom%id+1
@@ -485,52 +507,57 @@ contains
     end do
   end subroutine init_tke
 
-  real(8) function buoyancy_init (x_i, z)
+  function buoyancy_init (x_i, z) result(val)
     ! Buoyancy profile
     ! buoyancy = (ref_density - density)/ref_density
     implicit none
-    real(8)     :: z
-    type(Coord) :: x_i
+    real(dp),    intent(in) :: z
+    type(Coord), intent(in) :: x_i
+    real(dp)                :: val
 
-    real(8) :: lat, lon
+    real(dp) :: lat, lon
     
     call cart2sph (x_i, lon, lat)
 
     select case (zlevels)
     case (1)
-       buoyancy_init = 0.0_dp
+      val = 0.0_dp
     case (2)
        if (z >= z_mixed) then
-          buoyancy_init = - drho / ref_density
+          val = - drho / ref_density
        else
-          buoyancy_init = 0.0_dp
+          val = 0.0_dp
        end if
     case default ! zlevels >= 3
-       buoyancy_init = (ref_density - density (z)) / ref_density
+       val = (ref_density - density (z)) / ref_density
     end select
   end function buoyancy_init
 
-  real(8) function density (z)
+  
+  function density (z) result(val)
     implicit none
-    real(dp) :: z
+    real(dp), intent(in) :: z
+    real(dp)             :: val
+    
     real(dp) :: eps_l ! thickness of linear stratification layer
 
     select case (stratification)
     case ("linear")
        if (z >= z_mixed) then ! constant density perturbation near surface
-          density = ref_density + drho
+          val = ref_density + drho
        else                   ! linear stratification
-          density = ref_density + drho * (1.0_dp - (z_mixed - z) / (z_mixed - max_depth))
+          val = ref_density + drho * (1.0_dp - (z_mixed - z) / (z_mixed - max_depth))
        end if
     case ("tanh")
        eps_l = (z_mixed - z_linear) / 3 
-       density = ref_density + drho * ( 1.0_dp + tanh ( (z - z_mixed + 2 * eps_l) / eps_l) ) / 2
+       val = ref_density + drho * ( 1.0_dp + tanh ( (z - z_mixed + 2 * eps_l) / eps_l) ) / 2
     case default
        eps_l = (z_mixed - z_linear) / 3 
-       density = ref_density + drho * ( 1.0_dp + tanh ( (z - z_mixed + 2 * eps_l) / eps_l) ) / 2
+       val = ref_density + drho * ( 1.0_dp + tanh ( (z - z_mixed + 2 * eps_l) / eps_l) ) / 2
     end select
   end function density
 
+  
   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
     implicit none
@@ -581,14 +608,17 @@ contains
     C_visc(S_DIVU,:) = 0.5_dp
   end subroutine initialize_dt_viscosity_case
 
+  
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
-    ! Set depth 
+    ! Set depth
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+  
     integer :: id, id_i
 
     id = idx (i, j, offs, dims)
@@ -604,11 +634,13 @@ contains
 
   subroutine set_penal (dom, i, j, zlev, offs, dims)
     ! Set penalization mask
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: d, id, k
 
@@ -634,12 +666,13 @@ contains
     use coord_arithmetic_mod
     use utils_mod
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    character(*)                   :: itype
-
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    character(*), intent(in)    :: itype
+   
     integer     :: d, id, idE, idNE, idN
     type(coord) :: p, pE, pNE, pN
 
@@ -668,10 +701,11 @@ contains
     end select
   end subroutine analytic_topography
 
-  real(dp) function penal (p)
+  function penal (p) result(val)
     ! Smooth mask over dx_min grid points
     implicit none
-    type(coord) :: p
+    type(coord), intent(in) :: p
+    real(dp)                :: val
 
     real(dp) :: lat, lon, shift, smth_dtheta
     
@@ -681,46 +715,55 @@ contains
 
     call cart2sph (p, lon, lat)
 
-    penal = profile1d (lat, lat_min+shift, lat_max-shift) * profile1d (lon, lon_min+shift, lon_max-shift)
-  contains
-    real(dp) function profile1d (theta, theta_min, theta_max)
-      implicit none
-      real(dp) :: theta, theta_min, theta_max
+    val = profile1d (lat, lat_min+shift, lat_max-shift) * profile1d (lon, lon_min+shift, lon_max-shift)
 
-      profile1d = prof (theta, theta_max) - prof (theta, theta_min)
+  contains
+
+    function profile1d (theta, theta_min, theta_max) result(val)
+      implicit none
+      real(dp), intent(in) :: theta, theta_min, theta_max
+      real(dp)             :: val
+
+      val = prof (theta, theta_max) - prof (theta, theta_min)
     end function profile1d
 
-    real(dp) function prof (theta, theta0)
+    function prof (theta, theta0) result(val)
       implicit none
-      real(dp) :: theta, theta0
+      real(dp), intent(in) :: theta, theta0
+      real(dp)             :: val
 
-      prof = 0.5 * (1.0_dp - tanh ((theta - theta0)/smth_dtheta))
+      val = 0.5 * (1.0_dp - tanh ((theta - theta0)/smth_dtheta))
     end function prof
+
   end function penal
 
-  real(8) function drake_land (lon, lat)
+
+  function drake_land (lon, lat) result(val)
     implicit none
-    real(8)           :: lat, lon
+    real(dp), intent(in) :: lat, lon
+    real(dp)             :: val
 
     if ((lat<lat_max .and. lat>lat_min) .and. (lon<lon_max .and. lon>lon_min)) then
-       drake_land = 1.0_dp
+       val = 1.0_dp
     else
-       drake_land = 0.0_dp
+       val = 0.0_dp
     end if
   end function drake_land
 
+  
   subroutine etopo_topography (dom, i, j, zlev, offs, dims, itype)
     ! Returns penalization mask for land penal and bathymetry coordinate topo using etopo data 
     ! uses radial basis function for smoothing (if specified)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    character(*)                   :: itype
+      
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    character(*), intent(in)    :: itype
 
-    integer :: d, id, id_i, is0, it0
-    real(8) :: lat, lon, mask, s0, t0
+    integer  :: d, id, id_i, is0, it0
+    real(dp) :: lat, lon, mask, s0, t0
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -743,39 +786,41 @@ contains
     end select
   end subroutine etopo_topography
 
-  real(8) function topo_value (s, t, itype)
+  function topo_value (s, t, itype) result(val)
     implicit none
-    integer      :: s, t
-    character(*) :: itype
+    integer,      intent(in) :: s, t
+    character(*), intent(in) :: itype
+    real(dp)                 :: val
 
     select case (itype)
     case ("bathymetry")
        if (etopo_data(s, t) > 0.0_dp) then ! land
-          topo_value = min_depth
+          val = min_depth
        else ! sea: topography is less than zero
-          topo_value = max (min (etopo_data(s, t), min_depth), max_depth)
+          val = max (min (etopo_data(s, t), min_depth), max_depth)
        end if
     case ("penalize")
        if (etopo_data(s, t) > 0.0_dp) then ! land
-          topo_value = 1.0_dp
+          val = 1.0_dp
        else ! sea: topography is less than zero
-          topo_value = 0.0_dp
+          val = 0.0_dp
        end if
     case default
-       topo_value = 0.0_dp
+       val  = 0.0_dp
     end select
   end function topo_value
+  
+  function proj_lon_lat (i, j) result(val)
+    integer, intent(in) :: i, j
+    type(Coord) :: val
 
-  type(Coord) function proj_lon_lat (i, j)
-    integer :: i, j
-    
-    real(8) :: lon, lat
+    real(dp) :: lon, lat
 
     lon = dble(i) * (BATHY_PER_DEG * DEG)
     lat = dble(j) * (BATHY_PER_DEG * DEG)
 
-    proj_lon_lat = sph2cart (lon, lat)
-  end function proj_lon_lat 
+    val = sph2cart (lon, lat)
+  end function proj_lon_lat
 
   subroutine apply_initial_conditions_case
     implicit none
@@ -888,7 +933,7 @@ contains
 
   subroutine dump_case (fid)
     implicit none
-    integer :: fid
+    integer, intent(in) :: fid
 
     write (fid) iwrite
     write (fid) threshold
@@ -896,7 +941,7 @@ contains
 
   subroutine load_case (fid)
     implicit none
-    integer :: fid
+    integer, intent(in) :: fid
 
     read (fid) iwrite
     read (fid) threshold
@@ -905,7 +950,8 @@ contains
   subroutine trend_relax (q, dq)
     ! Trend relaxation to mean buoyancy
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), target, intent(inout) :: dq(1:N_VARIABLE,1:zlevels)
 
     integer :: d, k, p
 
@@ -938,13 +984,14 @@ contains
     dq%bdry_uptodate = .false.
   end subroutine trend_relax
 
+  
   subroutine trend_scalars (dom, i, j, zlev, offs, dims)
     ! Relax buoyancy to mean
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id_i
 
@@ -954,12 +1001,14 @@ contains
     dtemp(id_i) = - k_T * (temp(id_i) - mass(id_i) * mean_t(id_i)/mean_m(id_i))
   end subroutine trend_scalars
 
+  
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id
 
@@ -968,22 +1017,22 @@ contains
     dvelo(id_edge(id)) = 0.0_dp
   end subroutine trend_velo
 
-  function z_coords_case (eta_surf, z_s) 
+  function z_coords_case (eta_surf, z_s) result(val)
     ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
     ! near the free surface over strong bathymetry gradients.
     ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
     !
     ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
     implicit none
-    real(8),          intent (in) :: eta_surf, z_s ! free surface and bathymetry
-    real(8), dimension(0:zlevels) :: z_coords_case
+    real(dp), intent (in) :: eta_surf, z_s ! free surface and bathymetry
+    real(dp)              :: val(0:zlevels) 
 
-    integer                       :: k
-    real(8)                       :: cff, cff1, cff2, hc, z_0
-    real(8), dimension(0:zlevels) :: Cs, sc
+    integer  :: k
+    real(dp) :: cff, cff1, cff2, hc, z_0
+    real(dp) :: Cs(0:zlevels), sc(0:zlevels)
 
-    real(8), parameter            :: theta_b = 0.0_dp, theta_s = 7.0_dp
-    real(8), parameter            :: hc_min = -200 * METRE ! minimum depth of uniform layer region
+    real(dp), parameter            :: theta_b = 0.0_dp, theta_s = 7.0_dp
+    real(dp), parameter            :: hc_min = -200 * METRE ! minimum depth of uniform layer region
 
     select case (stratification)
     case ("linear")
@@ -1005,31 +1054,33 @@ contains
        Cs(k) = (1.0_dp - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5_dp)) - 0.5_dp)
     end do
 
-    z_coords_case(0) = z_s
+    val(0) = z_s
     do k = 1, zlevels
        cff = hc * (sc(k) - Cs(k))
        z_0 = cff - Cs(k) * z_s
        a_vert(k) = 1.0_dp - z_0 / z_s
-       z_coords_case(k) = eta_surf * a_vert(k) + z_0
+      val(k) = eta_surf * a_vert(k) + z_0
     end do
   end function z_coords_case
-  
-function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
-    ! Additional physics for the flux term of the scalar trend
-    ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
+
+
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type) result(flux)
+    ! Scalar diffusion flux
     !
     ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
     use domain_mod
+
     implicit none
 
-    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
-    type(domain)                                         :: dom
-    integer                                              :: d, id, idE, idNE, idN, v, zlev
-    logical, optional                                    :: type
+    type(Float_Field), intent(inout)        :: q(1:N_VARIABLE,1:zlevels)
+    type(domain),      intent(inout)        :: dom
+    integer,           intent(in)           :: id, idE, idNE, idN, v, zlev
+    logical,           intent(in), optional :: type
+    real(dp)                                :: flux(EDGE)
 
-    real(8), dimension(1:EDGE) :: d_e, grad, l_e
-    logical                    :: local_type
+    integer  :: d
+    real(dp) :: d_e(EDGE), grad(EDGE), l_e(EDGE)
+    logical  :: local_type
 
     if (present(type)) then
        local_type = type
@@ -1039,7 +1090,7 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
 
     d = dom%id + 1
 
-    physics_scalar_flux_case = 0.0_dp
+    flux = 0.0_dp
     
     if (Laplace_sclr /= 0) then
        if (.not.local_type) then ! usual flux at edges E, NE, N
@@ -1060,33 +1111,36 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1)**Laplace_sclr * nu_scale (v, zlev) * grad * l_e
+       flux = (-1)**Laplace_sclr * nu_scale (v, zlev) * grad * l_e
     end if
+    
   contains
-    function grad_physics (scalar)
+    
+    function grad_physics (scalar) result(val)
       implicit none
-      real(8), dimension(1:EDGE) :: grad_physics
-      real(8), dimension(:)      :: scalar
+      real(dp), intent(in) :: scalar(:)
+      real(dp)             :: val(EDGE)
 
-      grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
-      grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
-      grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
+      val(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
+      val(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
+      val(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
     end function grad_physics
+    
   end function physics_scalar_flux_case
 
-  function physics_velo_source_case (dom, i, j, zlev, offs, dims)
+  function physics_velo_source_case (dom, i, j, zlev, offs, dims) result(source)
     ! Additional physics for the source term of the velocity trend
-    use domain_mod
+    
     implicit none
-
-    real(8), dimension(1:EDGE)     :: physics_velo_source_case
-    type(domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: source(EDGE)
 
     integer                    :: d, id, idE, idN, idNE
-    real(8), dimension(1:EDGE) :: horiz_diffusion, h_bot, h_top, penal, u_bot, u_top, vert_diffusion
+    real(dp), dimension(1:EDGE) :: horiz_diffusion, h_bot, h_top, penal, u_bot, u_top, vert_diffusion
 
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -1145,86 +1199,97 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     ! Penalization (friction = 1/dt)
     penal = - penal_edge(zlev)%data(d)%elts(id_edge(id)) / dt * velo(id_edge(id))
 
-    physics_velo_source_case = horiz_diffusion + vert_diffusion + penal
+    source = horiz_diffusion + vert_diffusion + penal
+    
   contains
-    function bottom_drag ()
+    
+    function bottom_drag () result(val)
       implicit none
-      real(8), dimension(3) :: bottom_drag
+      real(dp) :: val(EDGE)
 
-      bottom_drag = - phi_edge (d, id, zlev) * bottom_friction * u_bot / h_bot
+     val= - phi_edge (d, id, zlev) * bottom_friction * u_bot / h_bot
     end function bottom_drag
 
-    function wind_drag ()
+    function wind_drag () result(val)
       implicit none
-      real(8), dimension(3) :: wind_drag
+      real(dp) :: val(EDGE)
 
-      real(8), dimension(3) :: tau_wind
+      real(dp) :: tau_wind(EDGE)
 
       tau_wind(RT+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idE+1))
       tau_wind(DG+1) = proj_vel (wind_stress, dom%node%elts(idNE+1), dom%node%elts(id+1))
       tau_wind(UP+1) = proj_vel (wind_stress, dom%node%elts(id+1),   dom%node%elts(idN+1))
 
-      wind_drag = phi_edge (d, id, zlevels) * tau_wind / (ref_density * h_top)
+     val = phi_edge (d, id, zlevels) * tau_wind / (ref_density * h_top)
     end function wind_drag
 
-    function grad_divu ()
+    function grad_divu () result(val)
       implicit none
-      real(8), dimension(1:EDGE) :: grad_divu
+      real(dp) :: val(EDGE)
 
-      grad_divu(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
-      grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
-      grad_divu(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
+      val(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
+      val(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      val(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
     end function grad_divu
 
-    function curl_rotu ()
+    function curl_rotu () result(val)
       implicit none
-      real(8), dimension(1:EDGE) :: curl_rotu
+      real(dp) :: val(EDGE)
 
       integer :: idS, idW
 
       idS  = idx (i,   j-1, offs, dims)
       idW  = idx (i-1, j,   offs, dims)
 
-      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
-      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
-      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+      val(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+      val(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+      val(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
+    
   end function physics_velo_source_case
+  
 
-  real(8) function bottom_buoy_flux_case (dom, i, j, z_null, offs, dims)
+  function bottom_buoy_flux_case (dom, i, j, z_null, offs, dims) result(val)
     ! Bottom boundary condition for vertical diffusion of buoyancy (e.g. heat source)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, z_null
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, z_null
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
 
-    bottom_buoy_flux_case = 0.0_dp
+    val = 0.0_dp
   end function bottom_buoy_flux_case
 
-  real(8) function top_buoy_flux_case (dom, i, j, z_null, offs, dims)
+  
+  function top_buoy_flux_case (dom, i, j, z_null, offs, dims) result(val)
     ! Top boundary condition for vertical diffusion of buoyancy (e.g. heat source)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, z_null
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
-    top_buoy_flux_case = 0.0_dp
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, z_null
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
+
+    val = 0.0_dp
   end function top_buoy_flux_case
 
-  function wind_flux_case (dom, i, j, zlev, offs, dims)
+  
+  function wind_flux_case (dom, i, j, zlev, offs, dims) result(val)
     ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(8), dimension(1:EDGE)     :: wind_flux_case
 
-    integer                    :: d, id, idE, idN, idNE
-    real(8)                    :: rho
-    real(8), dimension(1:EDGE) :: tau_wind
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val(EDGE)
+
+    integer  :: d, id, idE, idN, idNE
+    real(dp) :: rho
+    real(dp) :: tau_wind(EDGE)
 
     id = idx (i, j, offs, dims)
 
@@ -1239,16 +1304,21 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
 
     rho = porous_density (d, id+1, zlevels)
 
-    wind_flux_case = 0.0_dp
-    if (zlev == zlevels) wind_flux_case = phi_edge (d, id, zlevels) * tau_wind / rho
+    val = 0.0_dp
+    if (zlev == zlevels) val = phi_edge (d, id, zlevels) * tau_wind / rho
   end function wind_flux_case
 
+  
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     ! Idealized zonally and temporally averaged zonal and meridional wind stresses
     ! (based on Figure 4 from Ferreira et al J Climate 24, 992-1012 (2011) and Figure 4 from Gille J Atmos Ocean Tech 22, 1353-1372 respectively)
-    implicit none
-    real(8) :: lat, lon, peak, tau_zonal, tau_merid
 
+    implicit none
+    
+    real(dp), intent(in)  :: lat, lon
+    real(dp), intent(out) :: tau_zonal, tau_merid
+
+    real(dp) :: peak
     logical, parameter :: merid_stress = .false.
 
     peak = (abs(lat) * 180/MATH_PI - 35.0_dp) / 20
@@ -1262,17 +1332,20 @@ function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
     end if
   end subroutine wind_stress
 
-  real(8) function tau_mag_case (p)
+  function tau_mag_case (p) result(val)
     ! Magnitude of wind stress at node p
     implicit none
-    type(Coord) :: p
+    
+    type(Coord), intent(in) :: p
+    real(dp)                :: val
 
-    real(8) :: lat, lon, tau_zonal, tau_merid
+    real(dp) :: lat, lon, tau_zonal, tau_merid
 
     call cart2sph (p, lon, lat)
 
     call wind_stress (lon, lat, tau_zonal, tau_merid)
 
-    tau_mag_case = sqrt (tau_zonal**2 + tau_merid**2)
-  end function tau_mag_case
+   val = sqrt (tau_zonal**2 + tau_merid**2)
+ end function tau_mag_case
+ 
 end module test_case_mod

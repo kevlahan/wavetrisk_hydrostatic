@@ -4,9 +4,28 @@ program climate
   !   Climate simulation using Held and Suarez (1994) or Simple Physics (Hourdin 1993) subgrid scale model
   !
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  use main_mod
-  use test_case_mod
-  use io_vtk_mod
+
+  use kind_mod,   only : dp
+  use shared_mod, only : DAY, JOULE, KELVIN, KG, KM, METRE, N_VARIABLE, RAD, SECOND, &
+       Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim, &
+       adapt_dt, c_g, c_p, c_s, c_v, compressible, default_thresholds, gamma, grav_accel, &
+       kappa, level_start, log_min_mass, max_depth, omega, p_0, physics_model, physics_type, R_d, radius, &
+       ref_density, ref_density_air, run_id, time, time_end, uniform, vtk_grid, wave_speed, zlevels
+
+  use adapt_mod,           only : WT_after_step 
+  use arch_mod,            only : finalize, init_arch_mod, rank
+  use comm_mpi_mod,        only : init_comm_mpi_mod, start_timing, stop_timing, write_load_conn
+  use domain_mod,          only : sol, trend, wav_coeff
+  use init_physics_mod,    only : convecAdj_model, diurnal, obliquity, radiation_model, soil_model, turbulence_model
+  use io_mod,              only : dump_adapt_mpi 
+  use io_vtk_mod,          only : write_and_export
+  use main_mod,            only : initialize, time_step
+  use multi_level_mod,     only : trend_ml
+  use std_atm_profile_mod, only : std_surf_pres
+
+  use test_case_mod,       only : assign_functions, dz, initialize_seed, print_log, print_test_case_parameters,  &
+       read_test_case_parameters, T_0, topo_test, total_cpu_time, u_0
+
   implicit none
 
   ! Initialize mpi, shared variables and domains
@@ -34,7 +53,8 @@ program climate
   ! Simple physics sub-models
   obliquity                = 23.5_dp                          ! seasons
   convecAdj_model          = .true.                           ! convective adjustment module
-  diurnal                  = .true.                           ! diurnal cycle 
+  diurnal                  = .true.                           ! diurnal cycle
+  soil_model               = .true.                           ! include soil model
   radiation_model          = .true.                           ! radiation module
   turbulence_model         = .true.                           ! vertical diffusion module
   

@@ -1,10 +1,24 @@
 module lin_solve_mod
   ! Module providing two adaptive multi-grid linear equation solvers: Full Multigrid and Scheduled Relaxation Jacobi
-  use comm_mpi_mod
-  use wavelet_mod
-  use shared_mod
+  use kind_mod,       only : dp
+
+  use shared_mod, only : ADJZONE, AT_NODE, Coord, EDGE, eps, level_start, level_end, log_iter, &
+       MATH_PI, N_BDRY, NONE, RT, DG, UP, S_MASS, S_TEMP, z_null
+
+  use arch_mod,       only : rank
+  use comm_mpi_mod,   only : sum_real, update_bdry
+  use geom_mod,       only : geodesic, sph2cart
+  use domain_mod,     only : Domain, Float_Field, grid, h_flux, horiz_flux, idx, scalar, wav_coeff
+  use domain_ops_mod, only : apply_onescale_to_patch 
+  use utils_mod,      only : zero_float_field
+  use wavelet_mod,    only : forward_scalar_transform, inverse_scalar_transform
+
   implicit none
 
+  private
+  public :: Full_Multigrid, Scheduled_Relaxation_Jacobi
+  public :: elliptic_fun, elliptic_fun_diag
+  
   logical :: test_elliptic = .false.   ! run elliptic test case
 
   ! Linear solver parameters
@@ -28,13 +42,18 @@ module lin_solve_mod
   real(dp)                        :: dot_product_loc, l2_loc
   real(dp)                        :: s_test
   real(dp), pointer               :: mu1, mu2
-  real(dp), dimension(:), pointer :: scalar1, scalar2, scalar3
+  real(dp), dimension(:), pointer :: scalar1, scalar2
+
+  
 contains
+
+  
   subroutine Full_Multigrid (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using the Full Multigrid algorithm with V-cycles
+    
     implicit none
-    type(Float_Field), intent(in)    :: f
-    type(Float_Field), intent(inout) :: u
+    
+    type(Float_Field), intent(inout) :: f, u
     
     integer                                        :: iter, l
     integer,  dimension(level_start:level_end)     :: iterations
@@ -48,15 +67,17 @@ contains
          ! Linear operator applied to u at scale l
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu
        end function Lu
        function Lu_diag (u, l)
          ! Diagonal of linear operator applied to u at scale l
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu_diag, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu_diag
        end function Lu_diag
     end interface
 
@@ -99,12 +120,16 @@ contains
           end do
        end if
     end if
+
   contains
+    
     subroutine v_cycle 
       ! Standard V-cycle iterations
+
       implicit none
+
       integer           :: j
-      real(dp) :: nrm_rhs
+      real(dp)          :: nrm_rhs
       type(Float_Field) :: corr
 
       ! Initialize
@@ -136,15 +161,18 @@ contains
       call Jacobi (u, f, Lu, Lu_diag, l, post_iter)                      ! post-smooth to reduce zero eigenvalue error mode
       call res_err (f, u, Lu, nrm_f(l), l, nrm_res(l,2))                 ! normalized residual error
     end subroutine v_cycle
+
   end subroutine Full_Multigrid
 
+  
   subroutine Scheduled_Relaxation_Jacobi (u, f, Lu, Lu_diag)
     ! Solves linear equation L(u) = f using a simple multiscale algorithm with scheduled relaxation Jacobi (SRJ) iterations 
     ! (Adsuara et al J Comput Phys v 332, 2017)
     ! parameters m, k1 and k2 were chosen empirically to give optimal convergence on fine non uniform grids
+
     implicit none
-    type(Float_Field), intent(in)    :: f
-    type(Float_Field), intent(inout) :: u
+
+    type(Float_Field), intent(inout) :: f, u
     
     integer                                        :: l, n
     integer,  dimension(level_start:level_end)     :: iterations
@@ -157,15 +185,17 @@ contains
          ! Linear operator Lu applied to u at scale l
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu
        end function Lu
        function Lu_diag (u, l)
          ! Diagonal of linear operator applied to u at scale l
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu_diag, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu_diag
        end function Lu_diag
     end interface
 
@@ -202,11 +232,15 @@ contains
           if (rank == 0) write (6,'(i2,12x,2(es8.2,10x),i4)') l, nrm_res(l,:), iterations(l)
        end do
     end if
+    
   contains
+    
     subroutine SRJ_iter
       ! Jacobi iterations for smoothing multigrid iterations
       ! uses Scheduled Relaxation Jacobi (SRJ) iterations (Yang and Mittal JCP 274, 2014)
+      
       implicit none
+      
       integer :: ii, iter
 
       ii = 0
@@ -227,68 +261,79 @@ contains
       end do
       u%bdry_uptodate = .false.
     end subroutine SRJ_iter
+    
   end subroutine Scheduled_Relaxation_Jacobi
 
+  
   subroutine restrict (scaling, coarse)
     ! Wavelet restriction
+    
     implicit none
-    integer           :: coarse
-    type(Float_Field) :: scaling
+    
+    integer,           intent(in)    :: coarse
+    type(Float_Field), intent(inout) :: scaling
 
     call forward_scalar_transform (scaling, wav_coeff(S_TEMP,1), coarse, coarse+1)
     scaling%bdry_uptodate = .false.
   end subroutine restrict
+
   
   subroutine prolong (scaling, fine)
     ! Prolong from coarse scale fine-1 to scale fine
-    use wavelet_mod
+
     implicit none
-    integer           :: fine
-    type(Float_Field) :: scaling
+
+    integer,           intent(in)    :: fine
+    type(Float_Field), intent(inout) :: scaling
 
     call inverse_scalar_transform (wav_coeff(S_MASS,1), scaling, fine-1, fine)
 
     scaling%bdry_uptodate = .false.
   end subroutine prolong
 
-  function prol_fun (scaling, fine)
+  
+  function prol_fun (scaling, fine) result(val)
     ! Prolong from coarse scale fine-1 to scale fine
-    use wavelet_mod
     implicit none
-    integer           :: fine
-    type(Float_Field) :: scaling
-    type(Float_Field) :: prol_fun
+
+    integer,           intent(in) :: fine
+    type(Float_Field), intent(in) :: scaling
+    type(Float_Field)             :: val
 
     call zero_float_field (wav_coeff(S_TEMP,1), AT_NODE, fine)
 
-    prol_fun = scaling
-    call inverse_scalar_transform (wav_coeff(S_TEMP,1), prol_fun, fine-1, fine)
+    val = scaling
+    call inverse_scalar_transform (wav_coeff(S_TEMP,1), val, fine-1, fine)
 
-    prol_fun%bdry_uptodate = .false.
+    val%bdry_uptodate = .false.
   end function prol_fun
 
+  
   subroutine Jacobi (u, f, Lu, Lu_diag, l, iter_max)
     ! Damped Jacobi iterations
+    
     implicit none
-    integer                          :: l, iter_max
-    type(Float_Field), intent(in)    :: f
-    type(Float_Field), intent(inout) :: u
+    
+    integer,           intent(in)    :: l, iter_max
+    type(Float_Field), intent(inout) :: f, u
 
-    integer            :: iter
+    integer             :: iter
     real(dp), parameter :: jac_wgt = 1.0_dp
 
     interface
        function Lu (u, l)
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu
        end function Lu
        function Lu_diag (u, l)
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu_diag, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu_diag
        end function Lu_diag
     end interface
 
@@ -299,9 +344,12 @@ contains
     end do
   end subroutine Jacobi
 
+  
   subroutine Jacobi_iteration (u, f, jac_wgt, Lu, Lu_diag, l)
     ! Performs a single weighted Jacobi iteration for equation Lu(u) = f
+    
     implicit none
+    
     integer,                   intent(in)    :: l
     real(dp),          target, intent(in)    :: jac_wgt ! weight
     type(Float_Field), target, intent(in)    :: f
@@ -314,14 +362,16 @@ contains
        function Lu (u, l)
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu
        end function Lu
        function Lu_diag (u, l)
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu_diag, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu_diag
        end function Lu_diag
     end interface
 
@@ -334,13 +384,17 @@ contains
        end do
     end do
     u%bdry_uptodate = .false.
+    
   contains
+    
     subroutine cal_jacobi (dom, i, j, zlev, offs, dims)
+      
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+      
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: d, id
 
@@ -350,18 +404,21 @@ contains
       if (dom%mask_n%elts(id) >= ADJZONE) &
            u%data(d)%elts(id) = u%data(d)%elts(id) +  jac_wgt * (f%data(d)%elts(id) - Au%data(d)%elts(id)) / diag%data(d)%elts(id)
     end subroutine cal_jacobi
+    
   end subroutine Jacobi_iteration
 
+  
   subroutine bicgstab (u, f, nrm_f, Lu, l, tol_bicgstab, iter_max, err_out, iter_out)
     ! Solves the linear system Lu(u) = f at scale l using bi-cgstab algorithm (van der Vorst 1992).
     ! This is a conjugate gradient type algorithm.
+    
     implicit none
+    
     integer,            intent(in)    :: l, iter_max
     integer, optional,  intent(out)   :: iter_out
     real(dp),           intent(in)    :: nrm_f, tol_bicgstab
     real(dp), optional, intent(out)   :: err_out
-    type(Float_Field),  intent(in)    :: f
-    type(Float_Field),  intent(inout) :: u
+    type(Float_Field),  intent(inout) :: f, u
 
     integer           :: iter
     real(dp)          :: alph, b, err, omga, rho, rho_old
@@ -371,8 +428,9 @@ contains
        function Lu (u, l)
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu
        end function Lu
     end interface
 
@@ -425,11 +483,15 @@ contains
     if (present(iter_out)) iter_out = iter
   end subroutine bicgstab
 
-  real(dp) function l2 (s, l)
+  
+  function l2 (s, l) result(val)
     ! Returns l_2 norm of scalar s at scale l
+    
     implicit none
+    
     integer,                   intent(in) :: l
     type(Float_Field), target, intent(in) :: s
+    real(dp)                              :: val
 
     integer :: d, j
 
@@ -441,15 +503,18 @@ contains
        end do
        nullify (scalar)
     end do
-    l2 = sqrt (sum_real (l2_loc))
+    val= sqrt (sum_real (l2_loc))
   end function l2
 
+  
   subroutine cal_l2 (dom, i, j, zlev, offs, dims)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id
 
@@ -458,11 +523,13 @@ contains
     if (dom%mask_n%elts(id) >= ADJZONE) l2_loc = l2_loc + scalar(id)**2
   end subroutine cal_l2
 
-  real(dp) function dot_product_ff (s1, s2, l)
+  
+  function dot_product_ff (s1, s2, l) result(val)
     ! Calculates dot product of s1 and s2 at scale l
     implicit none
-    integer,                   intent(in) :: l
-    type(Float_Field), target, intent(in) :: s1, s2
+    integer,                   intent(in)    :: l
+    type(Float_Field), target, intent(inout) :: s1, s2
+    real(dp)                                 :: val
 
     integer :: d, j
 
@@ -479,15 +546,18 @@ contains
        nullify (scalar1, scalar2)
     end do
 
-    dot_product_ff = sum_real (dot_product_loc)
+    val = sum_real (dot_product_loc)
   end function dot_product_ff
 
+  
   subroutine cal_dotproduct (dom, i, j, zlev, offs, dims)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id
 
@@ -496,9 +566,12 @@ contains
     dot_product_loc = dot_product_loc + scalar1(id) * scalar2(id)
   end subroutine cal_dotproduct
 
+  
   subroutine lc (s, a1, s1, a2, s2, l)
     ! Calculates linear combination of scalars s = a1*s1 + a2*s2 at scale l
+    
     implicit none
+    
     integer,                   intent(in)    :: l
     real(dp),          target, intent(in)    :: a1, a2
     type(Float_Field), target, intent(inout) :: s
@@ -522,12 +595,15 @@ contains
     call update_bdry (s, l, 956)
   end subroutine lc
 
+  
   subroutine cal_lc (dom, i, j, zlev, offs, dims)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id
 
@@ -536,11 +612,14 @@ contains
     scalar(id) = mu1 * scalar1(id) + mu2 * scalar2(id)
   end subroutine cal_lc
 
+  
   subroutine residual (f, u, Lu, l, res)
     ! Residual f - Lu(u) at scale l
+    
     implicit none
+    
     integer,                   intent(in)    :: l
-    type(Float_Field), target, intent(in)    :: f, u
+    type(Float_Field), target, intent(inout) :: f, u
     type(Float_Field), target, intent(inout) :: res
 
     integer                   :: d, j
@@ -550,8 +629,9 @@ contains
        function Lu (u, l)
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu
        end function Lu
     end interface
 
@@ -566,13 +646,17 @@ contains
     end do
 
     res%bdry_uptodate = .false.
+    
   contains
+    
     subroutine cal_res (dom, i, j, zlev, offs, dims)
+      
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+      
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: id
 
@@ -580,15 +664,19 @@ contains
 
       if (dom%mask_n%elts(id) >= ADJZONE) res%data(d)%elts(id) = f%data(d)%elts(id) -  Au%data(d)%elts(id)
     end subroutine cal_res
+    
   end subroutine residual
 
+  
   subroutine res_err (f, u, Lu, nrm_f, l, err)
     ! Normalized residual error ||f - Lu(u)||/||f|| at scale l
+    
     implicit none
-    integer,           intent(in)  :: l
-    real(dp),          intent(in)  :: nrm_f
-    real(dp),          intent(out) :: err
-    type(Float_Field), intent(in)  :: f, u
+    
+    integer,           intent(in)    :: l
+    real(dp),          intent(in)    :: nrm_f
+    real(dp),          intent(out)   :: err
+    type(Float_Field), intent(inout) :: f, u
     
     type(Float_Field) :: res
 
@@ -596,8 +684,9 @@ contains
        function Lu (u, l)
          use domain_mod
          implicit none
-         integer                   :: l
-         type(Float_Field), target :: Lu, u
+         integer, intent(in) :: l
+         type(Float_Field), target, intent(inout) :: u
+         type(Float_Field), target :: Lu
        end function Lu
     end interface
 
@@ -608,21 +697,25 @@ contains
     err = l2 (res, l) / nrm_f
   end subroutine res_err
 
-  function elliptic_fun (u, l)
+  
+  function elliptic_fun (u, l) result(val)
     ! Test elliptic equation
     !
     ! L(u) = Laplacian (u) - 10/s_test^2 u
+    
     use ops_mod
+    
     implicit none
-    integer                   :: l
-    type(Float_Field), target ::  u
-    type(Float_Field), target :: elliptic_fun
-
+    
+    integer,                   intent(in)    :: l
+    type(Float_Field), target, intent(inout) :: u
+    type(Float_Field), target                :: val
+    
     integer :: d, j
 
     call update_bdry (u, l, 959)
 
-    elliptic_fun = u; call zero_float_field (elliptic_fun, AT_NODE, lmin_in=l)
+    val = u; call zero_float_field (val, AT_NODE, lmin_in=l)
 
     ! Compute scalar fluxes
     do d = 1, size(grid)
@@ -644,17 +737,19 @@ contains
     end do
 
     ! Add constant term
-    call lc (elliptic_fun, 1.0_dp, elliptic_fun, -10.0_dp/s_test**2, u, l)
+    call lc (val, 1.0_dp, val, -10.0_dp/s_test**2, u, l)
 
-    elliptic_fun%bdry_uptodate = .false.
-    call update_bdry (elliptic_fun, l, 961)
+    val%bdry_uptodate = .false.
+    call update_bdry (val, l, 961)
+    
   contains
+    
     subroutine div_flux (dom, i, j, zlev, offs, dims)
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: id, idS, idW, idSW
 
@@ -663,23 +758,25 @@ contains
       idW  = idx (i-1, j,   offs, dims)
       idSW = idx (i-1, j-1, offs, dims)
 
-      elliptic_fun%data(d)%elts(id) = ( &
+      val%data(d)%elts(id) = ( &
            horiz_flux(S_MASS)%data(d)%elts(EDGE*id  +RT+1) - horiz_flux(S_MASS)%data(d)%elts(EDGE*idW+RT+1) + &
            horiz_flux(S_MASS)%data(d)%elts(EDGE*idSW+DG+1) - horiz_flux(S_MASS)%data(d)%elts(EDGE*id +DG+1) +  &
            horiz_flux(S_MASS)%data(d)%elts(EDGE*id  +UP+1) - horiz_flux(S_MASS)%data(d)%elts(EDGE*idS+UP+1) ) &
            * dom%areas%elts(id+1)%hex_inv
     end subroutine div_flux
-  End function elliptic_fun
+  end function elliptic_fun
 
-  function elliptic_fun_diag (q, l)
+  
+  function elliptic_fun_diag (q, l) result(val)
     ! Local approximation of diagonal of elliptic operator
-    implicit none
-    integer                   :: l
-    type(Float_Field), target :: elliptic_fun_diag, q
 
+    implicit none
+    integer,                   intent(in)    :: l
+    type(Float_Field), target, intent(inout) :: q
+    type(Float_Field), target                :: val
     integer :: d, j
 
-    elliptic_fun_diag = q
+    val = q
 
     do d = 1, size(grid)
        do j = 1, grid(d)%lev(l)%length
@@ -687,14 +784,19 @@ contains
        end do
     end do
 
-    elliptic_fun_diag%bdry_uptodate = .false.
-    call update_bdry (elliptic_fun_diag, l, 962)
+    val%bdry_uptodate = .false.
+    call update_bdry (val, l, 962)
+
   contains
+
     subroutine cal_elliptic_fun_diag  (dom, i, j, zlev, offs, dims)
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+      
+      implicit none
+      
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer            :: id, id_i, idE, idNE, idN, idW, idSW, idS
       real(dp)           :: wgt
@@ -720,15 +822,21 @@ contains
       else ! average value (error less than about 5%)
          wgt = 2.0_dp * sqrt (3.0_dp)
       end if
-      elliptic_fun_diag%data(d)%elts(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv - 10.0_dp/s_test**2
+      
+      val%data(d)%elts(id_i) = - wgt * dom%areas%elts(id_i)%hex_inv - 10.0_dp/s_test**2
     end subroutine cal_elliptic_fun_diag
+    
   end function elliptic_fun_diag
+  
 
-  real(dp) function relative_error (u, l)
+  function relative_error (u, l) result(val)
     ! Relative error of test elliptic problem
+    
     implicit none
-    integer,                   intent(in) :: l
-    type(Float_Field), target, intent(in) :: u
+    
+    integer,                   intent(in)    :: l
+    type(Float_Field), target, intent(inout) :: u
+    real(dp)                                 :: val
 
     integer                   :: d, j
     real(dp)                  :: nrm_err, nrm_sol
@@ -747,14 +855,18 @@ contains
     ! Compute relative error
     nrm_sol = l2 (u,   l)
     nrm_err = l2 (err, l)
-    relative_error = nrm_err / nrm_sol
+    val  = nrm_err / nrm_sol
+    
   contains
+    
     subroutine cal_err (dom, i, j, zlev, offs, dims)
+      
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+      
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: id
 
@@ -762,16 +874,23 @@ contains
 
       err%data(d)%elts(id) = u%data(d)%elts(id) - exact_sol(dom%node%elts(id))
     end subroutine cal_err
+    
   end function relative_error
+  
 
-  real(dp) function exact_sol (p)
+  function exact_sol (p) result(val)
+    
     implicit none
-    type (Coord) :: p
-
+    
+    type(Coord), intent(in) :: p
+    real(dp)                :: val
+    
     real(dp) :: r
 
     r = geodesic (p, sph2cart (0.0_dp, 0.0_dp))
 
-    exact_sol = s_test**2 * exp (-(r/s_test)**2) 
+    val = s_test**2 * exp (-(r/s_test)**2) 
   end function exact_sol
+
+  
 end module lin_solve_mod

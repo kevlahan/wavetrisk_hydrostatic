@@ -1,7 +1,16 @@
 module dyn_arrays
-  use geom_mod
-  use patch_mod
+  use kind_mod,   only : dp
+  use shared_mod, only : Areas, Coord, N_BDRY, N_CHDRN, ORIGIN
+  
+  use patch_mod, only : BDRY_patch, Iu_wgt, RF_wgt, Overl_Area, patch
+  
+  implicit none
 
+  private
+  public :: append, extend, init
+  public :: Areas_Array, Bdry_Patch_Array, Coord_Array, Float_Array, Int_Array, Iu_Wgt_Array
+  public :: Logical_Array, Overl_Area_Array, Patch_Array, RF_Wgt_Array, Topo_Array
+  
   type Int_Array
      integer, dimension(:), allocatable :: elts
      integer                            :: length
@@ -85,50 +94,57 @@ module dyn_arrays
           dbl_alloc_Iu_Wgt_Array, dbl_alloc_RF_Wgt_Array, &
           dbl_alloc_Patch_Array, dbl_alloc_Bdry_Patch_Array
   end interface dbl_alloc
+  
 contains
+
+
   subroutine init_Float_Array (arr, N)
     implicit none
-    type(Float_Array) :: arr
-    integer           :: N
+    type(Float_Array), intent(out) :: arr
+    integer,           intent(in)    :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
     arr%elts = 0.0_dp
   end subroutine init_Float_Array
 
+
   subroutine init_Int_Array (arr, N)
     implicit none
-    type(Int_Array) :: arr
-    integer         :: N
+    type(Int_Array), intent(out) :: arr
+    integer,         intent(in)  :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
     arr%elts = 0
   end subroutine init_Int_Array
 
+
   subroutine init_Logical_Array (arr, N)
     implicit none
-    type(Logical_Array) :: arr
-    integer            :: N
+    type(Logical_Array), intent(out) :: arr
+    integer,             intent(in)  :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
     arr%elts = .false.
   end subroutine init_Logical_Array
 
+
   subroutine init_Coord_Array (arr, N)
     implicit none
-    type(Coord_Array) :: arr
-    integer           :: N
+    type(Coord_Array), intent(out) :: arr
+    integer,           intent(in)  :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
     arr%elts = ORIGIN
   end subroutine init_Coord_Array
 
+
   subroutine init_Areas_Array (arr, N)
-    type(Areas_Array) :: arr
-    integer           :: N
+    type(Areas_Array), intent(out) :: arr
+    integer,           intent(in)  :: N
 
     integer :: i
 
@@ -140,10 +156,11 @@ contains
     arr%elts%hex_inv = 0.0_dp
   end subroutine init_Areas_Array
 
+
   subroutine init_Overl_Area_Array (arr, N)
     implicit none
-    type(Overl_Area_Array) :: arr
-    integer                :: N
+    type(Overl_Area_Array), intent(out) :: arr
+    integer,                intent(in)  :: N
 
     integer :: i
 
@@ -157,10 +174,11 @@ contains
     end do
   end subroutine init_Overl_Area_Array
 
+
   subroutine init_Iu_Wgt_Array (arr, N)
     implicit none
-    type(Iu_Wgt_Array) :: arr
-    integer            :: N
+    type(Iu_Wgt_Array), intent(out) :: arr
+    integer,            intent(in)  :: N
 
     integer :: i
 
@@ -171,10 +189,11 @@ contains
     end do
   end subroutine init_Iu_Wgt_Array
 
+
   subroutine init_RF_Wgt_Array (arr, N)
     implicit none
-    type(RF_Wgt_Array) :: arr
-    integer            :: N
+    type(RF_Wgt_Array), intent(out) :: arr
+    integer,            intent(in)  :: N
 
     integer :: i
 
@@ -185,10 +204,11 @@ contains
     end do
   end subroutine init_RF_Wgt_Array
 
+
   subroutine init_Patch_Array (arr, N)
     implicit none
-    type(Patch_Array) :: arr
-    integer           :: N
+    type(Patch_Array), intent(out) :: arr
+    integer,           intent(in)  :: N
 
     integer :: i
 
@@ -206,10 +226,11 @@ contains
     arr%elts%deleted = .false.
   end subroutine init_Patch_Array
 
+
   subroutine init_Bdry_Patch_Array (arr, N)
     implicit none
-    type(Bdry_Patch_Array) :: arr
-    integer                :: N
+    type(Bdry_Patch_Array), intent(out) :: arr
+    integer,                intent(in)  :: N
 
     arr%length = N
     allocate(arr%elts(max(N,1))) ! min. 1 -> no 0 alloc
@@ -218,9 +239,10 @@ contains
     arr%elts%neigh      = 0
   end subroutine init_Bdry_Patch_Array
 
+
   subroutine append_Int_Array (arr, item)
-    type(Int_Array) :: arr
-    integer         :: item
+    type(Int_Array), intent(inout) :: arr
+    integer,         intent(in)    :: item
 
     if (arr%length == size(arr%elts)) call dbl_alloc_Int_Array (arr, arr%length + 1)
 
@@ -228,10 +250,11 @@ contains
     arr%elts(arr%length) = item
   end subroutine append_Int_Array
 
+
   subroutine append_Float_Array (arr, item)
     implicit none
-    type(Float_Array) :: arr
-    real(dp)           :: item
+    type(Float_Array), intent(inout) :: arr
+    real(dp),          intent(in)    :: item
 
     if (arr%length ==  size(arr%elts)) call dbl_alloc_Float_Array (arr, arr%length + 1)
 
@@ -239,10 +262,11 @@ contains
     arr%elts(arr%length) = item
   end subroutine append_Float_Array
 
+
   subroutine append_Coord_Array (arr, item)
     implicit none
-    type(Coord_Array) :: arr
-    type(Coord)       ::  item
+    type(Coord_Array), intent(inout) :: arr
+    type(Coord),       intent(in)    ::  item
 
     if (arr%length == size(arr%elts)) call dbl_alloc_Coord_Array (arr, arr%length + 1)
 
@@ -250,10 +274,11 @@ contains
     arr%elts(arr%length) = item
   end subroutine append_Coord_Array
 
+
   subroutine append_Areas_Array (arr, item)
     implicit none
-    type(Areas_Array) :: arr
-    type(Areas)       :: item
+    type(Areas_Array), intent(inout) :: arr
+    type(Areas),       intent(in)    :: item
 
     if (arr%length == size(arr%elts)) call dbl_alloc_Areas_Array (arr, arr%length + 1)
 
@@ -261,10 +286,11 @@ contains
     arr%elts(arr%length) = item
   end subroutine append_Areas_Array
 
+
   subroutine append_Overl_Area_Array (arr, item)
     implicit none
-    type(Overl_Area_Array) :: arr
-    type(Overl_Area)       :: item
+    type(Overl_Area_Array), intent(inout) :: arr
+    type(Overl_Area),       intent(in)    :: item
 
     if (arr%length == size(arr%elts)) call dbl_alloc_Overl_Area_Array (arr, arr%length + 1)
 
@@ -272,10 +298,11 @@ contains
     arr%elts(arr%length) = item
   end subroutine append_Overl_Area_Array
 
+
   subroutine append_Iu_Wgt_Array (arr, item)
     implicit none
-    type(Iu_Wgt_Array) :: arr
-    type(Iu_Wgt)       :: item
+    type(Iu_Wgt_Array), intent(inout) :: arr
+    type(Iu_Wgt),       intent(in)    :: item
 
     if (arr%length == size(arr%elts)) call dbl_alloc_Iu_Wgt_Array (arr, arr%length + 1)
 
@@ -283,10 +310,11 @@ contains
     arr%elts(arr%length) = item
   end subroutine append_Iu_Wgt_Array
 
+
   subroutine append_RF_Wgt_Array (arr, item)
     implicit none
-    type(RF_Wgt_Array) :: arr
-    type(RF_Wgt)       :: item
+    type(RF_Wgt_Array), intent(inout) :: arr
+    type(RF_Wgt),       intent(in)    :: item
 
     if (arr%length == size(arr%elts)) call dbl_alloc_RF_Wgt_Array (arr, arr%length + 1)
 
@@ -294,10 +322,11 @@ contains
     arr%elts(arr%length) = item
   end subroutine append_RF_Wgt_Array
 
+
   subroutine append_Patch_Array (arr, item)
     implicit none
-    type(Patch_Array) :: arr
-    type(Patch)       :: item
+    type(Patch_Array), intent(inout) :: arr
+    type(Patch),       intent(in)    :: item
 
     if (arr%length == size(arr%elts)) call dbl_alloc_Patch_Array (arr, arr%length + 1)
 
@@ -305,10 +334,11 @@ contains
     arr%elts(arr%length) = item
   end subroutine append_Patch_Array
 
+
   subroutine append_Bdry_Patch_Array(arr, item)
     implicit none
-    type(Bdry_Patch_Array) :: arr
-    type(Bdry_Patch)       :: item
+    type(Bdry_Patch_Array), intent(inout) :: arr
+    type(Bdry_Patch),       intent(in)    :: item
 
     if (arr%length == size(arr%elts)) call dbl_alloc_Bdry_Patch_Array (arr, arr%length + 1)
 
@@ -316,10 +346,11 @@ contains
     arr%elts(arr%length) = item
   end subroutine append_Bdry_Patch_Array
 
+
   subroutine extend_Int_Array (arr, N, items)
     implicit none
-    type(Int_Array) :: arr
-    integer         :: items, N
+    type(Int_Array), intent(inout) :: arr
+    integer,         intent(in)    :: items, N
 
     if (arr%length + N > size(arr%elts)) call dbl_alloc_Int_Array (arr, arr%length + N)
 
@@ -327,10 +358,11 @@ contains
     arr%length = arr%length + N
   end subroutine extend_Int_Array
 
-  subroutine extend_Float_Array(arr, N, items)
-    type(Float_Array) :: arr
-    integer           :: N
-    real(dp)           :: items
+
+  subroutine extend_Float_Array (arr, N, items)
+    type(Float_Array), intent(inout) :: arr
+    integer,           intent(in)    :: N
+    real(dp),          intent(in)    :: items
 
     if (arr%length + N > size(arr%elts)) call dbl_alloc_Float_Array (arr, arr%length + N)
 
@@ -338,11 +370,12 @@ contains
     arr%length = arr%length + N
   end subroutine extend_Float_Array
 
+
   subroutine extend_Coord_Array (arr, N, items)
     implicit none
-    type(Coord_Array) :: arr
-    integer           :: N
-    type(Coord)       :: items
+    type(Coord_Array), intent(inout) :: arr
+    integer,           intent(in)    :: N
+    type(Coord),       intent(in)    :: items
 
     if (arr%length + N > size(arr%elts)) call dbl_alloc_Coord_Array(arr, arr%length + N)
 
@@ -350,11 +383,12 @@ contains
     arr%length = arr%length + N
   end subroutine extend_Coord_Array
 
-  subroutine extend_Areas_Array(arr, N, items)
+
+  subroutine extend_Areas_Array (arr, N, items)
     implicit none
-    type(Areas_Array) :: arr
-    integer           :: N
-    type(Areas)       :: items
+    type(Areas_Array), intent(inout) :: arr
+    integer,           intent(in)    :: N
+    type(Areas),       intent(in)    :: items
 
     if (arr%length + N > size(arr%elts)) call dbl_alloc_Areas_Array (arr, arr%length + N)
 
@@ -362,11 +396,12 @@ contains
     arr%length = arr%length + N
   end subroutine extend_Areas_Array
 
+
   subroutine extend_Overl_Area_Array (arr, N, items)
     implicit none
-    type(Overl_Area_Array) :: arr
-    integer                :: N
-    type(Overl_Area)       :: items
+    type(Overl_Area_Array), intent(inout) :: arr
+    integer,                intent(in)    :: N
+    type(Overl_Area),       intent(in)    :: items
 
     if (arr%length + N > size(arr%elts)) call dbl_alloc_Overl_Area_Array (arr, arr%length + N)
 
@@ -374,11 +409,12 @@ contains
     arr%length = arr%length + N
   end subroutine extend_Overl_Area_Array
 
+
   subroutine extend_Iu_Wgt_Array (arr, N, items)
     implicit none
-    type(Iu_Wgt_Array) :: arr
-    integer            :: N
-    type(Iu_Wgt)       :: items
+    type(Iu_Wgt_Array), intent(inout) :: arr
+    integer,            intent(in)    :: N
+    type(Iu_Wgt),       intent(in)    :: items
 
     if (arr%length + N > size(arr%elts)) call dbl_alloc_Iu_Wgt_Array (arr, arr%length + N)
 
@@ -386,11 +422,12 @@ contains
     arr%length = arr%length + N
   end subroutine extend_Iu_Wgt_Array
 
+
   subroutine extend_RF_Wgt_Array (arr, N, items)
     implicit none
-    type(RF_Wgt_Array) :: arr
-    integer            :: N
-    type(RF_Wgt)       :: items
+    type(RF_Wgt_Array), intent(inout) :: arr
+    integer,            intent(in)    :: N
+    type(RF_Wgt),       intent(in)    :: items
 
     if (arr%length + N > size(arr%elts)) call dbl_alloc_RF_Wgt_Array (arr, arr%length + N)
 
@@ -398,11 +435,12 @@ contains
     arr%length = arr%length + N
   end subroutine extend_RF_Wgt_Array
 
+
   subroutine extend_Patch_Array (arr, N, items)
     implicit none
-    type(Patch_Array) :: arr
-    integer           :: N
-    type(Patch)       :: items
+    type(Patch_Array), intent(inout) :: arr
+    integer,           intent(in)    :: N
+    type(Patch),       intent(in)    :: items
 
     if (arr%length + N > size(arr%elts)) call dbl_alloc_Patch_Array (arr, arr%length + N)
 
@@ -410,11 +448,12 @@ contains
     arr%length = arr%length + N
   end subroutine extend_Patch_Array
 
+
   subroutine extend_Bdry_Patch_Array (arr, N, items)
     implicit none
-    type(Bdry_Patch_Array) :: arr
-    integer                :: N
-    type(Bdry_Patch)       :: items
+    type(Bdry_Patch_Array), intent(inout) :: arr
+    integer,                intent(in)    :: N
+    type(Bdry_Patch),       intent(in)    :: items
 
     if (arr%length + N > size(arr%elts)) call dbl_alloc_Bdry_Patch_Array (arr, arr%length + N)
 
@@ -422,11 +461,12 @@ contains
     arr%length = arr%length + N
   end subroutine extend_Bdry_Patch_Array
 
+
   subroutine dbl_alloc_Int_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
     implicit none
-    type(Int_Array) :: arr
-    integer         :: N
+    type(Int_Array), intent(inout) :: arr
+    integer,         intent(in)    :: N
 
     integer                            :: ierr
     integer, dimension(:), allocatable :: tmparr
@@ -451,11 +491,12 @@ contains
     deallocate (tmparr)
   end subroutine dbl_alloc_Int_Array
 
+
   subroutine dbl_alloc_Float_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
     implicit none
-    type(Float_Array) :: arr
-    integer           :: N
+    type(Float_Array), intent(inout) :: arr
+    integer,           intent(in)    :: N
 
     integer                             :: ierr
     real(dp), dimension(:), allocatable :: tmparr
@@ -479,11 +520,12 @@ contains
     deallocate (tmparr)
   end subroutine dbl_alloc_Float_Array
 
+
   subroutine dbl_alloc_Coord_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
     implicit none
-    type(Coord_Array) :: arr
-    integer           :: N
+    type(Coord_Array), intent(inout) :: arr
+    integer,           intent(in)    :: N
     
     integer                                :: ierr
     type(Coord), dimension(:), allocatable :: tmparr
@@ -507,11 +549,12 @@ contains
     deallocate (tmparr)
   end subroutine dbl_alloc_Coord_Array
 
+
   subroutine dbl_alloc_Areas_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
     implicit none
-    type(Areas_Array) :: arr
-    integer           :: N
+    type(Areas_Array), intent(inout) :: arr
+    integer,           intent(in)    :: N
 
     integer                                :: i, ierr
     type(Areas), dimension(:), allocatable :: tmparr
@@ -541,11 +584,12 @@ contains
     deallocate (tmparr)
   end subroutine dbl_alloc_Areas_Array
 
+
   subroutine dbl_alloc_Overl_Area_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
     implicit none
-    type(Overl_Area_Array) :: arr
-    integer                :: N
+    type(Overl_Area_Array), intent(inout) :: arr
+    integer,                intent(in)    :: N
     
     integer                                     :: i, ierr
     type(Overl_Area), dimension(:), allocatable :: tmparr
@@ -579,11 +623,12 @@ contains
     deallocate (tmparr)
   end subroutine dbl_alloc_Overl_Area_Array
 
+
   subroutine dbl_alloc_Iu_Wgt_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
     implicit none
-    type(Iu_Wgt_Array) :: arr
-    integer            :: N
+    type(Iu_Wgt_Array), intent(inout) :: arr
+    integer,            intent(in)    :: N
 
     integer                                 :: i, ierr
     type(Iu_Wgt), dimension(:), allocatable :: tmparr
@@ -611,11 +656,12 @@ contains
     deallocate (tmparr)
   end subroutine dbl_alloc_Iu_Wgt_Array
 
+
   subroutine dbl_alloc_RF_Wgt_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
     implicit none
-    type(RF_Wgt_Array) :: arr
-    integer            :: N
+    type(RF_Wgt_Array), intent(inout) :: arr
+    integer,            intent(in)    :: N
     
     integer                                 :: i, ierr
     type(RF_Wgt), dimension(:), allocatable :: tmparr
@@ -643,11 +689,12 @@ contains
     deallocate (tmparr)
   end subroutine dbl_alloc_RF_Wgt_Array
 
+
   subroutine dbl_alloc_Patch_Array(arr, N)
     ! double allocated memory to avoid frequent reallocation
     implicit none
-    type(Patch_Array) :: arr
-    integer           :: N
+    type(Patch_Array), intent(inout) :: arr
+    integer,           intent(in)    :: N
     
     integer                                :: i, ierr
     type(Patch), dimension(:), allocatable :: tmparr
@@ -689,11 +736,12 @@ contains
     deallocate (tmparr)
   end subroutine dbl_alloc_Patch_Array
 
+
   subroutine dbl_alloc_Bdry_Patch_Array (arr, N)
     ! double allocated memory to avoid frequent reallocation
     implicit none
-    type(Bdry_Patch_Array) :: arr
-    integer                :: N
+    type(Bdry_Patch_Array), intent(inout) :: arr
+    integer,                intent(in)    :: N
 
     integer                                     :: ierr
     type(Bdry_Patch), dimension(:), allocatable :: tmparr
@@ -720,4 +768,6 @@ contains
     arr%elts(1:size(arr%elts)) = tmparr(1:size(arr%elts))
     deallocate (tmparr)
   end subroutine dbl_alloc_Bdry_Patch_Array
+
+
 end module dyn_arrays

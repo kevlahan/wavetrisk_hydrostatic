@@ -1,11 +1,34 @@
- module domain_mod
-  use param_mod
-  use shared_mod
-  use geom_mod
-  use patch_mod
-  use dyn_arrays
-  use arch_mod
+module domain_mod
+
+  use kind_mod,   only : dp
+
+  use shared_mod, only : AT_NODE, AT_EDGE, BDRY_THICKNESS, b_vert, b_vert_mass, compressible, &
+       EAST, EDGE, grav_accel, IMINUS, IJMINUS, IMINUSJPLUS, JMINUS, &
+       N_GLO_DOMAIN, N_BDRY, N_DOMAIN, NORTH, NORTHEAST, ORIGIN, RT, DG, SOUTHEAST, S_VELO, TRIAG, UP, WEST, &
+       a_vert, a_vert_mass, init_shared_mod, p_0, ref_density, max_level, max_depth, min_level, mode_split, &
+       split_mean_perturbation, scalars, zlevels, zmin
+
+  use patch_mod, only : BDRY_PATCH, Patch, PATCH_SIZE, init_patch_mod
+  use arch_mod,  only : init_arch_mod, n_process, rank
+
+  use dyn_arrays, only : Areas_Array, Bdry_Patch_Array, Coord_Array, Float_Array, Int_Array, &
+       Iu_Wgt_Array, Logical_Array, Overl_Area_Array, Patch_Array, RF_Wgt_Array, Topo_Array, &
+       append, extend, init
+
   implicit none
+
+  private
+  public :: Domain, Float_Field, Int_Field, Logical_Field
+  public :: init_field, sides_dims, chd_offs
+  public :: grid, topography, topography_data, sso_param, exner_fun, horiz_flux, penal_node, penal_edge, Kv, Kt, tke
+  public :: wav_tke, Laplacian_scalar, Laplacian_vector, sol, sol_mean, trend, wav_coeff
+  public :: diag, mass, mass1, h_flux, h_mflux, dmass, dtemp, dscalar, scalar, scalar_2d, temp, temp1
+  public :: velo, velo1, velo2, velo_2d, dvelo, dvelo_2d
+  public :: mean_m, mean_t, Laplacian,  bernoulli, divu, exner, ke, qe, vort,  wc_s, wc_u
+  public :: init_Domain, init_domain_mod, add_bdry_patch_Domain, add_patch_Domain, extend_Domain, set_neigh_Domain
+  public :: idx, idx2, idx__fast, idx_hex, idx_hex_LORT, idx_hex_LORT2, idx_hex_UPLT, idx_hex_UPLT2, ed_idx, id_edge, tri_idx
+  public :: nidx, is_penta, find_neigh_bdry_patch_domain, find_neigh_patch2_domain, find_neigh_patch_domain
+  public :: par_side, get_offs_Domain, get_offs_Domain5
 
   interface init_field
      procedure :: init_Float_Field, init_Int_Field, init_Logical_Field
@@ -47,7 +70,7 @@
      type(Int_Array), dimension(N_GLO_DOMAIN)                 :: recv_pa, send_conn
      type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack, unpk
      type(Int_Array), dimension(:,:), allocatable             :: src_patch
-     
+
      ! Physical quantities
      type(Float_Array) :: coriolis    ! Coriolis force
      type(Float_Array) :: surf_press  ! surface pressure (compressible) or surface Lagrange multiplier (incompressible)
@@ -63,7 +86,7 @@
      type(Float_Array) :: divu        ! divergence of velocity
      type(Float_Array) :: qe          !
   end type Domain
-  
+
   type Float_Field
      integer                        :: pos
      integer                        :: bdry_tag = -1
@@ -103,14 +126,18 @@
   real(dp), dimension(:), pointer :: Laplacian
   real(dp), dimension(:), pointer :: bernoulli, divu, exner, ke, qe, vort
   real(dp), dimension(:), pointer :: wc_s, wc_u
+
+  
 contains
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!! Initialization subroutines !!!
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! Initialization subroutines !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_Float_Field (self, pos)
     implicit none
-    type(Float_Field) :: self
-    integer           :: pos
+    type(Float_Field), intent(out) :: self
+    integer,           intent(in) :: pos
 
     self%bdry_uptodate = .false.
     self%pos = pos
@@ -118,10 +145,11 @@ contains
     allocate (self%data(n_domain(rank+1)))
   end subroutine init_Float_Field
 
+
   subroutine init_Int_Field (self, pos)
     implicit none
-    type(Int_Field) :: self
-    integer         :: pos
+    type(Int_Field), intent(out) :: self
+    integer,         intent(in)  :: pos
 
     self%bdry_uptodate = .false.
     self%pos = pos
@@ -129,10 +157,11 @@ contains
     allocate (self%data(n_domain(rank+1)))
   end subroutine init_Int_Field
 
-   subroutine init_Logical_Field (self, pos)
+  
+  subroutine init_Logical_Field (self, pos)
     implicit none
-    type(Logical_Field) :: self
-    integer             :: pos
+    type(Logical_Field), intent(out) :: self
+    integer,             intent(in)  :: pos
 
     self%bdry_uptodate = .false.
     self%pos = pos
@@ -140,6 +169,7 @@ contains
     allocate (self%data(n_domain(rank+1)))
   end subroutine init_Logical_Field
 
+  
   subroutine init_domain_mod
     implicit none
     logical :: initialized = .false.
@@ -161,10 +191,11 @@ contains
     initialized = .true.
   end subroutine init_domain_mod
 
+  
   subroutine init_Domain (self)
     implicit none
-    type(Domain) :: self
-    
+    type(Domain), intent(out) :: self
+
     integer :: i, k, l, r
 
     call init (self%patch, 1)
@@ -205,28 +236,30 @@ contains
     self%pole_master = .false.
   end subroutine init_Domain
 
+  
   integer function add_patch_Domain (self, level)
     ! Add new patch to the domain
     implicit none
-    type(Domain) :: self
-    
+    type(Domain), intent(inout) :: self
+
     integer :: level, p
 
     p = self%patch%length
 
     call append (self%lev(level), p)
     call append (self%patch, Patch (self%node%length, level, 0, 0, 0, .false.))
-    
+
     call extend_Domain (self, PATCH_SIZE**2)
-    
+
     add_patch_Domain = p
   end function add_patch_Domain
 
+  
   integer function add_bdry_patch_Domain (self, side)
     ! Add boundary patch to the domain
     implicit none
-    type(Domain) :: self
-    integer      :: side
+    type(Domain), intent(inout) :: self
+    integer,      intent(in)    :: side
 
     integer :: p
 
@@ -239,11 +272,12 @@ contains
     add_bdry_patch_Domain = p
   end function add_bdry_patch_Domain
 
+  
   subroutine extend_Domain (self, num)
     implicit none
-    type(Domain) :: self
-    integer      :: num
-    
+    type(Domain), intent(inout) :: self
+    integer,      intent(in)    :: num
+
     integer  :: d, k, v
     real(dp) :: def_val, dz, z
 
@@ -306,243 +340,277 @@ contains
     end do
   end subroutine extend_Domain
 
+  
   subroutine set_neigh_Domain (self, s, id, rot)
     implicit none
-    type(Domain) :: self
-    integer      :: id, rot, s
+    type(Domain), intent(inout) :: self
+    integer,      intent(in)    :: id, rot, s
 
-    self%neigh(s) = id
+    self%neigh(s)     = id
     self%neigh_rot(s) = rot
   end subroutine set_neigh_Domain
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!! Index and neighbour routines !!!
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  integer function idx (i0, j0, offs, dims)
-    ! Given regular array coordinates (i0,j0), offset array offs and domain array dims returns associated grid element as elts(idx+1)
+  
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! Index and neighbour routines !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  pure function idx (i0, j0, offs, dims) result(id)
+    ! Given regular-array coordinates (i0,j0), offset array offs,
+    ! and domain dimensions dims, return the corresponding grid index.
     implicit none
-    integer                        :: i0, j0
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    integer, intent(in) :: i0, j0
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
     integer :: i, j
 
     i = i0
     j = j0
+
     if (i < 0) then
        if (j < 0) then
-          idx = offs(IJMINUS+1) + (j0 + dims(2,IJMINUS+1))*dims(1,IJMINUS+1) + i + dims(1,IJMINUS+1)
-          return
+          id = offs(IJMINUS+1)                                      &
+               + (j + dims(2,IJMINUS+1))*dims(1,IJMINUS+1)          &
+               + i + dims(1,IJMINUS+1)
+
+       else if (j >= PATCH_SIZE) then
+          id = offs(IMINUSJPLUS+1)                                 &
+               + (j - PATCH_SIZE)*dims(1,IMINUSJPLUS+1)            &
+               + i + dims(1,IMINUSJPLUS+1)
+
        else
-          if (j >= PATCH_SIZE) then
-             idx = offs(IMINUSJPLUS+1) + (-PATCH_SIZE + j)*dims(1,IMINUSJPLUS+1) + i + dims(1,IMINUSJPLUS+1)
-             return
-          else
-             idx = offs(WEST+1) + j*dims(1,WEST+1) + i + dims(1,IMINUS+1)
-             return
-          end if
+          id = offs(WEST+1)                                        &
+               + j*dims(1,WEST+1)                                  &
+               + i + dims(1,WEST+1)
        end if
-    else
-       if (i >= PATCH_SIZE) then
-          i = i - PATCH_SIZE
-          if (j >= PATCH_SIZE) then
-             j = j - PATCH_SIZE
-             idx = offs(NORTHEAST+1) + j*dims(1,NORTHEAST+1) + i
-             return
-          else
-             if (j < 0) then
-                idx = offs(SOUTHEAST+1) + (j0 + dims(2,SOUTHEAST+1))*dims(1,SOUTHEAST+1) + (i0 - PATCH_SIZE) 
-                return
-             else
-                idx = offs(EAST+1) + j*dims(1,EAST+1) + i
-                return
-             end if
-          end if
+
+    else if (i >= PATCH_SIZE) then
+       i = i - PATCH_SIZE
+
+       if (j >= PATCH_SIZE) then
+          j = j - PATCH_SIZE
+
+          id = offs(NORTHEAST+1)                                   &
+               + j*dims(1,NORTHEAST+1)                             &
+               + i
+
+       else if (j < 0) then
+          id = offs(SOUTHEAST+1)                                   &
+               + (j + dims(2,SOUTHEAST+1))*dims(1,SOUTHEAST+1)     &
+               + i
+
        else
-          if (j < 0) then
-             idx = offs(JMINUS+1) + (j + dims(2,JMINUS+1))*dims(1,JMINUS+1) + i
-             return
-          else
-             if (j >= PATCH_SIZE) then
-                idx = offs(NORTH+1) + (-PATCH_SIZE + j)*dims(1,NORTH+1) + i
-                return
-             else
-                idx = offs(1) + PATCH_SIZE*j + i
-                return
-             end if
-          end if
+          id = offs(EAST+1)                                        &
+               + j*dims(1,EAST+1)                                  &
+               + i
+       end if
+
+    else
+       if (j < 0) then
+          id = offs(JMINUS+1)                                      &
+               + (j + dims(2,JMINUS+1))*dims(1,JMINUS+1)           &
+               + i
+
+       else if (j >= PATCH_SIZE) then
+          id = offs(NORTH+1)                                       &
+               + (j - PATCH_SIZE)*dims(1,NORTH+1)                  &
+               + i
+
+       else
+          id = offs(1) + PATCH_SIZE*j + i
        end if
     end if
   end function idx
 
-  integer function idx__fast (i, j, offs)
+  
+  pure function idx__fast(i, j, offs) result(id)
     implicit none
-    integer :: i, j, offs
 
-    idx__fast = PATCH_SIZE*j + i + offs
+    integer, intent(in) :: i, j, offs
+    integer             :: id
+
+    id = PATCH_SIZE*j + i + offs
   end function idx__fast
 
-  pure function id_edge(id) result(edges)
+  
+  pure function id_edge (id) result(edges)
     ! Returns indices of the three edges associated with node id
     implicit none
+
     integer, intent(in) :: id
     integer             :: edges(EDGE)        ! EDGE must be 3 here
 
     edges = EDGE*id + [ RT, DG, UP ] + 1
   end function id_edge
 
-  function idx_hex (dom, i, j, offs, dims)
-    ! Returns vector with the indices of the hexagon and its six neighbours hexagons at node (i,j,offs,dims)
+  
+  pure function idx_hex (i, j, offs, dims) result(hex_idx)
     implicit none
-    type(Domain)                     :: dom
-    integer                          :: i, j
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims 
-    integer, dimension(1:2*EDGE+1)   :: idx_hex
 
-    integer :: id, idE, idNE, idN, idSW, idS
+    integer, intent(in) :: i, j
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+    integer             :: hex_idx(2*EDGE+1)
 
-    id   = idx (i,   j,   offs, dims)
-    
-    idE  = idx (i+1, j,   offs, dims) 
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-
-    idS  = idx (i-1, j,   offs, dims) 
-    idSW = idx (i-1, j-1, offs, dims)
-    idS  = idx (i,   j-1, offs, dims)
-
-    idx_hex = [ id, idE, idNE, idN, idS, idSW, idS ]
+    hex_idx = [ &
+         idx(i,   j,   offs, dims), &
+         idx(i+1, j,   offs, dims), &
+         idx(i+1, j+1, offs, dims), &
+         idx(i,   j+1, offs, dims), &
+         idx(i-1, j,   offs, dims), &
+         idx(i-1, j-1, offs, dims), &
+         idx(i,   j-1, offs, dims)  &
+         ]
   end function idx_hex
 
-  function idx_hex_LORT (dom, i, j, offs, dims)
-    ! Returns vector with the indices of the six child hexagons overlapping with the LORT parent triangle
+  
+  pure function idx_hex_LORT (i, j, offs, dims) result(hex_idx)
+    ! Return the indices of the six child hexagons overlapping
+    ! the LORT parent triangle.
     implicit none
-    type(Domain)                     :: dom
-    integer                          :: i, j
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims 
-    integer, dimension(1:2*EDGE)     :: idx_hex_LORT
 
-    integer :: id, idE, idNE, id2E, id2NE, id2EN
+    integer, intent(in) :: i, j
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
 
-    id   = idx (i,   j,   offs, dims)
-    idE  = idx (i+1, j,   offs, dims) 
-    idNE = idx (i+1, j+1, offs, dims)
-    
-    id2E  = idx (i+2, j,   offs, dims) 
-    id2NE = idx (i+2, j+2, offs, dims)
-    id2EN = idx (i+2, j+1, offs, dims)
+    integer :: hex_idx(2*EDGE)
 
-    idx_hex_LORT = [ id, idE, idNE, id2E, id2NE, id2EN ]
+    hex_idx = [ &
+         idx(i,   j,   offs, dims), &
+         idx(i+1, j,   offs, dims), &
+         idx(i+1, j+1, offs, dims), &
+         
+         idx(i+2, j,   offs, dims), &
+         idx(i+2, j+2, offs, dims), &
+         idx(i+2, j+1, offs, dims)  &
+         ]
   end function idx_hex_LORT
 
-  function idx_hex_LORT2 (dom, i, j, offs, dims)
-    ! Returns vector with the indices of the three hexagons overlapping with the LORT triangle
+  
+  pure function idx_hex_LORT2 (i, j, offs, dims) result(hex_idx)
+    ! Return the indices of the three hexagons overlapping the LORT triangle.
     implicit none
-    type(Domain)                     :: dom
-    integer                          :: i, j
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims 
-    integer, dimension(1:EDGE)       :: idx_hex_LORT2
 
-    integer :: id, idE, idNE
+    integer, intent(in) :: i, j
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
 
-    id   = idx (i,   j,   offs, dims)
-    idE  = idx (i+1, j,   offs, dims) 
-    idNE = idx (i+1, j+1, offs, dims)
-    
-    idx_hex_LORT2 = [ id, idE, idNE ]
+    integer :: hex_idx(EDGE)
+
+    hex_idx = [ &
+         idx(i,   j,   offs, dims), &
+         idx(i+1, j,   offs, dims), &
+         idx(i+1, j+1, offs, dims)  &
+         ]
   end function idx_hex_LORT2
 
-  function idx_hex_UPLT (dom, i, j, offs, dims)
-    ! Returns vector with the indices of the six child hexagons overlapping with the LORT parent triangle
+  
+  pure function idx_hex_UPLT (i, j, offs, dims) result(hex_idx)
+    ! Return the indices of the six child hexagons overlapping
+    ! the LORT parent triangle.
     implicit none
-    type(Domain)                     :: dom
-    integer                          :: i, j
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims 
-    integer, dimension(2*EDGE)       :: idx_hex_UPLT
 
-    integer :: id, idNE, idN, id2NE, idE2N, id2N
+    integer, intent(in) :: i, j
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
 
-    id    = idx (i,   j,   offs, dims)
-    idNE  = idx (i+1, j+1, offs, dims)
-    idN   = idx (i,   j+1, offs, dims)
-    
-    idE2N = idx (i+1, j+2, offs, dims)
-    id2NE = idx (i+2, j+2, offs, dims)
-    id2N  = idx (i,   j+2, offs, dims)
+    integer :: hex_idx(2*EDGE)
 
-    idx_hex_UPLT = [ id, idNE, idN, id2N, id2NE, idE2N ]
+    hex_idx = [ &
+         idx(i,   j,   offs, dims), &
+         idx(i+1, j+1, offs, dims), &
+         idx(i,   j+1, offs, dims), &
+         idx(i,   j+2, offs, dims), &
+         idx(i+2, j+2, offs, dims), &
+         idx(i+1, j+2, offs, dims)  &
+         ]
   end function idx_hex_UPLT
 
-  function idx_hex_UPLT2 (dom, i, j, offs, dims)
-    ! Returns vector with the indices of the three hexagons overlapping with the LORT triangle
+  
+  pure function idx_hex_UPLT2 (i, j, offs, dims) result(hex_idx)
+    ! Return the indices of the three hexagons overlapping the UPLT triangle.
     implicit none
-    type(Domain)                     :: dom
-    integer                          :: i, j
-    integer, dimension(N_BDRY + 1)   :: offs
-    integer, dimension(2,N_BDRY + 1) :: dims 
-    integer, dimension(1:EDGE)       :: idx_hex_UPLT2
 
-    integer :: id, idNE, idN
+    integer, intent(in) :: i, j
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
 
-    id   = idx (i,   j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i+1, j,   offs, dims)
-    
-    idx_hex_UPLT2 = [ id, idNE, idN ]
+    integer :: hex_idx(EDGE)
+
+    hex_idx = [ &
+         idx(i,   j,   offs, dims), &
+         idx(i+1, j+1, offs, dims), &
+         idx(i,   j+1, offs, dims)  &
+         ]
   end function idx_hex_UPLT2
 
-  integer function tri_idx (i, j, tri, offs, dims)
+  
+  pure function tri_idx (i, j, tri, offs, dims) result(id)
     implicit none
-    integer                        :: i, j
-    integer, dimension(3)          :: tri
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
-    tri_idx = TRIAG * idx(i + tri(1), j + tri(2), offs, dims) + tri(3)
+    integer, intent(in) :: i, j
+    integer, intent(in) :: tri(3)
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
+
+    id = TRIAG*idx(i + tri(1), j + tri(2), offs, dims) + tri(3)
   end function tri_idx
 
-  integer function nidx (i, j, s, offs, dims)
+  
+  pure function nidx (i, j, s, offs, dims) result(id)
     implicit none
-    integer                        :: i, j, s
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
-    nidx = offs(s+1) + j*dims(1,s+1) + i
+    integer, intent(in) :: i, j, s
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
+
+    id = offs(s+1) + j*dims(1,s+1) + i
   end function nidx
 
-  integer function idx2 (i, j, noffs, offs, dims)
-    ! Index of node (i+noffs(1), j+noffs(2))
+  
+  pure function idx2 (i, j, noffs, offs, dims) result(id)
+    ! Return the index of node (i+noffs(1), j+noffs(2)).
     implicit none
-    integer                        :: i, j
-    integer, dimension(2)          :: noffs
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
-    idx2 = idx(i + noffs(1), j + noffs(2), offs, dims)
+    integer, intent(in) :: i, j
+    integer, intent(in) :: noffs(2)
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
+
+    id = idx(i + noffs(1), j + noffs(2), offs, dims)
   end function idx2
 
-  integer function ed_idx (i, j, ed, offs, dims)
-    ! Return edge index
+  
+  pure function ed_idx (i, j, ed, offs, dims) result(id)
+    ! Return the edge index.
     implicit none
-    integer                        :: i, j
-    integer, dimension(3)          :: ed
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
-    ed_idx = EDGE*idx(i + ed(1), j + ed(2), offs, dims) + ed(3)
+
+    integer, intent(in) :: i, j
+    integer, intent(in) :: ed(3)
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
+
+    id = EDGE*idx(i + ed(1), j + ed(2), offs, dims) + ed(3)
   end function ed_idx
 
-  pure logical function is_penta (dom, p, s)
+  
+  pure logical function is_penta (dom, p, s) result(penta)
     implicit none
+
     type(Domain), intent(in) :: dom
     integer,      intent(in) :: p, s
 
     integer :: n, side
-    logical :: penta
 
     penta = .false.
 
@@ -552,216 +620,273 @@ contains
        n = -n
        side = dom%bdry_patch%elts(n+1)%side
 
-       if (side > 0) then
-          is_penta = dom%penta(side)
-          return
-       end if
+       if (side > 0) penta = dom%penta(side)
     end if
-
-    is_penta = penta
   end function is_penta
 
-  integer function find_neigh_bdry_patch_Domain (self, p_par, c, s)
+  
+  pure function find_neigh_patch_Domain (self, p_par, c, s_chd) result(neigh)
+    ! Find the neighbour of the c-th child of parent patch p_par
+    ! across child side s_chd.
     implicit none
-    type(Domain) :: self
-    integer      :: p_par, c, s
-    
-    integer :: p_chd, p_par1, c1
 
-    find_neigh_bdry_patch_Domain = 0
+    type(Domain), intent(in) :: self
+    integer,      intent(in) :: p_par, c, s_chd
 
-    if (p_par <= 0) return
+    integer :: neigh
+    integer :: c1, n_par, p_par1
+    integer :: s_help, typ
 
-    p_chd = self%patch%elts(p_par+1)%children(c+1)
-    if (p_chd > 0) find_neigh_bdry_patch_Domain = self%patch%elts(p_chd+1)%neigh(s+1)
+    neigh = 0
 
-    if (s >= 4) return
-
-    if (find_neigh_bdry_patch_Domain == 0) then
-       call find_neigh_patch2_Domain (self, p_par, c, modulo(s+1,4), p_par1, c1)
-       if (p_par1 > 0) then
-          p_chd = self%patch%elts(p_par1+1)%children(c1+1)
-          if (p_chd > 0) find_neigh_bdry_patch_Domain = self%patch%elts(p_chd+1)%neigh((modulo(s-1,4)+4)+1)
-       end if
-    end if
-
-    if (find_neigh_bdry_patch_Domain == 0) then
-       call find_neigh_patch2_Domain (self, p_par, c, modulo(s-1,4), p_par1, c1)
-       if (p_par1 > 0) then
-          p_chd = self%patch%elts(p_par1+1)%children(c1+1)
-          if (p_chd > 0) find_neigh_bdry_patch_Domain = self%patch%elts(p_chd+1)%neigh((s+4)+1)
-       end if
-    end if
-  end function find_neigh_bdry_patch_Domain
-
-  subroutine find_neigh_patch2_Domain (self, p_par0, c0, s0, p_par, c)
-    ! For patch given as `c0`-th child of `p_par0` find neighbour with respect to side `s0`
-    ! result as `c`-th child of patch `p_par`
-    implicit none
-    type(Domain), intent(in)  :: self
-    integer,      intent(in)  :: p_par0, c0, s0
-    integer,      intent(out) :: p_par, c
-    
-    integer :: s_par
-
-    s_par = par_side(c0, s0)
-    if (s0 == c0 .or. s0 == modulo(c0 + 1, 4) .or. (s0 == c0 + 4)) then
-       p_par = self%patch%elts(p_par0+1)%neigh(s0+1)
-    else if (s0 == modulo(c0 + 1, 4) + 4 .or. s0 == modulo(c0 - 1, 4) + 4) then
-       p_par = self%patch%elts(p_par0+1)%neigh(s_par+1)
-    else ! neighbour patch on same parent
-       p_par = p_par0
-    end if
-
-    c = ngb_chd_idx(c0, s0)
-  contains
-    integer function ngb_chd_idx(c, s)
-      implicit none
-      integer :: c, s
-
-      if (s < 4) then
-         ngb_chd_idx = modulo(-c + 2*s + 1, 4)
-         return
-      else
-         ngb_chd_idx = modulo(c + 2, 4)
-         return
-      end if
-    end function ngb_chd_idx
-  end subroutine find_neigh_patch2_Domain
-
-  integer function find_neigh_patch_Domain (self, p_par, c, s_chd)
-    ! Finds the neighbour at side s of c-th child of parent patch p_par through p_par
-    implicit none
-    type(Domain) :: self
-    integer      :: c, p_par, s_chd
-
-    integer :: c1, n_par, p_par1, s_help, s_par, typ
-
-    find_neigh_patch_Domain = 0
-
-    call find_neigh_patch2_Domain (self, p_par, c, s_chd, n_par, c1)
-
-    s_par = par_side(c, s_chd)
+    call find_neigh_patch2_Domain( &
+         self, p_par, c, s_chd, n_par, c1)
 
     if (n_par > 0) then
-       find_neigh_patch_Domain = self%patch%elts(n_par+1)%children(c1+1)
-    else if (n_par < 0) then ! bdry patch
+       neigh = self%patch%elts(n_par+1)%children(c1+1)
+
+    else if (n_par < 0) then
+       ! Boundary patch.
        n_par = -n_par
        typ = self%bdry_patch%elts(n_par+1)%side
-       if (typ < 1) then
-          find_neigh_patch_Domain = 0
-          return
-       end if
 
-       if (s_chd + 1 == typ) then ! side
-          find_neigh_patch_Domain = find_neigh_bdry_patch_Domain(self, p_par, c, s_chd)
-       else ! patch corner, but domain side
-          if (s_chd + 1 == typ + 4) then ! s_chd after typ (clockwise sense)
+       if (typ < 1) return
+
+       if (s_chd+1 == typ) then
+          ! Domain side.
+          neigh = find_neigh_bdry_patch_Domain( &
+               self, p_par, c, s_chd)
+
+       else
+          ! Patch corner lying on a domain side.
+          if (s_chd+1 == typ+4) then
+             ! s_chd follows typ in the clockwise direction.
              s_help = modulo(typ, 4)
-          else if (s_chd + 1 == modulo(typ-2, 4) + 5) then ! s_chd before typ
+
+          else if (s_chd+1 == modulo(typ-2, 4)+5) then
+             ! s_chd precedes typ.
              s_help = modulo(typ-2, 4)
+
+          else
+             ! No recognized corner relationship.
+             return
           end if
-          call find_neigh_patch2_Domain (self, p_par, c, s_help, p_par1, c1)
-          find_neigh_patch_Domain = find_neigh_bdry_patch_Domain(self, p_par1, c1, typ-1)
+
+          call find_neigh_patch2_Domain( &
+               self, p_par, c, s_help, p_par1, c1)
+
+          neigh = find_neigh_bdry_patch_Domain( &
+               self, p_par1, c1, typ-1)
        end if
     end if
   end function find_neigh_patch_Domain
 
-  integer function par_side (c, s)
+  
+  pure function find_neigh_bdry_patch_Domain (self, p_par, c, s) result(neigh)
     implicit none
-    integer :: c, s
 
-    if (s == modulo(c+1, 4) + 4) then
-       par_side = modulo(c+1, 4)
-       return
-    else
-       if (s == modulo(c-1, 4) + 4) then
-          par_side = c
-          return
-       else
-          par_side = s
-          return
+    type(Domain), intent(in) :: self
+    integer,      intent(in) :: p_par, c, s
+
+    integer :: neigh
+    integer :: p_chd, p_par1, c1
+
+    neigh = 0
+
+    if (p_par <= 0) return
+
+    p_chd = self%patch%elts(p_par+1)%children(c+1)
+
+    if (p_chd > 0) then
+       neigh = self%patch%elts(p_chd+1)%neigh(s+1)
+    end if
+
+    if (s >= 4) return
+
+    if (neigh == 0) then
+       call find_neigh_patch2_Domain ( &
+            self, p_par, c, modulo(s+1, 4), p_par1, c1)
+
+       if (p_par1 > 0) then
+          p_chd = self%patch%elts(p_par1+1)%children(c1+1)
+
+          if (p_chd > 0) then
+             neigh = self%patch%elts(p_chd+1)%neigh( &
+                  modulo(s-1, 4) + 5)
+          end if
        end if
+    end if
+
+    if (neigh == 0) then
+       call find_neigh_patch2_Domain ( &
+            self, p_par, c, modulo(s-1, 4), p_par1, c1)
+
+       if (p_par1 > 0) then
+          p_chd = self%patch%elts(p_par1+1)%children(c1+1)
+
+          if (p_chd > 0) then
+             neigh = self%patch%elts(p_chd+1)%neigh(s+5)
+          end if
+       end if
+    end if
+  end function find_neigh_bdry_patch_Domain
+
+  
+  pure subroutine find_neigh_patch2_Domain (self, p_par0, c0, s0, p_par, c)
+    ! For the patch given by the c0-th child of p_par0, find the
+    ! neighbour across side s0. Return it as the c-th child of p_par.
+    implicit none
+
+    type(Domain), intent(in)  :: self
+    integer,      intent(in)  :: p_par0, c0, s0
+    integer,      intent(out) :: p_par, c
+
+    integer :: s_par
+
+    s_par = par_side(c0, s0)
+
+    if (s0 == c0 .or.                            &
+         s0 == modulo(c0+1, 4) .or.               &
+         s0 == c0+4) then
+
+       p_par = self%patch%elts(p_par0+1)%neigh(s0+1)
+
+    else if (s0 == modulo(c0+1, 4)+4 .or.        &
+         s0 == modulo(c0-1, 4)+4) then
+
+       p_par = self%patch%elts(p_par0+1)%neigh(s_par+1)
+
+    else
+       ! Neighbour patch has the same parent.
+       p_par = p_par0
+    end if
+
+    c = ngb_chd_idx(c0, s0)
+
+  contains
+
+    pure integer function ngb_chd_idx(c0, s0) result(c_neigh)
+      implicit none
+
+      integer, intent(in) :: c0, s0
+
+      if (s0 < 4) then
+         c_neigh = modulo(-c0 + 2*s0 + 1, 4)
+      else
+         c_neigh = modulo(c0 + 2, 4)
+      end if
+    end function ngb_chd_idx
+
+  end subroutine find_neigh_patch2_Domain
+
+  
+  pure function par_side(c, s) result(side)
+    implicit none
+
+    integer, intent(in) :: c, s
+    integer             :: side
+    
+    if (s == modulo(c+1, 4) + 4) then
+       side = modulo(c+1, 4)
+    else if (s == modulo(c-1, 4) + 4) then
+       side = c
+    else
+       side = s
     end if
   end function par_side
 
-  subroutine get_offs_Domain5 (self, p, offs, dims, inner_patch)
+  
+  pure subroutine get_offs_Domain5 (self, p, offs, dims, inner_patch)
     implicit none
-    type(Domain)                    :: self
-    integer                         :: p
-    integer, dimension(N_BDRY+1)    :: offs
-    integer, dimension(2,N_BDRY+1)  :: dims
-    logical, dimension(4), optional :: inner_patch
+
+    type(Domain), intent(in)            :: self
+    integer,      intent(in)            :: p
+    integer,      intent(out)           :: offs(N_BDRY+1)
+    integer,      intent(out)           :: dims(2,N_BDRY+1)
+    logical,      intent(out), optional :: inner_patch(4)
 
     integer :: i, n
+    integer :: bdry, side
 
     offs = -1
-    dims =  0
+    dims = 0
+
     offs(1) = self%patch%elts(p+1)%elts_start
 
-    if (present(inner_patch)) inner_patch = .false.
-
-    do i = 1, min (N_BDRY, 4)
+    do i = 1, N_BDRY
        n = self%patch%elts(p+1)%neigh(i)
+
        if (n > 0) then
-          offs(i+1) = self%patch%elts(n+1)%elts_start
+          offs(i+1)   = self%patch%elts(n+1)%elts_start
           dims(:,i+1) = PATCH_SIZE
-          if (present(inner_patch)) inner_patch(i) = .true.
+
        else if (n < 0) then
-          offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
-          dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
-          if (present(inner_patch)) inner_patch(i) = .true.   
+          bdry = -n
+          side = self%bdry_patch%elts(bdry+1)%side
+
+          offs(i+1)   = self%bdry_patch%elts(bdry+1)%elts_start
+          dims(:,i+1) = sides_dims(:,abs(side)+1)
        end if
     end do
 
-    do i = 5, N_BDRY
-       n = self%patch%elts(p+1)%neigh(i)
-       if (n > 0) then
-          offs(i+1) = self%patch%elts(n+1)%elts_start
-          dims(:,i+1) = PATCH_SIZE
-       else if (n < 0) then
-          offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
-          dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
-       end if
-    end do
+    if (present(inner_patch)) then
+       inner_patch = .false.
+
+       do i = 1, min(N_BDRY, size(inner_patch))
+          n = self%patch%elts(p+1)%neigh(i)
+          inner_patch(i) = n /= 0
+       end do
+    end if
   end subroutine get_offs_Domain5
 
-  subroutine get_offs_Domain (self, p, offs, dims, inner_bdry)
+  
+  pure subroutine get_offs_Domain(self, p, offs, dims, inner_bdry)
     implicit none
-    type(Domain)                    :: self
-    integer                         :: p
-    integer, dimension(N_BDRY+1)    :: offs
-    integer, dimension(2,N_BDRY+1)  :: dims
-    logical, dimension(4), optional :: inner_bdry
-    
+
+    type(Domain), intent(in)            :: self
+    integer,      intent(in)            :: p
+    integer,      intent(out)           :: offs(N_BDRY+1)
+    integer,      intent(out)           :: dims(2,N_BDRY+1)
+    logical,      intent(out), optional :: inner_bdry(4)
+
     integer :: i, n
+    integer :: bdry, side
 
     offs = -1
-    dims =  0
+    dims = 0
     offs(1) = self%patch%elts(p+1)%elts_start
 
-    do i = 1, min (N_BDRY, 4)
+    if (present(inner_bdry)) inner_bdry = .false.
+
+    do i = 1, N_BDRY
        n = self%patch%elts(p+1)%neigh(i)
+
        if (n > 0) then
-          offs(i+1) = self%patch%elts(n+1)%elts_start
+          offs(i+1)   = self%patch%elts(n+1)%elts_start
           dims(:,i+1) = PATCH_SIZE
-          if (present(inner_bdry)) inner_bdry(i) = .true.
+
        else if (n < 0) then
-          offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
-          dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
-          if (present(inner_bdry)) inner_bdry(i) = self%bdry_patch%elts(-n+1)%side < 0
+          bdry = -n
+          side = self%bdry_patch%elts(bdry+1)%side
+
+          offs(i+1)   = self%bdry_patch%elts(bdry+1)%elts_start
+          dims(:,i+1) = sides_dims(:,abs(side)+1)
        end if
     end do
 
-    do i = 5, N_BDRY
-       n = self%patch%elts(p+1)%neigh(i)
-       if (n > 0) then
-          offs(i+1) = self%patch%elts(n+1)%elts_start
-          dims(:,i+1) = PATCH_SIZE
-       else if (n < 0) then
-          offs(i+1) = self%bdry_patch%elts(-n+1)%elts_start
-          dims(:,i+1) = sides_dims(:,abs(self%bdry_patch%elts(-n+1)%side) + 1)
-       end if
-    end do
+    if (present(inner_bdry)) then
+       do i = 1, min(N_BDRY, size(inner_bdry))
+          n = self%patch%elts(p+1)%neigh(i)
+
+          if (n > 0) then
+             inner_bdry(i) = .true.
+          else if (n < 0) then
+             side = self%bdry_patch%elts(-n+1)%side
+             inner_bdry(i) = side < 0
+          end if
+       end do
+    end if
   end subroutine get_offs_Domain
+
+  
 end module domain_mod

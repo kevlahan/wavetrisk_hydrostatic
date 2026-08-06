@@ -1,24 +1,41 @@
 module sso_mod
   ! SSO (subgrid scale orography) parameterization based on Lott and Miller (QJR Meteorol Soc 123, 101-127 1997)
-  use domain_mod
-  use comm_mod
-  use comm_mpi_mod
-  use utils_mod
+
+  use kind_mod,   only : dp
+  use shared_mod, only : Coord, EDGE, MATH_PI, N_BDRY, S_GAMMA, S_MU, S_SIGMA, S_THETA, S_MASS, S_TEMP, S_VELO, RT, DG, UP, &
+       gamma, radius, topo_max_level, zlevels
+
+  use domain_mod, only : Domain, grid, sol, sol_mean, sso_param, topography, topography_data, id_edge, idx
+  use geom_mod,   only : cart2sph, direction, dist, inner
+  use utils_mod,  only : density_i, dz_i, interp, N_i, uvw2zonal_merid
+
+  use coord_arithmetic_mod
+  
   implicit none
+
+  private
+  public :: sso_drag
+  public :: blocking_drag, cal_sso_param, wave_drag
+  
   logical :: circle        = .true. ! assume circular mountain (not enough SSO statistics)
   logical :: blocking_drag = .true. 
   logical :: wave_drag     = .false.
+
+  
 contains
-  function sso_drag (dom, i, j, z_null, offs, dims)
+
+  
+  function sso_drag (dom, i, j, zlev, offs, dims)
     ! SSO block and wave drag at edges
     ! uses version from Japanese Meteorological Agency (2019) report
-    use coord_arithmetic_mod
+
     implicit none
-    type(Domain)                          :: dom
-    integer                               :: i, j, z_null
-    integer,  dimension(N_BDRY+1)         :: offs
-    integer,  dimension(2,N_BDRY+1)       :: dims
-    real(dp), dimension(1:zlevels,1:EDGE) :: sso_drag
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: sso_drag(1:zlevels,1:EDGE) 
 
     integer                            :: d, id, idE, idNE, idN, k, nlev
     integer, dimension(1:EDGE)         :: id_e
@@ -193,15 +210,18 @@ contains
        end if
     end do
   end function sso_drag
+  
 
   subroutine cal_sso_param (dom, i, j, zlev, offs, dims)
     ! mu (standard deviation) of Subgrid Scale Orography (SSO) compared to Grid Scale Orography (GSO)
     ! Use area-weighted integral including approximate overlapping coarse-fine hexagonal cells for levels < max_level-1
+
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)  
 
     integer  :: d, id, ii, jj, n_topo
     real(dp) :: distance, dx, h, hx, hy, h_sq, hx_sq, hy_sq, hxhy, total_area
@@ -261,4 +281,6 @@ contains
        sso_param(S_SIGMA)%data(d)%elts(id+1) = sqrt (hx_sq * cos (theta) + hy_sq * sin (theta))
     end if
   end subroutine cal_sso_param
+
+  
 end module sso_mod

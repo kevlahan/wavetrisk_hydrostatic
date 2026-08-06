@@ -1,17 +1,63 @@
 module main_mod
-  use io_mod
-  use io_vtk_mod
-  use wavelet_mod
-  use adapt_mod
-  use remap_mod
-  use time_integr_mod
-  use coarse_grid_mod
+
+  use kind_mod,   only : dp
+  use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, N_BDRY, &
+       N_GLO_DOMAIN, N_VARIABLE, NCAR_topo, NONE, &
+       S_DIVU, S_ROTU, S_MASS, S_TEMP, S_VELO, TRIAG, XU_GRID, RT, DG, UP, LORT, UPLT, Laplace_divu, Laplace_rotu, Laplace_sclr, &
+       adapt_dt, Area_avg, C_visc, a_vert, a_vert_mass, b_vert, b_vert_mass, cfl_safety, compressible, cp_idx, &
+       dt, dt_init, dt_write, dx_avg, gamma, grav_accel, iremap, iremap_max, istep, istep_cumul, itime, iwrite, linear_solver, &
+       level_start, level_end, log_min_mass, log_total_mass, match_time, &
+       min_mass, min_mass_remap, min_level, max_level, mode_split, n_active, n_domain, n_node_old, n_patch_old, optimize_grid, &
+       P_top, penta_node, penta_node_std, physics_type, physics_model, r_adv, r_dif, radius, remap, &
+       R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
+       time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
+
+  use arch_mod,         only : abort_run, barrier, distribute_grid, glo_id, n_process, rank
+  use adapt_mod,        only : adapt, init_adapt_mod, WT_after_step
+  use coarse_grid_mod,  only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
+  use comm_mod,         only : get_coord, set_coord,  init_comm_mod
+  use domain_ops_mod,   only : apply_interscale, apply_no_bdry,  apply_onescale2
+  use geom_mod,         only : number_hex
+  use io_mod,           only : dump_adapt_mpi, load_adapt_mpi, load_topo, init_io_mod
+  use io_vtk_mod,       only : write_and_export
+  use lin_solve_mod,    only : Full_Multigrid, Scheduled_Relaxation_Jacobi
+  use lnorms_mod,       only : lnorm
+  use mask_mod,         only : init_mask_mod, init_masks, mask_adj_child
+  use multi_level_mod,  only : trend_ml
+  use refine_patch_mod, only : add_second_level, init_refine_patch_mod
+  use remap_mod,        only : remap_vertical_coordinates
+  use utils_mod,        only : integrate_hex, integrate_tri, porous_density, rho_dz_i
+  use wavelet_mod,      only : forward_wavelet_transform, init_wavelet_mod, init_wavelets, &
+       inverse_scalar_transform, inverse_wavelet_transform 
+
+  use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
+       sum_int,  sync_max_int, sync_min_real, write_load_conn
+
+  use domain_mod, only : Domain, bernoulli, divu, dscalar, grid, &
+       dvelo, exner, exner_fun, h_flux, horiz_flux, ke, qe, scalar, mass, temp, velo, vort, wc_s, wc_u, &
+       Kt, Kv, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, sso_param, &
+       sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx
+
+  use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
+       initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, init_init_mod, &
+       precompute_geometry, set_level, set_thresholds
+
+   use time_integr_mod,  only : dt_step, dt_step_split,  init_RK_mem, init_time_integr_mod, q1, q2, q3, q4, dq1, &
+       Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK4_split, RK45_opt
+
+   use coord_arithmetic_mod
+   
 #ifdef PHYSICS
-  use physics_trend_mod
+   use init_physics_mod,  only : init_physics, init_soil_grid
+   use physics_trend_mod, only : physics_simple_step, trend_physics_Held_Suarez  
   use callkeys, only : lverbose
 #endif
+
   implicit none
-  integer                            :: chkpt_info
+
+  private
+  public :: initialize, time_step
+  
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
   real(dp)                           :: dt_new, initial_total_mass, time_mult
   real(dp)                           :: dt_loc, min_mass_loc
@@ -21,12 +67,14 @@ module main_mod
      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
   end type Initial_State
   type(Initial_State), dimension(:), allocatable :: ini_st
+  
 contains
+  
   subroutine initialize (run_id) 
     ! Initialize from checkpoint or adapt to initialize conditions
     ! (solution is saved and restarted to balance load)
     implicit none
-    character(*) :: run_id
+    character(*), intent(in) :: run_id
 
     if (max_level < min_level) then
        if (rank == 0) then
@@ -68,11 +116,6 @@ contains
        CP_EVERY = 1
     end if
 
-#ifdef AMPI
-    call MPI_Info_create (chkpt_info)
-    call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint")
-#endif
-
     if (resume >= 0) then
        cp_idx = resume
        call restart
@@ -113,7 +156,7 @@ contains
     end if
     if (trim (test_case) /= "make_NCAR_topo" .and. trim (test_case) /= "spherical_harmonics") call write_and_export (vtk_grid)
     call barrier
-    
+
     call initialize_dt_viscosity
     call initialize_thresholds
 
@@ -161,7 +204,7 @@ contains
 
   subroutine record_init_state (init_state)
     implicit none
-    type(Initial_State), dimension(:), allocatable :: init_state
+    type(Initial_State), allocatable, intent(out) :: init_state(:)
 
     integer :: d, i, v
 
@@ -251,17 +294,10 @@ contains
        write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time / DAY
     end if
 
-#ifdef AMPI
-    if (rank == 0) write (6,'(a)') "Checkpointing using AMPI ..."
-    call MPI_Info_set (chkpt_info, "ampi_checkpoint", "to_file=checkpoint")
-    call MPI_Barrier (MPI_COMM_WORLD)
-    call AMPI_Migrate (chkpt_info)
-    if (log_total_mass) call cal_total_mass (.true.) 
-#else
     call write_load_conn (cp_idx)
-    call dump_adapt_mpi  (cp_idx)
+    call dump_adapt_mpi (cp_idx)
     call restart
-#endif
+
   end subroutine write_checkpoint
 
   subroutine restart 
@@ -307,7 +343,7 @@ contains
        if (log_total_mass) call cal_total_mass (.true.)
 
        itime = nint (time * time_mult, 8)
-       
+
        dt_new = cpt_dt ()
        dt = dt_new
 
@@ -324,12 +360,6 @@ contains
                &***********************************************************'
        end if
     end if
-
-#ifdef AMPI
-    if (rank == 0) write (6,'(/,a)') "Rebalancing using AMPI ..."
-    call MPI_Barrier (MPI_COMM_WORLD)
-    call AMPI_Migrate (AMPI_INFO_LB_SYNC)
-#endif
   end subroutine restart
 
   subroutine time_step 
@@ -394,7 +424,7 @@ contains
     if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
     call adapt (set_thresholds)
     call inverse_wavelet_transform (wav_coeff, sol)
-    
+
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Vertical remapping (after grid adaptation to ensure ADJCENT_ZONE and ZERO cells are remapped consistently)
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -420,15 +450,6 @@ contains
        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint
        call write_and_export (vtk_grid)
     end if
-
-    ! Rebalance with AMPI
-#ifdef AMPI
-    if (modulo (istep, irebalance) == 0) then
-       if (rank == 0) write (6,'(a)') "Checking load balance and rebalancing if necessary using AMPI ..."
-       call MPI_Barrier (MPI_COMM_WORLD)
-       call AMPI_Migrate (AMPI_INFO_LB_SYNC)
-    end if
-#endif
   end subroutine time_step
 
   subroutine init_basic
@@ -488,7 +509,7 @@ contains
        penta_node(ip) = radius * penta_node(ip)
     end do
 
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)
+    call comm_nodes3_mpi (get_coord, set_coord)
     call precompute_geometry
 
     allocate (node_level_start(size(grid)), edge_level_start(size(grid)))
@@ -522,7 +543,7 @@ contains
   subroutine cal_total_mass (initialize_total_mass)
     ! Compute total mass over all vertical layers
     implicit none
-    logical :: initialize_total_mass
+    logical, intent(in) :: initialize_total_mass
 
     integer      :: k
     real(dp)     :: total_mass, mass_error
@@ -572,7 +593,7 @@ contains
 
     ! Active nodes and edges
     n_active_loc = (/ sum (n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end)) /)
-    n_active = sum_int_vector (n_active_loc, 2)
+    n_active = sum_int (n_active_loc)
     level_end = sync_max_int (level_end)
   end function cpt_dt
 
@@ -580,11 +601,13 @@ contains
     ! Calculates time step and number of active nodes and edges
     ! (uses exact local CFL stability formula for hexagons/pentagons)
     use utils_mod
+
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer                        :: d, e, id, id_i, k, l, lev
     integer,  dimension(1:EDGE)    :: ide
@@ -639,7 +662,7 @@ contains
   contains
     ! Routines to compute exact amplification factors for diffusive stability on adaptive grid
     ! Example: dt_dif = r_dif / theta_max_sclr ()**Laplace_sclr / nu_scale (S_MASS,1)
-    
+
     function dt_max_diffusive () 
       ! Maximum diffusive time step
       implicit none
@@ -730,11 +753,13 @@ contains
     ! Minimum mass compared to initial mass in a vertical column
     use init_mod
     use, intrinsic :: ieee_arithmetic
+
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer                        :: d, id, k
     real(dp)                       :: mass_ratio, P_s, z_s
@@ -778,7 +803,7 @@ contains
   subroutine deallocate_structures
     ! Deallocate all dynamic arrays and structures for clean restart
     implicit none
-    
+
     integer :: d, i, k, l, v, r
     integer :: istat
     character(len=256) :: emsg
@@ -828,7 +853,7 @@ contains
              error stop
           end if
        end if
-       
+
        if (allocated (grid(d)%level%elts))              deallocate (grid(d)%level%elts)
 
        if (allocated (grid(d)%R_F_wgt%elts))            deallocate (grid(d)%R_F_wgt%elts)
@@ -913,7 +938,7 @@ contains
           if (allocated (Kt(0)%data(d)%elts)) deallocate (Kt(0)%data(d)%elts)
           if (allocated (Kv(0)%data(d)%elts)) deallocate (Kv(0)%data(d)%elts)
           do k = 1, zlevels
-             if (allocated (Kt(i)%data(d)%elts))      deallocate (Kt(k)%data(d)%elts)
+             if (allocated (Kt(k)%data(d)%elts))      deallocate (Kt(k)%data(d)%elts)
              if (allocated (Kv(k)%data(d)%elts))      deallocate (Kv(k)%data(d)%elts)
              if (allocated (tke(k)%data(d)%elts))     deallocate (tke(k)%data(d)%elts)
              if (allocated (wav_tke(k)%data(d)%elts)) deallocate (wav_tke(k)%data(d)%elts)
@@ -1004,7 +1029,7 @@ contains
     if (allocated (req))              deallocate (req)
     if (allocated (send_lengths))     deallocate (send_lengths)
     if (allocated (send_offsets))     deallocate (send_offsets)
-    
+
     if (vert_diffuse) then
        if (allocated (Kv))      deallocate (Kv)
        if (allocated (Kt))      deallocate (Kt)

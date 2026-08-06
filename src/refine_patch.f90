@@ -1,14 +1,44 @@
 module refine_patch_mod
-  use domain_mod
-  use init_mod
-  use wavelet_mod
-  use mask_mod
-  implicit none
-  integer, parameter :: DOF_PER_PATCH = PATCH_SIZE * PATCH_SIZE * (EDGE + 1)
-  integer, parameter :: FILLED_AND_FROZEN = DOF_PER_PATCH + 1
+  use kind_mod,   only : dp
   
-  logical :: max_level_exceeded
+  use shared_mod, only : ADJSPACE, BDRY_THICKNESS, EDGE, N_BDRY, N_CHDRN, IMINUSJPLUS, IPLUSJMINUS, N_CHDRN, NONE, POLE, RESTRCT, &
+       z_null, S_DIVU, S_ROTU, S_VELO, RT, DG, UP, ORIGIN, TRIAG, ZERO, FALSE, TRUE, sso,  &
+       init_shared_mod, level_start, level_end, max_level, scalars, vert_diffuse, zlevels, zmin, zmax, n_domain
+
+  use arch_mod,       only : rank
+  use comm_mod,       only : update_comm
+  use dyn_arrays,     only : append, extend
+  use geom_mod,       only : init_Coord, mid_pt
+  use init_mod,       only : Areas, ccentre,  ccentre_penta, coriolis, cpt_areas, cpt_triarea, lengths, init_init_mod, midpt
+  use mask_mod,       only : init_mask_mod
+  use patch_mod,      only : Iu_wgt, RF_Wgt, Overl_Area, PATCH_SIZE
+  use wavelet_mod,    only : init_wavelet_mod, set_RF_wgts, set_WT_wgts
+
+  use comm_mpi_mod,   only : comm_masks_mpi, comm_communication_mpi, comm_nodes9_mpi, comm_patch_conn_mpi, &
+       sync_max_int
+
+  use domain_mod, only : add_patch_Domain, chd_offs, get_offs_Domain, grid, Domain, exner_fun, penal_node, penal_edge, idx, &
+       id_edge, init_domain_mod, is_penta, Kt, Kv, sso_param, tke, wav_tke, &
+       topography, trend, wav_coeff, horiz_flux, Laplacian_scalar, Laplacian_vector, &
+       find_neigh_patch_Domain, add_bdry_patch_Domain
+
+  use domain_ops_mod, only : apply_onescale_to_patch, apply_onescale_to_patch2, apply_onescale2, apply_interscale_to_patch3, &
+       apply_to_penta
+
+  implicit none
+
+  private
+  public :: add_second_level, check_child_required, get_child_and_neigh_patches, max_level_exceeded, post_refine
+  public :: refine, refine_patch1, refine_patch2
+  public :: init_refine_patch_mod, fill_up_level, refine_patch
+  
+  integer, parameter :: DOF_PER_PATCH = PATCH_SIZE * PATCH_SIZE * (EDGE + 1)
+  logical            :: max_level_exceeded
+
+  
 contains
+
+  
   logical function refine ()
     ! Determines where new patches are needed when grid is refineds
     implicit none
@@ -47,6 +77,7 @@ contains
     refine = sync_max_int (did_refine) == TRUE
     return
   end function refine
+  
 
   subroutine post_refine
     implicit none
@@ -69,14 +100,17 @@ contains
     end do
 
     call comm_communication_mpi
-    call comm_nodes9_mpi (get_areas, set_areas, NONE)
+    call comm_nodes9_mpi (get_areas, set_areas)
     call apply_to_penta (area_post_comm, NONE, z_null)
   end subroutine post_refine
+  
 
   subroutine refine_patch1 (dom, p_par, c0)
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: p_par, c0
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p_par, c0
     
     integer                   :: c, lev, num, p_chd
     
@@ -101,12 +135,15 @@ contains
 
     call extend (dom%level, num, dom%patch%elts(p_chd+1)%level)
   end subroutine refine_patch1
+  
 
   subroutine refine_patch2 (dom, p_par, c0)
     ! Sets and initializes all structures for new patches
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: p_par, c0
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p_par, c0
     
     integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
     integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
@@ -268,9 +305,12 @@ contains
     num = dom%node%length - dom%level%length
     call extend (dom%level, num, dom%patch%elts(p_chd+1)%level)
   end subroutine refine_patch2
+  
 
   subroutine add_second_level
+    
     implicit none
+    
     integer :: c, d
 
     do d = 1, size(grid)
@@ -290,16 +330,19 @@ contains
     end do
 
     call comm_communication_mpi
-    call comm_nodes9_mpi (get_areas, set_areas, NONE)
+    call comm_nodes9_mpi (get_areas, set_areas)
     call apply_to_penta (area_post_comm, NONE, z_null)
   end subroutine add_second_level
+  
 
-  logical function check_child_required (dom, p_par, c)
+  function check_child_required (dom, p_par, c) result(val)
     ! Determines where child (finer grid) is required based on mask value for parent
     ! child is required if parent node is in the adjacent zone or parent edge can be obtained by restriction
     implicit none
-    type(Domain) :: dom
-    integer      :: c, p_par
+    
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: c, p_par
+    logical                  :: val
 
     integer                        :: j0, j_par, i0, i_par, id_par
     integer                        :: st, en
@@ -322,55 +365,65 @@ contains
           required = dom%mask_n%elts(id_par+1) >= ADJSPACE .or. maxval (dom%mask_e%elts(id_edge(id_par))) >= RESTRCT 
 
           if (required) then
-             check_child_required = .true.
+             val = .true.
              return
           end if
        end do
     end do
-    check_child_required = .false.
+    val = .false.
   end function check_child_required
+  
 
-  function get_child_and_neigh_patches (dom, p_par, c)
+  function get_child_and_neigh_patches (dom, p_par, c) result(val)
+
     implicit none
-    integer, dimension(4) :: get_child_and_neigh_patches
-    type(Domain)          :: dom
-    integer               :: p_par, c
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p_par, c
+    integer                  :: val(4)
     
     integer :: n
-
-    get_child_and_neigh_patches = 0
-    get_child_and_neigh_patches(1) = dom%patch%elts(p_par+1)%children(c)
+    
+    val = 0
+    val(1) = dom%patch%elts(p_par+1)%children(c)
     n = dom%patch%elts(p_par+1)%neigh(c) ! side
     if (n > 0) then
-       get_child_and_neigh_patches(2) = dom%patch%elts(n+1)%children(modulo((c+1)-1,4)+1) 
-       get_child_and_neigh_patches(3) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
+       val(2) = dom%patch%elts(n+1)%children(modulo((c+1)-1,4)+1) 
+       val(3) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
     endif
 
     n = dom%patch%elts(p_par+1)%neigh(c+4) ! corner
-    if (n > 0) get_child_and_neigh_patches(4) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
-  end function get_child_and_neigh_patches  
+    if (n > 0) val(4) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
+  end function get_child_and_neigh_patches
+  
 
-  integer function side (dom, p, s)
+  function side (dom, p, s) result(val)
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: p, s
-
+    
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p, s
+    integer                  :: val
+    
     integer :: n
 
     n = dom%patch%elts(p+1)%neigh(s+1)
     if (n >= 0) then
-       side = -s - 1
+       val = -s - 1
        return
     else
-       side = dom%bdry_patch%elts(-n+1)%side
+       val = dom%bdry_patch%elts(-n+1)%side
        return
     end if
   end function side
+  
 
   subroutine connect_cousin (dom, p_par, p_chd, s_par, s_chd, c)
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: c, p_par, p_chd, s_par, s_chd
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: c, p_par, p_chd, s_par, s_chd
 
     integer :: n, typ
     !  c: which child on neighbour
@@ -390,11 +443,14 @@ contains
        call append (dom%send_pa_all, s_par)
     end if
   end subroutine connect_cousin
+  
 
   subroutine connect_pole (dom, n, p_chd, s_par)
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: n, p_chd, s_par
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: n, p_chd, s_par
 
     integer :: i
     do i = 1, 2
@@ -404,15 +460,18 @@ contains
        call append (dom%send_pa_all, s_par)
     end do
   end subroutine connect_pole
+  
 
   subroutine connect_children (dom, p_par)
     ! children of patch `p_par` are connected to neighbours on same level if they exist
     !        and temporary boundaries are removed
     !        considers the case that not all four children are present
     ! update: still used to connect old patches to new patches (new patches already connected now)
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: p_par
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p_par
 
     integer, dimension(N_CHDRN) :: children
     integer                     :: c, n_chd, n_tmp, p_chd, s
@@ -436,12 +495,15 @@ contains
        end do
     end do
   end subroutine connect_children
+  
 
   subroutine set_areas (dom, id, val)
+    
     implicit none
-    type(Domain)           :: dom
-    integer                :: id
-    real(dp), dimension(7) :: val
+    
+    type(Domain),        intent(inout) :: dom
+    integer,                intent(in) :: id
+    real(dp), dimension(7), intent(in) :: val
 
     real(dp), dimension(4) :: area
 
@@ -452,13 +514,16 @@ contains
     dom%overl_areas%elts(abs(id) + 1)%split = val(5:6)
     dom%areas%elts(abs(id) + 1)%hex_inv     = val(7)
   end subroutine set_areas
+  
 
   subroutine get_areas (dom, id, val)
+    
     implicit none
+    
+    type(Domain),           intent(in)  :: dom
+    integer,                intent(in)  :: id
     real(dp), dimension(7), intent(out) :: val
-    type(Domain)                       :: dom
-    integer                            :: id
-
+    
     real(dp), dimension(7) :: area
 
     area = 0.0_dp
@@ -469,15 +534,18 @@ contains
     val       = area
     return
   end subroutine get_areas
+  
 
   subroutine area_post_comm (dom, p, c, offs, dims, zlev)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: c, p, zlev
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: c, p, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
 
     integer :: id
-    integer, dimension(N_BDRY+1)   :: offs
 
     if (c == IPLUSJMINUS) then
        id = idx (PATCH_SIZE, -1, offs, dims)
@@ -488,11 +556,14 @@ contains
        dom%overl_areas%elts(id+1)%a = 0.0_dp
     end if
   end subroutine area_post_comm
+  
 
   subroutine attach_bdry (dom, p_par, c, s, side)
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: p_par, c, s, side
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p_par, c, s, side
 
     integer :: n_chd, p_chd
 
@@ -503,9 +574,12 @@ contains
     p_chd = dom%patch%elts(p_par+1)%children(c+1)
     dom%patch%elts(p_chd+1)%neigh(s+1) = n_chd
   end subroutine attach_bdry
+  
 
   subroutine init_refine_patch_mod
+    
     implicit none
+    
     logical :: initialized = .false.
     
     if (initialized) return ! initialize only once
@@ -518,10 +592,13 @@ contains
     
     initialized = .true.
   end subroutine init_refine_patch_mod
+  
 
   subroutine fill_up_level
     ! Fills up level level_start+1 and increases level_start
+    
     implicit none
+    
     integer :: d, j, p_par, c, p_chd
 
     do d = 1, size(grid)
@@ -536,13 +613,18 @@ contains
     call post_refine
     level_start = level_start+1
   end subroutine fill_up_level
+  
 
   subroutine refine_patch (dom, p, c0)
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: p, c0
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p, c0
 
     call refine_patch1 (dom, p, c0)
     call refine_patch2 (dom, p, c0)
   end subroutine refine_patch
+
+  
 end module refine_patch_mod

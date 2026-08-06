@@ -1,14 +1,30 @@
 #   include "ppr/ppr_1d.f90"
 module remap_mod
-  use utils_mod
-  use init_mod
-  use adapt_mod
+  
+  use kind_mod,   only : dp
+  use shared_mod, only : ADJZONE, EDGE, N_BDRY, NONE, S_MASS, S_TEMP, S_VELO, RT, DG, UP, &
+       a_vert, b_vert, compressible, grav_accel, p_top, ref_density, remap_type, sigma_z, z_null, zlevels
+  
+  use arch_mod,       only : abort_run, rank
+  use comm_mpi_mod,   only : update_bdry
+  use domain_mod,     only : Domain, Float_Field, sol, sol_mean, topography, idx
+  use domain_ops_mod, only : apply_no_bdry2
+  use init_mod,       only : z_coords 
+  use utils_mod,      only : buoyancy, phi_node, porous_density
+  
   implicit none
+
+  private
+  public :: remap_vertical_coordinates
+  
   real(dp), parameter :: Zero_r = 0.0_dp, OneFifth = 0.2_dp, Half = 0.5_dp, One = 1.0_dp
   real(dp), parameter :: ThreeHalfth = 1.5_dp, Two = 2.0_dp, Three = 3.0_dp, Four = 4.0_dp, Six = 6.0_dp
   real(dp), parameter :: eps_r = 1e-8_dp
   type(Float_Field), dimension(:), allocatable, target :: old_mass
+
+  
   abstract interface
+     
      subroutine interpolation (N, var_new, z_new, var_old, z_old)
        use kind_mod
        implicit none
@@ -17,13 +33,20 @@ module remap_mod
        real(dp), dimension(0:N), intent(in)  :: z_old, z_new
        real(dp), dimension(1:N), intent(out) :: var_new
      end subroutine interpolation
+     
   end interface
+
+  
   procedure (interpolation), pointer :: interpolate => null ()
+  
 contains
+
+  
   subroutine remap_vertical_coordinates
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
     ! Conserves mass, potential temperature and velocity divergence
     ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
+    
     implicit none
 
     ! Choose interpolation method:
@@ -77,15 +100,17 @@ contains
     nullify (interpolate)
     deallocate (old_mass)
   end subroutine remap_vertical_coordinates
+  
 
   subroutine remap_compressible (dom, p_null, i, j, zlev, offs, dims, is_pole)
     ! Remap mass-weighted potential temperature and velocities
     ! (potential temperature is remapped and then multiplied by new mass)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, is_pole, p_null, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, is_pole, p_null, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
     
     integer                                :: d, e, id, id_i, k
     integer, dimension (1:EDGE)            :: id_r
@@ -149,15 +174,18 @@ contains
        end do
     end if
   end subroutine remap_compressible
+  
 
   subroutine remap_incompressible (dom, p_null, i, j, z_null, offs, dims, is_pole)
     ! Remap mass-weighted potential temperature and velocities
     ! (potential temperature is remapped and then multiplied by new mass)
+    
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, is_pole, p_null, z_null
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+    
+    type (Domain), intent(inout) :: dom
+    integer,       intent(in)    :: i, j, is_pole, p_null, z_null
+    integer,       intent(in)    :: offs(N_BDRY+1) 
+    integer,       intent(in)    :: dims(2,N_BDRY+1)
 
     integer                               :: d, e, id, id_i, k
     integer, dimension (1:EDGE)           :: id_r
@@ -223,10 +251,13 @@ contains
        end do
     end if
   end subroutine remap_incompressible
+  
 
   subroutine find_coordinates (p_new, p_old, d, id_i)
     ! Calculates old and new pressure-based z coordinates from top down
+    
     implicit none
+    
     integer                        :: d, id_i
     real(dp)                       :: rho_dz
     real(dp), dimension(0:zlevels) :: p_new, p_old
@@ -240,10 +271,13 @@ contains
     end do
     p_new = a_vert(zlevels:0:-1) + b_vert(zlevels:0:-1) * p_old(zlevels)
   end subroutine find_coordinates
+  
 
   subroutine find_coordinates_incompressible (z_new, z_old, z_s, d, id_i)
     ! Calculates old and new z hybrid sigma coordinates
+    
     implicit none
+    
     integer                        :: d, id_i
     real(dp)                       :: z_s
     real(dp), dimension(0:zlevels) :: z_new, z_old
@@ -256,7 +290,8 @@ contains
        rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + old_mass(k)%data(d)%elts(id_i)
        z_old(k) = z_old(k-1) + rho_dz / (ref_density * phi_node (d, id_i, k))
     end do
-    eta_surf = z_old(zlevels) ! coordinate of free surface                                                                                                                                                                                                      
+    eta_surf = z_old(zlevels) ! coordinate of free surface
+
     ! New coordinates
     if (sigma_z) then
        z_new = z_coords (eta_surf, z_s)
@@ -264,13 +299,16 @@ contains
        z_new = a_vert * eta_surf + b_vert * z_s
     end if
   end subroutine find_coordinates_incompressible
+  
 
   subroutine remap0 (N, var_new, z_new, var_old, z_old)
     !
     ! The simplest remapping procedure which assumes that the distribution of var_old(z) is piecewise constant 
     ! in each grid box, (i.e. similar to donor-cell first-order upstream advection).
     !
+    
     implicit none
+    
     integer,                  intent(in)  :: N
     real(dp), dimension(1:N), intent(in)  :: var_old
     real(dp), dimension(0:N), intent(in)  :: z_old, z_new
@@ -292,6 +330,7 @@ contains
     end do
   end subroutine remap0
   
+  
   subroutine remap1 (N, var_new, z_new, var_old, z_old)
     !
     ! Remapping procedure using piecewise-linear reconstruction: 
@@ -304,7 +343,9 @@ contains
     !                                                              2*X*Y
     ! default version: minmod(X,Y) is replaced with harmonic mean -------
     !                                                              X + Y
+
     implicit none
+    
     integer,                  intent(in)  :: N
     real(dp), dimension(1:N), intent(in)  :: var_old
     real(dp), dimension(0:N), intent(in)  :: z_old, z_new
@@ -388,12 +429,15 @@ contains
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k)-z_new(k-1))
     end do
   end subroutine remap1
+  
 
   subroutine remap2PPM (N, var_new, z_new, var_old, z_old)
     !
     ! Reconstruction by PPM code of Colella--Woodward, 1984.
     !
+    
     implicit none
+    
     integer,                  intent(in)  :: N
     real(dp), dimension(1:N), intent(in)  :: var_old
     real(dp), dimension(0:N), intent(in)  :: z_old, z_new
@@ -507,13 +551,16 @@ contains
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
     end do
   end subroutine remap2PPM
+  
 
   subroutine remap2S (N, var_new, z_new, var_old, z_old)
     !
     ! Basic parabolic spline reconstruction
     !------ --------- ------ --------------
     !
+    
     implicit none
+    
     integer,                  intent(in)  :: N
     real(dp), dimension(1:N), intent(in)  :: var_old
     real(dp), dimension(0:N), intent(in)  :: z_old, z_new
@@ -595,6 +642,7 @@ contains
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
     end do
   end subroutine remap2S
+  
 
   subroutine remap2W (N, var_new, z_new, var_old, z_old)
     !
@@ -749,6 +797,7 @@ contains
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
     end do
   end subroutine remap2W
+  
 
   subroutine remap4 (N, var_new, z_new, var_old, z_old)
     ! Parabolic WENO enhanced by quartic power-law reconciliation step. 
@@ -756,7 +805,9 @@ contains
     !
     ! (1) continuity of both value and first derivative at each interface
     ! (2) essentially non-oscillatory
+    
     implicit none
+    
     integer,                  intent(in)  :: N
     real(dp), dimension(1:N), intent(in)  :: var_old
     real(dp), dimension(0:N), intent(in)  :: z_old, z_new
@@ -964,11 +1015,15 @@ contains
        var_new(k) = (Hz(k)*var_old(k) + FC(k)-FC(k-1)) / (z_new(k) - z_new(k-1))
     end do
   end subroutine remap4
+  
 
   subroutine remapPPR (N, var_new, z_new, var_old, z_old)
     ! PPR remapping using Engwirda and Kelley (2016) algorithms
+    
     use ppr_1d
+    
     implicit none
+    
     integer,                  intent(in)  :: N
     real(dp), dimension(1:N), intent(in)  :: var_old
     real(dp), dimension(0:N), intent(in)  :: z_old, z_new
@@ -980,7 +1035,7 @@ contains
     
     integer, parameter               :: nvar = 1 ! number of variables to remap
     integer, parameter               :: ndof = 1 ! number of finite volume degrees of freedom per cell (1 for finite volume)
-    real(dp), dimension(ndof,nvar,N) :: f_old, f_new, init
+    real(dp), dimension(ndof,nvar,N) :: f_old, f_new
     type(rmap_work)                  :: work
     type(rmap_opts)                  :: opts
     type(rcon_ends), dimension(nvar) :: bc_l, bc_r
@@ -1029,4 +1084,6 @@ contains
     ! Clear method workspace
     call work%free
   end subroutine remapPPR
+
+  
 end module remap_mod

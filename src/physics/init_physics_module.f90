@@ -5,11 +5,21 @@
 ! Description: all initialization subroutines for Simple Physics package 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 module init_physics_mod
-  use comm_mpi_mod
-  use utils_mod
-  use init_mod
+  use kind_mod,   only : dp, sp
+  use shared_mod, only : DAY, YEAR, Nsoil, c_p, grav_accel, R_d, radius, run_id, zlevels, zmin
+
+  use arch_mod, only : rank
+
+  
   use, intrinsic :: iso_c_binding, only : C_BOOL
+  
   implicit none
+
+  private
+  public :: init_physics, init_soil_grid, physics_checkpoint_restart, physics_firstcall_flag
+  public :: convecAdj_model, diurnal, radiation_model, soil_model, turbulence_model
+  public :: gas_molarmass, perihelion, aphelion, perihelion_day, obliquity, sea_surf, soil_surf, sea_inertia, soil_emmisive 
+  public :: min_turbmix, sw_atten, lw_atten, sea_albedo, soil_albedo, Emin_turb
   
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Default values values physics Model Parameters !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

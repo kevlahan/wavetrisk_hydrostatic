@@ -1,10 +1,28 @@
 module io_vtk_mod
-  use domain_mod
-  use ops_mod
-  use utils_mod
-  use multi_level_mod
-  use vert_diffusion_mod
+  
+  use kind_mod,   only : dp, sp
+  use shared_mod, only : ADJZONE, Coord, DAY, EDGE, N_BDRY, N_VARIABLE, NONE, TRIAG, zlevels, S_MASS, S_TEMP, S_VELO, &
+       LORT, UPLT, RT, DG, UP, b_vert, compressible, dx_avg, grav_accel, kappa, max_level, mode_split, &
+       p_0, radius, ref_density, iwrite, level_start, level_end, run_id, time, vert_diffuse, z_null, zmin, zlevels, lf
+
+  use domain_mod, only : Domain, Float_Field, grid, exner_fun, exner, h_flux, horiz_flux, &
+       dscalar, mass, temp, mean_m, mean_t, scalar, velo, velo1, velo2, vort, &
+       penal_node, sol, sol_mean, topography, trend, idx
+
+  use arch_mod,           only : barrier, n_process, rank
+  use comm_mpi_mod,       only : gather_int, gather_vec, sum_int, update_bdry
+  use domain_ops_mod,     only : apply_bdry,  apply_d, apply_no_bdry, apply_onescale_to_patch, apply_to_penta_d
+  use geom_mod,           only : min_dist
+  use ops_mod,            only : cal_div, cal_surf_press, cal_vort, integrate_pressure_up, post_vort, step1
+  use multi_level_mod,    only : cpt_or_restr_flux
+  use vert_diffusion_mod, only : vertical_diffusion
+  use utils_mod,          only : active_level, interp_UVW_latlon, interp, pre_levelout,  post_levelout, save_tri, z_i, zero_float
+  
   implicit none
+
+  private
+  public :: write_and_export 
+    
   integer, parameter                                   :: HEX_VERT = 6 ! number of hexagon vertices
   integer, parameter                                   :: TRI_VERT = 3 ! number of triangle vertices
   integer(4)                                           :: nvar = 12
@@ -15,11 +33,17 @@ module io_vtk_mod
   real(sp),    dimension(:),       allocatable         :: cell_data, vert_coord_unique
   type(coord), dimension(:),       allocatable         :: points_loc
   type(Float_Field), dimension(:), allocatable, target :: vel_vert ! vertical velocity
-contains
-  subroutine write_and_export (type)
-    implicit none
-    character(3) :: type ! "tri" or "hex"
 
+  
+contains
+
+  
+  subroutine write_and_export (type)
+    
+    implicit none
+    
+    character(len=3), intent(in) :: type ! "tri" or "hex"
+    
     integer(4) :: d, k, l
 
     if (rank == 0) then
@@ -93,13 +117,15 @@ contains
     call barrier
     deallocate (vel_vert, vert_coord_unique)
   end subroutine write_and_export
+  
 
   subroutine write_vtk (k, type)
     ! VTK file is written from rank 0
+    
     implicit none
-    integer(4)   :: k
-    character(3) :: type
-
+    
+    integer(4), intent(in) :: k
+    character(len=3), intent(in) :: type
     integer(4)                            :: icell, ivar, ivert
     integer(4), dimension(:), allocatable :: cell_type, level_data
     character(3)                          :: layer
@@ -206,13 +232,16 @@ contains
     end do
     close (funit)
   end subroutine write_vtk
+  
 
   subroutine find_vertices (k, type)
     ! Find all cell vertices on specified grid type ("tri" or "hex")
+    
     implicit none
-    integer(4)   :: k
-    character(3) :: type
-
+    
+    integer(4),       intent(in) :: k
+    character(len=3), intent(in) :: type
+    
     integer(4)                       :: i, r
     integer(4), dimension(n_process) :: displs, ncell_glo, ncoord_unique_glo, nvertex_unique_glo, ncell_vert_index_glo
 
@@ -252,24 +281,28 @@ contains
 
     deallocate (cell_data_loc, cell_vert_index_loc, points_loc, vert_coord_unique_loc)
   end subroutine find_vertices
+  
 
   subroutine unique_tri_cells (dom, i, j, zlev, offs, dims)
     ! Finds all unique triangle vertices
+    
     use utils_mod
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    
+    integer    :: d, id, imin, ivert, t
+    integer    :: idE, idN, idNE
+    integer(4) :: new_vert_index(nvert)
+    real(dp)   :: dmin
 
-    integer                                    :: d, id, imin, ivert, t
-    integer                                    :: idE, idN, idNE
-    integer(4), dimension(nvert)               :: new_vert_index
-    real(dp)                                   :: dmin
-
-    type(coord)                                :: p
-    type(coord), dimension(LORT:UPLT,TRI_VERT) :: vertex
-    real(sp), dimension(nvar)                  :: outv
+    type(coord) :: p
+    type(coord) :: vertex(LORT:UPLT,TRI_VERT)
+    real(sp)    :: outv(nvar)
 
     d = dom%id + 1
 
@@ -312,15 +345,20 @@ contains
           cell_data_loc       = [cell_data_loc,                 outv] ! add to cell data array
        end if
     end do
+    
   contains
+    
     subroutine compute_data
+      
       use utils_mod
+      
       implicit none
-      integer,  dimension(0:EDGE)  :: neigh_id
-      real(sp), dimension(0:EDGE)  :: rho_dz, rho_dz_theta
-      real(sp), dimension(0:EDGE)  :: temperature
-      real(sp)                     :: Ps, tri_area
-      real(sp), dimension(2*nvert) :: hex_area
+      
+      integer  :: neigh_id(0:EDGE) 
+      real(sp) :: rho_dz(0:EDGE), rho_dz_theta(0:EDGE)
+      real(sp) :: temperature(0:EDGE)
+      real(sp) :: Ps, tri_area
+      real(sp) :: hex_area(2*nvert)
 
       neigh_id = [id, idE, idNE, idN] + 1
 
@@ -368,12 +406,15 @@ contains
     end subroutine compute_data
 
     subroutine compute_data_surf
+      
       use utils_mod
+      
       implicit none
-      integer,  dimension(0:EDGE)  :: neigh_id
-      real(sp), dimension(0:EDGE)  :: temperature
-      real(sp)                     :: tri_area
-      real(sp), dimension(2*nvert) :: hex_area
+      
+      integer  :: neigh_id(0:EDGE)
+      real(sp) :: temperature(0:EDGE)
+      real(sp) :: tri_area
+      real(sp) :: hex_area(2*nvert)
 
       neigh_id = [id, idE, idNE, idN] + 1
 
@@ -395,39 +436,47 @@ contains
       outv(5) = hex2tri2 (real(temperature,kind=sp),                            hex_area, tri_area, t)  ! surface temperature 
     end subroutine compute_data_surf
 
-    real(sp) function vort_tri (t)
+    function vort_tri (t) result(val)
       ! Triangle vorticity equivalent to hexagon vorticity
+      
       implicit none
-      integer :: t
-
+      
+      integer, intent(in) :: t
+      real(sp)            :: val
+      
       select case (t)
       case (LORT)
-         vort_tri = real(( &
+         val = real(( &
               dom%areas%elts(id  +1)%part(1) * vorticity (dom, i,   j,   offs, dims) + &
               dom%areas%elts(idE +1)%part(3) * vorticity (dom, i+1, j,   offs, dims) + &
               dom%areas%elts(idNE+1)%part(5) * vorticity (dom, i+1, j+1, offs, dims)) / dom%triarea%elts(TRIAG*id+LORT+1), kind=sp)
       case (UPLT)
-         vort_tri = real(( &
+         val = real(( &
               dom%areas%elts(id  +1)%part(2) * vorticity (dom, i,   j,   offs, dims) + &
               dom%areas%elts(idNE+1)%part(4) * vorticity (dom, i+1, j+1, offs, dims) + &
               dom%areas%elts(idN +1)%part(6) * vorticity (dom, i,   j+1, offs, dims)) / dom%triarea%elts(TRIAG*id+UPLT+1), kind=sp)
       case default
-         vort_tri = 0.0_dp
+         val = 0.0_dp
       end select
     end function vort_tri
+    
   end subroutine unique_tri_cells
+  
 
   subroutine hex_cells (dom, i, j, zlev, offs, dims)
+    
     use domain_mod
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                      :: d, id, idE, idNE, idN, idW, idSW, idS, ivert
-    real(sp),    dimension(nvar) :: outv
-    type(coord), dimension(6)    :: vert
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    
+    integer     :: d, id, idE, idNE, idN, idW, idSW, idS, ivert
+    real(sp)    :: outv(nvar)
+    type(coord) :: vert(6)
 
     d  = dom%id + 1
     id = idx (i, j, offs, dims)
@@ -459,9 +508,13 @@ contains
        call compute_data
        cell_data_loc = [cell_data_loc, outv] ! add to cell data array
     end if
+    
   contains
+    
     subroutine compute_data
+      
       implicit none
+      
       real(sp) :: Ps, rho_dz, rho_dz_theta, temperature
 
       rho_dz       = real (sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1), kind=sp)
@@ -497,16 +550,21 @@ contains
       outv(11) = real (dom%press%elts(id+1) / Ps,          kind=sp) ! P/Ps
       outv(12) = real (rho_dz / ref_density,               kind=sp) ! dz
     end subroutine compute_data
+    
   end subroutine hex_cells
 
-  real(sp) function vorticity (dom, i, j, offs, dims)
+  
+  function vorticity (dom, i, j, offs, dims) result(val)
     ! Vorticity at hexagon points
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(sp)                    :: val
+    
     integer :: id, idS, idSW, idW
 
     id   = idx (i,   j,   offs, dims)
@@ -514,7 +572,7 @@ contains
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
 
-    vorticity = real ( ( &
+    val = real ( ( &
          dom%areas%elts(id+1)%part(1) * dom%vort%elts(TRIAG*id  +LORT+1) + &
          dom%areas%elts(id+1)%part(2) * dom%vort%elts(TRIAG*id  +UPLT+1) + &
          dom%areas%elts(id+1)%part(3) * dom%vort%elts(TRIAG*idW +LORT+1) + &
@@ -524,88 +582,13 @@ contains
          ) * dom%areas%elts(id+1)%hex_inv, kind=sp)
   end function vorticity
 
-  function shift_vertices (dr)
-    ! Shifts all vertices radially by dr
-    implicit none
-    real(dp)                    :: dr
-    real(sp), dimension(ncoord) :: shift_vertices
-
-    integer(4)  :: i
-    real(dp)    :: nrm, r
-    type(coord) :: p
-
-    do i = 1, ncoord, 3
-       p = coord (vert_coord_unique(i), vert_coord_unique(i+1), vert_coord_unique(i+2))
-
-       nrm = sqrt (p%x**2 + p%y**2 + p%z**2)
-
-       r = (radius + dr) / nrm
-
-       p%x = p%x * r
-       p%y = p%y * r
-       p%z = p%z * r
-
-       shift_vertices(i:i+2) = [real(p%x,kind=sp), real(p%y,kind=sp), real(p%z,kind=sp)]
-    end do
-  end function shift_vertices
-
-  subroutine barotropic_velocity (dom, i, j, zlev, offs, dims)
-    ! Calculate barotropic velocity in two-layer model
-    implicit none
-    type (Domain)                  :: dom
-    integer(4)                        :: i, j, zlev
-    integer(4), dimension(N_BDRY+1)   :: offs
-    integer(4), dimension(2,N_BDRY+1) :: dims
-
-    integer(4)                     :: d, e, id, id_e, id_i, idE, idNE, idN, k
-    real(dp)                       :: dz0
-    real(dp), dimension (1:EDGE,2) :: dz
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-    d = dom%id + 1
-
-    idE  = idx (i+1, j,   offs, dims)
-    idNE = idx (i+1, j+1, offs, dims)
-    idN  = idx (i,   j+1, offs, dims)
-
-    do k = 1, 2
-       dz0 = sol_mean(S_MASS,k)%data(d)%elts(id+1) + sol(S_MASS,k)%data(d)%elts(id_i)
-       dz(RT+1,k) = interp (dz0, sol_mean(S_MASS,k)%data(d)%elts(idE+1)  + sol(S_MASS,k)%data(d)%elts(idE+1))
-       dz(DG+1,k) = interp (dz0, sol_mean(S_MASS,k)%data(d)%elts(idNE+1) + sol(S_MASS,k)%data(d)%elts(idNE+1))
-       dz(UP+1,k) = interp (dz0, sol_mean(S_MASS,k)%data(d)%elts(idN+1)  + sol(S_MASS,k)%data(d)%elts(idN+1))
-    end do
-
-    do e = 1, EDGE
-       id_e = EDGE*id + e
-       velo(id_e) = (dz(e,1)*sol(S_VELO,1)%data(d)%elts(id_e) + dz(e,2)*sol(S_VELO,2)%data(d)%elts(id_e)) / (dz(e,1) + dz(e,2))
-    end do
-  end subroutine barotropic_velocity
-
-  subroutine baroclinic_velocity (dom, i, j, zlev, offs, dims)
-    ! Calculate baroclinic velocity in top layer
-    implicit none
-    type (Domain)                  :: dom
-    integer(4)                        :: i, j, zlev
-    integer(4), dimension(N_BDRY+1)   :: offs
-    integer(4), dimension(2,N_BDRY+1) :: dims
-
-    integer(4) :: d, e, id, id_e
-
-    id = idx (i, j, offs, dims)
-    d = dom%id + 1
-
-    do e = 1, EDGE
-       id_e = EDGE*id + e
-       velo(id_e) = velo2(id_e) - velo1(id_e)
-    end do
-  end subroutine baroclinic_velocity
-
   subroutine omega_velocity
     ! Computes vertical velocity in pressure coordinates D_t P = OMEGA [Pa/s]
     ! stored in vel_vert
     ! note that OMEGA > 0 corresponds to negative vertical velocity (w < 0)
+    
     implicit none
+    
     integer(4) :: d, j, k, l
 
     call update_bdry (sol, NONE, 912)
@@ -683,14 +666,17 @@ contains
     vel_vert%bdry_uptodate = .false.
     call update_bdry (vel_vert, NONE)
   end subroutine omega_velocity
+  
 
   subroutine cal_omega (dom, i, j, zlev, offs, dims)
     ! Velocity flux across interfaces
+    
     implicit none
-    type(Domain)                      :: dom
-    integer(4)                        :: i, j, zlev
-    integer(4), dimension(N_BDRY+1)   :: offs
-    integer(4), dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer(4),   intent(in)    :: i, j, zlev
+    integer(4),   intent(in)    :: offs(N_BDRY+1)
+    integer(4),   intent(in)    :: dims(2,N_BDRY+1)
 
     integer(4)                     :: d, id_i, k
     real(dp), dimension(1:zlevels) :: u_gradP
@@ -716,10 +702,12 @@ contains
        vel_vert(k)%data(d)%elts(id_i) = - grav_accel * interp (div_mass(k-1), div_mass(k)) + u_gradP(k) 
     end do
   end subroutine cal_omega
+  
 
   subroutine vertical_velocity
     ! Computes vertical velocity w [m/s]
     ! stored in trend(S_TEMP,1:zlevels)
+    
     implicit none
 
     call omega_velocity
@@ -729,14 +717,17 @@ contains
     vel_vert%bdry_uptodate = .false.
     call update_bdry (vel_vert, NONE, 917)
   end subroutine vertical_velocity
+  
 
   subroutine cal_w (dom, i, j, zlev, offs, dims)
     ! Vertical velocity w = - OMEGA / (rho_0 g) + (vertical projection of horizontal velocity)
+    
     implicit none
-    type(Domain)                      :: dom
-    integer(4)                        :: i, j, zlev
-    integer(4), dimension(N_BDRY+1)   :: offs
-    integer(4), dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer(4),   intent(in)    :: i, j, zlev
+    integer(4),   intent(in)    :: offs(N_BDRY+1)
+    integer(4),   intent(in)    :: dims(2,N_BDRY+1)
 
     integer(4) :: d, id, k
 
@@ -746,12 +737,18 @@ contains
     do k = 1, zlevels
        vel_vert(k)%data(d)%elts(id+1) = - vel_vert(k)%data(d)%elts(id+1) / (ref_density * grav_accel) + proj_vel_vert () 
     end do
+    
   contains
-    real(dp) function proj_vel_vert ()
+    
+    function proj_vel_vert () result(val)
       ! Computes grad_zonal(z) * u_zonal + grad_merid(z) * u_merid at hexagon centres for vertical velocity computation.
       ! Uses Perot formula as also used for kinetic energy:
       ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_center) ) / cell_area
+      
       implicit none
+
+      real(dp) :: val
+      
       integer(4) :: idE, idN, idNE, idS, idSW, idW
 
       idE  = idx (i+1, j,   offs, dims)
@@ -764,33 +761,39 @@ contains
 
       velo => sol(S_VELO,k)%data(d)%elts
 
-      proj_vel_vert =  &
+      val =  &
            (vert_vel (i,j,i+1,j,EDGE*id +RT+1) + vert_vel (i+1,j+1,i,j,EDGE*id  +DG+1) + vert_vel (i,j,i,j+1,EDGE*id +UP+1) + &
            (vert_vel (i-1,j,i,j,EDGE*idW+RT+1) + vert_vel (i,j,i-1,j-1,EDGE*idSW+DG+1) + vert_vel (i,j-1,i,j,EDGE*idS+UP+1))) / 6
 
       nullify (velo)
     end function proj_vel_vert
 
-    real(dp) function vert_vel (i1, j1, i2, j2, id_e)
-      implicit none
-      integer(4) :: i1, j1, i2, j2, id_e
+    function vert_vel (i1, j1, i2, j2, id_e) result(val)
 
+      implicit none
+
+      integer(4), intent(in) :: i1, j1, i2, j2, id_e
+      real(dp)               :: val
+      
       real(dp) :: dl, dz
 
       dz =  z_i (dom, i2, j2, k, offs, dims, sol) - z_i (dom, i1, j1, k, offs, dims, sol)
       dl = dom%len%elts(id_e)
 
-      vert_vel = dz / sqrt (dl**2 + dz**2) * velo(id_e)
+      val = dz / sqrt (dl**2 + dz**2) * velo(id_e)
     end function vert_vel
   end subroutine cal_w
 
+  
   subroutine compress_files (type, format)
+    
     implicit none
-    character(*), intent(in) :: format
-    character(*), intent(in) :: type
+    
+    character(len=*), intent(in) :: format
+    character(len=*), intent(in) :: type
 
-    character(4)              :: isv
-    character(:), allocatable :: cmd, pattern, tarfile
+    character(len=4)              :: isv
+    character(len=:), allocatable :: cmd, pattern, tarfile
 
     write (isv, '(i4.4)') iwrite
 
@@ -800,4 +803,6 @@ contains
 
     call execute_command_line (cmd)
   end subroutine compress_files
+
+  
 end module io_vtk_mod

@@ -1,10 +1,16 @@
 module comm_mpi_mod
-  use domain_ops_mod
   use comm_mod
+  use domain_ops_mod
+  
   implicit none
+
   integer,  dimension(:), allocatable :: recv_lengths, recv_offsets, req, send_lengths, send_offsets
   real(dp), dimension(2)              :: times
 
+  interface sum_int
+     procedure :: sum_int_0, sum_int_1
+  end interface sum_int
+  
   interface sum_real
      procedure :: sum_real_0, sum_real_1
   end interface sum_real
@@ -60,13 +66,12 @@ contains
 
   subroutine write_level_mpi (routine, l, zlev, eval_pole, filename)
     implicit none
-    integer          :: fid, l, zlev
+    integer          :: l, zlev
     logical          :: eval_pole
     character(*)     :: filename
     procedure (sub8) :: routine
 
     integer, parameter :: funit = 300
-    character(7)       :: var_file
     
     open (unit=funit, file=trim(filename), form='unformatted', status='replace')
     if (eval_pole) call apply_to_pole (routine, l, zlev, funit, .false.)
@@ -221,7 +226,7 @@ contains
      integer, optional               :: flag
      type(Float_Field), dimension(:) :: field
     
-    integer :: l, i1, sz
+    integer :: i1, sz
 
     sz = size(field)
 
@@ -247,23 +252,21 @@ contains
     end do
   end subroutine update_bdry1_2
 
-  subroutine comm_nodes9_mpi (get, set, l)
+   subroutine comm_nodes3_mpi (get, set)
     implicit none
-    integer         :: l
-    procedure(get9) :: get
-    procedure(set9) :: set
-    
-    call comm_nodes9 (get, set) ! communicate inside domain
-  end subroutine comm_nodes9_mpi
-
-  subroutine comm_nodes3_mpi (get, set, l)
-    implicit none
-    integer              :: l
     procedure(coord_get) :: get
     procedure(coord_set) :: set 
     
     call comm_nodes3 (get, set) ! communicate inside domain
   end subroutine comm_nodes3_mpi
+  
+  subroutine comm_nodes9_mpi (get, set)
+    implicit none
+    procedure(get9) :: get
+    procedure(set9) :: set
+    
+    call comm_nodes9 (get, set) ! communicate inside domain
+  end subroutine comm_nodes9_mpi
 
   subroutine comm_patch_conn_mpi
     implicit none
@@ -335,28 +338,24 @@ contains
     implicit none
     real(dp), dimension(:), allocatable :: sum_real_1
     real(dp), dimension(:) :: val
-    
-    integer :: n
-
-    allocate (sum_real_1(n))
 
     sum_real_1 = val
   end function sum_real_1
 
-  integer function sum_int (val)
+   integer function sum_int_0 (val)
+    implicit none
     integer :: val
 
-    sum_int = val
-  end function sum_int
+    sum_int_0 = val
+  end function sum_int_0
 
-  function sum_int_vector (val, n)
+  function sum_int_1 (val)
     implicit none
-    integer, dimension(n) :: sum_int_vector
-    integer               :: n
-    integer, dimension(n) :: val
+    integer, dimension(:), allocatable :: sum_int_1
+    integer, dimension(:)              :: val
 
-    sum_int_vector = val
-  end function sum_int_vector
+    sum_int_1 = val
+  end function sum_int_1
 
   subroutine start_timing
     implicit none

@@ -1,10 +1,15 @@
 program Drake
   ! Simplified Drake passage test case on small planet
   ! (inspired by Ferreira, Marshall and Rose 2011, J Climate 24, 992-1012)
-  !use io_vtk_mod
+
+  use kind_mod
+  use shared_mod
   use main_mod
+  use time_integr_mod
   use test_case_mod
+
   implicit none
+
   real(dp) :: Area_min, dx_min, dz, visc
   logical  :: relax = .false.
 

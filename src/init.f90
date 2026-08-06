@@ -1,89 +1,143 @@
 module init_mod
-  use geom_mod
-  use domain_mod
-  use domain_ops_mod
-  use arch_mod
+  use kind_mod,    only : dp
+   use shared_mod, only : Areas, Coord, C_visc, EDGE, lnorm, min_level, RT, DG, UP, TRIAG, LORT, UPLT, omega, radius, &
+       IJMINUS, IJPLUS, IMINUSJPLUS, IPLUSJMINUS, N_SUB_DOM_PER_DIM, EAST, NORTH, SOUTH, WEST, SOUTHWEST, PATCH_LEVEL, N_SUB_DOM, &
+       S_DIVU, S_ROTU, S_VELO, vert_diffuse, zlevels, zmin, zmax, sso, z_null, MATH_PI, AT_EDGE, AT_NODE, compressible, &
+       Laplace_divu, mode_split, N_ICOSAH_LOZENGE, DOMAIN_LEVEL, N_VARIABLE, ref_density, ref_density_water, ref_density_air, O2, &
+       dx_avg, radius, scalars, eps, n_domain, POSIT, N_BDRY, NONE, POLE, NORTHEAST, NORTHWEST, SOUTHEAST
+   
+   
+   use arch_mod,       only : init_arch_mod, loc_id, owner, rank
+   use domain_mod,     only : get_offs_domain, init_Domain, init_domain_mod, init_field, set_neigh_domain
+   use domain_ops_mod, only : apply_onescale, apply_onescale2, fun3, fun4, sub4
+   use dyn_arrays,     only : init
+   use patch_mod,      only : PATCH_SIZE
+
+   use coord_arithmetic_mod
+
+   use domain_mod, only : Domain, exner_fun, horiz_flux, is_penta, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, &
+        sol, sol_mean, trend, wav_coeff, wav_tke,  Kt, Kv, tke, topography, sso_param, idx, add_patch_Domain, &
+        add_bdry_patch_Domain, grid
+
+   use geom_mod,       only : arc_intersect_test, circumcentre, dist, init_Areas, init_Coord,  mid_pt, &
+        project_on_sphere, sph2cart
+
   implicit none
+
+  private
+  public :: Areas, ccentre, ccentre_penta, check_grid, coriolis, cpt_areas, cpt_triarea, init_geometry, init_grid, init_init_mod
+  public :: len, lengths, midpt, pedlen
+  public :: physics_scalar_flux, physics_velo_source, precompute_geometry, set_level, surf_geopot, u_source
+  public :: fun1, fun2, fun5, coord_fun, int2_fun, noarg_sub, physics_fun, set_thresholds, solver, zcoords_fun
+  public :: apply_initial_conditions, bottom_buoy_flux, bottom_friction, dump, elliptic_solver, initialize_a_b_vert
+  public :: initialize_dt_viscosity, initialize_thresholds, load, tau_mag, top_buoy_flux, trend_physics, update
+  public :: wind_flux, z_coords  
+  
   real(dp), parameter :: YANGLE = 0.0_dp
   
   abstract interface
-     real(dp) function fun1 (eta, ri, z)
-       use shared_mod
+     
+     function fun1 (eta, ri, z) result(val)
+       use kind_mod, only : dp
+       
        implicit none
-       real(dp) :: eta, ri, z
+       real(dp), intent(in) :: eta, ri, z
+       real(dp)             :: val
      end function fun1
-     function fun2 (eta, ri, z)
-       use shared_mod
+     
+     function fun2 (eta, ri, z) result(val)
+       use kind_mod,   only : dp
+       use shared_mod, only : EDGE
+       
        implicit none
-       real(dp), dimension(1:EDGE) :: fun2, eta, z
-       real(dp)                    :: ri
+       real(dp), intent(in) :: eta(EDGE), z(EDGE)
+       real(dp), intent(in) :: ri
+       real(dp)             :: val(EDGE)
      end function fun2
-     function fun5 (q, dom, id, idE, idNE, idN, v, zlev, type)
-       use domain_mod
+     
+     function fun5 (q, dom, id, idE, idNE, idN, v, zlev, type) result(value)
+       use kind_mod,   only : dp
+       use shared_mod, only : EDGE, N_VARIABLE, zlevels
+       use domain_mod, only : domain, Float_Field
+       
        implicit none
-       real(dp),          dimension(1:EDGE)                 :: fun5
-       type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
-       type(domain)                                         :: dom
-       integer                                              :: d, id, idE, idNE, idN, v, zlev
-       logical, optional                                    :: type
+       type(Float_Field), intent(inout)        :: q(N_VARIABLE,1:zlevels)
+       type(domain),      intent(inout)        :: dom
+       integer,           intent(in)           :: id, idE, idNE, idN, v, zlev
+       logical,           intent(in), optional :: type
+       real(dp)                                :: value(EDGE)
      end function fun5
-     real(dp) function coord_fun (p)
-       use geom_mod
+     
+     function coord_fun (p) result(val)
+       use kind_mod,   only : dp
+       use shared_mod, only : Coord
+
        implicit none
-       type(Coord) :: p
+       type(Coord), intent(in) :: p
+       real(dp)                :: val
      end function coord_fun
-     real(dp) function int2_fun (d, id)
-       use shared_mod
+     
+     function int2_fun (d, id) result(val)
+       use kind_mod, only : dp
+       
        implicit none
-       integer :: d, id
+       integer, intent(in) :: d, id
+       real(dp)            :: val
      end function int2_fun
+
      subroutine io_sub (fid)
        implicit none
-       integer :: fid
+       integer, intent(in) :: fid
      end subroutine io_sub
+
      subroutine noarg_sub
        implicit none
-       integer :: fid
      end subroutine noarg_sub
-      function zcoords_fun (eta_surf, z_s)
-        use shared_mod
+
+     function zcoords_fun (eta_surf, z_s) result(val)
+       use shared_mod
+       implicit none
+       real(dp), intent(in) :: eta_surf, z_s 
+       real(dp)             :: val(0:zlevels) 
+     end function zcoords_fun
+
+     subroutine solver (u, f, Lu, Lu_diag)
+       use domain_mod
         implicit none
-        real(dp),           intent(in) :: eta_surf, z_s 
-        real(dp), dimension(0:zlevels) :: zcoords_fun
-      end function zcoords_fun
-      subroutine solver (u, f, Lu, Lu_diag)
-        use domain_mod
-        implicit none
-        type(Float_Field), intent(in)    :: f
-        type(Float_Field), intent(inout) :: u
+        type(Float_Field), intent(inout) :: f, u
         interface
            function Lu (u, l)
              use domain_mod
              implicit none
-             integer                   :: l
-             type(Float_Field), target :: Lu, u
+             integer,                   intent(in)    :: l
+             type(Float_Field), target, intent(inout) :: u
+             type(Float_Field), target                :: Lu
            end function Lu
            function Lu_diag (u, l)
              use domain_mod
              implicit none
-             integer                   :: l
-             type(Float_Field), target :: Lu_diag, u
+             integer,                   intent(in)    :: l
+             type(Float_Field), target, intent(inout) :: u
+             type(Float_Field), target                :: Lu_diag
            end function Lu_diag
         end interface
       end subroutine solver
+      
       subroutine physics_fun (q, dq)
-        use domain_mod
+        use shared_mod, only : N_VARIABLE, zlevels, zmin, zmax
+        use domain_mod, only : Float_Field
+        
         implicit none
-        type(Float_Field), dimension(1:N_VARIABLE,zmin:zmax), target :: q
-        type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: dq
+        type(Float_Field), intent(inout), target :: q(N_VARIABLE,zmin:zmax), dq(N_VARIABLE,zlevels)
       end subroutine physics_fun
+      
    end interface
 
   ! General procedure pointers
   procedure (sub4),        pointer :: u_source                 => null ()
 
   ! Pointers to variables and procedures that may be defined in test cases
-  real(dp),                 pointer :: bottom_friction
+  real(dp),                pointer :: bottom_friction
   procedure (noarg_sub),   pointer :: apply_initial_conditions => null ()
   procedure (fun3),        pointer :: bottom_buoy_flux         => null ()
   procedure (io_sub),      pointer :: dump                     => null ()
@@ -106,7 +160,11 @@ module init_mod
 
   ! Physics trend
   procedure (physics_fun), pointer :: trend_physics            => null ()
+
+  
 contains
+
+  
   subroutine init_init_mod
     implicit none
     logical :: initialized = .false.
@@ -117,6 +175,7 @@ contains
     initialized = .true.
   end subroutine init_init_mod
 
+  
   subroutine init_grid
     implicit none
     integer :: b, d, i_, k, loz, p, s, v
@@ -148,40 +207,40 @@ contains
     allocate (lnorm(1:N_VARIABLE,zmin:zmax))
     if (vert_diffuse) allocate (Kt(0:zlevels), Kv(0:zlevels), tke(1:zlevels), wav_tke(1:zlevels))
 
-    call init_Float_Field (topography, AT_NODE)
+    call init_Field (topography, AT_NODE)
     if (sso) then
        do k = 1, 4
-          call init_Float_Field (sso_param(k), AT_NODE)
+          call init_Field (sso_param(k), AT_NODE)
        end do
     end if
     
     do k = zmin, zmax
-       call init_Float_Field (penal_node(k), AT_NODE)
-       call init_Float_Field (penal_edge(k), AT_EDGE)
-       call init_Float_Field (exner_fun(k),  AT_NODE)
+       call init_Field (penal_node(k), AT_NODE)
+       call init_Field (penal_edge(k), AT_EDGE)
+       call init_Field (exner_fun(k),  AT_NODE)
        do v = 1, N_VARIABLE
-          call init_Float_Field (sol(v,k),      POSIT(v))
-          call init_Float_Field (sol_mean(v,k), POSIT(v))
-          if (k > 0) call init_Float_Field (trend(v,k), POSIT(v))
+          call init_Field (sol(v,k),      POSIT(v))
+          call init_Field (sol_mean(v,k), POSIT(v))
+          if (k > 0) call init_Field (trend(v,k), POSIT(v))
        end do
     end do
-    call init_Float_Field (exner_fun(zmax+1), AT_NODE)
+    call init_Field (exner_fun(zmax+1), AT_NODE)
     
     if (vert_diffuse) then
-       call init_Float_Field (Kv(0), AT_NODE)
-       call init_Float_Field (Kt(0), AT_NODE)
+       call init_Field (Kv(0), AT_NODE)
+       call init_Field (Kt(0), AT_NODE)
        do k = 1, zlevels
-          call init_Float_Field (Kv(k),  AT_NODE)
-          call init_Float_Field (Kt(k),  AT_NODE)
-          call init_Float_Field (tke(k), AT_NODE)
+          call init_Field (Kv(k),  AT_NODE)
+          call init_Field (Kt(k),  AT_NODE)
+          call init_Field (tke(k), AT_NODE)
        end do
     end if
 
-    call init_Float_Field (Laplacian_vector(S_DIVU), AT_NODE)
-    call init_Float_Field (Laplacian_vector(S_ROTU), AT_EDGE)
+    call init_Field (Laplacian_vector(S_DIVU), AT_NODE)
+    call init_Field (Laplacian_vector(S_ROTU), AT_EDGE)
     do v = scalars(1), scalars(2)
-       call init_Float_Field (horiz_flux(v),       AT_EDGE)
-       call init_Float_Field (Laplacian_scalar(v), AT_NODE)
+       call init_Field (horiz_flux(v),       AT_EDGE)
+       call init_Field (Laplacian_scalar(v), AT_NODE)
     end do
 
     do d = 1, n_domain(rank+1)
@@ -275,9 +334,10 @@ contains
       c_out%z =  c_in%x*sin(angle) + c_in%z*cos(angle)
     end subroutine yrotate
 
-    type(Coord) recursive function get_J0_coord (i, j, l) result(c)
+    recursive function get_J0_coord (i, j, l) result(c)
       implicit none
-      integer :: i, j, l
+      integer, intent(in) :: i, j, l
+      type(Coord)         :: c
 
       if (l > 0) then
          c = mid_pt (get_J0_coord (i/2, j/2, l-1), get_J0_coord ((i+1)/2, (j+1)/2, l-1))
@@ -290,6 +350,7 @@ contains
 
   end subroutine init_coordinates
 
+  
   subroutine init_geometry
     implicit none
     integer :: d, i
@@ -314,6 +375,7 @@ contains
     
   end subroutine init_geometry
 
+  
   subroutine precompute_geometry
     implicit none
     integer :: d, k, v
@@ -384,6 +446,7 @@ contains
     end if
   end subroutine precompute_geometry
 
+  
   subroutine init_connections
     implicit none
     logical, dimension(2) :: pole_assigned
@@ -501,13 +564,15 @@ contains
     end do
   end subroutine init_connections
 
+  
   subroutine set_penta (d_glo, side)
     implicit none
-    integer :: d_glo, side
+    integer, intent(in) :: d_glo, side
 
     if (owner(d_glo+1) == rank) grid(loc_id(d_glo+1)+1)%penta(side) = .true.
   end subroutine set_penta
 
+  
   subroutine assign_coord (dom, p, ne, se, sw, nw)
     ! Assign coordinates on patches at all levels
     implicit none
@@ -567,12 +632,14 @@ contains
     end do
   end subroutine assign_coord
 
+  
   subroutine cpt_areas (dom, p, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: p, i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
     
     integer     :: idNW, idN, idNE, idW, id, idE, idSW, idS, idSE
     type(Areas) :: area
@@ -616,9 +683,11 @@ contains
     dom%areas%elts(id+1) = area
   end subroutine cpt_areas
 
-  integer function sub_dom_id (i, j, s, rot)
+  
+  function sub_dom_id (i, j, s, rot) result(val)
     implicit none
-    integer :: i, j, s, rot
+    integer, intent(in) :: i, j, s, rot
+    integer             :: val
     
     integer, dimension(2) :: ij
 
@@ -628,14 +697,17 @@ contains
        ij = [ij(2), ij(1)]
     end if
 
-    sub_dom_id = ij(2) * N_SUB_DOM_PER_DIM + ij(1)
-  end function sub_dom_id
+   val = ij(2) * N_SUB_DOM_PER_DIM + ij(1)
+ end function sub_dom_id
+ 
 
   subroutine ccentre (dom, p, i, j, zlev, offs, dims)
-    type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    implicit none
+    
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: p, i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
     
     integer :: id, idE, idN, idNE
 
@@ -647,11 +719,12 @@ contains
     dom%ccentre%elts(TRIAG*id+LORT+1) = circumcentre (dom%node%elts(id+1), dom%node%elts(idNE+1), dom%node%elts(idE +1))
     dom%ccentre%elts(TRIAG*id+UPLT+1) = circumcentre (dom%node%elts(id+1), dom%node%elts(idN +1), dom%node%elts(idNE+1))
   end subroutine ccentre
+  
 
   subroutine ccentre_penta (dom, p)
     implicit none
-    type(Domain) :: dom
-    integer      :: p
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p
     
     integer, dimension(N_BDRY + 1) :: offs
     integer, dimension(2,N_BDRY+1) :: dims
@@ -719,14 +792,16 @@ contains
        dom%ccentre%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*id+LORT+1)
     end if
   end subroutine ccentre_penta
-
+  
+  
   subroutine midpt (dom, p, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: p, i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+     
     integer :: id, idN, idE, idNE
 
     id = idx (i, j, offs, dims)
@@ -772,13 +847,15 @@ contains
        if (i == PATCH_SIZE .and. is_penta (dom, p, IJPLUS - 1)) dom%midpt%elts(EDGE*id+DG+1) = dom%ccentre%elts(TRIAG*id+LORT+1)
     end if
   end subroutine midpt
+  
 
   subroutine lengths (dom, p, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: p, i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
     
     integer :: id, idS, idW, idN, idE, idNE
 
@@ -817,6 +894,7 @@ contains
     if (i == PATCH_SIZE .and. j == PATCH_SIZE .and. is_penta (dom, p, IJPLUS-1)) &
        dom%len%elts(EDGE*id+DG+1) = dist (dom%node%elts(idE+1), dom%node%elts(idN+1))
   end subroutine lengths
+  
 
   subroutine len (dom, p, i, j, zlev, offs, dims)
     implicit none
@@ -855,13 +933,16 @@ contains
     if (i == PATCH_SIZE .and. j == PATCH_SIZE .and. is_penta (dom, p, IJPLUS-1)) &
          dom%len%elts(EDGE*id+DG+1) = dist (dom%node%elts(idE+1), dom%node%elts(idN+1))
   end subroutine len
+  
 
   subroutine pedlen (dom, p, i, j, zlev, offs, dims)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p, i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id, idS, idW
 
@@ -878,13 +959,15 @@ contains
 
     if (i == -1 .and. j == -1 .and. is_penta (dom, p, IJMINUS-1)) dom%pedlen%elts(EDGE*id+DG+1) = 0.0_dp
   end subroutine pedlen
+  
 
   subroutine cpt_triarea (dom, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
     
     integer :: id, idN, idE, idNE
 
@@ -899,14 +982,16 @@ contains
     dom%triarea%elts(TRIAG*id+UPLT+1) = &
          dom%areas%elts(id+1)%part(2) + dom%areas%elts(idNE+1)%part(4) + dom%areas%elts(idN +1)%part(6)
   end subroutine cpt_triarea
+  
 
   subroutine coriolis (dom, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+  
     integer :: id, idN, idE, idNE
 
     id = idx (i, j, offs, dims)
@@ -921,20 +1006,23 @@ contains
     dom%coriolis%elts(TRIAG*id+UPLT+1) = dom%ccentre%elts(TRIAG*id+UPLT+1)%z/radius * 2*omega * &
          (dom%areas%elts(id+1)%part(2) + dom%areas%elts(idNE+1)%part(4) + dom%areas%elts(idN+1)%part(6))
   end subroutine coriolis
+  
 
   subroutine set_dom_neigh (d, s, ngb_loz, i, j, s1, rot)
     implicit none
-    integer :: d, s, ngb_loz, i, j, s1, rot
+    integer, intent(in) :: d, s, ngb_loz, i, j, s1, rot
 
     call set_neigh_Domain (grid(d+1), s, ngb_loz + sub_dom_id(i, j, s1 - 1, rot), rot)
   end subroutine set_dom_neigh
+  
 
   subroutine set_level (dom, p, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, p, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id
 
@@ -942,15 +1030,18 @@ contains
     
     dom%level%elts(id+1) = dom%patch%elts(p+1)%level
   end subroutine set_level
+  
 
   subroutine check_grid (dom, p, i, j, zlev, offs, dims)
-    implicit none
-    integer                        :: i, j, p, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
     
-    type(Domain) :: dom
-    integer      :: id, idE, idN, idNE, idS, idW
+    implicit none
+    
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, p, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+    
+    integer :: id, idE, idN, idNE, idS, idW
 
     id   = idx(i,   j,   offs, dims)
     idN  = idx(i,   j+1, offs, dims)
@@ -971,19 +1062,21 @@ contains
          (/ id, idNE, idN /), &
          (/ EDGE*idN + RT, EDGE*id + UP, EDGE*id + DG /) )
   end subroutine check_grid
+  
 
   subroutine check_triag (dom, id, id_neigh, id_cnr, id_side)
     ! Fix coarse/fine hexagon edge intersections problems
+
     implicit none
-    type(Domain)          :: dom
-    integer               :: id
-    integer, dimension(3) :: id_neigh, id_cnr, id_side
+    type(Domain), intent(inout) :: dom
+    integer ,     intent(in)    :: id
+    integer,      intent(in)    :: id_neigh(3) , id_cnr(3) , id_side(3) 
     
-    integer                   :: i
-    real(dp)                  :: shift 
-    type(Coord)               :: cc_coarse, cc_coarse_neigh, cc_fine, cc_fine_neigh
-    type(Coord), dimension(3) :: inters_pt
-    logical,     dimension(3) :: degenerate, intersects
+    integer     :: i
+    real(dp)    :: shift 
+    type(Coord) :: cc_coarse, cc_coarse_neigh, cc_fine, cc_fine_neigh
+    type(Coord) :: inters_pt(3) 
+    logical     :: degenerate(3) , intersects(3) 
 
     cc_coarse = dom%ccentre%elts(id+1)
     cc_fine = circumcentre (dom%midpt%elts(id_side(1)+1), dom%midpt%elts(id_side(3)+1), dom%midpt%elts(id_side(2)+1))
@@ -1011,4 +1104,6 @@ contains
        dom%node%elts(id_cnr(1)+1) = project_on_sphere (dom%node%elts(id_cnr(1)+1)) 
     end if
   end subroutine check_triag
+
+  
 end module init_mod

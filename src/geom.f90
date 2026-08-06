@@ -1,15 +1,29 @@
 module geom_mod
-  use shared_mod
+  use kind_mod,   only : dp
+  use shared_mod, only : Areas, Coord, eps, MATH_PI, ORIGIN, radius
+  
   use coord_arithmetic_mod
+  
   implicit none
-  interface
+
+  private
+  public :: arc_intersect_test, cart2sph, centroid, circumcentre, cross, direction, dist
+  public :: geodesic, triarea, init_Areas, init_Coord, inner, min_dist
+  public :: norm, normalize_coord, mid_pt, number_hex, proj_vel, proj_xz_plane, project_on_sphere, sph2cart, vector, wrap_lonlat
+  
+  abstract interface
+     
      subroutine vel_lonlat (lon, lat, u, v)
-       use kind_mod
+       use kind_mod, only : dp
        implicit none
-       real(dp), intent(in) :: lon, lat, u, v
+       real(dp), intent(in)  :: lon, lat
+       real(dp), intent(out) :: u, v
      end subroutine vel_lonlat
+     
   end interface
+  
 contains
+  
   type(Coord) function direction (init, term)
     implicit none
     type(Coord), intent(in) :: init, term
@@ -75,6 +89,18 @@ contains
     call cart2sph (q, lon2, lat2)
     geodesic = radius * acos (sin (lat1) * sin (lat2) + cos (lat1) * cos (lat2) * cos (lon2-lon1))
   end function geodesic
+
+  subroutine proj_xz_plane (cin, cout)
+    implicit none
+    type(Coord),            intent(in)  :: cin
+    real(dp), dimension(2), intent(out) :: cout
+
+    if (cin%y > 0) then
+       cout = [ cin%x-radius, cin%z ]
+    else
+       cout = [ cin%x+radius, cin%z ]
+    end if
+  end subroutine proj_xz_plane
 
   subroutine cart2sph (c, lon, lat)
     ! Angular coordinates (in radians) of a point with coordinates c on the sphere
@@ -377,14 +403,16 @@ contains
     end if
   end subroutine wrap_lonlat
 
-  real(dp) function proj_vel (vel_lonlat, ep1, ep2)
+  function proj_vel (velocity, ep1, ep2) result(val)
     ! Finds velocity in direction from points ep1 to ep2 at mid-point of this vector
     ! given a function for zonal u and meridional v velocities as a function of longitude and latitude
     implicit none
     type(Coord), intent(in) :: ep1, ep2
+    real(dp)                :: val
     
-    type(Coord) :: co, e_zonal, e_merid, vel
-    real(dp)    :: lon, lat, u_zonal, v_merid
+    type(Coord)           :: co, e_zonal, e_merid, vel
+    real(dp)              :: lon, lat, u_zonal, v_merid
+    procedure(vel_lonlat) :: velocity
 
     co = mid_pt (ep1, ep2)
 
@@ -395,20 +423,21 @@ contains
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat)) ! Meridional direction
 
     ! Function returning zonal and meridional velocities given longitude and latitude
-    call vel_lonlat (lon, lat, u_zonal, v_merid)
-
+    call velocity (lon, lat, u_zonal, v_merid)
+    
     ! Velocity vector in Cartesian coordinates
     vel = u_zonal * e_zonal + v_merid * e_merid
 
     ! Project velocity vector on direction given by points ep1, ep2
-    proj_vel = inner (direction (ep1, ep2), vel)
+    val = inner (direction (ep1, ep2), vel)
   end function proj_vel
 
-  integer function number_hex (l)
+  function number_hex (l) result(val)
     ! Number of hexagonal/pentagonal cells for level l
     integer, intent(in) :: l
+    integer             :: val
 
-    number_hex = 10 * 4**l + 2
+    val = 10 * 4**l + 2
   end function number_hex
 end module geom_mod
 

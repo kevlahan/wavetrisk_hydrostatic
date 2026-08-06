@@ -1,47 +1,100 @@
 module utils_mod
   ! Basic functions
-  use domain_mod
-  use comm_mod
-  use comm_mpi_mod
-  use init_mod
+  
+  use kind_mod,   only : dp
+  use shared_mod, only : ADJZONE, Coord, EDGE, N_BDRY, LORT, UPLT, S_DIVU, S_ROTU, S_MASS, S_TEMP, RT, DG, UP, compressible, &
+       z_null, zlevels, min_level, max_level, grav_accel, MATH_PI, C_visc, radius, dt, Laplace_divu, Laplace_rotu, Laplace_sclr, &
+       r_dif, level_start, level_end, AT_EDGE, AT_NODE, TRIAG, SOUTHEAST, NORTHWEST, omega, S_VELO, p_0, p_top, kappa, R_d, &
+       ref_density, porosity, H_rho, mode_split, c_p, a_vert, b_vert, dx_avg, exp__flush, pressure_save
+  
+  use arch_mod,       only : abort_run, rank
+  use comm_mpi_mod,   only : sum_real, sync_max_real, update_bdry1
+  use domain_mod,     only : exner_fun, get_offs_Domain, trend
+  use domain_ops_mod, only : apply_interscale, apply_onescale, apply_onescale_to_patch, fun3
+  use dyn_arrays,     only : init
+  use geom_mod,       only : cart2sph, centroid, direction, inner
+  use init_mod,       only : surf_geopot
+  use patch_mod,      only : PATCH_SIZE
+
+  use coord_arithmetic_mod
+  
+  use domain_mod, only : grid, Domain, Float_Field, Int_Field, Logical_Field, penal_edge, penal_node, sol, sol_mean, topography, &
+       id_edge, idx, idx_hex_lort, idx_hex_uplt, mass, mean_m, scalar, temp, mean_t, velo, velo1, velo2, vort, Init_Field
+    
   implicit none
+  
+  private
+  public :: routine_hex, routine_tri, zero_float, zero_float_field
+  public :: z_i, zl_i, zl_e, dz_i, dz_e, dz_SW_e, dz_l, eta_e, porous_density, porous_density_edge, phi_node, phi_edge
+  public :: cal_density, cal_geopot, cal_temp, potential_density, potential_buoyancy, buoyancy, cal_buoyancy
+  public :: rho_dz_i, density_i, density_e
+  public :: theta2temp, temp2theta, pressure_i, dA_i, free_surface, interp, interp_e, u_mag, interp_latlon_UVW, latlon2uvw
+  public :: interp_UVW_latlon, uvw2zonal_merid, vort_triag_to_hex, f_coriolis_edge, f_coriolis_node, integrate_hex
+  public :: integrate_hex_scale, hex2tri, integrate_tri, fdA_tri, hex2tri2, hex2tri3, pre_levelout, post_levelout, mark_save_chd
+  public :: mark_save_par, equals_float_field, nu_scale, smoothing_rbf, smoothing_shapiro, wrapij, radial_basis_fun
+  public :: cal_rx0_max, cal_rx1_max, theta_i, N_i, N_e, hex_perim, tri_perim, hex_pedlen, hex_len, hex_dx, active_level, save_tri
+  public :: baroclinic_velocity,  barotropic_velocity
+
   real(dp)                                  :: integral, rx0_max_loc, rx1_max_loc
   real(dp), dimension(:), pointer           :: val1, val2
   type(Int_Field)                           :: active_level
   type(Logical_Field), dimension(LORT:UPLT) :: save_tri   
+
   abstract interface
-     real(dp) function routine_hex (dom, i, j, zlev, offs, dims)
-       use domain_mod
+     
+     function routine_hex (dom, i, j, zlev, offs, dims) result(val)
+       use kind_mod,   only : dp
+       use shared_mod, only : N_BDRY
+       use domain_mod, only : Domain
+       
        implicit none
-       type (Domain)                  :: dom
-       integer                        :: i, j, zlev
-       integer, dimension(N_BDRY+1)   :: offs
-       integer, dimension(2,N_BDRY+1) :: dims
+       
+       type (Domain),                  intent(inout) :: dom
+       integer,                        intent(in)    :: i, j, zlev
+       integer, dimension(N_BDRY+1),   intent(in)    :: offs
+       integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+       real(dp)                                      :: val
      end function routine_hex
-     real(dp) function routine_tri (dom, i, j, t, zlev, offs, dims)
-       use domain_mod
+
+     function routine_tri (dom, i, j, t, zlev, offs, dims) result(val)
+       use kind_mod,   only : dp
+       use shared_mod, only : N_BDRY
+       use domain_mod, only : Domain
+
        implicit none
-       type (Domain)                  :: dom
-       integer                        :: i, j, t, zlev
-       integer, dimension(N_BDRY+1)   :: offs
-       integer, dimension(2,N_BDRY+1) :: dims
+
+       type (Domain),                  intent(inout) :: dom
+       integer,                        intent(in)    :: i, j, t, zlev
+       integer, dimension(N_BDRY+1),   intent(in)    :: offs
+       integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+       real(dp)                                      :: val
      end function routine_tri
+     
   end interface
+  
   procedure (routine_hex), pointer :: arr_hex   => null ()
   procedure (fun3),        pointer :: integrand => null ()
+  
   interface zero_float
      procedure :: zero_float_0, zero_float_1, zero_float_2
   end interface zero_float
+
+  
 contains
-  real(dp) function z_i (dom, i, j, zlev, offs, dims, q)
+
+  
+  function z_i (dom, i, j, zlev, offs, dims, q) result(val)
     ! Position of vertical level zlev at nodes
     ! *** compressible case requires dom%surf_press ***
+    
     implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
+    
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1) 
+    integer,           intent(in)         :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val
 
     integer                     :: d, id, l
     real(dp)                    :: dz, exner, rho_dz, rho_dz_theta, p
@@ -67,20 +120,22 @@ contains
        z(l) = z(l-1) + dz
     end do
 
-    z_i = interp (z(zlev-1), z(zlev))
+    val = interp (z(zlev-1), z(zlev))
   end function z_i
 
-  real(dp) function zl_i (dom, i, j, zlev, offs, dims, q, pos)
+  
+  function zl_i (dom, i, j, zlev, offs, dims, q, pos) result(val)
     ! Position of interface below (l=-1) or above (l=1) vertical level zlev nodes
     ! *** compressible case requires dom%surf_press ***
     implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer                                   :: pos
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
 
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, pos, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1) 
+    integer,           intent(in)         :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val
+   
     integer  :: d, id, l, lmax
     real(dp) :: dz, exner, rho_dz, rho_dz_theta, p
 
@@ -93,7 +148,7 @@ contains
        lmax = zlev
     end if
     
-    zl_i = topography%data(d)%elts(id)
+    val = topography%data(d)%elts(id)
     p    =     dom%surf_press%elts(id)
     do l = 1, lmax
        rho_dz = sol_mean(S_MASS,l)%data(d)%elts(id) + q(S_MASS,l)%data(d)%elts(id) 
@@ -107,39 +162,43 @@ contains
        else 
           dz = rho_dz / porous_density (d, id, l)
        end if
-       zl_i = zl_i + dz
+       val = val + dz
     end do
   end function zl_i
 
-  function zl_e (dom, i, j, zlev, offs, dims, q, pos)
+  
+  function zl_e (dom, i, j, zlev, offs, dims, q, pos) result(val)
     ! Position of interface below (pos=-1) or above (pos=1) vertical level zlev at edges
     implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer                                   :: pos
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
-    real(dp), dimension(1:EDGE)               :: zl_e
 
-    real(dp), dimension(0:EDGE) :: z
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, pos, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1) 
+    integer,           intent(in)         :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val(EDGE)
+
+    real(dp) :: z(0:EDGE)
 
     z(0)    = zl_i (dom, i,   j,   zlev, offs, dims, q, pos)
     z(RT+1) = zl_i (dom, i+1, j,   zlev, offs, dims, q, pos)
     z(DG+1) = zl_i (dom, i+1, j+1, zlev, offs, dims, q, pos)
     z(UP+1) = zl_i (dom, i,   j+1, zlev, offs, dims, q, pos)
 
-    zl_e = 0.5 * (z(0) + z(1:EDGE))
+    val = 0.5 * (z(0) + z(1:EDGE))
   end function zl_e
 
-  real(dp) function dz_i (dom, i, j, zlev, offs, dims, q)
+  
+  function dz_i (dom, i, j, zlev, offs, dims, q) result(val)
     ! Thickness of layer zlev at nodes
     implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
+
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1) 
+    integer,           intent(in)         :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val
 
     integer  :: d, id
     real(dp) :: exner, rho_dz, rho_dz_theta, p
@@ -152,43 +211,48 @@ contains
        exner     = c_p * (p/p_0)**kappa
        rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
 
-       dz_i = kappa * rho_dz_theta * exner / p
+       val = kappa * rho_dz_theta * exner / p
     else                   ! dz = mu/ref_density
        rho_dz = sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)
 
-       dz_i = rho_dz / porous_density (d, id, zlev)
+       val = rho_dz / porous_density (d, id, zlev)
     end if
   end function dz_i
 
-  function dz_e (dom, i, j, zlev, offs, dims, q)
+  
+  function dz_e (dom, i, j, zlev, offs, dims, q) result(val)
     ! Thickness of layer zlev at edges
+    
     implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
-    real(dp), dimension(1:EDGE)               :: dz_e
 
-    real(dp), dimension(0:EDGE) :: dz
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1)
+    integer,           intent(in)         :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val(EDGE) 
+
+    real(dp) :: dz(0:EDGE)
 
     dz(0)    = dz_i (dom, i,   j,   zlev, offs, dims, q)
     dz(RT+1) = dz_i (dom, i+1, j,   zlev, offs, dims, q)
     dz(DG+1) = dz_i (dom, i+1, j+1, zlev, offs, dims, q)
     dz(UP+1) = dz_i (dom, i  , j+1, zlev, offs, dims, q)
 
-    dz_e = 0.5 * (dz(0) + dz(1:EDGE))
+    val = 0.5 * (dz(0) + dz(1:EDGE))
   end function dz_e
 
-  function dz_SW_e (dom, i, j, zlev, offs, dims, q)
+  
+  function dz_SW_e (dom, i, j, zlev, offs, dims, q) result(val)
     ! Thickness of layer zlev at edges (SW edges)
     implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
-    real(dp), dimension(1:EDGE)               :: dz_SW_e
+
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1)
+    integer,           intent(in)         :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val(EDGE) 
 
     integer                     :: d, id, idW, idSW, idS
     real(dp), dimension(0:EDGE) :: dz
@@ -205,35 +269,39 @@ contains
     dz(DG+1) = dz_i (dom, i-1, j-1, zlev, offs, dims, q)
     dz(UP+1) = dz_i (dom, i  , j-1, zlev, offs, dims, q)
 
-    dz_SW_e = 0.5 * (dz(0) + dz(1:EDGE))
+    val = 0.5 * (dz(0) + dz(1:EDGE))
   end function dz_SW_e
 
-  real(dp) function dz_l (dom, i, j, zlev, offs, dims, q)
+  
+  function dz_l (dom, i, j, zlev, offs, dims, q) result(val)
     ! Thickness of layer associated with interface between layers zlev and zlev+1: z_(zlev+1) - z(zlev)
     implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
 
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1)
+    integer,           intent(in)         :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val
+  
     real(dp) :: dz, dz_above
 
     dz        = dz_i (dom, i, j, zlev,   offs, dims, q)
     dz_above  = dz_i (dom, i, j, zlev+1, offs, dims, q)
 
-    dz_l = 0.5 * (dz + dz_above)
+    val = 0.5 * (dz + dz_above)
   end function dz_l
 
-  function eta_e (dom, i, j, zlev, offs, dims, q)
+  
+  function eta_e (dom, i, j, zlev, offs, dims, q) result(val)
     ! Free surface perturbation at edges
-    implicit none
+      implicit none
     type(Domain)                              :: dom
     integer                                   :: i, j, zlev
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
-    real(dp), dimension(1:EDGE)               :: eta_e
+    real(dp)                                  :: val(EDGE)   
 
     integer  :: d, id, idE, idN, idNE
     real(dp) :: eta0
@@ -245,62 +313,189 @@ contains
     idN  = idx (i,   j+1, offs, dims)
 
     if (mode_split) then
-       eta_e(RT+1) = interp (q(S_MASS,zlevels+1)%data(d)%elts(id+1), q(S_MASS,zlevels+1)%data(d)%elts(idE+1))
-       eta_e(DG+1) = interp (q(S_MASS,zlevels+1)%data(d)%elts(id+1), q(S_MASS,zlevels+1)%data(d)%elts(idNE+1))
-       eta_e(UP+1) = interp (q(S_MASS,zlevels+1)%data(d)%elts(id+1), q(S_MASS,zlevels+1)%data(d)%elts(idN+1))
+       val(RT+1) = interp (q(S_MASS,zlevels+1)%data(d)%elts(id+1), q(S_MASS,zlevels+1)%data(d)%elts(idE+1))
+       val(DG+1) = interp (q(S_MASS,zlevels+1)%data(d)%elts(id+1), q(S_MASS,zlevels+1)%data(d)%elts(idNE+1))
+       val(UP+1) = interp (q(S_MASS,zlevels+1)%data(d)%elts(id+1), q(S_MASS,zlevels+1)%data(d)%elts(idN+1))
     else
        eta0 = free_surface (dom, i, j, zlev, offs, dims, q)
-       eta_e(RT+1) = interp (eta0, free_surface (dom, i+1, j,   zlev, offs, dims, q))
-       eta_e(DG+1) = interp (eta0, free_surface (dom, i+1, j+1, zlev, offs, dims, q))
-       eta_e(UP+1) = interp (eta0, free_surface (dom, i,   j+1, zlev, offs, dims, q))
+       val(RT+1) = interp (eta0, free_surface (dom, i+1, j,   zlev, offs, dims, q))
+       val(DG+1) = interp (eta0, free_surface (dom, i+1, j+1, zlev, offs, dims, q))
+       val(UP+1) = interp (eta0, free_surface (dom, i,   j+1, zlev, offs, dims, q))
     end if
   end function eta_e
 
-  real(dp) function porous_density (d, id_i, zlev)
+  
+  function porous_density (d, id_i, zlev) result(val)
     ! Porous density at nodes for incompressible case
     implicit none
-    integer :: d, id_i, zlev
+    integer, intent(in) :: d, id_i, zlev
+    real(dp)            :: val
 
-    porous_density = ref_density * phi_node (d, id_i, zlev)
+    val = ref_density * phi_node (d, id_i, zlev)
   end function porous_density
 
-  function porous_density_edge (d, id, zlev)
+  
+  function porous_density_edge (d, id, zlev) result(val)
     ! Porous density at edges
     implicit none
-    integer                     :: d, id, zlev
-    real(dp), dimension(1:EDGE) :: porous_density_edge
+    integer , intent(in) :: d, id, zlev
+    real(dp)             :: val(EDGE) 
 
-    porous_density_edge = ref_density * phi_edge (d, id, zlev)
+    val = ref_density * phi_edge (d, id, zlev)
   end function porous_density_edge
 
-  real(dp) function phi_node (d, id_i, zlev)
+  
+  function phi_node (d, id_i, zlev) result(val)
     ! Returns porosity at node given by (d, id_i, zlev)
     implicit none
-    integer :: d, id_i, zlev
+    integer, intent(in) :: d, id_i, zlev
+    real(dp)            :: val
 
-    phi_node = 1.0_dp + (porosity - 1.0_dp) * penal_node(zlev)%data(d)%elts(id_i)
+    val = 1.0_dp + (porosity - 1.0_dp) * penal_node(zlev)%data(d)%elts(id_i)
   end function phi_node
 
-  function phi_edge (d, id, zlev)
+  
+  function phi_edge (d, id, zlev) result(val)
     ! Returns porosity at edges associated to node given by (d, id_i, zlev)
     implicit none
-    integer                     :: d, e, id, id_e, zlev
-    real(dp), dimension(1:EDGE) :: phi_edge
+    integer, intent(in) :: d, id, zlev
+    real(dp)            :: val(EDGE) 
 
+    integer :: e, id_e
+    
     do e = 1, EDGE
        id_e = EDGE*id+e
-       phi_edge(e) = 1.0_dp + (porosity - 1.0_dp) * penal_edge(zlev)%data(d)%elts(id_e)
+       val(e) = 1.0_dp + (porosity - 1.0_dp) * penal_edge(zlev)%data(d)%elts(id_e)
     end do
   end function phi_edge
 
-  real(dp) function potential_density (dom, i, j, zlev, offs, dims, q)
-    ! Potential density at nodes (neglect free surface perturbation)
+  
+  subroutine cal_density (dom, i, j, zlev, offs, dims)
+    ! Compute density
+    ! *** compressible case requires pressure ***
+
     implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1) 
+
+    integer  :: d, id
+    real(dp) :: rho_dz_theta, exner
+
+    id = idx (i, j, offs, dims) + 1
+
+    if (compressible) then ! rho = P / (kappa theta pi)
+       d = dom%id + 1
+       rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + sol(S_TEMP,zlev)%data(d)%elts(id)
+       exner = c_p * (dom%press%elts(id)/p_0)**kappa
+
+       scalar(id) = dom%press%elts(id) / (kappa * rho_dz_theta * exner) 
+    else ! gravitational density (Boussinesq approximation)
+       scalar(id) = ref_density * (1.0_dp - (mean_t(id) + temp(id)) / (mean_m(id) + mass(id)))
+    end if
+  end subroutine cal_density
+
+  
+  subroutine cal_temp (dom, i, j, zlev, offs, dims)
+    ! Compute temperature in compressible case
+    
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1) 
+
+    integer                        :: id, d, k
+    real(dp)                       :: rho_dz, rho_dz_lower, rho_dz_theta
+    real(dp), dimension(1:zlevels) :: p
+
+    d = dom%id + 1
+    id = idx(i, j, offs, dims) + 1
+
+    ! Integrate the pressure upwards
+    rho_dz = sol_mean(S_MASS,1)%data(d)%elts(id) + sol(S_MASS,1)%data(d)%elts(id)
+    p(1) = dom%surf_press%elts(id) - 0.5_dp * grav_accel * rho_dz
+    do k = 2, zlevels
+       rho_dz_lower = rho_dz
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
+       p(k) = p(k-1) - grav_accel * interp (rho_dz, rho_dz_lower)
+    end do
+
+    ! Temperature at all vertical levels (saved in exner_fun)
+    do k = 1, zlevels
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
+       rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol(S_TEMP,k)%data(d)%elts(id)
+
+       exner_fun(k)%data(d)%elts(id) = rho_dz_theta / rho_dz * (p(k)/p_0)**kappa
+    end do
+
+    ! Temperature at save levels (saved in trend)
+    do k = 1, zlevels
+       rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id) + sol(S_MASS,k)%data(d)%elts(id)
+       rho_dz_theta = sol_mean(S_TEMP,k)%data(d)%elts(id) + sol(S_TEMP,k)%data(d)%elts(id)
+
+       trend(1,k)%data(d)%elts(id) = rho_dz_theta / rho_dz * (pressure_save(k) / p_0)**kappa
+    end do
+  end subroutine cal_temp
+
+  
+  subroutine cal_geopot (dom, i, j, zlev, offs, dims)
+    ! Compute geopotential in compressible case
+    ! Assumes that temperature has already been calculated and stored in exner_fun
+    
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1) 
+   
+    integer :: id, d, k
+    real(dp) :: rho_dz, pressure_lower, pressure_upper
+
+    d = dom%id + 1
+    id = idx(i, j, offs, dims) + 1
+
+    ! Integrate geopotential upwards from surface
+    rho_dz = sol_mean(S_MASS,1)%data(d)%elts(id) + sol(S_MASS,1)%data(d)%elts(id)
+
+    pressure_lower = dom%surf_press%elts(id)
+    pressure_upper = pressure_lower - grav_accel * rho_dz
+
+    dom%geopot_lower%elts(id) = surf_geopot (d, id) / grav_accel
+
+    k = 1
+    do while (pressure_upper > pressure_save(1))
+       dom%geopot_lower%elts(id) = dom%geopot_lower%elts(id) + &
+            R_d/grav_accel * exner_fun(k)%data(d)%elts(id) * (log(pressure_lower)-log(pressure_upper))
+
+       k = k+1
+       rho_dz = sol_mean(S_MASS,k+1)%data(d)%elts(id) + sol(S_MASS,k+1)%data(d)%elts(id)
+
+       pressure_lower = pressure_upper
+       pressure_upper = pressure_lower - grav_accel * rho_dz
+    end do
+
+    ! Add additional contribution up to pressure level pressure_save(1)
+    dom%geopot_lower%elts(id) = dom%geopot_lower%elts(id) &
+         + R_d/grav_accel * exner_fun(k)%data(d)%elts(id) * (log(pressure_lower) - log(pressure_save(1)))
+  end subroutine cal_geopot
+
+  
+  function potential_density (dom, i, j, zlev, offs, dims, q) result(val)
+    ! Potential density at nodes (neglect free surface perturbation)
+     
+    implicit none
+
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1) 
+    integer,           intent(in)         :: dims(2,N_BDRY+1) 
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val
 
     integer  :: d, id_i
     real(dp) :: z
@@ -310,10 +505,11 @@ contains
 
     z = z_i (dom, i, j, zlev, offs, dims, q)
 
-    potential_density = density_i (dom, i, j, zlev, offs, dims, q) - ref_density * z / H_rho
+    val = density_i (dom, i, j, zlev, offs, dims, q) - ref_density * z / H_rho
   end function potential_density
 
-  real(dp) function potential_buoyancy (dom, i, j, zlev, offs, dims, q)
+  
+  function potential_buoyancy (dom, i, j, zlev, offs, dims, q) result(val)
     ! Potential buoyancy at nodes (neglect free surface perturbation)
     implicit none
     type(Domain)                              :: dom
@@ -321,6 +517,7 @@ contains
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
+    real(dp)                                  :: val
 
     integer  :: d, id_i
     real(dp) :: z
@@ -330,10 +527,11 @@ contains
 
     z = z_i (dom, i, j, zlev, offs, dims, q)
 
-    potential_buoyancy = buoyancy (dom, i, j, zlev, offs, dims, q) + z / H_rho
+    val = buoyancy (dom, i, j, zlev, offs, dims, q) + z / H_rho
   end function potential_buoyancy
 
-  real(dp) function buoyancy (dom, i, j, zlev, offs, dims, q)
+  
+  function buoyancy (dom, i, j, zlev, offs, dims, q) result(val)
     ! at nodes
     implicit none
     type(Domain)                              :: dom
@@ -341,6 +539,7 @@ contains
     integer, dimension(N_BDRY+1)              :: offs
     integer, dimension(2,N_BDRY+1)            :: dims
     type(Float_Field), dimension(:,:), target :: q
+    real(dp)                                  :: val
 
     integer  :: d, id_i
     real(dp) :: rho_dz, rho_dz_theta
@@ -351,16 +550,19 @@ contains
     rho_dz  = sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + q(S_MASS,zlev)%data(d)%elts(id_i)
     rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id_i) + q(S_TEMP,zlev)%data(d)%elts(id_i)
 
-    buoyancy = rho_dz_theta / rho_dz
+    val = rho_dz_theta / rho_dz
   end function buoyancy
 
+  
   subroutine cal_buoyancy (dom, i, j, zlev, offs, dims)
     ! at nodes
+
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer  :: id_i
     real(dp) :: rho_dz, rho_dz_theta
@@ -373,31 +575,37 @@ contains
     scalar(id_i) = rho_dz_theta / rho_dz
   end subroutine cal_buoyancy
 
-  real(dp) function rho_dz_i (dom, i, j, zlev, offs, dims)
-    use domain_mod
+  
+  function rho_dz_i (dom, i, j, zlev, offs, dims) result(val)
     implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
 
     integer :: d, id
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
 
-    rho_dz_i = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
+    val = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
   end function rho_dz_i
 
-  real(dp) function density_i (dom, i, j, zlev, offs, dims, q)
+  
+  function density_i (dom, i, j, zlev, offs, dims, q) result(val)
     ! Density at nodes
-    implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
 
+    implicit none
+
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1) 
+    integer,           intent(in)         :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val
+    
     integer  :: d, id
     real(dp) :: rho_dz, rho_dz_theta, p, temp
 
@@ -412,59 +620,70 @@ contains
 
        temp = (rho_dz_theta / rho_dz) * (p/p_0)**kappa ! temperature
        
-       density_i = p / (R_d * temp) 
+       val = p / (R_d * temp) 
     else                   ! gravitational density using Boussinesq approximation
-       density_i = ref_density * (1.0_dp - buoyancy (dom, i, j, zlev, offs, dims, q))
+       val = ref_density * (1.0_dp - buoyancy (dom, i, j, zlev, offs, dims, q))
     end if
   end function density_i
 
-  function density_e (dom, i, j, zlev, offs, dims, q)
+  
+  function density_e (dom, i, j, zlev, offs, dims, q) result(val)
     ! Density at edges
     ! *** compressible case requires pressure at zlev ***
-    implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
-    real(dp), dimension(1:EDGE)               :: density_e
 
-    real(dp), dimension (0:EDGE) :: rho
+    implicit none
+
+    type(Domain), intent(inout)           :: dom
+    integer,      intent(in)              :: i, j, zlev
+    integer,      intent(in)              :: offs(N_BDRY+1) 
+    integer,      intent(in)              :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val(EDGE)
+    
+    real(dp) :: rho(0:EDGE) 
 
     rho(0)    = density_i (dom, i,   j,   zlev, offs, dims, q)
     rho(RT+1) = density_i (dom, i+1, j,   zlev, offs, dims, q)
     rho(DG+1) = density_i (dom, i+1, j+1, zlev, offs, dims, q)
     rho(UP+1) = density_i (dom, i  , j+1, zlev, offs, dims, q)
 
-    density_e = 0.5 * (rho(0) + rho(1:EDGE))
+    val= 0.5 * (rho(0) + rho(1:EDGE))
   end function density_e
 
-  real(dp) function theta2temp (theta, p)
+  
+  function theta2temp (theta, p) result(val)
     ! Convert potential temperature (theta) to temperature
     ! requires pressure
     implicit none
-    real(dp) :: p, theta
+    real(dp), intent(in) :: p, theta
+    real(dp)             :: val
     
-    theta2temp = theta * (p / p_0)**kappa
+    val = theta * (p / p_0)**kappa
   end function theta2temp
 
-  real(dp) function temp2theta (temp, p)
+  
+  function temp2theta (temp, p) result(val)
     ! Convert temperature (temp) to potential temperature
     ! requires pressure
     implicit none
-    real(dp) :: p, temp
+    real(dp), intent(in) :: p, temp
+    real(dp)             :: val
     
-    temp2theta = temp / (p / p_0)**kappa
+    val = temp / (p / p_0)**kappa
   end function temp2theta
+
   
-  real(dp) function pressure_i (dom, i, j, zlev, offs, dims, q)
+  function pressure_i (dom, i, j, zlev, offs, dims, q) result(val)
     ! Pressure at layer zlev computed by integrated down
+
     implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer,           dimension(N_BDRY+1)    :: offs
-    integer,           dimension(2,N_BDRY+1)  :: dims
-    type(Float_Field), dimension(:,:), target :: q
+
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1) 
+    integer,           intent(in)         :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val
  
     integer                             :: d, id, k, l
     real(dp)                            :: rho_dz, rho_dz_theta
@@ -486,29 +705,36 @@ contains
           p(l) = p(l+1) + grav_accel * (rho_dz - rho_dz_theta) 
        end if
     end do
-    pressure_i = interp (p(zlev-1), p(zlev)) ! pressure at layer zlev
+   val = interp (p(zlev-1), p(zlev)) ! pressure at layer zlev
   end function pressure_i
 
-  real(dp) function dA_i (dom, i, j, zlev, offs, dims)
+  
+  function dA_i (dom, i, j, zlev, offs, dims) result(val)
     ! For checking areas
-    use domain_mod
-    implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
-    dA_i = 1.0_dp
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
+   
+    val = 1.0_dp
   end function dA_i
 
-  real(dp) function free_surface (dom, i, j, zlev, offs, dims, q)
+  
+  function free_surface (dom, i, j, zlev, offs, dims, q) result(val)
     ! Computes free surface perturbations
+
     implicit none
-    type(Domain)                              :: dom
-    integer                                   :: i, j, zlev
-    integer, dimension(N_BDRY+1)              :: offs
-    integer, dimension(2,N_BDRY+1)            :: dims
-    type(Float_Field), dimension(:,:), target :: q
+    
+    type(Domain),      intent(in)         :: dom
+    integer,           intent(in)         :: i, j, zlev
+    integer,           intent(in)         :: offs(N_BDRY+1) 
+    integer,           intent(in)         :: dims(2,N_BDRY+1)
+    type(Float_Field), intent(in), target :: q(:,:)
+    real(dp)                              :: val
 
     integer  :: d, id_i, k
     real(dp) :: rho_dz, total_depth
@@ -521,36 +747,44 @@ contains
        rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + q(S_MASS,k)%data(d)%elts(id_i)
        total_depth = total_depth + rho_dz /  porous_density (d, id_i, k)
     end do
-    free_surface = total_depth + topography%data(d)%elts(id_i)
+    
+    val = total_depth + topography%data(d)%elts(id_i)
   end function free_surface
 
-  real(dp) function interp (e1, e2)
+  
+  function interp (e1, e2) result(val)
     ! Centred average interpolation of quantities e1 and e2
     implicit none
-    real(dp) :: e1, e2
+    real(dp), intent(in) :: e1, e2
+    real(dp)             :: val
 
-    interp = 0.5 * (e1 + e2)
+    val = 0.5 * (e1 + e2)
   end function interp
 
-  function interp_e (e1, e2)
+  
+  function interp_e (e1, e2) result(val)
     ! Centred average interpolation of edge quantities e1 and e2
     implicit none
-    real(dp), dimension(1:EDGE) :: interp_e
-    real(dp), dimension(1:EDGE) :: e1, e2
-
-    interp_e = 0.5 * (e1 + e2)
+    real(dp), intent(in) :: e1(EDGE), e2(EDGE)
+    real(dp)             :: val(EDGE)
+    
+    val = 0.5 * (e1 + e2)
   end function interp_e
 
-  real(dp) function u_mag (dom, i, j, zlev, offs, dims)
+  
+  function u_mag (dom, i, j, zlev, offs, dims) result(val)
     ! Velocity magnitude using data from a single element
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
-    integer                     :: id
-    real(dp), dimension(1:EDGE) :: prim_dual, u
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
+    
+    integer  :: id
+    real(dp) :: prim_dual(1:EDGE), u(1:EDGE)
 
     id = idx (i, j, offs, dims)
 
@@ -558,18 +792,20 @@ contains
 
     u = sol(S_VELO,zlev)%data(dom%id+1)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
 
-    u_mag = sqrt (sum (u**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv)
+    val = sqrt (sum (u**2 * prim_dual) * dom%areas%elts(id+1)%hex_inv)
   end function u_mag
 
+  
   subroutine interp_latlon_UVW (dom, i, j, zlev, offs, dims, uvw)
     ! Interpolate from zonal, meridional velocity components at nodes to U, V, W velocity components at edges
     ! (assumes that dom%u_zonal and dom%v_merid have been set over all grid points)
     implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    real(dp), dimension(1:EDGE)    :: uvw
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: uvw(1:EDGE)
 
     integer     :: id, idE, idN, idNE
     type(Coord) :: vel0
@@ -585,9 +821,10 @@ contains
     uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)),   0.5_dp * (vel0 + vel (idNE)))
     uvw(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5_dp * (vel0 + vel (idN)))
   contains
-    type(Coord) function vel (id)
+    function vel (id) result(val)
       ! Computes velocity at node id from its latitude and longitude components
-      integer :: id
+      integer, intent(in) :: id
+      type(Coord)         :: val
 
       real(dp)    :: lat, lon
       type(Coord) :: e_merid, e_zonal
@@ -597,19 +834,22 @@ contains
       e_zonal = Coord (-sin(lon),             cos(lon),                 0.0_dp) 
       e_merid = Coord (-cos(lon) * sin(lat), -sin(lon) * sin(lat), cos(lat))
 
-      vel = dom%u_zonal%elts(id+1) * e_zonal + dom%v_merid%elts(id+1) * e_merid
+      val = dom%u_zonal%elts(id+1) * e_zonal + dom%v_merid%elts(id+1) * e_merid
     end function vel
   end subroutine interp_latlon_UVW
 
-  function latlon2uvw (dom, i, j, zlev, offs, dims)
+  
+  function latlon2uvw (dom, i, j, zlev, offs, dims) result(val)
     ! Interpolate from zonal, meridional velocity components at nodes to U, V, W velocity components at edges
     ! (assumes that dom%u_zonal and dom%v_merid have been set over all grid points)
+
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer,  dimension(N_BDRY+1)   :: offs
-    integer,  dimension(2,N_BDRY+1) :: dims
-    real(dp), dimension(1:EDGE)     :: latlon2uvw
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: i, j, zlev
+    integer,      intent(in) :: offs(N_BDRY+1) 
+    integer,      intent(in) :: dims(2,N_BDRY+1)
+    real(dp)                 :: val(1:EDGE)
 
     integer     :: id, idE, idN, idNE
     type(Coord) :: vel0
@@ -621,15 +861,17 @@ contains
 
     vel0 = vel (id)
 
-    latlon2uvw(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5_dp * (vel0 + vel (idE)))
-    latlon2uvw(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)),   0.5_dp * (vel0 + vel (idNE)))
-    latlon2uvw(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5_dp * (vel0 + vel (idN)))
+    val(RT+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idE+1)),  0.5_dp * (vel0 + vel (idE)))
+    val(DG+1) = inner (direction (dom%node%elts(idNE+1), dom%node%elts(id+1)),   0.5_dp * (vel0 + vel (idNE)))
+    val(UP+1) = inner (direction (dom%node%elts(id+1),   dom%node%elts(idN+1)),  0.5_dp * (vel0 + vel (idN)))
   contains
-    type(Coord) function vel (id)
+    function vel (id) result(val)
       ! Computes velocity at node id from its latitude and longitude components
-      integer :: id
+      integer, intent(in) :: id
+      type(Coord)         :: val
 
-      real(dp)    :: lat, lon
+      real(dp) :: lat, lon
+      
       type(Coord) :: e_merid, e_zonal
 
       call cart2sph (dom%node%elts(id+1), lon, lat)
@@ -637,10 +879,11 @@ contains
       e_zonal = Coord (-sin(lon),             cos(lon),                 0.0_dp) 
       e_merid = Coord (-cos(lon) * sin(lat), -sin(lon) * sin(lat), cos(lat))
 
-      vel = dom%u_zonal%elts(id+1) * e_zonal + dom%v_merid%elts(id+1) * e_merid
+      val = dom%u_zonal%elts(id+1) * e_zonal + dom%v_merid%elts(id+1) * e_merid
     end function vel
   end function latlon2uvw
 
+  
   subroutine interp_UVW_latlon (dom, i, j, zlev, offs, dims)
     ! Interpolate velocity from U, V, W velocity components at edges to zonal, meridional velocity components at nodes
     ! Perot reconstruction based on Gauss theorem:
@@ -651,10 +894,11 @@ contains
     !
     ! Output is in pointer arrays velo1 (u_zonal) and velo2 (u_merid)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer     :: id, idN, idE, idNE, idS, idSW, idW
     real(dp)    :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
@@ -705,7 +949,8 @@ contains
     velo2(id+1) = inner (vel, e_merid)
   end subroutine interp_UVW_latlon
 
-  function uvw2zonal_merid (dom, i, j, zlev, offs, dims)
+  
+  function uvw2zonal_merid (dom, i, j, zlev, offs, dims) result(val)
     ! Interpolate velocity from U, V, W velocity components at edges to zonal, meridional velocity components at nodes
     ! uses sol(S_VELO,zlev)
     ! Perot reconstruction based on Gauss theorem:
@@ -714,11 +959,13 @@ contains
     !
     ! also used for kinetic energy
     implicit none
-    type(Domain)                    :: dom
-    integer                         :: i, j, zlev
-    integer,  dimension(N_BDRY+1)   :: offs
-    integer,  dimension(2,N_BDRY+1) :: dims
-    real(dp), dimension(2)          :: uvw2zonal_merid
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: i, j, zlev
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
+       
+    real(dp)                 :: val(2) 
 
     integer     :: d, id, idN, idE, idNE, idS, idSW, idW
     real(dp)    :: lon, lat, u_dual_RT, u_dual_UP, u_dual_DG, u_dual_RT_W, u_dual_UP_S, u_dual_DG_SW
@@ -766,17 +1013,19 @@ contains
     e_merid = Coord (-cos(lon)*sin(lat), -sin(lon)*sin(lat), cos(lat))
 
     ! Project velocity at node onto zonal and meridional directions
-    uvw2zonal_merid(1) = inner (vel, e_zonal)
-    uvw2zonal_merid(2) = inner (vel, e_merid)
+    val(1) = inner (vel, e_zonal)
+    val(2) = inner (vel, e_merid)
   end function uvw2zonal_merid
 
+  
   subroutine vort_triag_to_hex (dom, i, j, zlev, offs, dims)
     ! Approximate vorticity at hexagon points
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: i, j, zlev
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
 
     integer :: id, idW, idSW, idS, d
 
@@ -796,50 +1045,63 @@ contains
          ) * dom%areas%elts(id+1)%hex_inv
   end subroutine vort_triag_to_hex
 
-  function f_coriolis_edge (dom, i, j, zlev, offs, dims)
+  
+  function f_coriolis_edge (dom, i, j, zlev, offs, dims) result(val)
     ! Coriolis parameter at edges
-    type(Domain)                    :: dom
-    integer                         :: i, j, zlev
-    integer,  dimension(N_BDRY+1)   :: offs
-    integer,  dimension(2,N_BDRY+1) :: dims
-    real(dp), dimension(1:EDGE)     :: f_coriolis_edge
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: i, j, zlev
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
+   
+    real(dp)                 :: val(EDGE) 
 
     integer :: id
 
     id = idx (i, j, offs, dims)
 
-    f_coriolis_edge = dom%midpt%elts(EDGE*id+RT+1:EDGE*id+UP+1)%z / radius * 2*omega
+    val = dom%midpt%elts(EDGE*id+RT+1:EDGE*id+UP+1)%z / radius * 2*omega
   end function f_coriolis_edge
 
-  real(dp) function f_coriolis_node (dom, i, j, zlev, offs, dims)
+  
+  function f_coriolis_node (dom, i, j, zlev, offs, dims) result(val)
     ! Coriolis parameter at nodes
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: i, j, zlev
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
+    real(dp)                 :: val
 
     integer :: id
 
     id = idx (i, j, offs, dims)
 
-    f_coriolis_node = dom%node%elts(id+1)%z / radius * 2*omega
+    val = dom%node%elts(id+1)%z / radius * 2*omega
   end function f_coriolis_node
 
-  real(dp) function integrate_hex (fun, zlev, level)
+  
+  function integrate_hex (fun, zlev, level) result(val)
     ! Integrate over adaptive hexagons, where the integrand is defined by the routine fun.
     ! If optional variable coarse_only = .true. the integration is carried out over level_start only.
     implicit none
-    integer           :: zlev
-    integer, optional :: level
+    integer, intent(in)           :: zlev
+    integer, intent(in), optional :: level
+    real(dp)                      :: val
 
     interface
-       real(dp) function fun (dom, i, j, zlev, offs, dims)
-         use domain_mod
+       function fun (dom, i, j, zlev, offs, dims) result(val)
+         use kind_mod,   only : dp
+         use shared_mod, only : N_BDRY
+         use domain_mod, only : Domain
+         
          implicit none
-         type (Domain)                  :: dom
-         integer                        :: i, j, zlev
-         integer, dimension(N_BDRY+1)   :: offs
-         integer, dimension(2,N_BDRY+1) :: dims
+         
+         type (Domain), intent(inout) :: dom
+         integer,       intent(in)    :: i, j, zlev
+         integer,       intent(in)    :: offs(N_BDRY+1)
+         integer,       intent(in)    :: dims(2,N_BDRY+1)
+         real(dp)                     :: val
        end function fun
     end interface
 
@@ -853,7 +1115,7 @@ contains
        call integrate_hex_scale (level_start, zlev)
     end if
 
-    integrate_hex = sum_real (integral)
+    val = sum_real (integral)
 
     nullify (arr_hex)
   end function integrate_hex
@@ -861,11 +1123,11 @@ contains
   subroutine integrate_hex_scale (l, zlev)
     ! Integrate function pointer arr_hex over hexagons at a single scale l
     implicit none
-    integer :: l, zlev
+    integer, intent(in) :: l, zlev
 
-    integer                        :: c, d, i, id, j, jj, p
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    integer :: c, d, i, id, j, jj, p
+    integer :: offs(N_BDRY+1) 
+    integer :: dims(2,N_BDRY+1)
 
     do d = 1, size(grid)
        ! Regular hexagons/pentagons
@@ -905,13 +1167,16 @@ contains
     end do
   end subroutine integrate_hex_scale
 
-  real(dp) function hex2tri (dom, i, j, t, offs, dims, zlev)
+  
+  function hex2tri (dom, i, j, t, offs, dims, zlev) result(val)
     ! Float array arr_hex at triangles associated with node (i,j) computed from integral over hexagons
     implicit none
-    integer                        :: i, j, t, zlev
-    type(Domain)                   :: dom
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, t, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val
 
     integer :: id, idE, idNE, idN
 
@@ -921,38 +1186,45 @@ contains
     select case (t)
     case (LORT)
        idE = idx (i+1, j, offs, dims)
-       hex2tri = &
+       val = &
             arr_hex (dom, i,   j,   zlev, offs, dims) * dom%areas%elts(id+1)%part(1)  + &
             arr_hex (dom, i+1, j+1, zlev, offs, dims) * dom%areas%elts(idNE+1)%part(5) + &
             arr_hex (dom, i+1, j,   zlev, offs, dims) * dom%areas%elts(idE+1)%part(3)
     case (UPLT)
        idN = idx (i, j+1, offs, dims)
-       hex2tri = &
+       val = &
             arr_hex (dom, i,   j,   zlev, offs, dims) * dom%areas%elts(id+1)%part(2)  + &
             arr_hex (dom, i+1, j+1, zlev, offs, dims) * dom%areas%elts(idNE+1)%part(4) + &
             arr_hex (dom, i,   j+1, zlev, offs, dims) * dom%areas%elts(idN+1)%part(6)
     case default
-       hex2tri = 0.0_dp
+       val = 0.0_dp
     end select
 
-    hex2tri = hex2tri / dom%triarea%elts(TRIAG*id+t+1)
+    val = val / dom%triarea%elts(TRIAG*id+t+1)
   end function hex2tri
 
-  real(dp) function integrate_tri (fun, zlev)
+  
+  function integrate_tri (fun, zlev) result(val)
     ! Integrate a function defined by fun over complete (non-overlapping) adaptive triangular grid.
     implicit none
-    integer :: zlev
+    integer, intent(in) :: zlev
+    real(dp)            :: val 
     
     integer :: l
 
     interface
-       real(dp) function fun (dom, i, j, zlev, offs, dims)
-         use domain_mod
+       function fun (dom, i, j, zlev, offs, dims) result(val)
+         use kind_mod,   only : dp
+         use shared_mod, only : N_BDRY
+         use domain_mod, only : Domain
+         
          implicit none
-         type (Domain)                  :: dom
-         integer                        :: i, j, zlev
-         integer, dimension(N_BDRY+1)   :: offs
-         integer, dimension(2,N_BDRY+1) :: dims
+         
+         type (Domain),                  intent(inout) :: dom
+         integer,                        intent(in)    :: i, j, zlev
+         integer, dimension(N_BDRY+1),   intent(in)    :: offs
+         integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+         real(dp)                                      :: val
        end function fun
     end interface
     
@@ -965,19 +1237,25 @@ contains
        call apply_onescale (fdA_tri, l, zlev, 0, 1)
     end do
 
-    integrate_tri = sum_real (integral)
+    val = sum_real (integral)
     nullify (integrand)
 
     call post_levelout
   end function integrate_tri
 
+  
   subroutine fdA_tri (dom, i, j, zlev, offs, dims)
     ! Integrate over adaptive triangle grid.
+    use kind_mod,   only : dp
+    use shared_mod, only : N_BDRY
+    use domain_mod, only : Domain
+
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type (Domain),                  intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
 
     integer                        :: d, id, idE, idN, idNE
     real(dp), dimension(LORT:UPLT) :: FdTri, tri_area
@@ -1012,35 +1290,39 @@ contains
     if (save_tri(LORT)%data(d)%elts(id+1)) integral = integral + FdTri(LORT)
     if (save_tri(UPLT)%data(d)%elts(id+1)) integral = integral + FdTri(UPLT)
   end subroutine fdA_tri
+
   
-  real(4) function hex2tri2 (sclr, hex_area, tri_area, t)
+  function hex2tri2 (sclr, hex_area, tri_area, t) result(val)
     ! Interpolates sclr given at hexagons to triangles 
     implicit none
-    integer                    :: t
-    real(4)                    :: tri_area
-    real(4), dimension(0:EDGE) :: sclr
-    real(4), dimension(2*EDGE) :: hex_area
+    integer, intent(in) :: t
+    real(4), intent(in) :: tri_area
+    real(4), intent(in) :: sclr(0:EDGE)
+    real(4), intent(in) :: hex_area(2*EDGE)
+    real(4)             :: val
 
     if (t == LORT) then
-       hex2tri2 = (sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)) / tri_area
+       val = (sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)) / tri_area
     else
-       hex2tri2 = (sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6)) / tri_area
+       val = (sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6)) / tri_area
     end if
   end function hex2tri2
 
-  function hex2tri3 (sclr, hex_area, tri_area)
+  
+  function hex2tri3 (sclr, hex_area, tri_area) result(val)
     ! Inteegrates sclr given at hexagons over triangles 
     implicit none
-    real(dp), dimension(0:EDGE)    :: sclr
-    real(dp), dimension(2*EDGE)    :: hex_area
-    real(dp), dimension(LORT:UPLT) :: tri_area
+    real(dp), intent(in) :: sclr(0:EDGE)
+    real(dp), intent(in) :: hex_area(2*EDGE)
+    real(dp), intent(in) :: tri_area(LORT:UPLT)
     
-    real(dp), dimension(LORT:UPLT) :: hex2tri3
+    real(dp) :: val(LORT:UPLT) 
 
-    hex2tri3(LORT) = sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)
-    hex2tri3(UPLT) = sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6) 
+    val(LORT) = sclr(0) * hex_area(1) + sclr(1) * hex_area(3) + sclr(2) * hex_area(5)
+    val(UPLT) = sclr(0) * hex_area(2) + sclr(2) * hex_area(4) + sclr(3) * hex_area(6) 
   end function hex2tri3
 
+  
   subroutine pre_levelout
     implicit none
     integer :: d, l, num, t
@@ -1088,13 +1370,15 @@ contains
     end do
   end subroutine post_levelout
 
+  
   subroutine mark_save_chd (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Mark active child triangles
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims_par, dims_chd
 
     integer                    :: d, id_chd, idE_chd, idNE_chd, idN_chd
     integer                    :: mask_LORT, mask_UPLT
@@ -1107,28 +1391,30 @@ contains
     idNE_chd = idx (i_chd+1, j_chd+1, offs_chd, dims_chd)
     idN_chd  = idx (i_chd,   j_chd+1, offs_chd, dims_chd)
    
-    id_LORT = idx_hex_LORT (dom, i_chd, j_chd, offs_chd, dims_chd)
-    id_UPLT = idx_hex_UPLT (dom, i_chd, j_chd, offs_chd, dims_chd)
+    id_LORT = idx_hex_LORT (i_chd, j_chd, offs_chd, dims_chd)
+    id_UPLT = idx_hex_UPLT (i_chd, j_chd, offs_chd, dims_chd)
 
     mask_LORT = minval (dom%mask_n%elts(id_LORT+1))
     if (mask_LORT >= ADJZONE) then
        save_tri(LORT)%data(d)%elts([id_chd, idE_chd, idNE_chd]+1) = .true.
-       save_tri(UPLT)%data(d)%elts(idE_chd+1)                       = .true.
+       save_tri(UPLT)%data(d)%elts(idE_chd+1)                     = .true.
     end if
 
     mask_UPLT = minval (dom%mask_n%elts(id_UPLT+1))
     if (mask_UPLT >= ADJZONE) then
-       save_tri(LORT)%data(d)%elts(idN_chd+1)                       = .true.
+       save_tri(LORT)%data(d)%elts(idN_chd+1)                     = .true.
        save_tri(UPLT)%data(d)%elts([id_chd, idNE_chd, idN_chd]+1) = .true.
     end if
   end subroutine mark_save_chd
 
+  
   subroutine mark_save_par (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs_par, offs_chd
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims_par, dims_chd
 
     integer :: d, id_par, id_chd
 
@@ -1141,10 +1427,11 @@ contains
     if (save_tri(UPLT)%data(d)%elts(id_chd+1)) save_tri(UPLT)%data(d)%elts(id_par+1) = .false.
   end subroutine mark_save_par
 
+  
   subroutine zero_float_0 (q)
     ! Initializes a float field to zero
     implicit none
-    type(Float_Field) :: q
+    type(Float_Field), intent(inout) :: q
 
     integer :: d
 
@@ -1153,10 +1440,11 @@ contains
     end do
   end subroutine zero_float_0
 
+  
   subroutine zero_float_1 (q)
     ! Initializes a float vector to zero
     implicit none
-    type(Float_Field), dimension(:) :: q
+    type(Float_Field), intent(inout) :: q(:)
 
     integer :: d, j
 
@@ -1167,10 +1455,11 @@ contains
     end do
   end subroutine zero_float_1
 
+  
   subroutine zero_float_2 (q)
     ! Initializes a float array to zero
     implicit none
-    type(Float_Field), dimension(:,:) :: q
+    type(Float_Field), intent(inout) :: q(:,:)
 
     integer :: d, j1, j2
 
@@ -1183,36 +1472,7 @@ contains
     end do
   end subroutine zero_float_2
 
-  subroutine zero_float_vector (q)
-    ! Initializes a float vector to zero
-    implicit none
-    type(Float_Field), dimension(:) :: q
-
-    integer :: d, j
-
-    do j = 1, size(q,1)
-       do d = 1, size(grid)
-          q(j)%data(d)%elts = 0.0_dp
-       end do
-    end do
-  end subroutine zero_float_vector
-
-  subroutine zero_float_array (q)
-    ! Initializes a float array to zero
-    implicit none
-    type(Float_Field), dimension(:,:) :: q
-
-    integer :: d, j1, j2
-
-    do j1 = 1, size(q,1)
-       do j2 = 1, size(q,2)
-          do d = 1, size(grid)
-             q(j1,j2)%data(d)%elts = 0.0_dp
-          end do
-       end do
-    end do
-  end subroutine zero_float_array
-
+  
   subroutine zero_float_field (q, itype, lmin_in, lmax_in)
     ! Set float field to zero for scales:
     ! (lmin,lmax) if both lmin and lmax are present
@@ -1220,9 +1480,9 @@ contains
     ! (level_start, level_end) if lmin is not present
     ! itype = S_MASS or S_VELO
     implicit none
-    integer                                  :: itype
-    integer, optional                        :: lmin_in, lmax_in
-    type(Float_Field), target, intent(inout) :: q
+    integer,           intent(in)              :: itype
+    integer,           intent(in),    optional :: lmin_in, lmax_in
+    type(Float_Field), intent(inout), target   :: q
 
     integer :: d, j, l, lmin, lmax
 
@@ -1267,13 +1527,15 @@ contains
     call update_bdry1 (q, lmin, lmax, 909)
   end subroutine zero_float_field
 
+  
   subroutine cal_zero_node (dom, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+   
     integer :: id
 
     id = idx (i, j, offs, dims) + 1
@@ -1281,12 +1543,14 @@ contains
     val1(id) = 0.0_dp
   end subroutine cal_zero_node
 
+  
   subroutine cal_zero_edge (dom, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
 
     integer :: id
 
@@ -1295,16 +1559,17 @@ contains
     val1(id_edge(id)) = 0.0_dp
   end subroutine cal_zero_edge
 
+  
   subroutine equals_float_field (q1, q2, itype, lmin_in, lmax_in)
     ! Set elements of float field q1 = q2
     !
     ! itype = S_MASS or S_VELO
     ! if scale l is present, compute only for scale l
     implicit none
-    integer                                  :: itype
-    integer, optional                        :: lmin_in, lmax_in
-    type(Float_Field), target, intent(in)    :: q2
-    type(Float_Field), target, intent(inout) :: q1
+    integer,           intent(in)              :: itype
+    integer,           intent(in),    optional :: lmin_in, lmax_in
+    type(Float_Field), intent(in),    target   :: q2
+    type(Float_Field), intent(inout), target   :: q1
 
     integer :: d, j, l, lmin, lmax
 
@@ -1351,12 +1616,14 @@ contains
     call update_bdry1 (q1, lmin, lmax, 910)
   end subroutine equals_float_field
 
+  
   subroutine cal_equals_node (dom, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
 
     integer :: id
 
@@ -1365,12 +1632,14 @@ contains
     val1(id) = val2(id)
   end subroutine cal_equals_node
 
+  
   subroutine cal_equals_edge (dom, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
 
     integer :: id
 
@@ -1379,14 +1648,16 @@ contains
     val1(id_edge(id)) = val2(id_edge(id))
   end subroutine cal_equals_edge
 
-  real(dp) function nu_scale (type, zlev, dx_loc)
+  
+  function nu_scale (type, zlev, dx_loc) result(val)
     ! Viscosity for diffusion on hexagonal C-grids
     ! include dom, id for scale-aware viscosity
     ! (conservative Gershgorin estimate to be consisistent with pentagons and irregular grid
     ! uses 1/8 factor instead of 1/6 for regular hexagonal grid)
     implicit none
-    integer            :: type, zlev
-    real(dp), optional :: dx_loc
+    integer,  intent(in)           :: type, zlev
+    real(dp), intent(in), optional :: dx_loc
+    real(dp)                       :: val
 
     real(dp) :: dx
 
@@ -1404,26 +1675,27 @@ contains
     
     select case (type)
     case (S_MASS)
-       nu_scale = C_visc(S_MASS,zlev) * r_dif/dt * (dx**2/8  / rho_sclr)**Laplace_sclr
+       val = C_visc(S_MASS,zlev) * r_dif/dt * (dx**2/8  / rho_sclr)**Laplace_sclr
     case (S_TEMP)
-       nu_scale = C_visc(S_TEMP,zlev) * r_dif/dt * (dx**2/8  / rho_sclr)**Laplace_sclr
+       val = C_visc(S_TEMP,zlev) * r_dif/dt * (dx**2/8  / rho_sclr)**Laplace_sclr
     case (S_DIVU)
-       nu_scale = C_visc(S_DIVU,zlev) * r_dif/dt * (dx**2/8  / rho_divu)**Laplace_divu
+       val = C_visc(S_DIVU,zlev) * r_dif/dt * (dx**2/8  / rho_divu)**Laplace_divu
     case (S_ROTU)
-       nu_scale = C_visc(S_ROTU,zlev) * r_dif/dt * (dx**2/24 / rho_rotu)**Laplace_rotu
+       val = C_visc(S_ROTU,zlev) * r_dif/dt * (dx**2/24 / rho_rotu)**Laplace_rotu
     case default
-       nu_scale = 0.0_dp
+       val = 0.0_dp
     end select
   end function nu_scale
 
+  
   subroutine smoothing_rbf (dx, npts, nsmth, data)
     ! Smooths data(lon,lat) over neighbouring region using radial basis functions
     implicit none
-    integer                  :: npts, nsmth
-    real(dp)                 :: dx
-    real(dp), dimension(:,:) :: data
+    integer,  intent(in)    :: npts, nsmth
+    real(dp), intent(in)    :: dx
+    real(dp), intent(inout) :: data(:,:)
 
-    integer                               :: i, ismth, i0, ii, j, j0, jj, nx, ny
+    integer                               :: i, ismth, i0, ii, iw, j, j0, jj, jw, nx, ny
     real(dp)                              :: r, M_topo, sw_topo, topo_sum, wgt
     real(dp), allocatable, dimension(:,:) :: data_old
 
@@ -1444,7 +1716,9 @@ contains
 
                    wgt = radial_basis_fun (dx, npts, r)
 
-                   call wrapij (i+ii, j+jj, nx, ny, i0, j0)
+                   iw = i + ii
+                   jw = j + jj
+                   call wrapij (iw, jw, nx, ny, i0, j0)
 
                    M_topo = data_old(i0, j0)
 
@@ -1460,11 +1734,12 @@ contains
     deallocate (data_old)
   end subroutine smoothing_rbf
 
+  
   subroutine smoothing_shapiro (nsmth, data)
     ! Smooths data(lon,lat) over neighbouring region using shapiro (diffusion) filter
     implicit none
-    integer                  :: nsmth
-    real(dp), dimension(:,:) :: data
+    integer , intent(in)    :: nsmth
+    real(dp), intent(inout) :: data(:,:)
 
     integer                              :: i, ii, ismth, jj, nx, ny
     real(dp), allocatable, dimension(:,:) :: data_old
@@ -1503,9 +1778,12 @@ contains
     deallocate (data_old)
   end subroutine smoothing_shapiro
 
+  
   subroutine wrapij (i, j, nx, ny, i0, j0)
     implicit none
-    integer :: i, i0, j, j0, nx, ny
+    integer, intent(in)    :: nx, ny
+    integer, intent(inout) :: i, j
+    integer, intent(out)   :: i0, j0
 
     if (j > ny) then
        j = ny - mod (j, ny)
@@ -1525,26 +1803,31 @@ contains
     j0 = j
   end subroutine wrapij
 
-  real(dp) function radial_basis_fun (dx, npts, r)
+  
+  function radial_basis_fun (dx, npts, r) result(val)
     ! Radial basis function for smoothing topography
     implicit none
-    integer  :: npts
-    real(dp) :: dx, r
+    integer, intent(in) :: npts
+    real(dp),intent(in) :: dx, r
+    real(dp)            :: val
 
     real(dp) :: alph
 
     alph = 1 / (dx_avg(min_level) * dble(npts))
 
-    radial_basis_fun = exp__flush (-(alph*r)**2)
+    val = exp__flush (-(alph*r)**2)
   end function radial_basis_fun
 
+  
   subroutine cal_rx0_max (l, rx0_max)
     ! Maximum topographic stiffness ratio rx0 < 0.2
     ! (also called the Beckman-Haidvogel number)
     ! the compressible version uses surface pressure instead of topography height
+    
     implicit none
-    integer  :: l
-    real(dp) :: rx0_max
+    
+    integer,  intent(in)  :: l
+    real(dp), intent(out) :: rx0_max
 
     rx0_max_loc = 0.0_dp
     rx0_max     = 0.0_dp
@@ -1558,14 +1841,17 @@ contains
     rx0_max = sync_max_real (rx0_max_loc)
   end subroutine cal_rx0_max
 
+  
   subroutine cal_rx1_max (l, rx1_max)
     ! Hydrostatic maximum instability number rx1 < 1 (also called Haney number)
     ! (Haney 1991, Shchepetkin and McWilliams 2003)
     ! note that rx1 < 1 is almost impossible to achieve and rx1 <= 5 is usually okay in oceanographic simulations
     ! compute only over lowest layer (most unstable)
+    
     implicit none
-    integer  :: l
-    real(dp) :: rx1_max
+    
+    integer,  intent(in)  :: l
+    real(dp), intent(out) :: rx1_max
 
     integer :: k
 
@@ -1582,15 +1868,18 @@ contains
 
     rx1_max = sync_max_real (rx1_max_loc)
   end subroutine cal_rx1_max
+  
 
   subroutine cal_rx0_loc_P (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
-    ! uses surface pressure 
+    ! uses surface pressure
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
 
     integer  :: id, idE, idNE, idN
     real(dp) :: h0, h1
@@ -1613,23 +1902,30 @@ contains
        h1 = dom%surf_press%elts(idN+1)
        rx0_max_loc = max (rx0_max_loc, rx0 ())
     end if
+    
   contains
-    real(dp) function rx0 ()
-      implicit none
 
-      rx0 = abs (h0 - h1) / (h0 + h1)
+    function rx0 () result(val)
+      implicit none
+      real(dp) :: val
+
+      val = abs (h0 - h1) / (h0 + h1)
     end function rx0
+    
   end subroutine cal_rx0_loc_P
+
 
   subroutine cal_rx1_loc_P (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
     ! uses pressure vertical coordinates
-    Implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    implicit none
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+    
     integer  :: id, idE, idNE, idN
     real(dp) :: z1, z2, z3, z4
 
@@ -1655,29 +1951,36 @@ contains
        z4 = p(idN, zlev)
        rx1_max_loc = max (rx1_max_loc, rx1 ())
     end if
+    
   contains
-    real(dp) function p (id, k)
+    
+   function p (id, k) result(val)
       implicit none
-      integer :: id, k
+      integer, intent(in) :: id, k
+      real(dp)            :: val
 
-      p = a_vert(k) + b_vert(k) * dom%surf_press%elts(id+1)
+      val = a_vert(k) + b_vert(k) * dom%surf_press%elts(id+1)
     end function p
 
-    real(dp) function rx1 ()
+    function rx1 () result(val)
       implicit none
+      real(dp) :: val
 
-      rx1 = abs ( (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1) )
+      val = abs ( (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1) )
     end function rx1
+    
   end subroutine cal_rx1_loc_P
 
+  
   subroutine cal_rx0_loc_Z (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
     ! uses z vertical coordinates
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
 
     integer  :: d, id, idE, idN, idNE
     real(dp) :: h0, h1
@@ -1702,22 +2005,29 @@ contains
        h1 = topography%data(d)%elts(idN+1)
        rx0_max_loc = max (rx0_max_loc, rx0 ())
     end if
+    
   contains
-    real(dp) function rx0 ()
+    
+    function rx0 () result(val)
       implicit none
+      real(dp) :: val
 
-      rx0 = abs (h0 - h1) / (h0 + h1)
+      val = abs (h0 - h1) / (h0 + h1)
     end function rx0
+    
   end subroutine cal_rx0_loc_Z
 
+  
   subroutine cal_rx1_loc_Z (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
     ! uses z vertical coordinates
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
 
     integer  :: id
     real(dp) :: z1, z2, z3, z4
@@ -1741,20 +2051,25 @@ contains
     rx1_max_loc = max (rx1_max_loc, rx1 ())
     !end if
   contains
-    real(dp) function rx1 ()
+    function rx1 () result(val)
       implicit none
+      real(dp) :: val
 
-      rx1 = abs ( (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1) )
+      val = abs ( (z4 - z2 + z3 - z1) / (z4 + z2 - z3 - z1) )
     end function rx1
   end subroutine cal_rx1_loc_Z
 
-  real(dp) function theta_i (dom, i, j, zlev, offs, dims)
+  
+  function theta_i (dom, i, j, zlev, offs, dims) result(val)
     ! Potential temperature at layer centre
+
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+    real(dp)                                      :: val
 
     integer  :: d, id
     real(dp) :: rho_dz, rho_dz_theta
@@ -1765,17 +2080,21 @@ contains
     rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + sol(S_TEMP,zlev)%data(d)%elts(id)
     rho_dz       = sol_mean(S_MASS,zlev)%data(d)%elts(id) + sol(S_MASS,zlev)%data(d)%elts(id) 
 
-    theta_i = rho_dz_theta / rho_dz
+    val = rho_dz_theta / rho_dz
   end function theta_i
 
-  real(dp) function N_i (dom, i, j, zlev, offs, dims)
+  
+  function N_i (dom, i, j, zlev, offs, dims) result(val)
     ! Brunt-Vaisala frequency at nodes at layer interface above layer zlev
     ! *** need zlev /= zlevels ***
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+    real(dp)                                      :: val
 
     integer  :: d, id
     real(dp) :: drho, dtheta, dz, rho_l, rho1, rho2, theta_l, theta1, theta2
@@ -1791,34 +2110,38 @@ contains
        theta_l = interp (theta1, theta2)
        dtheta =  theta2 - theta1
 
-       N_i = sqrt ( grav_accel *  dtheta/dz / theta_l) 
+       val = sqrt ( grav_accel *  dtheta/dz / theta_l) 
     else                     ! incompressible
        rho1 = porous_density (d, id+1, zlev)
        rho2 = porous_density (d, id+1, zlev+1) 
        rho_l = interp (rho1, rho2)
        drho = rho2 - rho1
 
-       N_i = sqrt ( grav_accel * drho/dz / rho_l )
+       val = sqrt ( grav_accel * drho/dz / rho_l )
     end if
   end function N_i
 
-  function N_e (dom, i, j, zlev, offs, dims)
+  
+  function N_e (dom, i, j, zlev, offs, dims) result(val)
     ! Brunt-Vaisala frequency at edges at layer interfaces
+    
     implicit none
-    type(Domain)                    :: dom
-    integer                         :: i, j, zlev
-    integer,  dimension(N_BDRY+1)   :: offs
-    integer,  dimension(2,N_BDRY+1) :: dims
-    real(dp), dimension(1:EDGE)     :: N_e
 
-    N_e = 0.5 * ( &
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+    real(dp)                                      :: val(EDGE)
+
+    val = 0.5 * ( &
          N_i (dom, i,   j,   zlev, offs, dims) + [ &
          N_i (dom, i+1, j,   zlev, offs, dims),     &
          N_i (dom, i+1, j+1, zlev, offs, dims),     &
          N_i (dom, i,   j+1, zlev, offs, dims) ])
   end function N_e
 
-  real(dp) function hex_perim (dom, i, j, offs, dims)
+  
+  function hex_perim (dom, i, j, offs, dims) result(val)
     ! Perimeter of hexagon associated to i, j
     use domain_mod
     implicit none
@@ -1826,6 +2149,7 @@ contains
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     type(Domain)                   :: dom
+    real(dp)                       :: val
 
     integer :: id, idW, idSW, idS
     
@@ -1834,18 +2158,20 @@ contains
     idSW = idx (i-1, j-1, offs, dims)
     idS  = idx (i,   j-1, offs, dims)
 
-    hex_perim = &
+    val = &
          dom%pedlen%elts(EDGE*id +RT+1) + dom%len%elts(EDGE*id  +DG+1) + dom%len%elts(EDGE*id +UP+1) + &
          dom%pedlen%elts(EDGE*idW+RT+1) + dom%len%elts(EDGE*idSW+DG+1) + dom%len%elts(EDGE*idS+UP+1)
   end function hex_perim
 
-  real(dp) function tri_perim (dom, i, j, t, offs, dims)
+  
+  function tri_perim (dom, i, j, t, offs, dims) result(val)
     ! Perimeter of triangles associated to i, j
     implicit none
     integer                        :: i, j, t
     integer, dimension(N_BDRY+1)   :: offs
     integer, dimension(2,N_BDRY+1) :: dims
     type(Domain)                   :: dom
+    real(dp)                       :: val
 
     integer :: id, idE, idN
 
@@ -1855,22 +2181,25 @@ contains
 
     select case (t)
     case (LORT) 
-       tri_perim = dom%len%elts(EDGE*id+RT+1) + dom%len%elts(EDGE*idE+UP+1) + dom%len%elts(EDGE*id+DG+1) 
+       val = dom%len%elts(EDGE*id+RT+1) + dom%len%elts(EDGE*idE+UP+1) + dom%len%elts(EDGE*id+DG+1) 
     case (UPLT) 
-       tri_perim = dom%len%elts(EDGE*id+DG+1) + dom%len%elts(EDGE*id +UP+1) + dom%len%elts(EDGE*idN+RT+1)
+       val = dom%len%elts(EDGE*id+DG+1) + dom%len%elts(EDGE*id +UP+1) + dom%len%elts(EDGE*idN+RT+1)
     case default
-       tri_perim = 0.0_dp
+       val = 0.0_dp
     end select
   end function tri_perim
 
-  function hex_pedlen (dom, i, j, offs, dims)
+  
+  function hex_pedlen (dom, i, j, offs, dims) result(val)
     ! The six primary grid edges (hexagon edges) associated to hexagon i, j
+    
     implicit none
-    integer                         :: i, j
-    integer,  dimension(N_BDRY+1)   :: offs
-    integer,  dimension(2,N_BDRY+1) :: dims
-    type(Domain)                    :: dom
-    real(dp), dimension(1:2*EDGE)   :: hex_pedlen
+    
+    integer,      intent(in) :: i, j
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
+    type(Domain), intent(in) :: dom
+    real(dp)                 :: val(1:2*EDGE)
 
     integer                       :: id, idW, idSW, idS
     integer,  dimension(1:2*EDGE) :: ide
@@ -1882,21 +2211,24 @@ contains
 
     ide = [ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 ]
 
-    hex_pedlen = dom%pedlen%elts(ide)
+    val = dom%pedlen%elts(ide)
   end function hex_pedlen
 
-  function hex_len (dom, i, j, offs, dims)
+  
+  function hex_len (dom, i, j, offs, dims) result(val)
     ! The six dual grid edges (distances to neighbour hexagons) associated to hexagon i, j
+    
     implicit none
-    integer                        :: i, j
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    type(Domain)                   :: dom
-
-    integer,  dimension(1:2*EDGE) :: ide
-    real(dp), dimension(1:2*EDGE) :: hex_len
+    
+    integer,      intent(in) :: i, j
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
+    type(Domain), intent(in) :: dom
+    real(dp)                 :: val(1:2*EDGE)
+   
 
     integer :: id, idW, idSW, idS
+    integer,  dimension(1:2*EDGE) :: ide
 
     id   = idx (i, j, offs, dims)
     idW  = idx (i-1, j,   offs, dims)
@@ -1905,16 +2237,20 @@ contains
     
     ide = [ id_edge(id), EDGE*idW + RT + 1, EDGE*idSW + DG + 1, EDGE*idS + UP + 1 ]
 
-    hex_len = dom%len%elts(ide)
+    val = dom%len%elts(ide)
   end function hex_len
 
-  real(dp) function hex_dx (dom, i, j, offs, dims)
+  
+  function hex_dx (dom, i, j, offs, dims) result(val)
     ! Equivalent dx for a hexagon
+
     implicit none
-    integer                        :: i, j
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    type(Domain)                   :: dom
+
+    integer,      intent(in) :: i, j
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
+    type(Domain), intent(in) :: dom
+    real(dp)                 :: val
 
     integer  :: id
     real(dp) :: Area, Perimeter
@@ -1924,6 +2260,66 @@ contains
     Perimeter = sum (hex_pedlen (dom, i, j, offs, dims))
     Area      = 1 / dom%areas%elts(id+1)%hex_inv
     
-    hex_dx = 4 * Area / Perimeter
+    val = 4 * Area / Perimeter
   end function hex_dx
+
+  
+  subroutine barotropic_velocity (dom, i, j, zlev, offs, dims)
+    ! Calculate barotropic velocity in two-layer model
+    
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer(4)                     :: d, e, id, id_e, id_i, idE, idNE, idN, k
+    real(dp)                       :: dz0
+    real(dp), dimension (1:EDGE,2) :: dz
+
+    id = idx (i, j, offs, dims)
+    id_i = id + 1
+    d = dom%id + 1
+
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+
+    do k = 1, 2
+       dz0 = sol_mean(S_MASS,k)%data(d)%elts(id+1) + sol(S_MASS,k)%data(d)%elts(id_i)
+       dz(RT+1,k) = interp (dz0, sol_mean(S_MASS,k)%data(d)%elts(idE+1)  + sol(S_MASS,k)%data(d)%elts(idE+1))
+       dz(DG+1,k) = interp (dz0, sol_mean(S_MASS,k)%data(d)%elts(idNE+1) + sol(S_MASS,k)%data(d)%elts(idNE+1))
+       dz(UP+1,k) = interp (dz0, sol_mean(S_MASS,k)%data(d)%elts(idN+1)  + sol(S_MASS,k)%data(d)%elts(idN+1))
+    end do
+
+    do e = 1, EDGE
+       id_e = EDGE*id + e
+       velo(id_e) = (dz(e,1)*sol(S_VELO,1)%data(d)%elts(id_e) + dz(e,2)*sol(S_VELO,2)%data(d)%elts(id_e)) / (dz(e,1) + dz(e,2))
+    end do
+  end subroutine barotropic_velocity
+
+  
+  subroutine baroclinic_velocity (dom, i, j, zlev, offs, dims)
+    ! Calculate baroclinic velocity in top layer
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer :: d, e, id, id_e
+
+    id = idx (i, j, offs, dims)
+    d = dom%id + 1
+
+    do e = 1, EDGE
+       id_e = EDGE*id + e
+       velo(id_e) = velo2(id_e) - velo1(id_e)
+    end do
+  end subroutine baroclinic_velocity
+
+  
 end module utils_mod

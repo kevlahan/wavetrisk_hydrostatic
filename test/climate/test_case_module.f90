@@ -1,15 +1,43 @@
 module test_case_mod
   ! Module file for climate test case
-  use utils_mod
-  use init_mod
+  
+  use kind_mod,   only : dp
+  use shared_mod, only : BDRY_THICKNESS, CP_EVERY, DEG, DOMAIN_LEVEL, EDGE, HOUR, N_BDRY, N_GLO_DOMAIN, N_VARIABLE, &
+       DAY, KM, METRE, NONE, PATCH_LEVEL, SECOND, RT, DG, UP, LORT, UPLT, TRIAG, &
+       Laplace_divu, Laplace_rotu, Laplace_sclr, &
+       S_DIVU, S_ROTU, S_MASS, S_TEMP, S_VELO, &
+       adapt_dt, a_vert, a_vert_mass, b_vert, b_vert_mass, c_p, c_s, c_v, C_visc, &
+       cfl_safety, compressible, default_thresholds, dt, dt_init, dt_write, dx_avg, exp__flush, gamma, grav_accel, istep, kappa, &
+       level_end, min_level, match_time, max_level, min_mass_remap, n_active, n_patch_old, Nsoil, &
+       NCAR_TOPO, omega, optimize_grid, p_0, P_top, penta_node, physics_model, physics_type, &
+       radius, ref_density, resume, R_d, r_adv, r_dif, remap, run_id, &
+       split_mean_perturbation, sso, test_case, threshold, threshold_def, time, time_end, timeint_type, &
+       tol, topo_file, topo_min_level, topo_max_level, &
+       uniform, wave_speed, z_null, zlevels, z_null
+
+  use arch_mod,                only : abort_run, n_process, rank
+  use comm_mpi_mod,            only : get_timing, update_bdry
+  use domain_mod,              only : Domain, Float_Field, grid, sol, sol_mean, sso_param, topography, id_edge, idx
+  use domain_ops_mod,          only : apply, apply_bdry, apply_onescale_to_patch
+  use geom_mod,                only : cart2sph, geodesic
+  use io_mod,                  only : assign_NCAR_topo
+  use physics_Held_Suarez_mod, only : cal_theta_eq, delta_T, delta_theta, k_a, k_f, k_s, sigma_b, sigma_t, T_mean, T_tropo
+  use sso_mod,                 only : blocking_drag, cal_sso_param, wave_drag
+  use utils_mod,               only : nu_scale
+
+  use init_mod,                only : apply_initial_conditions, initialize_a_b_vert, initialize_dt_viscosity,  &
+       initialize_thresholds, physics_scalar_flux, physics_velo_source, set_thresholds, surf_geopot, z_coords, update, dump, load
+
   use std_atm_profile_mod
-  use io_mod
-  use sso_mod
-  use physics_trend_mod
+  
   implicit none
 
+  private
+  public :: assign_functions, dz, initialize_seed, print_log, print_test_case_parameters, read_test_case_parameters
+  public :: T_0, topo_test, total_cpu_time, u_0
+
   ! Standard variables
-  integer  :: domains_per_task, resume_init, time_start
+  integer  :: domains_per_task, resume_init
   real(dp) :: total_cpu_time
 
   ! Test case variables
@@ -28,7 +56,11 @@ module test_case_mod
   logical             :: topo_test     = .false.                     ! equilibrium test for topography: no physics, constant temperature
   
   character(255)      :: analytic_topo = "none"                      ! mountains or none (used if NCAR_topo = .false.)
+
+  
 contains
+
+  
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
     implicit none
@@ -47,21 +79,25 @@ contains
     update                   => update_case
     z_coords                 => z_coords_case
   end subroutine assign_functions
+  
 
-  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type) result(flux)
     ! Scalar diffusion flux
     !
     ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
     use domain_mod
+    
     implicit none
-    real(dp), dimension(1:EDGE)                          :: physics_scalar_flux_case
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
-    type(domain)                                         :: dom
-    integer                                              :: d, id, idE, idNE, idN, v, zlev
-    logical, optional                                    :: type
 
-    real(dp), dimension(1:EDGE) :: d_e, grad, l_e
-    logical                     :: local_type
+    type(Float_Field), intent(inout)        :: q(1:N_VARIABLE,1:zlevels)
+    type(domain),      intent(inout)        :: dom
+    integer,           intent(in)           :: id, idE, idNE, idN, v, zlev
+    logical,           intent(in), optional :: type
+    real(dp)                                :: flux(EDGE)
+
+    integer  :: d
+    real(dp) :: d_e(EDGE), grad(EDGE), l_e(EDGE)
+    logical  :: local_type
 
     if (present(type)) then
        local_type = type
@@ -71,7 +107,7 @@ contains
 
     d = dom%id + 1
 
-    physics_scalar_flux_case = 0.0_dp
+    flux = 0.0_dp
     
     if (Laplace_sclr /= 0) then
        if (.not.local_type) then ! usual flux at edges E, NE, N
@@ -92,30 +128,37 @@ contains
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-       physics_scalar_flux_case = (-1)**Laplace_sclr * nu_scale (v, zlev) * grad * l_e
+       flux = (-1)**Laplace_sclr * nu_scale (v, zlev) * grad * l_e
     end if
+    
   contains
-    function grad_physics (scalar)
+    
+    function grad_physics (scalar) result(val)
       implicit none
-      real(dp), dimension(1:EDGE) :: grad_physics
-      real(dp), dimension(:)      :: scalar
-
-      grad_physics(RT+1) = (scalar(idE+1) - scalar(id  +1)) / d_e(RT+1)
-      grad_physics(DG+1) = (scalar(id +1) - scalar(idNE+1)) / d_e(DG+1)
-      grad_physics(UP+1) = (scalar(idN+1) - scalar(id  +1)) / d_e(UP+1)
+      real(dp), intent(in) :: scalar(:)
+      real(dp)             :: val(EDGE)
+      
+      val(RT+1) = (scalar(idE+1) - scalar(id  +1)) / d_e(RT+1)
+      val(DG+1) = (scalar(id +1) - scalar(idNE+1)) / d_e(DG+1)
+      val(UP+1) = (scalar(idN+1) - scalar(id  +1)) / d_e(UP+1)
     end function grad_physics
+    
   end function physics_scalar_flux_case
 
-  function physics_velo_source_case (dom, i, j, zlev, offs, dims)
+  
+  function physics_velo_source_case (dom, i, j, zlev, offs, dims) result (source)
     ! Additional physics for the source term of the velocity trend
     use domain_mod
+    
     implicit none
-    real(dp), dimension(1:EDGE)    :: physics_velo_source_case
-    type(domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    
+    real(dp)                    :: source(EDGE)
+    
     integer                        :: ip, id, idE, idN, idNE
     real(dp), dimension(1:zlevels) :: C_temp 
     logical                        :: penta 
@@ -139,46 +182,49 @@ contains
        end do
     end if
     
-    physics_velo_source_case = 0.0_dp
+    source = 0.0_dp
 
-    if (Laplace_divu /= 0) physics_velo_source_case = &  
-         + (-1)**(Laplace_divu-1) * nu_scale (S_DIVU, zlev) * grad_divu ()
+    if (Laplace_divu /= 0) source = (-1)**(Laplace_divu-1) * nu_scale (S_DIVU, zlev) * grad_divu ()
 
-    if (Laplace_rotu /= 0) physics_velo_source_case = physics_velo_source_case + &
-         - (-1)**(Laplace_rotu-1) * nu_scale (S_ROTU, zlev) * curl_rotu ()
+    if (Laplace_rotu /= 0) source = source - (-1)**(Laplace_rotu-1) * nu_scale (S_ROTU, zlev) * curl_rotu ()
 
     if (penta) C_visc(S_DIVU,1:zlevels) = C_temp
+    
   contains
-    function grad_divu ()
+    
+    function grad_divu () result(val)
       implicit none
-      real(dp), dimension(1:EDGE) :: grad_divu
+      real(dp) :: val(EDGE)
 
-      grad_divu(RT+1) = (divu(idE+1) - divu(id  +1)) / dom%len%elts(EDGE*id+RT+1)
-      grad_divu(DG+1) = (divu(id +1) - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
-      grad_divu(UP+1) = (divu(idN+1) - divu(id  +1)) / dom%len%elts(EDGE*id+UP+1)
+      val(RT+1) = (divu(idE+1) - divu(id  +1)) / dom%len%elts(EDGE*id+RT+1)
+      val(DG+1) = (divu(id +1) - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      val(UP+1) = (divu(idN+1) - divu(id  +1)) / dom%len%elts(EDGE*id+UP+1)
     end function grad_divu
 
-    function curl_rotu ()
+    function curl_rotu () result(val)
       implicit none
-      real(dp), dimension(1:EDGE) :: curl_rotu
+      real(dp) :: val(EDGE)
 
       integer :: idS, idW
 
       idS  = idx (i,   j-1, offs, dims)
       idW  = idx (i-1, j,   offs, dims)
 
-      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
-      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
-      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+      val(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+      val(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+      val(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
+    
   end function physics_velo_source_case
 
+  
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     implicit none
-    type(Domain)                    :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer  :: id, d, k
     real(dp) :: k_T, lat, lon, p, P_s, theta_init
@@ -213,13 +259,16 @@ contains
        sol(S_VELO,k)%data(d)%elts(id_edge(id)) = 0.0_dp
     end do
   end subroutine init_sol
+  
 
   subroutine init_mean (dom, i, j, zlev, offs, dims)
+    
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id, d, k
     real(dp) :: k_T, lat, lon, p, P_s, theta_init
@@ -255,6 +304,7 @@ contains
     end do
   end subroutine init_mean
   
+  
   subroutine  theta_init (p, P_s, lat, theta_equil, k_T)
     ! Initial potential temperature profile
     implicit none
@@ -278,24 +328,29 @@ contains
        theta_equil = T_0 * (p/p_0)**(-kappa)
     end if
   end subroutine theta_init
+  
 
-  real(dp) function surf_geopot_case (d, id)
+   function surf_geopot_case (d, id) result(val)
     ! Set geopotential and topography
     implicit none
-    integer :: d, id
+    integer, intent(in) :: d, id
+    real(dp)            :: val
     
-    surf_geopot_case = grav_accel * topography%data(d)%elts(id)
+    val = grav_accel * topography%data(d)%elts(id)
   end function surf_geopot_case
+  
 
   subroutine init_topo (dom, i, j, zlev, offs, dims)
     ! Assigns analytic topography
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+   
+    integer  :: d, id
     real(dp) :: lat, lon, width
 
     d  = dom%id + 1
@@ -312,62 +367,35 @@ contains
     case ("none")
        topography%data(d)%elts(id) = 0.0_dp
     end select
+    
   contains
-    real(dp) function tanh_profile (height, lon_min, lon_max, lat_min, lat_max)
+    
+     function tanh_profile (height, lon_min, lon_max, lat_min, lat_max) result(val)
       implicit none
       real(dp), intent(in) :: height, lon_min, lon_max, lat_min, lat_max
+      real(dp)             :: val
 
-      tanh_profile = height * (profile1d (lat, lat_min, lat_max) * profile1d (lon, lon_min, lon_max))
+      val = height * (profile1d (lat, lat_min, lat_max) * profile1d (lon, lon_min, lon_max))
     end function tanh_profile
 
-    real(dp) function profile1d (x, xmin, xmax)
+    function profile1d (x, xmin, xmax) result(val)
       implicit none
-      real(dp) :: x, xmin, xmax
+      real(dp), intent(in) :: x, xmin, xmax
+      real(dp)             :: val
 
-      profile1d = prof (x, xmax) - prof (x, xmin)
+      val = prof (x, xmax) - prof (x, xmin)
     end function profile1d
 
-    real(dp) function prof (x, x0)
+    function prof (x, x0) result(val)
       implicit none
-      real(dp) :: x, x0
+      real(dp), intent(in) :: x, x0
+      real(dp)             :: val
 
-      prof = 0.5 * (1 - tanh ((x - x0)/((width/5)/radius)))
+      val = 0.5 * (1 - tanh ((x - x0)/((width/5)/radius)))
     end function prof
-    
-    real(dp) function ellipse_profile (lon_0, lat_0, e, height, sigma, theta)
-      ! Elliptical smoothed mountain, ellipticity 0 < e <= 1
-      ! Minimum resolution of gradient = N
-      implicit none
-      real(dp), intent(in) :: lon_0, lat_0 ! centre of ellipse (in radians)
-      real(dp), intent(in) :: e            ! ellipticity
-      real(dp), intent(in) :: height       ! height of ellipse (in metres)
-      real(dp), intent(in) :: sigma        ! size of ellipse (in radians)
-      real(dp), intent(in) :: theta        ! orientation (in radians)
-
-      real(dp)            :: dtheta, p, lat_loc, lat_rot, lon_loc, lon_rot, rsq, sigma_x, sigma_y
-
-      real(dp), parameter :: npts_slope = 5.0_dp ! resolve slope with this many cells
-
-      dtheta = dx_avg(max_level) / radius
-
-      sigma_x = sigma
-      sigma_y = sigma_x * sqrt (1 - e**2)
-
-      ! Transform coordinates (shift and rotate)
-      lon_loc = lon - lon_0; lat_loc = lat - lat_0
-
-      lon_rot = lon_loc * cos (theta) - lat_loc * sin (theta)
-      lat_rot = lon_loc * sin (theta) + lat_loc * cos (theta)
-
-      rsq = (lon_rot/sigma_x)**2 + (lat_rot/sigma_y)**2
-
-      ! Order of hyper Gaussian is 2 p
-      p = (log (0.01_dp) / log (1 - npts_slope * dtheta/(2*sigma_y))) / 2
-
-      ellipse_profile = height * exp__flush (-rsq**p)
-    end function ellipse_profile
   end subroutine init_topo
 
+  
   subroutine initialize_a_b_vert_case
     implicit none
     integer :: k
@@ -470,6 +498,7 @@ contains
     b_vert_mass =  b_vert(0:zlevels-1) - b_vert(1:zlevels)
   end subroutine initialize_a_b_vert_case
 
+  
   subroutine read_test_case_parameters
     implicit none
     integer, parameter :: fid = 500
@@ -508,6 +537,7 @@ contains
 
     domains_per_task = int (real(N_GLO_DOMAIN,kind=dp)/n_process)
   end subroutine read_test_case_parameters
+  
 
   subroutine print_test_case_parameters
     implicit none
@@ -613,6 +643,7 @@ contains
             &*************************************************************'
     end if
   end subroutine print_test_case_parameters
+  
 
   subroutine print_log
     ! Prints out and saves logged data to a file
@@ -651,6 +682,7 @@ contains
             date, time, dt, level_end, sum (n_active), timing
     end if
   end subroutine print_log
+  
 
   subroutine initialize_thresholds_case
     ! Set default thresholds based on dimensional scalings of norms
@@ -674,6 +706,7 @@ contains
        threshold_def(S_VELO,k) = tol * u_0
     end do
   end subroutine initialize_thresholds_case
+  
 
   subroutine set_thresholds_case
     ! Set thresholds dynamically
@@ -687,6 +720,7 @@ contains
        where (tol * lnorm > threshold) threshold = tol * lnorm
     end if
   end subroutine set_thresholds_case
+  
 
   subroutine initialize_dt_viscosity_case
     ! Set time step and non-dimensional viscosities
@@ -700,7 +734,8 @@ contains
     C_visc(S_MASS:S_TEMP,:) = 0.05_dp
     C_visc(S_DIVU,:)        = 0.30_dp
     C_visc(S_ROTU,:)        = 0.90_dp
-  end subroutine initialize_dt_viscosity_case 
+  end subroutine initialize_dt_viscosity_case
+  
 
   subroutine apply_initial_conditions_case
     implicit none
@@ -729,6 +764,7 @@ contains
        call update_bdry (sso_param, NONE)
     end if
   end subroutine apply_initial_conditions_case
+  
 
   subroutine update_case
     ! Update sol_mean and topography on new grid
@@ -777,6 +813,7 @@ contains
        call update_bdry (sso_param, NONE)
     end if
   end subroutine update_case
+  
 
   subroutine initialize_seed
     implicit none
@@ -791,26 +828,29 @@ contains
     seed = values(8)
     call random_seed (put=seed)
   end subroutine initialize_seed
+  
 
   subroutine dump_case (fid)
     implicit none
-    integer :: fid
+    integer, intent(in) :: fid
 
   end subroutine dump_case
+  
 
   subroutine load_case (fid)
     implicit none
-    integer :: fid
+    integer, intent(in) :: fid
 
   end subroutine load_case
+  
 
-  function z_coords_case (eta_surf, z_s)
+  function z_coords_case (eta_surf, z_s) result(val)
     ! Dummy routine
     ! (see upwelling test case for example)
     implicit none
-    real(dp), intent(in)           :: eta_surf, z_s ! free surface and bathymetry
-    real(dp), dimension(0:zlevels) :: z_coords_case
+    real(dp), intent(in) :: eta_surf, z_s ! free surface and bathymetry
+    real(dp)             :: val(0:zlevels)
 
-    z_coords_case = 0.0_dp
+    val = 0.0_dp
   end function z_coords_case
 end module test_case_mod

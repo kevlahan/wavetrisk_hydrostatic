@@ -9,26 +9,46 @@ module coarse_grid_mod
   !
   ! Both schemes produce grids with similar l2 errors for the mis-match between the midpoints of primal and dual grid edges, but
   ! the linf error is smaller for the Heikes and Randall scheme.
-  use shared_mod
-  use geom_mod
-  use domain_mod
-  use init_mod
-  use comm_mpi_mod
+
+  use kind_mod,   only : dp
+  use shared_mod, only : BDRY_THICKNESS, Coord, DOMAIN_LEVEL, EDGE, N_BDRY, N_ICOSAH_LOZENGE, &
+       N_SUB_DOM, N_SUB_DOM_PER_DIM, PATCH_LEVEL, nghb_pt, NONE, ORIGIN, &
+       RT, DG, UP, LORT, UPLT, TRIAG, SOUTHWEST, level_end, level_start, min_level, grid_type, z_null, theta_grid, dx_avg
+  
+  use arch_mod,       only : barrier, loc_id, n_process, owner, rank
+  use comm_mod,       only : get_coord, set_coord
+  use comm_mpi_mod,   only : comm_nodes3_mpi, sum_real, sync_max_real
+  use domain_mod,     only : Domain, get_offs_domain, grid, idx, idx2
+  use domain_ops_mod, only : apply_onescale, apply_onescale2
+  use geom_mod,       only : dist, init_Coord, inner, mid_pt, norm, number_hex, project_on_sphere, vector
+  use init_mod,       only : ccentre, ccentre_penta, check_grid, midpt
+
+  use coord_arithmetic_mod
+  
   implicit none
-  integer                                  :: ncell
+
+  private
+  public :: read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate
+  
   integer                                  :: next_fid = 100
   integer,     dimension(2,4), parameter   :: HR_offs = reshape ( [0,0, 1,0, 1,1, 0,1], [2,4] ) 
   real(dp)                                 :: dx_coarse, linf_err, l2_err, linf_err_loc, l2_err_loc
   type(coord), dimension(:,:), allocatable :: new_node
+
+  
 contains
+
+  
   subroutine read_optim_grid  
     ! Reads in optimized grid from directory grids
     ! Need to provide a symbolic link to grids directory in working directory
+    
     implicit none
-    integer                        :: d_glo, d_HR, d_sub, fid, loz, p, r
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    character(999)                 :: filename
+    
+    integer        :: d_glo, d_HR, d_sub, fid, loz, p, r
+    integer        :: offs(N_BDRY+1)
+    integer        :: dims(2,N_BDRY+1)
+    character(999) :: filename
 
     dx_coarse = dx_avg (min_level-1) ! average edge lengths
 
@@ -52,7 +72,7 @@ contains
     do r = 1, n_process
 #ifdef MPI
        if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
-          call MPI_Barrier (MPI_Comm_World)
+          call barrier
           cycle 
        end if
 #endif
@@ -84,8 +104,11 @@ contains
     end if
   end subroutine read_optim_grid
 
+  
   subroutine smooth_Xu
+    
     implicit none
+    
     real(dp) :: tol
 
     dx_coarse = dx_avg (min_level-1)
@@ -124,37 +147,49 @@ contains
     call apply_onescale (rotate_grid, min_level-1, z_null,  0, 0)
   end subroutine smooth_Xu
 
+  
   recursive subroutine coord_from_file (d_glo, l, fid, offs, dims, ij0)
+    
     implicit none
-    integer,                        intent(in) :: d_glo, l, fid
-    integer, dimension(2),          intent(in) :: ij0
-    integer, dimension(N_BDRY+1),   intent(in) :: offs
-    integer, dimension(2,N_BDRY+1), intent(in) :: dims
 
-    integer               :: d_loc, id, k
-    integer, dimension(2) :: ij
-    type(Coord)           :: node
+    integer, intent(in) :: d_glo, l, fid
+    integer, intent(in) :: ij0(2)
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer     :: d_loc, id, k
+    integer     :: ij(2)
+    type(Coord) :: node, node_rot
 
     d_loc = loc_id(d_glo+1)
+
     do k = 1, 4
-       ij = ij0 + HR_offs(:,k) * 2**(l-1)
-       id = idx (ij(1), ij(2), offs, dims) 
+       ij = ij0 + HR_offs(:,k)*2**(l-1)
+       id = idx(ij(1), ij(2), offs, dims)
+
        if (l == 1) then
-          read (fid,*) node
-          call zrotate (node, node, theta_grid) 
-          if (owner(d_glo+1) == rank) grid(d_loc+1)%node%elts(id+1) = project_on_sphere (node)
+          read(fid,*) node
+
+          call zrotate (node, node_rot, theta_grid)
+
+          if (owner(d_glo+1) == rank) then
+             grid(d_loc+1)%node%elts(id+1) = project_on_sphere (node_rot)
+          end if
        else
           call coord_from_file (d_glo, l-1, fid, offs, dims, ij)
        end if
     end do
   end subroutine coord_from_file
 
+  
   subroutine update_geom_check_grid
+    
     implicit none
+    
     integer :: d
 
     ! Communicate nodes
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)
+    call comm_nodes3_mpi (get_coord, set_coord)
 
     ! Update geometry
     call apply_onescale2 (ccentre, min_level-1, z_null, -2, 1)
@@ -167,16 +202,19 @@ contains
     call apply_onescale2 (check_grid, min_level-1, z_null,  0, 0)
 
     ! Communicate new nodes
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)   
+    call comm_nodes3_mpi (get_coord, set_coord)   
   end subroutine update_geom_check_grid
 
+  
   subroutine Xu_smooth_cpt (dom, i, j, zlev, offs, dims)
     ! Algorithm 1 of Xu (2006)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in) :: i, j, zlev
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
     
     integer     :: d, id, n
     real(dp)    :: alpha, beta, cosalpha, cosbeta
@@ -216,13 +254,16 @@ contains
     new_node(id,d) = project_on_sphere (s)
   end subroutine Xu_smooth_cpt
 
+  
   subroutine Xu_smooth_assign (dom, i, j, zlev, offs, dims)
     ! Update node position
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in) :: i, j, zlev
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
     
     integer :: d, id
 
@@ -234,14 +275,17 @@ contains
     dom%node%elts(id) = new_node(id,d)
   end subroutine Xu_smooth_assign
 
+  
   subroutine rotate_grid (dom, i, j, zlev, offs, dims)
     ! Rotate entire grid
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in) :: i, j, zlev
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
+    
     integer :: id
 
     id = idx (i, j, offs, dims) + 1
@@ -249,22 +293,15 @@ contains
     call zrotate (dom%node%elts(id), dom%node%elts(id), theta_grid) 
   end subroutine rotate_grid
 
-  subroutine init_smooth_mod
-    implicit none
-    logical :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-    call init_shared_mod
-    call init_domain_mod
-    initialized = .true.
-  end subroutine init_smooth_mod
-
+  
   subroutine check_d (dom, i, j, zlev, offs, dims)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY + 1) :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
     
     integer                :: id, idS, idW
     real(dp), dimension(3) :: error
@@ -282,20 +319,26 @@ contains
     l2_err_loc = l2_err_loc + sum (error**2)
   end subroutine check_d
   
-  integer function dom_id_from_HR_id (d_HR)
+  function dom_id_from_HR_id (d_HR) result(val)
     ! d_HR: lozenge id as used by Heikes & Randall (starts from 1)
     ! results: domain id (starts from 0)
+    
     implicit none
-    integer :: d_HR
+    
+    integer, intent(in) :: d_HR
+    integer             :: val
 
-    dom_id_from_HR_id = modulo (d_HR, 2) * 5 + modulo (d_HR/2 - 1, 5)
+    val = modulo (d_HR, 2) * 5 + modulo (d_HR/2 - 1, 5)
   end function dom_id_from_HR_id
 
-  integer function sub_dom_id_from_HR_sub_id (sub_id)
+  function sub_dom_id_from_HR_sub_id (sub_id) result(val)
     ! sub_id: lozenge sub id as used by Heikes & Randall (starts from 1)
     ! results: sub domain id (starts from 0)
+
     implicit none
-    integer :: sub_id
+
+    integer, intent(in) :: sub_id
+    integer             :: val
 
     integer :: id, i, j, halv_sub_dom, l, jdiv, idiv
 
@@ -303,6 +346,7 @@ contains
     j = 0
     id = sub_id - 1
     halv_sub_dom = N_SUB_DOM/2
+    
     do l = DOMAIN_LEVEL-1, 0, -1
        jdiv = id/halv_sub_dom
        j = j + jdiv*2**l
@@ -312,21 +356,26 @@ contains
        halv_sub_dom = halv_sub_dom/4
        id = modulo (id,4**l)
     end do
-    sub_dom_id_from_HR_sub_id = j*N_SUB_DOM_PER_DIM + i
+
+    val = j * N_SUB_DOM_PER_DIM + i
   end function sub_dom_id_from_HR_sub_id
 
-   integer function get_fid ()
+  function get_fid () result(val)
+    
     implicit none
+    
+    integer :: val
 
-    get_fid  = next_fid
+    val  = next_fid
     next_fid = next_fid + 1
   end function get_fid
 
   subroutine grid_error
     ! Computes error
+    
     implicit none
 
-    call comm_nodes3_mpi (get_coord, set_coord, NONE)
+    call comm_nodes3_mpi (get_coord, set_coord)
     call apply_onescale2 (ccentre, level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
     call apply_onescale2 (midpt,   level_end-1, z_null, -(BDRY_THICKNESS-1), BDRY_THICKNESS-1)
 
@@ -337,15 +386,17 @@ contains
   end subroutine grid_error
 
   subroutine zrotate (c_in, c_out, angle)
-    ! Rotates a point by longitude angle around pole
-    ! (used to rotate entire grid)
+    
     implicit none
-    real(dp),    intent(in)  :: angle
-    type(Coord), intent(in)  :: c_in
-    type(Coord), intent(inout) :: c_out
 
-    c_out%x =  c_in%x * cos (angle) - c_in%y * sin (angle)
-    c_out%y =  c_in%x * sin (angle) + c_in%y * cos (angle)
-    c_out%z =  c_in%z
+    type(Coord), intent(in)  :: c_in
+    type(Coord), intent(out) :: c_out
+    real(dp),    intent(in)  :: angle
+
+    c_out%x = c_in%x * cos(angle) - c_in%y * sin(angle)
+    c_out%y = c_in%x * sin(angle) + c_in%y * cos(angle)
+    c_out%z = c_in%z
   end subroutine zrotate
+
+  
 end module coarse_grid_mod

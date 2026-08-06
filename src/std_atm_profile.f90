@@ -9,8 +9,11 @@ module std_atm_profile_mod
   !       since the hardcoded parameter (c1) needs adjustment above 86 km.
   !
   ! -------------------------------------------------------------------------------
-  use kind_mod
+
+  use kind_mod, only : dp
+
   implicit none
+
   private
   save
 
@@ -46,9 +49,9 @@ module std_atm_profile_mod
   real(dp), parameter :: mw = 0.0289644_dp ! molar mass of dry air (kg/mol)
   real(dp), parameter :: c1 = g0*mw/rg
 
-  !=========================================================================================
-CONTAINS
-  !=========================================================================================
+
+contains
+
 
   subroutine std_atm_pres(height, pstd)
 
@@ -85,6 +88,7 @@ CONTAINS
 
   end subroutine std_atm_pres
 
+  
   subroutine std_surf_pres (z_s, pstd)
     ! Finds surface pressure (i.e. pressure at a single height z_s)
 
@@ -154,8 +158,7 @@ CONTAINS
 
   end subroutine std_atm_height
 
-  !=========================================================================================
-
+  
   subroutine std_atm_temp(height, temp)
 
     ! arguments
@@ -191,4 +194,5 @@ CONTAINS
 
   end subroutine std_atm_temp
 
+  
 end module std_atm_profile_mod

@@ -1,58 +1,92 @@
 module time_integr_mod
-  use adapt_mod
-  use barotropic_2d_mod
+
+  use kind_mod,   only : dp
+  use shared_mod, only : N_VARIABLE, NONE, POSIT, S_TEMP, eps, level_start, theta2, zlevels, zmax
+  
+  use adapt_mod,         only : init_multi_level_mod, WT_after_step
+  use barotropic_2d_mod, only : barotropic_correction, eta_update, flux_divergence, scalar_star, u_star, u_update
+  use comm_mod,          only : init_comm_mod
+  use comm_mpi_mod,      only : update_bdry
+  use dyn_arrays,        only : extend, init
+  use domain_mod,        only : Float_Field, init_Field, grid, sol, trend, wav_coeff
+  use multi_level_mod,   only : trend_ml
+  use ops_mod,           only : init_ops_mod
+
   implicit none
+
+  private
+  public :: dt_step, dt_step_split
+  public :: init_RK_mem, init_time_integr_mod
+  public :: Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK45_opt, RK4_split
+  public :: q1, q2, q3, q4, dq1
+  
   type(Float_Field), dimension(:,:), allocatable :: q1, q2, q3, q4, dq1
   
   interface
      subroutine trend_sub (q, dq)
-       use domain_mod
+       use domain_mod, only : Float_Field
+       use shared_mod, only : N_VARIABLE, zlevels
        implicit none
-       type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+       type(Float_Field), intent(inout), target ::  q(1:N_VARIABLE,1:zlevels)
+       type(Float_Field), intent(inout), target :: dq(1:N_VARIABLE,1:zlevels)
      end subroutine trend_sub
   end interface
   
   abstract interface
+     
      subroutine dt_integrator (q, wav, routine, h)
-       use kind_mod
-       use domain_mod
+       use kind_mod,   only : dp
+       use domain_mod, only : Float_Field
+       use shared_mod, only : N_VARIABLE, zlevels
        implicit none
-       real(dp),                                             intent(in)    :: h      
-       type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: q, wav
-       procedure (trend_sub)                                               :: routine
+       real(dp),          intent(in)    :: h      
+       type(Float_Field), intent(inout) :: q(1:N_VARIABLE,1:zlevels)
+       type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
+       procedure (trend_sub)            :: routine
      end subroutine dt_integrator
 
      subroutine dt_integrator_split (h)
-       use kind_mod
+       use kind_mod, only : dp
        implicit none
        real(dp), intent(in) :: h 
      end subroutine dt_integrator_split
+     
   end interface
   
   procedure (dt_integrator),       pointer :: dt_step        => null ()
   procedure (dt_integrator_split), pointer :: dt_step_split  => null ()
+  
 contains
+
+  
   subroutine Euler (q, wav, routine, h)
     ! Euler time step
     ! Stable for CFL<1, first order
+    
     implicit none
-    real(dp),                                             intent(in)    :: h
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: q, wav
-    procedure (trend_sub)                                               :: routine
+    
+    real(dp),          intent(in)    :: h
+    type(Float_Field), intent(inout) :: q(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
+    procedure (trend_sub)            :: routine
 
     call routine (q, trend)
     call RK_sub_step (q, trend, h, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine Euler
+  
 
   subroutine RK3 (q, wav, routine, h)
     ! Optimal third order, three stage strong stability preserving Runge-Kutta method
     ! Stable for hyperbolic equations for CFL<2
     ! Does not require extra solution variables.
+    
     implicit none
-    real(dp),                                             intent(in)    :: h
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: q, wav
-    procedure (trend_sub)                                               :: routine
+
+    real(dp),          intent(in)    :: h
+    type(Float_Field), intent(inout) :: q(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
+    procedure (trend_sub)            :: routine
 
     call manage_q1_mem
 
@@ -69,14 +103,18 @@ contains
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK3
   
+  
   subroutine RK4 (q, wav, routine, h)
     ! Low storage four stage second order accurate Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
     ! Fourth order accurate for linear equations, stable for CFL <= 2*sqrt(2) ~ 2.83.
     ! Does not require extra solution variables.
+    
     implicit none
-    real(dp),                                             intent(in)    :: h
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: q, wav
-    procedure (trend_sub)                                               :: routine
+
+    real(dp),          intent(in)    :: h
+    type(Float_Field), intent(inout) :: q(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
+    procedure (trend_sub)            :: routine
 
     call manage_q1_mem
 
@@ -96,15 +134,19 @@ contains
     call RK_sub_step (q, trend, h, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK4
+  
 
   subroutine RK33_opt (q, wav, routine, h)
     ! Optimal third order, three stage strong stability preserving Runge-Kutta method
     ! Stable for hyperbolic equations for CFL<2
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
+    
     implicit none
-    real(dp),                                             intent(in)    :: h
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: q, wav
-    procedure (trend_sub)                                               :: routine
+
+    real(dp),          intent(in)    :: h
+    type(Float_Field), intent(inout) :: q(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
+    procedure (trend_sub)            :: routine
 
     call manage_RK_mem
 
@@ -120,15 +162,19 @@ contains
     call RK_sub_step2 (q, q2, trend, [ 1.0_dp/3, 2.0_dp/3 ], h * 2.0_dp/3, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK33_opt
+  
 
   subroutine RK34_opt (q, wav, routine, h)
     ! Optimal third order, four stage strong stability preserving Runge-Kutta method
     ! Stable for hyperbolic equations for CFL<2.65
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
+    
     implicit none
-    real(dp),                                             intent(in)    :: h
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: q, wav
-    procedure (trend_sub)                                               :: routine
+
+    real(dp),          intent(in)    :: h
+    type(Float_Field), intent(inout) :: q(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
+    procedure (trend_sub)            :: routine
 
     call manage_RK_mem
 
@@ -148,14 +194,18 @@ contains
     call RK_sub_step (q3, trend, h/2, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK34_opt
+  
 
   subroutine RK45_opt (q, wav, routine, h)
     ! Optimal fourth order, five stage strong stability preserving Runge-Kutta method stable with optimal maximum CFL coefficient of 2
     ! Spiteri and Ruuth (SIAM J. Numer. Anal., 40(2): 469-491, 2002) Appendix A.1
+    
     implicit none
-    real(dp),                                             intent(in)    :: h
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: q, wav
-    procedure (trend_sub)                                               :: routine
+
+    real(dp),          intent(in)    :: h
+    type(Float_Field), intent(inout) :: q(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
+    procedure (trend_sub)            :: routine
 
     real(dp), dimension(5,5) :: alpha, beta
 
@@ -195,8 +245,11 @@ contains
     call RK_sub_step4 (q, q2, q3, q4, trend, dq1, [alpha(1,5), alpha(3:5,5)], h * beta(4:5,5), q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK45_opt
+  
 
   subroutine init_time_integr_mod
+    implicit none
+    
     logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
@@ -206,13 +259,16 @@ contains
     call init_multi_level_mod
     initialized = .true.
   end subroutine init_time_integr_mod
+  
 
   subroutine RK_sub_step (sols, trends, h, dest)
+    
     implicit none
-    real(dp),                                             intent(in)    :: h
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(in)    :: sols
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(in)    :: trends
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
+    
+    real(dp),          intent(in)    :: h
+    type(Float_Field), intent(in)    :: sols(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in)    :: trends(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: dest(1:N_VARIABLE,1:zlevels)
     
     integer :: d, ibeg, iend, k, v
 
@@ -227,13 +283,16 @@ contains
     end do
     dest%bdry_uptodate = .false.
   end subroutine RK_sub_step
+  
 
   subroutine RK_sub_step1 (sols, trends, alpha, h, dest)
+    
     implicit none
-    real(dp),                                             intent(in)    :: alpha, h
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(in)    :: sols
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(in)    :: trends
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
+
+    real(dp),          intent(in)    :: alpha, h
+    type(Float_Field), intent(in)    :: sols(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in)    :: trends(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: dest(1:N_VARIABLE,1:zlevels)
 
     integer :: k, v, d, ibeg, iend
 
@@ -249,14 +308,18 @@ contains
        dest%bdry_uptodate = .False.
     end do
   end subroutine RK_sub_step1
+  
 
   subroutine RK_sub_step2 (sol1, sol2, trends, alpha, h, dest)
+    
     implicit none
-    real(dp),                                             intent(in)    :: h
-    real(dp),          dimension(2),                      intent(in)    :: alpha
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(in)    :: sol1, sol2
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(in)    :: trends
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
+    
+    real(dp),          intent(in)    :: h
+    real(dp),          intent(in)    :: alpha(2)
+    type(Float_Field), intent(in)    :: sol1(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in)    :: sol2(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in)    :: trends(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: dest(1:N_VARIABLE,1:zlevels)
     
     integer :: k, v, d, ibeg, iend
 
@@ -273,14 +336,21 @@ contains
        dest%bdry_uptodate = .false.
     end do
   end subroutine RK_sub_step2
+  
 
   subroutine RK_sub_step4 (sol1, sol2, sol3, sol4, trend1, trend2, alpha, h, dest)
+    
     implicit none
-    real(dp),          dimension(2),                      intent(in)    :: h
-    real(dp),          dimension(4),                      intent(in)    :: alpha
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(in)    :: sol1, sol2, sol3, sol4
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(in)    :: trend1, trend2
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), intent(inout) :: dest
+    
+    real(dp),          intent(in)    :: h(2)
+    real(dp),          intent(in)    :: alpha(4)
+    type(Float_Field), intent(in)    :: sol1(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in)    :: sol2(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in)    :: sol3(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in)    :: sol4(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in)    :: trend1(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in)    :: trend2(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: dest(1:N_VARIABLE,1:zlevels)
 
     integer :: k, v, d, ibeg, iend
     
@@ -295,12 +365,15 @@ contains
                   + h(1) * trend1(v,k)%data(d)%elts(ibeg:iend) + h(2) * trend2(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do
-       dest%bdry_uptodate = .False.
+       dest%bdry_uptodate = .false.
     end do
   end subroutine RK_sub_step4
+  
 
   subroutine init_RK_mem
+    
     implicit none
+    
     integer :: d, k, v
 
     allocate (q1(1:N_VARIABLE,1:zmax), q2(1:N_VARIABLE,1:zmax), q3(1:N_VARIABLE,1:zmax), &
@@ -308,11 +381,11 @@ contains
 
     do k = 1, zmax
        do v = 1, N_VARIABLE
-          call init_Float_Field (q1(v,k),  POSIT(v))
-          call init_Float_Field (q2(v,k),  POSIT(v))
-          call init_Float_Field (q3(v,k),  POSIT(v))
-          call init_Float_Field (q4(v,k),  POSIT(v))
-          call init_Float_Field (dq1(v,k), POSIT(v))
+          call init_Field (q1(v,k),  POSIT(v))
+          call init_Field (q2(v,k),  POSIT(v))
+          call init_Field (q3(v,k),  POSIT(v))
+          call init_Field (q4(v,k),  POSIT(v))
+          call init_Field (dq1(v,k), POSIT(v))
        end do
 
        do d = 1, size(grid)
@@ -326,9 +399,12 @@ contains
        end do
     end do
   end subroutine init_RK_mem
+  
 
   subroutine manage_q1_mem
+    
     implicit none
+    
     integer :: d, k, v, n_new
 
     do k = 1, zmax
@@ -360,6 +436,7 @@ contains
        end do
     end do
   end subroutine manage_RK_mem
+  
 
   subroutine RK4_split (h)
     ! Low storage four stage Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
@@ -368,7 +445,9 @@ contains
     ! Does not require extra solution variables.
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
+    
     implicit none
+    
     real(dp), intent(in)  :: h
     
     call manage_q1_mem
@@ -385,6 +464,7 @@ contains
     call free_surface_update 
   end subroutine RK4_split
   
+  
   subroutine RK3_split (h)
     ! Low storage three stage Runge-Kutta from Kinnmark and Gray (Math Computers Simul 26 1984, 181-188)
     ! Third order accurate for linear equations, second order accurate for nonlinear equations.
@@ -392,7 +472,9 @@ contains
     ! Does not require extra solution variables.
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
+    
     implicit none
+    
     real(dp), intent(in)  :: h
     
     call manage_q1_mem
@@ -407,6 +489,7 @@ contains
     call RK_split (h,   q1, sol)
     call free_surface_update 
   end subroutine RK3_split
+  
 
   subroutine RK2_split (h)
     ! Low storage two stage Runge-Kutta from Kinnmark and Gray (Math Computers Simul 26 1984, 181-188)
@@ -415,7 +498,9 @@ contains
     ! Does not require extra solution variables.
     !
     ! This version implements the explicit-implicit free surface method used in the MITgcm.
+    
     implicit none
+    
     real(dp), intent(in)  :: h
     
     call manage_q1_mem
@@ -429,11 +514,14 @@ contains
     call RK_split (h,   q1, sol)
     call free_surface_update 
   end subroutine RK2_split
+  
 
   subroutine Euler_split (h)
     ! Euler time step for barotropic mode splitting
     ! Stable for CFL<1, first order
-    implicit none        
+    
+    implicit none
+    
     real(dp), intent(in) :: h
 
     call update_bdry (sol(:,1:zlevels+1), NONE, 971)
@@ -444,13 +532,16 @@ contains
     call RK_split (h, sol, sol)
     call free_surface_update
   end subroutine Euler_split
+  
 
   subroutine RK_split (h, sol1, sol2)
     ! Explicit Euler integration of velocity and scalars used in RK4_split
+    
     implicit none
-    real(dp),                                               intent(in)    :: h
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels+1), intent(inout) :: sol1
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels+1), intent(inout) :: sol2
+    
+    real(dp),          intent(in)    :: h
+    type(Float_Field), intent(inout) :: sol1(1:N_VARIABLE,1:zlevels+1)
+    type(Float_Field), intent(inout) :: sol2(1:N_VARIABLE,1:zlevels+1)
 
     ! Compute explicit trends
     call barotropic_correction (sol1(1:N_VARIABLE,1:zlevels+1))
@@ -465,9 +556,11 @@ contains
     ! Inverse wavelet transform of solution onto adaptive grid
     call WT_after_step (sol2(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels))
   end subroutine RK_split
+  
 
   subroutine free_surface_update
     ! Backwards Euler implicit calculation of new free surface and correction of velocity and scalars
+    
     implicit none
 
     ! Backwards Euler step for new free surface, updates sol(S_MASS,zlevels+1)
@@ -480,4 +573,6 @@ contains
     ! Inverse wavelet transform of solution onto adaptive grid
     call WT_after_step (sol, wav_coeff, level_start-1)
   end subroutine free_surface_update
+
+  
 end module time_integr_mod

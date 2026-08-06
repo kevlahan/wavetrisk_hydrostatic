@@ -1,16 +1,18 @@
 module arch_mod
-  use shared_mod
-  use geom_mod
+  use kind_mod,   only : dp
+  use shared_mod, only : N_GLO_DOMAIN, init_shared_mod, n_domain, run_id
   implicit none
-  integer                              :: n_process, rank
+  
+  private
+  public :: abort_run, barrier, comm, distribute_grid, glo_id, finalize, init_arch_mod, loc_id, n_process, owner, rank
+  
+  integer                              :: comm, n_process, rank
   integer, dimension(N_GLO_DOMAIN)     :: loc_id
   integer, dimension(N_GLO_DOMAIN)     :: owner
   integer, dimension(:,:), allocatable :: glo_id
 contains
   subroutine init_arch_mod
     implicit none
-    
-    integer :: p, d
     logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
@@ -26,7 +28,7 @@ contains
 
   subroutine distribute_grid (cp_idx)
     implicit none
-    integer :: cp_idx
+    integer, intent(in) :: cp_idx
 
     integer :: p, d
 

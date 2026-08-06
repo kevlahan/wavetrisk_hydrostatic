@@ -1,31 +1,47 @@
 module arch_mod
-  use shared_mod
-  use geom_mod
   use mpi_f08
+
+  use kind_mod,   only : dp
+  use shared_mod, only : N_GLO_DOMAIN, init_shared_mod, n_domain, run_id
+
   implicit none
+
+  private
+  public :: MPI_IN, MPI_DP, MPI_SP
+  public :: abort_run, barrier, comm, distribute_grid, glo_id, finalize, init_arch_mod, loc_id, n_process, owner, rank
+
+  type(MPI_Comm)                :: comm
+  type(MPI_Datatype), parameter :: MPI_IN = MPI_INTEGER
+  type(MPI_Datatype), parameter :: MPI_DP = MPI_DOUBLE_PRECISION
+  type(MPI_Datatype), parameter :: MPI_SP = MPI_REAL
+
   integer                              :: n_process, rank
   integer, dimension(N_GLO_DOMAIN)     :: loc_id, owner
   integer, dimension(:,:), allocatable :: glo_id
+
+  
 contains
+
+  
   subroutine distribute_grid (cp_idx)
     ! Uses simple next-fit algorithm to allocate each domain to a processor (does not use adjacency information)
     ! Attempts to balance the total load using load data for each domain from checkpoint
     implicit none
-    integer :: cp_idx
+    integer, intent(in) :: cp_idx
 
-    integer                                       :: d, r, n_domain_floor
-    integer, dimension(:),   allocatable          :: wgt_d
-    integer, dimension(:,:), allocatable          :: adj_line
+    integer                              :: d, r, n_domain_floor
+    integer, dimension(:),   allocatable :: wgt_d
+    integer, dimension(:,:), allocatable :: adj_line
     
-    integer, parameter                            :: fid = 599
+    integer, parameter                   :: fid = 599
     
-    real(dp)                                      :: balanced_wgt, imbalance_goal
-    real(dp), dimension(n_process)                :: wgt_cur_rank
+    real(dp)                             :: balanced_wgt, imbalance_goal
+    real(dp), dimension(n_process)       :: wgt_cur_rank
     
-    real(dp), parameter                           :: init_goal = 0.05_dp ! starting goal for maximum imbalance 
-    real(dp), parameter                           :: incr_goal = 1.20_dp ! factor to increase goal by each iteration until domains fit
+    real(dp), parameter                  :: init_goal = 0.05_dp ! starting goal for maximum imbalance 
+    real(dp), parameter                  :: incr_goal = 1.20_dp ! factor to increase goal by each iteration until domains fit
 
-    character(255)                                :: filename
+    character(255)                       :: filename
 
     allocate (wgt_d(N_GLO_DOMAIN), adj_line(N_GLO_DOMAIN,N_GLO_DOMAIN))
     
@@ -76,7 +92,7 @@ contains
           end do
        end if
     end if
-    call MPI_Bcast (owner, N_GLO_DOMAIN, MPI_INTEGER, 0, MPI_COMM_WORLD)
+    call MPI_Bcast (owner, N_GLO_DOMAIN, MPI_IN, 0, comm)
 
     n_domain = 0
     do d = 1, N_GLO_DOMAIN
@@ -93,18 +109,22 @@ contains
        glo_id(owner(d)+1,loc_id(d)+1) = d - 1
     end do
   end subroutine distribute_grid
+  
 
   subroutine init_arch_mod
     implicit none
-    logical :: initialized = .false.
+    logical, save :: initialized = .false.
 
     if (initialized) return ! initialize only once
 
     call init_shared_mod
 
-    call MPI_Init ()
-    call MPI_Comm_Size (MPI_COMM_WORLD, n_process)
-    call MPI_Comm_Rank (MPI_COMM_WORLD, rank)
+    call MPI_Init 
+
+    comm = MPI_COMM_WORLD
+    
+    call MPI_Comm_Size (comm, n_process)
+    call MPI_Comm_Rank (comm, rank)
 
     allocate (n_domain(n_process))
     n_domain = 0
@@ -121,16 +141,21 @@ contains
        call abort_run
     end if
   end subroutine init_arch_mod
+  
 
   subroutine finalize
-    call MPI_Finalize ()
+    call MPI_Finalize
   end subroutine finalize
+  
 
   subroutine barrier
-    call MPI_Barrier (MPI_Comm_World)
+    call MPI_Barrier (comm)
   end subroutine barrier
+  
 
   subroutine abort_run
-    call MPI_Abort (MPI_Comm_World, 1)
+    call MPI_Abort (comm, 1)
   end subroutine abort_run
+
+  
 end module arch_mod

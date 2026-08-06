@@ -1,16 +1,36 @@
 module barotropic_2d_mod
   ! Files needed to solve barotropic free surface
-  use ops_mod
-  use multi_level_mod
-  use lin_solve_mod
-  use utils_mod
+  
+  use kind_mod,   only : dp
+
+  use shared_mod, only : AT_NODE, EDGE, N_BDRY, N_CHDRN, N_VARIABLE, NONE, POSIT, RESTRCT, S_MASS, S_TEMP, S_VELO, RT, DG, UP, &
+       dt, grav_accel, level_start, level_end, ref_density, scalars, theta1, theta2, z_null, zlevels, zmax
+
+  use comm_mpi_mod,    only : update_bdry 
+  use domain_ops_mod,  only : apply_onescale, apply_onescale_to_patch, apply_interscale_to_patch3
+  use init_mod,        only : elliptic_solver
+  use multi_level_mod, only : cpt_or_restr_flux
+  use ops_mod,         only : cal_div,  step1
+  use utils_mod,       only : equals_float_field, interp, phi_node, porous_density, zero_float_field
+
+  use domain_mod, only : Domain, exner_fun, Float_Field, grid, dscalar, h_flux, horiz_flux, idx, laplacian_scalar, &
+       mass, mean_m, temp, mean_t, scalar, scalar_2d, sol, sol_mean, topography, trend
+  
   implicit none
+
+  private
+  public :: barotropic_correction, eta_update, flux_divergence, scalar_star, u_star, u_update
+  
 contains
+
+  
   subroutine scalar_star (dt, q)
     ! Explicit Euler step for scalars
+    
     implicit none
-    real(dp)                                                     :: dt
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
+    
+    real(dp),                  intent(in)    :: dt
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels)
 
     integer :: d, ibeg, iend, k, v
 
@@ -25,13 +45,16 @@ contains
     end do
     q(scalars(1):scalars(2),1:zlevels)%bdry_uptodate = .false.
   end subroutine scalar_star
+  
 
   subroutine u_star (dt, q)
     ! Explicit Euler step for intermediate velocity u_star
     ! remove external pressure gradient
+    
     implicit none
-    real(dp)                                                     :: dt
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
+    
+    real(dp),          intent(in)            :: dt
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels)
 
     integer :: d, ibeg, iend, k
 
@@ -48,13 +71,16 @@ contains
     end do
     q(S_VELO,1:zlevels)%bdry_uptodate = .false.
   end subroutine u_star
+  
 
   subroutine barotropic_correction (q)
     ! Update baroclinic variables mass and mass-weighted buoyancy with new free surface perturbation
     ! uses Bleck and Smith (J. Geophys. Res. 95, 3273–3285 1990) layer dilation method
     ! NOTE: individual layers no longer conserve mass (although total mass is conserved)
+    
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels+1), target :: q
+    
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels)
     
     integer :: d, j, k, l
 
@@ -81,14 +107,17 @@ contains
     end do
     q(S_MASS:S_TEMP,:)%bdry_uptodate = .false.
   end subroutine barotropic_correction
+  
 
   subroutine cal_barotropic_correction (dom, i, j, zlev, offs, dims)
     ! Correct baroclinic mass and buoyancy based on baroclinic estimate of free surface using layer dilation
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
     
     integer  :: d, id
     real(dp) :: eta, rho_dz, rho_dz_theta, theta
@@ -114,10 +143,13 @@ contains
     ! Correct mass-weighted buoyancy
     temp(id) = rho_dz * theta - mean_t(id)
   end subroutine cal_barotropic_correction
+  
 
   subroutine eta_update
     ! Theta step for free surface update
+    
     use lin_solve_mod
+    
     implicit none
 
     ! RHS of elliptic equation
@@ -127,11 +159,14 @@ contains
     ! Solve elliptic equation
     call elliptic_solver (sol(S_MASS,zlevels+1), sol(S_TEMP,zlevels+1), elliptic_lo, elliptic_lo_diag) 
   end subroutine eta_update
+  
 
   subroutine u_update
     ! Explicit Euler velocity update with new external pressure gradient
     ! penalization is advanced using a backwards Euler scheme
+    
     implicit none
+    
     integer :: d, ibeg, iend, k
     
     ! External pressure gradient
@@ -147,12 +182,15 @@ contains
     end do
     sol(S_VELO,1:zlevels)%bdry_uptodate = .false.
   end subroutine u_update
+  
 
   subroutine rhs_elliptic 
     ! Forms rhs of elliptic equation for free surface, -eta^* in q(S_TEMP_zlevels+1)
     ! trend(S_TEMP,zlevels+1) is flux divergence of vertically integrated velocity at previous time step
     ! (computed in RK routine)
+    
     implicit none
+    
     integer :: l
 
     call update_bdry (sol(S_MASS,zlevels+1), NONE, 932)
@@ -165,14 +203,18 @@ contains
        call apply_onescale (cal_rhs_elliptic, l, z_null, 0, 1)
     end do
     sol(S_TEMP,zlevels+1)%bdry_uptodate = .false.
+    
   contains
+    
     subroutine cal_rhs_elliptic (dom, i, j, zlev, offs, dims)
+      
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
+      
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
+      
       integer :: d, id
 
       d = dom%id + 1
@@ -183,19 +225,24 @@ contains
            + (1.0_dp - theta2) * trend(S_TEMP,zlevels+1)%data(d)%elts(id)) &
            / ref_density
     end subroutine cal_rhs_elliptic
+    
   end subroutine rhs_elliptic
+  
 
-  function elliptic_lo (q, l)
+  function elliptic_lo (q, l) result(val)
     ! Calculates linear operator L(eta) for barotropic elliptic equation for free surface perturbation at scale l
+    
     implicit none
-    integer                   :: l
-    type(Float_Field), target :: elliptic_lo, q
-
+    
+    integer,                   intent(in)    :: l
+    type(Float_Field), target, intent(inout) :: q
+    type(Float_Field), target                :: val
+    
     integer :: d, j
 
     call update_bdry (q, l, 933)
 
-    elliptic_lo = q; call zero_float_field (elliptic_lo, AT_NODE)
+    val = q; call zero_float_field (val, AT_NODE)
 
     ! Calculate external pressure gradient flux
     do d = 1, size(grid)
@@ -228,48 +275,59 @@ contains
           call apply_onescale_to_patch (complete_elliptic_lo, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
     end do
-    elliptic_lo%bdry_uptodate = .false.
+    val%bdry_uptodate = .false.
+    
   contains
+    
     subroutine complete_elliptic_lo (dom, i, j, zlev, offs, dims)
+      
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
+      
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
       integer :: id
 
       id = idx (i, j, offs, dims) + 1
 
-      elliptic_lo%data(d)%elts(id) = theta1 * theta2 * dt**2 * Laplacian_scalar(S_MASS)%data(d)%elts(id) - q%data(d)%elts(id)
+      val%data(d)%elts(id) = theta1 * theta2 * dt**2 * Laplacian_scalar(S_MASS)%data(d)%elts(id) - q%data(d)%elts(id)
     end subroutine complete_elliptic_lo
+    
   end function elliptic_lo
+  
 
-  function elliptic_lo_diag (q, l)
+  function elliptic_lo_diag (q, l) result(val)
     ! Local approximation of diagonal of elliptic operator
     ! (Laplacian_scalar(S_TEMP) is the old free surface perturbation)
     ! ** using exact value of diagonal of Laplacian typically does NOT improve results **
+    
     implicit none
-    integer                   :: l
-    type(Float_Field), target :: elliptic_lo_diag, q
-
+    
+    integer,                   intent(in)    :: l
+    type(Float_Field), target, intent(inout) :: q
+    type(Float_Field), target                :: val
+    
     integer :: d, j
 
-    elliptic_lo_diag = q; call zero_float_field (elliptic_lo_diag, AT_NODE)
+    val = q; call zero_float_field (val, AT_NODE)
 
     do d = 1, size(grid)
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (cal_elliptic_lo_diag, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
        end do
     end do
-    elliptic_lo_diag%bdry_uptodate = .false.
+    val%bdry_uptodate = .false.
   contains
     subroutine cal_elliptic_lo_diag  (dom, i, j, zlev, offs, dims)
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
+      
+      implicit none
+      
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
+      
       integer            :: d, id, id_i, idE, idNE, idN, idW, idSW, idS
       real(dp)           :: depth, depth_e, Laplace_diag, wgt
       logical, parameter :: exact = .false.
@@ -310,15 +368,20 @@ contains
       end if
 
       Laplace_diag = - grav_accel * wgt * dt**2 * dom%areas%elts(id_i)%hex_inv
-      elliptic_lo_diag%data(d)%elts(id_i) = theta1 * theta2 * Laplace_diag - 1.0_dp
+      
+      val%data(d)%elts(id_i) = theta1 * theta2 * Laplace_diag - 1.0_dp
     end subroutine cal_elliptic_lo_diag
+    
   end function elliptic_lo_diag
+  
 
   subroutine flux_divergence (q, div_flux)
     ! Returns flux divergence of vertical integrated velocity in divF using solution q, stored in div_flux
+    
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zmax), target :: q
-    type(Float_Field),                                 target :: div_flux
+    
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zmax)
+    type(Float_Field), target, intent(inout) :: div_flux
 
     integer :: d, j, l
 
@@ -355,13 +418,16 @@ contains
        call update_bdry (div_flux, l, 939)
     end do
   end subroutine flux_divergence
+  
 
   subroutine total_height (q, q_2d, l)
     ! Total height q_2d computed from pseudo-densities q
+    
     implicit none
-    integer                                 :: l
-    type(Float_Field),               target :: q_2d
-    type(Float_Field), dimension(:), target :: q
+    
+    integer,            intent(in)    :: l
+    type(Float_Field), intent(inout), target :: q_2d
+    type(Float_Field), intent(in),    target :: q(:)
 
     integer :: d, j, k
     
@@ -380,15 +446,18 @@ contains
        nullify (scalar_2d)
     end do
   end subroutine total_height
+  
 
   subroutine cal_height (dom, i, j, zlev, offs, dims)
     ! Vertical integration of edge quantity
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    
     integer  :: d, id
     real(dp) :: dz, rho_dz
     
@@ -401,11 +470,14 @@ contains
     
     scalar_2d(id) = scalar_2d(id) + dz
   end subroutine cal_height
+  
 
   subroutine cpt_or_restr_eta (dom, l)
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: l
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: l
 
     integer                     :: j, p_par, c, p_chd
     logical, dimension(N_CHDRN) :: restrict
@@ -424,15 +496,18 @@ contains
        end do
     end do
   end subroutine cpt_or_restr_eta
+  
 
   subroutine eta_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Compute or restrict eta for calculation of grad(eta)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
-
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p_chd, i_par, j_par, i_chd, j_chd, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
+    
     integer :: id_par, id_chd
 
     id_chd = idx (i_chd, j_chd, offs_chd, dims_chd) + 1
@@ -441,9 +516,12 @@ contains
     if (dom%mask_n%elts(id_par) >= RESTRCT) scalar(id_par) = scalar(id_chd)
   end subroutine eta_cpt_restr
 
+  
   subroutine grad_eta
     ! Calculates grad eta (external pressure gradient due to free surface perturbation)
+    
     implicit none
+    
     integer :: d, j, l
 
     call update_bdry (sol(S_MASS,zlevels+1), NONE, 940)
@@ -463,4 +541,5 @@ contains
        end do
     end do
   end subroutine grad_eta
+  
 end module barotropic_2d_mod

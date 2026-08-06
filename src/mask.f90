@@ -1,9 +1,27 @@
 module mask_mod
   ! Module containing routines that define masks on adaptive grid.
   ! (required by adapt_mod and refine_patch_mod)
-  use domain_ops_mod
-  use comm_mpi_mod
+
+  use kind_mod,   only : dp
+
+  use comm_mod,       only : init_comm_mod
+  use comm_mpi_mod,   only : comm_masks_mpi, update_bdry1
+  use dyn_arrays,     only : extend, init
+  use domain_mod,     only : Domain, grid, init_domain_mod, wav_coeff, idx, id_edge
+  use domain_ops_mod, only : apply_bdry, apply_interscale, apply_onescale, apply_onescale__int 
+  
+  use shared_mod, only : ADJSPACE, ADJZONE, BDRY_THICKNESS, EDGE, N_BDRY, TOLRNZ, RT, DG, UP, TRSK, RESTRCT, ZERO, z_null, &
+       min_level, Laplace_rotu, Laplace_sclr, level_fill, S_VELO, FROZEN, NONE, level_start, level_end, max_level, &
+       zlevels, scalars, threshold
+
+  private
+  public :: init_masks_zero, mask_active, mask_adj_child, mask_adj_same_scale, mask_restrict_same_scale, mask_adj_finer_scale
+  public :: init_masks, init_mask_mod, mask_second_neighbours, complete_masks, mask_trsk
+
+  
 contains
+
+  
   subroutine init_masks_zero
     ! Initialize all node and edge masks to ZERO at finer scales
     implicit none
@@ -14,6 +32,7 @@ contains
     end do
   end subroutine init_masks_zero
 
+  
   subroutine mask_active
     ! Determine active mask
     implicit none
@@ -37,6 +56,7 @@ contains
     call comm_masks_mpi (NONE)
   end subroutine mask_active
 
+  
   subroutine mask_adj_same_scale
     ! Add nearest neighbour wavelets of active nodes and edges at same scale
     implicit none
@@ -48,6 +68,7 @@ contains
     call comm_masks_mpi (NONE)
   end subroutine mask_adj_same_scale
 
+  
   subroutine mask_restrict_same_scale
     ! Needed if bdry is only 2 layers for scenario:
     ! scalar wavelet coefficient > threshold @ PATCH_SIZE + 2 => flux restr @ PATCH_SIZE + 1
@@ -61,6 +82,7 @@ contains
     call comm_masks_mpi (NONE)
   end subroutine mask_restrict_same_scale
 
+  
   subroutine mask_adj_finer_scale
     ! Add adjacent mask at finer scale
     implicit none
@@ -73,6 +95,7 @@ contains
     call comm_masks_mpi (NONE)
   end subroutine mask_adj_finer_scale
 
+  
   subroutine complete_masks
     ! Ensure consistency between node and edge masks
     implicit none
@@ -99,15 +122,16 @@ contains
     call comm_masks_mpi (NONE) 
   end subroutine complete_masks
 
+  
   subroutine mask_tol_vars (dom, i, j, zlev, offs, dims)
     ! Add nodes/edges to active mask
     ! (do not adapt on soil layers zmin<=k<=0)
     use utils_mod
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain), intent(inout) :: dom
+    integer, intent(in) :: i, j, zlev
+    integer, dimension(N_BDRY+1), intent(in) :: offs
+    integer, dimension(2,N_BDRY+1), intent(in) :: dims
 
     integer  :: d, e, id, id_e, id_i, k, l, v
     real(dp) :: wc
@@ -155,14 +179,17 @@ contains
     end do
   end subroutine mask_tol_vars
 
+  
   subroutine mask_parent_nodes (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Add parent node to active mask if any of its 6 child neighbours is in active mas
     ! (also ensures child is added to active mask if its direct parent is made active)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
 
     integer :: id_par, id_chd, idN_chd, idE_chd, idNE_chd, idSW_chd, idS_chd, idW_chd
 
@@ -188,13 +215,16 @@ contains
     end if
   end subroutine mask_parent_nodes
 
+  
   subroutine mask_parent_edges (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Add parent edge to active mask if any of its 6 child neighbours is in active mask
+     
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
 
     integer :: id_chd, id_par, idE_chd, idN_chd, idNE_chd, idNW_chd, idS_chd, idSE_chd, idW_chd
 
@@ -236,14 +266,17 @@ contains
          call set_at_least (dom%mask_e%elts(EDGE*id_par+UP+1), TOLRNZ)
   end subroutine mask_parent_edges
 
+  
   subroutine mask_adj_same_scale_nodes_edges (dom, i, j, zlev, offs, dims)
     ! Add nearest neighbours of active nodes/edges at same scale to adjacent ask
     ! (at least one of 6 neighbouring nodes/edges must be active)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id, idE, idN, idNE, idS, idW, idSW
 
@@ -285,14 +318,18 @@ contains
          call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), ADJSPACE)
   end subroutine mask_adj_same_scale_nodes_edges
 
+  
   subroutine mask_restrict_flux (dom, i_par, j_par, zlev, offs_par, dims_par)
     ! Add edges required for flux restriction
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par
-    integer, dimension(2,N_BDRY+1) :: dims_par
-    integer                        :: id_par, idE_par, idN_par, idNE_par
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i_par, j_par, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1)
+   
+    integer :: id_par, idE_par, idN_par, idNE_par
 
     id_par = idx (i_par, j_par, offs_par, dims_par)
     
@@ -311,14 +348,17 @@ contains
     end if
   end subroutine mask_restrict_flux
 
+  
   subroutine mask_adj_child (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Add nearest node/edge child neighbours at finer scale to adjacent mask if parent is active
     ! (includes some edge->node and node->edge cross masking)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
 
     integer :: id_par, idS_par, idW_par, idSW_par, idE_par, idN_par, idNE_par
     integer :: id_chd, idE_chd, idNE_chd, idN2E_chd, id2NE_chd, idN_chd, idW_chd, idNW_chd
@@ -465,15 +505,18 @@ contains
          call set_at_least (dom%mask_n%elts(id_par+1), RESTRCT)
   end subroutine mask_adj_child
 
+  
   subroutine mask_edges_consist (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Ensures consistency of adjacent zone edge mask for nearest neighbours.
     ! Adds child/parent edge to adjacent mask if any of 6 nearest neighbour edges are in adjacent mask.
     ! (modifies child E, NE, N neighbour edges and parent edges)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
 
     integer :: id_chd, id_par, idN_chd, idS_chd, idE_chd, idW_chd, idNE_chd, idNW_chd, idSE_chd
 
@@ -528,13 +571,16 @@ contains
     end if
   end subroutine mask_edges_consist
 
+  
   subroutine mask_edges_consist2 (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Make parent edge active if any of 12 second neighouring child edges is active
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
 
     integer :: id_chd, id_par, idN_chd, idE_chd, idS_chd, idW_chd, idNE_chd, idSW_chd, idNW_chd, idSE_chd
 
@@ -608,19 +654,23 @@ contains
     end if
   end subroutine mask_edges_consist2
 
-   subroutine mask_edges_if_both_nodes (dom, i, j, zlev, offs, dims)
+  
+  subroutine mask_edges_if_both_nodes (dom, i, j, zlev, offs, dims)
     ! Add edge to adjacent mask if both neighbouring nodes are active
     ! (also needed for div and gradv_e operator)
+    ! Add edges required for flux restriction
+
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id, idE, idN, idNE
 
     id = idx (i, j, offs, dims)
-    
+
     idE  = idx (i+1, j,   offs, dims)
     idNE = idx (i+1, j+1, offs, dims)
     idN  = idx (i,   j+1, offs, dims)
@@ -632,13 +682,16 @@ contains
     end if
   end subroutine mask_edges_if_both_nodes
 
+  
   subroutine mask_nodes_if_all_edges (dom, i, j, zlev, offs, dims)
     ! Add node to adjacent mask if all 6 neighbouring edges are active
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id, idW, idS, idSW
 
@@ -659,13 +712,16 @@ contains
     end if
   end subroutine mask_nodes_if_all_edges
 
+  
   subroutine prolong_node_adjzone (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Add parent to adjacent mask if child is in adjacent mask for prolongation of nodal quantities in inverse wavelet transform
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
 
     integer :: id_chd, id_par
 
@@ -675,13 +731,16 @@ contains
     if (dom%mask_n%elts(id_chd+1) >= ADJZONE) call set_at_least (dom%mask_n%elts(id_par+1), ADJZONE)
   end subroutine prolong_node_adjzone
 
+  
   subroutine set_masks (dom, p, i, j, zlev, offs, dims, mask)
-    ! Sets all nodes and edges to value mask 
+    ! Sets all nodes and edges to value mask
+     
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: p, i, j, zlev, mask
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, mask, p, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id
 
@@ -691,6 +750,7 @@ contains
     dom%mask_e%elts(id_edge(id)) = mask
   end subroutine set_masks
 
+  
   subroutine init_mask_mod
     implicit none
     logical :: initialized = .false.
@@ -701,6 +761,7 @@ contains
     initialized = .true.
   end subroutine init_mask_mod
 
+  
   subroutine init_masks
     implicit none
     integer :: d, num
@@ -719,13 +780,16 @@ contains
     end do
   end subroutine init_masks
 
+  
   subroutine set_at_least (mask, typ)
     implicit none
-    integer :: mask, typ
+    integer, intent(inout) :: mask
+    integer, intent(in)    :: typ
 
     if (mask < typ) mask = typ
   end subroutine set_at_least 
 
+  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    Second neighbour operator stencils for trend computation 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -736,14 +800,17 @@ contains
     call apply_bdry (second_neigh, z_null, 0, 0) 
   end subroutine mask_second_neighbours
 
+  
   subroutine second_neigh (dom, i, j, zlev,  offs, dims)
     ! Second neighbours (uses qe stencil)
+     
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+   
     integer :: id, ii, jj
   
     id = idx (i, j, offs, dims)
@@ -757,6 +824,7 @@ contains
     end if
   end subroutine second_neigh
 
+  
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !    TRiSK operator stencils 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -769,13 +837,16 @@ contains
     call apply_bdry (edges_trsk, z_null, 0, 0) 
   end subroutine mask_trsk
 
+  
   subroutine nodes_trsk (dom, i, j, zlev, offs, dims)
     ! TRISK operator stencils needed for acive nodes
+     
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id
 
@@ -789,14 +860,17 @@ contains
     end if
   end subroutine nodes_trsk
 
+  
   subroutine edges_trsk (dom, i, j, zlev, offs, dims)
     ! TRISK operator stencils needed for active edges
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+  
     integer :: id
 
     id = idx (i, j, offs, dims)
@@ -810,15 +884,18 @@ contains
        if (Laplace_rotu == 2) call hyperLaplacian_u_trsk (dom, i, j, zlev,  offs, dims)
     end if
   end subroutine edges_trsk
+
   
   subroutine gradB_trsk (dom, i, j, zlev,  offs, dims)
     ! Gradient of Bernoulli function
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+  
     integer :: id
 
     id = idx (i, j, offs, dims)
@@ -828,28 +905,34 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*id+UP+1), TRSK)
   end subroutine gradB_trsk
 
+  
   subroutine gradK_trsk (dom, i, j, zlev,  offs, dims)
     ! Gradient of kinetic energy
+     
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+  
     call ke_trsk (dom, i,   j,   zlev, offs, dims)
     call ke_trsk (dom, i+1, j,   zlev, offs, dims)
     call ke_trsk (dom, i+1, j+1, zlev, offs, dims)
     call ke_trsk (dom, i,   j+1, zlev, offs, dims)
   end subroutine gradK_trsk
+
   
   subroutine Qperp_trsk (dom, i, j, zlev,  offs, dims)
     ! Gradient of kinetic energy
+      
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+   
     integer :: ii, jj
 
     call div_grad_trsk (dom, i+1, j,   zlev, offs, dims)
@@ -863,14 +946,17 @@ contains
     end do
   end subroutine Qperp_trsk
 
+  
   subroutine remap_trsk (dom, i, j, zlev,  offs, dims)
     ! Remap stencil
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+   
     integer :: idE, idNE, idN
 
     idE  = idx (i+1, j,   offs, dims)
@@ -882,14 +968,17 @@ contains
     call set_at_least (dom%mask_n%elts(idN +1), TRSK)
   end subroutine remap_trsk
 
+  
   subroutine ke_trsk (dom, i, j, zlev,  offs, dims)
     ! Kinetic energy stencil
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+   
     integer :: id, idS, idSW, idW
 
     id   = idx (i,   j,   offs, dims)
@@ -905,14 +994,17 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
   end subroutine ke_trsk
 
+  
   subroutine qe_trsk (dom, i, j, zlev,  offs, dims)
-    ! Stencil for qe 
+    ! Stencil for qe
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+   
     integer :: id, idE, idN, idNE, idS, idSE, idW
 
     id     = idx (i,   j,   offs, dims)
@@ -943,25 +1035,31 @@ contains
     call set_at_least (dom%mask_n%elts(idSE+1), TRSK)
   end subroutine qe_trsk
 
+  
   subroutine Laplacian_sclr_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil of Laplacian hyperdiffusion of scalars
+      
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+  
     call div_grad_trsk (dom, i, j, zlev,  offs, dims)
   end subroutine Laplacian_sclr_trsk
 
+  
   subroutine hyperLaplacian_sclr_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil of Laplacian hyperdiffusion of scalars
+       
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+  
     integer :: ii, jj
     
     do ii = -1, 1
@@ -971,14 +1069,17 @@ contains
     end do
   end subroutine hyperLaplacian_sclr_trsk
 
+  
   subroutine hyperLaplacian_u_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil of Laplacian hyperdiffusion of velocity
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+  
     integer :: ii, jj
 
     do ii = -1, 1
@@ -988,27 +1089,33 @@ contains
     end do
   end subroutine hyperLaplacian_u_trsk
 
+  
   subroutine Laplacian_u_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil for Laplacian(u) operators
+     
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+  
     call divu_trsk (dom, i,   j,   zlev, offs, dims)
     call divu_trsk (dom, i+1, j,   zlev, offs, dims)
     call divu_trsk (dom, i+1, j+1, zlev, offs, dims)
     call divu_trsk (dom, i,   j+1, zlev, offs, dims)
   end subroutine Laplacian_u_trsk
 
+  
   subroutine divu_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil for divu operator
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id, idE, idNE, idN, idW, idS, idSW
 
@@ -1028,13 +1135,16 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
   end subroutine divu_trsk
 
+  
   subroutine div_grad_trsk (dom, i, j, zlev,  offs, dims)
     ! Stencil for flux-divergence operator
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id, idE, idNE, idN, idW, idSW, idS
 
@@ -1061,4 +1171,6 @@ contains
     call set_at_least (dom%mask_e%elts(EDGE*idSW+DG+1), TRSK)
     call set_at_least (dom%mask_e%elts(EDGE*idS +UP+1), TRSK)
   end subroutine div_grad_trsk
+
+  
 end module mask_mod

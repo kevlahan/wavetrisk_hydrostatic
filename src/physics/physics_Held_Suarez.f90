@@ -6,9 +6,25 @@ module physics_Held_Suarez_mod
   !    Bulletin of the American Meteorological Society 75 (10), 1825-1830
   !
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  use ops_mod
-  use sso_mod
+
+  use kind_mod, only : dp
+  use shared_mod, only : DAY, EDGE, KELVIN, METRE, N_BDRY, N_VARIABLE, NONE, S_MASS, S_TEMP, S_VELO, &
+       kappa, p_0, p_top, sso,  zmin, zmax, zlevels, z_null
+
+  use comm_mpi_mod,   only : update_bdry
+  use domain_mod,     only : DOMAIN, Float_Field, grid, dmass, dtemp, dvelo, exner, exner_fun, mass, temp, velo, mean_m, mean_t, &
+       sol, sol_mean, id_edge, idx
+  use domain_ops_mod, only : apply_onescale_to_patch
+  use geom_mod,       only : cart2sph
+  use ops_mod,        only : cal_surf_press, integrate_pressure_up
+  use sso_mod,        only : sso_drag
+  use utils_mod,      only : zero_float
+  
   implicit none
+
+  private
+  public :: trend_physics_Held_Suarez
+  public :: cal_theta_eq, delta_T, delta_T2, delta_theta, gamma_T, k_a, k_f, k_s, sigma_b, sigma_0, sigma_t, T_mean, T_tropo
 
   ! Held-Suarez model parameters
   real(dp) :: T_mean         = 315.0_dp       * KELVIN              ! mean temperature
@@ -27,16 +43,15 @@ contains
   subroutine trend_physics_Held_Suarez (q, dq)
     ! Trend for Held-Suarez physics
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,zmin:zmax), target  :: q  ! includes soil layers
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target  :: dq
+    type(Float_Field), intent(inout), target  ::  q(N_VARIABLE,zmin:zmax) ! includes soil layers
+    type(Float_Field), intent(inout), target  :: dq(N_VARIABLE,1:zlevels) 
 
     integer :: d, k, p
 
     call update_bdry (q, NONE, 941)
 
-    ! Assign shared variable
     call zero_float (dq)
-    
+
     ! Current surface pressure
     call cal_surf_press (q(1:N_VARIABLE,1:zlevels))
 
@@ -76,12 +91,14 @@ contains
 
   subroutine trend_scalars (dom, i, j, zlev, offs, dims)
     ! Trend for physics step (relaxation to equilibrium temperature)
-    implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
     
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
     integer  :: id
     real(dp) :: k_T, lat, lon, rho_dz, rho_dz_dtheta, theta_equil
 
@@ -99,12 +116,14 @@ contains
 
   subroutine trend_velo (dom, i, j, zlev, offs, dims)
     ! Velocity trend for physics step (Rayleigh friction)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+   
     integer                    :: id, id_i
     integer, dimension(1:EDGE) :: id_e
     real(dp)                   :: k_v, sigma, sigma_c
@@ -122,12 +141,14 @@ contains
   end subroutine trend_velo
 
   subroutine trend_velo_sso (dom, i, j, zlev, offs, dims)
-    ! Include SSO drag velocity trend 
+    ! Include SSO drag velocity trend
+
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer                               :: d, id, k
     integer,  dimension(1:EDGE)           :: id_e

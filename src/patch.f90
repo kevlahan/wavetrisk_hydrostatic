@@ -1,8 +1,15 @@
 module patch_mod
-  use param_mod
-  use shared_mod
-  implicit none
   
+  use kind_mod,   only : dp
+  use shared_mod, only : BDRY_THICKNESS, N_BDRY, N_CHDRN, PATCH_LEVEL, init_shared_mod
+  
+  implicit none
+
+  private
+  public :: LAST, LAST_BDRY, PATCH_SIZE
+  public :: Bdry_Patch, Overl_Area, Iu_Wgt, Patch, RF_Wgt
+  public :: init_Iu_Wgt, init_Overl_Area, init_Bdry_Patch, init_Patch, init_patch_mod, init_RF_Wgt
+
   integer, parameter :: PATCH_SIZE = 2**PATCH_LEVEL
   integer, parameter :: LAST       = PATCH_SIZE - 1
   integer, parameter :: LAST_BDRY  = BDRY_THICKNESS - 1
@@ -47,8 +54,8 @@ contains
   subroutine init_Patch (self, elts_start, level, chdrn, neigh)
     ! Initializes new patch
     implicit none
-    type(Patch) :: self
-    integer     :: elts_start, chdrn, level, neigh
+    type(Patch), intent(inout) :: self
+    integer,     intent(in)    :: elts_start, chdrn, level, neigh
 
     self%elts_start = elts_start
     self%level      = level
@@ -57,8 +64,8 @@ contains
 
   subroutine init_Bdry_Patch (self, elts_start, side, neigh)
     implicit none
-    type(Bdry_Patch) :: self
-    integer          :: elts_start, neigh, side
+    type(Bdry_Patch), intent(inout) :: self
+    integer,          intent(in)    :: elts_start, neigh, side
 
     self%elts_start = elts_start
     self%side = side
@@ -66,8 +73,8 @@ contains
 
   subroutine init_Overl_Area (self, areas)
     implicit none
-    type(Overl_Area)       :: self
-    real(dp), dimension(8) :: areas
+    type(Overl_Area),       intent(inout) :: self
+    real(dp), dimension(8), intent(in)    :: areas
 
     self%a = areas(1:4)
     self%split = areas(5:6)
@@ -75,16 +82,16 @@ contains
 
   subroutine init_Iu_Wgt (self, wgt)
     implicit none
-    type(Iu_Wgt)           :: self
-    real(dp), dimension(9) :: wgt
+    type(Iu_Wgt),           intent(inout) :: self
+    real(dp), dimension(9), intent(in)    :: wgt
 
     self%enc = wgt
   end subroutine init_Iu_Wgt
-
+  
   subroutine init_RF_Wgt (self, wgt)
     implicit none
-    type(RF_Wgt)           :: self
-    real(dp), dimension(3) :: wgt
+    type(RF_Wgt),           intent(inout) :: self
+    real(dp), dimension(3), intent(in)    :: wgt
 
     self%enc = wgt
   end subroutine init_RF_Wgt

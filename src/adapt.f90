@@ -1,21 +1,53 @@
 module adapt_mod
-  use refine_patch_mod
-  use multi_level_mod
+  use kind_mod,         only : dp
+  
+  use shared_mod,       only : ADJZONE, EDGE, level_start, level_end, N_BDRY, n_node_old, n_patch_old, NONE, &
+       scalars, S_VELO, z_null
+  
+  use arch_mod,         only : rank
+  use comm_mod,         only : init_comm_mod
+  use comm_mpi_mod,     only : update_bdry
+  use domain_ops_mod,   only : apply_interscale_d, apply_onescale_d, apply_to_penta_d
+  use init_mod,         only : noarg_sub, set_thresholds, update
+  use ops_mod,          only : init_ops_mod
+  use refine_patch_mod, only : fill_up_level, init_refine_patch_mod, max_level_exceeded, post_refine, refine
+  use utils_mod,        only : zero_float
+
+
+  use domain_mod,  only :  Domain, Float_Field, grid, idx, scalar, sol, velo, &
+       wav_coeff, wc_s, wc_u
+
+  use mask_mod,    only : complete_masks, init_masks_zero, mask_active, mask_adj_finer_scale, mask_adj_same_scale, &
+       mask_restrict_same_scale, mask_second_neighbours
+
+  use wavelet_mod, only : compute_scalar_wavelets, compute_velo_wavelets, compute_velo_wavelets_penta, &
+       init_wavelet_mod, inverse_scalar_transform, inverse_velo_transform, inverse_wavelet_transform, restrict_velo
+
   implicit none
 
+  private
+  public :: adapt, compress_wavelets_scalar, fill_up_grid_and_IWT, init_adapt_mod, init_multi_level_mod
+  public :: WT_after_scalar, WT_after_step, WT_after_velo 
+  
   interface compress_wavelets_scalar
      procedure :: compress_wavelets_scalar_0, compress_wavelets_scalar_1
   end interface compress_wavelets_scalar
   
   interface WT_after_scalar
      procedure :: WT_after_scalar_0, WT_after_scalar_1
-  end interface WT_after_scalar 
+  end interface WT_after_scalar
+
+  
 contains
+
+  
   subroutine adapt (set_thresholds, type)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
+    
     implicit none
-    procedure (noarg_sub) :: set_thresholds
-    logical, optional     :: type ! recalculate thresholds
+    
+    procedure (noarg_sub)         :: set_thresholds
+    logical, intent(in), optional :: type ! recalculate thresholds
     
     logical :: local_type
 
@@ -62,8 +94,11 @@ contains
     call update 
   end subroutine adapt
 
- subroutine init_adapt_mod
+  
+  subroutine init_adapt_mod
+    
     implicit none
+    
     logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
@@ -74,10 +109,13 @@ contains
     initialized        = .true.
   end subroutine init_adapt_mod
 
+  
   subroutine compress_wavelets (wav)
     ! Sets wavelets associated with inactive grid points to zero
+    
     implicit none
-    type(Float_Field), dimension(:,:), target :: wav
+    
+    type(Float_Field), intent(inout), target :: wav(:,:)
 
     integer :: d, k, l, v
 
@@ -100,10 +138,13 @@ contains
     wav%bdry_uptodate = .false.
   end subroutine compress_wavelets
 
+  
   subroutine compress_wavelets_scalar_0 (wav)
     ! Sets scalar wavelets associated with inactive grid points to zero
+    
     implicit none
-    type(Float_Field), target :: wav
+    
+    type(Float_Field), intent(inout), target :: wav
 
     integer :: d, l
 
@@ -118,10 +159,13 @@ contains
     wav%bdry_uptodate = .false.
   end subroutine compress_wavelets_scalar_0
 
+  
   subroutine compress_wavelets_scalar_1 (wav)
     ! Sets scalar wavelets associated with inactive grid points to zero
+    
     implicit none
-    type(Float_Field), dimension(:), target :: wav
+    
+    type(Float_Field), intent(inout), target :: wav(:)
 
     integer :: d, k, l
 
@@ -138,10 +182,13 @@ contains
     wav%bdry_uptodate = .false.
   end subroutine compress_wavelets_scalar_1
 
+  
   subroutine compress_wavelets_velo (wav)
     ! Sets wavelets associated with inactive grid points to zero
+    
     implicit none
-    type(Float_Field), dimension(:), target :: wav
+    
+    type(Float_Field), intent(inout), target :: wav(:)
 
     integer :: d, k, l
     
@@ -157,12 +204,15 @@ contains
     wav%bdry_uptodate = .false.
   end subroutine compress_wavelets_velo
 
+  
   subroutine compress_scalar (dom, i, j, zlev, offs, dims)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain),                   intent(inout) :: dom
+    integer,                        intent(in)    :: i, j, zlev
+    integer, dimension(N_BDRY+1),   intent(in)    :: offs
+    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
     
     integer :: id_i
 
@@ -171,12 +221,15 @@ contains
     if (dom%mask_n%elts(id_i) < ADJZONE) wc_s(id_i) = 0.0_dp
   end subroutine compress_scalar
 
+  
   subroutine compress_vector (dom, i, j, zlev, offs, dims)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
     
     integer :: e, id
 
@@ -187,11 +240,14 @@ contains
     end do
   end subroutine compress_vector
 
+  
   subroutine WT_after_step (scaling, wavelet, l_start0)
     ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
+    
     implicit none
-    type(Float_Field), dimension(:,:), target :: scaling, wavelet
-    integer, optional                         :: l_start0
+    
+    type(Float_Field), target,   intent(inout) :: scaling(:,:), wavelet(:,:)
+    integer,           optional, intent(in)    :: l_start0
 
     integer :: d, k, l, l_start, v
 
@@ -234,11 +290,14 @@ contains
     call inverse_wavelet_transform (wavelet, scaling)
   end subroutine WT_after_step
 
+  
   subroutine WT_after_scalar_0 (scaling, wavelet, l_start0)
     ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
+    
     implicit none
-    type(Float_Field), target :: scaling, wavelet
-    integer, optional         :: l_start0
+    
+    type(Float_Field), target,   intent(inout) :: scaling, wavelet
+    integer,           optional, intent(in)    :: l_start0
 
     integer :: d, l, l_start
 
@@ -264,12 +323,15 @@ contains
     call compress_wavelets_scalar (wavelet)
     call inverse_scalar_transform (wavelet, scaling)
   end subroutine WT_after_scalar_0
+
   
   subroutine WT_after_scalar_1 (scaling, wavelet, l_start0)
     ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
+    
     implicit none
-    type(Float_Field), dimension(:), target :: scaling, wavelet
-    integer, optional                       :: l_start0
+
+    type(Float_Field), target,   intent(inout) :: scaling(:), wavelet(:)
+    integer,           optional, intent(in)    :: l_start0
     
     integer :: d, k, l, l_start
 
@@ -298,11 +360,14 @@ contains
     call inverse_scalar_transform (wavelet, scaling)
   end subroutine WT_after_scalar_1
 
+  
   subroutine WT_after_velo (scaling, wavelet, l_start0)
     ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
+    
     implicit none
-    type(Float_Field), dimension(:), target :: scaling, wavelet
-    integer, optional                       :: l_start0
+
+    type(Float_Field), target,   intent(inout) :: scaling(:), wavelet(:)
+    integer,           optional, intent(in)    :: l_start0
     
     integer :: d, k, l, l_start
 
@@ -339,22 +404,29 @@ contains
     call inverse_velo_transform (wavelet, scaling)
   end subroutine WT_after_velo
 
+  
   subroutine init_multi_level_mod
+    
     implicit none
+    
     logical :: initialized = .false.
 
     if (initialized) return ! initialize only once
+    
     call init_comm_mod
     call init_ops_mod
     call init_wavelet_mod
     call init_refine_patch_mod
     initialized = .true.
   end subroutine init_multi_level_mod
+
   
   subroutine fill_up_grid_and_IWT (l)
     ! Fills grid up to level l and does inverse wavelet transform of solution onto grid
+    
     implicit none
-    integer :: l
+    
+    integer, intent(in) :: l
     
     integer :: old_level_start
     
@@ -364,7 +436,10 @@ contains
        call fill_up_level
     end do
     call inverse_wavelet_transform (wav_coeff, sol, jmin_in=old_level_start)
+    
     sol%bdry_uptodate = .false.
     call update_bdry (sol, NONE, 908)
-  end subroutine fill_up_grid_and_IWT    
+  end subroutine fill_up_grid_and_IWT
+
+  
 end module adapt_mod

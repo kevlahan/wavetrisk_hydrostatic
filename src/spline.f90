@@ -1,8 +1,15 @@
 module spline_mod
   ! Routines for cubic spline interpolation
-  use kind_mod
+
+  use kind_mod, only : dp
+
   implicit none
+
+  private
+  public :: splint, spline
+  
 contains
+  
   subroutine splint (xa, ya, y2a, n, x, y)
     ! Given the arrays xa(1:n) and ya(1:n) of length n, which tabulate a function
     ! (with the xa(i) in order), and given the array y2a(1:n), which is the output

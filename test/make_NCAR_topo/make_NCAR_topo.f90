@@ -1,10 +1,18 @@
 program make_NCAR_topo
   ! Computes and saves NCAR topography data
-  use main_mod
-  use test_case_mod
+  
+  use kind_mod
+  use shared_mod
+  use domain_mod
   use io_mod
+  use main_mod
+  use time_integr_mod
+  use test_case_mod
   use topo_grid_descriptor_mod
+  use wavelet_mod
+  
   implicit none
+  
   integer         :: d, l
   real(8)         :: fine_mass
   character(9999) :: cmd, del_files, grid_name, jmin_txt, jmax_txt, smth_txt, topo_desc 
@@ -136,15 +144,17 @@ program make_NCAR_topo
   end if
 
   call finalize
+  
 contains
+  
   subroutine surface_pressure (dom, i, j, zlev, offs, dims)
-    ! From Jablonowski and Williamson (2006) without perturbation
-    use main_mod
+
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: d, id
 

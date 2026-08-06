@@ -1,23 +1,48 @@
 module multi_level_mod
-  use ops_mod
+  
+  use kind_mod,   only : dp
+
+  use shared_mod, only : bfly_no2, nghb_pt, hex_sides, hex_s_offs, N_VARIABLE, zlevels, N_BDRY,  N_CHDRN, &
+       ADJZONE, EDGE, MM, MP, PM, PP, UMZ, UPZ, UZM, UZP, VMM, VMPP, VMP, VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
+       level_end, level_start, NONE,RT, DG, UP, z_null, RESTRCT, S_MASS, S_TEMP, S_VELO, S_DIVU, S_ROTU, &
+       Laplace_divu, Laplace_rotu, Laplace_sclr, AT_EDGE, AT_NODE, scalars
+
+  use comm_mpi_mod,   only : update_bdry, update_bdry__start, update_bdry__finish
+  use domain_ops_mod, only : apply_interscale_to_patch, apply_interscale_to_patch3, apply_onescale_to_patch, apply_to_penta_d 
+  use init_mod,       only : u_source    
+  use patch_mod,      only : PATCH_SIZE
+  use utils_mod,      only : zero_float
+  
+  use domain_mod, only : Domain, Float_Field, grid, bernoulli, exner, exner_fun, ke, qe, mean_m, mean_t, sol, sol_mean, &
+       horiz_flux, h_mflux, h_flux, divu, dvelo, mass, temp, velo, scalar, vort, &
+       Laplacian_scalar, Laplacian_vector, dscalar, Laplacian, &
+       ed_idx, idx, idx2
+
+  use ops_mod, only : cal_div, cal_surf_press, du_grad, du_source, cal_Laplacian_rotu, integrate_pressure_up, post_step1,  &
+       post_vort, scalar_trend, step1
+    
   implicit none
+
+  private
+  public :: cpt_or_restr_flux, trend_ml, cal_divu_ml 
+
+  
 contains
+
+  
   subroutine trend_ml (q, dq)
     ! Compute trends of prognostic variables assuming Lagrangian vertical coordinates
+    
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
+    
+    type(Float_Field), intent(inout), target :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
 
-    integer :: k, l, v
+    integer :: k, l
 
     call update_bdry (q, NONE, 967)
 
     ! Initialize trends
-    do k = 1, zlevels
-       do v = scalars(1), scalars(2)
-          call zero_float_field (dq(v,k), AT_NODE)
-       end do
-       call zero_float_field (dq(S_VELO,k), AT_EDGE)
-    end do
+    call zero_float (dq)
 
     ! Compute surface pressure on all grids
     call cal_surf_press (q(1:N_VARIABLE,1:zlevels))
@@ -46,11 +71,14 @@ contains
     dq%bdry_uptodate = .false.
   end subroutine trend_ml
 
+  
   subroutine basic_operators (q, dq, k, l)
     ! Evaluates basic operators on grid level l and computes/restricts Bernoulli, Exner and fluxes
+    
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-    integer                                                      :: k, l
+    
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
+    integer,                   intent(in)    :: k, l
 
     integer :: d, j, v
 
@@ -99,11 +127,14 @@ contains
     if (Laplace_rotu == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity
   end subroutine basic_operators
 
+  
   subroutine cal_scalar_trend (q, dq, k, l)
     ! Evaluate scalar trends at level l
+    
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-    integer                                                      :: k, l
+    
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
+    integer,                   intent(in)    :: k, l
 
     integer :: d, j, v
 
@@ -122,11 +153,14 @@ contains
     dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
   end subroutine cal_scalar_trend
 
+  
   subroutine velocity_trend_source (q, dq, k, l)
     ! Evaluate source part of velocity trends at level l
+    
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-    integer :: k, l
+    
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
+    integer,                    intent(in)   :: k, l
 
     integer :: d, j
 
@@ -163,11 +197,14 @@ contains
     nullify (u_source)
   end subroutine velocity_trend_source
 
+  
   subroutine velocity_trend_grad (q, dq, k)
     ! Evaluate complete velocity trend by adding gradient terms to previously calculated source terms on entire grid
+    
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q, dq
-    integer                                                      :: k
+    
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
+    integer,                   intent(in)    :: k
 
     integer :: d, p
 
@@ -186,12 +223,15 @@ contains
     end do
     dq(S_VELO,k)%bdry_uptodate = .false.
   end subroutine velocity_trend_grad
-     
+
+  
   subroutine cal_Laplacian_scalars (q, k)
     ! Computes Laplacian of scalars q, div(grad q)
+    
     implicit none
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels), target :: q
-    integer :: k
+    
+    type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels)
+    integer,                   intent(in)    :: k
     
     integer :: d, j, l, v
 
@@ -237,10 +277,13 @@ contains
     end do
   end subroutine cal_Laplacian_scalars
 
+  
   subroutine cal_Laplacian_vector_rot (l)
     ! Computes rot(rot(vorticity)) needed for second-order vector Laplacian
+    
     implicit none
-    integer :: l
+    
+    integer, intent(in) :: l
     
     integer :: d, j
 
@@ -268,10 +311,13 @@ contains
        nullify (velo, vort)
     end do
   end subroutine cal_Laplacian_vector_rot
+
   
   subroutine cal_Laplacian_divu
     ! Computes Laplacian of divu, div(grad divu)
+    
     implicit none
+    
     integer :: d, j, l
 
     do l = level_end, level_start, -1
@@ -307,12 +353,15 @@ contains
        call update_bdry (Laplacian_vector(S_DIVU), l, 975)
     end do
   end subroutine cal_Laplacian_divu
- 
+
+  
   subroutine cpt_or_restr_scalar (dom, l)
     ! Restrict scalar if possible for grad(scalar) computation
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: l
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: l
 
     integer                     :: j, p_par, c, p_chd
     logical, dimension(N_CHDRN) :: restrict
@@ -332,12 +381,15 @@ contains
     end do
   end subroutine cpt_or_restr_scalar
 
+  
   subroutine scalar_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p_chd, i_par, j_par, i_chd, j_chd, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
 
     integer :: id_par, id_chd
 
@@ -347,12 +399,15 @@ contains
     if (dom%mask_n%elts(id_par+1) >= RESTRCT) scalar(id_par+1) = scalar(id_chd+1)
   end subroutine scalar_cpt_restr
 
+  
   subroutine cpt_or_restr_u_source (dom, zlev, l)
     ! Restrict velocity source if possible term u_source(velo)
     ! u_source is a pointer function
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: zlev, l
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: zlev, l
 
     integer :: c, j, p_par, p_chd
 
@@ -366,13 +421,16 @@ contains
     end do
   end subroutine cpt_or_restr_u_source
 
+  
   subroutine u_source_cpt_restr (dom, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
+    
     implicit none
-    type(Domain)                     :: dom
-    integer                          :: i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY + 1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY + 1) :: dims_par, dims_chd
-
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i_par, j_par, i_chd, j_chd, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
+  
     integer :: id_par, id_chd, idE_chd, idNE_chd, idN_chd
 
     id_par = idx (i_par, j_par, offs_par, dims_par)
@@ -395,12 +453,15 @@ contains
          dvelo(EDGE*id_par+UP+1) = dvelo(EDGE*id_chd+UP+1) + dvelo(EDGE*idN_chd+UP+1)
   end subroutine u_source_cpt_restr
 
+  
   subroutine cpt_or_restr_flux (dom, l)
     ! Restrict flux if possible for dscalar = div(h_flux) computation
     ! requires dscalar = div(h_flux) in addition to h_flux
+    
     implicit none
-    type(Domain) :: dom
-    integer      :: l
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: l
 
     integer                     :: j, p_par, c, p_chd
     logical, dimension(N_CHDRN) :: restrict
@@ -418,13 +479,16 @@ contains
     end do
   end subroutine cpt_or_restr_flux
 
+  
   subroutine flux_cpt_restr (dom, p_chd, i_par, j_par, i_chd, j_chd, zlev, offs_par, dims_par, offs_chd, dims_chd)
     ! Compute flux restriction by summing coarse, corrective and small fluxes
+
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: p_chd, i_par, j_par, i_chd, j_chd, zlev
-    integer, dimension(N_BDRY+1)   :: offs_par, offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_par, dims_chd
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p_chd, i_par, j_par, i_chd, j_chd, zlev
+    integer,      intent(in)    :: offs_par(N_BDRY+1), offs_chd(N_BDRY+1)
+    integer,      intent(in)    :: dims_par(2,N_BDRY+1), dims_chd(2,N_BDRY+1)
 
     integer                :: id_par
     real(dp), dimension(4) :: sm_flux
@@ -446,14 +510,17 @@ contains
          complete_coarse_flux (sm_flux, dom, i_par, j_par, i_chd, j_chd, UP, offs_chd, dims_chd)
   end subroutine flux_cpt_restr
 
-  function interp_flux (dom, i, j, offs, dims)
+  
+  function interp_flux (dom, i, j, offs, dims) result(val)
+    
     implicit none
-    real(dp), dimension(4)         :: interp_flux
-    type(Domain)                   :: dom
-    integer                        :: i, j
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
+    
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: i, j
+    integer,      intent(in) :: offs(N_BDRY+1)
+    integer,      intent(in) :: dims(2,N_BDRY+1)
+    real(dp)                 :: val(4)
+    
     integer                :: id, idE, idNE, idN, idSE, id2SE, id2W, idN2W
     integer, dimension(20) :: id_edges
     
@@ -470,58 +537,68 @@ contains
     id2W  = idx (i-2, j,   offs, dims)
     idN2W = idx (i-2, j+1, offs, dims)
 
-    interp_flux(1) = - sum (h_flux(id_edges([WPM,UZM,VMM]+1)+1) * dom%R_F_wgt%elts(id2SE+1)%enc) &
+    val(1) = - sum (h_flux(id_edges([WPM,UZM,VMM]+1)+1) * dom%R_F_wgt%elts(id2SE+1)%enc) &
          - sum ((h_flux(id_edges([VPM,WMMM,UMZ]+1)+1) - h_flux(id_edges([UPZ,VPMM,WMM]+1)+1)) * &
          dom%R_F_wgt%elts(idSE+1)%enc) ! UPLT S
 
-    interp_flux(2) = sum (h_flux(id_edges([WMP,UZP,VPP]+1)+1)* dom%R_F_wgt%elts(id+1)%enc) &
+    val(2) = sum (h_flux(id_edges([WMP,UZP,VPP]+1)+1)* dom%R_F_wgt%elts(id+1)%enc) &
          + sum ((h_flux(id_edges([VMP,WPPP,UPZ]+1)+1) - h_flux(id_edges([UMZ,VMPP,WPP]+1)+1))* &
          dom%R_F_wgt%elts(idN+1)%enc) ! LORT
 
     call get_indices (dom, i, j+1, UP, offs, dims, id_edges)
 
-    interp_flux(3) = - sum (h_flux(id_edges([UZM,VMM,WPM]+1)+1) * dom%R_F_wgt%elts(idE+1)%enc) &
+    val(3) = - sum (h_flux(id_edges([UZM,VMM,WPM]+1)+1) * dom%R_F_wgt%elts(idE+1)%enc) &
          - sum ((h_flux(id_edges([WMMM,UMZ,VPM]+1)+1) - h_flux(id_edges([VPMM,WMM,UPZ]+1)+1))* &
          dom%R_F_wgt%elts(idNE+1)%enc) ! UPLT
 
-    interp_flux(4) = sum (h_flux(id_edges([UZP,VPP,WMP]+1)+1) * dom%R_F_wgt%elts(id2W+1)%enc) &
+    val(4) = sum (h_flux(id_edges([UZP,VPP,WMP]+1)+1) * dom%R_F_wgt%elts(id2W+1)%enc) &
          + sum ((h_flux(id_edges([WPPP,UPZ,VMP]+1)+1) - h_flux(id_edges([VMPP,WPP,UMZ]+1)+1))* &
          dom%R_F_wgt%elts(idN2W+1)%enc) ! LORT W
   end function interp_flux
 
-  real(dp) function complete_coarse_flux (sm_flux, dom, i_par, j_par, i_chd, j_chd, e, offs_chd, dims_chd)
+  function complete_coarse_flux (sm_flux, dom, i_par, j_par, i_chd, j_chd, e, offs_chd, dims_chd) result(val)
+    
     implicit none
-    real(dp), dimension(4)          :: sm_flux
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd
-    integer, dimension(N_BDRY+1)   :: offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_chd
+
+    real(dp),     intent(in) :: sm_flux(4)
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: i_chd, j_chd, i_par, j_par
+    integer,      intent(in) :: offs_chd(N_BDRY+1)
+    integer,      intent(in) :: dims_chd(2,N_BDRY+1)
+    real(dp)                 :: val
     
     integer  :: e
     real(dp) :: p_flux, c_flux
 
-    complete_coarse_flux = 0.0_dp
+    val = 0.0_dp
     if (e == RT) then
        p_flux = part_coarse_flux (dom, i_chd+1, j_chd, RT, offs_chd, dims_chd)
        c_flux = coarse_flux (dom, i_par, j_par, i_chd+1, j_chd, offs_chd, dims_chd, RT)
-       complete_coarse_flux = p_flux + c_flux + sm_flux(1) + sm_flux(2)
+       
+       val = p_flux + c_flux + sm_flux(1) + sm_flux(2)
     elseif (e == DG) then
        p_flux = part_coarse_flux (dom, i_chd+1, j_chd+1, DG, offs_chd, dims_chd)
        c_flux = coarse_flux (dom, i_par, j_par, i_chd+1, j_chd+1, offs_chd, dims_chd, DG)
-       complete_coarse_flux = p_flux + c_flux + sm_flux(2) + sm_flux(3)
+       
+       val = p_flux + c_flux + sm_flux(2) + sm_flux(3)
     elseif (e == UP) then
        p_flux = part_coarse_flux (dom, i_chd, j_chd+1, UP, offs_chd, dims_chd)
        c_flux = coarse_flux (dom, i_par, j_par, i_chd, j_chd+1, offs_chd, dims_chd, UP)
-       complete_coarse_flux = p_flux + c_flux + sm_flux(3) + sm_flux(4)
+       
+       val = p_flux + c_flux + sm_flux(3) + sm_flux(4)
     end if
   end function complete_coarse_flux
 
-  real(dp) function part_coarse_flux (dom, i, j, e, offs, dims)
+  
+  function part_coarse_flux (dom, i, j, e, offs, dims) result(val)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, e
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: i, j, e
+    integer,      intent(in) :: offs(N_BDRY+1) 
+    integer,      intent(in) :: dims(2,N_BDRY+1)
+    real(dp)                 :: val
 
     integer                :: id
     integer, dimension(20) :: id_edges
@@ -545,18 +622,22 @@ contains
     ol_area(3) = dom%overl_areas%elts(id_edges(MP+1)+1)%a(3) - dom%overl_areas%elts(id_edges(MP+1)+1)%split(1)
     ol_area(4) = dom%overl_areas%elts(id_edges(PM+1)+1)%a(4) - dom%overl_areas%elts(id_edges(PM+1)+1)%split(2)
 
-    part_coarse_flux = sum (h_flux(id_edges([UPZ,UMZ]+1)+1)*area) - sum (h_flux(id_edges([VMM,WMP]+1)+1))*area(2) &
+    val = sum (h_flux(id_edges([UPZ,UMZ]+1)+1)*area) - sum (h_flux(id_edges([VMM,WMP]+1)+1))*area(2) &
          - sum (h_flux(id_edges([WPM,VPP]+1)+1))*area(1) &
          + ol_area(3) * dscalar(id_edges(MP+1)+1) - ol_area(4) * dscalar(id_edges(PM+1)+1)  &
          - ol_area(1) * dscalar(id_edges(PP+1)+1) + ol_area(2) * dscalar(id_edges(MM+1)+1)
   end function part_coarse_flux
 
-  real(dp) function coarse_flux (dom, i_par, j_par, i_chd, j_chd, offs_chd, dims_chd, e)
+  
+  function coarse_flux (dom, i_par, j_par, i_chd, j_chd, offs_chd, dims_chd, e) result(val)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i_par, j_par, i_chd, j_chd, e
-    integer, dimension(N_BDRY+1)   :: offs_chd
-    integer, dimension(2,N_BDRY+1) :: dims_chd
+    
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: i_par, j_par, i_chd, j_chd, e
+    integer,      intent(in) :: offs_chd(N_BDRY+1) 
+    integer,      intent(in) :: dims_chd(2,N_BDRY+1)
+    real(dp)                 :: val
 
     integer :: id, id_mz, id_pz, id_mp,  id_pp, id_pm, id_mm, id_mm2, id_pm2, id_pp2,  id_mp2
 
@@ -574,7 +655,7 @@ contains
 
     id = idx (i_chd, j_chd, offs_chd, dims_chd)
 
-    coarse_flux = (dom%overl_areas%elts(id+1)%a(1)*dom%overl_areas%elts(id+1)%a(2)*dom%areas%elts(id+1)%hex_inv &
+    val = (dom%overl_areas%elts(id+1)%a(1)*dom%overl_areas%elts(id+1)%a(2)*dom%areas%elts(id+1)%hex_inv &
          + dom%overl_areas%elts(id_mp+1)%a(2)*dom%overl_areas%elts(id_mp+1)%a(3)*dom%areas%elts(id_mp+1)%hex_inv &
          + dom%overl_areas%elts(id_pp+1)%a(1)*dom%overl_areas%elts(id_pp+1)%a(3)*dom%areas%elts(id_pp+1)%hex_inv &
          + dom%overl_areas%elts(id_pm+1)%a(1)*dom%overl_areas%elts(id_pm+1)%a(4)*dom%areas%elts(id_pm+1)%hex_inv &
@@ -590,10 +671,13 @@ contains
          * 0.5_dp * (dscalar(id_pz+1) - dscalar(id_mm2+1))
   end function coarse_flux
 
+  
   subroutine cal_divu_ml (q)
     ! Returns flux divergence of velocity in divF using solution q, stored in dom%divu
+    
     implicit none
-    type(Float_Field), target :: q
+    
+    type(Float_Field), target, intent(inout) :: q
     
     integer :: d, j, l
 
@@ -630,13 +714,16 @@ contains
     end do
   end subroutine cal_divu_ml
 
+  
   subroutine get_indices (dom, i, j, e, offs, dims, id_edges)
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, e
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    integer, dimension(20)         :: id_edges
+    
+    type(Domain), intent(in)  :: dom
+    integer,      intent(in)  :: i, j, e
+    integer,      intent(in)  :: offs(N_BDRY+1) 
+    integer,      intent(in)  :: dims(2,N_BDRY+1)
+    integer,      intent(out) :: id_edges(20)
 
     integer, dimension(2) :: ij_mp, ij_pp, ij_pm, ij_mm
 
@@ -671,4 +758,6 @@ contains
     id_edges(WMMM+1) = ed_idx (ij_mm(1), ij_mm(2), hex_sides (:, hex_s_offs(e+1) + 1  + 2 + 1), offs, dims)
     id_edges(WMM+1)  = ed_idx (ij_mm(1), ij_mm(2), hex_sides (:,(hex_s_offs(e+1) + 4) - 4 + 1), offs, dims)
   end subroutine get_indices
+
+  
 end module multi_level_mod
