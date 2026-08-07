@@ -83,7 +83,7 @@ module comm_mpi_mod
 
 contains
 
-  
+
   subroutine init_comm_mpi
     implicit none
     allocate (recv_lengths(n_process), recv_offsets(n_process))
@@ -98,7 +98,6 @@ contains
     call comm_communication_mpi
   end subroutine init_comm_mpi
 
-  
   subroutine write_load_conn (id)
     implicit none
 
@@ -106,83 +105,134 @@ contains
 
     integer, parameter :: fid = 599
 
-    integer :: d, ii, r, sz, n_tot
+    integer :: d, i, r, sz, n_tot, gid
     integer :: ierr, io_stat
     integer :: displs(n_process)
     integer :: rcounts(n_process)
 
-    integer, allocatable :: n_active_glo(:)
-    integer, allocatable :: n_active_loc(:)
+    integer, allocatable :: gid_loc(:)
+    integer, allocatable :: gid_glo(:)
+    integer, allocatable :: load_loc(:)
+    integer, allocatable :: load_glo(:)
+    integer, allocatable :: load_recv(:)
+
+    logical, allocatable :: domain_seen(:)
 
     character(len=255) :: filename
     character(len=256) :: io_msg
 
-    ! Number of load entries contributed by this MPI rank.
-    sz = size(grid)*(N_GLO_DOMAIN+1)
+    ! Number of domains owned by this MPI rank.
+    sz = size(grid)
 
-    ! Only the root process uses rcounts after this collective.
-    call MPI_Gather (sz, 1, MPI_IN, rcounts, 1, MPI_IN, 0, comm, ierr)
+    ! Gather number of domains contributed by each rank.
+    call MPI_Gather (sz, 1, MPI_IN, &
+         rcounts, 1, MPI_IN, 0, comm, ierr)
 
     if (ierr /= MPI_SUCCESS) then
        error stop "write_load_conn: MPI_Gather failed"
     end if
 
-    ! Construct local load data.
-    allocate(n_active_loc(sz))
-    n_active_loc = 0
+    ! Construct local global-domain IDs and corresponding loads.
+    allocate (gid_loc(sz), load_loc(sz))
 
-    ii = 1
-
-    do d = 1, size(grid)
-       n_active_loc(ii) = domain_load(grid(d))
-
-       n_active_loc(ii+1:ii+N_GLO_DOMAIN) = ( &
-            grid(d)%pack(AT_NODE,:)%length   &
-            + grid(d)%pack(AT_EDGE,:)%length &
-            + grid(d)%unpk(AT_NODE,:)%length &
-            + grid(d)%unpk(AT_EDGE,:)%length) / 2
-
-       ii = ii + N_GLO_DOMAIN + 1
+    do d = 1, sz
+       gid_loc(d)  = glo_id(rank+1,d)
+       load_loc(d) = domain_load(grid(d))
     end do
 
-    ! MPI_Gatherv uses rcounts, displs, and the receive buffer only
-    ! on the root process.
-    n_tot = 0
+    ! Construct receive layout on rank 0.
     if (rank == 0) then
+
        displs(1) = 0
 
        do r = 2, n_process
           displs(r) = displs(r-1) + rcounts(r-1)
        end do
 
-       n_tot = sum (rcounts)
-       allocate(n_active_glo(n_tot))
+       n_tot = sum(rcounts)
+
+       if (n_tot /= N_GLO_DOMAIN) then
+          write(*,'(A,I0,A,I0)') &
+               "write_load_conn: expected ", N_GLO_DOMAIN, &
+               " domains, received ", n_tot
+          error stop
+       end if
+
+       allocate (gid_glo(n_tot))
+       allocate (load_recv(n_tot))
+
     else
-       displs = 0
+
+       ! These arguments are ignored by MPI_Gatherv on non-root ranks.
+       displs  = 0
        rcounts = 0
-       allocate(n_active_glo(0))
+
+       allocate (gid_glo(0))
+       allocate (load_recv(0))
+
     end if
 
+    ! Gather global domain IDs.
     call MPI_Gatherv ( &
-         n_active_loc, sz, MPI_IN, &
-         n_active_glo, rcounts, displs, MPI_IN, &
+         gid_loc, sz, MPI_IN, &
+         gid_glo, rcounts, displs, MPI_IN, &
          0, comm, ierr)
 
     if (ierr /= MPI_SUCCESS) then
-       error stop "write_load_conn: MPI_Gatherv failed"
+       error stop "write_load_conn: MPI_Gatherv of domain IDs failed"
     end if
 
-    deallocate(n_active_loc)
+    ! Gather corresponding loads.
+    call MPI_Gatherv ( &
+         load_loc, sz, MPI_IN, &
+         load_recv, rcounts, displs, MPI_IN, &
+         0, comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop "write_load_conn: MPI_Gatherv of loads failed"
+    end if
+
+    deallocate (gid_loc, load_loc)
 
     if (rank == 0) then
-       ! Each global domain should contribute one block containing:
-       !
-       !   domain load + N_GLO_DOMAIN connection loads
-       if (n_tot /= N_GLO_DOMAIN*(N_GLO_DOMAIN+1)) then
-          error stop "write_load_conn: unexpected gathered data size"
+
+       allocate (load_glo(N_GLO_DOMAIN))
+       allocate (domain_seen(N_GLO_DOMAIN))
+
+       load_glo    = 0
+       domain_seen = .false.
+
+       ! Reconstruct load vector explicitly in global-domain order.
+       do i = 1, n_tot
+
+          gid = gid_glo(i)
+
+          if (gid < 0 .or. gid >= N_GLO_DOMAIN) then
+             write(*,'(A,I0)') &
+                  "write_load_conn: invalid global domain ID ", gid
+             error stop
+          end if
+
+          if (domain_seen(gid+1)) then
+             write(*,'(A,I0)') &
+                  "write_load_conn: duplicate global domain ID ", gid
+             error stop
+          end if
+
+          load_glo(gid+1) = load_recv(i)
+          domain_seen(gid+1) = .true.
+
+       end do
+
+       ! Check that every global domain occurred exactly once.
+       if (.not. all(domain_seen)) then
+          write(*,'(A)') &
+               "write_load_conn: one or more global domains are missing"
+          error stop
        end if
 
-       write(filename, '(A,A,I4.4)') trim(run_id), "_conn.", id
+       write(filename, '(A,A,I4.4)') &
+            trim(run_id), "_conn.", id
 
        open( &
             unit=fid, file=trim(filename), status="replace", &
@@ -196,13 +246,11 @@ contains
           error stop
        end if
 
-       ii = 1
-
+       ! One load value per global domain, in global-domain order.
        do d = 1, N_GLO_DOMAIN
-          write( &
-               fid, '(I10,*(1X,I8))', &
-               iostat=io_stat, iomsg=io_msg) &
-               n_active_glo(ii:ii+N_GLO_DOMAIN)
+
+          write(fid, '(I10)', iostat=io_stat, iomsg=io_msg) &
+               load_glo(d)
 
           if (io_stat /= 0) then
              write(*,'(A)') &
@@ -212,7 +260,6 @@ contains
              error stop
           end if
 
-          ii = ii + N_GLO_DOMAIN + 1
        end do
 
        close(fid, iostat=io_stat, iomsg=io_msg)
@@ -223,12 +270,16 @@ contains
           write(*,'(A)') trim(io_msg)
           error stop
        end if
+
+       deallocate (load_glo, domain_seen)
+
     end if
 
-    deallocate (n_active_glo)
+    deallocate (gid_glo, load_recv)
+
   end subroutine write_load_conn
 
-  
+
   subroutine cal_load_balance (min_load, avg_load, max_load, rel_imbalance)
     ! Compute the minimum, average, and maximum processor loads,
     ! together with the maximum-to-average load ratio.
@@ -246,7 +297,7 @@ contains
     end if
   end subroutine cal_load_balance
 
-  
+
   subroutine get_load_balance (mini, avg, maxi)
     implicit none
 
@@ -269,7 +320,7 @@ contains
     avg = real (load_sum, kind=dp)/real(n_process, kind=dp)
   end subroutine get_load_balance
 
-  
+
   subroutine write_level_mpi (routine, l, zlev, eval_pole, filename)
     implicit none
 
@@ -332,7 +383,7 @@ contains
     end do
   end subroutine write_level_mpi
 
-  
+
   subroutine init_comm_mpi_mod()
     implicit none
 
@@ -422,7 +473,7 @@ contains
 
   end subroutine recreate_send_patch_lists
 
-  
+
   subroutine check_alltoall_lengths
     implicit none
 
@@ -448,7 +499,7 @@ contains
     end if
   end subroutine check_alltoall_lengths
 
-  
+
   subroutine alltoall_dom (unpack_rout, n_values)
     implicit none
 
@@ -551,7 +602,7 @@ contains
     deallocate (values)
   end subroutine alltoall_dom
 
-  
+
   subroutine alltoall
     implicit none
 
@@ -585,7 +636,7 @@ contains
          recv_buf_i%elts, recv_lengths, recv_offsets, MPI_IN, comm)
   end subroutine alltoall
 
-  
+
   subroutine comm_masks_mpi (l)
     ! Communicate node and edge mask information between MPI processes.
     implicit none
@@ -751,7 +802,7 @@ contains
     end if
   end subroutine comm_masks_mpi
 
-  
+
   subroutine deadlock_test (flag)
     implicit none
     integer, intent(in) :: flag
@@ -779,7 +830,7 @@ contains
     end do
   end subroutine deadlock_test
 
-  
+
   subroutine update_bdry1_0 (field, l_start, l_end, flag_in)
     implicit none
 
@@ -799,7 +850,7 @@ contains
     call update_bdry__finish1 (field, l_start, l_end)
   end subroutine update_bdry1_0
 
-  
+
   subroutine update_bdry1_1 (field, l_start, l_end, flag_in)
     implicit none
 
@@ -819,7 +870,7 @@ contains
     call update_bdry__finish1 (field, l_start, l_end)
   end subroutine update_bdry1_1
 
-  
+
   subroutine update_bdry1_2 (field, l_start, l_end, flag_in)
     implicit none
 
@@ -839,7 +890,7 @@ contains
     call update_bdry__finish1 (field, l_start, l_end)
   end subroutine update_bdry1_2
 
-  
+
   subroutine update_bdry_0 (field, l, flag_in)
     implicit none
 
@@ -860,7 +911,7 @@ contains
     call update_bdry__finish( field, l)
   end subroutine update_bdry_0
 
-  
+
   subroutine update_bdry_1 (field, l, flag_in)
     ! Update a rank-1 field array.
     implicit none
@@ -882,7 +933,7 @@ contains
     call update_bdry__finish (field, l)
   end subroutine update_bdry_1
 
-  
+
   subroutine update_bdry_2 (field, l, flag_in)
     ! Update a rank-2 field array.
     implicit none
@@ -904,7 +955,7 @@ contains
     call update_bdry__finish (field, l)
   end subroutine update_bdry_2
 
-  
+
   subroutine update_bdry__start_0(field, l)
     implicit none
 
@@ -918,7 +969,7 @@ contains
     end if
   end subroutine update_bdry__start_0
 
-  
+
   subroutine update_bdry__start_1 (field, l)
     implicit none
 
@@ -932,7 +983,7 @@ contains
     end if
   end subroutine update_bdry__start_1
 
-  
+
   subroutine update_bdry__start_2 (field, l)
     implicit none
 
@@ -946,7 +997,7 @@ contains
     end if
   end subroutine update_bdry__start_2
 
-  
+
   subroutine update_bdry__start1_0( field, l_start, l_end)
     implicit none
 
@@ -1055,7 +1106,7 @@ contains
     call cp_bdry_inside (field)
   end subroutine update_bdry__start1_0
 
-  
+
   subroutine update_bdry__start1_1 (field, l_start, l_end)
     implicit none
 
@@ -1177,7 +1228,7 @@ contains
     call cp_bdry_inside (field)
   end subroutine update_bdry__start1_1
 
-  
+
   subroutine update_bdry__start1_2 (field, l_start, l_end)
     implicit none
 
@@ -1305,7 +1356,7 @@ contains
     call cp_bdry_inside (field)
   end subroutine update_bdry__start1_2
 
-  
+
   subroutine update_bdry__finish_0(field, l)
     implicit none
 
@@ -1319,7 +1370,7 @@ contains
     end if
   end subroutine update_bdry__finish_0
 
-  
+
   subroutine update_bdry__finish_1(field, l)
     ! Finish boundary updates for a rank-1 field array.
     implicit none
@@ -1334,7 +1385,7 @@ contains
     end if
   end subroutine update_bdry__finish_1
 
-  
+
   subroutine update_bdry__finish_2 (field, l)
     ! Finish boundary updates for a rank-2 field array.
     implicit none
@@ -1349,7 +1400,7 @@ contains
     end if
   end subroutine update_bdry__finish_2
 
-  
+
   subroutine update_bdry__finish1_0 (field, l_start, l_end)
     implicit none
 
@@ -1416,7 +1467,7 @@ contains
     nreq = 0
   end subroutine update_bdry__finish1_0
 
-  
+
   subroutine update_bdry__finish1_1 (field, l_start, l_end)
     ! Complete boundary communication for a rank-1 field array.
     implicit none
@@ -1487,7 +1538,7 @@ contains
     nreq = 0
   end subroutine update_bdry__finish1_1
 
-  
+
   subroutine update_bdry__finish1_2 (field, l_start, l_end)
     ! Complete boundary communication for a rank-2 field array.
     implicit none
@@ -1560,7 +1611,7 @@ contains
     nreq = 0
   end subroutine update_bdry__finish1_2
 
-  
+
   subroutine comm_nodes3_mpi(get, set)
     implicit none
 
@@ -1679,7 +1730,7 @@ contains
     end if
   end subroutine comm_nodes3_mpi
 
-  
+
   subroutine comm_nodes9_mpi (get, set)
     implicit none
 
@@ -1796,7 +1847,7 @@ contains
     end if
   end subroutine comm_nodes9_mpi
 
-  
+
   subroutine comm_patch_conn_mpi
     implicit none
 
@@ -1937,7 +1988,7 @@ contains
     end do
   end subroutine comm_patch_conn_mpi
 
-  
+
   function sync_max_int (val) result(value)
     implicit none
     integer, intent(in) :: val
@@ -1961,7 +2012,7 @@ contains
     value = val_glo
   end function sync_min_int
 
-  
+
   function sync_max_real_0 (val) result(value)
     implicit none
     real(dp), intent(in) :: val
@@ -2001,13 +2052,13 @@ contains
     value = val_glo
   end function sync_min_real_0
 
-  
+
   function sync_min_real_1 (val) result(value)
     implicit none
 
     real(dp), intent(in)  :: val(:)
     real(dp), allocatable :: value(:)
-    
+
     integer                             :: n
     real(dp), dimension(:), allocatable :: val_glo
 
@@ -2017,8 +2068,8 @@ contains
     call MPI_Allreduce (val, val_glo, n, MPI_DP, MPI_MIN, comm)
     value = val_glo
   end function sync_min_real_1
-  
-  
+
+
   function sum_real_0 (val) result(value)
     implicit none
     real(dp), intent(in) :: val
@@ -2029,8 +2080,8 @@ contains
     call MPI_Allreduce (val, val_glo, 1, MPI_DP, MPI_SUM, comm)
     value = val_glo
   end function sum_real_0
-  
-  
+
+
   function sum_real_1 (val) result(value)
     implicit none
     real(dp), intent(in)  :: val(:)
@@ -2149,7 +2200,7 @@ contains
          0, comm)
   end subroutine gatherv_int
 
-  
+
   subroutine gatherv_real4 (n_loc, n_glo, vec_loc, vec_glo)
     implicit none
 
@@ -2205,7 +2256,7 @@ contains
          0, comm)
   end subroutine gatherv_real8
 
-  
+
   subroutine gather_int(n_loc, n_glo, displs)
     implicit none
 
@@ -2231,5 +2282,5 @@ contains
     call MPI_Bcast(displs, n_process, MPI_IN, 0, comm)
   end subroutine gather_int
 
-  
+
 end module comm_mpi_mod

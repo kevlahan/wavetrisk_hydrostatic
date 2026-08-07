@@ -18,7 +18,7 @@ module main_mod
   use comm_mod,         only : get_coord, set_coord,  init_comm_mod
   use domain_ops_mod,   only : apply_interscale, apply_no_bdry,  apply_onescale2
   use geom_mod,         only : number_hex
-  use io_mod,           only : dump_adapt_mpi, load_adapt_mpi, load_topo, init_io_mod
+  use io_mod,           only : dump_adapt_mpi, load_adapt_mpi, load_topo, read_checkpoint_directory, init_io_mod
   use io_vtk_mod,       only : write_and_export
   use lin_solve_mod,    only : Full_Multigrid, Scheduled_Relaxation_Jacobi
   use lnorms_mod,       only : lnorm
@@ -118,6 +118,7 @@ contains
 
     if (resume >= 0) then
        cp_idx = resume
+       call read_checkpoint_directory (cp_idx)
        call restart
     else
        call init_basic
@@ -294,7 +295,6 @@ contains
        write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time / DAY
     end if
 
-    call write_load_conn (cp_idx)
     call dump_adapt_mpi (cp_idx)
     call restart
 
@@ -302,10 +302,8 @@ contains
 
   subroutine restart 
     ! Fresh restart from checkpoint data (all structures reset)
-    use utils_mod
+
     implicit none
-    character(4)              :: cp4
-    character(:), allocatable :: archive, cmd
 
     call deallocate_structures  ! deallocate all dynamic arrays and variables
     call init_basic
@@ -315,15 +313,6 @@ contains
             '********************************************************* Begin Restart &
             &**********************************************************'
        write (6,'(a,i4,/)') 'Restarting from checkpoint ', cp_idx
-
-       ! Uncompress checkpoint data
-       write (cp4,'(i4.4)') cp_idx
-       archive = trim(run_id) // '_checkpoint_' // cp4 // '.tgz'
-
-       write (6, '(a,a,/)') 'Loading file ', archive
-
-       cmd  = 'gtar xzf ' // archive
-       call execute_command_line (cmd)
     end if
     call barrier
 
