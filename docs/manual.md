@@ -48,7 +48,7 @@ There are two basic sub-models:
 - Full multigrid elliptic solver on adaptive grid.
 - Removal of implicit horizontal diffusion option.
 ##### WAVETRISK 2.2
-- Dynamic load balancing and automatic checkpointing using `charm++/AMPI`. (Only works on a single node due to bugs in `pieglobals` implementation of `charm++/AMPI`.)
+- Dynamic load balancing and automatic checkpointing using `charm++/AMPI`. Removed due to instability and bugs.
 ##### WAVETRISK 2.1
 - Spherical harmonics test case and associated matlab m-file for computing power spectra.
 - Ocean modelling test cases.
@@ -94,7 +94,6 @@ There are two basic sub-models:
 >[3.1 How to prepare working directory](#markdown-header-31-how-to-prepare-working-directory)  
 >[3.2 Checkpointing and restarting](#markdown-header-32-checkpointing-and-restarting)    
 >[3.3 mpi examples](#markdown-header-33-mpi-examples)  
->[3.4 ampi examples (experimental)](#markdown-header-34-ampi-examples-experimental)  
 
 [4. Post-processing](#markdown-header-4-post-processing)  
 >[4.1 Viewing spherical data with paraview](#markdown-header-41-viewing-spherical-data-with-paraview)   
@@ -180,7 +179,6 @@ Parallel:
 <pre>
 <code>
     MODE=mpi  (default load balancing and checkpointing) 
-    MODE=ampi (AMPI load balancing and checkpointing)
 </code>
 </pre>
 Serial (primarily for testing:  
@@ -190,33 +188,7 @@ Serial (primarily for testing:
 </code>
 </pre>
 ### 2.2 Load balancing   
-`MODE=mpi` (default) rebalances the computational load statically at each checkpoint using a simple next fit algorithm.   
-`MODE=ampi` uses `charm++/AMPI` to check the load and rebalance dynamically if necessary every `irebalance` time steps.   To use `AMPI` you first need to install the `charm++/AMPI` library as follows:  
-<pre>
-<code>
-    git clone https://github.com/UIUC-PPL/charm
-    cd charm
-    git checkout v8.0.0
-</code>
-</pre>
-To build for a local machine ("standalone") with gfortran:
-<pre>
-<code>
-    ./build AMPI-only multicore-linux-x86_64 --with-production --force
-</code>
-</pre>
-On niagara: `module load NiaEnv/.2022a gcc openmpi autotools`. 
-
-To build for a multi-node machine, e.g. Compute Canada machine niagara, using gfortran:
-<pre>
-<code>
-    module load NiaEnv/.2022a gcc/11.2.0 ucx/1.11.2 openmpi/4.1.2+ucx-1.11.2 openpmix/3.1.5 autotools  
-    ./build AMPI-only ucx-linux-x86_64 smp openpmix --with-production --force    
-    module load NiaEnv/.2022a intel/2021u4 ucx/1.11.2 openmpi/4.1.2+ucx-1.11.2   
-    CMK_NATIVE_CXX=icpc CMK_NATIVE_LDXX=icpc ./build AMPI-only ucx-linux-x86_64 smp openpmix icc ifort --with-production --force
-</code>
-</pre>
-If `PMIx` is not available as a module, you need to build it yourself and then add `--basedir=$HOME/pmix-3.1.5/build` to the `AMPI` to the build command.
+`MODE=mpi` rebalances the computational load statically at each checkpoint using a simple next fit algorithm.   
 
 ### 2.3 Optimization  
 Default is `OPTIM=2`. Setting `OPTIM=0` adds the `flag -g` and other compiler-dependent checks. `OPTIM=3` or `--ffast-math` is not recommended as it is unstable and causes crashes.
@@ -257,13 +229,6 @@ To compile test case climate using the `Held-Suarez` physics model and NCAR topo
 </pre>
 !! Always do "make clean" when compiling a new test case and when you modify the test case !!
 
-To compile test case jet using `charm++/AMPI` and `gfortran` with `J5` as the coarsest grid:
-<pre>
-<code>
-    make TEST_CASE=jet PARAM=param_J6 MODE=ampi F90=gfortran
-</code>
-</pre>
-
 ## 3. Running  
 ### 3.1 How to prepare working directory  
 Initial steps (using test case climate as an example).  
@@ -275,7 +240,6 @@ Initial steps (using test case climate as an example).
     ln -s wavetrisk_hydrostatic/bin/climate
 </code>
 </pre>
-Also include climate.user.so and charmrun, in addition to executable climate, for AMPI.
 
 3. Provide a symbolic link to the optimized grids (if `optimize_grid=DATA_GRID`):
 <pre>
@@ -334,54 +298,6 @@ Example slurm script for an mpi job (save in a file, such as up_job.sh):
 </code>
 </pre>
 Submit using `sbatch up_job.sh` (where `up_sh.sh` is the name of the slurm script file)   
-### 3.4 ampi examples (experimental)  
-!! Only works on a single node due to bugs in `pieglobals` implementation of c`harm++/AMPI`.  !!!                            
-
-1. Multi node runs using `AMPI` are launched using the charmrun command, with the following options.
-<pre>
-<code>
-    p    = total number of physical cores used for worker threads 
-             (limited by the number of available nodes and cores per node)  
-    ppn  = number of worker threads per socket  
-    vp   = number of virtual processors  (<= number of coarse scale domains 10 2<sup>2 DOMAIN_LEVEL</sup>)  
-    pemap  specifies which cores to use for worker threads on each node    
-    commap specifies which cores to use for communication threads on each socket (one per socket)  
-    p = ppn  (number of sockets per node)  (number of nodes)  
-</code>
-</pre>
-!!  One core per socket must be reserved for communication threads. !!
-
-Note that ppn, pemap, and commap are specified per node, so they don't change as you modify the number of nodes. The core labels
-for `pemap` and `commap` are numbered `0:ncores-1`, where ncores = total number of cores on each node.
- 
-The ratio `vp/p` determines the degree of "virtualization" used for load balancing. Typically, `vp/p = 4 to 16` is optimal. The
-maximum value for <code>vp = 10 2<sup>2 DOMAIN_LEVEL</sup> </code> (the number of coarse domains).
-
-Each node on the Compute Canada machine niagara has 2 sockets with 20 cores each, so a run using all available resources  on 4 nodes can be launched with the following `slurm` script:
-<pre>
-<code>
-    #!/bin/bash                                                                                                        
-    #SBATCH --account=def-kevlahan                                                                                     
-    #SBATCH --nodes=4                 # number of nodes
-    #SBATCH --ntasks=8                # 2  nodes  
-    #SBATCH --cpus-per-task=20        # 20 cores for each task (each node has 2 sockets with 20 cores each)  
-    #SBATCH --exclusive  
-    #SBATCH --time=00-00:30           # time (DD-HH:MM)                                                                   
-    #SBATCH --output=drake_charm.log                                                                               
-    module load NiaEnv/.2022a gcc ucx/1.11.2 openmpi/4.1.2+ucx-1.11.2 openpmix/.experimental-3.1.5  
-    srun ./drake_charm_J6 2layer.in +ppn 19 +vp 304 +pemap 1-19,21-39 +commap 0,20  
-</pre>
-</code>
-
-In this case, p = (4 nodes)  (19 worker threads   2 sockets) = 152.  Cores 0 (on socket 1) and 20 (on socket 2) of each node are used for communication threads, while the remaining 19 cores (1-19 and 21-39) on each socket are used for worker threads.  The virtualization ratio in this case is `vp/p` = 304/152 = 2.
-
-2. A single node run (i.e. local machine build) on a 40 core cpu using the Refine load balancer is launched using
-<pre>
-<code>
-    ./charmrun +p 40 ./drake_charm_J6 2layer.in +vp 160 +balancer RefineLB +LBDebug 1  
-</code>
-</pre>
-In this case the virtualization ratio is `vp/p = 160/40 = 4`.
 
 ## 4. Post-processing  
 ### 4.1 Viewing spherical data with paraview  
