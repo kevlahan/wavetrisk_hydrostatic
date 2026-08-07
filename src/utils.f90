@@ -845,11 +845,11 @@ contains
 
     implicit none
 
-    type(Domain), intent(in) :: dom
-    integer,      intent(in) :: i, j, zlev
-    integer,      intent(in) :: offs(N_BDRY+1) 
-    integer,      intent(in) :: dims(2,N_BDRY+1)
-    real(dp)                 :: val(1:EDGE)
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: val(1:EDGE)
 
     integer     :: id, idE, idN, idNE
     type(Coord) :: vel0
@@ -960,10 +960,10 @@ contains
     ! also used for kinetic energy
     implicit none
 
-    type(Domain), intent(in) :: dom
-    integer,      intent(in) :: i, j, zlev
-    integer,      intent(in) :: offs(N_BDRY+1)
-    integer,      intent(in) :: dims(2,N_BDRY+1)
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
        
     real(dp)                 :: val(2) 
 
@@ -1022,10 +1022,10 @@ contains
     ! Approximate vorticity at hexagon points
     implicit none
 
-    type(Domain), intent(in) :: dom
-    integer,      intent(in) :: i, j, zlev
-    integer,      intent(in) :: offs(N_BDRY+1)
-    integer,      intent(in) :: dims(2,N_BDRY+1)
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id, idW, idSW, idS, d
 

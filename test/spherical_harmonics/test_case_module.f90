@@ -1,18 +1,32 @@
 module test_case_mod
+
+#ifdef MPI
+  use mpi_f08
+#endif
+
+  use kind_mod
+  use shared_mod
+  use arch_mod
   use comm_mpi_mod
-  use utils_mod
+  use domain_mod
+  use domain_ops_mod
+  use geom_mod
   use init_mod
-  use ops_mod
   use io_mod
+  use utils_mod
   use vert_diffusion_mod
+
   implicit none
+
   integer        :: angular_order, cp_beg, cp_end, lwin, N, ntaper, k_min, k_max
-  real(8)        :: concentration, lat0, lon0, theta0, z_linear
+  real(dp)        :: concentration, lat0, lon0, theta0, z_linear
   character(255) :: data_case, spec_type
   character(10)  :: stratification = "tanh"
   character(255) :: coords         = "uniform" ! not used if sigma_z = .true.
   logical        :: local_spec
+  
 contains
+  
   subroutine assign_functions
     ! Assigns generic pointer functions to functions defined in test cases
     implicit none
@@ -32,36 +46,48 @@ contains
     z_coords                 => z_coords_case
   end subroutine assign_functions
 
-  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
+  
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type) result(flux)
+    ! Scalar diffusion flux
+    !
+    ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
     use domain_mod
-    implicit none
-    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
-    type(domain)                                         :: dom
-    integer                                              :: id, idE, idNE, idN, v, zlev
-    logical, optional                                    :: type
 
-    physics_scalar_flux_case = 0.0_dp
+    implicit none
+
+    type(Float_Field), intent(inout)        :: q(1:N_VARIABLE,1:zlevels)
+    type(domain),      intent(inout)        :: dom
+    integer,           intent(in)           :: id, idE, idNE, idN, v, zlev
+    logical,           intent(in), optional :: type
+    real(dp)                                :: flux(EDGE)
+
+    flux = 0.0_dp
   end function physics_scalar_flux_case
+  
 
-  function physics_velo_source_case (dom, i, j, zlev, offs, dims)
-    use domain_mod
+  function physics_velo_source_case (dom, i, j, zlev, offs, dims) result(source)
+    ! Additional physics for the source term of the velocity trend
+    
     implicit none
-    real(8), dimension(1:EDGE)     :: physics_velo_source_case
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: source(EDGE)
 
-    physics_velo_source_case = 0.0_dp
+    source = 0.0_dp
   end function physics_velo_source_case
 
-  real(8) function surf_geopot_case (d, id)
+  
+  function surf_geopot_case (d, id) result(val)
     implicit none
-    integer :: d, id
+    integer, intent(in) :: d, id
+    real(dp) :: val
 
-    surf_geopot_case = 0.0_dp
+    val = 0.0_dp
   end function surf_geopot_case
+  
 
   subroutine read_test_case_parameters
     implicit none
@@ -104,6 +130,7 @@ contains
     k_min = 1 ; k_max = zlevels
   end subroutine read_test_case_parameters
 
+  
   subroutine print_test_case_parameters
     implicit none
 
@@ -152,6 +179,7 @@ contains
     end if
   end subroutine print_test_case_parameters
 
+  
   subroutine apply_initial_conditions_case
     implicit none
 
@@ -169,6 +197,7 @@ contains
     call update_bdry (topography, NONE)
   end subroutine apply_initial_conditions_case
 
+  
   subroutine update_case
     implicit none
 
@@ -177,13 +206,16 @@ contains
     call update_bdry (topography, NONE)
   end subroutine update_case
 
+  
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Dummy routine
+      
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: d, id, id_i, k
 
@@ -204,20 +236,22 @@ contains
     end if
   end subroutine init_sol
 
+  
   subroutine init_mean (dom, i, j, zlev, offs, dims)
     ! Initialize mean values
     ! In split mean perturbation need to set sol_mean(S_MASS,:)
-    use utils_mod
+    
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
-    integer                       :: d, id, id_i, k
-    real(8)                       :: eta, rho, rho_dz, z_s
-    real(8), dimension(1:zlevels) :: dz
-    real(8), dimension(0:zlevels) :: z
+    integer                        :: d, id, id_i, k
+    real(dp)                       :: eta, rho, rho_dz, z_s
+    real(dp), dimension(1:zlevels) :: dz
+    real(dp), dimension(0:zlevels) :: z
    
     d    = dom%id + 1
     id   = idx (i, j, offs, dims)
@@ -257,22 +291,25 @@ contains
     end if
   end subroutine init_mean
 
-  function z_coords_case (eta_surf, z_s) 
+  
+  function z_coords_case (eta_surf, z_s) result(val)
     ! Hybrid sigma-z vertical coordinates to minimize inclination of layers to geopotential
     ! near the free surface over strong bathymetry gradients.
     ! Reference: similar to Shchepetkin and McWilliams (JCP vol 228, 8985-9000, 2009)
     !
     ! Sets the a_vert parameter that depends on eta_surf (but not b_vert).
+    
     implicit none
-    real(8),          intent (in) :: eta_surf, z_s ! free surface and bathymetry
-    real(8), dimension(0:zlevels) :: z_coords_case
+    
+    real(dp), intent (in) :: eta_surf, z_s ! free surface and bathymetry
+    real(dp)              :: val(0:zlevels)
 
-    integer                       :: k
-    real(8)                       :: cff, cff1, cff2, hc, z_0
-    real(8), dimension(0:zlevels) :: Cs, sc
+    integer                        :: k
+    real(dp)                       :: cff, cff1, cff2, hc, z_0
+    real(dp)                       :: Cs(0:zlevels), sc(0:zlevels)
 
-    real(8), parameter            :: theta_b = 0.0_dp, theta_s = 7.0_dp
-    real(8), parameter            :: hc_min = -200 * METRE ! minimum depth of uniform layer region
+    real(dp), parameter            :: theta_b = 0.0_dp, theta_s = 7.0_dp
+    real(dp), parameter            :: hc_min = -200 * METRE ! minimum depth of uniform layer region
 
     select case (stratification)
     case ("linear")
@@ -295,14 +332,15 @@ contains
        Cs(k) = (1.0_dp - theta_b) * cff1 * sinh (theta_s * sc(k)) + theta_b * (cff2 * tanh (theta_s * (sc(k) + 0.5_dp)) - 0.5_dp)
     end do
 
-    z_coords_case(0) = z_s
+    val(0) = z_s
     do k = 1, zlevels
        cff = hc * (sc(k) - Cs(k))
        z_0 = cff - Cs(k) * z_s
        a_vert(k) = 1.0_dp - z_0 / z_s
-       z_coords_case(k) = eta_surf * a_vert(k) + z_0
+      val(k) = eta_surf * a_vert(k) + z_0
     end do
   end function z_coords_case
+  
 
   subroutine initialize_a_b_vert_case
     ! Initialize hybrid sigma-coordinate vertical grid
@@ -352,20 +390,23 @@ contains
 
   end subroutine initialize_dt_viscosity_case
 
+  
   subroutine dump_case (fid)
     implicit none
-    integer :: fid
+    integer, intent(in) :: fid
 
   end subroutine dump_case
 
+  
   subroutine load_case (fid)
     implicit none
-    integer :: fid
+    integer, intent(in) :: fid
 
     if (trim(data_case) /= "climate") then
        read (fid) iwrite
        read (fid) threshold
     end if
   end subroutine load_case
+
   
 end module test_case_mod

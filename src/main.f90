@@ -56,7 +56,7 @@ module main_mod
   implicit none
 
   private
-  public :: initialize, time_step
+  public :: initialize, restart, time_step
   
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
   real(dp)                           :: dt_new, initial_total_mass, time_mult

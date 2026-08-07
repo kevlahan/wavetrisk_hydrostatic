@@ -6,19 +6,32 @@ program spherical_harmonics
   ! J. Fourier Anal. Appl., 13, doi:10.1007/s00041-006-6904-1, 665-692.
   !
   ! Only need velocity field for spectra (not scalars)
-  use main_mod
-  use test_case_mod
+  
+#ifdef MPI
+  use mpi_f08
+#endif
+
+  use SHTOOLS
+
+  use kind_mod
+  use shared_mod
+  use adapt_mod
+  use arch_mod
+  use domain_ops_mod
   use io_mod
+  use main_mod
+  use multi_level_mod
+  use ops_mod
   use projection_mod
-  use io_vtk_mod
+  use time_integr_mod
+  use test_case_mod
+  use utils_mod
+  use wavelet_mod
+   
   implicit none
 
-  integer                            :: idata_loc, nmax
-  real(8), dimension(:), allocatable :: data, data_loc, lat_loc, lon_loc
-
-  call init_arch_mod 
-  call init_comm_mpi_mod
-  call read_test_case_parameters
+  integer                             :: idata_loc, nmax
+  real(dp), dimension(:), allocatable :: data, data_loc, lat_loc, lon_loc
 
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !     Parameters (need radius for spectra)
@@ -98,13 +111,15 @@ program spherical_harmonics
   if (rank == 0) call cleanup
   
   call finalize
+  
 contains
+  
   subroutine spec_latlon_1layer
     ! Compute energy spectra of div-free and curl-free parts of the velocity field from 2d latitude-longitude projections
     ! of vorticity and div(u) respectively.
-    use domain_mod
-    use multi_level_mod
+  
     implicit none
+    
     integer :: d, j, k, l
 
     call initialize_projection (N)
@@ -161,11 +176,13 @@ contains
     deallocate (field2d)
   end subroutine spec_latlon_1layer
 
+  
   subroutine flux_latlon_1layer
     ! Computes spectral transfer function and spectral flux for each layer
     !! Must call spec_latlon_1layer first to fill up grid !!
-    use SHTOOLS
+
     implicit none
+
     integer      :: d, ierr, j, k, lmax, ll, mm
     character(4) :: var_file1, var_file2
     
@@ -304,16 +321,17 @@ contains
        close (10); close (11)
     end do
   end subroutine flux_latlon_1layer
+  
 
   subroutine cal_nl (dom, i, j, zlev, offs, dims)
     ! Nonlinear terms for energy flux computation
-    use ops_mod
-    use io_mod
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer  :: id
     integer  :: id_e(1:EDGE)
@@ -324,10 +342,11 @@ contains
     dvelo(id_e) = - Qperp (dom, i, j, z_null, offs, dims)  - gradi_e (ke, dom, i, j, offs, dims)
   end subroutine cal_nl
 
+  
   subroutine avg_spec (data_type)
     ! Computes mean and variance of saved spectra. Saves mean and standard deviation.
     implicit none
-    character(*) :: data_type
+    character(*), intent(in) :: data_type
 
     integer                             :: cp, k, l, ll, lmax, ntime
     real(dp), dimension(:), allocatable :: delta, delta2, M2, mean, pspec, variance
@@ -376,49 +395,47 @@ contains
     end do
   end subroutine avg_spec
 
-  subroutine avg_local_spec (data_type)
-    implicit none
-    character(*) :: data_type
+  ! subroutine avg_local_spec (data_type)
+  !   implicit none
+  !   character(*) :: data_type
 
-    integer                            :: cp, j, jj, k, lmax
-    real(8), dimension(:), allocatable :: mtse, mtse_av, sd, sd_av
-    character(4)                       :: var_file1, var_file2
+  !   integer                            :: cp, j, jj, k, lmax
+  !   real(dp), dimension(:), allocatable :: mtse, mtse_av, sd, sd_av
+  !   character(4)                       :: var_file1, var_file2
 
-    lmax = N/4 - 1
+  !   lmax = N/4 - 1
     
-    allocate (mtse(lmax-lwin+1),    sd(lmax-lwin+1))
-    allocate (mtse_av(lmax-lwin+1), sd_av(lmax-lwin+1))
+  !   allocate (mtse(lmax-lwin+1),    sd(lmax-lwin+1))
+  !   allocate (mtse_av(lmax-lwin+1), sd_av(lmax-lwin+1))
     
-    do k = k_min, k_max
-       write (var_file2, '(i4.4)') k
-       mtse = 0d0; mtse_av = 0d0; sd = 0d0; sd_av = 0d0
-       do cp = cp_beg, cp_end
-          write (var_file1, '(i4.4)') cp
-          open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
-               form="FORMATTED", status="OLD")
-          do j = 1, lmax - lwin + 1
-             read (10,*) jj, mtse(j), sd(j)
-          end do
-          close (10)
-          mtse_av = mtse_av + mtse
-          sd_av = sd_av + sd
-       end do
-       mtse_av = mtse_av / (cp_end - cp_beg + 1)
-       sd_av   = sd_av   / (cp_end - cp_beg + 1)
+  !   do k = k_min, k_max
+  !      write (var_file2, '(i4.4)') k
+  !      mtse = 0d0; mtse_av = 0d0; sd = 0d0; sd_av = 0d0
+  !      do cp = cp_beg, cp_end
+  !         write (var_file1, '(i4.4)') cp
+  !         open (unit=10, file=trim(run_id)//'_'//var_file1//'_'//var_file2//'_'//trim(data_type)//'_spec', &
+  !              form="FORMATTED", status="OLD")
+  !         do j = 1, lmax - lwin + 1
+  !            read (10,*) jj, mtse(j), sd(j)
+  !         end do
+  !         close (10)
+  !         mtse_av = mtse_av + mtse
+  !         sd_av = sd_av + sd
+  !      end do
+  !      mtse_av = mtse_av / (cp_end - cp_beg + 1)
+  !      sd_av   = sd_av   / (cp_end - cp_beg + 1)
 
-       open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
-       do j = 1, lmax - lwin + 1
-          write (10,'(i4,1x,2(es16.8,1x))') j, mtse_av(j), sd_av(j)
-       end do
-       close (10)
-    end do
+  !      open (unit=10, file=trim(run_id)//'_'//var_file2//'_'//trim(data_type)//'_spec', form="FORMATTED", status="REPLACE")
+  !      do j = 1, lmax - lwin + 1
+  !         write (10,'(i4,1x,2(es16.8,1x))') j, mtse_av(j), sd_av(j)
+  !      end do
+  !      close (10)
+  !   end do
 
-    deallocate (mtse, mtse_av, sd, sd_av)
-  end subroutine avg_local_spec
+  !   deallocate (mtse, mtse_av, sd, sd_av)
+  ! end subroutine avg_local_spec
 
   subroutine spectrum_lon_lat (data_type, k)
-    use SHTOOLS
-    implicit none
     !  Input: 
     !  A 2D equally sampled (n,n) grid  (default) or equally spaced grid (n,2*n) that conforms to the sampling theorem of Driscoll and Healy (1994).
     !  The first latitudinal band corresponds to 90 N, the latitudinal band for 90 S is not included, and the latitudinal sampling interval is 180/n degrees.
@@ -427,25 +444,28 @@ contains
     !    n (integer): size of data griddh (n,2*n) or (n,n)
     !
     !  Output: 
-    !  cilm (real(8), dimension (2,n/2,n/2) or (2, lmax_calc+1, lmax_calc+1)):
+    !  cilm (real(dp), dimension (2,n/2,n/2) or (2, lmax_calc+1, lmax_calc+1)):
     !  The real spherical harmonic coefficients of the function. These will be exact if the function is bandlimited to degree lmax=n/2-1.
     !  The coefficients c1lm and c2lm refer to the cosine (clm) and sine (slm) coefficients, respectively, with clm=cilm(1,l+1,m+1) and slm=cilm(2,l+1,m+1).
     !
     !  lmax (integer):     
     !  The maximum spherical harmonic bandwidth of the input grid, which is n/2-1.
     !  If the optional parameter lmax_calc is not specified, this corresponds to the maximum spherical harmonic degree of the output coefficients cilm.
-    integer                                 :: k
-    character(*)                            :: data_type
 
-    integer                                 :: ierr, l, lmax
-    real(8)                                 :: area, power_l, rms_l
+    implicit none
+
+    integer,      intent(in) :: k
+    character(*), intent(in) :: data_type
+
+    integer  :: ierr, l, lmax
+    real(dp) :: area, power_l, rms_l
 
     ! Spherical harmonic coefficients
     ! cilm(1,l+1,m+1) are cosine coefficients C_lm, l = 0, ... , lmax, m = 0, ..., l
     ! cilm(2,l+1,m+1) are sine   coefficients S_lm, l = 0, ... , lmax, m = 0, ..., l
-    real(8), dimension (:,:,:), allocatable :: cilm
+    real(dp), dimension (:,:,:), allocatable :: cilm
     
-    real(8), dimension (:),     allocatable :: pspectrum ! global power spectrum of the function
+    real(dp), dimension (:),     allocatable :: pspectrum ! global power spectrum of the function
     character(4)                            :: var_file1, var_file2
     
     write (var_file1, '(i4.4)') cp_idx
@@ -502,23 +522,25 @@ contains
     deallocate (cilm, pspectrum)
   end subroutine spectrum_lon_lat
   
+  
   subroutine local_spectrum (cilm, lmax)
     ! Computes a localized multitaper spectral analysis of an input function expressed in spherical harmonics. The maximum degree of the
     ! localized multitaper cross-power spectrum estimate is lmax-lmaxt. lat0 (deg), lon0 (deg), theta0 (radians) define local region
-    use SHTOOLS
+
     implicit none
-    integer                                :: lmax
-    real(8), dimension (2, lmax+1, lmax+1) :: cilm
+
+    integer,                                 intent(in)  :: lmax
+    real(dp), dimension (2, lmax+1, lmax+1), intent(out) :: cilm
    
     integer                               :: ierr, j, l
 
-    real(8)                               :: area
-    real(8), dimension (:), allocatable   :: eigenvalues ! concentration factors of the concentration windows
-    real(8), dimension (:), allocatable   :: mtse        ! local multitaper power spectrum estimate
-    real(8), dimension (:), allocatable   :: sd          ! errors of the localized multitaper power spectral estimates
+    real(dp)                               :: area
+    real(dp), dimension (:), allocatable   :: eigenvalues ! concentration factors of the concentration windows
+    real(dp), dimension (:), allocatable   :: mtse        ! local multitaper power spectrum estimate
+    real(dp), dimension (:), allocatable   :: sd          ! errors of the localized multitaper power spectral estimates
     integer, dimension (:), allocatable   :: taper_order ! array containing the angular orders of the spherical harmonic coefficients in each column of the array tapers
                                                          ! (each window has non-zero coefficients for a single angular order that is specified in the array taper_order)
-    real(8), dimension (:,:), allocatable :: tapers      ! array of the windowing functions, arranged in columns (obtained from SHReturnTapers)
+    real(dp), dimension (:,:), allocatable :: tapers      ! array of the windowing functions, arranged in columns (obtained from SHReturnTapers)
     ! (each window has non-zero coefficients for a single angular order that is specified in the array taper_order)
 
     allocate(eigenvalues((lwin+1)**2), &
@@ -555,11 +577,13 @@ contains
     end do
     deallocate (eigenvalues, mtse, sd, taper_order, tapers)
   end subroutine local_spectrum
+  
 
   subroutine spec_sphere 
     ! Combine vorticity and coordinate data on triangles into single vectors on rank 0 and compute spectrum
-    use domain_mod
+    
     implicit none
+    
     integer                       :: d, j, k, l, n_loc
     integer, dimension(n_process) :: displs, n_glo
     logical, parameter            :: hex = .false.
@@ -633,12 +657,13 @@ contains
     end do
     deallocate (data, lat, lon, data_loc, lat_loc, lon_loc)
   end subroutine spec_sphere
+  
 
   subroutine spectrum_sphere (data_type, k)
     !  Uses shtools routine SHExpandDH to expand data at irregularly spaced grid points on the sphere using a least squares inversion and then
     !  the power spectrum is calculated using SHPowerSpectrum or SHPowerSpectrumDensity. For a given spherical harmonic degree l,
     !
-    !  cilm : output, real(8), dimension (2, lmax+1, lmax+1)
+    !  cilm : output, real(dp), dimension (2, lmax+1, lmax+1)
     !  The real spherical harmonic coefficients of the function. The coefficients C1lm and C2lm refer to the cosine (Clm) and sine (Slm) coefficients,
     !  respectively, with Clm=cilm(1,l+1,m+1) and Slm=cilm(2,l+1,m+1).
     !
@@ -650,17 +675,18 @@ contains
     !  If present, instead of executing a STOP when an error is encountered, the variable exitstatus will be returned describing the error.
     !  0 = No errors; 1 = Improper dimensions of input array; 2 = Improper bounds for input variable; 3 = Error allocating memory; 4 = File IO error.
     !
-    !    pspectrum : output, real(8), dimension (lmax+1)
+    !    pspectrum : output, real(dp), dimension (lmax+1)
     !    pspectrum(l) = Sum_{i=1}^2 Sum_{m=0}^l cilm(i, l+1, m+1)**2
-    use SHTOOLS
-    implicit none
-    integer      :: k
-    character(*) :: data_type
 
-    integer                                 :: ierr, j, lmax
-    real(8), dimension(:),      allocatable :: pspectrum
-    real(8), dimension (:,:,:), allocatable :: cilm
-    character(4)                            :: var_file1, var_file2
+    implicit none
+    
+    integer,      intent(in) :: k
+    character(*), intent(in) :: data_type
+
+    integer                                  :: ierr, j, lmax
+    real(dp), dimension(:),      allocatable :: pspectrum
+    real(dp), dimension (:,:,:), allocatable :: cilm
+    character(4)                             :: var_file1, var_file2
 
     ! Find spherical harmonics for irregularly spaced data
     lmax = floor (sqrt(dble(nmax)) - 1)
@@ -697,13 +723,16 @@ contains
     deallocate (cilm, pspectrum)
   end subroutine spectrum_sphere
 
+  
   subroutine define_data_tri_pole (dom, p, i, j, zlev, offs, dims, ival)
-    use domain_mod
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: ival, i, j, p, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: ival
+    integer,      intent(in)    :: i, j, p, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id, id_t
 
@@ -720,14 +749,17 @@ contains
     call cart2sph (dom%ccentre%elts(id_t), lon_loc(idata_loc), lat_loc(idata_loc))
   end subroutine define_data_tri_pole
 
+  
   subroutine define_data_tri (dom, i, j, zlev, offs, dims)
     ! Stores vorticity and associated latitude-longitude coordinates for spherical harmonic calculation
     ! (data on triangles)
+    
     implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id, id_t
 
@@ -744,13 +776,16 @@ contains
     call cart2sph (dom%ccentre%elts(id_t), lon_loc(idata_loc), lat_loc(idata_loc))
   end subroutine define_data_tri
 
+  
   subroutine define_data_hex_pole (dom, p, i, j, zlev, offs, dims, ival)
-    use domain_mod
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: ival, i, j, p, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: ival
+    integer,      intent(in)    :: i, j, p, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id
 
@@ -761,15 +796,18 @@ contains
     call cart2sph (dom%node%elts(id), lon_loc(idata_loc), lat_loc(idata_loc))
   end subroutine define_data_hex_pole
 
+  
   subroutine define_data_hex (dom, i, j, zlev, offs, dims)
     ! Stores vorticity and associated latitude-longitude coordinates for spherical harmonic calculation
     ! (data on triangles)
+    
     implicit none
-    type (Domain)                  :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    
     integer :: id
 
     id = idx (i, j, offs, dims) + 1
@@ -779,8 +817,11 @@ contains
     call cart2sph (dom%node%elts(id), lon_loc(idata_loc), lat_loc(idata_loc))
   end subroutine define_data_hex
 
+  
   subroutine cleanup
+    
     implicit none
+    
     character(:), allocatable :: cmd
 
     ! Delete intermediate files

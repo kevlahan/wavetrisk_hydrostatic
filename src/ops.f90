@@ -21,7 +21,7 @@ module ops_mod
 
   private
   public :: init_ops_mod, post_step1, step1, scalar_trend, du_grad, du_source, cal_surf_press, integrate_pressure_up
-  public :: cal_pressure, post_vort, cal_vort, cal_Laplacian_rotu, gradi_e, cal_div, curlv_e, Qperp_Gassmann 
+  public :: cal_pressure, post_vort, cal_vort, cal_Laplacian_rotu, gradi_e, cal_div, curlv_e, Qperp, Qperp_Gassmann 
 
   
 contains
@@ -888,7 +888,7 @@ contains
     integer,      intent(in)    :: i, j, zlev
     integer,      intent(in)    :: offs(N_BDRY+1)
     integer,      intent(in)    :: dims(2,N_BDRY+1)
-    real(dp)                    :: val(3)
+    real(dp)                    :: val(EDGE)
     
     integer  :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
     real(dp) :: wgt1(5), wgt2(5)
@@ -960,7 +960,7 @@ contains
     integer,      intent(in)    :: i, j, zlev
     integer,      intent(in)    :: offs(N_BDRY+1)
     integer,      intent(in)    :: dims(2,N_BDRY+1)
-    real(dp)                    :: val(3)
+    real(dp)                    :: val(EDGE)
       
     integer  :: id, idNW, idN, idNE, idW, idE, idSW, idS, idSE
     real(dp) :: wgt1(5), wgt2(5)
