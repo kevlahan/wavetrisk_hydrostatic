@@ -1,9 +1,6 @@
 # ===========================================================================
 # User-configurable options
 #
-# MODE options:
-#   ser | mpi
-#
 # Build modes:
 #   DEBUG=false  → optimized
 #   DEBUG=asan   → ASan/UBSan (Linux/HPC only)
@@ -12,7 +9,6 @@
 DEBUG         ?= false
 TEST_CASE     ?= climate
 PARAM         ?= param_J5
-MODE          ?= mpi
 MPIF90        ?= mpif90
 PREFIX        ?= .
 SRC_DIR       ?= src
@@ -35,21 +31,8 @@ endif
 # =========================
 # Toolchain selection
 # =========================
-ifeq ($(MODE),ser)
-
-FC   := gfortran
-PROC := ser
-
-else ifeq ($(MODE),mpi)
-
 FC   := $(MPIF90)
 PROC := mpi
-
-else
-
-$(error Unknown MODE='$(MODE)'; use ser or mpi)
-
-endif
 
 LD := $(FC)
 
@@ -69,10 +52,7 @@ UNAME_S := $(shell uname -s)
 # Preprocessor flags
 # =========================
 CPPFLAGS += -cpp
-
-ifneq ($(MODE),ser)
 CPPFLAGS += -DMPI
-endif
 
 ifeq ($(PHYSICS),true)
 CPPFLAGS += -DPHYSICS
@@ -274,13 +254,13 @@ SRC = kind.f90 \
       geom.f90 \
       patch.f90 \
       dyn_array.f90 \
-      base_$(PROC).f90 \
+      base_mpi.f90 \
       spline.f90 \
       domain.f90 \
       domain_ops.f90 \
       init.f90 \
       comm.f90 \
-      comm_$(PROC).f90 \
+      comm_mpi.f90 \
       utils.f90 \
       projection.f90 \
       equation_of_state.f90 \
