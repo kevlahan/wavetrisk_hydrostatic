@@ -25,7 +25,7 @@ module io_mod
 
   private
   public :: assign_NCAR_topo, dump_adapt_mpi, kinetic_energy, load_adapt_mpi, init_io_mod, load_topo, save_topo, vort_extrema
-  public :: topo, pot_energy, total_ke, layer1_ke, layer2_ke, one_layer_ke, barotropic_ke, pot_enstrophy 
+  public :: topo, pot_energy, total_ke, layer1_ke, layer2_ke, one_layer_ke, barotropic_ke, pot_enstrophy, umag 
   
   integer, dimension(:,:), allocatable :: topo_count
   real(dp)                             :: vmin, vmax
@@ -179,6 +179,74 @@ contains
          u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
          * dom%areas%elts(id+1)%hex_inv/4.0_dp 
   end function kinetic_energy
+
+  
+  subroutine umag (q)
+    ! Evaluate complete velocity trend by adding gradient terms to previously calculated source terms on entire grid
+    !
+    ! Input:  velocity field q at a single vertical layer
+    ! Output: velocity magnitude stored in dom%ke
+    
+    implicit none
+    
+    type(Float_Field), target, intent(in) :: q
+    
+    integer :: k
+
+    integer :: d, p
+
+    do d = 1, size(grid)
+       velo => q%data(d)%elts
+       ke   => grid(d)%ke%elts
+       do p = 3, grid(d)%patch%length
+          call apply_onescale_to_patch (cal_umag, grid(d), p-1, k, 0, 1)
+       end do
+       nullify (ke, velo)
+    end do
+  end subroutine umag
+
+  subroutine cal_umag (dom, i, j, zlev, offs, dims)
+    ! Velocity magnitude: sqrt(2*ke) using approximation to TRiSK formula
+    ! divide out surface area
+    
+    implicit none
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer :: d, id, idW, idSW, idS
+    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
+    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
+
+    d  = dom%id + 1
+    id = idx (i, j, offs, dims)
+
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+
+    u_prim_RT = velo(EDGE*id+RT+1) * dom%len%elts(EDGE*id+RT+1)
+    u_prim_DG = velo(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)
+    u_prim_UP = velo(EDGE*id+UP+1) * dom%len%elts(EDGE*id+UP+1)
+
+    u_dual_RT = velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
+    u_dual_DG = velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
+    u_dual_UP = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
+
+    u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
+    u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
+    u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
+
+    u_dual_RT_W  = velo(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
+    u_dual_DG_SW = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
+    u_dual_UP_S  = velo(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
+
+    ke(id+1) = sqrt( (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT + &
+         u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
+         * dom%areas%elts(id+1)%hex_inv/(4.0_dp*MATH_PI*radius**2)) 
+  end subroutine cal_umag
 
 
   function layer1_ke (dom, i, j, zlev, offs, dims) result(val)
