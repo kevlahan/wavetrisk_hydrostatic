@@ -141,39 +141,53 @@ There are two basic sub-models:
 >[ 8.14 Save animation](#markdown-header-814-save-animation)  
 >[ 8.15 Save state](#markdown-header-815-save-state)  
 
+<a id="markdown-header-1-standard-test-cases"></a>
 ## 1. Standard test cases
 Test cases are defined in separate subdirectories of `test/` (e.g. `test/climate`).  Each test case consists of three files:
 1. The main program (e.g. `climate.f90, drake.f90`). This file specifies parameters and sub-models that are likely to be fixed for the given test case.  It also includes the time stepping loop, initializations and specifies output.
 2. A file setting various case-specific properties: `test_case_module.f90` (sets initial conditions, defines the vertical grid, defines and reads/prints parameters for this test case).
 3. An example input parameter file: file `test_case.in`. This file is test-case specific and defines parameters that are likely to be modified for different runs.
 New test cases can be defined by including a new sub-directory in `~/wavetrisk_hydrostatic/test` and adding the three files above.
+<a id="markdown-header-11-climate"></a>
 ### 1.1 climate  
 Climate simulation for global atmosphere using Held and Suarez (1994) or Simple Physics (Hourdin 1993) subgrid scale model. Can also use multiscale NCAR topography. See [Section 5](#markdown-header-5-atmosphere-model-specifics)  for details of the sub-models. 
+<a id="markdown-header-12-dcmip2008c5"></a>
 ### 1.2 DCMIP2008c5  
 DCMIP 2008 test case 5: mountain-induced Rossby wave
+<a id="markdown-header-13-dcmip1012c4"></a>
 ### 1.3 DCMIP1012c4  
 DCMIP 2012 test case 4: baroclinic instability (Jablonowski and Williamson 2006, QJR Meteorol Soc 2006, 132, 2943–2975).
+<a id="markdown-header-14-drake"></a>
 ### 1.4 drake 
 Simplified Drake passage test case on a small planet (inspired by [Ferreira, Marshall and Rose (2011)](https://doi.org/10.1175/2010JCLI3580.1). Used to investigate western boundary current generated turbulence ([Kevlahan and Poulin 2022](http:doi.org/10.1175/JPO-D-21-0318.1)). 
+<a id="markdown-header-15-flat-projection-data"></a>
 ### 1.5 flat projection data   
 Post-processing of checkpoint data to calculate flat projection to longitude-latitude grid and compute various diagnostics and statistics. Deprecated in favour of python scripts processing vtk data files.
+<a id="markdown-header-16-jet"></a>
 ### 1.6 jet  
 Baroclinic jet test case based on the beta plane configuration in Soufflet et al (Ocean Modelling 98, 36-50, 2016). Used in [Kevlahan and Lemarié (2022)](http:doi.org/10.5194/gmd-15-6521-2022).   
+<a id="markdown-header-17-make-ncar-topo"></a>
 ### 1.7 make NCAR topo
 Computes and saves NCAR topography data (see [Section 5.2](#markdown-header-52-ncar-topography)). 
+<a id="markdown-header-18-seamount"></a>
 ### 1.8 seamount  
 Seamount test case evaluates pressure gradient error (Beckmann and Haidvogel 1993). An isolated Gaussian bathymetry with flat isopycnals and hybrid sigma coordinates in z (vertical levels not aligned with isopycnals). Used in [Kevlahan and Lemarié (GMD 15 2022)](http:doi.org/10.5194/gmd-15-6521-2022).
+<a id="markdown-header-19-spherical-harmonics"></a>
 ### 1.9 spherical harmonics 
 Uses SHTOOLS package to compute global and local spherical harmonics power spectra from checkpoint data interpolated to a uniform grid and projected to a uniform latitude longitude grid ([Wieczorek  and F. J. Simons 2007](http:/doi.org/10.1007/s00041-006-6904-1)). 
+<a id="markdown-header-110-tke1d"></a>
 ### 1.10 tke1d
 Implements two 1D test cases for TKE closure scheme for vertical diffusion:
 Kato and Phillips (1969) boundary layer thickening due to wind stress forcing (no bottom friction)
 Willis and Deardorff (1974) free convection due to surface heat flux (no wind stress, no bottom friction)
 see also Zilitinkevich, 1991; Mironov et al., 2000)
+<a id="markdown-header-111-upwelling"></a>
 ### 1.11 upwelling 
 Simple wind-driven upwelling/downwelling in a periodic zonal channel. An extension to the sphere of a test case used in ROMS and CROCO. Used in [Kevlahan and Lemarié (GMD 15 2022)](http:doi.org/10.5194/gmd-15-6521-2022).
+<a id="markdown-header-2-compiling"></a>
 ## 2. Compiling
 The compile options and their default values are given at the start of the `Makefile`. Note that WAVETRISK requires the gnu compiler collection. WAVETRISK is generally Fortran 2008 compliant. WAVETRISK requires the lapack and netcdf libraries (and shtools/fftw for the spherical harmonics post-processing test case).
+<a id="markdown-header-21-parallel-and-serial-versions-flags"></a>
 ### 2.1 Parallel and serial versions flags  
 Parallel:  
 <pre>
@@ -187,11 +201,14 @@ Serial (primarily for testing:
     MODE=ser 
 </code>
 </pre>
+<a id="markdown-header-22-load-balancing"></a>
 ### 2.2 Load balancing   
 `MODE=mpi` rebalances the computational load statically at each checkpoint using a simple next fit algorithm.   
 
+<a id="markdown-header-23-optimization"></a>
 ### 2.3 Optimization  
 Default is `OPTIM=2`. Setting `OPTIM=0` adds the `flag -g` and other compiler-dependent checks. `OPTIM=3` or `--ffast-math` is not recommended as it is unstable and causes crashes.
+<a id="markdown-header-24-coarsest-grid"></a>
 ### 2.4 Coarsest grid  
 The coarsest grid is set by the compile option `PARAM=param_Jn`, where `n = 4, 5, 6, 7, or 8` is the number of subdivisions of the icosahedron. 
 
@@ -214,6 +231,7 @@ There are three options for the coarsest grid, set by the parameter `optimize_gr
 `DATA_GRID` uses an optimized coarse grid with file prefix selected by `grid_type`. The default value `grid_type = HR95JT` uses spherical triangulations (Heikes and Randall 1995, Monthly Weather Rev 123, 1881-1887) that are consistent for the Laplace and flux-divergence operators on the sphere. Laplace, Jacobian and flux-divergence operators have approximately second-order accuracy. Other optimized icosahedral subdivision grids can be added by converting a complete list of vertices to WAVETRISK format using `~/data/vertices2wavetrisk.f90` (run `data/Makefile` to compile). 
 
 The finer grids are then generated by simple edge bisection from the coarsest grid.
+<a id="markdown-header-25-examples"></a>
 ### 2.5 Examples   
 Must do `make clean PHYSICS=true` before compiling with the physics sub-model. To compile test case climate using the `Simple Physics` physics model with `J5` as the coarsest grid:
 <pre>
@@ -229,7 +247,9 @@ To compile test case climate using the `Held-Suarez` physics model and NCAR topo
 </pre>
 !! Always do "make clean" when compiling a new test case and when you modify the test case !!
 
+<a id="markdown-header-3-running"></a>
 ## 3. Running  
+<a id="markdown-header-31-how-to-prepare-working-directory"></a>
 ### 3.1 How to prepare working directory  
 Initial steps (using test case climate as an example).  
 
@@ -265,6 +285,7 @@ If running with bathymetry data (e.g. incompressible tsunami test case) you need
 </pre>
 See [Section 5.2](#markdown-header-52-ncar-topography) for instruction on how to use NCAR global topography data.
 5. Ensure that `gtar` is installed (required for file tar-ing and compression).
+<a id="markdown-header-32-checkpointing-and-restarting"></a>
 ### 3.2 Checkpointing and restarting  
 The code checkpoints the data at an interval defined by the test case.  The full state of the simulation is saved by `io.f90/dump_adapt_mpi` and read in again by `io.f90/load_adapt_mpi`.
 
@@ -275,6 +296,7 @@ Note that patches that do not include significant cells (i.e. cells in the activ
 Even though non-significant patches are deleted, the adaptive grid always ensures the at least the 4 nearest neighbours of significant cells (i.e. cells outside the adjacent zone) are included in each direction. This allows computation of operators that require at most 5 nearest  neighbours. Any such neighbours that are not significant have the mask value `ZERO`. The inverse wavelet transform onto the adaptive grid ensures these `ZERO` cells have correct data (by interpolation). The trend is computed on the `ADJZONE` mask plus the nearest two neighbouring nodes edges, but only cells in the `ADJZONE` are used for grid adaptation.
 
 Data is written for post processing by routines `io.f90/write_primal` and `io.f90/write_dual` at an interval defined by the test case. Only significant cells are saved (i.e. cells in the active zone plus adjacent zone).
+<a id="markdown-header-33-mpi-examples"></a>
 ### 3.3 mpi examples  
 1. With `MODE=mpi`, to run test case climate with input file `climate.in` on a local machine with shared memory 40 cores
 <pre>
@@ -299,11 +321,14 @@ Example slurm script for an mpi job (save in a file, such as up_job.sh):
 </pre>
 Submit using `sbatch up_job.sh` (where `up_sh.sh` is the name of the slurm script file)   
 
+<a id="markdown-header-4-post-processing"></a>
 ## 4. Post-processing  
+<a id="markdown-header-41-viewing-spherical-data-with-paraview"></a>
 ### 4.1 Viewing spherical data with paraview  
 WAVETRISK saves prognostic variables and some diagnostic variables for each vertical layer on a single triangular cell adaptive grid in *.vtk format. For each data export, vtk files for all layers are compressed into a single `*.vtk.tgz` file. Once uncompressed the vtk data for each layer can be viewed directly in `(x,y,z)` coordinates on paraview as a spherical shell. 
 
 See ~/post/paraview/paraview_notes for tips for visualizing data and making movies using [paraview.org](https://paraview.org).
+<a id="markdown-header-42-data-analysis-of-vtk-files-using-python-scripts"></a>
 ### 4.2 Data analysis of vtk files using python scripts 
 In addition to visualization of the spherical data, vtk files are used for data analysis, either using the built-in paraview filters, or by using python code. Some python codes are included in `~/post/paraview`:  
 <pre>
@@ -380,6 +405,7 @@ More information about the python codes, including input variables and output, i
 
 The `matlab` script `post/matlab/plot_vertical_profile.m` plots vertical profiles of diagnostic variables averaged over the sphere using the `.csv` file generated by `lonlat_to_3D.py`.
 
+<a id="markdown-header-43-spherical-harmonics-global-and-local-spectral-analysis"></a>
 ### 4.3 Spherical harmonics global and local spectral analysis 
 The test case spherical_harmonics provides tools for computing spherical harmonics energy spectra. The energy spectra may be computed over the entire sphere, or over a local spherical cap region.  This test case uses the `SHTOOLS` package, which is available at [shtools.github.io/SHTOOLS/index.html](https://shtools.github.io/SHTOOLS/index.html).  The algorithms used in `SHTOOLS` are described in:
 
@@ -391,8 +417,10 @@ The test case spherical_harmonics provides tools for computing spherical harmoni
 
 An example matlab m-file `spherical_harmonic_analysis.m` is also provided for visualizing the spectra produced by this test case.
  
+<a id="markdown-header-5-atmosphere-model-specifics"></a>
 ## 5. Atmosphere model specifics
 The default time integrator is `RK4` and the default adjustment is set to `cfl_num = 0.95`. If `adapt_dt = .true.` the time step is determined based on the smallest value over the grid of `cfl_num * dx / (1/A sum_e(F_e))` w `A` is the hexagon (or pentagon) cell area and `F_e = (|u| + c_s) l_e` is the flux through cell edges, u is the velocity and c_s is the local acoustic wave speed.
+<a id="markdown-header-51-physics-models-for-the-atmosphere"></a>
 ### 5.1 Physics models for the atmosphere
 Physics submodels for the atmosphere (e.g. turbulent vertical diffusion of temperature and momentum, seasons, orbit, radiation, convection ) are defined in the directory `~/wavetrisk_hydrostatic/src/physics`.  The atmosphere physics model is turned by including the following line in the test case (see [Section 1.1](#markdown-header-11-climate)):
 <pre>
@@ -423,6 +451,7 @@ All submodels are turned on by default. More physics models could be added to th
 </code>
 </pre> 
 This flag is automatically set for the `climate` test case.
+<a id="markdown-header-52-ncar-topography"></a>
 ### 5.2 NCAR topography  
 Generates smoothed multiscale topography data for WAVETRISK from NCAR topography NetCDF files using `cube_to_target` program that remaps topography data from cubed-sphere grid to target grid (non-adaptive WAVETRISK grid at max_level) grid using rigorous remapping ([Lauritzen, Nair and Ullrich 2015](http:/doi.org/10.5194/gmd-8-3975-2015)).  
 
@@ -482,6 +511,7 @@ This multiscale topography data can be used with a test case compiled with `PARA
 
                         
 3. The topography_data must have the same `max_level` and domain configuration as the WAVETRISK grid that generated the data in Step 1.  The test case using the NCAR data must be compiled with the flag `TOPO=true` and the modules `netcdff` must be loaded when compiling and running.
+<a id="markdown-header-53-subgrid-scale-orography"></a>
 ### 5.3 Subgrid scale orography model (SSO)
 SSO parameterization based on ([Lott and Miller 1997](http:doi.org/10.1002/qj.49712353704), [Japanese Meteorological Agency 2019](http://www.jma.go.jp/jma/jma-eng/jma-center/nwp/outline2019-nwp/pdf/outline2019_03.pdf)). Applicable in the case where there is a large scale separation between the underlying topography data (e.g. NCAR global model) and the finest horizontal grid resolution. This allows the blocking and wave drag effect of unresolved topography to be approximated using the mean and variance of the subgrid scale topography data over a computational grid cell. The `sso` model is activated using the flag
 <pre>
@@ -501,7 +531,9 @@ A test case using the SSO  must initialize and update at each time step the four
 </code>
 </pre>
 by calling the subroutine `cal_sso_param` included in the `sso_mod` module. This is done in the routines `/test_case_module/apply_initial_conditions_case` and `/test_case_module/update_case` of the test case (see [Section 1.1](#markdown-header-11-climate) for an example).
+<a id="markdown-header-6-ocean-model-specifics"></a>
 ## 6. Ocean model specifics
+<a id="markdown-header-61-barotropic-baroclinic-mode-splitting"></a>
 ### 6.1 Barotropic-baroclinic mode splitting 
 Incompressible (i.e. ocean) simulations can be run with 2D barotropic - 3D baroclinic mode splitting to avoid the stability constraint of the fast external mode with speed c = sqrt(g H). Setting <code>mode_split = .true.</code> chooses mode splitting, which integrates the barotropic component implicitly in time on the slow geostrophic time scale. The computation is stable with CFL_barotropic = sqrt(g H) dt/dx < = 30, and often at larger values. The method is similar to the "implicit free surface" option in MITgcm.  
 
@@ -513,14 +545,18 @@ The associated elliptic equation is solved using a simple multigrid scheme on th
 
 The parameter `level_fill` can be set `> min_level` to make active all `levels <= level_fill`. This sometimes improves the efficiency of the multigrid solver by reducing the size of of the coarsest grid where the elliptic equation is solved exactly.
  
+<a id="markdown-header-62-vertical-turbulent-diffusion-model-and-surface-fluxes"></a>
 ### 6.2 Vertical turbulent diffusion model and surface fluxes    
 Eddy diffusion of buoyancy and eddy viscosity for velocity is implemented using a flux-based implicit time integration scheme in the module vert_diffusion_mod (option <code>vert_diffuse = .true.</code>).  Wind stress, bottom friction and buoyancy fluxes are included  via flux (Neumann) boundary conditions. A solar radiation model (as in NEMO) is activated by setting a non-zero value for the solar radiation flux Q_sr. Two options are available: <code>tke_diffuse = .true.</code> uses a turbulent kinetic energy (TKE) closure scheme, similar to that in NEMO ([NEMO book 2015](http:epic.awi.de/id/eprint/39698/1/NEMO_book_v6039.pdf)), <code>tke_diffuse = .false.</code> uses a simple depth-based eddy-viscosity.
 
+<a id="markdown-header-63-penalization-of-solid-boundaries"></a>
 ### 6.3 Penalization of solid boundaries  
 In ocean test cases solid lateral boundaries are modelled using Brinkman volume penalization (see [doi.org/10.5194/gmd-8-3891-2015](http:doi.org/10.5194/gmd-8-3891-2015)).  The permeability parameter eta is set equal to dt (Rasmussen, Cottet & Walther J Comput Phys 230, 2011) and the porosity parameter alpha is set by the user (default value alpha = 0.01). The penalization term is added to the velocity source term in physics_velo_source_case for the test case.
 
+<a id="markdown-header-7-model-details"></a>
 ## 7. Model details
 The numerical approximations are similar to those used in mimetic hydrostatic climate model DYNAMICO [doi.org/10.5194/gmd-8-3131-2015](http:/doi.org/10.5194/gmd-8-3131-2015). The computational grid is based on a hierarchy of bisections of the icosahedron and dual grids of hexagons.
+<a id="markdown-header-71-prognostic-variables"></a>
 ### 7.1 Prognostic variables
 The variables are stored in a `Type(Float_Array)` variable `sol` (see below), with components `S_MASS, S_TEMP and S_VELO`.  The code solves the hydrostatic Boussinesq equations in compressible (i.e. atmosphere) or incompressible (i.e. ocean) form.
 <pre>
@@ -536,14 +572,18 @@ The variables are stored in a `Type(Float_Array)` variable `sol` (see below), wi
     S_VELO contains the three velocity components U, V, W at edges RT, DG and UP respectively (see below).
 </code>
 </pre> 
+<a id="markdown-header-72-parameters"></a>
 ### 7.2 Parameters  
 The full list of parameters is given in <code>shared.f90</code>, together with their default values.
+<a id="markdown-header-73-horizontal-coordinates"></a>
 ### 7.3 Horizontal coordinates
 Cartesian `(x,y,z)` coordinates are used with spherical geometry for lengths and areas on the sphere.  Since the equations are written in vector invariant form, there are no explicit metric terms.   
+<a id="markdown-header-74-vertical-coordinates"></a>
 ### 7.4 Vertical coordinates 
 The zero level of the vertical coordinate is at mean sea level and vertical layers are indexed starting at the lowest level in both the atmosphere and ocean models.  The coordinate of the local topography is given by <code>dom%topo%elts(id_i)</code> (or by the test case function surf_geopot in the case of analytical topography), which is positive for orography and negative for bathymetry.  For incompressible (i.e. ocean) simulations the mean depth is defined to be negative, <code>H0 = dom%topo%elts(id_i) < 0</code>, and positive perturbations to the free surface are positive.  The local total depth is <code> H = sum_zlev ( sol(S_MASS,zlev)%data(d)%elts(id_i) ) / ref_density</code> and the free surface perturbation is therefore H + H0.
 
 The vertical coordinates are Lagrangian (i.e. they move as material surfaces) with periodic conservative remapping onto a target (e.g. initial grid).  A collection of different conservative piecewise remapping routines are available in <code>src/remap.f90</code>.
+<a id="markdown-header-75-horizontal-grid-structure"></a>
 ### 7.5 Horizontal grid structure  
 The icosahedron is divided into a network of ten regular lozenge grids (with the exception of the two `POLE`). Each lozenge is then divided into <code>N_SUB_DOM = 2<sup>2 DOMAIN_LEVEL</sup> </code> regular sub-domains with the number of subdomains on each processor given by `n_domain(rank+1)`. The lozenges are in turn composed of patches of sub-lozenges, each composed of two triangular (primal) cells.  The lozenge cells each include one hexagon centre `NODE` (for scalars), three `EDGES` (for velocities/fluxes) and 
 two triangle centre `NODE`s (for circulation). (See Sections [7.7](#markdown-header-77-grid-elements) and [7.8](#markdown-header-78-indexing-of-grid-elements-and-neighbours).)
@@ -569,6 +609,7 @@ The domains are the basic unit of parallelization, and domains are distributed o
 If <code>optmize_grid = NONE</code> the coarsest grid is just the grid produced by bisecting the icosahedron the `MIN_LEVEL` times. The size of patches is PATCH_LEVEL (e.g. if <code>PATCH_LEVEL = 2</code> then the patches are `4x4`).  The larger <code>PATCH_LEVEL</code> is the fewer levels of tree structure must be 
 traversed before reaching a uniform grid (which will in general contain inactive nodes).  Each computation patch element is made up of one node for scalars and three edges for vectors
 <code>U, V, W</code> (see also [Section 7.7](#markdown-header-77-grid-elements)).
+<a id="markdown-header-76-basic-grid-data-types"></a>
 ### 7.6 Basic grid data types 
 <code>Type(Coord_Array)</code> has components <code>elts(:)%length</code> (where <code>elts</code> is <code>Type(Coord)</code> array of <code>x%y%z</code> coordinates on the sphere for each grid element and length is an integer giving the size of `elts`).
 
@@ -585,6 +626,7 @@ traversed before reaching a uniform grid (which will in general contain inactive
 <code>Type(Domain)</code> has many components defining the grid and is the size of the total number of sub-domains on each processor <code>n_domain(rank+1)</code>.  It is used for the variable <code>grid(:)</code>.
 
 Various other dynamical data types and subroutines for allocating them are defined in <code>dyn_array.f90</code>.   
+<a id="markdown-header-77-grid-elements"></a>
 ### 7.7 Grid elements    
 The fundamental data structure element is a lozenge composed of 1 hexagon centre node `H` (stores scalars), 3  edges `RT, DG, UP` (store velocities and fluxes) and 2 triangular nodes `UPLT, LORT` (store circulations):
 <pre>
@@ -628,6 +670,7 @@ Note that within a patch similar notation is used for shifts in the regular grid
                      -------------   ------------ ------------ 
 </code>
 </pre>
+<a id="markdown-header-78-indexing-of-grid-elements-and-neighbours"></a>
 ### 7.8 Indexing of grid elements and neighbours  
 Quantities (e.g. mass, velocities) are all stored in a single array, whose elements are organized in patches.  Each patch has regular array coordinates <code>(i,j)</code>.
 
@@ -691,6 +734,7 @@ applies the subroutine `routine` to a single scale `l`, while the subroutine
 </code>
 </pre>
 applies a subroutine `routine` which involves the coarser scale `l` and the finer scale `l-1`.  
+<a id="markdown-header-79-domain-boundary-cells"></a>
 ### 7.9 Domain boundary cells 
 To support domain-based parallelization, each domain is extended by `BDRY_THICKNESS` rows and columns of cells associated to the 8 neighbouring domains ("halos" or "ghost cells").
 
@@ -739,15 +783,18 @@ The update command should be called by all routines requiring correct node value
 </code>
 </pre>   
 ensures that 2 nearest neighbours are correct for nodes evaluated on `(0,1)` (i.e. ghost cells `-2, 3`), which is sufficient provided no routine requires more than two nearest neighbour nodes/edges in each direction at the same level.
+<a id="markdown-header-710-calculations-on-adapted-grid"></a>
 ### 7.10 Calculations on adapted grid
 
 By default fields are calculated and operators are applied on the `ENTIRE` grid (including at nodes where the result can be obtained by restriction indicated by `mask=12` and adjacent zone nodes indicated by `mask=8` and the results are then over-written by correct values.  (Note that the solution in the adjacent zone at fine scale j+1 are found from values at coarse scale `j` so the values calculated at scale `j+1` are not actually used.)
 
 This means that some operations on the entire grid could produce intermediate overflows, `inf/NaN`, or invalid indices due to incorrect values at these nodes or their neighbours, even though default values have been set to "reasonable" default values when the grid is extended during adaptivity. Functions and subroutines should take this into account.  Similarly, circulation, vorticity and qe (potential vorticity are first computed incorrectly at pentagon points in `step1` (or `cal_vort`) and then corrected in `post_step1` (or `post_vort`).
+<a id="markdown-header-711-diagnostic-variables"></a>
 ### 7.11 Diagnostic variables
 Diagnostic variables are derived from the prognostic variables defined in [Section 7.1](#markdown-header-71-prognostic-variables). Diagnostic variables (or quantities) include temperature, zonal velocity, meridional velocity, `OMEGA` (vertical velocity `D_t P = OMEGA [Pa/s]`), vorticity, eddy kinetic energy, eddy momentum flux. Many of these diagnostics are computed in provided routines (e.g. in the data saving routines `write_tri`, or dedicated routines such as `omega_velocity`). Routines for test case specific diagnostic variables are usually provided in the file `test_case_module.f90` for that test case. You can also compute diagnostic quantities from vtk files during post-processing in paraview, python, or matlab (see [Section 4](#markdown-header-4-post-processing)).
 
 For computing quantities integrated over the entire adapted grid, you should use `integrate_tri` (`fun, zlev`), which integrates the function defined by the routine fun over the entire adaptive triangular grid at vertical level `zlev`.  The routine integrate_hex (`fun, zlev, level`) integrates fun on the grid defined at scale level and vertical level `zlev`.  Note that the triangular cells are not overlapping, but the hexagonal cells overlap between levels.  To compute over a portion of the grid, modify fun by including the appropriate mask.
+<a id="markdown-header-712-horizontal-diffusion"></a>
 ### 7.12 Horizontal diffusion
 Although WAVETRISK is stable without horizontal diffusion when run non-adaptively, horizontal diffusion of the prognostic variables is required for adaptive runs for both atmosphere and ocean modes.  It is also recommended for non-adaptive runs to remove grid scale vorticity noise.  
 
@@ -765,37 +812,45 @@ The non-dimensional viscosity is specified based on the maximum level of resolut
 Note that for stability `C_visc(S_MASS,S_TEMP,S_DIVU) <= (1/9)`<sup>Laplace order</sup> and `C_visc(S_ROTU) <= (1/9/4)`<sup>Laplace order</sup>. 
 The default value is `C_visc = 1.5e-3` and `C_visc(S_DIVU) = (1/9)`<sup>Laplace order</sup> (maximum stable for hyperdiffusion) is recommended to guarantee stability when running the climate test cases with a large range of resolution levels.
 
+<a id="markdown-header-8-paraview-visualization"></a>
 ## 8. Paraview visualization
 WAVETRISK saves prognostic variables and some diagnostic variables for each vertical layer in a set of `*.vtk` https://vtk.org format paraview binary files (one for each layer) on initialization and at time intervals specified by `dt_write` (in days). The type of grid is specified by `vtk_grid` which takes the values `"tri"` (triangular grid, default) or `"hex"` (hexagonal grid).  The `tri` format savesa single triangular cell adaptive grid of non-overlapping cells over all active cells at all levels. The `hex` format saves overlapping hexagonal cells for all active cells at all levels. For each data export, vtk files for all layers are compressed into a single `*.vtk.tgz` file. Once uncompressed the vtk data for each layer can be viewed directly in `(x,y,z)` coordinates on paraview as a spherical shell. 
+<a id="markdown-header-81-selecting-objects-to-display"></a>
 ### 8.1 Selecting objects to display
 Load `vtk` data files. Click on the window and then in the pipeline browser: toggle `eye` icon to left of object to activate or de-activate its display in window. May need to open "Properties" window.
 
+<a id="markdown-header-82-overlaying-topography"></a>
 ### 8.2 Overlaying topography
 Load `vtk` data files again, click the `eye` icon and select `Mass` variable.  Open color map editor, check "Enable opacity mapping 
 for surface", set `Number of table values` to 2 with values 0 and 1. Click the `Gear` icon in `Mapping data` and verify that the opacity for value 0 is 0 and opacity for value 1 is 1.
 
 The `Color transfer function value` for 1 can be set to, e.g., (0.2, 0.2, 0.4) for land areas.
 
+<a id="markdown-header-83-display-time"></a>
 ### 8.3 Display time
     Filters -> Annotation -> Annotate Time Filter
 Need to click on `Apply` to be able to format font and location.
 Uses `printf` format (e.g. `%4.2f`). Use shift and scale to convert filenumber to correct units.
 
+<a id="markdown-header-84-display-text"></a>
 ### 8.4 Display text
     Sources -> Text
 Need to click on `Apply` in `Properties` to be able to format font and location.  Font size 22 points is a good choice for text in axes and labels.
 
+<a id="markdown-header-85-edit-color-bar"></a>
 ### 8.5 Edit color bar
     View -> Color Map Editor
 Click on `rainbow` with black e (upper right) to edit color bar legend. Click on `Gear` to get all properties. 
 Usually want to unclick `Add Range Labels`. Click on `heart` to change the colour palette: `Rainbow Desaturated` is a good choice in general.
 
+<a id="markdown-header-86-number-format"></a>
 ### 8.6 Number format
 Paraview uses printf formats: e.g. `%1.1f` (standard) or `%1.0e` (scientific notation).
 `%#f` always prints decimal point (usually don't want that!).
 
 Use `Interpret values as categories` for simple display of grid resolution levels.
 
+<a id="markdown-header-87-surface-plots"></a>
 ### 8.7 Surface plots
 Ensure you click "apply" in `Properties` to be able to use filters (like contour or smoothing).
 
@@ -809,6 +864,7 @@ Ensure you click "apply" in `Properties` to be able to use filters (like contour
 
 In `Key` set `Int` to 1 to avoid dim colors.  Could also adjust `Ele` (elevation) and `Azi` (azimuth) to ensure direct light (e.g. 0, 0 for z view).
 
+<a id="markdown-header-88-slices-through-3d-data"></a>
 ### 8.8 Slices through 3D data
 To view a slice through a 3D dataset (e.g., a horizontal or vertical plane at a specified location):
 
@@ -841,6 +897,7 @@ In `Background` unclick Use `Color Palette` for `Backgroun`d and set background 
 
 Click `Apply`
 
+<a id="markdown-header-89-set-axes"></a>
 ### 8.9 Set axes
 To set bounding axes for a figure you use the `Clip` filter
 <pre>
@@ -856,6 +913,7 @@ In `Box parameters` unclick `Show box` and set `Position` (origin) and `Length` 
 
 If the image is blank for a longitude-latitude projection you may need to change the z-direction `Position` and `Length` to ensure the z coordinates of the longitude-latitude projection are included.
 
+<a id="markdown-header-810-transform-data"></a>
 ### 8.10 Transform data
 <pre>
 <code>
@@ -864,9 +922,11 @@ If the image is blank for a longitude-latitude projection you may need to change
 </pre>
 To convert `Cell` data (e.g. hexagons) to `Point` data (that can be used by filters like contour).
 
+<a id="markdown-header-811-save-current-view-point"></a>
 ### 8.11 Save current view point
 Click on `camera+` icon to save current view point for future use.
 
+<a id="markdown-header-812-python-scripting"></a>
 ### 8.12 Python scripting
 <pre>
 <code>
@@ -877,6 +937,7 @@ Click on `camera+` icon to save current view point for future use.
 </pre>
 Can record your modifications as a python script to reuse commands later or in a script.
 
+<a id="markdown-header-813-save-figure"></a>
 ### 8.13 Save figure
 To save the current figure as a `.png` file (i.e. all render views) it is best to work full screen.
 <pre>
@@ -900,6 +961,7 @@ To save the current figure as a `.png` file (i.e. all render views) it is best t
 </pre>
 You may need to adjust font sizes and colour bar positions after checking the `.png` file. Crop the `.png` file to remove extra blanks space using a utility like `Preview`.
 
+<a id="markdown-header-814-save-animation"></a>
 ### 8.14 Save animation
 <pre>
 <code>
@@ -930,6 +992,7 @@ For example:
 </code>
 </pre>
 
+<a id="markdown-header-815-save-state"></a>
 ### 8.15 Save state
 To save the complete state of a session (including window layout, dataset names, pipeline, fonts colour bars, etc.) : 
 <pre>
