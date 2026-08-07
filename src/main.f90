@@ -1,5 +1,7 @@
 module main_mod
 
+  use, intrinsic :: ieee_arithmetic
+
   use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, N_BDRY, &
        N_GLO_DOMAIN, N_VARIABLE, NCAR_topo, NONE, &
@@ -18,6 +20,7 @@ module main_mod
   use comm_mod,         only : get_coord, set_coord,  init_comm_mod
   use domain_ops_mod,   only : apply_interscale, apply_no_bdry,  apply_onescale2
   use geom_mod,         only : number_hex
+  use init_mod,         only : z_coords 
   use io_mod,           only : dump_adapt_mpi, load_adapt_mpi, load_topo, read_checkpoint_directory, init_io_mod
   use io_vtk_mod,       only : write_and_export
   use lin_solve_mod,    only : Full_Multigrid, Scheduled_Relaxation_Jacobi
@@ -26,9 +29,8 @@ module main_mod
   use multi_level_mod,  only : trend_ml
   use refine_patch_mod, only : add_second_level, init_refine_patch_mod
   use remap_mod,        only : remap_vertical_coordinates
-  use utils_mod,        only : integrate_hex, integrate_tri, porous_density, rho_dz_i
-  use wavelet_mod,      only : forward_wavelet_transform, init_wavelet_mod, init_wavelets, &
-       inverse_scalar_transform, inverse_wavelet_transform 
+
+  use vert_diffusion_mod, only : vertical_diffusion
 
   use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
        sum_int,  sync_max_int, sync_min_real, write_load_conn
@@ -42,14 +44,20 @@ module main_mod
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, init_init_mod, &
        precompute_geometry, set_level, set_thresholds
 
-   use time_integr_mod,  only : dt_step, dt_step_split,  init_RK_mem, init_time_integr_mod, q1, q2, q3, q4, dq1, &
+  use time_integr_mod, only : dt_step, dt_step_split,  init_RK_mem, init_time_integr_mod, q1, q2, q3, q4, dq1, &
        Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK4_split, RK45_opt
 
-   use coord_arithmetic_mod
-   
+  use utils_mod, only : integrate_hex, hex_len, hex_pedlen, integrate_tri, interp, nu_scale, porous_density, rho_dz_i, &
+       theta2temp, theta_i,  tri_perim
+
+  use wavelet_mod, only : forward_wavelet_transform, init_wavelet_mod, init_wavelets, &
+       inverse_scalar_transform, inverse_wavelet_transform 
+
+  use coord_arithmetic_mod
+
 #ifdef PHYSICS
-   use init_physics_mod,  only : init_physics, init_soil_grid
-   use physics_trend_mod, only : physics_simple_step, trend_physics_Held_Suarez  
+  use init_physics_mod,  only : init_physics, init_soil_grid
+  use physics_trend_mod, only : physics_simple_step, trend_physics_Held_Suarez  
   use callkeys, only : lverbose
 #endif
 
@@ -57,18 +65,22 @@ module main_mod
 
   private
   public :: cpt_min_mass, initialize, restart, time_step
-  
+
   integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
   real(dp)                           :: dt_new, initial_total_mass, time_mult
   real(dp)                           :: dt_loc, min_mass_loc
 
+  
   type Initial_State
      integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
      integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
   end type Initial_State
+  
   type(Initial_State), dimension(:), allocatable :: ini_st
+
   
 contains
+
   
   subroutine initialize (run_id) 
     ! Initialize from checkpoint or adapt to initialize conditions
@@ -352,7 +364,6 @@ contains
   end subroutine restart
 
   subroutine time_step 
-    use vert_diffusion_mod
     implicit none
     integer(8) :: idt, ialign
     logical    :: save_data 
@@ -589,7 +600,6 @@ contains
   subroutine cal_min_dt (dom, i, j, zlev, offs, dims)
     ! Calculates time step and number of active nodes and edges
     ! (uses exact local CFL stability formula for hexagons/pentagons)
-    use utils_mod
 
     implicit none
 
@@ -740,8 +750,6 @@ contains
 
   subroutine cal_min_mass (dom, i, j, zlev, offs, dims)
     ! Minimum mass compared to initial mass in a vertical column
-    use init_mod
-    use, intrinsic :: ieee_arithmetic
 
     implicit none
 
