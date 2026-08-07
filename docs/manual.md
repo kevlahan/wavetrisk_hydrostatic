@@ -188,7 +188,7 @@ Simple wind-driven upwelling/downwelling in a periodic zonal channel. An extensi
 The compile options and their default values are given at the start of the `Makefile`. Note that WAVETRISK requires the gnu compiler collection. WAVETRISK is generally Fortran 2008 compliant. WAVETRISK requires the lapack and netcdf libraries (and shtools/fftw for the spherical harmonics post-processing test case).
 <a id="markdown-header-21-load-balancing"></a>
 ### 2.2 Load balancing   
-`MODE=mpi` rebalances the computational load statically at each checkpoint using a simple next fit algorithm.   
+Automatically rebalances the computational load statically at each checkpoint using a simple next fit algorithm.   
 
 <a id="markdown-header-22-optimization"></a>
 ### 2.3 Optimization  
