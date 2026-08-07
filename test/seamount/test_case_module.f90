@@ -1,9 +1,21 @@
 Module test_case_mod
   ! Module file for seamount test case
-  use domain_mod
+#ifdef MPI
+  use mpi_f08
+#endif
+
+  use kind_mod
+  use shared_mod
+  use arch_mod
   use comm_mpi_mod
-  use utils_mod
+  use domain_mod
+  use domain_ops_mod
+  use geom_mod
   use init_mod
+  use lnorms_mod
+  use utils_mod
+  use vert_diffusion_mod
+  
   implicit none
 
   ! Standard variables
@@ -41,23 +53,25 @@ contains
     bottom_friction  => bottom_friction_case
   end subroutine assign_functions
 
-  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
-    ! Additional physics for the flux term of the scalar trend
-    ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
+    
+
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type) result(flux)
+    ! Scalar diffusion flux
     !
     ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
     use domain_mod
+    
     implicit none
 
-    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
-    type(domain)                                         :: dom
-    integer                                              :: d, id, idE, idNE, idN, v, zlev
-    logical, optional                                    :: type
+    type(Float_Field), intent(inout)        :: q(1:N_VARIABLE,1:zlevels)
+    type(domain),      intent(inout)        :: dom
+    integer,           intent(in)           :: id, idE, idNE, idN, v, zlev
+    logical,           intent(in), optional :: type
+    real(dp)                                :: flux(EDGE)
 
-    integer                    :: id_i
-    real(8), dimension(1:EDGE) :: d_e, grad, l_e
-    logical                    :: local_type
+    integer  :: d
+    real(dp) :: d_e(EDGE), grad(EDGE), l_e(EDGE)
+    logical  :: local_type
 
     if (present(type)) then
        local_type = type
@@ -65,101 +79,122 @@ contains
        local_type = .false.
     end if
 
-    id_i = id + 1
     d = dom%id + 1
 
+    flux = 0.0_dp
+    
     if (Laplace_sclr /= 0) then
        if (.not.local_type) then ! usual flux at edges E, NE, N
-          l_e =  dom%pedlen%elts(EDGE*id+1:EDGE*id_i)
-          d_e =  dom%len%elts(EDGE*id+1:EDGE*id_i)
+          l_e =  dom%pedlen%elts(id_edge(id))
+          d_e =  dom%len%elts   (id_edge(id))
        else ! flux at SW corner
-          l_e(RT+1) = dom%pedlen%elts(EDGE*idE+RT+1)
+          l_e(RT+1) = dom%pedlen%elts(EDGE*idE +RT+1)
           l_e(DG+1) = dom%pedlen%elts(EDGE*idNE+DG+1)
-          l_e(UP+1) = dom%pedlen%elts(EDGE*idN+UP+1)
-          d_e(RT+1) = -dom%len%elts(EDGE*idE+RT+1)
-          d_e(DG+1) = -dom%len%elts(EDGE*idNE+DG+1)
-          d_e(UP+1) = -dom%len%elts(EDGE*idN+UP+1)
+          l_e(UP+1) = dom%pedlen%elts(EDGE*idN +UP+1)
+          
+          d_e(RT+1) =  - dom%len%elts(EDGE*idE +RT+1)
+          d_e(DG+1) =  - dom%len%elts(EDGE*idNE+DG+1)
+          d_e(UP+1) =  - dom%len%elts(EDGE*idN +UP+1)
        end if
-
        ! Calculate gradients
        if (Laplace_sclr == 1) then
           grad = grad_physics (q(v,zlev)%data(d)%elts)
        elseif (Laplace_sclr == 2) then
           grad = grad_physics (Laplacian_scalar(v)%data(d)%elts)
        end if
-
-       ! Complete scalar diffusion
-       physics_scalar_flux_case = (-1)**Laplace_sclr * visc_sclr(v) * grad * l_e
+       flux = (-1)**Laplace_sclr * nu_scale (v, zlev) * grad * l_e
     end if
+    
   contains
-    function grad_physics (scalar)
+    
+    function grad_physics (scalar) result(val)
       implicit none
-      real(8), dimension(1:EDGE) :: grad_physics
-      real(8), dimension(:)      :: scalar
-
-      grad_physics(RT+1) = (scalar(idE+1) - scalar(id+1))   / d_e(RT+1)
-      grad_physics(DG+1) = (scalar(id+1)  - scalar(idNE+1)) / d_e(DG+1)
-      grad_physics(UP+1) = (scalar(idN+1) - scalar(id+1))   / d_e(UP+1)
+      real(dp), intent(in) :: scalar(:)
+      real(dp)             :: val(EDGE)
+      
+      val(RT+1) = (scalar(idE+1) - scalar(id  +1)) / d_e(RT+1)
+      val(DG+1) = (scalar(id +1) - scalar(idNE+1)) / d_e(DG+1)
+      val(UP+1) = (scalar(idN+1) - scalar(id  +1)) / d_e(UP+1)
     end function grad_physics
+    
   end function physics_scalar_flux_case
 
-  function physics_velo_source_case (dom, i, j, zlev, offs, dims)
+  
+  function physics_velo_source_case (dom, i, j, zlev, offs, dims) result (source)
     ! Additional physics for the source term of the velocity trend
     use domain_mod
+    
     implicit none
 
-    real(8), dimension(1:EDGE)     :: physics_velo_source_case
-    type(domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-
-    integer                    :: d, id, id_i
-    real(8), dimension(1:EDGE) :: diffusion
-
-    d = dom%id + 1
+    type(domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1) 
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    
+    real(dp)                    :: source(EDGE)
+    
+    integer                        :: ip, id, idE, idN, idNE
+    real(dp), dimension(1:zlevels) :: C_temp 
+    logical                        :: penta 
+    
     id = idx (i, j, offs, dims)
-    id_i = id + 1
 
-    diffusion =  (-1)**(Laplace_rotu-1) * (visc_divu * grad_divu() - visc_rotu * curl_rotu())
+    idE  = idx (i+1, j,   offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
 
-    physics_velo_source_case = diffusion
+    ! Decrease divu viscosity near pentagons to avoid spurious vorticity generation
+    penta  = .false.
+    C_temp = C_visc(S_DIVU,1:zlevels)
+    if (Laplace_divu == 1) then
+       do ip = 1, 12
+          if (geodesic (dom%node%elts(id+1), penta_node(ip)) < 1.5 * dx_avg(min_level)) then
+             penta = .true.
+             C_visc(S_DIVU,1:zlevels) = 0.05_dp
+             exit
+          end if
+       end do
+    end if
+    
+    source = 0.0_dp
+
+    if (Laplace_divu /= 0) source = (-1)**(Laplace_divu-1) * nu_scale (S_DIVU, zlev) * grad_divu ()
+
+    if (Laplace_rotu /= 0) source = source - (-1)**(Laplace_rotu-1) * nu_scale (S_ROTU, zlev) * curl_rotu ()
+
+    if (penta) C_visc(S_DIVU,1:zlevels) = C_temp
+    
   contains
-    function grad_divu()
+    
+    function grad_divu () result(val)
       implicit none
-      real(8), dimension(3) :: grad_divu
+      real(dp) :: val(EDGE)
 
-      integer :: idE, idN, idNE
-
-      idE  = idx (i+1, j,   offs, dims)
-      idNE = idx (i+1, j+1, offs, dims)
-      idN  = idx (i,   j+1, offs, dims)
-
-      grad_divu(RT+1) = (divu(idE+1) - divu(id+1))   / dom%len%elts(EDGE*id+RT+1)
-      grad_divu(DG+1) = (divu(id+1)  - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
-      grad_divu(UP+1) = (divu(idN+1) - divu(id+1))   / dom%len%elts(EDGE*id+UP+1)
+      val(RT+1) = (divu(idE+1) - divu(id  +1)) / dom%len%elts(EDGE*id+RT+1)
+      val(DG+1) = (divu(id +1) - divu(idNE+1)) / dom%len%elts(EDGE*id+DG+1)
+      val(UP+1) = (divu(idN+1) - divu(id  +1)) / dom%len%elts(EDGE*id+UP+1)
     end function grad_divu
 
-    function curl_rotu()
+    function curl_rotu () result(val)
       implicit none
-      real(8), dimension(3) :: curl_rotu
+      real(dp) :: val(EDGE)
 
       integer :: idS, idW
 
-      idS = idx (i,   j-1, offs, dims)
-      idW = idx (i-1, j,   offs, dims)
+      idS  = idx (i,   j-1, offs, dims)
+      idW  = idx (i-1, j,   offs, dims)
 
-      curl_rotu(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
-      curl_rotu(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
-      curl_rotu(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+      val(RT+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+      val(DG+1) = (vort(TRIAG*id +LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+      val(UP+1) = (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
     end function curl_rotu
+    
   end function physics_velo_source_case
+
 
   subroutine read_test_case_parameters
     implicit none
-    integer            :: ilat, ilon, k
     integer, parameter :: fid = 500
-    real(8)            :: lat, lon
     character(255)     :: filename, varname
 
     ! Find input parameters file name
@@ -209,7 +244,7 @@ contains
     if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
-            ************************************************************'
+            &************************************************************'
        write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,A)')      "test_case                      = ", trim (test_case)
        write (6,'(A,A)')      "run_id                         = ", trim (run_id)
@@ -240,7 +275,6 @@ contains
        write (6,'(A,i1)')     "n_diffuse                      = ", n_diffuse
        write (6,'(A,es10.4)') "dt_write [d]                   = ", dt_write/DAY
        write (6,'(A,i6)')     "CP_EVERY                       = ", CP_EVERY
-       xk
        write (6,'(A,es10.4)') "time_end [d]                   = ", time_end/DAY
        write (6,'(A,i6)')     "resume                         = ", resume_init
 
@@ -276,7 +310,7 @@ contains
        write (6,'(a,es11.4)') "r_max                          = ", r_max
        write (6,'(A)') &
             '*********************************************************************&
-            ************************************************************'
+            &************************************************************'
 
        call print_density_pert
     end if
@@ -321,7 +355,7 @@ contains
 
   subroutine apply_initial_conditions_case
     implicit none
-    integer :: d, k, l
+    integer :: k, l
 
     do l = level_start, level_end
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
@@ -341,13 +375,14 @@ contains
   subroutine init_sol (dom, i, j, zlev, offs, dims)
     ! Initial perturbation to mean 
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer     :: d, id, id_i
-    real (8)    :: dz, eta_surf, phi, porous_density, z, z_s
+    real (8)    :: dz, eta_surf, phi, porous_density, z_s
     type(Coord) :: x_i
 
     d    = dom%id+1
@@ -381,11 +416,12 @@ contains
   subroutine init_mean (dom, i, j, zlev, offs, dims)
     ! Initialize mean values
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+  
     integer     :: d, id, id_i
     real (8)    :: dz, eta_surf, porous_density, z_s
     type(Coord) :: x_i
@@ -454,7 +490,7 @@ contains
   real(8) function surf_geopot_case (d, id)
     ! Surface geopotential: postive if greater than mean seafloor
     implicit none
-    integer :: d, id
+    integer, intent(in) :: d, id
     
     real(8)     :: lon, lat, rgrc
     type(Coord) :: x_i
@@ -481,7 +517,7 @@ contains
     ! Buoyancy profile
     ! buoyancy = (ref_density - density)/ref_density
     implicit none
-    integer     :: id_i, zlev
+    integer     :: zlev
     real(8)     :: z_s
     type(Coord) :: x_i
 
@@ -501,6 +537,7 @@ contains
     real(8)     :: z
     type(Coord) :: x_i
 
+    density_init = ref_density
     if (trim(stratification) == "linear") then 
        density_init = ref_density + drho * (max_depth-z)/max_depth
     elseif (trim(stratification) == "exponential") then
@@ -511,7 +548,7 @@ contains
   subroutine print_density_pert
     implicit none
     integer     :: k
-    real(8)     :: eta_surf, lat, lon, z_k, z_s
+    real(8)     :: eta_surf, z_k, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
     type(Coord) :: p 
@@ -548,7 +585,7 @@ contains
 
     write (6,'(A)') &
          '*********************************************************************&
-         ************************************************************'
+         &************************************************************'
   end subroutine print_density_pert
 
   subroutine set_thresholds_case
@@ -556,7 +593,7 @@ contains
     use lnorms_mod
     use wavelet_mod
     implicit none
-    integer                                 :: k, v
+    integer                                 :: k
     real(8), dimension(1:N_VARIABLE,1:zmax) :: threshold_new
     character(3), parameter                 :: order = "inf"
 
@@ -597,7 +634,7 @@ contains
 
 !!$       lnorm(S_TEMP,k) = ref_density*dz * buoyancy_init (max_depth, x_i, k)
        lnorm(S_TEMP,k) = 1d16
-       if (lnorm(S_TEMP,k) == 0d0) lnorm(S_TEMP,k) = 1d16
+       if (lnorm(S_TEMP,k) > 1e-16_dp) lnorm(S_TEMP,k) = 1d16
 
        lnorm(S_VELO,k) = Udim
     end do
@@ -610,7 +647,6 @@ contains
   subroutine initialize_dt_viscosity_case 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8) :: C_divu, C_sclr, C_rotu, tau_divu, tau_rotu, tau_sclr
 
     ! Initial CFL limit for time step
     dt_cfl = min (cfl_safety*dx_avg(max_level)/wave_speed, dx_avg(max_level)/c1)
@@ -628,26 +664,18 @@ contains
        if (rank == 0) write (6,'(A)') 'Unsupported iterated Laplacian (only 0, 1 supported)'
        stop
     end if
-
-    if (rank == 0) then
-       write (6,'(/,4(a,es8.2),a,/)') &
-            "dx_max  = ", dx_avg(min_level)/KM, " dx_min = ", dx_avg(max_level)/KM, " [km] dt_cfl = ", &
-            dt_cfl, " [s] tau_sclr = ", tau_sclr/HOUR, " [h]"
-       write (6,'(3(a,es8.2),/)') "C_sclr = ", C_sclr, "  C_divu = ", C_divu, "  C_rotu = ", C_rotu
-       write (6,'(4(a,es8.2),/)') "Viscosity_mass = ", visc_sclr(S_MASS)/n_diffuse, &
-            " Viscosity_temp = ", visc_sclr(S_TEMP)/n_diffuse, &
-            " Viscosity_divu = ", visc_divu/n_diffuse, " Viscosity_rotu = ", visc_rotu/n_diffuse
-    end if
+   
   end subroutine initialize_dt_viscosity_case
 
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
     ! Set bathymetry
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+  
     integer :: d, id
 
     d = dom%id + 1
@@ -659,10 +687,11 @@ contains
   subroutine set_penal (dom, i, j, zlev, offs, dims)
     ! Set penalization mask
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: d, id, id_i
 
@@ -697,7 +726,7 @@ contains
   subroutine initialize_a_b_vert_case
     ! Initialize hybrid sigma-coordinate vertical grid
     implicit none
-    integer :: k, kp
+    integer :: k
 
     allocate (a_vert(0:zlevels), b_vert(0:zlevels))
     allocate (a_vert_mass(1:zlevels), b_vert_mass(1:zlevels))
@@ -725,7 +754,7 @@ contains
   subroutine cal_r_max
     ! Calculates minimum relative mass and checks diffusion stability limits
     implicit none
-    integer :: ierror, k, l
+    integer :: k, l
 
     r_max_loc = 1d-16
     do l = level_start, level_end
@@ -740,12 +769,13 @@ contains
   subroutine cal_rmax_loc (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idE, idN, idNE, idS, idSW, idW, k
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+ 
+    integer :: d, id, idE, idN, idNE, idS, idSW, idW
     real(8) :: r_loc
 
     id   = idx (i,   j,   offs, dims)
@@ -794,7 +824,7 @@ contains
 
   subroutine dump_case (fid)
     implicit none
-    integer :: fid
+    integer, intent(in) :: fid
 
     write (fid) iwrite
     write (fid) threshold
@@ -802,7 +832,7 @@ contains
 
   subroutine load_case (fid)
     implicit none
-    integer :: fid
+    integer, intent(in) :: fid
 
     read (fid) iwrite
     read (fid) threshold

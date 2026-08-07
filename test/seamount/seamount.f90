@@ -3,12 +3,15 @@ program Seamount
   ! and hybrid sigma coordinates in z (vertical levels not aligned with isopycnals). The exact solution is a state of rest.
   ! The density difference is -3 kg/m^3 and decreases exponentially to zero with increasing depth. Parameters are set as in
   ! Debreu and Kevlahan (2020).
+
+  use kind_mod
+  use shared_mod
+  use io_mod
   use main_mod
+  use time_integr_mod
   use test_case_mod
-  use io_vtk_mod  
+  
   implicit none
-  integer :: l
-  real(8) :: total_eta
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -95,7 +98,7 @@ program Seamount
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
-       ------------------------------------------------------'
+       &------------------------------------------------------'
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0d0
   do while (time < time_end)

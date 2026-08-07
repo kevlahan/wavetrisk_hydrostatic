@@ -930,15 +930,17 @@ contains
     a_vert_mass = a_vert(1:zlevels) - a_vert(0:zlevels-1)
     b_vert_mass = b_vert(1:zlevels) - b_vert(0:zlevels-1)
   end subroutine initialize_a_b_vert_case
+  
 
   subroutine dump_case (fid)
     implicit none
     integer, intent(in) :: fid
-
+    
     write (fid) iwrite
     write (fid) threshold
   end subroutine dump_case
 
+  
   subroutine load_case (fid)
     implicit none
     integer, intent(in) :: fid
@@ -947,6 +949,7 @@ contains
     read (fid) threshold
   end subroutine load_case
 
+  
   subroutine trend_relax (q, dq)
     ! Trend relaxation to mean buoyancy
     implicit none
@@ -1068,7 +1071,6 @@ contains
     ! Scalar diffusion flux
     !
     ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
-    use domain_mod
 
     implicit none
 

@@ -3,12 +3,14 @@ program tke1d
   ! Kato and Phillips (1969) boundary layer thickening due to wind stress forcing (no bottom friction)
   ! Willis and Deardorff (1974) free convection due to surface heat flux (no wind stress, no bottom friction)
   ! (see also Zilitinkevich, 1991; Mironov et al., 2000)
+  
+  use kind_mod
+  use shared_mod
   use main_mod
+  use time_integr_mod
   use test_case_mod
-  use io_vtk_mod
-  use vert_diffusion_mod
+  
   implicit none
-  integer :: ialign, idt, it
 
   ! Initialize mpi, shared variables and domains
   call init_arch_mod 
@@ -89,7 +91,7 @@ program tke1d
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
-       ------------------------------------------------------'
+       &------------------------------------------------------'
   open (unit=12, file=trim (run_id)//'_log', action='WRITE', form='FORMATTED', position='APPEND')
   total_cpu_time = 0.0_8
   do while (time < time_end)

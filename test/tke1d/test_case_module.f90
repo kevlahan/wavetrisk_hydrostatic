@@ -1,11 +1,22 @@
 Module test_case_mod
-  ! Module file for tke test case
+
+
+#ifdef MPI
+  use mpi_f08
+#endif
+
+  use kind_mod
   use shared_mod
+  use arch_mod
   use comm_mpi_mod
-  use utils_mod
-  use init_mod
+  use domain_mod
+  use domain_ops_mod
   use equation_of_state_mod
+  use geom_mod
+  use init_mod
+  use utils_mod
   use vert_diffusion_mod
+  
   implicit none
 
   ! Standard variables
@@ -46,42 +57,39 @@ contains
     tau_mag          => tau_mag_case
   end subroutine assign_functions
 
-  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type)
-    ! Additional physics for the flux term of the scalar trend
-    ! In this test case we add -gradient to the flux to include a Laplacian diffusion (div grad) to the scalar trend
+  function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type) result(flux)
+    ! Scalar diffusion flux
     !
     ! NOTE: call with arguments (d, id, idW, idSW, idS, type) if type = .true. to compute gradient at soutwest edges W, SW, S
-    use domain_mod
+
     implicit none
 
-    real(8), dimension(1:EDGE)                           :: physics_scalar_flux_case
-    type(Float_Field), dimension(1:N_VARIABLE,1:zlevels) :: q
-    type(domain)                                         :: dom
-    integer                                              :: d, id, idE, idNE, idN, v, zlev
-    logical, optional                                    :: type
-
-    physics_scalar_flux_case = 0.0_8
+    type(Float_Field), intent(inout)        :: q(1:N_VARIABLE,1:zlevels)
+    type(domain),      intent(inout)        :: dom
+    integer,           intent(in)           :: id, idE, idNE, idN, v, zlev
+    logical,           intent(in), optional :: type
+    real(dp)                                :: flux(EDGE)
+    
+    flux = 0.0_dp
   end function physics_scalar_flux_case
 
-  function physics_velo_source_case (dom, i, j, zlev, offs, dims)
+  function physics_velo_source_case (dom, i, j, zlev, offs, dims) result(source)
     ! Additional physics for the source term of the velocity trend
-    ! wind stress and bottom friction are included as surface fluxes in the split eddy viscosity split step
+
     implicit none
 
-    real(8), dimension(1:EDGE)     :: physics_velo_source_case
-    type(domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                    :: source(EDGE)
 
-    physics_velo_source_case = 0.0_8 
+    source = 0.0_dp
   end function physics_velo_source_case
 
   subroutine read_test_case_parameters
     implicit none
-    integer            :: ilat, ilon, k
     integer, parameter :: fid = 500
-    real(8)            :: lat, lon
     character(255)     :: filename, varname
 
     ! Find input parameters file name
@@ -118,7 +126,7 @@ contains
     if (rank==0) then
        write (6,'(A)') &
             '********************************************************** Parameters &
-            ************************************************************'
+            &************************************************************'
        write (6,'(A)')        "RUN PARAMETERS"
        write (6,'(A,A)')      "test_case                      = ", trim (test_case)
        write (6,'(A,A)')      "run_id                         = ", trim (run_id)
@@ -166,7 +174,7 @@ contains
        write (6,'(a,es11.4)') "r_max                          = ", r_max
        write (6,'(A)') &
             '*********************************************************************&
-            ************************************************************'
+            &************************************************************'
 
        call print_density
     end if
@@ -269,10 +277,11 @@ contains
     real(8) function temp_fun (dom, i, j, zlev, offs, dims)
       ! Defines mass for total mass integration
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: d, id_i
       real(8) :: density, full_mass, full_theta, lat, lon, z
@@ -297,10 +306,11 @@ contains
     real(8) function Kt_fun (dom, i, j, zlev, offs, dims)
       ! Defines mass for total mass integration
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: d, id_i
       real(8) :: lat, lon
@@ -320,10 +330,11 @@ contains
     real(8) function Kv_fun (dom, i, j, zlev, offs, dims)
       ! Defines mass for total mass integration
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
+
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
 
       integer :: d, id_i
       real(8) :: lat, lon
@@ -343,11 +354,12 @@ contains
     real(8) function area_fun (dom, i, j, zlev, offs, dims)
       ! Defines mass for total mass integration
       implicit none
-      type(Domain)                   :: dom
-      integer                        :: i, j, zlev
-      integer, dimension(N_BDRY+1)   :: offs
-      integer, dimension(2,N_BDRY+1) :: dims
-
+      
+      type(Domain), intent(inout) :: dom
+      integer,      intent(in)    :: i, j, zlev
+      integer,      intent(in)    :: offs(N_BDRY+1)
+      integer,      intent(in)    :: dims(2,N_BDRY+1)
+    
       integer :: id_i
       real(8) :: lat, lon
 
@@ -365,7 +377,7 @@ contains
 
   subroutine apply_initial_conditions_case
     implicit none
-    integer :: d, k, l
+    integer :: k, l
 
     do l = level_end, level_start, -1
        call apply_onescale (set_bathymetry, l, z_null, -BDRY_THICKNESS, BDRY_THICKNESS)
@@ -429,12 +441,14 @@ contains
   end subroutine update_case
   
   subroutine init_sol (dom, i, j, zlev, offs, dims)
-    ! Initial perturbation to mean for an entire vertical column 
+    ! Initial perturbation to mean for an entire vertical column
+    
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer                       :: d, id, id_i, k 
     real(8)                       :: eta, phi, rho, z_k, z_s
@@ -478,13 +492,14 @@ contains
   subroutine init_mean (dom, i, j, zlev, offs, dims)
     ! Initialize mean values for an entire vertical column
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer                       :: d, id, id_i, k 
-    real(8)                       :: eta, phi, rho, z_s
+    real(8)                       :: eta, rho, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
 
@@ -549,10 +564,11 @@ contains
   subroutine init_eddy (dom, i, j, zlev, offs, dims)
     ! Initialize eddy diffusivity and eddy viscosity
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer  :: d, id
 
@@ -566,10 +582,11 @@ contains
   subroutine init_tke (dom, i, j, zlev, offs, dims)
     ! Initialize TKE
     implicit none
-    type (Domain)                   :: dom
-    integer                         :: i, j, zlev
-    integer, dimension (N_BDRY+1)   :: offs
-    integer, dimension (2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer  :: d, id
 
@@ -582,7 +599,7 @@ contains
   real(8) function surf_geopot_case (d, id)
     ! Surface geopotential: postive if greater than mean seafloor                                                                                        
     implicit none
-    integer :: d, id
+    integer, intent(in) :: d, id
 
     surf_geopot_case = 0.0_8
   end function surf_geopot_case
@@ -663,7 +680,7 @@ contains
     write (6,'(/,a,es10.4)') "Maximum internal wave speed = ", c1
     write (6,'(A)') &
          '*********************************************************************&
-         ************************************************************'
+         &************************************************************'
   end subroutine print_density
 
   subroutine set_thresholds_case
@@ -671,7 +688,7 @@ contains
     use lnorms_mod
     use wavelet_mod
     implicit none
-    integer                                 :: k, v
+    integer                                 :: k
     real(8), dimension(1:N_VARIABLE,1:zmax) :: threshold_new
     character(3), parameter                 :: order = "inf"
 
@@ -703,7 +720,6 @@ contains
     real(8)                       :: eta, z_s
     real(8), dimension(1:zlevels) :: dz
     real(8), dimension(0:zlevels) :: z
-    type(Coord)                   :: x_i
 
     eta = 0.0_8
     z_s = max_depth
@@ -729,7 +745,7 @@ contains
   subroutine initialize_dt_viscosity_case 
     ! Initializes viscosity, time step and penalization parameter eta
     implicit none
-    real(8) :: area, C, C_b, C_divu, C_mu, C_rotu, dlat, tau_b, tau_divu, tau_mu, tau_rotu, tau_sclr
+    real(8) :: C, C_b, C_divu, C_mu, C_rotu, tau_b, tau_divu, tau_mu, tau_rotu
 
     C = 0.0_8 ! <= 1/2 if explicit
     C_rotu = C / 4**Laplace_rotu
@@ -770,10 +786,11 @@ contains
   subroutine set_bathymetry (dom, i, j, zlev, offs, dims)
     ! Set bathymetry
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     call topo_tke1d (dom, i, j, zlev, offs, dims, 'bathymetry')
   end subroutine set_bathymetry
@@ -781,10 +798,11 @@ contains
   subroutine set_penal (dom, i, j, zlev, offs, dims)
     ! Set penalization mask
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: d, id, id_i
 
@@ -803,11 +821,12 @@ contains
   subroutine topo_tke1d (dom, i, j, zlev, offs, dims, itype)
     ! Not used
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
-    character(*)                   :: itype
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    character(*)                :: itype
 
     integer :: d, id, id_i
 
@@ -824,7 +843,8 @@ contains
 
   subroutine wind_stress (lon, lat, tau_zonal, tau_merid)
     implicit none
-    real(8) :: lat, lon, tau_zonal, tau_merid
+    real(8), intent(in) :: lat, lon
+    real(8), intent(out) :: tau_zonal, tau_merid
 
     tau_zonal = tau_0
     tau_merid = 0d0
@@ -833,7 +853,7 @@ contains
   real(8) function tau_mag_case (p)
     ! Magnitude of wind stress at node p
     implicit none
-    type(Coord) :: p
+    type(Coord), intent(in) :: p
 
     real(8) :: lat, lon, tau_zonal, tau_merid
 
@@ -883,7 +903,7 @@ contains
 
   subroutine dump_case (fid)
     implicit none
-    integer :: fid
+    integer, intent(in) :: fid
 
     write (fid) iwrite
     write (fid) threshold
@@ -891,7 +911,7 @@ contains
 
   subroutine load_case (fid)
     implicit none
-    integer :: fid
+    integer, intent(in) :: fid
 
     read (fid) iwrite
     read (fid) threshold
@@ -900,7 +920,7 @@ contains
   subroutine cal_r_max
     ! Calculates minimum relative mass and checks diffusion stability limits
     implicit none
-    integer :: ierror, k, l
+    integer :: k, l
 
     r_max_loc = 1d-16
     do l = level_start, level_end
@@ -914,13 +934,15 @@ contains
 
   subroutine cal_rmax_loc (dom, i, j, zlev, offs, dims)
     ! Calculates minimum mass and diffusion stability limits
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
 
-    integer :: d, id, idE, idN, idNE, idS, idSW, idW, k
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+   
+    integer :: d, id, idE, idN, idNE, idS, idSW, idW
     real(8) :: dz0, dz_e, r_loc
 
     id   = idx (i,   j,   offs, dims)
@@ -954,13 +976,14 @@ contains
     end if
   end subroutine cal_rmax_loc
 
-  real(8) function bottom_buoy_flux_case (dom, i, j, z_null, offs, dims)
+  real(8) function bottom_buoy_flux_case (dom, i, j, zlev, offs, dims)
     ! Bottom boundary flux for vertical diffusion of buoyancy 
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, z_null
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: d, id_i
 
@@ -970,13 +993,15 @@ contains
     bottom_buoy_flux_case =  Kt(0)%data(d)%elts(id_i) * N_0**2 / grav_accel
   end function bottom_buoy_flux_case
 
-  real(8) function top_buoy_flux_case (dom, i, j, z_null, offs, dims)
+  real(8) function top_buoy_flux_case (dom, i, j, zlev, offs, dims)
     ! Top boundary flux for vertical diffusion of buoyancy
+    
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, z_null
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     if (kato) then
        top_buoy_flux_case = 0.0_8
@@ -988,10 +1013,12 @@ contains
   function wind_flux_case (dom, i, j, zlev, offs, dims)
     ! Wind stress velocity source term evaluated at edges (top boundary condition for vertical diffusion of velocity)
     implicit none
-    type(Domain)                   :: dom
-    integer                        :: i, j, zlev
-    integer, dimension(N_BDRY+1)   :: offs
-    integer, dimension(2,N_BDRY+1) :: dims
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+    
     real(8), dimension(1:EDGE)     :: wind_flux_case
 
     integer                     :: d, id, idE, idN, idNE

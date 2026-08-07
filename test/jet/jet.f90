@@ -1,11 +1,14 @@
 program jet
   ! Baroclinic jet test case based on the beta plane configuration in Soufflet et al (Ocean Modelling 98, 36-50, 2016)
+  
+  use kind_mod
+  use shared_mod
   use main_mod
+  use time_integr_mod
   use test_case_mod
-  use io_vtk_mod
+  
   implicit none
-  integer :: ierr
-
+  
   ! Initialize mpi, shared variables and domainss
   call init_arch_mod 
   call init_comm_mpi_mod
@@ -40,7 +43,7 @@ program jet
   default_thresholds = .true.                          ! use default threshold
   log_min_mass       = .false.                         ! compute minimum mass and mass conservation (if true)
   penalize           = .true.                          ! penalize land regions
-  porosity              = 1d-2                            ! porosity used in penalization
+  porosity           = 1d-2                            ! porosity used in penalization
   npts_penal         = 4.5d0                           ! number of points to smooth over in penalization
   compressible       = .false.                         ! always run with incompressible equations
   remapscalar_type   = "PPR"                           ! optimal remapping scheme
@@ -120,7 +123,7 @@ program jet
   call initialize (run_id)
 
   ! Initialize 2D projections and zonal averages
-  Nproj = sqrt (20d0 * 4**min_level) ! size of 2D projection: Nproj x Nproj/2
+  Nproj = int(sqrt (20.0_dp * 4**min_level)) ! size of 2D projection: Nproj x Nproj/2
   call initialize_projection (Nproj)
   allocate (y2(Ny(1):Ny(2),1:zlevels,1:4),       y2_0(Ny(1):Ny(2),1:zlevels,1:4))
   allocate (zonal(Ny(1):Ny(2),1:zlevels,1:4), zonal_0(Ny(1):Ny(2),1:zlevels,1:4))
@@ -135,14 +138,14 @@ program jet
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   if (rank == 0) write (6,'(A,/)') &
        '----------------------------------------------------- Start simulation run &
-       ------------------------------------------------------'
+       &------------------------------------------------------'
   total_cpu_time = 0d0
   do while (time < time_end)
      call start_timing
      
      call time_step
 
-     if (tau_nudge /= 0d0) then
+     if (tau_nudge > 1e-16_dp) then
         if (modulo (istep, 10) == 0) call zonal_mean (zonal, y2)
         call euler (sol, wav_coeff, trend_nudge, dt)
      end if
