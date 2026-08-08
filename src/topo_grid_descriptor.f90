@@ -1,8 +1,6 @@
 module topo_grid_descriptor_mod
 
-#ifdef MPI
   use mpi_f08
-#endif
   use netcdf
   
   use kind_mod,   only : dp
@@ -105,17 +103,14 @@ contains
     icol = 0
     call apply_onescale (grid_coords, l, z_null, 0, 1)
 
-#ifdef MPI
     grid_size = sum_int (loc_size)
-#else
-    grid_size = loc_size
-#endif
+
     allocate (grid_imask(1:grid_size)); grid_imask = 1
     allocate (grid_dom(1:grid_size), grid_id(1:grid_size))
     allocate (grid_area(1:grid_size), grid_center_lat(1:grid_size), grid_center_lon(1:grid_size))
     allocate (grid_corner_lat(1:grid_corners,1:grid_size), grid_corner_lon(1:grid_corners,1:grid_size))
 
-#ifdef MPI
+
     call MPI_Gather (loc_dom, loc_size, MPI_IN, grid_dom, loc_size, MPI_IN, 0, comm)
     call MPI_Gather (loc_ids, loc_size, MPI_IN, grid_id,  loc_size, MPI_IN, 0, comm)
 
@@ -129,10 +124,6 @@ contains
        call MPI_Gather (loc_corner_lat(i,:), loc_size, MPI_DP, grid_corner_lat(i,:), loc_size, MPI_DP, 0, comm)
        call MPI_Gather (loc_corner_lon(i,:), loc_size, MPI_DP, grid_corner_lon(i,:), loc_size, MPI_DP, 0, comm)
     end do
-#else
-    grid_dom = loc_dom; grid_id = loc_ids; grid_area = loc_area; grid_center_lat = loc_center_lat; 
-    grid_center_lon = loc_center_lon; grid_corner_lat = loc_corner_lat; grid_corner_lon = loc_corner_lon
-#endif
 
     if (rank==0) call wrt_esmf_rll
     
@@ -538,9 +529,8 @@ contains
          if (status /= NF90_NOERR) call handle_err(status)
       end if
 
-#ifdef MPI
       call MPI_Bcast (ncol, 1, MPI_IN, 0, comm)
-#endif
+
       allocate (grid_dom(1:ncol), grid_id(1:ncol), phi_s(1:ncol))
 
       !********************************************
@@ -569,11 +559,9 @@ contains
          if (status /= NF90_NOERR) call handle_err(status)
       end if
 
-#ifdef MPI
       call MPI_Bcast (grid_dom, ncol, MPI_IN, 0, comm)
       call MPI_Bcast (grid_id,  ncol, MPI_IN, 0, comm)
       call MPI_Bcast (phi_s,    ncol, MPI_DP, 0, comm)
-#endif
       
     end subroutine read_geopotential
   end subroutine assign_height

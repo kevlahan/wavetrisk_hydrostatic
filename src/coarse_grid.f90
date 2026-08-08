@@ -70,12 +70,12 @@ contains
     end if
 
     do r = 1, n_process
-#ifdef MPI
+
        if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
           call barrier
           cycle 
        end if
-#endif
+
        write (filename, '(a,a,a,i3.3)')  "grids/", trim (grid_type), "_WT_", level_start-1
        open (unit = fid, file = trim(filename), status = "old", form = "formatted", access = "stream", action = "read")
 

@@ -26,7 +26,7 @@ module io_mod
   use domain_mod, only : Domain, Float_Field, exner_fun, grid, idx, sol, sol_mean, tke, topography, topography_data, &
        scalar, trend, ke, mass, velo, velo1, velo2, vort, wav_coeff, wav_tke, wc_s
 
-  implicit none
+  implicit none 
 
   private
   public :: dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory
@@ -1990,12 +1990,12 @@ contains
     allocate (topo_count(topo_min_level:topo_max_level,1:N_GLO_DOMAIN))
 
     do r = 1, n_process
-#ifdef MPI
+
        if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
           call barrier
           cycle 
        end if
-#endif
+
        ! Read topography count for all domains
        write (filename, '(a,a)') trim (topo_file), '.count'
        open (unit=10, file=trim (filename), form="UNFORMATTED", action='READ', status='OLD')

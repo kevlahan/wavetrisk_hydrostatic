@@ -1,8 +1,6 @@
 module test_case_mod
 
-#ifdef MPI
   use mpi_f08
-#endif
 
   use kind_mod
   use shared_mod

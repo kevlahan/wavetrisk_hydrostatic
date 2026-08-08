@@ -1,10 +1,8 @@
 Module test_case_mod
   ! Module file for baroclinic jet test case (Soufflet 2016)
 
-  
-#ifdef MPI
+
   use mpi_f08
-#endif
    
   use kind_mod
   use shared_mod
@@ -258,7 +256,7 @@ contains
        read (fid,*) varname, resume_init
        close(fid)
     end if
-#ifdef MPI
+
     call MPI_Bcast (test_case, 255, MPI_BYTE,    0, MPI_COMM_WORLD)
     call MPI_Bcast (run_id,    255, MPI_BYTE,    0, MPI_COMM_WORLD)    
     call MPI_Bcast (max_level,   1, MPI_INTEGER, 0, MPI_COMM_WORLD)
@@ -272,7 +270,6 @@ contains
     call MPI_Bcast (CP_EVERY,    1, MPI_INTEGER, 0, MPI_COMM_WORLD)
     call MPI_Bcast (time_end,    1, MPI_DP,      0, MPI_COMM_WORLD)
     call MPI_Bcast (resume_init, 1, MPI_INTEGER, 0, MPI_COMM_WORLD)
-#endif
 
     dt_write = dt_write * DAY
     time_end = time_end * DAY
@@ -1262,11 +1259,8 @@ contains
        end do
     end do
 
-#ifdef MPI
     call MPI_Allreduce (r_max_loc, r_max, 1, MPI_DP, MPI_MAX, MPI_COMM_WORLD)
-#else
-    r_max = r_max_loc
-#endif
+
   end subroutine cal_r_max
 
   subroutine cal_rmax_loc (dom, i, j, zlev, offs, dims)

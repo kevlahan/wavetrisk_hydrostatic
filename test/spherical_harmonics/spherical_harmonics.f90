@@ -7,10 +7,7 @@ program spherical_harmonics
   !
   ! Only need velocity field for spectra (not scalars)
   
-#ifdef MPI
   use mpi_f08
-#endif
-
   use SHTOOLS
 
   use kind_mod

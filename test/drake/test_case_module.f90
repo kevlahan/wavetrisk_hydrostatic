@@ -1,8 +1,6 @@
 module test_case_mod
   
-#ifdef MPI
   use mpi_f08
-#endif
   
   use kind_mod
   use shared_mod
@@ -106,7 +104,6 @@ contains
        close(fid)
     end if
 
-#ifdef MPI
     call MPI_Bcast (test_case,        255, MPI_BYTE,    0, MPI_COMM_WORLD)
     call MPI_Bcast (run_id,           255, MPI_BYTE,    0, MPI_COMM_WORLD)    
     call MPI_Bcast (scale,              1, MPI_DP,      0, MPI_COMM_WORLD)
@@ -119,7 +116,6 @@ contains
     call MPI_Bcast (CP_EVERY,           1, MPI_INTEGER, 0, MPI_COMM_WORLD)
     call MPI_Bcast (time_end,           1, MPI_DP,      0, MPI_COMM_WORLD)
     call MPI_Bcast (resume_init,        1, MPI_INTEGER, 0, MPI_COMM_WORLD) 
-#endif
     
     dt_write = dt_write * DAY
     time_end = time_end * DAY
