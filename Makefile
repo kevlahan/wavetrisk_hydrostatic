@@ -52,7 +52,6 @@ UNAME_S := $(shell uname -s)
 # Preprocessor flags
 # =========================
 CPPFLAGS += -cpp
-#CPPFLAGS += -DMPI
 
 ifeq ($(PHYSICS),true)
 CPPFLAGS += -DPHYSICS
