@@ -40,7 +40,8 @@ The adaptive checkpoint implementation was significantly revised to improve scal
 
 - Replaced per-rank checkpoint files with a single shared MPI-IO checkpoint, written collectively using MPI_File_write_at_all.
 - Added a checkpoint directory stored in the file header, containing the computational load, byte offset, and serialized size of every global domain.
-- Broadcast checkpoint directory metadata after writing, allowing immediate redistribution and restart without rereading the checkpoint.
+- Broadcast checkpoint directory metadata after writing, allowing immediate load-based redistribution without rereading the checkpoint directory.
+- On restart, read the checkpoint directory to recover domain loads, offsets, and record sizes before redistributing domains and loading their data with MPI-IO.
 - Improved robustness through additional overflow checks and MPI error handling.
 - Fast compression/decompression of checkpoints using `zstd`.
 - Added MPI synchronization before compression, before restart, and before temporary file deletion to ensure safe operation on all ranks.
