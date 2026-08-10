@@ -253,7 +253,7 @@ SRC = kind.f90 \
       geom.f90 \
       patch.f90 \
       dyn_array.f90 \
-      base_mpi.f90 \
+      arch.f90 \
       spline.f90 \
       domain.f90 \
       domain_ops.f90 \

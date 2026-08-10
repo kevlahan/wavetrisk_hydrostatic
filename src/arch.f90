@@ -1,6 +1,5 @@
 module arch_mod
 
-  use iso_fortran_env, only: int8, int64
   use mpi_f08
 
   use kind_mod,   only : dp
@@ -9,46 +8,18 @@ module arch_mod
   implicit none
 
   private
-  public :: CP_MAGIC, CP_VERSION, CP_HEADER_BYTES, CP_LOAD_POS, CP_OFFSET_POS, CP_NBYTES_POS, CP_DATA_POS
   public :: MPI_IN, MPI_DP, MPI_SP
-  public :: abort_run, barrier, comm, distribute_grid, glo_id, finalize, init_arch_mod, loc_id, n_process, owner, rank
-  public :: cp_load, cp_offset, cp_nbytes
+  public :: abort_run, barrier, comm, cp_load, distribute_grid, glo_id, finalize, init_arch_mod, loc_id, n_process, owner, rank
 
   type(MPI_Comm)                :: comm
   type(MPI_Datatype), parameter :: MPI_IN = MPI_INTEGER
   type(MPI_Datatype), parameter :: MPI_DP = MPI_DOUBLE_PRECISION
   type(MPI_Datatype), parameter :: MPI_SP = MPI_REAL
   
-  integer                              :: n_process, rank
-  integer, dimension(N_GLO_DOMAIN)     :: loc_id, owner
-  integer, dimension(:,:), allocatable :: glo_id
-
-  integer(int64), parameter :: CP_MAGIC = &
-       int(z'5741564554524953', int64)
-
-  integer(int64), parameter :: CP_VERSION = 1_int64
-
-  integer,        allocatable :: cp_load(:)
-  integer(int64), allocatable :: cp_offset(:)
-  integer(int64), allocatable :: cp_nbytes(:)
-
-  integer(int64), parameter :: CP_HEADER_BYTES = 24_int64
-
-  integer(int64), parameter :: CP_LOAD_POS = &
-       CP_HEADER_BYTES
-
-  integer(int64), parameter :: CP_OFFSET_POS = &
-       CP_LOAD_POS + &
-       int(storage_size(0)/8, int64) * int(N_GLO_DOMAIN, int64)
-
-  integer(int64), parameter :: CP_NBYTES_POS = &
-       CP_OFFSET_POS + &
-       8_int64 * int(N_GLO_DOMAIN, int64)
-
-  integer(int64), parameter :: CP_DATA_POS = &
-       CP_NBYTES_POS + &
-       8_int64 * int(N_GLO_DOMAIN, int64)
-
+  integer                       :: n_process, rank
+  integer                       :: loc_id(N_GLO_DOMAIN) , owner(N_GLO_DOMAIN) 
+  integer,          allocatable :: glo_id(:,:)
+  integer,          allocatable :: cp_load(:)
 contains
 
   subroutine distribute_grid (cp_idx)

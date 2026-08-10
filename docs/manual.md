@@ -1,6 +1,6 @@
-# WAVETRISK 2.4 
+# WAVETRISK 2.5 
 ## Users manual and code description
-2025-04-17
+2026-08-10
 
 **Nicholas Kevlahan** 															 
 
@@ -35,6 +35,23 @@ There are two basic sub-models:
 * Dubos, T & Kevlahan, NK-R 2013 A conservative adaptive wavelet method for the shallow-water equations on staggered grids.  *Q J R Meteorol Soc* **139**, 1997-2020 [doi:10.1002/qj.2097](http:doi.org/10.1002/qj.2097).
 
 ### Version history
+##### WAVETRISK 2.5
+The adaptive checkpoint implementation was significantly revised to improve scalability, robustness, and storage efficiency.
+
+- Replaced per-rank checkpoint files with a single shared MPI-IO checkpoint, written collectively using MPI_File_write_at_all.
+- Added a checkpoint directory stored in the file header, containing the computational load, byte offset, and serialized size of every global domain.
+- Broadcast checkpoint directory metadata after writing, allowing immediate redistribution and restart without rereading the checkpoint.
+- Improved robustness through additional overflow checks and MPI error handling.
+- Fast compression/decompression of checkpoints using `zstd`.
+- Added MPI synchronization before compression, before restart, and before temporary file deletion to ensure safe operation on all ranks.
+
+Faster .vtk data file compression by replacing serial gzip compression with parallel `pigz` for VTK archive creation.
+
+Removed support for `Charm++/AMPI`. Supporting AMPI required PIEglobal-based global variable privatization and an additional execution model that could not be maintained reliably for the adaptive code architecture, particularly for multi-node execution.
+
+Modernized the MPI communication module through consistent use of explicit interfaces, intent, private/public encapsulation, and explicit module dependencies.
+
+Consolidated common communication interfaces by reusing shared abstract interfaces instead of duplicated definitions.
 ##### WAVETRISK 2.4
 - Separate physics module for use with WAVETRISK-ATMOSPHERE
 - Simple dry physics option (Hourdin 1993).
@@ -48,7 +65,7 @@ There are two basic sub-models:
 - Full multigrid elliptic solver on adaptive grid.
 - Removal of implicit horizontal diffusion option.
 ##### WAVETRISK 2.2
-- Dynamic load balancing and automatic checkpointing using `charm++/AMPI`. Removed due to instability and bugs.
+- Dynamic load balancing and automatic checkpointing using `charm++/AMPI`. 
 ##### WAVETRISK 2.1
 - Spherical harmonics test case and associated matlab m-file for computing power spectra.
 - Ocean modelling test cases.

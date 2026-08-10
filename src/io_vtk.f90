@@ -1,5 +1,5 @@
 module io_vtk_mod
-  
+
   use kind_mod,   only : dp, sp
   use shared_mod, only : ADJZONE, Coord, DAY, EDGE, N_BDRY, N_VARIABLE, NONE, TRIAG, zlevels, S_MASS, S_TEMP, S_VELO, &
        LORT, UPLT, RT, DG, UP, b_vert, compressible, dx_avg, grav_accel, kappa, max_level, mode_split, &
@@ -17,233 +17,383 @@ module io_vtk_mod
   use multi_level_mod,    only : cpt_or_restr_flux
   use vert_diffusion_mod, only : vertical_diffusion
   use utils_mod,          only : active_level, interp_UVW_latlon, interp, pre_levelout,  post_levelout, save_tri, z_i, zero_float
-  
+
   implicit none
 
   private
   public :: write_and_export 
-    
-  integer, parameter                                   :: HEX_VERT = 6 ! number of hexagon vertices
-  integer, parameter                                   :: TRI_VERT = 3 ! number of triangle vertices
-  integer(4)                                           :: nvar = 12
-  integer(4)                                           :: ncell, ncoord,  nvert, nvertex
-  integer(4)                                           :: ncell_loc, ncoord_unique_loc, nvertex_unique_loc
-  integer(4),  dimension(:),       allocatable         :: cell_vert_index,  cell_vert_index_loc
-  real(sp),    dimension(:),       allocatable         :: cell_data_loc, vert_coord_unique_loc
-  real(sp),    dimension(:),       allocatable         :: cell_data, vert_coord_unique
-  type(coord), dimension(:),       allocatable         :: points_loc
-  type(Float_Field), dimension(:), allocatable, target :: vel_vert ! vertical velocity
 
-  
+  integer, parameter                     :: HEX_VERT = 6 ! number of hexagon vertices
+  integer, parameter                     :: TRI_VERT = 3 ! number of triangle vertices
+  integer(4)                             :: nvar = 12
+  integer(4)                             :: ncell, ncoord,  nvert, nvertex
+  integer(4)                             :: ncell_loc, ncoord_unique_loc, nvertex_unique_loc
+  integer(4),        allocatable         :: cell_vert_index(:),  cell_vert_index_loc(:)
+  real(sp),          allocatable         :: cell_data_loc(:), vert_coord_unique_loc(:)
+  real(sp),          allocatable         :: cell_data(:), vert_coord_unique(:)
+  type(coord),       allocatable         :: points_loc(:)
+  type(Float_Field), allocatable, target :: vel_vert(:) ! vertical velocity
+
+
 contains
 
-  
+
   subroutine write_and_export (type)
-    
+
     implicit none
-    
+
     character(len=3), intent(in) :: type ! "tri" or "hex"
-    
+
     integer(4) :: d, k, l
+
 
     if (rank == 0) then
        write (6,'(/,a,/)') '**************************************************************&
             &********************************************************************'
-       write (6,'(a,i4,a,es10.4,/)') 'Saving field ', iwrite, ' at time [day] = ', time / DAY
+       write (6,'(a,i4,a,es10.4,/)') &
+            'Saving field ', iwrite, ' at time [day] = ', time / DAY
     end if
 
-    if (vert_diffuse) call vertical_diffusion ! recalculate eddy viscosity and diffusivity so they could be saved
 
-    vel_vert = sol(S_MASS,1:zlevels); call zero_float (vel_vert)
+    ! Recalculate eddy viscosity and diffusivity so they can be saved.
+    if (vert_diffuse) call vertical_diffusion
 
-    sol%bdry_uptodate = .false.; call update_bdry (sol, NONE, 911)
+
+    vel_vert = sol(S_MASS,1:zlevels)
+    call zero_float (vel_vert)
+
+
+    sol%bdry_uptodate = .false.
+    call update_bdry (sol, NONE, 911)
+
 
     call pre_levelout
 
+
     call cal_surf_press (sol(1:N_VARIABLE,1:zlevels))
 
-    ! Compute vertical velocity
+
+    ! Compute vertical velocity.
     if (compressible) then
-       call omega_velocity    ! vertical velocity in pressure coordinates D_t P = OMEGA [Pa/s]
+       call omega_velocity
     else
-       call vertical_velocity ! vertical velocity w [m/s]
+       call vertical_velocity
     end if
 
-    if (zmin <= 0) then       ! save surface temperature if available
-       call find_vertices (0, type)                                    
+
+    ! Save surface temperature if available.
+    if (zmin <= 0) then
+       call find_vertices (0, type)
+
        if (rank == 0) call write_vtk (0, type)
     end if
 
-    do k = 1, zlevels         ! save data for atmosphere layers
+
+    ! Save atmospheric layers.
+    do k = 1, zlevels
+
        do d = 1, size(grid)
+
           mass   =>      sol(S_MASS,k)%data(d)%elts
           temp   =>      sol(S_TEMP,k)%data(d)%elts
           velo   =>      sol(S_VELO,k)%data(d)%elts
+
           mean_m => sol_mean(S_MASS,k)%data(d)%elts
           mean_t => sol_mean(S_TEMP,k)%data(d)%elts
-          exner  =>       exner_fun(k)%data(d)%elts
+
+          exner  => exner_fun(k)%data(d)%elts
 
           velo1  => grid(d)%u_zonal%elts
           velo2  => grid(d)%v_merid%elts
           vort   => grid(d)%vort%elts
 
-          call apply_d (integrate_pressure_up, grid(d), k,       0, 1) ! pressure
-          call apply_d (interp_UVW_latlon,     grid(d), z_null,  0, 1) ! zonal and meridional velocities
-          call apply_d (cal_vort,              grid(d), z_null, -1, 1) ! vorticity
 
-          do l = level_start, level_end                                ! vorticity at pentagons
+          ! Pressure.
+          call apply_d (integrate_pressure_up, grid(d), k,      0, 1)
+
+          ! Zonal and meridional velocities.
+          call apply_d (interp_UVW_latlon, grid(d), z_null, 0, 1)
+
+          ! Vorticity.
+          call apply_d (cal_vort, grid(d), z_null, -1, 1)
+
+
+          ! Vorticity at pentagons.
+          do l = level_start, level_end
              call apply_to_penta_d (post_vort, grid(d), l, z_null)
           end do
 
-          nullify (mass, temp, velo, mean_m, mean_t, exner, velo1, velo2, vort)
+
+          nullify (mass, temp, velo, mean_m, mean_t, exner, &
+               velo1, velo2, vort)
+
        end do
-       call find_vertices (k, type)                                    ! find grid and compute data for saving
+
+
+       ! Find grid and compute data for saving.
+       call find_vertices (k, type)
+
        call barrier
-       
-       if (rank == 0) call write_vtk (k, type)                         ! save layer data to vtk file
+
+
+       ! Write VTK file from rank 0.
+       if (rank == 0) call write_vtk (k, type)
+
     end do
+
+
     call post_levelout
 
+
     if (rank == 0) then
-       call compress_files (type, "vtk")
+
+       call archive_files (type, "vtk")
+
 
        write (6,'(2(a,i8),a,f6.1,/)') &
-            "Number of active cells = ", ncell, " number of unique vertices = ", nvertex, &
-            " compression ratio = ", dble (2 * (2 + 10 * 4**max_level)) / dble (ncell)
+            "Number of active cells = ", ncell, &
+            " number of unique vertices = ", nvertex, &
+            " compression ratio = ", &
+            dble(2 * (2 + 10 * 4**max_level)) / dble(ncell)
+
 
        write (6,'(a,/)') '*************************************************************&
             &*********************************************************************'
+
     end if
+
+
     call barrier
+
+
     deallocate (vel_vert, vert_coord_unique)
+
   end subroutine write_and_export
-  
+
 
   subroutine write_vtk (k, type)
-    ! VTK file is written from rank 0
-    
+    ! VTK file is written from rank 0.
+
     implicit none
-    
-    integer(4), intent(in) :: k
+
+    integer(4),       intent(in) :: k
     character(len=3), intent(in) :: type
+
     integer(4)                            :: icell, ivar, ivert
     integer(4), dimension(:), allocatable :: cell_type, level_data
-    character(3)                          :: layer
-    character(4)                          :: isv
-    character(12)                         :: str1, str2, str3, str4
-    character(1000)                       :: filename
-    integer(4),                 parameter :: VTK_POLYGON = 7
-    integer(4),                 parameter :: funit       = 300
 
-    write (str1(1:12),'(i12)')  nvertex
-    write (str2(1:12),'(i12)')  ncell
-    write (str3(1:12),'(i12)')  ncell * (1 + nvert)
-    write (str4(1:12),'(i12)')  ncell * nvert
-    write (isv,       '(i4.4)') int (iwrite, kind=4)
-    write (layer,     '(i3.3)') k
+    character(3)    :: layer
+    character(4)    :: isv
+    character(12)   :: str1, str2, str3, str4
+    character(1000) :: filename
 
-    filename = trim(run_id)//"_"//trim(type)//"_"//trim(layer)//"_"//trim(isv)//".vtk"
-    open (unit=funit, file=trim(filename), form="unformatted", access='stream', status='replace', convert='BIG_ENDIAN')
+    integer(4), parameter :: VTK_POLYGON = 7
+    integer(4), parameter :: funit       = 300
 
-    ! Write vtk header
+
+    write (str1(1:12),'(i12)') nvertex
+    write (str2(1:12),'(i12)') ncell
+    write (str3(1:12),'(i12)') ncell * (1 + nvert)
+    write (str4(1:12),'(i12)') ncell * nvert
+
+    write (isv,   '(i4.4)') int(iwrite, kind=4)
+    write (layer, '(i3.3)') k
+
+
+    filename = trim(run_id)//"_"//trim(type)//"_"// &
+         trim(layer)//"_"//trim(isv)//".vtk"
+
+
+    open (unit=funit, file=trim(filename), form="unformatted", &
+         access='stream', status='replace', convert='BIG_ENDIAN')
+
+
+    ! ---------------------------------------------------------------------
+    ! VTK header.
+    ! ---------------------------------------------------------------------
+
     write (funit) '# vtk DataFile Version 2.0'//lf
-    write (funit) 'WAVETRISK adaptive data'   //lf              
+    write (funit) 'WAVETRISK adaptive data'   //lf
     write (funit) 'BINARY'                    //lf
 
+
+    ! ---------------------------------------------------------------------
+    ! Geometry and connectivity.
+    ! ---------------------------------------------------------------------
+
     select case (type)
+
+
     case ("tri")
+
        write (funit) 'DATASET POLYDATA'//lf
 
        write (funit) 'POINTS '//trim(str1)//' float'//lf
        write (funit) vert_coord_unique
 
+
        write (funit) 'POLYGONS '//trim(str2)//trim(str3)//lf
+
        do icell = 1, ncell
-          write (funit) nvert, cell_vert_index(nvert*(icell-1)+1:3*(icell-1)+nvert)
+
+          write (funit) nvert, &
+               cell_vert_index(nvert*(icell-1)+1:nvert*icell)
+
        end do
+
+
     case ("hex")
+
        write (funit) 'DATASET UNSTRUCTURED_GRID'//lf
 
        write (funit) 'POINTS '//trim(str4)//' float'//lf
        write (funit) vert_coord_unique
 
+
        write (funit) 'CELLS '//trim(str2)//trim(str3)//lf
+
        do icell = 1, ncell
-          write (funit) nvert, ((icell-1)*nvert+ivert-1, ivert=1,nvert)
+
+          write (funit) nvert, &
+               ((icell-1)*nvert+ivert-1, ivert=1,nvert)
+
        end do
 
-       allocate (cell_type(ncell));  cell_type = VTK_POLYGON
+
+       allocate (cell_type(ncell))
+       cell_type = VTK_POLYGON
+
        write (funit) 'CELL_TYPES '//trim(str2)//lf
        write (funit) cell_type
+
        deallocate (cell_type)
+
     end select
 
-    ! Write out cell data
+
+    ! ---------------------------------------------------------------------
+    ! Cell data.
+    ! ---------------------------------------------------------------------
+
     write (funit) 'CELL_DATA '//trim(str2)//lf
 
-    write (funit) 'SCALARS Level int'   //lf
+
+    ! Adaptive grid level.
+
+    write (funit) 'SCALARS Level int'//lf
     write (funit) 'LOOKUP_TABLE default'//lf
-    level_data = int (cell_data(1:nvar*(ncell-1)+1:nvar),kind=4)
+
+    level_data = int( &
+         cell_data(1:nvar*(ncell-1)+1:nvar), &
+         kind=4)
+
     write (funit) level_data
 
+
+    ! Remaining variables.
+
     do ivar = 2, nvar
+
        select case (ivar)
+
+
        case (2)
+
           write (funit) 'SCALARS Topography float'//lf
+
+
        case (3)
+
           if (type == "tri") then
              write (funit) 'SCALARS Penalization float'//lf
           elseif (type == "hex") then
              write (funit) 'SCALARS Mask float'//lf
           end if
+
+
        case (4)
+
           if (compressible) then
              write (funit) 'SCALARS Ps float'//lf
           else
              write (funit) 'SCALARS Eta float'//lf
           end if
+
+
        case (5)
+
           if (compressible) then
              write (funit) 'SCALARS Temperature float'//lf
           else
              write (funit) 'SCALARS Density float'//lf
           end if
+
+
        case (6)
+
           write (funit) 'SCALARS Velocity_Zonal float'//lf
+
+
        case (7)
+
           write (funit) 'SCALARS Velocity_Meridional float'//lf
+
+
        case (8)
+
           if (compressible) then
              write (funit) 'SCALARS OMEGA float'//lf
           else
              write (funit) 'SCALARS Velocity_Vertical float'//lf
           end if
+
+
        case (9)
+
           write (funit) 'SCALARS Vorticity float'//lf
+
+
        case (10)
+
           write (funit) 'SCALARS Geopot_Height float'//lf
+
+
        case (11)
+
           write (funit) 'SCALARS P/Ps float'//lf
+
+
        case (12)
+
           write (funit) 'SCALARS dz float'//lf
+
        end select
+
+
        write (funit) 'LOOKUP_TABLE default'//lf
-       write (funit) cell_data(ivar:nvar*(ncell-1)+ivar:nvar)
+
+       write (funit) &
+            cell_data(ivar:nvar*(ncell-1)+ivar:nvar)
+
     end do
+
+
     close (funit)
+
   end subroutine write_vtk
-  
+
 
   subroutine find_vertices (k, type)
     ! Find all cell vertices on specified grid type ("tri" or "hex")
-    
+
     implicit none
-    
+
     integer(4),       intent(in) :: k
     character(len=3), intent(in) :: type
-    
-    integer(4)                       :: i, r
-    integer(4), dimension(n_process) :: displs, ncell_glo, ncoord_unique_glo, nvertex_unique_glo, ncell_vert_index_glo
+
+    integer(4) :: i, r
+    integer(4) :: displs(n_process), ncell_glo(n_process)
+    integer(4) :: ncoord_unique_glo(n_process), nvertex_unique_glo(n_process), ncell_vert_index_glo(n_process)
 
     allocate (cell_data_loc(0), cell_vert_index_loc(0), points_loc(0), vert_coord_unique_loc(0))
     ncoord_unique_loc = 0; nvertex_unique_loc = 0; ncell_loc = 0
@@ -281,20 +431,20 @@ contains
 
     deallocate (cell_data_loc, cell_vert_index_loc, points_loc, vert_coord_unique_loc)
   end subroutine find_vertices
-  
+
 
   subroutine unique_tri_cells (dom, i, j, zlev, offs, dims)
     ! Finds all unique triangle vertices
-    
+
     use utils_mod
-    
+
     implicit none
-    
+
     type(Domain), intent(inout) :: dom
     integer,      intent(in)    :: i, j, zlev
     integer,      intent(in)    :: offs(N_BDRY+1)
     integer,      intent(in)    :: dims(2,N_BDRY+1)
-    
+
     integer    :: d, id, imin, ivert, t
     integer    :: idE, idN, idNE
     integer(4) :: new_vert_index(nvert)
@@ -345,15 +495,15 @@ contains
           cell_data_loc       = [cell_data_loc,                 outv] ! add to cell data array
        end if
     end do
-    
+
   contains
-    
+
     subroutine compute_data
-      
+
       use utils_mod
-      
+
       implicit none
-      
+
       integer  :: neigh_id(0:EDGE) 
       real(sp) :: rho_dz(0:EDGE), rho_dz_theta(0:EDGE)
       real(sp) :: temperature(0:EDGE)
@@ -406,11 +556,11 @@ contains
     end subroutine compute_data
 
     subroutine compute_data_surf
-      
+
       use utils_mod
-      
+
       implicit none
-      
+
       integer  :: neigh_id(0:EDGE)
       real(sp) :: temperature(0:EDGE)
       real(sp) :: tri_area
@@ -438,12 +588,12 @@ contains
 
     function vort_tri (t) result(val)
       ! Triangle vorticity equivalent to hexagon vorticity
-      
+
       implicit none
-      
+
       integer, intent(in) :: t
       real(sp)            :: val
-      
+
       select case (t)
       case (LORT)
          val = real(( &
@@ -459,21 +609,21 @@ contains
          val = 0.0_dp
       end select
     end function vort_tri
-    
+
   end subroutine unique_tri_cells
-  
+
 
   subroutine hex_cells (dom, i, j, zlev, offs, dims)
-    
+
     use domain_mod
-    
+
     implicit none
-    
+
     type(Domain), intent(inout) :: dom
     integer,      intent(in)    :: i, j, zlev
     integer,      intent(in)    :: offs(N_BDRY+1)
     integer,      intent(in)    :: dims(2,N_BDRY+1)
-    
+
     integer     :: d, id, idE, idNE, idN, idW, idSW, idS, ivert
     real(sp)    :: outv(nvar)
     type(coord) :: vert(6)
@@ -508,13 +658,13 @@ contains
        call compute_data
        cell_data_loc = [cell_data_loc, outv] ! add to cell data array
     end if
-    
+
   contains
-    
+
     subroutine compute_data
-      
+
       implicit none
-      
+
       real(sp) :: Ps, rho_dz, rho_dz_theta, temperature
 
       rho_dz       = real (sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1), kind=sp)
@@ -550,21 +700,21 @@ contains
       outv(11) = real (dom%press%elts(id+1) / Ps,          kind=sp) ! P/Ps
       outv(12) = real (rho_dz / ref_density,               kind=sp) ! dz
     end subroutine compute_data
-    
+
   end subroutine hex_cells
 
-  
+
   function vorticity (dom, i, j, offs, dims) result(val)
     ! Vorticity at hexagon points
-    
+
     implicit none
-    
+
     type(Domain), intent(inout) :: dom
     integer,      intent(in)    :: i, j
     integer,      intent(in)    :: offs(N_BDRY+1)
     integer,      intent(in)    :: dims(2,N_BDRY+1)
     real(sp)                    :: val
-    
+
     integer :: id, idS, idSW, idW
 
     id   = idx (i,   j,   offs, dims)
@@ -586,9 +736,9 @@ contains
     ! Computes vertical velocity in pressure coordinates D_t P = OMEGA [Pa/s]
     ! stored in vel_vert
     ! note that OMEGA > 0 corresponds to negative vertical velocity (w < 0)
-    
+
     implicit none
-    
+
     integer(4) :: d, j, k, l
 
     call update_bdry (sol, NONE, 912)
@@ -666,21 +816,21 @@ contains
     vel_vert%bdry_uptodate = .false.
     call update_bdry (vel_vert, NONE)
   end subroutine omega_velocity
-  
+
 
   subroutine cal_omega (dom, i, j, zlev, offs, dims)
     ! Velocity flux across interfaces
-    
+
     implicit none
-    
+
     type(Domain), intent(inout) :: dom
     integer(4),   intent(in)    :: i, j, zlev
     integer(4),   intent(in)    :: offs(N_BDRY+1)
     integer(4),   intent(in)    :: dims(2,N_BDRY+1)
 
-    integer(4)                     :: d, id_i, k
-    real(dp), dimension(1:zlevels) :: u_gradP
-    real(dp), dimension(0:zlevels) :: div_mass
+    integer(4) :: d, id_i, k
+    real(dp)   :: u_gradP(1:zlevels)
+    real(dp)   :: div_mass(0:zlevels)
 
     d    = dom%id + 1
     id_i = idx (i, j, offs, dims) + 1
@@ -702,12 +852,12 @@ contains
        vel_vert(k)%data(d)%elts(id_i) = - grav_accel * interp (div_mass(k-1), div_mass(k)) + u_gradP(k) 
     end do
   end subroutine cal_omega
-  
+
 
   subroutine vertical_velocity
     ! Computes vertical velocity w [m/s]
     ! stored in trend(S_TEMP,1:zlevels)
-    
+
     implicit none
 
     call omega_velocity
@@ -717,13 +867,13 @@ contains
     vel_vert%bdry_uptodate = .false.
     call update_bdry (vel_vert, NONE, 917)
   end subroutine vertical_velocity
-  
+
 
   subroutine cal_w (dom, i, j, zlev, offs, dims)
     ! Vertical velocity w = - OMEGA / (rho_0 g) + (vertical projection of horizontal velocity)
-    
+
     implicit none
-    
+
     type(Domain), intent(inout) :: dom
     integer(4),   intent(in)    :: i, j, zlev
     integer(4),   intent(in)    :: offs(N_BDRY+1)
@@ -737,18 +887,18 @@ contains
     do k = 1, zlevels
        vel_vert(k)%data(d)%elts(id+1) = - vel_vert(k)%data(d)%elts(id+1) / (ref_density * grav_accel) + proj_vel_vert () 
     end do
-    
+
   contains
-    
+
     function proj_vel_vert () result(val)
       ! Computes grad_zonal(z) * u_zonal + grad_merid(z) * u_merid at hexagon centres for vertical velocity computation.
       ! Uses Perot formula as also used for kinetic energy:
       ! u = sum ( u.edge_normal * hexagon_edge_length * (edge_midpoint-hexagon_center) ) / cell_area
-      
+
       implicit none
 
       real(dp) :: val
-      
+
       integer(4) :: idE, idN, idNE, idS, idSW, idW
 
       idE  = idx (i+1, j,   offs, dims)
@@ -774,7 +924,7 @@ contains
 
       integer(4), intent(in) :: i1, j1, i2, j2, id_e
       real(dp)               :: val
-      
+
       real(dp) :: dl, dz
 
       dz =  z_i (dom, i2, j2, k, offs, dims, sol) - z_i (dom, i1, j1, k, offs, dims, sol)
@@ -785,24 +935,43 @@ contains
   end subroutine cal_w
 
   
-  subroutine compress_files (type, format)
-    
+  subroutine archive_files (type, format)
+
     implicit none
-    
+
     character(len=*), intent(in) :: format
     character(len=*), intent(in) :: type
 
     character(len=4)              :: isv
     character(len=:), allocatable :: cmd, pattern, tarfile
+    integer                       :: stat
 
-    write (isv, '(i4.4)') iwrite
+    write (isv,'(i4.4)') iwrite
 
-    pattern = trim (run_id) // '_' // type // '_*' // isv // '.' // format
-    tarfile = trim (run_id) // '_' // type // '_'  // isv // '.' // format // '.tgz'
-    cmd     = 'gtar caf "' // tarfile // '" ' // pattern // ' --remove-files'
+    pattern = trim(run_id)//'_'//type//'_*'//isv//'.'//format
+    tarfile = trim(run_id)//'_'//type//'_'//isv//'.'//format//'.tgz'
 
-    call execute_command_line (cmd)
-  end subroutine compress_files
+    ! Is pigz available?
+    call execute_command_line('command -v pigz >/dev/null 2>&1', &
+         exitstat=stat)
 
-  
+    if (stat == 0) then
+
+       ! Parallel gzip, fastest compression.
+       cmd = 'gtar -I "pigz -1" -cf "' // trim(tarfile) // '" ' // &
+            trim(pattern) // ' --remove-files'
+
+    else
+
+       ! Fallback to ordinary gzip at fastest compression level.
+       cmd = 'gtar -I "gzip -1" -cf "' // trim(tarfile) // '" ' // &
+            trim(pattern) // ' --remove-files'
+
+    end if
+
+    call execute_command_line(cmd)
+
+  end subroutine archive_files
+
+
 end module io_vtk_mod

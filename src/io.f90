@@ -10,8 +10,7 @@ module io_mod
        scalars, threshold, time, topo_file, topo_min_level, topo_max_level, vert_diffuse, zmin, zmax, zlevels, &
        S_MASS, S_TEMP, S_VELO, NONE, LORT, UPLT, z_null
 
-  use arch_mod,         only : barrier, comm, glo_id, n_process, rank, cp_load, cp_offset, cp_nbytes
-  use arch_mod,         only : CP_MAGIC, CP_VERSION, CP_HEADER_BYTES, CP_LOAD_POS, CP_OFFSET_POS, CP_NBYTES_POS, CP_DATA_POS
+  use arch_mod,         only : barrier, comm, glo_id, n_process, rank, cp_load
   use comm_mod,         only : domain_load
   use comm_mpi_mod,     only : update_bdry
   use domain_mod,       only : init_domain_mod
@@ -32,6 +31,45 @@ module io_mod
   public :: dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory
   public :: assign_NCAR_topo,  kinetic_energy, init_io_mod, load_topo, save_topo, vort_extrema
   public :: topo, pot_energy, total_ke, layer1_ke, layer2_ke, one_layer_ke, barotropic_ke, pot_enstrophy, umag
+
+
+  ! Magic number identifying a WAVETRISK checkpoint file.
+  ! (ASCII encoding of the first eight characters of WAVETRISK)
+  integer(int64), parameter :: CP_MAGIC = &
+       int(z'5741564554524953', int64)
+
+  ! Version number of the checkpoint file layout.
+  integer(int64), parameter :: CP_VERSION = 1_int64
+
+  ! Absolute byte offset of each global domain within the checkpoint file.
+  integer(int64), allocatable :: cp_offset(:)
+
+  ! Serialized size (bytes) of each global domain.
+  integer(int64), allocatable :: cp_nbytes(:)
+
+  ! Size of the fixed checkpoint header (magic number, version,
+  ! number of global domains).
+  integer(int64), parameter :: CP_HEADER_BYTES = 24_int64
+
+  ! Byte offset of the domain load array in the checkpoint file.
+  integer(int64), parameter :: CP_LOAD_POS = &
+       CP_HEADER_BYTES
+
+  ! Byte offset of the domain offset array in the checkpoint file.
+  integer(int64), parameter :: CP_OFFSET_POS = &
+       CP_LOAD_POS + &
+       int(storage_size(0)/8, int64) * int(N_GLO_DOMAIN, int64)
+
+  ! Byte offset of the domain size array in the checkpoint file.
+  integer(int64), parameter :: CP_NBYTES_POS = &
+       CP_OFFSET_POS + &
+       8_int64 * int(N_GLO_DOMAIN, int64)
+
+  ! Byte offset of the serialized domain data.
+  integer(int64), parameter :: CP_DATA_POS = &
+       CP_NBYTES_POS + &
+       8_int64 * int(N_GLO_DOMAIN, int64)
+
 
   integer, dimension(:,:), allocatable :: topo_count
   real(dp)                             :: vmin, vmax
@@ -213,6 +251,7 @@ contains
     end do
   end subroutine umag
 
+  
   subroutine cal_umag (dom, i, j, zlev, offs, dims)
     ! Velocity magnitude: sqrt(2*ke) using approximation to TRiSK formula
     ! divide out surface area
@@ -488,6 +527,7 @@ contains
 
   end function barotropic_ke
 
+  
   function pot_enstrophy (dom, i, j, zlev, offs, dims) result(val)
     ! Computes potential enstrophy in two layer mode split case
     implicit none
@@ -523,7 +563,7 @@ contains
        val = 0.0_dp
     end if
   end function pot_enstrophy
-  
+
 
   subroutine dump_adapt_mpi (id)
     ! Save adaptive checkpoint data to one shared MPI-IO file.
@@ -538,7 +578,11 @@ contains
     !   cp_offset : absolute byte offset in checkpoint file
     !   cp_nbytes : serialized domain size in bytes
     !
-    ! NOTE: Checkpoint generation  modifies the adaptive grid structure 
+    ! After the shared checkpoint has been closed collectively,
+    ! rank zero compresses it using zstd -1 and removes the
+    ! uncompressed .bin file.
+    !
+    ! NOTE: Checkpoint generation modifies the adaptive grid structure
     ! by deleting patches that are not required in the adjacent zone.
 
     implicit none
@@ -548,6 +592,7 @@ contains
     integer :: d, k, v
     integer :: fid
     integer :: ierr
+    integer :: cmdstat, exitstat
 
     type(MPI_File)   :: fh
     type(MPI_Status) :: status
@@ -563,8 +608,9 @@ contains
 
     integer(int8), allocatable :: buf(:)
 
-    character(4) :: cp4
+    character(4)              :: cp4
     character(:), allocatable :: filename
+    character(:), allocatable :: cmd
 
 
     ! ---------------------------------------------------------------
@@ -828,6 +874,50 @@ contains
 
 
     ! ---------------------------------------------------------------
+    ! Compress completed checkpoint
+    ! ---------------------------------------------------------------
+    !
+    ! All MPI ranks must have closed the shared file before rank zero
+    ! starts compression.
+
+    call MPI_Barrier(comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop "dump_adapt_mpi: pre-zstd barrier failed"
+    end if
+
+
+    if (rank == 0) then
+
+       cmd = 'zstd -q -1 --rm -f "' // trim(filename) // '"'
+
+       call execute_command_line( &
+            cmd, &
+            exitstat=exitstat, &
+            cmdstat=cmdstat)
+
+       if (cmdstat /= 0) then
+          error stop "dump_adapt_mpi: failed to execute zstd"
+       end if
+
+       if (exitstat /= 0) then
+          error stop "dump_adapt_mpi: zstd compression failed"
+       end if
+
+    end if
+
+
+    ! Ensure compression has completed before any rank proceeds.
+    ! The checkpoint now exists as filename//".zst".
+
+    call MPI_Barrier(comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop "dump_adapt_mpi: post-zstd barrier failed"
+    end if
+
+
+    ! ---------------------------------------------------------------
     ! Cleanup
     ! ---------------------------------------------------------------
 
@@ -839,7 +929,7 @@ contains
     deallocate(len_loc)
 
   end subroutine dump_adapt_mpi
-  
+
 
   subroutine build_checkpoint_directory (gid_loc, load_loc, off_loc, len_loc)
 
@@ -1260,8 +1350,6 @@ contains
   end subroutine read_checkpoint_directory
 
 
-
-
   subroutine dump_domain (fid, d)
     implicit none
 
@@ -1413,7 +1501,6 @@ contains
   end subroutine dump_domain
 
 
-
   subroutine write_scalar (dom, p, i, j, zlev, offs, dims, fid)
     ! For poles
 
@@ -1442,6 +1529,7 @@ contains
     end if
   end subroutine write_scalar
 
+
   subroutine load_adapt_mpi (id)
     ! Read adaptive checkpoint data from one shared MPI-IO file.
 
@@ -1453,6 +1541,10 @@ contains
     integer :: fid
     integer :: ierr
 
+    integer :: cmdstat, exitstat
+    integer :: decompress_status
+    integer :: delete_unit
+
     type(MPI_File)   :: fh
     type(MPI_Status) :: status
 
@@ -1462,8 +1554,19 @@ contains
     integer(int64), allocatable :: domain_pos(:)
     integer(int8),  allocatable :: buf(:)
 
+    logical :: bin_exists
+    logical :: zst_exists
+    logical :: temporary_bin
+
     character(4) :: cp4
     character(:), allocatable :: filename
+    character(:), allocatable :: zst_filename
+    character(:), allocatable :: cmd
+
+
+    ! ---------------------------------------------------------------
+    ! Validate checkpoint directory
+    ! ---------------------------------------------------------------
 
     if (.not. allocated(cp_offset)) then
        error stop "load_adapt_mpi: cp_offset is not allocated"
@@ -1480,10 +1583,144 @@ contains
 
     end if
 
+
+    ! ---------------------------------------------------------------
+    ! Construct checkpoint filenames
+    ! ---------------------------------------------------------------
+
     write(cp4,'(i4.4)') id
 
     filename = &
          trim(run_id) // "_checkpoint_" // cp4 // ".bin"
+
+    zst_filename = filename // ".zst"
+
+
+    ! ---------------------------------------------------------------
+    ! Decompress checkpoint if necessary
+    ! ---------------------------------------------------------------
+    !
+    ! If filename already exists, use it directly.
+    !
+    ! Otherwise rank zero decompresses filename.zst while retaining
+    ! the compressed checkpoint.  The resulting .bin is considered
+    ! temporary and is deleted after a successful load.
+
+    temporary_bin    = .false.
+    decompress_status = 0
+
+
+    if (rank == 0) then
+
+       inquire(file=filename,     exist=bin_exists)
+       inquire(file=zst_filename, exist=zst_exists)
+
+
+       if (.not. bin_exists) then
+
+          if (.not. zst_exists) then
+
+             decompress_status = 1
+
+          else
+
+             cmd = 'zstd -q -d -k -f "' // trim(zst_filename) // '"'
+
+             call execute_command_line( &
+                  cmd, &
+                  exitstat=exitstat, &
+                  cmdstat=cmdstat)
+
+             if (cmdstat /= 0) then
+
+                decompress_status = 2
+
+             elseif (exitstat /= 0) then
+
+                decompress_status = 3
+
+             else
+
+                ! Verify that decompression actually produced the file.
+                inquire(file=filename, exist=bin_exists)
+
+                if (.not. bin_exists) then
+                   decompress_status = 4
+                else
+                   temporary_bin = .true.
+                end if
+
+             end if
+
+          end if
+
+       end if
+
+    end if
+
+
+    ! All ranks need to know whether the decompression succeeded.
+
+    call MPI_Bcast( &
+         decompress_status, 1, MPI_INTEGER, &
+         0, comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop "load_adapt_mpi: decompression status broadcast failed"
+    end if
+
+
+    if (decompress_status /= 0) then
+
+       select case (decompress_status)
+
+       case (1)
+          error stop "load_adapt_mpi: checkpoint .bin and .bin.zst not found"
+
+       case (2)
+          error stop "load_adapt_mpi: failed to execute zstd"
+
+       case (3)
+          error stop "load_adapt_mpi: zstd decompression failed"
+
+       case (4)
+          error stop "load_adapt_mpi: decompressed checkpoint not found"
+
+       case default
+          error stop "load_adapt_mpi: checkpoint decompression failed"
+
+       end select
+
+    end if
+
+
+    ! Broadcast whether the .bin file was created temporarily.
+    !
+    ! Only rank zero actually needs this information for deletion,
+    ! but broadcasting keeps the state consistent on all ranks.
+
+    call MPI_Bcast( &
+         temporary_bin, 1, MPI_LOGICAL, &
+         0, comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop "load_adapt_mpi: temporary_bin broadcast failed"
+    end if
+
+
+    ! Ensure that decompression has completed and the file is visible
+    ! before any rank attempts MPI_File_open.
+
+    call MPI_Barrier(comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop "load_adapt_mpi: pre-open barrier failed"
+    end if
+
+
+    ! ---------------------------------------------------------------
+    ! Open shared checkpoint file
+    ! ---------------------------------------------------------------
 
     call MPI_File_open( &
          comm, filename, MPI_MODE_RDONLY, &
@@ -1493,6 +1730,11 @@ contains
        error stop "load_adapt_mpi: MPI_File_open failed"
     end if
 
+
+    ! ---------------------------------------------------------------
+    ! Create rank-local scratch stream
+    ! ---------------------------------------------------------------
+
     open( &
          newunit=fid, &
          status="scratch", &
@@ -1500,23 +1742,40 @@ contains
          access="stream", &
          action="readwrite")
 
+
     allocate(domain_pos(size(grid)))
+
+
+    ! ---------------------------------------------------------------
+    ! Read locally owned domains from shared checkpoint
+    ! ---------------------------------------------------------------
 
     do d = 1, size(grid)
 
        gid = glo_id(rank+1,d)
 
+
        if (gid < 0 .or. gid >= N_GLO_DOMAIN) then
           error stop "load_adapt_mpi: invalid global domain ID"
        end if
 
+
        nbytes = cp_nbytes(gid+1)
+
 
        if (nbytes <= 0_int64) then
           error stop "load_adapt_mpi: invalid domain record size"
        end if
 
+
+       ! buf() has default-integer bounds, so guard the conversion.
+       if (nbytes > int(huge(0),int64)) then
+          error stop "load_adapt_mpi: domain record too large"
+       end if
+
+
        allocate(buf(int(nbytes)))
+
 
        call MPI_File_read_at( &
             fh, &
@@ -1528,21 +1787,34 @@ contains
           error stop "load_adapt_mpi: domain read failed"
        end if
 
+
        inquire(unit=fid, pos=p)
 
        domain_pos(d) = p
 
+
        write(fid) buf
+
 
        deallocate(buf)
 
     end do
+
+
+    ! ---------------------------------------------------------------
+    ! Close shared checkpoint
+    ! ---------------------------------------------------------------
 
     call MPI_File_close(fh, ierr)
 
     if (ierr /= MPI_SUCCESS) then
        error stop "load_adapt_mpi: MPI_File_close failed"
     end if
+
+
+    ! ---------------------------------------------------------------
+    ! Reconstruct local domains
+    ! ---------------------------------------------------------------
 
     flush(fid)
 
@@ -1552,8 +1824,55 @@ contains
 
     deallocate(domain_pos)
 
-  end subroutine load_adapt_mpi
 
+    ! ---------------------------------------------------------------
+    ! Remove temporary uncompressed checkpoint
+    ! ---------------------------------------------------------------
+    !
+    ! All ranks must have completely finished reading and reconstructing
+    ! their domains before rank zero removes the shared .bin file.
+
+    call MPI_Barrier(comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop "load_adapt_mpi: pre-delete barrier failed"
+    end if
+
+
+    if (rank == 0 .and. temporary_bin) then
+
+       ! Delete using Fortran rather than invoking an external rm command.
+
+       open( &
+            newunit=delete_unit, &
+            file=filename, &
+            status='old', &
+            action='read', &
+            iostat=ierr)
+
+       if (ierr /= 0) then
+          error stop "load_adapt_mpi: unable to open temporary checkpoint for deletion"
+       end if
+
+       close(delete_unit, status='delete', iostat=ierr)
+
+       if (ierr /= 0) then
+          error stop "load_adapt_mpi: unable to delete temporary checkpoint"
+       end if
+
+    end if
+
+
+    ! Ensure deletion is complete before returning.
+
+    call MPI_Barrier(comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop "load_adapt_mpi: post-delete barrier failed"
+    end if
+
+
+  end subroutine load_adapt_mpi
 
   subroutine load_domains_stream (fid, domain_pos)
     ! Reconstruct all locally owned domains from a single
@@ -2066,4 +2385,6 @@ contains
     topography%data(d)%elts(id) = topography_data(l,d)%elts(ii)
     dom%surf_press%elts(id)     = topography_data(l,d)%elts(ii+3)
   end subroutine assign_NCAR_topo
+
+  
 end module io_mod
