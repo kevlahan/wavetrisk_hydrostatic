@@ -48,7 +48,6 @@ contains
     !   Author: Gabrielle Ching-Johnson
     !
     !-----------------------------------------------------------------------------------
-    use io_mod
     implicit none
     integer                       :: iwrt
     integer                       :: k

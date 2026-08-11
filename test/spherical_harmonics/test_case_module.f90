@@ -10,7 +10,7 @@ module test_case_mod
   use domain_ops_mod
   use geom_mod
   use init_mod
-  use io_mod
+  use NCAR_topo_mod
   use utils_mod
   use vert_diffusion_mod
 

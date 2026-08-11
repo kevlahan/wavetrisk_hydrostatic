@@ -99,7 +99,7 @@ contains
     !   Backwards Euler physics step on a single element/column
     !
     !-----------------------------------------------------------------------------------
-    use io_mod,             only : kinetic_energy
+    use utils_mod,          only : kinetic_energy
     use single_column_mod,  only : change_latitude_longitude, physics_call_single_col
 
     implicit none

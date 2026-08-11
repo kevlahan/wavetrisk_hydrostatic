@@ -6,10 +6,10 @@ program Seamount
 
   use kind_mod
   use shared_mod
-  use io_mod
   use main_mod
   use time_integr_mod
   use test_case_mod
+  use utils_mod
   
   implicit none
 

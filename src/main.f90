@@ -21,12 +21,13 @@ module main_mod
   use domain_ops_mod,   only : apply_interscale, apply_no_bdry,  apply_onescale2
   use geom_mod,         only : number_hex
   use init_mod,         only : z_coords 
-  use io_mod,           only : dump_adapt_mpi, load_adapt_mpi, load_topo, read_checkpoint_directory, init_io_mod
+  use checkpoint_mod,   only : dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory
   use io_vtk_mod,       only : write_and_export
   use lin_solve_mod,    only : Full_Multigrid, Scheduled_Relaxation_Jacobi
   use lnorms_mod,       only : lnorm
   use mask_mod,         only : init_mask_mod, init_masks, mask_adj_child
   use multi_level_mod,  only : trend_ml
+  use NCAR_topo_mod,    only : load_topo
   use refine_patch_mod, only : add_second_level, init_refine_patch_mod
   use remap_mod,        only : remap_vertical_coordinates
 
@@ -461,7 +462,6 @@ contains
     call init_init_mod
     call init_refine_patch_mod
     call init_time_integr_mod 
-    call init_io_mod
     call init_wavelet_mod
     call init_mask_mod
     call init_adapt_mod

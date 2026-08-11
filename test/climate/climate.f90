@@ -17,7 +17,7 @@ program climate
   use comm_mpi_mod,        only : init_comm_mpi_mod, start_timing, stop_timing, write_load_conn
   use domain_mod,          only : sol, trend, wav_coeff
   use init_physics_mod,    only : convecAdj_model, diurnal, obliquity, radiation_model, soil_model, turbulence_model
-  use io_mod,              only : dump_adapt_mpi 
+  use checkpoint_mod,      only : dump_adapt_mpi 
   use io_vtk_mod,          only : write_and_export
   use main_mod,            only : initialize, time_step
   use multi_level_mod,     only : trend_ml

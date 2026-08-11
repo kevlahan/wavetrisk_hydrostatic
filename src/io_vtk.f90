@@ -16,7 +16,9 @@ module io_vtk_mod
   use ops_mod,            only : cal_div, cal_surf_press, cal_vort, integrate_pressure_up, post_vort, step1
   use multi_level_mod,    only : cpt_or_restr_flux
   use vert_diffusion_mod, only : vertical_diffusion
-  use utils_mod,          only : active_level, interp_UVW_latlon, interp, pre_levelout,  post_levelout, save_tri, z_i, zero_float
+  
+  use utils_mod, only : active_level, interp_UVW_latlon, hex2tri2, interp, pre_levelout, post_levelout, &
+       save_tri, z_i, zero_float
 
   implicit none
 
@@ -436,8 +438,6 @@ contains
   subroutine unique_tri_cells (dom, i, j, zlev, offs, dims)
     ! Finds all unique triangle vertices
 
-    use utils_mod
-
     implicit none
 
     type(Domain), intent(inout) :: dom
@@ -500,8 +500,6 @@ contains
 
     subroutine compute_data
 
-      use utils_mod
-
       implicit none
 
       integer  :: neigh_id(0:EDGE) 
@@ -556,8 +554,6 @@ contains
     end subroutine compute_data
 
     subroutine compute_data_surf
-
-      use utils_mod
 
       implicit none
 
@@ -614,8 +610,6 @@ contains
 
 
   subroutine hex_cells (dom, i, j, zlev, offs, dims)
-
-    use domain_mod
 
     implicit none
 

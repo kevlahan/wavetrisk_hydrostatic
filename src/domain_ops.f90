@@ -24,7 +24,7 @@ module domain_ops_mod
   
   interface
 
-     real(dp) function fun3 (dom, i, j, zlev, offs, dims)
+     function fun3 (dom, i, j, zlev, offs, dims) result(val)
        use kind_mod,   only : dp
        use shared_mod, only : N_BDRY
        use domain_mod, only : Domain
@@ -34,9 +34,11 @@ module domain_ops_mod
        integer,      intent(in)    :: i, j, zlev
        integer,      intent(in)    :: offs(N_BDRY+1)
        integer,      intent(in)    :: dims(2,N_BDRY+1)
+       
+       real(dp) :: val
      end function fun3
 
-     function fun4 (dom, i, j, zlev, offs, dims) result(value)
+     function fun4 (dom, i, j, zlev, offs, dims) result(val)
        use kind_mod,   only : dp
        use shared_mod, only : EDGE, N_BDRY
        use domain_mod, only : Domain
@@ -47,7 +49,7 @@ module domain_ops_mod
        integer,      intent(in)    :: offs(N_BDRY+1)
        integer,      intent(in)    :: dims(2,N_BDRY+1)
 
-       real(dp) :: value(EDGE)
+       real(dp) :: val(EDGE)
      end function fun4
 
      subroutine sub4 (dom, i, j, zlev, offs, dims)

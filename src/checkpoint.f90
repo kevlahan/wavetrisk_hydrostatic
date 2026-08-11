@@ -1,36 +1,28 @@
-module io_mod
+module checkpoint_mod
+
+  ! Provides checkpointing routines
 
   use mpi_f08
   use iso_fortran_env, only: int8, int64
 
   use kind_mod,   only : dp
-  use shared_mod, only : ADJZONE, Coord, EDGE, N_BDRY,  N_CHDRN, N_VARIABLE, TRIAG, RT, DG, UP, MATH_PI, MULT, &
-       cp_idx, istep_cumul, itime, iwrite, &
-       level_end, min_level, max_level, n_glo_domain, grav_accel, kappa, p_0, R_d, pressure_save, radius, ref_density, run_id, &
-       scalars, threshold, time, topo_file, topo_min_level, topo_max_level, vert_diffuse, zmin, zmax, zlevels, &
-       S_MASS, S_TEMP, S_VELO, NONE, LORT, UPLT, z_null
-
+  use shared_mod, only : N_BDRY,  N_CHDRN, N_VARIABLE, MULT, cp_idx, istep_cumul, itime, iwrite, level_end, &
+     min_level, max_level,  n_glo_domain, run_id, scalars, threshold, time, vert_diffuse, zmin, zmax, zlevels, NONE, z_null
+  
   use arch_mod,         only : barrier, comm, glo_id, n_process, rank, cp_load
   use comm_mod,         only : domain_load
   use comm_mpi_mod,     only : update_bdry
-  use domain_mod,       only : init_domain_mod
-  use domain_ops_mod,   only : apply_interscale_d, apply_onescale_to_patch, apply_to_pole_d 
-  use geom_mod,         only : dist
-  use init_mod,         only : dump, load, surf_geopot
+  use domain_mod,       only : Domain, Float_Field, grid, idx, sol, tke, scalar, wav_coeff, wav_tke, wc_s
+  use domain_ops_mod,   only : apply_interscale_d, apply_to_pole_d 
+  use init_mod,         only : dump, load
   use patch_mod,        only : PATCH_SIZE
   use refine_patch_mod, only : check_child_required, post_refine, refine_patch1, refine_patch2
-  use utils_mod,        only : integrate_hex, interp
   use wavelet_mod,      only : Restrict_scalar
-
-  use domain_mod, only : Domain, Float_Field, exner_fun, grid, idx, sol, sol_mean, tke, topography, topography_data, &
-       scalar, trend, ke, mass, velo, velo1, velo2, vort, wav_coeff, wav_tke, wc_s
 
   implicit none 
 
   private
   public :: dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory
-  public :: assign_NCAR_topo,  kinetic_energy, init_io_mod, load_topo, save_topo, vort_extrema
-  public :: topo, pot_energy, total_ke, layer1_ke, layer2_ke, one_layer_ke, barotropic_ke, pot_enstrophy, umag
 
 
   ! Magic number identifying a WAVETRISK checkpoint file.
@@ -46,6 +38,10 @@ module io_mod
 
   ! Serialized size (bytes) of each global domain.
   integer(int64), allocatable :: cp_nbytes(:)
+
+  ! True if the restart .bin file was temporarily decompressed
+  ! from the persistent .bin.zst checkpoint.
+  logical :: cp_temporary_bin = .false.
 
   ! Size of the fixed checkpoint header (magic number, version,
   ! number of global domains).
@@ -70,499 +66,8 @@ module io_mod
        CP_NBYTES_POS + &
        8_int64 * int(N_GLO_DOMAIN, int64)
 
-
-  integer, dimension(:,:), allocatable :: topo_count
-  real(dp)                             :: vmin, vmax
-
-
+  
 contains
-
-
-  subroutine init_io_mod
-
-    implicit none
-
-    logical :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-    call init_domain_mod
-    initialized = .true.
-  end subroutine init_io_mod
-
-
-  subroutine vort_extrema (dom, i, j, zlev, offs, dims)
-
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-
-    integer  :: id, idN, idE
-    real(dp) :: vort
-
-    id  = idx(i,   j,   offs, dims)
-    idN = idx(i,   j+1, offs, dims)
-    idE = idx(i+1, j,   offs, dims)
-
-    if ( dom%mask_e%elts(id*EDGE+DG+1)  >= ADJZONE .or. &
-         dom%mask_e%elts(id*EDGE+UP+1)  >= ADJZONE .or. &
-         dom%mask_e%elts(idN*EDGE+RT+1) >= ADJZONE) then
-
-       vort = dom%vort%elts(id*TRIAG+UPLT+1)
-       vmin = min(vmin, vort)
-       vmax = max(vmax, vort)
-    end if
-
-    if ( dom%mask_e%elts(id*EDGE+DG+1)  >= ADJZONE .or. &
-         dom%mask_e%elts(idE*EDGE+UP+1) >= ADJZONE .or. &
-         dom%mask_e%elts(id*EDGE+RT+1)  >= ADJZONE) then
-       vort = dom%vort%elts(id*TRIAG+LORT+1)
-       vmin = min (vmin, vort)
-       vmax = max (vmax, vort)
-    end if
-  end subroutine vort_extrema
-
-
-  function topo (dom, i, j, zlev, offs, dims) result(val)
-
-    use domain_mod
-
-    implicit none
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-    real(dp)                    :: val
-
-    integer :: d, id
-
-    d = dom%id + 1
-    id = idx (i, j, offs, dims) + 1
-
-    val = topography%data(d)%elts(id)
-  end function topo
-
-
-  function pot_energy (dom, i, j, zlev, offs, dims) result(val)
-
-    use domain_mod
-
-    implicit none
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-    real(dp)                    :: val
-
-    integer  :: id
-    real(dp) :: rho_dz
-
-    id = idx (i, j, offs, dims)
-
-    rho_dz = sol_mean(S_MASS,zlev)%data(dom%id+1)%elts(id+1) + sol(S_MASS,zlev)%data(dom%id+1)%elts(id+1)
-    val = rho_dz**2
-  end function pot_energy
-
-
-  function total_ke (itype) result(val)
-    ! Computes total kinetic energy
-
-    implicit none
-
-    character(len=*), intent(in) :: itype
-    real(dp)                     :: val
-
-    integer :: k
-
-    val = 0.0_dp
-    do k = 1, zlevels
-       val = val + integrate_hex (kinetic_energy, k)
-    end do
-  end function total_ke
-
-
-  function kinetic_energy (dom, i, j, zlev, offs, dims) result(val)
-    ! Kinetic energy u^2/2 at level zlev using approximation to TRiSK formula
-
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-    real(dp)                    :: val
-
-    integer  :: d, id, idW, idSW, idS
-    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-
-    d  = dom%id + 1
-    id = idx (i, j, offs, dims)
-
-    idW  = idx (i-1, j,   offs, dims)
-    idSW = idx (i-1, j-1, offs, dims)
-    idS  = idx (i,   j-1, offs, dims)
-
-    u_prim_RT = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) * dom%len%elts(EDGE*id+RT+1)
-    u_prim_DG = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)
-    u_prim_UP = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) * dom%len%elts(EDGE*id+UP+1)
-
-    u_dual_RT = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-    u_dual_DG = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-    u_dual_UP = sol(S_VELO,zlev)%data(d)%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-
-    u_prim_UP_S  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
-    u_prim_DG_SW = sol(S_VELO,zlev)%data(d)%elts(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
-    u_prim_RT_W  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
-
-    u_dual_RT_W  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
-    u_dual_DG_SW = sol(S_VELO,zlev)%data(d)%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
-    u_dual_UP_S  = sol(S_VELO,zlev)%data(d)%elts(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
-
-    val = (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT + &
-         u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-         * dom%areas%elts(id+1)%hex_inv/4.0_dp 
-  end function kinetic_energy
-
-
-  subroutine umag (q)
-    ! Evaluate complete velocity trend by adding gradient terms to previously calculated source terms on entire grid
-    !
-    ! Input:  velocity field q at a single vertical layer
-    ! Output: velocity magnitude stored in dom%ke
-
-    implicit none
-
-    type(Float_Field), target, intent(in) :: q
-
-    integer :: k
-
-    integer :: d, p
-
-    do d = 1, size(grid)
-       velo => q%data(d)%elts
-       ke   => grid(d)%ke%elts
-       do p = 3, grid(d)%patch%length
-          call apply_onescale_to_patch (cal_umag, grid(d), p-1, k, 0, 1)
-       end do
-       nullify (ke, velo)
-    end do
-  end subroutine umag
-
-  
-  subroutine cal_umag (dom, i, j, zlev, offs, dims)
-    ! Velocity magnitude: sqrt(2*ke) using approximation to TRiSK formula
-    ! divide out surface area
-
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-
-    integer :: d, id, idW, idSW, idS
-    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-
-    d  = dom%id + 1
-    id = idx (i, j, offs, dims)
-
-    idW  = idx (i-1, j,   offs, dims)
-    idSW = idx (i-1, j-1, offs, dims)
-    idS  = idx (i,   j-1, offs, dims)
-
-    u_prim_RT = velo(EDGE*id+RT+1) * dom%len%elts(EDGE*id+RT+1)
-    u_prim_DG = velo(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)
-    u_prim_UP = velo(EDGE*id+UP+1) * dom%len%elts(EDGE*id+UP+1)
-
-    u_dual_RT = velo(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-    u_dual_DG = velo(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-    u_dual_UP = velo(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-
-    u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
-    u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
-    u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
-
-    u_dual_RT_W  = velo(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
-    u_dual_DG_SW = velo(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
-    u_dual_UP_S  = velo(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
-
-    ke(id+1) = sqrt( (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT + &
-         u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-         * dom%areas%elts(id+1)%hex_inv/(4.0_dp*MATH_PI*radius**2)) 
-  end subroutine cal_umag
-
-
-  function layer1_ke (dom, i, j, zlev, offs, dims) result(val)
-
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-    real(dp)                    :: val
-
-    integer  :: d, id, idW, idSW, idS
-    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-
-    id = idx (i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       idW  = idx (i-1, j,   offs, dims)
-       idSW = idx (i-1, j-1, offs, dims)
-       idS  = idx (i,   j-1, offs, dims)
-
-       d  = dom%id + 1
-
-       u_prim_RT = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1) * dom%len%elts(EDGE*id+RT+1)
-       u_prim_DG = sol(S_VELO,1)%data(d)%elts(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)
-       u_prim_UP = sol(S_VELO,1)%data(d)%elts(EDGE*id+UP+1) * dom%len%elts(EDGE*id+UP+1)
-
-       u_dual_RT = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-       u_dual_DG = sol(S_VELO,1)%data(d)%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-       u_dual_UP = sol(S_VELO,1)%data(d)%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-
-       u_prim_UP_S  = sol(S_VELO,1)%data(d)%elts(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
-       u_prim_DG_SW = sol(S_VELO,1)%data(d)%elts(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
-       u_prim_RT_W  = sol(S_VELO,1)%data(d)%elts(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
-
-       u_dual_RT_W  = sol(S_VELO,1)%data(d)%elts(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
-       u_dual_DG_SW = sol(S_VELO,1)%data(d)%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
-       u_dual_UP_S  = sol(S_VELO,1)%data(d)%elts(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
-
-       val = (sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1))  &
-            * (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
-            + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-            * dom%areas%elts(id+1)%hex_inv/4.0_dp
-    else
-       val = 0.0_dp
-    end if
-  end function layer1_ke
-
-
-  function layer2_ke (dom, i, j, zlev, offs, dims) result(val)
-
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-    real(dp)                    :: val
-
-    integer  :: d, id, idW, idSW, idS
-    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-
-    id = idx (i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       idW  = idx (i-1, j,   offs, dims)
-       idSW = idx (i-1, j-1, offs, dims)
-       idS  = idx (i,   j-1, offs, dims)
-
-       d  = dom%id + 1
-
-       u_prim_RT = sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1) * dom%len%elts(EDGE*id+RT+1)
-       u_prim_DG = sol(S_VELO,2)%data(d)%elts(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)
-       u_prim_UP = sol(S_VELO,2)%data(d)%elts(EDGE*id+UP+1) * dom%len%elts(EDGE*id+UP+1)
-
-       u_dual_RT = sol(S_VELO,2)%data(d)%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-       u_dual_DG = sol(S_VELO,2)%data(d)%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-       u_dual_UP = sol(S_VELO,2)%data(d)%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-
-       u_prim_UP_S  = sol(S_VELO,2)%data(d)%elts(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
-       u_prim_DG_SW = sol(S_VELO,2)%data(d)%elts(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
-       u_prim_RT_W  = sol(S_VELO,2)%data(d)%elts(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
-
-       u_dual_RT_W  = sol(S_VELO,2)%data(d)%elts(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
-       u_dual_DG_SW = sol(S_VELO,2)%data(d)%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
-       u_dual_UP_S  = sol(S_VELO,2)%data(d)%elts(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
-
-       val = (sol_mean(S_MASS,2)%data(d)%elts(id+1) + sol(S_MASS,2)%data(d)%elts(id+1)) * &
-            (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
-            + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-            * dom%areas%elts(id+1)%hex_inv/4
-    else
-       val = 0.0_dp
-    end if
-  end function layer2_ke
-
-
-  function one_layer_ke (dom, i, j, zlev, offs, dims) result(val)
-
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-    real(dp)                    :: val
-
-    integer  :: d, id, idW, idSW, idS
-    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(dp) :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-
-    id = idx (i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       idW  = idx (i-1, j,   offs, dims)
-       idSW = idx (i-1, j-1, offs, dims)
-       idS  = idx (i,   j-1, offs, dims)
-
-       d  = dom%id + 1
-
-       u_prim_RT = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1) * dom%len%elts(EDGE*id+RT+1)
-       u_prim_DG = sol(S_VELO,1)%data(d)%elts(EDGE*id+DG+1) * dom%len%elts(EDGE*id+DG+1)
-       u_prim_UP = sol(S_VELO,1)%data(d)%elts(EDGE*id+UP+1) * dom%len%elts(EDGE*id+UP+1)
-
-       u_dual_RT = sol(S_VELO,1)%data(d)%elts(EDGE*id+RT+1) * dom%pedlen%elts(EDGE*id+RT+1)
-       u_dual_DG = sol(S_VELO,1)%data(d)%elts(EDGE*id+DG+1) * dom%pedlen%elts(EDGE*id+DG+1)
-       u_dual_UP = sol(S_VELO,1)%data(d)%elts(EDGE*id+UP+1) * dom%pedlen%elts(EDGE*id+UP+1)
-
-       u_prim_UP_S  = sol(S_VELO,1)%data(d)%elts(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
-       u_prim_DG_SW = sol(S_VELO,1)%data(d)%elts(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
-       u_prim_RT_W  = sol(S_VELO,1)%data(d)%elts(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
-
-       u_dual_RT_W  = sol(S_VELO,1)%data(d)%elts(EDGE*idW +RT+1) * dom%pedlen%elts(EDGE*idW +RT+1)
-       u_dual_DG_SW = sol(S_VELO,1)%data(d)%elts(EDGE*idSW+DG+1) * dom%pedlen%elts(EDGE*idSW+DG+1)         
-       u_dual_UP_S  = sol(S_VELO,1)%data(d)%elts(EDGE*idS +UP+1) * dom%pedlen%elts(EDGE*idS +UP+1)
-
-       val = (sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1)) * &
-            (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
-            + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-            * dom%areas%elts(id+1)%hex_inv/4
-    else
-       val = 0.0_dp
-    end if
-  end function one_layer_ke
-
-
-  function barotropic_ke (dom, i, j, zlev, offs, dims) result(val)
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-    real(dp)                    :: val
-
-    integer                     :: d, id, idE, idNE, idN, idW, idSW, idS
-    integer,  dimension(1:EDGE) :: id_edge, id_node
-    real(dp)                    :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_RT_W, u_prim_DG_SW, u_prim_UP_S
-    real(dp)                    :: u_dual_RT, u_dual_DG, u_dual_UP, u_dual_RT_W, u_dual_DG_SW, u_dual_UP_S
-    real(dp), dimension(1:EDGE) :: u
-
-    id = idx (i, j, offs, dims)
-
-    if (dom%mask_n%elts(id+1) >= ADJZONE) then
-       idE  = idx (i+1, j,   offs, dims)
-       idNE = idx (i+1, j+1, offs, dims)
-       idN  = idx (i,   j+1, offs, dims)
-       idW  = idx (i-1, j,   offs, dims)
-       idSW = idx (i-1, j-1, offs, dims)
-       idS  = idx (i,   j-1, offs, dims)
-
-       d  = dom%id + 1
-
-       id_node = [idE, idNE, idN]
-       id_edge = [id,  id,   id ]
-       u = barotropic_velo ()
-       u_prim_RT = u(1) * dom%len%elts(EDGE*id+RT+1)
-       u_prim_DG = u(2) * dom%len%elts(EDGE*id+DG+1)
-       u_prim_UP = u(3) * dom%len%elts(EDGE*id+UP+1)
-
-       u_dual_RT = u(1) * dom%pedlen%elts(EDGE*id+RT+1)
-       u_dual_DG = u(2) * dom%pedlen%elts(EDGE*id+DG+1)
-       u_dual_UP = u(3) * dom%pedlen%elts(EDGE*id+UP+1)
-
-       id_node = [ idW, idSW, idS ]
-       id_edge = id_node
-       u = barotropic_velo ()
-       u_prim_RT_W  = u(1) * dom%len%elts(EDGE*idW +RT+1)
-       u_prim_DG_SW = u(2) * dom%len%elts(EDGE*idSW+DG+1)
-       u_prim_UP_S  = u(3) * dom%len%elts(EDGE*idS +UP+1)
-
-       u_dual_RT_W  = u(1) * dom%pedlen%elts(EDGE*idW +RT+1)
-       u_dual_DG_SW = u(2) * dom%pedlen%elts(EDGE*idSW+DG+1)         
-       u_dual_UP_S  = u(3) * dom%pedlen%elts(EDGE*idS +UP+1)
-
-       val = &
-            (sol_mean(S_MASS,1)%data(d)%elts(id+1) + sol(S_MASS,1)%data(d)%elts(id+1) + &
-            sol_mean(S_MASS,2)%data(d)%elts(id+1) + sol(S_MASS,2)%data(d)%elts(id+1)) * &
-            (u_prim_UP   * u_dual_UP   + u_prim_DG    * u_dual_DG    + u_prim_RT   * u_dual_RT &
-            + u_prim_UP_S * u_dual_UP_S + u_prim_DG_SW * u_dual_DG_SW + u_prim_RT_W * u_dual_RT_W) &
-            * dom%areas%elts(id+1)%hex_inv/4
-    else
-       val = 0.0_dp
-    end if
-
-  contains
-
-    function barotropic_velo ()
-      real(dp), dimension(1:EDGE) :: barotropic_velo
-
-      integer                     :: e, id_e, k
-      real(dp), dimension(1:EDGE) :: dz
-
-      do e = 1, EDGE
-         id_e = EDGE*id_edge(e) + e
-
-         dz = 0.0_dp
-         do k = 1, 2
-            dz(k) = interp (&
-                 sol_mean(S_MASS,k)%data(d)%elts(id+1)         + sol(S_MASS,k)%data(d)%elts(id+1), &
-                 sol_mean(S_MASS,k)%data(d)%elts(id_node(e)+1) + sol(S_MASS,k)%data(d)%elts(id_node(e)+1))
-         end do
-
-         barotropic_velo(e) = (dz(1)*sol(S_VELO,1)%data(d)%elts(id_e) + dz(2)*sol(S_VELO,2)%data(d)%elts(id_e)) / sum(dz)
-      end do
-
-    end function barotropic_velo
-
-  end function barotropic_ke
-
-  
-  function pot_enstrophy (dom, i, j, zlev, offs, dims) result(val)
-    ! Computes potential enstrophy in two layer mode split case
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-    real(dp)                    :: val
-
-    integer  :: d, id, id_i
-    real(dp) :: f, h, w
-
-    id = idx (i, j, offs, dims)
-    id_i = id + 1
-
-    d = dom%id + 1
-
-    if (dom%mask_n%elts(id_i) >= ADJZONE) then
-       ! Approximate Coriolis term
-       f = dom%coriolis%elts(TRIAG*id+LORT+1)/dom%triarea%elts(TRIAG*id+LORT+1)
-       ! Total vorticity
-       w = dom%ke%elts(id_i)  + f
-       ! Height
-       if (zlev == 3) then ! barotropic
-          h = (sol_mean(S_MASS,1)%data(d)%elts(id_i) + sol(S_MASS,1)%data(d)%elts(id_i) + &
-               sol_mean(S_MASS,2)%data(d)%elts(id_i) + sol(S_MASS,2)%data(d)%elts(id_i)) / ref_density
-       else ! single layer
-          h = (sol_mean(S_MASS,zlev)%data(d)%elts(id_i) + sol(S_MASS,zlev)%data(d)%elts(id_i)) / ref_density
-       end if
-       val = 0.5_dp * (w / h)**2
-    else
-       val = 0.0_dp
-    end if
-  end function pot_enstrophy
 
 
   subroutine dump_adapt_mpi (id)
@@ -1237,33 +742,229 @@ contains
   end subroutine write_checkpoint_directory
 
 
-  subroutine read_checkpoint_directory (id)
+  subroutine prepare_checkpoint_file (id, filename)
+    ! Ensure that the uncompressed checkpoint file exists.
+    !
+    ! If only filename.zst exists, rank zero decompresses it while
+    ! retaining the compressed checkpoint.  The resulting .bin file
+    ! is marked temporary and is removed after load_adapt_mpi completes.
+    !
+    ! This routine is safe to call more than once for the same restart.
+
     implicit none
 
     integer, intent(in) :: id
 
+    character(:), allocatable, intent(out) :: filename
+
     integer :: ierr
+    integer :: cmdstat, exitstat
+    integer :: decompress_status
 
-    type(MPI_File)   :: fh
-    type(MPI_Status) :: status
-
-    integer(int64) :: header(3)
+    logical :: bin_exists
+    logical :: zst_exists
+    logical :: local_exists
+    logical :: all_exist
 
     character(4) :: cp4
-    character(:), allocatable :: filename
+    character(:), allocatable :: zst_filename
+    character(:), allocatable :: cmd
+
 
     write(cp4,'(i4.4)') id
 
     filename = &
          trim(run_id) // "_checkpoint_" // cp4 // ".bin"
 
+    zst_filename = filename // ".zst"
+
+    decompress_status = 0
+
+
+    ! ---------------------------------------------------------------
+    ! Rank zero ensures that the uncompressed checkpoint exists.
+    ! ---------------------------------------------------------------
+
+    if (rank == 0) then
+
+       inquire(file=filename,     exist=bin_exists)
+       inquire(file=zst_filename, exist=zst_exists)
+
+       if (.not. bin_exists) then
+
+          if (.not. zst_exists) then
+
+             decompress_status = 1
+
+          else
+
+             cmd = &
+                  'zstd -q -d -k -f "' // trim(zst_filename) // '"'
+
+             call execute_command_line( &
+                  cmd, &
+                  exitstat=exitstat, &
+                  cmdstat=cmdstat)
+
+             if (cmdstat /= 0) then
+
+                decompress_status = 2
+
+             elseif (exitstat /= 0) then
+
+                decompress_status = 3
+
+             else
+
+                inquire(file=filename, exist=bin_exists)
+
+                if (.not. bin_exists) then
+                   decompress_status = 4
+                else
+                   cp_temporary_bin = .true.
+                end if
+
+             end if
+
+          end if
+
+       end if
+
+    end if
+
+
+    ! ---------------------------------------------------------------
+    ! Broadcast preparation state.
+    ! ---------------------------------------------------------------
+
+    call MPI_Bcast( &
+         decompress_status, 1, MPI_INTEGER, &
+         0, comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop &
+            "prepare_checkpoint_file: status broadcast failed"
+    end if
+
+    if (decompress_status /= 0) then
+
+       select case (decompress_status)
+
+       case (1)
+          error stop &
+               "prepare_checkpoint_file: checkpoint .bin and .bin.zst not found"
+
+       case (2)
+          error stop &
+               "prepare_checkpoint_file: failed to execute zstd"
+
+       case (3)
+          error stop &
+               "prepare_checkpoint_file: zstd decompression failed"
+
+       case (4)
+          error stop &
+               "prepare_checkpoint_file: decompressed checkpoint not found"
+
+       case default
+          error stop &
+               "prepare_checkpoint_file: checkpoint preparation failed"
+
+       end select
+
+    end if
+
+    call MPI_Bcast( &
+         cp_temporary_bin, 1, MPI_LOGICAL, &
+         0, comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop &
+            "prepare_checkpoint_file: temporary flag broadcast failed"
+    end if
+
+
+    ! Rank zero has completed decompression before this collective.
+    call MPI_Barrier(comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop &
+            "prepare_checkpoint_file: pre-open barrier failed"
+    end if
+
+
+    ! Verify that every rank can see the uncompressed file before
+    ! returning to a collective MPI_File_open.
+    inquire(file=filename, exist=local_exists)
+
+    call MPI_Allreduce( &
+         local_exists, all_exist, 1, MPI_LOGICAL, MPI_LAND, &
+         comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop &
+            "prepare_checkpoint_file: visibility reduction failed"
+    end if
+
+    if (.not. all_exist) then
+       if (.not. local_exists) then
+          write(*,'(A,I0,A,A,A)') &
+               'rank ', rank, ': checkpoint not visible: "', &
+               trim(filename), '"'
+       end if
+       error stop &
+            "prepare_checkpoint_file: checkpoint .bin not visible on all ranks"
+    end if
+
+  end subroutine prepare_checkpoint_file
+
+
+  subroutine read_checkpoint_directory (id)
+    implicit none
+
+    integer, intent(in) :: id
+
+    integer :: ierr
+    integer :: error_len
+
+    character(len=MPI_MAX_ERROR_STRING) :: error_string
+
+    type(MPI_File)   :: fh
+    type(MPI_Status) :: status
+
+    integer(int64) :: header(3)
+
+    character(:), allocatable :: filename
+
+
+    ! Ensure that the uncompressed checkpoint exists.  If only the
+    ! .bin.zst file exists, rank zero creates a temporary .bin file.
+
+    call prepare_checkpoint_file(id, filename)
+
+
+    ! ---------------------------------------------------------------
+    ! Open checkpoint
+    ! ---------------------------------------------------------------
+
     call MPI_File_open( &
          comm, filename, MPI_MODE_RDONLY, &
          MPI_INFO_NULL, fh, ierr)
 
     if (ierr /= MPI_SUCCESS) then
+       call MPI_Error_string(ierr, error_string, error_len)
+       write(*,'(A,I0,A,A)') &
+            'rank ', rank, ': read_checkpoint_directory MPI_File_open: ', &
+            error_string(1:error_len)
+       write(*,'(A,I0,A,A,A)') &
+            'rank ', rank, ': filename = "', trim(filename), '"'
        error stop "read_checkpoint_directory: MPI_File_open failed"
     end if
+
+
+    ! ---------------------------------------------------------------
+    ! Allocate checkpoint directory
+    ! ---------------------------------------------------------------
 
     if (allocated(cp_load))   deallocate(cp_load)
     if (allocated(cp_offset)) deallocate(cp_offset)
@@ -1272,6 +973,11 @@ contains
     allocate(cp_load(N_GLO_DOMAIN))
     allocate(cp_offset(N_GLO_DOMAIN))
     allocate(cp_nbytes(N_GLO_DOMAIN))
+
+
+    ! ---------------------------------------------------------------
+    ! Rank zero reads checkpoint header and directory
+    ! ---------------------------------------------------------------
 
     if (rank == 0) then
 
@@ -1329,23 +1035,45 @@ contains
 
     end if
 
+
+    ! ---------------------------------------------------------------
+    ! Close checkpoint
+    ! ---------------------------------------------------------------
+
     call MPI_File_close(fh, ierr)
 
     if (ierr /= MPI_SUCCESS) then
        error stop "read_checkpoint_directory: MPI_File_close failed"
     end if
 
+
+    ! ---------------------------------------------------------------
+    ! Broadcast checkpoint directory
+    ! ---------------------------------------------------------------
+
     call MPI_Bcast( &
          cp_load, N_GLO_DOMAIN, MPI_INTEGER, &
          0, comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop "read_checkpoint_directory: cp_load broadcast failed"
+    end if
 
     call MPI_Bcast( &
          cp_offset, N_GLO_DOMAIN, MPI_INTEGER8, &
          0, comm, ierr)
 
+    if (ierr /= MPI_SUCCESS) then
+       error stop "read_checkpoint_directory: cp_offset broadcast failed"
+    end if
+
     call MPI_Bcast( &
          cp_nbytes, N_GLO_DOMAIN, MPI_INTEGER8, &
          0, comm, ierr)
+
+    if (ierr /= MPI_SUCCESS) then
+       error stop "read_checkpoint_directory: cp_nbytes broadcast failed"
+    end if
 
   end subroutine read_checkpoint_directory
 
@@ -1540,10 +1268,11 @@ contains
     integer :: d, gid
     integer :: fid
     integer :: ierr
+    integer :: error_len
 
-    integer :: cmdstat, exitstat
-    integer :: decompress_status
     integer :: delete_unit
+
+    character(len=MPI_MAX_ERROR_STRING) :: error_string
 
     type(MPI_File)   :: fh
     type(MPI_Status) :: status
@@ -1554,14 +1283,7 @@ contains
     integer(int64), allocatable :: domain_pos(:)
     integer(int8),  allocatable :: buf(:)
 
-    logical :: bin_exists
-    logical :: zst_exists
-    logical :: temporary_bin
-
-    character(4) :: cp4
     character(:), allocatable :: filename
-    character(:), allocatable :: zst_filename
-    character(:), allocatable :: cmd
 
 
     ! ---------------------------------------------------------------
@@ -1585,148 +1307,32 @@ contains
 
 
     ! ---------------------------------------------------------------
-    ! Construct checkpoint filenames
-    ! ---------------------------------------------------------------
-
-    write(cp4,'(i4.4)') id
-
-    filename = &
-         trim(run_id) // "_checkpoint_" // cp4 // ".bin"
-
-    zst_filename = filename // ".zst"
-
-
-    ! ---------------------------------------------------------------
-    ! Decompress checkpoint if necessary
+    ! Ensure the uncompressed checkpoint exists
     ! ---------------------------------------------------------------
     !
-    ! If filename already exists, use it directly.
-    !
-    ! Otherwise rank zero decompresses filename.zst while retaining
-    ! the compressed checkpoint.  The resulting .bin is considered
-    ! temporary and is deleted after a successful load.
+    ! This is required even when read_checkpoint_directory was not
+    ! called.  In particular, dump_adapt_mpi leaves the checkpoint
+    ! directory in memory but compresses the shared .bin to .bin.zst
+    ! before load_adapt_mpi may be called.
 
-    temporary_bin    = .false.
-    decompress_status = 0
-
-
-    if (rank == 0) then
-
-       inquire(file=filename,     exist=bin_exists)
-       inquire(file=zst_filename, exist=zst_exists)
-
-
-       if (.not. bin_exists) then
-
-          if (.not. zst_exists) then
-
-             decompress_status = 1
-
-          else
-
-             cmd = 'zstd -q -d -k -f "' // trim(zst_filename) // '"'
-
-             call execute_command_line( &
-                  cmd, &
-                  exitstat=exitstat, &
-                  cmdstat=cmdstat)
-
-             if (cmdstat /= 0) then
-
-                decompress_status = 2
-
-             elseif (exitstat /= 0) then
-
-                decompress_status = 3
-
-             else
-
-                ! Verify that decompression actually produced the file.
-                inquire(file=filename, exist=bin_exists)
-
-                if (.not. bin_exists) then
-                   decompress_status = 4
-                else
-                   temporary_bin = .true.
-                end if
-
-             end if
-
-          end if
-
-       end if
-
-    end if
-
-
-    ! All ranks need to know whether the decompression succeeded.
-
-    call MPI_Bcast( &
-         decompress_status, 1, MPI_INTEGER, &
-         0, comm, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "load_adapt_mpi: decompression status broadcast failed"
-    end if
-
-
-    if (decompress_status /= 0) then
-
-       select case (decompress_status)
-
-       case (1)
-          error stop "load_adapt_mpi: checkpoint .bin and .bin.zst not found"
-
-       case (2)
-          error stop "load_adapt_mpi: failed to execute zstd"
-
-       case (3)
-          error stop "load_adapt_mpi: zstd decompression failed"
-
-       case (4)
-          error stop "load_adapt_mpi: decompressed checkpoint not found"
-
-       case default
-          error stop "load_adapt_mpi: checkpoint decompression failed"
-
-       end select
-
-    end if
-
-
-    ! Broadcast whether the .bin file was created temporarily.
-    !
-    ! Only rank zero actually needs this information for deletion,
-    ! but broadcasting keeps the state consistent on all ranks.
-
-    call MPI_Bcast( &
-         temporary_bin, 1, MPI_LOGICAL, &
-         0, comm, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "load_adapt_mpi: temporary_bin broadcast failed"
-    end if
-
-
-    ! Ensure that decompression has completed and the file is visible
-    ! before any rank attempts MPI_File_open.
-
-    call MPI_Barrier(comm, ierr)
-
-    if (ierr /= MPI_SUCCESS) then
-       error stop "load_adapt_mpi: pre-open barrier failed"
-    end if
+    call prepare_checkpoint_file(id, filename)
 
 
     ! ---------------------------------------------------------------
     ! Open shared checkpoint file
     ! ---------------------------------------------------------------
-
+   
     call MPI_File_open( &
          comm, filename, MPI_MODE_RDONLY, &
          MPI_INFO_NULL, fh, ierr)
 
     if (ierr /= MPI_SUCCESS) then
+       call MPI_Error_string(ierr, error_string, error_len)
+       write(*,'(A,I0,A,A)') &
+            'rank ', rank, ': load_adapt_mpi MPI_File_open: ', &
+            error_string(1:error_len)
+       write(*,'(A,I0,A,A,A)') &
+            'rank ', rank, ': filename = "', trim(filename), '"'
        error stop "load_adapt_mpi: MPI_File_open failed"
     end if
 
@@ -1839,7 +1445,7 @@ contains
     end if
 
 
-    if (rank == 0 .and. temporary_bin) then
+    if (rank == 0 .and. cp_temporary_bin) then
 
        ! Delete using Fortran rather than invoking an external rm command.
 
@@ -1860,6 +1466,8 @@ contains
           error stop "load_adapt_mpi: unable to delete temporary checkpoint"
        end if
 
+       cp_temporary_bin = .false.
+
     end if
 
 
@@ -1871,17 +1479,19 @@ contains
        error stop "load_adapt_mpi: post-delete barrier failed"
     end if
 
+    ! Keep the module state consistent on all ranks.
+    cp_temporary_bin = .false.
+
 
   end subroutine load_adapt_mpi
 
+  
   subroutine load_domains_stream (fid, domain_pos)
     ! Reconstruct all locally owned domains from a single
     ! rank-local unformatted stream.
     !
     ! domain_pos(d) is the current position in the serialized
     ! record for local domain d.
-
-    use iso_fortran_env, only: int64
 
     implicit none
 
@@ -2198,193 +1808,4 @@ contains
   end subroutine read_scalar
 
 
-  subroutine save_topo
-    ! Save topography data
-    ! (one file per domain and per level)
-    !
-    ! !! saves topgraphy data on a non-adaptive grid !!
-    !
-
-    implicit none
-
-    integer                   :: d, d_glo, j, l
-    character(2)              :: l2
-    character(5)              :: d5
-    character(9999    )       :: filename
-    character(:), allocatable :: archive, cmd, files
-
-    call update_bdry (topography, NONE, 966)
-
-    allocate (topo_count(min_level:max_level,1:size(grid))); topo_count = 0
-
-    ! Save a separate file for each domain and each level
-    do l = max_level, min_level, -1
-       do d = 1, size(grid)
-          d_glo = glo_id(rank+1,d) + 1
-
-          write(l2,'(i2.2)') l
-          write(d5,'(i5.5)') d_glo
-
-          filename = trim(topo_file) // '.' // l2 // '.' // d5
-
-          open (unit=10, file=filename, form="UNFORMATTED", action='WRITE', status='REPLACE')
-
-          mass   => exner_fun(1)%data(d)%elts
-          scalar => topography%data(d)%elts
-          velo1  => grid(d)%u_zonal%elts
-          velo2  => grid(d)%v_merid%elts
-          do j = 1, grid(d)%lev(l)%length
-             call apply_onescale_to_patch (write_topo, grid(d), grid(d)%lev(l)%elts(j), z_null, 0, 1)
-          end do
-          nullify (mass, scalar, velo1, velo2)
-          close (10)
-       end do
-    end do
-
-    write (filename, '(a,a)') trim (topo_file), '.count'
-    open (unit=10, file=trim (filename), form="UNFORMATTED", action='WRITE', status='REPLACE')
-    write (10) topo_count
-    close (10)
-
-    ! Compress topography data
-    archive = trim (topo_file)//'.tgz'
-    write (6, '(a,a)') 'Saving topography file ', archive
-
-    files = trim(topo_file) // '.??.????? ' // trim(filename)
-
-    cmd = 'gtar czf ' // archive // ' ' // files // ' --remove-files'
-    call execute_command_line (cmd)
-  end subroutine save_topo
-
-
-  subroutine write_topo (dom, i, j, zlev, offs, dims)
-    ! Write out coordinates, topography height, topography gradients and surface pressure
-    ! Compute topo_count
-
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-
-    integer :: d, id, l
-
-    d  = dom%id+1
-    id = idx (i, j, offs, dims) + 1
-
-    l = dom%level%elts(id) ! level
-
-    ! Write out coordinates, topography height and topography gradients
-    write (10) dom%node%elts(id), scalar(id), velo1(id), velo2(id), mass(id)
-
-    topo_count(l,d) = topo_count(l,d) + 1
-  end subroutine write_topo
-
-
-  subroutine load_topo
-    ! Read topography data from for restart
-    ! (one file per domain)
-    !
-    ! !! assumes topgraphy data was saved on a non-adaptive grid !!
-    !
-
-    implicit none
-
-    integer         :: d, d_glo, i, ii, l, r
-    character(9999) :: filename
-    character(:), allocatable :: archive, cmd, files
-
-    ! Uncompress topography data
-    if (rank == 0) then
-       archive = trim(topo_file) // '.tgz'
-       write (6,'(a,a)') 'Loading topography file ', archive
-       cmd = 'gtar xzf ' // archive
-       call execute_command_line(cmd)
-    end if
-    call barrier
-
-    ! Allocate topo_count matrix for all domains on all ranks 
-    if (allocated (topo_count)) deallocate (topo_count)
-    allocate (topo_count(topo_min_level:topo_max_level,1:N_GLO_DOMAIN))
-
-    do r = 1, n_process
-
-       if (r /= rank+1) then ! read only if our turn, otherwise wait at barrier
-          call barrier
-          cycle 
-       end if
-
-       ! Read topography count for all domains
-       write (filename, '(a,a)') trim (topo_file), '.count'
-       open (unit=10, file=trim (filename), form="UNFORMATTED", action='READ', status='OLD')
-       read (10) topo_count
-       close (10)
-
-       ! Allocate topgraphy data structures    
-       allocate (topography_data(topo_min_level:topo_max_level, 1:size(grid)))
-       do l = topo_min_level, topo_max_level
-          do d = 1, size(grid)
-             d_glo = glo_id(rank+1,d) + 1
-             allocate (topography_data(l,d)%node(1:  topo_count(l,d_glo)))
-             allocate (topography_data(l,d)%elts(1:4*topo_count(l,d_glo)))
-          end do
-       end do
-    end do
-
-    ! Load topography data
-    do l = topo_min_level, topo_max_level
-       do d = 1, size(grid)
-          d_glo = glo_id(rank+1,d) + 1
-          write (filename, '(a,a,i2.2,a,i5.5)') trim (topo_file), '.', l, '.', d_glo
-          open (unit=10, file=trim (filename), form="UNFORMATTED", action='READ', status='OLD')
-          do ii = 1, topo_count(l,d_glo)
-             i = 4*(ii-1) + 1
-             read (10) topography_data(l,d)%node(ii), topography_data(l,d)%elts(i:i+3)
-          end do
-          close (10)
-       end do
-    end do
-
-    ! Remove temporary files
-    call barrier ! do not delete files before everyone has read them
-    if (rank == 0) then
-       files = trim(topo_file) // '.??.????? ' // trim(topo_file) // '.count'
-       cmd   = '\rm -f ' // files
-       call execute_command_line (cmd)
-    end if
-  end subroutine load_topo
-
-
-  subroutine assign_NCAR_topo (dom, i, j, zlev, offs, dims)
-    ! Assign topography data to topography structure for simulation
-    ! Sets topography height and surface pressure
-
-    implicit none
-
-    type(Domain), intent(inout) :: dom
-    integer,      intent(in)    :: i, j, zlev
-    integer,      intent(in)    :: offs(N_BDRY+1)
-    integer,      intent(in)    :: dims(2,N_BDRY+1)
-
-    integer                             :: d, id, ii, jj, l, n_topo
-    real(dp), dimension(:), allocatable :: distance
-
-    d  = dom%id + 1
-    id = idx (i, j, offs, dims) + 1
-
-    l  = dom%level%elts(id)
-
-    n_topo = size (topography_data(l,d)%node); allocate (distance(1:n_topo))
-    do ii = 1, n_topo
-       distance(ii) = dist (dom%node%elts(id), topography_data(l,d)%node(ii))
-    end do
-    jj = minloc (distance,1) ; deallocate (distance)
-
-    ii = 4*(jj-1) + 1
-    topography%data(d)%elts(id) = topography_data(l,d)%elts(ii)
-    dom%surf_press%elts(id)     = topography_data(l,d)%elts(ii+3)
-  end subroutine assign_NCAR_topo
-
-  
-end module io_mod
+end module checkpoint_mod

@@ -20,7 +20,7 @@ module test_case_mod
   use domain_mod,              only : Domain, Float_Field, grid, sol, sol_mean, sso_param, topography, id_edge, idx
   use domain_ops_mod,          only : apply, apply_bdry, apply_onescale_to_patch
   use geom_mod,                only : cart2sph, geodesic
-  use io_mod,                  only : assign_NCAR_topo
+  use NCAR_topo_mod,           only : assign_NCAR_topo
   use physics_Held_Suarez_mod, only : cal_theta_eq, delta_T, delta_theta, k_a, k_f, k_s, sigma_b, sigma_t, T_mean, T_tropo
   use sso_mod,                 only : blocking_drag, cal_sso_param, wave_drag
   use utils_mod,               only : nu_scale

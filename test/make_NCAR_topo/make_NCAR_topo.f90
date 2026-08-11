@@ -4,8 +4,8 @@ program make_NCAR_topo
   use kind_mod
   use shared_mod
   use domain_mod
-  use io_mod
   use main_mod
+  use NCAR_topo_mod
   use time_integr_mod
   use test_case_mod
   use topo_grid_descriptor_mod

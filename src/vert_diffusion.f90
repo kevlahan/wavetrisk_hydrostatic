@@ -231,7 +231,7 @@ contains
     
     subroutine init_diffuse
       ! Initializations
-      use io_mod, only : kinetic_energy
+      use utils_mod, only : kinetic_energy
       implicit none
       integer  :: k, l
       real(dp) :: Ri

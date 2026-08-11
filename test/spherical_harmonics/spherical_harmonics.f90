@@ -15,7 +15,6 @@ program spherical_harmonics
   use adapt_mod
   use arch_mod
   use domain_ops_mod
-  use io_mod
   use main_mod
   use multi_level_mod
   use ops_mod

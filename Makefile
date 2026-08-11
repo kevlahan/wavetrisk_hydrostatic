@@ -274,7 +274,8 @@ SRC = kind.f90 \
       lin_solve.f90 \
       barotropic_2d.f90 \
       time_integr.f90 \
-      io.f90 \
+      checkpoint.f90 \
+      NCAR_topo.f90 \
       vert_diffusion.f90 \
       io_vtk.f90 \
       remap.f90 \
