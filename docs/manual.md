@@ -50,6 +50,8 @@ Faster .vtk data file compression by replacing serial gzip compression with para
 
 Removed support for `Charm++/AMPI`. Supporting AMPI required PIEglobal-based global variable privatization and an additional execution model that could not be maintained reliably for the adaptive code architecture, particularly for multi-node execution.
 
+Removed serial option (mpi only).
+
 Modernized the MPI communication module through consistent use of explicit interfaces, intent, private/public encapsulation, and explicit module dependencies.
 
 Consolidated common communication interfaces by reusing shared abstract interfaces instead of duplicated definitions.
