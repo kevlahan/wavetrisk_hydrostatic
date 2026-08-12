@@ -2,8 +2,8 @@ module wavelet_mod
   
   use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, EDGE, Coord, scalars, hex_sides, hex_s_offs, nghb_pt, adj_tri, no_adj_tri, bfly_tri, &
-       end_pt, opp_no, N_BDRY, ORIGIN, IJMINUS, IJPLUS, IMINUS, IMINUSJPLUS, IPLUS, IPLUSJMINUS, JMINUS, JPLUS, RT, DG, UP, Z_NULL, &
-       INSIDE, OUTER1, OUTER2, N_VARIABLE, vert_diffuse, zmin, zmax, zlevels, AT_NODE, radius, &
+       end_pt, opp_no, N_BDRY, ORIGIN, IJMINUS, IJPLUS, IMINUS, IMINUSJPLUS, IPLUS, IPLUSJMINUS, JMINUS, JPLUS, RT, DG, UP, &
+       Z_NULL, INSIDE, OUTER1, OUTER2, N_VARIABLE, vert_diffuse, zmin, zmax, zlevels, AT_NODE, radius, &
        UPZ, UZM, UZP, VMM, VMP, VMPP, VPP, UMZ, VPM, VPMM, WMM, WMMM, WMP, WPM, WPP, WPPP, &
        S_VELO, TRIAG, FROZEN, LORT, UPLT, NONE, POSIT, level_start, level_end, eps
 
