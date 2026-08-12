@@ -4,10 +4,9 @@ module mask_mod
 
   use kind_mod,   only : dp
 
-  use comm_mod,       only : init_comm_mod
   use comm_mpi_mod,   only : comm_masks_mpi, update_bdry1
   use dyn_arrays,     only : extend, init
-  use domain_mod,     only : Domain, grid, init_domain_mod, wav_coeff, idx, id_edge
+  use domain_mod,     only : Domain, grid, wav_coeff, idx, id_edge
   use domain_ops_mod, only : apply_bdry, apply_interscale, apply_onescale, apply_onescale__int 
   
   use shared_mod, only : ADJSPACE, ADJZONE, BDRY_THICKNESS, EDGE, N_BDRY, TOLRNZ, RT, DG, UP, TRSK, RESTRCT, ZERO, z_null, &
@@ -16,7 +15,7 @@ module mask_mod
 
   private
   public :: init_masks_zero, mask_active, mask_adj_child, mask_adj_same_scale, mask_restrict_same_scale, mask_adj_finer_scale
-  public :: init_masks, init_mask_mod, mask_second_neighbours, complete_masks, mask_trsk
+  public :: init_masks, mask_second_neighbours, complete_masks, mask_trsk
 
   
 contains
@@ -749,17 +748,6 @@ contains
     dom%mask_n%elts(id+1)        = mask
     dom%mask_e%elts(id_edge(id)) = mask
   end subroutine set_masks
-
-  
-  subroutine init_mask_mod
-    implicit none
-    logical :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-    call init_domain_mod
-    call init_comm_mod
-    initialized = .true.
-  end subroutine init_mask_mod
 
   
   subroutine init_masks

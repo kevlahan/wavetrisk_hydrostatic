@@ -7,18 +7,19 @@ module main_mod
        N_GLO_DOMAIN, N_VARIABLE, NCAR_topo, NONE, &
        S_DIVU, S_ROTU, S_MASS, S_TEMP, S_VELO, TRIAG, XU_GRID, RT, DG, UP, LORT, UPLT, Laplace_divu, Laplace_rotu, Laplace_sclr, &
        adapt_dt, Area_avg, C_visc, a_vert, a_vert_mass, b_vert, b_vert_mass, cfl_safety, compressible, cp_idx, &
-       dt, dt_init, dt_write, dx_avg, gamma, grav_accel, iremap, iremap_max, istep, istep_cumul, itime, iwrite, linear_solver, &
-       level_start, level_end, log_min_mass, log_total_mass, match_time, &
+       dt, dt_init, dt_write, dx_avg, gamma, grav_accel, iremap, iremap_max, istep, istep_cumul, itime, iwrite, &
+       linear_solver, level_start, level_end, log_min_mass, log_total_mass, match_time, &
        min_mass, min_mass_remap, min_level, max_level, mode_split, n_active, n_domain, n_node_old, n_patch_old, optimize_grid, &
        P_top, penta_node, penta_node_std, physics_type, physics_model, r_adv, r_dif, radius, remap, &
        R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
        time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
 
-  use arch_mod,           only : abort_run, barrier, distribute_grid, glo_id, n_process, rank
-  use adapt_mod,          only : adapt, init_adapt_mod, WT_after_step
+  use arch_mod,           only : abort_run, barrier, distribute_grid, glo_id, init_arch_mod, n_process, rank
+  use adapt_mod,          only : adapt, WT_after_step
   use coarse_grid_mod,    only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
-  use comm_mod,           only : get_coord, set_coord,  init_comm_mod
-  use diagnostics_mod,    only : rho_dz_i,   theta_i, theta2temp
+  use comm_mod,           only : get_coord, set_coord
+  use comm_mpi_mod,       only : init_comm_mpi_mod
+  use diagnostics_mod,    only : rho_dz_i, theta_i, theta2temp
   use domain_ops_mod,     only : apply_interscale, apply_no_bdry,  apply_onescale2
   use geom_mod,           only : number_hex
   use init_mod,           only : z_coords
@@ -27,14 +28,15 @@ module main_mod
   use io_vtk_mod,         only : write_and_export
   use lin_solve_mod,      only : Full_Multigrid, Scheduled_Relaxation_Jacobi
   use lnorms_mod,         only : lnorm
-  use mask_mod,           only : init_mask_mod, init_masks, mask_adj_child
+  use mask_mod,           only : init_masks, mask_adj_child
   use multi_level_mod,    only : trend_ml
   use NCAR_topo_mod,      only : load_topo
-  use refine_patch_mod,   only : add_second_level, init_refine_patch_mod
+  use refine_patch_mod,   only : add_second_level
   use remap_mod,          only : remap_vertical_coordinates
   use utils_mod,          only : hex_len, hex_pedlen, interp, nu_scale, porous_density, tri_perim
   use vert_diffusion_mod, only : vertical_diffusion
-
+  use wavelet_mod,        only : forward_wavelet_transform, init_wavelets, inverse_scalar_transform, inverse_wavelet_transform
+  
   use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
        sum_int,  sync_max_int, sync_min_real, write_load_conn
 
@@ -44,15 +46,11 @@ module main_mod
        sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx
 
   use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
-       initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, init_init_mod, &
+       initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
        precompute_geometry, set_level, set_thresholds
 
-  use time_integr_mod, only : dt_step, dt_step_split,  init_RK_mem, init_time_integr_mod, q1, q2, q3, q4, dq1, &
+  use time_integr_mod, only : dt_step, dt_step_split,  init_RK_mem, q1, q2, q3, q4, dq1, &
        Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK4_split, RK45_opt
-
-
-  use wavelet_mod, only : forward_wavelet_transform, init_wavelet_mod, init_wavelets, &
-       inverse_scalar_transform, inverse_wavelet_transform 
 
   use coord_arithmetic_mod
 
@@ -454,17 +452,12 @@ contains
   end subroutine time_step
 
   subroutine init_basic
+    
     implicit none
+    
     integer :: l
 
     call initialize_a_b_vert
-    call init_comm_mod
-    call init_init_mod
-    call init_refine_patch_mod
-    call init_time_integr_mod 
-    call init_wavelet_mod
-    call init_mask_mod
-    call init_adapt_mod
 
     allocate (n_active_edges(min_level-1:max_level), n_active_nodes(min_level-1:max_level))
     n_active_edges = 0; n_active_nodes = 0

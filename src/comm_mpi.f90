@@ -7,11 +7,12 @@ module comm_mpi_mod
        n_domain
 
   use arch_mod,       only : abort_run, barrier, comm, MPI_IN, MPI_DP, MPI_SP, glo_id, n_process, owner, rank
+  use comm_mod,       only : init_comm
   use dyn_arrays,     only : Int_Array, Float_Array, append, extend, init
   use domain_mod,     only : Domain, Float_Field, grid
   use domain_ops_mod, only : apply_onescale, apply_onescale__int, apply_to_pole, sub8
 
-  use comm_mod,       only : coord_get, coord_set, init_comm, get9, set9, sync_val, rot_direction, domain_load, &
+  use comm_mod,       only : coord_get, coord_set, get9, set9, sync_val, rot_direction, domain_load, &
        comm_communication, comm_masks, comm_nodes3, comm_nodes9, comm_patch_conn, cp_bdry_inside, unpack, unpack_comm_struct
 
   implicit none
@@ -86,6 +87,7 @@ contains
 
   subroutine init_comm_mpi
     implicit none
+    
     allocate (recv_lengths(n_process), recv_offsets(n_process))
     allocate (send_lengths(n_process), send_offsets(n_process))
     allocate (req(2*n_process))
@@ -93,7 +95,8 @@ contains
     recv_offsets = 0
     send_lengths = 0
     send_offsets = 0
-    req = MPI_REQUEST_NULL  
+    req = MPI_REQUEST_NULL
+    
     call init_comm
     call comm_communication_mpi
   end subroutine init_comm_mpi

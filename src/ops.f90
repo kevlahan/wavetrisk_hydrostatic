@@ -13,28 +13,19 @@ module ops_mod
   use utils_mod,      only : interp, phi_node, porous_density
   use init_mod,       only : physics_scalar_flux, physics_velo_source, surf_geopot
   
-  use domain_mod, only : bernoulli, Domain, Float_Field, grid, sides_dims, exner, exner_fun, &
-       h_flux, h_mflux, horiz_flux, init_domain_mod, ke, &
+  use domain_mod, only : bernoulli, Domain, Float_Field, grid, sides_dims, exner, exner_fun, h_flux, h_mflux, horiz_flux, ke, &
+       
        mass, mean_m, temp, mean_t, dscalar, dvelo, scalar, sol, sol_mean, topography, Laplacian, qe, velo, vort, idx, id_edge
 
   implicit none
 
   private
-  public :: init_ops_mod, post_step1, step1, scalar_trend, du_grad, du_source, cal_surf_press, integrate_pressure_up
+  public :: post_step1, step1, scalar_trend, du_grad, du_source, cal_surf_press, integrate_pressure_up
   public :: cal_pressure, post_vort, cal_vort, cal_Laplacian_rotu, gradi_e, cal_div, curlv_e, Qperp, Qperp_Gassmann 
 
   
 contains
-
   
-  subroutine init_ops_mod
-    implicit none
-    logical :: initialized = .False.
-    if (initialized) return ! initialize only once
-    call init_domain_mod
-    initialized = .true.
-  end subroutine init_ops_mod
-
   
   subroutine step1 (dq, q, dom, p, zlev, itype)
     ! itype = 0 is standard computation of all quantities

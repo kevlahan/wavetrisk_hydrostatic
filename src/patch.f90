@@ -1,14 +1,14 @@
 module patch_mod
   
   use kind_mod,   only : dp
-  use shared_mod, only : BDRY_THICKNESS, N_BDRY, N_CHDRN, PATCH_LEVEL, init_shared_mod
+  use shared_mod, only : BDRY_THICKNESS, N_BDRY, N_CHDRN, PATCH_LEVEL
   
   implicit none
 
   private
   public :: LAST, LAST_BDRY, PATCH_SIZE
   public :: Bdry_Patch, Overl_Area, Iu_Wgt, Patch, RF_Wgt
-  public :: init_Iu_Wgt, init_Overl_Area, init_Bdry_Patch, init_Patch, init_patch_mod, init_RF_Wgt
+  public :: init_Iu_Wgt, init_Overl_Area, init_Bdry_Patch, init_Patch, init_RF_Wgt
 
   integer, parameter :: PATCH_SIZE = 2**PATCH_LEVEL
   integer, parameter :: LAST       = PATCH_SIZE - 1
@@ -41,16 +41,11 @@ module patch_mod
   type RF_Wgt
      real(dp), dimension(3) :: enc
   end type RF_Wgt
+
+  
 contains
-  subroutine init_patch_mod
-    implicit none
-    logical :: initialized = .false.
 
-    if (initialized) return ! initialize only once
-    call init_shared_mod
-    initialized = .True.
-  end subroutine init_patch_mod
-
+  
   subroutine init_Patch (self, elts_start, level, chdrn, neigh)
     ! Initializes new patch
     implicit none

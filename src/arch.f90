@@ -3,7 +3,7 @@ module arch_mod
   use mpi_f08
 
   use kind_mod,   only : dp
-  use shared_mod, only : N_GLO_DOMAIN, init_shared_mod, n_domain, run_id
+  use shared_mod, only : N_GLO_DOMAIN, n_domain, run_id
 
   implicit none
 
@@ -20,7 +20,41 @@ module arch_mod
   integer                       :: loc_id(N_GLO_DOMAIN) , owner(N_GLO_DOMAIN) 
   integer,          allocatable :: glo_id(:,:)
   integer,          allocatable :: cp_load(:)
+  
+  
 contains
+
+  subroutine init_arch_mod
+    
+    implicit none
+    
+    logical, save :: initialized = .false.
+
+    if (initialized) return ! initialize only once
+
+    call MPI_Init 
+
+    comm = MPI_COMM_WORLD
+
+    call MPI_Comm_Size (comm, n_process)
+    call MPI_Comm_Rank (comm, rank)
+
+    allocate (n_domain(n_process))
+    n_domain = 0
+
+    initialized = .true.
+
+    if (n_process > N_GLO_DOMAIN) then
+       if (rank == 0) then
+          write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          write (6,'(2(a,i4),a)') "!!          Number of cores ", n_process, " > number of domains ", N_GLO_DOMAIN, &
+               " ... aborting             !!"
+          write (6,'(a,/)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+       end if
+       call abort_run
+    end if
+  end subroutine init_arch_mod
+  
 
   subroutine distribute_grid (cp_idx)
     ! Uses simple next-fit algorithm to allocate each domain to a processor.
@@ -198,38 +232,6 @@ contains
     deallocate(wgt_d)
 
   end subroutine distribute_grid
-
-
-  subroutine init_arch_mod
-    implicit none
-    logical, save :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-
-    call init_shared_mod
-
-    call MPI_Init 
-
-    comm = MPI_COMM_WORLD
-
-    call MPI_Comm_Size (comm, n_process)
-    call MPI_Comm_Rank (comm, rank)
-
-    allocate (n_domain(n_process))
-    n_domain = 0
-
-    initialized = .true.
-
-    if (n_process > N_GLO_DOMAIN) then
-       if (rank == 0) then
-          write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-          write (6,'(2(a,i4),a)') "!!          Number of cores ", n_process, " > number of domains ", N_GLO_DOMAIN, &
-               " ... aborting             !!"
-          write (6,'(a,/)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-       end if
-       call abort_run
-    end if
-  end subroutine init_arch_mod
 
 
   subroutine finalize

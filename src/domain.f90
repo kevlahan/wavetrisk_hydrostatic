@@ -5,11 +5,11 @@ module domain_mod
   use shared_mod, only : AT_NODE, AT_EDGE, BDRY_THICKNESS, b_vert, b_vert_mass, compressible, &
        EAST, EDGE, grav_accel, IMINUS, IJMINUS, IMINUSJPLUS, JMINUS, &
        N_GLO_DOMAIN, N_BDRY, N_DOMAIN, NORTH, NORTHEAST, ORIGIN, RT, DG, SOUTHEAST, S_VELO, TRIAG, UP, WEST, &
-       a_vert, a_vert_mass, init_shared_mod, p_0, ref_density, max_level, max_depth, min_level, mode_split, &
+       a_vert, a_vert_mass, p_0, ref_density, max_level, max_depth, min_level, mode_split, &
        split_mean_perturbation, scalars, zlevels, zmin
 
-  use patch_mod, only : BDRY_PATCH, Patch, PATCH_SIZE, init_patch_mod
-  use arch_mod,  only : init_arch_mod, n_process, rank
+  use patch_mod, only : BDRY_PATCH, Patch, PATCH_SIZE
+  use arch_mod,  only : n_process, rank
 
   use dyn_arrays, only : Areas_Array, Bdry_Patch_Array, Coord_Array, Float_Array, Int_Array, &
        Iu_Wgt_Array, Logical_Array, Overl_Area_Array, Patch_Array, RF_Wgt_Array, Topo_Array, &
@@ -25,17 +25,24 @@ module domain_mod
   public :: diag, mass, mass1, h_flux, h_mflux, dmass, dtemp, dscalar, scalar, scalar_2d, temp, temp1
   public :: velo, velo1, velo2, velo_2d, dvelo, dvelo_2d
   public :: mean_m, mean_t, Laplacian,  bernoulli, divu, exner, ke, qe, vort,  wc_s, wc_u
-  public :: init_Domain, init_domain_mod, add_bdry_patch_Domain, add_patch_Domain, extend_Domain, set_neigh_Domain
+  public :: init_Domain, add_bdry_patch_Domain, add_patch_Domain, extend_Domain, set_neigh_Domain
   public :: idx, idx2, idx__fast, idx_hex, idx_hex_LORT, idx_hex_LORT2, idx_hex_UPLT, idx_hex_UPLT2, ed_idx, id_edge, tri_idx
   public :: nidx, is_penta, find_neigh_bdry_patch_domain, find_neigh_patch2_domain, find_neigh_patch_domain
   public :: par_side, get_offs_Domain, get_offs_Domain5
 
+  
+  integer, parameter :: sides_dims(2,N_BDRY+1) = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
+       BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, PATCH_SIZE, &
+       BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, BDRY_THICKNESS, &
+       BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS, &
+       BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS], [2, 9])
+
+  integer, parameter :: chd_offs(2,4) = reshape ([PATCH_SIZE/2, PATCH_SIZE/2, PATCH_SIZE/2, 0, 0, 0, 0, PATCH_SIZE/2], [2, 4])
+
+
   interface init_field
      procedure :: init_Float_Field, init_Int_Field, init_Logical_Field
   end interface init_field
-
-  integer, dimension(2,N_BDRY+1) :: sides_dims
-  integer, dimension(2,4)        :: chd_offs
 
   ! Objects same on all zlevels
   type Domain
@@ -168,29 +175,6 @@ contains
 
     allocate (self%data(n_domain(rank+1)))
   end subroutine init_Logical_Field
-
-  
-  subroutine init_domain_mod
-    implicit none
-    logical :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-
-    call init_shared_mod
-    call init_patch_mod
-    call init_arch_mod
-
-    sides_dims = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
-         BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, PATCH_SIZE, &
-         BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, BDRY_THICKNESS, &
-         BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS, &
-         BDRY_THICKNESS, BDRY_THICKNESS, BDRY_THICKNESS], [2, 9])
-
-    chd_offs = reshape ([PATCH_SIZE/2, PATCH_SIZE/2, PATCH_SIZE/2, 0, 0, 0, 0, PATCH_SIZE/2], [2, 4])
-
-    initialized = .true.
-  end subroutine init_domain_mod
-
   
   subroutine init_Domain (self)
     implicit none

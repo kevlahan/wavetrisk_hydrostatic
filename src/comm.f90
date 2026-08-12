@@ -4,23 +4,27 @@ module comm_mod
   use shared_mod, only : ADJZONE, AT_EDGE, AT_NODE, Coord, EDGE, N_GLO_DOMAIN, NODE, NONE, &
        EAST, NORTH, NORTHEAST, NORTHWEST, SOUTH, SOUTHEAST, SOUTHWEST, WEST, POLE, RT, DG, UP, N_BDRY, BDRY_THICKNESS
 
-  use arch_mod,   only : glo_id, init_arch_mod, loc_id, owner, rank
-  use domain_mod, only : get_offs_domain, grid, Domain, Float_Field, idx, idx__fast, init_domain_mod, nidx, is_penta
+  use arch_mod,   only : glo_id, loc_id, owner, rank
+  use domain_mod, only : get_offs_domain, grid, Domain, Float_Field, idx, idx__fast, nidx, is_penta
   use dyn_arrays, only : append, extend
   use patch_mod,  only : LAST, LAST_BDRY, PATCH_SIZE
 
   implicit none
 
+  
   private
   public :: comm_communication, comm_edges, comm_nodes, comm_nodes3, comm_nodes9, comm_patch_conn
-  public :: init_comm, init_comm_mod, update_comm
+  public :: init_comm, update_comm
   public :: coord_get, coord_set, get_coord, set_coord, get9, set9, unpack, unpack_comm_struct
   public :: domain_load, rot_direction, sync_val
   public :: comm_masks, cp_bdry_inside
 
-  integer, dimension(4,4) :: shift_arr
-  real(dp)                :: sync_val
+  
+  integer, parameter  :: shift_arr(4,4) = reshape ([ 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0 ], [ 4, 4 ])
+  
+  real(dp) :: sync_val
 
+  
   abstract interface
 
      type(Coord) function coord_get (dom, id) 
@@ -95,20 +99,6 @@ module comm_mod
   end interface cp_bdry_inside
 
 contains
-
-  
-  subroutine init_comm_mod
-    implicit none
-    logical :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-    call init_arch_mod
-    call init_domain_mod
-
-    shift_arr = reshape ([ 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0 ], [ 4, 4 ])
-
-    initialized = .true.
-  end subroutine init_comm_mod
 
 
   subroutine init_comm

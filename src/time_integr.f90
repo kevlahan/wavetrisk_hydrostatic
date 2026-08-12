@@ -3,20 +3,18 @@ module time_integr_mod
   use kind_mod,   only : dp
   use shared_mod, only : N_VARIABLE, NONE, POSIT, S_TEMP, eps, level_start, theta2, zlevels, zmax
   
-  use adapt_mod,         only : init_multi_level_mod, WT_after_step
+  use adapt_mod,         only : WT_after_step
   use barotropic_2d_mod, only : barotropic_correction, eta_update, flux_divergence, scalar_star, u_star, u_update
-  use comm_mod,          only : init_comm_mod
   use comm_mpi_mod,      only : update_bdry
   use dyn_arrays,        only : extend, init
   use domain_mod,        only : Float_Field, init_Field, grid, sol, trend, wav_coeff
   use multi_level_mod,   only : trend_ml
-  use ops_mod,           only : init_ops_mod
 
   implicit none
 
   private
   public :: dt_step, dt_step_split
-  public :: init_RK_mem, init_time_integr_mod
+  public :: init_RK_mem
   public :: Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK45_opt, RK4_split
   public :: q1, q2, q3, q4, dq1
   
@@ -38,7 +36,9 @@ module time_integr_mod
        use kind_mod,   only : dp
        use domain_mod, only : Float_Field
        use shared_mod, only : N_VARIABLE, zlevels
+       
        implicit none
+       
        real(dp),          intent(in)    :: h      
        type(Float_Field), intent(inout) :: q(1:N_VARIABLE,1:zlevels)
        type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
@@ -245,20 +245,6 @@ contains
     call RK_sub_step4 (q, q2, q3, q4, trend, dq1, [alpha(1,5), alpha(3:5,5)], h * beta(4:5,5), q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine RK45_opt
-  
-
-  subroutine init_time_integr_mod
-    implicit none
-    
-    logical :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-
-    call init_comm_mod
-    call init_ops_mod
-    call init_multi_level_mod
-    initialized = .true.
-  end subroutine init_time_integr_mod
   
 
   subroutine RK_sub_step (sols, trends, h, dest)

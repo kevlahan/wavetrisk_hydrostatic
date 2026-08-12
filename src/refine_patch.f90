@@ -3,22 +3,21 @@ module refine_patch_mod
   
   use shared_mod, only : ADJSPACE, BDRY_THICKNESS, EDGE, N_BDRY, N_CHDRN, IMINUSJPLUS, IPLUSJMINUS, N_CHDRN, NONE, POLE, RESTRCT, &
        z_null, S_DIVU, S_ROTU, S_VELO, RT, DG, UP, ORIGIN, TRIAG, ZERO, FALSE, TRUE, sso,  &
-       init_shared_mod, level_start, level_end, max_level, scalars, vert_diffuse, zlevels, zmin, zmax, n_domain
+      level_start, level_end, max_level, scalars, vert_diffuse, zlevels, zmin, zmax, n_domain
 
   use arch_mod,       only : rank
   use comm_mod,       only : update_comm
   use dyn_arrays,     only : append, extend
   use geom_mod,       only : init_Coord, mid_pt
-  use init_mod,       only : Areas, ccentre,  ccentre_penta, coriolis, cpt_areas, cpt_triarea, lengths, init_init_mod, midpt
-  use mask_mod,       only : init_mask_mod
+  use init_mod,       only : Areas, ccentre,  ccentre_penta, coriolis, cpt_areas, cpt_triarea, lengths, midpt
   use patch_mod,      only : Iu_wgt, RF_Wgt, Overl_Area, PATCH_SIZE
-  use wavelet_mod,    only : init_wavelet_mod, set_RF_wgts, set_WT_wgts
+  use wavelet_mod,    only : set_RF_wgts, set_WT_wgts
 
   use comm_mpi_mod,   only : comm_masks_mpi, comm_communication_mpi, comm_nodes9_mpi, comm_patch_conn_mpi, &
        sync_max_int
 
   use domain_mod, only : add_patch_Domain, chd_offs, get_offs_Domain, grid, Domain, exner_fun, penal_node, penal_edge, idx, &
-       id_edge, init_domain_mod, is_penta, Kt, Kv, sso_param, tke, wav_tke, &
+       id_edge, is_penta, Kt, Kv, sso_param, tke, wav_tke, &
        topography, trend, wav_coeff, horiz_flux, Laplacian_scalar, Laplacian_vector, &
        find_neigh_patch_Domain, add_bdry_patch_Domain
 
@@ -28,23 +27,28 @@ module refine_patch_mod
   implicit none
 
   private
-  public :: add_second_level, check_child_required, get_child_and_neigh_patches, max_level_exceeded, post_refine
-  public :: refine, refine_patch1, refine_patch2
-  public :: init_refine_patch_mod, fill_up_level, refine_patch
+  public :: refine, refine_patch, refine_patch1, refine_patch2
+  public :: add_second_level, check_child_required, max_level_exceeded, post_refine
+  public :: fill_up_level
   
   integer, parameter :: DOF_PER_PATCH = PATCH_SIZE * PATCH_SIZE * (EDGE + 1)
-  logical            :: max_level_exceeded
-
+  logical            :: max_level_exceeded = .false.
+  
   
 contains
-
   
-  logical function refine ()
+  
+  function refine () result(val)
     ! Determines where new patches are needed when grid is refineds
+
     implicit none
+
+    logical :: val
+    
     integer :: c, d, did_refine, old_n_patch, p_chd, p_par
     logical :: required
-    
+
+
     ! Use threshold mask to call refine patch where necessary
     did_refine = FALSE
     do d = 1, size(grid)
@@ -74,7 +78,7 @@ contains
        end do
        
     end do
-    refine = sync_max_int (did_refine) == TRUE
+    val = sync_max_int (did_refine) == TRUE
     return
   end function refine
   
@@ -374,29 +378,6 @@ contains
   end function check_child_required
   
 
-  function get_child_and_neigh_patches (dom, p_par, c) result(val)
-
-    implicit none
-
-    type(Domain), intent(in) :: dom
-    integer,      intent(in) :: p_par, c
-    integer                  :: val(4)
-    
-    integer :: n
-    
-    val = 0
-    val(1) = dom%patch%elts(p_par+1)%children(c)
-    n = dom%patch%elts(p_par+1)%neigh(c) ! side
-    if (n > 0) then
-       val(2) = dom%patch%elts(n+1)%children(modulo((c+1)-1,4)+1) 
-       val(3) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
-    endif
-
-    n = dom%patch%elts(p_par+1)%neigh(c+4) ! corner
-    if (n > 0) val(4) = dom%patch%elts(n+1)%children(modulo((c+2)-1,4)+1) 
-  end function get_child_and_neigh_patches
-  
-
   function side (dom, p, s) result(val)
     
     implicit none
@@ -574,24 +555,6 @@ contains
     p_chd = dom%patch%elts(p_par+1)%children(c+1)
     dom%patch%elts(p_chd+1)%neigh(s+1) = n_chd
   end subroutine attach_bdry
-  
-
-  subroutine init_refine_patch_mod
-    
-    implicit none
-    
-    logical :: initialized = .false.
-    
-    if (initialized) return ! initialize only once
-
-    call init_shared_mod
-    call init_domain_mod
-    call init_init_mod
-    call init_wavelet_mod
-    call init_mask_mod
-    
-    initialized = .true.
-  end subroutine init_refine_patch_mod
   
 
   subroutine fill_up_level

@@ -5,12 +5,10 @@ module adapt_mod
        scalars, S_VELO, z_null
   
   use arch_mod,         only : rank
-  use comm_mod,         only : init_comm_mod
   use comm_mpi_mod,     only : update_bdry
   use domain_ops_mod,   only : apply_interscale_d, apply_onescale_d, apply_to_penta_d
   use init_mod,         only : noarg_sub, set_thresholds, update
-  use ops_mod,          only : init_ops_mod
-  use refine_patch_mod, only : fill_up_level, init_refine_patch_mod, max_level_exceeded, post_refine, refine
+  use refine_patch_mod, only : fill_up_level, max_level_exceeded, post_refine, refine
   use utils_mod,        only : zero_float
 
 
@@ -21,12 +19,12 @@ module adapt_mod
        mask_restrict_same_scale, mask_second_neighbours
 
   use wavelet_mod, only : compute_scalar_wavelets, compute_velo_wavelets, compute_velo_wavelets_penta, &
-       init_wavelet_mod, inverse_scalar_transform, inverse_velo_transform, inverse_wavelet_transform, restrict_velo
+       inverse_scalar_transform, inverse_velo_transform, inverse_wavelet_transform, restrict_velo
 
   implicit none
 
   private
-  public :: adapt, compress_wavelets_scalar, fill_up_grid_and_IWT, init_adapt_mod, init_multi_level_mod
+  public :: adapt, compress_wavelets_scalar, fill_up_grid_and_IWT
   public :: WT_after_scalar, WT_after_step, WT_after_velo 
   
   interface compress_wavelets_scalar
@@ -39,7 +37,6 @@ module adapt_mod
 
   
 contains
-
   
   subroutine adapt (set_thresholds, type)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
@@ -93,21 +90,6 @@ contains
     ! Evaluate sol_mean, topography and penalization (as defined in test case) on new grid
     call update 
   end subroutine adapt
-
-  
-  subroutine init_adapt_mod
-    
-    implicit none
-    
-    logical :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-    call init_comm_mod
-    call init_refine_patch_mod
-    
-    max_level_exceeded = .false.
-    initialized        = .true.
-  end subroutine init_adapt_mod
 
   
   subroutine compress_wavelets (wav)
@@ -403,22 +385,6 @@ contains
     call compress_wavelets_velo (wavelet)
     call inverse_velo_transform (wavelet, scaling)
   end subroutine WT_after_velo
-
-  
-  subroutine init_multi_level_mod
-    
-    implicit none
-    
-    logical :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-    
-    call init_comm_mod
-    call init_ops_mod
-    call init_wavelet_mod
-    call init_refine_patch_mod
-    initialized = .true.
-  end subroutine init_multi_level_mod
 
   
   subroutine fill_up_grid_and_IWT (l)

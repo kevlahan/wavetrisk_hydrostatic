@@ -1,8 +1,13 @@
 module wavelet_mod
-
-  use kind_mod,   only : dp
-  use shared_mod, only : init_shared_mod, ORIGIN
   
+  use kind_mod,   only : dp
+  use shared_mod, only : ADJZONE, EDGE, Coord, scalars, hex_sides, hex_s_offs, nghb_pt, adj_tri, no_adj_tri, bfly_tri, &
+       end_pt, opp_no, N_BDRY, ORIGIN, IJMINUS, IJPLUS, IMINUS, IMINUSJPLUS, IPLUS, IPLUSJMINUS, JMINUS, JPLUS, RT, DG, UP, Z_NULL, &
+       INSIDE, OUTER1, OUTER2, N_VARIABLE, vert_diffuse, zmin, zmax, zlevels, AT_NODE, radius, &
+       UPZ, UZM, UZP, VMM, VMP, VMPP, VPP, UMZ, VPM, VPMM, WMM, WMMM, WMP, WPM, WPP, WPPP, &
+       S_VELO, TRIAG, FROZEN, LORT, UPLT, NONE, POSIT, level_start, level_end, eps
+
+
   use arch_mod,       only : abort_run
   use comm_mpi_mod,   only : update_bdry, update_bdry1, update_bdry__finish, update_bdry__start
   use domain_mod,     only : get_offs_Domain, init_Field
@@ -12,13 +17,7 @@ module wavelet_mod
   use patch_mod,      only : init_Overl_Area, init_Iu_Wgt, init_RF_Wgt, Iu_wgt, LAST, LAST_BDRY, PATCH_SIZE
   use utils_mod,      only : zero_float
 
-  use shared_mod, only : ADJZONE, EDGE, Coord, scalars, hex_sides, hex_s_offs, nghb_pt, adj_tri, no_adj_tri, bfly_tri, &
-       end_pt, opp_no, N_BDRY, IJMINUS, IJPLUS, IMINUS, IMINUSJPLUS, IPLUS, IPLUSJMINUS, JMINUS, JPLUS, RT, DG, UP, Z_NULL, &
-       INSIDE, OUTER1, OUTER2, N_VARIABLE, vert_diffuse, zmin, zmax, zlevels, AT_NODE, radius, &
-       UPZ, UZM, UZP, VMM, VMP, VMPP, VPP, UMZ, VPM, VPMM, WMM, WMMM, WMP, WPM, WPP, WPPP, &
-       S_VELO, TRIAG, FROZEN, LORT, UPLT, NONE, POSIT, level_start, level_end, eps
-  
-  use domain_mod, only : Domain, Float_Field, grid, init_domain_mod, velo, wav_coeff, wav_tke, wc_s, wc_u, scalar, idx, is_penta, &
+  use domain_mod, only : Domain, Float_Field, grid, velo, wav_coeff, wav_tke, wc_s, wc_u, scalar, idx, is_penta, &
        nidx, tri_idx, idx2, idx__fast, ed_idx
 
   implicit none
@@ -27,11 +26,12 @@ module wavelet_mod
   public :: forward_wavelet_transform, forward_scalar_transform
   public :: inverse_wavelet_transform, inverse_scalar_transform, inverse_velo_transform
   public :: Compute_scalar_wavelets, Compute_velo_wavelets, Compute_velo_wavelets_penta, Restrict_velo
-  public :: Restrict_scalar, scalar_restriction, init_wavelets, set_RF_wgts, set_WT_wgts, init_wavelet_mod
+  public :: Restrict_scalar, scalar_restriction, init_wavelets, set_RF_wgts, set_WT_wgts
   public :: check_m, Prolong_full_weighting
   
-  real(dp), dimension(9) :: Iu_Base_Wgt
-  logical,     parameter :: lapack = .true. ! use lapack or local LU routine
+  real(dp), parameter :: Iu_Base_Wgt(9) = [16.0_dp, -1.0_dp, 1.0_dp, 1.0_dp, -1.0_dp, -1.0_dp, -1.0_dp, 1.0_dp, 1.0_dp] / 16.0_dp
+  
+  logical,  parameter :: lapack = .true. ! use lapack or local LU routine
 
   interface
      
@@ -67,8 +67,8 @@ module wavelet_mod
 
   
 contains
-
   
+
   subroutine forward_wavelet_transform (scaling, wavelet, jmin_in, jmax_in)
     ! Forward wavelet transform
     implicit none
@@ -1972,19 +1972,6 @@ contains
     
     val = [inner(c, x), inner(c, y)]
   end function coord2local
-  
-
-  subroutine init_wavelet_mod
-    implicit none
-    logical :: initialized = .false.
-
-    if (initialized) return ! initialize only once
-    call init_shared_mod
-    call init_domain_mod
-
-    Iu_Base_Wgt = [16.0_dp, -1.0_dp, 1.0_dp, 1.0_dp, -1.0_dp, -1.0_dp, -1.0_dp, 1.0_dp, 1.0_dp] / 16.0_dp
-    initialized = .true.
-  end subroutine init_wavelet_mod
   
 
   function coords_to_rowd (midpt, dirvec, x, y) result(val)

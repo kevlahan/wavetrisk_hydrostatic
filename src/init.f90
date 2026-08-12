@@ -7,8 +7,8 @@ module init_mod
        dx_avg, radius, scalars, eps, n_domain, POSIT, N_BDRY, NONE, POLE, NORTHEAST, NORTHWEST, SOUTHEAST
    
    
-   use arch_mod,       only : init_arch_mod, loc_id, owner, rank
-   use domain_mod,     only : get_offs_domain, init_Domain, init_domain_mod, init_field, set_neigh_domain
+   use arch_mod,       only : loc_id, owner, rank
+   use domain_mod,     only : get_offs_domain, init_Domain, init_Field, set_neigh_domain
    use domain_ops_mod, only : apply_onescale, apply_onescale2, fun3, fun4, sub4
    use dyn_arrays,     only : init
    use patch_mod,      only : PATCH_SIZE
@@ -25,7 +25,7 @@ module init_mod
   implicit none
 
   private
-  public :: Areas, ccentre, ccentre_penta, check_grid, coriolis, cpt_areas, cpt_triarea, init_geometry, init_grid, init_init_mod
+  public :: Areas, ccentre, ccentre_penta, check_grid, coriolis, cpt_areas, cpt_triarea, init_geometry, init_grid
   public :: len, lengths, midpt, pedlen
   public :: physics_scalar_flux, physics_velo_source, precompute_geometry, set_level, surf_geopot, u_source
   public :: fun1, fun2, fun5, coord_fun, int2_fun, noarg_sub, physics_fun, set_thresholds, solver, zcoords_fun
@@ -163,18 +163,6 @@ module init_mod
 
   
 contains
-
-  
-  subroutine init_init_mod
-    implicit none
-    logical :: initialized = .false.
-    
-    if (initialized) return ! initialize only once
-    call init_domain_mod
-    call init_arch_mod
-    initialized = .true.
-  end subroutine init_init_mod
-
   
   subroutine init_grid
     implicit none
