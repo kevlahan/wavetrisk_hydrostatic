@@ -6,6 +6,7 @@ program Seamount
 
   use kind_mod
   use shared_mod
+  use diagnostics_mod, only : total_ke
   use main_mod
   use time_integr_mod
   use test_case_mod

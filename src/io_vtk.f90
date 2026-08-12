@@ -13,13 +13,12 @@ module io_vtk_mod
   use comm_mpi_mod,       only : gather_int, gather_vec, sum_int, update_bdry
   use domain_ops_mod,     only : apply_bdry,  apply_d, apply_no_bdry, apply_onescale_to_patch, apply_to_penta_d
   use geom_mod,           only : min_dist
+  use integrate_mod,      only : active_level, pre_levelout, post_levelout, save_tri
   use ops_mod,            only : cal_div, cal_surf_press, cal_vort, integrate_pressure_up, post_vort, step1
   use multi_level_mod,    only : cpt_or_restr_flux
+  use utils_mod,          only : interp_UVW_latlon, hex2tri2, interp, z_i, zero_float
   use vert_diffusion_mod, only : vertical_diffusion
   
-  use utils_mod, only : active_level, interp_UVW_latlon, hex2tri2, interp, pre_levelout, post_levelout, &
-       save_tri, z_i, zero_float
-
   implicit none
 
   private

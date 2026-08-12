@@ -5,9 +5,10 @@ module sso_mod
   use shared_mod, only : Coord, EDGE, MATH_PI, N_BDRY, S_GAMMA, S_MU, S_SIGMA, S_THETA, S_MASS, S_TEMP, S_VELO, RT, DG, UP, &
        gamma, radius, topo_max_level, zlevels
 
-  use domain_mod, only : Domain, grid, sol, sol_mean, sso_param, topography, topography_data, id_edge, idx
-  use geom_mod,   only : cart2sph, direction, dist, inner
-  use utils_mod,  only : density_i, dz_i, interp, N_i, uvw2zonal_merid
+  use diagnostics_mod, only : density_i, N_i
+  use domain_mod,      only : Domain, grid, sol, sol_mean, sso_param, topography, topography_data, id_edge, idx
+  use geom_mod,        only : cart2sph, direction, dist, inner
+  use utils_mod,       only : dz_i, interp, uvw2zonal_merid
 
   use coord_arithmetic_mod
   

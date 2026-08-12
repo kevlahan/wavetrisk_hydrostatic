@@ -261,6 +261,8 @@ SRC = kind.f90 \
       comm.f90 \
       comm_mpi.f90 \
       utils.f90 \
+      integrate.f90 \
+      diagnostics.f90 \
       projection.f90 \
       equation_of_state.f90 \
       wavelet.f90 \

@@ -21,19 +21,20 @@ module vert_diffusion_mod
   !   but still include wind stress/bottom friction.
   !
   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+  
   use kind_mod,   only : dp
   use shared_mod, only : Coord, EDGE, METRE, N_BDRY, N_VARIABLE, a_0, c_p, dt, eps, grav_accel, istep, level_start, level_end, &
        mode_split,ref_density, tke_closure, S_MASS, S_TEMP, S_VELO,  zlevels, zmax, z_null      
 
-  use arch_mod,       only : rank
-  use domain_ops_mod, only : apply_onescale, apply_onescale_to_patch
-  use init_mod,       only : bottom_buoy_flux, bottom_friction, tau_mag, top_buoy_flux, wind_flux
-  use utils_mod,      only : dz_e, dz_i, free_surface, interp, interp_e, phi_edge, porous_density
+  use arch_mod,        only : rank
+  use diagnostics_mod, only : free_surface, kinetic_energy
+  use domain_ops_mod,  only : apply_onescale, apply_onescale_to_patch
+  use init_mod,        only : bottom_buoy_flux, bottom_friction, tau_mag, top_buoy_flux, wind_flux
+  use utils_mod,       only : dz_e, dz_i, interp, interp_e, phi_edge, porous_density
 
-   use domain_mod, only : Domain, Float_Field, grid, Kv, Kt, dtemp, dmass, dvelo, mass, temp, velo, mean_m, mean_t, &
+  use domain_mod, only : Domain, Float_Field, grid, Kv, Kt, dtemp, dmass, dvelo, mass, temp, velo, mean_m, mean_t, &
        sol, sol_mean, tke, topography, id_edge, idx
-  
+
   implicit none
 
   private
@@ -231,8 +232,9 @@ contains
     
     subroutine init_diffuse
       ! Initializations
-      use utils_mod, only : kinetic_energy
+      
       implicit none
+      
       integer  :: k, l
       real(dp) :: Ri
 

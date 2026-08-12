@@ -12,13 +12,15 @@ module phys_processing_mod
   use shared_mod, only : HOUR, MATH_PI, N_BDRY, N_VARIABLE, Nsoil, S_MASS, S_TEMP, S_VELO, &
        grav_accel, R_d, p_0, run_id, zlevels, z_null, level_start, level_end, time, zlevels, zmin, z_null
 
-  use arch_mod,       only : rank
-  use comm_mpi_mod,   only : sum_real
-  use domain_mod,     only : DOMAIN, grid, exner, exner_fun, mass, temp, mean_m, mean_t, velo, velo1, velo2, sol, sol_mean, idx
-  use domain_ops_mod, only : apply_bdry
-  use geom_mod,       only : cart2sph
-  use ops_mod,        only : cal_surf_press, integrate_pressure_up
-  use utils_mod,      only :  integrate_hex, interp, interp_UVW_latlon, theta2temp
+  use arch_mod,        only : rank
+  use comm_mpi_mod,    only : sum_real
+  use diagnostics_mod, only : theta2temp
+  use domain_mod,      only : Domain, grid, exner, exner_fun, mass, temp, mean_m, mean_t, velo, velo1, velo2, sol, sol_mean, idx
+  use domain_ops_mod,  only : apply_bdry
+  use geom_mod,        only : cart2sph
+  use integrate_mod,   only : integrate_hex
+  use ops_mod,         only : cal_surf_press, integrate_pressure_up
+  use utils_mod,       only : interp, interp_UVW_latlon
   
   implicit none
 

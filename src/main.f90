@@ -14,23 +14,25 @@ module main_mod
        R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
        time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
 
-  use arch_mod,         only : abort_run, barrier, distribute_grid, glo_id, n_process, rank
-  use adapt_mod,        only : adapt, init_adapt_mod, WT_after_step
-  use coarse_grid_mod,  only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
-  use comm_mod,         only : get_coord, set_coord,  init_comm_mod
-  use domain_ops_mod,   only : apply_interscale, apply_no_bdry,  apply_onescale2
-  use geom_mod,         only : number_hex
-  use init_mod,         only : z_coords 
-  use checkpoint_mod,   only : dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory
-  use io_vtk_mod,       only : write_and_export
-  use lin_solve_mod,    only : Full_Multigrid, Scheduled_Relaxation_Jacobi
-  use lnorms_mod,       only : lnorm
-  use mask_mod,         only : init_mask_mod, init_masks, mask_adj_child
-  use multi_level_mod,  only : trend_ml
-  use NCAR_topo_mod,    only : load_topo
-  use refine_patch_mod, only : add_second_level, init_refine_patch_mod
-  use remap_mod,        only : remap_vertical_coordinates
-
+  use arch_mod,           only : abort_run, barrier, distribute_grid, glo_id, n_process, rank
+  use adapt_mod,          only : adapt, init_adapt_mod, WT_after_step
+  use coarse_grid_mod,    only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
+  use comm_mod,           only : get_coord, set_coord,  init_comm_mod
+  use diagnostics_mod,    only : rho_dz_i,   theta_i, theta2temp
+  use domain_ops_mod,     only : apply_interscale, apply_no_bdry,  apply_onescale2
+  use geom_mod,           only : number_hex
+  use init_mod,           only : z_coords
+  use integrate_mod,      only : integrate_hex, integrate_tri
+  use checkpoint_mod,     only : dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory
+  use io_vtk_mod,         only : write_and_export
+  use lin_solve_mod,      only : Full_Multigrid, Scheduled_Relaxation_Jacobi
+  use lnorms_mod,         only : lnorm
+  use mask_mod,           only : init_mask_mod, init_masks, mask_adj_child
+  use multi_level_mod,    only : trend_ml
+  use NCAR_topo_mod,      only : load_topo
+  use refine_patch_mod,   only : add_second_level, init_refine_patch_mod
+  use remap_mod,          only : remap_vertical_coordinates
+  use utils_mod,          only : hex_len, hex_pedlen, interp, nu_scale, porous_density, tri_perim
   use vert_diffusion_mod, only : vertical_diffusion
 
   use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
@@ -48,8 +50,6 @@ module main_mod
   use time_integr_mod, only : dt_step, dt_step_split,  init_RK_mem, init_time_integr_mod, q1, q2, q3, q4, dq1, &
        Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK4_split, RK45_opt
 
-  use utils_mod, only : integrate_hex, hex_len, hex_pedlen, integrate_tri, interp, nu_scale, porous_density, rho_dz_i, &
-       theta2temp, theta_i,  tri_perim
 
   use wavelet_mod, only : forward_wavelet_transform, init_wavelet_mod, init_wavelets, &
        inverse_scalar_transform, inverse_wavelet_transform 

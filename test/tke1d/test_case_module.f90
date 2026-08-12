@@ -11,6 +11,7 @@ Module test_case_mod
   use equation_of_state_mod
   use geom_mod
   use init_mod
+  use integrate_mod, only : integrate_hex
   use utils_mod
   use vert_diffusion_mod
   

@@ -5,12 +5,13 @@ module remap_mod
   use shared_mod, only : ADJZONE, EDGE, N_BDRY, NONE, S_MASS, S_TEMP, S_VELO, RT, DG, UP, &
        a_vert, b_vert, compressible, grav_accel, p_top, ref_density, remap_type, sigma_z, z_null, zlevels
   
-  use arch_mod,       only : abort_run, rank
-  use comm_mpi_mod,   only : update_bdry
-  use domain_mod,     only : Domain, Float_Field, sol, sol_mean, topography, idx
-  use domain_ops_mod, only : apply_no_bdry2
-  use init_mod,       only : z_coords 
-  use utils_mod,      only : buoyancy, phi_node, porous_density
+  use arch_mod,        only : abort_run, rank
+  use comm_mpi_mod,    only : update_bdry
+  use diagnostics_mod, only : buoyancy
+  use domain_mod,      only : Domain, Float_Field, sol, sol_mean, topography, idx
+  use domain_ops_mod,  only : apply_no_bdry2
+  use init_mod,        only : z_coords 
+  use utils_mod,       only :  phi_node, porous_density
   
   implicit none
 

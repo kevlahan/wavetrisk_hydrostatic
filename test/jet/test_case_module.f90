@@ -9,6 +9,7 @@ Module test_case_mod
   use arch_mod
   use comm_mpi_mod
   use coord_arithmetic_mod
+  use diagnostics_mod, only : cal_buoyancy, f_coriolis_edge
   use domain_mod
   use domain_ops_mod
   use geom_mod
