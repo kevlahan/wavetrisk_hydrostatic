@@ -4,7 +4,7 @@ module domain_mod
 
   use shared_mod, only : AT_NODE, AT_EDGE, BDRY_THICKNESS, b_vert, b_vert_mass, compressible, &
        EAST, EDGE, grav_accel, IMINUS, IJMINUS, IMINUSJPLUS, JMINUS, &
-       N_GLO_DOMAIN, N_BDRY, N_DOMAIN, NORTH, NORTHEAST, ORIGIN, RT, DG, SOUTHEAST, S_VELO, TRIAG, UP, WEST, &
+       N_BDRY, N_DOMAIN, NORTH, NORTHEAST, ORIGIN, RT, DG, SOUTHEAST, S_VELO, TRIAG, UP, WEST, &
        a_vert, a_vert_mass, p_0, ref_density, max_level, max_depth, min_level, mode_split, &
        split_mean_perturbation, scalars, zlevels, zmin
 

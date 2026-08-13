@@ -37,7 +37,7 @@ module test_case_mod
   public :: T_0, topo_test, total_cpu_time, u_0
 
   ! Standard variables
-  integer  :: domains_per_task, resume_init
+  integer  :: resume_init
   real(dp) :: total_cpu_time
 
   ! Test case variables
@@ -535,7 +535,6 @@ contains
     time_end = time_end * DAY
     resume   = resume_init
 
-    domains_per_task = int (real(N_GLO_DOMAIN,kind=dp)/n_process)
   end subroutine read_test_case_parameters
   
 
