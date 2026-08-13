@@ -3,10 +3,9 @@ module comm_mpi_mod
   use mpi_f08
 
   use kind_mod,   only : dp
-  use shared_mod, only : AT_NODE, AT_EDGE, Coord, EDGE, N_BDRY, N_GLO_DOMAIN, NONE, POLE, level_start, level_end, run_id, eps, &
-       n_domain
+  use shared_mod, only : AT_NODE, AT_EDGE, Coord, EDGE, N_BDRY, NONE, POLE, level_start, level_end, run_id, eps, n_domain
 
-  use arch_mod,       only : abort_run, barrier, comm, MPI_IN, MPI_DP, MPI_SP, glo_id, n_process, owner, rank
+  use arch_mod,       only : abort_run, barrier, comm, MPI_IN, MPI_DP, MPI_SP, glo_id, n_glo_block, n_process, owner, rank
   use comm_mod,       only : init_comm
   use dyn_arrays,     only : Int_Array, Float_Array, append, extend, init
   use domain_mod,     only : Domain, Float_Field, grid
@@ -128,8 +127,7 @@ contains
     sz = size(grid)
 
     ! Gather number of domains contributed by each rank.
-    call MPI_Gather (sz, 1, MPI_IN, &
-         rcounts, 1, MPI_IN, 0, comm, ierr)
+    call MPI_Gather (sz, 1, MPI_IN, rcounts, 1, MPI_IN, 0, comm, ierr)
 
     if (ierr /= MPI_SUCCESS) then
        error stop "write_load_conn: MPI_Gather failed"
@@ -154,9 +152,9 @@ contains
 
        n_tot = sum(rcounts)
 
-       if (n_tot /= N_GLO_DOMAIN) then
+       if (n_tot /= n_glo_block) then
           write(*,'(A,I0,A,I0)') &
-               "write_load_conn: expected ", N_GLO_DOMAIN, &
+               "write_load_conn: expected ", n_glo_block, &
                " domains, received ", n_tot
           error stop
        end if
@@ -199,8 +197,8 @@ contains
 
     if (rank == 0) then
 
-       allocate (load_glo(N_GLO_DOMAIN))
-       allocate (domain_seen(N_GLO_DOMAIN))
+       allocate (load_glo(n_glo_block))
+       allocate (domain_seen(n_glo_block))
 
        load_glo    = 0
        domain_seen = .false.
@@ -210,7 +208,7 @@ contains
 
           gid = gid_glo(i)
 
-          if (gid < 0 .or. gid >= N_GLO_DOMAIN) then
+          if (gid < 0 .or. gid >= n_glo_block) then
              write(*,'(A,I0)') &
                   "write_load_conn: invalid global domain ID ", gid
              error stop
@@ -250,7 +248,7 @@ contains
        end if
 
        ! One load value per global domain, in global-domain order.
-       do d = 1, N_GLO_DOMAIN
+       do d = 1, n_glo_block
 
           write(fid, '(I10)', iostat=io_stat, iomsg=io_msg) &
                load_glo(d)
@@ -1978,9 +1976,8 @@ contains
                   "comm_patch_conn_mpi: invalid destination domain"
           end if
 
-          if (d_src < 1 .or. d_src > N_GLO_DOMAIN) then
-             error stop &
-                  "comm_patch_conn_mpi: invalid source domain"
+          if (d_src < 1 .or. d_src > n_glo_block) then
+             error stop "comm_patch_conn_mpi: invalid source block"
           end if
 
           call append (grid(d)%recv_pa(d_src), st(1))
