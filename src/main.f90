@@ -4,7 +4,7 @@ module main_mod
 
   use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, N_BDRY, &
-       N_GLO_DOMAIN, N_VARIABLE, NCAR_topo, NONE, &
+       N_VARIABLE, NCAR_topo, NONE, &
        S_DIVU, S_ROTU, S_MASS, S_TEMP, S_VELO, TRIAG, XU_GRID, RT, DG, UP, LORT, UPLT, Laplace_divu, Laplace_rotu, Laplace_sclr, &
        adapt_dt, Area_avg, C_visc, a_vert, a_vert_mass, b_vert, b_vert_mass, cfl_safety, compressible, cp_idx, &
        dt, dt_init, dt_write, dx_avg, gamma, grav_accel, iremap, iremap_max, istep, istep_cumul, itime, iwrite, &
@@ -14,7 +14,7 @@ module main_mod
        R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
        time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
 
-  use arch_mod,           only : abort_run, barrier, distribute_grid, glo_id, init_arch_mod, n_process, rank
+  use arch_mod,           only : abort_run, barrier, distribute_grid, glo_id, init_arch_mod, n_glo_block, n_process, rank
   use adapt_mod,          only : adapt, WT_after_step
   use coarse_grid_mod,    only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
   use comm_mod,           only : get_coord, set_coord
@@ -57,7 +57,7 @@ module main_mod
 #ifdef PHYSICS
   use init_physics_mod,  only : init_physics, init_soil_grid
   use physics_trend_mod, only : physics_simple_step, trend_physics_Held_Suarez  
-  use callkeys, only : lverbose
+  use callkeys,          only : lverbose
 #endif
 
   implicit none
@@ -65,17 +65,17 @@ module main_mod
   private
   public :: cpt_min_mass, initialize, restart, time_step
 
-  integer, dimension(:), allocatable :: n_active_edges, n_active_nodes, node_level_start, edge_level_start
-  real(dp)                           :: dt_new, initial_total_mass, time_mult
-  real(dp)                           :: dt_loc, min_mass_loc
+  integer, allocatable :: n_active_edges(:), n_active_nodes(:), node_level_start(:), edge_level_start(:)
+  real(dp)             :: dt_new, initial_total_mass, time_mult
+  real(dp)             :: dt_loc, min_mass_loc
 
-  
+
   type Initial_State
-     integer                                          :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
-     integer, dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack_len, unpk_len
+     integer              :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
+     integer, allocatable :: pack_len(:,:), unpk_len(:,:)
   end type Initial_State
-  
-  type(Initial_State), dimension(:), allocatable :: ini_st
+
+  type(Initial_State), allocatable :: ini_st(:)
 
   
 contains
@@ -219,22 +219,28 @@ contains
     type(Initial_State), allocatable, intent(out) :: init_state(:)
 
     integer :: d, i, v
-
+    
+    
     allocate (init_state(size(grid)))
 
     do d = 1, size(grid)
+       allocate (init_state(d)%pack_len(AT_NODE:AT_EDGE,n_glo_block))
+       allocate (init_state(d)%unpk_len(AT_NODE:AT_EDGE,n_glo_block))
+
        init_state(d)%n_patch      = grid(d)%patch%length
        init_state(d)%n_bdry_patch = grid(d)%bdry_patch%length
        init_state(d)%n_node       = grid(d)%node%length
        init_state(d)%n_edge       = grid(d)%midpt%length
        init_state(d)%n_tria       = grid(d)%ccentre%length
-       do i = 1, N_GLO_DOMAIN
+
+       do i = 1, n_glo_block
           do v = AT_NODE, AT_EDGE
-             init_state(d)%pack_len(v,i) = grid(d)%pack(v,i)%length 
-             init_state(d)%unpk_len(v,i) = grid(d)%unpk(v,i)%length 
+             init_state(d)%pack_len(v,i) = grid(d)%pack(v,i)%length
+             init_state(d)%unpk_len(v,i) = grid(d)%unpk(v,i)%length
           end do
        end do
     end do
+
   end subroutine record_init_state
 
   subroutine set_time_integrator
@@ -877,7 +883,7 @@ contains
        if (allocated (grid(d)%neigh_pa_over_pole%elts)) deallocate (grid(d)%neigh_pa_over_pole%elts)
        if (allocated (grid(d)%send_pa_all%elts))        deallocate (grid(d)%send_pa_all%elts)
 
-       do i = 1, N_GLO_DOMAIN
+       do i = 1, n_glo_block
           if (allocated (grid(d)%recv_pa(i)%elts))   deallocate (grid(d)%recv_pa(i)%elts)
           if (allocated (grid(d)%send_conn(i)%elts)) deallocate (grid(d)%send_conn(i)%elts)
           do k = AT_NODE, AT_EDGE
