@@ -3,13 +3,14 @@ module arch_mod
   use mpi_f08
 
   use kind_mod,   only : dp
-  use shared_mod, only : N_GLO_BLOCK, n_domain, run_id
+  use shared_mod, only : N_GLO_DOMAIN, n_domain, run_id
 
   implicit none
 
   private
   public :: MPI_IN, MPI_DP, MPI_SP
-  public :: abort_run, barrier, comm, cp_load, distribute_grid, glo_id, finalize, init_arch_mod, loc_id, n_process, owner, rank
+  public :: abort_run, barrier, comm, cp_load, distribute_grid, glo_id, finalize, init_arch_mod, loc_id, n_glo_block, &
+       n_process, owner, rank
 
   type(MPI_Comm)                :: comm
   type(MPI_Datatype), parameter :: MPI_IN = MPI_INTEGER
@@ -17,6 +18,7 @@ module arch_mod
   type(MPI_Datatype), parameter :: MPI_SP = MPI_REAL
 
   integer                       :: n_process, rank
+  integer                       :: n_glo_block
   integer,          allocatable :: loc_id(:), owner(:)
   integer,          allocatable :: glo_id(:,:)
   integer,          allocatable :: cp_load(:)
@@ -24,15 +26,16 @@ module arch_mod
 
 contains
 
+
   subroutine init_arch_mod
-    
+
     implicit none
-    
+
     logical, save :: initialized = .false.
 
     if (initialized) return ! initialize only once
 
-    call MPI_Init 
+    call MPI_Init
 
     comm = MPI_COMM_WORLD
 
@@ -42,54 +45,65 @@ contains
     allocate (n_domain(n_process))
     n_domain = 0
 
-    allocate (loc_id(N_GLO_BLOCK), owner(N_GLO_BLOCK))
+    ! Initially each geometric root domain is one parallel block.
+    n_glo_block = N_GLO_DOMAIN
+
+    allocate (loc_id(n_glo_block), owner(n_glo_block))
+
     loc_id = 0
     owner  = 0
 
     initialized = .true.
 
-    if (n_process > N_GLO_BLOCK) then
+    if (n_process > n_glo_block) then
        if (rank == 0) then
-          write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-          write (6,'(2(a,i4),a)') "!!          Number of cores ", n_process, &
-               " > number of parallel blocks ", N_GLO_BLOCK, &
+          write (6,'(/,a)') &
+               "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          write (6,'(2(a,i4),a)') &
+               "!!          Number of cores ", n_process, &
+               " > number of parallel blocks ", n_glo_block, &
                " ... aborting             !!"
-          write (6,'(a,/)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+          write (6,'(a,/)') &
+               "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
        end if
        call abort_run
     end if
+
   end subroutine init_arch_mod
-  
+
 
   subroutine distribute_grid (cp_idx)
-    ! Uses simple next-fit algorithm to allocate each domain to a processor.
-    ! Attempts to balance the total load using load data stored in the
-    ! checkpoint directory.
+    ! Uses simple next-fit algorithm to allocate each parallel block to a
+    ! processor. Attempts to balance the total load using load data stored
+    ! in the checkpoint directory.
     !
-    ! For cp_idx < 0, or when balancing is not appropriate, domains are
+    ! For cp_idx < 0, or when balancing is not appropriate, blocks are
     ! distributed equally by number.
+    !
+    ! Initially n_glo_block = N_GLO_DOMAIN, so each parallel block is
+    ! identical to one geometric root domain.
 
     implicit none
 
     integer, intent(in) :: cp_idx
 
-    integer              :: d, r, n_domain_floor
-    integer, allocatable :: wgt_d(:)
+    integer                            :: d, r, n_domain_floor
+    integer, dimension(:), allocatable :: wgt_d
 
-    real(dp) :: balanced_wgt
-    real(dp) :: imbalance_goal
-    real(dp) :: wgt_cur_rank(n_process)
+    real(dp)                           :: balanced_wgt
+    real(dp)                           :: imbalance_goal
+    real(dp), dimension(n_process)     :: wgt_cur_rank
 
     real(dp), parameter :: init_goal = 0.05_dp
     real(dp), parameter :: incr_goal = 1.20_dp
 
-    allocate(wgt_d(N_GLO_BLOCK))
+    allocate (wgt_d(n_glo_block))
 
     if (rank == 0) then
 
        if (cp_idx >= 0 .and. &
             n_process > 1 .and. &
-            n_process < N_GLO_BLOCK) then
+            n_process < n_glo_block) then
 
           !
           ! Load values have already been read from the checkpoint
@@ -99,7 +113,7 @@ contains
              error stop "distribute_grid: cp_load is not allocated"
           end if
 
-          if (size(cp_load) /= N_GLO_BLOCK) then
+          if (size(cp_load) /= n_glo_block) then
              error stop "distribute_grid: wrong size for cp_load"
           end if
 
@@ -111,13 +125,13 @@ contains
           !
           ! Use a variant of next-fit to maximize balance subject to:
           !
-          !   - every rank receives at least one domain
-          !   - every domain is assigned to a rank
+          !   - every rank receives at least one block
+          !   - every block is assigned to a rank
           !
           d = 0
           imbalance_goal = init_goal
 
-          do while (d < N_GLO_BLOCK)
+          do while (d < n_glo_block)
 
              d = 0
              wgt_cur_rank = 0.0_dp
@@ -126,7 +140,7 @@ contains
 
                 do while ( &
                      wgt_cur_rank(r) < balanced_wgt .and. &
-                     N_GLO_BLOCK - d > n_process - r)
+                     n_glo_block - d > n_process - r)
 
                    owner(d+1) = r - 1
 
@@ -138,8 +152,8 @@ contains
                 end do
 
                 !
-                ! If the final domain makes this rank too heavy,
-                ! move that domain to the next rank.
+                ! If the final block makes this rank too heavy,
+                ! move that block to the next rank.
                 !
                 if (d > 0) then
                    if (wgt_cur_rank(r) > &
@@ -156,25 +170,25 @@ contains
              end do
 
              !
-             ! If all domains could not be fitted, relax the
+             ! If all blocks could not be fitted, relax the
              ! imbalance tolerance and try again.
              !
-             if (d < N_GLO_BLOCK) then
+             if (d < n_glo_block) then
                 imbalance_goal = imbalance_goal * incr_goal
              end if
 
           end do
 
-          write(6,'(a,es8.2,/)') &
+          write (6,'(a,es8.2,/)') &
                'New maximum load imbalance = ', &
                maxval(wgt_cur_rank) / balanced_wgt
 
        else
 
           !
-          ! Equal distribution by number of domains.
+          ! Equal distribution by number of blocks.
           !
-          n_domain_floor = N_GLO_BLOCK / n_process
+          n_domain_floor = n_glo_block / n_process
 
           d = 0
 
@@ -185,7 +199,7 @@ contains
                 d = d + n_domain_floor
              end if
 
-             if (r <= N_GLO_BLOCK - n_process*n_domain_floor) then
+             if (r <= n_glo_block - n_process*n_domain_floor) then
                 owner(d+1) = r - 1
                 d = d + 1
              end if
@@ -199,14 +213,15 @@ contains
     !
     ! Every rank now receives the new ownership map.
     !
-    call MPI_Bcast(owner, N_GLO_BLOCK, MPI_IN, 0, comm)
+    call MPI_Bcast ( &
+         owner, n_glo_block, MPI_IN, 0, comm)
 
     !
-    ! Construct local domain numbering for the new distribution.
+    ! Construct local block numbering for the new distribution.
     !
     n_domain = 0
 
-    do d = 1, N_GLO_BLOCK
+    do d = 1, n_glo_block
 
        r = owner(d)
 
@@ -217,15 +232,15 @@ contains
     end do
 
     !
-    ! Construct global-domain ID list for each rank.
+    ! Construct global-block ID list for each rank.
     !
-    if (allocated(glo_id)) deallocate(glo_id)
+    if (allocated(glo_id)) deallocate (glo_id)
 
-    allocate(glo_id(n_process, maxval(n_domain)))
+    allocate (glo_id(n_process, maxval(n_domain)))
 
     glo_id = 0
 
-    do d = 1, N_GLO_BLOCK
+    do d = 1, n_glo_block
 
        glo_id( &
             owner(d)+1, &
@@ -233,7 +248,7 @@ contains
 
     end do
 
-    deallocate(wgt_d)
+    deallocate (wgt_d)
 
   end subroutine distribute_grid
 
