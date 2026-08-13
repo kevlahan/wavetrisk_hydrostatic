@@ -88,15 +88,23 @@ module main_mod
 
      real(dp), allocatable :: scalar(:)
      real(dp), allocatable :: vector(:)
+
+     integer, allocatable :: neigh_class(:,:)
   end type Test_Block
 
-
+  integer, parameter :: NGB_INTERNAL = 1
+  integer, parameter :: NGB_BLOCK    = 2
+  integer, parameter :: NGB_DOMAIN   = 3
+  integer, parameter :: NGB_ADAPT    = 4
+  integer, parameter :: NGB_OTHER    = 5
+ 
   integer, allocatable :: n_active_edges(:), n_active_nodes(:), node_level_start(:), edge_level_start(:)
   real(dp)             :: dt_new, initial_total_mass, time_mult
   real(dp)             :: dt_loc, min_mass_loc
 
   type(Initial_State), allocatable :: ini_st(:)
 
+  
 contains
 
 
@@ -820,9 +828,9 @@ contains
 
 
 subroutine test_subtree_extraction
-  ! Extract one deeper candidate subtree on rank zero and verify its
-  ! topology, compact storage layout, node coordinates, scalar/vector
-  ! fields, and packaging into a self-contained temporary block.
+  ! Extract one candidate subtree on rank zero and verify its topology,
+  ! compact storage layout, copied geometry and fields, packaging into
+  ! a temporary block, and classification of its patch neighbours.
 
   implicit none
 
@@ -835,9 +843,16 @@ subroutine test_subtree_extraction
   integer :: n_node_storage
   integer :: n_patch_field
   integer :: p_old, p_chd_old, p_chd_new
+  integer :: p_ngb_old
   integer :: old_start, new_start
   integer :: v_scalar, v_vector, k_test
   integer :: mult_scalar, mult_vector
+
+  integer :: n_ngb_internal
+  integer :: n_ngb_block
+  integer :: n_ngb_domain
+  integer :: n_ngb_adapt
+  integer :: n_ngb_other
 
   integer, allocatable :: old_to_new(:)
   integer, allocatable :: old_elts_start(:)
@@ -935,7 +950,7 @@ subroutine test_subtree_extraction
   end if
 
   !
-  ! Recover local source domain and block-root patch.
+  ! Recover local source domain and root patch.
   !
   d = loc_id(block_catalog(b_test)%root_domain+1) + 1
 
@@ -948,7 +963,9 @@ subroutine test_subtree_extraction
   depth_old = subtree_depth_Domain(grid(d), p_root)
 
   !
+  ! ---------------------------------------------------------------
   ! Extract and renumber the patch tree.
+  ! ---------------------------------------------------------------
   !
   call extract_subtree_patches_Domain( &
        grid(d), p_root, patch_copy, old_to_new)
@@ -1185,7 +1202,7 @@ subroutine test_subtree_extraction
 
   !
   ! ---------------------------------------------------------------
-  ! Compare leaf counts.
+  ! Compare leaf counts and subtree depth.
   ! ---------------------------------------------------------------
   !
   n_leaf_old = 0
@@ -1215,9 +1232,6 @@ subroutine test_subtree_extraction
           "test_subtree_extraction: leaf count mismatch"
   end if
 
-  !
-  ! Compare maximum subtree depth.
-  !
   depth_new = copied_depth(0)
 
   if (depth_new /= depth_old) then
@@ -1227,7 +1241,151 @@ subroutine test_subtree_extraction
 
   !
   ! ---------------------------------------------------------------
-  ! Package the validated pieces into one self-contained test block.
+  ! Construct neighbour classification before MOVE_ALLOC.
+  !
+  ! NGB_INTERNAL : positive neighbour remains inside this block
+  ! NGB_BLOCK    : positive neighbour lies outside this block
+  ! NGB_DOMAIN   : negative neighbour representing Domain boundary
+  ! NGB_ADAPT    : negative neighbour representing adaptive boundary
+  ! NGB_OTHER    : zero/other neighbour entry
+  ! ---------------------------------------------------------------
+  !
+  allocate(block_test%neigh_class(N_BDRY,size(patch_copy)))
+  block_test%neigh_class = NGB_OTHER
+
+  do p_old = 0, grid(d)%patch%length-1
+
+     if (old_to_new(p_old) < 0) cycle
+
+     do c = 1, N_BDRY
+
+        p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
+
+        if (p_ngb_old > 0) then
+
+           if (old_to_new(p_ngb_old) >= 0) then
+
+              block_test%neigh_class( &
+                   c,old_to_new(p_old)+1) = NGB_INTERNAL
+
+           else
+
+              block_test%neigh_class( &
+                   c,old_to_new(p_old)+1) = NGB_BLOCK
+
+           end if
+
+        else if (p_ngb_old < 0) then
+
+           if (grid(d)%bdry_patch%elts(-p_ngb_old+1)%side > 0) then
+
+              block_test%neigh_class( &
+                   c,old_to_new(p_old)+1) = NGB_DOMAIN
+
+           else
+
+              block_test%neigh_class( &
+                   c,old_to_new(p_old)+1) = NGB_ADAPT
+
+           end if
+
+        else
+
+           block_test%neigh_class( &
+                c,old_to_new(p_old)+1) = NGB_OTHER
+
+        end if
+
+     end do
+
+  end do
+
+  !
+  ! Validate internal-neighbour classification.
+  !
+  do p_old = 0, grid(d)%patch%length-1
+
+     if (old_to_new(p_old) < 0) cycle
+
+     do c = 1, N_BDRY
+
+        if (block_test%neigh_class( &
+             c,old_to_new(p_old)+1) /= NGB_INTERNAL) cycle
+
+        p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
+
+        if (p_ngb_old <= 0) then
+           error stop &
+                "test_subtree_extraction: invalid internal neighbour"
+        end if
+
+        if (old_to_new(p_ngb_old) < 0) then
+           error stop &
+                "test_subtree_extraction: internal neighbour missing"
+        end if
+
+     end do
+
+  end do
+
+  !
+  ! Validate negative-neighbour classifications against bdry_patch.
+  !
+  do p_old = 0, grid(d)%patch%length-1
+
+     if (old_to_new(p_old) < 0) cycle
+
+     do c = 1, N_BDRY
+
+        p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
+
+        if (p_ngb_old >= 0) cycle
+
+        select case (block_test%neigh_class( &
+             c,old_to_new(p_old)+1))
+
+        case (NGB_DOMAIN)
+
+           if (grid(d)%bdry_patch%elts(-p_ngb_old+1)%side <= 0) then
+              error stop &
+                   "test_subtree_extraction: incorrect domain boundary classification"
+           end if
+
+        case (NGB_ADAPT)
+
+           if (grid(d)%bdry_patch%elts(-p_ngb_old+1)%side > 0) then
+              error stop &
+                   "test_subtree_extraction: incorrect adaptive boundary classification"
+           end if
+
+        case default
+
+           error stop &
+                "test_subtree_extraction: invalid negative neighbour classification"
+
+        end select
+
+     end do
+
+  end do
+
+  n_ngb_internal = count(block_test%neigh_class == NGB_INTERNAL)
+  n_ngb_block    = count(block_test%neigh_class == NGB_BLOCK)
+  n_ngb_domain   = count(block_test%neigh_class == NGB_DOMAIN)
+  n_ngb_adapt    = count(block_test%neigh_class == NGB_ADAPT)
+  n_ngb_other    = count(block_test%neigh_class == NGB_OTHER)
+
+  if (n_ngb_internal + n_ngb_block + n_ngb_domain + &
+       n_ngb_adapt + n_ngb_other /= N_BDRY*size(patch_copy)) then
+
+     error stop &
+          "test_subtree_extraction: neighbour classification count mismatch"
+
+  end if
+
+  !
+  ! ---------------------------------------------------------------
+  ! Package validated data into the temporary block.
   ! ---------------------------------------------------------------
   !
   block_test%id          = block_catalog(b_test)%id
@@ -1263,9 +1421,16 @@ subroutine test_subtree_extraction
           "test_subtree_extraction: block vector size mismatch"
   end if
 
+  if (size(block_test%neigh_class,1) /= N_BDRY .or. &
+       size(block_test%neigh_class,2) /= size(block_test%patch)) then
+
+     error stop &
+          "test_subtree_extraction: block neighbour-class size mismatch"
+
+  end if
+
   !
-  ! Verify that the compact patch storage layout survived transfer
-  ! into the block container.
+  ! Verify compact patch layout survived MOVE_ALLOC.
   !
   do i = 1, size(block_test%patch)
 
@@ -1280,7 +1445,7 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! The source arrays should no longer own storage after MOVE_ALLOC.
+  ! Source allocatables must no longer own storage.
   !
   if (allocated(patch_copy)) then
      error stop &
@@ -1370,14 +1535,30 @@ subroutine test_subtree_extraction
   write(6,'(a)') &
        "  temporary block container check passed"
 
+  write(6,'(/,a)') &
+       "  Block neighbour classification:"
+
+  write(6,'(a,i0)') &
+       "    internal neighbour links = ", n_ngb_internal
+
+  write(6,'(a,i0)') &
+       "    new inter-block boundary links = ", n_ngb_block
+
+  write(6,'(a,i0)') &
+       "    existing domain boundary links = ", n_ngb_domain
+
+  write(6,'(a,i0)') &
+       "    adaptive boundary links = ", n_ngb_adapt
+
+  write(6,'(a,i0)') &
+       "    other neighbour links = ", n_ngb_other
+
+  write(6,'(a)') &
+       "  block boundary classification check passed"
+
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
 
-  !
-  ! old_to_new and old_elts_start remain separate diagnostic arrays.
-  ! The allocatable components of block_test are automatically
-  ! deallocated when this routine returns.
-  !
   deallocate(old_to_new)
   deallocate(old_elts_start)
 
