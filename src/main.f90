@@ -67,13 +67,9 @@ module main_mod
 #endif
 
   implicit none
-
+  
   private
   public :: cpt_min_mass, initialize, restart, time_step
-
-  integer, allocatable :: n_active_edges(:), n_active_nodes(:), node_level_start(:), edge_level_start(:)
-  real(dp)             :: dt_new, initial_total_mass, time_mult
-  real(dp)             :: dt_loc, min_mass_loc
 
 
   type Initial_State
@@ -81,8 +77,25 @@ module main_mod
      integer, allocatable :: pack_len(:,:), unpk_len(:,:)
   end type Initial_State
 
-  type(Initial_State), allocatable :: ini_st(:)
+  type Test_Block
+     integer :: id          = -1
+     integer :: root_domain = -1
+     integer :: root_patch  = -1
+     integer :: level       = -1
 
+     type(Patch), allocatable :: patch(:)
+     type(Coord), allocatable :: node(:)
+
+     real(dp), allocatable :: scalar(:)
+     real(dp), allocatable :: vector(:)
+  end type Test_Block
+
+
+  integer, allocatable :: n_active_edges(:), n_active_nodes(:), node_level_start(:), edge_level_start(:)
+  real(dp)             :: dt_new, initial_total_mass, time_mult
+  real(dp)             :: dt_loc, min_mass_loc
+
+  type(Initial_State), allocatable :: ini_st(:)
 
 contains
 
@@ -808,8 +821,8 @@ contains
 
 subroutine test_subtree_extraction
   ! Extract one deeper candidate subtree on rank zero and verify its
-  ! topology, compact storage layout, node coordinates, a node-based
-  ! scalar field, and an edge-based vector field.
+  ! topology, compact storage layout, node coordinates, scalar/vector
+  ! fields, and packaging into a self-contained temporary block.
 
   implicit none
 
@@ -834,6 +847,8 @@ subroutine test_subtree_extraction
 
   type(Patch), allocatable :: patch_copy(:)
   type(Coord), allocatable :: node_copy(:)
+
+  type(Test_Block) :: block_test
 
   logical :: found
 
@@ -1042,7 +1057,7 @@ subroutine test_subtree_extraction
   ! Copy and verify one node-based scalar field.
   ! ---------------------------------------------------------------
   !
-  v_scalar   = scalars(1)
+  v_scalar    = scalars(1)
   mult_scalar = MULT(v_scalar)
   k_test      = max(1,zmin)
 
@@ -1084,7 +1099,7 @@ subroutine test_subtree_extraction
   ! Copy and verify one edge-based velocity field.
   ! ---------------------------------------------------------------
   !
-  v_vector   = S_VELO
+  v_vector    = S_VELO
   mult_vector = MULT(v_vector)
 
   if (mult_vector /= EDGE) then
@@ -1212,6 +1227,83 @@ subroutine test_subtree_extraction
 
   !
   ! ---------------------------------------------------------------
+  ! Package the validated pieces into one self-contained test block.
+  ! ---------------------------------------------------------------
+  !
+  block_test%id          = block_catalog(b_test)%id
+  block_test%root_domain = block_catalog(b_test)%root_domain
+  block_test%root_patch  = block_catalog(b_test)%root_patch
+  block_test%level       = block_catalog(b_test)%level
+
+  call move_alloc(patch_copy,  block_test%patch)
+  call move_alloc(node_copy,   block_test%node)
+  call move_alloc(scalar_copy, block_test%scalar)
+  call move_alloc(vector_copy, block_test%vector)
+
+  !
+  ! Verify container dimensions.
+  !
+  if (size(block_test%patch) /= n_old) then
+     error stop &
+          "test_subtree_extraction: block patch size mismatch"
+  end if
+
+  if (size(block_test%node) /= n_node_storage) then
+     error stop &
+          "test_subtree_extraction: block node size mismatch"
+  end if
+
+  if (size(block_test%scalar) /= n_node_storage) then
+     error stop &
+          "test_subtree_extraction: block scalar size mismatch"
+  end if
+
+  if (size(block_test%vector) /= EDGE*n_node_storage) then
+     error stop &
+          "test_subtree_extraction: block vector size mismatch"
+  end if
+
+  !
+  ! Verify that the compact patch storage layout survived transfer
+  ! into the block container.
+  !
+  do i = 1, size(block_test%patch)
+
+     if (block_test%patch(i)%elts_start /= &
+          (i-1)*PATCH_SIZE**2) then
+
+        error stop &
+             "test_subtree_extraction: invalid block storage layout"
+
+     end if
+
+  end do
+
+  !
+  ! The source arrays should no longer own storage after MOVE_ALLOC.
+  !
+  if (allocated(patch_copy)) then
+     error stop &
+          "test_subtree_extraction: patch_copy still allocated"
+  end if
+
+  if (allocated(node_copy)) then
+     error stop &
+          "test_subtree_extraction: node_copy still allocated"
+  end if
+
+  if (allocated(scalar_copy)) then
+     error stop &
+          "test_subtree_extraction: scalar_copy still allocated"
+  end if
+
+  if (allocated(vector_copy)) then
+     error stop &
+          "test_subtree_extraction: vector_copy still allocated"
+  end if
+
+  !
+  ! ---------------------------------------------------------------
   ! Diagnostic output.
   ! ---------------------------------------------------------------
   !
@@ -1260,16 +1352,32 @@ subroutine test_subtree_extraction
        ", level ", k_test, &
        ", multiplier ", mult_vector
 
+  write(6,'(a,i0)') &
+       "  temporary block ID = ", block_test%id
+
+  write(6,'(a,i0)') &
+       "  temporary block patches = ", size(block_test%patch)
+
+  write(6,'(a,i0)') &
+       "  temporary block nodes = ", size(block_test%node)
+
+  write(6,'(a,i0)') &
+       "  temporary block scalar values = ", size(block_test%scalar)
+
+  write(6,'(a,i0)') &
+       "  temporary block vector values = ", size(block_test%vector)
+
+  write(6,'(a)') &
+       "  temporary block container check passed"
+
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
 
   !
-  ! Cleanup.
+  ! old_to_new and old_elts_start remain separate diagnostic arrays.
+  ! The allocatable components of block_test are automatically
+  ! deallocated when this routine returns.
   !
-  deallocate(vector_copy)
-  deallocate(scalar_copy)
-  deallocate(node_copy)
-  deallocate(patch_copy)
   deallocate(old_to_new)
   deallocate(old_elts_start)
 
