@@ -49,7 +49,7 @@ module main_mod
        Kt, Kv, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, sso_param, &
        sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx, &
        subtree_weight_Domain, count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, &
-       compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain
+       compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain, renumber_subtree_neigh_Domain
 
   use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
@@ -77,6 +77,13 @@ module main_mod
      integer, allocatable :: pack_len(:,:), unpk_len(:,:)
   end type Initial_State
 
+  type Test_Block_Bdry
+     integer :: patch        = -1   ! local patch index in extracted block
+     integer :: side         = -1   ! neighbour slot, 1:N_BDRY
+     integer :: root_domain  = -1   ! source geometric domain
+     integer :: neigh_patch  = -1   ! source-domain patch outside block
+  end type Test_Block_Bdry
+
   type Test_Block
      integer :: id          = -1
      integer :: root_domain = -1
@@ -90,6 +97,8 @@ module main_mod
      real(dp), allocatable :: vector(:)
 
      integer, allocatable :: neigh_class(:,:)
+
+     type(Test_Block_Bdry), allocatable :: block_bdry(:)
   end type Test_Block
 
   integer, parameter :: NGB_INTERNAL = 1
@@ -829,13 +838,14 @@ contains
 
 subroutine test_subtree_extraction
   ! Extract one candidate subtree on rank zero and verify its topology,
-  ! compact storage layout, copied geometry and fields, packaging into
-  ! a temporary block, and classification of its patch neighbours.
+  ! compact storage layout, copied geometry and fields, neighbour
+  ! classification, internal-neighbour renumbering, and explicit
+  ! inter-block boundary records.
 
   implicit none
 
   integer :: b_test
-  integer :: c, d, i
+  integer :: c, d, i, ib
   integer :: p_root
   integer :: n_old, n_new
   integer :: n_leaf_old, n_leaf_new
@@ -1241,13 +1251,7 @@ subroutine test_subtree_extraction
 
   !
   ! ---------------------------------------------------------------
-  ! Construct neighbour classification before MOVE_ALLOC.
-  !
-  ! NGB_INTERNAL : positive neighbour remains inside this block
-  ! NGB_BLOCK    : positive neighbour lies outside this block
-  ! NGB_DOMAIN   : negative neighbour representing Domain boundary
-  ! NGB_ADAPT    : negative neighbour representing adaptive boundary
-  ! NGB_OTHER    : zero/other neighbour entry
+  ! Classify source neighbour links.
   ! ---------------------------------------------------------------
   !
   allocate(block_test%neigh_class(N_BDRY,size(patch_copy)))
@@ -1261,7 +1265,12 @@ subroutine test_subtree_extraction
 
         p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
 
-        if (p_ngb_old > 0) then
+        if (p_ngb_old >= 0) then
+
+           if (p_ngb_old >= grid(d)%patch%length) then
+              error stop &
+                   "test_subtree_extraction: invalid positive neighbour"
+           end if
 
            if (old_to_new(p_ngb_old) >= 0) then
 
@@ -1275,7 +1284,7 @@ subroutine test_subtree_extraction
 
            end if
 
-        else if (p_ngb_old < 0) then
+        else
 
            if (grid(d)%bdry_patch%elts(-p_ngb_old+1)%side > 0) then
 
@@ -1288,11 +1297,6 @@ subroutine test_subtree_extraction
                    c,old_to_new(p_old)+1) = NGB_ADAPT
 
            end if
-
-        else
-
-           block_test%neigh_class( &
-                c,old_to_new(p_old)+1) = NGB_OTHER
 
         end if
 
@@ -1314,7 +1318,7 @@ subroutine test_subtree_extraction
 
         p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
 
-        if (p_ngb_old <= 0) then
+        if (p_ngb_old < 0) then
            error stop &
                 "test_subtree_extraction: invalid internal neighbour"
         end if
@@ -1329,7 +1333,7 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Validate negative-neighbour classifications against bdry_patch.
+  ! Validate negative-neighbour classifications.
   !
   do p_old = 0, grid(d)%patch%length-1
 
@@ -1385,6 +1389,201 @@ subroutine test_subtree_extraction
 
   !
   ! ---------------------------------------------------------------
+  ! Construct explicit records for new inter-block boundaries.
+  ! ---------------------------------------------------------------
+  !
+  allocate(block_test%block_bdry(n_ngb_block))
+
+  ib = 0
+
+  do p_old = 0, grid(d)%patch%length-1
+
+     if (old_to_new(p_old) < 0) cycle
+
+     do c = 1, N_BDRY
+
+        if (block_test%neigh_class( &
+             c,old_to_new(p_old)+1) /= NGB_BLOCK) cycle
+
+        p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
+
+        if (p_ngb_old < 0) then
+           error stop &
+                "test_subtree_extraction: negative inter-block neighbour"
+        end if
+
+        if (p_ngb_old >= grid(d)%patch%length) then
+           error stop &
+                "test_subtree_extraction: invalid inter-block neighbour"
+        end if
+
+        if (old_to_new(p_ngb_old) >= 0) then
+           error stop &
+                "test_subtree_extraction: inter-block neighbour is internal"
+        end if
+
+        ib = ib + 1
+
+        block_test%block_bdry(ib)%patch = &
+             old_to_new(p_old)
+
+        block_test%block_bdry(ib)%side = c
+
+        block_test%block_bdry(ib)%root_domain = &
+             block_catalog(b_test)%root_domain
+
+        block_test%block_bdry(ib)%neigh_patch = &
+             p_ngb_old
+
+     end do
+
+  end do
+
+  if (ib /= n_ngb_block) then
+     error stop &
+          "test_subtree_extraction: inter-block boundary count mismatch"
+  end if
+
+  !
+  ! Validate every explicit boundary record.
+  !
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%patch < 0 .or. &
+          block_test%block_bdry(ib)%patch >= size(patch_copy)) then
+
+        error stop &
+             "test_subtree_extraction: invalid block boundary patch"
+
+     end if
+
+     if (block_test%block_bdry(ib)%side < 1 .or. &
+          block_test%block_bdry(ib)%side > N_BDRY) then
+
+        error stop &
+             "test_subtree_extraction: invalid block boundary side"
+
+     end if
+
+     if (block_test%neigh_class( &
+          block_test%block_bdry(ib)%side, &
+          block_test%block_bdry(ib)%patch+1) /= NGB_BLOCK) then
+
+        error stop &
+             "test_subtree_extraction: boundary record/class mismatch"
+
+     end if
+
+     if (block_test%block_bdry(ib)%root_domain /= &
+          block_catalog(b_test)%root_domain) then
+
+        error stop &
+             "test_subtree_extraction: incorrect boundary root domain"
+
+     end if
+
+     if (block_test%block_bdry(ib)%neigh_patch < 0 .or. &
+          block_test%block_bdry(ib)%neigh_patch >= &
+          grid(d)%patch%length) then
+
+        error stop &
+             "test_subtree_extraction: invalid external neighbour patch"
+
+     end if
+
+     if (old_to_new(block_test%block_bdry(ib)%neigh_patch) >= 0) then
+        error stop &
+             "test_subtree_extraction: boundary neighbour unexpectedly internal"
+     end if
+
+  end do
+
+  !
+  ! Check that no (local patch, side) pair occurs more than once.
+  !
+  do ib = 1, size(block_test%block_bdry)
+
+     do i = ib+1, size(block_test%block_bdry)
+
+        if (block_test%block_bdry(ib)%patch == &
+             block_test%block_bdry(i)%patch .and. &
+             block_test%block_bdry(ib)%side == &
+             block_test%block_bdry(i)%side) then
+
+           error stop &
+                "test_subtree_extraction: duplicate inter-block boundary record"
+
+        end if
+
+     end do
+
+  end do
+
+  !
+  ! ---------------------------------------------------------------
+  ! Renumber only neighbour links that remain inside this block.
+  ! ---------------------------------------------------------------
+  !
+  call renumber_subtree_neigh_Domain( &
+       grid(d), patch_copy, old_to_new)
+
+  !
+  ! Verify every internal neighbour now uses the local block index.
+  !
+  do p_old = 0, grid(d)%patch%length-1
+
+     if (old_to_new(p_old) < 0) cycle
+
+     do c = 1, N_BDRY
+
+        if (block_test%neigh_class( &
+             c,old_to_new(p_old)+1) /= NGB_INTERNAL) cycle
+
+        p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
+
+        if (p_ngb_old < 0) then
+           error stop &
+                "test_subtree_extraction: negative internal neighbour"
+        end if
+
+        if (patch_copy(old_to_new(p_old)+1)%neigh(c) /= &
+             old_to_new(p_ngb_old)) then
+
+           error stop &
+                "test_subtree_extraction: internal neighbour renumbering failed"
+
+        end if
+
+     end do
+
+  end do
+
+  !
+  ! Verify all non-internal neighbour links remain unchanged.
+  !
+  do p_old = 0, grid(d)%patch%length-1
+
+     if (old_to_new(p_old) < 0) cycle
+
+     do c = 1, N_BDRY
+
+        if (block_test%neigh_class( &
+             c,old_to_new(p_old)+1) == NGB_INTERNAL) cycle
+
+        if (patch_copy(old_to_new(p_old)+1)%neigh(c) /= &
+             grid(d)%patch%elts(p_old+1)%neigh(c)) then
+
+           error stop &
+                "test_subtree_extraction: boundary neighbour changed unexpectedly"
+
+        end if
+
+     end do
+
+  end do
+
+  !
+  ! ---------------------------------------------------------------
   ! Package validated data into the temporary block.
   ! ---------------------------------------------------------------
   !
@@ -1427,6 +1626,11 @@ subroutine test_subtree_extraction
      error stop &
           "test_subtree_extraction: block neighbour-class size mismatch"
 
+  end if
+
+  if (size(block_test%block_bdry) /= n_ngb_block) then
+     error stop &
+          "test_subtree_extraction: block boundary-list size mismatch"
   end if
 
   !
@@ -1555,6 +1759,16 @@ subroutine test_subtree_extraction
 
   write(6,'(a)') &
        "  block boundary classification check passed"
+
+  write(6,'(a)') &
+       "  internal neighbour renumbering check passed"
+
+  write(6,'(a,i0)') &
+       "  explicit inter-block boundary records = ", &
+       size(block_test%block_bdry)
+
+  write(6,'(a)') &
+       "  inter-block boundary catalogue check passed"
 
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
