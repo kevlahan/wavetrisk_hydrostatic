@@ -24,6 +24,15 @@ module arch_mod
   integer,          allocatable :: cp_load(:)
 
 
+  type, public :: Parallel_Block
+     integer :: root_domain = -1   ! original global geometric domain ID
+     integer :: root_patch  = -1   ! patch at root of this block subtree
+     integer :: level       = -1   ! level of root_patch
+     integer :: owner       = -1   ! MPI rank owning block
+     integer :: weight      = 0    ! temporary block weight
+  end type Parallel_Block
+
+  
 contains
 
 

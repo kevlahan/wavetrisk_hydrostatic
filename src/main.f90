@@ -3,7 +3,7 @@ module main_mod
   use, intrinsic :: ieee_arithmetic
 
   use kind_mod,   only : dp
-  use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, N_BDRY, &
+  use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, N_BDRY, N_CHDRN, &
        N_VARIABLE, NCAR_topo, NONE, &
        S_DIVU, S_ROTU, S_MASS, S_TEMP, S_VELO, TRIAG, XU_GRID, RT, DG, UP, LORT, UPLT, Laplace_divu, Laplace_rotu, Laplace_sclr, &
        adapt_dt, Area_avg, C_visc, a_vert, a_vert_mass, b_vert, b_vert_mass, cfl_safety, compressible, cp_idx, &
@@ -14,7 +14,8 @@ module main_mod
        R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
        time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
 
-  use arch_mod,           only : abort_run, barrier, distribute_grid, glo_id, init_arch_mod, n_glo_block, n_process, rank
+  use arch_mod, only : abort_run, barrier, distribute_grid, glo_id, init_arch_mod, &
+     n_glo_block, n_process, Parallel_Block, rank
   use adapt_mod,          only : adapt, WT_after_step
   use coarse_grid_mod,    only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
   use comm_mod,           only : get_coord, set_coord
@@ -43,7 +44,8 @@ module main_mod
   use domain_mod, only : Domain, bernoulli, divu, dscalar, grid, &
        dvelo, exner, exner_fun, h_flux, horiz_flux, ke, qe, scalar, mass, temp, velo, vort, wc_s, wc_u, &
        Kt, Kv, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, sso_param, &
-       sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx
+       sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx, &
+       subtree_weight_Domain
 
   use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
@@ -131,6 +133,7 @@ contains
        cp_idx = resume
        call read_checkpoint_directory (cp_idx)
        call restart
+       call test_parallel_block_split
     else
        call init_basic
        call init_structures
@@ -161,7 +164,8 @@ contains
             &-------------------------------------------------'
        if (rank==0) write (6,'(a,i12,/)') 'Initial number of active wavelets = ', sum (n_active)
 
-       call adapt (set_thresholds) ; dt_new = cpt_dt ()
+       call adapt (set_thresholds)
+       dt_new = cpt_dt ()
        call count_active
 
        if (trim (test_case) /= "make_NCAR_topo") call write_checkpoint
@@ -796,8 +800,82 @@ contains
     end if
   end subroutine cal_min_mass
 
-  subroutine deallocate_structures
-    ! Deallocate all dynamic arrays and structures for clean restart
+
+  subroutine test_parallel_block_split
+    ! Diagnostic only: identify one parent patch with four children and
+    ! represent its four child subtrees as prospective parallel blocks.
+
+    implicit none
+
+    integer :: c, d, p, p_chd
+    integer :: parent_weight
+    integer :: child_weight
+
+    type(Parallel_Block) :: block(N_CHDRN)
+
+    logical :: found
+
+    found = .false.
+
+    do d = 1, size(grid)
+
+       do p = 0, grid(d)%patch%length-1
+
+          ! For this first test require all four children to exist.
+          if (any(grid(d)%patch%elts(p+1)%children <= 0)) cycle
+
+          parent_weight = subtree_weight_Domain(grid(d), p)
+          child_weight  = 0
+
+          do c = 1, N_CHDRN
+
+             p_chd = grid(d)%patch%elts(p+1)%children(c)
+
+             block(c)%root_domain = glo_id(rank+1,d)
+               block(c)%root_patch  = p_chd
+                 block(c)%level       = grid(d)%patch%elts(p_chd+1)%level
+                   block(c)%owner       = rank
+                     block(c)%weight      = subtree_weight_Domain(grid(d), p_chd)
+
+                       child_weight = child_weight + block(c)%weight
+
+                    end do
+
+                    if (child_weight /= parent_weight) then
+                       error stop &
+                            "test_parallel_block_split: child subtree weights do not sum to parent"
+                    end if
+
+                    write(6,'(/,a,i0,a,i0,a,i0)') &
+                         "rank ", rank, ": domain ", block(1)%root_domain, &
+                         ", parent patch ", p
+
+                    do c = 1, N_CHDRN
+                       write(6,'(a,i0,a,i0,a,i0,a,i0)') &
+                            "  block ", c, &
+                            ": root patch = ", block(c)%root_patch, &
+                            ", level = ", block(c)%level, &
+                            ", weight = ", block(c)%weight
+                    end do
+
+                    write(6,'(a,i0,a,i0,/)') &
+                         "  parent weight = ", parent_weight, &
+                         ", sum child weights = ", child_weight
+
+                    found = .true.
+                    exit
+
+                 end do
+
+                 if (found) exit
+
+              end do
+
+            end subroutine test_parallel_block_split
+
+
+            subroutine deallocate_structures
+              ! Deallocate all dynamic arrays and structures for clean restart
     implicit none
 
     integer :: d, i, k, l, v, r

@@ -4,7 +4,7 @@ module domain_mod
 
   use shared_mod, only : AT_NODE, AT_EDGE, BDRY_THICKNESS, b_vert, b_vert_mass, compressible, &
        EAST, EDGE, grav_accel, IMINUS, IJMINUS, IMINUSJPLUS, JMINUS, &
-       N_BDRY, N_DOMAIN, NORTH, NORTHEAST, ORIGIN, RT, DG, SOUTHEAST, S_VELO, TRIAG, UP, WEST, &
+       N_BDRY, N_CHDRN, N_DOMAIN, NORTH, NORTHEAST, ORIGIN, RT, DG, SOUTHEAST, S_VELO, TRIAG, UP, WEST, &
        a_vert, a_vert_mass, p_0, ref_density, max_level, max_depth, min_level, mode_split, &
        split_mean_perturbation, scalars, zlevels, zmin
 
@@ -29,6 +29,7 @@ module domain_mod
   public :: idx, idx2, idx__fast, idx_hex, idx_hex_LORT, idx_hex_LORT2, idx_hex_UPLT, idx_hex_UPLT2, ed_idx, id_edge, tri_idx
   public :: nidx, is_penta, find_neigh_bdry_patch_domain, find_neigh_patch2_domain, find_neigh_patch_domain
   public :: par_side, get_offs_Domain, get_offs_Domain5
+  public :: subtree_weight_Domain
 
   
   integer, parameter :: sides_dims(2,N_BDRY+1) = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
@@ -223,9 +224,46 @@ contains
           call init (self%unpk(k,i), 0)
        end do
     end do
-
+    
     self%pole_master = .false.
   end subroutine init_Domain
+
+
+  recursive integer function subtree_weight_Domain (dom, p) result(weight)
+    ! Temporary parallel-block weight: number of leaf patches
+    ! contained in the subtree rooted at patch p.
+
+    implicit none
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p
+
+    integer :: c, p_chd
+
+    weight = 0
+
+    if (p < 0 .or. p >= dom%patch%length) then
+       error stop "subtree_weight_Domain: invalid patch index"
+    end if
+
+    if (dom%patch%elts(p+1)%deleted) return
+
+    ! Leaf patch.
+    if (all(dom%patch%elts(p+1)%children == 0)) then
+       weight = PATCH_SIZE**2
+       return
+    end if
+
+    ! Sum descendant subtrees.
+    do c = 1, N_CHDRN
+       p_chd = dom%patch%elts(p+1)%children(c)
+
+       if (p_chd > 0) then
+          weight = weight + subtree_weight_Domain(dom, p_chd)
+       end if
+    end do
+
+  end function subtree_weight_Domain
 
 
   integer function add_patch_Domain (self, level)
