@@ -1,10 +1,10 @@
 module comm_mod
   use kind_mod,   only : dp
 
-  use shared_mod, only : ADJZONE, AT_EDGE, AT_NODE, Coord, EDGE, N_GLO_DOMAIN, NODE, NONE, &
+  use shared_mod, only : ADJZONE, AT_EDGE, AT_NODE, Coord, EDGE, NODE, NONE, &
        EAST, NORTH, NORTHEAST, NORTHWEST, SOUTH, SOUTHEAST, SOUTHWEST, WEST, POLE, RT, DG, UP, N_BDRY, BDRY_THICKNESS
 
-  use arch_mod,   only : glo_id, loc_id, owner, rank
+  use arch_mod,   only : glo_id, loc_id, n_glo_block, owner, rank
   use domain_mod, only : get_offs_domain, grid, Domain, Float_Field, idx, idx__fast, nidx, is_penta
   use dyn_arrays, only : append, extend
   use patch_mod,  only : LAST, LAST_BDRY, PATCH_SIZE
@@ -20,7 +20,7 @@ module comm_mod
   public :: comm_masks, cp_bdry_inside
 
   
-  integer, parameter  :: shift_arr(4,4) = reshape ([ 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0 ], [ 4, 4 ])
+  integer, parameter :: shift_arr(4,4) = reshape ([ 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0 ], [ 4, 4 ])
   
   real(dp) :: sync_val
 
@@ -1101,7 +1101,7 @@ contains
     integer :: src_glo, typ
     integer :: unused_elements
 
-    do src_glo = 1, N_GLO_DOMAIN
+    do src_glo = 1, n_glo_block
        unused_elements = 0
 
        do ii = 1, dom%recv_pa(src_glo)%length, 4
