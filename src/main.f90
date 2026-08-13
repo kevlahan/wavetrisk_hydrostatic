@@ -6,7 +6,7 @@ module main_mod
 
   use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, N_BDRY, N_CHDRN, &
-       N_VARIABLE, NCAR_topo, NONE, &
+       N_GLO_DOMAIN, N_VARIABLE, NCAR_topo, NONE, &
        S_DIVU, S_ROTU, S_MASS, S_TEMP, S_VELO, TRIAG, XU_GRID, RT, DG, UP, LORT, UPLT, Laplace_divu, Laplace_rotu, Laplace_sclr, &
        adapt_dt, Area_avg, C_visc, a_vert, a_vert_mass, b_vert, b_vert_mass, cfl_safety, compressible, cp_idx, &
        dt, dt_init, dt_write, dx_avg, gamma, grav_accel, iremap, iremap_max, istep, istep_cumul, itime, iwrite, &
@@ -804,293 +804,326 @@ contains
 
 
   subroutine test_parallel_block_split
-    ! Diagnostic only: identify one parent patch with four children on
-    ! each rank, construct prospective child-subtree parallel blocks,
-    ! assign globally unique IDs, and build a global candidate-block
-    ! catalogue on every MPI rank.
+  ! Diagnostic only: construct a complete prospective parallel-block
+  ! decomposition of all locally owned geometric root domains.
+  !
+  ! Rule:
+  !   - if root patch 1 has all four children, use those four child
+  !     subtrees as candidate blocks;
+  !   - otherwise keep the whole root domain as one candidate block.
+  !
+  ! The candidate blocks are assigned globally unique IDs and gathered
+  ! into block_catalog(:) on every MPI rank.
+  !
+  ! This routine does NOT modify the active decomposition.
 
-    implicit none
+  implicit none
 
-    integer, parameter :: N_BLOCK_DATA = 6
+  integer, parameter :: N_BLOCK_DATA = 6
 
-    integer :: c, d, i, k, p, p_chd
-    integer :: p_split
-    integer :: parent_weight, child_weight
-    integer :: n_block_local, n_block_before, n_block_total
-    integer :: n_data_local, n_data_total
-    integer :: ierr
+  integer :: c, d, i, k, p, p_chd
+  integer :: n_block_local, n_block_before, n_block_total
+  integer :: n_data_local, n_data_total
+  integer :: ierr
 
-    integer, allocatable :: block_count(:)
-    integer, allocatable :: recv_count(:)
-    integer, allocatable :: recv_disp(:)
-    integer, allocatable :: send_data(:)
-    integer, allocatable :: recv_data(:)
-
-    type(Parallel_Block) :: block(N_CHDRN)
+  integer, allocatable :: block_count(:)
+  integer, allocatable :: recv_count(:)
+  integer, allocatable :: recv_disp(:)
+  integer, allocatable :: send_data(:)
+  integer, allocatable :: recv_data(:)
+  integer, allocatable :: domain_count(:)
 
-    logical :: found
-
-    found          = .false.
-    p_split        = -1
-    n_block_local  = 0
-    n_block_before = 0
+  type(Parallel_Block), allocatable :: block_loc(:)
 
-    !
-    ! Find one parent patch on this rank for which all four children
-    ! exist. Its four child subtrees are candidate parallel blocks.
-    !
-    do d = 1, size(grid)
-
-       do p = 0, grid(d)%patch%length-1
-
-          if (any(grid(d)%patch%elts(p+1)%children <= 0)) cycle
+  !
+  ! Count local candidate blocks.
+  !
+  n_block_local = 0
 
-          parent_weight = subtree_weight_Domain(grid(d), p)
-          child_weight  = 0
+  do d = 1, size(grid)
 
-          do c = 1, N_CHDRN
+     p = 1
 
-             p_chd = grid(d)%patch%elts(p+1)%children(c)
+     if (all(grid(d)%patch%elts(p+1)%children > 0)) then
+        n_block_local = n_block_local + N_CHDRN
+     else
+        n_block_local = n_block_local + 1
+     end if
 
-             block(c)%root_domain = glo_id(rank+1,d)
-               block(c)%root_patch  = p_chd
-                 block(c)%level       = grid(d)%patch%elts(p_chd+1)%level
-                   block(c)%owner       = rank
-                     block(c)%weight      = subtree_weight_Domain(grid(d), p_chd)
-
-                       child_weight = child_weight + block(c)%weight
+  end do
 
-                    end do
+  allocate(block_loc(n_block_local))
 
-                    !
-                    ! The four child subtrees must exactly partition the
-                    ! subtree rooted at the parent patch.
-                    !
-                    if (child_weight /= parent_weight) then
-                       error stop &
-                            "test_parallel_block_split: child subtree weights do not sum to parent"
-                    end if
-
-                    p_split       = p
-                    n_block_local = N_CHDRN
-                    found         = .true.
+  !
+  ! Construct local candidate block descriptors.
+  !
+  i = 0
+
+  do d = 1, size(grid)
 
-                    exit
+     p = 1
 
-                 end do
+     if (all(grid(d)%patch%elts(p+1)%children > 0)) then
 
-                 if (found) exit
+        do c = 1, N_CHDRN
 
-              end do
+           p_chd = grid(d)%patch%elts(p+1)%children(c)
 
-              !
-              ! Determine the number of candidate blocks preceding those on
-              ! this rank. This gives globally unique contiguous block IDs.
-              !
-              call MPI_Exscan( &
-                   n_block_local, n_block_before, &
-                   1, MPI_INTEGER, MPI_SUM, comm, ierr)
+           i = i + 1
 
-              if (ierr /= MPI_SUCCESS) then
-                 error stop "test_parallel_block_split: MPI_Exscan failed"
-              end if
+           block_loc(i)%root_domain = glo_id(rank+1,d)
+           block_loc(i)%root_patch  = p_chd
+           block_loc(i)%level       = grid(d)%patch%elts(p_chd+1)%level
+           block_loc(i)%owner       = rank
+           block_loc(i)%weight      = &
+                subtree_weight_Domain(grid(d), p_chd)
 
-              if (rank == 0) n_block_before = 0
+        end do
 
-              !
-              ! Determine the total number of candidate blocks.
-              !
-              call MPI_Allreduce( &
-                   n_block_local, n_block_total, &
-                   1, MPI_INTEGER, MPI_SUM, comm, ierr)
+     else
 
-              if (ierr /= MPI_SUCCESS) then
-                 error stop "test_parallel_block_split: MPI_Allreduce failed"
-              end if
+        i = i + 1
 
-              !
-              ! Assign global candidate-block IDs.
-              !
-              if (found) then
-                 do c = 1, N_CHDRN
-                    block(c)%id = n_block_before + c - 1
-                   end do
-                end if
+        block_loc(i)%root_domain = glo_id(rank+1,d)
+        block_loc(i)%root_patch  = p
+        block_loc(i)%level       = grid(d)%patch%elts(p+1)%level
+        block_loc(i)%owner       = rank
+        block_loc(i)%weight      = &
+             subtree_weight_Domain(grid(d), p)
 
-                !
-                ! Determine how many candidate blocks are contributed by every rank.
-                !
-                allocate(block_count(n_process))
-
-                call MPI_Allgather( &
-                     n_block_local, 1, MPI_INTEGER, &
-                     block_count, 1, MPI_INTEGER, comm, ierr)
-
-                if (ierr /= MPI_SUCCESS) then
-                   error stop "test_parallel_block_split: MPI_Allgather failed"
-                end if
-
-                if (sum(block_count) /= n_block_total) then
-                   error stop "test_parallel_block_split: inconsistent global block count"
-                end if
-
-                !
-                ! Pack each local candidate block as six integers:
-                !
-                !   id, root_domain, root_patch, level, owner, weight
-                !
-                n_data_local = N_BLOCK_DATA * n_block_local
-
-                allocate(send_data(n_data_local))
-
-                k = 0
-
-                if (found) then
-                   do c = 1, N_CHDRN
-
-                      send_data(k+1:k+N_BLOCK_DATA) = [ &
-                           block(c)%id, &
-                           block(c)%root_domain, &
-                           block(c)%root_patch, &
-                           block(c)%level, &
-                           block(c)%owner, &
-                           block(c)%weight ]
-
-                      k = k + N_BLOCK_DATA
-
-                   end do
-                end if
-
-                if (k /= n_data_local) then
-                   error stop "test_parallel_block_split: local packing count mismatch"
-                end if
-
-                !
-                ! Construct Allgatherv receive counts and displacements.
-                !
-                allocate(recv_count(n_process))
-                allocate(recv_disp(n_process))
-
-                recv_count = N_BLOCK_DATA * block_count
-
-                recv_disp(1) = 0
-
-                do i = 2, n_process
-                   recv_disp(i) = recv_disp(i-1) + recv_count(i-1)
-                end do
-
-                n_data_total = N_BLOCK_DATA * n_block_total
-
-                allocate(recv_data(n_data_total))
-
-                !
-                ! Every rank receives the complete packed candidate-block catalogue.
-                !
-                call MPI_Allgatherv( &
-                     send_data, n_data_local, MPI_INTEGER, &
-                     recv_data, recv_count, recv_disp, MPI_INTEGER, &
-                     comm, ierr)
-
-                if (ierr /= MPI_SUCCESS) then
-                   error stop "test_parallel_block_split: MPI_Allgatherv failed"
-                end if
-
-                !
-                ! Construct the global Parallel_Block catalogue on every rank.
-                !
-                if (allocated(block_catalog)) deallocate(block_catalog)
-
-                allocate(block_catalog(n_block_total))
-
-                do i = 1, n_block_total
-
-                   k = N_BLOCK_DATA * (i-1)
-
-                   block_catalog(i)%id          = recv_data(k+1)
-                   block_catalog(i)%root_domain = recv_data(k+2)
-                   block_catalog(i)%root_patch  = recv_data(k+3)
-                   block_catalog(i)%level       = recv_data(k+4)
-                   block_catalog(i)%owner       = recv_data(k+5)
-                   block_catalog(i)%weight      = recv_data(k+6)
-
-                end do
-
-                !
-                ! Verify that the global IDs are contiguous and that each block
-                ! has a valid current owner.
-                !
-                do i = 1, n_block_total
-
-                   if (block_catalog(i)%id /= i-1) then
-                      error stop &
-                           "test_parallel_block_split: invalid global block ID ordering"
-                   end if
-
-                   if (block_catalog(i)%owner < 0 .or. &
-                        block_catalog(i)%owner >= n_process) then
-                      error stop &
-                           "test_parallel_block_split: invalid block owner"
-                   end if
-
-                end do
-
-                !
-                ! Report the local candidate split.
-                !
-                if (found) then
-
-                   write(6,'(/,a,i0,a,i0,a,i0)') &
-                        "rank ", rank, &
-                        ": domain ", block(1)%root_domain, &
-                        ", parent patch ", p_split
-
-                   do c = 1, N_CHDRN
-                      write(6,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
-                           "  block ID ", block(c)%id, &
-                           ": root patch = ", block(c)%root_patch, &
-                           ", level = ", block(c)%level, &
-                           ", weight = ", block(c)%weight, &
-                           ", owner = ", block(c)%owner
-                   end do
-
-                   write(6,'(a,i0,a,i0,/)') &
-                        "  parent weight = ", parent_weight, &
-                        ", sum child weights = ", child_weight
-
-                end if
-
-                !
-                ! Rank zero prints the global catalogue as an additional check.
-                !
-                if (rank == 0) then
-
-                   write(6,'(/,a,i0)') &
-                        "Total candidate parallel blocks = ", n_block_total
-
-                   write(6,'(a)') &
-                        "Global candidate block catalogue:"
-
-                   do i = 1, n_block_total
-                      write(6,'(2x,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0)') &
-                           "block ", block_catalog(i)%id, &
-                           ": domain = ", block_catalog(i)%root_domain, &
-                           ", root patch = ", block_catalog(i)%root_patch, &
-                           ", level = ", block_catalog(i)%level, &
-                           ", owner = ", block_catalog(i)%owner, &
-                           ", weight = ", block_catalog(i)%weight
-                   end do
-
-                   write(6,*)
-
-                end if
-
-                deallocate(block_count)
-                deallocate(recv_count)
-                deallocate(recv_disp)
-                deallocate(send_data)
-                deallocate(recv_data)
-
-              end subroutine test_parallel_block_split
+     end if
+
+  end do
+
+  if (i /= n_block_local) then
+     error stop &
+          "test_parallel_block_split: local block count mismatch"
+  end if
+
+  !
+  ! Determine the number of candidate blocks preceding those on
+  ! this rank. This gives globally unique contiguous block IDs.
+  !
+  n_block_before = 0
+
+  call MPI_Exscan( &
+       n_block_local, n_block_before, &
+       1, MPI_INTEGER, MPI_SUM, comm, ierr)
+
+  if (ierr /= MPI_SUCCESS) then
+     error stop "test_parallel_block_split: MPI_Exscan failed"
+  end if
+
+  if (rank == 0) n_block_before = 0
+
+  !
+  ! Determine the total number of candidate blocks.
+  !
+  call MPI_Allreduce( &
+       n_block_local, n_block_total, &
+       1, MPI_INTEGER, MPI_SUM, comm, ierr)
+
+  if (ierr /= MPI_SUCCESS) then
+     error stop "test_parallel_block_split: MPI_Allreduce failed"
+  end if
+
+  !
+  ! Assign global candidate-block IDs.
+  !
+  do i = 1, n_block_local
+     block_loc(i)%id = n_block_before + i - 1
+  end do
+
+  !
+  ! Determine how many candidate blocks are contributed by every rank.
+  !
+  allocate(block_count(n_process))
+
+  call MPI_Allgather( &
+       n_block_local, 1, MPI_INTEGER, &
+       block_count, 1, MPI_INTEGER, comm, ierr)
+
+  if (ierr /= MPI_SUCCESS) then
+     error stop "test_parallel_block_split: MPI_Allgather failed"
+  end if
+
+  if (sum(block_count) /= n_block_total) then
+     error stop &
+          "test_parallel_block_split: inconsistent global block count"
+  end if
+
+  !
+  ! Pack each local candidate block as six integers:
+  !
+  !   id, root_domain, root_patch, level, owner, weight
+  !
+  n_data_local = N_BLOCK_DATA * n_block_local
+
+  allocate(send_data(n_data_local))
+
+  k = 0
+
+  do i = 1, n_block_local
+
+     send_data(k+1:k+N_BLOCK_DATA) = [ &
+          block_loc(i)%id, &
+          block_loc(i)%root_domain, &
+          block_loc(i)%root_patch, &
+          block_loc(i)%level, &
+          block_loc(i)%owner, &
+          block_loc(i)%weight ]
+
+     k = k + N_BLOCK_DATA
+
+  end do
+
+  if (k /= n_data_local) then
+     error stop &
+          "test_parallel_block_split: local packing count mismatch"
+  end if
+
+  !
+  ! Construct Allgatherv receive counts and displacements.
+  !
+  allocate(recv_count(n_process))
+  allocate(recv_disp(n_process))
+
+  recv_count = N_BLOCK_DATA * block_count
+
+  recv_disp(1) = 0
+
+  do i = 2, n_process
+     recv_disp(i) = recv_disp(i-1) + recv_count(i-1)
+  end do
+
+  n_data_total = N_BLOCK_DATA * n_block_total
+
+  allocate(recv_data(n_data_total))
+
+  !
+  ! Every rank receives the complete packed candidate-block catalogue.
+  !
+  call MPI_Allgatherv( &
+       send_data, n_data_local, MPI_INTEGER, &
+       recv_data, recv_count, recv_disp, MPI_INTEGER, &
+       comm, ierr)
+
+  if (ierr /= MPI_SUCCESS) then
+     error stop "test_parallel_block_split: MPI_Allgatherv failed"
+  end if
+
+  !
+  ! Construct the global Parallel_Block catalogue on every rank.
+  !
+  if (allocated(block_catalog)) deallocate(block_catalog)
+
+  allocate(block_catalog(n_block_total))
+
+  do i = 1, n_block_total
+
+     k = N_BLOCK_DATA * (i-1)
+
+     block_catalog(i)%id          = recv_data(k+1)
+     block_catalog(i)%root_domain = recv_data(k+2)
+     block_catalog(i)%root_patch  = recv_data(k+3)
+     block_catalog(i)%level       = recv_data(k+4)
+     block_catalog(i)%owner       = recv_data(k+5)
+     block_catalog(i)%weight      = recv_data(k+6)
+
+  end do
+
+  !
+  ! Validate global block IDs and owners.
+  !
+  do i = 1, n_block_total
+
+     if (block_catalog(i)%id /= i-1) then
+        error stop &
+             "test_parallel_block_split: invalid global block ID ordering"
+     end if
+
+     if (block_catalog(i)%owner < 0 .or. &
+          block_catalog(i)%owner >= n_process) then
+        error stop &
+             "test_parallel_block_split: invalid block owner"
+     end if
+
+  end do
+
+  !
+  ! Verify that every geometric root domain occurs in the catalogue.
+  ! With the current one-level split rule, each domain should occur
+  ! either once or four times.
+  !
+  allocate(domain_count(N_GLO_DOMAIN))
+  domain_count = 0
+
+  do i = 1, n_block_total
+
+     if (block_catalog(i)%root_domain < 0 .or. &
+          block_catalog(i)%root_domain >= N_GLO_DOMAIN) then
+        error stop &
+             "test_parallel_block_split: invalid root domain"
+     end if
+
+     domain_count(block_catalog(i)%root_domain+1) = &
+          domain_count(block_catalog(i)%root_domain+1) + 1
+
+  end do
+
+  if (any(domain_count == 0)) then
+     error stop &
+          "test_parallel_block_split: one or more root domains missing"
+  end if
+
+  if (any(domain_count /= 1 .and. domain_count /= N_CHDRN)) then
+     error stop &
+          "test_parallel_block_split: invalid number of blocks per root domain"
+  end if
+
+  !
+  ! Rank zero prints the complete global catalogue.
+  !
+  if (rank == 0) then
+
+     write(6,'(/,a,i0)') &
+          "Total candidate parallel blocks = ", n_block_total
+
+     write(6,'(a,i0)') &
+          "Unsplit root domains = ", count(domain_count == 1)
+
+     write(6,'(a,i0)') &
+          "Split root domains   = ", count(domain_count == N_CHDRN)
+
+     write(6,'(a)') &
+          "Global candidate block catalogue:"
+
+     do i = 1, n_block_total
+        write(6,'(2x,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0)') &
+             "block ", block_catalog(i)%id, &
+             ": domain = ", block_catalog(i)%root_domain, &
+             ", root patch = ", block_catalog(i)%root_patch, &
+             ", level = ", block_catalog(i)%level, &
+             ", owner = ", block_catalog(i)%owner, &
+             ", weight = ", block_catalog(i)%weight
+     end do
+
+     write(6,*)
+
+  end if
+
+  !
+  ! Cleanup temporary arrays.
+  !
+  deallocate(block_loc)
+  deallocate(block_count)
+  deallocate(recv_count)
+  deallocate(recv_disp)
+  deallocate(send_data)
+  deallocate(recv_data)
+  deallocate(domain_count)
+
+end subroutine test_parallel_block_split
  
 
   subroutine deallocate_structures
