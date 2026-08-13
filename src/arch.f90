@@ -33,6 +33,8 @@ module arch_mod
      integer :: weight      = 0    ! provisional subtree weight
   end type Parallel_Block
 
+  type(Parallel_Block), allocatable, public :: block_catalog(:)
+
   
 contains
 
