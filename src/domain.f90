@@ -30,8 +30,9 @@ module domain_mod
   public :: nidx, is_penta, find_neigh_bdry_patch_domain, find_neigh_patch2_domain, find_neigh_patch_domain
   public :: par_side, get_offs_Domain, get_offs_Domain5
   public :: subtree_weight_Domain
+  public :: count_subtree_patches_Domain, extract_subtree_patches_Domain
 
-  
+
   integer, parameter :: sides_dims(2,N_BDRY+1) = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
        BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, PATCH_SIZE, &
        BDRY_THICKNESS, BDRY_THICKNESS, PATCH_SIZE, BDRY_THICKNESS, &
@@ -135,10 +136,10 @@ module domain_mod
   real(dp), dimension(:), pointer :: bernoulli, divu, exner, ke, qe, vort
   real(dp), dimension(:), pointer :: wc_s, wc_u
 
-  
+
 contains
 
-  
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! Initialization subroutines !!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -165,7 +166,7 @@ contains
     allocate (self%data(n_domain(rank+1)))
   end subroutine init_Int_Field
 
-  
+
   subroutine init_Logical_Field (self, pos)
     implicit none
     type(Logical_Field), intent(out) :: self
@@ -176,8 +177,8 @@ contains
 
     allocate (self%data(n_domain(rank+1)))
   end subroutine init_Logical_Field
-  
-  
+
+
   subroutine init_Domain (self)
     implicit none
     type(Domain), intent(out) :: self
@@ -224,7 +225,7 @@ contains
           call init (self%unpk(k,i), 0)
        end do
     end do
-    
+
     self%pole_master = .false.
   end subroutine init_Domain
 
@@ -265,7 +266,136 @@ contains
 
   end function subtree_weight_Domain
 
-  
+
+  recursive integer function count_subtree_patches_Domain (dom, p) result(n_patch)
+    ! Number of non-deleted patches in the subtree rooted at p.
+
+    implicit none
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p
+
+    integer :: c, p_chd
+
+    if (p < 0 .or. p >= dom%patch%length) then
+       error stop "count_subtree_patches_Domain: invalid patch index"
+    end if
+
+    if (dom%patch%elts(p+1)%deleted) then
+       n_patch = 0
+       return
+    end if
+
+    n_patch = 1
+
+    do c = 1, N_CHDRN
+       p_chd = dom%patch%elts(p+1)%children(c)
+
+       if (p_chd > 0) then
+          n_patch = n_patch + &
+               count_subtree_patches_Domain(dom, p_chd)
+       end if
+    end do
+
+  end function count_subtree_patches_Domain
+
+
+  subroutine extract_subtree_patches_Domain (dom, p_root, patch_out, old_to_new)
+    ! Copy the patch hierarchy rooted at p_root into patch_out().
+    !
+    ! Original patch indices are mapped to new 0-based indices through
+    ! old_to_new().  Child links in patch_out are rewritten to use the
+    ! new local numbering.
+    !
+    ! Boundary/neighbour information is not reconstructed at this stage.
+
+    implicit none
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p_root
+
+    type(Patch), allocatable, intent(out) :: patch_out(:)
+    integer,     allocatable, intent(out) :: old_to_new(:)
+
+    integer :: n_patch
+    integer :: next_patch
+
+    n_patch = count_subtree_patches_Domain(dom, p_root)
+
+    if (n_patch <= 0) then
+       error stop "extract_subtree_patches_Domain: empty subtree"
+    end if
+
+    allocate(patch_out(n_patch))
+
+    !
+    ! Use original patch indices as bounds so that old_to_new(p)
+    ! can be addressed directly.
+    !
+    allocate(old_to_new(0:dom%patch%length-1))
+    old_to_new = -1
+
+    next_patch = 0
+
+    call copy_patch(p_root)
+
+    if (next_patch /= n_patch) then
+       error stop &
+            "extract_subtree_patches_Domain: copied patch count mismatch"
+    end if
+
+  contains
+
+    recursive subroutine copy_patch (p_old)
+
+      implicit none
+
+      integer, intent(in) :: p_old
+
+      integer :: c
+      integer :: p_chd_old
+      integer :: p_new
+
+      if (dom%patch%elts(p_old+1)%deleted) return
+
+      !
+      ! Assign new local patch number.
+      !
+      p_new = next_patch
+      next_patch = next_patch + 1
+
+      old_to_new(p_old) = p_new
+
+      !
+      ! Copy the patch record itself.
+      !
+      patch_out(p_new+1) = dom%patch%elts(p_old+1)
+
+      !
+      ! Child links are reconstructed after the descendants have
+      ! received their new local indices.
+      !
+      patch_out(p_new+1)%children = 0
+
+      do c = 1, N_CHDRN
+
+         p_chd_old = dom%patch%elts(p_old+1)%children(c)
+
+         if (p_chd_old <= 0) cycle
+         if (dom%patch%elts(p_chd_old+1)%deleted) cycle
+
+         call copy_patch(p_chd_old)
+
+         patch_out(p_new+1)%children(c) = &
+              old_to_new(p_chd_old)
+
+      end do
+
+    end subroutine copy_patch
+
+  end subroutine extract_subtree_patches_Domain
+
+
   function add_patch_Domain (self, level) result(val)
     ! Add new patch to the domain
     implicit none
@@ -284,7 +414,7 @@ contains
     val = p
   end function add_patch_Domain
 
-  
+
   integer function add_bdry_patch_Domain (self, side)
     ! Add boundary patch to the domain
     implicit none
@@ -302,7 +432,7 @@ contains
     add_bdry_patch_Domain = p
   end function add_bdry_patch_Domain
 
-  
+
   subroutine extend_Domain (self, num)
     implicit none
     type(Domain), intent(inout) :: self
@@ -370,7 +500,7 @@ contains
     end do
   end subroutine extend_Domain
 
-  
+
   subroutine set_neigh_Domain (self, s, id, rot)
     implicit none
     type(Domain), intent(inout) :: self
@@ -380,7 +510,7 @@ contains
     self%neigh_rot(s) = rot
   end subroutine set_neigh_Domain
 
-  
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! Index and neighbour routines !!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -454,7 +584,7 @@ contains
     end if
   end function idx
 
-  
+
   pure function idx__fast(i, j, offs) result(id)
     implicit none
 
@@ -464,7 +594,7 @@ contains
     id = PATCH_SIZE*j + i + offs
   end function idx__fast
 
-  
+
   pure function id_edge (id) result(edges)
     ! Returns indices of the three edges associated with node id
     implicit none
@@ -475,7 +605,7 @@ contains
     edges = EDGE*id + [ RT, DG, UP ] + 1
   end function id_edge
 
-  
+
   pure function idx_hex (i, j, offs, dims) result(hex_idx)
     implicit none
 
@@ -495,7 +625,7 @@ contains
          ]
   end function idx_hex
 
-  
+
   pure function idx_hex_LORT (i, j, offs, dims) result(hex_idx)
     ! Return the indices of the six child hexagons overlapping
     ! the LORT parent triangle.
@@ -518,7 +648,7 @@ contains
          ]
   end function idx_hex_LORT
 
-  
+
   pure function idx_hex_LORT2 (i, j, offs, dims) result(hex_idx)
     ! Return the indices of the three hexagons overlapping the LORT triangle.
     implicit none
@@ -536,7 +666,7 @@ contains
          ]
   end function idx_hex_LORT2
 
-  
+
   pure function idx_hex_UPLT (i, j, offs, dims) result(hex_idx)
     ! Return the indices of the six child hexagons overlapping
     ! the LORT parent triangle.
@@ -558,7 +688,7 @@ contains
          ]
   end function idx_hex_UPLT
 
-  
+
   pure function idx_hex_UPLT2 (i, j, offs, dims) result(hex_idx)
     ! Return the indices of the three hexagons overlapping the UPLT triangle.
     implicit none
@@ -576,7 +706,7 @@ contains
          ]
   end function idx_hex_UPLT2
 
-  
+
   pure function tri_idx (i, j, tri, offs, dims) result(id)
     implicit none
 
@@ -590,7 +720,7 @@ contains
     id = TRIAG*idx(i + tri(1), j + tri(2), offs, dims) + tri(3)
   end function tri_idx
 
-  
+
   pure function nidx (i, j, s, offs, dims) result(id)
     implicit none
 
@@ -603,7 +733,7 @@ contains
     id = offs(s+1) + j*dims(1,s+1) + i
   end function nidx
 
-  
+
   pure function idx2 (i, j, noffs, offs, dims) result(id)
     ! Return the index of node (i+noffs(1), j+noffs(2)).
     implicit none
@@ -618,7 +748,7 @@ contains
     id = idx(i + noffs(1), j + noffs(2), offs, dims)
   end function idx2
 
-  
+
   pure function ed_idx (i, j, ed, offs, dims) result(id)
     ! Return the edge index.
     implicit none
@@ -633,7 +763,7 @@ contains
     id = EDGE*idx(i + ed(1), j + ed(2), offs, dims) + ed(3)
   end function ed_idx
 
-  
+
   pure logical function is_penta (dom, p, s) result(penta)
     implicit none
 
@@ -654,7 +784,7 @@ contains
     end if
   end function is_penta
 
-  
+
   pure function find_neigh_patch_Domain (self, p_par, c, s_chd) result(neigh)
     ! Find the neighbour of the c-th child of parent patch p_par
     ! across child side s_chd.
@@ -711,7 +841,7 @@ contains
     end if
   end function find_neigh_patch_Domain
 
-  
+
   pure function find_neigh_bdry_patch_Domain (self, p_par, c, s) result(neigh)
     implicit none
 
@@ -761,7 +891,7 @@ contains
     end if
   end function find_neigh_bdry_patch_Domain
 
-  
+
   pure subroutine find_neigh_patch2_Domain (self, p_par0, c0, s0, p_par, c)
     ! For the patch given by the c0-th child of p_par0, find the
     ! neighbour across side s0. Return it as the c-th child of p_par.
@@ -809,13 +939,13 @@ contains
 
   end subroutine find_neigh_patch2_Domain
 
-  
+
   pure function par_side(c, s) result(side)
     implicit none
 
     integer, intent(in) :: c, s
     integer             :: side
-    
+
     if (s == modulo(c+1, 4) + 4) then
        side = modulo(c+1, 4)
     else if (s == modulo(c-1, 4) + 4) then
@@ -825,7 +955,7 @@ contains
     end if
   end function par_side
 
-  
+
   pure subroutine get_offs_Domain5 (self, p, offs, dims, inner_patch)
     implicit none
 
@@ -869,7 +999,7 @@ contains
     end if
   end subroutine get_offs_Domain5
 
-  
+
   pure subroutine get_offs_Domain(self, p, offs, dims, inner_bdry)
     implicit none
 
@@ -918,5 +1048,5 @@ contains
     end if
   end subroutine get_offs_Domain
 
-  
+
 end module domain_mod

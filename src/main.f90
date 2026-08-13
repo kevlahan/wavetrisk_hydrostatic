@@ -137,6 +137,7 @@ contains
        call read_checkpoint_directory (cp_idx)
        call restart
        call test_parallel_block_split
+       call test_subtree_extraction
     else
        call init_basic
        call init_structures
@@ -804,9 +805,9 @@ contains
   end subroutine cal_min_mass
 
 
-  subroutine test_subtree_extraction
-  ! Extract one small candidate subtree on rank zero and verify that
-  ! its renumbered patch hierarchy is identical to the original tree.
+ subroutine test_subtree_extraction
+  ! Extract one nontrivial candidate subtree on rank zero and verify
+  ! that its renumbered patch hierarchy is identical to the original tree.
 
   implicit none
 
@@ -824,7 +825,7 @@ contains
   logical :: found
 
   !
-  ! Keep the first extraction test entirely local to rank zero.
+  ! Keep the extraction test entirely local to rank zero.
   !
   if (rank /= 0) return
 
@@ -832,8 +833,7 @@ contains
   b_test = -1
 
   !
-  ! Prefer a candidate block with weight PATCH_SIZE**2, i.e. a
-  ! single leaf patch.
+  ! Prefer a candidate block containing a nontrivial subtree.
   !
   do i = 1, size(block_catalog)
 
@@ -845,7 +845,7 @@ contains
 
      p_root = block_catalog(i)%root_patch
 
-     if (subtree_weight_Domain(grid(d),p_root) == PATCH_SIZE**2) then
+     if (subtree_weight_Domain(grid(d),p_root) > PATCH_SIZE**2) then
         b_test = i
         found  = .true.
         exit
@@ -854,7 +854,7 @@ contains
   end do
 
   !
-  ! If no single-leaf block exists, use the first local candidate.
+  ! If no nontrivial subtree exists, use the first local candidate.
   !
   if (.not. found) then
 
@@ -881,8 +881,7 @@ contains
   end if
 
   !
-  ! Recompute d and p_root from the saved catalogue entry so that
-  ! they cannot depend on loop-variable state.
+  ! Recompute d and p_root from the saved catalogue entry.
   !
   d = loc_id(block_catalog(b_test)%root_domain+1) + 1
 
