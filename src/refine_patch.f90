@@ -84,7 +84,9 @@ contains
   
 
   subroutine post_refine
+    
     implicit none
+    
     integer :: d, p
 
     call comm_masks_mpi (NONE)
@@ -342,17 +344,18 @@ contains
   function check_child_required (dom, p_par, c) result(val)
     ! Determines where child (finer grid) is required based on mask value for parent
     ! child is required if parent node is in the adjacent zone or parent edge can be obtained by restriction
+    
     implicit none
     
     type(Domain), intent(in) :: dom
     integer,      intent(in) :: c, p_par
     logical                  :: val
 
-    integer                        :: j0, j_par, i0, i_par, id_par
-    integer                        :: st, en
-    integer, dimension(N_BDRY+1)   :: offs_par
-    integer, dimension(2,N_BDRY+1) :: dims_par
-    logical                        :: required
+    integer :: j0, j_par, i0, i_par, id_par
+    integer :: st, en
+    integer :: offs_par(N_BDRY+1) 
+    integer :: dims_par(2,N_BDRY+1)
+    logical :: required
 
     st = -BDRY_THICKNESS
     en =  BDRY_THICKNESS
@@ -407,6 +410,7 @@ contains
     integer,      intent(in)    :: c, p_par, p_chd, s_par, s_chd
 
     integer :: n, typ
+    
     !  c: which child on neighbour
 
     n = dom%patch%elts(p_par+1)%neigh(s_par+1)
@@ -454,8 +458,8 @@ contains
     type(Domain), intent(inout) :: dom
     integer,      intent(in)    :: p_par
 
-    integer, dimension(N_CHDRN) :: children
-    integer                     :: c, n_chd, n_tmp, p_chd, s
+    integer :: children(N_CHDRN)
+    integer :: c, n_chd, n_tmp, p_chd, s
 
     children = dom%patch%elts(p_par+1)%children
     do c = 1, N_CHDRN
@@ -482,11 +486,11 @@ contains
     
     implicit none
     
-    type(Domain),        intent(inout) :: dom
-    integer,                intent(in) :: id
-    real(dp), dimension(7), intent(in) :: val
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: id
+    real(dp),     intent(in)    :: val(7)
 
-    real(dp), dimension(4) :: area
+    real(dp) :: area(4)
 
     area = val(1:4)
     if (id < 0) area = (/area(2), area(1), area(4), area(3)/)
@@ -501,11 +505,11 @@ contains
     
     implicit none
     
-    type(Domain),           intent(in)  :: dom
-    integer,                intent(in)  :: id
-    real(dp), dimension(7), intent(out) :: val
+    type(Domain), intent(in)  :: dom
+    integer,      intent(in)  :: id
+    real(dp),     intent(out) :: val(7)
     
-    real(dp), dimension(7) :: area
+    real(dp)  :: area(7)
 
     area = 0.0_dp
     
@@ -521,10 +525,10 @@ contains
     
     implicit none
     
-    type(Domain),                   intent(inout) :: dom
-    integer,                        intent(in)    :: c, p, zlev
-    integer, dimension(N_BDRY+1),   intent(in)    :: offs
-    integer, dimension(2,N_BDRY+1), intent(in)    :: dims
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: c, p, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
 
     integer :: id
 

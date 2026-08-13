@@ -2,7 +2,7 @@ module integrate_mod
   
   ! Routines for integrating over hexagonal and triangular grid and for determing equivalent adaptive triangular grid
   
-  use kind_mod, only : dp
+  use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, AT_NODE, EDGE, N_BDRY, LORT, UPLT, RT, DG, UP, TRIAG, NORTHWEST, SOUTHEAST, &
        level_start, level_end, z_null
 
@@ -20,7 +20,7 @@ module integrate_mod
   public :: integrate_hex, integrate_tri
 
   
-  real(dp) :: integral
+  real(dp)                                  :: integral
   type(Int_Field)                           :: active_level
   type(Logical_Field), dimension(LORT:UPLT) :: save_tri   
 

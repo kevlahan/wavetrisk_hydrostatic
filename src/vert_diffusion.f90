@@ -43,6 +43,7 @@ module vert_diffusion_mod
   public :: Kt_enh, Kt_max, Kt_min, Kt_mol, Kv_max, Kv_min, Kv_mol, rb_0, l_0, l_min, Neps_sq, Nsq_min, z_0, z_mixed
   public :: Q_sr, R_lw, xi_lw, xi_sw, alpha_k
 
+  
   ! Parameters for TKE closure 
   logical :: enhance_diff = .false.              ! enhanced vertical diffusion in unstable regions with very small Nsq < Nsq_min 
   logical :: patankar     = .false.              ! ensure positivity of TKE using "Patankar trick" if shear is weak and stratification is strong (T)

@@ -3,7 +3,9 @@ program make_NCAR_topo
   
   use kind_mod
   use shared_mod
+  use diagnostics_mod
   use domain_mod
+  use integrate_mod
   use main_mod
   use NCAR_topo_mod
   use time_integr_mod

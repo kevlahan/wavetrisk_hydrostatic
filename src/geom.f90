@@ -7,9 +7,10 @@ module geom_mod
   implicit none
 
   private
-  public :: arc_intersect_test, cart2sph, centroid, circumcentre, cross, direction, dist
+  public :: arc_intersect_test, cart2sph, centroid, circumcentre, cross, direction, dist, dist_sph
   public :: geodesic, triarea, init_Areas, init_Coord, inner, min_dist
   public :: norm, normalize_coord, mid_pt, number_hex, proj_vel, proj_xz_plane, project_on_sphere, sph2cart, vector, wrap_lonlat
+
   
   abstract interface
      
@@ -21,37 +22,43 @@ module geom_mod
      end subroutine vel_lonlat
      
   end interface
+
   
 contains
+
   
-  type(Coord) function direction (init, term)
+  function direction (init, term) result(val)
     implicit none
     type(Coord), intent(in) :: init, term
+    type(Coord)             :: val
     
     type(Coord) :: v
 
     v = vector (init, term)
-    direction = normalize_Coord (v)
+    val = normalize_Coord (v)
   end function direction
 
-  real(dp) function dist (p, q)
+
+  function dist (p, q) result(val)
     ! Geodesic distance between points on the sphere with coordinates p and q
     implicit none
     type(Coord), intent(in) :: p, q
+    real(dp)                :: val
 
-    dist = radius * asin (sqrt ((p%y * q%z - p%z * q%y)**2 + (p%z * q%x - p%x * q%z)**2 + (p%x * q%y - p%y * q%x)**2)/radius**2)
+    val = radius * asin (sqrt ((p%y * q%z - p%z * q%y)**2 + (p%z * q%x - p%x * q%z)**2 + (p%x * q%y - p%y * q%x)**2)/radius**2)
   end function dist
 
+  
   subroutine min_dist (p, q, dmin, imin)
     ! Minimum distance between a point p and a vector of points q in R3
     implicit none
-    type(Coord),               intent(in)  :: p
-    type(Coord), dimension(:), intent(in)  :: q
-    integer,                   intent(out) :: imin
-    real(dp),                  intent(out) :: dmin
+    type(Coord), intent(in)  :: p
+    type(Coord), intent(in)  :: q(:)
+    integer,     intent(out) :: imin
+    real(dp),    intent(out) :: dmin
 
-    integer                             :: i, n
-    real(dp), dimension(:), allocatable :: diff_pq
+    integer               :: i, n
+    real(dp), allocatable :: diff_pq(:)
 
     n = size (q)
     allocate (diff_pq(n))
@@ -65,35 +72,41 @@ contains
     imin = minloc (diff_pq, 1)
   end subroutine min_dist
 
-  real(dp) function dist_sph (lon1, lat1, lon2, lat2)
+  
+  function dist_sph (lon1, lat1, lon2, lat2) result(val)
     ! Distance between points on the sphere angular coordinates (lat1, lon1) and (lat2, lon2)
     implicit none
     real(dp), intent(in) :: lat1, lat2, lon1, lon2
+    real(dp)             :: val
 
     type(Coord) :: x1, x2
     
     x1 = sph2cart (lon1, lat1)
     x2 = sph2cart (lon2, lat2)
 
-    dist_sph = dist (x1, x2)
+    val = dist (x1, x2)
   end function dist_sph
 
-  real(dp) function geodesic (p, q)
+
+  function geodesic (p, q) result(val)
     ! Great circle (minimum) distance between points with coordinates p and q
     implicit none
     type (Coord), intent(in) :: p, q
+    real(dp)                 :: val
 
     real(dp) :: lat1, lat2, lon1, lon2
 
     call cart2sph (p, lon1, lat1)
     call cart2sph (q, lon2, lat2)
-    geodesic = radius * acos (sin (lat1) * sin (lat2) + cos (lat1) * cos (lat2) * cos (lon2-lon1))
+    
+    val = radius * acos (sin (lat1) * sin (lat2) + cos (lat1) * cos (lat2) * cos (lon2-lon1))
   end function geodesic
 
+  
   subroutine proj_xz_plane (cin, cout)
     implicit none
-    type(Coord),            intent(in)  :: cin
-    real(dp), dimension(2), intent(out) :: cout
+    type(Coord), intent(in)  :: cin
+    real(dp),    intent(out) :: cout(2)
 
     if (cin%y > 0) then
        cout = [ cin%x-radius, cin%z ]
@@ -102,6 +115,7 @@ contains
     end if
   end subroutine proj_xz_plane
 
+  
   subroutine cart2sph (c, lon, lat)
     ! Angular coordinates (in radians) of a point with coordinates c on the sphere
     implicit none
@@ -111,29 +125,34 @@ contains
     lat = asin (c%z/radius)
     lon = atan2 (c%y, c%x)
   end subroutine cart2sph
-
-  type(Coord) function sph2cart (lon, lat)
+  
+  
+  function sph2cart (lon, lat) result(val)
     ! Cartesian coordinates of point with longitude lon and latitude lat on the sphere
     implicit none
     real(dp), intent(in) :: lon, lat
-    
-    sph2cart = radius * Coord (cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat))
+    type(Coord)          :: val
+
+    val = radius * Coord (cos(lon)*cos(lat), sin(lon)*cos(lat), sin(lat))
   end function sph2cart
 
-  type(Coord) function project_on_sphere (p)
+  
+  function project_on_sphere (p) result(val)
     implicit none
     type(Coord), intent(in) :: p
+    type(Coord)             :: val
 
     real(dp) :: r
-
+    
     r = norm (p)
 
     if (r < eps(radius)) then
-       project_on_sphere = ORIGIN
+       val = ORIGIN
     else
-       project_on_sphere = radius * p / r
+       val = radius * p / r
     end if
   end function project_on_sphere
+
   
   subroutine arc_intersect_test (arc1_node1, arc1_node2, arc2_node1, arc2_node2, &
        intersection_pt, intersects, degenerate)
@@ -230,30 +249,38 @@ contains
 
   end subroutine arc_intersect_test
 
-  type(Coord) function vector (init, term)
+  
+  function vector (init, term) result(val)
     implicit none
     type(Coord), intent(in) :: init, term
+    type(Coord)             :: val
 
-    vector = Coord (term%x - init%x, term%y - init%y, term%z - init%z)
+    val = Coord (term%x - init%x, term%y - init%y, term%z - init%z)
   end function vector
+
   
-  real(dp) function inner (u, v)
+  function inner (u, v) result(val)
     implicit none
     type(Coord), intent(in) :: u, v
+    real(dp)                :: val
 
-    inner = u%x*v%x + u%y*v%y + u%z*v%z
+    val = u%x*v%x + u%y*v%y + u%z*v%z
   end function inner
 
-  type(Coord) function cross (u, v)
+  
+  function cross (u, v) result(val)
     implicit none
     type(Coord), intent(in) :: u, v
+    type(Coord)             :: val
 
-    cross = Coord (u%y*v%z - u%z*v%y, u%z*v%x - u%x*v%z, u%x*v%y - u%y*v%x)
+    val = Coord (u%y*v%z - u%z*v%y, u%z*v%x - u%x*v%z, u%x*v%y - u%y*v%x)
   end function cross
 
-  real(dp) function triarea (A, B, C)
+  
+  function triarea (A, B, C) result(val)
     implicit none
     type(Coord), intent(in) :: A, B, C
+    real(dp)                :: val
 
     real(dp) :: ab, ac, bc, s, t
 
@@ -266,49 +293,55 @@ contains
     t = tan(0.5*s) * tan ((s-ab)/2) * tan ((s-ac)/2) * tan ((s-bc)/2) 
 
     if (t < 1e-64_dp) then
-       triarea = 0.0_dp
+       val = 0.0_dp
        return
     end if
 
-    triarea = 4*radius**2 * atan (sqrt (t))
+    val = 4*radius**2 * atan (sqrt (t))
   end function triarea
 
-  real(dp) function distn (p, q)
+  
+  function distn (p, q) result(val)
     implicit none
     type(Coord), intent(in) :: p, q
+    real(dp)                :: val
 
     real(dp) :: sindist
 
     sindist = (1/radius)**2 * sqrt ((p%y*q%z - p%z*q%y)**2 + (p%z*q%x - p%x*q%z)**2 + (p%x*q%y - p%y*q%x)**2)
 
     if (sindist > 1.0_dp) then
-       distn = asin (1.0_dp)
+       val = asin (1.0_dp)
        return
     end if
-    distn = asin (sindist)
+    val = asin (sindist)
   end function distn
 
-  type(Coord) function circumcentre (A, B, C)
+
+  function circumcentre (A, B, C) result(val)
     implicit none
     type(Coord), intent(in) :: A, B, C
+    type(Coord)             :: val
 
     type(Coord) :: centre
 
     centre = cross (Coord(A%x - B%x, A%y - B%y, A%z - B%z), Coord(C%x - B%x, C%y - B%y, C%z - B%z))
 
     if (norm(centre) < eps(radius)) then
-       circumcentre = centre
+       val = centre
        return
     end if
-    circumcentre = project_on_sphere (centre)
+    val = project_on_sphere (centre)
   end function circumcentre
+
   
-  type(Coord) function centroid (points, n)
+ function centroid (points, n) result(val)
     ! Computes centroid of polygon given coordinates for its n nodes
     ! Simple area-weighted average (second-order accurate, stable)
     implicit none
     integer,                   intent(in) :: n
     type(Coord), dimension(n), intent(in) :: points
+    type(Coord)                           :: val
 
     integer     :: i, j
     type(Coord) :: cc
@@ -321,43 +354,50 @@ contains
     end do
     cc = cc / 6.0_dp
     
-    centroid = ORIGIN
+    val = ORIGIN
     do i = 1, n
        j = mod(i,n)+1
        area = triarea (cc, points(i), points(j))
-       centroid = centroid + area * (cc + points(i) + points(j))
+       val = val + area * (cc + points(i) + points(j))
     end do
-    centroid = project_on_sphere (centroid/6.0_dp)
+    val = project_on_sphere (val/6.0_dp)
   end function centroid
 
-  real(dp) function norm (c)
+
+  function norm (c) result(val)
     implicit none
     type(Coord), intent(in) :: c
+    real(dp)                :: val
 
-    norm = sqrt (c%x**2 + c%y**2 + c%z**2)
+    val = sqrt (c%x**2 + c%y**2 + c%z**2)
   end function norm
 
-  type(Coord) function mid_pt (p, q)
+  
+  function mid_pt (p, q) result(val)
     implicit none
     type(Coord), intent(in) :: p, q
+    type(Coord)             :: val
 
-    mid_pt = project_on_sphere (Coord (p%x + q%x, p%y + q%y, p%z + q%z))
+    val = project_on_sphere (Coord (p%x + q%x, p%y + q%y, p%z + q%z))
   end function mid_pt
 
-  type(Coord) function normalize_Coord (self)
+  
+  function normalize_Coord (self) result(val)
     implicit none
     type(Coord), intent(in) :: self
+    type(Coord)             :: val
     
     real(dp) :: nrm
 
     nrm = sqrt (self%x**2 + self%y**2 + self%z**2) + eps (radius)
     if(nrm >= eps(radius)) then
-       normalize_Coord = Coord (self%x/nrm, self%y/nrm, self%z/nrm)
+       val = Coord (self%x/nrm, self%y/nrm, self%z/nrm)
     else
-       normalize_Coord = ORIGIN
+       val = ORIGIN
     end if
   end function normalize_Coord
 
+  
   subroutine init_Coord (self, x, y, z)
     implicit none
     real(dp),    intent(in)  :: x, y, z
@@ -368,11 +408,12 @@ contains
     self%z = z
   end subroutine init_Coord
 
+  
   subroutine init_Areas (self, centre, corners, midpts)
     implicit none
-    type(Coord),               intent(in)  :: centre
-    type(Coord), dimension(6), intent(in)  :: corners, midpts
-    type(Areas),               intent(out) :: self
+    type(Coord), intent(in)  :: centre
+    type(Coord), intent(in)  :: corners(6), midpts(6)
+    type(Areas), intent(out) :: self
     
     integer :: i
 
@@ -383,6 +424,7 @@ contains
     if (sum(self%part) > eps(radius)**2) self%hex_inv = 1.0_dp / sum (self%part)
   end subroutine init_Areas
 
+  
   subroutine wrap_lonlat (lat, lon)
     ! Wraps longitude and latitude onto [-pi,pi] and [-pi/2,pi/2]
     implicit none

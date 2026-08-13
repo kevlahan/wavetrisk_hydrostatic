@@ -24,7 +24,11 @@ module projection_mod
   real(dp), dimension(:),   allocatable :: lat, lon
   real(dp), dimension(:,:), allocatable :: field2d, xcoord_lat, xcoord_lon
   real(dp), dimension(:),   pointer     :: proj_sclr
+
+  
 contains
+
+  
   subroutine initialize_projection (m)
     ! Initialize 2d projection variables on lon-lat grid of size (-m/2, m/2) x (-m/4, m/4)
     implicit none
@@ -64,6 +68,7 @@ contains
        xcoord_lat(i,2) = lat(i) + dy_export/2 / DEG
     end do
   end subroutine initialize_projection
+
   
   subroutine project_field_onto_plane (field, l, default_val)
     ! Projects float field from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
@@ -122,6 +127,7 @@ contains
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_field_onto_plane
 
+  
   subroutine project_array_onto_plane (array, l, default_val)
     ! Projects float array from sphere at grid resolution l to longitude-latitude plane on grid defined by (Nx, Ny)
     implicit none
@@ -209,14 +215,15 @@ contains
     sync_val = default_val
     call sync_array (field2d(Nx(1),Ny(1)), size(field2d))
   end subroutine project_array_onto_plane
+
   
   subroutine interp_tri_to_2d_and_fix_bdry (a0, b0, c0, val)
     implicit none
-    real(dp), dimension(2) :: a0, b0, c0
-    real(dp), dimension(3) :: val
+    real(dp) :: a0(2), b0(2), c0(2)
+    real(dp) :: val(3)
 
-    integer,  dimension(3) :: fixed
-    real(dp), dimension(2) :: a, b, c
+    integer  :: fixed(3)
+    real(dp) :: a(2), b(2), c(2)
 
     a = a0
     b = b0
@@ -239,10 +246,11 @@ contains
     end if
   end subroutine interp_tri_to_2d_and_fix_bdry
 
+  
   subroutine interp_tri_to_2d (a, b, c, val)
     implicit none
-    real(dp), dimension(2) :: a, b, c
-    real(dp), dimension(3) :: val
+    real(dp) :: a(2), b(2), c(2)
+    real(dp) :: val(3)
 
     integer                :: id_x, id_y
     real(dp)               :: ival, minx, maxx, miny, maxy
@@ -272,15 +280,16 @@ contains
     end do
   end subroutine interp_tri_to_2d
 
+  
   subroutine interp_tria (ll, coord1, coord2, coord3, values, ival, inside)
     implicit none
-    real(dp), dimension(2) :: coord1, coord2, coord3
-    real(dp), dimension(3) :: values
-    real(dp)               :: ival
-    logical                :: inside
+    real(dp) :: coord1(2), coord2(2), coord3(2)
+    real(dp) :: values(3)
+    real(dp) :: ival
+    logical  :: inside
 
-    real(dp), dimension(2) :: ll
-    real(dp), dimension(3) :: bc
+    real(dp) :: ll(2)
+    real(dp) :: bc(3)
 
     bc = bary_coord (ll, coord1, coord2, coord3)
     
@@ -290,6 +299,7 @@ contains
     if (inside) ival = sum (values * bc)
   end subroutine interp_tria
 
+  
   function bary_coord (ll, a, b, c) result(val)
     implicit none
     real(dp), intent(in) :: a(2), b(2), c(2), ll(2)
@@ -313,6 +323,7 @@ contains
     val = bac
   end function bary_coord
 
+  
   subroutine fix_boundary (a, b, c, fixed)
     implicit none
     real(dp), intent(inout) :: a
@@ -329,11 +340,14 @@ contains
     end if
   end subroutine fix_boundary
 
-   subroutine cart2sph2 (cin, cout)
+
+  subroutine cart2sph2 (cin, cout)
     implicit none
     type(Coord), intent(in)  :: cin
     real(dp),    intent(out) :: cout(2)
 
     call cart2sph (cin, cout(1), cout(2))
   end subroutine cart2sph2
+
+  
 end module projection_mod

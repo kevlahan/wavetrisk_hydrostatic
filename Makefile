@@ -74,6 +74,7 @@ FFLAGS += -O0 -g2 \
           -Wall \
           -Wextra \
           -Wno-unused-dummy-argument \
+          -Wline-truncation \
           -Wno-trampolines \
           -fcheck=all \
           $(SANFLAGS)
@@ -86,6 +87,7 @@ FFLAGS += -O0 -g \
           -Wall \
           -Wextra \
           -Wno-unused-dummy-argument \
+          -Wline-truncation \
           -Wimplicit-interface \
           -Werror \
           -fmax-errors=10 \
@@ -100,7 +102,9 @@ FFLAGS += -O0 -g \
 else ifeq ($(DEBUG),false)
 
 FFLAGS += -O2 -g \
-              -Wall -Wextra \
+              -Wall \
+              -Wextra \
+              -Wline-truncation \
               -Wno-unused-dummy-argument \
               -Wno-trampolines \
               -fbacktrace \

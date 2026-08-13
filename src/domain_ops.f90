@@ -21,6 +21,7 @@ module domain_ops_mod
   public :: apply_onescale_to_patch5, apply_onescale_to_patch2, apply_interscale, apply_interscale_d, apply_interscale_d2
   public :: apply_interscale_to_patch, apply_interscale_to_patch2, apply_interscale_to_patch22, apply_interscale_to_patch3
   public :: apply_to_pole, apply_to_pole_d, apply_to_pole_patch, apply_to_pole2, apply_to_penta, apply_to_penta_d
+
   
   interface
 
@@ -74,7 +75,7 @@ module domain_ops_mod
        integer,      intent(in)    :: dims(2,N_BDRY+1)
      end subroutine sub5
 
-     subroutine sub6(  &
+     subroutine sub6 (  &
           dom, i_par, j_par, i_chd, j_chd, zlev, &
           offs_par, dims_par, offs_chd, dims_chd)
 
@@ -120,7 +121,7 @@ module domain_ops_mod
        integer,      intent(in)    :: dims(2,N_BDRY+1)
      end subroutine sub8
 
-     subroutine sub9(dom, p, c, offs, dims, zlev)
+     subroutine sub9 (dom, p, c, offs, dims, zlev)
        use shared_mod, only : N_BDRY
        use domain_mod, only : Domain
        implicit none
@@ -132,7 +133,7 @@ module domain_ops_mod
      end subroutine sub9
 
 
-     subroutine sub10(dom, p, i, j, zlev, offs, dims)
+     subroutine sub10 (dom, p, i, j, zlev, offs, dims)
        use shared_mod, only : N_BDRY
        use domain_mod, only : Domain
        implicit none
@@ -142,8 +143,9 @@ module domain_ops_mod
        integer,      intent(in)    :: offs(N_BDRY+1)
        integer,      intent(in)    :: dims(2,N_BDRY+1)
      end subroutine sub10
-
+     
   end interface
+
   
 contains
 

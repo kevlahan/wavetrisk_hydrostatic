@@ -33,7 +33,7 @@ module init_mod
   public :: initialize_dt_viscosity, initialize_thresholds, load, tau_mag, top_buoy_flux, trend_physics, update
   public :: wind_flux, z_coords  
   
-  real(dp), parameter :: YANGLE = 0.0_dp
+  real(dp), parameter :: YANGLE = 0.0_dp ! rotation angle of pentagon about pole
   
   abstract interface
      

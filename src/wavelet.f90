@@ -22,17 +22,20 @@ module wavelet_mod
 
   implicit none
 
+  
   private
   public :: forward_wavelet_transform, forward_scalar_transform
   public :: inverse_wavelet_transform, inverse_scalar_transform, inverse_velo_transform
   public :: Compute_scalar_wavelets, Compute_velo_wavelets, Compute_velo_wavelets_penta, Restrict_velo
   public :: Restrict_scalar, scalar_restriction, init_wavelets, set_RF_wgts, set_WT_wgts
   public :: check_m, Prolong_full_weighting
+
   
   real(dp), parameter :: Iu_Base_Wgt(9) = [16.0_dp, -1.0_dp, 1.0_dp, 1.0_dp, -1.0_dp, -1.0_dp, -1.0_dp, 1.0_dp, 1.0_dp] / 16.0_dp
   
   logical,  parameter :: lapack = .true. ! use lapack or local LU routine
 
+  
   interface
      
      subroutine dgesv(n, nrhs, a, lda, ipiv, b, ldb, info)

@@ -39,6 +39,7 @@ module utils_mod
 
 
   procedure (fun3), pointer :: hex_fun => null ()
+
   
 contains
 

@@ -11,14 +11,14 @@ module physics_Held_Suarez_mod
   use shared_mod, only : DAY, EDGE, KELVIN, METRE, N_BDRY, N_VARIABLE, NONE, S_MASS, S_TEMP, S_VELO, &
        kappa, p_0, p_top, sso,  zmin, zmax, zlevels, z_null
 
-  use comm_mpi_mod,   only : update_bdry
-  use domain_mod,     only : DOMAIN, Float_Field, grid, dmass, dtemp, dvelo, exner, exner_fun, mass, temp, velo, mean_m, mean_t, &
+  use comm_mpi_mod,    only : update_bdry
+  use diagnostics_mod, only : cal_surf_press, integrate_pressure_up
+  use domain_mod,      only : DOMAIN, Float_Field, grid, dmass, dtemp, dvelo, exner, exner_fun, mass, temp, velo, mean_m, mean_t, &
        sol, sol_mean, id_edge, idx
-  use domain_ops_mod, only : apply_onescale_to_patch
-  use geom_mod,       only : cart2sph
-  use ops_mod,        only : cal_surf_press, integrate_pressure_up
-  use sso_mod,        only : sso_drag
-  use utils_mod,      only : zero_float
+  use domain_ops_mod,  only : apply_onescale_to_patch
+  use geom_mod,        only : cart2sph
+  use sso_mod,         only : sso_drag
+  use utils_mod,       only : zero_float
   
   implicit none
 

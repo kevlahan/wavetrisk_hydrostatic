@@ -94,6 +94,7 @@ module dyn_arrays
           dbl_alloc_Iu_Wgt_Array, dbl_alloc_RF_Wgt_Array, &
           dbl_alloc_Patch_Array, dbl_alloc_Bdry_Patch_Array
   end interface dbl_alloc
+
   
 contains
 

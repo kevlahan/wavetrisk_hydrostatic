@@ -17,10 +17,15 @@ module shared_mod
      real(dp) :: part(6)
      real(dp) :: hex_inv
   end type Areas
-
-  real(dp)    :: theta_grid = 0.0_dp    ! rotation of standard icosahedron around pole
   
-  type(coord) :: penta_node_std(12) = [ &   ! coordinates of pentagons (unrotated grid)
+  
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !
+  !   Parameters
+  !
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  
+  type(coord), parameter :: penta_node_std(12) = [ &   ! coordinates of pentagons (unrotated grid)
        Coord ( 0.0,  0.0,  1.0), &
        Coord ( 0.0,  0.0, -1.0), &
 
@@ -49,43 +54,43 @@ module shared_mod
   integer, parameter :: PATCH_LEVEL       = MIN_LEVEL - (DOMAIN_LEVEL + 1) ! patch level: MIN_LEVEL = DOMAIN_LEVEL+1 + PATCH_LEVEL
   
   ! Shifts on regular (i,j) grid
-  integer, parameter :: JPLUS       = 1
-  integer, parameter :: IPLUS       = 2
-  integer, parameter :: JMINUS      = 3
-  integer, parameter :: IMINUS      = 4
-  integer, parameter :: IJPLUS      = 5
-  integer, parameter :: IPLUSJMINUS = 6
-  integer, parameter :: IJMINUS     = 7
-  integer, parameter :: IMINUSJPLUS = 8
+  integer, parameter :: JPLUS             = 1
+  integer, parameter :: IPLUS             = 2
+  integer, parameter :: JMINUS            = 3
+  integer, parameter :: IMINUS            = 4
+  integer, parameter :: IJPLUS            = 5
+  integer, parameter :: IPLUSJMINUS       = 6
+  integer, parameter :: IJMINUS           = 7
+  integer, parameter :: IMINUSJPLUS       = 8
 
   ! Neighbouring patch indices for use in index arrays offs and dims 
-  integer, parameter :: NORTH       = 1
-  integer, parameter :: EAST        = 2
-  integer, parameter :: SOUTH       = 3
-  integer, parameter :: WEST        = 4
-  integer, parameter :: NORTHEAST   = 5
-  integer, parameter :: SOUTHEAST   = 6
-  integer, parameter :: SOUTHWEST   = 7
-  integer, parameter :: NORTHWEST   = 8 
+  integer, parameter :: NORTH             = 1
+  integer, parameter :: EAST              = 2
+  integer, parameter :: SOUTH             = 3
+  integer, parameter :: WEST              = 4
+  integer, parameter :: NORTHEAST         = 5
+  integer, parameter :: SOUTHEAST         = 6
+  integer, parameter :: SOUTHWEST         = 7
+  integer, parameter :: NORTHWEST         = 8 
 
   ! Mask values
-  integer, parameter :: FROZEN   = 32  ! nodes that should not be modified
-  integer, parameter :: TOLRNZ   = 16  ! active nodes
-  integer, parameter :: ADJSPACE = 14  ! adjacent nodes in position (space) only 
-  integer, parameter :: RESTRCT  = 12  ! nodes whose flux can be obtained by restriction from fine level
-  integer, parameter :: ADJZONE  = 8   ! adjacent zone nodes in either position (space) or scale
-  integer, parameter :: TRSK     = 2   ! nodes needed for TRISK operators
+  integer, parameter :: FROZEN            = 32  ! nodes that should not be modified
+  integer, parameter :: TOLRNZ            = 16  ! active nodes
+  integer, parameter :: ADJSPACE          = 14  ! adjacent nodes in position (space) only 
+  integer, parameter :: RESTRCT           = 12  ! nodes whose flux can be obtained by restriction from fine level
+  integer, parameter :: ADJZONE           = 8   ! adjacent zone nodes in either position (space) or scale
+  integer, parameter :: TRSK              = 2   ! nodes needed for TRISK operators
   
-  integer, parameter :: INSIDE = 0
-  integer, parameter :: OUTER1 = 1
-  integer, parameter :: OUTER2 = 2
+  integer, parameter :: INSIDE            = 0
+  integer, parameter :: OUTER1            = 1
+  integer, parameter :: OUTER2            = 2
 
-  ! logical integer parameters
-  integer, parameter :: FALSE = 0
-  integer, parameter :: TRUE  = 1
+  ! Logical integer parameters
+  integer, parameter :: FALSE             = 0
+  integer, parameter :: TRUE              = 1
 
-  integer, parameter :: ZERO =  0 
-  integer, parameter :: NONE = -1
+  integer, parameter :: ZERO              =  0 
+  integer, parameter :: NONE              = -1
 
   ! Nearest two neighbour flux/velocity interpolation points U, V, W (i.e. RT,UP,DG)
   ! 
@@ -162,7 +167,7 @@ module shared_mod
   integer, parameter :: POSIT(1:N_VARIABLE) = [AT_EDGE, AT_NODE, AT_NODE]
 
   ! Indices of sub scale orography model (SSO)
-  integer, parameter    :: S_MU = 1, S_THETA = 2, S_GAMMA = 3, S_SIGMA = 4
+  integer, parameter :: S_MU = 1, S_THETA = 2, S_GAMMA = 3, S_SIGMA = 4
 
   ! Grid optimization choices
   integer, parameter :: NO_OPTIM = 0, XU_GRID = 1, DATA_GRID = 2
@@ -249,7 +254,7 @@ module shared_mod
        [2,10] )
 
   ! Used in grid smoothing routine
-  integer, parameter :: O2(2,3) = reshape([2,3, 3,1, 1,2], [2,3])
+  integer,  parameter :: O2(2,3) = reshape([2,3, 3,1, 1,2], [2,3])
 
   ! Basic constants (uses MKS system of units)
 
@@ -289,7 +294,30 @@ module shared_mod
   real(dp), parameter :: CELSIUS = KELVIN
   real(dp), parameter :: JOULE   = KG * METRE**2 / SECOND**2
   real(dp), parameter :: WATT    = JOULE / SECOND
+
+  ! Line feed character
+  character(1), parameter :: lf  = char(10)                            
   
+
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !
+  !   Initialized variables
+  !
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  ! Names
+  character(255)          :: run_id       = "test"                              ! name of run
+  character(255)          :: test_case    = "climate"                           ! name of test case
+  character(255)          :: topo_file    = " "                                 ! name of file containing multiscale NCAR topography data
+  character(255)          :: physics_type = "Held_Suarez"                       ! physics model used if physics_model is T
+
+  ! Grid variables
+  character(255) :: grid_type                 = "HR95JT"                        ! type of coarse data grid
+  integer        :: optimize_grid             = DATA_GRID                       ! type of optimization of coarse grid
+  integer        :: n_active(AT_NODE:AT_EDGE) = 0                               ! number of active points at grid locations (node and edge)
+  real(dp)       :: theta_grid                = 0.0_dp                          ! rotation of standard icosahedron around pole
+  type(coord)    :: penta_node(12)            = penta_node_std                  ! coordinates of rotated pentagon
+
   ! Simulation variables
   
   ! Initialize values
@@ -303,14 +331,14 @@ module shared_mod
   integer :: istep_cumul             = 0
   integer :: iwrite                  = 0
   integer :: iwrite_init             = 0
-  real(dp) :: time                    = 0.0_dp
   integer :: max_level               = MIN_LEVEL                                ! maximum grid refinement levels in pseudo-horizontal directions
   integer :: level_start             = MIN_LEVEL
   integer :: level_end               = MIN_LEVEL
   integer :: level_fill              = MIN_LEVEL                                ! make all grid points active for scales l <= level_fill
-  integer :: nstep_init              = -1                                       ! nstep_init gradually increasing small time steps after restart
-
-  ! Default logical switches, most are reset in the input file
+  integer :: topo_min_level          = MIN_LEVEL                                ! minimum level of NCAR topography data 
+  integer :: topo_max_level          = MIN_LEVEL                                ! maximum level of NCAR topography data 
+  
+  ! Logical switches
   logical :: adapt_dt                = .false.                                  ! dynamically adapt time step (T) or use time step based on initial conditions (F) 
   logical :: compressible            = .true.                                   ! compressible equations (T) or Boussinesq incompressible (F)
   logical :: default_thresholds      = .true.                                   ! use default thresholds (T) or calculate dynamically (F)
@@ -331,17 +359,22 @@ module shared_mod
   logical :: uniform                 = .true.                                   ! uniform vertical grid in pressure (T) or hybrid (F)
   logical :: vert_diffuse            = .false.                                  ! include vertical diffusion in ocean models (T)
   
-  ! Default numerical method values
-  real(dp) :: cfl_safety              = 0.9_dp                                  ! safety factor for maximum stable advectice time step
-  real(dp) :: dt_phys                 = 30 * MINUTE                             ! interval for physics split step
-  real(dp) :: dt_write                = 5  * DAY                                ! interval for writing data
-  integer  :: iadapt                  = 1                                       ! adapt horizontal grid every iadapt time step
-  integer  :: irebalance              = 5                                       ! interval for checking rebalance (only active if using AMPI)
-  integer  :: iremap                  = 1                                       ! remap counter
-  integer  :: iremap_max              = 5                                       ! maximum remap interval (every iremap_max dt)
-  real(dp) :: min_mass_remap          = 0.9_dp                                  ! minimum relative layer mass compared to initial value at which to remap
-  integer  :: level_save              = MIN_LEVEL                               ! level to save
-  real(dp) :: porosity                = 1e-2_dp                                 ! porosity for solid regions when using penalization
+  ! Numerical method
+  integer(8) :: itime                = 0
+  integer    :: nstep_init           = -1                                       ! nstep_init gradually increasing small time steps after restart
+  integer    :: iadapt               = 1                                        ! adapt horizontal grid every iadapt time step
+  integer    :: irebalance           = 5                                        ! interval for checking rebalance (only active if using AMPI)
+  integer    :: iremap               = 1                                        ! remap counter
+  integer    :: iremap_max           = 5                                        ! maximum remap interval (every iremap_max dt)
+  real(dp)   :: time                 = 0   * DAY
+  real(dp)   :: time_end             = 1   * DAY
+  real(dp)   :: dt                   = 100 * SECOND
+  real(dp)   :: dt_init              = 100 * SECOND
+  real(dp)   :: cfl_safety           = 0.9_dp                                   ! safety factor for maximum stable advectice time step
+  real(dp)   :: dt_phys              = 30 * MINUTE                              ! interval for physics split step
+  real(dp)   :: dt_write             = 5  * DAY                                 ! interval for writing data
+  real(dp)   :: min_mass_remap       = 0.9_dp                                   ! minimum relative layer mass compared to initial value at which to remap
+  real(dp)   :: porosity             = 1e-2_dp                                  ! porosity for solid regions when using penalization
 
   ! Order of Laplacian diffusion  0 = no diffusion, 1 = Laplacian diffusion, 2 = second-order iterated Laplacian hyperdiffusion
   integer  :: Laplace_sclr            = 2                                       ! scalars
@@ -349,14 +382,14 @@ module shared_mod
   integer  :: Laplace_rotu            = 2                                       ! rot u 
   integer  :: n_diffuse               = 1                                       ! include diffusion every n_diffuse steps
 
-  character(255) :: grid_type         = "HR95JT"                                ! type of coarse data grid
-  integer  :: optimize_grid     = DATA_GRID                                     ! type of optimization of coarse grid
-
   character(255) :: remap_type        = "PPR"                                   ! remapping scheme for scalars
   character(255) :: remapscalar_type  = "PPR"                                   ! remapping scheme for scalars
   character(255) :: remapvelo_type    = "PPR"                                   ! remapping scheme for velocity
 
   character(255) :: timeint_type      = "RK4"                                   ! time integration scheme
+  real(dp)       :: r_adv             = 2 * sqrt (2.0_dp)                       ! advective stability constant
+  real(dp)       :: r_dif             = 2.77_dp                                 ! diffusive stability constant
+  
   character(3)   :: linear_solver     = "FMG"                                   ! type of linear solver (for barotropic-barocline mode splitting)      
   character(3)   :: vtk_grid          = "tri"                                   ! type of grid to save when exporting data
   
@@ -366,15 +399,14 @@ module shared_mod
   integer  :: zmax                    = 30                                      ! zmax=zlevels+1 for a separate free surface layer, zmax=zlevels otherwise
   integer  :: Nsoil                   = 0                                       ! number of soil layers in vertical direction: k = [zmin 0], zmin <= 0
 
-  ! Default physical parameters
-  ! (these parameters are typically reset in test case file, but are needed for compilation)
+  ! Physical parameters
   real(dp) :: c_p                     = 1004.64      * JOULE / (KG*KELVIN)      ! specific heat at constant pressure for air (= 3991.87 for seawater)
   real(dp) :: c_v                     = 717.6        * JOULE / (KG*KELVIN)      ! specific heat at constant volume c_v = R_d - c_p
   real(dp) :: gamma                   = 1004.64_dp / 717.6_dp                   ! heat capacity ratio
   real(dp) :: grav_accel              = 9.80616      * METRE / SECOND**2        ! gravitational acceleration
   real(dp) :: p_top                   = 0            * hPa                      ! pressure at upper interface of top vertical layer (should be non-zero for Lin remapping)
   real(dp) :: R_d                     = 287          * JOULE / (KG*KELVIN)      ! ideal gas constant for dry air in joules per kilogram Kelvin
-  real(dp) :: kappa                   = 287.0_dp/1004.64_dp                                ! heat capacity ratio
+  real(dp) :: kappa                   = 287.0_dp/1004.64_dp                     ! heat capacity ratio
   real(dp) :: ref_density             = 0            * KG / METRE**3            ! set ref_density to correct default value below if not set in test case
   real(dp) :: ref_density_air         = 1.225        * KG / METRE**3            ! reference density (compressible case: atmosphere)
   real(dp) :: ref_density_water       = 1028.0       * KG / METRE**3            ! reference density (incompressible case: seawater)
@@ -409,36 +441,38 @@ module shared_mod
   real(dp) :: T_ref                   = 10        * CELSIUS                     ! reference temperature
   real(dp) :: S_ref                   = 35        * GRAM / KG                   ! reference salinity
 
+  ! Nondimensionalization scales
+  real(dp) :: Hdim                    = 4         * KM  
+  real(dp) :: Ldim                    = 6371.22   * KM 
+  real(dp) :: Mudim                   = 1028 * (4e3 / 30)
+  real(dp) :: Pdim                    = 1000      * hPA 
+  real(dp) :: Tdim                    = 1         * DAY
+  real(dp) :: Tempdim                 = 200       * KELVIN
+  real(dp) :: Thetadim                = 1028 * (4e3 / 30 )* 200
+  real(dp) :: Udim                    = 1.0       * METRE / SECOND
+
   ! Theta parameters for barotropic-baroclinic mode splitting: 1 = fully implicit, 0.5 = Crank-Nicolson
   ! (avoid theta = 0.5 due to free surface standing wave instability)
   ! NEMO uses theta = 0.55 to ensure stability while avoiding over-damping  
   real(dp) :: theta1                  = 0.55_dp                                 ! external pressure gradient
   real(dp) :: theta2                  = 0.55_dp                                 ! barotropic flow divergence
 
-  ! Physics model
-  character(255) :: physics_type      = "Held_Suarez"                           ! physics model used if physics_model is T
+  ! Diagnostic values
+  real(dp) :: mass_error              = 0.0_dp
+  real(dp) :: min_mass                = 1.0e16_dp
 
-  character(1), parameter :: lf = char(10)                                      ! line feed character
 
-  integer                 :: topo_min_level, topo_max_level
-  integer(8)              :: itime
-  integer,    allocatable :: n_domain(:), n_node_old(:), n_patch_old(:)
-  integer                 :: n_active(AT_NODE:AT_EDGE) ! number of active points at grid locations (node and edge)
-
-  real(dp)                :: dt, dt_init, time_end
-  real(dp)                :: mass_error, min_mass
-  real(dp)                :: r_adv, r_dif
-  real(dp)                :: Hdim, Ldim, Mudim, Pdim, Tdim, Tempdim, Thetadim, Udim
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !
+  !   Allocatable variables
+  !
+  ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  integer,   allocatable  :: n_domain(:), n_node_old(:), n_patch_old(:)
   real(dp),  allocatable  :: Area_avg(:), dx_avg(:), pressure_save(:)
   real(dp),  allocatable  :: a_vert(:), b_vert(:), a_vert_mass(:), b_vert_mass(:)
   real(dp),  allocatable  :: C_visc(:,:), lnorm(:,:), threshold(:,:), threshold_def(:,:)
-  real(dp)                :: nonunique_pent_locs(10*2**(2*DOMAIN_LEVEL),3)
-  real(dp)                :: unique_pent_locs(12,3)
+
   
-  character(255)          :: run_id, test_case, topo_file
-
-  type(coord)             :: penta_node(12)            ! coordinates of pentagon
-
 contains
   
   

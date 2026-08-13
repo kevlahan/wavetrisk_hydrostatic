@@ -18,7 +18,7 @@ module time_integr_mod
   public :: Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK45_opt, RK4_split
   public :: q1, q2, q3, q4, dq1
   
-  type(Float_Field), dimension(:,:), allocatable :: q1, q2, q3, q4, dq1
+  type(Float_Field), allocatable :: q1(:,:), q2(:,:), q3(:,:), q4(:,:), dq1(:,:)
   
   interface
      subroutine trend_sub (q, dq)
@@ -55,6 +55,7 @@ module time_integr_mod
   
   procedure (dt_integrator),       pointer :: dt_step        => null ()
   procedure (dt_integrator_split), pointer :: dt_step_split  => null ()
+
   
 contains
 

@@ -1,25 +1,25 @@
 module multi_level_mod
   
   use kind_mod,   only : dp
-
   use shared_mod, only : bfly_no2, nghb_pt, hex_sides, hex_s_offs, N_VARIABLE, zlevels, N_BDRY,  N_CHDRN, &
+       LORT, UPLT, TRIAG, &
        ADJZONE, EDGE, MM, MP, PM, PP, UMZ, UPZ, UZM, UZP, VMM, VMPP, VMP, VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
        level_end, level_start, NONE,RT, DG, UP, z_null, RESTRCT, S_MASS, S_TEMP, S_VELO, S_DIVU, S_ROTU, &
-       Laplace_divu, Laplace_rotu, Laplace_sclr, AT_EDGE, AT_NODE, scalars
+       Laplace_divu, Laplace_rotu, Laplace_sclr, AT_EDGE, AT_NODE, scalars, eps, radius
 
-  use comm_mpi_mod,   only : update_bdry, update_bdry__start, update_bdry__finish
-  use domain_ops_mod, only : apply_interscale_to_patch, apply_interscale_to_patch3, apply_onescale_to_patch, apply_to_penta_d 
-  use init_mod,       only : u_source    
-  use patch_mod,      only : PATCH_SIZE
-  use utils_mod,      only : zero_float
+  use comm_mpi_mod,    only : update_bdry, update_bdry__start, update_bdry__finish
+  use diagnostics_mod, only : cal_div, cal_surf_press, integrate_pressure_up, post_vort
+  use domain_ops_mod,  only : apply_interscale_to_patch, apply_interscale_to_patch3, apply_onescale_to_patch, apply_to_penta_d 
+  use init_mod,        only : u_source    
+  use ops_mod,         only : du_grad, du_source, post_step1, scalar_trend, step1
+  use patch_mod,       only : PATCH_SIZE
+  use utils_mod,       only : zero_float
   
   use domain_mod, only : Domain, Float_Field, grid, bernoulli, exner, exner_fun, ke, qe, mean_m, mean_t, sol, sol_mean, &
        horiz_flux, h_mflux, h_flux, divu, dvelo, mass, temp, velo, scalar, vort, &
        Laplacian_scalar, Laplacian_vector, dscalar, Laplacian, &
        ed_idx, idx, idx2
 
-  use ops_mod, only : cal_div, cal_surf_press, du_grad, du_source, cal_Laplacian_rotu, integrate_pressure_up, post_step1,  &
-       post_vort, scalar_trend, step1
     
   implicit none
 
@@ -354,12 +354,41 @@ contains
     end do
   end subroutine cal_Laplacian_divu
 
-  
+
+  subroutine cal_Laplacian_rotu (dom, i, j, zlev, offs, dims)
+    ! Curl of vorticity given at triangle circumcentres x_v, i.e. rotational part of vector Laplacian
+    ! output is at edges x_e
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer :: id, idS, idW
+
+    id   = idx (i,   j,   offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+
+    Laplacian(EDGE*id+RT+1) = - (vort(TRIAG*id+LORT+1) - vort(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+
+    if (dom%pedlen%elts(EDGE*id+DG+1) > eps (radius)) then
+       Laplacian(EDGE*id+DG+1) = - (vort(TRIAG*id+LORT+1) - vort(TRIAG*id+UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+    else
+       Laplacian(EDGE*id+DG+1) = 0.0_dp
+    end if
+
+    Laplacian(EDGE*id+UP+1) = - (vort(TRIAG*idW+LORT+1) - vort(TRIAG*id+UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+  end subroutine cal_Laplacian_rotu
+
+
   subroutine cpt_or_restr_scalar (dom, l)
     ! Restrict scalar if possible for grad(scalar) computation
-    
+
     implicit none
-    
+
     type(Domain), intent(inout) :: dom
     integer,      intent(in)    :: l
 

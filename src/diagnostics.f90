@@ -1,18 +1,21 @@
 module diagnostics_mod
 
   ! Diagnostic routines and functions for physical quantities
-  
-  use kind_mod,   only : dp
-  use shared_mod, only : ADJZONE, EDGE, MATH_PI, N_BDRY, RT, DG, UP, S_MASS, S_TEMP, S_VELO, TRIAG, LORT, UPLT, &
-       c_p, compressible, grav_accel, H_rho, kappa, mode_split, omega, p_0, pressure_save, R_d, radius, ref_density, zlevels
 
-  use domain_ops_mod, only : apply_onescale_to_patch
+  use kind_mod,   only : dp
+  use shared_mod, only : ADJZONE, EDGE, MATH_PI, N_BDRY, N_VARIABLE, RT, DG, UP, S_MASS, S_TEMP, S_VELO, TRIAG, LORT, UPLT, &
+       IJMINUS, IJPLUS, IMINUSJPLUS, IPLUSJMINUS, &
+       c_p, compressible, grav_accel, H_rho, kappa, mode_split, omega, p_0, pressure_save, R_d, radius, ref_density, zlevels, &
+       eps, p_top, z_null
+
+  use domain_ops_mod, only : apply, apply_onescale_to_patch
   use init_mod,       only : surf_geopot
   use integrate_mod,  only : integrate_hex
+  use patch_mod,      only : PATCH_SIZE
   use utils_mod,      only : dz_l, interp, porous_density, pressure_i, z_i
 
-  use domain_mod,     only : Domain, Float_Field, exner_fun, grid, ke, mass, temp, mean_m, mean_t, scalar, &
-       sol, sol_mean, topography, trend, velo, velo1, velo2, idx
+  use domain_mod,     only : Domain, Float_Field, dscalar, exner, exner_fun, grid, h_flux, ke, mass, temp, mean_m, mean_t, scalar, &
+       sol, sol_mean, topography, trend, velo, velo1, velo2, vort, idx
 
   implicit none
 
@@ -23,12 +26,14 @@ module diagnostics_mod
   public :: theta2temp, temp2theta
   public :: buoyancy, cal_buoyancy, density_i, density_e, potential_density, potential_buoyancy, theta_i
   public :: f_coriolis_edge, f_coriolis_node
-  public :: cal_density, cal_geopot, cal_temp
+  public :: cal_density, cal_div, cal_geopot, cal_surf_press, cal_temp, cal_vort, post_vort, integrate_pressure_up
+  public :: curlv_e, div, gradi_e
   public :: kinetic_energy, pot_energy, pot_enstrophy, topo, total_ke, u_mag, umag
   public :: layer1_ke, layer2_ke, one_layer_ke, barotropic_ke, baroclinic_velocity, barotropic_velocity
 
 
 contains
+
 
   function barotropic_ke (dom, i, j, zlev, offs, dims) result(val)
     implicit none
@@ -246,18 +251,33 @@ contains
     end if
   end subroutine cal_density
 
+  subroutine cal_div (dom, i, j, zlev, offs, dims)
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer :: id
+
+    id = idx (i, j, offs, dims) + 1
+
+    dscalar(id) = div (h_flux, dom, i, j, offs, dims)
+  end subroutine cal_div
 
   subroutine cal_geopot (dom, i, j, zlev, offs, dims)
     ! Compute geopotential in compressible case
     ! Assumes that temperature has already been calculated and stored in exner_fun
-    
+
     implicit none
 
     type(Domain), intent(inout) :: dom
     integer,      intent(in)    :: i, j, zlev
     integer,      intent(in)    :: offs(N_BDRY+1) 
     integer,      intent(in)    :: dims(2,N_BDRY+1) 
-   
+
     integer :: id, d, k
     real(dp) :: rho_dz, pressure_lower, pressure_upper
 
@@ -289,10 +309,133 @@ contains
          + R_d/grav_accel * exner_fun(k)%data(d)%elts(id) * (log(pressure_lower) - log(pressure_save(1)))
   end subroutine cal_geopot
 
+  
+  subroutine cal_surf_press (q)
+    ! Compute surface pressure and save in press_lower for upward integration
+    ! Set geopotential to surface geopotential for upward integration
+
+    implicit none
+
+    type(Float_Field), intent(inout), target :: q(N_VARIABLE,1:zlevels)
+
+    integer :: d, k, p
+
+    call apply (set_surf_geopot, z_null)
+
+    do d = 1, size(grid)
+       grid(d)%surf_press%elts = 0.0_dp
+       do k = 1, zlevels
+          mass   =>        q(S_MASS,k)%data(d)%elts
+          temp   =>        q(S_TEMP,k)%data(d)%elts
+          mean_m => sol_mean(S_MASS,k)%data(d)%elts
+          mean_t => sol_mean(S_TEMP,k)%data(d)%elts
+          do p = 3, grid(d)%patch%length
+             call apply_onescale_to_patch (column_mass, grid(d), p-1, k, 0, 1)
+          end do
+          nullify (mass, mean_m, mean_t, temp)
+       end do
+       grid(d)%surf_press%elts  = grav_accel * grid(d)%surf_press%elts + p_top
+
+       grid(d)%press_lower%elts = grid(d)%surf_press%elts
+    end do
+  end subroutine cal_surf_press
+
+
+  subroutine column_mass (dom, i, j, zlev, offs, dims)
+    ! Sum up mass
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer  :: id
+    real(dp) :: rho_dz, rho_dz_theta
+
+    id = idx (i, j, offs, dims) + 1
+
+    rho_dz = mean_m(id) + mass(id)
+    if (compressible) then
+       dom%surf_press%elts(id) = dom%surf_press%elts(id) + rho_dz
+    else
+       rho_dz_theta = mean_t(id) + temp(id)
+       
+       dom%surf_press%elts(id) = dom%surf_press%elts(id) + (rho_dz - rho_dz_theta)
+    end if
+  end subroutine column_mass
+
+
+  subroutine set_surf_geopot (dom, i, j, zlev, offs, dims)
+    ! Set initial geopotential to surface geopotential (negative for incompressible ocean flows)
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer :: d, id
+
+    d = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    if (compressible) then
+       dom%geopot%elts(id) = surf_geopot (d, id)
+    else
+       dom%geopot%elts(id) = grav_accel * topography%data(d)%elts(id)
+    end if
+  end subroutine set_surf_geopot
+
+   subroutine integrate_pressure_up (dom, i, j, zlev, offs, dims)
+    ! Integrate pressure (compressible case)/Lagrange multiplier (incompressible case) and geopotential up from surface to top layer
+    !
+    ! Hydrostatic equilibrium:  dP = - g rho dz 
+    ! compressible case:   rho dz = mu, rho = P / (kappa theta pi)
+    ! incompressible case: rho dz = (1 - theta) mu = mu - Theta
+    
+    implicit none
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer  :: d, id
+    real(dp) :: dz, rho_dz, rho_dz_theta, p_upper
+    
+    d = dom%id + 1
+    id = idx (i, j, offs, dims) + 1
+
+    rho_dz       = mean_m(id) + mass(id)
+    rho_dz_theta = mean_t(id) + temp(id)
+    dz           = rho_dz / porous_density (d, id, zlev)
+    
+    dom%geopot_lower%elts(id) = dom%geopot%elts(id)
+    if (compressible) then ! compressible case:, rho = P / (kappa theta pi)
+       p_upper = dom%press_lower%elts(id) - grav_accel * rho_dz
+
+       dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
+
+       exner(id) = c_p * (dom%press%elts(id)/p_0)**kappa
+
+       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel * kappa * rho_dz_theta * exner(id) / dom%press%elts(id)
+    else ! incompressible case
+       p_upper = dom%press_lower%elts(id) - grav_accel * (rho_dz - rho_dz_theta)
+
+       dom%press%elts(id) = interp (dom%press_lower%elts(id), p_upper)
+
+       dom%geopot%elts(id) = dom%geopot_lower%elts(id) + grav_accel * dz
+    end if
+    dom%press_lower%elts(id) = p_upper
+  end subroutine integrate_pressure_up
+
 
   subroutine cal_temp (dom, i, j, zlev, offs, dims)
     ! Compute temperature in compressible case
-    
+
     implicit none
 
     type(Domain), intent(inout) :: dom
@@ -332,8 +475,143 @@ contains
        trend(1,k)%data(d)%elts(id) = rho_dz_theta / rho_dz * (pressure_save(k) / p_0)**kappa
     end do
   end subroutine cal_temp
+  
+
+  subroutine cal_vort (dom, i, j, zlev, offs, dims)
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: i, j, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer  :: id, idE, idN
+    real(dp) :: u_prim_RT, u_prim_DG, u_prim_UP, u_prim_UP_E, u_prim_RT_N
+
+    id  = idx (i,   j,   offs, dims)
+    idE = idx (i+1, j,   offs, dims)
+    idN = idx (i,   j+1, offs, dims)
+
+    u_prim_RT   = velo(EDGE*id+RT +1) * dom%len%elts(EDGE*id +RT+1)
+    u_prim_DG   = velo(EDGE*id+DG +1) * dom%len%elts(EDGE*id +DG+1)
+    u_prim_UP   = velo(EDGE*id+UP +1) * dom%len%elts(EDGE*id +UP+1)
+    u_prim_UP_E = velo(EDGE*idE+UP+1) * dom%len%elts(EDGE*idE+UP+1)
+    u_prim_RT_N = velo(EDGE*idN+RT+1) * dom%len%elts(EDGE*idN+RT+1)
+
+    if (dom%triarea%elts(TRIAG*id+LORT+1) > eps (radius**2)) then
+       vort(TRIAG*id+LORT+1) =   (u_prim_RT + u_prim_UP_E + u_prim_DG  ) / dom%triarea%elts(TRIAG*id+LORT+1)
+    else
+       vort(TRIAG*id+LORT+1) = 0.0_dp
+    endif
+
+    if (dom%triarea%elts(TRIAG*id+UPLT+1) > eps (radius**2)) then
+       vort(TRIAG*id+UPLT+1) = - (u_prim_DG + u_prim_UP   + u_prim_RT_N) / dom%triarea%elts(TRIAG*id+UPLT+1)
+    else
+       vort(TRIAG*id+UPLT+1) = 0.0_dp
+    end if
+  end subroutine cal_vort
+  
+  
+  subroutine post_vort (dom, p, c, offs, dims, zlev)
+    ! Correct values for vorticity and qe at pentagon points
+    
+    implicit none
+    
+    type(Domain), intent(inout) :: dom
+    integer,      intent(in)    :: p, c, zlev
+    integer,      intent(in)    :: offs(N_BDRY+1)
+    integer,      intent(in)    :: dims(2,N_BDRY+1)
+
+    integer  :: id, idS, idW, idSW, idN
+    real(dp) :: u_prim_RT, u_prim_RT_N, u_prim_RT_SW, u_prim_RT_W, u_prim_DG_SW, u_prim_UP, u_prim_UP_S, u_prim_UP_SW
+
+    ! Parts 4, 5 of hexagon IJMINUS  (lower left corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*idSW+DG+1) = 0 in this case
+    if (c == IJMINUS) then
+       idS  = idx ( 0, -1, offs, dims)
+       idSW = idx (-1, -1, offs, dims)
+       idW  = idx (-1,  0, offs, dims)
+
+       u_prim_RT_W  = velo(EDGE*idW +RT+1) * dom%len%elts(EDGE*idW +RT+1)
+       u_prim_RT_SW = velo(EDGE*idSW+RT+1) * dom%len%elts(EDGE*idSW+RT+1) 
+       u_prim_UP_S  = velo(EDGE*idS +UP+1) * dom%len%elts(EDGE*idS +UP+1)
+
+       vort(TRIAG*idSW+LORT+1) = (u_prim_UP_S - u_prim_RT_W + u_prim_RT_SW) / dom%triarea%elts(TRIAG*idSW+LORT+1)
+       vort(TRIAG*idSW+UPLT+1) = vort(TRIAG*idSW+LORT+1)
+    end if
+
+    ! Parts 5, 6 of hexagon IPLUSJMINUS (lower right corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*idS+UP+1) = 0 in this case
+    if (c == IPLUSJMINUS) then 
+       id   = idx (PATCH_SIZE,    0, offs, dims)
+       idS  = idx (PATCH_SIZE,   -1, offs, dims)
+       idSW = idx (PATCH_SIZE-1, -1, offs, dims)
+
+       u_prim_RT_SW = velo(EDGE*idSW+RT+1)*dom%len%elts(EDGE*idSW+RT+1)
+       u_prim_DG_SW = velo(EDGE*idSW+DG+1)*dom%len%elts(EDGE*idSW+DG+1)
+       u_prim_RT    = velo(EDGE*id  +RT+1)*dom%len%elts(EDGE*id  +RT+1)
+
+       vort(TRIAG*idSW+LORT+1) = (- u_prim_RT + u_prim_RT_SW + u_prim_DG_SW) / dom%triarea%elts(TRIAG*idSW+LORT+1)
+       vort(TRIAG*idS +UPLT+1) = vort(TRIAG*idSW+LORT+1)
+    end if
+
+    ! Parts 3, 4 of hexagon IMINUSJPLUS (upper left corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*idW+RT+1) = 0 in this case
+    if (c == IMINUSJPLUS) then
+       id   = idx ( 0, PATCH_SIZE,   offs, dims)
+       idSW = idx (-1, PATCH_SIZE-1, offs, dims)
+       idW  = idx (-1, PATCH_SIZE,   offs, dims)
+
+       u_prim_UP    = velo(EDGE*id  +UP+1) * dom%len%elts(EDGE*id  +UP+1)
+       u_prim_DG_SW = velo(EDGE*idSW+DG+1) * dom%len%elts(EDGE*idSW+DG+1)
+       u_prim_UP_SW = velo(EDGE*idSW+UP+1) * dom%len%elts(EDGE*idSW+UP+1)
+
+       vort(TRIAG*idSW+UPLT+1) = (u_prim_UP - u_prim_DG_SW - u_prim_UP_SW) / dom%triarea%elts(TRIAG*idSW+UPLT+1)  
+       vort(TRIAG*idW +LORT+1) = vort(TRIAG*idSW+UPLT+1)
+    end if
+
+    ! Parts 1, 2 of hexagon IJPLUS (upper right corner of lozenge) combined to form pentagon
+    ! Note that pedlen(EDGE*id+DG+1) = 0 in this case
+    if (c == IJPLUS) then 
+       id  = idx (PATCH_SIZE, PATCH_SIZE,   offs, dims)
+       idN = idx (PATCH_SIZE, PATCH_SIZE+1, offs, dims)
+
+       u_prim_RT   = velo(EDGE*id +RT+1) * dom%len%elts(EDGE*id +RT+1)
+       u_prim_RT_N = velo(EDGE*idN+RT+1) * dom%len%elts(EDGE*idN+RT+1)
+       u_prim_UP   = velo(EDGE*id +UP+1) * dom%len%elts(EDGE*id +UP+1)
+
+       vort(TRIAG*id+LORT+1) = (u_prim_RT - u_prim_RT_N - u_prim_UP) / dom%triarea%elts(TRIAG*id+LORT+1)
+       vort(TRIAG*id+UPLT+1) = vort(TRIAG*id+LORT+1)
+    end if
+  end subroutine post_vort
 
 
+  function curlv_e (curl, dom, i, j, offs, dims) result(val)
+    ! Curl of vorticity given at triangle circumcentres x_v, rot(rot(u))
+    ! output is at edges x_e
+
+    implicit none
+
+    real(dp), pointer, intent(in)    :: curl(:)
+    type(Domain),      intent(inout) :: dom
+    integer,           intent(in)    :: i, j
+    integer,           intent(in)    :: offs(N_BDRY+1)
+    integer,           intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                        :: val(3)
+    
+    integer :: id, idS, idW
+
+    id   = idx (i,   j,   offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+
+    val(RT+1) = (curl(TRIAG*id +LORT+1) - curl(TRIAG*idS+UPLT+1)) / dom%pedlen%elts(EDGE*id+RT+1)
+    val(DG+1) = (curl(TRIAG*id +LORT+1) - curl(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+DG+1)
+    val(UP+1) = (curl(TRIAG*idW+LORT+1) - curl(TRIAG*id +UPLT+1)) / dom%pedlen%elts(EDGE*id+UP+1)
+  end function curlv_e
+
+  
   function density_i (dom, i, j, zlev, offs, dims, q) result(val)
     ! Density at nodes
 
@@ -345,13 +623,13 @@ contains
     integer,           intent(in)         :: dims(2,N_BDRY+1)
     type(Float_Field), intent(in), target :: q(:,:)
     real(dp)                              :: val
-    
+
     integer  :: d, id
     real(dp) :: rho_dz, rho_dz_theta, p, temp
 
     d = dom%id + 1
     id  = idx (i, j, offs, dims) + 1
-    
+
     if (compressible) then ! rho = P / (kappa theta pi)
        rho_dz_theta = sol_mean(S_TEMP,zlev)%data(d)%elts(id) + q(S_TEMP,zlev)%data(d)%elts(id)
        rho_dz       = sol_mean(S_MASS,zlev)%data(d)%elts(id) + q(S_MASS,zlev)%data(d)%elts(id)
@@ -359,14 +637,14 @@ contains
        p    = pressure_i (dom, i, j, zlev, offs, dims, sol)
 
        temp = (rho_dz_theta / rho_dz) * (p/p_0)**kappa ! temperature
-       
+
        val = p / (R_d * temp) 
     else                   ! gravitational density using Boussinesq approximation
        val = ref_density * (1.0_dp - buoyancy (dom, i, j, zlev, offs, dims, q))
     end if
   end function density_i
 
-  
+
   function density_e (dom, i, j, zlev, offs, dims, q) result(val)
     ! Density at edges
     ! *** compressible case requires pressure at zlev ***
@@ -379,7 +657,7 @@ contains
     integer,      intent(in)              :: dims(2,N_BDRY+1)
     type(Float_Field), intent(in), target :: q(:,:)
     real(dp)                              :: val(EDGE)
-    
+
     real(dp) :: rho(0:EDGE) 
 
     rho(0)    = density_i (dom, i,   j,   zlev, offs, dims, q)
@@ -389,6 +667,30 @@ contains
 
     val= 0.5 * (rho(0) + rho(1:EDGE))
   end function density_e
+
+
+  function div (hflux, dom, i, j, offs, dims) result(val)
+    ! Divergence at nodes x_i given horizontal fluxes at edges x_e
+
+    implicit none
+
+    real(dp), pointer, intent(in)    :: hflux(:)
+    type(Domain),      intent(inout) :: dom
+    integer,           intent(in)    :: i, j
+    integer,           intent(in)    :: offs(N_BDRY+1)
+    integer,           intent(in)    :: dims(2,N_BDRY+1)
+    real(dp)                        :: val
+
+    integer :: id, idW, idS, idSW
+
+    id   = idx (i,   j,   offs, dims)
+    idS  = idx (i,   j-1, offs, dims)
+    idW  = idx (i-1, j,   offs, dims)
+    idSW = idx (i-1, j-1, offs, dims)
+
+    val = (hflux(EDGE*id+RT+1)-hflux(EDGE*idW+RT+1) + hflux(EDGE*idSW+DG+1)-hflux(EDGE*id+DG+1) &
+         + hflux(EDGE*id+UP+1)-hflux(EDGE*idS+UP+1)) * dom%areas%elts(id+1)%hex_inv
+  end function div
 
 
   function eta_e (dom, i, j, zlev, offs, dims, q) result(val)
@@ -432,7 +734,7 @@ contains
     integer,      intent(in) :: i, j, zlev
     integer,      intent(in) :: offs(N_BDRY+1)
     integer,      intent(in) :: dims(2,N_BDRY+1)
-   
+
     real(dp)                 :: val(EDGE) 
 
     integer :: id
@@ -442,12 +744,12 @@ contains
     val = dom%midpt%elts(EDGE*id+RT+1:EDGE*id+UP+1)%z / radius * 2*omega
   end function f_coriolis_edge
 
-  
+
   function f_coriolis_node (dom, i, j, zlev, offs, dims) result(val)
     ! Coriolis parameter at nodes
 
     implicit none
-    
+
     type(Domain), intent(in) :: dom
     integer,      intent(in) :: i, j, zlev
     integer,      intent(in) :: offs(N_BDRY+1)
@@ -466,7 +768,7 @@ contains
     ! Computes free surface perturbations
 
     implicit none
-    
+
     type(Domain),      intent(in)         :: dom
     integer,           intent(in)         :: i, j, zlev
     integer,           intent(in)         :: offs(N_BDRY+1) 
@@ -485,11 +787,37 @@ contains
        rho_dz = sol_mean(S_MASS,k)%data(d)%elts(id_i) + q(S_MASS,k)%data(d)%elts(id_i)
        total_depth = total_depth + rho_dz /  porous_density (d, id_i, k)
     end do
-    
+
     val = total_depth + topography%data(d)%elts(id_i)
   end function free_surface
 
-  
+
+  function gradi_e (scalar, dom, i, j, offs, dims) result(val)
+    ! Gradient of a scalar at nodes x_i
+    ! output is at edges
+
+    implicit none
+
+    real(dp), pointer, intent(in) :: scalar(:)
+    type(Domain), intent(inout)   :: dom
+    integer,      intent(in)      :: i, j
+    integer,      intent(in)      :: offs(N_BDRY+1)
+    integer,      intent(in)      :: dims(2,N_BDRY+1)
+    real(dp)                      :: val(3)
+
+    integer :: id, idE, idN, idNE
+
+    id   = idx (i,   j,   offs, dims)
+    idE  = idx (i+1, j,   offs, dims)
+    idN  = idx (i,   j+1, offs, dims)
+    idNE = idx (i+1, j+1, offs, dims)
+
+    val(RT+1) = (scalar(idE+1) - scalar(id+1))  /dom%len%elts(EDGE*id+RT+1)
+    val(DG+1) = (scalar(id+1)  - scalar(idNE+1))/dom%len%elts(EDGE*id+DG+1)
+    val(UP+1) = (scalar(idN+1) - scalar(id+1))  /dom%len%elts(EDGE*id+UP+1)
+  end function gradi_e
+
+
   function kinetic_energy (dom, i, j, zlev, offs, dims) result(val)
     ! Kinetic energy u^2/2 at level zlev using approximation to TRiSK formula
 
@@ -631,10 +959,10 @@ contains
   end function layer2_ke
 
 
-   function N_i (dom, i, j, zlev, offs, dims) result(val)
+  function N_i (dom, i, j, zlev, offs, dims) result(val)
     ! Brunt-Vaisala frequency at nodes at layer interface above layer zlev
     ! *** need zlev /= zlevels ***
-    
+
     implicit none
 
     type(Domain),                   intent(inout) :: dom
@@ -668,10 +996,10 @@ contains
     end if
   end function N_i
 
-  
+
   function N_e (dom, i, j, zlev, offs, dims) result(val)
     ! Brunt-Vaisala frequency at edges at layer interfaces
-    
+
     implicit none
 
     type(Domain),                   intent(inout) :: dom
@@ -793,9 +1121,9 @@ contains
   end function pot_enstrophy
 
 
-   function potential_density (dom, i, j, zlev, offs, dims, q) result(val)
+  function potential_density (dom, i, j, zlev, offs, dims, q) result(val)
     ! Potential density at nodes (neglect free surface perturbation)
-     
+
     implicit none
 
     type(Domain),      intent(in)         :: dom
@@ -819,7 +1147,7 @@ contains
 
   function potential_buoyancy (dom, i, j, zlev, offs, dims, q) result(val)
     ! Potential buoyancy at nodes (neglect free surface perturbation)
-    
+
     implicit none
 
     type(Domain)                              :: dom
@@ -842,7 +1170,7 @@ contains
 
 
   function rho_dz_i (dom, i, j, zlev, offs, dims) result(val)
-    
+
     implicit none
 
     type(Domain), intent(inout) :: dom
@@ -855,7 +1183,7 @@ contains
 
     d = dom%id + 1
     id = idx (i, j, offs, dims)
-    
+
     val = sol(S_MASS,zlev)%data(d)%elts(id+1) + sol_mean(S_MASS,zlev)%data(d)%elts(id+1)
   end function rho_dz_i
 
@@ -936,7 +1264,7 @@ contains
 
     d = dom%id + 1
     id = idx (i, j, offs, dims) + 1
-    
+
     val = topography%data(d)%elts(id)
   end function topo
 
@@ -951,7 +1279,7 @@ contains
     integer,      intent(in)    :: offs(N_BDRY+1) 
     integer,      intent(in)    :: dims(2,N_BDRY+1)
     real(dp)                    :: val
-    
+
     integer  :: id
     real(dp) :: prim_dual(1:EDGE), u(1:EDGE)
 
@@ -1033,4 +1361,5 @@ contains
          * dom%areas%elts(id+1)%hex_inv/(4.0_dp*MATH_PI*radius**2)) 
   end subroutine cal_umag
 
+  
 end module diagnostics_mod

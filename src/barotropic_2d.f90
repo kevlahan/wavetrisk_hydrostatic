@@ -1,16 +1,17 @@
 module barotropic_2d_mod
+  
   ! Files needed to solve barotropic free surface
   
   use kind_mod,   only : dp
-
   use shared_mod, only : AT_NODE, EDGE, N_BDRY, N_CHDRN, N_VARIABLE, NONE, POSIT, RESTRCT, S_MASS, S_TEMP, S_VELO, RT, DG, UP, &
        dt, grav_accel, level_start, level_end, ref_density, scalars, theta1, theta2, z_null, zlevels, zmax
 
-  use comm_mpi_mod,    only : update_bdry 
+  use comm_mpi_mod,    only : update_bdry
+  use diagnostics_mod, only : cal_div
   use domain_ops_mod,  only : apply_onescale, apply_onescale_to_patch, apply_interscale_to_patch3
   use init_mod,        only : elliptic_solver
   use multi_level_mod, only : cpt_or_restr_flux
-  use ops_mod,         only : cal_div,  step1
+  use ops_mod,         only : step1
   use utils_mod,       only : equals_float_field, interp, phi_node, porous_density, zero_float_field
 
   use domain_mod, only : Domain, exner_fun, Float_Field, grid, dscalar, h_flux, horiz_flux, idx, laplacian_scalar, &

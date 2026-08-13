@@ -4,6 +4,7 @@ module test_case_mod
   use shared_mod
   use arch_mod
   use comm_mpi_mod
+  use diagnostics_mod
   use domain_mod
   use domain_ops_mod
   use geom_mod

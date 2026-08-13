@@ -1,7 +1,6 @@
 module lin_solve_mod
   ! Module providing two adaptive multi-grid linear equation solvers: Full Multigrid and Scheduled Relaxation Jacobi
-  use kind_mod,       only : dp
-
+  use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, AT_NODE, Coord, EDGE, eps, level_start, level_end, log_iter, &
        MATH_PI, N_BDRY, NONE, RT, DG, UP, S_MASS, S_TEMP, z_null
 
@@ -19,25 +18,25 @@ module lin_solve_mod
   public :: Full_Multigrid, Scheduled_Relaxation_Jacobi
   public :: elliptic_fun, elliptic_fun_diag
   
-  logical :: test_elliptic = .false.   ! run elliptic test case
+  logical, parameter :: test_elliptic = .false.   ! run elliptic test case
 
   ! Linear solver parameters
-  integer  :: coarse_iter   = 50       ! maximum number of coarse scale bicgstab iterations for elliptic solver
-  real(dp) :: fine_tol      = 1e-3_dp  ! tolerance for fine scale jacobi iterations
-  real(dp) :: coarse_tol    = 1e-3_dp  ! tolerance for coarse scale bicgstab elliptic solver
+  integer, parameter  :: coarse_iter   = 50       ! maximum number of coarse scale bicgstab iterations for elliptic solver
+  real(dp), parameter  :: fine_tol     = 1e-3_dp  ! tolerance for fine scale jacobi iterations
+  real(dp), parameter  :: coarse_tol   = 1e-3_dp  ! tolerance for coarse scale bicgstab elliptic solver
 
   ! Full multigrid parameters
-  integer :: max_vcycle     = 3        ! maximum number of each V-cycle iterations
-  integer :: down_iter      = 2        ! down V-cycle smoothing iterations
-  integer :: up_iter        = 2        ! up V-cycle smoothing iterations
-  integer :: post_iter      = 4        ! post V-cycle smoothing iterations
-  integer :: pre_iter       = 2        ! pre V-cycle smoothing iterations
+  integer, parameter  :: max_vcycle    = 3        ! maximum number of each V-cycle iterations
+  integer, parameter  :: down_iter     = 2        ! down V-cycle smoothing iterations
+  integer, parameter  :: up_iter       = 2        ! up V-cycle smoothing iterations
+  integer, parameter  :: post_iter     = 4        ! post V-cycle smoothing iterations
+  integer, parameter  :: pre_iter      = 2        ! pre V-cycle smoothing iterations
 
   ! Scheduled Relaxation Jacobi parameters
-  integer :: max_srj_iter   = 200      ! maximum number of SRJ iterations
-  integer, parameter ::  m  = 8        ! number of distinct relaxation parameters
-  real(dp) ::            k1 = 3e-2_dp  ! empirically optimized, 0 < k1 <= k2
-  real(dp) ::            k2 = 1.8_dp
+  integer             :: max_srj_iter  = 200      ! maximum number of SRJ iterations
+  integer,  parameter :: m             = 8        ! number of distinct relaxation parameters
+  real(dp), parameter :: k1            = 3e-2_dp  ! empirically optimized, 0 < k1 <= k2
+  real(dp), parameter :: k2            = 1.8_dp
 
   real(dp)                        :: dot_product_loc, l2_loc
   real(dp)                        :: s_test

@@ -2,8 +2,7 @@ module mask_mod
   ! Module containing routines that define masks on adaptive grid.
   ! (required by adapt_mod and refine_patch_mod)
 
-  use kind_mod,   only : dp
-
+  use kind_mod,       only : dp
   use comm_mpi_mod,   only : comm_masks_mpi, update_bdry1
   use dyn_arrays,     only : extend, init
   use domain_mod,     only : Domain, grid, wav_coeff, idx, id_edge
@@ -13,6 +12,7 @@ module mask_mod
        min_level, Laplace_rotu, Laplace_sclr, level_fill, S_VELO, FROZEN, NONE, level_start, level_end, max_level, &
        zlevels, scalars, threshold
 
+  
   private
   public :: init_masks_zero, mask_active, mask_adj_child, mask_adj_same_scale, mask_restrict_same_scale, mask_adj_finer_scale
   public :: init_masks, mask_second_neighbours, complete_masks, mask_trsk

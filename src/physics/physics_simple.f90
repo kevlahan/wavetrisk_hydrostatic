@@ -15,12 +15,11 @@ module physics_simple_mod
   use shared_mod, only : DAY, EDGE, N_BDRY, N_VARIABLE, zlevels, S_MASS, S_TEMP, S_VELO, RT, DG, UP, &
        Nsoil, dt, grav_accel, p_top, time, zlevels, zmin, z_null 
 
-  use diagnostics_mod,    only : kinetic_energy
+  use diagnostics_mod,    only : cal_surf_press, kinetic_energy, integrate_pressure_up
   use domain_mod,         only : Domain, exner, exner_fun, mass, temp, mean_m, mean_t, grid, sol, sol_mean, topography, id_edge, idx
   use domain_ops_mod,     only : apply_no_bdry2
   use geom_mod,           only : cart2sph
   use init_physics_mod,   only : physics_firstcall_flag
-  use ops_mod,            only : cal_surf_press, integrate_pressure_up
   use single_column_mod,  only : change_latitude_longitude, physics_call_single_col
   use utils_mod,          only : interp
 

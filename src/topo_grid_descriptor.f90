@@ -17,17 +17,17 @@ module topo_grid_descriptor_mod
   private
   public :: assign_height, write_grid_coords
 
-  integer                               :: icol, loc_size, ncol
-  integer, dimension(:),    allocatable :: grid_dom
-  integer, dimension(:),    allocatable :: grid_id
-  integer, dimension(:),    allocatable :: loc_ids
-  integer, dimension(:),    allocatable :: loc_dom
-  real(dp), dimension(:),   allocatable :: loc_area
-  real(dp), dimension(:),   allocatable :: loc_center_lat
-  real(dp), dimension(:),   allocatable :: loc_center_lon
-  real(dp), dimension(:),   allocatable :: phi_s
-  real(dp), dimension(:,:), allocatable :: loc_corner_lat
-  real(dp), dimension(:,:), allocatable :: loc_corner_lon
+  integer               :: icol, loc_size, ncol
+  integer,  allocatable :: grid_dom(:)
+  integer,  allocatable :: grid_id(:)
+  integer,  allocatable :: loc_ids(:)
+  integer,  allocatable :: loc_dom(:)
+  real(dp), allocatable :: loc_area(:)
+  real(dp), allocatable :: loc_center_lat(:)
+  real(dp), allocatable :: loc_center_lon(:)
+  real(dp), allocatable :: phi_s(:)
+  real(dp), allocatable :: loc_corner_lat(:,:)
+  real(dp), allocatable :: loc_corner_lon(:,:)
 
   !
   !  DATE CODED:  November 2023

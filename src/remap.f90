@@ -21,7 +21,8 @@ module remap_mod
   real(dp), parameter :: Zero_r = 0.0_dp, OneFifth = 0.2_dp, Half = 0.5_dp, One = 1.0_dp
   real(dp), parameter :: ThreeHalfth = 1.5_dp, Two = 2.0_dp, Three = 3.0_dp, Four = 4.0_dp, Six = 6.0_dp
   real(dp), parameter :: eps_r = 1e-8_dp
-  type(Float_Field), dimension(:), allocatable, target :: old_mass
+  
+  type(Float_Field), allocatable, target :: old_mass(:)
 
   
   abstract interface

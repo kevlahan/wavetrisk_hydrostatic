@@ -12,9 +12,10 @@ module io_vtk_mod
   use arch_mod,           only : barrier, n_process, rank
   use comm_mpi_mod,       only : gather_int, gather_vec, sum_int, update_bdry
   use domain_ops_mod,     only : apply_bdry,  apply_d, apply_no_bdry, apply_onescale_to_patch, apply_to_penta_d
+  use diagnostics_mod,    only : cal_div, cal_surf_press, cal_vort, integrate_pressure_up, post_vort
   use geom_mod,           only : min_dist
   use integrate_mod,      only : active_level, pre_levelout, post_levelout, save_tri
-  use ops_mod,            only : cal_div, cal_surf_press, cal_vort, integrate_pressure_up, post_vort, step1
+  use ops_mod,            only : step1
   use multi_level_mod,    only : cpt_or_restr_flux
   use utils_mod,          only : interp_UVW_latlon, hex2tri2, interp, z_i, zero_float
   use vert_diffusion_mod, only : vertical_diffusion
@@ -24,9 +25,9 @@ module io_vtk_mod
   private
   public :: write_and_export 
 
-  integer, parameter                     :: HEX_VERT = 6 ! number of hexagon vertices
-  integer, parameter                     :: TRI_VERT = 3 ! number of triangle vertices
-  integer(4)                             :: nvar = 12
+  integer,    parameter                  :: HEX_VERT = 6 ! number of hexagon vertices
+  integer,    parameter                  :: TRI_VERT = 3 ! number of triangle vertices
+  integer(4), parameter                  :: nvar = 12
   integer(4)                             :: ncell, ncoord,  nvert, nvertex
   integer(4)                             :: ncell_loc, ncoord_unique_loc, nvertex_unique_loc
   integer(4),        allocatable         :: cell_vert_index(:),  cell_vert_index_loc(:)
