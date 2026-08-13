@@ -1,7 +1,8 @@
 module main_mod
 
   use mpi_f08, only : MPI_Allgather, MPI_Allgatherv, MPI_Allreduce, MPI_Exscan, &
-     MPI_INTEGER, MPI_SUCCESS, MPI_SUM
+       MPI_INTEGER, MPI_SUCCESS, MPI_SUM
+  
   use, intrinsic :: ieee_arithmetic
 
   use kind_mod,   only : dp
@@ -25,7 +26,6 @@ module main_mod
   use diagnostics_mod,    only : rho_dz_i, theta_i, theta2temp
   use domain_ops_mod,     only : apply_interscale, apply_no_bdry,  apply_onescale2
   use geom_mod,           only : number_hex
-  use init_mod,           only : z_coords
   use integrate_mod,      only : integrate_hex, integrate_tri
   use checkpoint_mod,     only : dump_adapt_mpi, load_adapt_mpi, read_checkpoint_directory
   use io_vtk_mod,         only : write_and_export
@@ -51,9 +51,9 @@ module main_mod
 
   use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
-       precompute_geometry, set_level, set_thresholds
+       precompute_geometry, set_level, set_thresholds, z_coords
 
-  use time_integr_mod, only : dt_step, dt_step_split,  init_RK_mem, q1, q2, q3, q4, dq1, &
+  use time_integr_mod, only : dt_step, dt_step_split, init_RK_mem, q1, q2, q3, q4, dq1, &
        Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK4_split, RK45_opt
 
   use coord_arithmetic_mod
@@ -805,15 +805,13 @@ contains
 
   subroutine test_parallel_block_split
   ! Diagnostic only: construct a complete prospective parallel-block
-  ! decomposition of all locally owned geometric root domains.
+  ! decomposition of all locally owned geometric root domains, build
+  ! a global block catalogue, and test prospective load balancing.
   !
   ! Rule:
   !   - if root patch 1 has all four children, use those four child
   !     subtrees as candidate blocks;
   !   - otherwise keep the whole root domain as one candidate block.
-  !
-  ! The candidate blocks are assigned globally unique IDs and gathered
-  ! into block_catalog(:) on every MPI rank.
   !
   ! This routine does NOT modify the active decomposition.
 
@@ -821,9 +819,10 @@ contains
 
   integer, parameter :: N_BLOCK_DATA = 6
 
-  integer :: c, d, i, k, p, p_chd
+  integer :: b, c, d, i, k, p, p_chd, r
   integer :: n_block_local, n_block_before, n_block_total
   integer :: n_data_local, n_data_total
+  integer :: n_assigned, n_changed
   integer :: ierr
 
   integer, allocatable :: block_count(:)
@@ -832,6 +831,16 @@ contains
   integer, allocatable :: send_data(:)
   integer, allocatable :: recv_data(:)
   integer, allocatable :: domain_count(:)
+
+  integer, allocatable :: block_owner_new(:)
+  integer, allocatable :: load_current(:)
+  integer, allocatable :: load_proposed(:)
+
+  real(dp) :: balanced_weight
+  real(dp) :: imbalance_goal
+
+  real(dp), parameter :: init_goal = 0.05_dp
+  real(dp), parameter :: incr_goal = 1.20_dp
 
   type(Parallel_Block), allocatable :: block_loc(:)
 
@@ -1082,7 +1091,129 @@ contains
   end if
 
   !
-  ! Rank zero prints the complete global catalogue.
+  ! ---------------------------------------------------------------
+  ! Test prospective load balancing of candidate parallel blocks.
+  ! ---------------------------------------------------------------
+  !
+  ! This does not change actual ownership.
+  !
+  allocate(block_owner_new(n_block_total))
+  allocate(load_current(n_process))
+  allocate(load_proposed(n_process))
+
+  block_owner_new = -1
+  load_current     = 0
+  load_proposed    = 0
+
+  !
+  ! Current load implied by the existing domain decomposition.
+  !
+  do b = 1, n_block_total
+
+     r = block_catalog(b)%owner + 1
+
+     if (r < 1 .or. r > n_process) then
+        error stop &
+             "test_parallel_block_split: invalid current block owner"
+     end if
+
+     load_current(r) = load_current(r) + block_catalog(b)%weight
+
+  end do
+
+  !
+  ! Ideal average load per MPI rank.
+  !
+  balanced_weight = &
+       real(sum(block_catalog%weight), kind=dp) / &
+       real(n_process, kind=dp)
+
+  !
+  ! Use the same next-fit strategy as distribute_grid(), but apply it
+  ! only to the prospective candidate blocks.
+  !
+  n_assigned     = 0
+  imbalance_goal = init_goal
+
+  do while (n_assigned < n_block_total)
+
+     n_assigned      = 0
+     load_proposed   = 0
+     block_owner_new = -1
+
+     do r = 1, n_process
+
+        do while ( &
+             real(load_proposed(r),kind=dp) < balanced_weight .and. &
+             n_block_total - n_assigned > n_process - r)
+
+           block_owner_new(n_assigned+1) = r - 1
+
+           load_proposed(r) = load_proposed(r) + &
+                block_catalog(n_assigned+1)%weight
+
+           n_assigned = n_assigned + 1
+
+        end do
+
+        !
+        ! If the final block makes this rank too heavy,
+        ! move that block to the next rank.
+        !
+        if (n_assigned > 0) then
+
+           if (real(load_proposed(r),kind=dp) > &
+                balanced_weight * (1.0_dp + imbalance_goal)) then
+
+              load_proposed(r) = load_proposed(r) - &
+                   block_catalog(n_assigned)%weight
+
+              block_owner_new(n_assigned) = -1
+
+              n_assigned = n_assigned - 1
+
+           end if
+
+        end if
+
+     end do
+
+     !
+     ! If all blocks could not be assigned, relax the allowed imbalance.
+     !
+     if (n_assigned < n_block_total) then
+        imbalance_goal = imbalance_goal * incr_goal
+     end if
+
+  end do
+
+  if (any(block_owner_new < 0)) then
+     error stop &
+          "test_parallel_block_split: one or more candidate blocks unassigned"
+  end if
+
+  !
+  ! Independently reconstruct proposed rank loads from the owner map.
+  !
+  load_proposed = 0
+
+  do b = 1, n_block_total
+
+     r = block_owner_new(b) + 1
+
+     if (r < 1 .or. r > n_process) then
+        error stop &
+             "test_parallel_block_split: invalid proposed block owner"
+     end if
+
+     load_proposed(r) = load_proposed(r) + block_catalog(b)%weight
+
+  end do
+
+  n_changed = count(block_owner_new /= block_catalog%owner)
+
+  !
+  ! Print compact diagnostic summary.
   !
   if (rank == 0) then
 
@@ -1095,20 +1226,41 @@ contains
      write(6,'(a,i0)') &
           "Split root domains   = ", count(domain_count == N_CHDRN)
 
-     write(6,'(a)') &
-          "Global candidate block catalogue:"
+     write(6,'(/,a)') &
+          "Current candidate-block load:"
 
-     do i = 1, n_block_total
-        write(6,'(2x,a,i0,a,i0,a,i0,a,i0,a,i0,a,i0)') &
-             "block ", block_catalog(i)%id, &
-             ": domain = ", block_catalog(i)%root_domain, &
-             ", root patch = ", block_catalog(i)%root_patch, &
-             ", level = ", block_catalog(i)%level, &
-             ", owner = ", block_catalog(i)%owner, &
-             ", weight = ", block_catalog(i)%weight
-     end do
+     write(6,'(a,i0)') &
+          "  minimum = ", minval(load_current)
 
-     write(6,*)
+     write(6,'(a,f10.2)') &
+          "  average = ", balanced_weight
+
+     write(6,'(a,i0)') &
+          "  maximum = ", maxval(load_current)
+
+     write(6,'(a,f10.4)') &
+          "  max/avg = ", &
+          real(maxval(load_current),kind=dp) / balanced_weight
+
+     write(6,'(/,a)') &
+          "Prospective balanced block load:"
+
+     write(6,'(a,i0)') &
+          "  minimum = ", minval(load_proposed)
+
+     write(6,'(a,f10.2)') &
+          "  average = ", balanced_weight
+
+     write(6,'(a,i0)') &
+          "  maximum = ", maxval(load_proposed)
+
+     write(6,'(a,f10.4)') &
+          "  max/avg = ", &
+          real(maxval(load_proposed),kind=dp) / balanced_weight
+
+     write(6,'(a,i0,a,i0,/)') &
+          "Blocks changing owner = ", n_changed, &
+          " / ", n_block_total
 
   end if
 
@@ -1122,6 +1274,10 @@ contains
   deallocate(send_data)
   deallocate(recv_data)
   deallocate(domain_count)
+
+  deallocate(block_owner_new)
+  deallocate(load_current)
+  deallocate(load_proposed)
 
 end subroutine test_parallel_block_split
  
