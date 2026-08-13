@@ -1,5 +1,6 @@
 module main_mod
 
+  use mpi_f08
   use, intrinsic :: ieee_arithmetic
 
   use kind_mod,   only : dp
@@ -14,12 +15,12 @@ module main_mod
        R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
        time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
 
-  use arch_mod, only : abort_run, barrier, distribute_grid, glo_id, init_arch_mod, &
-     n_glo_block, n_process, Parallel_Block, rank
+  use arch_mod, only : abort_run, barrier, comm, distribute_grid, glo_id, init_arch_mod, &
+       n_glo_block, n_process, Parallel_Block, rank
+  
   use adapt_mod,          only : adapt, WT_after_step
   use coarse_grid_mod,    only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
   use comm_mod,           only : get_coord, set_coord
-  use comm_mpi_mod,       only : init_comm_mpi_mod
   use diagnostics_mod,    only : rho_dz_i, theta_i, theta2temp
   use domain_ops_mod,     only : apply_interscale, apply_no_bdry,  apply_onescale2
   use geom_mod,           only : number_hex
@@ -37,7 +38,7 @@ module main_mod
   use utils_mod,          only : hex_len, hex_pedlen, interp, nu_scale, porous_density, tri_perim
   use vert_diffusion_mod, only : vertical_diffusion
   use wavelet_mod,        only : forward_wavelet_transform, init_wavelets, inverse_scalar_transform, inverse_wavelet_transform
-  
+
   use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
        sum_int,  sync_max_int, sync_min_real, write_load_conn
 
@@ -79,10 +80,10 @@ module main_mod
 
   type(Initial_State), allocatable :: ini_st(:)
 
-  
+
 contains
 
-  
+
   subroutine initialize (run_id) 
     ! Initialize from checkpoint or adapt to initialize conditions
     ! (solution is saved and restarted to balance load)
@@ -223,8 +224,8 @@ contains
     type(Initial_State), allocatable, intent(out) :: init_state(:)
 
     integer :: d, i, v
-    
-    
+
+
     allocate (init_state(size(grid)))
 
     do d = 1, size(grid)
@@ -462,9 +463,9 @@ contains
   end subroutine time_step
 
   subroutine init_basic
-    
+
     implicit none
-    
+
     integer :: l
 
     call initialize_a_b_vert
@@ -800,28 +801,37 @@ contains
     end if
   end subroutine cal_min_mass
 
-
+  
   subroutine test_parallel_block_split
-    ! Diagnostic only: identify one parent patch with four children and
-    ! represent its four child subtrees as prospective parallel blocks.
+    ! Diagnostic only: identify one parent patch with four children on
+    ! each rank and represent its four child subtrees as prospective
+    ! parallel blocks with globally unique block IDs.
 
     implicit none
 
     integer :: c, d, p, p_chd
-    integer :: parent_weight
-    integer :: child_weight
+    integer :: p_split
+    integer :: parent_weight, child_weight
+    integer :: n_block_local, n_block_before, n_block_total
+    integer :: ierr
 
     type(Parallel_Block) :: block(N_CHDRN)
 
     logical :: found
 
-    found = .false.
+    found          = .false.
+    p_split        = -1
+    n_block_local  = 0
+    n_block_before = 0
 
+    !
+    ! Find one parent patch on this rank for which all four children
+    ! exist.  Its four child subtrees are candidate parallel blocks.
+    !
     do d = 1, size(grid)
 
        do p = 0, grid(d)%patch%length-1
 
-          ! For this first test require all four children to exist.
           if (any(grid(d)%patch%elts(p+1)%children <= 0)) cycle
 
           parent_weight = subtree_weight_Domain(grid(d), p)
@@ -841,28 +851,19 @@ contains
 
                     end do
 
+                    !
+                    ! The four child subtrees must exactly partition the
+                    ! subtree rooted at the parent patch.
+                    !
                     if (child_weight /= parent_weight) then
                        error stop &
                             "test_parallel_block_split: child subtree weights do not sum to parent"
                     end if
 
-                    write(6,'(/,a,i0,a,i0,a,i0)') &
-                         "rank ", rank, ": domain ", block(1)%root_domain, &
-                         ", parent patch ", p
+                    p_split       = p
+                    n_block_local = N_CHDRN
+                    found         = .true.
 
-                    do c = 1, N_CHDRN
-                       write(6,'(a,i0,a,i0,a,i0,a,i0)') &
-                            "  block ", c, &
-                            ": root patch = ", block(c)%root_patch, &
-                            ", level = ", block(c)%level, &
-                            ", weight = ", block(c)%weight
-                    end do
-
-                    write(6,'(a,i0,a,i0,/)') &
-                         "  parent weight = ", parent_weight, &
-                         ", sum child weights = ", child_weight
-
-                    found = .true.
                     exit
 
                  end do
@@ -871,11 +872,71 @@ contains
 
               end do
 
-            end subroutine test_parallel_block_split
+              !
+              ! Determine the number of candidate blocks preceding those on
+              ! this rank.  This provides globally unique contiguous block IDs.
+              !
+              call MPI_Exscan( &
+                   n_block_local, n_block_before, &
+                   1, MPI_INTEGER, MPI_SUM, comm, ierr)
+
+              if (ierr /= MPI_SUCCESS) then
+                 error stop "test_parallel_block_split: MPI_Exscan failed"
+              end if
+
+              ! MPI_Exscan leaves the receive value undefined on rank zero.
+              if (rank == 0) n_block_before = 0
+
+              !
+              ! Determine the total number of candidate blocks over all ranks.
+              !
+              call MPI_Allreduce( &
+                   n_block_local, n_block_total, &
+                   1, MPI_INTEGER, MPI_SUM, comm, ierr)
+
+              if (ierr /= MPI_SUCCESS) then
+                 error stop "test_parallel_block_split: MPI_Allreduce failed"
+              end if
+
+              !
+              ! Assign global block IDs and report this rank's candidate split.
+              !
+              if (found) then
+
+                 do c = 1, N_CHDRN
+                    block(c)%id = n_block_before + c - 1
+                 end do
+
+                 write(6,'(/,a,i0,a,i0,a,i0)') &
+                      "rank ", rank, &
+                      ": domain ", block(1)%root_domain, &
+                      ", parent patch ", p_split
+
+                 do c = 1, N_CHDRN
+                    write(6,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
+                         "  block ID ", block(c)%id, &
+                         ": root patch = ", block(c)%root_patch, &
+                         ", level = ", block(c)%level, &
+                         ", weight = ", block(c)%weight, &
+                         ", owner = ", block(c)%owner
+                 end do
+
+                 write(6,'(a,i0,a,i0,/)') &
+                      "  parent weight = ", parent_weight, &
+                      ", sum child weights = ", child_weight
+
+              end if
+
+              if (rank == 0) then
+                 write(6,'(a,i0,/)') &
+                      "Total candidate parallel blocks = ", n_block_total
+              end if
+
+   end subroutine test_parallel_block_split
 
 
-            subroutine deallocate_structures
-              ! Deallocate all dynamic arrays and structures for clean restart
+  subroutine deallocate_structures
+    ! Deallocate all dynamic arrays and structures for clean restart
     implicit none
 
     integer :: d, i, k, l, v, r

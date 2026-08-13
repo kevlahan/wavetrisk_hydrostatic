@@ -22,14 +22,15 @@ module arch_mod
   integer,          allocatable :: loc_id(:), owner(:)
   integer,          allocatable :: glo_id(:,:)
   integer,          allocatable :: cp_load(:)
-
+  
 
   type, public :: Parallel_Block
+     integer :: id          = -1   ! global parallel-block ID
      integer :: root_domain = -1   ! original global geometric domain ID
-     integer :: root_patch  = -1   ! patch at root of this block subtree
-     integer :: level       = -1   ! level of root_patch
-     integer :: owner       = -1   ! MPI rank owning block
-     integer :: weight      = 0    ! temporary block weight
+     integer :: root_patch  = -1   ! root patch of subtree
+     integer :: level       = -1   ! level of root patch
+     integer :: owner       = -1   ! current MPI rank
+     integer :: weight      = 0    ! provisional subtree weight
   end type Parallel_Block
 
   

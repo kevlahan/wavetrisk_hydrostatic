@@ -265,11 +265,12 @@ contains
 
   end function subtree_weight_Domain
 
-
-  integer function add_patch_Domain (self, level)
+  
+  function add_patch_Domain (self, level) result(val)
     ! Add new patch to the domain
     implicit none
     type(Domain), intent(inout) :: self
+    integer                     :: val
 
     integer :: level, p
 
@@ -280,7 +281,7 @@ contains
 
     call extend_Domain (self, PATCH_SIZE**2)
 
-    add_patch_Domain = p
+    val = p
   end function add_patch_Domain
 
   
