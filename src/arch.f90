@@ -3,7 +3,7 @@ module arch_mod
   use mpi_f08
 
   use kind_mod,   only : dp
-  use shared_mod, only : N_GLO_DOMAIN, n_domain, run_id
+  use shared_mod, only : N_GLO_BLOCK, n_domain, run_id
 
   implicit none
 
@@ -17,7 +17,7 @@ module arch_mod
   type(MPI_Datatype), parameter :: MPI_SP = MPI_REAL
   
   integer                       :: n_process, rank
-  integer                       :: loc_id(N_GLO_DOMAIN), owner(N_GLO_DOMAIN) 
+  integer                       :: loc_id(N_GLO_BLOCK), owner(N_GLO_BLOCK)
   integer,          allocatable :: glo_id(:,:)
   integer,          allocatable :: cp_load(:)
   
@@ -38,16 +38,17 @@ contains
 
     call MPI_Comm_Size (comm, n_process)
     call MPI_Comm_Rank (comm, rank)
-
+    
     allocate (n_domain(n_process))
     n_domain = 0
 
     initialized = .true.
 
-    if (n_process > N_GLO_DOMAIN) then
+    if (n_process > N_GLO_BLOCK) then
        if (rank == 0) then
           write (6,'(/,a)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-          write (6,'(2(a,i4),a)') "!!          Number of cores ", n_process, " > number of domains ", N_GLO_DOMAIN, &
+          write (6,'(2(a,i4),a)') "!!          Number of cores ", n_process, &
+               " > number of parallel blocks ", N_GLO_BLOCK, &
                " ... aborting             !!"
           write (6,'(a,/)') "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
        end if
@@ -68,23 +69,23 @@ contains
 
     integer, intent(in) :: cp_idx
 
-    integer                            :: d, r, n_domain_floor
-    integer, dimension(:), allocatable :: wgt_d
+    integer              :: d, r, n_domain_floor
+    integer, allocatable :: wgt_d(:)
 
-    real(dp)                           :: balanced_wgt
-    real(dp)                           :: imbalance_goal
-    real(dp), dimension(n_process)     :: wgt_cur_rank
+    real(dp) :: balanced_wgt
+    real(dp) :: imbalance_goal
+    real(dp) :: wgt_cur_rank(n_process)
 
     real(dp), parameter :: init_goal = 0.05_dp
     real(dp), parameter :: incr_goal = 1.20_dp
 
-    allocate(wgt_d(N_GLO_DOMAIN))
+    allocate(wgt_d(N_GLO_BLOCK))
 
     if (rank == 0) then
 
        if (cp_idx >= 0 .and. &
             n_process > 1 .and. &
-            n_process < N_GLO_DOMAIN) then
+            n_process < N_GLO_BLOCK) then
 
           !
           ! Load values have already been read from the checkpoint
@@ -94,7 +95,7 @@ contains
              error stop "distribute_grid: cp_load is not allocated"
           end if
 
-          if (size(cp_load) /= N_GLO_DOMAIN) then
+          if (size(cp_load) /= N_GLO_BLOCK) then
              error stop "distribute_grid: wrong size for cp_load"
           end if
 
@@ -112,7 +113,7 @@ contains
           d = 0
           imbalance_goal = init_goal
 
-          do while (d < N_GLO_DOMAIN)
+          do while (d < N_GLO_BLOCK)
 
              d = 0
              wgt_cur_rank = 0.0_dp
@@ -121,7 +122,7 @@ contains
 
                 do while ( &
                      wgt_cur_rank(r) < balanced_wgt .and. &
-                     N_GLO_DOMAIN - d > n_process - r)
+                     N_GLO_BLOCK - d > n_process - r)
 
                    owner(d+1) = r - 1
 
@@ -154,7 +155,7 @@ contains
              ! If all domains could not be fitted, relax the
              ! imbalance tolerance and try again.
              !
-             if (d < N_GLO_DOMAIN) then
+             if (d < N_GLO_BLOCK) then
                 imbalance_goal = imbalance_goal * incr_goal
              end if
 
@@ -169,7 +170,7 @@ contains
           !
           ! Equal distribution by number of domains.
           !
-          n_domain_floor = N_GLO_DOMAIN / n_process
+          n_domain_floor = N_GLO_BLOCK / n_process
 
           d = 0
 
@@ -180,7 +181,7 @@ contains
                 d = d + n_domain_floor
              end if
 
-             if (r <= N_GLO_DOMAIN - n_process*n_domain_floor) then
+             if (r <= N_GLO_BLOCK - n_process*n_domain_floor) then
                 owner(d+1) = r - 1
                 d = d + 1
              end if
@@ -194,15 +195,14 @@ contains
     !
     ! Every rank now receives the new ownership map.
     !
-    call MPI_Bcast( &
-         owner, N_GLO_DOMAIN, MPI_IN, 0, comm)
+    call MPI_Bcast(owner, N_GLO_BLOCK, MPI_IN, 0, comm)
 
     !
     ! Construct local domain numbering for the new distribution.
     !
     n_domain = 0
 
-    do d = 1, N_GLO_DOMAIN
+    do d = 1, N_GLO_BLOCK
 
        r = owner(d)
 
@@ -221,7 +221,7 @@ contains
 
     glo_id = 0
 
-    do d = 1, N_GLO_DOMAIN
+    do d = 1, N_GLO_BLOCK
 
        glo_id( &
             owner(d)+1, &
