@@ -17,10 +17,7 @@ module main_mod
        R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
        time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
 
-  use arch_mod, only : abort_run, barrier,  block_catalog, comm, distribute_grid, glo_id, init_arch_mod, &
-       n_glo_block, n_process, Parallel_Block, rank
-  
-  use adapt_mod,          only : adapt, WT_after_step
+   use adapt_mod,          only : adapt, WT_after_step
   use coarse_grid_mod,    only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
   use comm_mod,           only : get_coord, set_coord
   use diagnostics_mod,    only : rho_dz_i, theta_i, theta2temp
@@ -34,11 +31,15 @@ module main_mod
   use mask_mod,           only : init_masks, mask_adj_child
   use multi_level_mod,    only : trend_ml
   use NCAR_topo_mod,      only : load_topo
+  use patch_mod,          only : Patch, PATCH_SIZE
   use refine_patch_mod,   only : add_second_level
   use remap_mod,          only : remap_vertical_coordinates
   use utils_mod,          only : hex_len, hex_pedlen, interp, nu_scale, porous_density, tri_perim
   use vert_diffusion_mod, only : vertical_diffusion
   use wavelet_mod,        only : forward_wavelet_transform, init_wavelets, inverse_scalar_transform, inverse_wavelet_transform
+
+  use arch_mod, only : abort_run, barrier, block_catalog, comm, distribute_grid, glo_id, init_arch_mod, loc_id, &
+       n_glo_block, n_process, Parallel_Block, rank
 
   use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
        sum_int,  sync_max_int, sync_min_real, write_load_conn
@@ -47,7 +48,7 @@ module main_mod
        dvelo, exner, exner_fun, h_flux, horiz_flux, ke, qe, scalar, mass, temp, velo, vort, wc_s, wc_u, &
        Kt, Kv, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, sso_param, &
        sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx, &
-       subtree_weight_Domain
+       subtree_weight_Domain, count_subtree_patches_Domain, extract_subtree_patches_Domain
 
   use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
@@ -801,6 +802,220 @@ contains
        min_mass_loc = min (min_mass_loc, mass_ratio)
     end if
   end subroutine cal_min_mass
+
+
+  subroutine test_subtree_extraction
+  ! Extract one small candidate subtree on rank zero and verify that
+  ! its renumbered patch hierarchy is identical to the original tree.
+
+  implicit none
+
+  integer :: b_test
+  integer :: c, d, i
+  integer :: p_root
+  integer :: n_old, n_new
+  integer :: n_leaf_old, n_leaf_new
+  integer :: p_old, p_chd_old, p_chd_new
+
+  integer, allocatable :: old_to_new(:)
+
+  type(Patch), allocatable :: patch_copy(:)
+
+  logical :: found
+
+  !
+  ! Keep the first extraction test entirely local to rank zero.
+  !
+  if (rank /= 0) return
+
+  found  = .false.
+  b_test = -1
+
+  !
+  ! Prefer a candidate block with weight PATCH_SIZE**2, i.e. a
+  ! single leaf patch.
+  !
+  do i = 1, size(block_catalog)
+
+     if (block_catalog(i)%owner /= rank) cycle
+
+     d = loc_id(block_catalog(i)%root_domain+1) + 1
+
+     if (d < 1 .or. d > size(grid)) cycle
+
+     p_root = block_catalog(i)%root_patch
+
+     if (subtree_weight_Domain(grid(d),p_root) == PATCH_SIZE**2) then
+        b_test = i
+        found  = .true.
+        exit
+     end if
+
+  end do
+
+  !
+  ! If no single-leaf block exists, use the first local candidate.
+  !
+  if (.not. found) then
+
+     do i = 1, size(block_catalog)
+
+        if (block_catalog(i)%owner /= rank) cycle
+
+        d = loc_id(block_catalog(i)%root_domain+1) + 1
+
+        if (d < 1 .or. d > size(grid)) cycle
+
+        p_root = block_catalog(i)%root_patch
+
+        b_test = i
+        found  = .true.
+        exit
+
+     end do
+
+  end if
+
+  if (.not. found) then
+     error stop "test_subtree_extraction: no local candidate block"
+  end if
+
+  !
+  ! Recompute d and p_root from the saved catalogue entry so that
+  ! they cannot depend on loop-variable state.
+  !
+  d = loc_id(block_catalog(b_test)%root_domain+1) + 1
+
+  if (d < 1 .or. d > size(grid)) then
+     error stop "test_subtree_extraction: invalid local domain"
+  end if
+
+  p_root = block_catalog(b_test)%root_patch
+
+  !
+  ! Extract and renumber the patch tree.
+  !
+  call extract_subtree_patches_Domain( &
+       grid(d), p_root, patch_copy, old_to_new)
+
+  n_old = count_subtree_patches_Domain(grid(d), p_root)
+  n_new = size(patch_copy)
+
+  if (n_new /= n_old) then
+     error stop &
+          "test_subtree_extraction: patch count mismatch"
+  end if
+
+  if (old_to_new(p_root) /= 0) then
+     error stop &
+          "test_subtree_extraction: extracted root is not patch zero"
+  end if
+
+  !
+  ! Verify all copied parent-child links.
+  !
+  do p_old = 0, grid(d)%patch%length-1
+
+     if (old_to_new(p_old) < 0) cycle
+
+     do c = 1, N_CHDRN
+
+        p_chd_old = grid(d)%patch%elts(p_old+1)%children(c)
+        p_chd_new = &
+             patch_copy(old_to_new(p_old)+1)%children(c)
+
+        if (p_chd_old <= 0) then
+
+           if (p_chd_new /= 0) then
+              error stop &
+                   "test_subtree_extraction: unexpected child link"
+           end if
+
+        else if (grid(d)%patch%elts(p_chd_old+1)%deleted) then
+
+           if (p_chd_new /= 0) then
+              error stop &
+                   "test_subtree_extraction: deleted child copied"
+           end if
+
+        else
+
+           if (old_to_new(p_chd_old) < 0) then
+              error stop &
+                   "test_subtree_extraction: child missing from map"
+           end if
+
+           if (p_chd_new /= old_to_new(p_chd_old)) then
+              error stop &
+                   "test_subtree_extraction: incorrect child renumbering"
+           end if
+
+        end if
+
+     end do
+
+  end do
+
+  !
+  ! Compare leaf counts.
+  !
+  n_leaf_old = 0
+
+  do p_old = 0, grid(d)%patch%length-1
+
+     if (old_to_new(p_old) < 0) cycle
+
+     if (all(grid(d)%patch%elts(p_old+1)%children == 0)) then
+        n_leaf_old = n_leaf_old + 1
+     end if
+
+  end do
+
+  n_leaf_new = 0
+
+  do i = 1, size(patch_copy)
+
+     if (all(patch_copy(i)%children == 0)) then
+        n_leaf_new = n_leaf_new + 1
+     end if
+
+  end do
+
+  if (n_leaf_new /= n_leaf_old) then
+     error stop &
+          "test_subtree_extraction: leaf count mismatch"
+  end if
+
+  write(6,'(/,a,i0,a,i0)') &
+       "Subtree extraction test: domain ", &
+       block_catalog(b_test)%root_domain, &
+       ", root patch ", p_root
+
+  write(6,'(a,i0)') &
+       "  block ID = ", block_catalog(b_test)%id
+
+  write(6,'(a,i0)') &
+       "  block weight = ", block_catalog(b_test)%weight
+
+  write(6,'(a,i0)') &
+       "  original subtree patches = ", n_old
+
+  write(6,'(a,i0)') &
+       "  extracted subtree patches = ", n_new
+
+  write(6,'(a,i0)') &
+       "  original leaves = ", n_leaf_old
+
+  write(6,'(a,i0)') &
+       "  extracted leaves = ", n_leaf_new
+
+  write(6,'(a,/)') &
+       "  patch topology check passed"
+
+  deallocate(patch_copy)
+  deallocate(old_to_new)
+
+end subroutine test_subtree_extraction
 
 
   subroutine test_parallel_block_split
