@@ -17,7 +17,7 @@ module arch_mod
   type(MPI_Datatype), parameter :: MPI_SP = MPI_REAL
   
   integer                       :: n_process, rank
-  integer                       :: loc_id(N_GLO_DOMAIN) , owner(N_GLO_DOMAIN) 
+  integer                       :: loc_id(N_GLO_DOMAIN), owner(N_GLO_DOMAIN) 
   integer,          allocatable :: glo_id(:,:)
   integer,          allocatable :: cp_load(:)
   
