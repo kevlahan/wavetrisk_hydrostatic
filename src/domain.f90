@@ -29,8 +29,7 @@ module domain_mod
   public :: idx, idx2, idx__fast, idx_hex, idx_hex_LORT, idx_hex_LORT2, idx_hex_UPLT, idx_hex_UPLT2, ed_idx, id_edge, tri_idx
   public :: nidx, is_penta, find_neigh_bdry_patch_domain, find_neigh_patch2_domain, find_neigh_patch_domain
   public :: par_side, get_offs_Domain, get_offs_Domain5
-  public :: subtree_weight_Domain
-  public :: count_subtree_patches_Domain, extract_subtree_patches_Domain
+  public :: count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, subtree_weight_Domain
 
 
   integer, parameter :: sides_dims(2,N_BDRY+1) = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
@@ -228,6 +227,36 @@ contains
 
     self%pole_master = .false.
   end subroutine init_Domain
+
+
+  recursive integer function subtree_depth_Domain (dom, p) result(depth)
+    implicit none
+
+    type(Domain), intent(in) :: dom
+    integer,      intent(in) :: p
+
+    integer :: c, p_chd
+
+    if (p < 0 .or. p >= dom%patch%length) then
+       error stop "subtree_depth_Domain: invalid patch index"
+    end if
+
+    if (dom%patch%elts(p+1)%deleted) then
+       depth = 0
+       return
+    end if
+
+    depth = 0
+
+    do c = 1, N_CHDRN
+       p_chd = dom%patch%elts(p+1)%children(c)
+
+       if (p_chd > 0) then
+          depth = max(depth, 1 + subtree_depth_Domain(dom, p_chd))
+       end if
+    end do
+
+  end function subtree_depth_Domain
 
 
   recursive integer function subtree_weight_Domain (dom, p) result(weight)

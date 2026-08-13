@@ -48,7 +48,7 @@ module main_mod
        dvelo, exner, exner_fun, h_flux, horiz_flux, ke, qe, scalar, mass, temp, velo, vort, wc_s, wc_u, &
        Kt, Kv, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, sso_param, &
        sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx, &
-       subtree_weight_Domain, count_subtree_patches_Domain, extract_subtree_patches_Domain
+       subtree_weight_Domain, count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain
 
   use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
@@ -805,9 +805,9 @@ contains
   end subroutine cal_min_mass
 
 
- subroutine test_subtree_extraction
-  ! Extract one nontrivial candidate subtree on rank zero and verify
-  ! that its renumbered patch hierarchy is identical to the original tree.
+subroutine test_subtree_extraction
+  ! Extract one deeper candidate subtree on rank zero and verify that
+  ! its renumbered patch hierarchy is identical to the original tree.
 
   implicit none
 
@@ -816,6 +816,7 @@ contains
   integer :: p_root
   integer :: n_old, n_new
   integer :: n_leaf_old, n_leaf_new
+  integer :: depth_old, depth_new
   integer :: p_old, p_chd_old, p_chd_new
 
   integer, allocatable :: old_to_new(:)
@@ -833,7 +834,7 @@ contains
   b_test = -1
 
   !
-  ! Prefer a candidate block containing a nontrivial subtree.
+  ! Prefer a candidate block containing a subtree of depth at least 2.
   !
   do i = 1, size(block_catalog)
 
@@ -845,7 +846,7 @@ contains
 
      p_root = block_catalog(i)%root_patch
 
-     if (subtree_weight_Domain(grid(d),p_root) > PATCH_SIZE**2) then
+     if (subtree_depth_Domain(grid(d),p_root) >= 2) then
         b_test = i
         found  = .true.
         exit
@@ -854,7 +855,33 @@ contains
   end do
 
   !
-  ! If no nontrivial subtree exists, use the first local candidate.
+  ! If no sufficiently deep subtree exists, use the first local
+  ! nontrivial candidate.
+  !
+  if (.not. found) then
+
+     do i = 1, size(block_catalog)
+
+        if (block_catalog(i)%owner /= rank) cycle
+
+        d = loc_id(block_catalog(i)%root_domain+1) + 1
+
+        if (d < 1 .or. d > size(grid)) cycle
+
+        p_root = block_catalog(i)%root_patch
+
+        if (subtree_weight_Domain(grid(d),p_root) > PATCH_SIZE**2) then
+           b_test = i
+           found  = .true.
+           exit
+        end if
+
+     end do
+
+  end if
+
+  !
+  ! Final fallback: use the first local candidate.
   !
   if (.not. found) then
 
@@ -881,7 +908,8 @@ contains
   end if
 
   !
-  ! Recompute d and p_root from the saved catalogue entry.
+  ! Recompute local domain and root patch from the saved catalogue
+  ! entry so that nothing depends on loop-variable state.
   !
   d = loc_id(block_catalog(b_test)%root_domain+1) + 1
 
@@ -890,6 +918,8 @@ contains
   end if
 
   p_root = block_catalog(b_test)%root_patch
+
+  depth_old = subtree_depth_Domain(grid(d), p_root)
 
   !
   ! Extract and renumber the patch tree.
@@ -985,6 +1015,16 @@ contains
           "test_subtree_extraction: leaf count mismatch"
   end if
 
+  !
+  ! Compare maximum subtree depth.
+  !
+  depth_new = copied_depth(0)
+
+  if (depth_new /= depth_old) then
+     error stop &
+          "test_subtree_extraction: subtree depth mismatch"
+  end if
+
   write(6,'(/,a,i0,a,i0)') &
        "Subtree extraction test: domain ", &
        block_catalog(b_test)%root_domain, &
@@ -1008,11 +1048,40 @@ contains
   write(6,'(a,i0)') &
        "  extracted leaves = ", n_leaf_new
 
+  write(6,'(a,i0)') &
+       "  original subtree depth = ", depth_old
+
+  write(6,'(a,i0)') &
+       "  extracted subtree depth = ", depth_new
+
   write(6,'(a,/)') &
        "  patch topology check passed"
 
   deallocate(patch_copy)
   deallocate(old_to_new)
+
+contains
+
+  recursive integer function copied_depth (p) result(depth)
+    implicit none
+
+    integer, intent(in) :: p
+
+    integer :: c, p_chd
+
+    depth = 0
+
+    do c = 1, N_CHDRN
+
+       p_chd = patch_copy(p+1)%children(c)
+
+       if (p_chd > 0) then
+          depth = max(depth, 1 + copied_depth(p_chd))
+       end if
+
+    end do
+
+  end function copied_depth
 
 end subroutine test_subtree_extraction
 
