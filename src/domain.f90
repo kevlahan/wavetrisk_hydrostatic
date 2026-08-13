@@ -31,7 +31,7 @@ module domain_mod
   public :: par_side, get_offs_Domain, get_offs_Domain5
   
   public :: count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, subtree_weight_Domain
-  public :: compact_subtree_storage_Domain, copy_subtree_nodes_Domain
+  public :: compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain
 
 
   integer, parameter :: sides_dims(2,N_BDRY+1) = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
@@ -230,6 +230,77 @@ contains
     self%pole_master = .false.
   end subroutine init_Domain
 
+
+  subroutine copy_subtree_field_Domain (patch_out, old_elts_start, mult, &
+       field_in, field_out)
+    ! Copy one field from a source Domain storage layout into the compact
+    ! storage layout of an extracted subtree.
+    !
+    ! mult is the number of field values associated with each node index:
+    !
+    !   mult = 1          for node-based scalar fields
+    !   mult = EDGE       for the edge-based velocity field
+    !
+    ! Patch field storage follows the WAVETRISK convention
+    !
+    !   start = mult * patch%elts_start
+    !   size  = mult * PATCH_SIZE**2
+
+    implicit none
+
+    type(Patch), intent(in) :: patch_out(:)
+
+    integer, intent(in) :: old_elts_start(:)
+    integer, intent(in) :: mult
+
+    real(dp), intent(in) :: field_in(:)
+
+    real(dp), allocatable, intent(out) :: field_out(:)
+
+    integer :: n_field
+    integer :: n_patch_field
+    integer :: p
+    integer :: old_start, new_start
+
+    if (size(old_elts_start) /= size(patch_out)) then
+       error stop &
+            "copy_subtree_field_Domain: inconsistent patch arrays"
+    end if
+
+    if (mult <= 0) then
+       error stop &
+            "copy_subtree_field_Domain: invalid multiplier"
+    end if
+
+    n_patch_field = mult * PATCH_SIZE**2
+    n_field       = mult * size(patch_out) * PATCH_SIZE**2
+
+    allocate(field_out(n_field))
+
+    do p = 1, size(patch_out)
+
+       old_start = mult * old_elts_start(p)
+       new_start = mult * patch_out(p)%elts_start
+
+       if (old_start < 0 .or. &
+            old_start + n_patch_field > size(field_in)) then
+          error stop &
+               "copy_subtree_field_Domain: source range out of bounds"
+       end if
+
+       if (new_start < 0 .or. &
+            new_start + n_patch_field > n_field) then
+          error stop &
+               "copy_subtree_field_Domain: destination range out of bounds"
+       end if
+
+       field_out(new_start+1:new_start+n_patch_field) = &
+            field_in(old_start+1:old_start+n_patch_field)
+
+    end do
+
+  end subroutine copy_subtree_field_Domain
+  
 
   subroutine copy_subtree_nodes_Domain (dom, patch_out, old_elts_start, node_out)
     ! Copy node-coordinate data from the source Domain into the compact

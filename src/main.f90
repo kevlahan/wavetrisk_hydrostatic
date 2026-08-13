@@ -6,8 +6,8 @@ module main_mod
   use, intrinsic :: ieee_arithmetic
 
   use kind_mod,   only : dp
-  use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, N_BDRY, N_CHDRN, &
-       N_GLO_DOMAIN, N_VARIABLE, NCAR_topo, NONE, &
+  use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, MULT, N_BDRY, &
+       N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, NCAR_topo, NONE, &
        S_DIVU, S_ROTU, S_MASS, S_TEMP, S_VELO, TRIAG, XU_GRID, RT, DG, UP, LORT, UPLT, Laplace_divu, Laplace_rotu, Laplace_sclr, &
        adapt_dt, Area_avg, C_visc, a_vert, a_vert_mass, b_vert, b_vert_mass, cfl_safety, compressible, coord, cp_idx, &
        dt, dt_init, dt_write, dx_avg, gamma, grav_accel, iremap, iremap_max, istep, istep_cumul, itime, iwrite, &
@@ -49,7 +49,7 @@ module main_mod
        Kt, Kv, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, sso_param, &
        sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx, &
        subtree_weight_Domain, count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, &
-       compact_subtree_storage_Domain, copy_subtree_nodes_Domain
+       compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain
 
   use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
@@ -808,8 +808,8 @@ contains
 
 subroutine test_subtree_extraction
   ! Extract one deeper candidate subtree on rank zero and verify its
-  ! renumbered patch hierarchy, compact storage layout, and copied
-  ! node-coordinate data.
+  ! topology, compact storage layout, node coordinates, a node-based
+  ! scalar field, and an edge-based vector field.
 
   implicit none
 
@@ -820,11 +820,17 @@ subroutine test_subtree_extraction
   integer :: n_leaf_old, n_leaf_new
   integer :: depth_old, depth_new
   integer :: n_node_storage
+  integer :: n_patch_field
   integer :: p_old, p_chd_old, p_chd_new
   integer :: old_start, new_start
+  integer :: v_scalar, v_vector, k_test
+  integer :: mult_scalar, mult_vector
 
   integer, allocatable :: old_to_new(:)
   integer, allocatable :: old_elts_start(:)
+
+  real(dp), allocatable :: scalar_copy(:)
+  real(dp), allocatable :: vector_copy(:)
 
   type(Patch), allocatable :: patch_copy(:)
   type(Coord), allocatable :: node_copy(:)
@@ -914,7 +920,7 @@ subroutine test_subtree_extraction
   end if
 
   !
-  ! Recompute local domain and root patch from the saved catalogue.
+  ! Recover local source domain and block-root patch.
   !
   d = loc_id(block_catalog(b_test)%root_domain+1) + 1
 
@@ -955,7 +961,7 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Verify original node-storage ranges.
+  ! Check original node-storage ranges.
   !
   do i = 1, size(patch_copy)
 
@@ -988,7 +994,9 @@ subroutine test_subtree_extraction
   n_node_storage = size(patch_copy) * PATCH_SIZE**2
 
   !
-  ! Copy the actual node-coordinate data into compact local storage.
+  ! ---------------------------------------------------------------
+  ! Copy and verify node coordinates.
+  ! ---------------------------------------------------------------
   !
   call copy_subtree_nodes_Domain( &
        grid(d), patch_copy, old_elts_start, node_copy)
@@ -998,9 +1006,6 @@ subroutine test_subtree_extraction
           "test_subtree_extraction: incorrect copied node storage size"
   end if
 
-  !
-  ! Verify the copied coordinates patch by patch.
-  !
   do i = 1, size(patch_copy)
 
      old_start = old_elts_start(i)
@@ -1008,21 +1013,24 @@ subroutine test_subtree_extraction
 
      if (maxval(abs( &
           node_copy(new_start+1:new_start+PATCH_SIZE**2)%x - &
-          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%x)) > 0.0_dp) then
+          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%x)) > &
+          0.0_dp) then
         error stop &
              "test_subtree_extraction: node x-coordinate mismatch"
      end if
 
      if (maxval(abs( &
           node_copy(new_start+1:new_start+PATCH_SIZE**2)%y - &
-          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%y)) > 0.0_dp) then
+          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%y)) > &
+          0.0_dp) then
         error stop &
              "test_subtree_extraction: node y-coordinate mismatch"
      end if
 
      if (maxval(abs( &
           node_copy(new_start+1:new_start+PATCH_SIZE**2)%z - &
-          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%z)) > 0.0_dp) then
+          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%z)) > &
+          0.0_dp) then
         error stop &
              "test_subtree_extraction: node z-coordinate mismatch"
      end if
@@ -1030,7 +1038,92 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Verify all copied parent-child links.
+  ! ---------------------------------------------------------------
+  ! Copy and verify one node-based scalar field.
+  ! ---------------------------------------------------------------
+  !
+  v_scalar   = scalars(1)
+  mult_scalar = MULT(v_scalar)
+  k_test      = max(1,zmin)
+
+  if (mult_scalar /= 1) then
+     error stop &
+          "test_subtree_extraction: test scalar has unexpected multiplier"
+  end if
+
+  call copy_subtree_field_Domain( &
+       patch_copy, old_elts_start, mult_scalar, &
+       sol(v_scalar,k_test)%data(d)%elts, scalar_copy)
+
+  if (size(scalar_copy) /= mult_scalar*n_node_storage) then
+     error stop &
+          "test_subtree_extraction: incorrect copied scalar storage size"
+  end if
+
+  n_patch_field = mult_scalar * PATCH_SIZE**2
+
+  do i = 1, size(patch_copy)
+
+     old_start = mult_scalar * old_elts_start(i)
+     new_start = mult_scalar * patch_copy(i)%elts_start
+
+     if (maxval(abs( &
+          scalar_copy(new_start+1:new_start+n_patch_field) - &
+          sol(v_scalar,k_test)%data(d)%elts( &
+          old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+
+        error stop &
+             "test_subtree_extraction: scalar field copy mismatch"
+
+     end if
+
+  end do
+
+  !
+  ! ---------------------------------------------------------------
+  ! Copy and verify one edge-based velocity field.
+  ! ---------------------------------------------------------------
+  !
+  v_vector   = S_VELO
+  mult_vector = MULT(v_vector)
+
+  if (mult_vector /= EDGE) then
+     error stop &
+          "test_subtree_extraction: velocity has unexpected multiplier"
+  end if
+
+  call copy_subtree_field_Domain( &
+       patch_copy, old_elts_start, mult_vector, &
+       sol(v_vector,k_test)%data(d)%elts, vector_copy)
+
+  if (size(vector_copy) /= mult_vector*n_node_storage) then
+     error stop &
+          "test_subtree_extraction: incorrect copied vector storage size"
+  end if
+
+  n_patch_field = mult_vector * PATCH_SIZE**2
+
+  do i = 1, size(patch_copy)
+
+     old_start = mult_vector * old_elts_start(i)
+     new_start = mult_vector * patch_copy(i)%elts_start
+
+     if (maxval(abs( &
+          vector_copy(new_start+1:new_start+n_patch_field) - &
+          sol(v_vector,k_test)%data(d)%elts( &
+          old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+
+        error stop &
+             "test_subtree_extraction: vector field copy mismatch"
+
+     end if
+
+  end do
+
+  !
+  ! ---------------------------------------------------------------
+  ! Verify copied parent-child links.
+  ! ---------------------------------------------------------------
   !
   do p_old = 0, grid(d)%patch%length-1
 
@@ -1039,6 +1132,7 @@ subroutine test_subtree_extraction
      do c = 1, N_CHDRN
 
         p_chd_old = grid(d)%patch%elts(p_old+1)%children(c)
+
         p_chd_new = &
              patch_copy(old_to_new(p_old)+1)%children(c)
 
@@ -1075,7 +1169,9 @@ subroutine test_subtree_extraction
   end do
 
   !
+  ! ---------------------------------------------------------------
   ! Compare leaf counts.
+  ! ---------------------------------------------------------------
   !
   n_leaf_old = 0
 
@@ -1114,6 +1210,11 @@ subroutine test_subtree_extraction
           "test_subtree_extraction: subtree depth mismatch"
   end if
 
+  !
+  ! ---------------------------------------------------------------
+  ! Diagnostic output.
+  ! ---------------------------------------------------------------
+  !
   write(6,'(/,a,i0,a,i0)') &
        "Subtree extraction test: domain ", &
        block_catalog(b_test)%root_domain, &
@@ -1149,9 +1250,24 @@ subroutine test_subtree_extraction
   write(6,'(a)') &
        "  node-coordinate copy check passed"
 
+  write(6,'(a,i0,a,i0,a,i0)') &
+       "  scalar field copy check passed: variable ", v_scalar, &
+       ", level ", k_test, &
+       ", multiplier ", mult_scalar
+
+  write(6,'(a,i0,a,i0,a,i0)') &
+       "  vector field copy check passed: variable ", v_vector, &
+       ", level ", k_test, &
+       ", multiplier ", mult_vector
+
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
 
+  !
+  ! Cleanup.
+  !
+  deallocate(vector_copy)
+  deallocate(scalar_copy)
   deallocate(node_copy)
   deallocate(patch_copy)
   deallocate(old_to_new)
