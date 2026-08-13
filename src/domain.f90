@@ -9,7 +9,7 @@ module domain_mod
        split_mean_perturbation, scalars, zlevels, zmin
 
   use patch_mod, only : BDRY_PATCH, Patch, PATCH_SIZE
-  use arch_mod,  only : n_process, rank
+  use arch_mod,  only : n_glo_block, n_process, rank
 
   use dyn_arrays, only : Areas_Array, Bdry_Patch_Array, Coord_Array, Float_Array, Int_Array, &
        Iu_Wgt_Array, Logical_Array, Overl_Area_Array, Patch_Array, RF_Wgt_Array, Topo_Array, &
@@ -73,10 +73,10 @@ module domain_mod
      type(Bdry_Patch_Array)                     :: bdry_patch
 
      ! Communication
-     type(Int_Array)                                          :: send_pa_all
-     type(Int_Array), dimension(N_GLO_DOMAIN)                 :: recv_pa, send_conn
-     type(Int_Array), dimension(AT_NODE:AT_EDGE,N_GLO_DOMAIN) :: pack, unpk
-     type(Int_Array), dimension(:,:), allocatable             :: src_patch
+     type(Int_Array)              :: send_pa_all
+     type(Int_Array), allocatable :: recv_pa(:), send_conn(:)
+     type(Int_Array), allocatable :: pack(:,:), unpk(:,:)
+     type(Int_Array), allocatable :: src_patch(:,:)
 
      ! Physical quantities
      type(Float_Array) :: coriolis    ! Coriolis force
@@ -176,6 +176,7 @@ contains
     allocate (self%data(n_domain(rank+1)))
   end subroutine init_Logical_Field
   
+  
   subroutine init_Domain (self)
     implicit none
     type(Domain), intent(out) :: self
@@ -200,18 +201,24 @@ contains
        call init (self%lev(i), 0)
     end do
 
-    do i = 1, N_GLO_DOMAIN
+    allocate (self%recv_pa(n_glo_block))
+    allocate (self%send_conn(n_glo_block))
+
+    allocate (self%pack(AT_NODE:AT_EDGE,n_glo_block))
+    allocate (self%unpk(AT_NODE:AT_EDGE,n_glo_block))
+
+    do i = 1, n_glo_block
        call init (self%send_conn(i), 0)
     end do
 
     call init (self%send_pa_all, 0)
 
-    do i = 1, N_GLO_DOMAIN
+    do i = 1, n_glo_block
        call init (self%recv_pa(i), 0)
     end do
 
     do k = AT_NODE, AT_EDGE
-       do i = 1, N_GLO_DOMAIN
+       do i = 1, n_glo_block
           call init (self%pack(k,i), 0)
           call init (self%unpk(k,i), 0)
        end do
@@ -220,7 +227,7 @@ contains
     self%pole_master = .false.
   end subroutine init_Domain
 
-  
+
   integer function add_patch_Domain (self, level)
     ! Add new patch to the domain
     implicit none
