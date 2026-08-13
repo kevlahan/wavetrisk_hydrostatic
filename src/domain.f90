@@ -5,7 +5,7 @@ module domain_mod
   use shared_mod, only : AT_NODE, AT_EDGE, BDRY_THICKNESS, b_vert, b_vert_mass, compressible, &
        EAST, EDGE, grav_accel, IMINUS, IJMINUS, IMINUSJPLUS, JMINUS, &
        N_BDRY, N_CHDRN, N_DOMAIN, NORTH, NORTHEAST, ORIGIN, RT, DG, SOUTHEAST, S_VELO, TRIAG, UP, WEST, &
-       a_vert, a_vert_mass, p_0, ref_density, max_level, max_depth, min_level, mode_split, &
+       a_vert, a_vert_mass, coord, p_0, ref_density, max_level, max_depth, min_level, mode_split, &
        split_mean_perturbation, scalars, zlevels, zmin
 
   use patch_mod, only : BDRY_PATCH, Patch, PATCH_SIZE
@@ -29,7 +29,9 @@ module domain_mod
   public :: idx, idx2, idx__fast, idx_hex, idx_hex_LORT, idx_hex_LORT2, idx_hex_UPLT, idx_hex_UPLT2, ed_idx, id_edge, tri_idx
   public :: nidx, is_penta, find_neigh_bdry_patch_domain, find_neigh_patch2_domain, find_neigh_patch_domain
   public :: par_side, get_offs_Domain, get_offs_Domain5
+  
   public :: count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, subtree_weight_Domain
+  public :: compact_subtree_storage_Domain, copy_subtree_nodes_Domain
 
 
   integer, parameter :: sides_dims(2,N_BDRY+1) = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
@@ -229,6 +231,53 @@ contains
   end subroutine init_Domain
 
 
+  subroutine copy_subtree_nodes_Domain (dom, patch_out, old_elts_start, node_out)
+    ! Copy node-coordinate data from the source Domain into the compact
+    ! storage layout of an extracted subtree.
+
+    implicit none
+
+    type(Domain), intent(in) :: dom
+
+    type(Patch), intent(in) :: patch_out(:)
+    integer,     intent(in) :: old_elts_start(:)
+
+    type(Coord), allocatable, intent(out) :: node_out(:)
+
+    integer :: n_node
+    integer :: p
+    integer :: old_start, new_start
+
+    if (size(old_elts_start) /= size(patch_out)) then
+       error stop "copy_subtree_nodes_Domain: inconsistent patch arrays"
+    end if
+
+    n_node = size(patch_out) * PATCH_SIZE**2
+
+    allocate(node_out(n_node))
+
+    do p = 1, size(patch_out)
+
+       old_start = old_elts_start(p)
+       new_start = patch_out(p)%elts_start
+
+       if (old_start < 0 .or. &
+            old_start + PATCH_SIZE**2 > dom%node%length) then
+          error stop "copy_subtree_nodes_Domain: source range out of bounds"
+       end if
+
+       if (new_start < 0 .or. &
+            new_start + PATCH_SIZE**2 > n_node) then
+          error stop "copy_subtree_nodes_Domain: destination range out of bounds"
+       end if
+
+       node_out(new_start+1:new_start+PATCH_SIZE**2) = &
+            dom%node%elts(old_start+1:old_start+PATCH_SIZE**2)
+
+    end do
+
+  end subroutine copy_subtree_nodes_Domain
+
   recursive integer function subtree_depth_Domain (dom, p) result(depth)
     implicit none
 
@@ -423,6 +472,23 @@ contains
     end subroutine copy_patch
 
   end subroutine extract_subtree_patches_Domain
+
+
+  subroutine compact_subtree_storage_Domain (patch_out)
+    ! Reassign elts_start for an extracted patch tree so that patch
+    ! storage is compact and local to the extracted subtree.
+
+    implicit none
+
+    type(Patch), intent(inout) :: patch_out(:)
+
+    integer :: p
+
+    do p = 1, size(patch_out)
+       patch_out(p)%elts_start = (p-1) * PATCH_SIZE**2
+    end do
+
+  end subroutine compact_subtree_storage_Domain
 
 
   function add_patch_Domain (self, level) result(val)

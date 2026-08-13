@@ -9,7 +9,7 @@ module main_mod
   use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, N_BDRY, N_CHDRN, &
        N_GLO_DOMAIN, N_VARIABLE, NCAR_topo, NONE, &
        S_DIVU, S_ROTU, S_MASS, S_TEMP, S_VELO, TRIAG, XU_GRID, RT, DG, UP, LORT, UPLT, Laplace_divu, Laplace_rotu, Laplace_sclr, &
-       adapt_dt, Area_avg, C_visc, a_vert, a_vert_mass, b_vert, b_vert_mass, cfl_safety, compressible, cp_idx, &
+       adapt_dt, Area_avg, C_visc, a_vert, a_vert_mass, b_vert, b_vert_mass, cfl_safety, compressible, coord, cp_idx, &
        dt, dt_init, dt_write, dx_avg, gamma, grav_accel, iremap, iremap_max, istep, istep_cumul, itime, iwrite, &
        linear_solver, level_start, level_end, log_min_mass, log_total_mass, match_time, &
        min_mass, min_mass_remap, min_level, max_level, mode_split, n_active, n_domain, n_node_old, n_patch_old, optimize_grid, &
@@ -48,7 +48,8 @@ module main_mod
        dvelo, exner, exner_fun, h_flux, horiz_flux, ke, qe, scalar, mass, temp, velo, vort, wc_s, wc_u, &
        Kt, Kv, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, sso_param, &
        sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx, &
-       subtree_weight_Domain, count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain
+       subtree_weight_Domain, count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, &
+       compact_subtree_storage_Domain, copy_subtree_nodes_Domain
 
   use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
@@ -806,8 +807,9 @@ contains
 
 
 subroutine test_subtree_extraction
-  ! Extract one deeper candidate subtree on rank zero and verify that
-  ! its renumbered patch hierarchy is identical to the original tree.
+  ! Extract one deeper candidate subtree on rank zero and verify its
+  ! renumbered patch hierarchy, compact storage layout, and copied
+  ! node-coordinate data.
 
   implicit none
 
@@ -817,11 +819,15 @@ subroutine test_subtree_extraction
   integer :: n_old, n_new
   integer :: n_leaf_old, n_leaf_new
   integer :: depth_old, depth_new
+  integer :: n_node_storage
   integer :: p_old, p_chd_old, p_chd_new
+  integer :: old_start, new_start
 
   integer, allocatable :: old_to_new(:)
+  integer, allocatable :: old_elts_start(:)
 
   type(Patch), allocatable :: patch_copy(:)
+  type(Coord), allocatable :: node_copy(:)
 
   logical :: found
 
@@ -908,8 +914,7 @@ subroutine test_subtree_extraction
   end if
 
   !
-  ! Recompute local domain and root patch from the saved catalogue
-  ! entry so that nothing depends on loop-variable state.
+  ! Recompute local domain and root patch from the saved catalogue.
   !
   d = loc_id(block_catalog(b_test)%root_domain+1) + 1
 
@@ -939,6 +944,90 @@ subroutine test_subtree_extraction
      error stop &
           "test_subtree_extraction: extracted root is not patch zero"
   end if
+
+  !
+  ! Save original storage offsets before compacting them.
+  !
+  allocate(old_elts_start(size(patch_copy)))
+
+  do i = 1, size(patch_copy)
+     old_elts_start(i) = patch_copy(i)%elts_start
+  end do
+
+  !
+  ! Verify original node-storage ranges.
+  !
+  do i = 1, size(patch_copy)
+
+     if (old_elts_start(i) < 0) then
+        error stop &
+             "test_subtree_extraction: invalid original elts_start"
+     end if
+
+     if (old_elts_start(i) + PATCH_SIZE**2 > grid(d)%node%length) then
+        error stop &
+             "test_subtree_extraction: original node storage range out of bounds"
+     end if
+
+  end do
+
+  !
+  ! Assign compact local storage offsets.
+  !
+  call compact_subtree_storage_Domain(patch_copy)
+
+  do i = 1, size(patch_copy)
+
+     if (patch_copy(i)%elts_start /= (i-1)*PATCH_SIZE**2) then
+        error stop &
+             "test_subtree_extraction: incorrect compact elts_start"
+     end if
+
+  end do
+
+  n_node_storage = size(patch_copy) * PATCH_SIZE**2
+
+  !
+  ! Copy the actual node-coordinate data into compact local storage.
+  !
+  call copy_subtree_nodes_Domain( &
+       grid(d), patch_copy, old_elts_start, node_copy)
+
+  if (size(node_copy) /= n_node_storage) then
+     error stop &
+          "test_subtree_extraction: incorrect copied node storage size"
+  end if
+
+  !
+  ! Verify the copied coordinates patch by patch.
+  !
+  do i = 1, size(patch_copy)
+
+     old_start = old_elts_start(i)
+     new_start = patch_copy(i)%elts_start
+
+     if (maxval(abs( &
+          node_copy(new_start+1:new_start+PATCH_SIZE**2)%x - &
+          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%x)) > 0.0_dp) then
+        error stop &
+             "test_subtree_extraction: node x-coordinate mismatch"
+     end if
+
+     if (maxval(abs( &
+          node_copy(new_start+1:new_start+PATCH_SIZE**2)%y - &
+          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%y)) > 0.0_dp) then
+        error stop &
+             "test_subtree_extraction: node y-coordinate mismatch"
+     end if
+
+     if (maxval(abs( &
+          node_copy(new_start+1:new_start+PATCH_SIZE**2)%z - &
+          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%z)) > 0.0_dp) then
+        error stop &
+             "test_subtree_extraction: node z-coordinate mismatch"
+     end if
+
+  end do
 
   !
   ! Verify all copied parent-child links.
@@ -1054,11 +1143,19 @@ subroutine test_subtree_extraction
   write(6,'(a,i0)') &
        "  extracted subtree depth = ", depth_new
 
-  write(6,'(a,/)') &
-       "  patch topology check passed"
+  write(6,'(a,i0)') &
+       "  compact node storage size = ", n_node_storage
 
+  write(6,'(a)') &
+       "  node-coordinate copy check passed"
+
+  write(6,'(a,/)') &
+       "  patch topology and storage layout checks passed"
+
+  deallocate(node_copy)
   deallocate(patch_copy)
   deallocate(old_to_new)
+  deallocate(old_elts_start)
 
 contains
 
