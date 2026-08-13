@@ -15,13 +15,13 @@ module arch_mod
   type(MPI_Datatype), parameter :: MPI_IN = MPI_INTEGER
   type(MPI_Datatype), parameter :: MPI_DP = MPI_DOUBLE_PRECISION
   type(MPI_Datatype), parameter :: MPI_SP = MPI_REAL
-  
+
   integer                       :: n_process, rank
-  integer                       :: loc_id(N_GLO_BLOCK), owner(N_GLO_BLOCK)
+  integer,          allocatable :: loc_id(:), owner(:)
   integer,          allocatable :: glo_id(:,:)
   integer,          allocatable :: cp_load(:)
-  
-  
+
+
 contains
 
   subroutine init_arch_mod
@@ -38,9 +38,13 @@ contains
 
     call MPI_Comm_Size (comm, n_process)
     call MPI_Comm_Rank (comm, rank)
-    
+
     allocate (n_domain(n_process))
     n_domain = 0
+
+    allocate (loc_id(N_GLO_BLOCK), owner(N_GLO_BLOCK))
+    loc_id = 0
+    owner  = 0
 
     initialized = .true.
 
