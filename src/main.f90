@@ -964,7 +964,6 @@ subroutine test_subtree_extraction
   integer :: target_offset
 
   integer :: idx_src
-  integer :: dims_tmp(2)
 
   integer :: p_old
   integer :: p_chd_old
@@ -1532,7 +1531,7 @@ subroutine test_subtree_extraction
                 grid(d), b_src, block_test%block_bdry(ib)%dims)
 
            block_test%block_bdry(ib)%n_node = &
-                product(block_test%block_bdry(ib)%dims)
+                BDRY_THICKNESS * PATCH_SIZE
 
            block_test%block_bdry(ib)%storage_id = -1
 
@@ -1661,14 +1660,12 @@ subroutine test_subtree_extraction
 
            b_src = bdry_required(j)
 
-           call get_bdry_dims_Domain( &
-                grid(d), b_src, dims_tmp)
-
            old_start = &
                 grid(d)%bdry_patch%elts(b_src+1)%elts_start
 
            if (idx_src >= old_start .and. &
-                idx_src < old_start + product(dims_tmp)) then
+                idx_src < old_start + &
+                BDRY_THICKNESS*PATCH_SIZE) then
 
               target_bdry = j
               exit
@@ -1686,14 +1683,12 @@ subroutine test_subtree_extraction
 
         do is = 0, grid(d)%bdry_patch%length-1
 
-           call get_bdry_dims_Domain( &
-                grid(d), is, dims_tmp)
-
            old_start = &
                 grid(d)%bdry_patch%elts(is+1)%elts_start
 
            if (idx_src >= old_start .and. &
-                idx_src < old_start + product(dims_tmp)) then
+                idx_src < old_start + &
+                BDRY_THICKNESS*PATCH_SIZE) then
 
               b_missing = is
               exit
@@ -1793,7 +1788,7 @@ subroutine test_subtree_extraction
           grid(d), b_src, block_test%bdry_storage(is)%dims)
 
      block_test%bdry_storage(is)%n_node = &
-          product(block_test%bdry_storage(is)%dims)
+          BDRY_THICKNESS * PATCH_SIZE
 
      if (block_test%bdry_storage(is)%n_node <= 0) then
         error stop &
@@ -2536,14 +2531,12 @@ subroutine test_subtree_extraction
            !
            do is = 0, grid(d)%bdry_patch%length-1
 
-              call get_bdry_dims_Domain( &
-                   grid(d), is, dims_tmp)
-
               old_start = &
                    grid(d)%bdry_patch%elts(is+1)%elts_start
 
               if (idx_src >= old_start .and. &
-                   idx_src < old_start + product(dims_tmp)) then
+                   idx_src < old_start + &
+                   BDRY_THICKNESS*PATCH_SIZE) then
 
                  unresolved_bdry = is
                  exit
@@ -2869,6 +2862,7 @@ contains
   end function copied_depth
 
 end subroutine test_subtree_extraction
+
 
 
 
