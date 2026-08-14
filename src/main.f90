@@ -132,12 +132,25 @@ type Test_Block
    type(Test_Block_Bdry),   allocatable :: block_bdry(:)
    type(Test_Bdry_Storage), allocatable :: bdry_storage(:)
    type(Test_Stencil_Address), allocatable :: stencil(:,:)
-end type Test_Block
+   type(Test_Ghost_Storage), allocatable :: ghost_storage(:)
 
+   type(Coord), allocatable :: ghost_node(:)
+
+   real(dp), allocatable :: ghost_scalar(:)
+   real(dp), allocatable :: ghost_vector(:)
+end type Test_Block
 
 integer, parameter :: STORE_NONE  = 0
 integer, parameter :: STORE_PATCH = 1
 integer, parameter :: STORE_BDRY  = 2
+integer, parameter :: STORE_GHOST = 3
+
+type Test_Ghost_Storage
+   integer :: source_patch = -1
+   integer :: elts_start   = -1
+   integer :: local_start  = -1
+   integer :: n_node       = 0
+end type Test_Ghost_Storage
 
 type Test_Stencil_Address
    integer :: storage = STORE_NONE
@@ -894,8 +907,10 @@ subroutine test_subtree_extraction
   !   - block-local neighbour references;
   !   - explicit compact scalar stencil addressing.
   !
-  ! Inter-block ghost storage is not constructed yet, so NGB_BLOCK
-  ! stencil links remain deferred.
+  ! Regular source patches required by effective stencil addresses but
+  ! lying outside the extracted subtree are copied into compact ghost
+  ! storage. Nominal NGB_BLOCK links remain deferred until explicit
+  ! inter-block communication is constructed.
 
   implicit none
 
@@ -929,7 +944,13 @@ subroutine test_subtree_extraction
   integer :: n_stencil_built
   integer :: n_stencil_patch
   integer :: n_stencil_bdry
+  integer :: n_stencil_ghost
   integer :: n_stencil_unresolved
+
+  integer :: n_ghost
+  integer :: n_ghost_node
+  integer :: ghost_id
+  integer :: source_patch
 
   integer :: n_unresolved_patch
   integer :: n_unresolved_bdry
@@ -967,6 +988,7 @@ subroutine test_subtree_extraction
 
   integer, allocatable :: bdry_required(:)
   integer, allocatable :: bdry_closure(:)
+  integer, allocatable :: ghost_patch(:)
 
   real(dp) :: val_src
   real(dp) :: val_blk
@@ -1982,6 +2004,240 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
+  ! Identify distinct regular source patches required by effective
+  ! stencil addresses but lying outside the extracted block.
+  ! ===============================================================
+  !
+  allocate(ghost_patch(max(1,grid(d)%patch%length)))
+
+  ghost_patch = -1
+  n_ghost = 0
+
+  do p_old = 0, grid(d)%patch%length-1
+
+     if (old_to_new(p_old) < 0) cycle
+
+     call comp_offs3( &
+          grid(d), p_old, offs_src, dims_src)
+
+     do c = 1, N_BDRY
+
+        select case (block_test%neigh_class( &
+             c,old_to_new(p_old)+1))
+
+        case (NGB_INTERNAL, NGB_DOMAIN, NGB_ADAPT)
+
+           idx_src = grid(d)%patch%elts(p_old+1)%elts_start + &
+                offs_src(c)
+
+        case default
+
+           cycle
+
+        end select
+
+        target_patch = -1
+
+        do i = 0, grid(d)%patch%length-1
+
+           if (old_to_new(i) < 0) cycle
+
+           old_start = grid(d)%patch%elts(i+1)%elts_start
+
+           if (idx_src >= old_start .and. &
+                idx_src < old_start + PATCH_SIZE**2) then
+
+              target_patch = old_to_new(i)
+              exit
+
+           end if
+
+        end do
+
+        if (target_patch >= 0) cycle
+
+        target_bdry = -1
+
+        do is = 1, size(block_test%bdry_storage)
+
+           old_start = block_test%bdry_storage(is)%elts_start
+
+           if (idx_src >= old_start .and. &
+                idx_src < old_start + &
+                block_test%bdry_storage(is)%n_node) then
+
+              target_bdry = is
+              exit
+
+           end if
+
+        end do
+
+        if (target_bdry >= 0) cycle
+
+        source_patch = -1
+
+        do i = 0, grid(d)%patch%length-1
+
+           old_start = grid(d)%patch%elts(i+1)%elts_start
+
+           if (idx_src >= old_start .and. &
+                idx_src < old_start + PATCH_SIZE**2) then
+
+              source_patch = i
+              exit
+
+           end if
+
+        end do
+
+        if (source_patch < 0) cycle
+
+        if (old_to_new(source_patch) >= 0) then
+           error stop &
+                "test_subtree_extraction: ghost source is inside block"
+        end if
+
+        already_present = .false.
+
+        do j = 1, n_ghost
+
+           if (ghost_patch(j) == source_patch) then
+              already_present = .true.
+              exit
+           end if
+
+        end do
+
+        if (.not. already_present) then
+           n_ghost = n_ghost + 1
+           ghost_patch(n_ghost) = source_patch
+        end if
+
+     end do
+
+  end do
+
+  !
+  ! Construct compact ghost-patch storage.
+  !
+  allocate(block_test%ghost_storage(n_ghost))
+
+  n_ghost_node = 0
+
+  do ghost_id = 1, n_ghost
+
+     source_patch = ghost_patch(ghost_id)
+
+     block_test%ghost_storage(ghost_id)%source_patch = &
+          source_patch
+
+     block_test%ghost_storage(ghost_id)%elts_start = &
+          grid(d)%patch%elts(source_patch+1)%elts_start
+
+     block_test%ghost_storage(ghost_id)%local_start = &
+          n_ghost_node
+
+     block_test%ghost_storage(ghost_id)%n_node = &
+          PATCH_SIZE**2
+
+     n_ghost_node = n_ghost_node + PATCH_SIZE**2
+
+  end do
+
+  allocate(block_test%ghost_node(n_ghost_node))
+
+  allocate(block_test%ghost_scalar( &
+       mult_scalar*n_ghost_node))
+
+  allocate(block_test%ghost_vector( &
+       mult_vector*n_ghost_node))
+
+  !
+  ! Copy temporary ghost data from the source domain. Eventually the
+  ! field data will be supplied by inter-block communication.
+  !
+  do ghost_id = 1, n_ghost
+
+     old_start = &
+          block_test%ghost_storage(ghost_id)%elts_start
+
+     new_start = &
+          block_test%ghost_storage(ghost_id)%local_start
+
+     block_test%ghost_node( &
+          new_start+1 : new_start+PATCH_SIZE**2) = &
+          grid(d)%node%elts( &
+          old_start+1 : old_start+PATCH_SIZE**2)
+
+     block_test%ghost_scalar( &
+          mult_scalar*new_start+1 : &
+          mult_scalar*(new_start+PATCH_SIZE**2)) = &
+          sol(v_scalar,k_test)%data(d)%elts( &
+          mult_scalar*old_start+1 : &
+          mult_scalar*(old_start+PATCH_SIZE**2))
+
+     block_test%ghost_vector( &
+          mult_vector*new_start+1 : &
+          mult_vector*(new_start+PATCH_SIZE**2)) = &
+          sol(v_vector,k_test)%data(d)%elts( &
+          mult_vector*old_start+1 : &
+          mult_vector*(old_start+PATCH_SIZE**2))
+
+  end do
+
+  !
+  ! Verify temporary ghost copies.
+  !
+  do ghost_id = 1, n_ghost
+
+     old_start = &
+          block_test%ghost_storage(ghost_id)%elts_start
+
+     new_start = &
+          block_test%ghost_storage(ghost_id)%local_start
+
+     if (maxval(abs( &
+          block_test%ghost_node( &
+          new_start+1 : new_start+PATCH_SIZE**2)%x - &
+          grid(d)%node%elts( &
+          old_start+1 : old_start+PATCH_SIZE**2)%x)) > 0.0_dp) then
+
+        error stop &
+             "test_subtree_extraction: ghost coordinate mismatch"
+
+     end if
+
+     if (maxval(abs( &
+          block_test%ghost_scalar( &
+          mult_scalar*new_start+1 : &
+          mult_scalar*(new_start+PATCH_SIZE**2)) - &
+          sol(v_scalar,k_test)%data(d)%elts( &
+          mult_scalar*old_start+1 : &
+          mult_scalar*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
+
+        error stop &
+             "test_subtree_extraction: ghost scalar mismatch"
+
+     end if
+
+     if (maxval(abs( &
+          block_test%ghost_vector( &
+          mult_vector*new_start+1 : &
+          mult_vector*(new_start+PATCH_SIZE**2)) - &
+          sol(v_vector,k_test)%data(d)%elts( &
+          mult_vector*old_start+1 : &
+          mult_vector*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
+
+        error stop &
+             "test_subtree_extraction: ghost vector mismatch"
+
+     end if
+
+  end do
+
+  !
+  ! ===============================================================
   ! Renumber neighbours and convert all external links to local
   ! block_bdry references.
   ! ===============================================================
@@ -2097,6 +2353,7 @@ subroutine test_subtree_extraction
   n_stencil_built      = 0
   n_stencil_patch      = 0
   n_stencil_bdry       = 0
+  n_stencil_ghost      = 0
   n_stencil_unresolved = 0
 
   n_unresolved_patch = 0
@@ -2133,6 +2390,7 @@ subroutine test_subtree_extraction
 
         target_patch  = -1
         target_bdry   = -1
+        ghost_id      = -1
         target_offset = 0
 
         !
@@ -2169,6 +2427,30 @@ subroutine test_subtree_extraction
                    block_test%bdry_storage(is)%n_node) then
 
                  target_bdry   = is
+                 target_offset = idx_src - old_start
+                 exit
+
+              end if
+
+           end do
+
+        end if
+
+        !
+        ! Search compact ghost-patch storage.
+        !
+        if (target_patch < 0 .and. target_bdry < 0) then
+
+           do i = 1, size(block_test%ghost_storage)
+
+              old_start = &
+                   block_test%ghost_storage(i)%elts_start
+
+              if (idx_src >= old_start .and. &
+                   idx_src < old_start + &
+                   block_test%ghost_storage(i)%n_node) then
+
+                 ghost_id      = i
                  target_offset = idx_src - old_start
                  exit
 
@@ -2216,6 +2498,26 @@ subroutine test_subtree_extraction
                 c,old_to_new(p_old)+1)%dims = dims_src(:,c)
 
            n_stencil_bdry  = n_stencil_bdry + 1
+           n_stencil_built = n_stencil_built + 1
+
+        !
+        ! Resolved compact ghost-patch target.
+        !
+        else if (ghost_id >= 0) then
+
+           block_test%stencil( &
+                c,old_to_new(p_old)+1)%storage = STORE_GHOST
+
+           block_test%stencil( &
+                c,old_to_new(p_old)+1)%id = ghost_id
+
+           block_test%stencil( &
+                c,old_to_new(p_old)+1)%offset = target_offset
+
+           block_test%stencil( &
+                c,old_to_new(p_old)+1)%dims = dims_src(:,c)
+
+           n_stencil_ghost = n_stencil_ghost + 1
            n_stencil_built = n_stencil_built + 1
 
         !
@@ -2325,6 +2627,19 @@ subroutine test_subtree_extraction
                 (block_test%bdry_storage(target_bdry)%local_start + &
                 target_offset) + 1)
 
+        case (STORE_GHOST)
+
+           ghost_id = block_test%stencil( &
+                c,old_to_new(p_old)+1)%id
+
+           target_offset = block_test%stencil( &
+                c,old_to_new(p_old)+1)%offset
+
+           val_blk = block_test%ghost_scalar( &
+                mult_scalar * &
+                (block_test%ghost_storage(ghost_id)%local_start + &
+                target_offset) + 1)
+
         case default
 
            error stop &
@@ -2354,7 +2669,7 @@ subroutine test_subtree_extraction
 
   end if
 
-  if (n_stencil_patch + n_stencil_bdry /= &
+  if (n_stencil_patch + n_stencil_bdry + n_stencil_ghost /= &
        n_stencil_built) then
 
      error stop &
@@ -2467,6 +2782,17 @@ subroutine test_subtree_extraction
   write(6,'(a)') &
        "  boundary coordinate/scalar/vector copy checks passed"
 
+  write(6,'(/,a,i0)') &
+       "  compact ghost source patches = ", &
+       size(block_test%ghost_storage)
+
+  write(6,'(a,i0)') &
+       "  compact ghost node storage = ", &
+       size(block_test%ghost_node)
+
+  write(6,'(a)') &
+       "  ghost coordinate/scalar/vector copy checks passed"
+
   write(6,'(/,a)') &
        "  Explicit compact stencil addressing:"
 
@@ -2481,6 +2807,10 @@ subroutine test_subtree_extraction
   write(6,'(a,i0)') &
        "    boundary-storage targets      = ", &
        n_stencil_bdry
+
+  write(6,'(a,i0)') &
+       "    ghost-patch targets           = ", &
+       n_stencil_ghost
 
   write(6,'(a,i0)') &
        "    unresolved targets            = ", &
@@ -2507,6 +2837,7 @@ subroutine test_subtree_extraction
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
 
+  deallocate(ghost_patch)
   deallocate(bdry_required)
   deallocate(bdry_closure)
   deallocate(old_to_new)
@@ -2538,6 +2869,7 @@ contains
   end function copied_depth
 
 end subroutine test_subtree_extraction
+
 
 
   subroutine test_parallel_block_split
