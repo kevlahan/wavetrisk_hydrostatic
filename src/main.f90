@@ -117,14 +117,12 @@ type Test_Block
    type(Patch), allocatable :: patch(:)
    type(Coord), allocatable :: node(:)
 
-   !
-   ! Compact coordinate storage associated with the distinct
-   ! source Bdry_Patch records used by this block.
-   !
    type(Coord), allocatable :: bdry_node(:)
 
    real(dp), allocatable :: scalar(:)
    real(dp), allocatable :: vector(:)
+
+   real(dp), allocatable :: bdry_scalar(:)
 
    integer, allocatable :: neigh_class(:,:)
 
@@ -869,7 +867,8 @@ contains
 subroutine test_subtree_extraction
   ! Extract one candidate subtree on rank zero and verify its topology,
   ! compact storage, copied geometry/fields, local neighbour topology,
-  ! deduplicated boundary-storage layout, and copied boundary coordinates.
+  ! deduplicated boundary-storage layout, boundary coordinates, and
+  ! one node-based scalar field on the boundary storage.
 
   implicit none
 
@@ -1528,7 +1527,7 @@ subroutine test_subtree_extraction
   end if
 
   !
-  ! Assign storage_id to any repeated references.
+  ! Assign storage_id to repeated references.
   !
   do ib = 1, size(block_test%block_bdry)
 
@@ -1639,7 +1638,7 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Verify every existing-boundary link has the appropriate storage_id.
+  ! Verify every existing-boundary link has a valid storage_id.
   !
   do ib = 1, size(block_test%block_bdry)
 
@@ -1673,7 +1672,7 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Copy each distinct source boundary coordinate region exactly once.
+  ! Copy each distinct source boundary coordinate region once.
   ! ===============================================================
   !
   allocate(block_test%bdry_node(n_bdry_node_unique))
@@ -1695,9 +1694,6 @@ subroutine test_subtree_extraction
           "test_subtree_extraction: incorrect boundary coordinate size"
   end if
 
-  !
-  ! Verify copied boundary coordinates exactly.
-  !
   do is = 1, size(block_test%bdry_storage)
 
      old_start = block_test%bdry_storage(is)%elts_start
@@ -1742,7 +1738,54 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Original summed storage count, including repeated references.
+  ! ===============================================================
+  ! Copy one node-based scalar field using the same deduplicated
+  ! boundary-storage layout.
+  ! ===============================================================
+  !
+  allocate(block_test%bdry_scalar(n_bdry_node_unique))
+
+  do is = 1, size(block_test%bdry_storage)
+
+     old_start = block_test%bdry_storage(is)%elts_start
+     new_start = block_test%bdry_storage(is)%local_start
+
+     block_test%bdry_scalar( &
+          new_start+1:new_start+block_test%bdry_storage(is)%n_node) = &
+          sol(v_scalar,k_test)%data(d)%elts( &
+          old_start+1:old_start+block_test%bdry_storage(is)%n_node)
+
+  end do
+
+  if (size(block_test%bdry_scalar) /= n_bdry_node_unique) then
+     error stop &
+          "test_subtree_extraction: incorrect boundary scalar size"
+  end if
+
+  !
+  ! Verify copied boundary scalar data exactly.
+  !
+  do is = 1, size(block_test%bdry_storage)
+
+     old_start = block_test%bdry_storage(is)%elts_start
+     new_start = block_test%bdry_storage(is)%local_start
+
+     if (maxval(abs( &
+          block_test%bdry_scalar( &
+          new_start+1:new_start+block_test%bdry_storage(is)%n_node) - &
+          sol(v_scalar,k_test)%data(d)%elts( &
+          old_start+1:old_start+block_test%bdry_storage(is)%n_node))) > &
+          0.0_dp) then
+
+        error stop &
+             "test_subtree_extraction: boundary scalar mismatch"
+
+     end if
+
+  end do
+
+  !
+  ! Original summed boundary storage count, including repeats.
   !
   n_bdry_node_total = 0
   n_bdry_node_max   = 0
@@ -1838,8 +1881,8 @@ subroutine test_subtree_extraction
   ! ===============================================================
   ! Package extracted arrays.
   !
-  ! bdry_node, bdry_storage and block_bdry are already owned by
-  ! block_test.
+  ! bdry_node, bdry_scalar, bdry_storage and block_bdry are already
+  ! owned directly by block_test.
   ! ===============================================================
   !
   block_test%id          = block_catalog(b_test)%id
@@ -1853,7 +1896,7 @@ subroutine test_subtree_extraction
   call move_alloc(vector_copy, block_test%vector)
 
   !
-  ! Verify compact boundary coordinate storage after packaging.
+  ! Verify compact boundary storage after packaging.
   !
   if (.not. allocated(block_test%bdry_node)) then
      error stop &
@@ -1863,6 +1906,16 @@ subroutine test_subtree_extraction
   if (size(block_test%bdry_node) /= n_bdry_node_unique) then
      error stop &
           "test_subtree_extraction: boundary coordinate size lost"
+  end if
+
+  if (.not. allocated(block_test%bdry_scalar)) then
+     error stop &
+          "test_subtree_extraction: boundary scalar not allocated"
+  end if
+
+  if (size(block_test%bdry_scalar) /= n_bdry_node_unique) then
+     error stop &
+          "test_subtree_extraction: boundary scalar size lost"
   end if
 
   !
@@ -1976,6 +2029,13 @@ subroutine test_subtree_extraction
 
   write(6,'(a)') &
        "  boundary-coordinate copy check passed"
+
+  write(6,'(a,i0)') &
+       "  compact boundary scalar storage = ", &
+       size(block_test%bdry_scalar)
+
+  write(6,'(a)') &
+       "  boundary scalar-field copy check passed"
 
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
