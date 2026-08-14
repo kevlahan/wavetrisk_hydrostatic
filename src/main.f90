@@ -40,14 +40,12 @@ module main_mod
        Block_Bdry_Link, Block_Ghost_Storage, Block_Stencil_Address, &
        STORE_NONE, STORE_PATCH, STORE_BDRY, STORE_GHOST, &
        NGB_INTERNAL, NGB_BLOCK, NGB_DOMAIN, NGB_ADAPT, NGB_OTHER, &
-       block_source, block_received, block_local, &
+       block_source, block_local, &
        block_source_catalog_index, block_retained_source_index, &
        block_migrating_source_index, &
-       block_received_catalog_index, &
        block_local_catalog_index, &
-       packed_block_nbyte, pack_block, unpack_block, &
-       check_block_storage, clear_block_staging, &
-       install_local_blocks
+       pack_block, unpack_block, &
+       check_block_storage
   use refine_patch_mod,   only : add_second_level
   use remap_mod,          only : remap_vertical_coordinates
   use utils_mod,          only : hex_len, hex_pedlen, interp, nu_scale, porous_density, tri_perim
@@ -77,12 +75,7 @@ module main_mod
 
   use coord_arithmetic_mod
 
-  use parallel_block_mpi_mod, only : Block_Migration_Manifest, &
-       build_block_migration_manifest, &
-       check_block_migration_manifest, &
-       exchange_block_migration_sizes, &
-       exchange_block_migration_payloads, &
-       clear_block_migration_manifest
+  use parallel_block_mpi_mod, only : migrate_blocks
 
 #ifdef PHYSICS
   use init_physics_mod,  only : init_physics, init_soil_grid
@@ -107,8 +100,6 @@ real(dp)             :: dt_loc, min_mass_loc
 
 type(Initial_State), allocatable :: ini_st(:)
 
-
-type(Block_Migration_Manifest) :: block_migration
 
 contains
 
@@ -163,14 +154,10 @@ contains
        cp_idx = resume
        call read_checkpoint_directory (cp_idx)
        call restart
-       call test_parallel_block_split
-       call test_subtree_extraction
-       call build_block_migration_manifest(block_migration)
-       call check_block_migration_manifest(block_migration)
-       call test_block_migration_sizes(block_migration)
-       call test_block_migration_payloads(block_migration)
-       call test_install_local_blocks
-       call finalize_test_block_migration(block_migration)
+       call build_parallel_block_catalog
+       call build_source_blocks
+       call migrate_blocks
+       call check_local_blocks(.true.)
     else
        call init_basic
        call init_structures
@@ -838,7 +825,7 @@ contains
   end subroutine cal_min_mass
 
 
-subroutine test_subtree_extraction
+subroutine build_source_blocks
   ! Build and verify every candidate block whose source Domain is
   ! currently local to this rank. Detailed diagnostics are printed for
   ! one representative block; all blocks contribute to rank totals.
@@ -895,7 +882,7 @@ subroutine test_subtree_extraction
   end do
 
   if (n_block_built < 1) then
-     error stop "test_subtree_extraction: no source-local blocks"
+     error stop "build_source_blocks: no source-local blocks"
   end if
 
   if (allocated(block_source)) then
@@ -938,7 +925,7 @@ subroutine test_subtree_extraction
 
      if (d < 1 .or. d > size(grid)) then
         error stop &
-             "test_subtree_extraction: invalid local domain mapping"
+             "build_source_blocks: invalid local domain mapping"
      end if
 
      if (subtree_depth_Domain( &
@@ -966,7 +953,7 @@ subroutine test_subtree_extraction
 
         if (d < 1 .or. d > size(grid)) then
            error stop &
-                "test_subtree_extraction: invalid local domain mapping"
+                "build_source_blocks: invalid local domain mapping"
         end if
 
         b_verbose = b
@@ -979,7 +966,7 @@ subroutine test_subtree_extraction
 
   if (rank == 0 .and. b_verbose < 1) then
      error stop &
-          "test_subtree_extraction: no local source-domain block"
+          "build_source_blocks: no local source-domain block"
   end if
 
   n_block_built = 0
@@ -1002,14 +989,14 @@ subroutine test_subtree_extraction
 
      if (d < 1 .or. d > size(grid)) then
         error stop &
-             "test_subtree_extraction: invalid local domain mapping"
+             "build_source_blocks: invalid local domain mapping"
      end if
 
      i_block = i_block + 1
 
      block_source_catalog_index(i_block) = b
 
-     call test_one_subtree_extraction( &
+     call build_one_source_block( &
           b, block_source(i_block), b == b_verbose, &
           n_patch_block, n_bdry_block, n_ghost_block, &
           n_stencil_block, n_remote_block, n_value_block)
@@ -1034,23 +1021,23 @@ subroutine test_subtree_extraction
   end do
 
   if (n_block_built < 1) then
-     error stop "test_subtree_extraction: no blocks constructed"
+     error stop "build_source_blocks: no blocks constructed"
   end if
 
   if (n_block_owned + n_block_migrating /= n_block_built) then
      error stop &
-          "test_subtree_extraction: block migration count mismatch"
+          "build_source_blocks: block migration count mismatch"
   end if
 
   if (i_block /= size(block_source)) then
      error stop &
-          "test_subtree_extraction: persistent block count mismatch"
+          "build_source_blocks: persistent block count mismatch"
   end if
 
-  call check_persistent_test_blocks
+  call check_source_blocks
 
 
-  call test_local_block_serialization( &
+  call check_migrating_block_serialization( &
        n_pack_block, n_pack_byte_total, n_pack_byte_max)
 
   write(6,'(/,a,i0,a)') &
@@ -1117,10 +1104,10 @@ subroutine test_subtree_extraction
   write(6,'(a,/)') &
        "  all local-source candidate block checks passed"
 
-end subroutine test_subtree_extraction
+end subroutine build_source_blocks
 
 
-subroutine check_persistent_test_blocks
+subroutine check_source_blocks
   ! Verify that every constructed block and all of its allocatable
   ! components remain valid after the one-block builder has returned.
   ! Also verify that the retained and migrating index sets form an
@@ -1136,23 +1123,23 @@ subroutine check_persistent_test_blocks
 
   if (.not. allocated(block_source)) then
      error stop &
-          "check_persistent_test_blocks: block store is not allocated"
+          "check_source_blocks: block store is not allocated"
   end if
 
   if (.not. allocated(block_source_catalog_index)) then
      error stop &
-          "check_persistent_test_blocks: catalog map is not allocated"
+          "check_source_blocks: catalog map is not allocated"
   end if
 
   if (.not. allocated(block_retained_source_index) .or. &
        .not. allocated(block_migrating_source_index)) then
      error stop &
-          "check_persistent_test_blocks: ownership sets not allocated"
+          "check_source_blocks: ownership sets not allocated"
   end if
 
   if (size(block_source_catalog_index) /= size(block_source)) then
      error stop &
-          "check_persistent_test_blocks: catalog map size mismatch"
+          "check_source_blocks: catalog map size mismatch"
   end if
 
   allocate(seen(size(block_source)))
@@ -1164,12 +1151,12 @@ subroutine check_persistent_test_blocks
 
      if (b < 1 .or. b > size(block_catalog)) then
         error stop &
-             "check_persistent_test_blocks: invalid catalog index"
+             "check_source_blocks: invalid catalog index"
      end if
 
      if (owner(block_catalog(b)%root_domain+1) /= rank) then
         error stop &
-             "check_persistent_test_blocks: source owner mismatch"
+             "check_source_blocks: source owner mismatch"
      end if
 
      if (block_source(i)%id /= block_catalog(b)%id .or. &
@@ -1180,7 +1167,7 @@ subroutine check_persistent_test_blocks
           block_source(i)%level /= block_catalog(b)%level) then
 
         error stop &
-             "check_persistent_test_blocks: block identity mismatch"
+             "check_source_blocks: block identity mismatch"
 
      end if
 
@@ -1194,19 +1181,19 @@ subroutine check_persistent_test_blocks
 
      if (ib < 1 .or. ib > size(block_source)) then
         error stop &
-             "check_persistent_test_blocks: invalid retained index"
+             "check_source_blocks: invalid retained index"
      end if
 
      if (seen(ib) /= 0) then
         error stop &
-             "check_persistent_test_blocks: duplicate retained index"
+             "check_source_blocks: duplicate retained index"
      end if
 
      b = block_source_catalog_index(ib)
 
      if (block_catalog(b)%owner /= rank) then
         error stop &
-             "check_persistent_test_blocks: retained owner mismatch"
+             "check_source_blocks: retained owner mismatch"
      end if
 
      seen(ib) = 1
@@ -1219,19 +1206,19 @@ subroutine check_persistent_test_blocks
 
      if (ib < 1 .or. ib > size(block_source)) then
         error stop &
-             "check_persistent_test_blocks: invalid migrating index"
+             "check_source_blocks: invalid migrating index"
      end if
 
      if (seen(ib) /= 0) then
         error stop &
-             "check_persistent_test_blocks: duplicate migrating index"
+             "check_source_blocks: duplicate migrating index"
      end if
 
      b = block_source_catalog_index(ib)
 
      if (block_catalog(b)%owner == rank) then
         error stop &
-             "check_persistent_test_blocks: migrating owner mismatch"
+             "check_source_blocks: migrating owner mismatch"
      end if
 
      seen(ib) = 1
@@ -1240,15 +1227,15 @@ subroutine check_persistent_test_blocks
 
   if (any(seen /= 1)) then
      error stop &
-          "check_persistent_test_blocks: ownership partition mismatch"
+          "check_source_blocks: ownership partition mismatch"
   end if
 
   deallocate(seen)
 
-end subroutine check_persistent_test_blocks
+end subroutine check_source_blocks
 
 
-subroutine test_local_block_serialization ( &
+subroutine check_migrating_block_serialization ( &
      n_block_out, n_byte_out, n_byte_max_out)
   ! Pack and unpack every block that will migrate away from this rank.
   ! The reconstructed block is packed again and the two byte streams
@@ -1273,7 +1260,7 @@ subroutine test_local_block_serialization ( &
        .not. allocated(block_migrating_source_index)) then
 
      error stop &
-          "test_local_block_serialization: block store not allocated"
+          "check_migrating_block_serialization: block store not allocated"
 
   end if
 
@@ -1287,7 +1274,7 @@ subroutine test_local_block_serialization ( &
 
      if (ib < 1 .or. ib > size(block_source)) then
         error stop &
-             "test_local_block_serialization: invalid block index"
+             "check_migrating_block_serialization: invalid block index"
      end if
 
      call pack_block(block_source(ib),buffer_source)
@@ -1296,12 +1283,12 @@ subroutine test_local_block_serialization ( &
 
      if (size(buffer_copy) /= size(buffer_source)) then
         error stop &
-             "test_local_block_serialization: packed size mismatch"
+             "check_migrating_block_serialization: packed size mismatch"
      end if
 
      if (any(buffer_copy /= buffer_source)) then
         error stop &
-             "test_local_block_serialization: round-trip mismatch"
+             "check_migrating_block_serialization: round-trip mismatch"
      end if
 
      nbyte = size(buffer_source)
@@ -1314,449 +1301,15 @@ subroutine test_local_block_serialization ( &
 
   if (n_block_out /= size(block_migrating_source_index)) then
      error stop &
-          "test_local_block_serialization: tested count mismatch"
+          "check_migrating_block_serialization: tested count mismatch"
   end if
 
-end subroutine test_local_block_serialization
+end subroutine check_migrating_block_serialization
 
 
-subroutine test_block_migration_sizes (manifest)
-  ! Associate every outgoing manifest entry with its persistent source
-  ! block, compute the exact serialized byte count, and exchange only
-  ! those counts. No packed block payload is communicated here.
 
-  implicit none
 
-  type(Block_Migration_Manifest), intent(inout) :: manifest
-
-  integer :: b
-  integer :: i
-  integer :: ib
-  integer, allocatable :: seen(:)
-  integer, allocatable :: send_nbyte(:)
-
-  if (.not. manifest%validated) then
-     error stop &
-          "test_block_migration_sizes: manifest is not validated"
-  end if
-
-  if (.not. allocated(block_source) .or. &
-       .not. allocated(block_source_catalog_index) .or. &
-       .not. allocated(block_migrating_source_index)) then
-
-     error stop &
-          "test_block_migration_sizes: persistent block store missing"
-
-  end if
-
-  if (manifest%n_send /= size(block_migrating_source_index)) then
-     error stop &
-          "test_block_migration_sizes: outgoing block count mismatch"
-  end if
-
-  allocate(send_nbyte(manifest%n_send))
-  allocate(seen(size(block_source)))
-
-  send_nbyte = 0
-  seen       = 0
-
-  do i = 1, manifest%n_send
-
-     b = manifest%send_block(i)
-
-     if (b < 1 .or. b > size(block_catalog)) then
-        error stop &
-             "test_block_migration_sizes: invalid catalog index"
-     end if
-
-     ib = findloc(block_source_catalog_index,b,dim=1)
-
-     if (ib < 1 .or. ib > size(block_source)) then
-        error stop &
-             "test_block_migration_sizes: source block not found"
-     end if
-
-     if (findloc(block_migrating_source_index,ib,dim=1) < 1) then
-        error stop &
-             "test_block_migration_sizes: block is not migrating"
-     end if
-
-     if (seen(ib) /= 0) then
-        error stop &
-             "test_block_migration_sizes: duplicate source block"
-     end if
-
-     if (block_source(ib)%id /= block_catalog(b)%id) then
-        error stop &
-             "test_block_migration_sizes: block identity mismatch"
-     end if
-
-     send_nbyte(i) = &
-          packed_block_nbyte(block_source(ib))
-
-     if (send_nbyte(i) <= 0) then
-        error stop &
-             "test_block_migration_sizes: invalid packed byte count"
-     end if
-
-     seen(ib) = 1
-
-  end do
-
-  do i = 1, size(block_migrating_source_index)
-
-     ib = block_migrating_source_index(i)
-
-     if (ib < 1 .or. ib > size(block_source)) then
-        error stop &
-             "test_block_migration_sizes: invalid migrating index"
-     end if
-
-     if (seen(ib) /= 1) then
-        error stop &
-             "test_block_migration_sizes: migrating block omitted"
-     end if
-
-  end do
-
-  call exchange_block_migration_sizes(manifest,send_nbyte)
-
-  deallocate(seen)
-  deallocate(send_nbyte)
-
-end subroutine test_block_migration_sizes
-
-
-subroutine test_block_migration_payloads (manifest)
-  ! Pack outgoing blocks in manifest order, exchange the byte streams,
-  ! and unpack received blocks into a separate temporary persistent
-  ! store. Source blocks and ownership maps remain unchanged.
-
-  implicit none
-
-  type(Block_Migration_Manifest), intent(inout) :: manifest
-
-  integer :: b
-  integer :: i
-  integer :: ib
-  integer :: nbyte
-  integer :: n_recv_byte
-  integer :: n_send_byte
-  integer :: pos
-  integer, allocatable :: seen_catalog(:)
-
-  integer(int8), allocatable :: block_buffer(:)
-  integer(int8), allocatable :: check_buffer(:)
-  integer(int8), allocatable :: send_payload(:)
-
-  if (.not. manifest%validated .or. &
-       .not. manifest%sizes_validated) then
-     error stop &
-          "test_block_migration_payloads: sizes are not validated"
-  end if
-
-  if (.not. allocated(block_source) .or. &
-       .not. allocated(block_source_catalog_index) .or. &
-       .not. allocated(block_migrating_source_index)) then
-
-     error stop &
-          "test_block_migration_payloads: source block store missing"
-
-  end if
-
-  n_send_byte = int(manifest%total_send_nbyte)
-  n_recv_byte = int(manifest%total_recv_nbyte)
-
-  allocate(send_payload(max(1,n_send_byte)))
-  send_payload = 0_int8
-
-  pos = 0
-
-  do i = 1, manifest%n_send
-
-     b = manifest%send_block(i)
-     ib = findloc(block_source_catalog_index,b,dim=1)
-
-     if (ib < 1 .or. ib > size(block_source)) then
-        error stop &
-             "test_block_migration_payloads: source block not found"
-     end if
-
-     if (findloc(block_migrating_source_index,ib,dim=1) < 1) then
-        error stop &
-             "test_block_migration_payloads: source is not migrating"
-     end if
-
-     call pack_block(block_source(ib),block_buffer)
-
-     if (size(block_buffer) /= manifest%send_nbyte(i)) then
-        error stop &
-             "test_block_migration_payloads: outgoing size changed"
-     end if
-
-     nbyte = size(block_buffer)
-
-     if (pos+nbyte > n_send_byte) then
-        error stop &
-             "test_block_migration_payloads: outgoing buffer overflow"
-     end if
-
-     send_payload(pos+1:pos+nbyte) = block_buffer
-     pos = pos + nbyte
-
-  end do
-
-  if (pos /= n_send_byte) then
-     error stop &
-          "test_block_migration_payloads: outgoing extent mismatch"
-  end if
-
-  call exchange_block_migration_payloads(manifest,send_payload)
-
-  if (.not. manifest%payload_validated) then
-     error stop &
-          "test_block_migration_payloads: transport is not validated"
-  end if
-
-  if (allocated(block_received)) then
-     deallocate(block_received)
-  end if
-
-  if (allocated(block_received_catalog_index)) then
-     deallocate(block_received_catalog_index)
-  end if
-
-  allocate(block_received(manifest%n_recv))
-  allocate(block_received_catalog_index(manifest%n_recv))
-  allocate(seen_catalog(size(block_catalog)))
-
-  block_received_catalog_index = -1
-  seen_catalog = 0
-  pos = 0
-
-  do i = 1, manifest%n_recv
-
-     b     = manifest%recv_block(i)
-     nbyte = manifest%recv_nbyte(i)
-
-     if (b < 1 .or. b > size(block_catalog)) then
-        error stop &
-             "test_block_migration_payloads: invalid received catalog index"
-     end if
-
-     if (seen_catalog(b) /= 0) then
-        error stop &
-             "test_block_migration_payloads: duplicate received block"
-     end if
-
-     if (block_catalog(b)%owner /= rank) then
-        error stop &
-             "test_block_migration_payloads: wrong received owner"
-     end if
-
-     if (nbyte <= 0 .or. pos+nbyte > n_recv_byte) then
-        error stop &
-             "test_block_migration_payloads: invalid received extent"
-     end if
-
-     call unpack_block( &
-          manifest%recv_payload(pos+1:pos+nbyte), &
-          block_received(i))
-
-     if (block_received(i)%id /= block_catalog(b)%id .or. &
-          block_received(i)%root_domain /= &
-          block_catalog(b)%root_domain .or. &
-          block_received(i)%root_patch /= &
-          block_catalog(b)%root_patch .or. &
-          block_received(i)%level /= block_catalog(b)%level) then
-
-        error stop &
-             "test_block_migration_payloads: received identity mismatch"
-
-     end if
-
-     call pack_block(block_received(i),check_buffer)
-
-     if (size(check_buffer) /= nbyte) then
-        error stop &
-             "test_block_migration_payloads: received size mismatch"
-     end if
-
-     if (any(check_buffer /= &
-          manifest%recv_payload(pos+1:pos+nbyte))) then
-        error stop &
-             "test_block_migration_payloads: received round-trip mismatch"
-     end if
-
-     block_received_catalog_index(i) = b
-     seen_catalog(b) = 1
-     pos = pos + nbyte
-
-  end do
-
-  if (pos /= n_recv_byte) then
-     error stop &
-          "test_block_migration_payloads: incoming extent mismatch"
-  end if
-
-  if (count(seen_catalog /= 0) /= manifest%n_recv) then
-     error stop &
-          "test_block_migration_payloads: received inventory mismatch"
-  end if
-
-  call check_persistent_test_blocks
-
-  write(6,'(/,a,i0,a)') &
-       "Temporary received blocks for rank ", rank, ":"
-  write(6,'(a,i0)') &
-       "  received block objects = ", size(block_received)
-  write(6,'(a,i0)') &
-       "  received packed bytes  = ", n_recv_byte
-  write(6,'(a)') &
-       "  received identity and byte checks passed"
-  write(6,'(a,/)') &
-       "  source persistent block checks still passed"
-
-  deallocate(seen_catalog)
-  deallocate(send_payload)
-
-end subroutine test_block_migration_payloads
-
-
-subroutine test_install_local_blocks
-  ! Install the final-owner local store through parallel_block_mod, then
-  ! verify catalogue ownership and the global MPI inventory here.
-
-  implicit none
-
-  integer :: b
-  integer :: expected_local
-  integer :: global_count
-  integer :: global_weight
-  integer :: ierr
-  integer :: local_weight
-  integer :: n_local
-
-  integer, allocatable :: global_seen(:)
-  integer, allocatable :: local_seen(:)
-
-  call install_local_blocks(size(block_catalog),local_seen)
-
-  n_local = size(block_local)
-
-  allocate(global_seen(size(block_catalog)))
-  global_seen = 0
-
-  expected_local = 0
-  local_weight   = 0
-
-  do b = 1, size(block_catalog)
-
-     if (block_catalog(b)%owner == rank) then
-
-        expected_local = expected_local + 1
-        local_weight = local_weight + block_catalog(b)%weight
-
-        if (local_seen(b) /= 1) then
-           error stop &
-                "test_install_local_blocks: owned block is missing"
-        end if
-
-     else
-
-        if (local_seen(b) /= 0) then
-           error stop &
-                "test_install_local_blocks: nonlocal block was installed"
-        end if
-
-     end if
-
-  end do
-
-  if (n_local /= expected_local) then
-     error stop &
-          "test_install_local_blocks: local owner count mismatch"
-  end if
-
-  if (count(local_seen /= 0) /= n_local) then
-     error stop &
-          "test_install_local_blocks: local inventory mismatch"
-  end if
-
-  call MPI_Allreduce( &
-       n_local, global_count, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
-
-  if (ierr /= MPI_SUCCESS) then
-     error stop &
-          "test_install_local_blocks: MPI_Allreduce count failed"
-  end if
-
-  call MPI_Allreduce( &
-       local_weight, global_weight, 1, MPI_INTEGER, MPI_SUM, &
-       comm, ierr)
-
-  if (ierr /= MPI_SUCCESS) then
-     error stop &
-          "test_install_local_blocks: MPI_Allreduce weight failed"
-  end if
-
-  call MPI_Allreduce( &
-       local_seen, global_seen, size(local_seen), MPI_INTEGER, &
-       MPI_SUM, comm, ierr)
-
-  if (ierr /= MPI_SUCCESS) then
-     error stop &
-          "test_install_local_blocks: MPI_Allreduce inventory failed"
-  end if
-
-  if (global_count /= size(block_catalog)) then
-     error stop &
-          "test_install_local_blocks: global block count mismatch"
-  end if
-
-  if (global_weight /= sum(block_catalog%weight)) then
-     error stop &
-          "test_install_local_blocks: global block weight mismatch"
-  end if
-
-  if (any(global_seen /= 1)) then
-     error stop &
-          "test_install_local_blocks: global ownership is not unique"
-  end if
-
-  call check_persistent_test_blocks
-
-  write(6,'(/,a,i0,a)') &
-       "Installed local block copies for rank ", rank, ":"
-  write(6,'(a,i0)') &
-       "  retained source copies = ", size(block_retained_source_index)
-  write(6,'(a,i0)') &
-       "  received block copies  = ", size(block_received)
-  write(6,'(a,i0)') &
-       "  installed local blocks = ", size(block_local)
-  write(6,'(a,i0)') &
-       "  installed block weight = ", local_weight
-  write(6,'(a)') &
-       "  local deep-copy checks passed"
-  write(6,'(a,/)') &
-       "  source and receive stores remain available"
-
-  if (rank == 0) then
-     write(6,'(/,a,i0)') &
-          "Global installed block objects verified = ", global_count
-     write(6,'(a,i0)') &
-          "Global installed block weight verified  = ", global_weight
-     write(6,'(a,/)') &
-          "Unique final-owner block installation passed"
-  end if
-
-  deallocate(global_seen)
-  deallocate(local_seen)
-
-end subroutine test_install_local_blocks
-
-
-subroutine check_local_test_blocks (verbose)
+subroutine check_local_blocks (verbose)
   ! Validate the final-owner local block store without referring to any
   ! source, receive or migration-manifest staging allocation.
 
@@ -1784,13 +1337,13 @@ subroutine check_local_test_blocks (verbose)
   if (.not. allocated(block_local) .or. &
        .not. allocated(block_local_catalog_index)) then
      error stop &
-          "check_local_test_blocks: local block store is not allocated"
+          "check_local_blocks: local block store is not allocated"
   end if
 
   if (size(block_local) /= &
        size(block_local_catalog_index)) then
      error stop &
-          "check_local_test_blocks: local catalog map size mismatch"
+          "check_local_blocks: local catalog map size mismatch"
   end if
 
   allocate(local_seen(size(block_catalog)))
@@ -1807,17 +1360,17 @@ subroutine check_local_test_blocks (verbose)
 
      if (b < 1 .or. b > size(block_catalog)) then
         error stop &
-             "check_local_test_blocks: invalid catalog index"
+             "check_local_blocks: invalid catalog index"
      end if
 
      if (local_seen(b) /= 0) then
         error stop &
-             "check_local_test_blocks: duplicate local block"
+             "check_local_blocks: duplicate local block"
      end if
 
      if (block_catalog(b)%owner /= rank) then
         error stop &
-             "check_local_test_blocks: local owner mismatch"
+             "check_local_blocks: local owner mismatch"
      end if
 
      if (block_local(i)%id /= block_catalog(b)%id .or. &
@@ -1828,7 +1381,7 @@ subroutine check_local_test_blocks (verbose)
           block_local(i)%level /= block_catalog(b)%level) then
 
         error stop &
-             "check_local_test_blocks: block identity mismatch"
+             "check_local_blocks: block identity mismatch"
 
      end if
 
@@ -1849,7 +1402,7 @@ subroutine check_local_test_blocks (verbose)
 
   if (size(block_local) /= expected_local) then
      error stop &
-          "check_local_test_blocks: expected local count mismatch"
+          "check_local_blocks: expected local count mismatch"
   end if
 
   call MPI_Allreduce( &
@@ -1858,7 +1411,7 @@ subroutine check_local_test_blocks (verbose)
 
   if (ierr /= MPI_SUCCESS) then
      error stop &
-          "check_local_test_blocks: MPI_Allreduce count failed"
+          "check_local_blocks: MPI_Allreduce count failed"
   end if
 
   call MPI_Allreduce( &
@@ -1867,7 +1420,7 @@ subroutine check_local_test_blocks (verbose)
 
   if (ierr /= MPI_SUCCESS) then
      error stop &
-          "check_local_test_blocks: MPI_Allreduce weight failed"
+          "check_local_blocks: MPI_Allreduce weight failed"
   end if
 
   call MPI_Allreduce( &
@@ -1876,22 +1429,22 @@ subroutine check_local_test_blocks (verbose)
 
   if (ierr /= MPI_SUCCESS) then
      error stop &
-          "check_local_test_blocks: MPI_Allreduce inventory failed"
+          "check_local_blocks: MPI_Allreduce inventory failed"
   end if
 
   if (global_count /= size(block_catalog)) then
      error stop &
-          "check_local_test_blocks: global count mismatch"
+          "check_local_blocks: global count mismatch"
   end if
 
   if (global_weight /= sum(block_catalog%weight)) then
      error stop &
-          "check_local_test_blocks: global weight mismatch"
+          "check_local_blocks: global weight mismatch"
   end if
 
   if (any(global_seen /= 1)) then
      error stop &
-          "check_local_test_blocks: nonunique global ownership"
+          "check_local_blocks: nonunique global ownership"
   end if
 
   if (print_summary) then
@@ -1919,53 +1472,15 @@ subroutine check_local_test_blocks (verbose)
   deallocate(global_seen)
   deallocate(local_seen)
 
-end subroutine check_local_test_blocks
-
-
-subroutine finalize_test_block_migration (manifest)
-  ! Verify the final-owner store, release every migration staging store,
-  ! and verify the final-owner store again after cleanup.
-
-  implicit none
-
-  type(Block_Migration_Manifest), intent(inout) :: manifest
-
-  call check_local_test_blocks(.false.)
-
-  call clear_block_staging
-  call clear_block_migration_manifest(manifest)
-
-  if (allocated(manifest%send_count) .or. &
-       allocated(manifest%recv_count) .or. &
-       allocated(manifest%send_displ) .or. &
-       allocated(manifest%recv_displ) .or. &
-       allocated(manifest%send_block) .or. &
-       allocated(manifest%recv_block) .or. &
-       allocated(manifest%send_nbyte) .or. &
-       allocated(manifest%recv_nbyte) .or. &
-       allocated(manifest%send_byte_count) .or. &
-       allocated(manifest%recv_byte_count) .or. &
-       allocated(manifest%send_byte_displ) .or. &
-       allocated(manifest%recv_byte_displ) .or. &
-       allocated(manifest%recv_payload)) then
-
-     error stop &
-          "finalize_test_block_migration: manifest cleanup failed"
-
-  end if
-
-  call check_local_test_blocks(.true.)
-
-  write(6,'(a,i0,a)') &
-       "Migration staging cleanup passed on rank ", rank, "."
-
-end subroutine finalize_test_block_migration
+end subroutine check_local_blocks
 
 
 
 
-subroutine test_one_subtree_extraction ( &
-     b_test, block_test, verbose, &
+
+
+subroutine build_one_source_block ( &
+     b_catalog, block_out, verbose, &
      n_patch_out, n_bdry_out, n_ghost_out, &
      n_stencil_out, n_remote_out, n_value_out)
   ! Extract one candidate subtree and verify:
@@ -1987,8 +1502,8 @@ subroutine test_one_subtree_extraction ( &
 
   implicit none
 
-  integer, intent(in) :: b_test
-  type(Block_Data), intent(out) :: block_test
+  integer, intent(in) :: b_catalog
+  type(Block_Data), intent(out) :: block_out
   logical, intent(in) :: verbose
 
   integer, intent(out) :: n_patch_out
@@ -2093,18 +1608,18 @@ subroutine test_one_subtree_extraction ( &
 
   logical :: already_present
 
-  if (owner(block_catalog(b_test)%root_domain+1) /= rank) then
+  if (owner(block_catalog(b_catalog)%root_domain+1) /= rank) then
      error stop &
-          "test_subtree_extraction: source domain is not local"
+          "build_source_blocks: source domain is not local"
   end if
 
-  d = loc_id(block_catalog(b_test)%root_domain+1) + 1
+  d = loc_id(block_catalog(b_catalog)%root_domain+1) + 1
 
   if (d < 1 .or. d > size(grid)) then
-     error stop "test_subtree_extraction: invalid local domain"
+     error stop "build_source_blocks: invalid local domain"
   end if
 
-  p_root   = block_catalog(b_test)%root_patch
+  p_root   = block_catalog(b_catalog)%root_patch
   depth_old = subtree_depth_Domain(grid(d),p_root)
 
   !
@@ -2119,11 +1634,11 @@ subroutine test_one_subtree_extraction ( &
   n_new = size(patch_copy)
 
   if (n_new /= n_old) then
-     error stop "test_subtree_extraction: patch count mismatch"
+     error stop "build_source_blocks: patch count mismatch"
   end if
 
   if (old_to_new(p_root) /= 0) then
-     error stop "test_subtree_extraction: extracted root is not patch zero"
+     error stop "build_source_blocks: extracted root is not patch zero"
   end if
 
   allocate(old_elts_start(size(patch_copy)))
@@ -2135,12 +1650,12 @@ subroutine test_one_subtree_extraction ( &
   do i = 1, size(patch_copy)
 
      if (old_elts_start(i) < 0) then
-        error stop "test_subtree_extraction: invalid original elts_start"
+        error stop "build_source_blocks: invalid original elts_start"
      end if
 
      if (old_elts_start(i) + PATCH_SIZE**2 > grid(d)%node%length) then
         error stop &
-             "test_subtree_extraction: original node storage out of bounds"
+             "build_source_blocks: original node storage out of bounds"
      end if
 
   end do
@@ -2151,7 +1666,7 @@ subroutine test_one_subtree_extraction ( &
 
      if (patch_copy(i)%elts_start /= (i-1)*PATCH_SIZE**2) then
         error stop &
-             "test_subtree_extraction: incorrect compact elts_start"
+             "build_source_blocks: incorrect compact elts_start"
      end if
 
   end do
@@ -2168,7 +1683,7 @@ subroutine test_one_subtree_extraction ( &
 
   if (size(node_copy) /= n_node_storage) then
      error stop &
-          "test_subtree_extraction: incorrect copied node storage size"
+          "build_source_blocks: incorrect copied node storage size"
   end if
 
   do i = 1, size(patch_copy)
@@ -2182,7 +1697,7 @@ subroutine test_one_subtree_extraction ( &
           old_start+1:old_start+PATCH_SIZE**2)%x)) > 0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: node x-coordinate mismatch"
+             "build_source_blocks: node x-coordinate mismatch"
 
      end if
 
@@ -2192,7 +1707,7 @@ subroutine test_one_subtree_extraction ( &
           old_start+1:old_start+PATCH_SIZE**2)%y)) > 0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: node y-coordinate mismatch"
+             "build_source_blocks: node y-coordinate mismatch"
 
      end if
 
@@ -2202,7 +1717,7 @@ subroutine test_one_subtree_extraction ( &
           old_start+1:old_start+PATCH_SIZE**2)%z)) > 0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: node z-coordinate mismatch"
+             "build_source_blocks: node z-coordinate mismatch"
 
      end if
 
@@ -2219,7 +1734,7 @@ subroutine test_one_subtree_extraction ( &
 
   if (mult_scalar /= 1) then
      error stop &
-          "test_subtree_extraction: unexpected scalar multiplier"
+          "build_source_blocks: unexpected scalar multiplier"
   end if
 
   call copy_subtree_field_Domain( &
@@ -2228,7 +1743,7 @@ subroutine test_one_subtree_extraction ( &
 
   if (size(scalar_copy) /= mult_scalar*n_node_storage) then
      error stop &
-          "test_subtree_extraction: incorrect scalar storage size"
+          "build_source_blocks: incorrect scalar storage size"
   end if
 
   n_patch_field = mult_scalar * PATCH_SIZE**2
@@ -2244,7 +1759,7 @@ subroutine test_one_subtree_extraction ( &
           old_start+1:old_start+n_patch_field))) > 0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: scalar field copy mismatch"
+             "build_source_blocks: scalar field copy mismatch"
 
      end if
 
@@ -2260,7 +1775,7 @@ subroutine test_one_subtree_extraction ( &
 
   if (mult_vector /= EDGE) then
      error stop &
-          "test_subtree_extraction: unexpected vector multiplier"
+          "build_source_blocks: unexpected vector multiplier"
   end if
 
   call copy_subtree_field_Domain( &
@@ -2269,7 +1784,7 @@ subroutine test_one_subtree_extraction ( &
 
   if (size(vector_copy) /= mult_vector*n_node_storage) then
      error stop &
-          "test_subtree_extraction: incorrect vector storage size"
+          "build_source_blocks: incorrect vector storage size"
   end if
 
   n_patch_field = mult_vector * PATCH_SIZE**2
@@ -2285,7 +1800,7 @@ subroutine test_one_subtree_extraction ( &
           old_start+1:old_start+n_patch_field))) > 0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: vector field copy mismatch"
+             "build_source_blocks: vector field copy mismatch"
 
      end if
 
@@ -2309,26 +1824,26 @@ subroutine test_one_subtree_extraction ( &
 
            if (p_chd_new /= 0) then
               error stop &
-                   "test_subtree_extraction: unexpected child link"
+                   "build_source_blocks: unexpected child link"
            end if
 
         else if (grid(d)%patch%elts(p_chd_old+1)%deleted) then
 
            if (p_chd_new /= 0) then
               error stop &
-                   "test_subtree_extraction: deleted child copied"
+                   "build_source_blocks: deleted child copied"
            end if
 
         else
 
            if (old_to_new(p_chd_old) < 0) then
               error stop &
-                   "test_subtree_extraction: child missing from map"
+                   "build_source_blocks: child missing from map"
            end if
 
            if (p_chd_new /= old_to_new(p_chd_old)) then
               error stop &
-                   "test_subtree_extraction: incorrect child renumbering"
+                   "build_source_blocks: incorrect child renumbering"
            end if
 
         end if
@@ -2360,13 +1875,13 @@ subroutine test_one_subtree_extraction ( &
   end do
 
   if (n_leaf_new /= n_leaf_old) then
-     error stop "test_subtree_extraction: leaf count mismatch"
+     error stop "build_source_blocks: leaf count mismatch"
   end if
 
   depth_new = copied_depth(0)
 
   if (depth_new /= depth_old) then
-     error stop "test_subtree_extraction: subtree depth mismatch"
+     error stop "build_source_blocks: subtree depth mismatch"
   end if
 
   !
@@ -2374,9 +1889,9 @@ subroutine test_one_subtree_extraction ( &
   ! Classify source neighbour links.
   ! ===============================================================
   !
-  allocate(block_test%neigh_class(N_BDRY,size(patch_copy)))
+  allocate(block_out%neigh_class(N_BDRY,size(patch_copy)))
 
-  block_test%neigh_class = NGB_OTHER
+  block_out%neigh_class = NGB_OTHER
 
   do p_old = 0, grid(d)%patch%length-1
 
@@ -2390,17 +1905,17 @@ subroutine test_one_subtree_extraction ( &
 
            if (p_ngb_old >= grid(d)%patch%length) then
               error stop &
-                   "test_subtree_extraction: invalid positive neighbour"
+                   "build_source_blocks: invalid positive neighbour"
            end if
 
            if (old_to_new(p_ngb_old) >= 0) then
 
-              block_test%neigh_class( &
+              block_out%neigh_class( &
                    c,old_to_new(p_old)+1) = NGB_INTERNAL
 
            else
 
-              block_test%neigh_class( &
+              block_out%neigh_class( &
                    c,old_to_new(p_old)+1) = NGB_BLOCK
 
            end if
@@ -2411,24 +1926,24 @@ subroutine test_one_subtree_extraction ( &
 
            if (b_src >= grid(d)%bdry_patch%length) then
               error stop &
-                   "test_subtree_extraction: invalid source boundary"
+                   "build_source_blocks: invalid source boundary"
            end if
 
            if (grid(d)%bdry_patch%elts(b_src+1)%side > 0) then
 
-              block_test%neigh_class( &
+              block_out%neigh_class( &
                    c,old_to_new(p_old)+1) = NGB_DOMAIN
 
            else
 
-              block_test%neigh_class( &
+              block_out%neigh_class( &
                    c,old_to_new(p_old)+1) = NGB_ADAPT
 
            end if
 
         else
 
-           block_test%neigh_class( &
+           block_out%neigh_class( &
                 c,old_to_new(p_old)+1) = NGB_OTHER
 
         end if
@@ -2437,18 +1952,18 @@ subroutine test_one_subtree_extraction ( &
 
   end do
 
-  n_ngb_internal = count(block_test%neigh_class == NGB_INTERNAL)
-  n_ngb_block    = count(block_test%neigh_class == NGB_BLOCK)
-  n_ngb_domain   = count(block_test%neigh_class == NGB_DOMAIN)
-  n_ngb_adapt    = count(block_test%neigh_class == NGB_ADAPT)
-  n_ngb_other    = count(block_test%neigh_class == NGB_OTHER)
+  n_ngb_internal = count(block_out%neigh_class == NGB_INTERNAL)
+  n_ngb_block    = count(block_out%neigh_class == NGB_BLOCK)
+  n_ngb_domain   = count(block_out%neigh_class == NGB_DOMAIN)
+  n_ngb_adapt    = count(block_out%neigh_class == NGB_ADAPT)
+  n_ngb_other    = count(block_out%neigh_class == NGB_OTHER)
 
   if (n_ngb_internal + n_ngb_block + n_ngb_domain + &
        n_ngb_adapt + n_ngb_other /= &
        N_BDRY*size(patch_copy)) then
 
      error stop &
-          "test_subtree_extraction: neighbour count mismatch"
+          "build_source_blocks: neighbour count mismatch"
 
   end if
 
@@ -2459,7 +1974,7 @@ subroutine test_one_subtree_extraction ( &
   !
   n_bdry_local = n_ngb_block + n_ngb_domain + n_ngb_adapt
 
-  allocate(block_test%block_bdry(n_bdry_local))
+  allocate(block_out%block_bdry(n_bdry_local))
 
   ib = 0
 
@@ -2469,7 +1984,7 @@ subroutine test_one_subtree_extraction ( &
 
      do c = 1, N_BDRY
 
-        select case (block_test%neigh_class( &
+        select case (block_out%neigh_class( &
              c,old_to_new(p_old)+1))
 
         case (NGB_INTERNAL, NGB_OTHER)
@@ -2484,26 +1999,26 @@ subroutine test_one_subtree_extraction ( &
                 p_ngb_old >= grid(d)%patch%length) then
 
               error stop &
-                   "test_subtree_extraction: invalid inter-block neighbour"
+                   "build_source_blocks: invalid inter-block neighbour"
 
            end if
 
            ib = ib + 1
 
-           block_test%block_bdry(ib)%patch = old_to_new(p_old)
-           block_test%block_bdry(ib)%side  = c
-           block_test%block_bdry(ib)%class = NGB_BLOCK
+           block_out%block_bdry(ib)%patch = old_to_new(p_old)
+           block_out%block_bdry(ib)%side  = c
+           block_out%block_bdry(ib)%class = NGB_BLOCK
 
-           block_test%block_bdry(ib)%root_domain = &
-                block_catalog(b_test)%root_domain
+           block_out%block_bdry(ib)%root_domain = &
+                block_catalog(b_catalog)%root_domain
 
-           block_test%block_bdry(ib)%neigh_patch = p_ngb_old
+           block_out%block_bdry(ib)%neigh_patch = p_ngb_old
 
-           block_test%block_bdry(ib)%source_block = -1
-           block_test%block_bdry(ib)%source_block_id = -1
-           block_test%block_bdry(ib)%source_owner = -1
-           block_test%block_bdry(ib)%ghost_id     = -1
-           block_test%block_bdry(ib)%storage_id = -1
+           block_out%block_bdry(ib)%source_block = -1
+           block_out%block_bdry(ib)%source_block_id = -1
+           block_out%block_bdry(ib)%source_owner = -1
+           block_out%block_bdry(ib)%ghost_id     = -1
+           block_out%block_bdry(ib)%storage_id = -1
 
         case (NGB_DOMAIN, NGB_ADAPT)
 
@@ -2511,50 +2026,50 @@ subroutine test_one_subtree_extraction ( &
 
            if (p_ngb_old >= 0) then
               error stop &
-                   "test_subtree_extraction: existing boundary is not negative"
+                   "build_source_blocks: existing boundary is not negative"
            end if
 
            b_src = -p_ngb_old
 
            if (b_src >= grid(d)%bdry_patch%length) then
               error stop &
-                   "test_subtree_extraction: invalid source bdry_patch"
+                   "build_source_blocks: invalid source bdry_patch"
            end if
 
            ib = ib + 1
 
-           block_test%block_bdry(ib)%patch = old_to_new(p_old)
-           block_test%block_bdry(ib)%side  = c
+           block_out%block_bdry(ib)%patch = old_to_new(p_old)
+           block_out%block_bdry(ib)%side  = c
 
-           block_test%block_bdry(ib)%class = &
-                block_test%neigh_class(c,old_to_new(p_old)+1)
+           block_out%block_bdry(ib)%class = &
+                block_out%neigh_class(c,old_to_new(p_old)+1)
 
-           block_test%block_bdry(ib)%root_domain = &
-                block_catalog(b_test)%root_domain
+           block_out%block_bdry(ib)%root_domain = &
+                block_catalog(b_catalog)%root_domain
 
-           block_test%block_bdry(ib)%source_bdry = b_src
+           block_out%block_bdry(ib)%source_bdry = b_src
 
-           block_test%block_bdry(ib)%elts_start = &
+           block_out%block_bdry(ib)%elts_start = &
                 grid(d)%bdry_patch%elts(b_src+1)%elts_start
 
-           block_test%block_bdry(ib)%bdry_side = &
+           block_out%block_bdry(ib)%bdry_side = &
                 grid(d)%bdry_patch%elts(b_src+1)%side
 
-           block_test%block_bdry(ib)%bdry_neigh = &
+           block_out%block_bdry(ib)%bdry_neigh = &
                 grid(d)%bdry_patch%elts(b_src+1)%neigh
 
            call get_bdry_dims_Domain( &
-                grid(d), b_src, block_test%block_bdry(ib)%dims)
+                grid(d), b_src, block_out%block_bdry(ib)%dims)
 
-           block_test%block_bdry(ib)%n_node = &
+           block_out%block_bdry(ib)%n_node = &
                 BDRY_THICKNESS * PATCH_SIZE
 
-           block_test%block_bdry(ib)%storage_id = -1
+           block_out%block_bdry(ib)%storage_id = -1
 
         case default
 
            error stop &
-                "test_subtree_extraction: unexpected neighbour class"
+                "build_source_blocks: unexpected neighbour class"
 
         end select
 
@@ -2564,7 +2079,7 @@ subroutine test_one_subtree_extraction ( &
 
   if (ib /= n_bdry_local) then
      error stop &
-          "test_subtree_extraction: local boundary count mismatch"
+          "build_source_blocks: local boundary count mismatch"
   end if
 
   !
@@ -2576,9 +2091,9 @@ subroutine test_one_subtree_extraction ( &
   n_block_source_local  = 0
   n_block_source_remote = 0
 
-  do ib = 1, size(block_test%block_bdry)
+  do ib = 1, size(block_out%block_bdry)
 
-     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+     if (block_out%block_bdry(ib)%class /= NGB_BLOCK) cycle
 
      source_block  = -1
      n_source_match = 0
@@ -2586,11 +2101,11 @@ subroutine test_one_subtree_extraction ( &
      do i = 1, size(block_catalog)
 
         if (block_catalog(i)%root_domain /= &
-             block_catalog(b_test)%root_domain) cycle
+             block_catalog(b_catalog)%root_domain) cycle
 
         if (.not. patch_in_subtree( &
              block_catalog(i)%root_patch, &
-             block_test%block_bdry(ib)%neigh_patch)) cycle
+             block_out%block_bdry(ib)%neigh_patch)) cycle
 
         source_block   = i
         n_source_match = n_source_match + 1
@@ -2599,30 +2114,30 @@ subroutine test_one_subtree_extraction ( &
 
      if (n_source_match /= 1) then
         error stop &
-             "test_subtree_extraction: nonunique inter-block source"
+             "build_source_blocks: nonunique inter-block source"
      end if
 
-     if (source_block == b_test) then
+     if (source_block == b_catalog) then
         error stop &
-             "test_subtree_extraction: inter-block source is current block"
+             "build_source_blocks: inter-block source is current block"
      end if
 
-     block_test%block_bdry(ib)%source_block = source_block
-     block_test%block_bdry(ib)%source_block_id = &
+     block_out%block_bdry(ib)%source_block = source_block
+     block_out%block_bdry(ib)%source_block_id = &
           block_catalog(source_block)%id
-     block_test%block_bdry(ib)%source_owner = &
+     block_out%block_bdry(ib)%source_owner = &
           block_catalog(source_block)%owner
 
-     if (block_test%block_bdry(ib)%source_owner < 0 .or. &
-          block_test%block_bdry(ib)%source_owner >= n_process) then
+     if (block_out%block_bdry(ib)%source_owner < 0 .or. &
+          block_out%block_bdry(ib)%source_owner >= n_process) then
 
         error stop &
-             "test_subtree_extraction: invalid inter-block source owner"
+             "build_source_blocks: invalid inter-block source owner"
 
      end if
 
-     if (block_test%block_bdry(ib)%source_owner == &
-          block_catalog(b_test)%owner) then
+     if (block_out%block_bdry(ib)%source_owner == &
+          block_catalog(b_catalog)%owner) then
         n_block_source_local = n_block_source_local + 1
      else
         n_block_source_remote = n_block_source_remote + 1
@@ -2634,7 +2149,7 @@ subroutine test_one_subtree_extraction ( &
        n_ngb_block) then
 
      error stop &
-          "test_subtree_extraction: inter-block mapping count mismatch"
+          "build_source_blocks: inter-block mapping count mismatch"
 
   end if
 
@@ -2660,12 +2175,12 @@ subroutine test_one_subtree_extraction ( &
   !
   ! Distinct directly referenced boundaries.
   !
-  do ib = 1, size(block_test%block_bdry)
+  do ib = 1, size(block_out%block_bdry)
 
-     if (block_test%block_bdry(ib)%class /= NGB_DOMAIN .and. &
-          block_test%block_bdry(ib)%class /= NGB_ADAPT) cycle
+     if (block_out%block_bdry(ib)%class /= NGB_DOMAIN .and. &
+          block_out%block_bdry(ib)%class /= NGB_ADAPT) cycle
 
-     b_src = block_test%block_bdry(ib)%source_bdry
+     b_src = block_out%block_bdry(ib)%source_bdry
 
      already_present = .false.
 
@@ -2701,7 +2216,7 @@ subroutine test_one_subtree_extraction ( &
 
      do c = 1, N_BDRY
 
-        select case (block_test%neigh_class( &
+        select case (block_out%neigh_class( &
              c,old_to_new(p_old)+1))
 
         case (NGB_INTERNAL, NGB_DOMAIN, NGB_ADAPT)
@@ -2824,7 +2339,7 @@ subroutine test_one_subtree_extraction ( &
           b_src >= grid(d)%bdry_patch%length) then
 
         error stop &
-             "test_subtree_extraction: invalid closure boundary"
+             "build_source_blocks: invalid closure boundary"
 
      end if
 
@@ -2832,7 +2347,7 @@ subroutine test_one_subtree_extraction ( &
 
         if (bdry_closure(j) == b_src) then
            error stop &
-                "test_subtree_extraction: duplicate closure boundary"
+                "build_source_blocks: duplicate closure boundary"
         end if
 
      end do
@@ -2841,7 +2356,7 @@ subroutine test_one_subtree_extraction ( &
 
         if (bdry_required(j) == b_src) then
            error stop &
-                "test_subtree_extraction: closure boundary already direct"
+                "build_source_blocks: closure boundary already direct"
         end if
 
      end do
@@ -2850,7 +2365,7 @@ subroutine test_one_subtree_extraction ( &
 
   if (n_bdry_required /= n_bdry_direct + n_bdry_closure) then
      error stop &
-          "test_subtree_extraction: required boundary count mismatch"
+          "build_source_blocks: required boundary count mismatch"
   end if
 
   !
@@ -2858,7 +2373,7 @@ subroutine test_one_subtree_extraction ( &
   ! Construct complete compact boundary-storage catalogue.
   ! ===============================================================
   !
-  allocate(block_test%bdry_storage(n_bdry_required))
+  allocate(block_out%bdry_storage(n_bdry_required))
 
   n_bdry_node_unique = 0
 
@@ -2866,52 +2381,52 @@ subroutine test_one_subtree_extraction ( &
 
      b_src = bdry_required(is)
 
-     block_test%bdry_storage(is)%source_bdry = b_src
+     block_out%bdry_storage(is)%source_bdry = b_src
 
-     block_test%bdry_storage(is)%elts_start = &
+     block_out%bdry_storage(is)%elts_start = &
           grid(d)%bdry_patch%elts(b_src+1)%elts_start
 
      call get_bdry_dims_Domain( &
-          grid(d), b_src, block_test%bdry_storage(is)%dims)
+          grid(d), b_src, block_out%bdry_storage(is)%dims)
 
-     block_test%bdry_storage(is)%n_node = &
+     block_out%bdry_storage(is)%n_node = &
           BDRY_THICKNESS * PATCH_SIZE
 
-     if (block_test%bdry_storage(is)%n_node <= 0) then
+     if (block_out%bdry_storage(is)%n_node <= 0) then
         error stop &
-             "test_subtree_extraction: invalid boundary storage size"
+             "build_source_blocks: invalid boundary storage size"
      end if
 
-     block_test%bdry_storage(is)%local_start = &
+     block_out%bdry_storage(is)%local_start = &
           n_bdry_node_unique
 
      n_bdry_node_unique = n_bdry_node_unique + &
-          block_test%bdry_storage(is)%n_node
+          block_out%bdry_storage(is)%n_node
 
   end do
 
   !
   ! Assign storage IDs to directly referenced boundary links.
   !
-  do ib = 1, size(block_test%block_bdry)
+  do ib = 1, size(block_out%block_bdry)
 
-     if (block_test%block_bdry(ib)%class == NGB_BLOCK) cycle
+     if (block_out%block_bdry(ib)%class == NGB_BLOCK) cycle
 
-     do is = 1, size(block_test%bdry_storage)
+     do is = 1, size(block_out%bdry_storage)
 
-        if (block_test%bdry_storage(is)%source_bdry == &
-             block_test%block_bdry(ib)%source_bdry) then
+        if (block_out%bdry_storage(is)%source_bdry == &
+             block_out%block_bdry(ib)%source_bdry) then
 
-           block_test%block_bdry(ib)%storage_id = is
+           block_out%block_bdry(ib)%storage_id = is
            exit
 
         end if
 
      end do
 
-     if (block_test%block_bdry(ib)%storage_id < 1) then
+     if (block_out%block_bdry(ib)%storage_id < 1) then
         error stop &
-             "test_subtree_extraction: missing boundary storage ID"
+             "build_source_blocks: missing boundary storage ID"
      end if
 
   end do
@@ -2919,45 +2434,45 @@ subroutine test_one_subtree_extraction ( &
   !
   ! Verify compact storage layout and uniqueness.
   !
-  do is = 1, size(block_test%bdry_storage)
+  do is = 1, size(block_out%bdry_storage)
 
      if (is == 1) then
 
-        if (block_test%bdry_storage(is)%local_start /= 0) then
+        if (block_out%bdry_storage(is)%local_start /= 0) then
            error stop &
-                "test_subtree_extraction: invalid first boundary offset"
+                "build_source_blocks: invalid first boundary offset"
         end if
 
      else
 
-        if (block_test%bdry_storage(is)%local_start /= &
-             block_test%bdry_storage(is-1)%local_start + &
-             block_test%bdry_storage(is-1)%n_node) then
+        if (block_out%bdry_storage(is)%local_start /= &
+             block_out%bdry_storage(is-1)%local_start + &
+             block_out%bdry_storage(is-1)%n_node) then
 
            error stop &
-                "test_subtree_extraction: noncompact boundary storage"
+                "build_source_blocks: noncompact boundary storage"
 
         end if
 
      end if
 
-     if (block_test%bdry_storage(is)%elts_start < 0 .or. &
-          block_test%bdry_storage(is)%elts_start + &
-          block_test%bdry_storage(is)%n_node > &
+     if (block_out%bdry_storage(is)%elts_start < 0 .or. &
+          block_out%bdry_storage(is)%elts_start + &
+          block_out%bdry_storage(is)%n_node > &
           grid(d)%node%length) then
 
         error stop &
-             "test_subtree_extraction: boundary source range invalid"
+             "build_source_blocks: boundary source range invalid"
 
      end if
 
-     do j = is+1, size(block_test%bdry_storage)
+     do j = is+1, size(block_out%bdry_storage)
 
-        if (block_test%bdry_storage(is)%source_bdry == &
-             block_test%bdry_storage(j)%source_bdry) then
+        if (block_out%bdry_storage(is)%source_bdry == &
+             block_out%bdry_storage(j)%source_bdry) then
 
            error stop &
-                "test_subtree_extraction: duplicate boundary storage"
+                "build_source_blocks: duplicate boundary storage"
 
         end if
 
@@ -2970,95 +2485,95 @@ subroutine test_one_subtree_extraction ( &
   ! Copy complete compact boundary data.
   ! ===============================================================
   !
-  allocate(block_test%bdry_node(n_bdry_node_unique))
+  allocate(block_out%bdry_node(n_bdry_node_unique))
 
-  allocate(block_test%bdry_scalar( &
+  allocate(block_out%bdry_scalar( &
        mult_scalar*n_bdry_node_unique))
 
-  allocate(block_test%bdry_vector( &
+  allocate(block_out%bdry_vector( &
        mult_vector*n_bdry_node_unique))
 
-  do is = 1, size(block_test%bdry_storage)
+  do is = 1, size(block_out%bdry_storage)
 
-     old_start = block_test%bdry_storage(is)%elts_start
-     new_start = block_test%bdry_storage(is)%local_start
+     old_start = block_out%bdry_storage(is)%elts_start
+     new_start = block_out%bdry_storage(is)%local_start
 
-     block_test%bdry_node( &
+     block_out%bdry_node( &
           new_start+1 : &
-          new_start+block_test%bdry_storage(is)%n_node) = &
+          new_start+block_out%bdry_storage(is)%n_node) = &
           grid(d)%node%elts( &
           old_start+1 : &
-          old_start+block_test%bdry_storage(is)%n_node)
+          old_start+block_out%bdry_storage(is)%n_node)
 
-     block_test%bdry_scalar( &
+     block_out%bdry_scalar( &
           mult_scalar*new_start+1 : &
           mult_scalar*(new_start + &
-          block_test%bdry_storage(is)%n_node)) = &
+          block_out%bdry_storage(is)%n_node)) = &
           sol(v_scalar,k_test)%data(d)%elts( &
           mult_scalar*old_start+1 : &
           mult_scalar*(old_start + &
-          block_test%bdry_storage(is)%n_node))
+          block_out%bdry_storage(is)%n_node))
 
-     block_test%bdry_vector( &
+     block_out%bdry_vector( &
           mult_vector*new_start+1 : &
           mult_vector*(new_start + &
-          block_test%bdry_storage(is)%n_node)) = &
+          block_out%bdry_storage(is)%n_node)) = &
           sol(v_vector,k_test)%data(d)%elts( &
           mult_vector*old_start+1 : &
           mult_vector*(old_start + &
-          block_test%bdry_storage(is)%n_node))
+          block_out%bdry_storage(is)%n_node))
 
   end do
 
   !
   ! Verify copied boundary data.
   !
-  do is = 1, size(block_test%bdry_storage)
+  do is = 1, size(block_out%bdry_storage)
 
-     old_start = block_test%bdry_storage(is)%elts_start
-     new_start = block_test%bdry_storage(is)%local_start
+     old_start = block_out%bdry_storage(is)%elts_start
+     new_start = block_out%bdry_storage(is)%local_start
 
      if (maxval(abs( &
-          block_test%bdry_node( &
+          block_out%bdry_node( &
           new_start+1 : &
-          new_start+block_test%bdry_storage(is)%n_node)%x - &
+          new_start+block_out%bdry_storage(is)%n_node)%x - &
           grid(d)%node%elts( &
           old_start+1 : &
-          old_start+block_test%bdry_storage(is)%n_node)%x)) > &
+          old_start+block_out%bdry_storage(is)%n_node)%x)) > &
           0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: boundary coordinate mismatch"
+             "build_source_blocks: boundary coordinate mismatch"
 
      end if
 
      if (maxval(abs( &
-          block_test%bdry_scalar( &
+          block_out%bdry_scalar( &
           mult_scalar*new_start+1 : &
           mult_scalar*(new_start + &
-          block_test%bdry_storage(is)%n_node)) - &
+          block_out%bdry_storage(is)%n_node)) - &
           sol(v_scalar,k_test)%data(d)%elts( &
           mult_scalar*old_start+1 : &
           mult_scalar*(old_start + &
-          block_test%bdry_storage(is)%n_node)))) > 0.0_dp) then
+          block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: boundary scalar mismatch"
+             "build_source_blocks: boundary scalar mismatch"
 
      end if
 
      if (maxval(abs( &
-          block_test%bdry_vector( &
+          block_out%bdry_vector( &
           mult_vector*new_start+1 : &
           mult_vector*(new_start + &
-          block_test%bdry_storage(is)%n_node)) - &
+          block_out%bdry_storage(is)%n_node)) - &
           sol(v_vector,k_test)%data(d)%elts( &
           mult_vector*old_start+1 : &
           mult_vector*(old_start + &
-          block_test%bdry_storage(is)%n_node)))) > 0.0_dp) then
+          block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: boundary vector mismatch"
+             "build_source_blocks: boundary vector mismatch"
 
      end if
 
@@ -3070,17 +2585,17 @@ subroutine test_one_subtree_extraction ( &
   n_bdry_node_total = 0
   n_bdry_node_max   = 0
 
-  do ib = 1, size(block_test%block_bdry)
+  do ib = 1, size(block_out%block_bdry)
 
-     if (block_test%block_bdry(ib)%class /= NGB_DOMAIN .and. &
-          block_test%block_bdry(ib)%class /= NGB_ADAPT) cycle
+     if (block_out%block_bdry(ib)%class /= NGB_DOMAIN .and. &
+          block_out%block_bdry(ib)%class /= NGB_ADAPT) cycle
 
      n_bdry_node_total = n_bdry_node_total + &
-          block_test%block_bdry(ib)%n_node
+          block_out%block_bdry(ib)%n_node
 
      n_bdry_node_max = max( &
           n_bdry_node_max, &
-          block_test%block_bdry(ib)%n_node)
+          block_out%block_bdry(ib)%n_node)
 
   end do
 
@@ -3104,7 +2619,7 @@ subroutine test_one_subtree_extraction ( &
 
      do c = 1, N_BDRY
 
-        select case (block_test%neigh_class( &
+        select case (block_out%neigh_class( &
              c,old_to_new(p_old)+1))
 
         case (NGB_INTERNAL, NGB_DOMAIN, NGB_ADAPT)
@@ -3140,13 +2655,13 @@ subroutine test_one_subtree_extraction ( &
 
         target_bdry = -1
 
-        do is = 1, size(block_test%bdry_storage)
+        do is = 1, size(block_out%bdry_storage)
 
-           old_start = block_test%bdry_storage(is)%elts_start
+           old_start = block_out%bdry_storage(is)%elts_start
 
            if (idx_src >= old_start .and. &
                 idx_src < old_start + &
-                block_test%bdry_storage(is)%n_node) then
+                block_out%bdry_storage(is)%n_node) then
 
               target_bdry = is
               exit
@@ -3177,7 +2692,7 @@ subroutine test_one_subtree_extraction ( &
 
         if (old_to_new(source_patch) >= 0) then
            error stop &
-                "test_subtree_extraction: ghost source is inside block"
+                "build_source_blocks: ghost source is inside block"
         end if
 
         already_present = .false.
@@ -3205,11 +2720,11 @@ subroutine test_one_subtree_extraction ( &
   ! Deduplicate them against effective-stencil ghost patches and
   ! against repeated inter-block links.
   !
-  do ib = 1, size(block_test%block_bdry)
+  do ib = 1, size(block_out%block_bdry)
 
-     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+     if (block_out%block_bdry(ib)%class /= NGB_BLOCK) cycle
 
-     source_patch = block_test%block_bdry(ib)%neigh_patch
+     source_patch = block_out%block_bdry(ib)%neigh_patch
      already_present = .false.
 
      do j = 1, n_ghost
@@ -3233,7 +2748,7 @@ subroutine test_one_subtree_extraction ( &
   ! ghost patch, including ghosts discovered only through effective
   ! stencil addressing.
   !
-  allocate(block_test%ghost_storage(n_ghost))
+  allocate(block_out%ghost_storage(n_ghost))
 
   n_ghost_node = 0
 
@@ -3245,7 +2760,7 @@ subroutine test_one_subtree_extraction ( &
      do i = 1, size(block_catalog)
 
         if (block_catalog(i)%root_domain /= &
-             block_catalog(b_test)%root_domain) cycle
+             block_catalog(b_catalog)%root_domain) cycle
 
         if (.not. patch_in_subtree( &
              block_catalog(i)%root_patch, &
@@ -3258,45 +2773,45 @@ subroutine test_one_subtree_extraction ( &
 
      if (n_source_match /= 1) then
         error stop &
-             "test_subtree_extraction: nonunique ghost source block"
+             "build_source_blocks: nonunique ghost source block"
      end if
 
-     if (source_block == b_test) then
+     if (source_block == b_catalog) then
         error stop &
-             "test_subtree_extraction: ghost source is current block"
+             "build_source_blocks: ghost source is current block"
      end if
 
-     block_test%ghost_storage(ghost_id)%source_domain = &
-          block_catalog(b_test)%root_domain
+     block_out%ghost_storage(ghost_id)%source_domain = &
+          block_catalog(b_catalog)%root_domain
 
-     block_test%ghost_storage(ghost_id)%source_patch = &
+     block_out%ghost_storage(ghost_id)%source_patch = &
           ghost_patch(ghost_id)
 
-     block_test%ghost_storage(ghost_id)%source_block = &
+     block_out%ghost_storage(ghost_id)%source_block = &
           source_block
 
-     block_test%ghost_storage(ghost_id)%source_block_id = &
+     block_out%ghost_storage(ghost_id)%source_block_id = &
           block_catalog(source_block)%id
 
-     block_test%ghost_storage(ghost_id)%source_owner = &
+     block_out%ghost_storage(ghost_id)%source_owner = &
           block_catalog(source_block)%owner
 
-     if (block_test%ghost_storage(ghost_id)%source_owner < 0 .or. &
-          block_test%ghost_storage(ghost_id)%source_owner >= &
+     if (block_out%ghost_storage(ghost_id)%source_owner < 0 .or. &
+          block_out%ghost_storage(ghost_id)%source_owner >= &
           n_process) then
 
         error stop &
-             "test_subtree_extraction: invalid ghost source owner"
+             "build_source_blocks: invalid ghost source owner"
 
      end if
 
-     block_test%ghost_storage(ghost_id)%elts_start = &
+     block_out%ghost_storage(ghost_id)%elts_start = &
           grid(d)%patch%elts(ghost_patch(ghost_id)+1)%elts_start
 
-     block_test%ghost_storage(ghost_id)%local_start = &
+     block_out%ghost_storage(ghost_id)%local_start = &
           n_ghost_node
 
-     block_test%ghost_storage(ghost_id)%n_node = &
+     block_out%ghost_storage(ghost_id)%n_node = &
           PATCH_SIZE**2
 
      n_ghost_node = n_ghost_node + PATCH_SIZE**2
@@ -3306,105 +2821,105 @@ subroutine test_one_subtree_extraction ( &
   !
   ! Assign every nominal inter-block link its compact ghost ID.
   !
-  do ib = 1, size(block_test%block_bdry)
+  do ib = 1, size(block_out%block_bdry)
 
-     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+     if (block_out%block_bdry(ib)%class /= NGB_BLOCK) cycle
 
      do ghost_id = 1, n_ghost
 
-        if (block_test%ghost_storage(ghost_id)%source_patch == &
-             block_test%block_bdry(ib)%neigh_patch) then
+        if (block_out%ghost_storage(ghost_id)%source_patch == &
+             block_out%block_bdry(ib)%neigh_patch) then
 
-           block_test%block_bdry(ib)%ghost_id = ghost_id
+           block_out%block_bdry(ib)%ghost_id = ghost_id
            exit
 
         end if
 
      end do
 
-     if (block_test%block_bdry(ib)%ghost_id < 1) then
+     if (block_out%block_bdry(ib)%ghost_id < 1) then
         error stop &
-             "test_subtree_extraction: missing inter-block ghost ID"
+             "build_source_blocks: missing inter-block ghost ID"
      end if
 
-     ghost_id = block_test%block_bdry(ib)%ghost_id
+     ghost_id = block_out%block_bdry(ib)%ghost_id
 
-     if (block_test%ghost_storage(ghost_id)%source_block /= &
-          block_test%block_bdry(ib)%source_block .or. &
-          block_test%ghost_storage(ghost_id)%source_block_id /= &
-          block_test%block_bdry(ib)%source_block_id .or. &
-          block_test%ghost_storage(ghost_id)%source_owner /= &
-          block_test%block_bdry(ib)%source_owner) then
+     if (block_out%ghost_storage(ghost_id)%source_block /= &
+          block_out%block_bdry(ib)%source_block .or. &
+          block_out%ghost_storage(ghost_id)%source_block_id /= &
+          block_out%block_bdry(ib)%source_block_id .or. &
+          block_out%ghost_storage(ghost_id)%source_owner /= &
+          block_out%block_bdry(ib)%source_owner) then
 
         error stop &
-             "test_subtree_extraction: ghost source metadata mismatch"
+             "build_source_blocks: ghost source metadata mismatch"
 
      end if
 
   end do
 
-  do ib = 1, size(block_test%block_bdry)
+  do ib = 1, size(block_out%block_bdry)
 
-     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+     if (block_out%block_bdry(ib)%class /= NGB_BLOCK) cycle
 
-     source_block = block_test%block_bdry(ib)%source_block
+     source_block = block_out%block_bdry(ib)%source_block
 
      if (source_block < 1 .or. &
           source_block > size(block_catalog)) then
 
         error stop &
-             "test_subtree_extraction: invalid source catalog index"
+             "build_source_blocks: invalid source catalog index"
 
      end if
 
-     if (block_test%block_bdry(ib)%source_block_id /= &
+     if (block_out%block_bdry(ib)%source_block_id /= &
           block_catalog(source_block)%id) then
 
         error stop &
-             "test_subtree_extraction: source block ID mismatch"
+             "build_source_blocks: source block ID mismatch"
 
      end if
 
   end do
 
-  do ghost_id = 1, size(block_test%ghost_storage)
+  do ghost_id = 1, size(block_out%ghost_storage)
 
      source_block = &
-          block_test%ghost_storage(ghost_id)%source_block
+          block_out%ghost_storage(ghost_id)%source_block
 
      if (source_block < 1 .or. &
           source_block > size(block_catalog)) then
 
         error stop &
-             "test_subtree_extraction: invalid ghost catalog index"
+             "build_source_blocks: invalid ghost catalog index"
 
      end if
 
-     if (block_test%ghost_storage(ghost_id)%source_block_id /= &
+     if (block_out%ghost_storage(ghost_id)%source_block_id /= &
           block_catalog(source_block)%id) then
 
         error stop &
-             "test_subtree_extraction: ghost block ID mismatch"
+             "build_source_blocks: ghost block ID mismatch"
 
      end if
 
   end do
 
-  do ib = 1, size(block_test%block_bdry)
+  do ib = 1, size(block_out%block_bdry)
 
-     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+     if (block_out%block_bdry(ib)%class /= NGB_BLOCK) cycle
 
-     do j = ib+1, size(block_test%block_bdry)
+     do j = ib+1, size(block_out%block_bdry)
 
-        if (block_test%block_bdry(j)%class /= NGB_BLOCK) cycle
+        if (block_out%block_bdry(j)%class /= NGB_BLOCK) cycle
 
-        if ((block_test%block_bdry(ib)%neigh_patch == &
-             block_test%block_bdry(j)%neigh_patch) .neqv. &
-             (block_test%block_bdry(ib)%ghost_id == &
-             block_test%block_bdry(j)%ghost_id)) then
+        if ((block_out%block_bdry(ib)%neigh_patch == &
+             block_out%block_bdry(j)%neigh_patch) .neqv. &
+             (block_out%block_bdry(ib)%ghost_id == &
+             block_out%block_bdry(j)%ghost_id)) then
 
            error stop &
-                "test_subtree_extraction: inconsistent ghost deduplication"
+                "build_source_blocks: inconsistent ghost deduplication"
 
         end if
 
@@ -3412,12 +2927,12 @@ subroutine test_one_subtree_extraction ( &
 
   end do
 
-  allocate(block_test%ghost_node(n_ghost_node))
+  allocate(block_out%ghost_node(n_ghost_node))
 
-  allocate(block_test%ghost_scalar( &
+  allocate(block_out%ghost_scalar( &
        mult_scalar*n_ghost_node))
 
-  allocate(block_test%ghost_vector( &
+  allocate(block_out%ghost_vector( &
        mult_vector*n_ghost_node))
 
   !
@@ -3427,24 +2942,24 @@ subroutine test_one_subtree_extraction ( &
   do ghost_id = 1, n_ghost
 
      old_start = &
-          block_test%ghost_storage(ghost_id)%elts_start
+          block_out%ghost_storage(ghost_id)%elts_start
 
      new_start = &
-          block_test%ghost_storage(ghost_id)%local_start
+          block_out%ghost_storage(ghost_id)%local_start
 
-     block_test%ghost_node( &
+     block_out%ghost_node( &
           new_start+1 : new_start+PATCH_SIZE**2) = &
           grid(d)%node%elts( &
           old_start+1 : old_start+PATCH_SIZE**2)
 
-     block_test%ghost_scalar( &
+     block_out%ghost_scalar( &
           mult_scalar*new_start+1 : &
           mult_scalar*(new_start+PATCH_SIZE**2)) = &
           sol(v_scalar,k_test)%data(d)%elts( &
           mult_scalar*old_start+1 : &
           mult_scalar*(old_start+PATCH_SIZE**2))
 
-     block_test%ghost_vector( &
+     block_out%ghost_vector( &
           mult_vector*new_start+1 : &
           mult_vector*(new_start+PATCH_SIZE**2)) = &
           sol(v_vector,k_test)%data(d)%elts( &
@@ -3459,24 +2974,24 @@ subroutine test_one_subtree_extraction ( &
   do ghost_id = 1, n_ghost
 
      old_start = &
-          block_test%ghost_storage(ghost_id)%elts_start
+          block_out%ghost_storage(ghost_id)%elts_start
 
      new_start = &
-          block_test%ghost_storage(ghost_id)%local_start
+          block_out%ghost_storage(ghost_id)%local_start
 
      if (maxval(abs( &
-          block_test%ghost_node( &
+          block_out%ghost_node( &
           new_start+1 : new_start+PATCH_SIZE**2)%x - &
           grid(d)%node%elts( &
           old_start+1 : old_start+PATCH_SIZE**2)%x)) > 0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: ghost coordinate mismatch"
+             "build_source_blocks: ghost coordinate mismatch"
 
      end if
 
      if (maxval(abs( &
-          block_test%ghost_scalar( &
+          block_out%ghost_scalar( &
           mult_scalar*new_start+1 : &
           mult_scalar*(new_start+PATCH_SIZE**2)) - &
           sol(v_scalar,k_test)%data(d)%elts( &
@@ -3484,12 +2999,12 @@ subroutine test_one_subtree_extraction ( &
           mult_scalar*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: ghost scalar mismatch"
+             "build_source_blocks: ghost scalar mismatch"
 
      end if
 
      if (maxval(abs( &
-          block_test%ghost_vector( &
+          block_out%ghost_vector( &
           mult_vector*new_start+1 : &
           mult_vector*(new_start+PATCH_SIZE**2)) - &
           sol(v_vector,k_test)%data(d)%elts( &
@@ -3497,7 +3012,7 @@ subroutine test_one_subtree_extraction ( &
           mult_vector*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
 
         error stop &
-             "test_subtree_extraction: ghost vector mismatch"
+             "build_source_blocks: ghost vector mismatch"
 
      end if
 
@@ -3512,10 +3027,10 @@ subroutine test_one_subtree_extraction ( &
   call renumber_subtree_neigh_Domain( &
        grid(d), patch_copy, old_to_new)
 
-  do ib = 1, size(block_test%block_bdry)
+  do ib = 1, size(block_out%block_bdry)
 
-     patch_copy(block_test%block_bdry(ib)%patch+1)%neigh( &
-          block_test%block_bdry(ib)%side) = -ib
+     patch_copy(block_out%block_bdry(ib)%patch+1)%neigh( &
+          block_out%block_bdry(ib)%side) = -ib
 
   end do
 
@@ -3528,7 +3043,7 @@ subroutine test_one_subtree_extraction ( &
 
      do c = 1, N_BDRY
 
-        select case (block_test%neigh_class( &
+        select case (block_out%neigh_class( &
              c,old_to_new(p_old)+1))
 
         case (NGB_INTERNAL)
@@ -3539,7 +3054,7 @@ subroutine test_one_subtree_extraction ( &
                 old_to_new(p_ngb_old)) then
 
               error stop &
-                   "test_subtree_extraction: internal neighbour mismatch"
+                   "build_source_blocks: internal neighbour mismatch"
 
            end if
 
@@ -3548,19 +3063,19 @@ subroutine test_one_subtree_extraction ( &
            ib = -patch_copy(old_to_new(p_old)+1)%neigh(c)
 
            if (ib < 1 .or. &
-                ib > size(block_test%block_bdry)) then
+                ib > size(block_out%block_bdry)) then
 
               error stop &
-                   "test_subtree_extraction: invalid boundary reference"
+                   "build_source_blocks: invalid boundary reference"
 
            end if
 
-           if (block_test%block_bdry(ib)%patch /= &
+           if (block_out%block_bdry(ib)%patch /= &
                 old_to_new(p_old) .or. &
-                block_test%block_bdry(ib)%side /= c) then
+                block_out%block_bdry(ib)%side /= c) then
 
               error stop &
-                   "test_subtree_extraction: incorrect boundary reference"
+                   "build_source_blocks: incorrect boundary reference"
 
            end if
 
@@ -3568,13 +3083,13 @@ subroutine test_one_subtree_extraction ( &
 
            if (patch_copy(old_to_new(p_old)+1)%neigh(c) /= 0) then
               error stop &
-                   "test_subtree_extraction: zero neighbour changed"
+                   "build_source_blocks: zero neighbour changed"
            end if
 
         case default
 
            error stop &
-                "test_subtree_extraction: unexpected neighbour class"
+                "build_source_blocks: unexpected neighbour class"
 
         end select
 
@@ -3587,15 +3102,15 @@ subroutine test_one_subtree_extraction ( &
   ! Package extracted interior arrays.
   ! ===============================================================
   !
-  block_test%id          = block_catalog(b_test)%id
-  block_test%root_domain = block_catalog(b_test)%root_domain
-  block_test%root_patch  = block_catalog(b_test)%root_patch
-  block_test%level       = block_catalog(b_test)%level
+  block_out%id          = block_catalog(b_catalog)%id
+  block_out%root_domain = block_catalog(b_catalog)%root_domain
+  block_out%root_patch  = block_catalog(b_catalog)%root_patch
+  block_out%level       = block_catalog(b_catalog)%level
 
-  call move_alloc(patch_copy,  block_test%patch)
-  call move_alloc(node_copy,   block_test%node)
-  call move_alloc(scalar_copy, block_test%scalar)
-  call move_alloc(vector_copy, block_test%vector)
+  call move_alloc(patch_copy,  block_out%patch)
+  call move_alloc(node_copy,   block_out%node)
+  call move_alloc(scalar_copy, block_out%scalar)
+  call move_alloc(vector_copy, block_out%vector)
 
   !
   ! ===============================================================
@@ -3605,16 +3120,16 @@ subroutine test_one_subtree_extraction ( &
   ! the orientation-adjusted effective address from comp_offs3.
   ! ===============================================================
   !
-  allocate(block_test%stencil( &
-       N_BDRY,size(block_test%patch)))
+  allocate(block_out%stencil( &
+       N_BDRY,size(block_out%patch)))
 
-  block_test%stencil%storage = STORE_NONE
-  block_test%stencil%id      = -1
-  block_test%stencil%offset  = 0
+  block_out%stencil%storage = STORE_NONE
+  block_out%stencil%id      = -1
+  block_out%stencil%offset  = 0
 
-  do i = 1, size(block_test%stencil,2)
-     do c = 1, size(block_test%stencil,1)
-        block_test%stencil(c,i)%dims = 0
+  do i = 1, size(block_out%stencil,2)
+     do c = 1, size(block_out%stencil,1)
+        block_out%stencil(c,i)%dims = 0
      end do
   end do
 
@@ -3639,7 +3154,7 @@ subroutine test_one_subtree_extraction ( &
 
      do c = 1, N_BDRY
 
-        select case (block_test%neigh_class( &
+        select case (block_out%neigh_class( &
              c,old_to_new(p_old)+1))
 
         case (NGB_OTHER)
@@ -3654,7 +3169,7 @@ subroutine test_one_subtree_extraction ( &
         case default
 
            error stop &
-                "test_subtree_extraction: unexpected stencil class"
+                "build_source_blocks: unexpected stencil class"
 
         end select
 
@@ -3688,13 +3203,13 @@ subroutine test_one_subtree_extraction ( &
         !
         if (target_patch < 0) then
 
-           do is = 1, size(block_test%bdry_storage)
+           do is = 1, size(block_out%bdry_storage)
 
-              old_start = block_test%bdry_storage(is)%elts_start
+              old_start = block_out%bdry_storage(is)%elts_start
 
               if (idx_src >= old_start .and. &
                    idx_src < old_start + &
-                   block_test%bdry_storage(is)%n_node) then
+                   block_out%bdry_storage(is)%n_node) then
 
                  target_bdry   = is
                  target_offset = idx_src - old_start
@@ -3711,14 +3226,14 @@ subroutine test_one_subtree_extraction ( &
         !
         if (target_patch < 0 .and. target_bdry < 0) then
 
-           do i = 1, size(block_test%ghost_storage)
+           do i = 1, size(block_out%ghost_storage)
 
               old_start = &
-                   block_test%ghost_storage(i)%elts_start
+                   block_out%ghost_storage(i)%elts_start
 
               if (idx_src >= old_start .and. &
                    idx_src < old_start + &
-                   block_test%ghost_storage(i)%n_node) then
+                   block_out%ghost_storage(i)%n_node) then
 
                  ghost_id      = i
                  target_offset = idx_src - old_start
@@ -3738,40 +3253,40 @@ subroutine test_one_subtree_extraction ( &
         ! signed base displacement, not an immediately dereferenceable
         ! node index.
         !
-        if (block_test%neigh_class( &
+        if (block_out%neigh_class( &
              c,old_to_new(p_old)+1) == NGB_BLOCK) then
 
-           ib = -block_test%patch( &
+           ib = -block_out%patch( &
                 old_to_new(p_old)+1)%neigh(c)
 
            if (ib < 1 .or. &
-                ib > size(block_test%block_bdry)) then
+                ib > size(block_out%block_bdry)) then
 
               error stop &
-                   "test_subtree_extraction: invalid NGB_BLOCK record"
+                   "build_source_blocks: invalid NGB_BLOCK record"
 
            end if
 
-           if (block_test%block_bdry(ib)%class /= NGB_BLOCK) then
+           if (block_out%block_bdry(ib)%class /= NGB_BLOCK) then
               error stop &
-                   "test_subtree_extraction: incorrect NGB_BLOCK record"
+                   "build_source_blocks: incorrect NGB_BLOCK record"
            end if
 
-           ghost_id = block_test%block_bdry(ib)%ghost_id
+           ghost_id = block_out%block_bdry(ib)%ghost_id
 
            if (ghost_id < 1 .or. &
-                ghost_id > size(block_test%ghost_storage)) then
+                ghost_id > size(block_out%ghost_storage)) then
 
               error stop &
-                   "test_subtree_extraction: invalid NGB_BLOCK ghost ID"
+                   "build_source_blocks: invalid NGB_BLOCK ghost ID"
 
            end if
 
-           if (block_test%ghost_storage(ghost_id)%source_patch /= &
-                block_test%block_bdry(ib)%neigh_patch) then
+           if (block_out%ghost_storage(ghost_id)%source_patch /= &
+                block_out%block_bdry(ib)%neigh_patch) then
 
               error stop &
-                   "test_subtree_extraction: incorrect NGB_BLOCK ghost"
+                   "build_source_blocks: incorrect NGB_BLOCK ghost"
 
            end if
 
@@ -3779,16 +3294,16 @@ subroutine test_one_subtree_extraction ( &
            target_bdry  = -1
 
            old_start = &
-                block_test%ghost_storage(ghost_id)%elts_start
+                block_out%ghost_storage(ghost_id)%elts_start
 
            target_offset = idx_src - old_start
 
            if (target_offset > &
-                block_test%ghost_storage(ghost_id)%n_node-1 .or. &
+                block_out%ghost_storage(ghost_id)%n_node-1 .or. &
                 target_offset + PATCH_SIZE**2-1 < 0) then
 
               error stop &
-                   "test_subtree_extraction: empty NGB_BLOCK mapping"
+                   "build_source_blocks: empty NGB_BLOCK mapping"
 
            end if
 
@@ -3799,16 +3314,16 @@ subroutine test_one_subtree_extraction ( &
         !
         if (target_patch >= 0) then
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%storage = STORE_PATCH
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%id = target_patch
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%offset = target_offset
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%dims = dims_src(:,c)
 
            n_stencil_patch = n_stencil_patch + 1
@@ -3819,16 +3334,16 @@ subroutine test_one_subtree_extraction ( &
         !
         else if (target_bdry >= 0) then
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%storage = STORE_BDRY
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%id = target_bdry
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%offset = target_offset
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%dims = dims_src(:,c)
 
            n_stencil_bdry  = n_stencil_bdry + 1
@@ -3839,22 +3354,22 @@ subroutine test_one_subtree_extraction ( &
         !
         else if (ghost_id >= 0) then
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%storage = STORE_GHOST
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%id = ghost_id
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%offset = target_offset
 
-           block_test%stencil( &
+           block_out%stencil( &
                 c,old_to_new(p_old)+1)%dims = dims_src(:,c)
 
            n_stencil_ghost = n_stencil_ghost + 1
            n_stencil_built = n_stencil_built + 1
 
-           if (block_test%neigh_class( &
+           if (block_out%neigh_class( &
                 c,old_to_new(p_old)+1) == NGB_BLOCK) then
 
               n_stencil_block = n_stencil_block + 1
@@ -3934,50 +3449,50 @@ subroutine test_one_subtree_extraction ( &
         !
         ! Verify scalar value through explicit compact addressing.
         !
-        select case (block_test%stencil( &
+        select case (block_out%stencil( &
              c,old_to_new(p_old)+1)%storage)
 
         case (STORE_PATCH)
 
-           target_patch = block_test%stencil( &
+           target_patch = block_out%stencil( &
                 c,old_to_new(p_old)+1)%id
 
-           target_offset = block_test%stencil( &
+           target_offset = block_out%stencil( &
                 c,old_to_new(p_old)+1)%offset
 
            val_src = sol(v_scalar,k_test)%data(d)%elts( &
                 mult_scalar*idx_src + 1)
 
-           val_blk = block_test%scalar( &
+           val_blk = block_out%scalar( &
                 mult_scalar * &
-                (block_test%patch(target_patch+1)%elts_start + &
+                (block_out%patch(target_patch+1)%elts_start + &
                 target_offset) + 1)
 
         case (STORE_BDRY)
 
-           target_bdry = block_test%stencil( &
+           target_bdry = block_out%stencil( &
                 c,old_to_new(p_old)+1)%id
 
-           target_offset = block_test%stencil( &
+           target_offset = block_out%stencil( &
                 c,old_to_new(p_old)+1)%offset
 
            val_src = sol(v_scalar,k_test)%data(d)%elts( &
                 mult_scalar*idx_src + 1)
 
-           val_blk = block_test%bdry_scalar( &
+           val_blk = block_out%bdry_scalar( &
                 mult_scalar * &
-                (block_test%bdry_storage(target_bdry)%local_start + &
+                (block_out%bdry_storage(target_bdry)%local_start + &
                 target_offset) + 1)
 
         case (STORE_GHOST)
 
-           ghost_id = block_test%stencil( &
+           ghost_id = block_out%stencil( &
                 c,old_to_new(p_old)+1)%id
 
-           target_offset = block_test%stencil( &
+           target_offset = block_out%stencil( &
                 c,old_to_new(p_old)+1)%offset
 
-           if (block_test%neigh_class( &
+           if (block_out%neigh_class( &
                 c,old_to_new(p_old)+1) == NGB_BLOCK) then
 
               n_mapped = 0
@@ -3988,19 +3503,19 @@ subroutine test_one_subtree_extraction ( &
 
                  if (ghost_offset < 0 .or. &
                       ghost_offset >= &
-                      block_test%ghost_storage(ghost_id)%n_node) cycle
+                      block_out%ghost_storage(ghost_id)%n_node) cycle
 
                  val_src = sol(v_scalar,k_test)%data(d)%elts( &
                       mult_scalar*(idx_src+q) + 1)
 
-                 val_blk = block_test%ghost_scalar( &
+                 val_blk = block_out%ghost_scalar( &
                       mult_scalar * &
-                      (block_test%ghost_storage( &
+                      (block_out%ghost_storage( &
                       ghost_id)%local_start + ghost_offset) + 1)
 
                  if (abs(val_blk-val_src) > 0.0_dp) then
                     error stop &
-                         "test_subtree_extraction: NGB_BLOCK value mismatch"
+                         "build_source_blocks: NGB_BLOCK value mismatch"
                  end if
 
                  n_mapped = n_mapped + 1
@@ -4009,7 +3524,7 @@ subroutine test_one_subtree_extraction ( &
 
               if (n_mapped < 1) then
                  error stop &
-                      "test_subtree_extraction: empty NGB_BLOCK validation"
+                      "build_source_blocks: empty NGB_BLOCK validation"
               end if
 
               n_block_value_checked = &
@@ -4025,9 +3540,9 @@ subroutine test_one_subtree_extraction ( &
               val_src = sol(v_scalar,k_test)%data(d)%elts( &
                    mult_scalar*idx_src + 1)
 
-              val_blk = block_test%ghost_scalar( &
+              val_blk = block_out%ghost_scalar( &
                    mult_scalar * &
-                   (block_test%ghost_storage( &
+                   (block_out%ghost_storage( &
                    ghost_id)%local_start + target_offset) + 1)
 
            end if
@@ -4035,13 +3550,13 @@ subroutine test_one_subtree_extraction ( &
         case default
 
            error stop &
-                "test_subtree_extraction: invalid stencil storage"
+                "build_source_blocks: invalid stencil storage"
 
         end select
 
         if (abs(val_blk-val_src) > 0.0_dp) then
            error stop &
-                "test_subtree_extraction: explicit scalar stencil mismatch"
+                "build_source_blocks: explicit scalar stencil mismatch"
         end if
 
      end do
@@ -4058,7 +3573,7 @@ subroutine test_one_subtree_extraction ( &
        n_ngb_domain + n_ngb_adapt) then
 
      error stop &
-          "test_subtree_extraction: stencil count mismatch"
+          "build_source_blocks: stencil count mismatch"
 
   end if
 
@@ -4066,25 +3581,25 @@ subroutine test_one_subtree_extraction ( &
        n_stencil_built) then
 
      error stop &
-          "test_subtree_extraction: stencil class count mismatch"
+          "build_source_blocks: stencil class count mismatch"
 
   end if
 
   if (n_stencil_block /= n_ngb_block) then
      error stop &
-          "test_subtree_extraction: NGB_BLOCK stencil count mismatch"
+          "build_source_blocks: NGB_BLOCK stencil count mismatch"
   end if
 
   if (n_block_value_checked < n_stencil_block) then
      error stop &
-          "test_subtree_extraction: incomplete NGB_BLOCK value check"
+          "build_source_blocks: incomplete NGB_BLOCK value check"
   end if
 
   if (n_unresolved_patch + n_unresolved_bdry + &
        n_unresolved_none /= n_stencil_unresolved) then
 
      error stop &
-          "test_subtree_extraction: unresolved count mismatch"
+          "build_source_blocks: unresolved count mismatch"
 
   end if
 
@@ -4093,7 +3608,7 @@ subroutine test_one_subtree_extraction ( &
   !
   if (n_unresolved_bdry /= 0) then
      error stop &
-          "test_subtree_extraction: boundary-storage closure incomplete"
+          "build_source_blocks: boundary-storage closure incomplete"
   end if
 
   !
@@ -4104,15 +3619,15 @@ subroutine test_one_subtree_extraction ( &
   if (verbose) then
 
   write(6,'(/,a,i0,a,i0)') &
-       "Subtree extraction test: domain ", &
-       block_catalog(b_test)%root_domain, &
+       "Source block extraction: domain ", &
+       block_catalog(b_catalog)%root_domain, &
        ", root patch ", p_root
 
   write(6,'(a,i0)') &
-       "  block ID = ", block_catalog(b_test)%id
+       "  block ID = ", block_catalog(b_catalog)%id
 
   write(6,'(a,i0)') &
-       "  block weight = ", block_catalog(b_test)%weight
+       "  block weight = ", block_catalog(b_catalog)%weight
 
   write(6,'(a,i0)') &
        "  original subtree patches = ", n_old
@@ -4170,22 +3685,22 @@ subroutine test_one_subtree_extraction ( &
        "    source owner differs       = ", &
        n_block_source_remote
 
-  do ib = 1, size(block_test%block_bdry)
+  do ib = 1, size(block_out%block_bdry)
 
-     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+     if (block_out%block_bdry(ib)%class /= NGB_BLOCK) cycle
 
      write(6,'(a,i0,a,i0,a,i0,a,i0,a,i0,a,i0)') &
           "    link ", ib, &
           ": source patch = ", &
-          block_test%block_bdry(ib)%neigh_patch, &
+          block_out%block_bdry(ib)%neigh_patch, &
           ", block index = ", &
-          block_test%block_bdry(ib)%source_block, &
+          block_out%block_bdry(ib)%source_block, &
           ", block ID = ", &
-          block_test%block_bdry(ib)%source_block_id, &
+          block_out%block_bdry(ib)%source_block_id, &
           ", owner = ", &
-          block_test%block_bdry(ib)%source_owner, &
+          block_out%block_bdry(ib)%source_owner, &
           ", ghost ID = ", &
-          block_test%block_bdry(ib)%ghost_id
+          block_out%block_bdry(ib)%ghost_id
 
   end do
 
@@ -4194,7 +3709,7 @@ subroutine test_one_subtree_extraction ( &
 
   write(6,'(/,a,i0)') &
        "  total local boundary records = ", &
-       size(block_test%block_bdry)
+       size(block_out%block_bdry)
 
   write(6,'(a,i0)') &
        "  directly referenced boundary patches = ", &
@@ -4206,7 +3721,7 @@ subroutine test_one_subtree_extraction ( &
 
   write(6,'(a,i0)') &
        "  total compact boundary patches = ", &
-       size(block_test%bdry_storage)
+       size(block_out%bdry_storage)
 
   write(6,'(a,i0)') &
        "  summed directly referenced boundary storage = ", &
@@ -4225,24 +3740,24 @@ subroutine test_one_subtree_extraction ( &
 
   write(6,'(/,a,i0)') &
        "  compact ghost source patches = ", &
-       size(block_test%ghost_storage)
+       size(block_out%ghost_storage)
 
   write(6,'(a,i0)') &
        "  compact ghost node storage = ", &
-       size(block_test%ghost_node)
+       size(block_out%ghost_node)
 
-  do ghost_id = 1, size(block_test%ghost_storage)
+  do ghost_id = 1, size(block_out%ghost_storage)
 
      write(6,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
           "    ghost ", ghost_id, &
           ": source patch = ", &
-          block_test%ghost_storage(ghost_id)%source_patch, &
+          block_out%ghost_storage(ghost_id)%source_patch, &
           ", block index = ", &
-          block_test%ghost_storage(ghost_id)%source_block, &
+          block_out%ghost_storage(ghost_id)%source_block, &
           ", block ID = ", &
-          block_test%ghost_storage(ghost_id)%source_block_id, &
+          block_out%ghost_storage(ghost_id)%source_block_id, &
           ", owner = ", &
-          block_test%ghost_storage(ghost_id)%source_owner
+          block_out%ghost_storage(ghost_id)%source_owner
 
   end do
 
@@ -4377,21 +3892,21 @@ contains
 
   end function copied_depth
 
-end subroutine test_one_subtree_extraction
+end subroutine build_one_source_block
 
 
 
-  subroutine test_parallel_block_split
-  ! Diagnostic only: construct a complete prospective parallel-block
-  ! decomposition of all locally owned geometric root domains, build
-  ! a global block catalogue, and test prospective load balancing.
+  subroutine build_parallel_block_catalog
+  ! Construct the parallel-block decomposition of all locally owned
+  ! geometric root domains, build the replicated global block catalogue,
+  ! and assign the target block owners using load balancing.
   !
   ! Rule:
   !   - if root patch 1 has all four children, use those four child
   !     subtrees as candidate blocks;
   !   - otherwise keep the whole root domain as one candidate block.
   !
-  ! This routine does NOT modify the active decomposition.
+  ! This routine does not modify the active geometric-domain storage.
 
   implicit none
 
@@ -4484,7 +3999,7 @@ end subroutine test_one_subtree_extraction
 
   if (i /= n_block_local) then
      error stop &
-          "test_parallel_block_split: local block count mismatch"
+          "build_parallel_block_catalog: local block count mismatch"
   end if
 
   !
@@ -4498,7 +4013,7 @@ end subroutine test_one_subtree_extraction
        1, MPI_INTEGER, MPI_SUM, comm, ierr)
 
   if (ierr /= MPI_SUCCESS) then
-     error stop "test_parallel_block_split: MPI_Exscan failed"
+     error stop "build_parallel_block_catalog: MPI_Exscan failed"
   end if
 
   if (rank == 0) n_block_before = 0
@@ -4511,7 +4026,7 @@ end subroutine test_one_subtree_extraction
        1, MPI_INTEGER, MPI_SUM, comm, ierr)
 
   if (ierr /= MPI_SUCCESS) then
-     error stop "test_parallel_block_split: MPI_Allreduce failed"
+     error stop "build_parallel_block_catalog: MPI_Allreduce failed"
   end if
 
   !
@@ -4531,12 +4046,12 @@ end subroutine test_one_subtree_extraction
        block_count, 1, MPI_INTEGER, comm, ierr)
 
   if (ierr /= MPI_SUCCESS) then
-     error stop "test_parallel_block_split: MPI_Allgather failed"
+     error stop "build_parallel_block_catalog: MPI_Allgather failed"
   end if
 
   if (sum(block_count) /= n_block_total) then
      error stop &
-          "test_parallel_block_split: inconsistent global block count"
+          "build_parallel_block_catalog: inconsistent global block count"
   end if
 
   !
@@ -4566,7 +4081,7 @@ end subroutine test_one_subtree_extraction
 
   if (k /= n_data_local) then
      error stop &
-          "test_parallel_block_split: local packing count mismatch"
+          "build_parallel_block_catalog: local packing count mismatch"
   end if
 
   !
@@ -4596,7 +4111,7 @@ end subroutine test_one_subtree_extraction
        comm, ierr)
 
   if (ierr /= MPI_SUCCESS) then
-     error stop "test_parallel_block_split: MPI_Allgatherv failed"
+     error stop "build_parallel_block_catalog: MPI_Allgatherv failed"
   end if
 
   !
@@ -4626,13 +4141,13 @@ end subroutine test_one_subtree_extraction
 
      if (block_catalog(i)%id /= i-1) then
         error stop &
-             "test_parallel_block_split: invalid global block ID ordering"
+             "build_parallel_block_catalog: invalid global block ID ordering"
      end if
 
      if (block_catalog(i)%owner < 0 .or. &
           block_catalog(i)%owner >= n_process) then
         error stop &
-             "test_parallel_block_split: invalid block owner"
+             "build_parallel_block_catalog: invalid block owner"
      end if
 
   end do
@@ -4650,7 +4165,7 @@ end subroutine test_one_subtree_extraction
      if (block_catalog(i)%root_domain < 0 .or. &
           block_catalog(i)%root_domain >= N_GLO_DOMAIN) then
         error stop &
-             "test_parallel_block_split: invalid root domain"
+             "build_parallel_block_catalog: invalid root domain"
      end if
 
      domain_count(block_catalog(i)%root_domain+1) = &
@@ -4660,17 +4175,17 @@ end subroutine test_one_subtree_extraction
 
   if (any(domain_count == 0)) then
      error stop &
-          "test_parallel_block_split: one or more root domains missing"
+          "build_parallel_block_catalog: one or more root domains missing"
   end if
 
   if (any(domain_count /= 1 .and. domain_count /= N_CHDRN)) then
      error stop &
-          "test_parallel_block_split: invalid number of blocks per root domain"
+          "build_parallel_block_catalog: invalid number of blocks per root domain"
   end if
 
   !
   ! ---------------------------------------------------------------
-  ! Test prospective load balancing of candidate parallel blocks.
+  ! Compute the target load balancing of candidate parallel blocks.
   ! ---------------------------------------------------------------
   !
   ! This does not change actual ownership.
@@ -4692,7 +4207,7 @@ end subroutine test_one_subtree_extraction
 
      if (r < 1 .or. r > n_process) then
         error stop &
-             "test_parallel_block_split: invalid current block owner"
+             "build_parallel_block_catalog: invalid current block owner"
      end if
 
      load_current(r) = load_current(r) + block_catalog(b)%weight
@@ -4767,7 +4282,7 @@ end subroutine test_one_subtree_extraction
 
   if (any(block_owner_new < 0)) then
      error stop &
-          "test_parallel_block_split: one or more candidate blocks unassigned"
+          "build_parallel_block_catalog: one or more candidate blocks unassigned"
   end if
 
   !
@@ -4781,7 +4296,7 @@ end subroutine test_one_subtree_extraction
 
      if (r < 1 .or. r > n_process) then
         error stop &
-             "test_parallel_block_split: invalid proposed block owner"
+             "build_parallel_block_catalog: invalid proposed block owner"
      end if
 
      load_proposed(r) = load_proposed(r) + block_catalog(b)%weight
@@ -4804,7 +4319,7 @@ end subroutine test_one_subtree_extraction
        any(block_catalog%owner >= n_process)) then
 
      error stop &
-          "test_parallel_block_split: invalid committed block owner"
+          "build_parallel_block_catalog: invalid committed block owner"
 
   end if
   
@@ -4875,7 +4390,7 @@ end subroutine test_one_subtree_extraction
   deallocate(load_current)
   deallocate(load_proposed)
 
-end subroutine test_parallel_block_split
+end subroutine build_parallel_block_catalog
  
 
   subroutine deallocate_structures

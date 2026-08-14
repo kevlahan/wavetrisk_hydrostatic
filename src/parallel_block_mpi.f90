@@ -7,6 +7,12 @@ module parallel_block_mpi_mod
   use arch_mod, only : abort_run, block_catalog, comm, n_process, &
        owner, rank
 
+  use parallel_block_mod, only : block_source, block_received, &
+       block_local, block_source_catalog_index, &
+       block_migrating_source_index, block_received_catalog_index, &
+       packed_block_nbyte, pack_block, unpack_block, &
+       check_block_storage, install_local_blocks, clear_block_staging
+
   implicit none
 
   private
@@ -41,8 +47,265 @@ module parallel_block_mpi_mod
   public :: exchange_block_migration_sizes
   public :: exchange_block_migration_payloads
   public :: clear_block_migration_manifest
+  public :: migrate_blocks
 
 contains
+
+
+  subroutine migrate_blocks (verbose)
+    ! Migrate the source-local blocks to their final catalogue owners,
+    ! install a self-contained local block store, and release all
+    ! source, receive and MPI migration staging storage.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    type(Block_Migration_Manifest) :: manifest
+
+    integer :: b
+    integer :: expected_local
+    integer :: i
+    integer :: ib
+    integer :: n_recv_byte
+    integer :: n_received
+    integer :: n_send_byte
+    integer :: n_sent
+    integer :: nbyte
+    integer :: pos
+
+    integer, allocatable :: local_seen(:)
+    integer, allocatable :: seen_catalog(:)
+    integer, allocatable :: seen_source(:)
+    integer, allocatable :: send_nbyte(:)
+
+    integer(int8), allocatable :: block_buffer(:)
+    integer(int8), allocatable :: send_payload(:)
+
+    logical :: print_local
+
+    print_local = .true.
+    if (present(verbose)) print_local = verbose
+
+    if (.not. allocated(block_source) .or. &
+         .not. allocated(block_source_catalog_index) .or. &
+         .not. allocated(block_migrating_source_index)) then
+       call fail("source block store is incomplete")
+    end if
+
+    if (size(block_source_catalog_index) /= size(block_source)) then
+       call fail("source block catalogue map has the wrong extent")
+    end if
+
+    call build_block_migration_manifest(manifest)
+    call check_block_migration_manifest(manifest,print_local)
+
+    if (manifest%n_send /= size(block_migrating_source_index)) then
+       call fail("manifest and source migration counts differ")
+    end if
+
+    allocate(send_nbyte(manifest%n_send))
+    allocate(seen_source(size(block_source)))
+
+    send_nbyte = 0
+    seen_source = 0
+
+    do i = 1, manifest%n_send
+
+       b = manifest%send_block(i)
+       ib = findloc(block_source_catalog_index,b,dim=1)
+
+       if (ib < 1 .or. ib > size(block_source)) then
+          call fail("manifest source block was not constructed locally")
+       end if
+
+       if (findloc(block_migrating_source_index,ib,dim=1) < 1) then
+          call fail("manifest source block is not marked for migration")
+       end if
+
+       if (seen_source(ib) /= 0) then
+          call fail("source block occurs more than once in manifest")
+       end if
+
+       send_nbyte(i) = packed_block_nbyte(block_source(ib))
+
+       if (send_nbyte(i) <= 0) then
+          call fail("source block has an invalid packed byte count")
+       end if
+
+       seen_source(ib) = 1
+
+    end do
+
+    do i = 1, size(block_migrating_source_index)
+
+       ib = block_migrating_source_index(i)
+
+       if (ib < 1 .or. ib > size(block_source)) then
+          call fail("migrating source index is invalid")
+       end if
+
+       if (seen_source(ib) /= 1) then
+          call fail("migrating source block is absent from manifest")
+       end if
+
+    end do
+
+    call exchange_block_migration_sizes( &
+         manifest,send_nbyte,print_local)
+
+    if (manifest%total_send_nbyte > int(huge(0),int64) .or. &
+         manifest%total_recv_nbyte > int(huge(0),int64)) then
+       call fail("packed migration size exceeds default integer range")
+    end if
+
+    n_send_byte = int(manifest%total_send_nbyte)
+    n_recv_byte = int(manifest%total_recv_nbyte)
+
+    allocate(send_payload(max(1,n_send_byte)))
+    send_payload = 0_int8
+    pos = 0
+
+    do i = 1, manifest%n_send
+
+       b = manifest%send_block(i)
+       ib = findloc(block_source_catalog_index,b,dim=1)
+
+       if (ib < 1 .or. ib > size(block_source)) then
+          call fail("source block disappeared before packing")
+       end if
+
+       call pack_block(block_source(ib),block_buffer)
+
+       if (size(block_buffer) /= manifest%send_nbyte(i)) then
+          call fail("source block packed size changed")
+       end if
+
+       nbyte = size(block_buffer)
+
+       if (pos+nbyte > n_send_byte) then
+          call fail("outgoing packed payload exceeds its buffer")
+       end if
+
+       send_payload(pos+1:pos+nbyte) = block_buffer
+       pos = pos + nbyte
+
+    end do
+
+    if (pos /= n_send_byte) then
+       call fail("outgoing packed payload has the wrong extent")
+    end if
+
+    call exchange_block_migration_payloads( &
+         manifest,send_payload,print_local)
+
+    if (allocated(block_received)) deallocate(block_received)
+    if (allocated(block_received_catalog_index)) then
+       deallocate(block_received_catalog_index)
+    end if
+
+    allocate(block_received(manifest%n_recv))
+    allocate(block_received_catalog_index(manifest%n_recv))
+    allocate(seen_catalog(size(block_catalog)))
+
+    block_received_catalog_index = -1
+    seen_catalog = 0
+    pos = 0
+
+    do i = 1, manifest%n_recv
+
+       b = manifest%recv_block(i)
+       nbyte = manifest%recv_nbyte(i)
+
+       if (b < 1 .or. b > size(block_catalog)) then
+          call fail("received block catalogue index is invalid")
+       end if
+
+       if (seen_catalog(b) /= 0) then
+          call fail("received block occurs more than once")
+       end if
+
+       if (block_catalog(b)%owner /= rank) then
+          call fail("received block has the wrong final owner")
+       end if
+
+       if (nbyte <= 0 .or. pos+nbyte > n_recv_byte) then
+          call fail("received packed block extent is invalid")
+       end if
+
+       call unpack_block( &
+            manifest%recv_payload(pos+1:pos+nbyte), &
+            block_received(i))
+
+       if (block_received(i)%id /= block_catalog(b)%id .or. &
+            block_received(i)%root_domain /= &
+            block_catalog(b)%root_domain .or. &
+            block_received(i)%root_patch /= &
+            block_catalog(b)%root_patch .or. &
+            block_received(i)%level /= block_catalog(b)%level) then
+          call fail("received block identity does not match catalogue")
+       end if
+
+       call check_block_storage(block_received(i),.true.)
+
+       block_received_catalog_index(i) = b
+       seen_catalog(b) = 1
+       pos = pos + nbyte
+
+    end do
+
+    if (pos /= n_recv_byte) then
+       call fail("received packed payload has the wrong extent")
+    end if
+
+    if (count(seen_catalog /= 0) /= manifest%n_recv) then
+       call fail("received block inventory is incomplete")
+    end if
+
+    call install_local_blocks(size(block_catalog),local_seen)
+
+    expected_local = 0
+
+    do b = 1, size(block_catalog)
+       if (block_catalog(b)%owner == rank) then
+          expected_local = expected_local + 1
+          if (local_seen(b) /= 1) then
+             call fail("owned block is absent from installed store")
+          end if
+       else
+          if (local_seen(b) /= 0) then
+             call fail("nonlocal block appears in installed store")
+          end if
+       end if
+    end do
+
+    if (size(block_local) /= expected_local) then
+       call fail("installed block count does not match final ownership")
+    end if
+
+    n_sent     = manifest%n_send
+    n_received = manifest%n_recv
+
+    call clear_block_staging
+    call clear_block_migration_manifest(manifest)
+
+    if (print_local) then
+       write(6,'(/,a,i0,a)') &
+            "Completed block migration for rank ", rank, ":"
+       write(6,'(a,i0)') "  blocks sent      = ", n_sent
+       write(6,'(a,i0)') "  blocks received  = ", n_received
+       write(6,'(a,i0)') "  blocks installed = ", size(block_local)
+       write(6,'(a,/)') &
+            "  migration staging storage released"
+    end if
+
+    deallocate(local_seen)
+    deallocate(seen_catalog)
+    deallocate(seen_source)
+    deallocate(send_nbyte)
+    deallocate(send_payload)
+
+  end subroutine migrate_blocks
 
 
   subroutine build_block_migration_manifest (manifest)
