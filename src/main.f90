@@ -41,7 +41,7 @@ module main_mod
   use wavelet_mod,        only : forward_wavelet_transform, init_wavelets, inverse_scalar_transform, inverse_wavelet_transform
 
   use arch_mod, only : abort_run, barrier, block_catalog, comm, distribute_grid, glo_id, init_arch_mod, loc_id, &
-       n_glo_block, n_process, Parallel_Block, rank
+       n_glo_block, n_process, owner, Parallel_Block, rank
 
   use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
        sum_int,  sync_max_int, sync_min_real, write_load_conn
@@ -107,6 +107,11 @@ type Test_Block_Bdry
    integer :: n_node      = 0
 
    integer :: storage_id  = -1
+
+   integer :: source_block    = -1
+   integer :: source_block_id = -1
+   integer :: source_owner    = -1
+   integer :: ghost_id        = -1
 end type Test_Block_Bdry
 
 
@@ -150,6 +155,11 @@ type Test_Ghost_Storage
    integer :: elts_start   = -1
    integer :: local_start  = -1
    integer :: n_node       = 0
+
+   integer :: source_domain = -1
+   integer :: source_block  = -1
+   integer :: source_block_id = -1
+   integer :: source_owner  = -1
 end type Test_Ghost_Storage
 
 type Test_Stencil_Address
@@ -895,26 +905,223 @@ contains
     end if
   end subroutine cal_min_mass
 
-
 subroutine test_subtree_extraction
-  ! Extract one candidate subtree on rank zero and verify:
+  ! Build and verify every candidate block whose source Domain is
+  ! currently local to this rank. Detailed diagnostics are printed for
+  ! one representative block; all blocks contribute to rank totals.
+
+  implicit none
+
+  integer :: b
+  integer :: b_verbose
+  integer :: d
+
+  integer :: n_block_built
+  integer :: n_block_owned
+  integer :: n_block_migrating
+
+  integer :: n_patch_block
+  integer :: n_bdry_block
+  integer :: n_ghost_block
+  integer :: n_stencil_block
+  integer :: n_remote_block
+  integer :: n_value_block
+
+  integer :: n_patch_total
+  integer :: n_bdry_total
+  integer :: n_ghost_total
+  integer :: n_stencil_total
+  integer :: n_remote_total
+  integer :: n_value_total
+
+  b_verbose = -1
+
+  !
+  ! Prefer a representative local-source block of depth at least two.
+  !
+  if (rank == 0) then
+
+  do b = 1, size(block_catalog)
+
+     if (owner(block_catalog(b)%root_domain+1) /= rank) cycle
+
+     d = loc_id(block_catalog(b)%root_domain+1) + 1
+
+     if (d < 1 .or. d > size(grid)) then
+        error stop &
+             "test_subtree_extraction: invalid local domain mapping"
+     end if
+
+     if (subtree_depth_Domain( &
+          grid(d),block_catalog(b)%root_patch) >= 2) then
+
+        b_verbose = b
+        exit
+
+     end if
+
+  end do
+
+  end if
+
+  !
+  ! Fallback to the first candidate with a local source Domain.
+  !
+  if (rank == 0 .and. b_verbose < 1) then
+
+     do b = 1, size(block_catalog)
+
+        if (owner(block_catalog(b)%root_domain+1) /= rank) cycle
+
+        d = loc_id(block_catalog(b)%root_domain+1) + 1
+
+        if (d < 1 .or. d > size(grid)) then
+           error stop &
+                "test_subtree_extraction: invalid local domain mapping"
+        end if
+
+        b_verbose = b
+        exit
+
+
+     end do
+
+  end if
+
+  if (rank == 0 .and. b_verbose < 1) then
+     error stop &
+          "test_subtree_extraction: no local source-domain block"
+  end if
+
+  n_block_built  = 0
+  n_block_owned  = 0
+  n_block_migrating = 0
+  n_patch_total  = 0
+  n_bdry_total   = 0
+  n_ghost_total  = 0
+  n_stencil_total = 0
+  n_remote_total = 0
+  n_value_total  = 0
+
+  do b = 1, size(block_catalog)
+
+     if (owner(block_catalog(b)%root_domain+1) /= rank) cycle
+
+     d = loc_id(block_catalog(b)%root_domain+1) + 1
+
+     if (d < 1 .or. d > size(grid)) then
+        error stop &
+             "test_subtree_extraction: invalid local domain mapping"
+     end if
+
+     call test_one_subtree_extraction( &
+          b, b == b_verbose, &
+          n_patch_block, n_bdry_block, n_ghost_block, &
+          n_stencil_block, n_remote_block, n_value_block)
+
+     n_block_built = n_block_built + 1
+
+     if (block_catalog(b)%owner == rank) then
+        n_block_owned = n_block_owned + 1
+     else
+        n_block_migrating = n_block_migrating + 1
+     end if
+
+     n_patch_total = n_patch_total + n_patch_block
+     n_bdry_total = n_bdry_total + n_bdry_block
+     n_ghost_total = n_ghost_total + n_ghost_block
+     n_stencil_total = n_stencil_total + n_stencil_block
+     n_remote_total = n_remote_total + n_remote_block
+     n_value_total = n_value_total + n_value_block
+
+  end do
+
+  if (n_block_built < 1) then
+     error stop "test_subtree_extraction: no blocks constructed"
+  end if
+
+  if (n_block_owned + n_block_migrating /= n_block_built) then
+     error stop &
+          "test_subtree_extraction: block migration count mismatch"
+  end if
+
+  write(6,'(/,a,i0,a)') &
+       "All-block extraction summary for rank ", rank, ":"
+
+  write(6,'(a,i0)') &
+       "  local-source candidate blocks built = ", &
+       n_block_built
+
+  write(6,'(a,i0)') &
+       "  retained by this rank               = ", &
+       n_block_owned
+
+  write(6,'(a,i0)') &
+       "  migrating to another rank           = ", &
+       n_block_migrating
+
+  write(6,'(a,i0)') &
+       "  extracted regular patches           = ", &
+       n_patch_total
+
+  write(6,'(a,i0)') &
+       "  compact boundary patches            = ", &
+       n_bdry_total
+
+  write(6,'(a,i0)') &
+       "  compact ghost patches               = ", &
+       n_ghost_total
+
+  write(6,'(a,i0)') &
+       "  explicit stencil addresses          = ", &
+       n_stencil_total
+
+  write(6,'(a,i0)') &
+       "  remote-owner inter-block links      = ", &
+       n_remote_total
+
+  write(6,'(a,i0)') &
+       "  inter-block scalar values checked   = ", &
+       n_value_total
+
+  write(6,'(a,/)') &
+       "  all local-source candidate block checks passed"
+
+end subroutine test_subtree_extraction
+
+
+subroutine test_one_subtree_extraction ( &
+     b_test, verbose, n_patch_out, n_bdry_out, n_ghost_out, &
+     n_stencil_out, n_remote_out, n_value_out)
+  ! Extract one candidate subtree and verify:
   !
   !   - patch topology and compact interior storage;
   !   - copied node/scalar/vector data;
   !   - block-local neighbour classification;
   !   - explicit boundary-link catalogue;
   !   - complete compact boundary storage, including stencil closure;
+  !   - unified effective-stencil and nominal inter-block ghost storage;
+  !   - unique source block/owner and ghost ID for every NGB_BLOCK link;
   !   - block-local neighbour references;
   !   - explicit compact scalar stencil addressing.
   !
   ! Regular source patches required by effective stencil addresses but
   ! lying outside the extracted subtree are copied into compact ghost
-  ! storage. Nominal NGB_BLOCK links remain deferred until explicit
-  ! inter-block communication is constructed.
+  ! storage. NGB_BLOCK addressing is complete, but ghost field values
+  ! are still copied directly until communication is constructed.
 
   implicit none
 
-  integer :: b_test
+  integer, intent(in) :: b_test
+  logical, intent(in) :: verbose
+
+  integer, intent(out) :: n_patch_out
+  integer, intent(out) :: n_bdry_out
+  integer, intent(out) :: n_ghost_out
+  integer, intent(out) :: n_stencil_out
+  integer, intent(out) :: n_remote_out
+  integer, intent(out) :: n_value_out
+
   integer :: b_src
   integer :: b_missing
   integer :: c, d, i, ib, is, j
@@ -941,10 +1148,17 @@ subroutine test_subtree_extraction
   integer :: n_bdry_node_unique
   integer :: n_bdry_node_max
 
+  integer :: n_block_source_local
+  integer :: n_block_source_remote
+  integer :: n_source_match
+  integer :: source_block
+
   integer :: n_stencil_built
   integer :: n_stencil_patch
   integer :: n_stencil_bdry
   integer :: n_stencil_ghost
+  integer :: n_stencil_block
+  integer :: n_block_value_checked
   integer :: n_stencil_unresolved
 
   integer :: n_ghost
@@ -962,6 +1176,9 @@ subroutine test_subtree_extraction
   integer :: target_patch
   integer :: target_bdry
   integer :: target_offset
+  integer :: ghost_offset
+  integer :: n_mapped
+  integer :: q
 
   integer :: idx_src
 
@@ -1000,90 +1217,11 @@ subroutine test_subtree_extraction
 
   type(Test_Block) :: block_test
 
-  logical :: found
   logical :: already_present
 
-  if (rank /= 0) return
-
-  !
-  ! ===============================================================
-  ! Select one representative candidate block.
-  ! ===============================================================
-  !
-  found  = .false.
-  b_test = -1
-
-  !
-  ! Prefer a subtree with depth at least two.
-  !
-  do i = 1, size(block_catalog)
-
-     if (block_catalog(i)%owner /= rank) cycle
-
-     d = loc_id(block_catalog(i)%root_domain+1) + 1
-
-     if (d < 1 .or. d > size(grid)) cycle
-
-     p_root = block_catalog(i)%root_patch
-
-     if (subtree_depth_Domain(grid(d),p_root) >= 2) then
-        b_test = i
-        found  = .true.
-        exit
-     end if
-
-  end do
-
-  !
-  ! Fallback to first local nontrivial subtree.
-  !
-  if (.not. found) then
-
-     do i = 1, size(block_catalog)
-
-        if (block_catalog(i)%owner /= rank) cycle
-
-        d = loc_id(block_catalog(i)%root_domain+1) + 1
-
-        if (d < 1 .or. d > size(grid)) cycle
-
-        p_root = block_catalog(i)%root_patch
-
-        if (subtree_weight_Domain(grid(d),p_root) > PATCH_SIZE**2) then
-           b_test = i
-           found  = .true.
-           exit
-        end if
-
-     end do
-
-  end if
-
-  !
-  ! Final fallback to first local candidate.
-  !
-  if (.not. found) then
-
-     do i = 1, size(block_catalog)
-
-        if (block_catalog(i)%owner /= rank) cycle
-
-        d = loc_id(block_catalog(i)%root_domain+1) + 1
-
-        if (d < 1 .or. d > size(grid)) cycle
-
-        p_root = block_catalog(i)%root_patch
-
-        b_test = i
-        found  = .true.
-        exit
-
-     end do
-
-  end if
-
-  if (.not. found) then
-     error stop "test_subtree_extraction: no local candidate block"
+  if (owner(block_catalog(b_test)%root_domain+1) /= rank) then
+     error stop &
+          "test_subtree_extraction: source domain is not local"
   end if
 
   d = loc_id(block_catalog(b_test)%root_domain+1) + 1
@@ -1487,6 +1625,10 @@ subroutine test_subtree_extraction
 
            block_test%block_bdry(ib)%neigh_patch = p_ngb_old
 
+           block_test%block_bdry(ib)%source_block = -1
+           block_test%block_bdry(ib)%source_block_id = -1
+           block_test%block_bdry(ib)%source_owner = -1
+           block_test%block_bdry(ib)%ghost_id     = -1
            block_test%block_bdry(ib)%storage_id = -1
 
         case (NGB_DOMAIN, NGB_ADAPT)
@@ -1549,6 +1691,77 @@ subroutine test_subtree_extraction
   if (ib /= n_bdry_local) then
      error stop &
           "test_subtree_extraction: local boundary count mismatch"
+  end if
+
+  !
+  ! ===============================================================
+  ! Map every inter-block link to its unique source patch, candidate
+  ! source block, and prospective source owner.
+  ! ===============================================================
+  !
+  n_block_source_local  = 0
+  n_block_source_remote = 0
+
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+
+     source_block  = -1
+     n_source_match = 0
+
+     do i = 1, size(block_catalog)
+
+        if (block_catalog(i)%root_domain /= &
+             block_catalog(b_test)%root_domain) cycle
+
+        if (.not. patch_in_subtree( &
+             block_catalog(i)%root_patch, &
+             block_test%block_bdry(ib)%neigh_patch)) cycle
+
+        source_block   = i
+        n_source_match = n_source_match + 1
+
+     end do
+
+     if (n_source_match /= 1) then
+        error stop &
+             "test_subtree_extraction: nonunique inter-block source"
+     end if
+
+     if (source_block == b_test) then
+        error stop &
+             "test_subtree_extraction: inter-block source is current block"
+     end if
+
+     block_test%block_bdry(ib)%source_block = source_block
+     block_test%block_bdry(ib)%source_block_id = &
+          block_catalog(source_block)%id
+     block_test%block_bdry(ib)%source_owner = &
+          block_catalog(source_block)%owner
+
+     if (block_test%block_bdry(ib)%source_owner < 0 .or. &
+          block_test%block_bdry(ib)%source_owner >= n_process) then
+
+        error stop &
+             "test_subtree_extraction: invalid inter-block source owner"
+
+     end if
+
+     if (block_test%block_bdry(ib)%source_owner == &
+          block_catalog(b_test)%owner) then
+        n_block_source_local = n_block_source_local + 1
+     else
+        n_block_source_remote = n_block_source_remote + 1
+     end if
+
+  end do
+
+  if (n_block_source_local + n_block_source_remote /= &
+       n_ngb_block) then
+
+     error stop &
+          "test_subtree_extraction: inter-block mapping count mismatch"
+
   end if
 
   !
@@ -2114,7 +2327,37 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Construct compact ghost-patch storage.
+  ! Add all nominal NGB_BLOCK source patches to the same catalogue.
+  ! Deduplicate them against effective-stencil ghost patches and
+  ! against repeated inter-block links.
+  !
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+
+     source_patch = block_test%block_bdry(ib)%neigh_patch
+     already_present = .false.
+
+     do j = 1, n_ghost
+
+        if (ghost_patch(j) == source_patch) then
+           already_present = .true.
+           exit
+        end if
+
+     end do
+
+     if (.not. already_present) then
+        n_ghost = n_ghost + 1
+        ghost_patch(n_ghost) = source_patch
+     end if
+
+  end do
+
+  !
+  ! Determine the unique source block and owner for every distinct
+  ! ghost patch, including ghosts discovered only through effective
+  ! stencil addressing.
   !
   allocate(block_test%ghost_storage(n_ghost))
 
@@ -2122,13 +2365,59 @@ subroutine test_subtree_extraction
 
   do ghost_id = 1, n_ghost
 
-     source_patch = ghost_patch(ghost_id)
+     source_block   = -1
+     n_source_match = 0
+
+     do i = 1, size(block_catalog)
+
+        if (block_catalog(i)%root_domain /= &
+             block_catalog(b_test)%root_domain) cycle
+
+        if (.not. patch_in_subtree( &
+             block_catalog(i)%root_patch, &
+             ghost_patch(ghost_id))) cycle
+
+        source_block   = i
+        n_source_match = n_source_match + 1
+
+     end do
+
+     if (n_source_match /= 1) then
+        error stop &
+             "test_subtree_extraction: nonunique ghost source block"
+     end if
+
+     if (source_block == b_test) then
+        error stop &
+             "test_subtree_extraction: ghost source is current block"
+     end if
+
+     block_test%ghost_storage(ghost_id)%source_domain = &
+          block_catalog(b_test)%root_domain
 
      block_test%ghost_storage(ghost_id)%source_patch = &
-          source_patch
+          ghost_patch(ghost_id)
+
+     block_test%ghost_storage(ghost_id)%source_block = &
+          source_block
+
+     block_test%ghost_storage(ghost_id)%source_block_id = &
+          block_catalog(source_block)%id
+
+     block_test%ghost_storage(ghost_id)%source_owner = &
+          block_catalog(source_block)%owner
+
+     if (block_test%ghost_storage(ghost_id)%source_owner < 0 .or. &
+          block_test%ghost_storage(ghost_id)%source_owner >= &
+          n_process) then
+
+        error stop &
+             "test_subtree_extraction: invalid ghost source owner"
+
+     end if
 
      block_test%ghost_storage(ghost_id)%elts_start = &
-          grid(d)%patch%elts(source_patch+1)%elts_start
+          grid(d)%patch%elts(ghost_patch(ghost_id)+1)%elts_start
 
      block_test%ghost_storage(ghost_id)%local_start = &
           n_ghost_node
@@ -2137,6 +2426,115 @@ subroutine test_subtree_extraction
           PATCH_SIZE**2
 
      n_ghost_node = n_ghost_node + PATCH_SIZE**2
+
+  end do
+
+  !
+  ! Assign every nominal inter-block link its compact ghost ID.
+  !
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+
+     do ghost_id = 1, n_ghost
+
+        if (block_test%ghost_storage(ghost_id)%source_patch == &
+             block_test%block_bdry(ib)%neigh_patch) then
+
+           block_test%block_bdry(ib)%ghost_id = ghost_id
+           exit
+
+        end if
+
+     end do
+
+     if (block_test%block_bdry(ib)%ghost_id < 1) then
+        error stop &
+             "test_subtree_extraction: missing inter-block ghost ID"
+     end if
+
+     ghost_id = block_test%block_bdry(ib)%ghost_id
+
+     if (block_test%ghost_storage(ghost_id)%source_block /= &
+          block_test%block_bdry(ib)%source_block .or. &
+          block_test%ghost_storage(ghost_id)%source_block_id /= &
+          block_test%block_bdry(ib)%source_block_id .or. &
+          block_test%ghost_storage(ghost_id)%source_owner /= &
+          block_test%block_bdry(ib)%source_owner) then
+
+        error stop &
+             "test_subtree_extraction: ghost source metadata mismatch"
+
+     end if
+
+  end do
+
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+
+     source_block = block_test%block_bdry(ib)%source_block
+
+     if (source_block < 1 .or. &
+          source_block > size(block_catalog)) then
+
+        error stop &
+             "test_subtree_extraction: invalid source catalog index"
+
+     end if
+
+     if (block_test%block_bdry(ib)%source_block_id /= &
+          block_catalog(source_block)%id) then
+
+        error stop &
+             "test_subtree_extraction: source block ID mismatch"
+
+     end if
+
+  end do
+
+  do ghost_id = 1, size(block_test%ghost_storage)
+
+     source_block = &
+          block_test%ghost_storage(ghost_id)%source_block
+
+     if (source_block < 1 .or. &
+          source_block > size(block_catalog)) then
+
+        error stop &
+             "test_subtree_extraction: invalid ghost catalog index"
+
+     end if
+
+     if (block_test%ghost_storage(ghost_id)%source_block_id /= &
+          block_catalog(source_block)%id) then
+
+        error stop &
+             "test_subtree_extraction: ghost block ID mismatch"
+
+     end if
+
+  end do
+
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+
+     do j = ib+1, size(block_test%block_bdry)
+
+        if (block_test%block_bdry(j)%class /= NGB_BLOCK) cycle
+
+        if ((block_test%block_bdry(ib)%neigh_patch == &
+             block_test%block_bdry(j)%neigh_patch) .neqv. &
+             (block_test%block_bdry(ib)%ghost_id == &
+             block_test%block_bdry(j)%ghost_id)) then
+
+           error stop &
+                "test_subtree_extraction: inconsistent ghost deduplication"
+
+        end if
+
+     end do
 
   end do
 
@@ -2329,7 +2727,8 @@ subroutine test_subtree_extraction
   ! ===============================================================
   ! Build explicit compact stencil addresses.
   !
-  ! NGB_BLOCK is deferred until inter-block ghost storage exists.
+  ! NGB_BLOCK addresses use the unified compact ghost catalogue and
+  ! the orientation-adjusted effective address from comp_offs3.
   ! ===============================================================
   !
   allocate(block_test%stencil( &
@@ -2349,6 +2748,8 @@ subroutine test_subtree_extraction
   n_stencil_patch      = 0
   n_stencil_bdry       = 0
   n_stencil_ghost      = 0
+  n_stencil_block      = 0
+  n_block_value_checked = 0
   n_stencil_unresolved = 0
 
   n_unresolved_patch = 0
@@ -2367,11 +2768,11 @@ subroutine test_subtree_extraction
         select case (block_test%neigh_class( &
              c,old_to_new(p_old)+1))
 
-        case (NGB_BLOCK, NGB_OTHER)
+        case (NGB_OTHER)
 
            cycle
 
-        case (NGB_INTERNAL, NGB_DOMAIN, NGB_ADAPT)
+        case (NGB_INTERNAL, NGB_BLOCK, NGB_DOMAIN, NGB_ADAPT)
 
            idx_src = grid(d)%patch%elts(p_old+1)%elts_start + &
                 offs_src(c)
@@ -2456,6 +2857,70 @@ subroutine test_subtree_extraction
         end if
 
         !
+        ! For NGB_BLOCK, use the nominal neighbour ghost assigned to
+        ! the explicit block-boundary record. The comp_offs3 address
+        ! is an orientation-adjusted base and may lie outside the
+        ! nominal ghost allocation. Therefore target_offset is a
+        ! signed base displacement, not an immediately dereferenceable
+        ! node index.
+        !
+        if (block_test%neigh_class( &
+             c,old_to_new(p_old)+1) == NGB_BLOCK) then
+
+           ib = -block_test%patch( &
+                old_to_new(p_old)+1)%neigh(c)
+
+           if (ib < 1 .or. &
+                ib > size(block_test%block_bdry)) then
+
+              error stop &
+                   "test_subtree_extraction: invalid NGB_BLOCK record"
+
+           end if
+
+           if (block_test%block_bdry(ib)%class /= NGB_BLOCK) then
+              error stop &
+                   "test_subtree_extraction: incorrect NGB_BLOCK record"
+           end if
+
+           ghost_id = block_test%block_bdry(ib)%ghost_id
+
+           if (ghost_id < 1 .or. &
+                ghost_id > size(block_test%ghost_storage)) then
+
+              error stop &
+                   "test_subtree_extraction: invalid NGB_BLOCK ghost ID"
+
+           end if
+
+           if (block_test%ghost_storage(ghost_id)%source_patch /= &
+                block_test%block_bdry(ib)%neigh_patch) then
+
+              error stop &
+                   "test_subtree_extraction: incorrect NGB_BLOCK ghost"
+
+           end if
+
+           target_patch = -1
+           target_bdry  = -1
+
+           old_start = &
+                block_test%ghost_storage(ghost_id)%elts_start
+
+           target_offset = idx_src - old_start
+
+           if (target_offset > &
+                block_test%ghost_storage(ghost_id)%n_node-1 .or. &
+                target_offset + PATCH_SIZE**2-1 < 0) then
+
+              error stop &
+                   "test_subtree_extraction: empty NGB_BLOCK mapping"
+
+           end if
+
+        end if
+
+        !
         ! Resolved interior target.
         !
         if (target_patch >= 0) then
@@ -2514,6 +2979,13 @@ subroutine test_subtree_extraction
 
            n_stencil_ghost = n_stencil_ghost + 1
            n_stencil_built = n_stencil_built + 1
+
+           if (block_test%neigh_class( &
+                c,old_to_new(p_old)+1) == NGB_BLOCK) then
+
+              n_stencil_block = n_stencil_block + 1
+
+           end if
 
         !
         ! Not yet represented by the compact block.
@@ -2588,9 +3060,6 @@ subroutine test_subtree_extraction
         !
         ! Verify scalar value through explicit compact addressing.
         !
-        val_src = &
-             sol(v_scalar,k_test)%data(d)%elts(idx_src+1)
-
         select case (block_test%stencil( &
              c,old_to_new(p_old)+1)%storage)
 
@@ -2601,6 +3070,9 @@ subroutine test_subtree_extraction
 
            target_offset = block_test%stencil( &
                 c,old_to_new(p_old)+1)%offset
+
+           val_src = sol(v_scalar,k_test)%data(d)%elts( &
+                mult_scalar*idx_src + 1)
 
            val_blk = block_test%scalar( &
                 mult_scalar * &
@@ -2615,6 +3087,9 @@ subroutine test_subtree_extraction
            target_offset = block_test%stencil( &
                 c,old_to_new(p_old)+1)%offset
 
+           val_src = sol(v_scalar,k_test)%data(d)%elts( &
+                mult_scalar*idx_src + 1)
+
            val_blk = block_test%bdry_scalar( &
                 mult_scalar * &
                 (block_test%bdry_storage(target_bdry)%local_start + &
@@ -2628,10 +3103,60 @@ subroutine test_subtree_extraction
            target_offset = block_test%stencil( &
                 c,old_to_new(p_old)+1)%offset
 
-           val_blk = block_test%ghost_scalar( &
-                mult_scalar * &
-                (block_test%ghost_storage(ghost_id)%local_start + &
-                target_offset) + 1)
+           if (block_test%neigh_class( &
+                c,old_to_new(p_old)+1) == NGB_BLOCK) then
+
+              n_mapped = 0
+
+              do q = 0, PATCH_SIZE**2-1
+
+                 ghost_offset = target_offset + q
+
+                 if (ghost_offset < 0 .or. &
+                      ghost_offset >= &
+                      block_test%ghost_storage(ghost_id)%n_node) cycle
+
+                 val_src = sol(v_scalar,k_test)%data(d)%elts( &
+                      mult_scalar*(idx_src+q) + 1)
+
+                 val_blk = block_test%ghost_scalar( &
+                      mult_scalar * &
+                      (block_test%ghost_storage( &
+                      ghost_id)%local_start + ghost_offset) + 1)
+
+                 if (abs(val_blk-val_src) > 0.0_dp) then
+                    error stop &
+                         "test_subtree_extraction: NGB_BLOCK value mismatch"
+                 end if
+
+                 n_mapped = n_mapped + 1
+
+              end do
+
+              if (n_mapped < 1) then
+                 error stop &
+                      "test_subtree_extraction: empty NGB_BLOCK validation"
+              end if
+
+              n_block_value_checked = &
+                   n_block_value_checked + n_mapped
+
+              ! Suppress the single-address comparison below; every
+              ! physically mapped value has already been checked.
+              val_src = 0.0_dp
+              val_blk = 0.0_dp
+
+           else
+
+              val_src = sol(v_scalar,k_test)%data(d)%elts( &
+                   mult_scalar*idx_src + 1)
+
+              val_blk = block_test%ghost_scalar( &
+                   mult_scalar * &
+                   (block_test%ghost_storage( &
+                   ghost_id)%local_start + target_offset) + 1)
+
+           end if
 
         case default
 
@@ -2655,7 +3180,8 @@ subroutine test_subtree_extraction
   ! ===============================================================
   !
   if (n_stencil_built + n_stencil_unresolved /= &
-       n_ngb_internal + n_ngb_domain + n_ngb_adapt) then
+       n_ngb_internal + n_ngb_block + &
+       n_ngb_domain + n_ngb_adapt) then
 
      error stop &
           "test_subtree_extraction: stencil count mismatch"
@@ -2668,6 +3194,16 @@ subroutine test_subtree_extraction
      error stop &
           "test_subtree_extraction: stencil class count mismatch"
 
+  end if
+
+  if (n_stencil_block /= n_ngb_block) then
+     error stop &
+          "test_subtree_extraction: NGB_BLOCK stencil count mismatch"
+  end if
+
+  if (n_block_value_checked < n_stencil_block) then
+     error stop &
+          "test_subtree_extraction: incomplete NGB_BLOCK value check"
   end if
 
   if (n_unresolved_patch + n_unresolved_bdry + &
@@ -2691,6 +3227,8 @@ subroutine test_subtree_extraction
   ! Diagnostic output.
   ! ===============================================================
   !
+  if (verbose) then
+
   write(6,'(/,a,i0,a,i0)') &
        "Subtree extraction test: domain ", &
        block_catalog(b_test)%root_domain, &
@@ -2744,6 +3282,42 @@ subroutine test_subtree_extraction
   write(6,'(a,i0)') &
        "    other neighbour links = ", n_ngb_other
 
+  write(6,'(/,a)') &
+       "  Inter-block source mapping:"
+
+  write(6,'(a,i0)') &
+       "    mapped inter-block links = ", n_ngb_block
+
+  write(6,'(a,i0)') &
+       "    source owner matches block = ", &
+       n_block_source_local
+
+  write(6,'(a,i0)') &
+       "    source owner differs       = ", &
+       n_block_source_remote
+
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%class /= NGB_BLOCK) cycle
+
+     write(6,'(a,i0,a,i0,a,i0,a,i0,a,i0,a,i0)') &
+          "    link ", ib, &
+          ": source patch = ", &
+          block_test%block_bdry(ib)%neigh_patch, &
+          ", block index = ", &
+          block_test%block_bdry(ib)%source_block, &
+          ", block ID = ", &
+          block_test%block_bdry(ib)%source_block_id, &
+          ", owner = ", &
+          block_test%block_bdry(ib)%source_owner, &
+          ", ghost ID = ", &
+          block_test%block_bdry(ib)%ghost_id
+
+  end do
+
+  write(6,'(a)') &
+       "  unique inter-block source mapping check passed"
+
   write(6,'(/,a,i0)') &
        "  total local boundary records = ", &
        size(block_test%block_bdry)
@@ -2783,8 +3357,23 @@ subroutine test_subtree_extraction
        "  compact ghost node storage = ", &
        size(block_test%ghost_node)
 
+  do ghost_id = 1, size(block_test%ghost_storage)
+
+     write(6,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
+          "    ghost ", ghost_id, &
+          ": source patch = ", &
+          block_test%ghost_storage(ghost_id)%source_patch, &
+          ", block index = ", &
+          block_test%ghost_storage(ghost_id)%source_block, &
+          ", block ID = ", &
+          block_test%ghost_storage(ghost_id)%source_block_id, &
+          ", owner = ", &
+          block_test%ghost_storage(ghost_id)%source_owner
+
+  end do
+
   write(6,'(a)') &
-       "  ghost coordinate/scalar/vector copy checks passed"
+       "  unified ghost catalogue and copy checks passed"
 
   write(6,'(/,a)') &
        "  Explicit compact stencil addressing:"
@@ -2804,6 +3393,14 @@ subroutine test_subtree_extraction
   write(6,'(a,i0)') &
        "    ghost-patch targets           = ", &
        n_stencil_ghost
+
+  write(6,'(a,i0)') &
+       "      nominal inter-block targets = ", &
+       n_stencil_block
+
+  write(6,'(a,i0)') &
+       "      inter-block values checked  = ", &
+       n_block_value_checked
 
   write(6,'(a,i0)') &
        "    unresolved targets            = ", &
@@ -2830,6 +3427,15 @@ subroutine test_subtree_extraction
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
 
+  end if
+
+  n_patch_out   = n_new
+  n_bdry_out    = n_bdry_required
+  n_ghost_out   = n_ghost
+  n_stencil_out = n_stencil_built
+  n_remote_out  = n_block_source_remote
+  n_value_out   = n_block_value_checked
+
   deallocate(ghost_patch)
   deallocate(bdry_required)
   deallocate(bdry_closure)
@@ -2837,6 +3443,42 @@ subroutine test_subtree_extraction
   deallocate(old_elts_start)
 
 contains
+
+  recursive logical function patch_in_subtree (p, p_target) &
+       result(found_patch)
+
+    implicit none
+
+    integer, intent(in) :: p
+    integer, intent(in) :: p_target
+
+    integer :: c
+    integer :: p_chd
+
+    if (p < 0 .or. p >= grid(d)%patch%length) then
+       error stop "patch_in_subtree: invalid source patch"
+    end if
+
+    found_patch = p == p_target
+
+    if (found_patch) return
+
+    do c = 1, N_CHDRN
+
+       p_chd = grid(d)%patch%elts(p+1)%children(c)
+
+       if (p_chd > 0) then
+
+          if (patch_in_subtree(p_chd,p_target)) then
+             found_patch = .true.
+             return
+          end if
+
+       end if
+
+    end do
+
+  end function patch_in_subtree
 
   recursive integer function copied_depth (p) result(depth)
 
@@ -2861,9 +3503,7 @@ contains
 
   end function copied_depth
 
-end subroutine test_subtree_extraction
-
-
+end subroutine test_one_subtree_extraction
 
 
   subroutine test_parallel_block_split
@@ -3275,6 +3915,24 @@ end subroutine test_subtree_extraction
 
   n_changed = count(block_owner_new /= block_catalog%owner)
 
+  !
+  ! Commit the prospective balanced ownership to the global block
+  ! catalogue. The current source-domain owner remains available through
+  ! owner(root_domain+1).
+  !
+  block_catalog%owner = block_owner_new
+
+  !
+  ! Validate the committed target owners.
+  !
+  if (any(block_catalog%owner < 0) .or. &
+       any(block_catalog%owner >= n_process)) then
+
+     error stop &
+          "test_parallel_block_split: invalid committed block owner"
+
+  end if
+  
   !
   ! Print compact diagnostic summary.
   !
