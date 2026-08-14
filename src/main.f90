@@ -839,8 +839,8 @@ contains
 subroutine test_subtree_extraction
   ! Extract one candidate subtree on rank zero and verify its topology,
   ! compact storage layout, copied geometry and fields, neighbour
-  ! classification, internal-neighbour renumbering, and explicit
-  ! inter-block boundary records.
+  ! classification, internal-neighbour renumbering, explicit inter-block
+  ! boundary records, and rewriting of inter-block neighbour references.
 
   implicit none
 
@@ -1424,16 +1424,13 @@ subroutine test_subtree_extraction
 
         ib = ib + 1
 
-        block_test%block_bdry(ib)%patch = &
-             old_to_new(p_old)
-
-        block_test%block_bdry(ib)%side = c
+        block_test%block_bdry(ib)%patch = old_to_new(p_old)
+        block_test%block_bdry(ib)%side  = c
 
         block_test%block_bdry(ib)%root_domain = &
              block_catalog(b_test)%root_domain
 
-        block_test%block_bdry(ib)%neigh_patch = &
-             p_ngb_old
+        block_test%block_bdry(ib)%neigh_patch = p_ngb_old
 
      end do
 
@@ -1445,50 +1442,40 @@ subroutine test_subtree_extraction
   end if
 
   !
-  ! Validate every explicit boundary record.
+  ! Validate every explicit inter-block boundary record.
   !
   do ib = 1, size(block_test%block_bdry)
 
      if (block_test%block_bdry(ib)%patch < 0 .or. &
           block_test%block_bdry(ib)%patch >= size(patch_copy)) then
-
         error stop &
              "test_subtree_extraction: invalid block boundary patch"
-
      end if
 
      if (block_test%block_bdry(ib)%side < 1 .or. &
           block_test%block_bdry(ib)%side > N_BDRY) then
-
         error stop &
              "test_subtree_extraction: invalid block boundary side"
-
      end if
 
      if (block_test%neigh_class( &
           block_test%block_bdry(ib)%side, &
           block_test%block_bdry(ib)%patch+1) /= NGB_BLOCK) then
-
         error stop &
              "test_subtree_extraction: boundary record/class mismatch"
-
      end if
 
      if (block_test%block_bdry(ib)%root_domain /= &
           block_catalog(b_test)%root_domain) then
-
         error stop &
              "test_subtree_extraction: incorrect boundary root domain"
-
      end if
 
      if (block_test%block_bdry(ib)%neigh_patch < 0 .or. &
           block_test%block_bdry(ib)%neigh_patch >= &
           grid(d)%patch%length) then
-
         error stop &
              "test_subtree_extraction: invalid external neighbour patch"
-
      end if
 
      if (old_to_new(block_test%block_bdry(ib)%neigh_patch) >= 0) then
@@ -1499,7 +1486,7 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Check that no (local patch, side) pair occurs more than once.
+  ! No (local patch, side) pair may occur more than once.
   !
   do ib = 1, size(block_test%block_bdry)
 
@@ -1521,7 +1508,7 @@ subroutine test_subtree_extraction
 
   !
   ! ---------------------------------------------------------------
-  ! Renumber only neighbour links that remain inside this block.
+  ! Renumber neighbour links that remain inside this block.
   ! ---------------------------------------------------------------
   !
   call renumber_subtree_neigh_Domain( &
@@ -1548,10 +1535,8 @@ subroutine test_subtree_extraction
 
         if (patch_copy(old_to_new(p_old)+1)%neigh(c) /= &
              old_to_new(p_ngb_old)) then
-
            error stop &
                 "test_subtree_extraction: internal neighbour renumbering failed"
-
         end if
 
      end do
@@ -1559,7 +1544,47 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Verify all non-internal neighbour links remain unchanged.
+  ! ---------------------------------------------------------------
+  ! Rewrite NGB_BLOCK links as negative references to block_bdry(:).
+  !
+  ! Boundary record ib is referenced by patch%neigh = -ib.
+  ! ---------------------------------------------------------------
+  !
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%neigh_class( &
+          block_test%block_bdry(ib)%side, &
+          block_test%block_bdry(ib)%patch+1) /= NGB_BLOCK) then
+
+        error stop &
+             "test_subtree_extraction: invalid block boundary class"
+
+     end if
+
+     patch_copy(block_test%block_bdry(ib)%patch+1)%neigh( &
+          block_test%block_bdry(ib)%side) = -ib
+
+  end do
+
+  !
+  ! Verify each explicit record is referenced correctly.
+  !
+  do ib = 1, size(block_test%block_bdry)
+
+     if (patch_copy(block_test%block_bdry(ib)%patch+1)%neigh( &
+          block_test%block_bdry(ib)%side) /= -ib) then
+
+        error stop &
+             "test_subtree_extraction: block boundary rewrite failed"
+
+     end if
+
+  end do
+
+  !
+  ! ---------------------------------------------------------------
+  ! Verify final neighbour representation by class.
+  ! ---------------------------------------------------------------
   !
   do p_old = 0, grid(d)%patch%length-1
 
@@ -1567,16 +1592,72 @@ subroutine test_subtree_extraction
 
      do c = 1, N_BDRY
 
-        if (block_test%neigh_class( &
-             c,old_to_new(p_old)+1) == NGB_INTERNAL) cycle
+        select case (block_test%neigh_class( &
+             c,old_to_new(p_old)+1))
 
-        if (patch_copy(old_to_new(p_old)+1)%neigh(c) /= &
-             grid(d)%patch%elts(p_old+1)%neigh(c)) then
+        case (NGB_INTERNAL)
+
+           p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
+
+           if (p_ngb_old < 0) then
+              error stop &
+                   "test_subtree_extraction: invalid internal source neighbour"
+           end if
+
+           if (patch_copy(old_to_new(p_old)+1)%neigh(c) /= &
+                old_to_new(p_ngb_old)) then
+
+              error stop &
+                   "test_subtree_extraction: internal neighbour changed"
+
+           end if
+
+        case (NGB_BLOCK)
+
+           if (patch_copy(old_to_new(p_old)+1)%neigh(c) >= 0) then
+              error stop &
+                   "test_subtree_extraction: block boundary is not negative"
+           end if
+
+           ib = -patch_copy(old_to_new(p_old)+1)%neigh(c)
+
+           if (ib < 1 .or. ib > size(block_test%block_bdry)) then
+              error stop &
+                   "test_subtree_extraction: invalid block boundary reference"
+           end if
+
+           if (block_test%block_bdry(ib)%patch /= old_to_new(p_old) .or. &
+                block_test%block_bdry(ib)%side /= c) then
+
+              error stop &
+                   "test_subtree_extraction: incorrect block boundary reference"
+
+           end if
+
+        case (NGB_DOMAIN, NGB_ADAPT)
+
+           !
+           ! These remain source-Domain bdry_patch references for now.
+           !
+           if (patch_copy(old_to_new(p_old)+1)%neigh(c) /= &
+                grid(d)%patch%elts(p_old+1)%neigh(c)) then
+
+              error stop &
+                   "test_subtree_extraction: existing boundary changed"
+
+           end if
+
+        case (NGB_OTHER)
 
            error stop &
-                "test_subtree_extraction: boundary neighbour changed unexpectedly"
+                "test_subtree_extraction: unexpected NGB_OTHER entry"
 
-        end if
+        case default
+
+           error stop &
+                "test_subtree_extraction: unexpected neighbour class"
+
+        end select
 
      end do
 
@@ -1643,6 +1724,22 @@ subroutine test_subtree_extraction
 
         error stop &
              "test_subtree_extraction: invalid block storage layout"
+
+     end if
+
+  end do
+
+  !
+  ! Verify the rewritten inter-block references also survived MOVE_ALLOC.
+  !
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%patch( &
+          block_test%block_bdry(ib)%patch+1)%neigh( &
+          block_test%block_bdry(ib)%side) /= -ib) then
+
+        error stop &
+             "test_subtree_extraction: block boundary reference lost"
 
      end if
 
@@ -1770,6 +1867,9 @@ subroutine test_subtree_extraction
   write(6,'(a)') &
        "  inter-block boundary catalogue check passed"
 
+  write(6,'(a)') &
+       "  inter-block neighbour rewrite check passed"
+
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
 
@@ -1779,6 +1879,7 @@ subroutine test_subtree_extraction
 contains
 
   recursive integer function copied_depth (p) result(depth)
+
     implicit none
 
     integer, intent(in) :: p
