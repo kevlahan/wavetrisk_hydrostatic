@@ -36,18 +36,18 @@ module main_mod
   use NCAR_topo_mod,      only : load_topo
   use ops_mod,            only : comp_offs3
   use patch_mod,          only : Patch, PATCH_SIZE
-  use parallel_block_mod, only : Test_Bdry_Storage, Test_Block, &
-       Test_Block_Bdry, Test_Ghost_Storage, Test_Stencil_Address, &
+  use parallel_block_mod, only : Block_Bdry_Storage, Block_Data, &
+       Block_Bdry_Link, Block_Ghost_Storage, Block_Stencil_Address, &
        STORE_NONE, STORE_PATCH, STORE_BDRY, STORE_GHOST, &
        NGB_INTERNAL, NGB_BLOCK, NGB_DOMAIN, NGB_ADAPT, NGB_OTHER, &
-       test_block_source, test_block_received, test_block_local, &
-       test_block_catalog_index, test_block_retained_index, &
-       test_block_migrating_index, &
-       test_block_received_catalog_index, &
-       test_block_local_catalog_index, &
-       packed_test_block_nbyte, pack_test_block, unpack_test_block, &
-       check_test_block_storage, clear_test_block_staging, &
-       install_test_block_local
+       block_source, block_received, block_local, &
+       block_source_catalog_index, block_retained_source_index, &
+       block_migrating_source_index, &
+       block_received_catalog_index, &
+       block_local_catalog_index, &
+       packed_block_nbyte, pack_block, unpack_block, &
+       check_block_storage, clear_block_staging, &
+       install_local_blocks
   use refine_patch_mod,   only : add_second_level
   use remap_mod,          only : remap_vertical_coordinates
   use utils_mod,          only : hex_len, hex_pedlen, interp, nu_scale, porous_density, tri_perim
@@ -898,30 +898,30 @@ subroutine test_subtree_extraction
      error stop "test_subtree_extraction: no source-local blocks"
   end if
 
-  if (allocated(test_block_source)) then
-     deallocate(test_block_source)
+  if (allocated(block_source)) then
+     deallocate(block_source)
   end if
 
-  if (allocated(test_block_catalog_index)) then
-     deallocate(test_block_catalog_index)
+  if (allocated(block_source_catalog_index)) then
+     deallocate(block_source_catalog_index)
   end if
 
-  if (allocated(test_block_retained_index)) then
-     deallocate(test_block_retained_index)
+  if (allocated(block_retained_source_index)) then
+     deallocate(block_retained_source_index)
   end if
 
-  if (allocated(test_block_migrating_index)) then
-     deallocate(test_block_migrating_index)
+  if (allocated(block_migrating_source_index)) then
+     deallocate(block_migrating_source_index)
   end if
 
-  allocate(test_block_source(n_block_built))
-  allocate(test_block_catalog_index(n_block_built))
-  allocate(test_block_retained_index(n_block_owned))
-  allocate(test_block_migrating_index(n_block_migrating))
+  allocate(block_source(n_block_built))
+  allocate(block_source_catalog_index(n_block_built))
+  allocate(block_retained_source_index(n_block_owned))
+  allocate(block_migrating_source_index(n_block_migrating))
 
-  test_block_catalog_index = -1
-  test_block_retained_index = -1
-  test_block_migrating_index = -1
+  block_source_catalog_index = -1
+  block_retained_source_index = -1
+  block_migrating_source_index = -1
 
   b_verbose = -1
 
@@ -1007,10 +1007,10 @@ subroutine test_subtree_extraction
 
      i_block = i_block + 1
 
-     test_block_catalog_index(i_block) = b
+     block_source_catalog_index(i_block) = b
 
      call test_one_subtree_extraction( &
-          b, test_block_source(i_block), b == b_verbose, &
+          b, block_source(i_block), b == b_verbose, &
           n_patch_block, n_bdry_block, n_ghost_block, &
           n_stencil_block, n_remote_block, n_value_block)
 
@@ -1018,10 +1018,10 @@ subroutine test_subtree_extraction
 
      if (block_catalog(b)%owner == rank) then
         n_block_owned = n_block_owned + 1
-        test_block_retained_index(n_block_owned) = i_block
+        block_retained_source_index(n_block_owned) = i_block
      else
         n_block_migrating = n_block_migrating + 1
-        test_block_migrating_index(n_block_migrating) = i_block
+        block_migrating_source_index(n_block_migrating) = i_block
      end if
 
      n_patch_total = n_patch_total + n_patch_block
@@ -1042,7 +1042,7 @@ subroutine test_subtree_extraction
           "test_subtree_extraction: block migration count mismatch"
   end if
 
-  if (i_block /= size(test_block_source)) then
+  if (i_block /= size(block_source)) then
      error stop &
           "test_subtree_extraction: persistent block count mismatch"
   end if
@@ -1070,7 +1070,7 @@ subroutine test_subtree_extraction
 
   write(6,'(a,i0)') &
        "  persistent block objects            = ", &
-       size(test_block_source)
+       size(block_source)
 
   write(6,'(a,i0)') &
        "  locally serialized migrating blocks = ", &
@@ -1134,33 +1134,33 @@ subroutine check_persistent_test_blocks
 
   integer, allocatable :: seen(:)
 
-  if (.not. allocated(test_block_source)) then
+  if (.not. allocated(block_source)) then
      error stop &
           "check_persistent_test_blocks: block store is not allocated"
   end if
 
-  if (.not. allocated(test_block_catalog_index)) then
+  if (.not. allocated(block_source_catalog_index)) then
      error stop &
           "check_persistent_test_blocks: catalog map is not allocated"
   end if
 
-  if (.not. allocated(test_block_retained_index) .or. &
-       .not. allocated(test_block_migrating_index)) then
+  if (.not. allocated(block_retained_source_index) .or. &
+       .not. allocated(block_migrating_source_index)) then
      error stop &
           "check_persistent_test_blocks: ownership sets not allocated"
   end if
 
-  if (size(test_block_catalog_index) /= size(test_block_source)) then
+  if (size(block_source_catalog_index) /= size(block_source)) then
      error stop &
           "check_persistent_test_blocks: catalog map size mismatch"
   end if
 
-  allocate(seen(size(test_block_source)))
+  allocate(seen(size(block_source)))
   seen = 0
 
-  do i = 1, size(test_block_source)
+  do i = 1, size(block_source)
 
-     b = test_block_catalog_index(i)
+     b = block_source_catalog_index(i)
 
      if (b < 1 .or. b > size(block_catalog)) then
         error stop &
@@ -1172,27 +1172,27 @@ subroutine check_persistent_test_blocks
              "check_persistent_test_blocks: source owner mismatch"
      end if
 
-     if (test_block_source(i)%id /= block_catalog(b)%id .or. &
-          test_block_source(i)%root_domain /= &
+     if (block_source(i)%id /= block_catalog(b)%id .or. &
+          block_source(i)%root_domain /= &
           block_catalog(b)%root_domain .or. &
-          test_block_source(i)%root_patch /= &
+          block_source(i)%root_patch /= &
           block_catalog(b)%root_patch .or. &
-          test_block_source(i)%level /= block_catalog(b)%level) then
+          block_source(i)%level /= block_catalog(b)%level) then
 
         error stop &
              "check_persistent_test_blocks: block identity mismatch"
 
      end if
 
-     call check_test_block_storage(test_block_source(i))
+     call check_block_storage(block_source(i))
 
   end do
 
-  do i = 1, size(test_block_retained_index)
+  do i = 1, size(block_retained_source_index)
 
-     ib = test_block_retained_index(i)
+     ib = block_retained_source_index(i)
 
-     if (ib < 1 .or. ib > size(test_block_source)) then
+     if (ib < 1 .or. ib > size(block_source)) then
         error stop &
              "check_persistent_test_blocks: invalid retained index"
      end if
@@ -1202,7 +1202,7 @@ subroutine check_persistent_test_blocks
              "check_persistent_test_blocks: duplicate retained index"
      end if
 
-     b = test_block_catalog_index(ib)
+     b = block_source_catalog_index(ib)
 
      if (block_catalog(b)%owner /= rank) then
         error stop &
@@ -1213,11 +1213,11 @@ subroutine check_persistent_test_blocks
 
   end do
 
-  do i = 1, size(test_block_migrating_index)
+  do i = 1, size(block_migrating_source_index)
 
-     ib = test_block_migrating_index(i)
+     ib = block_migrating_source_index(i)
 
-     if (ib < 1 .or. ib > size(test_block_source)) then
+     if (ib < 1 .or. ib > size(block_source)) then
         error stop &
              "check_persistent_test_blocks: invalid migrating index"
      end if
@@ -1227,7 +1227,7 @@ subroutine check_persistent_test_blocks
              "check_persistent_test_blocks: duplicate migrating index"
      end if
 
-     b = test_block_catalog_index(ib)
+     b = block_source_catalog_index(ib)
 
      if (block_catalog(b)%owner == rank) then
         error stop &
@@ -1267,10 +1267,10 @@ subroutine test_local_block_serialization ( &
   integer(int8), allocatable :: buffer_source(:)
   integer(int8), allocatable :: buffer_copy(:)
 
-  type(Test_Block) :: block_copy
+  type(Block_Data) :: block_copy
 
-  if (.not. allocated(test_block_source) .or. &
-       .not. allocated(test_block_migrating_index)) then
+  if (.not. allocated(block_source) .or. &
+       .not. allocated(block_migrating_source_index)) then
 
      error stop &
           "test_local_block_serialization: block store not allocated"
@@ -1281,18 +1281,18 @@ subroutine test_local_block_serialization ( &
   n_byte_out     = 0
   n_byte_max_out = 0
 
-  do i = 1, size(test_block_migrating_index)
+  do i = 1, size(block_migrating_source_index)
 
-     ib = test_block_migrating_index(i)
+     ib = block_migrating_source_index(i)
 
-     if (ib < 1 .or. ib > size(test_block_source)) then
+     if (ib < 1 .or. ib > size(block_source)) then
         error stop &
              "test_local_block_serialization: invalid block index"
      end if
 
-     call pack_test_block(test_block_source(ib),buffer_source)
-     call unpack_test_block(buffer_source,block_copy)
-     call pack_test_block(block_copy,buffer_copy)
+     call pack_block(block_source(ib),buffer_source)
+     call unpack_block(buffer_source,block_copy)
+     call pack_block(block_copy,buffer_copy)
 
      if (size(buffer_copy) /= size(buffer_source)) then
         error stop &
@@ -1312,7 +1312,7 @@ subroutine test_local_block_serialization ( &
 
   end do
 
-  if (n_block_out /= size(test_block_migrating_index)) then
+  if (n_block_out /= size(block_migrating_source_index)) then
      error stop &
           "test_local_block_serialization: tested count mismatch"
   end if
@@ -1340,22 +1340,22 @@ subroutine test_block_migration_sizes (manifest)
           "test_block_migration_sizes: manifest is not validated"
   end if
 
-  if (.not. allocated(test_block_source) .or. &
-       .not. allocated(test_block_catalog_index) .or. &
-       .not. allocated(test_block_migrating_index)) then
+  if (.not. allocated(block_source) .or. &
+       .not. allocated(block_source_catalog_index) .or. &
+       .not. allocated(block_migrating_source_index)) then
 
      error stop &
           "test_block_migration_sizes: persistent block store missing"
 
   end if
 
-  if (manifest%n_send /= size(test_block_migrating_index)) then
+  if (manifest%n_send /= size(block_migrating_source_index)) then
      error stop &
           "test_block_migration_sizes: outgoing block count mismatch"
   end if
 
   allocate(send_nbyte(manifest%n_send))
-  allocate(seen(size(test_block_source)))
+  allocate(seen(size(block_source)))
 
   send_nbyte = 0
   seen       = 0
@@ -1369,14 +1369,14 @@ subroutine test_block_migration_sizes (manifest)
              "test_block_migration_sizes: invalid catalog index"
      end if
 
-     ib = findloc(test_block_catalog_index,b,dim=1)
+     ib = findloc(block_source_catalog_index,b,dim=1)
 
-     if (ib < 1 .or. ib > size(test_block_source)) then
+     if (ib < 1 .or. ib > size(block_source)) then
         error stop &
              "test_block_migration_sizes: source block not found"
      end if
 
-     if (findloc(test_block_migrating_index,ib,dim=1) < 1) then
+     if (findloc(block_migrating_source_index,ib,dim=1) < 1) then
         error stop &
              "test_block_migration_sizes: block is not migrating"
      end if
@@ -1386,13 +1386,13 @@ subroutine test_block_migration_sizes (manifest)
              "test_block_migration_sizes: duplicate source block"
      end if
 
-     if (test_block_source(ib)%id /= block_catalog(b)%id) then
+     if (block_source(ib)%id /= block_catalog(b)%id) then
         error stop &
              "test_block_migration_sizes: block identity mismatch"
      end if
 
      send_nbyte(i) = &
-          packed_test_block_nbyte(test_block_source(ib))
+          packed_block_nbyte(block_source(ib))
 
      if (send_nbyte(i) <= 0) then
         error stop &
@@ -1403,11 +1403,11 @@ subroutine test_block_migration_sizes (manifest)
 
   end do
 
-  do i = 1, size(test_block_migrating_index)
+  do i = 1, size(block_migrating_source_index)
 
-     ib = test_block_migrating_index(i)
+     ib = block_migrating_source_index(i)
 
-     if (ib < 1 .or. ib > size(test_block_source)) then
+     if (ib < 1 .or. ib > size(block_source)) then
         error stop &
              "test_block_migration_sizes: invalid migrating index"
      end if
@@ -1455,9 +1455,9 @@ subroutine test_block_migration_payloads (manifest)
           "test_block_migration_payloads: sizes are not validated"
   end if
 
-  if (.not. allocated(test_block_source) .or. &
-       .not. allocated(test_block_catalog_index) .or. &
-       .not. allocated(test_block_migrating_index)) then
+  if (.not. allocated(block_source) .or. &
+       .not. allocated(block_source_catalog_index) .or. &
+       .not. allocated(block_migrating_source_index)) then
 
      error stop &
           "test_block_migration_payloads: source block store missing"
@@ -1475,19 +1475,19 @@ subroutine test_block_migration_payloads (manifest)
   do i = 1, manifest%n_send
 
      b = manifest%send_block(i)
-     ib = findloc(test_block_catalog_index,b,dim=1)
+     ib = findloc(block_source_catalog_index,b,dim=1)
 
-     if (ib < 1 .or. ib > size(test_block_source)) then
+     if (ib < 1 .or. ib > size(block_source)) then
         error stop &
              "test_block_migration_payloads: source block not found"
      end if
 
-     if (findloc(test_block_migrating_index,ib,dim=1) < 1) then
+     if (findloc(block_migrating_source_index,ib,dim=1) < 1) then
         error stop &
              "test_block_migration_payloads: source is not migrating"
      end if
 
-     call pack_test_block(test_block_source(ib),block_buffer)
+     call pack_block(block_source(ib),block_buffer)
 
      if (size(block_buffer) /= manifest%send_nbyte(i)) then
         error stop &
@@ -1518,19 +1518,19 @@ subroutine test_block_migration_payloads (manifest)
           "test_block_migration_payloads: transport is not validated"
   end if
 
-  if (allocated(test_block_received)) then
-     deallocate(test_block_received)
+  if (allocated(block_received)) then
+     deallocate(block_received)
   end if
 
-  if (allocated(test_block_received_catalog_index)) then
-     deallocate(test_block_received_catalog_index)
+  if (allocated(block_received_catalog_index)) then
+     deallocate(block_received_catalog_index)
   end if
 
-  allocate(test_block_received(manifest%n_recv))
-  allocate(test_block_received_catalog_index(manifest%n_recv))
+  allocate(block_received(manifest%n_recv))
+  allocate(block_received_catalog_index(manifest%n_recv))
   allocate(seen_catalog(size(block_catalog)))
 
-  test_block_received_catalog_index = -1
+  block_received_catalog_index = -1
   seen_catalog = 0
   pos = 0
 
@@ -1559,23 +1559,23 @@ subroutine test_block_migration_payloads (manifest)
              "test_block_migration_payloads: invalid received extent"
      end if
 
-     call unpack_test_block( &
+     call unpack_block( &
           manifest%recv_payload(pos+1:pos+nbyte), &
-          test_block_received(i))
+          block_received(i))
 
-     if (test_block_received(i)%id /= block_catalog(b)%id .or. &
-          test_block_received(i)%root_domain /= &
+     if (block_received(i)%id /= block_catalog(b)%id .or. &
+          block_received(i)%root_domain /= &
           block_catalog(b)%root_domain .or. &
-          test_block_received(i)%root_patch /= &
+          block_received(i)%root_patch /= &
           block_catalog(b)%root_patch .or. &
-          test_block_received(i)%level /= block_catalog(b)%level) then
+          block_received(i)%level /= block_catalog(b)%level) then
 
         error stop &
              "test_block_migration_payloads: received identity mismatch"
 
      end if
 
-     call pack_test_block(test_block_received(i),check_buffer)
+     call pack_block(block_received(i),check_buffer)
 
      if (size(check_buffer) /= nbyte) then
         error stop &
@@ -1588,7 +1588,7 @@ subroutine test_block_migration_payloads (manifest)
              "test_block_migration_payloads: received round-trip mismatch"
      end if
 
-     test_block_received_catalog_index(i) = b
+     block_received_catalog_index(i) = b
      seen_catalog(b) = 1
      pos = pos + nbyte
 
@@ -1609,7 +1609,7 @@ subroutine test_block_migration_payloads (manifest)
   write(6,'(/,a,i0,a)') &
        "Temporary received blocks for rank ", rank, ":"
   write(6,'(a,i0)') &
-       "  received block objects = ", size(test_block_received)
+       "  received block objects = ", size(block_received)
   write(6,'(a,i0)') &
        "  received packed bytes  = ", n_recv_byte
   write(6,'(a)') &
@@ -1640,9 +1640,9 @@ subroutine test_install_local_blocks
   integer, allocatable :: global_seen(:)
   integer, allocatable :: local_seen(:)
 
-  call install_test_block_local(size(block_catalog),local_seen)
+  call install_local_blocks(size(block_catalog),local_seen)
 
-  n_local = size(test_block_local)
+  n_local = size(block_local)
 
   allocate(global_seen(size(block_catalog)))
   global_seen = 0
@@ -1729,11 +1729,11 @@ subroutine test_install_local_blocks
   write(6,'(/,a,i0,a)') &
        "Installed local block copies for rank ", rank, ":"
   write(6,'(a,i0)') &
-       "  retained source copies = ", size(test_block_retained_index)
+       "  retained source copies = ", size(block_retained_source_index)
   write(6,'(a,i0)') &
-       "  received block copies  = ", size(test_block_received)
+       "  received block copies  = ", size(block_received)
   write(6,'(a,i0)') &
-       "  installed local blocks = ", size(test_block_local)
+       "  installed local blocks = ", size(block_local)
   write(6,'(a,i0)') &
        "  installed block weight = ", local_weight
   write(6,'(a)') &
@@ -1781,14 +1781,14 @@ subroutine check_local_test_blocks (verbose)
   print_summary = .true.
   if (present(verbose)) print_summary = verbose
 
-  if (.not. allocated(test_block_local) .or. &
-       .not. allocated(test_block_local_catalog_index)) then
+  if (.not. allocated(block_local) .or. &
+       .not. allocated(block_local_catalog_index)) then
      error stop &
           "check_local_test_blocks: local block store is not allocated"
   end if
 
-  if (size(test_block_local) /= &
-       size(test_block_local_catalog_index)) then
+  if (size(block_local) /= &
+       size(block_local_catalog_index)) then
      error stop &
           "check_local_test_blocks: local catalog map size mismatch"
   end if
@@ -1798,12 +1798,12 @@ subroutine check_local_test_blocks (verbose)
 
   local_seen  = 0
   global_seen = 0
-  local_count = size(test_block_local)
+  local_count = size(block_local)
   local_weight = 0
 
-  do i = 1, size(test_block_local)
+  do i = 1, size(block_local)
 
-     b = test_block_local_catalog_index(i)
+     b = block_local_catalog_index(i)
 
      if (b < 1 .or. b > size(block_catalog)) then
         error stop &
@@ -1820,19 +1820,19 @@ subroutine check_local_test_blocks (verbose)
              "check_local_test_blocks: local owner mismatch"
      end if
 
-     if (test_block_local(i)%id /= block_catalog(b)%id .or. &
-          test_block_local(i)%root_domain /= &
+     if (block_local(i)%id /= block_catalog(b)%id .or. &
+          block_local(i)%root_domain /= &
           block_catalog(b)%root_domain .or. &
-          test_block_local(i)%root_patch /= &
+          block_local(i)%root_patch /= &
           block_catalog(b)%root_patch .or. &
-          test_block_local(i)%level /= block_catalog(b)%level) then
+          block_local(i)%level /= block_catalog(b)%level) then
 
         error stop &
              "check_local_test_blocks: block identity mismatch"
 
      end if
 
-     call check_test_block_storage(test_block_local(i),.true.)
+     call check_block_storage(block_local(i),.true.)
 
      local_seen(b) = 1
      local_weight = local_weight + block_catalog(b)%weight
@@ -1847,7 +1847,7 @@ subroutine check_local_test_blocks (verbose)
      end if
   end do
 
-  if (size(test_block_local) /= expected_local) then
+  if (size(block_local) /= expected_local) then
      error stop &
           "check_local_test_blocks: expected local count mismatch"
   end if
@@ -1898,7 +1898,7 @@ subroutine check_local_test_blocks (verbose)
      write(6,'(/,a,i0,a)') &
           "Standalone local block store for rank ", rank, ":"
      write(6,'(a,i0)') &
-          "  final-owner blocks = ", size(test_block_local)
+          "  final-owner blocks = ", size(block_local)
      write(6,'(a,i0)') &
           "  final-owner weight = ", local_weight
      write(6,'(a)') &
@@ -1932,7 +1932,7 @@ subroutine finalize_test_block_migration (manifest)
 
   call check_local_test_blocks(.false.)
 
-  call clear_test_block_staging
+  call clear_block_staging
   call clear_block_migration_manifest(manifest)
 
   if (allocated(manifest%send_count) .or. &
@@ -1988,7 +1988,7 @@ subroutine test_one_subtree_extraction ( &
   implicit none
 
   integer, intent(in) :: b_test
-  type(Test_Block), intent(out) :: block_test
+  type(Block_Data), intent(out) :: block_test
   logical, intent(in) :: verbose
 
   integer, intent(out) :: n_patch_out
