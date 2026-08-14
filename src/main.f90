@@ -36,6 +36,18 @@ module main_mod
   use NCAR_topo_mod,      only : load_topo
   use ops_mod,            only : comp_offs3
   use patch_mod,          only : Patch, PATCH_SIZE
+  use parallel_block_mod, only : Test_Bdry_Storage, Test_Block, &
+       Test_Block_Bdry, Test_Ghost_Storage, Test_Stencil_Address, &
+       STORE_NONE, STORE_PATCH, STORE_BDRY, STORE_GHOST, &
+       NGB_INTERNAL, NGB_BLOCK, NGB_DOMAIN, NGB_ADAPT, NGB_OTHER, &
+       test_block_source, test_block_received, test_block_local, &
+       test_block_catalog_index, test_block_retained_index, &
+       test_block_migrating_index, &
+       test_block_received_catalog_index, &
+       test_block_local_catalog_index, &
+       packed_test_block_nbyte, pack_test_block, unpack_test_block, &
+       check_test_block_storage, clear_test_block_staging, &
+       install_test_block_local
   use refine_patch_mod,   only : add_second_level
   use remap_mod,          only : remap_vertical_coordinates
   use utils_mod,          only : hex_len, hex_pedlen, interp, nu_scale, porous_density, tri_perim
@@ -89,121 +101,11 @@ module main_mod
      integer, allocatable :: pack_len(:,:), unpk_len(:,:)
   end type Initial_State
 
-type Test_Bdry_Storage
-   integer :: source_bdry = -1   ! source Domain bdry_patch index
-   integer :: elts_start  = -1   ! source storage offset
-   integer :: dims(2)     = 0    ! source boundary dimensions
-   integer :: n_node      = 0    ! number of stored boundary nodes
-   integer :: local_start = -1   ! compact local boundary-storage offset
-end type Test_Bdry_Storage
-
-
-type Test_Block_Bdry
-   integer :: patch       = -1
-   integer :: side        = -1
-   integer :: class       = -1
-
-   integer :: root_domain = -1
-
-   integer :: neigh_patch = -1
-   integer :: source_bdry = -1
-
-   integer :: elts_start  = -1
-   integer :: bdry_side   = 0
-   integer :: bdry_neigh  = 0
-
-   integer :: dims(2)     = 0
-   integer :: n_node      = 0
-
-   integer :: storage_id  = -1
-
-   integer :: source_block    = -1
-   integer :: source_block_id = -1
-   integer :: source_owner    = -1
-   integer :: ghost_id        = -1
-end type Test_Block_Bdry
-
-
-type Test_Block
-   integer :: id          = -1
-   integer :: root_domain = -1
-   integer :: root_patch  = -1
-   integer :: level       = -1
-
-   type(Patch), allocatable :: patch(:)
-   type(Coord), allocatable :: node(:)
-
-   type(Coord), allocatable :: bdry_node(:)
-
-   real(dp), allocatable :: scalar(:)
-   real(dp), allocatable :: vector(:)
-
-   real(dp), allocatable :: bdry_scalar(:)
-   real(dp), allocatable :: bdry_vector(:)
-   
-   integer, allocatable :: neigh_class(:,:)
-
-   type(Test_Block_Bdry),   allocatable :: block_bdry(:)
-   type(Test_Bdry_Storage), allocatable :: bdry_storage(:)
-   type(Test_Stencil_Address), allocatable :: stencil(:,:)
-   type(Test_Ghost_Storage), allocatable :: ghost_storage(:)
-
-   type(Coord), allocatable :: ghost_node(:)
-
-   real(dp), allocatable :: ghost_scalar(:)
-   real(dp), allocatable :: ghost_vector(:)
-end type Test_Block
-
-integer, parameter :: STORE_NONE  = 0
-integer, parameter :: STORE_PATCH = 1
-integer, parameter :: STORE_BDRY  = 2
-integer, parameter :: STORE_GHOST = 3
-
-type Test_Ghost_Storage
-   integer :: source_patch = -1
-   integer :: elts_start   = -1
-   integer :: local_start  = -1
-   integer :: n_node       = 0
-
-   integer :: source_domain = -1
-   integer :: source_block  = -1
-   integer :: source_block_id = -1
-   integer :: source_owner  = -1
-end type Test_Ghost_Storage
-
-type Test_Stencil_Address
-   integer :: storage = STORE_NONE
-   integer :: id      = -1
-   integer :: offset  = 0
-   integer :: dims(2) = 0
-end type Test_Stencil_Address
-
-
-integer, parameter :: NGB_INTERNAL = 1
-integer, parameter :: NGB_BLOCK    = 2
-integer, parameter :: NGB_DOMAIN   = 3
-integer, parameter :: NGB_ADAPT    = 4
-integer, parameter :: NGB_OTHER    = 5
-
 integer, allocatable :: n_active_edges(:), n_active_nodes(:), node_level_start(:), edge_level_start(:)
 real(dp)             :: dt_new, initial_total_mass, time_mult
 real(dp)             :: dt_loc, min_mass_loc
 
 type(Initial_State), allocatable :: ini_st(:)
-
-
-type(Test_Block), allocatable :: test_block_source(:)
-type(Test_Block), allocatable :: test_block_received(:)
-type(Test_Block), allocatable :: test_block_local(:)
-
-integer, allocatable :: test_block_catalog_index(:)
-integer, allocatable :: test_block_retained_index(:)
-integer, allocatable :: test_block_migrating_index(:)
-integer, allocatable :: test_block_received_catalog_index(:)
-integer, allocatable :: test_block_local_catalog_index(:)
-integer, parameter :: TEST_BLOCK_PACK_MAGIC = int(z'54424C4B')
-integer, parameter :: TEST_BLOCK_PACK_VERSION = 1
-integer, parameter :: TEST_BLOCK_HEADER_SIZE = 23
 
 
 type(Block_Migration_Manifest) :: block_migration
@@ -1229,9 +1131,6 @@ subroutine check_persistent_test_blocks
   integer :: b
   integer :: i
   integer :: ib
-  integer :: n_bdry_node
-  integer :: n_ghost_node
-  integer :: n_node
 
   integer, allocatable :: seen(:)
 
@@ -1285,89 +1184,7 @@ subroutine check_persistent_test_blocks
 
      end if
 
-     if (.not. allocated(test_block_source(i)%patch) .or. &
-          .not. allocated(test_block_source(i)%node) .or. &
-          .not. allocated(test_block_source(i)%scalar) .or. &
-          .not. allocated(test_block_source(i)%vector)) then
-
-        error stop &
-             "check_persistent_test_blocks: interior storage missing"
-
-     end if
-
-     if (.not. allocated(test_block_source(i)%neigh_class) .or. &
-          .not. allocated(test_block_source(i)%block_bdry) .or. &
-          .not. allocated(test_block_source(i)%bdry_storage) .or. &
-          .not. allocated(test_block_source(i)%bdry_node) .or. &
-          .not. allocated(test_block_source(i)%bdry_scalar) .or. &
-          .not. allocated(test_block_source(i)%bdry_vector)) then
-
-        error stop &
-             "check_persistent_test_blocks: boundary storage missing"
-
-     end if
-
-     if (.not. allocated(test_block_source(i)%ghost_storage) .or. &
-          .not. allocated(test_block_source(i)%ghost_node) .or. &
-          .not. allocated(test_block_source(i)%ghost_scalar) .or. &
-          .not. allocated(test_block_source(i)%ghost_vector) .or. &
-          .not. allocated(test_block_source(i)%stencil)) then
-
-        error stop &
-             "check_persistent_test_blocks: ghost/stencil storage missing"
-
-     end if
-
-     n_node = size(test_block_source(i)%patch) * PATCH_SIZE**2
-
-     if (size(test_block_source(i)%node) /= n_node .or. &
-          size(test_block_source(i)%scalar) /= &
-          MULT(scalars(1))*n_node .or. &
-          size(test_block_source(i)%vector) /= &
-          MULT(S_VELO)*n_node) then
-
-        error stop &
-             "check_persistent_test_blocks: interior extent mismatch"
-
-     end if
-
-     if (size(test_block_source(i)%neigh_class,1) /= N_BDRY .or. &
-          size(test_block_source(i)%neigh_class,2) /= &
-          size(test_block_source(i)%patch) .or. &
-          size(test_block_source(i)%stencil,1) /= N_BDRY .or. &
-          size(test_block_source(i)%stencil,2) /= &
-          size(test_block_source(i)%patch)) then
-
-        error stop &
-             "check_persistent_test_blocks: topology extent mismatch"
-
-     end if
-
-     n_bdry_node = sum(test_block_source(i)%bdry_storage%n_node)
-
-     if (size(test_block_source(i)%bdry_node) /= n_bdry_node .or. &
-          size(test_block_source(i)%bdry_scalar) /= &
-          MULT(scalars(1))*n_bdry_node .or. &
-          size(test_block_source(i)%bdry_vector) /= &
-          MULT(S_VELO)*n_bdry_node) then
-
-        error stop &
-             "check_persistent_test_blocks: boundary extent mismatch"
-
-     end if
-
-     n_ghost_node = sum(test_block_source(i)%ghost_storage%n_node)
-
-     if (size(test_block_source(i)%ghost_node) /= n_ghost_node .or. &
-          size(test_block_source(i)%ghost_scalar) /= &
-          MULT(scalars(1))*n_ghost_node .or. &
-          size(test_block_source(i)%ghost_vector) /= &
-          MULT(S_VELO)*n_ghost_node) then
-
-        error stop &
-             "check_persistent_test_blocks: ghost extent mismatch"
-
-     end if
+     call check_test_block_storage(test_block_source(i))
 
   end do
 
@@ -1807,9 +1624,8 @@ end subroutine test_block_migration_payloads
 
 
 subroutine test_install_local_blocks
-  ! Construct a separate final-owner block store from deep copies of
-  ! retained source blocks and validated received blocks. The source
-  ! and receive stores remain allocated and unchanged for rollback.
+  ! Install the final-owner local store through parallel_block_mod, then
+  ! verify catalogue ownership and the global MPI inventory here.
 
   implicit none
 
@@ -1817,162 +1633,44 @@ subroutine test_install_local_blocks
   integer :: expected_local
   integer :: global_count
   integer :: global_weight
-  integer :: i
-  integer :: ib
   integer :: ierr
-  integer :: ilocal
   integer :: local_weight
   integer :: n_local
 
   integer, allocatable :: global_seen(:)
   integer, allocatable :: local_seen(:)
 
-  integer(int8), allocatable :: buffer_local(:)
-  integer(int8), allocatable :: buffer_reference(:)
+  call install_test_block_local(size(block_catalog),local_seen)
 
-  if (.not. allocated(test_block_source) .or. &
-       .not. allocated(test_block_retained_index) .or. &
-       .not. allocated(test_block_catalog_index)) then
+  n_local = size(test_block_local)
 
-     error stop &
-          "test_install_local_blocks: retained source store missing"
-
-  end if
-
-  if (.not. allocated(test_block_received) .or. &
-       .not. allocated(test_block_received_catalog_index)) then
-
-     error stop &
-          "test_install_local_blocks: received block store missing"
-
-  end if
-
-  if (size(test_block_received) /= &
-       size(test_block_received_catalog_index)) then
-     error stop &
-          "test_install_local_blocks: received map size mismatch"
-  end if
-
-  n_local = size(test_block_retained_index) + &
-       size(test_block_received)
-
-  if (allocated(test_block_local)) then
-     deallocate(test_block_local)
-  end if
-
-  if (allocated(test_block_local_catalog_index)) then
-     deallocate(test_block_local_catalog_index)
-  end if
-
-  allocate(test_block_local(n_local))
-  allocate(test_block_local_catalog_index(n_local))
-  allocate(local_seen(size(block_catalog)))
   allocate(global_seen(size(block_catalog)))
-
-  test_block_local_catalog_index = -1
-  local_seen  = 0
   global_seen = 0
-  ilocal      = 0
-
-  ! Retained blocks are copied from the source-local persistent store.
-  do i = 1, size(test_block_retained_index)
-
-     ib = test_block_retained_index(i)
-
-     if (ib < 1 .or. ib > size(test_block_source)) then
-        error stop &
-             "test_install_local_blocks: invalid retained index"
-     end if
-
-     b = test_block_catalog_index(ib)
-
-     if (b < 1 .or. b > size(block_catalog)) then
-        error stop &
-             "test_install_local_blocks: invalid retained catalog index"
-     end if
-
-     if (block_catalog(b)%owner /= rank) then
-        error stop &
-             "test_install_local_blocks: retained destination mismatch"
-     end if
-
-     if (local_seen(b) /= 0) then
-        error stop &
-             "test_install_local_blocks: duplicate retained block"
-     end if
-
-     ilocal = ilocal + 1
-     test_block_local(ilocal) = test_block_source(ib)
-     test_block_local_catalog_index(ilocal) = b
-     local_seen(b) = 1
-
-     call pack_test_block(test_block_local(ilocal),buffer_local)
-     call pack_test_block(test_block_source(ib),buffer_reference)
-
-     if (size(buffer_local) /= size(buffer_reference)) then
-        error stop &
-             "test_install_local_blocks: retained copy size mismatch"
-     end if
-
-     if (any(buffer_local /= buffer_reference)) then
-        error stop &
-             "test_install_local_blocks: retained deep-copy mismatch"
-     end if
-
-  end do
-
-  ! Migrated blocks are copied from the validated receive store.
-  do i = 1, size(test_block_received)
-
-     b = test_block_received_catalog_index(i)
-
-     if (b < 1 .or. b > size(block_catalog)) then
-        error stop &
-             "test_install_local_blocks: invalid received catalog index"
-     end if
-
-     if (block_catalog(b)%owner /= rank) then
-        error stop &
-             "test_install_local_blocks: received destination mismatch"
-     end if
-
-     if (local_seen(b) /= 0) then
-        error stop &
-             "test_install_local_blocks: duplicate received block"
-     end if
-
-     ilocal = ilocal + 1
-     test_block_local(ilocal) = test_block_received(i)
-     test_block_local_catalog_index(ilocal) = b
-     local_seen(b) = 1
-
-     call pack_test_block(test_block_local(ilocal),buffer_local)
-     call pack_test_block(test_block_received(i),buffer_reference)
-
-     if (size(buffer_local) /= size(buffer_reference)) then
-        error stop &
-             "test_install_local_blocks: received copy size mismatch"
-     end if
-
-     if (any(buffer_local /= buffer_reference)) then
-        error stop &
-             "test_install_local_blocks: received deep-copy mismatch"
-     end if
-
-  end do
-
-  if (ilocal /= n_local) then
-     error stop &
-          "test_install_local_blocks: local fill count mismatch"
-  end if
 
   expected_local = 0
   local_weight   = 0
 
   do b = 1, size(block_catalog)
-     if (block_catalog(b)%owner /= rank) cycle
-     expected_local = expected_local + 1
-     local_weight = local_weight + block_catalog(b)%weight
+
+     if (block_catalog(b)%owner == rank) then
+
+        expected_local = expected_local + 1
+        local_weight = local_weight + block_catalog(b)%weight
+
+        if (local_seen(b) /= 1) then
+           error stop &
+                "test_install_local_blocks: owned block is missing"
+        end if
+
+     else
+
+        if (local_seen(b) /= 0) then
+           error stop &
+                "test_install_local_blocks: nonlocal block was installed"
+        end if
+
+     end if
+
   end do
 
   if (n_local /= expected_local) then
@@ -2074,17 +1772,9 @@ subroutine check_local_test_blocks (verbose)
   integer :: ierr
   integer :: local_count
   integer :: local_weight
-  integer :: n_bdry_node
-  integer :: n_ghost_node
-  integer :: n_node
 
   integer, allocatable :: global_seen(:)
   integer, allocatable :: local_seen(:)
-
-  integer(int8), allocatable :: buffer_copy(:)
-  integer(int8), allocatable :: buffer_local(:)
-
-  type(Test_Block) :: block_copy
 
   logical :: print_summary
 
@@ -2142,91 +1832,7 @@ subroutine check_local_test_blocks (verbose)
 
      end if
 
-     if (.not. allocated(test_block_local(i)%patch) .or. &
-          .not. allocated(test_block_local(i)%node) .or. &
-          .not. allocated(test_block_local(i)%scalar) .or. &
-          .not. allocated(test_block_local(i)%vector) .or. &
-          .not. allocated(test_block_local(i)%neigh_class) .or. &
-          .not. allocated(test_block_local(i)%block_bdry) .or. &
-          .not. allocated(test_block_local(i)%bdry_storage) .or. &
-          .not. allocated(test_block_local(i)%stencil) .or. &
-          .not. allocated(test_block_local(i)%bdry_node) .or. &
-          .not. allocated(test_block_local(i)%bdry_scalar) .or. &
-          .not. allocated(test_block_local(i)%bdry_vector) .or. &
-          .not. allocated(test_block_local(i)%ghost_storage) .or. &
-          .not. allocated(test_block_local(i)%ghost_node) .or. &
-          .not. allocated(test_block_local(i)%ghost_scalar) .or. &
-          .not. allocated(test_block_local(i)%ghost_vector)) then
-
-        error stop &
-             "check_local_test_blocks: local component is not allocated"
-
-     end if
-
-     n_node = size(test_block_local(i)%patch) * PATCH_SIZE**2
-
-     if (size(test_block_local(i)%node) /= n_node .or. &
-          size(test_block_local(i)%scalar) /= &
-          MULT(scalars(1))*n_node .or. &
-          size(test_block_local(i)%vector) /= &
-          MULT(S_VELO)*n_node) then
-
-        error stop &
-             "check_local_test_blocks: interior extent mismatch"
-
-     end if
-
-     if (size(test_block_local(i)%neigh_class,1) /= N_BDRY .or. &
-          size(test_block_local(i)%neigh_class,2) /= &
-          size(test_block_local(i)%patch) .or. &
-          size(test_block_local(i)%stencil,1) /= N_BDRY .or. &
-          size(test_block_local(i)%stencil,2) /= &
-          size(test_block_local(i)%patch)) then
-
-        error stop &
-             "check_local_test_blocks: topology extent mismatch"
-
-     end if
-
-     n_bdry_node = sum(test_block_local(i)%bdry_storage%n_node)
-
-     if (size(test_block_local(i)%bdry_node) /= n_bdry_node .or. &
-          size(test_block_local(i)%bdry_scalar) /= &
-          MULT(scalars(1))*n_bdry_node .or. &
-          size(test_block_local(i)%bdry_vector) /= &
-          MULT(S_VELO)*n_bdry_node) then
-
-        error stop &
-             "check_local_test_blocks: boundary extent mismatch"
-
-     end if
-
-     n_ghost_node = sum(test_block_local(i)%ghost_storage%n_node)
-
-     if (size(test_block_local(i)%ghost_node) /= n_ghost_node .or. &
-          size(test_block_local(i)%ghost_scalar) /= &
-          MULT(scalars(1))*n_ghost_node .or. &
-          size(test_block_local(i)%ghost_vector) /= &
-          MULT(S_VELO)*n_ghost_node) then
-
-        error stop &
-             "check_local_test_blocks: ghost extent mismatch"
-
-     end if
-
-     call pack_test_block(test_block_local(i),buffer_local)
-     call unpack_test_block(buffer_local,block_copy)
-     call pack_test_block(block_copy,buffer_copy)
-
-     if (size(buffer_copy) /= size(buffer_local)) then
-        error stop &
-             "check_local_test_blocks: standalone packed size mismatch"
-     end if
-
-     if (any(buffer_copy /= buffer_local)) then
-        error stop &
-             "check_local_test_blocks: standalone round-trip mismatch"
-     end if
+     call check_test_block_storage(test_block_local(i),.true.)
 
      local_seen(b) = 1
      local_weight = local_weight + block_catalog(b)%weight
@@ -2326,38 +1932,8 @@ subroutine finalize_test_block_migration (manifest)
 
   call check_local_test_blocks(.false.)
 
-  if (allocated(test_block_source)) then
-     deallocate(test_block_source)
-  end if
-  if (allocated(test_block_catalog_index)) then
-     deallocate(test_block_catalog_index)
-  end if
-  if (allocated(test_block_retained_index)) then
-     deallocate(test_block_retained_index)
-  end if
-  if (allocated(test_block_migrating_index)) then
-     deallocate(test_block_migrating_index)
-  end if
-  if (allocated(test_block_received)) then
-     deallocate(test_block_received)
-  end if
-  if (allocated(test_block_received_catalog_index)) then
-     deallocate(test_block_received_catalog_index)
-  end if
-
+  call clear_test_block_staging
   call clear_block_migration_manifest(manifest)
-
-  if (allocated(test_block_source) .or. &
-       allocated(test_block_catalog_index) .or. &
-       allocated(test_block_retained_index) .or. &
-       allocated(test_block_migrating_index) .or. &
-       allocated(test_block_received) .or. &
-       allocated(test_block_received_catalog_index)) then
-
-     error stop &
-          "finalize_test_block_migration: staging cleanup failed"
-
-  end if
 
   if (allocated(manifest%send_count) .or. &
        allocated(manifest%recv_count) .or. &
@@ -2386,486 +1962,6 @@ subroutine finalize_test_block_migration (manifest)
 end subroutine finalize_test_block_migration
 
 
-integer function packed_test_block_nbyte (block) result(nbyte)
-  ! Return the exact byte count used by pack_test_block.
-
-  implicit none
-
-  type(Test_Block), intent(in) :: block
-
-  integer :: nbyte_integer
-
-  if (.not. allocated(block%patch) .or. &
-       .not. allocated(block%node) .or. &
-       .not. allocated(block%scalar) .or. &
-       .not. allocated(block%vector) .or. &
-       .not. allocated(block%neigh_class) .or. &
-       .not. allocated(block%block_bdry) .or. &
-       .not. allocated(block%bdry_storage) .or. &
-       .not. allocated(block%stencil) .or. &
-       .not. allocated(block%bdry_node) .or. &
-       .not. allocated(block%bdry_scalar) .or. &
-       .not. allocated(block%bdry_vector) .or. &
-       .not. allocated(block%ghost_storage) .or. &
-       .not. allocated(block%ghost_node) .or. &
-       .not. allocated(block%ghost_scalar) .or. &
-       .not. allocated(block%ghost_vector)) then
-
-     error stop "packed_test_block_nbyte: unallocated component"
-
-  end if
-
-  nbyte_integer = storage_size(0) / 8
-
-  nbyte = TEST_BLOCK_HEADER_SIZE * nbyte_integer
-
-  nbyte = nbyte + &
-       size(block%patch) * storage_size(block%patch) / 8
-
-  nbyte = nbyte + &
-       size(block%node) * storage_size(block%node) / 8
-
-  nbyte = nbyte + &
-       size(block%scalar) * storage_size(block%scalar) / 8
-
-  nbyte = nbyte + &
-       size(block%vector) * storage_size(block%vector) / 8
-
-  nbyte = nbyte + size(block%neigh_class) * nbyte_integer
-
-  nbyte = nbyte + &
-       size(block%block_bdry) * &
-       storage_size(block%block_bdry) / 8
-
-  nbyte = nbyte + &
-       size(block%bdry_storage) * &
-       storage_size(block%bdry_storage) / 8
-
-  nbyte = nbyte + &
-       size(block%stencil) * storage_size(block%stencil) / 8
-
-  nbyte = nbyte + &
-       size(block%bdry_node) * storage_size(block%bdry_node) / 8
-
-  nbyte = nbyte + &
-       size(block%bdry_scalar) * &
-       storage_size(block%bdry_scalar) / 8
-
-  nbyte = nbyte + &
-       size(block%bdry_vector) * &
-       storage_size(block%bdry_vector) / 8
-
-  nbyte = nbyte + &
-       size(block%ghost_storage) * &
-       storage_size(block%ghost_storage) / 8
-
-  nbyte = nbyte + &
-       size(block%ghost_node) * storage_size(block%ghost_node) / 8
-
-  nbyte = nbyte + &
-       size(block%ghost_scalar) * &
-       storage_size(block%ghost_scalar) / 8
-
-  nbyte = nbyte + &
-       size(block%ghost_vector) * &
-       storage_size(block%ghost_vector) / 8
-
-end function packed_test_block_nbyte
-
-
-subroutine pack_test_block (block,buffer)
-  ! Serialize a Test_Block into a versioned contiguous byte buffer.
-  ! This raw representation is intended for homogeneous MPI jobs.
-
-  implicit none
-
-  type(Test_Block), intent(in) :: block
-  integer(int8), allocatable, intent(out) :: buffer(:)
-
-  integer :: header(TEST_BLOCK_HEADER_SIZE)
-  integer :: n
-  integer :: nbyte
-  integer :: pos
-
-  nbyte = packed_test_block_nbyte(block)
-
-  allocate(buffer(nbyte))
-
-  header = [ &
-       TEST_BLOCK_PACK_MAGIC, &
-       TEST_BLOCK_PACK_VERSION, &
-       block%id, &
-       block%root_domain, &
-       block%root_patch, &
-       block%level, &
-       size(block%patch), &
-       size(block%node), &
-       size(block%scalar), &
-       size(block%vector), &
-       size(block%neigh_class,1), &
-       size(block%neigh_class,2), &
-       size(block%block_bdry), &
-       size(block%bdry_storage), &
-       size(block%stencil,1), &
-       size(block%stencil,2), &
-       size(block%bdry_node), &
-       size(block%bdry_scalar), &
-       size(block%bdry_vector), &
-       size(block%ghost_storage), &
-       size(block%ghost_node), &
-       size(block%ghost_scalar), &
-       size(block%ghost_vector) ]
-
-  pos = 0
-
-  n = size(header) * storage_size(header) / 8
-  buffer(pos+1:pos+n) = transfer(header,0_int8,n)
-  pos = pos + n
-
-  n = size(block%patch) * storage_size(block%patch) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%patch,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%node) * storage_size(block%node) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%node,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%scalar) * storage_size(block%scalar) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%scalar,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%vector) * storage_size(block%vector) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%vector,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%neigh_class) * storage_size(0) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%neigh_class,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%block_bdry) * &
-       storage_size(block%block_bdry) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%block_bdry,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%bdry_storage) * &
-       storage_size(block%bdry_storage) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%bdry_storage,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%stencil) * storage_size(block%stencil) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%stencil,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%bdry_node) * storage_size(block%bdry_node) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%bdry_node,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%bdry_scalar) * &
-       storage_size(block%bdry_scalar) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%bdry_scalar,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%bdry_vector) * &
-       storage_size(block%bdry_vector) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%bdry_vector,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%ghost_storage) * &
-       storage_size(block%ghost_storage) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%ghost_storage,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%ghost_node) * storage_size(block%ghost_node) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%ghost_node,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%ghost_scalar) * &
-       storage_size(block%ghost_scalar) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%ghost_scalar,0_int8,n)
-     pos = pos + n
-  end if
-
-  n = size(block%ghost_vector) * &
-       storage_size(block%ghost_vector) / 8
-  if (n > 0) then
-     buffer(pos+1:pos+n) = transfer(block%ghost_vector,0_int8,n)
-     pos = pos + n
-  end if
-
-  if (pos /= size(buffer)) then
-     error stop "pack_test_block: final byte count mismatch"
-  end if
-
-end subroutine pack_test_block
-
-
-subroutine unpack_test_block (buffer,block)
-  ! Reconstruct a Test_Block from pack_test_block's byte stream.
-
-  implicit none
-
-  integer(int8), intent(in) :: buffer(:)
-  type(Test_Block), intent(out) :: block
-
-  integer :: header(TEST_BLOCK_HEADER_SIZE)
-  integer :: n
-  integer :: pos
-
-  n = size(header) * storage_size(header) / 8
-
-  if (size(buffer) < n) then
-     error stop "unpack_test_block: truncated header"
-  end if
-
-  header = transfer(buffer(1:n),header,size(header))
-  pos = n
-
-  if (header(1) /= TEST_BLOCK_PACK_MAGIC) then
-     error stop "unpack_test_block: invalid pack magic"
-  end if
-
-  if (header(2) /= TEST_BLOCK_PACK_VERSION) then
-     error stop "unpack_test_block: unsupported pack version"
-  end if
-
-  if (any(header(7:TEST_BLOCK_HEADER_SIZE) < 0)) then
-     error stop "unpack_test_block: negative component extent"
-  end if
-
-  if (header(11) /= N_BDRY .or. &
-       header(12) /= header(7) .or. &
-       header(15) /= N_BDRY .or. &
-       header(16) /= header(7)) then
-
-     error stop "unpack_test_block: invalid topology extents"
-
-  end if
-
-  if (header(8) /= header(7)*PATCH_SIZE**2) then
-     error stop "unpack_test_block: invalid interior node extent"
-  end if
-
-  block%id          = header(3)
-  block%root_domain = header(4)
-  block%root_patch  = header(5)
-  block%level       = header(6)
-
-  allocate(block%patch(header(7)))
-  allocate(block%node(header(8)))
-  allocate(block%scalar(header(9)))
-  allocate(block%vector(header(10)))
-  allocate(block%neigh_class(header(11),header(12)))
-  allocate(block%block_bdry(header(13)))
-  allocate(block%bdry_storage(header(14)))
-  allocate(block%stencil(header(15),header(16)))
-  allocate(block%bdry_node(header(17)))
-  allocate(block%bdry_scalar(header(18)))
-  allocate(block%bdry_vector(header(19)))
-  allocate(block%ghost_storage(header(20)))
-  allocate(block%ghost_node(header(21)))
-  allocate(block%ghost_scalar(header(22)))
-  allocate(block%ghost_vector(header(23)))
-
-  n = size(block%patch) * storage_size(block%patch) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated patch data"
-  end if
-  if (n > 0) then
-     block%patch = transfer( &
-          buffer(pos+1:pos+n),block%patch,size(block%patch))
-     pos = pos + n
-  end if
-
-  n = size(block%node) * storage_size(block%node) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated node data"
-  end if
-  if (n > 0) then
-     block%node = transfer( &
-          buffer(pos+1:pos+n),block%node,size(block%node))
-     pos = pos + n
-  end if
-
-  n = size(block%scalar) * storage_size(block%scalar) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated scalar data"
-  end if
-  if (n > 0) then
-     block%scalar = transfer( &
-          buffer(pos+1:pos+n),block%scalar,size(block%scalar))
-     pos = pos + n
-  end if
-
-  n = size(block%vector) * storage_size(block%vector) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated vector data"
-  end if
-  if (n > 0) then
-     block%vector = transfer( &
-          buffer(pos+1:pos+n),block%vector,size(block%vector))
-     pos = pos + n
-  end if
-
-  n = size(block%neigh_class) * storage_size(0) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated neighbour data"
-  end if
-  if (n > 0) then
-     block%neigh_class = reshape( &
-          transfer(buffer(pos+1:pos+n),0, &
-          size(block%neigh_class)),shape(block%neigh_class))
-     pos = pos + n
-  end if
-
-  n = size(block%block_bdry) * &
-       storage_size(block%block_bdry) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated block boundary data"
-  end if
-  if (n > 0) then
-     block%block_bdry = transfer( &
-          buffer(pos+1:pos+n),block%block_bdry, &
-          size(block%block_bdry))
-     pos = pos + n
-  end if
-
-  n = size(block%bdry_storage) * &
-       storage_size(block%bdry_storage) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated boundary catalogue"
-  end if
-  if (n > 0) then
-     block%bdry_storage = transfer( &
-          buffer(pos+1:pos+n),block%bdry_storage, &
-          size(block%bdry_storage))
-     pos = pos + n
-  end if
-
-  n = size(block%stencil) * storage_size(block%stencil) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated stencil data"
-  end if
-  if (n > 0) then
-     block%stencil = reshape( &
-          transfer(buffer(pos+1:pos+n),block%stencil(1,1), &
-          size(block%stencil)),shape(block%stencil))
-     pos = pos + n
-  end if
-
-  n = size(block%bdry_node) * storage_size(block%bdry_node) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated boundary nodes"
-  end if
-  if (n > 0) then
-     block%bdry_node = transfer( &
-          buffer(pos+1:pos+n),block%bdry_node, &
-          size(block%bdry_node))
-     pos = pos + n
-  end if
-
-  n = size(block%bdry_scalar) * &
-       storage_size(block%bdry_scalar) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated boundary scalar"
-  end if
-  if (n > 0) then
-     block%bdry_scalar = transfer( &
-          buffer(pos+1:pos+n),block%bdry_scalar, &
-          size(block%bdry_scalar))
-     pos = pos + n
-  end if
-
-  n = size(block%bdry_vector) * &
-       storage_size(block%bdry_vector) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated boundary vector"
-  end if
-  if (n > 0) then
-     block%bdry_vector = transfer( &
-          buffer(pos+1:pos+n),block%bdry_vector, &
-          size(block%bdry_vector))
-     pos = pos + n
-  end if
-
-  n = size(block%ghost_storage) * &
-       storage_size(block%ghost_storage) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated ghost catalogue"
-  end if
-  if (n > 0) then
-     block%ghost_storage = transfer( &
-          buffer(pos+1:pos+n),block%ghost_storage, &
-          size(block%ghost_storage))
-     pos = pos + n
-  end if
-
-  n = size(block%ghost_node) * storage_size(block%ghost_node) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated ghost nodes"
-  end if
-  if (n > 0) then
-     block%ghost_node = transfer( &
-          buffer(pos+1:pos+n),block%ghost_node, &
-          size(block%ghost_node))
-     pos = pos + n
-  end if
-
-  n = size(block%ghost_scalar) * &
-       storage_size(block%ghost_scalar) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated ghost scalar"
-  end if
-  if (n > 0) then
-     block%ghost_scalar = transfer( &
-          buffer(pos+1:pos+n),block%ghost_scalar, &
-          size(block%ghost_scalar))
-     pos = pos + n
-  end if
-
-  n = size(block%ghost_vector) * &
-       storage_size(block%ghost_vector) / 8
-  if (pos+n > size(buffer)) then
-     error stop "unpack_test_block: truncated ghost vector"
-  end if
-  if (n > 0) then
-     block%ghost_vector = transfer( &
-          buffer(pos+1:pos+n),block%ghost_vector, &
-          size(block%ghost_vector))
-     pos = pos + n
-  end if
-
-  if (pos /= size(buffer)) then
-     error stop "unpack_test_block: final byte count mismatch"
-  end if
-
-end subroutine unpack_test_block
 
 
 subroutine test_one_subtree_extraction ( &

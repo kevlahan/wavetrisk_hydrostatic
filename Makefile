@@ -258,6 +258,7 @@ SRC = kind.f90 \
       patch.f90 \
       dyn_array.f90 \
       arch.f90 \
+      parallel_block.f90 \
       parallel_block_mpi.f90 \
       spline.f90 \
       domain.f90 \
