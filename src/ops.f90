@@ -21,6 +21,7 @@ module ops_mod
 
   private
   public :: post_step1, step1, scalar_trend, du_grad, du_source, Qperp
+  public :: comp_offs3
 
   
 contains

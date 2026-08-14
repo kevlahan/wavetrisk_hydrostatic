@@ -8,6 +8,7 @@ module main_mod
   use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, MULT, N_BDRY, &
        N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, NCAR_topo, NONE, &
+       EAST, NORTH, NORTHEAST, NORTHWEST, SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
        S_DIVU, S_ROTU, S_MASS, S_TEMP, S_VELO, TRIAG, XU_GRID, RT, DG, UP, LORT, UPLT, Laplace_divu, Laplace_rotu, Laplace_sclr, &
        adapt_dt, Area_avg, C_visc, a_vert, a_vert_mass, b_vert, b_vert_mass, cfl_safety, compressible, coord, cp_idx, &
        dt, dt_init, dt_write, dx_avg, gamma, grav_accel, iremap, iremap_max, istep, istep_cumul, itime, iwrite, &
@@ -31,6 +32,7 @@ module main_mod
   use mask_mod,           only : init_masks, mask_adj_child
   use multi_level_mod,    only : trend_ml
   use NCAR_topo_mod,      only : load_topo
+  use ops_mod,            only : comp_offs3
   use patch_mod,          only : Patch, PATCH_SIZE
   use refine_patch_mod,   only : add_second_level
   use remap_mod,          only : remap_vertical_coordinates
@@ -868,8 +870,8 @@ contains
 subroutine test_subtree_extraction
   ! Extract one candidate subtree on rank zero and verify its topology,
   ! compact storage, copied geometry/fields, local neighbour topology,
-  ! deduplicated boundary-storage layout, boundary coordinates, and
-  ! scalar/vector fields on the boundary storage.
+  ! deduplicated boundary storage, and reconstruction of neighbour
+  ! dimensions used by comp_offs3.
 
   implicit none
 
@@ -887,11 +889,17 @@ subroutine test_subtree_extraction
   integer :: n_bdry_node_total
   integer :: n_bdry_node_unique
   integer :: n_bdry_node_max
+  integer :: n_offs_checked
   integer :: p_old, p_chd_old, p_chd_new
   integer :: p_ngb_old
   integer :: old_start, new_start
   integer :: v_scalar, v_vector, k_test
   integer :: mult_scalar, mult_vector
+
+  integer :: offs_src(0:N_BDRY)
+  integer :: offs_blk(0:N_BDRY)
+  integer :: dims_src(2,N_BDRY)
+  integer :: dims_blk(2,N_BDRY)
 
   integer :: n_ngb_internal
   integer :: n_ngb_block
@@ -912,6 +920,7 @@ subroutine test_subtree_extraction
 
   logical :: found
   logical :: unique_bdry
+  logical :: valid_blk(N_BDRY)
 
   if (rank /= 0) return
 
@@ -1123,9 +1132,7 @@ subroutine test_subtree_extraction
           scalar_copy(new_start+1:new_start+n_patch_field) - &
           sol(v_scalar,k_test)%data(d)%elts( &
           old_start+1:old_start+n_patch_field))) > 0.0_dp) then
-
         error stop "test_subtree_extraction: scalar field copy mismatch"
-
      end if
 
   end do
@@ -1161,9 +1168,7 @@ subroutine test_subtree_extraction
           vector_copy(new_start+1:new_start+n_patch_field) - &
           sol(v_vector,k_test)%data(d)%elts( &
           old_start+1:old_start+n_patch_field))) > 0.0_dp) then
-
         error stop "test_subtree_extraction: vector field copy mismatch"
-
      end if
 
   end do
@@ -1213,23 +1218,19 @@ subroutine test_subtree_extraction
   n_leaf_old = 0
 
   do p_old = 0, grid(d)%patch%length-1
-
      if (old_to_new(p_old) < 0) cycle
 
      if (all(grid(d)%patch%elts(p_old+1)%children == 0)) then
         n_leaf_old = n_leaf_old + 1
      end if
-
   end do
 
   n_leaf_new = 0
 
   do i = 1, size(patch_copy)
-
      if (all(patch_copy(i)%children == 0)) then
         n_leaf_new = n_leaf_new + 1
      end if
-
   end do
 
   if (n_leaf_new /= n_leaf_old) then
@@ -1314,7 +1315,7 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Construct unified local boundary-link catalogue.
+  ! Build local boundary-link catalogue.
   ! ===============================================================
   !
   n_bdry_local = n_ngb_block + n_ngb_domain + n_ngb_adapt
@@ -1454,7 +1455,7 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Construct deduplicated compact boundary-storage catalogue.
+  ! Build deduplicated compact boundary-storage catalogue.
   ! ===============================================================
   !
   is = 0
@@ -1508,7 +1509,7 @@ subroutine test_subtree_extraction
   end if
 
   !
-  ! Assign storage_id to repeated references.
+  ! Assign storage IDs to repeated references.
   !
   do ib = 1, size(block_test%block_bdry)
 
@@ -1537,7 +1538,7 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Validate compact boundary-storage layout.
+  ! Validate compact boundary storage and storage IDs.
   ! ===============================================================
   !
   do is = 1, size(block_test%bdry_storage)
@@ -1581,7 +1582,7 @@ subroutine test_subtree_extraction
 
         if (block_test%bdry_storage(is)%local_start /= 0) then
            error stop &
-                "test_subtree_extraction: first local boundary offset is not zero"
+                "test_subtree_extraction: first boundary offset is not zero"
         end if
 
      else
@@ -1599,9 +1600,6 @@ subroutine test_subtree_extraction
 
   end do
 
-  !
-  ! No duplicate source boundaries.
-  !
   do is = 1, size(block_test%bdry_storage)
 
      do jb = is+1, size(block_test%bdry_storage)
@@ -1618,9 +1616,6 @@ subroutine test_subtree_extraction
 
   end do
 
-  !
-  ! Verify boundary-link storage IDs.
-  !
   do ib = 1, size(block_test%block_bdry)
 
      if (block_test%block_bdry(ib)%class == NGB_BLOCK) then
@@ -1653,7 +1648,7 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Copy each distinct boundary coordinate region once.
+  ! Copy compact boundary coordinates.
   ! ===============================================================
   !
   allocate(block_test%bdry_node(n_bdry_node_unique))
@@ -1715,7 +1710,7 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Copy scalar boundary field.
+  ! Copy compact scalar boundary field.
   ! ===============================================================
   !
   allocate(block_test%bdry_scalar(n_bdry_node_unique))
@@ -1753,9 +1748,7 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Copy vector boundary field.
-  !
-  ! Field offsets and lengths are scaled by MULT(S_VELO).
+  ! Copy compact vector boundary field.
   ! ===============================================================
   !
   allocate(block_test%bdry_vector( &
@@ -1778,17 +1771,6 @@ subroutine test_subtree_extraction
 
   end do
 
-  if (size(block_test%bdry_vector) /= &
-       mult_vector*n_bdry_node_unique) then
-
-     error stop &
-          "test_subtree_extraction: incorrect boundary vector size"
-
-  end if
-
-  !
-  ! Verify copied vector boundary data exactly.
-  !
   do is = 1, size(block_test%bdry_storage)
 
      old_start = &
@@ -1814,7 +1796,7 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Original summed boundary storage count, including repeats.
+  ! Boundary storage statistics including repeated references.
   !
   n_bdry_node_total = 0
   n_bdry_node_max   = 0
@@ -1922,38 +1904,49 @@ subroutine test_subtree_extraction
   call move_alloc(vector_copy, block_test%vector)
 
   !
-  ! Verify boundary storage remains valid after packaging.
+  ! ===============================================================
+  ! Reconstruct comp_offs3 neighbour dimensions using the block-local
+  ! representation.
   !
-  if (.not. allocated(block_test%bdry_node)) then
-     error stop &
-          "test_subtree_extraction: boundary coordinates not allocated"
-  end if
+  ! Numerical offsets are not compared yet because storage has been
+  ! compacted. NGB_BLOCK links are deferred until ghost storage exists.
+  ! ===============================================================
+  !
+  n_offs_checked = 0
 
-  if (size(block_test%bdry_node) /= n_bdry_node_unique) then
-     error stop &
-          "test_subtree_extraction: boundary coordinate size lost"
-  end if
+  do p_old = 0, grid(d)%patch%length-1
 
-  if (.not. allocated(block_test%bdry_scalar)) then
-     error stop &
-          "test_subtree_extraction: boundary scalar not allocated"
-  end if
+     if (old_to_new(p_old) < 0) cycle
 
-  if (size(block_test%bdry_scalar) /= n_bdry_node_unique) then
-     error stop &
-          "test_subtree_extraction: boundary scalar size lost"
-  end if
+     call comp_offs3( &
+          grid(d), p_old, offs_src, dims_src)
 
-  if (.not. allocated(block_test%bdry_vector)) then
-     error stop &
-          "test_subtree_extraction: boundary vector not allocated"
-  end if
+     call comp_offs3_block( &
+          old_to_new(p_old), offs_blk, dims_blk, valid_blk)
 
-  if (size(block_test%bdry_vector) /= &
-       mult_vector*n_bdry_node_unique) then
+     do c = 1, N_BDRY
+
+        if (.not. valid_blk(c)) cycle
+
+        if (any(dims_blk(:,c) /= dims_src(:,c))) then
+           error stop &
+                "test_subtree_extraction: block neighbour dims mismatch"
+        end if
+
+        n_offs_checked = n_offs_checked + 1
+
+     end do
+
+  end do
+
+  !
+  ! Every internal/domain/adaptive link should have been checked.
+  !
+  if (n_offs_checked /= &
+       n_ngb_internal + n_ngb_domain + n_ngb_adapt) then
 
      error stop &
-          "test_subtree_extraction: boundary vector size lost"
+          "test_subtree_extraction: incorrect offset/dimension check count"
 
   end if
 
@@ -2083,6 +2076,16 @@ subroutine test_subtree_extraction
   write(6,'(a)') &
        "  boundary vector-field copy check passed"
 
+  write(6,'(/,a,i0)') &
+       "  neighbour offset/dimension links checked = ", &
+       n_offs_checked
+
+  write(6,'(a,i0)') &
+       "  inter-block offset links deferred = ", n_ngb_block
+
+  write(6,'(a)') &
+       "  block neighbour dimension reconstruction check passed"
+
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
 
@@ -2112,6 +2115,156 @@ contains
     end do
 
   end function copied_depth
+
+
+  subroutine comp_offs3_block (p, offs, dims, valid)
+    ! Construct block-local neighbour offsets and dimensions using the
+    ! same orientation convention as comp_offs3.
+    !
+    ! NGB_BLOCK entries are currently invalid because inter-block ghost
+    ! storage has not yet been constructed.
+
+    implicit none
+
+    integer, intent(in)  :: p
+    integer, intent(out) :: offs(0:N_BDRY)
+    integer, intent(out) :: dims(2,N_BDRY)
+    logical, intent(out) :: valid(N_BDRY)
+
+    integer :: b, is, n, s
+
+    offs  = 0
+    dims  = 0
+    valid = .false.
+
+    if (p < 0 .or. p >= size(block_test%patch)) then
+       error stop "comp_offs3_block: invalid patch"
+    end if
+
+    offs(0) = block_test%patch(p+1)%elts_start
+
+    do s = 1, N_BDRY
+
+       select case (block_test%neigh_class(s,p+1))
+
+       case (NGB_INTERNAL)
+
+          n = block_test%patch(p+1)%neigh(s)
+
+          if (n < 0 .or. n >= size(block_test%patch)) then
+             error stop "comp_offs3_block: invalid internal neighbour"
+          end if
+
+          offs(s)   = block_test%patch(n+1)%elts_start
+          dims(:,s) = PATCH_SIZE
+          valid(s)  = .true.
+
+       case (NGB_DOMAIN, NGB_ADAPT)
+
+          b = -block_test%patch(p+1)%neigh(s)
+
+          if (b < 1 .or. b > size(block_test%block_bdry)) then
+             error stop "comp_offs3_block: invalid local boundary"
+          end if
+
+          is = block_test%block_bdry(b)%storage_id
+
+          if (is < 1 .or. is > size(block_test%bdry_storage)) then
+             error stop "comp_offs3_block: invalid boundary storage_id"
+          end if
+
+          !
+          ! Use one conceptual address space:
+          !
+          !   0 : n_node_storage-1
+          !       interior storage
+          !
+          !   n_node_storage : ...
+          !       compact existing-boundary storage
+          !
+          offs(s) = n_node_storage + &
+               block_test%bdry_storage(is)%local_start
+
+          dims(:,s) = block_test%bdry_storage(is)%dims
+
+          valid(s) = .true.
+
+       case (NGB_BLOCK)
+
+          !
+          ! Inter-block ghost storage does not exist yet.
+          !
+          valid(s) = .false.
+
+       case (NGB_OTHER)
+
+          valid(s) = .false.
+
+       case default
+
+          error stop "comp_offs3_block: unexpected neighbour class"
+
+       end select
+
+    end do
+
+    !
+    ! Convert absolute starts to offsets relative to the current patch.
+    !
+    do s = 1, N_BDRY
+       if (valid(s)) offs(s) = offs(s) - offs(0)
+    end do
+
+    !
+    ! Apply the same orientation corrections as comp_offs3.
+    !
+    if (valid(SOUTH)) then
+       offs(SOUTH) = offs(SOUTH) + &
+            dims(1,SOUTH)*(dims(2,SOUTH)-1)
+    end if
+
+    if (valid(SOUTHEAST)) then
+       offs(SOUTHEAST) = offs(SOUTHEAST) + &
+            dims(1,SOUTHEAST)*(dims(2,SOUTHEAST)-1)
+    end if
+
+    if (valid(WEST)) then
+       offs(WEST) = offs(WEST) + dims(1,WEST)-1
+    end if
+
+    if (valid(NORTHWEST)) then
+       offs(NORTHWEST) = offs(NORTHWEST) + &
+            dims(1,NORTHWEST)-1
+    end if
+
+    if (valid(SOUTHWEST)) then
+       offs(SOUTHWEST) = offs(SOUTHWEST) + &
+            dims(1,SOUTHWEST)*dims(2,SOUTHWEST)-1
+    end if
+
+    if (valid(NORTH)) then
+       offs(NORTH) = offs(NORTH) - PATCH_SIZE*(PATCH_SIZE-1)
+    end if
+
+    if (valid(NORTHWEST)) then
+       offs(NORTHWEST) = offs(NORTHWEST) - &
+            PATCH_SIZE*(PATCH_SIZE-1)
+    end if
+
+    if (valid(EAST)) then
+       offs(EAST) = offs(EAST) - (PATCH_SIZE-1)
+    end if
+
+    if (valid(SOUTHEAST)) then
+       offs(SOUTHEAST) = offs(SOUTHEAST) - (PATCH_SIZE-1)
+    end if
+
+    if (valid(NORTHEAST)) then
+       offs(NORTHEAST) = offs(NORTHEAST) - &
+            (PATCH_SIZE*PATCH_SIZE-1)
+    end if
+
+  end subroutine comp_offs3_block
 
 end subroutine test_subtree_extraction
 
