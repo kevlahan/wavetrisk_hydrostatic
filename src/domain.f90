@@ -32,6 +32,7 @@ module domain_mod
   
   public :: count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, subtree_weight_Domain
   public :: compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain, renumber_subtree_neigh_Domain
+  public :: get_bdry_dims_Domain
 
 
   integer, parameter :: sides_dims(2,N_BDRY+1) = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
@@ -1207,7 +1208,25 @@ contains
   end subroutine get_offs_Domain5
 
 
-  pure subroutine get_offs_Domain(self, p, offs, dims, inner_bdry)
+  pure subroutine get_bdry_dims_Domain (self, b, dims)
+    ! Return the storage dimensions of boundary patch b.
+
+    implicit none
+
+    type(Domain), intent(in)  :: self
+    integer,      intent(in)  :: b
+    integer,      intent(out) :: dims(2)
+
+    integer :: side
+
+    side = self%bdry_patch%elts(b+1)%side
+
+    dims = sides_dims(:,abs(side)+1)
+
+  end subroutine get_bdry_dims_Domain
+
+  
+  pure subroutine get_offs_Domain (self, p, offs, dims, inner_bdry)
     implicit none
 
     type(Domain), intent(in)            :: self
