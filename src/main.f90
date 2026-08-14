@@ -17,7 +17,7 @@ module main_mod
        R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
        time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
 
-   use adapt_mod,          only : adapt, WT_after_step
+  use adapt_mod,          only : adapt, WT_after_step
   use coarse_grid_mod,    only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
   use comm_mod,           only : get_coord, set_coord
   use diagnostics_mod,    only : rho_dz_i, theta_i, theta2temp
@@ -49,7 +49,8 @@ module main_mod
        Kt, Kv, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, sso_param, &
        sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx, &
        subtree_weight_Domain, count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, &
-       compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain, renumber_subtree_neigh_Domain
+       compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain, renumber_subtree_neigh_Domain, &
+       get_bdry_dims_domain
 
   use init_mod, only : apply_initial_conditions, elliptic_solver, init_geometry, init_grid, &
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
@@ -70,44 +71,60 @@ module main_mod
   
   private
   public :: cpt_min_mass, initialize, restart, time_step
-
-
+  
+  
   type Initial_State
      integer              :: n_patch, n_bdry_patch, n_node, n_edge, n_tria
      integer, allocatable :: pack_len(:,:), unpk_len(:,:)
   end type Initial_State
 
-  type Test_Block_Bdry
-     integer :: patch        = -1   ! local patch index
-     integer :: side         = -1   ! neighbour slot, 1:N_BDRY
-     integer :: class        = -1   ! NGB_BLOCK, NGB_DOMAIN or NGB_ADAPT
+type Test_Bdry_Storage
+   integer :: source_bdry = -1   ! source Domain bdry_patch index
+   integer :: elts_start  = -1   ! source storage offset
+   integer :: dims(2)     = 0    ! source boundary dimensions
+   integer :: n_node      = 0    ! number of stored boundary nodes
+   integer :: local_start = -1   ! compact local boundary-storage offset
+end type Test_Bdry_Storage
 
-     integer :: root_domain  = -1   ! geometric source domain
 
-     integer :: neigh_patch  = -1   ! external source patch for NGB_BLOCK
-     integer :: source_bdry  = -1   ! source bdry_patch index for existing boundary
+type Test_Block_Bdry
+   integer :: patch       = -1
+   integer :: side        = -1
+   integer :: class       = -1
 
-     integer :: bdry_side    = 0    ! copied Bdry_Patch%side
-     integer :: bdry_neigh   = 0    ! copied Bdry_Patch%neigh
-     integer :: elts_start   = 0    ! copied Bdry_Patch%elts_start
-  end type Test_Block_Bdry
+   integer :: root_domain = -1
 
-  type Test_Block
-     integer :: id          = -1
-     integer :: root_domain = -1
-     integer :: root_patch  = -1
-     integer :: level       = -1
+   integer :: neigh_patch = -1
+   integer :: source_bdry = -1
 
-     type(Patch), allocatable :: patch(:)
-     type(Coord), allocatable :: node(:)
+   integer :: elts_start  = -1
+   integer :: bdry_side   = 0
+   integer :: bdry_neigh  = 0
 
-     real(dp), allocatable :: scalar(:)
-     real(dp), allocatable :: vector(:)
+   integer :: dims(2)     = 0
+   integer :: n_node      = 0
 
-     integer, allocatable :: neigh_class(:,:)
+   integer :: storage_id  = -1
+end type Test_Block_Bdry
 
-     type(Test_Block_Bdry), allocatable :: block_bdry(:)
-  end type Test_Block
+
+type Test_Block
+   integer :: id          = -1
+   integer :: root_domain = -1
+   integer :: root_patch  = -1
+   integer :: level       = -1
+
+   type(Patch), allocatable :: patch(:)
+   type(Coord), allocatable :: node(:)
+
+   real(dp), allocatable :: scalar(:)
+   real(dp), allocatable :: vector(:)
+
+   integer, allocatable :: neigh_class(:,:)
+
+   type(Test_Block_Bdry), allocatable :: block_bdry(:)
+   type(Test_Bdry_Storage), allocatable :: bdry_storage(:)
+end type Test_Block
 
   integer, parameter :: NGB_INTERNAL = 1
   integer, parameter :: NGB_BLOCK    = 2
@@ -843,17 +860,16 @@ contains
     end if
   end subroutine cal_min_mass
 
-
 subroutine test_subtree_extraction
   ! Extract one candidate subtree on rank zero and verify its topology,
-  ! compact storage, copied geometry/fields, and reconstruction of a
-  ! completely local neighbour/boundary index space.
+  ! compact storage, copied geometry/fields, local neighbour topology,
+  ! and deduplicated boundary-storage layout.
 
   implicit none
 
   integer :: b_test
   integer :: b_src
-  integer :: c, d, i, ib
+  integer :: c, d, i, ib, jb, is
   integer :: p_root
   integer :: n_old, n_new
   integer :: n_leaf_old, n_leaf_new
@@ -861,6 +877,10 @@ subroutine test_subtree_extraction
   integer :: n_node_storage
   integer :: n_patch_field
   integer :: n_bdry_local
+  integer :: n_bdry_unique
+  integer :: n_bdry_node_total
+  integer :: n_bdry_node_unique
+  integer :: n_bdry_node_max
   integer :: p_old, p_chd_old, p_chd_new
   integer :: p_ngb_old
   integer :: old_start, new_start
@@ -885,10 +905,8 @@ subroutine test_subtree_extraction
   type(Test_Block) :: block_test
 
   logical :: found
+  logical :: unique_bdry
 
-  !
-  ! Keep this diagnostic entirely local to rank zero.
-  !
   if (rank /= 0) return
 
   found  = .false.
@@ -915,9 +933,6 @@ subroutine test_subtree_extraction
 
   end do
 
-  !
-  ! Fallback to the first local nontrivial subtree.
-  !
   if (.not. found) then
 
      do i = 1, size(block_catalog)
@@ -940,9 +955,6 @@ subroutine test_subtree_extraction
 
   end if
 
-  !
-  ! Final fallback to the first local candidate.
-  !
   if (.not. found) then
 
      do i = 1, size(block_catalog)
@@ -967,9 +979,6 @@ subroutine test_subtree_extraction
      error stop "test_subtree_extraction: no local candidate block"
   end if
 
-  !
-  ! Recover source Domain and root patch.
-  !
   d = loc_id(block_catalog(b_test)%root_domain+1) + 1
 
   if (d < 1 .or. d > size(grid)) then
@@ -978,17 +987,17 @@ subroutine test_subtree_extraction
 
   p_root = block_catalog(b_test)%root_patch
 
-  depth_old = subtree_depth_Domain(grid(d), p_root)
+  depth_old = subtree_depth_Domain(grid(d),p_root)
 
   !
   ! ===============================================================
-  ! Extract and renumber patch tree.
+  ! Extract and compact patch tree.
   ! ===============================================================
   !
   call extract_subtree_patches_Domain( &
        grid(d), p_root, patch_copy, old_to_new)
 
-  n_old = count_subtree_patches_Domain(grid(d), p_root)
+  n_old = count_subtree_patches_Domain(grid(d),p_root)
   n_new = size(patch_copy)
 
   if (n_new /= n_old) then
@@ -999,9 +1008,6 @@ subroutine test_subtree_extraction
      error stop "test_subtree_extraction: extracted root is not patch zero"
   end if
 
-  !
-  ! Save original element offsets before compacting.
-  !
   allocate(old_elts_start(size(patch_copy)))
 
   do i = 1, size(patch_copy)
@@ -1016,14 +1022,11 @@ subroutine test_subtree_extraction
 
      if (old_elts_start(i) + PATCH_SIZE**2 > grid(d)%node%length) then
         error stop &
-             "test_subtree_extraction: original node storage range out of bounds"
+             "test_subtree_extraction: original node storage out of bounds"
      end if
 
   end do
 
-  !
-  ! Compact extracted storage.
-  !
   call compact_subtree_storage_Domain(patch_copy)
 
   do i = 1, size(patch_copy)
@@ -1055,29 +1058,20 @@ subroutine test_subtree_extraction
 
      if (maxval(abs( &
           node_copy(new_start+1:new_start+PATCH_SIZE**2)%x - &
-          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%x)) > &
-          0.0_dp) then
-
+          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%x)) > 0.0_dp) then
         error stop "test_subtree_extraction: node x-coordinate mismatch"
-
      end if
 
      if (maxval(abs( &
           node_copy(new_start+1:new_start+PATCH_SIZE**2)%y - &
-          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%y)) > &
-          0.0_dp) then
-
+          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%y)) > 0.0_dp) then
         error stop "test_subtree_extraction: node y-coordinate mismatch"
-
      end if
 
      if (maxval(abs( &
           node_copy(new_start+1:new_start+PATCH_SIZE**2)%z - &
-          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%z)) > &
-          0.0_dp) then
-
+          grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%z)) > 0.0_dp) then
         error stop "test_subtree_extraction: node z-coordinate mismatch"
-
      end if
 
   end do
@@ -1123,7 +1117,7 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Copy and verify one edge/vector field.
+  ! Copy and verify one vector field.
   ! ===============================================================
   !
   v_vector    = S_VELO
@@ -1161,7 +1155,7 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Verify child links.
+  ! Verify child links, leaf count and depth.
   ! ===============================================================
   !
   do p_old = 0, grid(d)%patch%length-1
@@ -1201,11 +1195,6 @@ subroutine test_subtree_extraction
 
   end do
 
-  !
-  ! ===============================================================
-  ! Leaf count and depth.
-  ! ===============================================================
-  !
   n_leaf_old = 0
 
   do p_old = 0, grid(d)%patch%length-1
@@ -1254,7 +1243,7 @@ subroutine test_subtree_extraction
 
         p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
 
-        if (p_ngb_old >= 0) then
+        if (p_ngb_old > 0) then
 
            if (p_ngb_old >= grid(d)%patch%length) then
               error stop "test_subtree_extraction: invalid positive neighbour"
@@ -1272,11 +1261,11 @@ subroutine test_subtree_extraction
 
            end if
 
-        else
+        else if (p_ngb_old < 0) then
 
            b_src = -p_ngb_old
 
-           if (b_src < 1 .or. b_src >= grid(d)%bdry_patch%length) then
+           if (b_src >= grid(d)%bdry_patch%length) then
               error stop "test_subtree_extraction: invalid source boundary"
            end if
 
@@ -1291,6 +1280,11 @@ subroutine test_subtree_extraction
                    c,old_to_new(p_old)+1) = NGB_ADAPT
 
            end if
+
+        else
+
+           block_test%neigh_class( &
+                c,old_to_new(p_old)+1) = NGB_OTHER
 
         end if
 
@@ -1311,16 +1305,9 @@ subroutine test_subtree_extraction
 
   end if
 
-  if (n_ngb_other /= 0) then
-     error stop "test_subtree_extraction: unexpected NGB_OTHER entries"
-  end if
-
   !
   ! ===============================================================
-  ! Construct one unified local boundary catalogue.
-  !
-  ! One record is deliberately created per boundary link in this
-  ! diagnostic stage.  No deduplication is attempted yet.
+  ! Construct unified local boundary-link catalogue.
   ! ===============================================================
   !
   n_bdry_local = n_ngb_block + n_ngb_domain + n_ngb_adapt
@@ -1338,7 +1325,7 @@ subroutine test_subtree_extraction
         select case (block_test%neigh_class( &
              c,old_to_new(p_old)+1))
 
-        case (NGB_INTERNAL)
+        case (NGB_INTERNAL, NGB_OTHER)
 
            cycle
 
@@ -1346,17 +1333,12 @@ subroutine test_subtree_extraction
 
            p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
 
-           if (p_ngb_old < 0 .or. &
+           if (p_ngb_old <= 0 .or. &
                 p_ngb_old >= grid(d)%patch%length) then
 
               error stop &
                    "test_subtree_extraction: invalid inter-block neighbour"
 
-           end if
-
-           if (old_to_new(p_ngb_old) >= 0) then
-              error stop &
-                   "test_subtree_extraction: inter-block neighbour is internal"
            end if
 
            ib = ib + 1
@@ -1381,7 +1363,7 @@ subroutine test_subtree_extraction
 
            b_src = -p_ngb_old
 
-           if (b_src < 1 .or. b_src >= grid(d)%bdry_patch%length) then
+           if (b_src >= grid(d)%bdry_patch%length) then
               error stop &
                    "test_subtree_extraction: invalid source bdry_patch"
            end if
@@ -1408,10 +1390,15 @@ subroutine test_subtree_extraction
            block_test%block_bdry(ib)%bdry_neigh = &
                 grid(d)%bdry_patch%elts(b_src+1)%neigh
 
+           call get_bdry_dims_Domain( &
+                grid(d), b_src, block_test%block_bdry(ib)%dims)
+
+           block_test%block_bdry(ib)%n_node = &
+                product(block_test%block_bdry(ib)%dims)
+
         case default
 
-           error stop &
-                "test_subtree_extraction: unexpected neighbour class"
+           error stop "test_subtree_extraction: unexpected neighbour class"
 
         end select
 
@@ -1420,115 +1407,209 @@ subroutine test_subtree_extraction
   end do
 
   if (ib /= n_bdry_local) then
-     error stop &
-          "test_subtree_extraction: local boundary count mismatch"
+     error stop "test_subtree_extraction: local boundary count mismatch"
   end if
 
   !
-  ! Validate local boundary records.
+  ! ===============================================================
+  ! Count unique source boundary patches.
+  ! ===============================================================
+  !
+  n_bdry_unique = 0
+
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%class /= NGB_DOMAIN .and. &
+          block_test%block_bdry(ib)%class /= NGB_ADAPT) cycle
+
+     unique_bdry = .true.
+
+     do jb = 1, ib-1
+
+        if (block_test%block_bdry(jb)%class /= NGB_DOMAIN .and. &
+             block_test%block_bdry(jb)%class /= NGB_ADAPT) cycle
+
+        if (block_test%block_bdry(jb)%source_bdry == &
+             block_test%block_bdry(ib)%source_bdry) then
+
+           unique_bdry = .false.
+           exit
+
+        end if
+
+     end do
+
+     if (unique_bdry) n_bdry_unique = n_bdry_unique + 1
+
+  end do
+
+  allocate(block_test%bdry_storage(n_bdry_unique))
+
+  !
+  ! ===============================================================
+  ! Construct deduplicated compact boundary-storage catalogue.
+  ! ===============================================================
+  !
+  is = 0
+  n_bdry_node_unique = 0
+
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%class /= NGB_DOMAIN .and. &
+          block_test%block_bdry(ib)%class /= NGB_ADAPT) cycle
+
+     b_src = block_test%block_bdry(ib)%source_bdry
+
+     !
+     ! See whether this source boundary already has a storage record.
+     !
+     block_test%block_bdry(ib)%storage_id = -1
+
+     do jb = 1, is
+
+        if (block_test%bdry_storage(jb)%source_bdry == b_src) then
+           block_test%block_bdry(ib)%storage_id = jb
+           exit
+        end if
+
+     end do
+
+     if (block_test%block_bdry(ib)%storage_id > 0) cycle
+
+     !
+     ! First occurrence of this source boundary.
+     !
+     is = is + 1
+
+     block_test%bdry_storage(is)%source_bdry = b_src
+
+     block_test%bdry_storage(is)%elts_start = &
+          block_test%block_bdry(ib)%elts_start
+
+     block_test%bdry_storage(is)%dims = &
+          block_test%block_bdry(ib)%dims
+
+     block_test%bdry_storage(is)%n_node = &
+          block_test%block_bdry(ib)%n_node
+
+     block_test%bdry_storage(is)%local_start = &
+          n_bdry_node_unique
+
+     block_test%block_bdry(ib)%storage_id = is
+
+     n_bdry_node_unique = n_bdry_node_unique + &
+          block_test%bdry_storage(is)%n_node
+
+  end do
+
+  if (is /= n_bdry_unique) then
+     error stop "test_subtree_extraction: unique boundary count mismatch"
+  end if
+
+  !
+  ! Assign storage_id to repeated boundary references.
   !
   do ib = 1, size(block_test%block_bdry)
 
-     if (block_test%block_bdry(ib)%patch < 0 .or. &
-          block_test%block_bdry(ib)%patch >= size(patch_copy)) then
+     if (block_test%block_bdry(ib)%class /= NGB_DOMAIN .and. &
+          block_test%block_bdry(ib)%class /= NGB_ADAPT) cycle
 
+     if (block_test%block_bdry(ib)%storage_id > 0) cycle
+
+     b_src = block_test%block_bdry(ib)%source_bdry
+
+     do is = 1, size(block_test%bdry_storage)
+
+        if (block_test%bdry_storage(is)%source_bdry == b_src) then
+           block_test%block_bdry(ib)%storage_id = is
+           exit
+        end if
+
+     end do
+
+     if (block_test%block_bdry(ib)%storage_id < 1) then
         error stop &
-             "test_subtree_extraction: invalid local boundary patch"
-
+             "test_subtree_extraction: missing boundary storage record"
      end if
-
-     if (block_test%block_bdry(ib)%side < 1 .or. &
-          block_test%block_bdry(ib)%side > N_BDRY) then
-
-        error stop &
-             "test_subtree_extraction: invalid local boundary side"
-
-     end if
-
-     if (block_test%neigh_class( &
-          block_test%block_bdry(ib)%side, &
-          block_test%block_bdry(ib)%patch+1) /= &
-          block_test%block_bdry(ib)%class) then
-
-        error stop &
-             "test_subtree_extraction: boundary class mismatch"
-
-     end if
-
-     select case (block_test%block_bdry(ib)%class)
-
-     case (NGB_BLOCK)
-
-        if (block_test%block_bdry(ib)%neigh_patch < 0 .or. &
-             block_test%block_bdry(ib)%neigh_patch >= &
-             grid(d)%patch%length) then
-
-           error stop &
-                "test_subtree_extraction: invalid external patch"
-
-        end if
-
-        if (old_to_new(block_test%block_bdry(ib)%neigh_patch) >= 0) then
-           error stop &
-                "test_subtree_extraction: external patch is internal"
-        end if
-
-     case (NGB_DOMAIN, NGB_ADAPT)
-
-        b_src = block_test%block_bdry(ib)%source_bdry
-
-        if (b_src < 1 .or. b_src >= grid(d)%bdry_patch%length) then
-           error stop &
-                "test_subtree_extraction: invalid copied boundary index"
-        end if
-
-        if (block_test%block_bdry(ib)%elts_start /= &
-             grid(d)%bdry_patch%elts(b_src+1)%elts_start) then
-
-           error stop &
-                "test_subtree_extraction: bdry elts_start mismatch"
-
-        end if
-
-        if (block_test%block_bdry(ib)%bdry_side /= &
-             grid(d)%bdry_patch%elts(b_src+1)%side) then
-
-           error stop &
-                "test_subtree_extraction: bdry side mismatch"
-
-        end if
-
-        if (block_test%block_bdry(ib)%bdry_neigh /= &
-             grid(d)%bdry_patch%elts(b_src+1)%neigh) then
-
-           error stop &
-                "test_subtree_extraction: bdry neighbour mismatch"
-
-        end if
-
-     case default
-
-        error stop &
-             "test_subtree_extraction: invalid local boundary class"
-
-     end select
 
   end do
 
   !
-  ! No local (patch,side) pair may occur more than once.
+  ! ===============================================================
+  ! Validate deduplicated storage catalogue.
+  ! ===============================================================
   !
-  do ib = 1, size(block_test%block_bdry)
+  do is = 1, size(block_test%bdry_storage)
 
-     do i = ib+1, size(block_test%block_bdry)
+     if (block_test%bdry_storage(is)%source_bdry < 0 .or. &
+          block_test%bdry_storage(is)%source_bdry >= &
+          grid(d)%bdry_patch%length) then
 
-        if (block_test%block_bdry(ib)%patch == &
-             block_test%block_bdry(i)%patch .and. &
-             block_test%block_bdry(ib)%side == &
-             block_test%block_bdry(i)%side) then
+        error stop &
+             "test_subtree_extraction: invalid storage source boundary"
+
+     end if
+
+     if (any(block_test%bdry_storage(is)%dims <= 0)) then
+        error stop &
+             "test_subtree_extraction: invalid storage dimensions"
+     end if
+
+     if (block_test%bdry_storage(is)%n_node /= &
+          product(block_test%bdry_storage(is)%dims)) then
+
+        error stop &
+             "test_subtree_extraction: invalid storage node count"
+
+     end if
+
+     if (block_test%bdry_storage(is)%elts_start < 0) then
+        error stop &
+             "test_subtree_extraction: invalid source storage offset"
+     end if
+
+     if (block_test%bdry_storage(is)%elts_start + &
+          block_test%bdry_storage(is)%n_node > grid(d)%node%length) then
+
+        error stop &
+             "test_subtree_extraction: source boundary storage out of bounds"
+
+     end if
+
+     if (is == 1) then
+
+        if (block_test%bdry_storage(is)%local_start /= 0) then
+           error stop &
+                "test_subtree_extraction: first local boundary offset is not zero"
+        end if
+
+     else
+
+        if (block_test%bdry_storage(is)%local_start /= &
+             block_test%bdry_storage(is-1)%local_start + &
+             block_test%bdry_storage(is-1)%n_node) then
 
            error stop &
-                "test_subtree_extraction: duplicate local boundary record"
+                "test_subtree_extraction: noncompact boundary storage layout"
+
+        end if
+
+     end if
+
+  end do
+
+  !
+  ! No two storage records may refer to the same source boundary.
+  !
+  do is = 1, size(block_test%bdry_storage)
+
+     do jb = is+1, size(block_test%bdry_storage)
+
+        if (block_test%bdry_storage(is)%source_bdry == &
+             block_test%bdry_storage(jb)%source_bdry) then
+
+           error stop &
+                "test_subtree_extraction: duplicate boundary storage record"
 
         end if
 
@@ -1537,23 +1618,66 @@ subroutine test_subtree_extraction
   end do
 
   !
+  ! Every existing boundary link must point to the unique storage
+  ! record associated with its source_bdry.
+  !
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%class == NGB_BLOCK) then
+
+        if (block_test%block_bdry(ib)%storage_id /= -1) then
+           error stop &
+                "test_subtree_extraction: inter-block link has storage_id"
+        end if
+
+        cycle
+
+     end if
+
+     is = block_test%block_bdry(ib)%storage_id
+
+     if (is < 1 .or. is > size(block_test%bdry_storage)) then
+        error stop &
+             "test_subtree_extraction: invalid boundary storage_id"
+     end if
+
+     if (block_test%bdry_storage(is)%source_bdry /= &
+          block_test%block_bdry(ib)%source_bdry) then
+
+        error stop &
+             "test_subtree_extraction: boundary storage/source mismatch"
+
+     end if
+
+  end do
+
+  !
+  ! Original summed storage count, including repeated references.
+  !
+  n_bdry_node_total = 0
+  n_bdry_node_max   = 0
+
+  do ib = 1, size(block_test%block_bdry)
+
+     if (block_test%block_bdry(ib)%class /= NGB_DOMAIN .and. &
+          block_test%block_bdry(ib)%class /= NGB_ADAPT) cycle
+
+     n_bdry_node_total = n_bdry_node_total + &
+          block_test%block_bdry(ib)%n_node
+
+     n_bdry_node_max = max( &
+          n_bdry_node_max, block_test%block_bdry(ib)%n_node)
+
+  end do
+
+  !
   ! ===============================================================
-  ! Renumber internal neighbours.
+  ! Renumber internal neighbours and make boundary references local.
   ! ===============================================================
   !
   call renumber_subtree_neigh_Domain( &
        grid(d), patch_copy, old_to_new)
 
-  !
-  ! ===============================================================
-  ! Rewrite ALL boundary references into the unified local catalogue.
-  !
-  ! After this operation:
-  !
-  !   neigh >= 0 : local patch
-  !   neigh <  0 : -local-boundary-index
-  ! ===============================================================
-  !
   do ib = 1, size(block_test%block_bdry)
 
      patch_copy(block_test%block_bdry(ib)%patch+1)%neigh( &
@@ -1562,22 +1686,7 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Verify every local boundary reference.
-  !
-  do ib = 1, size(block_test%block_bdry)
-
-     if (patch_copy(block_test%block_bdry(ib)%patch+1)%neigh( &
-          block_test%block_bdry(ib)%side) /= -ib) then
-
-        error stop &
-             "test_subtree_extraction: local boundary rewrite failed"
-
-     end if
-
-  end do
-
-  !
-  ! Verify the complete final neighbour representation.
+  ! Verify complete final neighbour representation.
   !
   do p_old = 0, grid(d)%patch%length-1
 
@@ -1591,11 +1700,6 @@ subroutine test_subtree_extraction
         case (NGB_INTERNAL)
 
            p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
-
-           if (p_ngb_old < 0) then
-              error stop &
-                   "test_subtree_extraction: invalid internal source neighbour"
-           end if
 
            if (patch_copy(old_to_new(p_old)+1)%neigh(c) /= &
                 old_to_new(p_ngb_old)) then
@@ -1622,18 +1726,17 @@ subroutine test_subtree_extraction
 
            end if
 
-           if (block_test%block_bdry(ib)%class /= &
-                block_test%neigh_class(c,old_to_new(p_old)+1)) then
+        case (NGB_OTHER)
 
+           if (patch_copy(old_to_new(p_old)+1)%neigh(c) /= 0) then
               error stop &
-                   "test_subtree_extraction: local boundary class mismatch"
-
+                   "test_subtree_extraction: zero neighbour sentinel changed"
            end if
 
         case default
 
            error stop &
-                "test_subtree_extraction: unexpected final neighbour class"
+                "test_subtree_extraction: unexpected neighbour class"
 
         end select
 
@@ -1643,7 +1746,7 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Package everything into the temporary block.
+  ! Package extracted arrays.
   ! ===============================================================
   !
   block_test%id          = block_catalog(b_test)%id
@@ -1655,45 +1758,6 @@ subroutine test_subtree_extraction
   call move_alloc(node_copy,   block_test%node)
   call move_alloc(scalar_copy, block_test%scalar)
   call move_alloc(vector_copy, block_test%vector)
-
-  !
-  ! Container checks.
-  !
-  if (size(block_test%patch) /= n_old) then
-     error stop "test_subtree_extraction: block patch size mismatch"
-  end if
-
-  if (size(block_test%node) /= n_node_storage) then
-     error stop "test_subtree_extraction: block node size mismatch"
-  end if
-
-  if (size(block_test%scalar) /= n_node_storage) then
-     error stop "test_subtree_extraction: block scalar size mismatch"
-  end if
-
-  if (size(block_test%vector) /= EDGE*n_node_storage) then
-     error stop "test_subtree_extraction: block vector size mismatch"
-  end if
-
-  if (size(block_test%block_bdry) /= n_bdry_local) then
-     error stop "test_subtree_extraction: local boundary size mismatch"
-  end if
-
-  !
-  ! Verify local references survive MOVE_ALLOC.
-  !
-  do ib = 1, size(block_test%block_bdry)
-
-     if (block_test%patch( &
-          block_test%block_bdry(ib)%patch+1)%neigh( &
-          block_test%block_bdry(ib)%side) /= -ib) then
-
-        error stop &
-             "test_subtree_extraction: local boundary reference lost"
-
-     end if
-
-  end do
 
   !
   ! ===============================================================
@@ -1737,13 +1801,11 @@ subroutine test_subtree_extraction
 
   write(6,'(a,i0,a,i0,a,i0)') &
        "  scalar field copy check passed: variable ", v_scalar, &
-       ", level ", k_test, &
-       ", multiplier ", mult_scalar
+       ", level ", k_test, ", multiplier ", mult_scalar
 
   write(6,'(a,i0,a,i0,a,i0)') &
        "  vector field copy check passed: variable ", v_vector, &
-       ", level ", k_test, &
-       ", multiplier ", mult_vector
+       ", level ", k_test, ", multiplier ", mult_vector
 
   write(6,'(/,a)') &
        "  Block neighbour classification:"
@@ -1779,11 +1841,28 @@ subroutine test_subtree_extraction
        "    adaptive boundary records = ", &
        count(block_test%block_bdry%class == NGB_ADAPT)
 
-  write(6,'(a)') &
-       "  local boundary reconstruction check passed"
+  write(6,'(/,a,i0)') &
+       "  existing boundary links with storage = ", &
+       n_ngb_domain + n_ngb_adapt
+
+  write(6,'(a,i0)') &
+       "  distinct source boundary patches = ", &
+       size(block_test%bdry_storage)
+
+  write(6,'(a,i0)') &
+       "  summed boundary node storage = ", n_bdry_node_total
+
+  write(6,'(a,i0)') &
+       "  deduplicated boundary node storage = ", n_bdry_node_unique
+
+  write(6,'(a,i0)') &
+       "  maximum single boundary storage = ", n_bdry_node_max
 
   write(6,'(a)') &
-       "  all patch neighbour references are block-local"
+       "  deduplicated boundary storage layout check passed"
+
+  write(6,'(a)') &
+       "  all existing boundary links have valid storage IDs"
 
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
@@ -1816,6 +1895,7 @@ contains
   end function copied_depth
 
 end subroutine test_subtree_extraction
+
 
 
   subroutine test_parallel_block_split
