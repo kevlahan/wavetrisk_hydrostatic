@@ -277,6 +277,7 @@ SRC = kind.f90 \
       refine_patch.f90 \
       coarse_grid.f90 \
       ops.f90 \
+      parallel_block_build.f90 \
       multi_level.f90 \
       adapt.f90 \
       lin_solve.f90 \
@@ -349,6 +350,46 @@ $(EXE): $(OBJ) | dirs
 # =========================
 $(BUILD_DIR)/%.o: %.f90 | dirs
 	$(FC) $(CPPFLAGS) $(FFLAGS) -c $< -o $@
+
+# Explicit dependencies for the parallel-block modules.  These are
+# required in addition to source-list ordering when make is allowed to
+# update more than one target concurrently.
+$(BUILD_DIR)/parallel_block.o: \
+	$(BUILD_DIR)/kind.o \
+	$(BUILD_DIR)/shared.o \
+	$(BUILD_DIR)/patch.o
+
+$(BUILD_DIR)/parallel_block_mpi.o: \
+	$(BUILD_DIR)/kind.o \
+	$(BUILD_DIR)/shared.o \
+	$(BUILD_DIR)/arch.o \
+	$(BUILD_DIR)/domain.o \
+	$(BUILD_DIR)/parallel_block.o
+
+$(BUILD_DIR)/ops.o: \
+	$(BUILD_DIR)/kind.o \
+	$(BUILD_DIR)/shared.o \
+	$(BUILD_DIR)/diagnostics.o \
+	$(BUILD_DIR)/domain_ops.o \
+	$(BUILD_DIR)/patch.o \
+	$(BUILD_DIR)/utils.o \
+	$(BUILD_DIR)/init.o \
+	$(BUILD_DIR)/domain.o
+
+$(BUILD_DIR)/parallel_block_build.o: \
+	$(BUILD_DIR)/kind.o \
+	$(BUILD_DIR)/shared.o \
+	$(BUILD_DIR)/ops.o \
+	$(BUILD_DIR)/patch.o \
+	$(BUILD_DIR)/arch.o \
+	$(BUILD_DIR)/domain.o \
+	$(BUILD_DIR)/parallel_block.o
+
+# main.f90 is appended to SRC below the optional physics include.  Keep
+# that separate placement, but make its new module prerequisites explicit.
+$(BUILD_DIR)/main.o: \
+	$(BUILD_DIR)/parallel_block_build.o \
+	$(BUILD_DIR)/parallel_block_mpi.o
 
 # Ensure symlinked test sources exist before compilation
 $(BUILD_DIR)/test_case_module.o: $(TESTMOD_SRC)
