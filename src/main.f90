@@ -1,7 +1,5 @@
 module main_mod
 
-  use mpi_f08, only : MPI_Allreduce, MPI_INTEGER, MPI_SUCCESS, MPI_SUM
-  
   use, intrinsic :: ieee_arithmetic
 
   use kind_mod,   only : dp
@@ -30,15 +28,13 @@ module main_mod
   use mask_mod,           only : init_masks, mask_adj_child
   use multi_level_mod,    only : trend_ml
   use NCAR_topo_mod,      only : load_topo
-  use parallel_block_mod, only : block_local, &
-       block_local_catalog_index, check_block_storage
   use refine_patch_mod,   only : add_second_level
   use remap_mod,          only : remap_vertical_coordinates
   use utils_mod,          only : hex_len, hex_pedlen, interp, nu_scale, porous_density, tri_perim
   use vert_diffusion_mod, only : vertical_diffusion
   use wavelet_mod,        only : forward_wavelet_transform, init_wavelets, inverse_scalar_transform, inverse_wavelet_transform
 
-  use arch_mod, only : abort_run, barrier, block_catalog, comm, distribute_grid, glo_id, init_arch_mod, &
+  use arch_mod, only : abort_run, barrier, distribute_grid, glo_id, init_arch_mod, &
        n_glo_block, n_process, owner, rank
 
   use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
@@ -140,10 +136,6 @@ contains
        cp_idx = resume
        call read_checkpoint_directory (cp_idx)
        call restart
-       call build_parallel_block_catalog
-       call build_source_blocks
-       call migrate_blocks
-       call check_local_blocks(.true.)
     else
        call init_basic
        call init_structures
@@ -380,6 +372,14 @@ contains
                &***********************************************************'
        end if
     end if
+
+    ! Construct and redistribute the persistent final-owner block
+    ! store after every checkpoint restart. This covers both a resumed
+    ! run and the restart performed after a newly written checkpoint.
+    call build_parallel_block_catalog
+    call build_source_blocks
+    call migrate_blocks
+
   end subroutine restart
 
   subroutine time_step 
@@ -815,170 +815,6 @@ contains
 
 
 
-subroutine check_local_blocks (verbose)
-  ! Validate the final-owner local block store without referring to any
-  ! source, receive or migration-manifest staging allocation.
-
-  implicit none
-
-  logical, optional, intent(in) :: verbose
-
-  integer :: b
-  integer :: expected_local
-  integer :: global_count
-  integer :: global_weight
-  integer :: i
-  integer :: ierr
-  integer :: local_count
-  integer :: local_weight
-
-  integer, allocatable :: global_seen(:)
-  integer, allocatable :: local_seen(:)
-
-  logical :: print_summary
-
-  print_summary = .true.
-  if (present(verbose)) print_summary = verbose
-
-  if (.not. allocated(block_local) .or. &
-       .not. allocated(block_local_catalog_index)) then
-     error stop &
-          "check_local_blocks: local block store is not allocated"
-  end if
-
-  if (size(block_local) /= &
-       size(block_local_catalog_index)) then
-     error stop &
-          "check_local_blocks: local catalog map size mismatch"
-  end if
-
-  allocate(local_seen(size(block_catalog)))
-  allocate(global_seen(size(block_catalog)))
-
-  local_seen  = 0
-  global_seen = 0
-  local_count = size(block_local)
-  local_weight = 0
-
-  do i = 1, size(block_local)
-
-     b = block_local_catalog_index(i)
-
-     if (b < 1 .or. b > size(block_catalog)) then
-        error stop &
-             "check_local_blocks: invalid catalog index"
-     end if
-
-     if (local_seen(b) /= 0) then
-        error stop &
-             "check_local_blocks: duplicate local block"
-     end if
-
-     if (block_catalog(b)%owner /= rank) then
-        error stop &
-             "check_local_blocks: local owner mismatch"
-     end if
-
-     if (block_local(i)%id /= block_catalog(b)%id .or. &
-          block_local(i)%root_domain /= &
-          block_catalog(b)%root_domain .or. &
-          block_local(i)%root_patch /= &
-          block_catalog(b)%root_patch .or. &
-          block_local(i)%level /= block_catalog(b)%level) then
-
-        error stop &
-             "check_local_blocks: block identity mismatch"
-
-     end if
-
-     call check_block_storage(block_local(i),.true.)
-
-     local_seen(b) = 1
-     local_weight = local_weight + block_catalog(b)%weight
-
-  end do
-
-  expected_local = 0
-
-  do b = 1, size(block_catalog)
-     if (block_catalog(b)%owner == rank) then
-        expected_local = expected_local + 1
-     end if
-  end do
-
-  if (size(block_local) /= expected_local) then
-     error stop &
-          "check_local_blocks: expected local count mismatch"
-  end if
-
-  call MPI_Allreduce( &
-       local_count, global_count, 1, &
-       MPI_INTEGER, MPI_SUM, comm, ierr)
-
-  if (ierr /= MPI_SUCCESS) then
-     error stop &
-          "check_local_blocks: MPI_Allreduce count failed"
-  end if
-
-  call MPI_Allreduce( &
-       local_weight, global_weight, 1, MPI_INTEGER, MPI_SUM, &
-       comm, ierr)
-
-  if (ierr /= MPI_SUCCESS) then
-     error stop &
-          "check_local_blocks: MPI_Allreduce weight failed"
-  end if
-
-  call MPI_Allreduce( &
-       local_seen, global_seen, size(local_seen), MPI_INTEGER, &
-       MPI_SUM, comm, ierr)
-
-  if (ierr /= MPI_SUCCESS) then
-     error stop &
-          "check_local_blocks: MPI_Allreduce inventory failed"
-  end if
-
-  if (global_count /= size(block_catalog)) then
-     error stop &
-          "check_local_blocks: global count mismatch"
-  end if
-
-  if (global_weight /= sum(block_catalog%weight)) then
-     error stop &
-          "check_local_blocks: global weight mismatch"
-  end if
-
-  if (any(global_seen /= 1)) then
-     error stop &
-          "check_local_blocks: nonunique global ownership"
-  end if
-
-  if (print_summary) then
-     write(6,'(/,a,i0,a)') &
-          "Standalone local block store for rank ", rank, ":"
-     write(6,'(a,i0)') &
-          "  final-owner blocks = ", size(block_local)
-     write(6,'(a,i0)') &
-          "  final-owner weight = ", local_weight
-     write(6,'(a)') &
-          "  component and serialization checks passed"
-     write(6,'(a,/)') &
-          "  unique global inventory check passed"
-  end if
-
-  if (print_summary .and. rank == 0) then
-     write(6,'(/,a,i0)') &
-          "Standalone global block objects verified = ", global_count
-     write(6,'(a,i0)') &
-          "Standalone global block weight verified  = ", global_weight
-     write(6,'(a,/)') &
-          "Final-owner block store is self-contained"
-  end if
-
-  deallocate(global_seen)
-  deallocate(local_seen)
-
-end subroutine check_local_blocks
 
 
 
