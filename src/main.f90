@@ -65,6 +65,13 @@ module main_mod
 
   use coord_arithmetic_mod
 
+  use parallel_block_mpi_mod, only : Block_Migration_Manifest, &
+       build_block_migration_manifest, &
+       check_block_migration_manifest, &
+       exchange_block_migration_sizes, &
+       exchange_block_migration_payloads, &
+       clear_block_migration_manifest
+
 #ifdef PHYSICS
   use init_physics_mod,  only : init_physics, init_soil_grid
   use physics_trend_mod, only : physics_simple_step, trend_physics_Held_Suarez  
@@ -186,13 +193,20 @@ type(Initial_State), allocatable :: ini_st(:)
 
 
 type(Test_Block), allocatable :: test_block_source(:)
+type(Test_Block), allocatable :: test_block_received(:)
+type(Test_Block), allocatable :: test_block_local(:)
 
 integer, allocatable :: test_block_catalog_index(:)
 integer, allocatable :: test_block_retained_index(:)
 integer, allocatable :: test_block_migrating_index(:)
+integer, allocatable :: test_block_received_catalog_index(:)
+integer, allocatable :: test_block_local_catalog_index(:)
 integer, parameter :: TEST_BLOCK_PACK_MAGIC = int(z'54424C4B')
 integer, parameter :: TEST_BLOCK_PACK_VERSION = 1
 integer, parameter :: TEST_BLOCK_HEADER_SIZE = 23
+
+
+type(Block_Migration_Manifest) :: block_migration
 
 contains
 
@@ -249,6 +263,12 @@ contains
        call restart
        call test_parallel_block_split
        call test_subtree_extraction
+       call build_block_migration_manifest(block_migration)
+       call check_block_migration_manifest(block_migration)
+       call test_block_migration_sizes(block_migration)
+       call test_block_migration_payloads(block_migration)
+       call test_install_local_blocks
+       call finalize_test_block_migration(block_migration)
     else
        call init_basic
        call init_structures
@@ -916,7 +936,6 @@ contains
   end subroutine cal_min_mass
 
 
-
 subroutine test_subtree_extraction
   ! Build and verify every candidate block whose source Domain is
   ! currently local to this rank. Detailed diagnostics are printed for
@@ -1127,6 +1146,7 @@ subroutine test_subtree_extraction
   end if
 
   call check_persistent_test_blocks
+
 
   call test_local_block_serialization( &
        n_pack_block, n_pack_byte_total, n_pack_byte_max)
@@ -1481,6 +1501,889 @@ subroutine test_local_block_serialization ( &
   end if
 
 end subroutine test_local_block_serialization
+
+
+subroutine test_block_migration_sizes (manifest)
+  ! Associate every outgoing manifest entry with its persistent source
+  ! block, compute the exact serialized byte count, and exchange only
+  ! those counts. No packed block payload is communicated here.
+
+  implicit none
+
+  type(Block_Migration_Manifest), intent(inout) :: manifest
+
+  integer :: b
+  integer :: i
+  integer :: ib
+  integer, allocatable :: seen(:)
+  integer, allocatable :: send_nbyte(:)
+
+  if (.not. manifest%validated) then
+     error stop &
+          "test_block_migration_sizes: manifest is not validated"
+  end if
+
+  if (.not. allocated(test_block_source) .or. &
+       .not. allocated(test_block_catalog_index) .or. &
+       .not. allocated(test_block_migrating_index)) then
+
+     error stop &
+          "test_block_migration_sizes: persistent block store missing"
+
+  end if
+
+  if (manifest%n_send /= size(test_block_migrating_index)) then
+     error stop &
+          "test_block_migration_sizes: outgoing block count mismatch"
+  end if
+
+  allocate(send_nbyte(manifest%n_send))
+  allocate(seen(size(test_block_source)))
+
+  send_nbyte = 0
+  seen       = 0
+
+  do i = 1, manifest%n_send
+
+     b = manifest%send_block(i)
+
+     if (b < 1 .or. b > size(block_catalog)) then
+        error stop &
+             "test_block_migration_sizes: invalid catalog index"
+     end if
+
+     ib = findloc(test_block_catalog_index,b,dim=1)
+
+     if (ib < 1 .or. ib > size(test_block_source)) then
+        error stop &
+             "test_block_migration_sizes: source block not found"
+     end if
+
+     if (findloc(test_block_migrating_index,ib,dim=1) < 1) then
+        error stop &
+             "test_block_migration_sizes: block is not migrating"
+     end if
+
+     if (seen(ib) /= 0) then
+        error stop &
+             "test_block_migration_sizes: duplicate source block"
+     end if
+
+     if (test_block_source(ib)%id /= block_catalog(b)%id) then
+        error stop &
+             "test_block_migration_sizes: block identity mismatch"
+     end if
+
+     send_nbyte(i) = &
+          packed_test_block_nbyte(test_block_source(ib))
+
+     if (send_nbyte(i) <= 0) then
+        error stop &
+             "test_block_migration_sizes: invalid packed byte count"
+     end if
+
+     seen(ib) = 1
+
+  end do
+
+  do i = 1, size(test_block_migrating_index)
+
+     ib = test_block_migrating_index(i)
+
+     if (ib < 1 .or. ib > size(test_block_source)) then
+        error stop &
+             "test_block_migration_sizes: invalid migrating index"
+     end if
+
+     if (seen(ib) /= 1) then
+        error stop &
+             "test_block_migration_sizes: migrating block omitted"
+     end if
+
+  end do
+
+  call exchange_block_migration_sizes(manifest,send_nbyte)
+
+  deallocate(seen)
+  deallocate(send_nbyte)
+
+end subroutine test_block_migration_sizes
+
+
+subroutine test_block_migration_payloads (manifest)
+  ! Pack outgoing blocks in manifest order, exchange the byte streams,
+  ! and unpack received blocks into a separate temporary persistent
+  ! store. Source blocks and ownership maps remain unchanged.
+
+  implicit none
+
+  type(Block_Migration_Manifest), intent(inout) :: manifest
+
+  integer :: b
+  integer :: i
+  integer :: ib
+  integer :: nbyte
+  integer :: n_recv_byte
+  integer :: n_send_byte
+  integer :: pos
+  integer, allocatable :: seen_catalog(:)
+
+  integer(int8), allocatable :: block_buffer(:)
+  integer(int8), allocatable :: check_buffer(:)
+  integer(int8), allocatable :: send_payload(:)
+
+  if (.not. manifest%validated .or. &
+       .not. manifest%sizes_validated) then
+     error stop &
+          "test_block_migration_payloads: sizes are not validated"
+  end if
+
+  if (.not. allocated(test_block_source) .or. &
+       .not. allocated(test_block_catalog_index) .or. &
+       .not. allocated(test_block_migrating_index)) then
+
+     error stop &
+          "test_block_migration_payloads: source block store missing"
+
+  end if
+
+  n_send_byte = int(manifest%total_send_nbyte)
+  n_recv_byte = int(manifest%total_recv_nbyte)
+
+  allocate(send_payload(max(1,n_send_byte)))
+  send_payload = 0_int8
+
+  pos = 0
+
+  do i = 1, manifest%n_send
+
+     b = manifest%send_block(i)
+     ib = findloc(test_block_catalog_index,b,dim=1)
+
+     if (ib < 1 .or. ib > size(test_block_source)) then
+        error stop &
+             "test_block_migration_payloads: source block not found"
+     end if
+
+     if (findloc(test_block_migrating_index,ib,dim=1) < 1) then
+        error stop &
+             "test_block_migration_payloads: source is not migrating"
+     end if
+
+     call pack_test_block(test_block_source(ib),block_buffer)
+
+     if (size(block_buffer) /= manifest%send_nbyte(i)) then
+        error stop &
+             "test_block_migration_payloads: outgoing size changed"
+     end if
+
+     nbyte = size(block_buffer)
+
+     if (pos+nbyte > n_send_byte) then
+        error stop &
+             "test_block_migration_payloads: outgoing buffer overflow"
+     end if
+
+     send_payload(pos+1:pos+nbyte) = block_buffer
+     pos = pos + nbyte
+
+  end do
+
+  if (pos /= n_send_byte) then
+     error stop &
+          "test_block_migration_payloads: outgoing extent mismatch"
+  end if
+
+  call exchange_block_migration_payloads(manifest,send_payload)
+
+  if (.not. manifest%payload_validated) then
+     error stop &
+          "test_block_migration_payloads: transport is not validated"
+  end if
+
+  if (allocated(test_block_received)) then
+     deallocate(test_block_received)
+  end if
+
+  if (allocated(test_block_received_catalog_index)) then
+     deallocate(test_block_received_catalog_index)
+  end if
+
+  allocate(test_block_received(manifest%n_recv))
+  allocate(test_block_received_catalog_index(manifest%n_recv))
+  allocate(seen_catalog(size(block_catalog)))
+
+  test_block_received_catalog_index = -1
+  seen_catalog = 0
+  pos = 0
+
+  do i = 1, manifest%n_recv
+
+     b     = manifest%recv_block(i)
+     nbyte = manifest%recv_nbyte(i)
+
+     if (b < 1 .or. b > size(block_catalog)) then
+        error stop &
+             "test_block_migration_payloads: invalid received catalog index"
+     end if
+
+     if (seen_catalog(b) /= 0) then
+        error stop &
+             "test_block_migration_payloads: duplicate received block"
+     end if
+
+     if (block_catalog(b)%owner /= rank) then
+        error stop &
+             "test_block_migration_payloads: wrong received owner"
+     end if
+
+     if (nbyte <= 0 .or. pos+nbyte > n_recv_byte) then
+        error stop &
+             "test_block_migration_payloads: invalid received extent"
+     end if
+
+     call unpack_test_block( &
+          manifest%recv_payload(pos+1:pos+nbyte), &
+          test_block_received(i))
+
+     if (test_block_received(i)%id /= block_catalog(b)%id .or. &
+          test_block_received(i)%root_domain /= &
+          block_catalog(b)%root_domain .or. &
+          test_block_received(i)%root_patch /= &
+          block_catalog(b)%root_patch .or. &
+          test_block_received(i)%level /= block_catalog(b)%level) then
+
+        error stop &
+             "test_block_migration_payloads: received identity mismatch"
+
+     end if
+
+     call pack_test_block(test_block_received(i),check_buffer)
+
+     if (size(check_buffer) /= nbyte) then
+        error stop &
+             "test_block_migration_payloads: received size mismatch"
+     end if
+
+     if (any(check_buffer /= &
+          manifest%recv_payload(pos+1:pos+nbyte))) then
+        error stop &
+             "test_block_migration_payloads: received round-trip mismatch"
+     end if
+
+     test_block_received_catalog_index(i) = b
+     seen_catalog(b) = 1
+     pos = pos + nbyte
+
+  end do
+
+  if (pos /= n_recv_byte) then
+     error stop &
+          "test_block_migration_payloads: incoming extent mismatch"
+  end if
+
+  if (count(seen_catalog /= 0) /= manifest%n_recv) then
+     error stop &
+          "test_block_migration_payloads: received inventory mismatch"
+  end if
+
+  call check_persistent_test_blocks
+
+  write(6,'(/,a,i0,a)') &
+       "Temporary received blocks for rank ", rank, ":"
+  write(6,'(a,i0)') &
+       "  received block objects = ", size(test_block_received)
+  write(6,'(a,i0)') &
+       "  received packed bytes  = ", n_recv_byte
+  write(6,'(a)') &
+       "  received identity and byte checks passed"
+  write(6,'(a,/)') &
+       "  source persistent block checks still passed"
+
+  deallocate(seen_catalog)
+  deallocate(send_payload)
+
+end subroutine test_block_migration_payloads
+
+
+subroutine test_install_local_blocks
+  ! Construct a separate final-owner block store from deep copies of
+  ! retained source blocks and validated received blocks. The source
+  ! and receive stores remain allocated and unchanged for rollback.
+
+  implicit none
+
+  integer :: b
+  integer :: expected_local
+  integer :: global_count
+  integer :: global_weight
+  integer :: i
+  integer :: ib
+  integer :: ierr
+  integer :: ilocal
+  integer :: local_weight
+  integer :: n_local
+
+  integer, allocatable :: global_seen(:)
+  integer, allocatable :: local_seen(:)
+
+  integer(int8), allocatable :: buffer_local(:)
+  integer(int8), allocatable :: buffer_reference(:)
+
+  if (.not. allocated(test_block_source) .or. &
+       .not. allocated(test_block_retained_index) .or. &
+       .not. allocated(test_block_catalog_index)) then
+
+     error stop &
+          "test_install_local_blocks: retained source store missing"
+
+  end if
+
+  if (.not. allocated(test_block_received) .or. &
+       .not. allocated(test_block_received_catalog_index)) then
+
+     error stop &
+          "test_install_local_blocks: received block store missing"
+
+  end if
+
+  if (size(test_block_received) /= &
+       size(test_block_received_catalog_index)) then
+     error stop &
+          "test_install_local_blocks: received map size mismatch"
+  end if
+
+  n_local = size(test_block_retained_index) + &
+       size(test_block_received)
+
+  if (allocated(test_block_local)) then
+     deallocate(test_block_local)
+  end if
+
+  if (allocated(test_block_local_catalog_index)) then
+     deallocate(test_block_local_catalog_index)
+  end if
+
+  allocate(test_block_local(n_local))
+  allocate(test_block_local_catalog_index(n_local))
+  allocate(local_seen(size(block_catalog)))
+  allocate(global_seen(size(block_catalog)))
+
+  test_block_local_catalog_index = -1
+  local_seen  = 0
+  global_seen = 0
+  ilocal      = 0
+
+  ! Retained blocks are copied from the source-local persistent store.
+  do i = 1, size(test_block_retained_index)
+
+     ib = test_block_retained_index(i)
+
+     if (ib < 1 .or. ib > size(test_block_source)) then
+        error stop &
+             "test_install_local_blocks: invalid retained index"
+     end if
+
+     b = test_block_catalog_index(ib)
+
+     if (b < 1 .or. b > size(block_catalog)) then
+        error stop &
+             "test_install_local_blocks: invalid retained catalog index"
+     end if
+
+     if (block_catalog(b)%owner /= rank) then
+        error stop &
+             "test_install_local_blocks: retained destination mismatch"
+     end if
+
+     if (local_seen(b) /= 0) then
+        error stop &
+             "test_install_local_blocks: duplicate retained block"
+     end if
+
+     ilocal = ilocal + 1
+     test_block_local(ilocal) = test_block_source(ib)
+     test_block_local_catalog_index(ilocal) = b
+     local_seen(b) = 1
+
+     call pack_test_block(test_block_local(ilocal),buffer_local)
+     call pack_test_block(test_block_source(ib),buffer_reference)
+
+     if (size(buffer_local) /= size(buffer_reference)) then
+        error stop &
+             "test_install_local_blocks: retained copy size mismatch"
+     end if
+
+     if (any(buffer_local /= buffer_reference)) then
+        error stop &
+             "test_install_local_blocks: retained deep-copy mismatch"
+     end if
+
+  end do
+
+  ! Migrated blocks are copied from the validated receive store.
+  do i = 1, size(test_block_received)
+
+     b = test_block_received_catalog_index(i)
+
+     if (b < 1 .or. b > size(block_catalog)) then
+        error stop &
+             "test_install_local_blocks: invalid received catalog index"
+     end if
+
+     if (block_catalog(b)%owner /= rank) then
+        error stop &
+             "test_install_local_blocks: received destination mismatch"
+     end if
+
+     if (local_seen(b) /= 0) then
+        error stop &
+             "test_install_local_blocks: duplicate received block"
+     end if
+
+     ilocal = ilocal + 1
+     test_block_local(ilocal) = test_block_received(i)
+     test_block_local_catalog_index(ilocal) = b
+     local_seen(b) = 1
+
+     call pack_test_block(test_block_local(ilocal),buffer_local)
+     call pack_test_block(test_block_received(i),buffer_reference)
+
+     if (size(buffer_local) /= size(buffer_reference)) then
+        error stop &
+             "test_install_local_blocks: received copy size mismatch"
+     end if
+
+     if (any(buffer_local /= buffer_reference)) then
+        error stop &
+             "test_install_local_blocks: received deep-copy mismatch"
+     end if
+
+  end do
+
+  if (ilocal /= n_local) then
+     error stop &
+          "test_install_local_blocks: local fill count mismatch"
+  end if
+
+  expected_local = 0
+  local_weight   = 0
+
+  do b = 1, size(block_catalog)
+     if (block_catalog(b)%owner /= rank) cycle
+     expected_local = expected_local + 1
+     local_weight = local_weight + block_catalog(b)%weight
+  end do
+
+  if (n_local /= expected_local) then
+     error stop &
+          "test_install_local_blocks: local owner count mismatch"
+  end if
+
+  if (count(local_seen /= 0) /= n_local) then
+     error stop &
+          "test_install_local_blocks: local inventory mismatch"
+  end if
+
+  call MPI_Allreduce( &
+       n_local, global_count, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
+
+  if (ierr /= MPI_SUCCESS) then
+     error stop &
+          "test_install_local_blocks: MPI_Allreduce count failed"
+  end if
+
+  call MPI_Allreduce( &
+       local_weight, global_weight, 1, MPI_INTEGER, MPI_SUM, &
+       comm, ierr)
+
+  if (ierr /= MPI_SUCCESS) then
+     error stop &
+          "test_install_local_blocks: MPI_Allreduce weight failed"
+  end if
+
+  call MPI_Allreduce( &
+       local_seen, global_seen, size(local_seen), MPI_INTEGER, &
+       MPI_SUM, comm, ierr)
+
+  if (ierr /= MPI_SUCCESS) then
+     error stop &
+          "test_install_local_blocks: MPI_Allreduce inventory failed"
+  end if
+
+  if (global_count /= size(block_catalog)) then
+     error stop &
+          "test_install_local_blocks: global block count mismatch"
+  end if
+
+  if (global_weight /= sum(block_catalog%weight)) then
+     error stop &
+          "test_install_local_blocks: global block weight mismatch"
+  end if
+
+  if (any(global_seen /= 1)) then
+     error stop &
+          "test_install_local_blocks: global ownership is not unique"
+  end if
+
+  call check_persistent_test_blocks
+
+  write(6,'(/,a,i0,a)') &
+       "Installed local block copies for rank ", rank, ":"
+  write(6,'(a,i0)') &
+       "  retained source copies = ", size(test_block_retained_index)
+  write(6,'(a,i0)') &
+       "  received block copies  = ", size(test_block_received)
+  write(6,'(a,i0)') &
+       "  installed local blocks = ", size(test_block_local)
+  write(6,'(a,i0)') &
+       "  installed block weight = ", local_weight
+  write(6,'(a)') &
+       "  local deep-copy checks passed"
+  write(6,'(a,/)') &
+       "  source and receive stores remain available"
+
+  if (rank == 0) then
+     write(6,'(/,a,i0)') &
+          "Global installed block objects verified = ", global_count
+     write(6,'(a,i0)') &
+          "Global installed block weight verified  = ", global_weight
+     write(6,'(a,/)') &
+          "Unique final-owner block installation passed"
+  end if
+
+  deallocate(global_seen)
+  deallocate(local_seen)
+
+end subroutine test_install_local_blocks
+
+
+subroutine check_local_test_blocks (verbose)
+  ! Validate the final-owner local block store without referring to any
+  ! source, receive or migration-manifest staging allocation.
+
+  implicit none
+
+  logical, optional, intent(in) :: verbose
+
+  integer :: b
+  integer :: expected_local
+  integer :: global_count
+  integer :: global_weight
+  integer :: i
+  integer :: ierr
+  integer :: local_count
+  integer :: local_weight
+  integer :: n_bdry_node
+  integer :: n_ghost_node
+  integer :: n_node
+
+  integer, allocatable :: global_seen(:)
+  integer, allocatable :: local_seen(:)
+
+  integer(int8), allocatable :: buffer_copy(:)
+  integer(int8), allocatable :: buffer_local(:)
+
+  type(Test_Block) :: block_copy
+
+  logical :: print_summary
+
+  print_summary = .true.
+  if (present(verbose)) print_summary = verbose
+
+  if (.not. allocated(test_block_local) .or. &
+       .not. allocated(test_block_local_catalog_index)) then
+     error stop &
+          "check_local_test_blocks: local block store is not allocated"
+  end if
+
+  if (size(test_block_local) /= &
+       size(test_block_local_catalog_index)) then
+     error stop &
+          "check_local_test_blocks: local catalog map size mismatch"
+  end if
+
+  allocate(local_seen(size(block_catalog)))
+  allocate(global_seen(size(block_catalog)))
+
+  local_seen  = 0
+  global_seen = 0
+  local_count = size(test_block_local)
+  local_weight = 0
+
+  do i = 1, size(test_block_local)
+
+     b = test_block_local_catalog_index(i)
+
+     if (b < 1 .or. b > size(block_catalog)) then
+        error stop &
+             "check_local_test_blocks: invalid catalog index"
+     end if
+
+     if (local_seen(b) /= 0) then
+        error stop &
+             "check_local_test_blocks: duplicate local block"
+     end if
+
+     if (block_catalog(b)%owner /= rank) then
+        error stop &
+             "check_local_test_blocks: local owner mismatch"
+     end if
+
+     if (test_block_local(i)%id /= block_catalog(b)%id .or. &
+          test_block_local(i)%root_domain /= &
+          block_catalog(b)%root_domain .or. &
+          test_block_local(i)%root_patch /= &
+          block_catalog(b)%root_patch .or. &
+          test_block_local(i)%level /= block_catalog(b)%level) then
+
+        error stop &
+             "check_local_test_blocks: block identity mismatch"
+
+     end if
+
+     if (.not. allocated(test_block_local(i)%patch) .or. &
+          .not. allocated(test_block_local(i)%node) .or. &
+          .not. allocated(test_block_local(i)%scalar) .or. &
+          .not. allocated(test_block_local(i)%vector) .or. &
+          .not. allocated(test_block_local(i)%neigh_class) .or. &
+          .not. allocated(test_block_local(i)%block_bdry) .or. &
+          .not. allocated(test_block_local(i)%bdry_storage) .or. &
+          .not. allocated(test_block_local(i)%stencil) .or. &
+          .not. allocated(test_block_local(i)%bdry_node) .or. &
+          .not. allocated(test_block_local(i)%bdry_scalar) .or. &
+          .not. allocated(test_block_local(i)%bdry_vector) .or. &
+          .not. allocated(test_block_local(i)%ghost_storage) .or. &
+          .not. allocated(test_block_local(i)%ghost_node) .or. &
+          .not. allocated(test_block_local(i)%ghost_scalar) .or. &
+          .not. allocated(test_block_local(i)%ghost_vector)) then
+
+        error stop &
+             "check_local_test_blocks: local component is not allocated"
+
+     end if
+
+     n_node = size(test_block_local(i)%patch) * PATCH_SIZE**2
+
+     if (size(test_block_local(i)%node) /= n_node .or. &
+          size(test_block_local(i)%scalar) /= &
+          MULT(scalars(1))*n_node .or. &
+          size(test_block_local(i)%vector) /= &
+          MULT(S_VELO)*n_node) then
+
+        error stop &
+             "check_local_test_blocks: interior extent mismatch"
+
+     end if
+
+     if (size(test_block_local(i)%neigh_class,1) /= N_BDRY .or. &
+          size(test_block_local(i)%neigh_class,2) /= &
+          size(test_block_local(i)%patch) .or. &
+          size(test_block_local(i)%stencil,1) /= N_BDRY .or. &
+          size(test_block_local(i)%stencil,2) /= &
+          size(test_block_local(i)%patch)) then
+
+        error stop &
+             "check_local_test_blocks: topology extent mismatch"
+
+     end if
+
+     n_bdry_node = sum(test_block_local(i)%bdry_storage%n_node)
+
+     if (size(test_block_local(i)%bdry_node) /= n_bdry_node .or. &
+          size(test_block_local(i)%bdry_scalar) /= &
+          MULT(scalars(1))*n_bdry_node .or. &
+          size(test_block_local(i)%bdry_vector) /= &
+          MULT(S_VELO)*n_bdry_node) then
+
+        error stop &
+             "check_local_test_blocks: boundary extent mismatch"
+
+     end if
+
+     n_ghost_node = sum(test_block_local(i)%ghost_storage%n_node)
+
+     if (size(test_block_local(i)%ghost_node) /= n_ghost_node .or. &
+          size(test_block_local(i)%ghost_scalar) /= &
+          MULT(scalars(1))*n_ghost_node .or. &
+          size(test_block_local(i)%ghost_vector) /= &
+          MULT(S_VELO)*n_ghost_node) then
+
+        error stop &
+             "check_local_test_blocks: ghost extent mismatch"
+
+     end if
+
+     call pack_test_block(test_block_local(i),buffer_local)
+     call unpack_test_block(buffer_local,block_copy)
+     call pack_test_block(block_copy,buffer_copy)
+
+     if (size(buffer_copy) /= size(buffer_local)) then
+        error stop &
+             "check_local_test_blocks: standalone packed size mismatch"
+     end if
+
+     if (any(buffer_copy /= buffer_local)) then
+        error stop &
+             "check_local_test_blocks: standalone round-trip mismatch"
+     end if
+
+     local_seen(b) = 1
+     local_weight = local_weight + block_catalog(b)%weight
+
+  end do
+
+  expected_local = 0
+
+  do b = 1, size(block_catalog)
+     if (block_catalog(b)%owner == rank) then
+        expected_local = expected_local + 1
+     end if
+  end do
+
+  if (size(test_block_local) /= expected_local) then
+     error stop &
+          "check_local_test_blocks: expected local count mismatch"
+  end if
+
+  call MPI_Allreduce( &
+       local_count, global_count, 1, &
+       MPI_INTEGER, MPI_SUM, comm, ierr)
+
+  if (ierr /= MPI_SUCCESS) then
+     error stop &
+          "check_local_test_blocks: MPI_Allreduce count failed"
+  end if
+
+  call MPI_Allreduce( &
+       local_weight, global_weight, 1, MPI_INTEGER, MPI_SUM, &
+       comm, ierr)
+
+  if (ierr /= MPI_SUCCESS) then
+     error stop &
+          "check_local_test_blocks: MPI_Allreduce weight failed"
+  end if
+
+  call MPI_Allreduce( &
+       local_seen, global_seen, size(local_seen), MPI_INTEGER, &
+       MPI_SUM, comm, ierr)
+
+  if (ierr /= MPI_SUCCESS) then
+     error stop &
+          "check_local_test_blocks: MPI_Allreduce inventory failed"
+  end if
+
+  if (global_count /= size(block_catalog)) then
+     error stop &
+          "check_local_test_blocks: global count mismatch"
+  end if
+
+  if (global_weight /= sum(block_catalog%weight)) then
+     error stop &
+          "check_local_test_blocks: global weight mismatch"
+  end if
+
+  if (any(global_seen /= 1)) then
+     error stop &
+          "check_local_test_blocks: nonunique global ownership"
+  end if
+
+  if (print_summary) then
+     write(6,'(/,a,i0,a)') &
+          "Standalone local block store for rank ", rank, ":"
+     write(6,'(a,i0)') &
+          "  final-owner blocks = ", size(test_block_local)
+     write(6,'(a,i0)') &
+          "  final-owner weight = ", local_weight
+     write(6,'(a)') &
+          "  component and serialization checks passed"
+     write(6,'(a,/)') &
+          "  unique global inventory check passed"
+  end if
+
+  if (print_summary .and. rank == 0) then
+     write(6,'(/,a,i0)') &
+          "Standalone global block objects verified = ", global_count
+     write(6,'(a,i0)') &
+          "Standalone global block weight verified  = ", global_weight
+     write(6,'(a,/)') &
+          "Final-owner block store is self-contained"
+  end if
+
+  deallocate(global_seen)
+  deallocate(local_seen)
+
+end subroutine check_local_test_blocks
+
+
+subroutine finalize_test_block_migration (manifest)
+  ! Verify the final-owner store, release every migration staging store,
+  ! and verify the final-owner store again after cleanup.
+
+  implicit none
+
+  type(Block_Migration_Manifest), intent(inout) :: manifest
+
+  call check_local_test_blocks(.false.)
+
+  if (allocated(test_block_source)) then
+     deallocate(test_block_source)
+  end if
+  if (allocated(test_block_catalog_index)) then
+     deallocate(test_block_catalog_index)
+  end if
+  if (allocated(test_block_retained_index)) then
+     deallocate(test_block_retained_index)
+  end if
+  if (allocated(test_block_migrating_index)) then
+     deallocate(test_block_migrating_index)
+  end if
+  if (allocated(test_block_received)) then
+     deallocate(test_block_received)
+  end if
+  if (allocated(test_block_received_catalog_index)) then
+     deallocate(test_block_received_catalog_index)
+  end if
+
+  call clear_block_migration_manifest(manifest)
+
+  if (allocated(test_block_source) .or. &
+       allocated(test_block_catalog_index) .or. &
+       allocated(test_block_retained_index) .or. &
+       allocated(test_block_migrating_index) .or. &
+       allocated(test_block_received) .or. &
+       allocated(test_block_received_catalog_index)) then
+
+     error stop &
+          "finalize_test_block_migration: staging cleanup failed"
+
+  end if
+
+  if (allocated(manifest%send_count) .or. &
+       allocated(manifest%recv_count) .or. &
+       allocated(manifest%send_displ) .or. &
+       allocated(manifest%recv_displ) .or. &
+       allocated(manifest%send_block) .or. &
+       allocated(manifest%recv_block) .or. &
+       allocated(manifest%send_nbyte) .or. &
+       allocated(manifest%recv_nbyte) .or. &
+       allocated(manifest%send_byte_count) .or. &
+       allocated(manifest%recv_byte_count) .or. &
+       allocated(manifest%send_byte_displ) .or. &
+       allocated(manifest%recv_byte_displ) .or. &
+       allocated(manifest%recv_payload)) then
+
+     error stop &
+          "finalize_test_block_migration: manifest cleanup failed"
+
+  end if
+
+  call check_local_test_blocks(.true.)
+
+  write(6,'(a,i0,a)') &
+       "Migration staging cleanup passed on rank ", rank, "."
+
+end subroutine finalize_test_block_migration
 
 
 integer function packed_test_block_nbyte (block) result(nbyte)
