@@ -57,7 +57,7 @@ module main_mod
   use parallel_block_build_mod, only : build_source_blocks
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
-       migrate_blocks
+       clear_parallel_block_state, migrate_blocks
 
 #ifdef PHYSICS
   use init_physics_mod,  only : init_physics, init_soil_grid
@@ -328,6 +328,7 @@ contains
 
     implicit none
 
+    call clear_parallel_block_state
     call deallocate_structures  ! deallocate all dynamic arrays and variables
     call init_basic
 

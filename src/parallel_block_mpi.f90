@@ -18,7 +18,8 @@ module parallel_block_mpi_mod
        block_source_catalog_index, &
        block_migrating_source_index, block_received_catalog_index, &
        packed_block_nbyte, pack_block, unpack_block, &
-       check_block_storage, install_local_blocks, clear_block_staging
+       check_block_storage, install_local_blocks, clear_block_staging, &
+       clear_local_blocks, local_block_store_ready
 
   implicit none
 
@@ -55,10 +56,34 @@ module parallel_block_mpi_mod
   public :: exchange_block_migration_payloads
   public :: clear_block_migration_manifest
   public :: build_parallel_block_catalog
+  public :: clear_parallel_block_state
   public :: migrate_blocks
   public :: check_local_blocks
 
 contains
+
+
+  subroutine clear_parallel_block_state
+    ! Release persistent and staging block data before a checkpoint
+    ! restart invalidates the geometric-domain state from which those
+    ! blocks were constructed. Safe to call when nothing is allocated.
+
+    implicit none
+
+    call clear_local_blocks
+    call clear_block_staging
+
+    if (allocated(block_catalog)) deallocate(block_catalog)
+
+    if (local_block_store_ready()) then
+       call fail("local block store remained ready after reset")
+    end if
+
+    if (allocated(block_catalog)) then
+       call fail("block catalogue remained allocated after reset")
+    end if
+
+  end subroutine clear_parallel_block_state
 
 
   subroutine build_parallel_block_catalog
@@ -101,6 +126,10 @@ contains
   real(dp), parameter :: incr_goal = 1.20_dp
 
   type(Parallel_Block), allocatable :: block_loc(:)
+
+  if (local_block_store_ready()) then
+     call fail("existing local block store was not reset")
+  end if
 
   !
   ! Count local candidate blocks.
@@ -841,6 +870,10 @@ end subroutine build_parallel_block_catalog
     print_summary = .true.
     if (present(verbose)) print_summary = verbose
 
+    if (.not. local_block_store_ready()) then
+       call fail("local block store is not ready")
+    end if
+
     if (.not. allocated(block_local) .or. &
          .not. allocated(block_local_catalog_index)) then
        call fail("local block store is not allocated")
@@ -931,6 +964,8 @@ end subroutine build_parallel_block_catalog
             "  final-owner weight = ", local_weight
        write(6,'(a)') &
             "  component and serialization checks passed"
+       write(6,'(a)') &
+            "  persistent store readiness check passed"
        write(6,'(a,/)') &
             "  unique global inventory check passed"
     end if

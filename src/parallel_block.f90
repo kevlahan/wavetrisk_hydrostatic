@@ -122,11 +122,15 @@ module parallel_block_mod
   integer, allocatable, public :: block_received_catalog_index(:)
   integer, allocatable, public :: block_local_catalog_index(:)
 
+  logical :: block_store_ready = .false.
+
   public :: packed_block_nbyte
   public :: pack_block
   public :: unpack_block
   public :: check_block_storage
   public :: clear_block_staging
+  public :: clear_local_blocks
+  public :: local_block_store_ready
   public :: install_local_blocks
 
 contains
@@ -286,13 +290,7 @@ subroutine install_local_blocks (n_catalog,local_seen)
   n_local = size(block_retained_source_index) + &
        size(block_received)
 
-  if (allocated(block_local)) then
-     deallocate(block_local)
-  end if
-
-  if (allocated(block_local_catalog_index)) then
-     deallocate(block_local_catalog_index)
-  end if
+  call clear_local_blocks
 
   allocate(block_local(n_local))
   allocate(block_local_catalog_index(n_local))
@@ -382,7 +380,53 @@ subroutine install_local_blocks (n_catalog,local_seen)
      error stop "install_local_blocks: local inventory mismatch"
   end if
 
+  block_store_ready = .true.
+
 end subroutine install_local_blocks
+
+
+logical function local_block_store_ready () result(ready)
+  ! Report whether a complete final-owner local store has been
+  ! installed. Allocation checks make a partially modified store
+  ! unavailable even if its readiness flag was set previously.
+
+  implicit none
+
+  ready = block_store_ready .and. &
+       allocated(block_local) .and. &
+       allocated(block_local_catalog_index)
+
+  if (ready) then
+     ready = size(block_local) == &
+          size(block_local_catalog_index)
+  end if
+
+end function local_block_store_ready
+
+
+subroutine clear_local_blocks
+  ! Invalidate and release the persistent final-owner local store.
+  ! This routine is deliberately idempotent so it is safe before the
+  ! first restart and before every subsequent checkpoint restart.
+
+  implicit none
+
+  block_store_ready = .false.
+
+  if (allocated(block_local)) then
+     deallocate(block_local)
+  end if
+
+  if (allocated(block_local_catalog_index)) then
+     deallocate(block_local_catalog_index)
+  end if
+
+  if (allocated(block_local) .or. &
+       allocated(block_local_catalog_index)) then
+     error stop "clear_local_blocks: cleanup failed"
+  end if
+
+end subroutine clear_local_blocks
 
 
 subroutine clear_block_staging
