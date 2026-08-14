@@ -31,7 +31,7 @@ module domain_mod
   public :: par_side, get_offs_Domain, get_offs_Domain5
   
   public :: count_subtree_patches_Domain, extract_subtree_patches_Domain, subtree_depth_Domain, subtree_weight_Domain
-  public :: compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain
+  public :: compact_subtree_storage_Domain, copy_subtree_nodes_Domain, copy_subtree_field_Domain, renumber_subtree_neigh_Domain
 
 
   integer, parameter :: sides_dims(2,N_BDRY+1) = reshape ( [PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, &
@@ -230,6 +230,47 @@ contains
     self%pole_master = .false.
   end subroutine init_Domain
 
+
+  subroutine renumber_subtree_neigh_Domain (dom, patch_out, old_to_new)
+    ! Renumber neighbour links that remain internal to an extracted
+    ! subtree. Links leaving the subtree are left unchanged.
+
+    implicit none
+
+    type(Domain), intent(in)    :: dom
+    type(Patch),  intent(inout) :: patch_out(:)
+    integer,      intent(in)    :: old_to_new(0:)
+
+    integer :: p_old, p_new
+    integer :: p_ngb_old
+    integer :: s
+
+    do p_old = 0, dom%patch%length-1
+
+       p_new = old_to_new(p_old)
+
+       if (p_new < 0) cycle
+
+       do s = 1, N_BDRY
+
+          p_ngb_old = dom%patch%elts(p_old+1)%neigh(s)
+
+          if (p_ngb_old < 0) cycle
+
+          if (p_ngb_old >= dom%patch%length) then
+             error stop &
+                  "renumber_subtree_neigh_Domain: invalid source neighbour"
+          end if
+
+          if (old_to_new(p_ngb_old) >= 0) then
+             patch_out(p_new+1)%neigh(s) = old_to_new(p_ngb_old)
+          end if
+
+       end do
+
+    end do
+
+  end subroutine renumber_subtree_neigh_Domain
 
   subroutine copy_subtree_field_Domain (patch_out, old_elts_start, mult, &
        field_in, field_out)
