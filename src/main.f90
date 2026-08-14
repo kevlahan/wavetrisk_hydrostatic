@@ -867,6 +867,7 @@ contains
     end if
   end subroutine cal_min_mass
 
+
 subroutine test_subtree_extraction
   ! Extract one candidate subtree on rank zero and verify its topology,
   ! compact storage, copied geometry/fields, local neighbour topology,
@@ -874,7 +875,9 @@ subroutine test_subtree_extraction
   ! dimensions used by comp_offs3.
   !
   ! Also diagnose how production comp_offs3 addresses existing boundary
-  ! storage relative to Bdry_Patch%elts_start.
+  ! storage relative to Bdry_Patch%elts_start, determine which source
+  ! storage object owns the effective address, and verify that node,
+  ! scalar and vector storage use the same logical node address space.
 
   implicit none
 
@@ -893,12 +896,28 @@ subroutine test_subtree_extraction
   integer :: n_bdry_node_unique
   integer :: n_bdry_node_max
   integer :: n_offs_checked
+  integer :: n_lockstep_checked
 
   integer :: delta
   integer :: delta_min, delta_max
   integer :: delta_min_side(N_BDRY)
   integer :: delta_max_side(N_BDRY)
   integer :: n_delta_side(N_BDRY)
+
+  integer :: idx_src
+  integer :: owner_patch
+  integer :: owner_bdry
+  integer :: dims_tmp(2)
+
+  integer :: n_owner_self_bdry
+  integer :: n_owner_other_bdry
+  integer :: n_owner_patch
+  integer :: n_owner_none
+
+  integer :: node_start
+  integer :: node_end
+  integer :: field_start
+  integer :: field_end
 
   integer :: p_old, p_chd_old, p_chd_new
   integer :: p_ngb_old
@@ -1270,12 +1289,6 @@ subroutine test_subtree_extraction
   !
   ! ===============================================================
   ! Classify source neighbour links.
-  !
-  ! Production semantics:
-  !
-  !   neigh > 0 : regular patch
-  !   neigh < 0 : boundary patch
-  !   neigh = 0 : sentinel
   ! ===============================================================
   !
   allocate(block_test%neigh_class(N_BDRY,size(patch_copy)))
@@ -1950,14 +1963,14 @@ subroutine test_subtree_extraction
   !
   ! ===============================================================
   ! Compare neighbour dimensions and diagnose production boundary
-  ! stencil displacements.
+  ! stencil addressing.
   !
-  ! Numerical compact-block offsets are not compared yet because
-  ! production comp_offs3 may address overlapping ghost storage
-  ! outside the nominal Bdry_Patch storage rectangle.
+  ! Also verify that the same logical node index is valid for node,
+  ! scalar and vector storage, with field offsets scaled by MULT.
   ! ===============================================================
   !
-  n_offs_checked = 0
+  n_offs_checked     = 0
+  n_lockstep_checked = 0
 
   delta_min = huge(0)
   delta_max = -huge(0)
@@ -1965,6 +1978,11 @@ subroutine test_subtree_extraction
   delta_min_side = huge(0)
   delta_max_side = -huge(0)
   n_delta_side   = 0
+
+  n_owner_self_bdry  = 0
+  n_owner_other_bdry = 0
+  n_owner_patch      = 0
+  n_owner_none       = 0
 
   do p_old = 0, grid(d)%patch%length-1
 
@@ -1991,45 +2009,290 @@ subroutine test_subtree_extraction
         n_offs_checked = n_offs_checked + 1
 
         !
-        ! Diagnose the production addressing of existing boundaries.
+        ! Only existing Domain/adaptive boundaries have source
+        ! Bdry_Patch storage to diagnose.
         !
         if (block_test%neigh_class( &
-             c,old_to_new(p_old)+1) == NGB_DOMAIN .or. &
+             c,old_to_new(p_old)+1) /= NGB_DOMAIN .and. &
              block_test%neigh_class( &
-             c,old_to_new(p_old)+1) == NGB_ADAPT) then
+             c,old_to_new(p_old)+1) /= NGB_ADAPT) cycle
 
-           p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
+        p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
 
-           if (p_ngb_old >= 0) then
-              error stop &
-                   "test_subtree_extraction: expected negative boundary neighbour"
+        if (p_ngb_old >= 0) then
+           error stop &
+                "test_subtree_extraction: expected negative boundary neighbour"
+        end if
+
+        b_src = -p_ngb_old
+
+        if (b_src < 0 .or. &
+             b_src >= grid(d)%bdry_patch%length) then
+
+           error stop &
+                "test_subtree_extraction: invalid diagnostic boundary"
+
+        end if
+
+        !
+        ! ------------------------------------------------------------
+        ! Verify boundary storage lockstep.
+        !
+        ! add_bdry_patch_Domain allocates exactly
+        !
+        !   BDRY_THICKNESS * PATCH_SIZE
+        !
+        ! logical node positions for each boundary patch.
+        ! ------------------------------------------------------------
+        !
+        node_start = grid(d)%bdry_patch%elts(b_src+1)%elts_start
+
+        node_end = node_start + &
+             BDRY_THICKNESS*PATCH_SIZE - 1
+
+        if (node_start < 0 .or. &
+             node_end >= grid(d)%node%length) then
+
+           error stop &
+                "test_subtree_extraction: boundary node allocation invalid"
+
+        end if
+
+        !
+        ! Scalar storage uses the same logical node index with MULT=1.
+        !
+        field_start = mult_scalar * node_start
+
+        field_end = field_start + &
+             mult_scalar*BDRY_THICKNESS*PATCH_SIZE - 1
+
+        if (field_start < 0 .or. &
+             field_end >= size(sol(v_scalar,k_test)%data(d)%elts)) then
+
+           error stop &
+                "test_subtree_extraction: boundary scalar allocation invalid"
+
+        end if
+
+        !
+        ! Vector storage uses the same logical node index scaled
+        ! by MULT(S_VELO).
+        !
+        field_start = mult_vector * node_start
+
+        field_end = field_start + &
+             mult_vector*BDRY_THICKNESS*PATCH_SIZE - 1
+
+        if (field_start < 0 .or. &
+             field_end >= size(sol(v_vector,k_test)%data(d)%elts)) then
+
+           error stop &
+                "test_subtree_extraction: boundary vector allocation invalid"
+
+        end if
+
+        n_lockstep_checked = n_lockstep_checked + 1
+
+        !
+        ! ------------------------------------------------------------
+        ! Effective zero-based logical source address selected by
+        ! production comp_offs3.
+        ! ------------------------------------------------------------
+        !
+        idx_src = grid(d)%patch%elts(p_old+1)%elts_start + &
+             offs_src(c)
+
+        if (idx_src < 0 .or. idx_src >= grid(d)%node%length) then
+           error stop &
+                "test_subtree_extraction: effective source address out of bounds"
+        end if
+
+        !
+        ! The same logical address must also be valid for the scalar.
+        !
+        if (mult_scalar*idx_src < 0 .or. &
+             mult_scalar*idx_src + mult_scalar - 1 >= &
+             size(sol(v_scalar,k_test)%data(d)%elts)) then
+
+           error stop &
+                "test_subtree_extraction: scalar stencil address out of bounds"
+
+        end if
+
+        !
+        ! And for all components of the vector field.
+        !
+        if (mult_vector*idx_src < 0 .or. &
+             mult_vector*idx_src + mult_vector - 1 >= &
+             size(sol(v_vector,k_test)%data(d)%elts)) then
+
+           error stop &
+                "test_subtree_extraction: vector stencil address out of bounds"
+
+        end if
+
+        !
+        ! Displacement relative to the nominal referenced
+        ! Bdry_Patch%elts_start.
+        !
+        delta = idx_src - &
+             grid(d)%bdry_patch%elts(b_src+1)%elts_start
+
+        delta_min = min(delta_min,delta)
+        delta_max = max(delta_max,delta)
+
+        delta_min_side(c) = min(delta_min_side(c),delta)
+        delta_max_side(c) = max(delta_max_side(c),delta)
+        n_delta_side(c)   = n_delta_side(c) + 1
+
+        !
+        ! ------------------------------------------------------------
+        ! Determine which nominal storage object contains idx_src.
+        !
+        ! Give the referenced boundary patch first priority because
+        ! nominal storage regions may overlap logically.
+        ! ------------------------------------------------------------
+        !
+        owner_patch = -1
+        owner_bdry  = -1
+
+        call get_bdry_dims_Domain(grid(d), b_src, dims_tmp)
+
+        if (idx_src >= &
+             grid(d)%bdry_patch%elts(b_src+1)%elts_start .and. &
+             idx_src < &
+             grid(d)%bdry_patch%elts(b_src+1)%elts_start + &
+             product(dims_tmp)) then
+
+           owner_bdry = b_src
+
+        else
+
+           !
+           ! Search all other boundary patches.
+           !
+           do i = 0, grid(d)%bdry_patch%length-1
+
+              if (i == b_src) cycle
+
+              call get_bdry_dims_Domain(grid(d), i, dims_tmp)
+
+              if (idx_src >= &
+                   grid(d)%bdry_patch%elts(i+1)%elts_start .and. &
+                   idx_src < &
+                   grid(d)%bdry_patch%elts(i+1)%elts_start + &
+                   product(dims_tmp)) then
+
+                 owner_bdry = i
+                 exit
+
+              end if
+
+           end do
+
+           !
+           ! If no boundary region contains the address, search
+           ! regular patch storage.
+           !
+           if (owner_bdry < 0) then
+
+              do i = 0, grid(d)%patch%length-1
+
+                 if (grid(d)%patch%elts(i+1)%deleted) cycle
+
+                 if (idx_src >= &
+                      grid(d)%patch%elts(i+1)%elts_start .and. &
+                      idx_src < &
+                      grid(d)%patch%elts(i+1)%elts_start + &
+                      PATCH_SIZE**2) then
+
+                    owner_patch = i
+                    exit
+
+                 end if
+
+              end do
+
            end if
 
-           b_src = -p_ngb_old
+        end if
 
-           if (b_src >= grid(d)%bdry_patch%length) then
-              error stop &
-                   "test_subtree_extraction: invalid diagnostic boundary"
-           end if
+        !
+        ! Classify effective-address ownership.
+        !
+        if (owner_bdry == b_src) then
 
-           !
-           ! Effective zero-based source address selected by comp_offs3.
-           !
-           old_start = &
-                grid(d)%patch%elts(p_old+1)%elts_start + offs_src(c)
+           n_owner_self_bdry = n_owner_self_bdry + 1
 
-           !
-           ! Displacement relative to the nominal Bdry_Patch start.
-           !
-           delta = old_start - &
+        else if (owner_bdry >= 0) then
+
+           n_owner_other_bdry = n_owner_other_bdry + 1
+
+        else if (owner_patch >= 0) then
+
+           n_owner_patch = n_owner_patch + 1
+
+        else
+
+           n_owner_none = n_owner_none + 1
+
+        end if
+
+        !
+        ! Print only cases whose effective address lies outside the
+        ! nominal storage of the referenced boundary patch.
+        !
+        if (owner_bdry /= b_src) then
+
+           write(6,'(/,a)') &
+                "  Nonlocal boundary-stencil address:"
+
+           write(6,'(a,i0)') &
+                "    source patch      = ", p_old
+
+           write(6,'(a,i0)') &
+                "    local patch       = ", old_to_new(p_old)
+
+           write(6,'(a,i0)') &
+                "    side              = ", c
+
+           write(6,'(a,i0)') &
+                "    source boundary   = ", b_src
+
+           write(6,'(a,i0)') &
+                "    boundary start    = ", &
                 grid(d)%bdry_patch%elts(b_src+1)%elts_start
 
-           delta_min = min(delta_min,delta)
-           delta_max = max(delta_max,delta)
+           write(6,'(a,i0)') &
+                "    displacement      = ", delta
 
-           delta_min_side(c) = min(delta_min_side(c),delta)
-           delta_max_side(c) = max(delta_max_side(c),delta)
-           n_delta_side(c)   = n_delta_side(c) + 1
+           write(6,'(a,i0)') &
+                "    effective index   = ", idx_src
+
+           if (owner_bdry >= 0) then
+
+              write(6,'(a,i0)') &
+                   "    owning boundary  = ", owner_bdry
+
+              write(6,'(a,i0)') &
+                   "    owner start      = ", &
+                   grid(d)%bdry_patch%elts(owner_bdry+1)%elts_start
+
+           else if (owner_patch >= 0) then
+
+              write(6,'(a,i0)') &
+                   "    owning patch     = ", owner_patch
+
+              write(6,'(a,i0)') &
+                   "    owner start      = ", &
+                   grid(d)%patch%elts(owner_patch+1)%elts_start
+
+           else
+
+              write(6,'(a)') &
+                   "    no nominal storage owner found"
+
+           end if
 
         end if
 
@@ -2037,11 +2300,39 @@ subroutine test_subtree_extraction
 
   end do
 
+  !
+  ! Every internal, Domain-boundary and adaptive-boundary link must
+  ! have participated in the dimension check.
+  !
   if (n_offs_checked /= &
        n_ngb_internal + n_ngb_domain + n_ngb_adapt) then
 
      error stop &
           "test_subtree_extraction: incorrect offset/dimension check count"
+
+  end if
+
+  !
+  ! Every existing Domain/adaptive link must have passed the
+  ! node/scalar/vector logical-storage check.
+  !
+  if (n_lockstep_checked /= n_ngb_domain + n_ngb_adapt) then
+
+     error stop &
+          "test_subtree_extraction: boundary lockstep count mismatch"
+
+  end if
+
+  !
+  ! Every existing boundary address must belong to one ownership
+  ! classification.
+  !
+  if (n_owner_self_bdry + n_owner_other_bdry + &
+       n_owner_patch + n_owner_none /= &
+       n_ngb_domain + n_ngb_adapt) then
+
+     error stop &
+          "test_subtree_extraction: boundary ownership count mismatch"
 
   end if
 
@@ -2186,6 +2477,13 @@ subroutine test_subtree_extraction
   write(6,'(a)') &
        "  block neighbour dimension reconstruction check passed"
 
+  write(6,'(/,a,i0)') &
+       "  boundary storage lockstep links checked = ", &
+       n_lockstep_checked
+
+  write(6,'(a)') &
+       "  node/scalar/vector boundary allocation check passed"
+
   write(6,'(/,a)') &
        "  Existing-boundary stencil displacements:"
 
@@ -2207,8 +2505,32 @@ subroutine test_subtree_extraction
   write(6,'(a,i0)') &
        "  overall maximum displacement = ", delta_max
 
+  write(6,'(/,a)') &
+       "  Effective boundary-stencil address ownership:"
+
+  write(6,'(a,i0)') &
+       "    referenced boundary patch = ", &
+       n_owner_self_bdry
+
+  write(6,'(a,i0)') &
+       "    another boundary patch    = ", &
+       n_owner_other_bdry
+
+  write(6,'(a,i0)') &
+       "    regular patch             = ", &
+       n_owner_patch
+
+  write(6,'(a,i0)') &
+       "    unclassified              = ", &
+       n_owner_none
+
+  write(6,'(a,i0)') &
+       "    total classified          = ", &
+       n_owner_self_bdry + n_owner_other_bdry + &
+       n_owner_patch + n_owner_none
+
   write(6,'(a)') &
-       "  existing-boundary stencil displacement check completed"
+       "  boundary stencil ownership diagnostic completed"
 
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
@@ -2395,7 +2717,6 @@ contains
   end subroutine comp_offs3_block
 
 end subroutine test_subtree_extraction
-
 
 
   subroutine test_parallel_block_split
