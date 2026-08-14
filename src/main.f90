@@ -872,6 +872,9 @@ subroutine test_subtree_extraction
   ! compact storage, copied geometry/fields, local neighbour topology,
   ! deduplicated boundary storage, and reconstruction of neighbour
   ! dimensions used by comp_offs3.
+  !
+  ! Also diagnose how production comp_offs3 addresses existing boundary
+  ! storage relative to Bdry_Patch%elts_start.
 
   implicit none
 
@@ -890,6 +893,13 @@ subroutine test_subtree_extraction
   integer :: n_bdry_node_unique
   integer :: n_bdry_node_max
   integer :: n_offs_checked
+
+  integer :: delta
+  integer :: delta_min, delta_max
+  integer :: delta_min_side(N_BDRY)
+  integer :: delta_max_side(N_BDRY)
+  integer :: n_delta_side(N_BDRY)
+
   integer :: p_old, p_chd_old, p_chd_new
   integer :: p_ngb_old
   integer :: old_start, new_start
@@ -1081,21 +1091,27 @@ subroutine test_subtree_extraction
           node_copy(new_start+1:new_start+PATCH_SIZE**2)%x - &
           grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%x)) > &
           0.0_dp) then
+
         error stop "test_subtree_extraction: node x-coordinate mismatch"
+
      end if
 
      if (maxval(abs( &
           node_copy(new_start+1:new_start+PATCH_SIZE**2)%y - &
           grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%y)) > &
           0.0_dp) then
+
         error stop "test_subtree_extraction: node y-coordinate mismatch"
+
      end if
 
      if (maxval(abs( &
           node_copy(new_start+1:new_start+PATCH_SIZE**2)%z - &
           grid(d)%node%elts(old_start+1:old_start+PATCH_SIZE**2)%z)) > &
           0.0_dp) then
+
         error stop "test_subtree_extraction: node z-coordinate mismatch"
+
      end if
 
   end do
@@ -1132,7 +1148,9 @@ subroutine test_subtree_extraction
           scalar_copy(new_start+1:new_start+n_patch_field) - &
           sol(v_scalar,k_test)%data(d)%elts( &
           old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+
         error stop "test_subtree_extraction: scalar field copy mismatch"
+
      end if
 
   end do
@@ -1168,7 +1186,9 @@ subroutine test_subtree_extraction
           vector_copy(new_start+1:new_start+n_patch_field) - &
           sol(v_vector,k_test)%data(d)%elts( &
           old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+
         error stop "test_subtree_extraction: vector field copy mismatch"
+
      end if
 
   end do
@@ -1218,19 +1238,23 @@ subroutine test_subtree_extraction
   n_leaf_old = 0
 
   do p_old = 0, grid(d)%patch%length-1
+
      if (old_to_new(p_old) < 0) cycle
 
      if (all(grid(d)%patch%elts(p_old+1)%children == 0)) then
         n_leaf_old = n_leaf_old + 1
      end if
+
   end do
 
   n_leaf_new = 0
 
   do i = 1, size(patch_copy)
+
      if (all(patch_copy(i)%children == 0)) then
         n_leaf_new = n_leaf_new + 1
      end if
+
   end do
 
   if (n_leaf_new /= n_leaf_old) then
@@ -1246,6 +1270,12 @@ subroutine test_subtree_extraction
   !
   ! ===============================================================
   ! Classify source neighbour links.
+  !
+  ! Production semantics:
+  !
+  !   neigh > 0 : regular patch
+  !   neigh < 0 : boundary patch
+  !   neigh = 0 : sentinel
   ! ===============================================================
   !
   allocate(block_test%neigh_class(N_BDRY,size(patch_copy)))
@@ -1266,11 +1296,15 @@ subroutine test_subtree_extraction
            end if
 
            if (old_to_new(p_ngb_old) >= 0) then
+
               block_test%neigh_class( &
                    c,old_to_new(p_old)+1) = NGB_INTERNAL
+
            else
+
               block_test%neigh_class( &
                    c,old_to_new(p_old)+1) = NGB_BLOCK
+
            end if
 
         else if (p_ngb_old < 0) then
@@ -1282,11 +1316,15 @@ subroutine test_subtree_extraction
            end if
 
            if (grid(d)%bdry_patch%elts(b_src+1)%side > 0) then
+
               block_test%neigh_class( &
                    c,old_to_new(p_old)+1) = NGB_DOMAIN
+
            else
+
               block_test%neigh_class( &
                    c,old_to_new(p_old)+1) = NGB_ADAPT
+
            end if
 
         else
@@ -1600,6 +1638,9 @@ subroutine test_subtree_extraction
 
   end do
 
+  !
+  ! No duplicate source boundaries.
+  !
   do is = 1, size(block_test%bdry_storage)
 
      do jb = is+1, size(block_test%bdry_storage)
@@ -1616,6 +1657,9 @@ subroutine test_subtree_extraction
 
   end do
 
+  !
+  ! Verify boundary-link storage IDs.
+  !
   do ib = 1, size(block_test%block_bdry)
 
      if (block_test%block_bdry(ib)%class == NGB_BLOCK) then
@@ -1796,7 +1840,7 @@ subroutine test_subtree_extraction
   end do
 
   !
-  ! Boundary storage statistics including repeated references.
+  ! Boundary-storage statistics including repeated references.
   !
   n_bdry_node_total = 0
   n_bdry_node_max   = 0
@@ -1905,14 +1949,22 @@ subroutine test_subtree_extraction
 
   !
   ! ===============================================================
-  ! Reconstruct comp_offs3 neighbour dimensions using the block-local
-  ! representation.
+  ! Compare neighbour dimensions and diagnose production boundary
+  ! stencil displacements.
   !
-  ! Numerical offsets are not compared yet because storage has been
-  ! compacted. NGB_BLOCK links are deferred until ghost storage exists.
+  ! Numerical compact-block offsets are not compared yet because
+  ! production comp_offs3 may address overlapping ghost storage
+  ! outside the nominal Bdry_Patch storage rectangle.
   ! ===============================================================
   !
   n_offs_checked = 0
+
+  delta_min = huge(0)
+  delta_max = -huge(0)
+
+  delta_min_side = huge(0)
+  delta_max_side = -huge(0)
+  n_delta_side   = 0
 
   do p_old = 0, grid(d)%patch%length-1
 
@@ -1928,6 +1980,9 @@ subroutine test_subtree_extraction
 
         if (.not. valid_blk(c)) cycle
 
+        !
+        ! Locally resolvable neighbour dimensions must match.
+        !
         if (any(dims_blk(:,c) /= dims_src(:,c))) then
            error stop &
                 "test_subtree_extraction: block neighbour dims mismatch"
@@ -1935,19 +1990,64 @@ subroutine test_subtree_extraction
 
         n_offs_checked = n_offs_checked + 1
 
+        !
+        ! Diagnose the production addressing of existing boundaries.
+        !
+        if (block_test%neigh_class( &
+             c,old_to_new(p_old)+1) == NGB_DOMAIN .or. &
+             block_test%neigh_class( &
+             c,old_to_new(p_old)+1) == NGB_ADAPT) then
+
+           p_ngb_old = grid(d)%patch%elts(p_old+1)%neigh(c)
+
+           if (p_ngb_old >= 0) then
+              error stop &
+                   "test_subtree_extraction: expected negative boundary neighbour"
+           end if
+
+           b_src = -p_ngb_old
+
+           if (b_src >= grid(d)%bdry_patch%length) then
+              error stop &
+                   "test_subtree_extraction: invalid diagnostic boundary"
+           end if
+
+           !
+           ! Effective zero-based source address selected by comp_offs3.
+           !
+           old_start = &
+                grid(d)%patch%elts(p_old+1)%elts_start + offs_src(c)
+
+           !
+           ! Displacement relative to the nominal Bdry_Patch start.
+           !
+           delta = old_start - &
+                grid(d)%bdry_patch%elts(b_src+1)%elts_start
+
+           delta_min = min(delta_min,delta)
+           delta_max = max(delta_max,delta)
+
+           delta_min_side(c) = min(delta_min_side(c),delta)
+           delta_max_side(c) = max(delta_max_side(c),delta)
+           n_delta_side(c)   = n_delta_side(c) + 1
+
+        end if
+
      end do
 
   end do
 
-  !
-  ! Every internal/domain/adaptive link should have been checked.
-  !
   if (n_offs_checked /= &
        n_ngb_internal + n_ngb_domain + n_ngb_adapt) then
 
      error stop &
           "test_subtree_extraction: incorrect offset/dimension check count"
 
+  end if
+
+  if (n_ngb_domain + n_ngb_adapt == 0) then
+     delta_min = 0
+     delta_max = 0
   end if
 
   !
@@ -2086,6 +2186,30 @@ subroutine test_subtree_extraction
   write(6,'(a)') &
        "  block neighbour dimension reconstruction check passed"
 
+  write(6,'(/,a)') &
+       "  Existing-boundary stencil displacements:"
+
+  do c = 1, N_BDRY
+
+     if (n_delta_side(c) == 0) cycle
+
+     write(6,'(a,i0,a,i0,a,i0,a,i0)') &
+          "    side ", c, &
+          ": count = ", n_delta_side(c), &
+          ", min = ", delta_min_side(c), &
+          ", max = ", delta_max_side(c)
+
+  end do
+
+  write(6,'(a,i0)') &
+       "  overall minimum displacement = ", delta_min
+
+  write(6,'(a,i0)') &
+       "  overall maximum displacement = ", delta_max
+
+  write(6,'(a)') &
+       "  existing-boundary stencil displacement check completed"
+
   write(6,'(a,/)') &
        "  patch topology and storage layout checks passed"
 
@@ -2119,10 +2243,11 @@ contains
 
   subroutine comp_offs3_block (p, offs, dims, valid)
     ! Construct block-local neighbour offsets and dimensions using the
-    ! same orientation convention as comp_offs3.
+    ! same orientation convention as production comp_offs3.
     !
-    ! NGB_BLOCK entries are currently invalid because inter-block ghost
-    ! storage has not yet been constructed.
+    ! NGB_BLOCK entries do not yet have local ghost storage. Their
+    ! dimensions are nevertheless known because their source neighbour
+    ! is a regular PATCH_SIZE x PATCH_SIZE patch.
 
     implicit none
 
@@ -2152,7 +2277,8 @@ contains
           n = block_test%patch(p+1)%neigh(s)
 
           if (n < 0 .or. n >= size(block_test%patch)) then
-             error stop "comp_offs3_block: invalid internal neighbour"
+             error stop &
+                  "comp_offs3_block: invalid internal neighbour"
           end if
 
           offs(s)   = block_test%patch(n+1)%elts_start
@@ -2164,24 +2290,17 @@ contains
           b = -block_test%patch(p+1)%neigh(s)
 
           if (b < 1 .or. b > size(block_test%block_bdry)) then
-             error stop "comp_offs3_block: invalid local boundary"
+             error stop &
+                  "comp_offs3_block: invalid local boundary"
           end if
 
           is = block_test%block_bdry(b)%storage_id
 
           if (is < 1 .or. is > size(block_test%bdry_storage)) then
-             error stop "comp_offs3_block: invalid boundary storage_id"
+             error stop &
+                  "comp_offs3_block: invalid boundary storage_id"
           end if
 
-          !
-          ! Use one conceptual address space:
-          !
-          !   0 : n_node_storage-1
-          !       interior storage
-          !
-          !   n_node_storage : ...
-          !       compact existing-boundary storage
-          !
           offs(s) = n_node_storage + &
                block_test%bdry_storage(is)%local_start
 
@@ -2192,9 +2311,12 @@ contains
        case (NGB_BLOCK)
 
           !
-          ! Inter-block ghost storage does not exist yet.
+          ! No local ghost storage exists yet, so the offset is not
+          ! usable. The dimensions are nevertheless required by some
+          ! orientation corrections.
           !
-          valid(s) = .false.
+          dims(:,s) = PATCH_SIZE
+          valid(s)  = .false.
 
        case (NGB_OTHER)
 
@@ -2202,21 +2324,23 @@ contains
 
        case default
 
-          error stop "comp_offs3_block: unexpected neighbour class"
+          error stop &
+               "comp_offs3_block: unexpected neighbour class"
 
        end select
 
     end do
 
     !
-    ! Convert absolute starts to offsets relative to the current patch.
+    ! Convert neighbour starts to offsets relative to current patch.
     !
     do s = 1, N_BDRY
        if (valid(s)) offs(s) = offs(s) - offs(0)
     end do
 
     !
-    ! Apply the same orientation corrections as comp_offs3.
+    ! Apply exactly the same orientation corrections as production
+    ! comp_offs3.
     !
     if (valid(SOUTH)) then
        offs(SOUTH) = offs(SOUTH) + &
@@ -2225,11 +2349,12 @@ contains
 
     if (valid(SOUTHEAST)) then
        offs(SOUTHEAST) = offs(SOUTHEAST) + &
-            dims(1,SOUTHEAST)*(dims(2,SOUTHEAST)-1)
+            dims(1,SOUTHEAST)*(dims(2,SOUTH)-1)
     end if
 
     if (valid(WEST)) then
-       offs(WEST) = offs(WEST) + dims(1,WEST)-1
+       offs(WEST) = offs(WEST) + &
+            dims(1,WEST)-1
     end if
 
     if (valid(NORTHWEST)) then
@@ -2243,7 +2368,8 @@ contains
     end if
 
     if (valid(NORTH)) then
-       offs(NORTH) = offs(NORTH) - PATCH_SIZE*(PATCH_SIZE-1)
+       offs(NORTH) = offs(NORTH) - &
+            PATCH_SIZE*(PATCH_SIZE-1)
     end if
 
     if (valid(NORTHWEST)) then
@@ -2252,11 +2378,13 @@ contains
     end if
 
     if (valid(EAST)) then
-       offs(EAST) = offs(EAST) - (PATCH_SIZE-1)
+       offs(EAST) = offs(EAST) - &
+            (PATCH_SIZE-1)
     end if
 
     if (valid(SOUTHEAST)) then
-       offs(SOUTHEAST) = offs(SOUTHEAST) - (PATCH_SIZE-1)
+       offs(SOUTHEAST) = offs(SOUTHEAST) - &
+            (PATCH_SIZE-1)
     end if
 
     if (valid(NORTHEAST)) then
