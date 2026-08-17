@@ -20,7 +20,8 @@ module parallel_block_build_mod
 
   use arch_mod, only : block_catalog, loc_id, n_process, owner, rank
 
-  use domain_mod, only : grid, sol, sol_mean, tke, wav_coeff, wav_tke, &
+  use domain_mod, only : grid, sol, sol_mean, tke, topography, &
+       wav_coeff, wav_tke, &
        count_subtree_patches_Domain, &
        extract_subtree_patches_Domain, subtree_depth_Domain, &
        compact_subtree_storage_Domain, copy_subtree_nodes_Domain, &
@@ -668,6 +669,7 @@ subroutine build_one_source_block ( &
   real(dp), allocatable :: tke_one(:)
   real(dp), allocatable :: wavelet_tke_copy(:)
   real(dp), allocatable :: wavelet_tke_one(:)
+  real(dp), allocatable :: topography_copy(:)
 
   type(Patch), allocatable :: patch_copy(:)
   type(Coord), allocatable :: node_copy(:)
@@ -1072,6 +1074,35 @@ subroutine build_one_source_block ( &
         end if
 
      end do
+
+  end do
+
+  !
+  ! ===============================================================
+  ! Copy and verify topography over the complete extracted subtree.
+  ! ===============================================================
+  !
+  call copy_subtree_field_Domain( &
+       patch_copy,old_elts_start,1, &
+       topography%data(d)%elts,topography_copy)
+
+  if (size(topography_copy) /= n_node_storage) then
+     error stop "build_source_blocks: incorrect topography storage size"
+  end if
+
+  n_patch_field = PATCH_SIZE**2
+
+  do i = 1, size(patch_copy)
+
+     old_start = old_elts_start(i)
+     new_start = patch_copy(i)%elts_start
+
+     if (maxval(abs( &
+          topography_copy(new_start+1:new_start+n_patch_field) - &
+          topography%data(d)%elts( &
+          old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+        error stop "build_source_blocks: topography copy mismatch"
+     end if
 
   end do
 
@@ -1783,6 +1814,8 @@ subroutine build_one_source_block ( &
   allocate(block_out%bdry_wavelet_tke( &
        n_tke_level*tke_storage_size))
 
+  allocate(block_out%bdry_topography(n_bdry_node_unique))
+
   do is = 1, size(block_out%bdry_storage)
 
      old_start = block_out%bdry_storage(is)%elts_start
@@ -1792,6 +1825,13 @@ subroutine build_one_source_block ( &
           new_start+1 : &
           new_start+block_out%bdry_storage(is)%n_node) = &
           grid(d)%node%elts( &
+          old_start+1 : &
+          old_start+block_out%bdry_storage(is)%n_node)
+
+     block_out%bdry_topography( &
+          new_start+1 : &
+          new_start+block_out%bdry_storage(is)%n_node) = &
+          topography%data(d)%elts( &
           old_start+1 : &
           old_start+block_out%bdry_storage(is)%n_node)
 
@@ -1902,6 +1942,16 @@ subroutine build_one_source_block ( &
 
      old_start = block_out%bdry_storage(is)%elts_start
      new_start = block_out%bdry_storage(is)%local_start
+
+     if (maxval(abs( &
+          block_out%bdry_topography( &
+          new_start+1 : &
+          new_start+block_out%bdry_storage(is)%n_node) - &
+          topography%data(d)%elts( &
+          old_start+1 : &
+          old_start+block_out%bdry_storage(is)%n_node))) > 0.0_dp) then
+        error stop "build_source_blocks: boundary topography mismatch"
+     end if
 
      if (maxval(abs( &
           block_out%bdry_node( &
@@ -2436,6 +2486,8 @@ subroutine build_one_source_block ( &
   allocate(block_out%ghost_wavelet_tke( &
        n_tke_level*tke_storage_size))
 
+  allocate(block_out%ghost_topography(n_ghost_node))
+
   !
   ! Copy temporary ghost data from the source domain. Eventually the
   ! field data will be supplied by inter-block communication.
@@ -2451,6 +2503,11 @@ subroutine build_one_source_block ( &
      block_out%ghost_node( &
           new_start+1 : new_start+PATCH_SIZE**2) = &
           grid(d)%node%elts( &
+          old_start+1 : old_start+PATCH_SIZE**2)
+
+     block_out%ghost_topography( &
+          new_start+1 : new_start+PATCH_SIZE**2) = &
+          topography%data(d)%elts( &
           old_start+1 : old_start+PATCH_SIZE**2)
 
      do scalar_slot = 1, n_scalar_variable
@@ -2547,6 +2604,14 @@ subroutine build_one_source_block ( &
 
      new_start = &
           block_out%ghost_storage(ghost_id)%local_start
+
+     if (maxval(abs( &
+          block_out%ghost_topography( &
+          new_start+1 : new_start+PATCH_SIZE**2) - &
+          topography%data(d)%elts( &
+          old_start+1 : old_start+PATCH_SIZE**2))) > 0.0_dp) then
+        error stop "build_source_blocks: ghost topography mismatch"
+     end if
 
      if (maxval(abs( &
           block_out%ghost_node( &
@@ -2793,6 +2858,7 @@ subroutine build_one_source_block ( &
   call move_alloc(vector_mean_copy, block_out%vector_mean)
   call move_alloc(tke_copy, block_out%tke)
   call move_alloc(wavelet_tke_copy, block_out%wavelet_tke)
+  call move_alloc(topography_copy, block_out%topography)
 
   !
   ! ===============================================================
@@ -3335,6 +3401,9 @@ subroutine build_one_source_block ( &
   write(6,'(a)') &
        "  interior coordinate/sol/sol_mean/wav_coeff copy checks passed"
 
+  write(6,'(a)') &
+       "  interior topography copy checks passed"
+
   if (n_tke_level > 0) then
      write(6,'(a)') &
           "  interior tke/wav_tke copy checks passed"
@@ -3425,6 +3494,9 @@ subroutine build_one_source_block ( &
   write(6,'(a)') &
        "  boundary coordinate/sol/sol_mean/wav_coeff copy checks passed"
 
+  write(6,'(a)') &
+       "  boundary topography copy checks passed"
+
   if (n_tke_level > 0) then
      write(6,'(a)') &
           "  boundary tke/wav_tke copy checks passed"
@@ -3455,6 +3527,9 @@ subroutine build_one_source_block ( &
 
   write(6,'(a)') &
        "  unified ghost sol/sol_mean/wav_coeff copy checks passed"
+
+  write(6,'(a)') &
+       "  unified ghost topography copy checks passed"
 
   if (n_tke_level > 0) then
      write(6,'(a)') &

@@ -24,8 +24,8 @@ module parallel_block_mod
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
-  integer, parameter :: BLOCK_PACK_VERSION = 7
-  integer, parameter :: BLOCK_PACK_HEADER_SIZE = 41
+  integer, parameter :: BLOCK_PACK_VERSION = 8
+  integer, parameter :: BLOCK_PACK_HEADER_SIZE = 44
 
 
   type, public :: Block_Bdry_Storage
@@ -112,6 +112,7 @@ module parallel_block_mod
      real(dp), allocatable :: vector_mean(:)
      real(dp), allocatable :: tke(:)
      real(dp), allocatable :: wavelet_tke(:)
+     real(dp), allocatable :: topography(:)
      real(dp), allocatable :: bdry_scalar(:)
      real(dp), allocatable :: bdry_vector(:)
      real(dp), allocatable :: bdry_wavelet_scalar(:)
@@ -120,6 +121,7 @@ module parallel_block_mod
      real(dp), allocatable :: bdry_vector_mean(:)
      real(dp), allocatable :: bdry_tke(:)
      real(dp), allocatable :: bdry_wavelet_tke(:)
+     real(dp), allocatable :: bdry_topography(:)
 
      integer, allocatable :: neigh_class(:,:)
 
@@ -138,6 +140,7 @@ module parallel_block_mod
      real(dp), allocatable :: ghost_vector_mean(:)
      real(dp), allocatable :: ghost_tke(:)
      real(dp), allocatable :: ghost_wavelet_tke(:)
+     real(dp), allocatable :: ghost_topography(:)
   end type Block_Data
 
 
@@ -174,6 +177,7 @@ module parallel_block_mod
   public :: local_block_wavelet_statistics
   public :: local_block_mean_field_statistics
   public :: local_block_turbulence_statistics
+  public :: local_block_topography_statistics
   public :: install_local_blocks
 
 contains
@@ -288,6 +292,7 @@ subroutine check_block_storage (block,check_serialization)
        .not. allocated(block%vector_mean) .or. &
        .not. allocated(block%tke) .or. &
        .not. allocated(block%wavelet_tke) .or. &
+       .not. allocated(block%topography) .or. &
        .not. allocated(block%neigh_class) .or. &
        .not. allocated(block%block_bdry) .or. &
        .not. allocated(block%bdry_storage) .or. &
@@ -301,6 +306,7 @@ subroutine check_block_storage (block,check_serialization)
        .not. allocated(block%bdry_vector_mean) .or. &
        .not. allocated(block%bdry_tke) .or. &
        .not. allocated(block%bdry_wavelet_tke) .or. &
+       .not. allocated(block%bdry_topography) .or. &
        .not. allocated(block%ghost_storage) .or. &
        .not. allocated(block%ghost_node) .or. &
        .not. allocated(block%ghost_scalar) .or. &
@@ -310,7 +316,8 @@ subroutine check_block_storage (block,check_serialization)
        .not. allocated(block%ghost_scalar_mean) .or. &
        .not. allocated(block%ghost_vector_mean) .or. &
        .not. allocated(block%ghost_tke) .or. &
-       .not. allocated(block%ghost_wavelet_tke)) then
+       .not. allocated(block%ghost_wavelet_tke) .or. &
+       .not. allocated(block%ghost_topography)) then
 
      error stop "check_block_storage: unallocated component"
 
@@ -329,7 +336,8 @@ subroutine check_block_storage (block,check_serialization)
        size(block%scalar_mean) /= size(block%scalar) .or. &
        size(block%vector_mean) /= size(block%vector) .or. &
        size(block%tke) /= block%n_tke_level*n_node .or. &
-       size(block%wavelet_tke) /= size(block%tke)) then
+       size(block%wavelet_tke) /= size(block%tke) .or. &
+       size(block%topography) /= n_node) then
 
      error stop "check_block_storage: interior extent mismatch"
 
@@ -357,7 +365,8 @@ subroutine check_block_storage (block,check_serialization)
        size(block%bdry_scalar_mean) /= size(block%bdry_scalar) .or. &
        size(block%bdry_vector_mean) /= size(block%bdry_vector) .or. &
        size(block%bdry_tke) /= block%n_tke_level*n_bdry_node .or. &
-       size(block%bdry_wavelet_tke) /= size(block%bdry_tke)) then
+       size(block%bdry_wavelet_tke) /= size(block%bdry_tke) .or. &
+       size(block%bdry_topography) /= n_bdry_node) then
 
      error stop "check_block_storage: boundary extent mismatch"
 
@@ -376,7 +385,8 @@ subroutine check_block_storage (block,check_serialization)
        size(block%ghost_scalar_mean) /= size(block%ghost_scalar) .or. &
        size(block%ghost_vector_mean) /= size(block%ghost_vector) .or. &
        size(block%ghost_tke) /= block%n_tke_level*n_ghost_node .or. &
-       size(block%ghost_wavelet_tke) /= size(block%ghost_tke)) then
+       size(block%ghost_wavelet_tke) /= size(block%ghost_tke) .or. &
+       size(block%ghost_topography) /= n_ghost_node) then
 
      error stop "check_block_storage: ghost extent mismatch"
 
@@ -991,6 +1001,47 @@ subroutine local_block_turbulence_statistics ( &
 end subroutine local_block_turbulence_statistics
 
 
+subroutine local_block_topography_statistics (value_count,value_moment)
+  ! Compute an order-independent topography inventory over the ready
+  ! final-owner block store.
+
+  implicit none
+
+  integer(int64), intent(out) :: value_count
+  real(dp), intent(out) :: value_moment(3)
+
+  integer :: i
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "local_block_topography_statistics: store is not ready"
+  end if
+
+  value_count  = 0_int64
+  value_moment = 0.0_dp
+
+  do i = 1, size(block_local)
+
+     if (.not. allocated(block_local(i)%topography)) then
+        error stop &
+             "local_block_topography_statistics: storage missing"
+     end if
+
+     value_count = value_count + &
+          int(size(block_local(i)%topography),int64)
+
+     value_moment(1) = value_moment(1) + &
+          sum(block_local(i)%topography)
+     value_moment(2) = value_moment(2) + &
+          sum(abs(block_local(i)%topography))
+     value_moment(3) = value_moment(3) + &
+          sum(block_local(i)%topography**2)
+
+  end do
+
+end subroutine local_block_topography_statistics
+
+
 subroutine clear_local_blocks
   ! Invalidate and release the persistent final-owner local store.
   ! This routine is deliberately idempotent so it is safe before the
@@ -1078,6 +1129,7 @@ integer function packed_block_nbyte (block) result(nbyte)
        .not. allocated(block%vector_mean) .or. &
        .not. allocated(block%tke) .or. &
        .not. allocated(block%wavelet_tke) .or. &
+       .not. allocated(block%topography) .or. &
        .not. allocated(block%neigh_class) .or. &
        .not. allocated(block%block_bdry) .or. &
        .not. allocated(block%bdry_storage) .or. &
@@ -1091,6 +1143,7 @@ integer function packed_block_nbyte (block) result(nbyte)
        .not. allocated(block%bdry_vector_mean) .or. &
        .not. allocated(block%bdry_tke) .or. &
        .not. allocated(block%bdry_wavelet_tke) .or. &
+       .not. allocated(block%bdry_topography) .or. &
        .not. allocated(block%ghost_storage) .or. &
        .not. allocated(block%ghost_node) .or. &
        .not. allocated(block%ghost_scalar) .or. &
@@ -1100,7 +1153,8 @@ integer function packed_block_nbyte (block) result(nbyte)
        .not. allocated(block%ghost_scalar_mean) .or. &
        .not. allocated(block%ghost_vector_mean) .or. &
        .not. allocated(block%ghost_tke) .or. &
-       .not. allocated(block%ghost_wavelet_tke)) then
+       .not. allocated(block%ghost_wavelet_tke) .or. &
+       .not. allocated(block%ghost_topography)) then
 
      error stop "packed_block_nbyte: unallocated component"
 
@@ -1141,6 +1195,9 @@ integer function packed_block_nbyte (block) result(nbyte)
 
   nbyte = nbyte + &
        size(block%wavelet_tke) * storage_size(block%wavelet_tke) / 8
+
+  nbyte = nbyte + &
+       size(block%topography) * storage_size(block%topography) / 8
 
   nbyte = nbyte + size(block%neigh_class) * nbyte_integer
 
@@ -1190,6 +1247,10 @@ integer function packed_block_nbyte (block) result(nbyte)
        storage_size(block%bdry_wavelet_tke) / 8
 
   nbyte = nbyte + &
+       size(block%bdry_topography) * &
+       storage_size(block%bdry_topography) / 8
+
+  nbyte = nbyte + &
        size(block%ghost_storage) * &
        storage_size(block%ghost_storage) / 8
 
@@ -1226,6 +1287,10 @@ integer function packed_block_nbyte (block) result(nbyte)
   nbyte = nbyte + &
        size(block%ghost_wavelet_tke) * &
        storage_size(block%ghost_wavelet_tke) / 8
+
+  nbyte = nbyte + &
+       size(block%ghost_topography) * &
+       storage_size(block%ghost_topography) / 8
 
 end function packed_block_nbyte
 
@@ -1289,7 +1354,10 @@ subroutine pack_block (block,buffer)
        block%n_tke_level, &
        size(block%tke), &
        size(block%bdry_tke), &
-       size(block%ghost_tke) ]
+       size(block%ghost_tke), &
+       size(block%topography), &
+       size(block%bdry_topography), &
+       size(block%ghost_topography) ]
 
   pos = 0
 
@@ -1358,6 +1426,12 @@ subroutine pack_block (block,buffer)
   n = size(block%wavelet_tke) * storage_size(block%wavelet_tke) / 8
   if (n > 0) then
      buffer(pos+1:pos+n) = transfer(block%wavelet_tke,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%topography) * storage_size(block%topography) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%topography,0_int8,n)
      pos = pos + n
   end if
 
@@ -1452,6 +1526,13 @@ subroutine pack_block (block,buffer)
      pos = pos + n
   end if
 
+  n = size(block%bdry_topography) * &
+       storage_size(block%bdry_topography) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%bdry_topography,0_int8,n)
+     pos = pos + n
+  end if
+
   n = size(block%ghost_storage) * &
        storage_size(block%ghost_storage) / 8
   if (n > 0) then
@@ -1521,6 +1602,13 @@ subroutine pack_block (block,buffer)
        storage_size(block%ghost_wavelet_tke) / 8
   if (n > 0) then
      buffer(pos+1:pos+n) = transfer(block%ghost_wavelet_tke,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_topography) * &
+       storage_size(block%ghost_topography) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%ghost_topography,0_int8,n)
      pos = pos + n
   end if
 
@@ -1615,6 +1703,12 @@ subroutine unpack_block (buffer,block)
      error stop "unpack_block: invalid turbulence extents"
   end if
 
+  if (header(42) /= header(15) .or. &
+       header(43) /= header(26) .or. &
+       header(44) /= header(32)) then
+     error stop "unpack_block: invalid topography extents"
+  end if
+
   block%id          = header(3)
   block%root_domain = header(4)
   block%root_patch  = header(5)
@@ -1639,6 +1733,7 @@ subroutine unpack_block (buffer,block)
   allocate(block%vector_mean(header(19)))
   allocate(block%tke(header(39)))
   allocate(block%wavelet_tke(header(39)))
+  allocate(block%topography(header(42)))
   allocate(block%neigh_class(header(20),header(21)))
   allocate(block%block_bdry(header(22)))
   allocate(block%bdry_storage(header(23)))
@@ -1652,6 +1747,7 @@ subroutine unpack_block (buffer,block)
   allocate(block%bdry_vector_mean(header(30)))
   allocate(block%bdry_tke(header(40)))
   allocate(block%bdry_wavelet_tke(header(40)))
+  allocate(block%bdry_topography(header(43)))
   allocate(block%ghost_storage(header(31)))
   allocate(block%ghost_node(header(32)))
   allocate(block%ghost_scalar(header(33)))
@@ -1662,6 +1758,7 @@ subroutine unpack_block (buffer,block)
   allocate(block%ghost_vector_mean(header(36)))
   allocate(block%ghost_tke(header(41)))
   allocate(block%ghost_wavelet_tke(header(41)))
+  allocate(block%ghost_topography(header(44)))
 
   n = size(block%patch) * storage_size(block%patch) / 8
   if (pos+n > size(buffer)) then
@@ -1769,6 +1866,17 @@ subroutine unpack_block (buffer,block)
      block%wavelet_tke = transfer( &
           buffer(pos+1:pos+n),block%wavelet_tke, &
           size(block%wavelet_tke))
+     pos = pos + n
+  end if
+
+  n = size(block%topography) * storage_size(block%topography) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated topography data"
+  end if
+  if (n > 0) then
+     block%topography = transfer( &
+          buffer(pos+1:pos+n),block%topography, &
+          size(block%topography))
      pos = pos + n
   end if
 
@@ -1924,6 +2032,18 @@ subroutine unpack_block (buffer,block)
      pos = pos + n
   end if
 
+  n = size(block%bdry_topography) * &
+       storage_size(block%bdry_topography) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated boundary topography"
+  end if
+  if (n > 0) then
+     block%bdry_topography = transfer( &
+          buffer(pos+1:pos+n),block%bdry_topography, &
+          size(block%bdry_topography))
+     pos = pos + n
+  end if
+
   n = size(block%ghost_storage) * &
        storage_size(block%ghost_storage) / 8
   if (pos+n > size(buffer)) then
@@ -2039,6 +2159,18 @@ subroutine unpack_block (buffer,block)
      block%ghost_wavelet_tke = transfer( &
           buffer(pos+1:pos+n),block%ghost_wavelet_tke, &
           size(block%ghost_wavelet_tke))
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_topography) * &
+       storage_size(block%ghost_topography) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated ghost topography"
+  end if
+  if (n > 0) then
+     block%ghost_topography = transfer( &
+          buffer(pos+1:pos+n),block%ghost_topography, &
+          size(block%ghost_topography))
      pos = pos + n
   end if
 
