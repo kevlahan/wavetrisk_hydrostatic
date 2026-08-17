@@ -16,11 +16,11 @@ module parallel_block_build_mod
        block_source, block_source_catalog_index, &
        block_retained_source_index, block_migrating_source_index, &
        pack_block, unpack_block, check_block_storage, &
-       get_block_field_layout
+       get_block_field_layout, get_block_turbulence_layout
 
   use arch_mod, only : block_catalog, loc_id, n_process, owner, rank
 
-  use domain_mod, only : grid, sol, sol_mean, wav_coeff, &
+  use domain_mod, only : grid, sol, sol_mean, tke, wav_coeff, wav_tke, &
        count_subtree_patches_Domain, &
        extract_subtree_patches_Domain, subtree_depth_Domain, &
        compact_subtree_storage_Domain, copy_subtree_nodes_Domain, &
@@ -626,6 +626,9 @@ subroutine build_one_source_block ( &
   integer :: mult_vector
   integer :: n_field_level
   integer :: n_scalar_variable
+  integer :: tke_level
+  integer :: n_tke_level
+  integer :: tke_storage_size
   integer :: field_base
   integer :: field_level
   integer :: level_slot
@@ -661,6 +664,10 @@ subroutine build_one_source_block ( &
   real(dp), allocatable :: vector_mean_copy(:)
   real(dp), allocatable :: vector_mean_one(:)
   real(dp), allocatable :: vector_one(:)
+  real(dp), allocatable :: tke_copy(:)
+  real(dp), allocatable :: tke_one(:)
+  real(dp), allocatable :: wavelet_tke_copy(:)
+  real(dp), allocatable :: wavelet_tke_one(:)
 
   type(Patch), allocatable :: patch_copy(:)
   type(Coord), allocatable :: node_copy(:)
@@ -790,6 +797,8 @@ subroutine build_one_source_block ( &
   call get_block_field_layout( &
        v_scalar,n_scalar_variable,v_vector,first_field_level, &
        n_field_level,mult_scalar,mult_vector)
+
+  call get_block_turbulence_layout(tke_level,n_tke_level)
 
   if (mult_scalar /= 1) then
      error stop &
@@ -1005,6 +1014,61 @@ subroutine build_one_source_block ( &
            error stop &
                 "build_source_blocks: vector mean copy mismatch"
 
+        end if
+
+     end do
+
+  end do
+
+  !
+  ! ===============================================================
+  ! Copy and verify optional turbulent kinetic energy fields.
+  ! ===============================================================
+  !
+  tke_storage_size = n_node_storage
+  allocate(tke_copy(n_tke_level*tke_storage_size))
+  allocate(wavelet_tke_copy(n_tke_level*tke_storage_size))
+  n_patch_field = PATCH_SIZE**2
+
+  do level_slot = 1, n_tke_level
+
+     field_level = tke_level + level_slot - 1
+     field_base = (level_slot-1) * tke_storage_size
+
+     call copy_subtree_field_Domain( &
+          patch_copy,old_elts_start,1, &
+          tke(field_level)%data(d)%elts,tke_one)
+
+     call copy_subtree_field_Domain( &
+          patch_copy,old_elts_start,1, &
+          wav_tke(field_level)%data(d)%elts,wavelet_tke_one)
+
+     if (size(tke_one) /= tke_storage_size .or. &
+          size(wavelet_tke_one) /= tke_storage_size) then
+        error stop "build_source_blocks: incorrect tke storage size"
+     end if
+
+     tke_copy(field_base+1:field_base+tke_storage_size) = tke_one
+     wavelet_tke_copy( &
+          field_base+1:field_base+tke_storage_size) = wavelet_tke_one
+
+     do i = 1, size(patch_copy)
+
+        old_start = old_elts_start(i)
+        new_start = field_base + patch_copy(i)%elts_start
+
+        if (maxval(abs( &
+             tke_copy(new_start+1:new_start+n_patch_field) - &
+             tke(field_level)%data(d)%elts( &
+             old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+           error stop "build_source_blocks: tke copy mismatch"
+        end if
+
+        if (maxval(abs( &
+             wavelet_tke_copy(new_start+1:new_start+n_patch_field) - &
+             wav_tke(field_level)%data(d)%elts( &
+             old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+           error stop "build_source_blocks: wavelet tke copy mismatch"
         end if
 
      end do
@@ -1714,6 +1778,11 @@ subroutine build_one_source_block ( &
   allocate(block_out%bdry_vector_mean( &
        n_field_level*vector_storage_size))
 
+  tke_storage_size = n_bdry_node_unique
+  allocate(block_out%bdry_tke(n_tke_level*tke_storage_size))
+  allocate(block_out%bdry_wavelet_tke( &
+       n_tke_level*tke_storage_size))
+
   do is = 1, size(block_out%bdry_storage)
 
      old_start = block_out%bdry_storage(is)%elts_start
@@ -1798,6 +1867,29 @@ subroutine build_one_source_block ( &
              mult_vector*old_start+1 : &
              mult_vector*(old_start + &
              block_out%bdry_storage(is)%n_node))
+
+     end do
+
+     do level_slot = 1, n_tke_level
+
+        field_level = tke_level + level_slot - 1
+        field_base = (level_slot-1) * tke_storage_size
+
+        block_out%bdry_tke( &
+             field_base+new_start+1 : &
+             field_base+new_start+ &
+             block_out%bdry_storage(is)%n_node) = &
+             tke(field_level)%data(d)%elts( &
+             old_start+1 : old_start+ &
+             block_out%bdry_storage(is)%n_node)
+
+        block_out%bdry_wavelet_tke( &
+             field_base+new_start+1 : &
+             field_base+new_start+ &
+             block_out%bdry_storage(is)%n_node) = &
+             wav_tke(field_level)%data(d)%elts( &
+             old_start+1 : old_start+ &
+             block_out%bdry_storage(is)%n_node)
 
      end do
 
@@ -1932,6 +2024,35 @@ subroutine build_one_source_block ( &
            error stop &
                 "build_source_blocks: boundary vector mean mismatch"
 
+        end if
+
+     end do
+
+     do level_slot = 1, n_tke_level
+
+        field_level = tke_level + level_slot - 1
+        field_base = (level_slot-1) * tke_storage_size
+
+        if (maxval(abs( &
+             block_out%bdry_tke( &
+             field_base+new_start+1 : &
+             field_base+new_start+ &
+             block_out%bdry_storage(is)%n_node) - &
+             tke(field_level)%data(d)%elts( &
+             old_start+1 : old_start+ &
+             block_out%bdry_storage(is)%n_node))) > 0.0_dp) then
+           error stop "build_source_blocks: boundary tke mismatch"
+        end if
+
+        if (maxval(abs( &
+             block_out%bdry_wavelet_tke( &
+             field_base+new_start+1 : &
+             field_base+new_start+ &
+             block_out%bdry_storage(is)%n_node) - &
+             wav_tke(field_level)%data(d)%elts( &
+             old_start+1 : old_start+ &
+             block_out%bdry_storage(is)%n_node))) > 0.0_dp) then
+           error stop "build_source_blocks: boundary wav_tke mismatch"
         end if
 
      end do
@@ -2310,6 +2431,11 @@ subroutine build_one_source_block ( &
   allocate(block_out%ghost_vector_mean( &
        n_field_level*vector_storage_size))
 
+  tke_storage_size = n_ghost_node
+  allocate(block_out%ghost_tke(n_tke_level*tke_storage_size))
+  allocate(block_out%ghost_wavelet_tke( &
+       n_tke_level*tke_storage_size))
+
   !
   ! Copy temporary ghost data from the source domain. Eventually the
   ! field data will be supplied by inter-block communication.
@@ -2387,6 +2513,25 @@ subroutine build_one_source_block ( &
              sol_mean(v_vector,field_level)%data(d)%elts( &
              mult_vector*old_start+1 : &
              mult_vector*(old_start+PATCH_SIZE**2))
+
+     end do
+
+     do level_slot = 1, n_tke_level
+
+        field_level = tke_level + level_slot - 1
+        field_base = (level_slot-1) * tke_storage_size
+
+        block_out%ghost_tke( &
+             field_base+new_start+1 : &
+             field_base+new_start+PATCH_SIZE**2) = &
+             tke(field_level)%data(d)%elts( &
+             old_start+1 : old_start+PATCH_SIZE**2)
+
+        block_out%ghost_wavelet_tke( &
+             field_base+new_start+1 : &
+             field_base+new_start+PATCH_SIZE**2) = &
+             wav_tke(field_level)%data(d)%elts( &
+             old_start+1 : old_start+PATCH_SIZE**2)
 
      end do
 
@@ -2513,6 +2658,31 @@ subroutine build_one_source_block ( &
 
      end do
 
+     do level_slot = 1, n_tke_level
+
+        field_level = tke_level + level_slot - 1
+        field_base = (level_slot-1) * tke_storage_size
+
+        if (maxval(abs( &
+             block_out%ghost_tke( &
+             field_base+new_start+1 : &
+             field_base+new_start+PATCH_SIZE**2) - &
+             tke(field_level)%data(d)%elts( &
+             old_start+1:old_start+PATCH_SIZE**2))) > 0.0_dp) then
+           error stop "build_source_blocks: ghost tke mismatch"
+        end if
+
+        if (maxval(abs( &
+             block_out%ghost_wavelet_tke( &
+             field_base+new_start+1 : &
+             field_base+new_start+PATCH_SIZE**2) - &
+             wav_tke(field_level)%data(d)%elts( &
+             old_start+1:old_start+PATCH_SIZE**2))) > 0.0_dp) then
+           error stop "build_source_blocks: ghost wav_tke mismatch"
+        end if
+
+     end do
+
   end do
 
   !
@@ -2610,6 +2780,8 @@ subroutine build_one_source_block ( &
   block_out%n_field_level   = n_field_level
   block_out%scalar_mult     = mult_scalar
   block_out%vector_mult     = mult_vector
+  block_out%tke_level       = tke_level
+  block_out%n_tke_level     = n_tke_level
 
   call move_alloc(patch_copy,  block_out%patch)
   call move_alloc(node_copy,   block_out%node)
@@ -2619,6 +2791,8 @@ subroutine build_one_source_block ( &
   call move_alloc(vector_copy, block_out%vector)
   call move_alloc(wavelet_vector_copy, block_out%wavelet_vector)
   call move_alloc(vector_mean_copy, block_out%vector_mean)
+  call move_alloc(tke_copy, block_out%tke)
+  call move_alloc(wavelet_tke_copy, block_out%wavelet_tke)
 
   !
   ! ===============================================================
@@ -3161,6 +3335,11 @@ subroutine build_one_source_block ( &
   write(6,'(a)') &
        "  interior coordinate/sol/sol_mean/wav_coeff copy checks passed"
 
+  if (n_tke_level > 0) then
+     write(6,'(a)') &
+          "  interior tke/wav_tke copy checks passed"
+  end if
+
   write(6,'(/,a)') &
        "  Block neighbour classification:"
 
@@ -3246,6 +3425,11 @@ subroutine build_one_source_block ( &
   write(6,'(a)') &
        "  boundary coordinate/sol/sol_mean/wav_coeff copy checks passed"
 
+  if (n_tke_level > 0) then
+     write(6,'(a)') &
+          "  boundary tke/wav_tke copy checks passed"
+  end if
+
   write(6,'(/,a,i0)') &
        "  compact ghost source patches = ", &
        size(block_out%ghost_storage)
@@ -3271,6 +3455,11 @@ subroutine build_one_source_block ( &
 
   write(6,'(a)') &
        "  unified ghost sol/sol_mean/wav_coeff copy checks passed"
+
+  if (n_tke_level > 0) then
+     write(6,'(a)') &
+          "  unified ghost tke/wav_tke copy checks passed"
+  end if
 
   write(6,'(/,a)') &
        "  Explicit compact stencil addressing:"

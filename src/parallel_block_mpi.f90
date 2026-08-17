@@ -8,7 +8,7 @@ module parallel_block_mpi_mod
   use kind_mod,   only : dp
   use shared_mod, only : N_CHDRN, N_GLO_DOMAIN
 
-  use domain_mod, only : grid, sol, sol_mean, wav_coeff, &
+  use domain_mod, only : grid, sol, sol_mean, tke, wav_coeff, wav_tke, &
        subtree_weight_Domain
 
   use patch_mod, only : PATCH_SIZE
@@ -24,9 +24,11 @@ module parallel_block_mpi_mod
        clear_local_blocks, local_block_store_ready, n_local_blocks, &
        local_block_catalog, catalog_local_block, &
        get_local_block_identity, check_local_block_storage, &
-       get_block_field_layout, get_local_block_field_layout, &
+       get_block_field_layout, get_block_turbulence_layout, &
+       get_local_block_field_layout, get_local_block_turbulence_layout, &
        local_block_field_statistics, local_block_wavelet_statistics, &
-       local_block_mean_field_statistics
+       local_block_mean_field_statistics, &
+       local_block_turbulence_statistics
 
   implicit none
 
@@ -872,6 +874,8 @@ end subroutine build_parallel_block_catalog
     integer :: expected_scalar_variable
     integer :: expected_vector_mult
     integer :: expected_vector_variable
+    integer :: expected_tke_level
+    integer :: expected_n_tke_level
     integer :: field_level
     integer :: global_count
     integer :: global_weight
@@ -889,6 +893,8 @@ end subroutine build_parallel_block_catalog
     integer :: scalar_variable
     integer :: vector_mult
     integer :: vector_variable
+    integer :: tke_level
+    integer :: n_tke_level
 
     integer, allocatable :: global_seen(:)
     integer, allocatable :: local_seen(:)
@@ -916,6 +922,9 @@ end subroutine build_parallel_block_catalog
          expected_field_level,expected_n_field_level, &
          expected_scalar_mult, &
          expected_vector_mult)
+
+    call get_block_turbulence_layout( &
+         expected_tke_level,expected_n_tke_level)
 
     do i = 1, local_count
 
@@ -945,6 +954,9 @@ end subroutine build_parallel_block_catalog
             vector_variable,field_level, &
             n_field_level,scalar_mult,vector_mult)
 
+       call get_local_block_turbulence_layout( &
+            i,tke_level,n_tke_level)
+
        if (id /= block_catalog(b)%id .or. &
             root_domain /= block_catalog(b)%root_domain .or. &
             root_patch /= block_catalog(b)%root_patch .or. &
@@ -960,6 +972,11 @@ end subroutine build_parallel_block_catalog
             scalar_mult /= expected_scalar_mult .or. &
             vector_mult /= expected_vector_mult) then
           call fail("local block field layout does not match format")
+       end if
+
+       if (tke_level /= expected_tke_level .or. &
+            n_tke_level /= expected_n_tke_level) then
+          call fail("local block turbulence layout does not match format")
        end if
 
        call check_local_block_storage(i,.true.)
@@ -1023,6 +1040,9 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  sol field levels represented = ", &
             expected_n_field_level
+       write(6,'(a,i0)') &
+            "  tke field levels represented = ", &
+            expected_n_tke_level
        write(6,'(a,/)') &
             "  unique global inventory check passed"
     end if
@@ -1066,6 +1086,8 @@ end subroutine build_parallel_block_catalog
     integer :: v_scalar
     integer :: v_vector
     integer :: k_field
+    integer :: tke_level
+    integer :: n_tke_level
 
     integer(int64) :: block_count_local(2)
     integer(int64) :: block_count_global(2)
@@ -1079,6 +1101,14 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: domain_mean_count_global(2)
     integer(int64) :: domain_wavelet_count_local(2)
     integer(int64) :: domain_wavelet_count_global(2)
+    integer(int64) :: block_tke_count_local
+    integer(int64) :: block_tke_count_global
+    integer(int64) :: block_wav_tke_count_local
+    integer(int64) :: block_wav_tke_count_global
+    integer(int64) :: domain_tke_count_local
+    integer(int64) :: domain_tke_count_global
+    integer(int64) :: domain_wav_tke_count_local
+    integer(int64) :: domain_wav_tke_count_global
 
     real(dp) :: block_moment_local(3,2)
     real(dp) :: block_moment_global(3,2)
@@ -1092,6 +1122,14 @@ end subroutine build_parallel_block_catalog
     real(dp) :: domain_mean_moment_global(3,2)
     real(dp) :: domain_wavelet_moment_local(3,2)
     real(dp) :: domain_wavelet_moment_global(3,2)
+    real(dp) :: block_tke_moment_local(3)
+    real(dp) :: block_tke_moment_global(3)
+    real(dp) :: block_wav_tke_moment_local(3)
+    real(dp) :: block_wav_tke_moment_global(3)
+    real(dp) :: domain_tke_moment_local(3)
+    real(dp) :: domain_tke_moment_global(3)
+    real(dp) :: domain_wav_tke_moment_local(3)
+    real(dp) :: domain_wav_tke_moment_global(3)
 
     logical :: print_summary
 
@@ -1115,9 +1153,15 @@ end subroutine build_parallel_block_catalog
          block_mean_count_local(1),block_mean_count_local(2), &
          block_mean_moment_local(:,1),block_mean_moment_local(:,2))
 
+    call local_block_turbulence_statistics( &
+         block_tke_count_local,block_wav_tke_count_local, &
+         block_tke_moment_local,block_wav_tke_moment_local)
+
     call get_block_field_layout( &
          v_scalar,n_scalar_variable,v_vector,k_field, &
          n_field_level,mult_scalar,mult_vector)
+
+    call get_block_turbulence_layout(tke_level,n_tke_level)
 
     domain_count_local  = 0_int64
     domain_moment_local = 0.0_dp
@@ -1125,6 +1169,10 @@ end subroutine build_parallel_block_catalog
     domain_mean_moment_local = 0.0_dp
     domain_wavelet_count_local  = 0_int64
     domain_wavelet_moment_local = 0.0_dp
+    domain_tke_count_local      = 0_int64
+    domain_wav_tke_count_local  = 0_int64
+    domain_tke_moment_local     = 0.0_dp
+    domain_wav_tke_moment_local = 0.0_dp
 
     do b = 1, size(block_catalog)
 
@@ -1142,7 +1190,10 @@ end subroutine build_parallel_block_catalog
             mult_scalar,mult_vector, &
             domain_count_local,domain_moment_local, &
             domain_mean_count_local,domain_mean_moment_local, &
-            domain_wavelet_count_local,domain_wavelet_moment_local)
+            domain_wavelet_count_local,domain_wavelet_moment_local, &
+            tke_level,n_tke_level, &
+            domain_tke_count_local,domain_tke_moment_local, &
+            domain_wav_tke_count_local,domain_wav_tke_moment_local)
 
     end do
 
@@ -1177,6 +1228,26 @@ end subroutine build_parallel_block_catalog
     call check_mpi(ierr,"MPI_Allreduce Domain wavelet counts")
 
     call MPI_Allreduce( &
+         block_tke_count_local,block_tke_count_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block tke count")
+
+    call MPI_Allreduce( &
+         block_wav_tke_count_local,block_wav_tke_count_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block wav_tke count")
+
+    call MPI_Allreduce( &
+         domain_tke_count_local,domain_tke_count_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain tke count")
+
+    call MPI_Allreduce( &
+         domain_wav_tke_count_local,domain_wav_tke_count_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain wav_tke count")
+
+    call MPI_Allreduce( &
          block_moment_local,block_moment_global,6, &
          MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce block field moments")
@@ -1205,6 +1276,26 @@ end subroutine build_parallel_block_catalog
          domain_wavelet_moment_local,domain_wavelet_moment_global,6, &
          MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce Domain wavelet moments")
+
+    call MPI_Allreduce( &
+         block_tke_moment_local,block_tke_moment_global,3, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block tke moments")
+
+    call MPI_Allreduce( &
+         block_wav_tke_moment_local,block_wav_tke_moment_global,3, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block wav_tke moments")
+
+    call MPI_Allreduce( &
+         domain_tke_moment_local,domain_tke_moment_global,3, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain tke moments")
+
+    call MPI_Allreduce( &
+         domain_wav_tke_moment_local,domain_wav_tke_moment_global,3, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain wav_tke moments")
 
     if (any(block_count_global /= domain_count_global)) then
 
@@ -1247,6 +1338,23 @@ end subroutine build_parallel_block_catalog
        end if
 
        call fail("block and Domain wavelet counts differ")
+    end if
+
+    if (block_tke_count_global /= domain_tke_count_global .or. &
+         block_wav_tke_count_global /= domain_wav_tke_count_global) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain turbulence-count mismatch:"
+          write(error_unit,'(a,2(i0,1x))') &
+               "  block tke/wav_tke counts  = ", &
+               block_tke_count_global,block_wav_tke_count_global
+          write(error_unit,'(a,2(i0,1x))') &
+               "  Domain tke/wav_tke counts = ", &
+               domain_tke_count_global,domain_wav_tke_count_global
+       end if
+
+       call fail("block and Domain turbulence counts differ")
     end if
 
     if (.not. field_moments_match( &
@@ -1349,6 +1457,37 @@ end subroutine build_parallel_block_catalog
        call fail("block and Domain vector wavelet moments differ")
     end if
 
+    if (.not. field_moments_match( &
+         block_tke_moment_global,domain_tke_moment_global, &
+         block_tke_count_global)) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') "Block/Domain tke-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", block_tke_moment_global
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", domain_tke_moment_global
+       end if
+
+       call fail("block and Domain tke moments differ")
+    end if
+
+    if (.not. field_moments_match( &
+         block_wav_tke_moment_global,domain_wav_tke_moment_global, &
+         block_wav_tke_count_global)) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain wav_tke-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", block_wav_tke_moment_global
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", domain_wav_tke_moment_global
+       end if
+
+       call fail("block and Domain wav_tke moments differ")
+    end if
+
     if (print_summary) then
        write(6,'(/,a,i0,a)') &
             "Read-only block field consumer for rank ", rank, ":"
@@ -1368,8 +1507,19 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  local block mean vector values = ", &
             block_mean_count_local(2)
+       if (n_tke_level > 0) then
+          write(6,'(a,i0)') &
+               "  local block tke values = ", block_tke_count_local
+          write(6,'(a,i0)') &
+               "  local block wav_tke values = ", &
+               block_wav_tke_count_local
+       end if
        write(6,'(a,/)') &
             "  global sol/sol_mean/wav_coeff inventory checks passed"
+       if (n_tke_level > 0) then
+          write(6,'(a,/)') &
+               "  global tke/wav_tke inventory checks passed"
+       end if
     end if
 
     if (print_summary .and. rank == 0) then
@@ -1391,8 +1541,20 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "Global mean vector interior values verified = ", &
             block_mean_count_global(2)
+       if (n_tke_level > 0) then
+          write(6,'(a,i0)') &
+               "Global tke interior values verified = ", &
+               block_tke_count_global
+          write(6,'(a,i0)') &
+               "Global wav_tke values verified = ", &
+               block_wav_tke_count_global
+       end if
        write(6,'(a,/)') &
             "Block sol, sol_mean and wav_coeff match legacy Domain data"
+       if (n_tke_level > 0) then
+          write(6,'(a,/)') &
+               "Block tke and wav_tke match legacy Domain data"
+       end if
     end if
 
   end subroutine check_block_field_inventory
@@ -1434,7 +1596,9 @@ end subroutine build_parallel_block_catalog
        d,p,v_scalar,n_scalar_variable,v_vector,k_field,n_field_level, &
        mult_scalar,mult_vector,field_count,field_moment, &
        mean_field_count,mean_field_moment, &
-       wavelet_field_count,wavelet_field_moment)
+       wavelet_field_count,wavelet_field_moment, &
+       tke_level,n_tke_level,tke_count,tke_moment, &
+       wav_tke_count,wav_tke_moment)
     ! Accumulate one catalogue-rooted subtree from the authoritative
     ! Domain representation using the same patch coverage copied into
     ! Block_Data.
@@ -1450,6 +1614,8 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: n_field_level
     integer, intent(in) :: mult_scalar
     integer, intent(in) :: mult_vector
+    integer, intent(in) :: tke_level
+    integer, intent(in) :: n_tke_level
 
     integer(int64), intent(inout) :: field_count(2)
     real(dp), intent(inout) :: field_moment(3,2)
@@ -1457,6 +1623,10 @@ end subroutine build_parallel_block_catalog
     real(dp), intent(inout) :: mean_field_moment(3,2)
     integer(int64), intent(inout) :: wavelet_field_count(2)
     real(dp), intent(inout) :: wavelet_field_moment(3,2)
+    integer(int64), intent(inout) :: tke_count
+    real(dp), intent(inout) :: tke_moment(3)
+    integer(int64), intent(inout) :: wav_tke_count
+    real(dp), intent(inout) :: wav_tke_moment(3)
 
     integer :: c
     integer :: field_level
@@ -1597,6 +1767,45 @@ end subroutine build_parallel_block_catalog
 
     end do
 
+    do level_slot = 1, n_tke_level
+
+       field_level = tke_level + level_slot - 1
+       start = grid(d)%patch%elts(p+1)%elts_start
+       n_value = PATCH_SIZE**2
+
+       if (start < 0 .or. &
+            start+n_value > size(tke(field_level)%data(d)%elts)) then
+          call fail("legacy tke patch extent is invalid")
+       end if
+
+       if (start+n_value > &
+            size(wav_tke(field_level)%data(d)%elts)) then
+          call fail("legacy wav_tke patch extent is invalid")
+       end if
+
+       tke_count = tke_count + int(n_value,int64)
+       tke_moment(1) = tke_moment(1) + &
+            sum(tke(field_level)%data(d)%elts(start+1:start+n_value))
+       tke_moment(2) = tke_moment(2) + &
+            sum(abs(tke(field_level)%data(d)%elts( &
+            start+1:start+n_value)))
+       tke_moment(3) = tke_moment(3) + &
+            sum(tke(field_level)%data(d)%elts( &
+            start+1:start+n_value)**2)
+
+       wav_tke_count = wav_tke_count + int(n_value,int64)
+       wav_tke_moment(1) = wav_tke_moment(1) + &
+            sum(wav_tke(field_level)%data(d)%elts( &
+            start+1:start+n_value))
+       wav_tke_moment(2) = wav_tke_moment(2) + &
+            sum(abs(wav_tke(field_level)%data(d)%elts( &
+            start+1:start+n_value)))
+       wav_tke_moment(3) = wav_tke_moment(3) + &
+            sum(wav_tke(field_level)%data(d)%elts( &
+            start+1:start+n_value)**2)
+
+    end do
+
     do c = 1, N_CHDRN
 
        p_child = grid(d)%patch%elts(p+1)%children(c)
@@ -1607,7 +1816,9 @@ end subroutine build_parallel_block_catalog
             n_field_level,mult_scalar,mult_vector, &
             field_count,field_moment, &
             mean_field_count,mean_field_moment, &
-            wavelet_field_count,wavelet_field_moment)
+            wavelet_field_count,wavelet_field_moment, &
+            tke_level,n_tke_level,tke_count,tke_moment, &
+            wav_tke_count,wav_tke_moment)
 
     end do
 

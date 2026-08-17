@@ -3,7 +3,8 @@ module parallel_block_mod
   use, intrinsic :: iso_fortran_env, only : int8, int64
 
   use kind_mod,   only : dp
-  use shared_mod, only : Coord, MULT, N_BDRY, S_VELO, scalars, zmin, zmax
+  use shared_mod, only : Coord, MULT, N_BDRY, S_VELO, scalars, &
+       vert_diffuse, zlevels, zmin, zmax
   use patch_mod,  only : Patch, PATCH_SIZE
 
   implicit none
@@ -23,8 +24,8 @@ module parallel_block_mod
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
-  integer, parameter :: BLOCK_PACK_VERSION = 6
-  integer, parameter :: BLOCK_PACK_HEADER_SIZE = 36
+  integer, parameter :: BLOCK_PACK_VERSION = 7
+  integer, parameter :: BLOCK_PACK_HEADER_SIZE = 41
 
 
   type, public :: Block_Bdry_Storage
@@ -96,6 +97,8 @@ module parallel_block_mod
      integer :: n_field_level   = 0
      integer :: scalar_mult     = 0
      integer :: vector_mult     = 0
+     integer :: tke_level       = 1
+     integer :: n_tke_level     = 0
 
      type(Patch), allocatable :: patch(:)
      type(Coord), allocatable :: node(:)
@@ -107,12 +110,16 @@ module parallel_block_mod
      real(dp), allocatable :: wavelet_vector(:)
      real(dp), allocatable :: scalar_mean(:)
      real(dp), allocatable :: vector_mean(:)
+     real(dp), allocatable :: tke(:)
+     real(dp), allocatable :: wavelet_tke(:)
      real(dp), allocatable :: bdry_scalar(:)
      real(dp), allocatable :: bdry_vector(:)
      real(dp), allocatable :: bdry_wavelet_scalar(:)
      real(dp), allocatable :: bdry_wavelet_vector(:)
      real(dp), allocatable :: bdry_scalar_mean(:)
      real(dp), allocatable :: bdry_vector_mean(:)
+     real(dp), allocatable :: bdry_tke(:)
+     real(dp), allocatable :: bdry_wavelet_tke(:)
 
      integer, allocatable :: neigh_class(:,:)
 
@@ -129,6 +136,8 @@ module parallel_block_mod
      real(dp), allocatable :: ghost_wavelet_vector(:)
      real(dp), allocatable :: ghost_scalar_mean(:)
      real(dp), allocatable :: ghost_vector_mean(:)
+     real(dp), allocatable :: ghost_tke(:)
+     real(dp), allocatable :: ghost_wavelet_tke(:)
   end type Block_Data
 
 
@@ -157,11 +166,14 @@ module parallel_block_mod
   public :: catalog_local_block
   public :: get_local_block_identity
   public :: get_block_field_layout
+  public :: get_block_turbulence_layout
   public :: get_local_block_field_layout
+  public :: get_local_block_turbulence_layout
   public :: check_local_block_storage
   public :: local_block_field_statistics
   public :: local_block_wavelet_statistics
   public :: local_block_mean_field_statistics
+  public :: local_block_turbulence_statistics
   public :: install_local_blocks
 
 contains
@@ -195,6 +207,21 @@ subroutine get_block_field_layout ( &
 end subroutine get_block_field_layout
 
 
+subroutine get_block_turbulence_layout (tke_level,n_tke_level)
+  ! Return the optional node-based TKE layout represented by Block_Data.
+
+  implicit none
+
+  integer, intent(out) :: tke_level
+  integer, intent(out) :: n_tke_level
+
+  tke_level = 1
+  n_tke_level = 0
+  if (vert_diffuse) n_tke_level = zlevels
+
+end subroutine get_block_turbulence_layout
+
+
 subroutine check_block_storage (block,check_serialization)
   ! Check the allocation and extents of one block without referring to
   ! ownership, catalogues or MPI state. Optionally verify an exact
@@ -215,6 +242,8 @@ subroutine check_block_storage (block,check_serialization)
   integer :: n_field_level
   integer :: scalar_mult
   integer :: vector_mult
+  integer :: tke_level
+  integer :: n_tke_level
 
   integer(int8), allocatable :: buffer_copy(:)
   integer(int8), allocatable :: buffer_source(:)
@@ -230,6 +259,8 @@ subroutine check_block_storage (block,check_serialization)
        scalar_variable,n_scalar_variable,vector_variable,field_level, &
        n_field_level,scalar_mult,vector_mult)
 
+  call get_block_turbulence_layout(tke_level,n_tke_level)
+
   if (block%scalar_variable /= scalar_variable .or. &
        block%n_scalar_variable /= n_scalar_variable .or. &
        block%vector_variable /= vector_variable .or. &
@@ -242,6 +273,11 @@ subroutine check_block_storage (block,check_serialization)
 
   end if
 
+  if (block%tke_level /= tke_level .or. &
+       block%n_tke_level /= n_tke_level) then
+     error stop "check_block_storage: turbulence layout mismatch"
+  end if
+
   if (.not. allocated(block%patch) .or. &
        .not. allocated(block%node) .or. &
        .not. allocated(block%scalar) .or. &
@@ -250,6 +286,8 @@ subroutine check_block_storage (block,check_serialization)
        .not. allocated(block%wavelet_vector) .or. &
        .not. allocated(block%scalar_mean) .or. &
        .not. allocated(block%vector_mean) .or. &
+       .not. allocated(block%tke) .or. &
+       .not. allocated(block%wavelet_tke) .or. &
        .not. allocated(block%neigh_class) .or. &
        .not. allocated(block%block_bdry) .or. &
        .not. allocated(block%bdry_storage) .or. &
@@ -261,6 +299,8 @@ subroutine check_block_storage (block,check_serialization)
        .not. allocated(block%bdry_wavelet_vector) .or. &
        .not. allocated(block%bdry_scalar_mean) .or. &
        .not. allocated(block%bdry_vector_mean) .or. &
+       .not. allocated(block%bdry_tke) .or. &
+       .not. allocated(block%bdry_wavelet_tke) .or. &
        .not. allocated(block%ghost_storage) .or. &
        .not. allocated(block%ghost_node) .or. &
        .not. allocated(block%ghost_scalar) .or. &
@@ -268,7 +308,9 @@ subroutine check_block_storage (block,check_serialization)
        .not. allocated(block%ghost_wavelet_scalar) .or. &
        .not. allocated(block%ghost_wavelet_vector) .or. &
        .not. allocated(block%ghost_scalar_mean) .or. &
-       .not. allocated(block%ghost_vector_mean)) then
+       .not. allocated(block%ghost_vector_mean) .or. &
+       .not. allocated(block%ghost_tke) .or. &
+       .not. allocated(block%ghost_wavelet_tke)) then
 
      error stop "check_block_storage: unallocated component"
 
@@ -285,7 +327,9 @@ subroutine check_block_storage (block,check_serialization)
        size(block%wavelet_scalar) /= size(block%scalar) .or. &
        size(block%wavelet_vector) /= size(block%vector) .or. &
        size(block%scalar_mean) /= size(block%scalar) .or. &
-       size(block%vector_mean) /= size(block%vector)) then
+       size(block%vector_mean) /= size(block%vector) .or. &
+       size(block%tke) /= block%n_tke_level*n_node .or. &
+       size(block%wavelet_tke) /= size(block%tke)) then
 
      error stop "check_block_storage: interior extent mismatch"
 
@@ -311,7 +355,9 @@ subroutine check_block_storage (block,check_serialization)
        size(block%bdry_wavelet_scalar) /= size(block%bdry_scalar) .or. &
        size(block%bdry_wavelet_vector) /= size(block%bdry_vector) .or. &
        size(block%bdry_scalar_mean) /= size(block%bdry_scalar) .or. &
-       size(block%bdry_vector_mean) /= size(block%bdry_vector)) then
+       size(block%bdry_vector_mean) /= size(block%bdry_vector) .or. &
+       size(block%bdry_tke) /= block%n_tke_level*n_bdry_node .or. &
+       size(block%bdry_wavelet_tke) /= size(block%bdry_tke)) then
 
      error stop "check_block_storage: boundary extent mismatch"
 
@@ -328,7 +374,9 @@ subroutine check_block_storage (block,check_serialization)
        size(block%ghost_wavelet_scalar) /= size(block%ghost_scalar) .or. &
        size(block%ghost_wavelet_vector) /= size(block%ghost_vector) .or. &
        size(block%ghost_scalar_mean) /= size(block%ghost_scalar) .or. &
-       size(block%ghost_vector_mean) /= size(block%ghost_vector)) then
+       size(block%ghost_vector_mean) /= size(block%ghost_vector) .or. &
+       size(block%ghost_tke) /= block%n_tke_level*n_ghost_node .or. &
+       size(block%ghost_wavelet_tke) /= size(block%ghost_tke)) then
 
      error stop "check_block_storage: ghost extent mismatch"
 
@@ -665,6 +713,32 @@ subroutine get_local_block_field_layout ( &
 end subroutine get_local_block_field_layout
 
 
+subroutine get_local_block_turbulence_layout ( &
+     local_index,tke_level,n_tke_level)
+  ! Return the serialized optional TKE descriptor for one installed block.
+
+  implicit none
+
+  integer, intent(in)  :: local_index
+  integer, intent(out) :: tke_level
+  integer, intent(out) :: n_tke_level
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "get_local_block_turbulence_layout: store is not ready"
+  end if
+
+  if (local_index < 1 .or. local_index > size(block_local)) then
+     error stop &
+          "get_local_block_turbulence_layout: invalid local index"
+  end if
+
+  tke_level   = block_local(local_index)%tke_level
+  n_tke_level = block_local(local_index)%n_tke_level
+
+end subroutine get_local_block_turbulence_layout
+
+
 subroutine check_local_block_storage (local_index,check_serialization)
   ! Validate one local block without exposing the private store.
 
@@ -864,6 +938,59 @@ subroutine local_block_mean_field_statistics ( &
 end subroutine local_block_mean_field_statistics
 
 
+subroutine local_block_turbulence_statistics ( &
+     tke_count,wavelet_count,tke_moment,wavelet_moment)
+  ! Compute order-independent tke and wav_tke inventories over the
+  ! ready final-owner block store. Counts are zero when vert_diffuse is off.
+
+  implicit none
+
+  integer(int64), intent(out) :: tke_count
+  integer(int64), intent(out) :: wavelet_count
+
+  real(dp), intent(out) :: tke_moment(3)
+  real(dp), intent(out) :: wavelet_moment(3)
+
+  integer :: i
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "local_block_turbulence_statistics: store is not ready"
+  end if
+
+  tke_count      = 0_int64
+  wavelet_count  = 0_int64
+  tke_moment     = 0.0_dp
+  wavelet_moment = 0.0_dp
+
+  do i = 1, size(block_local)
+
+     if (.not. allocated(block_local(i)%tke) .or. &
+          .not. allocated(block_local(i)%wavelet_tke)) then
+        error stop &
+             "local_block_turbulence_statistics: storage missing"
+     end if
+
+     tke_count = tke_count + int(size(block_local(i)%tke),int64)
+     wavelet_count = wavelet_count + &
+          int(size(block_local(i)%wavelet_tke),int64)
+
+     tke_moment(1) = tke_moment(1) + sum(block_local(i)%tke)
+     tke_moment(2) = tke_moment(2) + sum(abs(block_local(i)%tke))
+     tke_moment(3) = tke_moment(3) + sum(block_local(i)%tke**2)
+
+     wavelet_moment(1) = wavelet_moment(1) + &
+          sum(block_local(i)%wavelet_tke)
+     wavelet_moment(2) = wavelet_moment(2) + &
+          sum(abs(block_local(i)%wavelet_tke))
+     wavelet_moment(3) = wavelet_moment(3) + &
+          sum(block_local(i)%wavelet_tke**2)
+
+  end do
+
+end subroutine local_block_turbulence_statistics
+
+
 subroutine clear_local_blocks
   ! Invalidate and release the persistent final-owner local store.
   ! This routine is deliberately idempotent so it is safe before the
@@ -949,6 +1076,8 @@ integer function packed_block_nbyte (block) result(nbyte)
        .not. allocated(block%wavelet_vector) .or. &
        .not. allocated(block%scalar_mean) .or. &
        .not. allocated(block%vector_mean) .or. &
+       .not. allocated(block%tke) .or. &
+       .not. allocated(block%wavelet_tke) .or. &
        .not. allocated(block%neigh_class) .or. &
        .not. allocated(block%block_bdry) .or. &
        .not. allocated(block%bdry_storage) .or. &
@@ -960,6 +1089,8 @@ integer function packed_block_nbyte (block) result(nbyte)
        .not. allocated(block%bdry_wavelet_vector) .or. &
        .not. allocated(block%bdry_scalar_mean) .or. &
        .not. allocated(block%bdry_vector_mean) .or. &
+       .not. allocated(block%bdry_tke) .or. &
+       .not. allocated(block%bdry_wavelet_tke) .or. &
        .not. allocated(block%ghost_storage) .or. &
        .not. allocated(block%ghost_node) .or. &
        .not. allocated(block%ghost_scalar) .or. &
@@ -967,7 +1098,9 @@ integer function packed_block_nbyte (block) result(nbyte)
        .not. allocated(block%ghost_wavelet_scalar) .or. &
        .not. allocated(block%ghost_wavelet_vector) .or. &
        .not. allocated(block%ghost_scalar_mean) .or. &
-       .not. allocated(block%ghost_vector_mean)) then
+       .not. allocated(block%ghost_vector_mean) .or. &
+       .not. allocated(block%ghost_tke) .or. &
+       .not. allocated(block%ghost_wavelet_tke)) then
 
      error stop "packed_block_nbyte: unallocated component"
 
@@ -1002,6 +1135,12 @@ integer function packed_block_nbyte (block) result(nbyte)
 
   nbyte = nbyte + &
        size(block%vector_mean) * storage_size(block%vector_mean) / 8
+
+  nbyte = nbyte + &
+       size(block%tke) * storage_size(block%tke) / 8
+
+  nbyte = nbyte + &
+       size(block%wavelet_tke) * storage_size(block%wavelet_tke) / 8
 
   nbyte = nbyte + size(block%neigh_class) * nbyte_integer
 
@@ -1044,6 +1183,13 @@ integer function packed_block_nbyte (block) result(nbyte)
        storage_size(block%bdry_vector_mean) / 8
 
   nbyte = nbyte + &
+       size(block%bdry_tke) * storage_size(block%bdry_tke) / 8
+
+  nbyte = nbyte + &
+       size(block%bdry_wavelet_tke) * &
+       storage_size(block%bdry_wavelet_tke) / 8
+
+  nbyte = nbyte + &
        size(block%ghost_storage) * &
        storage_size(block%ghost_storage) / 8
 
@@ -1073,6 +1219,13 @@ integer function packed_block_nbyte (block) result(nbyte)
   nbyte = nbyte + &
        size(block%ghost_vector_mean) * &
        storage_size(block%ghost_vector_mean) / 8
+
+  nbyte = nbyte + &
+       size(block%ghost_tke) * storage_size(block%ghost_tke) / 8
+
+  nbyte = nbyte + &
+       size(block%ghost_wavelet_tke) * &
+       storage_size(block%ghost_wavelet_tke) / 8
 
 end function packed_block_nbyte
 
@@ -1131,7 +1284,12 @@ subroutine pack_block (block,buffer)
        size(block%ghost_scalar), &
        size(block%ghost_vector), &
        size(block%ghost_scalar_mean), &
-       size(block%ghost_vector_mean) ]
+       size(block%ghost_vector_mean), &
+       block%tke_level, &
+       block%n_tke_level, &
+       size(block%tke), &
+       size(block%bdry_tke), &
+       size(block%ghost_tke) ]
 
   pos = 0
 
@@ -1188,6 +1346,18 @@ subroutine pack_block (block,buffer)
        storage_size(block%vector_mean) / 8
   if (n > 0) then
      buffer(pos+1:pos+n) = transfer(block%vector_mean,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%tke) * storage_size(block%tke) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%tke,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%wavelet_tke) * storage_size(block%wavelet_tke) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%wavelet_tke,0_int8,n)
      pos = pos + n
   end if
 
@@ -1269,6 +1439,19 @@ subroutine pack_block (block,buffer)
      pos = pos + n
   end if
 
+  n = size(block%bdry_tke) * storage_size(block%bdry_tke) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%bdry_tke,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%bdry_wavelet_tke) * &
+       storage_size(block%bdry_wavelet_tke) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%bdry_wavelet_tke,0_int8,n)
+     pos = pos + n
+  end if
+
   n = size(block%ghost_storage) * &
        storage_size(block%ghost_storage) / 8
   if (n > 0) then
@@ -1328,6 +1511,19 @@ subroutine pack_block (block,buffer)
      pos = pos + n
   end if
 
+  n = size(block%ghost_tke) * storage_size(block%ghost_tke) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%ghost_tke,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_wavelet_tke) * &
+       storage_size(block%ghost_wavelet_tke) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%ghost_wavelet_tke,0_int8,n)
+     pos = pos + n
+  end if
+
   if (pos /= size(buffer)) then
      error stop "pack_block: final byte count mismatch"
   end if
@@ -1353,6 +1549,8 @@ subroutine unpack_block (buffer,block)
   integer :: n_field_level
   integer :: scalar_mult
   integer :: vector_mult
+  integer :: tke_level
+  integer :: n_tke_level
 
   n = size(header) * storage_size(header) / 8
 
@@ -1379,6 +1577,8 @@ subroutine unpack_block (buffer,block)
        scalar_variable,n_scalar_variable,vector_variable,field_level, &
        n_field_level,scalar_mult,vector_mult)
 
+  call get_block_turbulence_layout(tke_level,n_tke_level)
+
   if (header(7) /= scalar_variable .or. &
        header(8) /= n_scalar_variable .or. &
        header(9) /= vector_variable .or. &
@@ -1389,6 +1589,11 @@ subroutine unpack_block (buffer,block)
 
      error stop "unpack_block: unsupported field layout"
 
+  end if
+
+  if (header(37) /= tke_level .or. &
+       header(38) /= n_tke_level) then
+     error stop "unpack_block: unsupported turbulence layout"
   end if
 
   if (header(20) /= N_BDRY .or. &
@@ -1404,6 +1609,12 @@ subroutine unpack_block (buffer,block)
      error stop "unpack_block: invalid interior node extent"
   end if
 
+  if (header(39) /= header(38)*header(15) .or. &
+       header(40) /= header(38)*header(26) .or. &
+       header(41) /= header(38)*header(32)) then
+     error stop "unpack_block: invalid turbulence extents"
+  end if
+
   block%id          = header(3)
   block%root_domain = header(4)
   block%root_patch  = header(5)
@@ -1415,6 +1626,8 @@ subroutine unpack_block (buffer,block)
   block%n_field_level   = header(11)
   block%scalar_mult     = header(12)
   block%vector_mult     = header(13)
+  block%tke_level       = header(37)
+  block%n_tke_level     = header(38)
 
   allocate(block%patch(header(14)))
   allocate(block%node(header(15)))
@@ -1424,6 +1637,8 @@ subroutine unpack_block (buffer,block)
   allocate(block%wavelet_vector(header(17)))
   allocate(block%scalar_mean(header(18)))
   allocate(block%vector_mean(header(19)))
+  allocate(block%tke(header(39)))
+  allocate(block%wavelet_tke(header(39)))
   allocate(block%neigh_class(header(20),header(21)))
   allocate(block%block_bdry(header(22)))
   allocate(block%bdry_storage(header(23)))
@@ -1435,6 +1650,8 @@ subroutine unpack_block (buffer,block)
   allocate(block%bdry_wavelet_vector(header(28)))
   allocate(block%bdry_scalar_mean(header(29)))
   allocate(block%bdry_vector_mean(header(30)))
+  allocate(block%bdry_tke(header(40)))
+  allocate(block%bdry_wavelet_tke(header(40)))
   allocate(block%ghost_storage(header(31)))
   allocate(block%ghost_node(header(32)))
   allocate(block%ghost_scalar(header(33)))
@@ -1443,6 +1660,8 @@ subroutine unpack_block (buffer,block)
   allocate(block%ghost_wavelet_vector(header(34)))
   allocate(block%ghost_scalar_mean(header(35)))
   allocate(block%ghost_vector_mean(header(36)))
+  allocate(block%ghost_tke(header(41)))
+  allocate(block%ghost_wavelet_tke(header(41)))
 
   n = size(block%patch) * storage_size(block%patch) / 8
   if (pos+n > size(buffer)) then
@@ -1529,6 +1748,27 @@ subroutine unpack_block (buffer,block)
      block%vector_mean = transfer( &
           buffer(pos+1:pos+n),block%vector_mean, &
           size(block%vector_mean))
+     pos = pos + n
+  end if
+
+  n = size(block%tke) * storage_size(block%tke) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated tke data"
+  end if
+  if (n > 0) then
+     block%tke = transfer( &
+          buffer(pos+1:pos+n),block%tke,size(block%tke))
+     pos = pos + n
+  end if
+
+  n = size(block%wavelet_tke) * storage_size(block%wavelet_tke) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated wavelet tke data"
+  end if
+  if (n > 0) then
+     block%wavelet_tke = transfer( &
+          buffer(pos+1:pos+n),block%wavelet_tke, &
+          size(block%wavelet_tke))
      pos = pos + n
   end if
 
@@ -1661,6 +1901,29 @@ subroutine unpack_block (buffer,block)
      pos = pos + n
   end if
 
+  n = size(block%bdry_tke) * storage_size(block%bdry_tke) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated boundary tke"
+  end if
+  if (n > 0) then
+     block%bdry_tke = transfer( &
+          buffer(pos+1:pos+n),block%bdry_tke, &
+          size(block%bdry_tke))
+     pos = pos + n
+  end if
+
+  n = size(block%bdry_wavelet_tke) * &
+       storage_size(block%bdry_wavelet_tke) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated boundary wavelet tke"
+  end if
+  if (n > 0) then
+     block%bdry_wavelet_tke = transfer( &
+          buffer(pos+1:pos+n),block%bdry_wavelet_tke, &
+          size(block%bdry_wavelet_tke))
+     pos = pos + n
+  end if
+
   n = size(block%ghost_storage) * &
        storage_size(block%ghost_storage) / 8
   if (pos+n > size(buffer)) then
@@ -1753,6 +2016,29 @@ subroutine unpack_block (buffer,block)
      block%ghost_vector_mean = transfer( &
           buffer(pos+1:pos+n),block%ghost_vector_mean, &
           size(block%ghost_vector_mean))
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_tke) * storage_size(block%ghost_tke) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated ghost tke"
+  end if
+  if (n > 0) then
+     block%ghost_tke = transfer( &
+          buffer(pos+1:pos+n),block%ghost_tke, &
+          size(block%ghost_tke))
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_wavelet_tke) * &
+       storage_size(block%ghost_wavelet_tke) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated ghost wavelet tke"
+  end if
+  if (n > 0) then
+     block%ghost_wavelet_tke = transfer( &
+          buffer(pos+1:pos+n),block%ghost_wavelet_tke, &
+          size(block%ghost_wavelet_tke))
      pos = pos + n
   end if
 
