@@ -864,6 +864,7 @@ end subroutine build_parallel_block_catalog
     integer :: b
     integer :: expected_local
     integer :: expected_field_level
+    integer :: expected_n_field_level
     integer :: expected_n_scalar_variable
     integer :: expected_scalar_mult
     integer :: expected_scalar_variable
@@ -880,6 +881,7 @@ end subroutine build_parallel_block_catalog
     integer :: local_weight
     integer :: root_domain
     integer :: root_patch
+    integer :: n_field_level
     integer :: n_scalar_variable
     integer :: scalar_mult
     integer :: scalar_variable
@@ -909,7 +911,8 @@ end subroutine build_parallel_block_catalog
     call get_block_field_layout( &
          expected_scalar_variable,expected_n_scalar_variable, &
          expected_vector_variable, &
-         expected_field_level,expected_scalar_mult, &
+         expected_field_level,expected_n_field_level, &
+         expected_scalar_mult, &
          expected_vector_mult)
 
     do i = 1, local_count
@@ -938,7 +941,7 @@ end subroutine build_parallel_block_catalog
        call get_local_block_field_layout( &
             i,scalar_variable,n_scalar_variable, &
             vector_variable,field_level, &
-            scalar_mult,vector_mult)
+            n_field_level,scalar_mult,vector_mult)
 
        if (id /= block_catalog(b)%id .or. &
             root_domain /= block_catalog(b)%root_domain .or. &
@@ -951,6 +954,7 @@ end subroutine build_parallel_block_catalog
             n_scalar_variable /= expected_n_scalar_variable .or. &
             vector_variable /= expected_vector_variable .or. &
             field_level /= expected_field_level .or. &
+            n_field_level /= expected_n_field_level .or. &
             scalar_mult /= expected_scalar_mult .or. &
             vector_mult /= expected_vector_mult) then
           call fail("local block field layout does not match format")
@@ -1012,6 +1016,11 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  scalar variables represented = ", &
             expected_n_scalar_variable
+       write(6,'(a,i0)') &
+            "  first sol field level = ", expected_field_level
+       write(6,'(a,i0)') &
+            "  sol field levels represented = ", &
+            expected_n_field_level
        write(6,'(a,/)') &
             "  unique global inventory check passed"
     end if
@@ -1050,6 +1059,7 @@ end subroutine build_parallel_block_catalog
     integer :: ierr
     integer :: mult_scalar
     integer :: mult_vector
+    integer :: n_field_level
     integer :: n_scalar_variable
     integer :: v_scalar
     integer :: v_vector
@@ -1080,7 +1090,7 @@ end subroutine build_parallel_block_catalog
 
     call get_block_field_layout( &
          v_scalar,n_scalar_variable,v_vector,k_field, &
-         mult_scalar,mult_vector)
+         n_field_level,mult_scalar,mult_vector)
 
     domain_count_local  = 0_int64
     domain_moment_local = 0.0_dp
@@ -1097,7 +1107,7 @@ end subroutine build_parallel_block_catalog
 
        call accumulate_domain_subtree_fields( &
             d,block_catalog(b)%root_patch, &
-            v_scalar,n_scalar_variable,v_vector,k_field, &
+            v_scalar,n_scalar_variable,v_vector,k_field,n_field_level, &
             mult_scalar,mult_vector, &
             domain_count_local,domain_moment_local)
 
@@ -1227,7 +1237,7 @@ end subroutine build_parallel_block_catalog
 
 
   recursive subroutine accumulate_domain_subtree_fields ( &
-       d,p,v_scalar,n_scalar_variable,v_vector,k_field, &
+       d,p,v_scalar,n_scalar_variable,v_vector,k_field,n_field_level, &
        mult_scalar,mult_vector,field_count,field_moment)
     ! Accumulate one catalogue-rooted subtree from the authoritative
     ! Domain representation using the same patch coverage copied into
@@ -1241,6 +1251,7 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: n_scalar_variable
     integer, intent(in) :: v_vector
     integer, intent(in) :: k_field
+    integer, intent(in) :: n_field_level
     integer, intent(in) :: mult_scalar
     integer, intent(in) :: mult_vector
 
@@ -1248,6 +1259,8 @@ end subroutine build_parallel_block_catalog
     real(dp), intent(inout) :: field_moment(3,2)
 
     integer :: c
+    integer :: field_level
+    integer :: level_slot
     integer :: n_value
     integer :: p_child
     integer :: scalar_id
@@ -1263,47 +1276,58 @@ end subroutine build_parallel_block_catalog
     do scalar_slot = 1, n_scalar_variable
 
        scalar_id = v_scalar + scalar_slot - 1
-       start = mult_scalar * grid(d)%patch%elts(p+1)%elts_start
-       n_value = mult_scalar * PATCH_SIZE**2
 
-       if (start < 0 .or. &
-            start+n_value > &
-            size(sol(scalar_id,k_field)%data(d)%elts)) then
-          call fail("legacy scalar patch extent is invalid")
-       end if
+       do level_slot = 1, n_field_level
 
-       field_count(1) = field_count(1) + int(n_value,int64)
-       field_moment(1,1) = field_moment(1,1) + &
-            sum(sol(scalar_id,k_field)%data(d)%elts( &
-            start+1:start+n_value))
-       field_moment(2,1) = field_moment(2,1) + &
-            sum(abs(sol(scalar_id,k_field)%data(d)%elts( &
-            start+1:start+n_value)))
-       field_moment(3,1) = field_moment(3,1) + &
-            sum(sol(scalar_id,k_field)%data(d)%elts( &
-            start+1:start+n_value)**2)
+          field_level = k_field + level_slot - 1
+          start = mult_scalar * grid(d)%patch%elts(p+1)%elts_start
+          n_value = mult_scalar * PATCH_SIZE**2
+
+          if (start < 0 .or. &
+               start+n_value > &
+               size(sol(scalar_id,field_level)%data(d)%elts)) then
+             call fail("legacy scalar patch extent is invalid")
+          end if
+
+          field_count(1) = field_count(1) + int(n_value,int64)
+          field_moment(1,1) = field_moment(1,1) + &
+               sum(sol(scalar_id,field_level)%data(d)%elts( &
+               start+1:start+n_value))
+          field_moment(2,1) = field_moment(2,1) + &
+               sum(abs(sol(scalar_id,field_level)%data(d)%elts( &
+               start+1:start+n_value)))
+          field_moment(3,1) = field_moment(3,1) + &
+               sum(sol(scalar_id,field_level)%data(d)%elts( &
+               start+1:start+n_value)**2)
+
+       end do
 
     end do
 
-    start = mult_vector * grid(d)%patch%elts(p+1)%elts_start
-    n_value = mult_vector * PATCH_SIZE**2
+    do level_slot = 1, n_field_level
 
-    if (start < 0 .or. &
-         start+n_value > &
-         size(sol(v_vector,k_field)%data(d)%elts)) then
-       call fail("legacy vector patch extent is invalid")
-    end if
+       field_level = k_field + level_slot - 1
+       start = mult_vector * grid(d)%patch%elts(p+1)%elts_start
+       n_value = mult_vector * PATCH_SIZE**2
 
-    field_count(2) = field_count(2) + int(n_value,int64)
-    field_moment(1,2) = field_moment(1,2) + &
-         sum(sol(v_vector,k_field)%data(d)%elts( &
-         start+1:start+n_value))
-    field_moment(2,2) = field_moment(2,2) + &
-         sum(abs(sol(v_vector,k_field)%data(d)%elts( &
-         start+1:start+n_value)))
-    field_moment(3,2) = field_moment(3,2) + &
-         sum(sol(v_vector,k_field)%data(d)%elts( &
-         start+1:start+n_value)**2)
+       if (start < 0 .or. &
+            start+n_value > &
+            size(sol(v_vector,field_level)%data(d)%elts)) then
+          call fail("legacy vector patch extent is invalid")
+       end if
+
+       field_count(2) = field_count(2) + int(n_value,int64)
+       field_moment(1,2) = field_moment(1,2) + &
+            sum(sol(v_vector,field_level)%data(d)%elts( &
+            start+1:start+n_value))
+       field_moment(2,2) = field_moment(2,2) + &
+            sum(abs(sol(v_vector,field_level)%data(d)%elts( &
+            start+1:start+n_value)))
+       field_moment(3,2) = field_moment(3,2) + &
+            sum(sol(v_vector,field_level)%data(d)%elts( &
+            start+1:start+n_value)**2)
+
+    end do
 
     do c = 1, N_CHDRN
 
@@ -1312,7 +1336,8 @@ end subroutine build_parallel_block_catalog
 
        call accumulate_domain_subtree_fields( &
             d,p_child,v_scalar,n_scalar_variable,v_vector,k_field, &
-            mult_scalar,mult_vector,field_count,field_moment)
+            n_field_level,mult_scalar,mult_vector, &
+            field_count,field_moment)
 
     end do
 
