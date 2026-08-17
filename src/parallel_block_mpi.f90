@@ -41,6 +41,8 @@ module parallel_block_mpi_mod
        source_block_ghost_source_statistics, &
        local_block_ghost_source_statistics, &
        validate_local_block_ghost_sources, &
+       get_local_block_ghost_requests, local_block_patch_count, &
+       local_block_ghost_count, &
        local_block_hydrostatic_statistics
 
   implicit none
@@ -86,6 +88,7 @@ module parallel_block_mpi_mod
   public :: check_block_vector_stencil_consumer
   public :: check_block_boundary_routes
   public :: check_block_ghost_source_addresses
+  public :: check_block_ghost_request_manifest
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -850,6 +853,7 @@ end subroutine build_parallel_block_catalog
     call check_block_vector_stencil_consumer(print_local)
     call check_block_boundary_routes(print_local)
     call check_block_ghost_source_addresses(print_local)
+    call check_block_ghost_request_manifest(print_local)
 
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
@@ -1461,6 +1465,304 @@ end subroutine build_parallel_block_catalog
     deallocate(patch_count_local)
 
   end subroutine check_block_ghost_source_addresses
+
+
+  subroutine check_block_ghost_request_manifest (verbose)
+    ! Exchange field-independent NGB_BLOCK ghost requests from each final
+    ! owner to the current owner of the compact source block. This checks
+    ! the routing layer only; Float_Field payload values are not moved yet.
+
+    implicit none
+
+    integer, parameter :: REQUEST_SIZE = 4
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: i
+    integer :: ierr
+    integer :: n_local_request
+    integer :: n_remote_recv
+    integer :: n_remote_send
+    integer :: n_request
+    integer :: pos
+    integer :: r
+    integer :: source
+
+    integer(int64) :: count_local(3)
+    integer(int64) :: count_global(3)
+    integer(int64) :: recv_sum_local(REQUEST_SIZE)
+    integer(int64) :: recv_sum_global(REQUEST_SIZE)
+    integer(int64) :: send_sum_local(REQUEST_SIZE)
+    integer(int64) :: send_sum_global(REQUEST_SIZE)
+
+    integer, allocatable :: destination_block(:)
+    integer, allocatable :: destination_ghost(:)
+    integer, allocatable :: fill(:)
+    integer, allocatable :: ghost_count_global(:)
+    integer, allocatable :: ghost_count_local(:)
+    integer, allocatable :: patch_count_global(:)
+    integer, allocatable :: patch_count_local(:)
+    integer, allocatable :: recv_count(:)
+    integer, allocatable :: recv_data(:)
+    integer, allocatable :: recv_displ(:)
+    integer, allocatable :: recv_record_count(:)
+    integer, allocatable :: send_count(:)
+    integer, allocatable :: send_data(:)
+    integer, allocatable :: send_displ(:)
+    integer, allocatable :: send_record_count(:)
+    integer, allocatable :: source_block(:)
+    integer, allocatable :: source_local_patch(:)
+    integer, allocatable :: source_owner(:)
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    allocate(ghost_count_global(size(block_catalog)))
+    allocate(ghost_count_local(size(block_catalog)))
+    allocate(patch_count_global(size(block_catalog)))
+    allocate(patch_count_local(size(block_catalog)))
+
+    ghost_count_local = 0
+    patch_count_local = 0
+
+    do b = 1, size(block_catalog)
+       if (block_catalog(b)%owner /= rank) cycle
+       if (catalog_local_block(b) < 1) then
+          call fail("owned block missing from request manifest store")
+       end if
+       ghost_count_local(b) = local_block_ghost_count(b)
+       patch_count_local(b) = local_block_patch_count(b)
+    end do
+
+    call MPI_Allreduce( &
+         ghost_count_local,ghost_count_global,size(block_catalog), &
+         MPI_INTEGER,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block ghost counts")
+
+    call MPI_Allreduce( &
+         patch_count_local,patch_count_global,size(block_catalog), &
+         MPI_INTEGER,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce local block patch counts")
+
+    if (any(patch_count_global <= 0) .or. &
+         any(ghost_count_global < 0)) then
+       call fail("invalid global request-manifest block extents")
+    end if
+
+    call get_local_block_ghost_requests( &
+         source_block,source_local_patch,source_owner, &
+         destination_block,destination_ghost)
+
+    n_request = size(source_block)
+
+    if (size(source_local_patch) /= n_request .or. &
+         size(source_owner) /= n_request .or. &
+         size(destination_block) /= n_request .or. &
+         size(destination_ghost) /= n_request) then
+       call fail("inconsistent local ghost request arrays")
+    end if
+
+    allocate(send_record_count(n_process))
+    allocate(recv_record_count(n_process))
+    allocate(send_count(n_process))
+    allocate(recv_count(n_process))
+    allocate(send_displ(n_process))
+    allocate(recv_displ(n_process))
+    allocate(fill(n_process))
+
+    send_record_count = 0
+    n_local_request = 0
+
+    do i = 1, n_request
+       source = source_block(i)
+
+       if (source < 1 .or. source > size(block_catalog)) then
+          call fail("ghost request has invalid source block")
+       end if
+       if (source_owner(i) /= block_catalog(source)%owner) then
+          call fail("ghost request has stale source owner")
+       end if
+       if (source_local_patch(i) < 0 .or. &
+            source_local_patch(i) >= patch_count_global(source)) then
+          call fail("ghost request has invalid compact source patch")
+       end if
+       if (destination_block(i) < 1 .or. &
+            destination_block(i) > size(block_catalog)) then
+          call fail("ghost request has invalid destination block")
+       end if
+       if (block_catalog(destination_block(i))%owner /= rank .or. &
+            destination_ghost(i) < 1 .or. &
+            destination_ghost(i) > &
+            ghost_count_global(destination_block(i))) then
+          call fail("ghost request has invalid destination record")
+       end if
+
+       if (source_owner(i) == rank) then
+          if (catalog_local_block(source) < 1) then
+             call fail("local ghost source block is unavailable")
+          end if
+          n_local_request = n_local_request + 1
+       else
+          send_record_count(source_owner(i)+1) = &
+               send_record_count(source_owner(i)+1) + 1
+       end if
+    end do
+
+    call MPI_Alltoall( &
+         send_record_count,1,MPI_INTEGER, &
+         recv_record_count,1,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoall ghost request counts")
+
+    n_remote_send = sum(send_record_count)
+    n_remote_recv = sum(recv_record_count)
+
+    send_count = REQUEST_SIZE*send_record_count
+    recv_count = REQUEST_SIZE*recv_record_count
+    send_displ(1) = 0
+    recv_displ(1) = 0
+
+    do r = 2, n_process
+       send_displ(r) = send_displ(r-1) + send_count(r-1)
+       recv_displ(r) = recv_displ(r-1) + recv_count(r-1)
+    end do
+
+    allocate(send_data(REQUEST_SIZE*n_remote_send))
+    allocate(recv_data(REQUEST_SIZE*n_remote_recv))
+
+    fill = 0
+    send_sum_local = 0_int64
+
+    do i = 1, n_request
+       if (source_owner(i) == rank) cycle
+       r = source_owner(i) + 1
+       pos = send_displ(r) + REQUEST_SIZE*fill(r)
+       send_data(pos+1:pos+REQUEST_SIZE) = [ &
+            source_block(i),source_local_patch(i), &
+            destination_block(i),destination_ghost(i) ]
+       send_sum_local = send_sum_local + &
+            int(send_data(pos+1:pos+REQUEST_SIZE),int64)
+       fill(r) = fill(r) + 1
+    end do
+
+    if (any(fill /= send_record_count)) then
+       call fail("ghost request send packing count mismatch")
+    end if
+
+    call MPI_Alltoallv( &
+         send_data,send_count,send_displ,MPI_INTEGER, &
+         recv_data,recv_count,recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv ghost requests")
+
+    recv_sum_local = 0_int64
+
+    do r = 1, n_process
+       do i = 0, recv_record_count(r)-1
+          pos = recv_displ(r) + REQUEST_SIZE*i
+          source = recv_data(pos+1)
+
+          if (source < 1 .or. source > size(block_catalog)) then
+             call fail("received ghost request has invalid source block")
+          end if
+          if (block_catalog(source)%owner /= rank) then
+             call fail("received ghost request source is not local")
+          end if
+          if (catalog_local_block(source) < 1) then
+             call fail("received ghost request source block is absent")
+          end if
+          if (recv_data(pos+2) < 0 .or. &
+               recv_data(pos+2) >= patch_count_global(source)) then
+             call fail("received ghost request has invalid source patch")
+          end if
+          b = recv_data(pos+3)
+          if (b < 1 .or. b > size(block_catalog)) then
+             call fail("received ghost request has invalid destination")
+          end if
+          if (block_catalog(b)%owner /= r-1 .or. &
+               recv_data(pos+4) < 1 .or. &
+               recv_data(pos+4) > ghost_count_global(b)) then
+             call fail("received ghost request has invalid ghost record")
+          end if
+
+          recv_sum_local = recv_sum_local + &
+               int(recv_data(pos+1:pos+REQUEST_SIZE),int64)
+       end do
+    end do
+
+    count_local = int([ &
+         n_local_request,n_remote_send,n_remote_recv ],int64)
+
+    call MPI_Allreduce( &
+         count_local,count_global,3,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce ghost request totals")
+
+    call MPI_Allreduce( &
+         send_sum_local,send_sum_global,REQUEST_SIZE, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce sent ghost request checksum")
+
+    call MPI_Allreduce( &
+         recv_sum_local,recv_sum_global,REQUEST_SIZE, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce received ghost request checksum")
+
+    if (count_global(2) /= count_global(3) .or. &
+         any(send_sum_global /= recv_sum_global)) then
+       call fail("remote ghost request exchange mismatch")
+    end if
+
+    if (count_global(1)+count_global(2) /= &
+         int(sum(ghost_count_global),int64)) then
+       call fail("global ghost request inventory is incomplete")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Float_Field ghost request manifest for rank ",rank,":"
+       write(6,'(a,i0)') &
+            "  local-source requests  = ",n_local_request
+       write(6,'(a,i0)') &
+            "  remote requests sent   = ",n_remote_send
+       write(6,'(a,i0)') &
+            "  remote requests received = ",n_remote_recv
+       write(6,'(a,/)') &
+            "  request source/destination checks passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global local-source ghost requests  = ",count_global(1)
+       write(6,'(a,i0)') &
+            "Global remote ghost requests        = ",count_global(2)
+       write(6,'(a,i0)') &
+            "Global Float_Field ghost requests   = ", &
+            count_global(1)+count_global(2)
+       write(6,'(a,/)') &
+            "Float_Field ghost request manifest exchange passed"
+    end if
+
+    deallocate(destination_block)
+    deallocate(destination_ghost)
+    deallocate(fill)
+    deallocate(ghost_count_global)
+    deallocate(ghost_count_local)
+    deallocate(patch_count_global)
+    deallocate(patch_count_local)
+    deallocate(recv_count)
+    deallocate(recv_data)
+    deallocate(recv_displ)
+    deallocate(recv_record_count)
+    deallocate(send_count)
+    deallocate(send_data)
+    deallocate(send_displ)
+    deallocate(send_record_count)
+    deallocate(source_block)
+    deallocate(source_local_patch)
+    deallocate(source_owner)
+
+  end subroutine check_block_ghost_request_manifest
 
 
   subroutine check_local_blocks (verbose)

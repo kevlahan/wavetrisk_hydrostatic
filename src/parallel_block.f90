@@ -189,6 +189,9 @@ module parallel_block_mod
   public :: source_block_ghost_source_statistics
   public :: local_block_ghost_source_statistics
   public :: validate_local_block_ghost_sources
+  public :: get_local_block_ghost_requests
+  public :: local_block_patch_count
+  public :: local_block_ghost_count
   public :: local_block_hydrostatic_statistics
   public :: install_local_blocks
 
@@ -1394,6 +1397,101 @@ subroutine validate_local_block_ghost_sources ( &
   end do
 
 end subroutine validate_local_block_ghost_sources
+
+
+subroutine get_local_block_ghost_requests ( &
+     source_block,source_local_patch,source_owner, &
+     destination_block,destination_ghost)
+  ! Export one field-independent request for every ghost record owned by
+  ! this rank. Float_Field rank and position affect later payload packing,
+  ! not this source/destination manifest.
+
+  implicit none
+
+  integer, allocatable, intent(out) :: source_block(:)
+  integer, allocatable, intent(out) :: source_local_patch(:)
+  integer, allocatable, intent(out) :: source_owner(:)
+  integer, allocatable, intent(out) :: destination_block(:)
+  integer, allocatable, intent(out) :: destination_ghost(:)
+
+  integer :: b
+  integer :: g
+  integer :: i
+  integer :: n_request
+
+  if (.not. local_block_store_ready()) then
+     error stop "get_local_block_ghost_requests: store is not ready"
+  end if
+
+  n_request = 0
+  do b = 1, size(block_local)
+     n_request = n_request + size(block_local(b)%ghost_storage)
+  end do
+
+  allocate(source_block(n_request))
+  allocate(source_local_patch(n_request))
+  allocate(source_owner(n_request))
+  allocate(destination_block(n_request))
+  allocate(destination_ghost(n_request))
+
+  i = 0
+  do b = 1, size(block_local)
+     do g = 1, size(block_local(b)%ghost_storage)
+        i = i + 1
+        source_block(i) = &
+             block_local(b)%ghost_storage(g)%source_block
+        source_local_patch(i) = &
+             block_local(b)%ghost_storage(g)%source_local_patch
+        source_owner(i) = &
+             block_local(b)%ghost_storage(g)%source_owner
+        destination_block(i) = block_local_catalog_index(b)
+        destination_ghost(i) = g
+     end do
+  end do
+
+  if (i /= n_request) then
+     error stop "get_local_block_ghost_requests: request count"
+  end if
+
+end subroutine get_local_block_ghost_requests
+
+
+integer function local_block_patch_count (catalog_index) result(n_patch)
+  ! Return the compact interior-patch count for a locally owned block.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+
+  integer :: local_index
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop "local_block_patch_count: block is not local"
+  end if
+
+  n_patch = size(block_local(local_index)%patch)
+
+end function local_block_patch_count
+
+
+integer function local_block_ghost_count (catalog_index) result(n_ghost)
+  ! Return the compact ghost-record count for a locally owned block.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+
+  integer :: local_index
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop "local_block_ghost_count: block is not local"
+  end if
+
+  n_ghost = size(block_local(local_index)%ghost_storage)
+
+end function local_block_ghost_count
 
 
 subroutine source_block_scalar_stencil_statistics ( &
