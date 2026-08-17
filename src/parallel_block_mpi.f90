@@ -8,7 +8,8 @@ module parallel_block_mpi_mod
   use kind_mod,   only : dp
   use shared_mod, only : N_CHDRN, N_GLO_DOMAIN
 
-  use domain_mod, only : grid, sol, sol_mean, subtree_weight_Domain
+  use domain_mod, only : grid, sol, sol_mean, wav_coeff, &
+       subtree_weight_Domain
 
   use patch_mod, only : PATCH_SIZE
 
@@ -24,7 +25,8 @@ module parallel_block_mpi_mod
        local_block_catalog, catalog_local_block, &
        get_local_block_identity, check_local_block_storage, &
        get_block_field_layout, get_local_block_field_layout, &
-       local_block_field_statistics, local_block_mean_field_statistics
+       local_block_field_statistics, local_block_wavelet_statistics, &
+       local_block_mean_field_statistics
 
   implicit none
 
@@ -1043,9 +1045,9 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine check_block_field_inventory (verbose)
-    ! Compare the scalar and vector interior fields in the migrated
-    ! final-owner block store with the still-authoritative legacy
-    ! Domain fields covered by the catalogue-rooted subtrees. The
+    ! Compare sol, sol_mean and wav_coeff interior fields in the
+    ! migrated final-owner block store with the still-authoritative
+    ! legacy Domain fields covered by the catalogue-rooted subtrees. The
     ! fixed coarse scaffold above those roots is not block storage.
     ! Only global counts and order-independent moments are compared,
     ! because block and Domain ownership differ after migration.
@@ -1069,19 +1071,27 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: block_count_global(2)
     integer(int64) :: block_mean_count_local(2)
     integer(int64) :: block_mean_count_global(2)
+    integer(int64) :: block_wavelet_count_local(2)
+    integer(int64) :: block_wavelet_count_global(2)
     integer(int64) :: domain_count_local(2)
     integer(int64) :: domain_count_global(2)
     integer(int64) :: domain_mean_count_local(2)
     integer(int64) :: domain_mean_count_global(2)
+    integer(int64) :: domain_wavelet_count_local(2)
+    integer(int64) :: domain_wavelet_count_global(2)
 
     real(dp) :: block_moment_local(3,2)
     real(dp) :: block_moment_global(3,2)
     real(dp) :: block_mean_moment_local(3,2)
     real(dp) :: block_mean_moment_global(3,2)
+    real(dp) :: block_wavelet_moment_local(3,2)
+    real(dp) :: block_wavelet_moment_global(3,2)
     real(dp) :: domain_moment_local(3,2)
     real(dp) :: domain_moment_global(3,2)
     real(dp) :: domain_mean_moment_local(3,2)
     real(dp) :: domain_mean_moment_global(3,2)
+    real(dp) :: domain_wavelet_moment_local(3,2)
+    real(dp) :: domain_wavelet_moment_global(3,2)
 
     logical :: print_summary
 
@@ -1096,6 +1106,11 @@ end subroutine build_parallel_block_catalog
          block_count_local(1),block_count_local(2), &
          block_moment_local(:,1),block_moment_local(:,2))
 
+    call local_block_wavelet_statistics( &
+         block_wavelet_count_local(1),block_wavelet_count_local(2), &
+         block_wavelet_moment_local(:,1), &
+         block_wavelet_moment_local(:,2))
+
     call local_block_mean_field_statistics( &
          block_mean_count_local(1),block_mean_count_local(2), &
          block_mean_moment_local(:,1),block_mean_moment_local(:,2))
@@ -1108,6 +1123,8 @@ end subroutine build_parallel_block_catalog
     domain_moment_local = 0.0_dp
     domain_mean_count_local  = 0_int64
     domain_mean_moment_local = 0.0_dp
+    domain_wavelet_count_local  = 0_int64
+    domain_wavelet_moment_local = 0.0_dp
 
     do b = 1, size(block_catalog)
 
@@ -1124,7 +1141,8 @@ end subroutine build_parallel_block_catalog
             v_scalar,n_scalar_variable,v_vector,k_field,n_field_level, &
             mult_scalar,mult_vector, &
             domain_count_local,domain_moment_local, &
-            domain_mean_count_local,domain_mean_moment_local)
+            domain_mean_count_local,domain_mean_moment_local, &
+            domain_wavelet_count_local,domain_wavelet_moment_local)
 
     end do
 
@@ -1139,6 +1157,11 @@ end subroutine build_parallel_block_catalog
     call check_mpi(ierr,"MPI_Allreduce block mean-field counts")
 
     call MPI_Allreduce( &
+         block_wavelet_count_local,block_wavelet_count_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block wavelet counts")
+
+    call MPI_Allreduce( &
          domain_count_local,domain_count_global,2,MPI_INTEGER8, &
          MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce Domain field counts")
@@ -1147,6 +1170,11 @@ end subroutine build_parallel_block_catalog
          domain_mean_count_local,domain_mean_count_global,2, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce Domain mean-field counts")
+
+    call MPI_Allreduce( &
+         domain_wavelet_count_local,domain_wavelet_count_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain wavelet counts")
 
     call MPI_Allreduce( &
          block_moment_local,block_moment_global,6, &
@@ -1159,6 +1187,11 @@ end subroutine build_parallel_block_catalog
     call check_mpi(ierr,"MPI_Allreduce block mean-field moments")
 
     call MPI_Allreduce( &
+         block_wavelet_moment_local,block_wavelet_moment_global,6, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block wavelet moments")
+
+    call MPI_Allreduce( &
          domain_moment_local,domain_moment_global,6, &
          MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce Domain field moments")
@@ -1167,6 +1200,11 @@ end subroutine build_parallel_block_catalog
          domain_mean_moment_local,domain_mean_moment_global,6, &
          MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce Domain mean-field moments")
+
+    call MPI_Allreduce( &
+         domain_wavelet_moment_local,domain_wavelet_moment_global,6, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain wavelet moments")
 
     if (any(block_count_global /= domain_count_global)) then
 
@@ -1194,6 +1232,21 @@ end subroutine build_parallel_block_catalog
        end if
 
        call fail("block and Domain mean-field counts differ")
+    end if
+
+    if (any(block_wavelet_count_global /= &
+         domain_wavelet_count_global)) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain wavelet-count mismatch:"
+          write(error_unit,'(a,2(i0,1x))') &
+               "  block wavelet counts  = ", block_wavelet_count_global
+          write(error_unit,'(a,2(i0,1x))') &
+               "  Domain wavelet counts = ", domain_wavelet_count_global
+       end if
+
+       call fail("block and Domain wavelet counts differ")
     end if
 
     if (.not. field_moments_match( &
@@ -1262,6 +1315,40 @@ end subroutine build_parallel_block_catalog
        call fail("block and Domain mean vector moments differ")
     end if
 
+    if (.not. field_moments_match( &
+         block_wavelet_moment_global(:,1), &
+         domain_wavelet_moment_global(:,1), &
+         block_wavelet_count_global(1))) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain scalar wavelet-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", block_wavelet_moment_global(:,1)
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", domain_wavelet_moment_global(:,1)
+       end if
+
+       call fail("block and Domain scalar wavelet moments differ")
+    end if
+
+    if (.not. field_moments_match( &
+         block_wavelet_moment_global(:,2), &
+         domain_wavelet_moment_global(:,2), &
+         block_wavelet_count_global(2))) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain vector wavelet-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", block_wavelet_moment_global(:,2)
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", domain_wavelet_moment_global(:,2)
+       end if
+
+       call fail("block and Domain vector wavelet moments differ")
+    end if
+
     if (print_summary) then
        write(6,'(/,a,i0,a)') &
             "Read-only block field consumer for rank ", rank, ":"
@@ -1270,13 +1357,19 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  local block vector values = ", block_count_local(2)
        write(6,'(a,i0)') &
+            "  local block wavelet scalar values = ", &
+            block_wavelet_count_local(1)
+       write(6,'(a,i0)') &
+            "  local block wavelet vector values = ", &
+            block_wavelet_count_local(2)
+       write(6,'(a,i0)') &
             "  local block mean scalar values = ", &
             block_mean_count_local(1)
        write(6,'(a,i0)') &
             "  local block mean vector values = ", &
             block_mean_count_local(2)
        write(6,'(a,/)') &
-            "  global block/Domain sol and sol_mean inventory checks passed"
+            "  global sol/sol_mean/wav_coeff inventory checks passed"
     end if
 
     if (print_summary .and. rank == 0) then
@@ -1287,13 +1380,19 @@ end subroutine build_parallel_block_catalog
             "Global vector interior values verified = ", &
             block_count_global(2)
        write(6,'(a,i0)') &
+            "Global wavelet scalar values verified = ", &
+            block_wavelet_count_global(1)
+       write(6,'(a,i0)') &
+            "Global wavelet vector values verified = ", &
+            block_wavelet_count_global(2)
+       write(6,'(a,i0)') &
             "Global mean scalar interior values verified = ", &
             block_mean_count_global(1)
        write(6,'(a,i0)') &
             "Global mean vector interior values verified = ", &
             block_mean_count_global(2)
        write(6,'(a,/)') &
-            "Block sol and sol_mean data match legacy Domain data"
+            "Block sol, sol_mean and wav_coeff match legacy Domain data"
     end if
 
   end subroutine check_block_field_inventory
@@ -1334,7 +1433,8 @@ end subroutine build_parallel_block_catalog
   recursive subroutine accumulate_domain_subtree_fields ( &
        d,p,v_scalar,n_scalar_variable,v_vector,k_field,n_field_level, &
        mult_scalar,mult_vector,field_count,field_moment, &
-       mean_field_count,mean_field_moment)
+       mean_field_count,mean_field_moment, &
+       wavelet_field_count,wavelet_field_moment)
     ! Accumulate one catalogue-rooted subtree from the authoritative
     ! Domain representation using the same patch coverage copied into
     ! Block_Data.
@@ -1355,6 +1455,8 @@ end subroutine build_parallel_block_catalog
     real(dp), intent(inout) :: field_moment(3,2)
     integer(int64), intent(inout) :: mean_field_count(2)
     real(dp), intent(inout) :: mean_field_moment(3,2)
+    integer(int64), intent(inout) :: wavelet_field_count(2)
+    real(dp), intent(inout) :: wavelet_field_moment(3,2)
 
     integer :: c
     integer :: field_level
@@ -1396,6 +1498,23 @@ end subroutine build_parallel_block_catalog
                start+1:start+n_value)))
           field_moment(3,1) = field_moment(3,1) + &
                sum(sol(scalar_id,field_level)%data(d)%elts( &
+               start+1:start+n_value)**2)
+
+          if (start+n_value > &
+               size(wav_coeff(scalar_id,field_level)%data(d)%elts)) then
+             call fail("legacy scalar wavelet patch extent is invalid")
+          end if
+
+          wavelet_field_count(1) = &
+               wavelet_field_count(1) + int(n_value,int64)
+          wavelet_field_moment(1,1) = wavelet_field_moment(1,1) + &
+               sum(wav_coeff(scalar_id,field_level)%data(d)%elts( &
+               start+1:start+n_value))
+          wavelet_field_moment(2,1) = wavelet_field_moment(2,1) + &
+               sum(abs(wav_coeff(scalar_id,field_level)%data(d)%elts( &
+               start+1:start+n_value)))
+          wavelet_field_moment(3,1) = wavelet_field_moment(3,1) + &
+               sum(wav_coeff(scalar_id,field_level)%data(d)%elts( &
                start+1:start+n_value)**2)
 
           if (start+n_value > &
@@ -1443,6 +1562,23 @@ end subroutine build_parallel_block_catalog
             start+1:start+n_value)**2)
 
        if (start+n_value > &
+            size(wav_coeff(v_vector,field_level)%data(d)%elts)) then
+          call fail("legacy vector wavelet patch extent is invalid")
+       end if
+
+       wavelet_field_count(2) = &
+            wavelet_field_count(2) + int(n_value,int64)
+       wavelet_field_moment(1,2) = wavelet_field_moment(1,2) + &
+            sum(wav_coeff(v_vector,field_level)%data(d)%elts( &
+            start+1:start+n_value))
+       wavelet_field_moment(2,2) = wavelet_field_moment(2,2) + &
+            sum(abs(wav_coeff(v_vector,field_level)%data(d)%elts( &
+            start+1:start+n_value)))
+       wavelet_field_moment(3,2) = wavelet_field_moment(3,2) + &
+            sum(wav_coeff(v_vector,field_level)%data(d)%elts( &
+            start+1:start+n_value)**2)
+
+       if (start+n_value > &
             size(sol_mean(v_vector,field_level)%data(d)%elts)) then
           call fail("legacy mean vector patch extent is invalid")
        end if
@@ -1470,7 +1606,8 @@ end subroutine build_parallel_block_catalog
             d,p_child,v_scalar,n_scalar_variable,v_vector,k_field, &
             n_field_level,mult_scalar,mult_vector, &
             field_count,field_moment, &
-            mean_field_count,mean_field_moment)
+            mean_field_count,mean_field_moment, &
+            wavelet_field_count,wavelet_field_moment)
 
     end do
 

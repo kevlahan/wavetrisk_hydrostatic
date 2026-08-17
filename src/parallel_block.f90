@@ -23,7 +23,7 @@ module parallel_block_mod
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
-  integer, parameter :: BLOCK_PACK_VERSION = 5
+  integer, parameter :: BLOCK_PACK_VERSION = 6
   integer, parameter :: BLOCK_PACK_HEADER_SIZE = 36
 
 
@@ -103,10 +103,14 @@ module parallel_block_mod
 
      real(dp), allocatable :: scalar(:)
      real(dp), allocatable :: vector(:)
+     real(dp), allocatable :: wavelet_scalar(:)
+     real(dp), allocatable :: wavelet_vector(:)
      real(dp), allocatable :: scalar_mean(:)
      real(dp), allocatable :: vector_mean(:)
      real(dp), allocatable :: bdry_scalar(:)
      real(dp), allocatable :: bdry_vector(:)
+     real(dp), allocatable :: bdry_wavelet_scalar(:)
+     real(dp), allocatable :: bdry_wavelet_vector(:)
      real(dp), allocatable :: bdry_scalar_mean(:)
      real(dp), allocatable :: bdry_vector_mean(:)
 
@@ -121,6 +125,8 @@ module parallel_block_mod
 
      real(dp), allocatable :: ghost_scalar(:)
      real(dp), allocatable :: ghost_vector(:)
+     real(dp), allocatable :: ghost_wavelet_scalar(:)
+     real(dp), allocatable :: ghost_wavelet_vector(:)
      real(dp), allocatable :: ghost_scalar_mean(:)
      real(dp), allocatable :: ghost_vector_mean(:)
   end type Block_Data
@@ -154,6 +160,7 @@ module parallel_block_mod
   public :: get_local_block_field_layout
   public :: check_local_block_storage
   public :: local_block_field_statistics
+  public :: local_block_wavelet_statistics
   public :: local_block_mean_field_statistics
   public :: install_local_blocks
 
@@ -239,6 +246,8 @@ subroutine check_block_storage (block,check_serialization)
        .not. allocated(block%node) .or. &
        .not. allocated(block%scalar) .or. &
        .not. allocated(block%vector) .or. &
+       .not. allocated(block%wavelet_scalar) .or. &
+       .not. allocated(block%wavelet_vector) .or. &
        .not. allocated(block%scalar_mean) .or. &
        .not. allocated(block%vector_mean) .or. &
        .not. allocated(block%neigh_class) .or. &
@@ -248,12 +257,16 @@ subroutine check_block_storage (block,check_serialization)
        .not. allocated(block%bdry_node) .or. &
        .not. allocated(block%bdry_scalar) .or. &
        .not. allocated(block%bdry_vector) .or. &
+       .not. allocated(block%bdry_wavelet_scalar) .or. &
+       .not. allocated(block%bdry_wavelet_vector) .or. &
        .not. allocated(block%bdry_scalar_mean) .or. &
        .not. allocated(block%bdry_vector_mean) .or. &
        .not. allocated(block%ghost_storage) .or. &
        .not. allocated(block%ghost_node) .or. &
        .not. allocated(block%ghost_scalar) .or. &
        .not. allocated(block%ghost_vector) .or. &
+       .not. allocated(block%ghost_wavelet_scalar) .or. &
+       .not. allocated(block%ghost_wavelet_vector) .or. &
        .not. allocated(block%ghost_scalar_mean) .or. &
        .not. allocated(block%ghost_vector_mean)) then
 
@@ -269,6 +282,8 @@ subroutine check_block_storage (block,check_serialization)
        block%scalar_mult*n_node .or. &
        size(block%vector) /= &
        block%n_field_level*block%vector_mult*n_node .or. &
+       size(block%wavelet_scalar) /= size(block%scalar) .or. &
+       size(block%wavelet_vector) /= size(block%vector) .or. &
        size(block%scalar_mean) /= size(block%scalar) .or. &
        size(block%vector_mean) /= size(block%vector)) then
 
@@ -293,6 +308,8 @@ subroutine check_block_storage (block,check_serialization)
        block%scalar_mult*n_bdry_node .or. &
        size(block%bdry_vector) /= &
        block%n_field_level*block%vector_mult*n_bdry_node .or. &
+       size(block%bdry_wavelet_scalar) /= size(block%bdry_scalar) .or. &
+       size(block%bdry_wavelet_vector) /= size(block%bdry_vector) .or. &
        size(block%bdry_scalar_mean) /= size(block%bdry_scalar) .or. &
        size(block%bdry_vector_mean) /= size(block%bdry_vector)) then
 
@@ -308,6 +325,8 @@ subroutine check_block_storage (block,check_serialization)
        block%scalar_mult*n_ghost_node .or. &
        size(block%ghost_vector) /= &
        block%n_field_level*block%vector_mult*n_ghost_node .or. &
+       size(block%ghost_wavelet_scalar) /= size(block%ghost_scalar) .or. &
+       size(block%ghost_wavelet_vector) /= size(block%ghost_vector) .or. &
        size(block%ghost_scalar_mean) /= size(block%ghost_scalar) .or. &
        size(block%ghost_vector_mean) /= size(block%ghost_vector)) then
 
@@ -731,6 +750,63 @@ subroutine local_block_field_statistics ( &
 end subroutine local_block_field_statistics
 
 
+subroutine local_block_wavelet_statistics ( &
+     scalar_count,vector_count,scalar_moment,vector_moment)
+  ! Compute order-independent wav_coeff inventory statistics over the
+  ! ready final-owner block store.
+
+  implicit none
+
+  integer(int64), intent(out) :: scalar_count
+  integer(int64), intent(out) :: vector_count
+
+  real(dp), intent(out) :: scalar_moment(3)
+  real(dp), intent(out) :: vector_moment(3)
+
+  integer :: i
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "local_block_wavelet_statistics: store is not ready"
+  end if
+
+  scalar_count  = 0_int64
+  vector_count  = 0_int64
+  scalar_moment = 0.0_dp
+  vector_moment = 0.0_dp
+
+  do i = 1, size(block_local)
+
+     if (.not. allocated(block_local(i)%wavelet_scalar) .or. &
+          .not. allocated(block_local(i)%wavelet_vector)) then
+        error stop &
+             "local_block_wavelet_statistics: storage missing"
+     end if
+
+     scalar_count = scalar_count + &
+          int(size(block_local(i)%wavelet_scalar),int64)
+     vector_count = vector_count + &
+          int(size(block_local(i)%wavelet_vector),int64)
+
+     scalar_moment(1) = scalar_moment(1) + &
+          sum(block_local(i)%wavelet_scalar)
+     scalar_moment(2) = scalar_moment(2) + &
+          sum(abs(block_local(i)%wavelet_scalar))
+     scalar_moment(3) = scalar_moment(3) + &
+          sum(block_local(i)%wavelet_scalar**2)
+
+     vector_moment(1) = vector_moment(1) + &
+          sum(block_local(i)%wavelet_vector)
+     vector_moment(2) = vector_moment(2) + &
+          sum(abs(block_local(i)%wavelet_vector))
+     vector_moment(3) = vector_moment(3) + &
+          sum(block_local(i)%wavelet_vector**2)
+
+  end do
+
+end subroutine local_block_wavelet_statistics
+
+
 subroutine local_block_mean_field_statistics ( &
      scalar_count,vector_count,scalar_moment,vector_moment)
   ! Compute order-independent sol_mean inventory statistics over the
@@ -869,6 +945,8 @@ integer function packed_block_nbyte (block) result(nbyte)
        .not. allocated(block%node) .or. &
        .not. allocated(block%scalar) .or. &
        .not. allocated(block%vector) .or. &
+       .not. allocated(block%wavelet_scalar) .or. &
+       .not. allocated(block%wavelet_vector) .or. &
        .not. allocated(block%scalar_mean) .or. &
        .not. allocated(block%vector_mean) .or. &
        .not. allocated(block%neigh_class) .or. &
@@ -878,12 +956,16 @@ integer function packed_block_nbyte (block) result(nbyte)
        .not. allocated(block%bdry_node) .or. &
        .not. allocated(block%bdry_scalar) .or. &
        .not. allocated(block%bdry_vector) .or. &
+       .not. allocated(block%bdry_wavelet_scalar) .or. &
+       .not. allocated(block%bdry_wavelet_vector) .or. &
        .not. allocated(block%bdry_scalar_mean) .or. &
        .not. allocated(block%bdry_vector_mean) .or. &
        .not. allocated(block%ghost_storage) .or. &
        .not. allocated(block%ghost_node) .or. &
        .not. allocated(block%ghost_scalar) .or. &
        .not. allocated(block%ghost_vector) .or. &
+       .not. allocated(block%ghost_wavelet_scalar) .or. &
+       .not. allocated(block%ghost_wavelet_vector) .or. &
        .not. allocated(block%ghost_scalar_mean) .or. &
        .not. allocated(block%ghost_vector_mean)) then
 
@@ -906,6 +988,14 @@ integer function packed_block_nbyte (block) result(nbyte)
 
   nbyte = nbyte + &
        size(block%vector) * storage_size(block%vector) / 8
+
+  nbyte = nbyte + &
+       size(block%wavelet_scalar) * &
+       storage_size(block%wavelet_scalar) / 8
+
+  nbyte = nbyte + &
+       size(block%wavelet_vector) * &
+       storage_size(block%wavelet_vector) / 8
 
   nbyte = nbyte + &
        size(block%scalar_mean) * storage_size(block%scalar_mean) / 8
@@ -938,6 +1028,14 @@ integer function packed_block_nbyte (block) result(nbyte)
        storage_size(block%bdry_vector) / 8
 
   nbyte = nbyte + &
+       size(block%bdry_wavelet_scalar) * &
+       storage_size(block%bdry_wavelet_scalar) / 8
+
+  nbyte = nbyte + &
+       size(block%bdry_wavelet_vector) * &
+       storage_size(block%bdry_wavelet_vector) / 8
+
+  nbyte = nbyte + &
        size(block%bdry_scalar_mean) * &
        storage_size(block%bdry_scalar_mean) / 8
 
@@ -959,6 +1057,14 @@ integer function packed_block_nbyte (block) result(nbyte)
   nbyte = nbyte + &
        size(block%ghost_vector) * &
        storage_size(block%ghost_vector) / 8
+
+  nbyte = nbyte + &
+       size(block%ghost_wavelet_scalar) * &
+       storage_size(block%ghost_wavelet_scalar) / 8
+
+  nbyte = nbyte + &
+       size(block%ghost_wavelet_vector) * &
+       storage_size(block%ghost_wavelet_vector) / 8
 
   nbyte = nbyte + &
        size(block%ghost_scalar_mean) * &
@@ -1057,6 +1163,20 @@ subroutine pack_block (block,buffer)
      pos = pos + n
   end if
 
+  n = size(block%wavelet_scalar) * &
+       storage_size(block%wavelet_scalar) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%wavelet_scalar,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%wavelet_vector) * &
+       storage_size(block%wavelet_vector) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%wavelet_vector,0_int8,n)
+     pos = pos + n
+  end if
+
   n = size(block%scalar_mean) * &
        storage_size(block%scalar_mean) / 8
   if (n > 0) then
@@ -1117,6 +1237,22 @@ subroutine pack_block (block,buffer)
      pos = pos + n
   end if
 
+  n = size(block%bdry_wavelet_scalar) * &
+       storage_size(block%bdry_wavelet_scalar) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = &
+          transfer(block%bdry_wavelet_scalar,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%bdry_wavelet_vector) * &
+       storage_size(block%bdry_wavelet_vector) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = &
+          transfer(block%bdry_wavelet_vector,0_int8,n)
+     pos = pos + n
+  end if
+
   n = size(block%bdry_scalar_mean) * &
        storage_size(block%bdry_scalar_mean) / 8
   if (n > 0) then
@@ -1157,6 +1293,22 @@ subroutine pack_block (block,buffer)
        storage_size(block%ghost_vector) / 8
   if (n > 0) then
      buffer(pos+1:pos+n) = transfer(block%ghost_vector,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_wavelet_scalar) * &
+       storage_size(block%ghost_wavelet_scalar) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = &
+          transfer(block%ghost_wavelet_scalar,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_wavelet_vector) * &
+       storage_size(block%ghost_wavelet_vector) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = &
+          transfer(block%ghost_wavelet_vector,0_int8,n)
      pos = pos + n
   end if
 
@@ -1268,6 +1420,8 @@ subroutine unpack_block (buffer,block)
   allocate(block%node(header(15)))
   allocate(block%scalar(header(16)))
   allocate(block%vector(header(17)))
+  allocate(block%wavelet_scalar(header(16)))
+  allocate(block%wavelet_vector(header(17)))
   allocate(block%scalar_mean(header(18)))
   allocate(block%vector_mean(header(19)))
   allocate(block%neigh_class(header(20),header(21)))
@@ -1277,12 +1431,16 @@ subroutine unpack_block (buffer,block)
   allocate(block%bdry_node(header(26)))
   allocate(block%bdry_scalar(header(27)))
   allocate(block%bdry_vector(header(28)))
+  allocate(block%bdry_wavelet_scalar(header(27)))
+  allocate(block%bdry_wavelet_vector(header(28)))
   allocate(block%bdry_scalar_mean(header(29)))
   allocate(block%bdry_vector_mean(header(30)))
   allocate(block%ghost_storage(header(31)))
   allocate(block%ghost_node(header(32)))
   allocate(block%ghost_scalar(header(33)))
   allocate(block%ghost_vector(header(34)))
+  allocate(block%ghost_wavelet_scalar(header(33)))
+  allocate(block%ghost_wavelet_vector(header(34)))
   allocate(block%ghost_scalar_mean(header(35)))
   allocate(block%ghost_vector_mean(header(36)))
 
@@ -1323,6 +1481,30 @@ subroutine unpack_block (buffer,block)
   if (n > 0) then
      block%vector = transfer( &
           buffer(pos+1:pos+n),block%vector,size(block%vector))
+     pos = pos + n
+  end if
+
+  n = size(block%wavelet_scalar) * &
+       storage_size(block%wavelet_scalar) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated wavelet scalar data"
+  end if
+  if (n > 0) then
+     block%wavelet_scalar = transfer( &
+          buffer(pos+1:pos+n),block%wavelet_scalar, &
+          size(block%wavelet_scalar))
+     pos = pos + n
+  end if
+
+  n = size(block%wavelet_vector) * &
+       storage_size(block%wavelet_vector) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated wavelet vector data"
+  end if
+  if (n > 0) then
+     block%wavelet_vector = transfer( &
+          buffer(pos+1:pos+n),block%wavelet_vector, &
+          size(block%wavelet_vector))
      pos = pos + n
   end if
 
@@ -1431,6 +1613,30 @@ subroutine unpack_block (buffer,block)
      pos = pos + n
   end if
 
+  n = size(block%bdry_wavelet_scalar) * &
+       storage_size(block%bdry_wavelet_scalar) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated boundary wavelet scalar"
+  end if
+  if (n > 0) then
+     block%bdry_wavelet_scalar = transfer( &
+          buffer(pos+1:pos+n),block%bdry_wavelet_scalar, &
+          size(block%bdry_wavelet_scalar))
+     pos = pos + n
+  end if
+
+  n = size(block%bdry_wavelet_vector) * &
+       storage_size(block%bdry_wavelet_vector) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated boundary wavelet vector"
+  end if
+  if (n > 0) then
+     block%bdry_wavelet_vector = transfer( &
+          buffer(pos+1:pos+n),block%bdry_wavelet_vector, &
+          size(block%bdry_wavelet_vector))
+     pos = pos + n
+  end if
+
   n = size(block%bdry_scalar_mean) * &
        storage_size(block%bdry_scalar_mean) / 8
   if (pos+n > size(buffer)) then
@@ -1499,6 +1705,30 @@ subroutine unpack_block (buffer,block)
      block%ghost_vector = transfer( &
           buffer(pos+1:pos+n),block%ghost_vector, &
           size(block%ghost_vector))
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_wavelet_scalar) * &
+       storage_size(block%ghost_wavelet_scalar) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated ghost wavelet scalar"
+  end if
+  if (n > 0) then
+     block%ghost_wavelet_scalar = transfer( &
+          buffer(pos+1:pos+n),block%ghost_wavelet_scalar, &
+          size(block%ghost_wavelet_scalar))
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_wavelet_vector) * &
+       storage_size(block%ghost_wavelet_vector) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated ghost wavelet vector"
+  end if
+  if (n > 0) then
+     block%ghost_wavelet_vector = transfer( &
+          buffer(pos+1:pos+n),block%ghost_wavelet_vector, &
+          size(block%ghost_wavelet_vector))
      pos = pos + n
   end if
 
