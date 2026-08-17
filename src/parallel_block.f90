@@ -3,7 +3,7 @@ module parallel_block_mod
   use, intrinsic :: iso_fortran_env, only : int8, int64
 
   use kind_mod,   only : dp
-  use shared_mod, only : Coord, MULT, N_BDRY, S_VELO, scalars
+  use shared_mod, only : Coord, MULT, N_BDRY, S_VELO, scalars, zmin
   use patch_mod,  only : Patch, PATCH_SIZE
 
   implicit none
@@ -23,8 +23,8 @@ module parallel_block_mod
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
-  integer, parameter :: BLOCK_PACK_VERSION = 1
-  integer, parameter :: BLOCK_PACK_HEADER_SIZE = 23
+  integer, parameter :: BLOCK_PACK_VERSION = 2
+  integer, parameter :: BLOCK_PACK_HEADER_SIZE = 28
 
 
   type, public :: Block_Bdry_Storage
@@ -89,6 +89,12 @@ module parallel_block_mod
      integer :: root_patch  = -1
      integer :: level       = -1
 
+     integer :: scalar_variable = -1
+     integer :: vector_variable = -1
+     integer :: field_level     = -1
+     integer :: scalar_mult     = 0
+     integer :: vector_mult     = 0
+
      type(Patch), allocatable :: patch(:)
      type(Coord), allocatable :: node(:)
      type(Coord), allocatable :: bdry_node(:)
@@ -136,11 +142,37 @@ module parallel_block_mod
   public :: local_block_catalog
   public :: catalog_local_block
   public :: get_local_block_identity
+  public :: get_block_field_layout
+  public :: get_local_block_field_layout
   public :: check_local_block_storage
   public :: local_block_field_statistics
   public :: install_local_blocks
 
 contains
+
+
+subroutine get_block_field_layout ( &
+     scalar_variable,vector_variable,field_level, &
+     scalar_mult,vector_mult)
+  ! Return the field layout represented by this Block_Data format.
+  ! Centralizing the descriptor prevents builders and consumers from
+  ! independently hard-coding the selected variables and level.
+
+  implicit none
+
+  integer, intent(out) :: scalar_variable
+  integer, intent(out) :: vector_variable
+  integer, intent(out) :: field_level
+  integer, intent(out) :: scalar_mult
+  integer, intent(out) :: vector_mult
+
+  scalar_variable = scalars(1)
+  vector_variable = S_VELO
+  field_level     = max(1,zmin)
+  scalar_mult     = MULT(scalar_variable)
+  vector_mult     = MULT(vector_variable)
+
+end subroutine get_block_field_layout
 
 
 subroutine check_block_storage (block,check_serialization)
@@ -156,6 +188,11 @@ subroutine check_block_storage (block,check_serialization)
   integer :: n_bdry_node
   integer :: n_ghost_node
   integer :: n_node
+  integer :: scalar_variable
+  integer :: vector_variable
+  integer :: field_level
+  integer :: scalar_mult
+  integer :: vector_mult
 
   integer(int8), allocatable :: buffer_copy(:)
   integer(int8), allocatable :: buffer_source(:)
@@ -166,6 +203,20 @@ subroutine check_block_storage (block,check_serialization)
 
   serialize = .false.
   if (present(check_serialization)) serialize = check_serialization
+
+  call get_block_field_layout( &
+       scalar_variable,vector_variable,field_level, &
+       scalar_mult,vector_mult)
+
+  if (block%scalar_variable /= scalar_variable .or. &
+       block%vector_variable /= vector_variable .or. &
+       block%field_level /= field_level .or. &
+       block%scalar_mult /= scalar_mult .or. &
+       block%vector_mult /= vector_mult) then
+
+     error stop "check_block_storage: field layout mismatch"
+
+  end if
 
   if (.not. allocated(block%patch) .or. &
        .not. allocated(block%node) .or. &
@@ -190,8 +241,8 @@ subroutine check_block_storage (block,check_serialization)
   n_node = size(block%patch) * PATCH_SIZE**2
 
   if (size(block%node) /= n_node .or. &
-       size(block%scalar) /= MULT(scalars(1))*n_node .or. &
-       size(block%vector) /= MULT(S_VELO)*n_node) then
+       size(block%scalar) /= block%scalar_mult*n_node .or. &
+       size(block%vector) /= block%vector_mult*n_node) then
 
      error stop "check_block_storage: interior extent mismatch"
 
@@ -209,8 +260,10 @@ subroutine check_block_storage (block,check_serialization)
   n_bdry_node = sum(block%bdry_storage%n_node)
 
   if (size(block%bdry_node) /= n_bdry_node .or. &
-       size(block%bdry_scalar) /= MULT(scalars(1))*n_bdry_node .or. &
-       size(block%bdry_vector) /= MULT(S_VELO)*n_bdry_node) then
+       size(block%bdry_scalar) /= &
+       block%scalar_mult*n_bdry_node .or. &
+       size(block%bdry_vector) /= &
+       block%vector_mult*n_bdry_node) then
 
      error stop "check_block_storage: boundary extent mismatch"
 
@@ -219,8 +272,10 @@ subroutine check_block_storage (block,check_serialization)
   n_ghost_node = sum(block%ghost_storage%n_node)
 
   if (size(block%ghost_node) /= n_ghost_node .or. &
-       size(block%ghost_scalar) /= MULT(scalars(1))*n_ghost_node .or. &
-       size(block%ghost_vector) /= MULT(S_VELO)*n_ghost_node) then
+       size(block%ghost_scalar) /= &
+       block%scalar_mult*n_ghost_node .or. &
+       size(block%ghost_vector) /= &
+       block%vector_mult*n_ghost_node) then
 
      error stop "check_block_storage: ghost extent mismatch"
 
@@ -519,6 +574,39 @@ subroutine get_local_block_identity ( &
 end subroutine get_local_block_identity
 
 
+subroutine get_local_block_field_layout ( &
+     local_index,scalar_variable,vector_variable,field_level, &
+     scalar_mult,vector_mult)
+  ! Return the serialized field descriptor for one installed block.
+
+  implicit none
+
+  integer, intent(in)  :: local_index
+  integer, intent(out) :: scalar_variable
+  integer, intent(out) :: vector_variable
+  integer, intent(out) :: field_level
+  integer, intent(out) :: scalar_mult
+  integer, intent(out) :: vector_mult
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "get_local_block_field_layout: local store is not ready"
+  end if
+
+  if (local_index < 1 .or. local_index > size(block_local)) then
+     error stop &
+          "get_local_block_field_layout: invalid local index"
+  end if
+
+  scalar_variable = block_local(local_index)%scalar_variable
+  vector_variable = block_local(local_index)%vector_variable
+  field_level     = block_local(local_index)%field_level
+  scalar_mult     = block_local(local_index)%scalar_mult
+  vector_mult     = block_local(local_index)%vector_mult
+
+end subroutine get_local_block_field_layout
+
+
 subroutine check_local_block_storage (local_index,check_serialization)
   ! Validate one local block without exposing the private store.
 
@@ -784,6 +872,11 @@ subroutine pack_block (block,buffer)
        block%root_domain, &
        block%root_patch, &
        block%level, &
+       block%scalar_variable, &
+       block%vector_variable, &
+       block%field_level, &
+       block%scalar_mult, &
+       block%vector_mult, &
        size(block%patch), &
        size(block%node), &
        size(block%scalar), &
@@ -923,6 +1016,11 @@ subroutine unpack_block (buffer,block)
   integer :: header(BLOCK_PACK_HEADER_SIZE)
   integer :: n
   integer :: pos
+  integer :: scalar_variable
+  integer :: vector_variable
+  integer :: field_level
+  integer :: scalar_mult
+  integer :: vector_mult
 
   n = size(header) * storage_size(header) / 8
 
@@ -941,20 +1039,34 @@ subroutine unpack_block (buffer,block)
      error stop "unpack_block: unsupported pack version"
   end if
 
-  if (any(header(7:BLOCK_PACK_HEADER_SIZE) < 0)) then
+  if (any(header(12:BLOCK_PACK_HEADER_SIZE) < 0)) then
      error stop "unpack_block: negative component extent"
   end if
 
-  if (header(11) /= N_BDRY .or. &
-       header(12) /= header(7) .or. &
-       header(15) /= N_BDRY .or. &
-       header(16) /= header(7)) then
+  call get_block_field_layout( &
+       scalar_variable,vector_variable,field_level, &
+       scalar_mult,vector_mult)
+
+  if (header(7) /= scalar_variable .or. &
+       header(8) /= vector_variable .or. &
+       header(9) /= field_level .or. &
+       header(10) /= scalar_mult .or. &
+       header(11) /= vector_mult) then
+
+     error stop "unpack_block: unsupported field layout"
+
+  end if
+
+  if (header(16) /= N_BDRY .or. &
+       header(17) /= header(12) .or. &
+       header(20) /= N_BDRY .or. &
+       header(21) /= header(12)) then
 
      error stop "unpack_block: invalid topology extents"
 
   end if
 
-  if (header(8) /= header(7)*PATCH_SIZE**2) then
+  if (header(13) /= header(12)*PATCH_SIZE**2) then
      error stop "unpack_block: invalid interior node extent"
   end if
 
@@ -962,22 +1074,27 @@ subroutine unpack_block (buffer,block)
   block%root_domain = header(4)
   block%root_patch  = header(5)
   block%level       = header(6)
+  block%scalar_variable = header(7)
+  block%vector_variable = header(8)
+  block%field_level     = header(9)
+  block%scalar_mult     = header(10)
+  block%vector_mult     = header(11)
 
-  allocate(block%patch(header(7)))
-  allocate(block%node(header(8)))
-  allocate(block%scalar(header(9)))
-  allocate(block%vector(header(10)))
-  allocate(block%neigh_class(header(11),header(12)))
-  allocate(block%block_bdry(header(13)))
-  allocate(block%bdry_storage(header(14)))
-  allocate(block%stencil(header(15),header(16)))
-  allocate(block%bdry_node(header(17)))
-  allocate(block%bdry_scalar(header(18)))
-  allocate(block%bdry_vector(header(19)))
-  allocate(block%ghost_storage(header(20)))
-  allocate(block%ghost_node(header(21)))
-  allocate(block%ghost_scalar(header(22)))
-  allocate(block%ghost_vector(header(23)))
+  allocate(block%patch(header(12)))
+  allocate(block%node(header(13)))
+  allocate(block%scalar(header(14)))
+  allocate(block%vector(header(15)))
+  allocate(block%neigh_class(header(16),header(17)))
+  allocate(block%block_bdry(header(18)))
+  allocate(block%bdry_storage(header(19)))
+  allocate(block%stencil(header(20),header(21)))
+  allocate(block%bdry_node(header(22)))
+  allocate(block%bdry_scalar(header(23)))
+  allocate(block%bdry_vector(header(24)))
+  allocate(block%ghost_storage(header(25)))
+  allocate(block%ghost_node(header(26)))
+  allocate(block%ghost_scalar(header(27)))
+  allocate(block%ghost_vector(header(28)))
 
   n = size(block%patch) * storage_size(block%patch) / 8
   if (pos+n > size(buffer)) then

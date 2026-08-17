@@ -4,8 +4,8 @@ module parallel_block_build_mod
 
   use kind_mod, only : dp
 
-  use shared_mod, only : BDRY_THICKNESS, Coord, EDGE, MULT, N_BDRY, &
-       N_CHDRN, S_VELO, scalars, zmin
+  use shared_mod, only : BDRY_THICKNESS, Coord, EDGE, N_BDRY, &
+       N_CHDRN
 
   use ops_mod,   only : comp_offs3
   use patch_mod, only : Patch, PATCH_SIZE
@@ -15,7 +15,8 @@ module parallel_block_build_mod
        NGB_INTERNAL, NGB_BLOCK, NGB_DOMAIN, NGB_ADAPT, NGB_OTHER, &
        block_source, block_source_catalog_index, &
        block_retained_source_index, block_migrating_source_index, &
-       pack_block, unpack_block, check_block_storage
+       pack_block, unpack_block, check_block_storage, &
+       get_block_field_layout
 
   use arch_mod, only : block_catalog, loc_id, n_process, owner, rank
 
@@ -764,9 +765,8 @@ subroutine build_one_source_block ( &
   ! Copy and verify one scalar field.
   ! ===============================================================
   !
-  v_scalar    = scalars(1)
-  mult_scalar = MULT(v_scalar)
-  k_test      = max(1,zmin)
+  call get_block_field_layout( &
+       v_scalar,v_vector,k_test,mult_scalar,mult_vector)
 
   if (mult_scalar /= 1) then
      error stop &
@@ -806,9 +806,6 @@ subroutine build_one_source_block ( &
   ! Copy and verify one vector field.
   ! ===============================================================
   !
-  v_vector    = S_VELO
-  mult_vector = MULT(v_vector)
-
   if (mult_vector /= EDGE) then
      error stop &
           "build_source_blocks: unexpected vector multiplier"
@@ -2142,6 +2139,11 @@ subroutine build_one_source_block ( &
   block_out%root_domain = block_catalog(b_catalog)%root_domain
   block_out%root_patch  = block_catalog(b_catalog)%root_patch
   block_out%level       = block_catalog(b_catalog)%level
+  block_out%scalar_variable = v_scalar
+  block_out%vector_variable = v_vector
+  block_out%field_level     = k_test
+  block_out%scalar_mult     = mult_scalar
+  block_out%vector_mult     = mult_vector
 
   call move_alloc(patch_copy,  block_out%patch)
   call move_alloc(node_copy,   block_out%node)

@@ -6,8 +6,7 @@ module parallel_block_mpi_mod
        MPI_INTEGER8, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_SUCCESS, MPI_SUM
 
   use kind_mod,   only : dp
-  use shared_mod, only : EDGE, MULT, N_CHDRN, N_GLO_DOMAIN, &
-       S_VELO, scalars, zmin
+  use shared_mod, only : N_CHDRN, N_GLO_DOMAIN
 
   use domain_mod, only : grid, sol, subtree_weight_Domain
 
@@ -24,6 +23,7 @@ module parallel_block_mpi_mod
        clear_local_blocks, local_block_store_ready, n_local_blocks, &
        local_block_catalog, catalog_local_block, &
        get_local_block_identity, check_local_block_storage, &
+       get_block_field_layout, get_local_block_field_layout, &
        local_block_field_statistics
 
   implicit none
@@ -863,6 +863,12 @@ end subroutine build_parallel_block_catalog
 
     integer :: b
     integer :: expected_local
+    integer :: expected_field_level
+    integer :: expected_scalar_mult
+    integer :: expected_scalar_variable
+    integer :: expected_vector_mult
+    integer :: expected_vector_variable
+    integer :: field_level
     integer :: global_count
     integer :: global_weight
     integer :: i
@@ -873,6 +879,10 @@ end subroutine build_parallel_block_catalog
     integer :: local_weight
     integer :: root_domain
     integer :: root_patch
+    integer :: scalar_mult
+    integer :: scalar_variable
+    integer :: vector_mult
+    integer :: vector_variable
 
     integer, allocatable :: global_seen(:)
     integer, allocatable :: local_seen(:)
@@ -893,6 +903,11 @@ end subroutine build_parallel_block_catalog
     global_seen  = 0
     local_count  = n_local_blocks()
     local_weight = 0
+
+    call get_block_field_layout( &
+         expected_scalar_variable,expected_vector_variable, &
+         expected_field_level,expected_scalar_mult, &
+         expected_vector_mult)
 
     do i = 1, local_count
 
@@ -917,11 +932,23 @@ end subroutine build_parallel_block_catalog
        call get_local_block_identity( &
             i,id,root_domain,root_patch,level)
 
+       call get_local_block_field_layout( &
+            i,scalar_variable,vector_variable,field_level, &
+            scalar_mult,vector_mult)
+
        if (id /= block_catalog(b)%id .or. &
             root_domain /= block_catalog(b)%root_domain .or. &
             root_patch /= block_catalog(b)%root_patch .or. &
             level /= block_catalog(b)%level) then
           call fail("local block identity does not match catalogue")
+       end if
+
+       if (scalar_variable /= expected_scalar_variable .or. &
+            vector_variable /= expected_vector_variable .or. &
+            field_level /= expected_field_level .or. &
+            scalar_mult /= expected_scalar_mult .or. &
+            vector_mult /= expected_vector_mult) then
+          call fail("local block field layout does not match format")
        end if
 
        call check_local_block_storage(i,.true.)
@@ -975,6 +1002,8 @@ end subroutine build_parallel_block_catalog
             "  persistent store readiness check passed"
        write(6,'(a)') &
             "  bidirectional local/catalogue mapping check passed"
+       write(6,'(a)') &
+            "  self-describing field metadata check passed"
        write(6,'(a,/)') &
             "  unique global inventory check passed"
     end if
@@ -1040,19 +1069,8 @@ end subroutine build_parallel_block_catalog
          block_count_local(1),block_count_local(2), &
          block_moment_local(:,1),block_moment_local(:,2))
 
-    v_scalar   = scalars(1)
-    v_vector   = S_VELO
-    k_field    = max(1,zmin)
-    mult_scalar = MULT(v_scalar)
-    mult_vector = MULT(v_vector)
-
-    if (mult_scalar /= 1) then
-       call fail("unexpected scalar multiplier in field inventory")
-    end if
-
-    if (mult_vector /= EDGE) then
-       call fail("unexpected vector multiplier in field inventory")
-    end if
+    call get_block_field_layout( &
+         v_scalar,v_vector,k_field,mult_scalar,mult_vector)
 
     domain_count_local  = 0_int64
     domain_moment_local = 0.0_dp
