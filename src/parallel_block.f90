@@ -181,6 +181,8 @@ module parallel_block_mod
   public :: local_block_topography_statistics
   public :: source_block_scalar_stencil_statistics
   public :: local_block_scalar_stencil_statistics
+  public :: source_block_vector_stencil_statistics
+  public :: local_block_vector_stencil_statistics
   public :: local_block_hydrostatic_statistics
   public :: install_local_blocks
 
@@ -1281,6 +1283,243 @@ subroutine accumulate_block_scalar_stencil_statistics ( &
   end do
 
 end subroutine accumulate_block_scalar_stencil_statistics
+
+
+subroutine source_block_vector_stencil_statistics ( &
+     address_count,value_count,value_moment)
+  ! Exercise the compact vector stencil reader over every source block
+  ! before migration. The resulting inventory is the migration-independent
+  ! reference for the final-owner block store.
+
+  implicit none
+
+  integer(int64), intent(out) :: address_count(3)
+  integer(int64), intent(out) :: value_count
+  real(dp), intent(out) :: value_moment(3,3)
+
+  integer :: i
+
+  if (.not. allocated(block_source)) then
+     error stop &
+          "source_block_vector_stencil_statistics: source unavailable"
+  end if
+
+  address_count = 0_int64
+  value_count   = 0_int64
+  value_moment  = 0.0_dp
+
+  do i = 1, size(block_source)
+     call accumulate_block_vector_stencil_statistics( &
+          block_source(i),address_count,value_count,value_moment)
+  end do
+
+end subroutine source_block_vector_stencil_statistics
+
+
+subroutine local_block_vector_stencil_statistics ( &
+     address_count,value_count,value_moment)
+  ! Exercise the same compact vector stencil reader over the installed
+  ! final-owner block store.
+
+  implicit none
+
+  integer(int64), intent(out) :: address_count(3)
+  integer(int64), intent(out) :: value_count
+  real(dp), intent(out) :: value_moment(3,3)
+
+  integer :: i
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "local_block_vector_stencil_statistics: store is not ready"
+  end if
+
+  address_count = 0_int64
+  value_count   = 0_int64
+  value_moment  = 0.0_dp
+
+  do i = 1, size(block_local)
+     call accumulate_block_vector_stencil_statistics( &
+          block_local(i),address_count,value_count,value_moment)
+  end do
+
+end subroutine local_block_vector_stencil_statistics
+
+
+subroutine accumulate_block_vector_stencil_statistics ( &
+     block,address_count,value_count,value_moment)
+  ! Read all valid patch-sized windows represented by the explicit compact
+  ! stencil catalogue. Field columns are ordered as sol, sol_mean and
+  ! wav_coeff. Every stored edge component and represented level is read.
+
+  implicit none
+
+  type(Block_Data), intent(in) :: block
+  integer(int64), intent(inout) :: address_count(3)
+  integer(int64), intent(inout) :: value_count
+  real(dp), intent(inout) :: value_moment(3,3)
+
+  integer :: address_offset
+  integer :: component_slot
+  integer :: field_base
+  integer :: field_index
+  integer :: level_slot
+  integer :: n_storage_node
+  integer :: node_index
+  integer :: p
+  integer :: q
+  integer :: record
+  integer :: side
+  integer :: storage_class
+  integer :: storage_start
+
+  real(dp) :: value(3)
+
+  if (block%vector_mult < 1) then
+     error stop &
+          "accumulate_block_vector_stencil_statistics: vector multiplier"
+  end if
+
+  if (size(block%stencil,1) /= N_BDRY .or. &
+       size(block%stencil,2) /= size(block%patch)) then
+     error stop &
+          "accumulate_block_vector_stencil_statistics: stencil extent"
+  end if
+
+  do p = 1, size(block%patch)
+     do side = 1, N_BDRY
+
+        storage_class = block%stencil(side,p)%storage
+        record = block%stencil(side,p)%id
+        address_offset = block%stencil(side,p)%offset
+
+        select case (storage_class)
+
+        case (STORE_PATCH)
+           if (record < 0 .or. record >= size(block%patch)) then
+              error stop &
+                   "accumulate_block_vector_stencil_statistics: patch ID"
+           end if
+           storage_start = block%patch(record+1)%elts_start
+           n_storage_node = PATCH_SIZE**2
+
+        case (STORE_BDRY)
+           if (record < 1 .or. record > size(block%bdry_storage)) then
+              error stop &
+                   "accumulate_block_vector_stencil_statistics: boundary ID"
+           end if
+           storage_start = block%bdry_storage(record)%local_start
+           n_storage_node = block%bdry_storage(record)%n_node
+
+        case (STORE_GHOST)
+           if (record < 1 .or. record > size(block%ghost_storage)) then
+              error stop &
+                   "accumulate_block_vector_stencil_statistics: ghost ID"
+           end if
+           storage_start = block%ghost_storage(record)%local_start
+           n_storage_node = block%ghost_storage(record)%n_node
+
+        case default
+           error stop &
+                "accumulate_block_vector_stencil_statistics: storage class"
+
+        end select
+
+        do q = 0, PATCH_SIZE**2-1
+
+           if (address_offset+q < 0 .or. &
+                address_offset+q >= n_storage_node) cycle
+
+           node_index = storage_start + address_offset + q
+
+           select case (storage_class)
+           case (STORE_PATCH)
+              if (node_index < 0 .or. &
+                   node_index >= size(block%node)) then
+                 error stop &
+                      "accumulate_block_vector_stencil_statistics: patch node"
+              end if
+           case (STORE_BDRY)
+              if (node_index < 0 .or. &
+                   node_index >= size(block%bdry_node)) then
+                 error stop &
+                      "accumulate_block_vector_stencil_statistics: boundary node"
+              end if
+           case (STORE_GHOST)
+              if (node_index < 0 .or. &
+                   node_index >= size(block%ghost_node)) then
+                 error stop &
+                      "accumulate_block_vector_stencil_statistics: ghost node"
+              end if
+           end select
+
+           address_count(storage_class) = &
+                address_count(storage_class) + 1_int64
+
+           do level_slot = 1, block%n_field_level
+              do component_slot = 1, block%vector_mult
+
+                 select case (storage_class)
+                 case (STORE_PATCH)
+                    field_base = (level_slot-1)* &
+                         block%vector_mult*size(block%node)
+                    field_index = field_base + &
+                         block%vector_mult*node_index + component_slot
+                    if (field_index < 1 .or. &
+                         field_index > size(block%vector)) then
+                       error stop &
+                            "accumulate_block_vector_stencil_statistics: patch field"
+                    end if
+                    value = [ &
+                         block%vector(field_index), &
+                         block%vector_mean(field_index), &
+                         block%wavelet_vector(field_index) ]
+
+                 case (STORE_BDRY)
+                    field_base = (level_slot-1)* &
+                         block%vector_mult*size(block%bdry_node)
+                    field_index = field_base + &
+                         block%vector_mult*node_index + component_slot
+                    if (field_index < 1 .or. &
+                         field_index > size(block%bdry_vector)) then
+                       error stop &
+                            "accumulate_block_vector_stencil_statistics: boundary field"
+                    end if
+                    value = [ &
+                         block%bdry_vector(field_index), &
+                         block%bdry_vector_mean(field_index), &
+                         block%bdry_wavelet_vector(field_index) ]
+
+                 case (STORE_GHOST)
+                    field_base = (level_slot-1)* &
+                         block%vector_mult*size(block%ghost_node)
+                    field_index = field_base + &
+                         block%vector_mult*node_index + component_slot
+                    if (field_index < 1 .or. &
+                         field_index > size(block%ghost_vector)) then
+                       error stop &
+                            "accumulate_block_vector_stencil_statistics: ghost field"
+                    end if
+                    value = [ &
+                         block%ghost_vector(field_index), &
+                         block%ghost_vector_mean(field_index), &
+                         block%ghost_wavelet_vector(field_index) ]
+                 end select
+
+                 value_count = value_count + 1_int64
+                 value_moment(1,:) = value_moment(1,:) + value
+                 value_moment(2,:) = value_moment(2,:) + abs(value)
+                 value_moment(3,:) = value_moment(3,:) + value**2
+
+              end do
+           end do
+
+        end do
+
+     end do
+  end do
+
+end subroutine accumulate_block_vector_stencil_statistics
 
 
 subroutine local_block_hydrostatic_statistics ( &

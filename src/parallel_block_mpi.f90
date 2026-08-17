@@ -34,6 +34,8 @@ module parallel_block_mpi_mod
        local_block_topography_statistics, &
        source_block_scalar_stencil_statistics, &
        local_block_scalar_stencil_statistics, &
+       source_block_vector_stencil_statistics, &
+       local_block_vector_stencil_statistics, &
        local_block_hydrostatic_statistics
 
   implicit none
@@ -76,6 +78,7 @@ module parallel_block_mpi_mod
   public :: check_local_blocks
   public :: check_block_field_inventory
   public :: check_block_scalar_stencil_consumer
+  public :: check_block_vector_stencil_consumer
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -837,6 +840,7 @@ end subroutine build_parallel_block_catalog
     end if
 
     call check_block_scalar_stencil_consumer(print_local)
+    call check_block_vector_stencil_consumer(print_local)
 
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
@@ -1014,6 +1018,153 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_scalar_stencil_consumer
+
+
+  subroutine check_block_vector_stencil_consumer (verbose)
+    ! Compare a read-only traversal of every vector compact-stencil window
+    ! before migration with the installed final-owner block store. Every
+    ! stored edge component and represented level is included.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: field_kind
+    integer :: ierr
+
+    integer(int64) :: source_address_local(3)
+    integer(int64) :: source_address_global(3)
+    integer(int64) :: local_address_local(3)
+    integer(int64) :: local_address_global(3)
+    integer(int64) :: source_value_local
+    integer(int64) :: source_value_global
+    integer(int64) :: local_value_local
+    integer(int64) :: local_value_global
+
+    real(dp) :: source_moment_local(3,3)
+    real(dp) :: source_moment_global(3,3)
+    real(dp) :: local_moment_local(3,3)
+    real(dp) :: local_moment_global(3,3)
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    call source_block_vector_stencil_statistics( &
+         source_address_local,source_value_local,source_moment_local)
+
+    call local_block_vector_stencil_statistics( &
+         local_address_local,local_value_local,local_moment_local)
+
+    call MPI_Allreduce( &
+         source_address_local,source_address_global,3, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source vector addresses")
+
+    call MPI_Allreduce( &
+         local_address_local,local_address_global,3, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final vector addresses")
+
+    call MPI_Allreduce( &
+         source_value_local,source_value_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source vector values")
+
+    call MPI_Allreduce( &
+         local_value_local,local_value_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final vector values")
+
+    call MPI_Allreduce( &
+         source_moment_local,source_moment_global,9, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source vector moments")
+
+    call MPI_Allreduce( &
+         local_moment_local,local_moment_global,9, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final vector moments")
+
+    if (any(source_address_global /= local_address_global)) then
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Source/final vector-stencil-address mismatch:"
+          write(error_unit,'(a,3(i0,1x))') &
+               "  source patch/boundary/ghost = ", &
+               source_address_global
+          write(error_unit,'(a,3(i0,1x))') &
+               "  final  patch/boundary/ghost = ", &
+               local_address_global
+       end if
+       call fail("source and final vector stencil addresses differ")
+    end if
+
+    if (source_value_global /= local_value_global) then
+       call fail("source and final vector stencil value counts differ")
+    end if
+
+    do field_kind = 1, 3
+       if (.not. field_moments_match( &
+            source_moment_global(:,field_kind), &
+            local_moment_global(:,field_kind), &
+            source_value_global)) then
+
+          if (rank == 0) then
+             write(error_unit,'(/,a,i0,a)') &
+                  "Source/final vector-stencil moments for field kind ", &
+                  field_kind,":"
+             write(error_unit,'(a,3(es24.16,1x))') &
+                  "  source moments = ", &
+                  source_moment_global(:,field_kind)
+             write(error_unit,'(a,3(es24.16,1x))') &
+                  "  final moments  = ", &
+                  local_moment_global(:,field_kind)
+          end if
+
+          call fail("source and final vector stencil moments differ")
+       end if
+    end do
+
+    if (any(local_address_global <= 0_int64) .or. &
+         local_value_global <= 0_int64) then
+       call fail("incomplete final-owner vector stencil inventory")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Final-owner vector stencil consumer for rank ",rank,":"
+       write(6,'(a,3(i0,1x))') &
+            "  local patch/boundary/ghost addresses = ", &
+            local_address_local
+       write(6,'(a,i0)') &
+            "  local vector field samples = ",local_value_local
+       write(6,'(a,/)') &
+            "  source/final vector stencil checks passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,3(i0,1x))') &
+            "Global vector patch/boundary/ghost addresses = ", &
+            local_address_global
+       write(6,'(a,i0)') &
+            "Global vector stencil field samples verified = ", &
+            local_value_global
+       write(6,'(a,3(es24.16,1x))') &
+            "Global velocity stencil moments verified = ", &
+            local_moment_global(:,1)
+       write(6,'(a,3(es24.16,1x))') &
+            "Global mean-velocity stencil moments verified = ", &
+            local_moment_global(:,2)
+       write(6,'(a,3(es24.16,1x))') &
+            "Global wavelet-velocity stencil moments verified = ", &
+            local_moment_global(:,3)
+       write(6,'(a,/)') &
+            "Final-owner vector stencil consumer matches source blocks"
+    end if
+
+  end subroutine check_block_vector_stencil_consumer
 
 
   subroutine check_local_blocks (verbose)
