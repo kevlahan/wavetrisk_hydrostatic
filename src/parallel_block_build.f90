@@ -20,7 +20,8 @@ module parallel_block_build_mod
 
   use arch_mod, only : block_catalog, loc_id, n_process, owner, rank
 
-  use domain_mod, only : grid, sol, count_subtree_patches_Domain, &
+  use domain_mod, only : grid, sol, sol_mean, &
+       count_subtree_patches_Domain, &
        extract_subtree_patches_Domain, subtree_depth_Domain, &
        compact_subtree_storage_Domain, copy_subtree_nodes_Domain, &
        copy_subtree_field_Domain, renumber_subtree_neigh_Domain, &
@@ -649,8 +650,12 @@ subroutine build_one_source_block ( &
   real(dp) :: val_blk
 
   real(dp), allocatable :: scalar_copy(:)
+  real(dp), allocatable :: scalar_mean_copy(:)
+  real(dp), allocatable :: scalar_mean_one(:)
   real(dp), allocatable :: scalar_one(:)
   real(dp), allocatable :: vector_copy(:)
+  real(dp), allocatable :: vector_mean_copy(:)
+  real(dp), allocatable :: vector_mean_one(:)
   real(dp), allocatable :: vector_one(:)
 
   type(Patch), allocatable :: patch_copy(:)
@@ -798,6 +803,8 @@ subroutine build_one_source_block ( &
   scalar_storage_size = mult_scalar * n_node_storage
   scalar_variable_size = n_field_level * scalar_storage_size
   allocate(scalar_copy(n_scalar_variable*scalar_variable_size))
+  allocate(scalar_mean_copy( &
+       n_scalar_variable*scalar_variable_size))
 
   n_patch_field = mult_scalar * PATCH_SIZE**2
 
@@ -824,6 +831,20 @@ subroutine build_one_source_block ( &
              scalar_base+1:scalar_base+scalar_storage_size) = &
              scalar_one
 
+        call copy_subtree_field_Domain( &
+             patch_copy, old_elts_start, mult_scalar, &
+             sol_mean(scalar_id,field_level)%data(d)%elts, &
+             scalar_mean_one)
+
+        if (size(scalar_mean_one) /= scalar_storage_size) then
+           error stop &
+                "build_source_blocks: incorrect scalar mean storage size"
+        end if
+
+        scalar_mean_copy( &
+             scalar_base+1:scalar_base+scalar_storage_size) = &
+             scalar_mean_one
+
         do i = 1, size(patch_copy)
 
            old_start = mult_scalar * old_elts_start(i)
@@ -837,6 +858,17 @@ subroutine build_one_source_block ( &
 
               error stop &
                    "build_source_blocks: scalar field copy mismatch"
+
+           end if
+
+           if (maxval(abs( &
+                scalar_mean_copy( &
+                new_start+1:new_start+n_patch_field) - &
+                sol_mean(scalar_id,field_level)%data(d)%elts( &
+                old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+
+              error stop &
+                   "build_source_blocks: scalar mean copy mismatch"
 
            end if
 
@@ -858,6 +890,7 @@ subroutine build_one_source_block ( &
 
   vector_storage_size = mult_vector * n_node_storage
   allocate(vector_copy(n_field_level*vector_storage_size))
+  allocate(vector_mean_copy(n_field_level*vector_storage_size))
   n_patch_field = mult_vector * PATCH_SIZE**2
 
   do level_slot = 1, n_field_level
@@ -877,6 +910,19 @@ subroutine build_one_source_block ( &
      vector_copy(field_base+1:field_base+vector_storage_size) = &
           vector_one
 
+     call copy_subtree_field_Domain( &
+          patch_copy, old_elts_start, mult_vector, &
+          sol_mean(v_vector,field_level)%data(d)%elts, &
+          vector_mean_one)
+
+     if (size(vector_mean_one) /= vector_storage_size) then
+        error stop &
+             "build_source_blocks: incorrect vector mean storage size"
+     end if
+
+     vector_mean_copy(field_base+1:field_base+vector_storage_size) = &
+          vector_mean_one
+
      do i = 1, size(patch_copy)
 
         old_start = mult_vector * old_elts_start(i)
@@ -890,6 +936,17 @@ subroutine build_one_source_block ( &
 
            error stop &
                 "build_source_blocks: vector field copy mismatch"
+
+        end if
+
+        if (maxval(abs( &
+             vector_mean_copy( &
+             new_start+1:new_start+n_patch_field) - &
+             sol_mean(v_vector,field_level)%data(d)%elts( &
+             old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+
+           error stop &
+                "build_source_blocks: vector mean copy mismatch"
 
         end if
 
@@ -1585,7 +1642,13 @@ subroutine build_one_source_block ( &
   allocate(block_out%bdry_scalar( &
        n_scalar_variable*scalar_variable_size))
 
+  allocate(block_out%bdry_scalar_mean( &
+       n_scalar_variable*scalar_variable_size))
+
   allocate(block_out%bdry_vector( &
+       n_field_level*vector_storage_size))
+
+  allocate(block_out%bdry_vector_mean( &
        n_field_level*vector_storage_size))
 
   do is = 1, size(block_out%bdry_storage)
@@ -1619,6 +1682,15 @@ subroutine build_one_source_block ( &
                 mult_scalar*(old_start + &
                 block_out%bdry_storage(is)%n_node))
 
+           block_out%bdry_scalar_mean( &
+                scalar_base+mult_scalar*new_start+1 : &
+                scalar_base+mult_scalar*(new_start + &
+                block_out%bdry_storage(is)%n_node)) = &
+                sol_mean(scalar_id,field_level)%data(d)%elts( &
+                mult_scalar*old_start+1 : &
+                mult_scalar*(old_start + &
+                block_out%bdry_storage(is)%n_node))
+
         end do
 
      end do
@@ -1633,6 +1705,15 @@ subroutine build_one_source_block ( &
              field_base+mult_vector*(new_start + &
              block_out%bdry_storage(is)%n_node)) = &
              sol(v_vector,field_level)%data(d)%elts( &
+             mult_vector*old_start+1 : &
+             mult_vector*(old_start + &
+             block_out%bdry_storage(is)%n_node))
+
+        block_out%bdry_vector_mean( &
+             field_base+mult_vector*new_start+1 : &
+             field_base+mult_vector*(new_start + &
+             block_out%bdry_storage(is)%n_node)) = &
+             sol_mean(v_vector,field_level)%data(d)%elts( &
              mult_vector*old_start+1 : &
              mult_vector*(old_start + &
              block_out%bdry_storage(is)%n_node))
@@ -1688,6 +1769,21 @@ subroutine build_one_source_block ( &
 
            end if
 
+           if (maxval(abs( &
+                block_out%bdry_scalar_mean( &
+                scalar_base+mult_scalar*new_start+1 : &
+                scalar_base+mult_scalar*(new_start + &
+                block_out%bdry_storage(is)%n_node)) - &
+                sol_mean(scalar_id,field_level)%data(d)%elts( &
+                mult_scalar*old_start+1 : &
+                mult_scalar*(old_start + &
+                block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
+
+              error stop &
+                   "build_source_blocks: boundary scalar mean mismatch"
+
+           end if
+
         end do
 
      end do
@@ -1709,6 +1805,21 @@ subroutine build_one_source_block ( &
 
            error stop &
                 "build_source_blocks: boundary vector mismatch"
+
+        end if
+
+        if (maxval(abs( &
+             block_out%bdry_vector_mean( &
+             field_base+mult_vector*new_start+1 : &
+             field_base+mult_vector*(new_start + &
+             block_out%bdry_storage(is)%n_node)) - &
+             sol_mean(v_vector,field_level)%data(d)%elts( &
+             mult_vector*old_start+1 : &
+             mult_vector*(old_start + &
+             block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
+
+           error stop &
+                "build_source_blocks: boundary vector mean mismatch"
 
         end if
 
@@ -2073,7 +2184,13 @@ subroutine build_one_source_block ( &
   allocate(block_out%ghost_scalar( &
        n_scalar_variable*scalar_variable_size))
 
+  allocate(block_out%ghost_scalar_mean( &
+       n_scalar_variable*scalar_variable_size))
+
   allocate(block_out%ghost_vector( &
+       n_field_level*vector_storage_size))
+
+  allocate(block_out%ghost_vector_mean( &
        n_field_level*vector_storage_size))
 
   !
@@ -2110,6 +2227,13 @@ subroutine build_one_source_block ( &
                 mult_scalar*old_start+1 : &
                 mult_scalar*(old_start+PATCH_SIZE**2))
 
+           block_out%ghost_scalar_mean( &
+                scalar_base+mult_scalar*new_start+1 : &
+                scalar_base+mult_scalar*(new_start+PATCH_SIZE**2)) = &
+                sol_mean(scalar_id,field_level)%data(d)%elts( &
+                mult_scalar*old_start+1 : &
+                mult_scalar*(old_start+PATCH_SIZE**2))
+
         end do
 
      end do
@@ -2123,6 +2247,13 @@ subroutine build_one_source_block ( &
              field_base+mult_vector*new_start+1 : &
              field_base+mult_vector*(new_start+PATCH_SIZE**2)) = &
              sol(v_vector,field_level)%data(d)%elts( &
+             mult_vector*old_start+1 : &
+             mult_vector*(old_start+PATCH_SIZE**2))
+
+        block_out%ghost_vector_mean( &
+             field_base+mult_vector*new_start+1 : &
+             field_base+mult_vector*(new_start+PATCH_SIZE**2)) = &
+             sol_mean(v_vector,field_level)%data(d)%elts( &
              mult_vector*old_start+1 : &
              mult_vector*(old_start+PATCH_SIZE**2))
 
@@ -2175,6 +2306,19 @@ subroutine build_one_source_block ( &
 
            end if
 
+           if (maxval(abs( &
+                block_out%ghost_scalar_mean( &
+                scalar_base+mult_scalar*new_start+1 : &
+                scalar_base+mult_scalar*(new_start+PATCH_SIZE**2)) - &
+                sol_mean(scalar_id,field_level)%data(d)%elts( &
+                mult_scalar*old_start+1 : &
+                mult_scalar*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
+
+              error stop &
+                   "build_source_blocks: ghost scalar mean mismatch"
+
+           end if
+
         end do
 
      end do
@@ -2194,6 +2338,19 @@ subroutine build_one_source_block ( &
 
            error stop &
                 "build_source_blocks: ghost vector mismatch"
+
+        end if
+
+        if (maxval(abs( &
+             block_out%ghost_vector_mean( &
+             field_base+mult_vector*new_start+1 : &
+             field_base+mult_vector*(new_start+PATCH_SIZE**2)) - &
+             sol_mean(v_vector,field_level)%data(d)%elts( &
+             mult_vector*old_start+1 : &
+             mult_vector*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
+
+           error stop &
+                "build_source_blocks: ghost vector mean mismatch"
 
         end if
 
@@ -2300,7 +2457,9 @@ subroutine build_one_source_block ( &
   call move_alloc(patch_copy,  block_out%patch)
   call move_alloc(node_copy,   block_out%node)
   call move_alloc(scalar_copy, block_out%scalar)
+  call move_alloc(scalar_mean_copy, block_out%scalar_mean)
   call move_alloc(vector_copy, block_out%vector)
+  call move_alloc(vector_mean_copy, block_out%vector_mean)
 
   !
   ! ===============================================================

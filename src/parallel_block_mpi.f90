@@ -8,7 +8,7 @@ module parallel_block_mpi_mod
   use kind_mod,   only : dp
   use shared_mod, only : N_CHDRN, N_GLO_DOMAIN
 
-  use domain_mod, only : grid, sol, subtree_weight_Domain
+  use domain_mod, only : grid, sol, sol_mean, subtree_weight_Domain
 
   use patch_mod, only : PATCH_SIZE
 
@@ -24,7 +24,7 @@ module parallel_block_mpi_mod
        local_block_catalog, catalog_local_block, &
        get_local_block_identity, check_local_block_storage, &
        get_block_field_layout, get_local_block_field_layout, &
-       local_block_field_statistics
+       local_block_field_statistics, local_block_mean_field_statistics
 
   implicit none
 
@@ -1067,13 +1067,21 @@ end subroutine build_parallel_block_catalog
 
     integer(int64) :: block_count_local(2)
     integer(int64) :: block_count_global(2)
+    integer(int64) :: block_mean_count_local(2)
+    integer(int64) :: block_mean_count_global(2)
     integer(int64) :: domain_count_local(2)
     integer(int64) :: domain_count_global(2)
+    integer(int64) :: domain_mean_count_local(2)
+    integer(int64) :: domain_mean_count_global(2)
 
     real(dp) :: block_moment_local(3,2)
     real(dp) :: block_moment_global(3,2)
+    real(dp) :: block_mean_moment_local(3,2)
+    real(dp) :: block_mean_moment_global(3,2)
     real(dp) :: domain_moment_local(3,2)
     real(dp) :: domain_moment_global(3,2)
+    real(dp) :: domain_mean_moment_local(3,2)
+    real(dp) :: domain_mean_moment_global(3,2)
 
     logical :: print_summary
 
@@ -1088,12 +1096,18 @@ end subroutine build_parallel_block_catalog
          block_count_local(1),block_count_local(2), &
          block_moment_local(:,1),block_moment_local(:,2))
 
+    call local_block_mean_field_statistics( &
+         block_mean_count_local(1),block_mean_count_local(2), &
+         block_mean_moment_local(:,1),block_mean_moment_local(:,2))
+
     call get_block_field_layout( &
          v_scalar,n_scalar_variable,v_vector,k_field, &
          n_field_level,mult_scalar,mult_vector)
 
     domain_count_local  = 0_int64
     domain_moment_local = 0.0_dp
+    domain_mean_count_local  = 0_int64
+    domain_mean_moment_local = 0.0_dp
 
     do b = 1, size(block_catalog)
 
@@ -1109,7 +1123,8 @@ end subroutine build_parallel_block_catalog
             d,block_catalog(b)%root_patch, &
             v_scalar,n_scalar_variable,v_vector,k_field,n_field_level, &
             mult_scalar,mult_vector, &
-            domain_count_local,domain_moment_local)
+            domain_count_local,domain_moment_local, &
+            domain_mean_count_local,domain_mean_moment_local)
 
     end do
 
@@ -1119,9 +1134,19 @@ end subroutine build_parallel_block_catalog
     call check_mpi(ierr,"MPI_Allreduce block field counts")
 
     call MPI_Allreduce( &
+         block_mean_count_local,block_mean_count_global,2,MPI_INTEGER8, &
+         MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block mean-field counts")
+
+    call MPI_Allreduce( &
          domain_count_local,domain_count_global,2,MPI_INTEGER8, &
          MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce Domain field counts")
+
+    call MPI_Allreduce( &
+         domain_mean_count_local,domain_mean_count_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain mean-field counts")
 
     call MPI_Allreduce( &
          block_moment_local,block_moment_global,6, &
@@ -1129,9 +1154,19 @@ end subroutine build_parallel_block_catalog
     call check_mpi(ierr,"MPI_Allreduce block field moments")
 
     call MPI_Allreduce( &
+         block_mean_moment_local,block_mean_moment_global,6, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block mean-field moments")
+
+    call MPI_Allreduce( &
          domain_moment_local,domain_moment_global,6, &
          MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce Domain field moments")
+
+    call MPI_Allreduce( &
+         domain_mean_moment_local,domain_mean_moment_global,6, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain mean-field moments")
 
     if (any(block_count_global /= domain_count_global)) then
 
@@ -1145,6 +1180,20 @@ end subroutine build_parallel_block_catalog
        end if
 
        call fail("block and Domain field counts differ")
+    end if
+
+    if (any(block_mean_count_global /= domain_mean_count_global)) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain mean-field-count mismatch:"
+          write(error_unit,'(a,2(i0,1x))') &
+               "  block mean counts  = ", block_mean_count_global
+          write(error_unit,'(a,2(i0,1x))') &
+               "  Domain mean counts = ", domain_mean_count_global
+       end if
+
+       call fail("block and Domain mean-field counts differ")
     end if
 
     if (.not. field_moments_match( &
@@ -1179,6 +1228,40 @@ end subroutine build_parallel_block_catalog
        call fail("block and Domain vector moments differ")
     end if
 
+    if (.not. field_moments_match( &
+         block_mean_moment_global(:,1), &
+         domain_mean_moment_global(:,1), &
+         block_mean_count_global(1))) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain mean scalar-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", block_mean_moment_global(:,1)
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", domain_mean_moment_global(:,1)
+       end if
+
+       call fail("block and Domain mean scalar moments differ")
+    end if
+
+    if (.not. field_moments_match( &
+         block_mean_moment_global(:,2), &
+         domain_mean_moment_global(:,2), &
+         block_mean_count_global(2))) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain mean vector-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", block_mean_moment_global(:,2)
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", domain_mean_moment_global(:,2)
+       end if
+
+       call fail("block and Domain mean vector moments differ")
+    end if
+
     if (print_summary) then
        write(6,'(/,a,i0,a)') &
             "Read-only block field consumer for rank ", rank, ":"
@@ -1186,8 +1269,14 @@ end subroutine build_parallel_block_catalog
             "  local block scalar values = ", block_count_local(1)
        write(6,'(a,i0)') &
             "  local block vector values = ", block_count_local(2)
+       write(6,'(a,i0)') &
+            "  local block mean scalar values = ", &
+            block_mean_count_local(1)
+       write(6,'(a,i0)') &
+            "  local block mean vector values = ", &
+            block_mean_count_local(2)
        write(6,'(a,/)') &
-            "  global block/Domain field inventory check passed"
+            "  global block/Domain sol and sol_mean inventory checks passed"
     end if
 
     if (print_summary .and. rank == 0) then
@@ -1197,8 +1286,14 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "Global vector interior values verified = ", &
             block_count_global(2)
+       write(6,'(a,i0)') &
+            "Global mean scalar interior values verified = ", &
+            block_mean_count_global(1)
+       write(6,'(a,i0)') &
+            "Global mean vector interior values verified = ", &
+            block_mean_count_global(2)
        write(6,'(a,/)') &
-            "Block field data matches legacy Domain data"
+            "Block sol and sol_mean data match legacy Domain data"
     end if
 
   end subroutine check_block_field_inventory
@@ -1238,7 +1333,8 @@ end subroutine build_parallel_block_catalog
 
   recursive subroutine accumulate_domain_subtree_fields ( &
        d,p,v_scalar,n_scalar_variable,v_vector,k_field,n_field_level, &
-       mult_scalar,mult_vector,field_count,field_moment)
+       mult_scalar,mult_vector,field_count,field_moment, &
+       mean_field_count,mean_field_moment)
     ! Accumulate one catalogue-rooted subtree from the authoritative
     ! Domain representation using the same patch coverage copied into
     ! Block_Data.
@@ -1257,6 +1353,8 @@ end subroutine build_parallel_block_catalog
 
     integer(int64), intent(inout) :: field_count(2)
     real(dp), intent(inout) :: field_moment(3,2)
+    integer(int64), intent(inout) :: mean_field_count(2)
+    real(dp), intent(inout) :: mean_field_moment(3,2)
 
     integer :: c
     integer :: field_level
@@ -1300,6 +1398,23 @@ end subroutine build_parallel_block_catalog
                sum(sol(scalar_id,field_level)%data(d)%elts( &
                start+1:start+n_value)**2)
 
+          if (start+n_value > &
+               size(sol_mean(scalar_id,field_level)%data(d)%elts)) then
+             call fail("legacy mean scalar patch extent is invalid")
+          end if
+
+          mean_field_count(1) = &
+               mean_field_count(1) + int(n_value,int64)
+          mean_field_moment(1,1) = mean_field_moment(1,1) + &
+               sum(sol_mean(scalar_id,field_level)%data(d)%elts( &
+               start+1:start+n_value))
+          mean_field_moment(2,1) = mean_field_moment(2,1) + &
+               sum(abs(sol_mean(scalar_id,field_level)%data(d)%elts( &
+               start+1:start+n_value)))
+          mean_field_moment(3,1) = mean_field_moment(3,1) + &
+               sum(sol_mean(scalar_id,field_level)%data(d)%elts( &
+               start+1:start+n_value)**2)
+
        end do
 
     end do
@@ -1327,6 +1442,23 @@ end subroutine build_parallel_block_catalog
             sum(sol(v_vector,field_level)%data(d)%elts( &
             start+1:start+n_value)**2)
 
+       if (start+n_value > &
+            size(sol_mean(v_vector,field_level)%data(d)%elts)) then
+          call fail("legacy mean vector patch extent is invalid")
+       end if
+
+       mean_field_count(2) = &
+            mean_field_count(2) + int(n_value,int64)
+       mean_field_moment(1,2) = mean_field_moment(1,2) + &
+            sum(sol_mean(v_vector,field_level)%data(d)%elts( &
+            start+1:start+n_value))
+       mean_field_moment(2,2) = mean_field_moment(2,2) + &
+            sum(abs(sol_mean(v_vector,field_level)%data(d)%elts( &
+            start+1:start+n_value)))
+       mean_field_moment(3,2) = mean_field_moment(3,2) + &
+            sum(sol_mean(v_vector,field_level)%data(d)%elts( &
+            start+1:start+n_value)**2)
+
     end do
 
     do c = 1, N_CHDRN
@@ -1337,7 +1469,8 @@ end subroutine build_parallel_block_catalog
        call accumulate_domain_subtree_fields( &
             d,p_child,v_scalar,n_scalar_variable,v_vector,k_field, &
             n_field_level,mult_scalar,mult_vector, &
-            field_count,field_moment)
+            field_count,field_moment, &
+            mean_field_count,mean_field_moment)
 
     end do
 

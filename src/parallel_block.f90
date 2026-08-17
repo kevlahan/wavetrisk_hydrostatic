@@ -23,8 +23,8 @@ module parallel_block_mod
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
-  integer, parameter :: BLOCK_PACK_VERSION = 4
-  integer, parameter :: BLOCK_PACK_HEADER_SIZE = 30
+  integer, parameter :: BLOCK_PACK_VERSION = 5
+  integer, parameter :: BLOCK_PACK_HEADER_SIZE = 36
 
 
   type, public :: Block_Bdry_Storage
@@ -103,8 +103,12 @@ module parallel_block_mod
 
      real(dp), allocatable :: scalar(:)
      real(dp), allocatable :: vector(:)
+     real(dp), allocatable :: scalar_mean(:)
+     real(dp), allocatable :: vector_mean(:)
      real(dp), allocatable :: bdry_scalar(:)
      real(dp), allocatable :: bdry_vector(:)
+     real(dp), allocatable :: bdry_scalar_mean(:)
+     real(dp), allocatable :: bdry_vector_mean(:)
 
      integer, allocatable :: neigh_class(:,:)
 
@@ -117,6 +121,8 @@ module parallel_block_mod
 
      real(dp), allocatable :: ghost_scalar(:)
      real(dp), allocatable :: ghost_vector(:)
+     real(dp), allocatable :: ghost_scalar_mean(:)
+     real(dp), allocatable :: ghost_vector_mean(:)
   end type Block_Data
 
 
@@ -148,6 +154,7 @@ module parallel_block_mod
   public :: get_local_block_field_layout
   public :: check_local_block_storage
   public :: local_block_field_statistics
+  public :: local_block_mean_field_statistics
   public :: install_local_blocks
 
 contains
@@ -232,6 +239,8 @@ subroutine check_block_storage (block,check_serialization)
        .not. allocated(block%node) .or. &
        .not. allocated(block%scalar) .or. &
        .not. allocated(block%vector) .or. &
+       .not. allocated(block%scalar_mean) .or. &
+       .not. allocated(block%vector_mean) .or. &
        .not. allocated(block%neigh_class) .or. &
        .not. allocated(block%block_bdry) .or. &
        .not. allocated(block%bdry_storage) .or. &
@@ -239,10 +248,14 @@ subroutine check_block_storage (block,check_serialization)
        .not. allocated(block%bdry_node) .or. &
        .not. allocated(block%bdry_scalar) .or. &
        .not. allocated(block%bdry_vector) .or. &
+       .not. allocated(block%bdry_scalar_mean) .or. &
+       .not. allocated(block%bdry_vector_mean) .or. &
        .not. allocated(block%ghost_storage) .or. &
        .not. allocated(block%ghost_node) .or. &
        .not. allocated(block%ghost_scalar) .or. &
-       .not. allocated(block%ghost_vector)) then
+       .not. allocated(block%ghost_vector) .or. &
+       .not. allocated(block%ghost_scalar_mean) .or. &
+       .not. allocated(block%ghost_vector_mean)) then
 
      error stop "check_block_storage: unallocated component"
 
@@ -255,7 +268,9 @@ subroutine check_block_storage (block,check_serialization)
        block%n_scalar_variable*block%n_field_level* &
        block%scalar_mult*n_node .or. &
        size(block%vector) /= &
-       block%n_field_level*block%vector_mult*n_node) then
+       block%n_field_level*block%vector_mult*n_node .or. &
+       size(block%scalar_mean) /= size(block%scalar) .or. &
+       size(block%vector_mean) /= size(block%vector)) then
 
      error stop "check_block_storage: interior extent mismatch"
 
@@ -277,7 +292,9 @@ subroutine check_block_storage (block,check_serialization)
        block%n_scalar_variable*block%n_field_level* &
        block%scalar_mult*n_bdry_node .or. &
        size(block%bdry_vector) /= &
-       block%n_field_level*block%vector_mult*n_bdry_node) then
+       block%n_field_level*block%vector_mult*n_bdry_node .or. &
+       size(block%bdry_scalar_mean) /= size(block%bdry_scalar) .or. &
+       size(block%bdry_vector_mean) /= size(block%bdry_vector)) then
 
      error stop "check_block_storage: boundary extent mismatch"
 
@@ -290,7 +307,9 @@ subroutine check_block_storage (block,check_serialization)
        block%n_scalar_variable*block%n_field_level* &
        block%scalar_mult*n_ghost_node .or. &
        size(block%ghost_vector) /= &
-       block%n_field_level*block%vector_mult*n_ghost_node) then
+       block%n_field_level*block%vector_mult*n_ghost_node .or. &
+       size(block%ghost_scalar_mean) /= size(block%ghost_scalar) .or. &
+       size(block%ghost_vector_mean) /= size(block%ghost_vector)) then
 
      error stop "check_block_storage: ghost extent mismatch"
 
@@ -712,6 +731,63 @@ subroutine local_block_field_statistics ( &
 end subroutine local_block_field_statistics
 
 
+subroutine local_block_mean_field_statistics ( &
+     scalar_count,vector_count,scalar_moment,vector_moment)
+  ! Compute order-independent sol_mean inventory statistics over the
+  ! ready final-owner block store.
+
+  implicit none
+
+  integer(int64), intent(out) :: scalar_count
+  integer(int64), intent(out) :: vector_count
+
+  real(dp), intent(out) :: scalar_moment(3)
+  real(dp), intent(out) :: vector_moment(3)
+
+  integer :: i
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "local_block_mean_field_statistics: store is not ready"
+  end if
+
+  scalar_count  = 0_int64
+  vector_count  = 0_int64
+  scalar_moment = 0.0_dp
+  vector_moment = 0.0_dp
+
+  do i = 1, size(block_local)
+
+     if (.not. allocated(block_local(i)%scalar_mean) .or. &
+          .not. allocated(block_local(i)%vector_mean)) then
+        error stop &
+             "local_block_mean_field_statistics: storage missing"
+     end if
+
+     scalar_count = scalar_count + &
+          int(size(block_local(i)%scalar_mean),int64)
+     vector_count = vector_count + &
+          int(size(block_local(i)%vector_mean),int64)
+
+     scalar_moment(1) = scalar_moment(1) + &
+          sum(block_local(i)%scalar_mean)
+     scalar_moment(2) = scalar_moment(2) + &
+          sum(abs(block_local(i)%scalar_mean))
+     scalar_moment(3) = scalar_moment(3) + &
+          sum(block_local(i)%scalar_mean**2)
+
+     vector_moment(1) = vector_moment(1) + &
+          sum(block_local(i)%vector_mean)
+     vector_moment(2) = vector_moment(2) + &
+          sum(abs(block_local(i)%vector_mean))
+     vector_moment(3) = vector_moment(3) + &
+          sum(block_local(i)%vector_mean**2)
+
+  end do
+
+end subroutine local_block_mean_field_statistics
+
+
 subroutine clear_local_blocks
   ! Invalidate and release the persistent final-owner local store.
   ! This routine is deliberately idempotent so it is safe before the
@@ -793,6 +869,8 @@ integer function packed_block_nbyte (block) result(nbyte)
        .not. allocated(block%node) .or. &
        .not. allocated(block%scalar) .or. &
        .not. allocated(block%vector) .or. &
+       .not. allocated(block%scalar_mean) .or. &
+       .not. allocated(block%vector_mean) .or. &
        .not. allocated(block%neigh_class) .or. &
        .not. allocated(block%block_bdry) .or. &
        .not. allocated(block%bdry_storage) .or. &
@@ -800,10 +878,14 @@ integer function packed_block_nbyte (block) result(nbyte)
        .not. allocated(block%bdry_node) .or. &
        .not. allocated(block%bdry_scalar) .or. &
        .not. allocated(block%bdry_vector) .or. &
+       .not. allocated(block%bdry_scalar_mean) .or. &
+       .not. allocated(block%bdry_vector_mean) .or. &
        .not. allocated(block%ghost_storage) .or. &
        .not. allocated(block%ghost_node) .or. &
        .not. allocated(block%ghost_scalar) .or. &
-       .not. allocated(block%ghost_vector)) then
+       .not. allocated(block%ghost_vector) .or. &
+       .not. allocated(block%ghost_scalar_mean) .or. &
+       .not. allocated(block%ghost_vector_mean)) then
 
      error stop "packed_block_nbyte: unallocated component"
 
@@ -824,6 +906,12 @@ integer function packed_block_nbyte (block) result(nbyte)
 
   nbyte = nbyte + &
        size(block%vector) * storage_size(block%vector) / 8
+
+  nbyte = nbyte + &
+       size(block%scalar_mean) * storage_size(block%scalar_mean) / 8
+
+  nbyte = nbyte + &
+       size(block%vector_mean) * storage_size(block%vector_mean) / 8
 
   nbyte = nbyte + size(block%neigh_class) * nbyte_integer
 
@@ -850,6 +938,14 @@ integer function packed_block_nbyte (block) result(nbyte)
        storage_size(block%bdry_vector) / 8
 
   nbyte = nbyte + &
+       size(block%bdry_scalar_mean) * &
+       storage_size(block%bdry_scalar_mean) / 8
+
+  nbyte = nbyte + &
+       size(block%bdry_vector_mean) * &
+       storage_size(block%bdry_vector_mean) / 8
+
+  nbyte = nbyte + &
        size(block%ghost_storage) * &
        storage_size(block%ghost_storage) / 8
 
@@ -863,6 +959,14 @@ integer function packed_block_nbyte (block) result(nbyte)
   nbyte = nbyte + &
        size(block%ghost_vector) * &
        storage_size(block%ghost_vector) / 8
+
+  nbyte = nbyte + &
+       size(block%ghost_scalar_mean) * &
+       storage_size(block%ghost_scalar_mean) / 8
+
+  nbyte = nbyte + &
+       size(block%ghost_vector_mean) * &
+       storage_size(block%ghost_vector_mean) / 8
 
 end function packed_block_nbyte
 
@@ -903,6 +1007,8 @@ subroutine pack_block (block,buffer)
        size(block%node), &
        size(block%scalar), &
        size(block%vector), &
+       size(block%scalar_mean), &
+       size(block%vector_mean), &
        size(block%neigh_class,1), &
        size(block%neigh_class,2), &
        size(block%block_bdry), &
@@ -912,10 +1018,14 @@ subroutine pack_block (block,buffer)
        size(block%bdry_node), &
        size(block%bdry_scalar), &
        size(block%bdry_vector), &
+       size(block%bdry_scalar_mean), &
+       size(block%bdry_vector_mean), &
        size(block%ghost_storage), &
        size(block%ghost_node), &
        size(block%ghost_scalar), &
-       size(block%ghost_vector) ]
+       size(block%ghost_vector), &
+       size(block%ghost_scalar_mean), &
+       size(block%ghost_vector_mean) ]
 
   pos = 0
 
@@ -944,6 +1054,20 @@ subroutine pack_block (block,buffer)
   n = size(block%vector) * storage_size(block%vector) / 8
   if (n > 0) then
      buffer(pos+1:pos+n) = transfer(block%vector,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%scalar_mean) * &
+       storage_size(block%scalar_mean) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%scalar_mean,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%vector_mean) * &
+       storage_size(block%vector_mean) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = transfer(block%vector_mean,0_int8,n)
      pos = pos + n
   end if
 
@@ -993,6 +1117,22 @@ subroutine pack_block (block,buffer)
      pos = pos + n
   end if
 
+  n = size(block%bdry_scalar_mean) * &
+       storage_size(block%bdry_scalar_mean) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = &
+          transfer(block%bdry_scalar_mean,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%bdry_vector_mean) * &
+       storage_size(block%bdry_vector_mean) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = &
+          transfer(block%bdry_vector_mean,0_int8,n)
+     pos = pos + n
+  end if
+
   n = size(block%ghost_storage) * &
        storage_size(block%ghost_storage) / 8
   if (n > 0) then
@@ -1017,6 +1157,22 @@ subroutine pack_block (block,buffer)
        storage_size(block%ghost_vector) / 8
   if (n > 0) then
      buffer(pos+1:pos+n) = transfer(block%ghost_vector,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_scalar_mean) * &
+       storage_size(block%ghost_scalar_mean) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = &
+          transfer(block%ghost_scalar_mean,0_int8,n)
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_vector_mean) * &
+       storage_size(block%ghost_vector_mean) / 8
+  if (n > 0) then
+     buffer(pos+1:pos+n) = &
+          transfer(block%ghost_vector_mean,0_int8,n)
      pos = pos + n
   end if
 
@@ -1083,10 +1239,10 @@ subroutine unpack_block (buffer,block)
 
   end if
 
-  if (header(18) /= N_BDRY .or. &
-       header(19) /= header(14) .or. &
-       header(22) /= N_BDRY .or. &
-       header(23) /= header(14)) then
+  if (header(20) /= N_BDRY .or. &
+       header(21) /= header(14) .or. &
+       header(24) /= N_BDRY .or. &
+       header(25) /= header(14)) then
 
      error stop "unpack_block: invalid topology extents"
 
@@ -1112,17 +1268,23 @@ subroutine unpack_block (buffer,block)
   allocate(block%node(header(15)))
   allocate(block%scalar(header(16)))
   allocate(block%vector(header(17)))
-  allocate(block%neigh_class(header(18),header(19)))
-  allocate(block%block_bdry(header(20)))
-  allocate(block%bdry_storage(header(21)))
-  allocate(block%stencil(header(22),header(23)))
-  allocate(block%bdry_node(header(24)))
-  allocate(block%bdry_scalar(header(25)))
-  allocate(block%bdry_vector(header(26)))
-  allocate(block%ghost_storage(header(27)))
-  allocate(block%ghost_node(header(28)))
-  allocate(block%ghost_scalar(header(29)))
-  allocate(block%ghost_vector(header(30)))
+  allocate(block%scalar_mean(header(18)))
+  allocate(block%vector_mean(header(19)))
+  allocate(block%neigh_class(header(20),header(21)))
+  allocate(block%block_bdry(header(22)))
+  allocate(block%bdry_storage(header(23)))
+  allocate(block%stencil(header(24),header(25)))
+  allocate(block%bdry_node(header(26)))
+  allocate(block%bdry_scalar(header(27)))
+  allocate(block%bdry_vector(header(28)))
+  allocate(block%bdry_scalar_mean(header(29)))
+  allocate(block%bdry_vector_mean(header(30)))
+  allocate(block%ghost_storage(header(31)))
+  allocate(block%ghost_node(header(32)))
+  allocate(block%ghost_scalar(header(33)))
+  allocate(block%ghost_vector(header(34)))
+  allocate(block%ghost_scalar_mean(header(35)))
+  allocate(block%ghost_vector_mean(header(36)))
 
   n = size(block%patch) * storage_size(block%patch) / 8
   if (pos+n > size(buffer)) then
@@ -1161,6 +1323,30 @@ subroutine unpack_block (buffer,block)
   if (n > 0) then
      block%vector = transfer( &
           buffer(pos+1:pos+n),block%vector,size(block%vector))
+     pos = pos + n
+  end if
+
+  n = size(block%scalar_mean) * &
+       storage_size(block%scalar_mean) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated mean scalar data"
+  end if
+  if (n > 0) then
+     block%scalar_mean = transfer( &
+          buffer(pos+1:pos+n),block%scalar_mean, &
+          size(block%scalar_mean))
+     pos = pos + n
+  end if
+
+  n = size(block%vector_mean) * &
+       storage_size(block%vector_mean) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated mean vector data"
+  end if
+  if (n > 0) then
+     block%vector_mean = transfer( &
+          buffer(pos+1:pos+n),block%vector_mean, &
+          size(block%vector_mean))
      pos = pos + n
   end if
 
@@ -1245,6 +1431,30 @@ subroutine unpack_block (buffer,block)
      pos = pos + n
   end if
 
+  n = size(block%bdry_scalar_mean) * &
+       storage_size(block%bdry_scalar_mean) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated mean boundary scalar"
+  end if
+  if (n > 0) then
+     block%bdry_scalar_mean = transfer( &
+          buffer(pos+1:pos+n),block%bdry_scalar_mean, &
+          size(block%bdry_scalar_mean))
+     pos = pos + n
+  end if
+
+  n = size(block%bdry_vector_mean) * &
+       storage_size(block%bdry_vector_mean) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated mean boundary vector"
+  end if
+  if (n > 0) then
+     block%bdry_vector_mean = transfer( &
+          buffer(pos+1:pos+n),block%bdry_vector_mean, &
+          size(block%bdry_vector_mean))
+     pos = pos + n
+  end if
+
   n = size(block%ghost_storage) * &
        storage_size(block%ghost_storage) / 8
   if (pos+n > size(buffer)) then
@@ -1289,6 +1499,30 @@ subroutine unpack_block (buffer,block)
      block%ghost_vector = transfer( &
           buffer(pos+1:pos+n),block%ghost_vector, &
           size(block%ghost_vector))
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_scalar_mean) * &
+       storage_size(block%ghost_scalar_mean) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated mean ghost scalar"
+  end if
+  if (n > 0) then
+     block%ghost_scalar_mean = transfer( &
+          buffer(pos+1:pos+n),block%ghost_scalar_mean, &
+          size(block%ghost_scalar_mean))
+     pos = pos + n
+  end if
+
+  n = size(block%ghost_vector_mean) * &
+       storage_size(block%ghost_vector_mean) / 8
+  if (pos+n > size(buffer)) then
+     error stop "unpack_block: truncated mean ghost vector"
+  end if
+  if (n > 0) then
+     block%ghost_vector_mean = transfer( &
+          buffer(pos+1:pos+n),block%ghost_vector_mean, &
+          size(block%ghost_vector_mean))
      pos = pos + n
   end if
 
