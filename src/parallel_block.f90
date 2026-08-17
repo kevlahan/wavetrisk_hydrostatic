@@ -114,13 +114,14 @@ module parallel_block_mod
 
   type(Block_Data), allocatable, public :: block_source(:)
   type(Block_Data), allocatable, public :: block_received(:)
-  type(Block_Data), allocatable, public :: block_local(:)
+  type(Block_Data), allocatable :: block_local(:)
 
   integer, allocatable, public :: block_source_catalog_index(:)
   integer, allocatable, public :: block_retained_source_index(:)
   integer, allocatable, public :: block_migrating_source_index(:)
   integer, allocatable, public :: block_received_catalog_index(:)
-  integer, allocatable, public :: block_local_catalog_index(:)
+  integer, allocatable :: block_local_catalog_index(:)
+  integer, allocatable :: block_catalog_local_index(:)
 
   logical :: block_store_ready = .false.
 
@@ -131,6 +132,11 @@ module parallel_block_mod
   public :: clear_block_staging
   public :: clear_local_blocks
   public :: local_block_store_ready
+  public :: n_local_blocks
+  public :: local_block_catalog
+  public :: catalog_local_block
+  public :: get_local_block_identity
+  public :: check_local_block_storage
   public :: install_local_blocks
 
 contains
@@ -294,9 +300,11 @@ subroutine install_local_blocks (n_catalog,local_seen)
 
   allocate(block_local(n_local))
   allocate(block_local_catalog_index(n_local))
+  allocate(block_catalog_local_index(n_catalog))
   allocate(local_seen(n_catalog))
 
   block_local_catalog_index = -1
+  block_catalog_local_index = 0
   local_seen = 0
   ilocal = 0
 
@@ -322,6 +330,7 @@ subroutine install_local_blocks (n_catalog,local_seen)
      ilocal = ilocal + 1
      block_local(ilocal) = block_source(ib)
      block_local_catalog_index(ilocal) = b
+     block_catalog_local_index(b) = ilocal
      local_seen(b) = 1
 
      call pack_block(block_local(ilocal),buffer_local)
@@ -355,6 +364,7 @@ subroutine install_local_blocks (n_catalog,local_seen)
      ilocal = ilocal + 1
      block_local(ilocal) = block_received(i)
      block_local_catalog_index(ilocal) = b
+     block_catalog_local_index(b) = ilocal
      local_seen(b) = 1
 
      call pack_block(block_local(ilocal),buffer_local)
@@ -380,6 +390,20 @@ subroutine install_local_blocks (n_catalog,local_seen)
      error stop "install_local_blocks: local inventory mismatch"
   end if
 
+  if (count(block_catalog_local_index > 0) /= n_local) then
+     error stop "install_local_blocks: inverse map count mismatch"
+  end if
+
+  do ilocal = 1, n_local
+
+     b = block_local_catalog_index(ilocal)
+
+     if (block_catalog_local_index(b) /= ilocal) then
+        error stop "install_local_blocks: inverse map mismatch"
+     end if
+
+  end do
+
   block_store_ready = .true.
 
 end subroutine install_local_blocks
@@ -392,16 +416,132 @@ logical function local_block_store_ready () result(ready)
 
   implicit none
 
-  ready = block_store_ready .and. &
-       allocated(block_local) .and. &
-       allocated(block_local_catalog_index)
+  ready = .false.
 
-  if (ready) then
-     ready = size(block_local) == &
-          size(block_local_catalog_index)
-  end if
+  if (.not. block_store_ready) return
+
+  if (.not. allocated(block_local)) return
+  if (.not. allocated(block_local_catalog_index)) return
+  if (.not. allocated(block_catalog_local_index)) return
+
+  if (size(block_local) /= &
+       size(block_local_catalog_index)) return
+
+  if (size(block_catalog_local_index) < 1) return
+
+  ready = .true.
 
 end function local_block_store_ready
+
+
+integer function n_local_blocks () result(n_block)
+  ! Return the number of blocks in the ready final-owner store.
+
+  implicit none
+
+  if (.not. local_block_store_ready()) then
+     error stop "n_local_blocks: local store is not ready"
+  end if
+
+  n_block = size(block_local)
+
+end function n_local_blocks
+
+
+integer function local_block_catalog (local_index) result(catalog_index)
+  ! Map a valid local block index to its replicated catalogue index.
+
+  implicit none
+
+  integer, intent(in) :: local_index
+
+  if (.not. local_block_store_ready()) then
+     error stop "local_block_catalog: local store is not ready"
+  end if
+
+  if (local_index < 1 .or. local_index > size(block_local)) then
+     error stop "local_block_catalog: invalid local index"
+  end if
+
+  catalog_index = block_local_catalog_index(local_index)
+
+end function local_block_catalog
+
+
+integer function catalog_local_block (catalog_index) result(local_index)
+  ! Map a replicated catalogue index to its local block index. Return
+  ! zero when the catalogue block belongs to another rank.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+
+  if (.not. local_block_store_ready()) then
+     error stop "catalog_local_block: local store is not ready"
+  end if
+
+  if (catalog_index < 1 .or. &
+       catalog_index > size(block_catalog_local_index)) then
+     error stop "catalog_local_block: invalid catalogue index"
+  end if
+
+  local_index = block_catalog_local_index(catalog_index)
+
+end function catalog_local_block
+
+
+subroutine get_local_block_identity ( &
+     local_index,id,root_domain,root_patch,level)
+  ! Return immutable identity metadata for one local block.
+
+  implicit none
+
+  integer, intent(in)  :: local_index
+  integer, intent(out) :: id
+  integer, intent(out) :: root_domain
+  integer, intent(out) :: root_patch
+  integer, intent(out) :: level
+
+  if (.not. local_block_store_ready()) then
+     error stop "get_local_block_identity: local store is not ready"
+  end if
+
+  if (local_index < 1 .or. local_index > size(block_local)) then
+     error stop "get_local_block_identity: invalid local index"
+  end if
+
+  id          = block_local(local_index)%id
+  root_domain = block_local(local_index)%root_domain
+  root_patch  = block_local(local_index)%root_patch
+  level       = block_local(local_index)%level
+
+end subroutine get_local_block_identity
+
+
+subroutine check_local_block_storage (local_index,check_serialization)
+  ! Validate one local block without exposing the private store.
+
+  implicit none
+
+  integer, intent(in) :: local_index
+  logical, optional, intent(in) :: check_serialization
+
+  logical :: serialize
+
+  if (.not. local_block_store_ready()) then
+     error stop "check_local_block_storage: local store is not ready"
+  end if
+
+  if (local_index < 1 .or. local_index > size(block_local)) then
+     error stop "check_local_block_storage: invalid local index"
+  end if
+
+  serialize = .false.
+  if (present(check_serialization)) serialize = check_serialization
+
+  call check_block_storage(block_local(local_index),serialize)
+
+end subroutine check_local_block_storage
 
 
 subroutine clear_local_blocks
@@ -421,8 +561,13 @@ subroutine clear_local_blocks
      deallocate(block_local_catalog_index)
   end if
 
+  if (allocated(block_catalog_local_index)) then
+     deallocate(block_catalog_local_index)
+  end if
+
   if (allocated(block_local) .or. &
-       allocated(block_local_catalog_index)) then
+       allocated(block_local_catalog_index) .or. &
+       allocated(block_catalog_local_index)) then
      error stop "clear_local_blocks: cleanup failed"
   end if
 

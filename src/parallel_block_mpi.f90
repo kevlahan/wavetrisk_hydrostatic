@@ -14,12 +14,13 @@ module parallel_block_mpi_mod
        n_process, owner, Parallel_Block, rank
 
   use parallel_block_mod, only : block_source, block_received, &
-       block_local, block_local_catalog_index, &
        block_source_catalog_index, &
        block_migrating_source_index, block_received_catalog_index, &
        packed_block_nbyte, pack_block, unpack_block, &
        check_block_storage, install_local_blocks, clear_block_staging, &
-       clear_local_blocks, local_block_store_ready
+       clear_local_blocks, local_block_store_ready, n_local_blocks, &
+       local_block_catalog, catalog_local_block, &
+       get_local_block_identity, check_local_block_storage
 
   implicit none
 
@@ -814,7 +815,7 @@ end subroutine build_parallel_block_catalog
        end if
     end do
 
-    if (size(block_local) /= expected_local) then
+    if (n_local_blocks() /= expected_local) then
        call fail("installed block count does not match final ownership")
     end if
 
@@ -829,7 +830,8 @@ end subroutine build_parallel_block_catalog
             "Completed block migration for rank ", rank, ":"
        write(6,'(a,i0)') "  blocks sent      = ", n_sent
        write(6,'(a,i0)') "  blocks received  = ", n_received
-       write(6,'(a,i0)') "  blocks installed = ", size(block_local)
+       write(6,'(a,i0)') &
+            "  blocks installed = ", n_local_blocks()
        write(6,'(a,/)') &
             "  migration staging storage released"
     end if
@@ -858,9 +860,13 @@ end subroutine build_parallel_block_catalog
     integer :: global_count
     integer :: global_weight
     integer :: i
+    integer :: id
     integer :: ierr
+    integer :: level
     integer :: local_count
     integer :: local_weight
+    integer :: root_domain
+    integer :: root_patch
 
     integer, allocatable :: global_seen(:)
     integer, allocatable :: local_seen(:)
@@ -874,27 +880,17 @@ end subroutine build_parallel_block_catalog
        call fail("local block store is not ready")
     end if
 
-    if (.not. allocated(block_local) .or. &
-         .not. allocated(block_local_catalog_index)) then
-       call fail("local block store is not allocated")
-    end if
-
-    if (size(block_local) /= &
-         size(block_local_catalog_index)) then
-       call fail("local block catalogue map has the wrong extent")
-    end if
-
     allocate(local_seen(size(block_catalog)))
     allocate(global_seen(size(block_catalog)))
 
     local_seen   = 0
     global_seen  = 0
-    local_count  = size(block_local)
+    local_count  = n_local_blocks()
     local_weight = 0
 
-    do i = 1, size(block_local)
+    do i = 1, local_count
 
-       b = block_local_catalog_index(i)
+       b = local_block_catalog(i)
 
        if (b < 1 .or. b > size(block_catalog)) then
           call fail("local block has an invalid catalogue index")
@@ -904,20 +900,25 @@ end subroutine build_parallel_block_catalog
           call fail("local block occurs more than once")
        end if
 
+       if (catalog_local_block(b) /= i) then
+          call fail("local/catalogue inverse mapping mismatch")
+       end if
+
        if (block_catalog(b)%owner /= rank) then
           call fail("local block has the wrong final owner")
        end if
 
-       if (block_local(i)%id /= block_catalog(b)%id .or. &
-            block_local(i)%root_domain /= &
-            block_catalog(b)%root_domain .or. &
-            block_local(i)%root_patch /= &
-            block_catalog(b)%root_patch .or. &
-            block_local(i)%level /= block_catalog(b)%level) then
+       call get_local_block_identity( &
+            i,id,root_domain,root_patch,level)
+
+       if (id /= block_catalog(b)%id .or. &
+            root_domain /= block_catalog(b)%root_domain .or. &
+            root_patch /= block_catalog(b)%root_patch .or. &
+            level /= block_catalog(b)%level) then
           call fail("local block identity does not match catalogue")
        end if
 
-       call check_block_storage(block_local(i),.true.)
+       call check_local_block_storage(i,.true.)
 
        local_seen(b) = 1
        local_weight = local_weight + block_catalog(b)%weight
@@ -926,7 +927,7 @@ end subroutine build_parallel_block_catalog
 
     expected_local = count(block_catalog%owner == rank)
 
-    if (size(block_local) /= expected_local) then
+    if (local_count /= expected_local) then
        call fail("local block count does not match final ownership")
     end if
 
@@ -959,13 +960,15 @@ end subroutine build_parallel_block_catalog
        write(6,'(/,a,i0,a)') &
             "Standalone local block store for rank ", rank, ":"
        write(6,'(a,i0)') &
-            "  final-owner blocks = ", size(block_local)
+            "  final-owner blocks = ", local_count
        write(6,'(a,i0)') &
             "  final-owner weight = ", local_weight
        write(6,'(a)') &
             "  component and serialization checks passed"
        write(6,'(a)') &
             "  persistent store readiness check passed"
+       write(6,'(a)') &
+            "  bidirectional local/catalogue mapping check passed"
        write(6,'(a,/)') &
             "  unique global inventory check passed"
     end if
