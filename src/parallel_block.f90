@@ -3,8 +3,9 @@ module parallel_block_mod
   use, intrinsic :: iso_fortran_env, only : int8, int64
 
   use kind_mod,   only : dp
-  use shared_mod, only : Coord, MULT, N_BDRY, S_VELO, scalars, &
-       vert_diffuse, zlevels, zmin, zmax
+  use shared_mod, only : Coord, MULT, N_BDRY, S_MASS, S_TEMP, &
+       S_VELO, c_p, compressible, grav_accel, kappa, p_0, p_top, &
+       scalars, vert_diffuse, zlevels, zmin, zmax
   use patch_mod,  only : Patch, PATCH_SIZE
 
   implicit none
@@ -178,6 +179,7 @@ module parallel_block_mod
   public :: local_block_mean_field_statistics
   public :: local_block_turbulence_statistics
   public :: local_block_topography_statistics
+  public :: local_block_hydrostatic_statistics
   public :: install_local_blocks
 
 contains
@@ -1040,6 +1042,168 @@ subroutine local_block_topography_statistics (value_count,value_moment)
   end do
 
 end subroutine local_block_topography_statistics
+
+
+subroutine local_block_hydrostatic_statistics ( &
+     surface_count,column_count,surface_moment,exner_moment, &
+     temperature_moment)
+  ! Reconstruct compressible hydrostatic column diagnostics directly
+  ! from the installed prognostic block fields. These phase-dependent
+  ! quantities are regenerated rather than stored or migrated.
+
+  implicit none
+
+  integer(int64), intent(out) :: surface_count
+  integer(int64), intent(out) :: column_count
+
+  real(dp), intent(out) :: surface_moment(3)
+  real(dp), intent(out) :: exner_moment(3)
+  real(dp), intent(out) :: temperature_moment(3)
+
+  integer :: i
+  integer :: k
+  integer :: local_index
+  integer :: mass_index
+  integer :: mass_variable_slot
+  integer :: n_node
+  integer :: scalar_variable_size
+  integer :: temperature_index
+  integer :: temperature_variable_slot
+
+  real(dp) :: exner_value
+  real(dp) :: layer_pressure
+  real(dp) :: pressure_factor
+  real(dp) :: pressure_lower
+  real(dp) :: pressure_upper
+  real(dp) :: rho_dz
+  real(dp) :: rho_dz_theta
+  real(dp) :: surface_pressure
+  real(dp) :: temperature_value
+
+  if (.not. compressible) then
+     error stop &
+          "local_block_hydrostatic_statistics: incompressible case"
+  end if
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "local_block_hydrostatic_statistics: store is not ready"
+  end if
+
+  surface_count      = 0_int64
+  column_count       = 0_int64
+  surface_moment     = 0.0_dp
+  exner_moment       = 0.0_dp
+  temperature_moment = 0.0_dp
+
+  do local_index = 1, size(block_local)
+
+     if (block_local(local_index)%scalar_mult /= 1) then
+        error stop &
+             "local_block_hydrostatic_statistics: scalar multiplier"
+     end if
+
+     if (block_local(local_index)%field_level > 1 .or. &
+          block_local(local_index)%field_level + &
+          block_local(local_index)%n_field_level - 1 < zlevels) then
+        error stop &
+             "local_block_hydrostatic_statistics: level coverage"
+     end if
+
+     mass_variable_slot = &
+          S_MASS - block_local(local_index)%scalar_variable
+     temperature_variable_slot = &
+          S_TEMP - block_local(local_index)%scalar_variable
+
+     if (mass_variable_slot < 0 .or. &
+          mass_variable_slot >= &
+          block_local(local_index)%n_scalar_variable .or. &
+          temperature_variable_slot < 0 .or. &
+          temperature_variable_slot >= &
+          block_local(local_index)%n_scalar_variable) then
+        error stop &
+             "local_block_hydrostatic_statistics: variable coverage"
+     end if
+
+     n_node = size(block_local(local_index)%node)
+     scalar_variable_size = &
+          block_local(local_index)%n_field_level*n_node
+
+     do i = 1, n_node
+
+        pressure_lower = p_top
+
+        do k = 1, zlevels
+           mass_index = &
+                mass_variable_slot*scalar_variable_size + &
+                (k-block_local(local_index)%field_level)*n_node + i
+
+           rho_dz = block_local(local_index)%scalar(mass_index) + &
+                block_local(local_index)%scalar_mean(mass_index)
+
+           if (rho_dz <= 0.0_dp) then
+              error stop &
+                   "local_block_hydrostatic_statistics: nonpositive mass"
+           end if
+
+           pressure_lower = pressure_lower + grav_accel*rho_dz
+        end do
+
+        surface_pressure = pressure_lower
+        surface_count = surface_count + 1_int64
+        surface_moment(1) = surface_moment(1) + surface_pressure
+        surface_moment(2) = surface_moment(2) + &
+             abs(surface_pressure)
+        surface_moment(3) = surface_moment(3) + surface_pressure**2
+
+        do k = 1, zlevels
+           mass_index = &
+                mass_variable_slot*scalar_variable_size + &
+                (k-block_local(local_index)%field_level)*n_node + i
+           temperature_index = &
+                temperature_variable_slot*scalar_variable_size + &
+                (k-block_local(local_index)%field_level)*n_node + i
+
+           rho_dz = block_local(local_index)%scalar(mass_index) + &
+                block_local(local_index)%scalar_mean(mass_index)
+           rho_dz_theta = &
+                block_local(local_index)%scalar(temperature_index) + &
+                block_local(local_index)%scalar_mean(temperature_index)
+
+           pressure_upper = pressure_lower - grav_accel*rho_dz
+           layer_pressure = 0.5_dp*(pressure_lower+pressure_upper)
+
+           if (layer_pressure <= 0.0_dp) then
+              error stop &
+                   "local_block_hydrostatic_statistics: nonpositive pressure"
+           end if
+
+           pressure_factor = (layer_pressure/p_0)**kappa
+           exner_value = c_p*pressure_factor
+           temperature_value = &
+                rho_dz_theta/rho_dz*pressure_factor
+
+           column_count = column_count + 1_int64
+
+           exner_moment(1) = exner_moment(1) + exner_value
+           exner_moment(2) = exner_moment(2) + abs(exner_value)
+           exner_moment(3) = exner_moment(3) + exner_value**2
+
+           temperature_moment(1) = &
+                temperature_moment(1) + temperature_value
+           temperature_moment(2) = &
+                temperature_moment(2) + abs(temperature_value)
+           temperature_moment(3) = &
+                temperature_moment(3) + temperature_value**2
+
+           pressure_lower = pressure_upper
+        end do
+
+     end do
+
+  end do
+
+end subroutine local_block_hydrostatic_statistics
 
 
 subroutine clear_local_blocks

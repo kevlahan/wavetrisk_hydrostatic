@@ -6,7 +6,8 @@ module parallel_block_mpi_mod
        MPI_INTEGER8, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_SUCCESS, MPI_SUM
 
   use kind_mod,   only : dp
-  use shared_mod, only : N_CHDRN, N_GLO_DOMAIN
+  use shared_mod, only : N_CHDRN, N_GLO_DOMAIN, S_MASS, S_TEMP, &
+       c_p, compressible, grav_accel, kappa, p_0, p_top, zlevels
 
   use domain_mod, only : grid, sol, sol_mean, tke, topography, &
        wav_coeff, wav_tke, &
@@ -30,7 +31,8 @@ module parallel_block_mpi_mod
        local_block_field_statistics, local_block_wavelet_statistics, &
        local_block_mean_field_statistics, &
        local_block_turbulence_statistics, &
-       local_block_topography_statistics
+       local_block_topography_statistics, &
+       local_block_hydrostatic_statistics
 
   implicit none
 
@@ -71,6 +73,7 @@ module parallel_block_mpi_mod
   public :: migrate_blocks
   public :: check_local_blocks
   public :: check_block_field_inventory
+  public :: check_block_hydrostatic_reconstruction
 
 contains
 
@@ -855,6 +858,7 @@ end subroutine build_parallel_block_catalog
 
     call check_local_blocks(print_local)
     call check_block_field_inventory(print_local)
+    call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
 
@@ -1644,6 +1648,246 @@ end subroutine build_parallel_block_catalog
   end subroutine check_block_field_inventory
 
 
+  subroutine check_block_hydrostatic_reconstruction (verbose)
+    ! Reconstruct surface pressure, dynamic Exner function and air
+    ! temperature from the installed block prognostic fields. Compare
+    ! global moments with an independent reconstruction from legacy
+    ! Domain fields. No phase-dependent exner_fun state is migrated.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: d
+    integer :: ierr
+
+    integer(int64) :: block_surface_count_local
+    integer(int64) :: block_surface_count_global
+    integer(int64) :: block_column_count_local
+    integer(int64) :: block_column_count_global
+    integer(int64) :: domain_surface_count_local
+    integer(int64) :: domain_surface_count_global
+    integer(int64) :: domain_column_count_local
+    integer(int64) :: domain_column_count_global
+
+    real(dp) :: block_surface_moment_local(3)
+    real(dp) :: block_surface_moment_global(3)
+    real(dp) :: block_exner_moment_local(3)
+    real(dp) :: block_exner_moment_global(3)
+    real(dp) :: block_temperature_moment_local(3)
+    real(dp) :: block_temperature_moment_global(3)
+    real(dp) :: domain_surface_moment_local(3)
+    real(dp) :: domain_surface_moment_global(3)
+    real(dp) :: domain_exner_moment_local(3)
+    real(dp) :: domain_exner_moment_global(3)
+    real(dp) :: domain_temperature_moment_local(3)
+    real(dp) :: domain_temperature_moment_global(3)
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. compressible) then
+       if (print_summary) then
+          write(6,'(/,a,i0,a)') &
+               "Hydrostatic block reconstruction for rank ", rank, ":"
+          write(6,'(a,/)') &
+               "  skipped for incompressible configuration"
+       end if
+       return
+    end if
+
+    if (.not. local_block_store_ready()) then
+       call fail("hydrostatic reconstruction before block installation")
+    end if
+
+    call local_block_hydrostatic_statistics( &
+         block_surface_count_local,block_column_count_local, &
+         block_surface_moment_local,block_exner_moment_local, &
+         block_temperature_moment_local)
+
+    domain_surface_count_local      = 0_int64
+    domain_column_count_local       = 0_int64
+    domain_surface_moment_local     = 0.0_dp
+    domain_exner_moment_local       = 0.0_dp
+    domain_temperature_moment_local = 0.0_dp
+
+    do b = 1, size(block_catalog)
+
+       if (owner(block_catalog(b)%root_domain+1) /= rank) cycle
+
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+
+       if (d < 1 .or. d > size(grid)) then
+          call fail("invalid source Domain in hydrostatic reconstruction")
+       end if
+
+       call accumulate_domain_subtree_hydrostatic( &
+            d,block_catalog(b)%root_patch, &
+            domain_surface_count_local,domain_column_count_local, &
+            domain_surface_moment_local,domain_exner_moment_local, &
+            domain_temperature_moment_local)
+
+    end do
+
+    call MPI_Allreduce( &
+         block_surface_count_local,block_surface_count_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block surface-pressure count")
+
+    call MPI_Allreduce( &
+         block_column_count_local,block_column_count_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block hydrostatic-column count")
+
+    call MPI_Allreduce( &
+         domain_surface_count_local,domain_surface_count_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain surface-pressure count")
+
+    call MPI_Allreduce( &
+         domain_column_count_local,domain_column_count_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain hydrostatic-column count")
+
+    call MPI_Allreduce( &
+         block_surface_moment_local,block_surface_moment_global,3, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block surface-pressure moments")
+
+    call MPI_Allreduce( &
+         block_exner_moment_local,block_exner_moment_global,3, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block Exner moments")
+
+    call MPI_Allreduce( &
+         block_temperature_moment_local, &
+         block_temperature_moment_global,3, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block temperature moments")
+
+    call MPI_Allreduce( &
+         domain_surface_moment_local,domain_surface_moment_global,3, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain surface-pressure moments")
+
+    call MPI_Allreduce( &
+         domain_exner_moment_local,domain_exner_moment_global,3, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain Exner moments")
+
+    call MPI_Allreduce( &
+         domain_temperature_moment_local, &
+         domain_temperature_moment_global,3, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain temperature moments")
+
+    if (block_surface_count_global /= domain_surface_count_global .or. &
+         block_column_count_global /= domain_column_count_global) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain hydrostatic-count mismatch:"
+          write(error_unit,'(a,2(i0,1x))') &
+               "  block surface/column counts  = ", &
+               block_surface_count_global,block_column_count_global
+          write(error_unit,'(a,2(i0,1x))') &
+               "  Domain surface/column counts = ", &
+               domain_surface_count_global,domain_column_count_global
+       end if
+
+       call fail("block and Domain hydrostatic counts differ")
+    end if
+
+    if (.not. field_moments_match( &
+         block_surface_moment_global,domain_surface_moment_global, &
+         block_surface_count_global)) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain surface-pressure-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", block_surface_moment_global
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", domain_surface_moment_global
+       end if
+
+       call fail("block and Domain surface-pressure moments differ")
+    end if
+
+    if (.not. field_moments_match( &
+         block_exner_moment_global,domain_exner_moment_global, &
+         block_column_count_global)) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain dynamic-Exner-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", block_exner_moment_global
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", domain_exner_moment_global
+       end if
+
+       call fail("block and Domain dynamic Exner moments differ")
+    end if
+
+    if (.not. field_moments_match( &
+         block_temperature_moment_global, &
+         domain_temperature_moment_global, &
+         block_column_count_global)) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain air-temperature-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", &
+               block_temperature_moment_global
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", &
+               domain_temperature_moment_global
+       end if
+
+       call fail("block and Domain air-temperature moments differ")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Hydrostatic block reconstruction for rank ", rank, ":"
+       write(6,'(a,i0)') &
+            "  local surface-pressure values = ", &
+            block_surface_count_local
+       write(6,'(a,i0)') &
+            "  local column diagnostic values = ", &
+            block_column_count_local
+       write(6,'(a,/)') &
+            "  global hydrostatic reconstruction checks passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global surface-pressure values reconstructed = ", &
+            block_surface_count_global
+       write(6,'(a,i0)') &
+            "Global dynamic Exner/temperature values reconstructed = ", &
+            block_column_count_global
+       write(6,'(a,3(es24.16,1x))') &
+            "Global surface-pressure moments verified = ", &
+            block_surface_moment_global
+       write(6,'(a,3(es24.16,1x))') &
+            "Global dynamic Exner moments verified = ", &
+            block_exner_moment_global
+       write(6,'(a,3(es24.16,1x))') &
+            "Global air-temperature moments verified = ", &
+            block_temperature_moment_global
+       write(6,'(a,/)') &
+            "Block hydrostatic diagnostics match legacy Domain state"
+    end if
+
+  end subroutine check_block_hydrostatic_reconstruction
+
+
   logical function field_moments_match (first,second,n_value) &
        result(match)
     ! Allow only the floating-point reassociation error introduced by
@@ -1927,6 +2171,127 @@ end subroutine build_parallel_block_catalog
     end do
 
   end subroutine accumulate_domain_subtree_fields
+
+
+  recursive subroutine accumulate_domain_subtree_hydrostatic ( &
+       d,p,surface_count,column_count,surface_moment,exner_moment, &
+       temperature_moment)
+    ! Independently reconstruct compressible hydrostatic diagnostics
+    ! over one catalogue-rooted legacy Domain subtree.
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: p
+
+    integer(int64), intent(inout) :: surface_count
+    integer(int64), intent(inout) :: column_count
+
+    real(dp), intent(inout) :: surface_moment(3)
+    real(dp), intent(inout) :: exner_moment(3)
+    real(dp), intent(inout) :: temperature_moment(3)
+
+    integer :: c
+    integer :: i
+    integer :: k
+    integer :: node_index
+    integer :: p_child
+    integer :: start
+
+    real(dp) :: exner_value
+    real(dp) :: layer_pressure
+    real(dp) :: pressure_factor
+    real(dp) :: pressure_lower
+    real(dp) :: pressure_upper
+    real(dp) :: rho_dz
+    real(dp) :: rho_dz_theta
+    real(dp) :: surface_pressure
+    real(dp) :: temperature_value
+
+    if (p < 0 .or. p >= grid(d)%patch%length) then
+       call fail("invalid patch in Domain hydrostatic reconstruction")
+    end if
+
+    if (grid(d)%patch%elts(p+1)%deleted) return
+
+    start = grid(d)%patch%elts(p+1)%elts_start
+
+    if (start < 0 .or. &
+         start+PATCH_SIZE**2 > &
+         size(sol(S_MASS,1)%data(d)%elts)) then
+       call fail("legacy hydrostatic patch extent is invalid")
+    end if
+
+    do i = 1, PATCH_SIZE**2
+
+       node_index = start + i
+       pressure_lower = p_top
+
+       do k = 1, zlevels
+          rho_dz = sol(S_MASS,k)%data(d)%elts(node_index) + &
+               sol_mean(S_MASS,k)%data(d)%elts(node_index)
+
+          if (rho_dz <= 0.0_dp) then
+             call fail("nonpositive legacy mass in reconstruction")
+          end if
+
+          pressure_lower = pressure_lower + grav_accel*rho_dz
+       end do
+
+       surface_pressure = pressure_lower
+       surface_count = surface_count + 1_int64
+       surface_moment(1) = surface_moment(1) + surface_pressure
+       surface_moment(2) = surface_moment(2) + abs(surface_pressure)
+       surface_moment(3) = surface_moment(3) + surface_pressure**2
+
+       do k = 1, zlevels
+          rho_dz = sol(S_MASS,k)%data(d)%elts(node_index) + &
+               sol_mean(S_MASS,k)%data(d)%elts(node_index)
+          rho_dz_theta = &
+               sol(S_TEMP,k)%data(d)%elts(node_index) + &
+               sol_mean(S_TEMP,k)%data(d)%elts(node_index)
+
+          pressure_upper = pressure_lower - grav_accel*rho_dz
+          layer_pressure = 0.5_dp*(pressure_lower+pressure_upper)
+
+          if (layer_pressure <= 0.0_dp) then
+             call fail("nonpositive legacy pressure in reconstruction")
+          end if
+
+          pressure_factor = (layer_pressure/p_0)**kappa
+          exner_value = c_p*pressure_factor
+          temperature_value = rho_dz_theta/rho_dz*pressure_factor
+
+          column_count = column_count + 1_int64
+
+          exner_moment(1) = exner_moment(1) + exner_value
+          exner_moment(2) = exner_moment(2) + abs(exner_value)
+          exner_moment(3) = exner_moment(3) + exner_value**2
+
+          temperature_moment(1) = &
+               temperature_moment(1) + temperature_value
+          temperature_moment(2) = &
+               temperature_moment(2) + abs(temperature_value)
+          temperature_moment(3) = &
+               temperature_moment(3) + temperature_value**2
+
+          pressure_lower = pressure_upper
+       end do
+
+    end do
+
+    do c = 1, N_CHDRN
+
+       p_child = grid(d)%patch%elts(p+1)%children(c)
+       if (p_child == 0) cycle
+
+       call accumulate_domain_subtree_hydrostatic( &
+            d,p_child,surface_count,column_count,surface_moment, &
+            exner_moment,temperature_moment)
+
+    end do
+
+  end subroutine accumulate_domain_subtree_hydrostatic
 
 
   subroutine build_block_migration_manifest (manifest)
