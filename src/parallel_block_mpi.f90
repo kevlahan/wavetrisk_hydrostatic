@@ -32,6 +32,8 @@ module parallel_block_mpi_mod
        local_block_mean_field_statistics, &
        local_block_turbulence_statistics, &
        local_block_topography_statistics, &
+       source_block_scalar_stencil_statistics, &
+       local_block_scalar_stencil_statistics, &
        local_block_hydrostatic_statistics
 
   implicit none
@@ -73,6 +75,7 @@ module parallel_block_mpi_mod
   public :: migrate_blocks
   public :: check_local_blocks
   public :: check_block_field_inventory
+  public :: check_block_scalar_stencil_consumer
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -833,6 +836,8 @@ end subroutine build_parallel_block_catalog
        call fail("installed block count does not match final ownership")
     end if
 
+    call check_block_scalar_stencil_consumer(print_local)
+
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
 
@@ -861,6 +866,154 @@ end subroutine build_parallel_block_catalog
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
+
+
+  subroutine check_block_scalar_stencil_consumer (verbose)
+    ! Compare a read-only traversal of every scalar compact-stencil window
+    ! before migration with the installed final-owner block store. This is
+    ! the first persistent-store consumer of patch, boundary and ghost
+    ! addressing across every scalar variable and represented level.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: field_kind
+    integer :: ierr
+
+    integer(int64) :: source_address_local(3)
+    integer(int64) :: source_address_global(3)
+    integer(int64) :: local_address_local(3)
+    integer(int64) :: local_address_global(3)
+    integer(int64) :: source_value_local
+    integer(int64) :: source_value_global
+    integer(int64) :: local_value_local
+    integer(int64) :: local_value_global
+
+    real(dp) :: source_moment_local(3,3)
+    real(dp) :: source_moment_global(3,3)
+    real(dp) :: local_moment_local(3,3)
+    real(dp) :: local_moment_global(3,3)
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    call source_block_scalar_stencil_statistics( &
+         source_address_local,source_value_local,source_moment_local)
+
+    call local_block_scalar_stencil_statistics( &
+         local_address_local,local_value_local,local_moment_local)
+
+    call MPI_Allreduce( &
+         source_address_local,source_address_global,3, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source stencil addresses")
+
+    call MPI_Allreduce( &
+         local_address_local,local_address_global,3, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final stencil addresses")
+
+    call MPI_Allreduce( &
+         source_value_local,source_value_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source stencil values")
+
+    call MPI_Allreduce( &
+         local_value_local,local_value_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final stencil values")
+
+    call MPI_Allreduce( &
+         source_moment_local,source_moment_global,9, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source stencil moments")
+
+    call MPI_Allreduce( &
+         local_moment_local,local_moment_global,9, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final stencil moments")
+
+    if (any(source_address_global /= local_address_global)) then
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Source/final scalar-stencil-address mismatch:"
+          write(error_unit,'(a,3(i0,1x))') &
+               "  source patch/boundary/ghost = ", &
+               source_address_global
+          write(error_unit,'(a,3(i0,1x))') &
+               "  final  patch/boundary/ghost = ", &
+               local_address_global
+       end if
+       call fail("source and final scalar stencil addresses differ")
+    end if
+
+    if (source_value_global /= local_value_global) then
+       call fail("source and final scalar stencil value counts differ")
+    end if
+
+    do field_kind = 1, 3
+       if (.not. field_moments_match( &
+            source_moment_global(:,field_kind), &
+            local_moment_global(:,field_kind), &
+            source_value_global)) then
+
+          if (rank == 0) then
+             write(error_unit,'(/,a,i0,a)') &
+                  "Source/final scalar-stencil moments for field kind ", &
+                  field_kind,":"
+             write(error_unit,'(a,3(es24.16,1x))') &
+                  "  source moments = ", &
+                  source_moment_global(:,field_kind)
+             write(error_unit,'(a,3(es24.16,1x))') &
+                  "  final moments  = ", &
+                  local_moment_global(:,field_kind)
+          end if
+
+          call fail("source and final scalar stencil moments differ")
+       end if
+    end do
+
+    if (any(local_address_global <= 0_int64) .or. &
+         local_value_global <= 0_int64) then
+       call fail("incomplete final-owner scalar stencil inventory")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Final-owner scalar stencil consumer for rank ",rank,":"
+       write(6,'(a,3(i0,1x))') &
+            "  local patch/boundary/ghost addresses = ", &
+            local_address_local
+       write(6,'(a,i0)') &
+            "  local scalar field samples = ",local_value_local
+       write(6,'(a,/)') &
+            "  source/final scalar stencil checks passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,3(i0,1x))') &
+            "Global patch/boundary/ghost stencil addresses = ", &
+            local_address_global
+       write(6,'(a,i0)') &
+            "Global scalar stencil field samples verified = ", &
+            local_value_global
+       write(6,'(a,3(es24.16,1x))') &
+            "Global sol stencil moments verified = ", &
+            local_moment_global(:,1)
+       write(6,'(a,3(es24.16,1x))') &
+            "Global sol_mean stencil moments verified = ", &
+            local_moment_global(:,2)
+       write(6,'(a,3(es24.16,1x))') &
+            "Global wav_coeff stencil moments verified = ", &
+            local_moment_global(:,3)
+       write(6,'(a,/)') &
+            "Final-owner scalar stencil consumer matches source blocks"
+    end if
+
+  end subroutine check_block_scalar_stencil_consumer
 
 
   subroutine check_local_blocks (verbose)
