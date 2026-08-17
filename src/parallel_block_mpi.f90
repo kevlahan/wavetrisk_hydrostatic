@@ -100,6 +100,7 @@ module parallel_block_mpi_mod
   public :: check_block_ghost_request_manifest
   public :: check_block_scalar_ghost_payload_exchange
   public :: check_block_vector_ghost_payload_exchange
+  public :: check_refreshed_block_stencil_consumers
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -867,6 +868,7 @@ end subroutine build_parallel_block_catalog
     call check_block_ghost_request_manifest(print_local)
     call check_block_scalar_ghost_payload_exchange(print_local)
     call check_block_vector_ghost_payload_exchange(print_local)
+    call check_refreshed_block_stencil_consumers(print_local)
 
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
@@ -1191,6 +1193,43 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_vector_stencil_consumer
+
+
+  subroutine check_refreshed_block_stencil_consumers (verbose)
+    ! Both ghost-payload exchanges deliberately poison their destination
+    ! storage before installing the requested sol and wav_coeff values.
+    ! Re-run the scalar and vector compact-stencil consumers only after
+    ! both installations have completed. This verifies that the refreshed
+    ! ghost payloads are immediately usable through the same explicit
+    ! addressing paths used by block-local numerical kernels.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    call check_block_scalar_stencil_consumer(.false.)
+    call check_block_vector_stencil_consumer(.false.)
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Refreshed ghost stencil consumers for rank ",rank,":"
+       write(6,'(a)') &
+            "  scalar compact-stencil reads passed"
+       write(6,'(a,/)') &
+            "  vector compact-stencil reads passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,/)') &
+            "Installed sol/wav_coeff ghost stencil-read checks passed"
+    end if
+
+  end subroutine check_refreshed_block_stencil_consumers
 
 
   subroutine check_block_boundary_routes (verbose)
