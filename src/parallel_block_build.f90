@@ -623,6 +623,11 @@ subroutine build_one_source_block ( &
   integer :: k_test
   integer :: mult_scalar
   integer :: mult_vector
+  integer :: n_scalar_variable
+  integer :: scalar_base
+  integer :: scalar_id
+  integer :: scalar_slot
+  integer :: scalar_storage_size
 
   integer :: offs_src(0:N_BDRY)
   integer :: dims_src(2,N_BDRY)
@@ -638,6 +643,7 @@ subroutine build_one_source_block ( &
   real(dp) :: val_blk
 
   real(dp), allocatable :: scalar_copy(:)
+  real(dp), allocatable :: scalar_one(:)
   real(dp), allocatable :: vector_copy(:)
 
   type(Patch), allocatable :: patch_copy(:)
@@ -762,42 +768,62 @@ subroutine build_one_source_block ( &
 
   !
   ! ===============================================================
-  ! Copy and verify one scalar field.
+  ! Copy and verify every scalar field at the selected level.
   ! ===============================================================
   !
   call get_block_field_layout( &
-       v_scalar,v_vector,k_test,mult_scalar,mult_vector)
+       v_scalar,n_scalar_variable,v_vector,k_test, &
+       mult_scalar,mult_vector)
 
   if (mult_scalar /= 1) then
      error stop &
           "build_source_blocks: unexpected scalar multiplier"
   end if
 
-  call copy_subtree_field_Domain( &
-       patch_copy, old_elts_start, mult_scalar, &
-       sol(v_scalar,k_test)%data(d)%elts, scalar_copy)
-
-  if (size(scalar_copy) /= mult_scalar*n_node_storage) then
-     error stop &
-          "build_source_blocks: incorrect scalar storage size"
+  if (n_scalar_variable < 1) then
+     error stop "build_source_blocks: no scalar variables"
   end if
+
+  scalar_storage_size = mult_scalar * n_node_storage
+  allocate(scalar_copy(n_scalar_variable*scalar_storage_size))
 
   n_patch_field = mult_scalar * PATCH_SIZE**2
 
-  do i = 1, size(patch_copy)
+  do scalar_slot = 1, n_scalar_variable
 
-     old_start = mult_scalar * old_elts_start(i)
-     new_start = mult_scalar * patch_copy(i)%elts_start
+     scalar_id = v_scalar + scalar_slot - 1
+     scalar_base = (scalar_slot-1) * scalar_storage_size
 
-     if (maxval(abs( &
-          scalar_copy(new_start+1:new_start+n_patch_field) - &
-          sol(v_scalar,k_test)%data(d)%elts( &
-          old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+     call copy_subtree_field_Domain( &
+          patch_copy, old_elts_start, mult_scalar, &
+          sol(scalar_id,k_test)%data(d)%elts, scalar_one)
 
+     if (size(scalar_one) /= scalar_storage_size) then
         error stop &
-             "build_source_blocks: scalar field copy mismatch"
-
+             "build_source_blocks: incorrect scalar storage size"
      end if
+
+     scalar_copy( &
+          scalar_base+1:scalar_base+scalar_storage_size) = &
+          scalar_one
+
+     do i = 1, size(patch_copy)
+
+        old_start = mult_scalar * old_elts_start(i)
+        new_start = scalar_base + &
+             mult_scalar * patch_copy(i)%elts_start
+
+        if (maxval(abs( &
+             scalar_copy(new_start+1:new_start+n_patch_field) - &
+             sol(scalar_id,k_test)%data(d)%elts( &
+             old_start+1:old_start+n_patch_field))) > 0.0_dp) then
+
+           error stop &
+                "build_source_blocks: scalar field copy mismatch"
+
+        end if
+
+     end do
 
   end do
 
@@ -1520,8 +1546,10 @@ subroutine build_one_source_block ( &
   !
   allocate(block_out%bdry_node(n_bdry_node_unique))
 
+  scalar_storage_size = mult_scalar * n_bdry_node_unique
+
   allocate(block_out%bdry_scalar( &
-       mult_scalar*n_bdry_node_unique))
+       n_scalar_variable*scalar_storage_size))
 
   allocate(block_out%bdry_vector( &
        mult_vector*n_bdry_node_unique))
@@ -1538,14 +1566,21 @@ subroutine build_one_source_block ( &
           old_start+1 : &
           old_start+block_out%bdry_storage(is)%n_node)
 
-     block_out%bdry_scalar( &
-          mult_scalar*new_start+1 : &
-          mult_scalar*(new_start + &
-          block_out%bdry_storage(is)%n_node)) = &
-          sol(v_scalar,k_test)%data(d)%elts( &
-          mult_scalar*old_start+1 : &
-          mult_scalar*(old_start + &
-          block_out%bdry_storage(is)%n_node))
+     do scalar_slot = 1, n_scalar_variable
+
+        scalar_id = v_scalar + scalar_slot - 1
+        scalar_base = (scalar_slot-1) * scalar_storage_size
+
+        block_out%bdry_scalar( &
+             scalar_base+mult_scalar*new_start+1 : &
+             scalar_base+mult_scalar*(new_start + &
+             block_out%bdry_storage(is)%n_node)) = &
+             sol(scalar_id,k_test)%data(d)%elts( &
+             mult_scalar*old_start+1 : &
+             mult_scalar*(old_start + &
+             block_out%bdry_storage(is)%n_node))
+
+     end do
 
      block_out%bdry_vector( &
           mult_vector*new_start+1 : &
@@ -1580,20 +1615,27 @@ subroutine build_one_source_block ( &
 
      end if
 
-     if (maxval(abs( &
-          block_out%bdry_scalar( &
-          mult_scalar*new_start+1 : &
-          mult_scalar*(new_start + &
-          block_out%bdry_storage(is)%n_node)) - &
-          sol(v_scalar,k_test)%data(d)%elts( &
-          mult_scalar*old_start+1 : &
-          mult_scalar*(old_start + &
-          block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
+     do scalar_slot = 1, n_scalar_variable
 
-        error stop &
-             "build_source_blocks: boundary scalar mismatch"
+        scalar_id = v_scalar + scalar_slot - 1
+        scalar_base = (scalar_slot-1) * scalar_storage_size
 
-     end if
+        if (maxval(abs( &
+             block_out%bdry_scalar( &
+             scalar_base+mult_scalar*new_start+1 : &
+             scalar_base+mult_scalar*(new_start + &
+             block_out%bdry_storage(is)%n_node)) - &
+             sol(scalar_id,k_test)%data(d)%elts( &
+             mult_scalar*old_start+1 : &
+             mult_scalar*(old_start + &
+             block_out%bdry_storage(is)%n_node)))) > 0.0_dp) then
+
+           error stop &
+                "build_source_blocks: boundary scalar mismatch"
+
+        end if
+
+     end do
 
      if (maxval(abs( &
           block_out%bdry_vector( &
@@ -1962,8 +2004,10 @@ subroutine build_one_source_block ( &
 
   allocate(block_out%ghost_node(n_ghost_node))
 
+  scalar_storage_size = mult_scalar * n_ghost_node
+
   allocate(block_out%ghost_scalar( &
-       mult_scalar*n_ghost_node))
+       n_scalar_variable*scalar_storage_size))
 
   allocate(block_out%ghost_vector( &
        mult_vector*n_ghost_node))
@@ -1985,12 +2029,19 @@ subroutine build_one_source_block ( &
           grid(d)%node%elts( &
           old_start+1 : old_start+PATCH_SIZE**2)
 
-     block_out%ghost_scalar( &
-          mult_scalar*new_start+1 : &
-          mult_scalar*(new_start+PATCH_SIZE**2)) = &
-          sol(v_scalar,k_test)%data(d)%elts( &
-          mult_scalar*old_start+1 : &
-          mult_scalar*(old_start+PATCH_SIZE**2))
+     do scalar_slot = 1, n_scalar_variable
+
+        scalar_id = v_scalar + scalar_slot - 1
+        scalar_base = (scalar_slot-1) * scalar_storage_size
+
+        block_out%ghost_scalar( &
+             scalar_base+mult_scalar*new_start+1 : &
+             scalar_base+mult_scalar*(new_start+PATCH_SIZE**2)) = &
+             sol(scalar_id,k_test)%data(d)%elts( &
+             mult_scalar*old_start+1 : &
+             mult_scalar*(old_start+PATCH_SIZE**2))
+
+     end do
 
      block_out%ghost_vector( &
           mult_vector*new_start+1 : &
@@ -2023,18 +2074,25 @@ subroutine build_one_source_block ( &
 
      end if
 
-     if (maxval(abs( &
-          block_out%ghost_scalar( &
-          mult_scalar*new_start+1 : &
-          mult_scalar*(new_start+PATCH_SIZE**2)) - &
-          sol(v_scalar,k_test)%data(d)%elts( &
-          mult_scalar*old_start+1 : &
-          mult_scalar*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
+     do scalar_slot = 1, n_scalar_variable
 
-        error stop &
-             "build_source_blocks: ghost scalar mismatch"
+        scalar_id = v_scalar + scalar_slot - 1
+        scalar_base = (scalar_slot-1) * scalar_storage_size
 
-     end if
+        if (maxval(abs( &
+             block_out%ghost_scalar( &
+             scalar_base+mult_scalar*new_start+1 : &
+             scalar_base+mult_scalar*(new_start+PATCH_SIZE**2)) - &
+             sol(scalar_id,k_test)%data(d)%elts( &
+             mult_scalar*old_start+1 : &
+             mult_scalar*(old_start+PATCH_SIZE**2)))) > 0.0_dp) then
+
+           error stop &
+                "build_source_blocks: ghost scalar mismatch"
+
+        end if
+
+     end do
 
      if (maxval(abs( &
           block_out%ghost_vector( &
@@ -2140,6 +2198,7 @@ subroutine build_one_source_block ( &
   block_out%root_patch  = block_catalog(b_catalog)%root_patch
   block_out%level       = block_catalog(b_catalog)%level
   block_out%scalar_variable = v_scalar
+  block_out%n_scalar_variable = n_scalar_variable
   block_out%vector_variable = v_vector
   block_out%field_level     = k_test
   block_out%scalar_mult     = mult_scalar
