@@ -3,7 +3,7 @@ module parallel_block_mod
   use, intrinsic :: iso_fortran_env, only : int8, int64
 
   use kind_mod,   only : dp
-  use shared_mod, only : Coord, MULT, N_BDRY, S_MASS, S_TEMP, &
+  use shared_mod, only : Coord, EDGE, MULT, N_BDRY, S_MASS, S_TEMP, &
        S_VELO, c_p, compressible, grav_accel, kappa, p_0, p_top, &
        scalars, vert_diffuse, zlevels, zmin, zmax
   use patch_mod,  only : Patch, PATCH_SIZE
@@ -183,6 +183,8 @@ module parallel_block_mod
   public :: local_block_scalar_stencil_statistics
   public :: source_block_vector_stencil_statistics
   public :: local_block_vector_stencil_statistics
+  public :: source_block_boundary_route_statistics
+  public :: local_block_boundary_route_statistics
   public :: local_block_hydrostatic_statistics
   public :: install_local_blocks
 
@@ -1046,6 +1048,186 @@ subroutine local_block_topography_statistics (value_count,value_moment)
   end do
 
 end subroutine local_block_topography_statistics
+
+
+subroutine source_block_boundary_route_statistics ( &
+     link_count,storage_count,node_count)
+  ! Inventory the field-independent boundary routes before migration.
+  ! These routes are shared by the scalar, rank-one and rank-two
+  ! Float_Field update_bdry overloads; field rank only repeats the route.
+
+  implicit none
+
+  integer(int64), intent(out) :: link_count(3)
+  integer(int64), intent(out) :: storage_count(2)
+  integer(int64), intent(out) :: node_count(2)
+
+  integer :: i
+
+  if (.not. allocated(block_source)) then
+     error stop &
+          "source_block_boundary_route_statistics: source unavailable"
+  end if
+
+  link_count    = 0_int64
+  storage_count = 0_int64
+  node_count    = 0_int64
+
+  do i = 1, size(block_source)
+     call accumulate_block_boundary_route_statistics( &
+          block_source(i),link_count,storage_count,node_count)
+  end do
+
+end subroutine source_block_boundary_route_statistics
+
+
+subroutine local_block_boundary_route_statistics ( &
+     link_count,storage_count,node_count)
+  ! Inventory the identical routes in the installed final-owner store.
+
+  implicit none
+
+  integer(int64), intent(out) :: link_count(3)
+  integer(int64), intent(out) :: storage_count(2)
+  integer(int64), intent(out) :: node_count(2)
+
+  integer :: i
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "local_block_boundary_route_statistics: store is not ready"
+  end if
+
+  link_count    = 0_int64
+  storage_count = 0_int64
+  node_count    = 0_int64
+
+  do i = 1, size(block_local)
+     call accumulate_block_boundary_route_statistics( &
+          block_local(i),link_count,storage_count,node_count)
+  end do
+
+end subroutine local_block_boundary_route_statistics
+
+
+subroutine accumulate_block_boundary_route_statistics ( &
+     block,link_count,storage_count,node_count)
+  ! Validate one field-independent boundary catalogue. Link counters are
+  ! inter-block, existing-domain and adaptive. Storage/node counters are
+  ! ghost and compact-boundary. AT_EDGE payloads contain EDGE values per
+  ! stored node and require the sign convention implemented by update_bdry.
+
+  implicit none
+
+  type(Block_Data), intent(in) :: block
+  integer(int64), intent(inout) :: link_count(3)
+  integer(int64), intent(inout) :: storage_count(2)
+  integer(int64), intent(inout) :: node_count(2)
+
+  integer :: expected_start
+  integer :: ghost_id
+  integer :: i
+  integer :: storage_id
+
+  if (block%scalar_mult /= 1 .or. block%vector_mult /= EDGE) then
+     error stop &
+          "accumulate_block_boundary_route_statistics: multiplier"
+  end if
+
+  expected_start = 0
+  do i = 1, size(block%ghost_storage)
+     if (block%ghost_storage(i)%local_start /= expected_start .or. &
+          block%ghost_storage(i)%n_node <= 0) then
+        error stop &
+             "accumulate_block_boundary_route_statistics: ghost layout"
+     end if
+     if (block%ghost_storage(i)%source_domain < 0 .or. &
+          block%ghost_storage(i)%source_patch < 0 .or. &
+          block%ghost_storage(i)%source_block < 1 .or. &
+          block%ghost_storage(i)%source_block_id < 0 .or. &
+          block%ghost_storage(i)%source_owner < 0) then
+        error stop &
+             "accumulate_block_boundary_route_statistics: ghost source"
+     end if
+     expected_start = expected_start + block%ghost_storage(i)%n_node
+  end do
+
+  if (expected_start /= size(block%ghost_node)) then
+     error stop &
+          "accumulate_block_boundary_route_statistics: ghost extent"
+  end if
+
+  expected_start = 0
+  do i = 1, size(block%bdry_storage)
+     if (block%bdry_storage(i)%local_start /= expected_start .or. &
+          block%bdry_storage(i)%n_node <= 0 .or. &
+          block%bdry_storage(i)%source_bdry < 1) then
+        error stop &
+             "accumulate_block_boundary_route_statistics: boundary layout"
+     end if
+     expected_start = expected_start + block%bdry_storage(i)%n_node
+  end do
+
+  if (expected_start /= size(block%bdry_node)) then
+     error stop &
+          "accumulate_block_boundary_route_statistics: boundary extent"
+  end if
+
+  do i = 1, size(block%block_bdry)
+     select case (block%block_bdry(i)%class)
+
+     case (NGB_BLOCK)
+        ghost_id = block%block_bdry(i)%ghost_id
+        if (ghost_id < 1 .or. ghost_id > size(block%ghost_storage)) then
+           error stop &
+                "accumulate_block_boundary_route_statistics: ghost ID"
+        end if
+        if (block%ghost_storage(ghost_id)%source_patch /= &
+             block%block_bdry(i)%neigh_patch .or. &
+             block%ghost_storage(ghost_id)%source_block /= &
+             block%block_bdry(i)%source_block .or. &
+             block%ghost_storage(ghost_id)%source_block_id /= &
+             block%block_bdry(i)%source_block_id .or. &
+             block%ghost_storage(ghost_id)%source_owner /= &
+             block%block_bdry(i)%source_owner) then
+           error stop &
+                "accumulate_block_boundary_route_statistics: ghost route"
+        end if
+        link_count(1) = link_count(1) + 1_int64
+
+     case (NGB_DOMAIN, NGB_ADAPT)
+        storage_id = block%block_bdry(i)%storage_id
+        if (storage_id < 1 .or. &
+             storage_id > size(block%bdry_storage)) then
+           error stop &
+                "accumulate_block_boundary_route_statistics: storage ID"
+        end if
+        if (block%bdry_storage(storage_id)%source_bdry /= &
+             block%block_bdry(i)%source_bdry) then
+           error stop &
+                "accumulate_block_boundary_route_statistics: boundary route"
+        end if
+        if (block%block_bdry(i)%class == NGB_DOMAIN) then
+           link_count(2) = link_count(2) + 1_int64
+        else
+           link_count(3) = link_count(3) + 1_int64
+        end if
+
+     case default
+        error stop &
+             "accumulate_block_boundary_route_statistics: link class"
+
+     end select
+  end do
+
+  storage_count(1) = storage_count(1) + &
+       int(size(block%ghost_storage),int64)
+  storage_count(2) = storage_count(2) + &
+       int(size(block%bdry_storage),int64)
+  node_count(1) = node_count(1) + int(size(block%ghost_node),int64)
+  node_count(2) = node_count(2) + int(size(block%bdry_node),int64)
+
+end subroutine accumulate_block_boundary_route_statistics
 
 
 subroutine source_block_scalar_stencil_statistics ( &

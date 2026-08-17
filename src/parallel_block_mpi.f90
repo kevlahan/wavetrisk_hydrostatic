@@ -6,7 +6,7 @@ module parallel_block_mpi_mod
        MPI_INTEGER8, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_SUCCESS, MPI_SUM
 
   use kind_mod,   only : dp
-  use shared_mod, only : N_CHDRN, N_GLO_DOMAIN, S_MASS, S_TEMP, &
+  use shared_mod, only : EDGE, N_CHDRN, N_GLO_DOMAIN, S_MASS, S_TEMP, &
        c_p, compressible, grav_accel, kappa, p_0, p_top, zlevels
 
   use domain_mod, only : grid, sol, sol_mean, tke, topography, &
@@ -36,6 +36,8 @@ module parallel_block_mpi_mod
        local_block_scalar_stencil_statistics, &
        source_block_vector_stencil_statistics, &
        local_block_vector_stencil_statistics, &
+       source_block_boundary_route_statistics, &
+       local_block_boundary_route_statistics, &
        local_block_hydrostatic_statistics
 
   implicit none
@@ -79,6 +81,7 @@ module parallel_block_mpi_mod
   public :: check_block_field_inventory
   public :: check_block_scalar_stencil_consumer
   public :: check_block_vector_stencil_consumer
+  public :: check_block_boundary_routes
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -841,6 +844,7 @@ end subroutine build_parallel_block_catalog
 
     call check_block_scalar_stencil_consumer(print_local)
     call check_block_vector_stencil_consumer(print_local)
+    call check_block_boundary_routes(print_local)
 
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
@@ -1165,6 +1169,133 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_vector_stencil_consumer
+
+
+  subroutine check_block_boundary_routes (verbose)
+    ! Validate the common route catalogue used by update_bdry for scalar,
+    ! rank-one and rank-two Float_Field arguments. AT_NODE uses one value
+    ! per stored node; AT_EDGE uses EDGE values and the signed receive rule.
+    ! This stage validates topology and payload extents but performs no
+    ! production boundary exchange and changes no field values.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: source_link_local(3)
+    integer(int64) :: source_link_global(3)
+    integer(int64) :: local_link_local(3)
+    integer(int64) :: local_link_global(3)
+    integer(int64) :: source_storage_local(2)
+    integer(int64) :: source_storage_global(2)
+    integer(int64) :: local_storage_local(2)
+    integer(int64) :: local_storage_global(2)
+    integer(int64) :: source_node_local(2)
+    integer(int64) :: source_node_global(2)
+    integer(int64) :: local_node_local(2)
+    integer(int64) :: local_node_global(2)
+    integer(int64) :: node_payload_local
+    integer(int64) :: node_payload_global
+    integer(int64) :: edge_payload_local
+    integer(int64) :: edge_payload_global
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    call source_block_boundary_route_statistics( &
+         source_link_local,source_storage_local,source_node_local)
+    call local_block_boundary_route_statistics( &
+         local_link_local,local_storage_local,local_node_local)
+
+    call MPI_Allreduce( &
+         source_link_local,source_link_global,3, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source boundary links")
+
+    call MPI_Allreduce( &
+         local_link_local,local_link_global,3, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final boundary links")
+
+    call MPI_Allreduce( &
+         source_storage_local,source_storage_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source boundary storage")
+
+    call MPI_Allreduce( &
+         local_storage_local,local_storage_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final boundary storage")
+
+    call MPI_Allreduce( &
+         source_node_local,source_node_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source boundary nodes")
+
+    call MPI_Allreduce( &
+         local_node_local,local_node_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final boundary nodes")
+
+    if (any(source_link_global /= local_link_global)) then
+       call fail("source and final boundary link counts differ")
+    end if
+    if (any(source_storage_global /= local_storage_global)) then
+       call fail("source and final boundary storage counts differ")
+    end if
+    if (any(source_node_global /= local_node_global)) then
+       call fail("source and final boundary node counts differ")
+    end if
+
+    if (sum(local_link_global) <= 0_int64 .or. &
+         local_link_global(1) <= 0_int64 .or. &
+         sum(local_storage_global) <= 0_int64 .or. &
+         sum(local_node_global) <= 0_int64) then
+       call fail("incomplete final-owner boundary route inventory")
+    end if
+
+    node_payload_local  = sum(local_node_local)
+    node_payload_global = sum(local_node_global)
+    edge_payload_local  = int(EDGE,int64)*node_payload_local
+    edge_payload_global = int(EDGE,int64)*node_payload_global
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Generic Float_Field boundary routes for rank ",rank,":"
+       write(6,'(a,3(i0,1x))') &
+            "  local block/domain/adaptive links = ",local_link_local
+       write(6,'(a,2(i0,1x))') &
+            "  local ghost/boundary records      = ",local_storage_local
+       write(6,'(a,i0)') &
+            "  local AT_NODE values per field    = ",node_payload_local
+       write(6,'(a,i0)') &
+            "  local AT_EDGE values per field    = ",edge_payload_local
+       write(6,'(a,/)') &
+            "  field-independent boundary route checks passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,3(i0,1x))') &
+            "Global block/domain/adaptive boundary links = ", &
+            local_link_global
+       write(6,'(a,2(i0,1x))') &
+            "Global ghost/boundary storage records       = ", &
+            local_storage_global
+       write(6,'(a,i0)') &
+            "Global AT_NODE values per Float_Field       = ", &
+            node_payload_global
+       write(6,'(a,i0)') &
+            "Global AT_EDGE values per Float_Field       = ", &
+            edge_payload_global
+       write(6,'(a,/)') &
+            "Generic Float_Field boundary catalogue matches source blocks"
+    end if
+
+  end subroutine check_block_boundary_routes
 
 
   subroutine check_local_blocks (verbose)
