@@ -3,14 +3,17 @@ module parallel_block_mpi_mod
   use iso_fortran_env, only : error_unit, int8, int64
   use mpi_f08,        only : MPI_Allgather, MPI_Allgatherv, MPI_Allreduce, &
        MPI_Alltoall, MPI_Alltoallv, MPI_Exscan, MPI_BYTE, MPI_INTEGER, &
-       MPI_INTEGER8, MPI_MAX, MPI_SUCCESS, MPI_SUM
+       MPI_INTEGER8, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_SUCCESS, MPI_SUM
 
   use kind_mod,   only : dp
-  use shared_mod, only : N_CHDRN, N_GLO_DOMAIN
+  use shared_mod, only : EDGE, MULT, N_CHDRN, N_GLO_DOMAIN, &
+       S_VELO, scalars, zmin
 
-  use domain_mod, only : grid, subtree_weight_Domain
+  use domain_mod, only : grid, sol, subtree_weight_Domain
 
-  use arch_mod, only : abort_run, block_catalog, comm, glo_id, &
+  use patch_mod, only : PATCH_SIZE
+
+  use arch_mod, only : abort_run, block_catalog, comm, glo_id, loc_id, &
        n_process, owner, Parallel_Block, rank
 
   use parallel_block_mod, only : block_source, block_received, &
@@ -20,7 +23,8 @@ module parallel_block_mpi_mod
        check_block_storage, install_local_blocks, clear_block_staging, &
        clear_local_blocks, local_block_store_ready, n_local_blocks, &
        local_block_catalog, catalog_local_block, &
-       get_local_block_identity, check_local_block_storage
+       get_local_block_identity, check_local_block_storage, &
+       local_block_field_statistics
 
   implicit none
 
@@ -60,6 +64,7 @@ module parallel_block_mpi_mod
   public :: clear_parallel_block_state
   public :: migrate_blocks
   public :: check_local_blocks
+  public :: check_block_field_inventory
 
 contains
 
@@ -843,6 +848,7 @@ end subroutine build_parallel_block_catalog
     deallocate(send_payload)
 
     call check_local_blocks(print_local)
+    call check_block_field_inventory(print_local)
 
   end subroutine migrate_blocks
 
@@ -988,6 +994,292 @@ end subroutine build_parallel_block_catalog
     deallocate(local_seen)
 
   end subroutine check_local_blocks
+
+
+  subroutine check_block_field_inventory (verbose)
+    ! Compare the scalar and vector interior fields in the migrated
+    ! final-owner block store with the still-authoritative legacy
+    ! Domain fields covered by the catalogue-rooted subtrees. The
+    ! fixed coarse scaffold above those roots is not block storage.
+    ! Only global counts and order-independent moments are compared,
+    ! because block and Domain ownership differ after migration.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: d
+    integer :: ierr
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: v_scalar
+    integer :: v_vector
+    integer :: k_field
+
+    integer(int64) :: block_count_local(2)
+    integer(int64) :: block_count_global(2)
+    integer(int64) :: domain_count_local(2)
+    integer(int64) :: domain_count_global(2)
+
+    real(dp) :: block_moment_local(3,2)
+    real(dp) :: block_moment_global(3,2)
+    real(dp) :: domain_moment_local(3,2)
+    real(dp) :: domain_moment_global(3,2)
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_store_ready()) then
+       call fail("field inventory requested before block installation")
+    end if
+
+    call local_block_field_statistics( &
+         block_count_local(1),block_count_local(2), &
+         block_moment_local(:,1),block_moment_local(:,2))
+
+    v_scalar   = scalars(1)
+    v_vector   = S_VELO
+    k_field    = max(1,zmin)
+    mult_scalar = MULT(v_scalar)
+    mult_vector = MULT(v_vector)
+
+    if (mult_scalar /= 1) then
+       call fail("unexpected scalar multiplier in field inventory")
+    end if
+
+    if (mult_vector /= EDGE) then
+       call fail("unexpected vector multiplier in field inventory")
+    end if
+
+    domain_count_local  = 0_int64
+    domain_moment_local = 0.0_dp
+
+    do b = 1, size(block_catalog)
+
+       if (owner(block_catalog(b)%root_domain+1) /= rank) cycle
+
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+
+       if (d < 1 .or. d > size(grid)) then
+          call fail("invalid source Domain in field inventory")
+       end if
+
+       call accumulate_domain_subtree_fields( &
+            d,block_catalog(b)%root_patch, &
+            v_scalar,v_vector,k_field,mult_scalar,mult_vector, &
+            domain_count_local,domain_moment_local)
+
+    end do
+
+    call MPI_Allreduce( &
+         block_count_local,block_count_global,2,MPI_INTEGER8, &
+         MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block field counts")
+
+    call MPI_Allreduce( &
+         domain_count_local,domain_count_global,2,MPI_INTEGER8, &
+         MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain field counts")
+
+    call MPI_Allreduce( &
+         block_moment_local,block_moment_global,6, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block field moments")
+
+    call MPI_Allreduce( &
+         domain_moment_local,domain_moment_global,6, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain field moments")
+
+    if (any(block_count_global /= domain_count_global)) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain field-count mismatch:"
+          write(error_unit,'(a,2(i0,1x))') &
+               "  block counts  = ", block_count_global
+          write(error_unit,'(a,2(i0,1x))') &
+               "  Domain counts = ", domain_count_global
+       end if
+
+       call fail("block and Domain field counts differ")
+    end if
+
+    if (.not. field_moments_match( &
+         block_moment_global(:,1),domain_moment_global(:,1), &
+         block_count_global(1))) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain scalar-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", block_moment_global(:,1)
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", domain_moment_global(:,1)
+       end if
+
+       call fail("block and Domain scalar moments differ")
+    end if
+
+    if (.not. field_moments_match( &
+         block_moment_global(:,2),domain_moment_global(:,2), &
+         block_count_global(2))) then
+
+       if (rank == 0) then
+          write(error_unit,'(/,a)') &
+               "Block/Domain vector-moment mismatch:"
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  block moments  = ", block_moment_global(:,2)
+          write(error_unit,'(a,3(es24.16,1x))') &
+               "  Domain moments = ", domain_moment_global(:,2)
+       end if
+
+       call fail("block and Domain vector moments differ")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Read-only block field consumer for rank ", rank, ":"
+       write(6,'(a,i0)') &
+            "  local block scalar values = ", block_count_local(1)
+       write(6,'(a,i0)') &
+            "  local block vector values = ", block_count_local(2)
+       write(6,'(a,/)') &
+            "  global block/Domain field inventory check passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global scalar interior values verified = ", &
+            block_count_global(1)
+       write(6,'(a,i0)') &
+            "Global vector interior values verified = ", &
+            block_count_global(2)
+       write(6,'(a,/)') &
+            "Block field data matches legacy Domain data"
+    end if
+
+  end subroutine check_block_field_inventory
+
+
+  logical function field_moments_match (first,second,n_value) &
+       result(match)
+    ! Allow only the floating-point reassociation error introduced by
+    ! summing an identical value inventory in different block/rank
+    ! orders.
+
+    implicit none
+
+    real(dp), intent(in) :: first(3)
+    real(dp), intent(in) :: second(3)
+    integer(int64), intent(in) :: n_value
+
+    real(dp) :: factor
+    real(dp) :: scale
+
+    factor = 256.0_dp * epsilon(1.0_dp) * &
+         real(max(1_int64,n_value),dp)
+
+    scale = max(1.0_dp,first(2),second(2))
+
+    match = abs(first(1)-second(1)) <= factor*scale
+    if (.not. match) return
+
+    match = abs(first(2)-second(2)) <= factor*scale
+    if (.not. match) return
+
+    scale = max(1.0_dp,first(3),second(3))
+    match = abs(first(3)-second(3)) <= factor*scale
+
+  end function field_moments_match
+
+
+  recursive subroutine accumulate_domain_subtree_fields ( &
+       d,p,v_scalar,v_vector,k_field,mult_scalar,mult_vector, &
+       field_count,field_moment)
+    ! Accumulate one catalogue-rooted subtree from the authoritative
+    ! Domain representation using the same patch coverage copied into
+    ! Block_Data.
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: p
+    integer, intent(in) :: v_scalar
+    integer, intent(in) :: v_vector
+    integer, intent(in) :: k_field
+    integer, intent(in) :: mult_scalar
+    integer, intent(in) :: mult_vector
+
+    integer(int64), intent(inout) :: field_count(2)
+    real(dp), intent(inout) :: field_moment(3,2)
+
+    integer :: c
+    integer :: n_value
+    integer :: p_child
+    integer :: start
+
+    if (p < 0 .or. p >= grid(d)%patch%length) then
+       call fail("invalid patch in Domain subtree field inventory")
+    end if
+
+    if (grid(d)%patch%elts(p+1)%deleted) return
+
+    start = mult_scalar * grid(d)%patch%elts(p+1)%elts_start
+    n_value = mult_scalar * PATCH_SIZE**2
+
+    if (start < 0 .or. &
+         start+n_value > &
+         size(sol(v_scalar,k_field)%data(d)%elts)) then
+       call fail("legacy scalar patch extent is invalid")
+    end if
+
+    field_count(1) = field_count(1) + int(n_value,int64)
+    field_moment(1,1) = field_moment(1,1) + &
+         sum(sol(v_scalar,k_field)%data(d)%elts( &
+         start+1:start+n_value))
+    field_moment(2,1) = field_moment(2,1) + &
+         sum(abs(sol(v_scalar,k_field)%data(d)%elts( &
+         start+1:start+n_value)))
+    field_moment(3,1) = field_moment(3,1) + &
+         sum(sol(v_scalar,k_field)%data(d)%elts( &
+         start+1:start+n_value)**2)
+
+    start = mult_vector * grid(d)%patch%elts(p+1)%elts_start
+    n_value = mult_vector * PATCH_SIZE**2
+
+    if (start < 0 .or. &
+         start+n_value > &
+         size(sol(v_vector,k_field)%data(d)%elts)) then
+       call fail("legacy vector patch extent is invalid")
+    end if
+
+    field_count(2) = field_count(2) + int(n_value,int64)
+    field_moment(1,2) = field_moment(1,2) + &
+         sum(sol(v_vector,k_field)%data(d)%elts( &
+         start+1:start+n_value))
+    field_moment(2,2) = field_moment(2,2) + &
+         sum(abs(sol(v_vector,k_field)%data(d)%elts( &
+         start+1:start+n_value)))
+    field_moment(3,2) = field_moment(3,2) + &
+         sum(sol(v_vector,k_field)%data(d)%elts( &
+         start+1:start+n_value)**2)
+
+    do c = 1, N_CHDRN
+
+       p_child = grid(d)%patch%elts(p+1)%children(c)
+       if (p_child == 0) cycle
+
+       call accumulate_domain_subtree_fields( &
+            d,p_child,v_scalar,v_vector,k_field, &
+            mult_scalar,mult_vector,field_count,field_moment)
+
+    end do
+
+  end subroutine accumulate_domain_subtree_fields
 
 
   subroutine build_block_migration_manifest (manifest)

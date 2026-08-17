@@ -1,6 +1,6 @@
 module parallel_block_mod
 
-  use, intrinsic :: iso_fortran_env, only : int8
+  use, intrinsic :: iso_fortran_env, only : int8, int64
 
   use kind_mod,   only : dp
   use shared_mod, only : Coord, MULT, N_BDRY, S_VELO, scalars
@@ -137,6 +137,7 @@ module parallel_block_mod
   public :: catalog_local_block
   public :: get_local_block_identity
   public :: check_local_block_storage
+  public :: local_block_field_statistics
   public :: install_local_blocks
 
 contains
@@ -542,6 +543,65 @@ subroutine check_local_block_storage (local_index,check_serialization)
   call check_block_storage(block_local(local_index),serialize)
 
 end subroutine check_local_block_storage
+
+
+subroutine local_block_field_statistics ( &
+     scalar_count,vector_count,scalar_moment,vector_moment)
+  ! Compute order-independent field inventory statistics over the
+  ! ready final-owner block store. This is the first read-only field
+  ! consumer of the private store; no block data are exposed or
+  ! modified.
+
+  implicit none
+
+  integer(int64), intent(out) :: scalar_count
+  integer(int64), intent(out) :: vector_count
+
+  real(dp), intent(out) :: scalar_moment(3)
+  real(dp), intent(out) :: vector_moment(3)
+
+  integer :: i
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "local_block_field_statistics: local store is not ready"
+  end if
+
+  scalar_count  = 0_int64
+  vector_count  = 0_int64
+  scalar_moment = 0.0_dp
+  vector_moment = 0.0_dp
+
+  do i = 1, size(block_local)
+
+     if (.not. allocated(block_local(i)%scalar) .or. &
+          .not. allocated(block_local(i)%vector)) then
+        error stop &
+             "local_block_field_statistics: field storage missing"
+     end if
+
+     scalar_count = scalar_count + &
+          int(size(block_local(i)%scalar),int64)
+     vector_count = vector_count + &
+          int(size(block_local(i)%vector),int64)
+
+     scalar_moment(1) = scalar_moment(1) + &
+          sum(block_local(i)%scalar)
+     scalar_moment(2) = scalar_moment(2) + &
+          sum(abs(block_local(i)%scalar))
+     scalar_moment(3) = scalar_moment(3) + &
+          sum(block_local(i)%scalar**2)
+
+     vector_moment(1) = vector_moment(1) + &
+          sum(block_local(i)%vector)
+     vector_moment(2) = vector_moment(2) + &
+          sum(abs(block_local(i)%vector))
+     vector_moment(3) = vector_moment(3) + &
+          sum(block_local(i)%vector**2)
+
+  end do
+
+end subroutine local_block_field_statistics
 
 
 subroutine clear_local_blocks
