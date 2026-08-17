@@ -582,6 +582,9 @@ subroutine build_one_source_block ( &
   integer :: n_block_source_remote
   integer :: n_source_match
   integer :: source_block
+  integer :: next_source_patch
+  integer :: source_local_patch
+  integer :: source_patch_count
 
   integer :: n_stencil_built
   integer :: n_stencil_patch
@@ -2311,6 +2314,26 @@ subroutine build_one_source_block ( &
              "build_source_blocks: ghost source is current block"
      end if
 
+     next_source_patch = 0
+     source_local_patch = -1
+
+     call find_subtree_patch_index( &
+          block_catalog(source_block)%root_patch, &
+          ghost_patch(ghost_id),next_source_patch,source_local_patch)
+
+     if (source_local_patch < 0) then
+        error stop &
+             "build_source_blocks: invalid compact ghost source patch"
+     end if
+
+     source_patch_count = count_subtree_patches_Domain( &
+          grid(d),block_catalog(source_block)%root_patch)
+
+     if (source_local_patch >= source_patch_count) then
+        error stop &
+             "build_source_blocks: compact ghost source patch out of range"
+     end if
+
      block_out%ghost_storage(ghost_id)%source_domain = &
           block_catalog(b_catalog)%root_domain
 
@@ -2325,6 +2348,9 @@ subroutine build_one_source_block ( &
 
      block_out%ghost_storage(ghost_id)%source_owner = &
           block_catalog(source_block)%owner
+
+     block_out%ghost_storage(ghost_id)%source_local_patch = &
+          source_local_patch
 
      if (block_out%ghost_storage(ghost_id)%source_owner < 0 .or. &
           block_out%ghost_storage(ghost_id)%source_owner >= &
@@ -3604,6 +3630,46 @@ subroutine build_one_source_block ( &
   deallocate(old_elts_start)
 
 contains
+
+  recursive subroutine find_subtree_patch_index ( &
+       p,p_target,next_patch,local_patch)
+    ! Reproduce extract_subtree_patches_Domain preorder numbering for a
+    ! target patch in another candidate block of the same root domain.
+
+    implicit none
+
+    integer, intent(in) :: p
+    integer, intent(in) :: p_target
+    integer, intent(inout) :: next_patch
+    integer, intent(inout) :: local_patch
+
+    integer :: c
+    integer :: p_chd
+
+    if (local_patch >= 0) return
+
+    if (p < 0 .or. p >= grid(d)%patch%length) then
+       error stop "find_subtree_patch_index: invalid patch"
+    end if
+
+    if (grid(d)%patch%elts(p+1)%deleted) return
+
+    if (p == p_target) then
+       local_patch = next_patch
+       return
+    end if
+
+    next_patch = next_patch + 1
+
+    do c = 1, N_CHDRN
+       p_chd = grid(d)%patch%elts(p+1)%children(c)
+       if (p_chd <= 0) cycle
+       call find_subtree_patch_index( &
+            p_chd,p_target,next_patch,local_patch)
+       if (local_patch >= 0) return
+    end do
+
+  end subroutine find_subtree_patch_index
 
   recursive logical function patch_in_subtree (p, p_target) &
        result(found_patch)

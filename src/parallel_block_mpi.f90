@@ -38,6 +38,9 @@ module parallel_block_mpi_mod
        local_block_vector_stencil_statistics, &
        source_block_boundary_route_statistics, &
        local_block_boundary_route_statistics, &
+       source_block_ghost_source_statistics, &
+       local_block_ghost_source_statistics, &
+       validate_local_block_ghost_sources, &
        local_block_hydrostatic_statistics
 
   implicit none
@@ -82,6 +85,7 @@ module parallel_block_mpi_mod
   public :: check_block_scalar_stencil_consumer
   public :: check_block_vector_stencil_consumer
   public :: check_block_boundary_routes
+  public :: check_block_ghost_source_addresses
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -845,6 +849,7 @@ end subroutine build_parallel_block_catalog
     call check_block_scalar_stencil_consumer(print_local)
     call check_block_vector_stencil_consumer(print_local)
     call check_block_boundary_routes(print_local)
+    call check_block_ghost_source_addresses(print_local)
 
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
@@ -1296,6 +1301,166 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_boundary_routes
+
+
+  subroutine check_block_ghost_source_addresses (verbose)
+    ! Validate the compact source patch used to pack every NGB_BLOCK
+    ! ghost dynamically. The same address applies to any Float_Field;
+    ! field rank controls repetition and field position controls the
+    ! one-versus-EDGE value multiplier.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: i
+    integer :: ierr
+
+    integer(int64) :: source_ghost_local
+    integer(int64) :: source_ghost_global
+    integer(int64) :: local_ghost_local
+    integer(int64) :: local_ghost_global
+    integer(int64) :: source_value_local(2)
+    integer(int64) :: source_value_global(2)
+    integer(int64) :: local_value_local(2)
+    integer(int64) :: local_value_global(2)
+    integer(int64) :: source_sum_local(5)
+    integer(int64) :: source_sum_global(5)
+    integer(int64) :: local_sum_local(5)
+    integer(int64) :: local_sum_global(5)
+
+    integer, allocatable :: catalog_domain(:)
+    integer, allocatable :: catalog_id(:)
+    integer, allocatable :: catalog_owner(:)
+    integer, allocatable :: patch_count_global(:)
+    integer, allocatable :: patch_count_local(:)
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    allocate(catalog_domain(size(block_catalog)))
+    allocate(catalog_id(size(block_catalog)))
+    allocate(catalog_owner(size(block_catalog)))
+    allocate(patch_count_global(size(block_catalog)))
+    allocate(patch_count_local(size(block_catalog)))
+
+    patch_count_local = 0
+
+    do b = 1, size(block_catalog)
+       catalog_domain(b) = block_catalog(b)%root_domain
+       catalog_id(b)     = block_catalog(b)%id
+       catalog_owner(b)  = block_catalog(b)%owner
+    end do
+
+    do i = 1, size(block_source)
+       b = block_source_catalog_index(i)
+       if (b < 1 .or. b > size(block_catalog)) then
+          call fail("invalid source block catalogue index")
+       end if
+       if (patch_count_local(b) /= 0) then
+          call fail("duplicate source block patch count")
+       end if
+       patch_count_local(b) = size(block_source(i)%patch)
+    end do
+
+    call MPI_Allreduce( &
+         patch_count_local,patch_count_global,size(block_catalog), &
+         MPI_INTEGER,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source block patch counts")
+
+    if (any(patch_count_global <= 0)) then
+       call fail("incomplete global source block patch counts")
+    end if
+
+    call validate_local_block_ghost_sources( &
+         patch_count_global,catalog_owner,catalog_id,catalog_domain)
+
+    call source_block_ghost_source_statistics( &
+         source_ghost_local,source_value_local,source_sum_local)
+    call local_block_ghost_source_statistics( &
+         local_ghost_local,local_value_local,local_sum_local)
+
+    call MPI_Allreduce( &
+         source_ghost_local,source_ghost_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source ghost count")
+
+    call MPI_Allreduce( &
+         local_ghost_local,local_ghost_global,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final ghost count")
+
+    call MPI_Allreduce( &
+         source_value_local,source_value_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source ghost values")
+
+    call MPI_Allreduce( &
+         local_value_local,local_value_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final ghost values")
+
+    call MPI_Allreduce( &
+         source_sum_local,source_sum_global,5, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce source ghost addresses")
+
+    call MPI_Allreduce( &
+         local_sum_local,local_sum_global,5, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce final ghost addresses")
+
+    if (source_ghost_global /= local_ghost_global .or. &
+         any(source_value_global /= local_value_global) .or. &
+         any(source_sum_global /= local_sum_global)) then
+       call fail("source and final ghost source mappings differ")
+    end if
+
+    if (local_ghost_global <= 0_int64 .or. &
+         local_value_global(1) /= &
+         int(PATCH_SIZE**2,int64)*local_ghost_global .or. &
+         local_value_global(2) /= &
+         int(EDGE,int64)*local_value_global(1)) then
+       call fail("invalid dynamic ghost source payload extent")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Dynamic Float_Field ghost sources for rank ",rank,":"
+       write(6,'(a,i0)') &
+            "  local compact source patches = ",local_ghost_local
+       write(6,'(a,i0)') &
+            "  local AT_NODE values per field = ",local_value_local(1)
+       write(6,'(a,i0)') &
+            "  local AT_EDGE values per field = ",local_value_local(2)
+       write(6,'(a,/)') &
+            "  source catalogue and compact-patch checks passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global dynamically addressable ghost patches = ", &
+            local_ghost_global
+       write(6,'(a,i0)') &
+            "Global AT_NODE inter-block values per field   = ", &
+            local_value_global(1)
+       write(6,'(a,i0)') &
+            "Global AT_EDGE inter-block values per field   = ", &
+            local_value_global(2)
+       write(6,'(a,/)') &
+            "Dynamic Float_Field ghost source mappings match source blocks"
+    end if
+
+    deallocate(catalog_domain)
+    deallocate(catalog_id)
+    deallocate(catalog_owner)
+    deallocate(patch_count_global)
+    deallocate(patch_count_local)
+
+  end subroutine check_block_ghost_source_addresses
 
 
   subroutine check_local_blocks (verbose)

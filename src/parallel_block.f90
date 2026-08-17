@@ -25,7 +25,7 @@ module parallel_block_mod
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
-  integer, parameter :: BLOCK_PACK_VERSION = 8
+  integer, parameter :: BLOCK_PACK_VERSION = 9
   integer, parameter :: BLOCK_PACK_HEADER_SIZE = 44
 
 
@@ -74,6 +74,7 @@ module parallel_block_mod
      integer :: source_block    = -1
      integer :: source_block_id = -1
      integer :: source_owner    = -1
+     integer :: source_local_patch = -1
   end type Block_Ghost_Storage
 
 
@@ -185,6 +186,9 @@ module parallel_block_mod
   public :: local_block_vector_stencil_statistics
   public :: source_block_boundary_route_statistics
   public :: local_block_boundary_route_statistics
+  public :: source_block_ghost_source_statistics
+  public :: local_block_ghost_source_statistics
+  public :: validate_local_block_ghost_sources
   public :: local_block_hydrostatic_statistics
   public :: install_local_blocks
 
@@ -247,6 +251,7 @@ subroutine check_block_storage (block,check_serialization)
   integer :: n_bdry_node
   integer :: n_ghost_node
   integer :: n_node
+  integer :: i
   integer :: scalar_variable
   integer :: n_scalar_variable
   integer :: vector_variable
@@ -399,6 +404,12 @@ subroutine check_block_storage (block,check_serialization)
      error stop "check_block_storage: ghost extent mismatch"
 
   end if
+
+  do i = 1, size(block%ghost_storage)
+     if (block%ghost_storage(i)%source_local_patch < 0) then
+        error stop "check_block_storage: missing ghost source patch"
+     end if
+  end do
 
   if (serialize) then
 
@@ -1228,6 +1239,161 @@ subroutine accumulate_block_boundary_route_statistics ( &
   node_count(2) = node_count(2) + int(size(block%bdry_node),int64)
 
 end subroutine accumulate_block_boundary_route_statistics
+
+
+subroutine source_block_ghost_source_statistics ( &
+     ghost_count,value_count,source_sum)
+  ! Inventory source-block addresses before migration. The address is
+  ! independent of Float_Field rank and position; position determines
+  ! only whether one or EDGE values are packed for each source node.
+
+  implicit none
+
+  integer(int64), intent(out) :: ghost_count
+  integer(int64), intent(out) :: value_count(2)
+  integer(int64), intent(out) :: source_sum(5)
+
+  integer :: i
+
+  if (.not. allocated(block_source)) then
+     error stop &
+          "source_block_ghost_source_statistics: source unavailable"
+  end if
+
+  ghost_count = 0_int64
+  value_count = 0_int64
+  source_sum  = 0_int64
+
+  do i = 1, size(block_source)
+     call accumulate_block_ghost_source_statistics( &
+          block_source(i),ghost_count,value_count,source_sum)
+  end do
+
+end subroutine source_block_ghost_source_statistics
+
+
+subroutine local_block_ghost_source_statistics ( &
+     ghost_count,value_count,source_sum)
+  ! Inventory source-block addresses after final-owner installation.
+
+  implicit none
+
+  integer(int64), intent(out) :: ghost_count
+  integer(int64), intent(out) :: value_count(2)
+  integer(int64), intent(out) :: source_sum(5)
+
+  integer :: i
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "local_block_ghost_source_statistics: store is not ready"
+  end if
+
+  ghost_count = 0_int64
+  value_count = 0_int64
+  source_sum  = 0_int64
+
+  do i = 1, size(block_local)
+     call accumulate_block_ghost_source_statistics( &
+          block_local(i),ghost_count,value_count,source_sum)
+  end do
+
+end subroutine local_block_ghost_source_statistics
+
+
+subroutine accumulate_block_ghost_source_statistics ( &
+     block,ghost_count,value_count,source_sum)
+
+  implicit none
+
+  type(Block_Data), intent(in) :: block
+  integer(int64), intent(inout) :: ghost_count
+  integer(int64), intent(inout) :: value_count(2)
+  integer(int64), intent(inout) :: source_sum(5)
+
+  integer :: i
+
+  do i = 1, size(block%ghost_storage)
+     if (block%ghost_storage(i)%source_local_patch < 0 .or. &
+          block%ghost_storage(i)%n_node /= PATCH_SIZE**2) then
+        error stop &
+             "accumulate_block_ghost_source_statistics: source address"
+     end if
+
+     ghost_count = ghost_count + 1_int64
+     value_count(1) = value_count(1) + &
+          int(block%ghost_storage(i)%n_node,int64)
+     value_count(2) = value_count(2) + &
+          int(EDGE*block%ghost_storage(i)%n_node,int64)
+
+     source_sum = source_sum + int([ &
+          block%ghost_storage(i)%source_domain, &
+          block%ghost_storage(i)%source_block, &
+          block%ghost_storage(i)%source_block_id, &
+          block%ghost_storage(i)%source_owner, &
+          block%ghost_storage(i)%source_local_patch ],int64)
+  end do
+
+end subroutine accumulate_block_ghost_source_statistics
+
+
+subroutine validate_local_block_ghost_sources ( &
+     catalog_patch_count,catalog_owner,catalog_id,catalog_domain)
+  ! Cross-check each final-owner ghost address against the replicated
+  ! block catalogue and the globally assembled source-block patch counts.
+
+  implicit none
+
+  integer, intent(in) :: catalog_patch_count(:)
+  integer, intent(in) :: catalog_owner(:)
+  integer, intent(in) :: catalog_id(:)
+  integer, intent(in) :: catalog_domain(:)
+
+  integer :: b
+  integer :: i
+  integer :: source_block
+
+  if (.not. local_block_store_ready()) then
+     error stop "validate_local_block_ghost_sources: store is not ready"
+  end if
+
+  if (size(catalog_patch_count) /= size(catalog_owner) .or. &
+       size(catalog_patch_count) /= size(catalog_id) .or. &
+       size(catalog_patch_count) /= size(catalog_domain)) then
+     error stop "validate_local_block_ghost_sources: catalogue extent"
+  end if
+
+  do b = 1, size(block_local)
+     do i = 1, size(block_local(b)%ghost_storage)
+        source_block = &
+             block_local(b)%ghost_storage(i)%source_block
+
+        if (source_block < 1 .or. &
+             source_block > size(catalog_patch_count)) then
+           error stop &
+                "validate_local_block_ghost_sources: source block"
+        end if
+
+        if (block_local(b)%ghost_storage(i)%source_local_patch < 0 .or. &
+             block_local(b)%ghost_storage(i)%source_local_patch >= &
+             catalog_patch_count(source_block)) then
+           error stop &
+                "validate_local_block_ghost_sources: local patch"
+        end if
+
+        if (block_local(b)%ghost_storage(i)%source_owner /= &
+             catalog_owner(source_block) .or. &
+             block_local(b)%ghost_storage(i)%source_block_id /= &
+             catalog_id(source_block) .or. &
+             block_local(b)%ghost_storage(i)%source_domain /= &
+             catalog_domain(source_block)) then
+           error stop &
+                "validate_local_block_ghost_sources: source identity"
+        end if
+     end do
+  end do
+
+end subroutine validate_local_block_ghost_sources
 
 
 subroutine source_block_scalar_stencil_statistics ( &
