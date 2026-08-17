@@ -42,7 +42,9 @@ module parallel_block_mpi_mod
        local_block_ghost_source_statistics, &
        validate_local_block_ghost_sources, &
        get_local_block_ghost_requests, local_block_patch_count, &
-       local_block_ghost_count, &
+       local_block_ghost_count, local_block_scalar_patch_nvalue, &
+       get_local_block_scalar_patch_values, &
+       get_local_block_scalar_ghost_values, &
        local_block_hydrostatic_statistics
 
   implicit none
@@ -89,6 +91,7 @@ module parallel_block_mpi_mod
   public :: check_block_boundary_routes
   public :: check_block_ghost_source_addresses
   public :: check_block_ghost_request_manifest
+  public :: check_block_scalar_ghost_payload_exchange
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -854,6 +857,7 @@ end subroutine build_parallel_block_catalog
     call check_block_boundary_routes(print_local)
     call check_block_ghost_source_addresses(print_local)
     call check_block_ghost_request_manifest(print_local)
+    call check_block_scalar_ghost_payload_exchange(print_local)
 
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
@@ -1763,6 +1767,314 @@ end subroutine build_parallel_block_catalog
     deallocate(source_owner)
 
   end subroutine check_block_ghost_request_manifest
+
+
+  subroutine check_block_scalar_ghost_payload_exchange (verbose)
+    ! Use the field-independent request manifest to return the complete
+    ! scalar sol bundle for every ghost patch.  This is a validation-only
+    ! transport: received values are compared with the scalar ghost data
+    ! copied from the geometric domains when the blocks were built.
+
+    implicit none
+
+    integer, parameter :: REQUEST_SIZE = 4
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: destination
+    integer :: field_level
+    integer :: fill_record
+    integer :: i
+    integer :: ierr
+    integer :: level_count
+    integer :: n_local_request
+    integer :: n_remote_recv
+    integer :: n_remote_send
+    integer :: n_request
+    integer :: n_value
+    integer :: pos
+    integer :: r
+    integer :: scalar_count
+    integer :: scalar_mult
+    integer :: scalar_variable
+    integer :: source
+    integer :: vector_mult
+    integer :: vector_variable
+
+    integer(int64) :: count_global(3)
+    integer(int64) :: count_local(3)
+    integer(int64) :: local_value_count
+
+    integer, allocatable :: destination_block(:)
+    integer, allocatable :: destination_ghost(:)
+    integer, allocatable :: fill(:)
+    integer, allocatable :: recv_count(:)
+    integer, allocatable :: recv_data(:)
+    integer, allocatable :: recv_displ(:)
+    integer, allocatable :: recv_record_count(:)
+    integer, allocatable :: request_index(:)
+    integer, allocatable :: response_recv_count(:)
+    integer, allocatable :: response_recv_displ(:)
+    integer, allocatable :: response_send_count(:)
+    integer, allocatable :: response_send_displ(:)
+    integer, allocatable :: send_count(:)
+    integer, allocatable :: send_data(:)
+    integer, allocatable :: send_displ(:)
+    integer, allocatable :: send_record_count(:)
+    integer, allocatable :: source_block(:)
+    integer, allocatable :: source_local_patch(:)
+    integer, allocatable :: source_owner(:)
+
+    real(dp), allocatable :: expected(:)
+    real(dp), allocatable :: response_recv(:)
+    real(dp), allocatable :: response_send(:)
+    real(dp), allocatable :: source_value(:)
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    call get_block_field_layout( &
+         scalar_variable,scalar_count,vector_variable,field_level, &
+         level_count,scalar_mult,vector_mult)
+
+    if (scalar_count < 1 .or. level_count < 1 .or. &
+         scalar_mult < 1) then
+       call fail("invalid scalar payload layout")
+    end if
+
+    n_value = scalar_count*level_count*scalar_mult*PATCH_SIZE**2
+
+    call get_local_block_ghost_requests( &
+         source_block,source_local_patch,source_owner, &
+         destination_block,destination_ghost)
+
+    n_request = size(source_block)
+
+    allocate(send_record_count(n_process))
+    allocate(recv_record_count(n_process))
+    allocate(send_count(n_process))
+    allocate(recv_count(n_process))
+    allocate(send_displ(n_process))
+    allocate(recv_displ(n_process))
+    allocate(fill(n_process))
+
+    send_record_count = 0
+    n_local_request = 0
+
+    do i = 1, n_request
+       source = source_block(i)
+       destination = destination_block(i)
+
+       if (source < 1 .or. source > size(block_catalog) .or. &
+            destination < 1 .or. &
+            destination > size(block_catalog)) then
+          call fail("invalid scalar ghost payload request")
+       end if
+
+       if (source_owner(i) /= block_catalog(source)%owner .or. &
+            block_catalog(destination)%owner /= rank) then
+          call fail("stale scalar ghost payload request")
+       end if
+
+       if (local_block_scalar_patch_nvalue(destination) /= n_value) then
+          call fail("destination scalar ghost payload layout mismatch")
+       end if
+
+       if (source_owner(i) == rank) then
+          if (catalog_local_block(source) < 1) then
+             call fail("local scalar ghost source is unavailable")
+          end if
+          n_local_request = n_local_request + 1
+       else
+          send_record_count(source_owner(i)+1) = &
+               send_record_count(source_owner(i)+1) + 1
+       end if
+    end do
+
+    call MPI_Alltoall( &
+         send_record_count,1,MPI_INTEGER, &
+         recv_record_count,1,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoall scalar ghost request counts")
+
+    n_remote_send = sum(send_record_count)
+    n_remote_recv = sum(recv_record_count)
+
+    send_count = REQUEST_SIZE*send_record_count
+    recv_count = REQUEST_SIZE*recv_record_count
+    send_displ(1) = 0
+    recv_displ(1) = 0
+
+    do r = 2, n_process
+       send_displ(r) = send_displ(r-1) + send_count(r-1)
+       recv_displ(r) = recv_displ(r-1) + recv_count(r-1)
+    end do
+
+    allocate(send_data(REQUEST_SIZE*n_remote_send))
+    allocate(recv_data(REQUEST_SIZE*n_remote_recv))
+    allocate(request_index(n_remote_send))
+
+    fill = 0
+
+    do i = 1, n_request
+       if (source_owner(i) == rank) cycle
+
+       r = source_owner(i) + 1
+       pos = send_displ(r) + REQUEST_SIZE*fill(r)
+       send_data(pos+1:pos+REQUEST_SIZE) = [ &
+            source_block(i),source_local_patch(i), &
+            destination_block(i),destination_ghost(i) ]
+       fill_record = send_displ(r)/REQUEST_SIZE + fill(r) + 1
+       request_index(fill_record) = i
+       fill(r) = fill(r) + 1
+    end do
+
+    if (any(fill /= send_record_count)) then
+       call fail("scalar ghost request packing count mismatch")
+    end if
+
+    call MPI_Alltoallv( &
+         send_data,send_count,send_displ,MPI_INTEGER, &
+         recv_data,recv_count,recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar ghost requests")
+
+    allocate(response_send_count(n_process))
+    allocate(response_recv_count(n_process))
+    allocate(response_send_displ(n_process))
+    allocate(response_recv_displ(n_process))
+
+    response_send_count = n_value*recv_record_count
+    response_recv_count = n_value*send_record_count
+    response_send_displ(1) = 0
+    response_recv_displ(1) = 0
+
+    do r = 2, n_process
+       response_send_displ(r) = response_send_displ(r-1) + &
+            response_send_count(r-1)
+       response_recv_displ(r) = response_recv_displ(r-1) + &
+            response_recv_count(r-1)
+    end do
+
+    allocate(response_send(n_value*n_remote_recv))
+    allocate(response_recv(n_value*n_remote_send))
+    allocate(source_value(n_value))
+    allocate(expected(n_value))
+
+    do r = 1, n_process
+       do i = 0, recv_record_count(r)-1
+          pos = recv_displ(r) + REQUEST_SIZE*i
+          source = recv_data(pos+1)
+
+          if (source < 1 .or. source > size(block_catalog)) then
+             call fail("received scalar ghost source is invalid")
+          end if
+
+          if (block_catalog(source)%owner /= rank .or. &
+               catalog_local_block(source) < 1) then
+             call fail("received scalar ghost source is not local")
+          end if
+
+          call get_local_block_scalar_patch_values( &
+               source,recv_data(pos+2),source_value)
+
+          pos = response_send_displ(r) + n_value*i
+          response_send(pos+1:pos+n_value) = source_value
+       end do
+    end do
+
+    call MPI_Alltoallv( &
+         response_send,response_send_count,response_send_displ, &
+         MPI_DOUBLE_PRECISION,response_recv,response_recv_count, &
+         response_recv_displ,MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar ghost payloads")
+
+    do i = 1, n_request
+       if (source_owner(i) /= rank) cycle
+
+       call get_local_block_scalar_patch_values( &
+            source_block(i),source_local_patch(i),source_value)
+       call get_local_block_scalar_ghost_values( &
+            destination_block(i),destination_ghost(i),expected)
+       if (maxval(abs(source_value-expected)) > 0.0_dp) then
+          call fail("local scalar ghost payload values do not match")
+       end if
+    end do
+
+    do r = 1, n_process
+       do i = 0, send_record_count(r)-1
+          fill_record = send_displ(r)/REQUEST_SIZE + i + 1
+          destination = destination_block(request_index(fill_record))
+
+          call get_local_block_scalar_ghost_values( &
+               destination, &
+               destination_ghost(request_index(fill_record)),expected)
+
+          pos = response_recv_displ(r) + n_value*i
+          if (maxval(abs( &
+               response_recv(pos+1:pos+n_value)-expected)) > 0.0_dp) then
+             call fail("remote scalar ghost payload values do not match")
+          end if
+       end do
+    end do
+
+    local_value_count = int(n_value,int64)*int(n_request,int64)
+    count_local(1) = int(n_local_request,int64)
+    count_local(2) = int(n_remote_send,int64)
+    count_local(3) = local_value_count
+
+    call MPI_Allreduce( &
+         count_local,count_global,3,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce scalar ghost payload totals")
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Scalar Float_Field ghost payloads for rank ",rank,":"
+       write(6,'(a,i0)') &
+            "  values per ghost patch = ",n_value
+       write(6,'(a,i0)') &
+            "  local payload patches  = ",n_local_request
+       write(6,'(a,i0)') &
+            "  remote payload patches = ",n_remote_send
+       write(6,'(a,/)') &
+            "  scalar payload values match compact ghost storage"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global scalar ghost payload patches = ", &
+            count_global(1)+count_global(2)
+       write(6,'(a,i0)') &
+            "Global scalar ghost payload values  = ",count_global(3)
+       write(6,'(a,/)') &
+            "Scalar Float_Field ghost payload exchange passed"
+    end if
+
+    deallocate(destination_block)
+    deallocate(destination_ghost)
+    deallocate(expected)
+    deallocate(fill)
+    deallocate(recv_count)
+    deallocate(recv_data)
+    deallocate(recv_displ)
+    deallocate(recv_record_count)
+    deallocate(request_index)
+    deallocate(response_recv)
+    deallocate(response_recv_count)
+    deallocate(response_recv_displ)
+    deallocate(response_send)
+    deallocate(response_send_count)
+    deallocate(response_send_displ)
+    deallocate(send_count)
+    deallocate(send_data)
+    deallocate(send_displ)
+    deallocate(send_record_count)
+    deallocate(source_block)
+    deallocate(source_local_patch)
+    deallocate(source_owner)
+    deallocate(source_value)
+
+  end subroutine check_block_scalar_ghost_payload_exchange
 
 
   subroutine check_local_blocks (verbose)
