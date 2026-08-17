@@ -195,9 +195,13 @@ module parallel_block_mod
   public :: local_block_scalar_patch_nvalue
   public :: get_local_block_scalar_patch_values
   public :: get_local_block_scalar_ghost_values
+  public :: set_local_block_scalar_ghost_values
+  public :: fill_local_block_scalar_ghost_values
   public :: local_block_vector_patch_nvalue
   public :: get_local_block_vector_patch_values
   public :: get_local_block_vector_ghost_values
+  public :: set_local_block_vector_ghost_values
+  public :: fill_local_block_vector_ghost_values
   public :: local_block_hydrostatic_statistics
   public :: install_local_blocks
 
@@ -1680,6 +1684,104 @@ subroutine get_local_block_scalar_ghost_values ( &
 end subroutine get_local_block_scalar_ghost_values
 
 
+subroutine set_local_block_scalar_ghost_values ( &
+     catalog_index,ghost_index,value)
+  ! Install one complete scalar sol bundle into compact ghost storage.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: ghost_index
+  real(dp), intent(in) :: value(:)
+
+  integer :: field_base
+  integer :: ghost_start
+  integer :: input_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_ghost_node
+  integer :: n_patch_value
+  integer :: scalar_slot
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "set_local_block_scalar_ghost_values: block is not local"
+  end if
+
+  if (ghost_index < 1 .or. &
+       ghost_index > size(block_local(local_index)%ghost_storage)) then
+     error stop &
+          "set_local_block_scalar_ghost_values: invalid ghost"
+  end if
+
+  n_patch_value = &
+       block_local(local_index)%scalar_mult * PATCH_SIZE**2
+  if (size(value) /= &
+       local_block_scalar_patch_nvalue(catalog_index)) then
+     error stop &
+          "set_local_block_scalar_ghost_values: input extent"
+  end if
+
+  n_ghost_node = size(block_local(local_index)%ghost_node)
+  ghost_start = block_local(local_index)% &
+       ghost_storage(ghost_index)%local_start
+
+  if (ghost_start < 0 .or. &
+       ghost_start+PATCH_SIZE**2 > n_ghost_node) then
+     error stop &
+          "set_local_block_scalar_ghost_values: ghost storage"
+  end if
+
+  do scalar_slot = 1, &
+       block_local(local_index)%n_scalar_variable
+     do level_slot = 1, &
+          block_local(local_index)%n_field_level
+        field_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1) * &
+             block_local(local_index)%scalar_mult*n_ghost_node
+        input_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1) * n_patch_value
+
+        block_local(local_index)%ghost_scalar( &
+             field_base + &
+             block_local(local_index)%scalar_mult*ghost_start + 1: &
+             field_base + &
+             block_local(local_index)%scalar_mult*ghost_start + &
+             n_patch_value) = &
+             value(input_base+1:input_base+n_patch_value)
+     end do
+  end do
+
+end subroutine set_local_block_scalar_ghost_values
+
+
+subroutine fill_local_block_scalar_ghost_values (value)
+  ! Invalidate or initialize every scalar sol ghost value in the local
+  ! final-owner block store.
+
+  implicit none
+
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_scalar_ghost_values: store is not ready"
+  end if
+
+  do b = 1, size(block_local)
+     block_local(b)%ghost_scalar = value
+  end do
+
+end subroutine fill_local_block_scalar_ghost_values
+
+
 integer function local_block_vector_patch_nvalue (catalog_index) &
      result(n_value)
   ! Number of vector sol values carried by one compact patch.  Every
@@ -1833,6 +1935,92 @@ subroutine get_local_block_vector_ghost_values ( &
   end do
 
 end subroutine get_local_block_vector_ghost_values
+
+
+subroutine set_local_block_vector_ghost_values ( &
+     catalog_index,ghost_index,value)
+  ! Install one complete vector sol bundle into compact ghost storage.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: ghost_index
+  real(dp), intent(in) :: value(:)
+
+  integer :: field_base
+  integer :: ghost_start
+  integer :: input_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_ghost_node
+  integer :: n_patch_value
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "set_local_block_vector_ghost_values: block is not local"
+  end if
+
+  if (ghost_index < 1 .or. &
+       ghost_index > size(block_local(local_index)%ghost_storage)) then
+     error stop &
+          "set_local_block_vector_ghost_values: invalid ghost"
+  end if
+
+  n_patch_value = &
+       block_local(local_index)%vector_mult * PATCH_SIZE**2
+  if (size(value) /= &
+       local_block_vector_patch_nvalue(catalog_index)) then
+     error stop &
+          "set_local_block_vector_ghost_values: input extent"
+  end if
+
+  n_ghost_node = size(block_local(local_index)%ghost_node)
+  ghost_start = block_local(local_index)% &
+       ghost_storage(ghost_index)%local_start
+
+  if (ghost_start < 0 .or. &
+       ghost_start+PATCH_SIZE**2 > n_ghost_node) then
+     error stop &
+          "set_local_block_vector_ghost_values: ghost storage"
+  end if
+
+  do level_slot = 1, block_local(local_index)%n_field_level
+     field_base = (level_slot-1) * &
+          block_local(local_index)%vector_mult*n_ghost_node
+     input_base = (level_slot-1)*n_patch_value
+
+     block_local(local_index)%ghost_vector( &
+          field_base + &
+          block_local(local_index)%vector_mult*ghost_start + 1: &
+          field_base + &
+          block_local(local_index)%vector_mult*ghost_start + &
+          n_patch_value) = value(input_base+1:input_base+n_patch_value)
+  end do
+
+end subroutine set_local_block_vector_ghost_values
+
+
+subroutine fill_local_block_vector_ghost_values (value)
+  ! Invalidate or initialize every vector sol ghost value in the local
+  ! final-owner block store.
+
+  implicit none
+
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_vector_ghost_values: store is not ready"
+  end if
+
+  do b = 1, size(block_local)
+     block_local(b)%ghost_vector = value
+  end do
+
+end subroutine fill_local_block_vector_ghost_values
 
 
 subroutine source_block_scalar_stencil_statistics ( &

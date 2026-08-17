@@ -45,9 +45,13 @@ module parallel_block_mpi_mod
        local_block_ghost_count, local_block_scalar_patch_nvalue, &
        get_local_block_scalar_patch_values, &
        get_local_block_scalar_ghost_values, &
+       set_local_block_scalar_ghost_values, &
+       fill_local_block_scalar_ghost_values, &
        local_block_vector_patch_nvalue, &
        get_local_block_vector_patch_values, &
        get_local_block_vector_ghost_values, &
+       set_local_block_vector_ghost_values, &
+       fill_local_block_vector_ghost_values, &
        local_block_hydrostatic_statistics
 
   implicit none
@@ -1776,13 +1780,15 @@ end subroutine build_parallel_block_catalog
 
   subroutine check_block_scalar_ghost_payload_exchange (verbose)
     ! Use the field-independent request manifest to return the complete
-    ! scalar sol bundle for every ghost patch.  This is a validation-only
-    ! transport: received values are compared with the scalar ghost data
-    ! copied from the geometric domains when the blocks were built.
+    ! scalar sol bundle for every ghost patch.  After validating the
+    ! transport against the temporary geometric-domain copies, invalidate
+    ! compact ghost storage and restore it from local and remote payloads.
 
     implicit none
 
     integer, parameter :: REQUEST_SIZE = 4
+    real(dp), parameter :: GHOST_POISON = &
+         -0.25_dp*huge(0.0_dp)
 
     logical, optional, intent(in) :: verbose
 
@@ -2026,6 +2032,55 @@ end subroutine build_parallel_block_catalog
        end do
     end do
 
+    call fill_local_block_scalar_ghost_values(GHOST_POISON)
+
+    do i = 1, n_request
+       if (source_owner(i) /= rank) cycle
+
+       call get_local_block_scalar_ghost_values( &
+            destination_block(i),destination_ghost(i),expected)
+       if (maxval(abs(expected-GHOST_POISON)) > 0.0_dp) then
+          call fail("scalar ghost storage was not invalidated")
+       end if
+
+       call get_local_block_scalar_patch_values( &
+            source_block(i),source_local_patch(i),source_value)
+       call set_local_block_scalar_ghost_values( &
+            destination_block(i),destination_ghost(i),source_value)
+       call get_local_block_scalar_ghost_values( &
+            destination_block(i),destination_ghost(i),expected)
+       if (maxval(abs(source_value-expected)) > 0.0_dp) then
+          call fail("local scalar ghost payload installation failed")
+       end if
+    end do
+
+    do r = 1, n_process
+       do i = 0, send_record_count(r)-1
+          fill_record = send_displ(r)/REQUEST_SIZE + i + 1
+          destination = destination_block(request_index(fill_record))
+
+          call get_local_block_scalar_ghost_values( &
+               destination, &
+               destination_ghost(request_index(fill_record)),expected)
+          if (maxval(abs(expected-GHOST_POISON)) > 0.0_dp) then
+             call fail("scalar ghost storage was not invalidated")
+          end if
+
+          pos = response_recv_displ(r) + n_value*i
+          call set_local_block_scalar_ghost_values( &
+               destination, &
+               destination_ghost(request_index(fill_record)), &
+               response_recv(pos+1:pos+n_value))
+          call get_local_block_scalar_ghost_values( &
+               destination, &
+               destination_ghost(request_index(fill_record)),expected)
+          if (maxval(abs( &
+               response_recv(pos+1:pos+n_value)-expected)) > 0.0_dp) then
+             call fail("remote scalar ghost payload installation failed")
+          end if
+       end do
+    end do
+
     local_value_count = int(n_value,int64)*int(n_request,int64)
     count_local(1) = int(n_local_request,int64)
     count_local(2) = int(n_remote_send,int64)
@@ -2045,7 +2100,7 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  remote payload patches = ",n_remote_send
        write(6,'(a,/)') &
-            "  scalar payload values match compact ghost storage"
+            "  invalidated scalar ghost storage restored from payloads"
     end if
 
     if (print_summary .and. rank == 0) then
@@ -2055,7 +2110,7 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "Global scalar ghost payload values  = ",count_global(3)
        write(6,'(a,/)') &
-            "Scalar Float_Field ghost payload exchange passed"
+            "Scalar Float_Field ghost payload installation passed"
     end if
 
     deallocate(destination_block)
@@ -2087,12 +2142,14 @@ end subroutine build_parallel_block_catalog
 
   subroutine check_block_vector_ghost_payload_exchange (verbose)
     ! Return the complete vector sol bundle for every ghost patch using
-    ! the field-independent request manifest.  Received values are
-    ! compared with the temporary compact vector ghost copies.
+    ! the field-independent request manifest.  After validating transport,
+    ! invalidate compact ghost storage and restore it from the payloads.
 
     implicit none
 
     integer, parameter :: REQUEST_SIZE = 4
+    real(dp), parameter :: GHOST_POISON = &
+         -0.25_dp*huge(0.0_dp)
 
     logical, optional, intent(in) :: verbose
 
@@ -2335,6 +2392,55 @@ end subroutine build_parallel_block_catalog
        end do
     end do
 
+    call fill_local_block_vector_ghost_values(GHOST_POISON)
+
+    do i = 1, n_request
+       if (source_owner(i) /= rank) cycle
+
+       call get_local_block_vector_ghost_values( &
+            destination_block(i),destination_ghost(i),expected)
+       if (maxval(abs(expected-GHOST_POISON)) > 0.0_dp) then
+          call fail("vector ghost storage was not invalidated")
+       end if
+
+       call get_local_block_vector_patch_values( &
+            source_block(i),source_local_patch(i),source_value)
+       call set_local_block_vector_ghost_values( &
+            destination_block(i),destination_ghost(i),source_value)
+       call get_local_block_vector_ghost_values( &
+            destination_block(i),destination_ghost(i),expected)
+       if (maxval(abs(source_value-expected)) > 0.0_dp) then
+          call fail("local vector ghost payload installation failed")
+       end if
+    end do
+
+    do r = 1, n_process
+       do i = 0, send_record_count(r)-1
+          fill_record = send_displ(r)/REQUEST_SIZE + i + 1
+          destination = destination_block(request_index(fill_record))
+
+          call get_local_block_vector_ghost_values( &
+               destination, &
+               destination_ghost(request_index(fill_record)),expected)
+          if (maxval(abs(expected-GHOST_POISON)) > 0.0_dp) then
+             call fail("vector ghost storage was not invalidated")
+          end if
+
+          pos = response_recv_displ(r) + n_value*i
+          call set_local_block_vector_ghost_values( &
+               destination, &
+               destination_ghost(request_index(fill_record)), &
+               response_recv(pos+1:pos+n_value))
+          call get_local_block_vector_ghost_values( &
+               destination, &
+               destination_ghost(request_index(fill_record)),expected)
+          if (maxval(abs( &
+               response_recv(pos+1:pos+n_value)-expected)) > 0.0_dp) then
+             call fail("remote vector ghost payload installation failed")
+          end if
+       end do
+    end do
+
     local_value_count = int(n_value,int64)*int(n_request,int64)
     count_local(1) = int(n_local_request,int64)
     count_local(2) = int(n_remote_send,int64)
@@ -2354,7 +2460,7 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  remote payload patches = ",n_remote_send
        write(6,'(a,/)') &
-            "  vector payload values match compact ghost storage"
+            "  invalidated vector ghost storage restored from payloads"
     end if
 
     if (print_summary .and. rank == 0) then
@@ -2364,7 +2470,7 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "Global vector ghost payload values  = ",count_global(3)
        write(6,'(a,/)') &
-            "Vector Float_Field ghost payload exchange passed"
+            "Vector Float_Field ghost payload installation passed"
     end if
 
     deallocate(destination_block)
