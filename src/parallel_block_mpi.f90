@@ -1780,7 +1780,7 @@ end subroutine build_parallel_block_catalog
 
   subroutine check_block_scalar_ghost_payload_exchange (verbose)
     ! Use the field-independent request manifest to return the complete
-    ! scalar sol bundle for every ghost patch.  After validating the
+    ! scalar sol/wav_coeff bundle for every ghost patch. After validating
     ! transport against the temporary geometric-domain copies, invalidate
     ! compact ghost storage and restore it from local and remote payloads.
 
@@ -1855,7 +1855,8 @@ end subroutine build_parallel_block_catalog
        call fail("invalid scalar payload layout")
     end if
 
-    n_value = scalar_count*level_count*scalar_mult*PATCH_SIZE**2
+    n_value = &
+         2*scalar_count*level_count*scalar_mult*PATCH_SIZE**2
 
     call get_local_block_ghost_requests( &
          source_block,source_local_patch,source_owner, &
@@ -2092,7 +2093,7 @@ end subroutine build_parallel_block_catalog
 
     if (print_summary) then
        write(6,'(/,a,i0,a)') &
-            "Scalar Float_Field ghost payloads for rank ",rank,":"
+            "Scalar sol/wav_coeff ghost payloads for rank ",rank,":"
        write(6,'(a,i0)') &
             "  values per ghost patch = ",n_value
        write(6,'(a,i0)') &
@@ -2100,17 +2101,17 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  remote payload patches = ",n_remote_send
        write(6,'(a,/)') &
-            "  invalidated scalar ghost storage restored from payloads"
+            "  scalar sol/wav_coeff ghosts restored from payloads"
     end if
 
     if (print_summary .and. rank == 0) then
        write(6,'(/,a,i0)') &
-            "Global scalar ghost payload patches = ", &
+            "Global scalar sol/wav_coeff ghost patches = ", &
             count_global(1)+count_global(2)
        write(6,'(a,i0)') &
-            "Global scalar ghost payload values  = ",count_global(3)
+            "Global scalar sol/wav_coeff values  = ",count_global(3)
        write(6,'(a,/)') &
-            "Scalar Float_Field ghost payload installation passed"
+            "Scalar sol/wav_coeff ghost payload installation passed"
     end if
 
     deallocate(destination_block)
@@ -2141,8 +2142,8 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine check_block_vector_ghost_payload_exchange (verbose)
-    ! Return the complete vector sol bundle for every ghost patch using
-    ! the field-independent request manifest.  After validating transport,
+    ! Return the complete vector sol/wav_coeff bundle for every ghost using
+    ! the field-independent request manifest. After validating transport,
     ! invalidate compact ghost storage and restore it from the payloads.
 
     implicit none
@@ -2215,7 +2216,7 @@ end subroutine build_parallel_block_catalog
        call fail("invalid vector payload layout")
     end if
 
-    n_value = level_count*vector_mult*PATCH_SIZE**2
+    n_value = 2*level_count*vector_mult*PATCH_SIZE**2
 
     call get_local_block_ghost_requests( &
          source_block,source_local_patch,source_owner, &
@@ -2452,7 +2453,7 @@ end subroutine build_parallel_block_catalog
 
     if (print_summary) then
        write(6,'(/,a,i0,a)') &
-            "Vector Float_Field ghost payloads for rank ",rank,":"
+            "Vector sol/wav_coeff ghost payloads for rank ",rank,":"
        write(6,'(a,i0)') &
             "  values per ghost patch = ",n_value
        write(6,'(a,i0)') &
@@ -2460,17 +2461,17 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  remote payload patches = ",n_remote_send
        write(6,'(a,/)') &
-            "  invalidated vector ghost storage restored from payloads"
+            "  vector sol/wav_coeff ghosts restored from payloads"
     end if
 
     if (print_summary .and. rank == 0) then
        write(6,'(/,a,i0)') &
-            "Global vector ghost payload patches = ", &
+            "Global vector sol/wav_coeff ghost patches = ", &
             count_global(1)+count_global(2)
        write(6,'(a,i0)') &
-            "Global vector ghost payload values  = ",count_global(3)
+            "Global vector sol/wav_coeff values  = ",count_global(3)
        write(6,'(a,/)') &
-            "Vector Float_Field ghost payload installation passed"
+            "Vector sol/wav_coeff ghost payload installation passed"
     end if
 
     deallocate(destination_block)

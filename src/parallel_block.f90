@@ -1506,8 +1506,8 @@ end function local_block_ghost_count
 
 integer function local_block_scalar_patch_nvalue (catalog_index) &
      result(n_value)
-  ! Number of scalar sol values carried by one compact patch.  The
-  ! complete serialized scalar-variable and level ranges are included.
+  ! Number of scalar sol and wav_coeff values carried by one compact
+  ! patch. The complete scalar-variable and level ranges are included.
 
   implicit none
 
@@ -1521,7 +1521,7 @@ integer function local_block_scalar_patch_nvalue (catalog_index) &
           "local_block_scalar_patch_nvalue: block is not local"
   end if
 
-  n_value = block_local(local_index)%n_scalar_variable * &
+  n_value = 2 * block_local(local_index)%n_scalar_variable * &
        block_local(local_index)%n_field_level * &
        block_local(local_index)%scalar_mult * PATCH_SIZE**2
 
@@ -1530,9 +1530,8 @@ end function local_block_scalar_patch_nvalue
 
 subroutine get_local_block_scalar_patch_values ( &
      catalog_index,local_patch,value)
-  ! Pack every scalar sol variable and stored level for one compact
-  ! interior patch. local_patch is the zero-based compact patch address
-  ! carried by Block_Ghost_Storage%source_local_patch.
+  ! Pack scalar sol followed by scalar wav_coeff for one compact patch.
+  ! local_patch is the zero-based compact source-patch address.
 
   implicit none
 
@@ -1541,6 +1540,7 @@ subroutine get_local_block_scalar_patch_values ( &
   real(dp), intent(out) :: value(:)
 
   integer :: field_base
+  integer :: family_base
   integer :: local_index
   integer :: level_slot
   integer :: n_node
@@ -1570,6 +1570,9 @@ subroutine get_local_block_scalar_patch_values ( &
   end if
 
   n_node = size(block_local(local_index)%node)
+  family_base = &
+       block_local(local_index)%n_scalar_variable * &
+       block_local(local_index)%n_field_level * n_patch_value
   patch_start = &
        block_local(local_index)%patch(local_patch+1)%elts_start
 
@@ -1600,6 +1603,16 @@ subroutine get_local_block_scalar_patch_values ( &
              field_base + &
              block_local(local_index)%scalar_mult*patch_start + &
              n_patch_value)
+
+        value( &
+             family_base+output_base+1: &
+             family_base+output_base+n_patch_value) = &
+             block_local(local_index)%wavelet_scalar( &
+             field_base + &
+             block_local(local_index)%scalar_mult*patch_start + 1: &
+             field_base + &
+             block_local(local_index)%scalar_mult*patch_start + &
+             n_patch_value)
      end do
   end do
 
@@ -1608,9 +1621,7 @@ end subroutine get_local_block_scalar_patch_values
 
 subroutine get_local_block_scalar_ghost_values ( &
      catalog_index,ghost_index,value)
-  ! Read the matching complete scalar sol bundle from one compact ghost
-  ! record. ghost_index is one-based, matching destination_ghost in the
-  ! request manifest.
+  ! Read scalar sol followed by scalar wav_coeff from one compact ghost.
 
   implicit none
 
@@ -1619,6 +1630,7 @@ subroutine get_local_block_scalar_ghost_values ( &
   real(dp), intent(out) :: value(:)
 
   integer :: field_base
+  integer :: family_base
   integer :: ghost_start
   integer :: local_index
   integer :: level_slot
@@ -1648,6 +1660,9 @@ subroutine get_local_block_scalar_ghost_values ( &
   end if
 
   n_ghost_node = size(block_local(local_index)%ghost_node)
+  family_base = &
+       block_local(local_index)%n_scalar_variable * &
+       block_local(local_index)%n_field_level * n_patch_value
   ghost_start = block_local(local_index)% &
        ghost_storage(ghost_index)%local_start
 
@@ -1678,6 +1693,16 @@ subroutine get_local_block_scalar_ghost_values ( &
              field_base + &
              block_local(local_index)%scalar_mult*ghost_start + &
              n_patch_value)
+
+        value( &
+             family_base+output_base+1: &
+             family_base+output_base+n_patch_value) = &
+             block_local(local_index)%ghost_wavelet_scalar( &
+             field_base + &
+             block_local(local_index)%scalar_mult*ghost_start + 1: &
+             field_base + &
+             block_local(local_index)%scalar_mult*ghost_start + &
+             n_patch_value)
      end do
   end do
 
@@ -1686,7 +1711,7 @@ end subroutine get_local_block_scalar_ghost_values
 
 subroutine set_local_block_scalar_ghost_values ( &
      catalog_index,ghost_index,value)
-  ! Install one complete scalar sol bundle into compact ghost storage.
+  ! Install scalar sol and scalar wav_coeff into compact ghost storage.
 
   implicit none
 
@@ -1695,6 +1720,7 @@ subroutine set_local_block_scalar_ghost_values ( &
   real(dp), intent(in) :: value(:)
 
   integer :: field_base
+  integer :: family_base
   integer :: ghost_start
   integer :: input_base
   integer :: local_index
@@ -1724,6 +1750,9 @@ subroutine set_local_block_scalar_ghost_values ( &
   end if
 
   n_ghost_node = size(block_local(local_index)%ghost_node)
+  family_base = &
+       block_local(local_index)%n_scalar_variable * &
+       block_local(local_index)%n_field_level * n_patch_value
   ghost_start = block_local(local_index)% &
        ghost_storage(ghost_index)%local_start
 
@@ -1754,6 +1783,15 @@ subroutine set_local_block_scalar_ghost_values ( &
              block_local(local_index)%scalar_mult*ghost_start + &
              n_patch_value) = &
              value(input_base+1:input_base+n_patch_value)
+
+        block_local(local_index)%ghost_wavelet_scalar( &
+             field_base + &
+             block_local(local_index)%scalar_mult*ghost_start + 1: &
+             field_base + &
+             block_local(local_index)%scalar_mult*ghost_start + &
+             n_patch_value) = value( &
+             family_base+input_base+1: &
+             family_base+input_base+n_patch_value)
      end do
   end do
 
@@ -1761,8 +1799,7 @@ end subroutine set_local_block_scalar_ghost_values
 
 
 subroutine fill_local_block_scalar_ghost_values (value)
-  ! Invalidate or initialize every scalar sol ghost value in the local
-  ! final-owner block store.
+  ! Fill scalar sol and wav_coeff ghost values in the local block store.
 
   implicit none
 
@@ -1777,6 +1814,7 @@ subroutine fill_local_block_scalar_ghost_values (value)
 
   do b = 1, size(block_local)
      block_local(b)%ghost_scalar = value
+     block_local(b)%ghost_wavelet_scalar = value
   end do
 
 end subroutine fill_local_block_scalar_ghost_values
@@ -1784,8 +1822,8 @@ end subroutine fill_local_block_scalar_ghost_values
 
 integer function local_block_vector_patch_nvalue (catalog_index) &
      result(n_value)
-  ! Number of vector sol values carried by one compact patch.  Every
-  ! serialized field level and all vector components are included.
+  ! Number of vector sol and wav_coeff values carried by one compact
+  ! patch. Every field level and vector component is included.
 
   implicit none
 
@@ -1799,7 +1837,7 @@ integer function local_block_vector_patch_nvalue (catalog_index) &
           "local_block_vector_patch_nvalue: block is not local"
   end if
 
-  n_value = block_local(local_index)%n_field_level * &
+  n_value = 2 * block_local(local_index)%n_field_level * &
        block_local(local_index)%vector_mult * PATCH_SIZE**2
 
 end function local_block_vector_patch_nvalue
@@ -1807,8 +1845,7 @@ end function local_block_vector_patch_nvalue
 
 subroutine get_local_block_vector_patch_values ( &
      catalog_index,local_patch,value)
-  ! Pack every stored level and vector component from one compact
-  ! interior patch. local_patch is the zero-based compact source address.
+  ! Pack vector sol followed by vector wav_coeff for one compact patch.
 
   implicit none
 
@@ -1817,6 +1854,7 @@ subroutine get_local_block_vector_patch_values ( &
   real(dp), intent(out) :: value(:)
 
   integer :: field_base
+  integer :: family_base
   integer :: local_index
   integer :: level_slot
   integer :: n_node
@@ -1845,6 +1883,8 @@ subroutine get_local_block_vector_patch_values ( &
   end if
 
   n_node = size(block_local(local_index)%node)
+  family_base = &
+       block_local(local_index)%n_field_level*n_patch_value
   patch_start = &
        block_local(local_index)%patch(local_patch+1)%elts_start
 
@@ -1866,6 +1906,16 @@ subroutine get_local_block_vector_patch_values ( &
           field_base + &
           block_local(local_index)%vector_mult*patch_start + &
           n_patch_value)
+
+     value( &
+          family_base+output_base+1: &
+          family_base+output_base+n_patch_value) = &
+          block_local(local_index)%wavelet_vector( &
+          field_base + &
+          block_local(local_index)%vector_mult*patch_start + 1: &
+          field_base + &
+          block_local(local_index)%vector_mult*patch_start + &
+          n_patch_value)
   end do
 
 end subroutine get_local_block_vector_patch_values
@@ -1873,8 +1923,7 @@ end subroutine get_local_block_vector_patch_values
 
 subroutine get_local_block_vector_ghost_values ( &
      catalog_index,ghost_index,value)
-  ! Read the matching complete vector sol bundle from one compact ghost
-  ! record. ghost_index is one-based, as in the request manifest.
+  ! Read vector sol followed by vector wav_coeff from one compact ghost.
 
   implicit none
 
@@ -1883,6 +1932,7 @@ subroutine get_local_block_vector_ghost_values ( &
   real(dp), intent(out) :: value(:)
 
   integer :: field_base
+  integer :: family_base
   integer :: ghost_start
   integer :: local_index
   integer :: level_slot
@@ -1911,6 +1961,8 @@ subroutine get_local_block_vector_ghost_values ( &
   end if
 
   n_ghost_node = size(block_local(local_index)%ghost_node)
+  family_base = &
+       block_local(local_index)%n_field_level*n_patch_value
   ghost_start = block_local(local_index)% &
        ghost_storage(ghost_index)%local_start
 
@@ -1932,6 +1984,16 @@ subroutine get_local_block_vector_ghost_values ( &
           field_base + &
           block_local(local_index)%vector_mult*ghost_start + &
           n_patch_value)
+
+     value( &
+          family_base+output_base+1: &
+          family_base+output_base+n_patch_value) = &
+          block_local(local_index)%ghost_wavelet_vector( &
+          field_base + &
+          block_local(local_index)%vector_mult*ghost_start + 1: &
+          field_base + &
+          block_local(local_index)%vector_mult*ghost_start + &
+          n_patch_value)
   end do
 
 end subroutine get_local_block_vector_ghost_values
@@ -1939,7 +2001,7 @@ end subroutine get_local_block_vector_ghost_values
 
 subroutine set_local_block_vector_ghost_values ( &
      catalog_index,ghost_index,value)
-  ! Install one complete vector sol bundle into compact ghost storage.
+  ! Install vector sol and vector wav_coeff into compact ghost storage.
 
   implicit none
 
@@ -1948,6 +2010,7 @@ subroutine set_local_block_vector_ghost_values ( &
   real(dp), intent(in) :: value(:)
 
   integer :: field_base
+  integer :: family_base
   integer :: ghost_start
   integer :: input_base
   integer :: local_index
@@ -1976,6 +2039,8 @@ subroutine set_local_block_vector_ghost_values ( &
   end if
 
   n_ghost_node = size(block_local(local_index)%ghost_node)
+  family_base = &
+       block_local(local_index)%n_field_level*n_patch_value
   ghost_start = block_local(local_index)% &
        ghost_storage(ghost_index)%local_start
 
@@ -1996,14 +2061,22 @@ subroutine set_local_block_vector_ghost_values ( &
           field_base + &
           block_local(local_index)%vector_mult*ghost_start + &
           n_patch_value) = value(input_base+1:input_base+n_patch_value)
+
+     block_local(local_index)%ghost_wavelet_vector( &
+          field_base + &
+          block_local(local_index)%vector_mult*ghost_start + 1: &
+          field_base + &
+          block_local(local_index)%vector_mult*ghost_start + &
+          n_patch_value) = value( &
+          family_base+input_base+1: &
+          family_base+input_base+n_patch_value)
   end do
 
 end subroutine set_local_block_vector_ghost_values
 
 
 subroutine fill_local_block_vector_ghost_values (value)
-  ! Invalidate or initialize every vector sol ghost value in the local
-  ! final-owner block store.
+  ! Fill vector sol and wav_coeff ghost values in the local block store.
 
   implicit none
 
@@ -2018,6 +2091,7 @@ subroutine fill_local_block_vector_ghost_values (value)
 
   do b = 1, size(block_local)
      block_local(b)%ghost_vector = value
+     block_local(b)%ghost_wavelet_vector = value
   end do
 
 end subroutine fill_local_block_vector_ghost_values
