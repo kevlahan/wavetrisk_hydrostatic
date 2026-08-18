@@ -6,7 +6,8 @@ module parallel_block_mpi_mod
        MPI_INTEGER8, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_SUCCESS, MPI_SUM
 
   use kind_mod,   only : dp
-  use shared_mod, only : EDGE, N_CHDRN, N_GLO_DOMAIN, S_MASS, S_TEMP, &
+  use shared_mod, only : EDGE, N_BDRY, N_CHDRN, N_GLO_DOMAIN, &
+       S_MASS, S_TEMP, &
        c_p, compressible, grav_accel, kappa, p_0, p_top, zlevels
 
   use domain_mod, only : grid, sol, sol_mean, tke, topography, &
@@ -18,7 +19,7 @@ module parallel_block_mpi_mod
   use arch_mod, only : abort_run, block_catalog, comm, glo_id, loc_id, &
        n_process, owner, Parallel_Block, rank
 
-  use parallel_block_mod, only : block_source, block_received, &
+  use parallel_block_mod, only : Block_Data, block_source, block_received, &
        block_source_catalog_index, &
        block_migrating_source_index, block_received_catalog_index, &
        packed_block_nbyte, pack_block, unpack_block, &
@@ -89,6 +90,7 @@ module parallel_block_mpi_mod
        local_block_hydrostatic_column_nvalue, &
        get_local_block_hydrostatic_patch_values, &
        get_local_block_hydrostatic_values, &
+       apply_local_block_field_consumer, &
        apply_local_block_hydrostatic_consumer, &
        local_block_hydrostatic_statistics, &
        BLOCK_PAYLOAD_SOL, BLOCK_PAYLOAD_WAV_COEFF
@@ -191,6 +193,22 @@ module parallel_block_mpi_mod
      real(dp) :: temperature_moment(3) = 0.0_dp
   end type Block_Hydrostatic_Traversal_Context
 
+  type :: Block_Field_Traversal_Context
+     integer(int64) :: block_count = 0_int64
+     integer(int64) :: patch_count = 0_int64
+     integer(int64) :: boundary_count = 0_int64
+     integer(int64) :: ghost_count = 0_int64
+     integer(int64) :: node_count = 0_int64
+     integer(int64) :: boundary_node_count = 0_int64
+     integer(int64) :: ghost_node_count = 0_int64
+     integer(int64) :: scalar_count(3) = 0_int64
+     integer(int64) :: vector_count(3) = 0_int64
+     integer(int64) :: surface_count = 0_int64
+     real(dp) :: scalar_moment(3,3) = 0.0_dp
+     real(dp) :: vector_moment(3,3) = 0.0_dp
+     real(dp) :: surface_moment(3) = 0.0_dp
+  end type Block_Field_Traversal_Context
+
   public :: build_block_migration_manifest
   public :: check_block_migration_manifest
   public :: exchange_block_migration_sizes
@@ -222,6 +240,7 @@ module parallel_block_mpi_mod
   public :: check_refreshed_block_stencil_consumers
   public :: check_block_hydrostatic_state_accessors
   public :: check_block_hydrostatic_consumer
+  public :: check_block_field_consumer
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -1026,6 +1045,7 @@ end subroutine build_parallel_block_catalog
     if (compressible) call ensure_local_block_hydrostatic_state
     call check_block_hydrostatic_state_accessors(print_local)
     call check_block_hydrostatic_consumer(print_local)
+    call check_block_field_consumer(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -5747,6 +5767,348 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_hydrostatic_state_accessors
+
+
+  subroutine accumulate_block_field_consumer (catalog_index,block,context)
+    ! Production prognostic-field kernel. Consume the complete read-only
+    ! block view, validate its topology/storage contract and accumulate
+    ! interior field inventories without accessor copies. For compressible
+    ! cases, also diagnose surface pressure directly from mass fields.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: expected_scalar
+    integer :: expected_vector
+    integer :: i
+    integer :: k
+    integer :: mass_index
+    integer :: mass_slot
+    integer :: n_node
+    integer :: scalar_variable_size
+    integer :: temperature_slot
+
+    real(dp) :: pressure
+    real(dp) :: rho_dz
+
+    if (catalog_index < 1) then
+       call fail("field consumer received invalid catalogue index")
+    end if
+    if (.not. allocated(block%patch) .or. &
+         .not. allocated(block%node) .or. &
+         .not. allocated(block%bdry_node) .or. &
+         .not. allocated(block%ghost_node) .or. &
+         .not. allocated(block%stencil) .or. &
+         .not. allocated(block%block_bdry) .or. &
+         .not. allocated(block%bdry_storage) .or. &
+         .not. allocated(block%ghost_storage)) then
+       call fail("field consumer received incomplete topology")
+    end if
+
+    n_node = size(block%node)
+    if (n_node /= size(block%patch)*PATCH_SIZE**2 .or. &
+         size(block%stencil,1) /= N_BDRY .or. &
+         size(block%stencil,2) /= size(block%patch)) then
+       call fail("field consumer received invalid patch topology")
+    end if
+    if (sum(block%bdry_storage%n_node) /= size(block%bdry_node) .or. &
+         sum(block%ghost_storage%n_node) /= size(block%ghost_node)) then
+       call fail("field consumer received invalid compact topology")
+    end if
+
+    expected_scalar = block%n_scalar_variable*block%n_field_level* &
+         block%scalar_mult*n_node
+    expected_vector = block%n_field_level*block%vector_mult*n_node
+
+    if (size(block%scalar) /= expected_scalar .or. &
+         size(block%scalar_mean) /= expected_scalar .or. &
+         size(block%wavelet_scalar) /= expected_scalar .or. &
+         size(block%vector) /= expected_vector .or. &
+         size(block%vector_mean) /= expected_vector .or. &
+         size(block%wavelet_vector) /= expected_vector) then
+       call fail("field consumer received invalid interior fields")
+    end if
+
+    expected_scalar = block%n_scalar_variable*block%n_field_level* &
+         block%scalar_mult*size(block%bdry_node)
+    expected_vector = block%n_field_level*block%vector_mult* &
+         size(block%bdry_node)
+    if (size(block%bdry_scalar) /= expected_scalar .or. &
+         size(block%bdry_scalar_mean) /= expected_scalar .or. &
+         size(block%bdry_wavelet_scalar) /= expected_scalar .or. &
+         size(block%bdry_vector) /= expected_vector .or. &
+         size(block%bdry_vector_mean) /= expected_vector .or. &
+         size(block%bdry_wavelet_vector) /= expected_vector) then
+       call fail("field consumer received invalid boundary fields")
+    end if
+
+    expected_scalar = block%n_scalar_variable*block%n_field_level* &
+         block%scalar_mult*size(block%ghost_node)
+    expected_vector = block%n_field_level*block%vector_mult* &
+         size(block%ghost_node)
+    if (size(block%ghost_scalar) /= expected_scalar .or. &
+         size(block%ghost_scalar_mean) /= expected_scalar .or. &
+         size(block%ghost_wavelet_scalar) /= expected_scalar .or. &
+         size(block%ghost_vector) /= expected_vector .or. &
+         size(block%ghost_vector_mean) /= expected_vector .or. &
+         size(block%ghost_wavelet_vector) /= expected_vector) then
+       call fail("field consumer received invalid ghost fields")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Field_Traversal_Context)
+       statistics%block_count = statistics%block_count + 1_int64
+       statistics%patch_count = statistics%patch_count + &
+            int(size(block%patch),int64)
+       statistics%boundary_count = statistics%boundary_count + &
+            int(size(block%bdry_storage),int64)
+       statistics%ghost_count = statistics%ghost_count + &
+            int(size(block%ghost_storage),int64)
+       statistics%node_count = statistics%node_count + int(n_node,int64)
+       statistics%boundary_node_count = &
+            statistics%boundary_node_count + &
+            int(size(block%bdry_node),int64)
+       statistics%ghost_node_count = statistics%ghost_node_count + &
+            int(size(block%ghost_node),int64)
+
+       statistics%scalar_count = statistics%scalar_count + &
+            int(size(block%scalar),int64)
+       statistics%vector_count = statistics%vector_count + &
+            int(size(block%vector),int64)
+
+       statistics%scalar_moment(:,1) = &
+            statistics%scalar_moment(:,1) + [ &
+            sum(block%scalar),sum(abs(block%scalar)), &
+            sum(block%scalar**2) ]
+       statistics%scalar_moment(:,2) = &
+            statistics%scalar_moment(:,2) + [ &
+            sum(block%scalar_mean),sum(abs(block%scalar_mean)), &
+            sum(block%scalar_mean**2) ]
+       statistics%scalar_moment(:,3) = &
+            statistics%scalar_moment(:,3) + [ &
+            sum(block%wavelet_scalar), &
+            sum(abs(block%wavelet_scalar)), &
+            sum(block%wavelet_scalar**2) ]
+
+       statistics%vector_moment(:,1) = &
+            statistics%vector_moment(:,1) + [ &
+            sum(block%vector),sum(abs(block%vector)), &
+            sum(block%vector**2) ]
+       statistics%vector_moment(:,2) = &
+            statistics%vector_moment(:,2) + [ &
+            sum(block%vector_mean),sum(abs(block%vector_mean)), &
+            sum(block%vector_mean**2) ]
+       statistics%vector_moment(:,3) = &
+            statistics%vector_moment(:,3) + [ &
+            sum(block%wavelet_vector), &
+            sum(abs(block%wavelet_vector)), &
+            sum(block%wavelet_vector**2) ]
+
+       if (compressible) then
+          if (block%scalar_mult /= 1 .or. &
+               block%field_level > 1 .or. &
+               block%field_level+block%n_field_level-1 < zlevels) then
+             call fail("field consumer cannot diagnose surface pressure")
+          end if
+
+          mass_slot = S_MASS - block%scalar_variable
+          temperature_slot = S_TEMP - block%scalar_variable
+          if (mass_slot < 0 .or. &
+               mass_slot >= block%n_scalar_variable .or. &
+               temperature_slot < 0 .or. &
+               temperature_slot >= block%n_scalar_variable) then
+             call fail("field consumer lacks thermodynamic variables")
+          end if
+
+          scalar_variable_size = block%n_field_level*n_node
+          do i = 1,n_node
+             pressure = p_top
+             do k = 1,zlevels
+                mass_index = mass_slot*scalar_variable_size + &
+                     (k-block%field_level)*n_node + i
+                rho_dz = block%scalar(mass_index) + &
+                     block%scalar_mean(mass_index)
+                if (rho_dz <= 0.0_dp) then
+                   call fail("field consumer diagnosed nonpositive mass")
+                end if
+                pressure = pressure + grav_accel*rho_dz
+             end do
+
+             statistics%surface_count = &
+                  statistics%surface_count + 1_int64
+             statistics%surface_moment(1) = &
+                  statistics%surface_moment(1) + pressure
+             statistics%surface_moment(2) = &
+                  statistics%surface_moment(2) + abs(pressure)
+             statistics%surface_moment(3) = &
+                  statistics%surface_moment(3) + pressure**2
+          end do
+       end if
+    class default
+       call fail("field consumer received invalid context")
+    end select
+
+  end subroutine accumulate_block_field_consumer
+
+
+  subroutine check_block_field_consumer (verbose)
+    ! Exercise the generalized production traversal, compare direct field
+    ! inventories with established consumers and validate the first compact
+    ! prognostic-to-surface-pressure diagnostic in shadow mode.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: catalog_index
+    integer :: local_index
+
+    integer(int64) :: expected_boundary_count
+    integer(int64) :: expected_ghost_count
+    integer(int64) :: expected_patch_count
+    integer(int64) :: column_count
+    integer(int64) :: field_count(2)
+    integer(int64) :: mean_count(2)
+    integer(int64) :: refresh_count_before
+    integer(int64) :: surface_count
+    integer(int64) :: wavelet_count(2)
+
+    real(dp) :: column_moment(3)
+    real(dp) :: field_moment(3,2)
+    real(dp) :: mean_moment(3,2)
+    real(dp) :: surface_moment(3)
+    real(dp) :: temperature_moment(3)
+    real(dp) :: wavelet_moment(3,2)
+
+    logical :: print_summary
+
+    type(Block_Field_Traversal_Context) :: statistics
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+    call local_block_mean_field_statistics( &
+         mean_count(1),mean_count(2), &
+         mean_moment(:,1),mean_moment(:,2))
+    call local_block_wavelet_statistics( &
+         wavelet_count(1),wavelet_count(2), &
+         wavelet_moment(:,1),wavelet_moment(:,2))
+
+    surface_count = 0_int64
+    surface_moment = 0.0_dp
+    if (compressible) then
+       call local_block_hydrostatic_statistics( &
+            surface_count,column_count,surface_moment, &
+            column_moment,temperature_moment)
+    end if
+
+    refresh_count_before = local_block_hydrostatic_refresh_count()
+    statistics = Block_Field_Traversal_Context()
+    call apply_local_block_field_consumer( &
+         accumulate_block_field_consumer,statistics)
+
+    if (local_block_hydrostatic_refresh_count() /= &
+         refresh_count_before) then
+       call fail("production field consumer refreshed hydrostatic cache")
+    end if
+
+    expected_patch_count = 0_int64
+    expected_boundary_count = 0_int64
+    expected_ghost_count = 0_int64
+    do local_index = 1,n_local_blocks()
+       catalog_index = local_block_catalog(local_index)
+       expected_patch_count = expected_patch_count + &
+            int(local_block_patch_count(catalog_index),int64)
+       expected_boundary_count = expected_boundary_count + &
+            int(local_block_boundary_count(catalog_index),int64)
+       expected_ghost_count = expected_ghost_count + &
+            int(local_block_ghost_count(catalog_index),int64)
+    end do
+
+    if (statistics%block_count /= int(n_local_blocks(),int64) .or. &
+         statistics%patch_count /= expected_patch_count .or. &
+         statistics%boundary_count /= expected_boundary_count .or. &
+         statistics%ghost_count /= expected_ghost_count .or. &
+         statistics%node_count /= expected_patch_count*PATCH_SIZE**2) then
+       call fail("production field consumer topology mismatch")
+    end if
+
+    if (statistics%scalar_count(1) /= field_count(1) .or. &
+         statistics%scalar_count(2) /= mean_count(1) .or. &
+         statistics%scalar_count(3) /= wavelet_count(1) .or. &
+         statistics%vector_count(1) /= field_count(2) .or. &
+         statistics%vector_count(2) /= mean_count(2) .or. &
+         statistics%vector_count(3) /= wavelet_count(2)) then
+       call fail("production field consumer inventory count mismatch")
+    end if
+
+    if (.not. field_moments_match( &
+         statistics%scalar_moment(:,1),field_moment(:,1), &
+         field_count(1)) .or. &
+         .not. field_moments_match( &
+         statistics%scalar_moment(:,2),mean_moment(:,1), &
+         mean_count(1)) .or. &
+         .not. field_moments_match( &
+         statistics%scalar_moment(:,3),wavelet_moment(:,1), &
+         wavelet_count(1)) .or. &
+         .not. field_moments_match( &
+         statistics%vector_moment(:,1),field_moment(:,2), &
+         field_count(2)) .or. &
+         .not. field_moments_match( &
+         statistics%vector_moment(:,2),mean_moment(:,2), &
+         mean_count(2)) .or. &
+         .not. field_moments_match( &
+         statistics%vector_moment(:,3),wavelet_moment(:,2), &
+         wavelet_count(2))) then
+       call fail("production field consumer inventory moment mismatch")
+    end if
+
+    if (compressible) then
+       if (statistics%surface_count /= surface_count) then
+          call fail("production surface-pressure count mismatch")
+       end if
+       if (column_count /= int(zlevels,int64)*surface_count) then
+          call fail("production hydrostatic column count mismatch")
+       end if
+       if (.not. field_moments_match( &
+            statistics%surface_moment,surface_moment,surface_count)) then
+          call fail("production surface-pressure diagnostic mismatch")
+       end if
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Block prognostic traversal for rank ", rank, ":"
+       write(6,'(a,i0)') &
+            "  local blocks consumed       = ", statistics%block_count
+       write(6,'(a,i0)') &
+            "  local patches consumed      = ", statistics%patch_count
+       write(6,'(a,i0)') &
+            "  local boundary records seen = ", statistics%boundary_count
+       write(6,'(a,i0)') &
+            "  local ghost records seen    = ", statistics%ghost_count
+       write(6,'(a)') &
+            "  direct sol/sol_mean/wav_coeff traversal passed"
+       write(6,'(a)') &
+            "  topology and boundary/ghost views passed"
+       if (compressible) then
+          write(6,'(a,/)') &
+               "  prognostic surface-pressure shadow kernel passed"
+       end if
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,/)') &
+            "Production block prognostic-field traversal passed"
+    end if
+
+  end subroutine check_block_field_consumer
 
 
   subroutine accumulate_block_hydrostatic_consumer ( &

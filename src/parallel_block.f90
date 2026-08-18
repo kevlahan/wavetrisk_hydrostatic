@@ -160,6 +160,14 @@ module parallel_block_mod
 
 
   abstract interface
+     subroutine Local_Block_Field_Consumer (catalog_index,block,context)
+       import :: Block_Data
+
+       integer, intent(in) :: catalog_index
+       type(Block_Data), intent(in) :: block
+       class(*), intent(inout) :: context
+     end subroutine Local_Block_Field_Consumer
+
      subroutine Local_Block_Hydrostatic_Consumer ( &
           catalog_index,n_patch,surface_pressure,dynamic_exner, &
           air_temperature,context)
@@ -277,6 +285,8 @@ module parallel_block_mod
   public :: local_block_hydrostatic_column_nvalue
   public :: get_local_block_hydrostatic_patch_values
   public :: get_local_block_hydrostatic_values
+  public :: Local_Block_Field_Consumer
+  public :: apply_local_block_field_consumer
   public :: Local_Block_Hydrostatic_Consumer
   public :: apply_local_block_hydrostatic_consumer
   public :: local_block_hydrostatic_statistics
@@ -882,6 +892,50 @@ subroutine check_local_block_storage (local_index,check_serialization)
   call check_block_storage(block_local(local_index),serialize)
 
 end subroutine check_local_block_storage
+
+
+subroutine apply_local_block_field_consumer (consumer,context)
+  ! Apply one caller-supplied read-only production kernel to every local
+  ! block. The callback receives the compact interior, boundary and ghost
+  ! fields together with their topology without constructing copies.
+
+  implicit none
+
+  procedure(Local_Block_Field_Consumer) :: consumer
+  class(*), intent(inout) :: context
+
+  integer :: catalog_index
+  integer :: local_index
+  integer :: n_block_before
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "apply_local_block_field_consumer: store is not ready"
+  end if
+
+  n_block_before = size(block_local)
+
+  do local_index = 1,n_block_before
+     catalog_index = block_local_catalog_index(local_index)
+     if (catalog_index < 1) then
+        error stop &
+             "apply_local_block_field_consumer: invalid catalogue index"
+     end if
+
+     call consumer(catalog_index,block_local(local_index),context)
+
+     if (.not. local_block_store_ready()) then
+        error stop &
+             "apply_local_block_field_consumer: store changed"
+     end if
+     if (size(block_local) /= n_block_before .or. &
+          block_local_catalog_index(local_index) /= catalog_index) then
+        error stop &
+             "apply_local_block_field_consumer: traversal changed"
+     end if
+  end do
+
+end subroutine apply_local_block_field_consumer
 
 
 subroutine local_block_field_statistics ( &
