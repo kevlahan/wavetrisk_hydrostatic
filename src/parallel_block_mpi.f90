@@ -191,6 +191,42 @@ module parallel_block_mpi_mod
 
   type(Block_Ghost_Exchange_Plan), save :: ghost_exchange_plan
 
+  type :: Block_Writeback_Plan_Type
+     integer :: catalog_size = 0
+     integer :: installed_block_count = 0
+     integer :: n_send = 0
+     integer :: n_recv = 0
+     integer :: n_retained = 0
+     integer, allocatable :: send_count(:)
+     integer, allocatable :: recv_count(:)
+     integer, allocatable :: send_displ(:)
+     integer, allocatable :: recv_displ(:)
+     integer, allocatable :: send_block(:)
+     integer, allocatable :: recv_block(:)
+     integer, allocatable :: send_patch_count(:)
+     integer, allocatable :: recv_patch_count(:)
+     integer, allocatable :: send_scalar_nvalue(:)
+     integer, allocatable :: recv_scalar_nvalue(:)
+     integer, allocatable :: send_vector_nvalue(:)
+     integer, allocatable :: recv_vector_nvalue(:)
+     integer, allocatable :: scalar_send_count(:)
+     integer, allocatable :: scalar_recv_count(:)
+     integer, allocatable :: scalar_send_displ(:)
+     integer, allocatable :: scalar_recv_displ(:)
+     integer, allocatable :: vector_send_count(:)
+     integer, allocatable :: vector_recv_count(:)
+     integer, allocatable :: vector_send_displ(:)
+     integer, allocatable :: vector_recv_displ(:)
+     real(dp), allocatable :: scalar_send_buffer(:)
+     real(dp), allocatable :: scalar_recv_buffer(:)
+     real(dp), allocatable :: vector_send_buffer(:)
+     real(dp), allocatable :: vector_recv_buffer(:)
+     integer(int64) :: buffer_allocations = 0_int64
+     logical :: ready = .false.
+  end type Block_Writeback_Plan_Type
+
+  type(Block_Writeback_Plan_Type), save :: block_writeback_plan
+
   type :: Block_Boundary_Snapshot
      integer :: catalog_index = 0
      integer :: boundary_index = 0
@@ -281,6 +317,13 @@ module parallel_block_mpi_mod
   public :: build_block_ghost_exchange_plan
   public :: clear_block_ghost_exchange_plan
   public :: check_block_ghost_exchange_plan
+  public :: build_block_writeback_plan
+  public :: clear_block_writeback_plan
+  public :: check_block_writeback_plan
+  public :: exchange_block_writeback_payloads
+  public :: check_block_writeback_payload_exchange
+  public :: block_writeback_plan_is_ready
+  public :: block_writeback_plan_allocation_count
   public :: check_block_scalar_ghost_payload_exchange
   public :: check_block_vector_ghost_payload_exchange
   public :: refresh_block_sol_ghosts
@@ -321,6 +364,7 @@ contains
     implicit none
 
     call clear_block_ghost_exchange_plan
+    call clear_block_writeback_plan
     call clear_local_blocks
     call clear_block_staging
 
@@ -1076,6 +1120,9 @@ end subroutine build_parallel_block_catalog
     call check_block_ghost_request_manifest(print_local)
     call build_block_ghost_exchange_plan
     call check_block_ghost_exchange_plan(print_local)
+    call build_block_writeback_plan
+    call check_block_writeback_plan(print_local)
+    call check_block_writeback_payload_exchange(print_local)
     call check_block_scalar_ghost_payload_exchange(print_local)
     call check_block_vector_ghost_payload_exchange(print_local)
     call check_production_block_ghost_refresh(print_local)
@@ -2459,6 +2506,1084 @@ end subroutine build_parallel_block_catalog
     deallocate(source_owner)
 
   end subroutine check_block_ghost_exchange_plan
+
+
+  subroutine clear_block_writeback_plan
+    ! Release reverse-routing metadata and payload buffers before the block
+    ! catalogue or installed store is invalidated.
+
+    implicit none
+
+    if (allocated(block_writeback_plan%send_count)) then
+       deallocate(block_writeback_plan%send_count)
+    end if
+    if (allocated(block_writeback_plan%recv_count)) then
+       deallocate(block_writeback_plan%recv_count)
+    end if
+    if (allocated(block_writeback_plan%send_displ)) then
+       deallocate(block_writeback_plan%send_displ)
+    end if
+    if (allocated(block_writeback_plan%recv_displ)) then
+       deallocate(block_writeback_plan%recv_displ)
+    end if
+    if (allocated(block_writeback_plan%send_block)) then
+       deallocate(block_writeback_plan%send_block)
+    end if
+    if (allocated(block_writeback_plan%recv_block)) then
+       deallocate(block_writeback_plan%recv_block)
+    end if
+    if (allocated(block_writeback_plan%send_patch_count)) then
+       deallocate(block_writeback_plan%send_patch_count)
+    end if
+    if (allocated(block_writeback_plan%recv_patch_count)) then
+       deallocate(block_writeback_plan%recv_patch_count)
+    end if
+    if (allocated(block_writeback_plan%send_scalar_nvalue)) then
+       deallocate(block_writeback_plan%send_scalar_nvalue)
+    end if
+    if (allocated(block_writeback_plan%recv_scalar_nvalue)) then
+       deallocate(block_writeback_plan%recv_scalar_nvalue)
+    end if
+    if (allocated(block_writeback_plan%send_vector_nvalue)) then
+       deallocate(block_writeback_plan%send_vector_nvalue)
+    end if
+    if (allocated(block_writeback_plan%recv_vector_nvalue)) then
+       deallocate(block_writeback_plan%recv_vector_nvalue)
+    end if
+    if (allocated(block_writeback_plan%scalar_send_count)) then
+       deallocate(block_writeback_plan%scalar_send_count)
+    end if
+    if (allocated(block_writeback_plan%scalar_recv_count)) then
+       deallocate(block_writeback_plan%scalar_recv_count)
+    end if
+    if (allocated(block_writeback_plan%scalar_send_displ)) then
+       deallocate(block_writeback_plan%scalar_send_displ)
+    end if
+    if (allocated(block_writeback_plan%scalar_recv_displ)) then
+       deallocate(block_writeback_plan%scalar_recv_displ)
+    end if
+    if (allocated(block_writeback_plan%vector_send_count)) then
+       deallocate(block_writeback_plan%vector_send_count)
+    end if
+    if (allocated(block_writeback_plan%vector_recv_count)) then
+       deallocate(block_writeback_plan%vector_recv_count)
+    end if
+    if (allocated(block_writeback_plan%vector_send_displ)) then
+       deallocate(block_writeback_plan%vector_send_displ)
+    end if
+    if (allocated(block_writeback_plan%vector_recv_displ)) then
+       deallocate(block_writeback_plan%vector_recv_displ)
+    end if
+    if (allocated(block_writeback_plan%scalar_send_buffer)) then
+       deallocate(block_writeback_plan%scalar_send_buffer)
+    end if
+    if (allocated(block_writeback_plan%scalar_recv_buffer)) then
+       deallocate(block_writeback_plan%scalar_recv_buffer)
+    end if
+    if (allocated(block_writeback_plan%vector_send_buffer)) then
+       deallocate(block_writeback_plan%vector_send_buffer)
+    end if
+    if (allocated(block_writeback_plan%vector_recv_buffer)) then
+       deallocate(block_writeback_plan%vector_recv_buffer)
+    end if
+
+    block_writeback_plan%catalog_size = 0
+    block_writeback_plan%installed_block_count = 0
+    block_writeback_plan%n_send = 0
+    block_writeback_plan%n_recv = 0
+    block_writeback_plan%n_retained = 0
+    block_writeback_plan%ready = .false.
+
+  end subroutine clear_block_writeback_plan
+
+
+  subroutine build_block_writeback_plan
+    ! Build persistent reverse routes from final block owners to the ranks
+    ! that own the corresponding legacy Domains. No field is overwritten.
+
+    implicit none
+
+    integer :: b
+    integer :: current_block_count
+    integer :: destination
+    integer :: first
+    integer :: ierr
+    integer :: last
+    integer :: local_index
+    integer :: n_patch
+    integer :: r
+    integer :: slot
+
+    integer, allocatable :: cursor(:)
+
+    integer(int64) :: rank_nvalue
+
+    if (.not. allocated(block_catalog) .or. &
+         .not. allocated(owner)) then
+       call fail("writeback plan before catalogue ownership is ready")
+    end if
+    if (.not. local_block_store_ready()) then
+       call fail("writeback plan before local block installation")
+    end if
+
+    current_block_count = n_local_blocks()
+
+    if (block_writeback_plan%ready) then
+       if (block_writeback_plan%catalog_size /= size(block_catalog) .or. &
+            block_writeback_plan%installed_block_count /= &
+            current_block_count) then
+          call fail("ready writeback plan has stale block coverage")
+       end if
+       return
+    end if
+
+    call clear_block_writeback_plan
+
+    allocate(block_writeback_plan%send_count(n_process))
+    allocate(block_writeback_plan%recv_count(n_process))
+    allocate(block_writeback_plan%send_displ(n_process))
+    allocate(block_writeback_plan%recv_displ(n_process))
+
+    block_writeback_plan%send_count = 0
+    block_writeback_plan%recv_count = 0
+    block_writeback_plan%send_displ = 0
+    block_writeback_plan%recv_displ = 0
+    block_writeback_plan%n_retained = 0
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       if (block_catalog(b)%owner /= rank) then
+          call fail("writeback source block has wrong final owner")
+       end if
+       destination = source_rank(b)
+       if (destination == rank) then
+          block_writeback_plan%n_retained = &
+               block_writeback_plan%n_retained + 1
+       else
+          block_writeback_plan%send_count(destination+1) = &
+               block_writeback_plan%send_count(destination+1) + 1
+       end if
+    end do
+
+    call MPI_Alltoall( &
+         block_writeback_plan%send_count,1,MPI_INTEGER, &
+         block_writeback_plan%recv_count,1,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoall writeback block counts")
+
+    do r = 2,n_process
+       block_writeback_plan%send_displ(r) = &
+            block_writeback_plan%send_displ(r-1) + &
+            block_writeback_plan%send_count(r-1)
+       block_writeback_plan%recv_displ(r) = &
+            block_writeback_plan%recv_displ(r-1) + &
+            block_writeback_plan%recv_count(r-1)
+    end do
+
+    block_writeback_plan%n_send = &
+         sum(block_writeback_plan%send_count)
+    block_writeback_plan%n_recv = &
+         sum(block_writeback_plan%recv_count)
+
+    allocate(block_writeback_plan%send_block( &
+         max(1,block_writeback_plan%n_send)))
+    allocate(block_writeback_plan%recv_block( &
+         max(1,block_writeback_plan%n_recv)))
+    block_writeback_plan%send_block = 0
+    block_writeback_plan%recv_block = 0
+
+    allocate(cursor(n_process))
+    cursor = block_writeback_plan%send_displ
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       destination = source_rank(b)
+       if (destination == rank) cycle
+       slot = cursor(destination+1) + 1
+       if (slot < 1 .or. slot > block_writeback_plan%n_send) then
+          call fail("writeback send-block position is invalid")
+       end if
+       block_writeback_plan%send_block(slot) = b
+       cursor(destination+1) = cursor(destination+1) + 1
+    end do
+    do r = 1,n_process
+       if (cursor(r) /= block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)) then
+          call fail("writeback send-block count mismatch")
+       end if
+    end do
+    deallocate(cursor)
+
+    call MPI_Alltoallv( &
+         block_writeback_plan%send_block, &
+         block_writeback_plan%send_count, &
+         block_writeback_plan%send_displ,MPI_INTEGER, &
+         block_writeback_plan%recv_block, &
+         block_writeback_plan%recv_count, &
+         block_writeback_plan%recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv writeback block manifest")
+
+    allocate(block_writeback_plan%send_patch_count( &
+         max(1,block_writeback_plan%n_send)))
+    allocate(block_writeback_plan%recv_patch_count( &
+         max(1,block_writeback_plan%n_recv)))
+    allocate(block_writeback_plan%send_scalar_nvalue( &
+         max(1,block_writeback_plan%n_send)))
+    allocate(block_writeback_plan%recv_scalar_nvalue( &
+         max(1,block_writeback_plan%n_recv)))
+    allocate(block_writeback_plan%send_vector_nvalue( &
+         max(1,block_writeback_plan%n_send)))
+    allocate(block_writeback_plan%recv_vector_nvalue( &
+         max(1,block_writeback_plan%n_recv)))
+
+    block_writeback_plan%send_patch_count = 0
+    block_writeback_plan%recv_patch_count = 0
+    block_writeback_plan%send_scalar_nvalue = 0
+    block_writeback_plan%recv_scalar_nvalue = 0
+    block_writeback_plan%send_vector_nvalue = 0
+    block_writeback_plan%recv_vector_nvalue = 0
+
+    do slot = 1,block_writeback_plan%n_send
+       b = block_writeback_plan%send_block(slot)
+       n_patch = local_block_patch_count(b)
+       block_writeback_plan%send_patch_count(slot) = n_patch
+       block_writeback_plan%send_scalar_nvalue(slot) = n_patch * &
+            local_block_scalar_family_patch_nvalue(b)
+       block_writeback_plan%send_vector_nvalue(slot) = n_patch * &
+            local_block_vector_family_patch_nvalue(b)
+       if (n_patch <= 0 .or. &
+            block_writeback_plan%send_scalar_nvalue(slot) <= 0 .or. &
+            block_writeback_plan%send_vector_nvalue(slot) <= 0) then
+          call fail("writeback send payload extent is invalid")
+       end if
+    end do
+
+    call MPI_Alltoallv( &
+         block_writeback_plan%send_patch_count, &
+         block_writeback_plan%send_count, &
+         block_writeback_plan%send_displ,MPI_INTEGER, &
+         block_writeback_plan%recv_patch_count, &
+         block_writeback_plan%recv_count, &
+         block_writeback_plan%recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv writeback patch counts")
+    call MPI_Alltoallv( &
+         block_writeback_plan%send_scalar_nvalue, &
+         block_writeback_plan%send_count, &
+         block_writeback_plan%send_displ,MPI_INTEGER, &
+         block_writeback_plan%recv_scalar_nvalue, &
+         block_writeback_plan%recv_count, &
+         block_writeback_plan%recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv writeback scalar extents")
+    call MPI_Alltoallv( &
+         block_writeback_plan%send_vector_nvalue, &
+         block_writeback_plan%send_count, &
+         block_writeback_plan%send_displ,MPI_INTEGER, &
+         block_writeback_plan%recv_vector_nvalue, &
+         block_writeback_plan%recv_count, &
+         block_writeback_plan%recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv writeback vector extents")
+
+    allocate(block_writeback_plan%scalar_send_count(n_process))
+    allocate(block_writeback_plan%scalar_recv_count(n_process))
+    allocate(block_writeback_plan%scalar_send_displ(n_process))
+    allocate(block_writeback_plan%scalar_recv_displ(n_process))
+    allocate(block_writeback_plan%vector_send_count(n_process))
+    allocate(block_writeback_plan%vector_recv_count(n_process))
+    allocate(block_writeback_plan%vector_send_displ(n_process))
+    allocate(block_writeback_plan%vector_recv_displ(n_process))
+
+    block_writeback_plan%scalar_send_count = 0
+    block_writeback_plan%scalar_recv_count = 0
+    block_writeback_plan%scalar_send_displ = 0
+    block_writeback_plan%scalar_recv_displ = 0
+    block_writeback_plan%vector_send_count = 0
+    block_writeback_plan%vector_recv_count = 0
+    block_writeback_plan%vector_send_displ = 0
+    block_writeback_plan%vector_recv_displ = 0
+
+    do r = 1,n_process
+       first = block_writeback_plan%send_displ(r) + 1
+       last = block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+       rank_nvalue = 0_int64
+       if (last >= first) then
+          rank_nvalue = sum(int( &
+               block_writeback_plan%send_scalar_nvalue(first:last), &
+               int64))
+       end if
+       if (rank_nvalue > int(huge(0),int64)) then
+          call fail("writeback scalar send count exceeds MPI range")
+       end if
+       block_writeback_plan%scalar_send_count(r) = int(rank_nvalue)
+
+       rank_nvalue = 0_int64
+       if (last >= first) then
+          rank_nvalue = sum(int( &
+               block_writeback_plan%send_vector_nvalue(first:last), &
+               int64))
+       end if
+       if (rank_nvalue > int(huge(0),int64)) then
+          call fail("writeback vector send count exceeds MPI range")
+       end if
+       block_writeback_plan%vector_send_count(r) = int(rank_nvalue)
+
+       first = block_writeback_plan%recv_displ(r) + 1
+       last = block_writeback_plan%recv_displ(r) + &
+            block_writeback_plan%recv_count(r)
+       rank_nvalue = 0_int64
+       if (last >= first) then
+          rank_nvalue = sum(int( &
+               block_writeback_plan%recv_scalar_nvalue(first:last), &
+               int64))
+       end if
+       if (rank_nvalue > int(huge(0),int64)) then
+          call fail("writeback scalar receive count exceeds MPI range")
+       end if
+       block_writeback_plan%scalar_recv_count(r) = int(rank_nvalue)
+
+       rank_nvalue = 0_int64
+       if (last >= first) then
+          rank_nvalue = sum(int( &
+               block_writeback_plan%recv_vector_nvalue(first:last), &
+               int64))
+       end if
+       if (rank_nvalue > int(huge(0),int64)) then
+          call fail("writeback vector receive count exceeds MPI range")
+       end if
+       block_writeback_plan%vector_recv_count(r) = int(rank_nvalue)
+    end do
+
+    do r = 2,n_process
+       block_writeback_plan%scalar_send_displ(r) = &
+            block_writeback_plan%scalar_send_displ(r-1) + &
+            block_writeback_plan%scalar_send_count(r-1)
+       block_writeback_plan%scalar_recv_displ(r) = &
+            block_writeback_plan%scalar_recv_displ(r-1) + &
+            block_writeback_plan%scalar_recv_count(r-1)
+       block_writeback_plan%vector_send_displ(r) = &
+            block_writeback_plan%vector_send_displ(r-1) + &
+            block_writeback_plan%vector_send_count(r-1)
+       block_writeback_plan%vector_recv_displ(r) = &
+            block_writeback_plan%vector_recv_displ(r-1) + &
+            block_writeback_plan%vector_recv_count(r-1)
+    end do
+
+    allocate(block_writeback_plan%scalar_send_buffer(max(1, &
+         sum(block_writeback_plan%scalar_send_count))))
+    allocate(block_writeback_plan%scalar_recv_buffer(max(1, &
+         sum(block_writeback_plan%scalar_recv_count))))
+    allocate(block_writeback_plan%vector_send_buffer(max(1, &
+         sum(block_writeback_plan%vector_send_count))))
+    allocate(block_writeback_plan%vector_recv_buffer(max(1, &
+         sum(block_writeback_plan%vector_recv_count))))
+    block_writeback_plan%buffer_allocations = &
+         block_writeback_plan%buffer_allocations + 4_int64
+
+    block_writeback_plan%scalar_send_buffer = 0.0_dp
+    block_writeback_plan%scalar_recv_buffer = 0.0_dp
+    block_writeback_plan%vector_send_buffer = 0.0_dp
+    block_writeback_plan%vector_recv_buffer = 0.0_dp
+    block_writeback_plan%catalog_size = size(block_catalog)
+    block_writeback_plan%installed_block_count = n_local_blocks()
+    block_writeback_plan%ready = .true.
+
+  end subroutine build_block_writeback_plan
+
+
+  logical function block_writeback_plan_is_ready () result(ready)
+    ! Report whether the reverse Domain-owner routes match this block store.
+
+    implicit none
+
+    ready = .false.
+    if (.not. block_writeback_plan%ready) return
+    if (.not. allocated(block_catalog)) return
+    if (.not. local_block_store_ready()) return
+    if (block_writeback_plan%catalog_size /= size(block_catalog)) return
+    if (block_writeback_plan%installed_block_count /= &
+         n_local_blocks()) return
+    ready = .true.
+
+  end function block_writeback_plan_is_ready
+
+
+  integer(int64) function block_writeback_plan_allocation_count () &
+       result(n_allocation)
+    ! Count persistent scalar/vector communication-buffer allocations.
+
+    implicit none
+
+    n_allocation = block_writeback_plan%buffer_allocations
+
+  end function block_writeback_plan_allocation_count
+
+
+  subroutine check_block_writeback_plan (verbose)
+    ! Prove that every final-owner block has exactly one reverse route to
+    ! its Domain owner and that all future payload extents balance globally.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: destination
+    integer :: expected_remote
+    integer :: expected_retained
+    integer :: ierr
+    integer :: pos
+    integer :: r
+
+    integer(int64) :: allocation_before
+    integer(int64) :: expected_checksum
+    integer(int64) :: global_recv
+    integer(int64) :: global_recv_checksum
+    integer(int64) :: global_recv_patch
+    integer(int64) :: global_recv_scalar
+    integer(int64) :: global_recv_vector
+    integer(int64) :: global_retained
+    integer(int64) :: global_send
+    integer(int64) :: global_send_checksum
+    integer(int64) :: global_send_patch
+    integer(int64) :: global_send_scalar
+    integer(int64) :: global_send_vector
+    integer(int64) :: local_recv
+    integer(int64) :: local_recv_checksum
+    integer(int64) :: local_recv_patch
+    integer(int64) :: local_recv_scalar
+    integer(int64) :: local_recv_vector
+    integer(int64) :: local_retained
+    integer(int64) :: local_send
+    integer(int64) :: local_send_checksum
+    integer(int64) :: local_send_patch
+    integer(int64) :: local_send_scalar
+    integer(int64) :: local_send_vector
+
+    logical :: print_summary
+    logical, allocatable :: seen(:)
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. block_writeback_plan_is_ready()) then
+       call fail("writeback plan check before plan is ready")
+    end if
+    if (.not. allocated(block_writeback_plan%send_block) .or. &
+         .not. allocated(block_writeback_plan%recv_block) .or. &
+         .not. allocated(block_writeback_plan%send_patch_count) .or. &
+         .not. allocated(block_writeback_plan%recv_patch_count) .or. &
+         .not. allocated(block_writeback_plan%send_scalar_nvalue) .or. &
+         .not. allocated(block_writeback_plan%recv_scalar_nvalue) .or. &
+         .not. allocated(block_writeback_plan%send_vector_nvalue) .or. &
+         .not. allocated(block_writeback_plan%recv_vector_nvalue)) then
+       call fail("writeback plan record storage is incomplete")
+    end if
+    if (.not. allocated(block_writeback_plan%scalar_send_buffer) .or. &
+         .not. allocated(block_writeback_plan%scalar_recv_buffer) .or. &
+         .not. allocated(block_writeback_plan%vector_send_buffer) .or. &
+         .not. allocated(block_writeback_plan%vector_recv_buffer)) then
+       call fail("writeback plan payload storage is incomplete")
+    end if
+
+    if (block_writeback_plan%n_send /= &
+         sum(block_writeback_plan%send_count) .or. &
+         block_writeback_plan%n_recv /= &
+         sum(block_writeback_plan%recv_count)) then
+       call fail("writeback plan block totals are inconsistent")
+    end if
+    if (block_writeback_plan%n_send + &
+         block_writeback_plan%n_retained /= n_local_blocks()) then
+       call fail("writeback plan does not cover every local block")
+    end if
+    if (size(block_writeback_plan%scalar_send_buffer) /= max(1, &
+         sum(block_writeback_plan%scalar_send_count)) .or. &
+         size(block_writeback_plan%scalar_recv_buffer) /= max(1, &
+         sum(block_writeback_plan%scalar_recv_count)) .or. &
+         size(block_writeback_plan%vector_send_buffer) /= max(1, &
+         sum(block_writeback_plan%vector_send_count)) .or. &
+         size(block_writeback_plan%vector_recv_buffer) /= max(1, &
+         sum(block_writeback_plan%vector_recv_count))) then
+       call fail("writeback plan payload buffer extent mismatch")
+    end if
+
+    allocate(seen(size(block_catalog)))
+    seen = .false.
+
+    do r = 0,n_process-1
+       do pos = block_writeback_plan%send_displ(r+1)+1, &
+            block_writeback_plan%send_displ(r+1) + &
+            block_writeback_plan%send_count(r+1)
+          b = block_writeback_plan%send_block(pos)
+          if (b < 1 .or. b > size(block_catalog)) then
+             call fail("writeback send catalogue index is invalid")
+          end if
+          if (seen(b)) then
+             call fail("duplicate block in writeback send manifest")
+          end if
+          seen(b) = .true.
+          destination = source_rank(b)
+          if (block_catalog(b)%owner /= rank .or. &
+               destination /= r .or. r == rank) then
+             call fail("writeback send route is invalid")
+          end if
+          if (catalog_local_block(b) < 1) then
+             call fail("writeback send block is not installed locally")
+          end if
+          if (block_writeback_plan%send_patch_count(pos) <= 0 .or. &
+               block_writeback_plan%send_scalar_nvalue(pos) <= 0 .or. &
+               block_writeback_plan%send_vector_nvalue(pos) <= 0) then
+             call fail("writeback send record has invalid extent")
+          end if
+       end do
+    end do
+
+    seen = .false.
+    do r = 0,n_process-1
+       do pos = block_writeback_plan%recv_displ(r+1)+1, &
+            block_writeback_plan%recv_displ(r+1) + &
+            block_writeback_plan%recv_count(r+1)
+          b = block_writeback_plan%recv_block(pos)
+          if (b < 1 .or. b > size(block_catalog)) then
+             call fail("writeback receive catalogue index is invalid")
+          end if
+          if (seen(b)) then
+             call fail("duplicate block in writeback receive manifest")
+          end if
+          seen(b) = .true.
+          destination = source_rank(b)
+          if (block_catalog(b)%owner /= r .or. &
+               destination /= rank .or. r == rank) then
+             call fail("writeback receive route is invalid")
+          end if
+          if (block_writeback_plan%recv_patch_count(pos) <= 0 .or. &
+               block_writeback_plan%recv_scalar_nvalue(pos) <= 0 .or. &
+               block_writeback_plan%recv_vector_nvalue(pos) <= 0) then
+             call fail("writeback receive record has invalid extent")
+          end if
+       end do
+    end do
+
+    expected_retained = 0
+    do b = 1,size(block_catalog)
+       if (source_rank(b) /= rank) cycle
+       if (block_catalog(b)%owner == rank) then
+          expected_retained = expected_retained + 1
+          if (catalog_local_block(b) < 1) then
+             call fail("retained writeback block is not installed")
+          end if
+       else
+          if (.not. seen(b)) then
+             call fail("Domain-owner writeback block is missing")
+          end if
+       end if
+    end do
+    if (block_writeback_plan%n_retained /= expected_retained) then
+       call fail("writeback retained-block count mismatch")
+    end if
+    deallocate(seen)
+
+    allocation_before = block_writeback_plan_allocation_count()
+    call build_block_writeback_plan
+    if (block_writeback_plan_allocation_count() /= allocation_before) then
+       call fail("ready writeback plan reallocated payload buffers")
+    end if
+
+    local_send_checksum = 0_int64
+    local_recv_checksum = 0_int64
+    if (block_writeback_plan%n_send > 0) then
+       local_send_checksum = sum(int( &
+            block_writeback_plan%send_block( &
+            1:block_writeback_plan%n_send),int64))
+    end if
+    if (block_writeback_plan%n_recv > 0) then
+       local_recv_checksum = sum(int( &
+            block_writeback_plan%recv_block( &
+            1:block_writeback_plan%n_recv),int64))
+    end if
+
+    local_send = int(block_writeback_plan%n_send,int64)
+    local_recv = int(block_writeback_plan%n_recv,int64)
+    local_retained = int(block_writeback_plan%n_retained,int64)
+    local_send_patch = 0_int64
+    local_recv_patch = 0_int64
+    if (block_writeback_plan%n_send > 0) then
+       local_send_patch = sum(int( &
+            block_writeback_plan%send_patch_count( &
+            1:block_writeback_plan%n_send),int64))
+    end if
+    if (block_writeback_plan%n_recv > 0) then
+       local_recv_patch = sum(int( &
+            block_writeback_plan%recv_patch_count( &
+            1:block_writeback_plan%n_recv),int64))
+    end if
+    local_send_scalar = sum(int( &
+         block_writeback_plan%scalar_send_count,int64))
+    local_recv_scalar = sum(int( &
+         block_writeback_plan%scalar_recv_count,int64))
+    local_send_vector = sum(int( &
+         block_writeback_plan%vector_send_count,int64))
+    local_recv_vector = sum(int( &
+         block_writeback_plan%vector_recv_count,int64))
+
+    call MPI_Allreduce(local_send,global_send,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback send blocks")
+    call MPI_Allreduce(local_recv,global_recv,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback receive blocks")
+    call MPI_Allreduce(local_retained,global_retained,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback retained blocks")
+    call MPI_Allreduce(local_send_checksum,global_send_checksum,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback send checksum")
+    call MPI_Allreduce(local_recv_checksum,global_recv_checksum,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback receive checksum")
+    call MPI_Allreduce(local_send_patch,global_send_patch,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback send patches")
+    call MPI_Allreduce(local_recv_patch,global_recv_patch,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback receive patches")
+    call MPI_Allreduce(local_send_scalar,global_send_scalar,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback send scalar values")
+    call MPI_Allreduce(local_recv_scalar,global_recv_scalar,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback receive scalar values")
+    call MPI_Allreduce(local_send_vector,global_send_vector,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback send vector values")
+    call MPI_Allreduce(local_recv_vector,global_recv_vector,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writeback receive vector values")
+
+    expected_remote = 0
+    expected_checksum = 0_int64
+    do b = 1,size(block_catalog)
+       if (block_catalog(b)%owner == source_rank(b)) cycle
+       expected_remote = expected_remote + 1
+       expected_checksum = expected_checksum + int(b,int64)
+    end do
+
+    if (global_send /= int(expected_remote,int64) .or. &
+         global_recv /= int(expected_remote,int64) .or. &
+         global_retained+global_send /= &
+         int(size(block_catalog),int64)) then
+       call fail("global writeback block coverage mismatch")
+    end if
+    if (global_send_checksum /= expected_checksum .or. &
+         global_recv_checksum /= expected_checksum) then
+       call fail("global writeback catalogue checksum mismatch")
+    end if
+    if (global_send_patch /= global_recv_patch .or. &
+         global_send_scalar /= global_recv_scalar .or. &
+         global_send_vector /= global_recv_vector) then
+       call fail("global writeback payload extent mismatch")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Persistent block writeback plan for rank ",rank,":"
+       write(6,'(a,i0)') "  remote blocks sent     = ", &
+            block_writeback_plan%n_send
+       write(6,'(a,i0)') "  remote blocks received = ", &
+            block_writeback_plan%n_recv
+       write(6,'(a,i0)') "  locally retained blocks = ", &
+            block_writeback_plan%n_retained
+       write(6,'(a,i0)') "  scalar send values      = ", &
+            sum(block_writeback_plan%scalar_send_count)
+       write(6,'(a,i0)') "  vector send values      = ", &
+            sum(block_writeback_plan%vector_send_count)
+       write(6,'(a)') "  final-owner to Domain-owner routes passed"
+       write(6,'(a)') "  patch and payload extent exchange passed"
+       write(6,'(a,/)') "  persistent buffer reuse passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global remote block writeback routes = ",global_send
+       write(6,'(a,i0)') &
+            "Global retained block writeback routes = ",global_retained
+       write(6,'(a,i0)') &
+            "Global writeback patches = ",global_send_patch
+       write(6,'(a,i0)') &
+            "Global writeback scalar values = ",global_send_scalar
+       write(6,'(a,i0)') &
+            "Global writeback vector values = ",global_send_vector
+       write(6,'(a,/)') &
+            "Persistent block-to-Domain writeback plan passed"
+    end if
+
+  end subroutine check_block_writeback_plan
+
+
+  subroutine exchange_block_writeback_payloads
+    ! Pack the scalar/vector prognostic sol interiors owned by final block
+    ! ranks and transport them back to the legacy Domain owners.
+    ! The persistent plan buffers are reused and Domain fields are unchanged.
+
+    implicit none
+
+    integer :: b
+    integer :: ierr
+    integer :: local_patch
+    integer :: n_patch
+    integer :: n_scalar_patch
+    integer :: n_vector_patch
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: slot
+
+    if (.not. block_writeback_plan_is_ready()) then
+       call fail("writeback payload exchange before plan is ready")
+    end if
+
+    block_writeback_plan%scalar_send_buffer = 0.0_dp
+    block_writeback_plan%scalar_recv_buffer = 0.0_dp
+    block_writeback_plan%vector_send_buffer = 0.0_dp
+    block_writeback_plan%vector_recv_buffer = 0.0_dp
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+       pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          n_patch = local_block_patch_count(b)
+          n_scalar_patch = local_block_scalar_family_patch_nvalue(b)
+          n_vector_patch = local_block_vector_family_patch_nvalue(b)
+
+          if (n_patch /= block_writeback_plan%send_patch_count(slot) .or. &
+               n_patch*n_scalar_patch /= &
+               block_writeback_plan%send_scalar_nvalue(slot) .or. &
+               n_patch*n_vector_patch /= &
+               block_writeback_plan%send_vector_nvalue(slot)) then
+             call fail("writeback payload source extent changed")
+          end if
+
+          do local_patch = 0,n_patch-1
+             call get_local_block_scalar_patch_family_values( &
+                  b,local_patch,BLOCK_PAYLOAD_SOL, &
+                  block_writeback_plan%scalar_send_buffer( &
+                  pos_scalar:pos_scalar+n_scalar_patch-1))
+             call get_local_block_vector_patch_family_values( &
+                  b,local_patch,BLOCK_PAYLOAD_SOL, &
+                  block_writeback_plan%vector_send_buffer( &
+                  pos_vector:pos_vector+n_vector_patch-1))
+             pos_scalar = pos_scalar + n_scalar_patch
+             pos_vector = pos_vector + n_vector_patch
+          end do
+       end do
+
+       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+            block_writeback_plan%scalar_send_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+            block_writeback_plan%vector_send_count(r) + 1) then
+          call fail("writeback packed send extent mismatch")
+       end if
+    end do
+
+    call MPI_Alltoallv( &
+         block_writeback_plan%scalar_send_buffer, &
+         block_writeback_plan%scalar_send_count, &
+         block_writeback_plan%scalar_send_displ, &
+         MPI_DOUBLE_PRECISION, &
+         block_writeback_plan%scalar_recv_buffer, &
+         block_writeback_plan%scalar_recv_count, &
+         block_writeback_plan%scalar_recv_displ, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv writeback scalar payload")
+
+    call MPI_Alltoallv( &
+         block_writeback_plan%vector_send_buffer, &
+         block_writeback_plan%vector_send_count, &
+         block_writeback_plan%vector_send_displ, &
+         MPI_DOUBLE_PRECISION, &
+         block_writeback_plan%vector_recv_buffer, &
+         block_writeback_plan%vector_recv_count, &
+         block_writeback_plan%vector_recv_displ, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv writeback vector payload")
+
+  end subroutine exchange_block_writeback_payloads
+
+
+  subroutine check_block_writeback_payload_exchange (verbose)
+    ! Compare every remotely transported value with the exact sol values
+    ! still held by its destination Domain owner. Repeat the exchange to
+    ! prove that the persistent communication storage is reused without
+    ! changing the authoritative Domain representation.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: d
+    integer :: ierr
+    integer :: n_patch
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: scalar_start
+    integer :: slot
+    integer :: vector_start
+
+    integer(int64) :: allocation_before
+    integer(int64) :: global_scalar
+    integer(int64) :: global_vector
+    integer(int64) :: local_scalar
+    integer(int64) :: local_vector
+
+    logical :: print_summary
+
+    real(dp), allocatable :: expected_scalar(:)
+    real(dp), allocatable :: expected_vector(:)
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. block_writeback_plan_is_ready()) then
+       call fail("writeback payload check before plan is ready")
+    end if
+
+    allocate(expected_scalar(size( &
+         block_writeback_plan%scalar_recv_buffer)))
+    allocate(expected_vector(size( &
+         block_writeback_plan%vector_recv_buffer)))
+
+    allocation_before = block_writeback_plan_allocation_count()
+
+    call exchange_block_writeback_payloads
+    call build_expected_writeback_payloads( &
+         expected_scalar,expected_vector)
+    call compare_writeback_payloads(expected_scalar,expected_vector)
+
+    call exchange_block_writeback_payloads
+    call build_expected_writeback_payloads( &
+         expected_scalar,expected_vector)
+    call compare_writeback_payloads(expected_scalar,expected_vector)
+
+    if (block_writeback_plan_allocation_count() /= allocation_before) then
+       call fail("writeback payload exchange reallocated plan buffers")
+    end if
+
+    local_scalar = int(sum( &
+         block_writeback_plan%scalar_recv_count),int64)
+    local_vector = int(sum( &
+         block_writeback_plan%vector_recv_count),int64)
+
+    call MPI_Allreduce(local_scalar,global_scalar,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce transported scalar values")
+    call MPI_Allreduce(local_vector,global_vector,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce transported vector values")
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Block writeback payload exchange for rank ",rank,":"
+       write(6,'(a,i0)') "  scalar values received = ",local_scalar
+       write(6,'(a,i0)') "  vector values received = ",local_vector
+       write(6,'(a)') "  exact Domain payload comparison passed"
+       write(6,'(a,/)') "  repeated persistent-buffer exchange passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global transported writeback scalar values = ", &
+            global_scalar
+       write(6,'(a,i0)') &
+            "Global transported writeback vector values = ", &
+            global_vector
+       write(6,'(a,/)') &
+            "Exact block-to-Domain prognostic transport passed"
+    end if
+
+    deallocate(expected_vector)
+    deallocate(expected_scalar)
+
+  contains
+
+    subroutine build_expected_writeback_payloads ( &
+         scalar_payload,vector_payload)
+
+      implicit none
+
+      real(dp), intent(out) :: scalar_payload(:)
+      real(dp), intent(out) :: vector_payload(:)
+
+      scalar_payload = 0.0_dp
+      vector_payload = 0.0_dp
+
+      do r = 1,n_process
+         pos_scalar = block_writeback_plan%scalar_recv_displ(r) + 1
+         pos_vector = block_writeback_plan%vector_recv_displ(r) + 1
+
+         do slot = block_writeback_plan%recv_displ(r)+1, &
+              block_writeback_plan%recv_displ(r) + &
+              block_writeback_plan%recv_count(r)
+            b = block_writeback_plan%recv_block(slot)
+            if (source_rank(b) /= rank) then
+               call fail("writeback payload arrived at wrong Domain owner")
+            end if
+            if (block_catalog(b)%owner /= r-1) then
+               call fail("writeback payload came from wrong block owner")
+            end if
+
+            d = loc_id(block_catalog(b)%root_domain+1) + 1
+            if (d < 1 .or. d > size(grid)) then
+               call fail("writeback payload has invalid local Domain")
+            end if
+
+            scalar_start = pos_scalar
+            vector_start = pos_vector
+            n_patch = 0
+            call pack_domain_subtree_prognostic( &
+                 d,block_catalog(b)%root_patch, &
+                 scalar_payload,pos_scalar, &
+                 vector_payload,pos_vector,n_patch)
+
+            if (n_patch /= &
+                 block_writeback_plan%recv_patch_count(slot) .or. &
+                 pos_scalar-scalar_start /= &
+                 block_writeback_plan%recv_scalar_nvalue(slot) .or. &
+                 pos_vector-vector_start /= &
+                 block_writeback_plan%recv_vector_nvalue(slot)) then
+               call fail("writeback expected payload extent mismatch")
+            end if
+         end do
+
+         if (pos_scalar /= block_writeback_plan%scalar_recv_displ(r) + &
+              block_writeback_plan%scalar_recv_count(r) + 1 .or. &
+              pos_vector /= block_writeback_plan%vector_recv_displ(r) + &
+              block_writeback_plan%vector_recv_count(r) + 1) then
+            call fail("writeback expected receive extent mismatch")
+         end if
+      end do
+
+    end subroutine build_expected_writeback_payloads
+
+
+    subroutine compare_writeback_payloads ( &
+         scalar_payload,vector_payload)
+
+      implicit none
+
+      real(dp), intent(in) :: scalar_payload(:)
+      real(dp), intent(in) :: vector_payload(:)
+
+      integer :: n_scalar
+      integer :: n_vector
+
+      n_scalar = sum(block_writeback_plan%scalar_recv_count)
+      n_vector = sum(block_writeback_plan%vector_recv_count)
+
+      if (n_scalar > 0) then
+         if (any(abs(block_writeback_plan%scalar_recv_buffer( &
+              1:n_scalar)-scalar_payload(1:n_scalar)) > 0.0_dp)) then
+            call fail("transported scalar writeback payload mismatch")
+         end if
+      end if
+      if (n_vector > 0) then
+         if (any(abs(block_writeback_plan%vector_recv_buffer( &
+              1:n_vector)-vector_payload(1:n_vector)) > 0.0_dp)) then
+            call fail("transported vector writeback payload mismatch")
+         end if
+      end if
+
+    end subroutine compare_writeback_payloads
+
+  end subroutine check_block_writeback_payload_exchange
+
+
+  recursive subroutine pack_domain_subtree_prognostic ( &
+       d,p,scalar_payload,scalar_pos,vector_payload,vector_pos,n_patch)
+    ! Pack one legacy Domain subtree in the same preorder and field order
+    ! used by the compact block sol-family patch accessors.
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: p
+    real(dp), intent(inout) :: scalar_payload(:)
+    integer, intent(inout) :: scalar_pos
+    real(dp), intent(inout) :: vector_payload(:)
+    integer, intent(inout) :: vector_pos
+    integer, intent(inout) :: n_patch
+
+    integer :: c
+    integer :: field_level
+    integer :: first_field_level
+    integer :: level_slot
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: n_value
+    integer :: p_child
+    integer :: scalar_id
+    integer :: scalar_slot
+    integer :: start
+    integer :: v_scalar
+    integer :: v_vector
+
+    if (p < 0 .or. p >= grid(d)%patch%length) then
+       call fail("invalid patch in writeback Domain payload")
+    end if
+    if (grid(d)%patch%elts(p+1)%deleted) return
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+
+    start = mult_scalar*grid(d)%patch%elts(p+1)%elts_start
+    n_value = mult_scalar*PATCH_SIZE**2
+
+    do scalar_slot = 1,n_scalar_variable
+       scalar_id = v_scalar + scalar_slot - 1
+       do level_slot = 1,n_field_level
+          field_level = first_field_level + level_slot - 1
+          if (start < 0 .or. start+n_value > &
+               size(sol(scalar_id,field_level)%data(d)%elts)) then
+             call fail("legacy scalar writeback extent is invalid")
+          end if
+          scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
+               sol(scalar_id,field_level)%data(d)%elts( &
+               start+1:start+n_value)
+          scalar_pos = scalar_pos + n_value
+       end do
+    end do
+
+    start = mult_vector*grid(d)%patch%elts(p+1)%elts_start
+    n_value = mult_vector*PATCH_SIZE**2
+
+    do level_slot = 1,n_field_level
+       field_level = first_field_level + level_slot - 1
+       if (start < 0 .or. start+n_value > &
+            size(sol(v_vector,field_level)%data(d)%elts)) then
+          call fail("legacy vector writeback extent is invalid")
+       end if
+       vector_payload(vector_pos:vector_pos+n_value-1) = &
+            sol(v_vector,field_level)%data(d)%elts( &
+            start+1:start+n_value)
+       vector_pos = vector_pos + n_value
+    end do
+
+    n_patch = n_patch + 1
+
+    do c = 1,N_CHDRN
+       p_child = grid(d)%patch%elts(p+1)%children(c)
+       if (p_child <= 0) cycle
+       call pack_domain_subtree_prognostic( &
+            d,p_child,scalar_payload,scalar_pos, &
+            vector_payload,vector_pos,n_patch)
+    end do
+
+  end subroutine pack_domain_subtree_prognostic
 
 
   subroutine check_block_ghost_request_manifest (verbose)
