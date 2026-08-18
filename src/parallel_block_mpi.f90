@@ -93,7 +93,8 @@ module parallel_block_mpi_mod
        apply_local_block_field_consumer, &
        apply_local_block_hydrostatic_consumer, &
        local_block_hydrostatic_statistics, &
-       BLOCK_PAYLOAD_SOL, BLOCK_PAYLOAD_WAV_COEFF
+       BLOCK_PAYLOAD_SOL, BLOCK_PAYLOAD_WAV_COEFF, &
+       STORE_PATCH, STORE_BDRY, STORE_GHOST
 
   implicit none
 
@@ -209,6 +210,17 @@ module parallel_block_mpi_mod
      real(dp) :: surface_moment(3) = 0.0_dp
   end type Block_Field_Traversal_Context
 
+  type :: Block_Stencil_Kernel_Context
+     integer(int64) :: block_count = 0_int64
+     integer(int64) :: address_count(3) = 0_int64
+     integer(int64) :: scalar_count = 0_int64
+     integer(int64) :: vector_count = 0_int64
+     real(dp) :: scalar_moment(3) = 0.0_dp
+     real(dp) :: vector_moment(3) = 0.0_dp
+     real(dp) :: scalar_difference_moment(3) = 0.0_dp
+     real(dp) :: vector_difference_moment(3) = 0.0_dp
+  end type Block_Stencil_Kernel_Context
+
   public :: build_block_migration_manifest
   public :: check_block_migration_manifest
   public :: exchange_block_migration_sizes
@@ -241,6 +253,7 @@ module parallel_block_mpi_mod
   public :: check_block_hydrostatic_state_accessors
   public :: check_block_hydrostatic_consumer
   public :: check_block_field_consumer
+  public :: check_block_stencil_kernel
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -1046,6 +1059,7 @@ end subroutine build_parallel_block_catalog
     call check_block_hydrostatic_state_accessors(print_local)
     call check_block_hydrostatic_consumer(print_local)
     call check_block_field_consumer(print_local)
+    call check_block_stencil_kernel(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -6109,6 +6123,352 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_field_consumer
+
+
+  subroutine accumulate_block_stencil_kernel (catalog_index,block,context)
+    ! Read the sol family through every compact stencil address and form
+    ! neighbour-value and neighbour-minus-centre diagnostics. Boundary and
+    ! ghost addresses use the same topology that production dynamics sees.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: address_offset
+    integer :: center_base
+    integer :: center_index
+    integer :: center_node
+    integer :: component_slot
+    integer :: field_base
+    integer :: field_index
+    integer :: level_slot
+    integer :: n_storage_node
+    integer :: node_index
+    integer :: p
+    integer :: q
+    integer :: record
+    integer :: scalar_slot
+    integer :: side
+    integer :: storage_class
+    integer :: storage_start
+
+    real(dp) :: center_value
+    real(dp) :: difference
+    real(dp) :: value
+
+    if (catalog_index < 1) then
+       call fail("stencil kernel received invalid catalogue index")
+    end if
+    if (block%scalar_mult /= 1 .or. block%vector_mult < 1) then
+       call fail("stencil kernel received invalid field multipliers")
+    end if
+    if (size(block%stencil,1) /= N_BDRY .or. &
+         size(block%stencil,2) /= size(block%patch)) then
+       call fail("stencil kernel received invalid topology")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Stencil_Kernel_Context)
+       statistics%block_count = statistics%block_count + 1_int64
+
+       do p = 1,size(block%patch)
+          do side = 1,N_BDRY
+             storage_class = block%stencil(side,p)%storage
+             record = block%stencil(side,p)%id
+             address_offset = block%stencil(side,p)%offset
+             storage_start = 0
+             n_storage_node = 0
+
+             select case (storage_class)
+             case (STORE_PATCH)
+                if (record < 0 .or. record >= size(block%patch)) then
+                   call fail("stencil kernel received invalid patch address")
+                end if
+                storage_start = block%patch(record+1)%elts_start
+                n_storage_node = PATCH_SIZE**2
+             case (STORE_BDRY)
+                if (record < 1 .or. &
+                     record > size(block%bdry_storage)) then
+                   call fail( &
+                        "stencil kernel received invalid boundary address")
+                end if
+                storage_start = block%bdry_storage(record)%local_start
+                n_storage_node = block%bdry_storage(record)%n_node
+             case (STORE_GHOST)
+                if (record < 1 .or. &
+                     record > size(block%ghost_storage)) then
+                   call fail( &
+                        "stencil kernel received invalid ghost address")
+                end if
+                storage_start = block%ghost_storage(record)%local_start
+                n_storage_node = block%ghost_storage(record)%n_node
+             case default
+                call fail("stencil kernel received invalid storage class")
+             end select
+
+             do q = 0,PATCH_SIZE**2-1
+                if (address_offset+q < 0 .or. &
+                     address_offset+q >= n_storage_node) cycle
+
+                node_index = storage_start + address_offset + q
+                center_node = block%patch(p)%elts_start + q
+                if (center_node < 0 .or. &
+                     center_node >= size(block%node)) then
+                   call fail("stencil kernel received invalid centre node")
+                end if
+
+                select case (storage_class)
+                case (STORE_PATCH)
+                   if (node_index < 0 .or. &
+                        node_index >= size(block%node)) then
+                      call fail("stencil kernel patch node is invalid")
+                   end if
+                case (STORE_BDRY)
+                   if (node_index < 0 .or. &
+                        node_index >= size(block%bdry_node)) then
+                      call fail("stencil kernel boundary node is invalid")
+                   end if
+                case (STORE_GHOST)
+                   if (node_index < 0 .or. &
+                        node_index >= size(block%ghost_node)) then
+                      call fail("stencil kernel ghost node is invalid")
+                   end if
+                end select
+
+                statistics%address_count(storage_class) = &
+                     statistics%address_count(storage_class) + 1_int64
+
+                do scalar_slot = 1,block%n_scalar_variable
+                   do level_slot = 1,block%n_field_level
+                      center_base = &
+                           ((scalar_slot-1)*block%n_field_level + &
+                           level_slot-1)*size(block%node)
+                      center_index = center_base + center_node + 1
+                      center_value = block%scalar(center_index)
+                      value = 0.0_dp
+
+                      select case (storage_class)
+                      case (STORE_PATCH)
+                         field_base = center_base
+                         field_index = field_base + node_index + 1
+                         value = block%scalar(field_index)
+                      case (STORE_BDRY)
+                         field_base = &
+                              ((scalar_slot-1)*block%n_field_level + &
+                              level_slot-1)*size(block%bdry_node)
+                         field_index = field_base + node_index + 1
+                         value = block%bdry_scalar(field_index)
+                      case (STORE_GHOST)
+                         field_base = &
+                              ((scalar_slot-1)*block%n_field_level + &
+                              level_slot-1)*size(block%ghost_node)
+                         field_index = field_base + node_index + 1
+                         value = block%ghost_scalar(field_index)
+                      end select
+
+                      difference = value-center_value
+                      statistics%scalar_count = &
+                           statistics%scalar_count + 1_int64
+                      statistics%scalar_moment = &
+                           statistics%scalar_moment + &
+                           [value,abs(value),value**2]
+                      statistics%scalar_difference_moment = &
+                           statistics%scalar_difference_moment + &
+                           [difference,abs(difference),difference**2]
+                   end do
+                end do
+
+                do level_slot = 1,block%n_field_level
+                   do component_slot = 1,block%vector_mult
+                      center_base = (level_slot-1)* &
+                           block%vector_mult*size(block%node)
+                      center_index = center_base + &
+                           block%vector_mult*center_node + component_slot
+                      center_value = block%vector(center_index)
+                      value = 0.0_dp
+
+                      select case (storage_class)
+                      case (STORE_PATCH)
+                         field_base = center_base
+                         field_index = field_base + &
+                              block%vector_mult*node_index + &
+                              component_slot
+                         value = block%vector(field_index)
+                      case (STORE_BDRY)
+                         field_base = (level_slot-1)* &
+                              block%vector_mult*size(block%bdry_node)
+                         field_index = field_base + &
+                              block%vector_mult*node_index + &
+                              component_slot
+                         value = block%bdry_vector(field_index)
+                      case (STORE_GHOST)
+                         field_base = (level_slot-1)* &
+                              block%vector_mult*size(block%ghost_node)
+                         field_index = field_base + &
+                              block%vector_mult*node_index + &
+                              component_slot
+                         value = block%ghost_vector(field_index)
+                      end select
+
+                      difference = value-center_value
+                      statistics%vector_count = &
+                           statistics%vector_count + 1_int64
+                      statistics%vector_moment = &
+                           statistics%vector_moment + &
+                           [value,abs(value),value**2]
+                      statistics%vector_difference_moment = &
+                           statistics%vector_difference_moment + &
+                           [difference,abs(difference),difference**2]
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("stencil kernel received invalid context")
+    end select
+
+  end subroutine accumulate_block_stencil_kernel
+
+
+  subroutine check_block_stencil_kernel (verbose)
+    ! Refresh production sol ghosts and validate a stencil-dependent block
+    ! kernel after migration staging has been released. A second refresh
+    ! must reproduce the complete neighbour-difference diagnostic.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: count_global(5)
+    integer(int64) :: count_local(5)
+    integer(int64) :: refresh_count_before
+    integer(int64) :: scalar_address_count(3)
+    integer(int64) :: scalar_value_count
+    integer(int64) :: vector_address_count(3)
+    integer(int64) :: vector_value_count
+
+    real(dp) :: scalar_value_moment(3,3)
+    real(dp) :: vector_value_moment(3,3)
+
+    logical :: print_summary
+
+    type(Block_Stencil_Kernel_Context) :: first
+    type(Block_Stencil_Kernel_Context) :: second
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    refresh_count_before = local_block_hydrostatic_refresh_count()
+
+    call refresh_block_sol_ghosts
+    first = Block_Stencil_Kernel_Context()
+    call apply_local_block_field_consumer( &
+         accumulate_block_stencil_kernel,first)
+
+    call local_block_scalar_stencil_statistics( &
+         scalar_address_count,scalar_value_count,scalar_value_moment)
+    call local_block_vector_stencil_statistics( &
+         vector_address_count,vector_value_count,vector_value_moment)
+
+    if (first%block_count /= int(n_local_blocks(),int64)) then
+       call fail("production stencil kernel block-count mismatch")
+    end if
+    if (any(first%address_count /= scalar_address_count) .or. &
+         any(first%address_count /= vector_address_count)) then
+       call fail("production stencil kernel address mismatch")
+    end if
+    if (first%scalar_count /= scalar_value_count .or. &
+         first%vector_count /= vector_value_count) then
+       call fail("production stencil kernel value-count mismatch")
+    end if
+    if (.not. field_moments_match( &
+         first%scalar_moment,scalar_value_moment(:,1), &
+         scalar_value_count) .or. &
+         .not. field_moments_match( &
+         first%vector_moment,vector_value_moment(:,1), &
+         vector_value_count)) then
+       call fail("production stencil kernel sol moment mismatch")
+    end if
+
+    call refresh_block_sol_ghosts
+    second = Block_Stencil_Kernel_Context()
+    call apply_local_block_field_consumer( &
+         accumulate_block_stencil_kernel,second)
+
+    if (second%block_count /= first%block_count .or. &
+         any(second%address_count /= first%address_count) .or. &
+         second%scalar_count /= first%scalar_count .or. &
+         second%vector_count /= first%vector_count) then
+       call fail("repeated production stencil traversal changed counts")
+    end if
+    if (.not. field_moments_match( &
+         second%scalar_moment,first%scalar_moment, &
+         first%scalar_count) .or. &
+         .not. field_moments_match( &
+         second%vector_moment,first%vector_moment, &
+         first%vector_count) .or. &
+         .not. field_moments_match( &
+         second%scalar_difference_moment, &
+         first%scalar_difference_moment,first%scalar_count) .or. &
+         .not. field_moments_match( &
+         second%vector_difference_moment, &
+         first%vector_difference_moment,first%vector_count)) then
+       call fail("repeated production stencil diagnostic changed")
+    end if
+
+    if (local_block_hydrostatic_refresh_count() /= &
+         refresh_count_before) then
+       call fail("production stencil kernel refreshed hydrostatic cache")
+    end if
+
+    count_local(1:3) = first%address_count
+    count_local(4) = first%scalar_count
+    count_local(5) = first%vector_count
+    call MPI_Allreduce( &
+         count_local,count_global,5,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce production stencil counts")
+
+    if (any(count_global <= 0_int64)) then
+       call fail("production stencil kernel global inventory incomplete")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Production sol stencil kernel for rank ",rank,":"
+       write(6,'(a,3(i0,1x))') &
+            "  patch/boundary/ghost addresses = ",first%address_count
+       write(6,'(a,i0)') &
+            "  scalar neighbour samples       = ",first%scalar_count
+       write(6,'(a,i0)') &
+            "  vector neighbour samples       = ",first%vector_count
+       write(6,'(a)') &
+            "  direct neighbour-value moments passed"
+       write(6,'(a)') &
+            "  neighbour-minus-centre diagnostics passed"
+       write(6,'(a,/)') &
+            "  repeated sol ghost refresh is stencil-stable"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,3(i0,1x))') &
+            "Global production patch/boundary/ghost addresses = ", &
+            count_global(1:3)
+       write(6,'(a,i0)') &
+            "Global production scalar neighbour samples = ", &
+            count_global(4)
+       write(6,'(a,i0)') &
+            "Global production vector neighbour samples = ", &
+            count_global(5)
+       write(6,'(a,/)') &
+            "Production block sol stencil kernel passed"
+    end if
+
+  end subroutine check_block_stencil_kernel
 
 
   subroutine accumulate_block_hydrostatic_consumer ( &
