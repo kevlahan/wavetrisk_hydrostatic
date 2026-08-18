@@ -89,6 +89,7 @@ module parallel_block_mpi_mod
        local_block_hydrostatic_column_nvalue, &
        get_local_block_hydrostatic_patch_values, &
        get_local_block_hydrostatic_values, &
+       apply_local_block_hydrostatic_consumer, &
        local_block_hydrostatic_statistics, &
        BLOCK_PAYLOAD_SOL, BLOCK_PAYLOAD_WAV_COEFF
 
@@ -180,6 +181,16 @@ module parallel_block_mpi_mod
      real(dp), allocatable :: vector(:)
   end type Block_Patch_Snapshot
 
+  type :: Block_Hydrostatic_Traversal_Context
+     integer(int64) :: block_count = 0_int64
+     integer(int64) :: patch_count = 0_int64
+     integer(int64) :: surface_count = 0_int64
+     integer(int64) :: column_count = 0_int64
+     real(dp) :: surface_moment(3) = 0.0_dp
+     real(dp) :: exner_moment(3) = 0.0_dp
+     real(dp) :: temperature_moment(3) = 0.0_dp
+  end type Block_Hydrostatic_Traversal_Context
+
   public :: build_block_migration_manifest
   public :: check_block_migration_manifest
   public :: exchange_block_migration_sizes
@@ -210,6 +221,7 @@ module parallel_block_mpi_mod
   public :: check_block_boundary_family_bulk_fill
   public :: check_refreshed_block_stencil_consumers
   public :: check_block_hydrostatic_state_accessors
+  public :: check_block_hydrostatic_consumer
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -1013,6 +1025,7 @@ end subroutine build_parallel_block_catalog
     call check_block_field_inventory(print_local)
     if (compressible) call ensure_local_block_hydrostatic_state
     call check_block_hydrostatic_state_accessors(print_local)
+    call check_block_hydrostatic_consumer(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -5734,6 +5747,173 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_hydrostatic_state_accessors
+
+
+  subroutine accumulate_block_hydrostatic_consumer ( &
+       catalog_index,n_patch,surface_pressure,dynamic_exner, &
+       air_temperature,context)
+    ! Production-driver test kernel. Accumulate a complete inventory
+    ! directly from the read-only block arrays supplied by the driver.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    integer, intent(in) :: n_patch
+    real(dp), intent(in) :: surface_pressure(:)
+    real(dp), intent(in) :: dynamic_exner(:)
+    real(dp), intent(in) :: air_temperature(:)
+    class(*), intent(inout) :: context
+
+    if (catalog_index < 1) then
+       call fail("hydrostatic consumer received invalid catalogue index")
+    end if
+    if (n_patch < 1) then
+       call fail("hydrostatic consumer received empty block")
+    end if
+    if (size(surface_pressure) /= n_patch*PATCH_SIZE**2 .or. &
+         size(dynamic_exner) /= n_patch*zlevels*PATCH_SIZE**2 .or. &
+         size(air_temperature) /= n_patch*zlevels*PATCH_SIZE**2) then
+       call fail("hydrostatic consumer received invalid field extents")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Hydrostatic_Traversal_Context)
+       statistics%block_count = statistics%block_count + 1_int64
+       statistics%patch_count = statistics%patch_count + &
+            int(n_patch,int64)
+       statistics%surface_count = statistics%surface_count + &
+            int(size(surface_pressure),int64)
+       statistics%column_count = statistics%column_count + &
+            int(size(dynamic_exner),int64)
+
+       statistics%surface_moment(1) = &
+            statistics%surface_moment(1) + sum(surface_pressure)
+       statistics%surface_moment(2) = &
+            statistics%surface_moment(2) + &
+            sum(abs(surface_pressure))
+       statistics%surface_moment(3) = &
+            statistics%surface_moment(3) + sum(surface_pressure**2)
+
+       statistics%exner_moment(1) = &
+            statistics%exner_moment(1) + sum(dynamic_exner)
+       statistics%exner_moment(2) = &
+            statistics%exner_moment(2) + sum(abs(dynamic_exner))
+       statistics%exner_moment(3) = &
+            statistics%exner_moment(3) + sum(dynamic_exner**2)
+
+       statistics%temperature_moment(1) = &
+            statistics%temperature_moment(1) + sum(air_temperature)
+       statistics%temperature_moment(2) = &
+            statistics%temperature_moment(2) + &
+            sum(abs(air_temperature))
+       statistics%temperature_moment(3) = &
+            statistics%temperature_moment(3) + &
+            sum(air_temperature**2)
+    class default
+       call fail("hydrostatic consumer received invalid context")
+    end select
+
+  end subroutine accumulate_block_hydrostatic_consumer
+
+
+  subroutine check_block_hydrostatic_consumer (verbose)
+    ! Exercise the production traversal interface and compare its direct
+    ! block-array inventory with the established cache statistics.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: catalog_index
+    integer :: local_index
+
+    integer(int64) :: column_count
+    integer(int64) :: expected_patch_count
+    integer(int64) :: refresh_count_before
+    integer(int64) :: surface_count
+
+    real(dp) :: exner_moment(3)
+    real(dp) :: surface_moment(3)
+    real(dp) :: temperature_moment(3)
+
+    logical :: print_summary
+
+    type(Block_Hydrostatic_Traversal_Context) :: statistics
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. compressible) then
+       if (print_summary) then
+          write(6,'(/,a,i0,a)') &
+               "Block thermodynamic traversal for rank ", rank, ":"
+          write(6,'(a,/)') &
+               "  skipped for incompressible configuration"
+       end if
+       return
+    end if
+
+    call local_block_hydrostatic_statistics( &
+         surface_count,column_count,surface_moment,exner_moment, &
+         temperature_moment)
+
+    refresh_count_before = local_block_hydrostatic_refresh_count()
+    statistics = Block_Hydrostatic_Traversal_Context()
+
+    call apply_local_block_hydrostatic_consumer( &
+         accumulate_block_hydrostatic_consumer,statistics)
+
+    if (local_block_hydrostatic_refresh_count() /= &
+         refresh_count_before) then
+       call fail("production hydrostatic consumer refreshed cache")
+    end if
+
+    expected_patch_count = 0_int64
+    do local_index = 1,n_local_blocks()
+       catalog_index = local_block_catalog(local_index)
+       expected_patch_count = expected_patch_count + &
+            int(local_block_patch_count(catalog_index),int64)
+    end do
+
+    if (statistics%block_count /= int(n_local_blocks(),int64) .or. &
+         statistics%patch_count /= expected_patch_count) then
+       call fail("production hydrostatic consumer traversal mismatch")
+    end if
+    if (statistics%surface_count /= surface_count .or. &
+         statistics%column_count /= column_count) then
+       call fail("production hydrostatic consumer count mismatch")
+    end if
+    if (.not. field_moments_match( &
+         statistics%surface_moment,surface_moment,surface_count)) then
+       call fail("production hydrostatic consumer surface mismatch")
+    end if
+    if (.not. field_moments_match( &
+         statistics%exner_moment,exner_moment,column_count)) then
+       call fail("production hydrostatic consumer Exner mismatch")
+    end if
+    if (.not. field_moments_match( &
+         statistics%temperature_moment,temperature_moment, &
+         column_count)) then
+       call fail("production hydrostatic consumer temperature mismatch")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Block thermodynamic traversal for rank ", rank, ":"
+       write(6,'(a,i0)') &
+            "  local blocks consumed  = ", statistics%block_count
+       write(6,'(a,i0)') &
+            "  local patches consumed = ", statistics%patch_count
+       write(6,'(a,/)') &
+            "  direct production traversal checks passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,/)') &
+            "Production block thermodynamic consumer traversal passed"
+    end if
+
+  end subroutine check_block_hydrostatic_consumer
 
 
   subroutine check_block_hydrostatic_reconstruction (verbose)

@@ -159,6 +159,22 @@ module parallel_block_mod
   end type Block_Hydrostatic_Storage
 
 
+  abstract interface
+     subroutine Local_Block_Hydrostatic_Consumer ( &
+          catalog_index,n_patch,surface_pressure,dynamic_exner, &
+          air_temperature,context)
+       import :: dp
+
+       integer, intent(in) :: catalog_index
+       integer, intent(in) :: n_patch
+       real(dp), intent(in) :: surface_pressure(:)
+       real(dp), intent(in) :: dynamic_exner(:)
+       real(dp), intent(in) :: air_temperature(:)
+       class(*), intent(inout) :: context
+     end subroutine Local_Block_Hydrostatic_Consumer
+  end interface
+
+
   type(Block_Data), allocatable, public :: block_source(:)
   type(Block_Data), allocatable, public :: block_received(:)
   type(Block_Data), allocatable :: block_local(:)
@@ -261,6 +277,8 @@ module parallel_block_mod
   public :: local_block_hydrostatic_column_nvalue
   public :: get_local_block_hydrostatic_patch_values
   public :: get_local_block_hydrostatic_values
+  public :: Local_Block_Hydrostatic_Consumer
+  public :: apply_local_block_hydrostatic_consumer
   public :: local_block_hydrostatic_statistics
   public :: install_local_blocks
 
@@ -5079,6 +5097,54 @@ subroutine get_local_block_hydrostatic_values ( &
        block_hydrostatic(local_index)%air_temperature
 
 end subroutine get_local_block_hydrostatic_values
+
+
+subroutine apply_local_block_hydrostatic_consumer (consumer,context)
+  ! Apply one caller-supplied read-only production kernel to every local
+  ! thermodynamic block without constructing patch or whole-block copies.
+
+  implicit none
+
+  procedure(Local_Block_Hydrostatic_Consumer) :: consumer
+  class(*), intent(inout) :: context
+
+  integer :: local_index
+  integer(int64) :: refresh_count_before
+
+  call ensure_local_block_hydrostatic_state
+
+  if (.not. local_block_hydrostatic_state_ready()) then
+     error stop &
+          "apply_local_block_hydrostatic_consumer: state not ready"
+  end if
+
+  refresh_count_before = local_block_hydrostatic_refresh_count()
+
+  do local_index = 1,size(block_local)
+     call consumer( &
+          block_local_catalog_index(local_index), &
+          size(block_local(local_index)%patch), &
+          block_hydrostatic(local_index)%surface_pressure, &
+          block_hydrostatic(local_index)%dynamic_exner, &
+          block_hydrostatic(local_index)%air_temperature,context)
+
+     if (.not. block_hydrostatic(local_index)%ready) then
+        error stop &
+             "apply_local_block_hydrostatic_consumer: cache invalidated"
+     end if
+  end do
+
+  if (.not. local_block_hydrostatic_state_ready()) then
+     error stop &
+          "apply_local_block_hydrostatic_consumer: state changed"
+  end if
+  if (local_block_hydrostatic_refresh_count() /= &
+       refresh_count_before) then
+     error stop &
+          "apply_local_block_hydrostatic_consumer: unexpected refresh"
+  end if
+
+end subroutine apply_local_block_hydrostatic_consumer
 
 
 subroutine local_block_hydrostatic_statistics ( &
