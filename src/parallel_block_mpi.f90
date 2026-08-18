@@ -251,6 +251,18 @@ module parallel_block_mpi_mod
      real(dp) :: vector_moment(3) = 0.0_dp
   end type Block_Tendency_Traversal_Context
 
+  type, public :: Block_Two_Stage_Step_Result
+     integer(int64) :: scalar_count = 0_int64
+     integer(int64) :: vector_count = 0_int64
+     integer(int64) :: scalar_changed_block_count = 0_int64
+     integer(int64) :: vector_changed_block_count = 0_int64
+     integer(int64) :: stage_count = 0_int64
+     real(dp) :: scalar_moment(3) = 0.0_dp
+     real(dp) :: vector_moment(3) = 0.0_dp
+     real(dp) :: scalar_max_update = 0.0_dp
+     real(dp) :: vector_max_update = 0.0_dp
+  end type Block_Two_Stage_Step_Result
+
   public :: build_block_migration_manifest
   public :: check_block_migration_manifest
   public :: exchange_block_migration_sizes
@@ -273,6 +285,8 @@ module parallel_block_mpi_mod
   public :: check_block_vector_ghost_payload_exchange
   public :: refresh_block_sol_ghosts
   public :: apply_refreshed_block_tendency_kernel
+  public :: begin_block_two_stage_tendency_step
+  public :: complete_block_two_stage_tendency_step
   public :: refresh_block_wav_coeff_ghosts
   public :: refresh_block_sol_wav_coeff_ghosts
   public :: check_production_block_ghost_refresh
@@ -292,6 +306,8 @@ module parallel_block_mpi_mod
   public :: check_block_tendency_accepted_step
   public :: check_block_multistage_tendency_accumulator
   public :: check_block_multistage_tendency_commit
+  public :: check_block_two_stage_step_driver
+  public :: check_block_two_stage_step_completion
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -1105,6 +1121,8 @@ end subroutine build_parallel_block_catalog
     call check_block_tendency_accepted_step(print_local)
     call check_block_multistage_tendency_accumulator(print_local)
     call check_block_multistage_tendency_commit(print_local)
+    call check_block_two_stage_step_driver(print_local)
+    call check_block_two_stage_step_completion(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -3384,6 +3402,114 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine apply_refreshed_block_tendency_kernel
+
+
+  subroutine begin_block_two_stage_tendency_step ( &
+       kernel,context,scale,weight,result)
+    ! Execute a guarded two-stage block update and retain its one-level
+    ! checkpoint. The caller must subsequently finalize or restore it.
+
+    implicit none
+
+    procedure(Local_Block_Tendency_Kernel) :: kernel
+    class(*), intent(inout) :: context
+    real(dp), intent(in) :: scale
+    real(dp), intent(in) :: weight(2)
+    type(Block_Two_Stage_Step_Result), intent(out) :: result
+
+    integer(int64) :: accumulator_changed_block_count(2)
+
+    result = Block_Two_Stage_Step_Result()
+
+    if (.not. local_block_store_ready()) then
+       call fail("two-stage block step before block installation")
+    end if
+    if (local_block_tendency_trial_is_active() .or. &
+         local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("two-stage block step found pending transaction")
+    end if
+
+    if (compressible) call ensure_local_block_hydrostatic_state
+    call reset_local_block_tendency_accumulator
+
+    call apply_refreshed_block_tendency_kernel(kernel,context)
+    call accumulate_local_block_tendency(weight(1))
+
+    call begin_local_block_tendency_trial(scale)
+    call commit_local_block_tendency_trial
+
+    if (compressible) call ensure_local_block_hydrostatic_state
+    call apply_refreshed_block_tendency_kernel(kernel,context)
+    call accumulate_local_block_tendency(weight(2))
+
+    call local_block_tendency_accumulator_statistics( &
+         result%scalar_count,result%vector_count, &
+         accumulator_changed_block_count(1), &
+         accumulator_changed_block_count(2),result%stage_count, &
+         result%scalar_moment,result%vector_moment)
+
+    call restore_local_block_tendency_commit
+    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
+         local_block_tendency_state_ready()) then
+       call fail("two-stage intermediate state was not restored")
+    end if
+
+    call begin_local_block_accumulated_tendency_trial(scale)
+    call commit_local_block_tendency_trial
+    call local_block_tendency_commit_checkpoint_statistics( &
+         result%scalar_changed_block_count, &
+         result%vector_changed_block_count, &
+         result%scalar_max_update,result%vector_max_update)
+
+    if (abs(scale) > 0.0_dp) then
+       if (result%scalar_changed_block_count /= &
+            accumulator_changed_block_count(1) .or. &
+            result%vector_changed_block_count /= &
+            accumulator_changed_block_count(2)) then
+          call fail("two-stage committed update coverage mismatch")
+       end if
+    end if
+    if (local_block_tendency_trial_is_active() .or. &
+         .not. local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("two-stage block step did not retain its checkpoint")
+    end if
+    if (local_block_tendency_state_ready()) then
+       call fail("two-stage block step retained stale tendencies")
+    end if
+
+  end subroutine begin_block_two_stage_tendency_step
+
+
+  subroutine complete_block_two_stage_tendency_step (accept)
+    ! Resolve the checkpoint retained by begin_block_two_stage_tendency_step.
+    ! Accepted fields remain authoritative; rejected fields are restored.
+
+    implicit none
+
+    logical, intent(in) :: accept
+
+    if (local_block_tendency_trial_is_active()) then
+       call fail("two-stage completion found an active trial")
+    end if
+    if (.not. local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("two-stage completion found no pending checkpoint")
+    end if
+
+    if (accept) then
+       call finalize_local_block_tendency_commit
+    else
+       call restore_local_block_tendency_commit
+    end if
+
+    if (local_block_tendency_trial_is_active() .or. &
+         local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("two-stage completion left pending transaction state")
+    end if
+    if (local_block_tendency_state_ready()) then
+       call fail("two-stage completion retained stale tendencies")
+    end if
+
+  end subroutine complete_block_two_stage_tendency_step
 
 
   subroutine refresh_block_wav_coeff_ghosts
@@ -8104,6 +8230,410 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_multistage_tendency_commit
+
+
+  subroutine check_block_two_stage_step_driver (verbose)
+    ! Validate the reusable production-facing two-stage transaction through
+    ! accepted-state consumers and exact checkpoint recovery.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: accumulator_allocation_before
+    integer(int64) :: changed_block_count(2)
+    integer(int64) :: changed_block_global(2)
+    integer(int64) :: execution_before
+    integer(int64) :: field_count(2)
+    integer(int64) :: field_count_after(2)
+    integer(int64) :: tendency_allocation_before
+    integer(int64) :: tendency_count(2)
+    integer(int64) :: tendency_count_after(2)
+
+    real(dp) :: field_moment(3,2)
+    real(dp) :: field_moment_after(3,2)
+    real(dp) :: max_update(2)
+    real(dp) :: max_update_global(2)
+    real(dp) :: tendency_moment(3,2)
+    real(dp) :: tendency_moment_after(3,2)
+    real(dp) :: trial_scale
+    real(dp) :: weight(2)
+
+    logical :: print_summary
+
+    type(Block_Stencil_Kernel_Context) :: accepted_kernel
+    type(Block_Stencil_Kernel_Context) :: driver_kernel
+    type(Block_Stencil_Kernel_Context) :: restored_kernel
+    type(Block_Two_Stage_Step_Result) :: result
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_tendency_state_ready()) then
+       call fail("two-stage driver check before tendency is ready")
+    end if
+    if (local_block_tendency_trial_is_active() .or. &
+         local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("two-stage driver check found pending transaction")
+    end if
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+    call local_block_tendency_statistics( &
+         tendency_count(1),tendency_count(2), &
+         tendency_moment(:,1),tendency_moment(:,2))
+
+    if (compressible) call ensure_local_block_hydrostatic_state
+    tendency_allocation_before = local_block_tendency_allocation_count()
+    accumulator_allocation_before = &
+         local_block_tendency_accumulator_allocation_count()
+    execution_before = local_block_tendency_execution_count()
+    trial_scale = epsilon(1.0_dp)**0.25_dp
+    weight = 0.5_dp
+
+    driver_kernel = Block_Stencil_Kernel_Context()
+    call begin_block_two_stage_tendency_step( &
+         accumulate_block_tendency_kernel,driver_kernel, &
+         trial_scale,weight,result)
+
+    if (driver_kernel%block_count /= &
+         2_int64*int(n_local_blocks(),int64)) then
+       call fail("two-stage production driver traversal incomplete")
+    end if
+    if (result%scalar_count /= field_count(1) .or. &
+         result%vector_count /= field_count(2)) then
+       call fail("two-stage production driver coverage mismatch")
+    end if
+    if (result%stage_count /= 2_int64) then
+       call fail("two-stage production driver stage count mismatch")
+    end if
+    if (local_block_tendency_trial_is_active() .or. &
+         .not. local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("two-stage production driver checkpoint is not ready")
+    end if
+    if (local_block_tendency_state_ready()) then
+       call fail("two-stage production driver tendencies are not stale")
+    end if
+    if (compressible .and. &
+         result%scalar_changed_block_count > 0_int64) then
+       if (local_block_hydrostatic_state_ready()) then
+          call fail("two-stage production driver retained stale cache")
+       end if
+    end if
+
+    accepted_kernel = Block_Stencil_Kernel_Context()
+    call apply_refreshed_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,accepted_kernel)
+    if (accepted_kernel%block_count /= int(n_local_blocks(),int64)) then
+       call fail("two-stage driver accepted traversal incomplete")
+    end if
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       if (.not. local_block_hydrostatic_state_ready()) then
+          call fail("two-stage driver accepted hydrostatic state not ready")
+       end if
+    end if
+
+    call complete_block_two_stage_tendency_step(.false.)
+    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
+         local_block_tendency_state_ready()) then
+       call fail("two-stage driver recovery left stale state ready")
+    end if
+
+    call local_block_field_statistics( &
+         field_count_after(1),field_count_after(2), &
+         field_moment_after(:,1),field_moment_after(:,2))
+    if (any(field_count_after /= field_count)) then
+       call fail("two-stage driver recovery changed field coverage")
+    end if
+    if (.not. field_moments_match( &
+         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+         .not. field_moments_match( &
+         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
+       call fail("two-stage driver recovery did not restore fields")
+    end if
+
+    restored_kernel = Block_Stencil_Kernel_Context()
+    call apply_refreshed_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,restored_kernel)
+    if (restored_kernel%block_count /= int(n_local_blocks(),int64)) then
+       call fail("two-stage driver restored traversal incomplete")
+    end if
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       if (.not. local_block_hydrostatic_state_ready()) then
+          call fail("two-stage driver restored hydrostatic state not ready")
+       end if
+    end if
+
+    if (local_block_tendency_allocation_count() /= &
+         tendency_allocation_before) then
+       call fail("two-stage driver reallocated tendency workspace")
+    end if
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_before) then
+       call fail("two-stage driver reallocated accumulator workspace")
+    end if
+    if (local_block_tendency_execution_count() /= &
+         execution_before+4_int64) then
+       call fail("two-stage production driver execution count mismatch")
+    end if
+
+    call local_block_tendency_statistics( &
+         tendency_count_after(1),tendency_count_after(2), &
+         tendency_moment_after(:,1),tendency_moment_after(:,2))
+    if (any(tendency_count_after /= tendency_count)) then
+       call fail("two-stage driver restored tendency coverage changed")
+    end if
+    if (.not. field_moments_match( &
+         tendency_moment_after(:,1),tendency_moment(:,1), &
+         tendency_count(1)) .or. &
+         .not. field_moments_match( &
+         tendency_moment_after(:,2),tendency_moment(:,2), &
+         tendency_count(2))) then
+       call fail("two-stage driver restored tendency inventory changed")
+    end if
+
+    changed_block_count = [result%scalar_changed_block_count, &
+         result%vector_changed_block_count]
+    max_update = [result%scalar_max_update,result%vector_max_update]
+    call MPI_Allreduce( &
+         changed_block_count,changed_block_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce two-stage driver blocks")
+    call MPI_Allreduce( &
+         max_update,max_update_global,2, &
+         MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce two-stage driver maxima")
+    if (any(changed_block_global <= 0_int64) .or. &
+         any(max_update_global <= 0.0_dp)) then
+       call fail("two-stage production driver produced no change")
+    end if
+
+    call reset_local_block_tendency_accumulator
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_before) then
+       call fail("two-stage driver reset reallocated accumulator")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Reusable two-stage block driver for rank ",rank,":"
+       write(6,'(a,2(i0,1x))') &
+            "  scalar/vector committed blocks = ",changed_block_count
+       write(6,'(a,2(es14.6,1x))') &
+            "  maximum scalar/vector updates = ",max_update
+       write(6,'(a)') "  guarded stage refresh and evaluation passed"
+       write(6,'(a)') "  weighted accumulated commit passed"
+       write(6,'(a)') "  caller-visible recovery checkpoint passed"
+       write(6,'(a)') "  accepted-state derived consumers passed"
+       write(6,'(a,/)') "  exact recovery and workspace reuse passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,2(i0,1x))') &
+            "Global two-stage driver scalar/vector blocks = ", &
+            changed_block_global
+       write(6,'(a,2(es14.6,1x))') &
+            "Global two-stage driver maximum updates = ", &
+            max_update_global
+       write(6,'(a,/)') &
+            "Reusable production two-stage block step driver passed"
+    end if
+
+  end subroutine check_block_two_stage_step_driver
+
+
+  subroutine check_block_two_stage_step_completion (verbose)
+    ! Exercise permanent acceptance through the production completion API
+    ! with a zero increment, preserving the exact Domain shadow.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: accumulator_allocation_before
+    integer(int64) :: changed_block_count(2)
+    integer(int64) :: count_global(2)
+    integer(int64) :: execution_before
+    integer(int64) :: field_count(2)
+    integer(int64) :: field_count_after(2)
+    integer(int64) :: tendency_allocation_before
+    integer(int64) :: tendency_count(2)
+    integer(int64) :: tendency_count_after(2)
+
+    real(dp) :: field_moment(3,2)
+    real(dp) :: field_moment_after(3,2)
+    real(dp) :: max_update(2)
+    real(dp) :: tendency_moment(3,2)
+    real(dp) :: tendency_moment_after(3,2)
+    real(dp) :: weight(2)
+
+    logical :: print_summary
+
+    type(Block_Stencil_Kernel_Context) :: driver_kernel
+    type(Block_Stencil_Kernel_Context) :: regenerated_kernel
+    type(Block_Two_Stage_Step_Result) :: result
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_tendency_state_ready()) then
+       call fail("two-stage completion check before tendency is ready")
+    end if
+    if (local_block_tendency_trial_is_active() .or. &
+         local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("two-stage completion check found pending transaction")
+    end if
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+    call local_block_tendency_statistics( &
+         tendency_count(1),tendency_count(2), &
+         tendency_moment(:,1),tendency_moment(:,2))
+
+    if (compressible) call ensure_local_block_hydrostatic_state
+    tendency_allocation_before = local_block_tendency_allocation_count()
+    accumulator_allocation_before = &
+         local_block_tendency_accumulator_allocation_count()
+    execution_before = local_block_tendency_execution_count()
+    weight = 0.5_dp
+
+    driver_kernel = Block_Stencil_Kernel_Context()
+    call begin_block_two_stage_tendency_step( &
+         accumulate_block_tendency_kernel,driver_kernel, &
+         0.0_dp,weight,result)
+
+    if (driver_kernel%block_count /= &
+         2_int64*int(n_local_blocks(),int64)) then
+       call fail("accepted two-stage completion traversal incomplete")
+    end if
+    if (result%scalar_count /= field_count(1) .or. &
+         result%vector_count /= field_count(2) .or. &
+         result%stage_count /= 2_int64) then
+       call fail("accepted two-stage completion coverage mismatch")
+    end if
+
+    changed_block_count = [result%scalar_changed_block_count, &
+         result%vector_changed_block_count]
+    max_update = [result%scalar_max_update,result%vector_max_update]
+    if (any(changed_block_count /= 0_int64) .or. &
+         maxval(abs(max_update)) > 0.0_dp) then
+       call fail("zero-increment two-stage completion changed fields")
+    end if
+    if (.not. local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("accepted two-stage completion checkpoint is not ready")
+    end if
+    if (compressible) then
+       if (.not. local_block_hydrostatic_state_ready()) then
+          call fail("zero-increment two-stage step invalidated cache")
+       end if
+    end if
+
+    call complete_block_two_stage_tendency_step(.true.)
+    if (local_block_tendency_trial_is_active() .or. &
+         local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("accepted two-stage completion remained pending")
+    end if
+    if (local_block_tendency_state_ready()) then
+       call fail("accepted two-stage completion retained stale tendency")
+    end if
+
+    call local_block_field_statistics( &
+         field_count_after(1),field_count_after(2), &
+         field_moment_after(:,1),field_moment_after(:,2))
+    if (any(field_count_after /= field_count)) then
+       call fail("accepted two-stage completion changed field coverage")
+    end if
+    if (.not. field_moments_match( &
+         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+         .not. field_moments_match( &
+         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
+       call fail("accepted zero-increment step changed fields")
+    end if
+
+    regenerated_kernel = Block_Stencil_Kernel_Context()
+    call apply_refreshed_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,regenerated_kernel)
+    if (regenerated_kernel%block_count /= &
+         int(n_local_blocks(),int64)) then
+       call fail("accepted two-stage regeneration incomplete")
+    end if
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       if (.not. local_block_hydrostatic_state_ready()) then
+          call fail("accepted two-stage hydrostatic state not ready")
+       end if
+    end if
+
+    if (local_block_tendency_allocation_count() /= &
+         tendency_allocation_before) then
+       call fail("two-stage completion reallocated tendency workspace")
+    end if
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_before) then
+       call fail("two-stage completion reallocated accumulator workspace")
+    end if
+    if (local_block_tendency_execution_count() /= &
+         execution_before+3_int64) then
+       call fail("two-stage completion execution count mismatch")
+    end if
+
+    call local_block_tendency_statistics( &
+         tendency_count_after(1),tendency_count_after(2), &
+         tendency_moment_after(:,1),tendency_moment_after(:,2))
+    if (any(tendency_count_after /= tendency_count)) then
+       call fail("two-stage completion tendency coverage changed")
+    end if
+    if (.not. field_moments_match( &
+         tendency_moment_after(:,1),tendency_moment(:,1), &
+         tendency_count(1)) .or. &
+         .not. field_moments_match( &
+         tendency_moment_after(:,2),tendency_moment(:,2), &
+         tendency_count(2))) then
+       call fail("two-stage completion tendency inventory changed")
+    end if
+
+    call MPI_Allreduce( &
+         field_count,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce two-stage completion values")
+    if (any(count_global <= 0_int64)) then
+       call fail("two-stage completion field inventory is empty")
+    end if
+
+    call reset_local_block_tendency_accumulator
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_before) then
+       call fail("two-stage completion reset reallocated accumulator")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Completed two-stage block transaction for rank ",rank,":"
+       write(6,'(a,2(i0,1x))') &
+            "  scalar/vector accepted values = ",field_count
+       write(6,'(a)') "  caller completion decision cleared checkpoint"
+       write(6,'(a)') "  explicit permanent acceptance path passed"
+       write(6,'(a)') "  zero-increment acceptance preserved fields"
+       write(6,'(a)') "  accepted-state tendency readiness passed"
+       write(6,'(a,/)') "  persistent workspace reuse passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,2(i0,1x))') &
+            "Global completed two-stage scalar/vector values = ", &
+            count_global
+       write(6,'(a,/)') &
+            "Finalized two-stage block transaction interface passed"
+    end if
+
+  end subroutine check_block_two_stage_step_completion
 
 
   subroutine accumulate_block_hydrostatic_consumer ( &
