@@ -340,6 +340,7 @@ module parallel_block_mod
   public :: local_block_tendency_allocation_count
   public :: local_block_tendency_statistics
   public :: begin_local_block_tendency_trial
+  public :: commit_local_block_tendency_trial
   public :: rollback_local_block_tendency_trial
   public :: local_block_tendency_trial_is_active
   public :: Local_Block_Hydrostatic_Consumer
@@ -1256,15 +1257,20 @@ subroutine begin_local_block_tendency_trial (scale)
           scale*block_tendency(local_index)%vector
 
      block_tendency_trial(local_index)%active = .true.
-     if (maxval(abs(block_tendency(local_index)%scalar)) > 0.0_dp) then
+     if (abs(scale) > 0.0_dp .and. &
+          maxval(abs(block_tendency(local_index)%scalar)) > 0.0_dp) then
         if (maxval(abs(block_local(local_index)%scalar - &
              block_tendency_trial(local_index)%scalar)) <= 0.0_dp) then
            error stop &
                 "begin_local_block_tendency_trial: scalar update vanished"
         end if
+     end if
+     if (maxval(abs(block_local(local_index)%scalar - &
+          block_tendency_trial(local_index)%scalar)) > 0.0_dp) then
         call invalidate_local_block_hydrostatic_block(local_index)
      end if
-     if (maxval(abs(block_tendency(local_index)%vector)) > 0.0_dp) then
+     if (abs(scale) > 0.0_dp .and. &
+          maxval(abs(block_tendency(local_index)%vector)) > 0.0_dp) then
         if (maxval(abs(block_local(local_index)%vector - &
              block_tendency_trial(local_index)%vector)) <= 0.0_dp) then
            error stop &
@@ -1281,6 +1287,42 @@ subroutine begin_local_block_tendency_trial (scale)
   end if
 
 end subroutine begin_local_block_tendency_trial
+
+
+subroutine commit_local_block_tendency_trial
+  ! Keep the trial fields as the new authoritative block state. Tendencies
+  ! were computed from the preceding state and are therefore marked stale;
+  ! their allocations remain available for the next kernel execution.
+
+  implicit none
+
+  integer :: local_index
+
+  if (.not. block_tendency_trial_active) then
+     error stop "commit_local_block_tendency_trial: no active trial"
+  end if
+  if (.not. allocated(block_tendency_trial) .or. &
+       .not. allocated(block_tendency)) then
+     error stop "commit_local_block_tendency_trial: state missing"
+  end if
+
+  do local_index = 1,size(block_local)
+     if (.not. block_tendency_trial(local_index)%active .or. &
+          block_tendency_trial(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index) .or. &
+          block_tendency(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index)) then
+        error stop "commit_local_block_tendency_trial: invalid state"
+     end if
+
+     block_tendency_trial(local_index)%active = .false.
+     block_tendency(local_index)%ready = .false.
+  end do
+
+  block_tendency_trial_active = .false.
+  block_tendency_ready = .false.
+
+end subroutine commit_local_block_tendency_trial
 
 
 subroutine rollback_local_block_tendency_trial
