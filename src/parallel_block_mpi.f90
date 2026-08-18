@@ -91,6 +91,11 @@ module parallel_block_mpi_mod
        get_local_block_hydrostatic_patch_values, &
        get_local_block_hydrostatic_values, &
        apply_local_block_field_consumer, &
+       apply_local_block_tendency_kernel, &
+       local_block_tendency_state_ready, &
+       local_block_tendency_execution_count, &
+       local_block_tendency_allocation_count, &
+       local_block_tendency_statistics, &
        apply_local_block_hydrostatic_consumer, &
        local_block_hydrostatic_statistics, &
        BLOCK_PAYLOAD_SOL, BLOCK_PAYLOAD_WAV_COEFF, &
@@ -254,6 +259,7 @@ module parallel_block_mpi_mod
   public :: check_block_hydrostatic_consumer
   public :: check_block_field_consumer
   public :: check_block_stencil_kernel
+  public :: check_block_tendency_kernel
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -1060,6 +1066,7 @@ end subroutine build_parallel_block_catalog
     call check_block_hydrostatic_consumer(print_local)
     call check_block_field_consumer(print_local)
     call check_block_stencil_kernel(print_local)
+    call check_block_tendency_kernel(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -6469,6 +6476,408 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_stencil_kernel
+
+
+  subroutine accumulate_block_tendency_kernel ( &
+       catalog_index,block,scalar_tendency,vector_tendency,context)
+    ! Write neighbour-minus-centre sol differences into persistent interior
+    ! scalar/vector tendency arrays using compact patch, boundary and ghost
+    ! stencil addresses.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    real(dp), intent(inout) :: scalar_tendency(:)
+    real(dp), intent(inout) :: vector_tendency(:)
+    class(*), intent(inout) :: context
+
+    integer :: address_offset
+    integer :: center_base
+    integer :: center_index
+    integer :: center_node
+    integer :: component_slot
+    integer :: field_base
+    integer :: field_index
+    integer :: level_slot
+    integer :: n_storage_node
+    integer :: node_index
+    integer :: p
+    integer :: q
+    integer :: record
+    integer :: scalar_slot
+    integer :: side
+    integer :: storage_class
+    integer :: storage_start
+
+    real(dp) :: center_value
+    real(dp) :: difference
+    real(dp) :: value
+
+    if (catalog_index < 1) then
+       call fail("tendency kernel received invalid catalogue index")
+    end if
+    if (size(scalar_tendency) /= size(block%scalar) .or. &
+         size(vector_tendency) /= size(block%vector)) then
+       call fail("tendency kernel received invalid output extents")
+    end if
+    if (block%scalar_mult /= 1 .or. block%vector_mult < 1) then
+       call fail("tendency kernel received invalid field multipliers")
+    end if
+    if (size(block%stencil,1) /= N_BDRY .or. &
+         size(block%stencil,2) /= size(block%patch)) then
+       call fail("tendency kernel received invalid topology")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Stencil_Kernel_Context)
+       statistics%block_count = statistics%block_count + 1_int64
+
+       do p = 1,size(block%patch)
+          do side = 1,N_BDRY
+             storage_class = block%stencil(side,p)%storage
+             record = block%stencil(side,p)%id
+             address_offset = block%stencil(side,p)%offset
+             storage_start = 0
+             n_storage_node = 0
+
+             select case (storage_class)
+             case (STORE_PATCH)
+                if (record < 0 .or. record >= size(block%patch)) then
+                   call fail("tendency kernel received invalid patch address")
+                end if
+                storage_start = block%patch(record+1)%elts_start
+                n_storage_node = PATCH_SIZE**2
+             case (STORE_BDRY)
+                if (record < 1 .or. &
+                     record > size(block%bdry_storage)) then
+                   call fail( &
+                        "tendency kernel received invalid boundary address")
+                end if
+                storage_start = block%bdry_storage(record)%local_start
+                n_storage_node = block%bdry_storage(record)%n_node
+             case (STORE_GHOST)
+                if (record < 1 .or. &
+                     record > size(block%ghost_storage)) then
+                   call fail( &
+                        "tendency kernel received invalid ghost address")
+                end if
+                storage_start = block%ghost_storage(record)%local_start
+                n_storage_node = block%ghost_storage(record)%n_node
+             case default
+                call fail("tendency kernel received invalid storage class")
+             end select
+
+             do q = 0,PATCH_SIZE**2-1
+                if (address_offset+q < 0 .or. &
+                     address_offset+q >= n_storage_node) cycle
+
+                node_index = storage_start + address_offset + q
+                center_node = block%patch(p)%elts_start + q
+
+                if (center_node < 0 .or. &
+                     center_node >= size(block%node)) then
+                   call fail("tendency kernel received invalid centre node")
+                end if
+                select case (storage_class)
+                case (STORE_PATCH)
+                   if (node_index < 0 .or. &
+                        node_index >= size(block%node)) then
+                      call fail("tendency kernel patch node is invalid")
+                   end if
+                case (STORE_BDRY)
+                   if (node_index < 0 .or. &
+                        node_index >= size(block%bdry_node)) then
+                      call fail("tendency kernel boundary node is invalid")
+                   end if
+                case (STORE_GHOST)
+                   if (node_index < 0 .or. &
+                        node_index >= size(block%ghost_node)) then
+                      call fail("tendency kernel ghost node is invalid")
+                   end if
+                end select
+
+                statistics%address_count(storage_class) = &
+                     statistics%address_count(storage_class) + 1_int64
+
+                do scalar_slot = 1,block%n_scalar_variable
+                   do level_slot = 1,block%n_field_level
+                      center_base = &
+                           ((scalar_slot-1)*block%n_field_level + &
+                           level_slot-1)*size(block%node)
+                      center_index = center_base + center_node + 1
+                      center_value = block%scalar(center_index)
+                      value = 0.0_dp
+
+                      select case (storage_class)
+                      case (STORE_PATCH)
+                         field_base = center_base
+                         field_index = field_base + node_index + 1
+                         value = block%scalar(field_index)
+                      case (STORE_BDRY)
+                         field_base = &
+                              ((scalar_slot-1)*block%n_field_level + &
+                              level_slot-1)*size(block%bdry_node)
+                         field_index = field_base + node_index + 1
+                         value = block%bdry_scalar(field_index)
+                      case (STORE_GHOST)
+                         field_base = &
+                              ((scalar_slot-1)*block%n_field_level + &
+                              level_slot-1)*size(block%ghost_node)
+                         field_index = field_base + node_index + 1
+                         value = block%ghost_scalar(field_index)
+                      end select
+
+                      difference = value-center_value
+                      scalar_tendency(center_index) = &
+                           scalar_tendency(center_index) + difference
+                      statistics%scalar_count = &
+                           statistics%scalar_count + 1_int64
+                      statistics%scalar_difference_moment = &
+                           statistics%scalar_difference_moment + &
+                           [difference,abs(difference),difference**2]
+                   end do
+                end do
+
+                do level_slot = 1,block%n_field_level
+                   do component_slot = 1,block%vector_mult
+                      center_base = (level_slot-1)* &
+                           block%vector_mult*size(block%node)
+                      center_index = center_base + &
+                           block%vector_mult*center_node + component_slot
+                      center_value = block%vector(center_index)
+                      value = 0.0_dp
+
+                      select case (storage_class)
+                      case (STORE_PATCH)
+                         field_base = center_base
+                         field_index = field_base + &
+                              block%vector_mult*node_index + &
+                              component_slot
+                         value = block%vector(field_index)
+                      case (STORE_BDRY)
+                         field_base = (level_slot-1)* &
+                              block%vector_mult*size(block%bdry_node)
+                         field_index = field_base + &
+                              block%vector_mult*node_index + &
+                              component_slot
+                         value = block%bdry_vector(field_index)
+                      case (STORE_GHOST)
+                         field_base = (level_slot-1)* &
+                              block%vector_mult*size(block%ghost_node)
+                         field_index = field_base + &
+                              block%vector_mult*node_index + &
+                              component_slot
+                         value = block%ghost_vector(field_index)
+                      end select
+
+                      difference = value-center_value
+                      vector_tendency(center_index) = &
+                           vector_tendency(center_index) + difference
+                      statistics%vector_count = &
+                           statistics%vector_count + 1_int64
+                      statistics%vector_difference_moment = &
+                           statistics%vector_difference_moment + &
+                           [difference,abs(difference),difference**2]
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("tendency kernel received invalid context")
+    end select
+
+  end subroutine accumulate_block_tendency_kernel
+
+
+  subroutine check_block_tendency_kernel (verbose)
+    ! Validate reusable writable tendency storage and a complete stencil
+    ! kernel while leaving authoritative prognostic fields unchanged.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: allocation_after_first
+    integer(int64) :: allocation_before
+    integer(int64) :: count_global(2)
+    integer(int64) :: count_local(2)
+    integer(int64) :: execution_before
+    integer(int64) :: field_count(2)
+    integer(int64) :: field_count_after(2)
+    integer(int64) :: refresh_count_before
+    integer(int64) :: tendency_count(2)
+    integer(int64) :: tendency_count_second(2)
+
+    real(dp) :: factor
+    real(dp) :: field_moment(3,2)
+    real(dp) :: field_moment_after(3,2)
+    real(dp) :: scale
+    real(dp) :: tendency_moment(3,2)
+    real(dp) :: tendency_moment_second(3,2)
+
+    logical :: print_summary
+
+    type(Block_Stencil_Kernel_Context) :: reference
+    type(Block_Stencil_Kernel_Context) :: writable_first
+    type(Block_Stencil_Kernel_Context) :: writable_second
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+
+    refresh_count_before = local_block_hydrostatic_refresh_count()
+    allocation_before = local_block_tendency_allocation_count()
+    execution_before = local_block_tendency_execution_count()
+
+    call refresh_block_sol_ghosts
+    reference = Block_Stencil_Kernel_Context()
+    call apply_local_block_field_consumer( &
+         accumulate_block_stencil_kernel,reference)
+
+    writable_first = Block_Stencil_Kernel_Context()
+    call apply_local_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,writable_first)
+
+    if (.not. local_block_tendency_state_ready()) then
+       call fail("production tendency output state is not ready")
+    end if
+    if (local_block_tendency_execution_count() /= execution_before+1_int64) then
+       call fail("production tendency execution count mismatch")
+    end if
+
+    allocation_after_first = local_block_tendency_allocation_count()
+    if (allocation_after_first < allocation_before) then
+       call fail("production tendency allocation count regressed")
+    end if
+
+    call local_block_tendency_statistics( &
+         tendency_count(1),tendency_count(2), &
+         tendency_moment(:,1),tendency_moment(:,2))
+
+    if (any(tendency_count /= field_count)) then
+       call fail("production tendency output coverage mismatch")
+    end if
+    if (writable_first%block_count /= int(n_local_blocks(),int64) .or. &
+         any(writable_first%address_count /= reference%address_count) .or. &
+         writable_first%scalar_count /= reference%scalar_count .or. &
+         writable_first%vector_count /= reference%vector_count) then
+       call fail("production tendency stencil traversal mismatch")
+    end if
+    if (.not. field_moments_match( &
+         writable_first%scalar_difference_moment, &
+         reference%scalar_difference_moment,reference%scalar_count) .or. &
+         .not. field_moments_match( &
+         writable_first%vector_difference_moment, &
+         reference%vector_difference_moment,reference%vector_count)) then
+       call fail("production tendency difference inventory mismatch")
+    end if
+
+    factor = 256.0_dp*epsilon(1.0_dp)* &
+         real(max(1_int64,reference%scalar_count),dp)
+    scale = max(1.0_dp,reference%scalar_difference_moment(2), &
+         tendency_moment(2,1))
+    if (abs(tendency_moment(1,1)- &
+         reference%scalar_difference_moment(1)) > factor*scale) then
+       call fail("scalar tendency accumulation is not conservative")
+    end if
+
+    factor = 256.0_dp*epsilon(1.0_dp)* &
+         real(max(1_int64,reference%vector_count),dp)
+    scale = max(1.0_dp,reference%vector_difference_moment(2), &
+         tendency_moment(2,2))
+    if (abs(tendency_moment(1,2)- &
+         reference%vector_difference_moment(1)) > factor*scale) then
+       call fail("vector tendency accumulation is not conservative")
+    end if
+
+    call refresh_block_sol_ghosts
+    writable_second = Block_Stencil_Kernel_Context()
+    call apply_local_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,writable_second)
+    call local_block_tendency_statistics( &
+         tendency_count_second(1),tendency_count_second(2), &
+         tendency_moment_second(:,1),tendency_moment_second(:,2))
+
+    if (local_block_tendency_allocation_count() /= &
+         allocation_after_first) then
+       call fail("production tendency workspace was reallocated")
+    end if
+    if (local_block_tendency_execution_count() /= execution_before+2_int64) then
+       call fail("repeated tendency execution count mismatch")
+    end if
+    if (any(tendency_count_second /= tendency_count)) then
+       call fail("repeated tendency output coverage changed")
+    end if
+    if (.not. field_moments_match( &
+         tendency_moment_second(:,1),tendency_moment(:,1), &
+         tendency_count(1)) .or. &
+         .not. field_moments_match( &
+         tendency_moment_second(:,2),tendency_moment(:,2), &
+         tendency_count(2))) then
+       call fail("repeated tendency output changed")
+    end if
+
+    call local_block_field_statistics( &
+         field_count_after(1),field_count_after(2), &
+         field_moment_after(:,1),field_moment_after(:,2))
+
+    if (any(field_count_after /= field_count)) then
+       call fail("tendency kernel changed prognostic field coverage")
+    end if
+    if (.not. field_moments_match( &
+         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+         .not. field_moments_match( &
+         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
+       call fail("tendency kernel changed prognostic fields")
+    end if
+    if (local_block_hydrostatic_refresh_count() /= &
+         refresh_count_before) then
+       call fail("tendency kernel refreshed hydrostatic cache")
+    end if
+
+    count_local = tendency_count
+    call MPI_Allreduce( &
+         count_local,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce production tendency counts")
+
+    if (any(count_global <= 0_int64)) then
+       call fail("production tendency global output is incomplete")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Writable block tendency kernel for rank ",rank,":"
+       write(6,'(a,i0)') &
+            "  scalar tendency values = ",tendency_count(1)
+       write(6,'(a,i0)') &
+            "  vector tendency values = ",tendency_count(2)
+       write(6,'(a)') &
+            "  complete writable stencil output passed"
+       write(6,'(a)') &
+            "  conservative difference accumulation passed"
+       write(6,'(a)') &
+            "  persistent workspace reuse passed"
+       write(6,'(a,/)') &
+            "  prognostic fields and hydrostatic cache unchanged"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global writable scalar tendency values = ",count_global(1)
+       write(6,'(a,i0)') &
+            "Global writable vector tendency values = ",count_global(2)
+       write(6,'(a,/)') &
+            "Persistent writable block stencil tendencies passed"
+    end if
+
+  end subroutine check_block_tendency_kernel
 
 
   subroutine accumulate_block_hydrostatic_consumer ( &

@@ -159,6 +159,15 @@ module parallel_block_mod
   end type Block_Hydrostatic_Storage
 
 
+  type :: Block_Tendency_Storage
+     integer :: catalog_index = 0
+     logical :: ready = .false.
+     integer(int64) :: generation = 0_int64
+     real(dp), allocatable :: scalar(:)
+     real(dp), allocatable :: vector(:)
+  end type Block_Tendency_Storage
+
+
   abstract interface
      subroutine Local_Block_Field_Consumer (catalog_index,block,context)
        import :: Block_Data
@@ -167,6 +176,17 @@ module parallel_block_mod
        type(Block_Data), intent(in) :: block
        class(*), intent(inout) :: context
      end subroutine Local_Block_Field_Consumer
+
+     subroutine Local_Block_Tendency_Kernel ( &
+          catalog_index,block,scalar_tendency,vector_tendency,context)
+       import :: Block_Data, dp
+
+       integer, intent(in) :: catalog_index
+       type(Block_Data), intent(in) :: block
+       real(dp), intent(inout) :: scalar_tendency(:)
+       real(dp), intent(inout) :: vector_tendency(:)
+       class(*), intent(inout) :: context
+     end subroutine Local_Block_Tendency_Kernel
 
      subroutine Local_Block_Hydrostatic_Consumer ( &
           catalog_index,n_patch,surface_pressure,dynamic_exner, &
@@ -187,6 +207,7 @@ module parallel_block_mod
   type(Block_Data), allocatable, public :: block_received(:)
   type(Block_Data), allocatable :: block_local(:)
   type(Block_Hydrostatic_Storage), allocatable :: block_hydrostatic(:)
+  type(Block_Tendency_Storage), allocatable :: block_tendency(:)
 
   integer, allocatable, public :: block_source_catalog_index(:)
   integer, allocatable, public :: block_retained_source_index(:)
@@ -198,6 +219,9 @@ module parallel_block_mod
   logical :: block_store_ready = .false.
   logical :: block_hydrostatic_ready = .false.
   integer(int64) :: block_hydrostatic_refreshes = 0_int64
+  logical :: block_tendency_ready = .false.
+  integer(int64) :: block_tendency_executions = 0_int64
+  integer(int64) :: block_tendency_allocations = 0_int64
 
   public :: packed_block_nbyte
   public :: pack_block
@@ -287,6 +311,12 @@ module parallel_block_mod
   public :: get_local_block_hydrostatic_values
   public :: Local_Block_Field_Consumer
   public :: apply_local_block_field_consumer
+  public :: Local_Block_Tendency_Kernel
+  public :: apply_local_block_tendency_kernel
+  public :: local_block_tendency_state_ready
+  public :: local_block_tendency_execution_count
+  public :: local_block_tendency_allocation_count
+  public :: local_block_tendency_statistics
   public :: Local_Block_Hydrostatic_Consumer
   public :: apply_local_block_hydrostatic_consumer
   public :: local_block_hydrostatic_statistics
@@ -936,6 +966,227 @@ subroutine apply_local_block_field_consumer (consumer,context)
   end do
 
 end subroutine apply_local_block_field_consumer
+
+
+subroutine prepare_local_block_tendency_state
+  ! Allocate reusable scalar/vector kernel outputs for the current local
+  ! block store. Existing correctly sized allocations are retained.
+
+  implicit none
+
+  integer :: local_index
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "prepare_local_block_tendency_state: store is not ready"
+  end if
+
+  if (allocated(block_tendency)) then
+     if (size(block_tendency) /= size(block_local)) then
+        deallocate(block_tendency)
+     end if
+  end if
+  if (.not. allocated(block_tendency)) then
+     allocate(block_tendency(size(block_local)))
+     block_tendency_ready = .false.
+  end if
+
+  do local_index = 1,size(block_local)
+     if (block_tendency(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index)) then
+        if (allocated(block_tendency(local_index)%scalar)) then
+           deallocate(block_tendency(local_index)%scalar)
+        end if
+        if (allocated(block_tendency(local_index)%vector)) then
+           deallocate(block_tendency(local_index)%vector)
+        end if
+        block_tendency(local_index)%catalog_index = &
+             block_local_catalog_index(local_index)
+        block_tendency(local_index)%ready = .false.
+        block_tendency(local_index)%generation = 0_int64
+     end if
+
+     if (allocated(block_tendency(local_index)%scalar)) then
+        if (size(block_tendency(local_index)%scalar) /= &
+             size(block_local(local_index)%scalar)) then
+           deallocate(block_tendency(local_index)%scalar)
+           block_tendency(local_index)%ready = .false.
+        end if
+     end if
+     if (.not. allocated(block_tendency(local_index)%scalar)) then
+        allocate(block_tendency(local_index)%scalar( &
+             size(block_local(local_index)%scalar)))
+        block_tendency_allocations = block_tendency_allocations + 1_int64
+     end if
+
+     if (allocated(block_tendency(local_index)%vector)) then
+        if (size(block_tendency(local_index)%vector) /= &
+             size(block_local(local_index)%vector)) then
+           deallocate(block_tendency(local_index)%vector)
+           block_tendency(local_index)%ready = .false.
+        end if
+     end if
+     if (.not. allocated(block_tendency(local_index)%vector)) then
+        allocate(block_tendency(local_index)%vector( &
+             size(block_local(local_index)%vector)))
+        block_tendency_allocations = block_tendency_allocations + 1_int64
+     end if
+  end do
+
+  block_tendency_ready = all(block_tendency%ready)
+
+end subroutine prepare_local_block_tendency_state
+
+
+subroutine apply_local_block_tendency_kernel (kernel,context)
+  ! Execute one writable production kernel across every local block.
+  ! Output arrays are persistent, zeroed before use and kept separate from
+  ! authoritative prognostic and derived-cache storage.
+
+  implicit none
+
+  procedure(Local_Block_Tendency_Kernel) :: kernel
+  class(*), intent(inout) :: context
+
+  integer :: catalog_index
+  integer :: local_index
+
+  call prepare_local_block_tendency_state
+  block_tendency_ready = .false.
+
+  do local_index = 1,size(block_local)
+     catalog_index = block_local_catalog_index(local_index)
+     block_tendency(local_index)%ready = .false.
+     block_tendency(local_index)%scalar = 0.0_dp
+     block_tendency(local_index)%vector = 0.0_dp
+
+     call kernel( &
+          catalog_index,block_local(local_index), &
+          block_tendency(local_index)%scalar, &
+          block_tendency(local_index)%vector,context)
+
+     if (size(block_tendency(local_index)%scalar) /= &
+          size(block_local(local_index)%scalar) .or. &
+          size(block_tendency(local_index)%vector) /= &
+          size(block_local(local_index)%vector)) then
+        error stop &
+             "apply_local_block_tendency_kernel: output extent changed"
+     end if
+
+     block_tendency(local_index)%ready = .true.
+     block_tendency(local_index)%generation = &
+          block_tendency(local_index)%generation + 1_int64
+  end do
+
+  block_tendency_ready = all(block_tendency%ready)
+  block_tendency_executions = block_tendency_executions + 1_int64
+
+  if (.not. local_block_tendency_state_ready()) then
+     error stop &
+          "apply_local_block_tendency_kernel: output state not ready"
+  end if
+
+end subroutine apply_local_block_tendency_kernel
+
+
+logical function local_block_tendency_state_ready () result(ready)
+  ! Report whether every current local block has a complete tendency output.
+
+  implicit none
+
+  integer :: local_index
+
+  ready = .false.
+  if (.not. local_block_store_ready()) return
+  if (.not. block_tendency_ready) return
+  if (.not. allocated(block_tendency)) return
+  if (size(block_tendency) /= size(block_local)) return
+
+  do local_index = 1,size(block_local)
+     if (block_tendency(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index)) return
+     if (.not. block_tendency(local_index)%ready) return
+     if (.not. allocated(block_tendency(local_index)%scalar)) return
+     if (.not. allocated(block_tendency(local_index)%vector)) return
+     if (size(block_tendency(local_index)%scalar) /= &
+          size(block_local(local_index)%scalar)) return
+     if (size(block_tendency(local_index)%vector) /= &
+          size(block_local(local_index)%vector)) return
+  end do
+
+  ready = .true.
+
+end function local_block_tendency_state_ready
+
+
+integer(int64) function local_block_tendency_execution_count () &
+     result(n_execution)
+  ! Number of whole-store tendency-kernel executions since installation.
+
+  implicit none
+
+  n_execution = block_tendency_executions
+
+end function local_block_tendency_execution_count
+
+
+integer(int64) function local_block_tendency_allocation_count () &
+     result(n_allocation)
+  ! Number of scalar/vector workspace allocations since installation.
+
+  implicit none
+
+  n_allocation = block_tendency_allocations
+
+end function local_block_tendency_allocation_count
+
+
+subroutine local_block_tendency_statistics ( &
+     scalar_count,vector_count,scalar_moment,vector_moment)
+  ! Accumulate order-independent diagnostics directly from persistent
+  ! writable kernel outputs.
+
+  implicit none
+
+  integer(int64), intent(out) :: scalar_count
+  integer(int64), intent(out) :: vector_count
+  real(dp), intent(out) :: scalar_moment(3)
+  real(dp), intent(out) :: vector_moment(3)
+
+  integer :: local_index
+
+  if (.not. local_block_tendency_state_ready()) then
+     error stop &
+          "local_block_tendency_statistics: output state not ready"
+  end if
+
+  scalar_count = 0_int64
+  vector_count = 0_int64
+  scalar_moment = 0.0_dp
+  vector_moment = 0.0_dp
+
+  do local_index = 1,size(block_tendency)
+     scalar_count = scalar_count + &
+          int(size(block_tendency(local_index)%scalar),int64)
+     vector_count = vector_count + &
+          int(size(block_tendency(local_index)%vector),int64)
+
+     scalar_moment(1) = scalar_moment(1) + &
+          sum(block_tendency(local_index)%scalar)
+     scalar_moment(2) = scalar_moment(2) + &
+          sum(abs(block_tendency(local_index)%scalar))
+     scalar_moment(3) = scalar_moment(3) + &
+          sum(block_tendency(local_index)%scalar**2)
+
+     vector_moment(1) = vector_moment(1) + &
+          sum(block_tendency(local_index)%vector)
+     vector_moment(2) = vector_moment(2) + &
+          sum(abs(block_tendency(local_index)%vector))
+     vector_moment(3) = vector_moment(3) + &
+          sum(block_tendency(local_index)%vector**2)
+  end do
+
+end subroutine local_block_tendency_statistics
 
 
 subroutine local_block_field_statistics ( &
@@ -5304,6 +5555,24 @@ subroutine local_block_hydrostatic_statistics ( &
 end subroutine local_block_hydrostatic_statistics
 
 
+subroutine clear_local_block_tendency_state
+  ! Release derived tendency outputs before the local block store changes.
+
+  implicit none
+
+  block_tendency_ready = .false.
+  block_tendency_executions = 0_int64
+  block_tendency_allocations = 0_int64
+
+  if (allocated(block_tendency)) deallocate(block_tendency)
+
+  if (allocated(block_tendency)) then
+     error stop "clear_local_block_tendency_state: cleanup failed"
+  end if
+
+end subroutine clear_local_block_tendency_state
+
+
 subroutine clear_local_blocks
   ! Invalidate and release the persistent final-owner local store.
   ! This routine is deliberately idempotent so it is safe before the
@@ -5311,6 +5580,7 @@ subroutine clear_local_blocks
 
   implicit none
 
+  call clear_local_block_tendency_state
   call clear_local_block_hydrostatic_state
   block_store_ready = .false.
 
