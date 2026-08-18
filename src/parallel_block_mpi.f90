@@ -43,16 +43,23 @@ module parallel_block_mpi_mod
        validate_local_block_ghost_sources, &
        get_local_block_ghost_requests, local_block_patch_count, &
        local_block_ghost_count, local_block_scalar_patch_nvalue, &
+       local_block_scalar_family_patch_nvalue, &
        get_local_block_scalar_patch_values, &
+       get_local_block_scalar_patch_family_values, &
        get_local_block_scalar_ghost_values, &
+       get_local_block_scalar_ghost_family_values, &
        set_local_block_scalar_ghost_values, &
        fill_local_block_scalar_ghost_values, &
        local_block_vector_patch_nvalue, &
+       local_block_vector_family_patch_nvalue, &
        get_local_block_vector_patch_values, &
+       get_local_block_vector_patch_family_values, &
        get_local_block_vector_ghost_values, &
+       get_local_block_vector_ghost_family_values, &
        set_local_block_vector_ghost_values, &
        fill_local_block_vector_ghost_values, &
-       local_block_hydrostatic_statistics
+       local_block_hydrostatic_statistics, &
+       BLOCK_PAYLOAD_SOL, BLOCK_PAYLOAD_WAV_COEFF
 
   implicit none
 
@@ -105,6 +112,7 @@ module parallel_block_mpi_mod
   public :: check_block_vector_ghost_payload_exchange
   public :: refresh_block_sol_wav_coeff_ghosts
   public :: check_production_block_ghost_refresh
+  public :: check_block_field_family_accessors
   public :: check_refreshed_block_stencil_consumers
   public :: check_block_hydrostatic_reconstruction
 
@@ -874,6 +882,7 @@ end subroutine build_parallel_block_catalog
     call check_block_scalar_ghost_payload_exchange(print_local)
     call check_block_vector_ghost_payload_exchange(print_local)
     call check_production_block_ghost_refresh(print_local)
+    call check_block_field_family_accessors(print_local)
 
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
@@ -2642,6 +2651,202 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_production_block_ghost_refresh
+
+
+  subroutine check_block_field_family_accessors (verbose)
+    ! Verify that independent sol and wav_coeff views reconstruct the
+    ! existing combined payload exactly for every local patch and ghost.
+    ! These accessors are the storage-side foundation for selective MPI
+    ! payload transport in the next stage.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: catalog_index
+    integer :: ghost_index
+    integer :: ierr
+    integer :: n_scalar_combined
+    integer :: n_scalar_family
+    integer :: n_vector_combined
+    integer :: n_vector_family
+    integer :: patch_index
+
+    integer(int64) :: count_global(4)
+    integer(int64) :: count_local(4)
+
+    real(dp), allocatable :: scalar_combined(:)
+    real(dp), allocatable :: scalar_family(:)
+    real(dp), allocatable :: vector_combined(:)
+    real(dp), allocatable :: vector_family(:)
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_store_ready()) then
+       call fail("field-family accessor check before block installation")
+    end if
+
+    count_local = 0_int64
+
+    do b = 1, n_local_blocks()
+       catalog_index = local_block_catalog(b)
+
+       n_scalar_family = &
+            local_block_scalar_family_patch_nvalue(catalog_index)
+       n_vector_family = &
+            local_block_vector_family_patch_nvalue(catalog_index)
+       n_scalar_combined = &
+            local_block_scalar_patch_nvalue(catalog_index)
+       n_vector_combined = &
+            local_block_vector_patch_nvalue(catalog_index)
+
+       if (n_scalar_combined /= 2*n_scalar_family) then
+          call fail("combined and scalar-family payload extents differ")
+       end if
+
+       if (n_vector_combined /= 2*n_vector_family) then
+          call fail("combined and vector-family payload extents differ")
+       end if
+
+       allocate(scalar_combined(2*n_scalar_family))
+       allocate(scalar_family(n_scalar_family))
+       allocate(vector_combined(2*n_vector_family))
+       allocate(vector_family(n_vector_family))
+
+       do patch_index = 0, local_block_patch_count(catalog_index)-1
+          call get_local_block_scalar_patch_values( &
+               catalog_index,patch_index,scalar_combined)
+          call get_local_block_scalar_patch_family_values( &
+               catalog_index,patch_index,BLOCK_PAYLOAD_SOL, &
+               scalar_family)
+          if (maxval(abs( &
+               scalar_family-scalar_combined(1:n_scalar_family))) > &
+               0.0_dp) then
+             call fail("selective scalar sol patch accessor mismatch")
+          end if
+          call get_local_block_scalar_patch_family_values( &
+               catalog_index,patch_index,BLOCK_PAYLOAD_WAV_COEFF, &
+               scalar_family)
+          if (maxval(abs( &
+               scalar_family- &
+               scalar_combined(n_scalar_family+1: &
+               2*n_scalar_family))) > 0.0_dp) then
+             call fail("selective scalar wav_coeff patch accessor mismatch")
+          end if
+          count_local(1) = count_local(1) + &
+               int(2*n_scalar_family,int64)
+
+          call get_local_block_vector_patch_values( &
+               catalog_index,patch_index,vector_combined)
+          call get_local_block_vector_patch_family_values( &
+               catalog_index,patch_index,BLOCK_PAYLOAD_SOL, &
+               vector_family)
+          if (maxval(abs( &
+               vector_family-vector_combined(1:n_vector_family))) > &
+               0.0_dp) then
+             call fail("selective vector sol patch accessor mismatch")
+          end if
+          call get_local_block_vector_patch_family_values( &
+               catalog_index,patch_index,BLOCK_PAYLOAD_WAV_COEFF, &
+               vector_family)
+          if (maxval(abs( &
+               vector_family- &
+               vector_combined(n_vector_family+1: &
+               2*n_vector_family))) > 0.0_dp) then
+             call fail("selective vector wav_coeff patch accessor mismatch")
+          end if
+          count_local(3) = count_local(3) + &
+               int(2*n_vector_family,int64)
+       end do
+
+       do ghost_index = 1, local_block_ghost_count(catalog_index)
+          call get_local_block_scalar_ghost_values( &
+               catalog_index,ghost_index,scalar_combined)
+          call get_local_block_scalar_ghost_family_values( &
+               catalog_index,ghost_index,BLOCK_PAYLOAD_SOL, &
+               scalar_family)
+          if (maxval(abs( &
+               scalar_family-scalar_combined(1:n_scalar_family))) > &
+               0.0_dp) then
+             call fail("selective scalar sol ghost accessor mismatch")
+          end if
+          call get_local_block_scalar_ghost_family_values( &
+               catalog_index,ghost_index,BLOCK_PAYLOAD_WAV_COEFF, &
+               scalar_family)
+          if (maxval(abs( &
+               scalar_family- &
+               scalar_combined(n_scalar_family+1: &
+               2*n_scalar_family))) > 0.0_dp) then
+             call fail("selective scalar wav_coeff ghost accessor mismatch")
+          end if
+          count_local(2) = count_local(2) + &
+               int(2*n_scalar_family,int64)
+
+          call get_local_block_vector_ghost_values( &
+               catalog_index,ghost_index,vector_combined)
+          call get_local_block_vector_ghost_family_values( &
+               catalog_index,ghost_index,BLOCK_PAYLOAD_SOL, &
+               vector_family)
+          if (maxval(abs( &
+               vector_family-vector_combined(1:n_vector_family))) > &
+               0.0_dp) then
+             call fail("selective vector sol ghost accessor mismatch")
+          end if
+          call get_local_block_vector_ghost_family_values( &
+               catalog_index,ghost_index,BLOCK_PAYLOAD_WAV_COEFF, &
+               vector_family)
+          if (maxval(abs( &
+               vector_family- &
+               vector_combined(n_vector_family+1: &
+               2*n_vector_family))) > 0.0_dp) then
+             call fail("selective vector wav_coeff ghost accessor mismatch")
+          end if
+          count_local(4) = count_local(4) + &
+               int(2*n_vector_family,int64)
+       end do
+
+       deallocate(scalar_combined)
+       deallocate(scalar_family)
+       deallocate(vector_combined)
+       deallocate(vector_family)
+    end do
+
+    call MPI_Allreduce( &
+         count_local,count_global,4,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce field-family accessor values")
+
+    if (any(count_global <= 0_int64)) then
+       call fail("incomplete field-family accessor inventory")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Selective field-family accessors for rank ",rank,":"
+       write(6,'(a,i0)') &
+            "  scalar patch values verified = ",count_local(1)
+       write(6,'(a,i0)') &
+            "  scalar ghost values verified = ",count_local(2)
+       write(6,'(a,i0)') &
+            "  vector patch values verified = ",count_local(3)
+       write(6,'(a,i0)') &
+            "  vector ghost values verified = ",count_local(4)
+       write(6,'(a,/)') &
+            "  sol/wav_coeff family reconstruction checks passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,4(i0,1x))') &
+            "Global scalar-patch/scalar-ghost/vector-patch/" // &
+            "vector-ghost values = ",count_global
+       write(6,'(a,/)') &
+            "Selective sol/wav_coeff field-family accessors passed"
+    end if
+
+  end subroutine check_block_field_family_accessors
 
 
   subroutine check_local_blocks (verbose)
