@@ -240,6 +240,7 @@ module parallel_block_mod
   integer(int64) :: block_hydrostatic_refreshes = 0_int64
   logical :: block_tendency_ready = .false.
   logical :: block_tendency_trial_active = .false.
+  logical :: block_tendency_commit_checkpoint_ready = .false.
   integer(int64) :: block_tendency_executions = 0_int64
   integer(int64) :: block_tendency_allocations = 0_int64
 
@@ -341,6 +342,10 @@ module parallel_block_mod
   public :: local_block_tendency_statistics
   public :: begin_local_block_tendency_trial
   public :: commit_local_block_tendency_trial
+  public :: finalize_local_block_tendency_commit
+  public :: restore_local_block_tendency_commit
+  public :: local_block_tendency_commit_checkpoint_is_ready
+  public :: local_block_tendency_commit_checkpoint_statistics
   public :: rollback_local_block_tendency_trial
   public :: local_block_tendency_trial_is_active
   public :: Local_Block_Hydrostatic_Consumer
@@ -1174,6 +1179,10 @@ subroutine prepare_local_block_tendency_trial
   if (block_tendency_trial_active) then
      error stop "prepare_local_block_tendency_trial: trial is active"
   end if
+  if (block_tendency_commit_checkpoint_ready) then
+     error stop &
+          "prepare_local_block_tendency_trial: commit checkpoint pending"
+  end if
 
   if (allocated(block_tendency_trial)) then
      if (size(block_tendency_trial) /= size(block_local)) then
@@ -1320,9 +1329,145 @@ subroutine commit_local_block_tendency_trial
   end do
 
   block_tendency_trial_active = .false.
+  block_tendency_commit_checkpoint_ready = .true.
   block_tendency_ready = .false.
 
 end subroutine commit_local_block_tendency_trial
+
+
+subroutine finalize_local_block_tendency_commit
+  ! Accept the committed fields permanently and release the one-level
+  ! recovery checkpoint for reuse by the next trial update.
+
+  implicit none
+
+  if (block_tendency_trial_active) then
+     error stop "finalize_local_block_tendency_commit: trial is active"
+  end if
+  if (.not. block_tendency_commit_checkpoint_ready) then
+     error stop &
+          "finalize_local_block_tendency_commit: checkpoint not ready"
+  end if
+
+  block_tendency_commit_checkpoint_ready = .false.
+
+end subroutine finalize_local_block_tendency_commit
+
+
+subroutine restore_local_block_tendency_commit
+  ! Restore the exact pre-commit fields retained in the one-level recovery
+  ! checkpoint. Current tendencies and affected hydrostatic caches are stale.
+
+  implicit none
+
+  integer :: local_index
+  logical :: scalar_changed
+
+  if (block_tendency_trial_active) then
+     error stop "restore_local_block_tendency_commit: trial is active"
+  end if
+  if (.not. block_tendency_commit_checkpoint_ready .or. &
+       .not. allocated(block_tendency_trial)) then
+     error stop "restore_local_block_tendency_commit: checkpoint not ready"
+  end if
+
+  do local_index = 1,size(block_local)
+     if (block_tendency_trial(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index)) then
+        error stop "restore_local_block_tendency_commit: invalid checkpoint"
+     end if
+
+     scalar_changed = maxval(abs(block_local(local_index)%scalar - &
+          block_tendency_trial(local_index)%scalar)) > 0.0_dp
+
+     block_local(local_index)%scalar = &
+          block_tendency_trial(local_index)%scalar
+     block_local(local_index)%vector = &
+          block_tendency_trial(local_index)%vector
+
+     if (maxval(abs(block_local(local_index)%scalar - &
+          block_tendency_trial(local_index)%scalar)) > 0.0_dp .or. &
+          maxval(abs(block_local(local_index)%vector - &
+          block_tendency_trial(local_index)%vector)) > 0.0_dp) then
+        error stop "restore_local_block_tendency_commit: restore failed"
+     end if
+
+     if (scalar_changed) then
+        call invalidate_local_block_hydrostatic_block(local_index)
+     end if
+     if (allocated(block_tendency)) then
+        block_tendency(local_index)%ready = .false.
+     end if
+  end do
+
+  block_tendency_ready = .false.
+  block_tendency_commit_checkpoint_ready = .false.
+
+end subroutine restore_local_block_tendency_commit
+
+
+logical function local_block_tendency_commit_checkpoint_is_ready () &
+     result(ready)
+  ! Report whether a committed update can still be restored exactly.
+
+  implicit none
+
+  ready = block_tendency_commit_checkpoint_ready
+
+end function local_block_tendency_commit_checkpoint_is_ready
+
+
+subroutine local_block_tendency_commit_checkpoint_statistics ( &
+     scalar_changed_block_count,vector_changed_block_count, &
+     scalar_max_update,vector_max_update)
+  ! Measure the accepted update directly against its retained checkpoint.
+
+  implicit none
+
+  integer(int64), intent(out) :: scalar_changed_block_count
+  integer(int64), intent(out) :: vector_changed_block_count
+  real(dp), intent(out) :: scalar_max_update
+  real(dp), intent(out) :: vector_max_update
+
+  integer :: local_index
+  real(dp) :: update
+
+  if (.not. block_tendency_commit_checkpoint_ready .or. &
+       .not. allocated(block_tendency_trial)) then
+     error stop &
+          "local_block_tendency_commit_checkpoint_statistics: not ready"
+  end if
+
+  scalar_changed_block_count = 0_int64
+  vector_changed_block_count = 0_int64
+  scalar_max_update = 0.0_dp
+  vector_max_update = 0.0_dp
+
+  do local_index = 1,size(block_local)
+     if (block_tendency_trial(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index)) then
+        error stop &
+             "local_block_tendency_commit_checkpoint_statistics: invalid"
+     end if
+
+     update = maxval(abs(block_local(local_index)%scalar - &
+          block_tendency_trial(local_index)%scalar))
+     scalar_max_update = max(scalar_max_update,update)
+     if (update > 0.0_dp) then
+        scalar_changed_block_count = &
+             scalar_changed_block_count + 1_int64
+     end if
+
+     update = maxval(abs(block_local(local_index)%vector - &
+          block_tendency_trial(local_index)%vector))
+     vector_max_update = max(vector_max_update,update)
+     if (update > 0.0_dp) then
+        vector_changed_block_count = &
+             vector_changed_block_count + 1_int64
+     end if
+  end do
+
+end subroutine local_block_tendency_commit_checkpoint_statistics
 
 
 subroutine rollback_local_block_tendency_trial
@@ -5853,6 +5998,7 @@ subroutine clear_local_block_tendency_state
 
   block_tendency_ready = .false.
   block_tendency_trial_active = .false.
+  block_tendency_commit_checkpoint_ready = .false.
   block_tendency_executions = 0_int64
   block_tendency_allocations = 0_int64
 

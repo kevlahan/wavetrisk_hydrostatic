@@ -100,6 +100,10 @@ module parallel_block_mpi_mod
        local_block_tendency_statistics, &
        begin_local_block_tendency_trial, &
        commit_local_block_tendency_trial, &
+       finalize_local_block_tendency_commit, &
+       restore_local_block_tendency_commit, &
+       local_block_tendency_commit_checkpoint_is_ready, &
+       local_block_tendency_commit_checkpoint_statistics, &
        rollback_local_block_tendency_trial, &
        local_block_tendency_trial_is_active, &
        apply_local_block_hydrostatic_consumer, &
@@ -279,6 +283,7 @@ module parallel_block_mpi_mod
   public :: check_block_tendency_trial_update
   public :: check_block_tendency_commit
   public :: check_block_tendency_step_driver
+  public :: check_block_tendency_accepted_step
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -1089,6 +1094,7 @@ end subroutine build_parallel_block_catalog
     call check_block_tendency_trial_update(print_local)
     call check_block_tendency_commit(print_local)
     call check_block_tendency_step_driver(print_local)
+    call check_block_tendency_accepted_step(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -7211,6 +7217,14 @@ end subroutine build_parallel_block_catalog
        end if
     end if
 
+    if (.not. local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("zero-increment commit checkpoint is not ready")
+    end if
+    call finalize_local_block_tendency_commit
+    if (local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("zero-increment commit checkpoint was not finalized")
+    end if
+
     regenerated = Block_Stencil_Kernel_Context()
     call apply_refreshed_block_tendency_kernel( &
          accumulate_block_tendency_kernel,regenerated)
@@ -7428,6 +7442,194 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_tendency_step_driver
+
+
+  subroutine check_block_tendency_accepted_step (verbose)
+    ! Commit one nonzero block update, consume its derived state, then use
+    ! the retained one-level checkpoint to recover the exact Domain shadow.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: allocation_before
+    integer(int64) :: changed_block_count(2)
+    integer(int64) :: changed_block_global(2)
+    integer(int64) :: execution_before
+    integer(int64) :: field_count(2)
+    integer(int64) :: field_count_after(2)
+    integer(int64) :: refresh_before
+    integer(int64) :: tendency_count(2)
+    integer(int64) :: tendency_count_after(2)
+
+    real(dp) :: field_moment(3,2)
+    real(dp) :: field_moment_after(3,2)
+    real(dp) :: max_update(2)
+    real(dp) :: max_update_global(2)
+    real(dp) :: tendency_moment(3,2)
+    real(dp) :: tendency_moment_after(3,2)
+    real(dp) :: trial_scale
+
+    logical :: print_summary
+
+    type(Block_Stencil_Kernel_Context) :: committed_kernel
+    type(Block_Stencil_Kernel_Context) :: restored_kernel
+    type(Block_Tendency_Traversal_Context) :: traversal
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_tendency_state_ready()) then
+       call fail("accepted block step requested before tendency is ready")
+    end if
+    if (local_block_tendency_trial_is_active() .or. &
+         local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("accepted block step found pending transaction state")
+    end if
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+    call local_block_tendency_statistics( &
+         tendency_count(1),tendency_count(2), &
+         tendency_moment(:,1),tendency_moment(:,2))
+
+    traversal = Block_Tendency_Traversal_Context()
+    call apply_local_block_tendency_consumer( &
+         accumulate_block_tendency_consumer,traversal)
+
+    if (compressible) call ensure_local_block_hydrostatic_state
+    refresh_before = local_block_hydrostatic_refresh_count()
+    allocation_before = local_block_tendency_allocation_count()
+    execution_before = local_block_tendency_execution_count()
+    trial_scale = epsilon(1.0_dp)**0.25_dp
+
+    call begin_local_block_tendency_trial(trial_scale)
+    call commit_local_block_tendency_trial
+
+    if (local_block_tendency_trial_is_active() .or. &
+         .not. local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("nonzero block update was not committed")
+    end if
+    if (local_block_tendency_state_ready()) then
+       call fail("accepted block update retained stale tendencies")
+    end if
+
+    call local_block_tendency_commit_checkpoint_statistics( &
+         changed_block_count(1),changed_block_count(2), &
+         max_update(1),max_update(2))
+    if (changed_block_count(1) /= &
+         traversal%scalar_changed_block_count) then
+       call fail("accepted scalar update coverage mismatch")
+    end if
+
+    committed_kernel = Block_Stencil_Kernel_Context()
+    call apply_refreshed_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,committed_kernel)
+    if (committed_kernel%block_count /= int(n_local_blocks(),int64)) then
+       call fail("accepted-state tendency traversal incomplete")
+    end if
+
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       if (local_block_hydrostatic_refresh_count()-refresh_before /= &
+            changed_block_count(1)) then
+          call fail("accepted-state hydrostatic refresh mismatch")
+       end if
+    end if
+
+    call restore_local_block_tendency_commit
+    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
+         local_block_tendency_state_ready()) then
+       call fail("accepted block checkpoint restore left stale state ready")
+    end if
+
+    call local_block_field_statistics( &
+         field_count_after(1),field_count_after(2), &
+         field_moment_after(:,1),field_moment_after(:,2))
+    if (any(field_count_after /= field_count)) then
+       call fail("accepted block checkpoint changed field coverage")
+    end if
+    if (.not. field_moments_match( &
+         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+         .not. field_moments_match( &
+         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
+       call fail("accepted block checkpoint did not restore fields")
+    end if
+
+    restored_kernel = Block_Stencil_Kernel_Context()
+    call apply_refreshed_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,restored_kernel)
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       if (local_block_hydrostatic_refresh_count()-refresh_before /= &
+            2_int64*changed_block_count(1)) then
+          call fail("restored-state hydrostatic refresh mismatch")
+       end if
+    end if
+
+    if (local_block_tendency_allocation_count() /= allocation_before) then
+       call fail("accepted block step reallocated tendency workspace")
+    end if
+    if (local_block_tendency_execution_count() /= execution_before+2_int64) then
+       call fail("accepted block step execution count mismatch")
+    end if
+
+    call local_block_tendency_statistics( &
+         tendency_count_after(1),tendency_count_after(2), &
+         tendency_moment_after(:,1),tendency_moment_after(:,2))
+    if (any(tendency_count_after /= tendency_count)) then
+       call fail("restored tendency coverage changed")
+    end if
+    if (.not. field_moments_match( &
+         tendency_moment_after(:,1),tendency_moment(:,1), &
+         tendency_count(1)) .or. &
+         .not. field_moments_match( &
+         tendency_moment_after(:,2),tendency_moment(:,2), &
+         tendency_count(2))) then
+       call fail("restored tendency inventory changed")
+    end if
+
+    call MPI_Allreduce( &
+         changed_block_count,changed_block_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce accepted block update counts")
+    call MPI_Allreduce( &
+         max_update,max_update_global,2, &
+         MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce accepted block update maxima")
+    if (changed_block_global(1) <= 0_int64 .or. &
+         maxval(max_update_global) <= 0.0_dp) then
+       call fail("accepted block update produced no change")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Accepted nonzero block step for rank ",rank,":"
+       write(6,'(a,2(i0,1x))') &
+            "  scalar/vector modified blocks = ",changed_block_count
+       write(6,'(a,2(es14.6,1x))') &
+            "  maximum scalar/vector updates = ",max_update
+       write(6,'(a)') "  committed-state ghost refresh passed"
+       write(6,'(a)') "  committed-state tendency regeneration passed"
+       write(6,'(a)') "  committed-state hydrostatic rebuild passed"
+       write(6,'(a,/)') "  exact checkpoint recovery passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,2(i0,1x))') &
+            "Global accepted scalar/vector modified blocks = ", &
+            changed_block_global
+       write(6,'(a,2(es14.6,1x))') &
+            "Global maximum scalar/vector updates = ", &
+            max_update_global
+       write(6,'(a,/)') &
+            "Accepted nonzero block tendency step passed"
+    end if
+
+  end subroutine check_block_tendency_accepted_step
 
 
   subroutine accumulate_block_hydrostatic_consumer ( &
