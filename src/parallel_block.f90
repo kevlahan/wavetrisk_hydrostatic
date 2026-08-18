@@ -168,6 +168,14 @@ module parallel_block_mod
   end type Block_Tendency_Storage
 
 
+  type :: Block_Tendency_Trial_Storage
+     integer :: catalog_index = 0
+     logical :: active = .false.
+     real(dp), allocatable :: scalar(:)
+     real(dp), allocatable :: vector(:)
+  end type Block_Tendency_Trial_Storage
+
+
   abstract interface
      subroutine Local_Block_Field_Consumer (catalog_index,block,context)
        import :: Block_Data
@@ -187,6 +195,16 @@ module parallel_block_mod
        real(dp), intent(inout) :: vector_tendency(:)
        class(*), intent(inout) :: context
      end subroutine Local_Block_Tendency_Kernel
+
+     subroutine Local_Block_Tendency_Consumer ( &
+          catalog_index,scalar_tendency,vector_tendency,context)
+       import :: dp
+
+       integer, intent(in) :: catalog_index
+       real(dp), intent(in) :: scalar_tendency(:)
+       real(dp), intent(in) :: vector_tendency(:)
+       class(*), intent(inout) :: context
+     end subroutine Local_Block_Tendency_Consumer
 
      subroutine Local_Block_Hydrostatic_Consumer ( &
           catalog_index,n_patch,surface_pressure,dynamic_exner, &
@@ -208,6 +226,7 @@ module parallel_block_mod
   type(Block_Data), allocatable :: block_local(:)
   type(Block_Hydrostatic_Storage), allocatable :: block_hydrostatic(:)
   type(Block_Tendency_Storage), allocatable :: block_tendency(:)
+  type(Block_Tendency_Trial_Storage), allocatable :: block_tendency_trial(:)
 
   integer, allocatable, public :: block_source_catalog_index(:)
   integer, allocatable, public :: block_retained_source_index(:)
@@ -220,6 +239,7 @@ module parallel_block_mod
   logical :: block_hydrostatic_ready = .false.
   integer(int64) :: block_hydrostatic_refreshes = 0_int64
   logical :: block_tendency_ready = .false.
+  logical :: block_tendency_trial_active = .false.
   integer(int64) :: block_tendency_executions = 0_int64
   integer(int64) :: block_tendency_allocations = 0_int64
 
@@ -313,10 +333,15 @@ module parallel_block_mod
   public :: apply_local_block_field_consumer
   public :: Local_Block_Tendency_Kernel
   public :: apply_local_block_tendency_kernel
+  public :: Local_Block_Tendency_Consumer
+  public :: apply_local_block_tendency_consumer
   public :: local_block_tendency_state_ready
   public :: local_block_tendency_execution_count
   public :: local_block_tendency_allocation_count
   public :: local_block_tendency_statistics
+  public :: begin_local_block_tendency_trial
+  public :: rollback_local_block_tendency_trial
+  public :: local_block_tendency_trial_is_active
   public :: Local_Block_Hydrostatic_Consumer
   public :: apply_local_block_hydrostatic_consumer
   public :: local_block_hydrostatic_statistics
@@ -1051,6 +1076,11 @@ subroutine apply_local_block_tendency_kernel (kernel,context)
   integer :: catalog_index
   integer :: local_index
 
+  if (block_tendency_trial_active) then
+     error stop &
+          "apply_local_block_tendency_kernel: trial is active"
+  end if
+
   call prepare_local_block_tendency_state
   block_tendency_ready = .false.
 
@@ -1087,6 +1117,225 @@ subroutine apply_local_block_tendency_kernel (kernel,context)
   end if
 
 end subroutine apply_local_block_tendency_kernel
+
+
+subroutine apply_local_block_tendency_consumer (consumer,context)
+  ! Traverse the persistent tendency outputs without copying or exposing
+  ! writable storage. The consumer cannot alter either output family.
+
+  implicit none
+
+  procedure(Local_Block_Tendency_Consumer) :: consumer
+  class(*), intent(inout) :: context
+
+  integer :: catalog_index
+  integer :: local_index
+  integer(int64) :: generation_before
+
+  if (.not. local_block_tendency_state_ready()) then
+     error stop &
+          "apply_local_block_tendency_consumer: output state not ready"
+  end if
+  if (block_tendency_trial_active) then
+     error stop &
+          "apply_local_block_tendency_consumer: trial is active"
+  end if
+
+  do local_index = 1,size(block_tendency)
+     catalog_index = block_tendency(local_index)%catalog_index
+     generation_before = block_tendency(local_index)%generation
+
+     call consumer( &
+          catalog_index,block_tendency(local_index)%scalar, &
+          block_tendency(local_index)%vector,context)
+
+     if (.not. local_block_tendency_state_ready()) then
+        error stop &
+             "apply_local_block_tendency_consumer: state changed"
+     end if
+     if (block_tendency(local_index)%catalog_index /= catalog_index .or. &
+          block_tendency(local_index)%generation /= generation_before) then
+        error stop &
+             "apply_local_block_tendency_consumer: traversal changed"
+     end if
+  end do
+
+end subroutine apply_local_block_tendency_consumer
+
+
+subroutine prepare_local_block_tendency_trial
+  ! Allocate reusable exact snapshots for reversible shadow updates.
+
+  implicit none
+
+  integer :: local_index
+
+  if (block_tendency_trial_active) then
+     error stop "prepare_local_block_tendency_trial: trial is active"
+  end if
+
+  if (allocated(block_tendency_trial)) then
+     if (size(block_tendency_trial) /= size(block_local)) then
+        deallocate(block_tendency_trial)
+     end if
+  end if
+  if (.not. allocated(block_tendency_trial)) then
+     allocate(block_tendency_trial(size(block_local)))
+  end if
+
+  do local_index = 1,size(block_local)
+     if (block_tendency_trial(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index)) then
+        if (allocated(block_tendency_trial(local_index)%scalar)) then
+           deallocate(block_tendency_trial(local_index)%scalar)
+        end if
+        if (allocated(block_tendency_trial(local_index)%vector)) then
+           deallocate(block_tendency_trial(local_index)%vector)
+        end if
+        block_tendency_trial(local_index)%catalog_index = &
+             block_local_catalog_index(local_index)
+     end if
+
+     if (allocated(block_tendency_trial(local_index)%scalar)) then
+        if (size(block_tendency_trial(local_index)%scalar) /= &
+             size(block_local(local_index)%scalar)) then
+           deallocate(block_tendency_trial(local_index)%scalar)
+        end if
+     end if
+     if (.not. allocated(block_tendency_trial(local_index)%scalar)) then
+        allocate(block_tendency_trial(local_index)%scalar( &
+             size(block_local(local_index)%scalar)))
+     end if
+
+     if (allocated(block_tendency_trial(local_index)%vector)) then
+        if (size(block_tendency_trial(local_index)%vector) /= &
+             size(block_local(local_index)%vector)) then
+           deallocate(block_tendency_trial(local_index)%vector)
+        end if
+     end if
+     if (.not. allocated(block_tendency_trial(local_index)%vector)) then
+        allocate(block_tendency_trial(local_index)%vector( &
+             size(block_local(local_index)%vector)))
+     end if
+     block_tendency_trial(local_index)%active = .false.
+  end do
+
+end subroutine prepare_local_block_tendency_trial
+
+
+subroutine begin_local_block_tendency_trial (scale)
+  ! Snapshot authoritative interior fields, apply one scaled tendency and
+  ! invalidate only hydrostatic caches affected by scalar changes.
+
+  implicit none
+
+  real(dp), intent(in) :: scale
+
+  integer :: local_index
+
+  if (.not. local_block_tendency_state_ready()) then
+     error stop "begin_local_block_tendency_trial: tendency not ready"
+  end if
+  if (block_tendency_trial_active) then
+     error stop "begin_local_block_tendency_trial: trial already active"
+  end if
+
+  call prepare_local_block_tendency_trial
+
+  do local_index = 1,size(block_local)
+     block_tendency_trial(local_index)%scalar = &
+          block_local(local_index)%scalar
+     block_tendency_trial(local_index)%vector = &
+          block_local(local_index)%vector
+
+     block_local(local_index)%scalar = &
+          block_tendency_trial(local_index)%scalar + &
+          scale*block_tendency(local_index)%scalar
+     block_local(local_index)%vector = &
+          block_tendency_trial(local_index)%vector + &
+          scale*block_tendency(local_index)%vector
+
+     block_tendency_trial(local_index)%active = .true.
+     if (maxval(abs(block_tendency(local_index)%scalar)) > 0.0_dp) then
+        if (maxval(abs(block_local(local_index)%scalar - &
+             block_tendency_trial(local_index)%scalar)) <= 0.0_dp) then
+           error stop &
+                "begin_local_block_tendency_trial: scalar update vanished"
+        end if
+        call invalidate_local_block_hydrostatic_block(local_index)
+     end if
+     if (maxval(abs(block_tendency(local_index)%vector)) > 0.0_dp) then
+        if (maxval(abs(block_local(local_index)%vector - &
+             block_tendency_trial(local_index)%vector)) <= 0.0_dp) then
+           error stop &
+                "begin_local_block_tendency_trial: vector update vanished"
+        end if
+     end if
+  end do
+
+  block_tendency_trial_active = &
+       all(block_tendency_trial%active)
+
+  if (.not. block_tendency_trial_active) then
+     error stop "begin_local_block_tendency_trial: incomplete trial"
+  end if
+
+end subroutine begin_local_block_tendency_trial
+
+
+subroutine rollback_local_block_tendency_trial
+  ! Restore the exact saved fields. Derived hydrostatic values remain stale
+  ! until the next explicit ensure, because they may describe trial fields.
+
+  implicit none
+
+  integer :: local_index
+
+  if (.not. block_tendency_trial_active) then
+     error stop "rollback_local_block_tendency_trial: no active trial"
+  end if
+  if (.not. allocated(block_tendency_trial)) then
+     error stop "rollback_local_block_tendency_trial: snapshot missing"
+  end if
+
+  do local_index = 1,size(block_local)
+     if (.not. block_tendency_trial(local_index)%active .or. &
+          block_tendency_trial(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index)) then
+        error stop "rollback_local_block_tendency_trial: invalid snapshot"
+     end if
+
+     block_local(local_index)%scalar = &
+          block_tendency_trial(local_index)%scalar
+     block_local(local_index)%vector = &
+          block_tendency_trial(local_index)%vector
+
+     if (maxval(abs(block_local(local_index)%scalar - &
+          block_tendency_trial(local_index)%scalar)) > 0.0_dp .or. &
+          maxval(abs(block_local(local_index)%vector - &
+          block_tendency_trial(local_index)%vector)) > 0.0_dp) then
+        error stop "rollback_local_block_tendency_trial: restore failed"
+     end if
+
+     if (maxval(abs(block_tendency(local_index)%scalar)) > 0.0_dp) then
+        call invalidate_local_block_hydrostatic_block(local_index)
+     end if
+     block_tendency_trial(local_index)%active = .false.
+  end do
+
+  block_tendency_trial_active = .false.
+
+end subroutine rollback_local_block_tendency_trial
+
+
+logical function local_block_tendency_trial_is_active () result(active)
+  ! Report whether authoritative fields currently contain a trial update.
+
+  implicit none
+
+  active = block_tendency_trial_active
+
+end function local_block_tendency_trial_is_active
 
 
 logical function local_block_tendency_state_ready () result(ready)
@@ -5561,12 +5810,15 @@ subroutine clear_local_block_tendency_state
   implicit none
 
   block_tendency_ready = .false.
+  block_tendency_trial_active = .false.
   block_tendency_executions = 0_int64
   block_tendency_allocations = 0_int64
 
   if (allocated(block_tendency)) deallocate(block_tendency)
+  if (allocated(block_tendency_trial)) deallocate(block_tendency_trial)
 
-  if (allocated(block_tendency)) then
+  if (allocated(block_tendency) .or. &
+       allocated(block_tendency_trial)) then
      error stop "clear_local_block_tendency_state: cleanup failed"
   end if
 

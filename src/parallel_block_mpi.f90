@@ -92,10 +92,14 @@ module parallel_block_mpi_mod
        get_local_block_hydrostatic_values, &
        apply_local_block_field_consumer, &
        apply_local_block_tendency_kernel, &
+       apply_local_block_tendency_consumer, &
        local_block_tendency_state_ready, &
        local_block_tendency_execution_count, &
        local_block_tendency_allocation_count, &
        local_block_tendency_statistics, &
+       begin_local_block_tendency_trial, &
+       rollback_local_block_tendency_trial, &
+       local_block_tendency_trial_is_active, &
        apply_local_block_hydrostatic_consumer, &
        local_block_hydrostatic_statistics, &
        BLOCK_PAYLOAD_SOL, BLOCK_PAYLOAD_WAV_COEFF, &
@@ -226,6 +230,15 @@ module parallel_block_mpi_mod
      real(dp) :: vector_difference_moment(3) = 0.0_dp
   end type Block_Stencil_Kernel_Context
 
+  type :: Block_Tendency_Traversal_Context
+     integer(int64) :: block_count = 0_int64
+     integer(int64) :: scalar_count = 0_int64
+     integer(int64) :: vector_count = 0_int64
+     integer(int64) :: scalar_changed_block_count = 0_int64
+     real(dp) :: scalar_moment(3) = 0.0_dp
+     real(dp) :: vector_moment(3) = 0.0_dp
+  end type Block_Tendency_Traversal_Context
+
   public :: build_block_migration_manifest
   public :: check_block_migration_manifest
   public :: exchange_block_migration_sizes
@@ -260,6 +273,7 @@ module parallel_block_mpi_mod
   public :: check_block_field_consumer
   public :: check_block_stencil_kernel
   public :: check_block_tendency_kernel
+  public :: check_block_tendency_trial_update
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -719,7 +733,7 @@ contains
           "build_parallel_block_catalog: invalid committed block owner"
 
   end if
-  
+
   !
   ! Print compact diagnostic summary.
   !
@@ -1067,6 +1081,7 @@ end subroutine build_parallel_block_catalog
     call check_block_field_consumer(print_local)
     call check_block_stencil_kernel(print_local)
     call check_block_tendency_kernel(print_local)
+    call check_block_tendency_trial_update(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -6878,6 +6893,203 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_tendency_kernel
+
+
+  subroutine accumulate_block_tendency_consumer ( &
+       catalog_index,scalar_tendency,vector_tendency,context)
+    ! Read the persistent tendency arrays supplied directly by the
+    ! read-only production traversal.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    real(dp), intent(in) :: scalar_tendency(:)
+    real(dp), intent(in) :: vector_tendency(:)
+    class(*), intent(inout) :: context
+
+    if (catalog_index < 1) then
+       call fail("tendency consumer received invalid catalogue index")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Tendency_Traversal_Context)
+       statistics%block_count = statistics%block_count + 1_int64
+       statistics%scalar_count = statistics%scalar_count + &
+            int(size(scalar_tendency),int64)
+       statistics%vector_count = statistics%vector_count + &
+            int(size(vector_tendency),int64)
+       if (maxval(abs(scalar_tendency)) > 0.0_dp) then
+          statistics%scalar_changed_block_count = &
+               statistics%scalar_changed_block_count + 1_int64
+       end if
+
+       statistics%scalar_moment(1) = &
+            statistics%scalar_moment(1) + sum(scalar_tendency)
+       statistics%scalar_moment(2) = &
+            statistics%scalar_moment(2) + sum(abs(scalar_tendency))
+       statistics%scalar_moment(3) = &
+            statistics%scalar_moment(3) + sum(scalar_tendency**2)
+       statistics%vector_moment(1) = &
+            statistics%vector_moment(1) + sum(vector_tendency)
+       statistics%vector_moment(2) = &
+            statistics%vector_moment(2) + sum(abs(vector_tendency))
+       statistics%vector_moment(3) = &
+            statistics%vector_moment(3) + sum(vector_tendency**2)
+    class default
+       call fail("tendency consumer received invalid context")
+    end select
+
+  end subroutine accumulate_block_tendency_consumer
+
+
+  subroutine check_block_tendency_trial_update (verbose)
+    ! Validate direct read-only tendency traversal and a reversible shadow
+    ! update without changing the active Domain timestep.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: changed_block_global
+    integer(int64) :: field_count(2)
+    integer(int64) :: field_count_after(2)
+    integer(int64) :: refresh_after
+    integer(int64) :: refresh_before
+    integer(int64) :: tendency_count(2)
+
+    real(dp) :: field_moment(3,2)
+    real(dp) :: field_moment_after(3,2)
+    real(dp) :: tendency_moment(3,2)
+    real(dp) :: trial_scale
+
+    logical :: print_summary
+
+    type(Block_Tendency_Traversal_Context) :: traversal
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_tendency_state_ready()) then
+       call fail("tendency trial requested before output is ready")
+    end if
+    if (local_block_tendency_trial_is_active()) then
+       call fail("tendency trial unexpectedly active")
+    end if
+
+    call local_block_tendency_statistics( &
+         tendency_count(1),tendency_count(2), &
+         tendency_moment(:,1),tendency_moment(:,2))
+
+    traversal = Block_Tendency_Traversal_Context()
+    call apply_local_block_tendency_consumer( &
+         accumulate_block_tendency_consumer,traversal)
+
+    if (traversal%block_count /= int(n_local_blocks(),int64) .or. &
+         traversal%scalar_count /= tendency_count(1) .or. &
+         traversal%vector_count /= tendency_count(2)) then
+       call fail("read-only tendency traversal coverage mismatch")
+    end if
+    if (.not. field_moments_match( &
+         traversal%scalar_moment,tendency_moment(:,1), &
+         tendency_count(1)) .or. &
+         .not. field_moments_match( &
+         traversal%vector_moment,tendency_moment(:,2), &
+         tendency_count(2))) then
+       call fail("read-only tendency traversal moment mismatch")
+    end if
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+
+    if (compressible) call ensure_local_block_hydrostatic_state
+    refresh_before = local_block_hydrostatic_refresh_count()
+
+    trial_scale = epsilon(1.0_dp)**0.25_dp
+    call begin_local_block_tendency_trial(trial_scale)
+    if (.not. local_block_tendency_trial_is_active()) then
+       call fail("reversible tendency trial did not become active")
+    end if
+
+    if (compressible .and. &
+         traversal%scalar_changed_block_count > 0_int64) then
+       if (local_block_hydrostatic_state_ready()) then
+          call fail("scalar tendency trial did not invalidate cache")
+       end if
+       if (local_block_hydrostatic_refresh_count() /= refresh_before) then
+          call fail("scalar tendency trial refreshed cache eagerly")
+       end if
+    end if
+
+    call rollback_local_block_tendency_trial
+    if (local_block_tendency_trial_is_active()) then
+       call fail("reversible tendency trial remained active")
+    end if
+
+    call local_block_field_statistics( &
+         field_count_after(1),field_count_after(2), &
+         field_moment_after(:,1),field_moment_after(:,2))
+    if (any(field_count_after /= field_count)) then
+       call fail("tendency rollback changed field coverage")
+    end if
+    if (.not. field_moments_match( &
+         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+         .not. field_moments_match( &
+         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
+       call fail("tendency rollback did not recover prognostic fields")
+    end if
+
+    if (.not. local_block_tendency_state_ready()) then
+       call fail("tendency output was lost during trial rollback")
+    end if
+
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       refresh_after = local_block_hydrostatic_refresh_count()
+       if (refresh_after-refresh_before /= &
+            traversal%scalar_changed_block_count) then
+          call fail("selective hydrostatic refresh count mismatch")
+       end if
+       if (.not. local_block_hydrostatic_state_ready()) then
+          call fail("hydrostatic cache not ready after rollback")
+       end if
+    end if
+
+    call MPI_Allreduce( &
+         traversal%scalar_changed_block_count,changed_block_global, &
+         1,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce tendency trial blocks")
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Reversible block tendency trial for rank ",rank,":"
+       write(6,'(a,i0)') &
+            "  directly traversed scalar values = ", &
+            traversal%scalar_count
+       write(6,'(a,i0)') &
+            "  directly traversed vector values = ", &
+            traversal%vector_count
+       write(6,'(a,i0)') &
+            "  scalar-modified blocks            = ", &
+            traversal%scalar_changed_block_count
+       write(6,'(a)') "  direct persistent tendency traversal passed"
+       write(6,'(a)') "  reversible scalar/vector trial update passed"
+       write(6,'(a)') "  selective hydrostatic invalidation passed"
+       write(6,'(a)') "  exact prognostic rollback passed"
+       write(6,'(a,/)') "  persistent tendency outputs retained"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global scalar-modified trial blocks = ", &
+            changed_block_global
+       write(6,'(a,/)') &
+            "Reversible block tendency shadow update passed"
+    end if
+
+  end subroutine check_block_tendency_trial_update
 
 
   subroutine accumulate_block_hydrostatic_consumer ( &
