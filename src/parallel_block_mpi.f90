@@ -48,16 +48,16 @@ module parallel_block_mpi_mod
        get_local_block_scalar_patch_family_values, &
        get_local_block_scalar_ghost_values, &
        get_local_block_scalar_ghost_family_values, &
-       set_local_block_scalar_ghost_values, &
-       fill_local_block_scalar_ghost_values, &
+       set_local_block_scalar_ghost_family_values, &
+       fill_local_block_scalar_ghost_family_values, &
        local_block_vector_patch_nvalue, &
        local_block_vector_family_patch_nvalue, &
        get_local_block_vector_patch_values, &
        get_local_block_vector_patch_family_values, &
        get_local_block_vector_ghost_values, &
        get_local_block_vector_ghost_family_values, &
-       set_local_block_vector_ghost_values, &
-       fill_local_block_vector_ghost_values, &
+       set_local_block_vector_ghost_family_values, &
+       fill_local_block_vector_ghost_family_values, &
        local_block_hydrostatic_statistics, &
        BLOCK_PAYLOAD_SOL, BLOCK_PAYLOAD_WAV_COEFF
 
@@ -110,6 +110,8 @@ module parallel_block_mpi_mod
   public :: check_block_ghost_request_manifest
   public :: check_block_scalar_ghost_payload_exchange
   public :: check_block_vector_ghost_payload_exchange
+  public :: refresh_block_sol_ghosts
+  public :: refresh_block_wav_coeff_ghosts
   public :: refresh_block_sol_wav_coeff_ghosts
   public :: check_production_block_ghost_refresh
   public :: check_block_field_family_accessors
@@ -1844,13 +1846,16 @@ end subroutine build_parallel_block_catalog
     print_summary = .true.
     if (present(verbose)) print_summary = verbose
 
-    call exchange_block_scalar_ghost_payloads(print_summary,.true.)
+    call exchange_block_scalar_ghost_payloads( &
+         BLOCK_PAYLOAD_SOL,print_summary,.true.)
+    call exchange_block_scalar_ghost_payloads( &
+         BLOCK_PAYLOAD_WAV_COEFF,print_summary,.true.)
 
   end subroutine check_block_scalar_ghost_payload_exchange
 
 
   subroutine exchange_block_scalar_ghost_payloads ( &
-       print_summary,verify_installation)
+       payload_family,print_summary,verify_installation)
     ! Use the field-independent request manifest to return the complete
     ! scalar sol/wav_coeff bundle for every ghost patch. With verification
     ! enabled, compare transport with the final-owner source blocks, poison
@@ -1861,6 +1866,7 @@ end subroutine build_parallel_block_catalog
     integer, parameter :: REQUEST_SIZE = 4
     logical, intent(in) :: print_summary
     logical, intent(in) :: verify_installation
+    integer, intent(in) :: payload_family
 
     integer :: destination
     integer :: field_level
@@ -1911,6 +1917,19 @@ end subroutine build_parallel_block_catalog
     real(dp), allocatable :: response_send(:)
     real(dp), allocatable :: source_value(:)
 
+    character(len=9) :: payload_name
+
+    payload_name = ""
+
+    select case (payload_family)
+    case (BLOCK_PAYLOAD_SOL)
+       payload_name = "sol"
+    case (BLOCK_PAYLOAD_WAV_COEFF)
+       payload_name = "wav_coeff"
+    case default
+       call fail("invalid scalar ghost payload family")
+    end select
+
     call get_block_field_layout( &
          scalar_variable,scalar_count,vector_variable,field_level, &
          level_count,scalar_mult,vector_mult)
@@ -1921,7 +1940,7 @@ end subroutine build_parallel_block_catalog
     end if
 
     n_value = &
-         2*scalar_count*level_count*scalar_mult*PATCH_SIZE**2
+         scalar_count*level_count*scalar_mult*PATCH_SIZE**2
 
     call get_local_block_ghost_requests( &
          source_block,source_local_patch,source_owner, &
@@ -1955,7 +1974,8 @@ end subroutine build_parallel_block_catalog
           call fail("stale scalar ghost payload request")
        end if
 
-       if (local_block_scalar_patch_nvalue(destination) /= n_value) then
+       if (local_block_scalar_family_patch_nvalue(destination) /= &
+            n_value) then
           call fail("destination scalar ghost payload layout mismatch")
        end if
 
@@ -2055,8 +2075,8 @@ end subroutine build_parallel_block_catalog
              call fail("received scalar ghost source is not local")
           end if
 
-          call get_local_block_scalar_patch_values( &
-               source,recv_data(pos+2),source_value)
+          call get_local_block_scalar_patch_family_values( &
+               source,recv_data(pos+2),payload_family,source_value)
 
           pos = response_send_displ(r) + n_value*i
           response_send(pos+1:pos+n_value) = source_value
@@ -2073,10 +2093,12 @@ end subroutine build_parallel_block_catalog
        do i = 1, n_request
           if (source_owner(i) /= rank) cycle
 
-          call get_local_block_scalar_patch_values( &
-               source_block(i),source_local_patch(i),source_value)
-          call get_local_block_scalar_ghost_values( &
-               destination_block(i),destination_ghost(i),expected)
+          call get_local_block_scalar_patch_family_values( &
+               source_block(i),source_local_patch(i),payload_family, &
+               source_value)
+          call get_local_block_scalar_ghost_family_values( &
+               destination_block(i),destination_ghost(i), &
+               payload_family,expected)
           if (maxval(abs(source_value-expected)) > 0.0_dp) then
              call fail("local scalar ghost payload values do not match")
           end if
@@ -2087,9 +2109,10 @@ end subroutine build_parallel_block_catalog
              fill_record = send_displ(r)/REQUEST_SIZE + i + 1
              destination = destination_block(request_index(fill_record))
 
-             call get_local_block_scalar_ghost_values( &
+             call get_local_block_scalar_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)),expected)
+                  destination_ghost(request_index(fill_record)), &
+                  payload_family,expected)
 
              pos = response_recv_displ(r) + n_value*i
              if (maxval(abs( &
@@ -2099,27 +2122,32 @@ end subroutine build_parallel_block_catalog
           end do
        end do
 
-       call fill_local_block_scalar_ghost_values(BLOCK_GHOST_POISON)
+       call fill_local_block_scalar_ghost_family_values( &
+            payload_family,BLOCK_GHOST_POISON)
     end if
 
     do i = 1, n_request
        if (source_owner(i) /= rank) cycle
 
        if (verify_installation) then
-          call get_local_block_scalar_ghost_values( &
-               destination_block(i),destination_ghost(i),expected)
+          call get_local_block_scalar_ghost_family_values( &
+               destination_block(i),destination_ghost(i), &
+               payload_family,expected)
           if (maxval(abs(expected-BLOCK_GHOST_POISON)) > 0.0_dp) then
              call fail("scalar ghost storage was not invalidated")
           end if
        end if
 
-       call get_local_block_scalar_patch_values( &
-            source_block(i),source_local_patch(i),source_value)
-       call set_local_block_scalar_ghost_values( &
-            destination_block(i),destination_ghost(i),source_value)
+       call get_local_block_scalar_patch_family_values( &
+            source_block(i),source_local_patch(i),payload_family, &
+            source_value)
+       call set_local_block_scalar_ghost_family_values( &
+            destination_block(i),destination_ghost(i), &
+            payload_family,source_value)
        if (verify_installation) then
-          call get_local_block_scalar_ghost_values( &
-               destination_block(i),destination_ghost(i),expected)
+          call get_local_block_scalar_ghost_family_values( &
+               destination_block(i),destination_ghost(i), &
+               payload_family,expected)
           if (maxval(abs(source_value-expected)) > 0.0_dp) then
              call fail("local scalar ghost payload installation failed")
           end if
@@ -2132,23 +2160,25 @@ end subroutine build_parallel_block_catalog
           destination = destination_block(request_index(fill_record))
 
           if (verify_installation) then
-             call get_local_block_scalar_ghost_values( &
+             call get_local_block_scalar_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)),expected)
+                  destination_ghost(request_index(fill_record)), &
+                  payload_family,expected)
              if (maxval(abs(expected-BLOCK_GHOST_POISON)) > 0.0_dp) then
                 call fail("scalar ghost storage was not invalidated")
              end if
           end if
 
           pos = response_recv_displ(r) + n_value*i
-          call set_local_block_scalar_ghost_values( &
+          call set_local_block_scalar_ghost_family_values( &
                destination, &
                destination_ghost(request_index(fill_record)), &
-               response_recv(pos+1:pos+n_value))
+               payload_family,response_recv(pos+1:pos+n_value))
           if (verify_installation) then
-             call get_local_block_scalar_ghost_values( &
+             call get_local_block_scalar_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)),expected)
+                  destination_ghost(request_index(fill_record)), &
+                  payload_family,expected)
              if (maxval(abs( &
                   response_recv(pos+1:pos+n_value)-expected)) > 0.0_dp) then
                 call fail("remote scalar ghost payload installation failed")
@@ -2167,8 +2197,9 @@ end subroutine build_parallel_block_catalog
     call check_mpi(ierr,"MPI_Allreduce scalar ghost payload totals")
 
     if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Scalar sol/wav_coeff ghost payloads for rank ",rank,":"
+       write(6,'(/,a,a,a,i0,a)') &
+            "Scalar ",trim(payload_name), &
+            " ghost payloads for rank ",rank,":"
        write(6,'(a,i0)') &
             "  values per ghost patch = ",n_value
        write(6,'(a,i0)') &
@@ -2176,17 +2207,20 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  remote payload patches = ",n_remote_send
        write(6,'(a,/)') &
-            "  scalar sol/wav_coeff ghosts restored from payloads"
+            "  selected scalar ghost family restored from payloads"
     end if
 
     if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global scalar sol/wav_coeff ghost patches = ", &
+       write(6,'(/,a,a,a,i0)') &
+            "Global scalar ",trim(payload_name), &
+            " ghost patches = ", &
             count_global(1)+count_global(2)
-       write(6,'(a,i0)') &
-            "Global scalar sol/wav_coeff values  = ",count_global(3)
-       write(6,'(a,/)') &
-            "Scalar sol/wav_coeff ghost payload installation passed"
+       write(6,'(a,a,a,i0)') &
+            "Global scalar ",trim(payload_name), &
+            " values = ",count_global(3)
+       write(6,'(a,a,a,/)') &
+            "Scalar ",trim(payload_name), &
+            " ghost payload installation passed"
     end if
 
     deallocate(destination_block)
@@ -2229,13 +2263,16 @@ end subroutine build_parallel_block_catalog
     print_summary = .true.
     if (present(verbose)) print_summary = verbose
 
-    call exchange_block_vector_ghost_payloads(print_summary,.true.)
+    call exchange_block_vector_ghost_payloads( &
+         BLOCK_PAYLOAD_SOL,print_summary,.true.)
+    call exchange_block_vector_ghost_payloads( &
+         BLOCK_PAYLOAD_WAV_COEFF,print_summary,.true.)
 
   end subroutine check_block_vector_ghost_payload_exchange
 
 
   subroutine exchange_block_vector_ghost_payloads ( &
-       print_summary,verify_installation)
+       payload_family,print_summary,verify_installation)
     ! Return the complete vector sol/wav_coeff bundle for every ghost using
     ! the field-independent request manifest. With verification enabled,
     ! compare transport with the source blocks, poison compact ghost storage,
@@ -2246,6 +2283,7 @@ end subroutine build_parallel_block_catalog
     integer, parameter :: REQUEST_SIZE = 4
     logical, intent(in) :: print_summary
     logical, intent(in) :: verify_installation
+    integer, intent(in) :: payload_family
 
     integer :: destination
     integer :: field_level
@@ -2296,6 +2334,19 @@ end subroutine build_parallel_block_catalog
     real(dp), allocatable :: response_send(:)
     real(dp), allocatable :: source_value(:)
 
+    character(len=9) :: payload_name
+
+    payload_name = ""
+
+    select case (payload_family)
+    case (BLOCK_PAYLOAD_SOL)
+       payload_name = "sol"
+    case (BLOCK_PAYLOAD_WAV_COEFF)
+       payload_name = "wav_coeff"
+    case default
+       call fail("invalid vector ghost payload family")
+    end select
+
     call get_block_field_layout( &
          scalar_variable,scalar_count,vector_variable,field_level, &
          level_count,scalar_mult,vector_mult)
@@ -2304,7 +2355,7 @@ end subroutine build_parallel_block_catalog
        call fail("invalid vector payload layout")
     end if
 
-    n_value = 2*level_count*vector_mult*PATCH_SIZE**2
+    n_value = level_count*vector_mult*PATCH_SIZE**2
 
     call get_local_block_ghost_requests( &
          source_block,source_local_patch,source_owner, &
@@ -2338,7 +2389,8 @@ end subroutine build_parallel_block_catalog
           call fail("stale vector ghost payload request")
        end if
 
-       if (local_block_vector_patch_nvalue(destination) /= n_value) then
+       if (local_block_vector_family_patch_nvalue(destination) /= &
+            n_value) then
           call fail("destination vector ghost payload layout mismatch")
        end if
 
@@ -2438,8 +2490,8 @@ end subroutine build_parallel_block_catalog
              call fail("received vector ghost source is not local")
           end if
 
-          call get_local_block_vector_patch_values( &
-               source,recv_data(pos+2),source_value)
+          call get_local_block_vector_patch_family_values( &
+               source,recv_data(pos+2),payload_family,source_value)
 
           pos = response_send_displ(r) + n_value*i
           response_send(pos+1:pos+n_value) = source_value
@@ -2456,10 +2508,12 @@ end subroutine build_parallel_block_catalog
        do i = 1, n_request
           if (source_owner(i) /= rank) cycle
 
-          call get_local_block_vector_patch_values( &
-               source_block(i),source_local_patch(i),source_value)
-          call get_local_block_vector_ghost_values( &
-               destination_block(i),destination_ghost(i),expected)
+          call get_local_block_vector_patch_family_values( &
+               source_block(i),source_local_patch(i),payload_family, &
+               source_value)
+          call get_local_block_vector_ghost_family_values( &
+               destination_block(i),destination_ghost(i), &
+               payload_family,expected)
           if (maxval(abs(source_value-expected)) > 0.0_dp) then
              call fail("local vector ghost payload values do not match")
           end if
@@ -2470,9 +2524,10 @@ end subroutine build_parallel_block_catalog
              fill_record = send_displ(r)/REQUEST_SIZE + i + 1
              destination = destination_block(request_index(fill_record))
 
-             call get_local_block_vector_ghost_values( &
+             call get_local_block_vector_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)),expected)
+                  destination_ghost(request_index(fill_record)), &
+                  payload_family,expected)
 
              pos = response_recv_displ(r) + n_value*i
              if (maxval(abs( &
@@ -2482,27 +2537,32 @@ end subroutine build_parallel_block_catalog
           end do
        end do
 
-       call fill_local_block_vector_ghost_values(BLOCK_GHOST_POISON)
+       call fill_local_block_vector_ghost_family_values( &
+            payload_family,BLOCK_GHOST_POISON)
     end if
 
     do i = 1, n_request
        if (source_owner(i) /= rank) cycle
 
        if (verify_installation) then
-          call get_local_block_vector_ghost_values( &
-               destination_block(i),destination_ghost(i),expected)
+          call get_local_block_vector_ghost_family_values( &
+               destination_block(i),destination_ghost(i), &
+               payload_family,expected)
           if (maxval(abs(expected-BLOCK_GHOST_POISON)) > 0.0_dp) then
              call fail("vector ghost storage was not invalidated")
           end if
        end if
 
-       call get_local_block_vector_patch_values( &
-            source_block(i),source_local_patch(i),source_value)
-       call set_local_block_vector_ghost_values( &
-            destination_block(i),destination_ghost(i),source_value)
+       call get_local_block_vector_patch_family_values( &
+            source_block(i),source_local_patch(i),payload_family, &
+            source_value)
+       call set_local_block_vector_ghost_family_values( &
+            destination_block(i),destination_ghost(i), &
+            payload_family,source_value)
        if (verify_installation) then
-          call get_local_block_vector_ghost_values( &
-               destination_block(i),destination_ghost(i),expected)
+          call get_local_block_vector_ghost_family_values( &
+               destination_block(i),destination_ghost(i), &
+               payload_family,expected)
           if (maxval(abs(source_value-expected)) > 0.0_dp) then
              call fail("local vector ghost payload installation failed")
           end if
@@ -2515,23 +2575,25 @@ end subroutine build_parallel_block_catalog
           destination = destination_block(request_index(fill_record))
 
           if (verify_installation) then
-             call get_local_block_vector_ghost_values( &
+             call get_local_block_vector_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)),expected)
+                  destination_ghost(request_index(fill_record)), &
+                  payload_family,expected)
              if (maxval(abs(expected-BLOCK_GHOST_POISON)) > 0.0_dp) then
                 call fail("vector ghost storage was not invalidated")
              end if
           end if
 
           pos = response_recv_displ(r) + n_value*i
-          call set_local_block_vector_ghost_values( &
+          call set_local_block_vector_ghost_family_values( &
                destination, &
                destination_ghost(request_index(fill_record)), &
-               response_recv(pos+1:pos+n_value))
+               payload_family,response_recv(pos+1:pos+n_value))
           if (verify_installation) then
-             call get_local_block_vector_ghost_values( &
+             call get_local_block_vector_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)),expected)
+                  destination_ghost(request_index(fill_record)), &
+                  payload_family,expected)
              if (maxval(abs( &
                   response_recv(pos+1:pos+n_value)-expected)) > 0.0_dp) then
                 call fail("remote vector ghost payload installation failed")
@@ -2550,8 +2612,9 @@ end subroutine build_parallel_block_catalog
     call check_mpi(ierr,"MPI_Allreduce vector ghost payload totals")
 
     if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Vector sol/wav_coeff ghost payloads for rank ",rank,":"
+       write(6,'(/,a,a,a,i0,a)') &
+            "Vector ",trim(payload_name), &
+            " ghost payloads for rank ",rank,":"
        write(6,'(a,i0)') &
             "  values per ghost patch = ",n_value
        write(6,'(a,i0)') &
@@ -2559,17 +2622,20 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  remote payload patches = ",n_remote_send
        write(6,'(a,/)') &
-            "  vector sol/wav_coeff ghosts restored from payloads"
+            "  selected vector ghost family restored from payloads"
     end if
 
     if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global vector sol/wav_coeff ghost patches = ", &
+       write(6,'(/,a,a,a,i0)') &
+            "Global vector ",trim(payload_name), &
+            " ghost patches = ", &
             count_global(1)+count_global(2)
-       write(6,'(a,i0)') &
-            "Global vector sol/wav_coeff values  = ",count_global(3)
-       write(6,'(a,/)') &
-            "Vector sol/wav_coeff ghost payload installation passed"
+       write(6,'(a,a,a,i0)') &
+            "Global vector ",trim(payload_name), &
+            " values = ",count_global(3)
+       write(6,'(a,a,a,/)') &
+            "Vector ",trim(payload_name), &
+            " ghost payload installation passed"
     end if
 
     deallocate(destination_block)
@@ -2599,27 +2665,56 @@ end subroutine build_parallel_block_catalog
   end subroutine exchange_block_vector_ghost_payloads
 
 
-  subroutine refresh_block_sol_wav_coeff_ghosts
-    ! Refresh the complete scalar and vector sol/wav_coeff ghost bundles
-    ! from the final-owner block store. This is the quiet production path:
-    ! it performs no poisoning and no comparisons with previous ghost data.
+  subroutine refresh_block_sol_ghosts
+    ! Refresh only scalar and vector sol ghost payloads.
 
     implicit none
 
     if (.not. local_block_store_ready()) then
-       call fail("block ghost refresh before block installation")
+       call fail("block sol ghost refresh before block installation")
     end if
 
-    call exchange_block_scalar_ghost_payloads(.false.,.false.)
-    call exchange_block_vector_ghost_payloads(.false.,.false.)
+    call exchange_block_scalar_ghost_payloads( &
+         BLOCK_PAYLOAD_SOL,.false.,.false.)
+    call exchange_block_vector_ghost_payloads( &
+         BLOCK_PAYLOAD_SOL,.false.,.false.)
+
+  end subroutine refresh_block_sol_ghosts
+
+
+  subroutine refresh_block_wav_coeff_ghosts
+    ! Refresh only scalar and vector wav_coeff ghost payloads.
+
+    implicit none
+
+    if (.not. local_block_store_ready()) then
+       call fail("block wav_coeff ghost refresh before block installation")
+    end if
+
+    call exchange_block_scalar_ghost_payloads( &
+         BLOCK_PAYLOAD_WAV_COEFF,.false.,.false.)
+    call exchange_block_vector_ghost_payloads( &
+         BLOCK_PAYLOAD_WAV_COEFF,.false.,.false.)
+
+  end subroutine refresh_block_wav_coeff_ghosts
+
+
+  subroutine refresh_block_sol_wav_coeff_ghosts
+    ! Refresh both payload families using the two selective production
+    ! entry points while retaining the combined convenience API.
+
+    implicit none
+
+    call refresh_block_sol_ghosts
+    call refresh_block_wav_coeff_ghosts
 
   end subroutine refresh_block_sol_wav_coeff_ghosts
 
 
   subroutine check_production_block_ghost_refresh (verbose)
-    ! Exercise the quiet production refresh after invalidating both ghost
-    ! field families, then verify the resulting values through the compact
-    ! scalar and vector stencil consumers.
+    ! Poison and restore each family independently through its production
+    ! entry point. After each selective refresh, verify the complete scalar
+    ! and vector state through the compact stencil consumers.
 
     implicit none
 
@@ -2630,24 +2725,34 @@ end subroutine build_parallel_block_catalog
     print_summary = .true.
     if (present(verbose)) print_summary = verbose
 
-    call fill_local_block_scalar_ghost_values(BLOCK_GHOST_POISON)
-    call fill_local_block_vector_ghost_values(BLOCK_GHOST_POISON)
+    call fill_local_block_scalar_ghost_family_values( &
+         BLOCK_PAYLOAD_SOL,BLOCK_GHOST_POISON)
+    call fill_local_block_vector_ghost_family_values( &
+         BLOCK_PAYLOAD_SOL,BLOCK_GHOST_POISON)
 
-    call refresh_block_sol_wav_coeff_ghosts
+    call refresh_block_sol_ghosts
+    call check_refreshed_block_stencil_consumers(.false.)
+
+    call fill_local_block_scalar_ghost_family_values( &
+         BLOCK_PAYLOAD_WAV_COEFF,BLOCK_GHOST_POISON)
+    call fill_local_block_vector_ghost_family_values( &
+         BLOCK_PAYLOAD_WAV_COEFF,BLOCK_GHOST_POISON)
+
+    call refresh_block_wav_coeff_ghosts
     call check_refreshed_block_stencil_consumers(.false.)
 
     if (print_summary) then
        write(6,'(/,a,i0,a)') &
             "Production block ghost refresh for rank ",rank,":"
        write(6,'(a)') &
-            "  scalar sol/wav_coeff ghost refresh passed"
+            "  selective sol ghost refresh passed"
        write(6,'(a,/)') &
-            "  vector sol/wav_coeff ghost refresh passed"
+            "  selective wav_coeff ghost refresh passed"
     end if
 
     if (print_summary .and. rank == 0) then
        write(6,'(/,a,/)') &
-            "Production block sol/wav_coeff ghost refresh passed"
+            "Selective production block ghost refreshes passed"
     end if
 
   end subroutine check_production_block_ghost_refresh
@@ -2656,8 +2761,8 @@ end subroutine build_parallel_block_catalog
   subroutine check_block_field_family_accessors (verbose)
     ! Verify that independent sol and wav_coeff views reconstruct the
     ! existing combined payload exactly for every local patch and ghost.
-    ! These accessors are the storage-side foundation for selective MPI
-    ! payload transport in the next stage.
+    ! These are the storage-side accessors used by the selective MPI
+    ! payload transport in this stage.
 
     implicit none
 

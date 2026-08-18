@@ -202,7 +202,9 @@ module parallel_block_mod
   public :: get_local_block_scalar_ghost_values
   public :: get_local_block_scalar_ghost_family_values
   public :: set_local_block_scalar_ghost_values
+  public :: set_local_block_scalar_ghost_family_values
   public :: fill_local_block_scalar_ghost_values
+  public :: fill_local_block_scalar_ghost_family_values
   public :: local_block_vector_patch_nvalue
   public :: local_block_vector_family_patch_nvalue
   public :: get_local_block_vector_patch_values
@@ -210,7 +212,9 @@ module parallel_block_mod
   public :: get_local_block_vector_ghost_values
   public :: get_local_block_vector_ghost_family_values
   public :: set_local_block_vector_ghost_values
+  public :: set_local_block_vector_ghost_family_values
   public :: fill_local_block_vector_ghost_values
+  public :: fill_local_block_vector_ghost_family_values
   public :: local_block_hydrostatic_statistics
   public :: install_local_blocks
 
@@ -1929,6 +1933,100 @@ subroutine get_local_block_scalar_ghost_family_values ( &
 end subroutine get_local_block_scalar_ghost_family_values
 
 
+subroutine set_local_block_scalar_ghost_family_values ( &
+     catalog_index,ghost_index,payload_family,value)
+  ! Install one scalar sol or wav_coeff family in one compact ghost patch.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: ghost_index
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value(:)
+
+  integer :: field_base
+  integer :: ghost_start
+  integer :: input_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_ghost_node
+  integer :: n_patch_value
+  integer :: scalar_slot
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "set_local_block_scalar_ghost_family_values: block is not local"
+  end if
+
+  if (ghost_index < 1 .or. &
+       ghost_index > size(block_local(local_index)%ghost_storage)) then
+     error stop &
+          "set_local_block_scalar_ghost_family_values: invalid ghost"
+  end if
+
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "set_local_block_scalar_ghost_family_values: invalid family"
+  end if
+
+  if (size(value) /= &
+       local_block_scalar_family_patch_nvalue(catalog_index)) then
+     error stop &
+          "set_local_block_scalar_ghost_family_values: input extent"
+  end if
+
+  n_patch_value = &
+       block_local(local_index)%scalar_mult * PATCH_SIZE**2
+  n_ghost_node = size(block_local(local_index)%ghost_node)
+  ghost_start = block_local(local_index)% &
+       ghost_storage(ghost_index)%local_start
+
+  if (ghost_start < 0 .or. &
+       ghost_start+PATCH_SIZE**2 > n_ghost_node) then
+     error stop &
+          "set_local_block_scalar_ghost_family_values: ghost storage"
+  end if
+
+  do scalar_slot = 1, &
+       block_local(local_index)%n_scalar_variable
+     do level_slot = 1, &
+          block_local(local_index)%n_field_level
+        field_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1) * &
+             block_local(local_index)%scalar_mult*n_ghost_node
+        input_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1) * n_patch_value
+
+        select case (payload_family)
+        case (BLOCK_PAYLOAD_SOL)
+           block_local(local_index)%ghost_scalar( &
+                field_base + &
+                block_local(local_index)%scalar_mult*ghost_start + 1: &
+                field_base + &
+                block_local(local_index)%scalar_mult*ghost_start + &
+                n_patch_value) = &
+                value(input_base+1:input_base+n_patch_value)
+        case (BLOCK_PAYLOAD_WAV_COEFF)
+           block_local(local_index)%ghost_wavelet_scalar( &
+                field_base + &
+                block_local(local_index)%scalar_mult*ghost_start + 1: &
+                field_base + &
+                block_local(local_index)%scalar_mult*ghost_start + &
+                n_patch_value) = &
+                value(input_base+1:input_base+n_patch_value)
+        end select
+     end do
+  end do
+
+end subroutine set_local_block_scalar_ghost_family_values
+
+
 subroutine set_local_block_scalar_ghost_values ( &
      catalog_index,ghost_index,value)
   ! Install scalar sol and scalar wav_coeff into compact ghost storage.
@@ -2038,6 +2136,40 @@ subroutine fill_local_block_scalar_ghost_values (value)
   end do
 
 end subroutine fill_local_block_scalar_ghost_values
+
+
+subroutine fill_local_block_scalar_ghost_family_values ( &
+     payload_family,value)
+  ! Fill one scalar ghost payload family in the local block store.
+
+  implicit none
+
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_scalar_ghost_family_values: store not ready"
+  end if
+
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "fill_local_block_scalar_ghost_family_values: invalid family"
+  end if
+
+  do b = 1, size(block_local)
+     select case (payload_family)
+     case (BLOCK_PAYLOAD_SOL)
+        block_local(b)%ghost_scalar = value
+     case (BLOCK_PAYLOAD_WAV_COEFF)
+        block_local(b)%ghost_wavelet_scalar = value
+     end select
+  end do
+
+end subroutine fill_local_block_scalar_ghost_family_values
 
 
 integer function local_block_vector_patch_nvalue (catalog_index) &
@@ -2407,6 +2539,89 @@ subroutine get_local_block_vector_ghost_family_values ( &
 end subroutine get_local_block_vector_ghost_family_values
 
 
+subroutine set_local_block_vector_ghost_family_values ( &
+     catalog_index,ghost_index,payload_family,value)
+  ! Install one vector sol or wav_coeff family in one compact ghost patch.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: ghost_index
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value(:)
+
+  integer :: field_base
+  integer :: ghost_start
+  integer :: input_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_ghost_node
+  integer :: n_patch_value
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "set_local_block_vector_ghost_family_values: block is not local"
+  end if
+
+  if (ghost_index < 1 .or. &
+       ghost_index > size(block_local(local_index)%ghost_storage)) then
+     error stop &
+          "set_local_block_vector_ghost_family_values: invalid ghost"
+  end if
+
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "set_local_block_vector_ghost_family_values: invalid family"
+  end if
+
+  if (size(value) /= &
+       local_block_vector_family_patch_nvalue(catalog_index)) then
+     error stop &
+          "set_local_block_vector_ghost_family_values: input extent"
+  end if
+
+  n_patch_value = &
+       block_local(local_index)%vector_mult * PATCH_SIZE**2
+  n_ghost_node = size(block_local(local_index)%ghost_node)
+  ghost_start = block_local(local_index)% &
+       ghost_storage(ghost_index)%local_start
+
+  if (ghost_start < 0 .or. &
+       ghost_start+PATCH_SIZE**2 > n_ghost_node) then
+     error stop &
+          "set_local_block_vector_ghost_family_values: ghost storage"
+  end if
+
+  do level_slot = 1, block_local(local_index)%n_field_level
+     field_base = (level_slot-1) * &
+          block_local(local_index)%vector_mult*n_ghost_node
+     input_base = (level_slot-1)*n_patch_value
+
+     select case (payload_family)
+     case (BLOCK_PAYLOAD_SOL)
+        block_local(local_index)%ghost_vector( &
+             field_base + &
+             block_local(local_index)%vector_mult*ghost_start + 1: &
+             field_base + &
+             block_local(local_index)%vector_mult*ghost_start + &
+             n_patch_value) = &
+             value(input_base+1:input_base+n_patch_value)
+     case (BLOCK_PAYLOAD_WAV_COEFF)
+        block_local(local_index)%ghost_wavelet_vector( &
+             field_base + &
+             block_local(local_index)%vector_mult*ghost_start + 1: &
+             field_base + &
+             block_local(local_index)%vector_mult*ghost_start + &
+             n_patch_value) = &
+             value(input_base+1:input_base+n_patch_value)
+     end select
+  end do
+
+end subroutine set_local_block_vector_ghost_family_values
+
+
 subroutine set_local_block_vector_ghost_values ( &
      catalog_index,ghost_index,value)
   ! Install vector sol and vector wav_coeff into compact ghost storage.
@@ -2503,6 +2718,40 @@ subroutine fill_local_block_vector_ghost_values (value)
   end do
 
 end subroutine fill_local_block_vector_ghost_values
+
+
+subroutine fill_local_block_vector_ghost_family_values ( &
+     payload_family,value)
+  ! Fill one vector ghost payload family in the local block store.
+
+  implicit none
+
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_vector_ghost_family_values: store not ready"
+  end if
+
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "fill_local_block_vector_ghost_family_values: invalid family"
+  end if
+
+  do b = 1, size(block_local)
+     select case (payload_family)
+     case (BLOCK_PAYLOAD_SOL)
+        block_local(b)%ghost_vector = value
+     case (BLOCK_PAYLOAD_WAV_COEFF)
+        block_local(b)%ghost_wavelet_vector = value
+     end select
+  end do
+
+end subroutine fill_local_block_vector_ghost_family_values
 
 
 subroutine source_block_scalar_stencil_statistics ( &
