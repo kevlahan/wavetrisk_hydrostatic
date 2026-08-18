@@ -42,22 +42,53 @@ module parallel_block_mpi_mod
        local_block_ghost_source_statistics, &
        validate_local_block_ghost_sources, &
        get_local_block_ghost_requests, local_block_patch_count, &
+       local_block_boundary_count, &
        local_block_ghost_count, local_block_scalar_patch_nvalue, &
        local_block_scalar_family_patch_nvalue, &
+       local_block_scalar_boundary_nvalue, &
+       local_block_scalar_family_boundary_nvalue, &
        get_local_block_scalar_patch_values, &
        get_local_block_scalar_patch_family_values, &
+       set_local_block_scalar_patch_values, &
+       set_local_block_scalar_patch_family_values, &
+       fill_local_block_scalar_patch_values, &
+       fill_local_block_scalar_patch_family_values, &
+       get_local_block_scalar_boundary_values, &
+       get_local_block_scalar_boundary_family_values, &
+       set_local_block_scalar_boundary_family_values, &
+       fill_local_block_scalar_boundary_values, &
+       fill_local_block_scalar_boundary_family_values, &
        get_local_block_scalar_ghost_values, &
        get_local_block_scalar_ghost_family_values, &
        set_local_block_scalar_ghost_family_values, &
        fill_local_block_scalar_ghost_family_values, &
        local_block_vector_patch_nvalue, &
        local_block_vector_family_patch_nvalue, &
+       local_block_vector_boundary_nvalue, &
+       local_block_vector_family_boundary_nvalue, &
        get_local_block_vector_patch_values, &
        get_local_block_vector_patch_family_values, &
+       set_local_block_vector_patch_values, &
+       set_local_block_vector_patch_family_values, &
+       fill_local_block_vector_patch_values, &
+       fill_local_block_vector_patch_family_values, &
+       get_local_block_vector_boundary_values, &
+       get_local_block_vector_boundary_family_values, &
+       set_local_block_vector_boundary_family_values, &
+       fill_local_block_vector_boundary_values, &
+       fill_local_block_vector_boundary_family_values, &
        get_local_block_vector_ghost_values, &
        get_local_block_vector_ghost_family_values, &
        set_local_block_vector_ghost_family_values, &
        fill_local_block_vector_ghost_family_values, &
+       ensure_local_block_hydrostatic_state, &
+       local_block_hydrostatic_state_ready, &
+       local_block_hydrostatic_refresh_count, &
+       local_block_hydrostatic_block_refresh_count, &
+       local_block_hydrostatic_surface_nvalue, &
+       local_block_hydrostatic_column_nvalue, &
+       get_local_block_hydrostatic_patch_values, &
+       get_local_block_hydrostatic_values, &
        local_block_hydrostatic_statistics, &
        BLOCK_PAYLOAD_SOL, BLOCK_PAYLOAD_WAV_COEFF
 
@@ -67,6 +98,10 @@ module parallel_block_mpi_mod
 
   real(dp), parameter :: BLOCK_GHOST_POISON = &
        -0.25_dp*huge(0.0_dp)
+  real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
+       -0.125_dp*huge(0.0_dp)
+  real(dp), parameter :: BLOCK_PATCH_POISON = &
+       -0.0625_dp*huge(0.0_dp)
 
   type, public :: Block_Migration_Manifest
      integer :: n_send = 0
@@ -122,12 +157,28 @@ module parallel_block_mpi_mod
      integer, allocatable :: vector_recv_displ(:)
      real(dp), allocatable :: scalar_send_buffer(:)
      real(dp), allocatable :: scalar_recv_buffer(:)
+     real(dp), allocatable :: scalar_patch_buffer(:)
      real(dp), allocatable :: vector_send_buffer(:)
      real(dp), allocatable :: vector_recv_buffer(:)
+     real(dp), allocatable :: vector_patch_buffer(:)
      logical :: ready = .false.
   end type Block_Ghost_Exchange_Plan
 
   type(Block_Ghost_Exchange_Plan), save :: ghost_exchange_plan
+
+  type :: Block_Boundary_Snapshot
+     integer :: catalog_index = 0
+     integer :: boundary_index = 0
+     real(dp), allocatable :: scalar(:)
+     real(dp), allocatable :: vector(:)
+  end type Block_Boundary_Snapshot
+
+  type :: Block_Patch_Snapshot
+     integer :: catalog_index = 0
+     integer :: local_patch = -1
+     real(dp), allocatable :: scalar(:)
+     real(dp), allocatable :: vector(:)
+  end type Block_Patch_Snapshot
 
   public :: build_block_migration_manifest
   public :: check_block_migration_manifest
@@ -154,7 +205,11 @@ module parallel_block_mpi_mod
   public :: refresh_block_sol_wav_coeff_ghosts
   public :: check_production_block_ghost_refresh
   public :: check_block_field_family_accessors
+  public :: check_block_patch_writable_storage
+  public :: check_block_boundary_family_mutators
+  public :: check_block_boundary_family_bulk_fill
   public :: check_refreshed_block_stencil_consumers
+  public :: check_block_hydrostatic_state_accessors
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -927,6 +982,9 @@ end subroutine build_parallel_block_catalog
     call check_block_vector_ghost_payload_exchange(print_local)
     call check_production_block_ghost_refresh(print_local)
     call check_block_field_family_accessors(print_local)
+    call check_block_patch_writable_storage(print_local)
+    call check_block_boundary_family_mutators(print_local)
+    call check_block_boundary_family_bulk_fill(print_local)
 
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
@@ -953,6 +1011,8 @@ end subroutine build_parallel_block_catalog
 
     call check_local_blocks(print_local)
     call check_block_field_inventory(print_local)
+    if (compressible) call ensure_local_block_hydrostatic_state
+    call check_block_hydrostatic_state_accessors(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -1649,11 +1709,17 @@ end subroutine build_parallel_block_catalog
     if (allocated(ghost_exchange_plan%scalar_recv_buffer)) then
        deallocate(ghost_exchange_plan%scalar_recv_buffer)
     end if
+    if (allocated(ghost_exchange_plan%scalar_patch_buffer)) then
+       deallocate(ghost_exchange_plan%scalar_patch_buffer)
+    end if
     if (allocated(ghost_exchange_plan%vector_send_buffer)) then
        deallocate(ghost_exchange_plan%vector_send_buffer)
     end if
     if (allocated(ghost_exchange_plan%vector_recv_buffer)) then
        deallocate(ghost_exchange_plan%vector_recv_buffer)
+    end if
+    if (allocated(ghost_exchange_plan%vector_patch_buffer)) then
+       deallocate(ghost_exchange_plan%vector_patch_buffer)
     end if
 
     ghost_exchange_plan%n_request = 0
@@ -1670,7 +1736,7 @@ end subroutine build_parallel_block_catalog
   subroutine build_block_ghost_exchange_plan
     ! Build the request routing once for the installed final-owner block
     ! store. Subsequent scalar and vector field-family refreshes reuse this
-    ! plan and exchange only real payload values.
+    ! plan, its MPI payload buffers and one-patch packing workspaces.
 
     implicit none
 
@@ -1950,17 +2016,23 @@ end subroutine build_parallel_block_catalog
     allocate(ghost_exchange_plan%scalar_recv_buffer( &
          ghost_exchange_plan%scalar_n_value* &
          ghost_exchange_plan%n_remote_send))
+    allocate(ghost_exchange_plan%scalar_patch_buffer( &
+         ghost_exchange_plan%scalar_n_value))
     allocate(ghost_exchange_plan%vector_send_buffer( &
          ghost_exchange_plan%vector_n_value* &
          ghost_exchange_plan%n_remote_recv))
     allocate(ghost_exchange_plan%vector_recv_buffer( &
          ghost_exchange_plan%vector_n_value* &
          ghost_exchange_plan%n_remote_send))
+    allocate(ghost_exchange_plan%vector_patch_buffer( &
+         ghost_exchange_plan%vector_n_value))
 
     ghost_exchange_plan%scalar_send_buffer = 0.0_dp
     ghost_exchange_plan%scalar_recv_buffer = 0.0_dp
+    ghost_exchange_plan%scalar_patch_buffer = 0.0_dp
     ghost_exchange_plan%vector_send_buffer = 0.0_dp
     ghost_exchange_plan%vector_recv_buffer = 0.0_dp
+    ghost_exchange_plan%vector_patch_buffer = 0.0_dp
 
     ghost_exchange_plan%ready = .true.
 
@@ -2041,11 +2113,17 @@ end subroutine build_parallel_block_catalog
     if (.not. allocated(ghost_exchange_plan%scalar_recv_buffer)) then
        call fail("persistent scalar receive buffer is absent")
     end if
+    if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer)) then
+       call fail("persistent scalar patch buffer is absent")
+    end if
     if (.not. allocated(ghost_exchange_plan%vector_send_buffer)) then
        call fail("persistent vector send buffer is absent")
     end if
     if (.not. allocated(ghost_exchange_plan%vector_recv_buffer)) then
        call fail("persistent vector receive buffer is absent")
+    end if
+    if (.not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
+       call fail("persistent vector patch buffer is absent")
     end if
 
     if (ghost_exchange_plan%scalar_n_value <= 0 .or. &
@@ -2120,7 +2198,11 @@ end subroutine build_parallel_block_catalog
          ghost_exchange_plan%n_remote_recv .or. &
          size(ghost_exchange_plan%vector_recv_buffer) /= &
          ghost_exchange_plan%vector_n_value* &
-         ghost_exchange_plan%n_remote_send) then
+         ghost_exchange_plan%n_remote_send .or. &
+         size(ghost_exchange_plan%scalar_patch_buffer) /= &
+         ghost_exchange_plan%scalar_n_value .or. &
+         size(ghost_exchange_plan%vector_patch_buffer) /= &
+         ghost_exchange_plan%vector_n_value) then
        call fail("persistent ghost payload buffer extent mismatch")
     end if
 
@@ -2225,11 +2307,17 @@ end subroutine build_parallel_block_catalog
             "  reusable scalar receive values = ", &
             size(ghost_exchange_plan%scalar_recv_buffer)
        write(6,'(a,i0)') &
+            "  reusable scalar patch values = ", &
+            size(ghost_exchange_plan%scalar_patch_buffer)
+       write(6,'(a,i0)') &
             "  reusable vector send values = ", &
             size(ghost_exchange_plan%vector_send_buffer)
        write(6,'(a,i0)') &
             "  reusable vector receive values = ", &
             size(ghost_exchange_plan%vector_recv_buffer)
+       write(6,'(a,i0)') &
+            "  reusable vector patch values = ", &
+            size(ghost_exchange_plan%vector_patch_buffer)
        write(6,'(a,/)') &
             "  reusable request and payload buffer checks passed"
     end if
@@ -2587,7 +2675,8 @@ end subroutine build_parallel_block_catalog
     ! Use the persistent field-independent request plan to return the
     ! complete scalar sol/wav_coeff bundle for every ghost patch. Quiet
     ! production calls reuse request metadata and communication buffers,
-    ! and do not perform diagnostic reductions.
+    ! pack directly into retained storage, and perform no allocation or
+    ! diagnostic reductions.
 
     implicit none
 
@@ -2620,8 +2709,6 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: local_value_count
 
     real(dp), allocatable :: expected(:)
-    real(dp), allocatable :: source_value(:)
-
     character(len=9) :: payload_name
 
     payload_name = ""
@@ -2667,8 +2754,7 @@ end subroutine build_parallel_block_catalog
        end if
     end do
 
-    allocate(source_value(n_value))
-    allocate(expected(n_value))
+    if (verify_installation) allocate(expected(n_value))
 
     do r = 1, n_process
        do i = 0, ghost_exchange_plan%recv_record_count(r)-1
@@ -2690,10 +2776,12 @@ end subroutine build_parallel_block_catalog
 
           call get_local_block_scalar_patch_family_values( &
                source,ghost_exchange_plan%recv_data(pos+2), &
-               payload_family,source_value)
-
-          pos = ghost_exchange_plan%scalar_send_displ(r) + n_value*i
-          ghost_exchange_plan%scalar_send_buffer(pos+1:pos+n_value) = source_value
+               payload_family, &
+               ghost_exchange_plan%scalar_send_buffer( &
+               ghost_exchange_plan%scalar_send_displ(r) + &
+               n_value*i + 1: &
+               ghost_exchange_plan%scalar_send_displ(r) + &
+               n_value*(i+1)))
        end do
     end do
 
@@ -2710,12 +2798,15 @@ end subroutine build_parallel_block_catalog
           call get_local_block_scalar_patch_family_values( &
                ghost_exchange_plan%source_block(i), &
                ghost_exchange_plan%source_local_patch(i), &
-               payload_family,source_value)
+               payload_family, &
+               ghost_exchange_plan%scalar_patch_buffer)
           call get_local_block_scalar_ghost_family_values( &
                ghost_exchange_plan%destination_block(i), &
                ghost_exchange_plan%destination_ghost(i), &
                payload_family,expected)
-          if (maxval(abs(source_value-expected)) > 0.0_dp) then
+          if (maxval(abs( &
+               ghost_exchange_plan%scalar_patch_buffer-expected)) > &
+               0.0_dp) then
              call fail("local scalar ghost payload values do not match")
           end if
        end do
@@ -2761,17 +2852,19 @@ end subroutine build_parallel_block_catalog
        call get_local_block_scalar_patch_family_values( &
             ghost_exchange_plan%source_block(i), &
             ghost_exchange_plan%source_local_patch(i), &
-            payload_family,source_value)
+            payload_family,ghost_exchange_plan%scalar_patch_buffer)
        call set_local_block_scalar_ghost_family_values( &
             ghost_exchange_plan%destination_block(i), &
             ghost_exchange_plan%destination_ghost(i), &
-            payload_family,source_value)
+            payload_family,ghost_exchange_plan%scalar_patch_buffer)
        if (verify_installation) then
           call get_local_block_scalar_ghost_family_values( &
                ghost_exchange_plan%destination_block(i), &
                ghost_exchange_plan%destination_ghost(i), &
                payload_family,expected)
-          if (maxval(abs(source_value-expected)) > 0.0_dp) then
+          if (maxval(abs( &
+               ghost_exchange_plan%scalar_patch_buffer-expected)) > &
+               0.0_dp) then
              call fail("local scalar ghost payload installation failed")
           end if
        end if
@@ -2853,8 +2946,7 @@ end subroutine build_parallel_block_catalog
             " ghost payload installation passed"
     end if
 
-    deallocate(expected)
-    deallocate(source_value)
+    if (allocated(expected)) deallocate(expected)
 
   end subroutine exchange_block_scalar_ghost_payloads
 
@@ -2885,7 +2977,8 @@ end subroutine build_parallel_block_catalog
     ! Use the persistent field-independent request plan to return the
     ! complete vector sol/wav_coeff bundle for every ghost patch. Quiet
     ! production calls reuse request metadata and communication buffers,
-    ! and do not perform diagnostic reductions.
+    ! pack directly into retained storage, and perform no allocation or
+    ! diagnostic reductions.
 
     implicit none
 
@@ -2918,8 +3011,6 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: local_value_count
 
     real(dp), allocatable :: expected(:)
-    real(dp), allocatable :: source_value(:)
-
     character(len=9) :: payload_name
 
     payload_name = ""
@@ -2963,8 +3054,7 @@ end subroutine build_parallel_block_catalog
        end if
     end do
 
-    allocate(source_value(n_value))
-    allocate(expected(n_value))
+    if (verify_installation) allocate(expected(n_value))
 
     do r = 1, n_process
        do i = 0, ghost_exchange_plan%recv_record_count(r)-1
@@ -2986,10 +3076,12 @@ end subroutine build_parallel_block_catalog
 
           call get_local_block_vector_patch_family_values( &
                source,ghost_exchange_plan%recv_data(pos+2), &
-               payload_family,source_value)
-
-          pos = ghost_exchange_plan%vector_send_displ(r) + n_value*i
-          ghost_exchange_plan%vector_send_buffer(pos+1:pos+n_value) = source_value
+               payload_family, &
+               ghost_exchange_plan%vector_send_buffer( &
+               ghost_exchange_plan%vector_send_displ(r) + &
+               n_value*i + 1: &
+               ghost_exchange_plan%vector_send_displ(r) + &
+               n_value*(i+1)))
        end do
     end do
 
@@ -3006,12 +3098,15 @@ end subroutine build_parallel_block_catalog
           call get_local_block_vector_patch_family_values( &
                ghost_exchange_plan%source_block(i), &
                ghost_exchange_plan%source_local_patch(i), &
-               payload_family,source_value)
+               payload_family, &
+               ghost_exchange_plan%vector_patch_buffer)
           call get_local_block_vector_ghost_family_values( &
                ghost_exchange_plan%destination_block(i), &
                ghost_exchange_plan%destination_ghost(i), &
                payload_family,expected)
-          if (maxval(abs(source_value-expected)) > 0.0_dp) then
+          if (maxval(abs( &
+               ghost_exchange_plan%vector_patch_buffer-expected)) > &
+               0.0_dp) then
              call fail("local vector ghost payload values do not match")
           end if
        end do
@@ -3057,17 +3152,19 @@ end subroutine build_parallel_block_catalog
        call get_local_block_vector_patch_family_values( &
             ghost_exchange_plan%source_block(i), &
             ghost_exchange_plan%source_local_patch(i), &
-            payload_family,source_value)
+            payload_family,ghost_exchange_plan%vector_patch_buffer)
        call set_local_block_vector_ghost_family_values( &
             ghost_exchange_plan%destination_block(i), &
             ghost_exchange_plan%destination_ghost(i), &
-            payload_family,source_value)
+            payload_family,ghost_exchange_plan%vector_patch_buffer)
        if (verify_installation) then
           call get_local_block_vector_ghost_family_values( &
                ghost_exchange_plan%destination_block(i), &
                ghost_exchange_plan%destination_ghost(i), &
                payload_family,expected)
-          if (maxval(abs(source_value-expected)) > 0.0_dp) then
+          if (maxval(abs( &
+               ghost_exchange_plan%vector_patch_buffer-expected)) > &
+               0.0_dp) then
              call fail("local vector ghost payload installation failed")
           end if
        end if
@@ -3149,8 +3246,7 @@ end subroutine build_parallel_block_catalog
             " ghost payload installation passed"
     end if
 
-    deallocate(expected)
-    deallocate(source_value)
+    if (allocated(expected)) deallocate(expected)
 
   end subroutine exchange_block_vector_ghost_payloads
 
@@ -3253,29 +3349,39 @@ end subroutine build_parallel_block_catalog
 
   subroutine check_block_field_family_accessors (verbose)
     ! Verify that independent sol and wav_coeff views reconstruct the
-    ! existing combined payload exactly for every local patch and ghost.
-    ! These are the storage-side accessors used by the selective MPI
-    ! payload transport in this stage.
+    ! existing combined payload exactly for every local patch, boundary
+    ! record and ghost. Boundary access is read-only in this stage.
 
     implicit none
 
     logical, optional, intent(in) :: verbose
 
     integer :: b
+    integer :: boundary_index
     integer :: catalog_index
     integer :: ghost_index
     integer :: ierr
+    integer :: n_scalar_boundary_combined
+    integer :: n_scalar_boundary_family
     integer :: n_scalar_combined
     integer :: n_scalar_family
+    integer :: n_vector_boundary_combined
+    integer :: n_vector_boundary_family
     integer :: n_vector_combined
     integer :: n_vector_family
     integer :: patch_index
 
+    integer(int64) :: boundary_count_global(2)
+    integer(int64) :: boundary_count_local(2)
     integer(int64) :: count_global(4)
     integer(int64) :: count_local(4)
 
+    real(dp), allocatable :: scalar_boundary_combined(:)
+    real(dp), allocatable :: scalar_boundary_family(:)
     real(dp), allocatable :: scalar_combined(:)
     real(dp), allocatable :: scalar_family(:)
+    real(dp), allocatable :: vector_boundary_combined(:)
+    real(dp), allocatable :: vector_boundary_family(:)
     real(dp), allocatable :: vector_combined(:)
     real(dp), allocatable :: vector_family(:)
 
@@ -3288,6 +3394,7 @@ end subroutine build_parallel_block_catalog
        call fail("field-family accessor check before block installation")
     end if
 
+    boundary_count_local = 0_int64
     count_local = 0_int64
 
     do b = 1, n_local_blocks()
@@ -3361,6 +3468,97 @@ end subroutine build_parallel_block_catalog
                int(2*n_vector_family,int64)
        end do
 
+       do boundary_index = 1, &
+            local_block_boundary_count(catalog_index)
+          n_scalar_boundary_family = &
+               local_block_scalar_family_boundary_nvalue( &
+               catalog_index,boundary_index)
+          n_scalar_boundary_combined = &
+               local_block_scalar_boundary_nvalue( &
+               catalog_index,boundary_index)
+          n_vector_boundary_family = &
+               local_block_vector_family_boundary_nvalue( &
+               catalog_index,boundary_index)
+          n_vector_boundary_combined = &
+               local_block_vector_boundary_nvalue( &
+               catalog_index,boundary_index)
+
+          if (n_scalar_boundary_combined /= &
+               2*n_scalar_boundary_family) then
+             call fail( &
+                  "combined and scalar boundary-family extents differ")
+          end if
+          if (n_vector_boundary_combined /= &
+               2*n_vector_boundary_family) then
+             call fail( &
+                  "combined and vector boundary-family extents differ")
+          end if
+
+          allocate(scalar_boundary_combined( &
+               n_scalar_boundary_combined))
+          allocate(scalar_boundary_family( &
+               n_scalar_boundary_family))
+          allocate(vector_boundary_combined( &
+               n_vector_boundary_combined))
+          allocate(vector_boundary_family( &
+               n_vector_boundary_family))
+
+          call get_local_block_scalar_boundary_values( &
+               catalog_index,boundary_index, &
+               scalar_boundary_combined)
+          call get_local_block_scalar_boundary_family_values( &
+               catalog_index,boundary_index,BLOCK_PAYLOAD_SOL, &
+               scalar_boundary_family)
+          if (maxval(abs(scalar_boundary_family - &
+               scalar_boundary_combined( &
+               1:n_scalar_boundary_family))) > 0.0_dp) then
+             call fail( &
+                  "selective scalar sol boundary accessor mismatch")
+          end if
+          call get_local_block_scalar_boundary_family_values( &
+               catalog_index,boundary_index, &
+               BLOCK_PAYLOAD_WAV_COEFF,scalar_boundary_family)
+          if (maxval(abs(scalar_boundary_family - &
+               scalar_boundary_combined( &
+               n_scalar_boundary_family+1: &
+               n_scalar_boundary_combined))) > 0.0_dp) then
+             call fail( &
+                  "selective scalar wav_coeff boundary accessor mismatch")
+          end if
+          boundary_count_local(1) = boundary_count_local(1) + &
+               int(n_scalar_boundary_combined,int64)
+
+          call get_local_block_vector_boundary_values( &
+               catalog_index,boundary_index, &
+               vector_boundary_combined)
+          call get_local_block_vector_boundary_family_values( &
+               catalog_index,boundary_index,BLOCK_PAYLOAD_SOL, &
+               vector_boundary_family)
+          if (maxval(abs(vector_boundary_family - &
+               vector_boundary_combined( &
+               1:n_vector_boundary_family))) > 0.0_dp) then
+             call fail( &
+                  "selective vector sol boundary accessor mismatch")
+          end if
+          call get_local_block_vector_boundary_family_values( &
+               catalog_index,boundary_index, &
+               BLOCK_PAYLOAD_WAV_COEFF,vector_boundary_family)
+          if (maxval(abs(vector_boundary_family - &
+               vector_boundary_combined( &
+               n_vector_boundary_family+1: &
+               n_vector_boundary_combined))) > 0.0_dp) then
+             call fail( &
+                  "selective vector wav_coeff boundary accessor mismatch")
+          end if
+          boundary_count_local(2) = boundary_count_local(2) + &
+               int(n_vector_boundary_combined,int64)
+
+          deallocate(scalar_boundary_combined)
+          deallocate(scalar_boundary_family)
+          deallocate(vector_boundary_combined)
+          deallocate(vector_boundary_family)
+       end do
+
        do ghost_index = 1, local_block_ghost_count(catalog_index)
           call get_local_block_scalar_ghost_values( &
                catalog_index,ghost_index,scalar_combined)
@@ -3417,8 +3615,17 @@ end subroutine build_parallel_block_catalog
          count_local,count_global,4,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce field-family accessor values")
 
+    call MPI_Allreduce( &
+         boundary_count_local,boundary_count_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi( &
+         ierr,"MPI_Allreduce boundary field-family accessor values")
+
     if (any(count_global <= 0_int64)) then
        call fail("incomplete field-family accessor inventory")
+    end if
+    if (any(boundary_count_global <= 0_int64)) then
+       call fail("incomplete boundary field-family accessor inventory")
     end if
 
     if (print_summary) then
@@ -3427,9 +3634,15 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  scalar patch values verified = ",count_local(1)
        write(6,'(a,i0)') &
+            "  scalar boundary values verified = ", &
+            boundary_count_local(1)
+       write(6,'(a,i0)') &
             "  scalar ghost values verified = ",count_local(2)
        write(6,'(a,i0)') &
             "  vector patch values verified = ",count_local(3)
+       write(6,'(a,i0)') &
+            "  vector boundary values verified = ", &
+            boundary_count_local(2)
        write(6,'(a,i0)') &
             "  vector ghost values verified = ",count_local(4)
        write(6,'(a,/)') &
@@ -3440,11 +3653,1021 @@ end subroutine build_parallel_block_catalog
        write(6,'(/,a,4(i0,1x))') &
             "Global scalar-patch/scalar-ghost/vector-patch/" // &
             "vector-ghost values = ",count_global
+       write(6,'(a,2(i0,1x))') &
+            "Global scalar/vector boundary values = ", &
+            boundary_count_global
        write(6,'(a,/)') &
             "Selective sol/wav_coeff field-family accessors passed"
     end if
 
   end subroutine check_block_field_family_accessors
+
+
+  subroutine check_block_patch_writable_storage (verbose)
+    ! Snapshot every compact patch, exercise family-selective and combined
+    ! whole-store writes, and prove exact isolation and restoration.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: catalog_index
+    integer :: ierr
+    integer :: local_patch
+    integer :: n_patch_record
+    integer :: record_index
+
+    integer(int64) :: count_global(2)
+    integer(int64) :: count_local(2)
+
+    logical :: print_summary
+
+    type(Block_Patch_Snapshot), allocatable :: snapshot(:)
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_store_ready()) then
+       call fail("writable patch check before block installation")
+    end if
+
+    n_patch_record = 0
+    do b = 1, n_local_blocks()
+       catalog_index = local_block_catalog(b)
+       n_patch_record = n_patch_record + &
+            local_block_patch_count(catalog_index)
+    end do
+
+    allocate(snapshot(n_patch_record))
+    count_local = 0_int64
+    record_index = 0
+
+    do b = 1, n_local_blocks()
+       catalog_index = local_block_catalog(b)
+       do local_patch = 0,local_block_patch_count(catalog_index)-1
+          record_index = record_index + 1
+          snapshot(record_index)%catalog_index = catalog_index
+          snapshot(record_index)%local_patch = local_patch
+
+          allocate(snapshot(record_index)%scalar( &
+               local_block_scalar_patch_nvalue(catalog_index)))
+          allocate(snapshot(record_index)%vector( &
+               local_block_vector_patch_nvalue(catalog_index)))
+
+          call get_local_block_scalar_patch_values( &
+               catalog_index,local_patch,snapshot(record_index)%scalar)
+          call get_local_block_vector_patch_values( &
+               catalog_index,local_patch,snapshot(record_index)%vector)
+
+          count_local(1) = count_local(1) + &
+               int(size(snapshot(record_index)%scalar),int64)
+          count_local(2) = count_local(2) + &
+               int(size(snapshot(record_index)%vector),int64)
+       end do
+    end do
+
+    if (record_index /= n_patch_record) then
+       call fail("writable patch snapshot count mismatch")
+    end if
+
+    call check_scalar_patch_family_bulk_write( &
+         snapshot,BLOCK_PAYLOAD_SOL)
+    call check_scalar_patch_family_bulk_write( &
+         snapshot,BLOCK_PAYLOAD_WAV_COEFF)
+    call check_vector_patch_family_bulk_write( &
+         snapshot,BLOCK_PAYLOAD_SOL)
+    call check_vector_patch_family_bulk_write( &
+         snapshot,BLOCK_PAYLOAD_WAV_COEFF)
+    call check_scalar_patch_combined_bulk_write(snapshot)
+    call check_vector_patch_combined_bulk_write(snapshot)
+
+    call check_refreshed_block_stencil_consumers(.false.)
+
+    call MPI_Allreduce( &
+         count_local,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce writable patch values")
+
+    if (any(count_global <= 0_int64)) then
+       call fail("incomplete writable patch inventory")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Writable compact patch storage for rank ",rank,":"
+       write(6,'(a,i0)') &
+            "  scalar patch values bulk-tested = ",count_local(1)
+       write(6,'(a,i0)') &
+            "  vector patch values bulk-tested = ",count_local(2)
+       write(6,'(a,/)') &
+            "  family and combined poison, isolation and restore passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,2(i0,1x))') &
+            "Global scalar/vector patch values bulk-tested = ", &
+            count_global
+       write(6,'(a,/)') &
+            "Writable sol/wav_coeff compact patch storage passed"
+    end if
+
+    deallocate(snapshot)
+
+  end subroutine check_block_patch_writable_storage
+
+
+  subroutine check_scalar_patch_family_bulk_write ( &
+       snapshot,payload_family)
+    ! Fill and restore one scalar family across the complete patch store.
+
+    implicit none
+
+    type(Block_Patch_Snapshot), intent(in) :: snapshot(:)
+    integer, intent(in) :: payload_family
+
+    integer :: i
+    integer :: n_family
+
+    real(dp), allocatable :: combined(:)
+    real(dp), allocatable :: family(:)
+
+    call fill_local_block_scalar_patch_family_values( &
+         payload_family,BLOCK_PATCH_POISON)
+
+    do i = 1, size(snapshot)
+       if (mod(size(snapshot(i)%scalar),2) /= 0 .or. &
+            size(snapshot(i)%scalar) <= 0) then
+          call fail("invalid scalar writable patch snapshot")
+       end if
+       n_family = size(snapshot(i)%scalar)/2
+       allocate(combined(2*n_family))
+       allocate(family(n_family))
+
+       call get_local_block_scalar_patch_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            payload_family,family)
+       if (maxval(abs(family-BLOCK_PATCH_POISON)) > 0.0_dp) then
+          call fail("scalar patch family bulk poison failed")
+       end if
+
+       call get_local_block_scalar_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            combined)
+       select case (payload_family)
+       case (BLOCK_PAYLOAD_SOL)
+          if (maxval(abs(combined(n_family+1:2*n_family) - &
+               snapshot(i)%scalar(n_family+1:2*n_family))) > &
+               0.0_dp) then
+             call fail("scalar patch wav_coeff changed during family fill")
+          end if
+          family = snapshot(i)%scalar(1:n_family)
+       case (BLOCK_PAYLOAD_WAV_COEFF)
+          if (maxval(abs(combined(1:n_family) - &
+               snapshot(i)%scalar(1:n_family))) > 0.0_dp) then
+             call fail("scalar patch sol changed during family fill")
+          end if
+          family = snapshot(i)%scalar(n_family+1:2*n_family)
+       case default
+          call fail("invalid scalar writable patch family")
+       end select
+
+       call set_local_block_scalar_patch_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            payload_family,family)
+       call get_local_block_scalar_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            combined)
+       if (maxval(abs(combined-snapshot(i)%scalar)) > 0.0_dp) then
+          call fail("scalar patch family bulk restore failed")
+       end if
+
+       deallocate(combined)
+       deallocate(family)
+    end do
+
+  end subroutine check_scalar_patch_family_bulk_write
+
+
+  subroutine check_vector_patch_family_bulk_write ( &
+       snapshot,payload_family)
+    ! Fill and restore one vector family across the complete patch store.
+
+    implicit none
+
+    type(Block_Patch_Snapshot), intent(in) :: snapshot(:)
+    integer, intent(in) :: payload_family
+
+    integer :: i
+    integer :: n_family
+
+    real(dp), allocatable :: combined(:)
+    real(dp), allocatable :: family(:)
+
+    call fill_local_block_vector_patch_family_values( &
+         payload_family,BLOCK_PATCH_POISON)
+
+    do i = 1, size(snapshot)
+       if (mod(size(snapshot(i)%vector),2) /= 0 .or. &
+            size(snapshot(i)%vector) <= 0) then
+          call fail("invalid vector writable patch snapshot")
+       end if
+       n_family = size(snapshot(i)%vector)/2
+       allocate(combined(2*n_family))
+       allocate(family(n_family))
+
+       call get_local_block_vector_patch_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            payload_family,family)
+       if (maxval(abs(family-BLOCK_PATCH_POISON)) > 0.0_dp) then
+          call fail("vector patch family bulk poison failed")
+       end if
+
+       call get_local_block_vector_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            combined)
+       select case (payload_family)
+       case (BLOCK_PAYLOAD_SOL)
+          if (maxval(abs(combined(n_family+1:2*n_family) - &
+               snapshot(i)%vector(n_family+1:2*n_family))) > &
+               0.0_dp) then
+             call fail("vector patch wav_coeff changed during family fill")
+          end if
+          family = snapshot(i)%vector(1:n_family)
+       case (BLOCK_PAYLOAD_WAV_COEFF)
+          if (maxval(abs(combined(1:n_family) - &
+               snapshot(i)%vector(1:n_family))) > 0.0_dp) then
+             call fail("vector patch sol changed during family fill")
+          end if
+          family = snapshot(i)%vector(n_family+1:2*n_family)
+       case default
+          call fail("invalid vector writable patch family")
+       end select
+
+       call set_local_block_vector_patch_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            payload_family,family)
+       call get_local_block_vector_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            combined)
+       if (maxval(abs(combined-snapshot(i)%vector)) > 0.0_dp) then
+          call fail("vector patch family bulk restore failed")
+       end if
+
+       deallocate(combined)
+       deallocate(family)
+    end do
+
+  end subroutine check_vector_patch_family_bulk_write
+
+
+  subroutine check_scalar_patch_combined_bulk_write (snapshot)
+    ! Fill both scalar families, verify vector isolation and restore.
+
+    implicit none
+
+    type(Block_Patch_Snapshot), intent(in) :: snapshot(:)
+
+    integer :: i
+
+    real(dp), allocatable :: combined(:)
+    real(dp), allocatable :: vector_observed(:)
+
+    call fill_local_block_scalar_patch_values(BLOCK_PATCH_POISON)
+
+    do i = 1, size(snapshot)
+       if (size(snapshot(i)%scalar) <= 0 .or. &
+            size(snapshot(i)%vector) <= 0) then
+          call fail("invalid scalar combined patch snapshot")
+       end if
+       allocate(combined(size(snapshot(i)%scalar)))
+       allocate(vector_observed(size(snapshot(i)%vector)))
+
+       call get_local_block_scalar_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            combined)
+       if (maxval(abs(combined-BLOCK_PATCH_POISON)) > 0.0_dp) then
+          call fail("scalar combined patch poison failed")
+       end if
+
+       call get_local_block_vector_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            vector_observed)
+       if (maxval(abs(vector_observed-snapshot(i)%vector)) > &
+            0.0_dp) then
+          call fail("vector patch changed during scalar combined fill")
+       end if
+
+       call set_local_block_scalar_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            snapshot(i)%scalar)
+       call get_local_block_scalar_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            combined)
+       if (maxval(abs(combined-snapshot(i)%scalar)) > 0.0_dp) then
+          call fail("scalar combined patch restore failed")
+       end if
+
+       deallocate(combined)
+       deallocate(vector_observed)
+    end do
+
+  end subroutine check_scalar_patch_combined_bulk_write
+
+
+  subroutine check_vector_patch_combined_bulk_write (snapshot)
+    ! Fill both vector families, verify scalar isolation and restore.
+
+    implicit none
+
+    type(Block_Patch_Snapshot), intent(in) :: snapshot(:)
+
+    integer :: i
+
+    real(dp), allocatable :: combined(:)
+    real(dp), allocatable :: scalar_observed(:)
+
+    call fill_local_block_vector_patch_values(BLOCK_PATCH_POISON)
+
+    do i = 1, size(snapshot)
+       if (size(snapshot(i)%vector) <= 0 .or. &
+            size(snapshot(i)%scalar) <= 0) then
+          call fail("invalid vector combined patch snapshot")
+       end if
+       allocate(combined(size(snapshot(i)%vector)))
+       allocate(scalar_observed(size(snapshot(i)%scalar)))
+
+       call get_local_block_vector_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            combined)
+       if (maxval(abs(combined-BLOCK_PATCH_POISON)) > 0.0_dp) then
+          call fail("vector combined patch poison failed")
+       end if
+
+       call get_local_block_scalar_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            scalar_observed)
+       if (maxval(abs(scalar_observed-snapshot(i)%scalar)) > &
+            0.0_dp) then
+          call fail("scalar patch changed during vector combined fill")
+       end if
+
+       call set_local_block_vector_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            snapshot(i)%vector)
+       call get_local_block_vector_patch_values( &
+            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
+            combined)
+       if (maxval(abs(combined-snapshot(i)%vector)) > 0.0_dp) then
+          call fail("vector combined patch restore failed")
+       end if
+
+       deallocate(combined)
+       deallocate(scalar_observed)
+    end do
+
+  end subroutine check_vector_patch_combined_bulk_write
+
+
+  subroutine check_block_boundary_family_mutators (verbose)
+    ! Poison, read back and restore each scalar and vector boundary family
+    ! independently. The opposite family must remain unchanged, and the
+    ! complete combined payload must be recovered exactly after each test.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: boundary_index
+    integer :: catalog_index
+    integer :: ierr
+    integer :: n_scalar_family
+    integer :: n_vector_family
+    integer :: payload_family
+
+    integer(int64) :: count_global(2)
+    integer(int64) :: count_local(2)
+
+    real(dp), allocatable :: scalar_combined_observed(:)
+    real(dp), allocatable :: scalar_combined_original(:)
+    real(dp), allocatable :: scalar_family_observed(:)
+    real(dp), allocatable :: scalar_family_original(:)
+    real(dp), allocatable :: vector_combined_observed(:)
+    real(dp), allocatable :: vector_combined_original(:)
+    real(dp), allocatable :: vector_family_observed(:)
+    real(dp), allocatable :: vector_family_original(:)
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_store_ready()) then
+       call fail("boundary-family mutation before block installation")
+    end if
+
+    count_local = 0_int64
+
+    do b = 1, n_local_blocks()
+       catalog_index = local_block_catalog(b)
+
+       do boundary_index = 1, &
+            local_block_boundary_count(catalog_index)
+          n_scalar_family = &
+               local_block_scalar_family_boundary_nvalue( &
+               catalog_index,boundary_index)
+          n_vector_family = &
+               local_block_vector_family_boundary_nvalue( &
+               catalog_index,boundary_index)
+
+          allocate(scalar_combined_original(2*n_scalar_family))
+          allocate(scalar_combined_observed(2*n_scalar_family))
+          allocate(scalar_family_original(n_scalar_family))
+          allocate(scalar_family_observed(n_scalar_family))
+          allocate(vector_combined_original(2*n_vector_family))
+          allocate(vector_combined_observed(2*n_vector_family))
+          allocate(vector_family_original(n_vector_family))
+          allocate(vector_family_observed(n_vector_family))
+
+          call get_local_block_scalar_boundary_values( &
+               catalog_index,boundary_index, &
+               scalar_combined_original)
+          call get_local_block_vector_boundary_values( &
+               catalog_index,boundary_index, &
+               vector_combined_original)
+
+          do payload_family = &
+               BLOCK_PAYLOAD_SOL,BLOCK_PAYLOAD_WAV_COEFF
+             select case (payload_family)
+             case (BLOCK_PAYLOAD_SOL)
+                scalar_family_original = &
+                     scalar_combined_original(1:n_scalar_family)
+                vector_family_original = &
+                     vector_combined_original(1:n_vector_family)
+             case (BLOCK_PAYLOAD_WAV_COEFF)
+                scalar_family_original = &
+                     scalar_combined_original(n_scalar_family+1: &
+                     2*n_scalar_family)
+                vector_family_original = &
+                     vector_combined_original(n_vector_family+1: &
+                     2*n_vector_family)
+             end select
+
+             scalar_family_observed = BLOCK_BOUNDARY_POISON
+             call set_local_block_scalar_boundary_family_values( &
+                  catalog_index,boundary_index,payload_family, &
+                  scalar_family_observed)
+             call get_local_block_scalar_boundary_family_values( &
+                  catalog_index,boundary_index,payload_family, &
+                  scalar_family_observed)
+             if (maxval(abs( &
+                  scalar_family_observed-BLOCK_BOUNDARY_POISON)) > &
+                  0.0_dp) then
+                call fail("scalar boundary family poison failed")
+             end if
+             call get_local_block_scalar_boundary_values( &
+                  catalog_index,boundary_index, &
+                  scalar_combined_observed)
+             select case (payload_family)
+             case (BLOCK_PAYLOAD_SOL)
+                if (maxval(abs( &
+                     scalar_combined_observed(n_scalar_family+1: &
+                     2*n_scalar_family) - &
+                     scalar_combined_original(n_scalar_family+1: &
+                     2*n_scalar_family))) > 0.0_dp) then
+                   call fail("scalar wav_coeff boundary family changed")
+                end if
+             case (BLOCK_PAYLOAD_WAV_COEFF)
+                if (maxval(abs( &
+                     scalar_combined_observed(1:n_scalar_family) - &
+                     scalar_combined_original(1:n_scalar_family))) > &
+                     0.0_dp) then
+                   call fail("scalar sol boundary family changed")
+                end if
+             end select
+             call set_local_block_scalar_boundary_family_values( &
+                  catalog_index,boundary_index,payload_family, &
+                  scalar_family_original)
+             call get_local_block_scalar_boundary_values( &
+                  catalog_index,boundary_index, &
+                  scalar_combined_observed)
+             if (maxval(abs(scalar_combined_observed - &
+                  scalar_combined_original)) > 0.0_dp) then
+                call fail("scalar boundary family restore failed")
+             end if
+
+             vector_family_observed = BLOCK_BOUNDARY_POISON
+             call set_local_block_vector_boundary_family_values( &
+                  catalog_index,boundary_index,payload_family, &
+                  vector_family_observed)
+             call get_local_block_vector_boundary_family_values( &
+                  catalog_index,boundary_index,payload_family, &
+                  vector_family_observed)
+             if (maxval(abs( &
+                  vector_family_observed-BLOCK_BOUNDARY_POISON)) > &
+                  0.0_dp) then
+                call fail("vector boundary family poison failed")
+             end if
+             call get_local_block_vector_boundary_values( &
+                  catalog_index,boundary_index, &
+                  vector_combined_observed)
+             select case (payload_family)
+             case (BLOCK_PAYLOAD_SOL)
+                if (maxval(abs( &
+                     vector_combined_observed(n_vector_family+1: &
+                     2*n_vector_family) - &
+                     vector_combined_original(n_vector_family+1: &
+                     2*n_vector_family))) > 0.0_dp) then
+                   call fail("vector wav_coeff boundary family changed")
+                end if
+             case (BLOCK_PAYLOAD_WAV_COEFF)
+                if (maxval(abs( &
+                     vector_combined_observed(1:n_vector_family) - &
+                     vector_combined_original(1:n_vector_family))) > &
+                     0.0_dp) then
+                   call fail("vector sol boundary family changed")
+                end if
+             end select
+             call set_local_block_vector_boundary_family_values( &
+                  catalog_index,boundary_index,payload_family, &
+                  vector_family_original)
+             call get_local_block_vector_boundary_values( &
+                  catalog_index,boundary_index, &
+                  vector_combined_observed)
+             if (maxval(abs(vector_combined_observed - &
+                  vector_combined_original)) > 0.0_dp) then
+                call fail("vector boundary family restore failed")
+             end if
+          end do
+
+          count_local(1) = count_local(1) + &
+               int(2*n_scalar_family,int64)
+          count_local(2) = count_local(2) + &
+               int(2*n_vector_family,int64)
+
+          deallocate(scalar_combined_observed)
+          deallocate(scalar_combined_original)
+          deallocate(scalar_family_observed)
+          deallocate(scalar_family_original)
+          deallocate(vector_combined_observed)
+          deallocate(vector_combined_original)
+          deallocate(vector_family_observed)
+          deallocate(vector_family_original)
+       end do
+    end do
+
+    call check_refreshed_block_stencil_consumers(.false.)
+
+    call MPI_Allreduce( &
+         count_local,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce boundary-family mutation values")
+
+    if (any(count_global <= 0_int64)) then
+       call fail("incomplete boundary-family mutation inventory")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Writable boundary-family accessors for rank ",rank,":"
+       write(6,'(a,i0)') &
+            "  scalar boundary values round-tripped = ", &
+            count_local(1)
+       write(6,'(a,i0)') &
+            "  vector boundary values round-tripped = ", &
+            count_local(2)
+       write(6,'(a,/)') &
+            "  independent sol/wav_coeff poison and restore passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,2(i0,1x))') &
+            "Global scalar/vector boundary values round-tripped = ", &
+            count_global
+       write(6,'(a,/)') &
+            "Writable sol/wav_coeff boundary-family accessors passed"
+    end if
+
+  end subroutine check_block_boundary_family_mutators
+
+
+  subroutine check_block_boundary_family_bulk_fill (verbose)
+    ! Snapshot every compact boundary, fill one complete payload family,
+    ! and prove exact family isolation and restoration over the store.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: boundary_index
+    integer :: catalog_index
+    integer :: ierr
+    integer :: n_boundary_record
+    integer :: record_index
+
+    integer(int64) :: count_global(2)
+    integer(int64) :: count_local(2)
+
+    logical :: print_summary
+
+    type(Block_Boundary_Snapshot), allocatable :: snapshot(:)
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_store_ready()) then
+       call fail("boundary-family bulk fill before block installation")
+    end if
+
+    n_boundary_record = 0
+    do b = 1, n_local_blocks()
+       catalog_index = local_block_catalog(b)
+       n_boundary_record = n_boundary_record + &
+            local_block_boundary_count(catalog_index)
+    end do
+
+    allocate(snapshot(n_boundary_record))
+    count_local = 0_int64
+    record_index = 0
+
+    do b = 1, n_local_blocks()
+       catalog_index = local_block_catalog(b)
+       do boundary_index = 1, &
+            local_block_boundary_count(catalog_index)
+          record_index = record_index + 1
+          snapshot(record_index)%catalog_index = catalog_index
+          snapshot(record_index)%boundary_index = boundary_index
+
+          allocate(snapshot(record_index)%scalar( &
+               local_block_scalar_boundary_nvalue( &
+               catalog_index,boundary_index)))
+          allocate(snapshot(record_index)%vector( &
+               local_block_vector_boundary_nvalue( &
+               catalog_index,boundary_index)))
+
+          call get_local_block_scalar_boundary_values( &
+               catalog_index,boundary_index, &
+               snapshot(record_index)%scalar)
+          call get_local_block_vector_boundary_values( &
+               catalog_index,boundary_index, &
+               snapshot(record_index)%vector)
+
+          count_local(1) = count_local(1) + &
+               int(size(snapshot(record_index)%scalar),int64)
+          count_local(2) = count_local(2) + &
+               int(size(snapshot(record_index)%vector),int64)
+       end do
+    end do
+
+    if (record_index /= n_boundary_record) then
+       call fail("boundary-family bulk snapshot count mismatch")
+    end if
+
+    call check_scalar_boundary_family_bulk_fill( &
+         snapshot,BLOCK_PAYLOAD_SOL)
+    call check_scalar_boundary_family_bulk_fill( &
+         snapshot,BLOCK_PAYLOAD_WAV_COEFF)
+    call check_vector_boundary_family_bulk_fill( &
+         snapshot,BLOCK_PAYLOAD_SOL)
+    call check_vector_boundary_family_bulk_fill( &
+         snapshot,BLOCK_PAYLOAD_WAV_COEFF)
+    call check_scalar_boundary_combined_bulk_fill(snapshot)
+    call check_vector_boundary_combined_bulk_fill(snapshot)
+
+    call check_refreshed_block_stencil_consumers(.false.)
+
+    call MPI_Allreduce( &
+         count_local,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce boundary-family bulk values")
+
+    if (any(count_global <= 0_int64)) then
+       call fail("incomplete boundary-family bulk-fill inventory")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Bulk boundary-family fill for rank ",rank,":"
+       write(6,'(a,i0)') &
+            "  scalar boundary values preserved = ",count_local(1)
+       write(6,'(a,i0)') &
+            "  vector boundary values preserved = ",count_local(2)
+       write(6,'(a)') &
+            "  whole-store sol/wav_coeff poison and restore passed"
+       write(6,'(a,/)') &
+            "  combined-family poison, isolation and restore passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,2(i0,1x))') &
+            "Global scalar/vector boundary values bulk-tested = ", &
+            count_global
+       write(6,'(a)') &
+            "Bulk sol/wav_coeff boundary-family fills passed"
+       write(6,'(a,/)') &
+            "Bulk combined scalar/vector boundary fills passed"
+    end if
+
+    deallocate(snapshot)
+
+  end subroutine check_block_boundary_family_bulk_fill
+
+
+  subroutine check_scalar_boundary_family_bulk_fill ( &
+       snapshot,payload_family)
+    ! Check one scalar whole-store fill and restore its saved family.
+
+    implicit none
+
+    type(Block_Boundary_Snapshot), intent(in) :: snapshot(:)
+    integer, intent(in) :: payload_family
+
+    integer :: i
+    integer :: n_family
+
+    real(dp), allocatable :: combined(:)
+    real(dp), allocatable :: family(:)
+
+    call fill_local_block_scalar_boundary_family_values( &
+         payload_family,BLOCK_BOUNDARY_POISON)
+
+    do i = 1, size(snapshot)
+       if (mod(size(snapshot(i)%scalar),2) /= 0 .or. &
+            size(snapshot(i)%scalar) <= 0) then
+          call fail("invalid scalar boundary bulk snapshot")
+       end if
+       n_family = size(snapshot(i)%scalar)/2
+       allocate(combined(2*n_family))
+       allocate(family(n_family))
+
+       call get_local_block_scalar_boundary_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            payload_family,family)
+       if (maxval(abs(family-BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
+          call fail("scalar boundary bulk poison failed")
+       end if
+
+       call get_local_block_scalar_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            combined)
+       select case (payload_family)
+       case (BLOCK_PAYLOAD_SOL)
+          if (maxval(abs(combined(n_family+1:2*n_family) - &
+               snapshot(i)%scalar(n_family+1:2*n_family))) > &
+               0.0_dp) then
+             call fail("scalar wav_coeff changed during bulk fill")
+          end if
+          family = snapshot(i)%scalar(1:n_family)
+       case (BLOCK_PAYLOAD_WAV_COEFF)
+          if (maxval(abs(combined(1:n_family) - &
+               snapshot(i)%scalar(1:n_family))) > 0.0_dp) then
+             call fail("scalar sol changed during bulk fill")
+          end if
+          family = snapshot(i)%scalar(n_family+1:2*n_family)
+       case default
+          call fail("invalid scalar boundary bulk family")
+       end select
+
+       call set_local_block_scalar_boundary_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            payload_family,family)
+       call get_local_block_scalar_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            combined)
+       if (maxval(abs(combined-snapshot(i)%scalar)) > 0.0_dp) then
+          call fail("scalar boundary bulk restore failed")
+       end if
+
+       deallocate(combined)
+       deallocate(family)
+    end do
+
+  end subroutine check_scalar_boundary_family_bulk_fill
+
+
+  subroutine check_vector_boundary_family_bulk_fill ( &
+       snapshot,payload_family)
+    ! Check one vector whole-store fill and restore its saved family.
+
+    implicit none
+
+    type(Block_Boundary_Snapshot), intent(in) :: snapshot(:)
+    integer, intent(in) :: payload_family
+
+    integer :: i
+    integer :: n_family
+
+    real(dp), allocatable :: combined(:)
+    real(dp), allocatable :: family(:)
+
+    call fill_local_block_vector_boundary_family_values( &
+         payload_family,BLOCK_BOUNDARY_POISON)
+
+    do i = 1, size(snapshot)
+       if (mod(size(snapshot(i)%vector),2) /= 0 .or. &
+            size(snapshot(i)%vector) <= 0) then
+          call fail("invalid vector boundary bulk snapshot")
+       end if
+       n_family = size(snapshot(i)%vector)/2
+       allocate(combined(2*n_family))
+       allocate(family(n_family))
+
+       call get_local_block_vector_boundary_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            payload_family,family)
+       if (maxval(abs(family-BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
+          call fail("vector boundary bulk poison failed")
+       end if
+
+       call get_local_block_vector_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            combined)
+       select case (payload_family)
+       case (BLOCK_PAYLOAD_SOL)
+          if (maxval(abs(combined(n_family+1:2*n_family) - &
+               snapshot(i)%vector(n_family+1:2*n_family))) > &
+               0.0_dp) then
+             call fail("vector wav_coeff changed during bulk fill")
+          end if
+          family = snapshot(i)%vector(1:n_family)
+       case (BLOCK_PAYLOAD_WAV_COEFF)
+          if (maxval(abs(combined(1:n_family) - &
+               snapshot(i)%vector(1:n_family))) > 0.0_dp) then
+             call fail("vector sol changed during bulk fill")
+          end if
+          family = snapshot(i)%vector(n_family+1:2*n_family)
+       case default
+          call fail("invalid vector boundary bulk family")
+       end select
+
+       call set_local_block_vector_boundary_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            payload_family,family)
+       call get_local_block_vector_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            combined)
+       if (maxval(abs(combined-snapshot(i)%vector)) > 0.0_dp) then
+          call fail("vector boundary bulk restore failed")
+       end if
+
+       deallocate(combined)
+       deallocate(family)
+    end do
+
+  end subroutine check_vector_boundary_family_bulk_fill
+
+
+  subroutine check_scalar_boundary_combined_bulk_fill (snapshot)
+    ! Check a combined scalar fill, vector isolation and family restore.
+
+    implicit none
+
+    type(Block_Boundary_Snapshot), intent(in) :: snapshot(:)
+
+    integer :: i
+    integer :: n_family
+
+    real(dp), allocatable :: combined(:)
+    real(dp), allocatable :: family(:)
+    real(dp), allocatable :: vector_observed(:)
+
+    call fill_local_block_scalar_boundary_values(BLOCK_BOUNDARY_POISON)
+
+    do i = 1, size(snapshot)
+       if (mod(size(snapshot(i)%scalar),2) /= 0 .or. &
+            size(snapshot(i)%scalar) <= 0 .or. &
+            size(snapshot(i)%vector) <= 0) then
+          call fail("invalid scalar combined boundary snapshot")
+       end if
+       n_family = size(snapshot(i)%scalar)/2
+       allocate(combined(2*n_family))
+       allocate(family(n_family))
+       allocate(vector_observed(size(snapshot(i)%vector)))
+
+       call get_local_block_scalar_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            combined)
+       if (maxval(abs(combined-BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
+          call fail("scalar combined boundary poison failed")
+       end if
+
+       call get_local_block_vector_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            vector_observed)
+       if (maxval(abs(vector_observed-snapshot(i)%vector)) > &
+            0.0_dp) then
+          call fail("vector boundary changed during scalar fill")
+       end if
+
+       family = snapshot(i)%scalar(1:n_family)
+       call set_local_block_scalar_boundary_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            BLOCK_PAYLOAD_SOL,family)
+       call get_local_block_scalar_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            combined)
+       if (maxval(abs(combined(1:n_family) - &
+            snapshot(i)%scalar(1:n_family))) > 0.0_dp) then
+          call fail("scalar sol combined boundary restore failed")
+       end if
+       if (maxval(abs(combined(n_family+1:2*n_family) - &
+            BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
+          call fail("scalar wav_coeff restored before installation")
+       end if
+
+       family = snapshot(i)%scalar(n_family+1:2*n_family)
+       call set_local_block_scalar_boundary_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            BLOCK_PAYLOAD_WAV_COEFF,family)
+       call get_local_block_scalar_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            combined)
+       if (maxval(abs(combined-snapshot(i)%scalar)) > 0.0_dp) then
+          call fail("scalar combined boundary restore failed")
+       end if
+
+       deallocate(combined)
+       deallocate(family)
+       deallocate(vector_observed)
+    end do
+
+  end subroutine check_scalar_boundary_combined_bulk_fill
+
+
+  subroutine check_vector_boundary_combined_bulk_fill (snapshot)
+    ! Check a combined vector fill, scalar isolation and family restore.
+
+    implicit none
+
+    type(Block_Boundary_Snapshot), intent(in) :: snapshot(:)
+
+    integer :: i
+    integer :: n_family
+
+    real(dp), allocatable :: combined(:)
+    real(dp), allocatable :: family(:)
+    real(dp), allocatable :: scalar_observed(:)
+
+    call fill_local_block_vector_boundary_values(BLOCK_BOUNDARY_POISON)
+
+    do i = 1, size(snapshot)
+       if (mod(size(snapshot(i)%vector),2) /= 0 .or. &
+            size(snapshot(i)%vector) <= 0 .or. &
+            size(snapshot(i)%scalar) <= 0) then
+          call fail("invalid vector combined boundary snapshot")
+       end if
+       n_family = size(snapshot(i)%vector)/2
+       allocate(combined(2*n_family))
+       allocate(family(n_family))
+       allocate(scalar_observed(size(snapshot(i)%scalar)))
+
+       call get_local_block_vector_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            combined)
+       if (maxval(abs(combined-BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
+          call fail("vector combined boundary poison failed")
+       end if
+
+       call get_local_block_scalar_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            scalar_observed)
+       if (maxval(abs(scalar_observed-snapshot(i)%scalar)) > &
+            0.0_dp) then
+          call fail("scalar boundary changed during vector fill")
+       end if
+
+       family = snapshot(i)%vector(1:n_family)
+       call set_local_block_vector_boundary_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            BLOCK_PAYLOAD_SOL,family)
+       call get_local_block_vector_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            combined)
+       if (maxval(abs(combined(1:n_family) - &
+            snapshot(i)%vector(1:n_family))) > 0.0_dp) then
+          call fail("vector sol combined boundary restore failed")
+       end if
+       if (maxval(abs(combined(n_family+1:2*n_family) - &
+            BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
+          call fail("vector wav_coeff restored before installation")
+       end if
+
+       family = snapshot(i)%vector(n_family+1:2*n_family)
+       call set_local_block_vector_boundary_family_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            BLOCK_PAYLOAD_WAV_COEFF,family)
+       call get_local_block_vector_boundary_values( &
+            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
+            combined)
+       if (maxval(abs(combined-snapshot(i)%vector)) > 0.0_dp) then
+          call fail("vector combined boundary restore failed")
+       end if
+
+       deallocate(combined)
+       deallocate(family)
+       deallocate(scalar_observed)
+    end do
+
+  end subroutine check_vector_boundary_combined_bulk_fill
 
 
   subroutine check_local_blocks (verbose)
@@ -4232,11 +5455,290 @@ end subroutine build_parallel_block_catalog
   end subroutine check_block_field_inventory
 
 
+  subroutine check_block_hydrostatic_state_accessors (verbose)
+    ! Verify patch and whole-block views of persistent thermodynamic
+    ! fields, dependency-selective invalidation and lazy cache refresh.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: catalog_index
+    integer :: clean_catalog_index
+    integer :: column_base
+    integer :: column_nvalue
+    integer :: local_index
+    integer :: local_patch
+    integer :: n_patch
+    integer :: scalar_nvalue
+    integer :: surface_base
+    integer :: surface_nvalue
+
+    integer(int64) :: column_count_after
+    integer(int64) :: column_count_before
+    integer(int64) :: clean_refresh_before
+    integer(int64) :: dirty_refresh_before
+    integer(int64) :: refresh_count_before
+    integer(int64) :: refresh_count_expected
+    integer(int64) :: surface_count_after
+    integer(int64) :: surface_count_before
+
+    real(dp), allocatable :: air_temperature(:)
+    real(dp), allocatable :: dynamic_exner(:)
+    real(dp), allocatable :: scalar_snapshot(:)
+    real(dp), allocatable :: surface_pressure(:)
+
+    real(dp) :: air_temperature_patch(zlevels*PATCH_SIZE**2)
+    real(dp) :: dynamic_exner_patch(zlevels*PATCH_SIZE**2)
+    real(dp) :: surface_pressure_patch(PATCH_SIZE**2)
+    real(dp) :: exner_moment_after(3)
+    real(dp) :: exner_moment_before(3)
+    real(dp) :: surface_moment_after(3)
+    real(dp) :: surface_moment_before(3)
+    real(dp) :: temperature_moment_after(3)
+    real(dp) :: temperature_moment_before(3)
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. compressible) then
+       if (print_summary) then
+          write(6,'(/,a,i0,a)') &
+               "Persistent hydrostatic accessors for rank ", rank, ":"
+          write(6,'(a,/)') &
+               "  skipped for incompressible configuration"
+       end if
+       return
+    end if
+
+    if (.not. local_block_hydrostatic_state_ready()) then
+       call fail("hydrostatic accessor check before state refresh")
+    end if
+
+    call local_block_hydrostatic_statistics( &
+         surface_count_before,column_count_before, &
+         surface_moment_before,exner_moment_before, &
+         temperature_moment_before)
+    refresh_count_before = local_block_hydrostatic_refresh_count()
+
+    do local_index = 1,n_local_blocks()
+       catalog_index = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(catalog_index)
+       surface_nvalue = &
+            local_block_hydrostatic_surface_nvalue(catalog_index)
+       column_nvalue = &
+            local_block_hydrostatic_column_nvalue(catalog_index)
+
+       if (surface_nvalue /= n_patch*PATCH_SIZE**2 .or. &
+            column_nvalue /= n_patch*zlevels*PATCH_SIZE**2) then
+          call fail("whole-block hydrostatic extent mismatch")
+       end if
+
+       allocate(surface_pressure(surface_nvalue))
+       allocate(dynamic_exner(column_nvalue))
+       allocate(air_temperature(column_nvalue))
+
+       call get_local_block_hydrostatic_values( &
+            catalog_index,surface_pressure,dynamic_exner, &
+            air_temperature)
+
+       do local_patch = 0,n_patch-1
+          call get_local_block_hydrostatic_patch_values( &
+               catalog_index,local_patch,surface_pressure_patch, &
+               dynamic_exner_patch,air_temperature_patch)
+
+          surface_base = local_patch*PATCH_SIZE**2
+          column_base = local_patch*zlevels*PATCH_SIZE**2
+
+          if (any(abs(surface_pressure( &
+               surface_base+1:surface_base+PATCH_SIZE**2) - &
+               surface_pressure_patch) > 0.0_dp)) then
+             call fail("surface-pressure patch/block view mismatch")
+          end if
+          if (any(abs(dynamic_exner( &
+               column_base+1:column_base+zlevels*PATCH_SIZE**2) - &
+               dynamic_exner_patch) > 0.0_dp)) then
+             call fail("dynamic-Exner patch/block view mismatch")
+          end if
+          if (any(abs(air_temperature( &
+               column_base+1:column_base+zlevels*PATCH_SIZE**2) - &
+               air_temperature_patch) > 0.0_dp)) then
+             call fail("temperature patch/block view mismatch")
+          end if
+       end do
+
+       deallocate(surface_pressure)
+       deallocate(dynamic_exner)
+       deallocate(air_temperature)
+    end do
+
+    if (local_block_hydrostatic_refresh_count() /= &
+         refresh_count_before) then
+       call fail("read access caused redundant hydrostatic refresh")
+    end if
+
+    if (n_local_blocks() > 0) then
+       catalog_index = local_block_catalog(1)
+       surface_nvalue = &
+            local_block_hydrostatic_surface_nvalue(catalog_index)
+       column_nvalue = &
+            local_block_hydrostatic_column_nvalue(catalog_index)
+       dirty_refresh_before = &
+            local_block_hydrostatic_block_refresh_count(catalog_index)
+
+       allocate(surface_pressure(surface_nvalue))
+       allocate(dynamic_exner(column_nvalue))
+       allocate(air_temperature(column_nvalue))
+
+       clean_refresh_before = 0_int64
+       if (n_local_blocks() > 1) then
+          clean_catalog_index = local_block_catalog(2)
+          clean_refresh_before = &
+               local_block_hydrostatic_block_refresh_count( &
+               clean_catalog_index)
+       end if
+
+       scalar_nvalue = &
+            local_block_scalar_family_patch_nvalue(catalog_index)
+       allocate(scalar_snapshot(scalar_nvalue))
+
+       call get_local_block_scalar_patch_family_values( &
+            catalog_index,0,BLOCK_PAYLOAD_WAV_COEFF,scalar_snapshot)
+       call set_local_block_scalar_patch_family_values( &
+            catalog_index,0,BLOCK_PAYLOAD_WAV_COEFF,scalar_snapshot)
+
+       if (.not. local_block_hydrostatic_state_ready()) then
+          call fail("wavelet write invalidated hydrostatic state")
+       end if
+       if (local_block_hydrostatic_refresh_count() /= &
+            refresh_count_before) then
+          call fail("wavelet write refreshed hydrostatic state")
+       end if
+
+       call get_local_block_scalar_patch_family_values( &
+            catalog_index,0,BLOCK_PAYLOAD_SOL,scalar_snapshot)
+       call set_local_block_scalar_patch_family_values( &
+            catalog_index,0,BLOCK_PAYLOAD_SOL,scalar_snapshot)
+
+       if (local_block_hydrostatic_state_ready()) then
+          call fail("scalar sol write did not invalidate hydrostatic state")
+       end if
+       if (local_block_hydrostatic_refresh_count() /= &
+            refresh_count_before) then
+          call fail("scalar sol write eagerly refreshed hydrostatic state")
+       end if
+
+       if (n_local_blocks() > 1) then
+          surface_nvalue = &
+               local_block_hydrostatic_surface_nvalue( &
+               clean_catalog_index)
+          if (local_block_hydrostatic_state_ready()) then
+             call fail("clean-block access refreshed a dirty block")
+          end if
+          if (local_block_hydrostatic_refresh_count() /= &
+               refresh_count_before) then
+             call fail("clean-block access changed global refresh count")
+          end if
+          if (local_block_hydrostatic_block_refresh_count( &
+               clean_catalog_index) /= clean_refresh_before) then
+             call fail("clean block was redundantly refreshed")
+          end if
+       end if
+
+       call get_local_block_hydrostatic_values( &
+            catalog_index,surface_pressure,dynamic_exner, &
+            air_temperature)
+
+       if (.not. local_block_hydrostatic_state_ready()) then
+          call fail("dirty-block access did not restore cache readiness")
+       end if
+       if (local_block_hydrostatic_block_refresh_count(catalog_index) /= &
+            dirty_refresh_before+1_int64) then
+          call fail("dirty block refresh count mismatch")
+       end if
+       if (n_local_blocks() > 1) then
+          if (local_block_hydrostatic_block_refresh_count( &
+               clean_catalog_index) /= clean_refresh_before) then
+             call fail("dirty-block access refreshed a clean block")
+          end if
+       end if
+
+       deallocate(scalar_snapshot)
+       deallocate(surface_pressure)
+       deallocate(dynamic_exner)
+       deallocate(air_temperature)
+    end if
+
+    ! A whole-store consumer must not refresh blocks already made current.
+    call local_block_hydrostatic_statistics( &
+         surface_count_after,column_count_after, &
+         surface_moment_after,exner_moment_after, &
+         temperature_moment_after)
+
+    refresh_count_expected = refresh_count_before
+    if (n_local_blocks() > 0) then
+       refresh_count_expected = refresh_count_expected + 1_int64
+    end if
+
+    if (.not. local_block_hydrostatic_state_ready()) then
+       call fail("hydrostatic state not ready after lazy refresh")
+    end if
+    if (local_block_hydrostatic_refresh_count() /= &
+         refresh_count_expected) then
+       call fail("lazy hydrostatic refresh count mismatch")
+    end if
+
+    call ensure_local_block_hydrostatic_state
+    if (local_block_hydrostatic_refresh_count() /= &
+         refresh_count_expected) then
+       call fail("redundant hydrostatic refresh was not suppressed")
+    end if
+
+    if (surface_count_after /= surface_count_before .or. &
+         column_count_after /= column_count_before) then
+       call fail("hydrostatic refresh changed local value counts")
+    end if
+    if (.not. field_moments_match( &
+         surface_moment_after,surface_moment_before, &
+         surface_count_before)) then
+       call fail("hydrostatic refresh changed surface-pressure values")
+    end if
+    if (.not. field_moments_match( &
+         exner_moment_after,exner_moment_before,column_count_before)) then
+       call fail("hydrostatic refresh changed dynamic Exner values")
+    end if
+    if (.not. field_moments_match( &
+         temperature_moment_after,temperature_moment_before, &
+         column_count_before)) then
+       call fail("hydrostatic refresh changed temperature values")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Persistent hydrostatic accessors for rank ", rank, ":"
+       write(6,'(a)') &
+            "  exact patch/whole-block layout checks passed"
+       write(6,'(a)') &
+            "  wavelet-independent cache retention checks passed"
+       write(6,'(a)') &
+            "  selective dirty-block refresh checks passed"
+       write(6,'(a,/)') &
+            "  per-block lazy cache coherence checks passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,/)') &
+            "Selective per-block thermodynamic caches passed"
+    end if
+
+  end subroutine check_block_hydrostatic_state_accessors
+
+
   subroutine check_block_hydrostatic_reconstruction (verbose)
-    ! Reconstruct surface pressure, dynamic Exner function and air
-    ! temperature from the installed block prognostic fields. Compare
-    ! global moments with an independent reconstruction from legacy
-    ! Domain fields. No phase-dependent exner_fun state is migrated.
+    ! Validate persistent production block hydrostatic state in shadow
+    ! mode against an independent reconstruction from legacy fields.
 
     implicit none
 
@@ -4285,6 +5787,9 @@ end subroutine build_parallel_block_catalog
 
     if (.not. local_block_store_ready()) then
        call fail("hydrostatic reconstruction before block installation")
+    end if
+    if (.not. local_block_hydrostatic_state_ready()) then
+       call fail("persistent block hydrostatic state is not ready")
     end if
 
     call local_block_hydrostatic_statistics( &
@@ -4445,8 +5950,10 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "  local column diagnostic values = ", &
             block_column_count_local
-       write(6,'(a,/)') &
+       write(6,'(a)') &
             "  global hydrostatic reconstruction checks passed"
+       write(6,'(a,/)') &
+            "  persistent production state shadow comparison passed"
     end if
 
     if (print_summary .and. rank == 0) then
@@ -4466,7 +5973,7 @@ end subroutine build_parallel_block_catalog
             "Global air-temperature moments verified = ", &
             block_temperature_moment_global
        write(6,'(a,/)') &
-            "Block hydrostatic diagnostics match legacy Domain state"
+            "Persistent production block hydrostatic state matches legacy Domain state"
     end if
 
   end subroutine check_block_hydrostatic_reconstruction

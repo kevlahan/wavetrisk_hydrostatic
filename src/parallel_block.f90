@@ -149,9 +149,20 @@ module parallel_block_mod
   end type Block_Data
 
 
+  type :: Block_Hydrostatic_Storage
+     integer :: catalog_index = 0
+     logical :: ready = .false.
+     integer(int64) :: refreshes = 0_int64
+     real(dp), allocatable :: surface_pressure(:)
+     real(dp), allocatable :: dynamic_exner(:)
+     real(dp), allocatable :: air_temperature(:)
+  end type Block_Hydrostatic_Storage
+
+
   type(Block_Data), allocatable, public :: block_source(:)
   type(Block_Data), allocatable, public :: block_received(:)
   type(Block_Data), allocatable :: block_local(:)
+  type(Block_Hydrostatic_Storage), allocatable :: block_hydrostatic(:)
 
   integer, allocatable, public :: block_source_catalog_index(:)
   integer, allocatable, public :: block_retained_source_index(:)
@@ -161,6 +172,8 @@ module parallel_block_mod
   integer, allocatable :: block_catalog_local_index(:)
 
   logical :: block_store_ready = .false.
+  logical :: block_hydrostatic_ready = .false.
+  integer(int64) :: block_hydrostatic_refreshes = 0_int64
 
   public :: packed_block_nbyte
   public :: pack_block
@@ -194,11 +207,23 @@ module parallel_block_mod
   public :: validate_local_block_ghost_sources
   public :: get_local_block_ghost_requests
   public :: local_block_patch_count
+  public :: local_block_boundary_count
   public :: local_block_ghost_count
   public :: local_block_scalar_patch_nvalue
   public :: local_block_scalar_family_patch_nvalue
+  public :: local_block_scalar_boundary_nvalue
+  public :: local_block_scalar_family_boundary_nvalue
   public :: get_local_block_scalar_patch_values
   public :: get_local_block_scalar_patch_family_values
+  public :: set_local_block_scalar_patch_values
+  public :: set_local_block_scalar_patch_family_values
+  public :: fill_local_block_scalar_patch_values
+  public :: fill_local_block_scalar_patch_family_values
+  public :: get_local_block_scalar_boundary_values
+  public :: get_local_block_scalar_boundary_family_values
+  public :: set_local_block_scalar_boundary_family_values
+  public :: fill_local_block_scalar_boundary_values
+  public :: fill_local_block_scalar_boundary_family_values
   public :: get_local_block_scalar_ghost_values
   public :: get_local_block_scalar_ghost_family_values
   public :: set_local_block_scalar_ghost_values
@@ -207,14 +232,35 @@ module parallel_block_mod
   public :: fill_local_block_scalar_ghost_family_values
   public :: local_block_vector_patch_nvalue
   public :: local_block_vector_family_patch_nvalue
+  public :: local_block_vector_boundary_nvalue
+  public :: local_block_vector_family_boundary_nvalue
   public :: get_local_block_vector_patch_values
   public :: get_local_block_vector_patch_family_values
+  public :: set_local_block_vector_patch_values
+  public :: set_local_block_vector_patch_family_values
+  public :: fill_local_block_vector_patch_values
+  public :: fill_local_block_vector_patch_family_values
+  public :: get_local_block_vector_boundary_values
+  public :: get_local_block_vector_boundary_family_values
+  public :: set_local_block_vector_boundary_family_values
+  public :: fill_local_block_vector_boundary_values
+  public :: fill_local_block_vector_boundary_family_values
   public :: get_local_block_vector_ghost_values
   public :: get_local_block_vector_ghost_family_values
   public :: set_local_block_vector_ghost_values
   public :: set_local_block_vector_ghost_family_values
   public :: fill_local_block_vector_ghost_values
   public :: fill_local_block_vector_ghost_family_values
+  public :: compute_local_block_hydrostatic_patch
+  public :: refresh_local_block_hydrostatic_state
+  public :: ensure_local_block_hydrostatic_state
+  public :: local_block_hydrostatic_state_ready
+  public :: local_block_hydrostatic_refresh_count
+  public :: local_block_hydrostatic_block_refresh_count
+  public :: local_block_hydrostatic_surface_nvalue
+  public :: local_block_hydrostatic_column_nvalue
+  public :: get_local_block_hydrostatic_patch_values
+  public :: get_local_block_hydrostatic_values
   public :: local_block_hydrostatic_statistics
   public :: install_local_blocks
 
@@ -1498,6 +1544,26 @@ integer function local_block_patch_count (catalog_index) result(n_patch)
 end function local_block_patch_count
 
 
+integer function local_block_boundary_count (catalog_index) &
+     result(n_boundary)
+  ! Return the compact boundary-record count for a locally owned block.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+
+  integer :: local_index
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop "local_block_boundary_count: block is not local"
+  end if
+
+  n_boundary = size(block_local(local_index)%bdry_storage)
+
+end function local_block_boundary_count
+
+
 integer function local_block_ghost_count (catalog_index) result(n_ghost)
   ! Return the compact ghost-record count for a locally owned block.
 
@@ -1747,6 +1813,564 @@ subroutine get_local_block_scalar_patch_values ( &
   end do
 
 end subroutine get_local_block_scalar_patch_values
+
+
+subroutine set_local_block_scalar_patch_family_values ( &
+     catalog_index,local_patch,payload_family,value)
+  ! Install one scalar sol or wav_coeff family in one compact patch.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: local_patch
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value(:)
+
+  integer :: field_base
+  integer :: input_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_node
+  integer :: n_patch_value
+  integer :: patch_start
+  integer :: scalar_slot
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "set_local_block_scalar_patch_family_values: block not local"
+  end if
+  if (local_patch < 0 .or. &
+       local_patch >= size(block_local(local_index)%patch)) then
+     error stop &
+          "set_local_block_scalar_patch_family_values: invalid patch"
+  end if
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "set_local_block_scalar_patch_family_values: invalid family"
+  end if
+  if (size(value) /= &
+       local_block_scalar_family_patch_nvalue(catalog_index)) then
+     error stop &
+          "set_local_block_scalar_patch_family_values: input extent"
+  end if
+
+  n_patch_value = &
+       block_local(local_index)%scalar_mult * PATCH_SIZE**2
+  n_node = size(block_local(local_index)%node)
+  patch_start = &
+       block_local(local_index)%patch(local_patch+1)%elts_start
+
+  if (patch_start < 0 .or. &
+       patch_start+PATCH_SIZE**2 > n_node) then
+     error stop &
+          "set_local_block_scalar_patch_family_values: patch storage"
+  end if
+
+  do scalar_slot = 1, &
+       block_local(local_index)%n_scalar_variable
+     do level_slot = 1, &
+          block_local(local_index)%n_field_level
+        field_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1) * &
+             block_local(local_index)%scalar_mult*n_node
+        input_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1) * n_patch_value
+
+        select case (payload_family)
+        case (BLOCK_PAYLOAD_SOL)
+           block_local(local_index)%scalar( &
+                field_base + &
+                block_local(local_index)%scalar_mult*patch_start + 1: &
+                field_base + &
+                block_local(local_index)%scalar_mult*patch_start + &
+                n_patch_value) = &
+                value(input_base+1:input_base+n_patch_value)
+        case (BLOCK_PAYLOAD_WAV_COEFF)
+           block_local(local_index)%wavelet_scalar( &
+                field_base + &
+                block_local(local_index)%scalar_mult*patch_start + 1: &
+                field_base + &
+                block_local(local_index)%scalar_mult*patch_start + &
+                n_patch_value) = &
+                value(input_base+1:input_base+n_patch_value)
+        end select
+     end do
+  end do
+
+  if (payload_family == BLOCK_PAYLOAD_SOL) then
+     call invalidate_local_block_hydrostatic_block(local_index)
+  end if
+
+end subroutine set_local_block_scalar_patch_family_values
+
+
+subroutine set_local_block_scalar_patch_values ( &
+     catalog_index,local_patch,value)
+  ! Install scalar sol followed by wav_coeff in one compact patch.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: local_patch
+  real(dp), intent(in) :: value(:)
+
+  integer :: n_family
+
+  if (size(value) /= local_block_scalar_patch_nvalue( &
+       catalog_index)) then
+     error stop "set_local_block_scalar_patch_values: input extent"
+  end if
+
+  n_family = local_block_scalar_family_patch_nvalue(catalog_index)
+  call set_local_block_scalar_patch_family_values( &
+       catalog_index,local_patch,BLOCK_PAYLOAD_SOL, &
+       value(1:n_family))
+  call set_local_block_scalar_patch_family_values( &
+       catalog_index,local_patch,BLOCK_PAYLOAD_WAV_COEFF, &
+       value(n_family+1:2*n_family))
+
+end subroutine set_local_block_scalar_patch_values
+
+
+subroutine fill_local_block_scalar_patch_values (value)
+  ! Fill scalar sol and wav_coeff patch values in the local block store.
+
+  implicit none
+
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_scalar_patch_values: store is not ready"
+  end if
+
+  do b = 1, size(block_local)
+     block_local(b)%scalar = value
+     block_local(b)%wavelet_scalar = value
+  end do
+
+  call invalidate_local_block_hydrostatic_state
+
+end subroutine fill_local_block_scalar_patch_values
+
+
+subroutine fill_local_block_scalar_patch_family_values ( &
+     payload_family,value)
+  ! Fill one scalar patch payload family in the local block store.
+
+  implicit none
+
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_scalar_patch_family_values: store not ready"
+  end if
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "fill_local_block_scalar_patch_family_values: invalid family"
+  end if
+
+  do b = 1, size(block_local)
+     select case (payload_family)
+     case (BLOCK_PAYLOAD_SOL)
+        block_local(b)%scalar = value
+     case (BLOCK_PAYLOAD_WAV_COEFF)
+        block_local(b)%wavelet_scalar = value
+     end select
+  end do
+
+  if (payload_family == BLOCK_PAYLOAD_SOL) then
+     call invalidate_local_block_hydrostatic_state
+  end if
+
+end subroutine fill_local_block_scalar_patch_family_values
+
+
+integer function local_block_scalar_boundary_nvalue ( &
+     catalog_index,boundary_index) result(n_value)
+  ! Number of scalar sol and wav_coeff values in one compact boundary.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+
+  integer :: local_index
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "local_block_scalar_boundary_nvalue: block is not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop &
+          "local_block_scalar_boundary_nvalue: invalid boundary"
+  end if
+
+  n_value = 2 * block_local(local_index)%n_scalar_variable * &
+       block_local(local_index)%n_field_level * &
+       block_local(local_index)%scalar_mult * &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node
+
+end function local_block_scalar_boundary_nvalue
+
+
+integer function local_block_scalar_family_boundary_nvalue ( &
+     catalog_index,boundary_index) result(n_value)
+  ! Number of values for one scalar family in one compact boundary.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+
+  integer :: local_index
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "local_block_scalar_family_boundary_nvalue: block not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop &
+          "local_block_scalar_family_boundary_nvalue: invalid boundary"
+  end if
+
+  n_value = block_local(local_index)%n_scalar_variable * &
+       block_local(local_index)%n_field_level * &
+       block_local(local_index)%scalar_mult * &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node
+
+end function local_block_scalar_family_boundary_nvalue
+
+
+subroutine get_local_block_scalar_boundary_values ( &
+     catalog_index,boundary_index,value)
+  ! Read scalar sol followed by wav_coeff from one compact boundary.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+  real(dp), intent(out) :: value(:)
+
+  integer :: boundary_start
+  integer :: field_base
+  integer :: family_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_boundary_node
+  integer :: n_boundary_value
+  integer :: output_base
+  integer :: scalar_slot
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "get_local_block_scalar_boundary_values: block is not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop &
+          "get_local_block_scalar_boundary_values: invalid boundary"
+  end if
+  if (size(value) /= local_block_scalar_boundary_nvalue( &
+       catalog_index,boundary_index)) then
+     error stop &
+          "get_local_block_scalar_boundary_values: output extent"
+  end if
+
+  n_boundary_node = size(block_local(local_index)%bdry_node)
+  n_boundary_value = block_local(local_index)%scalar_mult * &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node
+  family_base = block_local(local_index)%n_scalar_variable * &
+       block_local(local_index)%n_field_level*n_boundary_value
+  boundary_start = block_local(local_index)% &
+       bdry_storage(boundary_index)%local_start
+
+  if (boundary_start < 0 .or. &
+       boundary_start + &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node > &
+       n_boundary_node) then
+     error stop &
+          "get_local_block_scalar_boundary_values: boundary storage"
+  end if
+
+  do scalar_slot = 1, block_local(local_index)%n_scalar_variable
+     do level_slot = 1, block_local(local_index)%n_field_level
+        field_base = ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + level_slot-1) * &
+             block_local(local_index)%scalar_mult*n_boundary_node
+        output_base = ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + level_slot-1) * &
+             n_boundary_value
+
+        value(output_base+1:output_base+n_boundary_value) = &
+             block_local(local_index)%bdry_scalar( &
+             field_base + &
+             block_local(local_index)%scalar_mult*boundary_start + 1: &
+             field_base + &
+             block_local(local_index)%scalar_mult*boundary_start + &
+             n_boundary_value)
+        value(family_base+output_base+1: &
+             family_base+output_base+n_boundary_value) = &
+             block_local(local_index)%bdry_wavelet_scalar( &
+             field_base + &
+             block_local(local_index)%scalar_mult*boundary_start + 1: &
+             field_base + &
+             block_local(local_index)%scalar_mult*boundary_start + &
+             n_boundary_value)
+     end do
+  end do
+
+end subroutine get_local_block_scalar_boundary_values
+
+
+subroutine get_local_block_scalar_boundary_family_values ( &
+     catalog_index,boundary_index,payload_family,value)
+  ! Read one scalar sol or wav_coeff family from a compact boundary.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+  integer, intent(in) :: payload_family
+  real(dp), intent(out) :: value(:)
+
+  integer :: boundary_start
+  integer :: field_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_boundary_node
+  integer :: n_boundary_value
+  integer :: output_base
+  integer :: scalar_slot
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "get_local_block_scalar_boundary_family_values: block not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop &
+          "get_local_block_scalar_boundary_family_values: invalid boundary"
+  end if
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "get_local_block_scalar_boundary_family_values: invalid family"
+  end if
+  if (size(value) /= local_block_scalar_family_boundary_nvalue( &
+       catalog_index,boundary_index)) then
+     error stop &
+          "get_local_block_scalar_boundary_family_values: output extent"
+  end if
+
+  n_boundary_node = size(block_local(local_index)%bdry_node)
+  n_boundary_value = block_local(local_index)%scalar_mult * &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node
+  boundary_start = block_local(local_index)% &
+       bdry_storage(boundary_index)%local_start
+
+  if (boundary_start < 0 .or. &
+       boundary_start + &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node > &
+       n_boundary_node) then
+     error stop &
+          "get_local_block_scalar_boundary_family_values: storage"
+  end if
+
+  do scalar_slot = 1, block_local(local_index)%n_scalar_variable
+     do level_slot = 1, block_local(local_index)%n_field_level
+        field_base = ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + level_slot-1) * &
+             block_local(local_index)%scalar_mult*n_boundary_node
+        output_base = ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + level_slot-1) * &
+             n_boundary_value
+
+        select case (payload_family)
+        case (BLOCK_PAYLOAD_SOL)
+           value(output_base+1:output_base+n_boundary_value) = &
+                block_local(local_index)%bdry_scalar( &
+                field_base + &
+                block_local(local_index)%scalar_mult*boundary_start + 1: &
+                field_base + &
+                block_local(local_index)%scalar_mult*boundary_start + &
+                n_boundary_value)
+        case (BLOCK_PAYLOAD_WAV_COEFF)
+           value(output_base+1:output_base+n_boundary_value) = &
+                block_local(local_index)%bdry_wavelet_scalar( &
+                field_base + &
+                block_local(local_index)%scalar_mult*boundary_start + 1: &
+                field_base + &
+                block_local(local_index)%scalar_mult*boundary_start + &
+                n_boundary_value)
+        end select
+     end do
+  end do
+
+end subroutine get_local_block_scalar_boundary_family_values
+
+
+subroutine set_local_block_scalar_boundary_family_values ( &
+     catalog_index,boundary_index,payload_family,value)
+  ! Install one scalar sol or wav_coeff family in a compact boundary.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value(:)
+
+  integer :: boundary_start
+  integer :: field_base
+  integer :: input_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_boundary_node
+  integer :: n_boundary_value
+  integer :: scalar_slot
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "set_local_block_scalar_boundary_family_values: block not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop &
+          "set_local_block_scalar_boundary_family_values: invalid boundary"
+  end if
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "set_local_block_scalar_boundary_family_values: invalid family"
+  end if
+  if (size(value) /= local_block_scalar_family_boundary_nvalue( &
+       catalog_index,boundary_index)) then
+     error stop &
+          "set_local_block_scalar_boundary_family_values: input extent"
+  end if
+
+  n_boundary_node = size(block_local(local_index)%bdry_node)
+  n_boundary_value = block_local(local_index)%scalar_mult * &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node
+  boundary_start = block_local(local_index)% &
+       bdry_storage(boundary_index)%local_start
+
+  if (boundary_start < 0 .or. &
+       boundary_start + &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node > &
+       n_boundary_node) then
+     error stop &
+          "set_local_block_scalar_boundary_family_values: storage"
+  end if
+
+  do scalar_slot = 1, block_local(local_index)%n_scalar_variable
+     do level_slot = 1, block_local(local_index)%n_field_level
+        field_base = ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + level_slot-1) * &
+             block_local(local_index)%scalar_mult*n_boundary_node
+        input_base = ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + level_slot-1) * &
+             n_boundary_value
+
+        select case (payload_family)
+        case (BLOCK_PAYLOAD_SOL)
+           block_local(local_index)%bdry_scalar( &
+                field_base + &
+                block_local(local_index)%scalar_mult*boundary_start + 1: &
+                field_base + &
+                block_local(local_index)%scalar_mult*boundary_start + &
+                n_boundary_value) = &
+                value(input_base+1:input_base+n_boundary_value)
+        case (BLOCK_PAYLOAD_WAV_COEFF)
+           block_local(local_index)%bdry_wavelet_scalar( &
+                field_base + &
+                block_local(local_index)%scalar_mult*boundary_start + 1: &
+                field_base + &
+                block_local(local_index)%scalar_mult*boundary_start + &
+                n_boundary_value) = &
+                value(input_base+1:input_base+n_boundary_value)
+        end select
+     end do
+  end do
+
+end subroutine set_local_block_scalar_boundary_family_values
+
+
+subroutine fill_local_block_scalar_boundary_values (value)
+  ! Fill scalar sol and wav_coeff boundary values in the local block store.
+
+  implicit none
+
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_scalar_boundary_values: store is not ready"
+  end if
+
+  do b = 1, size(block_local)
+     block_local(b)%bdry_scalar = value
+     block_local(b)%bdry_wavelet_scalar = value
+  end do
+
+end subroutine fill_local_block_scalar_boundary_values
+
+
+subroutine fill_local_block_scalar_boundary_family_values ( &
+     payload_family,value)
+  ! Fill one scalar boundary payload family in the local block store.
+
+  implicit none
+
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_scalar_boundary_family_values: store not ready"
+  end if
+
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "fill_local_block_scalar_boundary_family_values: invalid family"
+  end if
+
+  do b = 1, size(block_local)
+     select case (payload_family)
+     case (BLOCK_PAYLOAD_SOL)
+        block_local(b)%bdry_scalar = value
+     case (BLOCK_PAYLOAD_WAV_COEFF)
+        block_local(b)%bdry_wavelet_scalar = value
+     end select
+  end do
+
+end subroutine fill_local_block_scalar_boundary_family_values
 
 
 subroutine get_local_block_scalar_ghost_values ( &
@@ -2376,6 +3000,522 @@ subroutine get_local_block_vector_patch_values ( &
   end do
 
 end subroutine get_local_block_vector_patch_values
+
+
+subroutine set_local_block_vector_patch_family_values ( &
+     catalog_index,local_patch,payload_family,value)
+  ! Install one vector sol or wav_coeff family in one compact patch.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: local_patch
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value(:)
+
+  integer :: field_base
+  integer :: input_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_node
+  integer :: n_patch_value
+  integer :: patch_start
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "set_local_block_vector_patch_family_values: block not local"
+  end if
+  if (local_patch < 0 .or. &
+       local_patch >= size(block_local(local_index)%patch)) then
+     error stop &
+          "set_local_block_vector_patch_family_values: invalid patch"
+  end if
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "set_local_block_vector_patch_family_values: invalid family"
+  end if
+  if (size(value) /= &
+       local_block_vector_family_patch_nvalue(catalog_index)) then
+     error stop &
+          "set_local_block_vector_patch_family_values: input extent"
+  end if
+
+  n_patch_value = &
+       block_local(local_index)%vector_mult * PATCH_SIZE**2
+  n_node = size(block_local(local_index)%node)
+  patch_start = &
+       block_local(local_index)%patch(local_patch+1)%elts_start
+
+  if (patch_start < 0 .or. &
+       patch_start+PATCH_SIZE**2 > n_node) then
+     error stop &
+          "set_local_block_vector_patch_family_values: patch storage"
+  end if
+
+  do level_slot = 1, block_local(local_index)%n_field_level
+     field_base = (level_slot-1) * &
+          block_local(local_index)%vector_mult*n_node
+     input_base = (level_slot-1)*n_patch_value
+
+     select case (payload_family)
+     case (BLOCK_PAYLOAD_SOL)
+        block_local(local_index)%vector( &
+             field_base + &
+             block_local(local_index)%vector_mult*patch_start + 1: &
+             field_base + &
+             block_local(local_index)%vector_mult*patch_start + &
+             n_patch_value) = &
+             value(input_base+1:input_base+n_patch_value)
+     case (BLOCK_PAYLOAD_WAV_COEFF)
+        block_local(local_index)%wavelet_vector( &
+             field_base + &
+             block_local(local_index)%vector_mult*patch_start + 1: &
+             field_base + &
+             block_local(local_index)%vector_mult*patch_start + &
+             n_patch_value) = &
+             value(input_base+1:input_base+n_patch_value)
+     end select
+  end do
+
+end subroutine set_local_block_vector_patch_family_values
+
+
+subroutine set_local_block_vector_patch_values ( &
+     catalog_index,local_patch,value)
+  ! Install vector sol followed by wav_coeff in one compact patch.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: local_patch
+  real(dp), intent(in) :: value(:)
+
+  integer :: n_family
+
+  if (size(value) /= local_block_vector_patch_nvalue( &
+       catalog_index)) then
+     error stop "set_local_block_vector_patch_values: input extent"
+  end if
+
+  n_family = local_block_vector_family_patch_nvalue(catalog_index)
+  call set_local_block_vector_patch_family_values( &
+       catalog_index,local_patch,BLOCK_PAYLOAD_SOL, &
+       value(1:n_family))
+  call set_local_block_vector_patch_family_values( &
+       catalog_index,local_patch,BLOCK_PAYLOAD_WAV_COEFF, &
+       value(n_family+1:2*n_family))
+
+end subroutine set_local_block_vector_patch_values
+
+
+subroutine fill_local_block_vector_patch_values (value)
+  ! Fill vector sol and wav_coeff patch values in the local block store.
+
+  implicit none
+
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_vector_patch_values: store is not ready"
+  end if
+
+  do b = 1, size(block_local)
+     block_local(b)%vector = value
+     block_local(b)%wavelet_vector = value
+  end do
+
+end subroutine fill_local_block_vector_patch_values
+
+
+subroutine fill_local_block_vector_patch_family_values ( &
+     payload_family,value)
+  ! Fill one vector patch payload family in the local block store.
+
+  implicit none
+
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_vector_patch_family_values: store not ready"
+  end if
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "fill_local_block_vector_patch_family_values: invalid family"
+  end if
+
+  do b = 1, size(block_local)
+     select case (payload_family)
+     case (BLOCK_PAYLOAD_SOL)
+        block_local(b)%vector = value
+     case (BLOCK_PAYLOAD_WAV_COEFF)
+        block_local(b)%wavelet_vector = value
+     end select
+  end do
+
+end subroutine fill_local_block_vector_patch_family_values
+
+
+integer function local_block_vector_boundary_nvalue ( &
+     catalog_index,boundary_index) result(n_value)
+  ! Number of vector sol and wav_coeff values in one compact boundary.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+
+  integer :: local_index
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "local_block_vector_boundary_nvalue: block is not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop &
+          "local_block_vector_boundary_nvalue: invalid boundary"
+  end if
+
+  n_value = 2 * block_local(local_index)%n_field_level * &
+       block_local(local_index)%vector_mult * &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node
+
+end function local_block_vector_boundary_nvalue
+
+
+integer function local_block_vector_family_boundary_nvalue ( &
+     catalog_index,boundary_index) result(n_value)
+  ! Number of values for one vector family in one compact boundary.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+
+  integer :: local_index
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "local_block_vector_family_boundary_nvalue: block not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop &
+          "local_block_vector_family_boundary_nvalue: invalid boundary"
+  end if
+
+  n_value = block_local(local_index)%n_field_level * &
+       block_local(local_index)%vector_mult * &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node
+
+end function local_block_vector_family_boundary_nvalue
+
+
+subroutine get_local_block_vector_boundary_values ( &
+     catalog_index,boundary_index,value)
+  ! Read vector sol followed by wav_coeff from one compact boundary.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+  real(dp), intent(out) :: value(:)
+
+  integer :: boundary_start
+  integer :: field_base
+  integer :: family_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_boundary_node
+  integer :: n_boundary_value
+  integer :: output_base
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "get_local_block_vector_boundary_values: block is not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop &
+          "get_local_block_vector_boundary_values: invalid boundary"
+  end if
+  if (size(value) /= local_block_vector_boundary_nvalue( &
+       catalog_index,boundary_index)) then
+     error stop &
+          "get_local_block_vector_boundary_values: output extent"
+  end if
+
+  n_boundary_node = size(block_local(local_index)%bdry_node)
+  n_boundary_value = block_local(local_index)%vector_mult * &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node
+  family_base = block_local(local_index)%n_field_level*n_boundary_value
+  boundary_start = block_local(local_index)% &
+       bdry_storage(boundary_index)%local_start
+
+  if (boundary_start < 0 .or. &
+       boundary_start + &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node > &
+       n_boundary_node) then
+     error stop &
+          "get_local_block_vector_boundary_values: boundary storage"
+  end if
+
+  do level_slot = 1, block_local(local_index)%n_field_level
+     field_base = (level_slot-1) * &
+          block_local(local_index)%vector_mult*n_boundary_node
+     output_base = (level_slot-1)*n_boundary_value
+
+     value(output_base+1:output_base+n_boundary_value) = &
+          block_local(local_index)%bdry_vector( &
+          field_base + &
+          block_local(local_index)%vector_mult*boundary_start + 1: &
+          field_base + &
+          block_local(local_index)%vector_mult*boundary_start + &
+          n_boundary_value)
+     value(family_base+output_base+1: &
+          family_base+output_base+n_boundary_value) = &
+          block_local(local_index)%bdry_wavelet_vector( &
+          field_base + &
+          block_local(local_index)%vector_mult*boundary_start + 1: &
+          field_base + &
+          block_local(local_index)%vector_mult*boundary_start + &
+          n_boundary_value)
+  end do
+
+end subroutine get_local_block_vector_boundary_values
+
+
+subroutine get_local_block_vector_boundary_family_values ( &
+     catalog_index,boundary_index,payload_family,value)
+  ! Read one vector sol or wav_coeff family from a compact boundary.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+  integer, intent(in) :: payload_family
+  real(dp), intent(out) :: value(:)
+
+  integer :: boundary_start
+  integer :: field_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_boundary_node
+  integer :: n_boundary_value
+  integer :: output_base
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "get_local_block_vector_boundary_family_values: block not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop &
+          "get_local_block_vector_boundary_family_values: invalid boundary"
+  end if
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "get_local_block_vector_boundary_family_values: invalid family"
+  end if
+  if (size(value) /= local_block_vector_family_boundary_nvalue( &
+       catalog_index,boundary_index)) then
+     error stop &
+          "get_local_block_vector_boundary_family_values: output extent"
+  end if
+
+  n_boundary_node = size(block_local(local_index)%bdry_node)
+  n_boundary_value = block_local(local_index)%vector_mult * &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node
+  boundary_start = block_local(local_index)% &
+       bdry_storage(boundary_index)%local_start
+
+  if (boundary_start < 0 .or. &
+       boundary_start + &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node > &
+       n_boundary_node) then
+     error stop &
+          "get_local_block_vector_boundary_family_values: storage"
+  end if
+
+  do level_slot = 1, block_local(local_index)%n_field_level
+     field_base = (level_slot-1) * &
+          block_local(local_index)%vector_mult*n_boundary_node
+     output_base = (level_slot-1)*n_boundary_value
+
+     select case (payload_family)
+     case (BLOCK_PAYLOAD_SOL)
+        value(output_base+1:output_base+n_boundary_value) = &
+             block_local(local_index)%bdry_vector( &
+             field_base + &
+             block_local(local_index)%vector_mult*boundary_start + 1: &
+             field_base + &
+             block_local(local_index)%vector_mult*boundary_start + &
+             n_boundary_value)
+     case (BLOCK_PAYLOAD_WAV_COEFF)
+        value(output_base+1:output_base+n_boundary_value) = &
+             block_local(local_index)%bdry_wavelet_vector( &
+             field_base + &
+             block_local(local_index)%vector_mult*boundary_start + 1: &
+             field_base + &
+             block_local(local_index)%vector_mult*boundary_start + &
+             n_boundary_value)
+     end select
+  end do
+
+end subroutine get_local_block_vector_boundary_family_values
+
+
+subroutine set_local_block_vector_boundary_family_values ( &
+     catalog_index,boundary_index,payload_family,value)
+  ! Install one vector sol or wav_coeff family in a compact boundary.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value(:)
+
+  integer :: boundary_start
+  integer :: field_base
+  integer :: input_base
+  integer :: local_index
+  integer :: level_slot
+  integer :: n_boundary_node
+  integer :: n_boundary_value
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "set_local_block_vector_boundary_family_values: block not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop &
+          "set_local_block_vector_boundary_family_values: invalid boundary"
+  end if
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "set_local_block_vector_boundary_family_values: invalid family"
+  end if
+  if (size(value) /= local_block_vector_family_boundary_nvalue( &
+       catalog_index,boundary_index)) then
+     error stop &
+          "set_local_block_vector_boundary_family_values: input extent"
+  end if
+
+  n_boundary_node = size(block_local(local_index)%bdry_node)
+  n_boundary_value = block_local(local_index)%vector_mult * &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node
+  boundary_start = block_local(local_index)% &
+       bdry_storage(boundary_index)%local_start
+
+  if (boundary_start < 0 .or. &
+       boundary_start + &
+       block_local(local_index)%bdry_storage(boundary_index)%n_node > &
+       n_boundary_node) then
+     error stop &
+          "set_local_block_vector_boundary_family_values: storage"
+  end if
+
+  do level_slot = 1, block_local(local_index)%n_field_level
+     field_base = (level_slot-1) * &
+          block_local(local_index)%vector_mult*n_boundary_node
+     input_base = (level_slot-1)*n_boundary_value
+
+     select case (payload_family)
+     case (BLOCK_PAYLOAD_SOL)
+        block_local(local_index)%bdry_vector( &
+             field_base + &
+             block_local(local_index)%vector_mult*boundary_start + 1: &
+             field_base + &
+             block_local(local_index)%vector_mult*boundary_start + &
+             n_boundary_value) = &
+             value(input_base+1:input_base+n_boundary_value)
+     case (BLOCK_PAYLOAD_WAV_COEFF)
+        block_local(local_index)%bdry_wavelet_vector( &
+             field_base + &
+             block_local(local_index)%vector_mult*boundary_start + 1: &
+             field_base + &
+             block_local(local_index)%vector_mult*boundary_start + &
+             n_boundary_value) = &
+             value(input_base+1:input_base+n_boundary_value)
+     end select
+  end do
+
+end subroutine set_local_block_vector_boundary_family_values
+
+
+subroutine fill_local_block_vector_boundary_values (value)
+  ! Fill vector sol and wav_coeff boundary values in the local block store.
+
+  implicit none
+
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_vector_boundary_values: store is not ready"
+  end if
+
+  do b = 1, size(block_local)
+     block_local(b)%bdry_vector = value
+     block_local(b)%bdry_wavelet_vector = value
+  end do
+
+end subroutine fill_local_block_vector_boundary_values
+
+
+subroutine fill_local_block_vector_boundary_family_values ( &
+     payload_family,value)
+  ! Fill one vector boundary payload family in the local block store.
+
+  implicit none
+
+  integer, intent(in) :: payload_family
+  real(dp), intent(in) :: value
+
+  integer :: b
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "fill_local_block_vector_boundary_family_values: store not ready"
+  end if
+
+  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+     error stop &
+          "fill_local_block_vector_boundary_family_values: invalid family"
+  end if
+
+  do b = 1, size(block_local)
+     select case (payload_family)
+     case (BLOCK_PAYLOAD_SOL)
+        block_local(b)%bdry_vector = value
+     case (BLOCK_PAYLOAD_WAV_COEFF)
+        block_local(b)%bdry_wavelet_vector = value
+     end select
+  end do
+
+end subroutine fill_local_block_vector_boundary_family_values
 
 
 subroutine get_local_block_vector_ghost_values ( &
@@ -3228,12 +4368,724 @@ subroutine accumulate_block_vector_stencil_statistics ( &
 end subroutine accumulate_block_vector_stencil_statistics
 
 
+subroutine compute_local_block_hydrostatic_patch ( &
+     catalog_index,local_patch,surface_pressure,dynamic_exner, &
+     air_temperature)
+  ! Production hydrostatic column kernel for one compact block patch.
+  ! Results are returned in level-major order for direct consumption by
+  ! later block-based dynamics without modifying the installed fields.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: local_patch
+
+  real(dp), intent(out) :: surface_pressure(:)
+  real(dp), intent(out) :: dynamic_exner(:)
+  real(dp), intent(out) :: air_temperature(:)
+
+  integer :: i
+  integer :: k
+  integer :: local_index
+  integer :: mass_index
+  integer :: mass_variable_slot
+  integer :: n_node
+  integer :: node_index
+  integer :: output_index
+  integer :: patch_start
+  integer :: scalar_variable_size
+  integer :: temperature_index
+  integer :: temperature_variable_slot
+
+  real(dp) :: layer_pressure
+  real(dp) :: pressure_factor
+  real(dp) :: pressure_lower
+  real(dp) :: pressure_upper
+  real(dp) :: rho_dz
+  real(dp) :: rho_dz_theta
+
+  if (.not. compressible) then
+     error stop &
+          "compute_local_block_hydrostatic_patch: incompressible case"
+  end if
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "compute_local_block_hydrostatic_patch: store is not ready"
+  end if
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "compute_local_block_hydrostatic_patch: block is not local"
+  end if
+  if (local_patch < 0 .or. &
+       local_patch >= size(block_local(local_index)%patch)) then
+     error stop &
+          "compute_local_block_hydrostatic_patch: invalid patch"
+  end if
+  if (size(surface_pressure) /= PATCH_SIZE**2 .or. &
+       size(dynamic_exner) /= zlevels*PATCH_SIZE**2 .or. &
+       size(air_temperature) /= zlevels*PATCH_SIZE**2) then
+     error stop &
+          "compute_local_block_hydrostatic_patch: output extent"
+  end if
+
+  if (block_local(local_index)%scalar_mult /= 1) then
+     error stop &
+          "compute_local_block_hydrostatic_patch: scalar multiplier"
+  end if
+  if (block_local(local_index)%field_level > 1 .or. &
+       block_local(local_index)%field_level + &
+       block_local(local_index)%n_field_level - 1 < zlevels) then
+     error stop &
+          "compute_local_block_hydrostatic_patch: level coverage"
+  end if
+
+  mass_variable_slot = &
+       S_MASS - block_local(local_index)%scalar_variable
+  temperature_variable_slot = &
+       S_TEMP - block_local(local_index)%scalar_variable
+
+  if (mass_variable_slot < 0 .or. &
+       mass_variable_slot >= &
+       block_local(local_index)%n_scalar_variable .or. &
+       temperature_variable_slot < 0 .or. &
+       temperature_variable_slot >= &
+       block_local(local_index)%n_scalar_variable) then
+     error stop &
+          "compute_local_block_hydrostatic_patch: variable coverage"
+  end if
+
+  n_node = size(block_local(local_index)%node)
+  patch_start = &
+       block_local(local_index)%patch(local_patch+1)%elts_start
+  if (patch_start < 0 .or. &
+       patch_start+PATCH_SIZE**2 > n_node) then
+     error stop &
+          "compute_local_block_hydrostatic_patch: patch storage"
+  end if
+
+  scalar_variable_size = &
+       block_local(local_index)%n_field_level*n_node
+
+  do i = 1, PATCH_SIZE**2
+     node_index = patch_start + i
+     pressure_lower = p_top
+
+     do k = 1, zlevels
+        mass_index = &
+             mass_variable_slot*scalar_variable_size + &
+             (k-block_local(local_index)%field_level)*n_node + &
+             node_index
+        rho_dz = block_local(local_index)%scalar(mass_index) + &
+             block_local(local_index)%scalar_mean(mass_index)
+        if (rho_dz <= 0.0_dp) then
+           error stop &
+                "compute_local_block_hydrostatic_patch: nonpositive mass"
+        end if
+        pressure_lower = pressure_lower + grav_accel*rho_dz
+     end do
+
+     surface_pressure(i) = pressure_lower
+
+     do k = 1, zlevels
+        mass_index = &
+             mass_variable_slot*scalar_variable_size + &
+             (k-block_local(local_index)%field_level)*n_node + &
+             node_index
+        temperature_index = &
+             temperature_variable_slot*scalar_variable_size + &
+             (k-block_local(local_index)%field_level)*n_node + &
+             node_index
+
+        rho_dz = block_local(local_index)%scalar(mass_index) + &
+             block_local(local_index)%scalar_mean(mass_index)
+        rho_dz_theta = &
+             block_local(local_index)%scalar(temperature_index) + &
+             block_local(local_index)%scalar_mean(temperature_index)
+
+        pressure_upper = pressure_lower - grav_accel*rho_dz
+        layer_pressure = 0.5_dp*(pressure_lower+pressure_upper)
+        if (layer_pressure <= 0.0_dp) then
+           error stop &
+                "compute_local_block_hydrostatic_patch: nonpositive pressure"
+        end if
+
+        pressure_factor = (layer_pressure/p_0)**kappa
+        output_index = (k-1)*PATCH_SIZE**2 + i
+        dynamic_exner(output_index) = c_p*pressure_factor
+        air_temperature(output_index) = &
+             rho_dz_theta/rho_dz*pressure_factor
+        pressure_lower = pressure_upper
+     end do
+  end do
+
+end subroutine compute_local_block_hydrostatic_patch
+
+
+subroutine clear_local_block_hydrostatic_state
+  ! Release derived hydrostatic fields. They are regenerated from the
+  ! installed compact scalar and scalar-mean storage after migration.
+
+  implicit none
+
+  block_hydrostatic_ready = .false.
+  block_hydrostatic_refreshes = 0_int64
+
+  if (allocated(block_hydrostatic)) then
+     deallocate(block_hydrostatic)
+  end if
+
+  if (allocated(block_hydrostatic)) then
+     error stop &
+          "clear_local_block_hydrostatic_state: cleanup failed"
+  end if
+
+end subroutine clear_local_block_hydrostatic_state
+
+
+subroutine invalidate_local_block_hydrostatic_block (local_index)
+  ! Mark only one block's derived thermodynamic fields stale.
+
+  implicit none
+
+  integer, intent(in) :: local_index
+
+  block_hydrostatic_ready = .false.
+
+  if (.not. allocated(block_hydrostatic)) return
+  if (size(block_hydrostatic) /= size(block_local)) return
+  if (local_index < 1 .or. local_index > size(block_hydrostatic)) return
+
+  block_hydrostatic(local_index)%ready = .false.
+
+end subroutine invalidate_local_block_hydrostatic_block
+
+
+subroutine invalidate_local_block_hydrostatic_state
+  ! Mark all local blocks' derived thermodynamic fields stale.
+
+  implicit none
+
+  block_hydrostatic_ready = .false.
+  if (allocated(block_hydrostatic)) then
+     block_hydrostatic%ready = .false.
+  end if
+
+end subroutine invalidate_local_block_hydrostatic_state
+
+
+subroutine prepare_local_block_hydrostatic_state
+  ! Ensure the per-block cache catalogue exists without computing fields.
+
+  implicit none
+
+  integer :: local_index
+
+  if (allocated(block_hydrostatic)) then
+     if (size(block_hydrostatic) /= size(block_local)) then
+        deallocate(block_hydrostatic)
+     end if
+  end if
+  if (.not. allocated(block_hydrostatic)) then
+     allocate(block_hydrostatic(size(block_local)))
+     do local_index = 1,size(block_local)
+        block_hydrostatic(local_index)%catalog_index = &
+             block_local_catalog_index(local_index)
+        block_hydrostatic(local_index)%ready = .false.
+        block_hydrostatic(local_index)%refreshes = 0_int64
+     end do
+  end if
+
+end subroutine prepare_local_block_hydrostatic_state
+
+
+subroutine refresh_local_block_hydrostatic_block (local_index)
+  ! Refresh one reusable, patch-major thermodynamic block cache.
+
+  implicit none
+
+  integer, intent(in) :: local_index
+
+  integer :: catalog_index
+  integer :: column_base
+  integer :: local_patch
+  integer :: n_column
+  integer :: n_patch
+  integer :: n_surface
+  integer :: surface_base
+
+  if (local_index < 1 .or. local_index > size(block_local)) then
+     error stop &
+          "refresh_local_block_hydrostatic_block: invalid local index"
+  end if
+
+  call prepare_local_block_hydrostatic_state
+
+  catalog_index = block_local_catalog_index(local_index)
+  n_patch = size(block_local(local_index)%patch)
+  n_surface = n_patch*PATCH_SIZE**2
+  n_column = n_patch*zlevels*PATCH_SIZE**2
+
+  block_hydrostatic(local_index)%catalog_index = catalog_index
+  block_hydrostatic(local_index)%ready = .false.
+
+  if (allocated( &
+       block_hydrostatic(local_index)%surface_pressure)) then
+     if (size(block_hydrostatic(local_index)%surface_pressure) /= &
+          n_surface) then
+        deallocate(block_hydrostatic(local_index)%surface_pressure)
+     end if
+  end if
+  if (.not. allocated( &
+       block_hydrostatic(local_index)%surface_pressure)) then
+     allocate( &
+          block_hydrostatic(local_index)%surface_pressure(n_surface))
+  end if
+
+  if (allocated(block_hydrostatic(local_index)%dynamic_exner)) then
+     if (size(block_hydrostatic(local_index)%dynamic_exner) /= &
+          n_column) then
+        deallocate(block_hydrostatic(local_index)%dynamic_exner)
+     end if
+  end if
+  if (.not. allocated( &
+       block_hydrostatic(local_index)%dynamic_exner)) then
+     allocate(block_hydrostatic(local_index)%dynamic_exner(n_column))
+  end if
+
+  if (allocated(block_hydrostatic(local_index)%air_temperature)) then
+     if (size(block_hydrostatic(local_index)%air_temperature) /= &
+          n_column) then
+        deallocate(block_hydrostatic(local_index)%air_temperature)
+     end if
+  end if
+  if (.not. allocated( &
+       block_hydrostatic(local_index)%air_temperature)) then
+     allocate(block_hydrostatic(local_index)%air_temperature(n_column))
+  end if
+
+  do local_patch = 0,n_patch-1
+     surface_base = local_patch*PATCH_SIZE**2
+     column_base = local_patch*zlevels*PATCH_SIZE**2
+
+     call compute_local_block_hydrostatic_patch( &
+          catalog_index,local_patch, &
+          block_hydrostatic(local_index)%surface_pressure( &
+          surface_base+1:surface_base+PATCH_SIZE**2), &
+          block_hydrostatic(local_index)%dynamic_exner( &
+          column_base+1:column_base+zlevels*PATCH_SIZE**2), &
+          block_hydrostatic(local_index)%air_temperature( &
+          column_base+1:column_base+zlevels*PATCH_SIZE**2))
+  end do
+
+  block_hydrostatic(local_index)%ready = .true.
+  block_hydrostatic(local_index)%refreshes = &
+       block_hydrostatic(local_index)%refreshes + 1_int64
+  block_hydrostatic_refreshes = &
+       block_hydrostatic_refreshes + 1_int64
+
+end subroutine refresh_local_block_hydrostatic_block
+
+
+subroutine ensure_local_block_hydrostatic_block (catalog_index)
+  ! Lazily refresh only the requested local block.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+
+  integer :: local_index
+
+  if (.not. compressible) then
+     error stop &
+          "ensure_local_block_hydrostatic_block: incompressible case"
+  end if
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "ensure_local_block_hydrostatic_block: store is not ready"
+  end if
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "ensure_local_block_hydrostatic_block: block not local"
+  end if
+
+  call prepare_local_block_hydrostatic_state
+
+  if (.not. block_hydrostatic(local_index)%ready) then
+     call refresh_local_block_hydrostatic_block(local_index)
+  end if
+
+  block_hydrostatic_ready = all(block_hydrostatic%ready)
+
+end subroutine ensure_local_block_hydrostatic_block
+
+
+subroutine refresh_local_block_hydrostatic_state
+  ! Explicitly recompute every local block while retaining allocations.
+
+  implicit none
+
+  integer :: local_index
+
+  if (.not. compressible) then
+     error stop &
+          "refresh_local_block_hydrostatic_state: incompressible case"
+  end if
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "refresh_local_block_hydrostatic_state: store is not ready"
+  end if
+
+  call prepare_local_block_hydrostatic_state
+  block_hydrostatic_ready = .false.
+  block_hydrostatic%ready = .false.
+
+  do local_index = 1,size(block_local)
+     call refresh_local_block_hydrostatic_block(local_index)
+  end do
+
+  block_hydrostatic_ready = all(block_hydrostatic%ready)
+
+end subroutine refresh_local_block_hydrostatic_state
+
+
+subroutine ensure_local_block_hydrostatic_state
+  ! Refresh only stale local block caches for whole-store consumers.
+
+  implicit none
+
+  integer :: local_index
+
+  if (.not. compressible) then
+     error stop &
+          "ensure_local_block_hydrostatic_state: incompressible case"
+  end if
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "ensure_local_block_hydrostatic_state: store is not ready"
+  end if
+
+  call prepare_local_block_hydrostatic_state
+
+  do local_index = 1,size(block_local)
+     if (.not. block_hydrostatic(local_index)%ready) then
+        call refresh_local_block_hydrostatic_block(local_index)
+     end if
+  end do
+
+  block_hydrostatic_ready = all(block_hydrostatic%ready)
+
+end subroutine ensure_local_block_hydrostatic_state
+
+
+logical function local_block_hydrostatic_state_ready () result(ready)
+  ! Report whether complete derived hydrostatic storage corresponds to
+  ! the currently installed local block catalogue.
+
+  implicit none
+
+  integer :: local_index
+  integer :: n_patch
+
+  ready = .false.
+
+  if (.not. local_block_store_ready()) return
+  if (.not. block_hydrostatic_ready) return
+  if (.not. allocated(block_hydrostatic)) return
+  if (size(block_hydrostatic) /= size(block_local)) return
+
+  do local_index = 1,size(block_local)
+     if (block_hydrostatic(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index)) return
+     if (.not. block_hydrostatic(local_index)%ready) return
+
+     n_patch = size(block_local(local_index)%patch)
+     if (.not. allocated( &
+          block_hydrostatic(local_index)%surface_pressure)) return
+     if (.not. allocated( &
+          block_hydrostatic(local_index)%dynamic_exner)) return
+     if (.not. allocated( &
+          block_hydrostatic(local_index)%air_temperature)) return
+     if (size(block_hydrostatic(local_index)%surface_pressure) /= &
+          n_patch*PATCH_SIZE**2) return
+     if (size(block_hydrostatic(local_index)%dynamic_exner) /= &
+          n_patch*zlevels*PATCH_SIZE**2) return
+     if (size(block_hydrostatic(local_index)%air_temperature) /= &
+          n_patch*zlevels*PATCH_SIZE**2) return
+  end do
+
+  ready = .true.
+
+end function local_block_hydrostatic_state_ready
+
+
+integer(int64) function local_block_hydrostatic_refresh_count () &
+     result(n_refresh)
+  ! Number of completed per-block refreshes since the current local
+  ! block store was installed. This supports cache-lifecycle diagnostics.
+
+  implicit none
+
+  n_refresh = block_hydrostatic_refreshes
+
+end function local_block_hydrostatic_refresh_count
+
+
+integer(int64) function local_block_hydrostatic_block_refresh_count ( &
+     catalog_index) result(n_refresh)
+  ! Number of completed refreshes for one local block cache.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+
+  integer :: local_index
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "local_block_hydrostatic_block_refresh_count: store not ready"
+  end if
+  if (.not. allocated(block_hydrostatic)) then
+     error stop &
+          "local_block_hydrostatic_block_refresh_count: cache missing"
+  end if
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "local_block_hydrostatic_block_refresh_count: block not local"
+  end if
+  if (block_hydrostatic(local_index)%catalog_index /= catalog_index) then
+     error stop &
+          "local_block_hydrostatic_block_refresh_count: catalogue mismatch"
+  end if
+
+  n_refresh = block_hydrostatic(local_index)%refreshes
+
+end function local_block_hydrostatic_block_refresh_count
+
+
+integer function local_block_hydrostatic_surface_nvalue ( &
+     catalog_index) result(n_value)
+  ! Number of persistent surface-pressure values in one local block.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+
+  integer :: local_index
+
+  call ensure_local_block_hydrostatic_block(catalog_index)
+
+  if (.not. local_block_store_ready() .or. &
+       .not. allocated(block_hydrostatic)) then
+     error stop &
+          "local_block_hydrostatic_surface_nvalue: state not ready"
+  end if
+  if (size(block_hydrostatic) /= size(block_local)) then
+     error stop &
+          "local_block_hydrostatic_surface_nvalue: store extent"
+  end if
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "local_block_hydrostatic_surface_nvalue: block not local"
+  end if
+  if (block_hydrostatic(local_index)%catalog_index /= &
+       catalog_index .or. &
+       .not. block_hydrostatic(local_index)%ready .or. &
+       .not. allocated( &
+       block_hydrostatic(local_index)%surface_pressure)) then
+     error stop &
+          "local_block_hydrostatic_surface_nvalue: local storage"
+  end if
+
+  n_value = size(block_hydrostatic(local_index)%surface_pressure)
+
+end function local_block_hydrostatic_surface_nvalue
+
+
+integer function local_block_hydrostatic_column_nvalue ( &
+     catalog_index) result(n_value)
+  ! Number of persistent Exner or temperature values in one local block.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+
+  integer :: local_index
+
+  call ensure_local_block_hydrostatic_block(catalog_index)
+
+  if (.not. local_block_store_ready() .or. &
+       .not. allocated(block_hydrostatic)) then
+     error stop &
+          "local_block_hydrostatic_column_nvalue: state not ready"
+  end if
+  if (size(block_hydrostatic) /= size(block_local)) then
+     error stop &
+          "local_block_hydrostatic_column_nvalue: store extent"
+  end if
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "local_block_hydrostatic_column_nvalue: block not local"
+  end if
+  if (block_hydrostatic(local_index)%catalog_index /= &
+       catalog_index .or. &
+       .not. block_hydrostatic(local_index)%ready .or. &
+       .not. allocated( &
+       block_hydrostatic(local_index)%dynamic_exner)) then
+     error stop &
+          "local_block_hydrostatic_column_nvalue: local storage"
+  end if
+
+  n_value = size(block_hydrostatic(local_index)%dynamic_exner)
+
+end function local_block_hydrostatic_column_nvalue
+
+
+subroutine get_local_block_hydrostatic_patch_values ( &
+     catalog_index,local_patch,surface_pressure,dynamic_exner, &
+     air_temperature)
+  ! Return one patch from persistent, patch-major hydrostatic storage.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: local_patch
+
+  real(dp), intent(out) :: surface_pressure(:)
+  real(dp), intent(out) :: dynamic_exner(:)
+  real(dp), intent(out) :: air_temperature(:)
+
+  integer :: column_base
+  integer :: local_index
+  integer :: surface_base
+
+  call ensure_local_block_hydrostatic_block(catalog_index)
+
+  if (.not. local_block_store_ready() .or. &
+       .not. allocated(block_hydrostatic)) then
+     error stop &
+          "get_local_block_hydrostatic_patch_values: state not ready"
+  end if
+  if (size(block_hydrostatic) /= size(block_local)) then
+     error stop &
+          "get_local_block_hydrostatic_patch_values: store extent"
+  end if
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "get_local_block_hydrostatic_patch_values: block not local"
+  end if
+  if (local_patch < 0 .or. &
+       local_patch >= size(block_local(local_index)%patch)) then
+     error stop &
+          "get_local_block_hydrostatic_patch_values: invalid patch"
+  end if
+  if (size(surface_pressure) /= PATCH_SIZE**2 .or. &
+       size(dynamic_exner) /= zlevels*PATCH_SIZE**2 .or. &
+       size(air_temperature) /= zlevels*PATCH_SIZE**2) then
+     error stop &
+          "get_local_block_hydrostatic_patch_values: output extent"
+  end if
+  if (block_hydrostatic(local_index)%catalog_index /= &
+       catalog_index .or. &
+       .not. block_hydrostatic(local_index)%ready) then
+     error stop &
+          "get_local_block_hydrostatic_patch_values: catalogue mismatch"
+  end if
+
+  surface_base = local_patch*PATCH_SIZE**2
+  column_base = local_patch*zlevels*PATCH_SIZE**2
+
+  surface_pressure = &
+       block_hydrostatic(local_index)%surface_pressure( &
+       surface_base+1:surface_base+PATCH_SIZE**2)
+  dynamic_exner = block_hydrostatic(local_index)%dynamic_exner( &
+       column_base+1:column_base+zlevels*PATCH_SIZE**2)
+  air_temperature = &
+       block_hydrostatic(local_index)%air_temperature( &
+       column_base+1:column_base+zlevels*PATCH_SIZE**2)
+
+end subroutine get_local_block_hydrostatic_patch_values
+
+
+subroutine get_local_block_hydrostatic_values ( &
+     catalog_index,surface_pressure,dynamic_exner,air_temperature)
+  ! Return all persistent hydrostatic values for one local block. Arrays
+  ! retain patch-major order and level-major order within each patch.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+
+  real(dp), intent(out) :: surface_pressure(:)
+  real(dp), intent(out) :: dynamic_exner(:)
+  real(dp), intent(out) :: air_temperature(:)
+
+  integer :: local_index
+
+  call ensure_local_block_hydrostatic_block(catalog_index)
+
+  if (.not. local_block_store_ready() .or. &
+       .not. allocated(block_hydrostatic)) then
+     error stop &
+          "get_local_block_hydrostatic_values: state not ready"
+  end if
+  if (size(block_hydrostatic) /= size(block_local)) then
+     error stop &
+          "get_local_block_hydrostatic_values: store extent"
+  end if
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "get_local_block_hydrostatic_values: block not local"
+  end if
+  if (block_hydrostatic(local_index)%catalog_index /= &
+       catalog_index .or. &
+       .not. block_hydrostatic(local_index)%ready .or. &
+       .not. allocated( &
+       block_hydrostatic(local_index)%surface_pressure) .or. &
+       .not. allocated( &
+       block_hydrostatic(local_index)%dynamic_exner) .or. &
+       .not. allocated( &
+       block_hydrostatic(local_index)%air_temperature)) then
+     error stop &
+          "get_local_block_hydrostatic_values: local storage"
+  end if
+  if (size(surface_pressure) /= &
+       size(block_hydrostatic(local_index)%surface_pressure) .or. &
+       size(dynamic_exner) /= &
+       size(block_hydrostatic(local_index)%dynamic_exner) .or. &
+       size(air_temperature) /= &
+       size(block_hydrostatic(local_index)%air_temperature)) then
+     error stop &
+          "get_local_block_hydrostatic_values: output extent"
+  end if
+
+  surface_pressure = &
+       block_hydrostatic(local_index)%surface_pressure
+  dynamic_exner = block_hydrostatic(local_index)%dynamic_exner
+  air_temperature = &
+       block_hydrostatic(local_index)%air_temperature
+
+end subroutine get_local_block_hydrostatic_values
+
+
 subroutine local_block_hydrostatic_statistics ( &
      surface_count,column_count,surface_moment,exner_moment, &
      temperature_moment)
-  ! Reconstruct compressible hydrostatic column diagnostics directly
-  ! from the installed prognostic block fields. These phase-dependent
-  ! quantities are regenerated rather than stored or migrated.
+  ! Accumulate diagnostics from persistent production hydrostatic state.
+  ! The state is regenerated after migration rather than serialized.
 
   implicit none
 
@@ -3244,34 +5096,25 @@ subroutine local_block_hydrostatic_statistics ( &
   real(dp), intent(out) :: exner_moment(3)
   real(dp), intent(out) :: temperature_moment(3)
 
-  integer :: i
-  integer :: k
+  integer :: catalog_index
+  integer :: column_nvalue
   integer :: local_index
-  integer :: mass_index
-  integer :: mass_variable_slot
-  integer :: n_node
-  integer :: scalar_variable_size
-  integer :: temperature_index
-  integer :: temperature_variable_slot
+  integer :: surface_nvalue
 
-  real(dp) :: exner_value
-  real(dp) :: layer_pressure
-  real(dp) :: pressure_factor
-  real(dp) :: pressure_lower
-  real(dp) :: pressure_upper
-  real(dp) :: rho_dz
-  real(dp) :: rho_dz_theta
-  real(dp) :: surface_pressure
-  real(dp) :: temperature_value
+  real(dp), allocatable :: surface_pressure(:)
+  real(dp), allocatable :: dynamic_exner(:)
+  real(dp), allocatable :: air_temperature(:)
 
   if (.not. compressible) then
      error stop &
           "local_block_hydrostatic_statistics: incompressible case"
   end if
 
-  if (.not. local_block_store_ready()) then
+  call ensure_local_block_hydrostatic_state
+
+  if (.not. local_block_hydrostatic_state_ready()) then
      error stop &
-          "local_block_hydrostatic_statistics: store is not ready"
+          "local_block_hydrostatic_statistics: state is not ready"
   end if
 
   surface_count      = 0_int64
@@ -3281,110 +5124,61 @@ subroutine local_block_hydrostatic_statistics ( &
   temperature_moment = 0.0_dp
 
   do local_index = 1, size(block_local)
+     catalog_index = block_local_catalog_index(local_index)
+     surface_nvalue = &
+          local_block_hydrostatic_surface_nvalue(catalog_index)
+     column_nvalue = &
+          local_block_hydrostatic_column_nvalue(catalog_index)
 
-     if (block_local(local_index)%scalar_mult /= 1) then
-        error stop &
-             "local_block_hydrostatic_statistics: scalar multiplier"
+     if (allocated(surface_pressure)) then
+        if (size(surface_pressure) /= surface_nvalue) then
+           deallocate(surface_pressure)
+        end if
+     end if
+     if (.not. allocated(surface_pressure)) then
+        allocate(surface_pressure(surface_nvalue))
      end if
 
-     if (block_local(local_index)%field_level > 1 .or. &
-          block_local(local_index)%field_level + &
-          block_local(local_index)%n_field_level - 1 < zlevels) then
-        error stop &
-             "local_block_hydrostatic_statistics: level coverage"
+     if (allocated(dynamic_exner)) then
+        if (size(dynamic_exner) /= column_nvalue) then
+           deallocate(dynamic_exner)
+        end if
+     end if
+     if (.not. allocated(dynamic_exner)) then
+        allocate(dynamic_exner(column_nvalue))
      end if
 
-     mass_variable_slot = &
-          S_MASS - block_local(local_index)%scalar_variable
-     temperature_variable_slot = &
-          S_TEMP - block_local(local_index)%scalar_variable
-
-     if (mass_variable_slot < 0 .or. &
-          mass_variable_slot >= &
-          block_local(local_index)%n_scalar_variable .or. &
-          temperature_variable_slot < 0 .or. &
-          temperature_variable_slot >= &
-          block_local(local_index)%n_scalar_variable) then
-        error stop &
-             "local_block_hydrostatic_statistics: variable coverage"
+     if (allocated(air_temperature)) then
+        if (size(air_temperature) /= column_nvalue) then
+           deallocate(air_temperature)
+        end if
+     end if
+     if (.not. allocated(air_temperature)) then
+        allocate(air_temperature(column_nvalue))
      end if
 
-     n_node = size(block_local(local_index)%node)
-     scalar_variable_size = &
-          block_local(local_index)%n_field_level*n_node
+     call get_local_block_hydrostatic_values( &
+          catalog_index,surface_pressure,dynamic_exner,air_temperature)
 
-     do i = 1, n_node
+     surface_count = surface_count + &
+          int(size(surface_pressure),int64)
+     surface_moment(1) = surface_moment(1) + sum(surface_pressure)
+     surface_moment(2) = surface_moment(2) + &
+          sum(abs(surface_pressure))
+     surface_moment(3) = surface_moment(3) + &
+          sum(surface_pressure**2)
 
-        pressure_lower = p_top
+     column_count = column_count + int(size(dynamic_exner),int64)
+     exner_moment(1) = exner_moment(1) + sum(dynamic_exner)
+     exner_moment(2) = exner_moment(2) + sum(abs(dynamic_exner))
+     exner_moment(3) = exner_moment(3) + sum(dynamic_exner**2)
 
-        do k = 1, zlevels
-           mass_index = &
-                mass_variable_slot*scalar_variable_size + &
-                (k-block_local(local_index)%field_level)*n_node + i
-
-           rho_dz = block_local(local_index)%scalar(mass_index) + &
-                block_local(local_index)%scalar_mean(mass_index)
-
-           if (rho_dz <= 0.0_dp) then
-              error stop &
-                   "local_block_hydrostatic_statistics: nonpositive mass"
-           end if
-
-           pressure_lower = pressure_lower + grav_accel*rho_dz
-        end do
-
-        surface_pressure = pressure_lower
-        surface_count = surface_count + 1_int64
-        surface_moment(1) = surface_moment(1) + surface_pressure
-        surface_moment(2) = surface_moment(2) + &
-             abs(surface_pressure)
-        surface_moment(3) = surface_moment(3) + surface_pressure**2
-
-        do k = 1, zlevels
-           mass_index = &
-                mass_variable_slot*scalar_variable_size + &
-                (k-block_local(local_index)%field_level)*n_node + i
-           temperature_index = &
-                temperature_variable_slot*scalar_variable_size + &
-                (k-block_local(local_index)%field_level)*n_node + i
-
-           rho_dz = block_local(local_index)%scalar(mass_index) + &
-                block_local(local_index)%scalar_mean(mass_index)
-           rho_dz_theta = &
-                block_local(local_index)%scalar(temperature_index) + &
-                block_local(local_index)%scalar_mean(temperature_index)
-
-           pressure_upper = pressure_lower - grav_accel*rho_dz
-           layer_pressure = 0.5_dp*(pressure_lower+pressure_upper)
-
-           if (layer_pressure <= 0.0_dp) then
-              error stop &
-                   "local_block_hydrostatic_statistics: nonpositive pressure"
-           end if
-
-           pressure_factor = (layer_pressure/p_0)**kappa
-           exner_value = c_p*pressure_factor
-           temperature_value = &
-                rho_dz_theta/rho_dz*pressure_factor
-
-           column_count = column_count + 1_int64
-
-           exner_moment(1) = exner_moment(1) + exner_value
-           exner_moment(2) = exner_moment(2) + abs(exner_value)
-           exner_moment(3) = exner_moment(3) + exner_value**2
-
-           temperature_moment(1) = &
-                temperature_moment(1) + temperature_value
-           temperature_moment(2) = &
-                temperature_moment(2) + abs(temperature_value)
-           temperature_moment(3) = &
-                temperature_moment(3) + temperature_value**2
-
-           pressure_lower = pressure_upper
-        end do
-
-     end do
-
+     temperature_moment(1) = temperature_moment(1) + &
+          sum(air_temperature)
+     temperature_moment(2) = temperature_moment(2) + &
+          sum(abs(air_temperature))
+     temperature_moment(3) = temperature_moment(3) + &
+          sum(air_temperature**2)
   end do
 
 end subroutine local_block_hydrostatic_statistics
@@ -3397,6 +5191,7 @@ subroutine clear_local_blocks
 
   implicit none
 
+  call clear_local_block_hydrostatic_state
   block_store_ready = .false.
 
   if (allocated(block_local)) then
