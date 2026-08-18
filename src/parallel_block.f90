@@ -176,6 +176,13 @@ module parallel_block_mod
   end type Block_Tendency_Trial_Storage
 
 
+  type :: Block_Tendency_Accumulator_Storage
+     integer :: catalog_index = 0
+     real(dp), allocatable :: scalar(:)
+     real(dp), allocatable :: vector(:)
+  end type Block_Tendency_Accumulator_Storage
+
+
   abstract interface
      subroutine Local_Block_Field_Consumer (catalog_index,block,context)
        import :: Block_Data
@@ -227,6 +234,8 @@ module parallel_block_mod
   type(Block_Hydrostatic_Storage), allocatable :: block_hydrostatic(:)
   type(Block_Tendency_Storage), allocatable :: block_tendency(:)
   type(Block_Tendency_Trial_Storage), allocatable :: block_tendency_trial(:)
+  type(Block_Tendency_Accumulator_Storage), allocatable :: &
+       block_tendency_accumulator(:)
 
   integer, allocatable, public :: block_source_catalog_index(:)
   integer, allocatable, public :: block_retained_source_index(:)
@@ -241,8 +250,11 @@ module parallel_block_mod
   logical :: block_tendency_ready = .false.
   logical :: block_tendency_trial_active = .false.
   logical :: block_tendency_commit_checkpoint_ready = .false.
+  logical :: block_tendency_accumulator_ready = .false.
   integer(int64) :: block_tendency_executions = 0_int64
   integer(int64) :: block_tendency_allocations = 0_int64
+  integer(int64) :: block_tendency_accumulator_allocations = 0_int64
+  integer(int64) :: block_tendency_accumulator_stages = 0_int64
 
   public :: packed_block_nbyte
   public :: pack_block
@@ -340,6 +352,12 @@ module parallel_block_mod
   public :: local_block_tendency_execution_count
   public :: local_block_tendency_allocation_count
   public :: local_block_tendency_statistics
+  public :: reset_local_block_tendency_accumulator
+  public :: accumulate_local_block_tendency
+  public :: begin_local_block_accumulated_tendency_trial
+  public :: local_block_tendency_accumulator_state_ready
+  public :: local_block_tendency_accumulator_allocation_count
+  public :: local_block_tendency_accumulator_statistics
   public :: begin_local_block_tendency_trial
   public :: commit_local_block_tendency_trial
   public :: finalize_local_block_tendency_commit
@@ -1169,6 +1187,244 @@ subroutine apply_local_block_tendency_consumer (consumer,context)
 end subroutine apply_local_block_tendency_consumer
 
 
+subroutine prepare_local_block_tendency_accumulator
+  ! Allocate reusable scalar/vector registers for weighted tendency stages.
+
+  implicit none
+
+  integer :: local_index
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "prepare_local_block_tendency_accumulator: store not ready"
+  end if
+  if (block_tendency_trial_active .or. &
+       block_tendency_commit_checkpoint_ready) then
+     error stop &
+          "prepare_local_block_tendency_accumulator: transaction pending"
+  end if
+
+  if (allocated(block_tendency_accumulator)) then
+     if (size(block_tendency_accumulator) /= size(block_local)) then
+        deallocate(block_tendency_accumulator)
+        block_tendency_accumulator_ready = .false.
+     end if
+  end if
+  if (.not. allocated(block_tendency_accumulator)) then
+     allocate(block_tendency_accumulator(size(block_local)))
+     block_tendency_accumulator_ready = .false.
+  end if
+
+  do local_index = 1,size(block_local)
+     if (block_tendency_accumulator(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index)) then
+        if (allocated( &
+             block_tendency_accumulator(local_index)%scalar)) then
+           deallocate(block_tendency_accumulator(local_index)%scalar)
+        end if
+        if (allocated( &
+             block_tendency_accumulator(local_index)%vector)) then
+           deallocate(block_tendency_accumulator(local_index)%vector)
+        end if
+        block_tendency_accumulator(local_index)%catalog_index = &
+             block_local_catalog_index(local_index)
+        block_tendency_accumulator_ready = .false.
+     end if
+
+     if (allocated(block_tendency_accumulator(local_index)%scalar)) then
+        if (size(block_tendency_accumulator(local_index)%scalar) /= &
+             size(block_local(local_index)%scalar)) then
+           deallocate(block_tendency_accumulator(local_index)%scalar)
+           block_tendency_accumulator_ready = .false.
+        end if
+     end if
+     if (.not. allocated( &
+          block_tendency_accumulator(local_index)%scalar)) then
+        allocate(block_tendency_accumulator(local_index)%scalar( &
+             size(block_local(local_index)%scalar)))
+        block_tendency_accumulator_allocations = &
+             block_tendency_accumulator_allocations + 1_int64
+     end if
+
+     if (allocated(block_tendency_accumulator(local_index)%vector)) then
+        if (size(block_tendency_accumulator(local_index)%vector) /= &
+             size(block_local(local_index)%vector)) then
+           deallocate(block_tendency_accumulator(local_index)%vector)
+           block_tendency_accumulator_ready = .false.
+        end if
+     end if
+     if (.not. allocated( &
+          block_tendency_accumulator(local_index)%vector)) then
+        allocate(block_tendency_accumulator(local_index)%vector( &
+             size(block_local(local_index)%vector)))
+        block_tendency_accumulator_allocations = &
+             block_tendency_accumulator_allocations + 1_int64
+     end if
+  end do
+
+end subroutine prepare_local_block_tendency_accumulator
+
+
+subroutine reset_local_block_tendency_accumulator
+  ! Begin a new weighted multi-stage tendency combination.
+
+  implicit none
+
+  integer :: local_index
+
+  call prepare_local_block_tendency_accumulator
+
+  do local_index = 1,size(block_tendency_accumulator)
+     block_tendency_accumulator(local_index)%scalar = 0.0_dp
+     block_tendency_accumulator(local_index)%vector = 0.0_dp
+  end do
+
+  block_tendency_accumulator_stages = 0_int64
+  block_tendency_accumulator_ready = .true.
+
+end subroutine reset_local_block_tendency_accumulator
+
+
+subroutine accumulate_local_block_tendency (weight)
+  ! Add one weighted persistent tendency output to the multi-stage register.
+
+  implicit none
+
+  real(dp), intent(in) :: weight
+
+  integer :: local_index
+
+  if (.not. local_block_tendency_state_ready()) then
+     error stop "accumulate_local_block_tendency: tendency not ready"
+  end if
+  if (.not. local_block_tendency_accumulator_state_ready()) then
+     error stop "accumulate_local_block_tendency: accumulator not ready"
+  end if
+  if (block_tendency_trial_active) then
+     error stop "accumulate_local_block_tendency: trial is active"
+  end if
+
+  do local_index = 1,size(block_local)
+     block_tendency_accumulator(local_index)%scalar = &
+          block_tendency_accumulator(local_index)%scalar + &
+          weight*block_tendency(local_index)%scalar
+     block_tendency_accumulator(local_index)%vector = &
+          block_tendency_accumulator(local_index)%vector + &
+          weight*block_tendency(local_index)%vector
+  end do
+
+  block_tendency_accumulator_stages = &
+       block_tendency_accumulator_stages + 1_int64
+
+end subroutine accumulate_local_block_tendency
+
+
+logical function local_block_tendency_accumulator_state_ready () &
+     result(ready)
+  ! Report whether the current catalogue has a complete stage register.
+
+  implicit none
+
+  integer :: local_index
+
+  ready = .false.
+  if (.not. local_block_store_ready()) return
+  if (.not. block_tendency_accumulator_ready) return
+  if (.not. allocated(block_tendency_accumulator)) return
+  if (size(block_tendency_accumulator) /= size(block_local)) return
+
+  do local_index = 1,size(block_local)
+     if (block_tendency_accumulator(local_index)%catalog_index /= &
+          block_local_catalog_index(local_index)) return
+     if (.not. allocated( &
+          block_tendency_accumulator(local_index)%scalar)) return
+     if (.not. allocated( &
+          block_tendency_accumulator(local_index)%vector)) return
+     if (size(block_tendency_accumulator(local_index)%scalar) /= &
+          size(block_local(local_index)%scalar)) return
+     if (size(block_tendency_accumulator(local_index)%vector) /= &
+          size(block_local(local_index)%vector)) return
+  end do
+
+  ready = .true.
+
+end function local_block_tendency_accumulator_state_ready
+
+
+integer(int64) function local_block_tendency_accumulator_allocation_count () &
+     result(n_allocation)
+  ! Number of scalar/vector stage-register allocations since installation.
+
+  implicit none
+
+  n_allocation = block_tendency_accumulator_allocations
+
+end function local_block_tendency_accumulator_allocation_count
+
+
+subroutine local_block_tendency_accumulator_statistics ( &
+     scalar_count,vector_count,scalar_changed_block_count, &
+     vector_changed_block_count,stage_count,scalar_moment,vector_moment)
+  ! Accumulate diagnostics directly from the persistent stage register.
+
+  implicit none
+
+  integer(int64), intent(out) :: scalar_count
+  integer(int64), intent(out) :: vector_count
+  integer(int64), intent(out) :: scalar_changed_block_count
+  integer(int64), intent(out) :: vector_changed_block_count
+  integer(int64), intent(out) :: stage_count
+  real(dp), intent(out) :: scalar_moment(3)
+  real(dp), intent(out) :: vector_moment(3)
+
+  integer :: local_index
+
+  if (.not. local_block_tendency_accumulator_state_ready()) then
+     error stop &
+          "local_block_tendency_accumulator_statistics: not ready"
+  end if
+
+  scalar_count = 0_int64
+  vector_count = 0_int64
+  scalar_changed_block_count = 0_int64
+  vector_changed_block_count = 0_int64
+  stage_count = block_tendency_accumulator_stages
+  scalar_moment = 0.0_dp
+  vector_moment = 0.0_dp
+
+  do local_index = 1,size(block_tendency_accumulator)
+     scalar_count = scalar_count + int(size( &
+          block_tendency_accumulator(local_index)%scalar),int64)
+     vector_count = vector_count + int(size( &
+          block_tendency_accumulator(local_index)%vector),int64)
+     if (maxval(abs( &
+          block_tendency_accumulator(local_index)%scalar)) > 0.0_dp) then
+        scalar_changed_block_count = &
+             scalar_changed_block_count + 1_int64
+     end if
+     if (maxval(abs( &
+          block_tendency_accumulator(local_index)%vector)) > 0.0_dp) then
+        vector_changed_block_count = &
+             vector_changed_block_count + 1_int64
+     end if
+
+     scalar_moment(1) = scalar_moment(1) + &
+          sum(block_tendency_accumulator(local_index)%scalar)
+     scalar_moment(2) = scalar_moment(2) + &
+          sum(abs(block_tendency_accumulator(local_index)%scalar))
+     scalar_moment(3) = scalar_moment(3) + &
+          sum(block_tendency_accumulator(local_index)%scalar**2)
+     vector_moment(1) = vector_moment(1) + &
+          sum(block_tendency_accumulator(local_index)%vector)
+     vector_moment(2) = vector_moment(2) + &
+          sum(abs(block_tendency_accumulator(local_index)%vector))
+     vector_moment(3) = vector_moment(3) + &
+          sum(block_tendency_accumulator(local_index)%vector**2)
+  end do
+
+end subroutine local_block_tendency_accumulator_statistics
+
+
 subroutine prepare_local_block_tendency_trial
   ! Allocate reusable exact snapshots for reversible shadow updates.
 
@@ -1296,6 +1552,72 @@ subroutine begin_local_block_tendency_trial (scale)
   end if
 
 end subroutine begin_local_block_tendency_trial
+
+
+subroutine begin_local_block_accumulated_tendency_trial (scale)
+  ! Snapshot authoritative fields and apply the current weighted multi-stage
+  ! tendency register as one reversible trial update.
+
+  implicit none
+
+  real(dp), intent(in) :: scale
+
+  integer :: local_index
+
+  if (.not. local_block_tendency_accumulator_state_ready()) then
+     error stop &
+          "begin_local_block_accumulated_tendency_trial: not ready"
+  end if
+  if (block_tendency_accumulator_stages < 1_int64) then
+     error stop &
+          "begin_local_block_accumulated_tendency_trial: no stages"
+  end if
+
+  call prepare_local_block_tendency_trial
+
+  do local_index = 1,size(block_local)
+     block_tendency_trial(local_index)%scalar = &
+          block_local(local_index)%scalar
+     block_tendency_trial(local_index)%vector = &
+          block_local(local_index)%vector
+
+     block_local(local_index)%scalar = &
+          block_tendency_trial(local_index)%scalar + scale* &
+          block_tendency_accumulator(local_index)%scalar
+     block_local(local_index)%vector = &
+          block_tendency_trial(local_index)%vector + scale* &
+          block_tendency_accumulator(local_index)%vector
+
+     block_tendency_trial(local_index)%active = .true.
+     if (abs(scale) > 0.0_dp .and. maxval(abs( &
+          block_tendency_accumulator(local_index)%scalar)) > 0.0_dp) then
+        if (maxval(abs(block_local(local_index)%scalar - &
+             block_tendency_trial(local_index)%scalar)) <= 0.0_dp) then
+           error stop &
+                "begin_local_block_accumulated_tendency_trial: scalar vanished"
+        end if
+     end if
+     if (maxval(abs(block_local(local_index)%scalar - &
+          block_tendency_trial(local_index)%scalar)) > 0.0_dp) then
+        call invalidate_local_block_hydrostatic_block(local_index)
+     end if
+     if (abs(scale) > 0.0_dp .and. maxval(abs( &
+          block_tendency_accumulator(local_index)%vector)) > 0.0_dp) then
+        if (maxval(abs(block_local(local_index)%vector - &
+             block_tendency_trial(local_index)%vector)) <= 0.0_dp) then
+           error stop &
+                "begin_local_block_accumulated_tendency_trial: vector vanished"
+        end if
+     end if
+  end do
+
+  block_tendency_trial_active = all(block_tendency_trial%active)
+  if (.not. block_tendency_trial_active) then
+     error stop &
+          "begin_local_block_accumulated_tendency_trial: incomplete"
+  end if
+
+end subroutine begin_local_block_accumulated_tendency_trial
 
 
 subroutine commit_local_block_tendency_trial
@@ -1477,6 +1799,7 @@ subroutine rollback_local_block_tendency_trial
   implicit none
 
   integer :: local_index
+  logical :: scalar_changed
 
   if (.not. block_tendency_trial_active) then
      error stop "rollback_local_block_tendency_trial: no active trial"
@@ -1492,6 +1815,9 @@ subroutine rollback_local_block_tendency_trial
         error stop "rollback_local_block_tendency_trial: invalid snapshot"
      end if
 
+     scalar_changed = maxval(abs(block_local(local_index)%scalar - &
+          block_tendency_trial(local_index)%scalar)) > 0.0_dp
+
      block_local(local_index)%scalar = &
           block_tendency_trial(local_index)%scalar
      block_local(local_index)%vector = &
@@ -1504,7 +1830,7 @@ subroutine rollback_local_block_tendency_trial
         error stop "rollback_local_block_tendency_trial: restore failed"
      end if
 
-     if (maxval(abs(block_tendency(local_index)%scalar)) > 0.0_dp) then
+     if (scalar_changed) then
         call invalidate_local_block_hydrostatic_block(local_index)
      end if
      block_tendency_trial(local_index)%active = .false.
@@ -5999,14 +6325,21 @@ subroutine clear_local_block_tendency_state
   block_tendency_ready = .false.
   block_tendency_trial_active = .false.
   block_tendency_commit_checkpoint_ready = .false.
+  block_tendency_accumulator_ready = .false.
   block_tendency_executions = 0_int64
   block_tendency_allocations = 0_int64
+  block_tendency_accumulator_allocations = 0_int64
+  block_tendency_accumulator_stages = 0_int64
 
   if (allocated(block_tendency)) deallocate(block_tendency)
   if (allocated(block_tendency_trial)) deallocate(block_tendency_trial)
+  if (allocated(block_tendency_accumulator)) then
+     deallocate(block_tendency_accumulator)
+  end if
 
   if (allocated(block_tendency) .or. &
-       allocated(block_tendency_trial)) then
+       allocated(block_tendency_trial) .or. &
+       allocated(block_tendency_accumulator)) then
      error stop "clear_local_block_tendency_state: cleanup failed"
   end if
 

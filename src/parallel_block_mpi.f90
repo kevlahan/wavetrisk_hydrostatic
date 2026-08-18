@@ -98,6 +98,12 @@ module parallel_block_mpi_mod
        local_block_tendency_execution_count, &
        local_block_tendency_allocation_count, &
        local_block_tendency_statistics, &
+       reset_local_block_tendency_accumulator, &
+       accumulate_local_block_tendency, &
+       begin_local_block_accumulated_tendency_trial, &
+       local_block_tendency_accumulator_state_ready, &
+       local_block_tendency_accumulator_allocation_count, &
+       local_block_tendency_accumulator_statistics, &
        begin_local_block_tendency_trial, &
        commit_local_block_tendency_trial, &
        finalize_local_block_tendency_commit, &
@@ -284,6 +290,8 @@ module parallel_block_mpi_mod
   public :: check_block_tendency_commit
   public :: check_block_tendency_step_driver
   public :: check_block_tendency_accepted_step
+  public :: check_block_multistage_tendency_accumulator
+  public :: check_block_multistage_tendency_commit
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -1095,6 +1103,8 @@ end subroutine build_parallel_block_catalog
     call check_block_tendency_commit(print_local)
     call check_block_tendency_step_driver(print_local)
     call check_block_tendency_accepted_step(print_local)
+    call check_block_multistage_tendency_accumulator(print_local)
+    call check_block_multistage_tendency_commit(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -7630,6 +7640,470 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_block_tendency_accepted_step
+
+
+  subroutine check_block_multistage_tendency_accumulator (verbose)
+    ! Combine tendencies from the original and one accepted intermediate
+    ! state, apply the weighted register reversibly, and recover the exact
+    ! Domain-shadow fields and original tendency inventory.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: accumulator_allocation_after_reset
+    integer(int64) :: accumulator_allocation_before
+    integer(int64) :: accumulator_changed_count(2)
+    integer(int64) :: accumulator_changed_global(2)
+    integer(int64) :: accumulator_count(2)
+    integer(int64) :: accumulator_stage_count
+    integer(int64) :: execution_before
+    integer(int64) :: field_count(2)
+    integer(int64) :: field_count_after(2)
+    integer(int64) :: tendency_allocation_before
+    integer(int64) :: tendency_count(2)
+    integer(int64) :: tendency_count_after(2)
+
+    real(dp) :: accumulator_moment(3,2)
+    real(dp) :: accumulator_abs_local(2)
+    real(dp) :: accumulator_abs_global(2)
+    real(dp) :: field_moment(3,2)
+    real(dp) :: field_moment_after(3,2)
+    real(dp) :: tendency_moment(3,2)
+    real(dp) :: tendency_moment_after(3,2)
+    real(dp) :: trial_scale
+
+    logical :: print_summary
+
+    type(Block_Stencil_Kernel_Context) :: intermediate_kernel
+    type(Block_Stencil_Kernel_Context) :: restored_kernel
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_tendency_state_ready()) then
+       call fail("multi-stage accumulator before tendency is ready")
+    end if
+    if (local_block_tendency_trial_is_active() .or. &
+         local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("multi-stage accumulator found pending transaction")
+    end if
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+    call local_block_tendency_statistics( &
+         tendency_count(1),tendency_count(2), &
+         tendency_moment(:,1),tendency_moment(:,2))
+
+    if (compressible) call ensure_local_block_hydrostatic_state
+    tendency_allocation_before = local_block_tendency_allocation_count()
+    accumulator_allocation_before = &
+         local_block_tendency_accumulator_allocation_count()
+    execution_before = local_block_tendency_execution_count()
+    trial_scale = epsilon(1.0_dp)**0.25_dp
+
+    call reset_local_block_tendency_accumulator
+    if (.not. local_block_tendency_accumulator_state_ready()) then
+       call fail("multi-stage accumulator did not become ready")
+    end if
+    accumulator_allocation_after_reset = &
+         local_block_tendency_accumulator_allocation_count()
+    if (accumulator_allocation_after_reset < &
+         accumulator_allocation_before) then
+       call fail("multi-stage accumulator allocation count regressed")
+    end if
+
+    call accumulate_local_block_tendency(0.5_dp)
+
+    call begin_local_block_tendency_trial(trial_scale)
+    call commit_local_block_tendency_trial
+    intermediate_kernel = Block_Stencil_Kernel_Context()
+    call apply_refreshed_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,intermediate_kernel)
+    if (intermediate_kernel%block_count /= &
+         int(n_local_blocks(),int64)) then
+       call fail("multi-stage intermediate tendency traversal incomplete")
+    end if
+
+    call accumulate_local_block_tendency(0.5_dp)
+    call local_block_tendency_accumulator_statistics( &
+         accumulator_count(1),accumulator_count(2), &
+         accumulator_changed_count(1),accumulator_changed_count(2), &
+         accumulator_stage_count, &
+         accumulator_moment(:,1),accumulator_moment(:,2))
+
+    if (any(accumulator_count /= field_count)) then
+       call fail("multi-stage accumulator field coverage mismatch")
+    end if
+    if (accumulator_stage_count /= 2_int64) then
+       call fail("multi-stage accumulator stage count mismatch")
+    end if
+
+    if (compressible) call ensure_local_block_hydrostatic_state
+    call restore_local_block_tendency_commit
+
+    call begin_local_block_accumulated_tendency_trial(trial_scale)
+    if (.not. local_block_tendency_trial_is_active()) then
+       call fail("multi-stage accumulated trial did not become active")
+    end if
+    if (compressible .and. &
+         accumulator_changed_count(1) > 0_int64) then
+       if (local_block_hydrostatic_state_ready()) then
+          call fail("multi-stage accumulated trial retained stale cache")
+       end if
+    end if
+
+    call rollback_local_block_tendency_trial
+    if (compressible) call ensure_local_block_hydrostatic_state
+
+    call local_block_field_statistics( &
+         field_count_after(1),field_count_after(2), &
+         field_moment_after(:,1),field_moment_after(:,2))
+    if (any(field_count_after /= field_count)) then
+       call fail("multi-stage recovery changed field coverage")
+    end if
+    if (.not. field_moments_match( &
+         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+         .not. field_moments_match( &
+         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
+       call fail("multi-stage recovery did not restore fields")
+    end if
+
+    restored_kernel = Block_Stencil_Kernel_Context()
+    call apply_refreshed_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,restored_kernel)
+
+    if (local_block_tendency_allocation_count() /= &
+         tendency_allocation_before) then
+       call fail("multi-stage cycle reallocated tendency workspace")
+    end if
+    if (local_block_tendency_execution_count() /= &
+         execution_before+2_int64) then
+       call fail("multi-stage tendency execution count mismatch")
+    end if
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_after_reset) then
+       call fail("multi-stage cycle reallocated accumulator storage")
+    end if
+
+    call local_block_tendency_statistics( &
+         tendency_count_after(1),tendency_count_after(2), &
+         tendency_moment_after(:,1),tendency_moment_after(:,2))
+    if (any(tendency_count_after /= tendency_count)) then
+       call fail("multi-stage restored tendency coverage changed")
+    end if
+    if (.not. field_moments_match( &
+         tendency_moment_after(:,1),tendency_moment(:,1), &
+         tendency_count(1)) .or. &
+         .not. field_moments_match( &
+         tendency_moment_after(:,2),tendency_moment(:,2), &
+         tendency_count(2))) then
+       call fail("multi-stage restored tendency inventory changed")
+    end if
+
+    call MPI_Allreduce( &
+         accumulator_changed_count,accumulator_changed_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce multi-stage accumulator blocks")
+    accumulator_abs_local = accumulator_moment(2,:)
+    call MPI_Allreduce( &
+         accumulator_abs_local,accumulator_abs_global,2, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce multi-stage accumulator moments")
+    if (any(accumulator_changed_global <= 0_int64) .or. &
+         maxval(accumulator_abs_global) <= 0.0_dp) then
+       call fail("multi-stage accumulator produced no change")
+    end if
+
+    call reset_local_block_tendency_accumulator
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_after_reset) then
+       call fail("multi-stage accumulator reset reallocated storage")
+    end if
+
+    if (compressible) then
+       if (.not. local_block_hydrostatic_state_ready()) then
+          call fail("multi-stage hydrostatic recovery incomplete")
+       end if
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Persistent multi-stage tendency register for rank ",rank,":"
+       write(6,'(a,2(i0,1x))') &
+            "  scalar/vector register values = ",accumulator_count
+       write(6,'(a,2(i0,1x))') &
+            "  scalar/vector modified blocks = ", &
+            accumulator_changed_count
+       write(6,'(a)') "  two weighted tendency stages accumulated"
+       write(6,'(a)') "  accepted intermediate-state evaluation passed"
+       write(6,'(a)') "  accumulated nonzero update and rollback passed"
+       write(6,'(a,/)') "  tendency and accumulator workspace reuse passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,2(i0,1x))') &
+            "Global multi-stage scalar/vector modified blocks = ", &
+            accumulator_changed_global
+       write(6,'(a,/)') &
+            "Persistent multi-stage block tendency accumulation passed"
+    end if
+
+  end subroutine check_block_multistage_tendency_accumulator
+
+
+  subroutine check_block_multistage_tendency_commit (verbose)
+    ! Commit a weighted two-stage tendency, consume all derived state from
+    ! the accepted result, then recover the exact retained Domain shadow.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: accumulator_allocation_before
+    integer(int64) :: accumulator_changed_count(2)
+    integer(int64) :: accumulator_changed_global(2)
+    integer(int64) :: accumulator_count(2)
+    integer(int64) :: accumulator_stage_count
+    integer(int64) :: changed_block_count(2)
+    integer(int64) :: changed_block_global(2)
+    integer(int64) :: execution_before
+    integer(int64) :: field_count(2)
+    integer(int64) :: field_count_after(2)
+    integer(int64) :: tendency_allocation_before
+    integer(int64) :: tendency_count(2)
+    integer(int64) :: tendency_count_after(2)
+
+    real(dp) :: accumulator_moment(3,2)
+    real(dp) :: field_moment(3,2)
+    real(dp) :: field_moment_after(3,2)
+    real(dp) :: max_update(2)
+    real(dp) :: max_update_global(2)
+    real(dp) :: tendency_moment(3,2)
+    real(dp) :: tendency_moment_after(3,2)
+    real(dp) :: trial_scale
+
+    logical :: print_summary
+
+    type(Block_Stencil_Kernel_Context) :: accepted_kernel
+    type(Block_Stencil_Kernel_Context) :: intermediate_kernel
+    type(Block_Stencil_Kernel_Context) :: restored_kernel
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. local_block_tendency_state_ready()) then
+       call fail("multi-stage commit before tendency is ready")
+    end if
+    if (local_block_tendency_trial_is_active() .or. &
+         local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("multi-stage commit found pending transaction")
+    end if
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+    call local_block_tendency_statistics( &
+         tendency_count(1),tendency_count(2), &
+         tendency_moment(:,1),tendency_moment(:,2))
+
+    if (compressible) call ensure_local_block_hydrostatic_state
+    tendency_allocation_before = local_block_tendency_allocation_count()
+    accumulator_allocation_before = &
+         local_block_tendency_accumulator_allocation_count()
+    execution_before = local_block_tendency_execution_count()
+    trial_scale = epsilon(1.0_dp)**0.25_dp
+
+    call reset_local_block_tendency_accumulator
+    if (.not. local_block_tendency_accumulator_state_ready()) then
+       call fail("multi-stage commit accumulator did not become ready")
+    end if
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_before) then
+       call fail("multi-stage commit reset reallocated accumulator")
+    end if
+
+    call accumulate_local_block_tendency(0.5_dp)
+
+    call begin_local_block_tendency_trial(trial_scale)
+    call commit_local_block_tendency_trial
+    intermediate_kernel = Block_Stencil_Kernel_Context()
+    call apply_refreshed_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,intermediate_kernel)
+    if (intermediate_kernel%block_count /= &
+         int(n_local_blocks(),int64)) then
+       call fail("multi-stage commit intermediate traversal incomplete")
+    end if
+
+    call accumulate_local_block_tendency(0.5_dp)
+    call local_block_tendency_accumulator_statistics( &
+         accumulator_count(1),accumulator_count(2), &
+         accumulator_changed_count(1),accumulator_changed_count(2), &
+         accumulator_stage_count, &
+         accumulator_moment(:,1),accumulator_moment(:,2))
+    if (any(accumulator_count /= field_count)) then
+       call fail("multi-stage commit accumulator coverage mismatch")
+    end if
+    if (accumulator_stage_count /= 2_int64) then
+       call fail("multi-stage commit accumulator stage mismatch")
+    end if
+
+    if (compressible) call ensure_local_block_hydrostatic_state
+    call restore_local_block_tendency_commit
+    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
+         local_block_tendency_state_ready()) then
+       call fail("multi-stage intermediate restore left stale state ready")
+    end if
+
+    call begin_local_block_accumulated_tendency_trial(trial_scale)
+    call commit_local_block_tendency_trial
+    if (local_block_tendency_trial_is_active() .or. &
+         .not. local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("multi-stage accumulated update was not committed")
+    end if
+    if (local_block_tendency_state_ready()) then
+       call fail("multi-stage committed update retained stale tendencies")
+    end if
+
+    call local_block_tendency_commit_checkpoint_statistics( &
+         changed_block_count(1),changed_block_count(2), &
+         max_update(1),max_update(2))
+    if (any(changed_block_count /= accumulator_changed_count)) then
+       call fail("multi-stage committed update coverage mismatch")
+    end if
+
+    accepted_kernel = Block_Stencil_Kernel_Context()
+    call apply_refreshed_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,accepted_kernel)
+    if (accepted_kernel%block_count /= int(n_local_blocks(),int64)) then
+       call fail("multi-stage accepted-state traversal incomplete")
+    end if
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       if (.not. local_block_hydrostatic_state_ready()) then
+          call fail("multi-stage accepted hydrostatic rebuild incomplete")
+       end if
+    end if
+
+    call restore_local_block_tendency_commit
+    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
+         local_block_tendency_state_ready()) then
+       call fail("multi-stage checkpoint restore left stale state ready")
+    end if
+
+    call local_block_field_statistics( &
+         field_count_after(1),field_count_after(2), &
+         field_moment_after(:,1),field_moment_after(:,2))
+    if (any(field_count_after /= field_count)) then
+       call fail("multi-stage checkpoint changed field coverage")
+    end if
+    if (.not. field_moments_match( &
+         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+         .not. field_moments_match( &
+         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
+       call fail("multi-stage checkpoint did not restore fields")
+    end if
+
+    restored_kernel = Block_Stencil_Kernel_Context()
+    call apply_refreshed_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,restored_kernel)
+    if (restored_kernel%block_count /= int(n_local_blocks(),int64)) then
+       call fail("multi-stage restored-state traversal incomplete")
+    end if
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       if (.not. local_block_hydrostatic_state_ready()) then
+          call fail("multi-stage restored hydrostatic rebuild incomplete")
+       end if
+    end if
+
+    if (local_block_tendency_allocation_count() /= &
+         tendency_allocation_before) then
+       call fail("multi-stage commit reallocated tendency workspace")
+    end if
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_before) then
+       call fail("multi-stage commit reallocated accumulator storage")
+    end if
+    if (local_block_tendency_execution_count() /= &
+         execution_before+3_int64) then
+       call fail("multi-stage commit execution count mismatch")
+    end if
+
+    call local_block_tendency_statistics( &
+         tendency_count_after(1),tendency_count_after(2), &
+         tendency_moment_after(:,1),tendency_moment_after(:,2))
+    if (any(tendency_count_after /= tendency_count)) then
+       call fail("multi-stage commit restored tendency coverage changed")
+    end if
+    if (.not. field_moments_match( &
+         tendency_moment_after(:,1),tendency_moment(:,1), &
+         tendency_count(1)) .or. &
+         .not. field_moments_match( &
+         tendency_moment_after(:,2),tendency_moment(:,2), &
+         tendency_count(2))) then
+       call fail("multi-stage commit restored tendency inventory changed")
+    end if
+
+    call MPI_Allreduce( &
+         changed_block_count,changed_block_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce multi-stage committed blocks")
+    call MPI_Allreduce( &
+         accumulator_changed_count,accumulator_changed_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce multi-stage register blocks")
+    call MPI_Allreduce( &
+         max_update,max_update_global,2, &
+         MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce multi-stage committed maxima")
+    if (any(changed_block_global /= accumulator_changed_global)) then
+       call fail("global multi-stage committed coverage mismatch")
+    end if
+    if (any(changed_block_global <= 0_int64) .or. &
+         any(max_update_global <= 0.0_dp)) then
+       call fail("multi-stage committed update produced no change")
+    end if
+
+    call reset_local_block_tendency_accumulator
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_before) then
+       call fail("multi-stage post-commit reset reallocated storage")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Accepted multi-stage block step for rank ",rank,":"
+       write(6,'(a,2(i0,1x))') &
+            "  scalar/vector committed blocks = ",changed_block_count
+       write(6,'(a,2(es14.6,1x))') &
+            "  maximum scalar/vector updates = ",max_update
+       write(6,'(a)') "  weighted two-stage update committed"
+       write(6,'(a)') "  accepted-state ghost refresh passed"
+       write(6,'(a)') "  accepted-state tendency regeneration passed"
+       write(6,'(a)') "  accepted-state hydrostatic rebuild passed"
+       write(6,'(a)') "  exact multi-stage checkpoint recovery passed"
+       write(6,'(a,/)') &
+            "  tendency and accumulator workspace reuse passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,2(i0,1x))') &
+            "Global committed multi-stage scalar/vector blocks = ", &
+            changed_block_global
+       write(6,'(a,2(es14.6,1x))') &
+            "Global committed multi-stage maximum updates = ", &
+            max_update_global
+       write(6,'(a,/)') &
+            "Accepted multi-stage block tendency step passed"
+    end if
+
+  end subroutine check_block_multistage_tendency_commit
 
 
   subroutine accumulate_block_hydrostatic_consumer ( &
