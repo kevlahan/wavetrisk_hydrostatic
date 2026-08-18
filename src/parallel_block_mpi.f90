@@ -2287,10 +2287,10 @@ end subroutine build_parallel_block_catalog
 
   subroutine exchange_block_scalar_ghost_payloads ( &
        payload_family,print_summary,verify_installation)
-    ! Use the field-independent request manifest to return the complete
-    ! scalar sol/wav_coeff bundle for every ghost patch. With verification
-    ! enabled, compare transport with the final-owner source blocks, poison
-    ! compact ghost storage, and check local and remote installation.
+    ! Use the persistent field-independent request plan to return the
+    ! complete scalar sol/wav_coeff bundle for every ghost patch. Quiet
+    ! production calls exchange payload values without rebuilding/copying
+    ! request metadata or performing diagnostic reductions.
 
     implicit none
 
@@ -2323,21 +2323,10 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: count_local(3)
     integer(int64) :: local_value_count
 
-    integer, allocatable :: destination_block(:)
-    integer, allocatable :: destination_ghost(:)
-    integer, allocatable :: recv_data(:)
-    integer, allocatable :: recv_displ(:)
-    integer, allocatable :: recv_record_count(:)
-    integer, allocatable :: request_index(:)
     integer, allocatable :: response_recv_count(:)
     integer, allocatable :: response_recv_displ(:)
     integer, allocatable :: response_send_count(:)
     integer, allocatable :: response_send_displ(:)
-    integer, allocatable :: send_displ(:)
-    integer, allocatable :: send_record_count(:)
-    integer, allocatable :: source_block(:)
-    integer, allocatable :: source_local_patch(:)
-    integer, allocatable :: source_owner(:)
 
     real(dp), allocatable :: expected(:)
     real(dp), allocatable :: response_recv(:)
@@ -2378,32 +2367,8 @@ end subroutine build_parallel_block_catalog
     n_remote_send = ghost_exchange_plan%n_remote_send
     n_remote_recv = ghost_exchange_plan%n_remote_recv
 
-    allocate(source_block(n_request))
-    allocate(source_local_patch(n_request))
-    allocate(source_owner(n_request))
-    allocate(destination_block(n_request))
-    allocate(destination_ghost(n_request))
-    allocate(send_record_count(n_process))
-    allocate(recv_record_count(n_process))
-    allocate(send_displ(n_process))
-    allocate(recv_displ(n_process))
-    allocate(recv_data(REQUEST_SIZE*n_remote_recv))
-    allocate(request_index(n_remote_send))
-
-    source_block = ghost_exchange_plan%source_block
-    source_local_patch = ghost_exchange_plan%source_local_patch
-    source_owner = ghost_exchange_plan%source_owner
-    destination_block = ghost_exchange_plan%destination_block
-    destination_ghost = ghost_exchange_plan%destination_ghost
-    send_record_count = ghost_exchange_plan%send_record_count
-    recv_record_count = ghost_exchange_plan%recv_record_count
-    send_displ = REQUEST_SIZE*ghost_exchange_plan%send_record_displ
-    recv_displ = REQUEST_SIZE*ghost_exchange_plan%recv_record_displ
-    recv_data = ghost_exchange_plan%recv_data
-    request_index = ghost_exchange_plan%request_index
-
     do i = 1, n_request
-       destination = destination_block(i)
+       destination = ghost_exchange_plan%destination_block(i)
        if (local_block_scalar_family_patch_nvalue(destination) /= &
             n_value) then
           call fail("destination scalar ghost payload layout mismatch")
@@ -2415,8 +2380,10 @@ end subroutine build_parallel_block_catalog
     allocate(response_send_displ(n_process))
     allocate(response_recv_displ(n_process))
 
-    response_send_count = n_value*recv_record_count
-    response_recv_count = n_value*send_record_count
+    response_send_count = &
+         n_value*ghost_exchange_plan%recv_record_count
+    response_recv_count = &
+         n_value*ghost_exchange_plan%send_record_count
     response_send_displ(1) = 0
     response_recv_displ(1) = 0
 
@@ -2433,9 +2400,10 @@ end subroutine build_parallel_block_catalog
     allocate(expected(n_value))
 
     do r = 1, n_process
-       do i = 0, recv_record_count(r)-1
-          pos = recv_displ(r) + REQUEST_SIZE*i
-          source = recv_data(pos+1)
+       do i = 0, ghost_exchange_plan%recv_record_count(r)-1
+          pos = REQUEST_SIZE*( &
+               ghost_exchange_plan%recv_record_displ(r)+i)
+          source = ghost_exchange_plan%recv_data(pos+1)
 
           if (source < 1 .or. source > size(block_catalog)) then
              call fail("received scalar ghost source is invalid")
@@ -2450,7 +2418,8 @@ end subroutine build_parallel_block_catalog
           end if
 
           call get_local_block_scalar_patch_family_values( &
-               source,recv_data(pos+2),payload_family,source_value)
+               source,ghost_exchange_plan%recv_data(pos+2), &
+               payload_family,source_value)
 
           pos = response_send_displ(r) + n_value*i
           response_send(pos+1:pos+n_value) = source_value
@@ -2465,13 +2434,15 @@ end subroutine build_parallel_block_catalog
 
     if (verify_installation) then
        do i = 1, n_request
-          if (source_owner(i) /= rank) cycle
+          if (ghost_exchange_plan%source_owner(i) /= rank) cycle
 
           call get_local_block_scalar_patch_family_values( &
-               source_block(i),source_local_patch(i),payload_family, &
-               source_value)
+               ghost_exchange_plan%source_block(i), &
+               ghost_exchange_plan%source_local_patch(i), &
+               payload_family,source_value)
           call get_local_block_scalar_ghost_family_values( &
-               destination_block(i),destination_ghost(i), &
+               ghost_exchange_plan%destination_block(i), &
+               ghost_exchange_plan%destination_ghost(i), &
                payload_family,expected)
           if (maxval(abs(source_value-expected)) > 0.0_dp) then
              call fail("local scalar ghost payload values do not match")
@@ -2479,13 +2450,16 @@ end subroutine build_parallel_block_catalog
        end do
 
        do r = 1, n_process
-          do i = 0, send_record_count(r)-1
-             fill_record = send_displ(r)/REQUEST_SIZE + i + 1
-             destination = destination_block(request_index(fill_record))
+          do i = 0, ghost_exchange_plan%send_record_count(r)-1
+             fill_record = &
+                  ghost_exchange_plan%send_record_displ(r)+i+1
+             destination = ghost_exchange_plan%destination_block( &
+                  ghost_exchange_plan%request_index(fill_record))
 
              call get_local_block_scalar_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)), &
+                  ghost_exchange_plan%destination_ghost( &
+                  ghost_exchange_plan%request_index(fill_record)), &
                   payload_family,expected)
 
              pos = response_recv_displ(r) + n_value*i
@@ -2501,11 +2475,12 @@ end subroutine build_parallel_block_catalog
     end if
 
     do i = 1, n_request
-       if (source_owner(i) /= rank) cycle
+       if (ghost_exchange_plan%source_owner(i) /= rank) cycle
 
        if (verify_installation) then
           call get_local_block_scalar_ghost_family_values( &
-               destination_block(i),destination_ghost(i), &
+               ghost_exchange_plan%destination_block(i), &
+               ghost_exchange_plan%destination_ghost(i), &
                payload_family,expected)
           if (maxval(abs(expected-BLOCK_GHOST_POISON)) > 0.0_dp) then
              call fail("scalar ghost storage was not invalidated")
@@ -2513,14 +2488,17 @@ end subroutine build_parallel_block_catalog
        end if
 
        call get_local_block_scalar_patch_family_values( &
-            source_block(i),source_local_patch(i),payload_family, &
-            source_value)
+            ghost_exchange_plan%source_block(i), &
+            ghost_exchange_plan%source_local_patch(i), &
+            payload_family,source_value)
        call set_local_block_scalar_ghost_family_values( &
-            destination_block(i),destination_ghost(i), &
+            ghost_exchange_plan%destination_block(i), &
+            ghost_exchange_plan%destination_ghost(i), &
             payload_family,source_value)
        if (verify_installation) then
           call get_local_block_scalar_ghost_family_values( &
-               destination_block(i),destination_ghost(i), &
+               ghost_exchange_plan%destination_block(i), &
+               ghost_exchange_plan%destination_ghost(i), &
                payload_family,expected)
           if (maxval(abs(source_value-expected)) > 0.0_dp) then
              call fail("local scalar ghost payload installation failed")
@@ -2529,14 +2507,17 @@ end subroutine build_parallel_block_catalog
     end do
 
     do r = 1, n_process
-       do i = 0, send_record_count(r)-1
-          fill_record = send_displ(r)/REQUEST_SIZE + i + 1
-          destination = destination_block(request_index(fill_record))
+       do i = 0, ghost_exchange_plan%send_record_count(r)-1
+          fill_record = &
+               ghost_exchange_plan%send_record_displ(r)+i+1
+          destination = ghost_exchange_plan%destination_block( &
+               ghost_exchange_plan%request_index(fill_record))
 
           if (verify_installation) then
              call get_local_block_scalar_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)), &
+                  ghost_exchange_plan%destination_ghost( &
+                  ghost_exchange_plan%request_index(fill_record)), &
                   payload_family,expected)
              if (maxval(abs(expected-BLOCK_GHOST_POISON)) > 0.0_dp) then
                 call fail("scalar ghost storage was not invalidated")
@@ -2546,12 +2527,14 @@ end subroutine build_parallel_block_catalog
           pos = response_recv_displ(r) + n_value*i
           call set_local_block_scalar_ghost_family_values( &
                destination, &
-               destination_ghost(request_index(fill_record)), &
+               ghost_exchange_plan%destination_ghost( &
+               ghost_exchange_plan%request_index(fill_record)), &
                payload_family,response_recv(pos+1:pos+n_value))
           if (verify_installation) then
              call get_local_block_scalar_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)), &
+                  ghost_exchange_plan%destination_ghost( &
+                  ghost_exchange_plan%request_index(fill_record)), &
                   payload_family,expected)
              if (maxval(abs( &
                   response_recv(pos+1:pos+n_value)-expected)) > 0.0_dp) then
@@ -2561,14 +2544,16 @@ end subroutine build_parallel_block_catalog
        end do
     end do
 
-    local_value_count = int(n_value,int64)*int(n_request,int64)
-    count_local(1) = int(n_local_request,int64)
-    count_local(2) = int(n_remote_send,int64)
-    count_local(3) = local_value_count
+    if (print_summary) then
+       local_value_count = int(n_value,int64)*int(n_request,int64)
+       count_local(1) = int(n_local_request,int64)
+       count_local(2) = int(n_remote_send,int64)
+       count_local(3) = local_value_count
 
-    call MPI_Allreduce( &
-         count_local,count_global,3,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce scalar ghost payload totals")
+       call MPI_Allreduce( &
+            count_local,count_global,3,MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce scalar ghost payload totals")
+    end if
 
     if (print_summary) then
        write(6,'(/,a,a,a,i0,a)') &
@@ -2597,24 +2582,13 @@ end subroutine build_parallel_block_catalog
             " ghost payload installation passed"
     end if
 
-    deallocate(destination_block)
-    deallocate(destination_ghost)
     deallocate(expected)
-    deallocate(recv_data)
-    deallocate(recv_displ)
-    deallocate(recv_record_count)
-    deallocate(request_index)
     deallocate(response_recv)
     deallocate(response_recv_count)
     deallocate(response_recv_displ)
     deallocate(response_send)
     deallocate(response_send_count)
     deallocate(response_send_displ)
-    deallocate(send_displ)
-    deallocate(send_record_count)
-    deallocate(source_block)
-    deallocate(source_local_patch)
-    deallocate(source_owner)
     deallocate(source_value)
 
   end subroutine exchange_block_scalar_ghost_payloads
@@ -2643,10 +2617,10 @@ end subroutine build_parallel_block_catalog
 
   subroutine exchange_block_vector_ghost_payloads ( &
        payload_family,print_summary,verify_installation)
-    ! Return the complete vector sol/wav_coeff bundle for every ghost using
-    ! the field-independent request manifest. With verification enabled,
-    ! compare transport with the source blocks, poison compact ghost storage,
-    ! and check local and remote installation.
+    ! Use the persistent field-independent request plan to return the
+    ! complete vector sol/wav_coeff bundle for every ghost patch. Quiet
+    ! production calls exchange payload values without rebuilding/copying
+    ! request metadata or performing diagnostic reductions.
 
     implicit none
 
@@ -2679,21 +2653,10 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: count_local(3)
     integer(int64) :: local_value_count
 
-    integer, allocatable :: destination_block(:)
-    integer, allocatable :: destination_ghost(:)
-    integer, allocatable :: recv_data(:)
-    integer, allocatable :: recv_displ(:)
-    integer, allocatable :: recv_record_count(:)
-    integer, allocatable :: request_index(:)
     integer, allocatable :: response_recv_count(:)
     integer, allocatable :: response_recv_displ(:)
     integer, allocatable :: response_send_count(:)
     integer, allocatable :: response_send_displ(:)
-    integer, allocatable :: send_displ(:)
-    integer, allocatable :: send_record_count(:)
-    integer, allocatable :: source_block(:)
-    integer, allocatable :: source_local_patch(:)
-    integer, allocatable :: source_owner(:)
 
     real(dp), allocatable :: expected(:)
     real(dp), allocatable :: response_recv(:)
@@ -2732,32 +2695,8 @@ end subroutine build_parallel_block_catalog
     n_remote_send = ghost_exchange_plan%n_remote_send
     n_remote_recv = ghost_exchange_plan%n_remote_recv
 
-    allocate(source_block(n_request))
-    allocate(source_local_patch(n_request))
-    allocate(source_owner(n_request))
-    allocate(destination_block(n_request))
-    allocate(destination_ghost(n_request))
-    allocate(send_record_count(n_process))
-    allocate(recv_record_count(n_process))
-    allocate(send_displ(n_process))
-    allocate(recv_displ(n_process))
-    allocate(recv_data(REQUEST_SIZE*n_remote_recv))
-    allocate(request_index(n_remote_send))
-
-    source_block = ghost_exchange_plan%source_block
-    source_local_patch = ghost_exchange_plan%source_local_patch
-    source_owner = ghost_exchange_plan%source_owner
-    destination_block = ghost_exchange_plan%destination_block
-    destination_ghost = ghost_exchange_plan%destination_ghost
-    send_record_count = ghost_exchange_plan%send_record_count
-    recv_record_count = ghost_exchange_plan%recv_record_count
-    send_displ = REQUEST_SIZE*ghost_exchange_plan%send_record_displ
-    recv_displ = REQUEST_SIZE*ghost_exchange_plan%recv_record_displ
-    recv_data = ghost_exchange_plan%recv_data
-    request_index = ghost_exchange_plan%request_index
-
     do i = 1, n_request
-       destination = destination_block(i)
+       destination = ghost_exchange_plan%destination_block(i)
        if (local_block_vector_family_patch_nvalue(destination) /= &
             n_value) then
           call fail("destination vector ghost payload layout mismatch")
@@ -2769,8 +2708,10 @@ end subroutine build_parallel_block_catalog
     allocate(response_send_displ(n_process))
     allocate(response_recv_displ(n_process))
 
-    response_send_count = n_value*recv_record_count
-    response_recv_count = n_value*send_record_count
+    response_send_count = &
+         n_value*ghost_exchange_plan%recv_record_count
+    response_recv_count = &
+         n_value*ghost_exchange_plan%send_record_count
     response_send_displ(1) = 0
     response_recv_displ(1) = 0
 
@@ -2787,9 +2728,10 @@ end subroutine build_parallel_block_catalog
     allocate(expected(n_value))
 
     do r = 1, n_process
-       do i = 0, recv_record_count(r)-1
-          pos = recv_displ(r) + REQUEST_SIZE*i
-          source = recv_data(pos+1)
+       do i = 0, ghost_exchange_plan%recv_record_count(r)-1
+          pos = REQUEST_SIZE*( &
+               ghost_exchange_plan%recv_record_displ(r)+i)
+          source = ghost_exchange_plan%recv_data(pos+1)
 
           if (source < 1 .or. source > size(block_catalog)) then
              call fail("received vector ghost source is invalid")
@@ -2804,7 +2746,8 @@ end subroutine build_parallel_block_catalog
           end if
 
           call get_local_block_vector_patch_family_values( &
-               source,recv_data(pos+2),payload_family,source_value)
+               source,ghost_exchange_plan%recv_data(pos+2), &
+               payload_family,source_value)
 
           pos = response_send_displ(r) + n_value*i
           response_send(pos+1:pos+n_value) = source_value
@@ -2819,13 +2762,15 @@ end subroutine build_parallel_block_catalog
 
     if (verify_installation) then
        do i = 1, n_request
-          if (source_owner(i) /= rank) cycle
+          if (ghost_exchange_plan%source_owner(i) /= rank) cycle
 
           call get_local_block_vector_patch_family_values( &
-               source_block(i),source_local_patch(i),payload_family, &
-               source_value)
+               ghost_exchange_plan%source_block(i), &
+               ghost_exchange_plan%source_local_patch(i), &
+               payload_family,source_value)
           call get_local_block_vector_ghost_family_values( &
-               destination_block(i),destination_ghost(i), &
+               ghost_exchange_plan%destination_block(i), &
+               ghost_exchange_plan%destination_ghost(i), &
                payload_family,expected)
           if (maxval(abs(source_value-expected)) > 0.0_dp) then
              call fail("local vector ghost payload values do not match")
@@ -2833,13 +2778,16 @@ end subroutine build_parallel_block_catalog
        end do
 
        do r = 1, n_process
-          do i = 0, send_record_count(r)-1
-             fill_record = send_displ(r)/REQUEST_SIZE + i + 1
-             destination = destination_block(request_index(fill_record))
+          do i = 0, ghost_exchange_plan%send_record_count(r)-1
+             fill_record = &
+                  ghost_exchange_plan%send_record_displ(r)+i+1
+             destination = ghost_exchange_plan%destination_block( &
+                  ghost_exchange_plan%request_index(fill_record))
 
              call get_local_block_vector_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)), &
+                  ghost_exchange_plan%destination_ghost( &
+                  ghost_exchange_plan%request_index(fill_record)), &
                   payload_family,expected)
 
              pos = response_recv_displ(r) + n_value*i
@@ -2855,11 +2803,12 @@ end subroutine build_parallel_block_catalog
     end if
 
     do i = 1, n_request
-       if (source_owner(i) /= rank) cycle
+       if (ghost_exchange_plan%source_owner(i) /= rank) cycle
 
        if (verify_installation) then
           call get_local_block_vector_ghost_family_values( &
-               destination_block(i),destination_ghost(i), &
+               ghost_exchange_plan%destination_block(i), &
+               ghost_exchange_plan%destination_ghost(i), &
                payload_family,expected)
           if (maxval(abs(expected-BLOCK_GHOST_POISON)) > 0.0_dp) then
              call fail("vector ghost storage was not invalidated")
@@ -2867,14 +2816,17 @@ end subroutine build_parallel_block_catalog
        end if
 
        call get_local_block_vector_patch_family_values( &
-            source_block(i),source_local_patch(i),payload_family, &
-            source_value)
+            ghost_exchange_plan%source_block(i), &
+            ghost_exchange_plan%source_local_patch(i), &
+            payload_family,source_value)
        call set_local_block_vector_ghost_family_values( &
-            destination_block(i),destination_ghost(i), &
+            ghost_exchange_plan%destination_block(i), &
+            ghost_exchange_plan%destination_ghost(i), &
             payload_family,source_value)
        if (verify_installation) then
           call get_local_block_vector_ghost_family_values( &
-               destination_block(i),destination_ghost(i), &
+               ghost_exchange_plan%destination_block(i), &
+               ghost_exchange_plan%destination_ghost(i), &
                payload_family,expected)
           if (maxval(abs(source_value-expected)) > 0.0_dp) then
              call fail("local vector ghost payload installation failed")
@@ -2883,14 +2835,17 @@ end subroutine build_parallel_block_catalog
     end do
 
     do r = 1, n_process
-       do i = 0, send_record_count(r)-1
-          fill_record = send_displ(r)/REQUEST_SIZE + i + 1
-          destination = destination_block(request_index(fill_record))
+       do i = 0, ghost_exchange_plan%send_record_count(r)-1
+          fill_record = &
+               ghost_exchange_plan%send_record_displ(r)+i+1
+          destination = ghost_exchange_plan%destination_block( &
+               ghost_exchange_plan%request_index(fill_record))
 
           if (verify_installation) then
              call get_local_block_vector_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)), &
+                  ghost_exchange_plan%destination_ghost( &
+                  ghost_exchange_plan%request_index(fill_record)), &
                   payload_family,expected)
              if (maxval(abs(expected-BLOCK_GHOST_POISON)) > 0.0_dp) then
                 call fail("vector ghost storage was not invalidated")
@@ -2900,12 +2855,14 @@ end subroutine build_parallel_block_catalog
           pos = response_recv_displ(r) + n_value*i
           call set_local_block_vector_ghost_family_values( &
                destination, &
-               destination_ghost(request_index(fill_record)), &
+               ghost_exchange_plan%destination_ghost( &
+               ghost_exchange_plan%request_index(fill_record)), &
                payload_family,response_recv(pos+1:pos+n_value))
           if (verify_installation) then
              call get_local_block_vector_ghost_family_values( &
                   destination, &
-                  destination_ghost(request_index(fill_record)), &
+                  ghost_exchange_plan%destination_ghost( &
+                  ghost_exchange_plan%request_index(fill_record)), &
                   payload_family,expected)
              if (maxval(abs( &
                   response_recv(pos+1:pos+n_value)-expected)) > 0.0_dp) then
@@ -2915,14 +2872,16 @@ end subroutine build_parallel_block_catalog
        end do
     end do
 
-    local_value_count = int(n_value,int64)*int(n_request,int64)
-    count_local(1) = int(n_local_request,int64)
-    count_local(2) = int(n_remote_send,int64)
-    count_local(3) = local_value_count
+    if (print_summary) then
+       local_value_count = int(n_value,int64)*int(n_request,int64)
+       count_local(1) = int(n_local_request,int64)
+       count_local(2) = int(n_remote_send,int64)
+       count_local(3) = local_value_count
 
-    call MPI_Allreduce( &
-         count_local,count_global,3,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce vector ghost payload totals")
+       call MPI_Allreduce( &
+            count_local,count_global,3,MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce vector ghost payload totals")
+    end if
 
     if (print_summary) then
        write(6,'(/,a,a,a,i0,a)') &
@@ -2951,24 +2910,13 @@ end subroutine build_parallel_block_catalog
             " ghost payload installation passed"
     end if
 
-    deallocate(destination_block)
-    deallocate(destination_ghost)
     deallocate(expected)
-    deallocate(recv_data)
-    deallocate(recv_displ)
-    deallocate(recv_record_count)
-    deallocate(request_index)
     deallocate(response_recv)
     deallocate(response_recv_count)
     deallocate(response_recv_displ)
     deallocate(response_send)
     deallocate(response_send_count)
     deallocate(response_send_displ)
-    deallocate(send_displ)
-    deallocate(send_record_count)
-    deallocate(source_block)
-    deallocate(source_local_patch)
-    deallocate(source_owner)
     deallocate(source_value)
 
   end subroutine exchange_block_vector_ghost_payloads
@@ -3049,19 +2997,22 @@ end subroutine build_parallel_block_catalog
 
     call refresh_block_wav_coeff_ghosts
     call check_refreshed_block_stencil_consumers(.false.)
+    call check_block_ghost_exchange_plan(.false.)
 
     if (print_summary) then
        write(6,'(/,a,i0,a)') &
             "Production block ghost refresh for rank ",rank,":"
        write(6,'(a)') &
             "  selective sol ghost refresh passed"
-       write(6,'(a,/)') &
+       write(6,'(a)') &
             "  selective wav_coeff ghost refresh passed"
+       write(6,'(a,/)') &
+            "  persistent request plan retained across refreshes"
     end if
 
     if (print_summary .and. rank == 0) then
        write(6,'(/,a,/)') &
-            "Selective production block ghost refreshes passed"
+            "Persistent-plan production block ghost refreshes passed"
     end if
 
   end subroutine check_production_block_ghost_refresh
