@@ -14520,7 +14520,17 @@ end subroutine build_parallel_block_catalog
     integer, parameter :: SCALE_WRITEBACK_VECTOR_RECV = 15
     integer, parameter :: SCALE_PERSISTENT_REAL = 16
     integer, parameter :: SCALE_DOMAIN_STAGE_REAL = 17
-    integer, parameter :: SCALE_METRIC_COUNT = 17
+    integer, parameter :: SCALE_BOUNDARY = 18
+    integer, parameter :: SCALE_BDRY_MANIFEST_SEND = 19
+    integer, parameter :: SCALE_BDRY_MANIFEST_RECV = 20
+    integer, parameter :: SCALE_BDRY_SEND_PEER = 21
+    integer, parameter :: SCALE_BDRY_RECV_PEER = 22
+    integer, parameter :: SCALE_BDRY_SCALAR_SEND = 23
+    integer, parameter :: SCALE_BDRY_SCALAR_RECV = 24
+    integer, parameter :: SCALE_BDRY_VECTOR_SEND = 25
+    integer, parameter :: SCALE_BDRY_VECTOR_RECV = 26
+    integer, parameter :: SCALE_BDRY_PERSISTENT_REAL = 27
+    integer, parameter :: SCALE_METRIC_COUNT = 27
 
     logical, optional, intent(in) :: verbose
 
@@ -14616,6 +14626,20 @@ end subroutine build_parallel_block_catalog
          global_sum(SCALE_WRITEBACK_VECTOR_RECV)) then
        call fail("scaling snapshot writeback payload mismatch")
     end if
+    if (global_sum(SCALE_BDRY_MANIFEST_SEND) /= &
+         global_sum(SCALE_BDRY_MANIFEST_RECV)) then
+       call fail("scaling snapshot boundary manifest mismatch")
+    end if
+    if (global_sum(SCALE_BDRY_SEND_PEER) /= &
+         global_sum(SCALE_BDRY_RECV_PEER)) then
+       call fail("scaling snapshot boundary peer count mismatch")
+    end if
+    if (global_sum(SCALE_BDRY_SCALAR_SEND) /= &
+         global_sum(SCALE_BDRY_SCALAR_RECV) .or. &
+         global_sum(SCALE_BDRY_VECTOR_SEND) /= &
+         global_sum(SCALE_BDRY_VECTOR_RECV)) then
+       call fail("scaling snapshot boundary payload mismatch")
+    end if
 
     if (print_summary) then
        write(6,'(/,a,i0,a)') &
@@ -14626,6 +14650,8 @@ end subroutine build_parallel_block_catalog
             local_metric(SCALE_WEIGHT)
        write(6,'(a,i0)') "  installed patches = ", &
             local_metric(SCALE_PATCH)
+       write(6,'(a,i0)') "  installed compact boundaries = ", &
+            local_metric(SCALE_BOUNDARY)
        write(6,'(a,i0,a,i0)') "  ghost send/receive peers = ", &
             local_metric(SCALE_GHOST_SEND_PEER)," / ", &
             local_metric(SCALE_GHOST_RECV_PEER)
@@ -14646,6 +14672,24 @@ end subroutine build_parallel_block_catalog
             "  writeback vector send/receive values = ", &
             local_metric(SCALE_WRITEBACK_VECTOR_SEND)," / ", &
             local_metric(SCALE_WRITEBACK_VECTOR_RECV)
+       write(6,'(a,i0,a,i0)') &
+            "  boundary manifest send/receive records = ", &
+            local_metric(SCALE_BDRY_MANIFEST_SEND)," / ", &
+            local_metric(SCALE_BDRY_MANIFEST_RECV)
+       write(6,'(a,i0,a,i0)') &
+            "  boundary Domain-send/block-receive peers = ", &
+            local_metric(SCALE_BDRY_SEND_PEER)," / ", &
+            local_metric(SCALE_BDRY_RECV_PEER)
+       write(6,'(a,i0,a,i0)') &
+            "  boundary scalar send/receive values = ", &
+            local_metric(SCALE_BDRY_SCALAR_SEND)," / ", &
+            local_metric(SCALE_BDRY_SCALAR_RECV)
+       write(6,'(a,i0,a,i0)') &
+            "  boundary vector send/receive values = ", &
+            local_metric(SCALE_BDRY_VECTOR_SEND)," / ", &
+            local_metric(SCALE_BDRY_VECTOR_RECV)
+       write(6,'(a,i0)') "  boundary persistent real capacity = ", &
+            local_metric(SCALE_BDRY_PERSISTENT_REAL)
        write(6,'(a,i0)') "  persistent real-value capacity = ", &
             local_metric(SCALE_PERSISTENT_REAL)
        write(6,'(a,/)') "  repeated read-only snapshot passed"
@@ -14658,6 +14702,8 @@ end subroutine build_parallel_block_catalog
        call print_min_average_max("final-owner weight",SCALE_WEIGHT)
        call print_min_average_max("installed patches",SCALE_PATCH)
        call print_min_average_max( &
+            "installed compact boundaries",SCALE_BOUNDARY)
+       call print_min_average_max( &
             "ghost send peers",SCALE_GHOST_SEND_PEER)
        call print_min_average_max( &
             "ghost receive peers",SCALE_GHOST_RECV_PEER)
@@ -14665,6 +14711,13 @@ end subroutine build_parallel_block_catalog
             "writeback send peers",SCALE_WRITEBACK_SEND_PEER)
        call print_min_average_max( &
             "writeback receive peers",SCALE_WRITEBACK_RECV_PEER)
+       call print_min_average_max( &
+            "boundary Domain-send peers",SCALE_BDRY_SEND_PEER)
+       call print_min_average_max( &
+            "boundary block-receive peers",SCALE_BDRY_RECV_PEER)
+       call print_min_average_max( &
+            "boundary persistent real values", &
+            SCALE_BDRY_PERSISTENT_REAL)
        call print_min_average_max( &
             "persistent real values",SCALE_PERSISTENT_REAL)
        write(6,'(a,i0)') "  global ghost scalar values = ", &
@@ -14675,6 +14728,12 @@ end subroutine build_parallel_block_catalog
             global_sum(SCALE_WRITEBACK_SCALAR_SEND)
        write(6,'(a,i0)') "  global writeback vector values = ", &
             global_sum(SCALE_WRITEBACK_VECTOR_SEND)
+       write(6,'(a,i0)') "  global boundary manifest records = ", &
+            global_sum(SCALE_BDRY_MANIFEST_SEND)
+       write(6,'(a,i0)') "  global boundary scalar values = ", &
+            global_sum(SCALE_BDRY_SCALAR_SEND)
+       write(6,'(a,i0)') "  global boundary vector values = ", &
+            global_sum(SCALE_BDRY_VECTOR_SEND)
        write(6,'(a,i0)') "  global Domain stage real values = ", &
             global_sum(SCALE_DOMAIN_STAGE_REAL)
        write(6,'(a)') "  global route and payload balance passed"
@@ -14696,9 +14755,14 @@ end subroutine build_parallel_block_catalog
 
       integer :: b
       integer :: i
+      integer :: n_boundary
       integer :: local_block_count
+      integer :: source
+
+      integer(int64) :: retained_boundary_count
 
       local_value = 0_int64
+      retained_boundary_count = 0_int64
       local_block_count = n_local_blocks()
       local_value(SCALE_BLOCK) = int(local_block_count,int64)
 
@@ -14708,7 +14772,25 @@ end subroutine build_parallel_block_catalog
               int(block_catalog(b)%weight,int64)
          local_value(SCALE_PATCH) = local_value(SCALE_PATCH) + &
               int(local_block_patch_count(b),int64)
+         n_boundary = local_block_boundary_count(b)
+         local_value(SCALE_BOUNDARY) = local_value(SCALE_BOUNDARY) + &
+              int(n_boundary,int64)
+         source = source_rank(b)
+         if (source == rank) then
+            retained_boundary_count = retained_boundary_count + &
+                 int(n_boundary,int64)
+         end if
       end do
+
+      local_value(SCALE_BDRY_MANIFEST_SEND) = &
+           int(block_writeback_plan%n_send_boundary,int64)
+      local_value(SCALE_BDRY_MANIFEST_RECV) = &
+           int(block_writeback_plan%n_recv_boundary,int64)
+      if (local_value(SCALE_BOUNDARY) /= &
+           local_value(SCALE_BDRY_MANIFEST_SEND) + &
+           retained_boundary_count) then
+         call fail("scaling snapshot boundary coverage mismatch")
+      end if
 
       local_value(SCALE_GHOST_SEND_PEER) = int(count( &
            ghost_exchange_plan%scalar_send_count > 0),int64)
@@ -14736,6 +14818,34 @@ end subroutine build_parallel_block_catalog
       local_value(SCALE_WRITEBACK_VECTOR_RECV) = sum(int( &
            block_writeback_plan%vector_recv_count,int64))
 
+      local_value(SCALE_BDRY_SEND_PEER) = int(count( &
+           block_writeback_plan% &
+           boundary_scalar_domain_send_count > 0),int64)
+      local_value(SCALE_BDRY_RECV_PEER) = int(count( &
+           block_writeback_plan% &
+           boundary_scalar_block_recv_count > 0),int64)
+      local_value(SCALE_BDRY_SCALAR_SEND) = sum(int( &
+           block_writeback_plan% &
+           boundary_scalar_domain_send_count,int64))
+      local_value(SCALE_BDRY_SCALAR_RECV) = sum(int( &
+           block_writeback_plan% &
+           boundary_scalar_block_recv_count,int64))
+      local_value(SCALE_BDRY_VECTOR_SEND) = sum(int( &
+           block_writeback_plan% &
+           boundary_vector_domain_send_count,int64))
+      local_value(SCALE_BDRY_VECTOR_RECV) = sum(int( &
+           block_writeback_plan% &
+           boundary_vector_block_recv_count,int64))
+      local_value(SCALE_BDRY_PERSISTENT_REAL) = int(size( &
+           block_writeback_plan% &
+           boundary_scalar_domain_send_buffer),int64) + int(size( &
+           block_writeback_plan% &
+           boundary_scalar_block_recv_buffer),int64) + int(size( &
+           block_writeback_plan% &
+           boundary_vector_domain_send_buffer),int64) + int(size( &
+           block_writeback_plan% &
+           boundary_vector_block_recv_buffer),int64)
+
       local_value(SCALE_PERSISTENT_REAL) = int(size( &
            ghost_exchange_plan%scalar_send_buffer),int64) + int(size( &
            ghost_exchange_plan%scalar_recv_buffer),int64) + int(size( &
@@ -14747,6 +14857,14 @@ end subroutine build_parallel_block_catalog
            block_writeback_plan%scalar_recv_buffer),int64) + int(size( &
            block_writeback_plan%vector_send_buffer),int64) + int(size( &
            block_writeback_plan%vector_recv_buffer),int64) + int(size( &
+           block_writeback_plan% &
+           boundary_scalar_domain_send_buffer),int64) + int(size( &
+           block_writeback_plan% &
+           boundary_scalar_block_recv_buffer),int64) + int(size( &
+           block_writeback_plan% &
+           boundary_vector_domain_send_buffer),int64) + int(size( &
+           block_writeback_plan% &
+           boundary_vector_block_recv_buffer),int64) + int(size( &
            block_writeback_plan%scalar_domain_stage),int64) + int(size( &
            block_writeback_plan%vector_domain_stage),int64)
       local_value(SCALE_DOMAIN_STAGE_REAL) = int(size( &
