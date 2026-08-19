@@ -245,6 +245,7 @@ module parallel_block_mpi_mod
      integer(int64) :: production_writeback_count = 0_int64
      integer(int64) :: production_preview_count = 0_int64
      integer(int64) :: production_euler_step_count = 0_int64
+     integer(int64) :: production_domain_refresh_count = 0_int64
      logical :: ready = .false.
   end type Block_Writeback_Plan_Type
 
@@ -355,6 +356,7 @@ module parallel_block_mpi_mod
   public :: check_domain_to_block_payload_exchange
   public :: import_domain_field_family_to_blocks
   public :: check_domain_field_family_block_import
+  public :: refresh_parallel_block_domain_prognostic_state
   public :: check_domain_trend_roundtrip
   public :: import_domain_trend_to_block_tendency
   public :: check_domain_trend_tendency_import
@@ -2765,6 +2767,7 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%production_writeback_count = 0_int64
     block_writeback_plan%production_preview_count = 0_int64
     block_writeback_plan%production_euler_step_count = 0_int64
+    block_writeback_plan%production_domain_refresh_count = 0_int64
     block_writeback_plan%ready = .false.
 
   end subroutine clear_block_writeback_plan
@@ -4538,6 +4541,109 @@ end subroutine build_parallel_block_catalog
     end subroutine check_family
 
   end subroutine check_domain_field_family_block_import
+
+
+  subroutine refresh_parallel_block_domain_prognostic_state
+    ! Refresh the complete sol and wav_coeff patch interiors from the
+    ! authoritative Domain representation after its wavelet transform.
+    ! Persistent transport and staging allocations are retained.
+
+    implicit none
+
+    integer :: b
+    integer :: ierr
+    integer :: local_index
+    integer :: n_patch
+
+    integer(int64) :: global_patch_count
+    integer(int64) :: local_patch_count
+    integer(int64) :: production_writeback_before
+    integer(int64) :: stage_allocation_before
+    integer(int64) :: writeback_allocation_before
+
+    logical :: accumulator_ready
+    logical :: hydrostatic_ready
+    logical :: state_ready
+    logical :: tendency_ready
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("Domain prognostic refresh before block state is ready")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    stage_allocation_before = block_writeback_plan%stage_allocations
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+
+    call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_SOL)
+    call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_WAV_COEFF)
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_WAV_COEFF)
+
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (tendency_ready .or. accumulator_ready) then
+       call fail("Domain prognostic refresh retained stale tendencies")
+    end if
+
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       hydrostatic_ready = local_block_hydrostatic_state_ready()
+       if (.not. hydrostatic_ready) then
+          call fail("Domain prognostic refresh hydrostatic state failed")
+       end if
+    end if
+
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("Domain prognostic refresh reallocated transport buffers")
+    end if
+    if (block_writeback_plan%stage_allocations /= &
+         stage_allocation_before) then
+       call fail("Domain prognostic refresh reallocated Domain staging")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("Domain prognostic refresh modified Domain fields")
+    end if
+
+    local_patch_count = 0_int64
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(b)
+       local_patch_count = local_patch_count + int(n_patch,int64)
+    end do
+    call MPI_Allreduce(local_patch_count,global_patch_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce production Domain refresh patches")
+
+    block_writeback_plan%production_domain_refresh_count = &
+         block_writeback_plan%production_domain_refresh_count + 1_int64
+
+    if (rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Production post-wavelet Domain refresh number = ", &
+            block_writeback_plan%production_domain_refresh_count
+       write(6,'(a,i0)') &
+            "Global post-wavelet Domain refresh patches = ", &
+            global_patch_count
+       write(6,'(a)') &
+            "  exact sol patch-interior refresh passed"
+       write(6,'(a)') &
+            "  exact wav_coeff patch-interior refresh passed"
+       if (compressible) then
+          write(6,'(a)') &
+               "  hydrostatic state current after refresh"
+       end if
+       write(6,'(a,/)') &
+            "Post-wavelet Domain-to-block prognostic refresh passed"
+    end if
+
+  end subroutine refresh_parallel_block_domain_prognostic_state
 
 
   subroutine check_domain_trend_roundtrip (verbose)

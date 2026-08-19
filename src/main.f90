@@ -58,6 +58,9 @@ module main_mod
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
+       advance_block_domain_trend_euler, parallel_block_state_is_ready, &
+       preview_block_domain_trend_step, &
+       refresh_parallel_block_domain_prognostic_state, &
        migrate_blocks
 
 #ifdef PHYSICS
@@ -387,11 +390,7 @@ contains
   subroutine time_step 
     implicit none
     integer(8) :: idt, ialign
-    logical    :: save_data 
-
-    ! The production integrator below still updates Domain storage directly.
-    ! Invalidate its read-only parallel-block shadow before the first update.
-    call invalidate_parallel_block_domain_shadow
+    logical    :: block_euler_step, block_state_ready, save_data
 
     ! New time step
     istep       = istep       + 1
@@ -418,9 +417,29 @@ contains
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Dynamics time step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    block_euler_step = .false.
+    block_state_ready = parallel_block_state_is_ready()
+    if (block_state_ready .and. .not. mode_split) then
+       call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)
+       if (trim(timeint_type) == "Euler") then
+          call advance_block_domain_trend_euler(dt)
+          call WT_after_step (sol(1:N_VARIABLE,1:zlevels), &
+               wav_coeff(1:N_VARIABLE,1:zlevels),level_start-1)
+          call refresh_parallel_block_domain_prognostic_state
+          block_euler_step = .true.
+       else
+          call preview_block_domain_trend_step(dt)
+       end if
+    end if
+
+    ! The accepted Euler update and Domain wavelet transform have been
+    ! synchronized to block patch interiors. Remaining physics, adaptation
+    ! and remapping operators are not represented in blocks yet.
+    call invalidate_parallel_block_domain_shadow
+
     if (mode_split) then
        call dt_step_split (dt)
-    else
+    else if (.not. block_euler_step) then
        call dt_step (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
     end if
 
