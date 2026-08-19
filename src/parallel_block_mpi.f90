@@ -11,7 +11,7 @@ module parallel_block_mpi_mod
        S_MASS, S_TEMP, &
        c_p, compressible, grav_accel, kappa, p_0, p_top, zlevels
 
-  use domain_mod, only : grid, sol, sol_mean, tke, topography, &
+  use domain_mod, only : grid, sol, sol_mean, tke, topography, trend, &
        wav_coeff, wav_tke, &
        subtree_weight_Domain
 
@@ -124,6 +124,8 @@ module parallel_block_mpi_mod
 
   real(dp), parameter :: BLOCK_GHOST_POISON = &
        -0.25_dp*huge(0.0_dp)
+
+  integer, parameter :: BLOCK_PAYLOAD_TREND = 3
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
        -0.125_dp*huge(0.0_dp)
   real(dp), parameter :: BLOCK_PATCH_POISON = &
@@ -342,6 +344,7 @@ module parallel_block_mpi_mod
   public :: check_block_writeback_payload_exchange
   public :: exchange_domain_to_block_payloads
   public :: check_domain_to_block_payload_exchange
+  public :: check_domain_trend_roundtrip
   public :: check_block_writeback_domain_reconstruction
   public :: block_writeback_plan_is_ready
   public :: block_writeback_plan_allocation_count
@@ -1298,6 +1301,7 @@ end subroutine build_parallel_block_catalog
     call check_parallel_block_lifecycle(print_local)
     call check_parallel_block_scaling(print_local)
     call check_domain_to_block_payload_exchange(print_local)
+    call check_domain_trend_roundtrip(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -3778,7 +3782,8 @@ end subroutine build_parallel_block_catalog
   end subroutine check_block_writeback_payload_exchange
 
 
-  subroutine exchange_domain_to_block_payloads (payload_family)
+  subroutine exchange_domain_to_block_payloads ( &
+       payload_family,tag_payload)
     ! Reverse the persistent writeback routes without reallocating them.
     ! Domain owners pack one field family and final block owners receive the
     ! payload in catalogue order. Neither representation is modified.
@@ -3786,11 +3791,13 @@ end subroutine build_parallel_block_catalog
     implicit none
 
     integer, intent(in) :: payload_family
+    logical, optional, intent(in) :: tag_payload
 
     integer :: b
     integer :: d
     integer :: destination
     integer :: ierr
+    integer :: i
     integer :: n_patch
     integer :: pos_scalar
     integer :: pos_vector
@@ -3800,13 +3807,17 @@ end subroutine build_parallel_block_catalog
     integer :: vector_start
 
     logical :: plan_ready
+    logical :: use_tags
 
+    use_tags = .false.
+    if (present(tag_payload)) use_tags = tag_payload
     plan_ready = block_writeback_plan_is_ready()
     if (.not. plan_ready) then
        call fail("Domain-to-block exchange before plan is ready")
     end if
     if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
-         payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+         payload_family /= BLOCK_PAYLOAD_WAV_COEFF .and. &
+         payload_family /= BLOCK_PAYLOAD_TREND) then
        call fail("invalid Domain-to-block payload family")
     end if
 
@@ -3844,6 +3855,21 @@ end subroutine build_parallel_block_catalog
                block_writeback_plan%scalar_recv_buffer,pos_scalar, &
                block_writeback_plan%vector_recv_buffer,pos_vector, &
                n_patch)
+
+          if (use_tags) then
+             do i = scalar_start,pos_scalar-1
+                block_writeback_plan%scalar_recv_buffer(i) = &
+                     block_writeback_plan%scalar_recv_buffer(i) + &
+                     real(int(b,int64) + &
+                     int(i-scalar_start+1,int64),dp)
+             end do
+             do i = vector_start,pos_vector-1
+                block_writeback_plan%vector_recv_buffer(i) = &
+                     block_writeback_plan%vector_recv_buffer(i) - &
+                     real(int(b,int64) + &
+                     int(i-vector_start+1,int64),dp)
+             end do
+          end if
 
           if (n_patch /= &
                block_writeback_plan%recv_patch_count(slot) .or. &
@@ -4097,11 +4123,144 @@ end subroutine build_parallel_block_catalog
   end subroutine check_domain_to_block_payload_exchange
 
 
+  subroutine check_domain_trend_roundtrip (verbose)
+    ! Exercise the production trend field layout over the reverse route and
+    ! echo it to the Domain owner for an exact comparison. Deterministic tags
+    ! make the validation nontrivial even before trend_ml has initialized dq.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: allocation_after
+    integer(int64) :: allocation_before
+    integer(int64) :: global_scalar
+    integer(int64) :: global_vector
+    integer(int64) :: local_scalar
+    integer(int64) :: local_vector
+    integer(int64) :: stage_allocation_after
+    integer(int64) :: stage_allocation_before
+
+    logical :: plan_ready
+    logical :: print_summary
+
+    real(dp), allocatable :: scalar_reference(:)
+    real(dp), allocatable :: vector_reference(:)
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    plan_ready = block_writeback_plan_is_ready()
+    if (.not. plan_ready) then
+       call fail("Domain trend roundtrip before plan is ready")
+    end if
+
+    allocate(scalar_reference(size( &
+         block_writeback_plan%scalar_recv_buffer)))
+    allocate(vector_reference(size( &
+         block_writeback_plan%vector_recv_buffer)))
+
+    allocation_before = block_writeback_plan_allocation_count()
+    stage_allocation_before = block_writeback_plan%stage_allocations
+
+    call check_roundtrip
+    call check_roundtrip
+
+    allocation_after = block_writeback_plan_allocation_count()
+    stage_allocation_after = block_writeback_plan%stage_allocations
+    if (allocation_after /= allocation_before) then
+       call fail("Domain trend roundtrip reallocated payload buffers")
+    end if
+    if (stage_allocation_after /= stage_allocation_before) then
+       call fail("Domain trend roundtrip reallocated Domain staging")
+    end if
+
+    local_scalar = sum(int( &
+         block_writeback_plan%scalar_recv_count,int64))
+    local_vector = sum(int( &
+         block_writeback_plan%vector_recv_count,int64))
+    call MPI_Allreduce(local_scalar,global_scalar,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce trend roundtrip scalar values")
+    call MPI_Allreduce(local_vector,global_vector,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce trend roundtrip vector values")
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Domain trend reverse roundtrip for rank ",rank,":"
+       write(6,'(a,i0)') "  scalar values returned = ",local_scalar
+       write(6,'(a,i0)') "  vector values returned = ",local_vector
+       write(6,'(a)') "  exact tagged scalar trend roundtrip passed"
+       write(6,'(a)') "  exact tagged vector trend roundtrip passed"
+       write(6,'(a,/)') "  repeated trend roundtrip buffer reuse passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global Domain trend scalar values = ",global_scalar
+       write(6,'(a,i0)') &
+            "Global Domain trend vector values = ",global_vector
+       write(6,'(a,/)') &
+            "Exact Domain trend reverse-route roundtrip passed"
+    end if
+
+    deallocate(vector_reference)
+    deallocate(scalar_reference)
+
+  contains
+
+    subroutine check_roundtrip
+
+      implicit none
+
+      call exchange_domain_to_block_payloads( &
+           BLOCK_PAYLOAD_TREND,.true.)
+      scalar_reference = block_writeback_plan%scalar_recv_buffer
+      vector_reference = block_writeback_plan%vector_recv_buffer
+
+      call MPI_Alltoallv( &
+           block_writeback_plan%scalar_send_buffer, &
+           block_writeback_plan%scalar_send_count, &
+           block_writeback_plan%scalar_send_displ, &
+           MPI_DOUBLE_PRECISION, &
+           block_writeback_plan%scalar_recv_buffer, &
+           block_writeback_plan%scalar_recv_count, &
+           block_writeback_plan%scalar_recv_displ, &
+           MPI_DOUBLE_PRECISION,comm,ierr)
+      call check_mpi(ierr,"MPI_Alltoallv scalar trend echo")
+
+      call MPI_Alltoallv( &
+           block_writeback_plan%vector_send_buffer, &
+           block_writeback_plan%vector_send_count, &
+           block_writeback_plan%vector_send_displ, &
+           MPI_DOUBLE_PRECISION, &
+           block_writeback_plan%vector_recv_buffer, &
+           block_writeback_plan%vector_recv_count, &
+           block_writeback_plan%vector_recv_displ, &
+           MPI_DOUBLE_PRECISION,comm,ierr)
+      call check_mpi(ierr,"MPI_Alltoallv vector trend echo")
+
+      if (any(abs(block_writeback_plan%scalar_recv_buffer - &
+           scalar_reference) > 0.0_dp)) then
+         call fail("scalar Domain trend roundtrip mismatch")
+      end if
+      if (any(abs(block_writeback_plan%vector_recv_buffer - &
+           vector_reference) > 0.0_dp)) then
+         call fail("vector Domain trend roundtrip mismatch")
+      end if
+
+    end subroutine check_roundtrip
+
+  end subroutine check_domain_trend_roundtrip
+
+
   recursive subroutine pack_domain_subtree_prognostic ( &
        d,p,payload_family,scalar_payload,scalar_pos, &
        vector_payload,vector_pos,n_patch)
-    ! Pack one legacy Domain subtree in the same preorder and field order
-    ! used by the compact block field-family patch accessors.
+    ! Pack one Domain field-family subtree in compact block preorder.
 
     implicit none
 
@@ -4142,7 +4301,7 @@ end subroutine build_parallel_block_catalog
   subroutine pack_domain_patch_prognostic ( &
        d,p,payload_family,scalar_payload,scalar_pos, &
        vector_payload,vector_pos)
-    ! Pack one active legacy Domain patch in compact field-family order.
+    ! Pack one active Domain patch in compact field-family order.
 
     implicit none
 
@@ -4180,7 +4339,8 @@ end subroutine build_parallel_block_catalog
        call fail("deleted patch in Domain writeback record")
     end if
     if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
-         payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+         payload_family /= BLOCK_PAYLOAD_WAV_COEFF .and. &
+         payload_family /= BLOCK_PAYLOAD_TREND) then
        call fail("invalid Domain writeback payload family")
     end if
 
@@ -4223,6 +4383,20 @@ end subroutine build_parallel_block_catalog
              scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
                   wav_coeff(scalar_id,field_level)%data(d)%elts( &
                   start+1:start+n_value)
+          case (BLOCK_PAYLOAD_TREND)
+             if (field_level < 1) then
+                scalar_payload( &
+                     scalar_pos:scalar_pos+n_value-1) = 0.0_dp
+             else
+                if (start < 0 .or. start+n_value > &
+                     size(trend(scalar_id,field_level)%data(d)%elts)) then
+                   call fail( &
+                        "legacy scalar trend payload extent is invalid")
+                end if
+                scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
+                     trend(scalar_id,field_level)%data(d)%elts( &
+                     start+1:start+n_value)
+             end if
           end select
           scalar_pos = scalar_pos + n_value
        end do
@@ -4251,6 +4425,19 @@ end subroutine build_parallel_block_catalog
           vector_payload(vector_pos:vector_pos+n_value-1) = &
                wav_coeff(v_vector,field_level)%data(d)%elts( &
                start+1:start+n_value)
+       case (BLOCK_PAYLOAD_TREND)
+          if (field_level < 1) then
+             vector_payload( &
+                  vector_pos:vector_pos+n_value-1) = 0.0_dp
+          else
+             if (start < 0 .or. start+n_value > &
+                  size(trend(v_vector,field_level)%data(d)%elts)) then
+                call fail("legacy vector trend payload extent is invalid")
+             end if
+             vector_payload(vector_pos:vector_pos+n_value-1) = &
+                  trend(v_vector,field_level)%data(d)%elts( &
+                  start+1:start+n_value)
+          end if
        end select
        vector_pos = vector_pos + n_value
     end do
