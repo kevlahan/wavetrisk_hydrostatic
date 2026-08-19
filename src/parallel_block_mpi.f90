@@ -28,6 +28,7 @@ module parallel_block_mpi_mod
        clear_local_blocks, local_block_store_ready, n_local_blocks, &
        local_block_catalog, catalog_local_block, &
        get_local_block_identity, check_local_block_storage, &
+       get_local_block_boundary_source, &
        get_block_field_layout, get_block_turbulence_layout, &
        get_local_block_field_layout, get_local_block_turbulence_layout, &
        local_block_field_statistics, local_block_wavelet_statistics, &
@@ -220,6 +221,18 @@ module parallel_block_mpi_mod
      integer, allocatable :: recv_scalar_nvalue(:)
      integer, allocatable :: send_vector_nvalue(:)
      integer, allocatable :: recv_vector_nvalue(:)
+     integer, allocatable :: send_boundary_count(:)
+     integer, allocatable :: recv_boundary_count(:)
+     integer, allocatable :: send_boundary_displ(:)
+     integer, allocatable :: recv_boundary_displ(:)
+     integer, allocatable :: send_boundary_source(:)
+     integer, allocatable :: recv_boundary_source(:)
+     integer, allocatable :: send_boundary_nnode(:)
+     integer, allocatable :: recv_boundary_nnode(:)
+     integer, allocatable :: send_boundary_scalar_nvalue(:)
+     integer, allocatable :: recv_boundary_scalar_nvalue(:)
+     integer, allocatable :: send_boundary_vector_nvalue(:)
+     integer, allocatable :: recv_boundary_vector_nvalue(:)
      integer, allocatable :: scalar_send_count(:)
      integer, allocatable :: scalar_recv_count(:)
      integer, allocatable :: scalar_send_displ(:)
@@ -232,6 +245,18 @@ module parallel_block_mpi_mod
      real(dp), allocatable :: scalar_recv_buffer(:)
      real(dp), allocatable :: vector_send_buffer(:)
      real(dp), allocatable :: vector_recv_buffer(:)
+     integer, allocatable :: boundary_scalar_domain_send_count(:)
+     integer, allocatable :: boundary_scalar_domain_send_displ(:)
+     integer, allocatable :: boundary_scalar_block_recv_count(:)
+     integer, allocatable :: boundary_scalar_block_recv_displ(:)
+     integer, allocatable :: boundary_vector_domain_send_count(:)
+     integer, allocatable :: boundary_vector_domain_send_displ(:)
+     integer, allocatable :: boundary_vector_block_recv_count(:)
+     integer, allocatable :: boundary_vector_block_recv_displ(:)
+     real(dp), allocatable :: boundary_scalar_domain_send_buffer(:)
+     real(dp), allocatable :: boundary_scalar_block_recv_buffer(:)
+     real(dp), allocatable :: boundary_vector_domain_send_buffer(:)
+     real(dp), allocatable :: boundary_vector_block_recv_buffer(:)
      integer, allocatable :: domain_patch_displ(:)
      real(dp), allocatable :: scalar_domain_stage(:)
      real(dp), allocatable :: vector_domain_stage(:)
@@ -240,6 +265,8 @@ module parallel_block_mpi_mod
      integer :: vector_patch_nvalue = 0
      integer :: reconstructed_patch_count = 0
      integer :: preserved_patch_count = 0
+     integer :: n_send_boundary = 0
+     integer :: n_recv_boundary = 0
      integer(int64) :: buffer_allocations = 0_int64
      integer(int64) :: stage_allocations = 0_int64
      integer(int64) :: production_writeback_count = 0_int64
@@ -356,6 +383,8 @@ module parallel_block_mpi_mod
   public :: check_domain_to_block_payload_exchange
   public :: import_domain_field_family_to_blocks
   public :: check_domain_field_family_block_import
+  public :: import_domain_boundary_field_family_to_blocks
+  public :: check_domain_boundary_field_family_block_import
   public :: refresh_parallel_block_domain_prognostic_state
   public :: check_domain_trend_roundtrip
   public :: import_domain_trend_to_block_tendency
@@ -1322,6 +1351,7 @@ end subroutine build_parallel_block_catalog
     call check_parallel_block_scaling(print_local)
     call check_domain_to_block_payload_exchange(print_local)
     call check_domain_field_family_block_import(print_local)
+    call check_domain_boundary_field_family_block_import(print_local)
     call check_domain_trend_roundtrip(print_local)
     call check_domain_trend_tendency_import(print_local)
     call check_block_domain_trend_step(print_local)
@@ -2669,6 +2699,103 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
+    if (allocated(block_writeback_plan%send_boundary_count)) then
+       deallocate(block_writeback_plan%send_boundary_count)
+    end if
+    if (allocated(block_writeback_plan%recv_boundary_count)) then
+       deallocate(block_writeback_plan%recv_boundary_count)
+    end if
+    if (allocated(block_writeback_plan%send_boundary_displ)) then
+       deallocate(block_writeback_plan%send_boundary_displ)
+    end if
+    if (allocated(block_writeback_plan%recv_boundary_displ)) then
+       deallocate(block_writeback_plan%recv_boundary_displ)
+    end if
+    if (allocated(block_writeback_plan%send_boundary_source)) then
+       deallocate(block_writeback_plan%send_boundary_source)
+    end if
+    if (allocated(block_writeback_plan%recv_boundary_source)) then
+       deallocate(block_writeback_plan%recv_boundary_source)
+    end if
+    if (allocated(block_writeback_plan%send_boundary_nnode)) then
+       deallocate(block_writeback_plan%send_boundary_nnode)
+    end if
+    if (allocated(block_writeback_plan%recv_boundary_nnode)) then
+       deallocate(block_writeback_plan%recv_boundary_nnode)
+    end if
+    if (allocated(block_writeback_plan%send_boundary_scalar_nvalue)) then
+       deallocate(block_writeback_plan%send_boundary_scalar_nvalue)
+    end if
+    if (allocated(block_writeback_plan%recv_boundary_scalar_nvalue)) then
+       deallocate(block_writeback_plan%recv_boundary_scalar_nvalue)
+    end if
+    if (allocated(block_writeback_plan%send_boundary_vector_nvalue)) then
+       deallocate(block_writeback_plan%send_boundary_vector_nvalue)
+    end if
+    if (allocated(block_writeback_plan%recv_boundary_vector_nvalue)) then
+       deallocate(block_writeback_plan%recv_boundary_vector_nvalue)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_scalar_domain_send_count)) then
+       deallocate( &
+            block_writeback_plan%boundary_scalar_domain_send_count)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_scalar_domain_send_displ)) then
+       deallocate( &
+            block_writeback_plan%boundary_scalar_domain_send_displ)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_scalar_block_recv_count)) then
+       deallocate( &
+            block_writeback_plan%boundary_scalar_block_recv_count)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_scalar_block_recv_displ)) then
+       deallocate( &
+            block_writeback_plan%boundary_scalar_block_recv_displ)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_vector_domain_send_count)) then
+       deallocate( &
+            block_writeback_plan%boundary_vector_domain_send_count)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_vector_domain_send_displ)) then
+       deallocate( &
+            block_writeback_plan%boundary_vector_domain_send_displ)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_vector_block_recv_count)) then
+       deallocate( &
+            block_writeback_plan%boundary_vector_block_recv_count)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_vector_block_recv_displ)) then
+       deallocate( &
+            block_writeback_plan%boundary_vector_block_recv_displ)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_scalar_domain_send_buffer)) then
+       deallocate( &
+            block_writeback_plan%boundary_scalar_domain_send_buffer)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_scalar_block_recv_buffer)) then
+       deallocate( &
+            block_writeback_plan%boundary_scalar_block_recv_buffer)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_vector_domain_send_buffer)) then
+       deallocate( &
+            block_writeback_plan%boundary_vector_domain_send_buffer)
+    end if
+    if (allocated( &
+         block_writeback_plan%boundary_vector_block_recv_buffer)) then
+       deallocate( &
+            block_writeback_plan%boundary_vector_block_recv_buffer)
+    end if
+
     if (allocated(block_writeback_plan%send_count)) then
        deallocate(block_writeback_plan%send_count)
     end if
@@ -2760,6 +2887,8 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%n_send = 0
     block_writeback_plan%n_recv = 0
     block_writeback_plan%n_retained = 0
+    block_writeback_plan%n_send_boundary = 0
+    block_writeback_plan%n_recv_boundary = 0
     block_writeback_plan%scalar_patch_nvalue = 0
     block_writeback_plan%vector_patch_nvalue = 0
     block_writeback_plan%reconstructed_patch_count = 0
@@ -3120,9 +3249,313 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%catalog_size = size(block_catalog)
     block_writeback_plan%domain_count = size(grid)
     block_writeback_plan%installed_block_count = n_local_blocks()
+    call build_block_domain_boundary_plan
     block_writeback_plan%ready = .true.
 
   end subroutine build_block_writeback_plan
+
+
+  subroutine build_block_domain_boundary_plan
+    ! Extend the persistent block routes with the variable-size compact
+    ! boundary manifest and Domain-owner-to-final-owner payload buffers.
+
+    implicit none
+
+    integer :: b
+    integer :: boundary_index
+    integer :: elts_start
+    integer :: ierr
+    integer :: n_boundary
+    integer :: n_node
+    integer :: pos
+    integer :: r
+    integer :: slot
+    integer :: source_bdry
+
+    integer, allocatable :: metadata_recv_count(:)
+    integer, allocatable :: metadata_recv_displ(:)
+    integer, allocatable :: metadata_send_count(:)
+    integer, allocatable :: metadata_send_displ(:)
+
+    allocate(block_writeback_plan%send_boundary_count( &
+         max(1,block_writeback_plan%n_send)))
+    allocate(block_writeback_plan%recv_boundary_count( &
+         max(1,block_writeback_plan%n_recv)))
+    allocate(block_writeback_plan%send_boundary_displ( &
+         max(1,block_writeback_plan%n_send)))
+    allocate(block_writeback_plan%recv_boundary_displ( &
+         max(1,block_writeback_plan%n_recv)))
+    allocate(block_writeback_plan%send_boundary_scalar_nvalue( &
+         max(1,block_writeback_plan%n_send)))
+    allocate(block_writeback_plan%recv_boundary_scalar_nvalue( &
+         max(1,block_writeback_plan%n_recv)))
+    allocate(block_writeback_plan%send_boundary_vector_nvalue( &
+         max(1,block_writeback_plan%n_send)))
+    allocate(block_writeback_plan%recv_boundary_vector_nvalue( &
+         max(1,block_writeback_plan%n_recv)))
+
+    block_writeback_plan%send_boundary_count = 0
+    block_writeback_plan%recv_boundary_count = 0
+    block_writeback_plan%send_boundary_displ = 0
+    block_writeback_plan%recv_boundary_displ = 0
+    block_writeback_plan%send_boundary_scalar_nvalue = 0
+    block_writeback_plan%recv_boundary_scalar_nvalue = 0
+    block_writeback_plan%send_boundary_vector_nvalue = 0
+    block_writeback_plan%recv_boundary_vector_nvalue = 0
+
+    do slot = 1,block_writeback_plan%n_send
+       b = block_writeback_plan%send_block(slot)
+       n_boundary = local_block_boundary_count(b)
+       block_writeback_plan%send_boundary_count(slot) = n_boundary
+       do boundary_index = 1,n_boundary
+          block_writeback_plan%send_boundary_scalar_nvalue(slot) = &
+               block_writeback_plan%send_boundary_scalar_nvalue(slot) + &
+               local_block_scalar_family_boundary_nvalue( &
+               b,boundary_index)
+          block_writeback_plan%send_boundary_vector_nvalue(slot) = &
+               block_writeback_plan%send_boundary_vector_nvalue(slot) + &
+               local_block_vector_family_boundary_nvalue( &
+               b,boundary_index)
+       end do
+    end do
+
+    call MPI_Alltoallv( &
+         block_writeback_plan%send_boundary_count, &
+         block_writeback_plan%send_count, &
+         block_writeback_plan%send_displ,MPI_INTEGER, &
+         block_writeback_plan%recv_boundary_count, &
+         block_writeback_plan%recv_count, &
+         block_writeback_plan%recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv boundary record counts")
+    call MPI_Alltoallv( &
+         block_writeback_plan%send_boundary_scalar_nvalue, &
+         block_writeback_plan%send_count, &
+         block_writeback_plan%send_displ,MPI_INTEGER, &
+         block_writeback_plan%recv_boundary_scalar_nvalue, &
+         block_writeback_plan%recv_count, &
+         block_writeback_plan%recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary extents")
+    call MPI_Alltoallv( &
+         block_writeback_plan%send_boundary_vector_nvalue, &
+         block_writeback_plan%send_count, &
+         block_writeback_plan%send_displ,MPI_INTEGER, &
+         block_writeback_plan%recv_boundary_vector_nvalue, &
+         block_writeback_plan%recv_count, &
+         block_writeback_plan%recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv vector boundary extents")
+
+    do slot = 2,block_writeback_plan%n_send
+       block_writeback_plan%send_boundary_displ(slot) = &
+            block_writeback_plan%send_boundary_displ(slot-1) + &
+            block_writeback_plan%send_boundary_count(slot-1)
+    end do
+    do slot = 2,block_writeback_plan%n_recv
+       block_writeback_plan%recv_boundary_displ(slot) = &
+            block_writeback_plan%recv_boundary_displ(slot-1) + &
+            block_writeback_plan%recv_boundary_count(slot-1)
+    end do
+    block_writeback_plan%n_send_boundary = 0
+    if (block_writeback_plan%n_send > 0) then
+       block_writeback_plan%n_send_boundary = &
+            block_writeback_plan%send_boundary_displ( &
+            block_writeback_plan%n_send) + &
+            block_writeback_plan%send_boundary_count( &
+            block_writeback_plan%n_send)
+    end if
+    block_writeback_plan%n_recv_boundary = 0
+    if (block_writeback_plan%n_recv > 0) then
+       block_writeback_plan%n_recv_boundary = &
+            block_writeback_plan%recv_boundary_displ( &
+            block_writeback_plan%n_recv) + &
+            block_writeback_plan%recv_boundary_count( &
+            block_writeback_plan%n_recv)
+    end if
+
+    allocate(block_writeback_plan%send_boundary_source( &
+         max(1,block_writeback_plan%n_send_boundary)))
+    allocate(block_writeback_plan%recv_boundary_source( &
+         max(1,block_writeback_plan%n_recv_boundary)))
+    allocate(block_writeback_plan%send_boundary_nnode( &
+         max(1,block_writeback_plan%n_send_boundary)))
+    allocate(block_writeback_plan%recv_boundary_nnode( &
+         max(1,block_writeback_plan%n_recv_boundary)))
+    block_writeback_plan%send_boundary_source = 0
+    block_writeback_plan%recv_boundary_source = 0
+    block_writeback_plan%send_boundary_nnode = 0
+    block_writeback_plan%recv_boundary_nnode = 0
+
+    do slot = 1,block_writeback_plan%n_send
+       b = block_writeback_plan%send_block(slot)
+       do boundary_index = 1, &
+            block_writeback_plan%send_boundary_count(slot)
+          pos = block_writeback_plan%send_boundary_displ(slot) + &
+               boundary_index
+          call get_local_block_boundary_source( &
+               b,boundary_index,source_bdry,elts_start,n_node)
+          block_writeback_plan%send_boundary_source(pos) = source_bdry
+          block_writeback_plan%send_boundary_nnode(pos) = n_node
+       end do
+    end do
+
+    allocate(metadata_send_count(n_process))
+    allocate(metadata_recv_count(n_process))
+    allocate(metadata_send_displ(n_process))
+    allocate(metadata_recv_displ(n_process))
+    metadata_send_count = 0
+    metadata_recv_count = 0
+    metadata_send_displ = 0
+    metadata_recv_displ = 0
+    do r = 1,n_process
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          metadata_send_count(r) = metadata_send_count(r) + &
+               block_writeback_plan%send_boundary_count(slot)
+       end do
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r) + &
+            block_writeback_plan%recv_count(r)
+          metadata_recv_count(r) = metadata_recv_count(r) + &
+               block_writeback_plan%recv_boundary_count(slot)
+       end do
+    end do
+    do r = 2,n_process
+       metadata_send_displ(r) = metadata_send_displ(r-1) + &
+            metadata_send_count(r-1)
+       metadata_recv_displ(r) = metadata_recv_displ(r-1) + &
+            metadata_recv_count(r-1)
+    end do
+    if (sum(metadata_send_count) /= &
+         block_writeback_plan%n_send_boundary .or. &
+         sum(metadata_recv_count) /= &
+         block_writeback_plan%n_recv_boundary) then
+       call fail("boundary metadata extent mismatch")
+    end if
+
+    call MPI_Alltoallv( &
+         block_writeback_plan%send_boundary_source, &
+         metadata_send_count,metadata_send_displ,MPI_INTEGER, &
+         block_writeback_plan%recv_boundary_source, &
+         metadata_recv_count,metadata_recv_displ,MPI_INTEGER, &
+         comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv boundary source manifest")
+    call MPI_Alltoallv( &
+         block_writeback_plan%send_boundary_nnode, &
+         metadata_send_count,metadata_send_displ,MPI_INTEGER, &
+         block_writeback_plan%recv_boundary_nnode, &
+         metadata_recv_count,metadata_recv_displ,MPI_INTEGER, &
+         comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv boundary node manifest")
+
+    allocate( &
+         block_writeback_plan%boundary_scalar_domain_send_count( &
+         n_process))
+    allocate( &
+         block_writeback_plan%boundary_scalar_domain_send_displ( &
+         n_process))
+    allocate( &
+         block_writeback_plan%boundary_scalar_block_recv_count( &
+         n_process))
+    allocate( &
+         block_writeback_plan%boundary_scalar_block_recv_displ( &
+         n_process))
+    allocate( &
+         block_writeback_plan%boundary_vector_domain_send_count( &
+         n_process))
+    allocate( &
+         block_writeback_plan%boundary_vector_domain_send_displ( &
+         n_process))
+    allocate( &
+         block_writeback_plan%boundary_vector_block_recv_count( &
+         n_process))
+    allocate( &
+         block_writeback_plan%boundary_vector_block_recv_displ( &
+         n_process))
+    block_writeback_plan%boundary_scalar_domain_send_count = 0
+    block_writeback_plan%boundary_scalar_domain_send_displ = 0
+    block_writeback_plan%boundary_scalar_block_recv_count = 0
+    block_writeback_plan%boundary_scalar_block_recv_displ = 0
+    block_writeback_plan%boundary_vector_domain_send_count = 0
+    block_writeback_plan%boundary_vector_domain_send_displ = 0
+    block_writeback_plan%boundary_vector_block_recv_count = 0
+    block_writeback_plan%boundary_vector_block_recv_displ = 0
+
+    do r = 1,n_process
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r) + &
+            block_writeback_plan%recv_count(r)
+          block_writeback_plan%boundary_scalar_domain_send_count(r) = &
+               block_writeback_plan% &
+               boundary_scalar_domain_send_count(r) + &
+               block_writeback_plan%recv_boundary_scalar_nvalue(slot)
+          block_writeback_plan%boundary_vector_domain_send_count(r) = &
+               block_writeback_plan% &
+               boundary_vector_domain_send_count(r) + &
+               block_writeback_plan%recv_boundary_vector_nvalue(slot)
+       end do
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          block_writeback_plan%boundary_scalar_block_recv_count(r) = &
+               block_writeback_plan%boundary_scalar_block_recv_count(r) + &
+               block_writeback_plan%send_boundary_scalar_nvalue(slot)
+          block_writeback_plan%boundary_vector_block_recv_count(r) = &
+               block_writeback_plan%boundary_vector_block_recv_count(r) + &
+               block_writeback_plan%send_boundary_vector_nvalue(slot)
+       end do
+    end do
+    do r = 2,n_process
+       block_writeback_plan%boundary_scalar_domain_send_displ(r) = &
+            block_writeback_plan% &
+            boundary_scalar_domain_send_displ(r-1) + &
+            block_writeback_plan% &
+            boundary_scalar_domain_send_count(r-1)
+       block_writeback_plan%boundary_scalar_block_recv_displ(r) = &
+            block_writeback_plan% &
+            boundary_scalar_block_recv_displ(r-1) + &
+            block_writeback_plan% &
+            boundary_scalar_block_recv_count(r-1)
+       block_writeback_plan%boundary_vector_domain_send_displ(r) = &
+            block_writeback_plan% &
+            boundary_vector_domain_send_displ(r-1) + &
+            block_writeback_plan% &
+            boundary_vector_domain_send_count(r-1)
+       block_writeback_plan%boundary_vector_block_recv_displ(r) = &
+            block_writeback_plan% &
+            boundary_vector_block_recv_displ(r-1) + &
+            block_writeback_plan% &
+            boundary_vector_block_recv_count(r-1)
+    end do
+
+    allocate( &
+         block_writeback_plan%boundary_scalar_domain_send_buffer( &
+         max(1,sum(block_writeback_plan% &
+         boundary_scalar_domain_send_count))))
+    allocate( &
+         block_writeback_plan%boundary_scalar_block_recv_buffer( &
+         max(1,sum(block_writeback_plan% &
+         boundary_scalar_block_recv_count))))
+    allocate( &
+         block_writeback_plan%boundary_vector_domain_send_buffer( &
+         max(1,sum(block_writeback_plan% &
+         boundary_vector_domain_send_count))))
+    allocate( &
+         block_writeback_plan%boundary_vector_block_recv_buffer( &
+         max(1,sum(block_writeback_plan% &
+         boundary_vector_block_recv_count))))
+    block_writeback_plan%buffer_allocations = &
+         block_writeback_plan%buffer_allocations + 4_int64
+    block_writeback_plan%boundary_scalar_domain_send_buffer = 0.0_dp
+    block_writeback_plan%boundary_scalar_block_recv_buffer = 0.0_dp
+    block_writeback_plan%boundary_vector_domain_send_buffer = 0.0_dp
+    block_writeback_plan%boundary_vector_block_recv_buffer = 0.0_dp
+
+    deallocate(metadata_recv_displ)
+    deallocate(metadata_recv_count)
+    deallocate(metadata_send_displ)
+    deallocate(metadata_send_count)
+
+  end subroutine build_block_domain_boundary_plan
 
 
   logical function block_writeback_plan_is_ready () result(ready)
@@ -3138,6 +3571,22 @@ end subroutine build_parallel_block_catalog
     if (block_writeback_plan%domain_count /= size(grid)) return
     if (block_writeback_plan%installed_block_count /= &
          n_local_blocks()) return
+    if (.not. allocated( &
+         block_writeback_plan%send_boundary_count)) return
+    if (.not. allocated( &
+         block_writeback_plan%recv_boundary_count)) return
+    if (.not. allocated( &
+         block_writeback_plan%send_boundary_source)) return
+    if (.not. allocated( &
+         block_writeback_plan%recv_boundary_source)) return
+    if (.not. allocated( &
+         block_writeback_plan%boundary_scalar_domain_send_buffer)) return
+    if (.not. allocated( &
+         block_writeback_plan%boundary_scalar_block_recv_buffer)) return
+    if (.not. allocated( &
+         block_writeback_plan%boundary_vector_domain_send_buffer)) return
+    if (.not. allocated( &
+         block_writeback_plan%boundary_vector_block_recv_buffer)) return
     ready = .true.
 
   end function block_writeback_plan_is_ready
@@ -4411,6 +4860,428 @@ end subroutine build_parallel_block_catalog
   end subroutine import_domain_field_family_to_blocks
 
 
+  subroutine import_domain_boundary_field_family_to_blocks ( &
+       payload_family,verify_current)
+    ! Install one complete Domain boundary prognostic family in final-owner
+    ! compact boundary storage. Remote payloads reuse the persistent
+    ! boundary manifest and buffers; retained blocks use a direct path.
+
+    implicit none
+
+    integer, intent(in) :: payload_family
+    logical, optional, intent(in) :: verify_current
+
+    integer :: b
+    integer :: boundary_index
+    integer :: d
+    integer :: elts_start
+    integer :: ierr
+    integer :: local_index
+    integer :: metadata_pos
+    integer :: n_boundary
+    integer :: n_node
+    integer :: n_scalar
+    integer :: n_vector
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: slot
+    integer :: source
+    integer :: source_bdry
+
+    logical :: check_current
+    logical :: plan_ready
+
+    check_current = .false.
+    if (present(verify_current)) check_current = verify_current
+    plan_ready = block_writeback_plan_is_ready()
+    if (.not. plan_ready) then
+       call fail("Domain boundary import before plan is ready")
+    end if
+    if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+         payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+       call fail("invalid Domain boundary import family")
+    end if
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       d = 0
+       source = source_rank(b)
+       n_boundary = local_block_boundary_count(b)
+       if (source == rank) then
+          d = loc_id(block_catalog(b)%root_domain+1) + 1
+          if (d < 1 .or. d > size(grid)) then
+             call fail("Domain boundary preflight has invalid Domain")
+          end if
+       end if
+       do boundary_index = 1,n_boundary
+          call get_local_block_boundary_source( &
+               b,boundary_index,source_bdry,elts_start,n_node)
+          n_scalar = local_block_scalar_family_boundary_nvalue( &
+               b,boundary_index)
+          n_vector = local_block_vector_family_boundary_nvalue( &
+               b,boundary_index)
+          if (n_scalar > &
+               size(ghost_exchange_plan%scalar_patch_buffer) .or. &
+               n_vector > &
+               size(ghost_exchange_plan%vector_patch_buffer)) then
+             call fail("Domain boundary preflight scratch extent")
+          end if
+          if (source == rank) then
+             if (source_bdry < 0 .or. &
+                  source_bdry >= grid(d)%bdry_patch%length) then
+                call fail("Domain boundary preflight source is invalid")
+             end if
+             if (grid(d)%bdry_patch%elts(source_bdry+1)%elts_start /= &
+                  elts_start) then
+                call fail("Domain boundary preflight offset changed")
+             end if
+          end if
+       end do
+    end do
+
+    block_writeback_plan%boundary_scalar_domain_send_buffer = 0.0_dp
+    block_writeback_plan%boundary_scalar_block_recv_buffer = 0.0_dp
+    block_writeback_plan%boundary_vector_domain_send_buffer = 0.0_dp
+    block_writeback_plan%boundary_vector_block_recv_buffer = 0.0_dp
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan% &
+            boundary_scalar_domain_send_displ(r) + 1
+       pos_vector = block_writeback_plan% &
+            boundary_vector_domain_send_displ(r) + 1
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r) + &
+            block_writeback_plan%recv_count(r)
+          b = block_writeback_plan%recv_block(slot)
+          source = source_rank(b)
+          if (source /= rank .or. block_catalog(b)%owner /= r-1) then
+             call fail("Domain boundary import route mismatch")
+          end if
+          d = loc_id(block_catalog(b)%root_domain+1) + 1
+          if (d < 1 .or. d > size(grid)) then
+             call fail("Domain boundary import has invalid local Domain")
+          end if
+          do boundary_index = 1, &
+               block_writeback_plan%recv_boundary_count(slot)
+             metadata_pos = &
+                  block_writeback_plan%recv_boundary_displ(slot) + &
+                  boundary_index
+             source_bdry = &
+                  block_writeback_plan%recv_boundary_source(metadata_pos)
+             n_node = &
+                  block_writeback_plan%recv_boundary_nnode(metadata_pos)
+             n_scalar = n_node * &
+                  block_writeback_plan%scalar_patch_nvalue / &
+                  PATCH_SIZE**2
+             n_vector = n_node * &
+                  block_writeback_plan%vector_patch_nvalue / &
+                  PATCH_SIZE**2
+             call pack_domain_boundary_prognostic( &
+                  d,source_bdry,n_node,payload_family, &
+                  block_writeback_plan% &
+                  boundary_scalar_domain_send_buffer( &
+                  pos_scalar:pos_scalar+n_scalar-1), &
+                  block_writeback_plan% &
+                  boundary_vector_domain_send_buffer( &
+                  pos_vector:pos_vector+n_vector-1))
+             pos_scalar = pos_scalar + n_scalar
+             pos_vector = pos_vector + n_vector
+          end do
+       end do
+       if (pos_scalar /= block_writeback_plan% &
+            boundary_scalar_domain_send_displ(r) + &
+            block_writeback_plan% &
+            boundary_scalar_domain_send_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan% &
+            boundary_vector_domain_send_displ(r) + &
+            block_writeback_plan% &
+            boundary_vector_domain_send_count(r) + 1) then
+          call fail("Domain boundary packed extent mismatch")
+       end if
+    end do
+
+    call MPI_Alltoallv( &
+         block_writeback_plan%boundary_scalar_domain_send_buffer, &
+         block_writeback_plan%boundary_scalar_domain_send_count, &
+         block_writeback_plan%boundary_scalar_domain_send_displ, &
+         MPI_DOUBLE_PRECISION, &
+         block_writeback_plan%boundary_scalar_block_recv_buffer, &
+         block_writeback_plan%boundary_scalar_block_recv_count, &
+         block_writeback_plan%boundary_scalar_block_recv_displ, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv Domain scalar boundary payload")
+    call MPI_Alltoallv( &
+         block_writeback_plan%boundary_vector_domain_send_buffer, &
+         block_writeback_plan%boundary_vector_domain_send_count, &
+         block_writeback_plan%boundary_vector_domain_send_displ, &
+         MPI_DOUBLE_PRECISION, &
+         block_writeback_plan%boundary_vector_block_recv_buffer, &
+         block_writeback_plan%boundary_vector_block_recv_count, &
+         block_writeback_plan%boundary_vector_block_recv_displ, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv Domain vector boundary payload")
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan% &
+            boundary_scalar_block_recv_displ(r) + 1
+       pos_vector = block_writeback_plan% &
+            boundary_vector_block_recv_displ(r) + 1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          n_boundary = local_block_boundary_count(b)
+          if (n_boundary /= &
+               block_writeback_plan%send_boundary_count(slot)) then
+             call fail("Domain boundary destination layout changed")
+          end if
+          do boundary_index = 1,n_boundary
+             n_scalar = &
+                  local_block_scalar_family_boundary_nvalue( &
+                  b,boundary_index)
+             n_vector = &
+                  local_block_vector_family_boundary_nvalue( &
+                  b,boundary_index)
+             if (n_scalar > &
+                  size(ghost_exchange_plan%scalar_patch_buffer) .or. &
+                  n_vector > &
+                  size(ghost_exchange_plan%vector_patch_buffer)) then
+                call fail("remote boundary scratch extent is invalid")
+             end if
+             if (check_current) then
+                call get_local_block_scalar_boundary_family_values( &
+                     b,boundary_index,payload_family, &
+                     ghost_exchange_plan% &
+                     scalar_patch_buffer(1:n_scalar))
+                if (any(abs(ghost_exchange_plan% &
+                     scalar_patch_buffer(1:n_scalar) - &
+                     block_writeback_plan% &
+                     boundary_scalar_block_recv_buffer( &
+                     pos_scalar:pos_scalar+n_scalar-1)) > 0.0_dp)) then
+                   call fail("remote scalar Domain boundary mismatch")
+                end if
+                call get_local_block_vector_boundary_family_values( &
+                     b,boundary_index,payload_family, &
+                     ghost_exchange_plan% &
+                     vector_patch_buffer(1:n_vector))
+                if (any(abs(ghost_exchange_plan% &
+                     vector_patch_buffer(1:n_vector) - &
+                     block_writeback_plan% &
+                     boundary_vector_block_recv_buffer( &
+                     pos_vector:pos_vector+n_vector-1)) > 0.0_dp)) then
+                   call fail("remote vector Domain boundary mismatch")
+                end if
+             end if
+             call set_local_block_scalar_boundary_family_values( &
+                  b,boundary_index,payload_family, &
+                  block_writeback_plan% &
+                  boundary_scalar_block_recv_buffer( &
+                  pos_scalar:pos_scalar+n_scalar-1))
+             call set_local_block_vector_boundary_family_values( &
+                  b,boundary_index,payload_family, &
+                  block_writeback_plan% &
+                  boundary_vector_block_recv_buffer( &
+                  pos_vector:pos_vector+n_vector-1))
+             pos_scalar = pos_scalar + n_scalar
+             pos_vector = pos_vector + n_vector
+          end do
+       end do
+       if (pos_scalar /= block_writeback_plan% &
+            boundary_scalar_block_recv_displ(r) + &
+            block_writeback_plan% &
+            boundary_scalar_block_recv_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan% &
+            boundary_vector_block_recv_displ(r) + &
+            block_writeback_plan% &
+            boundary_vector_block_recv_count(r) + 1) then
+          call fail("Domain boundary consumed extent mismatch")
+       end if
+    end do
+
+    do slot = 1,n_local_blocks()
+       b = local_block_catalog(slot)
+       source = source_rank(b)
+       if (source /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("retained boundary import has invalid Domain")
+       end if
+       n_boundary = local_block_boundary_count(b)
+       do boundary_index = 1,n_boundary
+          call get_local_block_boundary_source( &
+               b,boundary_index,source_bdry,elts_start,n_node)
+          if (source_bdry < 0 .or. &
+               source_bdry >= grid(d)%bdry_patch%length) then
+             call fail("retained boundary import source is invalid")
+          end if
+          if (grid(d)%bdry_patch%elts(source_bdry+1)%elts_start /= &
+               elts_start) then
+             call fail("retained boundary source offset changed")
+          end if
+          n_scalar = local_block_scalar_family_boundary_nvalue( &
+               b,boundary_index)
+          n_vector = local_block_vector_family_boundary_nvalue( &
+               b,boundary_index)
+          if (n_scalar > &
+               size(ghost_exchange_plan%scalar_patch_buffer) .or. &
+               n_vector > &
+               size(ghost_exchange_plan%vector_patch_buffer)) then
+             call fail("retained boundary scratch extent is invalid")
+          end if
+          call pack_domain_boundary_prognostic( &
+               d,source_bdry,n_node,payload_family, &
+               ghost_exchange_plan%scalar_patch_buffer(1:n_scalar), &
+               ghost_exchange_plan%vector_patch_buffer(1:n_vector))
+          if (check_current) then
+             call compare_retained_boundary( &
+                  b,boundary_index,payload_family,n_scalar,n_vector)
+          end if
+          call set_local_block_scalar_boundary_family_values( &
+               b,boundary_index,payload_family, &
+               ghost_exchange_plan%scalar_patch_buffer(1:n_scalar))
+          call set_local_block_vector_boundary_family_values( &
+               b,boundary_index,payload_family, &
+               ghost_exchange_plan%vector_patch_buffer(1:n_vector))
+       end do
+    end do
+
+  contains
+
+    subroutine compare_retained_boundary ( &
+         b,boundary_index,payload_family,n_scalar,n_vector)
+
+      implicit none
+
+      integer, intent(in) :: b
+      integer, intent(in) :: boundary_index
+      integer, intent(in) :: payload_family
+      integer, intent(in) :: n_scalar
+      integer, intent(in) :: n_vector
+
+      real(dp) :: scalar_current(n_scalar)
+      real(dp) :: vector_current(n_vector)
+
+      call get_local_block_scalar_boundary_family_values( &
+           b,boundary_index,payload_family,scalar_current)
+      if (any(abs(scalar_current - &
+           ghost_exchange_plan%scalar_patch_buffer(1:n_scalar)) > &
+           0.0_dp)) then
+         call fail("retained scalar Domain boundary mismatch")
+      end if
+      call get_local_block_vector_boundary_family_values( &
+           b,boundary_index,payload_family,vector_current)
+      if (any(abs(vector_current - &
+           ghost_exchange_plan%vector_patch_buffer(1:n_vector)) > &
+           0.0_dp)) then
+         call fail("retained vector Domain boundary mismatch")
+      end if
+
+    end subroutine compare_retained_boundary
+
+  end subroutine import_domain_boundary_field_family_to_blocks
+
+
+  subroutine pack_domain_boundary_prognostic ( &
+       d,source_bdry,n_node,payload_family,scalar_payload,vector_payload)
+    ! Pack one authoritative Domain compact boundary in the same
+    ! variable/level/component order used by Block_Data boundary storage.
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: source_bdry
+    integer, intent(in) :: n_node
+    integer, intent(in) :: payload_family
+    real(dp), intent(out) :: scalar_payload(:)
+    real(dp), intent(out) :: vector_payload(:)
+
+    integer :: field_level
+    integer :: first_field_level
+    integer :: level_slot
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: old_start
+    integer :: output_base
+    integer :: scalar_id
+    integer :: scalar_slot
+    integer :: v_scalar
+    integer :: v_vector
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (d < 1 .or. d > size(grid) .or. &
+         source_bdry < 0 .or. &
+         source_bdry >= grid(d)%bdry_patch%length .or. &
+         n_node < 1) then
+       call fail("Domain boundary pack address is invalid")
+    end if
+    if (size(scalar_payload) /= &
+         n_scalar_variable*n_field_level*mult_scalar*n_node .or. &
+         size(vector_payload) /= &
+         n_field_level*mult_vector*n_node) then
+       call fail("Domain boundary pack payload extent is invalid")
+    end if
+    if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+         payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+       call fail("Domain boundary pack family is invalid")
+    end if
+    scalar_payload = 0.0_dp
+    vector_payload = 0.0_dp
+    old_start = grid(d)%bdry_patch%elts(source_bdry+1)%elts_start
+    if (old_start < 0 .or. &
+         old_start+n_node > grid(d)%node%length) then
+       call fail("Domain boundary pack source extent is invalid")
+    end if
+
+    do scalar_slot = 1,n_scalar_variable
+       scalar_id = v_scalar + scalar_slot - 1
+       do level_slot = 1,n_field_level
+          field_level = first_field_level + level_slot - 1
+          output_base = ((scalar_slot-1)*n_field_level + &
+               level_slot-1)*mult_scalar*n_node
+          select case (payload_family)
+          case (BLOCK_PAYLOAD_SOL)
+             scalar_payload(output_base+1: &
+                  output_base+mult_scalar*n_node) = &
+                  sol(scalar_id,field_level)%data(d)%elts( &
+                  mult_scalar*old_start+1: &
+                  mult_scalar*(old_start+n_node))
+          case (BLOCK_PAYLOAD_WAV_COEFF)
+             scalar_payload(output_base+1: &
+                  output_base+mult_scalar*n_node) = &
+                  wav_coeff(scalar_id,field_level)%data(d)%elts( &
+                  mult_scalar*old_start+1: &
+                  mult_scalar*(old_start+n_node))
+          end select
+       end do
+    end do
+
+    do level_slot = 1,n_field_level
+       field_level = first_field_level + level_slot - 1
+       output_base = (level_slot-1)*mult_vector*n_node
+       select case (payload_family)
+       case (BLOCK_PAYLOAD_SOL)
+          vector_payload(output_base+1: &
+               output_base+mult_vector*n_node) = &
+               sol(v_vector,field_level)%data(d)%elts( &
+               mult_vector*old_start+1: &
+               mult_vector*(old_start+n_node))
+       case (BLOCK_PAYLOAD_WAV_COEFF)
+          vector_payload(output_base+1: &
+               output_base+mult_vector*n_node) = &
+               wav_coeff(v_vector,field_level)%data(d)%elts( &
+               mult_vector*old_start+1: &
+               mult_vector*(old_start+n_node))
+       end select
+    end do
+
+  end subroutine pack_domain_boundary_prognostic
+
+
   subroutine check_domain_field_family_block_import (verbose)
     ! Poison and exactly restore both prognostic families through the
     ! production Domain-to-final-block installation entry point.
@@ -4543,24 +5414,151 @@ end subroutine build_parallel_block_catalog
   end subroutine check_domain_field_family_block_import
 
 
+  subroutine check_domain_boundary_field_family_block_import (verbose)
+    ! Poison and exactly restore both compact boundary prognostic families
+    ! through the persistent Domain-owner-to-final-owner boundary routes.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: boundary_index
+    integer :: ierr
+    integer :: local_index
+    integer :: n_boundary
+
+    integer(int64) :: allocation_before
+    integer(int64) :: global_boundary_count
+    integer(int64) :: global_scalar_count
+    integer(int64) :: global_vector_count
+    integer(int64) :: local_boundary_count
+    integer(int64) :: local_scalar_count
+    integer(int64) :: local_vector_count
+    integer(int64) :: writeback_before
+
+    logical :: print_summary
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    allocation_before = block_writeback_plan_allocation_count()
+    writeback_before = block_domain_production_writeback_count()
+
+    call check_family(BLOCK_PAYLOAD_SOL)
+    call check_family(BLOCK_PAYLOAD_WAV_COEFF)
+
+    if (block_writeback_plan_allocation_count() /= &
+         allocation_before) then
+       call fail("Domain boundary import reallocated persistent buffers")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         writeback_before) then
+       call fail("Domain boundary import modified Domain fields")
+    end if
+
+    local_boundary_count = 0_int64
+    local_scalar_count = 0_int64
+    local_vector_count = 0_int64
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       n_boundary = local_block_boundary_count(b)
+       local_boundary_count = local_boundary_count + &
+            int(n_boundary,int64)
+       do boundary_index = 1,n_boundary
+          local_scalar_count = local_scalar_count + int( &
+               local_block_scalar_family_boundary_nvalue( &
+               b,boundary_index),int64)
+          local_vector_count = local_vector_count + int( &
+               local_block_vector_family_boundary_nvalue( &
+               b,boundary_index),int64)
+       end do
+    end do
+    call MPI_Allreduce(local_boundary_count,global_boundary_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain boundary records")
+    call MPI_Allreduce(local_scalar_count,global_scalar_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain scalar boundary values")
+    call MPI_Allreduce(local_vector_count,global_vector_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain vector boundary values")
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Domain boundary block import for rank ",rank,":"
+       write(6,'(a,i0)') "  imported local boundary records = ", &
+            local_boundary_count
+       write(6,'(a)') &
+            "  exact scalar/vector sol boundary import passed"
+       write(6,'(a)') &
+            "  exact scalar/vector wav_coeff boundary import passed"
+       write(6,'(a,/)') &
+            "  repeated persistent boundary-buffer reuse passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global Domain boundary records imported = ", &
+            global_boundary_count
+       write(6,'(a,i0)') &
+            "Global scalar Domain boundary values imported = ", &
+            global_scalar_count
+       write(6,'(a,i0)') &
+            "Global vector Domain boundary values imported = ", &
+            global_vector_count
+       write(6,'(a,/)') &
+            "Transactional Domain boundary prognostic import passed"
+    end if
+
+  contains
+
+    subroutine check_family (payload_family)
+
+      implicit none
+
+      integer, intent(in) :: payload_family
+
+      call fill_local_block_scalar_boundary_family_values( &
+           payload_family,BLOCK_BOUNDARY_POISON)
+      call fill_local_block_vector_boundary_family_values( &
+           payload_family,-BLOCK_BOUNDARY_POISON)
+      call import_domain_boundary_field_family_to_blocks( &
+           payload_family,.false.)
+      call import_domain_boundary_field_family_to_blocks( &
+           payload_family,.true.)
+
+    end subroutine check_family
+
+  end subroutine check_domain_boundary_field_family_block_import
+
+
   subroutine refresh_parallel_block_domain_prognostic_state
-    ! Refresh the complete sol and wav_coeff patch interiors from the
-    ! authoritative Domain representation after its wavelet transform.
-    ! Persistent transport and staging allocations are retained.
+    ! Refresh complete sol and wav_coeff interiors, compact boundaries,
+    ! and inter-block ghosts from the authoritative Domain representation
+    ! after its wavelet transform. Persistent allocations are retained.
 
     implicit none
 
     integer :: b
+    integer :: boundary_index
     integer :: ierr
     integer :: local_index
+    integer :: n_boundary
     integer :: n_patch
     integer :: scalar_ghost_recv_size_before
     integer :: scalar_ghost_send_size_before
     integer :: vector_ghost_recv_size_before
     integer :: vector_ghost_send_size_before
 
+    integer(int64) :: global_boundary_count
+    integer(int64) :: global_boundary_scalar_count
+    integer(int64) :: global_boundary_vector_count
     integer(int64) :: global_ghost_count
     integer(int64) :: global_patch_count
+    integer(int64) :: local_boundary_count
+    integer(int64) :: local_boundary_scalar_count
+    integer(int64) :: local_boundary_vector_count
     integer(int64) :: local_ghost_count
     integer(int64) :: local_patch_count
     integer(int64) :: production_writeback_before
@@ -4596,6 +5594,15 @@ end subroutine build_parallel_block_catalog
     call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
     call assert_block_domain_field_family_match( &
          BLOCK_PAYLOAD_WAV_COEFF)
+
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.false.)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_WAV_COEFF,.false.)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.true.)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_WAV_COEFF,.true.)
 
     call refresh_block_sol_wav_coeff_ghosts
     call exchange_block_scalar_ghost_payloads( &
@@ -4646,14 +5653,41 @@ end subroutine build_parallel_block_catalog
     end if
 
     local_patch_count = 0_int64
+    local_boundary_count = 0_int64
+    local_boundary_scalar_count = 0_int64
+    local_boundary_vector_count = 0_int64
     do local_index = 1,n_local_blocks()
        b = local_block_catalog(local_index)
        n_patch = local_block_patch_count(b)
        local_patch_count = local_patch_count + int(n_patch,int64)
+       n_boundary = local_block_boundary_count(b)
+       local_boundary_count = local_boundary_count + &
+            int(n_boundary,int64)
+       do boundary_index = 1,n_boundary
+          local_boundary_scalar_count = &
+               local_boundary_scalar_count + int( &
+               local_block_scalar_family_boundary_nvalue( &
+               b,boundary_index),int64)
+          local_boundary_vector_count = &
+               local_boundary_vector_count + int( &
+               local_block_vector_family_boundary_nvalue( &
+               b,boundary_index),int64)
+       end do
     end do
     call MPI_Allreduce(local_patch_count,global_patch_count,1, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce production Domain refresh patches")
+    call MPI_Allreduce(local_boundary_count,global_boundary_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce production boundary records")
+    call MPI_Allreduce( &
+         local_boundary_scalar_count,global_boundary_scalar_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce production scalar boundaries")
+    call MPI_Allreduce( &
+         local_boundary_vector_count,global_boundary_vector_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce production vector boundaries")
     local_ghost_count = int(ghost_exchange_plan%n_request,int64)
     call MPI_Allreduce(local_ghost_count,global_ghost_count,1, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
@@ -4670,12 +5704,27 @@ end subroutine build_parallel_block_catalog
             "Global post-wavelet Domain refresh patches = ", &
             global_patch_count
        write(6,'(a,i0)') &
+            "Global post-wavelet Domain boundary records = ", &
+            global_boundary_count
+       write(6,'(a,i0)') &
+            "Global post-wavelet scalar boundary values = ", &
+            global_boundary_scalar_count
+       write(6,'(a,i0)') &
+            "Global post-wavelet vector boundary values = ", &
+            global_boundary_vector_count
+       write(6,'(a,i0)') &
             "Global post-wavelet block ghost patches = ", &
             global_ghost_count
        write(6,'(a)') &
             "  exact sol patch-interior refresh passed"
        write(6,'(a)') &
             "  exact wav_coeff patch-interior refresh passed"
+       write(6,'(a)') &
+            "  exact scalar/vector sol boundary refresh passed"
+       write(6,'(a)') &
+            "  exact scalar/vector wav_coeff boundary refresh passed"
+       write(6,'(a)') &
+            "  repeated persistent boundary-buffer reuse passed"
        write(6,'(a)') &
             "  exact scalar/vector sol ghost refresh passed"
        write(6,'(a)') &
@@ -4688,6 +5737,8 @@ end subroutine build_parallel_block_catalog
        end if
        write(6,'(a)') &
             "Post-wavelet block prognostic ghost refresh passed"
+       write(6,'(a)') &
+            "Post-wavelet block prognostic boundary refresh passed"
        write(6,'(a,/)') &
             "Post-wavelet Domain-to-block prognostic refresh passed"
     end if
@@ -13400,7 +14451,7 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan_allocation_count()
     stage_allocation_after_rebuild = &
          block_writeback_plan%stage_allocations
-    if (allocation_after_rebuild /= allocation_before+4_int64) then
+    if (allocation_after_rebuild /= allocation_before+8_int64) then
        call fail("writeback plan lifecycle allocation count mismatch")
     end if
     if (stage_allocation_after_rebuild /= &

@@ -292,6 +292,7 @@ module parallel_block_mod
   public :: get_local_block_ghost_requests
   public :: local_block_patch_count
   public :: local_block_boundary_count
+  public :: get_local_block_boundary_source
   public :: local_block_ghost_count
   public :: local_block_scalar_patch_nvalue
   public :: local_block_scalar_family_patch_nvalue
@@ -2994,6 +2995,44 @@ integer function local_block_boundary_count (catalog_index) &
   n_boundary = size(block_local(local_index)%bdry_storage)
 
 end function local_block_boundary_count
+
+
+subroutine get_local_block_boundary_source ( &
+     catalog_index,boundary_index,source_bdry,elts_start,n_node)
+  ! Return the authoritative Domain-boundary address represented by one
+  ! compact boundary record in a locally owned final block.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: boundary_index
+  integer, intent(out) :: source_bdry
+  integer, intent(out) :: elts_start
+  integer, intent(out) :: n_node
+
+  integer :: local_index
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop "get_local_block_boundary_source: block is not local"
+  end if
+  if (boundary_index < 1 .or. &
+       boundary_index > size(block_local(local_index)%bdry_storage)) then
+     error stop "get_local_block_boundary_source: invalid boundary"
+  end if
+
+  source_bdry = block_local(local_index)% &
+       bdry_storage(boundary_index)%source_bdry
+  elts_start = block_local(local_index)% &
+       bdry_storage(boundary_index)%elts_start
+  n_node = block_local(local_index)% &
+       bdry_storage(boundary_index)%n_node
+
+  if (source_bdry < 0 .or. elts_start < 0 .or. n_node < 1) then
+     error stop "get_local_block_boundary_source: invalid source"
+  end if
+
+end subroutine get_local_block_boundary_source
 
 
 integer function local_block_ghost_count (catalog_index) result(n_ghost)
