@@ -4554,8 +4554,14 @@ end subroutine build_parallel_block_catalog
     integer :: ierr
     integer :: local_index
     integer :: n_patch
+    integer :: scalar_ghost_recv_size_before
+    integer :: scalar_ghost_send_size_before
+    integer :: vector_ghost_recv_size_before
+    integer :: vector_ghost_send_size_before
 
+    integer(int64) :: global_ghost_count
     integer(int64) :: global_patch_count
+    integer(int64) :: local_ghost_count
     integer(int64) :: local_patch_count
     integer(int64) :: production_writeback_before
     integer(int64) :: stage_allocation_before
@@ -4576,12 +4582,30 @@ end subroutine build_parallel_block_catalog
     stage_allocation_before = block_writeback_plan%stage_allocations
     production_writeback_before = &
          block_domain_production_writeback_count()
+    scalar_ghost_send_size_before = &
+         size(ghost_exchange_plan%scalar_send_buffer)
+    scalar_ghost_recv_size_before = &
+         size(ghost_exchange_plan%scalar_recv_buffer)
+    vector_ghost_send_size_before = &
+         size(ghost_exchange_plan%vector_send_buffer)
+    vector_ghost_recv_size_before = &
+         size(ghost_exchange_plan%vector_recv_buffer)
 
     call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_SOL)
     call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_WAV_COEFF)
     call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
     call assert_block_domain_field_family_match( &
          BLOCK_PAYLOAD_WAV_COEFF)
+
+    call refresh_block_sol_wav_coeff_ghosts
+    call exchange_block_scalar_ghost_payloads( &
+         BLOCK_PAYLOAD_SOL,.false.,.true.)
+    call exchange_block_vector_ghost_payloads( &
+         BLOCK_PAYLOAD_SOL,.false.,.true.)
+    call exchange_block_scalar_ghost_payloads( &
+         BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
+    call exchange_block_vector_ghost_payloads( &
+         BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
 
     tendency_ready = local_block_tendency_state_ready()
     accumulator_ready = &
@@ -4610,6 +4634,16 @@ end subroutine build_parallel_block_catalog
          production_writeback_before) then
        call fail("Domain prognostic refresh modified Domain fields")
     end if
+    if (size(ghost_exchange_plan%scalar_send_buffer) /= &
+         scalar_ghost_send_size_before .or. &
+         size(ghost_exchange_plan%scalar_recv_buffer) /= &
+         scalar_ghost_recv_size_before .or. &
+         size(ghost_exchange_plan%vector_send_buffer) /= &
+         vector_ghost_send_size_before .or. &
+         size(ghost_exchange_plan%vector_recv_buffer) /= &
+         vector_ghost_recv_size_before) then
+       call fail("Domain prognostic refresh resized ghost buffers")
+    end if
 
     local_patch_count = 0_int64
     do local_index = 1,n_local_blocks()
@@ -4620,6 +4654,10 @@ end subroutine build_parallel_block_catalog
     call MPI_Allreduce(local_patch_count,global_patch_count,1, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce production Domain refresh patches")
+    local_ghost_count = int(ghost_exchange_plan%n_request,int64)
+    call MPI_Allreduce(local_ghost_count,global_ghost_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce production ghost refresh patches")
 
     block_writeback_plan%production_domain_refresh_count = &
          block_writeback_plan%production_domain_refresh_count + 1_int64
@@ -4631,14 +4669,25 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,i0)') &
             "Global post-wavelet Domain refresh patches = ", &
             global_patch_count
+       write(6,'(a,i0)') &
+            "Global post-wavelet block ghost patches = ", &
+            global_ghost_count
        write(6,'(a)') &
             "  exact sol patch-interior refresh passed"
        write(6,'(a)') &
             "  exact wav_coeff patch-interior refresh passed"
+       write(6,'(a)') &
+            "  exact scalar/vector sol ghost refresh passed"
+       write(6,'(a)') &
+            "  exact scalar/vector wav_coeff ghost refresh passed"
+       write(6,'(a)') &
+            "  repeated persistent ghost-buffer reuse passed"
        if (compressible) then
           write(6,'(a)') &
                "  hydrostatic state current after refresh"
        end if
+       write(6,'(a)') &
+            "Post-wavelet block prognostic ghost refresh passed"
        write(6,'(a,/)') &
             "Post-wavelet Domain-to-block prognostic refresh passed"
     end if
