@@ -57,7 +57,8 @@ module main_mod
   use parallel_block_build_mod, only : build_source_blocks
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
-       clear_parallel_block_state, migrate_blocks
+       clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
+       migrate_blocks
 
 #ifdef PHYSICS
   use init_physics_mod,  only : init_physics, init_soil_grid
@@ -387,6 +388,10 @@ contains
     implicit none
     integer(8) :: idt, ialign
     logical    :: save_data 
+
+    ! The production integrator below still updates Domain storage directly.
+    ! Invalidate its read-only parallel-block shadow before the first update.
+    call invalidate_parallel_block_domain_shadow
 
     ! New time step
     istep       = istep       + 1
