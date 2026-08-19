@@ -60,6 +60,7 @@ module main_mod
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
        preview_block_domain_trend_step, &
+       prepare_parallel_block_grid_change, &
        refresh_parallel_block_domain_prognostic_state, &
        migrate_blocks
 
@@ -432,10 +433,15 @@ contains
        end if
     end if
 
-    ! The accepted Euler update and Domain wavelet transform have been
-    ! synchronized to block patch interiors. Remaining physics, adaptation
-    ! and remapping operators are not represented in blocks yet.
-    call invalidate_parallel_block_domain_shadow
+    ! Materialize the current block shadow transactionally before legacy
+    ! physics, adaptation and remapping can change Domain fields or topology.
+    ! If no complete shadow exists, retain the idempotent cleanup path.
+    block_state_ready = parallel_block_state_is_ready()
+    if (block_state_ready) then
+       call prepare_parallel_block_grid_change
+    else
+       call invalidate_parallel_block_domain_shadow
+    end if
 
     if (mode_split) then
        call dt_step_split (dt)

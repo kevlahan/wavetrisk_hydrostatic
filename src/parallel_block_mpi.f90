@@ -546,12 +546,31 @@ contains
        call fail("grid-change preparation before block state is ready")
     end if
 
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_WAV_COEFF)
     call synchronize_parallel_block_checkpoint
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_WAV_COEFF)
     call clear_parallel_block_state
 
     state_ready = parallel_block_state_is_ready()
     if (state_ready) then
        call fail("grid-change preparation retained stale block state")
+    end if
+
+    if (rank == 0) then
+       write(6,'(/,a)') &
+            "Production block grid-change preparation:"
+       write(6,'(a)') &
+            "  exact sol/wav_coeff Domain match before synchronization"
+       write(6,'(a)') &
+            "  both prognostic field families synchronized"
+       write(6,'(a)') &
+            "  topology-dependent block state released"
+       write(6,'(a,/)') &
+            "Production block grid-change preparation passed"
     end if
 
   end subroutine prepare_parallel_block_grid_change
