@@ -243,16 +243,19 @@ module parallel_block_mod
   integer, allocatable, public :: block_received_catalog_index(:)
   integer, allocatable :: block_local_catalog_index(:)
   integer, allocatable :: block_catalog_local_index(:)
+  integer, allocatable :: block_tendency_import_patch_count(:)
 
   logical :: block_store_ready = .false.
   logical :: block_hydrostatic_ready = .false.
   integer(int64) :: block_hydrostatic_refreshes = 0_int64
   logical :: block_tendency_ready = .false.
+  logical :: block_tendency_import_active = .false.
   logical :: block_tendency_trial_active = .false.
   logical :: block_tendency_commit_checkpoint_ready = .false.
   logical :: block_tendency_accumulator_ready = .false.
   integer(int64) :: block_tendency_executions = 0_int64
   integer(int64) :: block_tendency_allocations = 0_int64
+  integer(int64) :: block_tendency_import_allocations = 0_int64
   integer(int64) :: block_tendency_accumulator_allocations = 0_int64
   integer(int64) :: block_tendency_accumulator_stages = 0_int64
 
@@ -349,9 +352,16 @@ module parallel_block_mod
   public :: Local_Block_Tendency_Consumer
   public :: apply_local_block_tendency_consumer
   public :: local_block_tendency_state_ready
+  public :: invalidate_local_block_tendency_products
   public :: local_block_tendency_execution_count
   public :: local_block_tendency_allocation_count
   public :: local_block_tendency_statistics
+  public :: begin_local_block_tendency_import
+  public :: set_local_block_tendency_patch_values
+  public :: finish_local_block_tendency_import
+  public :: get_local_block_tendency_patch_values
+  public :: local_block_tendency_import_is_active
+  public :: local_block_tendency_import_allocation_count
   public :: reset_local_block_tendency_accumulator
   public :: accumulate_local_block_tendency
   public :: begin_local_block_accumulated_tendency_trial
@@ -1087,6 +1097,305 @@ subroutine prepare_local_block_tendency_state
 end subroutine prepare_local_block_tendency_state
 
 
+subroutine begin_local_block_tendency_import
+  ! Begin a guarded whole-store import into persistent tendency arrays.
+
+  implicit none
+
+  integer :: local_index
+
+  if (block_tendency_import_active) then
+     error stop "begin_local_block_tendency_import: import is active"
+  end if
+  if (block_tendency_trial_active .or. &
+       block_tendency_commit_checkpoint_ready) then
+     error stop &
+          "begin_local_block_tendency_import: transaction pending"
+  end if
+
+  call prepare_local_block_tendency_state
+
+  if (allocated(block_tendency_import_patch_count)) then
+     if (size(block_tendency_import_patch_count) /= &
+          size(block_local)) then
+        deallocate(block_tendency_import_patch_count)
+     end if
+  end if
+  if (.not. allocated(block_tendency_import_patch_count)) then
+     allocate(block_tendency_import_patch_count(size(block_local)))
+     block_tendency_import_allocations = &
+          block_tendency_import_allocations + 1_int64
+  end if
+
+  block_tendency_import_patch_count = 0
+  block_tendency_ready = .false.
+  do local_index = 1,size(block_tendency)
+     block_tendency(local_index)%ready = .false.
+     block_tendency(local_index)%scalar = 0.0_dp
+     block_tendency(local_index)%vector = 0.0_dp
+  end do
+  block_tendency_import_active = .true.
+
+end subroutine begin_local_block_tendency_import
+
+
+subroutine set_local_block_tendency_patch_values ( &
+     catalog_index,local_patch,scalar_value,vector_value)
+  ! Install one compact patch during an active preorder import.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: local_patch
+  real(dp), intent(in) :: scalar_value(:)
+  real(dp), intent(in) :: vector_value(:)
+
+  integer :: field_base
+  integer :: input_base
+  integer :: expected_scalar_nvalue
+  integer :: expected_vector_nvalue
+  integer :: level_slot
+  integer :: local_index
+  integer :: n_node
+  integer :: n_patch_value
+  integer :: patch_start
+  integer :: scalar_slot
+
+  if (.not. block_tendency_import_active) then
+     error stop &
+          "set_local_block_tendency_patch_values: no active import"
+  end if
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "set_local_block_tendency_patch_values: block is not local"
+  end if
+  if (local_patch < 0 .or. &
+       local_patch >= size(block_local(local_index)%patch)) then
+     error stop &
+          "set_local_block_tendency_patch_values: invalid patch"
+  end if
+  if (local_patch /= &
+       block_tendency_import_patch_count(local_index)) then
+     error stop &
+          "set_local_block_tendency_patch_values: patch order mismatch"
+  end if
+  expected_scalar_nvalue = &
+       local_block_scalar_family_patch_nvalue(catalog_index)
+  expected_vector_nvalue = &
+       local_block_vector_family_patch_nvalue(catalog_index)
+  if (size(scalar_value) /= expected_scalar_nvalue .or. &
+       size(vector_value) /= expected_vector_nvalue) then
+     error stop &
+          "set_local_block_tendency_patch_values: payload extent"
+  end if
+
+  n_node = size(block_local(local_index)%node)
+  patch_start = &
+       block_local(local_index)%patch(local_patch+1)%elts_start
+  if (patch_start < 0 .or. &
+       patch_start+PATCH_SIZE**2 > n_node) then
+     error stop &
+          "set_local_block_tendency_patch_values: patch storage"
+  end if
+
+  n_patch_value = &
+       block_local(local_index)%scalar_mult*PATCH_SIZE**2
+  do scalar_slot = 1, &
+       block_local(local_index)%n_scalar_variable
+     do level_slot = 1, &
+          block_local(local_index)%n_field_level
+        field_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1)* &
+             block_local(local_index)%scalar_mult*n_node
+        input_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1)*n_patch_value
+        block_tendency(local_index)%scalar( &
+             field_base + &
+             block_local(local_index)%scalar_mult*patch_start + 1: &
+             field_base + &
+             block_local(local_index)%scalar_mult*patch_start + &
+             n_patch_value) = &
+             scalar_value(input_base+1:input_base+n_patch_value)
+     end do
+  end do
+
+  n_patch_value = &
+       block_local(local_index)%vector_mult*PATCH_SIZE**2
+  do level_slot = 1,block_local(local_index)%n_field_level
+     field_base = (level_slot-1)* &
+          block_local(local_index)%vector_mult*n_node
+     input_base = (level_slot-1)*n_patch_value
+     block_tendency(local_index)%vector( &
+          field_base + &
+          block_local(local_index)%vector_mult*patch_start + 1: &
+          field_base + &
+          block_local(local_index)%vector_mult*patch_start + &
+          n_patch_value) = &
+          vector_value(input_base+1:input_base+n_patch_value)
+  end do
+
+  block_tendency_import_patch_count(local_index) = &
+       block_tendency_import_patch_count(local_index) + 1
+
+end subroutine set_local_block_tendency_patch_values
+
+
+subroutine finish_local_block_tendency_import
+  ! Commit readiness only after every local patch was imported exactly once.
+
+  implicit none
+
+  integer :: local_index
+
+  if (.not. block_tendency_import_active) then
+     error stop "finish_local_block_tendency_import: no active import"
+  end if
+
+  do local_index = 1,size(block_local)
+     if (block_tendency_import_patch_count(local_index) /= &
+          size(block_local(local_index)%patch)) then
+        error stop &
+             "finish_local_block_tendency_import: incomplete block"
+     end if
+     block_tendency(local_index)%ready = .true.
+     block_tendency(local_index)%generation = &
+          block_tendency(local_index)%generation + 1_int64
+  end do
+
+  block_tendency_import_active = .false.
+  block_tendency_ready = all(block_tendency%ready)
+  if (.not. local_block_tendency_state_ready()) then
+     error stop &
+          "finish_local_block_tendency_import: state not ready"
+  end if
+
+end subroutine finish_local_block_tendency_import
+
+
+subroutine get_local_block_tendency_patch_values ( &
+     catalog_index,local_patch,scalar_value,vector_value)
+  ! Read one imported/kernel-produced tendency patch in compact field order.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: local_patch
+  real(dp), intent(out) :: scalar_value(:)
+  real(dp), intent(out) :: vector_value(:)
+
+  integer :: field_base
+  integer :: expected_scalar_nvalue
+  integer :: expected_vector_nvalue
+  integer :: level_slot
+  integer :: local_index
+  integer :: n_node
+  integer :: n_patch_value
+  integer :: output_base
+  integer :: patch_start
+  integer :: scalar_slot
+
+  if (.not. local_block_tendency_state_ready()) then
+     error stop &
+          "get_local_block_tendency_patch_values: state not ready"
+  end if
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "get_local_block_tendency_patch_values: block is not local"
+  end if
+  if (local_patch < 0 .or. &
+       local_patch >= size(block_local(local_index)%patch)) then
+     error stop &
+          "get_local_block_tendency_patch_values: invalid patch"
+  end if
+  expected_scalar_nvalue = &
+       local_block_scalar_family_patch_nvalue(catalog_index)
+  expected_vector_nvalue = &
+       local_block_vector_family_patch_nvalue(catalog_index)
+  if (size(scalar_value) /= expected_scalar_nvalue .or. &
+       size(vector_value) /= expected_vector_nvalue) then
+     error stop &
+          "get_local_block_tendency_patch_values: output extent"
+  end if
+
+  n_node = size(block_local(local_index)%node)
+  patch_start = &
+       block_local(local_index)%patch(local_patch+1)%elts_start
+  if (patch_start < 0 .or. &
+       patch_start+PATCH_SIZE**2 > n_node) then
+     error stop &
+          "get_local_block_tendency_patch_values: patch storage"
+  end if
+
+  n_patch_value = &
+       block_local(local_index)%scalar_mult*PATCH_SIZE**2
+  do scalar_slot = 1, &
+       block_local(local_index)%n_scalar_variable
+     do level_slot = 1, &
+          block_local(local_index)%n_field_level
+        field_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1)* &
+             block_local(local_index)%scalar_mult*n_node
+        output_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1)*n_patch_value
+        scalar_value(output_base+1:output_base+n_patch_value) = &
+             block_tendency(local_index)%scalar( &
+             field_base + &
+             block_local(local_index)%scalar_mult*patch_start + 1: &
+             field_base + &
+             block_local(local_index)%scalar_mult*patch_start + &
+             n_patch_value)
+     end do
+  end do
+
+  n_patch_value = &
+       block_local(local_index)%vector_mult*PATCH_SIZE**2
+  do level_slot = 1,block_local(local_index)%n_field_level
+     field_base = (level_slot-1)* &
+          block_local(local_index)%vector_mult*n_node
+     output_base = (level_slot-1)*n_patch_value
+     vector_value(output_base+1:output_base+n_patch_value) = &
+          block_tendency(local_index)%vector( &
+          field_base + &
+          block_local(local_index)%vector_mult*patch_start + 1: &
+          field_base + &
+          block_local(local_index)%vector_mult*patch_start + &
+          n_patch_value)
+  end do
+
+end subroutine get_local_block_tendency_patch_values
+
+
+logical function local_block_tendency_import_is_active () result(active)
+
+  implicit none
+
+  active = block_tendency_import_active
+
+end function local_block_tendency_import_is_active
+
+
+integer(int64) function local_block_tendency_import_allocation_count () &
+     result(n_allocation)
+
+  implicit none
+
+  n_allocation = block_tendency_import_allocations
+
+end function local_block_tendency_import_allocation_count
+
+
 subroutine apply_local_block_tendency_kernel (kernel,context)
   ! Execute one writable production kernel across every local block.
   ! Output arrays are persistent, zeroed before use and kept separate from
@@ -1100,6 +1409,10 @@ subroutine apply_local_block_tendency_kernel (kernel,context)
   integer :: catalog_index
   integer :: local_index
 
+  if (block_tendency_import_active) then
+     error stop &
+          "apply_local_block_tendency_kernel: import is active"
+  end if
   if (block_tendency_trial_active) then
      error stop &
           "apply_local_block_tendency_kernel: trial is active"
@@ -1197,6 +1510,10 @@ subroutine prepare_local_block_tendency_accumulator
   if (.not. local_block_store_ready()) then
      error stop &
           "prepare_local_block_tendency_accumulator: store not ready"
+  end if
+  if (block_tendency_import_active) then
+     error stop &
+          "prepare_local_block_tendency_accumulator: import active"
   end if
   if (block_tendency_trial_active .or. &
        block_tendency_commit_checkpoint_ready) then
@@ -1328,6 +1645,7 @@ logical function local_block_tendency_accumulator_state_ready () &
   integer :: local_index
 
   ready = .false.
+  if (block_tendency_import_active) return
   if (.not. local_block_store_ready()) return
   if (.not. block_tendency_accumulator_ready) return
   if (.not. allocated(block_tendency_accumulator)) return
@@ -1851,6 +2169,34 @@ logical function local_block_tendency_trial_is_active () result(active)
 end function local_block_tendency_trial_is_active
 
 
+subroutine invalidate_local_block_tendency_products
+  ! Mark tendency and accumulated-stage products stale after authoritative
+  ! block sol is replaced from an external Domain representation.
+
+  implicit none
+
+  integer :: local_index
+
+  if (block_tendency_import_active .or. &
+       block_tendency_trial_active .or. &
+       block_tendency_commit_checkpoint_ready) then
+     error stop &
+          "invalidate_local_block_tendency_products: transaction pending"
+  end if
+
+  block_tendency_ready = .false.
+  if (allocated(block_tendency)) then
+     do local_index = 1,size(block_tendency)
+        block_tendency(local_index)%ready = .false.
+     end do
+  end if
+
+  block_tendency_accumulator_ready = .false.
+  block_tendency_accumulator_stages = 0_int64
+
+end subroutine invalidate_local_block_tendency_products
+
+
 logical function local_block_tendency_state_ready () result(ready)
   ! Report whether every current local block has a complete tendency output.
 
@@ -1859,6 +2205,7 @@ logical function local_block_tendency_state_ready () result(ready)
   integer :: local_index
 
   ready = .false.
+  if (block_tendency_import_active) return
   if (.not. local_block_store_ready()) return
   if (.not. block_tendency_ready) return
   if (.not. allocated(block_tendency)) return
@@ -6323,21 +6670,27 @@ subroutine clear_local_block_tendency_state
   implicit none
 
   block_tendency_ready = .false.
+  block_tendency_import_active = .false.
   block_tendency_trial_active = .false.
   block_tendency_commit_checkpoint_ready = .false.
   block_tendency_accumulator_ready = .false.
   block_tendency_executions = 0_int64
   block_tendency_allocations = 0_int64
+  block_tendency_import_allocations = 0_int64
   block_tendency_accumulator_allocations = 0_int64
   block_tendency_accumulator_stages = 0_int64
 
   if (allocated(block_tendency)) deallocate(block_tendency)
+  if (allocated(block_tendency_import_patch_count)) then
+     deallocate(block_tendency_import_patch_count)
+  end if
   if (allocated(block_tendency_trial)) deallocate(block_tendency_trial)
   if (allocated(block_tendency_accumulator)) then
      deallocate(block_tendency_accumulator)
   end if
 
   if (allocated(block_tendency) .or. &
+       allocated(block_tendency_import_patch_count) .or. &
        allocated(block_tendency_trial) .or. &
        allocated(block_tendency_accumulator)) then
      error stop "clear_local_block_tendency_state: cleanup failed"

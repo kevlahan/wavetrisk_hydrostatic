@@ -96,9 +96,16 @@ module parallel_block_mpi_mod
        apply_local_block_tendency_kernel, &
        apply_local_block_tendency_consumer, &
        local_block_tendency_state_ready, &
+       invalidate_local_block_tendency_products, &
        local_block_tendency_execution_count, &
        local_block_tendency_allocation_count, &
        local_block_tendency_statistics, &
+       begin_local_block_tendency_import, &
+       set_local_block_tendency_patch_values, &
+       finish_local_block_tendency_import, &
+       get_local_block_tendency_patch_values, &
+       local_block_tendency_import_is_active, &
+       local_block_tendency_import_allocation_count, &
        reset_local_block_tendency_accumulator, &
        accumulate_local_block_tendency, &
        begin_local_block_accumulated_tendency_trial, &
@@ -236,6 +243,8 @@ module parallel_block_mpi_mod
      integer(int64) :: buffer_allocations = 0_int64
      integer(int64) :: stage_allocations = 0_int64
      integer(int64) :: production_writeback_count = 0_int64
+     integer(int64) :: production_preview_count = 0_int64
+     integer(int64) :: production_euler_step_count = 0_int64
      logical :: ready = .false.
   end type Block_Writeback_Plan_Type
 
@@ -344,7 +353,16 @@ module parallel_block_mpi_mod
   public :: check_block_writeback_payload_exchange
   public :: exchange_domain_to_block_payloads
   public :: check_domain_to_block_payload_exchange
+  public :: import_domain_field_family_to_blocks
+  public :: check_domain_field_family_block_import
   public :: check_domain_trend_roundtrip
+  public :: import_domain_trend_to_block_tendency
+  public :: check_domain_trend_tendency_import
+  public :: begin_block_domain_trend_step
+  public :: complete_block_domain_trend_step
+  public :: preview_block_domain_trend_step
+  public :: advance_block_domain_trend_euler
+  public :: check_block_domain_trend_step
   public :: check_block_writeback_domain_reconstruction
   public :: block_writeback_plan_is_ready
   public :: block_writeback_plan_allocation_count
@@ -1301,7 +1319,10 @@ end subroutine build_parallel_block_catalog
     call check_parallel_block_lifecycle(print_local)
     call check_parallel_block_scaling(print_local)
     call check_domain_to_block_payload_exchange(print_local)
+    call check_domain_field_family_block_import(print_local)
     call check_domain_trend_roundtrip(print_local)
+    call check_domain_trend_tendency_import(print_local)
+    call check_block_domain_trend_step(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -2742,6 +2763,8 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%reconstructed_patch_count = 0
     block_writeback_plan%preserved_patch_count = 0
     block_writeback_plan%production_writeback_count = 0_int64
+    block_writeback_plan%production_preview_count = 0_int64
+    block_writeback_plan%production_euler_step_count = 0_int64
     block_writeback_plan%ready = .false.
 
   end subroutine clear_block_writeback_plan
@@ -4123,6 +4146,400 @@ end subroutine build_parallel_block_catalog
   end subroutine check_domain_to_block_payload_exchange
 
 
+  subroutine import_domain_field_family_to_blocks (payload_family)
+    ! Preflight and install one complete Domain prognostic family into every
+    ! final-owner block patch using the persistent reverse-route buffers.
+
+    implicit none
+
+    integer, intent(in) :: payload_family
+
+    integer :: b
+    integer :: d
+    integer :: expected_patch_count
+    integer :: imported_patch_count
+    integer :: local_index
+    integer :: local_patch
+    integer :: n_patch
+    integer :: n_scalar_patch
+    integer :: n_vector_patch
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: source
+    integer :: slot
+
+    logical :: checkpoint_ready
+    logical :: import_active
+    logical :: plan_ready
+    logical :: store_ready
+    logical :: trial_active
+
+    store_ready = local_block_store_ready()
+    plan_ready = block_writeback_plan_is_ready()
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    import_active = local_block_tendency_import_is_active()
+    if (.not. store_ready .or. .not. plan_ready) then
+       call fail("Domain prognostic import before block state is ready")
+    end if
+    if (trial_active .or. checkpoint_ready .or. import_active) then
+       call fail("Domain prognostic import found a pending transaction")
+    end if
+    if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+         payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+       call fail("invalid Domain prognostic import family")
+    end if
+    if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer)) then
+       call fail("Domain prognostic scalar patch buffer is not allocated")
+    end if
+    if (.not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
+       call fail("Domain prognostic vector patch buffer is not allocated")
+    end if
+    if (size(ghost_exchange_plan%scalar_patch_buffer) /= &
+         block_writeback_plan%scalar_patch_nvalue .or. &
+         size(ghost_exchange_plan%vector_patch_buffer) /= &
+         block_writeback_plan%vector_patch_nvalue) then
+       call fail("Domain prognostic import patch layout mismatch")
+    end if
+
+    expected_patch_count = 0
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(b)
+       n_scalar_patch = local_block_scalar_family_patch_nvalue(b)
+       n_vector_patch = local_block_vector_family_patch_nvalue(b)
+       if (n_patch < 1 .or. &
+            n_scalar_patch /= &
+            block_writeback_plan%scalar_patch_nvalue .or. &
+            n_vector_patch /= &
+            block_writeback_plan%vector_patch_nvalue) then
+          call fail("Domain prognostic local block layout mismatch")
+       end if
+       expected_patch_count = expected_patch_count + n_patch
+
+       r = source_rank(b)
+       if (r == rank) then
+          d = loc_id(block_catalog(b)%root_domain+1) + 1
+          if (d < 1 .or. d > size(grid)) then
+             call fail("Domain prognostic retained Domain is invalid")
+          end if
+          local_patch = 0
+          call count_retained_subtree( &
+               d,block_catalog(b)%root_patch,local_patch)
+          if (local_patch /= n_patch) then
+             call fail("Domain prognostic retained coverage mismatch")
+          end if
+       end if
+    end do
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+       pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          source = source_rank(b)
+          if (source /= r-1 .or. &
+               block_catalog(b)%owner /= rank) then
+             call fail("Domain prognostic reverse route mismatch")
+          end if
+          n_patch = local_block_patch_count(b)
+          pos_scalar = pos_scalar + n_patch* &
+               block_writeback_plan%scalar_patch_nvalue
+          pos_vector = pos_vector + n_patch* &
+               block_writeback_plan%vector_patch_nvalue
+       end do
+       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+            block_writeback_plan%scalar_send_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+            block_writeback_plan%vector_send_count(r) + 1) then
+          call fail("Domain prognostic reverse buffer extent mismatch")
+       end if
+    end do
+
+    call exchange_domain_to_block_payloads(payload_family)
+
+    imported_patch_count = 0
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       r = source_rank(b)
+       if (r /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+       local_patch = 0
+       call import_retained_subtree( &
+            d,block_catalog(b)%root_patch,b,local_patch)
+       if (local_patch /= local_block_patch_count(b)) then
+          call fail("retained Domain prognostic import is incomplete")
+       end if
+       imported_patch_count = imported_patch_count + local_patch
+    end do
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+       pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          n_patch = local_block_patch_count(b)
+          do local_patch = 0,n_patch-1
+             if (pos_scalar < 1 .or. pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue - 1 > &
+                  size(block_writeback_plan%scalar_send_buffer) .or. &
+                  pos_vector < 1 .or. pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue - 1 > &
+                  size(block_writeback_plan%vector_send_buffer)) then
+                call fail("Domain prognostic import payload is truncated")
+             end if
+             call set_local_block_scalar_patch_family_values( &
+                  b,local_patch,payload_family, &
+                  block_writeback_plan%scalar_send_buffer( &
+                  pos_scalar:pos_scalar+ &
+                  block_writeback_plan%scalar_patch_nvalue-1))
+             call set_local_block_vector_patch_family_values( &
+                  b,local_patch,payload_family, &
+                  block_writeback_plan%vector_send_buffer( &
+                  pos_vector:pos_vector+ &
+                  block_writeback_plan%vector_patch_nvalue-1))
+             pos_scalar = pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue
+             pos_vector = pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue
+          end do
+          imported_patch_count = imported_patch_count + n_patch
+       end do
+       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+            block_writeback_plan%scalar_send_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+            block_writeback_plan%vector_send_count(r) + 1) then
+          call fail("Domain prognostic import consumed wrong buffer extent")
+       end if
+    end do
+
+    if (imported_patch_count /= expected_patch_count) then
+       call fail("Domain prognostic import local coverage mismatch")
+    end if
+    if (payload_family == BLOCK_PAYLOAD_SOL) then
+       call invalidate_local_block_tendency_products
+    end if
+
+  contains
+
+    recursive subroutine count_retained_subtree (d,p,n_patch)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(inout) :: n_patch
+
+      integer :: c
+      integer :: p_child
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("Domain prognostic retained patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+      if (.not. domain_patch_prognostic_extent_is_valid( &
+           d,p,payload_family)) then
+         call fail("Domain prognostic retained extent is invalid")
+      end if
+      n_patch = n_patch + 1
+      do c = 1,N_CHDRN
+         p_child = grid(d)%patch%elts(p+1)%children(c)
+         if (p_child <= 0) cycle
+         call count_retained_subtree(d,p_child,n_patch)
+      end do
+
+    end subroutine count_retained_subtree
+
+
+    recursive subroutine import_retained_subtree ( &
+         d,p,b,local_patch)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: b
+      integer, intent(inout) :: local_patch
+
+      integer :: c
+      integer :: p_child
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("retained Domain prognostic import patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,payload_family, &
+           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
+           ghost_exchange_plan%vector_patch_buffer,vector_pos)
+      if (scalar_pos /= &
+           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
+           vector_pos /= &
+           size(ghost_exchange_plan%vector_patch_buffer)+1) then
+         call fail("retained Domain prognostic patch extent mismatch")
+      end if
+      call set_local_block_scalar_patch_family_values( &
+           b,local_patch,payload_family, &
+           ghost_exchange_plan%scalar_patch_buffer)
+      call set_local_block_vector_patch_family_values( &
+           b,local_patch,payload_family, &
+           ghost_exchange_plan%vector_patch_buffer)
+      local_patch = local_patch + 1
+
+      do c = 1,N_CHDRN
+         p_child = grid(d)%patch%elts(p+1)%children(c)
+         if (p_child <= 0) cycle
+         call import_retained_subtree(d,p_child,b,local_patch)
+      end do
+
+    end subroutine import_retained_subtree
+
+  end subroutine import_domain_field_family_to_blocks
+
+
+  subroutine check_domain_field_family_block_import (verbose)
+    ! Poison and exactly restore both prognostic families through the
+    ! production Domain-to-final-block installation entry point.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: b
+    integer :: ierr
+    integer :: local_index
+    integer :: n_patch
+
+    integer(int64) :: global_patch_count
+    integer(int64) :: local_patch_count
+    integer(int64) :: production_writeback_before
+    integer(int64) :: stage_allocation_before
+    integer(int64) :: writeback_allocation_before
+
+    logical :: accumulator_ready
+    logical :: hydrostatic_ready
+    logical :: print_summary
+    logical :: tendency_ready
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. block_writeback_plan_is_ready()) then
+       call fail("Domain prognostic block import check before plan is ready")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    stage_allocation_before = block_writeback_plan%stage_allocations
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+
+    call check_family(BLOCK_PAYLOAD_SOL)
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (tendency_ready .or. accumulator_ready) then
+       call fail("sol block import retained stale tendency products")
+    end if
+    call check_family(BLOCK_PAYLOAD_WAV_COEFF)
+
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       hydrostatic_ready = local_block_hydrostatic_state_ready()
+       if (.not. hydrostatic_ready) then
+          call fail("Domain prognostic import hydrostatic refresh failed")
+       end if
+    end if
+
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("Domain prognostic import reallocated transport buffers")
+    end if
+    if (block_writeback_plan%stage_allocations /= &
+         stage_allocation_before) then
+       call fail("Domain prognostic import reallocated Domain staging")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("Domain prognostic import modified Domain fields")
+    end if
+
+    local_patch_count = 0_int64
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(b)
+       local_patch_count = local_patch_count + int( &
+            n_patch,int64)
+    end do
+    call MPI_Allreduce(local_patch_count,global_patch_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce prognostic import patches")
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Domain prognostic block import for rank ",rank,":"
+       write(6,'(a,i0)') "  imported local patches = ", &
+            local_patch_count
+       write(6,'(a)') "  exact scalar sol block import passed"
+       write(6,'(a)') "  exact vector sol block import passed"
+       write(6,'(a)') &
+            "  exact scalar wav_coeff block import passed"
+       write(6,'(a)') &
+            "  exact vector wav_coeff block import passed"
+       write(6,'(a)') &
+            "  complete final-owner patch coverage passed"
+       write(6,'(a)') &
+            "  stale tendency products invalidated after sol import"
+       if (compressible) then
+          write(6,'(a)') &
+               "  derived hydrostatic state refreshed after sol import"
+       end if
+       write(6,'(a,/)') &
+            "  repeated prognostic import buffer reuse passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global Domain prognostic block import patches = ", &
+            global_patch_count
+       write(6,'(a,/)') &
+            "Transactional Domain prognostic block import passed"
+    end if
+
+  contains
+
+    subroutine check_family (payload_family)
+
+      implicit none
+
+      integer, intent(in) :: payload_family
+
+      call fill_local_block_scalar_patch_family_values( &
+           payload_family,BLOCK_PATCH_POISON)
+      call fill_local_block_vector_patch_family_values( &
+           payload_family,-BLOCK_PATCH_POISON)
+      call import_domain_field_family_to_blocks(payload_family)
+      call assert_block_domain_field_family_match(payload_family)
+
+      call import_domain_field_family_to_blocks(payload_family)
+      call assert_block_domain_field_family_match(payload_family)
+
+    end subroutine check_family
+
+  end subroutine check_domain_field_family_block_import
+
+
   subroutine check_domain_trend_roundtrip (verbose)
     ! Exercise the production trend field layout over the reverse route and
     ! echo it to the Domain owner for an exact comparison. Deterministic tags
@@ -4255,6 +4672,1022 @@ end subroutine build_parallel_block_catalog
     end subroutine check_roundtrip
 
   end subroutine check_domain_trend_roundtrip
+
+
+  subroutine import_domain_trend_to_block_tendency
+    ! Import the complete Domain trend layout into persistent final-owner
+    ! tendency storage. Soil-level slots are the explicit zeros packed by
+    ! the Stage 78 field-layout transport.
+
+    implicit none
+
+    integer :: b
+    integer :: d
+    integer :: local_index
+    integer :: local_patch
+    integer :: n_patch
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: slot
+
+    logical :: plan_ready
+
+    plan_ready = block_writeback_plan_is_ready()
+    if (.not. plan_ready) then
+       call fail("trend tendency import before plan is ready")
+    end if
+    if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer)) then
+       call fail("retained scalar trend import buffer is not allocated")
+    end if
+    if (.not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
+       call fail("retained vector trend import buffer is not allocated")
+    end if
+    if (size(ghost_exchange_plan%scalar_patch_buffer) /= &
+         block_writeback_plan%scalar_patch_nvalue .or. &
+         size(ghost_exchange_plan%vector_patch_buffer) /= &
+         block_writeback_plan%vector_patch_nvalue) then
+       call fail("retained trend import patch layout mismatch")
+    end if
+
+    call exchange_domain_to_block_payloads(BLOCK_PAYLOAD_TREND)
+    call begin_local_block_tendency_import
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       r = source_rank(b)
+       if (r /= rank) cycle
+
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("retained trend import Domain is invalid")
+       end if
+       local_patch = 0
+       call import_retained_subtree( &
+            d,block_catalog(b)%root_patch,b,local_patch)
+       n_patch = local_block_patch_count(b)
+       if (local_patch /= n_patch) then
+          call fail("retained trend import patch coverage mismatch")
+       end if
+    end do
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+       pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          n_patch = local_block_patch_count(b)
+
+          do local_patch = 0,n_patch-1
+             if (pos_scalar < 1 .or. pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue - 1 > &
+                  size(block_writeback_plan%scalar_send_buffer) .or. &
+                  pos_vector < 1 .or. pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue - 1 > &
+                  size(block_writeback_plan%vector_send_buffer)) then
+                call fail("remote trend import payload is truncated")
+             end if
+
+             call set_local_block_tendency_patch_values( &
+                  b,local_patch, &
+                  block_writeback_plan%scalar_send_buffer( &
+                  pos_scalar:pos_scalar+ &
+                  block_writeback_plan%scalar_patch_nvalue-1), &
+                  block_writeback_plan%vector_send_buffer( &
+                  pos_vector:pos_vector+ &
+                  block_writeback_plan%vector_patch_nvalue-1))
+             pos_scalar = pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue
+             pos_vector = pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue
+          end do
+       end do
+
+       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+            block_writeback_plan%scalar_send_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+            block_writeback_plan%vector_send_count(r) + 1) then
+          call fail("remote trend import receive extent mismatch")
+       end if
+    end do
+
+    call finish_local_block_tendency_import
+    if (local_block_tendency_import_is_active()) then
+       call fail("trend tendency import remained active")
+    end if
+
+  contains
+
+    recursive subroutine import_retained_subtree ( &
+         d,p,b,local_patch)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: b
+      integer, intent(inout) :: local_patch
+
+      integer :: c
+      integer :: p_child
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("retained trend import patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,BLOCK_PAYLOAD_TREND, &
+           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
+           ghost_exchange_plan%vector_patch_buffer,vector_pos)
+      if (scalar_pos /= &
+           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
+           vector_pos /= &
+           size(ghost_exchange_plan%vector_patch_buffer)+1) then
+         call fail("retained trend import patch extent mismatch")
+      end if
+      call set_local_block_tendency_patch_values( &
+           b,local_patch,ghost_exchange_plan%scalar_patch_buffer, &
+           ghost_exchange_plan%vector_patch_buffer)
+      local_patch = local_patch + 1
+
+      do c = 1,N_CHDRN
+         p_child = grid(d)%patch%elts(p+1)%children(c)
+         if (p_child <= 0) cycle
+         call import_retained_subtree(d,p_child,b,local_patch)
+      end do
+
+    end subroutine import_retained_subtree
+
+  end subroutine import_domain_trend_to_block_tendency
+
+
+  subroutine check_domain_trend_tendency_import (verbose)
+    ! Validate exact imported patch values and repeated persistent reuse.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: global_patch
+    integer(int64) :: import_allocation_after_first
+    integer(int64) :: import_allocation_before
+    integer(int64) :: local_patch
+    integer(int64) :: tendency_allocation_after_first
+    integer(int64) :: tendency_allocation_before
+    integer(int64) :: writeback_allocation_before
+
+    logical :: print_summary
+
+    real(dp), allocatable :: actual_scalar(:)
+    real(dp), allocatable :: actual_vector(:)
+    real(dp), allocatable :: expected_scalar(:)
+    real(dp), allocatable :: expected_vector(:)
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    allocate(actual_scalar(block_writeback_plan%scalar_patch_nvalue))
+    allocate(actual_vector(block_writeback_plan%vector_patch_nvalue))
+    allocate(expected_scalar(block_writeback_plan%scalar_patch_nvalue))
+    allocate(expected_vector(block_writeback_plan%vector_patch_nvalue))
+
+    tendency_allocation_before = &
+         local_block_tendency_allocation_count()
+    import_allocation_before = &
+         local_block_tendency_import_allocation_count()
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+
+    call import_domain_trend_to_block_tendency
+    call validate_imported_tendency(local_patch)
+    tendency_allocation_after_first = &
+         local_block_tendency_allocation_count()
+    import_allocation_after_first = &
+         local_block_tendency_import_allocation_count()
+
+    call import_domain_trend_to_block_tendency
+    call validate_imported_tendency(local_patch)
+
+    if (local_block_tendency_allocation_count() /= &
+         tendency_allocation_after_first) then
+       call fail("repeated trend import reallocated tendency arrays")
+    end if
+    if (local_block_tendency_import_allocation_count() /= &
+         import_allocation_after_first) then
+       call fail("repeated trend import reallocated coverage storage")
+    end if
+    if (tendency_allocation_after_first < &
+         tendency_allocation_before .or. &
+         import_allocation_after_first < import_allocation_before) then
+       call fail("trend import allocation count regressed")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("trend import reallocated transport buffers")
+    end if
+
+    call MPI_Allreduce(local_patch,global_patch,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce imported trend patches")
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Domain trend tendency import for rank ",rank,":"
+       write(6,'(a,i0)') "  imported patches = ",local_patch
+       write(6,'(a)') "  exact scalar tendency patch comparison passed"
+       write(6,'(a)') "  exact vector tendency patch comparison passed"
+       write(6,'(a)') "  complete import transaction passed"
+       write(6,'(a,/)') "  repeated tendency import reuse passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global imported Domain trend patches = ",global_patch
+       write(6,'(a,/)') &
+            "Exact Domain trend-to-block tendency import passed"
+    end if
+
+    deallocate(expected_vector)
+    deallocate(expected_scalar)
+    deallocate(actual_vector)
+    deallocate(actual_scalar)
+
+  contains
+
+    subroutine validate_imported_tendency (patch_count)
+
+      implicit none
+
+      integer(int64), intent(out) :: patch_count
+
+      integer :: b
+      integer :: d
+      integer :: local_index
+      integer :: local_patch_index
+      integer :: n_patch
+      integer :: pos_scalar
+      integer :: pos_vector
+      integer :: r
+      integer :: slot
+
+      patch_count = 0_int64
+
+      do local_index = 1,n_local_blocks()
+         b = local_block_catalog(local_index)
+         r = source_rank(b)
+         if (r /= rank) cycle
+         d = loc_id(block_catalog(b)%root_domain+1) + 1
+         local_patch_index = 0
+         call compare_retained_subtree( &
+              d,block_catalog(b)%root_patch,b,local_patch_index)
+         n_patch = local_block_patch_count(b)
+         if (local_patch_index /= n_patch) then
+            call fail("retained imported trend coverage mismatch")
+         end if
+         patch_count = patch_count + int(n_patch,int64)
+      end do
+
+      do r = 1,n_process
+         pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+         pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+         do slot = block_writeback_plan%send_displ(r)+1, &
+              block_writeback_plan%send_displ(r) + &
+              block_writeback_plan%send_count(r)
+            b = block_writeback_plan%send_block(slot)
+            n_patch = local_block_patch_count(b)
+            do local_patch_index = 0,n_patch-1
+               if (pos_scalar < 1 .or. &
+                    pos_scalar+size(actual_scalar)-1 > &
+                    size(block_writeback_plan%scalar_send_buffer) .or. &
+                    pos_vector < 1 .or. &
+                    pos_vector+size(actual_vector)-1 > &
+                    size(block_writeback_plan%vector_send_buffer)) then
+                  call fail("remote imported trend payload is truncated")
+               end if
+               call get_local_block_tendency_patch_values( &
+                    b,local_patch_index,actual_scalar,actual_vector)
+               if (any(abs(actual_scalar - &
+                    block_writeback_plan%scalar_send_buffer( &
+                    pos_scalar:pos_scalar+size(actual_scalar)-1)) > &
+                    0.0_dp)) then
+                  call fail("remote imported scalar trend mismatch")
+               end if
+               if (any(abs(actual_vector - &
+                    block_writeback_plan%vector_send_buffer( &
+                    pos_vector:pos_vector+size(actual_vector)-1)) > &
+                    0.0_dp)) then
+                  call fail("remote imported vector trend mismatch")
+               end if
+               pos_scalar = pos_scalar + size(actual_scalar)
+               pos_vector = pos_vector + size(actual_vector)
+            end do
+            patch_count = patch_count + int(n_patch,int64)
+         end do
+         if (pos_scalar /= &
+              block_writeback_plan%scalar_send_displ(r) + &
+              block_writeback_plan%scalar_send_count(r) + 1 .or. &
+              pos_vector /= &
+              block_writeback_plan%vector_send_displ(r) + &
+              block_writeback_plan%vector_send_count(r) + 1) then
+            call fail("remote imported trend validation extent mismatch")
+         end if
+      end do
+
+    end subroutine validate_imported_tendency
+
+
+    recursive subroutine compare_retained_subtree ( &
+         d,p,b,local_patch_index)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: b
+      integer, intent(inout) :: local_patch_index
+
+      integer :: c
+      integer :: p_child
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("retained imported trend patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,BLOCK_PAYLOAD_TREND,expected_scalar,scalar_pos, &
+           expected_vector,vector_pos)
+      if (scalar_pos /= size(expected_scalar)+1 .or. &
+           vector_pos /= size(expected_vector)+1) then
+         call fail("retained imported trend validation extent mismatch")
+      end if
+      call get_local_block_tendency_patch_values( &
+           b,local_patch_index,actual_scalar,actual_vector)
+      if (any(abs(actual_scalar-expected_scalar) > 0.0_dp)) then
+         call fail("retained imported scalar trend mismatch")
+      end if
+      if (any(abs(actual_vector-expected_vector) > 0.0_dp)) then
+         call fail("retained imported vector trend mismatch")
+      end if
+      local_patch_index = local_patch_index + 1
+
+      do c = 1,N_CHDRN
+         p_child = grid(d)%patch%elts(p+1)%children(c)
+         if (p_child <= 0) cycle
+         call compare_retained_subtree( &
+              d,p_child,b,local_patch_index)
+      end do
+
+    end subroutine compare_retained_subtree
+
+  end subroutine check_domain_trend_tendency_import
+
+
+  subroutine begin_block_domain_trend_step (scale)
+    ! Form one reversible Euler candidate from the current Domain trend.
+
+    implicit none
+
+    real(dp), intent(in) :: scale
+
+    logical :: checkpoint_ready
+    logical :: plan_ready
+    logical :: store_ready
+    logical :: tendency_ready
+    logical :: trial_active
+
+    store_ready = local_block_store_ready()
+    plan_ready = block_writeback_plan_is_ready()
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (.not. store_ready .or. .not. plan_ready) then
+       call fail("Domain-trend block step before persistent state is ready")
+    end if
+    if (trial_active .or. checkpoint_ready) then
+       call fail("Domain-trend block step found a pending transaction")
+    end if
+
+    call import_domain_trend_to_block_tendency
+    call begin_local_block_tendency_trial(scale)
+    call commit_local_block_tendency_trial
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    if (trial_active .or. .not. checkpoint_ready) then
+       call fail("Domain-trend block step did not retain its checkpoint")
+    end if
+    if (tendency_ready) then
+       call fail("Domain-trend block step retained stale tendencies")
+    end if
+
+  end subroutine begin_block_domain_trend_step
+
+
+  subroutine complete_block_domain_trend_step (accept)
+    ! Resolve the checkpoint produced by begin_block_domain_trend_step.
+
+    implicit none
+
+    logical, intent(in) :: accept
+
+    ! The existing two-stage resolver is deliberately state-generic: it
+    ! commits or restores any pending block-sol checkpoint transaction.
+    call complete_block_two_stage_tendency_step(accept)
+
+  end subroutine complete_block_domain_trend_step
+
+
+  subroutine preview_block_domain_trend_step (scale)
+    ! Exercise the actual production trend and timestep as a reversible
+    ! block candidate without changing the Domain numerical trajectory.
+
+    implicit none
+
+    real(dp), intent(in) :: scale
+
+    integer :: ierr
+
+    integer(int64) :: global_changed_block_count(2)
+    integer(int64) :: import_allocation_before
+    integer(int64) :: local_changed_block_count(2)
+    integer(int64) :: production_writeback_before
+    integer(int64) :: tendency_allocation_before
+    integer(int64) :: writeback_allocation_before
+
+    logical :: checkpoint_ready
+    logical :: state_ready
+    logical :: trial_active
+
+    real(dp) :: global_max_update(2)
+    real(dp) :: local_max_update(2)
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("production Domain-trend preview before state is ready")
+    end if
+
+    tendency_allocation_before = &
+         local_block_tendency_allocation_count()
+    import_allocation_before = &
+         local_block_tendency_import_allocation_count()
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+
+    call begin_block_domain_trend_step(scale)
+    call local_block_tendency_commit_checkpoint_statistics( &
+         local_changed_block_count(1),local_changed_block_count(2), &
+         local_max_update(1),local_max_update(2))
+    call complete_block_domain_trend_step(.false.)
+
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_WAV_COEFF)
+
+    if (local_block_tendency_allocation_count() /= &
+         tendency_allocation_before) then
+       call fail("production preview reallocated tendency arrays")
+    end if
+    if (local_block_tendency_import_allocation_count() /= &
+         import_allocation_before) then
+       call fail("production preview reallocated import coverage")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("production preview reallocated transport storage")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("production preview modified Domain writeback count")
+    end if
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (trial_active .or. checkpoint_ready) then
+       call fail("production preview left a pending transaction")
+    end if
+
+    call MPI_Allreduce( &
+         local_changed_block_count,global_changed_block_count,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce production preview coverage")
+    call MPI_Allreduce(local_max_update,global_max_update,2, &
+         MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce production preview update")
+
+    block_writeback_plan%production_preview_count = &
+         block_writeback_plan%production_preview_count + 1_int64
+
+    if (rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Production timestep Domain-trend preview number = ", &
+            block_writeback_plan%production_preview_count
+       write(6,'(a,es14.6)') "  timestep scale = ",scale
+       write(6,'(a,i0)') "  scalar changed blocks = ", &
+            global_changed_block_count(1)
+       write(6,'(a,i0)') "  vector changed blocks = ", &
+            global_changed_block_count(2)
+       write(6,'(a,es14.6)') "  scalar maximum update = ", &
+            global_max_update(1)
+       write(6,'(a,es14.6)') "  vector maximum update = ", &
+            global_max_update(2)
+       write(6,'(a)') &
+            "  exact rejected production candidate rollback passed"
+       write(6,'(a,/)') &
+            "Production timestep Domain-trend block preview passed"
+    end if
+
+  end subroutine preview_block_domain_trend_step
+
+
+  subroutine advance_block_domain_trend_euler (scale)
+    ! Accept one actual Domain-trend block Euler update and synchronize the
+    ! resulting sol image transactionally to authoritative Domain owners.
+
+    implicit none
+
+    real(dp), intent(in) :: scale
+
+    integer :: ierr
+
+    integer(int64) :: global_changed_block_count(2)
+    integer(int64) :: import_allocation_before
+    integer(int64) :: local_changed_block_count(2)
+    integer(int64) :: production_writeback_before
+    integer(int64) :: tendency_allocation_before
+    integer(int64) :: writeback_allocation_before
+
+    logical :: checkpoint_ready
+    logical :: state_ready
+    logical :: trial_active
+
+    real(dp) :: global_max_update(2)
+    real(dp) :: local_max_update(2)
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("production block Euler step before state is ready")
+    end if
+
+    tendency_allocation_before = &
+         local_block_tendency_allocation_count()
+    import_allocation_before = &
+         local_block_tendency_import_allocation_count()
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+
+    call begin_block_domain_trend_step(scale)
+    call local_block_tendency_commit_checkpoint_statistics( &
+         local_changed_block_count(1),local_changed_block_count(2), &
+         local_max_update(1),local_max_update(2))
+    call complete_block_domain_trend_step(.true.)
+
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_WAV_COEFF)
+
+    if (local_block_tendency_allocation_count() /= &
+         tendency_allocation_before) then
+       call fail("production block Euler step reallocated tendency arrays")
+    end if
+    if (local_block_tendency_import_allocation_count() /= &
+         import_allocation_before) then
+       call fail("production block Euler step reallocated import coverage")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("production block Euler step reallocated transport storage")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before + 1_int64) then
+       call fail("production block Euler writeback count is invalid")
+    end if
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (trial_active .or. checkpoint_ready) then
+       call fail("production block Euler step left a pending transaction")
+    end if
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("production block Euler step invalidated persistent state")
+    end if
+
+    call MPI_Allreduce( &
+         local_changed_block_count,global_changed_block_count,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce accepted block Euler coverage")
+    call MPI_Allreduce(local_max_update,global_max_update,2, &
+         MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce accepted block Euler update")
+
+    block_writeback_plan%production_euler_step_count = &
+         block_writeback_plan%production_euler_step_count + 1_int64
+
+    if (rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Accepted production block Euler timestep number = ", &
+            block_writeback_plan%production_euler_step_count
+       write(6,'(a,es14.6)') "  timestep scale = ",scale
+       write(6,'(a,i0)') "  scalar changed blocks = ", &
+            global_changed_block_count(1)
+       write(6,'(a,i0)') "  vector changed blocks = ", &
+            global_changed_block_count(2)
+       write(6,'(a,es14.6)') "  scalar maximum update = ", &
+            global_max_update(1)
+       write(6,'(a,es14.6)') "  vector maximum update = ", &
+            global_max_update(2)
+       write(6,'(a)') &
+            "  accepted sol synchronized exactly to Domain owners"
+       write(6,'(a)') &
+            "  wav_coeff remained exact before wavelet transform"
+       write(6,'(a,/)') &
+            "Production block Euler timestep accepted"
+    end if
+
+  end subroutine advance_block_domain_trend_euler
+
+
+  subroutine check_block_domain_trend_step (verbose)
+    ! Validate a complete actual-trend Euler candidate, temporary Domain
+    ! synchronization, exact rollback and repeated persistent reuse.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: global_patch_count
+    integer(int64) :: import_allocation_after_first
+    integer(int64) :: local_patch_count
+    integer(int64) :: production_writeback_before
+    integer(int64) :: tendency_allocation_after_first
+    integer(int64) :: writeback_allocation_after_first
+    integer(int64) :: writeback_allocation_before
+
+    logical :: checkpoint_ready
+    logical :: print_summary
+    logical :: trial_active
+
+    real(dp), parameter :: validation_scale = 1.0_dp
+
+    logical, allocatable :: candidate_patch(:)
+    real(dp), allocatable :: baseline_scalar(:)
+    real(dp), allocatable :: baseline_vector(:)
+    real(dp), allocatable :: trend_scalar(:)
+    real(dp), allocatable :: trend_vector(:)
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    if (.not. block_writeback_plan_is_ready()) then
+       call fail("Domain-trend block-step check before plan is ready")
+    end if
+
+    allocate(baseline_scalar( &
+         size(block_writeback_plan%scalar_domain_stage)))
+    allocate(baseline_vector( &
+         size(block_writeback_plan%vector_domain_stage)))
+    allocate(trend_scalar(block_writeback_plan%scalar_patch_nvalue))
+    allocate(trend_vector(block_writeback_plan%vector_patch_nvalue))
+    allocate(candidate_patch( &
+         size(block_writeback_plan%domain_patch_covered)))
+
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
+    baseline_scalar = block_writeback_plan%scalar_domain_stage
+    baseline_vector = block_writeback_plan%vector_domain_stage
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+
+    call begin_block_domain_trend_step(validation_scale)
+    call complete_block_domain_trend_step(.false.)
+    call assert_restored_state
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("rejected Domain-trend block step wrote Domain sol")
+    end if
+
+    call exercise_candidate(local_patch_count)
+    tendency_allocation_after_first = &
+         local_block_tendency_allocation_count()
+    import_allocation_after_first = &
+         local_block_tendency_import_allocation_count()
+    writeback_allocation_after_first = &
+         block_writeback_plan_allocation_count()
+
+    call exercise_candidate(local_patch_count)
+
+    if (local_block_tendency_allocation_count() /= &
+         tendency_allocation_after_first) then
+       call fail("repeated Euler bridge reallocated tendency arrays")
+    end if
+    if (local_block_tendency_import_allocation_count() /= &
+         import_allocation_after_first) then
+       call fail("repeated Euler bridge reallocated import coverage")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_after_first .or. &
+         writeback_allocation_after_first /= &
+         writeback_allocation_before) then
+       call fail("Euler bridge reallocated persistent transport storage")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before + 4_int64) then
+       call fail("Euler bridge writeback count is invalid")
+    end if
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (trial_active .or. checkpoint_ready) then
+       call fail("Euler bridge left a pending block transaction")
+    end if
+
+    call MPI_Allreduce(local_patch_count,global_patch_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Euler bridge patches")
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Domain-trend block Euler bridge for rank ",rank,":"
+       write(6,'(a,i0)') &
+            "  candidate block-owned patches = ",local_patch_count
+       write(6,'(a)') &
+            "  rejected actual-trend step preserved Domain sol"
+       write(6,'(a)') &
+            "  exact scalar Euler candidate comparison passed"
+       write(6,'(a)') &
+            "  exact vector Euler candidate comparison passed"
+       write(6,'(a)') &
+            "  candidate sol synchronized to Domain owners"
+       write(6,'(a)') "  exact block/Domain rollback passed"
+       write(6,'(a,/)') &
+            "  repeated actual-trend transaction reuse passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global Domain-trend Euler candidate patches = ", &
+            global_patch_count
+       write(6,'(a,/)') &
+            "Production Domain-trend block Euler bridge passed"
+    end if
+
+    deallocate(candidate_patch)
+    deallocate(trend_vector)
+    deallocate(trend_scalar)
+    deallocate(baseline_vector)
+    deallocate(baseline_scalar)
+
+  contains
+
+    subroutine exercise_candidate (patch_count)
+
+      implicit none
+
+      integer(int64), intent(out) :: patch_count
+
+      call begin_block_domain_trend_step(validation_scale)
+      call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
+      call validate_candidate_stage(patch_count)
+
+      call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
+      call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+
+      call restore_local_block_tendency_commit
+      call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
+      call assert_restored_state
+      call assert_block_domain_field_family_match( &
+           BLOCK_PAYLOAD_WAV_COEFF)
+
+    end subroutine exercise_candidate
+
+
+    subroutine assert_restored_state
+
+      implicit none
+
+      logical :: checkpoint_pending
+      logical :: trial_pending
+
+      call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+      call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
+      if (any(abs(block_writeback_plan%scalar_domain_stage - &
+           baseline_scalar) > 0.0_dp)) then
+         call fail("Euler bridge scalar rollback mismatch")
+      end if
+      if (any(abs(block_writeback_plan%vector_domain_stage - &
+           baseline_vector) > 0.0_dp)) then
+         call fail("Euler bridge vector rollback mismatch")
+      end if
+
+      trial_pending = local_block_tendency_trial_is_active()
+      checkpoint_pending = &
+           local_block_tendency_commit_checkpoint_is_ready()
+      if (trial_pending .or. checkpoint_pending) then
+         call fail("Euler bridge rollback retained transaction state")
+      end if
+
+    end subroutine assert_restored_state
+
+
+    subroutine validate_candidate_stage (patch_count)
+
+      implicit none
+
+      integer(int64), intent(out) :: patch_count
+
+      integer :: b
+      integer :: d
+      integer :: local_index
+      integer :: p
+      integer :: patch_slot
+      integer :: r
+      integer :: slot
+
+      candidate_patch = .false.
+
+      do local_index = 1,n_local_blocks()
+         b = local_block_catalog(local_index)
+         r = source_rank(b)
+         if (r /= rank) cycle
+         d = loc_id(block_catalog(b)%root_domain+1) + 1
+         call validate_candidate_subtree( &
+              d,block_catalog(b)%root_patch)
+      end do
+
+      do r = 1,n_process
+         do slot = block_writeback_plan%recv_displ(r)+1, &
+              block_writeback_plan%recv_displ(r) + &
+              block_writeback_plan%recv_count(r)
+            b = block_writeback_plan%recv_block(slot)
+            d = loc_id(block_catalog(b)%root_domain+1) + 1
+            call validate_candidate_subtree( &
+                 d,block_catalog(b)%root_patch)
+         end do
+      end do
+
+      if (count(candidate_patch) /= &
+           block_writeback_plan%reconstructed_patch_count) then
+         call fail("Euler candidate patch coverage mismatch")
+      end if
+
+      do d = 1,size(grid)
+         do p = 0,grid(d)%patch%length-1
+            patch_slot = &
+                 block_writeback_plan%domain_patch_displ(d) + p + 1
+            if (grid(d)%patch%elts(p+1)%deleted) then
+               if (candidate_patch(patch_slot)) then
+                  call fail("Euler candidate covered a deleted patch")
+               end if
+            else if (.not. candidate_patch(patch_slot)) then
+               call compare_preserved_patch(patch_slot)
+            end if
+         end do
+      end do
+
+      patch_count = int(count(candidate_patch),int64)
+
+    end subroutine validate_candidate_stage
+
+
+    recursive subroutine validate_candidate_subtree (d,p)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+
+      integer :: c
+      integer :: p_child
+      integer :: patch_slot
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (d < 1 .or. d > size(grid)) then
+         call fail("Euler candidate Domain is invalid")
+      end if
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("Euler candidate patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+
+      patch_slot = block_writeback_plan%domain_patch_displ(d) + p + 1
+      if (candidate_patch(patch_slot)) then
+         call fail("Euler candidate patch was covered more than once")
+      end if
+      candidate_patch(patch_slot) = .true.
+
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,BLOCK_PAYLOAD_TREND,trend_scalar,scalar_pos, &
+           trend_vector,vector_pos)
+      if (scalar_pos /= size(trend_scalar)+1 .or. &
+           vector_pos /= size(trend_vector)+1) then
+         call fail("Euler candidate trend patch extent mismatch")
+      end if
+      call compare_updated_patch(patch_slot)
+
+      do c = 1,N_CHDRN
+         p_child = grid(d)%patch%elts(p+1)%children(c)
+         if (p_child <= 0) cycle
+         call validate_candidate_subtree(d,p_child)
+      end do
+
+    end subroutine validate_candidate_subtree
+
+
+    subroutine compare_updated_patch (patch_slot)
+
+      implicit none
+
+      integer, intent(in) :: patch_slot
+
+      integer :: scalar_start
+      integer :: vector_start
+
+      scalar_start = (patch_slot-1)* &
+           block_writeback_plan%scalar_patch_nvalue + 1
+      vector_start = (patch_slot-1)* &
+           block_writeback_plan%vector_patch_nvalue + 1
+
+      if (any(abs(block_writeback_plan%scalar_domain_stage( &
+           scalar_start:scalar_start+size(trend_scalar)-1) - &
+           (baseline_scalar( &
+           scalar_start:scalar_start+size(trend_scalar)-1) + &
+           validation_scale*trend_scalar)) > 0.0_dp)) then
+         call fail("scalar Domain-trend Euler candidate mismatch")
+      end if
+      if (any(abs(block_writeback_plan%vector_domain_stage( &
+           vector_start:vector_start+size(trend_vector)-1) - &
+           (baseline_vector( &
+           vector_start:vector_start+size(trend_vector)-1) + &
+           validation_scale*trend_vector)) > 0.0_dp)) then
+         call fail("vector Domain-trend Euler candidate mismatch")
+      end if
+
+    end subroutine compare_updated_patch
+
+
+    subroutine compare_preserved_patch (patch_slot)
+
+      implicit none
+
+      integer, intent(in) :: patch_slot
+
+      integer :: scalar_start
+      integer :: vector_start
+
+      scalar_start = (patch_slot-1)* &
+           block_writeback_plan%scalar_patch_nvalue + 1
+      vector_start = (patch_slot-1)* &
+           block_writeback_plan%vector_patch_nvalue + 1
+
+      if (any(abs(block_writeback_plan%scalar_domain_stage( &
+           scalar_start:scalar_start+ &
+           block_writeback_plan%scalar_patch_nvalue-1) - &
+           baseline_scalar(scalar_start:scalar_start+ &
+           block_writeback_plan%scalar_patch_nvalue-1)) > 0.0_dp)) then
+         call fail("preserved scalar Euler scaffold mismatch")
+      end if
+      if (any(abs(block_writeback_plan%vector_domain_stage( &
+           vector_start:vector_start+ &
+           block_writeback_plan%vector_patch_nvalue-1) - &
+           baseline_vector(vector_start:vector_start+ &
+           block_writeback_plan%vector_patch_nvalue-1)) > 0.0_dp)) then
+         call fail("preserved vector Euler scaffold mismatch")
+      end if
+
+    end subroutine compare_preserved_patch
+
+  end subroutine check_block_domain_trend_step
 
 
   recursive subroutine pack_domain_subtree_prognostic ( &
