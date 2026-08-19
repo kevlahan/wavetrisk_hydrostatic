@@ -354,6 +354,7 @@ module parallel_block_mod
   public :: apply_local_block_tendency_consumer
   public :: local_block_tendency_state_ready
   public :: invalidate_local_block_tendency_products
+  public :: prepare_local_block_tendency_workspace
   public :: local_block_tendency_execution_count
   public :: local_block_tendency_allocation_count
   public :: local_block_tendency_statistics
@@ -1098,6 +1099,33 @@ subroutine prepare_local_block_tendency_state
 end subroutine prepare_local_block_tendency_state
 
 
+subroutine prepare_local_block_tendency_import_coverage
+  ! Allocate reusable per-block import coverage for the current store.
+
+  implicit none
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "prepare_local_block_tendency_import_coverage: store not ready"
+  end if
+
+  if (allocated(block_tendency_import_patch_count)) then
+     if (size(block_tendency_import_patch_count) /= &
+          size(block_local)) then
+        deallocate(block_tendency_import_patch_count)
+     end if
+  end if
+  if (.not. allocated(block_tendency_import_patch_count)) then
+     allocate(block_tendency_import_patch_count(size(block_local)))
+     block_tendency_import_allocations = &
+          block_tendency_import_allocations + 1_int64
+  end if
+
+  block_tendency_import_patch_count = 0
+
+end subroutine prepare_local_block_tendency_import_coverage
+
+
 subroutine begin_local_block_tendency_import
   ! Begin a guarded whole-store import into persistent tendency arrays.
 
@@ -1115,20 +1143,7 @@ subroutine begin_local_block_tendency_import
   end if
 
   call prepare_local_block_tendency_state
-
-  if (allocated(block_tendency_import_patch_count)) then
-     if (size(block_tendency_import_patch_count) /= &
-          size(block_local)) then
-        deallocate(block_tendency_import_patch_count)
-     end if
-  end if
-  if (.not. allocated(block_tendency_import_patch_count)) then
-     allocate(block_tendency_import_patch_count(size(block_local)))
-     block_tendency_import_allocations = &
-          block_tendency_import_allocations + 1_int64
-  end if
-
-  block_tendency_import_patch_count = 0
+  call prepare_local_block_tendency_import_coverage
   block_tendency_ready = .false.
   do local_index = 1,size(block_tendency)
      block_tendency(local_index)%ready = .false.
@@ -1138,6 +1153,27 @@ subroutine begin_local_block_tendency_import
   block_tendency_import_active = .true.
 
 end subroutine begin_local_block_tendency_import
+
+
+subroutine prepare_local_block_tendency_workspace
+  ! Allocate the reusable production tendency, import-coverage and trial
+  ! storage without importing a tendency or activating a transaction.
+
+  implicit none
+
+  if (block_tendency_import_active .or. &
+       block_tendency_trial_active .or. &
+       block_tendency_commit_checkpoint_ready) then
+     error stop &
+          "prepare_local_block_tendency_workspace: transaction pending"
+  end if
+
+  call prepare_local_block_tendency_state
+  call prepare_local_block_tendency_import_coverage
+  call prepare_local_block_tendency_trial
+  call invalidate_local_block_tendency_products
+
+end subroutine prepare_local_block_tendency_workspace
 
 
 subroutine set_local_block_tendency_patch_values ( &

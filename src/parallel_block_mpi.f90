@@ -98,6 +98,7 @@ module parallel_block_mpi_mod
        apply_local_block_tendency_consumer, &
        local_block_tendency_state_ready, &
        invalidate_local_block_tendency_products, &
+       prepare_local_block_tendency_workspace, &
        local_block_tendency_execution_count, &
        local_block_tendency_allocation_count, &
        local_block_tendency_statistics, &
@@ -278,6 +279,8 @@ module parallel_block_mpi_mod
 
   type(Block_Writeback_Plan_Type), save :: block_writeback_plan
 
+  integer(int64), save :: production_grid_reconstruction_count = 0_int64
+
   type :: Block_Boundary_Snapshot
      integer :: catalog_index = 0
      integer :: boundary_index = 0
@@ -361,7 +364,7 @@ module parallel_block_mpi_mod
   public :: invalidate_parallel_block_domain_shadow
   public :: synchronize_parallel_block_checkpoint
   public :: prepare_parallel_block_grid_change
-  public :: validate_post_grid_change_block_reconstruction
+  public :: retain_post_grid_change_block_reconstruction
   public :: migrate_blocks
   public :: check_local_blocks
   public :: check_block_field_inventory
@@ -577,17 +580,24 @@ contains
   end subroutine prepare_parallel_block_grid_change
 
 
-  subroutine validate_post_grid_change_block_reconstruction
+  subroutine retain_post_grid_change_block_reconstruction
     ! Validate one complete shadow rebuilt from the actual Domain state after
-    ! legacy physics, adaptation and remapping, then release the canary state.
+    ! legacy physics, adaptation and remapping, then retain it for the next
+    ! production timestep.
 
     implicit none
 
     integer(int64) :: allocation_before
+    integer(int64) :: import_allocation_ready
+    integer(int64) :: tendency_allocation_ready
     integer(int64) :: writeback_before
 
     logical :: hydrostatic_ready
+    logical :: checkpoint_ready
+    logical :: import_active
     logical :: state_ready
+    logical :: tendency_ready
+    logical :: trial_active
 
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
@@ -624,6 +634,21 @@ contains
        end if
     end if
 
+    call prepare_local_block_tendency_workspace
+    tendency_allocation_ready = &
+         local_block_tendency_allocation_count()
+    import_allocation_ready = &
+         local_block_tendency_import_allocation_count()
+    call prepare_local_block_tendency_workspace
+    if (local_block_tendency_allocation_count() /= &
+         tendency_allocation_ready) then
+       call fail("post-grid-change tendency workspace was reallocated")
+    end if
+    if (local_block_tendency_import_allocation_count() /= &
+         import_allocation_ready) then
+       call fail("post-grid-change import coverage was reallocated")
+    end if
+
     if (block_writeback_plan_allocation_count() /= &
          allocation_before) then
        call fail("post-grid-change reconstruction reallocated buffers")
@@ -633,15 +658,37 @@ contains
        call fail("post-grid-change reconstruction modified Domain fields")
     end if
 
-    call clear_parallel_block_state
     state_ready = parallel_block_state_is_ready()
-    if (state_ready) then
-       call fail("post-grid-change canary state was not released")
+    tendency_ready = local_block_tendency_state_ready()
+    import_active = local_block_tendency_import_is_active()
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (.not. state_ready) then
+       call fail("post-grid-change production state was not retained")
     end if
+    if (tendency_ready) then
+       call fail("post-grid-change production state retained a tendency")
+    end if
+    if (import_active) then
+       call fail("post-grid-change production state retained an import")
+    end if
+    if (trial_active) then
+       call fail("post-grid-change production state retained a trial")
+    end if
+    if (checkpoint_ready) then
+       call fail("post-grid-change production state retained a checkpoint")
+    end if
+
+    production_grid_reconstruction_count = &
+         production_grid_reconstruction_count + 1_int64
 
     if (rank == 0) then
        write(6,'(/,a)') &
-            "Production post-grid-change block reconstruction:"
+            "Retained production post-grid-change block reconstruction:"
+       write(6,'(a,i0)') &
+            "  reconstruction number = ", &
+            production_grid_reconstruction_count
        write(6,'(a)') &
             "  exact sol/wav_coeff patch interiors passed"
        write(6,'(a)') &
@@ -655,12 +702,14 @@ contains
        write(6,'(a)') &
             "  persistent reconstruction workspace reuse passed"
        write(6,'(a)') &
-            "  reconstructed canary state released"
+            "  persistent tendency workspace prepared and reused"
+       write(6,'(a)') &
+            "  reconstructed production state retained"
        write(6,'(a,/)') &
-            "Production post-grid-change block reconstruction passed"
+            "Retained post-grid-change block reconstruction passed"
     end if
 
-  end subroutine validate_post_grid_change_block_reconstruction
+  end subroutine retain_post_grid_change_block_reconstruction
 
 
   subroutine build_parallel_block_catalog
@@ -1164,13 +1213,16 @@ contains
 end subroutine build_parallel_block_catalog
 
 
-  subroutine migrate_blocks (verbose)
+  subroutine migrate_blocks (verbose,full_validation)
     ! Migrate the source-local blocks to their final catalogue owners,
     ! install a self-contained local block store, and release all
-    ! source, receive and MPI migration staging storage.
+    ! source, receive and MPI migration staging storage. The complete
+    ! diagnostic suite remains the default; production reconstruction may
+    ! request only the checks required to establish a ready persistent state.
 
     implicit none
 
+    logical, optional, intent(in) :: full_validation
     logical, optional, intent(in) :: verbose
 
     type(Block_Migration_Manifest) :: manifest
@@ -1195,9 +1247,14 @@ end subroutine build_parallel_block_catalog
     integer(int8), allocatable :: send_payload(:)
 
     logical :: print_local
+    logical :: run_full_validation
 
     print_local = .true.
     if (present(verbose)) print_local = verbose
+    run_full_validation = .true.
+    if (present(full_validation)) then
+       run_full_validation = full_validation
+    end if
 
     if (.not. allocated(block_source) .or. &
          .not. allocated(block_source_catalog_index) .or. &
@@ -1395,24 +1452,29 @@ end subroutine build_parallel_block_catalog
        call fail("installed block count does not match final ownership")
     end if
 
-    call check_block_scalar_stencil_consumer(print_local)
-    call check_block_vector_stencil_consumer(print_local)
-    call check_block_boundary_routes(print_local)
-    call check_block_ghost_source_addresses(print_local)
-    call check_block_ghost_request_manifest(print_local)
-    call build_block_ghost_exchange_plan
-    call check_block_ghost_exchange_plan(print_local)
-    call build_block_writeback_plan
-    call check_block_writeback_plan(print_local)
-    call check_block_writeback_payload_exchange(print_local)
-    call check_block_writeback_domain_reconstruction(print_local)
-    call check_block_scalar_ghost_payload_exchange(print_local)
-    call check_block_vector_ghost_payload_exchange(print_local)
-    call check_production_block_ghost_refresh(print_local)
-    call check_block_field_family_accessors(print_local)
-    call check_block_patch_writable_storage(print_local)
-    call check_block_boundary_family_mutators(print_local)
-    call check_block_boundary_family_bulk_fill(print_local)
+    if (run_full_validation) then
+       call check_block_scalar_stencil_consumer(print_local)
+       call check_block_vector_stencil_consumer(print_local)
+       call check_block_boundary_routes(print_local)
+       call check_block_ghost_source_addresses(print_local)
+       call check_block_ghost_request_manifest(print_local)
+       call build_block_ghost_exchange_plan
+       call check_block_ghost_exchange_plan(print_local)
+       call build_block_writeback_plan
+       call check_block_writeback_plan(print_local)
+       call check_block_writeback_payload_exchange(print_local)
+       call check_block_writeback_domain_reconstruction(print_local)
+       call check_block_scalar_ghost_payload_exchange(print_local)
+       call check_block_vector_ghost_payload_exchange(print_local)
+       call check_production_block_ghost_refresh(print_local)
+       call check_block_field_family_accessors(print_local)
+       call check_block_patch_writable_storage(print_local)
+       call check_block_boundary_family_mutators(print_local)
+       call check_block_boundary_family_bulk_fill(print_local)
+    else
+       call build_block_ghost_exchange_plan
+       call build_block_writeback_plan
+    end if
 
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
@@ -1437,32 +1499,34 @@ end subroutine build_parallel_block_catalog
     deallocate(send_nbyte)
     deallocate(send_payload)
 
-    call check_local_blocks(print_local)
-    call check_block_field_inventory(print_local)
-    if (compressible) call ensure_local_block_hydrostatic_state
-    call check_block_hydrostatic_state_accessors(print_local)
-    call check_block_hydrostatic_consumer(print_local)
-    call check_block_field_consumer(print_local)
-    call check_block_stencil_kernel(print_local)
-    call check_block_tendency_kernel(print_local)
-    call check_block_tendency_trial_update(print_local)
-    call check_block_tendency_commit(print_local)
-    call check_block_tendency_step_driver(print_local)
-    call check_block_tendency_accepted_step(print_local)
-    call check_block_multistage_tendency_accumulator(print_local)
-    call check_block_multistage_tendency_commit(print_local)
-    call check_block_two_stage_step_driver(print_local)
-    call check_block_two_stage_step_completion(print_local)
-    call check_parallel_block_lifecycle(print_local)
-    call check_parallel_block_scaling(print_local)
-    call check_domain_to_block_payload_exchange(print_local)
-    call check_domain_field_family_block_import(print_local)
-    call check_domain_boundary_field_family_block_import(print_local)
-    call check_domain_trend_roundtrip(print_local)
-    call check_domain_trend_tendency_import(print_local)
-    call check_block_domain_trend_step(print_local)
-    if (compressible) call ensure_local_block_hydrostatic_state
-    call check_block_hydrostatic_reconstruction(print_local)
+    if (run_full_validation) then
+       call check_local_blocks(print_local)
+       call check_block_field_inventory(print_local)
+       if (compressible) call ensure_local_block_hydrostatic_state
+       call check_block_hydrostatic_state_accessors(print_local)
+       call check_block_hydrostatic_consumer(print_local)
+       call check_block_field_consumer(print_local)
+       call check_block_stencil_kernel(print_local)
+       call check_block_tendency_kernel(print_local)
+       call check_block_tendency_trial_update(print_local)
+       call check_block_tendency_commit(print_local)
+       call check_block_tendency_step_driver(print_local)
+       call check_block_tendency_accepted_step(print_local)
+       call check_block_multistage_tendency_accumulator(print_local)
+       call check_block_multistage_tendency_commit(print_local)
+       call check_block_two_stage_step_driver(print_local)
+       call check_block_two_stage_step_completion(print_local)
+       call check_parallel_block_lifecycle(print_local)
+       call check_parallel_block_scaling(print_local)
+       call check_domain_to_block_payload_exchange(print_local)
+       call check_domain_field_family_block_import(print_local)
+       call check_domain_boundary_field_family_block_import(print_local)
+       call check_domain_trend_roundtrip(print_local)
+       call check_domain_trend_tendency_import(print_local)
+       call check_block_domain_trend_step(print_local)
+       if (compressible) call ensure_local_block_hydrostatic_state
+       call check_block_hydrostatic_reconstruction(print_local)
+    end if
 
   end subroutine migrate_blocks
 

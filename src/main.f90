@@ -62,7 +62,7 @@ module main_mod
        preview_block_domain_trend_step, &
        prepare_parallel_block_grid_change, &
        refresh_parallel_block_domain_prognostic_state, &
-       validate_post_grid_change_block_reconstruction, &
+       retain_post_grid_change_block_reconstruction, &
        migrate_blocks
 
 #ifdef PHYSICS
@@ -393,7 +393,7 @@ contains
     implicit none
     integer(8) :: idt, ialign
     logical    :: block_euler_step, block_state_ready
-    logical    :: rebuild_block_canary, save_data
+    logical    :: rebuild_block_state, save_data
 
     ! New time step
     istep       = istep       + 1
@@ -421,7 +421,7 @@ contains
     !    Dynamics time step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     block_euler_step = .false.
-    rebuild_block_canary = .false.
+    rebuild_block_state = .false.
     block_state_ready = parallel_block_state_is_ready()
     if (block_state_ready .and. .not. mode_split) then
        call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)
@@ -442,7 +442,7 @@ contains
     block_state_ready = parallel_block_state_is_ready()
     if (block_state_ready) then
        call prepare_parallel_block_grid_change
-       rebuild_block_canary = .true.
+       rebuild_block_state = .true.
     else
        call invalidate_parallel_block_domain_shadow
     end if
@@ -492,14 +492,15 @@ contains
     end if
     if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
 
-    ! Reconstruct one complete canary from the actual post-grid-change Domain
-    ! state. Exact patch, boundary and ghost validation precedes its release,
-    ! so subsequent timesteps remain on the legacy-authoritative path.
-    if (rebuild_block_canary) then
+    ! Reconstruct a complete production shadow from the actual
+    ! post-grid-change Domain state. Retain it after exact validation so the
+    ! next timestep can continue through the transactional block pathway.
+    if (rebuild_block_state) then
        call build_parallel_block_catalog
        call build_source_blocks
-       call migrate_blocks(.false.)
-       call validate_post_grid_change_block_reconstruction
+       call migrate_blocks( &
+            verbose=.false.,full_validation=.false.)
+       call retain_post_grid_change_block_reconstruction
     end if
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
