@@ -3,7 +3,8 @@ module parallel_block_mpi_mod
   use iso_fortran_env, only : error_unit, int8, int64
   use mpi_f08,        only : MPI_Allgather, MPI_Allgatherv, MPI_Allreduce, &
        MPI_Alltoall, MPI_Alltoallv, MPI_Exscan, MPI_BYTE, MPI_INTEGER, &
-       MPI_INTEGER8, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_SUCCESS, MPI_SUM
+       MPI_INTEGER8, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_MIN, MPI_SUCCESS, &
+       MPI_SUM
 
   use kind_mod,   only : dp
   use shared_mod, only : EDGE, N_BDRY, N_CHDRN, N_GLO_DOMAIN, &
@@ -370,6 +371,7 @@ module parallel_block_mpi_mod
   public :: check_block_two_stage_step_driver
   public :: check_block_two_stage_step_completion
   public :: check_parallel_block_lifecycle
+  public :: check_parallel_block_scaling
   public :: check_block_hydrostatic_reconstruction
 
 contains
@@ -1292,6 +1294,7 @@ end subroutine build_parallel_block_catalog
     call check_block_two_stage_step_driver(print_local)
     call check_block_two_stage_step_completion(print_local)
     call check_parallel_block_lifecycle(print_local)
+    call check_parallel_block_scaling(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -11343,6 +11346,308 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine check_parallel_block_lifecycle
+
+
+  subroutine check_parallel_block_scaling (verbose)
+    ! Collect repeatable min/average/max work and communication metrics.
+    ! This is a read-only validation: it does not rebuild plans, exchange
+    ! prognostic values or alter either block or Domain field storage.
+
+    implicit none
+
+    integer, parameter :: SCALE_BLOCK = 1
+    integer, parameter :: SCALE_WEIGHT = 2
+    integer, parameter :: SCALE_PATCH = 3
+    integer, parameter :: SCALE_GHOST_SEND_PEER = 4
+    integer, parameter :: SCALE_GHOST_RECV_PEER = 5
+    integer, parameter :: SCALE_GHOST_SCALAR_SEND = 6
+    integer, parameter :: SCALE_GHOST_SCALAR_RECV = 7
+    integer, parameter :: SCALE_GHOST_VECTOR_SEND = 8
+    integer, parameter :: SCALE_GHOST_VECTOR_RECV = 9
+    integer, parameter :: SCALE_WRITEBACK_SEND_PEER = 10
+    integer, parameter :: SCALE_WRITEBACK_RECV_PEER = 11
+    integer, parameter :: SCALE_WRITEBACK_SCALAR_SEND = 12
+    integer, parameter :: SCALE_WRITEBACK_SCALAR_RECV = 13
+    integer, parameter :: SCALE_WRITEBACK_VECTOR_SEND = 14
+    integer, parameter :: SCALE_WRITEBACK_VECTOR_RECV = 15
+    integer, parameter :: SCALE_PERSISTENT_REAL = 16
+    integer, parameter :: SCALE_DOMAIN_STAGE_REAL = 17
+    integer, parameter :: SCALE_METRIC_COUNT = 17
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: accumulator_allocation_after
+    integer(int64) :: accumulator_allocation_before
+    integer(int64) :: global_max(SCALE_METRIC_COUNT)
+    integer(int64) :: global_max_repeat(SCALE_METRIC_COUNT)
+    integer(int64) :: global_min(SCALE_METRIC_COUNT)
+    integer(int64) :: global_min_repeat(SCALE_METRIC_COUNT)
+    integer(int64) :: global_sum(SCALE_METRIC_COUNT)
+    integer(int64) :: global_sum_repeat(SCALE_METRIC_COUNT)
+    integer(int64) :: local_metric(SCALE_METRIC_COUNT)
+    integer(int64) :: local_metric_repeat(SCALE_METRIC_COUNT)
+    integer(int64) :: tendency_allocation_after
+    integer(int64) :: tendency_allocation_before
+    integer(int64) :: writeback_allocation_after
+    integer(int64) :: writeback_allocation_before
+
+    logical :: print_summary
+    logical :: state_ready
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("scaling check before parallel block state is ready")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    tendency_allocation_before = &
+         local_block_tendency_allocation_count()
+    accumulator_allocation_before = &
+         local_block_tendency_accumulator_allocation_count()
+
+    call collect_scaling_snapshot( &
+         local_metric,global_min,global_max,global_sum)
+    call collect_scaling_snapshot( &
+         local_metric_repeat,global_min_repeat,global_max_repeat, &
+         global_sum_repeat)
+
+    writeback_allocation_after = &
+         block_writeback_plan_allocation_count()
+    tendency_allocation_after = &
+         local_block_tendency_allocation_count()
+    accumulator_allocation_after = &
+         local_block_tendency_accumulator_allocation_count()
+
+    if (any(local_metric_repeat /= local_metric) .or. &
+         any(global_min_repeat /= global_min) .or. &
+         any(global_max_repeat /= global_max) .or. &
+         any(global_sum_repeat /= global_sum)) then
+       call fail("repeated scaling snapshot changed")
+    end if
+    if (writeback_allocation_after /= writeback_allocation_before) then
+       call fail("scaling snapshot reallocated writeback buffers")
+    end if
+    if (tendency_allocation_after /= tendency_allocation_before) then
+       call fail("scaling snapshot reallocated tendency storage")
+    end if
+    if (accumulator_allocation_after /= &
+         accumulator_allocation_before) then
+       call fail("scaling snapshot reallocated accumulator storage")
+    end if
+
+    if (global_sum(SCALE_BLOCK) /= int(size(block_catalog),int64)) then
+       call fail("scaling snapshot global block count mismatch")
+    end if
+    if (global_sum(SCALE_WEIGHT) /= &
+         sum(int(block_catalog%weight,int64))) then
+       call fail("scaling snapshot global block weight mismatch")
+    end if
+    if (global_sum(SCALE_GHOST_SEND_PEER) /= &
+         global_sum(SCALE_GHOST_RECV_PEER)) then
+       call fail("scaling snapshot ghost peer count mismatch")
+    end if
+    if (global_sum(SCALE_GHOST_SCALAR_SEND) /= &
+         global_sum(SCALE_GHOST_SCALAR_RECV) .or. &
+         global_sum(SCALE_GHOST_VECTOR_SEND) /= &
+         global_sum(SCALE_GHOST_VECTOR_RECV)) then
+       call fail("scaling snapshot ghost payload mismatch")
+    end if
+    if (global_sum(SCALE_WRITEBACK_SEND_PEER) /= &
+         global_sum(SCALE_WRITEBACK_RECV_PEER)) then
+       call fail("scaling snapshot writeback peer count mismatch")
+    end if
+    if (global_sum(SCALE_WRITEBACK_SCALAR_SEND) /= &
+         global_sum(SCALE_WRITEBACK_SCALAR_RECV) .or. &
+         global_sum(SCALE_WRITEBACK_VECTOR_SEND) /= &
+         global_sum(SCALE_WRITEBACK_VECTOR_RECV)) then
+       call fail("scaling snapshot writeback payload mismatch")
+    end if
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Parallel block scaling metrics for rank ",rank,":"
+       write(6,'(a,i0)') "  final-owner blocks = ", &
+            local_metric(SCALE_BLOCK)
+       write(6,'(a,i0)') "  final-owner weight = ", &
+            local_metric(SCALE_WEIGHT)
+       write(6,'(a,i0)') "  installed patches = ", &
+            local_metric(SCALE_PATCH)
+       write(6,'(a,i0,a,i0)') "  ghost send/receive peers = ", &
+            local_metric(SCALE_GHOST_SEND_PEER)," / ", &
+            local_metric(SCALE_GHOST_RECV_PEER)
+       write(6,'(a,i0,a,i0)') "  ghost scalar send/receive values = ", &
+            local_metric(SCALE_GHOST_SCALAR_SEND)," / ", &
+            local_metric(SCALE_GHOST_SCALAR_RECV)
+       write(6,'(a,i0,a,i0)') "  ghost vector send/receive values = ", &
+            local_metric(SCALE_GHOST_VECTOR_SEND)," / ", &
+            local_metric(SCALE_GHOST_VECTOR_RECV)
+       write(6,'(a,i0,a,i0)') "  writeback send/receive peers = ", &
+            local_metric(SCALE_WRITEBACK_SEND_PEER)," / ", &
+            local_metric(SCALE_WRITEBACK_RECV_PEER)
+       write(6,'(a,i0,a,i0)') &
+            "  writeback scalar send/receive values = ", &
+            local_metric(SCALE_WRITEBACK_SCALAR_SEND)," / ", &
+            local_metric(SCALE_WRITEBACK_SCALAR_RECV)
+       write(6,'(a,i0,a,i0)') &
+            "  writeback vector send/receive values = ", &
+            local_metric(SCALE_WRITEBACK_VECTOR_SEND)," / ", &
+            local_metric(SCALE_WRITEBACK_VECTOR_RECV)
+       write(6,'(a,i0)') "  persistent real-value capacity = ", &
+            local_metric(SCALE_PERSISTENT_REAL)
+       write(6,'(a,/)') "  repeated read-only snapshot passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a)') "Parallel block global scaling summary:"
+       write(6,'(a,i0)') "  MPI ranks = ",n_process
+       call print_min_average_max("final-owner blocks",SCALE_BLOCK)
+       call print_min_average_max("final-owner weight",SCALE_WEIGHT)
+       call print_min_average_max("installed patches",SCALE_PATCH)
+       call print_min_average_max( &
+            "ghost send peers",SCALE_GHOST_SEND_PEER)
+       call print_min_average_max( &
+            "ghost receive peers",SCALE_GHOST_RECV_PEER)
+       call print_min_average_max( &
+            "writeback send peers",SCALE_WRITEBACK_SEND_PEER)
+       call print_min_average_max( &
+            "writeback receive peers",SCALE_WRITEBACK_RECV_PEER)
+       call print_min_average_max( &
+            "persistent real values",SCALE_PERSISTENT_REAL)
+       write(6,'(a,i0)') "  global ghost scalar values = ", &
+            global_sum(SCALE_GHOST_SCALAR_SEND)
+       write(6,'(a,i0)') "  global ghost vector values = ", &
+            global_sum(SCALE_GHOST_VECTOR_SEND)
+       write(6,'(a,i0)') "  global writeback scalar values = ", &
+            global_sum(SCALE_WRITEBACK_SCALAR_SEND)
+       write(6,'(a,i0)') "  global writeback vector values = ", &
+            global_sum(SCALE_WRITEBACK_VECTOR_SEND)
+       write(6,'(a,i0)') "  global Domain stage real values = ", &
+            global_sum(SCALE_DOMAIN_STAGE_REAL)
+       write(6,'(a)') "  global route and payload balance passed"
+       write(6,'(a)') "  repeated allocation-free snapshot passed"
+       write(6,'(a,/)') "Parallel block scaling validation passed"
+    end if
+
+  contains
+
+    subroutine collect_scaling_snapshot ( &
+         local_value,minimum_value,maximum_value,total_value)
+
+      implicit none
+
+      integer(int64), intent(out) :: local_value(SCALE_METRIC_COUNT)
+      integer(int64), intent(out) :: maximum_value(SCALE_METRIC_COUNT)
+      integer(int64), intent(out) :: minimum_value(SCALE_METRIC_COUNT)
+      integer(int64), intent(out) :: total_value(SCALE_METRIC_COUNT)
+
+      integer :: b
+      integer :: i
+      integer :: local_block_count
+
+      local_value = 0_int64
+      local_block_count = n_local_blocks()
+      local_value(SCALE_BLOCK) = int(local_block_count,int64)
+
+      do i = 1,local_block_count
+         b = local_block_catalog(i)
+         local_value(SCALE_WEIGHT) = local_value(SCALE_WEIGHT) + &
+              int(block_catalog(b)%weight,int64)
+         local_value(SCALE_PATCH) = local_value(SCALE_PATCH) + &
+              int(local_block_patch_count(b),int64)
+      end do
+
+      local_value(SCALE_GHOST_SEND_PEER) = int(count( &
+           ghost_exchange_plan%scalar_send_count > 0),int64)
+      local_value(SCALE_GHOST_RECV_PEER) = int(count( &
+           ghost_exchange_plan%scalar_recv_count > 0),int64)
+      local_value(SCALE_GHOST_SCALAR_SEND) = sum(int( &
+           ghost_exchange_plan%scalar_send_count,int64))
+      local_value(SCALE_GHOST_SCALAR_RECV) = sum(int( &
+           ghost_exchange_plan%scalar_recv_count,int64))
+      local_value(SCALE_GHOST_VECTOR_SEND) = sum(int( &
+           ghost_exchange_plan%vector_send_count,int64))
+      local_value(SCALE_GHOST_VECTOR_RECV) = sum(int( &
+           ghost_exchange_plan%vector_recv_count,int64))
+
+      local_value(SCALE_WRITEBACK_SEND_PEER) = int(count( &
+           block_writeback_plan%scalar_send_count > 0),int64)
+      local_value(SCALE_WRITEBACK_RECV_PEER) = int(count( &
+           block_writeback_plan%scalar_recv_count > 0),int64)
+      local_value(SCALE_WRITEBACK_SCALAR_SEND) = sum(int( &
+           block_writeback_plan%scalar_send_count,int64))
+      local_value(SCALE_WRITEBACK_SCALAR_RECV) = sum(int( &
+           block_writeback_plan%scalar_recv_count,int64))
+      local_value(SCALE_WRITEBACK_VECTOR_SEND) = sum(int( &
+           block_writeback_plan%vector_send_count,int64))
+      local_value(SCALE_WRITEBACK_VECTOR_RECV) = sum(int( &
+           block_writeback_plan%vector_recv_count,int64))
+
+      local_value(SCALE_PERSISTENT_REAL) = int(size( &
+           ghost_exchange_plan%scalar_send_buffer),int64) + int(size( &
+           ghost_exchange_plan%scalar_recv_buffer),int64) + int(size( &
+           ghost_exchange_plan%scalar_patch_buffer),int64) + int(size( &
+           ghost_exchange_plan%vector_send_buffer),int64) + int(size( &
+           ghost_exchange_plan%vector_recv_buffer),int64) + int(size( &
+           ghost_exchange_plan%vector_patch_buffer),int64) + int(size( &
+           block_writeback_plan%scalar_send_buffer),int64) + int(size( &
+           block_writeback_plan%scalar_recv_buffer),int64) + int(size( &
+           block_writeback_plan%vector_send_buffer),int64) + int(size( &
+           block_writeback_plan%vector_recv_buffer),int64) + int(size( &
+           block_writeback_plan%scalar_domain_stage),int64) + int(size( &
+           block_writeback_plan%vector_domain_stage),int64)
+      local_value(SCALE_DOMAIN_STAGE_REAL) = int(size( &
+           block_writeback_plan%scalar_domain_stage),int64) + int(size( &
+           block_writeback_plan%vector_domain_stage),int64)
+
+      if (any(local_value < 0_int64)) then
+         call fail("scaling snapshot contains a negative metric")
+      end if
+
+      call MPI_Allreduce(local_value,minimum_value,SCALE_METRIC_COUNT, &
+           MPI_INTEGER8,MPI_MIN,comm,ierr)
+      call check_mpi(ierr,"MPI_Allreduce scaling minima")
+      call MPI_Allreduce(local_value,maximum_value,SCALE_METRIC_COUNT, &
+           MPI_INTEGER8,MPI_MAX,comm,ierr)
+      call check_mpi(ierr,"MPI_Allreduce scaling maxima")
+      call MPI_Allreduce(local_value,total_value,SCALE_METRIC_COUNT, &
+           MPI_INTEGER8,MPI_SUM,comm,ierr)
+      call check_mpi(ierr,"MPI_Allreduce scaling totals")
+
+    end subroutine collect_scaling_snapshot
+
+
+    subroutine print_min_average_max (description,metric_index)
+
+      implicit none
+
+      character(*), intent(in) :: description
+      integer, intent(in) :: metric_index
+
+      real(dp) :: average
+      real(dp) :: maximum_over_average
+
+      average = real(global_sum(metric_index),dp) / real(n_process,dp)
+      maximum_over_average = 0.0_dp
+      if (abs(average) > 0.0_dp) then
+         maximum_over_average = &
+              real(global_max(metric_index),dp) / average
+      end if
+
+      write(6,'(2a,i0,a,f12.2,a,i0,a,f10.4)') "  ", &
+           trim(description)//": min/avg/max = ", &
+           global_min(metric_index)," / ",average," / ", &
+           global_max(metric_index),"  max/avg = ", &
+           maximum_over_average
+
+    end subroutine print_min_average_max
+
+  end subroutine check_parallel_block_scaling
 
 
   subroutine accumulate_block_hydrostatic_consumer ( &
