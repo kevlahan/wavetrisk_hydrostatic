@@ -340,6 +340,8 @@ module parallel_block_mpi_mod
   public :: write_block_field_family_to_domains
   public :: block_domain_production_writeback_count
   public :: check_block_writeback_payload_exchange
+  public :: exchange_domain_to_block_payloads
+  public :: check_domain_to_block_payload_exchange
   public :: check_block_writeback_domain_reconstruction
   public :: block_writeback_plan_is_ready
   public :: block_writeback_plan_allocation_count
@@ -1295,6 +1297,7 @@ end subroutine build_parallel_block_catalog
     call check_block_two_stage_step_completion(print_local)
     call check_parallel_block_lifecycle(print_local)
     call check_parallel_block_scaling(print_local)
+    call check_domain_to_block_payload_exchange(print_local)
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
@@ -3773,6 +3776,325 @@ end subroutine build_parallel_block_catalog
     end subroutine compare_writeback_payloads
 
   end subroutine check_block_writeback_payload_exchange
+
+
+  subroutine exchange_domain_to_block_payloads (payload_family)
+    ! Reverse the persistent writeback routes without reallocating them.
+    ! Domain owners pack one field family and final block owners receive the
+    ! payload in catalogue order. Neither representation is modified.
+
+    implicit none
+
+    integer, intent(in) :: payload_family
+
+    integer :: b
+    integer :: d
+    integer :: destination
+    integer :: ierr
+    integer :: n_patch
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: scalar_start
+    integer :: slot
+    integer :: vector_start
+
+    logical :: plan_ready
+
+    plan_ready = block_writeback_plan_is_ready()
+    if (.not. plan_ready) then
+       call fail("Domain-to-block exchange before plan is ready")
+    end if
+    if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+         payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+       call fail("invalid Domain-to-block payload family")
+    end if
+
+    block_writeback_plan%scalar_recv_buffer = 0.0_dp
+    block_writeback_plan%vector_recv_buffer = 0.0_dp
+    block_writeback_plan%scalar_send_buffer = 0.0_dp
+    block_writeback_plan%vector_send_buffer = 0.0_dp
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan%scalar_recv_displ(r) + 1
+       pos_vector = block_writeback_plan%vector_recv_displ(r) + 1
+
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r) + &
+            block_writeback_plan%recv_count(r)
+          b = block_writeback_plan%recv_block(slot)
+          destination = source_rank(b)
+          if (destination /= rank) then
+             call fail("Domain-to-block source is not the Domain owner")
+          end if
+          if (block_catalog(b)%owner /= r-1) then
+             call fail("Domain-to-block destination owner mismatch")
+          end if
+
+          d = loc_id(block_catalog(b)%root_domain+1) + 1
+          if (d < 1 .or. d > size(grid)) then
+             call fail("Domain-to-block source Domain is invalid")
+          end if
+
+          scalar_start = pos_scalar
+          vector_start = pos_vector
+          n_patch = 0
+          call pack_domain_subtree_prognostic( &
+               d,block_catalog(b)%root_patch,payload_family, &
+               block_writeback_plan%scalar_recv_buffer,pos_scalar, &
+               block_writeback_plan%vector_recv_buffer,pos_vector, &
+               n_patch)
+
+          if (n_patch /= &
+               block_writeback_plan%recv_patch_count(slot) .or. &
+               pos_scalar-scalar_start /= &
+               block_writeback_plan%recv_scalar_nvalue(slot) .or. &
+               pos_vector-vector_start /= &
+               block_writeback_plan%recv_vector_nvalue(slot)) then
+             call fail("Domain-to-block packed payload extent mismatch")
+          end if
+       end do
+
+       if (pos_scalar /= block_writeback_plan%scalar_recv_displ(r) + &
+            block_writeback_plan%scalar_recv_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan%vector_recv_displ(r) + &
+            block_writeback_plan%vector_recv_count(r) + 1) then
+          call fail("Domain-to-block send extent mismatch")
+       end if
+    end do
+
+    call MPI_Alltoallv( &
+         block_writeback_plan%scalar_recv_buffer, &
+         block_writeback_plan%scalar_recv_count, &
+         block_writeback_plan%scalar_recv_displ, &
+         MPI_DOUBLE_PRECISION, &
+         block_writeback_plan%scalar_send_buffer, &
+         block_writeback_plan%scalar_send_count, &
+         block_writeback_plan%scalar_send_displ, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv Domain-to-block scalar payload")
+
+    call MPI_Alltoallv( &
+         block_writeback_plan%vector_recv_buffer, &
+         block_writeback_plan%vector_recv_count, &
+         block_writeback_plan%vector_recv_displ, &
+         MPI_DOUBLE_PRECISION, &
+         block_writeback_plan%vector_send_buffer, &
+         block_writeback_plan%vector_send_count, &
+         block_writeback_plan%vector_send_displ, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv Domain-to-block vector payload")
+
+  end subroutine exchange_domain_to_block_payloads
+
+
+  subroutine check_domain_to_block_payload_exchange (verbose)
+    ! Compare reverse-transported Domain sol and wav_coeff values with the
+    ! installed final-owner blocks. Repeat both exchanges to prove reuse.
+
+    implicit none
+
+    logical, optional, intent(in) :: verbose
+
+    integer :: ierr
+
+    integer(int64) :: allocation_after
+    integer(int64) :: allocation_before
+    integer(int64) :: global_scalar
+    integer(int64) :: global_vector
+    integer(int64) :: local_scalar
+    integer(int64) :: local_vector
+    integer(int64) :: stage_allocation_after
+    integer(int64) :: stage_allocation_before
+
+    logical :: plan_ready
+    logical :: print_summary
+
+    real(dp), allocatable :: expected_scalar(:)
+    real(dp), allocatable :: expected_vector(:)
+
+    print_summary = .true.
+    if (present(verbose)) print_summary = verbose
+
+    plan_ready = block_writeback_plan_is_ready()
+    if (.not. plan_ready) then
+       call fail("Domain-to-block check before plan is ready")
+    end if
+    if (block_writeback_plan%scalar_patch_nvalue <= 0 .or. &
+         block_writeback_plan%vector_patch_nvalue <= 0) then
+       call fail("Domain-to-block patch payload layout is invalid")
+    end if
+
+    allocate(expected_scalar( &
+         block_writeback_plan%scalar_patch_nvalue))
+    allocate(expected_vector( &
+         block_writeback_plan%vector_patch_nvalue))
+
+    allocation_before = block_writeback_plan_allocation_count()
+    stage_allocation_before = block_writeback_plan%stage_allocations
+
+    call check_family(BLOCK_PAYLOAD_SOL)
+    call check_family(BLOCK_PAYLOAD_WAV_COEFF)
+
+    allocation_after = block_writeback_plan_allocation_count()
+    stage_allocation_after = block_writeback_plan%stage_allocations
+    if (allocation_after /= allocation_before) then
+       call fail("Domain-to-block exchange reallocated payload buffers")
+    end if
+    if (stage_allocation_after /= stage_allocation_before) then
+       call fail("Domain-to-block exchange reallocated Domain staging")
+    end if
+
+    local_scalar = sum(int( &
+         block_writeback_plan%scalar_send_count,int64))
+    local_vector = sum(int( &
+         block_writeback_plan%vector_send_count,int64))
+    call MPI_Allreduce(local_scalar,global_scalar,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain-to-block scalar values")
+    call MPI_Allreduce(local_vector,global_vector,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain-to-block vector values")
+
+    if (print_summary) then
+       write(6,'(/,a,i0,a)') &
+            "Domain-to-block payload exchange for rank ",rank,":"
+       write(6,'(a,i0)') "  scalar values received = ",local_scalar
+       write(6,'(a,i0)') "  vector values received = ",local_vector
+       write(6,'(a)') "  exact sol block payload comparison passed"
+       write(6,'(a)') "  exact wav_coeff block payload comparison passed"
+       write(6,'(a)') "  repeated sol reverse exchange passed"
+       write(6,'(a,/)') "  repeated wav_coeff reverse exchange passed"
+    end if
+
+    if (print_summary .and. rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Global Domain-to-block scalar values = ",global_scalar
+       write(6,'(a,i0)') &
+            "Global Domain-to-block vector values = ",global_vector
+       write(6,'(a,/)') &
+            "Exact Domain-to-final-block reverse transport passed"
+    end if
+
+    deallocate(expected_vector)
+    deallocate(expected_scalar)
+
+  contains
+
+    subroutine check_family (payload_family)
+
+      implicit none
+
+      integer, intent(in) :: payload_family
+
+      call exchange_domain_to_block_payloads(payload_family)
+      call compare_received_payloads(payload_family)
+      call exchange_domain_to_block_payloads(payload_family)
+      call compare_received_payloads(payload_family)
+
+    end subroutine check_family
+
+
+    subroutine compare_received_payloads (payload_family)
+
+      implicit none
+
+      integer, intent(in) :: payload_family
+
+      integer :: b
+      integer :: destination
+      integer :: local_patch
+      integer :: n_patch
+      integer :: pos_scalar
+      integer :: pos_vector
+      integer :: r
+      integer :: scalar_start
+      integer :: slot
+      integer :: vector_start
+
+      do r = 1,n_process
+         pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+         pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+
+         do slot = block_writeback_plan%send_displ(r)+1, &
+              block_writeback_plan%send_displ(r) + &
+              block_writeback_plan%send_count(r)
+            b = block_writeback_plan%send_block(slot)
+            destination = source_rank(b)
+            if (block_catalog(b)%owner /= rank) then
+               call fail("reverse payload arrived at wrong block owner")
+            end if
+            if (destination /= r-1) then
+               call fail("reverse payload came from wrong Domain owner")
+            end if
+
+            scalar_start = pos_scalar
+            vector_start = pos_vector
+            n_patch = local_block_patch_count(b)
+
+            do local_patch = 0,n_patch-1
+               call get_local_block_scalar_patch_family_values( &
+                    b,local_patch,payload_family,expected_scalar)
+               call get_local_block_vector_patch_family_values( &
+                    b,local_patch,payload_family,expected_vector)
+
+               if (pos_scalar < 1 .or. pos_scalar + &
+                    size(expected_scalar)-1 > &
+                    size(block_writeback_plan%scalar_send_buffer) .or. &
+                    pos_vector < 1 .or. pos_vector + &
+                    size(expected_vector)-1 > &
+                    size(block_writeback_plan%vector_send_buffer)) then
+                  call fail("reverse received payload buffer is too small")
+               end if
+
+               if (any(abs( &
+                    block_writeback_plan%scalar_send_buffer( &
+                    pos_scalar:pos_scalar+size(expected_scalar)-1) - &
+                    expected_scalar) > 0.0_dp)) then
+                  if (payload_family == BLOCK_PAYLOAD_SOL) then
+                     call fail("reverse transported scalar sol mismatch")
+                  else
+                     call fail( &
+                          "reverse transported scalar wav_coeff mismatch")
+                  end if
+               end if
+               if (any(abs( &
+                    block_writeback_plan%vector_send_buffer( &
+                    pos_vector:pos_vector+size(expected_vector)-1) - &
+                    expected_vector) > 0.0_dp)) then
+                  if (payload_family == BLOCK_PAYLOAD_SOL) then
+                     call fail("reverse transported vector sol mismatch")
+                  else
+                     call fail( &
+                          "reverse transported vector wav_coeff mismatch")
+                  end if
+               end if
+
+               pos_scalar = pos_scalar + size(expected_scalar)
+               pos_vector = pos_vector + size(expected_vector)
+            end do
+
+            if (pos_scalar-scalar_start /= &
+                 block_writeback_plan%send_scalar_nvalue(slot) .or. &
+                 pos_vector-vector_start /= &
+                 block_writeback_plan%send_vector_nvalue(slot) .or. &
+                 n_patch /= &
+                 block_writeback_plan%send_patch_count(slot)) then
+               call fail("reverse received payload extent mismatch")
+            end if
+         end do
+
+         if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+              block_writeback_plan%scalar_send_count(r) + 1 .or. &
+              pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+              block_writeback_plan%vector_send_count(r) + 1) then
+            call fail("Domain-to-block receive extent mismatch")
+         end if
+      end do
+
+    end subroutine compare_received_payloads
+
+  end subroutine check_domain_to_block_payload_exchange
 
 
   recursive subroutine pack_domain_subtree_prognostic ( &
