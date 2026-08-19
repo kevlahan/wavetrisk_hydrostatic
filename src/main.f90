@@ -62,6 +62,7 @@ module main_mod
        preview_block_domain_trend_step, &
        prepare_parallel_block_grid_change, &
        refresh_parallel_block_domain_prognostic_state, &
+       validate_post_grid_change_block_reconstruction, &
        migrate_blocks
 
 #ifdef PHYSICS
@@ -391,7 +392,8 @@ contains
   subroutine time_step 
     implicit none
     integer(8) :: idt, ialign
-    logical    :: block_euler_step, block_state_ready, save_data
+    logical    :: block_euler_step, block_state_ready
+    logical    :: rebuild_block_canary, save_data
 
     ! New time step
     istep       = istep       + 1
@@ -419,6 +421,7 @@ contains
     !    Dynamics time step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     block_euler_step = .false.
+    rebuild_block_canary = .false.
     block_state_ready = parallel_block_state_is_ready()
     if (block_state_ready .and. .not. mode_split) then
        call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)
@@ -439,6 +442,7 @@ contains
     block_state_ready = parallel_block_state_is_ready()
     if (block_state_ready) then
        call prepare_parallel_block_grid_change
+       rebuild_block_canary = .true.
     else
        call invalidate_parallel_block_domain_shadow
     end if
@@ -487,6 +491,16 @@ contains
        iremap = iremap + 1
     end if
     if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
+
+    ! Reconstruct one complete canary from the actual post-grid-change Domain
+    ! state. Exact patch, boundary and ghost validation precedes its release,
+    ! so subsequent timesteps remain on the legacy-authoritative path.
+    if (rebuild_block_canary) then
+       call build_parallel_block_catalog
+       call build_source_blocks
+       call migrate_blocks(.false.)
+       call validate_post_grid_change_block_reconstruction
+    end if
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Update time step and save data

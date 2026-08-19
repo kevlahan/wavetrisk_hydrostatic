@@ -361,6 +361,7 @@ module parallel_block_mpi_mod
   public :: invalidate_parallel_block_domain_shadow
   public :: synchronize_parallel_block_checkpoint
   public :: prepare_parallel_block_grid_change
+  public :: validate_post_grid_change_block_reconstruction
   public :: migrate_blocks
   public :: check_local_blocks
   public :: check_block_field_inventory
@@ -574,6 +575,92 @@ contains
     end if
 
   end subroutine prepare_parallel_block_grid_change
+
+
+  subroutine validate_post_grid_change_block_reconstruction
+    ! Validate one complete shadow rebuilt from the actual Domain state after
+    ! legacy physics, adaptation and remapping, then release the canary state.
+
+    implicit none
+
+    integer(int64) :: allocation_before
+    integer(int64) :: writeback_before
+
+    logical :: hydrostatic_ready
+    logical :: state_ready
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("post-grid-change reconstruction is not ready")
+    end if
+
+    allocation_before = block_writeback_plan_allocation_count()
+    writeback_before = block_domain_production_writeback_count()
+    hydrostatic_ready = .false.
+
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_WAV_COEFF)
+
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.true.)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_WAV_COEFF,.true.)
+
+    call exchange_block_scalar_ghost_payloads( &
+         BLOCK_PAYLOAD_SOL,.false.,.true.)
+    call exchange_block_vector_ghost_payloads( &
+         BLOCK_PAYLOAD_SOL,.false.,.true.)
+    call exchange_block_scalar_ghost_payloads( &
+         BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
+    call exchange_block_vector_ghost_payloads( &
+         BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
+
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       hydrostatic_ready = local_block_hydrostatic_state_ready()
+       if (.not. hydrostatic_ready) then
+          call fail("post-grid-change hydrostatic state is not ready")
+       end if
+    end if
+
+    if (block_writeback_plan_allocation_count() /= &
+         allocation_before) then
+       call fail("post-grid-change reconstruction reallocated buffers")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         writeback_before) then
+       call fail("post-grid-change reconstruction modified Domain fields")
+    end if
+
+    call clear_parallel_block_state
+    state_ready = parallel_block_state_is_ready()
+    if (state_ready) then
+       call fail("post-grid-change canary state was not released")
+    end if
+
+    if (rank == 0) then
+       write(6,'(/,a)') &
+            "Production post-grid-change block reconstruction:"
+       write(6,'(a)') &
+            "  exact sol/wav_coeff patch interiors passed"
+       write(6,'(a)') &
+            "  exact sol/wav_coeff compact boundaries passed"
+       write(6,'(a)') &
+            "  exact sol/wav_coeff inter-block ghosts passed"
+       if (compressible) then
+          write(6,'(a)') &
+               "  reconstructed hydrostatic state ready"
+       end if
+       write(6,'(a)') &
+            "  persistent reconstruction workspace reuse passed"
+       write(6,'(a)') &
+            "  reconstructed canary state released"
+       write(6,'(a,/)') &
+            "Production post-grid-change block reconstruction passed"
+    end if
+
+  end subroutine validate_post_grid_change_block_reconstruction
 
 
   subroutine build_parallel_block_catalog
@@ -1374,6 +1461,7 @@ end subroutine build_parallel_block_catalog
     call check_domain_trend_roundtrip(print_local)
     call check_domain_trend_tendency_import(print_local)
     call check_block_domain_trend_step(print_local)
+    if (compressible) call ensure_local_block_hydrostatic_state
     call check_block_hydrostatic_reconstruction(print_local)
 
   end subroutine migrate_blocks
