@@ -51,7 +51,7 @@ module main_mod
 
   use time_integr_mod, only : dt_step, dt_step_split, init_RK_mem, q1, &
        Euler, Euler_split, RK3, RK3_split, RK4, RK4_split, &
-       set_rk4_block_candidate_enabled
+       set_multistage_block_candidate_enabled
 
   use coord_arithmetic_mod
 
@@ -385,7 +385,7 @@ contains
   subroutine time_step 
     implicit none
     integer(8) :: idt, ialign
-    logical    :: block_euler_step, block_rk4_candidate
+    logical    :: block_euler_step, block_multistage_candidate
     logical    :: block_state_ready
     logical    :: rebuild_block_state, save_data
 
@@ -415,7 +415,7 @@ contains
     !    Dynamics time step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     block_euler_step = .false.
-    block_rk4_candidate = .false.
+    block_multistage_candidate = .false.
     rebuild_block_state = .false.
     block_state_ready = parallel_block_state_is_ready()
     if (block_state_ready .and. .not. mode_split) then
@@ -426,8 +426,9 @@ contains
                wav_coeff(1:N_VARIABLE,1:zlevels),level_start-1)
           call refresh_parallel_block_domain_prognostic_state
           block_euler_step = .true.
-       else if (trim(timeint_type) == "RK4") then
-          block_rk4_candidate = .true.
+       else if (trim(timeint_type) == "RK3" .or. &
+            trim(timeint_type) == "RK4") then
+          block_multistage_candidate = .true.
        else
           call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)
           call preview_block_domain_trend_step(dt)
@@ -438,7 +439,7 @@ contains
     ! physics, adaptation and remapping can change Domain fields or topology.
     ! If no complete shadow exists, retain the idempotent cleanup path.
     block_state_ready = parallel_block_state_is_ready()
-    if (block_state_ready .and. .not. block_rk4_candidate) then
+    if (block_state_ready .and. .not. block_multistage_candidate) then
        call prepare_parallel_block_grid_change
        rebuild_block_state = .true.
     else if (.not. block_state_ready) then
@@ -448,15 +449,17 @@ contains
     if (mode_split) then
        call dt_step_split (dt)
     else if (.not. block_euler_step) then
-       call set_rk4_block_candidate_enabled(block_rk4_candidate)
+       call set_multistage_block_candidate_enabled( &
+            block_multistage_candidate)
        call dt_step (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
-       call set_rk4_block_candidate_enabled(.false.)
+       call set_multistage_block_candidate_enabled(.false.)
     end if
 
-    if (block_rk4_candidate) then
+    if (block_multistage_candidate) then
        block_state_ready = parallel_block_state_is_ready()
        if (.not. block_state_ready) then
-          error stop "RK4 block candidate did not retain synchronized state"
+          error stop &
+               "multistage block candidate did not retain synchronized state"
        end if
        call prepare_parallel_block_grid_change
        rebuild_block_state = .true.

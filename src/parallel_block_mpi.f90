@@ -273,6 +273,7 @@ module parallel_block_mpi_mod
      integer(int64) :: production_writeback_count = 0_int64
      integer(int64) :: production_preview_count = 0_int64
      integer(int64) :: production_euler_step_count = 0_int64
+     integer(int64) :: production_rk3_step_count = 0_int64
      integer(int64) :: production_rk4_step_count = 0_int64
      integer(int64) :: production_domain_refresh_count = 0_int64
      logical :: ready = .false.
@@ -281,11 +282,15 @@ module parallel_block_mpi_mod
   type(Block_Writeback_Plan_Type), save :: block_writeback_plan
 
   integer(int64), save :: production_grid_reconstruction_count = 0_int64
-  integer, save :: production_rk4_candidate_stage = 0
-  integer(int64), save :: production_rk4_import_allocation_before = 0_int64
-  integer(int64), save :: production_rk4_tendency_allocation_before = 0_int64
-  integer(int64), save :: production_rk4_writeback_allocation_before = 0_int64
-  integer(int64), save :: production_rk4_writeback_before = 0_int64
+  integer, save :: production_multistage_candidate_stage = 0
+  integer, save :: production_multistage_candidate_stage_count = 0
+  integer(int64), save :: &
+       production_multistage_import_allocation_before = 0_int64
+  integer(int64), save :: &
+       production_multistage_tendency_allocation_before = 0_int64
+  integer(int64), save :: &
+       production_multistage_writeback_allocation_before = 0_int64
+  integer(int64), save :: production_multistage_writeback_before = 0_int64
 
   type :: Block_Boundary_Snapshot
      integer :: catalog_index = 0
@@ -403,8 +408,8 @@ module parallel_block_mpi_mod
   public :: complete_block_domain_trend_step
   public :: preview_block_domain_trend_step
   public :: advance_block_domain_trend_euler
-  public :: begin_block_domain_rk4_candidate_stage
-  public :: accept_block_domain_rk4_candidate
+  public :: begin_block_domain_multistage_candidate_stage
+  public :: accept_block_domain_multistage_candidate
   public :: check_block_domain_trend_step
   public :: check_block_writeback_domain_reconstruction
   public :: block_writeback_plan_is_ready
@@ -3075,10 +3080,12 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%production_writeback_count = 0_int64
     block_writeback_plan%production_preview_count = 0_int64
     block_writeback_plan%production_euler_step_count = 0_int64
+    block_writeback_plan%production_rk3_step_count = 0_int64
     block_writeback_plan%production_rk4_step_count = 0_int64
     block_writeback_plan%production_domain_refresh_count = 0_int64
     block_writeback_plan%ready = .false.
-    production_rk4_candidate_stage = 0
+    production_multistage_candidate_stage = 0
+    production_multistage_candidate_stage_count = 0
 
   end subroutine clear_block_writeback_plan
 
@@ -6716,8 +6723,9 @@ end subroutine build_parallel_block_catalog
   end subroutine advance_block_domain_trend_euler
 
 
-  subroutine begin_block_domain_rk4_candidate_stage (scale,stage)
-    ! Form one real low-storage RK4 block stage from the authoritative
+  subroutine begin_block_domain_multistage_candidate_stage ( &
+       scale,stage,stage_count)
+    ! Form one real low-storage RK3 or RK4 block stage from the authoritative
     ! Domain tendency. Every stage is based on the retained timestep-start
     ! block state; the preceding provisional stage is therefore rejected
     ! before the next actual Domain stage tendency is imported.
@@ -6726,6 +6734,7 @@ end subroutine build_parallel_block_catalog
 
     real(dp), intent(in) :: scale
     integer, intent(in) :: stage
+    integer, intent(in) :: stage_count
 
     logical :: checkpoint_ready
     logical :: state_ready
@@ -6733,40 +6742,53 @@ end subroutine build_parallel_block_catalog
 
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
-       call fail("production RK4 block candidate before state is ready")
+       call fail( &
+            "production multistage block candidate before state is ready")
     end if
-    if (stage < 1 .or. stage > 4) then
-       call fail("production RK4 block candidate stage is invalid")
+    if (stage_count /= 3 .and. stage_count /= 4) then
+       call fail("production block candidate stage count is invalid")
     end if
-    if (production_rk4_candidate_stage /= stage-1) then
-       call fail("production RK4 block candidate stage sequence is invalid")
+    if (stage < 1 .or. stage > stage_count) then
+       call fail("production multistage block candidate stage is invalid")
+    end if
+    if (production_multistage_candidate_stage /= stage-1) then
+       call fail( &
+            "production multistage block candidate sequence is invalid")
     end if
 
     trial_active = local_block_tendency_trial_is_active()
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
     if (trial_active) then
-       call fail("production RK4 block candidate found an active trial")
+       call fail( &
+            "production multistage block candidate found an active trial")
     end if
 
     if (stage == 1) then
        if (checkpoint_ready) then
-          call fail("production RK4 block candidate found a checkpoint")
+          call fail( &
+               "production multistage block candidate found a checkpoint")
        end if
+       production_multistage_candidate_stage_count = stage_count
        call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
        call assert_block_domain_field_family_match( &
             BLOCK_PAYLOAD_WAV_COEFF)
-       production_rk4_tendency_allocation_before = &
+       production_multistage_tendency_allocation_before = &
             local_block_tendency_allocation_count()
-       production_rk4_import_allocation_before = &
+       production_multistage_import_allocation_before = &
             local_block_tendency_import_allocation_count()
-       production_rk4_writeback_allocation_before = &
+       production_multistage_writeback_allocation_before = &
             block_writeback_plan_allocation_count()
-       production_rk4_writeback_before = &
+       production_multistage_writeback_before = &
             block_domain_production_writeback_count()
     else
+       if (production_multistage_candidate_stage_count /= stage_count) then
+          call fail( &
+               "production multistage block candidate method changed")
+       end if
        if (.not. checkpoint_ready) then
-          call fail("production RK4 provisional stage has no checkpoint")
+          call fail( &
+               "production multistage provisional stage has no checkpoint")
        end if
        call complete_block_domain_trend_step(.false.)
     end if
@@ -6774,23 +6796,28 @@ end subroutine build_parallel_block_catalog
     call begin_block_domain_trend_step(scale)
     if (local_block_tendency_trial_is_active() .or. &
          .not. local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("production RK4 block stage did not retain checkpoint")
+       call fail( &
+            "production multistage block stage did not retain checkpoint")
     end if
     if (local_block_tendency_state_ready()) then
-       call fail("production RK4 block stage retained stale tendencies")
+       call fail( &
+            "production multistage block stage retained stale tendencies")
     end if
 
-    production_rk4_candidate_stage = stage
+    production_multistage_candidate_stage = stage
 
-  end subroutine begin_block_domain_rk4_candidate_stage
+  end subroutine begin_block_domain_multistage_candidate_stage
 
 
-  subroutine accept_block_domain_rk4_candidate
-    ! Compare the final low-storage RK4 block candidate with the authoritative
-    ! Domain result while that comparison is exact, then accept and synchronize
-    ! the candidate transactionally. Intermediate candidates remain rejected.
+  subroutine accept_block_domain_multistage_candidate (stage_count)
+    ! Compare the final low-storage RK3 or RK4 block candidate with the
+    ! authoritative Domain result while that comparison is exact, then accept
+    ! and synchronize the candidate transactionally. Intermediate candidates
+    ! remain rejected.
 
     implicit none
+
+    integer, intent(in) :: stage_count
 
     integer :: ierr
 
@@ -6804,14 +6831,20 @@ end subroutine build_parallel_block_catalog
     real(dp) :: global_max_update(2)
     real(dp) :: local_max_update(2)
 
-    if (production_rk4_candidate_stage /= 4) then
-       call fail("production RK4 block candidate is incomplete")
+    character(len=3) :: scheme_name
+
+    if (stage_count /= 3 .and. stage_count /= 4) then
+       call fail("accepted production block candidate stage count is invalid")
+    end if
+    if (production_multistage_candidate_stage_count /= stage_count .or. &
+         production_multistage_candidate_stage /= stage_count) then
+       call fail("production multistage block candidate is incomplete")
     end if
     trial_active = local_block_tendency_trial_is_active()
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
     if (trial_active .or. .not. checkpoint_ready) then
-       call fail("production RK4 final checkpoint is not ready")
+       call fail("production multistage final checkpoint is not ready")
     end if
 
     call local_block_tendency_commit_checkpoint_statistics( &
@@ -6822,47 +6855,70 @@ end subroutine build_parallel_block_catalog
     call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
 
     if (local_block_tendency_allocation_count() /= &
-         production_rk4_tendency_allocation_before) then
-       call fail("production RK4 candidate reallocated tendency arrays")
+         production_multistage_tendency_allocation_before) then
+       call fail( &
+            "production multistage candidate reallocated tendency arrays")
     end if
     if (local_block_tendency_import_allocation_count() /= &
-         production_rk4_import_allocation_before) then
-       call fail("production RK4 candidate reallocated import coverage")
+         production_multistage_import_allocation_before) then
+       call fail( &
+            "production multistage candidate reallocated import coverage")
     end if
     if (block_writeback_plan_allocation_count() /= &
-         production_rk4_writeback_allocation_before) then
-       call fail("production RK4 candidate reallocated transport storage")
+         production_multistage_writeback_allocation_before) then
+       call fail( &
+            "production multistage candidate reallocated transport storage")
     end if
     if (block_domain_production_writeback_count() /= &
-         production_rk4_writeback_before + 1_int64) then
-       call fail("accepted production RK4 writeback count is invalid")
+         production_multistage_writeback_before + 1_int64) then
+       call fail( &
+            "accepted production multistage writeback count is invalid")
     end if
     if (local_block_tendency_trial_is_active() .or. &
          local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("accepted production RK4 transaction remained pending")
+       call fail( &
+            "accepted production multistage transaction remained pending")
     end if
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
-       call fail("accepted production RK4 invalidated persistent state")
+       call fail( &
+            "accepted production multistage invalidated persistent state")
     end if
 
     call MPI_Allreduce( &
          local_changed_block_count,global_changed_block_count,2, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce RK4 candidate coverage")
+    call check_mpi(ierr,"MPI_Allreduce multistage candidate coverage")
     call MPI_Allreduce(local_max_update,global_max_update,2, &
          MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce RK4 candidate update")
+    call check_mpi(ierr,"MPI_Allreduce multistage candidate update")
 
-    block_writeback_plan%production_rk4_step_count = &
-         block_writeback_plan%production_rk4_step_count + 1_int64
-    production_rk4_candidate_stage = 0
+    if (stage_count == 3) then
+       scheme_name = "RK3"
+       block_writeback_plan%production_rk3_step_count = &
+            block_writeback_plan%production_rk3_step_count + 1_int64
+    else
+       scheme_name = "RK4"
+       block_writeback_plan%production_rk4_step_count = &
+            block_writeback_plan%production_rk4_step_count + 1_int64
+    end if
+    production_multistage_candidate_stage = 0
+    production_multistage_candidate_stage_count = 0
 
     if (rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Accepted production block RK4 timestep number = ", &
-            block_writeback_plan%production_rk4_step_count
-       write(6,'(a,i0)') "  completed candidate stages = ",4
+       if (stage_count == 3) then
+          write(6,'(/,a,a,a,i0)') &
+               "Accepted production block ",scheme_name, &
+               " timestep number = ", &
+               block_writeback_plan%production_rk3_step_count
+       else
+          write(6,'(/,a,a,a,i0)') &
+               "Accepted production block ",scheme_name, &
+               " timestep number = ", &
+               block_writeback_plan%production_rk4_step_count
+       end if
+       write(6,'(a,i0)') &
+            "  completed candidate stages = ",stage_count
        write(6,'(a,i0)') "  scalar changed blocks = ", &
             global_changed_block_count(1)
        write(6,'(a,i0)') "  vector changed blocks = ", &
@@ -6877,13 +6933,14 @@ end subroutine build_parallel_block_catalog
             "  all provisional block stages rejected without writeback"
        write(6,'(a)') &
             "  final sol synchronized exactly to Domain owners"
-       write(6,'(a)') &
-            "  accepted RK4 transaction finalized"
-       write(6,'(a,/)') &
-            "Production multistage block RK4 timestep accepted"
+       write(6,'(a,a,a)') &
+            "  accepted ",scheme_name," transaction finalized"
+       write(6,'(a,a,a,/)') &
+            "Production multistage block ",scheme_name, &
+            " timestep accepted"
     end if
 
-  end subroutine accept_block_domain_rk4_candidate
+  end subroutine accept_block_domain_multistage_candidate
 
 
   subroutine check_block_domain_trend_step (verbose)

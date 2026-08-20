@@ -10,8 +10,8 @@ module time_integr_mod
   use domain_mod,        only : Float_Field, init_Field, grid, sol, trend, wav_coeff
   use multi_level_mod,   only : trend_ml
   use parallel_block_mpi_mod, only : &
-       begin_block_domain_rk4_candidate_stage, &
-       accept_block_domain_rk4_candidate, &
+       begin_block_domain_multistage_candidate_stage, &
+       accept_block_domain_multistage_candidate, &
        parallel_block_state_is_ready, &
        refresh_parallel_block_domain_prognostic_state
 
@@ -20,7 +20,7 @@ module time_integr_mod
   private
   public :: dt_step, dt_step_split
   public :: init_RK_mem
-  public :: set_rk4_block_candidate_enabled
+  public :: set_multistage_block_candidate_enabled
   public :: Euler, Euler_split, RK3, RK3_split, RK4, RK4_split
   public :: q1
   
@@ -61,23 +61,23 @@ module time_integr_mod
   
   procedure (dt_integrator),       pointer :: dt_step        => null ()
   procedure (dt_integrator_split), pointer :: dt_step_split  => null ()
-  logical :: rk4_block_candidate_enabled = .false.
+  logical :: multistage_block_candidate_enabled = .false.
 
   
 contains
 
 
-  subroutine set_rk4_block_candidate_enabled (enabled)
-    ! Guard the production RK4 candidate so other RK4 callers remain on the
-    ! unchanged Domain-only pathway.
+  subroutine set_multistage_block_candidate_enabled (enabled)
+    ! Guard the production multistage candidate so other RK3 and RK4 callers
+    ! remain on the unchanged Domain-only pathway.
 
     implicit none
 
     logical, intent(in) :: enabled
 
-    rk4_block_candidate_enabled = enabled
+    multistage_block_candidate_enabled = enabled
 
-  end subroutine set_rk4_block_candidate_enabled
+  end subroutine set_multistage_block_candidate_enabled
 
   
   subroutine Euler (q, wav, routine, h)
@@ -109,19 +109,45 @@ contains
     type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
     procedure (trend_sub)            :: routine
 
+    logical :: block_candidate
+    logical :: block_state_ready
+
     call manage_q1_mem
 
+    block_candidate = multistage_block_candidate_enabled
+    if (block_candidate) then
+       block_state_ready = parallel_block_state_is_ready()
+       if (.not. block_state_ready) then
+          error stop "guarded RK3 block candidate state is not ready"
+       end if
+    end if
+
     call routine (q, trend) 
+    if (block_candidate) then
+       call begin_block_domain_multistage_candidate_stage(h/3,1,3)
+    end if
     call RK_sub_step (q, trend, h/3, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
+    if (block_candidate) then
+       call begin_block_domain_multistage_candidate_stage(h/2,2,3)
+    end if
     call RK_sub_step (q, trend, h/2, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
+    if (block_candidate) then
+       call begin_block_domain_multistage_candidate_stage(h,3,3)
+    end if
     call RK_sub_step (q, trend, h, q)
+    if (block_candidate) then
+       call accept_block_domain_multistage_candidate(3)
+    end if
     call WT_after_step (q, wav, level_start-1)
+    if (block_candidate) then
+       call refresh_parallel_block_domain_prognostic_state
+    end if
   end subroutine RK3
   
   
@@ -142,7 +168,7 @@ contains
 
     call manage_q1_mem
 
-    block_candidate = rk4_block_candidate_enabled
+    block_candidate = multistage_block_candidate_enabled
     if (block_candidate) then
        block_state_ready = parallel_block_state_is_ready()
        if (.not. block_state_ready) then
@@ -152,31 +178,33 @@ contains
 
     call routine (q, trend) 
     if (block_candidate) then
-       call begin_block_domain_rk4_candidate_stage(h/4,1)
+       call begin_block_domain_multistage_candidate_stage(h/4,1,4)
     end if
     call RK_sub_step (q, trend, h/4, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
     if (block_candidate) then
-       call begin_block_domain_rk4_candidate_stage(h/3,2)
+       call begin_block_domain_multistage_candidate_stage(h/3,2,4)
     end if
     call RK_sub_step (q, trend, h/3, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
     if (block_candidate) then
-       call begin_block_domain_rk4_candidate_stage(h/2,3)
+       call begin_block_domain_multistage_candidate_stage(h/2,3,4)
     end if
     call RK_sub_step (q, trend, h/2, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
     if (block_candidate) then
-       call begin_block_domain_rk4_candidate_stage(h,4)
+       call begin_block_domain_multistage_candidate_stage(h,4,4)
     end if
     call RK_sub_step (q, trend, h, q)
-    if (block_candidate) call accept_block_domain_rk4_candidate
+    if (block_candidate) then
+       call accept_block_domain_multistage_candidate(4)
+    end if
     call WT_after_step (q, wav, level_start-1)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
