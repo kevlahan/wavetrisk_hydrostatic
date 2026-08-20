@@ -5983,10 +5983,13 @@ end subroutine build_parallel_block_catalog
     integer :: vector_ghost_send_size_before
 
     integer(int64) :: production_writeback_before
+    integer(int64) :: hydrostatic_refresh_after
+    integer(int64) :: hydrostatic_refresh_before
     integer(int64) :: writeback_allocation_before
 
     logical :: accumulator_ready
     logical :: checkpoint_ready
+    logical :: hydrostatic_ready
     logical :: state_ready
     logical :: tendency_ready
     logical :: trial_active
@@ -5996,6 +5999,9 @@ end subroutine build_parallel_block_catalog
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("multistage boundary refresh before state is ready")
+    end if
+    if (.not. compressible) then
+       call fail("multistage boundary refresh requires compressible state")
     end if
     if (stage_count /= 3 .and. stage_count /= 4) then
        call fail("multistage boundary refresh stage count is invalid")
@@ -6049,6 +6055,26 @@ end subroutine build_parallel_block_catalog
     call assert_block_domain_field_family_match( &
          BLOCK_PAYLOAD_SOL,domain_sol)
 
+    hydrostatic_refresh_before = &
+         local_block_hydrostatic_refresh_count()
+    call ensure_local_block_hydrostatic_state
+    hydrostatic_refresh_after = &
+         local_block_hydrostatic_refresh_count()
+    hydrostatic_ready = local_block_hydrostatic_state_ready()
+    if (.not. hydrostatic_ready) then
+       call fail("multistage provisional hydrostatic state is not ready")
+    end if
+    if (hydrostatic_refresh_after-hydrostatic_refresh_before /= &
+         int(n_local_blocks(),int64)) then
+       call fail("multistage provisional hydrostatic refresh is incomplete")
+    end if
+    call assert_candidate_block_hydrostatic_match(domain_sol)
+    call ensure_local_block_hydrostatic_state
+    if (local_block_hydrostatic_refresh_count() /= &
+         hydrostatic_refresh_after) then
+       call fail("multistage provisional hydrostatic cache refreshed twice")
+    end if
+
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
     trial_active = local_block_tendency_trial_is_active()
@@ -6098,6 +6124,10 @@ end subroutine build_parallel_block_catalog
        write(6,'(a)') &
             "  scalar/vector stage sol ghosts refreshed"
        write(6,'(a)') &
+            "  exact provisional hydrostatic reconstruction passed"
+       write(6,'(a)') &
+            "  provisional hydrostatic cache reused without refresh"
+       write(6,'(a)') &
             "  timestep-start rollback checkpoint retained"
        write(6,'(a)') &
             "  persistent transport and ghost buffers reused"
@@ -6106,6 +6136,102 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine refresh_parallel_block_candidate_boundary_state
+
+
+  subroutine assert_candidate_block_hydrostatic_match (domain_sol)
+    ! Compare the persistent provisional-stage block thermodynamic cache
+    ! with an independent reconstruction from the authoritative Domain
+    ! stage fields. Only catalogue-rooted patches participate.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+
+    integer :: b
+    integer :: d
+    integer :: ierr
+
+    integer(int64) :: count_global(4)
+    integer(int64) :: count_local(4)
+    integer(int64) :: domain_column_count
+    integer(int64) :: domain_surface_count
+
+    real(dp) :: domain_exner_moment(3)
+    real(dp) :: domain_surface_moment(3)
+    real(dp) :: domain_temperature_moment(3)
+    real(dp) :: moment_global(18)
+    real(dp) :: moment_local(18)
+
+    type(Block_Hydrostatic_Traversal_Context) :: block_statistics
+
+    if (.not. compressible) then
+       call fail("candidate hydrostatic comparison is incompressible")
+    end if
+    if (.not. local_block_hydrostatic_state_ready()) then
+       call fail("candidate block hydrostatic state is not ready")
+    end if
+
+    block_statistics = Block_Hydrostatic_Traversal_Context()
+    call apply_local_block_hydrostatic_consumer( &
+         accumulate_block_hydrostatic_consumer,block_statistics)
+    if (block_statistics%block_count /= int(n_local_blocks(),int64)) then
+       call fail("candidate hydrostatic block traversal is incomplete")
+    end if
+
+    domain_surface_count = 0_int64
+    domain_column_count = 0_int64
+    domain_surface_moment = 0.0_dp
+    domain_exner_moment = 0.0_dp
+    domain_temperature_moment = 0.0_dp
+    do b = 1,size(block_catalog)
+       if (owner(block_catalog(b)%root_domain+1) /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("candidate hydrostatic source Domain is invalid")
+       end if
+       call accumulate_domain_subtree_hydrostatic( &
+            d,block_catalog(b)%root_patch, &
+            domain_surface_count,domain_column_count, &
+            domain_surface_moment,domain_exner_moment, &
+            domain_temperature_moment,domain_sol)
+    end do
+
+    count_local = [block_statistics%surface_count, &
+         block_statistics%column_count,domain_surface_count, &
+         domain_column_count]
+    moment_local(1:3) = block_statistics%surface_moment
+    moment_local(4:6) = block_statistics%exner_moment
+    moment_local(7:9) = block_statistics%temperature_moment
+    moment_local(10:12) = domain_surface_moment
+    moment_local(13:15) = domain_exner_moment
+    moment_local(16:18) = domain_temperature_moment
+
+    call MPI_Allreduce(count_local,count_global,4, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce candidate hydrostatic counts")
+    call MPI_Allreduce(moment_local,moment_global,18, &
+         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce candidate hydrostatic moments")
+
+    if (count_global(1) /= count_global(3) .or. &
+         count_global(2) /= count_global(4)) then
+       call fail("candidate block/Domain hydrostatic counts differ")
+    end if
+    if (.not. field_moments_match( &
+         moment_global(1:3),moment_global(10:12),count_global(1))) then
+       call fail("candidate block/Domain surface pressure differs")
+    end if
+    if (.not. field_moments_match( &
+         moment_global(4:6),moment_global(13:15),count_global(2))) then
+       call fail("candidate block/Domain dynamic Exner differs")
+    end if
+    if (.not. field_moments_match( &
+         moment_global(7:9),moment_global(16:18),count_global(2))) then
+       call fail("candidate block/Domain air temperature differs")
+    end if
+
+  end subroutine assert_candidate_block_hydrostatic_match
 
 
   subroutine refresh_parallel_block_domain_prognostic_state
@@ -16385,7 +16511,7 @@ end subroutine build_parallel_block_catalog
 
   recursive subroutine accumulate_domain_subtree_hydrostatic ( &
        d,p,surface_count,column_count,surface_moment,exner_moment, &
-       temperature_moment)
+       temperature_moment,domain_sol)
     ! Independently reconstruct compressible hydrostatic diagnostics
     ! over one catalogue-rooted legacy Domain subtree.
 
@@ -16400,6 +16526,8 @@ end subroutine build_parallel_block_catalog
     real(dp), intent(inout) :: surface_moment(3)
     real(dp), intent(inout) :: exner_moment(3)
     real(dp), intent(inout) :: temperature_moment(3)
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: c
     integer :: i
@@ -16426,10 +16554,23 @@ end subroutine build_parallel_block_catalog
 
     start = grid(d)%patch%elts(p+1)%elts_start
 
-    if (start < 0 .or. &
-         start+PATCH_SIZE**2 > &
-         size(sol(S_MASS,1)%data(d)%elts)) then
-       call fail("legacy hydrostatic patch extent is invalid")
+    if (start < 0) then
+       call fail("Domain hydrostatic patch start is invalid")
+    end if
+    if (present(domain_sol)) then
+       if (start+PATCH_SIZE**2 > &
+            size(domain_sol(S_MASS,1)%data(d)%elts) .or. &
+            start+PATCH_SIZE**2 > &
+            size(domain_sol(S_TEMP,1)%data(d)%elts)) then
+          call fail("stage hydrostatic patch extent is invalid")
+       end if
+    else
+       if (start+PATCH_SIZE**2 > &
+            size(sol(S_MASS,1)%data(d)%elts) .or. &
+            start+PATCH_SIZE**2 > &
+            size(sol(S_TEMP,1)%data(d)%elts)) then
+          call fail("legacy hydrostatic patch extent is invalid")
+       end if
     end if
 
     do i = 1, PATCH_SIZE**2
@@ -16438,8 +16579,14 @@ end subroutine build_parallel_block_catalog
        pressure_lower = p_top
 
        do k = 1, zlevels
-          rho_dz = sol(S_MASS,k)%data(d)%elts(node_index) + &
-               sol_mean(S_MASS,k)%data(d)%elts(node_index)
+          if (present(domain_sol)) then
+             rho_dz = &
+                  domain_sol(S_MASS,k)%data(d)%elts(node_index) + &
+                  sol_mean(S_MASS,k)%data(d)%elts(node_index)
+          else
+             rho_dz = sol(S_MASS,k)%data(d)%elts(node_index) + &
+                  sol_mean(S_MASS,k)%data(d)%elts(node_index)
+          end if
 
           if (rho_dz <= 0.0_dp) then
              call fail("nonpositive legacy mass in reconstruction")
@@ -16455,11 +16602,20 @@ end subroutine build_parallel_block_catalog
        surface_moment(3) = surface_moment(3) + surface_pressure**2
 
        do k = 1, zlevels
-          rho_dz = sol(S_MASS,k)%data(d)%elts(node_index) + &
-               sol_mean(S_MASS,k)%data(d)%elts(node_index)
-          rho_dz_theta = &
-               sol(S_TEMP,k)%data(d)%elts(node_index) + &
-               sol_mean(S_TEMP,k)%data(d)%elts(node_index)
+          if (present(domain_sol)) then
+             rho_dz = &
+                  domain_sol(S_MASS,k)%data(d)%elts(node_index) + &
+                  sol_mean(S_MASS,k)%data(d)%elts(node_index)
+             rho_dz_theta = &
+                  domain_sol(S_TEMP,k)%data(d)%elts(node_index) + &
+                  sol_mean(S_TEMP,k)%data(d)%elts(node_index)
+          else
+             rho_dz = sol(S_MASS,k)%data(d)%elts(node_index) + &
+                  sol_mean(S_MASS,k)%data(d)%elts(node_index)
+             rho_dz_theta = &
+                  sol(S_TEMP,k)%data(d)%elts(node_index) + &
+                  sol_mean(S_TEMP,k)%data(d)%elts(node_index)
+          end if
 
           pressure_upper = pressure_lower - grav_accel*rho_dz
           layer_pressure = 0.5_dp*(pressure_lower+pressure_upper)
@@ -16495,9 +16651,15 @@ end subroutine build_parallel_block_catalog
        p_child = grid(d)%patch%elts(p+1)%children(c)
        if (p_child == 0) cycle
 
-       call accumulate_domain_subtree_hydrostatic( &
-            d,p_child,surface_count,column_count,surface_moment, &
-            exner_moment,temperature_moment)
+       if (present(domain_sol)) then
+          call accumulate_domain_subtree_hydrostatic( &
+               d,p_child,surface_count,column_count,surface_moment, &
+               exner_moment,temperature_moment,domain_sol)
+       else
+          call accumulate_domain_subtree_hydrostatic( &
+               d,p_child,surface_count,column_count,surface_moment, &
+               exner_moment,temperature_moment)
+       end if
 
     end do
 
