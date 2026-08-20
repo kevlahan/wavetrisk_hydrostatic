@@ -353,6 +353,7 @@ module parallel_block_mod
   public :: Local_Block_Tendency_Consumer
   public :: apply_local_block_tendency_consumer
   public :: local_block_tendency_state_ready
+  public :: discard_local_block_tendency_output
   public :: invalidate_local_block_tendency_products
   public :: prepare_local_block_tendency_workspace
   public :: local_block_tendency_execution_count
@@ -2232,6 +2233,40 @@ subroutine invalidate_local_block_tendency_products
   block_tendency_accumulator_stages = 0_int64
 
 end subroutine invalidate_local_block_tendency_products
+
+
+subroutine discard_local_block_tendency_output
+  ! Mark one completed diagnostic tendency evaluation stale without touching
+  ! an enclosing committed-state checkpoint. This supports provisional RK
+  ! stage evaluation that must never become an accepted update.
+
+  implicit none
+
+  integer :: local_index
+
+  logical :: tendency_ready
+
+  if (block_tendency_import_active .or. block_tendency_trial_active) then
+     error stop &
+          "discard_local_block_tendency_output: active operation"
+  end if
+  if (block_tendency_accumulator_ready) then
+     error stop &
+          "discard_local_block_tendency_output: accumulator is ready"
+  end if
+
+  tendency_ready = local_block_tendency_state_ready()
+  if (.not. tendency_ready) then
+     error stop &
+          "discard_local_block_tendency_output: output is not ready"
+  end if
+
+  block_tendency_ready = .false.
+  do local_index = 1,size(block_tendency)
+     block_tendency(local_index)%ready = .false.
+  end do
+
+end subroutine discard_local_block_tendency_output
 
 
 logical function local_block_tendency_state_ready () result(ready)

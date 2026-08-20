@@ -99,6 +99,7 @@ module parallel_block_mpi_mod
        apply_local_block_tendency_kernel, &
        apply_local_block_tendency_consumer, &
        local_block_tendency_state_ready, &
+       discard_local_block_tendency_output, &
        invalidate_local_block_tendency_products, &
        prepare_local_block_tendency_workspace, &
        local_block_tendency_execution_count, &
@@ -6074,6 +6075,7 @@ end subroutine build_parallel_block_catalog
          hydrostatic_refresh_after) then
        call fail("multistage provisional hydrostatic cache refreshed twice")
     end if
+    call evaluate_candidate_block_stencil_tendency
 
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
@@ -6127,6 +6129,10 @@ end subroutine build_parallel_block_catalog
             "  exact provisional hydrostatic reconstruction passed"
        write(6,'(a)') &
             "  provisional hydrostatic cache reused without refresh"
+       write(6,'(a)') &
+            "  provisional block stencil tendency evaluated exactly"
+       write(6,'(a)') &
+            "  provisional tendency output discarded without writeback"
        write(6,'(a)') &
             "  timestep-start rollback checkpoint retained"
        write(6,'(a)') &
@@ -6232,6 +6238,157 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine assert_candidate_block_hydrostatic_match
+
+
+  subroutine evaluate_candidate_block_stencil_tendency
+    ! Execute the established writable compact-stencil kernel on one complete
+    ! provisional RK block state. Compare it with the independent read-only
+    ! traversal, then discard its persistent output without using it in the
+    ! authoritative Domain RK calculation or disturbing the rollback state.
+
+    implicit none
+
+    integer :: ierr
+
+    integer(int64) :: allocation_before
+    integer(int64) :: count_global(2)
+    integer(int64) :: count_local(2)
+    integer(int64) :: execution_before
+    integer(int64) :: field_count(2)
+    integer(int64) :: field_count_after(2)
+    integer(int64) :: hydrostatic_refresh_before
+    integer(int64) :: tendency_count(2)
+
+    real(dp) :: factor
+    real(dp) :: field_moment(3,2)
+    real(dp) :: field_moment_after(3,2)
+    real(dp) :: scale
+    real(dp) :: tendency_moment(3,2)
+
+    logical :: accumulator_ready
+    logical :: checkpoint_ready
+    logical :: tendency_ready
+    logical :: trial_active
+
+    type(Block_Stencil_Kernel_Context) :: reference
+    type(Block_Stencil_Kernel_Context) :: writable
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. .not. checkpoint_ready .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("provisional stencil tendency transaction is invalid")
+    end if
+    if (.not. local_block_hydrostatic_state_ready()) then
+       call fail("provisional stencil tendency hydrostatic state is stale")
+    end if
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+    allocation_before = local_block_tendency_allocation_count()
+    execution_before = local_block_tendency_execution_count()
+    hydrostatic_refresh_before = local_block_hydrostatic_refresh_count()
+
+    reference = Block_Stencil_Kernel_Context()
+    call apply_local_block_field_consumer( &
+         accumulate_block_stencil_kernel,reference)
+    writable = Block_Stencil_Kernel_Context()
+    call apply_local_block_tendency_kernel( &
+         accumulate_block_tendency_kernel,writable)
+
+    tendency_ready = local_block_tendency_state_ready()
+    if (.not. tendency_ready) then
+       call fail("provisional stencil tendency output is not ready")
+    end if
+    if (local_block_tendency_execution_count() /= &
+         execution_before+1_int64) then
+       call fail("provisional stencil tendency execution count is invalid")
+    end if
+    if (local_block_tendency_allocation_count() /= allocation_before) then
+       call fail("provisional stencil tendency reallocated workspace")
+    end if
+
+    call local_block_tendency_statistics( &
+         tendency_count(1),tendency_count(2), &
+         tendency_moment(:,1),tendency_moment(:,2))
+    if (any(tendency_count /= field_count)) then
+       call fail("provisional stencil tendency coverage differs")
+    end if
+    if (writable%block_count /= int(n_local_blocks(),int64) .or. &
+         any(writable%address_count /= reference%address_count) .or. &
+         writable%scalar_count /= reference%scalar_count .or. &
+         writable%vector_count /= reference%vector_count) then
+       call fail("provisional stencil tendency traversal differs")
+    end if
+    if (.not. field_moments_match( &
+         writable%scalar_difference_moment, &
+         reference%scalar_difference_moment,reference%scalar_count) .or. &
+         .not. field_moments_match( &
+         writable%vector_difference_moment, &
+         reference%vector_difference_moment,reference%vector_count)) then
+       call fail("provisional stencil tendency inventory differs")
+    end if
+
+    factor = 256.0_dp*epsilon(1.0_dp)* &
+         real(max(1_int64,reference%scalar_count),dp)
+    scale = max(1.0_dp,reference%scalar_difference_moment(2), &
+         tendency_moment(2,1))
+    if (abs(tendency_moment(1,1)- &
+         reference%scalar_difference_moment(1)) > factor*scale) then
+       call fail("provisional scalar tendency is not conservative")
+    end if
+    factor = 256.0_dp*epsilon(1.0_dp)* &
+         real(max(1_int64,reference%vector_count),dp)
+    scale = max(1.0_dp,reference%vector_difference_moment(2), &
+         tendency_moment(2,2))
+    if (abs(tendency_moment(1,2)- &
+         reference%vector_difference_moment(1)) > factor*scale) then
+       call fail("provisional vector tendency is not conservative")
+    end if
+
+    call local_block_field_statistics( &
+         field_count_after(1),field_count_after(2), &
+         field_moment_after(:,1),field_moment_after(:,2))
+    if (any(field_count_after /= field_count)) then
+       call fail("provisional stencil tendency changed field coverage")
+    end if
+    if (.not. field_moments_match( &
+         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+         .not. field_moments_match( &
+         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
+       call fail("provisional stencil tendency changed block fields")
+    end if
+    if (local_block_hydrostatic_refresh_count() /= &
+         hydrostatic_refresh_before) then
+       call fail("provisional stencil tendency refreshed hydrostatic cache")
+    end if
+
+    count_local = [writable%scalar_count,writable%vector_count]
+    call MPI_Allreduce(count_local,count_global,2, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce provisional stencil tendencies")
+    if (any(count_global <= 0_int64)) then
+       call fail("provisional stencil tendency global output is empty")
+    end if
+
+    call discard_local_block_tendency_output
+    tendency_ready = local_block_tendency_state_ready()
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (tendency_ready .or. trial_active .or. .not. checkpoint_ready .or. &
+         accumulator_ready) then
+       call fail("provisional stencil tendency discard is invalid")
+    end if
+
+  end subroutine evaluate_candidate_block_stencil_tendency
 
 
   subroutine refresh_parallel_block_domain_prognostic_state
