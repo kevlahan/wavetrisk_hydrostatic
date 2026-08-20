@@ -9,12 +9,18 @@ module time_integr_mod
   use dyn_arrays,        only : extend, init
   use domain_mod,        only : Float_Field, init_Field, grid, sol, trend, wav_coeff
   use multi_level_mod,   only : trend_ml
+  use parallel_block_mpi_mod, only : &
+       begin_block_domain_rk4_candidate_stage, &
+       finish_block_domain_rk4_candidate, &
+       parallel_block_state_is_ready, &
+       refresh_parallel_block_domain_prognostic_state
 
   implicit none
 
   private
   public :: dt_step, dt_step_split
   public :: init_RK_mem
+  public :: set_rk4_block_candidate_enabled
   public :: Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK45_opt, RK4_split
   public :: q1, q2, q3, q4, dq1
   
@@ -55,9 +61,23 @@ module time_integr_mod
   
   procedure (dt_integrator),       pointer :: dt_step        => null ()
   procedure (dt_integrator_split), pointer :: dt_step_split  => null ()
+  logical :: rk4_block_candidate_enabled = .false.
 
   
 contains
+
+
+  subroutine set_rk4_block_candidate_enabled (enabled)
+    ! Guard the production RK4 candidate so other RK4 callers remain on the
+    ! unchanged Domain-only pathway.
+
+    implicit none
+
+    logical, intent(in) :: enabled
+
+    rk4_block_candidate_enabled = enabled
+
+  end subroutine set_rk4_block_candidate_enabled
 
   
   subroutine Euler (q, wav, routine, h)
@@ -117,23 +137,50 @@ contains
     type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
     procedure (trend_sub)            :: routine
 
+    logical :: block_candidate
+    logical :: block_state_ready
+
     call manage_q1_mem
 
+    block_candidate = rk4_block_candidate_enabled
+    if (block_candidate) then
+       block_state_ready = parallel_block_state_is_ready()
+       if (.not. block_state_ready) then
+          error stop "guarded RK4 block candidate state is not ready"
+       end if
+    end if
+
     call routine (q, trend) 
+    if (block_candidate) then
+       call begin_block_domain_rk4_candidate_stage(h/4,1)
+    end if
     call RK_sub_step (q, trend, h/4, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
+    if (block_candidate) then
+       call begin_block_domain_rk4_candidate_stage(h/3,2)
+    end if
     call RK_sub_step (q, trend, h/3, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
+    if (block_candidate) then
+       call begin_block_domain_rk4_candidate_stage(h/2,3)
+    end if
     call RK_sub_step (q, trend, h/2, q1)
     call WT_after_step (q1, wav)
 
     call routine (q1, trend) 
+    if (block_candidate) then
+       call begin_block_domain_rk4_candidate_stage(h,4)
+    end if
     call RK_sub_step (q, trend, h, q)
+    if (block_candidate) call finish_block_domain_rk4_candidate
     call WT_after_step (q, wav, level_start-1)
+    if (block_candidate) then
+       call refresh_parallel_block_domain_prognostic_state
+    end if
   end subroutine RK4
   
 

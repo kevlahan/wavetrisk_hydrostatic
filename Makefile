@@ -385,6 +385,9 @@ $(BUILD_DIR)/parallel_block_build.o: \
 	$(BUILD_DIR)/domain.o \
 	$(BUILD_DIR)/parallel_block.o
 
+$(BUILD_DIR)/time_integr.o: \
+	$(BUILD_DIR)/parallel_block_mpi.o
+
 # main.f90 is appended to SRC below the optional physics include.  Keep
 # that separate placement, but make its new module prerequisites explicit.
 $(BUILD_DIR)/main.o: \

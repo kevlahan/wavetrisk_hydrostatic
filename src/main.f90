@@ -50,7 +50,8 @@ module main_mod
        precompute_geometry, set_level, set_thresholds, z_coords
 
   use time_integr_mod, only : dt_step, dt_step_split, init_RK_mem, q1, q2, q3, q4, dq1, &
-       Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK4_split, RK45_opt
+       Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK4_split, RK45_opt, &
+       set_rk4_block_candidate_enabled
 
   use coord_arithmetic_mod
 
@@ -392,7 +393,8 @@ contains
   subroutine time_step 
     implicit none
     integer(8) :: idt, ialign
-    logical    :: block_euler_step, block_state_ready
+    logical    :: block_euler_step, block_rk4_candidate
+    logical    :: block_state_ready
     logical    :: rebuild_block_state, save_data
 
     ! New time step
@@ -421,17 +423,21 @@ contains
     !    Dynamics time step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     block_euler_step = .false.
+    block_rk4_candidate = .false.
     rebuild_block_state = .false.
     block_state_ready = parallel_block_state_is_ready()
     if (block_state_ready .and. .not. mode_split) then
-       call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)
        if (trim(timeint_type) == "Euler") then
+          call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)
           call advance_block_domain_trend_euler(dt)
           call WT_after_step (sol(1:N_VARIABLE,1:zlevels), &
                wav_coeff(1:N_VARIABLE,1:zlevels),level_start-1)
           call refresh_parallel_block_domain_prognostic_state
           block_euler_step = .true.
+       else if (trim(timeint_type) == "RK4") then
+          block_rk4_candidate = .true.
        else
+          call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)
           call preview_block_domain_trend_step(dt)
        end if
     end if
@@ -440,17 +446,28 @@ contains
     ! physics, adaptation and remapping can change Domain fields or topology.
     ! If no complete shadow exists, retain the idempotent cleanup path.
     block_state_ready = parallel_block_state_is_ready()
-    if (block_state_ready) then
+    if (block_state_ready .and. .not. block_rk4_candidate) then
        call prepare_parallel_block_grid_change
        rebuild_block_state = .true.
-    else
+    else if (.not. block_state_ready) then
        call invalidate_parallel_block_domain_shadow
     end if
 
     if (mode_split) then
        call dt_step_split (dt)
     else if (.not. block_euler_step) then
+       call set_rk4_block_candidate_enabled(block_rk4_candidate)
        call dt_step (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
+       call set_rk4_block_candidate_enabled(.false.)
+    end if
+
+    if (block_rk4_candidate) then
+       block_state_ready = parallel_block_state_is_ready()
+       if (.not. block_state_ready) then
+          error stop "RK4 block candidate did not retain synchronized state"
+       end if
+       call prepare_parallel_block_grid_change
+       rebuild_block_state = .true.
     end if
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
