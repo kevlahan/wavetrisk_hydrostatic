@@ -4,7 +4,7 @@ module main_mod
 
   use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, N_BDRY, &
-       N_VARIABLE, NCAR_topo, &
+       N_VARIABLE, NCAR_topo, NONE, &
        S_DIVU, S_ROTU, S_MASS, S_TEMP, S_VELO, TRIAG, XU_GRID, RT, DG, UP, LORT, UPLT, Laplace_divu, Laplace_rotu, Laplace_sclr, &
        adapt_dt, Area_avg, C_visc, a_vert, a_vert_mass, b_vert, b_vert_mass, cfl_safety, compressible, coord, cp_idx, &
        dt, dt_init, dt_write, dx_avg, gamma, grav_accel, iremap, iremap_max, istep, istep_cumul, itime, iwrite, &
@@ -38,7 +38,7 @@ module main_mod
        n_glo_block, n_process, owner, rank
 
   use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
-       sum_int,  sync_max_int, sync_min_real, write_load_conn
+       sum_int, sync_max_int, sync_min_real, update_bdry, write_load_conn
 
   use domain_mod, only : Domain, bernoulli, divu, dscalar, grid, &
        dvelo, exner, exner_fun, h_flux, horiz_flux, ke, qe, scalar, mass, temp, velo, vort, wc_s, wc_u, &
@@ -61,6 +61,7 @@ module main_mod
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
        prepare_parallel_block_grid_change, &
+       refresh_parallel_block_trend_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
        retain_post_grid_change_block_reconstruction, &
        migrate_blocks
@@ -420,6 +421,10 @@ contains
     ! Keep incompressible dynamics on the legacy Domain pathway until its
     ! separate block-communication and split-integrator validation phase.
     if (block_state_ready .and. compressible .and. .not. mode_split) then
+       ! Exercise the production block equivalent of the first trend_ml
+       ! boundary update while the Domain state remains authoritative.
+       call update_bdry(sol(1:N_VARIABLE,1:zlevels),NONE,979)
+       call refresh_parallel_block_trend_boundary_state
        select case (trim(timeint_type))
        case ("Euler")
           call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)

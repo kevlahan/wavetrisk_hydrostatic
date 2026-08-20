@@ -274,6 +274,7 @@ module parallel_block_mpi_mod
      integer(int64) :: production_euler_step_count = 0_int64
      integer(int64) :: production_rk3_step_count = 0_int64
      integer(int64) :: production_rk4_step_count = 0_int64
+     integer(int64) :: production_trend_boundary_refresh_count = 0_int64
      integer(int64) :: production_domain_refresh_count = 0_int64
      logical :: ready = .false.
   end type Block_Writeback_Plan_Type
@@ -399,6 +400,7 @@ module parallel_block_mpi_mod
   public :: check_domain_field_family_block_import
   public :: import_domain_boundary_field_family_to_blocks
   public :: check_domain_boundary_field_family_block_import
+  public :: refresh_parallel_block_trend_boundary_state
   public :: refresh_parallel_block_domain_prognostic_state
   public :: check_domain_trend_roundtrip
   public :: import_domain_trend_to_block_tendency
@@ -3079,6 +3081,7 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%production_euler_step_count = 0_int64
     block_writeback_plan%production_rk3_step_count = 0_int64
     block_writeback_plan%production_rk4_step_count = 0_int64
+    block_writeback_plan%production_trend_boundary_refresh_count = 0_int64
     block_writeback_plan%production_domain_refresh_count = 0_int64
     block_writeback_plan%ready = .false.
     production_multistage_candidate_stage = 0
@@ -5716,6 +5719,172 @@ end subroutine build_parallel_block_catalog
     end subroutine check_family
 
   end subroutine check_domain_boundary_field_family_block_import
+
+
+  subroutine refresh_parallel_block_trend_boundary_state
+    ! Mirror the first production trend_ml update_bdry in the retained block
+    ! representation. Domain values remain authoritative: compact boundary
+    ! payloads are imported after update_bdry, while inter-block sol ghosts
+    ! are refreshed from exact block interiors through persistent routes.
+
+    implicit none
+
+    integer :: b
+    integer :: ierr
+    integer :: local_index
+    integer :: scalar_ghost_recv_size_before
+    integer :: scalar_ghost_send_size_before
+    integer :: vector_ghost_recv_size_before
+    integer :: vector_ghost_send_size_before
+
+    integer(int64) :: count_global(3)
+    integer(int64) :: count_local(3)
+    integer(int64) :: production_writeback_before
+    integer(int64) :: scalar_address_first(3)
+    integer(int64) :: scalar_address_second(3)
+    integer(int64) :: scalar_value_first
+    integer(int64) :: scalar_value_second
+    integer(int64) :: vector_address_first(3)
+    integer(int64) :: vector_address_second(3)
+    integer(int64) :: vector_value_first
+    integer(int64) :: vector_value_second
+    integer(int64) :: writeback_allocation_before
+
+    logical :: accumulator_ready
+    logical :: checkpoint_ready
+    logical :: state_ready
+    logical :: tendency_ready
+    logical :: trial_active
+
+    real(dp) :: scalar_moment_first(3,3)
+    real(dp) :: scalar_moment_second(3,3)
+    real(dp) :: vector_moment_first(3,3)
+    real(dp) :: vector_moment_second(3,3)
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("trend boundary refresh before block state is ready")
+    end if
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. checkpoint_ready .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("trend boundary refresh found pending tendency state")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+    scalar_ghost_send_size_before = &
+         size(ghost_exchange_plan%scalar_send_buffer)
+    scalar_ghost_recv_size_before = &
+         size(ghost_exchange_plan%scalar_recv_buffer)
+    vector_ghost_send_size_before = &
+         size(ghost_exchange_plan%vector_send_buffer)
+    vector_ghost_recv_size_before = &
+         size(ghost_exchange_plan%vector_recv_buffer)
+
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.false.)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.true.)
+    call refresh_block_sol_ghosts
+    call local_block_scalar_stencil_statistics( &
+         scalar_address_first,scalar_value_first,scalar_moment_first)
+    call local_block_vector_stencil_statistics( &
+         vector_address_first,vector_value_first,vector_moment_first)
+
+    ! A second identical refresh must preserve the complete compact stencil
+    ! image exactly and reuse every persistent communication buffer.
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.true.)
+    call refresh_block_sol_ghosts
+    call local_block_scalar_stencil_statistics( &
+         scalar_address_second,scalar_value_second,scalar_moment_second)
+    call local_block_vector_stencil_statistics( &
+         vector_address_second,vector_value_second,vector_moment_second)
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+
+    if (any(scalar_address_first /= scalar_address_second) .or. &
+         scalar_value_first /= scalar_value_second .or. &
+         any(abs(scalar_moment_first-scalar_moment_second) > 0.0_dp)) then
+       call fail("repeated scalar trend boundary refresh changed stencil")
+    end if
+    if (any(vector_address_first /= vector_address_second) .or. &
+         vector_value_first /= vector_value_second .or. &
+         any(abs(vector_moment_first-vector_moment_second) > 0.0_dp)) then
+       call fail("repeated vector trend boundary refresh changed stencil")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("trend boundary refresh reallocated transport buffers")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("trend boundary refresh modified Domain fields")
+    end if
+    if (size(ghost_exchange_plan%scalar_send_buffer) /= &
+         scalar_ghost_send_size_before .or. &
+         size(ghost_exchange_plan%scalar_recv_buffer) /= &
+         scalar_ghost_recv_size_before .or. &
+         size(ghost_exchange_plan%vector_send_buffer) /= &
+         vector_ghost_send_size_before .or. &
+         size(ghost_exchange_plan%vector_recv_buffer) /= &
+         vector_ghost_recv_size_before) then
+       call fail("trend boundary refresh resized ghost buffers")
+    end if
+
+    count_local = 0_int64
+    count_local(1) = int(n_local_blocks(),int64)
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       count_local(2) = count_local(2) + &
+            int(local_block_boundary_count(b),int64)
+       count_local(3) = count_local(3) + &
+            int(local_block_ghost_count(b),int64)
+    end do
+    call MPI_Allreduce(count_local,count_global,3, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce trend boundary refresh coverage")
+    if (any(count_global <= 0_int64)) then
+       call fail("trend boundary refresh coverage is incomplete")
+    end if
+
+    block_writeback_plan%production_trend_boundary_refresh_count = &
+         block_writeback_plan%production_trend_boundary_refresh_count + &
+         1_int64
+
+    if (rank == 0) then
+       write(6,'(/,a,i0)') &
+            "Production trend-entry block boundary refresh number = ", &
+            block_writeback_plan% &
+            production_trend_boundary_refresh_count
+       write(6,'(a,i0)') "  global blocks = ",count_global(1)
+       write(6,'(a,i0)') &
+            "  global compact boundary records = ",count_global(2)
+       write(6,'(a,i0)') &
+            "  global inter-block ghost records = ",count_global(3)
+       write(6,'(a)') &
+            "  exact Domain-updated sol patch interiors retained"
+       write(6,'(a)') &
+            "  exact compact sol boundary import passed"
+       write(6,'(a)') &
+            "  repeated scalar/vector sol stencil refresh passed"
+       write(6,'(a)') &
+            "  persistent boundary and ghost buffers reused"
+       write(6,'(a)') &
+            "  authoritative Domain fields remained unchanged"
+       write(6,'(a,/)') &
+            "Production trend-entry block boundary compatibility passed"
+    end if
+
+  end subroutine refresh_parallel_block_trend_boundary_state
 
 
   subroutine refresh_parallel_block_domain_prognostic_state
