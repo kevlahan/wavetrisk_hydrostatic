@@ -273,7 +273,7 @@ module parallel_block_mpi_mod
      integer(int64) :: production_writeback_count = 0_int64
      integer(int64) :: production_preview_count = 0_int64
      integer(int64) :: production_euler_step_count = 0_int64
-     integer(int64) :: production_rk4_candidate_count = 0_int64
+     integer(int64) :: production_rk4_step_count = 0_int64
      integer(int64) :: production_domain_refresh_count = 0_int64
      logical :: ready = .false.
   end type Block_Writeback_Plan_Type
@@ -404,7 +404,7 @@ module parallel_block_mpi_mod
   public :: preview_block_domain_trend_step
   public :: advance_block_domain_trend_euler
   public :: begin_block_domain_rk4_candidate_stage
-  public :: finish_block_domain_rk4_candidate
+  public :: accept_block_domain_rk4_candidate
   public :: check_block_domain_trend_step
   public :: check_block_writeback_domain_reconstruction
   public :: block_writeback_plan_is_ready
@@ -3075,7 +3075,7 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%production_writeback_count = 0_int64
     block_writeback_plan%production_preview_count = 0_int64
     block_writeback_plan%production_euler_step_count = 0_int64
-    block_writeback_plan%production_rk4_candidate_count = 0_int64
+    block_writeback_plan%production_rk4_step_count = 0_int64
     block_writeback_plan%production_domain_refresh_count = 0_int64
     block_writeback_plan%ready = .false.
     production_rk4_candidate_stage = 0
@@ -6785,11 +6785,10 @@ end subroutine build_parallel_block_catalog
   end subroutine begin_block_domain_rk4_candidate_stage
 
 
-  subroutine finish_block_domain_rk4_candidate
+  subroutine accept_block_domain_rk4_candidate
     ! Compare the final low-storage RK4 block candidate with the authoritative
-    ! Domain result while that comparison is exact, then reject the candidate.
-    ! The caller refreshes the retained block shadow after the final wavelet
-    ! transform; no accepted block RK4 writeback is performed here.
+    ! Domain result while that comparison is exact, then accept and synchronize
+    ! the candidate transactionally. Intermediate candidates remain rejected.
 
     implicit none
 
@@ -6799,6 +6798,7 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: local_changed_block_count(2)
 
     logical :: checkpoint_ready
+    logical :: state_ready
     logical :: trial_active
 
     real(dp) :: global_max_update(2)
@@ -6818,7 +6818,8 @@ end subroutine build_parallel_block_catalog
          local_changed_block_count(1),local_changed_block_count(2), &
          local_max_update(1),local_max_update(2))
     call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    call complete_block_domain_trend_step(.false.)
+    call complete_block_domain_trend_step(.true.)
+    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
 
     if (local_block_tendency_allocation_count() /= &
          production_rk4_tendency_allocation_before) then
@@ -6833,12 +6834,16 @@ end subroutine build_parallel_block_catalog
        call fail("production RK4 candidate reallocated transport storage")
     end if
     if (block_domain_production_writeback_count() /= &
-         production_rk4_writeback_before) then
-       call fail("rejected production RK4 candidate wrote to Domains")
+         production_rk4_writeback_before + 1_int64) then
+       call fail("accepted production RK4 writeback count is invalid")
     end if
     if (local_block_tendency_trial_is_active() .or. &
          local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("production RK4 candidate rollback remained pending")
+       call fail("accepted production RK4 transaction remained pending")
+    end if
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("accepted production RK4 invalidated persistent state")
     end if
 
     call MPI_Allreduce( &
@@ -6849,14 +6854,14 @@ end subroutine build_parallel_block_catalog
          MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce RK4 candidate update")
 
-    block_writeback_plan%production_rk4_candidate_count = &
-         block_writeback_plan%production_rk4_candidate_count + 1_int64
+    block_writeback_plan%production_rk4_step_count = &
+         block_writeback_plan%production_rk4_step_count + 1_int64
     production_rk4_candidate_stage = 0
 
     if (rank == 0) then
        write(6,'(/,a,i0)') &
-            "Rejected production block RK4 candidate number = ", &
-            block_writeback_plan%production_rk4_candidate_count
+            "Accepted production block RK4 timestep number = ", &
+            block_writeback_plan%production_rk4_step_count
        write(6,'(a,i0)') "  completed candidate stages = ",4
        write(6,'(a,i0)') "  scalar changed blocks = ", &
             global_changed_block_count(1)
@@ -6871,12 +6876,14 @@ end subroutine build_parallel_block_catalog
        write(6,'(a)') &
             "  all provisional block stages rejected without writeback"
        write(6,'(a)') &
-            "  exact timestep-start block state restored"
+            "  final sol synchronized exactly to Domain owners"
+       write(6,'(a)') &
+            "  accepted RK4 transaction finalized"
        write(6,'(a,/)') &
-            "Production multistage RK4 block candidate passed"
+            "Production multistage block RK4 timestep accepted"
     end if
 
-  end subroutine finish_block_domain_rk4_candidate
+  end subroutine accept_block_domain_rk4_candidate
 
 
   subroutine check_block_domain_trend_step (verbose)

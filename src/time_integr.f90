@@ -11,7 +11,7 @@ module time_integr_mod
   use multi_level_mod,   only : trend_ml
   use parallel_block_mpi_mod, only : &
        begin_block_domain_rk4_candidate_stage, &
-       finish_block_domain_rk4_candidate, &
+       accept_block_domain_rk4_candidate, &
        parallel_block_state_is_ready, &
        refresh_parallel_block_domain_prognostic_state
 
@@ -176,7 +176,7 @@ contains
        call begin_block_domain_rk4_candidate_stage(h,4)
     end if
     call RK_sub_step (q, trend, h, q)
-    if (block_candidate) call finish_block_domain_rk4_candidate
+    if (block_candidate) call accept_block_domain_rk4_candidate
     call WT_after_step (q, wav, level_start-1)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
