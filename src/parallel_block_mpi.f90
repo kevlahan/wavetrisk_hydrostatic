@@ -109,6 +109,7 @@ module parallel_block_mpi_mod
        set_local_block_tendency_patch_values, &
        finish_local_block_tendency_import, &
        get_local_block_tendency_patch_values, &
+       assert_local_block_tendency_patch_values, &
        local_block_tendency_import_is_active, &
        local_block_tendency_import_allocation_count, &
        reset_local_block_tendency_accumulator, &
@@ -290,6 +291,7 @@ module parallel_block_mpi_mod
   integer(int64), save :: production_grid_reconstruction_count = 0_int64
   integer, save :: production_multistage_candidate_stage = 0
   integer, save :: production_multistage_candidate_stage_count = 0
+  integer, save :: production_multistage_captured_tendency_stage = 0
   integer(int64), save :: &
        production_multistage_import_allocation_before = 0_int64
   integer(int64), save :: &
@@ -415,6 +417,7 @@ module parallel_block_mpi_mod
   public :: begin_block_domain_trend_step
   public :: complete_block_domain_trend_step
   public :: advance_block_domain_trend_euler
+  public :: capture_block_domain_multistage_candidate_tendency
   public :: begin_block_domain_multistage_candidate_stage
   public :: accept_block_domain_multistage_candidate
   public :: check_block_domain_trend_step
@@ -3098,6 +3101,7 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%ready = .false.
     production_multistage_candidate_stage = 0
     production_multistage_candidate_stage_count = 0
+    production_multistage_captured_tendency_stage = 0
 
   end subroutine clear_block_writeback_plan
 
@@ -6738,12 +6742,17 @@ end subroutine build_parallel_block_catalog
   end subroutine check_domain_trend_roundtrip
 
 
-  subroutine import_domain_trend_to_block_tendency
+  subroutine import_domain_trend_to_block_tendency ( &
+       validate_exact,imported_patch_count)
     ! Import the complete Domain trend layout into persistent final-owner
     ! tendency storage. Soil-level slots are the explicit zeros packed by
-    ! the Stage 78 field-layout transport.
+    ! the Stage 78 field-layout transport. Production callers can request
+    ! direct exact patch validation without allocating diagnostic copies.
 
     implicit none
+
+    logical, optional, intent(in) :: validate_exact
+    integer(int64), optional, intent(out) :: imported_patch_count
 
     integer :: b
     integer :: d
@@ -6755,7 +6764,14 @@ end subroutine build_parallel_block_catalog
     integer :: r
     integer :: slot
 
+    logical :: exact_validation
     logical :: plan_ready
+
+    integer(int64) :: patch_count
+
+    exact_validation = .false.
+    if (present(validate_exact)) exact_validation = validate_exact
+    patch_count = 0_int64
 
     plan_ready = block_writeback_plan_is_ready()
     if (.not. plan_ready) then
@@ -6842,8 +6858,117 @@ end subroutine build_parallel_block_catalog
     if (local_block_tendency_import_is_active()) then
        call fail("trend tendency import remained active")
     end if
+    if (exact_validation) call validate_imported_patches
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       patch_count = patch_count + &
+            int(local_block_patch_count(b),int64)
+    end do
+    if (present(imported_patch_count)) then
+       imported_patch_count = patch_count
+    end if
 
   contains
+
+    subroutine validate_imported_patches
+
+      implicit none
+
+      integer :: local_patch_index
+
+      do local_index = 1,n_local_blocks()
+         b = local_block_catalog(local_index)
+         r = source_rank(b)
+         if (r /= rank) cycle
+         d = loc_id(block_catalog(b)%root_domain+1) + 1
+         local_patch_index = 0
+         call assert_retained_subtree( &
+              d,block_catalog(b)%root_patch,b,local_patch_index)
+         if (local_patch_index /= local_block_patch_count(b)) then
+            call fail("retained trend validation coverage mismatch")
+         end if
+      end do
+
+      do r = 1,n_process
+         pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+         pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+         do slot = block_writeback_plan%send_displ(r)+1, &
+              block_writeback_plan%send_displ(r) + &
+              block_writeback_plan%send_count(r)
+            b = block_writeback_plan%send_block(slot)
+            n_patch = local_block_patch_count(b)
+            do local_patch_index = 0,n_patch-1
+               call assert_local_block_tendency_patch_values( &
+                    b,local_patch_index, &
+                    block_writeback_plan%scalar_send_buffer( &
+                    pos_scalar:pos_scalar+ &
+                    block_writeback_plan%scalar_patch_nvalue-1), &
+                    block_writeback_plan%vector_send_buffer( &
+                    pos_vector:pos_vector+ &
+                    block_writeback_plan%vector_patch_nvalue-1))
+               pos_scalar = pos_scalar + &
+                    block_writeback_plan%scalar_patch_nvalue
+               pos_vector = pos_vector + &
+                    block_writeback_plan%vector_patch_nvalue
+            end do
+         end do
+         if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+              block_writeback_plan%scalar_send_count(r) + 1 .or. &
+              pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+              block_writeback_plan%vector_send_count(r) + 1) then
+            call fail("remote trend validation extent mismatch")
+         end if
+      end do
+
+    end subroutine validate_imported_patches
+
+
+    recursive subroutine assert_retained_subtree ( &
+         d,p,b,local_patch_index)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: b
+      integer, intent(inout) :: local_patch_index
+
+      integer :: c
+      integer :: p_child
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("retained trend validation patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,BLOCK_PAYLOAD_TREND, &
+           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
+           ghost_exchange_plan%vector_patch_buffer,vector_pos)
+      if (scalar_pos /= &
+           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
+           vector_pos /= &
+           size(ghost_exchange_plan%vector_patch_buffer)+1) then
+         call fail("retained trend validation extent mismatch")
+      end if
+      call assert_local_block_tendency_patch_values( &
+           b,local_patch_index, &
+           ghost_exchange_plan%scalar_patch_buffer, &
+           ghost_exchange_plan%vector_patch_buffer)
+      local_patch_index = local_patch_index + 1
+
+      do c = 1,N_CHDRN
+         p_child = grid(d)%patch%elts(p+1)%children(c)
+         if (p_child <= 0) cycle
+         call assert_retained_subtree( &
+              d,p_child,b,local_patch_index)
+      end do
+
+    end subroutine assert_retained_subtree
 
     recursive subroutine import_retained_subtree ( &
          d,p,b,local_patch)
@@ -7289,12 +7414,176 @@ end subroutine build_parallel_block_catalog
   end subroutine advance_block_domain_trend_euler
 
 
+  subroutine capture_block_domain_multistage_candidate_tendency ( &
+       stage,stage_count)
+    ! Capture one authoritative legacy RK tendency in persistent block
+    ! storage, compare every compact patch exactly with its Domain payload,
+    ! and retain it for one guarded block candidate stage. For stages after
+    ! the first, reject the preceding provisional candidate before import.
+
+    implicit none
+
+    integer, intent(in) :: stage
+    integer, intent(in) :: stage_count
+
+    integer :: ierr
+
+    integer(int64) :: global_patch_count
+    integer(int64) :: local_patch_count
+    integer(int64) :: production_writeback_before
+    integer(int64) :: writeback_allocation_before
+
+    logical :: accumulator_ready
+    logical :: checkpoint_ready
+    logical :: state_ready
+    logical :: tendency_ready
+    logical :: trial_active
+
+    character(len=3) :: scheme_name
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("multistage tendency capture before state is ready")
+    end if
+    if (stage_count /= 3 .and. stage_count /= 4) then
+       call fail("multistage tendency capture stage count is invalid")
+    end if
+    if (stage < 1 .or. stage > stage_count) then
+       call fail("multistage tendency capture stage is invalid")
+    end if
+    if (production_multistage_candidate_stage /= stage-1 .or. &
+         production_multistage_captured_tendency_stage /= 0) then
+       call fail("multistage tendency capture sequence is invalid")
+    end if
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. tendency_ready .or. accumulator_ready) then
+       call fail("multistage tendency capture found pending output")
+    end if
+
+    if (stage == 1) then
+       if (checkpoint_ready) then
+          call fail("multistage tendency capture found a checkpoint")
+       end if
+       if (block_writeback_plan% &
+            production_multistage_boundary_refresh_count /= 0_int64) then
+          call fail("multistage tendency boundary state was not finalized")
+       end if
+       production_multistage_candidate_stage_count = stage_count
+       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_WAV_COEFF)
+       production_multistage_tendency_allocation_before = &
+            local_block_tendency_allocation_count()
+       production_multistage_import_allocation_before = &
+            local_block_tendency_import_allocation_count()
+       production_multistage_writeback_allocation_before = &
+            block_writeback_plan_allocation_count()
+       production_multistage_writeback_before = &
+            block_domain_production_writeback_count()
+    else
+       if (production_multistage_candidate_stage_count /= stage_count) then
+          call fail("multistage tendency capture method changed")
+       end if
+       if (block_writeback_plan% &
+            production_multistage_boundary_refresh_count /= &
+            int(stage-1,int64)) then
+          call fail("multistage tendency boundary was not refreshed")
+       end if
+       if (.not. checkpoint_ready) then
+          call fail("multistage tendency capture has no checkpoint")
+       end if
+       call complete_block_domain_trend_step(.false.)
+    end if
+
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    trial_active = local_block_tendency_trial_is_active()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (checkpoint_ready .or. trial_active .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("multistage tendency capture rollback is incomplete")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_multistage_writeback_before) then
+       call fail("multistage tendency capture rollback wrote Domain fields")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+    call import_domain_trend_to_block_tendency( &
+         .true.,local_patch_count)
+
+    tendency_ready = local_block_tendency_state_ready()
+    if (.not. tendency_ready) then
+       call fail("multistage captured tendency is not ready")
+    end if
+    if (local_block_tendency_allocation_count() /= &
+         production_multistage_tendency_allocation_before .or. &
+         local_block_tendency_import_allocation_count() /= &
+         production_multistage_import_allocation_before) then
+       call fail("multistage tendency capture reallocated workspace")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("multistage tendency capture reallocated transport")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("multistage tendency capture modified Domain fields")
+    end if
+
+    call MPI_Allreduce(local_patch_count,global_patch_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce captured RK tendency patches")
+    if (global_patch_count <= 0_int64) then
+       call fail("multistage captured tendency coverage is empty")
+    end if
+
+    production_multistage_captured_tendency_stage = stage
+    if (stage_count == 3) then
+       scheme_name = "RK3"
+    else
+       scheme_name = "RK4"
+    end if
+    if (rank == 0) then
+       write(6,'(/,a,a,a,i0,a,i0)') &
+            "Captured production block ",scheme_name, &
+            " tendency stage = ",stage," of ",stage_count
+       write(6,'(a,i0)') &
+            "  global imported tendency patches = ",global_patch_count
+       write(6,'(a)') &
+            "  exact scalar/vector Domain tendency import passed"
+       if (stage == 1) then
+          write(6,'(a)') &
+               "  no preceding provisional writeback occurred"
+       else
+          write(6,'(a)') &
+               "  preceding provisional stage rejected without writeback"
+       end if
+       write(6,'(a)') &
+            "  captured physical tendency retained for one block stage"
+       write(6,'(a,/)') &
+            "Production multistage block tendency capture passed"
+    end if
+
+  end subroutine capture_block_domain_multistage_candidate_tendency
+
+
   subroutine begin_block_domain_multistage_candidate_stage ( &
        scale,stage,stage_count)
-    ! Form one real low-storage RK3 or RK4 block stage from the authoritative
-    ! Domain tendency. Every stage is based on the retained timestep-start
-    ! block state; the preceding provisional stage is therefore rejected
-    ! before the next actual Domain stage tendency is imported.
+    ! Consume one exactly validated, captured Domain tendency to form a real
+    ! low-storage RK3 or RK4 block stage. Every stage remains based on the
+    ! retained timestep-start block state.
 
     implicit none
 
@@ -7304,6 +7593,7 @@ end subroutine build_parallel_block_catalog
 
     logical :: checkpoint_ready
     logical :: state_ready
+    logical :: tendency_ready
     logical :: trial_active
 
     state_ready = parallel_block_state_is_ready()
@@ -7321,56 +7611,23 @@ end subroutine build_parallel_block_catalog
        call fail( &
             "production multistage block candidate sequence is invalid")
     end if
+    if (production_multistage_candidate_stage_count /= stage_count .or. &
+         production_multistage_captured_tendency_stage /= stage) then
+       call fail( &
+            "production multistage block tendency was not captured")
+    end if
 
     trial_active = local_block_tendency_trial_is_active()
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
-    if (trial_active) then
+    tendency_ready = local_block_tendency_state_ready()
+    if (trial_active .or. checkpoint_ready .or. .not. tendency_ready) then
        call fail( &
-            "production multistage block candidate found an active trial")
+            "production multistage captured tendency state is invalid")
     end if
 
-    if (stage == 1) then
-       if (checkpoint_ready) then
-          call fail( &
-               "production multistage block candidate found a checkpoint")
-       end if
-       if (block_writeback_plan% &
-            production_multistage_boundary_refresh_count /= 0_int64) then
-          call fail( &
-               "production multistage boundary refresh was not finalized")
-       end if
-       production_multistage_candidate_stage_count = stage_count
-       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-       call assert_block_domain_field_family_match( &
-            BLOCK_PAYLOAD_WAV_COEFF)
-       production_multistage_tendency_allocation_before = &
-            local_block_tendency_allocation_count()
-       production_multistage_import_allocation_before = &
-            local_block_tendency_import_allocation_count()
-       production_multistage_writeback_allocation_before = &
-            block_writeback_plan_allocation_count()
-       production_multistage_writeback_before = &
-            block_domain_production_writeback_count()
-    else
-       if (production_multistage_candidate_stage_count /= stage_count) then
-          call fail( &
-               "production multistage block candidate method changed")
-       end if
-       if (block_writeback_plan% &
-            production_multistage_boundary_refresh_count /= &
-            int(stage-1,int64)) then
-          call fail( &
-               "production multistage stage boundary was not refreshed")
-       end if
-       if (.not. checkpoint_ready) then
-          call fail( &
-               "production multistage provisional stage has no checkpoint")
-       end if
-       call complete_block_domain_trend_step(.false.)
-    end if
-
-    call begin_block_domain_trend_step(scale)
+    call begin_local_block_tendency_trial(scale)
+    call commit_local_block_tendency_trial
     if (local_block_tendency_trial_is_active() .or. &
          .not. local_block_tendency_commit_checkpoint_is_ready()) then
        call fail( &
@@ -7381,6 +7638,7 @@ end subroutine build_parallel_block_catalog
             "production multistage block stage retained stale tendencies")
     end if
 
+    production_multistage_captured_tendency_stage = 0
     production_multistage_candidate_stage = stage
 
   end subroutine begin_block_domain_multistage_candidate_stage
@@ -7487,6 +7745,7 @@ end subroutine build_parallel_block_catalog
     end if
     production_multistage_candidate_stage = 0
     production_multistage_candidate_stage_count = 0
+    production_multistage_captured_tendency_stage = 0
     block_writeback_plan%production_multistage_boundary_refresh_count = &
          0_int64
 
