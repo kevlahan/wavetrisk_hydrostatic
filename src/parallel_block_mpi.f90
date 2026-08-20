@@ -271,7 +271,6 @@ module parallel_block_mpi_mod
      integer(int64) :: buffer_allocations = 0_int64
      integer(int64) :: stage_allocations = 0_int64
      integer(int64) :: production_writeback_count = 0_int64
-     integer(int64) :: production_preview_count = 0_int64
      integer(int64) :: production_euler_step_count = 0_int64
      integer(int64) :: production_rk3_step_count = 0_int64
      integer(int64) :: production_rk4_step_count = 0_int64
@@ -406,7 +405,6 @@ module parallel_block_mpi_mod
   public :: check_domain_trend_tendency_import
   public :: begin_block_domain_trend_step
   public :: complete_block_domain_trend_step
-  public :: preview_block_domain_trend_step
   public :: advance_block_domain_trend_euler
   public :: begin_block_domain_multistage_candidate_stage
   public :: accept_block_domain_multistage_candidate
@@ -3078,7 +3076,6 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%reconstructed_patch_count = 0
     block_writeback_plan%preserved_patch_count = 0
     block_writeback_plan%production_writeback_count = 0_int64
-    block_writeback_plan%production_preview_count = 0_int64
     block_writeback_plan%production_euler_step_count = 0_int64
     block_writeback_plan%production_rk3_step_count = 0_int64
     block_writeback_plan%production_rk4_step_count = 0_int64
@@ -6506,110 +6503,6 @@ end subroutine build_parallel_block_catalog
     call complete_block_two_stage_tendency_step(accept)
 
   end subroutine complete_block_domain_trend_step
-
-
-  subroutine preview_block_domain_trend_step (scale)
-    ! Exercise the actual production trend and timestep as a reversible
-    ! block candidate without changing the Domain numerical trajectory.
-
-    implicit none
-
-    real(dp), intent(in) :: scale
-
-    integer :: ierr
-
-    integer(int64) :: global_changed_block_count(2)
-    integer(int64) :: import_allocation_before
-    integer(int64) :: local_changed_block_count(2)
-    integer(int64) :: production_writeback_before
-    integer(int64) :: tendency_allocation_before
-    integer(int64) :: writeback_allocation_before
-
-    logical :: checkpoint_ready
-    logical :: state_ready
-    logical :: trial_active
-
-    real(dp) :: global_max_update(2)
-    real(dp) :: local_max_update(2)
-
-    state_ready = parallel_block_state_is_ready()
-    if (.not. state_ready) then
-       call fail("production Domain-trend preview before state is ready")
-    end if
-
-    tendency_allocation_before = &
-         local_block_tendency_allocation_count()
-    import_allocation_before = &
-         local_block_tendency_import_allocation_count()
-    writeback_allocation_before = &
-         block_writeback_plan_allocation_count()
-    production_writeback_before = &
-         block_domain_production_writeback_count()
-
-    call begin_block_domain_trend_step(scale)
-    call local_block_tendency_commit_checkpoint_statistics( &
-         local_changed_block_count(1),local_changed_block_count(2), &
-         local_max_update(1),local_max_update(2))
-    call complete_block_domain_trend_step(.false.)
-
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_WAV_COEFF)
-
-    if (local_block_tendency_allocation_count() /= &
-         tendency_allocation_before) then
-       call fail("production preview reallocated tendency arrays")
-    end if
-    if (local_block_tendency_import_allocation_count() /= &
-         import_allocation_before) then
-       call fail("production preview reallocated import coverage")
-    end if
-    if (block_writeback_plan_allocation_count() /= &
-         writeback_allocation_before) then
-       call fail("production preview reallocated transport storage")
-    end if
-    if (block_domain_production_writeback_count() /= &
-         production_writeback_before) then
-       call fail("production preview modified Domain writeback count")
-    end if
-
-    trial_active = local_block_tendency_trial_is_active()
-    checkpoint_ready = &
-         local_block_tendency_commit_checkpoint_is_ready()
-    if (trial_active .or. checkpoint_ready) then
-       call fail("production preview left a pending transaction")
-    end if
-
-    call MPI_Allreduce( &
-         local_changed_block_count,global_changed_block_count,2, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce production preview coverage")
-    call MPI_Allreduce(local_max_update,global_max_update,2, &
-         MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce production preview update")
-
-    block_writeback_plan%production_preview_count = &
-         block_writeback_plan%production_preview_count + 1_int64
-
-    if (rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Production timestep Domain-trend preview number = ", &
-            block_writeback_plan%production_preview_count
-       write(6,'(a,es14.6)') "  timestep scale = ",scale
-       write(6,'(a,i0)') "  scalar changed blocks = ", &
-            global_changed_block_count(1)
-       write(6,'(a,i0)') "  vector changed blocks = ", &
-            global_changed_block_count(2)
-       write(6,'(a,es14.6)') "  scalar maximum update = ", &
-            global_max_update(1)
-       write(6,'(a,es14.6)') "  vector maximum update = ", &
-            global_max_update(2)
-       write(6,'(a)') &
-            "  exact rejected production candidate rollback passed"
-       write(6,'(a,/)') &
-            "Production timestep Domain-trend block preview passed"
-    end if
-
-  end subroutine preview_block_domain_trend_step
 
 
   subroutine advance_block_domain_trend_euler (scale)

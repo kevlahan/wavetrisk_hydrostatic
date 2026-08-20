@@ -60,7 +60,6 @@ module main_mod
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
-       preview_block_domain_trend_step, &
        prepare_parallel_block_grid_change, &
        refresh_parallel_block_domain_prognostic_state, &
        retain_post_grid_change_block_reconstruction, &
@@ -418,21 +417,23 @@ contains
     block_multistage_candidate = .false.
     rebuild_block_state = .false.
     block_state_ready = parallel_block_state_is_ready()
-    if (block_state_ready .and. .not. mode_split) then
-       if (trim(timeint_type) == "Euler") then
+    ! Keep incompressible dynamics on the legacy Domain pathway until its
+    ! separate block-communication and split-integrator validation phase.
+    if (block_state_ready .and. compressible .and. .not. mode_split) then
+       select case (trim(timeint_type))
+       case ("Euler")
           call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)
           call advance_block_domain_trend_euler(dt)
           call WT_after_step (sol(1:N_VARIABLE,1:zlevels), &
                wav_coeff(1:N_VARIABLE,1:zlevels),level_start-1)
           call refresh_parallel_block_domain_prognostic_state
           block_euler_step = .true.
-       else if (trim(timeint_type) == "RK3" .or. &
-            trim(timeint_type) == "RK4") then
+       case ("RK3","RK4")
           block_multistage_candidate = .true.
-       else
-          call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)
-          call preview_block_domain_trend_step(dt)
-       end if
+       case default
+          error stop &
+               "unsupported compressible production block integrator"
+       end select
     end if
 
     ! Materialize the current block shadow transactionally before legacy
