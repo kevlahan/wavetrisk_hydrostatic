@@ -8,10 +8,12 @@ module parallel_block_mpi_mod
 
   use kind_mod,   only : dp
   use shared_mod, only : EDGE, N_BDRY, N_CHDRN, N_GLO_DOMAIN, &
+       N_VARIABLE, &
        S_MASS, S_TEMP, &
        c_p, compressible, grav_accel, kappa, p_0, p_top, zlevels
 
-  use domain_mod, only : grid, sol, sol_mean, tke, topography, trend, &
+  use domain_mod, only : Float_Field, grid, sol, sol_mean, tke, &
+       topography, trend, &
        wav_coeff, wav_tke, &
        subtree_weight_Domain
 
@@ -262,6 +264,7 @@ module parallel_block_mpi_mod
      real(dp), allocatable :: scalar_domain_stage(:)
      real(dp), allocatable :: vector_domain_stage(:)
      logical, allocatable :: domain_patch_covered(:)
+     logical, allocatable :: domain_patch_reconstructed(:)
      integer :: scalar_patch_nvalue = 0
      integer :: vector_patch_nvalue = 0
      integer :: reconstructed_patch_count = 0
@@ -275,6 +278,8 @@ module parallel_block_mpi_mod
      integer(int64) :: production_rk3_step_count = 0_int64
      integer(int64) :: production_rk4_step_count = 0_int64
      integer(int64) :: production_trend_boundary_refresh_count = 0_int64
+     integer(int64) :: production_multistage_boundary_refresh_count = &
+          0_int64
      integer(int64) :: production_domain_refresh_count = 0_int64
      logical :: ready = .false.
   end type Block_Writeback_Plan_Type
@@ -401,6 +406,7 @@ module parallel_block_mpi_mod
   public :: import_domain_boundary_field_family_to_blocks
   public :: check_domain_boundary_field_family_block_import
   public :: refresh_parallel_block_trend_boundary_state
+  public :: refresh_parallel_block_candidate_boundary_state
   public :: refresh_parallel_block_domain_prognostic_state
   public :: check_domain_trend_roundtrip
   public :: import_domain_trend_to_block_tendency
@@ -3064,6 +3070,9 @@ end subroutine build_parallel_block_catalog
     if (allocated(block_writeback_plan%domain_patch_covered)) then
        deallocate(block_writeback_plan%domain_patch_covered)
     end if
+    if (allocated(block_writeback_plan%domain_patch_reconstructed)) then
+       deallocate(block_writeback_plan%domain_patch_reconstructed)
+    end if
 
     block_writeback_plan%catalog_size = 0
     block_writeback_plan%domain_count = 0
@@ -3082,6 +3091,8 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%production_rk3_step_count = 0_int64
     block_writeback_plan%production_rk4_step_count = 0_int64
     block_writeback_plan%production_trend_boundary_refresh_count = 0_int64
+    block_writeback_plan%production_multistage_boundary_refresh_count = &
+         0_int64
     block_writeback_plan%production_domain_refresh_count = 0_int64
     block_writeback_plan%ready = .false.
     production_multistage_candidate_stage = 0
@@ -3429,11 +3440,14 @@ end subroutine build_parallel_block_catalog
          int(total_patch)*block_writeback_plan%vector_patch_nvalue)))
     allocate(block_writeback_plan%domain_patch_covered(max(1, &
          int(total_patch))))
+    allocate(block_writeback_plan%domain_patch_reconstructed(max(1, &
+         int(total_patch))))
     block_writeback_plan%stage_allocations = &
-         block_writeback_plan%stage_allocations + 3_int64
+         block_writeback_plan%stage_allocations + 4_int64
     block_writeback_plan%scalar_domain_stage = 0.0_dp
     block_writeback_plan%vector_domain_stage = 0.0_dp
     block_writeback_plan%domain_patch_covered = .false.
+    block_writeback_plan%domain_patch_reconstructed = .false.
     block_writeback_plan%catalog_size = size(block_catalog)
     block_writeback_plan%domain_count = size(grid)
     block_writeback_plan%installed_block_count = n_local_blocks()
@@ -3872,7 +3886,9 @@ end subroutine build_parallel_block_catalog
     if (.not. allocated(block_writeback_plan%domain_patch_displ) .or. &
          .not. allocated(block_writeback_plan%scalar_domain_stage) .or. &
          .not. allocated(block_writeback_plan%vector_domain_stage) .or. &
-         .not. allocated(block_writeback_plan%domain_patch_covered)) then
+         .not. allocated(block_writeback_plan%domain_patch_covered) .or. &
+         .not. allocated( &
+         block_writeback_plan%domain_patch_reconstructed)) then
        call fail("writeback Domain stage storage is incomplete")
     end if
 
@@ -3904,6 +3920,8 @@ end subroutine build_parallel_block_catalog
             grid(size(grid))%patch%length
     end if
     if (size(block_writeback_plan%domain_patch_covered) /= &
+         max(1,stage_patch_count) .or. &
+         size(block_writeback_plan%domain_patch_reconstructed) /= &
          max(1,stage_patch_count) .or. &
          size(block_writeback_plan%scalar_domain_stage) /= max(1, &
          stage_patch_count* &
@@ -4446,7 +4464,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine exchange_domain_to_block_payloads ( &
-       payload_family,tag_payload)
+       payload_family,tag_payload,domain_sol)
     ! Reverse the persistent writeback routes without reallocating them.
     ! Domain owners pack one field family and final block owners receive the
     ! payload in catalogue order. Neither representation is modified.
@@ -4455,6 +4473,8 @@ end subroutine build_parallel_block_catalog
 
     integer, intent(in) :: payload_family
     logical, optional, intent(in) :: tag_payload
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: b
     integer :: d
@@ -4517,7 +4537,7 @@ end subroutine build_parallel_block_catalog
                d,block_catalog(b)%root_patch,payload_family, &
                block_writeback_plan%scalar_recv_buffer,pos_scalar, &
                block_writeback_plan%vector_recv_buffer,pos_vector, &
-               n_patch)
+               n_patch,domain_sol)
 
           if (use_tags) then
              do i = scalar_start,pos_scalar-1
@@ -4786,13 +4806,17 @@ end subroutine build_parallel_block_catalog
   end subroutine check_domain_to_block_payload_exchange
 
 
-  subroutine import_domain_field_family_to_blocks (payload_family)
+  subroutine import_domain_field_family_to_blocks ( &
+       payload_family,domain_sol,preserve_checkpoint)
     ! Preflight and install one complete Domain prognostic family into every
     ! final-owner block patch using the persistent reverse-route buffers.
 
     implicit none
 
     integer, intent(in) :: payload_family
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+    logical, optional, intent(in) :: preserve_checkpoint
 
     integer :: b
     integer :: d
@@ -4811,9 +4835,15 @@ end subroutine build_parallel_block_catalog
 
     logical :: checkpoint_ready
     logical :: import_active
+    logical :: keep_checkpoint
     logical :: plan_ready
     logical :: store_ready
     logical :: trial_active
+
+    keep_checkpoint = .false.
+    if (present(preserve_checkpoint)) then
+       keep_checkpoint = preserve_checkpoint
+    end if
 
     store_ready = local_block_store_ready()
     plan_ready = block_writeback_plan_is_ready()
@@ -4824,12 +4854,30 @@ end subroutine build_parallel_block_catalog
     if (.not. store_ready .or. .not. plan_ready) then
        call fail("Domain prognostic import before block state is ready")
     end if
-    if (trial_active .or. checkpoint_ready .or. import_active) then
+    if (trial_active .or. import_active .or. &
+         (checkpoint_ready .and. .not. keep_checkpoint)) then
        call fail("Domain prognostic import found a pending transaction")
+    end if
+    if (keep_checkpoint .and. .not. checkpoint_ready) then
+       call fail("Domain prognostic import has no checkpoint to preserve")
+    end if
+    if (present(domain_sol)) then
+       if (.not. keep_checkpoint) then
+          call fail("stage Domain prognostic import has no checkpoint guard")
+       end if
+    else
+       if (keep_checkpoint) then
+          call fail("checkpoint-preserving import has no stage sol")
+       end if
     end if
     if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
          payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
        call fail("invalid Domain prognostic import family")
+    end if
+    if (present(domain_sol)) then
+       if (payload_family /= BLOCK_PAYLOAD_SOL) then
+          call fail("stage Domain prognostic import is not sol")
+       end if
     end if
     if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer)) then
        call fail("Domain prognostic scalar patch buffer is not allocated")
@@ -4900,7 +4948,8 @@ end subroutine build_parallel_block_catalog
        end if
     end do
 
-    call exchange_domain_to_block_payloads(payload_family)
+    call exchange_domain_to_block_payloads( &
+         payload_family,domain_sol=domain_sol)
 
     imported_patch_count = 0
     do local_index = 1,n_local_blocks()
@@ -4963,7 +5012,9 @@ end subroutine build_parallel_block_catalog
        call fail("Domain prognostic import local coverage mismatch")
     end if
     if (payload_family == BLOCK_PAYLOAD_SOL) then
-       call invalidate_local_block_tendency_products
+       if (.not. keep_checkpoint) then
+          call invalidate_local_block_tendency_products
+       end if
     end if
 
   contains
@@ -5022,7 +5073,8 @@ end subroutine build_parallel_block_catalog
       call pack_domain_patch_prognostic( &
            d,p,payload_family, &
            ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
-           ghost_exchange_plan%vector_patch_buffer,vector_pos)
+           ghost_exchange_plan%vector_patch_buffer,vector_pos, &
+           domain_sol)
       if (scalar_pos /= &
            size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
            vector_pos /= &
@@ -5049,7 +5101,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine import_domain_boundary_field_family_to_blocks ( &
-       payload_family,verify_current)
+       payload_family,verify_current,domain_sol)
     ! Install one complete Domain boundary prognostic family in final-owner
     ! compact boundary storage. Remote payloads reuse the persistent
     ! boundary manifest and buffers; retained blocks use a direct path.
@@ -5058,6 +5110,8 @@ end subroutine build_parallel_block_catalog
 
     integer, intent(in) :: payload_family
     logical, optional, intent(in) :: verify_current
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: b
     integer :: boundary_index
@@ -5172,7 +5226,7 @@ end subroutine build_parallel_block_catalog
                   pos_scalar:pos_scalar+n_scalar-1), &
                   block_writeback_plan% &
                   boundary_vector_domain_send_buffer( &
-                  pos_vector:pos_vector+n_vector-1))
+                  pos_vector:pos_vector+n_vector-1),domain_sol)
              pos_scalar = pos_scalar + n_scalar
              pos_vector = pos_vector + n_vector
           end do
@@ -5320,7 +5374,8 @@ end subroutine build_parallel_block_catalog
           call pack_domain_boundary_prognostic( &
                d,source_bdry,n_node,payload_family, &
                ghost_exchange_plan%scalar_patch_buffer(1:n_scalar), &
-               ghost_exchange_plan%vector_patch_buffer(1:n_vector))
+               ghost_exchange_plan%vector_patch_buffer(1:n_vector), &
+               domain_sol)
           if (check_current) then
              call compare_retained_boundary( &
                   b,boundary_index,payload_family,n_scalar,n_vector)
@@ -5371,7 +5426,8 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine pack_domain_boundary_prognostic ( &
-       d,source_bdry,n_node,payload_family,scalar_payload,vector_payload)
+       d,source_bdry,n_node,payload_family,scalar_payload,vector_payload, &
+       domain_sol)
     ! Pack one authoritative Domain compact boundary in the same
     ! variable/level/component order used by Block_Data boundary storage.
 
@@ -5383,6 +5439,8 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: payload_family
     real(dp), intent(out) :: scalar_payload(:)
     real(dp), intent(out) :: vector_payload(:)
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: field_level
     integer :: first_field_level
@@ -5433,11 +5491,20 @@ end subroutine build_parallel_block_catalog
                level_slot-1)*mult_scalar*n_node
           select case (payload_family)
           case (BLOCK_PAYLOAD_SOL)
-             scalar_payload(output_base+1: &
-                  output_base+mult_scalar*n_node) = &
-                  sol(scalar_id,field_level)%data(d)%elts( &
-                  mult_scalar*old_start+1: &
-                  mult_scalar*(old_start+n_node))
+             if (present(domain_sol) .and. field_level >= 1 .and. &
+                  field_level <= zlevels) then
+                scalar_payload(output_base+1: &
+                     output_base+mult_scalar*n_node) = &
+                     domain_sol(scalar_id,field_level)%data(d)%elts( &
+                     mult_scalar*old_start+1: &
+                     mult_scalar*(old_start+n_node))
+             else
+                scalar_payload(output_base+1: &
+                     output_base+mult_scalar*n_node) = &
+                     sol(scalar_id,field_level)%data(d)%elts( &
+                     mult_scalar*old_start+1: &
+                     mult_scalar*(old_start+n_node))
+             end if
           case (BLOCK_PAYLOAD_WAV_COEFF)
              scalar_payload(output_base+1: &
                   output_base+mult_scalar*n_node) = &
@@ -5453,11 +5520,20 @@ end subroutine build_parallel_block_catalog
        output_base = (level_slot-1)*mult_vector*n_node
        select case (payload_family)
        case (BLOCK_PAYLOAD_SOL)
-          vector_payload(output_base+1: &
-               output_base+mult_vector*n_node) = &
-               sol(v_vector,field_level)%data(d)%elts( &
-               mult_vector*old_start+1: &
-               mult_vector*(old_start+n_node))
+          if (present(domain_sol) .and. field_level >= 1 .and. &
+               field_level <= zlevels) then
+             vector_payload(output_base+1: &
+                  output_base+mult_vector*n_node) = &
+                  domain_sol(v_vector,field_level)%data(d)%elts( &
+                  mult_vector*old_start+1: &
+                  mult_vector*(old_start+n_node))
+          else
+             vector_payload(output_base+1: &
+                  output_base+mult_vector*n_node) = &
+                  sol(v_vector,field_level)%data(d)%elts( &
+                  mult_vector*old_start+1: &
+                  mult_vector*(old_start+n_node))
+          end if
        case (BLOCK_PAYLOAD_WAV_COEFF)
           vector_payload(output_base+1: &
                output_base+mult_vector*n_node) = &
@@ -5885,6 +5961,151 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine refresh_parallel_block_trend_boundary_state
+
+
+  subroutine refresh_parallel_block_candidate_boundary_state ( &
+       domain_sol,stage,stage_count)
+    ! Replace the current provisional block candidate with the authoritative
+    ! post-wavelet Domain stage state, while retaining the timestep-start
+    ! checkpoint needed to reject that provisional stage. Import its compact
+    ! boundaries and refresh inter-block ghosts for the next RK tendency.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: stage
+    integer, intent(in) :: stage_count
+
+    integer :: scalar_ghost_recv_size_before
+    integer :: scalar_ghost_send_size_before
+    integer :: vector_ghost_recv_size_before
+    integer :: vector_ghost_send_size_before
+
+    integer(int64) :: production_writeback_before
+    integer(int64) :: writeback_allocation_before
+
+    logical :: accumulator_ready
+    logical :: checkpoint_ready
+    logical :: state_ready
+    logical :: tendency_ready
+    logical :: trial_active
+
+    character(len=3) :: scheme_name
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("multistage boundary refresh before state is ready")
+    end if
+    if (stage_count /= 3 .and. stage_count /= 4) then
+       call fail("multistage boundary refresh stage count is invalid")
+    end if
+    if (stage < 1 .or. stage >= stage_count) then
+       call fail("multistage boundary refresh stage is invalid")
+    end if
+    if (production_multistage_candidate_stage_count /= stage_count .or. &
+         production_multistage_candidate_stage /= stage) then
+       call fail("multistage boundary refresh sequence is invalid")
+    end if
+    if (block_writeback_plan% &
+         production_multistage_boundary_refresh_count /= &
+         int(stage-1,int64)) then
+       call fail("multistage boundary refresh count is invalid")
+    end if
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. .not. checkpoint_ready .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("multistage boundary refresh transaction is invalid")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+    scalar_ghost_send_size_before = &
+         size(ghost_exchange_plan%scalar_send_buffer)
+    scalar_ghost_recv_size_before = &
+         size(ghost_exchange_plan%scalar_recv_buffer)
+    vector_ghost_send_size_before = &
+         size(ghost_exchange_plan%vector_send_buffer)
+    vector_ghost_recv_size_before = &
+         size(ghost_exchange_plan%vector_recv_buffer)
+
+    call import_domain_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,domain_sol,.true.)
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_SOL,domain_sol)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.false.,domain_sol)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.true.,domain_sol)
+    call refresh_block_sol_ghosts
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_SOL,domain_sol)
+
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    trial_active = local_block_tendency_trial_is_active()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (.not. checkpoint_ready .or. trial_active .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("multistage boundary refresh lost rollback checkpoint")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("multistage boundary refresh reallocated transport")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("multistage boundary refresh modified Domain fields")
+    end if
+    if (size(ghost_exchange_plan%scalar_send_buffer) /= &
+         scalar_ghost_send_size_before .or. &
+         size(ghost_exchange_plan%scalar_recv_buffer) /= &
+         scalar_ghost_recv_size_before .or. &
+         size(ghost_exchange_plan%vector_send_buffer) /= &
+         vector_ghost_send_size_before .or. &
+         size(ghost_exchange_plan%vector_recv_buffer) /= &
+         vector_ghost_recv_size_before) then
+       call fail("multistage boundary refresh resized ghost buffers")
+    end if
+
+    block_writeback_plan%production_multistage_boundary_refresh_count = &
+         block_writeback_plan% &
+         production_multistage_boundary_refresh_count + 1_int64
+
+    if (stage_count == 3) then
+       scheme_name = "RK3"
+    else
+       scheme_name = "RK4"
+    end if
+    if (rank == 0) then
+       write(6,'(/,a,a,a,i0,a,i0)') &
+            "Production ",scheme_name, &
+            " block stage boundary refresh = ",stage," of ",stage_count-1
+       write(6,'(a)') &
+            "  exact post-wavelet stage sol import passed"
+       write(6,'(a)') &
+            "  exact compact stage boundary import passed"
+       write(6,'(a)') &
+            "  scalar/vector stage sol ghosts refreshed"
+       write(6,'(a)') &
+            "  timestep-start rollback checkpoint retained"
+       write(6,'(a)') &
+            "  persistent transport and ghost buffers reused"
+       write(6,'(a,/)') &
+            "Production multistage block boundary compatibility passed"
+    end if
+
+  end subroutine refresh_parallel_block_candidate_boundary_state
 
 
   subroutine refresh_parallel_block_domain_prognostic_state
@@ -6831,6 +7052,11 @@ end subroutine build_parallel_block_catalog
           call fail( &
                "production multistage block candidate found a checkpoint")
        end if
+       if (block_writeback_plan% &
+            production_multistage_boundary_refresh_count /= 0_int64) then
+          call fail( &
+               "production multistage boundary refresh was not finalized")
+       end if
        production_multistage_candidate_stage_count = stage_count
        call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
        call assert_block_domain_field_family_match( &
@@ -6847,6 +7073,12 @@ end subroutine build_parallel_block_catalog
        if (production_multistage_candidate_stage_count /= stage_count) then
           call fail( &
                "production multistage block candidate method changed")
+       end if
+       if (block_writeback_plan% &
+            production_multistage_boundary_refresh_count /= &
+            int(stage-1,int64)) then
+          call fail( &
+               "production multistage stage boundary was not refreshed")
        end if
        if (.not. checkpoint_ready) then
           call fail( &
@@ -6901,6 +7133,12 @@ end subroutine build_parallel_block_catalog
     if (production_multistage_candidate_stage_count /= stage_count .or. &
          production_multistage_candidate_stage /= stage_count) then
        call fail("production multistage block candidate is incomplete")
+    end if
+    if (block_writeback_plan% &
+         production_multistage_boundary_refresh_count /= &
+         int(stage_count-1,int64)) then
+       call fail( &
+            "production multistage boundary refresh is incomplete")
     end if
     trial_active = local_block_tendency_trial_is_active()
     checkpoint_ready = &
@@ -6966,6 +7204,8 @@ end subroutine build_parallel_block_catalog
     end if
     production_multistage_candidate_stage = 0
     production_multistage_candidate_stage_count = 0
+    block_writeback_plan%production_multistage_boundary_refresh_count = &
+         0_int64
 
     if (rank == 0) then
        if (stage_count == 3) then
@@ -6981,6 +7221,8 @@ end subroutine build_parallel_block_catalog
        end if
        write(6,'(a,i0)') &
             "  completed candidate stages = ",stage_count
+       write(6,'(a,i0)') &
+            "  completed provisional boundary refreshes = ",stage_count-1
        write(6,'(a,i0)') "  scalar changed blocks = ", &
             global_changed_block_count(1)
        write(6,'(a,i0)') "  vector changed blocks = ", &
@@ -7368,7 +7610,7 @@ end subroutine build_parallel_block_catalog
 
   recursive subroutine pack_domain_subtree_prognostic ( &
        d,p,payload_family,scalar_payload,scalar_pos, &
-       vector_payload,vector_pos,n_patch)
+       vector_payload,vector_pos,n_patch,domain_sol)
     ! Pack one Domain field-family subtree in compact block preorder.
 
     implicit none
@@ -7381,6 +7623,8 @@ end subroutine build_parallel_block_catalog
     real(dp), intent(inout) :: vector_payload(:)
     integer, intent(inout) :: vector_pos
     integer, intent(inout) :: n_patch
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: c
     integer :: p_child
@@ -7392,7 +7636,7 @@ end subroutine build_parallel_block_catalog
 
     call pack_domain_patch_prognostic( &
          d,p,payload_family,scalar_payload,scalar_pos, &
-         vector_payload,vector_pos)
+         vector_payload,vector_pos,domain_sol)
 
     n_patch = n_patch + 1
 
@@ -7401,7 +7645,7 @@ end subroutine build_parallel_block_catalog
        if (p_child <= 0) cycle
        call pack_domain_subtree_prognostic( &
             d,p_child,payload_family,scalar_payload,scalar_pos, &
-            vector_payload,vector_pos,n_patch)
+            vector_payload,vector_pos,n_patch,domain_sol)
     end do
 
   end subroutine pack_domain_subtree_prognostic
@@ -7409,7 +7653,7 @@ end subroutine build_parallel_block_catalog
 
   subroutine pack_domain_patch_prognostic ( &
        d,p,payload_family,scalar_payload,scalar_pos, &
-       vector_payload,vector_pos)
+       vector_payload,vector_pos,domain_sol)
     ! Pack one active Domain patch in compact field-family order.
 
     implicit none
@@ -7421,6 +7665,8 @@ end subroutine build_parallel_block_catalog
     integer, intent(inout) :: scalar_pos
     real(dp), intent(inout) :: vector_payload(:)
     integer, intent(inout) :: vector_pos
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: field_level
     integer :: first_field_level
@@ -7476,13 +7722,25 @@ end subroutine build_parallel_block_catalog
           field_level = first_field_level + level_slot - 1
           select case (payload_family)
           case (BLOCK_PAYLOAD_SOL)
-             if (start < 0 .or. start+n_value > &
-                  size(sol(scalar_id,field_level)%data(d)%elts)) then
-                call fail("legacy scalar sol writeback extent is invalid")
+             if (present(domain_sol) .and. field_level >= 1 .and. &
+                  field_level <= zlevels) then
+                if (start < 0 .or. start+n_value > size( &
+                     domain_sol(scalar_id,field_level)%data(d)%elts)) then
+                   call fail("stage scalar sol payload extent is invalid")
+                end if
+                scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
+                     domain_sol(scalar_id,field_level)%data(d)%elts( &
+                     start+1:start+n_value)
+             else
+                if (start < 0 .or. start+n_value > &
+                     size(sol(scalar_id,field_level)%data(d)%elts)) then
+                   call fail( &
+                        "legacy scalar sol writeback extent is invalid")
+                end if
+                scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
+                     sol(scalar_id,field_level)%data(d)%elts( &
+                     start+1:start+n_value)
              end if
-             scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
-                  sol(scalar_id,field_level)%data(d)%elts( &
-                  start+1:start+n_value)
           case (BLOCK_PAYLOAD_WAV_COEFF)
              if (start < 0 .or. start+n_value > &
                   size(wav_coeff(scalar_id,field_level)%data(d)%elts)) then
@@ -7518,13 +7776,24 @@ end subroutine build_parallel_block_catalog
        field_level = first_field_level + level_slot - 1
        select case (payload_family)
        case (BLOCK_PAYLOAD_SOL)
-          if (start < 0 .or. start+n_value > &
-               size(sol(v_vector,field_level)%data(d)%elts)) then
-             call fail("legacy vector sol writeback extent is invalid")
+          if (present(domain_sol) .and. field_level >= 1 .and. &
+               field_level <= zlevels) then
+             if (start < 0 .or. start+n_value > &
+                  size(domain_sol(v_vector,field_level)%data(d)%elts)) then
+                call fail("stage vector sol payload extent is invalid")
+             end if
+             vector_payload(vector_pos:vector_pos+n_value-1) = &
+                  domain_sol(v_vector,field_level)%data(d)%elts( &
+                  start+1:start+n_value)
+          else
+             if (start < 0 .or. start+n_value > &
+                  size(sol(v_vector,field_level)%data(d)%elts)) then
+                call fail("legacy vector sol writeback extent is invalid")
+             end if
+             vector_payload(vector_pos:vector_pos+n_value-1) = &
+                  sol(v_vector,field_level)%data(d)%elts( &
+                  start+1:start+n_value)
           end if
-          vector_payload(vector_pos:vector_pos+n_value-1) = &
-               sol(v_vector,field_level)%data(d)%elts( &
-               start+1:start+n_value)
        case (BLOCK_PAYLOAD_WAV_COEFF)
           if (start < 0 .or. start+n_value > &
                size(wav_coeff(v_vector,field_level)%data(d)%elts)) then
@@ -7594,12 +7863,21 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
        call fail("invalid Domain reconstruction payload family")
     end if
+    if (.not. allocated( &
+         block_writeback_plan%domain_patch_reconstructed)) then
+       call fail("Domain reconstruction patch origin is not allocated")
+    end if
+    if (size(block_writeback_plan%domain_patch_reconstructed) /= &
+         size(block_writeback_plan%domain_patch_covered)) then
+       call fail("Domain reconstruction patch origin extent mismatch")
+    end if
 
     call exchange_block_writeback_payloads(payload_family)
 
     block_writeback_plan%scalar_domain_stage = 0.0_dp
     block_writeback_plan%vector_domain_stage = 0.0_dp
     block_writeback_plan%domain_patch_covered = .false.
+    block_writeback_plan%domain_patch_reconstructed = .false.
     reconstructed_patch_count = 0
     preserved_patch_count = 0
 
@@ -7682,6 +7960,10 @@ end subroutine build_parallel_block_catalog
          reconstructed_patch_count) then
        call fail("block-derived Domain patch coverage is inconsistent")
     end if
+    if (count(block_writeback_plan%domain_patch_reconstructed) /= &
+         reconstructed_patch_count) then
+       call fail("block-derived Domain patch origin is inconsistent")
+    end if
 
     active_patch_count = 0
     do d = 1,size(grid)
@@ -7753,6 +8035,8 @@ end subroutine build_parallel_block_catalog
          call fail("Domain patch was reconstructed more than once")
       end if
       block_writeback_plan%domain_patch_covered(claimed_slot) = .true.
+      block_writeback_plan%domain_patch_reconstructed(claimed_slot) = &
+           .true.
 
       scalar_stage_start = (claimed_slot-1)* &
            block_writeback_plan%scalar_patch_nvalue + 1
@@ -7978,6 +8262,10 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_WAV_COEFF) return
     if (.not. allocated(block_writeback_plan%domain_patch_displ)) return
     if (.not. allocated(block_writeback_plan%domain_patch_covered)) return
+    if (.not. allocated( &
+         block_writeback_plan%domain_patch_reconstructed)) return
+    if (size(block_writeback_plan%domain_patch_reconstructed) /= &
+         size(block_writeback_plan%domain_patch_covered)) return
     if (.not. allocated(block_writeback_plan%scalar_domain_stage)) return
     if (.not. allocated(block_writeback_plan%vector_domain_stage)) return
     if (block_writeback_plan%scalar_patch_nvalue <= 0 .or. &
@@ -7993,6 +8281,8 @@ end subroutine build_parallel_block_catalog
           if (grid(d)%patch%elts(p+1)%deleted) then
              if (block_writeback_plan%domain_patch_covered(patch_slot)) &
                   return
+             if (block_writeback_plan% &
+                  domain_patch_reconstructed(patch_slot)) return
              cycle
           end if
 
@@ -8023,6 +8313,8 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%preserved_patch_count) return
     if (count(block_writeback_plan%domain_patch_covered) /= &
          active_patch_count) return
+    if (count(block_writeback_plan%domain_patch_reconstructed) /= &
+         block_writeback_plan%reconstructed_patch_count) return
 
     valid = .true.
 
@@ -8167,13 +8459,16 @@ end subroutine build_parallel_block_catalog
   end subroutine write_block_field_family_to_domains
 
 
-  subroutine assert_block_domain_field_family_match (payload_family)
+  subroutine assert_block_domain_field_family_match ( &
+       payload_family,domain_sol)
     ! Reconstruct one family from final-owner blocks and compare every
     ! active authoritative Domain value exactly. Domain fields are read only.
 
     implicit none
 
     integer, intent(in) :: payload_family
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: d
     integer :: p
@@ -8201,9 +8496,16 @@ end subroutine build_parallel_block_catalog
                block_writeback_plan%vector_patch_nvalue + 1
           scalar_pos = 1
           vector_pos = 1
-          call pack_domain_patch_prognostic( &
-               d,p,payload_family,current_scalar,scalar_pos, &
-               current_vector,vector_pos)
+          if (present(domain_sol) .and. block_writeback_plan% &
+               domain_patch_reconstructed(patch_slot)) then
+             call pack_domain_patch_prognostic( &
+                  d,p,payload_family,current_scalar,scalar_pos, &
+                  current_vector,vector_pos,domain_sol)
+          else
+             call pack_domain_patch_prognostic( &
+                  d,p,payload_family,current_scalar,scalar_pos, &
+                  current_vector,vector_pos)
+          end if
           if (any(abs(current_scalar- &
                block_writeback_plan%scalar_domain_stage( &
                scalar_start:scalar_start+ &
@@ -14925,7 +15227,7 @@ end subroutine build_parallel_block_catalog
        call fail("writeback plan lifecycle allocation count mismatch")
     end if
     if (stage_allocation_after_rebuild /= &
-         stage_allocation_before+3_int64) then
+         stage_allocation_before+4_int64) then
        call fail("Domain stage lifecycle allocation count mismatch")
     end if
 

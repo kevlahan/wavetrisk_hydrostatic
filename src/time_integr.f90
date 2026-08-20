@@ -13,6 +13,7 @@ module time_integr_mod
        begin_block_domain_multistage_candidate_stage, &
        accept_block_domain_multistage_candidate, &
        parallel_block_state_is_ready, &
+       refresh_parallel_block_candidate_boundary_state, &
        refresh_parallel_block_domain_prognostic_state
 
   implicit none
@@ -128,6 +129,10 @@ contains
     end if
     call RK_sub_step (q, trend, h/3, q1)
     call WT_after_step (q1, wav)
+    if (block_candidate) then
+       call update_bdry(q1,NONE,980)
+       call refresh_parallel_block_candidate_boundary_state(q1,1,3)
+    end if
 
     call routine (q1, trend) 
     if (block_candidate) then
@@ -135,6 +140,10 @@ contains
     end if
     call RK_sub_step (q, trend, h/2, q1)
     call WT_after_step (q1, wav)
+    if (block_candidate) then
+       call update_bdry(q1,NONE,980)
+       call refresh_parallel_block_candidate_boundary_state(q1,2,3)
+    end if
 
     call routine (q1, trend) 
     if (block_candidate) then
@@ -182,6 +191,10 @@ contains
     end if
     call RK_sub_step (q, trend, h/4, q1)
     call WT_after_step (q1, wav)
+    if (block_candidate) then
+       call update_bdry(q1,NONE,980)
+       call refresh_parallel_block_candidate_boundary_state(q1,1,4)
+    end if
 
     call routine (q1, trend) 
     if (block_candidate) then
@@ -189,6 +202,10 @@ contains
     end if
     call RK_sub_step (q, trend, h/3, q1)
     call WT_after_step (q1, wav)
+    if (block_candidate) then
+       call update_bdry(q1,NONE,980)
+       call refresh_parallel_block_candidate_boundary_state(q1,2,4)
+    end if
 
     call routine (q1, trend) 
     if (block_candidate) then
@@ -196,6 +213,10 @@ contains
     end if
     call RK_sub_step (q, trend, h/2, q1)
     call WT_after_step (q1, wav)
+    if (block_candidate) then
+       call update_bdry(q1,NONE,980)
+       call refresh_parallel_block_candidate_boundary_state(q1,3,4)
+    end if
 
     call routine (q1, trend) 
     if (block_candidate) then
