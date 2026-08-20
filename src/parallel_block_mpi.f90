@@ -7,12 +7,12 @@ module parallel_block_mpi_mod
        MPI_SUM
 
   use kind_mod,   only : dp
-  use shared_mod, only : EDGE, N_BDRY, N_CHDRN, N_GLO_DOMAIN, &
-       N_VARIABLE, &
-       S_MASS, S_TEMP, &
+  use shared_mod, only : DG, EAST, EDGE, NORTH, NORTHEAST, N_BDRY, &
+       N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, S_MASS, S_TEMP, &
        c_p, compressible, grav_accel, kappa, p_0, p_top, zlevels
 
-  use domain_mod, only : Float_Field, grid, sol, sol_mean, tke, &
+  use domain_mod, only : Float_Field, get_offs_Domain, grid, idx, &
+       sol, sol_mean, tke, &
        topography, trend, &
        wav_coeff, wav_tke, &
        subtree_weight_Domain
@@ -139,6 +139,7 @@ module parallel_block_mpi_mod
        -0.25_dp*huge(0.0_dp)
 
   integer, parameter :: BLOCK_PAYLOAD_TREND = 3
+  integer, parameter :: BLOCK_PAYLOAD_THETA_EDGE = 4
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
        -0.125_dp*huge(0.0_dp)
   real(dp), parameter :: BLOCK_PATCH_POISON = &
@@ -359,6 +360,13 @@ module parallel_block_mpi_mod
      real(dp) :: scalar_moment(3) = 0.0_dp
      real(dp) :: vector_moment(3) = 0.0_dp
   end type Block_Tendency_Traversal_Context
+
+  type :: Block_Theta_Edge_Kernel_Context
+     integer(int64) :: block_count = 0_int64
+     integer(int64) :: patch_count = 0_int64
+     integer(int64) :: sample_count = 0_int64
+     real(dp) :: theta_moment(3) = 0.0_dp
+  end type Block_Theta_Edge_Kernel_Context
 
   type, public :: Block_Two_Stage_Step_Result
      integer(int64) :: scalar_count = 0_int64
@@ -4505,7 +4513,8 @@ end subroutine build_parallel_block_catalog
     end if
     if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
          payload_family /= BLOCK_PAYLOAD_WAV_COEFF .and. &
-         payload_family /= BLOCK_PAYLOAD_TREND) then
+         payload_family /= BLOCK_PAYLOAD_TREND .and. &
+         payload_family /= BLOCK_PAYLOAD_THETA_EDGE) then
        call fail("invalid Domain-to-block payload family")
     end if
 
@@ -6080,6 +6089,7 @@ end subroutine build_parallel_block_catalog
        call fail("multistage provisional hydrostatic cache refreshed twice")
     end if
     call evaluate_candidate_block_stencil_tendency
+    call evaluate_candidate_block_theta_edge(domain_sol)
 
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
@@ -6137,6 +6147,12 @@ end subroutine build_parallel_block_catalog
             "  provisional block stencil tendency evaluated exactly"
        write(6,'(a)') &
             "  provisional tendency output discarded without writeback"
+       write(6,'(a)') &
+            "  block-native potential-temperature edge kernel passed"
+       write(6,'(a)') &
+            "  exact block/Domain theta-edge comparison passed"
+       write(6,'(a)') &
+            "  physical tendency input discarded without writeback"
        write(6,'(a)') &
             "  timestep-start rollback checkpoint retained"
        write(6,'(a)') &
@@ -6393,6 +6409,317 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine evaluate_candidate_block_stencil_tendency
+
+
+  subroutine evaluate_candidate_block_theta_edge (domain_sol)
+    ! Execute one physical compressible tendency input from provisional block
+    ! fields. Compare every compact patch exactly with an independently
+    ! reconstructed Domain payload, then discard the block-native result.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+
+    integer :: b
+    integer :: d
+    integer :: first_field_level
+    integer :: ierr
+    integer :: local_index
+    integer :: local_patch
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_patch
+    integer :: n_physical_level
+    integer :: n_scalar_variable
+    integer :: physical_first
+    integer :: physical_last
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: slot
+    integer :: v_scalar
+    integer :: v_vector
+
+    integer(int64) :: allocation_before
+    integer(int64) :: count_global(3)
+    integer(int64) :: count_local(3)
+    integer(int64) :: execution_before
+    integer(int64) :: expected_patch_count
+    integer(int64) :: expected_sample_count
+    integer(int64) :: field_count(2)
+    integer(int64) :: field_count_after(2)
+    integer(int64) :: hydrostatic_refresh_before
+    integer(int64) :: production_writeback_before
+    integer(int64) :: validated_patch_count
+    integer(int64) :: writeback_allocation_before
+
+    real(dp) :: field_moment(3,2)
+    real(dp) :: field_moment_after(3,2)
+
+    logical :: accumulator_ready
+    logical :: checkpoint_ready
+    logical :: tendency_ready
+    logical :: trial_active
+
+    type(Block_Theta_Edge_Kernel_Context) :: kernel
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. .not. checkpoint_ready .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("theta-edge shadow transaction is invalid")
+    end if
+    if (.not. local_block_hydrostatic_state_ready()) then
+       call fail("theta-edge shadow hydrostatic state is stale")
+    end if
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (mult_scalar /= 1 .or. mult_vector /= EDGE .or. &
+         S_MASS < v_scalar .or. &
+         S_MASS >= v_scalar+n_scalar_variable .or. &
+         S_TEMP < v_scalar .or. &
+         S_TEMP >= v_scalar+n_scalar_variable .or. &
+         v_vector < 1) then
+       call fail("theta-edge shadow field layout is invalid")
+    end if
+    physical_first = max(1,first_field_level)
+    physical_last = min( &
+         zlevels,first_field_level+n_field_level-1)
+    n_physical_level = max(0,physical_last-physical_first+1)
+    if (n_physical_level /= zlevels) then
+       call fail("theta-edge shadow physical-level coverage is invalid")
+    end if
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+    allocation_before = local_block_tendency_allocation_count()
+    execution_before = local_block_tendency_execution_count()
+    hydrostatic_refresh_before = local_block_hydrostatic_refresh_count()
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+
+    call exchange_domain_to_block_payloads( &
+         BLOCK_PAYLOAD_THETA_EDGE,domain_sol=domain_sol)
+    kernel = Block_Theta_Edge_Kernel_Context()
+    call apply_local_block_tendency_kernel( &
+         compute_block_theta_edge_kernel,kernel)
+
+    tendency_ready = local_block_tendency_state_ready()
+    if (.not. tendency_ready) then
+       call fail("theta-edge shadow output is not ready")
+    end if
+    if (local_block_tendency_execution_count() /= &
+         execution_before+1_int64) then
+       call fail("theta-edge shadow execution count is invalid")
+    end if
+    if (local_block_tendency_allocation_count() /= allocation_before) then
+       call fail("theta-edge shadow reallocated tendency workspace")
+    end if
+
+    expected_patch_count = 0_int64
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       expected_patch_count = expected_patch_count + &
+            int(local_block_patch_count(b),int64)
+    end do
+    expected_sample_count = expected_patch_count* &
+         int(n_physical_level*EDGE*PATCH_SIZE**2,int64)
+    if (kernel%block_count /= int(n_local_blocks(),int64) .or. &
+         kernel%patch_count /= expected_patch_count .or. &
+         kernel%sample_count /= expected_sample_count) then
+       call fail("theta-edge shadow traversal is incomplete")
+    end if
+
+    validated_patch_count = 0_int64
+    call validate_theta_edge_patches
+    if (validated_patch_count /= expected_patch_count) then
+       call fail("theta-edge shadow validation coverage differs")
+    end if
+
+    call local_block_field_statistics( &
+         field_count_after(1),field_count_after(2), &
+         field_moment_after(:,1),field_moment_after(:,2))
+    if (any(field_count_after /= field_count)) then
+       call fail("theta-edge shadow changed field coverage")
+    end if
+    if (.not. field_moments_match( &
+         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+         .not. field_moments_match( &
+         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
+       call fail("theta-edge shadow changed block fields")
+    end if
+    if (local_block_hydrostatic_refresh_count() /= &
+         hydrostatic_refresh_before) then
+       call fail("theta-edge shadow refreshed hydrostatic cache")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("theta-edge shadow reallocated transport")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("theta-edge shadow modified Domain fields")
+    end if
+
+    count_local = [kernel%block_count,kernel%patch_count, &
+         kernel%sample_count]
+    call MPI_Allreduce(count_local,count_global,3, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce theta-edge shadow coverage")
+    if (any(count_global <= 0_int64)) then
+       call fail("theta-edge shadow global coverage is empty")
+    end if
+
+    call discard_local_block_tendency_output
+    tendency_ready = local_block_tendency_state_ready()
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (tendency_ready .or. trial_active .or. .not. checkpoint_ready .or. &
+         accumulator_ready) then
+       call fail("theta-edge shadow discard is invalid")
+    end if
+
+  contains
+
+    subroutine validate_theta_edge_patches
+
+      implicit none
+
+      if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer)) then
+         call fail("theta-edge scalar patch buffer is not allocated")
+      end if
+      if (.not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
+         call fail("theta-edge vector patch buffer is not allocated")
+      end if
+      if (size(ghost_exchange_plan%scalar_patch_buffer) /= &
+           block_writeback_plan%scalar_patch_nvalue .or. &
+           size(ghost_exchange_plan%vector_patch_buffer) /= &
+           block_writeback_plan%vector_patch_nvalue) then
+         call fail("theta-edge validation patch layout differs")
+      end if
+
+      do local_index = 1,n_local_blocks()
+         b = local_block_catalog(local_index)
+         r = source_rank(b)
+         if (r /= rank) cycle
+         d = loc_id(block_catalog(b)%root_domain+1) + 1
+         if (d < 1 .or. d > size(grid)) then
+            call fail("theta-edge retained Domain is invalid")
+         end if
+         local_patch = 0
+         call validate_retained_subtree( &
+              d,block_catalog(b)%root_patch,b,local_patch)
+         if (local_patch /= local_block_patch_count(b)) then
+            call fail("theta-edge retained validation is incomplete")
+         end if
+      end do
+
+      do r = 1,n_process
+         pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+         pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+         do slot = block_writeback_plan%send_displ(r)+1, &
+              block_writeback_plan%send_displ(r) + &
+              block_writeback_plan%send_count(r)
+            b = block_writeback_plan%send_block(slot)
+            n_patch = local_block_patch_count(b)
+            do local_patch = 0,n_patch-1
+               if (pos_scalar < 1 .or. pos_scalar + &
+                    block_writeback_plan%scalar_patch_nvalue - 1 > &
+                    size(block_writeback_plan%scalar_send_buffer) .or. &
+                    pos_vector < 1 .or. pos_vector + &
+                    block_writeback_plan%vector_patch_nvalue - 1 > &
+                    size(block_writeback_plan%vector_send_buffer)) then
+                  call fail("theta-edge remote payload is truncated")
+               end if
+               call assert_local_block_tendency_patch_values( &
+                    b,local_patch, &
+                    block_writeback_plan%scalar_send_buffer( &
+                    pos_scalar:pos_scalar+ &
+                    block_writeback_plan%scalar_patch_nvalue-1), &
+                    block_writeback_plan%vector_send_buffer( &
+                    pos_vector:pos_vector+ &
+                    block_writeback_plan%vector_patch_nvalue-1))
+               pos_scalar = pos_scalar + &
+                    block_writeback_plan%scalar_patch_nvalue
+               pos_vector = pos_vector + &
+                    block_writeback_plan%vector_patch_nvalue
+               validated_patch_count = validated_patch_count + 1_int64
+            end do
+         end do
+         if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+              block_writeback_plan%scalar_send_count(r) + 1 .or. &
+              pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+              block_writeback_plan%vector_send_count(r) + 1) then
+            call fail("theta-edge remote validation extent mismatch")
+         end if
+      end do
+
+    end subroutine validate_theta_edge_patches
+
+
+    recursive subroutine validate_retained_subtree ( &
+         d,p,b,local_patch_index)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: b
+      integer, intent(inout) :: local_patch_index
+
+      integer :: c
+      integer :: p_child
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("theta-edge retained patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,BLOCK_PAYLOAD_THETA_EDGE, &
+           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
+           ghost_exchange_plan%vector_patch_buffer,vector_pos,domain_sol)
+      if (scalar_pos /= &
+           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
+           vector_pos /= &
+           size(ghost_exchange_plan%vector_patch_buffer)+1) then
+         call fail("theta-edge retained payload extent mismatch")
+      end if
+      call assert_local_block_tendency_patch_values( &
+           b,local_patch_index, &
+           ghost_exchange_plan%scalar_patch_buffer, &
+           ghost_exchange_plan%vector_patch_buffer)
+      local_patch_index = local_patch_index + 1
+      validated_patch_count = validated_patch_count + 1_int64
+
+      do c = 1,N_CHDRN
+         p_child = grid(d)%patch%elts(p+1)%children(c)
+         if (p_child <= 0) cycle
+         call validate_retained_subtree( &
+              d,p_child,b,local_patch_index)
+      end do
+
+    end subroutine validate_retained_subtree
+
+  end subroutine evaluate_candidate_block_theta_edge
 
 
   subroutine refresh_parallel_block_domain_prognostic_state
@@ -8237,7 +8564,8 @@ end subroutine build_parallel_block_catalog
     end if
     if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
          payload_family /= BLOCK_PAYLOAD_WAV_COEFF .and. &
-         payload_family /= BLOCK_PAYLOAD_TREND) then
+         payload_family /= BLOCK_PAYLOAD_TREND .and. &
+         payload_family /= BLOCK_PAYLOAD_THETA_EDGE) then
        call fail("invalid Domain writeback payload family")
     end if
 
@@ -8253,6 +8581,22 @@ end subroutine build_parallel_block_catalog
          vector_pos < 1 .or. &
          vector_pos+n_vector_patch-1 > size(vector_payload)) then
        call fail("Domain writeback record buffer extent is invalid")
+    end if
+
+    if (payload_family == BLOCK_PAYLOAD_THETA_EDGE) then
+       scalar_payload(scalar_pos:scalar_pos+n_scalar_patch-1) = 0.0_dp
+       if (present(domain_sol)) then
+          call pack_domain_patch_theta_edge( &
+               d,p,vector_payload( &
+               vector_pos:vector_pos+n_vector_patch-1),domain_sol)
+       else
+          call pack_domain_patch_theta_edge( &
+               d,p,vector_payload( &
+               vector_pos:vector_pos+n_vector_patch-1))
+       end if
+       scalar_pos = scalar_pos + n_scalar_patch
+       vector_pos = vector_pos + n_vector_patch
+       return
     end if
 
     start = mult_scalar*grid(d)%patch%elts(p+1)%elts_start
@@ -8363,6 +8707,161 @@ end subroutine build_parallel_block_catalog
     end do
 
   end subroutine pack_domain_patch_prognostic
+
+
+  subroutine pack_domain_patch_theta_edge (d,p,theta_edge,domain_sol)
+    ! Independently reconstruct the potential-temperature edge averages
+    ! used by the compressible velocity-gradient tendency from Domain data.
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: p
+    real(dp), intent(out) :: theta_edge(:)
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+
+    integer :: dims(2,N_BDRY+1)
+    integer :: field_level
+    integer :: first_field_level
+    integer :: i
+    integer :: id_center
+    integer :: id_east
+    integer :: id_north
+    integer :: id_northeast
+    integer :: j
+    integer :: level_slot
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: offs(N_BDRY+1)
+    integer :: output_base
+    integer :: q
+    integer :: v_scalar
+    integer :: v_vector
+
+    real(dp) :: mass_center
+    real(dp) :: mass_east
+    real(dp) :: mass_north
+    real(dp) :: mass_northeast
+    real(dp) :: temp_center
+    real(dp) :: temp_east
+    real(dp) :: temp_north
+    real(dp) :: temp_northeast
+    real(dp) :: theta_center
+    real(dp) :: theta_east
+    real(dp) :: theta_north
+    real(dp) :: theta_northeast
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (mult_scalar /= 1 .or. mult_vector /= EDGE .or. &
+         S_MASS < v_scalar .or. &
+         S_MASS >= v_scalar+n_scalar_variable .or. &
+         S_TEMP < v_scalar .or. &
+         S_TEMP >= v_scalar+n_scalar_variable) then
+       call fail("Domain theta-edge field layout is invalid")
+    end if
+    if (size(theta_edge) /= &
+         n_field_level*EDGE*PATCH_SIZE**2) then
+       call fail("Domain theta-edge payload extent is invalid")
+    end if
+
+    call get_offs_Domain(grid(d),p,offs,dims)
+    theta_edge = 0.0_dp
+    do level_slot = 1,n_field_level
+       field_level = first_field_level + level_slot - 1
+       if (field_level < 1) cycle
+       if (field_level > zlevels) then
+          call fail("Domain theta-edge field level is invalid")
+       end if
+       output_base = (level_slot-1)*EDGE*PATCH_SIZE**2
+
+       do j = 0,PATCH_SIZE-1
+          do i = 0,PATCH_SIZE-1
+             q = i + PATCH_SIZE*j
+             id_center = idx(i,j,offs,dims)
+             id_east = idx(i+1,j,offs,dims)
+             id_northeast = idx(i+1,j+1,offs,dims)
+             id_north = idx(i,j+1,offs,dims)
+
+             if (present(domain_sol)) then
+                mass_center = domain_sol(S_MASS,field_level)% &
+                     data(d)%elts(id_center+1)
+                mass_east = domain_sol(S_MASS,field_level)% &
+                     data(d)%elts(id_east+1)
+                mass_northeast = domain_sol(S_MASS,field_level)% &
+                     data(d)%elts(id_northeast+1)
+                mass_north = domain_sol(S_MASS,field_level)% &
+                     data(d)%elts(id_north+1)
+                temp_center = domain_sol(S_TEMP,field_level)% &
+                     data(d)%elts(id_center+1)
+                temp_east = domain_sol(S_TEMP,field_level)% &
+                     data(d)%elts(id_east+1)
+                temp_northeast = domain_sol(S_TEMP,field_level)% &
+                     data(d)%elts(id_northeast+1)
+                temp_north = domain_sol(S_TEMP,field_level)% &
+                     data(d)%elts(id_north+1)
+             else
+                mass_center = sol(S_MASS,field_level)% &
+                     data(d)%elts(id_center+1)
+                mass_east = sol(S_MASS,field_level)% &
+                     data(d)%elts(id_east+1)
+                mass_northeast = sol(S_MASS,field_level)% &
+                     data(d)%elts(id_northeast+1)
+                mass_north = sol(S_MASS,field_level)% &
+                     data(d)%elts(id_north+1)
+                temp_center = sol(S_TEMP,field_level)% &
+                     data(d)%elts(id_center+1)
+                temp_east = sol(S_TEMP,field_level)% &
+                     data(d)%elts(id_east+1)
+                temp_northeast = sol(S_TEMP,field_level)% &
+                     data(d)%elts(id_northeast+1)
+                temp_north = sol(S_TEMP,field_level)% &
+                     data(d)%elts(id_north+1)
+             end if
+
+             mass_center = mass_center + sol_mean(S_MASS,field_level)% &
+                  data(d)%elts(id_center+1)
+             mass_east = mass_east + sol_mean(S_MASS,field_level)% &
+                  data(d)%elts(id_east+1)
+             mass_northeast = mass_northeast + &
+                  sol_mean(S_MASS,field_level)%data(d)%elts( &
+                  id_northeast+1)
+             mass_north = mass_north + sol_mean(S_MASS,field_level)% &
+                  data(d)%elts(id_north+1)
+             temp_center = temp_center + sol_mean(S_TEMP,field_level)% &
+                  data(d)%elts(id_center+1)
+             temp_east = temp_east + sol_mean(S_TEMP,field_level)% &
+                  data(d)%elts(id_east+1)
+             temp_northeast = temp_northeast + &
+                  sol_mean(S_TEMP,field_level)%data(d)%elts( &
+                  id_northeast+1)
+             temp_north = temp_north + sol_mean(S_TEMP,field_level)% &
+                  data(d)%elts(id_north+1)
+
+             if (min(mass_center,mass_east,mass_northeast,mass_north) &
+                  <= 0.0_dp) then
+                call fail("Domain theta-edge reconstruction has bad mass")
+             end if
+             theta_center = temp_center/mass_center
+             theta_east = temp_east/mass_east
+             theta_northeast = temp_northeast/mass_northeast
+             theta_north = temp_north/mass_north
+
+             theta_edge(output_base+EDGE*q+RT+1) = &
+                  0.5_dp*(theta_center+theta_east)
+             theta_edge(output_base+EDGE*q+DG+1) = &
+                  0.5_dp*(theta_center+theta_northeast)
+             theta_edge(output_base+EDGE*q+UP+1) = &
+                  0.5_dp*(theta_center+theta_north)
+          end do
+       end do
+    end do
+
+  end subroutine pack_domain_patch_theta_edge
 
 
   subroutine reconstruct_block_writeback_domain_stage (payload_family)
@@ -13843,6 +14342,283 @@ end subroutine build_parallel_block_catalog
     end select
 
   end subroutine accumulate_block_tendency_kernel
+
+
+  subroutine compute_block_theta_edge_kernel ( &
+       catalog_index,block,scalar_tendency,vector_tendency,context)
+    ! Compute the edge-averaged potential temperature used by du_grad
+    ! directly from retained block sol/sol_mean fields and the compact
+    ! neighbour catalogue. The result is a rejected physical input shadow.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    real(dp), intent(inout) :: scalar_tendency(:)
+    real(dp), intent(inout) :: vector_tendency(:)
+    class(*), intent(inout) :: context
+
+    integer :: center_index
+    integer :: center_node
+    integer :: component_slot
+    integer :: field_level
+    integer :: i
+    integer :: j
+    integer :: level_slot
+    integer :: mass_slot
+    integer :: node_index
+    integer :: output_index
+    integer :: p
+    integer :: q
+    integer :: storage_class
+    integer :: temperature_slot
+
+    real(dp) :: mass_center
+    real(dp) :: mass_neighbor
+    real(dp) :: temperature_center
+    real(dp) :: temperature_neighbor
+    real(dp) :: theta_edge
+
+    if (catalog_index < 1) then
+       call fail("theta-edge kernel received invalid catalogue index")
+    end if
+    if (size(scalar_tendency) /= size(block%scalar) .or. &
+         size(vector_tendency) /= size(block%vector)) then
+       call fail("theta-edge kernel received invalid output extents")
+    end if
+    if (block%scalar_mult /= 1 .or. block%vector_mult /= EDGE) then
+       call fail("theta-edge kernel received invalid field multipliers")
+    end if
+    if (size(block%stencil,1) /= N_BDRY .or. &
+         size(block%stencil,2) /= size(block%patch)) then
+       call fail("theta-edge kernel received invalid topology")
+    end if
+    if (size(block%scalar_mean) /= size(block%scalar) .or. &
+         size(block%bdry_scalar_mean) /= size(block%bdry_scalar) .or. &
+         size(block%ghost_scalar_mean) /= size(block%ghost_scalar)) then
+       call fail("theta-edge kernel received invalid mean-field storage")
+    end if
+
+    mass_slot = S_MASS - block%scalar_variable
+    temperature_slot = S_TEMP - block%scalar_variable
+    if (mass_slot < 0 .or. mass_slot >= block%n_scalar_variable .or. &
+         temperature_slot < 0 .or. &
+         temperature_slot >= block%n_scalar_variable) then
+       call fail("theta-edge kernel scalar layout is invalid")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Theta_Edge_Kernel_Context)
+       statistics%block_count = statistics%block_count + 1_int64
+
+       do p = 1,size(block%patch)
+          statistics%patch_count = statistics%patch_count + 1_int64
+          do q = 0,PATCH_SIZE**2-1
+             i = mod(q,PATCH_SIZE)
+             j = q/PATCH_SIZE
+             center_node = block%patch(p)%elts_start + q
+             if (center_node < 0 .or. &
+                  center_node >= size(block%node)) then
+                call fail("theta-edge kernel centre node is invalid")
+             end if
+
+             do component_slot = 1,EDGE
+                select case (component_slot-1)
+                case (RT)
+                   if (i < PATCH_SIZE-1) then
+                      storage_class = STORE_PATCH
+                      node_index = center_node + 1
+                   else
+                      call set_direct_neighbor(EAST,0,j)
+                   end if
+                case (DG)
+                   if (i < PATCH_SIZE-1 .and. j < PATCH_SIZE-1) then
+                      storage_class = STORE_PATCH
+                      node_index = center_node + PATCH_SIZE + 1
+                   else if (i == PATCH_SIZE-1 .and. &
+                        j < PATCH_SIZE-1) then
+                      call set_direct_neighbor(EAST,0,j+1)
+                   else if (i < PATCH_SIZE-1 .and. &
+                        j == PATCH_SIZE-1) then
+                      call set_direct_neighbor(NORTH,i+1,0)
+                   else
+                      call set_direct_neighbor(NORTHEAST,0,0)
+                   end if
+                case (UP)
+                   if (j < PATCH_SIZE-1) then
+                      storage_class = STORE_PATCH
+                      node_index = center_node + PATCH_SIZE
+                   else
+                      call set_direct_neighbor(NORTH,i,0)
+                   end if
+                case default
+                   call fail("theta-edge kernel component is invalid")
+                end select
+
+                do level_slot = 1,block%n_field_level
+                   field_level = block%field_level + level_slot - 1
+                   if (field_level < 1) cycle
+                   if (field_level > zlevels) then
+                      call fail("theta-edge kernel field level is invalid")
+                   end if
+                   center_index = &
+                        (mass_slot*block%n_field_level + level_slot-1)* &
+                        size(block%node) + center_node + 1
+                   mass_center = block%scalar(center_index) + &
+                        block%scalar_mean(center_index)
+                   center_index = &
+                        (temperature_slot*block%n_field_level + &
+                        level_slot-1)*size(block%node) + center_node + 1
+                   temperature_center = block%scalar(center_index) + &
+                        block%scalar_mean(center_index)
+
+                   call get_neighbor_scalar_pair( &
+                        mass_slot,level_slot,mass_neighbor)
+                   call get_neighbor_scalar_pair( &
+                        temperature_slot,level_slot,temperature_neighbor)
+                   if (mass_center <= 0.0_dp .or. &
+                        mass_neighbor <= 0.0_dp) then
+                      call fail("theta-edge kernel diagnosed bad mass")
+                   end if
+
+                   theta_edge = 0.5_dp*( &
+                        temperature_center/mass_center + &
+                        temperature_neighbor/mass_neighbor)
+                   output_index = (level_slot-1)* &
+                        block%vector_mult*size(block%node) + &
+                        block%vector_mult*center_node + component_slot
+                   vector_tendency(output_index) = theta_edge
+                   statistics%sample_count = &
+                        statistics%sample_count + 1_int64
+                   statistics%theta_moment = statistics%theta_moment + &
+                        [theta_edge,abs(theta_edge),theta_edge**2]
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("theta-edge kernel received invalid context")
+    end select
+
+  contains
+
+    subroutine set_direct_neighbor (side,target_i,target_j)
+      ! Resolve the nominal neighbour link first, then index within its
+      ! compact patch, boundary, or refreshed ghost storage. This mirrors
+      ! get_offs_Domain/idx without relying on comp_offs3 displacements.
+
+      implicit none
+
+      integer, intent(in) :: side
+      integer, intent(in) :: target_i
+      integer, intent(in) :: target_j
+
+      integer :: boundary_link
+      integer :: dims(2)
+      integer :: neighbor
+      integer :: record
+      integer :: storage_start
+
+      neighbor = block%patch(p)%neigh(side)
+      if (neighbor > 0) then
+         storage_class = STORE_PATCH
+         record = neighbor
+         if (record >= size(block%patch)) then
+            call fail("theta-edge kernel direct patch is invalid")
+         end if
+         storage_start = block%patch(record+1)%elts_start
+         dims = PATCH_SIZE
+      else if (neighbor < 0) then
+         boundary_link = -neighbor
+         if (boundary_link < 1 .or. &
+              boundary_link > size(block%block_bdry)) then
+            call fail("theta-edge kernel direct link is invalid")
+         end if
+         if (block%block_bdry(boundary_link)%patch /= p-1 .or. &
+              block%block_bdry(boundary_link)%side /= side) then
+            call fail("theta-edge kernel direct link differs")
+         end if
+         record = block%block_bdry(boundary_link)%ghost_id
+         if (record > 0) then
+            storage_class = STORE_GHOST
+            if (record > size(block%ghost_storage)) then
+               call fail("theta-edge kernel direct ghost is invalid")
+            end if
+            storage_start = block%ghost_storage(record)%local_start
+            dims = PATCH_SIZE
+         else
+            record = block%block_bdry(boundary_link)%storage_id
+            storage_class = STORE_BDRY
+            if (record < 1 .or. &
+                 record > size(block%bdry_storage)) then
+               call fail("theta-edge kernel direct boundary is invalid")
+            end if
+            storage_start = block%bdry_storage(record)%local_start
+            dims = block%block_bdry(boundary_link)%dims
+         end if
+      else
+         call fail("theta-edge kernel direct neighbour is absent")
+      end if
+      if (target_i < 0 .or. target_i >= dims(1) .or. &
+           target_j < 0 .or. target_j >= dims(2)) then
+         call fail("theta-edge kernel direct coordinate is invalid")
+      end if
+      node_index = storage_start + target_j*dims(1) + target_i
+
+    end subroutine set_direct_neighbor
+
+    subroutine get_neighbor_scalar_pair ( &
+         scalar_slot,field_slot,value)
+
+      implicit none
+
+      integer, intent(in) :: scalar_slot
+      integer, intent(in) :: field_slot
+      real(dp), intent(out) :: value
+
+      integer :: field_base
+      integer :: field_index
+
+      select case (storage_class)
+      case (STORE_PATCH)
+         if (node_index < 0 .or. node_index >= size(block%node)) then
+            call fail("theta-edge kernel patch node is invalid")
+         end if
+         field_base = &
+              (scalar_slot*block%n_field_level + field_slot-1)* &
+              size(block%node)
+         field_index = field_base + node_index + 1
+         value = block%scalar(field_index) + &
+              block%scalar_mean(field_index)
+      case (STORE_BDRY)
+         if (node_index < 0 .or. &
+              node_index >= size(block%bdry_node)) then
+            call fail("theta-edge kernel boundary node is invalid")
+         end if
+         field_base = &
+              (scalar_slot*block%n_field_level + field_slot-1)* &
+              size(block%bdry_node)
+         field_index = field_base + node_index + 1
+         value = block%bdry_scalar(field_index) + &
+              block%bdry_scalar_mean(field_index)
+      case (STORE_GHOST)
+         if (node_index < 0 .or. &
+              node_index >= size(block%ghost_node)) then
+            call fail("theta-edge kernel ghost node is invalid")
+         end if
+         field_base = &
+              (scalar_slot*block%n_field_level + field_slot-1)* &
+              size(block%ghost_node)
+         field_index = field_base + node_index + 1
+         value = block%ghost_scalar(field_index) + &
+              block%ghost_scalar_mean(field_index)
+      case default
+         call fail("theta-edge kernel neighbour storage is invalid")
+      end select
+
+    end subroutine get_neighbor_scalar_pair
+
+  end subroutine compute_block_theta_edge_kernel
 
 
   subroutine check_block_tendency_kernel (verbose)
