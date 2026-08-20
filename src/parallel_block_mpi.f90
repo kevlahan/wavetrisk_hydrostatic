@@ -140,6 +140,7 @@ module parallel_block_mpi_mod
 
   integer, parameter :: BLOCK_PAYLOAD_TREND = 3
   integer, parameter :: BLOCK_PAYLOAD_THETA_EDGE = 4
+  integer, parameter :: BLOCK_PAYLOAD_EXNER_DIFFERENCE = 5
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
        -0.125_dp*huge(0.0_dp)
   real(dp), parameter :: BLOCK_PATCH_POISON = &
@@ -367,6 +368,13 @@ module parallel_block_mpi_mod
      integer(int64) :: sample_count = 0_int64
      real(dp) :: theta_moment(3) = 0.0_dp
   end type Block_Theta_Edge_Kernel_Context
+
+  type :: Block_Exner_Difference_Kernel_Context
+     integer(int64) :: block_count = 0_int64
+     integer(int64) :: patch_count = 0_int64
+     integer(int64) :: sample_count = 0_int64
+     real(dp) :: difference_moment(3) = 0.0_dp
+  end type Block_Exner_Difference_Kernel_Context
 
   type, public :: Block_Two_Stage_Step_Result
      integer(int64) :: scalar_count = 0_int64
@@ -4514,7 +4522,8 @@ end subroutine build_parallel_block_catalog
     if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
          payload_family /= BLOCK_PAYLOAD_WAV_COEFF .and. &
          payload_family /= BLOCK_PAYLOAD_TREND .and. &
-         payload_family /= BLOCK_PAYLOAD_THETA_EDGE) then
+         payload_family /= BLOCK_PAYLOAD_THETA_EDGE .and. &
+         payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE) then
        call fail("invalid Domain-to-block payload family")
     end if
 
@@ -6090,6 +6099,7 @@ end subroutine build_parallel_block_catalog
     end if
     call evaluate_candidate_block_stencil_tendency
     call evaluate_candidate_block_theta_edge(domain_sol)
+    call evaluate_candidate_block_exner_difference(domain_sol)
 
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
@@ -6153,6 +6163,12 @@ end subroutine build_parallel_block_catalog
             "  exact block/Domain theta-edge comparison passed"
        write(6,'(a)') &
             "  physical tendency input discarded without writeback"
+       write(6,'(a)') &
+            "  block-native dynamic-Exner edge kernel passed"
+       write(6,'(a)') &
+            "  exact block/Domain Exner-difference comparison passed"
+       write(6,'(a)') &
+            "  Exner-gradient numerator discarded without writeback"
        write(6,'(a)') &
             "  timestep-start rollback checkpoint retained"
        write(6,'(a)') &
@@ -6720,6 +6736,333 @@ end subroutine build_parallel_block_catalog
     end subroutine validate_retained_subtree
 
   end subroutine evaluate_candidate_block_theta_edge
+
+
+  subroutine evaluate_candidate_block_exner_difference (domain_sol)
+    ! Reconstruct the signed dynamic-Exner differences used by gradi_e from
+    ! complete provisional block mass columns. Compare every compact patch
+    ! with an independent Domain reconstruction, then discard the output.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+
+    integer :: b
+    integer :: first_field_level
+    integer :: ierr
+    integer :: local_index
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_physical_level
+    integer :: n_scalar_variable
+    integer :: physical_first
+    integer :: physical_last
+    integer :: v_scalar
+    integer :: v_vector
+
+    integer(int64) :: allocation_before
+    integer(int64) :: count_global(3)
+    integer(int64) :: count_local(3)
+    integer(int64) :: execution_before
+    integer(int64) :: expected_patch_count
+    integer(int64) :: expected_sample_count
+    integer(int64) :: field_count(2)
+    integer(int64) :: field_count_after(2)
+    integer(int64) :: hydrostatic_refresh_before
+    integer(int64) :: production_writeback_before
+    integer(int64) :: validated_patch_count
+    integer(int64) :: writeback_allocation_before
+
+    real(dp) :: field_moment(3,2)
+    real(dp) :: field_moment_after(3,2)
+
+    logical :: accumulator_ready
+    logical :: checkpoint_ready
+    logical :: tendency_ready
+    logical :: trial_active
+
+    type(Block_Exner_Difference_Kernel_Context) :: kernel
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. .not. checkpoint_ready .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("Exner-difference shadow transaction is invalid")
+    end if
+    if (.not. local_block_hydrostatic_state_ready()) then
+       call fail("Exner-difference shadow hydrostatic state is stale")
+    end if
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (mult_scalar /= 1 .or. mult_vector /= EDGE .or. &
+         S_MASS < v_scalar .or. &
+         S_MASS >= v_scalar+n_scalar_variable .or. &
+         v_vector < 1) then
+       call fail("Exner-difference shadow field layout is invalid")
+    end if
+    physical_first = max(1,first_field_level)
+    physical_last = min( &
+         zlevels,first_field_level+n_field_level-1)
+    n_physical_level = max(0,physical_last-physical_first+1)
+    if (n_physical_level /= zlevels) then
+       call fail("Exner-difference physical-level coverage is invalid")
+    end if
+
+    call local_block_field_statistics( &
+         field_count(1),field_count(2), &
+         field_moment(:,1),field_moment(:,2))
+    allocation_before = local_block_tendency_allocation_count()
+    execution_before = local_block_tendency_execution_count()
+    hydrostatic_refresh_before = local_block_hydrostatic_refresh_count()
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+
+    call exchange_domain_to_block_payloads( &
+         BLOCK_PAYLOAD_EXNER_DIFFERENCE,domain_sol=domain_sol)
+    kernel = Block_Exner_Difference_Kernel_Context()
+    call apply_local_block_tendency_kernel( &
+         compute_block_exner_difference_kernel,kernel)
+
+    tendency_ready = local_block_tendency_state_ready()
+    if (.not. tendency_ready) then
+       call fail("Exner-difference shadow output is not ready")
+    end if
+    if (local_block_tendency_execution_count() /= &
+         execution_before+1_int64) then
+       call fail("Exner-difference execution count is invalid")
+    end if
+    if (local_block_tendency_allocation_count() /= allocation_before) then
+       call fail("Exner-difference reallocated tendency workspace")
+    end if
+
+    expected_patch_count = 0_int64
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       expected_patch_count = expected_patch_count + &
+            int(local_block_patch_count(b),int64)
+    end do
+    expected_sample_count = expected_patch_count* &
+         int(n_physical_level*EDGE*PATCH_SIZE**2,int64)
+    if (kernel%block_count /= int(n_local_blocks(),int64) .or. &
+         kernel%patch_count /= expected_patch_count .or. &
+         kernel%sample_count /= expected_sample_count) then
+       call fail("Exner-difference shadow traversal is incomplete")
+    end if
+
+    call assert_candidate_block_tendency_payload_match( &
+         BLOCK_PAYLOAD_EXNER_DIFFERENCE,domain_sol,validated_patch_count)
+    if (validated_patch_count /= expected_patch_count) then
+       call fail("Exner-difference validation coverage differs")
+    end if
+
+    call local_block_field_statistics( &
+         field_count_after(1),field_count_after(2), &
+         field_moment_after(:,1),field_moment_after(:,2))
+    if (any(field_count_after /= field_count)) then
+       call fail("Exner-difference shadow changed field coverage")
+    end if
+    if (.not. field_moments_match( &
+         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+         .not. field_moments_match( &
+         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
+       call fail("Exner-difference shadow changed block fields")
+    end if
+    if (local_block_hydrostatic_refresh_count() /= &
+         hydrostatic_refresh_before) then
+       call fail("Exner-difference refreshed hydrostatic cache")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("Exner-difference shadow reallocated transport")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("Exner-difference shadow modified Domain fields")
+    end if
+
+    count_local = [kernel%block_count,kernel%patch_count, &
+         kernel%sample_count]
+    call MPI_Allreduce(count_local,count_global,3, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Exner-difference coverage")
+    if (any(count_global <= 0_int64)) then
+       call fail("Exner-difference global coverage is empty")
+    end if
+
+    call discard_local_block_tendency_output
+    tendency_ready = local_block_tendency_state_ready()
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (tendency_ready .or. trial_active .or. .not. checkpoint_ready .or. &
+         accumulator_ready) then
+       call fail("Exner-difference shadow discard is invalid")
+    end if
+
+  end subroutine evaluate_candidate_block_exner_difference
+
+
+  subroutine assert_candidate_block_tendency_payload_match ( &
+       payload_family,domain_sol,validated_patch_count)
+    ! Compare a ready block-native tendency-shaped payload with an
+    ! independently packed Domain payload on retained and remote blocks.
+
+    implicit none
+
+    integer, intent(in) :: payload_family
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+    integer(int64), intent(out) :: validated_patch_count
+
+    integer :: b
+    integer :: d
+    integer :: local_index
+    integer :: local_patch
+    integer :: n_patch
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: slot
+
+    if (payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE) then
+       call fail("candidate tendency payload family is invalid")
+    end if
+    if (.not. local_block_tendency_state_ready()) then
+       call fail("candidate tendency payload is not ready")
+    end if
+    if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer)) then
+       call fail("candidate scalar patch buffer is not allocated")
+    end if
+    if (.not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
+       call fail("candidate vector patch buffer is not allocated")
+    end if
+    if (size(ghost_exchange_plan%scalar_patch_buffer) /= &
+         block_writeback_plan%scalar_patch_nvalue .or. &
+         size(ghost_exchange_plan%vector_patch_buffer) /= &
+         block_writeback_plan%vector_patch_nvalue) then
+       call fail("candidate tendency validation layout differs")
+    end if
+
+    validated_patch_count = 0_int64
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       r = source_rank(b)
+       if (r /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("candidate tendency retained Domain is invalid")
+       end if
+       local_patch = 0
+       call assert_retained_subtree( &
+            d,block_catalog(b)%root_patch,b,local_patch)
+       if (local_patch /= local_block_patch_count(b)) then
+          call fail("candidate tendency retained validation incomplete")
+       end if
+    end do
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+       pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          n_patch = local_block_patch_count(b)
+          do local_patch = 0,n_patch-1
+             if (pos_scalar < 1 .or. pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue - 1 > &
+                  size(block_writeback_plan%scalar_send_buffer) .or. &
+                  pos_vector < 1 .or. pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue - 1 > &
+                  size(block_writeback_plan%vector_send_buffer)) then
+                call fail("candidate tendency remote payload truncated")
+             end if
+             call assert_local_block_tendency_patch_values( &
+                  b,local_patch, &
+                  block_writeback_plan%scalar_send_buffer( &
+                  pos_scalar:pos_scalar+ &
+                  block_writeback_plan%scalar_patch_nvalue-1), &
+                  block_writeback_plan%vector_send_buffer( &
+                  pos_vector:pos_vector+ &
+                  block_writeback_plan%vector_patch_nvalue-1))
+             pos_scalar = pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue
+             pos_vector = pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue
+             validated_patch_count = validated_patch_count + 1_int64
+          end do
+       end do
+       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+            block_writeback_plan%scalar_send_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+            block_writeback_plan%vector_send_count(r) + 1) then
+          call fail("candidate tendency remote validation extent mismatch")
+       end if
+    end do
+
+  contains
+
+    recursive subroutine assert_retained_subtree ( &
+         d,p,b,local_patch_index)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: b
+      integer, intent(inout) :: local_patch_index
+
+      integer :: c
+      integer :: p_child
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("candidate tendency retained patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,payload_family, &
+           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
+           ghost_exchange_plan%vector_patch_buffer,vector_pos,domain_sol)
+      if (scalar_pos /= &
+           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
+           vector_pos /= &
+           size(ghost_exchange_plan%vector_patch_buffer)+1) then
+         call fail("candidate tendency retained payload extent mismatch")
+      end if
+      call assert_local_block_tendency_patch_values( &
+           b,local_patch_index, &
+           ghost_exchange_plan%scalar_patch_buffer, &
+           ghost_exchange_plan%vector_patch_buffer)
+      local_patch_index = local_patch_index + 1
+      validated_patch_count = validated_patch_count + 1_int64
+
+      do c = 1,N_CHDRN
+         p_child = grid(d)%patch%elts(p+1)%children(c)
+         if (p_child <= 0) cycle
+         call assert_retained_subtree( &
+              d,p_child,b,local_patch_index)
+      end do
+
+    end subroutine assert_retained_subtree
+
+  end subroutine assert_candidate_block_tendency_payload_match
 
 
   subroutine refresh_parallel_block_domain_prognostic_state
@@ -8565,7 +8908,8 @@ end subroutine build_parallel_block_catalog
     if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
          payload_family /= BLOCK_PAYLOAD_WAV_COEFF .and. &
          payload_family /= BLOCK_PAYLOAD_TREND .and. &
-         payload_family /= BLOCK_PAYLOAD_THETA_EDGE) then
+         payload_family /= BLOCK_PAYLOAD_THETA_EDGE .and. &
+         payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE) then
        call fail("invalid Domain writeback payload family")
     end if
 
@@ -8591,6 +8935,22 @@ end subroutine build_parallel_block_catalog
                vector_pos:vector_pos+n_vector_patch-1),domain_sol)
        else
           call pack_domain_patch_theta_edge( &
+               d,p,vector_payload( &
+               vector_pos:vector_pos+n_vector_patch-1))
+       end if
+       scalar_pos = scalar_pos + n_scalar_patch
+       vector_pos = vector_pos + n_vector_patch
+       return
+    end if
+
+    if (payload_family == BLOCK_PAYLOAD_EXNER_DIFFERENCE) then
+       scalar_payload(scalar_pos:scalar_pos+n_scalar_patch-1) = 0.0_dp
+       if (present(domain_sol)) then
+          call pack_domain_patch_exner_difference( &
+               d,p,vector_payload( &
+               vector_pos:vector_pos+n_vector_patch-1),domain_sol)
+       else
+          call pack_domain_patch_exner_difference( &
                d,p,vector_payload( &
                vector_pos:vector_pos+n_vector_patch-1))
        end if
@@ -8862,6 +9222,162 @@ end subroutine build_parallel_block_catalog
     end do
 
   end subroutine pack_domain_patch_theta_edge
+
+
+  subroutine pack_domain_patch_exner_difference ( &
+       d,p,exner_difference,domain_sol)
+    ! Independently reconstruct the signed dynamic-Exner differences that
+    ! form the numerator of gradi_e(exner) on each physical edge.
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: p
+    real(dp), intent(out) :: exner_difference(:)
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+
+    integer :: dims(2,N_BDRY+1)
+    integer :: field_level
+    integer :: first_field_level
+    integer :: i
+    integer :: id_center
+    integer :: id_east
+    integer :: id_north
+    integer :: id_northeast
+    integer :: j
+    integer :: level_slot
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: offs(N_BDRY+1)
+    integer :: output_base
+    integer :: q
+    integer :: v_scalar
+    integer :: v_vector
+
+    real(dp) :: exner_center
+    real(dp) :: exner_east
+    real(dp) :: exner_north
+    real(dp) :: exner_northeast
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (mult_scalar /= 1 .or. mult_vector /= EDGE .or. &
+         S_MASS < v_scalar .or. &
+         S_MASS >= v_scalar+n_scalar_variable .or. &
+         v_vector < 1) then
+       call fail("Domain Exner-difference field layout is invalid")
+    end if
+    if (size(exner_difference) /= &
+         n_field_level*EDGE*PATCH_SIZE**2) then
+       call fail("Domain Exner-difference payload extent is invalid")
+    end if
+
+    call get_offs_Domain(grid(d),p,offs,dims)
+    exner_difference = 0.0_dp
+    do level_slot = 1,n_field_level
+       field_level = first_field_level + level_slot - 1
+       if (field_level < 1) cycle
+       if (field_level > zlevels) then
+          call fail("Domain Exner-difference field level is invalid")
+       end if
+       output_base = (level_slot-1)*EDGE*PATCH_SIZE**2
+
+       do j = 0,PATCH_SIZE-1
+          do i = 0,PATCH_SIZE-1
+             q = i + PATCH_SIZE*j
+             id_center = idx(i,j,offs,dims)
+             id_east = idx(i+1,j,offs,dims)
+             id_northeast = idx(i+1,j+1,offs,dims)
+             id_north = idx(i,j+1,offs,dims)
+
+             exner_center = domain_dynamic_exner( &
+                  id_center,field_level)
+             exner_east = domain_dynamic_exner(id_east,field_level)
+             exner_northeast = domain_dynamic_exner( &
+                  id_northeast,field_level)
+             exner_north = domain_dynamic_exner(id_north,field_level)
+
+             exner_difference(output_base+EDGE*q+RT+1) = &
+                  exner_east-exner_center
+             exner_difference(output_base+EDGE*q+DG+1) = &
+                  exner_center-exner_northeast
+             exner_difference(output_base+EDGE*q+UP+1) = &
+                  exner_north-exner_center
+          end do
+       end do
+    end do
+
+  contains
+
+    real(dp) function domain_dynamic_exner (node,field_level) &
+         result(exner_value)
+
+      implicit none
+
+      integer, intent(in) :: node
+      integer, intent(in) :: field_level
+
+      integer :: k
+
+      real(dp) :: layer_pressure
+      real(dp) :: pressure_lower
+      real(dp) :: rho_dz
+
+      pressure_lower = p_top
+      do k = 1,zlevels
+         rho_dz = domain_mass(node,k)
+         if (rho_dz <= 0.0_dp) then
+            call fail("Domain Exner-difference diagnosed bad mass")
+         end if
+         pressure_lower = pressure_lower + grav_accel*rho_dz
+      end do
+      do k = 1,field_level-1
+         pressure_lower = pressure_lower - &
+              grav_accel*domain_mass(node,k)
+      end do
+      rho_dz = domain_mass(node,field_level)
+      layer_pressure = pressure_lower - 0.5_dp*grav_accel*rho_dz
+      if (layer_pressure <= 0.0_dp) then
+         call fail("Domain Exner-difference pressure is nonpositive")
+      end if
+      exner_value = c_p*(layer_pressure/p_0)**kappa
+
+    end function domain_dynamic_exner
+
+
+    real(dp) function domain_mass (node,field_level) result(value)
+
+      implicit none
+
+      integer, intent(in) :: node
+      integer, intent(in) :: field_level
+
+      if (node < 0 .or. node >= &
+           size(sol_mean(S_MASS,field_level)%data(d)%elts)) then
+         call fail("Domain Exner-difference node is invalid")
+      end if
+      if (present(domain_sol)) then
+         if (node >= &
+              size(domain_sol(S_MASS,field_level)%data(d)%elts)) then
+            call fail("Domain Exner-difference stage extent is invalid")
+         end if
+         value = domain_sol(S_MASS,field_level)%data(d)%elts(node+1)
+      else
+         if (node >= size(sol(S_MASS,field_level)%data(d)%elts)) then
+            call fail("Domain Exner-difference sol extent is invalid")
+         end if
+         value = sol(S_MASS,field_level)%data(d)%elts(node+1)
+      end if
+      value = value + &
+           sol_mean(S_MASS,field_level)%data(d)%elts(node+1)
+
+    end function domain_mass
+
+  end subroutine pack_domain_patch_exner_difference
 
 
   subroutine reconstruct_block_writeback_domain_stage (payload_family)
@@ -14619,6 +15135,304 @@ end subroutine build_parallel_block_catalog
     end subroutine get_neighbor_scalar_pair
 
   end subroutine compute_block_theta_edge_kernel
+
+
+  subroutine compute_block_exner_difference_kernel ( &
+       catalog_index,block,scalar_tendency,vector_tendency,context)
+    ! Reconstruct dynamic Exner from complete retained mass columns and form
+    ! the signed edge differences used before metric division in gradi_e.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    real(dp), intent(inout) :: scalar_tendency(:)
+    real(dp), intent(inout) :: vector_tendency(:)
+    class(*), intent(inout) :: context
+
+    integer :: center_node
+    integer :: component_slot
+    integer :: field_level
+    integer :: i
+    integer :: j
+    integer :: level_slot
+    integer :: mass_slot
+    integer :: neighbor_node
+    integer :: neighbor_storage
+    integer :: output_index
+    integer :: p
+    integer :: q
+
+    real(dp) :: difference
+    real(dp) :: exner_center
+    real(dp) :: exner_neighbor
+
+    if (catalog_index < 1) then
+       call fail("Exner-difference kernel catalogue index is invalid")
+    end if
+    if (size(scalar_tendency) /= size(block%scalar) .or. &
+         size(vector_tendency) /= size(block%vector)) then
+       call fail("Exner-difference kernel output extents are invalid")
+    end if
+    if (block%scalar_mult /= 1 .or. block%vector_mult /= EDGE) then
+       call fail("Exner-difference kernel field multipliers are invalid")
+    end if
+    if (size(block%neigh_class,1) /= N_BDRY .or. &
+         size(block%neigh_class,2) /= size(block%patch)) then
+       call fail("Exner-difference kernel topology is invalid")
+    end if
+    if (size(block%scalar_mean) /= size(block%scalar) .or. &
+         size(block%bdry_scalar_mean) /= size(block%bdry_scalar) .or. &
+         size(block%ghost_scalar_mean) /= size(block%ghost_scalar)) then
+       call fail("Exner-difference kernel mean storage is invalid")
+    end if
+
+    mass_slot = S_MASS - block%scalar_variable
+    if (mass_slot < 0 .or. mass_slot >= block%n_scalar_variable) then
+       call fail("Exner-difference kernel scalar layout is invalid")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Exner_Difference_Kernel_Context)
+       statistics%block_count = statistics%block_count + 1_int64
+
+       do p = 1,size(block%patch)
+          statistics%patch_count = statistics%patch_count + 1_int64
+          do q = 0,PATCH_SIZE**2-1
+             i = mod(q,PATCH_SIZE)
+             j = q/PATCH_SIZE
+             center_node = block%patch(p)%elts_start + q
+             if (center_node < 0 .or. &
+                  center_node >= size(block%node)) then
+                call fail("Exner-difference centre node is invalid")
+             end if
+
+             do component_slot = 1,EDGE
+                select case (component_slot-1)
+                case (RT)
+                   if (i < PATCH_SIZE-1) then
+                      neighbor_storage = STORE_PATCH
+                      neighbor_node = center_node + 1
+                   else
+                      call set_direct_neighbor(EAST,0,j)
+                   end if
+                case (DG)
+                   if (i < PATCH_SIZE-1 .and. j < PATCH_SIZE-1) then
+                      neighbor_storage = STORE_PATCH
+                      neighbor_node = center_node + PATCH_SIZE + 1
+                   else if (i == PATCH_SIZE-1 .and. &
+                        j < PATCH_SIZE-1) then
+                      call set_direct_neighbor(EAST,0,j+1)
+                   else if (i < PATCH_SIZE-1 .and. &
+                        j == PATCH_SIZE-1) then
+                      call set_direct_neighbor(NORTH,i+1,0)
+                   else
+                      call set_direct_neighbor(NORTHEAST,0,0)
+                   end if
+                case (UP)
+                   if (j < PATCH_SIZE-1) then
+                      neighbor_storage = STORE_PATCH
+                      neighbor_node = center_node + PATCH_SIZE
+                   else
+                      call set_direct_neighbor(NORTH,i,0)
+                   end if
+                case default
+                   call fail("Exner-difference component is invalid")
+                end select
+
+                do level_slot = 1,block%n_field_level
+                   field_level = block%field_level + level_slot - 1
+                   if (field_level < 1) cycle
+                   if (field_level > zlevels) then
+                      call fail("Exner-difference field level is invalid")
+                   end if
+                   exner_center = block_dynamic_exner( &
+                        STORE_PATCH,center_node,field_level)
+                   exner_neighbor = block_dynamic_exner( &
+                        neighbor_storage,neighbor_node,field_level)
+                   select case (component_slot-1)
+                   case (RT,UP)
+                      difference = exner_neighbor-exner_center
+                   case (DG)
+                      difference = exner_center-exner_neighbor
+                   case default
+                      call fail("Exner-difference sign is invalid")
+                   end select
+
+                   output_index = (level_slot-1)* &
+                        block%vector_mult*size(block%node) + &
+                        block%vector_mult*center_node + component_slot
+                   vector_tendency(output_index) = difference
+                   statistics%sample_count = &
+                        statistics%sample_count + 1_int64
+                   statistics%difference_moment = &
+                        statistics%difference_moment + &
+                        [difference,abs(difference),difference**2]
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("Exner-difference kernel context is invalid")
+    end select
+
+  contains
+
+    subroutine set_direct_neighbor (side,target_i,target_j)
+
+      implicit none
+
+      integer, intent(in) :: side
+      integer, intent(in) :: target_i
+      integer, intent(in) :: target_j
+
+      integer :: boundary_link
+      integer :: dims(2)
+      integer :: neighbor
+      integer :: record
+      integer :: storage_start
+
+      neighbor = block%patch(p)%neigh(side)
+      if (neighbor > 0) then
+         neighbor_storage = STORE_PATCH
+         record = neighbor
+         if (record >= size(block%patch)) then
+            call fail("Exner-difference direct patch is invalid")
+         end if
+         storage_start = block%patch(record+1)%elts_start
+         dims = PATCH_SIZE
+      else if (neighbor < 0) then
+         boundary_link = -neighbor
+         if (boundary_link < 1 .or. &
+              boundary_link > size(block%block_bdry)) then
+            call fail("Exner-difference direct link is invalid")
+         end if
+         if (block%block_bdry(boundary_link)%patch /= p-1 .or. &
+              block%block_bdry(boundary_link)%side /= side) then
+            call fail("Exner-difference direct link differs")
+         end if
+         record = block%block_bdry(boundary_link)%ghost_id
+         if (record > 0) then
+            neighbor_storage = STORE_GHOST
+            if (record > size(block%ghost_storage)) then
+               call fail("Exner-difference direct ghost is invalid")
+            end if
+            storage_start = block%ghost_storage(record)%local_start
+            dims = PATCH_SIZE
+         else
+            record = block%block_bdry(boundary_link)%storage_id
+            neighbor_storage = STORE_BDRY
+            if (record < 1 .or. &
+                 record > size(block%bdry_storage)) then
+               call fail("Exner-difference direct boundary is invalid")
+            end if
+            storage_start = block%bdry_storage(record)%local_start
+            dims = block%block_bdry(boundary_link)%dims
+         end if
+      else
+         call fail("Exner-difference direct neighbour is absent")
+      end if
+      if (target_i < 0 .or. target_i >= dims(1) .or. &
+           target_j < 0 .or. target_j >= dims(2)) then
+         call fail("Exner-difference direct coordinate is invalid")
+      end if
+      neighbor_node = storage_start + target_j*dims(1) + target_i
+
+    end subroutine set_direct_neighbor
+
+
+    real(dp) function block_dynamic_exner ( &
+         storage_class,node,field_level) result(exner_value)
+
+      implicit none
+
+      integer, intent(in) :: storage_class
+      integer, intent(in) :: node
+      integer, intent(in) :: field_level
+
+      integer :: k
+
+      real(dp) :: layer_pressure
+      real(dp) :: pressure_lower
+      real(dp) :: rho_dz
+
+      pressure_lower = p_top
+      do k = 1,zlevels
+         rho_dz = block_mass(storage_class,node,k)
+         if (rho_dz <= 0.0_dp) then
+            call fail("Exner-difference kernel diagnosed bad mass")
+         end if
+         pressure_lower = pressure_lower + grav_accel*rho_dz
+      end do
+      do k = 1,field_level-1
+         pressure_lower = pressure_lower - &
+              grav_accel*block_mass(storage_class,node,k)
+      end do
+      rho_dz = block_mass(storage_class,node,field_level)
+      layer_pressure = pressure_lower - 0.5_dp*grav_accel*rho_dz
+      if (layer_pressure <= 0.0_dp) then
+         call fail("Exner-difference kernel pressure is nonpositive")
+      end if
+      exner_value = c_p*(layer_pressure/p_0)**kappa
+
+    end function block_dynamic_exner
+
+
+    real(dp) function block_mass ( &
+         storage_class,node,field_level) result(value)
+
+      implicit none
+
+      integer, intent(in) :: storage_class
+      integer, intent(in) :: node
+      integer, intent(in) :: field_level
+
+      integer :: field_base
+      integer :: field_index
+      integer :: level_slot
+
+      level_slot = field_level-block%field_level+1
+      if (level_slot < 1 .or. level_slot > block%n_field_level) then
+         call fail("Exner-difference mass level is invalid")
+      end if
+      select case (storage_class)
+      case (STORE_PATCH)
+         if (node < 0 .or. node >= size(block%node)) then
+            call fail("Exner-difference mass patch node is invalid")
+         end if
+         field_base = &
+              (mass_slot*block%n_field_level + level_slot-1)* &
+              size(block%node)
+         field_index = field_base + node + 1
+         value = block%scalar(field_index) + &
+              block%scalar_mean(field_index)
+      case (STORE_BDRY)
+         if (node < 0 .or. node >= size(block%bdry_node)) then
+            call fail("Exner-difference mass boundary node is invalid")
+         end if
+         field_base = &
+              (mass_slot*block%n_field_level + level_slot-1)* &
+              size(block%bdry_node)
+         field_index = field_base + node + 1
+         value = block%bdry_scalar(field_index) + &
+              block%bdry_scalar_mean(field_index)
+      case (STORE_GHOST)
+         if (node < 0 .or. node >= size(block%ghost_node)) then
+            call fail("Exner-difference mass ghost node is invalid")
+         end if
+         field_base = &
+              (mass_slot*block%n_field_level + level_slot-1)* &
+              size(block%ghost_node)
+         field_index = field_base + node + 1
+         value = block%ghost_scalar(field_index) + &
+              block%ghost_scalar_mean(field_index)
+      case default
+         call fail("Exner-difference mass storage is invalid")
+      end select
+
+    end function block_mass
+
+  end subroutine compute_block_exner_difference_kernel
 
 
   subroutine check_block_tendency_kernel (verbose)
