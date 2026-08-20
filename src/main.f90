@@ -49,8 +49,8 @@ module main_mod
        initialize_a_b_vert, initialize_thresholds, initialize_dt_viscosity, &
        precompute_geometry, set_level, set_thresholds, z_coords
 
-  use time_integr_mod, only : dt_step, dt_step_split, init_RK_mem, q1, q2, q3, q4, dq1, &
-       Euler, Euler_split, RK2_split, RK3, RK3_split, RK33_opt, RK34_opt, RK4, RK4_split, RK45_opt, &
+  use time_integr_mod, only : dt_step, dt_step_split, init_RK_mem, q1, &
+       Euler, Euler_split, RK3, RK3_split, RK4, RK4_split, &
        set_rk4_block_candidate_enabled
 
   use coord_arithmetic_mod
@@ -266,10 +266,6 @@ contains
           dt_step_split => Euler_split
           r_adv = 1.0_dp
           r_dif = 2.0_dp
-       case ("RK2")
-          dt_step_split => RK2_split
-          r_adv = 1.0_dp
-          r_dif = 2.0_dp
        case ("RK3")
           dt_step_split => RK3_split
           r_adv = sqrt (3.0_dp)
@@ -279,9 +275,12 @@ contains
           r_adv = 2 * sqrt (2.0_dp)
           r_dif = 2.77_dp
        case default
-          dt_step_split => RK3_split
-          r_adv = sqrt (3.0_dp)
-          r_dif = 2.51_dp
+          if (rank == 0) then
+             write (6,'(a,a)') &
+                  "Unsupported split time integrator: ", &
+                  trim(timeint_type)
+          end if
+          call abort_run
        end select
     else
        select case (timeint_type)
@@ -298,18 +297,11 @@ contains
           r_adv = 2 * sqrt (2.0_dp)
           r_dif = 2.77_dp
        case default
-          dt_step => RK3
-          r_adv = sqrt (3.0_dp)
-          r_dif = 2.5_dp
-       case ("RK33")
-          dt_step => RK33_opt
-          r_adv = sqrt (3.0_dp)
-       case ("RK34")
-          dt_step => RK34_opt
-          r_adv = 2.0_dp
-       case ("RK45")
-          dt_step => RK45_opt
-          r_adv = 3.28_dp
+          if (rank == 0) then
+             write (6,'(a,a)') &
+                  "Unsupported time integrator: ",trim(timeint_type)
+          end if
+          call abort_run
        end select
     end if
   end subroutine set_time_integrator
@@ -908,27 +900,15 @@ contains
     do k = 1, zmax
        do d = 1, n_domain(rank+1)
           do v = 1, N_VARIABLE
-             if (allocated (q1(v,k)%data(d)%elts))  deallocate (q1(v,k)%data(d)%elts)
-             if (allocated (q2(v,k)%data(d)%elts))  deallocate (q2(v,k)%data(d)%elts)
-             if (allocated (q3(v,k)%data(d)%elts))  deallocate (q3(v,k)%data(d)%elts)
-             if (allocated (q4(v,k)%data(d)%elts))  deallocate (q4(v,k)%data(d)%elts)
-             if (allocated (dq1(v,k)%data(d)%elts)) deallocate (dq1(v,k)%data(d)%elts)
+             if (allocated (q1(v,k)%data(d)%elts)) deallocate (q1(v,k)%data(d)%elts)
           end do
        end do
        do v = 1, N_VARIABLE
-          if (allocated (q1(v,k)%data))  deallocate (q1(v,k)%data)
-          if (allocated (q2(v,k)%data))  deallocate (q2(v,k)%data)
-          if (allocated (q3(v,k)%data))  deallocate (q3(v,k)%data)
-          if (allocated (q4(v,k)%data))  deallocate (q4(v,k)%data)
-          if (allocated (dq1(v,k)%data)) deallocate (dq1(v,k)%data)
+          if (allocated (q1(v,k)%data)) deallocate (q1(v,k)%data)
        end do
     end do
 
-    if (allocated (q1))  deallocate (q1)
-    if (allocated (q2))  deallocate (q2)
-    if (allocated (q3))  deallocate (q3)
-    if (allocated (q4))  deallocate (q4)
-    if (allocated (dq1)) deallocate (dq1)
+    if (allocated (q1)) deallocate (q1)
 
     ! Deallocate grid structure elements
     do d = 1, size(grid)

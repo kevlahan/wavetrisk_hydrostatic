@@ -13,7 +13,7 @@ tol      	   3e-2          ! non-dimensional tolerance
 optimize_grid	   2             ! NO_OPTIM = 0, XU_GRID = 1, HR_GRID = 2
 adapt_dt           T             ! adapt time step dynamically (T) or used fixed time step (F)
 cfl_safety            1.4           ! cfl number
-timeint_type       RK4           ! time integration method (RK33, RK34, RK45, RK4)
+timeint_type       RK4           ! time integration method (Euler, RK3, RK4)
 dt_write           1             ! save interval (days)
 CP_EVERY           1             ! checkpoint and rebalance every CP_EVERY saves
 time_end           30            ! final time (days)
