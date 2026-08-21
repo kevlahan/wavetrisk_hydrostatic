@@ -146,6 +146,8 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_EDGE_LENGTH = 8
   integer, parameter :: BLOCK_PAYLOAD_VELOCITY_REMAINDER = 9
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
+  integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
+  integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
        -0.125_dp*huge(0.0_dp)
   real(dp), parameter :: BLOCK_PATCH_POISON = &
@@ -379,10 +381,12 @@ module parallel_block_mpi_mod
      integer(int64) :: block_count = 0_int64
      integer(int64) :: patch_count = 0_int64
      integer(int64) :: sample_count = 0_int64
+     integer(int64) :: scalar_sample_count = 0_int64
      real(dp) :: difference_moment(3) = 0.0_dp
      logical :: thermodynamic_product = .false.
      logical :: metric_division = .false.
      logical :: velocity_recomposition = .false.
+     logical :: complete_physical_recomposition = .false.
   end type Block_Exner_Difference_Kernel_Context
 
   type :: Block_Edge_Metric_Storage
@@ -407,6 +411,17 @@ module parallel_block_mpi_mod
   type(Block_Velocity_Remainder_Storage), allocatable, save :: &
        block_velocity_remainder(:)
   integer(int64), save :: block_velocity_remainder_allocations = 0_int64
+
+  type :: Block_Scalar_Tendency_Storage
+     integer :: catalog_index = 0
+     integer :: installed_patch_count = 0
+     logical :: ready = .false.
+     real(dp), allocatable :: patch(:)
+  end type Block_Scalar_Tendency_Storage
+
+  type(Block_Scalar_Tendency_Storage), allocatable, save :: &
+       block_scalar_tendency(:)
+  integer(int64), save :: block_scalar_tendency_allocations = 0_int64
 
   type, public :: Block_Two_Stage_Step_Result
      integer(int64) :: scalar_count = 0_int64
@@ -4562,7 +4577,10 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .and. &
          payload_family /= BLOCK_PAYLOAD_EDGE_LENGTH .and. &
          payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
-         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY) then
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
+         payload_family /= BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .and. &
+         payload_family /= &
+         BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("invalid Domain-to-block payload family")
     end if
 
@@ -7119,9 +7137,9 @@ end subroutine build_parallel_block_catalog
 
   subroutine evaluate_candidate_block_velocity_recomposition ( &
        domain_sol,checkpoint_required)
-    ! Capture the authoritative non-Exner velocity residual, combine it with
-    ! the independently reconstructed block Exner term, compare the complete
-    ! rejected velocity shadow, and leave both representations unchanged.
+    ! Combine the authoritative scalar flux-divergence tendency and the
+    ! non-Exner velocity residual with the independently reconstructed block
+    ! Exner term. Compare one complete rejected physical-tendency shadow.
 
     implicit none
 
@@ -7130,9 +7148,10 @@ end subroutine build_parallel_block_catalog
     logical, intent(in) :: checkpoint_required
 
     call refresh_candidate_block_velocity_remainder(domain_sol)
+    call refresh_candidate_block_scalar_tendency(domain_sol)
     call evaluate_candidate_block_exner_shadow( &
-         domain_sol,BLOCK_PAYLOAD_COMPLETE_VELOCITY,.true.,.true., &
-         .true.,checkpoint_required)
+         domain_sol,BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY, &
+         .true.,.true.,.true.,checkpoint_required,.true.)
 
     if (rank == 0) then
        write(6,'(a)') &
@@ -7145,6 +7164,16 @@ end subroutine build_parallel_block_catalog
             "  recomposed velocity output discarded without writeback"
        write(6,'(a)') &
             "  persistent velocity-residual storage reused"
+       write(6,'(a)') &
+            "  authoritative mass/temperature flux-divergence tendency captured"
+       write(6,'(a)') &
+            "  complete scalar/vector physical tendency assembled in block workspace"
+       write(6,'(a)') &
+            "  exact recomposed block/Domain physical tendency comparison passed"
+       write(6,'(a)') &
+            "  complete physical tendency discarded without writeback"
+       write(6,'(a)') &
+            "  persistent scalar-tendency storage reused"
     end if
 
   end subroutine evaluate_candidate_block_velocity_recomposition
@@ -7183,7 +7212,7 @@ end subroutine build_parallel_block_catalog
        call fail("velocity-residual retained patch buffers are absent")
     end if
     call exchange_domain_to_block_payloads( &
-         BLOCK_PAYLOAD_VELOCITY_REMAINDER,domain_sol=domain_sol)
+         BLOCK_PAYLOAD_PHYSICAL_COMPONENTS,domain_sol=domain_sol)
 
     do local_index = 1,n_local
        block_velocity_remainder(local_index)%ready = .false.
@@ -7368,7 +7397,7 @@ end subroutine build_parallel_block_catalog
       scalar_pos = 1
       vector_pos = 1
       call pack_domain_patch_prognostic( &
-           d,p,BLOCK_PAYLOAD_VELOCITY_REMAINDER, &
+           d,p,BLOCK_PAYLOAD_PHYSICAL_COMPONENTS, &
            ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
            ghost_exchange_plan%vector_patch_buffer,vector_pos,domain_sol)
       if (scalar_pos /= &
@@ -7394,9 +7423,252 @@ end subroutine build_parallel_block_catalog
   end subroutine refresh_candidate_block_velocity_remainder
 
 
+  subroutine refresh_candidate_block_scalar_tendency (domain_sol)
+    ! Install the authoritative mass/temperature flux-divergence tendency
+    ! in persistent final-owner storage. The rejected complete-physical
+    ! kernel consumes this scalar payload without mutating either owner.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+
+    integer :: b
+    integer :: d
+    integer :: local_index
+    integer :: local_patch
+    integer :: n_local
+    integer :: n_patch
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: source
+    integer :: slot
+
+    integer(int64) :: allocation_after
+    integer(int64) :: allocation_before
+
+    n_local = n_local_blocks()
+    allocation_before = block_scalar_tendency_allocations
+    call prepare_scalar_tendency_storage(n_local)
+    if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer) .or. &
+         .not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
+       call fail("scalar-tendency retained patch buffers are absent")
+    end if
+    do local_index = 1,n_local
+       block_scalar_tendency(local_index)%ready = .false.
+       block_scalar_tendency(local_index)%installed_patch_count = 0
+       block_scalar_tendency(local_index)%patch = 0.0_dp
+    end do
+
+    do local_index = 1,n_local
+       b = local_block_catalog(local_index)
+       source = source_rank(b)
+       if (source /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("retained scalar-tendency Domain is invalid")
+       end if
+       local_patch = 0
+       call install_retained_subtree( &
+            d,block_catalog(b)%root_patch,b,local_patch)
+       n_patch = local_block_patch_count(b)
+       if (local_patch /= n_patch) then
+          call fail("retained scalar-tendency coverage is incomplete")
+       end if
+    end do
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+       pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          n_patch = local_block_patch_count(b)
+          do local_patch = 0,n_patch-1
+             if (pos_scalar < 1 .or. pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue - 1 > &
+                  size(block_writeback_plan%scalar_send_buffer) .or. &
+                  pos_vector < 1 .or. pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue - 1 > &
+                  size(block_writeback_plan%vector_send_buffer)) then
+                call fail("remote scalar-tendency payload is truncated")
+             end if
+             call install_scalar_tendency_patch( &
+                  b,local_patch,block_writeback_plan%scalar_send_buffer( &
+                  pos_scalar:pos_scalar+ &
+                  block_writeback_plan%scalar_patch_nvalue-1))
+             pos_scalar = pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue
+             pos_vector = pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue
+          end do
+       end do
+       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+            block_writeback_plan%scalar_send_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+            block_writeback_plan%vector_send_count(r) + 1) then
+          call fail("remote scalar-tendency receive extent mismatch")
+       end if
+    end do
+
+    do local_index = 1,n_local
+       b = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(b)
+       if (block_scalar_tendency(local_index)%catalog_index /= b .or. &
+            block_scalar_tendency(local_index)%installed_patch_count /= &
+            n_patch) then
+          call fail("scalar-tendency installation coverage differs")
+       end if
+       block_scalar_tendency(local_index)%ready = .true.
+    end do
+
+    allocation_after = block_scalar_tendency_allocations
+    if (allocation_after < allocation_before) then
+       call fail("scalar-tendency allocation counter regressed")
+    end if
+    call prepare_scalar_tendency_storage(n_local)
+    if (block_scalar_tendency_allocations /= allocation_after) then
+       call fail("scalar-tendency storage was not reusable")
+    end if
+
+  contains
+
+    subroutine prepare_scalar_tendency_storage (n_block)
+
+      implicit none
+
+      integer, intent(in) :: n_block
+
+      integer :: catalog_index
+      integer :: count
+      integer :: index
+      integer :: patch_count
+
+      if (allocated(block_scalar_tendency)) then
+         if (size(block_scalar_tendency) /= n_block) then
+            deallocate(block_scalar_tendency)
+         end if
+      end if
+      if (.not. allocated(block_scalar_tendency)) then
+         allocate(block_scalar_tendency(n_block))
+         block_scalar_tendency_allocations = &
+              block_scalar_tendency_allocations + 1_int64
+      end if
+
+      do index = 1,n_block
+         catalog_index = local_block_catalog(index)
+         patch_count = local_block_patch_count(catalog_index)
+         count = patch_count*block_writeback_plan%scalar_patch_nvalue
+         if (allocated(block_scalar_tendency(index)%patch)) then
+            if (block_scalar_tendency(index)%catalog_index /= &
+                 catalog_index .or. &
+                 size(block_scalar_tendency(index)%patch) /= count) then
+               deallocate(block_scalar_tendency(index)%patch)
+            end if
+         end if
+         if (.not. allocated(block_scalar_tendency(index)%patch)) then
+            allocate(block_scalar_tendency(index)%patch(count))
+            block_scalar_tendency_allocations = &
+                 block_scalar_tendency_allocations + 1_int64
+         end if
+         block_scalar_tendency(index)%catalog_index = catalog_index
+      end do
+
+    end subroutine prepare_scalar_tendency_storage
+
+
+    subroutine install_scalar_tendency_patch ( &
+         catalog_index,patch_index,value)
+
+      implicit none
+
+      integer, intent(in) :: catalog_index
+      integer, intent(in) :: patch_index
+      real(dp), intent(in) :: value(:)
+
+      integer :: first
+      integer :: index
+      integer :: patch_count
+
+      index = catalog_local_block(catalog_index)
+      if (index < 1 .or. index > size(block_scalar_tendency)) then
+         call fail("scalar-tendency local block is invalid")
+      end if
+      patch_count = local_block_patch_count(catalog_index)
+      if (patch_index < 0 .or. patch_index >= patch_count) then
+         call fail("scalar-tendency local patch is invalid")
+      end if
+      if (size(value) /= block_writeback_plan%scalar_patch_nvalue) then
+         call fail("scalar-tendency patch extent is invalid")
+      end if
+      first = patch_index*block_writeback_plan%scalar_patch_nvalue + 1
+      if (first < 1 .or. first+size(value)-1 > &
+           size(block_scalar_tendency(index)%patch)) then
+         call fail("scalar-tendency storage extent is invalid")
+      end if
+      block_scalar_tendency(index)%patch( &
+           first:first+size(value)-1) = value
+      block_scalar_tendency(index)%installed_patch_count = &
+           block_scalar_tendency(index)%installed_patch_count + 1
+
+    end subroutine install_scalar_tendency_patch
+
+
+    recursive subroutine install_retained_subtree ( &
+         d,p,catalog_index,patch_index)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: catalog_index
+      integer, intent(inout) :: patch_index
+
+      integer :: c
+      integer :: child
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("retained scalar-tendency patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,BLOCK_PAYLOAD_PHYSICAL_COMPONENTS, &
+           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
+           ghost_exchange_plan%vector_patch_buffer,vector_pos,domain_sol)
+      if (scalar_pos /= &
+           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
+           vector_pos /= &
+           size(ghost_exchange_plan%vector_patch_buffer)+1) then
+         call fail("retained scalar-tendency payload extent differs")
+      end if
+      call install_scalar_tendency_patch( &
+           catalog_index,patch_index, &
+           ghost_exchange_plan%scalar_patch_buffer)
+      patch_index = patch_index + 1
+
+      do c = 1,N_CHDRN
+         child = grid(d)%patch%elts(p+1)%children(c)
+         if (child <= 0) cycle
+         call install_retained_subtree( &
+              d,child,catalog_index,patch_index)
+      end do
+
+    end subroutine install_retained_subtree
+
+  end subroutine refresh_candidate_block_scalar_tendency
+
+
   subroutine evaluate_candidate_block_exner_shadow ( &
        domain_sol,payload_family,thermodynamic_product,metric_division, &
-       velocity_recomposition,checkpoint_required)
+       velocity_recomposition,checkpoint_required, &
+       complete_physical_recomposition)
     ! Reconstruct an Exner-gradient numerator from complete provisional
     ! block columns, compare every patch independently, and discard it.
 
@@ -7409,6 +7681,7 @@ end subroutine build_parallel_block_catalog
     logical, intent(in) :: metric_division
     logical, optional, intent(in) :: velocity_recomposition
     logical, optional, intent(in) :: checkpoint_required
+    logical, optional, intent(in) :: complete_physical_recomposition
 
     integer :: b
     integer :: first_field_level
@@ -7445,6 +7718,7 @@ end subroutine build_parallel_block_catalog
     logical :: tendency_ready
     logical :: trial_active
     logical :: recompose_velocity
+    logical :: recompose_physical
     logical :: require_checkpoint
 
     type(Block_Exner_Difference_Kernel_Context) :: kernel
@@ -7457,27 +7731,44 @@ end subroutine build_parallel_block_catalog
     if (present(checkpoint_required)) then
        require_checkpoint = checkpoint_required
     end if
+    recompose_physical = .false.
+    if (present(complete_physical_recomposition)) then
+       recompose_physical = complete_physical_recomposition
+    end if
 
     if (payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
          payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT .and. &
          payload_family /= BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .and. &
-         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY) then
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
+         payload_family /= &
+         BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("Exner-gradient shadow payload is invalid")
     end if
     if (thermodynamic_product .neqv. &
          (payload_family == BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT .or. &
          payload_family == BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .or. &
-         payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY)) then
+         payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY .or. &
+         payload_family == &
+         BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY)) then
        call fail("Exner-gradient shadow mode is invalid")
     end if
     if (metric_division .neqv. &
          (payload_family == BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .or. &
-         payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY)) then
+         payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY .or. &
+         payload_family == &
+         BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY)) then
        call fail("Exner-gradient shadow metric mode is invalid")
     end if
     if (recompose_velocity .neqv. &
-         (payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY)) then
+         (payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY .or. &
+         payload_family == &
+         BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY)) then
        call fail("Exner-gradient velocity recomposition mode is invalid")
+    end if
+    if (recompose_physical .neqv. &
+         (payload_family == &
+         BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY)) then
+       call fail("complete physical recomposition mode is invalid")
     end if
 
     trial_active = local_block_tendency_trial_is_active()
@@ -7535,6 +7826,7 @@ end subroutine build_parallel_block_catalog
     kernel%thermodynamic_product = thermodynamic_product
     kernel%metric_division = metric_division
     kernel%velocity_recomposition = recompose_velocity
+    kernel%complete_physical_recomposition = recompose_physical
     call apply_local_block_tendency_kernel( &
          compute_block_exner_difference_kernel,kernel)
 
@@ -7562,6 +7854,15 @@ end subroutine build_parallel_block_catalog
          kernel%patch_count /= expected_patch_count .or. &
          kernel%sample_count /= expected_sample_count) then
        call fail("Exner-difference shadow traversal is incomplete")
+    end if
+    if (recompose_physical) then
+       if (kernel%scalar_sample_count /= expected_patch_count* &
+            int(n_scalar_variable*n_field_level*PATCH_SIZE**2, &
+            int64)) then
+          call fail("complete physical scalar traversal is incomplete")
+       end if
+    else if (kernel%scalar_sample_count /= 0_int64) then
+       call fail("Exner-difference shadow changed scalar tendency")
     end if
 
     call assert_candidate_block_tendency_payload_match( &
@@ -7647,7 +7948,9 @@ end subroutine build_parallel_block_catalog
     if (payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
          payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT .and. &
          payload_family /= BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .and. &
-         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY) then
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
+         payload_family /= &
+         BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("candidate tendency payload family is invalid")
     end if
     if (.not. local_block_tendency_state_ready()) then
@@ -9631,7 +9934,10 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .and. &
          payload_family /= BLOCK_PAYLOAD_EDGE_LENGTH .and. &
          payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
-         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY) then
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
+         payload_family /= BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .and. &
+         payload_family /= &
+         BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("invalid Domain writeback payload family")
     end if
 
@@ -9647,6 +9953,47 @@ end subroutine build_parallel_block_catalog
          vector_pos < 1 .or. &
          vector_pos+n_vector_patch-1 > size(vector_payload)) then
        call fail("Domain writeback record buffer extent is invalid")
+    end if
+
+    if (payload_family == BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .or. &
+         payload_family == &
+         BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
+       start = mult_scalar*grid(d)%patch%elts(p+1)%elts_start
+       n_value = mult_scalar*PATCH_SIZE**2
+       do scalar_slot = 1,n_scalar_variable
+          scalar_id = v_scalar + scalar_slot - 1
+          do level_slot = 1,n_field_level
+             field_level = first_field_level + level_slot - 1
+             if (field_level < 1) then
+                scalar_payload( &
+                     scalar_pos:scalar_pos+n_value-1) = 0.0_dp
+             else
+                if (field_level > zlevels) then
+                   call fail( &
+                        "physical scalar tendency level is invalid")
+                end if
+                if (start < 0 .or. start+n_value > &
+                     size(trend(scalar_id,field_level)%data(d)%elts)) then
+                   call fail( &
+                        "physical scalar tendency extent is invalid")
+                end if
+                scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
+                     trend(scalar_id,field_level)%data(d)%elts( &
+                     start+1:start+n_value)
+             end if
+             scalar_pos = scalar_pos + n_value
+          end do
+       end do
+       if (.not. present(domain_sol)) then
+          call fail("physical tendency payload requires stage sol")
+       end if
+       call pack_domain_patch_velocity_recomposition( &
+            d,p,vector_payload( &
+            vector_pos:vector_pos+n_vector_patch-1),domain_sol, &
+            payload_family == &
+            BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY)
+       vector_pos = vector_pos + n_vector_patch
+       return
     end if
 
     if (payload_family == BLOCK_PAYLOAD_THETA_EDGE) then
@@ -16160,6 +16507,9 @@ end subroutine build_parallel_block_catalog
     integer :: p
     integer :: q
     integer :: remainder_index
+    integer :: scalar_output_index
+    integer :: scalar_slot
+    integer :: scalar_storage_index
     integer :: temperature_slot
 
     real(dp) :: difference
@@ -16225,6 +16575,64 @@ end subroutine build_parallel_block_catalog
                local_index > size(block_velocity_remainder)) then
              call fail("velocity recomposition residual block is invalid")
           end if
+       end if
+       if (statistics%complete_physical_recomposition) then
+          if (.not. statistics%velocity_recomposition) then
+             call fail("complete physical kernel mode is invalid")
+          end if
+          if (.not. allocated(block_scalar_tendency)) then
+             call fail("complete physical scalar storage is not allocated")
+          end if
+          if (local_index < 1 .or. &
+               local_index > size(block_scalar_tendency)) then
+             call fail("complete physical scalar block is invalid")
+          end if
+          if (.not. block_scalar_tendency(local_index)%ready .or. &
+               block_scalar_tendency(local_index)%catalog_index /= &
+               catalog_index) then
+             call fail("complete physical scalar tendency is stale")
+          end if
+          if (size(block_scalar_tendency(local_index)%patch) /= &
+               size(block%patch)* &
+               block_writeback_plan%scalar_patch_nvalue) then
+             call fail("complete physical scalar extent is invalid")
+          end if
+          do p = 1,size(block%patch)
+             do scalar_slot = 0,block%n_scalar_variable-1
+                do level_slot = 1,block%n_field_level
+                   do q = 0,PATCH_SIZE**2-1
+                      center_node = block%patch(p)%elts_start + q
+                      if (center_node < 0 .or. &
+                           center_node >= size(block%node)) then
+                         call fail( &
+                              "complete physical scalar node is invalid")
+                      end if
+                      scalar_storage_index = (p-1)* &
+                           block_writeback_plan%scalar_patch_nvalue + &
+                           (scalar_slot*block%n_field_level + &
+                           level_slot-1)*PATCH_SIZE**2 + q + 1
+                      scalar_output_index = &
+                           (scalar_slot*block%n_field_level + &
+                           level_slot-1)*size(block%node) + &
+                           center_node + 1
+                      if (scalar_storage_index < 1 .or. &
+                           scalar_storage_index > &
+                           size(block_scalar_tendency(local_index)%patch) &
+                           .or. scalar_output_index < 1 .or. &
+                           scalar_output_index > &
+                           size(scalar_tendency)) then
+                         call fail( &
+                              "complete physical scalar index is invalid")
+                      end if
+                      scalar_tendency(scalar_output_index) = &
+                           block_scalar_tendency(local_index)%patch( &
+                           scalar_storage_index)
+                      statistics%scalar_sample_count = &
+                           statistics%scalar_sample_count + 1_int64
+                   end do
+                end do
+             end do
+          end do
        end if
 
        do p = 1,size(block%patch)
