@@ -14,9 +14,9 @@ module time_integr_mod
        begin_block_scalar_divergence_capture, &
        capture_block_domain_multistage_candidate_tendency, &
        finalize_block_scalar_divergence_capture, &
-       accept_block_domain_multistage_candidate, &
+       accept_block_native_multistage_candidate, &
        parallel_block_state_is_ready, &
-       reject_block_native_multistage_candidate, &
+       retain_block_native_multistage_candidate, &
        refresh_parallel_block_candidate_boundary_state, &
        refresh_parallel_block_domain_prognostic_state
 
@@ -136,7 +136,7 @@ contains
     end if
     call RK_sub_step (q, trend, h/3, q1)
     if (block_candidate) then
-       call reject_block_native_multistage_candidate(q1,1,3)
+       call retain_block_native_multistage_candidate(q1,1,3)
     end if
     call WT_after_step (q1, wav)
     if (block_candidate) then
@@ -153,7 +153,7 @@ contains
     end if
     call RK_sub_step (q, trend, h/2, q1)
     if (block_candidate) then
-       call reject_block_native_multistage_candidate(q1,2,3)
+       call retain_block_native_multistage_candidate(q1,2,3)
     end if
     call WT_after_step (q1, wav)
     if (block_candidate) then
@@ -170,8 +170,8 @@ contains
     end if
     call RK_sub_step (q, trend, h, q)
     if (block_candidate) then
-       call reject_block_native_multistage_candidate(q,3,3)
-       call accept_block_domain_multistage_candidate(3)
+       call retain_block_native_multistage_candidate(q,3,3)
+       call accept_block_native_multistage_candidate(3)
     end if
     call WT_after_step (q, wav, level_start-1)
     if (block_candidate) then
@@ -214,7 +214,7 @@ contains
     end if
     call RK_sub_step (q, trend, h/4, q1)
     if (block_candidate) then
-       call reject_block_native_multistage_candidate(q1,1,4)
+       call retain_block_native_multistage_candidate(q1,1,4)
     end if
     call WT_after_step (q1, wav)
     if (block_candidate) then
@@ -231,7 +231,7 @@ contains
     end if
     call RK_sub_step (q, trend, h/3, q1)
     if (block_candidate) then
-       call reject_block_native_multistage_candidate(q1,2,4)
+       call retain_block_native_multistage_candidate(q1,2,4)
     end if
     call WT_after_step (q1, wav)
     if (block_candidate) then
@@ -248,7 +248,7 @@ contains
     end if
     call RK_sub_step (q, trend, h/2, q1)
     if (block_candidate) then
-       call reject_block_native_multistage_candidate(q1,3,4)
+       call retain_block_native_multistage_candidate(q1,3,4)
     end if
     call WT_after_step (q1, wav)
     if (block_candidate) then
@@ -265,8 +265,8 @@ contains
     end if
     call RK_sub_step (q, trend, h, q)
     if (block_candidate) then
-       call reject_block_native_multistage_candidate(q,4,4)
-       call accept_block_domain_multistage_candidate(4)
+       call retain_block_native_multistage_candidate(q,4,4)
+       call accept_block_native_multistage_candidate(4)
     end if
     call WT_after_step (q, wav, level_start-1)
     if (block_candidate) then
