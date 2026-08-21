@@ -141,6 +141,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_TREND = 3
   integer, parameter :: BLOCK_PAYLOAD_THETA_EDGE = 4
   integer, parameter :: BLOCK_PAYLOAD_EXNER_DIFFERENCE = 5
+  integer, parameter :: BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT = 6
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
        -0.125_dp*huge(0.0_dp)
   real(dp), parameter :: BLOCK_PATCH_POISON = &
@@ -374,6 +375,7 @@ module parallel_block_mpi_mod
      integer(int64) :: patch_count = 0_int64
      integer(int64) :: sample_count = 0_int64
      real(dp) :: difference_moment(3) = 0.0_dp
+     logical :: thermodynamic_product = .false.
   end type Block_Exner_Difference_Kernel_Context
 
   type, public :: Block_Two_Stage_Step_Result
@@ -4523,7 +4525,8 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_WAV_COEFF .and. &
          payload_family /= BLOCK_PAYLOAD_TREND .and. &
          payload_family /= BLOCK_PAYLOAD_THETA_EDGE .and. &
-         payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE) then
+         payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
+         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT) then
        call fail("invalid Domain-to-block payload family")
     end if
 
@@ -6100,6 +6103,7 @@ end subroutine build_parallel_block_catalog
     call evaluate_candidate_block_stencil_tendency
     call evaluate_candidate_block_theta_edge(domain_sol)
     call evaluate_candidate_block_exner_difference(domain_sol)
+    call evaluate_candidate_block_thermodynamic_gradient(domain_sol)
 
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
@@ -6169,6 +6173,12 @@ end subroutine build_parallel_block_catalog
             "  exact block/Domain Exner-difference comparison passed"
        write(6,'(a)') &
             "  Exner-gradient numerator discarded without writeback"
+       write(6,'(a)') &
+            "  block-native thermodynamic gradient numerator passed"
+       write(6,'(a)') &
+            "  exact block/Domain thermodynamic-gradient comparison passed"
+       write(6,'(a)') &
+            "  thermodynamic gradient numerator discarded without writeback"
        write(6,'(a)') &
             "  timestep-start rollback checkpoint retained"
        write(6,'(a)') &
@@ -6739,14 +6749,45 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine evaluate_candidate_block_exner_difference (domain_sol)
-    ! Reconstruct the signed dynamic-Exner differences used by gradi_e from
-    ! complete provisional block mass columns. Compare every compact patch
-    ! with an independent Domain reconstruction, then discard the output.
+    ! Validate the signed dynamic-Exner differences used by gradi_e.
 
     implicit none
 
     type(Float_Field), intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
+
+    call evaluate_candidate_block_exner_shadow( &
+         domain_sol,BLOCK_PAYLOAD_EXNER_DIFFERENCE,.false.)
+
+  end subroutine evaluate_candidate_block_exner_difference
+
+
+  subroutine evaluate_candidate_block_thermodynamic_gradient (domain_sol)
+    ! Validate theta_e times the signed dynamic-Exner difference, the
+    ! complete thermodynamic numerator in the du_grad pressure term.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+
+    call evaluate_candidate_block_exner_shadow( &
+         domain_sol,BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT,.true.)
+
+  end subroutine evaluate_candidate_block_thermodynamic_gradient
+
+
+  subroutine evaluate_candidate_block_exner_shadow ( &
+       domain_sol,payload_family,thermodynamic_product)
+    ! Reconstruct an Exner-gradient numerator from complete provisional
+    ! block columns, compare every patch independently, and discard it.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: payload_family
+    logical, intent(in) :: thermodynamic_product
 
     integer :: b
     integer :: first_field_level
@@ -6785,6 +6826,15 @@ end subroutine build_parallel_block_catalog
 
     type(Block_Exner_Difference_Kernel_Context) :: kernel
 
+    if (payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
+         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT) then
+       call fail("Exner-gradient shadow payload is invalid")
+    end if
+    if (thermodynamic_product .neqv. &
+         (payload_family == BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT)) then
+       call fail("Exner-gradient shadow mode is invalid")
+    end if
+
     trial_active = local_block_tendency_trial_is_active()
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
@@ -6805,8 +6855,11 @@ end subroutine build_parallel_block_catalog
     if (mult_scalar /= 1 .or. mult_vector /= EDGE .or. &
          S_MASS < v_scalar .or. &
          S_MASS >= v_scalar+n_scalar_variable .or. &
+         (thermodynamic_product .and. &
+         (S_TEMP < v_scalar .or. &
+         S_TEMP >= v_scalar+n_scalar_variable)) .or. &
          v_vector < 1) then
-       call fail("Exner-difference shadow field layout is invalid")
+       call fail("Exner-gradient shadow field layout is invalid")
     end if
     physical_first = max(1,first_field_level)
     physical_last = min( &
@@ -6828,8 +6881,9 @@ end subroutine build_parallel_block_catalog
          block_domain_production_writeback_count()
 
     call exchange_domain_to_block_payloads( &
-         BLOCK_PAYLOAD_EXNER_DIFFERENCE,domain_sol=domain_sol)
+         payload_family,domain_sol=domain_sol)
     kernel = Block_Exner_Difference_Kernel_Context()
+    kernel%thermodynamic_product = thermodynamic_product
     call apply_local_block_tendency_kernel( &
          compute_block_exner_difference_kernel,kernel)
 
@@ -6860,7 +6914,7 @@ end subroutine build_parallel_block_catalog
     end if
 
     call assert_candidate_block_tendency_payload_match( &
-         BLOCK_PAYLOAD_EXNER_DIFFERENCE,domain_sol,validated_patch_count)
+         payload_family,domain_sol,validated_patch_count)
     if (validated_patch_count /= expected_patch_count) then
        call fail("Exner-difference validation coverage differs")
     end if
@@ -6911,7 +6965,7 @@ end subroutine build_parallel_block_catalog
        call fail("Exner-difference shadow discard is invalid")
     end if
 
-  end subroutine evaluate_candidate_block_exner_difference
+  end subroutine evaluate_candidate_block_exner_shadow
 
 
   subroutine assert_candidate_block_tendency_payload_match ( &
@@ -6936,7 +6990,8 @@ end subroutine build_parallel_block_catalog
     integer :: r
     integer :: slot
 
-    if (payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE) then
+    if (payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
+         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT) then
        call fail("candidate tendency payload family is invalid")
     end if
     if (.not. local_block_tendency_state_ready()) then
@@ -8909,7 +8964,8 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_WAV_COEFF .and. &
          payload_family /= BLOCK_PAYLOAD_TREND .and. &
          payload_family /= BLOCK_PAYLOAD_THETA_EDGE .and. &
-         payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE) then
+         payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
+         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT) then
        call fail("invalid Domain writeback payload family")
     end if
 
@@ -8953,6 +9009,23 @@ end subroutine build_parallel_block_catalog
           call pack_domain_patch_exner_difference( &
                d,p,vector_payload( &
                vector_pos:vector_pos+n_vector_patch-1))
+       end if
+       scalar_pos = scalar_pos + n_scalar_patch
+       vector_pos = vector_pos + n_vector_patch
+       return
+    end if
+
+    if (payload_family == BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT) then
+       scalar_payload(scalar_pos:scalar_pos+n_scalar_patch-1) = 0.0_dp
+       if (present(domain_sol)) then
+          call pack_domain_patch_exner_difference( &
+               d,p,vector_payload( &
+               vector_pos:vector_pos+n_vector_patch-1),domain_sol,.true.)
+       else
+          call pack_domain_patch_exner_difference( &
+               d,p,vector_payload( &
+               vector_pos:vector_pos+n_vector_patch-1), &
+               thermodynamic_product=.true.)
        end if
        scalar_pos = scalar_pos + n_scalar_patch
        vector_pos = vector_pos + n_vector_patch
@@ -9225,7 +9298,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine pack_domain_patch_exner_difference ( &
-       d,p,exner_difference,domain_sol)
+       d,p,exner_difference,domain_sol,thermodynamic_product)
     ! Independently reconstruct the signed dynamic-Exner differences that
     ! form the numerator of gradi_e(exner) on each physical edge.
 
@@ -9236,6 +9309,7 @@ end subroutine build_parallel_block_catalog
     real(dp), intent(out) :: exner_difference(:)
     type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
+    logical, optional, intent(in) :: thermodynamic_product
 
     integer :: dims(2,N_BDRY+1)
     integer :: field_level
@@ -9261,6 +9335,17 @@ end subroutine build_parallel_block_catalog
     real(dp) :: exner_east
     real(dp) :: exner_north
     real(dp) :: exner_northeast
+    real(dp) :: theta_center
+    real(dp) :: theta_east
+    real(dp) :: theta_north
+    real(dp) :: theta_northeast
+
+    logical :: apply_theta
+
+    apply_theta = .false.
+    if (present(thermodynamic_product)) then
+       apply_theta = thermodynamic_product
+    end if
 
     call get_block_field_layout( &
          v_scalar,n_scalar_variable,v_vector,first_field_level, &
@@ -9268,6 +9353,9 @@ end subroutine build_parallel_block_catalog
     if (mult_scalar /= 1 .or. mult_vector /= EDGE .or. &
          S_MASS < v_scalar .or. &
          S_MASS >= v_scalar+n_scalar_variable .or. &
+         (apply_theta .and. &
+         (S_TEMP < v_scalar .or. &
+         S_TEMP >= v_scalar+n_scalar_variable)) .or. &
          v_vector < 1) then
        call fail("Domain Exner-difference field layout is invalid")
     end if
@@ -9307,6 +9395,25 @@ end subroutine build_parallel_block_catalog
                   exner_center-exner_northeast
              exner_difference(output_base+EDGE*q+UP+1) = &
                   exner_north-exner_center
+             if (apply_theta) then
+                theta_center = domain_potential_temperature( &
+                     id_center,field_level)
+                theta_east = domain_potential_temperature( &
+                     id_east,field_level)
+                theta_northeast = domain_potential_temperature( &
+                     id_northeast,field_level)
+                theta_north = domain_potential_temperature( &
+                     id_north,field_level)
+                exner_difference(output_base+EDGE*q+RT+1) = &
+                     exner_difference(output_base+EDGE*q+RT+1)* &
+                     (0.5_dp*(theta_center+theta_east))
+                exner_difference(output_base+EDGE*q+DG+1) = &
+                     exner_difference(output_base+EDGE*q+DG+1)* &
+                     (0.5_dp*(theta_center+theta_northeast))
+                exner_difference(output_base+EDGE*q+UP+1) = &
+                     exner_difference(output_base+EDGE*q+UP+1)* &
+                     (0.5_dp*(theta_center+theta_north))
+             end if
           end do
        end do
     end do
@@ -9329,7 +9436,7 @@ end subroutine build_parallel_block_catalog
 
       pressure_lower = p_top
       do k = 1,zlevels
-         rho_dz = domain_mass(node,k)
+         rho_dz = domain_scalar_total(S_MASS,node,k)
          if (rho_dz <= 0.0_dp) then
             call fail("Domain Exner-difference diagnosed bad mass")
          end if
@@ -9337,9 +9444,9 @@ end subroutine build_parallel_block_catalog
       end do
       do k = 1,field_level-1
          pressure_lower = pressure_lower - &
-              grav_accel*domain_mass(node,k)
+              grav_accel*domain_scalar_total(S_MASS,node,k)
       end do
-      rho_dz = domain_mass(node,field_level)
+      rho_dz = domain_scalar_total(S_MASS,node,field_level)
       layer_pressure = pressure_lower - 0.5_dp*grav_accel*rho_dz
       if (layer_pressure <= 0.0_dp) then
          call fail("Domain Exner-difference pressure is nonpositive")
@@ -9349,33 +9456,54 @@ end subroutine build_parallel_block_catalog
     end function domain_dynamic_exner
 
 
-    real(dp) function domain_mass (node,field_level) result(value)
+    real(dp) function domain_potential_temperature ( &
+         node,field_level) result(value)
 
       implicit none
 
       integer, intent(in) :: node
       integer, intent(in) :: field_level
 
+      real(dp) :: rho_dz
+
+      rho_dz = domain_scalar_total(S_MASS,node,field_level)
+      if (rho_dz <= 0.0_dp) then
+         call fail("Domain thermodynamic gradient has bad mass")
+      end if
+      value = domain_scalar_total(S_TEMP,node,field_level)/rho_dz
+
+    end function domain_potential_temperature
+
+
+    real(dp) function domain_scalar_total ( &
+         scalar_id,node,field_level) result(value)
+
+      implicit none
+
+      integer, intent(in) :: scalar_id
+      integer, intent(in) :: node
+      integer, intent(in) :: field_level
+
       if (node < 0 .or. node >= &
-           size(sol_mean(S_MASS,field_level)%data(d)%elts)) then
+           size(sol_mean(scalar_id,field_level)%data(d)%elts)) then
          call fail("Domain Exner-difference node is invalid")
       end if
       if (present(domain_sol)) then
          if (node >= &
-              size(domain_sol(S_MASS,field_level)%data(d)%elts)) then
+              size(domain_sol(scalar_id,field_level)%data(d)%elts)) then
             call fail("Domain Exner-difference stage extent is invalid")
          end if
-         value = domain_sol(S_MASS,field_level)%data(d)%elts(node+1)
+         value = domain_sol(scalar_id,field_level)%data(d)%elts(node+1)
       else
-         if (node >= size(sol(S_MASS,field_level)%data(d)%elts)) then
+         if (node >= size(sol(scalar_id,field_level)%data(d)%elts)) then
             call fail("Domain Exner-difference sol extent is invalid")
          end if
-         value = sol(S_MASS,field_level)%data(d)%elts(node+1)
+         value = sol(scalar_id,field_level)%data(d)%elts(node+1)
       end if
       value = value + &
-           sol_mean(S_MASS,field_level)%data(d)%elts(node+1)
+           sol_mean(scalar_id,field_level)%data(d)%elts(node+1)
 
-    end function domain_mass
+    end function domain_scalar_total
 
   end subroutine pack_domain_patch_exner_difference
 
@@ -15035,6 +15163,10 @@ end subroutine build_parallel_block_catalog
       integer :: record
       integer :: storage_start
 
+      dims = 0
+      storage_start = 0
+      storage_class = 0
+      node_index = 0
       neighbor = block%patch(p)%neigh(side)
       if (neighbor > 0) then
          storage_class = STORE_PATCH
@@ -15162,10 +15294,15 @@ end subroutine build_parallel_block_catalog
     integer :: output_index
     integer :: p
     integer :: q
+    integer :: temperature_slot
 
     real(dp) :: difference
     real(dp) :: exner_center
     real(dp) :: exner_neighbor
+    real(dp) :: mass_center
+    real(dp) :: mass_neighbor
+    real(dp) :: theta_center
+    real(dp) :: theta_neighbor
 
     if (catalog_index < 1) then
        call fail("Exner-difference kernel catalogue index is invalid")
@@ -15188,7 +15325,10 @@ end subroutine build_parallel_block_catalog
     end if
 
     mass_slot = S_MASS - block%scalar_variable
-    if (mass_slot < 0 .or. mass_slot >= block%n_scalar_variable) then
+    temperature_slot = S_TEMP - block%scalar_variable
+    if (mass_slot < 0 .or. mass_slot >= block%n_scalar_variable .or. &
+         temperature_slot < 0 .or. &
+         temperature_slot >= block%n_scalar_variable) then
        call fail("Exner-difference kernel scalar layout is invalid")
     end if
 
@@ -15258,6 +15398,26 @@ end subroutine build_parallel_block_catalog
                    case default
                       call fail("Exner-difference sign is invalid")
                    end select
+                   if (statistics%thermodynamic_product) then
+                      mass_center = block_scalar_total( &
+                           mass_slot,STORE_PATCH,center_node,field_level)
+                      mass_neighbor = block_scalar_total( &
+                           mass_slot,neighbor_storage,neighbor_node, &
+                           field_level)
+                      if (mass_center <= 0.0_dp .or. &
+                           mass_neighbor <= 0.0_dp) then
+                         call fail( &
+                              "thermodynamic-gradient kernel has bad mass")
+                      end if
+                      theta_center = block_scalar_total( &
+                           temperature_slot,STORE_PATCH,center_node, &
+                           field_level)/mass_center
+                      theta_neighbor = block_scalar_total( &
+                           temperature_slot,neighbor_storage,neighbor_node, &
+                           field_level)/mass_neighbor
+                      difference = difference* &
+                           (0.5_dp*(theta_center+theta_neighbor))
+                   end if
 
                    output_index = (level_slot-1)* &
                         block%vector_mult*size(block%node) + &
@@ -15292,6 +15452,10 @@ end subroutine build_parallel_block_catalog
       integer :: record
       integer :: storage_start
 
+      dims = 0
+      storage_start = 0
+      neighbor_storage = 0
+      neighbor_node = 0
       neighbor = block%patch(p)%neigh(side)
       if (neighbor > 0) then
          neighbor_storage = STORE_PATCH
@@ -15358,7 +15522,8 @@ end subroutine build_parallel_block_catalog
 
       pressure_lower = p_top
       do k = 1,zlevels
-         rho_dz = block_mass(storage_class,node,k)
+         rho_dz = block_scalar_total( &
+              mass_slot,storage_class,node,k)
          if (rho_dz <= 0.0_dp) then
             call fail("Exner-difference kernel diagnosed bad mass")
          end if
@@ -15366,9 +15531,11 @@ end subroutine build_parallel_block_catalog
       end do
       do k = 1,field_level-1
          pressure_lower = pressure_lower - &
-              grav_accel*block_mass(storage_class,node,k)
+              grav_accel*block_scalar_total( &
+              mass_slot,storage_class,node,k)
       end do
-      rho_dz = block_mass(storage_class,node,field_level)
+      rho_dz = block_scalar_total( &
+           mass_slot,storage_class,node,field_level)
       layer_pressure = pressure_lower - 0.5_dp*grav_accel*rho_dz
       if (layer_pressure <= 0.0_dp) then
          call fail("Exner-difference kernel pressure is nonpositive")
@@ -15378,11 +15545,12 @@ end subroutine build_parallel_block_catalog
     end function block_dynamic_exner
 
 
-    real(dp) function block_mass ( &
-         storage_class,node,field_level) result(value)
+    real(dp) function block_scalar_total ( &
+         scalar_slot,storage_class,node,field_level) result(value)
 
       implicit none
 
+      integer, intent(in) :: scalar_slot
       integer, intent(in) :: storage_class
       integer, intent(in) :: node
       integer, intent(in) :: field_level
@@ -15391,6 +15559,7 @@ end subroutine build_parallel_block_catalog
       integer :: field_index
       integer :: level_slot
 
+      value = 0.0_dp
       level_slot = field_level-block%field_level+1
       if (level_slot < 1 .or. level_slot > block%n_field_level) then
          call fail("Exner-difference mass level is invalid")
@@ -15401,7 +15570,7 @@ end subroutine build_parallel_block_catalog
             call fail("Exner-difference mass patch node is invalid")
          end if
          field_base = &
-              (mass_slot*block%n_field_level + level_slot-1)* &
+              (scalar_slot*block%n_field_level + level_slot-1)* &
               size(block%node)
          field_index = field_base + node + 1
          value = block%scalar(field_index) + &
@@ -15411,7 +15580,7 @@ end subroutine build_parallel_block_catalog
             call fail("Exner-difference mass boundary node is invalid")
          end if
          field_base = &
-              (mass_slot*block%n_field_level + level_slot-1)* &
+              (scalar_slot*block%n_field_level + level_slot-1)* &
               size(block%bdry_node)
          field_index = field_base + node + 1
          value = block%bdry_scalar(field_index) + &
@@ -15421,7 +15590,7 @@ end subroutine build_parallel_block_catalog
             call fail("Exner-difference mass ghost node is invalid")
          end if
          field_base = &
-              (mass_slot*block%n_field_level + level_slot-1)* &
+              (scalar_slot*block%n_field_level + level_slot-1)* &
               size(block%ghost_node)
          field_index = field_base + node + 1
          value = block%ghost_scalar(field_index) + &
@@ -15430,7 +15599,7 @@ end subroutine build_parallel_block_catalog
          call fail("Exner-difference mass storage is invalid")
       end select
 
-    end function block_mass
+    end function block_scalar_total
 
   end subroutine compute_block_exner_difference_kernel
 
