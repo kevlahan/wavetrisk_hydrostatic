@@ -10,7 +10,7 @@ module multi_level_mod
   use comm_mpi_mod,    only : update_bdry, update_bdry__start, update_bdry__finish
   use diagnostics_mod, only : cal_div, cal_surf_press, integrate_pressure_up, post_vort
   use domain_ops_mod,  only : apply_interscale_to_patch, apply_interscale_to_patch3, apply_onescale_to_patch, apply_to_penta_d 
-  use init_mod,        only : u_source    
+  use init_mod,        only : physics_scalar_flux, u_source    
   use ops_mod,         only : du_grad, du_source, post_step1, scalar_trend, step1
   use patch_mod,       only : PATCH_SIZE
   use parallel_block_mpi_mod, only : &
@@ -104,8 +104,20 @@ contains
        call apply_to_penta_d (post_step1, grid(d), l, z_null)
        nullify (mass, velo, temp, mean_m, mean_t, ke, qe, vort)
 
-       ! Compute or restrict Bernoulli, Exner and fluxes
-       if (l < level_end) then
+       nullify (bernoulli, exner)
+    end do
+
+    ! Retain the direct step1 flux before a coarse level is overwritten by
+    ! fine-to-coarse flux restriction.
+    do v = scalars(1),scalars(2)
+       call capture_block_scalar_divergence_level( &
+            q,physics_scalar_flux,v,k,l,.true.)
+    end do
+
+    ! Compute or restrict Bernoulli, Exner and fluxes only after every local
+    ! Domain direct-flux shadow has been captured.
+    if (l < level_end) then
+       do d = 1,size(grid)
           scalar => grid(d)%bernoulli%elts
           call cpt_or_restr_scalar (grid(d), l)
           nullify (scalar)
@@ -113,16 +125,15 @@ contains
           scalar => exner_fun(k)%data(d)%elts
           call cpt_or_restr_scalar (grid(d), l)
           nullify (scalar)
-          
-          do v = scalars(1), scalars(2)
+
+          do v = scalars(1),scalars(2)
              dscalar => dq(v,k)%data(d)%elts
              h_flux  => horiz_flux(v)%data(d)%elts
-             call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) using dscalar (l+1)
+             call cpt_or_restr_flux (grid(d), l)
              nullify (dscalar, h_flux)
           end do
-       end if
-       nullify (bernoulli, exner)
-    end do
+       end do
+    end if
     horiz_flux%bdry_uptodate = .false.
     if (level_start /= level_end) call update_bdry (horiz_flux, l, 968)
 
@@ -153,7 +164,8 @@ contains
        end do
     end do
     do v = scalars(1),scalars(2)
-       call capture_block_scalar_divergence_level(v,k,l)
+       call capture_block_scalar_divergence_level( &
+            q,physics_scalar_flux,v,k,l)
     end do
     dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
   end subroutine cal_scalar_trend

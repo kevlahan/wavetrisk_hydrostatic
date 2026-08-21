@@ -8,11 +8,13 @@ module parallel_block_mpi_mod
 
   use kind_mod,   only : dp
   use shared_mod, only : DG, EAST, EDGE, NORTH, NORTHEAST, N_BDRY, &
-       N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, S_MASS, S_TEMP, &
+       N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, &
+       S_MASS, S_TEMP, S_VELO, &
        TRSK, c_p, compressible, grav_accel, kappa, level_end, &
        level_start, p_0, p_top, zlevels
 
-  use domain_mod, only : Float_Field, get_offs_Domain, grid, horiz_flux, &
+  use domain_mod, only : Domain, Float_Field, get_offs_Domain, grid, &
+       horiz_flux, &
        idx, sol, sol_mean, tke, &
        topography, trend, &
        wav_coeff, wav_tke, &
@@ -151,7 +153,32 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
-  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 8
+  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 17
+  integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
+  integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
+  integer, parameter :: BLOCK_SCALAR_ACTIVE_INDEX = 8
+  integer, parameter :: BLOCK_SCALAR_DIRECT_FLUX_START = 9
+  integer, parameter :: BLOCK_SCALAR_PEDLEN_START = 12
+  integer, parameter :: BLOCK_SCALAR_PHYSICS_START = 15
+
+  abstract interface
+     function Block_Scalar_Physics_Flux ( &
+          q,dom,id,id_e,id_ne,id_n,v,zlev,type) result(flux)
+       import :: Domain, dp, EDGE, Float_Field, N_VARIABLE, zlevels
+       type(Float_Field), intent(inout) :: &
+            q(1:N_VARIABLE,1:zlevels)
+       type(Domain), intent(inout) :: dom
+       integer, intent(in) :: id
+       integer, intent(in) :: id_e
+       integer, intent(in) :: id_ne
+       integer, intent(in) :: id_n
+       integer, intent(in) :: v
+       integer, intent(in) :: zlev
+       logical, optional, intent(in) :: type
+       real(dp) :: flux(EDGE)
+     end function Block_Scalar_Physics_Flux
+  end interface
+
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
        -0.125_dp*huge(0.0_dp)
   real(dp), parameter :: BLOCK_PATCH_POISON = &
@@ -6679,9 +6706,10 @@ end subroutine build_parallel_block_catalog
 
   subroutine evaluate_candidate_block_velocity_recomposition ( &
        domain_sol,checkpoint_required)
-    ! Combine the authoritative scalar flux-divergence tendency and the
+    ! Combine the authoritative restricted scalar-flux divergence and the
     ! non-Exner velocity residual with the independently reconstructed block
-    ! Exner term. Compare one complete rejected physical-tendency shadow.
+    ! Exner term. Independently validate and retain the directly produced
+    ! block-native scalar flux before hierarchy restriction.
 
     implicit none
 
@@ -6709,15 +6737,21 @@ end subroutine build_parallel_block_catalog
        write(6,'(a)') &
             "  persistent velocity-residual storage reused"
        write(6,'(a)') &
-            "  authoritative mass/temperature flux stencil captured"
+            "  block-native mass/temperature direct flux produced"
        write(6,'(a)') &
-            "  block-native mass/temperature flux divergence passed"
+            "  non-advective scalar physics flux reused"
+       write(6,'(a)') &
+            "  exact pre-restriction block/Domain scalar flux comparison passed"
+       write(6,'(a)') &
+            "  native direct scalar flux retained for hierarchy restriction"
+       write(6,'(a)') &
+            "  authoritative restricted scalar flux divergence reused"
        write(6,'(a)') &
             "  exact complete block/Domain physical tendency comparison passed"
        write(6,'(a)') &
             "  complete physical tendency retained for rejected RK stage"
        write(6,'(a)') &
-            "  persistent scalar-divergence transport and storage reused"
+            "  persistent scalar-flux reference/physics storage reused"
     end if
 
   end subroutine evaluate_candidate_block_velocity_recomposition
@@ -6969,8 +7003,8 @@ end subroutine build_parallel_block_catalog
 
   subroutine begin_block_scalar_divergence_capture
     ! Prepare one persistent Domain-owner to block-owner transport for the
-    ! six oriented scalar-flux stencil values, inverse cell area, and TRiSK
-    ! activity flag required by the block-native divergence kernel.
+    ! validation flux stencil, immutable metric inputs, and non-advective
+    ! physics residual required by block-native scalar-flux production.
 
     implicit none
 
@@ -7041,11 +7075,11 @@ end subroutine build_parallel_block_catalog
        block_scalar_tendency(index)%catalog_index = b
        block_scalar_tendency(index)%installed_patch_count = 0
        block_scalar_tendency(index)%ready = .false.
-       block_scalar_tendency(index)%patch = 0.0_dp
+       block_scalar_tendency(index)%patch = BLOCK_PATCH_POISON
        block_scalar_tendency(index)%covered = .false.
     end do
 
-    block_scalar_divergence_plan%recv_buffer = 0.0_dp
+    block_scalar_divergence_plan%recv_buffer = BLOCK_PATCH_POISON
     block_scalar_divergence_plan%send_buffer = 0.0_dp
     block_scalar_divergence_plan%recv_covered = .false.
     block_scalar_divergence_plan%ready = .false.
@@ -7111,15 +7145,22 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine capture_block_scalar_divergence_level ( &
-       scalar_id,field_level,grid_level)
-    ! Capture the completed authoritative flux stencil while horiz_flux
-    ! still represents this physical level. No communication occurs here.
+       domain_sol,physics_flux,scalar_id,field_level,grid_level, &
+       direct_flux)
+    ! Before hierarchy restriction, capture the three directly evaluated
+    ! positive-edge fluxes and their immutable production inputs. After
+    ! restriction and boundary refresh, capture the authoritative six-edge
+    ! stencil used by scalar divergence.
 
     implicit none
 
+    type(Float_Field), intent(inout) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+    procedure(Block_Scalar_Physics_Flux) :: physics_flux
     integer, intent(in) :: scalar_id
     integer, intent(in) :: field_level
     integer, intent(in) :: grid_level
+    logical, optional, intent(in) :: direct_flux
 
     integer :: b
     integer :: d
@@ -7138,7 +7179,11 @@ end subroutine build_parallel_block_catalog
     integer :: v_scalar
     integer :: v_vector
 
+    logical :: capture_direct
+
     if (.not. block_scalar_divergence_plan%active) return
+    capture_direct = .false.
+    if (present(direct_flux)) capture_direct = direct_flux
 
     call get_block_field_layout( &
          v_scalar,n_scalar_variable,v_vector,first_field_level, &
@@ -7251,6 +7296,9 @@ end subroutine build_parallel_block_catalog
       integer :: dims(2,N_BDRY+1)
       integer :: i
       integer :: id
+      integer :: id_e
+      integer :: id_n
+      integer :: id_ne
       integer :: id_s
       integer :: id_sw
       integer :: id_w
@@ -7260,6 +7308,7 @@ end subroutine build_parallel_block_catalog
       integer :: sample
       integer :: source_start
 
+      real(dp) :: physics_positive(EDGE)
       real(dp) :: value(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
 
       call get_offs_Domain(grid(d),p,offs,dims)
@@ -7268,27 +7317,42 @@ end subroutine build_parallel_block_catalog
          i = mod(q,PATCH_SIZE)
          j = q/PATCH_SIZE
          id = idx(i,j,offs,dims)
-         id_w = idx(i-1,j,offs,dims)
-         id_sw = idx(i-1,j-1,offs,dims)
-         id_s = idx(i,j-1,offs,dims)
          if (id /= source_start+q) then
             call fail("scalar-divergence centre index differs")
          end if
-         value(1) = horiz_flux(scalar_id)%data(d)%elts( &
-              EDGE*id+RT+1)
-         value(2) = horiz_flux(scalar_id)%data(d)%elts( &
-              EDGE*id_w+RT+1)
-         value(3) = horiz_flux(scalar_id)%data(d)%elts( &
-              EDGE*id_sw+DG+1)
-         value(4) = horiz_flux(scalar_id)%data(d)%elts( &
-              EDGE*id+DG+1)
-         value(5) = horiz_flux(scalar_id)%data(d)%elts( &
-              EDGE*id+UP+1)
-         value(6) = horiz_flux(scalar_id)%data(d)%elts( &
-              EDGE*id_s+UP+1)
-         value(7) = grid(d)%areas%elts(id+1)%hex_inv
-         value(8) = merge( &
-              1.0_dp,0.0_dp,grid(d)%mask_n%elts(id+1) >= TRSK)
+         value = 0.0_dp
+         if (capture_direct) then
+            id_e = idx(i+1,j,offs,dims)
+            id_ne = idx(i+1,j+1,offs,dims)
+            id_n = idx(i,j+1,offs,dims)
+            physics_positive = physics_flux( &
+                 domain_sol,grid(d),id,id_e,id_ne,id_n, &
+                 scalar_id,field_level)
+            value(BLOCK_SCALAR_DIRECT_FLUX_START: &
+                 BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-1) = &
+                 horiz_flux(scalar_id)%data(d)%elts( &
+                 EDGE*id+RT+1:EDGE*id+UP+1)
+            value(BLOCK_SCALAR_PEDLEN_START: &
+                 BLOCK_SCALAR_PEDLEN_START+EDGE-1) = &
+                 grid(d)%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+            value(BLOCK_SCALAR_PHYSICS_START: &
+                 BLOCK_SCALAR_PHYSICS_START+EDGE-1) = physics_positive
+         else
+            id_w = idx(i-1,j,offs,dims)
+            id_sw = idx(i-1,j-1,offs,dims)
+            id_s = idx(i,j-1,offs,dims)
+            value(1:BLOCK_SCALAR_FLUX_COUNT) = [ &
+                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id+RT+1), &
+                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id_w+RT+1), &
+                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id_sw+DG+1), &
+                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id+DG+1), &
+                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id+UP+1), &
+                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id_s+UP+1)]
+            value(BLOCK_SCALAR_AREA_INDEX) = &
+                 grid(d)%areas%elts(id+1)%hex_inv
+            value(BLOCK_SCALAR_ACTIVE_INDEX) = merge( &
+                 1.0_dp,0.0_dp,grid(d)%mask_n%elts(id+1) >= TRSK)
+         end if
          sample = block_sample_start + &
               patch_index*block_writeback_plan%scalar_patch_nvalue + &
               ((scalar_slot-1)*n_field_level + level_slot-1)* &
@@ -7301,10 +7365,18 @@ end subroutine build_parallel_block_catalog
             end if
             data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                  (sample-1) + 1
-            block_scalar_tendency(storage_index)%patch( &
-                 data_start:data_start+ &
-                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = value
-            block_scalar_tendency(storage_index)%covered(sample) = .true.
+            if (capture_direct) then
+               block_scalar_tendency(storage_index)%patch( &
+                    data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
+                    data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
+                    value(BLOCK_SCALAR_DIRECT_FLUX_START: &
+                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+            else
+               block_scalar_tendency(storage_index)%patch( &
+                    data_start:data_start+BLOCK_SCALAR_ACTIVE_INDEX-1) = &
+                    value(1:BLOCK_SCALAR_ACTIVE_INDEX)
+               block_scalar_tendency(storage_index)%covered(sample) = .true.
+            end if
          else
             if (sample < 1 .or. &
                  sample > size(block_scalar_divergence_plan%recv_covered)) &
@@ -7313,10 +7385,18 @@ end subroutine build_parallel_block_catalog
             end if
             data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                  (sample-1) + 1
-            block_scalar_divergence_plan%recv_buffer( &
-                 data_start:data_start+ &
-                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = value
-            block_scalar_divergence_plan%recv_covered(sample) = .true.
+            if (capture_direct) then
+               block_scalar_divergence_plan%recv_buffer( &
+                    data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
+                    data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
+                    value(BLOCK_SCALAR_DIRECT_FLUX_START: &
+                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+            else
+               block_scalar_divergence_plan%recv_buffer( &
+                    data_start:data_start+BLOCK_SCALAR_ACTIVE_INDEX-1) = &
+                    value(1:BLOCK_SCALAR_ACTIVE_INDEX)
+               block_scalar_divergence_plan%recv_covered(sample) = .true.
+            end if
          end if
 
       end do
@@ -7327,8 +7407,9 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine finalize_block_scalar_divergence_capture
-    ! Transfer the completed multilevel scalar-flux stencils once and make
-    ! every final-owner input ready for the rejected block-native kernel.
+    ! Transfer the pre-restriction native-flux shadow and the authoritative
+    ! restricted divergence stencil once, then make every final-owner input
+    ! ready for the rejected block-native kernel.
 
     implicit none
 
@@ -16547,6 +16628,7 @@ end subroutine build_parallel_block_catalog
     integer :: center_node
     integer :: component_slot
     integer :: field_level
+    integer :: flux_slot
     integer :: i
     integer :: j
     integer :: level_slot
@@ -16570,11 +16652,17 @@ end subroutine build_parallel_block_catalog
     real(dp) :: edge_length
     real(dp) :: mass_center
     real(dp) :: mass_neighbor
+    real(dp) :: native_advective_flux
+    real(dp) :: native_flux
     real(dp) :: remainder_value
+    real(dp) :: scalar_center
     real(dp) :: scalar_divergence
+    real(dp) :: scalar_edge
     real(dp) :: scalar_input(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+    real(dp) :: scalar_neighbor
     real(dp) :: theta_center
     real(dp) :: theta_neighbor
+    real(dp) :: u_dual
 
     if (catalog_index < 1) then
        call fail("Exner-difference kernel catalogue index is invalid")
@@ -16583,7 +16671,8 @@ end subroutine build_parallel_block_catalog
          size(vector_tendency) /= size(block%vector)) then
        call fail("Exner-difference kernel output extents are invalid")
     end if
-    if (block%scalar_mult /= 1 .or. block%vector_mult /= EDGE) then
+    if (block%scalar_mult /= 1 .or. block%vector_mult /= EDGE .or. &
+         block%vector_variable /= S_VELO) then
        call fail("Exner-difference kernel field multipliers are invalid")
     end if
     if (size(block%neigh_class,1) /= N_BDRY .or. &
@@ -16654,6 +16743,7 @@ end subroutine build_parallel_block_catalog
           do p = 1,size(block%patch)
              do scalar_slot = 0,block%n_scalar_variable-1
                 do level_slot = 1,block%n_field_level
+                   field_level = block%field_level + level_slot - 1
                    do q = 0,PATCH_SIZE**2-1
                       center_node = block%patch(p)%elts_start + q
                       if (center_node < 0 .or. &
@@ -16690,13 +16780,104 @@ end subroutine build_parallel_block_catalog
                            block_scalar_tendency(local_index)%patch( &
                            remainder_index:remainder_index+ &
                            BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                      if (field_level < 1 .or. &
+                           field_level > zlevels) then
+                         scalar_tendency(scalar_output_index) = 0.0_dp
+                         statistics%scalar_sample_count = &
+                              statistics%scalar_sample_count + 1_int64
+                         cycle
+                      end if
+                      i = mod(q,PATCH_SIZE)
+                      j = q/PATCH_SIZE
+                      scalar_center = block_scalar_total( &
+                           scalar_slot,STORE_PATCH,center_node,field_level)
+                      do flux_slot = 1,EDGE
+                         select case (flux_slot-1)
+                         case (RT)
+                            if (i < PATCH_SIZE-1) then
+                               neighbor_storage = STORE_PATCH
+                               neighbor_node = center_node + 1
+                            else
+                               call set_direct_neighbor(EAST,0,j)
+                            end if
+                         case (DG)
+                            if (i < PATCH_SIZE-1 .and. &
+                                 j < PATCH_SIZE-1) then
+                               neighbor_storage = STORE_PATCH
+                               neighbor_node = &
+                                    center_node + PATCH_SIZE + 1
+                            else if (i == PATCH_SIZE-1 .and. &
+                                 j < PATCH_SIZE-1) then
+                               call set_direct_neighbor(EAST,0,j+1)
+                            else if (i < PATCH_SIZE-1 .and. &
+                                 j == PATCH_SIZE-1) then
+                               call set_direct_neighbor(NORTH,i+1,0)
+                            else
+                               call set_direct_neighbor(NORTHEAST,0,0)
+                            end if
+                         case (UP)
+                            if (j < PATCH_SIZE-1) then
+                               neighbor_storage = STORE_PATCH
+                               neighbor_node = center_node + PATCH_SIZE
+                            else
+                               call set_direct_neighbor(NORTH,i,0)
+                            end if
+                         case default
+                            call fail( &
+                                 "block-native direct flux component is invalid")
+                         end select
+                         scalar_neighbor = block_scalar_total( &
+                              scalar_slot,neighbor_storage,neighbor_node, &
+                              field_level)
+                         u_dual = block_patch_vector_value( &
+                              center_node,flux_slot-1, &
+                              field_level)* &
+                              scalar_input(BLOCK_SCALAR_PEDLEN_START+ &
+                              flux_slot-1)
+                         scalar_edge = &
+                              0.5_dp*(scalar_center+scalar_neighbor)
+                         native_advective_flux = u_dual*scalar_edge
+                         native_flux = native_advective_flux + &
+                              scalar_input(BLOCK_SCALAR_PHYSICS_START+ &
+                              flux_slot-1)
+                         if (abs(native_flux-scalar_input( &
+                              BLOCK_SCALAR_DIRECT_FLUX_START+ &
+                              flux_slot-1)) > 0.0_dp) then
+                            write(error_unit,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
+                                 "Rank ",rank, &
+                                 ": native scalar flux mismatch: block = ", &
+                                 catalog_index,", patch = ",p, &
+                                 ", cell = ",q,", flux slot = ",flux_slot
+                            write(error_unit,'(a,i0,a,i0)') &
+                                 "  scalar slot = ",scalar_slot, &
+                                 ", field level = ",field_level
+                            write(error_unit, &
+                                 '(a,es24.16,a,es24.16,a,es24.16)') &
+                                 "  Domain value = ", &
+                                 scalar_input( &
+                                 BLOCK_SCALAR_DIRECT_FLUX_START+ &
+                                 flux_slot-1), &
+                                 ", block value = ",native_flux, &
+                                 ", absolute difference = ", &
+                                 abs(native_flux-scalar_input( &
+                                 BLOCK_SCALAR_DIRECT_FLUX_START+ &
+                                 flux_slot-1))
+                            call fail( &
+                                 "block-native direct scalar flux differs")
+                         end if
+                         block_scalar_tendency(local_index)%patch( &
+                              remainder_index+ &
+                              BLOCK_SCALAR_DIRECT_FLUX_START+ &
+                              flux_slot-2) = native_flux
+                      end do
                       scalar_divergence = &
                            (scalar_input(1)-scalar_input(2) + &
                            scalar_input(3)-scalar_input(4) + &
                            scalar_input(5)-scalar_input(6))* &
-                           scalar_input(7)
+                           scalar_input(BLOCK_SCALAR_AREA_INDEX)
                       scalar_tendency(scalar_output_index) = 0.0_dp
-                      if (scalar_input(8) > 0.5_dp) then
+                      if (scalar_input(BLOCK_SCALAR_ACTIVE_INDEX) > &
+                           0.5_dp) then
                          scalar_tendency(scalar_output_index) = &
                               -scalar_divergence
                       end if
@@ -17024,6 +17205,37 @@ end subroutine build_parallel_block_catalog
       end select
 
     end function block_scalar_total
+
+
+    real(dp) function block_patch_vector_value ( &
+         node,component,field_level) result(value)
+
+      implicit none
+
+      integer, intent(in) :: node
+      integer, intent(in) :: component
+      integer, intent(in) :: field_level
+
+      integer :: field_base
+      integer :: field_index
+      integer :: level_slot
+
+      value = 0.0_dp
+      if (component < 0 .or. component >= EDGE) then
+         call fail("scalar-flux vector component is invalid")
+      end if
+      level_slot = field_level-block%field_level+1
+      if (level_slot < 1 .or. level_slot > block%n_field_level) then
+         call fail("scalar-flux vector level is invalid")
+      end if
+      if (node < 0 .or. node >= size(block%node)) then
+         call fail("scalar-flux vector patch node is invalid")
+      end if
+      field_base = (level_slot-1)*EDGE*size(block%node)
+      field_index = field_base + EDGE*node + component + 1
+      value = block%vector(field_index)
+
+    end function block_patch_vector_value
 
   end subroutine compute_block_exner_difference_kernel
 
