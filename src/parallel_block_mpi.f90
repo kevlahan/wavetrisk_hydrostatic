@@ -9,10 +9,11 @@ module parallel_block_mpi_mod
   use kind_mod,   only : dp
   use shared_mod, only : DG, EAST, EDGE, NORTH, NORTHEAST, N_BDRY, &
        N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, S_MASS, S_TEMP, &
-       c_p, compressible, grav_accel, kappa, p_0, p_top, zlevels
+       TRSK, c_p, compressible, grav_accel, kappa, level_end, &
+       level_start, p_0, p_top, zlevels
 
-  use domain_mod, only : Float_Field, get_offs_Domain, grid, idx, &
-       sol, sol_mean, tke, &
+  use domain_mod, only : Float_Field, get_offs_Domain, grid, horiz_flux, &
+       idx, sol, sol_mean, tke, &
        topography, trend, &
        wav_coeff, wav_tke, &
        subtree_weight_Domain
@@ -148,6 +149,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
+  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 8
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
        -0.125_dp*huge(0.0_dp)
   real(dp), parameter :: BLOCK_PATCH_POISON = &
@@ -417,11 +419,29 @@ module parallel_block_mpi_mod
      integer :: installed_patch_count = 0
      logical :: ready = .false.
      real(dp), allocatable :: patch(:)
+     logical, allocatable :: covered(:)
   end type Block_Scalar_Tendency_Storage
 
   type(Block_Scalar_Tendency_Storage), allocatable, save :: &
        block_scalar_tendency(:)
   integer(int64), save :: block_scalar_tendency_allocations = 0_int64
+
+  type :: Block_Scalar_Divergence_Plan_Type
+     integer, allocatable :: send_count(:)
+     integer, allocatable :: recv_count(:)
+     integer, allocatable :: send_displ(:)
+     integer, allocatable :: recv_displ(:)
+     real(dp), allocatable :: send_buffer(:)
+     real(dp), allocatable :: recv_buffer(:)
+     logical, allocatable :: recv_covered(:)
+     integer(int64) :: generation = -1_int64
+     integer(int64) :: allocations = 0_int64
+     logical :: active = .false.
+     logical :: ready = .false.
+  end type Block_Scalar_Divergence_Plan_Type
+
+  type(Block_Scalar_Divergence_Plan_Type), save :: &
+       block_scalar_divergence_plan
 
   type, public :: Block_Two_Stage_Step_Result
      integer(int64) :: scalar_count = 0_int64
@@ -481,6 +501,9 @@ module parallel_block_mpi_mod
   public :: complete_block_domain_trend_step
   public :: advance_block_domain_trend_euler
   public :: capture_block_domain_multistage_candidate_tendency
+  public :: begin_block_scalar_divergence_capture
+  public :: capture_block_scalar_divergence_level
+  public :: finalize_block_scalar_divergence_capture
   public :: begin_block_domain_multistage_candidate_stage
   public :: accept_block_domain_multistage_candidate
   public :: check_block_domain_trend_step
@@ -7148,7 +7171,9 @@ end subroutine build_parallel_block_catalog
     logical, intent(in) :: checkpoint_required
 
     call refresh_candidate_block_velocity_remainder(domain_sol)
-    call refresh_candidate_block_scalar_tendency(domain_sol)
+    if (.not. block_scalar_divergence_plan%ready) then
+       call fail("block-native scalar divergence input is not ready")
+    end if
     call evaluate_candidate_block_exner_shadow( &
          domain_sol,BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY, &
          .true.,.true.,.true.,checkpoint_required,.true.)
@@ -7165,15 +7190,15 @@ end subroutine build_parallel_block_catalog
        write(6,'(a)') &
             "  persistent velocity-residual storage reused"
        write(6,'(a)') &
-            "  authoritative mass/temperature flux-divergence tendency captured"
+            "  authoritative mass/temperature flux stencil captured"
        write(6,'(a)') &
-            "  complete scalar/vector physical tendency assembled in block workspace"
+            "  block-native mass/temperature flux divergence passed"
        write(6,'(a)') &
-            "  exact recomposed block/Domain physical tendency comparison passed"
+            "  exact complete block/Domain physical tendency comparison passed"
        write(6,'(a)') &
             "  complete physical tendency discarded without writeback"
        write(6,'(a)') &
-            "  persistent scalar-tendency storage reused"
+            "  persistent scalar-divergence transport and storage reused"
     end if
 
   end subroutine evaluate_candidate_block_velocity_recomposition
@@ -7423,246 +7448,651 @@ end subroutine build_parallel_block_catalog
   end subroutine refresh_candidate_block_velocity_remainder
 
 
-  subroutine refresh_candidate_block_scalar_tendency (domain_sol)
-    ! Install the authoritative mass/temperature flux-divergence tendency
-    ! in persistent final-owner storage. The rejected complete-physical
-    ! kernel consumes this scalar payload without mutating either owner.
+  subroutine begin_block_scalar_divergence_capture
+    ! Prepare one persistent Domain-owner to block-owner transport for the
+    ! six oriented scalar-flux stencil values, inverse cell area, and TRiSK
+    ! activity flag required by the block-native divergence kernel.
 
     implicit none
 
-    type(Float_Field), intent(in) :: &
-         domain_sol(1:N_VARIABLE,1:zlevels)
+    integer :: b
+    integer :: count
+    integer :: index
+    integer :: n_local
+    integer :: patch_count
+
+    integer(int64) :: allocation_after
+
+    logical :: state_ready
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("scalar-divergence capture before block state is ready")
+    end if
+    if (block_scalar_divergence_plan%active) then
+       call fail("scalar-divergence capture is already active")
+    end if
+
+    call prepare_scalar_divergence_plan
+    allocation_after = block_scalar_divergence_plan%allocations
+    call prepare_scalar_divergence_plan
+    if (block_scalar_divergence_plan%allocations /= allocation_after) then
+       call fail("scalar-divergence transport was not reusable")
+    end if
+
+    n_local = n_local_blocks()
+    if (allocated(block_scalar_tendency)) then
+       if (size(block_scalar_tendency) /= n_local) then
+          deallocate(block_scalar_tendency)
+       end if
+    end if
+    if (.not. allocated(block_scalar_tendency)) then
+       allocate(block_scalar_tendency(n_local))
+       block_scalar_tendency_allocations = &
+            block_scalar_tendency_allocations + 1_int64
+    end if
+    do index = 1,n_local
+       b = local_block_catalog(index)
+       patch_count = local_block_patch_count(b)
+       count = patch_count*block_writeback_plan%scalar_patch_nvalue
+       if (allocated(block_scalar_tendency(index)%patch)) then
+          if (block_scalar_tendency(index)%catalog_index /= b .or. &
+               size(block_scalar_tendency(index)%patch) /= &
+               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*count) then
+             deallocate(block_scalar_tendency(index)%patch)
+          end if
+       end if
+       if (allocated(block_scalar_tendency(index)%covered)) then
+          if (block_scalar_tendency(index)%catalog_index /= b .or. &
+               size(block_scalar_tendency(index)%covered) /= count) then
+             deallocate(block_scalar_tendency(index)%covered)
+          end if
+       end if
+       if (.not. allocated(block_scalar_tendency(index)%patch)) then
+          allocate(block_scalar_tendency(index)%patch( &
+               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*count))
+          block_scalar_tendency_allocations = &
+               block_scalar_tendency_allocations + 1_int64
+       end if
+       if (.not. allocated(block_scalar_tendency(index)%covered)) then
+          allocate(block_scalar_tendency(index)%covered(count))
+          block_scalar_tendency_allocations = &
+               block_scalar_tendency_allocations + 1_int64
+       end if
+       block_scalar_tendency(index)%catalog_index = b
+       block_scalar_tendency(index)%installed_patch_count = 0
+       block_scalar_tendency(index)%ready = .false.
+       block_scalar_tendency(index)%patch = 0.0_dp
+       block_scalar_tendency(index)%covered = .false.
+    end do
+
+    block_scalar_divergence_plan%recv_buffer = 0.0_dp
+    block_scalar_divergence_plan%send_buffer = 0.0_dp
+    block_scalar_divergence_plan%recv_covered = .false.
+    block_scalar_divergence_plan%ready = .false.
+    block_scalar_divergence_plan%active = .true.
+
+  contains
+
+    subroutine prepare_scalar_divergence_plan
+
+      implicit none
+
+      integer :: n_recv
+      integer :: n_send
+
+      if (block_scalar_divergence_plan%generation == &
+           block_writeback_plan_generation) return
+
+      if (allocated(block_scalar_divergence_plan%send_count)) &
+           deallocate(block_scalar_divergence_plan%send_count)
+      if (allocated(block_scalar_divergence_plan%recv_count)) &
+           deallocate(block_scalar_divergence_plan%recv_count)
+      if (allocated(block_scalar_divergence_plan%send_displ)) &
+           deallocate(block_scalar_divergence_plan%send_displ)
+      if (allocated(block_scalar_divergence_plan%recv_displ)) &
+           deallocate(block_scalar_divergence_plan%recv_displ)
+      if (allocated(block_scalar_divergence_plan%send_buffer)) &
+           deallocate(block_scalar_divergence_plan%send_buffer)
+      if (allocated(block_scalar_divergence_plan%recv_buffer)) &
+           deallocate(block_scalar_divergence_plan%recv_buffer)
+      if (allocated(block_scalar_divergence_plan%recv_covered)) &
+           deallocate(block_scalar_divergence_plan%recv_covered)
+
+      allocate(block_scalar_divergence_plan%send_count(n_process))
+      allocate(block_scalar_divergence_plan%recv_count(n_process))
+      allocate(block_scalar_divergence_plan%send_displ(n_process))
+      allocate(block_scalar_divergence_plan%recv_displ(n_process))
+      block_scalar_divergence_plan%send_count = &
+           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+           block_writeback_plan%scalar_send_count
+      block_scalar_divergence_plan%recv_count = &
+           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+           block_writeback_plan%scalar_recv_count
+      block_scalar_divergence_plan%send_displ = &
+           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+           block_writeback_plan%scalar_send_displ
+      block_scalar_divergence_plan%recv_displ = &
+           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+           block_writeback_plan%scalar_recv_displ
+      n_send = sum(block_scalar_divergence_plan%send_count)
+      n_recv = sum(block_scalar_divergence_plan%recv_count)
+      allocate(block_scalar_divergence_plan%send_buffer(n_send))
+      allocate(block_scalar_divergence_plan%recv_buffer(n_recv))
+      allocate(block_scalar_divergence_plan%recv_covered( &
+           sum(block_writeback_plan%scalar_recv_count)))
+      block_scalar_divergence_plan%allocations = &
+           block_scalar_divergence_plan%allocations + 7_int64
+      block_scalar_divergence_plan%generation = &
+           block_writeback_plan_generation
+
+    end subroutine prepare_scalar_divergence_plan
+
+  end subroutine begin_block_scalar_divergence_capture
+
+
+  subroutine capture_block_scalar_divergence_level ( &
+       scalar_id,field_level,grid_level)
+    ! Capture the completed authoritative flux stencil while horiz_flux
+    ! still represents this physical level. No communication occurs here.
+
+    implicit none
+
+    integer, intent(in) :: scalar_id
+    integer, intent(in) :: field_level
+    integer, intent(in) :: grid_level
 
     integer :: b
     integer :: d
+    integer :: first_field_level
+    integer :: level_slot
     integer :: local_index
-    integer :: local_patch
-    integer :: n_local
-    integer :: n_patch
-    integer :: pos_scalar
-    integer :: pos_vector
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: patch_index
     integer :: r
-    integer :: source
+    integer :: sample_start
+    integer :: scalar_slot
     integer :: slot
+    integer :: v_scalar
+    integer :: v_vector
 
-    integer(int64) :: allocation_after
-    integer(int64) :: allocation_before
+    if (.not. block_scalar_divergence_plan%active) return
 
-    n_local = n_local_blocks()
-    allocation_before = block_scalar_tendency_allocations
-    call prepare_scalar_tendency_storage(n_local)
-    if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer) .or. &
-         .not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
-       call fail("scalar-tendency retained patch buffers are absent")
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    scalar_slot = scalar_id-v_scalar+1
+    level_slot = field_level-first_field_level+1
+    if (scalar_slot < 1 .or. scalar_slot > n_scalar_variable .or. &
+         level_slot < 1 .or. level_slot > n_field_level .or. &
+         mult_scalar /= 1 .or. mult_vector /= EDGE) then
+       call fail("scalar-divergence capture field layout is invalid")
     end if
-    do local_index = 1,n_local
-       block_scalar_tendency(local_index)%ready = .false.
-       block_scalar_tendency(local_index)%installed_patch_count = 0
-       block_scalar_tendency(local_index)%patch = 0.0_dp
-    end do
 
-    do local_index = 1,n_local
+    do local_index = 1,n_local_blocks()
        b = local_block_catalog(local_index)
-       source = source_rank(b)
-       if (source /= rank) cycle
+       if (source_rank(b) /= rank) cycle
        d = loc_id(block_catalog(b)%root_domain+1) + 1
        if (d < 1 .or. d > size(grid)) then
-          call fail("retained scalar-tendency Domain is invalid")
+          call fail("retained scalar-divergence Domain is invalid")
        end if
-       local_patch = 0
-       call install_retained_subtree( &
-            d,block_catalog(b)%root_patch,b,local_patch)
-       n_patch = local_block_patch_count(b)
-       if (local_patch /= n_patch) then
-          call fail("retained scalar-tendency coverage is incomplete")
+       patch_index = 0
+       call capture_subtree( &
+            d,block_catalog(b)%root_patch,b,patch_index,1,local_index)
+       if (patch_index /= local_block_patch_count(b)) then
+          call fail("retained scalar-divergence traversal is incomplete")
        end if
     end do
 
     do r = 1,n_process
-       pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
-       pos_vector = block_writeback_plan%vector_send_displ(r) + 1
-       do slot = block_writeback_plan%send_displ(r)+1, &
-            block_writeback_plan%send_displ(r) + &
-            block_writeback_plan%send_count(r)
-          b = block_writeback_plan%send_block(slot)
-          n_patch = local_block_patch_count(b)
-          do local_patch = 0,n_patch-1
-             if (pos_scalar < 1 .or. pos_scalar + &
-                  block_writeback_plan%scalar_patch_nvalue - 1 > &
-                  size(block_writeback_plan%scalar_send_buffer) .or. &
-                  pos_vector < 1 .or. pos_vector + &
-                  block_writeback_plan%vector_patch_nvalue - 1 > &
-                  size(block_writeback_plan%vector_send_buffer)) then
-                call fail("remote scalar-tendency payload is truncated")
-             end if
-             call install_scalar_tendency_patch( &
-                  b,local_patch,block_writeback_plan%scalar_send_buffer( &
-                  pos_scalar:pos_scalar+ &
-                  block_writeback_plan%scalar_patch_nvalue-1))
-             pos_scalar = pos_scalar + &
-                  block_writeback_plan%scalar_patch_nvalue
-             pos_vector = pos_vector + &
-                  block_writeback_plan%vector_patch_nvalue
-          end do
+       sample_start = block_writeback_plan%scalar_recv_displ(r) + 1
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r) + &
+            block_writeback_plan%recv_count(r)
+          b = block_writeback_plan%recv_block(slot)
+          if (source_rank(b) /= rank) then
+             call fail("remote scalar-divergence source is invalid")
+          end if
+          d = loc_id(block_catalog(b)%root_domain+1) + 1
+          if (d < 1 .or. d > size(grid)) then
+             call fail("remote scalar-divergence Domain is invalid")
+          end if
+          patch_index = 0
+          call capture_subtree( &
+               d,block_catalog(b)%root_patch,b,patch_index, &
+               sample_start,0)
+          if (patch_index /= &
+               block_writeback_plan%recv_patch_count(slot)) then
+             call fail("remote scalar-divergence traversal is incomplete")
+          end if
+          sample_start = sample_start + &
+               block_writeback_plan%recv_scalar_nvalue(slot)
        end do
-       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
-            block_writeback_plan%scalar_send_count(r) + 1 .or. &
-            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
-            block_writeback_plan%vector_send_count(r) + 1) then
-          call fail("remote scalar-tendency receive extent mismatch")
+       if (sample_start /= &
+            block_writeback_plan%scalar_recv_displ(r) + &
+            block_writeback_plan%scalar_recv_count(r) + 1) then
+          call fail("scalar-divergence capture extent mismatch")
        end if
     end do
-
-    do local_index = 1,n_local
-       b = local_block_catalog(local_index)
-       n_patch = local_block_patch_count(b)
-       if (block_scalar_tendency(local_index)%catalog_index /= b .or. &
-            block_scalar_tendency(local_index)%installed_patch_count /= &
-            n_patch) then
-          call fail("scalar-tendency installation coverage differs")
-       end if
-       block_scalar_tendency(local_index)%ready = .true.
-    end do
-
-    allocation_after = block_scalar_tendency_allocations
-    if (allocation_after < allocation_before) then
-       call fail("scalar-tendency allocation counter regressed")
-    end if
-    call prepare_scalar_tendency_storage(n_local)
-    if (block_scalar_tendency_allocations /= allocation_after) then
-       call fail("scalar-tendency storage was not reusable")
-    end if
 
   contains
 
-    subroutine prepare_scalar_tendency_storage (n_block)
-
-      implicit none
-
-      integer, intent(in) :: n_block
-
-      integer :: catalog_index
-      integer :: count
-      integer :: index
-      integer :: patch_count
-
-      if (allocated(block_scalar_tendency)) then
-         if (size(block_scalar_tendency) /= n_block) then
-            deallocate(block_scalar_tendency)
-         end if
-      end if
-      if (.not. allocated(block_scalar_tendency)) then
-         allocate(block_scalar_tendency(n_block))
-         block_scalar_tendency_allocations = &
-              block_scalar_tendency_allocations + 1_int64
-      end if
-
-      do index = 1,n_block
-         catalog_index = local_block_catalog(index)
-         patch_count = local_block_patch_count(catalog_index)
-         count = patch_count*block_writeback_plan%scalar_patch_nvalue
-         if (allocated(block_scalar_tendency(index)%patch)) then
-            if (block_scalar_tendency(index)%catalog_index /= &
-                 catalog_index .or. &
-                 size(block_scalar_tendency(index)%patch) /= count) then
-               deallocate(block_scalar_tendency(index)%patch)
-            end if
-         end if
-         if (.not. allocated(block_scalar_tendency(index)%patch)) then
-            allocate(block_scalar_tendency(index)%patch(count))
-            block_scalar_tendency_allocations = &
-                 block_scalar_tendency_allocations + 1_int64
-         end if
-         block_scalar_tendency(index)%catalog_index = catalog_index
-      end do
-
-    end subroutine prepare_scalar_tendency_storage
-
-
-    subroutine install_scalar_tendency_patch ( &
-         catalog_index,patch_index,value)
-
-      implicit none
-
-      integer, intent(in) :: catalog_index
-      integer, intent(in) :: patch_index
-      real(dp), intent(in) :: value(:)
-
-      integer :: first
-      integer :: index
-      integer :: patch_count
-
-      index = catalog_local_block(catalog_index)
-      if (index < 1 .or. index > size(block_scalar_tendency)) then
-         call fail("scalar-tendency local block is invalid")
-      end if
-      patch_count = local_block_patch_count(catalog_index)
-      if (patch_index < 0 .or. patch_index >= patch_count) then
-         call fail("scalar-tendency local patch is invalid")
-      end if
-      if (size(value) /= block_writeback_plan%scalar_patch_nvalue) then
-         call fail("scalar-tendency patch extent is invalid")
-      end if
-      first = patch_index*block_writeback_plan%scalar_patch_nvalue + 1
-      if (first < 1 .or. first+size(value)-1 > &
-           size(block_scalar_tendency(index)%patch)) then
-         call fail("scalar-tendency storage extent is invalid")
-      end if
-      block_scalar_tendency(index)%patch( &
-           first:first+size(value)-1) = value
-      block_scalar_tendency(index)%installed_patch_count = &
-           block_scalar_tendency(index)%installed_patch_count + 1
-
-    end subroutine install_scalar_tendency_patch
-
-
-    recursive subroutine install_retained_subtree ( &
-         d,p,catalog_index,patch_index)
+    recursive subroutine capture_subtree ( &
+         d,p,b,patch_index,block_sample_start,storage_index)
 
       implicit none
 
       integer, intent(in) :: d
       integer, intent(in) :: p
-      integer, intent(in) :: catalog_index
+      integer, intent(in) :: b
       integer, intent(inout) :: patch_index
+      integer, intent(in) :: block_sample_start
+      integer, intent(in) :: storage_index
 
       integer :: c
       integer :: child
-      integer :: scalar_pos
-      integer :: vector_pos
 
       if (p < 0 .or. p >= grid(d)%patch%length) then
-         call fail("retained scalar-tendency patch is invalid")
+         call fail("scalar-divergence capture patch is invalid")
       end if
       if (grid(d)%patch%elts(p+1)%deleted) return
 
-      scalar_pos = 1
-      vector_pos = 1
-      call pack_domain_patch_prognostic( &
-           d,p,BLOCK_PAYLOAD_PHYSICAL_COMPONENTS, &
-           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
-           ghost_exchange_plan%vector_patch_buffer,vector_pos,domain_sol)
-      if (scalar_pos /= &
-           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
-           vector_pos /= &
-           size(ghost_exchange_plan%vector_patch_buffer)+1) then
-         call fail("retained scalar-tendency payload extent differs")
+      if (grid(d)%patch%elts(p+1)%level == grid_level) then
+         call capture_patch( &
+              d,p,b,patch_index,block_sample_start,storage_index)
       end if
-      call install_scalar_tendency_patch( &
-           catalog_index,patch_index, &
-           ghost_exchange_plan%scalar_patch_buffer)
       patch_index = patch_index + 1
 
       do c = 1,N_CHDRN
          child = grid(d)%patch%elts(p+1)%children(c)
          if (child <= 0) cycle
-         call install_retained_subtree( &
-              d,child,catalog_index,patch_index)
+         call capture_subtree( &
+              d,child,b,patch_index,block_sample_start,storage_index)
       end do
 
-    end subroutine install_retained_subtree
+    end subroutine capture_subtree
 
-  end subroutine refresh_candidate_block_scalar_tendency
+
+    subroutine capture_patch ( &
+         d,p,b,patch_index,block_sample_start,storage_index)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: b
+      integer, intent(in) :: patch_index
+      integer, intent(in) :: block_sample_start
+      integer, intent(in) :: storage_index
+
+      integer :: data_start
+      integer :: dims(2,N_BDRY+1)
+      integer :: i
+      integer :: id
+      integer :: id_s
+      integer :: id_sw
+      integer :: id_w
+      integer :: j
+      integer :: offs(N_BDRY+1)
+      integer :: q
+      integer :: sample
+      integer :: source_start
+
+      real(dp) :: value(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+
+      call get_offs_Domain(grid(d),p,offs,dims)
+      source_start = grid(d)%patch%elts(p+1)%elts_start
+      do q = 0,PATCH_SIZE**2-1
+         i = mod(q,PATCH_SIZE)
+         j = q/PATCH_SIZE
+         id = idx(i,j,offs,dims)
+         id_w = idx(i-1,j,offs,dims)
+         id_sw = idx(i-1,j-1,offs,dims)
+         id_s = idx(i,j-1,offs,dims)
+         if (id /= source_start+q) then
+            call fail("scalar-divergence centre index differs")
+         end if
+         value(1) = horiz_flux(scalar_id)%data(d)%elts( &
+              EDGE*id+RT+1)
+         value(2) = horiz_flux(scalar_id)%data(d)%elts( &
+              EDGE*id_w+RT+1)
+         value(3) = horiz_flux(scalar_id)%data(d)%elts( &
+              EDGE*id_sw+DG+1)
+         value(4) = horiz_flux(scalar_id)%data(d)%elts( &
+              EDGE*id+DG+1)
+         value(5) = horiz_flux(scalar_id)%data(d)%elts( &
+              EDGE*id+UP+1)
+         value(6) = horiz_flux(scalar_id)%data(d)%elts( &
+              EDGE*id_s+UP+1)
+         value(7) = grid(d)%areas%elts(id+1)%hex_inv
+         value(8) = merge( &
+              1.0_dp,0.0_dp,grid(d)%mask_n%elts(id+1) >= TRSK)
+         sample = block_sample_start + &
+              patch_index*block_writeback_plan%scalar_patch_nvalue + &
+              ((scalar_slot-1)*n_field_level + level_slot-1)* &
+              PATCH_SIZE**2 + q
+         if (storage_index > 0) then
+            if (storage_index > size(block_scalar_tendency) .or. &
+                 sample < 1 .or. sample > &
+                 size(block_scalar_tendency(storage_index)%covered)) then
+               call fail("retained scalar-divergence index is invalid")
+            end if
+            data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                 (sample-1) + 1
+            block_scalar_tendency(storage_index)%patch( &
+                 data_start:data_start+ &
+                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = value
+            block_scalar_tendency(storage_index)%covered(sample) = .true.
+         else
+            if (sample < 1 .or. &
+                 sample > size(block_scalar_divergence_plan%recv_covered)) &
+                 then
+               call fail("remote scalar-divergence index is invalid")
+            end if
+            data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                 (sample-1) + 1
+            block_scalar_divergence_plan%recv_buffer( &
+                 data_start:data_start+ &
+                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = value
+            block_scalar_divergence_plan%recv_covered(sample) = .true.
+         end if
+
+      end do
+
+    end subroutine capture_patch
+
+  end subroutine capture_block_scalar_divergence_level
+
+
+  subroutine finalize_block_scalar_divergence_capture
+    ! Transfer the completed multilevel scalar-flux stencils once and make
+    ! every final-owner input ready for the rejected block-native kernel.
+
+    implicit none
+
+    integer :: b
+    integer :: data_count
+    integer :: data_start
+    integer :: ierr
+    integer :: local_index
+    integer :: r
+    integer :: slot
+
+    integer(int64) :: allocation_before
+
+    if (.not. block_scalar_divergence_plan%active) then
+       call fail("scalar-divergence finalize without active capture")
+    end if
+    call complete_uncaptured_scalar_divergence_coverage
+    if (.not. all(block_scalar_divergence_plan%recv_covered)) then
+       call fail("scalar-divergence Domain capture is incomplete")
+    end if
+
+    allocation_before = block_scalar_divergence_plan%allocations
+    call MPI_Alltoallv( &
+         block_scalar_divergence_plan%recv_buffer, &
+         block_scalar_divergence_plan%recv_count, &
+         block_scalar_divergence_plan%recv_displ, &
+         MPI_DOUBLE_PRECISION, &
+         block_scalar_divergence_plan%send_buffer, &
+         block_scalar_divergence_plan%send_count, &
+         block_scalar_divergence_plan%send_displ, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar-divergence input")
+
+    do r = 1,n_process
+       data_start = block_scalar_divergence_plan%send_displ(r) + 1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          local_index = catalog_local_block(b)
+          if (local_index < 1 .or. &
+               local_index > size(block_scalar_tendency)) then
+             call fail("scalar-divergence received block is invalid")
+          end if
+          data_count = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+               block_writeback_plan%send_scalar_nvalue(slot)
+          if (data_start < 1 .or. data_start+data_count-1 > &
+               size(block_scalar_divergence_plan%send_buffer) .or. &
+               data_count /= &
+               size(block_scalar_tendency(local_index)%patch)) then
+             call fail("scalar-divergence received extent is invalid")
+          end if
+          block_scalar_tendency(local_index)%patch = &
+               block_scalar_divergence_plan%send_buffer( &
+               data_start:data_start+data_count-1)
+          block_scalar_tendency(local_index)%covered = .true.
+          data_start = data_start + data_count
+       end do
+       if (data_start /= block_scalar_divergence_plan%send_displ(r) + &
+            block_scalar_divergence_plan%send_count(r) + 1) then
+          call fail("scalar-divergence receive extent mismatch")
+       end if
+    end do
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       if (.not. all(block_scalar_tendency(local_index)%covered)) then
+          call fail("scalar-divergence block coverage is incomplete")
+       end if
+       block_scalar_tendency(local_index)%installed_patch_count = &
+            local_block_patch_count(b)
+       block_scalar_tendency(local_index)%ready = .true.
+    end do
+    if (block_scalar_divergence_plan%allocations /= allocation_before) then
+       call fail("scalar-divergence finalize reallocated transport")
+    end if
+    block_scalar_divergence_plan%active = .false.
+    block_scalar_divergence_plan%ready = .true.
+
+  end subroutine finalize_block_scalar_divergence_capture
+
+
+  subroutine complete_uncaptured_scalar_divergence_coverage
+      ! Complete only records outside the horizontal/vertical levels visited
+      ! by trend_ml. Where an authoritative Domain tendency exists, it must
+      ! remain exactly zero. Missing production coverage is still an error.
+
+      implicit none
+
+      integer :: b
+      integer :: d
+      integer :: first_field_level
+      integer :: local_index
+      integer :: mult_scalar
+      integer :: mult_vector
+      integer :: n_field_level
+      integer :: n_scalar_variable
+      integer :: patch_index
+      integer :: r
+      integer :: sample_start
+      integer :: slot
+      integer :: v_scalar
+      integer :: v_vector
+
+      call get_block_field_layout( &
+           v_scalar,n_scalar_variable,v_vector,first_field_level, &
+           n_field_level,mult_scalar,mult_vector)
+      if (mult_scalar /= 1 .or. mult_vector /= EDGE .or. &
+           n_scalar_variable < 1 .or. n_field_level < 1 .or. &
+           v_scalar < 1 .or. v_vector < 1) then
+         call fail("uncaptured scalar-divergence layout is invalid")
+      end if
+
+      do local_index = 1,n_local_blocks()
+         b = local_block_catalog(local_index)
+         if (source_rank(b) /= rank) cycle
+         d = loc_id(block_catalog(b)%root_domain+1) + 1
+         if (d < 1 .or. d > size(grid)) then
+            call fail("uncaptured scalar-divergence Domain is invalid")
+         end if
+         patch_index = 0
+         call complete_subtree( &
+              d,block_catalog(b)%root_patch,patch_index,1,local_index)
+         if (patch_index /= local_block_patch_count(b)) then
+            call fail( &
+                 "uncaptured scalar-divergence traversal is incomplete")
+         end if
+      end do
+
+      do r = 1,n_process
+         sample_start = block_writeback_plan%scalar_recv_displ(r) + 1
+         do slot = block_writeback_plan%recv_displ(r)+1, &
+              block_writeback_plan%recv_displ(r) + &
+              block_writeback_plan%recv_count(r)
+            b = block_writeback_plan%recv_block(slot)
+            if (source_rank(b) /= rank) then
+               call fail( &
+                    "uncaptured scalar-divergence source is invalid")
+            end if
+            d = loc_id(block_catalog(b)%root_domain+1) + 1
+            if (d < 1 .or. d > size(grid)) then
+               call fail( &
+                    "remote uncaptured scalar-divergence Domain is invalid")
+            end if
+            patch_index = 0
+            call complete_subtree( &
+                 d,block_catalog(b)%root_patch,patch_index, &
+                 sample_start,0)
+            if (patch_index /= &
+                 block_writeback_plan%recv_patch_count(slot)) then
+               call fail( &
+                    "remote uncaptured scalar-divergence traversal is incomplete")
+            end if
+            sample_start = sample_start + &
+                 block_writeback_plan%recv_scalar_nvalue(slot)
+         end do
+      end do
+
+    contains
+
+      recursive subroutine complete_subtree ( &
+           d,p,patch_index,block_sample_start,storage_index)
+
+        implicit none
+
+        integer, intent(in) :: d
+        integer, intent(in) :: p
+        integer, intent(inout) :: patch_index
+        integer, intent(in) :: block_sample_start
+        integer, intent(in) :: storage_index
+
+        integer :: c
+        integer :: child
+
+        if (p < 0 .or. p >= grid(d)%patch%length) then
+           call fail("uncaptured scalar-divergence patch is invalid")
+        end if
+        if (grid(d)%patch%elts(p+1)%deleted) return
+
+        call complete_patch( &
+             d,p,patch_index,block_sample_start,storage_index)
+        patch_index = patch_index + 1
+
+        do c = 1,N_CHDRN
+           child = grid(d)%patch%elts(p+1)%children(c)
+           if (child <= 0) cycle
+           call complete_subtree( &
+                d,child,patch_index,block_sample_start,storage_index)
+        end do
+
+      end subroutine complete_subtree
+
+
+      subroutine complete_patch ( &
+           d,p,patch_index,block_sample_start,storage_index)
+
+        implicit none
+
+        integer, intent(in) :: d
+        integer, intent(in) :: p
+        integer, intent(in) :: patch_index
+        integer, intent(in) :: block_sample_start
+        integer, intent(in) :: storage_index
+
+        integer :: data_start
+        integer :: field_level
+        integer :: level_slot
+        integer :: node
+        integer :: q
+        integer :: sample
+        integer :: scalar_id
+        integer :: scalar_slot
+
+        logical :: horizontal_integrated
+        logical :: physical_level
+
+        horizontal_integrated = &
+             grid(d)%patch%elts(p+1)%level >= level_start .and. &
+             grid(d)%patch%elts(p+1)%level <= level_end
+
+        do scalar_slot = 1,n_scalar_variable
+           scalar_id = v_scalar + scalar_slot - 1
+           do level_slot = 1,n_field_level
+              field_level = first_field_level + level_slot - 1
+              physical_level = &
+                   field_level >= 1 .and. field_level <= zlevels
+              if (horizontal_integrated .and. physical_level) cycle
+              do q = 0,PATCH_SIZE**2-1
+                 node = grid(d)%patch%elts(p+1)%elts_start + q
+                 if (physical_level) then
+                    if (node < 0 .or. node >= &
+                         size(trend(scalar_id,field_level)%data(d)%elts)) &
+                         then
+                       call fail( &
+                            "nonintegrated scalar tendency extent is invalid")
+                    end if
+                    if (abs(trend(scalar_id,field_level)% &
+                         data(d)%elts(node+1)) > 0.0_dp) then
+                       call fail( &
+                            "nonintegrated scalar tendency is not zero")
+                    end if
+                 end if
+                 sample = block_sample_start + &
+                      patch_index* &
+                      block_writeback_plan%scalar_patch_nvalue + &
+                      ((scalar_slot-1)*n_field_level + level_slot-1)* &
+                      PATCH_SIZE**2 + q
+                 data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                      (sample-1) + 1
+                 if (storage_index > 0) then
+                    if (sample < 1 .or. sample > &
+                         size(block_scalar_tendency(storage_index)% &
+                         covered)) then
+                       call fail( &
+                            "retained nonintegrated scalar index is invalid")
+                    end if
+                    block_scalar_tendency(storage_index)%patch( &
+                         data_start:data_start+ &
+                         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = 0.0_dp
+                    block_scalar_tendency(storage_index)% &
+                         covered(sample) = .true.
+                 else
+                    if (sample < 1 .or. sample > &
+                         size(block_scalar_divergence_plan%recv_covered)) &
+                         then
+                       call fail( &
+                            "remote nonintegrated scalar index is invalid")
+                    end if
+                    block_scalar_divergence_plan%recv_buffer( &
+                         data_start:data_start+ &
+                         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = 0.0_dp
+                    block_scalar_divergence_plan% &
+                         recv_covered(sample) = .true.
+                 end if
+              end do
+           end do
+        end do
+
+      end subroutine complete_patch
+
+  end subroutine complete_uncaptured_scalar_divergence_coverage
+
+
 
 
   subroutine evaluate_candidate_block_exner_shadow ( &
@@ -16519,6 +16949,8 @@ end subroutine build_parallel_block_catalog
     real(dp) :: mass_center
     real(dp) :: mass_neighbor
     real(dp) :: remainder_value
+    real(dp) :: scalar_divergence
+    real(dp) :: scalar_input(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
     real(dp) :: theta_center
     real(dp) :: theta_neighbor
 
@@ -16593,7 +17025,7 @@ end subroutine build_parallel_block_catalog
              call fail("complete physical scalar tendency is stale")
           end if
           if (size(block_scalar_tendency(local_index)%patch) /= &
-               size(block%patch)* &
+               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*size(block%patch)* &
                block_writeback_plan%scalar_patch_nvalue) then
              call fail("complete physical scalar extent is invalid")
           end if
@@ -16617,16 +17049,35 @@ end subroutine build_parallel_block_catalog
                            center_node + 1
                       if (scalar_storage_index < 1 .or. &
                            scalar_storage_index > &
-                           size(block_scalar_tendency(local_index)%patch) &
+                           size(block_scalar_tendency(local_index)%covered) &
                            .or. scalar_output_index < 1 .or. &
                            scalar_output_index > &
                            size(scalar_tendency)) then
                          call fail( &
                               "complete physical scalar index is invalid")
                       end if
-                      scalar_tendency(scalar_output_index) = &
+                      if (.not. block_scalar_tendency(local_index)% &
+                           covered(scalar_storage_index)) then
+                         call fail( &
+                              "complete physical scalar input is incomplete")
+                      end if
+                      remainder_index = &
+                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                           (scalar_storage_index-1) + 1
+                      scalar_input = &
                            block_scalar_tendency(local_index)%patch( &
-                           scalar_storage_index)
+                           remainder_index:remainder_index+ &
+                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                      scalar_divergence = &
+                           (scalar_input(1)-scalar_input(2) + &
+                           scalar_input(3)-scalar_input(4) + &
+                           scalar_input(5)-scalar_input(6))* &
+                           scalar_input(7)
+                      scalar_tendency(scalar_output_index) = 0.0_dp
+                      if (scalar_input(8) > 0.5_dp) then
+                         scalar_tendency(scalar_output_index) = &
+                              -scalar_divergence
+                      end if
                       statistics%scalar_sample_count = &
                            statistics%scalar_sample_count + 1_int64
                    end do
@@ -16696,6 +17147,10 @@ end subroutine build_parallel_block_catalog
                    if (field_level > zlevels) then
                       call fail("Exner-difference field level is invalid")
                    end if
+                   metric_index = (p-1)* &
+                        block_writeback_plan%vector_patch_nvalue + &
+                        (level_slot-1)*EDGE*PATCH_SIZE**2 + &
+                        EDGE*q + component_slot
                    exner_center = block_dynamic_exner( &
                         STORE_PATCH,center_node,field_level)
                    exner_neighbor = block_dynamic_exner( &
@@ -16735,10 +17190,6 @@ end subroutine build_parallel_block_catalog
                          call fail( &
                               "complete Exner-gradient metric is not ready")
                       end if
-                      metric_index = (p-1)* &
-                           block_writeback_plan%vector_patch_nvalue + &
-                           (level_slot-1)*EDGE*PATCH_SIZE**2 + &
-                           EDGE*q + component_slot
                       if (metric_index < 1 .or. metric_index > &
                            size(block_edge_metric(local_index)%patch)) then
                          call fail( &

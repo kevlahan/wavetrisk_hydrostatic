@@ -11,7 +11,9 @@ module time_integr_mod
   use multi_level_mod,   only : trend_ml
   use parallel_block_mpi_mod, only : &
        begin_block_domain_multistage_candidate_stage, &
+       begin_block_scalar_divergence_capture, &
        capture_block_domain_multistage_candidate_tendency, &
+       finalize_block_scalar_divergence_capture, &
        accept_block_domain_multistage_candidate, &
        parallel_block_state_is_ready, &
        refresh_parallel_block_candidate_boundary_state, &
@@ -124,8 +126,10 @@ contains
        end if
     end if
 
-    call routine (q, trend) 
+    if (block_candidate) call begin_block_scalar_divergence_capture
+    call routine (q, trend)
     if (block_candidate) then
+       call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(1,3,q)
        call begin_block_domain_multistage_candidate_stage(h/3,1,3)
     end if
@@ -136,8 +140,10 @@ contains
        call refresh_parallel_block_candidate_boundary_state(q1,1,3)
     end if
 
-    call routine (q1, trend) 
+    if (block_candidate) call begin_block_scalar_divergence_capture
+    call routine (q1, trend)
     if (block_candidate) then
+       call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(2,3,q1)
        call begin_block_domain_multistage_candidate_stage(h/2,2,3)
     end if
@@ -148,8 +154,10 @@ contains
        call refresh_parallel_block_candidate_boundary_state(q1,2,3)
     end if
 
-    call routine (q1, trend) 
+    if (block_candidate) call begin_block_scalar_divergence_capture
+    call routine (q1, trend)
     if (block_candidate) then
+       call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(3,3,q1)
        call begin_block_domain_multistage_candidate_stage(h,3,3)
     end if
@@ -189,8 +197,10 @@ contains
        end if
     end if
 
-    call routine (q, trend) 
+    if (block_candidate) call begin_block_scalar_divergence_capture
+    call routine (q, trend)
     if (block_candidate) then
+       call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(1,4,q)
        call begin_block_domain_multistage_candidate_stage(h/4,1,4)
     end if
@@ -201,8 +211,10 @@ contains
        call refresh_parallel_block_candidate_boundary_state(q1,1,4)
     end if
 
-    call routine (q1, trend) 
+    if (block_candidate) call begin_block_scalar_divergence_capture
+    call routine (q1, trend)
     if (block_candidate) then
+       call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(2,4,q1)
        call begin_block_domain_multistage_candidate_stage(h/3,2,4)
     end if
@@ -213,8 +225,10 @@ contains
        call refresh_parallel_block_candidate_boundary_state(q1,2,4)
     end if
 
-    call routine (q1, trend) 
+    if (block_candidate) call begin_block_scalar_divergence_capture
+    call routine (q1, trend)
     if (block_candidate) then
+       call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(3,4,q1)
        call begin_block_domain_multistage_candidate_stage(h/2,3,4)
     end if
@@ -225,8 +239,10 @@ contains
        call refresh_parallel_block_candidate_boundary_state(q1,3,4)
     end if
 
-    call routine (q1, trend) 
+    if (block_candidate) call begin_block_scalar_divergence_capture
+    call routine (q1, trend)
     if (block_candidate) then
+       call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(4,4,q1)
        call begin_block_domain_multistage_candidate_stage(h,4,4)
     end if

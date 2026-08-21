@@ -13,6 +13,8 @@ module multi_level_mod
   use init_mod,        only : u_source    
   use ops_mod,         only : du_grad, du_source, post_step1, scalar_trend, step1
   use patch_mod,       only : PATCH_SIZE
+  use parallel_block_mpi_mod, only : &
+       capture_block_scalar_divergence_level
   use utils_mod,       only : zero_float
   
   use domain_mod, only : Domain, Float_Field, grid, bernoulli, exner, exner_fun, ke, qe, mean_m, mean_t, sol, sol_mean, &
@@ -149,6 +151,9 @@ contains
           end do
           nullify (dscalar, h_flux)
        end do
+    end do
+    do v = scalars(1),scalars(2)
+       call capture_block_scalar_divergence_level(v,k,l)
     end do
     dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
   end subroutine cal_scalar_trend

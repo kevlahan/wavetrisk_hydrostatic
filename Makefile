@@ -385,6 +385,9 @@ $(BUILD_DIR)/parallel_block_build.o: \
 	$(BUILD_DIR)/domain.o \
 	$(BUILD_DIR)/parallel_block.o
 
+$(BUILD_DIR)/multi_level.o: \
+	$(BUILD_DIR)/parallel_block_mpi.o
+
 $(BUILD_DIR)/time_integr.o: \
 	$(BUILD_DIR)/parallel_block_mpi.o
 
