@@ -142,6 +142,10 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_THETA_EDGE = 4
   integer, parameter :: BLOCK_PAYLOAD_EXNER_DIFFERENCE = 5
   integer, parameter :: BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT = 6
+  integer, parameter :: BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT = 7
+  integer, parameter :: BLOCK_PAYLOAD_EDGE_LENGTH = 8
+  integer, parameter :: BLOCK_PAYLOAD_VELOCITY_REMAINDER = 9
+  integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
        -0.125_dp*huge(0.0_dp)
   real(dp), parameter :: BLOCK_PATCH_POISON = &
@@ -292,6 +296,7 @@ module parallel_block_mpi_mod
   type(Block_Writeback_Plan_Type), save :: block_writeback_plan
 
   integer(int64), save :: production_grid_reconstruction_count = 0_int64
+  integer(int64), save :: block_writeback_plan_generation = 0_int64
   integer, save :: production_multistage_candidate_stage = 0
   integer, save :: production_multistage_candidate_stage_count = 0
   integer, save :: production_multistage_captured_tendency_stage = 0
@@ -376,7 +381,32 @@ module parallel_block_mpi_mod
      integer(int64) :: sample_count = 0_int64
      real(dp) :: difference_moment(3) = 0.0_dp
      logical :: thermodynamic_product = .false.
+     logical :: metric_division = .false.
+     logical :: velocity_recomposition = .false.
   end type Block_Exner_Difference_Kernel_Context
+
+  type :: Block_Edge_Metric_Storage
+     integer :: catalog_index = 0
+     integer :: installed_patch_count = 0
+     logical :: ready = .false.
+     real(dp), allocatable :: patch(:)
+  end type Block_Edge_Metric_Storage
+
+  type(Block_Edge_Metric_Storage), allocatable, save :: &
+       block_edge_metric(:)
+  integer(int64), save :: block_edge_metric_allocations = 0_int64
+  integer(int64), save :: block_edge_metric_generation = -1_int64
+
+  type :: Block_Velocity_Remainder_Storage
+     integer :: catalog_index = 0
+     integer :: installed_patch_count = 0
+     logical :: ready = .false.
+     real(dp), allocatable :: patch(:)
+  end type Block_Velocity_Remainder_Storage
+
+  type(Block_Velocity_Remainder_Storage), allocatable, save :: &
+       block_velocity_remainder(:)
+  integer(int64), save :: block_velocity_remainder_allocations = 0_int64
 
   type, public :: Block_Two_Stage_Step_Result
      integer(int64) :: scalar_count = 0_int64
@@ -3476,6 +3506,8 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%installed_block_count = n_local_blocks()
     call build_block_domain_boundary_plan
     block_writeback_plan%ready = .true.
+    block_writeback_plan_generation = &
+         block_writeback_plan_generation + 1_int64
 
   end subroutine build_block_writeback_plan
 
@@ -4526,7 +4558,11 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_TREND .and. &
          payload_family /= BLOCK_PAYLOAD_THETA_EDGE .and. &
          payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
-         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT) then
+         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .and. &
+         payload_family /= BLOCK_PAYLOAD_EDGE_LENGTH .and. &
+         payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY) then
        call fail("invalid Domain-to-block payload family")
     end if
 
@@ -6104,6 +6140,7 @@ end subroutine build_parallel_block_catalog
     call evaluate_candidate_block_theta_edge(domain_sol)
     call evaluate_candidate_block_exner_difference(domain_sol)
     call evaluate_candidate_block_thermodynamic_gradient(domain_sol)
+    call evaluate_candidate_block_complete_exner_gradient(domain_sol)
 
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
@@ -6757,7 +6794,7 @@ end subroutine build_parallel_block_catalog
          domain_sol(1:N_VARIABLE,1:zlevels)
 
     call evaluate_candidate_block_exner_shadow( &
-         domain_sol,BLOCK_PAYLOAD_EXNER_DIFFERENCE,.false.)
+         domain_sol,BLOCK_PAYLOAD_EXNER_DIFFERENCE,.false.,.false.)
 
   end subroutine evaluate_candidate_block_exner_difference
 
@@ -6772,13 +6809,594 @@ end subroutine build_parallel_block_catalog
          domain_sol(1:N_VARIABLE,1:zlevels)
 
     call evaluate_candidate_block_exner_shadow( &
-         domain_sol,BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT,.true.)
+         domain_sol,BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT,.true.,.false.)
 
   end subroutine evaluate_candidate_block_thermodynamic_gradient
 
 
+  subroutine refresh_candidate_block_edge_metrics
+    ! Install exact production primal-edge lengths in persistent final-owner
+    ! block storage. The reverse transport and patch layout are the same as
+    ! the tendency imports, but the metric remains read-only and separate.
+
+    implicit none
+
+    integer :: b
+    integer :: d
+    integer :: local_index
+    integer :: local_patch
+    integer :: n_local
+    integer :: n_patch
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: source
+    integer :: slot
+
+    integer(int64) :: allocation_after
+    integer(int64) :: allocation_before
+
+    logical :: storage_current
+
+    n_local = n_local_blocks()
+    storage_current = edge_metric_storage_is_current(n_local)
+    if (storage_current) return
+    allocation_before = block_edge_metric_allocations
+    call prepare_edge_metric_storage(n_local)
+    if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer) .or. &
+         .not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
+       call fail("edge-metric retained patch buffers are not allocated")
+    end if
+    if (block_writeback_plan%scalar_patch_nvalue <= 0 .or. &
+         block_writeback_plan%vector_patch_nvalue <= 0) then
+       call fail("edge-metric patch layout is invalid")
+    end if
+    call exchange_domain_to_block_payloads(BLOCK_PAYLOAD_EDGE_LENGTH)
+
+    do local_index = 1,n_local
+       block_edge_metric(local_index)%ready = .false.
+       block_edge_metric(local_index)%installed_patch_count = 0
+       block_edge_metric(local_index)%patch = 0.0_dp
+    end do
+
+    do local_index = 1,n_local
+       b = local_block_catalog(local_index)
+       source = source_rank(b)
+       if (source /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("retained edge-metric Domain is invalid")
+       end if
+       local_patch = 0
+       call install_retained_subtree( &
+            d,block_catalog(b)%root_patch,b,local_patch)
+       n_patch = local_block_patch_count(b)
+       if (local_patch /= n_patch) then
+          call fail("retained edge-metric coverage is incomplete")
+       end if
+    end do
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+       pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          n_patch = local_block_patch_count(b)
+          do local_patch = 0,n_patch-1
+             if (pos_scalar < 1 .or. pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue - 1 > &
+                  size(block_writeback_plan%scalar_send_buffer) .or. &
+                  pos_vector < 1 .or. pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue - 1 > &
+                  size(block_writeback_plan%vector_send_buffer)) then
+                call fail("remote edge-metric payload is truncated")
+             end if
+             call install_metric_patch( &
+                  b,local_patch,block_writeback_plan%vector_send_buffer( &
+                  pos_vector:pos_vector+ &
+                  block_writeback_plan%vector_patch_nvalue-1))
+             pos_scalar = pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue
+             pos_vector = pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue
+          end do
+       end do
+       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+            block_writeback_plan%scalar_send_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+            block_writeback_plan%vector_send_count(r) + 1) then
+          call fail("remote edge-metric receive extent mismatch")
+       end if
+    end do
+
+    do local_index = 1,n_local
+       b = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(b)
+       if (block_edge_metric(local_index)%catalog_index /= b .or. &
+            block_edge_metric(local_index)%installed_patch_count /= &
+            n_patch) then
+          call fail("edge-metric installation coverage differs")
+       end if
+       block_edge_metric(local_index)%ready = .true.
+    end do
+    block_edge_metric_generation = block_writeback_plan_generation
+
+    allocation_after = block_edge_metric_allocations
+    if (allocation_after < allocation_before) then
+       call fail("edge-metric allocation counter regressed")
+    end if
+    call prepare_edge_metric_storage(n_local)
+    if (block_edge_metric_allocations /= allocation_after) then
+       call fail("edge-metric storage was not reusable")
+    end if
+
+  contains
+
+    logical function edge_metric_storage_is_current (n_block) &
+         result(current)
+
+      implicit none
+
+      integer, intent(in) :: n_block
+
+      integer :: catalog_index
+      integer :: count
+      integer :: index
+
+      current = .false.
+      if (block_edge_metric_generation /= &
+           block_writeback_plan_generation) return
+      if (.not. allocated(block_edge_metric)) return
+      if (size(block_edge_metric) /= n_block) return
+      do index = 1,n_block
+         catalog_index = local_block_catalog(index)
+         count = local_block_patch_count(catalog_index)* &
+              block_writeback_plan%vector_patch_nvalue
+         if (.not. block_edge_metric(index)%ready) return
+         if (block_edge_metric(index)%catalog_index /= catalog_index) return
+         if (.not. allocated(block_edge_metric(index)%patch)) return
+         if (size(block_edge_metric(index)%patch) /= count) return
+      end do
+      current = .true.
+
+    end function edge_metric_storage_is_current
+
+    subroutine prepare_edge_metric_storage (n_block)
+
+      implicit none
+
+      integer, intent(in) :: n_block
+
+      integer :: catalog_index
+      integer :: count
+      integer :: index
+      integer :: patch_count
+
+      if (allocated(block_edge_metric)) then
+         if (size(block_edge_metric) /= n_block) then
+            deallocate(block_edge_metric)
+         end if
+      end if
+      if (.not. allocated(block_edge_metric)) then
+         allocate(block_edge_metric(n_block))
+         block_edge_metric_allocations = &
+              block_edge_metric_allocations + 1_int64
+      end if
+
+      do index = 1,n_block
+         catalog_index = local_block_catalog(index)
+         patch_count = local_block_patch_count(catalog_index)
+         count = patch_count*block_writeback_plan%vector_patch_nvalue
+         if (allocated(block_edge_metric(index)%patch)) then
+            if (block_edge_metric(index)%catalog_index /= catalog_index .or. &
+                 size(block_edge_metric(index)%patch) /= count) then
+               deallocate(block_edge_metric(index)%patch)
+            end if
+         end if
+         if (.not. allocated(block_edge_metric(index)%patch)) then
+            allocate(block_edge_metric(index)%patch(count))
+            block_edge_metric_allocations = &
+                 block_edge_metric_allocations + 1_int64
+         end if
+         block_edge_metric(index)%catalog_index = catalog_index
+      end do
+
+    end subroutine prepare_edge_metric_storage
+
+
+    subroutine install_metric_patch (catalog_index,patch_index,value)
+
+      implicit none
+
+      integer, intent(in) :: catalog_index
+      integer, intent(in) :: patch_index
+      real(dp), intent(in) :: value(:)
+
+      integer :: first
+      integer :: index
+      integer :: patch_count
+
+      index = catalog_local_block(catalog_index)
+      if (index < 1 .or. index > size(block_edge_metric)) then
+         call fail("edge-metric local block is invalid")
+      end if
+      patch_count = local_block_patch_count(catalog_index)
+      if (patch_index < 0 .or. patch_index >= patch_count) then
+         call fail("edge-metric local patch is invalid")
+      end if
+      if (size(value) /= block_writeback_plan%vector_patch_nvalue) then
+         call fail("edge-metric patch extent is invalid")
+      end if
+      first = patch_index*block_writeback_plan%vector_patch_nvalue + 1
+      if (first < 1 .or. &
+           first+size(value)-1 > size(block_edge_metric(index)%patch)) then
+         call fail("edge-metric storage extent is invalid")
+      end if
+      block_edge_metric(index)%patch(first:first+size(value)-1) = value
+      block_edge_metric(index)%installed_patch_count = &
+           block_edge_metric(index)%installed_patch_count + 1
+
+    end subroutine install_metric_patch
+
+
+    recursive subroutine install_retained_subtree ( &
+         d,p,catalog_index,patch_index)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: catalog_index
+      integer, intent(inout) :: patch_index
+
+      integer :: c
+      integer :: child
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("retained edge-metric patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,BLOCK_PAYLOAD_EDGE_LENGTH, &
+           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
+           ghost_exchange_plan%vector_patch_buffer,vector_pos)
+      if (scalar_pos /= &
+           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
+           vector_pos /= &
+           size(ghost_exchange_plan%vector_patch_buffer)+1) then
+         call fail("retained edge-metric payload extent differs")
+      end if
+      call install_metric_patch( &
+           catalog_index,patch_index, &
+           ghost_exchange_plan%vector_patch_buffer)
+      patch_index = patch_index + 1
+
+      do c = 1,N_CHDRN
+         child = grid(d)%patch%elts(p+1)%children(c)
+         if (child <= 0) cycle
+         call install_retained_subtree( &
+              d,child,catalog_index,patch_index)
+      end do
+
+    end subroutine install_retained_subtree
+
+  end subroutine refresh_candidate_block_edge_metrics
+
+
+  subroutine evaluate_candidate_block_complete_exner_gradient (domain_sol)
+    ! Complete the production pressure-gradient factor by applying the
+    ! authoritative transported primal-edge metric to the already validated
+    ! theta-times-Exner numerator. The result remains a rejected shadow.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+
+    call evaluate_candidate_block_exner_shadow( &
+         domain_sol,BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT,.true.,.true.)
+
+    if (rank == 0) then
+       write(6,'(a)') &
+            "  authoritative primal-edge metric transport passed"
+       write(6,'(a)') &
+            "  exact complete thermodynamic Exner gradient passed"
+       write(6,'(a)') &
+            "  metric-complete pressure term discarded without writeback"
+       write(6,'(a)') &
+            "  persistent edge-metric storage reused"
+    end if
+
+  end subroutine evaluate_candidate_block_complete_exner_gradient
+
+
+  subroutine evaluate_candidate_block_velocity_recomposition ( &
+       domain_sol,checkpoint_required)
+    ! Capture the authoritative non-Exner velocity residual, combine it with
+    ! the independently reconstructed block Exner term, compare the complete
+    ! rejected velocity shadow, and leave both representations unchanged.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+    logical, intent(in) :: checkpoint_required
+
+    call refresh_candidate_block_velocity_remainder(domain_sol)
+    call evaluate_candidate_block_exner_shadow( &
+         domain_sol,BLOCK_PAYLOAD_COMPLETE_VELOCITY,.true.,.true., &
+         .true.,checkpoint_required)
+
+    if (rank == 0) then
+       write(6,'(a)') &
+            "  authoritative Bernoulli/Qperp velocity residual captured"
+       write(6,'(a)') &
+            "  block-native complete thermodynamic Exner term reused"
+       write(6,'(a)') &
+            "  exact recomposed block/Domain velocity shadow passed"
+       write(6,'(a)') &
+            "  recomposed velocity output discarded without writeback"
+       write(6,'(a)') &
+            "  persistent velocity-residual storage reused"
+    end if
+
+  end subroutine evaluate_candidate_block_velocity_recomposition
+
+
+  subroutine refresh_candidate_block_velocity_remainder (domain_sol)
+    ! Install the Domain-authoritative non-Exner velocity residual in
+    ! persistent final-owner block storage. It is consumed read-only by the
+    ! rejected complete-velocity kernel.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+
+    integer :: b
+    integer :: d
+    integer :: local_index
+    integer :: local_patch
+    integer :: n_local
+    integer :: n_patch
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: source
+    integer :: slot
+
+    integer(int64) :: allocation_after
+    integer(int64) :: allocation_before
+
+    n_local = n_local_blocks()
+    allocation_before = block_velocity_remainder_allocations
+    call prepare_velocity_remainder_storage(n_local)
+    if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer) .or. &
+         .not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
+       call fail("velocity-residual retained patch buffers are absent")
+    end if
+    call exchange_domain_to_block_payloads( &
+         BLOCK_PAYLOAD_VELOCITY_REMAINDER,domain_sol=domain_sol)
+
+    do local_index = 1,n_local
+       block_velocity_remainder(local_index)%ready = .false.
+       block_velocity_remainder(local_index)%installed_patch_count = 0
+       block_velocity_remainder(local_index)%patch = 0.0_dp
+    end do
+
+    do local_index = 1,n_local
+       b = local_block_catalog(local_index)
+       source = source_rank(b)
+       if (source /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("retained velocity-residual Domain is invalid")
+       end if
+       local_patch = 0
+       call install_retained_subtree( &
+            d,block_catalog(b)%root_patch,b,local_patch)
+       n_patch = local_block_patch_count(b)
+       if (local_patch /= n_patch) then
+          call fail("retained velocity-residual coverage is incomplete")
+       end if
+    end do
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
+       pos_vector = block_writeback_plan%vector_send_displ(r) + 1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          n_patch = local_block_patch_count(b)
+          do local_patch = 0,n_patch-1
+             if (pos_scalar < 1 .or. pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue - 1 > &
+                  size(block_writeback_plan%scalar_send_buffer) .or. &
+                  pos_vector < 1 .or. pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue - 1 > &
+                  size(block_writeback_plan%vector_send_buffer)) then
+                call fail("remote velocity-residual payload is truncated")
+             end if
+             call install_remainder_patch( &
+                  b,local_patch,block_writeback_plan%vector_send_buffer( &
+                  pos_vector:pos_vector+ &
+                  block_writeback_plan%vector_patch_nvalue-1))
+             pos_scalar = pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue
+             pos_vector = pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue
+          end do
+       end do
+       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+            block_writeback_plan%scalar_send_count(r) + 1 .or. &
+            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+            block_writeback_plan%vector_send_count(r) + 1) then
+          call fail("remote velocity-residual receive extent mismatch")
+       end if
+    end do
+
+    do local_index = 1,n_local
+       b = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(b)
+       if (block_velocity_remainder(local_index)%catalog_index /= b .or. &
+            block_velocity_remainder(local_index)%installed_patch_count /= &
+            n_patch) then
+          call fail("velocity-residual installation coverage differs")
+       end if
+       block_velocity_remainder(local_index)%ready = .true.
+    end do
+
+    allocation_after = block_velocity_remainder_allocations
+    if (allocation_after < allocation_before) then
+       call fail("velocity-residual allocation counter regressed")
+    end if
+    call prepare_velocity_remainder_storage(n_local)
+    if (block_velocity_remainder_allocations /= allocation_after) then
+       call fail("velocity-residual storage was not reusable")
+    end if
+
+  contains
+
+    subroutine prepare_velocity_remainder_storage (n_block)
+
+      implicit none
+
+      integer, intent(in) :: n_block
+
+      integer :: catalog_index
+      integer :: count
+      integer :: index
+      integer :: patch_count
+
+      if (allocated(block_velocity_remainder)) then
+         if (size(block_velocity_remainder) /= n_block) then
+            deallocate(block_velocity_remainder)
+         end if
+      end if
+      if (.not. allocated(block_velocity_remainder)) then
+         allocate(block_velocity_remainder(n_block))
+         block_velocity_remainder_allocations = &
+              block_velocity_remainder_allocations + 1_int64
+      end if
+
+      do index = 1,n_block
+         catalog_index = local_block_catalog(index)
+         patch_count = local_block_patch_count(catalog_index)
+         count = patch_count*block_writeback_plan%vector_patch_nvalue
+         if (allocated(block_velocity_remainder(index)%patch)) then
+            if (block_velocity_remainder(index)%catalog_index /= &
+                 catalog_index .or. &
+                 size(block_velocity_remainder(index)%patch) /= count) then
+               deallocate(block_velocity_remainder(index)%patch)
+            end if
+         end if
+         if (.not. allocated(block_velocity_remainder(index)%patch)) then
+            allocate(block_velocity_remainder(index)%patch(count))
+            block_velocity_remainder_allocations = &
+                 block_velocity_remainder_allocations + 1_int64
+         end if
+         block_velocity_remainder(index)%catalog_index = catalog_index
+      end do
+
+    end subroutine prepare_velocity_remainder_storage
+
+
+    subroutine install_remainder_patch (catalog_index,patch_index,value)
+
+      implicit none
+
+      integer, intent(in) :: catalog_index
+      integer, intent(in) :: patch_index
+      real(dp), intent(in) :: value(:)
+
+      integer :: first
+      integer :: index
+      integer :: patch_count
+
+      index = catalog_local_block(catalog_index)
+      if (index < 1 .or. index > size(block_velocity_remainder)) then
+         call fail("velocity-residual local block is invalid")
+      end if
+      patch_count = local_block_patch_count(catalog_index)
+      if (patch_index < 0 .or. patch_index >= patch_count) then
+         call fail("velocity-residual local patch is invalid")
+      end if
+      if (size(value) /= block_writeback_plan%vector_patch_nvalue) then
+         call fail("velocity-residual patch extent is invalid")
+      end if
+      first = patch_index*block_writeback_plan%vector_patch_nvalue + 1
+      if (first < 1 .or. first+size(value)-1 > &
+           size(block_velocity_remainder(index)%patch)) then
+         call fail("velocity-residual storage extent is invalid")
+      end if
+      block_velocity_remainder(index)%patch( &
+           first:first+size(value)-1) = value
+      block_velocity_remainder(index)%installed_patch_count = &
+           block_velocity_remainder(index)%installed_patch_count + 1
+
+    end subroutine install_remainder_patch
+
+
+    recursive subroutine install_retained_subtree ( &
+         d,p,catalog_index,patch_index)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: catalog_index
+      integer, intent(inout) :: patch_index
+
+      integer :: c
+      integer :: child
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("retained velocity-residual patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,BLOCK_PAYLOAD_VELOCITY_REMAINDER, &
+           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
+           ghost_exchange_plan%vector_patch_buffer,vector_pos,domain_sol)
+      if (scalar_pos /= &
+           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
+           vector_pos /= &
+           size(ghost_exchange_plan%vector_patch_buffer)+1) then
+         call fail("retained velocity-residual payload extent differs")
+      end if
+      call install_remainder_patch( &
+           catalog_index,patch_index, &
+           ghost_exchange_plan%vector_patch_buffer)
+      patch_index = patch_index + 1
+
+      do c = 1,N_CHDRN
+         child = grid(d)%patch%elts(p+1)%children(c)
+         if (child <= 0) cycle
+         call install_retained_subtree( &
+              d,child,catalog_index,patch_index)
+      end do
+
+    end subroutine install_retained_subtree
+
+  end subroutine refresh_candidate_block_velocity_remainder
+
+
   subroutine evaluate_candidate_block_exner_shadow ( &
-       domain_sol,payload_family,thermodynamic_product)
+       domain_sol,payload_family,thermodynamic_product,metric_division, &
+       velocity_recomposition,checkpoint_required)
     ! Reconstruct an Exner-gradient numerator from complete provisional
     ! block columns, compare every patch independently, and discard it.
 
@@ -6788,6 +7406,9 @@ end subroutine build_parallel_block_catalog
          domain_sol(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: payload_family
     logical, intent(in) :: thermodynamic_product
+    logical, intent(in) :: metric_division
+    logical, optional, intent(in) :: velocity_recomposition
+    logical, optional, intent(in) :: checkpoint_required
 
     integer :: b
     integer :: first_field_level
@@ -6823,16 +7444,40 @@ end subroutine build_parallel_block_catalog
     logical :: checkpoint_ready
     logical :: tendency_ready
     logical :: trial_active
+    logical :: recompose_velocity
+    logical :: require_checkpoint
 
     type(Block_Exner_Difference_Kernel_Context) :: kernel
 
+    recompose_velocity = .false.
+    if (present(velocity_recomposition)) then
+       recompose_velocity = velocity_recomposition
+    end if
+    require_checkpoint = .true.
+    if (present(checkpoint_required)) then
+       require_checkpoint = checkpoint_required
+    end if
+
     if (payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
-         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT) then
+         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY) then
        call fail("Exner-gradient shadow payload is invalid")
     end if
     if (thermodynamic_product .neqv. &
-         (payload_family == BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT)) then
+         (payload_family == BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT .or. &
+         payload_family == BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .or. &
+         payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY)) then
        call fail("Exner-gradient shadow mode is invalid")
+    end if
+    if (metric_division .neqv. &
+         (payload_family == BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .or. &
+         payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY)) then
+       call fail("Exner-gradient shadow metric mode is invalid")
+    end if
+    if (recompose_velocity .neqv. &
+         (payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY)) then
+       call fail("Exner-gradient velocity recomposition mode is invalid")
     end if
 
     trial_active = local_block_tendency_trial_is_active()
@@ -6841,9 +7486,12 @@ end subroutine build_parallel_block_catalog
     tendency_ready = local_block_tendency_state_ready()
     accumulator_ready = &
          local_block_tendency_accumulator_state_ready()
-    if (trial_active .or. .not. checkpoint_ready .or. tendency_ready .or. &
+    if (trial_active .or. tendency_ready .or. &
          accumulator_ready) then
        call fail("Exner-difference shadow transaction is invalid")
+    end if
+    if (checkpoint_ready .neqv. require_checkpoint) then
+       call fail("Exner-difference shadow checkpoint state is invalid")
     end if
     if (.not. local_block_hydrostatic_state_ready()) then
        call fail("Exner-difference shadow hydrostatic state is stale")
@@ -6880,10 +7528,13 @@ end subroutine build_parallel_block_catalog
     production_writeback_before = &
          block_domain_production_writeback_count()
 
+    if (metric_division) call refresh_candidate_block_edge_metrics
     call exchange_domain_to_block_payloads( &
          payload_family,domain_sol=domain_sol)
     kernel = Block_Exner_Difference_Kernel_Context()
     kernel%thermodynamic_product = thermodynamic_product
+    kernel%metric_division = metric_division
+    kernel%velocity_recomposition = recompose_velocity
     call apply_local_block_tendency_kernel( &
          compute_block_exner_difference_kernel,kernel)
 
@@ -6960,9 +7611,12 @@ end subroutine build_parallel_block_catalog
          local_block_tendency_commit_checkpoint_is_ready()
     accumulator_ready = &
          local_block_tendency_accumulator_state_ready()
-    if (tendency_ready .or. trial_active .or. .not. checkpoint_ready .or. &
+    if (tendency_ready .or. trial_active .or. &
          accumulator_ready) then
        call fail("Exner-difference shadow discard is invalid")
+    end if
+    if (checkpoint_ready .neqv. require_checkpoint) then
+       call fail("Exner-difference shadow discard lost checkpoint state")
     end if
 
   end subroutine evaluate_candidate_block_exner_shadow
@@ -6991,7 +7645,9 @@ end subroutine build_parallel_block_catalog
     integer :: slot
 
     if (payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
-         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT) then
+         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY) then
        call fail("candidate tendency payload family is invalid")
     end if
     if (.not. local_block_tendency_state_ready()) then
@@ -8140,7 +8796,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine capture_block_domain_multistage_candidate_tendency ( &
-       stage,stage_count)
+       stage,stage_count,domain_sol)
     ! Capture one authoritative legacy RK tendency in persistent block
     ! storage, compare every compact patch exactly with its Domain payload,
     ! and retain it for one guarded block candidate stage. For stages after
@@ -8150,6 +8806,8 @@ end subroutine build_parallel_block_catalog
 
     integer, intent(in) :: stage
     integer, intent(in) :: stage_count
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: ierr
 
@@ -8211,6 +8869,8 @@ end subroutine build_parallel_block_catalog
             block_writeback_plan_allocation_count()
        production_multistage_writeback_before = &
             block_domain_production_writeback_count()
+       call evaluate_candidate_block_velocity_recomposition( &
+            domain_sol,.false.)
     else
        if (production_multistage_candidate_stage_count /= stage_count) then
           call fail("multistage tendency capture method changed")
@@ -8223,6 +8883,8 @@ end subroutine build_parallel_block_catalog
        if (.not. checkpoint_ready) then
           call fail("multistage tendency capture has no checkpoint")
        end if
+       call evaluate_candidate_block_velocity_recomposition( &
+            domain_sol,.true.)
        call complete_block_domain_trend_step(.false.)
     end if
 
@@ -8965,7 +9627,11 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_TREND .and. &
          payload_family /= BLOCK_PAYLOAD_THETA_EDGE .and. &
          payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
-         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT) then
+         payload_family /= BLOCK_PAYLOAD_THERMODYNAMIC_GRADIENT .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT .and. &
+         payload_family /= BLOCK_PAYLOAD_EDGE_LENGTH .and. &
+         payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY) then
        call fail("invalid Domain writeback payload family")
     end if
 
@@ -9027,6 +9693,49 @@ end subroutine build_parallel_block_catalog
                vector_pos:vector_pos+n_vector_patch-1), &
                thermodynamic_product=.true.)
        end if
+       scalar_pos = scalar_pos + n_scalar_patch
+       vector_pos = vector_pos + n_vector_patch
+       return
+    end if
+
+    if (payload_family == BLOCK_PAYLOAD_COMPLETE_EXNER_GRADIENT) then
+       scalar_payload(scalar_pos:scalar_pos+n_scalar_patch-1) = 0.0_dp
+       if (present(domain_sol)) then
+          call pack_domain_patch_exner_difference( &
+               d,p,vector_payload( &
+               vector_pos:vector_pos+n_vector_patch-1),domain_sol, &
+               .true.,.true.)
+       else
+          call pack_domain_patch_exner_difference( &
+               d,p,vector_payload( &
+               vector_pos:vector_pos+n_vector_patch-1), &
+               thermodynamic_product=.true.,metric_division=.true.)
+       end if
+       scalar_pos = scalar_pos + n_scalar_patch
+       vector_pos = vector_pos + n_vector_patch
+       return
+    end if
+
+    if (payload_family == BLOCK_PAYLOAD_EDGE_LENGTH) then
+       scalar_payload(scalar_pos:scalar_pos+n_scalar_patch-1) = 0.0_dp
+       call pack_domain_patch_edge_length( &
+            d,p,vector_payload( &
+            vector_pos:vector_pos+n_vector_patch-1))
+       scalar_pos = scalar_pos + n_scalar_patch
+       vector_pos = vector_pos + n_vector_patch
+       return
+    end if
+
+    if (payload_family == BLOCK_PAYLOAD_VELOCITY_REMAINDER .or. &
+         payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY) then
+       if (.not. present(domain_sol)) then
+          call fail("Domain velocity recomposition requires stage sol")
+       end if
+       scalar_payload(scalar_pos:scalar_pos+n_scalar_patch-1) = 0.0_dp
+       call pack_domain_patch_velocity_recomposition( &
+            d,p,vector_payload( &
+            vector_pos:vector_pos+n_vector_patch-1),domain_sol, &
+            payload_family == BLOCK_PAYLOAD_COMPLETE_VELOCITY)
        scalar_pos = scalar_pos + n_scalar_patch
        vector_pos = vector_pos + n_vector_patch
        return
@@ -9140,6 +9849,134 @@ end subroutine build_parallel_block_catalog
     end do
 
   end subroutine pack_domain_patch_prognostic
+
+
+  subroutine pack_domain_patch_edge_length (d,p,edge_length)
+    ! Repeat the authoritative, initialized production primal-edge metric
+    ! in the block vector layout for every physical model level.
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: p
+    real(dp), intent(out) :: edge_length(:)
+
+    integer :: field_level
+    integer :: first_field_level
+    integer :: level_slot
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: n_value
+    integer :: output_base
+    integer :: start
+    integer :: v_scalar
+    integer :: v_vector
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (mult_scalar /= 1 .or. mult_vector /= EDGE .or. &
+         n_scalar_variable < 1 .or. v_scalar < 1 .or. v_vector < 1) then
+       call fail("Domain edge-metric field layout is invalid")
+    end if
+    n_value = EDGE*PATCH_SIZE**2
+    if (size(edge_length) /= n_field_level*n_value) then
+       call fail("Domain edge-metric payload extent is invalid")
+    end if
+    start = EDGE*grid(d)%patch%elts(p+1)%elts_start
+    if (start < 0 .or. start+n_value > size(grid(d)%len%elts)) then
+       call fail("Domain edge-metric source extent is invalid")
+    end if
+
+    edge_length = 0.0_dp
+    do level_slot = 1,n_field_level
+       field_level = first_field_level + level_slot - 1
+       if (field_level < 1) cycle
+       if (field_level > zlevels) then
+          call fail("Domain edge-metric field level is invalid")
+       end if
+       output_base = (level_slot-1)*n_value
+       edge_length(output_base+1:output_base+n_value) = &
+            grid(d)%len%elts(start+1:start+n_value)
+    end do
+
+  end subroutine pack_domain_patch_edge_length
+
+
+  subroutine pack_domain_patch_velocity_recomposition ( &
+       d,p,velocity_value,domain_sol,recompose)
+    ! Form the authoritative non-Exner residual as trend plus the complete
+    ! Exner term. Optionally apply the matching subtraction to provide an
+    ! independent Domain reference for the rejected block recomposition.
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: p
+    real(dp), intent(out) :: velocity_value(:)
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+    logical, intent(in) :: recompose
+
+    integer :: field_level
+    integer :: first_field_level
+    integer :: level_slot
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: n_value
+    integer :: output_base
+    integer :: source_base
+    integer :: value_index
+    integer :: v_scalar
+    integer :: v_vector
+
+    real(dp) :: exner_term
+    real(dp) :: trend_value
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (mult_scalar /= 1 .or. mult_vector /= EDGE .or. &
+         n_scalar_variable < 1 .or. v_scalar < 1 .or. v_vector < 1) then
+       call fail("Domain velocity recomposition layout is invalid")
+    end if
+    n_value = EDGE*PATCH_SIZE**2
+    if (size(velocity_value) /= n_field_level*n_value) then
+       call fail("Domain velocity recomposition extent is invalid")
+    end if
+
+    call pack_domain_patch_exner_difference( &
+         d,p,velocity_value,domain_sol,.true.,.true.)
+    source_base = EDGE*grid(d)%patch%elts(p+1)%elts_start
+    do level_slot = 1,n_field_level
+       field_level = first_field_level + level_slot - 1
+       if (field_level < 1) cycle
+       if (field_level > zlevels) then
+          call fail("Domain velocity recomposition level is invalid")
+       end if
+       if (source_base < 0 .or. source_base+n_value > &
+            size(trend(v_vector,field_level)%data(d)%elts)) then
+          call fail("Domain velocity trend source extent is invalid")
+       end if
+       output_base = (level_slot-1)*n_value
+       do value_index = 1,n_value
+          exner_term = velocity_value(output_base+value_index)
+          trend_value = trend(v_vector,field_level)%data(d)%elts( &
+               source_base+value_index)
+          velocity_value(output_base+value_index) = &
+               trend_value + exner_term
+          if (recompose) then
+             velocity_value(output_base+value_index) = &
+                  velocity_value(output_base+value_index) - exner_term
+          end if
+       end do
+    end do
+
+  end subroutine pack_domain_patch_velocity_recomposition
 
 
   subroutine pack_domain_patch_theta_edge (d,p,theta_edge,domain_sol)
@@ -9298,7 +10135,8 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine pack_domain_patch_exner_difference ( &
-       d,p,exner_difference,domain_sol,thermodynamic_product)
+       d,p,exner_difference,domain_sol,thermodynamic_product, &
+       metric_division)
     ! Independently reconstruct the signed dynamic-Exner differences that
     ! form the numerator of gradi_e(exner) on each physical edge.
 
@@ -9310,7 +10148,9 @@ end subroutine build_parallel_block_catalog
     type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
     logical, optional, intent(in) :: thermodynamic_product
+    logical, optional, intent(in) :: metric_division
 
+    integer :: component_slot
     integer :: dims(2,N_BDRY+1)
     integer :: field_level
     integer :: first_field_level
@@ -9341,10 +10181,18 @@ end subroutine build_parallel_block_catalog
     real(dp) :: theta_northeast
 
     logical :: apply_theta
+    logical :: apply_metric
 
     apply_theta = .false.
     if (present(thermodynamic_product)) then
        apply_theta = thermodynamic_product
+    end if
+    apply_metric = .false.
+    if (present(metric_division)) then
+       apply_metric = metric_division
+    end if
+    if (apply_metric .and. .not. apply_theta) then
+       call fail("Domain complete Exner-gradient mode is invalid")
     end if
 
     call get_block_field_layout( &
@@ -9413,6 +10261,21 @@ end subroutine build_parallel_block_catalog
                 exner_difference(output_base+EDGE*q+UP+1) = &
                      exner_difference(output_base+EDGE*q+UP+1)* &
                      (0.5_dp*(theta_center+theta_north))
+             end if
+             if (apply_metric) then
+                if (any(grid(d)%len%elts( &
+                     EDGE*id_center+RT+1:EDGE*id_center+UP+1) <= &
+                     0.0_dp)) then
+                   call fail("Domain Exner-gradient edge length is invalid")
+                end if
+                do component_slot = 1,EDGE
+                   exner_difference( &
+                        output_base+EDGE*q+component_slot) = &
+                        exner_difference( &
+                        output_base+EDGE*q+component_slot)/ &
+                        grid(d)%len%elts( &
+                        EDGE*id_center+component_slot)
+                end do
              end if
           end do
        end do
@@ -15288,19 +16151,24 @@ end subroutine build_parallel_block_catalog
     integer :: i
     integer :: j
     integer :: level_slot
+    integer :: local_index
     integer :: mass_slot
+    integer :: metric_index
     integer :: neighbor_node
     integer :: neighbor_storage
     integer :: output_index
     integer :: p
     integer :: q
+    integer :: remainder_index
     integer :: temperature_slot
 
     real(dp) :: difference
     real(dp) :: exner_center
     real(dp) :: exner_neighbor
+    real(dp) :: edge_length
     real(dp) :: mass_center
     real(dp) :: mass_neighbor
+    real(dp) :: remainder_value
     real(dp) :: theta_center
     real(dp) :: theta_neighbor
 
@@ -15331,10 +16199,33 @@ end subroutine build_parallel_block_catalog
          temperature_slot >= block%n_scalar_variable) then
        call fail("Exner-difference kernel scalar layout is invalid")
     end if
-
     select type (statistics => context)
     type is (Block_Exner_Difference_Kernel_Context)
        statistics%block_count = statistics%block_count + 1_int64
+       local_index = 0
+       if (statistics%metric_division) then
+          if (.not. allocated(block_edge_metric)) then
+             call fail("complete Exner-gradient metric is not allocated")
+          end if
+          local_index = catalog_local_block(catalog_index)
+          if (local_index < 1 .or. &
+               local_index > size(block_edge_metric)) then
+             call fail("complete Exner-gradient metric block is invalid")
+          end if
+       end if
+       if (statistics%velocity_recomposition) then
+          if (.not. statistics%metric_division .or. &
+               .not. statistics%thermodynamic_product) then
+             call fail("velocity recomposition kernel mode is invalid")
+          end if
+          if (.not. allocated(block_velocity_remainder)) then
+             call fail("velocity recomposition residual is not allocated")
+          end if
+          if (local_index < 1 .or. &
+               local_index > size(block_velocity_remainder)) then
+             call fail("velocity recomposition residual block is invalid")
+          end if
+       end if
 
        do p = 1,size(block%patch)
           statistics%patch_count = statistics%patch_count + 1_int64
@@ -15348,6 +16239,8 @@ end subroutine build_parallel_block_catalog
              end if
 
              do component_slot = 1,EDGE
+                neighbor_node = 0
+                neighbor_storage = 0
                 select case (component_slot-1)
                 case (RT)
                    if (i < PATCH_SIZE-1) then
@@ -15381,6 +16274,15 @@ end subroutine build_parallel_block_catalog
                 end select
 
                 do level_slot = 1,block%n_field_level
+                   difference = 0.0_dp
+                   edge_length = 0.0_dp
+                   exner_center = 0.0_dp
+                   exner_neighbor = 0.0_dp
+                   mass_center = 0.0_dp
+                   mass_neighbor = 0.0_dp
+                   theta_center = 0.0_dp
+                   theta_neighbor = 0.0_dp
+                   remainder_value = 0.0_dp
                    field_level = block%field_level + level_slot - 1
                    if (field_level < 1) cycle
                    if (field_level > zlevels) then
@@ -15417,6 +16319,47 @@ end subroutine build_parallel_block_catalog
                            field_level)/mass_neighbor
                       difference = difference* &
                            (0.5_dp*(theta_center+theta_neighbor))
+                   end if
+                   if (statistics%metric_division) then
+                      if (.not. block_edge_metric(local_index)%ready .or. &
+                           block_edge_metric(local_index)%catalog_index /= &
+                           catalog_index) then
+                         call fail( &
+                              "complete Exner-gradient metric is not ready")
+                      end if
+                      metric_index = (p-1)* &
+                           block_writeback_plan%vector_patch_nvalue + &
+                           (level_slot-1)*EDGE*PATCH_SIZE**2 + &
+                           EDGE*q + component_slot
+                      if (metric_index < 1 .or. metric_index > &
+                           size(block_edge_metric(local_index)%patch)) then
+                         call fail( &
+                              "complete Exner-gradient metric index is invalid")
+                      end if
+                      edge_length = &
+                           block_edge_metric(local_index)%patch(metric_index)
+                      if (edge_length <= 0.0_dp) then
+                         call fail( &
+                              "complete Exner-gradient edge is invalid")
+                      end if
+                      difference = difference/edge_length
+                   end if
+                   if (statistics%velocity_recomposition) then
+                      if (.not. &
+                           block_velocity_remainder(local_index)%ready .or. &
+                           block_velocity_remainder(local_index)% &
+                           catalog_index /= catalog_index) then
+                         call fail("velocity recomposition residual is stale")
+                      end if
+                      remainder_index = metric_index
+                      if (remainder_index < 1 .or. remainder_index > &
+                           size(block_velocity_remainder(local_index)% &
+                           patch)) then
+                         call fail("velocity recomposition index is invalid")
+                      end if
+                      remainder_value = block_velocity_remainder( &
+                           local_index)%patch(remainder_index)
+                      difference = remainder_value-difference
                    end if
 
                    output_index = (level_slot-1)* &
@@ -19617,6 +20560,7 @@ end subroutine build_parallel_block_catalog
        write(error_unit,'(a,i0,2a,i0)') &
             "Rank ", rank, ": ", trim(operation)// &
             " failed with MPI error ", ierr
+       flush(error_unit)
        call abort_run
     end if
 
@@ -19631,6 +20575,7 @@ end subroutine build_parallel_block_catalog
 
     write(error_unit,'(a,i0,2a)') &
          "Rank ", rank, ": parallel_block_mpi_mod: ", trim(message)
+    flush(error_unit)
     call abort_run
 
   end subroutine fail

@@ -126,7 +126,7 @@ contains
 
     call routine (q, trend) 
     if (block_candidate) then
-       call capture_block_domain_multistage_candidate_tendency(1,3)
+       call capture_block_domain_multistage_candidate_tendency(1,3,q)
        call begin_block_domain_multistage_candidate_stage(h/3,1,3)
     end if
     call RK_sub_step (q, trend, h/3, q1)
@@ -138,7 +138,7 @@ contains
 
     call routine (q1, trend) 
     if (block_candidate) then
-       call capture_block_domain_multistage_candidate_tendency(2,3)
+       call capture_block_domain_multistage_candidate_tendency(2,3,q1)
        call begin_block_domain_multistage_candidate_stage(h/2,2,3)
     end if
     call RK_sub_step (q, trend, h/2, q1)
@@ -150,7 +150,7 @@ contains
 
     call routine (q1, trend) 
     if (block_candidate) then
-       call capture_block_domain_multistage_candidate_tendency(3,3)
+       call capture_block_domain_multistage_candidate_tendency(3,3,q1)
        call begin_block_domain_multistage_candidate_stage(h,3,3)
     end if
     call RK_sub_step (q, trend, h, q)
@@ -191,7 +191,7 @@ contains
 
     call routine (q, trend) 
     if (block_candidate) then
-       call capture_block_domain_multistage_candidate_tendency(1,4)
+       call capture_block_domain_multistage_candidate_tendency(1,4,q)
        call begin_block_domain_multistage_candidate_stage(h/4,1,4)
     end if
     call RK_sub_step (q, trend, h/4, q1)
@@ -203,7 +203,7 @@ contains
 
     call routine (q1, trend) 
     if (block_candidate) then
-       call capture_block_domain_multistage_candidate_tendency(2,4)
+       call capture_block_domain_multistage_candidate_tendency(2,4,q1)
        call begin_block_domain_multistage_candidate_stage(h/3,2,4)
     end if
     call RK_sub_step (q, trend, h/3, q1)
@@ -215,7 +215,7 @@ contains
 
     call routine (q1, trend) 
     if (block_candidate) then
-       call capture_block_domain_multistage_candidate_tendency(3,4)
+       call capture_block_domain_multistage_candidate_tendency(3,4,q1)
        call begin_block_domain_multistage_candidate_stage(h/2,3,4)
     end if
     call RK_sub_step (q, trend, h/2, q1)
@@ -227,7 +227,7 @@ contains
 
     call routine (q1, trend) 
     if (block_candidate) then
-       call capture_block_domain_multistage_candidate_tendency(4,4)
+       call capture_block_domain_multistage_candidate_tendency(4,4,q1)
        call begin_block_domain_multistage_candidate_stage(h,4,4)
     end if
     call RK_sub_step (q, trend, h, q)
