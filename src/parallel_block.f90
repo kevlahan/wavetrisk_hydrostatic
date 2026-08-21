@@ -368,6 +368,8 @@ module parallel_block_mod
   public :: local_block_tendency_import_allocation_count
   public :: reset_local_block_tendency_accumulator
   public :: accumulate_local_block_tendency
+  public :: retain_local_block_tendency_in_accumulator
+  public :: discard_local_block_tendency_accumulator
   public :: begin_local_block_accumulated_tendency_trial
   public :: local_block_tendency_accumulator_state_ready
   public :: local_block_tendency_accumulator_allocation_count
@@ -1172,6 +1174,7 @@ subroutine prepare_local_block_tendency_workspace
 
   call prepare_local_block_tendency_state
   call prepare_local_block_tendency_import_coverage
+  call prepare_local_block_tendency_accumulator
   call prepare_local_block_tendency_trial
   call invalidate_local_block_tendency_products
 
@@ -1648,12 +1651,19 @@ subroutine apply_local_block_tendency_consumer (consumer,context)
 end subroutine apply_local_block_tendency_consumer
 
 
-subroutine prepare_local_block_tendency_accumulator
+subroutine prepare_local_block_tendency_accumulator (allow_checkpoint)
   ! Allocate reusable scalar/vector registers for weighted tendency stages.
 
   implicit none
 
+  logical, optional, intent(in) :: allow_checkpoint
+
   integer :: local_index
+
+  logical :: checkpoint_allowed
+
+  checkpoint_allowed = .false.
+  if (present(allow_checkpoint)) checkpoint_allowed = allow_checkpoint
 
   if (.not. local_block_store_ready()) then
      error stop &
@@ -1664,7 +1674,8 @@ subroutine prepare_local_block_tendency_accumulator
           "prepare_local_block_tendency_accumulator: import active"
   end if
   if (block_tendency_trial_active .or. &
-       block_tendency_commit_checkpoint_ready) then
+       (block_tendency_commit_checkpoint_ready .and. &
+       .not. checkpoint_allowed)) then
      error stop &
           "prepare_local_block_tendency_accumulator: transaction pending"
   end if
@@ -1730,14 +1741,20 @@ subroutine prepare_local_block_tendency_accumulator
 end subroutine prepare_local_block_tendency_accumulator
 
 
-subroutine reset_local_block_tendency_accumulator
+subroutine reset_local_block_tendency_accumulator (allow_checkpoint)
   ! Begin a new weighted multi-stage tendency combination.
 
   implicit none
 
+  logical, optional, intent(in) :: allow_checkpoint
+
   integer :: local_index
 
-  call prepare_local_block_tendency_accumulator
+  if (present(allow_checkpoint)) then
+     call prepare_local_block_tendency_accumulator(allow_checkpoint)
+  else
+     call prepare_local_block_tendency_accumulator
+  end if
 
   do local_index = 1,size(block_tendency_accumulator)
      block_tendency_accumulator(local_index)%scalar = 0.0_dp
@@ -1782,6 +1799,69 @@ subroutine accumulate_local_block_tendency (weight)
        block_tendency_accumulator_stages + 1_int64
 
 end subroutine accumulate_local_block_tendency
+
+
+subroutine retain_local_block_tendency_in_accumulator
+  ! Preserve one completed tendency by exact assignment to the persistent
+  ! stage register, then mark the ordinary kernel output stale. A committed
+  ! checkpoint may remain pending because the register aliases neither image.
+
+  implicit none
+
+  integer :: local_index
+
+  logical :: checkpoint_ready_before
+  logical :: checkpoint_ready_after
+
+  if (.not. local_block_tendency_state_ready()) then
+     error stop &
+          "retain_local_block_tendency_in_accumulator: tendency not ready"
+  end if
+  if (block_tendency_import_active .or. block_tendency_trial_active) then
+     error stop &
+          "retain_local_block_tendency_in_accumulator: active operation"
+  end if
+
+  checkpoint_ready_before = block_tendency_commit_checkpoint_ready
+  call reset_local_block_tendency_accumulator(.true.)
+
+  block_tendency_ready = .false.
+  do local_index = 1,size(block_tendency)
+     block_tendency_accumulator(local_index)%scalar = &
+          block_tendency(local_index)%scalar
+     block_tendency_accumulator(local_index)%vector = &
+          block_tendency(local_index)%vector
+     block_tendency(local_index)%ready = .false.
+  end do
+  block_tendency_accumulator_stages = 1_int64
+  checkpoint_ready_after = block_tendency_commit_checkpoint_ready
+  if (checkpoint_ready_after .neqv. checkpoint_ready_before) then
+     error stop &
+          "retain_local_block_tendency_in_accumulator: checkpoint changed"
+  end if
+
+end subroutine retain_local_block_tendency_in_accumulator
+
+
+subroutine discard_local_block_tendency_accumulator
+  ! Release one transaction-owned stage tendency without deallocating its
+  ! reusable scalar/vector registers.
+
+  implicit none
+
+  if (block_tendency_import_active .or. block_tendency_trial_active) then
+     error stop &
+          "discard_local_block_tendency_accumulator: active operation"
+  end if
+  if (.not. local_block_tendency_accumulator_state_ready()) then
+     error stop &
+          "discard_local_block_tendency_accumulator: register not ready"
+  end if
+
+  block_tendency_accumulator_ready = .false.
+  block_tendency_accumulator_stages = 0_int64
+
+end subroutine discard_local_block_tendency_accumulator
 
 
 logical function local_block_tendency_accumulator_state_ready () &

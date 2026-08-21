@@ -115,6 +115,8 @@ module parallel_block_mpi_mod
        local_block_tendency_import_allocation_count, &
        reset_local_block_tendency_accumulator, &
        accumulate_local_block_tendency, &
+       retain_local_block_tendency_in_accumulator, &
+       discard_local_block_tendency_accumulator, &
        begin_local_block_accumulated_tendency_trial, &
        local_block_tendency_accumulator_state_ready, &
        local_block_tendency_accumulator_allocation_count, &
@@ -304,6 +306,10 @@ module parallel_block_mpi_mod
   integer, save :: production_multistage_candidate_stage = 0
   integer, save :: production_multistage_candidate_stage_count = 0
   integer, save :: production_multistage_captured_tendency_stage = 0
+  integer, save :: production_multistage_native_candidate_stage = 0
+  real(dp), save :: production_multistage_native_candidate_scale = 0.0_dp
+  integer(int64), save :: &
+       production_multistage_accumulator_allocation_before = 0_int64
   integer(int64), save :: &
        production_multistage_import_allocation_before = 0_int64
   integer(int64), save :: &
@@ -505,6 +511,7 @@ module parallel_block_mpi_mod
   public :: capture_block_scalar_divergence_level
   public :: finalize_block_scalar_divergence_capture
   public :: begin_block_domain_multistage_candidate_stage
+  public :: reject_block_native_multistage_candidate
   public :: accept_block_domain_multistage_candidate
   public :: check_block_domain_trend_step
   public :: check_block_writeback_domain_reconstruction
@@ -697,10 +704,12 @@ contains
     implicit none
 
     integer(int64) :: allocation_before
+    integer(int64) :: accumulator_allocation_ready
     integer(int64) :: import_allocation_ready
     integer(int64) :: tendency_allocation_ready
     integer(int64) :: writeback_before
 
+    logical :: accumulator_ready
     logical :: hydrostatic_ready
     logical :: checkpoint_ready
     logical :: import_active
@@ -746,6 +755,8 @@ contains
     call prepare_local_block_tendency_workspace
     tendency_allocation_ready = &
          local_block_tendency_allocation_count()
+    accumulator_allocation_ready = &
+         local_block_tendency_accumulator_allocation_count()
     import_allocation_ready = &
          local_block_tendency_import_allocation_count()
     call prepare_local_block_tendency_workspace
@@ -756,6 +767,10 @@ contains
     if (local_block_tendency_import_allocation_count() /= &
          import_allocation_ready) then
        call fail("post-grid-change import coverage was reallocated")
+    end if
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_ready) then
+       call fail("post-grid-change stage register was reallocated")
     end if
 
     if (block_writeback_plan_allocation_count() /= &
@@ -769,6 +784,8 @@ contains
 
     state_ready = parallel_block_state_is_ready()
     tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
     import_active = local_block_tendency_import_is_active()
     trial_active = local_block_tendency_trial_is_active()
     checkpoint_ready = &
@@ -778,6 +795,9 @@ contains
     end if
     if (tendency_ready) then
        call fail("post-grid-change production state retained a tendency")
+    end if
+    if (accumulator_ready) then
+       call fail("post-grid-change production state retained a stage register")
     end if
     if (import_active) then
        call fail("post-grid-change production state retained an import")
@@ -3188,6 +3208,8 @@ end subroutine build_parallel_block_catalog
     production_multistage_candidate_stage = 0
     production_multistage_candidate_stage_count = 0
     production_multistage_captured_tendency_stage = 0
+    production_multistage_native_candidate_stage = 0
+    production_multistage_native_candidate_scale = 0.0_dp
 
   end subroutine clear_block_writeback_plan
 
@@ -7176,7 +7198,7 @@ end subroutine build_parallel_block_catalog
     end if
     call evaluate_candidate_block_exner_shadow( &
          domain_sol,BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY, &
-         .true.,.true.,.true.,checkpoint_required,.true.)
+         .true.,.true.,.true.,checkpoint_required,.true.,.true.)
 
     if (rank == 0) then
        write(6,'(a)') &
@@ -7186,7 +7208,7 @@ end subroutine build_parallel_block_catalog
        write(6,'(a)') &
             "  exact recomposed block/Domain velocity shadow passed"
        write(6,'(a)') &
-            "  recomposed velocity output discarded without writeback"
+            "  recomposed velocity retained in complete physical tendency"
        write(6,'(a)') &
             "  persistent velocity-residual storage reused"
        write(6,'(a)') &
@@ -7196,7 +7218,7 @@ end subroutine build_parallel_block_catalog
        write(6,'(a)') &
             "  exact complete block/Domain physical tendency comparison passed"
        write(6,'(a)') &
-            "  complete physical tendency discarded without writeback"
+            "  complete physical tendency retained for rejected RK stage"
        write(6,'(a)') &
             "  persistent scalar-divergence transport and storage reused"
     end if
@@ -8098,9 +8120,10 @@ end subroutine build_parallel_block_catalog
   subroutine evaluate_candidate_block_exner_shadow ( &
        domain_sol,payload_family,thermodynamic_product,metric_division, &
        velocity_recomposition,checkpoint_required, &
-       complete_physical_recomposition)
+       complete_physical_recomposition,retain_stage_tendency)
     ! Reconstruct an Exner-gradient numerator from complete provisional
-    ! block columns, compare every patch independently, and discard it.
+    ! block columns and compare every patch independently. Diagnostic products
+    ! are discarded; a complete physical tendency may be retained explicitly.
 
     implicit none
 
@@ -8112,6 +8135,7 @@ end subroutine build_parallel_block_catalog
     logical, optional, intent(in) :: velocity_recomposition
     logical, optional, intent(in) :: checkpoint_required
     logical, optional, intent(in) :: complete_physical_recomposition
+    logical, optional, intent(in) :: retain_stage_tendency
 
     integer :: b
     integer :: first_field_level
@@ -8150,6 +8174,7 @@ end subroutine build_parallel_block_catalog
     logical :: recompose_velocity
     logical :: recompose_physical
     logical :: require_checkpoint
+    logical :: retain_tendency
 
     type(Block_Exner_Difference_Kernel_Context) :: kernel
 
@@ -8164,6 +8189,15 @@ end subroutine build_parallel_block_catalog
     recompose_physical = .false.
     if (present(complete_physical_recomposition)) then
        recompose_physical = complete_physical_recomposition
+    end if
+    retain_tendency = .false.
+    if (present(retain_stage_tendency)) then
+       retain_tendency = retain_stage_tendency
+    end if
+    if (retain_tendency .and. &
+         payload_family /= &
+         BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
+       call fail("retained stage tendency payload is invalid")
     end if
 
     if (payload_family /= BLOCK_PAYLOAD_EXNER_DIFFERENCE .and. &
@@ -8335,7 +8369,11 @@ end subroutine build_parallel_block_catalog
        call fail("Exner-difference global coverage is empty")
     end if
 
-    call discard_local_block_tendency_output
+    if (retain_tendency) then
+       call retain_local_block_tendency_in_accumulator
+    else
+       call discard_local_block_tendency_output
+    end if
     tendency_ready = local_block_tendency_state_ready()
     trial_active = local_block_tendency_trial_is_active()
     checkpoint_ready = &
@@ -8343,8 +8381,8 @@ end subroutine build_parallel_block_catalog
     accumulator_ready = &
          local_block_tendency_accumulator_state_ready()
     if (tendency_ready .or. trial_active .or. &
-         accumulator_ready) then
-       call fail("Exner-difference shadow discard is invalid")
+         (accumulator_ready .neqv. retain_tendency)) then
+       call fail("Exner-difference shadow completion state is invalid")
     end if
     if (checkpoint_ready .neqv. require_checkpoint) then
        call fail("Exner-difference shadow discard lost checkpoint state")
@@ -9530,10 +9568,11 @@ end subroutine build_parallel_block_catalog
 
   subroutine capture_block_domain_multistage_candidate_tendency ( &
        stage,stage_count,domain_sol)
-    ! Capture one authoritative legacy RK tendency in persistent block
-    ! storage, compare every compact patch exactly with its Domain payload,
-    ! and retain it for one guarded block candidate stage. For stages after
-    ! the first, reject the preceding provisional candidate before import.
+    ! Compute one complete block-native RK tendency, compare every compact
+    ! patch exactly with the authoritative Domain tendency, and retain the
+    ! native result in the persistent stage register. For stages after the
+    ! first, restore the timestep-start state after the native tendency has
+    ! been secured independently of the pending field checkpoint.
 
     implicit none
 
@@ -9543,12 +9582,10 @@ end subroutine build_parallel_block_catalog
          domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: ierr
+    integer :: local_index
 
     integer(int64) :: global_patch_count
     integer(int64) :: local_patch_count
-    integer(int64) :: production_writeback_before
-    integer(int64) :: writeback_allocation_before
-
     logical :: accumulator_ready
     logical :: checkpoint_ready
     logical :: state_ready
@@ -9568,7 +9605,8 @@ end subroutine build_parallel_block_catalog
        call fail("multistage tendency capture stage is invalid")
     end if
     if (production_multistage_candidate_stage /= stage-1 .or. &
-         production_multistage_captured_tendency_stage /= 0) then
+         production_multistage_captured_tendency_stage /= 0 .or. &
+         production_multistage_native_candidate_stage /= 0) then
        call fail("multistage tendency capture sequence is invalid")
     end if
 
@@ -9596,6 +9634,8 @@ end subroutine build_parallel_block_catalog
             BLOCK_PAYLOAD_WAV_COEFF)
        production_multistage_tendency_allocation_before = &
             local_block_tendency_allocation_count()
+       production_multistage_accumulator_allocation_before = &
+            local_block_tendency_accumulator_allocation_count()
        production_multistage_import_allocation_before = &
             local_block_tendency_import_allocation_count()
        production_multistage_writeback_allocation_before = &
@@ -9628,45 +9668,35 @@ end subroutine build_parallel_block_catalog
     accumulator_ready = &
          local_block_tendency_accumulator_state_ready()
     if (checkpoint_ready .or. trial_active .or. tendency_ready .or. &
-         accumulator_ready) then
-       call fail("multistage tendency capture rollback is incomplete")
-    end if
-    if (block_domain_production_writeback_count() /= &
-         production_multistage_writeback_before) then
-       call fail("multistage tendency capture rollback wrote Domain fields")
-    end if
-
-    writeback_allocation_before = &
-         block_writeback_plan_allocation_count()
-    production_writeback_before = &
-         block_domain_production_writeback_count()
-    call import_domain_trend_to_block_tendency( &
-         .true.,local_patch_count)
-
-    tendency_ready = local_block_tendency_state_ready()
-    if (.not. tendency_ready) then
-       call fail("multistage captured tendency is not ready")
+         .not. accumulator_ready) then
+       call fail("multistage native tendency retention is invalid")
     end if
     if (local_block_tendency_allocation_count() /= &
          production_multistage_tendency_allocation_before .or. &
-         local_block_tendency_import_allocation_count() /= &
-         production_multistage_import_allocation_before) then
+         local_block_tendency_accumulator_allocation_count() /= &
+         production_multistage_accumulator_allocation_before) then
        call fail("multistage tendency capture reallocated workspace")
     end if
     if (block_writeback_plan_allocation_count() /= &
-         writeback_allocation_before) then
+         production_multistage_writeback_allocation_before) then
        call fail("multistage tendency capture reallocated transport")
     end if
     if (block_domain_production_writeback_count() /= &
-         production_writeback_before) then
+         production_multistage_writeback_before) then
        call fail("multistage tendency capture modified Domain fields")
     end if
 
+    local_patch_count = 0_int64
+    do local_index = 1,n_local_blocks()
+       local_patch_count = local_patch_count + int( &
+            local_block_patch_count( &
+            local_block_catalog(local_index)),int64)
+    end do
     call MPI_Allreduce(local_patch_count,global_patch_count,1, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce captured RK tendency patches")
+    call check_mpi(ierr,"MPI_Allreduce native RK tendency patches")
     if (global_patch_count <= 0_int64) then
-       call fail("multistage captured tendency coverage is empty")
+       call fail("multistage native tendency coverage is empty")
     end if
 
     production_multistage_captured_tendency_stage = stage
@@ -9678,11 +9708,11 @@ end subroutine build_parallel_block_catalog
     if (rank == 0) then
        write(6,'(/,a,a,a,i0,a,i0)') &
             "Captured production block ",scheme_name, &
-            " tendency stage = ",stage," of ",stage_count
+            " native tendency stage = ",stage," of ",stage_count
        write(6,'(a,i0)') &
-            "  global imported tendency patches = ",global_patch_count
+            "  global native tendency patches = ",global_patch_count
        write(6,'(a)') &
-            "  exact scalar/vector Domain tendency import passed"
+            "  exact complete block/Domain physical tendency passed"
        if (stage == 1) then
           write(6,'(a)') &
                "  no preceding provisional writeback occurred"
@@ -9691,9 +9721,9 @@ end subroutine build_parallel_block_catalog
                "  preceding provisional stage rejected without writeback"
        end if
        write(6,'(a)') &
-            "  captured physical tendency retained for one block stage"
+            "  native physical tendency retained in stage register"
        write(6,'(a,/)') &
-            "Production multistage block tendency capture passed"
+            "Production multistage native tendency retention passed"
     end if
 
   end subroutine capture_block_domain_multistage_candidate_tendency
@@ -9701,9 +9731,9 @@ end subroutine build_parallel_block_catalog
 
   subroutine begin_block_domain_multistage_candidate_stage ( &
        scale,stage,stage_count)
-    ! Consume one exactly validated, captured Domain tendency to form a real
-    ! low-storage RK3 or RK4 block stage. Every stage remains based on the
-    ! retained timestep-start block state.
+    ! Consume one exactly validated block-native tendency from the persistent
+    ! stage register and form a rejected low-storage RK3 or RK4 candidate.
+    ! Every stage remains based on the retained timestep-start block state.
 
     implicit none
 
@@ -9711,6 +9741,7 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: stage
     integer, intent(in) :: stage_count
 
+    logical :: accumulator_ready
     logical :: checkpoint_ready
     logical :: state_ready
     logical :: tendency_ready
@@ -9732,36 +9763,209 @@ end subroutine build_parallel_block_catalog
             "production multistage block candidate sequence is invalid")
     end if
     if (production_multistage_candidate_stage_count /= stage_count .or. &
-         production_multistage_captured_tendency_stage /= stage) then
+         production_multistage_captured_tendency_stage /= stage .or. &
+         production_multistage_native_candidate_stage /= 0) then
        call fail( &
-            "production multistage block tendency was not captured")
+            "production multistage native tendency was not retained")
     end if
 
     trial_active = local_block_tendency_trial_is_active()
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
     tendency_ready = local_block_tendency_state_ready()
-    if (trial_active .or. checkpoint_ready .or. .not. tendency_ready) then
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. checkpoint_ready .or. tendency_ready .or. &
+         .not. accumulator_ready) then
        call fail( &
-            "production multistage captured tendency state is invalid")
+            "production multistage native tendency state is invalid")
     end if
 
-    call begin_local_block_tendency_trial(scale)
+    call begin_local_block_accumulated_tendency_trial(scale)
     call commit_local_block_tendency_trial
-    if (local_block_tendency_trial_is_active() .or. &
-         .not. local_block_tendency_commit_checkpoint_is_ready()) then
+    call discard_local_block_tendency_accumulator
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. .not. checkpoint_ready .or. tendency_ready .or. &
+         accumulator_ready) then
        call fail( &
-            "production multistage block stage did not retain checkpoint")
-    end if
-    if (local_block_tendency_state_ready()) then
-       call fail( &
-            "production multistage block stage retained stale tendencies")
+            "production native block candidate state is invalid")
     end if
 
     production_multistage_captured_tendency_stage = 0
-    production_multistage_candidate_stage = stage
+    production_multistage_native_candidate_stage = stage
+    production_multistage_native_candidate_scale = scale
 
   end subroutine begin_block_domain_multistage_candidate_stage
+
+
+  subroutine reject_block_native_multistage_candidate ( &
+       domain_sol,stage,stage_count)
+    ! Compare one native pre-wavelet RK candidate exactly with the independent
+    ! Domain candidate, reject it without writeback, and reconstruct the
+    ! established Domain-tendency block candidate for the accepted baseline.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: stage
+    integer, intent(in) :: stage_count
+
+    integer :: ierr
+
+    integer(int64) :: baseline_patch_count
+    integer(int64) :: global_patch_count
+    integer(int64) :: imported_patch_count
+    integer(int64) :: local_patch_count
+    integer(int64) :: production_writeback_before
+    integer(int64) :: writeback_allocation_before
+
+    logical :: accumulator_ready
+    logical :: checkpoint_ready
+    logical :: state_ready
+    logical :: tendency_ready
+    logical :: trial_active
+
+    character(len=3) :: scheme_name
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("native multistage rejection before state is ready")
+    end if
+    if (stage_count /= 3 .and. stage_count /= 4) then
+       call fail("native multistage rejection stage count is invalid")
+    end if
+    if (stage < 1 .or. stage > stage_count) then
+       call fail("native multistage rejection stage is invalid")
+    end if
+    if (production_multistage_candidate_stage_count /= stage_count .or. &
+         production_multistage_candidate_stage /= stage-1 .or. &
+         production_multistage_native_candidate_stage /= stage) then
+       call fail("native multistage rejection sequence is invalid")
+    end if
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. .not. checkpoint_ready .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("native multistage candidate transaction is invalid")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_SOL,domain_sol, &
+         integrated_only=.true., &
+         compared_patch_count=local_patch_count, &
+         comparison_name="native")
+    call complete_block_domain_trend_step(.false.)
+
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    trial_active = local_block_tendency_trial_is_active()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (checkpoint_ready .or. trial_active .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("native multistage rejection rollback is incomplete")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("native multistage rejection wrote Domain fields")
+    end if
+
+    call import_domain_trend_to_block_tendency( &
+         .true.,imported_patch_count)
+    if (imported_patch_count <= 0_int64) then
+       call fail("baseline Domain tendency import coverage is empty")
+    end if
+    tendency_ready = local_block_tendency_state_ready()
+    if (.not. tendency_ready) then
+       call fail("baseline Domain tendency import is not ready")
+    end if
+    call begin_local_block_tendency_trial( &
+         production_multistage_native_candidate_scale)
+    call commit_local_block_tendency_trial
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_SOL,domain_sol, &
+         integrated_only=.true., &
+         compared_patch_count=baseline_patch_count, &
+         comparison_name="baseline")
+    if (baseline_patch_count /= local_patch_count) then
+       call fail("native and baseline candidate coverage differs")
+    end if
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. .not. checkpoint_ready .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("baseline multistage candidate transaction is invalid")
+    end if
+    if (local_block_tendency_allocation_count() /= &
+         production_multistage_tendency_allocation_before .or. &
+         local_block_tendency_import_allocation_count() /= &
+         production_multistage_import_allocation_before) then
+       call fail("native multistage rejection reallocated workspace")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("native multistage rejection reallocated transport")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("baseline multistage candidate modified Domain fields")
+    end if
+
+    call MPI_Allreduce(local_patch_count,global_patch_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce rejected native RK patches")
+    if (global_patch_count <= 0_int64) then
+       call fail("rejected native multistage coverage is empty")
+    end if
+
+    production_multistage_native_candidate_stage = 0
+    production_multistage_native_candidate_scale = 0.0_dp
+    production_multistage_candidate_stage = stage
+    if (stage_count == 3) then
+       scheme_name = "RK3"
+    else
+       scheme_name = "RK4"
+    end if
+    if (rank == 0) then
+       write(6,'(/,a,a,a,i0,a,i0)') &
+            "Rejected production block ",scheme_name, &
+            " native candidate stage = ",stage," of ",stage_count
+       write(6,'(a,i0)') &
+            "  global compared candidate patches = ",global_patch_count
+       write(6,'(a)') &
+            "  roundoff-bounded pre-wavelet block/Domain state passed"
+       write(6,'(a)') &
+            "  native provisional candidate rejected without writeback"
+       write(6,'(a)') &
+            "  timestep-start block checkpoint restored exactly"
+       write(6,'(a)') &
+            "  authoritative Domain-tendency baseline candidate retained"
+       write(6,'(a,/)') &
+            "Production native multistage candidate rejection passed"
+    end if
+
+  end subroutine reject_block_native_multistage_candidate
 
 
   subroutine accept_block_domain_multistage_candidate (stage_count)
@@ -9792,7 +9996,9 @@ end subroutine build_parallel_block_catalog
        call fail("accepted production block candidate stage count is invalid")
     end if
     if (production_multistage_candidate_stage_count /= stage_count .or. &
-         production_multistage_candidate_stage /= stage_count) then
+         production_multistage_candidate_stage /= stage_count .or. &
+         production_multistage_captured_tendency_stage /= 0 .or. &
+         production_multistage_native_candidate_stage /= 0) then
        call fail("production multistage block candidate is incomplete")
     end if
     if (block_writeback_plan% &
@@ -9819,6 +10025,11 @@ end subroutine build_parallel_block_catalog
          production_multistage_tendency_allocation_before) then
        call fail( &
             "production multistage candidate reallocated tendency arrays")
+    end if
+    if (local_block_tendency_accumulator_allocation_count() /= &
+         production_multistage_accumulator_allocation_before) then
+       call fail( &
+            "production multistage candidate reallocated stage register")
     end if
     if (local_block_tendency_import_allocation_count() /= &
          production_multistage_import_allocation_before) then
@@ -9866,6 +10077,8 @@ end subroutine build_parallel_block_catalog
     production_multistage_candidate_stage = 0
     production_multistage_candidate_stage_count = 0
     production_multistage_captured_tendency_stage = 0
+    production_multistage_native_candidate_stage = 0
+    production_multistage_native_candidate_scale = 0.0_dp
     block_writeback_plan%production_multistage_boundary_refresh_count = &
          0_int64
 
@@ -11785,36 +11998,84 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine assert_block_domain_field_family_match ( &
-       payload_family,domain_sol)
+       payload_family,domain_sol,integrated_only,compared_patch_count, &
+       comparison_name)
     ! Reconstruct one family from final-owner blocks and compare every
-    ! active authoritative Domain value exactly. Domain fields are read only.
+    ! active authoritative Domain value. Copies and writebacks must match
+    ! exactly. Independently evaluated pre-wavelet RK candidates allow only
+    ! a small pointwise roundoff tolerance and may restrict comparison to
+    ! patches initialized by RK_sub_step.
 
     implicit none
 
     integer, intent(in) :: payload_family
     type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
+    logical, optional, intent(in) :: integrated_only
+    integer(int64), optional, intent(out) :: compared_patch_count
+    character(len=*), optional, intent(in) :: comparison_name
 
     integer :: d
     integer :: p
     integer :: patch_slot
+    integer :: production_node_start
     integer :: scalar_pos
     integer :: scalar_start
+    integer :: value_index
     integer :: vector_pos
     integer :: vector_start
+
+    integer(int64) :: patch_count
+
+    logical :: compare_integrated_only
 
     real(dp) :: current_scalar( &
          block_writeback_plan%scalar_patch_nvalue)
     real(dp) :: current_vector( &
          block_writeback_plan%vector_patch_nvalue)
+    real(dp) :: scalar_difference( &
+         block_writeback_plan%scalar_patch_nvalue)
+    real(dp) :: scalar_tolerance( &
+         block_writeback_plan%scalar_patch_nvalue)
+    real(dp) :: vector_difference( &
+         block_writeback_plan%vector_patch_nvalue)
+    real(dp) :: vector_tolerance( &
+         block_writeback_plan%vector_patch_nvalue)
+    real(dp) :: allowed_difference
+    real(dp) :: block_value
+    real(dp) :: current_value
+    real(dp) :: difference
 
+    compare_integrated_only = .false.
+    if (present(integrated_only)) then
+       compare_integrated_only = integrated_only
+    end if
+    if (compare_integrated_only .and. .not. present(domain_sol)) then
+       call fail("integrated block/Domain comparison requires stage sol")
+    end if
+
+    patch_count = 0_int64
     call reconstruct_block_writeback_domain_stage(payload_family)
 
     do d = 1,size(grid)
        do p = 0,grid(d)%patch%length-1
           if (grid(d)%patch%elts(p+1)%deleted) cycle
+          if (compare_integrated_only) then
+             if (grid(d)%patch%length < 3) then
+                call fail("integrated RK Domain patch inventory is invalid")
+             end if
+             production_node_start = &
+                  grid(d)%patch%elts(3)%elts_start
+             if (grid(d)%patch%elts(p+1)%elts_start < &
+                  production_node_start) cycle
+          end if
           patch_slot = &
                block_writeback_plan%domain_patch_displ(d) + p + 1
+          if (compare_integrated_only .and. .not. &
+               block_writeback_plan% &
+               domain_patch_reconstructed(patch_slot)) then
+             call fail("integrated RK patch was not reconstructed")
+          end if
           scalar_start = (patch_slot-1)* &
                block_writeback_plan%scalar_patch_nvalue + 1
           vector_start = (patch_slot-1)* &
@@ -11831,22 +12092,105 @@ end subroutine build_parallel_block_catalog
                   d,p,payload_family,current_scalar,scalar_pos, &
                   current_vector,vector_pos)
           end if
-          if (any(abs(current_scalar- &
+          scalar_difference = abs(current_scalar- &
                block_writeback_plan%scalar_domain_stage( &
                scalar_start:scalar_start+ &
-               block_writeback_plan%scalar_patch_nvalue-1)) > &
-               0.0_dp)) then
-             call fail("production scalar block/Domain mismatch")
+               block_writeback_plan%scalar_patch_nvalue-1))
+          scalar_tolerance = 0.0_dp
+          if (compare_integrated_only) then
+             scalar_tolerance = 32.0_dp*epsilon(1.0_dp)*max( &
+                  1.0_dp,abs(current_scalar),abs( &
+                  block_writeback_plan%scalar_domain_stage( &
+                  scalar_start:scalar_start+ &
+                  block_writeback_plan%scalar_patch_nvalue-1)))
           end if
-          if (any(abs(current_vector- &
+          if (any(scalar_difference > scalar_tolerance)) then
+             value_index = maxloc( &
+                  scalar_difference-scalar_tolerance,dim=1)
+             current_value = current_scalar(value_index)
+             block_value = block_writeback_plan%scalar_domain_stage( &
+                  scalar_start+value_index-1)
+             difference = scalar_difference(value_index)
+             allowed_difference = scalar_tolerance(value_index)
+             call report_candidate_mismatch( &
+                  "scalar",d,p,value_index,current_value, &
+                  block_value,difference,allowed_difference)
+             if (present(comparison_name)) then
+                call fail(trim(comparison_name)// &
+                     " integrated scalar block/Domain mismatch")
+             else
+                call fail("production scalar block/Domain mismatch")
+             end if
+          end if
+          vector_difference = abs(current_vector- &
                block_writeback_plan%vector_domain_stage( &
                vector_start:vector_start+ &
-               block_writeback_plan%vector_patch_nvalue-1)) > &
-               0.0_dp)) then
-             call fail("production vector block/Domain mismatch")
+               block_writeback_plan%vector_patch_nvalue-1))
+          vector_tolerance = 0.0_dp
+          if (compare_integrated_only) then
+             vector_tolerance = 32.0_dp*epsilon(1.0_dp)*max( &
+                  1.0_dp,abs(current_vector),abs( &
+                  block_writeback_plan%vector_domain_stage( &
+                  vector_start:vector_start+ &
+                  block_writeback_plan%vector_patch_nvalue-1)))
           end if
+          if (any(vector_difference > vector_tolerance)) then
+             value_index = maxloc( &
+                  vector_difference-vector_tolerance,dim=1)
+             current_value = current_vector(value_index)
+             block_value = block_writeback_plan%vector_domain_stage( &
+                  vector_start+value_index-1)
+             difference = vector_difference(value_index)
+             allowed_difference = vector_tolerance(value_index)
+             call report_candidate_mismatch( &
+                  "vector",d,p,value_index,current_value, &
+                  block_value,difference,allowed_difference)
+             if (present(comparison_name)) then
+                call fail(trim(comparison_name)// &
+                     " integrated vector block/Domain mismatch")
+             else
+                call fail("production vector block/Domain mismatch")
+             end if
+          end if
+          patch_count = patch_count + 1_int64
        end do
     end do
+
+    if (present(compared_patch_count)) then
+       compared_patch_count = patch_count
+    end if
+
+  contains
+
+    subroutine report_candidate_mismatch ( &
+         family,d,p,index,current,block,difference,tolerance)
+
+      implicit none
+
+      character(len=*), intent(in) :: family
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: index
+      real(dp), intent(in) :: current
+      real(dp), intent(in) :: block
+      real(dp), intent(in) :: difference
+      real(dp), intent(in) :: tolerance
+
+      character(len=16) :: name
+
+      name = "production"
+      if (present(comparison_name)) name = comparison_name
+      write(error_unit,'(a,i0,5a,i0,a,i0,a,i0)') &
+           "Rank ",rank,": ",trim(name)," ",trim(family), &
+           " mismatch: Domain index = ",d,", patch = ",p, &
+           ", patch value index = ",index
+      write(error_unit,'(4(a,es24.16))') &
+           "  Domain value = ",current, &
+           ", block value = ",block, &
+           ", absolute difference = ",difference, &
+           ", allowed difference = ",tolerance
+
+    end subroutine report_candidate_mismatch
 
   end subroutine assert_block_domain_field_family_match
 
