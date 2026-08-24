@@ -14,11 +14,12 @@ module time_integr_mod
        begin_block_scalar_divergence_capture, &
        capture_block_domain_multistage_candidate_tendency, &
        finalize_block_scalar_divergence_capture, &
-       accept_block_native_multistage_candidate, &
        parallel_block_state_is_ready, &
+       prepare_block_native_multistage_wavelet_acceptance, &
        retain_block_native_multistage_candidate, &
        refresh_parallel_block_candidate_boundary_state, &
-       refresh_parallel_block_domain_prognostic_state
+       refresh_parallel_block_domain_prognostic_state, &
+       validate_candidate_block_scalar_wavelets
 
   implicit none
 
@@ -138,7 +139,10 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,1,3)
     end if
-    call WT_after_step (q1, wav)
+    call WT_after_step( &
+         q1,wav, &
+         validate_scalar_wavelets= &
+         validate_candidate_block_scalar_wavelets)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,1,3)
@@ -155,7 +159,10 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,2,3)
     end if
-    call WT_after_step (q1, wav)
+    call WT_after_step( &
+         q1,wav, &
+         validate_scalar_wavelets= &
+         validate_candidate_block_scalar_wavelets)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,2,3)
@@ -171,9 +178,11 @@ contains
     call RK_sub_step (q, trend, h, q)
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q,3,3)
-       call accept_block_native_multistage_candidate(3)
+       call prepare_block_native_multistage_wavelet_acceptance(3)
     end if
-    call WT_after_step (q, wav, level_start-1)
+    call WT_after_step( &
+         q,wav,level_start-1, &
+         validate_candidate_block_scalar_wavelets)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if
@@ -181,7 +190,8 @@ contains
   
   
   subroutine RK4 (q, wav, routine, h)
-    ! Low storage four stage second order accurate Runge-Kutta scheme used in Dubos et al (2015) Geosci. Model Dev., 8, 3131–3150, 2015.
+    ! Low-storage four-stage second-order Runge-Kutta scheme used in
+    ! Dubos et al. (2015), Geosci. Model Dev., 8, 3131-3150.
     ! Fourth order accurate for linear equations, stable for CFL <= 2*sqrt(2) ~ 2.83.
     ! Does not require extra solution variables.
     
@@ -216,7 +226,10 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,1,4)
     end if
-    call WT_after_step (q1, wav)
+    call WT_after_step( &
+         q1,wav, &
+         validate_scalar_wavelets= &
+         validate_candidate_block_scalar_wavelets)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,1,4)
@@ -233,7 +246,10 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,2,4)
     end if
-    call WT_after_step (q1, wav)
+    call WT_after_step( &
+         q1,wav, &
+         validate_scalar_wavelets= &
+         validate_candidate_block_scalar_wavelets)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,2,4)
@@ -250,7 +266,10 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,3,4)
     end if
-    call WT_after_step (q1, wav)
+    call WT_after_step( &
+         q1,wav, &
+         validate_scalar_wavelets= &
+         validate_candidate_block_scalar_wavelets)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,3,4)
@@ -266,9 +285,11 @@ contains
     call RK_sub_step (q, trend, h, q)
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q,4,4)
-       call accept_block_native_multistage_candidate(4)
+       call prepare_block_native_multistage_wavelet_acceptance(4)
     end if
-    call WT_after_step (q, wav, level_start-1)
+    call WT_after_step( &
+         q,wav,level_start-1, &
+         validate_candidate_block_scalar_wavelets)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if

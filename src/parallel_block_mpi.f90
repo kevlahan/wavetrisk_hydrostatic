@@ -16,7 +16,8 @@ module parallel_block_mpi_mod
        MM, MP, PM, PP, UMZ, UPZ, UZM, UZP, VMM, VMPP, VMP, &
        VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
        S_MASS, S_TEMP, S_VELO, &
-       RESTRCT, TRSK, c_p, compressible, grav_accel, kappa, level_end, &
+       ADJZONE, RESTRCT, TRSK, c_p, compressible, grav_accel, kappa, &
+       level_end, &
        level_start, p_0, p_top, zlevels
 
   use domain_mod, only : chd_offs, Domain, Float_Field, &
@@ -161,7 +162,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
-  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 35
+  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 36
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
   integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
   integer, parameter :: BLOCK_SCALAR_ACTIVE_INDEX = 8
@@ -175,6 +176,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_SCALAR_SOURCE_INDEX = 33
   integer, parameter :: BLOCK_SCALAR_NATIVE_DSCALAR_INDEX = 34
   integer, parameter :: BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX = 35
+  integer, parameter :: BLOCK_SCALAR_WAVELET_MASK_INDEX = 36
 
   abstract interface
      function Block_Scalar_Physics_Flux ( &
@@ -358,6 +360,7 @@ module parallel_block_mpi_mod
   integer, save :: production_multistage_candidate_stage_count = 0
   integer, save :: production_multistage_captured_tendency_stage = 0
   integer, save :: production_multistage_native_candidate_stage = 0
+  logical, save :: production_multistage_final_snapshot_consumed = .false.
   integer(int64), save :: &
        production_multistage_accumulator_allocation_before = 0_int64
   integer(int64), save :: &
@@ -537,6 +540,15 @@ module parallel_block_mpi_mod
      integer(int64) :: divergence_activated_count = 0_int64
   end type Block_Scalar_Restriction_Context
 
+  type :: Block_Scalar_Wavelet_Context
+     integer :: first_level = -1
+     integer :: last_level = -1
+     integer(int64) :: parent_patch_count = 0_int64
+     integer(int64) :: candidate_count = 0_int64
+     integer(int64) :: active_count = 0_int64
+     integer(int64) :: compared_count = 0_int64
+  end type Block_Scalar_Wavelet_Context
+
   type :: Block_Scalar_Restriction_Cursor
      integer :: target_level = -1
      integer :: catalog_index = 0
@@ -604,6 +616,7 @@ module parallel_block_mpi_mod
   public :: check_domain_boundary_field_family_block_import
   public :: refresh_parallel_block_trend_boundary_state
   public :: refresh_parallel_block_candidate_boundary_state
+  public :: validate_candidate_block_scalar_wavelets
   public :: refresh_parallel_block_domain_prognostic_state
   public :: check_domain_trend_roundtrip
   public :: import_domain_trend_to_block_tendency
@@ -617,6 +630,7 @@ module parallel_block_mpi_mod
   public :: finalize_block_scalar_divergence_capture
   public :: begin_block_domain_multistage_candidate_stage
   public :: retain_block_native_multistage_candidate
+  public :: prepare_block_native_multistage_wavelet_acceptance
   public :: accept_block_native_multistage_candidate
   public :: check_block_domain_trend_step
   public :: check_block_writeback_domain_reconstruction
@@ -3329,6 +3343,7 @@ end subroutine build_parallel_block_catalog
     production_multistage_candidate_stage_count = 0
     production_multistage_captured_tendency_stage = 0
     production_multistage_native_candidate_stage = 0
+    production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
 
   end subroutine clear_block_writeback_plan
@@ -5149,8 +5164,9 @@ end subroutine build_parallel_block_catalog
           call fail("stage Domain prognostic import has no checkpoint guard")
        end if
     else
-       if (keep_checkpoint) then
-          call fail("checkpoint-preserving import has no stage sol")
+       if (keep_checkpoint .and. &
+            payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+          call fail("checkpoint-preserving import has no stage payload")
        end if
     end if
     if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
@@ -6390,6 +6406,501 @@ end subroutine build_parallel_block_catalog
   end subroutine refresh_parallel_block_candidate_boundary_state
 
 
+  subroutine validate_candidate_block_scalar_wavelets ( &
+       domain_scaling,first_level)
+    ! Evaluate each RK-candidate scalar wavelet stencil directly from retained
+    ! block sol. Domain wavelets remain the independent reference; compression,
+    ! inverse reconstruction and adaptation remain unchanged.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: first_level
+
+    integer :: ierr
+    integer :: candidate_stage
+    integer :: candidate_stage_count
+
+    integer(int64) :: count_global(4)
+    integer(int64) :: count_local(4)
+    integer(int64) :: restriction_allocation_before
+    integer(int64) :: scalar_allocation_before
+    integer(int64) :: writeback_allocation_after
+    integer(int64) :: writeback_allocation_before
+    integer(int64) :: writeback_before
+
+    logical :: checkpoint_ready
+    logical :: state_ready
+
+    character(len=3) :: scheme_name
+
+    type(Block_Scalar_Wavelet_Context) :: statistics
+
+    candidate_stage = production_multistage_candidate_stage
+    candidate_stage_count = &
+         production_multistage_candidate_stage_count
+
+    ! Every RK candidate still carries the retained native snapshot and
+    ! rollback checkpoint at this point in WT_after_step. For the final
+    ! candidate, acceptance is deliberately deferred until this pre-
+    ! compression guard has validated the complete scalar transform.
+    if (candidate_stage_count == 0) return
+
+    state_ready = parallel_block_state_is_ready()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (.not. state_ready .or. .not. checkpoint_ready) then
+       call fail("scalar-wavelet shadow transaction is not ready")
+    end if
+    if (candidate_stage < candidate_stage_count) then
+       if (first_level /= level_start) then
+          call fail("provisional scalar-wavelet first level is invalid")
+       end if
+    else
+       if (first_level /= level_start-1) then
+          call fail("accepted scalar-wavelet first level is invalid")
+       end if
+    end if
+    if (candidate_stage < candidate_stage_count) then
+       if (.not. block_writeback_plan%native_stage_ready .or. &
+            block_writeback_plan%native_stage /= candidate_stage .or. &
+            block_writeback_plan%native_stage_count /= &
+            candidate_stage_count) then
+          call fail("scalar-wavelet native snapshot is not ready")
+       end if
+    else
+       if (.not. production_multistage_final_snapshot_consumed .or. &
+            block_writeback_plan%native_stage_ready) then
+          call fail("accepted scalar-wavelet snapshot boundary is invalid")
+       end if
+    end if
+    if (.not. block_scalar_divergence_plan%ready .or. &
+         .not. allocated(block_scalar_tendency)) then
+       call fail("scalar-wavelet geometry shadow is not ready")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    scalar_allocation_before = block_scalar_tendency_allocations
+    restriction_allocation_before = &
+         block_scalar_restriction_exchange%allocations
+    writeback_before = block_domain_production_writeback_count()
+
+    ! WT_after_step has already refreshed the Domain scaling boundary. Import
+    ! only compact boundary values; block interiors remain the native RK
+    ! candidate. Inter-block ghosts are then produced from those interiors.
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.false.,domain_scaling)
+    call refresh_block_sol_ghosts
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_SOL,domain_scaling)
+
+    ! The production call uses the module wav_coeff object supplied to
+    ! WT_after_step. Install its uncompressed patch coefficients as a
+    ! read-only reference while preserving the RK rollback checkpoint.
+    call import_domain_field_family_to_blocks( &
+         BLOCK_PAYLOAD_WAV_COEFF,preserve_checkpoint=.true.)
+
+    statistics%first_level = first_level
+    statistics%last_level = level_end-1
+    call apply_local_block_field_consumer( &
+         compare_block_scalar_wavelets,statistics)
+
+    count_local = [statistics%parent_patch_count, &
+         statistics%candidate_count,statistics%active_count, &
+         statistics%compared_count]
+    call MPI_Allreduce(count_local,count_global,size(count_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce scalar-wavelet shadow coverage")
+    if (any(count_global <= 0_int64)) then
+       call fail("block-native scalar-wavelet coverage is empty")
+    end if
+    if (count_global(3) /= count_global(4)) then
+       call fail("block-native scalar-wavelet comparison coverage differs")
+    end if
+
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (.not. checkpoint_ready) then
+       call fail("scalar-wavelet shadow lost RK transaction state")
+    end if
+    if (candidate_stage < candidate_stage_count) then
+       if (.not. block_writeback_plan%native_stage_ready) then
+          call fail("scalar-wavelet shadow lost native snapshot")
+       end if
+    else
+       if (.not. production_multistage_final_snapshot_consumed .or. &
+            block_writeback_plan%native_stage_ready) then
+          call fail("accepted scalar-wavelet snapshot state changed")
+       end if
+    end if
+    writeback_allocation_after = &
+         block_writeback_plan_allocation_count()
+    if (writeback_allocation_after /= writeback_allocation_before .or. &
+         block_scalar_tendency_allocations /= scalar_allocation_before .or. &
+         block_scalar_restriction_exchange%allocations /= &
+         restriction_allocation_before) then
+       call fail("scalar-wavelet shadow reallocated persistent storage")
+    end if
+    if (block_domain_production_writeback_count() /= writeback_before) then
+       call fail("scalar-wavelet shadow modified Domain fields")
+    end if
+
+    ! Close the final RK transaction downstream of the complete
+    ! uncompressed comparison but upstream of wavelet compression, inverse
+    ! reconstruction and any subsequent grid adaptation.
+    if (candidate_stage == candidate_stage_count) then
+       call accept_block_native_multistage_candidate( &
+            candidate_stage_count)
+       checkpoint_ready = &
+            local_block_tendency_commit_checkpoint_is_ready()
+       state_ready = parallel_block_state_is_ready()
+       if (.not. state_ready) then
+          call fail("scalar-wavelet acceptance invalidated block state")
+       end if
+       if (checkpoint_ready .or. &
+            block_writeback_plan%native_stage_ready) then
+          call fail("scalar-wavelet acceptance retained transaction state")
+       end if
+       if (production_multistage_final_snapshot_consumed) then
+          call fail("scalar-wavelet acceptance retained snapshot state")
+       end if
+       if (production_multistage_candidate_stage /= 0 .or. &
+            production_multistage_candidate_stage_count /= 0) then
+          call fail("scalar-wavelet acceptance retained stage state")
+       end if
+    end if
+
+    if (candidate_stage_count == 3) then
+       scheme_name = "RK3"
+    else
+       scheme_name = "RK4"
+    end if
+    if (rank == 0) then
+       write(6,'(a,a,a,i0,a,i0)') &
+            "  block-native ",scheme_name, &
+            " scalar wavelet shadow passed: stage = ", &
+            candidate_stage," of ",candidate_stage_count
+    end if
+
+  end subroutine validate_candidate_block_scalar_wavelets
+
+
+  subroutine compare_block_scalar_wavelets (catalog_index,block,context)
+    ! Reproduce Compute_scalar_wavelets for every retained parent-child pair.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: c
+    integer :: child
+    integer :: i
+    integer :: i_chd
+    integer :: i_par
+    integer :: j
+    integer :: j_chd
+    integer :: j_par
+    integer :: level_slot
+    integer :: local_index
+    integer :: p
+    integer :: scalar_slot
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency)) then
+       call fail("scalar-wavelet comparison block is invalid")
+    end if
+    if (.not. block_scalar_tendency(local_index)%ready .or. &
+         block_scalar_tendency(local_index)%catalog_index /= &
+         catalog_index) then
+       call fail("scalar-wavelet geometry block is stale")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Scalar_Wavelet_Context)
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level < statistics%first_level .or. &
+               block%patch(p)%level > statistics%last_level) cycle
+          statistics%parent_patch_count = &
+               statistics%parent_patch_count + 1_int64
+          do c = 1,N_CHDRN
+             child = block%patch(p)%children(c)
+             if (child == 0) cycle
+             if (child < 0 .or. child >= size(block%patch)) then
+                call fail("scalar-wavelet child patch is invalid")
+             end if
+             if (block%patch(child+1)%level /= &
+                  block%patch(p)%level+1) then
+                call fail("scalar-wavelet child level is invalid")
+             end if
+             do scalar_slot = 0,block%n_scalar_variable-1
+                do level_slot = 1,block%n_field_level
+                   if (block%field_level+level_slot-1 < 1 .or. &
+                        block%field_level+level_slot-1 > zlevels) cycle
+                   do j = 1,PATCH_SIZE/2
+                      j_chd = 2*(j-1)
+                      j_par = j-1+chd_offs(2,c)
+                      do i = 1,PATCH_SIZE/2
+                         i_chd = 2*(i-1)
+                         i_par = i-1+chd_offs(1,c)
+                         call compare_child_value( &
+                              i_chd+1,j_chd, &
+                              [i_chd,i_chd+2,i_chd+2,i_chd], &
+                              [j_chd,j_chd,j_chd+2,j_chd-2],statistics)
+                         call compare_child_value( &
+                              i_chd+1,j_chd+1, &
+                              [i_chd+2,i_chd,i_chd+2,i_chd], &
+                              [j_chd+2,j_chd,j_chd,j_chd+2],statistics)
+                         call compare_child_value( &
+                              i_chd,j_chd+1, &
+                              [i_chd,i_chd,i_chd-2,i_chd+2], &
+                              [j_chd,j_chd+2,j_chd,j_chd+2],statistics)
+                      end do
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("scalar-wavelet comparison context is invalid")
+    end select
+
+  contains
+
+    subroutine compare_child_value ( &
+         target_i,target_j,source_i,source_j,stats)
+
+      implicit none
+
+      integer, intent(in) :: target_i
+      integer, intent(in) :: target_j
+      integer, intent(in) :: source_i(4)
+      integer, intent(in) :: source_j(4)
+      type(Block_Scalar_Wavelet_Context), intent(inout) :: stats
+
+      real(dp) :: comparison_tolerance
+      real(dp) :: mask_value
+      real(dp) :: native_value
+      real(dp) :: operation_scale
+      real(dp) :: reference_value
+
+      stats%candidate_count = stats%candidate_count + 1_int64
+      mask_value = block_scalar_record_value( &
+           block,local_index,child+1,scalar_slot,level_slot, &
+           target_i,target_j,BLOCK_SCALAR_WAVELET_MASK_INDEX)
+      reference_value = block_scalar_family_value( &
+           block,local_index,child+1,scalar_slot,level_slot, &
+           target_i,target_j,BLOCK_PAYLOAD_WAV_COEFF)
+      if (mask_value < real(ADJZONE,dp)) then
+         if (abs(reference_value) > 0.0_dp) then
+            call report_scalar_wavelet_mismatch( &
+                 "inactive Domain scalar wavelet is not zero", &
+                 target_i,target_j,0.0_dp,reference_value,0.0_dp)
+         end if
+         return
+      end if
+
+      stats%active_count = stats%active_count + 1_int64
+      native_value = compute_block_scalar_wavelet( &
+           block,local_index,child+1,scalar_slot,level_slot, &
+           target_i,target_j,source_i,source_j,operation_scale)
+      comparison_tolerance = 32.0_dp*epsilon(1.0_dp)*max( &
+           1.0_dp,abs(native_value),abs(reference_value),operation_scale)
+      if (abs(native_value-reference_value) > comparison_tolerance) then
+         call report_scalar_wavelet_mismatch( &
+              "block-native scalar wavelet differs",target_i,target_j, &
+              native_value,reference_value,comparison_tolerance)
+      end if
+      stats%compared_count = stats%compared_count + 1_int64
+
+    end subroutine compare_child_value
+
+
+    subroutine report_scalar_wavelet_mismatch ( &
+         message,target_i,target_j,native_value,reference_value,allowed)
+
+      implicit none
+
+      character(len=*), intent(in) :: message
+      integer, intent(in) :: target_i
+      integer, intent(in) :: target_j
+      real(dp), intent(in) :: native_value
+      real(dp), intent(in) :: reference_value
+      real(dp), intent(in) :: allowed
+
+      write(error_unit,'(/,a,i0,a,a)') &
+           "Rank ",rank,": ",trim(message)
+      write(error_unit,'(a,i0,a,i0,a,i0)') &
+           "  catalog block = ",catalog_index, &
+           ", block id = ",block%id,", parent patch = ",p
+      write(error_unit,'(a,i0,a,i0,a,i0)') &
+           "  parent level = ",block%patch(p)%level, &
+           ", child = ",c,", child patch = ",child+1
+      write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+           "  parent coordinates = ",i_par,", ",j_par, &
+           "; child coordinates = ",target_i,", ",target_j
+      write(error_unit,'(a,i0,a,i0)') &
+           "  scalar slot = ",scalar_slot, &
+           ", field-level slot = ",level_slot
+      write(error_unit,'(a,4(es24.16,1x))') &
+           "  native, reference, difference, allowed = ", &
+           native_value,reference_value, &
+           abs(native_value-reference_value),allowed
+      flush(error_unit)
+      call fail("scalar-wavelet shadow comparison failed")
+
+    end subroutine report_scalar_wavelet_mismatch
+
+  end subroutine compare_block_scalar_wavelets
+
+
+  real(dp) function compute_block_scalar_wavelet ( &
+       block,local_index,p,scalar_slot,level_slot,target_i,target_j, &
+       source_i,source_j,operation_scale) result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: target_i
+    integer, intent(in) :: target_j
+    integer, intent(in) :: source_i(4)
+    integer, intent(in) :: source_j(4)
+    real(dp), intent(out) :: operation_scale
+
+    integer :: k
+
+    real(dp) :: inverse_area
+    real(dp) :: source_value(4)
+    real(dp) :: target_value
+    real(dp) :: weight(4)
+
+    target_value = block_scalar_family_value( &
+         block,local_index,p,scalar_slot,level_slot,target_i,target_j, &
+         BLOCK_PAYLOAD_SOL)
+    do k = 1,4
+       source_value(k) = block_scalar_family_value( &
+            block,local_index,p,scalar_slot,level_slot, &
+            source_i(k),source_j(k),BLOCK_PAYLOAD_SOL)
+       weight(k) = block_scalar_record_value( &
+            block,local_index,p,scalar_slot,level_slot, &
+            target_i,target_j,BLOCK_SCALAR_OVERLAP_START+k-1)
+    end do
+    inverse_area = block_scalar_record_value( &
+         block,local_index,p,scalar_slot,level_slot,target_i,target_j, &
+         BLOCK_SCALAR_AREA_INDEX)
+    value = target_value - ( &
+         weight(1)*source_value(1) + weight(2)*source_value(2) + &
+         weight(3)*source_value(3) + weight(4)*source_value(4))* &
+         inverse_area
+    operation_scale = abs(target_value) + abs(inverse_area)*( &
+         abs(weight(1)*source_value(1)) + &
+         abs(weight(2)*source_value(2)) + &
+         abs(weight(3)*source_value(3)) + &
+         abs(weight(4)*source_value(4)))
+
+  end function compute_block_scalar_wavelet
+
+
+  real(dp) function block_scalar_family_value ( &
+       block,local_index,p,scalar_slot,level_slot,i,j,payload_family) &
+       result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: payload_family
+
+    integer :: field_index
+    integer :: n_storage_node
+    integer :: node
+    integer :: node_index
+    integer :: record
+    integer :: storage_class
+
+    if (scalar_slot < 0 .or. &
+         scalar_slot >= block%n_scalar_variable .or. &
+         level_slot < 1 .or. level_slot > block%n_field_level) then
+       call fail("scalar-wavelet field slot is invalid")
+    end if
+    if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+         payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+       call fail("scalar-wavelet field family is invalid")
+    end if
+    call locate_block_scalar_record( &
+         block,local_index,p,i,j,storage_class,record,node)
+    select case (storage_class)
+    case (STORE_PATCH)
+       if (record < 0 .or. record >= size(block%patch)) then
+          call fail("scalar-wavelet patch record is invalid")
+       end if
+       n_storage_node = size(block%node)
+       node_index = block%patch(record+1)%elts_start+node
+       field_index = &
+            (scalar_slot*block%n_field_level+level_slot-1)* &
+            n_storage_node + node_index + 1
+       if (field_index < 1 .or. field_index > size(block%scalar)) then
+          call fail("scalar-wavelet patch field is invalid")
+       end if
+       if (payload_family == BLOCK_PAYLOAD_SOL) then
+          value = block%scalar(field_index)
+       else
+          value = block%wavelet_scalar(field_index)
+       end if
+    case (STORE_BDRY)
+       n_storage_node = size(block%bdry_node)
+       node_index = node
+       field_index = &
+            (scalar_slot*block%n_field_level+level_slot-1)* &
+            n_storage_node + node_index + 1
+       if (field_index < 1 .or. &
+            field_index > size(block%bdry_scalar)) then
+          call fail("scalar-wavelet boundary field is invalid")
+       end if
+       if (payload_family == BLOCK_PAYLOAD_SOL) then
+          value = block%bdry_scalar(field_index)
+       else
+          value = block%bdry_wavelet_scalar(field_index)
+       end if
+    case (STORE_GHOST)
+       n_storage_node = size(block%ghost_node)
+       node_index = node
+       field_index = &
+            (scalar_slot*block%n_field_level+level_slot-1)* &
+            n_storage_node + node_index + 1
+       if (field_index < 1 .or. &
+            field_index > size(block%ghost_scalar)) then
+          call fail("scalar-wavelet ghost field is invalid")
+       end if
+       if (payload_family == BLOCK_PAYLOAD_SOL) then
+          value = block%ghost_scalar(field_index)
+       else
+          value = block%ghost_wavelet_scalar(field_index)
+       end if
+    case default
+       call fail("scalar-wavelet storage class is invalid")
+    end select
+
+    if (.not. ieee_is_finite(value)) then
+       call fail("scalar-wavelet field value is non-finite")
+    end if
+
+  end function block_scalar_family_value
+
+
   subroutine assert_candidate_block_hydrostatic_match (domain_sol)
     ! Compare the persistent provisional-stage block thermodynamic cache
     ! with an independent reconstruction from the authoritative Domain
@@ -7612,6 +8123,8 @@ end subroutine build_parallel_block_catalog
                  grid(d)%areas%elts(id+1)%hex_inv
             value(BLOCK_SCALAR_ACTIVE_INDEX) = merge( &
                  1.0_dp,0.0_dp,grid(d)%mask_n%elts(id+1) >= TRSK)
+            value(BLOCK_SCALAR_WAVELET_MASK_INDEX) = &
+                 real(grid(d)%mask_n%elts(id+1),dp)
             value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
                  BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
                  horiz_flux(scalar_id)%data(d)%elts( &
@@ -7921,6 +8434,8 @@ end subroutine build_parallel_block_catalog
               grid(d)%areas%elts(id+1)%hex_inv
          value(BLOCK_SCALAR_ACTIVE_INDEX) = merge( &
               1.0_dp,0.0_dp,grid(d)%mask_n%elts(id+1) >= TRSK)
+         value(BLOCK_SCALAR_WAVELET_MASK_INDEX) = &
+              real(grid(d)%mask_n%elts(id+1),dp)
          value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
               BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
               horiz_flux(scalar_id)%data(d)%elts( &
@@ -12558,10 +13073,65 @@ end subroutine build_parallel_block_catalog
   end subroutine retain_block_native_multistage_candidate
 
 
+  subroutine prepare_block_native_multistage_wavelet_acceptance ( &
+       stage_count)
+    ! Consume the exact final pre-wavelet SOL snapshot before WT_after_step
+    ! performs its legitimate level_start-1 velocity restriction. Keep the
+    ! rollback checkpoint live so acceptance can remain conditional on the
+    ! subsequent uncompressed scalar-wavelet comparison.
+
+    implicit none
+
+    integer, intent(in) :: stage_count
+
+    logical :: checkpoint_ready
+    logical :: state_ready
+    logical :: trial_active
+
+    if (stage_count /= 3 .and. stage_count /= 4) then
+       call fail("wavelet acceptance stage count is invalid")
+    end if
+    if (production_multistage_candidate_stage_count /= stage_count .or. &
+         production_multistage_candidate_stage /= stage_count .or. &
+         production_multistage_captured_tendency_stage /= 0 .or. &
+         production_multistage_native_candidate_stage /= 0) then
+       call fail("wavelet acceptance candidate is incomplete")
+    end if
+    if (production_multistage_final_snapshot_consumed) then
+       call fail("wavelet acceptance snapshot was already consumed")
+    end if
+
+    state_ready = parallel_block_state_is_ready()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    trial_active = local_block_tendency_trial_is_active()
+    if (.not. state_ready .or. trial_active .or. .not. checkpoint_ready) then
+       call fail("wavelet acceptance transaction is not ready")
+    end if
+    if (.not. block_writeback_plan%native_stage_ready .or. &
+         block_writeback_plan%native_stage /= stage_count .or. &
+         block_writeback_plan%native_stage_count /= stage_count) then
+       call fail("wavelet acceptance native snapshot is not ready")
+    end if
+
+    call consume_native_multistage_candidate_snapshot( &
+         stage_count,stage_count)
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (.not. checkpoint_ready .or. &
+         block_writeback_plan%native_stage_ready) then
+       call fail("wavelet acceptance snapshot boundary is invalid")
+    end if
+    production_multistage_final_snapshot_consumed = .true.
+
+  end subroutine prepare_block_native_multistage_wavelet_acceptance
+
+
   subroutine accept_block_native_multistage_candidate (stage_count)
-    ! Consume the retained final native candidate after its guarded comparison
-    ! and stage writeback. Close the reversible timestep-start checkpoint only
-    ! after the accepted native block state is exact on Domain owners.
+    ! Accept the retained final native candidate after its scalar-wavelet
+    ! guard. The exact pre-restriction SOL snapshot has already been consumed;
+    ! close the reversible timestep-start checkpoint only after the guarded
+    ! uncompressed transform is complete.
 
     implicit none
 
@@ -12590,6 +13160,10 @@ end subroutine build_parallel_block_catalog
          production_multistage_native_candidate_stage /= 0) then
        call fail("production multistage block candidate is incomplete")
     end if
+    if (.not. production_multistage_final_snapshot_consumed .or. &
+         block_writeback_plan%native_stage_ready) then
+       call fail("production multistage snapshot boundary is incomplete")
+    end if
     if (block_writeback_plan% &
          production_multistage_boundary_refresh_count /= &
          int(stage_count-1,int64)) then
@@ -12606,8 +13180,6 @@ end subroutine build_parallel_block_catalog
     call local_block_tendency_commit_checkpoint_statistics( &
          local_changed_block_count(1),local_changed_block_count(2), &
          local_max_update(1),local_max_update(2))
-    call consume_native_multistage_candidate_snapshot( &
-         stage_count,stage_count)
     call finalize_local_block_tendency_commit
     call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
 
@@ -12674,6 +13246,7 @@ end subroutine build_parallel_block_catalog
     production_multistage_candidate_stage_count = 0
     production_multistage_captured_tendency_stage = 0
     production_multistage_native_candidate_stage = 0
+    production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
     block_writeback_plan%production_multistage_boundary_refresh_count = &
          0_int64
