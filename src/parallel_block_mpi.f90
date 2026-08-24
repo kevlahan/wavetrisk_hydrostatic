@@ -367,6 +367,7 @@ module parallel_block_mpi_mod
   integer, save :: production_multistage_captured_tendency_stage = 0
   integer, save :: production_multistage_native_candidate_stage = 0
   integer, save :: production_velocity_restriction_level = -1
+  logical, save :: production_coarse_outer_wavelet_validated = .false.
   logical, save :: production_multistage_final_snapshot_consumed = .false.
   integer(int64), save :: &
        production_multistage_accumulator_allocation_before = 0_int64
@@ -3370,6 +3371,7 @@ end subroutine build_parallel_block_catalog
     production_multistage_captured_tendency_stage = 0
     production_multistage_native_candidate_stage = 0
     production_velocity_restriction_level = -1
+    production_coarse_outer_wavelet_validated = .false.
     production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
 
@@ -6580,6 +6582,8 @@ end subroutine build_parallel_block_catalog
                          if (abs(native_value-reference_value) > allowed) then
                             call report_velocity_restriction_mismatch
                          end if
+                         call set_staged_parent_velocity( &
+                              d,p,level_slot,i_par,j_par,e,native_value)
                          statistics%produced_count = &
                               statistics%produced_count + 1_int64
                       end do
@@ -6629,7 +6633,7 @@ end subroutine build_parallel_block_catalog
     if (rank == 0) then
        write(6,'(a,a,a,i0)') &
             "  block-derived ",scheme_name, &
-            " velocity restriction shadow passed: coarse level = ", &
+            " staged velocity restriction production passed: coarse level = ", &
             coarse_level
     end if
 
@@ -6744,6 +6748,41 @@ end subroutine build_parallel_block_catalog
       end if
 
     end function domain_restricted_velocity
+
+
+    subroutine set_staged_parent_velocity ( &
+         d_stage,p_stage,level_stage,i_stage,j_stage,e_stage,value)
+
+      implicit none
+
+      integer, intent(in) :: d_stage
+      integer, intent(in) :: p_stage
+      integer, intent(in) :: level_stage
+      integer, intent(in) :: i_stage
+      integer, intent(in) :: j_stage
+      integer, intent(in) :: e_stage
+      real(dp), intent(in) :: value
+
+      integer :: patch_slot
+      integer :: value_index
+
+      patch_slot = block_writeback_plan%domain_patch_displ(d_stage) + &
+           p_stage + 1
+      value_index = (patch_slot-1)* &
+           block_writeback_plan%vector_patch_nvalue + &
+           (level_stage-1)*EDGE*PATCH_SIZE**2 + &
+           EDGE*(PATCH_SIZE*j_stage+i_stage)+e_stage+1
+      if (patch_slot < 1 .or. patch_slot > &
+           size(block_writeback_plan%domain_patch_covered) .or. &
+           .not. block_writeback_plan%domain_patch_covered(patch_slot) .or. &
+           value_index < 1 .or. value_index > &
+           size(block_writeback_plan%vector_domain_stage) .or. &
+           .not. ieee_is_finite(value)) then
+         call fail("velocity restriction staged target is invalid")
+      end if
+      block_writeback_plan%vector_domain_stage(value_index) = value
+
+    end subroutine set_staged_parent_velocity
 
 
     subroutine report_velocity_restriction_mismatch
@@ -6962,10 +7001,18 @@ end subroutine build_parallel_block_catalog
          production_multistage_candidate_stage_count
     if (candidate_stage_count == 0) return
 
-    ! The fixed coarse scaffold is not resident in compact blocks. Stage 121
-    ! validates its restriction through Domain-layout staging; its cross-root
-    ! outer wavelet remains deferred.
-    if (wavelet_level < level_start) return
+    if (wavelet_level == level_start-1) then
+       if (candidate_stage /= candidate_stage_count .or. &
+            production_velocity_restriction_level /= wavelet_level) then
+          call fail("cross-root outer wavelet preceded velocity restriction")
+       end if
+       call validate_staged_coarse_outer_vector_wavelets( &
+            wavelet_level,candidate_stage,candidate_stage_count)
+       return
+    end if
+    if (wavelet_level < level_start-1) then
+       call fail("outer vector-wavelet level is below staged coverage")
+    end if
     if (wavelet_level > level_end-1) then
        call fail("outer vector-wavelet level is invalid")
     end if
@@ -7065,6 +7112,454 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine validate_candidate_block_outer_vector_wavelets
+
+
+  subroutine validate_staged_coarse_outer_vector_wavelets ( &
+       wavelet_level,candidate_stage,candidate_stage_count)
+    ! Validate regular outer wavelets spanning distinct block roots whenever
+    ! the complete nine-edge coarse stencil remains in one scaffold patch.
+
+    implicit none
+
+    integer, intent(in) :: wavelet_level
+    integer, intent(in) :: candidate_stage
+    integer, intent(in) :: candidate_stage_count
+
+    integer :: c
+    integer :: d
+    integer :: e
+    integer :: field_level
+    integer :: first_field_level
+    integer :: i
+    integer :: i_chd
+    integer :: i_par
+    integer :: ierr
+    integer :: j
+    integer :: j_chd
+    integer :: j_par
+    integer :: level_slot
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: p
+    integer :: p_child
+    integer :: p_index
+    integer :: v_scalar
+    integer :: v_vector
+
+    integer(int64) :: count_global(5)
+    integer(int64) :: count_local(5)
+    integer(int64) :: restriction_allocation_before
+    integer(int64) :: scalar_allocation_before
+    integer(int64) :: writeback_allocation_before
+    integer(int64) :: writeback_before
+
+    logical :: checkpoint_ready
+
+    real(dp) :: allowed
+    real(dp) :: companion_reference
+    real(dp) :: mask_value
+    real(dp) :: native_value
+    real(dp) :: operation_scale
+    real(dp) :: reference_value
+
+    character(len=3) :: scheme_name
+
+    writeback_allocation_before = block_writeback_plan_allocation_count()
+    scalar_allocation_before = block_scalar_tendency_allocations
+    restriction_allocation_before = &
+         block_scalar_restriction_exchange%allocations
+    writeback_before = block_domain_production_writeback_count()
+    if (production_coarse_outer_wavelet_validated) then
+       call fail("staged coarse outer wavelet was already validated")
+    end if
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (v_vector /= S_VELO .or. mult_vector /= EDGE .or. &
+         n_field_level < 1) then
+       call fail("staged coarse outer-wavelet field layout is invalid")
+    end if
+
+    count_local = 0_int64
+    do d = 1,size(grid)
+       do p_index = 1,grid(d)%lev(wavelet_level)%length
+          p = grid(d)%lev(wavelet_level)%elts(p_index)
+          count_local(1) = count_local(1) + 1_int64
+          do c = 1,N_CHDRN
+             p_child = grid(d)%patch%elts(p+1)%children(c)
+             if (p_child == 0) cycle
+             if (grid(d)%patch%elts(p_child+1)%level /= &
+                  wavelet_level+1) then
+                call fail("staged coarse outer-wavelet child is invalid")
+             end if
+             do level_slot = 1,n_field_level
+                field_level = first_field_level+level_slot-1
+                if (field_level < 1 .or. field_level > zlevels) cycle
+                do j = 1,PATCH_SIZE/2
+                   j_chd = 2*(j-1)
+                   j_par = j-1+chd_offs(2,c)
+                   do i = 1,PATCH_SIZE/2
+                      i_chd = 2*(i-1)
+                      i_par = i-1+chd_offs(1,c)
+                      do e = RT,UP
+                         if (.not. coarse_outer_stencil_is_local()) then
+                            count_local(5) = count_local(5) + 2_int64
+                            cycle
+                         end if
+                         count_local(2) = count_local(2) + 2_int64
+                         native_value = 0.0_dp
+                         operation_scale = 0.0_dp
+                         allowed = 0.0_dp
+                         call staged_wavelet_references( &
+                              mask_value,reference_value, &
+                              companion_reference)
+                         if (mask_value < real(ADJZONE,dp)) then
+                            if (abs(reference_value) > 0.0_dp .or. &
+                                 abs(companion_reference) > 0.0_dp) then
+                               call report_staged_outer_mismatch( &
+                                    "inactive staged outer wavelet is not zero")
+                            end if
+                            cycle
+                         end if
+                         count_local(3) = count_local(3) + 2_int64
+                         native_value = staged_outer_wavelet(operation_scale)
+                         allowed = 64.0_dp*epsilon(1.0_dp)*max( &
+                              1.0_dp,abs(native_value), &
+                              abs(reference_value), &
+                              abs(companion_reference),operation_scale)
+                         if (abs(native_value-reference_value) > allowed .or. &
+                              abs(native_value+companion_reference) > &
+                              allowed) then
+                            call report_staged_outer_mismatch( &
+                                 "block-derived staged outer wavelet differs")
+                         end if
+                         count_local(4) = count_local(4) + 2_int64
+                      end do
+                   end do
+                end do
+             end do
+          end do
+       end do
+    end do
+
+    call MPI_Allreduce(count_local,count_global,size(count_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce staged outer-wavelet coverage")
+    if (count_global(1) <= 0_int64 .or. &
+         count_global(2) <= 0_int64 .or. &
+         count_global(3) <= 0_int64 .or. &
+         count_global(5) <= 0_int64) then
+       call fail("staged coarse outer-wavelet coverage is incomplete")
+    end if
+    if (count_global(3) /= count_global(4)) then
+       call fail("staged coarse outer-wavelet comparison coverage differs")
+    end if
+
+    checkpoint_ready = local_block_tendency_commit_checkpoint_is_ready()
+    if (.not. checkpoint_ready .or. &
+         block_writeback_plan%native_stage_ready .or. &
+         .not. production_multistage_final_snapshot_consumed) then
+       call fail("staged coarse outer wavelet changed transaction state")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before .or. &
+         block_scalar_tendency_allocations /= scalar_allocation_before .or. &
+         block_scalar_restriction_exchange%allocations /= &
+         restriction_allocation_before) then
+       call fail("staged coarse outer wavelet reallocated persistent storage")
+    end if
+    if (block_domain_production_writeback_count() /= writeback_before) then
+       call fail("staged coarse outer wavelet modified Domain fields")
+    end if
+    production_coarse_outer_wavelet_validated = .true.
+
+    if (candidate_stage_count == 3) then
+       scheme_name = "RK3"
+    else
+       scheme_name = "RK4"
+    end if
+    if (rank == 0) then
+       write(6,'(a,a,a,i0,a,i0,a,i0,a,i0)') &
+            "  block-derived ",scheme_name, &
+            " cross-root outer wavelet interior passed: stage = ", &
+            candidate_stage," of ",candidate_stage_count, &
+            ", level = ",wavelet_level, &
+            ", deferred boundary pairs = ",count_global(5)
+    end if
+
+  contains
+
+    logical function coarse_outer_stencil_is_local() result(local)
+
+      implicit none
+
+      local = &
+           staged_side_is_local( &
+           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+           hex_s_offs(e+1)+3) .and. &
+           staged_side_is_local( &
+           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+           hex_s_offs(e+1)+4) .and. &
+           staged_side_is_local( &
+           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+           hex_s_offs(e+1)+6) .and. &
+           staged_side_is_local( &
+           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+           hex_s_offs(e+1)+1) .and. &
+           staged_side_is_local( &
+           i_par+opp_no(1,1,e+1),j_par+opp_no(2,1,e+1), &
+           hex_s_offs(e+1)+2) .and. &
+           staged_side_is_local( &
+           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+           hex_s_offs(e+1)+3) .and. &
+           staged_side_is_local( &
+           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+           hex_s_offs(e+1)+4) .and. &
+           staged_side_is_local( &
+           i_par+opp_no(1,1,e+1),j_par+opp_no(2,1,e+1), &
+           hex_s_offs(e+1)+5) .and. &
+           staged_side_is_local( &
+           i_par+opp_no(1,2,e+1),j_par+opp_no(2,2,e+1), &
+           hex_s_offs(e+1)+5) .and. &
+           staged_side_is_local( &
+           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+           hex_s_offs(e+1)+6) .and. &
+           staged_side_is_local( &
+           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+           hex_s_offs(e+1)+1) .and. &
+           staged_side_is_local( &
+           i_par+opp_no(1,2,e+1),j_par+opp_no(2,2,e+1), &
+           hex_s_offs(e+1)+2)
+
+    end function coarse_outer_stencil_is_local
+
+
+    logical function staged_side_is_local (base_i,base_j,side_index) &
+         result(local)
+
+      implicit none
+
+      integer, intent(in) :: base_i
+      integer, intent(in) :: base_j
+      integer, intent(in) :: side_index
+
+      integer :: edge_i
+      integer :: edge_j
+
+      local = .false.
+      if (side_index < 1 .or. side_index > size(hex_sides,2)) return
+      edge_i = base_i+hex_sides(1,side_index)
+      edge_j = base_j+hex_sides(2,side_index)
+      local = edge_i >= 0 .and. edge_i < PATCH_SIZE .and. &
+           edge_j >= 0 .and. edge_j < PATCH_SIZE
+
+    end function staged_side_is_local
+
+
+    real(dp) function staged_vector_value ( &
+         p_stage,level_stage,i_stage,j_stage,e_stage, &
+         require_reconstructed) result(value)
+
+      implicit none
+
+      integer, intent(in) :: p_stage
+      integer, intent(in) :: level_stage
+      integer, intent(in) :: i_stage
+      integer, intent(in) :: j_stage
+      integer, intent(in) :: e_stage
+      logical, intent(in) :: require_reconstructed
+
+      integer :: patch_slot
+      integer :: value_index
+
+      value = 0.0_dp
+      patch_slot = block_writeback_plan%domain_patch_displ(d) + p_stage + 1
+      value_index = (patch_slot-1)* &
+           block_writeback_plan%vector_patch_nvalue + &
+           (level_stage-1)*EDGE*PATCH_SIZE**2 + &
+           EDGE*(PATCH_SIZE*j_stage+i_stage)+e_stage+1
+      if (i_stage < 0 .or. i_stage >= PATCH_SIZE .or. &
+           j_stage < 0 .or. j_stage >= PATCH_SIZE .or. &
+           e_stage < RT .or. e_stage > UP .or. &
+           patch_slot < 1 .or. patch_slot > &
+           size(block_writeback_plan%domain_patch_covered) .or. &
+           .not. block_writeback_plan%domain_patch_covered(patch_slot) .or. &
+           value_index < 1 .or. value_index > &
+           size(block_writeback_plan%vector_domain_stage)) then
+         call fail("staged outer-wavelet source is invalid")
+      end if
+      if (require_reconstructed .and. .not. block_writeback_plan% &
+           domain_patch_reconstructed(patch_slot)) then
+         call fail("staged outer-wavelet fine source is not block-derived")
+      end if
+      value = block_writeback_plan%vector_domain_stage(value_index)
+      if (.not. ieee_is_finite(value)) then
+         call fail("staged outer-wavelet source is non-finite")
+      end if
+
+    end function staged_vector_value
+
+
+    real(dp) function staged_side_value (base_i,base_j,side_index) &
+         result(value)
+
+      implicit none
+
+      integer, intent(in) :: base_i
+      integer, intent(in) :: base_j
+      integer, intent(in) :: side_index
+
+      integer :: edge_component
+      integer :: edge_i
+      integer :: edge_j
+
+      if (.not. staged_side_is_local(base_i,base_j,side_index)) then
+         call fail("staged outer-wavelet side escaped parent patch")
+      end if
+      edge_i = base_i+hex_sides(1,side_index)
+      edge_j = base_j+hex_sides(2,side_index)
+      edge_component = hex_sides(3,side_index)
+      value = staged_vector_value( &
+           p,level_slot,edge_i,edge_j,edge_component,.false.)
+
+    end function staged_side_value
+
+
+    real(dp) function staged_outer_wavelet (scale) result(value)
+
+      implicit none
+
+      real(dp), intent(out) :: scale
+
+      integer :: k
+      integer :: target_i
+      integer :: target_j
+      integer :: target_node
+
+      real(dp) :: source_value(9)
+      real(dp) :: target_value
+      real(dp) :: weight(9)
+
+      target_i = i_chd+end_pt(1,2,e+1)
+      target_j = j_chd+end_pt(2,2,e+1)
+      target_node = grid(d)%patch%elts(p_child+1)%elts_start + &
+           PATCH_SIZE*target_j+target_i
+      source_value(1) = staged_vector_value( &
+           p,level_slot,i_par,j_par,e,.false.)
+      source_value(2) = staged_side_value( &
+           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+           hex_s_offs(e+1)+3)
+      source_value(3) = staged_side_value( &
+           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+           hex_s_offs(e+1)+4)
+      source_value(4) = staged_side_value( &
+           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+           hex_s_offs(e+1)+6)
+      source_value(5) = staged_side_value( &
+           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+           hex_s_offs(e+1)+1)
+      source_value(6) = staged_side_value( &
+           i_par+opp_no(1,1,e+1),j_par+opp_no(2,1,e+1), &
+           hex_s_offs(e+1)+2)-staged_side_value( &
+           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+           hex_s_offs(e+1)+3)
+      source_value(7) = staged_side_value( &
+           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+           hex_s_offs(e+1)+4)-staged_side_value( &
+           i_par+opp_no(1,1,e+1),j_par+opp_no(2,1,e+1), &
+           hex_s_offs(e+1)+5)
+      source_value(8) = staged_side_value( &
+           i_par+opp_no(1,2,e+1),j_par+opp_no(2,2,e+1), &
+           hex_s_offs(e+1)+5)-staged_side_value( &
+           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+           hex_s_offs(e+1)+6)
+      source_value(9) = staged_side_value( &
+           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+           hex_s_offs(e+1)+1)-staged_side_value( &
+           i_par+opp_no(1,2,e+1),j_par+opp_no(2,2,e+1), &
+           hex_s_offs(e+1)+2)
+      weight = BLOCK_IU_BASE_WEIGHT + &
+           [ (grid(d)%I_u_wgt%elts(target_node+1)%enc(k),k=1,9) ]
+      target_value = staged_vector_value( &
+           p_child,level_slot,target_i,target_j,e,.true.)
+      value = target_value-sum(weight*source_value)
+      scale = abs(target_value)+sum(abs(weight*source_value))
+
+    end function staged_outer_wavelet
+
+
+    subroutine staged_wavelet_references ( &
+         mask,reference,companion)
+
+      implicit none
+
+      real(dp), intent(out) :: mask
+      real(dp), intent(out) :: reference
+      real(dp), intent(out) :: companion
+
+      integer :: companion_i
+      integer :: companion_j
+      integer :: companion_node
+      integer :: target_i
+      integer :: target_j
+      integer :: target_node
+
+      target_i = i_chd+end_pt(1,2,e+1)
+      target_j = j_chd+end_pt(2,2,e+1)
+      companion_i = i_chd+end_pt(1,1,e+1)
+      companion_j = j_chd+end_pt(2,1,e+1)
+      target_node = grid(d)%patch%elts(p_child+1)%elts_start + &
+           PATCH_SIZE*target_j+target_i
+      companion_node = grid(d)%patch%elts(p_child+1)%elts_start + &
+           PATCH_SIZE*companion_j+companion_i
+      if (target_i < 0 .or. target_i >= PATCH_SIZE .or. &
+           target_j < 0 .or. target_j >= PATCH_SIZE .or. &
+           companion_i < 0 .or. companion_i >= PATCH_SIZE .or. &
+           companion_j < 0 .or. companion_j >= PATCH_SIZE) then
+         call fail("staged outer-wavelet fine target is invalid")
+      end if
+      mask = real(grid(d)%mask_e%elts(EDGE*target_node+e+1),dp)
+      reference = wav_coeff(S_VELO,field_level)% &
+           data(d)%elts(EDGE*target_node+e+1)
+      companion = wav_coeff(S_VELO,field_level)% &
+           data(d)%elts(EDGE*companion_node+e+1)
+      if (.not. ieee_is_finite(reference) .or. &
+           .not. ieee_is_finite(companion)) then
+         call fail("staged outer-wavelet reference is non-finite")
+      end if
+
+    end subroutine staged_wavelet_references
+
+
+    subroutine report_staged_outer_mismatch (message)
+
+      implicit none
+
+      character(len=*), intent(in) :: message
+
+      write(error_unit,'(/,a,i0,a,a)') &
+           "Rank ",rank,": ",trim(message)
+      write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+           "  Domain = ",d,", parent patch = ",p, &
+           ", child = ",c,", child patch = ",p_child
+      write(error_unit,'(a,i0,a,i0,a,i0)') &
+           "  wavelet level = ",wavelet_level, &
+           ", field level = ",field_level,", edge = ",e
+      write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+           "  parent coordinates = ",i_par,", ",j_par, &
+           "; child coordinates = ",i_chd,", ",j_chd
+      write(error_unit,'(a,4(es24.16,1x))') &
+           "  native, reference, companion, allowed = ", &
+           native_value,reference_value,companion_reference,allowed
+      flush(error_unit)
+      call fail("staged coarse outer-wavelet comparison failed")
+
+    end subroutine report_staged_outer_mismatch
+
+  end subroutine validate_staged_coarse_outer_vector_wavelets
 
 
   subroutine compare_block_outer_vector_wavelets ( &
@@ -14263,6 +14758,9 @@ end subroutine build_parallel_block_catalog
     if (production_velocity_restriction_level /= level_start-1) then
        call fail("production velocity restriction is incomplete")
     end if
+    if (.not. production_coarse_outer_wavelet_validated) then
+       call fail("production coarse outer wavelet is incomplete")
+    end if
     if (block_writeback_plan% &
          production_multistage_boundary_refresh_count /= &
          int(stage_count-1,int64)) then
@@ -14346,6 +14844,7 @@ end subroutine build_parallel_block_catalog
     production_multistage_captured_tendency_stage = 0
     production_multistage_native_candidate_stage = 0
     production_velocity_restriction_level = -1
+    production_coarse_outer_wavelet_validated = .false.
     production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
     block_writeback_plan%production_multistage_boundary_refresh_count = &
