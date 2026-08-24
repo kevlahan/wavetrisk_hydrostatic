@@ -174,6 +174,9 @@ contains
     do v = scalars(1),scalars(2)
        call capture_block_scalar_divergence_level( &
             q,physics_scalar_flux,v,k,l)
+       call capture_block_scalar_divergence_level( &
+            q,physics_scalar_flux,v,k,l, &
+            domain_tendency=dq,dscalar_only=.true.)
     end do
     dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
   end subroutine cal_scalar_trend

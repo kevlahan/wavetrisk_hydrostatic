@@ -160,7 +160,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
-  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 34
+  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 35
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
   integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
   integer, parameter :: BLOCK_SCALAR_ACTIVE_INDEX = 8
@@ -172,7 +172,8 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_SCALAR_RESTRICTION_WEIGHT_START = 24
   integer, parameter :: BLOCK_SCALAR_OVERLAP_START = 27
   integer, parameter :: BLOCK_SCALAR_SOURCE_INDEX = 33
-  integer, parameter :: BLOCK_SCALAR_DSCALAR_INDEX = 34
+  integer, parameter :: BLOCK_SCALAR_NATIVE_DSCALAR_INDEX = 34
+  integer, parameter :: BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX = 35
 
   abstract interface
      function Block_Scalar_Physics_Flux ( &
@@ -529,6 +530,8 @@ module parallel_block_mpi_mod
      integer(int64) :: parent_patch_count = 0_int64
      integer(int64) :: restricted_edge_count = 0_int64
      integer(int64) :: compared_edge_count = 0_int64
+     integer(int64) :: divergence_sample_count = 0_int64
+     integer(int64) :: divergence_compared_count = 0_int64
   end type Block_Scalar_Restriction_Context
 
   type :: Block_Scalar_Restriction_Cursor
@@ -6845,6 +6848,12 @@ end subroutine build_parallel_block_catalog
        write(6,'(a)') &
             "  native restricted scalar flux retained"
        write(6,'(a)') &
+            "  block-native restricted scalar flux divergence passed"
+       write(6,'(a)') &
+            "  roundoff-bounded native/Domain scalar divergence comparison passed"
+       write(6,'(a)') &
+            "  native restricted scalar divergence retained as validation shadow"
+       write(6,'(a)') &
             "  authoritative restricted scalar flux divergence reused"
        write(6,'(a)') &
             "  exact complete block/Domain physical tendency comparison passed"
@@ -7631,7 +7640,7 @@ end subroutine build_parallel_block_catalog
          end if
          value = 0.0_dp
          if (capture_dscalar) then
-            value(BLOCK_SCALAR_DSCALAR_INDEX) = &
+            value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX) = &
                  domain_tendency(scalar_id,field_level)%data(d)%elts(id+1)
          else if (capture_direct) then
             id_e = idx(i+1,j,offs,dims)
@@ -7696,8 +7705,8 @@ end subroutine build_parallel_block_catalog
                  (sample-1) + 1
             if (capture_dscalar) then
                block_scalar_tendency(storage_index)%patch( &
-                    data_start+BLOCK_SCALAR_DSCALAR_INDEX-1) = &
-                    value(BLOCK_SCALAR_DSCALAR_INDEX)
+                    data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1) = &
+                    value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX)
             else if (capture_direct) then
                block_scalar_tendency(storage_index)%patch( &
                     data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
@@ -7725,8 +7734,8 @@ end subroutine build_parallel_block_catalog
                  (sample-1) + 1
             if (capture_dscalar) then
                block_scalar_divergence_plan%recv_buffer( &
-                    data_start+BLOCK_SCALAR_DSCALAR_INDEX-1) = &
-                    value(BLOCK_SCALAR_DSCALAR_INDEX)
+                    data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1) = &
+                    value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX)
             else if (capture_direct) then
                block_scalar_divergence_plan%recv_buffer( &
                     data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
@@ -7961,7 +7970,7 @@ end subroutine build_parallel_block_catalog
            value(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
 
       if (capture_dscalar) then
-         value(BLOCK_SCALAR_DSCALAR_INDEX) = &
+         value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX) = &
               domain_tendency(scalar_id,field_level)%data(d)%elts(id+1)
       else if (capture_direct) then
          value(BLOCK_SCALAR_DIRECT_FLUX_START: &
@@ -8425,8 +8434,8 @@ end subroutine build_parallel_block_catalog
     integer :: ierr
     integer :: l
 
-    integer(int64) :: count_global(3)
-    integer(int64) :: count_local(3)
+    integer(int64) :: count_global(5)
+    integer(int64) :: count_local(5)
 
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("block-native scalar restriction exchange is not ready")
@@ -8438,20 +8447,29 @@ end subroutine build_parallel_block_catalog
        call apply_local_block_field_consumer( &
             restrict_block_scalar_flux_level,statistics)
     end do
+    ! Divergence at a block edge consumes neighboring positive-edge flux.
+    ! Refresh once more after the coarsest restriction has changed interiors.
+    call exchange_block_scalar_restriction_ghosts
     statistics%target_level = -1
     call apply_local_block_field_consumer( &
          compare_block_scalar_restricted_flux,statistics)
+    call apply_local_block_field_consumer( &
+         compare_block_scalar_restricted_divergence,statistics)
 
     count_local = [statistics%parent_patch_count, &
          statistics%restricted_edge_count, &
-         statistics%compared_edge_count]
+         statistics%compared_edge_count, &
+         statistics%divergence_sample_count, &
+         statistics%divergence_compared_count]
     call MPI_Allreduce( &
          count_local,count_global,size(count_local),MPI_INTEGER8, &
          MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce block scalar restriction")
     if (count_global(1) < 1_int64 .or. &
          count_global(2) < 1_int64 .or. &
-         count_global(3) < 1_int64) then
+         count_global(3) < 1_int64 .or. &
+         count_global(4) < 1_int64 .or. &
+         count_global(5) < 1_int64) then
        call fail("block-native scalar restriction coverage is empty")
     end if
 
@@ -8459,6 +8477,9 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine initialize_scalar_restriction_boundary_flux
+    ! Physical-boundary records are immutable compatibility inputs. Seed the
+    ! native positive-edge flux and dscalar slots from their independently
+    ! captured Domain references before the bottom-up restriction replay.
 
     implicit none
 
@@ -8483,6 +8504,10 @@ end subroutine build_parallel_block_catalog
                block_scalar_tendency(b)%bdry( &
                data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
                data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2)
+          block_scalar_tendency(b)%bdry( &
+               data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
+               block_scalar_tendency(b)%bdry( &
+               data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1)
        end do
     end do
 
@@ -8736,6 +8761,201 @@ end subroutine build_parallel_block_catalog
        call fail("scalar-restriction comparison context is invalid")
     end select
   end subroutine compare_block_scalar_restricted_flux
+
+
+  subroutine compare_block_scalar_restricted_divergence ( &
+       catalog_index,block,context)
+    ! Evaluate scalar_trend from the retained native restricted positive-edge
+    ! flux. The independently captured Domain dq remains authoritative; the
+    ! native result is retained only after the comparison succeeds.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: i
+    integer :: j
+    integer :: level_slot
+    integer :: local_index
+    integer :: n_restriction_level
+    integer :: p
+    integer :: scalar_slot
+
+    real(dp) :: active
+    real(dp) :: area
+    real(dp) :: comparison_tolerance
+    real(dp) :: flux(BLOCK_SCALAR_FLUX_COUNT)
+    real(dp) :: native_value
+    real(dp) :: operation_scale
+    real(dp) :: reference_flux(BLOCK_SCALAR_FLUX_COUNT)
+    real(dp) :: reference_recomputed
+    real(dp) :: reference_tolerance
+    real(dp) :: reference_value
+    real(dp) :: transported_difference_bound
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency)) then
+       call fail("scalar-divergence comparison block is invalid")
+    end if
+    select type (statistics => context)
+    type is (Block_Scalar_Restriction_Context)
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level < level_start .or. &
+               block%patch(p)%level > level_end) cycle
+          n_restriction_level = max( &
+               1,level_end-block%patch(p)%level+1)
+          do scalar_slot = 0,block%n_scalar_variable-1
+             do level_slot = 1,block%n_field_level
+                if (block%field_level+level_slot-1 < 1 .or. &
+                     block%field_level+level_slot-1 > zlevels) cycle
+                do j = 0,PATCH_SIZE-1
+                   do i = 0,PATCH_SIZE-1
+                      flux(1) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_DIRECT_FLUX_START+RT)
+                      flux(2) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i-1,j,BLOCK_SCALAR_DIRECT_FLUX_START+RT)
+                      flux(3) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i-1,j-1,BLOCK_SCALAR_DIRECT_FLUX_START+DG)
+                      flux(4) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_DIRECT_FLUX_START+DG)
+                      flux(5) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_DIRECT_FLUX_START+UP)
+                      flux(6) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j-1,BLOCK_SCALAR_DIRECT_FLUX_START+UP)
+                      reference_flux(1) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_RESTRICTED_FLUX_START+RT)
+                      reference_flux(2) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i-1,j,BLOCK_SCALAR_RESTRICTED_FLUX_START+RT)
+                      reference_flux(3) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i-1,j-1,BLOCK_SCALAR_RESTRICTED_FLUX_START+DG)
+                      reference_flux(4) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_RESTRICTED_FLUX_START+DG)
+                      reference_flux(5) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_RESTRICTED_FLUX_START+UP)
+                      reference_flux(6) = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j-1,BLOCK_SCALAR_RESTRICTED_FLUX_START+UP)
+                      area = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_AREA_INDEX)
+                      active = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_ACTIVE_INDEX)
+                      native_value = 0.0_dp
+                      reference_recomputed = 0.0_dp
+                      if (active > 0.5_dp) then
+                         native_value = -( &
+                              flux(1)-flux(2)+flux(3)-flux(4) + &
+                              flux(5)-flux(6))*area
+                         reference_recomputed = -( &
+                              reference_flux(1)-reference_flux(2) + &
+                              reference_flux(3)-reference_flux(4) + &
+                              reference_flux(5)-reference_flux(6))*area
+                      end if
+                      reference_value = block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX)
+                      operation_scale = abs(area)*max( &
+                           sum(abs(flux)),sum(abs(reference_flux)))
+                      reference_tolerance = &
+                           scalar_restriction_roundoff_tolerance( &
+                           reference_recomputed,reference_value, &
+                           1,operation_scale)
+                      if (abs(reference_recomputed-reference_value) > &
+                           reference_tolerance) then
+                         write(error_unit,'(/,a,i0,a)') &
+                              "Rank ",rank, &
+                              ": reference scalar divergence mismatch"
+                         write(error_unit,'(a,i0,a,i0,a,i0)') &
+                              "  catalog block = ",catalog_index, &
+                              ", block id = ",block%id,", patch = ",p
+                         write(error_unit,'(a,i0,a,i0,a,i0)') &
+                              "  patch level = ",block%patch(p)%level, &
+                              ", i = ",i,", j = ",j
+                         write(error_unit,'(a,i0,a,i0)') &
+                              "  scalar slot = ",scalar_slot, &
+                              ", field-level slot = ",level_slot
+                         write(error_unit,'(a,6(es24.16,1x))') &
+                              "  reference edge flux = ",reference_flux
+                         write(error_unit,'(a,4(es24.16,1x))') &
+                              "  recomputed, Domain, difference, allowed = ", &
+                              reference_recomputed,reference_value, &
+                              abs(reference_recomputed-reference_value), &
+                              reference_tolerance
+                         flush(error_unit)
+                         call fail( &
+                              "captured Domain scalar divergence differs")
+                      end if
+                      transported_difference_bound = &
+                           abs(area)*sum(abs(flux-reference_flux))
+                      comparison_tolerance = &
+                           transported_difference_bound + &
+                           scalar_restriction_roundoff_tolerance( &
+                           native_value,reference_value, &
+                           n_restriction_level,operation_scale)
+                      if (abs(native_value-reference_value) > &
+                           comparison_tolerance) then
+                         write(error_unit,'(/,a,i0,a)') &
+                              "Rank ",rank, &
+                              ": restricted scalar divergence mismatch"
+                         write(error_unit,'(a,i0,a,i0,a,i0)') &
+                              "  catalog block = ",catalog_index, &
+                              ", block id = ",block%id,", patch = ",p
+                         write(error_unit,'(a,i0,a,i0,a,i0)') &
+                              "  patch level = ",block%patch(p)%level, &
+                              ", i = ",i,", j = ",j
+                         write(error_unit,'(a,i0,a,i0)') &
+                              "  scalar slot = ",scalar_slot, &
+                              ", field-level slot = ",level_slot
+                         write(error_unit,'(a,6(es24.16,1x))') &
+                              "  native edge flux = ",flux
+                         write(error_unit,'(a,6(es24.16,1x))') &
+                              "  reference edge flux = ",reference_flux
+                         write(error_unit,'(a,3(es24.16,1x))') &
+                              "  inverse area, operation scale, transported bound = ", &
+                              area,operation_scale, &
+                              transported_difference_bound
+                         write(error_unit,'(a,4(es24.16,1x))') &
+                              "  native, Domain, difference, allowed = ", &
+                              native_value,reference_value, &
+                              abs(native_value-reference_value), &
+                              comparison_tolerance
+                         flush(error_unit)
+                         call fail( &
+                              "block-native restricted scalar divergence differs")
+                      end if
+                      call set_block_patch_scalar_record_value( &
+                           local_index,p,block%n_field_level, &
+                           scalar_slot,level_slot,i,j, &
+                           BLOCK_SCALAR_NATIVE_DSCALAR_INDEX,native_value)
+                      statistics%divergence_sample_count = &
+                           statistics%divergence_sample_count + 1_int64
+                      statistics%divergence_compared_count = &
+                           statistics%divergence_compared_count + 1_int64
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("scalar-divergence comparison context is invalid")
+    end select
+
+  end subroutine compare_block_scalar_restricted_divergence
 
 
   pure real(dp) function scalar_restriction_roundoff_tolerance ( &
@@ -9965,7 +10185,7 @@ end subroutine build_parallel_block_catalog
     end if
     value = block_scalar_record_value( &
          block,local_index,p,scalar_slot,level_slot,i,j, &
-         BLOCK_SCALAR_DSCALAR_INDEX)
+         BLOCK_SCALAR_NATIVE_DSCALAR_INDEX)
 
   end function block_restriction_dscalar
 
@@ -19544,7 +19764,7 @@ end subroutine build_parallel_block_catalog
                       end if
                       block_scalar_tendency(local_index)%patch( &
                            remainder_index+ &
-                           BLOCK_SCALAR_DSCALAR_INDEX-1) = &
+                           BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
                            scalar_tendency(scalar_output_index)
                       statistics%scalar_sample_count = &
                            statistics%scalar_sample_count + 1_int64
