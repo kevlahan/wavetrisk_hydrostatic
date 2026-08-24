@@ -6224,21 +6224,8 @@ end subroutine build_parallel_block_catalog
             "Production trend-entry block boundary refresh number = ", &
             block_writeback_plan% &
             production_trend_boundary_refresh_count
-       write(6,'(a,i0)') "  global blocks = ",count_global(1)
-       write(6,'(a,i0)') &
-            "  global compact boundary records = ",count_global(2)
-       write(6,'(a,i0)') &
-            "  global inter-block ghost records = ",count_global(3)
-       write(6,'(a)') &
-            "  exact Domain-updated sol patch interiors retained"
-       write(6,'(a)') &
-            "  exact compact sol boundary import passed"
-       write(6,'(a)') &
-            "  repeated scalar/vector sol stencil refresh passed"
-       write(6,'(a)') &
-            "  persistent boundary and ghost buffers reused"
-       write(6,'(a)') &
-            "  authoritative Domain fields remained unchanged"
+       write(6,'(a,3(i0,1x))') &
+            "  global block/boundary/ghost records = ",count_global
        write(6,'(a,/)') &
             "Production trend-entry block boundary compatibility passed"
     end if
@@ -6396,25 +6383,8 @@ end subroutine build_parallel_block_catalog
     if (rank == 0) then
        write(6,'(/,a,a,a,i0,a,i0)') &
             "Production ",scheme_name, &
-            " block stage boundary refresh = ",stage," of ",stage_count-1
-       write(6,'(a)') &
-            "  exact native candidate retention across wavelet boundary"
-       write(6,'(a)') &
-            "  exact post-wavelet stage sol import passed"
-       write(6,'(a)') &
-            "  exact compact stage boundary import passed"
-       write(6,'(a)') &
-            "  scalar/vector stage sol ghosts refreshed"
-       write(6,'(a)') &
-            "  exact provisional hydrostatic reconstruction passed"
-       write(6,'(a)') &
-            "  provisional hydrostatic cache reused without refresh"
-       write(6,'(a)') &
-            "  timestep-start rollback checkpoint retained"
-       write(6,'(a)') &
-            "  persistent transport and ghost buffers reused"
-       write(6,'(a,/)') &
-            "Production multistage block boundary compatibility passed"
+            " block stage boundary compatibility passed: stage = ", &
+            stage," of ",stage_count-1
     end if
 
   end subroutine refresh_parallel_block_candidate_boundary_state
@@ -6825,50 +6795,11 @@ end subroutine build_parallel_block_catalog
 
     if (rank == 0) then
        write(6,'(a)') &
-            "  authoritative Bernoulli/Qperp velocity residual captured"
+            "  block-native complete physical tendency passed"
        write(6,'(a)') &
-            "  block-native complete thermodynamic Exner term reused"
+            "  recursive scalar restriction/divergence retained and activated"
        write(6,'(a)') &
-            "  exact recomposed block/Domain velocity shadow passed"
-       write(6,'(a)') &
-            "  recomposed velocity retained in complete physical tendency"
-       write(6,'(a)') &
-            "  persistent velocity-residual storage reused"
-       write(6,'(a)') &
-            "  block-native mass/temperature direct flux produced"
-       write(6,'(a)') &
-            "  non-advective scalar physics flux reused"
-       write(6,'(a)') &
-            "  exact pre-restriction block/Domain scalar flux comparison passed"
-       write(6,'(a)') &
-            "  native direct scalar flux retained for hierarchy restriction"
-       write(6,'(a)') &
-            "  block-native fine-to-coarse scalar flux restriction passed"
-       write(6,'(a)') &
-            "  roundoff-bounded restricted block/cpt_or_restr_flux "// &
-            "comparison passed"
-       write(6,'(a)') &
-            "  native restricted scalar flux retained"
-       write(6,'(a)') &
-            "  block-native levelwise scalar divergence replay passed"
-       write(6,'(a)') &
-            "  native finer-level divergence supplied every coarser restriction"
-       write(6,'(a)') &
-            "  exact replayed/recomputed scalar divergence comparison passed"
-       write(6,'(a)') &
-            "  block-native restricted scalar flux divergence passed"
-       write(6,'(a)') &
-            "  roundoff-bounded native/Domain scalar divergence comparison passed"
-       write(6,'(a)') &
-            "  native restricted scalar divergence installed in production tendency"
-       write(6,'(a)') &
-            "  authoritative scalar divergence retained as validation reference"
-       write(6,'(a)') &
-            "  roundoff-bounded complete block/Domain tendency compatibility passed"
-       write(6,'(a)') &
-            "  complete physical tendency retained for rejected RK stage"
-       write(6,'(a)') &
-            "  persistent scalar-restriction boundary/ghost buffers reused"
+            "  Domain compatibility and persistent workspace reuse passed"
     end if
 
   end subroutine evaluate_candidate_block_velocity_recomposition
@@ -12368,20 +12299,7 @@ end subroutine build_parallel_block_catalog
     if (rank == 0) then
        write(6,'(/,a,a,a,i0,a,i0)') &
             "Captured production block ",scheme_name, &
-            " native tendency stage = ",stage," of ",stage_count
-       write(6,'(a)') &
-            "  roundoff-bounded complete block/Domain physical tendency passed"
-       if (stage == 1) then
-          write(6,'(a)') &
-               "  no preceding provisional writeback occurred"
-       else
-          write(6,'(a)') &
-               "  preceding retained stage checkpoint restored"
-       end if
-       write(6,'(a)') &
-            "  native physical tendency retained in stage register"
-       write(6,'(a,/)') &
-            "Production multistage native tendency retention passed"
+            " validated native tendency stage = ",stage," of ",stage_count
     end if
 
   end subroutine capture_block_domain_multistage_candidate_tendency
@@ -12633,19 +12551,8 @@ end subroutine build_parallel_block_catalog
     if (rank == 0) then
        write(6,'(/,a,a,a,i0,a,i0)') &
             "Retained production block ",scheme_name, &
-            " native candidate stage = ",stage," of ",stage_count
-       write(6,'(a)') &
-            "  roundoff-bounded pre-wavelet block/Domain state passed"
-       write(6,'(a)') &
-            "  Domain candidate retained as the validation shadow"
-       write(6,'(a)') &
-            "  complete native provisional state snapshot retained"
-       write(6,'(a)') &
-            "  native provisional state accepted for wavelet input"
-       write(6,'(a)') &
-            "  timestep-start block checkpoint retained for RK staging"
-       write(6,'(a,/)') &
-            "Production native multistage candidate retention passed"
+            " validated candidate for wavelet input: stage = ", &
+            stage," of ",stage_count
     end if
 
   end subroutine retain_block_native_multistage_candidate
@@ -12795,14 +12702,6 @@ end subroutine build_parallel_block_catalog
             global_max_update(1)
        write(6,'(a,es14.6)') "  vector maximum update = ", &
             global_max_update(2)
-       write(6,'(a)') &
-            "  Domain RK pathway retained as the validation shadow"
-       write(6,'(a)') &
-            "  every native RK stage supplied its wavelet input"
-       write(6,'(a)') &
-            "  final native block sol remained exact on Domain owners"
-       write(6,'(a,a,a)') &
-            "  accepted ",scheme_name," transaction finalized"
        write(6,'(a,a,a,/)') &
             "Production multistage block ",scheme_name, &
             " timestep accepted"
