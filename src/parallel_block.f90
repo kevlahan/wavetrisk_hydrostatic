@@ -193,6 +193,14 @@ module parallel_block_mod
        class(*), intent(inout) :: context
      end subroutine Local_Block_Field_Consumer
 
+     subroutine Local_Block_Field_Producer (catalog_index,block,context)
+       import :: Block_Data
+
+       integer, intent(in) :: catalog_index
+       type(Block_Data), intent(inout) :: block
+       class(*), intent(inout) :: context
+     end subroutine Local_Block_Field_Producer
+
      subroutine Local_Block_Tendency_Kernel ( &
           catalog_index,block,scalar_tendency,vector_tendency,context)
        import :: Block_Data, dp
@@ -349,6 +357,8 @@ module parallel_block_mod
   public :: get_local_block_hydrostatic_values
   public :: Local_Block_Field_Consumer
   public :: apply_local_block_field_consumer
+  public :: Local_Block_Field_Producer
+  public :: apply_local_block_field_producer
   public :: Local_Block_Tendency_Kernel
   public :: apply_local_block_tendency_kernel
   public :: Local_Block_Tendency_Consumer
@@ -1033,6 +1043,49 @@ subroutine apply_local_block_field_consumer (consumer,context)
   end do
 
 end subroutine apply_local_block_field_consumer
+
+
+subroutine apply_local_block_field_producer (producer,context)
+  ! Apply one caller-supplied field-production kernel to every local block.
+  ! Topology and storage extents must remain fixed during the traversal.
+
+  implicit none
+
+  procedure(Local_Block_Field_Producer) :: producer
+  class(*), intent(inout) :: context
+
+  integer :: catalog_index
+  integer :: local_index
+  integer :: n_block_before
+
+  if (.not. local_block_store_ready()) then
+     error stop &
+          "apply_local_block_field_producer: store is not ready"
+  end if
+
+  n_block_before = size(block_local)
+
+  do local_index = 1,n_block_before
+     catalog_index = block_local_catalog_index(local_index)
+     if (catalog_index < 1) then
+        error stop &
+             "apply_local_block_field_producer: invalid catalogue index"
+     end if
+
+     call producer(catalog_index,block_local(local_index),context)
+
+     if (.not. local_block_store_ready()) then
+        error stop &
+             "apply_local_block_field_producer: store changed"
+     end if
+     if (size(block_local) /= n_block_before .or. &
+          block_local_catalog_index(local_index) /= catalog_index) then
+        error stop &
+             "apply_local_block_field_producer: traversal changed"
+     end if
+  end do
+
+end subroutine apply_local_block_field_producer
 
 
 subroutine prepare_local_block_tendency_state

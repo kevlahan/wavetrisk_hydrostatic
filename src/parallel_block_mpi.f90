@@ -106,6 +106,7 @@ module parallel_block_mpi_mod
        get_local_block_hydrostatic_patch_values, &
        get_local_block_hydrostatic_values, &
        apply_local_block_field_consumer, &
+       apply_local_block_field_producer, &
        Local_Block_Tendency_Kernel, &
        apply_local_block_tendency_kernel, &
        apply_local_block_tendency_consumer, &
@@ -547,6 +548,7 @@ module parallel_block_mpi_mod
      integer(int64) :: candidate_count = 0_int64
      integer(int64) :: active_count = 0_int64
      integer(int64) :: compared_count = 0_int64
+     integer(int64) :: produced_count = 0_int64
   end type Block_Scalar_Wavelet_Context
 
   type :: Block_Scalar_Restriction_Cursor
@@ -6409,8 +6411,9 @@ end subroutine build_parallel_block_catalog
   subroutine validate_candidate_block_scalar_wavelets ( &
        domain_scaling,first_level)
     ! Evaluate each RK-candidate scalar wavelet stencil directly from retained
-    ! block sol. Domain wavelets remain the independent reference; compression,
-    ! inverse reconstruction and adaptation remain unchanged.
+    ! block sol, compare it with the independent Domain result, then install
+    ! the native coefficient in block storage. Compression, inverse
+    ! reconstruction and adaptation remain unchanged.
 
     implicit none
 
@@ -6422,8 +6425,8 @@ end subroutine build_parallel_block_catalog
     integer :: candidate_stage
     integer :: candidate_stage_count
 
-    integer(int64) :: count_global(4)
-    integer(int64) :: count_local(4)
+    integer(int64) :: count_global(5)
+    integer(int64) :: count_local(5)
     integer(int64) :: restriction_allocation_before
     integer(int64) :: scalar_allocation_before
     integer(int64) :: writeback_allocation_after
@@ -6451,7 +6454,7 @@ end subroutine build_parallel_block_catalog
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
     if (.not. state_ready .or. .not. checkpoint_ready) then
-       call fail("scalar-wavelet shadow transaction is not ready")
+       call fail("scalar-wavelet production transaction is not ready")
     end if
     if (candidate_stage < candidate_stage_count) then
        if (first_level /= level_start) then
@@ -6504,12 +6507,12 @@ end subroutine build_parallel_block_catalog
 
     statistics%first_level = first_level
     statistics%last_level = level_end-1
-    call apply_local_block_field_consumer( &
+    call apply_local_block_field_producer( &
          compare_block_scalar_wavelets,statistics)
 
     count_local = [statistics%parent_patch_count, &
          statistics%candidate_count,statistics%active_count, &
-         statistics%compared_count]
+         statistics%compared_count,statistics%produced_count]
     call MPI_Allreduce(count_local,count_global,size(count_local), &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce scalar-wavelet shadow coverage")
@@ -6519,15 +6522,18 @@ end subroutine build_parallel_block_catalog
     if (count_global(3) /= count_global(4)) then
        call fail("block-native scalar-wavelet comparison coverage differs")
     end if
+    if (count_global(2) /= count_global(5)) then
+       call fail("block-native scalar-wavelet production coverage differs")
+    end if
 
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
     if (.not. checkpoint_ready) then
-       call fail("scalar-wavelet shadow lost RK transaction state")
+       call fail("scalar-wavelet production lost RK transaction state")
     end if
     if (candidate_stage < candidate_stage_count) then
        if (.not. block_writeback_plan%native_stage_ready) then
-          call fail("scalar-wavelet shadow lost native snapshot")
+          call fail("scalar-wavelet production lost native snapshot")
        end if
     else
        if (.not. production_multistage_final_snapshot_consumed .or. &
@@ -6541,10 +6547,10 @@ end subroutine build_parallel_block_catalog
          block_scalar_tendency_allocations /= scalar_allocation_before .or. &
          block_scalar_restriction_exchange%allocations /= &
          restriction_allocation_before) then
-       call fail("scalar-wavelet shadow reallocated persistent storage")
+       call fail("scalar-wavelet production reallocated persistent storage")
     end if
     if (block_domain_production_writeback_count() /= writeback_before) then
-       call fail("scalar-wavelet shadow modified Domain fields")
+       call fail("scalar-wavelet production modified Domain fields")
     end if
 
     ! Close the final RK transaction downstream of the complete
@@ -6580,7 +6586,7 @@ end subroutine build_parallel_block_catalog
     if (rank == 0) then
        write(6,'(a,a,a,i0,a,i0)') &
             "  block-native ",scheme_name, &
-            " scalar wavelet shadow passed: stage = ", &
+            " scalar wavelet production passed: stage = ", &
             candidate_stage," of ",candidate_stage_count
     end if
 
@@ -6593,7 +6599,7 @@ end subroutine build_parallel_block_catalog
     implicit none
 
     integer, intent(in) :: catalog_index
-    type(Block_Data), intent(in) :: block
+    type(Block_Data), intent(inout) :: block
     class(*), intent(inout) :: context
 
     integer :: c
@@ -6700,7 +6706,11 @@ end subroutine build_parallel_block_catalog
             call report_scalar_wavelet_mismatch( &
                  "inactive Domain scalar wavelet is not zero", &
                  target_i,target_j,0.0_dp,reference_value,0.0_dp)
-         end if
+        end if
+         call set_block_scalar_wavelet_value( &
+              block,child+1,scalar_slot,level_slot, &
+              target_i,target_j,0.0_dp)
+         stats%produced_count = stats%produced_count + 1_int64
          return
       end if
 
@@ -6716,6 +6726,10 @@ end subroutine build_parallel_block_catalog
               native_value,reference_value,comparison_tolerance)
       end if
       stats%compared_count = stats%compared_count + 1_int64
+      call set_block_scalar_wavelet_value( &
+           block,child+1,scalar_slot,level_slot, &
+           target_i,target_j,native_value)
+      stats%produced_count = stats%produced_count + 1_int64
 
     end subroutine compare_child_value
 
@@ -6751,11 +6765,56 @@ end subroutine build_parallel_block_catalog
            native_value,reference_value, &
            abs(native_value-reference_value),allowed
       flush(error_unit)
-      call fail("scalar-wavelet shadow comparison failed")
+      call fail("scalar-wavelet production comparison failed")
 
     end subroutine report_scalar_wavelet_mismatch
 
   end subroutine compare_block_scalar_wavelets
+
+
+  subroutine set_block_scalar_wavelet_value ( &
+       block,p,scalar_slot,level_slot,i,j,value)
+    ! Install one verified coefficient in native compact patch storage.
+
+    implicit none
+
+    type(Block_Data), intent(inout) :: block
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    real(dp), intent(in) :: value
+
+    integer :: field_index
+    integer :: n_storage_node
+    integer :: node_index
+
+    if (p < 1 .or. p > size(block%patch) .or. &
+         scalar_slot < 0 .or. &
+         scalar_slot >= block%n_scalar_variable .or. &
+         level_slot < 1 .or. level_slot > block%n_field_level .or. &
+         i < 0 .or. i >= PATCH_SIZE .or. &
+         j < 0 .or. j >= PATCH_SIZE) then
+       call fail("scalar-wavelet production address is invalid")
+    end if
+    if (.not. ieee_is_finite(value)) then
+       call fail("scalar-wavelet production value is non-finite")
+    end if
+
+    n_storage_node = size(block%node)
+    node_index = block%patch(p)%elts_start+PATCH_SIZE*j+i
+    field_index = &
+         (scalar_slot*block%n_field_level+level_slot-1)* &
+         n_storage_node+node_index+1
+    if (node_index < 0 .or. node_index >= n_storage_node .or. &
+         field_index < 1 .or. &
+         field_index > size(block%wavelet_scalar)) then
+       call fail("scalar-wavelet production storage is invalid")
+    end if
+    block%wavelet_scalar(field_index) = value
+
+  end subroutine set_block_scalar_wavelet_value
 
 
   real(dp) function compute_block_scalar_wavelet ( &
