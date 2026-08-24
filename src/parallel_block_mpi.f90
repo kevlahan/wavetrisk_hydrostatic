@@ -366,6 +366,7 @@ module parallel_block_mpi_mod
   integer, save :: production_multistage_candidate_stage_count = 0
   integer, save :: production_multistage_captured_tendency_stage = 0
   integer, save :: production_multistage_native_candidate_stage = 0
+  integer, save :: production_velocity_restriction_level = -1
   logical, save :: production_multistage_final_snapshot_consumed = .false.
   integer(int64), save :: &
        production_multistage_accumulator_allocation_before = 0_int64
@@ -564,6 +565,14 @@ module parallel_block_mpi_mod
      integer(int64) :: compared_count = 0_int64
   end type Block_Outer_Vector_Wavelet_Context
 
+  type :: Block_Velocity_Restriction_Context
+     integer :: coarse_level = -1
+     integer(int64) :: parent_patch_count = 0_int64
+     integer(int64) :: candidate_count = 0_int64
+     integer(int64) :: active_count = 0_int64
+     integer(int64) :: produced_count = 0_int64
+  end type Block_Velocity_Restriction_Context
+
   type :: Block_Scalar_Restriction_Cursor
      integer :: target_level = -1
      integer :: catalog_index = 0
@@ -633,6 +642,7 @@ module parallel_block_mpi_mod
   public :: refresh_parallel_block_candidate_boundary_state
   public :: validate_candidate_block_scalar_wavelets
   public :: validate_candidate_block_outer_vector_wavelets
+  public :: validate_candidate_block_velocity_restriction
   public :: refresh_parallel_block_domain_prognostic_state
   public :: check_domain_trend_roundtrip
   public :: import_domain_trend_to_block_tendency
@@ -3359,6 +3369,7 @@ end subroutine build_parallel_block_catalog
     production_multistage_candidate_stage_count = 0
     production_multistage_captured_tendency_stage = 0
     production_multistage_native_candidate_stage = 0
+    production_velocity_restriction_level = -1
     production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
 
@@ -6422,6 +6433,500 @@ end subroutine build_parallel_block_catalog
   end subroutine refresh_parallel_block_candidate_boundary_state
 
 
+  subroutine validate_candidate_block_velocity_restriction ( &
+       domain_scaling,coarse_level)
+    ! Reproduce Restrict_velo from a complete block-derived fine-level stage
+    ! on the Domain owner before the accepted transform consumes its result.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: coarse_level
+
+    integer :: candidate_stage
+    integer :: candidate_stage_count
+    integer :: c
+    integer :: d
+    integer :: e
+    integer :: field_level
+    integer :: first_field_level
+    integer :: i
+    integer :: i_chd
+    integer :: i_par
+    integer :: ierr
+    integer :: j
+    integer :: j_chd
+    integer :: j_par
+    integer :: level_slot
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: p
+    integer :: p_child
+    integer :: p_index
+    integer :: v_scalar
+    integer :: v_vector
+
+    integer(int64) :: count_global(4)
+    integer(int64) :: count_local(4)
+    integer(int64) :: restriction_allocation_before
+    integer(int64) :: scalar_allocation_before
+    integer(int64) :: writeback_allocation_before
+    integer(int64) :: writeback_before
+
+    logical :: checkpoint_ready
+    logical :: state_ready
+
+    real(dp) :: allowed
+    real(dp) :: mask_value
+    real(dp) :: native_value
+    real(dp) :: reference_value
+
+    character(len=3) :: scheme_name
+
+    type(Block_Velocity_Restriction_Context) :: statistics
+
+    candidate_stage = production_multistage_candidate_stage
+    candidate_stage_count = production_multistage_candidate_stage_count
+    if (candidate_stage_count == 0) return
+    if (candidate_stage /= candidate_stage_count .or. &
+         coarse_level /= level_start-1) then
+       call fail("velocity restriction is outside the accepted transform")
+    end if
+    if (.not. production_multistage_final_snapshot_consumed .or. &
+         block_writeback_plan%native_stage_ready) then
+       call fail("velocity restriction snapshot boundary is invalid")
+    end if
+    if (production_velocity_restriction_level /= -1) then
+       call fail("velocity restriction was already produced")
+    end if
+
+    state_ready = parallel_block_state_is_ready()
+    checkpoint_ready = local_block_tendency_commit_checkpoint_is_ready()
+    if (.not. state_ready .or. .not. checkpoint_ready) then
+       call fail("velocity restriction transaction is not ready")
+    end if
+    if (.not. block_scalar_divergence_plan%ready .or. &
+         .not. allocated(block_scalar_tendency)) then
+       call fail("velocity restriction geometry is not ready")
+    end if
+
+    writeback_allocation_before = block_writeback_plan_allocation_count()
+    scalar_allocation_before = block_scalar_tendency_allocations
+    restriction_allocation_before = &
+         block_scalar_restriction_exchange%allocations
+    writeback_before = block_domain_production_writeback_count()
+
+    ! Retain the in-block producer for later restriction levels. The accepted
+    ! transform currently requests only the fixed scaffold below block roots.
+    if (coarse_level >= level_start) then
+       statistics%coarse_level = coarse_level
+       call apply_local_block_field_producer( &
+            produce_block_velocity_restriction,statistics)
+    end if
+
+    ! No compact block owns the fixed coarse scaffold at level_start-1.
+    ! Reconstruct a non-authoritative Domain-layout stage from all retained
+    ! block roots, including migrated roots, and evaluate Restrict_velo on
+    ! each source Domain owner from those block-derived fine values.
+    call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (v_vector /= S_VELO .or. mult_vector /= EDGE .or. &
+         n_field_level < 1) then
+       call fail("velocity restriction field layout is invalid")
+    end if
+
+    do d = 1,size(grid)
+       do p_index = 1,grid(d)%lev(coarse_level)%length
+          p = grid(d)%lev(coarse_level)%elts(p_index)
+          statistics%parent_patch_count = &
+               statistics%parent_patch_count + 1_int64
+          do c = 1,N_CHDRN
+             p_child = grid(d)%patch%elts(p+1)%children(c)
+             if (p_child == 0) cycle
+             if (grid(d)%patch%elts(p_child+1)%level /= &
+                  coarse_level+1) then
+                call fail("velocity restriction staged child level is invalid")
+             end if
+             do level_slot = 1,n_field_level
+                field_level = first_field_level+level_slot-1
+                if (field_level < 1 .or. field_level > zlevels) cycle
+                do j = 1,PATCH_SIZE/2
+                   j_chd = 2*(j-1)
+                   j_par = j-1+chd_offs(2,c)
+                   do i = 1,PATCH_SIZE/2
+                      i_chd = 2*(i-1)
+                      i_par = i-1+chd_offs(1,c)
+                      do e = RT,UP
+                         statistics%candidate_count = &
+                              statistics%candidate_count + 1_int64
+                         mask_value = real(grid(d)%mask_e%elts( &
+                              EDGE*(grid(d)%patch%elts(p_child+1)% &
+                              elts_start+PATCH_SIZE*j_chd+i_chd)+e+1),dp)
+                         if (mask_value <= 0.0_dp) cycle
+                         statistics%active_count = &
+                              statistics%active_count + 1_int64
+                         native_value = staged_restricted_velocity( &
+                              d,p_child,level_slot,i_chd,j_chd,e)
+                         reference_value = domain_restricted_velocity( &
+                              d,p,field_level,i_par,j_par,e)
+                         allowed = 8.0_dp*epsilon(1.0_dp)*max( &
+                              1.0_dp,abs(native_value), &
+                              abs(reference_value))
+                         if (abs(native_value-reference_value) > allowed) then
+                            call report_velocity_restriction_mismatch
+                         end if
+                         statistics%produced_count = &
+                              statistics%produced_count + 1_int64
+                      end do
+                   end do
+                end do
+             end do
+          end do
+       end do
+    end do
+
+    count_local = [statistics%parent_patch_count, &
+         statistics%candidate_count,statistics%active_count, &
+         statistics%produced_count]
+    call MPI_Allreduce(count_local,count_global,size(count_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce velocity restriction coverage")
+    if (any(count_global <= 0_int64)) then
+       call fail("block-derived velocity restriction coverage is empty")
+    end if
+    if (count_global(3) /= count_global(4)) then
+       call fail("block-derived velocity restriction coverage differs")
+    end if
+
+    production_velocity_restriction_level = coarse_level
+
+    if (.not. local_block_tendency_commit_checkpoint_is_ready() .or. &
+         block_writeback_plan%native_stage_ready .or. &
+         .not. production_multistage_final_snapshot_consumed) then
+       call fail("velocity restriction changed transaction state")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before .or. &
+         block_scalar_tendency_allocations /= scalar_allocation_before .or. &
+         block_scalar_restriction_exchange%allocations /= &
+         restriction_allocation_before) then
+       call fail("velocity restriction reallocated persistent storage")
+    end if
+    if (block_domain_production_writeback_count() /= writeback_before) then
+       call fail("velocity restriction modified Domain fields")
+    end if
+
+    if (candidate_stage_count == 3) then
+       scheme_name = "RK3"
+    else
+       scheme_name = "RK4"
+    end if
+    if (rank == 0) then
+       write(6,'(a,a,a,i0)') &
+            "  block-derived ",scheme_name, &
+            " velocity restriction shadow passed: coarse level = ", &
+            coarse_level
+    end if
+
+  contains
+
+    real(dp) function staged_vector_value ( &
+         d_stage,p_stage,level_stage,i_stage,j_stage,e_stage) &
+         result(value)
+
+      implicit none
+
+      integer, intent(in) :: d_stage
+      integer, intent(in) :: p_stage
+      integer, intent(in) :: level_stage
+      integer, intent(in) :: i_stage
+      integer, intent(in) :: j_stage
+      integer, intent(in) :: e_stage
+
+      integer :: patch_slot
+      integer :: value_index
+
+      value = 0.0_dp
+      patch_slot = block_writeback_plan%domain_patch_displ(d_stage) + &
+           p_stage + 1
+      value_index = (patch_slot-1)* &
+           block_writeback_plan%vector_patch_nvalue + &
+           (level_stage-1)*EDGE*PATCH_SIZE**2 + &
+           EDGE*(PATCH_SIZE*j_stage+i_stage)+e_stage+1
+      if (patch_slot < 1 .or. patch_slot > &
+           size(block_writeback_plan%domain_patch_covered) .or. &
+           .not. block_writeback_plan% &
+           domain_patch_reconstructed(patch_slot) .or. &
+           value_index < 1 .or. value_index > &
+           size(block_writeback_plan%vector_domain_stage)) then
+         call fail("velocity restriction staged source is invalid")
+      end if
+      value = block_writeback_plan%vector_domain_stage(value_index)
+      if (.not. ieee_is_finite(value)) then
+         call fail("velocity restriction staged source is non-finite")
+      end if
+
+    end function staged_vector_value
+
+
+    real(dp) function staged_restricted_velocity ( &
+         d_stage,p_stage,level_stage,i_stage,j_stage,e_stage) &
+         result(value)
+
+      implicit none
+
+      integer, intent(in) :: d_stage
+      integer, intent(in) :: p_stage
+      integer, intent(in) :: level_stage
+      integer, intent(in) :: i_stage
+      integer, intent(in) :: j_stage
+      integer, intent(in) :: e_stage
+
+      select case (e_stage)
+      case (RT)
+         value = 0.5_dp*( &
+              staged_vector_value(d_stage,p_stage,level_stage, &
+                   i_stage,j_stage,RT) + &
+              staged_vector_value(d_stage,p_stage,level_stage, &
+                   i_stage+1,j_stage,RT))
+      case (DG)
+         value = 0.5_dp*( &
+              staged_vector_value(d_stage,p_stage,level_stage, &
+                   i_stage+1,j_stage+1,DG) + &
+              staged_vector_value(d_stage,p_stage,level_stage, &
+                   i_stage,j_stage,DG))
+      case (UP)
+         value = 0.5_dp*( &
+              staged_vector_value(d_stage,p_stage,level_stage, &
+                   i_stage,j_stage,UP) + &
+              staged_vector_value(d_stage,p_stage,level_stage, &
+                   i_stage,j_stage+1,UP))
+      case default
+         call fail("velocity restriction staged edge is invalid")
+      end select
+
+    end function staged_restricted_velocity
+
+
+    real(dp) function domain_restricted_velocity ( &
+         d_domain,p_domain,field_domain,i_domain,j_domain,e_domain) &
+         result(value)
+
+      implicit none
+
+      integer, intent(in) :: d_domain
+      integer, intent(in) :: p_domain
+      integer, intent(in) :: field_domain
+      integer, intent(in) :: i_domain
+      integer, intent(in) :: j_domain
+      integer, intent(in) :: e_domain
+
+      integer :: node_index
+      integer :: value_index
+
+      value = 0.0_dp
+      node_index = grid(d_domain)%patch%elts(p_domain+1)%elts_start + &
+           PATCH_SIZE*j_domain+i_domain
+      value_index = EDGE*node_index+e_domain+1
+      if (value_index < 1 .or. value_index > size( &
+           domain_scaling(S_VELO,field_domain)%data(d_domain)%elts)) then
+         call fail("velocity restriction Domain target is invalid")
+      end if
+      value = domain_scaling(S_VELO,field_domain)% &
+           data(d_domain)%elts(value_index)
+      if (.not. ieee_is_finite(value)) then
+         call fail("velocity restriction Domain target is non-finite")
+      end if
+
+    end function domain_restricted_velocity
+
+
+    subroutine report_velocity_restriction_mismatch
+
+      implicit none
+
+      write(error_unit,'(/,a,i0,a)') &
+           "Rank ",rank,": block-derived velocity restriction differs"
+      write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+           "  Domain = ",d,", parent patch = ",p, &
+           ", child = ",c,", child patch = ",p_child
+      write(error_unit,'(a,i0,a,i0,a,i0)') &
+           "  coarse level = ",coarse_level, &
+           ", field level = ",field_level,", edge = ",e
+      write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+           "  parent coordinates = ",i_par,", ",j_par, &
+           "; child coordinates = ",i_chd,", ",j_chd
+      write(error_unit,'(a,4(es24.16,1x))') &
+           "  native, reference, difference, allowed = ", &
+           native_value,reference_value, &
+           abs(native_value-reference_value),allowed
+      flush(error_unit)
+      call fail("velocity restriction shadow comparison failed")
+
+    end subroutine report_velocity_restriction_mismatch
+
+  end subroutine validate_candidate_block_velocity_restriction
+
+
+  subroutine produce_block_velocity_restriction ( &
+       catalog_index,block,context)
+    ! Exact compact-patch form of the three Restrict_velo edge averages.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(inout) :: block
+    class(*), intent(inout) :: context
+
+    integer :: c
+    integer :: child
+    integer :: i
+    integer :: i_chd
+    integer :: i_par
+    integer :: j
+    integer :: j_chd
+    integer :: j_par
+    integer :: level_slot
+    integer :: local_index
+    integer :: p
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency)) then
+       call fail("velocity restriction block is invalid")
+    end if
+    if (.not. block_scalar_tendency(local_index)%ready .or. &
+         block_scalar_tendency(local_index)%catalog_index /= &
+         catalog_index) then
+       call fail("velocity restriction geometry block is stale")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Velocity_Restriction_Context)
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level /= statistics%coarse_level) cycle
+          statistics%parent_patch_count = &
+               statistics%parent_patch_count + 1_int64
+          do c = 1,N_CHDRN
+             child = block%patch(p)%children(c)
+             if (child == 0) cycle
+             if (child < 0 .or. child >= size(block%patch)) then
+                call fail("velocity restriction child patch is invalid")
+             end if
+             if (block%patch(child+1)%level /= &
+                  block%patch(p)%level+1) then
+                call fail("velocity restriction child level is invalid")
+             end if
+             do level_slot = 1,block%n_field_level
+                if (block%field_level+level_slot-1 < 1 .or. &
+                     block%field_level+level_slot-1 > zlevels) cycle
+                do j = 1,PATCH_SIZE/2
+                   j_chd = 2*(j-1)
+                   j_par = j-1+chd_offs(2,c)
+                   do i = 1,PATCH_SIZE/2
+                      i_chd = 2*(i-1)
+                      i_par = i-1+chd_offs(1,c)
+                      call produce_edge(RT,i_chd,j_chd, &
+                           i_chd+1,j_chd,statistics)
+                      call produce_edge(DG,i_chd+1,j_chd+1, &
+                           i_chd,j_chd,statistics)
+                      call produce_edge(UP,i_chd,j_chd, &
+                           i_chd,j_chd+1,statistics)
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("velocity restriction context is invalid")
+    end select
+
+  contains
+
+    subroutine produce_edge (e,first_i,first_j,second_i,second_j,stats)
+
+      implicit none
+
+      integer, intent(in) :: e
+      integer, intent(in) :: first_i
+      integer, intent(in) :: first_j
+      integer, intent(in) :: second_i
+      integer, intent(in) :: second_j
+      type(Block_Velocity_Restriction_Context), intent(inout) :: stats
+
+      real(dp) :: mask_value
+      real(dp) :: value
+
+      stats%candidate_count = stats%candidate_count + 1_int64
+      mask_value = block_scalar_record_value( &
+           block,local_index,child+1,0,level_slot,i_chd,j_chd, &
+           BLOCK_SCALAR_EDGE_MASK_START+e)
+      if (mask_value <= 0.0_dp) return
+
+      stats%active_count = stats%active_count + 1_int64
+      value = 0.5_dp*( &
+           block_vector_family_value( &
+                block,local_index,child+1,level_slot, &
+                first_i,first_j,e,BLOCK_PAYLOAD_SOL) + &
+           block_vector_family_value( &
+                block,local_index,child+1,level_slot, &
+                second_i,second_j,e,BLOCK_PAYLOAD_SOL))
+      call set_block_vector_sol_value( &
+           block,p,level_slot,i_par,j_par,e,value)
+      stats%produced_count = stats%produced_count + 1_int64
+
+    end subroutine produce_edge
+
+  end subroutine produce_block_velocity_restriction
+
+
+  subroutine set_block_vector_sol_value ( &
+       block,p,level_slot,i,j,e,value)
+    ! Install one verified coarse velocity in native compact patch storage.
+
+    implicit none
+
+    type(Block_Data), intent(inout) :: block
+    integer, intent(in) :: p
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: e
+    real(dp), intent(in) :: value
+
+    integer :: field_index
+    integer :: n_storage_node
+    integer :: node_index
+
+    if (p < 1 .or. p > size(block%patch) .or. &
+         level_slot < 1 .or. level_slot > block%n_field_level .or. &
+         i < 0 .or. i >= PATCH_SIZE .or. &
+         j < 0 .or. j >= PATCH_SIZE .or. &
+         e < RT .or. e > UP) then
+       call fail("velocity restriction address is invalid")
+    end if
+    if (.not. ieee_is_finite(value)) then
+       call fail("velocity restriction value is non-finite")
+    end if
+
+    n_storage_node = size(block%node)
+    node_index = block%patch(p)%elts_start+PATCH_SIZE*j+i
+    field_index = (level_slot-1)*EDGE*n_storage_node + &
+         EDGE*node_index+e+1
+    if (node_index < 0 .or. node_index >= n_storage_node .or. &
+         field_index < 1 .or. field_index > size(block%vector)) then
+       call fail("velocity restriction storage is invalid")
+    end if
+    block%vector(field_index) = value
+
+  end subroutine set_block_vector_sol_value
+
+
   subroutine validate_candidate_block_outer_vector_wavelets ( &
        domain_scaling,wavelet_level)
     ! Compare the regular outer-edge velocity wavelets after every field
@@ -6457,8 +6962,9 @@ end subroutine build_parallel_block_catalog
          production_multistage_candidate_stage_count
     if (candidate_stage_count == 0) return
 
-    ! The accepted transform also evaluates level_start-1 after Restrict_velo.
-    ! Native production of that coarse velocity is intentionally deferred.
+    ! The fixed coarse scaffold is not resident in compact blocks. Stage 121
+    ! validates its restriction through Domain-layout staging; its cross-root
+    ! outer wavelet remains deferred.
     if (wavelet_level < level_start) return
     if (wavelet_level > level_end-1) then
        call fail("outer vector-wavelet level is invalid")
@@ -13754,6 +14260,9 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%native_stage_ready) then
        call fail("production multistage snapshot boundary is incomplete")
     end if
+    if (production_velocity_restriction_level /= level_start-1) then
+       call fail("production velocity restriction is incomplete")
+    end if
     if (block_writeback_plan% &
          production_multistage_boundary_refresh_count /= &
          int(stage_count-1,int64)) then
@@ -13836,6 +14345,7 @@ end subroutine build_parallel_block_catalog
     production_multistage_candidate_stage_count = 0
     production_multistage_captured_tendency_stage = 0
     production_multistage_native_candidate_stage = 0
+    production_velocity_restriction_level = -1
     production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
     block_writeback_plan%production_multistage_boundary_refresh_count = &

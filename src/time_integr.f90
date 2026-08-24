@@ -20,7 +20,8 @@ module time_integr_mod
        refresh_parallel_block_candidate_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
        validate_candidate_block_outer_vector_wavelets, &
-       validate_candidate_block_scalar_wavelets
+       validate_candidate_block_scalar_wavelets, &
+       validate_candidate_block_velocity_restriction
 
   implicit none
 
@@ -190,7 +191,9 @@ contains
          validate_scalar_wavelets= &
          validate_candidate_block_scalar_wavelets, &
          validate_outer_vector_wavelets= &
-         validate_candidate_block_outer_vector_wavelets)
+         validate_candidate_block_outer_vector_wavelets, &
+         validate_velocity_restriction= &
+         validate_candidate_block_velocity_restriction)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if
@@ -306,7 +309,9 @@ contains
          validate_scalar_wavelets= &
          validate_candidate_block_scalar_wavelets, &
          validate_outer_vector_wavelets= &
-         validate_candidate_block_outer_vector_wavelets)
+         validate_candidate_block_outer_vector_wavelets, &
+         validate_velocity_restriction= &
+         validate_candidate_block_velocity_restriction)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if

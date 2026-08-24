@@ -52,6 +52,14 @@ module adapt_mod
             scaling(1:N_VARIABLE,1:zlevels)
        integer, intent(in) :: wavelet_level
      end subroutine Outer_Vector_Wavelet_Validator
+
+     subroutine Velocity_Restriction_Validator (scaling,coarse_level)
+       import :: Float_Field, N_VARIABLE, zlevels
+
+       type(Float_Field), intent(in) :: &
+            scaling(1:N_VARIABLE,1:zlevels)
+       integer, intent(in) :: coarse_level
+     end subroutine Velocity_Restriction_Validator
   end interface
 
   
@@ -244,7 +252,7 @@ contains
   
   subroutine WT_after_step ( &
        scaling,wavelet,l_start0,validate_scalar_wavelets, &
-       validate_outer_vector_wavelets)
+       validate_outer_vector_wavelets,validate_velocity_restriction)
     ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
     
     implicit none
@@ -255,6 +263,8 @@ contains
          validate_scalar_wavelets
     procedure(Outer_Vector_Wavelet_Validator), optional :: &
          validate_outer_vector_wavelets
+    procedure(Velocity_Restriction_Validator), optional :: &
+         validate_velocity_restriction
 
     integer :: d, k, l, l_start, v
 
@@ -274,6 +284,10 @@ contains
     end if
 
     call update_bdry (scaling, NONE, 904)
+    if (present(l_start0) .and. &
+         present(validate_velocity_restriction)) then
+       call validate_velocity_restriction(scaling,level_start-1)
+    end if
 
     do l = l_start, level_end-1
        do k = 1, size(scaling,2)
