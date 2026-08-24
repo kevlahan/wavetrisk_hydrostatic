@@ -651,6 +651,7 @@ subroutine build_one_source_block ( &
 
   integer, allocatable :: bdry_required(:)
   integer, allocatable :: bdry_closure(:)
+  integer, allocatable :: bdry_level(:)
   integer, allocatable :: ghost_patch(:)
 
   real(dp) :: val_src
@@ -1467,9 +1468,11 @@ subroutine build_one_source_block ( &
   !
   allocate(bdry_required(max(1,grid(d)%bdry_patch%length)))
   allocate(bdry_closure(max(1,grid(d)%bdry_patch%length)))
+  allocate(bdry_level(max(1,grid(d)%bdry_patch%length)))
 
   bdry_required = -1
   bdry_closure  = -1
+  bdry_level = -1
 
   n_bdry_direct   = 0
   n_bdry_closure  = 0
@@ -1502,6 +1505,14 @@ subroutine build_one_source_block ( &
         n_bdry_direct   = n_bdry_direct + 1
 
         bdry_required(n_bdry_required) = b_src
+        bdry_level(n_bdry_required) = &
+             patch_copy(block_out%block_bdry(ib)%patch+1)%level
+
+     else if (bdry_level(j) /= &
+          patch_copy(block_out%block_bdry(ib)%patch+1)%level) then
+
+        error stop &
+             "build_source_blocks: direct boundary level differs"
 
      end if
 
@@ -1619,13 +1630,24 @@ subroutine build_one_source_block ( &
 
         end do
 
-        if (already_present) cycle
+        if (already_present) then
+
+           if (bdry_level(j) /= grid(d)%patch%elts(p_old+1)%level) then
+              error stop &
+                   "build_source_blocks: closure boundary level differs"
+           end if
+
+           cycle
+
+        end if
 
         n_bdry_required = n_bdry_required + 1
         n_bdry_closure  = n_bdry_closure + 1
 
         bdry_required(n_bdry_required) = b_missing
         bdry_closure(n_bdry_closure)   = b_missing
+        bdry_level(n_bdry_required) = &
+             grid(d)%patch%elts(p_old+1)%level
 
      end do
 
@@ -1685,6 +1707,7 @@ subroutine build_one_source_block ( &
      b_src = bdry_required(is)
 
      block_out%bdry_storage(is)%source_bdry = b_src
+     block_out%bdry_storage(is)%level = bdry_level(is)
 
      block_out%bdry_storage(is)%elts_start = &
           grid(d)%bdry_patch%elts(b_src+1)%elts_start
@@ -3626,6 +3649,7 @@ subroutine build_one_source_block ( &
   deallocate(ghost_patch)
   deallocate(bdry_required)
   deallocate(bdry_closure)
+  deallocate(bdry_level)
   deallocate(old_to_new)
   deallocate(old_elts_start)
 

@@ -28,12 +28,13 @@ module parallel_block_mod
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
-  integer, parameter :: BLOCK_PACK_VERSION = 9
+  integer, parameter :: BLOCK_PACK_VERSION = 10
   integer, parameter :: BLOCK_PACK_HEADER_SIZE = 44
 
 
   type, public :: Block_Bdry_Storage
      integer :: source_bdry = -1
+     integer :: level       = -1
      integer :: elts_start  = -1
      integer :: dims(2)     = 0
      integer :: n_node      = 0
@@ -2938,7 +2939,8 @@ subroutine accumulate_block_boundary_route_statistics ( &
   do i = 1, size(block%bdry_storage)
      if (block%bdry_storage(i)%local_start /= expected_start .or. &
           block%bdry_storage(i)%n_node <= 0 .or. &
-          block%bdry_storage(i)%source_bdry < 1) then
+          block%bdry_storage(i)%source_bdry < 1 .or. &
+          block%bdry_storage(i)%level < 0) then
         error stop &
              "accumulate_block_boundary_route_statistics: boundary layout"
      end if
@@ -3259,7 +3261,8 @@ end function local_block_boundary_count
 
 
 subroutine get_local_block_boundary_source ( &
-     catalog_index,boundary_index,source_bdry,elts_start,n_node)
+     catalog_index,boundary_index,source_bdry,elts_start,n_node, &
+     grid_level)
   ! Return the authoritative Domain-boundary address represented by one
   ! compact boundary record in a locally owned final block.
 
@@ -3270,6 +3273,7 @@ subroutine get_local_block_boundary_source ( &
   integer, intent(out) :: source_bdry
   integer, intent(out) :: elts_start
   integer, intent(out) :: n_node
+  integer, optional, intent(out) :: grid_level
 
   integer :: local_index
 
@@ -3288,9 +3292,18 @@ subroutine get_local_block_boundary_source ( &
        bdry_storage(boundary_index)%elts_start
   n_node = block_local(local_index)% &
        bdry_storage(boundary_index)%n_node
+  if (present(grid_level)) then
+     grid_level = block_local(local_index)% &
+          bdry_storage(boundary_index)%level
+  end if
 
   if (source_bdry < 0 .or. elts_start < 0 .or. n_node < 1) then
      error stop "get_local_block_boundary_source: invalid source"
+  end if
+  if (present(grid_level)) then
+     if (grid_level < 0) then
+        error stop "get_local_block_boundary_source: invalid level"
+     end if
   end if
 
 end subroutine get_local_block_boundary_source

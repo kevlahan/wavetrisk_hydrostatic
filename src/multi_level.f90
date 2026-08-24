@@ -39,7 +39,7 @@ contains
     
     type(Float_Field), intent(inout), target :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
 
-    integer :: k, l
+    integer :: k, l, v
 
     call update_bdry (q, NONE, 967)
 
@@ -58,7 +58,15 @@ contains
        ! Calculate trend on all scales, from fine to coarse
        do l = level_end, level_start, -1
           ! Finish non-blocking communication of dq from level (l+1)
-          if (l < level_end) call update_bdry__finish (dq(scalars(1):scalars(2),k),l+1) 
+          if (l < level_end) then
+             call update_bdry__finish( &
+                  dq(scalars(1):scalars(2),k),l+1)
+             do v = scalars(1),scalars(2)
+                call capture_block_scalar_divergence_level( &
+                     q,physics_scalar_flux,v,k,l+1, &
+                     domain_tendency=dq,dscalar_only=.true.)
+             end do
+          end if
 
           call basic_operators  (q, dq, k, l)
           call cal_scalar_trend (q, dq, k, l)

@@ -1,19 +1,26 @@
 module parallel_block_mpi_mod
 
   use iso_fortran_env, only : error_unit, int8, int64
+  use ieee_arithmetic, only : ieee_is_finite
   use mpi_f08,        only : MPI_Allgather, MPI_Allgatherv, MPI_Allreduce, &
        MPI_Alltoall, MPI_Alltoallv, MPI_Exscan, MPI_BYTE, MPI_INTEGER, &
        MPI_INTEGER8, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_MIN, MPI_SUCCESS, &
        MPI_SUM
 
   use kind_mod,   only : dp
-  use shared_mod, only : DG, EAST, EDGE, NORTH, NORTHEAST, N_BDRY, &
+  use shared_mod, only : bfly_no2, nghb_pt, hex_sides, &
+       hex_s_offs, &
+       DG, EAST, EDGE, NORTH, NORTHEAST, NORTHWEST, N_BDRY, &
        N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, &
+       SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
+       MM, MP, PM, PP, UMZ, UPZ, UZM, UZP, VMM, VMPP, VMP, &
+       VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
        S_MASS, S_TEMP, S_VELO, &
-       TRSK, c_p, compressible, grav_accel, kappa, level_end, &
+       RESTRCT, TRSK, c_p, compressible, grav_accel, kappa, level_end, &
        level_start, p_0, p_top, zlevels
 
-  use domain_mod, only : Domain, Float_Field, get_offs_Domain, grid, &
+  use domain_mod, only : chd_offs, Domain, Float_Field, &
+       get_offs_Domain, grid, &
        horiz_flux, &
        idx, sol, sol_mean, tke, &
        topography, trend, &
@@ -153,13 +160,19 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
-  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 17
+  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 34
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
   integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
   integer, parameter :: BLOCK_SCALAR_ACTIVE_INDEX = 8
   integer, parameter :: BLOCK_SCALAR_DIRECT_FLUX_START = 9
   integer, parameter :: BLOCK_SCALAR_PEDLEN_START = 12
   integer, parameter :: BLOCK_SCALAR_PHYSICS_START = 15
+  integer, parameter :: BLOCK_SCALAR_RESTRICTED_FLUX_START = 18
+  integer, parameter :: BLOCK_SCALAR_EDGE_MASK_START = 21
+  integer, parameter :: BLOCK_SCALAR_RESTRICTION_WEIGHT_START = 24
+  integer, parameter :: BLOCK_SCALAR_OVERLAP_START = 27
+  integer, parameter :: BLOCK_SCALAR_SOURCE_INDEX = 33
+  integer, parameter :: BLOCK_SCALAR_DSCALAR_INDEX = 34
 
   abstract interface
      function Block_Scalar_Physics_Flux ( &
@@ -183,6 +196,8 @@ module parallel_block_mpi_mod
        -0.125_dp*huge(0.0_dp)
   real(dp), parameter :: BLOCK_PATCH_POISON = &
        -0.0625_dp*huge(0.0_dp)
+  real(dp), parameter :: BLOCK_RESTRICTION_VALUE_LIMIT = &
+       0.01_dp*huge(0.0_dp)
 
   type, public :: Block_Migration_Manifest
      integer :: n_send = 0
@@ -272,6 +287,8 @@ module parallel_block_mpi_mod
      integer, allocatable :: recv_boundary_displ(:)
      integer, allocatable :: send_boundary_source(:)
      integer, allocatable :: recv_boundary_source(:)
+     integer, allocatable :: send_boundary_level(:)
+     integer, allocatable :: recv_boundary_level(:)
      integer, allocatable :: send_boundary_nnode(:)
      integer, allocatable :: recv_boundary_nnode(:)
      integer, allocatable :: send_boundary_scalar_nvalue(:)
@@ -458,6 +475,8 @@ module parallel_block_mpi_mod
      integer :: installed_patch_count = 0
      logical :: ready = .false.
      real(dp), allocatable :: patch(:)
+     real(dp), allocatable :: bdry(:)
+     real(dp), allocatable :: ghost(:)
      logical, allocatable :: covered(:)
   end type Block_Scalar_Tendency_Storage
 
@@ -481,6 +500,53 @@ module parallel_block_mpi_mod
 
   type(Block_Scalar_Divergence_Plan_Type), save :: &
        block_scalar_divergence_plan
+
+  type :: Block_Scalar_Restriction_Exchange_Type
+     integer, allocatable :: boundary_send_count(:)
+     integer, allocatable :: boundary_recv_count(:)
+     integer, allocatable :: boundary_send_displ(:)
+     integer, allocatable :: boundary_recv_displ(:)
+     real(dp), allocatable :: boundary_send_buffer(:)
+     real(dp), allocatable :: boundary_recv_buffer(:)
+     integer, allocatable :: ghost_send_count(:)
+     integer, allocatable :: ghost_recv_count(:)
+     integer, allocatable :: ghost_send_displ(:)
+     integer, allocatable :: ghost_recv_displ(:)
+     real(dp), allocatable :: ghost_send_buffer(:)
+     real(dp), allocatable :: ghost_recv_buffer(:)
+     real(dp), allocatable :: ghost_patch_buffer(:)
+     integer(int64) :: generation = -1_int64
+     integer(int64) :: allocations = 0_int64
+     integer(int64) :: exchanges = 0_int64
+     logical :: ready = .false.
+  end type Block_Scalar_Restriction_Exchange_Type
+
+  type(Block_Scalar_Restriction_Exchange_Type), save :: &
+       block_scalar_restriction_exchange
+
+  type :: Block_Scalar_Restriction_Context
+     integer :: target_level = -1
+     integer(int64) :: parent_patch_count = 0_int64
+     integer(int64) :: restricted_edge_count = 0_int64
+     integer(int64) :: compared_edge_count = 0_int64
+  end type Block_Scalar_Restriction_Context
+
+  type :: Block_Scalar_Restriction_Cursor
+     integer :: target_level = -1
+     integer :: catalog_index = 0
+     integer :: block_id = 0
+     integer :: parent_patch = 0
+     integer :: child_index = 0
+     integer :: child_patch = 0
+     integer :: scalar_slot = -1
+     integer :: level_slot = 0
+     integer :: physical_level = 0
+     integer :: i_parent = -1
+     integer :: j_parent = -1
+     integer :: i_child = -1
+     integer :: j_child = -1
+     integer :: edge = -1
+  end type Block_Scalar_Restriction_Cursor
 
   type, public :: Block_Two_Stage_Step_Result
      integer(int64) :: scalar_count = 0_int64
@@ -3050,6 +3116,12 @@ end subroutine build_parallel_block_catalog
     if (allocated(block_writeback_plan%recv_boundary_source)) then
        deallocate(block_writeback_plan%recv_boundary_source)
     end if
+    if (allocated(block_writeback_plan%send_boundary_level)) then
+       deallocate(block_writeback_plan%send_boundary_level)
+    end if
+    if (allocated(block_writeback_plan%recv_boundary_level)) then
+       deallocate(block_writeback_plan%recv_boundary_level)
+    end if
     if (allocated(block_writeback_plan%send_boundary_nnode)) then
        deallocate(block_writeback_plan%send_boundary_nnode)
     end if
@@ -3636,6 +3708,7 @@ end subroutine build_parallel_block_catalog
     integer :: r
     integer :: slot
     integer :: source_bdry
+    integer :: source_level
 
     integer, allocatable :: metadata_recv_count(:)
     integer, allocatable :: metadata_recv_displ(:)
@@ -3740,12 +3813,18 @@ end subroutine build_parallel_block_catalog
          max(1,block_writeback_plan%n_send_boundary)))
     allocate(block_writeback_plan%recv_boundary_source( &
          max(1,block_writeback_plan%n_recv_boundary)))
+    allocate(block_writeback_plan%send_boundary_level( &
+         max(1,block_writeback_plan%n_send_boundary)))
+    allocate(block_writeback_plan%recv_boundary_level( &
+         max(1,block_writeback_plan%n_recv_boundary)))
     allocate(block_writeback_plan%send_boundary_nnode( &
          max(1,block_writeback_plan%n_send_boundary)))
     allocate(block_writeback_plan%recv_boundary_nnode( &
          max(1,block_writeback_plan%n_recv_boundary)))
     block_writeback_plan%send_boundary_source = 0
     block_writeback_plan%recv_boundary_source = 0
+    block_writeback_plan%send_boundary_level = -1
+    block_writeback_plan%recv_boundary_level = -1
     block_writeback_plan%send_boundary_nnode = 0
     block_writeback_plan%recv_boundary_nnode = 0
 
@@ -3756,8 +3835,10 @@ end subroutine build_parallel_block_catalog
           pos = block_writeback_plan%send_boundary_displ(slot) + &
                boundary_index
           call get_local_block_boundary_source( &
-               b,boundary_index,source_bdry,elts_start,n_node)
+               b,boundary_index,source_bdry,elts_start,n_node, &
+               source_level)
           block_writeback_plan%send_boundary_source(pos) = source_bdry
+          block_writeback_plan%send_boundary_level(pos) = source_level
           block_writeback_plan%send_boundary_nnode(pos) = n_node
        end do
     end do
@@ -3804,6 +3885,13 @@ end subroutine build_parallel_block_catalog
          metadata_recv_count,metadata_recv_displ,MPI_INTEGER, &
          comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv boundary source manifest")
+    call MPI_Alltoallv( &
+         block_writeback_plan%send_boundary_level, &
+         metadata_send_count,metadata_send_displ,MPI_INTEGER, &
+         block_writeback_plan%recv_boundary_level, &
+         metadata_recv_count,metadata_recv_displ,MPI_INTEGER, &
+         comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv boundary level manifest")
     call MPI_Alltoallv( &
          block_writeback_plan%send_boundary_nnode, &
          metadata_send_count,metadata_send_displ,MPI_INTEGER, &
@@ -3948,6 +4036,10 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%send_boundary_source)) return
     if (.not. allocated( &
          block_writeback_plan%recv_boundary_source)) return
+    if (.not. allocated( &
+         block_writeback_plan%send_boundary_level)) return
+    if (.not. allocated( &
+         block_writeback_plan%recv_boundary_level)) return
     if (.not. allocated( &
          block_writeback_plan%boundary_scalar_domain_send_buffer)) return
     if (.not. allocated( &
@@ -6724,6 +6816,7 @@ end subroutine build_parallel_block_catalog
     call evaluate_candidate_block_exner_shadow( &
          domain_sol,BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY, &
          .true.,.true.,.true.,checkpoint_required,.true.,.true.)
+    call evaluate_candidate_block_scalar_restriction
 
     if (rank == 0) then
        write(6,'(a)') &
@@ -6745,13 +6838,20 @@ end subroutine build_parallel_block_catalog
        write(6,'(a)') &
             "  native direct scalar flux retained for hierarchy restriction"
        write(6,'(a)') &
+            "  block-native fine-to-coarse scalar flux restriction passed"
+       write(6,'(a)') &
+            "  roundoff-bounded restricted block/cpt_or_restr_flux "// &
+            "comparison passed"
+       write(6,'(a)') &
+            "  native restricted scalar flux retained"
+       write(6,'(a)') &
             "  authoritative restricted scalar flux divergence reused"
        write(6,'(a)') &
             "  exact complete block/Domain physical tendency comparison passed"
        write(6,'(a)') &
             "  complete physical tendency retained for rejected RK stage"
        write(6,'(a)') &
-            "  persistent scalar-flux reference/physics storage reused"
+            "  persistent scalar-restriction boundary/ghost buffers reused"
     end if
 
   end subroutine evaluate_candidate_block_velocity_recomposition
@@ -7009,12 +7109,16 @@ end subroutine build_parallel_block_catalog
     implicit none
 
     integer :: b
+    integer :: boundary_index
+    integer :: boundary_sample_count
     integer :: count
+    integer :: ghost_sample_count
     integer :: index
     integer :: n_local
     integer :: patch_count
 
     integer(int64) :: allocation_after
+    integer(int64) :: restriction_allocation_after
 
     logical :: state_ready
 
@@ -7027,10 +7131,18 @@ end subroutine build_parallel_block_catalog
     end if
 
     call prepare_scalar_divergence_plan
+    call prepare_block_scalar_restriction_exchange
     allocation_after = block_scalar_divergence_plan%allocations
+    restriction_allocation_after = &
+         block_scalar_restriction_exchange%allocations
     call prepare_scalar_divergence_plan
+    call prepare_block_scalar_restriction_exchange
     if (block_scalar_divergence_plan%allocations /= allocation_after) then
        call fail("scalar-divergence transport was not reusable")
+    end if
+    if (block_scalar_restriction_exchange%allocations /= &
+         restriction_allocation_after) then
+       call fail("scalar-restriction transport was not reusable")
     end if
 
     n_local = n_local_blocks()
@@ -7048,6 +7160,14 @@ end subroutine build_parallel_block_catalog
        b = local_block_catalog(index)
        patch_count = local_block_patch_count(b)
        count = patch_count*block_writeback_plan%scalar_patch_nvalue
+       boundary_sample_count = 0
+       do boundary_index = 1,local_block_boundary_count(b)
+          boundary_sample_count = boundary_sample_count + &
+               local_block_scalar_family_boundary_nvalue( &
+               b,boundary_index)
+       end do
+       ghost_sample_count = local_block_ghost_count(b)* &
+            block_writeback_plan%scalar_patch_nvalue
        if (allocated(block_scalar_tendency(index)%patch)) then
           if (block_scalar_tendency(index)%catalog_index /= b .or. &
                size(block_scalar_tendency(index)%patch) /= &
@@ -7061,6 +7181,22 @@ end subroutine build_parallel_block_catalog
              deallocate(block_scalar_tendency(index)%covered)
           end if
        end if
+       if (allocated(block_scalar_tendency(index)%bdry)) then
+          if (block_scalar_tendency(index)%catalog_index /= b .or. &
+               size(block_scalar_tendency(index)%bdry) /= &
+               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+               boundary_sample_count) then
+             deallocate(block_scalar_tendency(index)%bdry)
+          end if
+       end if
+       if (allocated(block_scalar_tendency(index)%ghost)) then
+          if (block_scalar_tendency(index)%catalog_index /= b .or. &
+               size(block_scalar_tendency(index)%ghost) /= &
+               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+               ghost_sample_count) then
+             deallocate(block_scalar_tendency(index)%ghost)
+          end if
+       end if
        if (.not. allocated(block_scalar_tendency(index)%patch)) then
           allocate(block_scalar_tendency(index)%patch( &
                BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*count))
@@ -7072,16 +7208,39 @@ end subroutine build_parallel_block_catalog
           block_scalar_tendency_allocations = &
                block_scalar_tendency_allocations + 1_int64
        end if
+       if (.not. allocated(block_scalar_tendency(index)%bdry)) then
+          allocate(block_scalar_tendency(index)%bdry( &
+               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+               boundary_sample_count))
+          block_scalar_tendency_allocations = &
+               block_scalar_tendency_allocations + 1_int64
+       end if
+       if (.not. allocated(block_scalar_tendency(index)%ghost)) then
+          allocate(block_scalar_tendency(index)%ghost( &
+               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ghost_sample_count))
+          block_scalar_tendency_allocations = &
+               block_scalar_tendency_allocations + 1_int64
+       end if
        block_scalar_tendency(index)%catalog_index = b
        block_scalar_tendency(index)%installed_patch_count = 0
        block_scalar_tendency(index)%ready = .false.
        block_scalar_tendency(index)%patch = BLOCK_PATCH_POISON
+       block_scalar_tendency(index)%bdry = BLOCK_BOUNDARY_POISON
+       block_scalar_tendency(index)%ghost = BLOCK_GHOST_POISON
        block_scalar_tendency(index)%covered = .false.
     end do
 
     block_scalar_divergence_plan%recv_buffer = BLOCK_PATCH_POISON
     block_scalar_divergence_plan%send_buffer = 0.0_dp
     block_scalar_divergence_plan%recv_covered = .false.
+    block_scalar_restriction_exchange%boundary_send_buffer = &
+         BLOCK_BOUNDARY_POISON
+    block_scalar_restriction_exchange%boundary_recv_buffer = &
+         BLOCK_BOUNDARY_POISON
+    block_scalar_restriction_exchange%ghost_send_buffer = &
+         BLOCK_GHOST_POISON
+    block_scalar_restriction_exchange%ghost_recv_buffer = &
+         BLOCK_GHOST_POISON
     block_scalar_divergence_plan%ready = .false.
     block_scalar_divergence_plan%active = .true.
 
@@ -7144,9 +7303,143 @@ end subroutine build_parallel_block_catalog
   end subroutine begin_block_scalar_divergence_capture
 
 
+  subroutine prepare_block_scalar_restriction_exchange
+    ! Allocate persistent compact-boundary and inter-block-ghost routes for
+    ! the scalar restriction record. Routing is inherited from the validated
+    ! prognostic boundary and ghost plans; only the payload width differs.
+
+    implicit none
+
+    integer :: n_boundary_recv
+    integer :: n_boundary_send
+    integer :: n_ghost_recv
+    integer :: n_ghost_send
+
+    if (block_scalar_restriction_exchange%generation == &
+         block_writeback_plan_generation) return
+
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_send_count)) deallocate( &
+         block_scalar_restriction_exchange%boundary_send_count)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_recv_count)) deallocate( &
+         block_scalar_restriction_exchange%boundary_recv_count)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_send_displ)) deallocate( &
+         block_scalar_restriction_exchange%boundary_send_displ)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_recv_displ)) deallocate( &
+         block_scalar_restriction_exchange%boundary_recv_displ)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_send_buffer)) deallocate( &
+         block_scalar_restriction_exchange%boundary_send_buffer)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_recv_buffer)) deallocate( &
+         block_scalar_restriction_exchange%boundary_recv_buffer)
+    if (allocated(block_scalar_restriction_exchange%ghost_send_count)) &
+         deallocate(block_scalar_restriction_exchange%ghost_send_count)
+    if (allocated(block_scalar_restriction_exchange%ghost_recv_count)) &
+         deallocate(block_scalar_restriction_exchange%ghost_recv_count)
+    if (allocated(block_scalar_restriction_exchange%ghost_send_displ)) &
+         deallocate(block_scalar_restriction_exchange%ghost_send_displ)
+    if (allocated(block_scalar_restriction_exchange%ghost_recv_displ)) &
+         deallocate(block_scalar_restriction_exchange%ghost_recv_displ)
+    if (allocated(block_scalar_restriction_exchange%ghost_send_buffer)) &
+         deallocate(block_scalar_restriction_exchange%ghost_send_buffer)
+    if (allocated(block_scalar_restriction_exchange%ghost_recv_buffer)) &
+         deallocate(block_scalar_restriction_exchange%ghost_recv_buffer)
+    if (allocated(block_scalar_restriction_exchange%ghost_patch_buffer)) &
+         deallocate(block_scalar_restriction_exchange%ghost_patch_buffer)
+
+    allocate(block_scalar_restriction_exchange% &
+         boundary_send_count(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_recv_count(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_send_displ(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_recv_displ(n_process))
+    block_scalar_restriction_exchange%boundary_send_count = &
+         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         block_writeback_plan%boundary_scalar_domain_send_count
+    block_scalar_restriction_exchange%boundary_recv_count = &
+         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         block_writeback_plan%boundary_scalar_block_recv_count
+    block_scalar_restriction_exchange%boundary_send_displ = &
+         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         block_writeback_plan%boundary_scalar_domain_send_displ
+    block_scalar_restriction_exchange%boundary_recv_displ = &
+         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         block_writeback_plan%boundary_scalar_block_recv_displ
+    n_boundary_send = sum( &
+         block_scalar_restriction_exchange%boundary_send_count)
+    n_boundary_recv = sum( &
+         block_scalar_restriction_exchange%boundary_recv_count)
+    allocate(block_scalar_restriction_exchange% &
+         boundary_send_buffer(max(1,n_boundary_send)))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_recv_buffer(max(1,n_boundary_recv)))
+
+    allocate(block_scalar_restriction_exchange% &
+         ghost_send_count(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         ghost_recv_count(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         ghost_send_displ(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         ghost_recv_displ(n_process))
+    block_scalar_restriction_exchange%ghost_send_count = &
+         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         ghost_exchange_plan%scalar_n_value* &
+         ghost_exchange_plan%recv_record_count
+    block_scalar_restriction_exchange%ghost_recv_count = &
+         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         ghost_exchange_plan%scalar_n_value* &
+         ghost_exchange_plan%send_record_count
+    block_scalar_restriction_exchange%ghost_send_displ(1) = 0
+    block_scalar_restriction_exchange%ghost_recv_displ(1) = 0
+    block_scalar_restriction_exchange%ghost_send_displ(2:n_process) = &
+         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         ghost_exchange_plan%scalar_n_value* &
+         ghost_exchange_plan%recv_record_displ(2:n_process)
+    block_scalar_restriction_exchange%ghost_recv_displ(2:n_process) = &
+         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         ghost_exchange_plan%scalar_n_value* &
+         ghost_exchange_plan%send_record_displ(2:n_process)
+    n_ghost_send = sum( &
+         block_scalar_restriction_exchange%ghost_send_count)
+    n_ghost_recv = sum( &
+         block_scalar_restriction_exchange%ghost_recv_count)
+    allocate(block_scalar_restriction_exchange% &
+         ghost_send_buffer(max(1,n_ghost_send)))
+    allocate(block_scalar_restriction_exchange% &
+         ghost_recv_buffer(max(1,n_ghost_recv)))
+    allocate(block_scalar_restriction_exchange%ghost_patch_buffer( &
+         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         ghost_exchange_plan%scalar_n_value))
+
+    block_scalar_restriction_exchange%boundary_send_buffer = &
+         BLOCK_BOUNDARY_POISON
+    block_scalar_restriction_exchange%boundary_recv_buffer = &
+         BLOCK_BOUNDARY_POISON
+    block_scalar_restriction_exchange%ghost_send_buffer = &
+         BLOCK_GHOST_POISON
+    block_scalar_restriction_exchange%ghost_recv_buffer = &
+         BLOCK_GHOST_POISON
+    block_scalar_restriction_exchange%ghost_patch_buffer = &
+         BLOCK_GHOST_POISON
+    block_scalar_restriction_exchange%allocations = &
+         block_scalar_restriction_exchange%allocations + 13_int64
+    block_scalar_restriction_exchange%generation = &
+         block_writeback_plan_generation
+    block_scalar_restriction_exchange%ready = .true.
+
+  end subroutine prepare_block_scalar_restriction_exchange
+
+
   subroutine capture_block_scalar_divergence_level ( &
        domain_sol,physics_flux,scalar_id,field_level,grid_level, &
-       direct_flux)
+       direct_flux,domain_tendency,dscalar_only)
     ! Before hierarchy restriction, capture the three directly evaluated
     ! positive-edge fluxes and their immutable production inputs. After
     ! restriction and boundary refresh, capture the authoritative six-edge
@@ -7161,6 +7454,9 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: field_level
     integer, intent(in) :: grid_level
     logical, optional, intent(in) :: direct_flux
+    type(Float_Field), optional, intent(in) :: &
+         domain_tendency(1:N_VARIABLE,1:zlevels)
+    logical, optional, intent(in) :: dscalar_only
 
     integer :: b
     integer :: d
@@ -7180,10 +7476,19 @@ end subroutine build_parallel_block_catalog
     integer :: v_vector
 
     logical :: capture_direct
+    logical :: capture_dscalar
 
     if (.not. block_scalar_divergence_plan%active) return
     capture_direct = .false.
     if (present(direct_flux)) capture_direct = direct_flux
+    capture_dscalar = .false.
+    if (present(dscalar_only)) capture_dscalar = dscalar_only
+    if (capture_direct .and. capture_dscalar) then
+       call fail("scalar-divergence capture mode is invalid")
+    end if
+    if (capture_dscalar .and. .not. present(domain_tendency)) then
+       call fail("scalar-divergence tendency input is absent")
+    end if
 
     call get_block_field_layout( &
          v_scalar,n_scalar_variable,v_vector,first_field_level, &
@@ -7241,6 +7546,10 @@ end subroutine build_parallel_block_catalog
           call fail("scalar-divergence capture extent mismatch")
        end if
     end do
+
+    call capture_block_scalar_restriction_boundaries( &
+         scalar_id,field_level,grid_level,capture_direct, &
+         domain_tendency,capture_dscalar)
 
   contains
 
@@ -7321,7 +7630,10 @@ end subroutine build_parallel_block_catalog
             call fail("scalar-divergence centre index differs")
          end if
          value = 0.0_dp
-         if (capture_direct) then
+         if (capture_dscalar) then
+            value(BLOCK_SCALAR_DSCALAR_INDEX) = &
+                 domain_tendency(scalar_id,field_level)%data(d)%elts(id+1)
+         else if (capture_direct) then
             id_e = idx(i+1,j,offs,dims)
             id_ne = idx(i+1,j+1,offs,dims)
             id_n = idx(i,j+1,offs,dims)
@@ -7352,7 +7664,24 @@ end subroutine build_parallel_block_catalog
                  grid(d)%areas%elts(id+1)%hex_inv
             value(BLOCK_SCALAR_ACTIVE_INDEX) = merge( &
                  1.0_dp,0.0_dp,grid(d)%mask_n%elts(id+1) >= TRSK)
+            value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
+                 BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
+                 horiz_flux(scalar_id)%data(d)%elts( &
+                 EDGE*id+RT+1:EDGE*id+UP+1)
+            value(BLOCK_SCALAR_EDGE_MASK_START: &
+                 BLOCK_SCALAR_EDGE_MASK_START+EDGE-1) = real( &
+                 grid(d)%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1),dp)
+            value(BLOCK_SCALAR_RESTRICTION_WEIGHT_START: &
+                 BLOCK_SCALAR_RESTRICTION_WEIGHT_START+EDGE-1) = &
+                 grid(d)%R_F_wgt%elts(id+1)%enc
+            value(BLOCK_SCALAR_OVERLAP_START: &
+                 BLOCK_SCALAR_OVERLAP_START+3) = &
+                 grid(d)%overl_areas%elts(id+1)%a
+            value(BLOCK_SCALAR_OVERLAP_START+4: &
+                 BLOCK_SCALAR_OVERLAP_START+5) = &
+                 grid(d)%overl_areas%elts(id+1)%split
          end if
+         value(BLOCK_SCALAR_SOURCE_INDEX) = real(id,dp)
          sample = block_sample_start + &
               patch_index*block_writeback_plan%scalar_patch_nvalue + &
               ((scalar_slot-1)*n_field_level + level_slot-1)* &
@@ -7365,7 +7694,11 @@ end subroutine build_parallel_block_catalog
             end if
             data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                  (sample-1) + 1
-            if (capture_direct) then
+            if (capture_dscalar) then
+               block_scalar_tendency(storage_index)%patch( &
+                    data_start+BLOCK_SCALAR_DSCALAR_INDEX-1) = &
+                    value(BLOCK_SCALAR_DSCALAR_INDEX)
+            else if (capture_direct) then
                block_scalar_tendency(storage_index)%patch( &
                     data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
                     data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
@@ -7375,6 +7708,11 @@ end subroutine build_parallel_block_catalog
                block_scalar_tendency(storage_index)%patch( &
                     data_start:data_start+BLOCK_SCALAR_ACTIVE_INDEX-1) = &
                     value(1:BLOCK_SCALAR_ACTIVE_INDEX)
+               block_scalar_tendency(storage_index)%patch( &
+                    data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
+                    data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
+                    value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
+                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
                block_scalar_tendency(storage_index)%covered(sample) = .true.
             end if
          else
@@ -7385,7 +7723,11 @@ end subroutine build_parallel_block_catalog
             end if
             data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                  (sample-1) + 1
-            if (capture_direct) then
+            if (capture_dscalar) then
+               block_scalar_divergence_plan%recv_buffer( &
+                    data_start+BLOCK_SCALAR_DSCALAR_INDEX-1) = &
+                    value(BLOCK_SCALAR_DSCALAR_INDEX)
+            else if (capture_direct) then
                block_scalar_divergence_plan%recv_buffer( &
                     data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
                     data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
@@ -7395,6 +7737,11 @@ end subroutine build_parallel_block_catalog
                block_scalar_divergence_plan%recv_buffer( &
                     data_start:data_start+BLOCK_SCALAR_ACTIVE_INDEX-1) = &
                     value(1:BLOCK_SCALAR_ACTIVE_INDEX)
+               block_scalar_divergence_plan%recv_buffer( &
+                    data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
+                    data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
+                    value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
+                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
                block_scalar_divergence_plan%recv_covered(sample) = .true.
             end if
          end if
@@ -7404,6 +7751,251 @@ end subroutine build_parallel_block_catalog
     end subroutine capture_patch
 
   end subroutine capture_block_scalar_divergence_level
+
+
+  subroutine capture_block_scalar_restriction_boundaries ( &
+       scalar_id,field_level,grid_level,capture_direct, &
+       domain_tendency,capture_dscalar)
+    ! Capture positive scalar flux and immutable restriction geometry for
+    ! compact Domain-boundary records. These records remain authoritative
+    ! compatibility inputs; inter-block records are refreshed from native
+    ! block interiors before every bottom-up restriction level.
+
+    implicit none
+
+    integer, intent(in) :: scalar_id
+    integer, intent(in) :: field_level
+    integer, intent(in) :: grid_level
+    logical, intent(in) :: capture_direct
+    type(Float_Field), optional, intent(in) :: &
+         domain_tendency(1:N_VARIABLE,1:zlevels)
+    logical, intent(in) :: capture_dscalar
+
+    integer :: b
+    integer :: boundary_index
+    integer :: d
+    integer :: first_field_level
+    integer :: level_slot
+    integer :: local_index
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_boundary_node
+    integer :: n_field_level
+    integer :: n_node
+    integer :: n_scalar
+    integer :: n_scalar_variable
+    integer :: node_start
+    integer :: pos_sample
+    integer :: r
+    integer :: scalar_slot
+    integer :: slot
+    integer :: source_bdry
+    integer :: source_level
+    integer :: v_scalar
+    integer :: v_vector
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    scalar_slot = scalar_id-v_scalar+1
+    level_slot = field_level-first_field_level+1
+    if (scalar_slot < 1 .or. scalar_slot > n_scalar_variable .or. &
+         level_slot < 1 .or. level_slot > n_field_level .or. &
+         mult_scalar /= 1 .or. mult_vector /= EDGE) then
+       call fail("scalar-restriction boundary layout is invalid")
+    end if
+
+    do r = 1,n_process
+       pos_sample = block_writeback_plan% &
+            boundary_scalar_domain_send_displ(r) + 1
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r) + &
+            block_writeback_plan%recv_count(r)
+          b = block_writeback_plan%recv_block(slot)
+          d = loc_id(block_catalog(b)%root_domain+1) + 1
+          if (source_rank(b) /= rank .or. d < 1 .or. &
+               d > size(grid)) then
+             call fail("scalar-restriction boundary route is invalid")
+          end if
+          do boundary_index = 1, &
+               block_writeback_plan%recv_boundary_count(slot)
+             source_bdry = block_writeback_plan%recv_boundary_source( &
+                  block_writeback_plan%recv_boundary_displ(slot) + &
+                  boundary_index)
+             source_level = block_writeback_plan%recv_boundary_level( &
+                  block_writeback_plan%recv_boundary_displ(slot) + &
+                  boundary_index)
+             n_node = block_writeback_plan%recv_boundary_nnode( &
+                  block_writeback_plan%recv_boundary_displ(slot) + &
+                  boundary_index)
+             n_scalar = n_node*n_scalar_variable*n_field_level
+             call fill_domain_boundary_record( &
+                  d,source_bdry,source_level,n_node,scalar_slot,level_slot, &
+                  grid_level,capture_direct, &
+                  block_scalar_restriction_exchange% &
+                  boundary_send_buffer, &
+                  BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                  (pos_sample-1)+1)
+             pos_sample = pos_sample + n_scalar
+          end do
+       end do
+       if (pos_sample /= block_writeback_plan% &
+            boundary_scalar_domain_send_displ(r) + &
+            block_writeback_plan% &
+            boundary_scalar_domain_send_count(r) + 1) then
+          call fail("scalar-restriction boundary packed extent differs")
+       end if
+    end do
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       if (source_rank(b) /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1) + 1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("retained scalar-restriction Domain is invalid")
+       end if
+       n_boundary_node = size( &
+            block_scalar_tendency(local_index)%bdry)/ &
+            (BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+            n_scalar_variable*n_field_level)
+       node_start = 0
+       do boundary_index = 1,local_block_boundary_count(b)
+          call get_local_block_boundary_source( &
+               b,boundary_index,source_bdry,slot,n_node,source_level)
+          call fill_retained_boundary_record( &
+               d,source_bdry,source_level,n_node,scalar_slot,level_slot, &
+               grid_level,capture_direct,local_index, &
+               n_boundary_node,node_start)
+          node_start = node_start + n_node
+       end do
+       if (node_start /= n_boundary_node) then
+          call fail("retained scalar-restriction boundary extent differs")
+       end if
+    end do
+
+  contains
+
+    subroutine fill_domain_boundary_record ( &
+         d,source_bdry,boundary_level,n_node,scalar_slot,level_slot,grid_level, &
+         capture_direct,buffer,data_start)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: source_bdry
+      integer, intent(in) :: boundary_level
+      integer, intent(in) :: n_node
+      integer, intent(in) :: scalar_slot
+      integer, intent(in) :: level_slot
+      integer, intent(in) :: grid_level
+      logical, intent(in) :: capture_direct
+      real(dp), intent(inout) :: buffer(:)
+      integer, intent(in) :: data_start
+
+      integer :: id
+      integer :: node
+      integer :: record_start
+      integer :: sample
+
+      if (boundary_level /= grid_level) return
+      id = grid(d)%bdry_patch%elts(source_bdry+1)%elts_start
+      do node = 0,n_node-1
+         sample = ((scalar_slot-1)*n_field_level + level_slot-1)* &
+              n_node + node
+         record_start = data_start + &
+              BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample
+         call fill_boundary_node( &
+              d,id+node,capture_direct,buffer(record_start: &
+              record_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1))
+      end do
+
+    end subroutine fill_domain_boundary_record
+
+
+    subroutine fill_retained_boundary_record ( &
+         d,source_bdry,boundary_level,n_node,scalar_slot,level_slot,grid_level, &
+         capture_direct,local_index,n_boundary_node,node_start)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: source_bdry
+      integer, intent(in) :: boundary_level
+      integer, intent(in) :: n_node
+      integer, intent(in) :: scalar_slot
+      integer, intent(in) :: level_slot
+      integer, intent(in) :: grid_level
+      logical, intent(in) :: capture_direct
+      integer, intent(in) :: local_index
+      integer, intent(in) :: n_boundary_node
+      integer, intent(in) :: node_start
+
+      integer :: data_start
+      integer :: id
+      integer :: node
+      integer :: sample
+
+      if (boundary_level /= grid_level) return
+      id = grid(d)%bdry_patch%elts(source_bdry+1)%elts_start
+      do node = 0,n_node-1
+         sample = ((scalar_slot-1)*n_field_level + level_slot-1)* &
+              n_boundary_node + node_start + node
+         data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
+         call fill_boundary_node( &
+              d,id+node,capture_direct, &
+              block_scalar_tendency(local_index)%bdry(data_start: &
+              data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1))
+      end do
+
+    end subroutine fill_retained_boundary_record
+
+
+    subroutine fill_boundary_node (d,id,capture_direct,value)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: id
+      logical, intent(in) :: capture_direct
+      real(dp), intent(inout) :: &
+           value(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+
+      if (capture_dscalar) then
+         value(BLOCK_SCALAR_DSCALAR_INDEX) = &
+              domain_tendency(scalar_id,field_level)%data(d)%elts(id+1)
+      else if (capture_direct) then
+         value(BLOCK_SCALAR_DIRECT_FLUX_START: &
+              BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-1) = &
+              horiz_flux(scalar_id)%data(d)%elts( &
+              EDGE*id+RT+1:EDGE*id+UP+1)
+      else
+         value(BLOCK_SCALAR_AREA_INDEX) = &
+              grid(d)%areas%elts(id+1)%hex_inv
+         value(BLOCK_SCALAR_ACTIVE_INDEX) = merge( &
+              1.0_dp,0.0_dp,grid(d)%mask_n%elts(id+1) >= TRSK)
+         value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
+              BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
+              horiz_flux(scalar_id)%data(d)%elts( &
+              EDGE*id+RT+1:EDGE*id+UP+1)
+         value(BLOCK_SCALAR_EDGE_MASK_START: &
+              BLOCK_SCALAR_EDGE_MASK_START+EDGE-1) = real( &
+              grid(d)%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1),dp)
+         value(BLOCK_SCALAR_RESTRICTION_WEIGHT_START: &
+              BLOCK_SCALAR_RESTRICTION_WEIGHT_START+EDGE-1) = &
+              grid(d)%R_F_wgt%elts(id+1)%enc
+         value(BLOCK_SCALAR_OVERLAP_START: &
+              BLOCK_SCALAR_OVERLAP_START+3) = &
+              grid(d)%overl_areas%elts(id+1)%a
+         value(BLOCK_SCALAR_OVERLAP_START+4: &
+              BLOCK_SCALAR_OVERLAP_START+5) = &
+              grid(d)%overl_areas%elts(id+1)%split
+      end if
+      value(BLOCK_SCALAR_SOURCE_INDEX) = real(id,dp)
+
+    end subroutine fill_boundary_node
+
+
+  end subroutine capture_block_scalar_restriction_boundaries
 
 
   subroutine finalize_block_scalar_divergence_capture
@@ -7474,6 +8066,8 @@ end subroutine build_parallel_block_catalog
        end if
     end do
 
+    call finalize_block_scalar_restriction_boundaries
+
     do local_index = 1,n_local_blocks()
        b = local_block_catalog(local_index)
        if (.not. all(block_scalar_tendency(local_index)%covered)) then
@@ -7490,6 +8084,2073 @@ end subroutine build_parallel_block_catalog
     block_scalar_divergence_plan%ready = .true.
 
   end subroutine finalize_block_scalar_divergence_capture
+
+
+  subroutine finalize_block_scalar_restriction_boundaries
+    ! Complete the one-shot Domain-owner to final-block transfer of compact
+    ! boundary restriction records. Retained records were installed directly
+    ! during level capture and are left untouched.
+
+    implicit none
+
+    integer :: b
+    integer :: boundary_index
+    integer :: buffer_start
+    integer :: data_start
+    integer :: ierr
+    integer :: level_slot
+    integer :: local_index
+    integer :: n_boundary_node
+    integer :: n_field_level
+    integer :: n_node
+    integer :: n_scalar_variable
+    integer :: node
+    integer :: node_start
+    integer :: pos_sample
+    integer :: r
+    integer :: sample
+    integer :: scalar_slot
+    integer :: slot
+
+    call MPI_Alltoallv( &
+         block_scalar_restriction_exchange%boundary_send_buffer, &
+         block_scalar_restriction_exchange%boundary_send_count, &
+         block_scalar_restriction_exchange%boundary_send_displ, &
+         MPI_DOUBLE_PRECISION, &
+         block_scalar_restriction_exchange%boundary_recv_buffer, &
+         block_scalar_restriction_exchange%boundary_recv_count, &
+         block_scalar_restriction_exchange%boundary_recv_displ, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar-restriction boundaries")
+
+    call get_block_field_layout_counts( &
+         n_scalar_variable,n_field_level)
+    do r = 1,n_process
+       pos_sample = block_writeback_plan% &
+            boundary_scalar_block_recv_displ(r) + 1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          local_index = catalog_local_block(b)
+          if (local_index < 1 .or. &
+               local_index > size(block_scalar_tendency)) then
+             call fail("scalar-restriction boundary block is invalid")
+          end if
+          n_boundary_node = size( &
+               block_scalar_tendency(local_index)%bdry)/ &
+               (BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+               n_scalar_variable*n_field_level)
+          node_start = 0
+          do boundary_index = 1,local_block_boundary_count(b)
+             n_node = local_block_scalar_family_boundary_nvalue( &
+                  b,boundary_index)/(n_scalar_variable*n_field_level)
+             do scalar_slot = 1,n_scalar_variable
+                do level_slot = 1,n_field_level
+                   do node = 0,n_node-1
+                      sample = ((scalar_slot-1)*n_field_level + &
+                           level_slot-1)*n_boundary_node + &
+                           node_start + node
+                      data_start = &
+                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
+                      buffer_start = &
+                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                           (pos_sample-1 + &
+                           ((scalar_slot-1)*n_field_level + &
+                           level_slot-1)*n_node + node) + 1
+                      block_scalar_tendency(local_index)%bdry( &
+                           data_start:data_start+ &
+                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
+                           block_scalar_restriction_exchange% &
+                           boundary_recv_buffer(buffer_start: &
+                           buffer_start+ &
+                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                   end do
+                end do
+             end do
+             pos_sample = pos_sample + &
+                  n_node*n_scalar_variable*n_field_level
+             node_start = node_start + n_node
+          end do
+          if (node_start /= n_boundary_node) then
+             call fail("scalar-restriction boundary install differs")
+          end if
+       end do
+       if (pos_sample /= block_writeback_plan% &
+            boundary_scalar_block_recv_displ(r) + &
+            block_writeback_plan% &
+            boundary_scalar_block_recv_count(r) + 1) then
+          call fail("scalar-restriction boundary receive differs")
+       end if
+    end do
+
+  contains
+
+    subroutine get_block_field_layout_counts ( &
+         n_scalar_variable,n_field_level)
+
+      implicit none
+
+      integer, intent(out) :: n_scalar_variable
+      integer, intent(out) :: n_field_level
+
+      integer :: first_field_level
+      integer :: mult_scalar
+      integer :: mult_vector
+      integer :: v_scalar
+      integer :: v_vector
+
+      call get_block_field_layout( &
+           v_scalar,n_scalar_variable,v_vector,first_field_level, &
+           n_field_level,mult_scalar,mult_vector)
+      if (v_scalar < 1 .or. v_vector < 1 .or. &
+           first_field_level > zlevels .or. mult_scalar /= 1 .or. &
+           mult_vector /= EDGE .or. n_scalar_variable < 1 .or. &
+           n_field_level < 1) then
+         call fail("scalar-restriction boundary field layout is invalid")
+      end if
+
+    end subroutine get_block_field_layout_counts
+
+  end subroutine finalize_block_scalar_restriction_boundaries
+
+
+  subroutine exchange_block_scalar_restriction_ghosts
+    ! Refresh every inter-block restriction ghost from the current native
+    ! hierarchy flux and its immutable geometry. One persistent all-to-all is
+    ! issued per bottom-up horizontal level; no per-cell communication occurs.
+
+    implicit none
+
+    integer, parameter :: REQUEST_SIZE = 4
+
+    integer :: destination
+    integer :: destination_ghost
+    integer :: i
+    integer :: ierr
+    integer :: local_index
+    integer :: pos
+    integer :: r
+    integer :: request
+    integer :: source
+    integer :: source_patch
+
+    if (.not. block_scalar_restriction_exchange%ready) then
+       call fail("scalar-restriction ghost exchange is not ready")
+    end if
+    block_scalar_restriction_exchange%ghost_send_buffer = &
+         BLOCK_GHOST_POISON
+    block_scalar_restriction_exchange%ghost_recv_buffer = &
+         BLOCK_GHOST_POISON
+
+    do request = 1,ghost_exchange_plan%n_request
+       if (ghost_exchange_plan%source_owner(request) /= rank) cycle
+       source = ghost_exchange_plan%source_block(request)
+       source_patch = &
+            ghost_exchange_plan%source_local_patch(request)
+       destination = ghost_exchange_plan%destination_block(request)
+       destination_ghost = &
+            ghost_exchange_plan%destination_ghost(request)
+       call install_local_source( &
+            source,source_patch,destination,destination_ghost)
+    end do
+
+    do r = 1,n_process
+       do i = 0,ghost_exchange_plan%recv_record_count(r)-1
+          pos = REQUEST_SIZE*( &
+               ghost_exchange_plan%recv_record_displ(r)+i)
+          source = ghost_exchange_plan%recv_data(pos+1)
+          source_patch = ghost_exchange_plan%recv_data(pos+2)
+          local_index = catalog_local_block(source)
+          if (local_index < 1 .or. &
+               local_index > size(block_scalar_tendency)) then
+             call fail("scalar-restriction ghost source is invalid")
+          end if
+          call pack_patch_record( &
+               local_index,source_patch, &
+               block_scalar_restriction_exchange%ghost_send_buffer, &
+               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+               ghost_exchange_plan%scalar_n_value* &
+               (ghost_exchange_plan%recv_record_displ(r)+i)+1)
+       end do
+    end do
+
+    call MPI_Alltoallv( &
+         block_scalar_restriction_exchange%ghost_send_buffer, &
+         block_scalar_restriction_exchange%ghost_send_count, &
+         block_scalar_restriction_exchange%ghost_send_displ, &
+         MPI_DOUBLE_PRECISION, &
+         block_scalar_restriction_exchange%ghost_recv_buffer, &
+         block_scalar_restriction_exchange%ghost_recv_count, &
+         block_scalar_restriction_exchange%ghost_recv_displ, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar-restriction ghosts")
+
+    do r = 1,n_process
+       do i = 0,ghost_exchange_plan%send_record_count(r)-1
+          request = ghost_exchange_plan%request_index( &
+               ghost_exchange_plan%send_record_displ(r)+i+1)
+          destination = &
+               ghost_exchange_plan%destination_block(request)
+          destination_ghost = &
+               ghost_exchange_plan%destination_ghost(request)
+          call install_buffer_ghost( &
+               destination,destination_ghost, &
+               block_scalar_restriction_exchange%ghost_recv_buffer, &
+               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+               ghost_exchange_plan%scalar_n_value* &
+               (ghost_exchange_plan%send_record_displ(r)+i)+1)
+       end do
+    end do
+    block_scalar_restriction_exchange%exchanges = &
+         block_scalar_restriction_exchange%exchanges + 1_int64
+
+  contains
+
+    subroutine install_local_source ( &
+         source,source_patch,destination,destination_ghost)
+
+      implicit none
+
+      integer, intent(in) :: source
+      integer, intent(in) :: source_patch
+      integer, intent(in) :: destination
+      integer, intent(in) :: destination_ghost
+
+      integer :: source_index
+
+      source_index = catalog_local_block(source)
+      if (source_index < 1 .or. &
+           source_index > size(block_scalar_tendency)) then
+         call fail("local scalar-restriction source is invalid")
+      end if
+      call pack_patch_record( &
+           source_index,source_patch, &
+           block_scalar_restriction_exchange%ghost_patch_buffer,1)
+      call install_buffer_ghost( &
+           destination,destination_ghost, &
+           block_scalar_restriction_exchange%ghost_patch_buffer,1)
+
+    end subroutine install_local_source
+
+
+    subroutine pack_patch_record ( &
+         local_index,source_patch,buffer,data_start)
+
+      implicit none
+
+      integer, intent(in) :: local_index
+      integer, intent(in) :: source_patch
+      real(dp), intent(inout) :: buffer(:)
+      integer, intent(in) :: data_start
+
+      integer :: data_count
+      integer :: source_start
+
+      data_count = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+           ghost_exchange_plan%scalar_n_value
+      source_start = source_patch*data_count + 1
+      if (source_patch < 0 .or. source_start < 1 .or. &
+           source_start+data_count-1 > &
+           size(block_scalar_tendency(local_index)%patch) .or. &
+           data_start < 1 .or. data_start+data_count-1 > &
+           size(buffer)) then
+         call fail("scalar-restriction ghost pack extent is invalid")
+      end if
+      buffer(data_start:data_start+data_count-1) = &
+           block_scalar_tendency(local_index)%patch( &
+           source_start:source_start+data_count-1)
+
+    end subroutine pack_patch_record
+
+
+    subroutine install_buffer_ghost ( &
+         destination,destination_ghost,buffer,data_start)
+
+      implicit none
+
+      integer, intent(in) :: destination
+      integer, intent(in) :: destination_ghost
+      real(dp), intent(in) :: buffer(:)
+      integer, intent(in) :: data_start
+
+      integer :: destination_index
+      integer :: destination_start
+      integer :: field_sample
+      integer :: n_ghost
+      integer :: q
+      integer :: sample
+
+      destination_index = catalog_local_block(destination)
+      if (destination_index < 1 .or. &
+           destination_index > size(block_scalar_tendency)) then
+         call fail("scalar-restriction ghost destination is invalid")
+      end if
+      n_ghost = local_block_ghost_count(destination)
+      if (destination_ghost < 1 .or. destination_ghost > n_ghost) then
+         call fail("scalar-restriction destination ghost is invalid")
+      end if
+      do field_sample = 0, &
+           ghost_exchange_plan%scalar_n_value/PATCH_SIZE**2-1
+         do q = 0,PATCH_SIZE**2-1
+            sample = field_sample*n_ghost*PATCH_SIZE**2 + &
+                 (destination_ghost-1)*PATCH_SIZE**2 + q
+            destination_start = &
+                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
+            block_scalar_tendency(destination_index)%ghost( &
+                 destination_start:destination_start+ &
+                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
+                 buffer(data_start+ &
+                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                 (field_sample*PATCH_SIZE**2+q): &
+                 data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                 (field_sample*PATCH_SIZE**2+q+1)-1)
+         end do
+      end do
+
+    end subroutine install_buffer_ghost
+
+  end subroutine exchange_block_scalar_restriction_ghosts
+
+
+  subroutine evaluate_candidate_block_scalar_restriction
+    ! Replay cpt_or_restr_flux bottom-up in compact block storage. Boundary
+    ! values are immutable compatibility inputs; patch interiors and every
+    ! inter-block ghost refresh are native block products.
+
+    implicit none
+
+    type(Block_Scalar_Restriction_Context) :: statistics
+
+    integer :: ierr
+    integer :: l
+
+    integer(int64) :: count_global(3)
+    integer(int64) :: count_local(3)
+
+    if (.not. block_scalar_restriction_exchange%ready) then
+       call fail("block-native scalar restriction exchange is not ready")
+    end if
+    call initialize_scalar_restriction_boundary_flux
+    do l = level_end-1,level_start,-1
+       call exchange_block_scalar_restriction_ghosts
+       statistics%target_level = l
+       call apply_local_block_field_consumer( &
+            restrict_block_scalar_flux_level,statistics)
+    end do
+    statistics%target_level = -1
+    call apply_local_block_field_consumer( &
+         compare_block_scalar_restricted_flux,statistics)
+
+    count_local = [statistics%parent_patch_count, &
+         statistics%restricted_edge_count, &
+         statistics%compared_edge_count]
+    call MPI_Allreduce( &
+         count_local,count_global,size(count_local),MPI_INTEGER8, &
+         MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block scalar restriction")
+    if (count_global(1) < 1_int64 .or. &
+         count_global(2) < 1_int64 .or. &
+         count_global(3) < 1_int64) then
+       call fail("block-native scalar restriction coverage is empty")
+    end if
+
+  end subroutine evaluate_candidate_block_scalar_restriction
+
+
+  subroutine initialize_scalar_restriction_boundary_flux
+
+    implicit none
+
+    integer :: b
+    integer :: data_start
+    integer :: sample
+
+    do b = 1,size(block_scalar_tendency)
+       if (.not. block_scalar_tendency(b)%ready) then
+          call fail("scalar-restriction boundary source is stale")
+       end if
+       if (mod(size(block_scalar_tendency(b)%bdry), &
+            BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT) /= 0) then
+          call fail("scalar-restriction boundary extent is invalid")
+       end if
+       do sample = 0,size(block_scalar_tendency(b)%bdry)/ &
+            BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1
+          data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
+          block_scalar_tendency(b)%bdry( &
+               data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
+               data_start+BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-2) = &
+               block_scalar_tendency(b)%bdry( &
+               data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
+               data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2)
+       end do
+    end do
+
+  end subroutine initialize_scalar_restriction_boundary_flux
+
+
+  subroutine restrict_block_scalar_flux_level ( &
+       catalog_index,block,context)
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: c
+    integer :: child
+    integer :: e
+    integer :: i
+    integer :: i_chd
+    integer :: i_par
+    integer :: j
+    integer :: j_chd
+    integer :: j_par
+    integer :: level_slot
+    integer :: local_index
+    integer :: p
+    integer :: scalar_slot
+
+    type(Block_Scalar_Restriction_Cursor) :: cursor
+
+    real(dp) :: edge_mask
+    real(dp) :: comparison_tolerance
+    real(dp) :: operation_scale
+    real(dp) :: reference_value
+    real(dp) :: sm_flux(4)
+    real(dp) :: value
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency)) then
+       call fail("scalar-restriction block index is invalid")
+    end if
+    select type (statistics => context)
+    type is (Block_Scalar_Restriction_Context)
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level /= statistics%target_level) cycle
+          statistics%parent_patch_count = &
+               statistics%parent_patch_count + 1_int64
+          do c = 1,N_CHDRN
+             child = block%patch(p)%children(c)
+             if (child <= 0) cycle
+             if (child >= size(block%patch)) then
+                call fail("scalar-restriction child patch is invalid")
+             end if
+             cursor%target_level = statistics%target_level
+             cursor%catalog_index = catalog_index
+             cursor%block_id = block%id
+             cursor%parent_patch = p
+             cursor%child_index = c
+             cursor%child_patch = child+1
+             do scalar_slot = 0,block%n_scalar_variable-1
+                cursor%scalar_slot = scalar_slot
+                do level_slot = 1,block%n_field_level
+                   if (block%field_level+level_slot-1 < 1 .or. &
+                        block%field_level+level_slot-1 > zlevels) cycle
+                   cursor%level_slot = level_slot
+                   cursor%physical_level = &
+                        block%field_level+level_slot-1
+                   do j = 1,PATCH_SIZE/2
+                      j_chd = 2*(j-1)
+                      j_par = j-1+chd_offs(2,c)
+                      do i = 1,PATCH_SIZE/2
+                         i_chd = 2*(i-1)
+                         i_par = i-1+chd_offs(1,c)
+                         cursor%i_parent = i_par
+                         cursor%j_parent = j_par
+                         cursor%i_child = i_chd
+                         cursor%j_child = j_chd
+                         cursor%edge = -1
+                         if (max_parent_edge_mask( &
+                              block,local_index,p,scalar_slot,level_slot, &
+                              i_par,j_par) >= real(RESTRCT,dp)) then
+                            sm_flux = interpolate_block_scalar_flux( &
+                                 block,local_index,child+1,scalar_slot, &
+                                 level_slot,i_chd,j_chd, &
+                                 BLOCK_SCALAR_DIRECT_FLUX_START)
+                            call validate_scalar_restriction_vector( &
+                                 "interpolate_block_scalar_flux", &
+                                 sm_flux,cursor)
+                         else
+                            sm_flux = 0.0_dp
+                         end if
+                         do e = RT,UP
+                            edge_mask = block_scalar_record_value( &
+                                 block,local_index,p,scalar_slot, &
+                                 level_slot,i_par,j_par, &
+                                 BLOCK_SCALAR_EDGE_MASK_START+e)
+                            if (edge_mask < real(RESTRCT,dp)) cycle
+                            cursor%edge = e
+                            value = complete_block_coarse_flux( &
+                                 sm_flux,block,local_index,child+1, &
+                                 scalar_slot,level_slot,i_par,j_par, &
+                                 i_chd,j_chd,e,cursor,operation_scale)
+                            call validate_scalar_restriction_value( &
+                                 "complete_block_coarse_flux", &
+                                 value,cursor)
+                            reference_value = block_scalar_record_value( &
+                                 block,local_index,p,scalar_slot, &
+                                 level_slot,i_par,j_par, &
+                                 BLOCK_SCALAR_RESTRICTED_FLUX_START+e)
+                            comparison_tolerance = &
+                                 scalar_restriction_roundoff_tolerance( &
+                                 value,reference_value, &
+                                 level_end-cursor%target_level, &
+                                 operation_scale)
+                            if (abs(value-reference_value) > &
+                                 comparison_tolerance) then
+                               call report_scalar_restriction_cursor( &
+                                    "restricted scalar-flux comparison "// &
+                                    "exceeded roundoff bound",cursor)
+                               write(error_unit, &
+                                    '(a,4(es24.16,1x))') &
+                                    "  native, reference, difference, "// &
+                                    "allowed = ",value,reference_value, &
+                                    abs(value-reference_value), &
+                                    comparison_tolerance
+                               flush(error_unit)
+                               call report_scalar_restriction_components( &
+                                    block,local_index,child+1,sm_flux, &
+                                    value,reference_value,cursor)
+                               call fail( &
+                                    "scalar-restriction component mismatch")
+                            end if
+                            call set_block_patch_scalar_record_value( &
+                                 local_index,p,block%n_field_level, &
+                                 scalar_slot,level_slot, &
+                                 i_par,j_par, &
+                                 BLOCK_SCALAR_DIRECT_FLUX_START+e,value)
+                            statistics%restricted_edge_count = &
+                                 statistics%restricted_edge_count + 1_int64
+                         end do
+                      end do
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("scalar-restriction context is invalid")
+    end select
+
+  end subroutine restrict_block_scalar_flux_level
+
+
+  subroutine compare_block_scalar_restricted_flux ( &
+       catalog_index,block,context)
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: e
+    integer :: i
+    integer :: j
+    integer :: level_slot
+    integer :: local_index
+    integer :: p
+    integer :: scalar_slot
+
+    real(dp) :: native_value
+    real(dp) :: reference_value
+    real(dp) :: comparison_tolerance
+    real(dp) :: edge_mask
+    real(dp) :: operation_scale
+
+    local_index = catalog_local_block(catalog_index)
+    select type (statistics => context)
+    type is (Block_Scalar_Restriction_Context)
+       do p = 1,size(block%patch)
+          do scalar_slot = 0,block%n_scalar_variable-1
+             do level_slot = 1,block%n_field_level
+                if (block%field_level+level_slot-1 < 1 .or. &
+                     block%field_level+level_slot-1 > zlevels) cycle
+                do j = 0,PATCH_SIZE-1
+                   do i = 0,PATCH_SIZE-1
+                      do e = RT,UP
+                         native_value = block_scalar_record_value( &
+                              block,local_index,p,scalar_slot,level_slot, &
+                              i,j,BLOCK_SCALAR_DIRECT_FLUX_START+e)
+                         reference_value = block_scalar_record_value( &
+                              block,local_index,p,scalar_slot,level_slot, &
+                              i,j,BLOCK_SCALAR_RESTRICTED_FLUX_START+e)
+                         comparison_tolerance = &
+                              scalar_restriction_roundoff_tolerance( &
+                              native_value,reference_value, &
+                              level_end-level_start)
+                         if (abs(native_value-reference_value) > &
+                              comparison_tolerance) then
+                            edge_mask = block_scalar_record_value( &
+                                 block,local_index,p,scalar_slot, &
+                                 level_slot,i,j, &
+                                 BLOCK_SCALAR_EDGE_MASK_START+e)
+                            if (edge_mask >= real(RESTRCT,dp)) then
+                               operation_scale = &
+                                    scalar_restriction_operation_scale( &
+                                    catalog_index,block,local_index,p, &
+                                    scalar_slot,level_slot,i,j,e)
+                               comparison_tolerance = &
+                                    scalar_restriction_roundoff_tolerance( &
+                                    native_value,reference_value, &
+                                    level_end-level_start,operation_scale)
+                            end if
+                         end if
+                         if (abs(native_value-reference_value) > &
+                              comparison_tolerance) then
+                            write(6, &
+                                 '(a,i0,a,i0,a,i0,a,i0,a,i0)') &
+                                 "Rank ",rank, &
+                                 ": restricted scalar flux mismatch: block = ", &
+                                 catalog_index,", patch = ",p, &
+                                 ", i = ",i,", j = ",j
+                            write(6,'(a,i0,a,i0,a,i0)') &
+                                 "  scalar slot = ",scalar_slot, &
+                                 ", level slot = ",level_slot, &
+                                 ", edge = ",e
+                            write(6, &
+                                 '(a,es24.16,a,es24.16,a,es24.16)') &
+                                 "  cpt_or_restr_flux value = ", &
+                                 reference_value,", block value = ", &
+                                 native_value,", absolute difference = ", &
+                                 abs(native_value-reference_value)
+                            write(6,'(a,es24.16)') &
+                                 "  allowed roundoff difference = ", &
+                                 comparison_tolerance
+                            flush(6)
+                            call fail( &
+                                 "block-native restricted scalar flux differs")
+                         end if
+                         statistics%compared_edge_count = &
+                              statistics%compared_edge_count + 1_int64
+                      end do
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("scalar-restriction comparison context is invalid")
+    end select
+  end subroutine compare_block_scalar_restricted_flux
+
+
+  pure real(dp) function scalar_restriction_roundoff_tolerance ( &
+       first_value,second_value,n_restriction_level,operation_scale) &
+       result(tolerance)
+    ! Independently evaluated but algebraically identical restriction
+    ! expressions may differ by a few rounding units after optimization.
+    ! Roundoff from every completed fine-to-coarse level is propagated into
+    ! the next coarser result.
+
+    implicit none
+
+    real(dp), intent(in) :: first_value
+    real(dp), intent(in) :: second_value
+    integer, intent(in) :: n_restriction_level
+    real(dp), optional, intent(in) :: operation_scale
+
+    real(dp) :: comparison_scale
+
+    comparison_scale = max( &
+         1.0_dp,abs(first_value),abs(second_value))
+    if (present(operation_scale)) then
+       comparison_scale = max(comparison_scale,abs(operation_scale))
+    end if
+    tolerance = 32.0_dp*real(max(1,n_restriction_level),dp)* &
+         epsilon(1.0_dp)*comparison_scale
+
+  end function scalar_restriction_roundoff_tolerance
+
+
+  real(dp) function max_parent_edge_mask ( &
+       block,local_index,p,scalar_slot,level_slot,i,j) result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+
+    integer :: e
+
+    value = -huge(0.0_dp)
+    do e = RT,UP
+       value = max(value,block_scalar_record_value( &
+            block,local_index,p,scalar_slot,level_slot,i,j, &
+            BLOCK_SCALAR_EDGE_MASK_START+e))
+    end do
+
+  end function max_parent_edge_mask
+
+
+  real(dp) function block_scalar_record_value ( &
+       block,local_index,p,scalar_slot,level_slot,i,j,record_slot) &
+       result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: record_slot
+
+    integer :: data_start
+    integer :: node
+    integer :: record
+    integer :: sample
+    integer :: storage_class
+
+    value = 0.0_dp
+    data_start = 0
+    node = -1
+    record = -1
+    sample = -1
+    storage_class = 0
+    call locate_block_scalar_record( &
+         block,local_index,p,i,j,storage_class,record,node)
+    if (scalar_slot < 0 .or. scalar_slot >= block%n_scalar_variable .or. &
+         level_slot < 1 .or. level_slot > block%n_field_level .or. &
+         record_slot < 1 .or. &
+         record_slot > BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT) then
+       call fail("scalar-restriction record field is invalid")
+    end if
+    select case (storage_class)
+    case (STORE_PATCH)
+       sample = record*block_writeback_plan%scalar_patch_nvalue + &
+            (scalar_slot*block%n_field_level+level_slot-1)* &
+            PATCH_SIZE**2 + node
+       data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
+       if (data_start+record_slot-1 > &
+            size(block_scalar_tendency(local_index)%patch)) then
+          call fail("scalar-restriction patch record is invalid")
+       end if
+       value = block_scalar_tendency(local_index)%patch( &
+            data_start+record_slot-1)
+    case (STORE_BDRY)
+       sample = (scalar_slot*block%n_field_level+level_slot-1)* &
+            size(block%bdry_node) + node
+       data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
+       if (data_start+record_slot-1 > &
+            size(block_scalar_tendency(local_index)%bdry)) then
+          call fail("scalar-restriction boundary record is invalid")
+       end if
+       value = block_scalar_tendency(local_index)%bdry( &
+            data_start+record_slot-1)
+    case (STORE_GHOST)
+       sample = (scalar_slot*block%n_field_level+level_slot-1)* &
+            size(block%ghost_node) + node
+       data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
+       if (data_start+record_slot-1 > &
+            size(block_scalar_tendency(local_index)%ghost)) then
+          call fail("scalar-restriction ghost record is invalid")
+       end if
+       value = block_scalar_tendency(local_index)%ghost( &
+            data_start+record_slot-1)
+    case default
+       call fail("scalar-restriction record storage is invalid")
+    end select
+    if (.not. ieee_is_finite(value)) then
+       call report_record_value("non-finite")
+       call fail("scalar-restriction record value is non-finite")
+    end if
+    if (.not. (abs(value) < BLOCK_RESTRICTION_VALUE_LIMIT)) then
+       call report_record_value("poisoned or uninitialized")
+       call fail("scalar-restriction record value is poisoned")
+    end if
+
+  contains
+
+    subroutine report_record_value (description)
+
+      implicit none
+
+      character(*), intent(in) :: description
+
+      write(error_unit,'(/,a,i0,3a)') &
+           "Rank ",rank,": scalar-restriction record is ", &
+           trim(description),":"
+      write(error_unit,'(a,i0,a,i0,a,i0)') &
+           "  block id = ",block%id,", local index = ",local_index, &
+           ", patch = ",p
+      write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+           "  coordinates = ",i,", ",j,", scalar slot = ", &
+           scalar_slot,", level slot = ",level_slot
+      write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+           "  storage = ",storage_class,", record = ",record, &
+           ", node = ",node,", record slot = ",record_slot
+      write(error_unit,'(a,i0,a,es24.16)') &
+           "  data index = ",data_start+record_slot-1, &
+           ", value = ",value
+      flush(error_unit)
+
+    end subroutine report_record_value
+
+  end function block_scalar_record_value
+
+
+  subroutine set_block_patch_scalar_record_value ( &
+       local_index,p,n_field_level,scalar_slot,level_slot,i,j, &
+       record_slot,value)
+
+    implicit none
+
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: n_field_level
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: record_slot
+    real(dp), intent(in) :: value
+
+    integer :: data_start
+    integer :: sample
+
+    if (p < 1 .or. &
+         p > block_scalar_tendency(local_index)%installed_patch_count .or. &
+         n_field_level < 1 .or. scalar_slot < 0 .or. &
+         level_slot < 1 .or. level_slot > n_field_level .or. &
+         i < 0 .or. i >= PATCH_SIZE .or. &
+         j < 0 .or. j >= PATCH_SIZE) then
+       call fail("scalar-restriction patch write coordinate is invalid")
+    end if
+    sample = (p-1)*block_writeback_plan%scalar_patch_nvalue + &
+         (scalar_slot*n_field_level+level_slot-1)* &
+         PATCH_SIZE**2 + PATCH_SIZE*j+i
+    data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
+    if (record_slot < 1 .or. &
+         data_start+record_slot-1 > &
+         size(block_scalar_tendency(local_index)%patch)) then
+       call fail("scalar-restriction patch write record is invalid")
+    end if
+    block_scalar_tendency(local_index)%patch( &
+         data_start+record_slot-1) = value
+
+  end subroutine set_block_patch_scalar_record_value
+
+
+  subroutine locate_block_scalar_record ( &
+       block,local_index,p,i,j,storage_class,record,node)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(out) :: storage_class
+    integer, intent(out) :: record
+    integer, intent(out) :: node
+
+    integer :: address
+    integer :: base_adjustment
+    integer :: candidate_start
+    integer :: dims(2)
+    integer :: local_address
+    integer :: r
+    integer :: side
+    integer :: target_domain
+    integer :: target_index
+    integer :: target_start
+
+    address = 0
+    base_adjustment = 0
+    candidate_start = -1
+    dims = 0
+    local_address = 0
+    r = 0
+    side = 0
+    target_domain = -1
+    target_index = -1
+    target_start = -1
+    storage_class = 0
+    record = -1
+    node = -1
+    if (p < 1 .or. p > size(block%patch)) then
+       call fail("scalar-restriction stencil patch is invalid")
+    end if
+    if (i >= 0 .and. i < PATCH_SIZE .and. &
+         j >= 0 .and. j < PATCH_SIZE) then
+       storage_class = STORE_PATCH
+       record = p-1
+       node = PATCH_SIZE*j+i
+       return
+    end if
+    if (i < 0) then
+       if (j < 0) then
+          side = SOUTHWEST
+       else if (j >= PATCH_SIZE) then
+          side = NORTHWEST
+       else
+          side = WEST
+       end if
+    else if (i >= PATCH_SIZE) then
+       if (j >= PATCH_SIZE) then
+          side = NORTHEAST
+       else if (j < 0) then
+          side = SOUTHEAST
+       else
+          side = EAST
+       end if
+    else if (j < 0) then
+       side = SOUTH
+    else
+       side = NORTH
+    end if
+
+    storage_class = block%stencil(side,p)%storage
+    record = block%stencil(side,p)%id
+    dims = block%stencil(side,p)%dims
+    address = block%stencil(side,p)%offset
+    if (any(dims < 1)) then
+       call fail("scalar-restriction stencil dimensions are invalid")
+    end if
+    select case (side)
+    case (SOUTHWEST)
+       base_adjustment = dims(1)*dims(2)-1
+       local_address = (j+dims(2))*dims(1)+i+dims(1)
+    case (NORTHWEST)
+       base_adjustment = dims(1)-1-PATCH_SIZE*(PATCH_SIZE-1)
+       local_address = (j-PATCH_SIZE)*dims(1)+i+dims(1)
+    case (WEST)
+       base_adjustment = dims(1)-1
+       local_address = j*dims(1)+i+dims(1)
+    case (NORTHEAST)
+       base_adjustment = -(PATCH_SIZE*PATCH_SIZE-1)
+       local_address = (j-PATCH_SIZE)*dims(1)+i-PATCH_SIZE
+    case (SOUTHEAST)
+       base_adjustment = dims(1)*( &
+            block%stencil(SOUTH,p)%dims(2)-1)-(PATCH_SIZE-1)
+       local_address = (j+dims(2))*dims(1)+i-PATCH_SIZE
+    case (EAST)
+       base_adjustment = -(PATCH_SIZE-1)
+       local_address = j*dims(1)+i-PATCH_SIZE
+    case (SOUTH)
+       base_adjustment = dims(1)*(dims(2)-1)
+       local_address = (j+dims(2))*dims(1)+i
+    case (NORTH)
+       base_adjustment = -PATCH_SIZE*(PATCH_SIZE-1)
+       local_address = (j-PATCH_SIZE)*dims(1)+i
+    case default
+       call fail("scalar-restriction stencil side is invalid")
+    end select
+    address = address-base_adjustment+local_address
+
+    select case (storage_class)
+    case (STORE_PATCH)
+       if (record < 0 .or. record >= size(block%patch)) then
+          call fail("scalar-restriction stencil patch record is invalid")
+       end if
+       target_start = block_patch_source_start( &
+            block,local_index,record+1)
+       target_domain = block%root_domain
+    case (STORE_BDRY)
+       if (record < 1 .or. record > size(block%bdry_storage)) then
+          call fail("scalar-restriction stencil boundary record is invalid")
+       end if
+       if (block%bdry_storage(record)%n_node < 1) then
+          call fail("scalar-restriction boundary extent is invalid")
+       end if
+       target_start = block%bdry_storage(record)%elts_start
+       target_domain = block%root_domain
+    case (STORE_GHOST)
+       if (record < 1 .or. record > size(block%ghost_storage)) then
+          call fail("scalar-restriction stencil ghost record is invalid")
+       end if
+       if (block%ghost_storage(record)%n_node /= PATCH_SIZE**2) then
+          call fail("scalar-restriction ghost patch extent is invalid")
+       end if
+       target_start = block%ghost_storage(record)%elts_start
+       target_domain = block%ghost_storage(record)%source_domain
+    case default
+       call fail("scalar-restriction stencil storage is invalid")
+    end select
+    target_index = target_start+address
+
+    if (target_domain == block%root_domain) then
+       do r = 1,size(block%patch)
+          candidate_start = block_patch_source_start( &
+               block,local_index,r)
+          if (target_index < candidate_start .or. &
+               target_index >= candidate_start+PATCH_SIZE**2) cycle
+          storage_class = STORE_PATCH
+          record = r-1
+          node = target_index-candidate_start
+          return
+       end do
+       do r = 1,size(block%bdry_storage)
+          candidate_start = block%bdry_storage(r)%elts_start
+          if (target_index < candidate_start .or. &
+               target_index >= candidate_start+ &
+               block%bdry_storage(r)%n_node) cycle
+          storage_class = STORE_BDRY
+          record = r
+          node = block%bdry_storage(r)%local_start + &
+               target_index-candidate_start
+          return
+       end do
+    end if
+    do r = 1,size(block%ghost_storage)
+       if (block%ghost_storage(r)%source_domain /= target_domain) cycle
+       candidate_start = block%ghost_storage(r)%elts_start
+       if (target_index < candidate_start .or. &
+            target_index >= candidate_start+ &
+            block%ghost_storage(r)%n_node) cycle
+       storage_class = STORE_GHOST
+       record = r
+       node = block%ghost_storage(r)%local_start + &
+            target_index-candidate_start
+       return
+    end do
+
+    write(error_unit,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
+         "Rank ",rank, &
+         ": unresolved scalar-restriction source: block = ",block%id, &
+         ", patch = ",p,", i = ",i,", j = ",j
+    write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+         "  side = ",side,", initial storage = ",storage_class, &
+         ", initial record = ",record,", offset = ", &
+         block%stencil(side,p)%offset
+    write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+         "  base adjustment = ",base_adjustment, &
+         ", local address = ",local_address, &
+         ", target domain = ",target_domain, &
+         ", target index = ",target_index
+    flush(error_unit)
+    call fail("scalar-restriction source index is unresolved")
+
+  end subroutine locate_block_scalar_record
+
+
+  integer function block_patch_source_start ( &
+       block,local_index,p) result(source_start)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+
+    integer :: data_index
+    integer :: level_slot
+    integer :: sample
+
+    real(dp) :: source_value
+
+    source_start = -1
+    if (p < 1 .or. p > size(block%patch)) then
+       call fail("scalar-restriction source patch is invalid")
+    end if
+    level_slot = 1-block%field_level+1
+    if (level_slot < 1 .or. level_slot > block%n_field_level) then
+       call fail("scalar-restriction source level is invalid")
+    end if
+    sample = (p-1)*block_writeback_plan%scalar_patch_nvalue + &
+         (level_slot-1)*PATCH_SIZE**2
+    data_index = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + &
+         BLOCK_SCALAR_SOURCE_INDEX
+    if (data_index < 1 .or. data_index > &
+         size(block_scalar_tendency(local_index)%patch)) then
+       call fail("scalar-restriction source index is invalid")
+    end if
+    source_value = &
+         block_scalar_tendency(local_index)%patch(data_index)
+    if (.not. ieee_is_finite(source_value) .or. &
+         source_value < 0.0_dp .or. &
+         source_value > real(huge(source_start),dp)) then
+       write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+            "Rank ",rank, &
+            ": invalid patch source value: block = ",block%id, &
+            ", patch = ",p,", data index = ",data_index
+       write(error_unit,'(a,es24.16,a,i0)') &
+            "  source value = ",source_value, &
+            ", physical level slot = ",level_slot
+       flush(error_unit)
+       call fail("scalar-restriction patch source value is invalid")
+    end if
+    source_start = nint(source_value)
+    if (source_start < 0 .or. &
+         abs(source_value-real(source_start,dp)) > 0.0_dp) then
+       call fail("scalar-restriction patch source is invalid")
+    end if
+
+  end function block_patch_source_start
+
+
+  function interpolate_block_scalar_flux ( &
+       block,local_index,p,scalar_slot,level_slot,i,j,flux_start) &
+       result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: flux_start
+    real(dp) :: value(4)
+
+    integer :: edge_component(0:19)
+    integer :: edge_i(0:19)
+    integer :: edge_j(0:19)
+    integer :: scalar_i(0:19)
+    integer :: scalar_j(0:19)
+
+    call get_block_restriction_indices( &
+         i+1,j,RT,edge_i,edge_j,edge_component,scalar_i,scalar_j)
+    value(1) = -sum_edge_weight_product( &
+         [WPM,UZM,VMM],i+1,j-2) - &
+         sum_edge_difference_weight_product( &
+         [VPM,WMMM,UMZ],[UPZ,VPMM,WMM],i+1,j-1)
+    value(2) = sum_edge_weight_product( &
+         [WMP,UZP,VPP],i,j) + &
+         sum_edge_difference_weight_product( &
+         [VMP,WPPP,UPZ],[UMZ,VMPP,WPP],i,j+1)
+
+    call get_block_restriction_indices( &
+         i,j+1,UP,edge_i,edge_j,edge_component,scalar_i,scalar_j)
+    value(3) = -sum_edge_weight_product( &
+         [UZM,VMM,WPM],i+1,j) - &
+         sum_edge_difference_weight_product( &
+         [WMMM,UMZ,VPM],[VPMM,WMM,UPZ],i+1,j+1)
+    value(4) = sum_edge_weight_product( &
+         [UZP,VPP,WMP],i-2,j) + &
+         sum_edge_difference_weight_product( &
+         [WPPP,UPZ,VMP],[VMPP,WPP,UMZ],i-2,j+1)
+
+  contains
+
+    real(dp) function sum_edge_weight_product (aliases,wi,wj) &
+         result(total)
+
+      implicit none
+
+      integer, intent(in) :: aliases(3)
+      integer, intent(in) :: wi
+      integer, intent(in) :: wj
+
+      integer :: k
+
+      total = 0.0_dp
+      do k = 1,EDGE
+         total = total + block_restriction_edge_flux( &
+              block,local_index,p,scalar_slot,level_slot, &
+              edge_i(aliases(k)),edge_j(aliases(k)), &
+              edge_component(aliases(k)),flux_start)* &
+              block_scalar_record_value( &
+              block,local_index,p,scalar_slot,level_slot,wi,wj, &
+              BLOCK_SCALAR_RESTRICTION_WEIGHT_START+k-1)
+      end do
+
+    end function sum_edge_weight_product
+
+
+    real(dp) function sum_edge_difference_weight_product ( &
+         positive_aliases,negative_aliases,wi,wj) result(total)
+
+      implicit none
+
+      integer, intent(in) :: positive_aliases(3)
+      integer, intent(in) :: negative_aliases(3)
+      integer, intent(in) :: wi
+      integer, intent(in) :: wj
+
+      integer :: k
+
+      total = 0.0_dp
+      do k = 1,EDGE
+         total = total + (block_restriction_edge_flux( &
+              block,local_index,p,scalar_slot,level_slot, &
+              edge_i(positive_aliases(k)), &
+              edge_j(positive_aliases(k)), &
+              edge_component(positive_aliases(k)),flux_start)- &
+              block_restriction_edge_flux( &
+              block,local_index,p,scalar_slot,level_slot, &
+              edge_i(negative_aliases(k)), &
+              edge_j(negative_aliases(k)), &
+              edge_component(negative_aliases(k)),flux_start))* &
+              block_scalar_record_value( &
+              block,local_index,p,scalar_slot,level_slot,wi,wj, &
+              BLOCK_SCALAR_RESTRICTION_WEIGHT_START+k-1)
+      end do
+
+    end function sum_edge_difference_weight_product
+
+  end function interpolate_block_scalar_flux
+
+
+  real(dp) function complete_block_coarse_flux ( &
+       sm_flux,block,local_index,p,scalar_slot,level_slot, &
+       i_par,j_par,i_chd,j_chd,e,cursor,roundoff_scale) result(value)
+
+    implicit none
+
+    real(dp), intent(in) :: sm_flux(4)
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i_par
+    integer, intent(in) :: j_par
+    integer, intent(in) :: i_chd
+    integer, intent(in) :: j_chd
+    integer, intent(in) :: e
+    type(Block_Scalar_Restriction_Cursor), intent(in) :: cursor
+    real(dp), optional, intent(out) :: roundoff_scale
+
+    integer :: i_edge
+    integer :: j_edge
+    real(dp) :: coarse_value
+    real(dp) :: partial_value
+
+    value = 0.0_dp
+    if (present(roundoff_scale)) roundoff_scale = 0.0_dp
+    i_edge = 0
+    j_edge = 0
+    select case (e)
+    case (RT)
+       i_edge = i_chd+1
+       j_edge = j_chd
+    case (DG)
+       i_edge = i_chd+1
+       j_edge = j_chd+1
+    case (UP)
+       i_edge = i_chd
+       j_edge = j_chd+1
+    case default
+       call fail("scalar-restriction coarse edge is invalid")
+    end select
+    partial_value = partial_block_coarse_flux( &
+         block,local_index,p,scalar_slot,level_slot,i_edge,j_edge,e, &
+         cursor,BLOCK_SCALAR_DIRECT_FLUX_START)
+    call validate_scalar_restriction_value( &
+         "partial_block_coarse_flux",partial_value,cursor)
+    coarse_value = block_coarse_flux( &
+         block,local_index,p,scalar_slot,level_slot, &
+         i_par,j_par,i_edge,j_edge,e, &
+         BLOCK_SCALAR_DIRECT_FLUX_START)
+    call validate_scalar_restriction_value( &
+         "block_coarse_flux",coarse_value,cursor)
+    select case (e)
+    case (RT)
+       value = partial_value+coarse_value+sm_flux(1)+sm_flux(2)
+       if (present(roundoff_scale)) then
+          roundoff_scale = abs(partial_value)+abs(coarse_value)+ &
+               abs(sm_flux(1))+abs(sm_flux(2))
+       end if
+    case (DG)
+       value = partial_value+coarse_value+sm_flux(2)+sm_flux(3)
+       if (present(roundoff_scale)) then
+          roundoff_scale = abs(partial_value)+abs(coarse_value)+ &
+               abs(sm_flux(2))+abs(sm_flux(3))
+       end if
+    case (UP)
+       value = partial_value+coarse_value+sm_flux(3)+sm_flux(4)
+       if (present(roundoff_scale)) then
+          roundoff_scale = abs(partial_value)+abs(coarse_value)+ &
+               abs(sm_flux(3))+abs(sm_flux(4))
+       end if
+    case default
+       call fail("scalar-restriction coarse edge is invalid")
+    end select
+
+  end function complete_block_coarse_flux
+
+
+  real(dp) function scalar_restriction_operation_scale ( &
+       catalog_index,block,local_index,p,scalar_slot,level_slot, &
+       i_par,j_par,e) result(operation_scale)
+    ! Reconstruct the absolute term scale for a restricted edge whose
+    ! independently evaluated final values differ. This is invoked only on
+    ! the exceptional comparison path.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i_par
+    integer, intent(in) :: j_par
+    integer, intent(in) :: e
+
+    integer :: c
+    integer :: child
+    integer :: i_chd
+    integer :: j_chd
+    integer :: n_match
+
+    real(dp) :: ignored_value
+    real(dp) :: sm_flux(4)
+
+    type(Block_Scalar_Restriction_Cursor) :: cursor
+
+    child = -1
+    i_chd = -1
+    j_chd = -1
+    n_match = 0
+    do c = 1,N_CHDRN
+       if (i_par < chd_offs(1,c) .or. &
+            i_par >= chd_offs(1,c)+PATCH_SIZE/2 .or. &
+            j_par < chd_offs(2,c) .or. &
+            j_par >= chd_offs(2,c)+PATCH_SIZE/2) cycle
+       child = block%patch(p)%children(c)
+       i_chd = 2*(i_par-chd_offs(1,c))
+       j_chd = 2*(j_par-chd_offs(2,c))
+       n_match = n_match + 1
+       cursor%child_index = c
+    end do
+    if (n_match /= 1 .or. child <= 0 .or. &
+         child >= size(block%patch)) then
+       call fail("scalar-restriction scale child is invalid")
+    end if
+
+    cursor%target_level = block%patch(p)%level
+    cursor%catalog_index = catalog_index
+    cursor%block_id = block%id
+    cursor%parent_patch = p
+    cursor%child_patch = child+1
+    cursor%scalar_slot = scalar_slot
+    cursor%level_slot = level_slot
+    cursor%physical_level = block%field_level+level_slot-1
+    cursor%i_parent = i_par
+    cursor%j_parent = j_par
+    cursor%i_child = i_chd
+    cursor%j_child = j_chd
+    cursor%edge = e
+
+    if (max_parent_edge_mask( &
+         block,local_index,p,scalar_slot,level_slot,i_par,j_par) >= &
+         real(RESTRCT,dp)) then
+       sm_flux = interpolate_block_scalar_flux( &
+            block,local_index,child+1,scalar_slot,level_slot, &
+            i_chd,j_chd,BLOCK_SCALAR_DIRECT_FLUX_START)
+    else
+       sm_flux = 0.0_dp
+    end if
+    ignored_value = complete_block_coarse_flux( &
+         sm_flux,block,local_index,child+1,scalar_slot,level_slot, &
+         i_par,j_par,i_chd,j_chd,e,cursor,operation_scale)
+    call validate_scalar_restriction_value( &
+         "scalar_restriction_operation_scale",ignored_value,cursor)
+
+  end function scalar_restriction_operation_scale
+
+
+  subroutine report_scalar_restriction_components ( &
+       block,local_index,p,sm_flux,native_value,reference_value,cursor)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    real(dp), intent(in) :: sm_flux(4)
+    real(dp), intent(in) :: native_value
+    real(dp), intent(in) :: reference_value
+    type(Block_Scalar_Restriction_Cursor), intent(in) :: cursor
+
+    integer :: i_edge
+    integer :: j_edge
+
+    real(dp) :: native_coarse
+    real(dp) :: native_partial
+    real(dp) :: native_sm_pair
+    real(dp) :: native_total
+    real(dp) :: reference_coarse
+    real(dp) :: reference_partial
+    real(dp) :: reference_sm(4)
+    real(dp) :: reference_sm_pair
+    real(dp) :: reference_total
+
+    i_edge = 0
+    j_edge = 0
+    native_sm_pair = 0.0_dp
+    reference_sm_pair = 0.0_dp
+    select case (cursor%edge)
+    case (RT)
+       i_edge = cursor%i_child+1
+       j_edge = cursor%j_child
+    case (DG)
+       i_edge = cursor%i_child+1
+       j_edge = cursor%j_child+1
+    case (UP)
+       i_edge = cursor%i_child
+       j_edge = cursor%j_child+1
+    case default
+       call fail("scalar-restriction diagnostic edge is invalid")
+    end select
+
+    reference_sm = interpolate_block_scalar_flux( &
+         block,local_index,p,cursor%scalar_slot,cursor%level_slot, &
+         cursor%i_child,cursor%j_child, &
+         BLOCK_SCALAR_RESTRICTED_FLUX_START)
+    native_partial = partial_block_coarse_flux( &
+         block,local_index,p,cursor%scalar_slot,cursor%level_slot, &
+         i_edge,j_edge,cursor%edge,cursor, &
+         BLOCK_SCALAR_DIRECT_FLUX_START)
+    reference_partial = partial_block_coarse_flux( &
+         block,local_index,p,cursor%scalar_slot,cursor%level_slot, &
+         i_edge,j_edge,cursor%edge,cursor, &
+         BLOCK_SCALAR_RESTRICTED_FLUX_START)
+    native_coarse = block_coarse_flux( &
+         block,local_index,p,cursor%scalar_slot,cursor%level_slot, &
+         cursor%i_parent,cursor%j_parent,i_edge,j_edge,cursor%edge, &
+         BLOCK_SCALAR_DIRECT_FLUX_START)
+    reference_coarse = block_coarse_flux( &
+         block,local_index,p,cursor%scalar_slot,cursor%level_slot, &
+         cursor%i_parent,cursor%j_parent,i_edge,j_edge,cursor%edge, &
+         BLOCK_SCALAR_RESTRICTED_FLUX_START)
+
+    select case (cursor%edge)
+    case (RT)
+       native_sm_pair = sm_flux(1)+sm_flux(2)
+       reference_sm_pair = reference_sm(1)+reference_sm(2)
+    case (DG)
+       native_sm_pair = sm_flux(2)+sm_flux(3)
+       reference_sm_pair = reference_sm(2)+reference_sm(3)
+    case (UP)
+       native_sm_pair = sm_flux(3)+sm_flux(4)
+       reference_sm_pair = reference_sm(3)+reference_sm(4)
+    case default
+       call fail("scalar-restriction diagnostic edge is invalid")
+    end select
+    native_total = native_partial+native_coarse+native_sm_pair
+    reference_total = &
+         reference_partial+reference_coarse+reference_sm_pair
+
+    call report_scalar_restriction_cursor( &
+         "restricted scalar-flux component mismatch",cursor)
+    write(error_unit,'(a,4(es24.16,1x))') &
+         "  native sm_flux = ",sm_flux
+    write(error_unit,'(a,4(es24.16,1x))') &
+         "  reference sm_flux = ",reference_sm
+    write(error_unit,'(a,3(es24.16,1x))') &
+         "  native partial, coarse, sm pair = ", &
+         native_partial,native_coarse,native_sm_pair
+    write(error_unit,'(a,3(es24.16,1x))') &
+         "  reference partial, coarse, sm pair = ", &
+         reference_partial,reference_coarse,reference_sm_pair
+    write(error_unit,'(a,3(es24.16,1x))') &
+         "  component differences = ", &
+         native_partial-reference_partial, &
+         native_coarse-reference_coarse, &
+         native_sm_pair-reference_sm_pair
+    write(error_unit,'(a,2(es24.16,1x))') &
+         "  recomputed native, reference totals = ", &
+         native_total,reference_total
+    write(error_unit,'(a,3(es24.16,1x))') &
+         "  stored native, reference, difference = ", &
+         native_value,reference_value,native_value-reference_value
+    write(error_unit,'(a,es24.16)') &
+         "  reference reconstruction difference = ", &
+         reference_total-reference_value
+    flush(error_unit)
+
+  end subroutine report_scalar_restriction_components
+
+
+  real(dp) function partial_block_coarse_flux ( &
+       block,local_index,p,scalar_slot,level_slot,i,j,e,cursor, &
+       flux_start) result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: e
+    type(Block_Scalar_Restriction_Cursor), intent(in) :: cursor
+    integer, intent(in) :: flux_start
+
+    integer :: edge_component(0:19)
+    integer :: edge_i(0:19)
+    integer :: edge_j(0:19)
+    integer :: scalar_i(0:19)
+    integer :: scalar_j(0:19)
+
+    real(dp) :: area(2)
+    real(dp) :: area_input(2)
+    real(dp) :: area_sum
+    real(dp) :: ol_area(4)
+    real(dp) :: ol_area_input(4)
+    real(dp) :: ol_area_terms(6)
+
+    call get_block_restriction_indices( &
+         i,j,e,edge_i,edge_j,edge_component,scalar_i,scalar_j)
+    area = [block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j,1), &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j,2)]
+    ol_area(1:2) = [block_overlap_split( &
+         block,local_index,p,scalar_slot,level_slot,i,j,1), &
+         block_overlap_split( &
+         block,local_index,p,scalar_slot,level_slot,i,j,2)]
+    ol_area(3:4) = [block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j,3), &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j,4)]
+    area_input = area
+    ol_area_input = ol_area
+    if (.not. all(ieee_is_finite(area_input)) .or. &
+         .not. all(ieee_is_finite(ol_area_input))) then
+       call report_scalar_restriction_cursor( &
+            "non-finite partial coarse-flux input",cursor)
+       write(error_unit,'(a,2(es24.16,1x))') &
+            "  area input = ",area_input
+       write(error_unit,'(a,4(es24.16,1x))') &
+            "  overlap-area input = ",ol_area_input
+       flush(error_unit)
+       call fail("partial coarse-flux input is non-finite")
+    end if
+    ol_area(3:4) = ol_area(3:4)-ol_area(1:2)
+    area(1) = area(1)+ol_area(1)+ol_area(4)
+    area(2) = area(2)+ol_area(2)+ol_area(3)
+    area_sum = sum(area)
+    if (.not. all(ieee_is_finite(area)) .or. &
+         .not. all(ieee_is_finite(ol_area)) .or. &
+         .not. ieee_is_finite(area_sum) .or. &
+         .not. (abs(area_sum) > 0.0_dp)) then
+       call report_scalar_restriction_cursor( &
+            "invalid partial coarse-flux normalization",cursor)
+       write(error_unit,'(a,2(es24.16,1x))') &
+            "  area = ",area
+       write(error_unit,'(a,4(es24.16,1x))') &
+            "  overlap area = ",ol_area
+       write(error_unit,'(a,es24.16)') &
+            "  area sum = ",area_sum
+       flush(error_unit)
+       call fail("partial coarse-flux normalization is invalid")
+    end if
+    area = area/area_sum
+
+    ol_area_terms(1) = block_overlap_split( &
+         block,local_index,p,scalar_slot,level_slot, &
+         scalar_i(PP),scalar_j(PP),1)
+    ol_area_terms(2) = block_overlap_split( &
+         block,local_index,p,scalar_slot,level_slot, &
+         scalar_i(MM),scalar_j(MM),2)
+    ol_area_terms(3) = block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot, &
+         scalar_i(MP),scalar_j(MP),3)
+    ol_area_terms(4) = block_overlap_split( &
+         block,local_index,p,scalar_slot,level_slot, &
+         scalar_i(MP),scalar_j(MP),1)
+    ol_area_terms(5) = block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot, &
+         scalar_i(PM),scalar_j(PM),4)
+    ol_area_terms(6) = block_overlap_split( &
+         block,local_index,p,scalar_slot,level_slot, &
+         scalar_i(PM),scalar_j(PM),2)
+    if (.not. all(ieee_is_finite(ol_area_terms))) then
+       call report_scalar_restriction_cursor( &
+            "non-finite partial coarse-flux overlap input",cursor)
+       write(error_unit,'(a,6(es24.16,1x))') &
+            "  overlap-area terms = ",ol_area_terms
+       flush(error_unit)
+       call fail("partial coarse-flux overlap input is non-finite")
+    end if
+    ol_area = [ol_area_terms(1),ol_area_terms(2), &
+         ol_area_terms(3)-ol_area_terms(4), &
+         ol_area_terms(5)-ol_area_terms(6)]
+    if (.not. all(ieee_is_finite(ol_area))) then
+       call report_scalar_restriction_cursor( &
+            "non-finite partial coarse-flux overlap result",cursor)
+       write(error_unit,'(a,4(es24.16,1x))') &
+            "  overlap area = ",ol_area
+       flush(error_unit)
+       call fail("partial coarse-flux overlap result is non-finite")
+    end if
+
+    value = (block_restriction_edge_flux( &
+         block,local_index,p,scalar_slot,level_slot, &
+         edge_i(UPZ),edge_j(UPZ),edge_component(UPZ), &
+         flux_start)*area(1) + &
+         block_restriction_edge_flux( &
+         block,local_index,p,scalar_slot,level_slot, &
+         edge_i(UMZ),edge_j(UMZ),edge_component(UMZ), &
+         flux_start)*area(2)) - &
+         (block_restriction_edge_flux( &
+         block,local_index,p,scalar_slot,level_slot, &
+         edge_i(VMM),edge_j(VMM),edge_component(VMM),flux_start) + &
+         block_restriction_edge_flux( &
+         block,local_index,p,scalar_slot,level_slot, &
+         edge_i(WMP),edge_j(WMP),edge_component(WMP), &
+         flux_start))*area(2) - &
+         (block_restriction_edge_flux( &
+         block,local_index,p,scalar_slot,level_slot, &
+         edge_i(WPM),edge_j(WPM),edge_component(WPM),flux_start) + &
+         block_restriction_edge_flux( &
+         block,local_index,p,scalar_slot,level_slot, &
+         edge_i(VPP),edge_j(VPP),edge_component(VPP), &
+         flux_start))*area(1) + &
+         ol_area(3)*block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot, &
+         scalar_i(MP),scalar_j(MP),flux_start) - &
+         ol_area(4)*block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot, &
+         scalar_i(PM),scalar_j(PM),flux_start) - &
+         ol_area(1)*block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot, &
+         scalar_i(PP),scalar_j(PP),flux_start) + &
+         ol_area(2)*block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot, &
+         scalar_i(MM),scalar_j(MM),flux_start)
+
+  end function partial_block_coarse_flux
+
+
+  real(dp) function block_coarse_flux ( &
+       block,local_index,p,scalar_slot,level_slot, &
+       i_par,j_par,i,j,e,flux_start) result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i_par
+    integer, intent(in) :: j_par
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: e
+    integer, intent(in) :: flux_start
+
+    integer :: i_mm
+    integer :: i_mm2
+    integer :: i_mp
+    integer :: i_mp2
+    integer :: i_mz
+    integer :: i_pm
+    integer :: i_pm2
+    integer :: i_pp
+    integer :: i_pp2
+    integer :: i_pz
+    integer :: j_mm
+    integer :: j_mm2
+    integer :: j_mp
+    integer :: j_mp2
+    integer :: j_mz
+    integer :: j_pm
+    integer :: j_pm2
+    integer :: j_pp
+    integer :: j_pp2
+    integer :: j_pz
+
+    real(dp) :: coefficient
+
+    if (i_par < 0 .or. j_par < 0) then
+       call fail("scalar-restriction parent coordinate is invalid")
+    end if
+    i_mz = i+nghb_pt(1,hex_s_offs(e+1)+2)
+    j_mz = j+nghb_pt(2,hex_s_offs(e+1)+2)
+    i_pz = i+nghb_pt(1,hex_s_offs(e+1)+5)
+    j_pz = j+nghb_pt(2,hex_s_offs(e+1)+5)
+    i_mp = i+nghb_pt(1,hex_s_offs(e+1)+1)
+    j_mp = j+nghb_pt(2,hex_s_offs(e+1)+1)
+    i_pp = i+nghb_pt(1,hex_s_offs(e+1)+6)
+    j_pp = j+nghb_pt(2,hex_s_offs(e+1)+6)
+    i_pm = i+nghb_pt(1,hex_s_offs(e+1)+4)
+    j_pm = j+nghb_pt(2,hex_s_offs(e+1)+4)
+    i_mm = i+nghb_pt(1,hex_s_offs(e+1)+3)
+    j_mm = j+nghb_pt(2,hex_s_offs(e+1)+3)
+    i_mm2 = i+bfly_no2(1,1,e+1)
+    j_mm2 = j+bfly_no2(2,1,e+1)
+    i_pm2 = i+bfly_no2(1,2,e+1)
+    j_pm2 = j+bfly_no2(2,2,e+1)
+    i_pp2 = i+bfly_no2(1,3,e+1)
+    j_pp2 = j+bfly_no2(2,3,e+1)
+    i_mp2 = i+bfly_no2(1,4,e+1)
+    j_mp2 = j+bfly_no2(2,4,e+1)
+
+    coefficient = block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j,1)* &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j,2)* &
+         block_area_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j) + &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i_mp,j_mp,2)* &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i_mp,j_mp,3)* &
+         block_area_value( &
+         block,local_index,p,scalar_slot,level_slot,i_mp,j_mp) + &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i_pp,j_pp,1)* &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i_pp,j_pp,3)* &
+         block_area_value( &
+         block,local_index,p,scalar_slot,level_slot,i_pp,j_pp) + &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i_pm,j_pm,1)* &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i_pm,j_pm,4)* &
+         block_area_value( &
+         block,local_index,p,scalar_slot,level_slot,i_pm,j_pm) + &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i_mm,j_mm,2)* &
+         block_overlap_value( &
+         block,local_index,p,scalar_slot,level_slot,i_mm,j_mm,4)* &
+         block_area_value( &
+         block,local_index,p,scalar_slot,level_slot,i_mm,j_mm)
+    value = coefficient*(block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot,i_pz,j_pz, &
+         flux_start)- &
+         block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot,i_mz,j_mz, &
+         flux_start))
+    value = value + 0.5_dp*overlap_area_product( &
+         i_pp,j_pp,3,4)*(block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot,i_pp2,j_pp2, &
+         flux_start)- &
+         block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot,i_mz,j_mz, &
+         flux_start))
+    value = value + 0.5_dp*overlap_area_product( &
+         i_pm,j_pm,3,4)*(block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot,i_pm2,j_pm2, &
+         flux_start)- &
+         block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot,i_mz,j_mz, &
+         flux_start))
+    value = value + 0.5_dp*overlap_area_product( &
+         i_mp,j_mp,3,4)*(block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot,i_pz,j_pz, &
+         flux_start)- &
+         block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot,i_mp2,j_mp2, &
+         flux_start))
+    value = value + 0.5_dp*overlap_area_product( &
+         i_mm,j_mm,3,4)*(block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot,i_pz,j_pz, &
+         flux_start)- &
+         block_restriction_dscalar( &
+         block,local_index,p,scalar_slot,level_slot,i_mm2,j_mm2, &
+         flux_start))
+
+  contains
+
+    real(dp) function overlap_area_product ( &
+         oi,oj,first_component,second_component) result(product)
+
+      implicit none
+
+      integer, intent(in) :: oi
+      integer, intent(in) :: oj
+      integer, intent(in) :: first_component
+      integer, intent(in) :: second_component
+
+      product = block_overlap_value( &
+           block,local_index,p,scalar_slot,level_slot,oi,oj, &
+           first_component)*block_overlap_value( &
+           block,local_index,p,scalar_slot,level_slot,oi,oj, &
+           second_component)*block_area_value( &
+           block,local_index,p,scalar_slot,level_slot,oi,oj)
+
+    end function overlap_area_product
+
+  end function block_coarse_flux
+
+
+  subroutine validate_scalar_restriction_vector (name,value,cursor)
+
+    implicit none
+
+    character(*), intent(in) :: name
+    real(dp), intent(in) :: value(:)
+    type(Block_Scalar_Restriction_Cursor), intent(in) :: cursor
+
+    if (all(ieee_is_finite(value))) return
+    call report_scalar_restriction_cursor( &
+         "non-finite "//trim(name)//" result",cursor)
+    write(error_unit,'(a,*(es24.16,1x))') "  result = ",value
+    flush(error_unit)
+    call fail(trim(name)//" returned a non-finite value")
+
+  end subroutine validate_scalar_restriction_vector
+
+
+  subroutine validate_scalar_restriction_value (name,value,cursor)
+
+    implicit none
+
+    character(*), intent(in) :: name
+    real(dp), intent(in) :: value
+    type(Block_Scalar_Restriction_Cursor), intent(in) :: cursor
+
+    if (ieee_is_finite(value)) return
+    call report_scalar_restriction_cursor( &
+         "non-finite "//trim(name)//" result",cursor)
+    write(error_unit,'(a,es24.16)') "  result = ",value
+    flush(error_unit)
+    call fail(trim(name)//" returned a non-finite value")
+
+  end subroutine validate_scalar_restriction_value
+
+
+  subroutine report_scalar_restriction_cursor (message,cursor)
+
+    implicit none
+
+    character(*), intent(in) :: message
+    type(Block_Scalar_Restriction_Cursor), intent(in) :: cursor
+
+    write(error_unit,'(/,a,i0,2a)') &
+         "Rank ",rank,": ",trim(message)
+    write(error_unit,'(a,i0,a,i0,a,i0)') &
+         "  target level = ",cursor%target_level, &
+         ", catalog block = ",cursor%catalog_index, &
+         ", block id = ",cursor%block_id
+    write(error_unit,'(a,i0,a,i0,a,i0)') &
+         "  parent patch = ",cursor%parent_patch, &
+         ", child = ",cursor%child_index, &
+         ", child patch = ",cursor%child_patch
+    write(error_unit,'(a,i0,a,i0,a,i0)') &
+         "  scalar slot = ",cursor%scalar_slot, &
+         ", field-level slot = ",cursor%level_slot, &
+         ", physical level = ",cursor%physical_level
+    write(error_unit,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
+         "  parent coordinates = ",cursor%i_parent,", ",cursor%j_parent, &
+         "; child coordinates = ",cursor%i_child,", ",cursor%j_child, &
+         "; edge = ",cursor%edge
+    flush(error_unit)
+
+  end subroutine report_scalar_restriction_cursor
+
+
+  real(dp) function block_restriction_dscalar ( &
+       block,local_index,p,scalar_slot,level_slot,i,j,flux_start) &
+       result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: flux_start
+
+    if (flux_start /= BLOCK_SCALAR_DIRECT_FLUX_START .and. &
+         flux_start /= BLOCK_SCALAR_RESTRICTED_FLUX_START) then
+       call fail("scalar-restriction dscalar mode is invalid")
+    end if
+    value = block_scalar_record_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j, &
+         BLOCK_SCALAR_DSCALAR_INDEX)
+
+  end function block_restriction_dscalar
+
+
+  real(dp) function block_restriction_edge_flux ( &
+       block,local_index,p,scalar_slot,level_slot,i,j,e,flux_start) &
+       result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: e
+    integer, intent(in) :: flux_start
+
+    if (e < RT .or. e > UP) then
+       call fail("scalar-restriction edge component is invalid")
+    end if
+    value = block_scalar_record_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j, &
+         flux_start+e)
+
+  end function block_restriction_edge_flux
+
+
+  real(dp) function block_area_value ( &
+       block,local_index,p,scalar_slot,level_slot,i,j) result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+
+    value = block_scalar_record_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j, &
+         BLOCK_SCALAR_AREA_INDEX)
+
+  end function block_area_value
+
+
+  real(dp) function block_overlap_value ( &
+       block,local_index,p,scalar_slot,level_slot,i,j,component) &
+       result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: component
+
+    if (component < 1 .or. component > 4) then
+       call fail("scalar-restriction overlap component is invalid")
+    end if
+    value = block_scalar_record_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j, &
+         BLOCK_SCALAR_OVERLAP_START+component-1)
+
+  end function block_overlap_value
+
+
+  real(dp) function block_overlap_split ( &
+       block,local_index,p,scalar_slot,level_slot,i,j,component) &
+       result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: component
+
+    if (component < 1 .or. component > 2) then
+       call fail("scalar-restriction split component is invalid")
+    end if
+    value = block_scalar_record_value( &
+         block,local_index,p,scalar_slot,level_slot,i,j, &
+         BLOCK_SCALAR_OVERLAP_START+3+component)
+
+  end function block_overlap_split
+
+
+  subroutine get_block_restriction_indices ( &
+       i,j,e,edge_i,edge_j,edge_component,scalar_i,scalar_j)
+
+    implicit none
+
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: e
+    integer, intent(out) :: edge_i(0:19)
+    integer, intent(out) :: edge_j(0:19)
+    integer, intent(out) :: edge_component(0:19)
+    integer, intent(out) :: scalar_i(0:19)
+    integer, intent(out) :: scalar_j(0:19)
+
+    integer :: i_mm
+    integer :: i_mp
+    integer :: i_pm
+    integer :: i_pp
+    integer :: j_mm
+    integer :: j_mp
+    integer :: j_pm
+    integer :: j_pp
+
+    edge_i = 0
+    edge_j = 0
+    edge_component = 0
+    scalar_i = 0
+    scalar_j = 0
+    call set_edge(UMZ,i,j,hex_s_offs(e+1)+2)
+    call set_edge(UPZ,i,j,hex_s_offs(e+1)+5)
+    call set_edge(WMP,i,j,hex_s_offs(e+1)+1)
+    call set_edge(VPP,i,j,hex_s_offs(e+1)+6)
+    call set_edge(WPM,i,j,hex_s_offs(e+1)+4)
+    call set_edge(VMM,i,j,hex_s_offs(e+1)+3)
+
+    i_mp = i+nghb_pt(1,hex_s_offs(e+1)+1)
+    j_mp = j+nghb_pt(2,hex_s_offs(e+1)+1)
+    i_pp = i+nghb_pt(1,hex_s_offs(e+1)+6)
+    j_pp = j+nghb_pt(2,hex_s_offs(e+1)+6)
+    i_pm = i+nghb_pt(1,hex_s_offs(e+1)+4)
+    j_pm = j+nghb_pt(2,hex_s_offs(e+1)+4)
+    i_mm = i+nghb_pt(1,hex_s_offs(e+1)+3)
+    j_mm = j+nghb_pt(2,hex_s_offs(e+1)+3)
+    scalar_i(MP) = i_mp
+    scalar_j(MP) = j_mp
+    scalar_i(PP) = i_pp
+    scalar_j(PP) = j_pp
+    scalar_i(PM) = i_pm
+    scalar_j(PM) = j_pm
+    scalar_i(MM) = i_mm
+    scalar_j(MM) = j_mm
+
+    call set_edge(VMP,i_mp,j_mp,hex_s_offs(e+1)+3)
+    call set_edge(VMPP,i_mp,j_mp,hex_s_offs(e+1)+6)
+    call set_edge(UZP,i_mp,j_mp,hex_s_offs(e+1)+5)
+    call set_edge(WPPP,i_pp,j_pp,hex_s_offs(e+1)+1)
+    call set_edge(WPP,i_pp,j_pp,hex_s_offs(e+1)+4)
+    call set_edge(VPM,i_pm,j_pm,hex_s_offs(e+1)+6)
+    call set_edge(VPMM,i_pm,j_pm,hex_s_offs(e+1)+3)
+    call set_edge(UZM,i_pm,j_pm,hex_s_offs(e+1)+2)
+    call set_edge(WMMM,i_mm,j_mm,hex_s_offs(e+1)+4)
+    call set_edge(WMM,i_mm,j_mm,hex_s_offs(e+1)+1)
+
+  contains
+
+    subroutine set_edge (alias,base_i,base_j,side_index)
+
+      implicit none
+
+      integer, intent(in) :: alias
+      integer, intent(in) :: base_i
+      integer, intent(in) :: base_j
+      integer, intent(in) :: side_index
+
+      if (alias < 0 .or. alias > 19 .or. &
+           side_index < 1 .or. side_index > size(hex_sides,2)) then
+         call fail("scalar-restriction edge alias is invalid")
+      end if
+      edge_i(alias) = base_i+hex_sides(1,side_index)
+      edge_j(alias) = base_j+hex_sides(2,side_index)
+      edge_component(alias) = hex_sides(3,side_index)
+
+    end subroutine set_edge
+
+  end subroutine get_block_restriction_indices
 
 
   subroutine complete_uncaptured_scalar_divergence_coverage
@@ -16881,6 +19542,10 @@ end subroutine build_parallel_block_catalog
                          scalar_tendency(scalar_output_index) = &
                               -scalar_divergence
                       end if
+                      block_scalar_tendency(local_index)%patch( &
+                           remainder_index+ &
+                           BLOCK_SCALAR_DSCALAR_INDEX-1) = &
+                           scalar_tendency(scalar_output_index)
                       statistics%scalar_sample_count = &
                            statistics%scalar_sample_count + 1_int64
                    end do
