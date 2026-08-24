@@ -370,6 +370,7 @@ module parallel_block_mod
   public :: reset_local_block_tendency_accumulator
   public :: accumulate_local_block_tendency
   public :: retain_local_block_tendency_in_accumulator
+  public :: set_local_block_tendency_accumulator_scalar_patch_values
   public :: discard_local_block_tendency_accumulator
   public :: begin_local_block_accumulated_tendency_trial
   public :: local_block_tendency_accumulator_state_ready
@@ -1842,6 +1843,91 @@ subroutine retain_local_block_tendency_in_accumulator
   end if
 
 end subroutine retain_local_block_tendency_in_accumulator
+
+
+subroutine set_local_block_tendency_accumulator_scalar_patch_values ( &
+     catalog_index,local_patch,scalar_value)
+  ! Replace one scalar patch in the retained RK stage register without
+  ! changing its vector tendency, checkpoint state, or stage count.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: local_patch
+  real(dp), intent(in) :: scalar_value(:)
+
+  integer :: field_base
+  integer :: input_base
+  integer :: expected_scalar_nvalue
+  integer :: level_slot
+  integer :: local_index
+  integer :: n_node
+  integer :: n_patch_value
+  integer :: patch_start
+  integer :: scalar_slot
+
+  if (.not. local_block_tendency_accumulator_state_ready()) then
+     error stop &
+          "set_local_block_tendency_accumulator_scalar_patch_values: not ready"
+  end if
+  if (block_tendency_import_active .or. block_tendency_trial_active .or. &
+       block_tendency_ready) then
+     error stop &
+          "set_local_block_tendency_accumulator_scalar_patch_values: active operation"
+  end if
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop &
+          "set_local_block_tendency_accumulator_scalar_patch_values: nonlocal block"
+  end if
+  if (local_patch < 0 .or. &
+       local_patch >= size(block_local(local_index)%patch)) then
+     error stop &
+          "set_local_block_tendency_accumulator_scalar_patch_values: invalid patch"
+  end if
+  expected_scalar_nvalue = &
+       local_block_scalar_family_patch_nvalue(catalog_index)
+  if (size(scalar_value) /= expected_scalar_nvalue) then
+     error stop &
+          "set_local_block_tendency_accumulator_scalar_patch_values: extent"
+  end if
+
+  n_node = size(block_local(local_index)%node)
+  patch_start = &
+       block_local(local_index)%patch(local_patch+1)%elts_start
+  if (patch_start < 0 .or. &
+       patch_start+PATCH_SIZE**2 > n_node) then
+     error stop &
+          "set_local_block_tendency_accumulator_scalar_patch_values: storage"
+  end if
+
+  n_patch_value = &
+       block_local(local_index)%scalar_mult*PATCH_SIZE**2
+  do scalar_slot = 1, &
+       block_local(local_index)%n_scalar_variable
+     do level_slot = 1, &
+          block_local(local_index)%n_field_level
+        field_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1)* &
+             block_local(local_index)%scalar_mult*n_node
+        input_base = &
+             ((scalar_slot-1)* &
+             block_local(local_index)%n_field_level + &
+             level_slot-1)*n_patch_value
+        block_tendency_accumulator(local_index)%scalar( &
+             field_base + &
+             block_local(local_index)%scalar_mult*patch_start + 1: &
+             field_base + &
+             block_local(local_index)%scalar_mult*patch_start + &
+             n_patch_value) = &
+             scalar_value(input_base+1:input_base+n_patch_value)
+     end do
+  end do
+
+end subroutine set_local_block_tendency_accumulator_scalar_patch_values
 
 
 subroutine discard_local_block_tendency_accumulator

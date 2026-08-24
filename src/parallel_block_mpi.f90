@@ -125,6 +125,7 @@ module parallel_block_mpi_mod
        reset_local_block_tendency_accumulator, &
        accumulate_local_block_tendency, &
        retain_local_block_tendency_in_accumulator, &
+       set_local_block_tendency_accumulator_scalar_patch_values, &
        discard_local_block_tendency_accumulator, &
        begin_local_block_accumulated_tendency_trial, &
        local_block_tendency_accumulator_state_ready, &
@@ -532,6 +533,7 @@ module parallel_block_mpi_mod
      integer(int64) :: compared_edge_count = 0_int64
      integer(int64) :: divergence_sample_count = 0_int64
      integer(int64) :: divergence_compared_count = 0_int64
+     integer(int64) :: divergence_activated_count = 0_int64
   end type Block_Scalar_Restriction_Context
 
   type :: Block_Scalar_Restriction_Cursor
@@ -6801,10 +6803,9 @@ end subroutine build_parallel_block_catalog
 
   subroutine evaluate_candidate_block_velocity_recomposition ( &
        domain_sol,checkpoint_required)
-    ! Combine the authoritative restricted scalar-flux divergence and the
-    ! non-Exner velocity residual with the independently reconstructed block
-    ! Exner term. Independently validate and retain the directly produced
-    ! block-native scalar flux before hierarchy restriction.
+    ! Recompose the complete tendency, then replace its scalar component with
+    ! the independently validated block-native restricted-flux divergence.
+    ! The velocity component remains the reconstructed block-native result.
 
     implicit none
 
@@ -6852,11 +6853,11 @@ end subroutine build_parallel_block_catalog
        write(6,'(a)') &
             "  roundoff-bounded native/Domain scalar divergence comparison passed"
        write(6,'(a)') &
-            "  native restricted scalar divergence retained as validation shadow"
+            "  native restricted scalar divergence installed in production tendency"
        write(6,'(a)') &
-            "  authoritative restricted scalar flux divergence reused"
+            "  authoritative scalar divergence retained as validation reference"
        write(6,'(a)') &
-            "  exact complete block/Domain physical tendency comparison passed"
+            "  roundoff-bounded complete block/Domain tendency compatibility passed"
        write(6,'(a)') &
             "  complete physical tendency retained for rejected RK stage"
        write(6,'(a)') &
@@ -8434,8 +8435,11 @@ end subroutine build_parallel_block_catalog
     integer :: ierr
     integer :: l
 
-    integer(int64) :: count_global(5)
-    integer(int64) :: count_local(5)
+    integer(int64) :: accumulator_allocation_before
+    integer(int64) :: count_global(6)
+    integer(int64) :: count_local(6)
+
+    logical :: accumulator_ready
 
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("block-native scalar restriction exchange is not ready")
@@ -8455,12 +8459,29 @@ end subroutine build_parallel_block_catalog
          compare_block_scalar_restricted_flux,statistics)
     call apply_local_block_field_consumer( &
          compare_block_scalar_restricted_divergence,statistics)
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (.not. accumulator_ready) then
+       call fail("native scalar-divergence activation register is not ready")
+    end if
+    accumulator_allocation_before = &
+         local_block_tendency_accumulator_allocation_count()
+    call apply_local_block_field_consumer( &
+         install_block_scalar_restricted_divergence,statistics)
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (.not. accumulator_ready .or. &
+         local_block_tendency_accumulator_allocation_count() /= &
+         accumulator_allocation_before) then
+       call fail("native scalar-divergence activation changed register state")
+    end if
 
     count_local = [statistics%parent_patch_count, &
          statistics%restricted_edge_count, &
          statistics%compared_edge_count, &
          statistics%divergence_sample_count, &
-         statistics%divergence_compared_count]
+         statistics%divergence_compared_count, &
+         statistics%divergence_activated_count]
     call MPI_Allreduce( &
          count_local,count_global,size(count_local),MPI_INTEGER8, &
          MPI_SUM,comm,ierr)
@@ -8469,7 +8490,8 @@ end subroutine build_parallel_block_catalog
          count_global(2) < 1_int64 .or. &
          count_global(3) < 1_int64 .or. &
          count_global(4) < 1_int64 .or. &
-         count_global(5) < 1_int64) then
+         count_global(5) < 1_int64 .or. &
+         count_global(6) < 1_int64) then
        call fail("block-native scalar restriction coverage is empty")
     end if
 
@@ -8956,6 +8978,72 @@ end subroutine build_parallel_block_catalog
     end select
 
   end subroutine compare_block_scalar_restricted_divergence
+
+
+  subroutine install_block_scalar_restricted_divergence ( &
+       catalog_index,block,context)
+    ! Replace only the scalar component of the retained RK tendency with the
+    ! validated native restricted-flux divergence. The vector component and
+    ! all transaction state remain unchanged.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: i
+    integer :: j
+    integer :: level_slot
+    integer :: local_index
+    integer :: p
+    integer :: pos
+    integer :: scalar_slot
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency)) then
+       call fail("scalar-divergence activation block is invalid")
+    end if
+    if (block%scalar_mult /= 1 .or. &
+         size(ghost_exchange_plan%scalar_patch_buffer) /= &
+         block%n_scalar_variable*block%n_field_level*PATCH_SIZE**2) then
+       call fail("scalar-divergence activation layout is invalid")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Scalar_Restriction_Context)
+       do p = 1,size(block%patch)
+          pos = 1
+          do scalar_slot = 0,block%n_scalar_variable-1
+             do level_slot = 1,block%n_field_level
+                do j = 0,PATCH_SIZE-1
+                   do i = 0,PATCH_SIZE-1
+                      ghost_exchange_plan%scalar_patch_buffer(pos) = &
+                           block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_NATIVE_DSCALAR_INDEX)
+                      pos = pos + 1
+                   end do
+                end do
+             end do
+          end do
+          if (pos /= &
+               size(ghost_exchange_plan%scalar_patch_buffer)+1) then
+             call fail("scalar-divergence activation extent differs")
+          end if
+          call set_local_block_tendency_accumulator_scalar_patch_values( &
+               catalog_index,p-1, &
+               ghost_exchange_plan%scalar_patch_buffer)
+          statistics%divergence_activated_count = &
+               statistics%divergence_activated_count + &
+               int(pos-1,int64)
+       end do
+    class default
+       call fail("scalar-divergence activation context is invalid")
+    end select
+
+  end subroutine install_block_scalar_restricted_divergence
 
 
   pure real(dp) function scalar_restriction_roundoff_tolerance ( &
@@ -12157,7 +12245,7 @@ end subroutine build_parallel_block_catalog
             "Captured production block ",scheme_name, &
             " native tendency stage = ",stage," of ",stage_count
        write(6,'(a)') &
-            "  exact complete block/Domain physical tendency passed"
+            "  roundoff-bounded complete block/Domain physical tendency passed"
        if (stage == 1) then
           write(6,'(a)') &
                "  no preceding provisional writeback occurred"
@@ -12176,10 +12264,10 @@ end subroutine build_parallel_block_catalog
 
   subroutine begin_block_domain_multistage_candidate_stage ( &
        scale,stage,stage_count)
-    ! Consume one exactly validated block-native tendency from the persistent
-    ! stage register and form a retained provisional low-storage RK3 or RK4
-    ! candidate. Every stage remains based on the retained timestep-start
-    ! block state and remains reversible until the guarded stage boundary.
+    ! Consume one roundoff-bounded validated block-native tendency from the
+    ! persistent stage register and form a retained provisional low-storage
+    ! RK3 or RK4 candidate. Every stage remains based on the retained
+    ! timestep-start block state and remains reversible until the guard.
 
     implicit none
 
