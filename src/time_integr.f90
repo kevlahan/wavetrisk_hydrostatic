@@ -19,6 +19,7 @@ module time_integr_mod
        retain_block_native_multistage_candidate, &
        refresh_parallel_block_candidate_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
+       validate_candidate_block_outer_vector_wavelets, &
        validate_candidate_block_scalar_wavelets
 
   implicit none
@@ -142,7 +143,9 @@ contains
     call WT_after_step( &
          q1,wav, &
          validate_scalar_wavelets= &
-         validate_candidate_block_scalar_wavelets)
+         validate_candidate_block_scalar_wavelets, &
+         validate_outer_vector_wavelets= &
+         validate_candidate_block_outer_vector_wavelets)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,1,3)
@@ -162,7 +165,9 @@ contains
     call WT_after_step( &
          q1,wav, &
          validate_scalar_wavelets= &
-         validate_candidate_block_scalar_wavelets)
+         validate_candidate_block_scalar_wavelets, &
+         validate_outer_vector_wavelets= &
+         validate_candidate_block_outer_vector_wavelets)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,2,3)
@@ -182,7 +187,10 @@ contains
     end if
     call WT_after_step( &
          q,wav,level_start-1, &
-         validate_candidate_block_scalar_wavelets)
+         validate_scalar_wavelets= &
+         validate_candidate_block_scalar_wavelets, &
+         validate_outer_vector_wavelets= &
+         validate_candidate_block_outer_vector_wavelets)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if
@@ -229,7 +237,9 @@ contains
     call WT_after_step( &
          q1,wav, &
          validate_scalar_wavelets= &
-         validate_candidate_block_scalar_wavelets)
+         validate_candidate_block_scalar_wavelets, &
+         validate_outer_vector_wavelets= &
+         validate_candidate_block_outer_vector_wavelets)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,1,4)
@@ -249,7 +259,9 @@ contains
     call WT_after_step( &
          q1,wav, &
          validate_scalar_wavelets= &
-         validate_candidate_block_scalar_wavelets)
+         validate_candidate_block_scalar_wavelets, &
+         validate_outer_vector_wavelets= &
+         validate_candidate_block_outer_vector_wavelets)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,2,4)
@@ -269,7 +281,9 @@ contains
     call WT_after_step( &
          q1,wav, &
          validate_scalar_wavelets= &
-         validate_candidate_block_scalar_wavelets)
+         validate_candidate_block_scalar_wavelets, &
+         validate_outer_vector_wavelets= &
+         validate_candidate_block_outer_vector_wavelets)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,3,4)
@@ -289,7 +303,10 @@ contains
     end if
     call WT_after_step( &
          q,wav,level_start-1, &
-         validate_candidate_block_scalar_wavelets)
+         validate_scalar_wavelets= &
+         validate_candidate_block_scalar_wavelets, &
+         validate_outer_vector_wavelets= &
+         validate_candidate_block_outer_vector_wavelets)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if

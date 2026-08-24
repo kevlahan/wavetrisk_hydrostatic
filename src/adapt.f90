@@ -1,8 +1,9 @@
 module adapt_mod
   use kind_mod,         only : dp
   
-  use shared_mod,       only : ADJZONE, EDGE, level_start, level_end, N_BDRY, n_node_old, n_patch_old, NONE, &
-       scalars, S_VELO, z_null
+  use shared_mod,       only : ADJZONE, EDGE, level_start, level_end, &
+       N_BDRY, N_VARIABLE, n_node_old, n_patch_old, NONE, &
+       scalars, S_VELO, z_null, zlevels
   
   use arch_mod,         only : rank
   use comm_mpi_mod,     only : update_bdry
@@ -34,6 +35,24 @@ module adapt_mod
   interface WT_after_scalar
      procedure :: WT_after_scalar_0, WT_after_scalar_1
   end interface WT_after_scalar
+
+  abstract interface
+     subroutine Scalar_Wavelet_Validator (scaling,first_level)
+       import :: Float_Field, N_VARIABLE, zlevels
+
+       type(Float_Field), intent(in) :: &
+            scaling(1:N_VARIABLE,1:zlevels)
+       integer, intent(in) :: first_level
+     end subroutine Scalar_Wavelet_Validator
+
+     subroutine Outer_Vector_Wavelet_Validator (scaling,wavelet_level)
+       import :: Float_Field, N_VARIABLE, zlevels
+
+       type(Float_Field), intent(in) :: &
+            scaling(1:N_VARIABLE,1:zlevels)
+       integer, intent(in) :: wavelet_level
+     end subroutine Outer_Vector_Wavelet_Validator
+  end interface
 
   
 contains
@@ -223,13 +242,19 @@ contains
   end subroutine compress_vector
 
   
-  subroutine WT_after_step (scaling, wavelet, l_start0)
+  subroutine WT_after_step ( &
+       scaling,wavelet,l_start0,validate_scalar_wavelets, &
+       validate_outer_vector_wavelets)
     ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
     
     implicit none
     
     type(Float_Field), target,   intent(inout) :: scaling(:,:), wavelet(:,:)
     integer,           optional, intent(in)    :: l_start0
+    procedure(Scalar_Wavelet_Validator), optional :: &
+         validate_scalar_wavelets
+    procedure(Outer_Vector_Wavelet_Validator), optional :: &
+         validate_outer_vector_wavelets
 
     integer :: d, k, l, l_start, v
 
@@ -250,8 +275,8 @@ contains
 
     call update_bdry (scaling, NONE, 904)
 
-    do k = 1, size(scaling,2)
-       do l = l_start, level_end-1
+    do l = l_start, level_end-1
+       do k = 1, size(scaling,2)
           do d = 1, size(grid)
              do v = scalars(1), scalars(2)
                 scalar => scaling(v,k)%data(d)%elts
@@ -262,12 +287,26 @@ contains
              velo => scaling(S_VELO,k)%data(d)%elts
              wc_u => wavelet(S_VELO,k)%data(d)%elts
              call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
-             call apply_to_penta_d (compute_velo_wavelets_penta, grid(d), l, z_null)
              nullify (velo, wc_u)
+          end do
+       end do
+       if (present(validate_outer_vector_wavelets)) then
+          call validate_outer_vector_wavelets(scaling,l)
+       end if
+       do k = 1, size(scaling,2)
+          do d = 1,size(grid)
+             velo => scaling(S_VELO,k)%data(d)%elts
+             wc_u => wavelet(S_VELO,k)%data(d)%elts
+             call apply_to_penta_d( &
+                  compute_velo_wavelets_penta,grid(d),l,z_null)
+             nullify(velo,wc_u)
           end do
           wavelet(:,k)%bdry_uptodate = .false.
        end do
     end do
+    if (present(validate_scalar_wavelets)) then
+       call validate_scalar_wavelets(scaling,l_start)
+    end if
     call compress_wavelets (wavelet)
     call inverse_wavelet_transform (wavelet, scaling)
   end subroutine WT_after_step

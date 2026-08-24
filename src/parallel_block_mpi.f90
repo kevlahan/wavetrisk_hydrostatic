@@ -8,7 +8,7 @@ module parallel_block_mpi_mod
        MPI_SUM
 
   use kind_mod,   only : dp
-  use shared_mod, only : bfly_no2, nghb_pt, hex_sides, &
+  use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
        hex_s_offs, &
        DG, EAST, EDGE, NORTH, NORTHEAST, NORTHWEST, N_BDRY, &
        N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, &
@@ -163,7 +163,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
-  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 36
+  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 45
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
   integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
   integer, parameter :: BLOCK_SCALAR_ACTIVE_INDEX = 8
@@ -178,6 +178,11 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_SCALAR_NATIVE_DSCALAR_INDEX = 34
   integer, parameter :: BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX = 35
   integer, parameter :: BLOCK_SCALAR_WAVELET_MASK_INDEX = 36
+  integer, parameter :: BLOCK_VECTOR_WAVELET_WEIGHT_START = 37
+
+  real(dp), parameter :: BLOCK_IU_BASE_WEIGHT(9) = [ &
+       16.0_dp,-1.0_dp,1.0_dp,1.0_dp,-1.0_dp, &
+       -1.0_dp,-1.0_dp,1.0_dp,1.0_dp]/16.0_dp
 
   abstract interface
      function Block_Scalar_Physics_Flux ( &
@@ -551,6 +556,14 @@ module parallel_block_mpi_mod
      integer(int64) :: produced_count = 0_int64
   end type Block_Scalar_Wavelet_Context
 
+  type :: Block_Outer_Vector_Wavelet_Context
+     integer :: wavelet_level = -1
+     integer(int64) :: parent_patch_count = 0_int64
+     integer(int64) :: candidate_count = 0_int64
+     integer(int64) :: active_count = 0_int64
+     integer(int64) :: compared_count = 0_int64
+  end type Block_Outer_Vector_Wavelet_Context
+
   type :: Block_Scalar_Restriction_Cursor
      integer :: target_level = -1
      integer :: catalog_index = 0
@@ -619,6 +632,7 @@ module parallel_block_mpi_mod
   public :: refresh_parallel_block_trend_boundary_state
   public :: refresh_parallel_block_candidate_boundary_state
   public :: validate_candidate_block_scalar_wavelets
+  public :: validate_candidate_block_outer_vector_wavelets
   public :: refresh_parallel_block_domain_prognostic_state
   public :: check_domain_trend_roundtrip
   public :: import_domain_trend_to_block_tendency
@@ -6408,6 +6422,427 @@ end subroutine build_parallel_block_catalog
   end subroutine refresh_parallel_block_candidate_boundary_state
 
 
+  subroutine validate_candidate_block_outer_vector_wavelets ( &
+       domain_scaling,wavelet_level)
+    ! Compare the regular outer-edge velocity wavelets after every field
+    ! level has been evaluated but before pentagon corrections are applied.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: wavelet_level
+
+    integer :: candidate_stage
+    integer :: candidate_stage_count
+    integer :: ierr
+
+    integer(int64) :: count_global(4)
+    integer(int64) :: count_local(4)
+    integer(int64) :: restriction_allocation_before
+    integer(int64) :: scalar_allocation_before
+    integer(int64) :: writeback_allocation_before
+    integer(int64) :: writeback_before
+
+    logical :: checkpoint_ready
+    logical :: has_candidates
+    logical :: state_ready
+
+    character(len=3) :: scheme_name
+
+    type(Block_Outer_Vector_Wavelet_Context) :: statistics
+
+    candidate_stage = production_multistage_candidate_stage
+    candidate_stage_count = &
+         production_multistage_candidate_stage_count
+    if (candidate_stage_count == 0) return
+
+    ! The accepted transform also evaluates level_start-1 after Restrict_velo.
+    ! Native production of that coarse velocity is intentionally deferred.
+    if (wavelet_level < level_start) return
+    if (wavelet_level > level_end-1) then
+       call fail("outer vector-wavelet level is invalid")
+    end if
+
+    state_ready = parallel_block_state_is_ready()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (.not. state_ready .or. .not. checkpoint_ready) then
+       call fail("outer vector-wavelet transaction is not ready")
+    end if
+    if (candidate_stage < candidate_stage_count) then
+       if (.not. block_writeback_plan%native_stage_ready) then
+          call fail("outer vector-wavelet native snapshot is not ready")
+       end if
+    else
+       if (.not. production_multistage_final_snapshot_consumed .or. &
+            block_writeback_plan%native_stage_ready) then
+          call fail("accepted outer vector-wavelet snapshot is invalid")
+       end if
+    end if
+    if (.not. block_scalar_divergence_plan%ready .or. &
+         .not. allocated(block_scalar_tendency)) then
+       call fail("outer vector-wavelet geometry is not ready")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    scalar_allocation_before = block_scalar_tendency_allocations
+    restriction_allocation_before = &
+         block_scalar_restriction_exchange%allocations
+    writeback_before = block_domain_production_writeback_count()
+
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.false.,domain_scaling)
+    call refresh_block_sol_ghosts
+    call import_domain_field_family_to_blocks( &
+         BLOCK_PAYLOAD_WAV_COEFF,preserve_checkpoint=.true.)
+
+    statistics%wavelet_level = wavelet_level
+    call apply_local_block_field_consumer( &
+         compare_block_outer_vector_wavelets,statistics)
+
+    count_local = [statistics%parent_patch_count, &
+         statistics%candidate_count,statistics%active_count, &
+         statistics%compared_count]
+    call MPI_Allreduce(count_local,count_global,size(count_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce outer vector-wavelet coverage")
+    has_candidates = count_global(2) > 0_int64
+    if (has_candidates) then
+       if (count_global(1) <= 0_int64) then
+          call fail("outer vector-wavelet parent coverage is empty")
+       end if
+    else if (count_global(3) /= 0_int64 .or. &
+         count_global(4) /= 0_int64) then
+       call fail("empty outer vector-wavelet level has active coverage")
+    end if
+    if (count_global(3) /= count_global(4)) then
+       call fail("outer vector-wavelet comparison coverage differs")
+    end if
+
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (.not. checkpoint_ready) then
+       call fail("outer vector-wavelet lost RK transaction state")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before .or. &
+         block_scalar_tendency_allocations /= scalar_allocation_before .or. &
+         block_scalar_restriction_exchange%allocations /= &
+         restriction_allocation_before) then
+       call fail("outer vector-wavelet reallocated persistent storage")
+    end if
+    if (block_domain_production_writeback_count() /= writeback_before) then
+       call fail("outer vector-wavelet modified Domain fields")
+    end if
+
+    if (candidate_stage_count == 3) then
+       scheme_name = "RK3"
+    else
+       scheme_name = "RK4"
+    end if
+    if (rank == 0) then
+       if (has_candidates) then
+          write(6,'(a,a,a,i0,a,i0,a,i0)') &
+               "  block-native ",scheme_name, &
+               " outer vector wavelet shadow passed: stage = ", &
+               candidate_stage," of ",candidate_stage_count, &
+               ", level = ",wavelet_level
+       else
+          write(6,'(a,a,a,i0,a,i0,a,i0)') &
+               "  block-native ",scheme_name, &
+               " outer vector wavelet shadow has no co-resident pairs: ", &
+               candidate_stage," of ",candidate_stage_count, &
+               ", level = ",wavelet_level
+       end if
+    end if
+
+  end subroutine validate_candidate_block_outer_vector_wavelets
+
+
+  subroutine compare_block_outer_vector_wavelets ( &
+       catalog_index,block,context)
+    ! Reproduce the nine-edge Interp_outer_velo stencil and its paired
+    ! antisymmetric coefficient for every regular parent-child cell.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: c
+    integer :: child
+    integer :: e
+    integer :: i
+    integer :: i_chd
+    integer :: i_par
+    integer :: j
+    integer :: j_chd
+    integer :: j_par
+    integer :: level_slot
+    integer :: local_index
+    integer :: p
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency)) then
+       call fail("outer vector-wavelet comparison block is invalid")
+    end if
+    if (.not. block_scalar_tendency(local_index)%ready .or. &
+         block_scalar_tendency(local_index)%catalog_index /= &
+         catalog_index) then
+       call fail("outer vector-wavelet geometry block is stale")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Outer_Vector_Wavelet_Context)
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level /= statistics%wavelet_level) cycle
+          statistics%parent_patch_count = &
+               statistics%parent_patch_count + 1_int64
+          do c = 1,N_CHDRN
+             child = block%patch(p)%children(c)
+             if (child == 0) cycle
+             if (child < 0 .or. child >= size(block%patch)) then
+                call fail("outer vector-wavelet child patch is invalid")
+             end if
+             if (block%patch(child+1)%level /= &
+                  block%patch(p)%level+1) then
+                call fail("outer vector-wavelet child level is invalid")
+             end if
+             do level_slot = 1,block%n_field_level
+                if (block%field_level+level_slot-1 < 1 .or. &
+                     block%field_level+level_slot-1 > zlevels) cycle
+                do j = 1,PATCH_SIZE/2
+                   j_chd = 2*(j-1)
+                   j_par = j-1+chd_offs(2,c)
+                   do i = 1,PATCH_SIZE/2
+                      i_chd = 2*(i-1)
+                      i_par = i-1+chd_offs(1,c)
+                      do e = RT,UP
+                         call compare_outer_pair(statistics)
+                      end do
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("outer vector-wavelet comparison context is invalid")
+    end select
+
+  contains
+
+    subroutine compare_outer_pair (stats)
+
+      implicit none
+
+      type(Block_Outer_Vector_Wavelet_Context), intent(inout) :: stats
+
+      integer :: companion_i
+      integer :: companion_j
+      integer :: target_i
+      integer :: target_j
+
+      real(dp) :: allowed
+      real(dp) :: companion_reference
+      real(dp) :: mask_value
+      real(dp) :: native_value
+      real(dp) :: operation_scale
+      real(dp) :: reference_value
+
+      companion_i = i_chd+end_pt(1,1,e+1)
+      companion_j = j_chd+end_pt(2,1,e+1)
+      target_i = i_chd+end_pt(1,2,e+1)
+      target_j = j_chd+end_pt(2,2,e+1)
+      stats%candidate_count = stats%candidate_count + 2_int64
+      mask_value = block_scalar_record_value( &
+           block,local_index,child+1,0,level_slot,target_i,target_j, &
+           BLOCK_SCALAR_EDGE_MASK_START+e)
+      reference_value = block_vector_family_value( &
+           block,local_index,child+1,level_slot,target_i,target_j,e, &
+           BLOCK_PAYLOAD_WAV_COEFF)
+      companion_reference = block_vector_family_value( &
+           block,local_index,child+1,level_slot, &
+           companion_i,companion_j,e,BLOCK_PAYLOAD_WAV_COEFF)
+      if (mask_value < real(ADJZONE,dp)) then
+         if (abs(reference_value) > 0.0_dp .or. &
+              abs(companion_reference) > 0.0_dp) then
+            call report_outer_vector_wavelet_mismatch( &
+                 "inactive outer vector wavelet is not zero", &
+                 target_i,target_j,companion_i,companion_j, &
+                 0.0_dp,reference_value,companion_reference,0.0_dp)
+         end if
+         return
+      end if
+
+      stats%active_count = stats%active_count + 2_int64
+      native_value = compute_block_outer_vector_wavelet( &
+           block,local_index,p,child+1,level_slot,i_par,j_par, &
+           i_chd,j_chd,e,operation_scale)
+      allowed = 64.0_dp*epsilon(1.0_dp)*max( &
+           1.0_dp,abs(native_value),abs(reference_value), &
+           abs(companion_reference),operation_scale)
+      if (abs(native_value-reference_value) > allowed .or. &
+           abs(native_value+companion_reference) > allowed) then
+         call report_outer_vector_wavelet_mismatch( &
+              "block-native outer vector wavelet differs", &
+              target_i,target_j,companion_i,companion_j,native_value, &
+              reference_value,companion_reference,allowed)
+      end if
+      stats%compared_count = stats%compared_count + 2_int64
+
+    end subroutine compare_outer_pair
+
+
+    subroutine report_outer_vector_wavelet_mismatch ( &
+         message,target_i,target_j,companion_i,companion_j,native_value, &
+         reference_value,companion_reference,allowed)
+
+      implicit none
+
+      character(len=*), intent(in) :: message
+      integer, intent(in) :: target_i
+      integer, intent(in) :: target_j
+      integer, intent(in) :: companion_i
+      integer, intent(in) :: companion_j
+      real(dp), intent(in) :: native_value
+      real(dp), intent(in) :: reference_value
+      real(dp), intent(in) :: companion_reference
+      real(dp), intent(in) :: allowed
+
+      write(error_unit,'(/,a,i0,a,a)') &
+           "Rank ",rank,": ",trim(message)
+      write(error_unit,'(a,i0,a,i0,a,i0)') &
+           "  catalog block = ",catalog_index, &
+           ", block id = ",block%id,", parent patch = ",p
+      write(error_unit,'(a,i0,a,i0,a,i0)') &
+           "  level = ",block%patch(p)%level, &
+           ", child = ",c,", child patch = ",child+1
+      write(error_unit,'(a,i0,a,i0,a,i0)') &
+           "  field-level slot = ",level_slot, &
+           ", physical level = ",block%field_level+level_slot-1, &
+           ", edge = ",e
+      write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+           "  target coordinates = ",target_i,", ",target_j, &
+           "; companion coordinates = ",companion_i,", ",companion_j
+      write(error_unit,'(a,4(es24.16,1x))') &
+           "  native, reference, companion, allowed = ", &
+           native_value,reference_value,companion_reference,allowed
+      flush(error_unit)
+      call fail("outer vector-wavelet shadow comparison failed")
+
+    end subroutine report_outer_vector_wavelet_mismatch
+
+  end subroutine compare_block_outer_vector_wavelets
+
+
+  real(dp) function compute_block_outer_vector_wavelet ( &
+       block,local_index,parent,child,level_slot,i_par,j_par, &
+       i_chd,j_chd,e,operation_scale) result(value)
+    ! Exact block form of Interp_outer_velo for one fine outer edge.
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: parent
+    integer, intent(in) :: child
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i_par
+    integer, intent(in) :: j_par
+    integer, intent(in) :: i_chd
+    integer, intent(in) :: j_chd
+    integer, intent(in) :: e
+    real(dp), intent(out) :: operation_scale
+
+    integer :: i
+    integer :: target_i
+    integer :: target_j
+
+    real(dp) :: source_value(9)
+    real(dp) :: target_value
+    real(dp) :: weight(9)
+
+    target_i = i_chd+end_pt(1,2,e+1)
+    target_j = j_chd+end_pt(2,2,e+1)
+    source_value(1) = block_vector_family_value( &
+         block,local_index,parent,level_slot,i_par,j_par,e, &
+         BLOCK_PAYLOAD_SOL)
+    source_value(2) = side_edge_value( &
+         i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+         hex_s_offs(e+1)+3)
+    source_value(3) = side_edge_value( &
+         i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+         hex_s_offs(e+1)+4)
+    source_value(4) = side_edge_value( &
+         i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+         hex_s_offs(e+1)+6)
+    source_value(5) = side_edge_value( &
+         i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+         hex_s_offs(e+1)+1)
+    source_value(6) = side_edge_value( &
+         i_par+opp_no(1,1,e+1),j_par+opp_no(2,1,e+1), &
+         hex_s_offs(e+1)+2)-side_edge_value( &
+         i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+         hex_s_offs(e+1)+3)
+    source_value(7) = side_edge_value( &
+         i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+         hex_s_offs(e+1)+4)-side_edge_value( &
+         i_par+opp_no(1,1,e+1),j_par+opp_no(2,1,e+1), &
+         hex_s_offs(e+1)+5)
+    source_value(8) = side_edge_value( &
+         i_par+opp_no(1,2,e+1),j_par+opp_no(2,2,e+1), &
+         hex_s_offs(e+1)+5)-side_edge_value( &
+         i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
+         hex_s_offs(e+1)+6)
+    source_value(9) = side_edge_value( &
+         i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
+         hex_s_offs(e+1)+1)-side_edge_value( &
+         i_par+opp_no(1,2,e+1),j_par+opp_no(2,2,e+1), &
+         hex_s_offs(e+1)+2)
+    weight = BLOCK_IU_BASE_WEIGHT
+    weight = weight + [ (block_scalar_record_value( &
+         block,local_index,child,0,level_slot,target_i,target_j, &
+         BLOCK_VECTOR_WAVELET_WEIGHT_START+i),i=0,8) ]
+    target_value = block_vector_family_value( &
+         block,local_index,child,level_slot,target_i,target_j,e, &
+         BLOCK_PAYLOAD_SOL)
+    value = target_value-sum(weight*source_value)
+    operation_scale = abs(target_value)+sum(abs(weight*source_value))
+
+  contains
+
+    real(dp) function side_edge_value (base_i,base_j,side_index) &
+         result(edge_value)
+
+      implicit none
+
+      integer, intent(in) :: base_i
+      integer, intent(in) :: base_j
+      integer, intent(in) :: side_index
+
+      integer :: edge_component
+      integer :: edge_i
+      integer :: edge_j
+
+      if (side_index < 1 .or. side_index > size(hex_sides,2)) then
+         call fail("outer vector-wavelet side index is invalid")
+      end if
+      edge_i = base_i+hex_sides(1,side_index)
+      edge_j = base_j+hex_sides(2,side_index)
+      edge_component = hex_sides(3,side_index)
+      edge_value = block_vector_family_value( &
+           block,local_index,parent,level_slot,edge_i,edge_j, &
+           edge_component,BLOCK_PAYLOAD_SOL)
+
+    end function side_edge_value
+
+  end function compute_block_outer_vector_wavelet
+
+
   subroutine validate_candidate_block_scalar_wavelets ( &
        domain_scaling,first_level)
     ! Evaluate each RK-candidate scalar wavelet stencil directly from retained
@@ -6890,6 +7325,7 @@ end subroutine build_parallel_block_catalog
     integer :: record
     integer :: storage_class
 
+    value = 0.0_dp
     if (scalar_slot < 0 .or. &
          scalar_slot >= block%n_scalar_variable .or. &
          level_slot < 1 .or. level_slot > block%n_field_level) then
@@ -6958,6 +7394,95 @@ end subroutine build_parallel_block_catalog
     end if
 
   end function block_scalar_family_value
+
+
+  real(dp) function block_vector_family_value ( &
+       block,local_index,p,level_slot,i,j,e,payload_family) result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: e
+    integer, intent(in) :: payload_family
+
+    integer :: field_index
+    integer :: n_storage_node
+    integer :: node
+    integer :: node_index
+    integer :: record
+    integer :: storage_class
+
+    value = 0.0_dp
+    if (block%vector_mult /= EDGE .or. &
+         level_slot < 1 .or. level_slot > block%n_field_level .or. &
+         e < RT .or. e > UP) then
+       call fail("vector-wavelet field slot is invalid")
+    end if
+    if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+         payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+       call fail("vector-wavelet field family is invalid")
+    end if
+    call locate_block_scalar_record( &
+         block,local_index,p,i,j,storage_class,record,node)
+    select case (storage_class)
+    case (STORE_PATCH)
+       if (record < 0 .or. record >= size(block%patch)) then
+          call fail("vector-wavelet patch record is invalid")
+       end if
+       n_storage_node = size(block%node)
+       node_index = block%patch(record+1)%elts_start+node
+       field_index = (level_slot-1)*EDGE*n_storage_node + &
+            EDGE*node_index+e+1
+       if (field_index < 1 .or. field_index > size(block%vector)) then
+          call fail("vector-wavelet patch field is invalid")
+       end if
+       if (payload_family == BLOCK_PAYLOAD_SOL) then
+          value = block%vector(field_index)
+       else
+          value = block%wavelet_vector(field_index)
+       end if
+    case (STORE_BDRY)
+       n_storage_node = size(block%bdry_node)
+       node_index = node
+       field_index = (level_slot-1)*EDGE*n_storage_node + &
+            EDGE*node_index+e+1
+       if (field_index < 1 .or. &
+            field_index > size(block%bdry_vector)) then
+          call fail("vector-wavelet boundary field is invalid")
+       end if
+       if (payload_family == BLOCK_PAYLOAD_SOL) then
+          value = block%bdry_vector(field_index)
+       else
+          value = block%bdry_wavelet_vector(field_index)
+       end if
+    case (STORE_GHOST)
+       n_storage_node = size(block%ghost_node)
+       node_index = node
+       field_index = (level_slot-1)*EDGE*n_storage_node + &
+            EDGE*node_index+e+1
+       if (field_index < 1 .or. &
+            field_index > size(block%ghost_vector)) then
+          call fail("vector-wavelet ghost field is invalid")
+       end if
+       if (payload_family == BLOCK_PAYLOAD_SOL) then
+          value = block%ghost_vector(field_index)
+       else
+          value = block%ghost_wavelet_vector(field_index)
+       end if
+    case default
+       call fail("vector-wavelet storage class is invalid")
+    end select
+
+    if (.not. ieee_is_finite(value)) then
+       call fail("vector-wavelet field value is non-finite")
+    end if
+
+  end function block_vector_family_value
 
 
   subroutine assert_candidate_block_hydrostatic_match (domain_sol)
@@ -8184,6 +8709,9 @@ end subroutine build_parallel_block_catalog
                  1.0_dp,0.0_dp,grid(d)%mask_n%elts(id+1) >= TRSK)
             value(BLOCK_SCALAR_WAVELET_MASK_INDEX) = &
                  real(grid(d)%mask_n%elts(id+1),dp)
+            value(BLOCK_VECTOR_WAVELET_WEIGHT_START: &
+                 BLOCK_VECTOR_WAVELET_WEIGHT_START+8) = &
+                 real(grid(d)%I_u_wgt%elts(id+1)%enc,dp)
             value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
                  BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
                  horiz_flux(scalar_id)%data(d)%elts( &
@@ -8495,6 +9023,9 @@ end subroutine build_parallel_block_catalog
               1.0_dp,0.0_dp,grid(d)%mask_n%elts(id+1) >= TRSK)
          value(BLOCK_SCALAR_WAVELET_MASK_INDEX) = &
               real(grid(d)%mask_n%elts(id+1),dp)
+         value(BLOCK_VECTOR_WAVELET_WEIGHT_START: &
+              BLOCK_VECTOR_WAVELET_WEIGHT_START+8) = &
+              real(grid(d)%I_u_wgt%elts(id+1)%enc,dp)
          value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
               BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
               horiz_flux(scalar_id)%data(d)%elts( &
