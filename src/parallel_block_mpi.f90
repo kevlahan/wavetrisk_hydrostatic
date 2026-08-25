@@ -10,8 +10,8 @@ module parallel_block_mpi_mod
   use kind_mod,   only : dp
   use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
        hex_s_offs, &
-       DG, EAST, EDGE, NORTH, NORTHEAST, NORTHWEST, N_BDRY, &
-       N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, &
+       AT_EDGE, DG, EAST, EDGE, NORTH, NORTHEAST, NORTHWEST, N_BDRY, &
+       N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, n_domain, &
        SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
        MM, MP, PM, PP, UMZ, UPZ, UZM, UZP, VMM, VMPP, VMP, &
        VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
@@ -21,7 +21,7 @@ module parallel_block_mpi_mod
        level_start, p_0, p_top, zlevels
 
   use domain_mod, only : chd_offs, Domain, Float_Field, &
-       get_offs_Domain, grid, &
+       ed_idx, get_bdry_dims_Domain, get_offs_Domain, grid, &
        horiz_flux, &
        idx, sol, sol_mean, tke, &
        topography, trend, &
@@ -271,6 +271,44 @@ module parallel_block_mpi_mod
   end type Block_Ghost_Exchange_Plan
 
   type(Block_Ghost_Exchange_Plan), save :: ghost_exchange_plan
+
+  type :: Staged_Coarse_Vector_Boundary_Plan_Type
+     integer :: coarse_level = -1
+     integer :: n_field_level = 0
+     integer :: n_send = 0
+     integer :: n_recv = 0
+     integer :: n_local = 0
+     integer, allocatable :: send_count(:)
+     integer, allocatable :: recv_count(:)
+     integer, allocatable :: send_displ(:)
+     integer, allocatable :: recv_displ(:)
+     integer, allocatable :: send_domain(:)
+     integer, allocatable :: send_id(:)
+     integer, allocatable :: recv_domain(:)
+     integer, allocatable :: recv_id(:)
+     integer, allocatable :: local_source_domain(:)
+     integer, allocatable :: local_source_id(:)
+     integer, allocatable :: local_destination_domain(:)
+     integer, allocatable :: local_destination_id(:)
+     integer, allocatable :: domain_edge_displ(:)
+     integer, allocatable :: boundary_lookup(:)
+     logical, allocatable :: source_produced(:)
+     integer, allocatable :: send_produced_buffer(:)
+     integer, allocatable :: recv_produced_buffer(:)
+     integer, allocatable :: boundary_produced(:)
+     real(dp), allocatable :: send_buffer(:)
+     real(dp), allocatable :: recv_buffer(:)
+     real(dp), allocatable :: boundary_value(:)
+     logical, allocatable :: retained_boundary_produced(:)
+     real(dp), allocatable :: retained_boundary_value(:)
+     integer(int64) :: allocations = 0_int64
+     integer(int64) :: exchange_count = 0_int64
+     logical :: ready = .false.
+     logical :: values_ready = .false.
+  end type Staged_Coarse_Vector_Boundary_Plan_Type
+
+  type(Staged_Coarse_Vector_Boundary_Plan_Type), save :: &
+       staged_coarse_vector_boundary_plan
 
   type :: Block_Writeback_Plan_Type
      integer :: catalog_size = 0
@@ -3139,11 +3177,91 @@ end subroutine build_parallel_block_catalog
   end subroutine check_block_ghost_exchange_plan
 
 
+  subroutine clear_staged_coarse_vector_boundary_plan
+
+    implicit none
+
+    if (allocated(staged_coarse_vector_boundary_plan%send_count)) &
+         deallocate(staged_coarse_vector_boundary_plan%send_count)
+    if (allocated(staged_coarse_vector_boundary_plan%recv_count)) &
+         deallocate(staged_coarse_vector_boundary_plan%recv_count)
+    if (allocated(staged_coarse_vector_boundary_plan%send_displ)) &
+         deallocate(staged_coarse_vector_boundary_plan%send_displ)
+    if (allocated(staged_coarse_vector_boundary_plan%recv_displ)) &
+         deallocate(staged_coarse_vector_boundary_plan%recv_displ)
+    if (allocated(staged_coarse_vector_boundary_plan%send_domain)) &
+         deallocate(staged_coarse_vector_boundary_plan%send_domain)
+    if (allocated(staged_coarse_vector_boundary_plan%send_id)) &
+         deallocate(staged_coarse_vector_boundary_plan%send_id)
+    if (allocated(staged_coarse_vector_boundary_plan%recv_domain)) &
+         deallocate(staged_coarse_vector_boundary_plan%recv_domain)
+    if (allocated(staged_coarse_vector_boundary_plan%recv_id)) &
+         deallocate(staged_coarse_vector_boundary_plan%recv_id)
+    if (allocated( &
+         staged_coarse_vector_boundary_plan%local_source_domain)) &
+         deallocate( &
+         staged_coarse_vector_boundary_plan%local_source_domain)
+    if (allocated(staged_coarse_vector_boundary_plan%local_source_id)) &
+         deallocate(staged_coarse_vector_boundary_plan%local_source_id)
+    if (allocated( &
+         staged_coarse_vector_boundary_plan%local_destination_domain)) &
+         deallocate( &
+         staged_coarse_vector_boundary_plan%local_destination_domain)
+    if (allocated( &
+         staged_coarse_vector_boundary_plan%local_destination_id)) &
+         deallocate( &
+         staged_coarse_vector_boundary_plan%local_destination_id)
+    if (allocated(staged_coarse_vector_boundary_plan%domain_edge_displ)) &
+         deallocate(staged_coarse_vector_boundary_plan%domain_edge_displ)
+    if (allocated(staged_coarse_vector_boundary_plan%boundary_lookup)) &
+         deallocate(staged_coarse_vector_boundary_plan%boundary_lookup)
+    if (allocated(staged_coarse_vector_boundary_plan%source_produced)) &
+         deallocate(staged_coarse_vector_boundary_plan%source_produced)
+    if (allocated( &
+         staged_coarse_vector_boundary_plan%send_produced_buffer)) &
+         deallocate( &
+         staged_coarse_vector_boundary_plan%send_produced_buffer)
+    if (allocated( &
+         staged_coarse_vector_boundary_plan%recv_produced_buffer)) &
+         deallocate( &
+         staged_coarse_vector_boundary_plan%recv_produced_buffer)
+    if (allocated(staged_coarse_vector_boundary_plan%boundary_produced)) &
+         deallocate(staged_coarse_vector_boundary_plan%boundary_produced)
+    if (allocated(staged_coarse_vector_boundary_plan%send_buffer)) &
+         deallocate(staged_coarse_vector_boundary_plan%send_buffer)
+    if (allocated(staged_coarse_vector_boundary_plan%recv_buffer)) &
+         deallocate(staged_coarse_vector_boundary_plan%recv_buffer)
+    if (allocated(staged_coarse_vector_boundary_plan%boundary_value)) &
+         deallocate(staged_coarse_vector_boundary_plan%boundary_value)
+    if (allocated( &
+         staged_coarse_vector_boundary_plan%retained_boundary_produced)) &
+         deallocate( &
+         staged_coarse_vector_boundary_plan%retained_boundary_produced)
+    if (allocated( &
+         staged_coarse_vector_boundary_plan%retained_boundary_value)) &
+         deallocate( &
+         staged_coarse_vector_boundary_plan%retained_boundary_value)
+
+    staged_coarse_vector_boundary_plan%coarse_level = -1
+    staged_coarse_vector_boundary_plan%n_field_level = 0
+    staged_coarse_vector_boundary_plan%n_send = 0
+    staged_coarse_vector_boundary_plan%n_recv = 0
+    staged_coarse_vector_boundary_plan%n_local = 0
+    staged_coarse_vector_boundary_plan%allocations = 0_int64
+    staged_coarse_vector_boundary_plan%exchange_count = 0_int64
+    staged_coarse_vector_boundary_plan%ready = .false.
+    staged_coarse_vector_boundary_plan%values_ready = .false.
+
+  end subroutine clear_staged_coarse_vector_boundary_plan
+
+
   subroutine clear_block_writeback_plan
     ! Release reverse-routing metadata and payload buffers before the block
     ! catalogue or installed store is invalidated.
 
     implicit none
+
+    call clear_staged_coarse_vector_boundary_plan
 
     if (allocated(block_writeback_plan%send_boundary_count)) then
        deallocate(block_writeback_plan%send_boundary_count)
@@ -3735,6 +3853,7 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%domain_count = size(grid)
     block_writeback_plan%installed_block_count = n_local_blocks()
     call build_block_domain_boundary_plan
+    call build_staged_coarse_vector_boundary_plan
     block_writeback_plan%ready = .true.
     block_writeback_plan_generation = &
          block_writeback_plan_generation + 1_int64
@@ -4061,6 +4180,860 @@ end subroutine build_parallel_block_catalog
   end subroutine build_block_domain_boundary_plan
 
 
+  subroutine build_staged_coarse_vector_boundary_plan
+    ! Build the persistent vector routes used by update_bdry at
+    ! level_start-1. Production expands that coarse request across
+    ! level_start-1:level_end, so retain the same complete route range. The
+    ! payload source is the independent block-derived stage, never the
+    ! authoritative Domain field.
+
+    implicit none
+
+    integer :: d_destination
+    integer :: d_source
+    integer :: destination
+    integer :: destination_global
+    integer :: destination_id
+    integer :: first_field_level
+    integer :: i
+    integer :: ierr
+    integer :: level
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: p
+    integer :: pos
+    integer :: r
+    integer :: source_global
+    integer :: source_id
+    integer :: total_edge
+    integer :: v_scalar
+    integer :: v_vector
+
+    integer, allocatable :: announced_recv(:)
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (v_vector /= S_VELO .or. mult_vector /= EDGE .or. &
+         n_field_level < 1) then
+       call fail("staged coarse boundary field layout is invalid")
+    end if
+
+    allocate(staged_coarse_vector_boundary_plan%send_count(n_process))
+    allocate(staged_coarse_vector_boundary_plan%recv_count(n_process))
+    allocate(staged_coarse_vector_boundary_plan%send_displ(n_process))
+    allocate(staged_coarse_vector_boundary_plan%recv_displ(n_process))
+    staged_coarse_vector_boundary_plan%send_count = 0
+    staged_coarse_vector_boundary_plan%recv_count = 0
+    staged_coarse_vector_boundary_plan%send_displ = 0
+    staged_coarse_vector_boundary_plan%recv_displ = 0
+
+    do r = 1,n_process
+       if (r == rank+1) cycle
+       do d_source = 1,size(grid)
+          do d_destination = 1,n_domain(r)
+             destination = glo_id(r,d_destination)+1
+             do i = 1,grid(d_source)%pack(AT_EDGE,destination)%length
+                source_id = grid(d_source)% &
+                     pack(AT_EDGE,destination)%elts(i)
+                level = grid(d_source)%level%elts(source_id/EDGE+1)
+                if (level >= level_start-1 .and. &
+                     level <= level_end) then
+                   staged_coarse_vector_boundary_plan%send_count(r) = &
+                        staged_coarse_vector_boundary_plan%send_count(r)+1
+                end if
+             end do
+          end do
+       end do
+    end do
+
+    do r = 1,n_process
+       if (r == rank+1) cycle
+       do d_source = 1,n_domain(r)
+          source_global = glo_id(r,d_source)+1
+          do d_destination = 1,size(grid)
+             do i = 1,grid(d_destination)% &
+                  unpk(AT_EDGE,source_global)%length
+                destination_id = abs(grid(d_destination)% &
+                     unpk(AT_EDGE,source_global)%elts(i))
+                level = grid(d_destination)%level%elts( &
+                     destination_id/EDGE+1)
+                if (level >= level_start-1 .and. &
+                     level <= level_end) then
+                   staged_coarse_vector_boundary_plan%recv_count(r) = &
+                        staged_coarse_vector_boundary_plan%recv_count(r)+1
+                end if
+             end do
+          end do
+       end do
+    end do
+
+    allocate(announced_recv(n_process))
+    call MPI_Alltoall( &
+         staged_coarse_vector_boundary_plan%send_count,1,MPI_INTEGER, &
+         announced_recv,1,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoall staged coarse boundary counts")
+    if (any(announced_recv /= &
+         staged_coarse_vector_boundary_plan%recv_count)) then
+       call fail("staged coarse boundary route counts differ")
+    end if
+    deallocate(announced_recv)
+
+    do r = 2,n_process
+       staged_coarse_vector_boundary_plan%send_displ(r) = &
+            staged_coarse_vector_boundary_plan%send_displ(r-1) + &
+            staged_coarse_vector_boundary_plan%send_count(r-1)
+       staged_coarse_vector_boundary_plan%recv_displ(r) = &
+            staged_coarse_vector_boundary_plan%recv_displ(r-1) + &
+            staged_coarse_vector_boundary_plan%recv_count(r-1)
+    end do
+    staged_coarse_vector_boundary_plan%n_send = sum( &
+         staged_coarse_vector_boundary_plan%send_count)
+    staged_coarse_vector_boundary_plan%n_recv = sum( &
+         staged_coarse_vector_boundary_plan%recv_count)
+
+    staged_coarse_vector_boundary_plan%n_local = 0
+    do d_source = 1,size(grid)
+       source_global = glo_id(rank+1,d_source)+1
+       do d_destination = 1,size(grid)
+          destination_global = glo_id(rank+1,d_destination)+1
+          if (grid(d_source)%pack(AT_EDGE,destination_global)%length /= &
+               grid(d_destination)%unpk(AT_EDGE,source_global)%length) then
+             call fail("staged local coarse boundary routes differ")
+          end if
+          do i = 1,grid(d_source)% &
+               pack(AT_EDGE,destination_global)%length
+             source_id = grid(d_source)% &
+                  pack(AT_EDGE,destination_global)%elts(i)
+             destination_id = abs(grid(d_destination)% &
+                  unpk(AT_EDGE,source_global)%elts(i))
+             level = grid(d_source)%level%elts(source_id/EDGE+1)
+             if (level /= grid(d_destination)%level%elts( &
+                  destination_id/EDGE+1)) then
+                call fail("staged local coarse boundary levels differ")
+             end if
+             if (level >= level_start-1 .and. level <= level_end) then
+                staged_coarse_vector_boundary_plan%n_local = &
+                     staged_coarse_vector_boundary_plan%n_local+1
+             end if
+          end do
+       end do
+    end do
+
+    allocate(staged_coarse_vector_boundary_plan%send_domain( &
+         max(1,staged_coarse_vector_boundary_plan%n_send)))
+    allocate(staged_coarse_vector_boundary_plan%send_id( &
+         max(1,staged_coarse_vector_boundary_plan%n_send)))
+    allocate(staged_coarse_vector_boundary_plan%recv_domain( &
+         max(1,staged_coarse_vector_boundary_plan%n_recv)))
+    allocate(staged_coarse_vector_boundary_plan%recv_id( &
+         max(1,staged_coarse_vector_boundary_plan%n_recv)))
+    allocate( &
+         staged_coarse_vector_boundary_plan%local_source_domain( &
+         max(1,staged_coarse_vector_boundary_plan%n_local)))
+    allocate(staged_coarse_vector_boundary_plan%local_source_id( &
+         max(1,staged_coarse_vector_boundary_plan%n_local)))
+    allocate( &
+         staged_coarse_vector_boundary_plan%local_destination_domain( &
+         max(1,staged_coarse_vector_boundary_plan%n_local)))
+    allocate( &
+         staged_coarse_vector_boundary_plan%local_destination_id( &
+         max(1,staged_coarse_vector_boundary_plan%n_local)))
+    staged_coarse_vector_boundary_plan%send_domain = 0
+    staged_coarse_vector_boundary_plan%send_id = 0
+    staged_coarse_vector_boundary_plan%recv_domain = 0
+    staged_coarse_vector_boundary_plan%recv_id = 0
+    staged_coarse_vector_boundary_plan%local_source_domain = 0
+    staged_coarse_vector_boundary_plan%local_source_id = 0
+    staged_coarse_vector_boundary_plan%local_destination_domain = 0
+    staged_coarse_vector_boundary_plan%local_destination_id = 0
+
+    pos = 0
+    do r = 1,n_process
+       if (r == rank+1) cycle
+       do d_source = 1,size(grid)
+          do d_destination = 1,n_domain(r)
+             destination = glo_id(r,d_destination)+1
+             do i = 1,grid(d_source)%pack(AT_EDGE,destination)%length
+                source_id = grid(d_source)% &
+                     pack(AT_EDGE,destination)%elts(i)
+                level = grid(d_source)%level%elts(source_id/EDGE+1)
+                if (level < level_start-1 .or. level > level_end) cycle
+                pos = pos+1
+                staged_coarse_vector_boundary_plan%send_domain(pos) = &
+                     d_source
+                staged_coarse_vector_boundary_plan%send_id(pos) = source_id
+             end do
+          end do
+       end do
+    end do
+    if (pos /= staged_coarse_vector_boundary_plan%n_send) then
+       call fail("staged coarse boundary send manifest differs")
+    end if
+
+    pos = 0
+    do r = 1,n_process
+       if (r == rank+1) cycle
+       do d_source = 1,n_domain(r)
+          source_global = glo_id(r,d_source)+1
+          do d_destination = 1,size(grid)
+             do i = 1,grid(d_destination)% &
+                  unpk(AT_EDGE,source_global)%length
+                destination_id = grid(d_destination)% &
+                     unpk(AT_EDGE,source_global)%elts(i)
+                level = grid(d_destination)%level%elts( &
+                     abs(destination_id)/EDGE+1)
+                if (level < level_start-1 .or. level > level_end) cycle
+                pos = pos+1
+                staged_coarse_vector_boundary_plan%recv_domain(pos) = &
+                     d_destination
+                staged_coarse_vector_boundary_plan%recv_id(pos) = &
+                     destination_id
+             end do
+          end do
+       end do
+    end do
+    if (pos /= staged_coarse_vector_boundary_plan%n_recv) then
+       call fail("staged coarse boundary receive manifest differs")
+    end if
+
+    pos = 0
+    do d_source = 1,size(grid)
+       source_global = glo_id(rank+1,d_source)+1
+       do d_destination = 1,size(grid)
+          destination_global = glo_id(rank+1,d_destination)+1
+          do i = 1,grid(d_source)% &
+               pack(AT_EDGE,destination_global)%length
+             source_id = grid(d_source)% &
+                  pack(AT_EDGE,destination_global)%elts(i)
+             level = grid(d_source)%level%elts(source_id/EDGE+1)
+             if (level < level_start-1 .or. level > level_end) cycle
+             pos = pos+1
+             staged_coarse_vector_boundary_plan% &
+                  local_source_domain(pos) = d_source
+             staged_coarse_vector_boundary_plan% &
+                  local_source_id(pos) = source_id
+             staged_coarse_vector_boundary_plan% &
+                  local_destination_domain(pos) = d_destination
+             staged_coarse_vector_boundary_plan% &
+                  local_destination_id(pos) = grid(d_destination)% &
+                  unpk(AT_EDGE,source_global)%elts(i)
+          end do
+       end do
+    end do
+    if (pos /= staged_coarse_vector_boundary_plan%n_local) then
+       call fail("staged local coarse boundary manifest differs")
+    end if
+
+    allocate(staged_coarse_vector_boundary_plan%domain_edge_displ( &
+         size(grid)+1))
+    staged_coarse_vector_boundary_plan%domain_edge_displ(1) = 0
+    do d_destination = 1,size(grid)
+       total_edge = EDGE*grid(d_destination)%node%length
+       staged_coarse_vector_boundary_plan% &
+            domain_edge_displ(d_destination+1) = &
+            staged_coarse_vector_boundary_plan% &
+            domain_edge_displ(d_destination)+total_edge
+    end do
+    total_edge = staged_coarse_vector_boundary_plan% &
+         domain_edge_displ(size(grid)+1)
+    allocate(staged_coarse_vector_boundary_plan%boundary_lookup( &
+         max(1,total_edge)))
+    staged_coarse_vector_boundary_plan%boundary_lookup = 0
+    allocate(staged_coarse_vector_boundary_plan%source_produced( &
+         max(1,total_edge*n_field_level)))
+    staged_coarse_vector_boundary_plan%source_produced = .false.
+    do p = 1,staged_coarse_vector_boundary_plan%n_recv
+       d_destination = staged_coarse_vector_boundary_plan%recv_domain(p)
+       destination_id = abs( &
+            staged_coarse_vector_boundary_plan%recv_id(p))
+       i = staged_coarse_vector_boundary_plan% &
+            domain_edge_displ(d_destination)+destination_id+1
+       if (i < 1 .or. i > total_edge) then
+          call fail("staged coarse boundary receive lookup is invalid")
+       end if
+       staged_coarse_vector_boundary_plan%boundary_lookup(i) = p
+    end do
+    do p = 1,staged_coarse_vector_boundary_plan%n_local
+       d_destination = staged_coarse_vector_boundary_plan% &
+            local_destination_domain(p)
+       destination_id = abs(staged_coarse_vector_boundary_plan% &
+            local_destination_id(p))
+       i = staged_coarse_vector_boundary_plan% &
+            domain_edge_displ(d_destination)+destination_id+1
+       if (i < 1 .or. i > total_edge) then
+          call fail("staged local coarse boundary lookup is invalid")
+       end if
+       staged_coarse_vector_boundary_plan%boundary_lookup(i) = &
+            staged_coarse_vector_boundary_plan%n_recv+p
+    end do
+
+    allocate(staged_coarse_vector_boundary_plan%send_buffer(max(1, &
+         n_field_level*staged_coarse_vector_boundary_plan%n_send)))
+    allocate(staged_coarse_vector_boundary_plan%recv_buffer(max(1, &
+         n_field_level*staged_coarse_vector_boundary_plan%n_recv)))
+    allocate(staged_coarse_vector_boundary_plan%boundary_value(max(1, &
+         n_field_level*(staged_coarse_vector_boundary_plan%n_recv + &
+         staged_coarse_vector_boundary_plan%n_local))))
+    allocate(staged_coarse_vector_boundary_plan%send_produced_buffer( &
+         max(1,n_field_level* &
+         staged_coarse_vector_boundary_plan%n_send)))
+    allocate(staged_coarse_vector_boundary_plan%recv_produced_buffer( &
+         max(1,n_field_level* &
+         staged_coarse_vector_boundary_plan%n_recv)))
+    allocate(staged_coarse_vector_boundary_plan%boundary_produced( &
+         max(1,n_field_level*( &
+         staged_coarse_vector_boundary_plan%n_recv + &
+         staged_coarse_vector_boundary_plan%n_local))))
+    allocate( &
+         staged_coarse_vector_boundary_plan%retained_boundary_produced( &
+         max(1,n_field_level*total_edge)))
+    allocate(staged_coarse_vector_boundary_plan%retained_boundary_value( &
+         max(1,n_field_level*total_edge)))
+    staged_coarse_vector_boundary_plan%send_buffer = 0.0_dp
+    staged_coarse_vector_boundary_plan%recv_buffer = 0.0_dp
+    staged_coarse_vector_boundary_plan%boundary_value = 0.0_dp
+    staged_coarse_vector_boundary_plan%send_produced_buffer = 0
+    staged_coarse_vector_boundary_plan%recv_produced_buffer = 0
+    staged_coarse_vector_boundary_plan%boundary_produced = 0
+    staged_coarse_vector_boundary_plan%retained_boundary_produced = .false.
+    staged_coarse_vector_boundary_plan%retained_boundary_value = 0.0_dp
+    staged_coarse_vector_boundary_plan%coarse_level = level_start-1
+    staged_coarse_vector_boundary_plan%n_field_level = n_field_level
+    staged_coarse_vector_boundary_plan%allocations = 23_int64
+    staged_coarse_vector_boundary_plan%exchange_count = 0_int64
+    staged_coarse_vector_boundary_plan%ready = .true.
+    staged_coarse_vector_boundary_plan%values_ready = .false.
+
+  end subroutine build_staged_coarse_vector_boundary_plan
+
+
+  subroutine exchange_staged_coarse_vector_boundaries ( &
+       coarse_level,n_field_level)
+    ! Exchange the independently restricted coarse vector stage through the
+    ! exact update_bdry pack/unpack routes, including edge sign reversals.
+
+    implicit none
+
+    integer, intent(in) :: coarse_level
+    integer, intent(in) :: n_field_level
+
+    integer :: d
+    integer :: destination_id
+    integer :: field_level
+    integer :: first_field_level
+    integer :: ierr
+    integer :: level_slot
+    integer :: layout_n_field_level
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_scalar_variable
+    integer :: p
+    integer :: source_id
+    integer :: v_scalar
+    integer :: v_vector
+
+    integer :: recv_value_count(n_process)
+    integer :: recv_value_displ(n_process)
+    integer :: send_value_count(n_process)
+    integer :: send_value_displ(n_process)
+
+    integer(int64) :: count_global(2)
+    integer(int64) :: count_local(2)
+
+    real(dp) :: allowed
+    real(dp) :: reference_value
+    real(dp) :: staged_value
+
+    if (.not. staged_coarse_vector_boundary_plan%ready .or. &
+         staged_coarse_vector_boundary_plan%coarse_level /= &
+         coarse_level .or. &
+         staged_coarse_vector_boundary_plan%n_field_level /= &
+         n_field_level) then
+       call fail("staged coarse boundary exchange plan is invalid")
+    end if
+    if (coarse_level /= level_start-1 .or. &
+         production_velocity_restriction_level /= coarse_level) then
+       call fail("staged coarse boundary exchange source is not ready")
+    end if
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         layout_n_field_level,mult_scalar,mult_vector)
+    if (v_vector /= S_VELO .or. mult_vector /= EDGE .or. &
+         layout_n_field_level /= n_field_level) then
+       call fail("staged coarse boundary exchange layout differs")
+    end if
+
+    staged_coarse_vector_boundary_plan%values_ready = .false.
+    staged_coarse_vector_boundary_plan%send_buffer = 0.0_dp
+    staged_coarse_vector_boundary_plan%recv_buffer = 0.0_dp
+    staged_coarse_vector_boundary_plan%boundary_value = 0.0_dp
+    staged_coarse_vector_boundary_plan%send_produced_buffer = 0
+    staged_coarse_vector_boundary_plan%recv_produced_buffer = 0
+    staged_coarse_vector_boundary_plan%boundary_produced = 0
+    staged_coarse_vector_boundary_plan%retained_boundary_produced = .false.
+    staged_coarse_vector_boundary_plan%retained_boundary_value = 0.0_dp
+
+    call capture_retained_staged_vector_boundaries
+    do p = 1,staged_coarse_vector_boundary_plan%n_send
+       d = staged_coarse_vector_boundary_plan%send_domain(p)
+       source_id = staged_coarse_vector_boundary_plan%send_id(p)
+       do level_slot = 1,n_field_level
+          staged_coarse_vector_boundary_plan%send_buffer( &
+               (p-1)*n_field_level+level_slot) = &
+               staged_coarse_source_vector_value( &
+               d,source_id,level_slot)
+          if (staged_boundary_source_is_independent( &
+               d,source_id,level_slot)) then
+             staged_coarse_vector_boundary_plan%send_produced_buffer( &
+                  (p-1)*n_field_level+level_slot) = 1
+          end if
+       end do
+    end do
+
+    send_value_count = n_field_level* &
+         staged_coarse_vector_boundary_plan%send_count
+    recv_value_count = n_field_level* &
+         staged_coarse_vector_boundary_plan%recv_count
+    send_value_displ = n_field_level* &
+         staged_coarse_vector_boundary_plan%send_displ
+    recv_value_displ = n_field_level* &
+         staged_coarse_vector_boundary_plan%recv_displ
+    call MPI_Alltoallv( &
+         staged_coarse_vector_boundary_plan%send_buffer, &
+         send_value_count,send_value_displ,MPI_DOUBLE_PRECISION, &
+         staged_coarse_vector_boundary_plan%recv_buffer, &
+         recv_value_count,recv_value_displ,MPI_DOUBLE_PRECISION, &
+         comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv staged coarse vector boundary")
+    call MPI_Alltoallv( &
+         staged_coarse_vector_boundary_plan%send_produced_buffer, &
+         send_value_count,send_value_displ,MPI_INTEGER, &
+         staged_coarse_vector_boundary_plan%recv_produced_buffer, &
+         recv_value_count,recv_value_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv staged coarse source flags")
+
+    do p = 1,staged_coarse_vector_boundary_plan%n_recv
+       do level_slot = 1,n_field_level
+          staged_value = staged_coarse_vector_boundary_plan%recv_buffer( &
+               (p-1)*n_field_level+level_slot)
+          if (staged_coarse_vector_boundary_plan%recv_id(p) < 0) then
+             staged_value = -staged_value
+          end if
+          staged_coarse_vector_boundary_plan%boundary_value( &
+               (p-1)*n_field_level+level_slot) = staged_value
+          staged_coarse_vector_boundary_plan%boundary_produced( &
+               (p-1)*n_field_level+level_slot) = &
+               staged_coarse_vector_boundary_plan% &
+               recv_produced_buffer((p-1)*n_field_level+level_slot)
+       end do
+    end do
+
+    do p = 1,staged_coarse_vector_boundary_plan%n_local
+       d = staged_coarse_vector_boundary_plan%local_source_domain(p)
+       source_id = staged_coarse_vector_boundary_plan%local_source_id(p)
+       do level_slot = 1,n_field_level
+          staged_value = staged_coarse_source_vector_value( &
+               d,source_id,level_slot)
+          if (staged_coarse_vector_boundary_plan% &
+               local_destination_id(p) < 0) then
+             staged_value = -staged_value
+          end if
+          staged_coarse_vector_boundary_plan%boundary_value( &
+               (staged_coarse_vector_boundary_plan%n_recv+p-1)* &
+               n_field_level+level_slot) = staged_value
+          if (staged_boundary_source_is_independent( &
+               d,source_id,level_slot)) then
+             staged_coarse_vector_boundary_plan%boundary_produced( &
+                  (staged_coarse_vector_boundary_plan%n_recv+p-1)* &
+                  n_field_level+level_slot) = 1
+          end if
+       end do
+    end do
+
+    count_local = [ &
+         int(staged_coarse_vector_boundary_plan%n_recv,int64), &
+         int(staged_coarse_vector_boundary_plan%n_local,int64) ]
+    do p = 1,staged_coarse_vector_boundary_plan%n_recv + &
+         staged_coarse_vector_boundary_plan%n_local
+       if (p <= staged_coarse_vector_boundary_plan%n_recv) then
+          d = staged_coarse_vector_boundary_plan%recv_domain(p)
+          destination_id = abs( &
+               staged_coarse_vector_boundary_plan%recv_id(p))
+       else
+          d = staged_coarse_vector_boundary_plan% &
+               local_destination_domain( &
+               p-staged_coarse_vector_boundary_plan%n_recv)
+          destination_id = abs(staged_coarse_vector_boundary_plan% &
+               local_destination_id( &
+               p-staged_coarse_vector_boundary_plan%n_recv))
+       end if
+       do level_slot = 1,n_field_level
+          field_level = first_field_level+level_slot-1
+          staged_value = staged_coarse_vector_boundary_plan% &
+               boundary_value((p-1)*n_field_level+level_slot)
+          reference_value = sol(S_VELO,field_level)%data(d)% &
+               elts(destination_id+1)
+          if (.not. ieee_is_finite(staged_value) .or. &
+               .not. ieee_is_finite(reference_value)) then
+             call fail("staged coarse boundary value is non-finite")
+          end if
+          allowed = 16.0_dp*epsilon(1.0_dp)*max( &
+               1.0_dp,abs(staged_value),abs(reference_value))
+          if (abs(staged_value-reference_value) > allowed) then
+             write(error_unit,'(/,a,i0,a,i0,a,i0,a,i0)') &
+                  "Rank ",rank, &
+                  ": staged coarse boundary mismatch: Domain = ",d, &
+                  ", edge id = ",destination_id, &
+                  ", field level = ",field_level
+             write(error_unit,'(a,3(es24.16,1x))') &
+                  "  staged, Domain, allowed = ", &
+                  staged_value,reference_value,allowed
+             flush(error_unit)
+             call fail("staged coarse boundary comparison failed")
+          end if
+       end do
+    end do
+
+    call MPI_Allreduce(count_local,count_global,size(count_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce staged coarse boundary coverage")
+    if (sum(count_global) <= 0_int64) then
+       call fail("staged coarse boundary exchange coverage is empty")
+    end if
+
+    staged_coarse_vector_boundary_plan%exchange_count = &
+         staged_coarse_vector_boundary_plan%exchange_count+1_int64
+    staged_coarse_vector_boundary_plan%values_ready = .true.
+    if (rank == 0) then
+       write(6,'(a,i0,a,i0)') &
+            "  staged coarse vector boundary transport passed: remote = ", &
+            count_global(1),", local = ",count_global(2)
+    end if
+
+  contains
+
+    subroutine capture_retained_staged_vector_boundaries
+      ! Reverse the persistent block-boundary route so Domain owners retain
+      ! the candidate halo values that legacy update_bdry deliberately leaves
+      ! unchanged (notably TOLRNZ corner edges on the fixed coarse scaffold).
+
+      implicit none
+
+      integer :: b
+      integer :: boundary_index
+      integer :: d_boundary
+      integer :: elts_start
+      integer :: metadata_pos
+      integer :: n_boundary
+      integer :: n_node
+      integer :: n_vector
+      integer :: pos
+      integer :: r
+      integer :: slot
+      integer :: source
+      integer :: source_bdry
+
+      block_writeback_plan%boundary_vector_block_recv_buffer = 0.0_dp
+      block_writeback_plan%boundary_vector_domain_send_buffer = 0.0_dp
+
+      do r = 1,n_process
+         pos = block_writeback_plan% &
+              boundary_vector_block_recv_displ(r)+1
+         do slot = block_writeback_plan%send_displ(r)+1, &
+              block_writeback_plan%send_displ(r) + &
+              block_writeback_plan%send_count(r)
+            b = block_writeback_plan%send_block(slot)
+            source = source_rank(b)
+            if (source /= r-1) then
+               call fail("retained staged boundary send route differs")
+            end if
+            n_boundary = local_block_boundary_count(b)
+            if (n_boundary /= &
+                 block_writeback_plan%send_boundary_count(slot)) then
+               call fail("retained staged boundary send layout differs")
+            end if
+            do boundary_index = 1,n_boundary
+               n_vector = local_block_vector_family_boundary_nvalue( &
+                    b,boundary_index)
+               if (pos < 1 .or. pos+n_vector-1 > size( &
+                    block_writeback_plan% &
+                    boundary_vector_block_recv_buffer)) then
+                  call fail("retained staged boundary send extent is invalid")
+               end if
+               call get_local_block_vector_boundary_family_values( &
+                    b,boundary_index,BLOCK_PAYLOAD_SOL, &
+                    block_writeback_plan% &
+                    boundary_vector_block_recv_buffer( &
+                    pos:pos+n_vector-1))
+               pos = pos+n_vector
+            end do
+         end do
+         if (pos /= block_writeback_plan% &
+              boundary_vector_block_recv_displ(r) + &
+              block_writeback_plan% &
+              boundary_vector_block_recv_count(r)+1) then
+            call fail("retained staged boundary send extent differs")
+         end if
+      end do
+
+      call MPI_Alltoallv( &
+           block_writeback_plan%boundary_vector_block_recv_buffer, &
+           block_writeback_plan%boundary_vector_block_recv_count, &
+           block_writeback_plan%boundary_vector_block_recv_displ, &
+           MPI_DOUBLE_PRECISION, &
+           block_writeback_plan%boundary_vector_domain_send_buffer, &
+           block_writeback_plan%boundary_vector_domain_send_count, &
+           block_writeback_plan%boundary_vector_domain_send_displ, &
+           MPI_DOUBLE_PRECISION,comm,ierr)
+      call check_mpi(ierr,"MPI_Alltoallv retained staged boundaries")
+
+      do r = 1,n_process
+         pos = block_writeback_plan% &
+              boundary_vector_domain_send_displ(r)+1
+         do slot = block_writeback_plan%recv_displ(r)+1, &
+              block_writeback_plan%recv_displ(r) + &
+              block_writeback_plan%recv_count(r)
+            b = block_writeback_plan%recv_block(slot)
+            source = source_rank(b)
+            if (source /= rank .or. block_catalog(b)%owner /= r-1) then
+               call fail("retained staged boundary receive route differs")
+            end if
+            d_boundary = loc_id(block_catalog(b)%root_domain+1)+1
+            if (d_boundary < 1 .or. d_boundary > size(grid)) then
+               call fail("retained staged boundary Domain is invalid")
+            end if
+            do boundary_index = 1, &
+                 block_writeback_plan%recv_boundary_count(slot)
+               metadata_pos = &
+                    block_writeback_plan%recv_boundary_displ(slot) + &
+                    boundary_index
+               source_bdry = &
+                    block_writeback_plan%recv_boundary_source(metadata_pos)
+               n_node = &
+                    block_writeback_plan%recv_boundary_nnode(metadata_pos)
+               n_vector = EDGE*n_field_level*n_node
+               if (pos < 1 .or. pos+n_vector-1 > size( &
+                    block_writeback_plan% &
+                    boundary_vector_domain_send_buffer)) then
+                  call fail( &
+                       "retained staged boundary receive extent is invalid")
+               end if
+               call install_retained_boundary( &
+                    d_boundary,source_bdry,n_node, &
+                    block_writeback_plan% &
+                    boundary_vector_domain_send_buffer( &
+                    pos:pos+n_vector-1))
+               pos = pos+n_vector
+            end do
+         end do
+         if (pos /= block_writeback_plan% &
+              boundary_vector_domain_send_displ(r) + &
+              block_writeback_plan% &
+              boundary_vector_domain_send_count(r)+1) then
+            call fail("retained staged boundary receive extent differs")
+         end if
+      end do
+
+      do slot = 1,n_local_blocks()
+         b = local_block_catalog(slot)
+         source = source_rank(b)
+         if (source /= rank) cycle
+         d_boundary = loc_id(block_catalog(b)%root_domain+1)+1
+         if (d_boundary < 1 .or. d_boundary > size(grid)) then
+            call fail("retained local staged boundary Domain is invalid")
+         end if
+         do boundary_index = 1,local_block_boundary_count(b)
+            call get_local_block_boundary_source( &
+                 b,boundary_index,source_bdry,elts_start,n_node)
+            n_vector = local_block_vector_family_boundary_nvalue( &
+                 b,boundary_index)
+            if (n_vector > &
+                 size(ghost_exchange_plan%vector_patch_buffer)) then
+               call fail("retained local staged boundary scratch is invalid")
+            end if
+            call get_local_block_vector_boundary_family_values( &
+                 b,boundary_index,BLOCK_PAYLOAD_SOL, &
+                 ghost_exchange_plan%vector_patch_buffer(1:n_vector))
+            call install_retained_boundary( &
+                 d_boundary,source_bdry,n_node, &
+                 ghost_exchange_plan%vector_patch_buffer(1:n_vector))
+         end do
+      end do
+
+    end subroutine capture_retained_staged_vector_boundaries
+
+
+    subroutine install_retained_boundary ( &
+         d_boundary,source_bdry,n_node,value)
+
+      implicit none
+
+      integer, intent(in) :: d_boundary
+      integer, intent(in) :: source_bdry
+      integer, intent(in) :: n_node
+      real(dp), intent(in) :: value(:)
+
+      integer :: component
+      integer :: edge_id
+      integer :: field_slot
+      integer :: node
+      integer :: source_start
+      integer :: stage_index
+      integer :: value_index
+
+      if (source_bdry < 0 .or. &
+           source_bdry >= grid(d_boundary)%bdry_patch%length .or. &
+           size(value) /= EDGE*n_field_level*n_node) then
+         call fail("retained staged boundary record is invalid")
+      end if
+      source_start = &
+           grid(d_boundary)%bdry_patch%elts(source_bdry+1)%elts_start
+      do field_slot = 1,n_field_level
+         do node = 0,n_node-1
+            do component = RT,UP
+               edge_id = EDGE*(source_start+node)+component
+               stage_index = (staged_coarse_vector_boundary_plan% &
+                    domain_edge_displ(d_boundary)+edge_id)* &
+                    n_field_level+field_slot
+               value_index = (field_slot-1)*EDGE*n_node + &
+                    EDGE*node+component+1
+               if (stage_index < 1 .or. stage_index > size( &
+                    staged_coarse_vector_boundary_plan% &
+                    retained_boundary_value) .or. &
+                    .not. ieee_is_finite(value(value_index))) then
+                  call fail("retained staged boundary value is invalid")
+               end if
+               if (staged_coarse_vector_boundary_plan% &
+                    retained_boundary_produced(stage_index)) then
+                  if (abs(staged_coarse_vector_boundary_plan% &
+                       retained_boundary_value(stage_index) - &
+                       value(value_index)) > 0.0_dp) then
+                     call fail("retained staged boundary values differ")
+                  end if
+               else
+                  staged_coarse_vector_boundary_plan% &
+                       retained_boundary_value(stage_index) = &
+                       value(value_index)
+                  staged_coarse_vector_boundary_plan% &
+                       retained_boundary_produced(stage_index) = .true.
+               end if
+            end do
+         end do
+      end do
+
+    end subroutine install_retained_boundary
+
+    real(dp) function staged_coarse_source_vector_value ( &
+         d_source,edge_id,field_slot) result(value)
+
+      implicit none
+
+      integer, intent(in) :: d_source
+      integer, intent(in) :: edge_id
+      integer, intent(in) :: field_slot
+
+      integer :: cell
+      integer :: edge_component
+      integer :: node
+      integer :: source_patch
+      integer :: patch_slot
+      integer :: patch_start
+      integer :: value_index
+
+      value = 0.0_dp
+      node = edge_id/EDGE
+      edge_component = mod(edge_id,EDGE)
+      if (edge_component < RT .or. edge_component > UP) then
+         call fail("staged coarse boundary source edge is invalid")
+      end if
+      do source_patch = 0,grid(d_source)%patch%length-1
+         if (grid(d_source)%patch%elts(source_patch+1)%deleted) cycle
+         patch_start = &
+              grid(d_source)%patch%elts(source_patch+1)%elts_start
+         if (node < patch_start .or. &
+              node >= patch_start+PATCH_SIZE**2) cycle
+         cell = node-patch_start
+         patch_slot = block_writeback_plan% &
+              domain_patch_displ(d_source)+source_patch+1
+         value_index = (patch_slot-1)* &
+              block_writeback_plan%vector_patch_nvalue + &
+              (field_slot-1)*EDGE*PATCH_SIZE**2 + &
+              EDGE*cell+edge_component+1
+         if (patch_slot < 1 .or. patch_slot > &
+              size(block_writeback_plan%domain_patch_covered) .or. &
+              .not. block_writeback_plan%domain_patch_covered(patch_slot) &
+              .or. value_index < 1 .or. value_index > &
+              size(block_writeback_plan%vector_domain_stage)) then
+            call fail("staged coarse boundary source is unavailable")
+         end if
+         value = block_writeback_plan%vector_domain_stage(value_index)
+         if (.not. ieee_is_finite(value)) then
+            call fail("staged coarse boundary source is non-finite")
+         end if
+         return
+      end do
+      call fail("staged boundary source escaped active patches")
+
+    end function staged_coarse_source_vector_value
+
+
+    logical function staged_boundary_source_is_independent ( &
+         d_source,edge_id,field_slot) result(independent)
+
+      implicit none
+
+      integer, intent(in) :: d_source
+      integer, intent(in) :: edge_id
+      integer, intent(in) :: field_slot
+
+      integer :: node
+      integer :: patch_slot
+      integer :: patch_start
+      integer :: produced_index
+      integer :: source_patch
+
+      independent = .false.
+      node = edge_id/EDGE
+      do source_patch = 0,grid(d_source)%patch%length-1
+         if (grid(d_source)%patch%elts(source_patch+1)%deleted) cycle
+         patch_start = &
+              grid(d_source)%patch%elts(source_patch+1)%elts_start
+         if (node < patch_start .or. &
+              node >= patch_start+PATCH_SIZE**2) cycle
+         patch_slot = block_writeback_plan% &
+              domain_patch_displ(d_source)+source_patch+1
+         if (patch_slot < 1 .or. patch_slot > size( &
+              block_writeback_plan%domain_patch_reconstructed)) then
+            call fail("staged boundary source origin is invalid")
+         end if
+         if (grid(d_source)%patch%elts(source_patch+1)%level == &
+              coarse_level) then
+            produced_index = (staged_coarse_vector_boundary_plan% &
+                 domain_edge_displ(d_source)+edge_id)*n_field_level + &
+                 field_slot
+            if (produced_index < 1 .or. produced_index > size( &
+                 staged_coarse_vector_boundary_plan%source_produced)) then
+               call fail("staged coarse source origin is invalid")
+            end if
+            independent = staged_coarse_vector_boundary_plan% &
+                 source_produced(produced_index)
+         else
+            independent = block_writeback_plan% &
+                 domain_patch_reconstructed(patch_slot)
+         end if
+         return
+      end do
+      call fail("staged boundary source origin escaped active patches")
+
+    end function staged_boundary_source_is_independent
+
+  end subroutine exchange_staged_coarse_vector_boundaries
+
+
   logical function block_writeback_plan_is_ready () result(ready)
     ! Report whether the reverse Domain-owner routes match this block store.
 
@@ -4098,6 +5071,25 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%boundary_vector_domain_send_buffer)) return
     if (.not. allocated( &
          block_writeback_plan%boundary_vector_block_recv_buffer)) return
+    if (.not. staged_coarse_vector_boundary_plan%ready) return
+    if (staged_coarse_vector_boundary_plan%coarse_level /= &
+         level_start-1) return
+    if (.not. allocated( &
+         staged_coarse_vector_boundary_plan%boundary_lookup)) return
+    if (.not. allocated( &
+         staged_coarse_vector_boundary_plan%source_produced)) return
+    if (.not. allocated( &
+         staged_coarse_vector_boundary_plan%send_produced_buffer)) return
+    if (.not. allocated( &
+         staged_coarse_vector_boundary_plan%recv_produced_buffer)) return
+    if (.not. allocated( &
+         staged_coarse_vector_boundary_plan%boundary_produced)) return
+    if (.not. allocated( &
+         staged_coarse_vector_boundary_plan%boundary_value)) return
+    if (.not. allocated(staged_coarse_vector_boundary_plan% &
+         retained_boundary_produced)) return
+    if (.not. allocated(staged_coarse_vector_boundary_plan% &
+         retained_boundary_value)) return
     ready = .true.
 
   end function block_writeback_plan_is_ready
@@ -4109,7 +5101,8 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
-    n_allocation = block_writeback_plan%buffer_allocations
+    n_allocation = block_writeback_plan%buffer_allocations + &
+         staged_coarse_vector_boundary_plan%allocations
 
   end function block_writeback_plan_allocation_count
 
@@ -6504,6 +7497,8 @@ end subroutine build_parallel_block_catalog
     if (production_velocity_restriction_level /= -1) then
        call fail("velocity restriction was already produced")
     end if
+    staged_coarse_vector_boundary_plan%values_ready = .false.
+    staged_coarse_vector_boundary_plan%source_produced = .false.
 
     state_ready = parallel_block_state_is_ready()
     checkpoint_ready = local_block_tendency_commit_checkpoint_is_ready()
@@ -6763,7 +7758,9 @@ end subroutine build_parallel_block_catalog
       integer, intent(in) :: e_stage
       real(dp), intent(in) :: value
 
+      integer :: edge_id
       integer :: patch_slot
+      integer :: produced_index
       integer :: value_index
 
       patch_slot = block_writeback_plan%domain_patch_displ(d_stage) + &
@@ -6781,6 +7778,17 @@ end subroutine build_parallel_block_catalog
          call fail("velocity restriction staged target is invalid")
       end if
       block_writeback_plan%vector_domain_stage(value_index) = value
+      edge_id = EDGE*(grid(d_stage)%patch%elts(p_stage+1)%elts_start + &
+           PATCH_SIZE*j_stage+i_stage)+e_stage
+      produced_index = (staged_coarse_vector_boundary_plan% &
+           domain_edge_displ(d_stage)+edge_id)* &
+           staged_coarse_vector_boundary_plan%n_field_level + level_stage
+      if (produced_index < 1 .or. produced_index > &
+           size(staged_coarse_vector_boundary_plan%source_produced)) then
+         call fail("velocity restriction produced-source address is invalid")
+      end if
+      staged_coarse_vector_boundary_plan% &
+           source_produced(produced_index) = .true.
 
     end subroutine set_staged_parent_velocity
 
@@ -7116,8 +8124,9 @@ end subroutine build_parallel_block_catalog
 
   subroutine validate_staged_coarse_outer_vector_wavelets ( &
        wavelet_level,candidate_stage,candidate_stage_count)
-    ! Validate regular outer wavelets spanning distinct block roots whenever
-    ! the complete nine-edge coarse stencil remains in one scaffold patch.
+    ! Validate every regular outer wavelet spanning distinct block roots.
+    ! Coarse stencil values crossing a Domain edge come only from the
+    ! independently exchanged staged boundary payload.
 
     implicit none
 
@@ -7148,8 +8157,12 @@ end subroutine build_parallel_block_catalog
     integer :: v_scalar
     integer :: v_vector
 
+    integer :: dims_par(2,N_BDRY+1)
+    integer :: offs_par(N_BDRY+1)
+
     integer(int64) :: count_global(5)
     integer(int64) :: count_local(5)
+    integer(int64) :: boundary_exchange_before
     integer(int64) :: restriction_allocation_before
     integer(int64) :: scalar_allocation_before
     integer(int64) :: writeback_allocation_before
@@ -7182,11 +8195,16 @@ end subroutine build_parallel_block_catalog
          n_field_level < 1) then
        call fail("staged coarse outer-wavelet field layout is invalid")
     end if
+    boundary_exchange_before = &
+         staged_coarse_vector_boundary_plan%exchange_count
+    call exchange_staged_coarse_vector_boundaries( &
+         wavelet_level,n_field_level)
 
     count_local = 0_int64
     do d = 1,size(grid)
        do p_index = 1,grid(d)%lev(wavelet_level)%length
           p = grid(d)%lev(wavelet_level)%elts(p_index)
+          call get_offs_Domain(grid(d),p,offs_par,dims_par)
           count_local(1) = count_local(1) + 1_int64
           do c = 1,N_CHDRN
              p_child = grid(d)%patch%elts(p+1)%children(c)
@@ -7205,9 +8223,8 @@ end subroutine build_parallel_block_catalog
                       i_chd = 2*(i-1)
                       i_par = i-1+chd_offs(1,c)
                       do e = RT,UP
-                         if (.not. coarse_outer_stencil_is_local()) then
+                         if (coarse_outer_stencil_uses_transport()) then
                             count_local(5) = count_local(5) + 2_int64
-                            cycle
                          end if
                          count_local(2) = count_local(2) + 2_int64
                          native_value = 0.0_dp
@@ -7274,6 +8291,11 @@ end subroutine build_parallel_block_catalog
     if (block_domain_production_writeback_count() /= writeback_before) then
        call fail("staged coarse outer wavelet modified Domain fields")
     end if
+    if (.not. staged_coarse_vector_boundary_plan%values_ready .or. &
+         staged_coarse_vector_boundary_plan%exchange_count /= &
+         boundary_exchange_before+1_int64) then
+       call fail("staged coarse boundary exchange lifecycle differs")
+    end if
     production_coarse_outer_wavelet_validated = .true.
 
     if (candidate_stage_count == 3) then
@@ -7284,57 +8306,58 @@ end subroutine build_parallel_block_catalog
     if (rank == 0) then
        write(6,'(a,a,a,i0,a,i0,a,i0,a,i0)') &
             "  block-derived ",scheme_name, &
-            " cross-root outer wavelet interior passed: stage = ", &
+            " cross-root outer wavelet complete passed: stage = ", &
             candidate_stage," of ",candidate_stage_count, &
             ", level = ",wavelet_level, &
-            ", deferred boundary pairs = ",count_global(5)
+            ", transported boundary pairs = ",count_global(5)
     end if
 
   contains
 
-    logical function coarse_outer_stencil_is_local() result(local)
+    logical function coarse_outer_stencil_uses_transport() &
+         result(uses_transport)
 
       implicit none
 
-      local = &
-           staged_side_is_local( &
+      uses_transport = .false.
+      if (staged_side_uses_transport( &
            i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
-           hex_s_offs(e+1)+3) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+3)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
-           hex_s_offs(e+1)+4) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+4)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
-           hex_s_offs(e+1)+6) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+6)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
-           hex_s_offs(e+1)+1) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+1)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+opp_no(1,1,e+1),j_par+opp_no(2,1,e+1), &
-           hex_s_offs(e+1)+2) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+2)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
-           hex_s_offs(e+1)+3) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+3)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
-           hex_s_offs(e+1)+4) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+4)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+opp_no(1,1,e+1),j_par+opp_no(2,1,e+1), &
-           hex_s_offs(e+1)+5) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+5)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+opp_no(1,2,e+1),j_par+opp_no(2,2,e+1), &
-           hex_s_offs(e+1)+5) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+5)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
-           hex_s_offs(e+1)+6) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+6)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
-           hex_s_offs(e+1)+1) .and. &
-           staged_side_is_local( &
+           hex_s_offs(e+1)+1)) uses_transport = .true.
+      if (staged_side_uses_transport( &
            i_par+opp_no(1,2,e+1),j_par+opp_no(2,2,e+1), &
-           hex_s_offs(e+1)+2)
+           hex_s_offs(e+1)+2)) uses_transport = .true.
 
-    end function coarse_outer_stencil_is_local
+    end function coarse_outer_stencil_uses_transport
 
 
     logical function staged_side_is_local (base_i,base_j,side_index) &
@@ -7359,6 +8382,77 @@ end subroutine build_parallel_block_catalog
     end function staged_side_is_local
 
 
+    logical function staged_side_uses_transport ( &
+         base_i,base_j,side_index) result(uses_transport)
+
+      implicit none
+
+      integer, intent(in) :: base_i
+      integer, intent(in) :: base_j
+      integer, intent(in) :: side_index
+
+      integer :: edge_component
+      integer :: edge_i
+      integer :: edge_id
+      integer :: edge_j
+      integer :: p_stage
+
+      logical :: found
+
+      uses_transport = .false.
+      if (staged_side_is_local(base_i,base_j,side_index)) return
+      if (side_index < 1 .or. side_index > size(hex_sides,2)) then
+         call fail("staged outer-wavelet transport side is invalid")
+      end if
+      edge_id = ed_idx( &
+           base_i,base_j,hex_sides(:,side_index),offs_par,dims_par)
+      call locate_staged_coarse_edge( &
+           edge_id,p_stage,edge_i,edge_j,edge_component,found)
+      uses_transport = .not. found
+
+    end function staged_side_uses_transport
+
+
+    subroutine locate_staged_coarse_edge ( &
+         edge_id,p_stage,i_stage,j_stage,e_stage,found)
+
+      implicit none
+
+      integer, intent(in) :: edge_id
+      integer, intent(out) :: p_stage
+      integer, intent(out) :: i_stage
+      integer, intent(out) :: j_stage
+      integer, intent(out) :: e_stage
+      logical, intent(out) :: found
+
+      integer :: cell
+      integer :: node
+      integer :: p_stage_index
+      integer :: patch_start
+
+      found = .false.
+      p_stage = -1
+      i_stage = -1
+      j_stage = -1
+      e_stage = mod(edge_id,EDGE)
+      if (edge_id < 0 .or. e_stage < RT .or. e_stage > UP) return
+      node = edge_id/EDGE
+      do p_stage_index = 1,grid(d)%lev(wavelet_level)%length
+         p_stage = grid(d)%lev(wavelet_level)%elts(p_stage_index)
+         patch_start = grid(d)%patch%elts(p_stage+1)%elts_start
+         if (node < patch_start .or. &
+              node >= patch_start+PATCH_SIZE**2) cycle
+         cell = node-patch_start
+         i_stage = mod(cell,PATCH_SIZE)
+         j_stage = cell/PATCH_SIZE
+         found = .true.
+         return
+      end do
+      p_stage = -1
+
+    end subroutine locate_staged_coarse_edge
+
+
     real(dp) function staged_vector_value ( &
          p_stage,level_stage,i_stage,j_stage,e_stage, &
          require_reconstructed) result(value)
@@ -7372,7 +8466,9 @@ end subroutine build_parallel_block_catalog
       integer, intent(in) :: e_stage
       logical, intent(in) :: require_reconstructed
 
+      integer :: edge_id
       integer :: patch_slot
+      integer :: produced_index
       integer :: value_index
 
       value = 0.0_dp
@@ -7395,6 +8491,18 @@ end subroutine build_parallel_block_catalog
            domain_patch_reconstructed(patch_slot)) then
          call fail("staged outer-wavelet fine source is not block-derived")
       end if
+      if (grid(d)%patch%elts(p_stage+1)%level == wavelet_level) then
+         edge_id = EDGE*(grid(d)%patch%elts(p_stage+1)%elts_start + &
+              PATCH_SIZE*j_stage+i_stage)+e_stage
+         produced_index = (staged_coarse_vector_boundary_plan% &
+              domain_edge_displ(d)+edge_id)*n_field_level + level_stage
+         if (produced_index < 1 .or. produced_index > &
+              size(staged_coarse_vector_boundary_plan%source_produced) &
+              .or. .not. staged_coarse_vector_boundary_plan% &
+              source_produced(produced_index)) then
+            call fail("staged outer-wavelet coarse source was not produced")
+         end if
+      end if
       value = block_writeback_plan%vector_domain_stage(value_index)
       if (.not. ieee_is_finite(value)) then
          call fail("staged outer-wavelet source is non-finite")
@@ -7403,7 +8511,8 @@ end subroutine build_parallel_block_catalog
     end function staged_vector_value
 
 
-    real(dp) function staged_side_value (base_i,base_j,side_index) &
+    real(dp) function staged_side_value ( &
+         base_i,base_j,side_index,coefficient) &
          result(value)
 
       implicit none
@@ -7411,21 +8520,223 @@ end subroutine build_parallel_block_catalog
       integer, intent(in) :: base_i
       integer, intent(in) :: base_j
       integer, intent(in) :: side_index
+      real(dp), intent(in) :: coefficient
 
       integer :: edge_component
+      integer :: edge_id
       integer :: edge_i
       integer :: edge_j
+      integer :: lookup_index
+      integer :: p_stage
+      integer :: record
 
-      if (.not. staged_side_is_local(base_i,base_j,side_index)) then
-         call fail("staged outer-wavelet side escaped parent patch")
+      logical :: found
+
+      real(dp) :: degenerate_tolerance
+      real(dp) :: midpoint_norm
+
+      if (side_index < 1 .or. side_index > size(hex_sides,2)) then
+         call fail("staged outer-wavelet side index is invalid")
       end if
       edge_i = base_i+hex_sides(1,side_index)
       edge_j = base_j+hex_sides(2,side_index)
       edge_component = hex_sides(3,side_index)
-      value = staged_vector_value( &
-           p,level_slot,edge_i,edge_j,edge_component,.false.)
+      if (staged_side_is_local(base_i,base_j,side_index)) then
+         value = staged_vector_value( &
+              p,level_slot,edge_i,edge_j,edge_component,.false.)
+         return
+      end if
+
+      if (.not. staged_coarse_vector_boundary_plan%values_ready) then
+         call fail("staged outer-wavelet boundary is not ready")
+      end if
+      edge_id = ed_idx( &
+           base_i,base_j,hex_sides(:,side_index),offs_par,dims_par)
+      call locate_staged_coarse_edge( &
+           edge_id,p_stage,edge_i,edge_j,edge_component,found)
+      if (found) then
+         value = staged_vector_value( &
+              p_stage,level_slot,edge_i,edge_j,edge_component,.false.)
+         return
+      end if
+      lookup_index = staged_coarse_vector_boundary_plan% &
+           domain_edge_displ(d)+edge_id+1
+      if (lookup_index < 1 .or. lookup_index > &
+           size(staged_coarse_vector_boundary_plan%boundary_lookup)) then
+         call fail("staged outer-wavelet boundary lookup is invalid")
+      end if
+      record = staged_coarse_vector_boundary_plan% &
+           boundary_lookup(lookup_index)
+      if (record < 1 .or. record > &
+           staged_coarse_vector_boundary_plan%n_recv + &
+           staged_coarse_vector_boundary_plan%n_local) then
+         ! At a pentagon, one logical component of the collapsed edge has
+         ! zero dual length, while companion components of the same special
+         ! hexagon have no physical midpoint.  wavelet_mod retains these
+         ! structural zeros in its regular interpolation stencil, while
+         ! create_pack_st2 deliberately provides no boundary routes for
+         ! them.  Recognize the geometry, not hard-coded corner addresses,
+         ! and do not import the authoritative Domain field as a source.
+         degenerate_tolerance = 64.0_dp*epsilon(1.0_dp)*max( &
+              1.0_dp,abs(grid(d)%len%elts(edge_id+1)))
+         midpoint_norm = abs(grid(d)%midpt%elts(edge_id+1)%x) + &
+              abs(grid(d)%midpt%elts(edge_id+1)%y) + &
+              abs(grid(d)%midpt%elts(edge_id+1)%z)
+         if (abs(grid(d)%pedlen%elts(edge_id+1)) <= &
+              degenerate_tolerance .or. &
+              midpoint_norm <= degenerate_tolerance) then
+            value = 0.0_dp
+            return
+         end if
+         write(error_unit,'(/,a,i0,a)') &
+              "Rank ",rank, &
+              ": staged outer-wavelet boundary route is missing"
+         write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+              "  Domain = ",d,", parent patch = ",p, &
+              ", parent i = ",i_par,", parent j = ",j_par
+         write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+              "  wavelet edge = ",e,", side index = ",side_index, &
+              ", base i = ",base_i,", base j = ",base_j
+         write(error_unit,'(a,i0,a,i0)') &
+              "  resolved edge id = ",edge_id, &
+              ", lookup index = ",lookup_index
+         write(error_unit,'(a,es24.16)') &
+              "  combined interpolation coefficient = ",coefficient
+         call report_missing_staged_boundary_route(edge_id)
+         flush(error_unit)
+         call fail("staged outer-wavelet boundary source is unavailable")
+      end if
+      if (staged_coarse_vector_boundary_plan%boundary_produced( &
+           (record-1)*n_field_level+level_slot) /= 1) then
+         call fail("staged outer-wavelet boundary source was not produced")
+      end if
+      value = staged_coarse_vector_boundary_plan%boundary_value( &
+           (record-1)*n_field_level+level_slot)
+      if (.not. ieee_is_finite(value)) then
+         call fail("staged outer-wavelet boundary source is non-finite")
+      end if
 
     end function staged_side_value
+
+
+    subroutine report_missing_staged_boundary_route(missing_edge_id)
+
+      implicit none
+
+      integer, intent(in) :: missing_edge_id
+
+      integer :: alias_count
+      integer :: b
+      integer :: boundary_dims(2)
+      integer :: boundary_finish
+      integer :: boundary_i
+      integer :: boundary_j
+      integer :: boundary_start
+      integer :: candidate_edge_id
+      integer :: candidate_lookup_index
+      integer :: candidate_node
+      integer :: candidate_record
+      integer :: component
+      integer :: missing_node
+      integer :: node_finish
+      integer :: node_start
+      real(dp) :: coordinate_tolerance
+      real(dp) :: missing_x
+      real(dp) :: missing_y
+      real(dp) :: missing_z
+
+      missing_node = missing_edge_id/EDGE
+      write(error_unit,'(a,i0,a,i0)') &
+           "  edge component = ",mod(missing_edge_id,EDGE), &
+           ", node id = ",missing_node
+      if (missing_node+1 >= 1 .and. missing_node+1 <= &
+           grid(d)%level%length) then
+         write(error_unit,'(a,i0)') &
+              "  stored node level = ",grid(d)%level%elts(missing_node+1)
+      end if
+      if (missing_edge_id+1 >= 1 .and. missing_edge_id+1 <= &
+           grid(d)%mask_e%length) then
+         write(error_unit,'(a,i0)') &
+              "  stored edge mask = ",grid(d)%mask_e%elts(missing_edge_id+1)
+      end if
+
+      do b = 0,grid(d)%bdry_patch%length-1
+         call get_bdry_dims_Domain(grid(d),b,boundary_dims)
+         boundary_start = grid(d)%bdry_patch%elts(b+1)%elts_start
+         boundary_finish = boundary_start+product(boundary_dims)-1
+         if (missing_node < boundary_start .or. &
+              missing_node > boundary_finish) cycle
+         boundary_i = mod(missing_node-boundary_start,boundary_dims(1))
+         boundary_j = (missing_node-boundary_start)/boundary_dims(1)
+         write(error_unit,'(a,i0,a,i0,a,i0)') &
+              "  boundary patch = ",b,", side = ", &
+              grid(d)%bdry_patch%elts(b+1)%side,", neighbour = ", &
+              grid(d)%bdry_patch%elts(b+1)%neigh
+         write(error_unit,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
+              "  boundary start = ",boundary_start,", dims = ", &
+              boundary_dims(1)," x ",boundary_dims(2), &
+              ", boundary i = ",boundary_i,", boundary j = ",boundary_j
+         node_start = max(boundary_start,missing_node-2)
+         node_finish = min(boundary_finish,missing_node+2)
+         write(error_unit,'(a)') "  nearby boundary route records:"
+         do candidate_node = node_start,node_finish
+            do component = RT,UP
+               candidate_edge_id = EDGE*candidate_node+component
+               candidate_lookup_index = staged_coarse_vector_boundary_plan% &
+                    domain_edge_displ(d)+candidate_edge_id+1
+               if (candidate_lookup_index < 1 .or. &
+                    candidate_lookup_index > size( &
+                    staged_coarse_vector_boundary_plan%boundary_lookup)) cycle
+               candidate_record = staged_coarse_vector_boundary_plan% &
+                    boundary_lookup(candidate_lookup_index)
+               write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+                    "    node = ",candidate_node,", component = ",component, &
+                    ", edge id = ",candidate_edge_id, &
+                    ", route record = ",candidate_record
+            end do
+         end do
+         exit
+      end do
+
+      if (missing_edge_id+1 < 1 .or. missing_edge_id+1 > &
+           grid(d)%midpt%length) return
+      missing_x = grid(d)%midpt%elts(missing_edge_id+1)%x
+      missing_y = grid(d)%midpt%elts(missing_edge_id+1)%y
+      missing_z = grid(d)%midpt%elts(missing_edge_id+1)%z
+      coordinate_tolerance = 64.0_dp*epsilon(1.0_dp)*max( &
+           1.0_dp,abs(missing_x),abs(missing_y),abs(missing_z))
+      write(error_unit,'(a,3(es24.16,1x))') &
+           "  missing edge midpoint = ",missing_x,missing_y,missing_z
+      write(error_unit,'(a)') &
+           "  routed edges with the same midpoint (maximum 12):"
+      alias_count = 0
+      do candidate_edge_id = 0,grid(d)%midpt%length-1
+         if (candidate_edge_id == missing_edge_id) cycle
+         if (abs(grid(d)%midpt%elts(candidate_edge_id+1)%x-missing_x) > &
+              coordinate_tolerance) cycle
+         if (abs(grid(d)%midpt%elts(candidate_edge_id+1)%y-missing_y) > &
+              coordinate_tolerance) cycle
+         if (abs(grid(d)%midpt%elts(candidate_edge_id+1)%z-missing_z) > &
+              coordinate_tolerance) cycle
+         candidate_lookup_index = staged_coarse_vector_boundary_plan% &
+              domain_edge_displ(d)+candidate_edge_id+1
+         if (candidate_lookup_index < 1 .or. &
+              candidate_lookup_index > size( &
+              staged_coarse_vector_boundary_plan%boundary_lookup)) cycle
+         candidate_record = staged_coarse_vector_boundary_plan% &
+              boundary_lookup(candidate_lookup_index)
+         if (candidate_record < 1) cycle
+         write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+              "    node = ",candidate_edge_id/EDGE,", component = ", &
+              mod(candidate_edge_id,EDGE),", edge id = ", &
+              candidate_edge_id,", route record = ",candidate_record
+         alias_count = alias_count+1
+         if (alias_count >= 12) exit
+      end do
+      if (alias_count == 0) write(error_unit,'(a)') &
+           "    none"
+
+    end subroutine report_missing_staged_boundary_route
 
 
     real(dp) function staged_outer_wavelet (scale) result(value)
@@ -7434,12 +8745,26 @@ end subroutine build_parallel_block_catalog
 
       real(dp), intent(out) :: scale
 
+      integer, parameter :: N_SIDE_TERM = 12
+
+      integer :: base_i(N_SIDE_TERM)
+      integer :: base_j(N_SIDE_TERM)
+      integer :: edge_id(N_SIDE_TERM)
+      integer :: first_term
       integer :: k
+      integer :: m
+      integer :: side_index(N_SIDE_TERM)
       integer :: target_i
       integer :: target_j
       integer :: target_node
 
-      real(dp) :: source_value(9)
+      logical :: consumed(N_SIDE_TERM)
+
+      real(dp) :: coefficient(N_SIDE_TERM)
+      real(dp) :: coefficient_tolerance
+      real(dp) :: net_coefficient
+      real(dp) :: side_value
+      real(dp) :: source_value
       real(dp) :: target_value
       real(dp) :: weight(9)
 
@@ -7447,46 +8772,78 @@ end subroutine build_parallel_block_catalog
       target_j = j_chd+end_pt(2,2,e+1)
       target_node = grid(d)%patch%elts(p_child+1)%elts_start + &
            PATCH_SIZE*target_j+target_i
-      source_value(1) = staged_vector_value( &
-           p,level_slot,i_par,j_par,e,.false.)
-      source_value(2) = staged_side_value( &
-           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
-           hex_s_offs(e+1)+3)
-      source_value(3) = staged_side_value( &
-           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
-           hex_s_offs(e+1)+4)
-      source_value(4) = staged_side_value( &
-           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
-           hex_s_offs(e+1)+6)
-      source_value(5) = staged_side_value( &
-           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
-           hex_s_offs(e+1)+1)
-      source_value(6) = staged_side_value( &
-           i_par+opp_no(1,1,e+1),j_par+opp_no(2,1,e+1), &
-           hex_s_offs(e+1)+2)-staged_side_value( &
-           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
-           hex_s_offs(e+1)+3)
-      source_value(7) = staged_side_value( &
-           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
-           hex_s_offs(e+1)+4)-staged_side_value( &
-           i_par+opp_no(1,1,e+1),j_par+opp_no(2,1,e+1), &
-           hex_s_offs(e+1)+5)
-      source_value(8) = staged_side_value( &
-           i_par+opp_no(1,2,e+1),j_par+opp_no(2,2,e+1), &
-           hex_s_offs(e+1)+5)-staged_side_value( &
-           i_par+end_pt(1,2,e+1),j_par+end_pt(2,2,e+1), &
-           hex_s_offs(e+1)+6)
-      source_value(9) = staged_side_value( &
-           i_par+end_pt(1,1,e+1),j_par+end_pt(2,1,e+1), &
-           hex_s_offs(e+1)+1)-staged_side_value( &
-           i_par+opp_no(1,2,e+1),j_par+opp_no(2,2,e+1), &
-           hex_s_offs(e+1)+2)
       weight = BLOCK_IU_BASE_WEIGHT + &
            [ (grid(d)%I_u_wgt%elts(target_node+1)%enc(k),k=1,9) ]
+      coefficient_tolerance = 64.0_dp*epsilon(1.0_dp)*max( &
+           1.0_dp,maxval(abs(weight)))
+
+      ! Keep the twelve primitive side terms in exactly the order and
+      ! topology used by wavelet_mod:Interp_outer_velo.  Some small-grid
+      ! corner addresses are intentionally absent from create_pack_st2;
+      ! they may be discarded only after all logical addresses have been
+      ! resolved to Domain edge IDs and their coefficients cancel there.
+      base_i = [ &
+           i_par+end_pt(1,2,e+1), &
+           i_par+end_pt(1,1,e+1), &
+           i_par+end_pt(1,1,e+1), &
+           i_par+end_pt(1,2,e+1), &
+           i_par+opp_no(1,1,e+1), &
+           i_par+end_pt(1,1,e+1), &
+           i_par+end_pt(1,2,e+1), &
+           i_par+opp_no(1,1,e+1), &
+           i_par+opp_no(1,2,e+1), &
+           i_par+end_pt(1,2,e+1), &
+           i_par+end_pt(1,1,e+1), &
+           i_par+opp_no(1,2,e+1) ]
+      base_j = [ &
+           j_par+end_pt(2,2,e+1), &
+           j_par+end_pt(2,1,e+1), &
+           j_par+end_pt(2,1,e+1), &
+           j_par+end_pt(2,2,e+1), &
+           j_par+opp_no(2,1,e+1), &
+           j_par+end_pt(2,1,e+1), &
+           j_par+end_pt(2,2,e+1), &
+           j_par+opp_no(2,1,e+1), &
+           j_par+opp_no(2,2,e+1), &
+           j_par+end_pt(2,2,e+1), &
+           j_par+end_pt(2,1,e+1), &
+           j_par+opp_no(2,2,e+1) ]
+      side_index = hex_s_offs(e+1) + &
+           [ 3,4,6,1,2,3,4,5,5,6,1,2 ]
+      coefficient = [ &
+           weight(2),weight(3),weight(4),weight(5), &
+           weight(6),-weight(6),weight(7),-weight(7), &
+           weight(8),-weight(8),weight(9),-weight(9) ]
+
+      do k = 1,N_SIDE_TERM
+         edge_id(k) = ed_idx( &
+              base_i(k),base_j(k),hex_sides(:,side_index(k)), &
+              offs_par,dims_par)
+      end do
+
+      source_value = weight(1)*staged_vector_value( &
+           p,level_slot,i_par,j_par,e,.false.)
+      scale = abs(source_value)
+      consumed = .false.
+      do first_term = 1,N_SIDE_TERM
+         if (consumed(first_term)) cycle
+         net_coefficient = 0.0_dp
+         do m = first_term,N_SIDE_TERM
+            if (edge_id(m) /= edge_id(first_term)) cycle
+            net_coefficient = net_coefficient+coefficient(m)
+            consumed(m) = .true.
+         end do
+         if (abs(net_coefficient) <= coefficient_tolerance) cycle
+         side_value = staged_side_value( &
+              base_i(first_term),base_j(first_term), &
+              side_index(first_term),net_coefficient)
+         source_value = source_value+net_coefficient*side_value
+         scale = scale+abs(net_coefficient*side_value)
+      end do
       target_value = staged_vector_value( &
            p_child,level_slot,target_i,target_j,e,.true.)
-      value = target_value-sum(weight*source_value)
-      scale = abs(target_value)+sum(abs(weight*source_value))
+      value = target_value-source_value
+      scale = abs(target_value)+scale
 
     end function staged_outer_wavelet
 
@@ -24744,7 +26101,11 @@ end subroutine build_parallel_block_catalog
            block_writeback_plan% &
            boundary_vector_block_recv_buffer),int64) + int(size( &
            block_writeback_plan%scalar_domain_stage),int64) + int(size( &
-           block_writeback_plan%vector_domain_stage),int64)
+           block_writeback_plan%vector_domain_stage),int64) + int(size( &
+           staged_coarse_vector_boundary_plan%send_buffer),int64) + &
+           int(size(staged_coarse_vector_boundary_plan% &
+           recv_buffer),int64) + int(size( &
+           staged_coarse_vector_boundary_plan%boundary_value),int64)
       local_value(SCALE_DOMAIN_STAGE_REAL) = int(size( &
            block_writeback_plan%scalar_domain_stage),int64) + int(size( &
            block_writeback_plan%vector_domain_stage),int64)
