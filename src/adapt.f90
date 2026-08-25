@@ -1,4 +1,6 @@
 module adapt_mod
+  use iso_fortran_env,   only : error_unit, int64
+
   use kind_mod,         only : dp
   
   use shared_mod,       only : ADJZONE, EDGE, level_start, level_end, &
@@ -27,6 +29,8 @@ module adapt_mod
   private
   public :: adapt, compress_wavelets_scalar, fill_up_grid_and_IWT
   public :: WT_after_scalar, WT_after_step, WT_after_velo 
+  public :: begin_inverse_wavelet_transform_shadow
+  public :: compare_inverse_wavelet_transform_shadow
   
   interface compress_wavelets_scalar
      procedure :: compress_wavelets_scalar_0, compress_wavelets_scalar_1
@@ -73,8 +77,218 @@ module adapt_mod
      end subroutine Wavelet_Compression_Validator
   end interface
 
+  type(Float_Field), allocatable, target, save :: &
+       inverse_wavelet_input(:,:)
+  type(Float_Field), allocatable, target, save :: &
+       inverse_scaling_expected(:,:)
+  logical, save :: inverse_wavelet_shadow_ready = .false.
+  integer(int64), save :: inverse_wavelet_shadow_allocations = 0_int64
+  integer(int64), save :: inverse_wavelet_allocation_checkpoint = 0_int64
+
   
 contains
+
+  subroutine begin_inverse_wavelet_transform_shadow(wavelet,scaling)
+    ! Reconstruct an expected solution through the independent scalar and
+    ! velocity inverse-transform entry points.  This covers scalar lifting,
+    ! outer and inner velocity prolongation, and pentagon corrections.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: wavelet(:,:)
+    type(Float_Field), intent(in) :: scaling(:,:)
+
+    integer :: v
+
+    if (inverse_wavelet_shadow_ready) then
+       error stop &
+            "begin_inverse_wavelet_transform_shadow: shadow is still active"
+    end if
+    if (size(wavelet,1) /= size(scaling,1) .or. &
+         size(wavelet,2) /= size(scaling,2)) then
+       error stop &
+            "begin_inverse_wavelet_transform_shadow: field layout differs"
+    end if
+    call ensure_inverse_field_storage(inverse_wavelet_input,wavelet)
+    call ensure_inverse_field_storage(inverse_scaling_expected,scaling)
+    call copy_inverse_field_family(inverse_wavelet_input,wavelet)
+    call copy_inverse_field_family(inverse_scaling_expected,scaling)
+
+    do v = scalars(1),scalars(2)
+       call inverse_scalar_transform( &
+            inverse_wavelet_input(v,:),inverse_scaling_expected(v,:))
+    end do
+    call inverse_velo_transform( &
+         inverse_wavelet_input(S_VELO,:), &
+         inverse_scaling_expected(S_VELO,:))
+
+    inverse_wavelet_shadow_ready = .true.
+    inverse_wavelet_allocation_checkpoint = &
+         inverse_wavelet_shadow_allocations
+
+  end subroutine begin_inverse_wavelet_transform_shadow
+
+
+  subroutine compare_inverse_wavelet_transform_shadow(scaling)
+    ! Require the combined production inverse transform to match the
+    ! independently orchestrated scalar/vector reconstruction bit-for-bit.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: scaling(:,:)
+
+    integer :: d
+    integer :: i
+    integer :: k
+    integer :: v
+    integer(int64) :: actual_bits
+    integer(int64) :: expected_bits
+
+    if (.not. inverse_wavelet_shadow_ready) then
+       error stop &
+            "compare_inverse_wavelet_transform_shadow: shadow unavailable"
+    end if
+    if (inverse_wavelet_shadow_allocations /= &
+         inverse_wavelet_allocation_checkpoint) then
+       error stop &
+            "compare_inverse_wavelet_transform_shadow: storage changed"
+    end if
+    if (size(scaling,1) /= size(inverse_scaling_expected,1) .or. &
+         size(scaling,2) /= size(inverse_scaling_expected,2)) then
+       error stop &
+            "compare_inverse_wavelet_transform_shadow: layout differs"
+    end if
+    do k = 1,size(scaling,2)
+       do v = 1,size(scaling,1)
+          if (size(scaling(v,k)%data) /= size(grid)) then
+             error stop &
+                  "compare_inverse_wavelet_transform_shadow: Domain differs"
+          end if
+          do d = 1,size(grid)
+             if (scaling(v,k)%data(d)%length /= &
+                  inverse_scaling_expected(v,k)%data(d)%length) then
+                error stop &
+                     "compare_inverse_wavelet_transform_shadow: extent differs"
+             end if
+             do i = 1,scaling(v,k)%data(d)%length
+                actual_bits = transfer( &
+                     scaling(v,k)%data(d)%elts(i),0_int64)
+                expected_bits = transfer( &
+                     inverse_scaling_expected(v,k)%data(d)%elts(i), &
+                     0_int64)
+                if (actual_bits == expected_bits) cycle
+                write(error_unit,'(/,a,i0,a)') &
+                     "Rank ",rank,": inverse wavelet reconstruction differs"
+                write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+                     "  variable = ",v,", level slot = ",k, &
+                     ", Domain = ",d,", index = ",i
+                write(error_unit,'(a,2(es24.16,1x))') &
+                     "  production, expected = ", &
+                     scaling(v,k)%data(d)%elts(i), &
+                     inverse_scaling_expected(v,k)%data(d)%elts(i)
+                flush(error_unit)
+                error stop "inverse-wavelet reconstruction comparison failed"
+             end do
+          end do
+       end do
+    end do
+    inverse_wavelet_shadow_ready = .false.
+
+  end subroutine compare_inverse_wavelet_transform_shadow
+
+
+  subroutine ensure_inverse_field_storage(storage,source)
+
+    implicit none
+
+    type(Float_Field), allocatable, target, intent(inout) :: storage(:,:)
+    type(Float_Field), intent(in) :: source(:,:)
+
+    integer :: d
+    integer :: k
+    integer :: v
+    logical :: shape_differs
+
+    shape_differs = .false.
+    if (allocated(storage)) then
+       shape_differs = size(storage,1) /= size(source,1) .or. &
+            size(storage,2) /= size(source,2)
+       if (shape_differs) deallocate(storage)
+    end if
+    if (.not. allocated(storage)) then
+       allocate(storage(size(source,1),size(source,2)))
+       inverse_wavelet_shadow_allocations = &
+            inverse_wavelet_shadow_allocations+1_int64
+    end if
+
+    do k = 1,size(source,2)
+       do v = 1,size(source,1)
+          if (.not. allocated(source(v,k)%data)) then
+             error stop "ensure_inverse_field_storage: source is absent"
+          end if
+          if (allocated(storage(v,k)%data)) then
+             if (size(storage(v,k)%data) /= &
+                  size(source(v,k)%data)) then
+                deallocate(storage(v,k)%data)
+             end if
+          end if
+          if (.not. allocated(storage(v,k)%data)) then
+             allocate(storage(v,k)%data(size(source(v,k)%data)))
+             inverse_wavelet_shadow_allocations = &
+                  inverse_wavelet_shadow_allocations+1_int64
+          end if
+          do d = 1,size(source(v,k)%data)
+             if (.not. allocated(source(v,k)%data(d)%elts)) then
+                error stop &
+                     "ensure_inverse_field_storage: source data is absent"
+             end if
+             if (allocated(storage(v,k)%data(d)%elts)) then
+                if (size(storage(v,k)%data(d)%elts) /= &
+                     size(source(v,k)%data(d)%elts)) then
+                   deallocate(storage(v,k)%data(d)%elts)
+                end if
+             end if
+             if (.not. allocated(storage(v,k)%data(d)%elts)) then
+                allocate(storage(v,k)%data(d)%elts( &
+                     size(source(v,k)%data(d)%elts)))
+                inverse_wavelet_shadow_allocations = &
+                     inverse_wavelet_shadow_allocations+1_int64
+             end if
+          end do
+       end do
+    end do
+
+  end subroutine ensure_inverse_field_storage
+
+
+  subroutine copy_inverse_field_family(destination,source)
+
+    implicit none
+
+    type(Float_Field), intent(inout) :: destination(:,:)
+    type(Float_Field), intent(in) :: source(:,:)
+
+    integer :: d
+    integer :: k
+    integer :: v
+
+    do k = 1,size(source,2)
+       do v = 1,size(source,1)
+          destination(v,k)%pos = source(v,k)%pos
+          destination(v,k)%bdry_tag = source(v,k)%bdry_tag
+          destination(v,k)%bdry_uptodate = &
+               source(v,k)%bdry_uptodate
+          do d = 1,size(source(v,k)%data)
+             destination(v,k)%data(d)%length = &
+                  source(v,k)%data(d)%length
+             destination(v,k)%data(d)%elts = &
+                  source(v,k)%data(d)%elts
+          end do
+       end do
+    end do
+
+  end subroutine copy_inverse_field_family
+
   
   subroutine adapt ( &
        set_thresholds,type,validate_adaptation_masks, &

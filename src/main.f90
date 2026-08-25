@@ -14,7 +14,9 @@ module main_mod
        R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
        time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
 
-  use adapt_mod,          only : adapt, WT_after_step
+  use adapt_mod,          only : adapt, &
+       begin_inverse_wavelet_transform_shadow, &
+       compare_inverse_wavelet_transform_shadow, WT_after_step
   use coarse_grid_mod,    only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
   use comm_mod,           only : get_coord, set_coord
   use diagnostics_mod,    only : rho_dz_i, theta_i, theta2temp
@@ -442,10 +444,36 @@ contains
        call begin_wavelet_compression_shadow(wavelet)
     else
        call compare_wavelet_compression_shadow(wavelet)
-       call complete_block_adaptation_validation
     end if
 
   end subroutine validate_block_wavelet_compression
+
+
+  subroutine validate_block_inverse_wavelet_transform( &
+       wavelet,scaling,stage)
+
+    implicit none
+
+    type(Float_Field), intent(in) :: wavelet(:,:)
+    type(Float_Field), intent(in) :: scaling(:,:)
+    integer, intent(in) :: stage
+    logical :: validation_pending
+
+    validation_pending = block_adaptation_validation_pending()
+    if (.not. validation_pending) return
+    if (stage < 0 .or. stage > 1) then
+       if (rank == 0) write(6,'(a)') &
+            "Inverse wavelet validation stage is invalid"
+       call abort_run
+    end if
+    if (stage == 0) then
+       call begin_inverse_wavelet_transform_shadow(wavelet,scaling)
+    else
+       call compare_inverse_wavelet_transform_shadow(scaling)
+       call complete_block_adaptation_validation
+    end if
+
+  end subroutine validate_block_inverse_wavelet_transform
 
 
   subroutine time_step 
@@ -564,7 +592,9 @@ contains
          set_thresholds,validate_adaptation_masks= &
          validate_block_adaptation_masks,validate_wavelet_compression= &
          validate_block_wavelet_compression)
+    call validate_block_inverse_wavelet_transform(wav_coeff,sol,0)
     call inverse_wavelet_transform (wav_coeff, sol)
+    call validate_block_inverse_wavelet_transform(wav_coeff,sol,1)
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Vertical remapping (after grid adaptation to ensure ADJCENT_ZONE and ZERO cells are remapped consistently)
