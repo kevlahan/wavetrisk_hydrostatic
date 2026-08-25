@@ -254,7 +254,8 @@ contains
   
   subroutine WT_after_step ( &
        scaling,wavelet,l_start0,validate_scalar_wavelets, &
-       validate_outer_vector_wavelets,validate_velocity_restriction)
+       validate_outer_vector_wavelets,validate_velocity_restriction, &
+       native_wavelet_output)
     ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
     
     implicit none
@@ -267,8 +268,22 @@ contains
          validate_outer_vector_wavelets
     procedure(Velocity_Restriction_Validator), optional :: &
          validate_velocity_restriction
+    logical, optional, intent(in) :: native_wavelet_output
 
     integer :: d, k, l, l_start, v
+    logical :: native_output
+
+    native_output = .false.
+    if (present(native_wavelet_output)) then
+       native_output = native_wavelet_output
+    end if
+    if (native_output .and. &
+         (.not. present(l_start0) .or. &
+          .not. present(validate_scalar_wavelets) .or. &
+          .not. present(validate_outer_vector_wavelets) .or. &
+          .not. present(validate_velocity_restriction))) then
+       error stop "native wavelet output requires complete production callbacks"
+    end if
 
     call zero_float (wavelet)
 
@@ -284,6 +299,9 @@ contains
     else
        l_start = level_start
     end if
+    if (native_output .and. l_start /= level_start-1) then
+       error stop "native wavelet output requires the complete level range"
+    end if
 
     call update_bdry (scaling, NONE, 904)
     if (present(l_start0) .and. &
@@ -292,33 +310,37 @@ contains
     end if
 
     do l = l_start, level_end-1
-       do k = 1, size(scaling,2)
-          do d = 1, size(grid)
-             do v = scalars(1), scalars(2)
-                scalar => scaling(v,k)%data(d)%elts
-                wc_s   => wavelet(v,k)%data(d)%elts
-                call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
-                nullify (scalar, wc_s)
+       if (.not. native_output) then
+          do k = 1, size(scaling,2)
+             do d = 1, size(grid)
+                do v = scalars(1), scalars(2)
+                   scalar => scaling(v,k)%data(d)%elts
+                   wc_s   => wavelet(v,k)%data(d)%elts
+                   call apply_interscale_d (compute_scalar_wavelets, grid(d), l, z_null, 0, 0)
+                   nullify (scalar, wc_s)
+                end do
+                velo => scaling(S_VELO,k)%data(d)%elts
+                wc_u => wavelet(S_VELO,k)%data(d)%elts
+                call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
+                nullify (velo, wc_u)
              end do
-             velo => scaling(S_VELO,k)%data(d)%elts
-             wc_u => wavelet(S_VELO,k)%data(d)%elts
-             call apply_interscale_d (compute_velo_wavelets, grid(d), l, z_null, 0, 0)
-             nullify (velo, wc_u)
           end do
-       end do
+       end if
        if (present(validate_outer_vector_wavelets)) then
           call validate_outer_vector_wavelets(scaling,l)
        end if
-       do k = 1, size(scaling,2)
-          do d = 1,size(grid)
-             velo => scaling(S_VELO,k)%data(d)%elts
-             wc_u => wavelet(S_VELO,k)%data(d)%elts
-             call apply_to_penta_d( &
-                  compute_velo_wavelets_penta,grid(d),l,z_null)
-             nullify(velo,wc_u)
+       if (.not. native_output) then
+          do k = 1, size(scaling,2)
+             do d = 1,size(grid)
+                velo => scaling(S_VELO,k)%data(d)%elts
+                wc_u => wavelet(S_VELO,k)%data(d)%elts
+                call apply_to_penta_d( &
+                     compute_velo_wavelets_penta,grid(d),l,z_null)
+                nullify(velo,wc_u)
+             end do
+             wavelet(:,k)%bdry_uptodate = .false.
           end do
-          wavelet(:,k)%bdry_uptodate = .false.
-       end do
+       end if
     end do
     if (present(validate_scalar_wavelets)) then
        call validate_scalar_wavelets(scaling,wavelet,l_start)

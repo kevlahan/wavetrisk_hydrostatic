@@ -141,12 +141,7 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,1,3)
     end if
-    call WT_after_step( &
-         q1,wav, &
-         validate_scalar_wavelets= &
-         validate_candidate_block_scalar_wavelets, &
-         validate_outer_vector_wavelets= &
-         validate_candidate_block_outer_vector_wavelets)
+    call WT_after_step(q1,wav)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,1,3)
@@ -163,12 +158,7 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,2,3)
     end if
-    call WT_after_step( &
-         q1,wav, &
-         validate_scalar_wavelets= &
-         validate_candidate_block_scalar_wavelets, &
-         validate_outer_vector_wavelets= &
-         validate_candidate_block_outer_vector_wavelets)
+    call WT_after_step(q1,wav)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,2,3)
@@ -193,7 +183,8 @@ contains
          validate_outer_vector_wavelets= &
          validate_candidate_block_outer_vector_wavelets, &
          validate_velocity_restriction= &
-         validate_candidate_block_velocity_restriction)
+         validate_candidate_block_velocity_restriction, &
+         native_wavelet_output=block_candidate)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if
@@ -237,12 +228,7 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,1,4)
     end if
-    call WT_after_step( &
-         q1,wav, &
-         validate_scalar_wavelets= &
-         validate_candidate_block_scalar_wavelets, &
-         validate_outer_vector_wavelets= &
-         validate_candidate_block_outer_vector_wavelets)
+    call WT_after_step(q1,wav)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,1,4)
@@ -259,12 +245,7 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,2,4)
     end if
-    call WT_after_step( &
-         q1,wav, &
-         validate_scalar_wavelets= &
-         validate_candidate_block_scalar_wavelets, &
-         validate_outer_vector_wavelets= &
-         validate_candidate_block_outer_vector_wavelets)
+    call WT_after_step(q1,wav)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,2,4)
@@ -281,12 +262,7 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,3,4)
     end if
-    call WT_after_step( &
-         q1,wav, &
-         validate_scalar_wavelets= &
-         validate_candidate_block_scalar_wavelets, &
-         validate_outer_vector_wavelets= &
-         validate_candidate_block_outer_vector_wavelets)
+    call WT_after_step(q1,wav)
     if (block_candidate) then
        call update_bdry(q1,NONE,980)
        call refresh_parallel_block_candidate_boundary_state(q1,3,4)
@@ -311,7 +287,8 @@ contains
          validate_outer_vector_wavelets= &
          validate_candidate_block_outer_vector_wavelets, &
          validate_velocity_restriction= &
-         validate_candidate_block_velocity_restriction)
+         validate_candidate_block_velocity_restriction, &
+         native_wavelet_output=block_candidate)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if
