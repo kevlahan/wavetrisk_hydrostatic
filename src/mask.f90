@@ -7,10 +7,12 @@ module mask_mod
   use kind_mod,       only : dp
   use arch_mod,       only : rank
   use comm_mpi_mod,   only : comm_masks_mpi, update_bdry1
-  use dyn_arrays,     only : extend, init, Int_Array
-  use domain_mod,     only : chd_offs, Domain, get_offs_Domain, grid, &
+  use dyn_arrays,     only : extend, init, Float_Array, Int_Array
+  use domain_mod,     only : chd_offs, Domain, Float_Field, &
+       get_offs_Domain, grid, &
        wav_coeff, idx, id_edge
-  use domain_ops_mod, only : apply_bdry, apply_interscale, apply_onescale, apply_onescale__int 
+  use domain_ops_mod, only : apply_bdry, apply_interscale, &
+       apply_onescale, apply_onescale_d, apply_onescale__int
   use patch_mod,      only : PATCH_SIZE
   
   use shared_mod, only : ADJSPACE, ADJZONE, BDRY_THICKNESS, EDGE, &
@@ -26,6 +28,8 @@ module mask_mod
   public :: advance_pre_refinement_mask_shadow
   public :: begin_post_refinement_mask_shadow
   public :: advance_post_refinement_mask_shadow
+  public :: begin_wavelet_compression_shadow
+  public :: compare_wavelet_compression_shadow
 
   type(Int_Array), allocatable, save :: pre_refinement_mask_n(:)
   type(Int_Array), allocatable, save :: pre_refinement_mask_e(:)
@@ -34,6 +38,14 @@ module mask_mod
   integer, save :: pre_refinement_shadow_stage = -1
   integer(int64), save :: pre_refinement_shadow_allocations = 0_int64
   integer(int64), save :: pre_refinement_allocation_checkpoint = 0_int64
+
+  type(Float_Array), allocatable, target, save :: &
+       wavelet_compression_expected(:,:,:)
+  real(dp), pointer, save :: wavelet_compression_values(:) => null()
+  logical, save :: wavelet_compression_shadow_ready = .false.
+  integer(int64), save :: wavelet_compression_shadow_allocations = 0_int64
+  integer(int64), save :: wavelet_compression_allocation_checkpoint = &
+       0_int64
 
   
 contains
@@ -183,6 +195,257 @@ contains
     end if
 
   end subroutine advance_post_refinement_mask_shadow
+
+
+  subroutine begin_wavelet_compression_shadow(wavelet)
+    ! Retain the boundary-refreshed, uncompressed wavelet family and apply
+    ! the completed masks independently to persistent expected storage.
+
+    implicit none
+
+    type(Float_Field), intent(in), target :: wavelet(:,:)
+
+    integer :: d
+    integer :: k
+    integer :: l
+    integer :: v
+
+    if (wavelet_compression_shadow_ready) then
+       error stop "begin_wavelet_compression_shadow: shadow is still active"
+    end if
+    if (pre_refinement_shadow_ready .or. &
+         pre_refinement_shadow_stage /= -1) then
+       error stop &
+            "begin_wavelet_compression_shadow: mask shadow is incomplete"
+    end if
+    if (associated(wavelet_compression_values)) then
+       error stop &
+            "begin_wavelet_compression_shadow: work pointer is associated"
+    end if
+    if (level_start < level_end .and. &
+         .not. all(wavelet%bdry_uptodate)) then
+       error stop &
+            "begin_wavelet_compression_shadow: boundary state is incomplete"
+    end if
+    call ensure_wavelet_compression_shadow_storage(wavelet)
+    do k = 1,size(wavelet,2)
+       do v = 1,size(wavelet,1)
+          do d = 1,size(grid)
+             wavelet_compression_expected(v,k,d)%length = &
+                  wavelet(v,k)%data(d)%length
+             wavelet_compression_expected(v,k,d)%elts = &
+                  wavelet(v,k)%data(d)%elts
+          end do
+       end do
+    end do
+
+    do k = 1,size(wavelet,2)
+       do l = level_start+1,level_end
+          do d = 1,size(grid)
+             do v = scalars(1),scalars(2)
+                wavelet_compression_values => &
+                     wavelet_compression_expected(v,k,d)%elts
+                call apply_onescale_d( &
+                     compress_shadow_scalar,grid(d),l,z_null,0,1)
+                nullify(wavelet_compression_values)
+             end do
+             wavelet_compression_values => &
+                  wavelet_compression_expected(S_VELO,k,d)%elts
+             call apply_onescale_d( &
+                  compress_shadow_vector,grid(d),l,z_null,0,0)
+             nullify(wavelet_compression_values)
+          end do
+       end do
+    end do
+
+    wavelet_compression_shadow_ready = .true.
+    wavelet_compression_allocation_checkpoint = &
+         wavelet_compression_shadow_allocations
+
+  end subroutine begin_wavelet_compression_shadow
+
+
+  subroutine compare_wavelet_compression_shadow(wavelet)
+    ! Require the production compression result to match the independently
+    ! masked expected family bit-for-bit, including retained coefficients.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: wavelet(:,:)
+
+    integer :: d
+    integer :: i
+    integer :: k
+    integer :: v
+    integer(int64) :: actual_bits
+    integer(int64) :: expected_bits
+
+    if (.not. wavelet_compression_shadow_ready) then
+       error stop "compare_wavelet_compression_shadow: shadow is unavailable"
+    end if
+    if (wavelet_compression_shadow_allocations /= &
+         wavelet_compression_allocation_checkpoint) then
+       error stop &
+            "compare_wavelet_compression_shadow: persistent storage changed"
+    end if
+    if (any(wavelet%bdry_uptodate)) then
+       error stop &
+            "compare_wavelet_compression_shadow: boundary state is current"
+    end if
+    do k = 1,size(wavelet,2)
+       do v = 1,size(wavelet,1)
+          do d = 1,size(grid)
+             if (wavelet(v,k)%data(d)%length /= &
+                  wavelet_compression_expected(v,k,d)%length) then
+                error stop &
+                     "compare_wavelet_compression_shadow: extent differs"
+             end if
+             do i = 1,wavelet(v,k)%data(d)%length
+                actual_bits = transfer( &
+                     wavelet(v,k)%data(d)%elts(i),0_int64)
+                expected_bits = transfer( &
+                     wavelet_compression_expected(v,k,d)%elts(i), &
+                     0_int64)
+                if (actual_bits == expected_bits) cycle
+                write(error_unit,'(/,a,i0,a)') &
+                     "Rank ",rank,": compressed wavelet differs"
+                write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+                     "  variable = ",v,", level slot = ",k, &
+                     ", Domain = ",d,", index = ",i
+                write(error_unit,'(a,2(es24.16,1x))') &
+                     "  actual, expected = ", &
+                     wavelet(v,k)%data(d)%elts(i), &
+                     wavelet_compression_expected(v,k,d)%elts(i)
+                flush(error_unit)
+                error stop "wavelet-compression comparison failed"
+             end do
+          end do
+       end do
+    end do
+    wavelet_compression_shadow_ready = .false.
+
+  end subroutine compare_wavelet_compression_shadow
+
+
+  subroutine ensure_wavelet_compression_shadow_storage(wavelet)
+
+    implicit none
+
+    type(Float_Field), intent(in) :: wavelet(:,:)
+
+    integer :: d
+    integer :: k
+    integer :: v
+    logical :: shape_differs
+
+    shape_differs = .false.
+    if (allocated(wavelet_compression_expected)) then
+       shape_differs = &
+            size(wavelet_compression_expected,1) /= size(wavelet,1) .or. &
+            size(wavelet_compression_expected,2) /= size(wavelet,2) .or. &
+            size(wavelet_compression_expected,3) /= size(grid)
+       if (shape_differs) then
+          do d = 1,size(wavelet_compression_expected,3)
+             do k = 1,size(wavelet_compression_expected,2)
+                do v = 1,size(wavelet_compression_expected,1)
+                   if (allocated( &
+                        wavelet_compression_expected(v,k,d)%elts)) &
+                        deallocate( &
+                        wavelet_compression_expected(v,k,d)%elts)
+                end do
+             end do
+          end do
+          deallocate(wavelet_compression_expected)
+       end if
+    end if
+    if (.not. allocated(wavelet_compression_expected)) then
+       allocate(wavelet_compression_expected( &
+            size(wavelet,1),size(wavelet,2),size(grid)))
+       wavelet_compression_shadow_allocations = &
+            wavelet_compression_shadow_allocations+1_int64
+    end if
+
+    do k = 1,size(wavelet,2)
+       do v = 1,size(wavelet,1)
+          if (.not. allocated(wavelet(v,k)%data)) then
+             error stop &
+                  "ensure_wavelet_compression_shadow_storage: field absent"
+          end if
+          if (size(wavelet(v,k)%data) /= size(grid)) then
+             error stop &
+                  "ensure_wavelet_compression_shadow_storage: layout differs"
+          end if
+          do d = 1,size(grid)
+             if (.not. allocated(wavelet(v,k)%data(d)%elts)) then
+                error stop &
+                     "ensure_wavelet_compression_shadow_storage: data absent"
+             end if
+             if (allocated( &
+                  wavelet_compression_expected(v,k,d)%elts)) then
+                if (size( &
+                     wavelet_compression_expected(v,k,d)%elts) /= &
+                     size(wavelet(v,k)%data(d)%elts)) then
+                   deallocate( &
+                        wavelet_compression_expected(v,k,d)%elts)
+                end if
+             end if
+             if (.not. allocated( &
+                  wavelet_compression_expected(v,k,d)%elts)) then
+                allocate(wavelet_compression_expected(v,k,d)%elts( &
+                     size(wavelet(v,k)%data(d)%elts)))
+                wavelet_compression_shadow_allocations = &
+                     wavelet_compression_shadow_allocations+1_int64
+             end if
+          end do
+       end do
+    end do
+
+  end subroutine ensure_wavelet_compression_shadow_storage
+
+
+  subroutine compress_shadow_scalar(dom,i,j,zlev,offs,dims)
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: zlev
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id_i
+
+    id_i = idx(i,j,offs,dims)+1
+    if (dom%mask_n%elts(id_i) < ADJZONE) &
+         wavelet_compression_values(id_i) = 0.0_dp
+
+  end subroutine compress_shadow_scalar
+
+
+  subroutine compress_shadow_vector(dom,i,j,zlev,offs,dims)
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: zlev
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: e
+    integer :: id
+    integer :: id_e
+
+    id = idx(i,j,offs,dims)
+    do e = 1,EDGE
+       id_e = EDGE*id+e
+       if (dom%mask_e%elts(id_e) < ADJZONE) &
+            wavelet_compression_values(id_e) = 0.0_dp
+    end do
+
+  end subroutine compress_shadow_vector
 
 
   subroutine ensure_pre_refinement_mask_shadow_storage

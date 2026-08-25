@@ -64,12 +64,21 @@ module adapt_mod
      subroutine Adaptation_Mask_Validator(stage)
        integer, intent(in) :: stage
      end subroutine Adaptation_Mask_Validator
+
+     subroutine Wavelet_Compression_Validator(wavelet,stage)
+       import :: Float_Field
+
+       type(Float_Field), intent(in) :: wavelet(:,:)
+       integer, intent(in) :: stage
+     end subroutine Wavelet_Compression_Validator
   end interface
 
   
 contains
   
-  subroutine adapt (set_thresholds, type, validate_adaptation_masks)
+  subroutine adapt ( &
+       set_thresholds,type,validate_adaptation_masks, &
+       validate_wavelet_compression)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
     
     implicit none
@@ -78,6 +87,8 @@ contains
     logical, intent(in), optional :: type ! recalculate thresholds
     procedure(Adaptation_Mask_Validator), optional :: &
          validate_adaptation_masks
+    procedure(Wavelet_Compression_Validator), optional :: &
+         validate_wavelet_compression
     
     logical :: local_type
 
@@ -138,23 +149,34 @@ contains
          call validate_adaptation_masks(8)
 
     ! Set insignificant wavelet coefficients to zero
-    if (local_type) call compress_wavelets (wav_coeff)
+    if (local_type) then
+       if (present(validate_wavelet_compression)) then
+          call compress_wavelets( &
+               wav_coeff,validate_wavelet_compression)
+       else
+          call compress_wavelets(wav_coeff)
+       end if
+    end if
     
     ! Evaluate sol_mean, topography and penalization (as defined in test case) on new grid
     call update 
   end subroutine adapt
 
   
-  subroutine compress_wavelets (wav)
+  subroutine compress_wavelets (wav,validate_compression)
     ! Sets wavelets associated with inactive grid points to zero
     
     implicit none
     
     type(Float_Field), intent(inout), target :: wav(:,:)
+    procedure(Wavelet_Compression_Validator), optional :: &
+         validate_compression
 
     integer :: d, k, l, v
 
     call update_bdry (wav, NONE, 901)
+    if (present(validate_compression)) &
+         call validate_compression(wav,0)
     
     do k = 1, size (wav, 2)
        do l = level_start+1, level_end
@@ -171,6 +193,8 @@ contains
        end do
     end do
     wav%bdry_uptodate = .false.
+    if (present(validate_compression)) &
+         call validate_compression(wav,1)
   end subroutine compress_wavelets
 
   

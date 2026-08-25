@@ -409,7 +409,7 @@ module parallel_block_mpi_mod
   logical, save :: production_coarse_outer_wavelet_validated = .false.
   logical, save :: production_complete_vector_wavelet_validated = .false.
   logical, save :: production_multistage_final_snapshot_consumed = .false.
-  logical, save :: production_adaptation_mask_pending = .false.
+  logical, save :: production_adaptation_validation_pending = .false.
   logical, parameter :: verbose_block_validation = .false.
 
   ! Domain-shaped, non-authoritative storage for the complete native vector
@@ -664,8 +664,8 @@ module parallel_block_mpi_mod
   public :: invalidate_parallel_block_domain_shadow
   public :: synchronize_parallel_block_checkpoint
   public :: prepare_parallel_block_grid_change
-  public :: block_adaptation_mask_validation_pending
-  public :: complete_block_adaptation_mask_validation
+  public :: block_adaptation_validation_pending
+  public :: complete_block_adaptation_validation
   public :: retain_post_grid_change_block_reconstruction
   public :: migrate_blocks
   public :: check_local_blocks
@@ -797,30 +797,30 @@ contains
   end function parallel_block_state_is_ready
 
 
-  logical function block_adaptation_mask_validation_pending() &
+  logical function block_adaptation_validation_pending() &
        result(pending)
 
     implicit none
 
-    pending = production_adaptation_mask_pending
+    pending = production_adaptation_validation_pending
 
-  end function block_adaptation_mask_validation_pending
+  end function block_adaptation_validation_pending
 
 
-  subroutine complete_block_adaptation_mask_validation
+  subroutine complete_block_adaptation_validation
 
     implicit none
 
-    if (.not. production_adaptation_mask_pending) then
-       call fail("adaptation mask validation was not pending")
+    if (.not. production_adaptation_validation_pending) then
+       call fail("adaptation validation was not pending")
     end if
-    production_adaptation_mask_pending = .false.
+    production_adaptation_validation_pending = .false.
     if (rank == 0) then
        write(6,'(a)') &
-            "Production adaptation mask and refinement request shadow passed"
+            "Production adaptation mask and wavelet compression passed"
     end if
 
-  end subroutine complete_block_adaptation_mask_validation
+  end subroutine complete_block_adaptation_validation
 
 
   subroutine invalidate_parallel_block_domain_shadow
@@ -17207,8 +17207,8 @@ end subroutine build_parallel_block_catalog
     if (.not. production_complete_vector_wavelet_validated) then
        call fail("production complete vector wavelet is incomplete")
     end if
-    if (production_adaptation_mask_pending) then
-       call fail("previous adaptation mask validation is pending")
+    if (production_adaptation_validation_pending) then
+       call fail("previous adaptation validation is pending")
     end if
     if (block_writeback_plan% &
          production_multistage_boundary_refresh_count /= &
@@ -17288,7 +17288,7 @@ end subroutine build_parallel_block_catalog
        block_writeback_plan%production_rk4_step_count = &
             block_writeback_plan%production_rk4_step_count + 1_int64
     end if
-    production_adaptation_mask_pending = .true.
+    production_adaptation_validation_pending = .true.
     production_multistage_candidate_stage = 0
     production_multistage_candidate_stage_count = 0
     production_multistage_captured_tendency_stage = 0

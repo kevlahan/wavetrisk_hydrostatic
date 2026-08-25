@@ -28,7 +28,9 @@ module main_mod
   use mask_mod,           only : advance_post_refinement_mask_shadow, &
        advance_pre_refinement_mask_shadow, &
        begin_post_refinement_mask_shadow, &
-       begin_pre_refinement_mask_shadow, init_masks, mask_adj_child
+       begin_pre_refinement_mask_shadow, &
+       begin_wavelet_compression_shadow, &
+       compare_wavelet_compression_shadow, init_masks, mask_adj_child
   use multi_level_mod,    only : trend_ml
   use NCAR_topo_mod,      only : load_topo
   use refine_patch_mod,   only : add_second_level
@@ -43,7 +45,7 @@ module main_mod
   use comm_mpi_mod, only : comm_nodes3_mpi, init_comm_mpi, recv_lengths, recv_offsets, req, send_lengths, send_offsets, &
        sum_int, sync_max_int, sync_min_real, update_bdry, write_load_conn
 
-  use domain_mod, only : Domain, bernoulli, divu, dscalar, grid, &
+  use domain_mod, only : Domain, Float_Field, bernoulli, divu, dscalar, grid, &
        dvelo, exner, exner_fun, h_flux, horiz_flux, ke, qe, scalar, mass, temp, velo, vort, wc_s, wc_u, &
        Kt, Kv, Laplacian_scalar, Laplacian_vector, penal_edge, penal_node, sso_param, &
        sol, sol_mean, tke, topography, topography_data, trend, wav_coeff, wav_tke, id_edge, idx
@@ -61,9 +63,9 @@ module main_mod
   use parallel_block_build_mod, only : build_source_blocks
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
-       block_adaptation_mask_validation_pending, &
+       block_adaptation_validation_pending, &
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
-       complete_block_adaptation_mask_validation, &
+       complete_block_adaptation_validation, &
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
        prepare_parallel_block_grid_change, &
        refresh_parallel_block_trend_boundary_state, &
@@ -397,7 +399,7 @@ contains
     logical :: validation_pending
 
     validation_pending = &
-         block_adaptation_mask_validation_pending()
+         block_adaptation_validation_pending()
     if (.not. validation_pending) return
     if (stage < 0 .or. stage > 8) then
        if (rank == 0) write(6,'(a)') &
@@ -418,10 +420,32 @@ contains
     else
        call advance_post_refinement_mask_shadow(stage)
     end if
-    if (stage == 8) &
-         call complete_block_adaptation_mask_validation
-
   end subroutine validate_block_adaptation_masks
+
+
+  subroutine validate_block_wavelet_compression(wavelet,stage)
+
+    implicit none
+
+    type(Float_Field), intent(in) :: wavelet(:,:)
+    integer, intent(in) :: stage
+    logical :: validation_pending
+
+    validation_pending = block_adaptation_validation_pending()
+    if (.not. validation_pending) return
+    if (stage < 0 .or. stage > 1) then
+       if (rank == 0) write(6,'(a)') &
+            "Wavelet compression validation stage is invalid"
+       call abort_run
+    end if
+    if (stage == 0) then
+       call begin_wavelet_compression_shadow(wavelet)
+    else
+       call compare_wavelet_compression_shadow(wavelet)
+       call complete_block_adaptation_validation
+    end if
+
+  end subroutine validate_block_wavelet_compression
 
 
   subroutine time_step 
@@ -538,7 +562,8 @@ contains
     if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
     call adapt( &
          set_thresholds,validate_adaptation_masks= &
-         validate_block_adaptation_masks)
+         validate_block_adaptation_masks,validate_wavelet_compression= &
+         validate_block_wavelet_compression)
     call inverse_wavelet_transform (wav_coeff, sol)
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
