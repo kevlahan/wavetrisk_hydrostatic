@@ -12,6 +12,7 @@ module parallel_block_mpi_mod
        hex_s_offs, &
        AT_EDGE, DG, EAST, EDGE, NORTH, NORTHEAST, NORTHWEST, N_BDRY, &
        N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, n_domain, &
+       IJMINUS, IMINUSJPLUS, IPLUSJMINUS, LORT, UPLT, TRIAG, &
        SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
        MM, MP, PM, PP, UMZ, UPZ, UZM, UZP, VMM, VMPP, VMP, &
        VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
@@ -21,14 +22,14 @@ module parallel_block_mpi_mod
        level_start, p_0, p_top, zlevels
 
   use domain_mod, only : chd_offs, Domain, Float_Field, &
-       ed_idx, get_bdry_dims_Domain, get_offs_Domain, grid, &
+       ed_idx, get_offs_Domain, grid, &
        horiz_flux, &
        idx, sol, sol_mean, tke, &
        topography, trend, &
        wav_coeff, wav_tke, &
        subtree_weight_Domain
 
-  use patch_mod, only : PATCH_SIZE
+  use patch_mod, only : LAST, PATCH_SIZE
 
   use arch_mod, only : abort_run, block_catalog, comm, glo_id, loc_id, &
        n_process, owner, Parallel_Block, rank
@@ -406,7 +407,16 @@ module parallel_block_mpi_mod
   integer, save :: production_multistage_native_candidate_stage = 0
   integer, save :: production_velocity_restriction_level = -1
   logical, save :: production_coarse_outer_wavelet_validated = .false.
+  logical, save :: production_complete_vector_wavelet_validated = .false.
   logical, save :: production_multistage_final_snapshot_consumed = .false.
+
+  ! Domain-shaped, non-authoritative storage for the complete native vector
+  ! transform.  Values are populated only from the block-derived writeback
+  ! stage and its independently exchanged boundary routes.
+  integer, allocatable, save :: production_vector_transform_displ(:)
+  real(dp), allocatable, target, save :: production_vector_transform_stage(:)
+  real(dp), allocatable, target, save :: production_vector_wavelet_stage(:)
+  logical, allocatable, save :: production_vector_transform_covered(:)
   integer(int64), save :: &
        production_multistage_accumulator_allocation_before = 0_int64
   integer(int64), save :: &
@@ -3459,6 +3469,18 @@ end subroutine build_parallel_block_catalog
     if (allocated(block_writeback_plan%domain_patch_reconstructed)) then
        deallocate(block_writeback_plan%domain_patch_reconstructed)
     end if
+    if (allocated(production_vector_transform_displ)) then
+       deallocate(production_vector_transform_displ)
+    end if
+    if (allocated(production_vector_transform_stage)) then
+       deallocate(production_vector_transform_stage)
+    end if
+    if (allocated(production_vector_wavelet_stage)) then
+       deallocate(production_vector_wavelet_stage)
+    end if
+    if (allocated(production_vector_transform_covered)) then
+       deallocate(production_vector_transform_covered)
+    end if
 
     block_writeback_plan%catalog_size = 0
     block_writeback_plan%domain_count = 0
@@ -3490,6 +3512,7 @@ end subroutine build_parallel_block_catalog
     production_multistage_native_candidate_stage = 0
     production_velocity_restriction_level = -1
     production_coarse_outer_wavelet_validated = .false.
+    production_complete_vector_wavelet_validated = .false.
     production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
 
@@ -3525,6 +3548,7 @@ end subroutine build_parallel_block_catalog
 
     integer(int64) :: rank_nvalue
     integer(int64) :: total_patch
+    integer(int64) :: total_vector_transform
 
     if (.not. allocated(block_catalog) .or. &
          .not. allocated(owner)) then
@@ -3849,6 +3873,35 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%native_vector_stage = 0.0_dp
     block_writeback_plan%domain_patch_covered = .false.
     block_writeback_plan%domain_patch_reconstructed = .false.
+
+    ! The complete vector transform needs Domain indexing for geometric
+    ! stencils, but its field values remain an independent block-derived
+    ! stage.  Allocate that persistent shape once with the writeback plan.
+    allocate(production_vector_transform_displ(size(grid)+1))
+    production_vector_transform_displ = 0
+    total_vector_transform = 0_int64
+    do d = 1,size(grid)
+       production_vector_transform_displ(d) = int(total_vector_transform)
+       total_vector_transform = total_vector_transform + int( &
+            n_field_level*size(sol(S_VELO,first_field_level)% &
+            data(d)%elts),int64)
+       if (total_vector_transform > int(huge(0),int64)) then
+          call fail("native vector transform stage exceeds range")
+       end if
+    end do
+    production_vector_transform_displ(size(grid)+1) = &
+         int(total_vector_transform)
+    allocate(production_vector_transform_stage( &
+         max(1,int(total_vector_transform))))
+    allocate(production_vector_wavelet_stage( &
+         max(1,int(total_vector_transform))))
+    allocate(production_vector_transform_covered( &
+         max(1,int(total_vector_transform))))
+    production_vector_transform_stage = 0.0_dp
+    production_vector_wavelet_stage = 0.0_dp
+    production_vector_transform_covered = .false.
+    block_writeback_plan%stage_allocations = &
+         block_writeback_plan%stage_allocations + 4_int64
     block_writeback_plan%catalog_size = size(block_catalog)
     block_writeback_plan%domain_count = size(grid)
     block_writeback_plan%installed_block_count = n_local_blocks()
@@ -5192,7 +5245,11 @@ end subroutine build_parallel_block_catalog
          .not. allocated(block_writeback_plan%native_vector_stage) .or. &
          .not. allocated(block_writeback_plan%domain_patch_covered) .or. &
          .not. allocated( &
-         block_writeback_plan%domain_patch_reconstructed)) then
+         block_writeback_plan%domain_patch_reconstructed) .or. &
+         .not. allocated(production_vector_transform_displ) .or. &
+         .not. allocated(production_vector_transform_stage) .or. &
+         .not. allocated(production_vector_wavelet_stage) .or. &
+         .not. allocated(production_vector_transform_covered)) then
        call fail("writeback Domain stage storage is incomplete")
     end if
 
@@ -5240,6 +5297,15 @@ end subroutine build_parallel_block_catalog
          stage_patch_count* &
          block_writeback_plan%vector_patch_nvalue)) then
        call fail("writeback Domain stage extent mismatch")
+    end if
+    if (production_vector_transform_displ(1) /= 0 .or. &
+         production_vector_transform_displ(size(grid)+1) /= &
+         size(production_vector_transform_stage) .or. &
+         size(production_vector_wavelet_stage) /= &
+         size(production_vector_transform_stage) .or. &
+         size(production_vector_transform_covered) /= &
+         size(production_vector_transform_stage)) then
+       call fail("complete vector transform stage extent mismatch")
     end if
 
     allocate(seen(size(block_catalog)))
@@ -8511,8 +8577,7 @@ end subroutine build_parallel_block_catalog
     end function staged_vector_value
 
 
-    real(dp) function staged_side_value ( &
-         base_i,base_j,side_index,coefficient) &
+    real(dp) function staged_side_value (base_i,base_j,side_index) &
          result(value)
 
       implicit none
@@ -8520,7 +8585,6 @@ end subroutine build_parallel_block_catalog
       integer, intent(in) :: base_i
       integer, intent(in) :: base_j
       integer, intent(in) :: side_index
-      real(dp), intent(in) :: coefficient
 
       integer :: edge_component
       integer :: edge_id
@@ -8600,9 +8664,6 @@ end subroutine build_parallel_block_catalog
          write(error_unit,'(a,i0,a,i0)') &
               "  resolved edge id = ",edge_id, &
               ", lookup index = ",lookup_index
-         write(error_unit,'(a,es24.16)') &
-              "  combined interpolation coefficient = ",coefficient
-         call report_missing_staged_boundary_route(edge_id)
          flush(error_unit)
          call fail("staged outer-wavelet boundary source is unavailable")
       end if
@@ -8617,126 +8678,6 @@ end subroutine build_parallel_block_catalog
       end if
 
     end function staged_side_value
-
-
-    subroutine report_missing_staged_boundary_route(missing_edge_id)
-
-      implicit none
-
-      integer, intent(in) :: missing_edge_id
-
-      integer :: alias_count
-      integer :: b
-      integer :: boundary_dims(2)
-      integer :: boundary_finish
-      integer :: boundary_i
-      integer :: boundary_j
-      integer :: boundary_start
-      integer :: candidate_edge_id
-      integer :: candidate_lookup_index
-      integer :: candidate_node
-      integer :: candidate_record
-      integer :: component
-      integer :: missing_node
-      integer :: node_finish
-      integer :: node_start
-      real(dp) :: coordinate_tolerance
-      real(dp) :: missing_x
-      real(dp) :: missing_y
-      real(dp) :: missing_z
-
-      missing_node = missing_edge_id/EDGE
-      write(error_unit,'(a,i0,a,i0)') &
-           "  edge component = ",mod(missing_edge_id,EDGE), &
-           ", node id = ",missing_node
-      if (missing_node+1 >= 1 .and. missing_node+1 <= &
-           grid(d)%level%length) then
-         write(error_unit,'(a,i0)') &
-              "  stored node level = ",grid(d)%level%elts(missing_node+1)
-      end if
-      if (missing_edge_id+1 >= 1 .and. missing_edge_id+1 <= &
-           grid(d)%mask_e%length) then
-         write(error_unit,'(a,i0)') &
-              "  stored edge mask = ",grid(d)%mask_e%elts(missing_edge_id+1)
-      end if
-
-      do b = 0,grid(d)%bdry_patch%length-1
-         call get_bdry_dims_Domain(grid(d),b,boundary_dims)
-         boundary_start = grid(d)%bdry_patch%elts(b+1)%elts_start
-         boundary_finish = boundary_start+product(boundary_dims)-1
-         if (missing_node < boundary_start .or. &
-              missing_node > boundary_finish) cycle
-         boundary_i = mod(missing_node-boundary_start,boundary_dims(1))
-         boundary_j = (missing_node-boundary_start)/boundary_dims(1)
-         write(error_unit,'(a,i0,a,i0,a,i0)') &
-              "  boundary patch = ",b,", side = ", &
-              grid(d)%bdry_patch%elts(b+1)%side,", neighbour = ", &
-              grid(d)%bdry_patch%elts(b+1)%neigh
-         write(error_unit,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
-              "  boundary start = ",boundary_start,", dims = ", &
-              boundary_dims(1)," x ",boundary_dims(2), &
-              ", boundary i = ",boundary_i,", boundary j = ",boundary_j
-         node_start = max(boundary_start,missing_node-2)
-         node_finish = min(boundary_finish,missing_node+2)
-         write(error_unit,'(a)') "  nearby boundary route records:"
-         do candidate_node = node_start,node_finish
-            do component = RT,UP
-               candidate_edge_id = EDGE*candidate_node+component
-               candidate_lookup_index = staged_coarse_vector_boundary_plan% &
-                    domain_edge_displ(d)+candidate_edge_id+1
-               if (candidate_lookup_index < 1 .or. &
-                    candidate_lookup_index > size( &
-                    staged_coarse_vector_boundary_plan%boundary_lookup)) cycle
-               candidate_record = staged_coarse_vector_boundary_plan% &
-                    boundary_lookup(candidate_lookup_index)
-               write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
-                    "    node = ",candidate_node,", component = ",component, &
-                    ", edge id = ",candidate_edge_id, &
-                    ", route record = ",candidate_record
-            end do
-         end do
-         exit
-      end do
-
-      if (missing_edge_id+1 < 1 .or. missing_edge_id+1 > &
-           grid(d)%midpt%length) return
-      missing_x = grid(d)%midpt%elts(missing_edge_id+1)%x
-      missing_y = grid(d)%midpt%elts(missing_edge_id+1)%y
-      missing_z = grid(d)%midpt%elts(missing_edge_id+1)%z
-      coordinate_tolerance = 64.0_dp*epsilon(1.0_dp)*max( &
-           1.0_dp,abs(missing_x),abs(missing_y),abs(missing_z))
-      write(error_unit,'(a,3(es24.16,1x))') &
-           "  missing edge midpoint = ",missing_x,missing_y,missing_z
-      write(error_unit,'(a)') &
-           "  routed edges with the same midpoint (maximum 12):"
-      alias_count = 0
-      do candidate_edge_id = 0,grid(d)%midpt%length-1
-         if (candidate_edge_id == missing_edge_id) cycle
-         if (abs(grid(d)%midpt%elts(candidate_edge_id+1)%x-missing_x) > &
-              coordinate_tolerance) cycle
-         if (abs(grid(d)%midpt%elts(candidate_edge_id+1)%y-missing_y) > &
-              coordinate_tolerance) cycle
-         if (abs(grid(d)%midpt%elts(candidate_edge_id+1)%z-missing_z) > &
-              coordinate_tolerance) cycle
-         candidate_lookup_index = staged_coarse_vector_boundary_plan% &
-              domain_edge_displ(d)+candidate_edge_id+1
-         if (candidate_lookup_index < 1 .or. &
-              candidate_lookup_index > size( &
-              staged_coarse_vector_boundary_plan%boundary_lookup)) cycle
-         candidate_record = staged_coarse_vector_boundary_plan% &
-              boundary_lookup(candidate_lookup_index)
-         if (candidate_record < 1) cycle
-         write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
-              "    node = ",candidate_edge_id/EDGE,", component = ", &
-              mod(candidate_edge_id,EDGE),", edge id = ", &
-              candidate_edge_id,", route record = ",candidate_record
-         alias_count = alias_count+1
-         if (alias_count >= 12) exit
-      end do
-      if (alias_count == 0) write(error_unit,'(a)') &
-           "    none"
-
-    end subroutine report_missing_staged_boundary_route
 
 
     real(dp) function staged_outer_wavelet (scale) result(value)
@@ -8836,7 +8777,7 @@ end subroutine build_parallel_block_catalog
          if (abs(net_coefficient) <= coefficient_tolerance) cycle
          side_value = staged_side_value( &
               base_i(first_term),base_j(first_term), &
-              side_index(first_term),net_coefficient)
+              side_index(first_term))
          source_value = source_value+net_coefficient*side_value
          scale = scale+abs(net_coefficient*side_value)
       end do
@@ -9201,6 +9142,1104 @@ end subroutine build_parallel_block_catalog
   end function compute_block_outer_vector_wavelet
 
 
+  subroutine validate_complete_block_vector_wavelets (first_level)
+    ! Produce the complete regular-outer, regular-inner and pentagon-corrected
+    ! vector family from the block-derived Domain stage.  Geometry is read
+    ! from grid, while every velocity source comes from reconstructed blocks
+    ! or the independently exchanged Stage-123 boundary payload.
+
+    implicit none
+
+    integer, intent(in) :: first_level
+
+    integer :: c
+    integer :: d
+    integer :: e
+    integer :: edge_id
+    integer :: field_level
+    integer :: first_field_level
+    integer :: i
+    integer :: i_chd
+    integer :: i_par
+    integer :: ierr
+    integer :: j
+    integer :: j_chd
+    integer :: j_par
+    integer :: l
+    integer :: level_slot
+    integer :: lookup_index
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_edge_value
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: node
+    integer :: p
+    integer :: p_child
+    integer :: p_index
+    integer :: patch_slot
+    integer :: record
+    integer :: produced_index
+    integer :: stage_index
+    integer :: stage_start
+    integer :: transform_start
+    integer :: v_scalar
+    integer :: v_vector
+
+    integer :: dims_chd(2,N_BDRY+1)
+    integer :: dims_par(2,N_BDRY+1)
+    integer :: offs_chd(N_BDRY+1)
+    integer :: offs_par(N_BDRY+1)
+
+    integer(int64) :: count_global(4)
+    integer(int64) :: count_local(4)
+
+    logical :: route_valid
+
+    real(dp), pointer :: native_velo(:)
+    real(dp), pointer :: native_wc(:)
+    real(dp) :: allowed
+    real(dp) :: degenerate_tolerance
+    real(dp) :: midpoint_norm
+    real(dp) :: native_value
+    real(dp) :: reference_value
+
+    if (production_complete_vector_wavelet_validated) then
+       call fail("complete vector wavelet was already validated")
+    end if
+    if (first_level /= level_start-1 .or. &
+         .not. production_coarse_outer_wavelet_validated .or. &
+         .not. staged_coarse_vector_boundary_plan%values_ready) then
+       call fail("complete vector wavelet prerequisites are incomplete")
+    end if
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (v_vector /= S_VELO .or. mult_vector /= EDGE .or. &
+         n_field_level < 1) then
+       call fail("complete vector wavelet field layout is invalid")
+    end if
+    if (.not. allocated(production_vector_transform_displ) .or. &
+         .not. allocated(production_vector_transform_stage) .or. &
+         .not. allocated(production_vector_wavelet_stage) .or. &
+         size(production_vector_transform_displ) /= size(grid)+1) then
+       call fail("complete vector wavelet stage is not allocated")
+    end if
+
+    production_vector_transform_stage = 0.0_dp
+    production_vector_wavelet_stage = 0.0_dp
+    production_vector_transform_covered = .false.
+
+    ! Expand the compact block stage into immutable Domain indexing.  Patch
+    ! interiors and boundary routes have disjoint provenance and are checked
+    ! independently before this point.
+    do d = 1,size(grid)
+       n_edge_value = size(sol(S_VELO,first_field_level)%data(d)%elts)
+       do p = 0,grid(d)%patch%length-1
+          if (grid(d)%patch%elts(p+1)%deleted) cycle
+          patch_slot = block_writeback_plan%domain_patch_displ(d)+p+1
+          if (patch_slot < 1 .or. patch_slot > &
+               size(block_writeback_plan%domain_patch_covered) .or. &
+               .not. block_writeback_plan%domain_patch_covered(patch_slot)) &
+               call fail("complete vector wavelet patch is unavailable")
+          stage_start = (patch_slot-1)* &
+               block_writeback_plan%vector_patch_nvalue
+          do level_slot = 1,n_field_level
+             transform_start = production_vector_transform_displ(d) + &
+                  (level_slot-1)*n_edge_value
+             do node = 0,PATCH_SIZE**2-1
+                do e = RT,UP
+                   edge_id = EDGE*( &
+                        grid(d)%patch%elts(p+1)%elts_start+node)+e
+                   stage_index = stage_start + &
+                        (level_slot-1)*EDGE*PATCH_SIZE**2 + &
+                        EDGE*node+e+1
+                   production_vector_transform_stage( &
+                        transform_start+edge_id+1) = &
+                        block_writeback_plan%vector_domain_stage(stage_index)
+                   if (grid(d)%patch%elts(p+1)%level == first_level) then
+                      produced_index = ( &
+                           staged_coarse_vector_boundary_plan% &
+                           domain_edge_displ(d)+edge_id)*n_field_level + &
+                           level_slot
+                      if (produced_index < 1 .or. produced_index > size( &
+                           staged_coarse_vector_boundary_plan% &
+                           source_produced)) then
+                         call fail( &
+                              "complete vector source address is invalid")
+                      end if
+                      production_vector_transform_covered( &
+                           transform_start+edge_id+1) = &
+                           staged_coarse_vector_boundary_plan% &
+                           source_produced(produced_index)
+                   else
+                      production_vector_transform_covered( &
+                           transform_start+edge_id+1) = &
+                           block_writeback_plan% &
+                           domain_patch_reconstructed(patch_slot)
+                   end if
+                end do
+             end do
+          end do
+       end do
+
+       do edge_id = 0,n_edge_value-1
+          lookup_index = staged_coarse_vector_boundary_plan% &
+               domain_edge_displ(d)+edge_id+1
+          if (lookup_index < 1 .or. lookup_index > size( &
+               staged_coarse_vector_boundary_plan%boundary_lookup)) cycle
+          record = staged_coarse_vector_boundary_plan% &
+               boundary_lookup(lookup_index)
+          route_valid = record >= 1 .and. record <= &
+               staged_coarse_vector_boundary_plan%n_recv + &
+               staged_coarse_vector_boundary_plan%n_local
+          do level_slot = 1,n_field_level
+             transform_start = production_vector_transform_displ(d) + &
+                  (level_slot-1)*n_edge_value
+             stage_index = (staged_coarse_vector_boundary_plan% &
+                  domain_edge_displ(d)+edge_id)*n_field_level + &
+                  level_slot
+             if (stage_index < 1 .or. stage_index > size( &
+                  staged_coarse_vector_boundary_plan% &
+                  retained_boundary_produced)) then
+                call fail("complete retained boundary address is invalid")
+             end if
+             if (route_valid) then
+                if (staged_coarse_vector_boundary_plan%boundary_produced( &
+                     (record-1)*n_field_level+level_slot) == 1) then
+                   production_vector_transform_stage( &
+                        transform_start+edge_id+1) = &
+                        staged_coarse_vector_boundary_plan%boundary_value( &
+                        (record-1)*n_field_level+level_slot)
+                   production_vector_transform_covered( &
+                        transform_start+edge_id+1) = .true.
+                   cycle
+                end if
+             end if
+             if (staged_coarse_vector_boundary_plan% &
+                  retained_boundary_produced(stage_index)) then
+                ! Some full-range update_bdry routes originate on the fixed
+                ! coarse scaffold and therefore have no reconstructed source
+                ! flag.  Their independently retained block-boundary value is
+                ! the correct native destination-oriented source.
+                production_vector_transform_stage( &
+                     transform_start+edge_id+1) = &
+                     staged_coarse_vector_boundary_plan% &
+                     retained_boundary_value(stage_index)
+                production_vector_transform_covered( &
+                     transform_start+edge_id+1) = .true.
+             else if (route_valid) then
+                if (edge_id+1 <= min(size(grid(d)%len%elts), &
+                     size(grid(d)%pedlen%elts), &
+                     size(grid(d)%midpt%elts))) then
+                   degenerate_tolerance = &
+                        64.0_dp*epsilon(1.0_dp)*max( &
+                        1.0_dp,abs(grid(d)%len%elts(edge_id+1)))
+                   midpoint_norm = &
+                        abs(grid(d)%midpt%elts(edge_id+1)%x) + &
+                        abs(grid(d)%midpt%elts(edge_id+1)%y) + &
+                        abs(grid(d)%midpt%elts(edge_id+1)%z)
+                   if (abs(grid(d)%pedlen%elts(edge_id+1)) <= &
+                        degenerate_tolerance .or. &
+                        midpoint_norm <= degenerate_tolerance) then
+                      ! A pentagon is a hexagon with one collapsed zero-length
+                      ! edge.  Unrouted logical components of that edge are
+                      ! exact structural zeros in the regular stencil.
+                      production_vector_transform_stage( &
+                           transform_start+edge_id+1) = 0.0_dp
+                      production_vector_transform_covered( &
+                           transform_start+edge_id+1) = .true.
+                   end if
+                end if
+             end if
+          end do
+       end do
+    end do
+
+    call seed_complete_vector_route_sources( &
+         first_field_level,n_field_level)
+    call propagate_complete_vector_boundaries( &
+         first_field_level,n_field_level)
+
+    count_local = 0_int64
+    do d = 1,size(grid)
+       n_edge_value = size(sol(S_VELO,first_field_level)%data(d)%elts)
+       do level_slot = 1,n_field_level
+          field_level = first_field_level+level_slot-1
+          if (field_level < 1 .or. field_level > zlevels) cycle
+          transform_start = production_vector_transform_displ(d) + &
+               (level_slot-1)*n_edge_value
+          native_velo => production_vector_transform_stage( &
+               transform_start+1:transform_start+n_edge_value)
+          native_wc => production_vector_wavelet_stage( &
+               transform_start+1:transform_start+n_edge_value)
+
+          do l = level_end-1,first_level,-1
+             do p_index = 1,grid(d)%lev(l)%length
+                p = grid(d)%lev(l)%elts(p_index)
+                call get_offs_Domain(grid(d),p,offs_par,dims_par)
+                do c = 1,N_CHDRN
+                   p_child = grid(d)%patch%elts(p+1)%children(c)
+                   if (p_child == 0) cycle
+                   call get_offs_Domain( &
+                        grid(d),p_child,offs_chd,dims_chd)
+                   do j = 1,PATCH_SIZE/2
+                      j_chd = 2*(j-1)
+                      j_par = j-1+chd_offs(2,c)
+                      do i = 1,PATCH_SIZE/2
+                         i_chd = 2*(i-1)
+                         i_par = i-1+chd_offs(1,c)
+                         call produce_regular_vector_cell
+                         count_local(1) = count_local(1)+12_int64
+                      end do
+                   end do
+                end do
+             end do
+             call apply_native_pentagon_level(l)
+          end do
+
+          do p = 0,grid(d)%patch%length-1
+             if (grid(d)%patch%elts(p+1)%deleted .or. &
+                  grid(d)%patch%elts(p+1)%level <= first_level .or. &
+                  grid(d)%patch%elts(p+1)%level > level_end) cycle
+             do node = 0,PATCH_SIZE**2-1
+                do e = RT,UP
+                   edge_id = EDGE*( &
+                        grid(d)%patch%elts(p+1)%elts_start+node)+e
+                   native_value = native_wc(edge_id+1)
+                   reference_value = wav_coeff(S_VELO,field_level)% &
+                        data(d)%elts(edge_id+1)
+                   allowed = 128.0_dp*epsilon(1.0_dp)*max( &
+                        1.0_dp,abs(native_value),abs(reference_value))
+                   count_local(2) = count_local(2)+1_int64
+                   if (grid(d)%mask_e%elts(edge_id+1) >= ADJZONE) &
+                        count_local(3) = count_local(3)+1_int64
+                   if (.not. ieee_is_finite(native_value) .or. &
+                        abs(native_value-reference_value) > allowed) then
+                      write(error_unit,'(/,a,i0,a)') "Rank ",rank, &
+                           ": complete block-derived vector wavelet differs"
+                      write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+                           "  Domain = ",d,", patch = ",p, &
+                           ", level = ",grid(d)%patch%elts(p+1)%level, &
+                           ", field level = ",field_level
+                      write(error_unit,'(a,i0,a,i0,a,i0)') &
+                           "  node = ",node,", edge = ",e, &
+                           ", edge id = ",edge_id
+                      write(error_unit,'(a,3(es24.16,1x))') &
+                           "  native, reference, allowed = ", &
+                           native_value,reference_value,allowed
+                      flush(error_unit)
+                      call fail( &
+                           "complete vector-wavelet comparison failed")
+                   end if
+                   count_local(4) = count_local(4)+1_int64
+                end do
+             end do
+          end do
+          nullify(native_velo,native_wc)
+       end do
+    end do
+
+    call MPI_Allreduce(count_local,count_global,size(count_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce complete vector-wavelet coverage")
+    if (any(count_global <= 0_int64) .or. &
+         count_global(2) /= count_global(4)) then
+       call fail("complete vector-wavelet coverage is incomplete")
+    end if
+    production_complete_vector_wavelet_validated = .true.
+    if (rank == 0) then
+       write(6,'(a,i0,a,i0,a,i0)') &
+            "  complete block-derived vector wavelet production passed: "// &
+            "regular coefficients = ",count_global(1), &
+            ", stored coefficients = ",count_global(2), &
+            ", active coefficients = ",count_global(3)
+    end if
+
+  contains
+
+    subroutine seed_complete_vector_route_sources ( &
+         first_level_field,n_level_field)
+      ! A coarse physical edge can occur both in a patch interior and in one
+      ! or more boundary-patch storage records.  update_bdry inherits the
+      ! current values before applying its communication routes.  Retain
+      ! untouched fixed-scaffold patch values from the block candidate, then
+      ! seed any remaining storage aliases from an independently produced
+      ! interior representation with identical edge geometry.
+
+      implicit none
+
+      integer, intent(in) :: first_level_field
+      integer, intent(in) :: n_level_field
+
+      integer :: d_source
+      integer :: p_route
+      integer :: source_id
+
+      do p_route = 1,staged_coarse_vector_boundary_plan%n_send
+         d_source = staged_coarse_vector_boundary_plan% &
+              send_domain(p_route)
+         source_id = staged_coarse_vector_boundary_plan%send_id(p_route)
+         call seed_complete_vector_route_source( &
+              d_source,source_id,first_level_field,n_level_field)
+      end do
+      do p_route = 1,staged_coarse_vector_boundary_plan%n_local
+         d_source = staged_coarse_vector_boundary_plan% &
+              local_source_domain(p_route)
+         source_id = staged_coarse_vector_boundary_plan% &
+              local_source_id(p_route)
+         call seed_complete_vector_route_source( &
+              d_source,source_id,first_level_field,n_level_field)
+      end do
+
+    end subroutine seed_complete_vector_route_sources
+
+
+    subroutine seed_complete_vector_route_source ( &
+         d_alias,edge_alias,first_level_field,n_level_field)
+
+      implicit none
+
+      integer, intent(in) :: d_alias
+      integer, intent(in) :: edge_alias
+      integer, intent(in) :: first_level_field
+      integer, intent(in) :: n_level_field
+
+      integer :: candidate_id
+      integer :: candidate_index
+      integer :: field_slot
+      integer :: geometry_extent
+      integer :: matching_count
+      integer :: node_alias
+      integer :: p_alias
+      integer :: p_index
+      integer :: patch_slot
+      integer :: patch_start
+      integer :: source_index
+
+      real(dp) :: geometry_allowed
+      real(dp) :: midpoint_norm
+
+      if (d_alias < 1 .or. d_alias > size(grid)) then
+         call fail("complete vector alias Domain is invalid")
+      end if
+      node_alias = edge_alias/EDGE
+      do p_index = 1,grid(d_alias)%lev(first_level)%length
+         p_alias = grid(d_alias)%lev(first_level)%elts(p_index)
+         if (grid(d_alias)%patch%elts(p_alias+1)%deleted) cycle
+         patch_start = grid(d_alias)%patch%elts(p_alias+1)%elts_start
+         if (node_alias < patch_start .or. &
+              node_alias >= patch_start+PATCH_SIZE**2) cycle
+         patch_slot = block_writeback_plan%domain_patch_displ(d_alias) + &
+              p_alias+1
+         if (patch_slot < 1 .or. patch_slot > &
+              size(block_writeback_plan%domain_patch_covered) .or. &
+              .not. block_writeback_plan% &
+              domain_patch_covered(patch_slot)) then
+            call fail("complete vector coarse route patch is unavailable")
+         end if
+         do field_slot = 1,n_level_field
+            source_index = complete_transform_index( &
+                 d_alias,edge_alias,field_slot,first_level_field)
+            if (production_vector_transform_covered(source_index)) cycle
+            if (.not. ieee_is_finite( &
+                 production_vector_transform_stage(source_index))) then
+               call fail("complete vector coarse route value is non-finite")
+            end if
+            production_vector_transform_covered(source_index) = .true.
+         end do
+         return
+      end do
+
+      geometry_extent = min(size(grid(d_alias)%midpt%elts), &
+           size(grid(d_alias)%len%elts), &
+           size(grid(d_alias)%pedlen%elts), &
+           EDGE*size(grid(d_alias)%level%elts), &
+           size(sol(S_VELO,first_level_field)%data(d_alias)%elts))
+      if (edge_alias < 0 .or. edge_alias >= geometry_extent) return
+      if (grid(d_alias)%level%elts(edge_alias/EDGE+1) /= first_level) return
+
+      geometry_allowed = 64.0_dp*epsilon(1.0_dp)*max( &
+           1.0_dp,abs(grid(d_alias)%len%elts(edge_alias+1)), &
+           abs(grid(d_alias)%pedlen%elts(edge_alias+1)))
+      midpoint_norm = &
+           abs(grid(d_alias)%midpt%elts(edge_alias+1)%x) + &
+           abs(grid(d_alias)%midpt%elts(edge_alias+1)%y) + &
+           abs(grid(d_alias)%midpt%elts(edge_alias+1)%z)
+
+      do field_slot = 1,n_level_field
+         source_index = complete_transform_index( &
+              d_alias,edge_alias,field_slot,first_level_field)
+         if (production_vector_transform_covered(source_index)) cycle
+         if (abs(grid(d_alias)%pedlen%elts(edge_alias+1)) <= &
+              geometry_allowed .or. midpoint_norm <= geometry_allowed) then
+            production_vector_transform_stage(source_index) = 0.0_dp
+            production_vector_transform_covered(source_index) = .true.
+            cycle
+         end if
+
+         matching_count = 0
+         do candidate_id = 0,geometry_extent-1
+            if (candidate_id == edge_alias) cycle
+            if (grid(d_alias)%level%elts(candidate_id/EDGE+1) /= &
+                 first_level) cycle
+            candidate_index = complete_transform_index( &
+                 d_alias,candidate_id,field_slot,first_level_field)
+            if (.not. production_vector_transform_covered( &
+                 candidate_index)) cycle
+            if (.not. complete_vector_edge_geometry_matches( &
+                 d_alias,edge_alias,candidate_id,geometry_allowed)) cycle
+            matching_count = matching_count+1
+            if (matching_count == 1) then
+               production_vector_transform_stage(source_index) = &
+                    production_vector_transform_stage(candidate_index)
+            else if (abs(production_vector_transform_stage(source_index)- &
+                 production_vector_transform_stage(candidate_index)) > &
+                 16.0_dp*epsilon(1.0_dp)*max(1.0_dp,abs( &
+                 production_vector_transform_stage(source_index)),abs( &
+                 production_vector_transform_stage(candidate_index)))) then
+               call fail("complete vector geometry aliases differ")
+            end if
+         end do
+         if (matching_count > 0) then
+            production_vector_transform_covered(source_index) = .true.
+         end if
+      end do
+
+    end subroutine seed_complete_vector_route_source
+
+
+    logical function complete_vector_edge_geometry_matches ( &
+         d_alias,edge_alias,candidate,allowed) result(matches)
+
+      implicit none
+
+      integer, intent(in) :: d_alias
+      integer, intent(in) :: edge_alias
+      integer, intent(in) :: candidate
+      real(dp), intent(in) :: allowed
+
+      matches = abs(grid(d_alias)%midpt%elts(candidate+1)%x - &
+           grid(d_alias)%midpt%elts(edge_alias+1)%x) <= allowed .and. &
+           abs(grid(d_alias)%midpt%elts(candidate+1)%y - &
+           grid(d_alias)%midpt%elts(edge_alias+1)%y) <= allowed .and. &
+           abs(grid(d_alias)%midpt%elts(candidate+1)%z - &
+           grid(d_alias)%midpt%elts(edge_alias+1)%z) <= allowed .and. &
+           abs(grid(d_alias)%len%elts(candidate+1) - &
+           grid(d_alias)%len%elts(edge_alias+1)) <= allowed .and. &
+           abs(grid(d_alias)%pedlen%elts(candidate+1) - &
+           grid(d_alias)%pedlen%elts(edge_alias+1)) <= allowed
+
+    end function complete_vector_edge_geometry_matches
+
+    subroutine propagate_complete_vector_boundaries ( &
+         first_level_field,n_level_field)
+      ! Reproduce the ordered forwarding semantics of update_bdry on the
+      ! flattened persistent route graph.  Direct block interiors, restricted
+      ! coarse edges and retained block boundaries are seeds; repeated signed
+      ! route exchanges propagate those native values through corner routes.
+
+      implicit none
+
+      integer, intent(in) :: first_level_field
+      integer, intent(in) :: n_level_field
+
+      integer :: d_destination
+      integer :: d_source
+      integer :: destination_id
+      integer :: destination_index
+      integer :: field_slot
+      integer :: ierr_propagate
+      integer :: iteration
+      integer :: new_global
+      integer :: new_local
+      integer :: p_route
+      integer :: source_id
+      integer :: source_index
+
+      integer :: recv_value_count(n_process)
+      integer :: recv_value_displ(n_process)
+      integer :: send_value_count(n_process)
+      integer :: send_value_displ(n_process)
+
+      real(dp) :: propagated_value
+
+      send_value_count = n_level_field* &
+           staged_coarse_vector_boundary_plan%send_count
+      recv_value_count = n_level_field* &
+           staged_coarse_vector_boundary_plan%recv_count
+      send_value_displ = n_level_field* &
+           staged_coarse_vector_boundary_plan%send_displ
+      recv_value_displ = n_level_field* &
+           staged_coarse_vector_boundary_plan%recv_displ
+
+      iteration = 0
+      do
+         iteration = iteration+1
+         if (iteration > N_GLO_DOMAIN+N_BDRY) then
+            call fail("complete vector boundary propagation did not converge")
+         end if
+         staged_coarse_vector_boundary_plan%send_buffer = 0.0_dp
+         staged_coarse_vector_boundary_plan%recv_buffer = 0.0_dp
+         staged_coarse_vector_boundary_plan%send_produced_buffer = 0
+         staged_coarse_vector_boundary_plan%recv_produced_buffer = 0
+
+         do p_route = 1,staged_coarse_vector_boundary_plan%n_send
+            d_source = staged_coarse_vector_boundary_plan% &
+                 send_domain(p_route)
+            source_id = staged_coarse_vector_boundary_plan% &
+                 send_id(p_route)
+            do field_slot = 1,n_level_field
+               source_index = complete_transform_index( &
+                    d_source,source_id,field_slot,first_level_field)
+               if (.not. production_vector_transform_covered( &
+                    source_index)) cycle
+               staged_coarse_vector_boundary_plan%send_buffer( &
+                    (p_route-1)*n_level_field+field_slot) = &
+                    production_vector_transform_stage(source_index)
+               staged_coarse_vector_boundary_plan%send_produced_buffer( &
+                    (p_route-1)*n_level_field+field_slot) = 1
+            end do
+         end do
+
+         call MPI_Alltoallv( &
+              staged_coarse_vector_boundary_plan%send_buffer, &
+              send_value_count,send_value_displ,MPI_DOUBLE_PRECISION, &
+              staged_coarse_vector_boundary_plan%recv_buffer, &
+              recv_value_count,recv_value_displ,MPI_DOUBLE_PRECISION, &
+              comm,ierr_propagate)
+         call check_mpi(ierr_propagate, &
+              "MPI_Alltoallv complete vector boundary values")
+         call MPI_Alltoallv( &
+              staged_coarse_vector_boundary_plan%send_produced_buffer, &
+              send_value_count,send_value_displ,MPI_INTEGER, &
+              staged_coarse_vector_boundary_plan%recv_produced_buffer, &
+              recv_value_count,recv_value_displ,MPI_INTEGER,comm, &
+              ierr_propagate)
+         call check_mpi(ierr_propagate, &
+              "MPI_Alltoallv complete vector boundary coverage")
+
+         new_local = 0
+         do p_route = 1,staged_coarse_vector_boundary_plan%n_recv
+            d_destination = staged_coarse_vector_boundary_plan% &
+                 recv_domain(p_route)
+            destination_id = staged_coarse_vector_boundary_plan% &
+                 recv_id(p_route)
+            do field_slot = 1,n_level_field
+               if (staged_coarse_vector_boundary_plan% &
+                    recv_produced_buffer( &
+                    (p_route-1)*n_level_field+field_slot) /= 1) cycle
+               propagated_value = staged_coarse_vector_boundary_plan% &
+                    recv_buffer((p_route-1)*n_level_field+field_slot)
+               if (destination_id < 0) &
+                    propagated_value = -propagated_value
+               destination_index = complete_transform_index( &
+                    d_destination,abs(destination_id),field_slot, &
+                    first_level_field)
+               call install_propagated_value( &
+                    destination_index,propagated_value,new_local)
+            end do
+         end do
+
+         do p_route = 1,staged_coarse_vector_boundary_plan%n_local
+            d_source = staged_coarse_vector_boundary_plan% &
+                 local_source_domain(p_route)
+            source_id = staged_coarse_vector_boundary_plan% &
+                 local_source_id(p_route)
+            d_destination = staged_coarse_vector_boundary_plan% &
+                 local_destination_domain(p_route)
+            destination_id = staged_coarse_vector_boundary_plan% &
+                 local_destination_id(p_route)
+            do field_slot = 1,n_level_field
+               source_index = complete_transform_index( &
+                    d_source,source_id,field_slot,first_level_field)
+               if (.not. production_vector_transform_covered( &
+                    source_index)) cycle
+               propagated_value = &
+                    production_vector_transform_stage(source_index)
+               if (destination_id < 0) &
+                    propagated_value = -propagated_value
+               destination_index = complete_transform_index( &
+                    d_destination,abs(destination_id),field_slot, &
+                    first_level_field)
+               call install_propagated_value( &
+                    destination_index,propagated_value,new_local)
+            end do
+         end do
+
+         call MPI_Allreduce(new_local,new_global,1,MPI_INTEGER,MPI_SUM, &
+              comm,ierr_propagate)
+         call check_mpi(ierr_propagate, &
+              "MPI_Allreduce complete vector boundary propagation")
+         if (new_global == 0) exit
+      end do
+
+      do p_route = 1,staged_coarse_vector_boundary_plan%n_recv
+         d_destination = staged_coarse_vector_boundary_plan% &
+              recv_domain(p_route)
+         destination_id = abs(staged_coarse_vector_boundary_plan% &
+              recv_id(p_route))
+         do field_slot = 1,n_level_field
+            destination_index = complete_transform_index( &
+                 d_destination,destination_id,field_slot, &
+                 first_level_field)
+            if (.not. production_vector_transform_covered( &
+                 destination_index)) then
+               call report_unresolved_route( &
+                    d_destination,destination_id,field_slot,p_route)
+            end if
+         end do
+      end do
+      do p_route = 1,staged_coarse_vector_boundary_plan%n_local
+         d_destination = staged_coarse_vector_boundary_plan% &
+              local_destination_domain(p_route)
+         destination_id = abs(staged_coarse_vector_boundary_plan% &
+              local_destination_id(p_route))
+         do field_slot = 1,n_level_field
+            destination_index = complete_transform_index( &
+                 d_destination,destination_id,field_slot, &
+                 first_level_field)
+            if (.not. production_vector_transform_covered( &
+                 destination_index)) then
+               call report_unresolved_route( &
+                    d_destination,destination_id,field_slot, &
+                    staged_coarse_vector_boundary_plan%n_recv+p_route)
+            end if
+         end do
+      end do
+
+    end subroutine propagate_complete_vector_boundaries
+
+
+    integer function complete_transform_index ( &
+         d_index,edge_index,field_slot,first_level_field) result(value_index)
+
+      implicit none
+
+      integer, intent(in) :: d_index
+      integer, intent(in) :: edge_index
+      integer, intent(in) :: field_slot
+      integer, intent(in) :: first_level_field
+      integer :: edge_extent
+
+      if (d_index < 1 .or. d_index > size(grid) .or. &
+           field_slot < 1 .or. field_slot > n_field_level) then
+         call fail("complete vector route address is invalid")
+      end if
+      edge_extent = size(sol(S_VELO,first_level_field)% &
+           data(d_index)%elts)
+      if (edge_index < 0 .or. edge_index >= edge_extent) then
+         call fail("complete vector route edge is invalid")
+      end if
+      value_index = production_vector_transform_displ(d_index) + &
+           (field_slot-1)*edge_extent+edge_index+1
+      if (value_index < 1 .or. value_index > &
+           size(production_vector_transform_stage)) then
+         call fail("complete vector route stage is invalid")
+      end if
+
+    end function complete_transform_index
+
+
+    subroutine install_propagated_value ( &
+         destination_index,propagated_value,new_count)
+
+      implicit none
+
+      integer, intent(in) :: destination_index
+      real(dp), intent(in) :: propagated_value
+      integer, intent(inout) :: new_count
+      real(dp) :: route_allowed
+
+      if (.not. ieee_is_finite(propagated_value)) then
+         call fail("complete propagated boundary value is non-finite")
+      end if
+      if (production_vector_transform_covered(destination_index)) then
+         route_allowed = 16.0_dp*epsilon(1.0_dp)*max( &
+              1.0_dp,abs(propagated_value),abs( &
+              production_vector_transform_stage(destination_index)))
+         if (abs(production_vector_transform_stage(destination_index)- &
+              propagated_value) > route_allowed) then
+            call fail("complete propagated boundary values differ")
+         end if
+      else
+         production_vector_transform_stage(destination_index) = &
+              propagated_value
+         production_vector_transform_covered(destination_index) = .true.
+         new_count = new_count+1
+      end if
+
+    end subroutine install_propagated_value
+
+
+    subroutine report_unresolved_route ( &
+         d_route,edge_route,field_route,record_route)
+
+      implicit none
+
+      integer, intent(in) :: d_route
+      integer, intent(in) :: edge_route
+      integer, intent(in) :: field_route
+      integer, intent(in) :: record_route
+
+      write(error_unit,'(/,a,i0,a)') "Rank ",rank, &
+           ": complete vector boundary route remains unresolved"
+      write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+           "  Domain = ",d_route,", edge id = ",edge_route, &
+           ", field level slot = ",field_route, &
+           ", route record = ",record_route
+      flush(error_unit)
+      call fail("complete vector boundary propagation is incomplete")
+
+    end subroutine report_unresolved_route
+
+
+    subroutine produce_regular_vector_cell
+
+      implicit none
+
+      integer :: id1
+      integer :: id2
+      integer :: id_e
+      integer :: id_n
+      integer :: id_ne
+      real(dp) :: inner_value(6)
+      real(dp) :: interpolated
+
+      do e = RT,UP
+         id1 = idx(i_chd+end_pt(1,1,e+1), &
+              j_chd+end_pt(2,1,e+1),offs_chd,dims_chd)
+         id2 = idx(i_chd+end_pt(1,2,e+1), &
+              j_chd+end_pt(2,2,e+1),offs_chd,dims_chd)
+         if (grid(d)%mask_e%elts(EDGE*id2+e+1) < ADJZONE) cycle
+         interpolated = native_outer_interpolation(id2,e)
+         native_wc(EDGE*id2+e+1) = &
+              native_velo(EDGE*id2+e+1)-interpolated
+         native_wc(EDGE*id1+e+1) = -native_wc(EDGE*id2+e+1)
+      end do
+
+      call native_inner_interpolation(inner_value)
+      id_e = idx(i_chd+1,j_chd,offs_chd,dims_chd)
+      id_ne = idx(i_chd+1,j_chd+1,offs_chd,dims_chd)
+      id_n = idx(i_chd,j_chd+1,offs_chd,dims_chd)
+      call set_inner(id_e,UP,inner_value(1))
+      call set_inner(id_e,DG,inner_value(2))
+      call set_inner(id_ne,RT,inner_value(3))
+      call set_inner(id_n,RT,inner_value(4))
+      call set_inner(id_n,DG,inner_value(5))
+      call set_inner(id_ne,UP,inner_value(6))
+
+    end subroutine produce_regular_vector_cell
+
+
+    subroutine set_inner(id_target,edge_component,interpolated)
+
+      implicit none
+
+      integer, intent(in) :: id_target
+      integer, intent(in) :: edge_component
+      real(dp), intent(in) :: interpolated
+
+      if (grid(d)%mask_e%elts(EDGE*id_target+edge_component+1) >= &
+           ADJZONE) then
+         native_wc(EDGE*id_target+edge_component+1) = &
+              native_velo(EDGE*id_target+edge_component+1)-interpolated
+      end if
+
+    end subroutine set_inner
+
+
+    real(dp) function native_outer_interpolation(ide,edge_component) &
+         result(value)
+
+      implicit none
+
+      integer, intent(in) :: ide
+      integer, intent(in) :: edge_component
+      integer :: k
+      real(dp) :: source(9)
+      real(dp) :: weight(9)
+
+      weight = BLOCK_IU_BASE_WEIGHT + &
+           [ (grid(d)%I_u_wgt%elts(ide+1)%enc(k),k=1,9) ]
+      source(1) = native_velo(EDGE* &
+           idx(i_par,j_par,offs_par,dims_par)+edge_component+1)
+      source(2) = side_value(i_par+end_pt(1,2,edge_component+1), &
+           j_par+end_pt(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+3)
+      source(3) = side_value(i_par+end_pt(1,1,edge_component+1), &
+           j_par+end_pt(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+4)
+      source(4) = side_value(i_par+end_pt(1,1,edge_component+1), &
+           j_par+end_pt(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+6)
+      source(5) = side_value(i_par+end_pt(1,2,edge_component+1), &
+           j_par+end_pt(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+1)
+      source(6) = side_value(i_par+opp_no(1,1,edge_component+1), &
+           j_par+opp_no(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+2) - &
+           side_value(i_par+end_pt(1,1,edge_component+1), &
+           j_par+end_pt(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+3)
+      source(7) = side_value(i_par+end_pt(1,2,edge_component+1), &
+           j_par+end_pt(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+4) - &
+           side_value(i_par+opp_no(1,1,edge_component+1), &
+           j_par+opp_no(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+5)
+      source(8) = side_value(i_par+opp_no(1,2,edge_component+1), &
+           j_par+opp_no(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+5) - &
+           side_value(i_par+end_pt(1,2,edge_component+1), &
+           j_par+end_pt(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+6)
+      source(9) = side_value(i_par+end_pt(1,1,edge_component+1), &
+           j_par+end_pt(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+1) - &
+           side_value(i_par+opp_no(1,2,edge_component+1), &
+           j_par+opp_no(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+2)
+      value = sum(weight*source)
+
+    end function native_outer_interpolation
+
+
+    real(dp) function side_value(base_i,base_j,side_index) result(value)
+
+      implicit none
+
+      integer, intent(in) :: base_i
+      integer, intent(in) :: base_j
+      integer, intent(in) :: side_index
+      integer :: id_side
+
+      id_side = ed_idx(base_i,base_j,hex_sides(:,side_index), &
+           offs_par,dims_par)
+      value = native_velo(id_side+1)
+
+    end function side_value
+
+
+    subroutine native_inner_interpolation(value)
+
+      implicit none
+
+      real(dp), intent(out) :: value(6)
+      integer :: id
+      integer :: id_e
+      integer :: id_e2
+      integer :: id_n
+      integer :: id_n2
+      integer :: id_n2e
+      integer :: id_ne
+      integer :: id_2ne
+      integer :: id_par
+      integer :: id1_par
+      integer :: id2_par
+      integer :: t
+      real(dp) :: curl_u(LORT:UPLT)
+
+      id_par = idx(i_par,j_par,offs_par,dims_par)
+      do t = LORT,UPLT
+         id1_par = idx(i_par-t+1,j_par,offs_par,dims_par)
+         id2_par = idx(i_par,j_par+t,offs_par,dims_par)
+         curl_u(t) = ( &
+              native_velo(EDGE*id_par+DG+1)* &
+              grid(d)%len%elts(EDGE*id_par+DG+1) + &
+              native_velo(EDGE*id1_par+UP+1)* &
+              grid(d)%len%elts(EDGE*id1_par+UP+1) + &
+              native_velo(EDGE*id2_par+RT+1)* &
+              grid(d)%len%elts(EDGE*id2_par+RT+1))/ &
+              grid(d)%triarea%elts(TRIAG*id_par+t+1)
+      end do
+
+      id = idx(i_chd,j_chd,offs_chd,dims_chd)
+      id_e = idx(i_chd+1,j_chd,offs_chd,dims_chd)
+      id_ne = idx(i_chd+1,j_chd+1,offs_chd,dims_chd)
+      id_n = idx(i_chd,j_chd+1,offs_chd,dims_chd)
+      id_n2e = idx(i_chd+2,j_chd+1,offs_chd,dims_chd)
+      id_2ne = idx(i_chd+1,j_chd+2,offs_chd,dims_chd)
+      id_n2 = idx(i_chd,j_chd+2,offs_chd,dims_chd)
+      id_e2 = idx(i_chd+2,j_chd,offs_chd,dims_chd)
+
+      value(1) = (grid(d)%triarea%elts(TRIAG*id+LORT+1)* &
+           curl_u(LORT)-native_velo(EDGE*id+RT+1)* &
+           grid(d)%len%elts(EDGE*id+RT+1)- &
+           native_velo(EDGE*id+DG+1)*grid(d)%len%elts(EDGE*id+DG+1))/ &
+           grid(d)%len%elts(EDGE*id_e+UP+1)
+      value(2) = (grid(d)%triarea%elts(TRIAG*id_e+LORT+1)* &
+           curl_u(LORT)-native_velo(EDGE*id_e+RT+1)* &
+           grid(d)%len%elts(EDGE*id_e+RT+1)- &
+           native_velo(EDGE*id_e2+UP+1)* &
+           grid(d)%len%elts(EDGE*id_e2+UP+1))/ &
+           grid(d)%len%elts(EDGE*id_e+DG+1)
+      value(3) = (grid(d)%triarea%elts(TRIAG*id_ne+LORT+1)* &
+           curl_u(LORT)-native_velo(EDGE*id_ne+DG+1)* &
+           grid(d)%len%elts(EDGE*id_ne+DG+1)- &
+           native_velo(EDGE*id_n2e+UP+1)* &
+           grid(d)%len%elts(EDGE*id_n2e+UP+1))/ &
+           grid(d)%len%elts(EDGE*id_ne+RT+1)
+      value(4) = (grid(d)%triarea%elts(TRIAG*id+UPLT+1)* &
+           curl_u(UPLT)-native_velo(EDGE*id+UP+1)* &
+           grid(d)%len%elts(EDGE*id+UP+1)- &
+           native_velo(EDGE*id+DG+1)*grid(d)%len%elts(EDGE*id+DG+1))/ &
+           grid(d)%len%elts(EDGE*id_n+RT+1)
+      value(5) = (grid(d)%triarea%elts(TRIAG*id_n+UPLT+1)* &
+           curl_u(UPLT)-native_velo(EDGE*id_n+UP+1)* &
+           grid(d)%len%elts(EDGE*id_n+UP+1)- &
+           native_velo(EDGE*id_n2+RT+1)* &
+           grid(d)%len%elts(EDGE*id_n2+RT+1))/ &
+           grid(d)%len%elts(EDGE*id_n+DG+1)
+      value(6) = (grid(d)%triarea%elts(TRIAG*id_ne+UPLT+1)* &
+           curl_u(UPLT)-native_velo(EDGE*id_ne+DG+1)* &
+           grid(d)%len%elts(EDGE*id_ne+DG+1)- &
+           native_velo(EDGE*id_2ne+RT+1)* &
+           grid(d)%len%elts(EDGE*id_2ne+RT+1))/ &
+           grid(d)%len%elts(EDGE*id_ne+UP+1)
+
+    end subroutine native_inner_interpolation
+
+
+    subroutine apply_native_pentagon_level(target_level)
+
+      implicit none
+
+      integer, intent(in) :: target_level
+      integer :: corner
+      integer :: current_level
+      integer :: p_current
+      integer :: p_parent
+
+      do corner = NORTHEAST,NORTHWEST
+         if (.not. grid(d)%penta(corner)) cycle
+         p_current = 1
+         do while (p_current > 0)
+            p_parent = p_current
+            p_current = grid(d)%patch%elts(p_parent+1)% &
+                 children(corner-4)
+            current_level = grid(d)%patch%elts(p_parent+1)%level
+            if (current_level < target_level) cycle
+            if (current_level > target_level) exit
+            call get_offs_Domain( &
+                 grid(d),p_parent,offs_par,dims_par)
+            call produce_pentagon(p_parent,corner)
+            count_local(1) = count_local(1)+4_int64
+         end do
+      end do
+
+    end subroutine apply_native_pentagon_level
+
+
+    subroutine produce_pentagon(p_parent,corner)
+
+      implicit none
+
+      integer, intent(in) :: p_parent
+      integer, intent(in) :: corner
+      integer :: id_child
+      integer :: id_e_child
+      integer :: id_n_child
+      integer :: penta_child
+      real(dp) :: correction(2)
+      real(dp) :: v
+
+      penta_child = grid(d)%patch%elts(p_parent+1)%children(corner-4)
+      if (penta_child == 0) return
+      call get_offs_Domain( &
+           grid(d),penta_child,offs_chd,dims_chd)
+
+      if (corner == IMINUSJPLUS) then
+         id_child = idx(0,LAST-1,offs_chd,dims_chd)
+         id_n_child = idx(0,LAST,offs_chd,dims_chd)
+         v = -(BLOCK_IU_BASE_WEIGHT(8)+ &
+              grid(d)%I_u_wgt%elts(id_n_child+1)%enc(8))*( &
+              native_velo(EDGE*idx(0,PATCH_SIZE, &
+              offs_par,dims_par)+UP+1)+ &
+              native_velo(EDGE*idx(-1,PATCH_SIZE, &
+              offs_par,dims_par)+RT+1))
+         if (grid(d)%mask_e%elts(EDGE*id_child+UP+1) >= ADJZONE) then
+            native_wc(EDGE*id_child+UP+1) = &
+                 native_wc(EDGE*id_child+UP+1)-v
+            native_wc(EDGE*id_n_child+UP+1) = &
+                 native_wc(EDGE*id_n_child+UP+1)+v
+         end if
+      else if (corner == IPLUSJMINUS) then
+         id_child = idx(LAST-1,0,offs_chd,dims_chd)
+         id_e_child = idx(LAST,0,offs_chd,dims_chd)
+         v = (BLOCK_IU_BASE_WEIGHT(7)+ &
+              grid(d)%I_u_wgt%elts(id_e_child+1)%enc(7))*( &
+              native_velo(EDGE*idx(PATCH_SIZE,0, &
+              offs_par,dims_par)+RT+1)+ &
+              native_velo(EDGE*idx(PATCH_SIZE,-1, &
+              offs_par,dims_par)+UP+1))
+         if (grid(d)%mask_e%elts(EDGE*id_child+RT+1) >= ADJZONE) then
+            native_wc(EDGE*id_child+RT+1) = &
+                 native_wc(EDGE*id_child+RT+1)-v
+            native_wc(EDGE*id_e_child+RT+1) = &
+                 native_wc(EDGE*id_e_child+RT+1)+v
+         end if
+      end if
+      if (corner /= IJMINUS) return
+
+      id_child = idx(0,0,offs_chd,dims_chd)
+      id_n_child = idx(0,1,offs_chd,dims_chd)
+      id_e_child = idx(1,0,offs_chd,dims_chd)
+      call native_pentagon_correction(correction)
+      if (grid(d)%mask_e%elts(EDGE*id_child+UP+1) >= ADJZONE) then
+         native_wc(EDGE*id_child+UP+1) = &
+              native_wc(EDGE*id_child+UP+1)+correction(1)
+         native_wc(EDGE*id_n_child+UP+1) = &
+              native_wc(EDGE*id_n_child+UP+1)-correction(1)
+      end if
+      if (grid(d)%mask_e%elts(EDGE*id_child+RT+1) >= ADJZONE) then
+         native_wc(EDGE*id_child+RT+1) = &
+              native_wc(EDGE*id_child+RT+1)+correction(2)
+         native_wc(EDGE*id_e_child+RT+1) = &
+              native_wc(EDGE*id_e_child+RT+1)-correction(2)
+      end if
+
+    end subroutine produce_pentagon
+
+
+    subroutine native_pentagon_correction(value)
+
+      implicit none
+
+      real(dp), intent(out) :: value(2)
+      integer :: id_weight
+
+      id_weight = idx(end_pt(1,2,UP+1),end_pt(2,2,UP+1), &
+           offs_chd,dims_chd)
+      value(1) = (BLOCK_IU_BASE_WEIGHT(9)+ &
+           grid(d)%I_u_wgt%elts(id_weight+1)%enc(9))*( &
+           (-native_velo(EDGE*idx(0,-1,offs_par,dims_par)+UP+1) - &
+           (-native_velo(EDGE*idx(-1,-1,offs_par,dims_par)+RT+1))) - &
+           (native_velo(ed_idx(end_pt(1,1,UP+1), &
+           end_pt(2,1,UP+1),hex_sides(:,hex_s_offs(UP+1)+1), &
+           offs_par,dims_par)+1) - &
+           native_velo(ed_idx(opp_no(1,2,UP+1), &
+           opp_no(2,2,UP+1),hex_sides(:,hex_s_offs(UP+1)+2), &
+           offs_par,dims_par)+1)))
+
+      id_weight = idx(end_pt(1,2,RT+1),end_pt(2,2,RT+1), &
+           offs_chd,dims_chd)
+      value(2) = (BLOCK_IU_BASE_WEIGHT(6)+ &
+           grid(d)%I_u_wgt%elts(id_weight+1)%enc(6))*( &
+           native_velo(EDGE*idx(-1,-1,offs_par,dims_par)+RT+1) + &
+           native_velo(EDGE*idx(-1,0,offs_par,dims_par)+RT+1) - &
+           (native_velo(ed_idx(opp_no(1,1,RT+1), &
+           opp_no(2,1,RT+1),hex_sides(:,hex_s_offs(RT+1)+2), &
+           offs_par,dims_par)+1) - &
+           native_velo(ed_idx(end_pt(1,1,RT+1), &
+           end_pt(2,1,RT+1),hex_sides(:,hex_s_offs(RT+1)+3), &
+           offs_par,dims_par)+1)))
+
+    end subroutine native_pentagon_correction
+
+  end subroutine validate_complete_block_vector_wavelets
+
+
   subroutine validate_candidate_block_scalar_wavelets ( &
        domain_scaling,first_level)
     ! Evaluate each RK-candidate scalar wavelet stencil directly from retained
@@ -9344,6 +10383,13 @@ end subroutine build_parallel_block_catalog
     end if
     if (block_domain_production_writeback_count() /= writeback_before) then
        call fail("scalar-wavelet production modified Domain fields")
+    end if
+
+    ! The final candidate now closes the former Stages 124--126 as one
+    ! transaction: regular inner production, pentagon correction, complete
+    ! persistent staged storage and whole-family comparison.
+    if (candidate_stage == candidate_stage_count) then
+       call validate_complete_block_vector_wavelets(first_level)
     end if
 
     ! Close the final RK transaction downstream of the complete
@@ -16118,6 +17164,9 @@ end subroutine build_parallel_block_catalog
     if (.not. production_coarse_outer_wavelet_validated) then
        call fail("production coarse outer wavelet is incomplete")
     end if
+    if (.not. production_complete_vector_wavelet_validated) then
+       call fail("production complete vector wavelet is incomplete")
+    end if
     if (block_writeback_plan% &
          production_multistage_boundary_refresh_count /= &
          int(stage_count-1,int64)) then
@@ -16202,6 +17251,7 @@ end subroutine build_parallel_block_catalog
     production_multistage_native_candidate_stage = 0
     production_velocity_restriction_level = -1
     production_coarse_outer_wavelet_validated = .false.
+    production_complete_vector_wavelet_validated = .false.
     production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
     block_writeback_plan%production_multistage_boundary_refresh_count = &
@@ -25690,7 +26740,7 @@ end subroutine build_parallel_block_catalog
        call fail("writeback plan lifecycle allocation count mismatch")
     end if
     if (stage_allocation_after_rebuild /= &
-         stage_allocation_before+6_int64) then
+         stage_allocation_before+10_int64) then
        call fail("Domain stage lifecycle allocation count mismatch")
     end if
 
@@ -26102,13 +27152,17 @@ end subroutine build_parallel_block_catalog
            boundary_vector_block_recv_buffer),int64) + int(size( &
            block_writeback_plan%scalar_domain_stage),int64) + int(size( &
            block_writeback_plan%vector_domain_stage),int64) + int(size( &
+           production_vector_transform_stage),int64) + int(size( &
+           production_vector_wavelet_stage),int64) + int(size( &
            staged_coarse_vector_boundary_plan%send_buffer),int64) + &
            int(size(staged_coarse_vector_boundary_plan% &
            recv_buffer),int64) + int(size( &
            staged_coarse_vector_boundary_plan%boundary_value),int64)
       local_value(SCALE_DOMAIN_STAGE_REAL) = int(size( &
            block_writeback_plan%scalar_domain_stage),int64) + int(size( &
-           block_writeback_plan%vector_domain_stage),int64)
+           block_writeback_plan%vector_domain_stage),int64) + int(size( &
+           production_vector_transform_stage),int64) + int(size( &
+           production_vector_wavelet_stage),int64)
 
       if (any(local_value < 0_int64)) then
          call fail("scaling snapshot contains a negative metric")
