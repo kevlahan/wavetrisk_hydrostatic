@@ -409,7 +409,8 @@ module parallel_block_mpi_mod
   logical, save :: production_coarse_outer_wavelet_validated = .false.
   logical, save :: production_complete_vector_wavelet_validated = .false.
   logical, save :: production_multistage_final_snapshot_consumed = .false.
-  logical, save :: production_pre_refinement_mask_pending = .false.
+  logical, save :: production_adaptation_mask_pending = .false.
+  logical, parameter :: verbose_block_validation = .false.
 
   ! Domain-shaped, non-authoritative storage for the complete native vector
   ! transform.  Values are populated only from the block-derived writeback
@@ -663,8 +664,8 @@ module parallel_block_mpi_mod
   public :: invalidate_parallel_block_domain_shadow
   public :: synchronize_parallel_block_checkpoint
   public :: prepare_parallel_block_grid_change
-  public :: block_pre_refinement_mask_validation_pending
-  public :: complete_block_pre_refinement_mask_validation
+  public :: block_adaptation_mask_validation_pending
+  public :: complete_block_adaptation_mask_validation
   public :: retain_post_grid_change_block_reconstruction
   public :: migrate_blocks
   public :: check_local_blocks
@@ -796,30 +797,30 @@ contains
   end function parallel_block_state_is_ready
 
 
-  logical function block_pre_refinement_mask_validation_pending() &
+  logical function block_adaptation_mask_validation_pending() &
        result(pending)
 
     implicit none
 
-    pending = production_pre_refinement_mask_pending
+    pending = production_adaptation_mask_pending
 
-  end function block_pre_refinement_mask_validation_pending
+  end function block_adaptation_mask_validation_pending
 
 
-  subroutine complete_block_pre_refinement_mask_validation
+  subroutine complete_block_adaptation_mask_validation
 
     implicit none
 
-    if (.not. production_pre_refinement_mask_pending) then
-       call fail("pre-refinement mask validation was not pending")
+    if (.not. production_adaptation_mask_pending) then
+       call fail("adaptation mask validation was not pending")
     end if
-    production_pre_refinement_mask_pending = .false.
+    production_adaptation_mask_pending = .false.
     if (rank == 0) then
        write(6,'(a)') &
-            "Production pre-refinement mask and request shadow passed"
+            "Production adaptation mask and refinement request shadow passed"
     end if
 
-  end subroutine complete_block_pre_refinement_mask_validation
+  end subroutine complete_block_adaptation_mask_validation
 
 
   subroutine invalidate_parallel_block_domain_shadow
@@ -903,7 +904,7 @@ contains
        call fail("grid-change preparation retained stale block state")
     end if
 
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(/,a)') &
             "Production block grid-change preparation:"
        write(6,'(a)') &
@@ -1035,7 +1036,7 @@ contains
     production_grid_reconstruction_count = &
          production_grid_reconstruction_count + 1_int64
 
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(/,a)') &
             "Retained production post-grid-change block reconstruction:"
        write(6,'(a,i0)') &
@@ -1059,6 +1060,10 @@ contains
             "  reconstructed production state retained"
        write(6,'(a,/)') &
             "Retained post-grid-change block reconstruction passed"
+    else if (rank == 0) then
+       write(6,'(a,i0)') &
+            "Retained post-grid-change block reconstruction number = ", &
+            production_grid_reconstruction_count
     end if
 
   end subroutine retain_post_grid_change_block_reconstruction
@@ -4790,7 +4795,7 @@ end subroutine build_parallel_block_catalog
     staged_coarse_vector_boundary_plan%exchange_count = &
          staged_coarse_vector_boundary_plan%exchange_count+1_int64
     staged_coarse_vector_boundary_plan%values_ready = .true.
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(a,i0,a,i0)') &
             "  staged coarse vector boundary transport passed: remote = ", &
             count_global(1),", local = ",count_global(2)
@@ -7352,7 +7357,7 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%production_trend_boundary_refresh_count + &
          1_int64
 
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(/,a,i0)') &
             "Production trend-entry block boundary refresh number = ", &
             block_writeback_plan% &
@@ -7513,7 +7518,7 @@ end subroutine build_parallel_block_catalog
     else
        scheme_name = "RK4"
     end if
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(/,a,a,a,i0,a,i0)') &
             "Production ",scheme_name, &
             " block stage boundary compatibility passed: stage = ", &
@@ -7720,7 +7725,7 @@ end subroutine build_parallel_block_catalog
     else
        scheme_name = "RK4"
     end if
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(a,a,a,i0)') &
             "  block-derived ",scheme_name, &
             " staged velocity restriction production passed: coarse level = ", &
@@ -8198,7 +8203,7 @@ end subroutine build_parallel_block_catalog
     else
        scheme_name = "RK4"
     end if
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        if (has_candidates) then
           write(6,'(a,a,a,i0,a,i0,a,i0)') &
                "  block-native ",scheme_name, &
@@ -8398,7 +8403,7 @@ end subroutine build_parallel_block_catalog
     else
        scheme_name = "RK4"
     end if
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(a,a,a,i0,a,i0,a,i0,a,i0)') &
             "  block-derived ",scheme_name, &
             " cross-root outer wavelet complete passed: stage = ", &
@@ -9477,7 +9482,7 @@ end subroutine build_parallel_block_catalog
        call fail("complete vector-wavelet coverage is incomplete")
     end if
     production_complete_vector_wavelet_validated = .true.
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(a,i0,a,i0,a,i0)') &
             "  complete block-derived vector wavelet production passed: "// &
             "regular coefficients = ",count_global(1), &
@@ -10451,7 +10456,7 @@ end subroutine build_parallel_block_catalog
     else
        scheme_name = "RK4"
     end if
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(a,a,a,i0,a,i0)') &
             "  block-native ",scheme_name, &
             " scalar wavelet production passed: stage = ", &
@@ -11321,7 +11326,7 @@ end subroutine build_parallel_block_catalog
          .true.,.true.,.true.,checkpoint_required,.true.,.true.)
     call evaluate_candidate_block_scalar_restriction
 
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(a)') &
             "  block-native complete physical tendency passed"
        write(6,'(a)') &
@@ -15851,7 +15856,7 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%production_domain_refresh_count = &
          block_writeback_plan%production_domain_refresh_count + 1_int64
 
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(/,a,i0)') &
             "Production post-wavelet Domain refresh number = ", &
             block_writeback_plan%production_domain_refresh_count
@@ -15896,6 +15901,10 @@ end subroutine build_parallel_block_catalog
             "Post-wavelet block prognostic boundary refresh passed"
        write(6,'(a,/)') &
             "Post-wavelet Domain-to-block prognostic refresh passed"
+    else if (rank == 0) then
+       write(6,'(a,i0)') &
+            "Production post-wavelet Domain refresh number = ", &
+            block_writeback_plan%production_domain_refresh_count
     end if
 
   end subroutine refresh_parallel_block_domain_prognostic_state
@@ -16687,21 +16696,23 @@ end subroutine build_parallel_block_catalog
        write(6,'(/,a,i0)') &
             "Accepted production block Euler timestep number = ", &
             block_writeback_plan%production_euler_step_count
-       write(6,'(a,es14.6)') "  timestep scale = ",scale
-       write(6,'(a,i0)') "  scalar changed blocks = ", &
-            global_changed_block_count(1)
-       write(6,'(a,i0)') "  vector changed blocks = ", &
-            global_changed_block_count(2)
-       write(6,'(a,es14.6)') "  scalar maximum update = ", &
-            global_max_update(1)
-       write(6,'(a,es14.6)') "  vector maximum update = ", &
-            global_max_update(2)
-       write(6,'(a)') &
-            "  accepted sol synchronized exactly to Domain owners"
-       write(6,'(a)') &
-            "  wav_coeff remained exact before wavelet transform"
-       write(6,'(a,/)') &
-            "Production block Euler timestep accepted"
+       if (verbose_block_validation) then
+          write(6,'(a,es14.6)') "  timestep scale = ",scale
+          write(6,'(a,i0)') "  scalar changed blocks = ", &
+               global_changed_block_count(1)
+          write(6,'(a,i0)') "  vector changed blocks = ", &
+               global_changed_block_count(2)
+          write(6,'(a,es14.6)') "  scalar maximum update = ", &
+               global_max_update(1)
+          write(6,'(a,es14.6)') "  vector maximum update = ", &
+               global_max_update(2)
+          write(6,'(a)') &
+               "  accepted sol synchronized exactly to Domain owners"
+          write(6,'(a)') &
+               "  wav_coeff remained exact before wavelet transform"
+          write(6,'(a,/)') &
+               "Production block Euler timestep accepted"
+       end if
     end if
 
   end subroutine advance_block_domain_trend_euler
@@ -16834,7 +16845,7 @@ end subroutine build_parallel_block_catalog
     else
        scheme_name = "RK4"
     end if
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(/,a,a,a,i0,a,i0)') &
             "Captured production block ",scheme_name, &
             " validated native tendency stage = ",stage," of ",stage_count
@@ -17086,7 +17097,7 @@ end subroutine build_parallel_block_catalog
     else
        scheme_name = "RK4"
     end if
-    if (rank == 0) then
+    if (rank == 0 .and. verbose_block_validation) then
        write(6,'(/,a,a,a,i0,a,i0)') &
             "Retained production block ",scheme_name, &
             " validated candidate for wavelet input: stage = ", &
@@ -17196,8 +17207,8 @@ end subroutine build_parallel_block_catalog
     if (.not. production_complete_vector_wavelet_validated) then
        call fail("production complete vector wavelet is incomplete")
     end if
-    if (production_pre_refinement_mask_pending) then
-       call fail("previous pre-refinement mask validation is pending")
+    if (production_adaptation_mask_pending) then
+       call fail("previous adaptation mask validation is pending")
     end if
     if (block_writeback_plan% &
          production_multistage_boundary_refresh_count /= &
@@ -17277,7 +17288,7 @@ end subroutine build_parallel_block_catalog
        block_writeback_plan%production_rk4_step_count = &
             block_writeback_plan%production_rk4_step_count + 1_int64
     end if
-    production_pre_refinement_mask_pending = .true.
+    production_adaptation_mask_pending = .true.
     production_multistage_candidate_stage = 0
     production_multistage_candidate_stage_count = 0
     production_multistage_captured_tendency_stage = 0
@@ -17302,21 +17313,23 @@ end subroutine build_parallel_block_catalog
                " timestep number = ", &
                block_writeback_plan%production_rk4_step_count
        end if
-       write(6,'(a,i0)') &
-            "  completed candidate stages = ",stage_count
-       write(6,'(a,i0)') &
-            "  completed provisional boundary refreshes = ",stage_count-1
-       write(6,'(a,i0)') "  scalar changed blocks = ", &
-            global_changed_block_count(1)
-       write(6,'(a,i0)') "  vector changed blocks = ", &
-            global_changed_block_count(2)
-       write(6,'(a,es14.6)') "  scalar maximum update = ", &
-            global_max_update(1)
-       write(6,'(a,es14.6)') "  vector maximum update = ", &
-            global_max_update(2)
-       write(6,'(a,a,a,/)') &
-            "Production multistage block ",scheme_name, &
-            " timestep accepted"
+       if (verbose_block_validation) then
+          write(6,'(a,i0)') &
+               "  completed candidate stages = ",stage_count
+          write(6,'(a,i0)') &
+               "  completed provisional boundary refreshes = ",stage_count-1
+          write(6,'(a,i0)') "  scalar changed blocks = ", &
+               global_changed_block_count(1)
+          write(6,'(a,i0)') "  vector changed blocks = ", &
+               global_changed_block_count(2)
+          write(6,'(a,es14.6)') "  scalar maximum update = ", &
+               global_max_update(1)
+          write(6,'(a,es14.6)') "  vector maximum update = ", &
+               global_max_update(2)
+          write(6,'(a,a,a,/)') &
+               "Production multistage block ",scheme_name, &
+               " timestep accepted"
+       end if
     end if
 
   end subroutine accept_block_native_multistage_candidate

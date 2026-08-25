@@ -61,23 +61,23 @@ module adapt_mod
        integer, intent(in) :: coarse_level
      end subroutine Velocity_Restriction_Validator
 
-     subroutine Pre_Refinement_Mask_Validator(stage)
+     subroutine Adaptation_Mask_Validator(stage)
        integer, intent(in) :: stage
-     end subroutine Pre_Refinement_Mask_Validator
+     end subroutine Adaptation_Mask_Validator
   end interface
 
   
 contains
   
-  subroutine adapt (set_thresholds, type, validate_pre_refinement_masks)
+  subroutine adapt (set_thresholds, type, validate_adaptation_masks)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
     
     implicit none
     
     procedure (noarg_sub)         :: set_thresholds
     logical, intent(in), optional :: type ! recalculate thresholds
-    procedure(Pre_Refinement_Mask_Validator), optional :: &
-         validate_pre_refinement_masks
+    procedure(Adaptation_Mask_Validator), optional :: &
+         validate_adaptation_masks
     
     logical :: local_type
 
@@ -93,40 +93,49 @@ contains
 
     if (local_type) call set_thresholds
 
-    if (present(validate_pre_refinement_masks)) &
-         call validate_pre_refinement_masks(0)
+    if (present(validate_adaptation_masks)) &
+         call validate_adaptation_masks(0)
 
     ! Initialize all masks to ZERO at scales > level_start
     call init_masks_zero
-    if (present(validate_pre_refinement_masks)) &
-         call validate_pre_refinement_masks(1)
+    if (present(validate_adaptation_masks)) &
+         call validate_adaptation_masks(1)
     
     ! Active zone at all scales
     call mask_active
-    if (present(validate_pre_refinement_masks)) &
-         call validate_pre_refinement_masks(2)
+    if (present(validate_adaptation_masks)) &
+         call validate_adaptation_masks(2)
 
     ! Adjacent zone at same scale
     call mask_adj_same_scale
-    if (present(validate_pre_refinement_masks)) &
-         call validate_pre_refinement_masks(3)
+    if (present(validate_adaptation_masks)) &
+         call validate_adaptation_masks(3)
 
     ! Mask for restriction at same scale
     call mask_restrict_same_scale
-    if (present(validate_pre_refinement_masks)) &
-         call validate_pre_refinement_masks(4)
+    if (present(validate_adaptation_masks)) &
+         call validate_adaptation_masks(4)
 
     ! Determine whether any new patches are required
     if (refine ()) call post_refine
 
+    if (present(validate_adaptation_masks)) &
+         call validate_adaptation_masks(5)
+
     ! Adjacent zone at finer scale
     call mask_adj_finer_scale
+    if (present(validate_adaptation_masks)) &
+         call validate_adaptation_masks(6)
 
     ! Ensure consistency between node and edge masks
     call complete_masks
+    if (present(validate_adaptation_masks)) &
+         call validate_adaptation_masks(7)
 
     ! Label ZERO mask nodes/edges that are second nearest neighbours of nodes in adjacent zone mask where trends are be computed
     call mask_second_neighbours
+    if (present(validate_adaptation_masks)) &
+         call validate_adaptation_masks(8)
 
     ! Set insignificant wavelet coefficients to zero
     if (local_type) call compress_wavelets (wav_coeff)

@@ -25,7 +25,9 @@ module main_mod
   use io_vtk_mod,         only : write_and_export
   use lin_solve_mod,      only : Full_Multigrid, Scheduled_Relaxation_Jacobi
   use lnorms_mod,         only : lnorm
-  use mask_mod,           only : advance_pre_refinement_mask_shadow, &
+  use mask_mod,           only : advance_post_refinement_mask_shadow, &
+       advance_pre_refinement_mask_shadow, &
+       begin_post_refinement_mask_shadow, &
        begin_pre_refinement_mask_shadow, init_masks, mask_adj_child
   use multi_level_mod,    only : trend_ml
   use NCAR_topo_mod,      only : load_topo
@@ -59,9 +61,9 @@ module main_mod
   use parallel_block_build_mod, only : build_source_blocks
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
-       block_pre_refinement_mask_validation_pending, &
+       block_adaptation_mask_validation_pending, &
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
-       complete_block_pre_refinement_mask_validation, &
+       complete_block_adaptation_mask_validation, &
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
        prepare_parallel_block_grid_change, &
        refresh_parallel_block_trend_boundary_state, &
@@ -385,7 +387,7 @@ contains
 
   end subroutine restart
 
-  subroutine validate_block_pre_refinement_masks(stage)
+  subroutine validate_block_adaptation_masks(stage)
     ! Coordinate the mask shadow at the existing high-level dependency point;
     ! parallel_block_mpi_mod owns only the accepted-step lifecycle flag.
 
@@ -395,23 +397,31 @@ contains
     logical :: validation_pending
 
     validation_pending = &
-         block_pre_refinement_mask_validation_pending()
+         block_adaptation_mask_validation_pending()
     if (.not. validation_pending) return
-    if (stage < 0 .or. stage > 4) then
+    if (stage < 0 .or. stage > 8) then
        if (rank == 0) write(6,'(a)') &
-            "Pre-refinement mask validation stage is invalid"
+            "Adaptation mask validation stage is invalid"
        call abort_run
     end if
     if (stage == 0) then
        call begin_pre_refinement_mask_shadow
        return
     end if
+    if (stage == 5) then
+       call begin_post_refinement_mask_shadow
+       return
+    end if
 
-    call advance_pre_refinement_mask_shadow(stage)
-    if (stage == 4) &
-         call complete_block_pre_refinement_mask_validation
+    if (stage <= 4) then
+       call advance_pre_refinement_mask_shadow(stage)
+    else
+       call advance_post_refinement_mask_shadow(stage)
+    end if
+    if (stage == 8) &
+         call complete_block_adaptation_mask_validation
 
-  end subroutine validate_block_pre_refinement_masks
+  end subroutine validate_block_adaptation_masks
 
 
   subroutine time_step 
@@ -527,8 +537,8 @@ contains
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
     call adapt( &
-         set_thresholds,validate_pre_refinement_masks= &
-         validate_block_pre_refinement_masks)
+         set_thresholds,validate_adaptation_masks= &
+         validate_block_adaptation_masks)
     call inverse_wavelet_transform (wav_coeff, sol)
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

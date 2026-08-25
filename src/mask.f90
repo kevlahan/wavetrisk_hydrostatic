@@ -24,6 +24,8 @@ module mask_mod
   public :: init_masks, mask_second_neighbours, complete_masks, mask_trsk
   public :: begin_pre_refinement_mask_shadow
   public :: advance_pre_refinement_mask_shadow
+  public :: begin_post_refinement_mask_shadow
+  public :: advance_post_refinement_mask_shadow
 
   type(Int_Array), allocatable, save :: pre_refinement_mask_n(:)
   type(Int_Array), allocatable, save :: pre_refinement_mask_e(:)
@@ -77,7 +79,7 @@ contains
   subroutine advance_pre_refinement_mask_shadow(stage)
     ! Replay one legacy pre-refinement phase on the staged masks, restore the
     ! authoritative masks, then require exact equality.  Stage four also
-    ! compares the complete missing-child request manifest.
+    ! compares the complete parent/child refinement-requirement manifest.
 
     implicit none
 
@@ -115,6 +117,72 @@ contains
     end if
 
   end subroutine advance_pre_refinement_mask_shadow
+
+
+  subroutine begin_post_refinement_mask_shadow
+    ! Restart the persistent mask shadow after refine/post_refine has made any
+    ! required topology changes.  The remaining mask phases do not alter
+    ! topology and can therefore be replayed independently and exactly.
+
+    implicit none
+
+    integer :: d
+
+    if (pre_refinement_shadow_ready) then
+       error stop "begin_post_refinement_mask_shadow: shadow is still active"
+    end if
+    call ensure_pre_refinement_mask_shadow_storage
+    do d = 1,size(grid)
+       pre_refinement_mask_n(d)%length = grid(d)%mask_n%length
+       pre_refinement_mask_e(d)%length = grid(d)%mask_e%length
+       pre_refinement_mask_n(d)%elts = grid(d)%mask_n%elts
+       pre_refinement_mask_e(d)%elts = grid(d)%mask_e%elts
+    end do
+    pre_refinement_shadow_stage = 5
+    pre_refinement_shadow_ready = .true.
+    pre_refinement_allocation_checkpoint = &
+         pre_refinement_shadow_allocations
+
+  end subroutine begin_post_refinement_mask_shadow
+
+
+  subroutine advance_post_refinement_mask_shadow(stage)
+    ! Replay one post-refinement mask phase on the staged masks, restore the
+    ! authoritative masks, and require exact equality.
+
+    implicit none
+
+    integer, intent(in) :: stage
+
+    if (.not. pre_refinement_shadow_ready .or. &
+         stage /= pre_refinement_shadow_stage+1 .or. &
+         stage < 6 .or. stage > 8) then
+       error stop "advance_post_refinement_mask_shadow: invalid stage"
+    end if
+    call swap_pre_refinement_masks
+    select case (stage)
+    case (6)
+       call mask_adj_finer_scale
+    case (7)
+       call complete_masks
+    case (8)
+       call mask_second_neighbours
+    end select
+    call swap_pre_refinement_masks
+    call compare_pre_refinement_masks(stage)
+    pre_refinement_shadow_stage = stage
+
+    if (pre_refinement_shadow_allocations /= &
+         pre_refinement_allocation_checkpoint) then
+       error stop &
+            "advance_post_refinement_mask_shadow: persistent storage changed"
+    end if
+    if (stage == 8) then
+       pre_refinement_shadow_ready = .false.
+       pre_refinement_shadow_stage = -1
+    end if
+
+  end subroutine advance_post_refinement_mask_shadow
 
 
   subroutine ensure_pre_refinement_mask_shadow_storage
@@ -223,7 +291,7 @@ contains
             grid(d)%mask_n%length)
        if (mismatch > 0) then
           write(error_unit,'(/,a,i0,a)') &
-               "Rank ",rank,": pre-refinement node mask differs"
+               "Rank ",rank,": adaptation node mask differs"
           write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
                "  stage = ",stage,", Domain = ",d,", index = ", &
                mismatch,", authoritative = ", &
@@ -231,14 +299,14 @@ contains
           write(error_unit,'(a,i0)') "  staged = ", &
                pre_refinement_mask_n(d)%elts(mismatch)
           flush(error_unit)
-          error stop "pre-refinement node-mask comparison failed"
+          error stop "adaptation node-mask comparison failed"
        end if
        mismatch = find_first_mask_mismatch( &
             grid(d)%mask_e%elts,pre_refinement_mask_e(d)%elts, &
             grid(d)%mask_e%length)
        if (mismatch > 0) then
           write(error_unit,'(/,a,i0,a)') &
-               "Rank ",rank,": pre-refinement edge mask differs"
+               "Rank ",rank,": adaptation edge mask differs"
           write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
                "  stage = ",stage,", Domain = ",d,", index = ", &
                mismatch,", authoritative = ", &
@@ -246,7 +314,7 @@ contains
           write(error_unit,'(a,i0)') "  staged = ", &
                pre_refinement_mask_e(d)%elts(mismatch)
           flush(error_unit)
-          error stop "pre-refinement edge-mask comparison failed"
+          error stop "adaptation edge-mask comparison failed"
        end if
     end do
 
