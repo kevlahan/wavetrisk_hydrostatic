@@ -37,11 +37,13 @@ module adapt_mod
   end interface WT_after_scalar
 
   abstract interface
-     subroutine Scalar_Wavelet_Validator (scaling,first_level)
+     subroutine Scalar_Wavelet_Validator (scaling,wavelet,first_level)
        import :: Float_Field, N_VARIABLE, zlevels
 
        type(Float_Field), intent(in) :: &
             scaling(1:N_VARIABLE,1:zlevels)
+       type(Float_Field), intent(inout) :: &
+            wavelet(1:N_VARIABLE,1:zlevels)
        integer, intent(in) :: first_level
      end subroutine Scalar_Wavelet_Validator
 
@@ -319,7 +321,7 @@ contains
        end do
     end do
     if (present(validate_scalar_wavelets)) then
-       call validate_scalar_wavelets(scaling,l_start)
+       call validate_scalar_wavelets(scaling,wavelet,l_start)
     end if
     call compress_wavelets (wavelet)
     call inverse_wavelet_transform (wavelet, scaling)

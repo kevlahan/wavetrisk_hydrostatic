@@ -384,13 +384,9 @@ module parallel_block_mpi_mod
      integer(int64) :: buffer_allocations = 0_int64
      integer(int64) :: stage_allocations = 0_int64
      integer(int64) :: production_writeback_count = 0_int64
-     integer(int64) :: production_euler_step_count = 0_int64
-     integer(int64) :: production_rk3_step_count = 0_int64
-     integer(int64) :: production_rk4_step_count = 0_int64
      integer(int64) :: production_trend_boundary_refresh_count = 0_int64
      integer(int64) :: production_multistage_boundary_refresh_count = &
           0_int64
-     integer(int64) :: production_domain_refresh_count = 0_int64
      integer :: native_stage = 0
      integer :: native_stage_count = 0
      logical :: native_stage_ready = .false.
@@ -399,7 +395,6 @@ module parallel_block_mpi_mod
 
   type(Block_Writeback_Plan_Type), save :: block_writeback_plan
 
-  integer(int64), save :: production_grid_reconstruction_count = 0_int64
   integer(int64), save :: block_writeback_plan_generation = 0_int64
   integer, save :: production_multistage_candidate_stage = 0
   integer, save :: production_multistage_candidate_stage_count = 0
@@ -408,6 +403,7 @@ module parallel_block_mpi_mod
   integer, save :: production_velocity_restriction_level = -1
   logical, save :: production_coarse_outer_wavelet_validated = .false.
   logical, save :: production_complete_vector_wavelet_validated = .false.
+  logical, save :: production_native_wavelet_output_activated = .false.
   logical, save :: production_multistage_final_snapshot_consumed = .false.
   logical, save :: production_adaptation_pending = .false.
 
@@ -1007,15 +1003,6 @@ contains
     end if
     if (checkpoint_ready) then
        call fail("post-grid-change production state retained a checkpoint")
-    end if
-
-    production_grid_reconstruction_count = &
-         production_grid_reconstruction_count + 1_int64
-
-    if (rank == 0) then
-       write(6,'(a,i0)') &
-            "Retained post-grid-change block reconstruction number = ", &
-            production_grid_reconstruction_count
     end if
 
   end subroutine retain_post_grid_change_block_reconstruction
@@ -3481,13 +3468,9 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%reconstructed_patch_count = 0
     block_writeback_plan%preserved_patch_count = 0
     block_writeback_plan%production_writeback_count = 0_int64
-    block_writeback_plan%production_euler_step_count = 0_int64
-    block_writeback_plan%production_rk3_step_count = 0_int64
-    block_writeback_plan%production_rk4_step_count = 0_int64
     block_writeback_plan%production_trend_boundary_refresh_count = 0_int64
     block_writeback_plan%production_multistage_boundary_refresh_count = &
          0_int64
-    block_writeback_plan%production_domain_refresh_count = 0_int64
     block_writeback_plan%native_stage = 0
     block_writeback_plan%native_stage_count = 0
     block_writeback_plan%native_stage_ready = .false.
@@ -3499,6 +3482,7 @@ end subroutine build_parallel_block_catalog
     production_velocity_restriction_level = -1
     production_coarse_outer_wavelet_validated = .false.
     production_complete_vector_wavelet_validated = .false.
+    production_native_wavelet_output_activated = .false.
     production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
 
@@ -6242,8 +6226,9 @@ end subroutine build_parallel_block_catalog
        call fail("invalid Domain prognostic import family")
     end if
     if (present(domain_sol)) then
-       if (payload_family /= BLOCK_PAYLOAD_SOL) then
-          call fail("stage Domain prognostic import is not sol")
+       if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
+            payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
+          call fail("stage Domain prognostic import family is invalid")
        end if
     end if
     if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer)) then
@@ -9044,7 +9029,8 @@ end subroutine build_parallel_block_catalog
   end function compute_block_outer_vector_wavelet
 
 
-  subroutine validate_complete_block_vector_wavelets (first_level)
+  subroutine validate_complete_block_vector_wavelets ( &
+       first_level,domain_wavelet)
     ! Produce the complete regular-outer, regular-inner and pentagon-corrected
     ! vector family from the block-derived Domain stage.  Geometry is read
     ! from grid, while every velocity source comes from reconstructed blocks
@@ -9053,6 +9039,8 @@ end subroutine build_parallel_block_catalog
     implicit none
 
     integer, intent(in) :: first_level
+    type(Float_Field), intent(in) :: &
+         domain_wavelet(1:N_VARIABLE,1:zlevels)
 
     integer :: c
     integer :: d
@@ -9309,7 +9297,7 @@ end subroutine build_parallel_block_catalog
                    edge_id = EDGE*( &
                         grid(d)%patch%elts(p+1)%elts_start+node)+e
                    native_value = native_wc(edge_id+1)
-                   reference_value = wav_coeff(S_VELO,field_level)% &
+                   reference_value = domain_wavelet(S_VELO,field_level)% &
                         data(d)%elts(edge_id+1)
                    allowed = 128.0_dp*epsilon(1.0_dp)*max( &
                         1.0_dp,abs(native_value),abs(reference_value))
@@ -10135,16 +10123,19 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine validate_candidate_block_scalar_wavelets ( &
-       domain_scaling,first_level)
+       domain_scaling,domain_wavelet,first_level)
     ! Evaluate each RK-candidate scalar wavelet stencil directly from retained
     ! block sol, compare it with the independent Domain result, then install
-    ! the native coefficient in block storage. Compression, inverse
-    ! reconstruction and adaptation remain unchanged.
+    ! the native coefficient in block storage.  The final candidate promotes
+    ! the complete scalar/vector block product to authoritative wav_coeff
+    ! before the unchanged compression, inverse reconstruction and adaptation.
 
     implicit none
 
     type(Float_Field), intent(in) :: &
          domain_scaling(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: &
+         domain_wavelet(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: first_level
 
     integer :: ierr
@@ -10223,11 +10214,10 @@ end subroutine build_parallel_block_catalog
     call assert_block_domain_field_family_match( &
          BLOCK_PAYLOAD_SOL,domain_scaling)
 
-    ! The production call uses the module wav_coeff object supplied to
-    ! WT_after_step. Install its uncompressed patch coefficients as a
-    ! read-only reference while preserving the RK rollback checkpoint.
+    ! Install the uncompressed Domain patch coefficients as a read-only
+    ! reference while preserving the RK rollback checkpoint.
     call import_domain_field_family_to_blocks( &
-         BLOCK_PAYLOAD_WAV_COEFF,preserve_checkpoint=.true.)
+         BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet,.true.)
 
     statistics%first_level = first_level
     statistics%last_level = level_end-1
@@ -10281,7 +10271,10 @@ end subroutine build_parallel_block_catalog
     ! transaction: regular inner production, pentagon correction, complete
     ! persistent staged storage and whole-family comparison.
     if (candidate_stage == candidate_stage_count) then
-       call validate_complete_block_vector_wavelets(first_level)
+       call validate_complete_block_vector_wavelets( &
+            first_level,domain_wavelet)
+       call activate_complete_block_wavelet_output( &
+            first_level,domain_wavelet)
     end if
 
     ! Close the final RK transaction downstream of the complete
@@ -10310,6 +10303,121 @@ end subroutine build_parallel_block_catalog
     end if
 
   end subroutine validate_candidate_block_scalar_wavelets
+
+
+  subroutine activate_complete_block_wavelet_output( &
+       first_level,domain_wavelet)
+    ! Promote the already validated block-derived uncompressed transform.
+    ! Scalar coefficients are reconstructed from compact block storage by the
+    ! normal transactional writeback.  The complete vector stage then replaces
+    ! the reference vector patch interiors.  Every address is preflighted
+    ! before either authoritative family is modified.
+
+    implicit none
+
+    integer, intent(in) :: first_level
+    type(Float_Field), intent(inout) :: &
+         domain_wavelet(1:N_VARIABLE,1:zlevels)
+
+    integer :: d
+    integer :: domain_start
+    integer :: field_level
+    integer :: first_field_level
+    integer :: level_slot
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_edge_value
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: n_value
+    integer :: native_start
+    integer :: p
+    integer :: patch_start
+    integer :: v_scalar
+    integer :: v_vector
+
+    if (production_native_wavelet_output_activated) then
+       call fail("native wavelet output was already activated")
+    end if
+    if (.not. production_complete_vector_wavelet_validated .or. &
+         first_level /= level_start-1) then
+       call fail("native wavelet activation prerequisites are incomplete")
+    end if
+    if (.not. allocated(production_vector_transform_displ) .or. &
+         .not. allocated(production_vector_wavelet_stage) .or. &
+         size(production_vector_transform_displ) /= size(grid)+1) then
+       call fail("native wavelet activation stage is unavailable")
+    end if
+
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    if (v_vector /= S_VELO .or. mult_vector /= EDGE .or. &
+         n_field_level < 1) then
+       call fail("native wavelet activation field layout is invalid")
+    end if
+
+    ! Preflight every native vector patch slice.  No authoritative value has
+    ! changed if this check rejects the transaction.
+    do d = 1,size(grid)
+       n_edge_value = &
+            size(sol(v_vector,first_field_level)%data(d)%elts)
+       do level_slot = 1,n_field_level
+          field_level = first_field_level+level_slot-1
+          if (field_level < 1 .or. field_level > zlevels) cycle
+          do p = 0,grid(d)%patch%length-1
+             if (grid(d)%patch%elts(p+1)%deleted .or. &
+                  grid(d)%patch%elts(p+1)%level <= first_level .or. &
+                  grid(d)%patch%elts(p+1)%level > level_end) cycle
+             patch_start = grid(d)%patch%elts(p+1)%elts_start
+             domain_start = EDGE*patch_start+1
+             n_value = EDGE*PATCH_SIZE**2
+             native_start = production_vector_transform_displ(d) + &
+                  (level_slot-1)*n_edge_value+domain_start
+             if (domain_start < 1 .or. &
+                  domain_start+n_value-1 > size( &
+                  domain_wavelet(v_vector,field_level)%data(d)%elts) .or. &
+                  native_start < 1 .or. &
+                  native_start+n_value-1 > &
+                  size(production_vector_wavelet_stage)) then
+                call fail("native wavelet activation extent is invalid")
+             end if
+          end do
+       end do
+    end do
+
+    ! This transaction installs the native scalar patch coefficients.  Its
+    ! vector payload is still the validated Domain reference and is replaced
+    ! immediately below by the complete independently produced vector stage.
+    call write_block_field_family_to_domains( &
+         BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet)
+
+    do d = 1,size(grid)
+       n_edge_value = &
+            size(sol(v_vector,first_field_level)%data(d)%elts)
+       do level_slot = 1,n_field_level
+          field_level = first_field_level+level_slot-1
+          if (field_level < 1 .or. field_level > zlevels) cycle
+          do p = 0,grid(d)%patch%length-1
+             if (grid(d)%patch%elts(p+1)%deleted .or. &
+                  grid(d)%patch%elts(p+1)%level <= first_level .or. &
+                  grid(d)%patch%elts(p+1)%level > level_end) cycle
+             patch_start = grid(d)%patch%elts(p+1)%elts_start
+             domain_start = EDGE*patch_start+1
+             n_value = EDGE*PATCH_SIZE**2
+             native_start = production_vector_transform_displ(d) + &
+                  (level_slot-1)*n_edge_value+domain_start
+             domain_wavelet(v_vector,field_level)%data(d)%elts( &
+                  domain_start:domain_start+n_value-1) = &
+                  production_vector_wavelet_stage( &
+                  native_start:native_start+n_value-1)
+          end do
+       end do
+    end do
+    domain_wavelet%bdry_uptodate = .false.
+    production_native_wavelet_output_activated = .true.
+
+  end subroutine activate_complete_block_wavelet_output
 
 
   subroutine compare_block_scalar_wavelets (catalog_index,block,context)
@@ -15633,15 +15741,6 @@ end subroutine build_parallel_block_catalog
        call fail("Domain prognostic refresh resized ghost buffers")
     end if
 
-    block_writeback_plan%production_domain_refresh_count = &
-         block_writeback_plan%production_domain_refresh_count + 1_int64
-
-    if (rank == 0) then
-       write(6,'(a,i0)') &
-            "Production post-wavelet Domain refresh number = ", &
-            block_writeback_plan%production_domain_refresh_count
-    end if
-
   end subroutine refresh_parallel_block_domain_prognostic_state
 
 
@@ -16406,15 +16505,6 @@ end subroutine build_parallel_block_catalog
        call fail("production block Euler step invalidated persistent state")
     end if
 
-    block_writeback_plan%production_euler_step_count = &
-         block_writeback_plan%production_euler_step_count + 1_int64
-
-    if (rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Accepted production block Euler timestep number = ", &
-            block_writeback_plan%production_euler_step_count
-    end if
-
   end subroutine advance_block_domain_trend_euler
 
 
@@ -16848,8 +16938,6 @@ end subroutine build_parallel_block_catalog
     logical :: state_ready
     logical :: trial_active
 
-    character(len=3) :: scheme_name
-
     if (stage_count /= 3 .and. stage_count /= 4) then
        call fail("accepted production block candidate stage count is invalid")
     end if
@@ -16871,6 +16959,9 @@ end subroutine build_parallel_block_catalog
     end if
     if (.not. production_complete_vector_wavelet_validated) then
        call fail("production complete vector wavelet is incomplete")
+    end if
+    if (.not. production_native_wavelet_output_activated) then
+       call fail("production native wavelet output is not active")
     end if
     if (production_adaptation_pending) then
        call fail("previous block adaptation lifecycle is pending")
@@ -16918,7 +17009,7 @@ end subroutine build_parallel_block_catalog
     end if
     if (block_domain_production_writeback_count() /= &
          production_multistage_writeback_before + &
-         int(stage_count,int64)) then
+         int(stage_count+1,int64)) then
        call fail( &
             "accepted production multistage writeback count is invalid")
     end if
@@ -16933,15 +17024,6 @@ end subroutine build_parallel_block_catalog
             "accepted production multistage invalidated persistent state")
     end if
 
-    if (stage_count == 3) then
-       scheme_name = "RK3"
-       block_writeback_plan%production_rk3_step_count = &
-            block_writeback_plan%production_rk3_step_count + 1_int64
-    else
-       scheme_name = "RK4"
-       block_writeback_plan%production_rk4_step_count = &
-            block_writeback_plan%production_rk4_step_count + 1_int64
-    end if
     production_adaptation_pending = .true.
     production_multistage_candidate_stage = 0
     production_multistage_candidate_stage_count = 0
@@ -16950,24 +17032,11 @@ end subroutine build_parallel_block_catalog
     production_velocity_restriction_level = -1
     production_coarse_outer_wavelet_validated = .false.
     production_complete_vector_wavelet_validated = .false.
+    production_native_wavelet_output_activated = .false.
     production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
     block_writeback_plan%production_multistage_boundary_refresh_count = &
          0_int64
-
-    if (rank == 0) then
-       if (stage_count == 3) then
-          write(6,'(/,a,a,a,i0)') &
-               "Accepted production block ",scheme_name, &
-               " timestep number = ", &
-               block_writeback_plan%production_rk3_step_count
-       else
-          write(6,'(/,a,a,a,i0)') &
-               "Accepted production block ",scheme_name, &
-               " timestep number = ", &
-               block_writeback_plan%production_rk4_step_count
-       end if
-    end if
 
   end subroutine accept_block_native_multistage_candidate
 
@@ -17610,14 +17679,26 @@ end subroutine build_parallel_block_catalog
                      start+1:start+n_value)
              end if
           case (BLOCK_PAYLOAD_WAV_COEFF)
-             if (start < 0 .or. start+n_value > &
-                  size(wav_coeff(scalar_id,field_level)%data(d)%elts)) then
-                call fail( &
-                     "legacy scalar wav_coeff writeback extent is invalid")
+             if (present(domain_sol) .and. field_level >= 1 .and. &
+                  field_level <= zlevels) then
+                if (start < 0 .or. start+n_value > size( &
+                     domain_sol(scalar_id,field_level)%data(d)%elts)) then
+                   call fail( &
+                        "stage scalar wav_coeff extent is invalid")
+                end if
+                scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
+                     domain_sol(scalar_id,field_level)%data(d)%elts( &
+                     start+1:start+n_value)
+             else
+                if (start < 0 .or. start+n_value > size( &
+                     wav_coeff(scalar_id,field_level)%data(d)%elts)) then
+                   call fail( &
+                        "legacy scalar wav_coeff extent is invalid")
+                end if
+                scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
+                     wav_coeff(scalar_id,field_level)%data(d)%elts( &
+                     start+1:start+n_value)
              end if
-             scalar_payload(scalar_pos:scalar_pos+n_value-1) = &
-                  wav_coeff(scalar_id,field_level)%data(d)%elts( &
-                  start+1:start+n_value)
           case (BLOCK_PAYLOAD_TREND)
              if (field_level < 1) then
                 scalar_payload( &
@@ -17663,14 +17744,24 @@ end subroutine build_parallel_block_catalog
                   start+1:start+n_value)
           end if
        case (BLOCK_PAYLOAD_WAV_COEFF)
-          if (start < 0 .or. start+n_value > &
-               size(wav_coeff(v_vector,field_level)%data(d)%elts)) then
-             call fail( &
-                  "legacy vector wav_coeff writeback extent is invalid")
+          if (present(domain_sol) .and. field_level >= 1 .and. &
+               field_level <= zlevels) then
+             if (start < 0 .or. start+n_value > size( &
+                  domain_sol(v_vector,field_level)%data(d)%elts)) then
+                call fail("stage vector wav_coeff extent is invalid")
+             end if
+             vector_payload(vector_pos:vector_pos+n_value-1) = &
+                  domain_sol(v_vector,field_level)%data(d)%elts( &
+                  start+1:start+n_value)
+          else
+             if (start < 0 .or. start+n_value > size( &
+                  wav_coeff(v_vector,field_level)%data(d)%elts)) then
+                call fail("legacy vector wav_coeff extent is invalid")
+             end if
+             vector_payload(vector_pos:vector_pos+n_value-1) = &
+                  wav_coeff(v_vector,field_level)%data(d)%elts( &
+                  start+1:start+n_value)
           end if
-          vector_payload(vector_pos:vector_pos+n_value-1) = &
-               wav_coeff(v_vector,field_level)%data(d)%elts( &
-               start+1:start+n_value)
        case (BLOCK_PAYLOAD_TREND)
           if (field_level < 1) then
              vector_payload( &
@@ -18548,7 +18639,7 @@ end subroutine build_parallel_block_catalog
 
 
   logical function domain_patch_prognostic_extent_is_valid ( &
-       d,p,payload_family) result(valid)
+       d,p,payload_family,domain_sol) result(valid)
     ! Preflight every authoritative array section touched by one patch.
 
     implicit none
@@ -18556,6 +18647,8 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: d
     integer, intent(in) :: p
     integer, intent(in) :: payload_family
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: field_level
     integer :: first_field_level
@@ -18594,12 +18687,23 @@ end subroutine build_parallel_block_catalog
           field_level = first_field_level + level_slot - 1
           select case (payload_family)
           case (BLOCK_PAYLOAD_SOL)
-             if (start+n_value > &
-                  size(sol(scalar_id,field_level)%data(d)%elts)) return
+             if (present(domain_sol) .and. field_level >= 1 .and. &
+                  field_level <= zlevels) then
+                if (start+n_value > size( &
+                     domain_sol(scalar_id,field_level)%data(d)%elts)) return
+             else
+                if (start+n_value > &
+                     size(sol(scalar_id,field_level)%data(d)%elts)) return
+             end if
           case (BLOCK_PAYLOAD_WAV_COEFF)
-             if (start+n_value > &
-                  size(wav_coeff(scalar_id,field_level)%data(d)%elts)) &
-                  return
+             if (present(domain_sol) .and. field_level >= 1 .and. &
+                  field_level <= zlevels) then
+                if (start+n_value > size( &
+                     domain_sol(scalar_id,field_level)%data(d)%elts)) return
+             else
+                if (start+n_value > size( &
+                     wav_coeff(scalar_id,field_level)%data(d)%elts)) return
+             end if
           end select
        end do
     end do
@@ -18611,11 +18715,23 @@ end subroutine build_parallel_block_catalog
        field_level = first_field_level + level_slot - 1
        select case (payload_family)
        case (BLOCK_PAYLOAD_SOL)
-          if (start+n_value > &
-               size(sol(v_vector,field_level)%data(d)%elts)) return
+          if (present(domain_sol) .and. field_level >= 1 .and. &
+               field_level <= zlevels) then
+             if (start+n_value > size( &
+                  domain_sol(v_vector,field_level)%data(d)%elts)) return
+          else
+             if (start+n_value > &
+                  size(sol(v_vector,field_level)%data(d)%elts)) return
+          end if
        case (BLOCK_PAYLOAD_WAV_COEFF)
-          if (start+n_value > &
-               size(wav_coeff(v_vector,field_level)%data(d)%elts)) return
+          if (present(domain_sol) .and. field_level >= 1 .and. &
+               field_level <= zlevels) then
+             if (start+n_value > size( &
+                  domain_sol(v_vector,field_level)%data(d)%elts)) return
+          else
+             if (start+n_value > &
+                  size(wav_coeff(v_vector,field_level)%data(d)%elts)) return
+          end if
        end select
     end do
 
@@ -18625,13 +18741,15 @@ end subroutine build_parallel_block_catalog
 
 
   logical function block_writeback_domain_stage_is_valid ( &
-       payload_family) result(valid)
+       payload_family,domain_sol) result(valid)
     ! Validate complete coverage and every destination extent before the
     ! first authoritative value is changed.
 
     implicit none
 
     integer, intent(in) :: payload_family
+    type(Float_Field), optional, intent(in) :: &
+         domain_sol(1:N_VARIABLE,1:zlevels)
 
     integer :: active_patch_count
     integer :: d
@@ -18689,9 +18807,15 @@ end subroutine build_parallel_block_catalog
                block_writeback_plan%vector_patch_nvalue - 1 > &
                size(block_writeback_plan%vector_domain_stage)) return
 
-          patch_extent_valid = &
-               domain_patch_prognostic_extent_is_valid( &
-               d,p,payload_family)
+          if (present(domain_sol)) then
+             patch_extent_valid = &
+                  domain_patch_prognostic_extent_is_valid( &
+                  d,p,payload_family,domain_sol)
+          else
+             patch_extent_valid = &
+                  domain_patch_prognostic_extent_is_valid( &
+                  d,p,payload_family)
+          end if
           if (.not. patch_extent_valid) return
        end do
     end do
@@ -18763,9 +18887,16 @@ end subroutine build_parallel_block_catalog
                      scalar_payload(scalar_pos:scalar_pos+n_value-1)
              end if
           case (BLOCK_PAYLOAD_WAV_COEFF)
-             wav_coeff(scalar_id,field_level)%data(d)%elts( &
-                  start+1:start+n_value) = &
-                  scalar_payload(scalar_pos:scalar_pos+n_value-1)
+             if (present(domain_sol) .and. field_level >= 1 .and. &
+                  field_level <= zlevels) then
+                domain_sol(scalar_id,field_level)%data(d)%elts( &
+                     start+1:start+n_value) = &
+                     scalar_payload(scalar_pos:scalar_pos+n_value-1)
+             else
+                wav_coeff(scalar_id,field_level)%data(d)%elts( &
+                     start+1:start+n_value) = &
+                     scalar_payload(scalar_pos:scalar_pos+n_value-1)
+             end if
           end select
           scalar_pos = scalar_pos + n_value
        end do
@@ -18788,9 +18919,16 @@ end subroutine build_parallel_block_catalog
                   vector_payload(vector_pos:vector_pos+n_value-1)
           end if
        case (BLOCK_PAYLOAD_WAV_COEFF)
-          wav_coeff(v_vector,field_level)%data(d)%elts( &
-               start+1:start+n_value) = &
-               vector_payload(vector_pos:vector_pos+n_value-1)
+          if (present(domain_sol) .and. field_level >= 1 .and. &
+               field_level <= zlevels) then
+             domain_sol(v_vector,field_level)%data(d)%elts( &
+                  start+1:start+n_value) = &
+                  vector_payload(vector_pos:vector_pos+n_value-1)
+          else
+             wav_coeff(v_vector,field_level)%data(d)%elts( &
+                  start+1:start+n_value) = &
+                  vector_payload(vector_pos:vector_pos+n_value-1)
+          end if
        end select
        vector_pos = vector_pos + n_value
     end do
@@ -18818,8 +18956,13 @@ end subroutine build_parallel_block_catalog
     logical :: stage_valid
 
     committed = .false.
-    stage_valid = &
-         block_writeback_domain_stage_is_valid(payload_family)
+    if (present(domain_sol)) then
+       stage_valid = block_writeback_domain_stage_is_valid( &
+            payload_family,domain_sol)
+    else
+       stage_valid = &
+            block_writeback_domain_stage_is_valid(payload_family)
+    end if
     if (.not. stage_valid) return
 
     do d = 1,size(grid)
