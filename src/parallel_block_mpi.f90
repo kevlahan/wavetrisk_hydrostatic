@@ -409,6 +409,7 @@ module parallel_block_mpi_mod
   logical, save :: production_coarse_outer_wavelet_validated = .false.
   logical, save :: production_complete_vector_wavelet_validated = .false.
   logical, save :: production_multistage_final_snapshot_consumed = .false.
+  logical, save :: production_pre_refinement_mask_pending = .false.
 
   ! Domain-shaped, non-authoritative storage for the complete native vector
   ! transform.  Values are populated only from the block-derived writeback
@@ -662,6 +663,8 @@ module parallel_block_mpi_mod
   public :: invalidate_parallel_block_domain_shadow
   public :: synchronize_parallel_block_checkpoint
   public :: prepare_parallel_block_grid_change
+  public :: block_pre_refinement_mask_validation_pending
+  public :: complete_block_pre_refinement_mask_validation
   public :: retain_post_grid_change_block_reconstruction
   public :: migrate_blocks
   public :: check_local_blocks
@@ -791,6 +794,32 @@ contains
          ghost_exchange_plan%ready .and. writeback_ready
 
   end function parallel_block_state_is_ready
+
+
+  logical function block_pre_refinement_mask_validation_pending() &
+       result(pending)
+
+    implicit none
+
+    pending = production_pre_refinement_mask_pending
+
+  end function block_pre_refinement_mask_validation_pending
+
+
+  subroutine complete_block_pre_refinement_mask_validation
+
+    implicit none
+
+    if (.not. production_pre_refinement_mask_pending) then
+       call fail("pre-refinement mask validation was not pending")
+    end if
+    production_pre_refinement_mask_pending = .false.
+    if (rank == 0) then
+       write(6,'(a)') &
+            "Production pre-refinement mask and request shadow passed"
+    end if
+
+  end subroutine complete_block_pre_refinement_mask_validation
 
 
   subroutine invalidate_parallel_block_domain_shadow
@@ -17167,6 +17196,9 @@ end subroutine build_parallel_block_catalog
     if (.not. production_complete_vector_wavelet_validated) then
        call fail("production complete vector wavelet is incomplete")
     end if
+    if (production_pre_refinement_mask_pending) then
+       call fail("previous pre-refinement mask validation is pending")
+    end if
     if (block_writeback_plan% &
          production_multistage_boundary_refresh_count /= &
          int(stage_count-1,int64)) then
@@ -17245,6 +17277,7 @@ end subroutine build_parallel_block_catalog
        block_writeback_plan%production_rk4_step_count = &
             block_writeback_plan%production_rk4_step_count + 1_int64
     end if
+    production_pre_refinement_mask_pending = .true.
     production_multistage_candidate_stage = 0
     production_multistage_candidate_stage_count = 0
     production_multistage_captured_tendency_stage = 0

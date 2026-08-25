@@ -60,18 +60,24 @@ module adapt_mod
             scaling(1:N_VARIABLE,1:zlevels)
        integer, intent(in) :: coarse_level
      end subroutine Velocity_Restriction_Validator
+
+     subroutine Pre_Refinement_Mask_Validator(stage)
+       integer, intent(in) :: stage
+     end subroutine Pre_Refinement_Mask_Validator
   end interface
 
   
 contains
   
-  subroutine adapt (set_thresholds, type)
+  subroutine adapt (set_thresholds, type, validate_pre_refinement_masks)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
     
     implicit none
     
     procedure (noarg_sub)         :: set_thresholds
     logical, intent(in), optional :: type ! recalculate thresholds
+    procedure(Pre_Refinement_Mask_Validator), optional :: &
+         validate_pre_refinement_masks
     
     logical :: local_type
 
@@ -87,17 +93,28 @@ contains
 
     if (local_type) call set_thresholds
 
+    if (present(validate_pre_refinement_masks)) &
+         call validate_pre_refinement_masks(0)
+
     ! Initialize all masks to ZERO at scales > level_start
     call init_masks_zero
+    if (present(validate_pre_refinement_masks)) &
+         call validate_pre_refinement_masks(1)
     
     ! Active zone at all scales
     call mask_active
+    if (present(validate_pre_refinement_masks)) &
+         call validate_pre_refinement_masks(2)
 
     ! Adjacent zone at same scale
     call mask_adj_same_scale
+    if (present(validate_pre_refinement_masks)) &
+         call validate_pre_refinement_masks(3)
 
     ! Mask for restriction at same scale
     call mask_restrict_same_scale
+    if (present(validate_pre_refinement_masks)) &
+         call validate_pre_refinement_masks(4)
 
     ! Determine whether any new patches are required
     if (refine ()) call post_refine

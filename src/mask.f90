@@ -2,13 +2,19 @@ module mask_mod
   ! Module containing routines that define masks on adaptive grid.
   ! (required by adapt_mod and refine_patch_mod)
 
+  use iso_fortran_env, only : error_unit, int64
+
   use kind_mod,       only : dp
+  use arch_mod,       only : rank
   use comm_mpi_mod,   only : comm_masks_mpi, update_bdry1
-  use dyn_arrays,     only : extend, init
-  use domain_mod,     only : Domain, grid, wav_coeff, idx, id_edge
+  use dyn_arrays,     only : extend, init, Int_Array
+  use domain_mod,     only : chd_offs, Domain, get_offs_Domain, grid, &
+       wav_coeff, idx, id_edge
   use domain_ops_mod, only : apply_bdry, apply_interscale, apply_onescale, apply_onescale__int 
+  use patch_mod,      only : PATCH_SIZE
   
-  use shared_mod, only : ADJSPACE, ADJZONE, BDRY_THICKNESS, EDGE, N_BDRY, TOLRNZ, RT, DG, UP, TRSK, RESTRCT, ZERO, z_null, &
+  use shared_mod, only : ADJSPACE, ADJZONE, BDRY_THICKNESS, EDGE, &
+       N_BDRY, N_CHDRN, TOLRNZ, RT, DG, UP, TRSK, RESTRCT, ZERO, z_null, &
        min_level, Laplace_rotu, Laplace_sclr, level_fill, S_VELO, FROZEN, NONE, level_start, level_end, max_level, &
        zlevels, scalars, threshold
 
@@ -16,11 +22,380 @@ module mask_mod
   private
   public :: init_masks_zero, mask_active, mask_adj_child, mask_adj_same_scale, mask_restrict_same_scale, mask_adj_finer_scale
   public :: init_masks, mask_second_neighbours, complete_masks, mask_trsk
+  public :: begin_pre_refinement_mask_shadow
+  public :: advance_pre_refinement_mask_shadow
+
+  type(Int_Array), allocatable, save :: pre_refinement_mask_n(:)
+  type(Int_Array), allocatable, save :: pre_refinement_mask_e(:)
+  logical, allocatable, save :: pre_refinement_request(:)
+  logical, save :: pre_refinement_shadow_ready = .false.
+  integer, save :: pre_refinement_shadow_stage = -1
+  integer(int64), save :: pre_refinement_shadow_allocations = 0_int64
+  integer(int64), save :: pre_refinement_allocation_checkpoint = 0_int64
 
   
 contains
 
-  
+
+  subroutine begin_pre_refinement_mask_shadow
+    ! Retain the exact pre-adaptation mask state in persistent storage.  The
+    ! staged masks are advanced independently while the authoritative Domain
+    ! masks follow the normal adapt path.
+
+    implicit none
+
+    integer :: d
+    integer :: request_extent
+
+    call ensure_pre_refinement_mask_shadow_storage
+    do d = 1,size(grid)
+       pre_refinement_mask_n(d)%length = grid(d)%mask_n%length
+       pre_refinement_mask_e(d)%length = grid(d)%mask_e%length
+       pre_refinement_mask_n(d)%elts = grid(d)%mask_n%elts
+       pre_refinement_mask_e(d)%elts = grid(d)%mask_e%elts
+    end do
+    request_extent = pre_refinement_request_extent()
+    if (.not. allocated(pre_refinement_request)) then
+       allocate(pre_refinement_request(max(1,request_extent)))
+       pre_refinement_shadow_allocations = &
+            pre_refinement_shadow_allocations+1_int64
+    else if (size(pre_refinement_request) < request_extent) then
+       deallocate(pre_refinement_request)
+       allocate(pre_refinement_request(max(1,request_extent)))
+       pre_refinement_shadow_allocations = &
+            pre_refinement_shadow_allocations+1_int64
+    end if
+    pre_refinement_request = .false.
+    pre_refinement_shadow_stage = 0
+    pre_refinement_shadow_ready = .true.
+    pre_refinement_allocation_checkpoint = &
+         pre_refinement_shadow_allocations
+
+  end subroutine begin_pre_refinement_mask_shadow
+
+
+  subroutine advance_pre_refinement_mask_shadow(stage)
+    ! Replay one legacy pre-refinement phase on the staged masks, restore the
+    ! authoritative masks, then require exact equality.  Stage four also
+    ! compares the complete missing-child request manifest.
+
+    implicit none
+
+    integer, intent(in) :: stage
+
+    if (.not. pre_refinement_shadow_ready .or. &
+         stage /= pre_refinement_shadow_stage+1 .or. &
+         stage < 1 .or. stage > 4) then
+       error stop "advance_pre_refinement_mask_shadow: invalid stage"
+    end if
+    call swap_pre_refinement_masks
+    select case (stage)
+    case (1)
+       call init_masks_zero
+    case (2)
+       call mask_active
+    case (3)
+       call mask_adj_same_scale
+    case (4)
+       call mask_restrict_same_scale
+    end select
+    call swap_pre_refinement_masks
+    call compare_pre_refinement_masks(stage)
+    pre_refinement_shadow_stage = stage
+
+    if (pre_refinement_shadow_allocations /= &
+         pre_refinement_allocation_checkpoint) then
+       error stop &
+            "advance_pre_refinement_mask_shadow: persistent storage changed"
+    end if
+    if (stage == 4) then
+       call compare_pre_refinement_requests
+       pre_refinement_shadow_ready = .false.
+       pre_refinement_shadow_stage = -1
+    end if
+
+  end subroutine advance_pre_refinement_mask_shadow
+
+
+  subroutine ensure_pre_refinement_mask_shadow_storage
+
+    implicit none
+
+    integer :: d
+
+    if (allocated(pre_refinement_mask_n) .neqv. &
+         allocated(pre_refinement_mask_e)) then
+       error stop &
+            "ensure_pre_refinement_mask_shadow_storage: inconsistent storage"
+    end if
+    if (allocated(pre_refinement_mask_n)) then
+       if (size(pre_refinement_mask_n) /= size(grid) .or. &
+            size(pre_refinement_mask_e) /= size(grid)) then
+          do d = 1,size(pre_refinement_mask_n)
+             if (allocated(pre_refinement_mask_n(d)%elts)) &
+                  deallocate(pre_refinement_mask_n(d)%elts)
+             if (allocated(pre_refinement_mask_e(d)%elts)) &
+                  deallocate(pre_refinement_mask_e(d)%elts)
+          end do
+          deallocate(pre_refinement_mask_n,pre_refinement_mask_e)
+       end if
+    end if
+    if (.not. allocated(pre_refinement_mask_n)) then
+       allocate(pre_refinement_mask_n(size(grid)))
+       allocate(pre_refinement_mask_e(size(grid)))
+       pre_refinement_shadow_allocations = &
+            pre_refinement_shadow_allocations+2_int64
+    end if
+
+    do d = 1,size(grid)
+       if (allocated(pre_refinement_mask_n(d)%elts)) then
+          if (size(pre_refinement_mask_n(d)%elts) /= &
+               size(grid(d)%mask_n%elts)) then
+             deallocate(pre_refinement_mask_n(d)%elts)
+          end if
+       end if
+       if (.not. allocated(pre_refinement_mask_n(d)%elts)) then
+          allocate(pre_refinement_mask_n(d)%elts( &
+               size(grid(d)%mask_n%elts)))
+          pre_refinement_shadow_allocations = &
+               pre_refinement_shadow_allocations+1_int64
+       end if
+
+       if (allocated(pre_refinement_mask_e(d)%elts)) then
+          if (size(pre_refinement_mask_e(d)%elts) /= &
+               size(grid(d)%mask_e%elts)) then
+             deallocate(pre_refinement_mask_e(d)%elts)
+          end if
+       end if
+       if (.not. allocated(pre_refinement_mask_e(d)%elts)) then
+          allocate(pre_refinement_mask_e(d)%elts( &
+               size(grid(d)%mask_e%elts)))
+          pre_refinement_shadow_allocations = &
+               pre_refinement_shadow_allocations+1_int64
+       end if
+    end do
+
+  end subroutine ensure_pre_refinement_mask_shadow_storage
+
+
+  subroutine swap_pre_refinement_masks
+
+    implicit none
+
+    integer :: d
+    integer, allocatable :: temporary(:)
+
+    if (.not. allocated(pre_refinement_mask_n)) then
+       error stop "swap_pre_refinement_masks: storage is unavailable"
+    end if
+    if (.not. allocated(pre_refinement_mask_e)) then
+       error stop "swap_pre_refinement_masks: storage is unavailable"
+    end if
+    if (size(pre_refinement_mask_n) /= size(grid) .or. &
+         size(pre_refinement_mask_e) /= size(grid)) then
+       error stop "swap_pre_refinement_masks: storage is unavailable"
+    end if
+    do d = 1,size(grid)
+       call move_alloc(grid(d)%mask_n%elts,temporary)
+       call move_alloc(pre_refinement_mask_n(d)%elts,grid(d)%mask_n%elts)
+       call move_alloc(temporary,pre_refinement_mask_n(d)%elts)
+
+       call move_alloc(grid(d)%mask_e%elts,temporary)
+       call move_alloc(pre_refinement_mask_e(d)%elts,grid(d)%mask_e%elts)
+       call move_alloc(temporary,pre_refinement_mask_e(d)%elts)
+    end do
+
+  end subroutine swap_pre_refinement_masks
+
+
+  subroutine compare_pre_refinement_masks(stage)
+
+    implicit none
+
+    integer, intent(in) :: stage
+
+    integer :: d
+    integer :: mismatch
+
+    do d = 1,size(grid)
+       mismatch = find_first_mask_mismatch( &
+            grid(d)%mask_n%elts,pre_refinement_mask_n(d)%elts, &
+            grid(d)%mask_n%length)
+       if (mismatch > 0) then
+          write(error_unit,'(/,a,i0,a)') &
+               "Rank ",rank,": pre-refinement node mask differs"
+          write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+               "  stage = ",stage,", Domain = ",d,", index = ", &
+               mismatch,", authoritative = ", &
+               grid(d)%mask_n%elts(mismatch)
+          write(error_unit,'(a,i0)') "  staged = ", &
+               pre_refinement_mask_n(d)%elts(mismatch)
+          flush(error_unit)
+          error stop "pre-refinement node-mask comparison failed"
+       end if
+       mismatch = find_first_mask_mismatch( &
+            grid(d)%mask_e%elts,pre_refinement_mask_e(d)%elts, &
+            grid(d)%mask_e%length)
+       if (mismatch > 0) then
+          write(error_unit,'(/,a,i0,a)') &
+               "Rank ",rank,": pre-refinement edge mask differs"
+          write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+               "  stage = ",stage,", Domain = ",d,", index = ", &
+               mismatch,", authoritative = ", &
+               grid(d)%mask_e%elts(mismatch)
+          write(error_unit,'(a,i0)') "  staged = ", &
+               pre_refinement_mask_e(d)%elts(mismatch)
+          flush(error_unit)
+          error stop "pre-refinement edge-mask comparison failed"
+       end if
+    end do
+
+  end subroutine compare_pre_refinement_masks
+
+
+  integer function find_first_mask_mismatch ( &
+       authoritative,staged,extent) result(first)
+
+    implicit none
+
+    integer, intent(in) :: authoritative(:)
+    integer, intent(in) :: staged(:)
+    integer, intent(in) :: extent
+    integer :: i
+
+    first = 0
+    if (extent < 0 .or. extent > size(authoritative) .or. &
+         extent > size(staged)) then
+       error stop "find_first_mask_mismatch: invalid extent"
+    end if
+    do i = 1,extent
+       if (authoritative(i) == staged(i)) cycle
+       first = i
+       return
+    end do
+
+  end function find_first_mask_mismatch
+
+
+  subroutine compare_pre_refinement_requests
+
+    implicit none
+
+    integer :: c
+    integer :: d
+    integer :: p_storage
+    integer :: position
+    integer :: request_extent
+    logical :: staged_request
+
+    request_extent = pre_refinement_request_extent()
+    if (.not. allocated(pre_refinement_request)) then
+       error stop "compare_pre_refinement_requests: storage is unavailable"
+    end if
+    if (size(pre_refinement_request) < request_extent) then
+       error stop "compare_pre_refinement_requests: storage is unavailable"
+    end if
+
+    position = 0
+    do d = 1,size(grid)
+       do p_storage = 3,grid(d)%patch%length
+          do c = 0,N_CHDRN-1
+             position = position+1
+             pre_refinement_request(position) = &
+                  child_request_required(grid(d),p_storage-1,c)
+          end do
+       end do
+    end do
+    if (position /= request_extent) then
+       error stop "compare_pre_refinement_requests: extent differs"
+    end if
+
+    call swap_pre_refinement_masks
+    position = 0
+    do d = 1,size(grid)
+       do p_storage = 3,grid(d)%patch%length
+          do c = 0,N_CHDRN-1
+             position = position+1
+             staged_request = &
+                  child_request_required(grid(d),p_storage-1,c)
+             if (staged_request .neqv. &
+                  pre_refinement_request(position)) then
+                write(error_unit,'(/,a,i0,a)') &
+                     "Rank ",rank, &
+                     ": pre-refinement child request differs"
+                write(error_unit,'(a,i0,a,i0,a,i0)') &
+                     "  Domain = ",d,", parent patch = ", &
+                     p_storage-1,", child = ",c
+                flush(error_unit)
+                error stop &
+                     "pre-refinement request-manifest comparison failed"
+             end if
+          end do
+       end do
+    end do
+    call swap_pre_refinement_masks
+
+  end subroutine compare_pre_refinement_requests
+
+
+  integer function pre_refinement_request_extent() result(extent)
+
+    implicit none
+
+    integer :: d
+
+    extent = 0
+    do d = 1,size(grid)
+       extent = extent + N_CHDRN*max(0,grid(d)%patch%length-2)
+    end do
+
+  end function pre_refinement_request_extent
+
+
+  logical function child_request_required(dom,p_parent,child) &
+       result(requested)
+
+    implicit none
+
+    type(Domain), intent(in) :: dom
+    integer, intent(in) :: p_parent
+    integer, intent(in) :: child
+
+    integer :: dims_parent(2,N_BDRY+1)
+    integer :: i0
+    integer :: i_parent
+    integer :: id_parent
+    integer :: j0
+    integer :: j_parent
+    integer :: offs_parent(N_BDRY+1)
+    logical :: is_required
+
+    requested = .false.
+    if (p_parent < 0 .or. p_parent >= dom%patch%length .or. &
+         child < 0 .or. child >= N_CHDRN) then
+       error stop "child_request_required: invalid address"
+    end if
+    call get_offs_Domain(dom,p_parent,offs_parent,dims_parent)
+    do j0 = -BDRY_THICKNESS+1, &
+         PATCH_SIZE/2+BDRY_THICKNESS
+       j_parent = j0-1+chd_offs(2,child+1)
+       do i0 = -BDRY_THICKNESS+1, &
+            PATCH_SIZE/2+BDRY_THICKNESS
+          i_parent = i0-1+chd_offs(1,child+1)
+          id_parent = idx( &
+               i_parent,j_parent,offs_parent,dims_parent)
+          is_required = dom%mask_n%elts(id_parent+1) >= ADJSPACE .or. &
+               maxval(dom%mask_e%elts(id_edge(id_parent))) >= RESTRCT
+          if (is_required) then
+             requested = .true.
+             return
+          end if
+       end do
+    end do
+
+  end function child_request_required
+
+
   subroutine init_masks_zero
     ! Initialize all node and edge masks to ZERO at finer scales
     implicit none
