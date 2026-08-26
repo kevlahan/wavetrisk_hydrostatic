@@ -355,7 +355,6 @@ contains
          (.not. present(l_start0) .or. &
           .not. present(validate_scalar_wavelets) .or. &
           .not. present(validate_outer_vector_wavelets) .or. &
-          .not. present(validate_velocity_restriction) .or. &
           .not. present(prepare_native_compression) .or. &
           .not. present(activate_native_compression) .or. &
           .not. present(activate_native_inverse))) then
@@ -366,22 +365,30 @@ contains
 
     if (present(l_start0)) then
        l_start = l_start0
-       do k = 1, size(scaling,2)
-          do d = 1, size(grid)
-             velo => scaling(S_VELO,k)%data(d)%elts
-             call apply_interscale_d (restrict_velo, grid(d), level_start-1, k, 0, 0)
-             nullify (velo)
+       if (l_start == level_start-1) then
+          do k = 1, size(scaling,2)
+             do d = 1, size(grid)
+                velo => scaling(S_VELO,k)%data(d)%elts
+                call apply_interscale_d ( &
+                     restrict_velo,grid(d),level_start-1,k,0,0)
+                nullify (velo)
+             end do
           end do
-       end do
+       end if
     else
        l_start = level_start
     end if
-    if (native_output .and. l_start /= level_start-1) then
-       error stop "native wavelet output requires the complete level range"
+    if (native_output .and. l_start /= level_start-1 .and. &
+         l_start /= level_start) then
+       error stop "native wavelet output has an invalid first level"
+    end if
+    if (native_output .and. l_start == level_start-1 .and. &
+         .not. present(validate_velocity_restriction)) then
+       error stop "complete native wavelet output requires restriction"
     end if
 
     call update_bdry (scaling, NONE, 904)
-    if (present(l_start0) .and. &
+    if (l_start == level_start-1 .and. &
          present(validate_velocity_restriction)) then
        call validate_velocity_restriction(scaling,level_start-1)
     end if
@@ -425,15 +432,19 @@ contains
     if (native_output) then
        call prepare_native_compression(wavelet)
        call activate_native_compression(wavelet)
-    else
-       call compress_wavelets (wavelet)
-    end if
-    call inverse_wavelet_transform (wavelet, scaling)
-    if (native_output) then
+       ! Establish the geometric aliases consumed by the native inverse.
+       ! No legacy reconstruction is executed on the production path.
+       call update_bdry1( &
+            wavelet,max(l_start,level_start),level_end,802)
+       call update_bdry1(scaling,l_start,level_end,803)
+       scaling%bdry_uptodate = .false.
        call activate_native_inverse( &
             wavelet,scaling,l_start,level_end, &
             refresh_native_inverse_scalar_boundary, &
             refresh_native_inverse_vector_boundary)
+    else
+       call compress_wavelets (wavelet)
+       call inverse_wavelet_transform(wavelet,scaling)
     end if
   end subroutine WT_after_step
 

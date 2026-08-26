@@ -424,6 +424,8 @@ module parallel_block_mpi_mod
   integer(int64), save :: production_block_compression_allocation_before = &
        0_int64
   logical, save :: production_multistage_final_snapshot_consumed = .false.
+  logical, save :: production_multistage_provisional_snapshot_consumed = &
+       .false.
   logical, save :: production_adaptation_pending = .false.
 
   ! Domain-shaped, non-authoritative storage for the complete native vector
@@ -444,6 +446,8 @@ module parallel_block_mpi_mod
   integer(int64), save :: &
        production_multistage_stage_allocation_before = 0_int64
   integer(int64), save :: production_multistage_writeback_before = 0_int64
+  integer(int64), save :: &
+       production_multistage_native_transform_writeback_count = 0_int64
 
   type :: Block_Boundary_Snapshot
      integer :: catalog_index = 0
@@ -742,6 +746,7 @@ module parallel_block_mpi_mod
   public :: finalize_block_scalar_divergence_capture
   public :: begin_block_domain_multistage_candidate_stage
   public :: retain_block_native_multistage_candidate
+  public :: prepare_block_native_multistage_wavelet_stage
   public :: prepare_block_native_multistage_wavelet_acceptance
   public :: accept_block_native_multistage_candidate
   public :: check_block_domain_trend_step
@@ -3531,7 +3536,9 @@ end subroutine build_parallel_block_catalog
     production_block_compression_writeback_before = 0_int64
     production_block_compression_allocation_before = 0_int64
     production_multistage_final_snapshot_consumed = .false.
+    production_multistage_provisional_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
+    production_multistage_native_transform_writeback_count = 0_int64
 
   end subroutine clear_block_writeback_plan
 
@@ -7341,10 +7348,10 @@ end subroutine build_parallel_block_catalog
 
   subroutine refresh_parallel_block_candidate_boundary_state ( &
        domain_sol,stage,stage_count)
-    ! Replace the retained pre-wavelet block candidate with the authoritative
-    ! post-wavelet Domain stage state while retaining the timestep-start
-    ! checkpoint required by the low-storage formula. Import compact
-    ! boundaries and refresh inter-block ghosts for the next RK tendency.
+    ! Finalize one native provisional transform while retaining the
+    ! timestep-start checkpoint required by the low-storage formula. Reinstall
+    ! the exact Domain image conservatively so scalar replacement invalidates
+    ! derived hydrostatic caches before the next tendency.
 
     implicit none
 
@@ -7402,7 +7409,12 @@ end subroutine build_parallel_block_catalog
          accumulator_ready) then
        call fail("multistage boundary refresh transaction is invalid")
     end if
-    call consume_native_multistage_candidate_snapshot(stage,stage_count)
+    if (block_writeback_plan%native_stage_ready) then
+       call consume_native_multistage_candidate_snapshot(stage,stage_count)
+    else if (.not. &
+         production_multistage_provisional_snapshot_consumed) then
+       call fail("multistage boundary refresh has no consumed snapshot")
+    end if
 
     writeback_allocation_before = &
          block_writeback_plan_allocation_count()
@@ -7478,6 +7490,7 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%production_multistage_boundary_refresh_count = &
          block_writeback_plan% &
          production_multistage_boundary_refresh_count + 1_int64
+    production_multistage_provisional_snapshot_consumed = .false.
 
   end subroutine refresh_parallel_block_candidate_boundary_state
 
@@ -7543,6 +7556,7 @@ end subroutine build_parallel_block_catalog
        call fail("velocity restriction is outside the accepted transform")
     end if
     if (.not. production_multistage_final_snapshot_consumed .or. &
+         production_multistage_provisional_snapshot_consumed .or. &
          block_writeback_plan%native_stage_ready) then
        call fail("velocity restriction snapshot boundary is invalid")
     end if
@@ -8033,12 +8047,15 @@ end subroutine build_parallel_block_catalog
     candidate_stage_count = &
          production_multistage_candidate_stage_count
     if (candidate_stage_count == 0) return
-    if (candidate_stage /= candidate_stage_count) then
-       call fail("native outer wavelet requested for a provisional stage")
-    end if
     if (wavelet_level < level_start-1 .or. &
          wavelet_level > level_end-1) then
        call fail("native outer vector-wavelet level is invalid")
+    end if
+    if (candidate_stage < candidate_stage_count) then
+       if (wavelet_level < level_start) then
+          call fail("provisional outer vector-wavelet level is invalid")
+       end if
+       return
     end if
     if (wavelet_level /= level_start-1) return
     if (production_velocity_restriction_level /= wavelet_level) then
@@ -8653,20 +8670,24 @@ end subroutine build_parallel_block_catalog
 
 
 
-  subroutine validate_complete_block_vector_wavelets (first_level)
+  subroutine validate_complete_block_vector_wavelets ( &
+       first_level,domain_scaling)
     ! Produce the complete regular-outer, regular-inner and pentagon-corrected
-    ! vector family from the block-derived Domain stage.  Geometry is read
-    ! from grid, while every velocity source comes from reconstructed blocks
-    ! or the independently exchanged Stage-123 boundary payload.
+    ! vector family. Final-stage sources come from reconstructed blocks and
+    ! explicit routes; provisional stages conservatively seed the same native
+    ! arithmetic from the already refreshed Domain-indexed vector image.
 
     implicit none
 
     integer, intent(in) :: first_level
+    type(Float_Field), intent(in) :: &
+         domain_scaling(1:N_VARIABLE,1:zlevels)
 
     integer :: c
     integer :: d
     integer :: e
     integer :: edge_id
+    integer :: copy_n_edge_value
     integer :: field_level
     integer :: first_field_level
     integer :: i
@@ -8716,10 +8737,14 @@ end subroutine build_parallel_block_catalog
     if (production_complete_vector_wavelet_validated) then
        call fail("complete vector wavelet was already validated")
     end if
-    if (first_level /= level_start-1 .or. &
-         .not. production_coarse_outer_wavelet_validated .or. &
-         .not. staged_coarse_vector_boundary_plan%values_ready) then
+    if (first_level /= level_start-1 .and. &
+         first_level /= level_start) then
        call fail("complete vector wavelet prerequisites are incomplete")
+    end if
+    if (first_level == level_start-1 .and. &
+         (.not. production_coarse_outer_wavelet_validated .or. &
+          .not. staged_coarse_vector_boundary_plan%values_ready)) then
+       call fail("coarse vector wavelet prerequisites are incomplete")
     end if
     call get_block_field_layout( &
          v_scalar,n_scalar_variable,v_vector,first_field_level, &
@@ -8739,6 +8764,33 @@ end subroutine build_parallel_block_catalog
     production_vector_wavelet_stage = 0.0_dp
     production_vector_transform_covered = .false.
 
+    if (first_level == level_start) then
+       ! Provisional stages already have an authoritative update_bdry image.
+       ! Use that image only to seed the Domain-indexed vector transport;
+       ! all vector wavelet arithmetic below remains native.
+       do d = 1,size(grid)
+          n_edge_value = size(sol(S_VELO,first_field_level)%data(d)%elts)
+          do level_slot = 1,n_field_level
+             field_level = first_field_level+level_slot-1
+             if (field_level < 1 .or. field_level > zlevels) cycle
+             transform_start = production_vector_transform_displ(d) + &
+                  (level_slot-1)*n_edge_value
+             copy_n_edge_value = min(n_edge_value,size( &
+                  domain_scaling(S_VELO,field_level)%data(d)%elts))
+             if (copy_n_edge_value <= 0) then
+                call fail("provisional vector source extent is empty")
+             end if
+             production_vector_transform_stage( &
+                  transform_start+1: &
+                  transform_start+copy_n_edge_value) = &
+                  domain_scaling(S_VELO,field_level)% &
+                  data(d)%elts(1:copy_n_edge_value)
+             production_vector_transform_covered( &
+                  transform_start+1: &
+                  transform_start+copy_n_edge_value) = .true.
+          end do
+       end do
+    else
     ! Expand the compact block stage into immutable Domain indexing.  Patch
     ! interiors and boundary routes have disjoint provenance and are checked
     ! independently before this point.
@@ -8869,6 +8921,7 @@ end subroutine build_parallel_block_catalog
          first_field_level,n_field_level)
     call propagate_complete_vector_boundaries( &
          first_field_level,n_field_level)
+    end if
 
     count_local = 0_int64
     do d = 1,size(grid)
@@ -9724,10 +9777,9 @@ end subroutine build_parallel_block_catalog
 
   subroutine validate_candidate_block_scalar_wavelets ( &
        domain_scaling,domain_wavelet,first_level)
-    ! Evaluate the accepted RK scalar wavelet stencil directly from retained
-    ! block sol and install the native coefficient in block storage.  The
-    ! complete scalar/vector product becomes authoritative before the unchanged
-    ! compression, inverse reconstruction and adaptation.
+    ! Evaluate one RK scalar wavelet stencil directly from retained block SOL
+    ! and install the native coefficient in block storage. Final and
+    ! provisional stages retain their distinct transform ranges.
 
     implicit none
 
@@ -9750,6 +9802,8 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: writeback_before
 
     logical :: checkpoint_ready
+    logical :: final_transform
+    logical :: provisional_transform
     logical :: state_ready
 
     type(Block_Scalar_Wavelet_Context) :: statistics
@@ -9758,11 +9812,11 @@ end subroutine build_parallel_block_catalog
     candidate_stage_count = &
          production_multistage_candidate_stage_count
 
-    ! Acceptance is deliberately deferred until the final native transform
-    ! has passed its production coverage and transaction guards.
     if (candidate_stage_count == 0) return
-    if (candidate_stage /= candidate_stage_count) then
-       call fail("native scalar wavelet requested for a provisional stage")
+    final_transform = candidate_stage == candidate_stage_count
+    provisional_transform = candidate_stage < candidate_stage_count
+    if (.not. final_transform .and. .not. provisional_transform) then
+       call fail("native scalar wavelet candidate stage is invalid")
     end if
 
     state_ready = parallel_block_state_is_ready()
@@ -9771,12 +9825,20 @@ end subroutine build_parallel_block_catalog
     if (.not. state_ready .or. .not. checkpoint_ready) then
        call fail("scalar-wavelet production transaction is not ready")
     end if
-    if (first_level /= level_start-1) then
-       call fail("accepted scalar-wavelet first level is invalid")
+    if ((final_transform .and. first_level /= level_start-1) .or. &
+         (provisional_transform .and. first_level /= level_start)) then
+       call fail("native scalar-wavelet first level is invalid")
     end if
-    if (.not. production_multistage_final_snapshot_consumed .or. &
-         block_writeback_plan%native_stage_ready) then
-       call fail("accepted scalar-wavelet snapshot boundary is invalid")
+    if (block_writeback_plan%native_stage_ready) then
+       call fail("native scalar-wavelet retained a candidate snapshot")
+    end if
+    if (final_transform .and. &
+         .not. production_multistage_final_snapshot_consumed) then
+       call fail("final scalar-wavelet snapshot boundary is invalid")
+    end if
+    if (provisional_transform .and. &
+         .not. production_multistage_provisional_snapshot_consumed) then
+       call fail("provisional scalar-wavelet snapshot boundary is invalid")
     end if
     if (.not. block_scalar_divergence_plan%ready .or. &
          .not. allocated(block_scalar_tendency)) then
@@ -9831,9 +9893,12 @@ end subroutine build_parallel_block_catalog
     if (.not. checkpoint_ready) then
        call fail("scalar-wavelet production lost RK transaction state")
     end if
-    if (.not. production_multistage_final_snapshot_consumed .or. &
-         block_writeback_plan%native_stage_ready) then
-       call fail("accepted scalar-wavelet snapshot state changed")
+    if (block_writeback_plan%native_stage_ready .or. &
+         (final_transform .and. &
+          .not. production_multistage_final_snapshot_consumed) .or. &
+         (provisional_transform .and. &
+          .not. production_multistage_provisional_snapshot_consumed)) then
+       call fail("native scalar-wavelet snapshot state changed")
     end if
     writeback_allocation_after = &
          block_writeback_plan_allocation_count()
@@ -9850,16 +9915,15 @@ end subroutine build_parallel_block_catalog
     ! The final candidate now closes the former Stages 124--126 as one
     ! transaction: regular inner production, pentagon correction, complete
     ! persistent staged storage and authoritative activation.
-    if (candidate_stage == candidate_stage_count) then
-       call validate_complete_block_vector_wavelets(first_level)
-       call activate_complete_block_wavelet_output( &
-            first_level,domain_wavelet)
-    end if
+    call validate_complete_block_vector_wavelets( &
+         first_level,domain_scaling)
+    call activate_complete_block_wavelet_output( &
+         first_level,domain_wavelet)
 
     ! Close the final RK transaction downstream of the complete
     ! uncompressed production but upstream of wavelet compression, inverse
     ! reconstruction and any subsequent grid adaptation.
-    if (candidate_stage == candidate_stage_count) then
+    if (final_transform) then
        call accept_block_native_multistage_candidate( &
             candidate_stage_count)
        checkpoint_ready = &
@@ -9919,7 +9983,8 @@ end subroutine build_parallel_block_catalog
        call fail("native wavelet output was already activated")
     end if
     if (.not. production_complete_vector_wavelet_validated .or. &
-         first_level /= level_start-1) then
+         (first_level /= level_start-1 .and. &
+          first_level /= level_start)) then
        call fail("native wavelet activation prerequisites are incomplete")
     end if
     if (.not. allocated(production_vector_transform_displ) .or. &
@@ -10015,20 +10080,31 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: count_global(5)
     integer(int64) :: count_local(5)
 
+    logical :: final_transform
+    logical :: provisional_transform
     logical :: state_ready
 
     type(Block_Wavelet_Compression_Context) :: statistics
 
     state_ready = parallel_block_state_is_ready()
-    if (.not. state_ready .or. .not. production_adaptation_pending) then
+    final_transform = production_adaptation_pending .and. &
+         production_multistage_candidate_stage_count == 0
+    provisional_transform = .not. production_adaptation_pending .and. &
+         production_multistage_candidate_stage_count > 0 .and. &
+         production_multistage_candidate_stage < &
+         production_multistage_candidate_stage_count .and. &
+         production_multistage_provisional_snapshot_consumed
+    if (.not. state_ready .or. &
+         (.not. final_transform .and. .not. provisional_transform)) then
        call fail("native wavelet compression transaction is not ready")
     end if
     if (production_block_wavelet_compression_ready) then
        call fail("native wavelet compression was already prepared")
     end if
-    if (production_native_wavelet_output_activated .or. &
-         production_multistage_candidate_stage /= 0 .or. &
-         production_multistage_candidate_stage_count /= 0) then
+    if ((final_transform .and. &
+         production_native_wavelet_output_activated) .or. &
+         (provisional_transform .and. &
+          .not. production_native_wavelet_output_activated)) then
        call fail("native wavelet compression stage boundary is invalid")
     end if
     if (.not. block_scalar_divergence_plan%ready .or. &
@@ -10041,13 +10117,12 @@ end subroutine build_parallel_block_catalog
     production_block_compression_writeback_before = &
          block_domain_production_writeback_count()
 
-    ! Stage 134 deliberately starts with the conservative residence route:
-    ! the independently produced vector family has already been activated on
-    ! Domain owners, so the ordinary post-acceptance reverse route installs
-    ! the module-owned authoritative family in compact final-owner storage
-    ! without requiring a now-closed RK checkpoint or repeating mathematics.
+    ! The independently produced vector family has already been activated on
+    ! Domain owners, so the conservative reverse route installs the complete
+    ! family in compact final-owner storage without repeating mathematics.
     call import_domain_field_family_to_blocks( &
-         BLOCK_PAYLOAD_WAV_COEFF)
+         BLOCK_PAYLOAD_WAV_COEFF, &
+         preserve_checkpoint=provisional_transform)
     call assert_block_domain_field_family_match( &
          BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet, &
          comparison_name="uncompressed resident")
@@ -10090,8 +10165,8 @@ end subroutine build_parallel_block_catalog
 
   subroutine activate_block_native_wavelet_compression (domain_wavelet)
     ! Transactionally install the complete compact compression result on
-    ! Domain owners.  The following inverse transform therefore consumes
-    ! block-native compressed coefficients while remaining unchanged.
+    ! Domain owners. The native inverse consumes these coefficients after
+    ! the caller establishes the geometric boundary aliases.
 
     implicit none
 
@@ -10099,7 +10174,6 @@ end subroutine build_parallel_block_catalog
          domain_wavelet(1:N_VARIABLE,1:zlevels)
 
     if (.not. parallel_block_state_is_ready() .or. &
-         .not. production_adaptation_pending .or. &
          .not. production_block_wavelet_compression_ready) then
        call fail("native compressed wavelet activation is not ready")
     end if
@@ -10127,9 +10201,9 @@ end subroutine build_parallel_block_catalog
   subroutine activate_block_native_inverse_transform ( &
        domain_wavelet,domain_scaling,jmin,jmax, &
        refresh_scalar_boundary,refresh_vector_boundary)
-    ! Re-evaluate the accepted inverse transform from compact storage. Scalar
-    ! and vector reconstruction is recomputed by native kernels; the accepted
-    ! legacy image remains only as a strict transition reference.
+    ! Execute the production inverse transform from compact storage. The
+    ! caller has prepared compressed wavelet and pre-inverse solution boundary
+    ! aliases; no legacy inverse image is constructed or retained.
 
     implicit none
 
@@ -10155,20 +10229,34 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: allocation_before
     integer(int64) :: writeback_before
 
+    logical :: checkpoint_ready
+    logical :: final_transform
+    logical :: provisional_transform
     logical :: state_ready
 
     type(Block_Scalar_Inverse_Context) :: scalar_statistics
     type(Block_Vector_Inverse_Context) :: vector_statistics
 
     state_ready = parallel_block_state_is_ready()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    final_transform = production_adaptation_pending .and. &
+         .not. checkpoint_ready
+    provisional_transform = .not. production_adaptation_pending .and. &
+         checkpoint_ready .and. &
+         production_multistage_candidate_stage_count > 0 .and. &
+         production_multistage_candidate_stage < &
+         production_multistage_candidate_stage_count .and. &
+         production_multistage_provisional_snapshot_consumed
     if (.not. state_ready .or. production_block_inverse_active) then
        call fail("native inverse transaction is not ready")
     end if
-    if (jmin /= level_start-1 .or. jmax /= level_end) then
+    if (jmax /= level_end .or. &
+         (final_transform .and. jmin /= level_start-1) .or. &
+         (provisional_transform .and. jmin /= level_start)) then
        call fail("native inverse level range is invalid")
     end if
-    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
-         .not. production_adaptation_pending) then
+    if (.not. final_transform .and. .not. provisional_transform) then
        call fail("native inverse found an unresolved production transaction")
     end if
 
@@ -10176,15 +10264,9 @@ end subroutine build_parallel_block_catalog
     allocation_before = block_writeback_plan_allocation_count()
     writeback_before = block_domain_production_writeback_count()
 
-    ! WT_after_step has just completed the established inverse. Preserve that
-    ! image before restoring the compact, compressed pre-inverse solution.
-    call capture_domain_inverse_reference(domain_scaling)
-    call write_block_field_family_to_domains( &
-         BLOCK_PAYLOAD_SOL,domain_scaling)
-
-    ! Legacy inverse setup has already made the compressed wavelet boundary
-    ! authoritative. Import only those boundary records; compact interiors
-    ! remain the Stage 134 native compression result.
+    ! The caller has made compressed wavelet boundary aliases authoritative.
+    ! Import only those records; compact interiors remain the Stage 134 native
+    ! compression result and compact sol remains the pre-inverse state.
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_WAV_COEFF,.false.,domain_wavelet)
     call refresh_block_wav_coeff_ghosts
@@ -10208,7 +10290,8 @@ end subroutine build_parallel_block_catalog
 
        call synchronize_block_inverse_outer_vectors( &
             domain_wavelet,domain_scaling,inverse_level, &
-            inverse_level+1,refresh_vector_boundary,outer_count)
+            inverse_level+1,refresh_vector_boundary,outer_count, &
+            provisional_transform)
        vector_count_local(1:4) = &
             vector_count_local(1:4)+outer_count
 
@@ -10265,7 +10348,6 @@ end subroutine build_parallel_block_catalog
        call fail("native vector inverse coverage is incomplete")
     end if
 
-    call assert_block_inverse_reference
     call write_block_field_family_to_domains( &
          BLOCK_PAYLOAD_SOL,domain_scaling)
     call assert_block_domain_field_family_match( &
@@ -10275,53 +10357,19 @@ end subroutine build_parallel_block_catalog
        call fail("native inverse reallocated persistent transport")
     end if
     if (block_domain_production_writeback_count() /= writeback_before+ &
-         int(4*(jmax-jmin)+3,int64)) then
+         int(4*(jmax-jmin)+2,int64)) then
        call fail("native inverse writeback sequence is invalid")
+    end if
+    if (provisional_transform) then
+       production_multistage_native_transform_writeback_count = &
+            production_multistage_native_transform_writeback_count + &
+            int(4*(jmax-jmin)+4,int64)
+       production_complete_vector_wavelet_validated = .false.
+       production_native_wavelet_output_activated = .false.
     end if
     production_block_inverse_active = .false.
 
   end subroutine activate_block_native_inverse_transform
-
-
-  subroutine capture_domain_inverse_reference (domain_scaling)
-    ! Preserve active patch interiors from the established inverse in the
-    ! reusable writeback reference stage; no per-step allocation is allowed.
-
-    implicit none
-
-    type(Float_Field), intent(in) :: &
-         domain_scaling(1:N_VARIABLE,1:zlevels)
-
-    integer :: d
-    integer :: p
-    integer :: patch_slot
-    integer :: scalar_pos
-    integer :: vector_pos
-
-    if (.not. allocated(block_writeback_plan%native_scalar_stage) .or. &
-         .not. allocated(block_writeback_plan%native_vector_stage)) then
-       call fail("native inverse reference stage is unavailable")
-    end if
-
-    block_writeback_plan%native_scalar_stage = 0.0_dp
-    block_writeback_plan%native_vector_stage = 0.0_dp
-    do d = 1,size(grid)
-       do p = 0,grid(d)%patch%length-1
-          if (grid(d)%patch%elts(p+1)%deleted) cycle
-          patch_slot = block_writeback_plan%domain_patch_displ(d)+p+1
-          scalar_pos = (patch_slot-1)* &
-               block_writeback_plan%scalar_patch_nvalue+1
-          vector_pos = (patch_slot-1)* &
-               block_writeback_plan%vector_patch_nvalue+1
-          call pack_domain_patch_prognostic( &
-               d,p,BLOCK_PAYLOAD_SOL, &
-               block_writeback_plan%native_scalar_stage,scalar_pos, &
-               block_writeback_plan%native_vector_stage,vector_pos, &
-               domain_scaling)
-       end do
-    end do
-
-  end subroutine capture_domain_inverse_reference
 
 
   subroutine synchronize_block_inverse_scalars ( &
@@ -10719,7 +10767,7 @@ end subroutine build_parallel_block_catalog
 
   subroutine synchronize_block_inverse_outer_vectors ( &
        domain_wavelet,domain_scaling,coarse_level,fine_level, &
-       refresh_vector_boundary,outer_count)
+       refresh_vector_boundary,outer_count,preserve_checkpoint)
     ! Publish compact interiors and apply the signed Domain boundary routing
     ! before the block-owned outer/pentagon arithmetic. Domain storage is a
     ! transition transport here, not the legacy reconstruction implementation.
@@ -10733,6 +10781,7 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: coarse_level
     integer, intent(in) :: fine_level
     integer(int64), intent(out) :: outer_count(4)
+    logical, intent(in) :: preserve_checkpoint
     procedure(Block_Inverse_Scalar_Boundary_Handler) :: &
          refresh_vector_boundary
 
@@ -10743,7 +10792,7 @@ end subroutine build_parallel_block_catalog
          domain_wavelet,domain_scaling,coarse_level,outer_count)
     call refresh_vector_boundary(domain_scaling,fine_level)
     call import_domain_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,domain_scaling)
+         BLOCK_PAYLOAD_SOL,domain_scaling,preserve_checkpoint)
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.,domain_scaling)
     call refresh_block_sol_ghosts
@@ -11218,62 +11267,6 @@ end subroutine build_parallel_block_catalog
     block%scalar(field_index) = value
 
   end subroutine set_block_scalar_sol_value
-
-
-  subroutine assert_block_inverse_reference
-    ! Compare the independent compact reconstruction with the legacy image
-    ! retained immediately before the rollback to pre-inverse block state.
-
-    implicit none
-
-    integer :: scalar_index
-    integer :: vector_index
-
-    real(dp) :: allowed
-    real(dp) :: difference
-
-    call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
-    scalar_index = maxloc(abs( &
-         block_writeback_plan%scalar_domain_stage- &
-         block_writeback_plan%native_scalar_stage),dim=1)
-    difference = abs(block_writeback_plan%scalar_domain_stage( &
-         scalar_index)-block_writeback_plan%native_scalar_stage( &
-         scalar_index))
-    allowed = 64.0_dp*epsilon(1.0_dp)*max(1.0_dp, &
-         abs(block_writeback_plan%scalar_domain_stage(scalar_index)), &
-         abs(block_writeback_plan%native_scalar_stage(scalar_index)))
-    if (difference > allowed) then
-       write(error_unit,'(/,a,i0,a,i0)') &
-            "Rank ",rank,": native inverse scalar reference mismatch at ", &
-            scalar_index
-       write(error_unit,'(2(a,es24.16))') &
-            "  absolute difference = ",difference, &
-            ", allowed difference = ",allowed
-       flush(error_unit)
-       call fail("native inverse scalar reference mismatch")
-    end if
-
-    vector_index = maxloc(abs( &
-         block_writeback_plan%vector_domain_stage- &
-         block_writeback_plan%native_vector_stage),dim=1)
-    difference = abs(block_writeback_plan%vector_domain_stage( &
-         vector_index)-block_writeback_plan%native_vector_stage( &
-         vector_index))
-    allowed = 256.0_dp*epsilon(1.0_dp)*max(1.0_dp, &
-         abs(block_writeback_plan%vector_domain_stage(vector_index)), &
-         abs(block_writeback_plan%native_vector_stage(vector_index)))
-    if (difference > allowed) then
-       write(error_unit,'(/,a,i0,a,i0)') &
-            "Rank ",rank,": native regular-vector inverse mismatch at ", &
-            vector_index
-       write(error_unit,'(2(a,es24.16))') &
-            "  absolute difference = ",difference, &
-            ", allowed difference = ",allowed
-       flush(error_unit)
-       call fail("native regular-vector inverse reference mismatch")
-    end if
-
-  end subroutine assert_block_inverse_reference
 
 
   subroutine compress_block_atmospheric_wavelets ( &
@@ -17529,6 +17522,7 @@ end subroutine build_parallel_block_catalog
             block_writeback_plan%stage_allocations
        production_multistage_writeback_before = &
             block_domain_production_writeback_count()
+       production_multistage_native_transform_writeback_count = 0_int64
        call evaluate_candidate_block_velocity_recomposition( &
             domain_sol,.false.)
     else
@@ -17570,7 +17564,8 @@ end subroutine build_parallel_block_catalog
     end if
     if (block_domain_production_writeback_count() /= &
          production_multistage_writeback_before + &
-         int(stage-1,int64)) then
+         int(stage-1,int64) + &
+         production_multistage_native_transform_writeback_count) then
        call fail("multistage tendency capture writeback sequence is invalid")
     end if
 
@@ -17817,6 +17812,52 @@ end subroutine build_parallel_block_catalog
   end subroutine retain_block_native_multistage_candidate
 
 
+  subroutine prepare_block_native_multistage_wavelet_stage ( &
+       stage,stage_count)
+    ! Release the exact pre-transform candidate snapshot before a provisional
+    ! native WT changes compact SOL. The timestep-start rollback checkpoint
+    ! remains live for the following low-storage RK stage.
+
+    implicit none
+
+    integer, intent(in) :: stage
+    integer, intent(in) :: stage_count
+
+    logical :: checkpoint_ready
+    logical :: state_ready
+
+    if (stage_count /= 3 .and. stage_count /= 4) then
+       call fail("provisional wavelet stage count is invalid")
+    end if
+    if (stage < 1 .or. stage >= stage_count) then
+       call fail("provisional wavelet stage is invalid")
+    end if
+    if (production_multistage_candidate_stage_count /= stage_count .or. &
+         production_multistage_candidate_stage /= stage .or. &
+         production_multistage_captured_tendency_stage /= 0 .or. &
+         production_multistage_native_candidate_stage /= 0) then
+       call fail("provisional wavelet candidate is incomplete")
+    end if
+    if (production_multistage_final_snapshot_consumed .or. &
+         production_multistage_provisional_snapshot_consumed) then
+       call fail("provisional wavelet snapshot was already consumed")
+    end if
+
+    state_ready = parallel_block_state_is_ready()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (.not. state_ready .or. .not. checkpoint_ready) then
+       call fail("provisional wavelet transaction is not ready")
+    end if
+    call consume_native_multistage_candidate_snapshot(stage,stage_count)
+    if (block_writeback_plan%native_stage_ready) then
+       call fail("provisional wavelet snapshot remained retained")
+    end if
+    production_multistage_provisional_snapshot_consumed = .true.
+
+  end subroutine prepare_block_native_multistage_wavelet_stage
+
+
   subroutine prepare_block_native_multistage_wavelet_acceptance ( &
        stage_count)
     ! Consume the exact final pre-wavelet SOL snapshot before WT_after_step
@@ -17841,7 +17882,8 @@ end subroutine build_parallel_block_catalog
          production_multistage_native_candidate_stage /= 0) then
        call fail("wavelet acceptance candidate is incomplete")
     end if
-    if (production_multistage_final_snapshot_consumed) then
+    if (production_multistage_final_snapshot_consumed .or. &
+         production_multistage_provisional_snapshot_consumed) then
        call fail("wavelet acceptance snapshot was already consumed")
     end if
 
@@ -17895,6 +17937,7 @@ end subroutine build_parallel_block_catalog
        call fail("production multistage block candidate is incomplete")
     end if
     if (.not. production_multistage_final_snapshot_consumed .or. &
+         production_multistage_provisional_snapshot_consumed .or. &
          block_writeback_plan%native_stage_ready) then
        call fail("production multistage snapshot boundary is incomplete")
     end if
@@ -17956,7 +17999,8 @@ end subroutine build_parallel_block_catalog
     end if
     if (block_domain_production_writeback_count() /= &
          production_multistage_writeback_before + &
-         int(stage_count+1,int64)) then
+         int(stage_count+1,int64) + &
+         production_multistage_native_transform_writeback_count) then
        call fail( &
             "accepted production multistage writeback count is invalid")
     end if
@@ -17981,7 +18025,9 @@ end subroutine build_parallel_block_catalog
     production_complete_vector_wavelet_validated = .false.
     production_native_wavelet_output_activated = .false.
     production_multistage_final_snapshot_consumed = .false.
+    production_multistage_provisional_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
+    production_multistage_native_transform_writeback_count = 0_int64
     block_writeback_plan%production_multistage_boundary_refresh_count = &
          0_int64
 

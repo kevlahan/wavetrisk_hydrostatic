@@ -18,6 +18,7 @@ module time_integr_mod
        parallel_block_state_is_ready, &
        prepare_block_native_wavelet_compression, &
        prepare_block_native_multistage_wavelet_acceptance, &
+       prepare_block_native_multistage_wavelet_stage, &
        retain_block_native_multistage_candidate, &
        refresh_parallel_block_candidate_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
@@ -90,6 +91,40 @@ contains
 
   end subroutine set_multistage_block_candidate_enabled
 
+
+  subroutine native_provisional_WT (scaling,wavelet,stage,stage_count)
+    ! Run one non-final RK transform over level_start:level_end without the
+    ! fixed-coarse restriction used only by the accepted final stage.
+
+    implicit none
+
+    type(Float_Field), intent(inout) :: &
+         scaling(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: &
+         wavelet(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: stage
+    integer, intent(in) :: stage_count
+
+    call prepare_block_native_multistage_wavelet_stage(stage,stage_count)
+    call WT_after_step( &
+         scaling,wavelet,level_start, &
+         validate_scalar_wavelets= &
+         validate_candidate_block_scalar_wavelets, &
+         validate_outer_vector_wavelets= &
+         validate_candidate_block_outer_vector_wavelets, &
+         native_wavelet_output=.true., &
+         prepare_native_compression= &
+         prepare_block_native_wavelet_compression, &
+         activate_native_compression= &
+         activate_block_native_wavelet_compression, &
+         activate_native_inverse= &
+         activate_block_native_inverse_transform)
+    call update_bdry(scaling,NONE,980)
+    call refresh_parallel_block_candidate_boundary_state( &
+         scaling,stage,stage_count)
+
+  end subroutine native_provisional_WT
+
   
   subroutine Euler (q, wav, routine, h)
     ! Euler time step
@@ -144,10 +179,10 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,1,3)
     end if
-    call WT_after_step(q1,wav)
     if (block_candidate) then
-       call update_bdry(q1,NONE,980)
-       call refresh_parallel_block_candidate_boundary_state(q1,1,3)
+       call native_provisional_WT(q1,wav,1,3)
+    else
+       call WT_after_step(q1,wav)
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
@@ -161,10 +196,10 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,2,3)
     end if
-    call WT_after_step(q1,wav)
     if (block_candidate) then
-       call update_bdry(q1,NONE,980)
-       call refresh_parallel_block_candidate_boundary_state(q1,2,3)
+       call native_provisional_WT(q1,wav,2,3)
+    else
+       call WT_after_step(q1,wav)
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
@@ -237,10 +272,10 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,1,4)
     end if
-    call WT_after_step(q1,wav)
     if (block_candidate) then
-       call update_bdry(q1,NONE,980)
-       call refresh_parallel_block_candidate_boundary_state(q1,1,4)
+       call native_provisional_WT(q1,wav,1,4)
+    else
+       call WT_after_step(q1,wav)
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
@@ -254,10 +289,10 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,2,4)
     end if
-    call WT_after_step(q1,wav)
     if (block_candidate) then
-       call update_bdry(q1,NONE,980)
-       call refresh_parallel_block_candidate_boundary_state(q1,2,4)
+       call native_provisional_WT(q1,wav,2,4)
+    else
+       call WT_after_step(q1,wav)
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
@@ -271,10 +306,10 @@ contains
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,3,4)
     end if
-    call WT_after_step(q1,wav)
     if (block_candidate) then
-       call update_bdry(q1,NONE,980)
-       call refresh_parallel_block_candidate_boundary_state(q1,3,4)
+       call native_provisional_WT(q1,wav,3,4)
+    else
+       call WT_after_step(q1,wav)
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
