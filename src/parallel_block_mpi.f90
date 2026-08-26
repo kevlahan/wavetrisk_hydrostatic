@@ -165,7 +165,6 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
-  integer, parameter :: BLOCK_PAYLOAD_REMAP_MASK = 13
   integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 50
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
   integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
@@ -188,6 +187,8 @@ module parallel_block_mpi_mod
   real(dp), parameter :: BLOCK_IU_BASE_WEIGHT(9) = [ &
        16.0_dp,-1.0_dp,1.0_dp,1.0_dp,-1.0_dp, &
        -1.0_dp,-1.0_dp,1.0_dp,1.0_dp]/16.0_dp
+  integer, parameter :: BLOCK_VERTICAL_REMAP_METADATA_COUNT = &
+       PATCH_SIZE**2+1
 
   abstract interface
      subroutine Block_Vertical_Interpolator ( &
@@ -438,8 +439,21 @@ module parallel_block_mpi_mod
      integer(int64) :: vector_count = 0_int64
   end type Block_Vertical_Remap_Context
 
+  type :: Block_Vertical_Remap_Exchange_Type
+     integer, allocatable :: send_count(:)
+     integer, allocatable :: send_displ(:)
+     integer, allocatable :: recv_count(:)
+     integer, allocatable :: recv_displ(:)
+     integer, allocatable :: send_buffer(:)
+     integer, allocatable :: recv_buffer(:)
+     integer(int64) :: plan_generation = -1_int64
+     logical :: ready = .false.
+  end type Block_Vertical_Remap_Exchange_Type
+
   type(Block_Vertical_Remap_Storage), allocatable, save :: &
        block_vertical_remap(:)
+  type(Block_Vertical_Remap_Exchange_Type), save :: &
+       block_vertical_remap_exchange
   procedure(Block_Vertical_Interpolator), pointer, save :: &
        production_vertical_interpolator => null()
   integer(int64), save :: block_vertical_remap_allocations = 0_int64
@@ -876,6 +890,20 @@ contains
        end do
        deallocate(block_vertical_remap)
     end if
+    if (allocated(block_vertical_remap_exchange%send_count)) &
+         deallocate(block_vertical_remap_exchange%send_count)
+    if (allocated(block_vertical_remap_exchange%send_displ)) &
+         deallocate(block_vertical_remap_exchange%send_displ)
+    if (allocated(block_vertical_remap_exchange%recv_count)) &
+         deallocate(block_vertical_remap_exchange%recv_count)
+    if (allocated(block_vertical_remap_exchange%recv_displ)) &
+         deallocate(block_vertical_remap_exchange%recv_displ)
+    if (allocated(block_vertical_remap_exchange%send_buffer)) &
+         deallocate(block_vertical_remap_exchange%send_buffer)
+    if (allocated(block_vertical_remap_exchange%recv_buffer)) &
+         deallocate(block_vertical_remap_exchange%recv_buffer)
+    block_vertical_remap_exchange%plan_generation = -1_int64
+    block_vertical_remap_exchange%ready = .false.
     nullify(production_vertical_interpolator)
     block_vertical_remap_active = .false.
 
@@ -1306,19 +1334,19 @@ contains
 
 
   subroutine refresh_block_vertical_remap_masks
-    ! Transport the current post-adaptation Domain node mask through the
-    ! persistent reverse writeback route. Only one logical value per compact
-    ! patch node is retained; replicated scalar payload slots are discarded.
+    ! Transport only the current post-adaptation mask and Domain source start.
+    ! The route follows the persistent reverse writeback plan, but its compact
+    ! integer payload is independent of all prognostic field-family buffers.
 
     implicit none
 
     integer :: b
     integer :: d
+    integer :: ierr
     integer :: local_index
     integer :: local_patch
     integer :: n_patch
-    integer :: pos_scalar
-    integer :: pos_vector
+    integer :: pos
     integer :: r
     integer :: source
     integer :: slot
@@ -1329,7 +1357,47 @@ contains
     if (size(block_vertical_remap) /= n_local_blocks()) then
        call fail("vertical remap mask storage extent differs")
     end if
-    call exchange_domain_to_block_payloads(BLOCK_PAYLOAD_REMAP_MASK)
+    call prepare_vertical_remap_metadata_exchange
+
+    block_vertical_remap_exchange%send_buffer = 0
+    block_vertical_remap_exchange%recv_buffer = 0
+    do r = 1,n_process
+       pos = block_vertical_remap_exchange%send_displ(r)+1
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r) + &
+            block_writeback_plan%recv_count(r)
+          b = block_writeback_plan%recv_block(slot)
+          source = source_rank(b)
+          if (source /= rank .or. block_catalog(b)%owner /= r-1) then
+             call fail("vertical remap metadata source route differs")
+          end if
+          d = loc_id(block_catalog(b)%root_domain+1)+1
+          if (d < 1 .or. d > size(grid)) then
+             call fail("vertical remap metadata Domain is invalid")
+          end if
+          n_patch = 0
+          call pack_vertical_remap_metadata_subtree( &
+               d,block_catalog(b)%root_patch, &
+               block_vertical_remap_exchange%send_buffer,pos,n_patch)
+          if (n_patch /= &
+               block_writeback_plan%recv_patch_count(slot)) then
+             call fail("vertical remap metadata patch coverage differs")
+          end if
+       end do
+       if (pos /= block_vertical_remap_exchange%send_displ(r) + &
+            block_vertical_remap_exchange%send_count(r)+1) then
+          call fail("vertical remap metadata send extent differs")
+       end if
+    end do
+
+    call MPI_Alltoallv( &
+         block_vertical_remap_exchange%send_buffer, &
+         block_vertical_remap_exchange%send_count, &
+         block_vertical_remap_exchange%send_displ,MPI_INTEGER, &
+         block_vertical_remap_exchange%recv_buffer, &
+         block_vertical_remap_exchange%recv_count, &
+         block_vertical_remap_exchange%recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv vertical remap metadata")
 
     do local_index = 1,n_local_blocks()
        b = local_block_catalog(local_index)
@@ -1376,45 +1444,41 @@ contains
        local_patch = 0
        call install_retained_mask_subtree( &
             d,block_catalog(b)%root_patch,b,local_patch)
-       if (local_patch /= local_block_patch_count(b)) then
+       n_patch = local_block_patch_count(b)
+       if (local_patch /= n_patch) then
           call fail("retained vertical remap mask coverage differs")
        end if
     end do
 
     do r = 1,n_process
-       pos_scalar = block_writeback_plan%scalar_send_displ(r)+1
-       pos_vector = block_writeback_plan%vector_send_displ(r)+1
+       pos = block_vertical_remap_exchange%recv_displ(r)+1
        do slot = block_writeback_plan%send_displ(r)+1, &
             block_writeback_plan%send_displ(r) + &
             block_writeback_plan%send_count(r)
           b = block_writeback_plan%send_block(slot)
+          source = source_rank(b)
+          if (source /= r-1 .or. block_catalog(b)%owner /= rank) then
+             call fail("vertical remap metadata destination route differs")
+          end if
           n_patch = local_block_patch_count(b)
+          if (n_patch /= &
+               block_writeback_plan%send_patch_count(slot)) then
+             call fail("vertical remap metadata destination changed")
+          end if
           do local_patch = 0,n_patch-1
-             if (pos_scalar < 1 .or. pos_scalar + &
-                  block_writeback_plan%scalar_patch_nvalue-1 > &
-                  size(block_writeback_plan%scalar_send_buffer) .or. &
-                  pos_vector < 1 .or. pos_vector + &
-                  block_writeback_plan%vector_patch_nvalue-1 > &
-                  size(block_writeback_plan%vector_send_buffer)) then
+             if (pos < 1 .or. pos + &
+                  BLOCK_VERTICAL_REMAP_METADATA_COUNT-1 > &
+                  size(block_vertical_remap_exchange%recv_buffer)) then
                 call fail("remote vertical remap mask payload is short")
              end if
              call install_vertical_remap_mask_patch( &
-                  b,local_patch,block_writeback_plan%scalar_send_buffer( &
-                  pos_scalar:pos_scalar+ &
-                  block_writeback_plan%scalar_patch_nvalue-1), &
-                  block_writeback_plan%vector_send_buffer( &
-                  pos_vector:pos_vector+ &
-                  block_writeback_plan%vector_patch_nvalue-1))
-             pos_scalar = pos_scalar + &
-                  block_writeback_plan%scalar_patch_nvalue
-             pos_vector = pos_vector + &
-                  block_writeback_plan%vector_patch_nvalue
+                  b,local_patch,block_vertical_remap_exchange%recv_buffer( &
+                  pos:pos+BLOCK_VERTICAL_REMAP_METADATA_COUNT-1))
+             pos = pos+BLOCK_VERTICAL_REMAP_METADATA_COUNT
           end do
        end do
-       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
-            block_writeback_plan%scalar_send_count(r)+1 .or. &
-            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
-            block_writeback_plan%vector_send_count(r)+1) then
+       if (pos /= block_vertical_remap_exchange%recv_displ(r) + &
+            block_vertical_remap_exchange%recv_count(r)+1) then
           call fail("remote vertical remap mask extent differs")
        end if
     end do
@@ -1432,15 +1496,173 @@ contains
 
   contains
 
+    subroutine prepare_vertical_remap_metadata_exchange
+
+      implicit none
+
+      integer :: expected_recv(n_process)
+      integer :: metadata_count
+      integer :: metadata_displ
+      integer :: route
+      integer :: route_slot
+      integer :: status
+
+      if (block_vertical_remap_exchange%ready) then
+         if (block_vertical_remap_exchange%plan_generation /= &
+              block_writeback_plan_generation) then
+            call fail("vertical remap metadata route is stale")
+         end if
+         return
+      end if
+      if (.not. block_writeback_plan_is_ready()) then
+         call fail("vertical remap metadata route is unavailable")
+      end if
+      allocate(block_vertical_remap_exchange%send_count(n_process))
+      allocate(block_vertical_remap_exchange%send_displ(n_process))
+      allocate(block_vertical_remap_exchange%recv_count(n_process))
+      allocate(block_vertical_remap_exchange%recv_displ(n_process))
+      block_vertical_remap_exchange%send_count = 0
+      block_vertical_remap_exchange%recv_count = 0
+
+      do route = 1,n_process
+         do route_slot = block_writeback_plan%recv_displ(route)+1, &
+              block_writeback_plan%recv_displ(route) + &
+              block_writeback_plan%recv_count(route)
+            block_vertical_remap_exchange%send_count(route) = &
+                 block_vertical_remap_exchange%send_count(route) + &
+                 BLOCK_VERTICAL_REMAP_METADATA_COUNT* &
+                 block_writeback_plan%recv_patch_count(route_slot)
+         end do
+         do route_slot = block_writeback_plan%send_displ(route)+1, &
+              block_writeback_plan%send_displ(route) + &
+              block_writeback_plan%send_count(route)
+            block_vertical_remap_exchange%recv_count(route) = &
+                 block_vertical_remap_exchange%recv_count(route) + &
+                 BLOCK_VERTICAL_REMAP_METADATA_COUNT* &
+                 block_writeback_plan%send_patch_count(route_slot)
+         end do
+      end do
+
+      call MPI_Alltoall(block_vertical_remap_exchange%send_count,1, &
+           MPI_INTEGER,expected_recv,1,MPI_INTEGER,comm,status)
+      call check_mpi(status,"MPI_Alltoall vertical remap metadata counts")
+      if (any(expected_recv /= &
+           block_vertical_remap_exchange%recv_count)) then
+         call fail("vertical remap metadata route counts differ")
+      end if
+
+      metadata_displ = 0
+      do route = 1,n_process
+         block_vertical_remap_exchange%send_displ(route) = &
+              metadata_displ
+         metadata_count = &
+              block_vertical_remap_exchange%send_count(route)
+         if (metadata_count < 0 .or. &
+              metadata_displ > huge(metadata_displ)-metadata_count) then
+            call fail("vertical remap metadata send count overflows")
+         end if
+         metadata_displ = metadata_displ+metadata_count
+      end do
+      allocate(block_vertical_remap_exchange% &
+           send_buffer(max(1,metadata_displ)))
+
+      metadata_displ = 0
+      do route = 1,n_process
+         block_vertical_remap_exchange%recv_displ(route) = &
+              metadata_displ
+         metadata_count = &
+              block_vertical_remap_exchange%recv_count(route)
+         if (metadata_count < 0 .or. &
+              metadata_displ > huge(metadata_displ)-metadata_count) then
+            call fail("vertical remap metadata receive count overflows")
+         end if
+         metadata_displ = metadata_displ+metadata_count
+      end do
+      allocate(block_vertical_remap_exchange% &
+           recv_buffer(max(1,metadata_displ)))
+      block_vertical_remap_exchange%send_buffer = 0
+      block_vertical_remap_exchange%recv_buffer = 0
+      block_vertical_remap_exchange%plan_generation = &
+           block_writeback_plan_generation
+      block_vertical_remap_exchange%ready = .true.
+      block_vertical_remap_allocations = &
+           block_vertical_remap_allocations+1_int64
+
+    end subroutine prepare_vertical_remap_metadata_exchange
+
+
+    recursive subroutine pack_vertical_remap_metadata_subtree ( &
+         d,p,value,pos,patch_count)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(inout) :: value(:)
+      integer, intent(inout) :: pos
+      integer, intent(inout) :: patch_count
+
+      integer :: c
+      integer :: child
+      integer :: metadata(BLOCK_VERTICAL_REMAP_METADATA_COUNT)
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("vertical remap metadata patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+      if (pos < 1 .or. pos+BLOCK_VERTICAL_REMAP_METADATA_COUNT-1 > &
+           size(value)) then
+         call fail("vertical remap metadata buffer is short")
+      end if
+      call fill_vertical_remap_metadata(d,p,metadata)
+      value(pos:pos+BLOCK_VERTICAL_REMAP_METADATA_COUNT-1) = metadata
+      pos = pos+BLOCK_VERTICAL_REMAP_METADATA_COUNT
+      patch_count = patch_count+1
+      do c = 1,N_CHDRN
+         child = grid(d)%patch%elts(p+1)%children(c)
+         if (child <= 0) cycle
+         call pack_vertical_remap_metadata_subtree( &
+              d,child,value,pos,patch_count)
+      end do
+
+    end subroutine pack_vertical_remap_metadata_subtree
+
+
+    subroutine fill_vertical_remap_metadata (d,p,value)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(out) :: &
+           value(BLOCK_VERTICAL_REMAP_METADATA_COUNT)
+
+      integer :: source_start
+
+      if (d < 1 .or. d > size(grid) .or. &
+           p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("vertical remap metadata source is invalid")
+      end if
+      source_start = grid(d)%patch%elts(p+1)%elts_start
+      if (source_start < 0 .or. &
+           source_start+PATCH_SIZE**2 > size(grid(d)%mask_n%elts)) then
+         call fail("vertical remap metadata mask extent is invalid")
+      end if
+      value(1:PATCH_SIZE**2) = grid(d)%mask_n%elts( &
+           source_start+1:source_start+PATCH_SIZE**2)
+      value(BLOCK_VERTICAL_REMAP_METADATA_COUNT) = source_start
+
+    end subroutine fill_vertical_remap_metadata
+
+
     subroutine install_vertical_remap_mask_patch ( &
-         catalog_index,patch_index,value,source_metadata)
+         catalog_index,patch_index,value)
 
       implicit none
 
       integer, intent(in) :: catalog_index
       integer, intent(in) :: patch_index
-      real(dp), intent(in) :: value(:)
-      real(dp), intent(in) :: source_metadata(:)
+      integer, intent(in) :: value(:)
 
       integer :: first
       integer :: index
@@ -1462,25 +1684,18 @@ contains
       n_patch = local_block_patch_count(catalog_index)
       if (patch_index < 0 .or. &
            patch_index >= n_patch .or. &
-           size(value) /= block_writeback_plan%scalar_patch_nvalue .or. &
-           size(source_metadata) /= &
-           block_writeback_plan%vector_patch_nvalue .or. &
+           size(value) /= BLOCK_VERTICAL_REMAP_METADATA_COUNT .or. &
            first+PATCH_SIZE**2-1 > &
            size(block_vertical_remap(index)%active)) then
          call fail("vertical remap mask patch address is invalid")
       end if
-      if (.not. ieee_is_finite(source_metadata(1)) .or. &
-           source_metadata(1) < 0.0_dp .or. &
-           source_metadata(1) > real(huge(source_start),dp)) then
+      source_start = value(BLOCK_VERTICAL_REMAP_METADATA_COUNT)
+      if (source_start < 0) then
          call fail("vertical remap patch source is invalid")
-      end if
-      source_start = nint(source_metadata(1))
-      if (abs(source_metadata(1)-real(source_start,dp)) > 0.0_dp) then
-         call fail("vertical remap patch source is not integral")
       end if
       block_vertical_remap(index)%active( &
            first:first+PATCH_SIZE**2-1) = &
-           value(1:PATCH_SIZE**2) >= real(ADJZONE,dp)
+           value(1:PATCH_SIZE**2) >= ADJZONE
       block_vertical_remap(index)%source_start(patch_index+1) = &
            source_start
       block_vertical_remap(index)%installed_patch_count = &
@@ -1501,29 +1716,15 @@ contains
 
       integer :: c
       integer :: child
-      integer :: scalar_pos
-      integer :: vector_pos
+      integer :: metadata(BLOCK_VERTICAL_REMAP_METADATA_COUNT)
 
       if (p < 0 .or. p >= grid(d)%patch%length) then
          call fail("retained vertical remap mask patch is invalid")
       end if
       if (grid(d)%patch%elts(p+1)%deleted) return
-      scalar_pos = 1
-      vector_pos = 1
-      call pack_domain_patch_prognostic( &
-           d,p,BLOCK_PAYLOAD_REMAP_MASK, &
-           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
-           ghost_exchange_plan%vector_patch_buffer,vector_pos)
-      if (scalar_pos /= &
-           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
-           vector_pos /= &
-           size(ghost_exchange_plan%vector_patch_buffer)+1) then
-         call fail("retained vertical remap mask extent differs")
-      end if
+      call fill_vertical_remap_metadata(d,p,metadata)
       call install_vertical_remap_mask_patch( &
-           catalog_index,patch_index, &
-           ghost_exchange_plan%scalar_patch_buffer, &
-           ghost_exchange_plan%vector_patch_buffer)
+           catalog_index,patch_index,metadata)
       patch_index = patch_index+1
       do c = 1,N_CHDRN
          child = grid(d)%patch%elts(p+1)%children(c)
@@ -6698,7 +6899,6 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
          payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
          payload_family /= BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .and. &
-         payload_family /= BLOCK_PAYLOAD_REMAP_MASK .and. &
          payload_family /= &
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("invalid Domain-to-block payload family")
@@ -19650,7 +19850,6 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
          payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
          payload_family /= BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .and. &
-         payload_family /= BLOCK_PAYLOAD_REMAP_MASK .and. &
          payload_family /= &
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("invalid Domain writeback payload family")
@@ -19668,30 +19867,6 @@ end subroutine build_parallel_block_catalog
          vector_pos < 1 .or. &
          vector_pos+n_vector_patch-1 > size(vector_payload)) then
        call fail("Domain writeback record buffer extent is invalid")
-    end if
-
-    if (payload_family == BLOCK_PAYLOAD_REMAP_MASK) then
-       if (mult_scalar /= 1 .or. n_vector_patch < 1) then
-          call fail("vertical remap mask scalar layout is invalid")
-       end if
-       start = grid(d)%patch%elts(p+1)%elts_start
-       if (start < 0 .or. &
-            start+PATCH_SIZE**2 > size(grid(d)%mask_n%elts)) then
-          call fail("vertical remap Domain mask extent is invalid")
-       end if
-       do scalar_slot = 1,n_scalar_variable
-          do level_slot = 1,n_field_level
-             scalar_payload( &
-                  scalar_pos:scalar_pos+PATCH_SIZE**2-1) = &
-                  real(grid(d)%mask_n%elts( &
-                  start+1:start+PATCH_SIZE**2),dp)
-             scalar_pos = scalar_pos+PATCH_SIZE**2
-          end do
-       end do
-       vector_payload(vector_pos:vector_pos+n_vector_patch-1) = 0.0_dp
-       vector_payload(vector_pos) = real(start,dp)
-       vector_pos = vector_pos+n_vector_patch
-       return
     end if
 
     if (payload_family == BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .or. &
