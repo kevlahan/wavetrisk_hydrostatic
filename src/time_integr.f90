@@ -15,10 +15,12 @@ module time_integr_mod
        capture_block_domain_multistage_candidate_tendency, &
        finalize_block_scalar_divergence_capture, &
        parallel_block_state_is_ready, &
+       prepare_block_native_wavelet_compression, &
        prepare_block_native_multistage_wavelet_acceptance, &
        retain_block_native_multistage_candidate, &
        refresh_parallel_block_candidate_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
+       activate_block_native_wavelet_compression, &
        validate_candidate_block_outer_vector_wavelets, &
        validate_candidate_block_scalar_wavelets, &
        validate_candidate_block_velocity_restriction
@@ -184,7 +186,11 @@ contains
          validate_candidate_block_outer_vector_wavelets, &
          validate_velocity_restriction= &
          validate_candidate_block_velocity_restriction, &
-         native_wavelet_output=block_candidate)
+         native_wavelet_output=block_candidate, &
+         prepare_native_compression= &
+         prepare_block_native_wavelet_compression, &
+         activate_native_compression= &
+         activate_block_native_wavelet_compression)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if
@@ -288,7 +294,11 @@ contains
          validate_candidate_block_outer_vector_wavelets, &
          validate_velocity_restriction= &
          validate_candidate_block_velocity_restriction, &
-         native_wavelet_output=block_candidate)
+         native_wavelet_output=block_candidate, &
+         prepare_native_compression= &
+         prepare_block_native_wavelet_compression, &
+         activate_native_compression= &
+         activate_block_native_wavelet_compression)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if

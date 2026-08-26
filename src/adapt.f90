@@ -62,6 +62,13 @@ module adapt_mod
             scaling(1:N_VARIABLE,1:zlevels)
        integer, intent(in) :: coarse_level
      end subroutine Velocity_Restriction_Validator
+
+     subroutine Wavelet_Compression_Handler (wavelet)
+       import :: Float_Field, N_VARIABLE, zlevels
+
+       type(Float_Field), intent(inout) :: &
+            wavelet(1:N_VARIABLE,1:zlevels)
+     end subroutine Wavelet_Compression_Handler
   end interface
 
   
@@ -255,7 +262,8 @@ contains
   subroutine WT_after_step ( &
        scaling,wavelet,l_start0,validate_scalar_wavelets, &
        validate_outer_vector_wavelets,validate_velocity_restriction, &
-       native_wavelet_output)
+       native_wavelet_output,prepare_native_compression, &
+       activate_native_compression)
     ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
     
     implicit none
@@ -269,6 +277,10 @@ contains
     procedure(Velocity_Restriction_Validator), optional :: &
          validate_velocity_restriction
     logical, optional, intent(in) :: native_wavelet_output
+    procedure(Wavelet_Compression_Handler), optional :: &
+         prepare_native_compression
+    procedure(Wavelet_Compression_Handler), optional :: &
+         activate_native_compression
 
     integer :: d, k, l, l_start, v
     logical :: native_output
@@ -281,7 +293,9 @@ contains
          (.not. present(l_start0) .or. &
           .not. present(validate_scalar_wavelets) .or. &
           .not. present(validate_outer_vector_wavelets) .or. &
-          .not. present(validate_velocity_restriction))) then
+          .not. present(validate_velocity_restriction) .or. &
+          .not. present(prepare_native_compression) .or. &
+          .not. present(activate_native_compression))) then
        error stop "native wavelet output requires complete production callbacks"
     end if
 
@@ -345,7 +359,12 @@ contains
     if (present(validate_scalar_wavelets)) then
        call validate_scalar_wavelets(scaling,wavelet,l_start)
     end if
-    call compress_wavelets (wavelet)
+    if (native_output) then
+       call prepare_native_compression(wavelet)
+       call activate_native_compression(wavelet)
+    else
+       call compress_wavelets (wavelet)
+    end if
     call inverse_wavelet_transform (wavelet, scaling)
   end subroutine WT_after_step
 

@@ -404,6 +404,11 @@ module parallel_block_mpi_mod
   logical, save :: production_coarse_outer_wavelet_validated = .false.
   logical, save :: production_complete_vector_wavelet_validated = .false.
   logical, save :: production_native_wavelet_output_activated = .false.
+  logical, save :: production_block_wavelet_compression_ready = .false.
+  integer(int64), save :: production_block_compression_writeback_before = &
+       0_int64
+  integer(int64), save :: production_block_compression_allocation_before = &
+       0_int64
   logical, save :: production_multistage_final_snapshot_consumed = .false.
   logical, save :: production_adaptation_pending = .false.
 
@@ -603,6 +608,16 @@ module parallel_block_mpi_mod
      integer(int64) :: produced_count = 0_int64
   end type Block_Scalar_Wavelet_Context
 
+  type :: Block_Wavelet_Compression_Context
+     integer :: first_level = -1
+     integer :: last_level = -1
+     integer(int64) :: patch_count = 0_int64
+     integer(int64) :: scalar_count = 0_int64
+     integer(int64) :: scalar_zero_count = 0_int64
+     integer(int64) :: vector_count = 0_int64
+     integer(int64) :: vector_zero_count = 0_int64
+  end type Block_Wavelet_Compression_Context
+
   type :: Block_Velocity_Restriction_Context
      integer :: coarse_level = -1
      integer(int64) :: parent_patch_count = 0_int64
@@ -682,6 +697,8 @@ module parallel_block_mpi_mod
   public :: validate_candidate_block_scalar_wavelets
   public :: validate_candidate_block_outer_vector_wavelets
   public :: validate_candidate_block_velocity_restriction
+  public :: prepare_block_native_wavelet_compression
+  public :: activate_block_native_wavelet_compression
   public :: refresh_parallel_block_domain_prognostic_state
   public :: check_domain_trend_roundtrip
   public :: import_domain_trend_to_block_tendency
@@ -785,15 +802,16 @@ contains
 
   subroutine complete_block_adaptation_lifecycle
     ! Close the accepted block timestep only after the authoritative
-    ! adaptation and inverse reconstruction have completed.  The expensive
-    ! mask, compression and inverse-transform comparison shadows were retired
-    ! after their staged validation; this state transition remains as the
-    ! production sequencing guard.
+    ! compression, inverse reconstruction and adaptation have completed.
+    ! This state transition remains the production sequencing guard.
 
     implicit none
 
     if (.not. production_adaptation_pending) then
        call fail("block adaptation lifecycle was not pending")
+    end if
+    if (production_block_wavelet_compression_ready) then
+       call fail("block compression remained pending at adaptation")
     end if
     production_adaptation_pending = .false.
 
@@ -3475,6 +3493,9 @@ end subroutine build_parallel_block_catalog
     production_coarse_outer_wavelet_validated = .false.
     production_complete_vector_wavelet_validated = .false.
     production_native_wavelet_output_activated = .false.
+    production_block_wavelet_compression_ready = .false.
+    production_block_compression_writeback_before = 0_int64
+    production_block_compression_allocation_before = 0_int64
     production_multistage_final_snapshot_consumed = .false.
     production_multistage_stage_allocation_before = 0_int64
 
@@ -9941,6 +9962,256 @@ end subroutine build_parallel_block_catalog
     production_native_wavelet_output_activated = .true.
 
   end subroutine activate_complete_block_wavelet_output
+
+
+  subroutine prepare_block_native_wavelet_compression (domain_wavelet)
+    ! Make the complete uncompressed atmospheric transform resident in
+    ! compact final-owner blocks, then apply the production ADJZONE masks
+    ! there.  Domain output remains untouched until the second callback
+    ! commits the complete compact result.
+
+    implicit none
+
+    type(Float_Field), intent(inout) :: &
+         domain_wavelet(1:N_VARIABLE,1:zlevels)
+
+    integer :: ierr
+
+    integer(int64) :: count_global(5)
+    integer(int64) :: count_local(5)
+
+    logical :: state_ready
+
+    type(Block_Wavelet_Compression_Context) :: statistics
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready .or. .not. production_adaptation_pending) then
+       call fail("native wavelet compression transaction is not ready")
+    end if
+    if (production_block_wavelet_compression_ready) then
+       call fail("native wavelet compression was already prepared")
+    end if
+    if (production_native_wavelet_output_activated .or. &
+         production_multistage_candidate_stage /= 0 .or. &
+         production_multistage_candidate_stage_count /= 0) then
+       call fail("native wavelet compression stage boundary is invalid")
+    end if
+    if (.not. block_scalar_divergence_plan%ready .or. &
+         .not. allocated(block_scalar_tendency)) then
+       call fail("native wavelet compression masks are unavailable")
+    end if
+
+    production_block_compression_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_block_compression_writeback_before = &
+         block_domain_production_writeback_count()
+
+    ! Stage 134 deliberately starts with the conservative residence route:
+    ! the independently produced vector family has already been activated on
+    ! Domain owners, so the ordinary post-acceptance reverse route installs
+    ! the module-owned authoritative family in compact final-owner storage
+    ! without requiring a now-closed RK checkpoint or repeating mathematics.
+    call import_domain_field_family_to_blocks( &
+         BLOCK_PAYLOAD_WAV_COEFF)
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet, &
+         comparison_name="uncompressed resident")
+
+    statistics%first_level = level_start+1
+    statistics%last_level = level_end
+    call apply_local_block_field_producer( &
+         compress_block_atmospheric_wavelets,statistics)
+
+    count_local = [statistics%patch_count,statistics%scalar_count, &
+         statistics%scalar_zero_count,statistics%vector_count, &
+         statistics%vector_zero_count]
+    call MPI_Allreduce(count_local,count_global,size(count_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce native compression coverage")
+    if (count_global(1) <= 0_int64 .or. &
+         count_global(2) <= 0_int64 .or. &
+         count_global(4) <= 0_int64) then
+       call fail("native wavelet compression coverage is empty")
+    end if
+    if (count_global(3) < 0_int64 .or. &
+         count_global(3) > count_global(2) .or. &
+         count_global(5) < 0_int64 .or. &
+         count_global(5) > count_global(4)) then
+       call fail("native wavelet compression coverage is invalid")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         production_block_compression_allocation_before) then
+       call fail("native wavelet compression reallocated transport")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_block_compression_writeback_before) then
+       call fail("native wavelet compression modified Domain fields early")
+    end if
+
+    production_block_wavelet_compression_ready = .true.
+
+  end subroutine prepare_block_native_wavelet_compression
+
+
+  subroutine activate_block_native_wavelet_compression (domain_wavelet)
+    ! Transactionally install the complete compact compression result on
+    ! Domain owners.  The following inverse transform therefore consumes
+    ! block-native compressed coefficients while remaining unchanged.
+
+    implicit none
+
+    type(Float_Field), intent(inout) :: &
+         domain_wavelet(1:N_VARIABLE,1:zlevels)
+
+    if (.not. parallel_block_state_is_ready() .or. &
+         .not. production_adaptation_pending .or. &
+         .not. production_block_wavelet_compression_ready) then
+       call fail("native compressed wavelet activation is not ready")
+    end if
+    call write_block_field_family_to_domains( &
+         BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet)
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet)
+
+    if (block_writeback_plan_allocation_count() /= &
+         production_block_compression_allocation_before) then
+       call fail("compressed wavelet activation reallocated transport")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_block_compression_writeback_before+1_int64) then
+       call fail("compressed wavelet activation writeback count is invalid")
+    end if
+
+    production_block_wavelet_compression_ready = .false.
+    production_block_compression_writeback_before = 0_int64
+    production_block_compression_allocation_before = 0_int64
+
+  end subroutine activate_block_native_wavelet_compression
+
+
+  subroutine compress_block_atmospheric_wavelets ( &
+       catalog_index,block,context)
+    ! Apply compress_scalar/compress_vector semantics to compact patch
+    ! interiors.  The persistent scalar-divergence geometry records carry the
+    ! same node and edge masks used by the legacy Domain kernels.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(inout) :: block
+    class(*), intent(inout) :: context
+
+    integer :: e
+    integer :: field_level
+    integer :: i
+    integer :: j
+    integer :: level_slot
+    integer :: local_index
+    integer :: p
+    integer :: scalar_slot
+
+    real(dp) :: mask_value
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency)) then
+       call fail("wavelet compression block index is invalid")
+    end if
+    if (.not. block_scalar_tendency(local_index)%ready .or. &
+         block_scalar_tendency(local_index)%catalog_index /= &
+         catalog_index) then
+       call fail("wavelet compression mask block is stale")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Wavelet_Compression_Context)
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level < statistics%first_level .or. &
+               block%patch(p)%level > statistics%last_level) cycle
+          statistics%patch_count = statistics%patch_count+1_int64
+          do level_slot = 1,block%n_field_level
+             field_level = block%field_level+level_slot-1
+             if (field_level < 1 .or. field_level > zlevels) cycle
+             do j = 0,PATCH_SIZE-1
+                do i = 0,PATCH_SIZE-1
+                   mask_value = block_scalar_record_value( &
+                        block,local_index,p,0,level_slot,i,j, &
+                        BLOCK_SCALAR_WAVELET_MASK_INDEX)
+                   do scalar_slot = 0,block%n_scalar_variable-1
+                      statistics%scalar_count = &
+                           statistics%scalar_count+1_int64
+                      if (mask_value < real(ADJZONE,dp)) then
+                         call set_block_scalar_wavelet_value( &
+                              block,p,scalar_slot,level_slot,i,j,0.0_dp)
+                         statistics%scalar_zero_count = &
+                              statistics%scalar_zero_count+1_int64
+                      end if
+                   end do
+                   do e = RT,UP
+                      statistics%vector_count = &
+                           statistics%vector_count+1_int64
+                      mask_value = block_scalar_record_value( &
+                           block,local_index,p,0,level_slot,i,j, &
+                           BLOCK_SCALAR_EDGE_MASK_START+e)
+                      if (mask_value < real(ADJZONE,dp)) then
+                         call set_block_vector_wavelet_value( &
+                              block,p,level_slot,i,j,e,0.0_dp)
+                         statistics%vector_zero_count = &
+                              statistics%vector_zero_count+1_int64
+                      end if
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("wavelet compression context is invalid")
+    end select
+
+  end subroutine compress_block_atmospheric_wavelets
+
+
+  subroutine set_block_vector_wavelet_value ( &
+       block,p,level_slot,i,j,e,value)
+    ! Install one compressed vector coefficient in compact patch storage.
+
+    implicit none
+
+    type(Block_Data), intent(inout) :: block
+    integer, intent(in) :: p
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: e
+    real(dp), intent(in) :: value
+
+    integer :: field_index
+    integer :: n_storage_node
+    integer :: node_index
+
+    if (p < 1 .or. p > size(block%patch) .or. &
+         level_slot < 1 .or. level_slot > block%n_field_level .or. &
+         i < 0 .or. i >= PATCH_SIZE .or. &
+         j < 0 .or. j >= PATCH_SIZE .or. &
+         e < RT .or. e > UP .or. block%vector_mult /= EDGE) then
+       call fail("vector-wavelet compression address is invalid")
+    end if
+    if (.not. ieee_is_finite(value)) then
+       call fail("vector-wavelet compression value is non-finite")
+    end if
+
+    n_storage_node = size(block%node)
+    node_index = block%patch(p)%elts_start+PATCH_SIZE*j+i
+    field_index = (level_slot-1)*EDGE*n_storage_node + &
+         EDGE*node_index+e+1
+    if (node_index < 0 .or. node_index >= n_storage_node .or. &
+         field_index < 1 .or. &
+         field_index > size(block%wavelet_vector)) then
+       call fail("vector-wavelet compression storage is invalid")
+    end if
+    block%wavelet_vector(field_index) = value
+
+  end subroutine set_block_vector_wavelet_value
 
 
   subroutine produce_block_scalar_wavelets (catalog_index,block,context)
