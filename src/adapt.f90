@@ -21,7 +21,7 @@ module adapt_mod
 
   use wavelet_mod, only : compute_scalar_wavelets, compute_velo_wavelets, compute_velo_wavelets_penta, &
        inverse_scalar_transform, inverse_velo_transform, &
-       inverse_velo_outer_level, inverse_wavelet_transform, restrict_velo
+       inverse_wavelet_transform, restrict_velo
 
   implicit none
 
@@ -79,24 +79,14 @@ module adapt_mod
        integer, intent(in) :: level
      end subroutine Inverse_Scalar_Boundary_Handler
 
-     subroutine Inverse_Outer_Vector_Handler (wavelet,scaling,level)
-       import :: Float_Field, N_VARIABLE, zlevels
-
-       type(Float_Field), intent(inout) :: &
-            wavelet(1:N_VARIABLE,1:zlevels)
-       type(Float_Field), intent(inout) :: &
-            scaling(1:N_VARIABLE,1:zlevels)
-       integer, intent(in) :: level
-     end subroutine Inverse_Outer_Vector_Handler
   end interface
 
   abstract interface
      subroutine Inverse_Wavelet_Handler ( &
           wavelet,scaling,jmin,jmax, &
-          refresh_scalar_boundary,refresh_vector_boundary, &
-          reconstruct_outer_vector)
+          refresh_scalar_boundary,refresh_vector_boundary)
        import :: Float_Field, Inverse_Scalar_Boundary_Handler, &
-            Inverse_Outer_Vector_Handler, N_VARIABLE, zlevels
+            N_VARIABLE, zlevels
 
        type(Float_Field), intent(inout) :: &
             wavelet(1:N_VARIABLE,1:zlevels)
@@ -108,7 +98,6 @@ module adapt_mod
             refresh_scalar_boundary
        procedure(Inverse_Scalar_Boundary_Handler) :: &
             refresh_vector_boundary
-       procedure(Inverse_Outer_Vector_Handler) :: reconstruct_outer_vector
      end subroutine Inverse_Wavelet_Handler
   end interface
 
@@ -145,23 +134,6 @@ contains
   end subroutine refresh_native_inverse_vector_boundary
 
 
-  subroutine reconstruct_native_inverse_outer_vector ( &
-       wavelet,scaling,level)
-    ! Keep outer-edge orientation and pentagon topology in the established
-    ! Domain operator while Stage 136 moves inner-edge reconstruction native.
-
-    implicit none
-
-    type(Float_Field), intent(inout) :: &
-         wavelet(1:N_VARIABLE,1:zlevels)
-    type(Float_Field), intent(inout) :: &
-         scaling(1:N_VARIABLE,1:zlevels)
-    integer, intent(in) :: level
-
-    call inverse_velo_outer_level(wavelet,scaling,level)
-
-  end subroutine reconstruct_native_inverse_outer_vector
-  
   subroutine adapt (set_thresholds, type)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
     
@@ -461,8 +433,7 @@ contains
        call activate_native_inverse( &
             wavelet,scaling,l_start,level_end, &
             refresh_native_inverse_scalar_boundary, &
-            refresh_native_inverse_vector_boundary, &
-            reconstruct_native_inverse_outer_vector)
+            refresh_native_inverse_vector_boundary)
     end if
   end subroutine WT_after_step
 

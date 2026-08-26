@@ -214,16 +214,6 @@ module parallel_block_mpi_mod
        integer, intent(in) :: level
      end subroutine Block_Inverse_Scalar_Boundary_Handler
 
-     subroutine Block_Inverse_Outer_Vector_Handler ( &
-          wavelet,scaling,level)
-       import :: Float_Field, N_VARIABLE, zlevels
-
-       type(Float_Field), intent(inout) :: &
-            wavelet(1:N_VARIABLE,1:zlevels)
-       type(Float_Field), intent(inout) :: &
-            scaling(1:N_VARIABLE,1:zlevels)
-       integer, intent(in) :: level
-     end subroutine Block_Inverse_Outer_Vector_Handler
   end interface
 
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
@@ -653,7 +643,6 @@ module parallel_block_mpi_mod
 
   type :: Block_Vector_Inverse_Context
      integer :: target_level = -1
-     integer(int64) :: parent_patch_count = 0_int64
      integer(int64) :: cell_count = 0_int64
      integer(int64) :: inner_edge_count = 0_int64
   end type Block_Vector_Inverse_Context
@@ -10137,13 +10126,10 @@ end subroutine build_parallel_block_catalog
 
   subroutine activate_block_native_inverse_transform ( &
        domain_wavelet,domain_scaling,jmin,jmax, &
-       refresh_scalar_boundary,refresh_vector_boundary, &
-       reconstruct_outer_vector)
-    ! Re-evaluate the accepted inverse transform from compact storage.  The
-    ! legacy full-Domain result is retained only as a transition reference:
-    ! scalar and inner-vector reconstruction is recomputed by block kernels.
-    ! Outer edges remain paired with the pentagon correction in the established
-    ! Domain topology bridge until orientation transport is block-native.
+       refresh_scalar_boundary,refresh_vector_boundary)
+    ! Re-evaluate the accepted inverse transform from compact storage. Scalar
+    ! and vector reconstruction is recomputed by native kernels; the accepted
+    ! legacy image remains only as a strict transition reference.
 
     implicit none
 
@@ -10157,16 +10143,15 @@ end subroutine build_parallel_block_catalog
          refresh_scalar_boundary
     procedure(Block_Inverse_Scalar_Boundary_Handler) :: &
          refresh_vector_boundary
-    procedure(Block_Inverse_Outer_Vector_Handler) :: &
-         reconstruct_outer_vector
 
     integer :: inverse_level
     integer :: ierr
 
     integer(int64) :: scalar_count_global(4)
     integer(int64) :: scalar_count_local(4)
-    integer(int64) :: vector_count_global(3)
-    integer(int64) :: vector_count_local(3)
+    integer(int64) :: outer_count(4)
+    integer(int64) :: vector_count_global(6)
+    integer(int64) :: vector_count_local(6)
     integer(int64) :: allocation_before
     integer(int64) :: writeback_before
 
@@ -10223,8 +10208,9 @@ end subroutine build_parallel_block_catalog
 
        call synchronize_block_inverse_outer_vectors( &
             domain_wavelet,domain_scaling,inverse_level, &
-            inverse_level+1,refresh_vector_boundary, &
-            reconstruct_outer_vector)
+            inverse_level+1,refresh_vector_boundary,outer_count)
+       vector_count_local(1:4) = &
+            vector_count_local(1:4)+outer_count
 
        scalar_statistics = Block_Scalar_Inverse_Context( &
             target_level=inverse_level,phase=2)
@@ -10242,8 +10228,7 @@ end subroutine build_parallel_block_catalog
             target_level=inverse_level)
        call apply_local_block_field_producer( &
             reconstruct_block_inner_vector_level,vector_statistics)
-       vector_count_local = vector_count_local + [ &
-            vector_statistics%parent_patch_count, &
+       vector_count_local(5:6) = vector_count_local(5:6) + [ &
             vector_statistics%cell_count, &
             vector_statistics%inner_edge_count]
        call synchronize_block_inverse_vectors( &
@@ -10270,13 +10255,14 @@ end subroutine build_parallel_block_catalog
          size(vector_count_local), &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce native vector inverse coverage")
-    if (vector_count_global(1) <= 0_int64 .or. &
-         vector_count_global(2) <= 0_int64 .or. &
-         vector_count_global(3) <= 0_int64) then
-       call fail("native inner-vector inverse coverage is empty")
+    if (any(vector_count_global <= 0_int64)) then
+       call fail("native vector inverse coverage is empty")
     end if
-    if (vector_count_global(3) /= 6_int64*vector_count_global(2)) then
-       call fail("native inner-vector inverse coverage is incomplete")
+    if (vector_count_global(3) /= &
+         6_int64*vector_count_global(2) .or. &
+         vector_count_global(6) /= &
+         6_int64*vector_count_global(5)) then
+       call fail("native vector inverse coverage is incomplete")
     end if
 
     call assert_block_inverse_reference
@@ -10385,12 +10371,358 @@ end subroutine build_parallel_block_catalog
   end subroutine synchronize_block_inverse_vectors
 
 
+  subroutine reconstruct_native_inverse_outer_vectors ( &
+       domain_wavelet,domain_scaling,level,count)
+    ! Native outer-edge inverse at one scale. The preceding signed boundary
+    ! refresh supplies destination-oriented edge aliases; all interpolation,
+    ! restriction-pair reconstruction and pentagon correction is performed
+    ! here without invoking wavelet_mod reconstruction procedures.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_wavelet(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: &
+         domain_scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: level
+    integer(int64), intent(out) :: count(4)
+
+    integer :: c
+    integer :: corner
+    integer :: d
+    integer :: e
+    integer :: i
+    integer :: i_chd
+    integer :: i_par
+    integer :: j
+    integer :: j_chd
+    integer :: j_par
+    integer :: k
+    integer :: p
+    integer :: p_child
+    integer :: p_index
+
+    integer :: dims_chd(2,N_BDRY+1)
+    integer :: dims_par(2,N_BDRY+1)
+    integer :: offs_chd(N_BDRY+1)
+    integer :: offs_par(N_BDRY+1)
+
+    count = 0_int64
+    do k = 1,size(domain_scaling,2)
+       do d = 1,size(grid)
+          do p_index = 1,grid(d)%lev(level)%length
+             p = grid(d)%lev(level)%elts(p_index)
+             call get_offs_Domain(grid(d),p,offs_par,dims_par)
+             count(1) = count(1)+1_int64
+             do c = 1,N_CHDRN
+                p_child = grid(d)%patch%elts(p+1)%children(c)
+                if (p_child == 0) cycle
+                if (grid(d)%patch%elts(p_child+1)%level /= level+1) then
+                   call fail("native outer-vector child level is invalid")
+                end if
+                call get_offs_Domain( &
+                     grid(d),p_child,offs_chd,dims_chd)
+                do j = 1,PATCH_SIZE/2+1
+                   j_chd = 2*(j-1)
+                   j_par = j-1+chd_offs(2,c)
+                   do i = 1,PATCH_SIZE/2+1
+                      i_chd = 2*(i-1)
+                      i_par = i-1+chd_offs(1,c)
+                      count(2) = count(2)+1_int64
+                      do e = RT,UP
+                         call reconstruct_outer_pair
+                         count(3) = count(3)+2_int64
+                      end do
+                   end do
+                end do
+             end do
+          end do
+
+          do corner = NORTHEAST,NORTHWEST
+             if (.not. grid(d)%penta(corner)) cycle
+             p = 1
+             do while (p > 0)
+                p_child = grid(d)%patch%elts(p+1)%children(corner-4)
+                if (grid(d)%patch%elts(p+1)%level < level) then
+                   p = p_child
+                   cycle
+                end if
+                if (grid(d)%patch%elts(p+1)%level > level) exit
+                if (p_child > 0) then
+                   call get_offs_Domain( &
+                        grid(d),p,offs_par,dims_par)
+                   call get_offs_Domain( &
+                        grid(d),p_child,offs_chd,dims_chd)
+                   call reconstruct_pentagon(corner)
+                end if
+                p = p_child
+             end do
+          end do
+       end do
+    end do
+
+  contains
+
+    subroutine reconstruct_outer_pair
+
+      implicit none
+
+      integer :: id_first
+      integer :: id_parent
+      integer :: id_second
+
+      real(dp) :: interpolated
+      real(dp) :: second_value
+
+      id_parent = idx(i_par,j_par,offs_par,dims_par)
+      id_first = idx( &
+           i_chd+end_pt(1,1,e+1), &
+           j_chd+end_pt(2,1,e+1),offs_chd,dims_chd)
+      id_second = idx( &
+           i_chd+end_pt(1,2,e+1), &
+           j_chd+end_pt(2,2,e+1),offs_chd,dims_chd)
+      interpolated = outer_interpolation(id_second,e)
+      second_value = interpolated + domain_wavelet(S_VELO,k)% &
+           data(d)%elts(EDGE*id_second+e+1)
+      if (.not. ieee_is_finite(second_value)) then
+         call fail("native outer-vector value is non-finite")
+      end if
+      domain_scaling(S_VELO,k)%data(d)% &
+           elts(EDGE*id_second+e+1) = second_value
+      domain_scaling(S_VELO,k)%data(d)% &
+           elts(EDGE*id_first+e+1) = &
+           2.0_dp*domain_scaling(S_VELO,k)% &
+           data(d)%elts(EDGE*id_parent+e+1)-second_value
+
+    end subroutine reconstruct_outer_pair
+
+
+    real(dp) function outer_interpolation ( &
+         target_id,edge_component) result(value)
+
+      implicit none
+
+      integer, intent(in) :: target_id
+      integer, intent(in) :: edge_component
+
+      integer :: q
+
+      real(dp) :: source(9)
+      real(dp) :: weight(9)
+
+      weight = BLOCK_IU_BASE_WEIGHT + [ &
+           (grid(d)%I_u_wgt%elts(target_id+1)%enc(q),q=1,9) ]
+      source(1) = vector_value( &
+           EDGE*idx(i_par,j_par,offs_par,dims_par)+edge_component)
+      source(2) = side_value( &
+           i_par+end_pt(1,2,edge_component+1), &
+           j_par+end_pt(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+3)
+      source(3) = side_value( &
+           i_par+end_pt(1,1,edge_component+1), &
+           j_par+end_pt(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+4)
+      source(4) = side_value( &
+           i_par+end_pt(1,1,edge_component+1), &
+           j_par+end_pt(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+6)
+      source(5) = side_value( &
+           i_par+end_pt(1,2,edge_component+1), &
+           j_par+end_pt(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+1)
+      source(6) = side_value( &
+           i_par+opp_no(1,1,edge_component+1), &
+           j_par+opp_no(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+2)-side_value( &
+           i_par+end_pt(1,1,edge_component+1), &
+           j_par+end_pt(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+3)
+      source(7) = side_value( &
+           i_par+end_pt(1,2,edge_component+1), &
+           j_par+end_pt(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+4)-side_value( &
+           i_par+opp_no(1,1,edge_component+1), &
+           j_par+opp_no(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+5)
+      source(8) = side_value( &
+           i_par+opp_no(1,2,edge_component+1), &
+           j_par+opp_no(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+5)-side_value( &
+           i_par+end_pt(1,2,edge_component+1), &
+           j_par+end_pt(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+6)
+      source(9) = side_value( &
+           i_par+end_pt(1,1,edge_component+1), &
+           j_par+end_pt(2,1,edge_component+1), &
+           hex_s_offs(edge_component+1)+1)-side_value( &
+           i_par+opp_no(1,2,edge_component+1), &
+           j_par+opp_no(2,2,edge_component+1), &
+           hex_s_offs(edge_component+1)+2)
+      value = sum(weight*source)
+
+    end function outer_interpolation
+
+
+    real(dp) function side_value ( &
+         base_i,base_j,side_index) result(value)
+
+      implicit none
+
+      integer, intent(in) :: base_i
+      integer, intent(in) :: base_j
+      integer, intent(in) :: side_index
+
+      integer :: edge_id
+
+      if (side_index < 1 .or. side_index > size(hex_sides,2)) then
+         call fail("native outer-vector side is invalid")
+      end if
+      edge_id = ed_idx( &
+           base_i,base_j,hex_sides(:,side_index),offs_par,dims_par)
+      value = vector_value(edge_id)
+
+    end function side_value
+
+
+    real(dp) function vector_value (edge_id) result(value)
+
+      implicit none
+
+      integer, intent(in) :: edge_id
+
+      if (edge_id < 0 .or. edge_id >= size( &
+           domain_scaling(S_VELO,k)%data(d)%elts)) then
+         call fail("native outer-vector source is invalid")
+      end if
+      value = domain_scaling(S_VELO,k)%data(d)%elts(edge_id+1)
+      if (.not. ieee_is_finite(value)) then
+         call fail("native outer-vector source is non-finite")
+      end if
+
+    end function vector_value
+
+
+    subroutine reconstruct_pentagon (penta_corner)
+
+      implicit none
+
+      integer, intent(in) :: penta_corner
+
+      integer :: id_child
+      integer :: id_e_child
+      integer :: id_n_child
+
+      real(dp) :: correction(2)
+      real(dp) :: v
+
+      if (penta_corner == IMINUSJPLUS) then
+         id_child = idx(0,LAST-1,offs_chd,dims_chd)
+         id_n_child = idx(0,LAST,offs_chd,dims_chd)
+         v = (BLOCK_IU_BASE_WEIGHT(8)+ &
+              grid(d)%I_u_wgt%elts(id_n_child+1)%enc(8))*( &
+              vector_value(EDGE*idx( &
+              0,PATCH_SIZE,offs_par,dims_par)+UP) + &
+              vector_value(EDGE*idx( &
+              -1,PATCH_SIZE,offs_par,dims_par)+RT))
+         call adjust_pair(id_child,id_n_child,UP,v)
+      else if (penta_corner == IPLUSJMINUS) then
+         id_child = idx(LAST-1,0,offs_chd,dims_chd)
+         id_e_child = idx(LAST,0,offs_chd,dims_chd)
+         v = -(BLOCK_IU_BASE_WEIGHT(7)+ &
+              grid(d)%I_u_wgt%elts(id_e_child+1)%enc(7))*( &
+              vector_value(EDGE*idx( &
+              PATCH_SIZE,0,offs_par,dims_par)+RT) + &
+              vector_value(EDGE*idx( &
+              PATCH_SIZE,-1,offs_par,dims_par)+UP))
+         call adjust_pair(id_child,id_e_child,RT,v)
+      end if
+
+      if (penta_corner /= IJMINUS) return
+      id_child = idx(0,0,offs_chd,dims_chd)
+      id_n_child = idx(0,1,offs_chd,dims_chd)
+      id_e_child = idx(1,0,offs_chd,dims_chd)
+      call pentagon_correction(correction)
+      call adjust_pair(id_child,id_n_child,UP,correction(1))
+      call adjust_pair(id_child,id_e_child,RT,correction(2))
+
+    end subroutine reconstruct_pentagon
+
+
+    subroutine adjust_pair (first_id,second_id,edge_component,value)
+
+      implicit none
+
+      integer, intent(in) :: first_id
+      integer, intent(in) :: second_id
+      integer, intent(in) :: edge_component
+      real(dp), intent(in) :: value
+
+      domain_scaling(S_VELO,k)%data(d)% &
+           elts(EDGE*first_id+edge_component+1) = &
+           domain_scaling(S_VELO,k)%data(d)% &
+           elts(EDGE*first_id+edge_component+1)-value
+      domain_scaling(S_VELO,k)%data(d)% &
+           elts(EDGE*second_id+edge_component+1) = &
+           domain_scaling(S_VELO,k)%data(d)% &
+           elts(EDGE*second_id+edge_component+1)+value
+      count(4) = count(4)+2_int64
+
+    end subroutine adjust_pair
+
+
+    subroutine pentagon_correction (value)
+
+      implicit none
+
+      real(dp), intent(out) :: value(2)
+
+      integer :: id_weight
+
+      id_weight = idx( &
+           end_pt(1,2,UP+1),end_pt(2,2,UP+1),offs_chd,dims_chd)
+      value(1) = (BLOCK_IU_BASE_WEIGHT(9)+ &
+           grid(d)%I_u_wgt%elts(id_weight+1)%enc(9))*( &
+           (-vector_value(EDGE*idx( &
+           0,-1,offs_par,dims_par)+UP) - &
+           (-vector_value(EDGE*idx( &
+           -1,-1,offs_par,dims_par)+RT))) - &
+           (side_value( &
+           end_pt(1,1,UP+1),end_pt(2,1,UP+1), &
+           hex_s_offs(UP+1)+1) - &
+           side_value( &
+           opp_no(1,2,UP+1),opp_no(2,2,UP+1), &
+           hex_s_offs(UP+1)+2)))
+
+      id_weight = idx( &
+           end_pt(1,2,RT+1),end_pt(2,2,RT+1),offs_chd,dims_chd)
+      value(2) = (BLOCK_IU_BASE_WEIGHT(6)+ &
+           grid(d)%I_u_wgt%elts(id_weight+1)%enc(6))*( &
+           vector_value(EDGE*idx( &
+           -1,-1,offs_par,dims_par)+RT) + &
+           vector_value(EDGE*idx( &
+           -1,0,offs_par,dims_par)+RT) - &
+           (side_value( &
+           opp_no(1,1,RT+1),opp_no(2,1,RT+1), &
+           hex_s_offs(RT+1)+2) - &
+           side_value( &
+           end_pt(1,1,RT+1),end_pt(2,1,RT+1), &
+           hex_s_offs(RT+1)+3)))
+
+      if (.not. all(ieee_is_finite(value))) then
+         call fail("native pentagon correction is non-finite")
+      end if
+
+    end subroutine pentagon_correction
+
+  end subroutine reconstruct_native_inverse_outer_vectors
+
+
   subroutine synchronize_block_inverse_outer_vectors ( &
        domain_wavelet,domain_scaling,coarse_level,fine_level, &
-       refresh_vector_boundary,reconstruct_outer_vector)
-    ! Isolate the orientation-sensitive bridge at one scale. Coarse vector
-    ! boundaries are made authoritative before regular outer reconstruction;
-    ! its pentagon correction remains in the same Domain topology operation.
+       refresh_vector_boundary,outer_count)
+    ! Publish compact interiors and apply the signed Domain boundary routing
+    ! before the block-owned outer/pentagon arithmetic. Domain storage is a
+    ! transition transport here, not the legacy reconstruction implementation.
 
     implicit none
 
@@ -10400,16 +10732,15 @@ end subroutine build_parallel_block_catalog
          domain_scaling(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: coarse_level
     integer, intent(in) :: fine_level
+    integer(int64), intent(out) :: outer_count(4)
     procedure(Block_Inverse_Scalar_Boundary_Handler) :: &
          refresh_vector_boundary
-    procedure(Block_Inverse_Outer_Vector_Handler) :: &
-         reconstruct_outer_vector
 
     call write_block_field_family_to_domains( &
          BLOCK_PAYLOAD_SOL,domain_scaling)
     call refresh_vector_boundary(domain_scaling,coarse_level)
-    call reconstruct_outer_vector( &
-         domain_wavelet,domain_scaling,coarse_level)
+    call reconstruct_native_inverse_outer_vectors( &
+         domain_wavelet,domain_scaling,coarse_level,outer_count)
     call refresh_vector_boundary(domain_scaling,fine_level)
     call import_domain_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,domain_scaling)
@@ -10651,8 +10982,6 @@ end subroutine build_parallel_block_catalog
     type is (Block_Vector_Inverse_Context)
        do p = 1,size(block%patch)
           if (block%patch(p)%level /= statistics%target_level) cycle
-          statistics%parent_patch_count = &
-               statistics%parent_patch_count+1_int64
           do c = 1,N_CHDRN
              child = block%patch(p)%children(c)
              if (child == 0) cycle

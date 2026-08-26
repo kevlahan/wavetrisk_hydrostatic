@@ -26,7 +26,6 @@ module wavelet_mod
   private
   public :: forward_wavelet_transform, forward_scalar_transform
   public :: inverse_wavelet_transform, inverse_scalar_transform, inverse_velo_transform
-  public :: inverse_velo_outer_level
   public :: Compute_scalar_wavelets, Compute_velo_wavelets, Compute_velo_wavelets_penta, Restrict_velo
   public :: Restrict_scalar, scalar_restriction, init_wavelets, set_RF_wgts, set_WT_wgts
   public :: check_m, Prolong_full_weighting
@@ -357,35 +356,6 @@ contains
     end do
   end subroutine inverse_wavelet_transform
   
-
-  subroutine inverse_velo_outer_level (wavelet,scaling,level)
-    ! Reconstruct regular outer edges and their pentagon correction together.
-    ! Their Domain topology/orientation transport remains indivisible here;
-    ! Stage 136 takes ownership of the subsequent inner-edge reconstruction.
-
-    implicit none
-
-    type(Float_Field), intent(inout), target :: wavelet(:,:), scaling(:,:)
-    integer, intent(in) :: level
-
-    integer :: d
-    integer :: k
-
-    do k = 1,size(scaling,2)
-       do d = 1,size(grid)
-          velo => scaling(S_VELO,k)%data(d)%elts
-          wc_u => wavelet(S_VELO,k)%data(d)%elts
-          call apply_interscale_d2( &
-               Reconstruct_outer_velo,grid(d),level,z_null,0,1)
-          call apply_to_penta_d( &
-               Reconstruct_velo_penta,grid(d),level,z_null)
-          nullify(velo,wc_u)
-       end do
-       scaling(S_VELO,k)%bdry_uptodate = .false.
-    end do
-
-  end subroutine inverse_velo_outer_level
-
 
   subroutine inverse_scalar_transform_0 (wavelet, scaling, jmin_in, jmax_in)
     ! Inverse scalar wavelet transform
