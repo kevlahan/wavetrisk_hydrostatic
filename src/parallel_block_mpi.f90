@@ -164,7 +164,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
-  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 45
+  integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 50
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
   integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
   integer, parameter :: BLOCK_SCALAR_ACTIVE_INDEX = 8
@@ -180,6 +180,8 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX = 35
   integer, parameter :: BLOCK_SCALAR_WAVELET_MASK_INDEX = 36
   integer, parameter :: BLOCK_VECTOR_WAVELET_WEIGHT_START = 37
+  integer, parameter :: BLOCK_SCALAR_EDGE_LENGTH_START = 46
+  integer, parameter :: BLOCK_SCALAR_TRIANGLE_AREA_START = 49
 
   real(dp), parameter :: BLOCK_IU_BASE_WEIGHT(9) = [ &
        16.0_dp,-1.0_dp,1.0_dp,1.0_dp,-1.0_dp, &
@@ -212,17 +214,16 @@ module parallel_block_mpi_mod
        integer, intent(in) :: level
      end subroutine Block_Inverse_Scalar_Boundary_Handler
 
-     subroutine Block_Inverse_Vector_Handler ( &
-          wavelet,scaling,jmin,jmax)
+     subroutine Block_Inverse_Outer_Vector_Handler ( &
+          wavelet,scaling,level)
        import :: Float_Field, N_VARIABLE, zlevels
 
        type(Float_Field), intent(inout) :: &
             wavelet(1:N_VARIABLE,1:zlevels)
        type(Float_Field), intent(inout) :: &
             scaling(1:N_VARIABLE,1:zlevels)
-       integer, intent(in) :: jmin
-       integer, intent(in) :: jmax
-     end subroutine Block_Inverse_Vector_Handler
+       integer, intent(in) :: level
+     end subroutine Block_Inverse_Outer_Vector_Handler
   end interface
 
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
@@ -649,6 +650,13 @@ module parallel_block_mpi_mod
      integer(int64) :: produced_count = 0_int64
      integer(int64) :: frozen_count = 0_int64
   end type Block_Scalar_Inverse_Context
+
+  type :: Block_Vector_Inverse_Context
+     integer :: target_level = -1
+     integer(int64) :: parent_patch_count = 0_int64
+     integer(int64) :: cell_count = 0_int64
+     integer(int64) :: inner_edge_count = 0_int64
+  end type Block_Vector_Inverse_Context
 
   type :: Block_Velocity_Restriction_Context
      integer :: coarse_level = -1
@@ -10129,11 +10137,13 @@ end subroutine build_parallel_block_catalog
 
   subroutine activate_block_native_inverse_transform ( &
        domain_wavelet,domain_scaling,jmin,jmax, &
-       refresh_scalar_boundary,reconstruct_vector)
+       refresh_scalar_boundary,refresh_vector_boundary, &
+       reconstruct_outer_vector)
     ! Re-evaluate the accepted inverse transform from compact storage.  The
     ! legacy full-Domain result is retained only as a transition reference:
-    ! scalar lifting and interpolation are recomputed by block kernels, while
-    ! the vector inverse remains an explicitly isolated compatibility bridge.
+    ! scalar and inner-vector reconstruction is recomputed by block kernels.
+    ! Outer edges remain paired with the pentagon correction in the established
+    ! Domain topology bridge until orientation transport is block-native.
 
     implicit none
 
@@ -10145,19 +10155,25 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: jmax
     procedure(Block_Inverse_Scalar_Boundary_Handler) :: &
          refresh_scalar_boundary
-    procedure(Block_Inverse_Vector_Handler) :: reconstruct_vector
+    procedure(Block_Inverse_Scalar_Boundary_Handler) :: &
+         refresh_vector_boundary
+    procedure(Block_Inverse_Outer_Vector_Handler) :: &
+         reconstruct_outer_vector
 
     integer :: inverse_level
     integer :: ierr
 
-    integer(int64) :: count_global(4)
-    integer(int64) :: count_local(4)
+    integer(int64) :: scalar_count_global(4)
+    integer(int64) :: scalar_count_local(4)
+    integer(int64) :: vector_count_global(3)
+    integer(int64) :: vector_count_local(3)
     integer(int64) :: allocation_before
     integer(int64) :: writeback_before
 
     logical :: state_ready
 
-    type(Block_Scalar_Inverse_Context) :: statistics
+    type(Block_Scalar_Inverse_Context) :: scalar_statistics
+    type(Block_Vector_Inverse_Context) :: vector_statistics
 
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready .or. production_block_inverse_active) then
@@ -10190,49 +10206,78 @@ end subroutine build_parallel_block_catalog
     call synchronize_block_inverse_scalars( &
          domain_scaling,jmin,refresh_scalar_boundary)
 
-    count_local = 0_int64
+    scalar_count_local = 0_int64
+    vector_count_local = 0_int64
     do inverse_level = jmin,jmax-1
-       statistics = Block_Scalar_Inverse_Context( &
+       scalar_statistics = Block_Scalar_Inverse_Context( &
             target_level=inverse_level,phase=1)
        call apply_local_block_field_producer( &
-            reconstruct_block_scalar_level,statistics)
-       count_local = count_local + [statistics%parent_patch_count, &
-            statistics%candidate_count,statistics%produced_count, &
-            statistics%frozen_count]
+            reconstruct_block_scalar_level,scalar_statistics)
+       scalar_count_local = scalar_count_local + [ &
+            scalar_statistics%parent_patch_count, &
+            scalar_statistics%candidate_count, &
+            scalar_statistics%produced_count, &
+            scalar_statistics%frozen_count]
        call synchronize_block_inverse_scalars( &
             domain_scaling,inverse_level+1,refresh_scalar_boundary)
 
-       statistics = Block_Scalar_Inverse_Context( &
+       call synchronize_block_inverse_outer_vectors( &
+            domain_wavelet,domain_scaling,inverse_level, &
+            inverse_level+1,refresh_vector_boundary, &
+            reconstruct_outer_vector)
+
+       scalar_statistics = Block_Scalar_Inverse_Context( &
             target_level=inverse_level,phase=2)
        call apply_local_block_field_producer( &
-            reconstruct_block_scalar_level,statistics)
-       count_local = count_local + [statistics%parent_patch_count, &
-            statistics%candidate_count,statistics%produced_count, &
-            statistics%frozen_count]
+            reconstruct_block_scalar_level,scalar_statistics)
+       scalar_count_local = scalar_count_local + [ &
+            scalar_statistics%parent_patch_count, &
+            scalar_statistics%candidate_count, &
+            scalar_statistics%produced_count, &
+            scalar_statistics%frozen_count]
        call synchronize_block_inverse_scalars( &
             domain_scaling,inverse_level+1,refresh_scalar_boundary)
+
+       vector_statistics = Block_Vector_Inverse_Context( &
+            target_level=inverse_level)
+       call apply_local_block_field_producer( &
+            reconstruct_block_inner_vector_level,vector_statistics)
+       vector_count_local = vector_count_local + [ &
+            vector_statistics%parent_patch_count, &
+            vector_statistics%cell_count, &
+            vector_statistics%inner_edge_count]
+       call synchronize_block_inverse_vectors( &
+            domain_scaling,inverse_level+1,refresh_vector_boundary)
     end do
 
-    call MPI_Allreduce(count_local,count_global,size(count_local), &
+    call MPI_Allreduce( &
+         scalar_count_local,scalar_count_global, &
+         size(scalar_count_local), &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce native scalar inverse coverage")
-    if (count_global(1) <= 0_int64 .or. &
-         count_global(2) <= 0_int64 .or. &
-         count_global(3) <= 0_int64) then
+    if (scalar_count_global(1) <= 0_int64 .or. &
+         scalar_count_global(2) <= 0_int64 .or. &
+         scalar_count_global(3) <= 0_int64) then
        call fail("native scalar inverse coverage is empty")
     end if
-    if (count_global(3)+count_global(4) /= count_global(2)) then
+    if (scalar_count_global(3)+scalar_count_global(4) /= &
+         scalar_count_global(2)) then
        call fail("native scalar inverse coverage is incomplete")
     end if
 
-    ! Keep vector reconstruction behind one named bridge during this stage.
-    ! Importing the complete accepted image afterwards also installs the
-    ! independently reconstructed scalar patches on their final block owners.
-    call reconstruct_vector( &
-         domain_wavelet,domain_scaling,jmin,jmax)
-    call import_domain_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,domain_scaling)
-    call refresh_block_sol_ghosts
+    call MPI_Allreduce( &
+         vector_count_local,vector_count_global, &
+         size(vector_count_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce native vector inverse coverage")
+    if (vector_count_global(1) <= 0_int64 .or. &
+         vector_count_global(2) <= 0_int64 .or. &
+         vector_count_global(3) <= 0_int64) then
+       call fail("native inner-vector inverse coverage is empty")
+    end if
+    if (vector_count_global(3) /= 6_int64*vector_count_global(2)) then
+       call fail("native inner-vector inverse coverage is incomplete")
+    end if
 
     call assert_block_inverse_reference
     call write_block_field_family_to_domains( &
@@ -10244,7 +10289,7 @@ end subroutine build_parallel_block_catalog
        call fail("native inverse reallocated persistent transport")
     end if
     if (block_domain_production_writeback_count() /= writeback_before+ &
-         int(2*(jmax-jmin)+3,int64)) then
+         int(4*(jmax-jmin)+3,int64)) then
        call fail("native inverse writeback sequence is invalid")
     end if
     production_block_inverse_active = .false.
@@ -10315,6 +10360,64 @@ end subroutine build_parallel_block_catalog
     call refresh_block_sol_ghosts
 
   end subroutine synchronize_block_inverse_scalars
+
+
+  subroutine synchronize_block_inverse_vectors ( &
+       domain_scaling,level,refresh_vector_boundary)
+    ! Publish regular vector reconstruction, refresh the Domain boundary,
+    ! then repopulate compact boundary and ghost storage.
+
+    implicit none
+
+    type(Float_Field), intent(inout) :: &
+         domain_scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: level
+    procedure(Block_Inverse_Scalar_Boundary_Handler) :: &
+         refresh_vector_boundary
+
+    call write_block_field_family_to_domains( &
+         BLOCK_PAYLOAD_SOL,domain_scaling)
+    call refresh_vector_boundary(domain_scaling,level)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.false.,domain_scaling)
+    call refresh_block_sol_ghosts
+
+  end subroutine synchronize_block_inverse_vectors
+
+
+  subroutine synchronize_block_inverse_outer_vectors ( &
+       domain_wavelet,domain_scaling,coarse_level,fine_level, &
+       refresh_vector_boundary,reconstruct_outer_vector)
+    ! Isolate the orientation-sensitive bridge at one scale. Coarse vector
+    ! boundaries are made authoritative before regular outer reconstruction;
+    ! its pentagon correction remains in the same Domain topology operation.
+
+    implicit none
+
+    type(Float_Field), intent(inout) :: &
+         domain_wavelet(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: &
+         domain_scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: coarse_level
+    integer, intent(in) :: fine_level
+    procedure(Block_Inverse_Scalar_Boundary_Handler) :: &
+         refresh_vector_boundary
+    procedure(Block_Inverse_Outer_Vector_Handler) :: &
+         reconstruct_outer_vector
+
+    call write_block_field_family_to_domains( &
+         BLOCK_PAYLOAD_SOL,domain_scaling)
+    call refresh_vector_boundary(domain_scaling,coarse_level)
+    call reconstruct_outer_vector( &
+         domain_wavelet,domain_scaling,coarse_level)
+    call refresh_vector_boundary(domain_scaling,fine_level)
+    call import_domain_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,domain_scaling)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.false.,domain_scaling)
+    call refresh_block_sol_ghosts
+
+  end subroutine synchronize_block_inverse_outer_vectors
 
 
   subroutine reconstruct_block_scalar_level ( &
@@ -10511,6 +10614,242 @@ end subroutine build_parallel_block_catalog
   end subroutine reconstruct_block_scalar_level
 
 
+  subroutine reconstruct_block_inner_vector_level ( &
+       catalog_index,block,context)
+    ! Compact equivalent of Reconstruct_inner_velo for one transition.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(inout) :: block
+    class(*), intent(inout) :: context
+
+    integer :: c
+    integer :: child
+    integer :: i
+    integer :: i_chd
+    integer :: i_par
+    integer :: j
+    integer :: j_chd
+    integer :: j_par
+    integer :: level_slot
+    integer :: local_index
+    integer :: p
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency)) then
+       call fail("vector inverse block index is invalid")
+    end if
+    if (.not. block_scalar_tendency(local_index)%ready .or. &
+         block_scalar_tendency(local_index)%catalog_index /= &
+         catalog_index) then
+       call fail("vector inverse geometry block is stale")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Vector_Inverse_Context)
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level /= statistics%target_level) cycle
+          statistics%parent_patch_count = &
+               statistics%parent_patch_count+1_int64
+          do c = 1,N_CHDRN
+             child = block%patch(p)%children(c)
+             if (child == 0) cycle
+             if (child < 0 .or. child >= size(block%patch)) then
+                call fail("vector inverse child patch is invalid")
+             end if
+             if (block%patch(child+1)%level /= &
+                  statistics%target_level+1) then
+                call fail("vector inverse child level is invalid")
+             end if
+             do level_slot = 1,block%n_field_level
+                if (block%field_level+level_slot-1 < 1 .or. &
+                     block%field_level+level_slot-1 > zlevels) cycle
+                do j = 1,PATCH_SIZE/2
+                   j_chd = 2*(j-1)
+                   j_par = j-1+chd_offs(2,c)
+                   do i = 1,PATCH_SIZE/2
+                      i_chd = 2*(i-1)
+                      i_par = i-1+chd_offs(1,c)
+                      statistics%cell_count = &
+                           statistics%cell_count+1_int64
+                      call reconstruct_inner_vector(statistics)
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("vector inverse context is invalid")
+    end select
+
+  contains
+
+    subroutine reconstruct_inner_vector (statistics)
+
+      implicit none
+
+      type(Block_Vector_Inverse_Context), intent(inout) :: statistics
+
+      integer :: target_e(6)
+      integer :: target_i(6)
+      integer :: target_j(6)
+      integer :: q
+
+      real(dp) :: interpolated(6)
+      real(dp) :: value
+
+      call block_inner_vector_interpolation(interpolated)
+      target_i = [i_chd+1,i_chd+1,i_chd+1, &
+           i_chd,i_chd,i_chd+1]
+      target_j = [j_chd,j_chd,j_chd+1, &
+           j_chd+1,j_chd+1,j_chd+1]
+      target_e = [UP,DG,RT,RT,DG,UP]
+      do q = 1,6
+         value = interpolated(q)+block_vector_family_value( &
+              block,local_index,child+1,level_slot, &
+              target_i(q),target_j(q),target_e(q), &
+              BLOCK_PAYLOAD_WAV_COEFF)
+         call set_block_vector_sol_value( &
+              block,child+1,level_slot,target_i(q),target_j(q), &
+              target_e(q),value)
+         statistics%inner_edge_count = &
+              statistics%inner_edge_count+1_int64
+      end do
+
+    end subroutine reconstruct_inner_vector
+
+
+    subroutine block_inner_vector_interpolation (value)
+
+      implicit none
+
+      real(dp), intent(out) :: value(6)
+
+      integer :: t
+
+      real(dp) :: curl_u(LORT:UPLT)
+
+      do t = LORT,UPLT
+         curl_u(t) = ( &
+              vector_value(p,i_par,j_par,DG)* &
+              edge_length(p,i_par,j_par,DG)+ &
+              vector_value(p,i_par-t+1,j_par,UP)* &
+              edge_length(p,i_par-t+1,j_par,UP)+ &
+              vector_value(p,i_par,j_par+t,RT)* &
+              edge_length(p,i_par,j_par+t,RT))/ &
+              triangle_area(p,i_par,j_par,t)
+      end do
+
+      value(1) = ( &
+           triangle_area(child+1,i_chd,j_chd,LORT)*curl_u(LORT)- &
+           vector_value(child+1,i_chd,j_chd,RT)* &
+           edge_length(child+1,i_chd,j_chd,RT)- &
+           vector_value(child+1,i_chd,j_chd,DG)* &
+           edge_length(child+1,i_chd,j_chd,DG))/ &
+           edge_length(child+1,i_chd+1,j_chd,UP)
+      value(2) = ( &
+           triangle_area(child+1,i_chd+1,j_chd,LORT)*curl_u(LORT)- &
+           vector_value(child+1,i_chd+1,j_chd,RT)* &
+           edge_length(child+1,i_chd+1,j_chd,RT)- &
+           vector_value(child+1,i_chd+2,j_chd,UP)* &
+           edge_length(child+1,i_chd+2,j_chd,UP))/ &
+           edge_length(child+1,i_chd+1,j_chd,DG)
+      value(3) = ( &
+           triangle_area(child+1,i_chd+1,j_chd+1,LORT)*curl_u(LORT)- &
+           vector_value(child+1,i_chd+1,j_chd+1,DG)* &
+           edge_length(child+1,i_chd+1,j_chd+1,DG)- &
+           vector_value(child+1,i_chd+2,j_chd+1,UP)* &
+           edge_length(child+1,i_chd+2,j_chd+1,UP))/ &
+           edge_length(child+1,i_chd+1,j_chd+1,RT)
+      value(4) = ( &
+           triangle_area(child+1,i_chd,j_chd,UPLT)*curl_u(UPLT)- &
+           vector_value(child+1,i_chd,j_chd,UP)* &
+           edge_length(child+1,i_chd,j_chd,UP)- &
+           vector_value(child+1,i_chd,j_chd,DG)* &
+           edge_length(child+1,i_chd,j_chd,DG))/ &
+           edge_length(child+1,i_chd,j_chd+1,RT)
+      value(5) = ( &
+           triangle_area(child+1,i_chd,j_chd+1,UPLT)*curl_u(UPLT)- &
+           vector_value(child+1,i_chd,j_chd+1,UP)* &
+           edge_length(child+1,i_chd,j_chd+1,UP)- &
+           vector_value(child+1,i_chd,j_chd+2,RT)* &
+           edge_length(child+1,i_chd,j_chd+2,RT))/ &
+           edge_length(child+1,i_chd,j_chd+1,DG)
+      value(6) = ( &
+           triangle_area(child+1,i_chd+1,j_chd+1,UPLT)*curl_u(UPLT)- &
+           vector_value(child+1,i_chd+1,j_chd+1,DG)* &
+           edge_length(child+1,i_chd+1,j_chd+1,DG)- &
+           vector_value(child+1,i_chd+1,j_chd+2,RT)* &
+           edge_length(child+1,i_chd+1,j_chd+2,RT))/ &
+           edge_length(child+1,i_chd+1,j_chd+1,UP)
+
+    end subroutine block_inner_vector_interpolation
+
+
+    real(dp) function vector_value ( &
+         patch_index,node_i,node_j,edge_component) result(value)
+
+      implicit none
+
+      integer, intent(in) :: patch_index
+      integer, intent(in) :: node_i
+      integer, intent(in) :: node_j
+      integer, intent(in) :: edge_component
+
+      value = block_vector_family_value( &
+           block,local_index,patch_index,level_slot,node_i,node_j, &
+           edge_component,BLOCK_PAYLOAD_SOL)
+
+    end function vector_value
+
+
+    real(dp) function edge_length ( &
+         patch_index,node_i,node_j,edge_component) result(value)
+
+      implicit none
+
+      integer, intent(in) :: patch_index
+      integer, intent(in) :: node_i
+      integer, intent(in) :: node_j
+      integer, intent(in) :: edge_component
+
+      value = block_scalar_record_value( &
+           block,local_index,patch_index,0,level_slot,node_i,node_j, &
+           BLOCK_SCALAR_EDGE_LENGTH_START+edge_component)
+      if (value <= 0.0_dp) then
+         call fail("vector inverse edge length is nonpositive")
+      end if
+
+    end function edge_length
+
+
+    real(dp) function triangle_area ( &
+         patch_index,node_i,node_j,triangle) result(value)
+
+      implicit none
+
+      integer, intent(in) :: patch_index
+      integer, intent(in) :: node_i
+      integer, intent(in) :: node_j
+      integer, intent(in) :: triangle
+
+      if (triangle < LORT .or. triangle > UPLT) then
+         call fail("vector inverse triangle index is invalid")
+      end if
+      value = block_scalar_record_value( &
+           block,local_index,patch_index,0,level_slot,node_i,node_j, &
+           BLOCK_SCALAR_TRIANGLE_AREA_START+triangle-LORT)
+      if (value <= 0.0_dp) then
+         call fail("vector inverse triangle area is nonpositive")
+      end if
+
+    end function triangle_area
+
+  end subroutine reconstruct_block_inner_vector_level
+
+
   subroutine set_block_scalar_sol_value ( &
        block,p,scalar_slot,level_slot,i,j,value)
     ! Install one reconstructed scalar in compact patch storage.
@@ -10596,12 +10935,13 @@ end subroutine build_parallel_block_catalog
          abs(block_writeback_plan%native_vector_stage(vector_index)))
     if (difference > allowed) then
        write(error_unit,'(/,a,i0,a,i0)') &
-            "Rank ",rank,": vector inverse bridge mismatch at ",vector_index
+            "Rank ",rank,": native regular-vector inverse mismatch at ", &
+            vector_index
        write(error_unit,'(2(a,es24.16))') &
             "  absolute difference = ",difference, &
             ", allowed difference = ",allowed
        flush(error_unit)
-       call fail("vector inverse bridge reference mismatch")
+       call fail("native regular-vector inverse reference mismatch")
     end if
 
   end subroutine assert_block_inverse_reference
@@ -12359,6 +12699,13 @@ end subroutine build_parallel_block_catalog
             value(BLOCK_VECTOR_WAVELET_WEIGHT_START: &
                  BLOCK_VECTOR_WAVELET_WEIGHT_START+8) = &
                  real(grid(d)%I_u_wgt%elts(id+1)%enc,dp)
+            value(BLOCK_SCALAR_EDGE_LENGTH_START: &
+                 BLOCK_SCALAR_EDGE_LENGTH_START+EDGE-1) = &
+                 grid(d)%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+            value(BLOCK_SCALAR_TRIANGLE_AREA_START: &
+                 BLOCK_SCALAR_TRIANGLE_AREA_START+1) = &
+                 grid(d)%triarea%elts( &
+                 TRIAG*id+LORT+1:TRIAG*id+UPLT+1)
             value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
                  BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
                  horiz_flux(scalar_id)%data(d)%elts( &
@@ -12673,6 +13020,13 @@ end subroutine build_parallel_block_catalog
          value(BLOCK_VECTOR_WAVELET_WEIGHT_START: &
               BLOCK_VECTOR_WAVELET_WEIGHT_START+8) = &
               real(grid(d)%I_u_wgt%elts(id+1)%enc,dp)
+         value(BLOCK_SCALAR_EDGE_LENGTH_START: &
+              BLOCK_SCALAR_EDGE_LENGTH_START+EDGE-1) = &
+              grid(d)%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+         value(BLOCK_SCALAR_TRIANGLE_AREA_START: &
+              BLOCK_SCALAR_TRIANGLE_AREA_START+1) = &
+              grid(d)%triarea%elts( &
+              TRIAG*id+LORT+1:TRIAG*id+UPLT+1)
          value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
               BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
               horiz_flux(scalar_id)%data(d)%elts( &
