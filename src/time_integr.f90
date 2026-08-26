@@ -12,6 +12,7 @@ module time_integr_mod
   use parallel_block_mpi_mod, only : &
        begin_block_domain_multistage_candidate_stage, &
        begin_block_scalar_divergence_capture, &
+       activate_block_native_inverse_transform, &
        capture_block_domain_multistage_candidate_tendency, &
        finalize_block_scalar_divergence_capture, &
        parallel_block_state_is_ready, &
@@ -190,7 +191,9 @@ contains
          prepare_native_compression= &
          prepare_block_native_wavelet_compression, &
          activate_native_compression= &
-         activate_block_native_wavelet_compression)
+         activate_block_native_wavelet_compression, &
+         activate_native_inverse= &
+         activate_block_native_inverse_transform)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if
@@ -298,7 +301,9 @@ contains
          prepare_native_compression= &
          prepare_block_native_wavelet_compression, &
          activate_native_compression= &
-         activate_block_native_wavelet_compression)
+         activate_block_native_wavelet_compression, &
+         activate_native_inverse= &
+         activate_block_native_inverse_transform)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
     end if

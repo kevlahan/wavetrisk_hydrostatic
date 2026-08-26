@@ -10,7 +10,7 @@ module parallel_block_mpi_mod
   use kind_mod,   only : dp
   use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
        hex_s_offs, &
-       AT_EDGE, DG, EAST, EDGE, NORTH, NORTHEAST, NORTHWEST, N_BDRY, &
+       AT_EDGE, DG, EAST, EDGE, FROZEN, NORTH, NORTHEAST, NORTHWEST, N_BDRY, &
        N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, n_domain, &
        IJMINUS, IMINUSJPLUS, IPLUSJMINUS, LORT, UPLT, TRIAG, &
        SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
@@ -201,6 +201,28 @@ module parallel_block_mpi_mod
        logical, optional, intent(in) :: type
        real(dp) :: flux(EDGE)
      end function Block_Scalar_Physics_Flux
+  end interface
+
+  abstract interface
+     subroutine Block_Inverse_Scalar_Boundary_Handler (scaling,level)
+       import :: Float_Field, N_VARIABLE, zlevels
+
+       type(Float_Field), intent(inout) :: &
+            scaling(1:N_VARIABLE,1:zlevels)
+       integer, intent(in) :: level
+     end subroutine Block_Inverse_Scalar_Boundary_Handler
+
+     subroutine Block_Inverse_Vector_Handler ( &
+          wavelet,scaling,jmin,jmax)
+       import :: Float_Field, N_VARIABLE, zlevels
+
+       type(Float_Field), intent(inout) :: &
+            wavelet(1:N_VARIABLE,1:zlevels)
+       type(Float_Field), intent(inout) :: &
+            scaling(1:N_VARIABLE,1:zlevels)
+       integer, intent(in) :: jmin
+       integer, intent(in) :: jmax
+     end subroutine Block_Inverse_Vector_Handler
   end interface
 
   real(dp), parameter :: BLOCK_BOUNDARY_POISON = &
@@ -405,6 +427,7 @@ module parallel_block_mpi_mod
   logical, save :: production_complete_vector_wavelet_validated = .false.
   logical, save :: production_native_wavelet_output_activated = .false.
   logical, save :: production_block_wavelet_compression_ready = .false.
+  logical, save :: production_block_inverse_active = .false.
   integer(int64), save :: production_block_compression_writeback_before = &
        0_int64
   integer(int64), save :: production_block_compression_allocation_before = &
@@ -618,6 +641,15 @@ module parallel_block_mpi_mod
      integer(int64) :: vector_zero_count = 0_int64
   end type Block_Wavelet_Compression_Context
 
+  type :: Block_Scalar_Inverse_Context
+     integer :: target_level = -1
+     integer :: phase = 0
+     integer(int64) :: parent_patch_count = 0_int64
+     integer(int64) :: candidate_count = 0_int64
+     integer(int64) :: produced_count = 0_int64
+     integer(int64) :: frozen_count = 0_int64
+  end type Block_Scalar_Inverse_Context
+
   type :: Block_Velocity_Restriction_Context
      integer :: coarse_level = -1
      integer(int64) :: parent_patch_count = 0_int64
@@ -699,6 +731,7 @@ module parallel_block_mpi_mod
   public :: validate_candidate_block_velocity_restriction
   public :: prepare_block_native_wavelet_compression
   public :: activate_block_native_wavelet_compression
+  public :: activate_block_native_inverse_transform
   public :: refresh_parallel_block_domain_prognostic_state
   public :: check_domain_trend_roundtrip
   public :: import_domain_trend_to_block_tendency
@@ -763,6 +796,7 @@ contains
     call clear_block_writeback_plan
     call clear_local_blocks
     call clear_block_staging
+    production_block_inverse_active = .false.
 
     if (allocated(block_catalog)) deallocate(block_catalog)
 
@@ -812,6 +846,9 @@ contains
     end if
     if (production_block_wavelet_compression_ready) then
        call fail("block compression remained pending at adaptation")
+    end if
+    if (production_block_inverse_active) then
+       call fail("block inverse remained active at adaptation")
     end if
     production_adaptation_pending = .false.
 
@@ -6225,7 +6262,8 @@ end subroutine build_parallel_block_catalog
        call fail("Domain prognostic import has no checkpoint to preserve")
     end if
     if (present(domain_sol)) then
-       if (.not. keep_checkpoint) then
+       if (.not. keep_checkpoint .and. &
+            .not. production_block_inverse_active) then
           call fail("stage Domain prognostic import has no checkpoint guard")
        end if
     else
@@ -10087,6 +10125,486 @@ end subroutine build_parallel_block_catalog
     production_block_compression_allocation_before = 0_int64
 
   end subroutine activate_block_native_wavelet_compression
+
+
+  subroutine activate_block_native_inverse_transform ( &
+       domain_wavelet,domain_scaling,jmin,jmax, &
+       refresh_scalar_boundary,reconstruct_vector)
+    ! Re-evaluate the accepted inverse transform from compact storage.  The
+    ! legacy full-Domain result is retained only as a transition reference:
+    ! scalar lifting and interpolation are recomputed by block kernels, while
+    ! the vector inverse remains an explicitly isolated compatibility bridge.
+
+    implicit none
+
+    type(Float_Field), intent(inout) :: &
+         domain_wavelet(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: &
+         domain_scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: jmin
+    integer, intent(in) :: jmax
+    procedure(Block_Inverse_Scalar_Boundary_Handler) :: &
+         refresh_scalar_boundary
+    procedure(Block_Inverse_Vector_Handler) :: reconstruct_vector
+
+    integer :: inverse_level
+    integer :: ierr
+
+    integer(int64) :: count_global(4)
+    integer(int64) :: count_local(4)
+    integer(int64) :: allocation_before
+    integer(int64) :: writeback_before
+
+    logical :: state_ready
+
+    type(Block_Scalar_Inverse_Context) :: statistics
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready .or. production_block_inverse_active) then
+       call fail("native inverse transaction is not ready")
+    end if
+    if (jmin /= level_start-1 .or. jmax /= level_end) then
+       call fail("native inverse level range is invalid")
+    end if
+    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
+         .not. production_adaptation_pending) then
+       call fail("native inverse found an unresolved production transaction")
+    end if
+
+    production_block_inverse_active = .true.
+    allocation_before = block_writeback_plan_allocation_count()
+    writeback_before = block_domain_production_writeback_count()
+
+    ! WT_after_step has just completed the established inverse. Preserve that
+    ! image before restoring the compact, compressed pre-inverse solution.
+    call capture_domain_inverse_reference(domain_scaling)
+    call write_block_field_family_to_domains( &
+         BLOCK_PAYLOAD_SOL,domain_scaling)
+
+    ! Legacy inverse setup has already made the compressed wavelet boundary
+    ! authoritative. Import only those boundary records; compact interiors
+    ! remain the Stage 134 native compression result.
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_WAV_COEFF,.false.,domain_wavelet)
+    call refresh_block_wav_coeff_ghosts
+    call synchronize_block_inverse_scalars( &
+         domain_scaling,jmin,refresh_scalar_boundary)
+
+    count_local = 0_int64
+    do inverse_level = jmin,jmax-1
+       statistics = Block_Scalar_Inverse_Context( &
+            target_level=inverse_level,phase=1)
+       call apply_local_block_field_producer( &
+            reconstruct_block_scalar_level,statistics)
+       count_local = count_local + [statistics%parent_patch_count, &
+            statistics%candidate_count,statistics%produced_count, &
+            statistics%frozen_count]
+       call synchronize_block_inverse_scalars( &
+            domain_scaling,inverse_level+1,refresh_scalar_boundary)
+
+       statistics = Block_Scalar_Inverse_Context( &
+            target_level=inverse_level,phase=2)
+       call apply_local_block_field_producer( &
+            reconstruct_block_scalar_level,statistics)
+       count_local = count_local + [statistics%parent_patch_count, &
+            statistics%candidate_count,statistics%produced_count, &
+            statistics%frozen_count]
+       call synchronize_block_inverse_scalars( &
+            domain_scaling,inverse_level+1,refresh_scalar_boundary)
+    end do
+
+    call MPI_Allreduce(count_local,count_global,size(count_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce native scalar inverse coverage")
+    if (count_global(1) <= 0_int64 .or. &
+         count_global(2) <= 0_int64 .or. &
+         count_global(3) <= 0_int64) then
+       call fail("native scalar inverse coverage is empty")
+    end if
+    if (count_global(3)+count_global(4) /= count_global(2)) then
+       call fail("native scalar inverse coverage is incomplete")
+    end if
+
+    ! Keep vector reconstruction behind one named bridge during this stage.
+    ! Importing the complete accepted image afterwards also installs the
+    ! independently reconstructed scalar patches on their final block owners.
+    call reconstruct_vector( &
+         domain_wavelet,domain_scaling,jmin,jmax)
+    call import_domain_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,domain_scaling)
+    call refresh_block_sol_ghosts
+
+    call assert_block_inverse_reference
+    call write_block_field_family_to_domains( &
+         BLOCK_PAYLOAD_SOL,domain_scaling)
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_SOL,domain_scaling)
+
+    if (block_writeback_plan_allocation_count() /= allocation_before) then
+       call fail("native inverse reallocated persistent transport")
+    end if
+    if (block_domain_production_writeback_count() /= writeback_before+ &
+         int(2*(jmax-jmin)+3,int64)) then
+       call fail("native inverse writeback sequence is invalid")
+    end if
+    production_block_inverse_active = .false.
+
+  end subroutine activate_block_native_inverse_transform
+
+
+  subroutine capture_domain_inverse_reference (domain_scaling)
+    ! Preserve active patch interiors from the established inverse in the
+    ! reusable writeback reference stage; no per-step allocation is allowed.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_scaling(1:N_VARIABLE,1:zlevels)
+
+    integer :: d
+    integer :: p
+    integer :: patch_slot
+    integer :: scalar_pos
+    integer :: vector_pos
+
+    if (.not. allocated(block_writeback_plan%native_scalar_stage) .or. &
+         .not. allocated(block_writeback_plan%native_vector_stage)) then
+       call fail("native inverse reference stage is unavailable")
+    end if
+
+    block_writeback_plan%native_scalar_stage = 0.0_dp
+    block_writeback_plan%native_vector_stage = 0.0_dp
+    do d = 1,size(grid)
+       do p = 0,grid(d)%patch%length-1
+          if (grid(d)%patch%elts(p+1)%deleted) cycle
+          patch_slot = block_writeback_plan%domain_patch_displ(d)+p+1
+          scalar_pos = (patch_slot-1)* &
+               block_writeback_plan%scalar_patch_nvalue+1
+          vector_pos = (patch_slot-1)* &
+               block_writeback_plan%vector_patch_nvalue+1
+          call pack_domain_patch_prognostic( &
+               d,p,BLOCK_PAYLOAD_SOL, &
+               block_writeback_plan%native_scalar_stage,scalar_pos, &
+               block_writeback_plan%native_vector_stage,vector_pos, &
+               domain_scaling)
+       end do
+    end do
+
+  end subroutine capture_domain_inverse_reference
+
+
+  subroutine synchronize_block_inverse_scalars ( &
+       domain_scaling,level,refresh_scalar_boundary)
+    ! A deliberately conservative phase boundary for the first production
+    ! scalar inverse: publish compact interiors, refresh the legacy geometric
+    ! boundary, then repopulate compact boundary and ghost records.
+
+    implicit none
+
+    type(Float_Field), intent(inout) :: &
+         domain_scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: level
+    procedure(Block_Inverse_Scalar_Boundary_Handler) :: &
+         refresh_scalar_boundary
+
+    call write_block_field_family_to_domains( &
+         BLOCK_PAYLOAD_SOL,domain_scaling)
+    call refresh_scalar_boundary(domain_scaling,level)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.false.,domain_scaling)
+    call refresh_block_sol_ghosts
+
+  end subroutine synchronize_block_inverse_scalars
+
+
+  subroutine reconstruct_block_scalar_level ( &
+       catalog_index,block,context)
+    ! Compact equivalents of Prolong_scalar (phase 1) and
+    ! Reconstruct_scalar (phase 2) for one coarse-to-fine level transition.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(inout) :: block
+    class(*), intent(inout) :: context
+
+    integer :: c
+    integer :: child
+    integer :: i
+    integer :: i_chd
+    integer :: i_par
+    integer :: j
+    integer :: j_chd
+    integer :: j_par
+    integer :: level_slot
+    integer :: local_index
+    integer :: p
+    integer :: scalar_slot
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency)) then
+       call fail("scalar inverse block index is invalid")
+    end if
+    if (.not. block_scalar_tendency(local_index)%ready .or. &
+         block_scalar_tendency(local_index)%catalog_index /= &
+         catalog_index) then
+       call fail("scalar inverse geometry block is stale")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Scalar_Inverse_Context)
+       if (statistics%phase < 1 .or. statistics%phase > 2) then
+          call fail("scalar inverse phase is invalid")
+       end if
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level /= statistics%target_level) cycle
+          statistics%parent_patch_count = &
+               statistics%parent_patch_count+1_int64
+          do c = 1,N_CHDRN
+             child = block%patch(p)%children(c)
+             if (child == 0) cycle
+             if (child < 0 .or. child >= size(block%patch)) then
+                call fail("scalar inverse child patch is invalid")
+             end if
+             if (block%patch(child+1)%level /= &
+                  statistics%target_level+1) then
+                call fail("scalar inverse child level is invalid")
+             end if
+             do scalar_slot = 0,block%n_scalar_variable-1
+                do level_slot = 1,block%n_field_level
+                   if (block%field_level+level_slot-1 < 1 .or. &
+                        block%field_level+level_slot-1 > zlevels) cycle
+                   do j = 1,PATCH_SIZE/2
+                      j_chd = 2*(j-1)
+                      j_par = j-1+chd_offs(2,c)
+                      do i = 1,PATCH_SIZE/2
+                         i_chd = 2*(i-1)
+                         i_par = i-1+chd_offs(1,c)
+                         if (statistics%phase == 1) then
+                            call undo_scalar_lifting(statistics)
+                         else
+                            call reconstruct_scalar_detail(statistics)
+                         end if
+                      end do
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("scalar inverse context is invalid")
+    end select
+
+  contains
+
+    subroutine undo_scalar_lifting (statistics)
+
+      implicit none
+
+      type(Block_Scalar_Inverse_Context), intent(inout) :: statistics
+
+      integer :: k
+      integer :: source_i(11)
+      integer :: source_j(11)
+      integer :: weight_slot(11)
+
+      real(dp) :: inverse_area
+      real(dp) :: mask_value
+      real(dp) :: value
+      real(dp) :: weighted_sum
+
+      statistics%candidate_count = statistics%candidate_count+1_int64
+      mask_value = block_scalar_record_value( &
+           block,local_index,child+1,scalar_slot,level_slot, &
+           i_chd,j_chd,BLOCK_SCALAR_WAVELET_MASK_INDEX)
+      if (nint(mask_value) == FROZEN) then
+         statistics%frozen_count = statistics%frozen_count+1_int64
+         return
+      end if
+
+      source_i = i_chd + [1,1,2,0,-1,-1,-2,-1,0,-1,1]
+      source_j = j_chd + [0,1,1,1,0,1,-1,-1,-1,-2,-1]
+      weight_slot = [1,2,3,1,2,3,4,1,2,3,4]
+      value = block_scalar_family_value( &
+           block,local_index,p,scalar_slot,level_slot, &
+           i_par,j_par,BLOCK_PAYLOAD_SOL)
+      inverse_area = block_scalar_record_value( &
+           block,local_index,p,scalar_slot,level_slot, &
+           i_par,j_par,BLOCK_SCALAR_AREA_INDEX)
+      weighted_sum = 0.0_dp
+      do k = 1,size(source_i)
+         weighted_sum = weighted_sum+block_scalar_family_value( &
+              block,local_index,child+1,scalar_slot,level_slot, &
+              source_i(k),source_j(k),BLOCK_PAYLOAD_WAV_COEFF)* &
+              block_scalar_record_value( &
+              block,local_index,child+1,scalar_slot,level_slot, &
+              source_i(k),source_j(k), &
+              BLOCK_SCALAR_OVERLAP_START+weight_slot(k)-1)
+      end do
+      value = value-weighted_sum*inverse_area
+      call set_block_scalar_sol_value( &
+           block,child+1,scalar_slot,level_slot,i_chd,j_chd,value)
+      statistics%produced_count = statistics%produced_count+1_int64
+
+    end subroutine undo_scalar_lifting
+
+
+    subroutine reconstruct_scalar_detail (statistics)
+
+      implicit none
+
+      type(Block_Scalar_Inverse_Context), intent(inout) :: statistics
+
+      call reconstruct_one( &
+           i_chd+1,j_chd,[i_chd,i_chd+2,i_chd+2,i_chd], &
+           [j_chd,j_chd,j_chd+2,j_chd-2],statistics)
+      call reconstruct_one( &
+           i_chd+1,j_chd+1,[i_chd+2,i_chd,i_chd+2,i_chd], &
+           [j_chd+2,j_chd,j_chd,j_chd+2],statistics)
+      call reconstruct_one( &
+           i_chd,j_chd+1,[i_chd,i_chd,i_chd-2,i_chd+2], &
+           [j_chd,j_chd+2,j_chd,j_chd+2],statistics)
+
+    end subroutine reconstruct_scalar_detail
+
+
+    subroutine reconstruct_one ( &
+         target_i,target_j,source_i,source_j,statistics)
+
+      implicit none
+
+      integer, intent(in) :: target_i
+      integer, intent(in) :: target_j
+      integer, intent(in) :: source_i(4)
+      integer, intent(in) :: source_j(4)
+      type(Block_Scalar_Inverse_Context), intent(inout) :: statistics
+
+      integer :: k
+
+      real(dp) :: inverse_area
+      real(dp) :: value
+      real(dp) :: weighted_sum
+
+      statistics%candidate_count = statistics%candidate_count+1_int64
+      inverse_area = block_scalar_record_value( &
+           block,local_index,child+1,scalar_slot,level_slot, &
+           target_i,target_j,BLOCK_SCALAR_AREA_INDEX)
+      weighted_sum = 0.0_dp
+      do k = 1,4
+         weighted_sum = weighted_sum+block_scalar_family_value( &
+              block,local_index,child+1,scalar_slot,level_slot, &
+              source_i(k),source_j(k),BLOCK_PAYLOAD_SOL)* &
+              block_scalar_record_value( &
+              block,local_index,child+1,scalar_slot,level_slot, &
+              target_i,target_j,BLOCK_SCALAR_OVERLAP_START+k-1)
+      end do
+      value = weighted_sum*inverse_area+block_scalar_family_value( &
+           block,local_index,child+1,scalar_slot,level_slot, &
+           target_i,target_j,BLOCK_PAYLOAD_WAV_COEFF)
+      call set_block_scalar_sol_value( &
+           block,child+1,scalar_slot,level_slot,target_i,target_j,value)
+      statistics%produced_count = statistics%produced_count+1_int64
+
+    end subroutine reconstruct_one
+
+  end subroutine reconstruct_block_scalar_level
+
+
+  subroutine set_block_scalar_sol_value ( &
+       block,p,scalar_slot,level_slot,i,j,value)
+    ! Install one reconstructed scalar in compact patch storage.
+
+    implicit none
+
+    type(Block_Data), intent(inout) :: block
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    real(dp), intent(in) :: value
+
+    integer :: field_index
+    integer :: node_index
+
+    if (p < 1 .or. p > size(block%patch) .or. &
+         scalar_slot < 0 .or. scalar_slot >= block%n_scalar_variable .or. &
+         level_slot < 1 .or. level_slot > block%n_field_level .or. &
+         i < 0 .or. i >= PATCH_SIZE .or. &
+         j < 0 .or. j >= PATCH_SIZE) then
+       call fail("scalar inverse address is invalid")
+    end if
+    if (.not. ieee_is_finite(value)) then
+       call fail("scalar inverse value is non-finite")
+    end if
+
+    node_index = block%patch(p)%elts_start+PATCH_SIZE*j+i
+    field_index = &
+         (scalar_slot*block%n_field_level+level_slot-1)* &
+         size(block%node)+node_index+1
+    if (node_index < 0 .or. node_index >= size(block%node) .or. &
+         field_index < 1 .or. field_index > size(block%scalar)) then
+       call fail("scalar inverse storage is invalid")
+    end if
+    block%scalar(field_index) = value
+
+  end subroutine set_block_scalar_sol_value
+
+
+  subroutine assert_block_inverse_reference
+    ! Compare the independent compact reconstruction with the legacy image
+    ! retained immediately before the rollback to pre-inverse block state.
+
+    implicit none
+
+    integer :: scalar_index
+    integer :: vector_index
+
+    real(dp) :: allowed
+    real(dp) :: difference
+
+    call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
+    scalar_index = maxloc(abs( &
+         block_writeback_plan%scalar_domain_stage- &
+         block_writeback_plan%native_scalar_stage),dim=1)
+    difference = abs(block_writeback_plan%scalar_domain_stage( &
+         scalar_index)-block_writeback_plan%native_scalar_stage( &
+         scalar_index))
+    allowed = 64.0_dp*epsilon(1.0_dp)*max(1.0_dp, &
+         abs(block_writeback_plan%scalar_domain_stage(scalar_index)), &
+         abs(block_writeback_plan%native_scalar_stage(scalar_index)))
+    if (difference > allowed) then
+       write(error_unit,'(/,a,i0,a,i0)') &
+            "Rank ",rank,": native inverse scalar reference mismatch at ", &
+            scalar_index
+       write(error_unit,'(2(a,es24.16))') &
+            "  absolute difference = ",difference, &
+            ", allowed difference = ",allowed
+       flush(error_unit)
+       call fail("native inverse scalar reference mismatch")
+    end if
+
+    vector_index = maxloc(abs( &
+         block_writeback_plan%vector_domain_stage- &
+         block_writeback_plan%native_vector_stage),dim=1)
+    difference = abs(block_writeback_plan%vector_domain_stage( &
+         vector_index)-block_writeback_plan%native_vector_stage( &
+         vector_index))
+    allowed = 256.0_dp*epsilon(1.0_dp)*max(1.0_dp, &
+         abs(block_writeback_plan%vector_domain_stage(vector_index)), &
+         abs(block_writeback_plan%native_vector_stage(vector_index)))
+    if (difference > allowed) then
+       write(error_unit,'(/,a,i0,a,i0)') &
+            "Rank ",rank,": vector inverse bridge mismatch at ",vector_index
+       write(error_unit,'(2(a,es24.16))') &
+            "  absolute difference = ",difference, &
+            ", allowed difference = ",allowed
+       flush(error_unit)
+       call fail("vector inverse bridge reference mismatch")
+    end if
+
+  end subroutine assert_block_inverse_reference
 
 
   subroutine compress_block_atmospheric_wavelets ( &

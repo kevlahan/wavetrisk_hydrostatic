@@ -6,7 +6,7 @@ module adapt_mod
        scalars, S_VELO, z_null, zlevels
   
   use arch_mod,         only : rank
-  use comm_mpi_mod,     only : update_bdry
+  use comm_mpi_mod,     only : update_bdry, update_bdry1
   use domain_ops_mod,   only : apply_interscale_d, apply_onescale_d, apply_to_penta_d
   use init_mod,         only : noarg_sub, set_thresholds, update
   use refine_patch_mod, only : fill_up_level, max_level_exceeded, post_refine, refine
@@ -69,10 +69,83 @@ module adapt_mod
        type(Float_Field), intent(inout) :: &
             wavelet(1:N_VARIABLE,1:zlevels)
      end subroutine Wavelet_Compression_Handler
+
+     subroutine Inverse_Scalar_Boundary_Handler (scaling,level)
+       import :: Float_Field, N_VARIABLE, zlevels
+
+       type(Float_Field), intent(inout) :: &
+            scaling(1:N_VARIABLE,1:zlevels)
+       integer, intent(in) :: level
+     end subroutine Inverse_Scalar_Boundary_Handler
+
+     subroutine Inverse_Vector_Handler (wavelet,scaling,jmin,jmax)
+       import :: Float_Field, N_VARIABLE, zlevels
+
+       type(Float_Field), intent(inout) :: &
+            wavelet(1:N_VARIABLE,1:zlevels)
+       type(Float_Field), intent(inout) :: &
+            scaling(1:N_VARIABLE,1:zlevels)
+       integer, intent(in) :: jmin
+       integer, intent(in) :: jmax
+     end subroutine Inverse_Vector_Handler
+  end interface
+
+  abstract interface
+     subroutine Inverse_Wavelet_Handler ( &
+          wavelet,scaling,jmin,jmax, &
+          refresh_scalar_boundary,reconstruct_vector)
+       import :: Float_Field, Inverse_Scalar_Boundary_Handler, &
+            Inverse_Vector_Handler, N_VARIABLE, zlevels
+
+       type(Float_Field), intent(inout) :: &
+            wavelet(1:N_VARIABLE,1:zlevels)
+       type(Float_Field), intent(inout) :: &
+            scaling(1:N_VARIABLE,1:zlevels)
+       integer, intent(in) :: jmin
+       integer, intent(in) :: jmax
+       procedure(Inverse_Scalar_Boundary_Handler) :: &
+            refresh_scalar_boundary
+       procedure(Inverse_Vector_Handler) :: reconstruct_vector
+     end subroutine Inverse_Wavelet_Handler
   end interface
 
   
 contains
+
+  subroutine refresh_native_inverse_scalar_boundary (scaling,level)
+    ! Keep the established Domain boundary operator above the compact block
+    ! layer so parallel_block_mpi_mod retains its original module ordering.
+
+    implicit none
+
+    type(Float_Field), intent(inout) :: &
+         scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: level
+
+    call update_bdry1( &
+         scaling(scalars(1):scalars(2),:),level,level,834)
+
+  end subroutine refresh_native_inverse_scalar_boundary
+
+
+  subroutine reconstruct_native_inverse_vector ( &
+       wavelet,scaling,jmin,jmax)
+    ! Stage 135 vector compatibility bridge. Keeping it here avoids adding a
+    ! reverse dependency from the block transport module to wavelet_mod.
+
+    implicit none
+
+    type(Float_Field), intent(inout) :: &
+         wavelet(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: &
+         scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: jmin
+    integer, intent(in) :: jmax
+
+    call inverse_velo_transform( &
+         wavelet(S_VELO,:),scaling(S_VELO,:),jmin,jmax)
+
+  end subroutine reconstruct_native_inverse_vector
   
   subroutine adapt (set_thresholds, type)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
@@ -263,7 +336,7 @@ contains
        scaling,wavelet,l_start0,validate_scalar_wavelets, &
        validate_outer_vector_wavelets,validate_velocity_restriction, &
        native_wavelet_output,prepare_native_compression, &
-       activate_native_compression)
+       activate_native_compression,activate_native_inverse)
     ! Compute wavelets and interpolate solution onto adaptive grid (including ZERO mask cells)
     
     implicit none
@@ -281,6 +354,8 @@ contains
          prepare_native_compression
     procedure(Wavelet_Compression_Handler), optional :: &
          activate_native_compression
+    procedure(Inverse_Wavelet_Handler), optional :: &
+         activate_native_inverse
 
     integer :: d, k, l, l_start, v
     logical :: native_output
@@ -295,7 +370,8 @@ contains
           .not. present(validate_outer_vector_wavelets) .or. &
           .not. present(validate_velocity_restriction) .or. &
           .not. present(prepare_native_compression) .or. &
-          .not. present(activate_native_compression))) then
+          .not. present(activate_native_compression) .or. &
+          .not. present(activate_native_inverse))) then
        error stop "native wavelet output requires complete production callbacks"
     end if
 
@@ -366,6 +442,12 @@ contains
        call compress_wavelets (wavelet)
     end if
     call inverse_wavelet_transform (wavelet, scaling)
+    if (native_output) then
+       call activate_native_inverse( &
+            wavelet,scaling,l_start,level_end, &
+            refresh_native_inverse_scalar_boundary, &
+            reconstruct_native_inverse_vector)
+    end if
   end subroutine WT_after_step
 
   
