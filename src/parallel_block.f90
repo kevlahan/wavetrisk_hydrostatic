@@ -347,6 +347,7 @@ module parallel_block_mod
   public :: fill_local_block_vector_ghost_family_values
   public :: compute_local_block_hydrostatic_patch
   public :: refresh_local_block_hydrostatic_state
+  public :: invalidate_local_block_hydrostatic_state
   public :: ensure_local_block_hydrostatic_state
   public :: local_block_hydrostatic_state_ready
   public :: local_block_hydrostatic_refresh_count

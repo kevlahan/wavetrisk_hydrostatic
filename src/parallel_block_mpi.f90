@@ -98,6 +98,7 @@ module parallel_block_mpi_mod
        get_local_block_vector_ghost_family_values, &
        set_local_block_vector_ghost_family_values, &
        fill_local_block_vector_ghost_family_values, &
+       invalidate_local_block_hydrostatic_state, &
        ensure_local_block_hydrostatic_state, &
        local_block_hydrostatic_state_ready, &
        local_block_hydrostatic_refresh_count, &
@@ -7349,9 +7350,9 @@ end subroutine build_parallel_block_catalog
   subroutine refresh_parallel_block_candidate_boundary_state ( &
        domain_sol,stage,stage_count)
     ! Finalize one native provisional transform while retaining the
-    ! timestep-start checkpoint required by the low-storage formula. Reinstall
-    ! the exact Domain image conservatively so scalar replacement invalidates
-    ! derived hydrostatic caches before the next tendency.
+    ! timestep-start checkpoint required by the low-storage formula. Native
+    ! block interiors remain resident; only boundary aliases and ghosts are
+    ! refreshed before derived hydrostatic state is explicitly invalidated.
 
     implicit none
 
@@ -7429,18 +7430,20 @@ end subroutine build_parallel_block_catalog
     vector_ghost_recv_size_before = &
          size(ghost_exchange_plan%vector_recv_buffer)
 
-    call import_domain_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,domain_sol,.true.)
+    ! The inverse writeback and the retained compact interiors must agree
+    ! before any boundary-only state is refreshed. This assertion also
+    ! reconstructs the distributed block image without changing block data.
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_SOL,domain_sol)
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.,domain_sol)
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.true.,domain_sol)
     call refresh_block_sol_ghosts
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_SOL,domain_sol)
 
     hydrostatic_refresh_before = &
          local_block_hydrostatic_refresh_count()
+    call invalidate_local_block_hydrostatic_state
     call ensure_local_block_hydrostatic_state
     hydrostatic_refresh_after = &
          local_block_hydrostatic_refresh_count()
@@ -8670,24 +8673,20 @@ end subroutine build_parallel_block_catalog
 
 
 
-  subroutine validate_complete_block_vector_wavelets ( &
-       first_level,domain_scaling)
+  subroutine validate_complete_block_vector_wavelets (first_level)
     ! Produce the complete regular-outer, regular-inner and pentagon-corrected
     ! vector family. Final-stage sources come from reconstructed blocks and
-    ! explicit routes; provisional stages conservatively seed the same native
-    ! arithmetic from the already refreshed Domain-indexed vector image.
+    ! explicit routes. Provisional stages use the same compact block interiors
+    ! and reverse the persistent boundary route into Domain-indexed staging.
 
     implicit none
 
     integer, intent(in) :: first_level
-    type(Float_Field), intent(in) :: &
-         domain_scaling(1:N_VARIABLE,1:zlevels)
 
     integer :: c
     integer :: d
     integer :: e
     integer :: edge_id
-    integer :: copy_n_edge_value
     integer :: field_level
     integer :: first_field_level
     integer :: i
@@ -8765,31 +8764,9 @@ end subroutine build_parallel_block_catalog
     production_vector_transform_covered = .false.
 
     if (first_level == level_start) then
-       ! Provisional stages already have an authoritative update_bdry image.
-       ! Use that image only to seed the Domain-indexed vector transport;
-       ! all vector wavelet arithmetic below remains native.
-       do d = 1,size(grid)
-          n_edge_value = size(sol(S_VELO,first_field_level)%data(d)%elts)
-          do level_slot = 1,n_field_level
-             field_level = first_field_level+level_slot-1
-             if (field_level < 1 .or. field_level > zlevels) cycle
-             transform_start = production_vector_transform_displ(d) + &
-                  (level_slot-1)*n_edge_value
-             copy_n_edge_value = min(n_edge_value,size( &
-                  domain_scaling(S_VELO,field_level)%data(d)%elts))
-             if (copy_n_edge_value <= 0) then
-                call fail("provisional vector source extent is empty")
-             end if
-             production_vector_transform_stage( &
-                  transform_start+1: &
-                  transform_start+copy_n_edge_value) = &
-                  domain_scaling(S_VELO,field_level)% &
-                  data(d)%elts(1:copy_n_edge_value)
-             production_vector_transform_covered( &
-                  transform_start+1: &
-                  transform_start+copy_n_edge_value) = .true.
-          end do
-       end do
+       call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
+       call seed_provisional_vector_transform_from_blocks( &
+            first_field_level,n_field_level)
     else
     ! Expand the compact block stage into immutable Domain indexing.  Patch
     ! interiors and boundary routes have disjoint provenance and are checked
@@ -8992,6 +8969,323 @@ end subroutine build_parallel_block_catalog
     end if
     production_complete_vector_wavelet_validated = .true.
   contains
+
+    subroutine seed_provisional_vector_transform_from_blocks ( &
+         first_level_field,n_level_field)
+      ! Expand reconstructed compact interiors and reverse the persistent
+      ! Domain-to-block boundary manifest. No provisional SOL value is read
+      ! from a full Domain field image.
+
+      implicit none
+
+      integer, intent(in) :: first_level_field
+      integer, intent(in) :: n_level_field
+
+      integer :: d_stage
+      integer :: edge_stage
+      integer :: field_slot
+      integer :: n_edge_stage
+      integer :: node_stage
+      integer :: p_stage
+      integer :: patch_stage
+      integer :: source_stage
+      integer :: stage_value
+      integer :: transform_value
+
+      integer(int64) :: coverage_global(2)
+      integer(int64) :: coverage_local(2)
+
+      coverage_local = 0_int64
+      do d_stage = 1,size(grid)
+         n_edge_stage = size(sol(S_VELO,first_level_field)% &
+              data(d_stage)%elts)
+         do p_stage = 0,grid(d_stage)%patch%length-1
+            if (grid(d_stage)%patch%elts(p_stage+1)%deleted .or. &
+                 grid(d_stage)%patch%elts(p_stage+1)%level < &
+                 first_level) cycle
+            patch_stage = block_writeback_plan% &
+                 domain_patch_displ(d_stage)+p_stage+1
+            if (patch_stage < 1 .or. patch_stage > size( &
+                 block_writeback_plan%domain_patch_reconstructed) .or. &
+                 .not. block_writeback_plan% &
+                 domain_patch_reconstructed(patch_stage)) then
+               call fail("provisional vector patch is not block-derived")
+            end if
+            source_stage = (patch_stage-1)* &
+                 block_writeback_plan%vector_patch_nvalue
+            do field_slot = 1,n_level_field
+               do node_stage = 0,PATCH_SIZE**2-1
+                  do edge_stage = RT,UP
+                     transform_value = EDGE*( &
+                          grid(d_stage)%patch%elts(p_stage+1)% &
+                          elts_start+node_stage)+edge_stage
+                     if (transform_value < 0 .or. &
+                          transform_value >= n_edge_stage) then
+                        call fail( &
+                             "provisional vector patch address is invalid")
+                     end if
+                     stage_value = source_stage + &
+                          (field_slot-1)*EDGE*PATCH_SIZE**2 + &
+                          EDGE*node_stage+edge_stage+1
+                     call install_provisional_vector_value( &
+                          complete_transform_index( &
+                          d_stage,transform_value,field_slot, &
+                          first_level_field), &
+                          block_writeback_plan% &
+                          vector_domain_stage(stage_value))
+                     coverage_local(1) = coverage_local(1)+1_int64
+                  end do
+               end do
+            end do
+         end do
+      end do
+
+      call export_provisional_vector_boundaries(coverage_local(2))
+      call MPI_Allreduce(coverage_local,coverage_global,2, &
+           MPI_INTEGER8,MPI_SUM,comm,ierr)
+      call check_mpi(ierr, &
+           "MPI_Allreduce provisional vector source coverage")
+      if (any(coverage_global <= 0_int64)) then
+         call fail("provisional vector block source coverage is empty")
+      end if
+
+    end subroutine seed_provisional_vector_transform_from_blocks
+
+
+    subroutine export_provisional_vector_boundaries (boundary_count)
+      ! Reverse the already allocated boundary transport: final block owners
+      ! pack compact SOL boundaries and source Domain owners install them in
+      ! the non-authoritative transform stage.
+
+      implicit none
+
+      integer(int64), intent(out) :: boundary_count
+
+      integer :: b_boundary
+      integer :: boundary_index
+      integer :: d_boundary
+      integer :: elts_start
+      integer :: ierr_boundary
+      integer :: metadata_pos
+      integer :: n_boundary
+      integer :: n_node
+      integer :: n_vector
+      integer :: pos
+      integer :: r_boundary
+      integer :: slot
+      integer :: source
+      integer :: source_bdry
+
+      boundary_count = 0_int64
+      block_writeback_plan%boundary_vector_block_recv_buffer = 0.0_dp
+      block_writeback_plan%boundary_vector_domain_send_buffer = 0.0_dp
+
+      do r_boundary = 1,n_process
+         pos = block_writeback_plan% &
+              boundary_vector_block_recv_displ(r_boundary)+1
+         do slot = block_writeback_plan%send_displ(r_boundary)+1, &
+              block_writeback_plan%send_displ(r_boundary) + &
+              block_writeback_plan%send_count(r_boundary)
+            b_boundary = block_writeback_plan%send_block(slot)
+            source = source_rank(b_boundary)
+            if (source /= r_boundary-1) then
+               call fail("provisional vector boundary send route differs")
+            end if
+            n_boundary = local_block_boundary_count(b_boundary)
+            if (n_boundary /= &
+                 block_writeback_plan%send_boundary_count(slot)) then
+               call fail("provisional vector boundary layout differs")
+            end if
+            do boundary_index = 1,n_boundary
+               n_vector = local_block_vector_family_boundary_nvalue( &
+                    b_boundary,boundary_index)
+               if (pos < 1 .or. pos+n_vector-1 > size( &
+                    block_writeback_plan% &
+                    boundary_vector_block_recv_buffer)) then
+                  call fail("provisional vector boundary send is short")
+               end if
+               call get_local_block_vector_boundary_family_values( &
+                    b_boundary,boundary_index,BLOCK_PAYLOAD_SOL, &
+                    block_writeback_plan% &
+                    boundary_vector_block_recv_buffer( &
+                    pos:pos+n_vector-1))
+               pos = pos+n_vector
+            end do
+         end do
+         if (pos /= block_writeback_plan% &
+              boundary_vector_block_recv_displ(r_boundary) + &
+              block_writeback_plan% &
+              boundary_vector_block_recv_count(r_boundary)+1) then
+            call fail("provisional vector boundary send extent differs")
+         end if
+      end do
+
+      call MPI_Alltoallv( &
+           block_writeback_plan%boundary_vector_block_recv_buffer, &
+           block_writeback_plan%boundary_vector_block_recv_count, &
+           block_writeback_plan%boundary_vector_block_recv_displ, &
+           MPI_DOUBLE_PRECISION, &
+           block_writeback_plan%boundary_vector_domain_send_buffer, &
+           block_writeback_plan%boundary_vector_domain_send_count, &
+           block_writeback_plan%boundary_vector_domain_send_displ, &
+           MPI_DOUBLE_PRECISION,comm,ierr_boundary)
+      call check_mpi(ierr_boundary, &
+           "MPI_Alltoallv provisional vector boundaries")
+
+      do r_boundary = 1,n_process
+         pos = block_writeback_plan% &
+              boundary_vector_domain_send_displ(r_boundary)+1
+         do slot = block_writeback_plan%recv_displ(r_boundary)+1, &
+              block_writeback_plan%recv_displ(r_boundary) + &
+              block_writeback_plan%recv_count(r_boundary)
+            b_boundary = block_writeback_plan%recv_block(slot)
+            source = source_rank(b_boundary)
+            if (source /= rank .or. &
+                 block_catalog(b_boundary)%owner /= r_boundary-1) then
+               call fail("provisional vector boundary receive route differs")
+            end if
+            d_boundary = &
+                 loc_id(block_catalog(b_boundary)%root_domain+1)+1
+            if (d_boundary < 1 .or. d_boundary > size(grid)) then
+               call fail("provisional vector boundary Domain is invalid")
+            end if
+            do boundary_index = 1, &
+                 block_writeback_plan%recv_boundary_count(slot)
+               metadata_pos = &
+                    block_writeback_plan%recv_boundary_displ(slot) + &
+                    boundary_index
+               source_bdry = block_writeback_plan% &
+                    recv_boundary_source(metadata_pos)
+               n_node = block_writeback_plan% &
+                    recv_boundary_nnode(metadata_pos)
+               n_vector = EDGE*n_field_level*n_node
+               if (pos < 1 .or. pos+n_vector-1 > size( &
+                    block_writeback_plan% &
+                    boundary_vector_domain_send_buffer)) then
+                  call fail("provisional vector boundary receive is short")
+               end if
+               call install_provisional_vector_boundary( &
+                    d_boundary,source_bdry,n_node, &
+                    block_writeback_plan% &
+                    boundary_vector_domain_send_buffer( &
+                    pos:pos+n_vector-1))
+               boundary_count = boundary_count+int(n_vector,int64)
+               pos = pos+n_vector
+            end do
+         end do
+         if (pos /= block_writeback_plan% &
+              boundary_vector_domain_send_displ(r_boundary) + &
+              block_writeback_plan% &
+              boundary_vector_domain_send_count(r_boundary)+1) then
+            call fail("provisional vector boundary receive extent differs")
+         end if
+      end do
+
+      do slot = 1,n_local_blocks()
+         b_boundary = local_block_catalog(slot)
+         source = source_rank(b_boundary)
+         if (source /= rank) cycle
+         d_boundary = &
+              loc_id(block_catalog(b_boundary)%root_domain+1)+1
+         if (d_boundary < 1 .or. d_boundary > size(grid)) then
+            call fail("provisional local boundary Domain is invalid")
+         end if
+         do boundary_index = 1, &
+              local_block_boundary_count(b_boundary)
+            call get_local_block_boundary_source( &
+                 b_boundary,boundary_index,source_bdry,elts_start,n_node)
+            if (source_bdry < 0 .or. source_bdry >= &
+                 grid(d_boundary)%bdry_patch%length .or. &
+                 grid(d_boundary)%bdry_patch%elts( &
+                 source_bdry+1)%elts_start /= elts_start) then
+               call fail("provisional local boundary source differs")
+            end if
+            n_vector = local_block_vector_family_boundary_nvalue( &
+                 b_boundary,boundary_index)
+            if (n_vector > &
+                 size(ghost_exchange_plan%vector_patch_buffer)) then
+               call fail("provisional local boundary scratch is short")
+            end if
+            call get_local_block_vector_boundary_family_values( &
+                 b_boundary,boundary_index,BLOCK_PAYLOAD_SOL, &
+                 ghost_exchange_plan%vector_patch_buffer(1:n_vector))
+            call install_provisional_vector_boundary( &
+                 d_boundary,source_bdry,n_node, &
+                 ghost_exchange_plan%vector_patch_buffer(1:n_vector))
+            boundary_count = boundary_count+int(n_vector,int64)
+         end do
+      end do
+
+    end subroutine export_provisional_vector_boundaries
+
+
+    subroutine install_provisional_vector_boundary ( &
+         d_boundary,source_bdry,n_node,value)
+
+      implicit none
+
+      integer, intent(in) :: d_boundary
+      integer, intent(in) :: source_bdry
+      integer, intent(in) :: n_node
+      real(dp), intent(in) :: value(:)
+
+      integer :: component
+      integer :: edge_value
+      integer :: field_slot
+      integer :: node_boundary
+      integer :: source_start
+      integer :: value_index
+
+      if (source_bdry < 0 .or. &
+           source_bdry >= grid(d_boundary)%bdry_patch%length .or. &
+           size(value) /= EDGE*n_field_level*n_node) then
+         call fail("provisional vector boundary record is invalid")
+      end if
+      source_start = &
+           grid(d_boundary)%bdry_patch%elts(source_bdry+1)%elts_start
+      do field_slot = 1,n_field_level
+         do node_boundary = 0,n_node-1
+            do component = RT,UP
+               edge_value = EDGE*(source_start+node_boundary)+component
+               value_index = (field_slot-1)*EDGE*n_node + &
+                    EDGE*node_boundary+component+1
+               call install_provisional_vector_value( &
+                    complete_transform_index( &
+                    d_boundary,edge_value,field_slot, &
+                    first_field_level),value(value_index))
+            end do
+         end do
+      end do
+
+    end subroutine install_provisional_vector_boundary
+
+
+    subroutine install_provisional_vector_value (stage_index,value)
+
+      implicit none
+
+      integer, intent(in) :: stage_index
+      real(dp), intent(in) :: value
+
+      real(dp) :: allowed
+
+      if (.not. ieee_is_finite(value)) then
+         call fail("provisional vector source is non-finite")
+      end if
+      if (production_vector_transform_covered(stage_index)) then
+         allowed = 16.0_dp*epsilon(1.0_dp)*max(1.0_dp,abs(value), &
+              abs(production_vector_transform_stage(stage_index)))
+         if (abs(production_vector_transform_stage(stage_index)-value) > &
+              allowed) then
+            call fail("provisional vector block sources differ")
+         end if
+      else
+         production_vector_transform_stage(stage_index) = value
+         production_vector_transform_covered(stage_index) = .true.
+      end if
+
+    end subroutine install_provisional_vector_value
+
 
     subroutine seed_complete_vector_route_sources ( &
          first_level_field,n_level_field)
@@ -9915,8 +10209,7 @@ end subroutine build_parallel_block_catalog
     ! The final candidate now closes the former Stages 124--126 as one
     ! transaction: regular inner production, pentagon correction, complete
     ! persistent staged storage and authoritative activation.
-    call validate_complete_block_vector_wavelets( &
-         first_level,domain_scaling)
+    call validate_complete_block_vector_wavelets(first_level)
     call activate_complete_block_wavelet_output( &
          first_level,domain_wavelet)
 
