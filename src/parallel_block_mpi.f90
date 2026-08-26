@@ -18,7 +18,7 @@ module parallel_block_mpi_mod
        VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
        S_MASS, S_TEMP, S_VELO, &
        ADJZONE, RESTRCT, TRSK, c_p, compressible, grav_accel, kappa, &
-       level_end, &
+       a_vert, b_vert, level_end, &
        level_start, p_0, p_top, zlevels
 
   use domain_mod, only : chd_offs, Domain, Float_Field, &
@@ -165,6 +165,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_VELOCITY = 10
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
+  integer, parameter :: BLOCK_PAYLOAD_REMAP_MASK = 13
   integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 50
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
   integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
@@ -187,6 +188,19 @@ module parallel_block_mpi_mod
   real(dp), parameter :: BLOCK_IU_BASE_WEIGHT(9) = [ &
        16.0_dp,-1.0_dp,1.0_dp,1.0_dp,-1.0_dp, &
        -1.0_dp,-1.0_dp,1.0_dp,1.0_dp]/16.0_dp
+
+  abstract interface
+     subroutine Block_Vertical_Interpolator ( &
+          n,value_new,coordinate_new,value_old,coordinate_old)
+       import :: dp
+
+       integer, intent(in) :: n
+       real(dp), intent(out) :: value_new(1:n)
+       real(dp), intent(in) :: coordinate_new(0:n)
+       real(dp), intent(in) :: value_old(1:n)
+       real(dp), intent(in) :: coordinate_old(0:n)
+     end subroutine Block_Vertical_Interpolator
+  end interface
 
   abstract interface
      function Block_Scalar_Physics_Flux ( &
@@ -408,6 +422,28 @@ module parallel_block_mpi_mod
   end type Block_Writeback_Plan_Type
 
   type(Block_Writeback_Plan_Type), save :: block_writeback_plan
+
+  type :: Block_Vertical_Remap_Storage
+     integer :: catalog_index = 0
+     integer :: installed_patch_count = 0
+     integer, allocatable :: source_start(:)
+     real(dp), allocatable :: old_mass(:)
+     logical, allocatable :: active(:)
+  end type Block_Vertical_Remap_Storage
+
+  type :: Block_Vertical_Remap_Context
+     integer(int64) :: candidate_count = 0_int64
+     integer(int64) :: active_count = 0_int64
+     integer(int64) :: scalar_count = 0_int64
+     integer(int64) :: vector_count = 0_int64
+  end type Block_Vertical_Remap_Context
+
+  type(Block_Vertical_Remap_Storage), allocatable, save :: &
+       block_vertical_remap(:)
+  procedure(Block_Vertical_Interpolator), pointer, save :: &
+       production_vertical_interpolator => null()
+  integer(int64), save :: block_vertical_remap_allocations = 0_int64
+  logical, save :: block_vertical_remap_active = .false.
 
   integer(int64), save :: block_writeback_plan_generation = 0_int64
   integer, save :: production_multistage_candidate_stage = 0
@@ -702,6 +738,8 @@ module parallel_block_mpi_mod
   public :: prepare_parallel_block_grid_change
   public :: complete_block_adaptation_lifecycle
   public :: retain_post_grid_change_block_reconstruction
+  public :: prepare_block_native_vertical_remap
+  public :: complete_block_native_vertical_remap
   public :: migrate_blocks
   public :: check_local_blocks
   public :: check_block_field_inventory
@@ -795,6 +833,7 @@ contains
 
     implicit none
 
+    call clear_block_vertical_remap_storage
     call clear_block_ghost_exchange_plan
     call clear_block_writeback_plan
     call clear_local_blocks
@@ -818,6 +857,29 @@ contains
     end if
 
   end subroutine clear_parallel_block_state
+
+
+  subroutine clear_block_vertical_remap_storage
+
+    implicit none
+
+    integer :: local_index
+
+    if (allocated(block_vertical_remap)) then
+       do local_index = 1,size(block_vertical_remap)
+          if (allocated(block_vertical_remap(local_index)%old_mass)) &
+               deallocate(block_vertical_remap(local_index)%old_mass)
+          if (allocated(block_vertical_remap(local_index)%active)) &
+               deallocate(block_vertical_remap(local_index)%active)
+          if (allocated(block_vertical_remap(local_index)%source_start)) &
+               deallocate(block_vertical_remap(local_index)%source_start)
+       end do
+       deallocate(block_vertical_remap)
+    end if
+    nullify(production_vertical_interpolator)
+    block_vertical_remap_active = .false.
+
+  end subroutine clear_block_vertical_remap_storage
 
 
   logical function parallel_block_state_is_ready () result(ready)
@@ -943,9 +1005,9 @@ contains
 
 
   subroutine retain_post_grid_change_block_reconstruction
-    ! Validate one complete shadow rebuilt from the actual Domain state after
-    ! legacy physics, adaptation and remapping, then retain it for the next
-    ! production timestep.
+    ! Validate one complete compact state rebuilt from the actual Domain
+    ! image after physics and adaptation. It is retained across the optional
+    ! native vertical remap and into the next production timestep.
 
     implicit none
 
@@ -1056,6 +1118,738 @@ contains
     end if
 
   end subroutine retain_post_grid_change_block_reconstruction
+
+
+  subroutine prepare_block_native_vertical_remap (interpolate)
+    ! Independently remap every compact atmospheric column while the Domain
+    ! image remains unchanged for the legacy comparison. The old mass image
+    ! is retained in topology-sized persistent storage because neighboring
+    ! pressure coordinates must not observe an already remapped column.
+
+    implicit none
+
+    procedure(Block_Vertical_Interpolator) :: interpolate
+
+    type(Block_Vertical_Remap_Context) :: statistics
+
+    integer :: ierr
+
+    integer(int64) :: allocation_ready
+    integer(int64) :: count_global(4)
+    integer(int64) :: count_local(4)
+
+    logical :: state_ready
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. compressible .or. .not. state_ready) then
+       call fail("native vertical remap prerequisites are incomplete")
+    end if
+    if (block_vertical_remap_active .or. &
+         associated(production_vertical_interpolator)) then
+       call fail("native vertical remap transaction is already active")
+    end if
+
+    ! remap_vertical_coordinates has just refreshed the Domain SOL boundary.
+    ! Mirror that exact pre-remap boundary in compact storage, then produce
+    ! all inter-block ghosts before taking the immutable old-mass snapshot.
+    call refresh_parallel_block_trend_boundary_state
+
+    if (allocated(block_vertical_remap)) then
+       if (size(block_vertical_remap) /= n_local_blocks()) then
+          call clear_block_vertical_remap_storage
+       end if
+    end if
+    if (.not. allocated(block_vertical_remap)) then
+       allocate(block_vertical_remap(n_local_blocks()))
+       block_vertical_remap_allocations = &
+            block_vertical_remap_allocations+1_int64
+    end if
+
+    call refresh_block_vertical_remap_masks
+    call apply_local_block_field_consumer( &
+         snapshot_block_vertical_remap_mass,statistics)
+    allocation_ready = block_vertical_remap_allocations
+    production_vertical_interpolator => interpolate
+    call apply_local_block_field_producer( &
+         remap_block_vertical_columns,statistics)
+    nullify(production_vertical_interpolator)
+
+    if (block_vertical_remap_allocations /= allocation_ready) then
+       call fail("native vertical remap allocated during production")
+    end if
+    call invalidate_local_block_hydrostatic_state
+    call invalidate_local_block_tendency_products
+
+    count_local = [statistics%candidate_count,statistics%active_count, &
+         statistics%scalar_count,statistics%vector_count]
+    call MPI_Allreduce(count_local,count_global,size(count_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce native vertical remap coverage")
+    if (any(count_global <= 0_int64)) then
+       call fail("native vertical remap coverage is empty")
+    end if
+    if (count_global(3) /= 2_int64*int(zlevels,int64)* &
+         count_global(2) .or. &
+         count_global(4) /= int(EDGE*zlevels,int64)* &
+         count_global(2)) then
+       call fail("native vertical remap production coverage differs")
+    end if
+    block_vertical_remap_active = .true.
+
+  end subroutine prepare_block_native_vertical_remap
+
+
+  subroutine complete_block_native_vertical_remap
+    ! Compare the independently produced block interiors with the completed
+    ! legacy Domain remap, then retain compact ownership. Domain-computed pole
+    ! and cross-root boundary aliases are imported only after the comparison.
+
+    implicit none
+
+    integer(int64) :: allocation_before
+    integer(int64) :: hydrostatic_refresh_after
+    integer(int64) :: hydrostatic_refresh_before
+    integer(int64) :: writeback_before
+
+    logical :: hydrostatic_ready
+    logical :: state_ready
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready .or. .not. block_vertical_remap_active .or. &
+         associated(production_vertical_interpolator)) then
+       call fail("native vertical remap completion is out of sequence")
+    end if
+    allocation_before = block_writeback_plan_allocation_count()
+    writeback_before = block_domain_production_writeback_count()
+
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_SOL,comparison_name="vertical remap")
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.false.)
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.true.)
+    call refresh_block_sol_ghosts
+    hydrostatic_refresh_before = &
+         local_block_hydrostatic_refresh_count()
+    call invalidate_local_block_hydrostatic_state
+    call ensure_local_block_hydrostatic_state
+    hydrostatic_refresh_after = &
+         local_block_hydrostatic_refresh_count()
+    hydrostatic_ready = local_block_hydrostatic_state_ready()
+    if (.not. hydrostatic_ready) then
+       call fail("native vertical remap hydrostatic state is not ready")
+    end if
+    if (hydrostatic_refresh_after-hydrostatic_refresh_before /= &
+         int(n_local_blocks(),int64)) then
+       call fail("native vertical remap hydrostatic refresh is incomplete")
+    end if
+    if (block_writeback_plan_allocation_count() /= allocation_before .or. &
+         block_domain_production_writeback_count() /= writeback_before) then
+       call fail("native vertical remap completion changed transport")
+    end if
+
+    block_vertical_remap_active = .false.
+
+  end subroutine complete_block_native_vertical_remap
+
+
+  subroutine snapshot_block_vertical_remap_mass ( &
+       catalog_index,block,context)
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: field_start
+    integer :: local_index
+    integer :: mass_slot
+    integer :: n_value
+
+    local_index = catalog_local_block(catalog_index)
+    mass_slot = S_MASS-block%scalar_variable
+    n_value = block%n_field_level*size(block%node)
+    if (local_index < 1 .or. &
+         local_index > size(block_vertical_remap) .or. &
+         mass_slot < 0 .or. mass_slot >= block%n_scalar_variable .or. &
+         n_value < 1) then
+       call fail("native vertical remap snapshot layout is invalid")
+    end if
+    if (allocated(block_vertical_remap(local_index)%old_mass)) then
+       if (size(block_vertical_remap(local_index)%old_mass) /= n_value) then
+          deallocate(block_vertical_remap(local_index)%old_mass)
+       end if
+    end if
+    if (.not. allocated(block_vertical_remap(local_index)%old_mass)) then
+       allocate(block_vertical_remap(local_index)%old_mass(n_value))
+       block_vertical_remap_allocations = &
+            block_vertical_remap_allocations+1_int64
+    end if
+    field_start = mass_slot*n_value+1
+    if (field_start < 1 .or. &
+         field_start+n_value-1 > size(block%scalar)) then
+       call fail("native vertical remap mass snapshot is short")
+    end if
+    block_vertical_remap(local_index)%catalog_index = catalog_index
+    block_vertical_remap(local_index)%old_mass = &
+         block%scalar(field_start:field_start+n_value-1)
+
+    select type (statistics => context)
+    type is (Block_Vertical_Remap_Context)
+       continue
+    class default
+       call fail("native vertical remap snapshot context is invalid")
+    end select
+
+  end subroutine snapshot_block_vertical_remap_mass
+
+
+  subroutine refresh_block_vertical_remap_masks
+    ! Transport the current post-adaptation Domain node mask through the
+    ! persistent reverse writeback route. Only one logical value per compact
+    ! patch node is retained; replicated scalar payload slots are discarded.
+
+    implicit none
+
+    integer :: b
+    integer :: d
+    integer :: local_index
+    integer :: local_patch
+    integer :: n_patch
+    integer :: pos_scalar
+    integer :: pos_vector
+    integer :: r
+    integer :: source
+    integer :: slot
+
+    if (.not. allocated(block_vertical_remap)) then
+       call fail("vertical remap mask storage is unavailable")
+    end if
+    if (size(block_vertical_remap) /= n_local_blocks()) then
+       call fail("vertical remap mask storage extent differs")
+    end if
+    call exchange_domain_to_block_payloads(BLOCK_PAYLOAD_REMAP_MASK)
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(b)
+       if (allocated(block_vertical_remap(local_index)%active)) then
+          if (size(block_vertical_remap(local_index)%active) /= &
+               n_patch*PATCH_SIZE**2) then
+             deallocate(block_vertical_remap(local_index)%active)
+          end if
+       end if
+       if (.not. allocated(block_vertical_remap(local_index)%active)) then
+          allocate(block_vertical_remap(local_index)% &
+               active(n_patch*PATCH_SIZE**2))
+          block_vertical_remap_allocations = &
+               block_vertical_remap_allocations+1_int64
+       end if
+       if (allocated(block_vertical_remap(local_index)%source_start)) then
+          if (size(block_vertical_remap(local_index)%source_start) /= &
+               n_patch) then
+             deallocate(block_vertical_remap(local_index)%source_start)
+          end if
+       end if
+       if (.not. allocated( &
+            block_vertical_remap(local_index)%source_start)) then
+          allocate(block_vertical_remap(local_index)% &
+               source_start(n_patch))
+          block_vertical_remap_allocations = &
+               block_vertical_remap_allocations+1_int64
+       end if
+       block_vertical_remap(local_index)%catalog_index = b
+       block_vertical_remap(local_index)%installed_patch_count = 0
+       block_vertical_remap(local_index)%active = .false.
+       block_vertical_remap(local_index)%source_start = -1
+    end do
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       source = source_rank(b)
+       if (source /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1)+1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("retained vertical remap mask Domain is invalid")
+       end if
+       local_patch = 0
+       call install_retained_mask_subtree( &
+            d,block_catalog(b)%root_patch,b,local_patch)
+       if (local_patch /= local_block_patch_count(b)) then
+          call fail("retained vertical remap mask coverage differs")
+       end if
+    end do
+
+    do r = 1,n_process
+       pos_scalar = block_writeback_plan%scalar_send_displ(r)+1
+       pos_vector = block_writeback_plan%vector_send_displ(r)+1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          n_patch = local_block_patch_count(b)
+          do local_patch = 0,n_patch-1
+             if (pos_scalar < 1 .or. pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue-1 > &
+                  size(block_writeback_plan%scalar_send_buffer) .or. &
+                  pos_vector < 1 .or. pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue-1 > &
+                  size(block_writeback_plan%vector_send_buffer)) then
+                call fail("remote vertical remap mask payload is short")
+             end if
+             call install_vertical_remap_mask_patch( &
+                  b,local_patch,block_writeback_plan%scalar_send_buffer( &
+                  pos_scalar:pos_scalar+ &
+                  block_writeback_plan%scalar_patch_nvalue-1), &
+                  block_writeback_plan%vector_send_buffer( &
+                  pos_vector:pos_vector+ &
+                  block_writeback_plan%vector_patch_nvalue-1))
+             pos_scalar = pos_scalar + &
+                  block_writeback_plan%scalar_patch_nvalue
+             pos_vector = pos_vector + &
+                  block_writeback_plan%vector_patch_nvalue
+          end do
+       end do
+       if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
+            block_writeback_plan%scalar_send_count(r)+1 .or. &
+            pos_vector /= block_writeback_plan%vector_send_displ(r) + &
+            block_writeback_plan%vector_send_count(r)+1) then
+          call fail("remote vertical remap mask extent differs")
+       end if
+    end do
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(b)
+       if (block_vertical_remap(local_index)%catalog_index /= b .or. &
+            block_vertical_remap(local_index)%installed_patch_count /= &
+            n_patch .or. any(block_vertical_remap(local_index)% &
+            source_start < 0)) then
+          call fail("vertical remap mask installation is incomplete")
+       end if
+    end do
+
+  contains
+
+    subroutine install_vertical_remap_mask_patch ( &
+         catalog_index,patch_index,value,source_metadata)
+
+      implicit none
+
+      integer, intent(in) :: catalog_index
+      integer, intent(in) :: patch_index
+      real(dp), intent(in) :: value(:)
+      real(dp), intent(in) :: source_metadata(:)
+
+      integer :: first
+      integer :: index
+      integer :: n_patch
+      integer :: source_start
+
+      index = catalog_local_block(catalog_index)
+      first = patch_index*PATCH_SIZE**2+1
+      if (index < 1 .or. index > size(block_vertical_remap)) then
+         call fail("vertical remap mask block address is invalid")
+      end if
+      if (.not. allocated(block_vertical_remap(index)%active)) then
+         call fail("vertical remap mask block storage is absent")
+      end if
+      if (.not. allocated( &
+           block_vertical_remap(index)%source_start)) then
+         call fail("vertical remap source storage is absent")
+      end if
+      n_patch = local_block_patch_count(catalog_index)
+      if (patch_index < 0 .or. &
+           patch_index >= n_patch .or. &
+           size(value) /= block_writeback_plan%scalar_patch_nvalue .or. &
+           size(source_metadata) /= &
+           block_writeback_plan%vector_patch_nvalue .or. &
+           first+PATCH_SIZE**2-1 > &
+           size(block_vertical_remap(index)%active)) then
+         call fail("vertical remap mask patch address is invalid")
+      end if
+      if (.not. ieee_is_finite(source_metadata(1)) .or. &
+           source_metadata(1) < 0.0_dp .or. &
+           source_metadata(1) > real(huge(source_start),dp)) then
+         call fail("vertical remap patch source is invalid")
+      end if
+      source_start = nint(source_metadata(1))
+      if (abs(source_metadata(1)-real(source_start,dp)) > 0.0_dp) then
+         call fail("vertical remap patch source is not integral")
+      end if
+      block_vertical_remap(index)%active( &
+           first:first+PATCH_SIZE**2-1) = &
+           value(1:PATCH_SIZE**2) >= real(ADJZONE,dp)
+      block_vertical_remap(index)%source_start(patch_index+1) = &
+           source_start
+      block_vertical_remap(index)%installed_patch_count = &
+           block_vertical_remap(index)%installed_patch_count+1
+
+    end subroutine install_vertical_remap_mask_patch
+
+
+    recursive subroutine install_retained_mask_subtree ( &
+         d,p,catalog_index,patch_index)
+
+      implicit none
+
+      integer, intent(in) :: d
+      integer, intent(in) :: p
+      integer, intent(in) :: catalog_index
+      integer, intent(inout) :: patch_index
+
+      integer :: c
+      integer :: child
+      integer :: scalar_pos
+      integer :: vector_pos
+
+      if (p < 0 .or. p >= grid(d)%patch%length) then
+         call fail("retained vertical remap mask patch is invalid")
+      end if
+      if (grid(d)%patch%elts(p+1)%deleted) return
+      scalar_pos = 1
+      vector_pos = 1
+      call pack_domain_patch_prognostic( &
+           d,p,BLOCK_PAYLOAD_REMAP_MASK, &
+           ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
+           ghost_exchange_plan%vector_patch_buffer,vector_pos)
+      if (scalar_pos /= &
+           size(ghost_exchange_plan%scalar_patch_buffer)+1 .or. &
+           vector_pos /= &
+           size(ghost_exchange_plan%vector_patch_buffer)+1) then
+         call fail("retained vertical remap mask extent differs")
+      end if
+      call install_vertical_remap_mask_patch( &
+           catalog_index,patch_index, &
+           ghost_exchange_plan%scalar_patch_buffer, &
+           ghost_exchange_plan%vector_patch_buffer)
+      patch_index = patch_index+1
+      do c = 1,N_CHDRN
+         child = grid(d)%patch%elts(p+1)%children(c)
+         if (child <= 0) cycle
+         call install_retained_mask_subtree( &
+              d,child,catalog_index,patch_index)
+      end do
+
+    end subroutine install_retained_mask_subtree
+
+  end subroutine refresh_block_vertical_remap_masks
+
+
+  subroutine remap_block_vertical_columns (catalog_index,block,context)
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(inout) :: block
+    class(*), intent(inout) :: context
+
+    integer :: i
+    integer :: j
+    integer :: local_index
+    integer :: p
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_vertical_remap)) then
+       call fail("native vertical remap block index is invalid")
+    end if
+    if (block_vertical_remap(local_index)%catalog_index /= &
+         catalog_index .or. .not. allocated( &
+         block_vertical_remap(local_index)%active)) then
+       call fail("native vertical remap block state is stale")
+    end if
+    if (.not. associated(production_vertical_interpolator)) then
+       call fail("native vertical remap interpolator is unavailable")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Vertical_Remap_Context)
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level < level_start .or. &
+               block%patch(p)%level > level_end) cycle
+          do j = 0,PATCH_SIZE-1
+             do i = 0,PATCH_SIZE-1
+                statistics%candidate_count = &
+                     statistics%candidate_count+1_int64
+                if (.not. block_vertical_remap(local_index)%active( &
+                     (p-1)*PATCH_SIZE**2+PATCH_SIZE*j+i+1)) cycle
+                statistics%active_count = &
+                     statistics%active_count+1_int64
+                call remap_one_block_vertical_column( &
+                     block,local_index,p,i,j,statistics)
+             end do
+          end do
+       end do
+    class default
+       call fail("native vertical remap producer context is invalid")
+    end select
+
+  end subroutine remap_block_vertical_columns
+
+
+  subroutine remap_one_block_vertical_column ( &
+       block,local_index,p,i,j,statistics)
+
+    implicit none
+
+    type(Block_Data), intent(inout) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    type(Block_Vertical_Remap_Context), intent(inout) :: statistics
+
+    integer :: e
+    integer :: k
+    integer :: level_slot
+    integer :: mass_slot
+    integer :: temp_slot
+
+    real(dp) :: flux_new(1:zlevels,RT:UP)
+    real(dp) :: flux_old(1:zlevels,RT:UP)
+    real(dp) :: p_edge_new(0:zlevels,RT:UP)
+    real(dp) :: p_edge_old(0:zlevels,RT:UP)
+    real(dp) :: p_neighbor_new(0:zlevels)
+    real(dp) :: p_neighbor_old(0:zlevels)
+    real(dp) :: p_new(0:zlevels)
+    real(dp) :: p_old(0:zlevels)
+    real(dp) :: rho_dz
+    real(dp) :: rho_dz_new(1:zlevels)
+    real(dp) :: rho_dz_theta
+    real(dp) :: theta_new(1:zlevels)
+    real(dp) :: theta_old(1:zlevels)
+
+    mass_slot = S_MASS-block%scalar_variable
+    temp_slot = S_TEMP-block%scalar_variable
+    if (mass_slot < 0 .or. mass_slot >= block%n_scalar_variable .or. &
+         temp_slot < 0 .or. temp_slot >= block%n_scalar_variable) then
+       call fail("native vertical remap scalar layout is invalid")
+    end if
+
+    call block_remap_pressure_coordinates( &
+         block,local_index,p,i,j,p_new,p_old)
+    do e = RT,UP
+       select case (e)
+       case (RT)
+          call block_remap_pressure_coordinates( &
+               block,local_index,p,i+1,j, &
+               p_neighbor_new,p_neighbor_old)
+       case (DG)
+          call block_remap_pressure_coordinates( &
+               block,local_index,p,i+1,j+1, &
+               p_neighbor_new,p_neighbor_old)
+       case (UP)
+          call block_remap_pressure_coordinates( &
+               block,local_index,p,i,j+1, &
+               p_neighbor_new,p_neighbor_old)
+       end select
+       p_edge_new(:,e) = 0.5_dp*(p_new+p_neighbor_new)
+       p_edge_old(:,e) = 0.5_dp*(p_old+p_neighbor_old)
+    end do
+
+    do k = 1,zlevels
+       level_slot = k-block%field_level+1
+       if (level_slot < 1 .or. level_slot > block%n_field_level) then
+          call fail("native vertical remap atmospheric level is invalid")
+       end if
+       rho_dz = block_remap_old_mass_value( &
+            block,local_index,p,i,j,level_slot) + &
+            block_remap_mean_scalar_value( &
+            block,local_index,p,mass_slot,level_slot,i,j)
+       rho_dz_theta = block_scalar_family_value( &
+            block,local_index,p,temp_slot,level_slot,i,j, &
+            BLOCK_PAYLOAD_SOL) + block_remap_mean_scalar_value( &
+            block,local_index,p,temp_slot,level_slot,i,j)
+       if (abs(rho_dz) <= tiny(1.0_dp)) then
+          call fail("native vertical remap column has zero mass")
+       end if
+       theta_old(zlevels-k+1) = rho_dz_theta/rho_dz
+       do e = RT,UP
+          flux_old(zlevels-k+1,e) = block_vector_family_value( &
+               block,local_index,p,level_slot,i,j,e, &
+               BLOCK_PAYLOAD_SOL)
+       end do
+    end do
+
+    rho_dz_new = (p_new(zlevels:1:-1)- &
+         p_new(zlevels-1:0:-1))/grav_accel
+    call production_vertical_interpolator( &
+         zlevels,theta_new,p_new,theta_old,p_old)
+    do e = RT,UP
+       call production_vertical_interpolator( &
+            zlevels,flux_new(:,e),p_edge_new(:,e), &
+            flux_old(:,e),p_edge_old(:,e))
+    end do
+
+    do k = 1,zlevels
+       level_slot = k-block%field_level+1
+       call set_block_scalar_sol_value( &
+            block,p,mass_slot,level_slot,i,j, &
+            rho_dz_new(k)-block_remap_mean_scalar_value( &
+            block,local_index,p,mass_slot,level_slot,i,j))
+       call set_block_scalar_sol_value( &
+            block,p,temp_slot,level_slot,i,j, &
+            rho_dz_new(k)*theta_new(zlevels-k+1) - &
+            block_remap_mean_scalar_value( &
+            block,local_index,p,temp_slot,level_slot,i,j))
+       statistics%scalar_count = statistics%scalar_count+2_int64
+       do e = RT,UP
+          call set_block_vector_sol_value( &
+               block,p,level_slot,i,j,e,flux_new(zlevels-k+1,e))
+          statistics%vector_count = statistics%vector_count+1_int64
+       end do
+    end do
+
+  end subroutine remap_one_block_vertical_column
+
+
+  subroutine block_remap_pressure_coordinates ( &
+       block,local_index,p,i,j,p_new,p_old)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    real(dp), intent(out) :: p_new(0:zlevels)
+    real(dp), intent(out) :: p_old(0:zlevels)
+
+    integer :: k
+    integer :: level_slot
+    integer :: mass_slot
+
+    real(dp) :: rho_dz
+
+    mass_slot = S_MASS-block%scalar_variable
+    p_old(0) = p_top
+    do k = 1,zlevels
+       level_slot = zlevels-k+1-block%field_level+1
+       rho_dz = block_remap_old_mass_value( &
+            block,local_index,p,i,j,level_slot) + &
+            block_remap_mean_scalar_value( &
+            block,local_index,p,mass_slot,level_slot,i,j)
+       p_old(k) = p_old(k-1)+grav_accel*rho_dz
+    end do
+    p_new = a_vert(zlevels:0:-1) + &
+         b_vert(zlevels:0:-1)*p_old(zlevels)
+
+  end subroutine block_remap_pressure_coordinates
+
+
+  real(dp) function block_remap_old_mass_value ( &
+       block,local_index,p,i,j,level_slot) result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+    integer, intent(in) :: level_slot
+
+    integer :: node
+    integer :: record
+    integer :: storage_class
+    integer :: value_index
+
+    if (level_slot < 1 .or. level_slot > block%n_field_level) then
+       call fail("native vertical remap old-mass level is invalid")
+    end if
+    call locate_block_scalar_record( &
+         block,local_index,p,i,j,storage_class,record,node,.true.)
+    if (storage_class == STORE_PATCH) then
+       value_index = (level_slot-1)*size(block%node) + &
+            block%patch(record+1)%elts_start+node+1
+       if (value_index < 1 .or. value_index > size( &
+            block_vertical_remap(local_index)%old_mass)) then
+          call fail("native vertical remap old-mass address is invalid")
+       end if
+       value = block_vertical_remap(local_index)%old_mass(value_index)
+    else
+       value = block_scalar_family_value( &
+            block,local_index,p,S_MASS-block%scalar_variable, &
+            level_slot,i,j,BLOCK_PAYLOAD_SOL,.true.)
+    end if
+    if (.not. ieee_is_finite(value)) then
+       call fail("native vertical remap old mass is non-finite")
+    end if
+
+  end function block_remap_old_mass_value
+
+
+  real(dp) function block_remap_mean_scalar_value ( &
+       block,local_index,p,scalar_slot,level_slot,i,j) result(value)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+    integer, intent(in) :: scalar_slot
+    integer, intent(in) :: level_slot
+    integer, intent(in) :: i
+    integer, intent(in) :: j
+
+    integer :: field_index
+    integer :: n_storage_node
+    integer :: node
+    integer :: node_index
+    integer :: record
+    integer :: storage_class
+
+    value = 0.0_dp
+    if (scalar_slot < 0 .or. &
+         scalar_slot >= block%n_scalar_variable .or. &
+         level_slot < 1 .or. level_slot > block%n_field_level) then
+       call fail("native vertical remap mean field is invalid")
+    end if
+    call locate_block_scalar_record( &
+         block,local_index,p,i,j,storage_class,record,node,.true.)
+    select case (storage_class)
+    case (STORE_PATCH)
+       n_storage_node = size(block%node)
+       node_index = block%patch(record+1)%elts_start+node
+       field_index = &
+            (scalar_slot*block%n_field_level+level_slot-1)* &
+            n_storage_node+node_index+1
+       if (field_index < 1 .or. &
+            field_index > size(block%scalar_mean)) then
+          call fail("native vertical remap patch mean is invalid")
+       end if
+       value = block%scalar_mean(field_index)
+    case (STORE_BDRY)
+       n_storage_node = size(block%bdry_node)
+       field_index = &
+            (scalar_slot*block%n_field_level+level_slot-1)* &
+            n_storage_node+node+1
+       if (field_index < 1 .or. &
+            field_index > size(block%bdry_scalar_mean)) then
+          call fail("native vertical remap boundary mean is invalid")
+       end if
+       value = block%bdry_scalar_mean(field_index)
+    case (STORE_GHOST)
+       n_storage_node = size(block%ghost_node)
+       field_index = &
+            (scalar_slot*block%n_field_level+level_slot-1)* &
+            n_storage_node+node+1
+       if (field_index < 1 .or. &
+            field_index > size(block%ghost_scalar_mean)) then
+          call fail("native vertical remap ghost mean is invalid")
+       end if
+       value = block%ghost_scalar_mean(field_index)
+    case default
+       call fail("native vertical remap mean storage is invalid")
+    end select
+    if (.not. ieee_is_finite(value)) then
+       call fail("native vertical remap mean value is non-finite")
+    end if
+
+  end function block_remap_mean_scalar_value
 
 
   subroutine build_parallel_block_catalog
@@ -5904,6 +6698,7 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
          payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
          payload_family /= BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .and. &
+         payload_family /= BLOCK_PAYLOAD_REMAP_MASK .and. &
          payload_family /= &
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("invalid Domain-to-block payload family")
@@ -11915,7 +12710,8 @@ end subroutine build_parallel_block_catalog
 
 
   real(dp) function block_scalar_family_value ( &
-       block,local_index,p,scalar_slot,level_slot,i,j,payload_family) &
+       block,local_index,p,scalar_slot,level_slot,i,j,payload_family, &
+       remap_addressing) &
        result(value)
 
     implicit none
@@ -11928,6 +12724,7 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: i
     integer, intent(in) :: j
     integer, intent(in) :: payload_family
+    logical, optional, intent(in) :: remap_addressing
 
     integer :: field_index
     integer :: n_storage_node
@@ -11936,7 +12733,12 @@ end subroutine build_parallel_block_catalog
     integer :: record
     integer :: storage_class
 
+    logical :: use_remap_addressing
+
     value = 0.0_dp
+    use_remap_addressing = .false.
+    if (present(remap_addressing)) &
+         use_remap_addressing = remap_addressing
     if (scalar_slot < 0 .or. &
          scalar_slot >= block%n_scalar_variable .or. &
          level_slot < 1 .or. level_slot > block%n_field_level) then
@@ -11947,7 +12749,8 @@ end subroutine build_parallel_block_catalog
        call fail("scalar-wavelet field family is invalid")
     end if
     call locate_block_scalar_record( &
-         block,local_index,p,i,j,storage_class,record,node)
+         block,local_index,p,i,j,storage_class,record,node, &
+         use_remap_addressing)
     select case (storage_class)
     case (STORE_PATCH)
        if (record < 0 .or. record >= size(block%patch)) then
@@ -15028,7 +15831,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine locate_block_scalar_record ( &
-       block,local_index,p,i,j,storage_class,record,node)
+       block,local_index,p,i,j,storage_class,record,node,remap_addressing)
 
     implicit none
 
@@ -15040,6 +15843,7 @@ end subroutine build_parallel_block_catalog
     integer, intent(out) :: storage_class
     integer, intent(out) :: record
     integer, intent(out) :: node
+    logical, optional, intent(in) :: remap_addressing
 
     integer :: address
     integer :: base_adjustment
@@ -15052,6 +15856,8 @@ end subroutine build_parallel_block_catalog
     integer :: target_index
     integer :: target_start
 
+    logical :: use_remap_addressing
+
     address = 0
     base_adjustment = 0
     candidate_start = -1
@@ -15062,6 +15868,9 @@ end subroutine build_parallel_block_catalog
     target_domain = -1
     target_index = -1
     target_start = -1
+    use_remap_addressing = .false.
+    if (present(remap_addressing)) &
+         use_remap_addressing = remap_addressing
     storage_class = 0
     record = -1
     node = -1
@@ -15140,8 +15949,13 @@ end subroutine build_parallel_block_catalog
        if (record < 0 .or. record >= size(block%patch)) then
           call fail("scalar-restriction stencil patch record is invalid")
        end if
-       target_start = block_patch_source_start( &
-            block,local_index,record+1)
+       if (use_remap_addressing) then
+          target_start = block_remap_patch_source_start( &
+               block,local_index,record+1)
+       else
+          target_start = block_patch_source_start( &
+               block,local_index,record+1)
+       end if
        target_domain = block%root_domain
     case (STORE_BDRY)
        if (record < 1 .or. record > size(block%bdry_storage)) then
@@ -15168,8 +15982,13 @@ end subroutine build_parallel_block_catalog
 
     if (target_domain == block%root_domain) then
        do r = 1,size(block%patch)
-          candidate_start = block_patch_source_start( &
-               block,local_index,r)
+          if (use_remap_addressing) then
+             candidate_start = block_remap_patch_source_start( &
+                  block,local_index,r)
+          else
+             candidate_start = block_patch_source_start( &
+                  block,local_index,r)
+          end if
           if (target_index < candidate_start .or. &
                target_index >= candidate_start+PATCH_SIZE**2) cycle
           storage_class = STORE_PATCH
@@ -15202,10 +16021,17 @@ end subroutine build_parallel_block_catalog
        return
     end do
 
-    write(error_unit,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
-         "Rank ",rank, &
-         ": unresolved scalar-restriction source: block = ",block%id, &
-         ", patch = ",p,", i = ",i,", j = ",j
+    if (use_remap_addressing) then
+       write(error_unit,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
+            "Rank ",rank, &
+            ": unresolved vertical-remap source: block = ",block%id, &
+            ", patch = ",p,", i = ",i,", j = ",j
+    else
+       write(error_unit,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
+            "Rank ",rank, &
+            ": unresolved scalar-restriction source: block = ",block%id, &
+            ", patch = ",p,", i = ",i,", j = ",j
+    end if
     write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
          "  side = ",side,", initial storage = ",storage_class, &
          ", initial record = ",record,", offset = ", &
@@ -15216,9 +16042,49 @@ end subroutine build_parallel_block_catalog
          ", target domain = ",target_domain, &
          ", target index = ",target_index
     flush(error_unit)
-    call fail("scalar-restriction source index is unresolved")
+    if (use_remap_addressing) then
+       call fail("vertical-remap source index is unresolved")
+    else
+       call fail("scalar-restriction source index is unresolved")
+    end if
 
   end subroutine locate_block_scalar_record
+
+
+  integer function block_remap_patch_source_start ( &
+       block,local_index,p) result(source_start)
+
+    implicit none
+
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index
+    integer, intent(in) :: p
+
+    source_start = -1
+    if (.not. allocated(block_vertical_remap)) then
+       call fail("vertical remap source storage is unavailable")
+    end if
+    if (local_index < 1 .or. &
+         local_index > size(block_vertical_remap) .or. &
+         p < 1 .or. p > size(block%patch)) then
+       call fail("vertical remap source patch is invalid")
+    end if
+    if (block_vertical_remap(local_index)%catalog_index /= block%id+1) then
+       call fail("vertical remap source map has a stale block")
+    end if
+    if (.not. allocated( &
+         block_vertical_remap(local_index)%source_start)) then
+       call fail("vertical remap source map is unavailable")
+    end if
+    if (p > size(block_vertical_remap(local_index)%source_start)) then
+       call fail("vertical remap source map extent is invalid")
+    end if
+    source_start = block_vertical_remap(local_index)%source_start(p)
+    if (source_start < 0) then
+       call fail("vertical remap source map is incomplete")
+    end if
+
+  end function block_remap_patch_source_start
 
 
   integer function block_patch_source_start ( &
@@ -18784,6 +19650,7 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
          payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
          payload_family /= BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .and. &
+         payload_family /= BLOCK_PAYLOAD_REMAP_MASK .and. &
          payload_family /= &
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("invalid Domain writeback payload family")
@@ -18801,6 +19668,30 @@ end subroutine build_parallel_block_catalog
          vector_pos < 1 .or. &
          vector_pos+n_vector_patch-1 > size(vector_payload)) then
        call fail("Domain writeback record buffer extent is invalid")
+    end if
+
+    if (payload_family == BLOCK_PAYLOAD_REMAP_MASK) then
+       if (mult_scalar /= 1 .or. n_vector_patch < 1) then
+          call fail("vertical remap mask scalar layout is invalid")
+       end if
+       start = grid(d)%patch%elts(p+1)%elts_start
+       if (start < 0 .or. &
+            start+PATCH_SIZE**2 > size(grid(d)%mask_n%elts)) then
+          call fail("vertical remap Domain mask extent is invalid")
+       end if
+       do scalar_slot = 1,n_scalar_variable
+          do level_slot = 1,n_field_level
+             scalar_payload( &
+                  scalar_pos:scalar_pos+PATCH_SIZE**2-1) = &
+                  real(grid(d)%mask_n%elts( &
+                  start+1:start+PATCH_SIZE**2),dp)
+             scalar_pos = scalar_pos+PATCH_SIZE**2
+          end do
+       end do
+       vector_payload(vector_pos:vector_pos+n_vector_patch-1) = 0.0_dp
+       vector_payload(vector_pos) = real(start,dp)
+       vector_pos = vector_pos+n_vector_patch
+       return
     end if
 
     if (payload_family == BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .or. &

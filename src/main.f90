@@ -443,7 +443,8 @@ contains
     end if
 
     ! Materialize the current block shadow transactionally before legacy
-    ! physics, adaptation and remapping can change Domain fields or topology.
+    ! physics and adaptation can change Domain fields or topology. A new
+    ! compact state is installed after adaptation and retained through remap.
     ! If no complete shadow exists, retain the idempotent cleanup path.
     block_state_ready = parallel_block_state_is_ready()
     if (block_state_ready .and. .not. block_multistage_candidate) then
@@ -500,6 +501,17 @@ contains
     if (block_multistage_candidate) &
          call complete_block_adaptation_lifecycle
 
+    ! Rebuild the compact state immediately after the topology transition.
+    ! Vertical remapping can then execute independently in both compact block
+    ! storage and the retained Domain oracle without a post-remap reimport.
+    if (rebuild_block_state) then
+       call build_parallel_block_catalog
+       call build_source_blocks
+       call migrate_blocks( &
+            verbose=.false.,full_validation=.false.)
+       call retain_post_grid_change_block_reconstruction
+    end if
+
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Vertical remapping (after grid adaptation to ensure ADJCENT_ZONE and ZERO cells are remapped consistently)
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -512,17 +524,6 @@ contains
        iremap = iremap + 1
     end if
     if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
-
-    ! Reconstruct a complete production shadow from the actual
-    ! post-grid-change Domain state. Retain it after exact validation so the
-    ! next timestep can continue through the transactional block pathway.
-    if (rebuild_block_state) then
-       call build_parallel_block_catalog
-       call build_source_blocks
-       call migrate_blocks( &
-            verbose=.false.,full_validation=.false.)
-       call retain_post_grid_change_block_reconstruction
-    end if
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Update time step and save data

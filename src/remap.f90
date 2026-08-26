@@ -11,6 +11,10 @@ module remap_mod
   use domain_mod,      only : Domain, Float_Field, sol, sol_mean, topography, idx
   use domain_ops_mod,  only : apply_no_bdry2
   use init_mod,        only : z_coords 
+  use parallel_block_mpi_mod, only : &
+       complete_block_native_vertical_remap, &
+       parallel_block_state_is_ready, &
+       prepare_block_native_vertical_remap
   use utils_mod,       only :  phi_node, porous_density
   
   implicit none
@@ -50,6 +54,8 @@ contains
     ! remap0 is too diffusive; remap1, remap2W are very stable and remap2PPM, remap2S, remap4 are less stable.
     
     implicit none
+
+    logical :: block_remap
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -91,6 +97,14 @@ contains
     call update_bdry (sol, NONE, 900)
     old_mass = sol(S_MASS,1:zlevels)
 
+    block_remap = .false.
+    if (compressible) then
+       block_remap = parallel_block_state_is_ready()
+       if (block_remap) then
+          call prepare_block_native_vertical_remap(interpolate)
+       end if
+    end if
+
     ! Remap variables on all levels
     if (compressible) then
        call apply_no_bdry2 (remap_compressible,   z_null)
@@ -98,6 +112,13 @@ contains
        call apply_no_bdry2 (remap_incompressible, z_null)
     end if
     sol%bdry_uptodate = .false.
+
+    if (block_remap) then
+       ! Materialize the completed oracle boundary only after both Domain and
+       ! compact interiors have independently executed the same column kernel.
+       call update_bdry(sol,NONE,909)
+       call complete_block_native_vertical_remap
+    end if
 
     nullify (interpolate)
     deallocate (old_mass)
