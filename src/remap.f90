@@ -125,14 +125,11 @@ contains
 
     integer :: ierr
 
-    real(dp) :: boundary_seconds
     real(dp) :: block_seconds
-    real(dp) :: completion_seconds
-    real(dp) :: global_timing(5)
-    real(dp) :: local_timing(5)
+    real(dp) :: global_timing(2)
+    real(dp) :: local_timing(2)
     real(dp) :: oracle_seconds
     real(dp) :: start_time
-    real(dp) :: writeback_seconds
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -176,20 +173,21 @@ contains
 
     block_remap = .false.
     validate_oracle = .false.
+    block_seconds = 0.0_dp
+    oracle_seconds = 0.0_dp
     if (compressible) then
        block_remap = parallel_block_state_is_ready()
        if (block_remap) then
           validate_oracle = &
                block_vertical_remap_validation_enabled()
           if (validate_oracle) old_mass = sol(S_MASS,1:zlevels)
-          start_time = MPI_Wtime()
+          if (validate_oracle) start_time = MPI_Wtime()
           call prepare_block_native_vertical_remap(interpolate)
-          block_seconds = MPI_Wtime()-start_time
+          if (validate_oracle) block_seconds = MPI_Wtime()-start_time
        end if
     end if
 
     if (block_remap) then
-       oracle_seconds = 0.0_dp
        if (validate_oracle) then
           start_time = MPI_Wtime()
           call apply_no_bdry2(remap_compressible,z_null)
@@ -199,44 +197,30 @@ contains
           oracle_seconds = MPI_Wtime()-start_time
        end if
 
-       start_time = MPI_Wtime()
        call write_block_native_vertical_remap_to_domains
-       writeback_seconds = MPI_Wtime()-start_time
        sol%bdry_uptodate = .false.
 
-       start_time = MPI_Wtime()
        call update_bdry(sol,NONE,910)
-       boundary_seconds = MPI_Wtime()-start_time
 
-       start_time = MPI_Wtime()
        call complete_block_native_vertical_remap
-       completion_seconds = MPI_Wtime()-start_time
 
-       local_timing = [block_seconds,writeback_seconds, &
-            boundary_seconds,completion_seconds,oracle_seconds]
-       call MPI_Allreduce(local_timing,global_timing,size(local_timing), &
-            MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
-       if (ierr /= MPI_SUCCESS) then
-          if (rank == 0) write (6,'(a)') &
-               "MPI_Allreduce failed for vertical-remap timing"
-          call abort_run
-       end if
-
-       if (rank == 0) then
-          write (6,'(a,es12.5)') &
-               "  block vertical remap max time [s] = ",global_timing(1)
-          write (6,'(a,es12.5)') &
-               "  remap Domain compatibility writeback max time [s] = ", &
-               global_timing(2)
-          write (6,'(a,es12.5)') &
-               "  remap Domain boundary refresh max time [s] = ", &
-               global_timing(3)
-          write (6,'(a,es12.5)') &
-               "  remap compact completion max time [s] = ", &
-               global_timing(4)
-          if (validate_oracle) write (6,'(a,es12.5)') &
-               "  remap validation oracle max time [s] = ", &
-               global_timing(5)
+       if (validate_oracle) then
+          local_timing = [block_seconds,oracle_seconds]
+          call MPI_Allreduce(local_timing,global_timing, &
+               size(local_timing),MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
+          if (ierr /= MPI_SUCCESS) then
+             if (rank == 0) write (6,'(a)') &
+                  "MPI_Allreduce failed for vertical-remap validation timing"
+             call abort_run
+          end if
+          if (rank == 0) then
+             write (6,'(a,es12.5)') &
+                  "  block vertical remap max time [s] = ", &
+                  global_timing(1)
+             write (6,'(a,es12.5)') &
+                  "  remap validation oracle max time [s] = ", &
+                  global_timing(2)
+          end if
        end if
     else if (compressible) then
        ! Transitional fallback for configurations without a retained compact

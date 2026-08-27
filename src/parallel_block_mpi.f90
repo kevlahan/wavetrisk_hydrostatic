@@ -433,10 +433,6 @@ module parallel_block_mpi_mod
   end type Block_Vertical_Remap_Storage
 
   type :: Block_Vertical_Remap_Context
-     integer(int64) :: candidate_count = 0_int64
-     integer(int64) :: active_count = 0_int64
-     integer(int64) :: scalar_count = 0_int64
-     integer(int64) :: vector_count = 0_int64
   end type Block_Vertical_Remap_Context
 
   type :: Block_Minimum_Mass_Context
@@ -1156,6 +1152,83 @@ contains
   end subroutine retain_post_grid_change_block_reconstruction
 
 
+  subroutine prepare_block_native_vertical_remap_boundary_state
+    ! Refresh exactly the compact stencil state consumed by vertical remap.
+    ! Unlike the trend-entry validation driver, this production path performs
+    ! one boundary import and one ghost exchange, without reconstruction,
+    ! repeated installation, stencil moments or diagnostic reductions.
+
+    implicit none
+
+    integer :: scalar_ghost_recv_size_before
+    integer :: scalar_ghost_send_size_before
+    integer :: vector_ghost_recv_size_before
+    integer :: vector_ghost_send_size_before
+
+    integer(int64) :: production_writeback_before
+    integer(int64) :: writeback_allocation_before
+
+    logical :: accumulator_ready
+    logical :: checkpoint_ready
+    logical :: state_ready
+    logical :: tendency_ready
+    logical :: trial_active
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("vertical remap boundary refresh before state is ready")
+    end if
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    tendency_ready = local_block_tendency_state_ready()
+    accumulator_ready = &
+         local_block_tendency_accumulator_state_ready()
+    if (trial_active .or. checkpoint_ready .or. tendency_ready .or. &
+         accumulator_ready) then
+       call fail("vertical remap boundary refresh found pending state")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    production_writeback_before = &
+         block_domain_production_writeback_count()
+    scalar_ghost_send_size_before = &
+         size(ghost_exchange_plan%scalar_send_buffer)
+    scalar_ghost_recv_size_before = &
+         size(ghost_exchange_plan%scalar_recv_buffer)
+    vector_ghost_send_size_before = &
+         size(ghost_exchange_plan%vector_send_buffer)
+    vector_ghost_recv_size_before = &
+         size(ghost_exchange_plan%vector_recv_buffer)
+
+    call import_domain_boundary_field_family_to_blocks( &
+         BLOCK_PAYLOAD_SOL,.false.,include_vector=.false.)
+    call exchange_block_scalar_ghost_payloads( &
+         BLOCK_PAYLOAD_SOL,.false.,.false.)
+
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before) then
+       call fail("vertical remap boundary refresh reallocated buffers")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         production_writeback_before) then
+       call fail("vertical remap boundary refresh modified Domain fields")
+    end if
+    if (size(ghost_exchange_plan%scalar_send_buffer) /= &
+         scalar_ghost_send_size_before .or. &
+         size(ghost_exchange_plan%scalar_recv_buffer) /= &
+         scalar_ghost_recv_size_before .or. &
+         size(ghost_exchange_plan%vector_send_buffer) /= &
+         vector_ghost_send_size_before .or. &
+         size(ghost_exchange_plan%vector_recv_buffer) /= &
+         vector_ghost_recv_size_before) then
+       call fail("vertical remap boundary refresh resized ghost buffers")
+    end if
+
+  end subroutine prepare_block_native_vertical_remap_boundary_state
+
+
   subroutine prepare_block_native_vertical_remap (interpolate)
     ! Remap every authoritative compact atmospheric column while the Domain
     ! compatibility image remains unchanged. The compact old-mass image is
@@ -1168,11 +1241,7 @@ contains
 
     type(Block_Vertical_Remap_Context) :: statistics
 
-    integer :: ierr
-
     integer(int64) :: allocation_ready
-    integer(int64) :: count_global(4)
-    integer(int64) :: count_local(4)
 
     logical :: metadata_exchange_ready
     logical :: state_ready
@@ -1189,7 +1258,7 @@ contains
     ! remap_vertical_coordinates has just refreshed the Domain SOL boundary.
     ! Mirror that exact pre-remap boundary in compact storage, then produce
     ! all inter-block ghosts before taking the immutable old-mass snapshot.
-    call refresh_parallel_block_trend_boundary_state
+    call prepare_block_native_vertical_remap_boundary_state
 
     if (allocated(block_vertical_remap)) then
        if (size(block_vertical_remap) /= n_local_blocks()) then
@@ -1223,20 +1292,6 @@ contains
     call invalidate_local_block_hydrostatic_state
     call invalidate_local_block_tendency_products
 
-    count_local = [statistics%candidate_count,statistics%active_count, &
-         statistics%scalar_count,statistics%vector_count]
-    call MPI_Allreduce(count_local,count_global,size(count_local), &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce native vertical remap coverage")
-    if (any(count_global <= 0_int64)) then
-       call fail("native vertical remap coverage is empty")
-    end if
-    if (count_global(3) /= 2_int64*int(zlevels,int64)* &
-         count_global(2) .or. &
-         count_global(4) /= int(EDGE*zlevels,int64)* &
-         count_global(2)) then
-       call fail("native vertical remap production coverage differs")
-    end if
     block_vertical_remap_active = .true.
 
   end subroutine prepare_block_native_vertical_remap
@@ -1498,7 +1553,7 @@ contains
     block_vertical_remap(local_index)%old_mass = &
          block%scalar(field_start:field_start+n_value-1)
 
-    select type (statistics => context)
+    select type (context)
     type is (Block_Vertical_Remap_Context)
        continue
     class default
@@ -1926,6 +1981,11 @@ contains
     integer :: local_index
     integer :: p
 
+    logical :: coordinate_needed(0:PATCH_SIZE,0:PATCH_SIZE)
+
+    real(dp) :: patch_p_new(0:zlevels,0:PATCH_SIZE,0:PATCH_SIZE)
+    real(dp) :: patch_p_old(0:zlevels,0:PATCH_SIZE,0:PATCH_SIZE)
+
     local_index = catalog_local_block(catalog_index)
     if (local_index < 1 .or. &
          local_index > size(block_vertical_remap)) then
@@ -1940,21 +2000,39 @@ contains
        call fail("native vertical remap interpolator is unavailable")
     end if
 
-    select type (statistics => context)
+    select type (context)
     type is (Block_Vertical_Remap_Context)
        do p = 1,size(block%patch)
           if (block%patch(p)%level < level_start .or. &
                block%patch(p)%level > level_end) cycle
+          ! Cache every pressure column needed by an active center before any
+          ! compact prognostic value is overwritten. Each shared coordinate
+          ! is evaluated once instead of once per incident target column.
+          coordinate_needed = .false.
           do j = 0,PATCH_SIZE-1
              do i = 0,PATCH_SIZE-1
-                statistics%candidate_count = &
-                     statistics%candidate_count+1_int64
                 if (.not. block_vertical_remap(local_index)%active( &
                      (p-1)*PATCH_SIZE**2+PATCH_SIZE*j+i+1)) cycle
-                statistics%active_count = &
-                     statistics%active_count+1_int64
+                coordinate_needed(i,j) = .true.
+                coordinate_needed(i+1,j) = .true.
+                coordinate_needed(i+1,j+1) = .true.
+                coordinate_needed(i,j+1) = .true.
+             end do
+          end do
+          do j = 0,PATCH_SIZE
+             do i = 0,PATCH_SIZE
+                if (.not. coordinate_needed(i,j)) cycle
+                call block_remap_pressure_coordinates( &
+                     block,local_index,p,i,j, &
+                     patch_p_new(:,i,j),patch_p_old(:,i,j))
+             end do
+          end do
+          do j = 0,PATCH_SIZE-1
+             do i = 0,PATCH_SIZE-1
+                if (.not. block_vertical_remap(local_index)%active( &
+                     (p-1)*PATCH_SIZE**2+PATCH_SIZE*j+i+1)) cycle
                 call remap_one_block_vertical_column( &
-                     block,local_index,p,i,j,statistics)
+                     block,local_index,p,i,j,patch_p_new,patch_p_old)
              end do
           end do
        end do
@@ -1966,7 +2044,7 @@ contains
 
 
   subroutine remap_one_block_vertical_column ( &
-       block,local_index,p,i,j,statistics)
+       block,local_index,p,i,j,patch_p_new,patch_p_old)
 
     implicit none
 
@@ -1975,13 +2053,21 @@ contains
     integer, intent(in) :: p
     integer, intent(in) :: i
     integer, intent(in) :: j
-    type(Block_Vertical_Remap_Context), intent(inout) :: statistics
-
+    real(dp), intent(in) :: &
+         patch_p_new(0:zlevels,0:PATCH_SIZE,0:PATCH_SIZE)
+    real(dp), intent(in) :: &
+         patch_p_old(0:zlevels,0:PATCH_SIZE,0:PATCH_SIZE)
     integer :: e
+    integer :: mass_field_index
     integer :: k
     integer :: level_slot
     integer :: mass_slot
+    integer :: n_node
+    integer :: node_index
+    integer :: old_mass_index
+    integer :: temp_field_index
     integer :: temp_slot
+    integer :: vector_field_index
 
     real(dp) :: flux_new(1:zlevels,RT:UP)
     real(dp) :: flux_old(1:zlevels,RT:UP)
@@ -1991,9 +2077,11 @@ contains
     real(dp) :: p_neighbor_old(0:zlevels)
     real(dp) :: p_new(0:zlevels)
     real(dp) :: p_old(0:zlevels)
+    real(dp) :: mass_mean(1:zlevels)
     real(dp) :: rho_dz
     real(dp) :: rho_dz_new(1:zlevels)
     real(dp) :: rho_dz_theta
+    real(dp) :: temp_mean(1:zlevels)
     real(dp) :: theta_new(1:zlevels)
     real(dp) :: theta_old(1:zlevels)
 
@@ -2003,23 +2091,26 @@ contains
          temp_slot < 0 .or. temp_slot >= block%n_scalar_variable) then
        call fail("native vertical remap scalar layout is invalid")
     end if
+    n_node = size(block%node)
+    node_index = block%patch(p)%elts_start+PATCH_SIZE*j+i
+    if (node_index < 0 .or. node_index >= n_node .or. &
+         .not. allocated(block_vertical_remap(local_index)%old_mass)) then
+       call fail("native vertical remap direct column is invalid")
+    end if
 
-    call block_remap_pressure_coordinates( &
-         block,local_index,p,i,j,p_new,p_old)
+    p_new = patch_p_new(:,i,j)
+    p_old = patch_p_old(:,i,j)
     do e = RT,UP
        select case (e)
        case (RT)
-          call block_remap_pressure_coordinates( &
-               block,local_index,p,i+1,j, &
-               p_neighbor_new,p_neighbor_old)
+          p_neighbor_new = patch_p_new(:,i+1,j)
+          p_neighbor_old = patch_p_old(:,i+1,j)
        case (DG)
-          call block_remap_pressure_coordinates( &
-               block,local_index,p,i+1,j+1, &
-               p_neighbor_new,p_neighbor_old)
+          p_neighbor_new = patch_p_new(:,i+1,j+1)
+          p_neighbor_old = patch_p_old(:,i+1,j+1)
        case (UP)
-          call block_remap_pressure_coordinates( &
-               block,local_index,p,i,j+1, &
-               p_neighbor_new,p_neighbor_old)
+          p_neighbor_new = patch_p_new(:,i,j+1)
+          p_neighbor_old = patch_p_old(:,i,j+1)
        end select
        p_edge_new(:,e) = 0.5_dp*(p_new+p_neighbor_new)
        p_edge_old(:,e) = 0.5_dp*(p_old+p_neighbor_old)
@@ -2030,22 +2121,47 @@ contains
        if (level_slot < 1 .or. level_slot > block%n_field_level) then
           call fail("native vertical remap atmospheric level is invalid")
        end if
-       rho_dz = block_remap_old_mass_value( &
-            block,local_index,p,i,j,level_slot) + &
-            block_remap_mean_scalar_value( &
-            block,local_index,p,mass_slot,level_slot,i,j)
-       rho_dz_theta = block_scalar_family_value( &
-            block,local_index,p,temp_slot,level_slot,i,j, &
-            BLOCK_PAYLOAD_SOL) + block_remap_mean_scalar_value( &
-            block,local_index,p,temp_slot,level_slot,i,j)
+       old_mass_index = (level_slot-1)*n_node+node_index+1
+       mass_field_index = &
+            (mass_slot*block%n_field_level+level_slot-1)* &
+            n_node+node_index+1
+       temp_field_index = &
+            (temp_slot*block%n_field_level+level_slot-1)* &
+            n_node+node_index+1
+       if (old_mass_index < 1 .or. old_mass_index > size( &
+            block_vertical_remap(local_index)%old_mass) .or. &
+            mass_field_index < 1 .or. &
+            mass_field_index > size(block%scalar) .or. &
+            mass_field_index > size(block%scalar_mean) .or. &
+            temp_field_index < 1 .or. &
+            temp_field_index > size(block%scalar) .or. &
+            temp_field_index > size(block%scalar_mean)) then
+          call fail("native vertical remap direct scalar address is invalid")
+       end if
+       mass_mean(k) = block%scalar_mean(mass_field_index)
+       temp_mean(k) = block%scalar_mean(temp_field_index)
+       rho_dz = block_vertical_remap(local_index)% &
+            old_mass(old_mass_index)+mass_mean(k)
+       rho_dz_theta = block%scalar(temp_field_index)+temp_mean(k)
        if (abs(rho_dz) <= tiny(1.0_dp)) then
           call fail("native vertical remap column has zero mass")
        end if
+       if (.not. ieee_is_finite(rho_dz) .or. &
+            .not. ieee_is_finite(rho_dz_theta)) then
+          call fail("native vertical remap direct scalar is non-finite")
+       end if
        theta_old(zlevels-k+1) = rho_dz_theta/rho_dz
        do e = RT,UP
-          flux_old(zlevels-k+1,e) = block_vector_family_value( &
-               block,local_index,p,level_slot,i,j,e, &
-               BLOCK_PAYLOAD_SOL)
+          vector_field_index = (level_slot-1)*EDGE*n_node + &
+               EDGE*node_index+e+1
+          if (vector_field_index < 1 .or. &
+               vector_field_index > size(block%vector)) then
+             call fail("native vertical remap direct vector address is invalid")
+          end if
+          flux_old(zlevels-k+1,e) = block%vector(vector_field_index)
+          if (.not. ieee_is_finite(flux_old(zlevels-k+1,e))) then
+             call fail("native vertical remap direct vector is non-finite")
+          end if
        end do
     end do
 
@@ -2061,20 +2177,26 @@ contains
 
     do k = 1,zlevels
        level_slot = k-block%field_level+1
-       call set_block_scalar_sol_value( &
-            block,p,mass_slot,level_slot,i,j, &
-            rho_dz_new(k)-block_remap_mean_scalar_value( &
-            block,local_index,p,mass_slot,level_slot,i,j))
-       call set_block_scalar_sol_value( &
-            block,p,temp_slot,level_slot,i,j, &
-            rho_dz_new(k)*theta_new(zlevels-k+1) - &
-            block_remap_mean_scalar_value( &
-            block,local_index,p,temp_slot,level_slot,i,j))
-       statistics%scalar_count = statistics%scalar_count+2_int64
+       mass_field_index = &
+            (mass_slot*block%n_field_level+level_slot-1)* &
+            n_node+node_index+1
+       temp_field_index = &
+            (temp_slot*block%n_field_level+level_slot-1)* &
+            n_node+node_index+1
+       block%scalar(mass_field_index) = rho_dz_new(k)-mass_mean(k)
+       block%scalar(temp_field_index) = &
+            rho_dz_new(k)*theta_new(zlevels-k+1)-temp_mean(k)
+       if (.not. ieee_is_finite(block%scalar(mass_field_index)) .or. &
+            .not. ieee_is_finite(block%scalar(temp_field_index))) then
+          call fail("native vertical remap scalar output is non-finite")
+       end if
        do e = RT,UP
-          call set_block_vector_sol_value( &
-               block,p,level_slot,i,j,e,flux_new(zlevels-k+1,e))
-          statistics%vector_count = statistics%vector_count+1_int64
+          vector_field_index = (level_slot-1)*EDGE*n_node + &
+               EDGE*node_index+e+1
+          block%vector(vector_field_index) = flux_new(zlevels-k+1,e)
+          if (.not. ieee_is_finite(block%vector(vector_field_index))) then
+             call fail("native vertical remap vector output is non-finite")
+          end if
        end do
     end do
 
@@ -2096,20 +2218,62 @@ contains
 
     integer :: k
     integer :: level_slot
+    integer :: mass_field_index
     integer :: mass_slot
+    integer :: n_node
+    integer :: node_index
+    integer :: old_mass_index
 
     real(dp) :: rho_dz
 
     mass_slot = S_MASS-block%scalar_variable
+    if (mass_slot < 0 .or. mass_slot >= block%n_scalar_variable) then
+       call fail("vertical remap pressure scalar layout is invalid")
+    end if
     p_old(0) = p_top
-    do k = 1,zlevels
-       level_slot = zlevels-k+1-block%field_level+1
-       rho_dz = block_remap_old_mass_value( &
-            block,local_index,p,i,j,level_slot) + &
-            block_remap_mean_scalar_value( &
-            block,local_index,p,mass_slot,level_slot,i,j)
-       p_old(k) = p_old(k-1)+grav_accel*rho_dz
-    end do
+    if (i >= 0 .and. i < PATCH_SIZE .and. &
+         j >= 0 .and. j < PATCH_SIZE) then
+       if (local_index < 1 .or. &
+            local_index > size(block_vertical_remap) .or. &
+            .not. allocated( &
+            block_vertical_remap(local_index)%old_mass)) then
+          call fail("vertical remap direct pressure storage is invalid")
+       end if
+       n_node = size(block%node)
+       node_index = block%patch(p)%elts_start+PATCH_SIZE*j+i
+       if (node_index < 0 .or. node_index >= n_node) then
+          call fail("vertical remap direct pressure node is invalid")
+       end if
+       do k = 1,zlevels
+          level_slot = zlevels-k+1-block%field_level+1
+          old_mass_index = (level_slot-1)*n_node+node_index+1
+          mass_field_index = &
+               (mass_slot*block%n_field_level+level_slot-1)* &
+               n_node+node_index+1
+          if (old_mass_index < 1 .or. old_mass_index > size( &
+               block_vertical_remap(local_index)%old_mass) .or. &
+               mass_field_index < 1 .or. &
+               mass_field_index > size(block%scalar_mean)) then
+             call fail("vertical remap direct pressure address is invalid")
+          end if
+          rho_dz = block_vertical_remap(local_index)% &
+               old_mass(old_mass_index)+ &
+               block%scalar_mean(mass_field_index)
+          if (.not. ieee_is_finite(rho_dz)) then
+             call fail("vertical remap direct pressure mass is non-finite")
+          end if
+          p_old(k) = p_old(k-1)+grav_accel*rho_dz
+       end do
+    else
+       do k = 1,zlevels
+          level_slot = zlevels-k+1-block%field_level+1
+          rho_dz = block_remap_old_mass_value( &
+               block,local_index,p,i,j,level_slot) + &
+               block_remap_mean_scalar_value( &
+               block,local_index,p,mass_slot,level_slot,i,j)
+          p_old(k) = p_old(k-1)+grav_accel*rho_dz
+       end do
+    end if
     p_new = a_vert(zlevels:0:-1) + &
          b_vert(zlevels:0:-1)*p_old(zlevels)
 
@@ -7679,7 +7843,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine import_domain_boundary_field_family_to_blocks ( &
-       payload_family,verify_current,domain_sol)
+       payload_family,verify_current,domain_sol,include_vector)
     ! Install one complete Domain boundary prognostic family in final-owner
     ! compact boundary storage. Remote payloads reuse the persistent
     ! boundary manifest and buffers; retained blocks use a direct path.
@@ -7690,6 +7854,7 @@ end subroutine build_parallel_block_catalog
     logical, optional, intent(in) :: verify_current
     type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
+    logical, optional, intent(in) :: include_vector
 
     integer :: b
     integer :: boundary_index
@@ -7711,9 +7876,12 @@ end subroutine build_parallel_block_catalog
 
     logical :: check_current
     logical :: plan_ready
+    logical :: transfer_vector
 
     check_current = .false.
     if (present(verify_current)) check_current = verify_current
+    transfer_vector = .true.
+    if (present(include_vector)) transfer_vector = include_vector
     plan_ready = block_writeback_plan_is_ready()
     if (.not. plan_ready) then
        call fail("Domain boundary import before plan is ready")
@@ -7762,8 +7930,10 @@ end subroutine build_parallel_block_catalog
 
     block_writeback_plan%boundary_scalar_domain_send_buffer = 0.0_dp
     block_writeback_plan%boundary_scalar_block_recv_buffer = 0.0_dp
-    block_writeback_plan%boundary_vector_domain_send_buffer = 0.0_dp
-    block_writeback_plan%boundary_vector_block_recv_buffer = 0.0_dp
+    if (transfer_vector) then
+       block_writeback_plan%boundary_vector_domain_send_buffer = 0.0_dp
+       block_writeback_plan%boundary_vector_block_recv_buffer = 0.0_dp
+    end if
 
     do r = 1,n_process
        pos_scalar = block_writeback_plan% &
@@ -7804,7 +7974,8 @@ end subroutine build_parallel_block_catalog
                   pos_scalar:pos_scalar+n_scalar-1), &
                   block_writeback_plan% &
                   boundary_vector_domain_send_buffer( &
-                  pos_vector:pos_vector+n_vector-1),domain_sol)
+                  pos_vector:pos_vector+n_vector-1),domain_sol, &
+                  transfer_vector)
              pos_scalar = pos_scalar + n_scalar
              pos_vector = pos_vector + n_vector
           end do
@@ -7831,16 +8002,19 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%boundary_scalar_block_recv_displ, &
          MPI_DOUBLE_PRECISION,comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv Domain scalar boundary payload")
-    call MPI_Alltoallv( &
-         block_writeback_plan%boundary_vector_domain_send_buffer, &
-         block_writeback_plan%boundary_vector_domain_send_count, &
-         block_writeback_plan%boundary_vector_domain_send_displ, &
-         MPI_DOUBLE_PRECISION, &
-         block_writeback_plan%boundary_vector_block_recv_buffer, &
-         block_writeback_plan%boundary_vector_block_recv_count, &
-         block_writeback_plan%boundary_vector_block_recv_displ, &
-         MPI_DOUBLE_PRECISION,comm,ierr)
-    call check_mpi(ierr,"MPI_Alltoallv Domain vector boundary payload")
+    if (transfer_vector) then
+       call MPI_Alltoallv( &
+            block_writeback_plan%boundary_vector_domain_send_buffer, &
+            block_writeback_plan%boundary_vector_domain_send_count, &
+            block_writeback_plan%boundary_vector_domain_send_displ, &
+            MPI_DOUBLE_PRECISION, &
+            block_writeback_plan%boundary_vector_block_recv_buffer, &
+            block_writeback_plan%boundary_vector_block_recv_count, &
+            block_writeback_plan%boundary_vector_block_recv_displ, &
+            MPI_DOUBLE_PRECISION,comm,ierr)
+       call check_mpi(ierr, &
+            "MPI_Alltoallv Domain vector boundary payload")
+    end if
 
     do r = 1,n_process
        pos_scalar = block_writeback_plan% &
@@ -7881,16 +8055,18 @@ end subroutine build_parallel_block_catalog
                      pos_scalar:pos_scalar+n_scalar-1)) > 0.0_dp)) then
                    call fail("remote scalar Domain boundary mismatch")
                 end if
-                call get_local_block_vector_boundary_family_values( &
-                     b,boundary_index,payload_family, &
-                     ghost_exchange_plan% &
-                     vector_patch_buffer(1:n_vector))
-                if (any(abs(ghost_exchange_plan% &
-                     vector_patch_buffer(1:n_vector) - &
-                     block_writeback_plan% &
-                     boundary_vector_block_recv_buffer( &
-                     pos_vector:pos_vector+n_vector-1)) > 0.0_dp)) then
-                   call fail("remote vector Domain boundary mismatch")
+                if (transfer_vector) then
+                   call get_local_block_vector_boundary_family_values( &
+                        b,boundary_index,payload_family, &
+                        ghost_exchange_plan% &
+                        vector_patch_buffer(1:n_vector))
+                   if (any(abs(ghost_exchange_plan% &
+                        vector_patch_buffer(1:n_vector) - &
+                        block_writeback_plan% &
+                        boundary_vector_block_recv_buffer( &
+                        pos_vector:pos_vector+n_vector-1)) > 0.0_dp)) then
+                      call fail("remote vector Domain boundary mismatch")
+                   end if
                 end if
              end if
              call set_local_block_scalar_boundary_family_values( &
@@ -7898,11 +8074,13 @@ end subroutine build_parallel_block_catalog
                   block_writeback_plan% &
                   boundary_scalar_block_recv_buffer( &
                   pos_scalar:pos_scalar+n_scalar-1))
-             call set_local_block_vector_boundary_family_values( &
-                  b,boundary_index,payload_family, &
-                  block_writeback_plan% &
-                  boundary_vector_block_recv_buffer( &
-                  pos_vector:pos_vector+n_vector-1))
+             if (transfer_vector) then
+                call set_local_block_vector_boundary_family_values( &
+                     b,boundary_index,payload_family, &
+                     block_writeback_plan% &
+                     boundary_vector_block_recv_buffer( &
+                     pos_vector:pos_vector+n_vector-1))
+             end if
              pos_scalar = pos_scalar + n_scalar
              pos_vector = pos_vector + n_vector
           end do
@@ -7953,7 +8131,7 @@ end subroutine build_parallel_block_catalog
                d,source_bdry,n_node,payload_family, &
                ghost_exchange_plan%scalar_patch_buffer(1:n_scalar), &
                ghost_exchange_plan%vector_patch_buffer(1:n_vector), &
-               domain_sol)
+               domain_sol,transfer_vector)
           if (check_current) then
              call compare_retained_boundary( &
                   b,boundary_index,payload_family,n_scalar,n_vector)
@@ -7961,9 +8139,11 @@ end subroutine build_parallel_block_catalog
           call set_local_block_scalar_boundary_family_values( &
                b,boundary_index,payload_family, &
                ghost_exchange_plan%scalar_patch_buffer(1:n_scalar))
-          call set_local_block_vector_boundary_family_values( &
-               b,boundary_index,payload_family, &
-               ghost_exchange_plan%vector_patch_buffer(1:n_vector))
+          if (transfer_vector) then
+             call set_local_block_vector_boundary_family_values( &
+                  b,boundary_index,payload_family, &
+                  ghost_exchange_plan%vector_patch_buffer(1:n_vector))
+          end if
        end do
     end do
 
@@ -7990,12 +8170,14 @@ end subroutine build_parallel_block_catalog
            0.0_dp)) then
          call fail("retained scalar Domain boundary mismatch")
       end if
-      call get_local_block_vector_boundary_family_values( &
-           b,boundary_index,payload_family,vector_current)
-      if (any(abs(vector_current - &
-           ghost_exchange_plan%vector_patch_buffer(1:n_vector)) > &
-           0.0_dp)) then
-         call fail("retained vector Domain boundary mismatch")
+      if (transfer_vector) then
+         call get_local_block_vector_boundary_family_values( &
+              b,boundary_index,payload_family,vector_current)
+         if (any(abs(vector_current - &
+              ghost_exchange_plan%vector_patch_buffer(1:n_vector)) > &
+              0.0_dp)) then
+            call fail("retained vector Domain boundary mismatch")
+         end if
       end if
 
     end subroutine compare_retained_boundary
@@ -8005,7 +8187,7 @@ end subroutine build_parallel_block_catalog
 
   subroutine pack_domain_boundary_prognostic ( &
        d,source_bdry,n_node,payload_family,scalar_payload,vector_payload, &
-       domain_sol)
+       domain_sol,include_vector)
     ! Pack one authoritative Domain compact boundary in the same
     ! variable/level/component order used by Block_Data boundary storage.
 
@@ -8019,6 +8201,7 @@ end subroutine build_parallel_block_catalog
     real(dp), intent(out) :: vector_payload(:)
     type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
+    logical, optional, intent(in) :: include_vector
 
     integer :: field_level
     integer :: first_field_level
@@ -8033,6 +8216,11 @@ end subroutine build_parallel_block_catalog
     integer :: scalar_slot
     integer :: v_scalar
     integer :: v_vector
+
+    logical :: pack_vector
+
+    pack_vector = .true.
+    if (present(include_vector)) pack_vector = include_vector
 
     call get_block_field_layout( &
          v_scalar,n_scalar_variable,v_vector,first_field_level, &
@@ -8054,7 +8242,7 @@ end subroutine build_parallel_block_catalog
        call fail("Domain boundary pack family is invalid")
     end if
     scalar_payload = 0.0_dp
-    vector_payload = 0.0_dp
+    if (pack_vector) vector_payload = 0.0_dp
     old_start = grid(d)%bdry_patch%elts(source_bdry+1)%elts_start
     if (old_start < 0 .or. &
          old_start+n_node > grid(d)%node%length) then
@@ -8093,33 +8281,35 @@ end subroutine build_parallel_block_catalog
        end do
     end do
 
-    do level_slot = 1,n_field_level
-       field_level = first_field_level + level_slot - 1
-       output_base = (level_slot-1)*mult_vector*n_node
-       select case (payload_family)
-       case (BLOCK_PAYLOAD_SOL)
-          if (present(domain_sol) .and. field_level >= 1 .and. &
-               field_level <= zlevels) then
+    if (pack_vector) then
+       do level_slot = 1,n_field_level
+          field_level = first_field_level + level_slot - 1
+          output_base = (level_slot-1)*mult_vector*n_node
+          select case (payload_family)
+          case (BLOCK_PAYLOAD_SOL)
+             if (present(domain_sol) .and. field_level >= 1 .and. &
+                  field_level <= zlevels) then
+                vector_payload(output_base+1: &
+                     output_base+mult_vector*n_node) = &
+                     domain_sol(v_vector,field_level)%data(d)%elts( &
+                     mult_vector*old_start+1: &
+                     mult_vector*(old_start+n_node))
+             else
+                vector_payload(output_base+1: &
+                     output_base+mult_vector*n_node) = &
+                     sol(v_vector,field_level)%data(d)%elts( &
+                     mult_vector*old_start+1: &
+                     mult_vector*(old_start+n_node))
+             end if
+          case (BLOCK_PAYLOAD_WAV_COEFF)
              vector_payload(output_base+1: &
                   output_base+mult_vector*n_node) = &
-                  domain_sol(v_vector,field_level)%data(d)%elts( &
+                  wav_coeff(v_vector,field_level)%data(d)%elts( &
                   mult_vector*old_start+1: &
                   mult_vector*(old_start+n_node))
-          else
-             vector_payload(output_base+1: &
-                  output_base+mult_vector*n_node) = &
-                  sol(v_vector,field_level)%data(d)%elts( &
-                  mult_vector*old_start+1: &
-                  mult_vector*(old_start+n_node))
-          end if
-       case (BLOCK_PAYLOAD_WAV_COEFF)
-          vector_payload(output_base+1: &
-               output_base+mult_vector*n_node) = &
-               wav_coeff(v_vector,field_level)%data(d)%elts( &
-               mult_vector*old_start+1: &
-               mult_vector*(old_start+n_node))
-       end select
-    end do
+          end select
+       end do
+    end if
 
   end subroutine pack_domain_boundary_prognostic
 
