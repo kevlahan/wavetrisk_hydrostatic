@@ -18,7 +18,7 @@ module parallel_block_mpi_mod
        VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
        S_MASS, S_TEMP, S_VELO, &
        ADJZONE, RESTRCT, TRSK, c_p, compressible, grav_accel, kappa, &
-       a_vert, b_vert, level_end, &
+       a_vert, a_vert_mass, b_vert, b_vert_mass, level_end, &
        level_start, p_0, p_top, zlevels
 
   use domain_mod, only : chd_offs, Domain, Float_Field, &
@@ -439,6 +439,11 @@ module parallel_block_mpi_mod
      integer(int64) :: vector_count = 0_int64
   end type Block_Vertical_Remap_Context
 
+  type :: Block_Minimum_Mass_Context
+     real(dp) :: minimum = huge(0.0_dp)
+     integer(int64) :: column_count = 0_int64
+  end type Block_Minimum_Mass_Context
+
   type :: Block_Vertical_Remap_Exchange_Type
      integer, allocatable :: send_count(:)
      integer, allocatable :: send_displ(:)
@@ -753,6 +758,9 @@ module parallel_block_mpi_mod
   public :: complete_block_adaptation_lifecycle
   public :: retain_post_grid_change_block_reconstruction
   public :: prepare_block_native_vertical_remap
+  public :: block_native_minimum_relative_mass
+  public :: validate_block_native_vertical_remap
+  public :: write_block_native_vertical_remap_to_domains
   public :: complete_block_native_vertical_remap
   public :: migrate_blocks
   public :: check_local_blocks
@@ -1149,10 +1157,10 @@ contains
 
 
   subroutine prepare_block_native_vertical_remap (interpolate)
-    ! Independently remap every compact atmospheric column while the Domain
-    ! image remains unchanged for the legacy comparison. The old mass image
-    ! is retained in topology-sized persistent storage because neighboring
-    ! pressure coordinates must not observe an already remapped column.
+    ! Remap every authoritative compact atmospheric column while the Domain
+    ! compatibility image remains unchanged. The compact old-mass image is
+    ! retained because neighboring pressure coordinates must not observe an
+    ! already remapped column. An optional legacy oracle may compare later.
 
     implicit none
 
@@ -1166,6 +1174,7 @@ contains
     integer(int64) :: count_global(4)
     integer(int64) :: count_local(4)
 
+    logical :: metadata_exchange_ready
     logical :: state_ready
 
     state_ready = parallel_block_state_is_ready()
@@ -1193,7 +1202,13 @@ contains
             block_vertical_remap_allocations+1_int64
     end if
 
+    metadata_exchange_ready = block_vertical_remap_exchange%ready
+    allocation_ready = block_vertical_remap_allocations
     call refresh_block_vertical_remap_masks
+    if (metadata_exchange_ready .and. &
+         block_vertical_remap_allocations /= allocation_ready) then
+       call fail("vertical remap metadata exchange was reallocated")
+    end if
     call apply_local_block_field_consumer( &
          snapshot_block_vertical_remap_mass,statistics)
     allocation_ready = block_vertical_remap_allocations
@@ -1227,10 +1242,174 @@ contains
   end subroutine prepare_block_native_vertical_remap
 
 
+  real(dp) function block_native_minimum_relative_mass () &
+       result(minimum_mass)
+    ! Compute the remapping trigger from authoritative final-owner compact
+    ! patch interiors without materializing any Domain prognostic field.
+
+    implicit none
+
+    type(Block_Minimum_Mass_Context) :: statistics
+
+    integer :: ierr
+    integer(int64) :: global_column_count
+    logical :: state_ready
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. compressible .or. .not. state_ready) then
+       call fail("block minimum-mass prerequisites are incomplete")
+    end if
+
+    call apply_local_block_field_consumer( &
+         accumulate_block_minimum_relative_mass,statistics)
+    call MPI_Allreduce(statistics%minimum,minimum_mass,1, &
+         MPI_DOUBLE_PRECISION,MPI_MIN,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block minimum relative mass")
+    call MPI_Allreduce(statistics%column_count,global_column_count,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block minimum mass coverage")
+    if (global_column_count <= 0_int64 .or. &
+         .not. ieee_is_finite(minimum_mass)) then
+       call fail("block minimum relative mass coverage is invalid")
+    end if
+    if (minimum_mass <= 0.0_dp) then
+       call fail("a compact block layer has collapsed")
+    end if
+
+  end function block_native_minimum_relative_mass
+
+
+  subroutine accumulate_block_minimum_relative_mass ( &
+       catalog_index,block,context)
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: field_index
+    integer :: i
+    integer :: j
+    integer :: k
+    integer :: level_slot
+    integer :: mass_slot
+    integer :: n_node
+    integer :: node_index
+    integer :: p
+
+    real(dp) :: initial_mass
+    real(dp) :: pressure_surface
+    real(dp) :: ratio
+    real(dp) :: rho_dz(1:zlevels)
+
+    if (catalog_index /= block%id+1) then
+       call fail("block minimum-mass catalogue identity differs")
+    end if
+    mass_slot = S_MASS-block%scalar_variable
+    n_node = size(block%node)
+    if (mass_slot < 0 .or. mass_slot >= block%n_scalar_variable .or. &
+         n_node < 1) then
+       call fail("block minimum-mass field layout is invalid")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Minimum_Mass_Context)
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level < level_start .or. &
+               block%patch(p)%level > level_end) cycle
+          do j = 0,PATCH_SIZE-1
+             do i = 0,PATCH_SIZE-1
+                node_index = block%patch(p)%elts_start+PATCH_SIZE*j+i
+                if (node_index < 0 .or. node_index >= n_node) then
+                   call fail("block minimum-mass node address is invalid")
+                end if
+                do k = 1,zlevels
+                   level_slot = k-block%field_level+1
+                   if (level_slot < 1 .or. &
+                        level_slot > block%n_field_level) then
+                      call fail("block minimum-mass level is invalid")
+                   end if
+                   field_index = &
+                        (mass_slot*block%n_field_level+level_slot-1)* &
+                        n_node+node_index+1
+                   if (field_index < 1 .or. &
+                        field_index > size(block%scalar) .or. &
+                        field_index > size(block%scalar_mean)) then
+                      call fail("block minimum-mass value address is invalid")
+                   end if
+                   rho_dz(k) = block%scalar(field_index) + &
+                        block%scalar_mean(field_index)
+                end do
+                pressure_surface = grav_accel*sum(rho_dz)+p_top
+                do k = 1,zlevels
+                   initial_mass = a_vert_mass(k) + &
+                        b_vert_mass(k)*pressure_surface/grav_accel
+                   if (abs(initial_mass) <= tiny(1.0_dp)) then
+                      call fail("block initial layer mass is zero")
+                   end if
+                   ratio = rho_dz(k)/abs(initial_mass)
+                   if (.not. ieee_is_finite(ratio)) then
+                      call fail("block relative layer mass is non-finite")
+                   end if
+                   statistics%minimum = min(statistics%minimum,ratio)
+                end do
+                statistics%column_count = &
+                     statistics%column_count+1_int64
+             end do
+          end do
+       end do
+    class default
+       call fail("block minimum-mass context is invalid")
+    end select
+
+  end subroutine accumulate_block_minimum_relative_mass
+
+
+  subroutine validate_block_native_vertical_remap
+    ! Compare compact remap interiors against the optional legacy oracle.
+
+    implicit none
+
+    if (.not. block_vertical_remap_active .or. &
+         associated(production_vertical_interpolator)) then
+       call fail("native vertical remap validation is out of sequence")
+    end if
+    call assert_block_domain_field_family_match( &
+         BLOCK_PAYLOAD_SOL,comparison_name="vertical remap")
+
+  end subroutine validate_block_native_vertical_remap
+
+
+  subroutine write_block_native_vertical_remap_to_domains
+    ! Materialize authoritative compact remap interiors once on Domain owners.
+
+    implicit none
+
+    integer(int64) :: allocation_before
+    integer(int64) :: writeback_before
+
+    if (.not. block_vertical_remap_active .or. &
+         associated(production_vertical_interpolator)) then
+       call fail("native vertical remap writeback is out of sequence")
+    end if
+    allocation_before = block_writeback_plan_allocation_count()
+    writeback_before = block_domain_production_writeback_count()
+    call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
+    if (block_writeback_plan_allocation_count() /= allocation_before) then
+       call fail("native vertical remap writeback reallocated buffers")
+    end if
+    if (block_domain_production_writeback_count() /= &
+         writeback_before+1_int64) then
+       call fail("native vertical remap writeback count differs")
+    end if
+
+  end subroutine write_block_native_vertical_remap_to_domains
+
+
   subroutine complete_block_native_vertical_remap
-    ! Compare the independently produced block interiors with the completed
-    ! legacy Domain remap, then retain compact ownership. Domain-computed pole
-    ! and cross-root boundary aliases are imported only after the comparison.
+    ! Import Domain-computed pole and cross-root boundary aliases after the
+    ! authoritative compact interiors have been written and refreshed.
 
     implicit none
 
@@ -1250,12 +1429,8 @@ contains
     allocation_before = block_writeback_plan_allocation_count()
     writeback_before = block_domain_production_writeback_count()
 
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_SOL,comparison_name="vertical remap")
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.)
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,.true.)
     call refresh_block_sol_ghosts
     hydrostatic_refresh_before = &
          local_block_hydrostatic_refresh_count()

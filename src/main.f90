@@ -29,7 +29,9 @@ module main_mod
   use multi_level_mod,    only : trend_ml
   use NCAR_topo_mod,      only : load_topo
   use refine_patch_mod,   only : add_second_level
-  use remap_mod,          only : remap_vertical_coordinates
+  use remap_mod,          only : &
+       block_vertical_remap_validation_enabled, &
+       remap_vertical_coordinates
   use utils_mod,          only : hex_len, hex_pedlen, interp, nu_scale, porous_density, tri_perim
   use vert_diffusion_mod, only : vertical_diffusion
   use wavelet_mod,        only : forward_wavelet_transform, init_wavelets, inverse_scalar_transform, inverse_wavelet_transform
@@ -58,6 +60,7 @@ module main_mod
   use parallel_block_build_mod, only : build_source_blocks
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
+       block_native_minimum_relative_mass, &
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
        complete_block_adaptation_lifecycle, &
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
@@ -387,8 +390,11 @@ contains
     implicit none
     integer(8) :: idt, ialign
     logical    :: block_euler_step, block_multistage_candidate
+    logical    :: block_mass_trigger, domain_mass_trigger
+    logical    :: validate_block_remap
     logical    :: block_state_ready
     logical    :: rebuild_block_state, save_data
+    real(dp)   :: domain_min_mass, mass_tolerance
 
     ! New time step
     istep       = istep       + 1
@@ -515,9 +521,61 @@ contains
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Vertical remapping (after grid adaptation to ensure ADJCENT_ZONE and ZERO cells are remapped consistently)
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    min_mass = cpt_min_mass () 
-    if (remap .and. min_mass < min_mass_remap .or. iremap == iremap_max) then
+    block_state_ready = parallel_block_state_is_ready()
+    validate_block_remap = .false.
+    if (compressible .and. block_state_ready) then
+       min_mass = block_native_minimum_relative_mass()
+       validate_block_remap = &
+            block_vertical_remap_validation_enabled()
+       if (validate_block_remap) then
+          domain_min_mass = cpt_min_mass()
+          mass_tolerance = 16.0_dp*epsilon(1.0_dp)*max( &
+               1.0_dp,abs(min_mass),abs(domain_min_mass))
+          if (abs(min_mass-domain_min_mass) > mass_tolerance) then
+             if (rank == 0) then
+                write (6,'(a,3(es24.16,1x))') &
+                     "Block/Domain minimum mass differs: ", &
+                     min_mass,domain_min_mass,mass_tolerance
+             end if
+             call abort_run
+          end if
+          block_mass_trigger = remap .and. min_mass < min_mass_remap
+          domain_mass_trigger = &
+               remap .and. domain_min_mass < min_mass_remap
+          if (block_mass_trigger .neqv. domain_mass_trigger) then
+             if (rank == 0) write (6,'(a)') &
+                  "Block/Domain minimum-mass remap triggers differ"
+             call abort_run
+          end if
+       end if
+       if (log_min_mass .and. rank == 0) then
+          if (validate_block_remap) then
+             write (6,'(a,es11.4)') &
+                  "Block minimum relative mass = ",min_mass
+          else
+             write (6,'(a,es11.4)') &
+                  "Minimum relative mass = ",min_mass
+          end if
+       end if
+    else
+       min_mass = cpt_min_mass()
+    end if
+    if ((remap .and. min_mass < min_mass_remap) .or. &
+         iremap == iremap_max) then
        if (rank == 0 .and. log_min_mass) write (6,'(a)') 'Remapping vertical coordinates ...'
+       if (rank == 0) then
+          if (remap .and. min_mass < min_mass_remap .and. &
+               iremap == iremap_max) then
+             write (6,'(a)') &
+                  "Vertical-remap trigger = minimum mass + iremap_max"
+          else if (remap .and. min_mass < min_mass_remap) then
+             write (6,'(a)') &
+                  "Vertical-remap trigger = minimum mass"
+          else
+             write (6,'(a)') &
+                  "Vertical-remap trigger = iremap_max"
+          end if
+       end if
        call remap_vertical_coordinates
        iremap = 1
     else

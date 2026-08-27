@@ -1,11 +1,14 @@
 #   include "ppr/ppr_1d.f90"
 module remap_mod
+
+  use mpi_f08, only : MPI_Allreduce, MPI_DOUBLE_PRECISION, MPI_INTEGER, &
+       MPI_MAX, MPI_SUCCESS, MPI_SUM, MPI_Wtime
   
   use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, EDGE, N_BDRY, NONE, S_MASS, S_TEMP, S_VELO, RT, DG, UP, &
        a_vert, b_vert, compressible, grav_accel, p_top, ref_density, remap_type, sigma_z, z_null, zlevels
   
-  use arch_mod,        only : abort_run, rank
+  use arch_mod,        only : abort_run, comm, n_process, rank
   use comm_mpi_mod,    only : update_bdry
   use diagnostics_mod, only : buoyancy
   use domain_mod,      only : Domain, Float_Field, sol, sol_mean, topography, idx
@@ -14,12 +17,15 @@ module remap_mod
   use parallel_block_mpi_mod, only : &
        complete_block_native_vertical_remap, &
        parallel_block_state_is_ready, &
-       prepare_block_native_vertical_remap
+       prepare_block_native_vertical_remap, &
+       validate_block_native_vertical_remap, &
+       write_block_native_vertical_remap_to_domains
   use utils_mod,       only :  phi_node, porous_density
   
   implicit none
 
   private
+  public :: block_vertical_remap_validation_enabled
   public :: remap_vertical_coordinates
   
   real(dp), parameter :: Zero_r = 0.0_dp, OneFifth = 0.2_dp, Half = 0.5_dp, One = 1.0_dp
@@ -27,6 +33,9 @@ module remap_mod
   real(dp), parameter :: eps_r = 1e-8_dp
   
   type(Float_Field), allocatable, target :: old_mass(:)
+
+  logical, save :: block_remap_validation = .false.
+  logical, save :: block_remap_validation_initialized = .false.
 
   
   abstract interface
@@ -47,6 +56,62 @@ module remap_mod
   
 contains
 
+
+  logical function block_vertical_remap_validation_enabled () &
+       result(enabled)
+    ! The legacy Domain oracle is an opt-in validation path. Production runs
+    ! leave it disabled and therefore execute the vertical remap only once.
+
+    implicit none
+
+    character(len=32) :: value
+    integer :: enabled_count
+    integer :: ierr
+    integer :: length
+    integer :: local_enabled
+    integer :: status
+
+    if (.not. block_remap_validation_initialized) then
+       value = ""
+       call get_environment_variable( &
+            "WAVETRISK_VALIDATE_BLOCK_REMAP",value,length,status)
+       if (status == 0 .and. length > 0) then
+          select case (trim(value(1:min(length,len(value)))))
+          case ("1","true","TRUE","on","ON","yes","YES")
+             block_remap_validation = .true.
+          case ("0","false","FALSE","off","OFF","no","NO")
+             block_remap_validation = .false.
+          case default
+             if (rank == 0) write (6,'(a)') &
+                  "Invalid WAVETRISK_VALIDATE_BLOCK_REMAP value"
+             call abort_run
+          end select
+       else if (status /= 0 .and. status /= 1) then
+          if (rank == 0) write (6,'(a)') &
+               "Unable to read WAVETRISK_VALIDATE_BLOCK_REMAP"
+          call abort_run
+       end if
+       local_enabled = merge(1,0,block_remap_validation)
+       call MPI_Allreduce(local_enabled,enabled_count,1,MPI_INTEGER, &
+            MPI_SUM,comm,ierr)
+       if (ierr /= MPI_SUCCESS) then
+          if (rank == 0) write (6,'(a)') &
+               "MPI_Allreduce failed for block-remap validation option"
+          call abort_run
+       end if
+       if (enabled_count /= 0 .and. enabled_count /= n_process) then
+          if (rank == 0) write (6,'(a)') &
+               "Inconsistent block-remap validation option across ranks"
+          call abort_run
+       end if
+       block_remap_validation_initialized = .true.
+       if (block_remap_validation .and. rank == 0) write (6,'(a)') &
+            "Block vertical-remap validation oracle enabled"
+    end if
+    enabled = block_remap_validation
+
+  end function block_vertical_remap_validation_enabled
+
   
   subroutine remap_vertical_coordinates
     ! Remap the Lagrangian layers to initial vertical grid given a_vert and b_vert vertical coordinate parameters 
@@ -56,6 +121,18 @@ contains
     implicit none
 
     logical :: block_remap
+    logical :: validate_oracle
+
+    integer :: ierr
+
+    real(dp) :: boundary_seconds
+    real(dp) :: block_seconds
+    real(dp) :: completion_seconds
+    real(dp) :: global_timing(5)
+    real(dp) :: local_timing(5)
+    real(dp) :: oracle_seconds
+    real(dp) :: start_time
+    real(dp) :: writeback_seconds
 
     ! Choose interpolation method:
     ! [these methods are modified from routines provided by Alexander Shchepetkin (IGPP, UCLA)]
@@ -93,35 +170,88 @@ contains
        call abort_run
     end select
     
-    ! Save old masses
+    ! Refresh the pre-remap compatibility boundary. Compact blocks import
+    ! only these aliases and then refresh their own inter-block ghosts.
     call update_bdry (sol, NONE, 900)
-    old_mass = sol(S_MASS,1:zlevels)
 
     block_remap = .false.
+    validate_oracle = .false.
     if (compressible) then
        block_remap = parallel_block_state_is_ready()
        if (block_remap) then
+          validate_oracle = &
+               block_vertical_remap_validation_enabled()
+          if (validate_oracle) old_mass = sol(S_MASS,1:zlevels)
+          start_time = MPI_Wtime()
           call prepare_block_native_vertical_remap(interpolate)
+          block_seconds = MPI_Wtime()-start_time
        end if
     end if
 
-    ! Remap variables on all levels
-    if (compressible) then
-       call apply_no_bdry2 (remap_compressible,   z_null)
-    else
-       call apply_no_bdry2 (remap_incompressible, z_null)
-    end if
-    sol%bdry_uptodate = .false.
-
     if (block_remap) then
-       ! Materialize the completed oracle boundary only after both Domain and
-       ! compact interiors have independently executed the same column kernel.
-       call update_bdry(sol,NONE,909)
+       oracle_seconds = 0.0_dp
+       if (validate_oracle) then
+          start_time = MPI_Wtime()
+          call apply_no_bdry2(remap_compressible,z_null)
+          sol%bdry_uptodate = .false.
+          call update_bdry(sol,NONE,909)
+          call validate_block_native_vertical_remap
+          oracle_seconds = MPI_Wtime()-start_time
+       end if
+
+       start_time = MPI_Wtime()
+       call write_block_native_vertical_remap_to_domains
+       writeback_seconds = MPI_Wtime()-start_time
+       sol%bdry_uptodate = .false.
+
+       start_time = MPI_Wtime()
+       call update_bdry(sol,NONE,910)
+       boundary_seconds = MPI_Wtime()-start_time
+
+       start_time = MPI_Wtime()
        call complete_block_native_vertical_remap
+       completion_seconds = MPI_Wtime()-start_time
+
+       local_timing = [block_seconds,writeback_seconds, &
+            boundary_seconds,completion_seconds,oracle_seconds]
+       call MPI_Allreduce(local_timing,global_timing,size(local_timing), &
+            MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
+       if (ierr /= MPI_SUCCESS) then
+          if (rank == 0) write (6,'(a)') &
+               "MPI_Allreduce failed for vertical-remap timing"
+          call abort_run
+       end if
+
+       if (rank == 0) then
+          write (6,'(a,es12.5)') &
+               "  block vertical remap max time [s] = ",global_timing(1)
+          write (6,'(a,es12.5)') &
+               "  remap Domain compatibility writeback max time [s] = ", &
+               global_timing(2)
+          write (6,'(a,es12.5)') &
+               "  remap Domain boundary refresh max time [s] = ", &
+               global_timing(3)
+          write (6,'(a,es12.5)') &
+               "  remap compact completion max time [s] = ", &
+               global_timing(4)
+          if (validate_oracle) write (6,'(a,es12.5)') &
+               "  remap validation oracle max time [s] = ", &
+               global_timing(5)
+       end if
+    else if (compressible) then
+       ! Transitional fallback for configurations without a retained compact
+       ! state. Normal compressible production reaches the block path above.
+       old_mass = sol(S_MASS,1:zlevels)
+       call apply_no_bdry2(remap_compressible,z_null)
+       sol%bdry_uptodate = .false.
+    else
+       old_mass = sol(S_MASS,1:zlevels)
+       call apply_no_bdry2 (remap_incompressible, z_null)
+       sol%bdry_uptodate = .false.
     end if
 
     nullify (interpolate)
-    deallocate (old_mass)
+    if (allocated(old_mass)) deallocate(old_mass)
   end subroutine remap_vertical_coordinates
   
 
