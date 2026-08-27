@@ -68,6 +68,7 @@ module main_mod
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
        parallel_block_grid_change_is_pending, &
        prepare_parallel_block_grid_change, &
+       synchronize_parallel_block_solution_consumer, &
        synchronize_parallel_block_checkpoint, &
        install_block_native_adaptation_mask_seed, &
        refresh_parallel_block_trend_boundary_state, &
@@ -96,6 +97,9 @@ integer, allocatable :: n_active_edges(:), n_active_nodes(:), node_level_start(:
 real(dp)             :: dt_new, initial_total_mass, time_mult
 real(dp)             :: dt_loc, min_mass_loc
 logical, save        :: checkpoint_cutover_reported = .false.
+logical, save        :: mass_consumer_cutover_reported = .false.
+logical, save        :: output_consumer_cutover_reported = .false.
+logical, save        :: solution_consumer_sync_reported = .false.
 
 type(Initial_State), allocatable :: ini_st(:)
 
@@ -189,7 +193,9 @@ contains
 
        if (trim (test_case) /= "make_NCAR_topo") call write_checkpoint
     end if
-    if (trim (test_case) /= "make_NCAR_topo" .and. trim (test_case) /= "spherical_harmonics") call write_and_export (vtk_grid)
+    if (trim (test_case) /= "make_NCAR_topo" .and. &
+         trim (test_case) /= "spherical_harmonics") &
+         call write_output_consumer(vtk_grid)
     call barrier
 
     call initialize_dt_viscosity
@@ -316,13 +322,70 @@ contains
     end if
   end subroutine set_time_integrator
 
-  subroutine write_checkpoint 
+  subroutine prepare_end_step_domain_consumers ( &
+       checkpoint_required,compatibility_ready)
+    ! Share one authoritative compact-to-Domain transaction between checkpoint
+    ! serialization and field output. Output requires sol only; checkpoints
+    ! additionally require wav_coeff.
+
     implicit none
+
+    logical, intent(in) :: checkpoint_required
+    logical, intent(out) :: compatibility_ready
+
+    integer(int64) :: expected_writebacks
+    integer(int64) :: writeback_after
+    integer(int64) :: writeback_before
+
+    logical :: block_state_ready
+
+    compatibility_ready = .false.
+    block_state_ready = parallel_block_state_is_ready()
+    if (.not. compressible .or. mode_split .or. &
+         .not. block_state_ready) return
+
+    writeback_before = block_domain_production_writeback_count()
+    if (checkpoint_required) then
+       call synchronize_parallel_block_checkpoint
+       expected_writebacks = 2_int64
+    else
+       call synchronize_parallel_block_solution_consumer
+       expected_writebacks = 1_int64
+    end if
+    writeback_after = block_domain_production_writeback_count()
+    if (writeback_after /= writeback_before+expected_writebacks) &
+         error stop "end-step consumer compatibility count is invalid"
+    block_state_ready = parallel_block_state_is_ready()
+    if (.not. block_state_ready) &
+         error stop "end-step consumer synchronization invalidated blocks"
+    compatibility_ready = .true.
+
+    if (.not. checkpoint_required .and. &
+         .not. solution_consumer_sync_reported .and. rank == 0) then
+       write(6,'(a)') &
+            "Block-authoritative field-output synchronization passed"
+       write(6,'(a)') "  sol-only Domain compatibility writebacks = 1"
+    end if
+    if (.not. checkpoint_required) &
+         solution_consumer_sync_reported = .true.
+
+  end subroutine prepare_end_step_domain_consumers
+
+
+  subroutine write_checkpoint (domain_compatibility_ready)
+    implicit none
+
+    logical, optional, intent(in) :: domain_compatibility_ready
 
     integer(int64) :: writeback_after
     integer(int64) :: writeback_before
 
     logical :: block_state_ready
+    logical :: caller_synchronized
+
+    caller_synchronized = .false.
+    if (present(domain_compatibility_ready)) &
+         caller_synchronized = domain_compatibility_ready
 
     cp_idx = cp_idx + 1
     if (rank == 0) then
@@ -337,11 +400,14 @@ contains
     ! verify that the transaction does not invalidate the retained block state.
     block_state_ready = parallel_block_state_is_ready()
     if (compressible .and. .not. mode_split .and. block_state_ready) then
-       writeback_before = block_domain_production_writeback_count()
-       call synchronize_parallel_block_checkpoint
-       writeback_after = block_domain_production_writeback_count()
-       if (writeback_after /= writeback_before+2_int64) &
-            error stop "checkpoint compatibility writeback count is invalid"
+       if (.not. caller_synchronized) then
+          writeback_before = block_domain_production_writeback_count()
+          call synchronize_parallel_block_checkpoint
+          writeback_after = block_domain_production_writeback_count()
+          if (writeback_after /= writeback_before+2_int64) &
+               error stop &
+               "checkpoint compatibility writeback count is invalid"
+       end if
        block_state_ready = parallel_block_state_is_ready()
        if (.not. block_state_ready) &
             error stop "checkpoint synchronization invalidated block state"
@@ -358,6 +424,44 @@ contains
     call restart
 
   end subroutine write_checkpoint
+
+
+  subroutine write_output_consumer (type)
+    ! The legacy VTK path may update Domain boundary aliases and diagnostic
+    ! work arrays, but must not mutate authoritative compact interiors or
+    ! trigger an unaccounted block-to-Domain writeback.
+
+    implicit none
+
+    character(len=3), intent(in) :: type
+
+    integer(int64) :: writeback_after
+    integer(int64) :: writeback_before
+
+    logical :: block_state_after
+    logical :: block_state_before
+
+    block_state_before = parallel_block_state_is_ready()
+    writeback_before = 0_int64
+    if (compressible .and. .not. mode_split .and. block_state_before) &
+         writeback_before = block_domain_production_writeback_count()
+
+    call write_and_export(type)
+
+    if (compressible .and. .not. mode_split .and. block_state_before) then
+       block_state_after = parallel_block_state_is_ready()
+       if (.not. block_state_after) &
+            error stop "field output invalidated authoritative block state"
+       writeback_after = block_domain_production_writeback_count()
+       if (writeback_after /= writeback_before) &
+            error stop "field output performed an unaccounted writeback"
+       if (.not. output_consumer_cutover_reported .and. rank == 0) &
+            write(6,'(a)') &
+            "Domain field-output consumer audit passed"
+       output_consumer_cutover_reported = .true.
+    end if
+
+  end subroutine write_output_consumer
 
   subroutine restart 
     ! Fresh restart from checkpoint data (all structures reset)
@@ -424,6 +528,7 @@ contains
     integer(8) :: idt, ialign
     logical    :: block_euler_step, block_multistage_candidate
     logical    :: block_mass_trigger, domain_mass_trigger
+    logical    :: checkpoint_due, domain_compatibility_ready
     logical    :: validate_block_remap
     logical    :: block_state_ready
     logical    :: rebuild_block_state, save_data
@@ -630,6 +735,13 @@ contains
     else
        iremap = iremap + 1
     end if
+    checkpoint_due = .false.
+    if (save_data) &
+         checkpoint_due = modulo(iwrite+1,CP_EVERY) == 0
+    domain_compatibility_ready = .false.
+    if (save_data) &
+         call prepare_end_step_domain_consumers( &
+         checkpoint_due,domain_compatibility_ready)
     if (log_total_mass) call cal_total_mass (.false.) ! change in total mass
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -641,8 +753,9 @@ contains
 
     if (save_data) then
        iwrite = iwrite + 1
-       if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint
-       call write_and_export (vtk_grid)
+       if (checkpoint_due) &
+            call write_checkpoint(domain_compatibility_ready)
+       call write_output_consumer(vtk_grid)
     end if
   end subroutine time_step
 
@@ -734,8 +847,18 @@ contains
     logical, intent(in) :: initialize_total_mass
 
     integer      :: k
+    integer(int64) :: writeback_after
+    integer(int64) :: writeback_before
     real(dp)     :: total_mass, mass_error
     character(3) :: int_type = "hex"
+
+    logical :: block_state_after
+    logical :: block_state_before
+
+    block_state_before = parallel_block_state_is_ready()
+    writeback_before = 0_int64
+    if (compressible .and. .not. mode_split .and. block_state_before) &
+         writeback_before = block_domain_production_writeback_count()
 
     total_mass = 0.0_dp
     do k = 1, zlevels
@@ -757,6 +880,19 @@ contains
        case ("tri")
           write (6,'(a,es11.4)') "Relative total mass error on adaptive grid (triangles) = ", mass_error
        end select
+    end if
+
+    if (compressible .and. .not. mode_split .and. block_state_before) then
+       block_state_after = parallel_block_state_is_ready()
+       if (.not. block_state_after) &
+            error stop "total-mass diagnostic invalidated block state"
+       writeback_after = block_domain_production_writeback_count()
+       if (writeback_after /= writeback_before) &
+            error stop "total-mass diagnostic performed a writeback"
+       if (.not. mass_consumer_cutover_reported .and. rank == 0) &
+            write(6,'(a)') &
+            "Domain total-mass diagnostic consumer audit passed"
+       mass_consumer_cutover_reported = .true.
     end if
   end subroutine cal_total_mass
 

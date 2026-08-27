@@ -792,6 +792,7 @@ module parallel_block_mpi_mod
   public :: parallel_block_state_is_ready
   public :: parallel_block_grid_change_is_pending
   public :: invalidate_parallel_block_domain_shadow
+  public :: synchronize_parallel_block_solution_consumer
   public :: synchronize_parallel_block_checkpoint
   public :: prepare_parallel_block_grid_change
   public :: install_block_native_adaptation_mask_seed
@@ -1071,6 +1072,42 @@ contains
     call clear_parallel_block_state
 
   end subroutine invalidate_parallel_block_domain_shadow
+
+
+  subroutine synchronize_parallel_block_solution_consumer
+    ! Materialize only authoritative sol values for read-only Domain
+    ! diagnostics and output.  Checkpoint serialization separately requests
+    ! both sol and wav_coeff.
+
+    implicit none
+
+    integer(int64) :: allocation_before
+
+    logical :: checkpoint_ready
+    logical :: state_ready
+    logical :: trial_active
+
+    trial_active = local_block_tendency_trial_is_active()
+    checkpoint_ready = &
+         local_block_tendency_commit_checkpoint_is_ready()
+    if (trial_active) then
+       call fail("solution-consumer synchronization during active trial")
+    end if
+    if (checkpoint_ready) then
+       call fail("solution-consumer synchronization before step completion")
+    end if
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) then
+       call fail("solution-consumer synchronization before block readiness")
+    end if
+
+    allocation_before = block_writeback_plan_allocation_count()
+    call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
+    if (block_writeback_plan_allocation_count() /= allocation_before) &
+         call fail("solution-consumer synchronization reallocated buffers")
+
+  end subroutine synchronize_parallel_block_solution_consumer
 
 
   subroutine synchronize_parallel_block_checkpoint
