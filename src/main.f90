@@ -97,14 +97,100 @@ integer, allocatable :: n_active_edges(:), n_active_nodes(:), node_level_start(:
 real(dp)             :: dt_new, initial_total_mass, time_mult
 real(dp)             :: dt_loc, min_mass_loc
 logical, save        :: checkpoint_cutover_reported = .false.
+logical, save        :: diagnostic_consumer_cutover_reported = .false.
 logical, save        :: mass_consumer_cutover_reported = .false.
 logical, save        :: output_consumer_cutover_reported = .false.
+logical, save        :: physics_consumer_cutover_reported = .false.
 logical, save        :: solution_consumer_sync_reported = .false.
+logical, save        :: soil_consumer_cutover_reported = .false.
+
+integer, parameter :: DOMAIN_CONSUMER_READY = 1
+integer, parameter :: DOMAIN_CONSUMER_PENDING = 2
+
+type Domain_Consumer_Audit
+   integer :: expected_phase = 0
+   integer(int64) :: writeback_count = 0_int64
+   logical :: active = .false.
+end type Domain_Consumer_Audit
 
 type(Initial_State), allocatable :: ini_st(:)
 
 
 contains
+
+
+  subroutine begin_domain_consumer_audit (audit,expected_phase)
+    ! Capture the block transaction surrounding a legacy Domain consumer.
+    ! A read-only ready-state consumer and a deliberate pending-state mutator
+    ! have different valid lifecycle states, but neither may initiate a block
+    ! writeback on its own.
+
+    implicit none
+
+    type(Domain_Consumer_Audit), intent(out) :: audit
+    integer, intent(in) :: expected_phase
+
+    logical :: block_state_ready
+    logical :: grid_change_pending
+
+    audit%active = .false.
+    audit%expected_phase = expected_phase
+    audit%writeback_count = 0_int64
+    if (.not. compressible .or. mode_split) return
+
+    block_state_ready = parallel_block_state_is_ready()
+    grid_change_pending = parallel_block_grid_change_is_pending()
+    if (.not. block_state_ready .and. .not. grid_change_pending) return
+
+    select case (expected_phase)
+    case (DOMAIN_CONSUMER_READY)
+       if (.not. block_state_ready .or. grid_change_pending) &
+            error stop "ready Domain consumer entered in invalid block phase"
+    case (DOMAIN_CONSUMER_PENDING)
+       if (block_state_ready .or. .not. grid_change_pending) &
+            error stop "mutating Domain consumer entered in invalid block phase"
+    case default
+       error stop "invalid Domain consumer audit phase"
+    end select
+
+    audit%writeback_count = block_domain_production_writeback_count()
+    audit%active = .true.
+
+  end subroutine begin_domain_consumer_audit
+
+
+  subroutine end_domain_consumer_audit (audit)
+    ! Verify that the consumer retained the exact transaction phase and did
+    ! not hide an authoritative compact-to-Domain synchronization.
+
+    implicit none
+
+    type(Domain_Consumer_Audit), intent(in) :: audit
+
+    integer(int64) :: writeback_count
+    logical :: block_state_ready
+    logical :: grid_change_pending
+
+    if (.not. audit%active) return
+
+    block_state_ready = parallel_block_state_is_ready()
+    grid_change_pending = parallel_block_grid_change_is_pending()
+    select case (audit%expected_phase)
+    case (DOMAIN_CONSUMER_READY)
+       if (.not. block_state_ready .or. grid_change_pending) &
+            error stop "read-only Domain consumer invalidated block state"
+    case (DOMAIN_CONSUMER_PENDING)
+       if (block_state_ready .or. .not. grid_change_pending) &
+            error stop "Domain mutator changed the block grid-change phase"
+    case default
+       error stop "invalid completed Domain consumer audit phase"
+    end select
+
+    writeback_count = block_domain_production_writeback_count()
+    if (writeback_count /= audit%writeback_count) &
+         error stop "Domain consumer performed an unaccounted writeback"
+
+  end subroutine end_domain_consumer_audit
 
 
   subroutine initialize (run_id) 
@@ -463,6 +549,82 @@ contains
 
   end subroutine write_output_consumer
 
+
+  subroutine apply_domain_physics_consumers
+    ! Physics remains a deliberate Domain compatibility mutation after the
+    ! authoritative compact dynamics state has been materialized for grid
+    ! change.  It may update atmospheric prognostics, diagnostic work fields
+    ! and Simple-physics soil temperatures, but it must not alter the retained
+    ! compact transaction or perform another block writeback.
+
+    implicit none
+
+    type(Domain_Consumer_Audit) :: audit
+    logical :: physics_executed
+
+    physics_executed = vert_diffuse
+#ifdef PHYSICS
+    if (physics_model) physics_executed = .true.
+#endif
+
+    call begin_domain_consumer_audit( &
+         audit,DOMAIN_CONSUMER_PENDING)
+
+    ! Ocean (incompressible) vertical diffusion uses the same wrapper, while
+    ! the block lifecycle assertions activate only for compressible dynamics.
+    if (vert_diffuse) call vertical_diffusion
+
+#ifdef PHYSICS
+    if (physics_model) then
+       select case (physics_type)
+       case ("Held_Suarez")
+          call Euler(sol(1:N_VARIABLE,1:zlevels), &
+               wav_coeff(1:N_VARIABLE,1:zlevels), &
+               trend_physics_Held_Suarez,dt)
+       case ("Simple")
+          call physics_simple_step(dt)
+       end select
+    end if
+#endif
+
+    call end_domain_consumer_audit(audit)
+
+    if (audit%active .and. physics_executed) then
+       if (.not. physics_consumer_cutover_reported .and. rank == 0) &
+            write(6,'(a)') &
+            "Domain physics mutation consumer audit passed"
+       physics_consumer_cutover_reported = .true.
+    end if
+
+  end subroutine apply_domain_physics_consumers
+
+
+  subroutine update_domain_soil_wavelet_consumer
+    ! Soil levels are intentionally outside the atmospheric compact payload.
+    ! Their legacy transform may update Domain wav_coeff(zmin:0), but it must
+    ! leave the pending atmospheric block decision image intact.
+
+    implicit none
+
+    type(Domain_Consumer_Audit) :: audit
+
+    if (zmin >= 1) return
+
+    call begin_domain_consumer_audit( &
+         audit,DOMAIN_CONSUMER_PENDING)
+    call WT_after_step( &
+         sol(:,zmin:0),wav_coeff(:,zmin:0),level_start-1)
+    call end_domain_consumer_audit(audit)
+
+    if (audit%active) then
+       if (.not. soil_consumer_cutover_reported .and. rank == 0) &
+            write(6,'(a)') &
+            "Domain soil-level wavelet consumer audit passed"
+       soil_consumer_cutover_reported = .true.
+    end if
+
+  end subroutine update_domain_soil_wavelet_consumer
+
   subroutine restart 
     ! Fresh restart from checkpoint data (all structures reset)
 
@@ -621,29 +783,12 @@ contains
     !    Physics split step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    ! Ocean (incompressible) 
-    if (vert_diffuse) call vertical_diffusion ! ocean (incompressible) models
-
-    ! Atmosphere (compressible) 
-#ifdef PHYSICS
-    if (physics_model) then
-       select case (physics_type)
-       case ("Held_Suarez")
-          call Euler (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_physics_Held_Suarez, dt) 
-       case ("Simple")
-          call physics_simple_step (dt)
-       end select
-    end if
-#endif 
+    call apply_domain_physics_consumers
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Grid adaptation
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if (zmin < 1) then
-       ! Compute wavelet coefficients in soil levels.
-       call WT_after_step( &
-            sol(:,zmin:0),wav_coeff(:,zmin:0),level_start-1)
-    end if
+    call update_domain_soil_wavelet_consumer
     ! Post-cutover milestone: profile the complete block-native timestep,
     ! including all communication, synchronization and compatibility phases.
     ! The module-owned transaction is authoritative here.  A timestep-local
@@ -897,9 +1042,16 @@ contains
   end subroutine cal_total_mass
 
   real(dp) function cpt_dt ()
-    ! Calculates time step, minimum relative mass and active nodes and edges
+    ! Calculate the timestep and active-node diagnostics. During production
+    ! block stepping this is a read-only consumer of the established Domain
+    ! compatibility image.
     implicit none
     integer, dimension(2) :: n_active_loc
+
+    type(Domain_Consumer_Audit) :: audit
+
+    call begin_domain_consumer_audit( &
+         audit,DOMAIN_CONSUMER_READY)
 
     if (adapt_dt) dt_loc = 1e16_dp
     n_active_nodes = 0
@@ -919,6 +1071,14 @@ contains
     n_active_loc = (/ sum (n_active_nodes(level_start:level_end)), sum(n_active_edges(level_start:level_end)) /)
     n_active = sum_int (n_active_loc)
     level_end = sync_max_int (level_end)
+
+    call end_domain_consumer_audit(audit)
+    if (audit%active) then
+       if (.not. diagnostic_consumer_cutover_reported .and. rank == 0) &
+            write(6,'(a)') &
+            "Domain CFL/active-grid diagnostic consumer audit passed"
+       diagnostic_consumer_cutover_reported = .true.
+    end if
   end function cpt_dt
 
   subroutine cal_min_dt (dom, i, j, zlev, offs, dims)
