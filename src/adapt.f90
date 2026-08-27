@@ -134,13 +134,14 @@ contains
   end subroutine refresh_native_inverse_vector_boundary
 
 
-  subroutine adapt (set_thresholds, type)
+  subroutine adapt (set_thresholds, type,validate_significance)
     ! Determines significant wavelets, adaptive grid and all masks associated with adaptive grid
     
     implicit none
     
     procedure (noarg_sub)         :: set_thresholds
     logical, intent(in), optional :: type ! recalculate thresholds
+    procedure(noarg_sub), optional :: validate_significance
     
     logical :: local_type
 
@@ -158,9 +159,18 @@ contains
 
     ! Initialize all masks to ZERO at scales > level_start
     call init_masks_zero
+
+    ! A retained compact wavelet image installs the authoritative direct
+    ! threshold seed after mask initialization.  The callback also validates
+    ! the seed and releases topology-dependent block state before refinement.
+    if (present(validate_significance)) call validate_significance
     
     ! Active zone at all scales
-    call mask_active
+    if (present(validate_significance)) then
+       call mask_active(.true.)
+    else
+       call mask_active
+    end if
 
     ! Adjacent zone at same scale
     call mask_adj_same_scale

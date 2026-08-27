@@ -7,6 +7,7 @@ module mask_mod
   use dyn_arrays,     only : extend, init
   use domain_mod,     only : Domain, grid, wav_coeff, idx, id_edge
   use domain_ops_mod, only : apply_bdry, apply_interscale, apply_onescale, apply_onescale__int 
+  use patch_mod,      only : PATCH_SIZE
   
   use shared_mod, only : ADJSPACE, ADJZONE, BDRY_THICKNESS, EDGE, N_BDRY, TOLRNZ, RT, DG, UP, TRSK, RESTRCT, ZERO, z_null, &
        min_level, Laplace_rotu, Laplace_sclr, level_fill, S_VELO, FROZEN, NONE, level_start, level_end, max_level, &
@@ -32,20 +33,39 @@ contains
   end subroutine init_masks_zero
 
   
-  subroutine mask_active
-    ! Determine active mask
+  subroutine mask_active (block_seed_installed)
+    ! Determine active mask.  A block-authoritative caller may install the
+    ! direct threshold seed first; the established Domain path then performs
+    ! only mask communication and parent propagation.
     implicit none
+    logical, optional, intent(in) :: block_seed_installed
     integer :: l
+    logical :: use_block_seed
+
+    use_block_seed = .false.
+    if (present(block_seed_installed)) use_block_seed = &
+         block_seed_installed
 
     call update_bdry1 (wav_coeff, level_start, level_end, 910)
 
-    ! Set active grid at finest scale
-    call apply_onescale (mask_tol_vars, level_end, z_null, 0, 1)
+    ! Set active grid at finest scale.  Compact decisions own patch
+    ! interiors; retain the established operator only for boundary aliases.
+    if (use_block_seed) then
+       call apply_onescale (mask_tol_boundary_vars, &
+            level_end, z_null, 0, 1)
+    else
+       call apply_onescale (mask_tol_vars, level_end, z_null, 0, 1)
+    end if
     call comm_masks_mpi (level_end)
 
     ! Set active grid at coarser scales
     do l = level_end-1, level_start, -1
-       call apply_onescale (mask_tol_vars, l, z_null, -1, 2)
+       if (use_block_seed) then
+          call apply_onescale (mask_tol_boundary_vars, &
+               l, z_null, -1, 2)
+       else
+            call apply_onescale (mask_tol_vars, l, z_null, -1, 2)
+       end if
 
        ! Add  parents to active mask at scale l if any of 6 child neighbours at scale l+1 are in active mask
        call apply_interscale (mask_parent_nodes, l, z_null, 0, 1) ! also modifies child mask
@@ -54,6 +74,24 @@ contains
     end do
     call comm_masks_mpi (NONE)
   end subroutine mask_active
+
+
+  subroutine mask_tol_boundary_vars (dom, i, j, zlev, offs, dims)
+    ! Preserve the legacy threshold semantics for boundary aliases while a
+    ! compact block decision image owns every patch-interior mask record.
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer, intent(in) :: i, j, zlev
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    if (i >= 0 .and. i < PATCH_SIZE .and. &
+         j >= 0 .and. j < PATCH_SIZE) return
+    call mask_tol_vars(dom,i,j,zlev,offs,dims)
+
+  end subroutine mask_tol_boundary_vars
 
   
   subroutine mask_adj_same_scale

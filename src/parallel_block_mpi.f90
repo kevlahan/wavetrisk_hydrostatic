@@ -16,10 +16,10 @@ module parallel_block_mpi_mod
        SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
        MM, MP, PM, PP, UMZ, UPZ, UZM, UZP, VMM, VMPP, VMP, &
        VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
-       S_MASS, S_TEMP, S_VELO, &
-       ADJZONE, RESTRCT, TRSK, c_p, compressible, grav_accel, kappa, &
+       scalars, S_MASS, S_TEMP, S_VELO, &
+       ADJZONE, TOLRNZ, RESTRCT, TRSK, c_p, compressible, grav_accel, kappa, &
        a_vert, a_vert_mass, b_vert, b_vert_mass, level_end, &
-       level_start, p_0, p_top, zlevels
+       level_fill, level_start, p_0, p_top, threshold, zlevels
 
   use domain_mod, only : chd_offs, Domain, Float_Field, &
        ed_idx, get_offs_Domain, grid, &
@@ -440,6 +440,44 @@ module parallel_block_mpi_mod
      integer(int64) :: column_count = 0_int64
   end type Block_Minimum_Mass_Context
 
+  type :: Block_Adaptation_Significance_Context
+     integer(int64) :: scalar_candidate_count = 0_int64
+     integer(int64) :: scalar_active_count = 0_int64
+     integer(int64) :: vector_candidate_count = 0_int64
+     integer(int64) :: vector_active_count = 0_int64
+  end type Block_Adaptation_Significance_Context
+
+  type :: Block_Adaptation_Decision_Storage
+     integer :: catalog_index = 0
+     integer :: patch_count = 0
+     integer, allocatable :: value(:)
+  end type Block_Adaptation_Decision_Storage
+
+  type :: Block_Adaptation_Decision_Exchange_Type
+     integer, allocatable :: send_count(:)
+     integer, allocatable :: send_displ(:)
+     integer, allocatable :: recv_count(:)
+     integer, allocatable :: recv_displ(:)
+     integer, allocatable :: send_buffer(:)
+     integer, allocatable :: recv_buffer(:)
+     integer, allocatable :: domain_stage(:)
+     logical, allocatable :: domain_patch_covered(:)
+     integer(int64) :: plan_generation = -1_int64
+     integer(int64) :: allocation_count = 0_int64
+     logical :: ready = .false.
+  end type Block_Adaptation_Decision_Exchange_Type
+
+  integer, parameter :: BLOCK_ADAPTATION_PATCH_NVALUE = &
+       (1+EDGE)*PATCH_SIZE**2
+  integer, parameter :: BLOCK_ADAPTATION_FROZEN = -1
+  integer, parameter :: BLOCK_ADAPTATION_INACTIVE = 0
+  integer, parameter :: BLOCK_ADAPTATION_ACTIVE = 1
+
+  type(Block_Adaptation_Decision_Storage), allocatable, save :: &
+       block_adaptation_decision(:)
+  type(Block_Adaptation_Decision_Exchange_Type), save :: &
+       block_adaptation_exchange
+
   type :: Block_Vertical_Remap_Exchange_Type
      integer, allocatable :: send_count(:)
      integer, allocatable :: send_displ(:)
@@ -479,6 +517,8 @@ module parallel_block_mpi_mod
   logical, save :: production_multistage_provisional_snapshot_consumed = &
        .false.
   logical, save :: production_adaptation_pending = .false.
+  logical, save :: production_grid_change_pending = .false.
+  integer, save :: production_grid_change_phase = 0
 
   ! Domain-shaped, non-authoritative storage for the complete native vector
   ! transform.  Values are populated only from the block-derived writeback
@@ -748,9 +788,11 @@ module parallel_block_mpi_mod
   public :: build_parallel_block_catalog
   public :: clear_parallel_block_state
   public :: parallel_block_state_is_ready
+  public :: parallel_block_grid_change_is_pending
   public :: invalidate_parallel_block_domain_shadow
   public :: synchronize_parallel_block_checkpoint
   public :: prepare_parallel_block_grid_change
+  public :: validate_block_native_adaptation_significance
   public :: complete_block_adaptation_lifecycle
   public :: retain_post_grid_change_block_reconstruction
   public :: prepare_block_native_vertical_remap
@@ -851,12 +893,15 @@ contains
 
     implicit none
 
+    call clear_block_adaptation_decisions
     call clear_block_vertical_remap_storage
     call clear_block_ghost_exchange_plan
     call clear_block_writeback_plan
     call clear_local_blocks
     call clear_block_staging
     production_block_inverse_active = .false.
+    production_grid_change_pending = .false.
+    production_grid_change_phase = 0
 
     if (allocated(block_catalog)) deallocate(block_catalog)
 
@@ -875,6 +920,42 @@ contains
     end if
 
   end subroutine clear_parallel_block_state
+
+
+  subroutine clear_block_adaptation_decisions
+
+    implicit none
+
+    integer :: local_index
+
+    if (allocated(block_adaptation_decision)) then
+       do local_index = 1,size(block_adaptation_decision)
+          if (allocated(block_adaptation_decision(local_index)%value)) &
+               deallocate(block_adaptation_decision(local_index)%value)
+       end do
+       deallocate(block_adaptation_decision)
+    end if
+    if (allocated(block_adaptation_exchange%send_count)) &
+         deallocate(block_adaptation_exchange%send_count)
+    if (allocated(block_adaptation_exchange%send_displ)) &
+         deallocate(block_adaptation_exchange%send_displ)
+    if (allocated(block_adaptation_exchange%recv_count)) &
+         deallocate(block_adaptation_exchange%recv_count)
+    if (allocated(block_adaptation_exchange%recv_displ)) &
+         deallocate(block_adaptation_exchange%recv_displ)
+    if (allocated(block_adaptation_exchange%send_buffer)) &
+         deallocate(block_adaptation_exchange%send_buffer)
+    if (allocated(block_adaptation_exchange%recv_buffer)) &
+         deallocate(block_adaptation_exchange%recv_buffer)
+    if (allocated(block_adaptation_exchange%domain_stage)) &
+         deallocate(block_adaptation_exchange%domain_stage)
+    if (allocated(block_adaptation_exchange%domain_patch_covered)) &
+         deallocate(block_adaptation_exchange%domain_patch_covered)
+    block_adaptation_exchange%plan_generation = -1_int64
+    block_adaptation_exchange%allocation_count = 0_int64
+    block_adaptation_exchange%ready = .false.
+
+  end subroutine clear_block_adaptation_decisions
 
 
   subroutine clear_block_vertical_remap_storage
@@ -926,9 +1007,21 @@ contains
     local_store_ready = local_block_store_ready()
     writeback_ready = block_writeback_plan_is_ready()
     ready = allocated(block_catalog) .and. local_store_ready .and. &
-         ghost_exchange_plan%ready .and. writeback_ready
+         ghost_exchange_plan%ready .and. writeback_ready .and. &
+         .not. production_grid_change_pending
 
   end function parallel_block_state_is_ready
+
+
+  logical function parallel_block_grid_change_is_pending () result(pending)
+    ! Expose the module-owned grid-change transaction state so the timestep
+    ! driver does not rely on a local flag retained across physics calls.
+
+    implicit none
+
+    pending = production_grid_change_pending
+
+  end function parallel_block_grid_change_is_pending
 
 
   subroutine complete_block_adaptation_lifecycle
@@ -946,6 +1039,13 @@ contains
     end if
     if (production_block_inverse_active) then
        call fail("block inverse remained active at adaptation")
+    end if
+    if (production_grid_change_pending) then
+       write(error_unit,'(a,i0,a,i0)') &
+            "Rank ",rank,": block grid-change phase = ", &
+            production_grid_change_phase
+       flush(error_unit)
+       call fail("block grid-change preview remained pending")
     end if
     production_adaptation_pending = .false.
 
@@ -1008,15 +1108,21 @@ contains
 
   subroutine prepare_parallel_block_grid_change
     ! In a block-authoritative integration, synchronize the current fields,
-    ! then invalidate objects whose topology changes during adaptation.
+    ! then retain the read-only compact wavelet image until the current
+    ! adaptation thresholds have been applied. The decision validator clears
+    ! every topology-dependent object before refinement can begin.
 
     implicit none
 
+    logical :: local_store_ready
     logical :: state_ready
 
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("grid-change preparation before block state is ready")
+    end if
+    if (production_grid_change_pending) then
+       call fail("grid-change preparation is already pending")
     end if
 
     call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
@@ -1026,14 +1132,691 @@ contains
     call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
     call assert_block_domain_field_family_match( &
          BLOCK_PAYLOAD_WAV_COEFF)
-    call clear_parallel_block_state
+    production_grid_change_pending = .true.
+    production_grid_change_phase = 1
 
     state_ready = parallel_block_state_is_ready()
-    if (state_ready) then
-       call fail("grid-change preparation retained stale block state")
+    local_store_ready = local_block_store_ready()
+    if (state_ready .or. .not. local_store_ready) then
+       call fail("grid-change preparation state transition is invalid")
     end if
 
   end subroutine prepare_parallel_block_grid_change
+
+
+  subroutine validate_block_native_adaptation_significance
+    ! Install the compact block threshold decisions as the authoritative
+    ! direct TOLRNZ seed.  Only one integer node/edge decision is transported
+    ! per compact record.  The existing Domain mask routines retain boundary
+    ! communication and parent/adjacency propagation after this callback.
+
+    implicit none
+
+    integer :: b
+    integer :: d
+    integer :: destination
+    integer :: expected_patch_count
+    integer :: ierr
+    integer :: local_index
+    integer :: local_patch
+    integer :: n_patch
+    integer :: p
+    integer :: pos
+    integer :: r
+    integer :: slot
+    integer :: start
+
+    integer(int64) :: block_count_global(4)
+    integer(int64) :: block_count_local(4)
+    integer(int64) :: domain_count_global(4)
+    integer(int64) :: domain_count_local(4)
+    integer(int64) :: exchange_allocation_before
+
+    logical :: local_store_ready
+    logical :: writeback_ready
+
+    type(Block_Adaptation_Significance_Context) :: statistics
+
+    local_store_ready = local_block_store_ready()
+    writeback_ready = block_writeback_plan_is_ready()
+    production_grid_change_phase = 2
+    if (.not. production_grid_change_pending .or. &
+         .not. local_store_ready .or. .not. writeback_ready .or. &
+         .not. allocated(block_catalog)) then
+       call fail("block adaptation decision cutover is not ready")
+    end if
+    if (.not. allocated(threshold)) then
+       call fail("block adaptation thresholds are unavailable")
+    end if
+
+    call prepare_block_adaptation_decision_storage
+    production_grid_change_phase = 3
+    exchange_allocation_before = &
+         block_adaptation_exchange%allocation_count
+    call apply_local_block_field_consumer( &
+         accumulate_block_adaptation_significance,statistics)
+    block_count_local = [statistics%scalar_candidate_count, &
+         statistics%scalar_active_count, &
+         statistics%vector_candidate_count, &
+         statistics%vector_active_count]
+
+    ! Pack the already materialized per-record decisions using the persistent
+    ! final-owner-to-Domain-owner block manifest.
+    block_adaptation_exchange%send_buffer = 0
+    do r = 1,n_process
+       pos = block_adaptation_exchange%send_displ(r)+1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r)+ &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          local_index = catalog_local_block(b)
+          if (local_index < 1 .or. &
+               block_adaptation_decision(local_index)%catalog_index /= b) &
+               call fail("adaptation decision send block is stale")
+          n_patch = block_adaptation_decision(local_index)%patch_count
+          if (n_patch /= block_writeback_plan%send_patch_count(slot)) &
+               call fail("adaptation decision send patch count differs")
+          start = pos
+          block_adaptation_exchange%send_buffer( &
+               pos:pos+n_patch*BLOCK_ADAPTATION_PATCH_NVALUE-1) = &
+               block_adaptation_decision(local_index)%value
+          pos = pos+n_patch*BLOCK_ADAPTATION_PATCH_NVALUE
+          if (pos-start /= n_patch*BLOCK_ADAPTATION_PATCH_NVALUE) &
+               call fail("adaptation decision send extent differs")
+       end do
+       if (pos /= block_adaptation_exchange%send_displ(r)+ &
+            block_adaptation_exchange%send_count(r)+1) &
+            call fail("adaptation decision rank send extent differs")
+    end do
+
+    call MPI_Alltoallv( &
+         block_adaptation_exchange%send_buffer, &
+         block_adaptation_exchange%send_count, &
+         block_adaptation_exchange%send_displ,MPI_INTEGER, &
+         block_adaptation_exchange%recv_buffer, &
+         block_adaptation_exchange%recv_count, &
+         block_adaptation_exchange%recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv block adaptation decisions")
+    production_grid_change_phase = 4
+
+    block_adaptation_exchange%domain_stage = -2
+    block_adaptation_exchange%domain_patch_covered = .false.
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       destination = source_rank(b)
+       if (destination /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1)+1
+       local_patch = 0
+       n_patch = 0
+       call stage_local_decision_subtree( &
+            d,block_catalog(b)%root_patch,b,local_patch,n_patch)
+       expected_patch_count = local_block_patch_count(b)
+       if (local_patch /= expected_patch_count .or. &
+            n_patch /= expected_patch_count) &
+            call fail("retained adaptation decision extent differs")
+    end do
+
+    do r = 1,n_process
+       pos = block_adaptation_exchange%recv_displ(r)+1
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r)+ &
+            block_writeback_plan%recv_count(r)
+          b = block_writeback_plan%recv_block(slot)
+          d = loc_id(block_catalog(b)%root_domain+1)+1
+          n_patch = 0
+          start = pos
+          call stage_received_decision_subtree( &
+               d,block_catalog(b)%root_patch,pos,n_patch)
+          if (n_patch /= block_writeback_plan%recv_patch_count(slot) .or. &
+               pos-start /= n_patch*BLOCK_ADAPTATION_PATCH_NVALUE) &
+               call fail("received adaptation decision extent differs")
+       end do
+       if (pos /= block_adaptation_exchange%recv_displ(r)+ &
+            block_adaptation_exchange%recv_count(r)+1) &
+            call fail("adaptation decision rank receive extent differs")
+    end do
+    production_grid_change_phase = 5
+
+    ! Fixed scaffold patches outside the movable block catalogue remain an
+    ! explicit compatibility exception.  Every catalogue-covered record is
+    ! nevertheless required to match the independent Domain decision exactly.
+    domain_count_local = 0_int64
+    do d = 1,size(grid)
+       do p = 0,grid(d)%patch%length-1
+          if (grid(d)%patch%elts(p+1)%deleted) cycle
+          call validate_and_install_domain_patch_decisions( &
+               d,p,domain_count_local)
+       end do
+    end do
+    production_grid_change_phase = 6
+
+    call MPI_Allreduce(block_count_local,block_count_global, &
+         4,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce block adaptation decisions")
+    call MPI_Allreduce(domain_count_local,domain_count_global, &
+         4,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce Domain adaptation oracle")
+    if (any(block_count_global /= domain_count_global)) then
+       if (rank == 0) then
+          write(error_unit,'(a,4(i0,1x))') &
+               "Block adaptation decision counts = ",block_count_global
+          write(error_unit,'(a,4(i0,1x))') &
+               "Domain adaptation decision counts = ",domain_count_global
+       end if
+       call fail("block/Domain adaptation decisions differ")
+    end if
+    if (block_count_global(1) <= 0_int64 .or. &
+         block_count_global(3) /= int(EDGE,int64)* &
+         block_count_global(1) .or. &
+         block_count_global(2) > block_count_global(1) .or. &
+         block_count_global(4) > block_count_global(3)) &
+         call fail("block adaptation decision coverage is invalid")
+    if (block_adaptation_exchange%allocation_count /= &
+         exchange_allocation_before) &
+         call fail("adaptation decision exchange reallocated in flight")
+
+    if (rank == 0) then
+       write(6,'(a)') &
+            "Block-native adaptation mask seed installed"
+       write(6,'(a,2(i0,1x))') &
+            "  scalar/vector candidates = ", &
+            block_count_global(1),block_count_global(3)
+       write(6,'(a,2(i0,1x))') &
+            "  scalar/vector significant = ", &
+            block_count_global(2),block_count_global(4)
+       write(6,'(a,i0)') &
+            "  transported integers per compact patch = ", &
+            BLOCK_ADAPTATION_PATCH_NVALUE
+       write(6,'(a)') &
+            "  exact per-record Domain oracle passed"
+    end if
+
+    call clear_parallel_block_state
+    if (production_grid_change_pending .or. &
+         local_block_store_ready() .or. allocated(block_catalog)) &
+         call fail("adaptation decision cutover retained stale block state")
+
+  contains
+
+    subroutine claim_domain_decision_patch (d,p,stage_start)
+      implicit none
+      integer, intent(in) :: d,p
+      integer, intent(out) :: stage_start
+      integer :: patch_slot
+
+      if (d < 1 .or. d > size(grid) .or. p < 0 .or. &
+           p >= grid(d)%patch%length .or. &
+           grid(d)%patch%elts(p+1)%deleted) &
+           call fail("invalid adaptation decision destination patch")
+      patch_slot = block_writeback_plan%domain_patch_displ(d)+p+1
+      if (block_adaptation_exchange%domain_patch_covered(patch_slot)) &
+           call fail("adaptation decision patch was claimed twice")
+      block_adaptation_exchange%domain_patch_covered(patch_slot) = .true.
+      stage_start = (patch_slot-1)*BLOCK_ADAPTATION_PATCH_NVALUE+1
+    end subroutine claim_domain_decision_patch
+
+    recursive subroutine stage_local_decision_subtree ( &
+         d,p,b,local_patch,n_patch)
+      implicit none
+      integer, intent(in) :: d,p,b
+      integer, intent(inout) :: local_patch,n_patch
+      integer :: c,local_index,p_child,stage_start,value_start
+
+      if (grid(d)%patch%elts(p+1)%deleted) return
+      local_index = catalog_local_block(b)
+      if (local_patch >= block_adaptation_decision(local_index)%patch_count) &
+           call fail("retained adaptation decision traversal overflow")
+      call claim_domain_decision_patch(d,p,stage_start)
+      value_start = local_patch*BLOCK_ADAPTATION_PATCH_NVALUE+1
+      block_adaptation_exchange%domain_stage( &
+           stage_start:stage_start+BLOCK_ADAPTATION_PATCH_NVALUE-1) = &
+           block_adaptation_decision(local_index)%value( &
+           value_start:value_start+BLOCK_ADAPTATION_PATCH_NVALUE-1)
+      local_patch = local_patch+1
+      n_patch = n_patch+1
+      do c = 1,N_CHDRN
+         p_child = grid(d)%patch%elts(p+1)%children(c)
+         if (p_child > 0) call stage_local_decision_subtree( &
+              d,p_child,b,local_patch,n_patch)
+      end do
+    end subroutine stage_local_decision_subtree
+
+    recursive subroutine stage_received_decision_subtree (d,p,pos,n_patch)
+      implicit none
+      integer, intent(in) :: d,p
+      integer, intent(inout) :: pos,n_patch
+      integer :: c,p_child,stage_start
+
+      if (grid(d)%patch%elts(p+1)%deleted) return
+      if (pos+BLOCK_ADAPTATION_PATCH_NVALUE-1 > &
+           size(block_adaptation_exchange%recv_buffer)) &
+           call fail("received adaptation decision traversal overflow")
+      call claim_domain_decision_patch(d,p,stage_start)
+      block_adaptation_exchange%domain_stage( &
+           stage_start:stage_start+BLOCK_ADAPTATION_PATCH_NVALUE-1) = &
+           block_adaptation_exchange%recv_buffer( &
+           pos:pos+BLOCK_ADAPTATION_PATCH_NVALUE-1)
+      pos = pos+BLOCK_ADAPTATION_PATCH_NVALUE
+      n_patch = n_patch+1
+      do c = 1,N_CHDRN
+         p_child = grid(d)%patch%elts(p+1)%children(c)
+         if (p_child > 0) call stage_received_decision_subtree( &
+              d,p_child,pos,n_patch)
+      end do
+    end subroutine stage_received_decision_subtree
+
+  end subroutine validate_block_native_adaptation_significance
+
+
+  subroutine prepare_block_adaptation_decision_storage
+    ! Allocate one topology-lifetime decision image and its narrow reverse
+    ! exchange.  No allocation occurs while packing or transporting records.
+
+    implicit none
+
+    integer :: b
+    integer :: local_index
+    integer :: n_patch
+    integer :: r
+    integer :: slot
+
+    integer(int64) :: rank_count
+    integer(int64) :: total_patch
+
+    if (block_adaptation_exchange%ready) then
+       if (block_adaptation_exchange%plan_generation /= &
+            block_writeback_plan_generation) &
+            call fail("adaptation decision exchange plan is stale")
+       return
+    end if
+    if (.not. block_writeback_plan_is_ready()) &
+         call fail("adaptation decision storage before writeback plan")
+
+    call clear_block_adaptation_decisions
+    allocate(block_adaptation_decision(max(1,n_local_blocks())))
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(b)
+       if (n_patch <= 0) call fail("adaptation decision block is empty")
+       block_adaptation_decision(local_index)%catalog_index = b
+       block_adaptation_decision(local_index)%patch_count = n_patch
+       allocate(block_adaptation_decision(local_index)%value( &
+            n_patch*BLOCK_ADAPTATION_PATCH_NVALUE))
+       block_adaptation_decision(local_index)%value = -2
+    end do
+
+    allocate(block_adaptation_exchange%send_count(n_process))
+    allocate(block_adaptation_exchange%send_displ(n_process))
+    allocate(block_adaptation_exchange%recv_count(n_process))
+    allocate(block_adaptation_exchange%recv_displ(n_process))
+    block_adaptation_exchange%send_count = 0
+    block_adaptation_exchange%send_displ = 0
+    block_adaptation_exchange%recv_count = 0
+    block_adaptation_exchange%recv_displ = 0
+
+    do r = 1,n_process
+       rank_count = 0_int64
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r)+ &
+            block_writeback_plan%send_count(r)
+          rank_count = rank_count+int( &
+               block_writeback_plan%send_patch_count(slot),int64)* &
+               int(BLOCK_ADAPTATION_PATCH_NVALUE,int64)
+       end do
+       if (rank_count > int(huge(0),int64)) &
+            call fail("adaptation decision send count exceeds range")
+       block_adaptation_exchange%send_count(r) = int(rank_count)
+
+       rank_count = 0_int64
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r)+ &
+            block_writeback_plan%recv_count(r)
+          rank_count = rank_count+int( &
+               block_writeback_plan%recv_patch_count(slot),int64)* &
+               int(BLOCK_ADAPTATION_PATCH_NVALUE,int64)
+       end do
+       if (rank_count > int(huge(0),int64)) &
+            call fail("adaptation decision receive count exceeds range")
+       block_adaptation_exchange%recv_count(r) = int(rank_count)
+    end do
+    do r = 2,n_process
+       block_adaptation_exchange%send_displ(r) = &
+            block_adaptation_exchange%send_displ(r-1)+ &
+            block_adaptation_exchange%send_count(r-1)
+       block_adaptation_exchange%recv_displ(r) = &
+            block_adaptation_exchange%recv_displ(r-1)+ &
+            block_adaptation_exchange%recv_count(r-1)
+    end do
+
+    allocate(block_adaptation_exchange%send_buffer( &
+         max(1,sum(block_adaptation_exchange%send_count))))
+    allocate(block_adaptation_exchange%recv_buffer( &
+         max(1,sum(block_adaptation_exchange%recv_count))))
+    total_patch = int(size( &
+         block_writeback_plan%domain_patch_covered),int64)
+    if (total_patch*int(BLOCK_ADAPTATION_PATCH_NVALUE,int64) > &
+         int(huge(0),int64)) &
+         call fail("adaptation decision Domain stage exceeds range")
+    allocate(block_adaptation_exchange%domain_stage( &
+         max(1,int(total_patch)*BLOCK_ADAPTATION_PATCH_NVALUE)))
+    allocate(block_adaptation_exchange%domain_patch_covered( &
+         max(1,int(total_patch))))
+    block_adaptation_exchange%send_buffer = 0
+    block_adaptation_exchange%recv_buffer = 0
+    block_adaptation_exchange%domain_stage = -2
+    block_adaptation_exchange%domain_patch_covered = .false.
+    block_adaptation_exchange%allocation_count = &
+         int(n_local_blocks()+9,int64)
+    block_adaptation_exchange%plan_generation = &
+         block_writeback_plan_generation
+    block_adaptation_exchange%ready = .true.
+
+  end subroutine prepare_block_adaptation_decision_storage
+
+
+  subroutine validate_and_install_domain_patch_decisions ( &
+       d,p,statistics)
+    ! Compare every catalogue-derived decision with the independent Domain
+    ! calculation, then install that compact decision into the initialized
+    ! Domain masks.  Uncatalogued scaffold patches use the same calculation
+    ! directly and are counted separately from block coverage.
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: p
+    integer(int64), intent(inout) :: statistics(4)
+
+    integer :: decision
+    integer :: e
+    integer :: field_index
+    integer :: i
+    integer :: id
+    integer :: j
+    integer :: k
+    integer :: level
+    integer :: patch_slot
+    integer :: patch_start
+    integer :: q
+    integer :: stage_start
+    integer :: v
+
+    logical :: active
+    logical :: covered
+    logical :: node_is_frozen
+
+    level = grid(d)%patch%elts(p+1)%level
+    if (level < level_start .or. level > level_end) return
+    patch_slot = block_writeback_plan%domain_patch_displ(d)+p+1
+    covered = block_adaptation_exchange%domain_patch_covered(patch_slot)
+    stage_start = (patch_slot-1)*BLOCK_ADAPTATION_PATCH_NVALUE+1
+    patch_start = grid(d)%patch%elts(p+1)%elts_start
+
+    do j = 0,PATCH_SIZE-1
+       do i = 0,PATCH_SIZE-1
+          q = PATCH_SIZE*j+i
+          id = patch_start+q
+          if (id < 0 .or. id >= grid(d)%node%length) &
+               call fail("Domain adaptation oracle node is invalid")
+          node_is_frozen = grid(d)%mask_n%elts(id+1) == FROZEN
+
+          if (node_is_frozen) then
+             decision = BLOCK_ADAPTATION_FROZEN
+          else
+             statistics(1) = statistics(1)+1_int64
+             active = level < level_fill
+             do k = 1,zlevels
+                do v = scalars(1),scalars(2)
+                   field_index = id+1
+                   if (field_index > &
+                        size(wav_coeff(v,k)%data(d)%elts)) &
+                        call fail("Domain scalar adaptation oracle is invalid")
+                   if (abs(wav_coeff(v,k)%data(d)%elts(field_index)) >= &
+                        threshold(v,k)) active = .true.
+                end do
+             end do
+             if (active) then
+                decision = BLOCK_ADAPTATION_ACTIVE
+                statistics(2) = statistics(2)+1_int64
+             else
+                decision = BLOCK_ADAPTATION_INACTIVE
+             end if
+          end if
+          if (covered) then
+             if (block_adaptation_exchange%domain_stage( &
+                  stage_start+q) /= decision) &
+                  call fail("block/Domain scalar adaptation record differs")
+          else
+             block_adaptation_exchange%domain_stage(stage_start+q) = &
+                  decision
+          end if
+          select case (decision)
+          case (BLOCK_ADAPTATION_ACTIVE)
+             grid(d)%mask_n%elts(id+1) = TOLRNZ
+          case (BLOCK_ADAPTATION_INACTIVE)
+             if (grid(d)%mask_n%elts(id+1) > ADJZONE) &
+                  grid(d)%mask_n%elts(id+1) = ADJZONE
+          case (BLOCK_ADAPTATION_FROZEN)
+             continue
+          case default
+             call fail("invalid scalar adaptation decision")
+          end select
+
+          do e = RT,UP
+             if (node_is_frozen) then
+                decision = BLOCK_ADAPTATION_FROZEN
+             else
+                statistics(3) = statistics(3)+1_int64
+                active = level < level_fill
+                field_index = EDGE*id+e+1
+                do k = 1,zlevels
+                   if (field_index > &
+                        size(wav_coeff(S_VELO,k)%data(d)%elts)) &
+                        call fail("Domain vector adaptation oracle is invalid")
+                   if (abs(wav_coeff(S_VELO,k)%data(d)%elts( &
+                        field_index)) >= threshold(S_VELO,k)) &
+                        active = .true.
+                end do
+                if (active) then
+                   decision = BLOCK_ADAPTATION_ACTIVE
+                   statistics(4) = statistics(4)+1_int64
+                else
+                   decision = BLOCK_ADAPTATION_INACTIVE
+                end if
+             end if
+             if (covered) then
+                if (block_adaptation_exchange%domain_stage( &
+                     stage_start+PATCH_SIZE**2+EDGE*q+e) /= decision) &
+                     call fail("block/Domain vector adaptation record differs")
+             else
+                block_adaptation_exchange%domain_stage( &
+                     stage_start+PATCH_SIZE**2+EDGE*q+e) = decision
+             end if
+             select case (decision)
+             case (BLOCK_ADAPTATION_ACTIVE)
+                grid(d)%mask_e%elts(field_index) = TOLRNZ
+             case (BLOCK_ADAPTATION_INACTIVE)
+                if (grid(d)%mask_e%elts(field_index) > ADJZONE) &
+                     grid(d)%mask_e%elts(field_index) = ADJZONE
+             case (BLOCK_ADAPTATION_FROZEN)
+                continue
+             case default
+                call fail("invalid vector adaptation decision")
+             end select
+          end do
+       end do
+    end do
+    if (.not. covered) &
+         block_adaptation_exchange%domain_patch_covered(patch_slot) = .true.
+
+  end subroutine validate_and_install_domain_patch_decisions
+
+
+
+
+  subroutine accumulate_block_adaptation_significance ( &
+       catalog_index,block,context)
+    ! Apply mask_tol_vars threshold semantics to compact patch interiors.
+
+    implicit none
+
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: decision_base
+    integer :: e
+    integer :: field_index
+    integer :: field_level
+    integer :: i
+    integer :: j
+    integer :: level_slot
+    integer :: local_index
+    integer :: mask_level_slot
+    integer :: n_node
+    integer :: node_index
+    integer :: p
+    integer :: q
+    integer :: scalar_slot
+    integer :: variable
+
+    logical :: active
+
+    real(dp) :: mask_value
+
+    if (.not. allocated(block_scalar_tendency)) then
+       call fail("block adaptation significance masks are unavailable")
+    end if
+    if (.not. allocated(block%wavelet_scalar) .or. &
+         .not. allocated(block%wavelet_vector)) then
+       call fail("block adaptation wavelets are unavailable")
+    end if
+    local_index = catalog_local_block(catalog_index)
+    n_node = size(block%node)
+    mask_level_slot = 1-block%field_level+1
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency) .or. &
+         n_node < 1 .or. mask_level_slot < 1 .or. &
+         mask_level_slot > block%n_field_level) then
+       call fail("block adaptation significance layout is invalid")
+    end if
+    if (.not. block_scalar_tendency(local_index)%ready .or. &
+         block_scalar_tendency(local_index)%catalog_index /= &
+         catalog_index) then
+       call fail("block adaptation significance mask is stale")
+    end if
+    if (.not. allocated(block_adaptation_decision) .or. &
+         local_index > size(block_adaptation_decision) .or. &
+         block_adaptation_decision(local_index)%catalog_index /= &
+         catalog_index .or. &
+         block_adaptation_decision(local_index)%patch_count /= &
+         size(block%patch) .or. &
+         .not. allocated(block_adaptation_decision(local_index)%value)) then
+       call fail("block adaptation decision storage is stale")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Adaptation_Significance_Context)
+       do p = 1,size(block%patch)
+          if (block%patch(p)%level < level_start .or. &
+               block%patch(p)%level > level_end) cycle
+          do j = 0,PATCH_SIZE-1
+             do i = 0,PATCH_SIZE-1
+                q = PATCH_SIZE*j+i
+                decision_base = &
+                     (p-1)*BLOCK_ADAPTATION_PATCH_NVALUE
+                node_index = block%patch(p)%elts_start+PATCH_SIZE*j+i
+                if (node_index < 0 .or. node_index >= n_node) then
+                   call fail("block adaptation decision node is invalid")
+                end if
+                mask_value = block_scalar_record_value( &
+                     block,local_index,p,0,mask_level_slot,i,j, &
+                     BLOCK_SCALAR_WAVELET_MASK_INDEX)
+                ! init_masks_zero has already reset every finer level.  Only
+                ! the level_start FROZEN state survives into mask_tol_vars.
+                if (block%patch(p)%level == level_start .and. &
+                     nint(mask_value) == FROZEN) then
+                   block_adaptation_decision(local_index)%value( &
+                        decision_base+q+1) = BLOCK_ADAPTATION_FROZEN
+                   do e = RT,UP
+                      block_adaptation_decision(local_index)%value( &
+                           decision_base+PATCH_SIZE**2+EDGE*q+e+1) = &
+                           BLOCK_ADAPTATION_FROZEN
+                   end do
+                   cycle
+                end if
+
+                statistics%scalar_candidate_count = &
+                     statistics%scalar_candidate_count+1_int64
+                active = block%patch(p)%level < level_fill
+                do level_slot = 1,block%n_field_level
+                   field_level = block%field_level+level_slot-1
+                   if (field_level < 1 .or. field_level > zlevels) cycle
+                   do scalar_slot = 0,block%n_scalar_variable-1
+                      variable = block%scalar_variable+scalar_slot
+                      if (variable < scalars(1) .or. &
+                           variable > scalars(2)) cycle
+                      field_index = &
+                           (scalar_slot*block%n_field_level+ &
+                           level_slot-1)*n_node+node_index+1
+                      if (field_index < 1 .or. field_index > &
+                           size(block%wavelet_scalar)) then
+                         call fail( &
+                              "block scalar adaptation value is invalid")
+                      end if
+                      if (abs(block%wavelet_scalar(field_index)) >= &
+                           threshold(variable,field_level)) active = .true.
+                   end do
+                end do
+                if (active) statistics%scalar_active_count = &
+                     statistics%scalar_active_count+1_int64
+                if (active) then
+                   block_adaptation_decision(local_index)%value( &
+                        decision_base+q+1) = BLOCK_ADAPTATION_ACTIVE
+                else
+                   block_adaptation_decision(local_index)%value( &
+                        decision_base+q+1) = BLOCK_ADAPTATION_INACTIVE
+                end if
+
+                do e = RT,UP
+                   statistics%vector_candidate_count = &
+                        statistics%vector_candidate_count+1_int64
+                   active = block%patch(p)%level < level_fill
+                   do level_slot = 1,block%n_field_level
+                      field_level = block%field_level+level_slot-1
+                      if (field_level < 1 .or. &
+                           field_level > zlevels) cycle
+                      field_index = (level_slot-1)*EDGE*n_node+ &
+                           EDGE*node_index+e+1
+                      if (field_index < 1 .or. field_index > &
+                           size(block%wavelet_vector)) then
+                         call fail( &
+                              "block vector adaptation value is invalid")
+                      end if
+                      if (abs(block%wavelet_vector(field_index)) >= &
+                           threshold(S_VELO,field_level)) active = .true.
+                   end do
+                   if (active) statistics%vector_active_count = &
+                        statistics%vector_active_count+1_int64
+                   if (active) then
+                      block_adaptation_decision(local_index)%value( &
+                           decision_base+PATCH_SIZE**2+EDGE*q+e+1) = &
+                           BLOCK_ADAPTATION_ACTIVE
+                   else
+                      block_adaptation_decision(local_index)%value( &
+                           decision_base+PATCH_SIZE**2+EDGE*q+e+1) = &
+                           BLOCK_ADAPTATION_INACTIVE
+                   end if
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("block adaptation significance context is invalid")
+    end select
+
+  end subroutine accumulate_block_adaptation_significance
 
 
   subroutine retain_post_grid_change_block_reconstruction

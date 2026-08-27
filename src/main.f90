@@ -64,7 +64,9 @@ module main_mod
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
        complete_block_adaptation_lifecycle, &
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
+       parallel_block_grid_change_is_pending, &
        prepare_parallel_block_grid_change, &
+       validate_block_native_adaptation_significance, &
        refresh_parallel_block_trend_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
        retain_post_grid_change_block_reconstruction, &
@@ -501,8 +503,25 @@ contains
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Grid adaptation
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if (zmin < 1) call WT_after_step (sol(:,zmin:0), wav_coeff(:,zmin:0), level_start-1) ! compute wavelet coefficients in soil levels
-    call adapt (set_thresholds)
+    if (zmin < 1) then
+       ! Compute wavelet coefficients in soil levels.
+       call WT_after_step( &
+            sol(:,zmin:0),wav_coeff(:,zmin:0),level_start-1)
+    end if
+    ! Post-cutover milestone: profile the complete block-native timestep,
+    ! including all communication, synchronization and compatibility phases.
+    ! The module-owned transaction is authoritative here.  A timestep-local
+    ! rebuild flag crosses physics calls and must not decide whether a pending
+    ! compact decision image is consumed.
+    block_state_ready = parallel_block_grid_change_is_pending()
+    rebuild_block_state = block_state_ready
+    if (rebuild_block_state) then
+       call adapt(set_thresholds, &
+            validate_significance= &
+            validate_block_native_adaptation_significance)
+    else
+       call adapt(set_thresholds)
+    end if
     call inverse_wavelet_transform (wav_coeff, sol)
     if (block_multistage_candidate) &
          call complete_block_adaptation_lifecycle
