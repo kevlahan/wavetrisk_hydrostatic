@@ -3,7 +3,7 @@ module checkpoint_mod
   ! Provides checkpointing routines
 
   use mpi_f08
-  use iso_fortran_env, only: int8, int64
+  use iso_fortran_env, only: error_unit, int8, int64
 
   use kind_mod,   only : dp
   use shared_mod, only : N_BDRY,  N_CHDRN, N_VARIABLE, MULT, cp_idx, istep_cumul, itime, iwrite, level_end, &
@@ -68,6 +68,90 @@ module checkpoint_mod
 
   
 contains
+
+
+  subroutine require_mpi_transfer_count ( &
+       status,datatype,expected_count,context)
+    ! MPI-IO may return MPI_SUCCESS after a short read. Convert that
+    ! otherwise-latent truncation into an error at the read site.
+
+    implicit none
+
+    type(MPI_Status), intent(in) :: status
+    type(MPI_Datatype), intent(in) :: datatype
+    integer, intent(in) :: expected_count
+    character(len=*), intent(in) :: context
+
+    integer :: actual_count
+    integer :: ierr
+
+    call MPI_Get_count(status,datatype,actual_count,ierr)
+    if (ierr /= MPI_SUCCESS) then
+       write(error_unit,'(a)') trim(context)// &
+            ": unable to query MPI transfer count"
+       error stop "checkpoint MPI transfer count query failed"
+    end if
+    if (actual_count /= expected_count) then
+       write(error_unit,'(2a,2(a,i0))') trim(context), &
+            ": short MPI transfer", &
+            ", expected count = ",expected_count, &
+            ", actual count = ",actual_count
+       error stop "checkpoint MPI transfer was incomplete"
+    end if
+
+  end subroutine require_mpi_transfer_count
+
+
+  subroutine validate_checkpoint_file_extent (fh,context)
+    ! Require every directory record to lie within an exactly sized file.
+    ! This catches stale decompressions and inconsistent metadata before any
+    ! rank-local reconstruction begins.
+
+    implicit none
+
+    type(MPI_File), intent(in) :: fh
+    character(len=*), intent(in) :: context
+
+    integer :: gid
+    integer :: ierr
+    integer(MPI_OFFSET_KIND) :: mpi_file_size
+    integer(int64) :: expected_size
+    integer(int64) :: file_size
+
+    if (.not. allocated(cp_offset) .or. .not. allocated(cp_nbytes)) &
+         error stop "checkpoint extent validation has no directory"
+    if (size(cp_offset) /= N_GLO_DOMAIN .or. &
+         size(cp_nbytes) /= N_GLO_DOMAIN) &
+         error stop "checkpoint extent validation directory is invalid"
+
+    expected_size = CP_DATA_POS
+    do gid = 1,N_GLO_DOMAIN
+       if (cp_offset(gid) < CP_DATA_POS .or. &
+            cp_nbytes(gid) <= 0_int64) then
+          write(error_unit,'(2a,a,i0)') trim(context), &
+               ": invalid checkpoint directory record", &
+               ", global domain = ",gid-1
+          error stop "checkpoint directory record is invalid"
+       end if
+       if (cp_offset(gid) > huge(0_int64)-cp_nbytes(gid)) &
+            error stop "checkpoint directory extent overflows int64"
+       expected_size = max( &
+            expected_size,cp_offset(gid)+cp_nbytes(gid))
+    end do
+
+    call MPI_File_get_size(fh,mpi_file_size,ierr)
+    if (ierr /= MPI_SUCCESS) &
+         error stop "checkpoint MPI file-size query failed"
+    file_size = int(mpi_file_size,int64)
+    if (file_size /= expected_size) then
+       write(error_unit,'(2a,2(a,i0))') trim(context), &
+            ": checkpoint file extent differs", &
+            ", expected bytes = ",expected_size, &
+            ", actual bytes = ",file_size
+       error stop "checkpoint file is truncated or inconsistent"
+    end if
+
+  end subroutine validate_checkpoint_file_extent
 
 
   subroutine dump_adapt_mpi (id)
@@ -745,9 +829,10 @@ contains
   subroutine prepare_checkpoint_file (id, filename)
     ! Ensure that the uncompressed checkpoint file exists.
     !
-    ! If only filename.zst exists, rank zero decompresses it while
-    ! retaining the compressed checkpoint.  The resulting .bin file
-    ! is marked temporary and is removed after load_adapt_mpi completes.
+    ! A persistent filename.zst is canonical.  On a new process, rank zero
+    ! recreates filename from it even if a stale filename survived a failed
+    ! restart.  Repeated calls in one restart retain the prepared temporary
+    ! file until load_adapt_mpi completes.
     !
     ! This routine is safe to call more than once for the same restart.
 
@@ -790,42 +875,42 @@ contains
        inquire(file=filename,     exist=bin_exists)
        inquire(file=zst_filename, exist=zst_exists)
 
-       if (.not. bin_exists) then
+       if (zst_exists .and. &
+            (.not. bin_exists .or. .not. cp_temporary_bin)) then
+
+          cmd = &
+               'zstd -q -d -k -f "' // trim(zst_filename) // '"'
+
+          call execute_command_line( &
+               cmd, &
+               exitstat=exitstat, &
+               cmdstat=cmdstat)
+
+          if (cmdstat /= 0) then
+
+             decompress_status = 2
+
+          elseif (exitstat /= 0) then
+
+             decompress_status = 3
+
+          else
+
+             inquire(file=filename, exist=bin_exists)
+
+             if (.not. bin_exists) then
+                decompress_status = 4
+             else
+                cp_temporary_bin = .true.
+             end if
+
+          end if
+
+       elseif (.not. bin_exists) then
 
           if (.not. zst_exists) then
 
              decompress_status = 1
-
-          else
-
-             cmd = &
-                  'zstd -q -d -k -f "' // trim(zst_filename) // '"'
-
-             call execute_command_line( &
-                  cmd, &
-                  exitstat=exitstat, &
-                  cmdstat=cmdstat)
-
-             if (cmdstat /= 0) then
-
-                decompress_status = 2
-
-             elseif (exitstat /= 0) then
-
-                decompress_status = 3
-
-             else
-
-                inquire(file=filename, exist=bin_exists)
-
-                if (.not. bin_exists) then
-                   decompress_status = 4
-                else
-                   cp_temporary_bin = .true.
-                end if
-
-             end if
-
           end if
 
        end if
@@ -990,6 +1075,9 @@ contains
        if (ierr /= MPI_SUCCESS) then
           error stop "read_checkpoint_directory: header read failed"
        end if
+       call require_mpi_transfer_count( &
+            status,MPI_INTEGER8,3, &
+            "read_checkpoint_directory header")
 
        if (header(1) /= CP_MAGIC) then
           error stop "read_checkpoint_directory: bad checkpoint magic"
@@ -1012,6 +1100,9 @@ contains
        if (ierr /= MPI_SUCCESS) then
           error stop "read_checkpoint_directory: load read failed"
        end if
+       call require_mpi_transfer_count( &
+            status,MPI_INTEGER,N_GLO_DOMAIN, &
+            "read_checkpoint_directory load")
 
        call MPI_File_read_at( &
             fh, &
@@ -1022,6 +1113,9 @@ contains
        if (ierr /= MPI_SUCCESS) then
           error stop "read_checkpoint_directory: offset read failed"
        end if
+       call require_mpi_transfer_count( &
+            status,MPI_INTEGER8,N_GLO_DOMAIN, &
+            "read_checkpoint_directory offset")
 
        call MPI_File_read_at( &
             fh, &
@@ -1032,6 +1126,12 @@ contains
        if (ierr /= MPI_SUCCESS) then
           error stop "read_checkpoint_directory: nbytes read failed"
        end if
+       call require_mpi_transfer_count( &
+            status,MPI_INTEGER8,N_GLO_DOMAIN, &
+            "read_checkpoint_directory nbytes")
+
+       call validate_checkpoint_file_extent( &
+            fh,"read_checkpoint_directory")
 
     end if
 
@@ -1336,6 +1436,8 @@ contains
        error stop "load_adapt_mpi: MPI_File_open failed"
     end if
 
+    call validate_checkpoint_file_extent(fh,"load_adapt_mpi")
+
 
     ! ---------------------------------------------------------------
     ! Create rank-local scratch stream
@@ -1392,6 +1494,9 @@ contains
        if (ierr /= MPI_SUCCESS) then
           error stop "load_adapt_mpi: domain read failed"
        end if
+       call require_mpi_transfer_count( &
+            status,MPI_BYTE,int(nbytes), &
+            "load_adapt_mpi domain payload")
 
 
        inquire(unit=fid, pos=p)

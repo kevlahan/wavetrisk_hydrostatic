@@ -1,6 +1,7 @@
 module main_mod
 
   use, intrinsic :: ieee_arithmetic
+  use, intrinsic :: iso_fortran_env, only : int64
 
   use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, AT_NODE, AT_EDGE, BDRY_THICKNESS, CP_EVERY, DATA_GRID, DAY, EDGE, MATH_PI, N_BDRY, &
@@ -61,11 +62,13 @@ module main_mod
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
        block_native_minimum_relative_mass, &
+       block_domain_production_writeback_count, &
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
        complete_block_adaptation_lifecycle, &
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
        parallel_block_grid_change_is_pending, &
        prepare_parallel_block_grid_change, &
+       synchronize_parallel_block_checkpoint, &
        install_block_native_adaptation_mask_seed, &
        refresh_parallel_block_trend_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
@@ -92,6 +95,7 @@ module main_mod
 integer, allocatable :: n_active_edges(:), n_active_nodes(:), node_level_start(:), edge_level_start(:)
 real(dp)             :: dt_new, initial_total_mass, time_mult
 real(dp)             :: dt_loc, min_mass_loc
+logical, save        :: checkpoint_cutover_reported = .false.
 
 type(Initial_State), allocatable :: ini_st(:)
 
@@ -315,12 +319,39 @@ contains
   subroutine write_checkpoint 
     implicit none
 
+    integer(int64) :: writeback_after
+    integer(int64) :: writeback_before
+
+    logical :: block_state_ready
+
     cp_idx = cp_idx + 1
     if (rank == 0) then
        write (6,'(/,a,/)') &
             '************************************************************************&
             &**********************************************************'
        write (6,'(a,i4,a,es10.4,/)') 'Saving checkpoint ', cp_idx, ' at time [day] = ', time / DAY
+    end if
+
+    ! Checkpoint serialization remains a Domain compatibility consumer.
+    ! Materialize each authoritative compact field family exactly once and
+    ! verify that the transaction does not invalidate the retained block state.
+    block_state_ready = parallel_block_state_is_ready()
+    if (compressible .and. .not. mode_split .and. block_state_ready) then
+       writeback_before = block_domain_production_writeback_count()
+       call synchronize_parallel_block_checkpoint
+       writeback_after = block_domain_production_writeback_count()
+       if (writeback_after /= writeback_before+2_int64) &
+            error stop "checkpoint compatibility writeback count is invalid"
+       block_state_ready = parallel_block_state_is_ready()
+       if (.not. block_state_ready) &
+            error stop "checkpoint synchronization invalidated block state"
+       if (.not. checkpoint_cutover_reported .and. rank == 0) then
+          write(6,'(a)') &
+               "Block-authoritative checkpoint synchronization passed"
+          write(6,'(a)') &
+               "  sol/wav_coeff Domain compatibility writebacks = 2"
+       end if
+       checkpoint_cutover_reported = .true.
     end if
 
     call dump_adapt_mpi (cp_idx)
