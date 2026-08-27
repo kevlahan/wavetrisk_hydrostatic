@@ -66,7 +66,7 @@ module main_mod
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
        parallel_block_grid_change_is_pending, &
        prepare_parallel_block_grid_change, &
-       validate_block_native_adaptation_significance, &
+       install_block_native_adaptation_mask_seed, &
        refresh_parallel_block_trend_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
        retain_post_grid_change_block_reconstruction, &
@@ -517,8 +517,7 @@ contains
     rebuild_block_state = block_state_ready
     if (rebuild_block_state) then
        call adapt(set_thresholds, &
-            validate_significance= &
-            validate_block_native_adaptation_significance)
+            block_mask_seed=install_block_native_adaptation_mask_seed)
     else
        call adapt(set_thresholds)
     end if

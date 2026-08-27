@@ -518,7 +518,9 @@ module parallel_block_mpi_mod
        .false.
   logical, save :: production_adaptation_pending = .false.
   logical, save :: production_grid_change_pending = .false.
-  integer, save :: production_grid_change_phase = 0
+  logical, save :: block_adaptation_validation = .false.
+  logical, save :: block_adaptation_validation_initialized = .false.
+  logical, save :: block_adaptation_cutover_reported = .false.
 
   ! Domain-shaped, non-authoritative storage for the complete native vector
   ! transform.  Values are populated only from the block-derived writeback
@@ -792,7 +794,8 @@ module parallel_block_mpi_mod
   public :: invalidate_parallel_block_domain_shadow
   public :: synchronize_parallel_block_checkpoint
   public :: prepare_parallel_block_grid_change
-  public :: validate_block_native_adaptation_significance
+  public :: install_block_native_adaptation_mask_seed
+  public :: block_adaptation_validation_enabled
   public :: complete_block_adaptation_lifecycle
   public :: retain_post_grid_change_block_reconstruction
   public :: prepare_block_native_vertical_remap
@@ -901,7 +904,6 @@ contains
     call clear_block_staging
     production_block_inverse_active = .false.
     production_grid_change_pending = .false.
-    production_grid_change_phase = 0
 
     if (allocated(block_catalog)) deallocate(block_catalog)
 
@@ -1041,10 +1043,6 @@ contains
        call fail("block inverse remained active at adaptation")
     end if
     if (production_grid_change_pending) then
-       write(error_unit,'(a,i0,a,i0)') &
-            "Rank ",rank,": block grid-change phase = ", &
-            production_grid_change_phase
-       flush(error_unit)
        call fail("block grid-change preview remained pending")
     end if
     production_adaptation_pending = .false.
@@ -1109,13 +1107,16 @@ contains
   subroutine prepare_parallel_block_grid_change
     ! In a block-authoritative integration, synchronize the current fields,
     ! then retain the read-only compact wavelet image until the current
-    ! adaptation thresholds have been applied. The decision validator clears
-    ! every topology-dependent object before refinement can begin.
+    ! adaptation thresholds have been applied. Production writes each field
+    ! family exactly once; full block/Domain comparisons are an opt-in oracle.
 
     implicit none
 
     logical :: local_store_ready
     logical :: state_ready
+    logical :: validate_oracle
+
+    integer(int64) :: writeback_before
 
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
@@ -1125,15 +1126,23 @@ contains
        call fail("grid-change preparation is already pending")
     end if
 
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_WAV_COEFF)
+    validate_oracle = block_adaptation_validation_enabled()
+    if (validate_oracle) then
+       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_WAV_COEFF)
+    end if
+    writeback_before = block_domain_production_writeback_count()
     call synchronize_parallel_block_checkpoint
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_WAV_COEFF)
+    if (block_domain_production_writeback_count() /= &
+         writeback_before+2_int64) &
+         call fail("grid-change compatibility writeback count is invalid")
+    if (validate_oracle) then
+       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_WAV_COEFF)
+    end if
     production_grid_change_pending = .true.
-    production_grid_change_phase = 1
 
     state_ready = parallel_block_state_is_ready()
     local_store_ready = local_block_store_ready()
@@ -1144,7 +1153,53 @@ contains
   end subroutine prepare_parallel_block_grid_change
 
 
-  subroutine validate_block_native_adaptation_significance
+  logical function block_adaptation_validation_enabled () result(enabled)
+    ! The independent Domain significance calculation is an opt-in oracle.
+    ! Production installs transported compact decisions without rereading
+    ! Domain wavelet interiors.
+
+    implicit none
+
+    character(len=32) :: value
+    integer :: enabled_count
+    integer :: ierr
+    integer :: length
+    integer :: local_enabled
+    integer :: status
+
+    if (.not. block_adaptation_validation_initialized) then
+       value = ""
+       call get_environment_variable( &
+            "WAVETRISK_VALIDATE_BLOCK_ADAPTATION",value,length,status)
+       if (status == 0 .and. length > 0) then
+          select case (trim(value(1:min(length,len(value)))))
+          case ("1","true","TRUE","on","ON","yes","YES")
+             block_adaptation_validation = .true.
+          case ("0","false","FALSE","off","OFF","no","NO")
+             block_adaptation_validation = .false.
+          case default
+             call fail("invalid block-adaptation validation option")
+          end select
+       else if (status /= 0 .and. status /= 1) then
+          call fail("unable to read block-adaptation validation option")
+       end if
+       local_enabled = merge(1,0,block_adaptation_validation)
+       call MPI_Allreduce(local_enabled,enabled_count,1,MPI_INTEGER, &
+            MPI_SUM,comm,ierr)
+       call check_mpi(ierr, &
+            "MPI_Allreduce block-adaptation validation option")
+       if (enabled_count /= 0 .and. enabled_count /= n_process) &
+            call fail("inconsistent block-adaptation validation option")
+       block_adaptation_validation_initialized = .true.
+       if (block_adaptation_validation .and. rank == 0) write(6,'(a)') &
+            "Block adaptation validation oracle enabled"
+    end if
+    enabled = block_adaptation_validation
+
+  end function block_adaptation_validation_enabled
+
+
+  subroutine install_block_native_adaptation_mask_seed
     ! Install the compact block threshold decisions as the authoritative
     ! direct TOLRNZ seed.  Only one integer node/edge decision is transported
     ! per compact record.  The existing Domain mask routines retain boundary
@@ -1173,13 +1228,14 @@ contains
     integer(int64) :: exchange_allocation_before
 
     logical :: local_store_ready
+    logical :: validate_oracle
     logical :: writeback_ready
 
     type(Block_Adaptation_Significance_Context) :: statistics
 
     local_store_ready = local_block_store_ready()
     writeback_ready = block_writeback_plan_is_ready()
-    production_grid_change_phase = 2
+    validate_oracle = block_adaptation_validation_enabled()
     if (.not. production_grid_change_pending .or. &
          .not. local_store_ready .or. .not. writeback_ready .or. &
          .not. allocated(block_catalog)) then
@@ -1190,7 +1246,6 @@ contains
     end if
 
     call prepare_block_adaptation_decision_storage
-    production_grid_change_phase = 3
     exchange_allocation_before = &
          block_adaptation_exchange%allocation_count
     call apply_local_block_field_consumer( &
@@ -1237,7 +1292,6 @@ contains
          block_adaptation_exchange%recv_count, &
          block_adaptation_exchange%recv_displ,MPI_INTEGER,comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv block adaptation decisions")
-    production_grid_change_phase = 4
 
     block_adaptation_exchange%domain_stage = -2
     block_adaptation_exchange%domain_patch_covered = .false.
@@ -1276,35 +1330,34 @@ contains
             block_adaptation_exchange%recv_count(r)+1) &
             call fail("adaptation decision rank receive extent differs")
     end do
-    production_grid_change_phase = 5
 
     ! Fixed scaffold patches outside the movable block catalogue remain an
-    ! explicit compatibility exception.  Every catalogue-covered record is
-    ! nevertheless required to match the independent Domain decision exactly.
+    ! explicit compatibility exception. Catalogue-covered records are read
+    ! directly from the compact decision image unless the oracle is enabled.
     domain_count_local = 0_int64
     do d = 1,size(grid)
        do p = 0,grid(d)%patch%length-1
           if (grid(d)%patch%elts(p+1)%deleted) cycle
           call validate_and_install_domain_patch_decisions( &
-               d,p,domain_count_local)
+               d,p,validate_oracle,domain_count_local)
        end do
     end do
-    production_grid_change_phase = 6
 
     call MPI_Allreduce(block_count_local,block_count_global, &
          4,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce block adaptation decisions")
     call MPI_Allreduce(domain_count_local,domain_count_global, &
          4,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce Domain adaptation oracle")
+    call check_mpi(ierr,"MPI_Allreduce installed adaptation decisions")
     if (any(block_count_global /= domain_count_global)) then
        if (rank == 0) then
           write(error_unit,'(a,4(i0,1x))') &
                "Block adaptation decision counts = ",block_count_global
           write(error_unit,'(a,4(i0,1x))') &
-               "Domain adaptation decision counts = ",domain_count_global
+               "Installed adaptation decision counts = ", &
+               domain_count_global
        end if
-       call fail("block/Domain adaptation decisions differ")
+       call fail("block/installed adaptation decision coverage differs")
     end if
     if (block_count_global(1) <= 0_int64 .or. &
          block_count_global(3) /= int(EDGE,int64)* &
@@ -1316,7 +1369,7 @@ contains
          exchange_allocation_before) &
          call fail("adaptation decision exchange reallocated in flight")
 
-    if (rank == 0) then
+    if (.not. block_adaptation_cutover_reported .and. rank == 0) then
        write(6,'(a)') &
             "Block-native adaptation mask seed installed"
        write(6,'(a,2(i0,1x))') &
@@ -1328,9 +1381,13 @@ contains
        write(6,'(a,i0)') &
             "  transported integers per compact patch = ", &
             BLOCK_ADAPTATION_PATCH_NVALUE
-       write(6,'(a)') &
-            "  exact per-record Domain oracle passed"
+       if (validate_oracle) then
+          write(6,'(a)') "  exact per-record Domain oracle passed"
+       else
+          write(6,'(a)') "  production Domain interior oracle disabled"
+       end if
     end if
+    block_adaptation_cutover_reported = .true.
 
     call clear_parallel_block_state
     if (production_grid_change_pending .or. &
@@ -1406,7 +1463,7 @@ contains
       end do
     end subroutine stage_received_decision_subtree
 
-  end subroutine validate_block_native_adaptation_significance
+  end subroutine install_block_native_adaptation_mask_seed
 
 
   subroutine prepare_block_adaptation_decision_storage
@@ -1516,16 +1573,16 @@ contains
 
 
   subroutine validate_and_install_domain_patch_decisions ( &
-       d,p,statistics)
-    ! Compare every catalogue-derived decision with the independent Domain
-    ! calculation, then install that compact decision into the initialized
-    ! Domain masks.  Uncatalogued scaffold patches use the same calculation
-    ! directly and are counted separately from block coverage.
+       d,p,validate_oracle,statistics)
+    ! Install catalogue-derived compact decisions into initialized Domain
+    ! masks. The independent Domain calculation runs only when explicitly
+    ! enabled; uncatalogued scaffold patches remain a compatibility exception.
 
     implicit none
 
     integer, intent(in) :: d
     integer, intent(in) :: p
+    logical, intent(in) :: validate_oracle
     integer(int64), intent(inout) :: statistics(4)
 
     integer :: decision
@@ -1561,35 +1618,58 @@ contains
                call fail("Domain adaptation oracle node is invalid")
           node_is_frozen = grid(d)%mask_n%elts(id+1) == FROZEN
 
-          if (node_is_frozen) then
-             decision = BLOCK_ADAPTATION_FROZEN
-          else
-             statistics(1) = statistics(1)+1_int64
-             active = level < level_fill
-             do k = 1,zlevels
-                do v = scalars(1),scalars(2)
-                   field_index = id+1
-                   if (field_index > &
-                        size(wav_coeff(v,k)%data(d)%elts)) &
-                        call fail("Domain scalar adaptation oracle is invalid")
-                   if (abs(wav_coeff(v,k)%data(d)%elts(field_index)) >= &
-                        threshold(v,k)) active = .true.
-                end do
-             end do
-             if (active) then
-                decision = BLOCK_ADAPTATION_ACTIVE
+          if (covered .and. .not. validate_oracle) then
+             decision = block_adaptation_exchange%domain_stage( &
+                  stage_start+q)
+             select case (decision)
+             case (BLOCK_ADAPTATION_ACTIVE)
+                if (node_is_frozen) &
+                     call fail("active compact node has frozen Domain mask")
+                statistics(1) = statistics(1)+1_int64
                 statistics(2) = statistics(2)+1_int64
-             else
-                decision = BLOCK_ADAPTATION_INACTIVE
-             end if
-          end if
-          if (covered) then
-             if (block_adaptation_exchange%domain_stage( &
-                  stage_start+q) /= decision) &
-                  call fail("block/Domain scalar adaptation record differs")
+             case (BLOCK_ADAPTATION_INACTIVE)
+                if (node_is_frozen) &
+                     call fail("inactive compact node has frozen Domain mask")
+                statistics(1) = statistics(1)+1_int64
+             case (BLOCK_ADAPTATION_FROZEN)
+                if (.not. node_is_frozen) &
+                     call fail("frozen compact node has active Domain mask")
+             case default
+                call fail("invalid transported scalar adaptation decision")
+             end select
           else
-             block_adaptation_exchange%domain_stage(stage_start+q) = &
-                  decision
+             if (node_is_frozen) then
+                decision = BLOCK_ADAPTATION_FROZEN
+             else
+                statistics(1) = statistics(1)+1_int64
+                active = level < level_fill
+                do k = 1,zlevels
+                   do v = scalars(1),scalars(2)
+                      field_index = id+1
+                      if (field_index > &
+                           size(wav_coeff(v,k)%data(d)%elts)) &
+                           call fail( &
+                           "Domain scalar adaptation oracle is invalid")
+                      if (abs(wav_coeff(v,k)%data(d)%elts( &
+                           field_index)) >= threshold(v,k)) active = .true.
+                   end do
+                end do
+                if (active) then
+                   decision = BLOCK_ADAPTATION_ACTIVE
+                   statistics(2) = statistics(2)+1_int64
+                else
+                   decision = BLOCK_ADAPTATION_INACTIVE
+                end if
+             end if
+             if (covered) then
+                if (block_adaptation_exchange%domain_stage( &
+                     stage_start+q) /= decision) &
+                     call fail( &
+                     "block/Domain scalar adaptation record differs")
+             else
+                block_adaptation_exchange%domain_stage(stage_start+q) = &
+                     decision
+             end if
           end if
           select case (decision)
           case (BLOCK_ADAPTATION_ACTIVE)
@@ -1604,34 +1684,58 @@ contains
           end select
 
           do e = RT,UP
-             if (node_is_frozen) then
-                decision = BLOCK_ADAPTATION_FROZEN
-             else
-                statistics(3) = statistics(3)+1_int64
-                active = level < level_fill
-                field_index = EDGE*id+e+1
-                do k = 1,zlevels
-                   if (field_index > &
-                        size(wav_coeff(S_VELO,k)%data(d)%elts)) &
-                        call fail("Domain vector adaptation oracle is invalid")
-                   if (abs(wav_coeff(S_VELO,k)%data(d)%elts( &
-                        field_index)) >= threshold(S_VELO,k)) &
-                        active = .true.
-                end do
-                if (active) then
-                   decision = BLOCK_ADAPTATION_ACTIVE
+             field_index = EDGE*id+e+1
+             if (covered .and. .not. validate_oracle) then
+                decision = block_adaptation_exchange%domain_stage( &
+                     stage_start+PATCH_SIZE**2+EDGE*q+e)
+                select case (decision)
+                case (BLOCK_ADAPTATION_ACTIVE)
+                   if (node_is_frozen) call fail( &
+                        "active compact edge has frozen Domain node")
+                   statistics(3) = statistics(3)+1_int64
                    statistics(4) = statistics(4)+1_int64
-                else
-                   decision = BLOCK_ADAPTATION_INACTIVE
-                end if
-             end if
-             if (covered) then
-                if (block_adaptation_exchange%domain_stage( &
-                     stage_start+PATCH_SIZE**2+EDGE*q+e) /= decision) &
-                     call fail("block/Domain vector adaptation record differs")
+                case (BLOCK_ADAPTATION_INACTIVE)
+                   if (node_is_frozen) call fail( &
+                        "inactive compact edge has frozen Domain node")
+                   statistics(3) = statistics(3)+1_int64
+                case (BLOCK_ADAPTATION_FROZEN)
+                   if (.not. node_is_frozen) call fail( &
+                        "frozen compact edge has active Domain node")
+                case default
+                   call fail( &
+                        "invalid transported vector adaptation decision")
+                end select
              else
-                block_adaptation_exchange%domain_stage( &
-                     stage_start+PATCH_SIZE**2+EDGE*q+e) = decision
+                if (node_is_frozen) then
+                   decision = BLOCK_ADAPTATION_FROZEN
+                else
+                   statistics(3) = statistics(3)+1_int64
+                   active = level < level_fill
+                   do k = 1,zlevels
+                      if (field_index > &
+                           size(wav_coeff(S_VELO,k)%data(d)%elts)) &
+                           call fail( &
+                           "Domain vector adaptation oracle is invalid")
+                      if (abs(wav_coeff(S_VELO,k)%data(d)%elts( &
+                           field_index)) >= threshold(S_VELO,k)) &
+                           active = .true.
+                   end do
+                   if (active) then
+                      decision = BLOCK_ADAPTATION_ACTIVE
+                      statistics(4) = statistics(4)+1_int64
+                   else
+                      decision = BLOCK_ADAPTATION_INACTIVE
+                   end if
+                end if
+                if (covered) then
+                   if (block_adaptation_exchange%domain_stage( &
+                        stage_start+PATCH_SIZE**2+EDGE*q+e) /= decision) &
+                        call fail( &
+                        "block/Domain vector adaptation record differs")
+                else
+                   block_adaptation_exchange%domain_stage( &
+                        stage_start+PATCH_SIZE**2+EDGE*q+e) = decision
+                end if
              end if
              select case (decision)
              case (BLOCK_ADAPTATION_ACTIVE)
