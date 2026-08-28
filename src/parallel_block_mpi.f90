@@ -6,7 +6,7 @@ module parallel_block_mpi_mod
        MPI_Alltoall, MPI_Alltoallv, MPI_Exscan, MPI_Gather, &
        MPI_BYTE, MPI_INTEGER, &
        MPI_INTEGER8, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_MIN, MPI_SUCCESS, &
-       MPI_SUM
+       MPI_SUM, MPI_Wtime
 
   use kind_mod,   only : dp
   use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
@@ -513,6 +513,57 @@ module parallel_block_mpi_mod
   integer(int64), save :: compatibility_writeback_grid_change = 0_int64
   integer(int64), save :: compatibility_writeback_remap = 0_int64
 
+  ! Opt-in, low-overhead inclusive profiling.  Timers are accumulated locally
+  ! and reduced only when a report is requested.  The production path pays
+  ! only one cached logical branch while profiling is disabled.
+  integer, parameter, public :: BLOCK_PROFILE_TIMESTEP = 1
+  integer, parameter, public :: BLOCK_PROFILE_DYNAMICS = 2
+  integer, parameter, public :: BLOCK_PROFILE_PHYSICS = 3
+  integer, parameter, public :: BLOCK_PROFILE_TENDENCY = 4
+  integer, parameter, public :: BLOCK_PROFILE_RESTRICTION = 5
+  integer, parameter, public :: BLOCK_PROFILE_WAVELET = 6
+  integer, parameter, public :: BLOCK_PROFILE_COMPRESSION = 7
+  integer, parameter, public :: BLOCK_PROFILE_INVERSE = 8
+  integer, parameter, public :: BLOCK_PROFILE_BOUNDARY_GHOST = 9
+  integer, parameter, public :: BLOCK_PROFILE_ADAPTATION = 10
+  integer, parameter, public :: BLOCK_PROFILE_TOPOLOGY = 11
+  integer, parameter, public :: BLOCK_PROFILE_REMAP = 12
+  integer, parameter, public :: BLOCK_PROFILE_WRITEBACK = 13
+  integer, parameter, public :: BLOCK_PROFILE_ORACLE = 14
+  integer, parameter, public :: BLOCK_PROFILE_OUTPUT = 15
+  integer, parameter, public :: BLOCK_PROFILE_RESTART = 16
+  integer, parameter, public :: BLOCK_PROFILE_STEADY_STEP = 17
+  integer, parameter, public :: BLOCK_PROFILE_REFINED_STEP = 18
+  integer, parameter, public :: BLOCK_PROFILE_COARSENED_STEP = 19
+  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 19
+  character(len=32), parameter :: block_profile_phase_name( &
+       BLOCK_PROFILE_PHASE_COUNT) = [character(len=32) :: &
+       "complete timestep", "dynamics driver", "physics consumers", &
+       "block tendency/hydrostatic", "scalar restriction/divergence", &
+       "scalar/vector wavelets", "wavelet compression", &
+       "native inverse transform", "boundary and ghost exchange", &
+       "adaptation decisions", "catalog/extract/migrate", &
+       "vertical remap", "Domain compatibility writeback", &
+       "exact validation oracles", "output/checkpoint consumers", &
+       "restart/bootstrap", "unchanged-topology timestep", &
+       "refinement timestep", "coarsening timestep"]
+  logical, save :: block_profile = .false.
+  logical, save :: block_profile_initialized = .false.
+  real(dp), save :: block_profile_seconds(BLOCK_PROFILE_PHASE_COUNT) = &
+       0.0_dp
+  integer(int64), save :: block_profile_calls( &
+       BLOCK_PROFILE_PHASE_COUNT) = 0_int64
+  integer(int64), save :: block_profile_work( &
+       BLOCK_PROFILE_PHASE_COUNT) = 0_int64
+  integer(int64), save :: block_profile_messages( &
+       BLOCK_PROFILE_PHASE_COUNT) = 0_int64
+  integer(int64), save :: block_profile_bytes( &
+       BLOCK_PROFILE_PHASE_COUNT) = 0_int64
+  integer(int64), save :: block_profile_topology_events(3) = 0_int64
+  integer, save :: block_profile_depth(BLOCK_PROFILE_PHASE_COUNT) = 0
+  real(dp), save :: block_profile_outer_start( &
+       BLOCK_PROFILE_PHASE_COUNT) = 0.0_dp
+
   ! Domain-shaped, non-authoritative storage for the complete native vector
   ! transform.  Values are populated only from the block-derived writeback
   ! stage and its independently exchanged boundary routes.
@@ -715,6 +766,12 @@ module parallel_block_mpi_mod
   public :: install_block_native_adaptation_mask_seed
   public :: block_adaptation_validation_enabled
   public :: block_detailed_diagnostics_enabled
+  public :: parallel_block_profile_enabled
+  public :: parallel_block_profile_begin
+  public :: parallel_block_profile_end
+  public :: record_parallel_block_profile_volume
+  public :: record_parallel_block_topology
+  public :: report_parallel_block_profile
   public :: complete_block_adaptation_lifecycle
   public :: retain_post_grid_change_block_reconstruction
   public :: prepare_block_native_vertical_remap
@@ -835,6 +892,19 @@ contains
        end do
        deallocate(block_vertical_remap)
     end if
+    call clear_block_vertical_remap_exchange
+    nullify(production_vertical_interpolator)
+    block_vertical_remap_active = .false.
+
+  end subroutine clear_block_vertical_remap_storage
+
+
+  subroutine clear_block_vertical_remap_exchange
+    ! Invalidate only the writeback-plan-dependent metadata route.  The
+    ! old-mass workspace has a separate topology lifetime and remains valid.
+
+    implicit none
+
     if (allocated(block_vertical_remap_exchange%send_count)) &
          deallocate(block_vertical_remap_exchange%send_count)
     if (allocated(block_vertical_remap_exchange%send_displ)) &
@@ -849,10 +919,8 @@ contains
          deallocate(block_vertical_remap_exchange%recv_buffer)
     block_vertical_remap_exchange%plan_generation = -1_int64
     block_vertical_remap_exchange%ready = .false.
-    nullify(production_vertical_interpolator)
-    block_vertical_remap_active = .false.
 
-  end subroutine clear_block_vertical_remap_storage
+  end subroutine clear_block_vertical_remap_exchange
 
 
   logical function parallel_block_state_is_ready () result(ready)
@@ -1037,9 +1105,11 @@ contains
 
     validate_oracle = block_adaptation_validation_enabled()
     if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
        call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
        call assert_block_domain_field_family_match( &
             BLOCK_PAYLOAD_WAV_COEFF)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
     writeback_before = block_domain_production_writeback_count()
     call synchronize_parallel_block_checkpoint(.true.)
@@ -1047,9 +1117,11 @@ contains
          writeback_before+2_int64) &
          call fail("grid-change compatibility writeback count is invalid")
     if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
        call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
        call assert_block_domain_field_family_match( &
             BLOCK_PAYLOAD_WAV_COEFF)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
     production_grid_change_pending = .true.
 
@@ -1151,6 +1223,366 @@ contains
     enabled = block_detailed_diagnostics
 
   end function block_detailed_diagnostics_enabled
+
+
+  logical function parallel_block_profile_enabled () result(enabled)
+    ! Enable profiling collectively.  A mixed per-rank environment would
+    ! otherwise make the eventual reductions unsafe and misleading.
+
+    implicit none
+
+    character(len=32) :: value
+    integer :: enabled_count
+    integer :: ierr
+    integer :: length
+    integer :: local_enabled
+    integer :: status
+
+    if (.not. block_profile_initialized) then
+       value = ""
+       call get_environment_variable( &
+            "WAVETRISK_PROFILE_PARALLEL_BLOCKS",value,length,status)
+       block_profile = .false.
+       if (status == 0 .and. length > 0) then
+          select case (trim(adjustl(value(1:min(length,len(value))))))
+          case ("1","true","TRUE","yes","YES","on","ON")
+             block_profile = .true.
+          case default
+             block_profile = .false.
+          end select
+       end if
+       local_enabled = merge(1,0,block_profile)
+       call MPI_Allreduce(local_enabled,enabled_count,1,MPI_INTEGER, &
+            MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce block profiling option")
+       if (enabled_count /= 0 .and. enabled_count /= n_process) &
+            call fail("inconsistent parallel-block profiling option")
+       block_profile_initialized = .true.
+       if (block_profile .and. rank == 0) write(6,'(a)') &
+            "Parallel-block profiling enabled"
+    end if
+    enabled = block_profile
+
+  end function parallel_block_profile_enabled
+
+
+  real(dp) function parallel_block_profile_begin (phase) result(start_time)
+    ! Return a timestamp only when profiling is active.  Phase validation is
+    ! retained in optimized builds and catches mismatched instrumentation.
+
+    implicit none
+
+    integer, intent(in) :: phase
+
+    if (phase < 1 .or. phase > BLOCK_PROFILE_PHASE_COUNT) &
+         call fail("invalid parallel-block profile phase")
+    start_time = 0.0_dp
+    if (parallel_block_profile_enabled()) start_time = MPI_Wtime()
+
+  end function parallel_block_profile_begin
+
+
+  subroutine parallel_block_profile_end (phase,start_time,work)
+
+    implicit none
+
+    integer, intent(in) :: phase
+    real(dp), intent(in) :: start_time
+    integer(int64), optional, intent(in) :: work
+
+    if (phase < 1 .or. phase > BLOCK_PROFILE_PHASE_COUNT) &
+         call fail("invalid completed parallel-block profile phase")
+    if (.not. parallel_block_profile_enabled()) return
+    block_profile_seconds(phase) = block_profile_seconds(phase) + &
+         max(0.0_dp,MPI_Wtime()-start_time)
+    block_profile_calls(phase) = block_profile_calls(phase)+1_int64
+    if (present(work)) &
+         block_profile_work(phase) = block_profile_work(phase)+work
+
+  end subroutine parallel_block_profile_end
+
+
+  subroutine block_profile_enter (phase)
+
+    implicit none
+
+    integer, intent(in) :: phase
+
+    if (phase < 1 .or. phase > BLOCK_PROFILE_PHASE_COUNT) &
+         call fail("invalid entered parallel-block profile phase")
+    if (.not. parallel_block_profile_enabled()) return
+    if (block_profile_depth(phase) == 0) &
+         block_profile_outer_start(phase) = MPI_Wtime()
+    block_profile_depth(phase) = block_profile_depth(phase)+1
+
+  end subroutine block_profile_enter
+
+
+  subroutine block_profile_leave (phase,work)
+
+    implicit none
+
+    integer, intent(in) :: phase
+    integer(int64), optional, intent(in) :: work
+
+    if (phase < 1 .or. phase > BLOCK_PROFILE_PHASE_COUNT) &
+         call fail("invalid exited parallel-block profile phase")
+    if (.not. parallel_block_profile_enabled()) return
+    if (block_profile_depth(phase) <= 0) &
+         call fail("parallel-block profile phase is not active")
+    block_profile_depth(phase) = block_profile_depth(phase)-1
+    if (block_profile_depth(phase) == 0) then
+       block_profile_seconds(phase) = block_profile_seconds(phase) + &
+            max(0.0_dp,MPI_Wtime()-block_profile_outer_start(phase))
+       block_profile_calls(phase) = block_profile_calls(phase)+1_int64
+       block_profile_outer_start(phase) = 0.0_dp
+    end if
+    if (present(work)) &
+         block_profile_work(phase) = block_profile_work(phase)+work
+
+  end subroutine block_profile_leave
+
+
+  subroutine record_parallel_block_profile_volume ( &
+       phase,message_count,byte_count,work)
+
+    implicit none
+
+    integer, intent(in) :: phase
+    integer(int64), intent(in) :: message_count
+    integer(int64), intent(in) :: byte_count
+    integer(int64), optional, intent(in) :: work
+
+    if (phase < 1 .or. phase > BLOCK_PROFILE_PHASE_COUNT) &
+         call fail("invalid parallel-block profile volume phase")
+    if (.not. parallel_block_profile_enabled()) return
+    if (message_count < 0_int64 .or. byte_count < 0_int64) &
+         call fail("negative parallel-block profile volume")
+    block_profile_messages(phase) = block_profile_messages(phase) + &
+         message_count
+    block_profile_bytes(phase) = block_profile_bytes(phase)+byte_count
+    if (present(work)) &
+         block_profile_work(phase) = block_profile_work(phase)+work
+
+  end subroutine record_parallel_block_profile_volume
+
+
+  subroutine record_parallel_block_topology (before_count,after_count)
+
+    implicit none
+
+    integer(int64), intent(in) :: before_count
+    integer(int64), intent(in) :: after_count
+
+    if (.not. parallel_block_profile_enabled()) return
+    if (after_count > before_count) then
+       block_profile_topology_events(2) = &
+            block_profile_topology_events(2)+1_int64
+    else if (after_count < before_count) then
+       block_profile_topology_events(3) = &
+            block_profile_topology_events(3)+1_int64
+    else
+       block_profile_topology_events(1) = &
+            block_profile_topology_events(1)+1_int64
+    end if
+
+  end subroutine record_parallel_block_topology
+
+
+  subroutine report_parallel_block_profile (reset)
+    ! Perform the only profiling reductions.  Times are inclusive: this makes
+    ! high-level driver cost and individual block-component cost visible in
+    ! the same report without adding synchronization around timed regions.
+
+    implicit none
+
+    logical, optional, intent(in) :: reset
+
+    integer :: ierr
+    integer :: phase
+    integer :: r
+    integer(int64) :: allocation_local(BLOCK_PERSISTENT_ALLOCATION_COUNT)
+    integer(int64) :: allocation_sum(BLOCK_PERSISTENT_ALLOCATION_COUNT)
+    integer(int64) :: block_count_local
+    integer(int64) :: block_count_rank(n_process)
+    integer(int64) :: boundary_count_local
+    integer(int64) :: boundary_count_sum
+    integer(int64) :: bytes_sum(BLOCK_PROFILE_PHASE_COUNT)
+    integer(int64) :: calls_sum(BLOCK_PROFILE_PHASE_COUNT)
+    integer(int64) :: messages_sum(BLOCK_PROFILE_PHASE_COUNT)
+    integer(int64) :: compatibility_local(5)
+    integer(int64) :: compatibility_max(5)
+    integer(int64) :: ghost_count_local
+    integer(int64) :: ghost_count_sum
+    integer(int64) :: plan_local(8)
+    integer(int64) :: plan_sum(8)
+    integer(int64) :: topology_max(3)
+    integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
+    integer(int64) :: weight_local
+    integer(int64) :: weight_max
+    integer(int64) :: weight_min
+    integer(int64) :: weight_sum
+    logical :: clear_after
+    logical :: state_ready
+    real(dp) :: average_time
+    real(dp) :: imbalance
+    real(dp) :: seconds_max(BLOCK_PROFILE_PHASE_COUNT)
+    real(dp) :: seconds_min(BLOCK_PROFILE_PHASE_COUNT)
+    real(dp) :: seconds_sum(BLOCK_PROFILE_PHASE_COUNT)
+
+    if (.not. parallel_block_profile_enabled()) return
+    if (any(block_profile_depth /= 0)) &
+         call fail("parallel-block profile report found an active phase")
+    clear_after = .false.
+    if (present(reset)) clear_after = reset
+    state_ready = parallel_block_state_is_ready()
+
+    call MPI_Allreduce(block_profile_seconds,seconds_min, &
+         BLOCK_PROFILE_PHASE_COUNT,MPI_DOUBLE_PRECISION,MPI_MIN,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile minimum time")
+    call MPI_Allreduce(block_profile_seconds,seconds_max, &
+         BLOCK_PROFILE_PHASE_COUNT,MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile maximum time")
+    call MPI_Allreduce(block_profile_seconds,seconds_sum, &
+         BLOCK_PROFILE_PHASE_COUNT,MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile summed time")
+    call MPI_Allreduce(block_profile_calls,calls_sum, &
+         BLOCK_PROFILE_PHASE_COUNT,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile calls")
+    call MPI_Allreduce(block_profile_work,work_sum, &
+         BLOCK_PROFILE_PHASE_COUNT,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile work")
+    call MPI_Allreduce(block_profile_messages,messages_sum, &
+         BLOCK_PROFILE_PHASE_COUNT,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile messages")
+    call MPI_Allreduce(block_profile_bytes,bytes_sum, &
+         BLOCK_PROFILE_PHASE_COUNT,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile bytes")
+    call MPI_Allreduce(block_profile_topology_events,topology_max,3, &
+         MPI_INTEGER8,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile topology events")
+
+    block_count_local = 0_int64
+    boundary_count_local = 0_int64
+    ghost_count_local = 0_int64
+    weight_local = 0_int64
+    if (state_ready) then
+       block_count_local = int(n_local_blocks(),int64)
+       do phase = 1,n_local_blocks()
+          weight_local = weight_local + &
+               int(block_catalog(local_block_catalog(phase))%weight,int64)
+          boundary_count_local = boundary_count_local + int( &
+               local_block_boundary_count(local_block_catalog(phase)), &
+               int64)
+          ghost_count_local = ghost_count_local + int( &
+               local_block_ghost_count(local_block_catalog(phase)),int64)
+       end do
+    end if
+    call MPI_Gather(block_count_local,1,MPI_INTEGER8,block_count_rank,1, &
+         MPI_INTEGER8,0,comm,ierr)
+    call check_mpi(ierr,"MPI_Gather profile block counts")
+    call MPI_Allreduce(weight_local,weight_min,1,MPI_INTEGER8, &
+         MPI_MIN,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile minimum load")
+    call MPI_Allreduce(weight_local,weight_max,1,MPI_INTEGER8, &
+         MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile maximum load")
+    call MPI_Allreduce(weight_local,weight_sum,1,MPI_INTEGER8, &
+         MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile summed load")
+    call MPI_Allreduce(boundary_count_local,boundary_count_sum,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile boundary records")
+    call MPI_Allreduce(ghost_count_local,ghost_count_sum,1, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile ghost records")
+
+    plan_local = [ghost_exchange_plan%build_count, &
+         ghost_exchange_plan%reuse_count, &
+         block_writeback_plan_generation, &
+         block_writeback_plan_reuse_count, &
+         block_scalar_restriction_exchange%exchanges, &
+         block_adaptation_exchange%allocation_count, &
+         block_vertical_remap_allocations, &
+         local_block_hydrostatic_refresh_count()]
+    call MPI_Allreduce(plan_local,plan_sum,size(plan_local), &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile plan counters")
+    compatibility_local = [compatibility_writeback_total, &
+         compatibility_writeback_output, &
+         compatibility_writeback_checkpoint, &
+         compatibility_writeback_grid_change, &
+         compatibility_writeback_remap]
+    call MPI_Allreduce(compatibility_local,compatibility_max, &
+         size(compatibility_local),MPI_INTEGER8,MPI_MAX,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile writeback counters")
+
+    call capture_parallel_block_allocation_snapshot(allocation_local)
+    call MPI_Allreduce(allocation_local,allocation_sum, &
+         BLOCK_PERSISTENT_ALLOCATION_COUNT,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce profile allocations")
+
+    if (rank == 0) then
+       write(6,'(/,a)') "Parallel-block profiling summary (inclusive):"
+       write(6,'(a)',advance='no') "  final-owner blocks by rank ="
+       do r = 1,n_process
+          write(6,'(1x,i0)',advance='no') block_count_rank(r)
+       end do
+       write(6,'()')
+       average_time = real(weight_sum,dp)/real(n_process,dp)
+       imbalance = 0.0_dp
+       if (average_time > 0.0_dp) &
+            imbalance = real(weight_max,dp)/average_time
+       write(6,'(a,i0,a,f12.2,a,i0,a,f8.3)') &
+            "  weighted load min/avg/max = ",weight_min," / ", &
+            average_time," / ",weight_max,"; max/avg = ",imbalance
+       write(6,'(a,3(i0,1x))') &
+            "  topology unchanged/refined/coarsened = ",topology_max
+       write(6,'(a,i0,a,i0)') &
+            "  compact boundary/ghost records = ",boundary_count_sum, &
+            " / ",ghost_count_sum
+       write(6,'(a)') &
+            "  phase: calls | seconds min/avg/max | max/avg | work | messages | bytes"
+       do phase = 1,BLOCK_PROFILE_PHASE_COUNT
+          if (calls_sum(phase) == 0_int64 .and. &
+               messages_sum(phase) == 0_int64) cycle
+          average_time = seconds_sum(phase)/real(n_process,dp)
+          imbalance = 0.0_dp
+          if (average_time > 0.0_dp) &
+               imbalance = seconds_max(phase)/average_time
+          write(6,'(2x,a,": ",i0," | ",3(es11.4,1x),"| ",f7.3," | ",i0," | ",i0," | ",i0)') &
+               trim(block_profile_phase_name(phase)), &
+               calls_sum(phase)/int(n_process,int64), &
+               seconds_min(phase),average_time,seconds_max(phase), &
+               imbalance,work_sum(phase),messages_sum(phase), &
+               bytes_sum(phase)
+       end do
+       write(6,'(a,9(i0,1x))') &
+            "  persistent allocations ghost/writeback/stage/adapt/remap/tendency/import/accumulator/hydrostatic = ", &
+            allocation_sum
+       write(6,'(a,4(i0,1x))') &
+            "  plan ghost builds/reuses; writeback builds/reuses = ", &
+            plan_sum(1),plan_sum(2),plan_sum(3),plan_sum(4)
+       write(6,'(a,4(i0,1x))') &
+            "  restriction exchanges/adapt alloc/remap alloc/hydro refresh = ", &
+            plan_sum(5),plan_sum(6),plan_sum(7),plan_sum(8)
+       write(6,'(a,5(i0,1x),/)') &
+            "  compatibility writebacks total/output/checkpoint/grid/remap = ", &
+            compatibility_max
+    end if
+
+    if (clear_after) then
+       block_profile_seconds = 0.0_dp
+       block_profile_calls = 0_int64
+       block_profile_work = 0_int64
+       block_profile_messages = 0_int64
+       block_profile_bytes = 0_int64
+       block_profile_topology_events = 0_int64
+       block_profile_depth = 0
+       block_profile_outer_start = 0.0_dp
+    end if
+
+  end subroutine report_parallel_block_profile
 
 
   subroutine install_block_native_adaptation_mask_seed
@@ -1323,6 +1755,13 @@ contains
          exchange_allocation_before) &
          call fail("adaptation decision exchange reallocated in flight")
 
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_ADAPTATION, &
+         int(count(block_adaptation_exchange%send_count > 0),int64), &
+         int(sum(block_adaptation_exchange%send_count),int64)* &
+         int(storage_size(0)/8,int64), &
+         sum(block_count_local))
+
     call clear_parallel_block_state
     if (production_grid_change_pending .or. &
          local_block_store_ready() .or. allocated(block_catalog)) &
@@ -1415,15 +1854,15 @@ contains
     integer(int64) :: rank_count
     integer(int64) :: total_patch
 
-    if (block_adaptation_exchange%ready) then
-       if (block_adaptation_exchange%plan_generation /= &
-            block_writeback_plan_generation) &
-            call fail("adaptation decision exchange plan is stale")
-       return
-    end if
+    if (block_adaptation_exchange%ready .and. &
+         block_adaptation_exchange%plan_generation == &
+         block_writeback_plan_generation) return
     if (.not. block_writeback_plan_is_ready()) &
          call fail("adaptation decision storage before writeback plan")
 
+    ! Exhaustive lifecycle validation and a real topology transition both
+    ! advance the writeback generation.  Rebuild its dependent route here;
+    ! the same-generation steady-state path above remains allocation-free.
     call clear_block_adaptation_decisions
     allocate(block_adaptation_decision(max(1,n_local_blocks())))
     do local_index = 1,n_local_blocks()
@@ -2487,16 +2926,15 @@ contains
     integer :: route_slot
     integer :: status
 
-    if (block_vertical_remap_exchange%ready) then
-       if (block_vertical_remap_exchange%plan_generation /= &
-            block_writeback_plan_generation) then
-          call fail("vertical remap metadata route is stale")
-       end if
-       return
-    end if
+    if (block_vertical_remap_exchange%ready .and. &
+         block_vertical_remap_exchange%plan_generation == &
+         block_writeback_plan_generation) return
     if (.not. block_writeback_plan_is_ready()) then
        call fail("vertical remap metadata route is unavailable")
     end if
+    ! Preserve the topology-lifetime old-mass workspace while rebuilding
+    ! only the metadata route invalidated by a writeback-plan generation.
+    call clear_block_vertical_remap_exchange
     allocate(block_vertical_remap_exchange%send_count(n_process))
     allocate(block_vertical_remap_exchange%send_displ(n_process))
     allocate(block_vertical_remap_exchange%recv_count(n_process))
@@ -2636,6 +3074,11 @@ contains
          block_vertical_remap_exchange%recv_count, &
          block_vertical_remap_exchange%recv_displ,MPI_INTEGER,comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv vertical remap metadata")
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_REMAP, &
+         int(count(block_vertical_remap_exchange%send_count > 0),int64), &
+         int(sum(block_vertical_remap_exchange%send_count),int64)* &
+         int(storage_size(0)/8,int64))
 
     do local_index = 1,n_local_blocks()
        b = local_block_catalog(local_index)
@@ -4244,6 +4687,9 @@ end subroutine build_parallel_block_catalog
     migration_recv_block_count = int(n_received,int64)
     migration_send_byte_count = manifest%total_send_nbyte
     migration_recv_byte_count = manifest%total_recv_nbyte
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_TOPOLOGY,migration_send_peer_count, &
+         migration_send_byte_count,migration_send_block_count)
 
     call clear_block_staging
     call clear_block_migration_manifest(manifest)
@@ -7996,6 +8442,8 @@ end subroutine build_parallel_block_catalog
        call fail("invalid writeback payload family")
     end if
 
+    call block_profile_enter(BLOCK_PROFILE_WRITEBACK)
+
     block_writeback_plan%scalar_send_buffer = 0.0_dp
     block_writeback_plan%scalar_recv_buffer = 0.0_dp
     block_writeback_plan%vector_send_buffer = 0.0_dp
@@ -8064,6 +8512,15 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%vector_recv_displ, &
          MPI_DOUBLE_PRECISION,comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv writeback vector-family payload")
+
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_WRITEBACK, &
+         int(count(block_writeback_plan%scalar_send_count > 0) + &
+         count(block_writeback_plan%vector_send_count > 0),int64), &
+         int(sum(block_writeback_plan%scalar_send_count) + &
+         sum(block_writeback_plan%vector_send_count),int64)* &
+         int(storage_size(0.0_dp)/8,int64))
+    call block_profile_leave(BLOCK_PROFILE_WRITEBACK)
 
   end subroutine exchange_block_writeback_payloads
 
@@ -8774,6 +9231,8 @@ end subroutine build_parallel_block_catalog
        call fail("invalid Domain boundary import family")
     end if
 
+    call block_profile_enter(BLOCK_PROFILE_BOUNDARY_GHOST)
+
     do local_index = 1,n_local_blocks()
        b = local_block_catalog(local_index)
        d = 0
@@ -9030,6 +9489,20 @@ end subroutine build_parallel_block_catalog
        end do
     end do
 
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_BOUNDARY_GHOST, &
+         int(count( &
+         block_writeback_plan%boundary_scalar_domain_send_count > 0) + &
+         merge(count( &
+         block_writeback_plan%boundary_vector_domain_send_count > 0), &
+         0,transfer_vector),int64), &
+         int(sum( &
+         block_writeback_plan%boundary_scalar_domain_send_count) + &
+         merge(sum( &
+         block_writeback_plan%boundary_vector_domain_send_count), &
+         0,transfer_vector),int64)*int(storage_size(0.0_dp)/8,int64))
+    call block_profile_leave(BLOCK_PROFILE_BOUNDARY_GHOST)
+
   contains
 
     subroutine compare_retained_boundary ( &
@@ -9241,6 +9714,7 @@ end subroutine build_parallel_block_catalog
     real(dp) :: vector_moment_first(3,3)
     real(dp) :: vector_moment_second(3,3)
 
+    call block_profile_enter(BLOCK_PROFILE_BOUNDARY_GHOST)
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("trend boundary refresh before block state is ready")
@@ -9339,6 +9813,9 @@ end subroutine build_parallel_block_catalog
     block_writeback_plan%production_trend_boundary_refresh_count = &
          block_writeback_plan%production_trend_boundary_refresh_count + &
          1_int64
+
+    call block_profile_leave( &
+         BLOCK_PROFILE_BOUNDARY_GHOST,count_local(2)+count_local(3))
 
   end subroutine refresh_parallel_block_trend_boundary_state
 
@@ -12112,6 +12589,7 @@ end subroutine build_parallel_block_catalog
          production_multistage_candidate_stage_count
 
     if (candidate_stage_count == 0) return
+    call block_profile_enter(BLOCK_PROFILE_WAVELET)
     final_transform = candidate_stage == candidate_stage_count
     provisional_transform = candidate_stage < candidate_stage_count
     if (.not. final_transform .and. .not. provisional_transform) then
@@ -12247,6 +12725,9 @@ end subroutine build_parallel_block_catalog
           call fail("scalar-wavelet acceptance retained stage state")
        end if
     end if
+
+    call block_profile_leave( &
+         BLOCK_PROFILE_WAVELET,sum(count_local(2:5)))
 
   end subroutine validate_candidate_block_scalar_wavelets
 
@@ -12389,6 +12870,7 @@ end subroutine build_parallel_block_catalog
 
     type(Block_Wavelet_Compression_Context) :: statistics
 
+    call block_profile_enter(BLOCK_PROFILE_COMPRESSION)
     state_ready = parallel_block_state_is_ready()
     final_transform = production_adaptation_pending .and. &
          production_multistage_candidate_stage_count == 0
@@ -12467,6 +12949,9 @@ end subroutine build_parallel_block_catalog
 
     production_block_wavelet_compression_ready = .true.
 
+    call block_profile_leave( &
+         BLOCK_PROFILE_COMPRESSION,sum(count_local(2:5)))
+
   end subroutine prepare_block_native_wavelet_compression
 
 
@@ -12480,6 +12965,7 @@ end subroutine build_parallel_block_catalog
     type(Float_Field), intent(inout) :: &
          domain_wavelet(1:N_VARIABLE,1:zlevels)
 
+    call block_profile_enter(BLOCK_PROFILE_COMPRESSION)
     if (.not. parallel_block_state_is_ready() .or. &
          .not. production_block_wavelet_compression_ready) then
        call fail("native compressed wavelet activation is not ready")
@@ -12501,6 +12987,8 @@ end subroutine build_parallel_block_catalog
     production_block_wavelet_compression_ready = .false.
     production_block_compression_writeback_before = 0_int64
     production_block_compression_allocation_before = 0_int64
+
+    call block_profile_leave(BLOCK_PROFILE_COMPRESSION)
 
   end subroutine activate_block_native_wavelet_compression
 
@@ -12544,6 +13032,7 @@ end subroutine build_parallel_block_catalog
     type(Block_Scalar_Inverse_Context) :: scalar_statistics
     type(Block_Vector_Inverse_Context) :: vector_statistics
 
+    call block_profile_enter(BLOCK_PROFILE_INVERSE)
     state_ready = parallel_block_state_is_ready()
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
@@ -12700,6 +13189,10 @@ end subroutine build_parallel_block_catalog
        production_native_wavelet_output_activated = .false.
     end if
     production_block_inverse_active = .false.
+
+    call block_profile_leave( &
+         BLOCK_PROFILE_INVERSE, &
+         sum(scalar_count_local)+sum(vector_count_local))
 
   end subroutine activate_block_native_inverse_transform
 
@@ -14818,6 +15311,7 @@ end subroutine build_parallel_block_catalog
 
     logical :: state_ready
 
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("scalar-divergence capture before block state is ready")
@@ -14939,6 +15433,9 @@ end subroutine build_parallel_block_catalog
          BLOCK_GHOST_POISON
     block_scalar_divergence_plan%ready = .false.
     block_scalar_divergence_plan%active = .true.
+
+    call block_profile_leave( &
+         BLOCK_PROFILE_RESTRICTION,int(n_local,int64))
 
   contains
 
@@ -15735,6 +16232,7 @@ end subroutine build_parallel_block_catalog
 
     integer(int64) :: allocation_before
 
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
     if (.not. block_scalar_divergence_plan%active) then
        call fail("scalar-divergence finalize without active capture")
     end if
@@ -15802,6 +16300,14 @@ end subroutine build_parallel_block_catalog
     end if
     block_scalar_divergence_plan%active = .false.
     block_scalar_divergence_plan%ready = .true.
+
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_RESTRICTION, &
+         int(count(block_scalar_divergence_plan%recv_count > 0),int64), &
+         int(sum(block_scalar_divergence_plan%recv_count),int64)* &
+         int(storage_size(0.0_dp)/8,int64))
+    call block_profile_leave( &
+         BLOCK_PROFILE_RESTRICTION,int(n_local_blocks(),int64))
 
   end subroutine finalize_block_scalar_divergence_capture
 
@@ -16005,6 +16511,13 @@ end subroutine build_parallel_block_catalog
          block_scalar_restriction_exchange%ghost_recv_displ, &
          MPI_DOUBLE_PRECISION,comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv scalar-restriction ghosts")
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_RESTRICTION, &
+         int(count( &
+         block_scalar_restriction_exchange%ghost_send_count > 0),int64), &
+         int(sum( &
+         block_scalar_restriction_exchange%ghost_send_count),int64)* &
+         int(storage_size(0.0_dp)/8,int64))
 
     do r = 1,n_process
        do i = 0,ghost_exchange_plan%send_record_count(r)-1
@@ -16151,6 +16664,7 @@ end subroutine build_parallel_block_catalog
 
     logical :: accumulator_ready
 
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("block-native scalar restriction exchange is not ready")
     end if
@@ -16223,6 +16737,9 @@ end subroutine build_parallel_block_catalog
     if (count_global(5) /= count_global(6)) then
        call fail("block-native scalar divergence comparison coverage differs")
     end if
+
+    call block_profile_leave( &
+         BLOCK_PROFILE_RESTRICTION,sum(count_local))
 
   end subroutine evaluate_candidate_block_scalar_restriction
 
@@ -19469,6 +19986,7 @@ end subroutine build_parallel_block_catalog
     logical :: state_ready
     logical :: trial_active
 
+    call block_profile_enter(BLOCK_PROFILE_TENDENCY)
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("production block Euler step before state is ready")
@@ -19518,6 +20036,9 @@ end subroutine build_parallel_block_catalog
        call fail("production block Euler step invalidated persistent state")
     end if
 
+    call block_profile_leave( &
+         BLOCK_PROFILE_TENDENCY,int(n_local_blocks(),int64))
+
   end subroutine advance_block_domain_trend_euler
 
 
@@ -19542,6 +20063,7 @@ end subroutine build_parallel_block_catalog
     logical :: tendency_ready
     logical :: trial_active
 
+    call block_profile_enter(BLOCK_PROFILE_TENDENCY)
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("multistage tendency capture before state is ready")
@@ -19643,6 +20165,8 @@ end subroutine build_parallel_block_catalog
     end if
 
     production_multistage_captured_tendency_stage = stage
+    call block_profile_leave( &
+         BLOCK_PROFILE_TENDENCY,int(n_local_blocks(),int64))
   end subroutine capture_block_domain_multistage_candidate_tendency
 
 
@@ -21714,6 +22238,7 @@ end subroutine build_parallel_block_catalog
 
     logical :: committed
 
+    call block_profile_enter(BLOCK_PROFILE_WRITEBACK)
     call reconstruct_block_writeback_domain_stage(payload_family)
     if (present(domain_sol)) then
        committed = try_commit_block_writeback_domain_stage( &
@@ -21729,6 +22254,9 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%production_writeback_count + 1_int64
     compatibility_writeback_total = &
          compatibility_writeback_total + 1_int64
+
+    call block_profile_leave( &
+         BLOCK_PROFILE_WRITEBACK,int(n_local_blocks(),int64))
 
   end subroutine write_block_field_family_to_domains
 
@@ -22337,6 +22865,8 @@ end subroutine build_parallel_block_catalog
        call fail("persistent scalar ghost payload size changed")
     end if
 
+    call block_profile_enter(BLOCK_PROFILE_BOUNDARY_GHOST)
+
     do i = 1, n_request
        destination = ghost_exchange_plan%destination_block(i)
        if (local_block_scalar_family_patch_nvalue(destination) /= &
@@ -22539,6 +23069,14 @@ end subroutine build_parallel_block_catalog
 
     if (allocated(expected)) deallocate(expected)
 
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_BOUNDARY_GHOST, &
+         int(count(ghost_exchange_plan%scalar_send_count > 0),int64), &
+         int(sum(ghost_exchange_plan%scalar_send_count),int64)* &
+         int(storage_size(0.0_dp)/8,int64), &
+         int(n_value,int64)*int(n_request,int64))
+    call block_profile_leave(BLOCK_PROFILE_BOUNDARY_GHOST)
+
   end subroutine exchange_block_scalar_ghost_payloads
 
 
@@ -22636,6 +23174,8 @@ end subroutine build_parallel_block_catalog
     if (n_value /= ghost_exchange_plan%vector_n_value) then
        call fail("persistent vector ghost payload size changed")
     end if
+
+    call block_profile_enter(BLOCK_PROFILE_BOUNDARY_GHOST)
 
     do i = 1, n_request
        destination = ghost_exchange_plan%destination_block(i)
@@ -22838,6 +23378,14 @@ end subroutine build_parallel_block_catalog
     end if
 
     if (allocated(expected)) deallocate(expected)
+
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_BOUNDARY_GHOST, &
+         int(count(ghost_exchange_plan%vector_send_count > 0),int64), &
+         int(sum(ghost_exchange_plan%vector_send_count),int64)* &
+         int(storage_size(0.0_dp)/8,int64), &
+         int(n_value,int64)*int(n_request,int64))
+    call block_profile_leave(BLOCK_PROFILE_BOUNDARY_GHOST)
 
   end subroutine exchange_block_vector_ghost_payloads
 

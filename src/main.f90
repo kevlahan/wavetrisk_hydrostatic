@@ -64,6 +64,13 @@ module main_mod
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
        block_adaptation_validation_enabled, &
        block_detailed_diagnostics_enabled, &
+       BLOCK_PROFILE_ADAPTATION, BLOCK_PROFILE_DYNAMICS, &
+       BLOCK_PROFILE_OUTPUT, BLOCK_PROFILE_PHYSICS, &
+       BLOCK_PROFILE_REMAP, BLOCK_PROFILE_RESTART, &
+       BLOCK_PROFILE_COARSENED_STEP, BLOCK_PROFILE_REFINED_STEP, &
+       BLOCK_PROFILE_STEADY_STEP, &
+       BLOCK_PROFILE_TIMESTEP, &
+       BLOCK_PROFILE_TOPOLOGY, &
        block_native_minimum_relative_mass, &
        block_domain_production_writeback_count, &
        assert_parallel_block_allocation_stability, &
@@ -78,7 +85,9 @@ module main_mod
        refresh_parallel_block_trend_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
        retain_post_grid_change_block_reconstruction, &
-       migrate_blocks
+       migrate_blocks, &
+       parallel_block_profile_begin, parallel_block_profile_end, &
+       record_parallel_block_topology, report_parallel_block_profile
 
 #ifdef PHYSICS
   use init_physics_mod,  only : init_physics, init_soil_grid
@@ -589,7 +598,10 @@ contains
 
     logical :: detailed_block_diagnostics
     logical :: validate_block_bootstrap
+    real(dp) :: restart_profile_start
 
+    restart_profile_start = &
+         parallel_block_profile_begin(BLOCK_PROFILE_RESTART)
     call clear_parallel_block_state
     call deallocate_structures  ! deallocate all dynamic arrays and variables
     call init_basic
@@ -653,12 +665,16 @@ contains
     call migrate_blocks( &
          verbose=detailed_block_diagnostics, &
          full_validation=validate_block_bootstrap)
+    call parallel_block_profile_end( &
+         BLOCK_PROFILE_RESTART,restart_profile_start)
 
   end subroutine restart
 
   subroutine time_step 
     implicit none
     integer(8) :: idt, ialign
+    integer(int64) :: active_after
+    integer(int64) :: active_before
     logical    :: block_euler_step, block_multistage_candidate
     logical    :: block_mass_trigger, domain_mass_trigger
     logical    :: checkpoint_due, domain_compatibility_ready
@@ -667,6 +683,16 @@ contains
     logical    :: block_state_ready
     logical    :: rebuild_block_state, save_data
     real(dp)   :: domain_min_mass, mass_tolerance
+    real(dp)   :: adaptation_profile_start
+    real(dp)   :: dynamics_profile_start
+    real(dp)   :: output_profile_start
+    real(dp)   :: physics_profile_start
+    real(dp)   :: remap_profile_start
+    real(dp)   :: timestep_profile_start
+    real(dp)   :: topology_profile_start
+
+    timestep_profile_start = &
+         parallel_block_profile_begin(BLOCK_PROFILE_TIMESTEP)
 
     ! New time step
     istep       = istep       + 1
@@ -697,6 +723,8 @@ contains
     block_multistage_candidate = .false.
     rebuild_block_state = .false.
     block_state_ready = parallel_block_state_is_ready()
+    dynamics_profile_start = &
+         parallel_block_profile_begin(BLOCK_PROFILE_DYNAMICS)
     ! Keep incompressible dynamics on the legacy Domain pathway until its
     ! separate block-communication and split-integrator validation phase.
     if (block_state_ready .and. compressible .and. .not. mode_split) then
@@ -751,16 +779,25 @@ contains
        call prepare_parallel_block_grid_change
        rebuild_block_state = .true.
     end if
+    call parallel_block_profile_end( &
+         BLOCK_PROFILE_DYNAMICS,dynamics_profile_start)
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Physics split step
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+    physics_profile_start = &
+         parallel_block_profile_begin(BLOCK_PROFILE_PHYSICS)
     call apply_domain_physics_consumers
+    call parallel_block_profile_end( &
+         BLOCK_PROFILE_PHYSICS,physics_profile_start)
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Grid adaptation
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    adaptation_profile_start = &
+         parallel_block_profile_begin(BLOCK_PROFILE_ADAPTATION)
+    active_before = int(sum(n_active),int64)
     call update_domain_soil_wavelet_consumer
     ! Post-cutover milestone: profile the complete block-native timestep,
     ! including all communication, synchronization and compatibility phases.
@@ -783,6 +820,8 @@ contains
     ! Vertical remapping can then execute independently in both compact block
     ! storage and the retained Domain oracle without a post-remap reimport.
     if (rebuild_block_state) then
+       topology_profile_start = &
+            parallel_block_profile_begin(BLOCK_PROFILE_TOPOLOGY)
        call build_parallel_block_catalog
        detailed_block_diagnostics = &
             block_detailed_diagnostics_enabled()
@@ -791,7 +830,12 @@ contains
             verbose=detailed_block_diagnostics, &
             full_validation=.false.)
        call retain_post_grid_change_block_reconstruction
+       call parallel_block_profile_end( &
+            BLOCK_PROFILE_TOPOLOGY,topology_profile_start, &
+            int(n_glo_block,int64))
     end if
+    call parallel_block_profile_end( &
+         BLOCK_PROFILE_ADAPTATION,adaptation_profile_start)
 
     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !    Vertical remapping (after grid adaptation to ensure ADJCENT_ZONE and ZERO cells are remapped consistently)
@@ -837,6 +881,8 @@ contains
     end if
     if ((remap .and. min_mass < min_mass_remap) .or. &
          iremap == iremap_max) then
+       remap_profile_start = &
+            parallel_block_profile_begin(BLOCK_PROFILE_REMAP)
        if (rank == 0 .and. log_min_mass) write (6,'(a)') 'Remapping vertical coordinates ...'
        if (rank == 0) then
           if (remap .and. min_mass < min_mass_remap .and. &
@@ -852,10 +898,14 @@ contains
           end if
        end if
        call remap_vertical_coordinates
+       call parallel_block_profile_end( &
+            BLOCK_PROFILE_REMAP,remap_profile_start)
        iremap = 1
     else
        iremap = iremap + 1
     end if
+    output_profile_start = &
+         parallel_block_profile_begin(BLOCK_PROFILE_OUTPUT)
     checkpoint_due = .false.
     if (save_data) &
          checkpoint_due = modulo(iwrite+1,CP_EVERY) == 0
@@ -871,6 +921,8 @@ contains
     itime  = itime + idt
     time   = itime / time_mult
     dt_new = cpt_dt ()
+    active_after = int(sum(n_active),int64)
+    call record_parallel_block_topology(active_before,active_after)
 
     if (save_data) then
        iwrite = iwrite + 1
@@ -881,6 +933,22 @@ contains
     block_state_ready = parallel_block_state_is_ready()
     if (compressible .and. .not. mode_split .and. block_state_ready) &
          call assert_parallel_block_allocation_stability
+    call parallel_block_profile_end( &
+         BLOCK_PROFILE_OUTPUT,output_profile_start)
+    call parallel_block_profile_end( &
+         BLOCK_PROFILE_TIMESTEP,timestep_profile_start)
+    if (active_after > active_before) then
+       call parallel_block_profile_end( &
+            BLOCK_PROFILE_REFINED_STEP,timestep_profile_start)
+    else if (active_after < active_before) then
+       call parallel_block_profile_end( &
+            BLOCK_PROFILE_COARSENED_STEP,timestep_profile_start)
+    else
+       call parallel_block_profile_end( &
+            BLOCK_PROFILE_STEADY_STEP,timestep_profile_start)
+    end if
+    if (save_data .or. time >= time_end) &
+         call report_parallel_block_profile(reset=.true.)
   end subroutine time_step
 
   subroutine init_basic

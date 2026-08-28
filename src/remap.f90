@@ -15,7 +15,9 @@ module remap_mod
   use domain_ops_mod,  only : apply_no_bdry2
   use init_mod,        only : z_coords 
   use parallel_block_mpi_mod, only : &
+       BLOCK_PROFILE_ORACLE, &
        complete_block_native_vertical_remap, &
+       parallel_block_profile_end, &
        parallel_block_state_is_ready, &
        prepare_block_native_vertical_remap, &
        validate_block_native_vertical_remap, &
@@ -195,6 +197,8 @@ contains
           call update_bdry(sol,NONE,909)
           call validate_block_native_vertical_remap
           oracle_seconds = MPI_Wtime()-start_time
+          call parallel_block_profile_end( &
+               BLOCK_PROFILE_ORACLE,start_time)
        end if
 
        call write_block_native_vertical_remap_to_domains
