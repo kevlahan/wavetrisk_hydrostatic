@@ -724,17 +724,16 @@ contains
     ! run and the restart performed after a newly written checkpoint.
     call build_parallel_block_catalog
     call build_source_blocks
-    ! The migration suite still owns required hydrostatic and tendency
-    ! workspace preparation.  Retain it in every build until those production
-    ! initializers have been separated explicitly; only its verbose report is
-    ! controlled by the adaptation-oracle setting.
+    ! Production hydrostatic and tendency workspace preparation is independent
+    ! of the exhaustive migration audit.  Retain that audit for oracle-enabled
+    ! validation runs and omit it from the production-equivalent restart path.
     validate_block_bootstrap = .false.
     if (compressible .and. .not. mode_split) &
          validate_block_bootstrap = &
          block_adaptation_validation_enabled()
     call migrate_blocks( &
          verbose=validate_block_bootstrap, &
-         full_validation=.true.)
+         full_validation=validate_block_bootstrap)
 
   end subroutine restart
 

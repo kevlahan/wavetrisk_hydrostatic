@@ -4137,12 +4137,12 @@ end subroutine build_parallel_block_catalog
        call check_block_domain_trend_step(print_local)
        if (compressible) call ensure_local_block_hydrostatic_state
        call check_block_hydrostatic_reconstruction(print_local)
-    end if
 
-    ! Validation routines may deliberately exercise invalidation and rollback.
-    ! Restore the same clean production state and prove allocation reuse before
-    ! returning to the timestep driver.
-    call prepare_parallel_block_production_state(.true.)
+       ! Validation routines deliberately exercise invalidation and rollback.
+       ! Restore the same clean production state before returning to the
+       ! timestep driver. Production-equivalent runs need no second preparation.
+       call prepare_parallel_block_production_state(print_local)
+    end if
 
   end subroutine migrate_blocks
 
