@@ -131,9 +131,6 @@ contains
     if (.not. associated(z_coords,z_coords_case)) &
          error stop "climate vertical-position callback is invalid"
 
-    if (rank == 0) write(6,'(a)') &
-         "Climate test-case Domain callback registration audit passed"
-
   end subroutine audit_assigned_functions
   
 

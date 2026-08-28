@@ -38,7 +38,6 @@ module time_integr_mod
   public :: init_RK_mem
   public :: set_multistage_block_candidate_enabled
   public :: call_domain_tendency_consumer
-  public :: tendency_domain_consumer_audit_completed
   public :: Euler, Euler_split, RK3, RK3_split, RK4, RK4_split
   public :: q1
   
@@ -80,23 +79,9 @@ module time_integr_mod
   procedure (dt_integrator),       pointer :: dt_step        => null ()
   procedure (dt_integrator_split), pointer :: dt_step_split  => null ()
   logical :: multistage_block_candidate_enabled = .false.
-  logical, save :: tendency_consumer_audited = .false.
 
   
 contains
-
-
-  logical function tendency_domain_consumer_audit_completed () &
-       result(completed)
-    ! Report whether a production tendency transaction has proved that all
-    ! enclosed test-case callbacks preserve block ownership and do not hide a
-    ! compact-to-Domain writeback.
-
-    implicit none
-
-    completed = tendency_consumer_audited
-
-  end function tendency_domain_consumer_audit_completed
 
 
   subroutine call_domain_tendency_consumer (q,routine)
@@ -129,8 +114,6 @@ contains
          error stop "tendency callback changed the grid-change phase"
     if (block_domain_production_writeback_count() /= writeback_before) &
          error stop "tendency callback performed an unaccounted writeback"
-    if (ready_before) tendency_consumer_audited = .true.
-
   end subroutine call_domain_tendency_consumer
 
 

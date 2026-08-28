@@ -212,15 +212,6 @@ module parallel_block_mod
        class(*), intent(inout) :: context
      end subroutine Local_Block_Tendency_Kernel
 
-     subroutine Local_Block_Tendency_Consumer ( &
-          catalog_index,scalar_tendency,vector_tendency,context)
-       import :: dp
-
-       integer, intent(in) :: catalog_index
-       real(dp), intent(in) :: scalar_tendency(:)
-       real(dp), intent(in) :: vector_tendency(:)
-       class(*), intent(inout) :: context
-     end subroutine Local_Block_Tendency_Consumer
 
      subroutine Local_Block_Hydrostatic_Consumer ( &
           catalog_index,n_patch,surface_pressure,dynamic_exner, &
@@ -256,6 +247,7 @@ module parallel_block_mod
 
   logical :: block_store_ready = .false.
   logical :: block_hydrostatic_ready = .false.
+  integer(int64) :: block_hydrostatic_allocations = 0_int64
   integer(int64) :: block_hydrostatic_refreshes = 0_int64
   logical :: block_tendency_ready = .false.
   logical :: block_tendency_import_active = .false.
@@ -303,97 +295,58 @@ module parallel_block_mod
   public :: local_block_boundary_count
   public :: get_local_block_boundary_source
   public :: local_block_ghost_count
-  public :: local_block_scalar_patch_nvalue
   public :: local_block_scalar_family_patch_nvalue
-  public :: local_block_scalar_boundary_nvalue
   public :: local_block_scalar_family_boundary_nvalue
-  public :: get_local_block_scalar_patch_values
   public :: get_local_block_scalar_patch_family_values
-  public :: set_local_block_scalar_patch_values
   public :: set_local_block_scalar_patch_family_values
-  public :: fill_local_block_scalar_patch_values
-  public :: fill_local_block_scalar_patch_family_values
-  public :: get_local_block_scalar_boundary_values
   public :: get_local_block_scalar_boundary_family_values
   public :: set_local_block_scalar_boundary_family_values
-  public :: fill_local_block_scalar_boundary_values
-  public :: fill_local_block_scalar_boundary_family_values
-  public :: get_local_block_scalar_ghost_values
   public :: get_local_block_scalar_ghost_family_values
-  public :: set_local_block_scalar_ghost_values
   public :: set_local_block_scalar_ghost_family_values
-  public :: fill_local_block_scalar_ghost_values
   public :: fill_local_block_scalar_ghost_family_values
-  public :: local_block_vector_patch_nvalue
   public :: local_block_vector_family_patch_nvalue
-  public :: local_block_vector_boundary_nvalue
   public :: local_block_vector_family_boundary_nvalue
-  public :: get_local_block_vector_patch_values
   public :: get_local_block_vector_patch_family_values
-  public :: set_local_block_vector_patch_values
   public :: set_local_block_vector_patch_family_values
-  public :: fill_local_block_vector_patch_values
-  public :: fill_local_block_vector_patch_family_values
-  public :: get_local_block_vector_boundary_values
   public :: get_local_block_vector_boundary_family_values
   public :: set_local_block_vector_boundary_family_values
-  public :: fill_local_block_vector_boundary_values
-  public :: fill_local_block_vector_boundary_family_values
-  public :: get_local_block_vector_ghost_values
   public :: get_local_block_vector_ghost_family_values
-  public :: set_local_block_vector_ghost_values
   public :: set_local_block_vector_ghost_family_values
-  public :: fill_local_block_vector_ghost_values
   public :: fill_local_block_vector_ghost_family_values
-  public :: compute_local_block_hydrostatic_patch
-  public :: refresh_local_block_hydrostatic_state
   public :: invalidate_local_block_hydrostatic_state
   public :: ensure_local_block_hydrostatic_state
   public :: local_block_hydrostatic_state_ready
+  public :: local_block_hydrostatic_allocation_count
   public :: local_block_hydrostatic_refresh_count
-  public :: local_block_hydrostatic_block_refresh_count
-  public :: local_block_hydrostatic_surface_nvalue
-  public :: local_block_hydrostatic_column_nvalue
-  public :: get_local_block_hydrostatic_patch_values
-  public :: get_local_block_hydrostatic_values
   public :: Local_Block_Field_Consumer
   public :: apply_local_block_field_consumer
   public :: Local_Block_Field_Producer
   public :: apply_local_block_field_producer
   public :: Local_Block_Tendency_Kernel
   public :: apply_local_block_tendency_kernel
-  public :: Local_Block_Tendency_Consumer
-  public :: apply_local_block_tendency_consumer
   public :: local_block_tendency_state_ready
   public :: discard_local_block_tendency_output
   public :: invalidate_local_block_tendency_products
   public :: prepare_local_block_tendency_workspace
   public :: local_block_tendency_execution_count
   public :: local_block_tendency_allocation_count
-  public :: local_block_tendency_statistics
   public :: begin_local_block_tendency_import
   public :: set_local_block_tendency_patch_values
   public :: finish_local_block_tendency_import
-  public :: get_local_block_tendency_patch_values
   public :: assert_local_block_tendency_patch_values
   public :: local_block_tendency_import_is_active
   public :: local_block_tendency_import_allocation_count
-  public :: reset_local_block_tendency_accumulator
-  public :: accumulate_local_block_tendency
   public :: retain_local_block_tendency_in_accumulator
   public :: set_local_block_tendency_accumulator_scalar_patch_values
   public :: discard_local_block_tendency_accumulator
   public :: begin_local_block_accumulated_tendency_trial
   public :: local_block_tendency_accumulator_state_ready
   public :: local_block_tendency_accumulator_allocation_count
-  public :: local_block_tendency_accumulator_statistics
   public :: begin_local_block_tendency_trial
   public :: commit_local_block_tendency_trial
   public :: finalize_local_block_tendency_commit
   public :: restore_local_block_tendency_commit
   public :: local_block_tendency_commit_checkpoint_is_ready
-  public :: local_block_tendency_commit_checkpoint_statistics
-  public :: rollback_local_block_tendency_trial
   public :: local_block_tendency_trial_is_active
   public :: Local_Block_Hydrostatic_Consumer
   public :: apply_local_block_hydrostatic_consumer
@@ -1376,103 +1329,6 @@ subroutine finish_local_block_tendency_import
 end subroutine finish_local_block_tendency_import
 
 
-subroutine get_local_block_tendency_patch_values ( &
-     catalog_index,local_patch,scalar_value,vector_value)
-  ! Read one imported/kernel-produced tendency patch in compact field order.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: local_patch
-  real(dp), intent(out) :: scalar_value(:)
-  real(dp), intent(out) :: vector_value(:)
-
-  integer :: field_base
-  integer :: expected_scalar_nvalue
-  integer :: expected_vector_nvalue
-  integer :: level_slot
-  integer :: local_index
-  integer :: n_node
-  integer :: n_patch_value
-  integer :: output_base
-  integer :: patch_start
-  integer :: scalar_slot
-
-  if (.not. local_block_tendency_state_ready()) then
-     error stop &
-          "get_local_block_tendency_patch_values: state not ready"
-  end if
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "get_local_block_tendency_patch_values: block is not local"
-  end if
-  if (local_patch < 0 .or. &
-       local_patch >= size(block_local(local_index)%patch)) then
-     error stop &
-          "get_local_block_tendency_patch_values: invalid patch"
-  end if
-  expected_scalar_nvalue = &
-       local_block_scalar_family_patch_nvalue(catalog_index)
-  expected_vector_nvalue = &
-       local_block_vector_family_patch_nvalue(catalog_index)
-  if (size(scalar_value) /= expected_scalar_nvalue .or. &
-       size(vector_value) /= expected_vector_nvalue) then
-     error stop &
-          "get_local_block_tendency_patch_values: output extent"
-  end if
-
-  n_node = size(block_local(local_index)%node)
-  patch_start = &
-       block_local(local_index)%patch(local_patch+1)%elts_start
-  if (patch_start < 0 .or. &
-       patch_start+PATCH_SIZE**2 > n_node) then
-     error stop &
-          "get_local_block_tendency_patch_values: patch storage"
-  end if
-
-  n_patch_value = &
-       block_local(local_index)%scalar_mult*PATCH_SIZE**2
-  do scalar_slot = 1, &
-       block_local(local_index)%n_scalar_variable
-     do level_slot = 1, &
-          block_local(local_index)%n_field_level
-        field_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1)* &
-             block_local(local_index)%scalar_mult*n_node
-        output_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1)*n_patch_value
-        scalar_value(output_base+1:output_base+n_patch_value) = &
-             block_tendency(local_index)%scalar( &
-             field_base + &
-             block_local(local_index)%scalar_mult*patch_start + 1: &
-             field_base + &
-             block_local(local_index)%scalar_mult*patch_start + &
-             n_patch_value)
-     end do
-  end do
-
-  n_patch_value = &
-       block_local(local_index)%vector_mult*PATCH_SIZE**2
-  do level_slot = 1,block_local(local_index)%n_field_level
-     field_base = (level_slot-1)* &
-          block_local(local_index)%vector_mult*n_node
-     output_base = (level_slot-1)*n_patch_value
-     vector_value(output_base+1:output_base+n_patch_value) = &
-          block_tendency(local_index)%vector( &
-          field_base + &
-          block_local(local_index)%vector_mult*patch_start + 1: &
-          field_base + &
-          block_local(local_index)%vector_mult*patch_start + &
-          n_patch_value)
-  end do
-
-end subroutine get_local_block_tendency_patch_values
 
 
 subroutine assert_local_block_tendency_patch_values ( &
@@ -1663,48 +1519,6 @@ subroutine apply_local_block_tendency_kernel (kernel,context)
 end subroutine apply_local_block_tendency_kernel
 
 
-subroutine apply_local_block_tendency_consumer (consumer,context)
-  ! Traverse the persistent tendency outputs without copying or exposing
-  ! writable storage. The consumer cannot alter either output family.
-
-  implicit none
-
-  procedure(Local_Block_Tendency_Consumer) :: consumer
-  class(*), intent(inout) :: context
-
-  integer :: catalog_index
-  integer :: local_index
-  integer(int64) :: generation_before
-
-  if (.not. local_block_tendency_state_ready()) then
-     error stop &
-          "apply_local_block_tendency_consumer: output state not ready"
-  end if
-  if (block_tendency_trial_active) then
-     error stop &
-          "apply_local_block_tendency_consumer: trial is active"
-  end if
-
-  do local_index = 1,size(block_tendency)
-     catalog_index = block_tendency(local_index)%catalog_index
-     generation_before = block_tendency(local_index)%generation
-
-     call consumer( &
-          catalog_index,block_tendency(local_index)%scalar, &
-          block_tendency(local_index)%vector,context)
-
-     if (.not. local_block_tendency_state_ready()) then
-        error stop &
-             "apply_local_block_tendency_consumer: state changed"
-     end if
-     if (block_tendency(local_index)%catalog_index /= catalog_index .or. &
-          block_tendency(local_index)%generation /= generation_before) then
-        error stop &
-             "apply_local_block_tendency_consumer: traversal changed"
-     end if
-  end do
-
-end subroutine apply_local_block_tendency_consumer
 
 
 subroutine prepare_local_block_tendency_accumulator (allow_checkpoint)
@@ -1823,38 +1637,6 @@ subroutine reset_local_block_tendency_accumulator (allow_checkpoint)
 end subroutine reset_local_block_tendency_accumulator
 
 
-subroutine accumulate_local_block_tendency (weight)
-  ! Add one weighted persistent tendency output to the multi-stage register.
-
-  implicit none
-
-  real(dp), intent(in) :: weight
-
-  integer :: local_index
-
-  if (.not. local_block_tendency_state_ready()) then
-     error stop "accumulate_local_block_tendency: tendency not ready"
-  end if
-  if (.not. local_block_tendency_accumulator_state_ready()) then
-     error stop "accumulate_local_block_tendency: accumulator not ready"
-  end if
-  if (block_tendency_trial_active) then
-     error stop "accumulate_local_block_tendency: trial is active"
-  end if
-
-  do local_index = 1,size(block_local)
-     block_tendency_accumulator(local_index)%scalar = &
-          block_tendency_accumulator(local_index)%scalar + &
-          weight*block_tendency(local_index)%scalar
-     block_tendency_accumulator(local_index)%vector = &
-          block_tendency_accumulator(local_index)%vector + &
-          weight*block_tendency(local_index)%vector
-  end do
-
-  block_tendency_accumulator_stages = &
-       block_tendency_accumulator_stages + 1_int64
-
-end subroutine accumulate_local_block_tendency
 
 
 subroutine retain_local_block_tendency_in_accumulator
@@ -2049,67 +1831,6 @@ integer(int64) function local_block_tendency_accumulator_allocation_count () &
 end function local_block_tendency_accumulator_allocation_count
 
 
-subroutine local_block_tendency_accumulator_statistics ( &
-     scalar_count,vector_count,scalar_changed_block_count, &
-     vector_changed_block_count,stage_count,scalar_moment,vector_moment)
-  ! Accumulate diagnostics directly from the persistent stage register.
-
-  implicit none
-
-  integer(int64), intent(out) :: scalar_count
-  integer(int64), intent(out) :: vector_count
-  integer(int64), intent(out) :: scalar_changed_block_count
-  integer(int64), intent(out) :: vector_changed_block_count
-  integer(int64), intent(out) :: stage_count
-  real(dp), intent(out) :: scalar_moment(3)
-  real(dp), intent(out) :: vector_moment(3)
-
-  integer :: local_index
-
-  if (.not. local_block_tendency_accumulator_state_ready()) then
-     error stop &
-          "local_block_tendency_accumulator_statistics: not ready"
-  end if
-
-  scalar_count = 0_int64
-  vector_count = 0_int64
-  scalar_changed_block_count = 0_int64
-  vector_changed_block_count = 0_int64
-  stage_count = block_tendency_accumulator_stages
-  scalar_moment = 0.0_dp
-  vector_moment = 0.0_dp
-
-  do local_index = 1,size(block_tendency_accumulator)
-     scalar_count = scalar_count + int(size( &
-          block_tendency_accumulator(local_index)%scalar),int64)
-     vector_count = vector_count + int(size( &
-          block_tendency_accumulator(local_index)%vector),int64)
-     if (maxval(abs( &
-          block_tendency_accumulator(local_index)%scalar)) > 0.0_dp) then
-        scalar_changed_block_count = &
-             scalar_changed_block_count + 1_int64
-     end if
-     if (maxval(abs( &
-          block_tendency_accumulator(local_index)%vector)) > 0.0_dp) then
-        vector_changed_block_count = &
-             vector_changed_block_count + 1_int64
-     end if
-
-     scalar_moment(1) = scalar_moment(1) + &
-          sum(block_tendency_accumulator(local_index)%scalar)
-     scalar_moment(2) = scalar_moment(2) + &
-          sum(abs(block_tendency_accumulator(local_index)%scalar))
-     scalar_moment(3) = scalar_moment(3) + &
-          sum(block_tendency_accumulator(local_index)%scalar**2)
-     vector_moment(1) = vector_moment(1) + &
-          sum(block_tendency_accumulator(local_index)%vector)
-     vector_moment(2) = vector_moment(2) + &
-          sum(abs(block_tendency_accumulator(local_index)%vector))
-     vector_moment(3) = vector_moment(3) + &
-          sum(block_tendency_accumulator(local_index)%vector**2)
-  end do
-
-end subroutine local_block_tendency_accumulator_statistics
 
 
 subroutine prepare_local_block_tendency_trial
@@ -2426,106 +2147,8 @@ logical function local_block_tendency_commit_checkpoint_is_ready () &
 end function local_block_tendency_commit_checkpoint_is_ready
 
 
-subroutine local_block_tendency_commit_checkpoint_statistics ( &
-     scalar_changed_block_count,vector_changed_block_count, &
-     scalar_max_update,vector_max_update)
-  ! Measure the accepted update directly against its retained checkpoint.
-
-  implicit none
-
-  integer(int64), intent(out) :: scalar_changed_block_count
-  integer(int64), intent(out) :: vector_changed_block_count
-  real(dp), intent(out) :: scalar_max_update
-  real(dp), intent(out) :: vector_max_update
-
-  integer :: local_index
-  real(dp) :: update
-
-  if (.not. block_tendency_commit_checkpoint_ready .or. &
-       .not. allocated(block_tendency_trial)) then
-     error stop &
-          "local_block_tendency_commit_checkpoint_statistics: not ready"
-  end if
-
-  scalar_changed_block_count = 0_int64
-  vector_changed_block_count = 0_int64
-  scalar_max_update = 0.0_dp
-  vector_max_update = 0.0_dp
-
-  do local_index = 1,size(block_local)
-     if (block_tendency_trial(local_index)%catalog_index /= &
-          block_local_catalog_index(local_index)) then
-        error stop &
-             "local_block_tendency_commit_checkpoint_statistics: invalid"
-     end if
-
-     update = maxval(abs(block_local(local_index)%scalar - &
-          block_tendency_trial(local_index)%scalar))
-     scalar_max_update = max(scalar_max_update,update)
-     if (update > 0.0_dp) then
-        scalar_changed_block_count = &
-             scalar_changed_block_count + 1_int64
-     end if
-
-     update = maxval(abs(block_local(local_index)%vector - &
-          block_tendency_trial(local_index)%vector))
-     vector_max_update = max(vector_max_update,update)
-     if (update > 0.0_dp) then
-        vector_changed_block_count = &
-             vector_changed_block_count + 1_int64
-     end if
-  end do
-
-end subroutine local_block_tendency_commit_checkpoint_statistics
 
 
-subroutine rollback_local_block_tendency_trial
-  ! Restore the exact saved fields. Derived hydrostatic values remain stale
-  ! until the next explicit ensure, because they may describe trial fields.
-
-  implicit none
-
-  integer :: local_index
-  logical :: scalar_changed
-
-  if (.not. block_tendency_trial_active) then
-     error stop "rollback_local_block_tendency_trial: no active trial"
-  end if
-  if (.not. allocated(block_tendency_trial)) then
-     error stop "rollback_local_block_tendency_trial: snapshot missing"
-  end if
-
-  do local_index = 1,size(block_local)
-     if (.not. block_tendency_trial(local_index)%active .or. &
-          block_tendency_trial(local_index)%catalog_index /= &
-          block_local_catalog_index(local_index)) then
-        error stop "rollback_local_block_tendency_trial: invalid snapshot"
-     end if
-
-     scalar_changed = maxval(abs(block_local(local_index)%scalar - &
-          block_tendency_trial(local_index)%scalar)) > 0.0_dp
-
-     block_local(local_index)%scalar = &
-          block_tendency_trial(local_index)%scalar
-     block_local(local_index)%vector = &
-          block_tendency_trial(local_index)%vector
-
-     if (maxval(abs(block_local(local_index)%scalar - &
-          block_tendency_trial(local_index)%scalar)) > 0.0_dp .or. &
-          maxval(abs(block_local(local_index)%vector - &
-          block_tendency_trial(local_index)%vector)) > 0.0_dp) then
-        error stop "rollback_local_block_tendency_trial: restore failed"
-     end if
-
-     if (scalar_changed) then
-        call invalidate_local_block_hydrostatic_block(local_index)
-     end if
-     block_tendency_trial(local_index)%active = .false.
-  end do
-
-  block_tendency_trial_active = .false.
-
-end subroutine rollback_local_block_tendency_trial
 
 
 logical function local_block_tendency_trial_is_active () result(active)
@@ -2653,52 +2276,6 @@ integer(int64) function local_block_tendency_allocation_count () &
 end function local_block_tendency_allocation_count
 
 
-subroutine local_block_tendency_statistics ( &
-     scalar_count,vector_count,scalar_moment,vector_moment)
-  ! Accumulate order-independent diagnostics directly from persistent
-  ! writable kernel outputs.
-
-  implicit none
-
-  integer(int64), intent(out) :: scalar_count
-  integer(int64), intent(out) :: vector_count
-  real(dp), intent(out) :: scalar_moment(3)
-  real(dp), intent(out) :: vector_moment(3)
-
-  integer :: local_index
-
-  if (.not. local_block_tendency_state_ready()) then
-     error stop &
-          "local_block_tendency_statistics: output state not ready"
-  end if
-
-  scalar_count = 0_int64
-  vector_count = 0_int64
-  scalar_moment = 0.0_dp
-  vector_moment = 0.0_dp
-
-  do local_index = 1,size(block_tendency)
-     scalar_count = scalar_count + &
-          int(size(block_tendency(local_index)%scalar),int64)
-     vector_count = vector_count + &
-          int(size(block_tendency(local_index)%vector),int64)
-
-     scalar_moment(1) = scalar_moment(1) + &
-          sum(block_tendency(local_index)%scalar)
-     scalar_moment(2) = scalar_moment(2) + &
-          sum(abs(block_tendency(local_index)%scalar))
-     scalar_moment(3) = scalar_moment(3) + &
-          sum(block_tendency(local_index)%scalar**2)
-
-     vector_moment(1) = vector_moment(1) + &
-          sum(block_tendency(local_index)%vector)
-     vector_moment(2) = vector_moment(2) + &
-          sum(abs(block_tendency(local_index)%vector))
-     vector_moment(3) = vector_moment(3) + &
-          sum(block_tendency(local_index)%vector**2)
-  end do
-
-end subroutine local_block_tendency_statistics
 
 
 subroutine local_block_field_statistics ( &
@@ -3468,28 +3045,6 @@ integer function local_block_ghost_count (catalog_index) result(n_ghost)
 end function local_block_ghost_count
 
 
-integer function local_block_scalar_patch_nvalue (catalog_index) &
-     result(n_value)
-  ! Number of scalar sol and wav_coeff values carried by one compact
-  ! patch. The complete scalar-variable and level ranges are included.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-
-  integer :: local_index
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "local_block_scalar_patch_nvalue: block is not local"
-  end if
-
-  n_value = 2 * block_local(local_index)%n_scalar_variable * &
-       block_local(local_index)%n_field_level * &
-       block_local(local_index)%scalar_mult * PATCH_SIZE**2
-
-end function local_block_scalar_patch_nvalue
 
 
 integer function local_block_scalar_family_patch_nvalue ( &
@@ -3609,95 +3164,6 @@ subroutine get_local_block_scalar_patch_family_values ( &
 end subroutine get_local_block_scalar_patch_family_values
 
 
-subroutine get_local_block_scalar_patch_values ( &
-     catalog_index,local_patch,value)
-  ! Pack scalar sol followed by scalar wav_coeff for one compact patch.
-  ! local_patch is the zero-based compact source-patch address.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: local_patch
-  real(dp), intent(out) :: value(:)
-
-  integer :: field_base
-  integer :: family_base
-  integer :: local_index
-  integer :: level_slot
-  integer :: n_node
-  integer :: n_patch_value
-  integer :: output_base
-  integer :: patch_start
-  integer :: scalar_slot
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "get_local_block_scalar_patch_values: block is not local"
-  end if
-
-  if (local_patch < 0 .or. &
-       local_patch >= size(block_local(local_index)%patch)) then
-     error stop &
-          "get_local_block_scalar_patch_values: invalid local patch"
-  end if
-
-  n_patch_value = &
-       block_local(local_index)%scalar_mult * PATCH_SIZE**2
-  if (size(value) /= &
-       local_block_scalar_patch_nvalue(catalog_index)) then
-     error stop &
-          "get_local_block_scalar_patch_values: output extent"
-  end if
-
-  n_node = size(block_local(local_index)%node)
-  family_base = &
-       block_local(local_index)%n_scalar_variable * &
-       block_local(local_index)%n_field_level * n_patch_value
-  patch_start = &
-       block_local(local_index)%patch(local_patch+1)%elts_start
-
-  if (patch_start < 0 .or. &
-       patch_start+PATCH_SIZE**2 > n_node) then
-     error stop &
-          "get_local_block_scalar_patch_values: patch storage"
-  end if
-
-  do scalar_slot = 1, &
-       block_local(local_index)%n_scalar_variable
-     do level_slot = 1, &
-          block_local(local_index)%n_field_level
-        field_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1) * &
-             block_local(local_index)%scalar_mult*n_node
-        output_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1) * n_patch_value
-
-        value(output_base+1:output_base+n_patch_value) = &
-             block_local(local_index)%scalar( &
-             field_base + &
-             block_local(local_index)%scalar_mult*patch_start + 1: &
-             field_base + &
-             block_local(local_index)%scalar_mult*patch_start + &
-             n_patch_value)
-
-        value( &
-             family_base+output_base+1: &
-             family_base+output_base+n_patch_value) = &
-             block_local(local_index)%wavelet_scalar( &
-             field_base + &
-             block_local(local_index)%scalar_mult*patch_start + 1: &
-             field_base + &
-             block_local(local_index)%scalar_mult*patch_start + &
-             n_patch_value)
-     end do
-  end do
-
-end subroutine get_local_block_scalar_patch_values
 
 
 subroutine set_local_block_scalar_patch_family_values ( &
@@ -3795,123 +3261,12 @@ subroutine set_local_block_scalar_patch_family_values ( &
 end subroutine set_local_block_scalar_patch_family_values
 
 
-subroutine set_local_block_scalar_patch_values ( &
-     catalog_index,local_patch,value)
-  ! Install scalar sol followed by wav_coeff in one compact patch.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: local_patch
-  real(dp), intent(in) :: value(:)
-
-  integer :: n_family
-
-  if (size(value) /= local_block_scalar_patch_nvalue( &
-       catalog_index)) then
-     error stop "set_local_block_scalar_patch_values: input extent"
-  end if
-
-  n_family = local_block_scalar_family_patch_nvalue(catalog_index)
-  call set_local_block_scalar_patch_family_values( &
-       catalog_index,local_patch,BLOCK_PAYLOAD_SOL, &
-       value(1:n_family))
-  call set_local_block_scalar_patch_family_values( &
-       catalog_index,local_patch,BLOCK_PAYLOAD_WAV_COEFF, &
-       value(n_family+1:2*n_family))
-
-end subroutine set_local_block_scalar_patch_values
 
 
-subroutine fill_local_block_scalar_patch_values (value)
-  ! Fill scalar sol and wav_coeff patch values in the local block store.
-
-  implicit none
-
-  real(dp), intent(in) :: value
-
-  integer :: b
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "fill_local_block_scalar_patch_values: store is not ready"
-  end if
-
-  do b = 1, size(block_local)
-     block_local(b)%scalar = value
-     block_local(b)%wavelet_scalar = value
-  end do
-
-  call invalidate_local_block_hydrostatic_state
-
-end subroutine fill_local_block_scalar_patch_values
 
 
-subroutine fill_local_block_scalar_patch_family_values ( &
-     payload_family,value)
-  ! Fill one scalar patch payload family in the local block store.
-
-  implicit none
-
-  integer, intent(in) :: payload_family
-  real(dp), intent(in) :: value
-
-  integer :: b
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "fill_local_block_scalar_patch_family_values: store not ready"
-  end if
-  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
-       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
-     error stop &
-          "fill_local_block_scalar_patch_family_values: invalid family"
-  end if
-
-  do b = 1, size(block_local)
-     select case (payload_family)
-     case (BLOCK_PAYLOAD_SOL)
-        block_local(b)%scalar = value
-     case (BLOCK_PAYLOAD_WAV_COEFF)
-        block_local(b)%wavelet_scalar = value
-     end select
-  end do
-
-  if (payload_family == BLOCK_PAYLOAD_SOL) then
-     call invalidate_local_block_hydrostatic_state
-  end if
-
-end subroutine fill_local_block_scalar_patch_family_values
 
 
-integer function local_block_scalar_boundary_nvalue ( &
-     catalog_index,boundary_index) result(n_value)
-  ! Number of scalar sol and wav_coeff values in one compact boundary.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: boundary_index
-
-  integer :: local_index
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "local_block_scalar_boundary_nvalue: block is not local"
-  end if
-  if (boundary_index < 1 .or. &
-       boundary_index > size(block_local(local_index)%bdry_storage)) then
-     error stop &
-          "local_block_scalar_boundary_nvalue: invalid boundary"
-  end if
-
-  n_value = 2 * block_local(local_index)%n_scalar_variable * &
-       block_local(local_index)%n_field_level * &
-       block_local(local_index)%scalar_mult * &
-       block_local(local_index)%bdry_storage(boundary_index)%n_node
-
-end function local_block_scalar_boundary_nvalue
 
 
 integer function local_block_scalar_family_boundary_nvalue ( &
@@ -3944,86 +3299,6 @@ integer function local_block_scalar_family_boundary_nvalue ( &
 end function local_block_scalar_family_boundary_nvalue
 
 
-subroutine get_local_block_scalar_boundary_values ( &
-     catalog_index,boundary_index,value)
-  ! Read scalar sol followed by wav_coeff from one compact boundary.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: boundary_index
-  real(dp), intent(out) :: value(:)
-
-  integer :: boundary_start
-  integer :: field_base
-  integer :: family_base
-  integer :: local_index
-  integer :: level_slot
-  integer :: n_boundary_node
-  integer :: n_boundary_value
-  integer :: output_base
-  integer :: scalar_slot
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "get_local_block_scalar_boundary_values: block is not local"
-  end if
-  if (boundary_index < 1 .or. &
-       boundary_index > size(block_local(local_index)%bdry_storage)) then
-     error stop &
-          "get_local_block_scalar_boundary_values: invalid boundary"
-  end if
-  if (size(value) /= local_block_scalar_boundary_nvalue( &
-       catalog_index,boundary_index)) then
-     error stop &
-          "get_local_block_scalar_boundary_values: output extent"
-  end if
-
-  n_boundary_node = size(block_local(local_index)%bdry_node)
-  n_boundary_value = block_local(local_index)%scalar_mult * &
-       block_local(local_index)%bdry_storage(boundary_index)%n_node
-  family_base = block_local(local_index)%n_scalar_variable * &
-       block_local(local_index)%n_field_level*n_boundary_value
-  boundary_start = block_local(local_index)% &
-       bdry_storage(boundary_index)%local_start
-
-  if (boundary_start < 0 .or. &
-       boundary_start + &
-       block_local(local_index)%bdry_storage(boundary_index)%n_node > &
-       n_boundary_node) then
-     error stop &
-          "get_local_block_scalar_boundary_values: boundary storage"
-  end if
-
-  do scalar_slot = 1, block_local(local_index)%n_scalar_variable
-     do level_slot = 1, block_local(local_index)%n_field_level
-        field_base = ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + level_slot-1) * &
-             block_local(local_index)%scalar_mult*n_boundary_node
-        output_base = ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + level_slot-1) * &
-             n_boundary_value
-
-        value(output_base+1:output_base+n_boundary_value) = &
-             block_local(local_index)%bdry_scalar( &
-             field_base + &
-             block_local(local_index)%scalar_mult*boundary_start + 1: &
-             field_base + &
-             block_local(local_index)%scalar_mult*boundary_start + &
-             n_boundary_value)
-        value(family_base+output_base+1: &
-             family_base+output_base+n_boundary_value) = &
-             block_local(local_index)%bdry_wavelet_scalar( &
-             field_base + &
-             block_local(local_index)%scalar_mult*boundary_start + 1: &
-             field_base + &
-             block_local(local_index)%scalar_mult*boundary_start + &
-             n_boundary_value)
-     end do
-  end do
-
-end subroutine get_local_block_scalar_boundary_values
 
 
 subroutine get_local_block_scalar_boundary_family_values ( &
@@ -4202,150 +3477,10 @@ subroutine set_local_block_scalar_boundary_family_values ( &
 end subroutine set_local_block_scalar_boundary_family_values
 
 
-subroutine fill_local_block_scalar_boundary_values (value)
-  ! Fill scalar sol and wav_coeff boundary values in the local block store.
-
-  implicit none
-
-  real(dp), intent(in) :: value
-
-  integer :: b
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "fill_local_block_scalar_boundary_values: store is not ready"
-  end if
-
-  do b = 1, size(block_local)
-     block_local(b)%bdry_scalar = value
-     block_local(b)%bdry_wavelet_scalar = value
-  end do
-
-end subroutine fill_local_block_scalar_boundary_values
 
 
-subroutine fill_local_block_scalar_boundary_family_values ( &
-     payload_family,value)
-  ! Fill one scalar boundary payload family in the local block store.
-
-  implicit none
-
-  integer, intent(in) :: payload_family
-  real(dp), intent(in) :: value
-
-  integer :: b
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "fill_local_block_scalar_boundary_family_values: store not ready"
-  end if
-
-  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
-       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
-     error stop &
-          "fill_local_block_scalar_boundary_family_values: invalid family"
-  end if
-
-  do b = 1, size(block_local)
-     select case (payload_family)
-     case (BLOCK_PAYLOAD_SOL)
-        block_local(b)%bdry_scalar = value
-     case (BLOCK_PAYLOAD_WAV_COEFF)
-        block_local(b)%bdry_wavelet_scalar = value
-     end select
-  end do
-
-end subroutine fill_local_block_scalar_boundary_family_values
 
 
-subroutine get_local_block_scalar_ghost_values ( &
-     catalog_index,ghost_index,value)
-  ! Read scalar sol followed by scalar wav_coeff from one compact ghost.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: ghost_index
-  real(dp), intent(out) :: value(:)
-
-  integer :: field_base
-  integer :: family_base
-  integer :: ghost_start
-  integer :: local_index
-  integer :: level_slot
-  integer :: n_ghost_node
-  integer :: n_patch_value
-  integer :: output_base
-  integer :: scalar_slot
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "get_local_block_scalar_ghost_values: block is not local"
-  end if
-
-  if (ghost_index < 1 .or. &
-       ghost_index > size(block_local(local_index)%ghost_storage)) then
-     error stop &
-          "get_local_block_scalar_ghost_values: invalid ghost"
-  end if
-
-  n_patch_value = &
-       block_local(local_index)%scalar_mult * PATCH_SIZE**2
-  if (size(value) /= &
-       local_block_scalar_patch_nvalue(catalog_index)) then
-     error stop &
-          "get_local_block_scalar_ghost_values: output extent"
-  end if
-
-  n_ghost_node = size(block_local(local_index)%ghost_node)
-  family_base = &
-       block_local(local_index)%n_scalar_variable * &
-       block_local(local_index)%n_field_level * n_patch_value
-  ghost_start = block_local(local_index)% &
-       ghost_storage(ghost_index)%local_start
-
-  if (ghost_start < 0 .or. &
-       ghost_start+PATCH_SIZE**2 > n_ghost_node) then
-     error stop &
-          "get_local_block_scalar_ghost_values: ghost storage"
-  end if
-
-  do scalar_slot = 1, &
-       block_local(local_index)%n_scalar_variable
-     do level_slot = 1, &
-          block_local(local_index)%n_field_level
-        field_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1) * &
-             block_local(local_index)%scalar_mult*n_ghost_node
-        output_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1) * n_patch_value
-
-        value(output_base+1:output_base+n_patch_value) = &
-             block_local(local_index)%ghost_scalar( &
-             field_base + &
-             block_local(local_index)%scalar_mult*ghost_start + 1: &
-             field_base + &
-             block_local(local_index)%scalar_mult*ghost_start + &
-             n_patch_value)
-
-        value( &
-             family_base+output_base+1: &
-             family_base+output_base+n_patch_value) = &
-             block_local(local_index)%ghost_wavelet_scalar( &
-             field_base + &
-             block_local(local_index)%scalar_mult*ghost_start + 1: &
-             field_base + &
-             block_local(local_index)%scalar_mult*ghost_start + &
-             n_patch_value)
-     end do
-  end do
-
-end subroutine get_local_block_scalar_ghost_values
 
 
 subroutine get_local_block_scalar_ghost_family_values ( &
@@ -4536,115 +3671,8 @@ subroutine set_local_block_scalar_ghost_family_values ( &
 end subroutine set_local_block_scalar_ghost_family_values
 
 
-subroutine set_local_block_scalar_ghost_values ( &
-     catalog_index,ghost_index,value)
-  ! Install scalar sol and scalar wav_coeff into compact ghost storage.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: ghost_index
-  real(dp), intent(in) :: value(:)
-
-  integer :: field_base
-  integer :: family_base
-  integer :: ghost_start
-  integer :: input_base
-  integer :: local_index
-  integer :: level_slot
-  integer :: n_ghost_node
-  integer :: n_patch_value
-  integer :: scalar_slot
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "set_local_block_scalar_ghost_values: block is not local"
-  end if
-
-  if (ghost_index < 1 .or. &
-       ghost_index > size(block_local(local_index)%ghost_storage)) then
-     error stop &
-          "set_local_block_scalar_ghost_values: invalid ghost"
-  end if
-
-  n_patch_value = &
-       block_local(local_index)%scalar_mult * PATCH_SIZE**2
-  if (size(value) /= &
-       local_block_scalar_patch_nvalue(catalog_index)) then
-     error stop &
-          "set_local_block_scalar_ghost_values: input extent"
-  end if
-
-  n_ghost_node = size(block_local(local_index)%ghost_node)
-  family_base = &
-       block_local(local_index)%n_scalar_variable * &
-       block_local(local_index)%n_field_level * n_patch_value
-  ghost_start = block_local(local_index)% &
-       ghost_storage(ghost_index)%local_start
-
-  if (ghost_start < 0 .or. &
-       ghost_start+PATCH_SIZE**2 > n_ghost_node) then
-     error stop &
-          "set_local_block_scalar_ghost_values: ghost storage"
-  end if
-
-  do scalar_slot = 1, &
-       block_local(local_index)%n_scalar_variable
-     do level_slot = 1, &
-          block_local(local_index)%n_field_level
-        field_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1) * &
-             block_local(local_index)%scalar_mult*n_ghost_node
-        input_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1) * n_patch_value
-
-        block_local(local_index)%ghost_scalar( &
-             field_base + &
-             block_local(local_index)%scalar_mult*ghost_start + 1: &
-             field_base + &
-             block_local(local_index)%scalar_mult*ghost_start + &
-             n_patch_value) = &
-             value(input_base+1:input_base+n_patch_value)
-
-        block_local(local_index)%ghost_wavelet_scalar( &
-             field_base + &
-             block_local(local_index)%scalar_mult*ghost_start + 1: &
-             field_base + &
-             block_local(local_index)%scalar_mult*ghost_start + &
-             n_patch_value) = value( &
-             family_base+input_base+1: &
-             family_base+input_base+n_patch_value)
-     end do
-  end do
-
-end subroutine set_local_block_scalar_ghost_values
 
 
-subroutine fill_local_block_scalar_ghost_values (value)
-  ! Fill scalar sol and wav_coeff ghost values in the local block store.
-
-  implicit none
-
-  real(dp), intent(in) :: value
-
-  integer :: b
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "fill_local_block_scalar_ghost_values: store is not ready"
-  end if
-
-  do b = 1, size(block_local)
-     block_local(b)%ghost_scalar = value
-     block_local(b)%ghost_wavelet_scalar = value
-  end do
-
-end subroutine fill_local_block_scalar_ghost_values
 
 
 subroutine fill_local_block_scalar_ghost_family_values ( &
@@ -4681,27 +3709,6 @@ subroutine fill_local_block_scalar_ghost_family_values ( &
 end subroutine fill_local_block_scalar_ghost_family_values
 
 
-integer function local_block_vector_patch_nvalue (catalog_index) &
-     result(n_value)
-  ! Number of vector sol and wav_coeff values carried by one compact
-  ! patch. Every field level and vector component is included.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-
-  integer :: local_index
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "local_block_vector_patch_nvalue: block is not local"
-  end if
-
-  n_value = 2 * block_local(local_index)%n_field_level * &
-       block_local(local_index)%vector_mult * PATCH_SIZE**2
-
-end function local_block_vector_patch_nvalue
 
 
 integer function local_block_vector_family_patch_nvalue ( &
@@ -4809,82 +3816,6 @@ subroutine get_local_block_vector_patch_family_values ( &
 end subroutine get_local_block_vector_patch_family_values
 
 
-subroutine get_local_block_vector_patch_values ( &
-     catalog_index,local_patch,value)
-  ! Pack vector sol followed by vector wav_coeff for one compact patch.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: local_patch
-  real(dp), intent(out) :: value(:)
-
-  integer :: field_base
-  integer :: family_base
-  integer :: local_index
-  integer :: level_slot
-  integer :: n_node
-  integer :: n_patch_value
-  integer :: output_base
-  integer :: patch_start
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "get_local_block_vector_patch_values: block is not local"
-  end if
-
-  if (local_patch < 0 .or. &
-       local_patch >= size(block_local(local_index)%patch)) then
-     error stop &
-          "get_local_block_vector_patch_values: invalid local patch"
-  end if
-
-  n_patch_value = &
-       block_local(local_index)%vector_mult * PATCH_SIZE**2
-  if (size(value) /= &
-       local_block_vector_patch_nvalue(catalog_index)) then
-     error stop &
-          "get_local_block_vector_patch_values: output extent"
-  end if
-
-  n_node = size(block_local(local_index)%node)
-  family_base = &
-       block_local(local_index)%n_field_level*n_patch_value
-  patch_start = &
-       block_local(local_index)%patch(local_patch+1)%elts_start
-
-  if (patch_start < 0 .or. &
-       patch_start+PATCH_SIZE**2 > n_node) then
-     error stop &
-          "get_local_block_vector_patch_values: patch storage"
-  end if
-
-  do level_slot = 1, block_local(local_index)%n_field_level
-     field_base = (level_slot-1) * &
-          block_local(local_index)%vector_mult*n_node
-     output_base = (level_slot-1)*n_patch_value
-
-     value(output_base+1:output_base+n_patch_value) = &
-          block_local(local_index)%vector( &
-          field_base + &
-          block_local(local_index)%vector_mult*patch_start + 1: &
-          field_base + &
-          block_local(local_index)%vector_mult*patch_start + &
-          n_patch_value)
-
-     value( &
-          family_base+output_base+1: &
-          family_base+output_base+n_patch_value) = &
-          block_local(local_index)%wavelet_vector( &
-          field_base + &
-          block_local(local_index)%vector_mult*patch_start + 1: &
-          field_base + &
-          block_local(local_index)%vector_mult*patch_start + &
-          n_patch_value)
-  end do
-
-end subroutine get_local_block_vector_patch_values
 
 
 subroutine set_local_block_vector_patch_family_values ( &
@@ -4967,116 +3898,12 @@ subroutine set_local_block_vector_patch_family_values ( &
 end subroutine set_local_block_vector_patch_family_values
 
 
-subroutine set_local_block_vector_patch_values ( &
-     catalog_index,local_patch,value)
-  ! Install vector sol followed by wav_coeff in one compact patch.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: local_patch
-  real(dp), intent(in) :: value(:)
-
-  integer :: n_family
-
-  if (size(value) /= local_block_vector_patch_nvalue( &
-       catalog_index)) then
-     error stop "set_local_block_vector_patch_values: input extent"
-  end if
-
-  n_family = local_block_vector_family_patch_nvalue(catalog_index)
-  call set_local_block_vector_patch_family_values( &
-       catalog_index,local_patch,BLOCK_PAYLOAD_SOL, &
-       value(1:n_family))
-  call set_local_block_vector_patch_family_values( &
-       catalog_index,local_patch,BLOCK_PAYLOAD_WAV_COEFF, &
-       value(n_family+1:2*n_family))
-
-end subroutine set_local_block_vector_patch_values
 
 
-subroutine fill_local_block_vector_patch_values (value)
-  ! Fill vector sol and wav_coeff patch values in the local block store.
-
-  implicit none
-
-  real(dp), intent(in) :: value
-
-  integer :: b
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "fill_local_block_vector_patch_values: store is not ready"
-  end if
-
-  do b = 1, size(block_local)
-     block_local(b)%vector = value
-     block_local(b)%wavelet_vector = value
-  end do
-
-end subroutine fill_local_block_vector_patch_values
 
 
-subroutine fill_local_block_vector_patch_family_values ( &
-     payload_family,value)
-  ! Fill one vector patch payload family in the local block store.
-
-  implicit none
-
-  integer, intent(in) :: payload_family
-  real(dp), intent(in) :: value
-
-  integer :: b
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "fill_local_block_vector_patch_family_values: store not ready"
-  end if
-  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
-       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
-     error stop &
-          "fill_local_block_vector_patch_family_values: invalid family"
-  end if
-
-  do b = 1, size(block_local)
-     select case (payload_family)
-     case (BLOCK_PAYLOAD_SOL)
-        block_local(b)%vector = value
-     case (BLOCK_PAYLOAD_WAV_COEFF)
-        block_local(b)%wavelet_vector = value
-     end select
-  end do
-
-end subroutine fill_local_block_vector_patch_family_values
 
 
-integer function local_block_vector_boundary_nvalue ( &
-     catalog_index,boundary_index) result(n_value)
-  ! Number of vector sol and wav_coeff values in one compact boundary.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: boundary_index
-
-  integer :: local_index
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "local_block_vector_boundary_nvalue: block is not local"
-  end if
-  if (boundary_index < 1 .or. &
-       boundary_index > size(block_local(local_index)%bdry_storage)) then
-     error stop &
-          "local_block_vector_boundary_nvalue: invalid boundary"
-  end if
-
-  n_value = 2 * block_local(local_index)%n_field_level * &
-       block_local(local_index)%vector_mult * &
-       block_local(local_index)%bdry_storage(boundary_index)%n_node
-
-end function local_block_vector_boundary_nvalue
 
 
 integer function local_block_vector_family_boundary_nvalue ( &
@@ -5108,79 +3935,6 @@ integer function local_block_vector_family_boundary_nvalue ( &
 end function local_block_vector_family_boundary_nvalue
 
 
-subroutine get_local_block_vector_boundary_values ( &
-     catalog_index,boundary_index,value)
-  ! Read vector sol followed by wav_coeff from one compact boundary.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: boundary_index
-  real(dp), intent(out) :: value(:)
-
-  integer :: boundary_start
-  integer :: field_base
-  integer :: family_base
-  integer :: local_index
-  integer :: level_slot
-  integer :: n_boundary_node
-  integer :: n_boundary_value
-  integer :: output_base
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "get_local_block_vector_boundary_values: block is not local"
-  end if
-  if (boundary_index < 1 .or. &
-       boundary_index > size(block_local(local_index)%bdry_storage)) then
-     error stop &
-          "get_local_block_vector_boundary_values: invalid boundary"
-  end if
-  if (size(value) /= local_block_vector_boundary_nvalue( &
-       catalog_index,boundary_index)) then
-     error stop &
-          "get_local_block_vector_boundary_values: output extent"
-  end if
-
-  n_boundary_node = size(block_local(local_index)%bdry_node)
-  n_boundary_value = block_local(local_index)%vector_mult * &
-       block_local(local_index)%bdry_storage(boundary_index)%n_node
-  family_base = block_local(local_index)%n_field_level*n_boundary_value
-  boundary_start = block_local(local_index)% &
-       bdry_storage(boundary_index)%local_start
-
-  if (boundary_start < 0 .or. &
-       boundary_start + &
-       block_local(local_index)%bdry_storage(boundary_index)%n_node > &
-       n_boundary_node) then
-     error stop &
-          "get_local_block_vector_boundary_values: boundary storage"
-  end if
-
-  do level_slot = 1, block_local(local_index)%n_field_level
-     field_base = (level_slot-1) * &
-          block_local(local_index)%vector_mult*n_boundary_node
-     output_base = (level_slot-1)*n_boundary_value
-
-     value(output_base+1:output_base+n_boundary_value) = &
-          block_local(local_index)%bdry_vector( &
-          field_base + &
-          block_local(local_index)%vector_mult*boundary_start + 1: &
-          field_base + &
-          block_local(local_index)%vector_mult*boundary_start + &
-          n_boundary_value)
-     value(family_base+output_base+1: &
-          family_base+output_base+n_boundary_value) = &
-          block_local(local_index)%bdry_wavelet_vector( &
-          field_base + &
-          block_local(local_index)%vector_mult*boundary_start + 1: &
-          field_base + &
-          block_local(local_index)%vector_mult*boundary_start + &
-          n_boundary_value)
-  end do
-
-end subroutine get_local_block_vector_boundary_values
 
 
 subroutine get_local_block_vector_boundary_family_values ( &
@@ -5347,138 +4101,10 @@ subroutine set_local_block_vector_boundary_family_values ( &
 end subroutine set_local_block_vector_boundary_family_values
 
 
-subroutine fill_local_block_vector_boundary_values (value)
-  ! Fill vector sol and wav_coeff boundary values in the local block store.
-
-  implicit none
-
-  real(dp), intent(in) :: value
-
-  integer :: b
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "fill_local_block_vector_boundary_values: store is not ready"
-  end if
-
-  do b = 1, size(block_local)
-     block_local(b)%bdry_vector = value
-     block_local(b)%bdry_wavelet_vector = value
-  end do
-
-end subroutine fill_local_block_vector_boundary_values
 
 
-subroutine fill_local_block_vector_boundary_family_values ( &
-     payload_family,value)
-  ! Fill one vector boundary payload family in the local block store.
-
-  implicit none
-
-  integer, intent(in) :: payload_family
-  real(dp), intent(in) :: value
-
-  integer :: b
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "fill_local_block_vector_boundary_family_values: store not ready"
-  end if
-
-  if (payload_family /= BLOCK_PAYLOAD_SOL .and. &
-       payload_family /= BLOCK_PAYLOAD_WAV_COEFF) then
-     error stop &
-          "fill_local_block_vector_boundary_family_values: invalid family"
-  end if
-
-  do b = 1, size(block_local)
-     select case (payload_family)
-     case (BLOCK_PAYLOAD_SOL)
-        block_local(b)%bdry_vector = value
-     case (BLOCK_PAYLOAD_WAV_COEFF)
-        block_local(b)%bdry_wavelet_vector = value
-     end select
-  end do
-
-end subroutine fill_local_block_vector_boundary_family_values
 
 
-subroutine get_local_block_vector_ghost_values ( &
-     catalog_index,ghost_index,value)
-  ! Read vector sol followed by vector wav_coeff from one compact ghost.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: ghost_index
-  real(dp), intent(out) :: value(:)
-
-  integer :: field_base
-  integer :: family_base
-  integer :: ghost_start
-  integer :: local_index
-  integer :: level_slot
-  integer :: n_ghost_node
-  integer :: n_patch_value
-  integer :: output_base
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "get_local_block_vector_ghost_values: block is not local"
-  end if
-
-  if (ghost_index < 1 .or. &
-       ghost_index > size(block_local(local_index)%ghost_storage)) then
-     error stop &
-          "get_local_block_vector_ghost_values: invalid ghost"
-  end if
-
-  n_patch_value = &
-       block_local(local_index)%vector_mult * PATCH_SIZE**2
-  if (size(value) /= &
-       local_block_vector_patch_nvalue(catalog_index)) then
-     error stop &
-          "get_local_block_vector_ghost_values: output extent"
-  end if
-
-  n_ghost_node = size(block_local(local_index)%ghost_node)
-  family_base = &
-       block_local(local_index)%n_field_level*n_patch_value
-  ghost_start = block_local(local_index)% &
-       ghost_storage(ghost_index)%local_start
-
-  if (ghost_start < 0 .or. &
-       ghost_start+PATCH_SIZE**2 > n_ghost_node) then
-     error stop &
-          "get_local_block_vector_ghost_values: ghost storage"
-  end if
-
-  do level_slot = 1, block_local(local_index)%n_field_level
-     field_base = (level_slot-1) * &
-          block_local(local_index)%vector_mult*n_ghost_node
-     output_base = (level_slot-1)*n_patch_value
-
-     value(output_base+1:output_base+n_patch_value) = &
-          block_local(local_index)%ghost_vector( &
-          field_base + &
-          block_local(local_index)%vector_mult*ghost_start + 1: &
-          field_base + &
-          block_local(local_index)%vector_mult*ghost_start + &
-          n_patch_value)
-
-     value( &
-          family_base+output_base+1: &
-          family_base+output_base+n_patch_value) = &
-          block_local(local_index)%ghost_wavelet_vector( &
-          field_base + &
-          block_local(local_index)%vector_mult*ghost_start + 1: &
-          field_base + &
-          block_local(local_index)%vector_mult*ghost_start + &
-          n_patch_value)
-  end do
-
-end subroutine get_local_block_vector_ghost_values
 
 
 subroutine get_local_block_vector_ghost_family_values ( &
@@ -5647,102 +4273,8 @@ subroutine set_local_block_vector_ghost_family_values ( &
 end subroutine set_local_block_vector_ghost_family_values
 
 
-subroutine set_local_block_vector_ghost_values ( &
-     catalog_index,ghost_index,value)
-  ! Install vector sol and vector wav_coeff into compact ghost storage.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: ghost_index
-  real(dp), intent(in) :: value(:)
-
-  integer :: field_base
-  integer :: family_base
-  integer :: ghost_start
-  integer :: input_base
-  integer :: local_index
-  integer :: level_slot
-  integer :: n_ghost_node
-  integer :: n_patch_value
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "set_local_block_vector_ghost_values: block is not local"
-  end if
-
-  if (ghost_index < 1 .or. &
-       ghost_index > size(block_local(local_index)%ghost_storage)) then
-     error stop &
-          "set_local_block_vector_ghost_values: invalid ghost"
-  end if
-
-  n_patch_value = &
-       block_local(local_index)%vector_mult * PATCH_SIZE**2
-  if (size(value) /= &
-       local_block_vector_patch_nvalue(catalog_index)) then
-     error stop &
-          "set_local_block_vector_ghost_values: input extent"
-  end if
-
-  n_ghost_node = size(block_local(local_index)%ghost_node)
-  family_base = &
-       block_local(local_index)%n_field_level*n_patch_value
-  ghost_start = block_local(local_index)% &
-       ghost_storage(ghost_index)%local_start
-
-  if (ghost_start < 0 .or. &
-       ghost_start+PATCH_SIZE**2 > n_ghost_node) then
-     error stop &
-          "set_local_block_vector_ghost_values: ghost storage"
-  end if
-
-  do level_slot = 1, block_local(local_index)%n_field_level
-     field_base = (level_slot-1) * &
-          block_local(local_index)%vector_mult*n_ghost_node
-     input_base = (level_slot-1)*n_patch_value
-
-     block_local(local_index)%ghost_vector( &
-          field_base + &
-          block_local(local_index)%vector_mult*ghost_start + 1: &
-          field_base + &
-          block_local(local_index)%vector_mult*ghost_start + &
-          n_patch_value) = value(input_base+1:input_base+n_patch_value)
-
-     block_local(local_index)%ghost_wavelet_vector( &
-          field_base + &
-          block_local(local_index)%vector_mult*ghost_start + 1: &
-          field_base + &
-          block_local(local_index)%vector_mult*ghost_start + &
-          n_patch_value) = value( &
-          family_base+input_base+1: &
-          family_base+input_base+n_patch_value)
-  end do
-
-end subroutine set_local_block_vector_ghost_values
 
 
-subroutine fill_local_block_vector_ghost_values (value)
-  ! Fill vector sol and wav_coeff ghost values in the local block store.
-
-  implicit none
-
-  real(dp), intent(in) :: value
-
-  integer :: b
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "fill_local_block_vector_ghost_values: store is not ready"
-  end if
-
-  do b = 1, size(block_local)
-     block_local(b)%ghost_vector = value
-     block_local(b)%ghost_wavelet_vector = value
-  end do
-
-end subroutine fill_local_block_vector_ghost_values
 
 
 subroutine fill_local_block_vector_ghost_family_values ( &
@@ -6474,6 +5006,8 @@ subroutine prepare_local_block_hydrostatic_state
   end if
   if (.not. allocated(block_hydrostatic)) then
      allocate(block_hydrostatic(size(block_local)))
+     block_hydrostatic_allocations = &
+          block_hydrostatic_allocations + 1_int64
      do local_index = 1,size(block_local)
         block_hydrostatic(local_index)%catalog_index = &
              block_local_catalog_index(local_index)
@@ -6526,6 +5060,8 @@ subroutine refresh_local_block_hydrostatic_block (local_index)
        block_hydrostatic(local_index)%surface_pressure)) then
      allocate( &
           block_hydrostatic(local_index)%surface_pressure(n_surface))
+     block_hydrostatic_allocations = &
+          block_hydrostatic_allocations + 1_int64
   end if
 
   if (allocated(block_hydrostatic(local_index)%dynamic_exner)) then
@@ -6537,6 +5073,8 @@ subroutine refresh_local_block_hydrostatic_block (local_index)
   if (.not. allocated( &
        block_hydrostatic(local_index)%dynamic_exner)) then
      allocate(block_hydrostatic(local_index)%dynamic_exner(n_column))
+     block_hydrostatic_allocations = &
+          block_hydrostatic_allocations + 1_int64
   end if
 
   if (allocated(block_hydrostatic(local_index)%air_temperature)) then
@@ -6548,6 +5086,8 @@ subroutine refresh_local_block_hydrostatic_block (local_index)
   if (.not. allocated( &
        block_hydrostatic(local_index)%air_temperature)) then
      allocate(block_hydrostatic(local_index)%air_temperature(n_column))
+     block_hydrostatic_allocations = &
+          block_hydrostatic_allocations + 1_int64
   end if
 
   do local_patch = 0,n_patch-1
@@ -6608,33 +5148,6 @@ subroutine ensure_local_block_hydrostatic_block (catalog_index)
 end subroutine ensure_local_block_hydrostatic_block
 
 
-subroutine refresh_local_block_hydrostatic_state
-  ! Explicitly recompute every local block while retaining allocations.
-
-  implicit none
-
-  integer :: local_index
-
-  if (.not. compressible) then
-     error stop &
-          "refresh_local_block_hydrostatic_state: incompressible case"
-  end if
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "refresh_local_block_hydrostatic_state: store is not ready"
-  end if
-
-  call prepare_local_block_hydrostatic_state
-  block_hydrostatic_ready = .false.
-  block_hydrostatic%ready = .false.
-
-  do local_index = 1,size(block_local)
-     call refresh_local_block_hydrostatic_block(local_index)
-  end do
-
-  block_hydrostatic_ready = all(block_hydrostatic%ready)
-
-end subroutine refresh_local_block_hydrostatic_state
 
 
 subroutine ensure_local_block_hydrostatic_state
@@ -6707,6 +5220,18 @@ logical function local_block_hydrostatic_state_ready () result(ready)
 end function local_block_hydrostatic_state_ready
 
 
+integer(int64) function local_block_hydrostatic_allocation_count () &
+     result(n_allocation)
+  ! Cumulative persistent hydrostatic-cache allocation count. The counter is
+  ! retained across topology changes for long-run stability diagnostics.
+
+  implicit none
+
+  n_allocation = block_hydrostatic_allocations
+
+end function local_block_hydrostatic_allocation_count
+
+
 integer(int64) function local_block_hydrostatic_refresh_count () &
      result(n_refresh)
   ! Number of completed per-block refreshes since the current local
@@ -6719,38 +5244,6 @@ integer(int64) function local_block_hydrostatic_refresh_count () &
 end function local_block_hydrostatic_refresh_count
 
 
-integer(int64) function local_block_hydrostatic_block_refresh_count ( &
-     catalog_index) result(n_refresh)
-  ! Number of completed refreshes for one local block cache.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-
-  integer :: local_index
-
-  if (.not. local_block_store_ready()) then
-     error stop &
-          "local_block_hydrostatic_block_refresh_count: store not ready"
-  end if
-  if (.not. allocated(block_hydrostatic)) then
-     error stop &
-          "local_block_hydrostatic_block_refresh_count: cache missing"
-  end if
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "local_block_hydrostatic_block_refresh_count: block not local"
-  end if
-  if (block_hydrostatic(local_index)%catalog_index /= catalog_index) then
-     error stop &
-          "local_block_hydrostatic_block_refresh_count: catalogue mismatch"
-  end if
-
-  n_refresh = block_hydrostatic(local_index)%refreshes
-
-end function local_block_hydrostatic_block_refresh_count
 
 
 integer function local_block_hydrostatic_surface_nvalue ( &
@@ -6835,72 +5328,6 @@ integer function local_block_hydrostatic_column_nvalue ( &
 end function local_block_hydrostatic_column_nvalue
 
 
-subroutine get_local_block_hydrostatic_patch_values ( &
-     catalog_index,local_patch,surface_pressure,dynamic_exner, &
-     air_temperature)
-  ! Return one patch from persistent, patch-major hydrostatic storage.
-
-  implicit none
-
-  integer, intent(in) :: catalog_index
-  integer, intent(in) :: local_patch
-
-  real(dp), intent(out) :: surface_pressure(:)
-  real(dp), intent(out) :: dynamic_exner(:)
-  real(dp), intent(out) :: air_temperature(:)
-
-  integer :: column_base
-  integer :: local_index
-  integer :: surface_base
-
-  call ensure_local_block_hydrostatic_block(catalog_index)
-
-  if (.not. local_block_store_ready() .or. &
-       .not. allocated(block_hydrostatic)) then
-     error stop &
-          "get_local_block_hydrostatic_patch_values: state not ready"
-  end if
-  if (size(block_hydrostatic) /= size(block_local)) then
-     error stop &
-          "get_local_block_hydrostatic_patch_values: store extent"
-  end if
-
-  local_index = catalog_local_block(catalog_index)
-  if (local_index < 1) then
-     error stop &
-          "get_local_block_hydrostatic_patch_values: block not local"
-  end if
-  if (local_patch < 0 .or. &
-       local_patch >= size(block_local(local_index)%patch)) then
-     error stop &
-          "get_local_block_hydrostatic_patch_values: invalid patch"
-  end if
-  if (size(surface_pressure) /= PATCH_SIZE**2 .or. &
-       size(dynamic_exner) /= zlevels*PATCH_SIZE**2 .or. &
-       size(air_temperature) /= zlevels*PATCH_SIZE**2) then
-     error stop &
-          "get_local_block_hydrostatic_patch_values: output extent"
-  end if
-  if (block_hydrostatic(local_index)%catalog_index /= &
-       catalog_index .or. &
-       .not. block_hydrostatic(local_index)%ready) then
-     error stop &
-          "get_local_block_hydrostatic_patch_values: catalogue mismatch"
-  end if
-
-  surface_base = local_patch*PATCH_SIZE**2
-  column_base = local_patch*zlevels*PATCH_SIZE**2
-
-  surface_pressure = &
-       block_hydrostatic(local_index)%surface_pressure( &
-       surface_base+1:surface_base+PATCH_SIZE**2)
-  dynamic_exner = block_hydrostatic(local_index)%dynamic_exner( &
-       column_base+1:column_base+zlevels*PATCH_SIZE**2)
-  air_temperature = &
-       block_hydrostatic(local_index)%air_temperature( &
-       column_base+1:column_base+zlevels*PATCH_SIZE**2)
-
-end subroutine get_local_block_hydrostatic_patch_values
 
 
 subroutine get_local_block_hydrostatic_values ( &

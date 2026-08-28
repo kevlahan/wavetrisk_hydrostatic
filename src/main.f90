@@ -15,8 +15,7 @@ module main_mod
        R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
        time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
 
-  use adapt_mod,          only : adapt, WT_after_step, &
-       adaptation_domain_consumer_audits_completed
+  use adapt_mod,          only : adapt, WT_after_step
   use coarse_grid_mod,    only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
   use comm_mod,           only : get_coord, set_coord
   use diagnostics_mod,    only : rho_dz_i, theta_i, theta2temp
@@ -56,8 +55,7 @@ module main_mod
   use time_integr_mod, only : dt_step, dt_step_split, init_RK_mem, q1, &
        Euler, Euler_split, RK3, RK3_split, RK4, RK4_split, &
        call_domain_tendency_consumer, &
-       set_multistage_block_candidate_enabled, &
-       tendency_domain_consumer_audit_completed
+       set_multistage_block_candidate_enabled
 
   use coord_arithmetic_mod
 
@@ -65,8 +63,10 @@ module main_mod
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
        block_adaptation_validation_enabled, &
+       block_detailed_diagnostics_enabled, &
        block_native_minimum_relative_mass, &
        block_domain_production_writeback_count, &
+       assert_parallel_block_allocation_stability, &
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
        complete_block_adaptation_lifecycle, &
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
@@ -100,14 +100,6 @@ module main_mod
 integer, allocatable :: n_active_edges(:), n_active_nodes(:), node_level_start(:), edge_level_start(:)
 real(dp)             :: dt_new, initial_total_mass, time_mult
 real(dp)             :: dt_loc, min_mass_loc
-logical, save        :: checkpoint_cutover_reported = .false.
-logical, save        :: diagnostic_consumer_cutover_reported = .false.
-logical, save        :: mass_consumer_cutover_reported = .false.
-logical, save        :: output_consumer_cutover_reported = .false.
-logical, save        :: physics_consumer_cutover_reported = .false.
-logical, save        :: solution_consumer_sync_reported = .false.
-logical, save        :: soil_consumer_cutover_reported = .false.
-logical, save        :: test_case_consumer_audit_reported = .false.
 
 integer, parameter :: DOMAIN_CONSUMER_READY = 1
 integer, parameter :: DOMAIN_CONSUMER_PENDING = 2
@@ -196,42 +188,6 @@ contains
          error stop "Domain consumer performed an unaccounted writeback"
 
   end subroutine end_domain_consumer_audit
-
-
-  subroutine report_test_case_domain_consumer_audits
-    ! Emit one concise global report after the hot tendency callbacks, dynamic
-    ! threshold callback and post-topology update callback have each completed
-    ! under their production block transaction.
-
-    implicit none
-
-    logical :: tendency_completed
-    logical :: threshold_completed
-    logical :: update_completed
-
-    if (test_case_consumer_audit_reported) return
-    if (.not. compressible .or. mode_split) return
-
-    tendency_completed = &
-         tendency_domain_consumer_audit_completed()
-    call adaptation_domain_consumer_audits_completed( &
-         threshold_completed,update_completed)
-    if (.not. tendency_completed .or. .not. threshold_completed .or. &
-         .not. update_completed) return
-
-    if (rank == 0) then
-       write(6,'(a)') &
-            "Climate test-case Domain consumer audit passed"
-       write(6,'(a)') &
-            "  tendency callbacks preserved the ready block transaction"
-       write(6,'(a)') &
-            "  threshold callback preserved the pending grid-change phase"
-       write(6,'(a)') &
-            "  post-topology update performed no hidden block writeback"
-    end if
-    test_case_consumer_audit_reported = .true.
-
-  end subroutine report_test_case_domain_consumer_audits
 
 
   subroutine initialize (run_id) 
@@ -487,15 +443,6 @@ contains
          error stop "end-step consumer synchronization invalidated blocks"
     compatibility_ready = .true.
 
-    if (.not. checkpoint_required .and. &
-         .not. solution_consumer_sync_reported .and. rank == 0) then
-       write(6,'(a)') &
-            "Block-authoritative field-output synchronization passed"
-       write(6,'(a)') "  sol-only Domain compatibility writebacks = 1"
-    end if
-    if (.not. checkpoint_required) &
-         solution_consumer_sync_reported = .true.
-
   end subroutine prepare_end_step_domain_consumers
 
 
@@ -538,13 +485,6 @@ contains
        block_state_ready = parallel_block_state_is_ready()
        if (.not. block_state_ready) &
             error stop "checkpoint synchronization invalidated block state"
-       if (.not. checkpoint_cutover_reported .and. rank == 0) then
-          write(6,'(a)') &
-               "Block-authoritative checkpoint synchronization passed"
-          write(6,'(a)') &
-               "  sol/wav_coeff Domain compatibility writebacks = 2"
-       end if
-       checkpoint_cutover_reported = .true.
     end if
 
     call dump_adapt_mpi (cp_idx)
@@ -582,10 +522,6 @@ contains
        writeback_after = block_domain_production_writeback_count()
        if (writeback_after /= writeback_before) &
             error stop "field output performed an unaccounted writeback"
-       if (.not. output_consumer_cutover_reported .and. rank == 0) &
-            write(6,'(a)') &
-            "Domain field-output consumer audit passed"
-       output_consumer_cutover_reported = .true.
     end if
 
   end subroutine write_output_consumer
@@ -601,12 +537,6 @@ contains
     implicit none
 
     type(Domain_Consumer_Audit) :: audit
-    logical :: physics_executed
-
-    physics_executed = vert_diffuse
-#ifdef PHYSICS
-    if (physics_model) physics_executed = .true.
-#endif
 
     call begin_domain_consumer_audit( &
          audit,DOMAIN_CONSUMER_PENDING)
@@ -630,13 +560,6 @@ contains
 
     call end_domain_consumer_audit(audit)
 
-    if (audit%active .and. physics_executed) then
-       if (.not. physics_consumer_cutover_reported .and. rank == 0) &
-            write(6,'(a)') &
-            "Domain physics mutation consumer audit passed"
-       physics_consumer_cutover_reported = .true.
-    end if
-
   end subroutine apply_domain_physics_consumers
 
 
@@ -657,13 +580,6 @@ contains
          sol(:,zmin:0),wav_coeff(:,zmin:0),level_start-1)
     call end_domain_consumer_audit(audit)
 
-    if (audit%active) then
-       if (.not. soil_consumer_cutover_reported .and. rank == 0) &
-            write(6,'(a)') &
-            "Domain soil-level wavelet consumer audit passed"
-       soil_consumer_cutover_reported = .true.
-    end if
-
   end subroutine update_domain_soil_wavelet_consumer
 
   subroutine restart 
@@ -671,6 +587,7 @@ contains
 
     implicit none
 
+    logical :: detailed_block_diagnostics
     logical :: validate_block_bootstrap
 
     call clear_parallel_block_state
@@ -723,7 +640,9 @@ contains
     ! store after every checkpoint restart. This covers both a resumed
     ! run and the restart performed after a newly written checkpoint.
     call build_parallel_block_catalog
-    call build_source_blocks
+    detailed_block_diagnostics = &
+         block_detailed_diagnostics_enabled()
+    call build_source_blocks(verbose=detailed_block_diagnostics)
     ! Production hydrostatic and tendency workspace preparation is independent
     ! of the exhaustive migration audit.  Retain that audit for oracle-enabled
     ! validation runs and omit it from the production-equivalent restart path.
@@ -732,7 +651,7 @@ contains
          validate_block_bootstrap = &
          block_adaptation_validation_enabled()
     call migrate_blocks( &
-         verbose=validate_block_bootstrap, &
+         verbose=detailed_block_diagnostics, &
          full_validation=validate_block_bootstrap)
 
   end subroutine restart
@@ -743,6 +662,7 @@ contains
     logical    :: block_euler_step, block_multistage_candidate
     logical    :: block_mass_trigger, domain_mass_trigger
     logical    :: checkpoint_due, domain_compatibility_ready
+    logical    :: detailed_block_diagnostics
     logical    :: validate_block_remap
     logical    :: block_state_ready
     logical    :: rebuild_block_state, save_data
@@ -858,16 +778,18 @@ contains
     call inverse_wavelet_transform (wav_coeff, sol)
     if (block_multistage_candidate) &
          call complete_block_adaptation_lifecycle
-    call report_test_case_domain_consumer_audits
 
     ! Rebuild the compact state immediately after the topology transition.
     ! Vertical remapping can then execute independently in both compact block
     ! storage and the retained Domain oracle without a post-remap reimport.
     if (rebuild_block_state) then
        call build_parallel_block_catalog
-       call build_source_blocks
+       detailed_block_diagnostics = &
+            block_detailed_diagnostics_enabled()
+       call build_source_blocks(verbose=detailed_block_diagnostics)
        call migrate_blocks( &
-            verbose=.false.,full_validation=.false.)
+            verbose=detailed_block_diagnostics, &
+            full_validation=.false.)
        call retain_post_grid_change_block_reconstruction
     end if
 
@@ -956,6 +878,9 @@ contains
             call write_checkpoint(domain_compatibility_ready)
        call write_output_consumer(vtk_grid)
     end if
+    block_state_ready = parallel_block_state_is_ready()
+    if (compressible .and. .not. mode_split .and. block_state_ready) &
+         call assert_parallel_block_allocation_stability
   end subroutine time_step
 
   subroutine init_basic
@@ -1088,10 +1013,6 @@ contains
        writeback_after = block_domain_production_writeback_count()
        if (writeback_after /= writeback_before) &
             error stop "total-mass diagnostic performed a writeback"
-       if (.not. mass_consumer_cutover_reported .and. rank == 0) &
-            write(6,'(a)') &
-            "Domain total-mass diagnostic consumer audit passed"
-       mass_consumer_cutover_reported = .true.
     end if
   end subroutine cal_total_mass
 
@@ -1127,12 +1048,6 @@ contains
     level_end = sync_max_int (level_end)
 
     call end_domain_consumer_audit(audit)
-    if (audit%active) then
-       if (.not. diagnostic_consumer_cutover_reported .and. rank == 0) &
-            write(6,'(a)') &
-            "Domain CFL/active-grid diagnostic consumer audit passed"
-       diagnostic_consumer_cutover_reported = .true.
-    end if
   end function cpt_dt
 
   subroutine cal_min_dt (dom, i, j, zlev, offs, dims)

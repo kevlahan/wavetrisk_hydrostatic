@@ -3,7 +3,8 @@ module parallel_block_mpi_mod
   use iso_fortran_env, only : error_unit, int8, int64
   use ieee_arithmetic, only : ieee_is_finite
   use mpi_f08,        only : MPI_Allgather, MPI_Allgatherv, MPI_Allreduce, &
-       MPI_Alltoall, MPI_Alltoallv, MPI_Exscan, MPI_BYTE, MPI_INTEGER, &
+       MPI_Alltoall, MPI_Alltoallv, MPI_Exscan, MPI_Gather, &
+       MPI_BYTE, MPI_INTEGER, &
        MPI_INTEGER8, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_MIN, MPI_SUCCESS, &
        MPI_SUM
 
@@ -60,88 +61,56 @@ module parallel_block_mpi_mod
        validate_local_block_ghost_sources, &
        get_local_block_ghost_requests, local_block_patch_count, &
        local_block_boundary_count, &
-       local_block_ghost_count, local_block_scalar_patch_nvalue, &
+       local_block_ghost_count, &
        local_block_scalar_family_patch_nvalue, &
-       local_block_scalar_boundary_nvalue, &
        local_block_scalar_family_boundary_nvalue, &
-       get_local_block_scalar_patch_values, &
        get_local_block_scalar_patch_family_values, &
-       set_local_block_scalar_patch_values, &
        set_local_block_scalar_patch_family_values, &
-       fill_local_block_scalar_patch_values, &
-       fill_local_block_scalar_patch_family_values, &
-       get_local_block_scalar_boundary_values, &
        get_local_block_scalar_boundary_family_values, &
        set_local_block_scalar_boundary_family_values, &
-       fill_local_block_scalar_boundary_values, &
-       fill_local_block_scalar_boundary_family_values, &
-       get_local_block_scalar_ghost_values, &
        get_local_block_scalar_ghost_family_values, &
        set_local_block_scalar_ghost_family_values, &
        fill_local_block_scalar_ghost_family_values, &
-       local_block_vector_patch_nvalue, &
        local_block_vector_family_patch_nvalue, &
-       local_block_vector_boundary_nvalue, &
        local_block_vector_family_boundary_nvalue, &
-       get_local_block_vector_patch_values, &
        get_local_block_vector_patch_family_values, &
-       set_local_block_vector_patch_values, &
        set_local_block_vector_patch_family_values, &
-       fill_local_block_vector_patch_values, &
-       fill_local_block_vector_patch_family_values, &
-       get_local_block_vector_boundary_values, &
        get_local_block_vector_boundary_family_values, &
        set_local_block_vector_boundary_family_values, &
-       fill_local_block_vector_boundary_values, &
-       fill_local_block_vector_boundary_family_values, &
-       get_local_block_vector_ghost_values, &
        get_local_block_vector_ghost_family_values, &
        set_local_block_vector_ghost_family_values, &
        fill_local_block_vector_ghost_family_values, &
        invalidate_local_block_hydrostatic_state, &
        ensure_local_block_hydrostatic_state, &
        local_block_hydrostatic_state_ready, &
+       local_block_hydrostatic_allocation_count, &
        local_block_hydrostatic_refresh_count, &
-       local_block_hydrostatic_block_refresh_count, &
-       local_block_hydrostatic_surface_nvalue, &
-       local_block_hydrostatic_column_nvalue, &
-       get_local_block_hydrostatic_patch_values, &
-       get_local_block_hydrostatic_values, &
        apply_local_block_field_consumer, &
        apply_local_block_field_producer, &
-       Local_Block_Tendency_Kernel, &
        apply_local_block_tendency_kernel, &
-       apply_local_block_tendency_consumer, &
        local_block_tendency_state_ready, &
        discard_local_block_tendency_output, &
        invalidate_local_block_tendency_products, &
        prepare_local_block_tendency_workspace, &
        local_block_tendency_execution_count, &
        local_block_tendency_allocation_count, &
-       local_block_tendency_statistics, &
        begin_local_block_tendency_import, &
        set_local_block_tendency_patch_values, &
        finish_local_block_tendency_import, &
-       get_local_block_tendency_patch_values, &
        assert_local_block_tendency_patch_values, &
        local_block_tendency_import_is_active, &
        local_block_tendency_import_allocation_count, &
-       reset_local_block_tendency_accumulator, &
-       accumulate_local_block_tendency, &
        retain_local_block_tendency_in_accumulator, &
        set_local_block_tendency_accumulator_scalar_patch_values, &
        discard_local_block_tendency_accumulator, &
        begin_local_block_accumulated_tendency_trial, &
        local_block_tendency_accumulator_state_ready, &
        local_block_tendency_accumulator_allocation_count, &
-       local_block_tendency_accumulator_statistics, &
        begin_local_block_tendency_trial, &
        commit_local_block_tendency_trial, &
        finalize_local_block_tendency_commit, &
        restore_local_block_tendency_commit, &
        local_block_tendency_commit_checkpoint_is_ready, &
-       local_block_tendency_commit_checkpoint_statistics, &
-       rollback_local_block_tendency_trial, &
        local_block_tendency_trial_is_active, &
        apply_local_block_hydrostatic_consumer, &
        local_block_hydrostatic_statistics, &
@@ -239,7 +208,7 @@ module parallel_block_mpi_mod
   real(dp), parameter :: BLOCK_RESTRICTION_VALUE_LIMIT = &
        0.01_dp*huge(0.0_dp)
 
-  type, public :: Block_Migration_Manifest
+  type :: Block_Migration_Manifest
      integer :: n_send = 0
      integer :: n_recv = 0
      integer, allocatable :: send_count(:)
@@ -297,6 +266,9 @@ module parallel_block_mpi_mod
      real(dp), allocatable :: vector_send_buffer(:)
      real(dp), allocatable :: vector_recv_buffer(:)
      real(dp), allocatable :: vector_patch_buffer(:)
+     integer(int64) :: allocation_count = 0_int64
+     integer(int64) :: build_count = 0_int64
+     integer(int64) :: reuse_count = 0_int64
      logical :: ready = .false.
   end type Block_Ghost_Exchange_Plan
 
@@ -520,8 +492,26 @@ module parallel_block_mpi_mod
   logical, save :: production_grid_change_pending = .false.
   logical, save :: block_adaptation_validation = .false.
   logical, save :: block_adaptation_validation_initialized = .false.
-  logical, save :: block_adaptation_cutover_reported = .false.
+  logical, save :: block_detailed_diagnostics = .false.
+  logical, save :: block_detailed_diagnostics_initialized = .false.
   logical, save :: production_state_preparation_reported = .false.
+  integer(int64), save :: block_writeback_plan_reuse_count = 0_int64
+  integer(int64), save :: migration_send_peer_count = 0_int64
+  integer(int64), save :: migration_recv_peer_count = 0_int64
+  integer(int64), save :: migration_send_block_count = 0_int64
+  integer(int64), save :: migration_recv_block_count = 0_int64
+  integer(int64), save :: migration_send_byte_count = 0_int64
+  integer(int64), save :: migration_recv_byte_count = 0_int64
+  integer, parameter :: BLOCK_PERSISTENT_ALLOCATION_COUNT = 9
+  integer(int64), save :: block_allocation_baseline( &
+       BLOCK_PERSISTENT_ALLOCATION_COUNT) = -1_int64
+  integer(int64), save :: block_allocation_baseline_generation = -1_int64
+  logical, save :: block_allocation_baseline_ready = .false.
+  integer(int64), save :: compatibility_writeback_total = 0_int64
+  integer(int64), save :: compatibility_writeback_output = 0_int64
+  integer(int64), save :: compatibility_writeback_checkpoint = 0_int64
+  integer(int64), save :: compatibility_writeback_grid_change = 0_int64
+  integer(int64), save :: compatibility_writeback_remap = 0_int64
 
   ! Domain-shaped, non-authoritative storage for the complete native vector
   ! transform.  Values are populated only from the block-derived writeback
@@ -544,20 +534,6 @@ module parallel_block_mpi_mod
   integer(int64), save :: &
        production_multistage_native_transform_writeback_count = 0_int64
 
-  type :: Block_Boundary_Snapshot
-     integer :: catalog_index = 0
-     integer :: boundary_index = 0
-     real(dp), allocatable :: scalar(:)
-     real(dp), allocatable :: vector(:)
-  end type Block_Boundary_Snapshot
-
-  type :: Block_Patch_Snapshot
-     integer :: catalog_index = 0
-     integer :: local_patch = -1
-     real(dp), allocatable :: scalar(:)
-     real(dp), allocatable :: vector(:)
-  end type Block_Patch_Snapshot
-
   type :: Block_Hydrostatic_Traversal_Context
      integer(int64) :: block_count = 0_int64
      integer(int64) :: patch_count = 0_int64
@@ -567,49 +543,6 @@ module parallel_block_mpi_mod
      real(dp) :: exner_moment(3) = 0.0_dp
      real(dp) :: temperature_moment(3) = 0.0_dp
   end type Block_Hydrostatic_Traversal_Context
-
-  type :: Block_Field_Traversal_Context
-     integer(int64) :: block_count = 0_int64
-     integer(int64) :: patch_count = 0_int64
-     integer(int64) :: boundary_count = 0_int64
-     integer(int64) :: ghost_count = 0_int64
-     integer(int64) :: node_count = 0_int64
-     integer(int64) :: boundary_node_count = 0_int64
-     integer(int64) :: ghost_node_count = 0_int64
-     integer(int64) :: scalar_count(3) = 0_int64
-     integer(int64) :: vector_count(3) = 0_int64
-     integer(int64) :: surface_count = 0_int64
-     real(dp) :: scalar_moment(3,3) = 0.0_dp
-     real(dp) :: vector_moment(3,3) = 0.0_dp
-     real(dp) :: surface_moment(3) = 0.0_dp
-  end type Block_Field_Traversal_Context
-
-  type :: Block_Stencil_Kernel_Context
-     integer(int64) :: block_count = 0_int64
-     integer(int64) :: address_count(3) = 0_int64
-     integer(int64) :: scalar_count = 0_int64
-     integer(int64) :: vector_count = 0_int64
-     real(dp) :: scalar_moment(3) = 0.0_dp
-     real(dp) :: vector_moment(3) = 0.0_dp
-     real(dp) :: scalar_difference_moment(3) = 0.0_dp
-     real(dp) :: vector_difference_moment(3) = 0.0_dp
-  end type Block_Stencil_Kernel_Context
-
-  type :: Block_Tendency_Traversal_Context
-     integer(int64) :: block_count = 0_int64
-     integer(int64) :: scalar_count = 0_int64
-     integer(int64) :: vector_count = 0_int64
-     integer(int64) :: scalar_changed_block_count = 0_int64
-     real(dp) :: scalar_moment(3) = 0.0_dp
-     real(dp) :: vector_moment(3) = 0.0_dp
-  end type Block_Tendency_Traversal_Context
-
-  type :: Block_Theta_Edge_Kernel_Context
-     integer(int64) :: block_count = 0_int64
-     integer(int64) :: patch_count = 0_int64
-     integer(int64) :: sample_count = 0_int64
-     real(dp) :: theta_moment(3) = 0.0_dp
-  end type Block_Theta_Edge_Kernel_Context
 
   type :: Block_Exner_Difference_Kernel_Context
      integer(int64) :: block_count = 0_int64
@@ -771,18 +704,6 @@ module parallel_block_mpi_mod
      integer :: edge = -1
   end type Block_Scalar_Restriction_Cursor
 
-  type, public :: Block_Two_Stage_Step_Result
-     integer(int64) :: scalar_count = 0_int64
-     integer(int64) :: vector_count = 0_int64
-     integer(int64) :: scalar_changed_block_count = 0_int64
-     integer(int64) :: vector_changed_block_count = 0_int64
-     integer(int64) :: stage_count = 0_int64
-     real(dp) :: scalar_moment(3) = 0.0_dp
-     real(dp) :: vector_moment(3) = 0.0_dp
-     real(dp) :: scalar_max_update = 0.0_dp
-     real(dp) :: vector_max_update = 0.0_dp
-  end type Block_Two_Stage_Step_Result
-
   public :: build_parallel_block_catalog
   public :: clear_parallel_block_state
   public :: parallel_block_state_is_ready
@@ -793,6 +714,7 @@ module parallel_block_mpi_mod
   public :: prepare_parallel_block_grid_change
   public :: install_block_native_adaptation_mask_seed
   public :: block_adaptation_validation_enabled
+  public :: block_detailed_diagnostics_enabled
   public :: complete_block_adaptation_lifecycle
   public :: retain_post_grid_change_block_reconstruction
   public :: prepare_block_native_vertical_remap
@@ -801,6 +723,7 @@ module parallel_block_mpi_mod
   public :: write_block_native_vertical_remap_to_domains
   public :: complete_block_native_vertical_remap
   public :: migrate_blocks
+  public :: assert_parallel_block_allocation_stability
   public :: block_domain_production_writeback_count
   public :: refresh_parallel_block_trend_boundary_state
   public :: refresh_parallel_block_candidate_boundary_state
@@ -1038,21 +961,29 @@ contains
 
     allocation_before = block_writeback_plan_allocation_count()
     call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
+    compatibility_writeback_output = &
+         compatibility_writeback_output + 1_int64
     if (block_writeback_plan_allocation_count() /= allocation_before) &
          call fail("solution-consumer synchronization reallocated buffers")
 
   end subroutine synchronize_parallel_block_solution_consumer
 
 
-  subroutine synchronize_parallel_block_checkpoint
+  subroutine synchronize_parallel_block_checkpoint (grid_change)
     ! In a block-authoritative integration, materialize both prognostic field
     ! families in Domain storage while retaining every persistent object.
 
     implicit none
 
+    logical, optional, intent(in) :: grid_change
+
     logical :: checkpoint_ready
+    logical :: grid_change_writeback
     logical :: state_ready
     logical :: trial_active
+
+    grid_change_writeback = .false.
+    if (present(grid_change)) grid_change_writeback = grid_change
 
     trial_active = local_block_tendency_trial_is_active()
     checkpoint_ready = &
@@ -1071,6 +1002,13 @@ contains
 
     call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
     call write_block_field_family_to_domains(BLOCK_PAYLOAD_WAV_COEFF)
+    if (grid_change_writeback) then
+       compatibility_writeback_grid_change = &
+            compatibility_writeback_grid_change + 2_int64
+    else
+       compatibility_writeback_checkpoint = &
+            compatibility_writeback_checkpoint + 2_int64
+    end if
 
   end subroutine synchronize_parallel_block_checkpoint
 
@@ -1104,7 +1042,7 @@ contains
             BLOCK_PAYLOAD_WAV_COEFF)
     end if
     writeback_before = block_domain_production_writeback_count()
-    call synchronize_parallel_block_checkpoint
+    call synchronize_parallel_block_checkpoint(.true.)
     if (block_domain_production_writeback_count() /= &
          writeback_before+2_int64) &
          call fail("grid-change compatibility writeback count is invalid")
@@ -1168,6 +1106,51 @@ contains
     enabled = block_adaptation_validation
 
   end function block_adaptation_validation_enabled
+
+
+  logical function block_detailed_diagnostics_enabled () result(enabled)
+    ! Detailed per-rank block reports are opt-in. Concise global validation
+    ! summaries remain available independently through the exact oracles.
+
+    implicit none
+
+    character(len=32) :: value
+    integer :: enabled_count
+    integer :: ierr
+    integer :: length
+    integer :: local_enabled
+    integer :: status
+
+    if (.not. block_detailed_diagnostics_initialized) then
+       value = ""
+       call get_environment_variable( &
+            "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS",value,length,status)
+       if (status == 0 .and. length > 0) then
+          select case (trim(value(1:min(length,len(value)))))
+          case ("1","true","TRUE","on","ON","yes","YES")
+             block_detailed_diagnostics = .true.
+          case ("0","false","FALSE","off","OFF","no","NO")
+             block_detailed_diagnostics = .false.
+          case default
+             call fail("invalid detailed block diagnostics option")
+          end select
+       else if (status /= 0 .and. status /= 1) then
+          call fail("unable to read detailed block diagnostics option")
+       end if
+       local_enabled = merge(1,0,block_detailed_diagnostics)
+       call MPI_Allreduce(local_enabled,enabled_count,1,MPI_INTEGER, &
+            MPI_SUM,comm,ierr)
+       call check_mpi(ierr, &
+            "MPI_Allreduce detailed block diagnostics option")
+       if (enabled_count /= 0 .and. enabled_count /= n_process) &
+            call fail("inconsistent detailed block diagnostics option")
+       block_detailed_diagnostics_initialized = .true.
+       if (block_detailed_diagnostics .and. rank == 0) write(6,'(a)') &
+            "Detailed per-rank parallel-block diagnostics enabled"
+    end if
+    enabled = block_detailed_diagnostics
+
+  end function block_detailed_diagnostics_enabled
 
 
   subroutine install_block_native_adaptation_mask_seed
@@ -1339,26 +1322,6 @@ contains
     if (block_adaptation_exchange%allocation_count /= &
          exchange_allocation_before) &
          call fail("adaptation decision exchange reallocated in flight")
-
-    if (.not. block_adaptation_cutover_reported .and. rank == 0) then
-       write(6,'(a)') &
-            "Block-native adaptation mask seed installed"
-       write(6,'(a,2(i0,1x))') &
-            "  scalar/vector candidates = ", &
-            block_count_global(1),block_count_global(3)
-       write(6,'(a,2(i0,1x))') &
-            "  scalar/vector significant = ", &
-            block_count_global(2),block_count_global(4)
-       write(6,'(a,i0)') &
-            "  transported integers per compact patch = ", &
-            BLOCK_ADAPTATION_PATCH_NVALUE
-       if (validate_oracle) then
-          write(6,'(a)') "  exact per-record Domain oracle passed"
-       else
-          write(6,'(a)') "  production Domain interior oracle disabled"
-       end if
-    end if
-    block_adaptation_cutover_reported = .true.
 
     call clear_parallel_block_state
     if (production_grid_change_pending .or. &
@@ -2309,6 +2272,8 @@ contains
     allocation_before = block_writeback_plan_allocation_count()
     writeback_before = block_domain_production_writeback_count()
     call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
+    compatibility_writeback_remap = &
+         compatibility_writeback_remap + 1_int64
     if (block_writeback_plan_allocation_count() /= allocation_before) then
        call fail("native vertical remap writeback reallocated buffers")
     end if
@@ -2419,6 +2384,191 @@ contains
     end select
 
   end subroutine snapshot_block_vertical_remap_mass
+
+
+  subroutine prepare_block_vertical_remap_workspace
+    ! Preallocate topology-lifetime remap masks, old-mass snapshots and the
+    ! compact metadata route. Production remaps then reuse all storage.
+
+    implicit none
+
+    integer :: b
+    integer :: field_level
+    integer :: local_index
+    integer :: n_field_level
+    integer :: n_patch
+    integer :: n_scalar_variable
+    integer :: n_value
+    integer :: scalar_mult
+    integer :: scalar_variable
+    integer :: vector_mult
+    integer :: vector_variable
+
+    if (allocated(block_vertical_remap)) then
+       if (size(block_vertical_remap) /= n_local_blocks()) &
+            call clear_block_vertical_remap_storage
+    end if
+    if (.not. allocated(block_vertical_remap)) then
+       allocate(block_vertical_remap(n_local_blocks()))
+       block_vertical_remap_allocations = &
+            block_vertical_remap_allocations + 1_int64
+    end if
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       n_patch = local_block_patch_count(b)
+       call get_local_block_field_layout( &
+            local_index,scalar_variable,n_scalar_variable, &
+            vector_variable,field_level,n_field_level, &
+            scalar_mult,vector_mult)
+       if (n_patch < 1 .or. n_field_level < 1 .or. &
+            scalar_mult /= 1 .or. vector_mult < 1 .or. &
+            S_MASS < scalar_variable .or. &
+            S_MASS >= scalar_variable+n_scalar_variable .or. &
+            vector_variable < 1 .or. field_level > 1 .or. &
+            field_level+n_field_level-1 < zlevels) &
+            call fail("vertical remap workspace layout is invalid")
+       n_value = n_patch*n_field_level*PATCH_SIZE**2
+
+       if (allocated(block_vertical_remap(local_index)%old_mass)) then
+          if (size(block_vertical_remap(local_index)%old_mass) /= n_value) &
+               deallocate(block_vertical_remap(local_index)%old_mass)
+       end if
+       if (.not. allocated(block_vertical_remap(local_index)%old_mass)) then
+          allocate(block_vertical_remap(local_index)%old_mass(n_value))
+          block_vertical_remap_allocations = &
+               block_vertical_remap_allocations + 1_int64
+       end if
+
+       if (allocated(block_vertical_remap(local_index)%active)) then
+          if (size(block_vertical_remap(local_index)%active) /= &
+               n_patch*PATCH_SIZE**2) &
+               deallocate(block_vertical_remap(local_index)%active)
+       end if
+       if (.not. allocated(block_vertical_remap(local_index)%active)) then
+          allocate(block_vertical_remap(local_index)% &
+               active(n_patch*PATCH_SIZE**2))
+          block_vertical_remap_allocations = &
+               block_vertical_remap_allocations + 1_int64
+       end if
+
+       if (allocated(block_vertical_remap(local_index)%source_start)) then
+          if (size(block_vertical_remap(local_index)%source_start) /= &
+               n_patch) &
+               deallocate(block_vertical_remap(local_index)%source_start)
+       end if
+       if (.not. allocated( &
+            block_vertical_remap(local_index)%source_start)) then
+          allocate(block_vertical_remap(local_index)%source_start(n_patch))
+          block_vertical_remap_allocations = &
+               block_vertical_remap_allocations + 1_int64
+       end if
+
+       block_vertical_remap(local_index)%catalog_index = b
+       block_vertical_remap(local_index)%installed_patch_count = 0
+       block_vertical_remap(local_index)%old_mass = 0.0_dp
+       block_vertical_remap(local_index)%active = .false.
+       block_vertical_remap(local_index)%source_start = -1
+    end do
+
+    call prepare_vertical_remap_metadata_exchange
+
+  end subroutine prepare_block_vertical_remap_workspace
+
+
+  subroutine prepare_vertical_remap_metadata_exchange
+
+    implicit none
+
+    integer :: expected_recv(n_process)
+    integer :: metadata_count
+    integer :: metadata_displ
+    integer :: route
+    integer :: route_slot
+    integer :: status
+
+    if (block_vertical_remap_exchange%ready) then
+       if (block_vertical_remap_exchange%plan_generation /= &
+            block_writeback_plan_generation) then
+          call fail("vertical remap metadata route is stale")
+       end if
+       return
+    end if
+    if (.not. block_writeback_plan_is_ready()) then
+       call fail("vertical remap metadata route is unavailable")
+    end if
+    allocate(block_vertical_remap_exchange%send_count(n_process))
+    allocate(block_vertical_remap_exchange%send_displ(n_process))
+    allocate(block_vertical_remap_exchange%recv_count(n_process))
+    allocate(block_vertical_remap_exchange%recv_displ(n_process))
+    block_vertical_remap_exchange%send_count = 0
+    block_vertical_remap_exchange%recv_count = 0
+
+    do route = 1,n_process
+       do route_slot = block_writeback_plan%recv_displ(route)+1, &
+            block_writeback_plan%recv_displ(route) + &
+            block_writeback_plan%recv_count(route)
+          block_vertical_remap_exchange%send_count(route) = &
+               block_vertical_remap_exchange%send_count(route) + &
+               BLOCK_VERTICAL_REMAP_METADATA_COUNT* &
+               block_writeback_plan%recv_patch_count(route_slot)
+       end do
+       do route_slot = block_writeback_plan%send_displ(route)+1, &
+            block_writeback_plan%send_displ(route) + &
+            block_writeback_plan%send_count(route)
+          block_vertical_remap_exchange%recv_count(route) = &
+               block_vertical_remap_exchange%recv_count(route) + &
+               BLOCK_VERTICAL_REMAP_METADATA_COUNT* &
+               block_writeback_plan%send_patch_count(route_slot)
+       end do
+    end do
+
+    call MPI_Alltoall(block_vertical_remap_exchange%send_count,1, &
+         MPI_INTEGER,expected_recv,1,MPI_INTEGER,comm,status)
+    call check_mpi(status,"MPI_Alltoall vertical remap metadata counts")
+    if (any(expected_recv /= &
+         block_vertical_remap_exchange%recv_count)) then
+       call fail("vertical remap metadata route counts differ")
+    end if
+
+    metadata_displ = 0
+    do route = 1,n_process
+       block_vertical_remap_exchange%send_displ(route) = &
+            metadata_displ
+       metadata_count = &
+            block_vertical_remap_exchange%send_count(route)
+       if (metadata_count < 0 .or. &
+            metadata_displ > huge(metadata_displ)-metadata_count) then
+          call fail("vertical remap metadata send count overflows")
+       end if
+       metadata_displ = metadata_displ+metadata_count
+    end do
+    allocate(block_vertical_remap_exchange% &
+         send_buffer(max(1,metadata_displ)))
+
+    metadata_displ = 0
+    do route = 1,n_process
+       block_vertical_remap_exchange%recv_displ(route) = &
+            metadata_displ
+       metadata_count = &
+            block_vertical_remap_exchange%recv_count(route)
+       if (metadata_count < 0 .or. &
+            metadata_displ > huge(metadata_displ)-metadata_count) then
+          call fail("vertical remap metadata receive count overflows")
+       end if
+       metadata_displ = metadata_displ+metadata_count
+    end do
+    allocate(block_vertical_remap_exchange% &
+         recv_buffer(max(1,metadata_displ)))
+    block_vertical_remap_exchange%send_buffer = 0
+    block_vertical_remap_exchange%recv_buffer = 0
+    block_vertical_remap_exchange%plan_generation = &
+         block_writeback_plan_generation
+    block_vertical_remap_exchange%ready = .true.
+    block_vertical_remap_allocations = &
+         block_vertical_remap_allocations+1_int64
+
+  end subroutine prepare_vertical_remap_metadata_exchange
 
 
   subroutine refresh_block_vertical_remap_masks
@@ -2584,99 +2734,6 @@ contains
 
   contains
 
-    subroutine prepare_vertical_remap_metadata_exchange
-
-      implicit none
-
-      integer :: expected_recv(n_process)
-      integer :: metadata_count
-      integer :: metadata_displ
-      integer :: route
-      integer :: route_slot
-      integer :: status
-
-      if (block_vertical_remap_exchange%ready) then
-         if (block_vertical_remap_exchange%plan_generation /= &
-              block_writeback_plan_generation) then
-            call fail("vertical remap metadata route is stale")
-         end if
-         return
-      end if
-      if (.not. block_writeback_plan_is_ready()) then
-         call fail("vertical remap metadata route is unavailable")
-      end if
-      allocate(block_vertical_remap_exchange%send_count(n_process))
-      allocate(block_vertical_remap_exchange%send_displ(n_process))
-      allocate(block_vertical_remap_exchange%recv_count(n_process))
-      allocate(block_vertical_remap_exchange%recv_displ(n_process))
-      block_vertical_remap_exchange%send_count = 0
-      block_vertical_remap_exchange%recv_count = 0
-
-      do route = 1,n_process
-         do route_slot = block_writeback_plan%recv_displ(route)+1, &
-              block_writeback_plan%recv_displ(route) + &
-              block_writeback_plan%recv_count(route)
-            block_vertical_remap_exchange%send_count(route) = &
-                 block_vertical_remap_exchange%send_count(route) + &
-                 BLOCK_VERTICAL_REMAP_METADATA_COUNT* &
-                 block_writeback_plan%recv_patch_count(route_slot)
-         end do
-         do route_slot = block_writeback_plan%send_displ(route)+1, &
-              block_writeback_plan%send_displ(route) + &
-              block_writeback_plan%send_count(route)
-            block_vertical_remap_exchange%recv_count(route) = &
-                 block_vertical_remap_exchange%recv_count(route) + &
-                 BLOCK_VERTICAL_REMAP_METADATA_COUNT* &
-                 block_writeback_plan%send_patch_count(route_slot)
-         end do
-      end do
-
-      call MPI_Alltoall(block_vertical_remap_exchange%send_count,1, &
-           MPI_INTEGER,expected_recv,1,MPI_INTEGER,comm,status)
-      call check_mpi(status,"MPI_Alltoall vertical remap metadata counts")
-      if (any(expected_recv /= &
-           block_vertical_remap_exchange%recv_count)) then
-         call fail("vertical remap metadata route counts differ")
-      end if
-
-      metadata_displ = 0
-      do route = 1,n_process
-         block_vertical_remap_exchange%send_displ(route) = &
-              metadata_displ
-         metadata_count = &
-              block_vertical_remap_exchange%send_count(route)
-         if (metadata_count < 0 .or. &
-              metadata_displ > huge(metadata_displ)-metadata_count) then
-            call fail("vertical remap metadata send count overflows")
-         end if
-         metadata_displ = metadata_displ+metadata_count
-      end do
-      allocate(block_vertical_remap_exchange% &
-           send_buffer(max(1,metadata_displ)))
-
-      metadata_displ = 0
-      do route = 1,n_process
-         block_vertical_remap_exchange%recv_displ(route) = &
-              metadata_displ
-         metadata_count = &
-              block_vertical_remap_exchange%recv_count(route)
-         if (metadata_count < 0 .or. &
-              metadata_displ > huge(metadata_displ)-metadata_count) then
-            call fail("vertical remap metadata receive count overflows")
-         end if
-         metadata_displ = metadata_displ+metadata_count
-      end do
-      allocate(block_vertical_remap_exchange% &
-           recv_buffer(max(1,metadata_displ)))
-      block_vertical_remap_exchange%send_buffer = 0
-      block_vertical_remap_exchange%recv_buffer = 0
-      block_vertical_remap_exchange%plan_generation = &
-           block_writeback_plan_generation
-      block_vertical_remap_exchange%ready = .true.
-      block_vertical_remap_allocations = &
-           block_vertical_remap_allocations+1_int64
-
-    end subroutine prepare_vertical_remap_metadata_exchange
 
 
     recursive subroutine pack_vertical_remap_metadata_subtree ( &
@@ -3286,6 +3343,8 @@ contains
   real(dp) :: balanced_weight
   real(dp) :: imbalance_goal
 
+  logical :: detailed_diagnostics
+
   real(dp), parameter :: init_goal = 0.05_dp
   real(dp), parameter :: incr_goal = 1.20_dp
 
@@ -3682,9 +3741,10 @@ contains
   end if
 
   !
-  ! Print compact diagnostic summary.
+  ! Print the detailed load-balancing report only when explicitly requested.
   !
-  if (rank == 0) then
+  detailed_diagnostics = block_detailed_diagnostics_enabled()
+  if (detailed_diagnostics .and. rank == 0) then
 
      write(6,'(/,a,i0)') &
           "Total candidate parallel blocks = ", n_block_total
@@ -3751,6 +3811,52 @@ contains
 end subroutine build_parallel_block_catalog
 
 
+  subroutine capture_parallel_block_allocation_snapshot (snapshot)
+
+    implicit none
+
+    integer(int64), intent(out) :: snapshot( &
+         BLOCK_PERSISTENT_ALLOCATION_COUNT)
+
+    snapshot(1) = ghost_exchange_plan%allocation_count
+    snapshot(2) = block_writeback_plan_allocation_count()
+    snapshot(3) = block_writeback_plan%stage_allocations
+    snapshot(4) = block_adaptation_exchange%allocation_count
+    snapshot(5) = block_vertical_remap_allocations
+    snapshot(6) = local_block_tendency_allocation_count()
+    snapshot(7) = local_block_tendency_import_allocation_count()
+    snapshot(8) = local_block_tendency_accumulator_allocation_count()
+    snapshot(9) = local_block_hydrostatic_allocation_count()
+
+  end subroutine capture_parallel_block_allocation_snapshot
+
+
+  subroutine assert_parallel_block_allocation_stability
+    ! Enforce allocation-free steady timesteps. Every topology transition
+    ! establishes a new baseline during production-state preparation.
+
+    implicit none
+
+    integer(int64) :: current(BLOCK_PERSISTENT_ALLOCATION_COUNT)
+
+    logical :: state_ready
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) &
+         call fail("allocation stability check before block readiness")
+    if (.not. block_allocation_baseline_ready) &
+         call fail("allocation stability baseline is unavailable")
+    if (block_allocation_baseline_generation /= &
+         block_writeback_plan_generation) &
+         call fail("allocation stability baseline is stale")
+
+    call capture_parallel_block_allocation_snapshot(current)
+    if (any(current /= block_allocation_baseline)) &
+         call fail("persistent workspace reallocated without topology change")
+
+  end subroutine assert_parallel_block_allocation_stability
+
+
   subroutine prepare_parallel_block_production_state (report)
     ! Establish the non-optional state required by the first production
     ! tendency independently of the exhaustive migration validation suite.
@@ -3763,12 +3869,22 @@ end subroutine build_parallel_block_catalog
 
     integer(int64) :: accumulator_allocations
     integer(int64) :: accumulator_allocations_after
+    integer(int64) :: adaptation_allocations
+    integer(int64) :: adaptation_allocations_after
+    integer(int64) :: ghost_allocations
+    integer(int64) :: ghost_allocations_after
+    integer(int64) :: hydrostatic_allocations
+    integer(int64) :: hydrostatic_allocations_after
     integer(int64) :: hydrostatic_refreshes
     integer(int64) :: hydrostatic_refreshes_after
     integer(int64) :: import_allocations
     integer(int64) :: import_allocations_after
+    integer(int64) :: remap_allocations
+    integer(int64) :: remap_allocations_after
     integer(int64) :: tendency_allocations
     integer(int64) :: tendency_allocations_after
+    integer(int64) :: writeback_allocations
+    integer(int64) :: writeback_allocations_after
 
     logical :: hydrostatic_ready
     logical :: print_summary
@@ -3783,30 +3899,67 @@ end subroutine build_parallel_block_catalog
        hydrostatic_ready = local_block_hydrostatic_state_ready()
        if (.not. hydrostatic_ready) &
             call fail("production hydrostatic state is not ready")
-       hydrostatic_refreshes = local_block_hydrostatic_refresh_count()
-       call ensure_local_block_hydrostatic_state
-       hydrostatic_refreshes_after = &
-            local_block_hydrostatic_refresh_count()
-       if (hydrostatic_refreshes_after /= hydrostatic_refreshes) &
-            call fail("production hydrostatic state was not reusable")
     end if
 
     call prepare_local_block_tendency_workspace
+    call prepare_block_adaptation_decision_storage
+    if (compressible) call prepare_block_vertical_remap_workspace
+
+    hydrostatic_allocations = &
+         local_block_hydrostatic_allocation_count()
+    hydrostatic_refreshes = local_block_hydrostatic_refresh_count()
     tendency_allocations = local_block_tendency_allocation_count()
     import_allocations = &
          local_block_tendency_import_allocation_count()
     accumulator_allocations = &
          local_block_tendency_accumulator_allocation_count()
+    ghost_allocations = ghost_exchange_plan%allocation_count
+    writeback_allocations = block_writeback_plan_allocation_count()
+    adaptation_allocations = block_adaptation_exchange%allocation_count
+    remap_allocations = block_vertical_remap_allocations
+
+    call build_block_ghost_exchange_plan
+    call build_block_writeback_plan
+    call prepare_block_adaptation_decision_storage
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       call prepare_block_vertical_remap_workspace
+    end if
     call prepare_local_block_tendency_workspace
+
+    hydrostatic_allocations_after = &
+         local_block_hydrostatic_allocation_count()
+    hydrostatic_refreshes_after = &
+         local_block_hydrostatic_refresh_count()
     tendency_allocations_after = local_block_tendency_allocation_count()
     import_allocations_after = &
          local_block_tendency_import_allocation_count()
     accumulator_allocations_after = &
          local_block_tendency_accumulator_allocation_count()
+    ghost_allocations_after = ghost_exchange_plan%allocation_count
+    writeback_allocations_after = block_writeback_plan_allocation_count()
+    adaptation_allocations_after = &
+         block_adaptation_exchange%allocation_count
+    remap_allocations_after = block_vertical_remap_allocations
+
+    if (hydrostatic_allocations_after /= hydrostatic_allocations .or. &
+         hydrostatic_refreshes_after /= hydrostatic_refreshes) &
+         call fail("production hydrostatic workspace was not reusable")
     if (tendency_allocations_after /= tendency_allocations .or. &
          import_allocations_after /= import_allocations .or. &
          accumulator_allocations_after /= accumulator_allocations) &
          call fail("production tendency workspace was not reusable")
+    if (ghost_allocations_after /= ghost_allocations .or. &
+         writeback_allocations_after /= writeback_allocations .or. &
+         adaptation_allocations_after /= adaptation_allocations .or. &
+         remap_allocations_after /= remap_allocations) &
+         call fail("production communication workspace was not reusable")
+
+    call capture_parallel_block_allocation_snapshot( &
+         block_allocation_baseline)
+    block_allocation_baseline_generation = &
+         block_writeback_plan_generation
+    block_allocation_baseline_ready = .true.
 
     print_summary = .false.
     if (present(report)) print_summary = report
@@ -3817,6 +3970,8 @@ end subroutine build_parallel_block_catalog
             write(6,'(a)') "  hydrostatic cache prepared and reused"
        write(6,'(a)') &
             "  tendency/import/accumulator workspaces prepared and reused"
+       write(6,'(a)') &
+            "  ghost/writeback/adaptation/remap storage prepared and reused"
     end if
     if (print_summary) production_state_preparation_reported = .true.
 
@@ -4063,8 +4218,6 @@ end subroutine build_parallel_block_catalog
     end if
 
     if (run_full_validation) then
-       call check_block_scalar_stencil_consumer(print_local)
-       call check_block_vector_stencil_consumer(print_local)
        call check_block_boundary_routes(print_local)
        call check_block_ghost_source_addresses(print_local)
        call check_block_ghost_request_manifest(print_local)
@@ -4073,14 +4226,9 @@ end subroutine build_parallel_block_catalog
        call build_block_writeback_plan
        call check_block_writeback_plan(print_local)
        call check_block_writeback_payload_exchange(print_local)
-       call check_block_writeback_domain_reconstruction(print_local)
        call check_block_scalar_ghost_payload_exchange(print_local)
        call check_block_vector_ghost_payload_exchange(print_local)
        call check_production_block_ghost_refresh(print_local)
-       call check_block_field_family_accessors(print_local)
-       call check_block_patch_writable_storage(print_local)
-       call check_block_boundary_family_mutators(print_local)
-       call check_block_boundary_family_bulk_fill(print_local)
     else
        call build_block_ghost_exchange_plan
        call build_block_writeback_plan
@@ -4088,6 +4236,14 @@ end subroutine build_parallel_block_catalog
 
     n_sent     = manifest%n_send
     n_received = manifest%n_recv
+    migration_send_peer_count = &
+         int(count(manifest%send_count > 0),int64)
+    migration_recv_peer_count = &
+         int(count(manifest%recv_count > 0),int64)
+    migration_send_block_count = int(n_sent,int64)
+    migration_recv_block_count = int(n_received,int64)
+    migration_send_byte_count = manifest%total_send_nbyte
+    migration_recv_byte_count = manifest%total_recv_nbyte
 
     call clear_block_staging
     call clear_block_migration_manifest(manifest)
@@ -4114,27 +4270,7 @@ end subroutine build_parallel_block_catalog
     if (run_full_validation) then
        call check_local_blocks(print_local)
        call check_block_field_inventory(print_local)
-       call check_block_hydrostatic_state_accessors(print_local)
-       call check_block_hydrostatic_consumer(print_local)
-       call check_block_field_consumer(print_local)
-       call check_block_stencil_kernel(print_local)
-       call check_block_tendency_kernel(print_local)
-       call check_block_tendency_trial_update(print_local)
-       call check_block_tendency_commit(print_local)
-       call check_block_tendency_step_driver(print_local)
-       call check_block_tendency_accepted_step(print_local)
-       call check_block_multistage_tendency_accumulator(print_local)
-       call check_block_multistage_tendency_commit(print_local)
-       call check_block_two_stage_step_driver(print_local)
-       call check_block_two_stage_step_completion(print_local)
        call check_parallel_block_lifecycle(print_local)
-       call check_parallel_block_scaling(print_local)
-       call check_domain_to_block_payload_exchange(print_local)
-       call check_domain_field_family_block_import(print_local)
-       call check_domain_boundary_field_family_block_import(print_local)
-       call check_domain_trend_roundtrip(print_local)
-       call check_domain_trend_tendency_import(print_local)
-       call check_block_domain_trend_step(print_local)
        if (compressible) call ensure_local_block_hydrostatic_state
        call check_block_hydrostatic_reconstruction(print_local)
 
@@ -4143,6 +4279,8 @@ end subroutine build_parallel_block_catalog
        ! timestep driver. Production-equivalent runs need no second preparation.
        call prepare_parallel_block_production_state(print_local)
     end if
+    if (run_full_validation .or. print_local) &
+         call check_parallel_block_scaling(print_local)
 
   end subroutine migrate_blocks
 
@@ -4894,6 +5032,16 @@ end subroutine build_parallel_block_catalog
     integer, allocatable :: send_count(:)
     integer, allocatable :: send_displ(:)
 
+    if (ghost_exchange_plan%ready) then
+       if (.not. local_block_store_ready()) &
+            call fail("ready ghost plan without installed blocks")
+       if (.not. allocated(block_catalog)) &
+            call fail("ready ghost plan without block catalogue")
+       ghost_exchange_plan%reuse_count = &
+            ghost_exchange_plan%reuse_count + 1_int64
+       return
+    end if
+
     call clear_block_ghost_exchange_plan
 
     if (.not. local_block_store_ready()) then
@@ -5164,6 +5312,10 @@ end subroutine build_parallel_block_catalog
     ghost_exchange_plan%vector_patch_buffer = 0.0_dp
 
     ghost_exchange_plan%ready = .true.
+    ghost_exchange_plan%allocation_count = &
+         ghost_exchange_plan%allocation_count + 1_int64
+    ghost_exchange_plan%build_count = &
+         ghost_exchange_plan%build_count + 1_int64
 
     deallocate(fill)
     deallocate(recv_count)
@@ -5861,6 +6013,8 @@ end subroutine build_parallel_block_catalog
             current_block_count) then
           call fail("ready writeback plan has stale block coverage")
        end if
+       block_writeback_plan_reuse_count = &
+            block_writeback_plan_reuse_count + 1_int64
        return
     end if
 
@@ -8272,213 +8426,6 @@ end subroutine build_parallel_block_catalog
   end subroutine exchange_domain_to_block_payloads
 
 
-  subroutine check_domain_to_block_payload_exchange (verbose)
-    ! Compare reverse-transported Domain sol and wav_coeff values with the
-    ! installed final-owner blocks. Repeat both exchanges to prove reuse.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: allocation_after
-    integer(int64) :: allocation_before
-    integer(int64) :: global_scalar
-    integer(int64) :: global_vector
-    integer(int64) :: local_scalar
-    integer(int64) :: local_vector
-    integer(int64) :: stage_allocation_after
-    integer(int64) :: stage_allocation_before
-
-    logical :: plan_ready
-    logical :: print_summary
-
-    real(dp), allocatable :: expected_scalar(:)
-    real(dp), allocatable :: expected_vector(:)
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    plan_ready = block_writeback_plan_is_ready()
-    if (.not. plan_ready) then
-       call fail("Domain-to-block check before plan is ready")
-    end if
-    if (block_writeback_plan%scalar_patch_nvalue <= 0 .or. &
-         block_writeback_plan%vector_patch_nvalue <= 0) then
-       call fail("Domain-to-block patch payload layout is invalid")
-    end if
-
-    allocate(expected_scalar( &
-         block_writeback_plan%scalar_patch_nvalue))
-    allocate(expected_vector( &
-         block_writeback_plan%vector_patch_nvalue))
-
-    allocation_before = block_writeback_plan_allocation_count()
-    stage_allocation_before = block_writeback_plan%stage_allocations
-
-    call check_family(BLOCK_PAYLOAD_SOL)
-    call check_family(BLOCK_PAYLOAD_WAV_COEFF)
-
-    allocation_after = block_writeback_plan_allocation_count()
-    stage_allocation_after = block_writeback_plan%stage_allocations
-    if (allocation_after /= allocation_before) then
-       call fail("Domain-to-block exchange reallocated payload buffers")
-    end if
-    if (stage_allocation_after /= stage_allocation_before) then
-       call fail("Domain-to-block exchange reallocated Domain staging")
-    end if
-
-    local_scalar = sum(int( &
-         block_writeback_plan%scalar_send_count,int64))
-    local_vector = sum(int( &
-         block_writeback_plan%vector_send_count,int64))
-    call MPI_Allreduce(local_scalar,global_scalar,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce Domain-to-block scalar values")
-    call MPI_Allreduce(local_vector,global_vector,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce Domain-to-block vector values")
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Domain-to-block payload exchange for rank ",rank,":"
-       write(6,'(a,i0)') "  scalar values received = ",local_scalar
-       write(6,'(a,i0)') "  vector values received = ",local_vector
-       write(6,'(a)') "  exact sol block payload comparison passed"
-       write(6,'(a)') "  exact wav_coeff block payload comparison passed"
-       write(6,'(a)') "  repeated sol reverse exchange passed"
-       write(6,'(a,/)') "  repeated wav_coeff reverse exchange passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global Domain-to-block scalar values = ",global_scalar
-       write(6,'(a,i0)') &
-            "Global Domain-to-block vector values = ",global_vector
-       write(6,'(a,/)') &
-            "Exact Domain-to-final-block reverse transport passed"
-    end if
-
-    deallocate(expected_vector)
-    deallocate(expected_scalar)
-
-  contains
-
-    subroutine check_family (payload_family)
-
-      implicit none
-
-      integer, intent(in) :: payload_family
-
-      call exchange_domain_to_block_payloads(payload_family)
-      call compare_received_payloads(payload_family)
-      call exchange_domain_to_block_payloads(payload_family)
-      call compare_received_payloads(payload_family)
-
-    end subroutine check_family
-
-
-    subroutine compare_received_payloads (payload_family)
-
-      implicit none
-
-      integer, intent(in) :: payload_family
-
-      integer :: b
-      integer :: destination
-      integer :: local_patch
-      integer :: n_patch
-      integer :: pos_scalar
-      integer :: pos_vector
-      integer :: r
-      integer :: scalar_start
-      integer :: slot
-      integer :: vector_start
-
-      do r = 1,n_process
-         pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
-         pos_vector = block_writeback_plan%vector_send_displ(r) + 1
-
-         do slot = block_writeback_plan%send_displ(r)+1, &
-              block_writeback_plan%send_displ(r) + &
-              block_writeback_plan%send_count(r)
-            b = block_writeback_plan%send_block(slot)
-            destination = source_rank(b)
-            if (block_catalog(b)%owner /= rank) then
-               call fail("reverse payload arrived at wrong block owner")
-            end if
-            if (destination /= r-1) then
-               call fail("reverse payload came from wrong Domain owner")
-            end if
-
-            scalar_start = pos_scalar
-            vector_start = pos_vector
-            n_patch = local_block_patch_count(b)
-
-            do local_patch = 0,n_patch-1
-               call get_local_block_scalar_patch_family_values( &
-                    b,local_patch,payload_family,expected_scalar)
-               call get_local_block_vector_patch_family_values( &
-                    b,local_patch,payload_family,expected_vector)
-
-               if (pos_scalar < 1 .or. pos_scalar + &
-                    size(expected_scalar)-1 > &
-                    size(block_writeback_plan%scalar_send_buffer) .or. &
-                    pos_vector < 1 .or. pos_vector + &
-                    size(expected_vector)-1 > &
-                    size(block_writeback_plan%vector_send_buffer)) then
-                  call fail("reverse received payload buffer is too small")
-               end if
-
-               if (any(abs( &
-                    block_writeback_plan%scalar_send_buffer( &
-                    pos_scalar:pos_scalar+size(expected_scalar)-1) - &
-                    expected_scalar) > 0.0_dp)) then
-                  if (payload_family == BLOCK_PAYLOAD_SOL) then
-                     call fail("reverse transported scalar sol mismatch")
-                  else
-                     call fail( &
-                          "reverse transported scalar wav_coeff mismatch")
-                  end if
-               end if
-               if (any(abs( &
-                    block_writeback_plan%vector_send_buffer( &
-                    pos_vector:pos_vector+size(expected_vector)-1) - &
-                    expected_vector) > 0.0_dp)) then
-                  if (payload_family == BLOCK_PAYLOAD_SOL) then
-                     call fail("reverse transported vector sol mismatch")
-                  else
-                     call fail( &
-                          "reverse transported vector wav_coeff mismatch")
-                  end if
-               end if
-
-               pos_scalar = pos_scalar + size(expected_scalar)
-               pos_vector = pos_vector + size(expected_vector)
-            end do
-
-            if (pos_scalar-scalar_start /= &
-                 block_writeback_plan%send_scalar_nvalue(slot) .or. &
-                 pos_vector-vector_start /= &
-                 block_writeback_plan%send_vector_nvalue(slot) .or. &
-                 n_patch /= &
-                 block_writeback_plan%send_patch_count(slot)) then
-               call fail("reverse received payload extent mismatch")
-            end if
-         end do
-
-         if (pos_scalar /= block_writeback_plan%scalar_send_displ(r) + &
-              block_writeback_plan%scalar_send_count(r) + 1 .or. &
-              pos_vector /= block_writeback_plan%vector_send_displ(r) + &
-              block_writeback_plan%vector_send_count(r) + 1) then
-            call fail("Domain-to-block receive extent mismatch")
-         end if
-      end do
-
-    end subroutine compare_received_payloads
-
-  end subroutine check_domain_to_block_payload_exchange
 
 
   subroutine import_domain_field_family_to_blocks ( &
@@ -9250,255 +9197,8 @@ end subroutine build_parallel_block_catalog
   end subroutine pack_domain_boundary_prognostic
 
 
-  subroutine check_domain_field_family_block_import (verbose)
-    ! Poison and exactly restore both prognostic families through the
-    ! production Domain-to-final-block installation entry point.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: b
-    integer :: ierr
-    integer :: local_index
-    integer :: n_patch
-
-    integer(int64) :: global_patch_count
-    integer(int64) :: local_patch_count
-    integer(int64) :: production_writeback_before
-    integer(int64) :: stage_allocation_before
-    integer(int64) :: writeback_allocation_before
-
-    logical :: accumulator_ready
-    logical :: hydrostatic_ready
-    logical :: print_summary
-    logical :: tendency_ready
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. block_writeback_plan_is_ready()) then
-       call fail("Domain prognostic block import check before plan is ready")
-    end if
-
-    writeback_allocation_before = &
-         block_writeback_plan_allocation_count()
-    stage_allocation_before = block_writeback_plan%stage_allocations
-    production_writeback_before = &
-         block_domain_production_writeback_count()
-
-    call check_family(BLOCK_PAYLOAD_SOL)
-    tendency_ready = local_block_tendency_state_ready()
-    accumulator_ready = &
-         local_block_tendency_accumulator_state_ready()
-    if (tendency_ready .or. accumulator_ready) then
-       call fail("sol block import retained stale tendency products")
-    end if
-    call check_family(BLOCK_PAYLOAD_WAV_COEFF)
-
-    if (compressible) then
-       call ensure_local_block_hydrostatic_state
-       hydrostatic_ready = local_block_hydrostatic_state_ready()
-       if (.not. hydrostatic_ready) then
-          call fail("Domain prognostic import hydrostatic refresh failed")
-       end if
-    end if
-
-    if (block_writeback_plan_allocation_count() /= &
-         writeback_allocation_before) then
-       call fail("Domain prognostic import reallocated transport buffers")
-    end if
-    if (block_writeback_plan%stage_allocations /= &
-         stage_allocation_before) then
-       call fail("Domain prognostic import reallocated Domain staging")
-    end if
-    if (block_domain_production_writeback_count() /= &
-         production_writeback_before) then
-       call fail("Domain prognostic import modified Domain fields")
-    end if
-
-    local_patch_count = 0_int64
-    do local_index = 1,n_local_blocks()
-       b = local_block_catalog(local_index)
-       n_patch = local_block_patch_count(b)
-       local_patch_count = local_patch_count + int( &
-            n_patch,int64)
-    end do
-    call MPI_Allreduce(local_patch_count,global_patch_count,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce prognostic import patches")
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Domain prognostic block import for rank ",rank,":"
-       write(6,'(a,i0)') "  imported local patches = ", &
-            local_patch_count
-       write(6,'(a)') "  exact scalar sol block import passed"
-       write(6,'(a)') "  exact vector sol block import passed"
-       write(6,'(a)') &
-            "  exact scalar wav_coeff block import passed"
-       write(6,'(a)') &
-            "  exact vector wav_coeff block import passed"
-       write(6,'(a)') &
-            "  complete final-owner patch coverage passed"
-       write(6,'(a)') &
-            "  stale tendency products invalidated after sol import"
-       if (compressible) then
-          write(6,'(a)') &
-               "  derived hydrostatic state refreshed after sol import"
-       end if
-       write(6,'(a,/)') &
-            "  repeated prognostic import buffer reuse passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global Domain prognostic block import patches = ", &
-            global_patch_count
-       write(6,'(a,/)') &
-            "Transactional Domain prognostic block import passed"
-    end if
-
-  contains
-
-    subroutine check_family (payload_family)
-
-      implicit none
-
-      integer, intent(in) :: payload_family
-
-      call fill_local_block_scalar_patch_family_values( &
-           payload_family,BLOCK_PATCH_POISON)
-      call fill_local_block_vector_patch_family_values( &
-           payload_family,-BLOCK_PATCH_POISON)
-      call import_domain_field_family_to_blocks(payload_family)
-      call assert_block_domain_field_family_match(payload_family)
-
-      call import_domain_field_family_to_blocks(payload_family)
-      call assert_block_domain_field_family_match(payload_family)
-
-    end subroutine check_family
-
-  end subroutine check_domain_field_family_block_import
 
 
-  subroutine check_domain_boundary_field_family_block_import (verbose)
-    ! Poison and exactly restore both compact boundary prognostic families
-    ! through the persistent Domain-owner-to-final-owner boundary routes.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: b
-    integer :: boundary_index
-    integer :: ierr
-    integer :: local_index
-    integer :: n_boundary
-
-    integer(int64) :: allocation_before
-    integer(int64) :: global_boundary_count
-    integer(int64) :: global_scalar_count
-    integer(int64) :: global_vector_count
-    integer(int64) :: local_boundary_count
-    integer(int64) :: local_scalar_count
-    integer(int64) :: local_vector_count
-    integer(int64) :: writeback_before
-
-    logical :: print_summary
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    allocation_before = block_writeback_plan_allocation_count()
-    writeback_before = block_domain_production_writeback_count()
-
-    call check_family(BLOCK_PAYLOAD_SOL)
-    call check_family(BLOCK_PAYLOAD_WAV_COEFF)
-
-    if (block_writeback_plan_allocation_count() /= &
-         allocation_before) then
-       call fail("Domain boundary import reallocated persistent buffers")
-    end if
-    if (block_domain_production_writeback_count() /= &
-         writeback_before) then
-       call fail("Domain boundary import modified Domain fields")
-    end if
-
-    local_boundary_count = 0_int64
-    local_scalar_count = 0_int64
-    local_vector_count = 0_int64
-    do local_index = 1,n_local_blocks()
-       b = local_block_catalog(local_index)
-       n_boundary = local_block_boundary_count(b)
-       local_boundary_count = local_boundary_count + &
-            int(n_boundary,int64)
-       do boundary_index = 1,n_boundary
-          local_scalar_count = local_scalar_count + int( &
-               local_block_scalar_family_boundary_nvalue( &
-               b,boundary_index),int64)
-          local_vector_count = local_vector_count + int( &
-               local_block_vector_family_boundary_nvalue( &
-               b,boundary_index),int64)
-       end do
-    end do
-    call MPI_Allreduce(local_boundary_count,global_boundary_count,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce Domain boundary records")
-    call MPI_Allreduce(local_scalar_count,global_scalar_count,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce Domain scalar boundary values")
-    call MPI_Allreduce(local_vector_count,global_vector_count,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce Domain vector boundary values")
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Domain boundary block import for rank ",rank,":"
-       write(6,'(a,i0)') "  imported local boundary records = ", &
-            local_boundary_count
-       write(6,'(a)') &
-            "  exact scalar/vector sol boundary import passed"
-       write(6,'(a)') &
-            "  exact scalar/vector wav_coeff boundary import passed"
-       write(6,'(a,/)') &
-            "  repeated persistent boundary-buffer reuse passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global Domain boundary records imported = ", &
-            global_boundary_count
-       write(6,'(a,i0)') &
-            "Global scalar Domain boundary values imported = ", &
-            global_scalar_count
-       write(6,'(a,i0)') &
-            "Global vector Domain boundary values imported = ", &
-            global_vector_count
-       write(6,'(a,/)') &
-            "Transactional Domain boundary prognostic import passed"
-    end if
-
-  contains
-
-    subroutine check_family (payload_family)
-
-      implicit none
-
-      integer, intent(in) :: payload_family
-
-      call fill_local_block_scalar_boundary_family_values( &
-           payload_family,BLOCK_BOUNDARY_POISON)
-      call fill_local_block_vector_boundary_family_values( &
-           payload_family,-BLOCK_BOUNDARY_POISON)
-      call import_domain_boundary_field_family_to_blocks( &
-           payload_family,.false.)
-      call import_domain_boundary_field_family_to_blocks( &
-           payload_family,.true.)
-
-    end subroutine check_family
-
-  end subroutine check_domain_boundary_field_family_block_import
 
 
   subroutine refresh_parallel_block_trend_boundary_state
@@ -11259,9 +10959,18 @@ end subroutine build_parallel_block_catalog
     call MPI_Allreduce(count_local,count_global,size(count_local), &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce complete vector-wavelet coverage")
-    if (any(count_global <= 0_int64) .or. &
-         count_global(2) /= count_global(4)) then
-       call fail("complete vector-wavelet coverage is incomplete")
+    if (count_global(2) > 0_int64) then
+       if (count_global(1) <= 0_int64 .or. &
+            count_global(4) <= 0_int64 .or. &
+            count_global(2) /= count_global(4)) then
+          call fail("complete vector-wavelet coverage is incomplete")
+       end if
+    else if (any(count_global /= 0_int64)) then
+       call fail("unrefined vector-wavelet coverage is not empty")
+    end if
+    if (count_global(3) < 0_int64 .or. &
+         count_global(3) > count_global(2)) then
+       call fail("complete active vector-wavelet coverage is invalid")
     end if
     production_complete_vector_wavelet_validated = .true.
   contains
@@ -12468,8 +12177,13 @@ end subroutine build_parallel_block_catalog
     call MPI_Allreduce(count_local,count_global,size(count_local), &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce scalar-wavelet production coverage")
-    if (any(count_global <= 0_int64)) then
-       call fail("block-native scalar-wavelet coverage is empty")
+    if (count_global(1) > 0_int64) then
+       if (count_global(2) <= 0_int64 .or. &
+            count_global(5) <= 0_int64) then
+          call fail("block-native scalar-wavelet coverage is empty")
+       end if
+    else if (any(count_global(2:5) /= 0_int64)) then
+       call fail("unrefined scalar-wavelet coverage is not empty")
     end if
     if (count_global(3) /= count_global(4)) then
        call fail("block-native active scalar-wavelet coverage differs")
@@ -12727,10 +12441,14 @@ end subroutine build_parallel_block_catalog
     call MPI_Allreduce(count_local,count_global,size(count_local), &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce native compression coverage")
-    if (count_global(1) <= 0_int64 .or. &
-         count_global(2) <= 0_int64 .or. &
-         count_global(4) <= 0_int64) then
-       call fail("native wavelet compression coverage is empty")
+    if (count_global(1) > 0_int64) then
+       if (count_global(1) <= 0_int64 .or. &
+            count_global(2) <= 0_int64 .or. &
+            count_global(4) <= 0_int64) then
+          call fail("native wavelet compression coverage is empty")
+       end if
+    else if (any(count_global(2:5) /= 0_int64)) then
+       call fail("unrefined wavelet compression coverage is not empty")
     end if
     if (count_global(3) < 0_int64 .or. &
          count_global(3) > count_global(2) .or. &
@@ -12912,10 +12630,14 @@ end subroutine build_parallel_block_catalog
          size(scalar_count_local), &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce native scalar inverse coverage")
-    if (scalar_count_global(1) <= 0_int64 .or. &
-         scalar_count_global(2) <= 0_int64 .or. &
-         scalar_count_global(3) <= 0_int64) then
-       call fail("native scalar inverse coverage is empty")
+    if (scalar_count_global(1) > 0_int64) then
+       if (scalar_count_global(1) <= 0_int64 .or. &
+            scalar_count_global(2) <= 0_int64 .or. &
+            scalar_count_global(3) <= 0_int64) then
+          call fail("native scalar inverse coverage is empty")
+       end if
+    else if (any(scalar_count_global(2:4) /= 0_int64)) then
+       call fail("unrefined scalar inverse coverage is not empty")
     end if
     if (scalar_count_global(3)+scalar_count_global(4) /= &
          scalar_count_global(2)) then
@@ -12927,8 +12649,29 @@ end subroutine build_parallel_block_catalog
          size(vector_count_local), &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce native vector inverse coverage")
-    if (any(vector_count_global <= 0_int64)) then
-       call fail("native vector inverse coverage is empty")
+    if (jmax <= jmin) then
+       if (any(vector_count_global /= 0_int64)) then
+          call fail("empty-range vector inverse coverage is not empty")
+       end if
+    else
+       if (vector_count_global(1) > 0_int64) then
+          if (any(vector_count_global(2:3) <= 0_int64)) then
+             call fail("native outer-vector inverse coverage is empty")
+          end if
+       else if (any(vector_count_global(2:4) /= 0_int64)) then
+          call fail("unrefined outer-vector coverage is not empty")
+       end if
+       if (jmin < level_start .and. &
+            vector_count_global(4) <= 0_int64) then
+          call fail("native scaffold pentagon coverage is empty")
+       end if
+       if (scalar_count_global(1) > 0_int64) then
+          if (any(vector_count_global(5:6) <= 0_int64)) then
+             call fail("native inner-vector inverse coverage is empty")
+          end if
+       else if (any(vector_count_global(5:6) /= 0_int64)) then
+          call fail("scaffold-only inner-vector coverage is not empty")
+       end if
     end if
     if (vector_count_global(3) /= &
          6_int64*vector_count_global(2) .or. &
@@ -13049,6 +12792,8 @@ end subroutine build_parallel_block_catalog
        do d = 1,size(grid)
           do p_index = 1,grid(d)%lev(level)%length
              p = grid(d)%lev(level)%elts(p_index)
+             if (.not. any( &
+                  grid(d)%patch%elts(p+1)%children > 0)) cycle
              call get_offs_Domain(grid(d),p,offs_par,dims_par)
              count(1) = count(1)+1_int64
              do c = 1,N_CHDRN
@@ -13431,6 +13176,7 @@ end subroutine build_parallel_block_catalog
        end if
        do p = 1,size(block%patch)
           if (block%patch(p)%level /= statistics%target_level) cycle
+          if (.not. any(block%patch(p)%children > 0)) cycle
           statistics%parent_patch_count = &
                statistics%parent_patch_count+1_int64
           do c = 1,N_CHDRN
@@ -14021,6 +13767,7 @@ end subroutine build_parallel_block_catalog
        do p = 1,size(block%patch)
           if (block%patch(p)%level < statistics%first_level .or. &
                block%patch(p)%level > statistics%last_level) cycle
+          if (.not. any(block%patch(p)%children > 0)) cycle
           statistics%parent_patch_count = &
                statistics%parent_patch_count + 1_int64
           do c = 1,N_CHDRN
@@ -16459,17 +16206,22 @@ end subroutine build_parallel_block_catalog
          count_local,count_global,size(count_local),MPI_INTEGER8, &
          MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce block scalar restriction")
-    if (count_global(1) < 1_int64 .or. &
-         count_global(2) < 1_int64 .or. &
-         count_global(3) < 1_int64 .or. &
+    if (count_global(3) < 1_int64 .or. &
          count_global(4) < 1_int64 .or. &
          count_global(5) < 1_int64 .or. &
          count_global(6) < 1_int64 .or. &
          count_global(7) < 1_int64) then
-       call fail("block-native scalar restriction coverage is empty")
+       call fail("block-native scalar divergence coverage is empty")
+    end if
+    if (count_global(1) == 0_int64 .and. &
+         count_global(2) > 0_int64) then
+       call fail("block scalar restriction coverage is incomplete")
     end if
     if (count_global(4) /= count_global(5)) then
        call fail("block-native scalar divergence replay coverage differs")
+    end if
+    if (count_global(5) /= count_global(6)) then
+       call fail("block-native scalar divergence comparison coverage differs")
     end if
 
   end subroutine evaluate_candidate_block_scalar_restriction
@@ -16554,6 +16306,7 @@ end subroutine build_parallel_block_catalog
     type is (Block_Scalar_Restriction_Context)
        do p = 1,size(block%patch)
           if (block%patch(p)%level /= statistics%target_level) cycle
+          if (.not. any(block%patch(p)%children > 0)) cycle
           statistics%parent_patch_count = &
                statistics%parent_patch_count + 1_int64
           do c = 1,N_CHDRN
@@ -17131,9 +16884,9 @@ end subroutine build_parallel_block_catalog
        first_value,second_value,n_restriction_level,operation_scale) &
        result(tolerance)
     ! Independently evaluated but algebraically identical restriction
-    ! expressions may differ by a few rounding units after optimization.
-    ! Roundoff from every completed fine-to-coarse level is propagated into
-    ! the next coarser result.
+    ! expressions may differ after optimization.  Budget both the compact
+    ! reconstruction and the stored Domain-reference evaluation at every
+    ! completed fine-to-coarse level.
 
     implicit none
 
@@ -17149,7 +16902,7 @@ end subroutine build_parallel_block_catalog
     if (present(operation_scale)) then
        comparison_scale = max(comparison_scale,abs(operation_scale))
     end if
-    tolerance = 32.0_dp*real(max(1,n_restriction_level),dp)* &
+    tolerance = 64.0_dp*real(max(1,n_restriction_level),dp)* &
          epsilon(1.0_dp)*comparison_scale
 
   end function scalar_restriction_roundoff_tolerance
@@ -19344,138 +19097,6 @@ end subroutine build_parallel_block_catalog
   end subroutine refresh_parallel_block_domain_prognostic_state
 
 
-  subroutine check_domain_trend_roundtrip (verbose)
-    ! Exercise the production trend field layout over the reverse route and
-    ! echo it to the Domain owner for an exact comparison. Deterministic tags
-    ! make the validation nontrivial even before trend_ml has initialized dq.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: allocation_after
-    integer(int64) :: allocation_before
-    integer(int64) :: global_scalar
-    integer(int64) :: global_vector
-    integer(int64) :: local_scalar
-    integer(int64) :: local_vector
-    integer(int64) :: stage_allocation_after
-    integer(int64) :: stage_allocation_before
-
-    logical :: plan_ready
-    logical :: print_summary
-
-    real(dp), allocatable :: scalar_reference(:)
-    real(dp), allocatable :: vector_reference(:)
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    plan_ready = block_writeback_plan_is_ready()
-    if (.not. plan_ready) then
-       call fail("Domain trend roundtrip before plan is ready")
-    end if
-
-    allocate(scalar_reference(size( &
-         block_writeback_plan%scalar_recv_buffer)))
-    allocate(vector_reference(size( &
-         block_writeback_plan%vector_recv_buffer)))
-
-    allocation_before = block_writeback_plan_allocation_count()
-    stage_allocation_before = block_writeback_plan%stage_allocations
-
-    call check_roundtrip
-    call check_roundtrip
-
-    allocation_after = block_writeback_plan_allocation_count()
-    stage_allocation_after = block_writeback_plan%stage_allocations
-    if (allocation_after /= allocation_before) then
-       call fail("Domain trend roundtrip reallocated payload buffers")
-    end if
-    if (stage_allocation_after /= stage_allocation_before) then
-       call fail("Domain trend roundtrip reallocated Domain staging")
-    end if
-
-    local_scalar = sum(int( &
-         block_writeback_plan%scalar_recv_count,int64))
-    local_vector = sum(int( &
-         block_writeback_plan%vector_recv_count,int64))
-    call MPI_Allreduce(local_scalar,global_scalar,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce trend roundtrip scalar values")
-    call MPI_Allreduce(local_vector,global_vector,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce trend roundtrip vector values")
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Domain trend reverse roundtrip for rank ",rank,":"
-       write(6,'(a,i0)') "  scalar values returned = ",local_scalar
-       write(6,'(a,i0)') "  vector values returned = ",local_vector
-       write(6,'(a)') "  exact tagged scalar trend roundtrip passed"
-       write(6,'(a)') "  exact tagged vector trend roundtrip passed"
-       write(6,'(a,/)') "  repeated trend roundtrip buffer reuse passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global Domain trend scalar values = ",global_scalar
-       write(6,'(a,i0)') &
-            "Global Domain trend vector values = ",global_vector
-       write(6,'(a,/)') &
-            "Exact Domain trend reverse-route roundtrip passed"
-    end if
-
-    deallocate(vector_reference)
-    deallocate(scalar_reference)
-
-  contains
-
-    subroutine check_roundtrip
-
-      implicit none
-
-      call exchange_domain_to_block_payloads( &
-           BLOCK_PAYLOAD_TREND,.true.)
-      scalar_reference = block_writeback_plan%scalar_recv_buffer
-      vector_reference = block_writeback_plan%vector_recv_buffer
-
-      call MPI_Alltoallv( &
-           block_writeback_plan%scalar_send_buffer, &
-           block_writeback_plan%scalar_send_count, &
-           block_writeback_plan%scalar_send_displ, &
-           MPI_DOUBLE_PRECISION, &
-           block_writeback_plan%scalar_recv_buffer, &
-           block_writeback_plan%scalar_recv_count, &
-           block_writeback_plan%scalar_recv_displ, &
-           MPI_DOUBLE_PRECISION,comm,ierr)
-      call check_mpi(ierr,"MPI_Alltoallv scalar trend echo")
-
-      call MPI_Alltoallv( &
-           block_writeback_plan%vector_send_buffer, &
-           block_writeback_plan%vector_send_count, &
-           block_writeback_plan%vector_send_displ, &
-           MPI_DOUBLE_PRECISION, &
-           block_writeback_plan%vector_recv_buffer, &
-           block_writeback_plan%vector_recv_count, &
-           block_writeback_plan%vector_recv_displ, &
-           MPI_DOUBLE_PRECISION,comm,ierr)
-      call check_mpi(ierr,"MPI_Alltoallv vector trend echo")
-
-      if (any(abs(block_writeback_plan%scalar_recv_buffer - &
-           scalar_reference) > 0.0_dp)) then
-         call fail("scalar Domain trend roundtrip mismatch")
-      end if
-      if (any(abs(block_writeback_plan%vector_recv_buffer - &
-           vector_reference) > 0.0_dp)) then
-         call fail("vector Domain trend roundtrip mismatch")
-      end if
-
-    end subroutine check_roundtrip
-
-  end subroutine check_domain_trend_roundtrip
 
 
   subroutine import_domain_trend_to_block_tendency ( &
@@ -19754,232 +19375,6 @@ end subroutine build_parallel_block_catalog
   end subroutine import_domain_trend_to_block_tendency
 
 
-  subroutine check_domain_trend_tendency_import (verbose)
-    ! Validate exact imported patch values and repeated persistent reuse.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: global_patch
-    integer(int64) :: import_allocation_after_first
-    integer(int64) :: import_allocation_before
-    integer(int64) :: local_patch
-    integer(int64) :: tendency_allocation_after_first
-    integer(int64) :: tendency_allocation_before
-    integer(int64) :: writeback_allocation_before
-
-    logical :: print_summary
-
-    real(dp), allocatable :: actual_scalar(:)
-    real(dp), allocatable :: actual_vector(:)
-    real(dp), allocatable :: expected_scalar(:)
-    real(dp), allocatable :: expected_vector(:)
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    allocate(actual_scalar(block_writeback_plan%scalar_patch_nvalue))
-    allocate(actual_vector(block_writeback_plan%vector_patch_nvalue))
-    allocate(expected_scalar(block_writeback_plan%scalar_patch_nvalue))
-    allocate(expected_vector(block_writeback_plan%vector_patch_nvalue))
-
-    tendency_allocation_before = &
-         local_block_tendency_allocation_count()
-    import_allocation_before = &
-         local_block_tendency_import_allocation_count()
-    writeback_allocation_before = &
-         block_writeback_plan_allocation_count()
-
-    call import_domain_trend_to_block_tendency
-    call validate_imported_tendency(local_patch)
-    tendency_allocation_after_first = &
-         local_block_tendency_allocation_count()
-    import_allocation_after_first = &
-         local_block_tendency_import_allocation_count()
-
-    call import_domain_trend_to_block_tendency
-    call validate_imported_tendency(local_patch)
-
-    if (local_block_tendency_allocation_count() /= &
-         tendency_allocation_after_first) then
-       call fail("repeated trend import reallocated tendency arrays")
-    end if
-    if (local_block_tendency_import_allocation_count() /= &
-         import_allocation_after_first) then
-       call fail("repeated trend import reallocated coverage storage")
-    end if
-    if (tendency_allocation_after_first < &
-         tendency_allocation_before .or. &
-         import_allocation_after_first < import_allocation_before) then
-       call fail("trend import allocation count regressed")
-    end if
-    if (block_writeback_plan_allocation_count() /= &
-         writeback_allocation_before) then
-       call fail("trend import reallocated transport buffers")
-    end if
-
-    call MPI_Allreduce(local_patch,global_patch,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce imported trend patches")
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Domain trend tendency import for rank ",rank,":"
-       write(6,'(a,i0)') "  imported patches = ",local_patch
-       write(6,'(a)') "  exact scalar tendency patch comparison passed"
-       write(6,'(a)') "  exact vector tendency patch comparison passed"
-       write(6,'(a)') "  complete import transaction passed"
-       write(6,'(a,/)') "  repeated tendency import reuse passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global imported Domain trend patches = ",global_patch
-       write(6,'(a,/)') &
-            "Exact Domain trend-to-block tendency import passed"
-    end if
-
-    deallocate(expected_vector)
-    deallocate(expected_scalar)
-    deallocate(actual_vector)
-    deallocate(actual_scalar)
-
-  contains
-
-    subroutine validate_imported_tendency (patch_count)
-
-      implicit none
-
-      integer(int64), intent(out) :: patch_count
-
-      integer :: b
-      integer :: d
-      integer :: local_index
-      integer :: local_patch_index
-      integer :: n_patch
-      integer :: pos_scalar
-      integer :: pos_vector
-      integer :: r
-      integer :: slot
-
-      patch_count = 0_int64
-
-      do local_index = 1,n_local_blocks()
-         b = local_block_catalog(local_index)
-         r = source_rank(b)
-         if (r /= rank) cycle
-         d = loc_id(block_catalog(b)%root_domain+1) + 1
-         local_patch_index = 0
-         call compare_retained_subtree( &
-              d,block_catalog(b)%root_patch,b,local_patch_index)
-         n_patch = local_block_patch_count(b)
-         if (local_patch_index /= n_patch) then
-            call fail("retained imported trend coverage mismatch")
-         end if
-         patch_count = patch_count + int(n_patch,int64)
-      end do
-
-      do r = 1,n_process
-         pos_scalar = block_writeback_plan%scalar_send_displ(r) + 1
-         pos_vector = block_writeback_plan%vector_send_displ(r) + 1
-         do slot = block_writeback_plan%send_displ(r)+1, &
-              block_writeback_plan%send_displ(r) + &
-              block_writeback_plan%send_count(r)
-            b = block_writeback_plan%send_block(slot)
-            n_patch = local_block_patch_count(b)
-            do local_patch_index = 0,n_patch-1
-               if (pos_scalar < 1 .or. &
-                    pos_scalar+size(actual_scalar)-1 > &
-                    size(block_writeback_plan%scalar_send_buffer) .or. &
-                    pos_vector < 1 .or. &
-                    pos_vector+size(actual_vector)-1 > &
-                    size(block_writeback_plan%vector_send_buffer)) then
-                  call fail("remote imported trend payload is truncated")
-               end if
-               call get_local_block_tendency_patch_values( &
-                    b,local_patch_index,actual_scalar,actual_vector)
-               if (any(abs(actual_scalar - &
-                    block_writeback_plan%scalar_send_buffer( &
-                    pos_scalar:pos_scalar+size(actual_scalar)-1)) > &
-                    0.0_dp)) then
-                  call fail("remote imported scalar trend mismatch")
-               end if
-               if (any(abs(actual_vector - &
-                    block_writeback_plan%vector_send_buffer( &
-                    pos_vector:pos_vector+size(actual_vector)-1)) > &
-                    0.0_dp)) then
-                  call fail("remote imported vector trend mismatch")
-               end if
-               pos_scalar = pos_scalar + size(actual_scalar)
-               pos_vector = pos_vector + size(actual_vector)
-            end do
-            patch_count = patch_count + int(n_patch,int64)
-         end do
-         if (pos_scalar /= &
-              block_writeback_plan%scalar_send_displ(r) + &
-              block_writeback_plan%scalar_send_count(r) + 1 .or. &
-              pos_vector /= &
-              block_writeback_plan%vector_send_displ(r) + &
-              block_writeback_plan%vector_send_count(r) + 1) then
-            call fail("remote imported trend validation extent mismatch")
-         end if
-      end do
-
-    end subroutine validate_imported_tendency
-
-
-    recursive subroutine compare_retained_subtree ( &
-         d,p,b,local_patch_index)
-
-      implicit none
-
-      integer, intent(in) :: d
-      integer, intent(in) :: p
-      integer, intent(in) :: b
-      integer, intent(inout) :: local_patch_index
-
-      integer :: c
-      integer :: p_child
-      integer :: scalar_pos
-      integer :: vector_pos
-
-      if (p < 0 .or. p >= grid(d)%patch%length) then
-         call fail("retained imported trend patch is invalid")
-      end if
-      if (grid(d)%patch%elts(p+1)%deleted) return
-
-      scalar_pos = 1
-      vector_pos = 1
-      call pack_domain_patch_prognostic( &
-           d,p,BLOCK_PAYLOAD_TREND,expected_scalar,scalar_pos, &
-           expected_vector,vector_pos)
-      if (scalar_pos /= size(expected_scalar)+1 .or. &
-           vector_pos /= size(expected_vector)+1) then
-         call fail("retained imported trend validation extent mismatch")
-      end if
-      call get_local_block_tendency_patch_values( &
-           b,local_patch_index,actual_scalar,actual_vector)
-      if (any(abs(actual_scalar-expected_scalar) > 0.0_dp)) then
-         call fail("retained imported scalar trend mismatch")
-      end if
-      if (any(abs(actual_vector-expected_vector) > 0.0_dp)) then
-         call fail("retained imported vector trend mismatch")
-      end if
-      local_patch_index = local_patch_index + 1
-
-      do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
-         if (p_child <= 0) cycle
-         call compare_retained_subtree( &
-              d,p_child,b,local_patch_index)
-      end do
-
-    end subroutine compare_retained_subtree
-
-  end subroutine check_domain_trend_tendency_import
 
 
   subroutine begin_block_domain_trend_step (scale)
@@ -20032,9 +19427,27 @@ end subroutine build_parallel_block_catalog
 
     logical, intent(in) :: accept
 
-    ! The existing two-stage resolver is deliberately state-generic: it
-    ! commits or restores any pending block-sol checkpoint transaction.
-    call complete_block_two_stage_tendency_step(accept)
+    if (local_block_tendency_trial_is_active()) then
+       call fail("Domain-trend completion found an active trial")
+    end if
+    if (.not. local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("Domain-trend completion found no pending checkpoint")
+    end if
+
+    if (accept) then
+       call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
+       call finalize_local_block_tendency_commit
+    else
+       call restore_local_block_tendency_commit
+    end if
+
+    if (local_block_tendency_trial_is_active() .or. &
+         local_block_tendency_commit_checkpoint_is_ready()) then
+       call fail("Domain-trend completion left pending transaction state")
+    end if
+    if (local_block_tendency_state_ready()) then
+       call fail("Domain-trend completion retained stale tendencies")
+    end if
 
   end subroutine complete_block_domain_trend_step
 
@@ -20694,365 +20107,6 @@ end subroutine build_parallel_block_catalog
   end subroutine accept_block_native_multistage_candidate
 
 
-  subroutine check_block_domain_trend_step (verbose)
-    ! Validate a complete actual-trend Euler candidate, temporary Domain
-    ! synchronization, exact rollback and repeated persistent reuse.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: global_patch_count
-    integer(int64) :: import_allocation_after_first
-    integer(int64) :: local_patch_count
-    integer(int64) :: production_writeback_before
-    integer(int64) :: tendency_allocation_after_first
-    integer(int64) :: writeback_allocation_after_first
-    integer(int64) :: writeback_allocation_before
-
-    logical :: checkpoint_ready
-    logical :: print_summary
-    logical :: trial_active
-
-    real(dp), parameter :: validation_scale = 1.0_dp
-
-    logical, allocatable :: candidate_patch(:)
-    real(dp), allocatable :: baseline_scalar(:)
-    real(dp), allocatable :: baseline_vector(:)
-    real(dp), allocatable :: trend_scalar(:)
-    real(dp), allocatable :: trend_vector(:)
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. block_writeback_plan_is_ready()) then
-       call fail("Domain-trend block-step check before plan is ready")
-    end if
-
-    allocate(baseline_scalar( &
-         size(block_writeback_plan%scalar_domain_stage)))
-    allocate(baseline_vector( &
-         size(block_writeback_plan%vector_domain_stage)))
-    allocate(trend_scalar(block_writeback_plan%scalar_patch_nvalue))
-    allocate(trend_vector(block_writeback_plan%vector_patch_nvalue))
-    allocate(candidate_patch( &
-         size(block_writeback_plan%domain_patch_covered)))
-
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
-    baseline_scalar = block_writeback_plan%scalar_domain_stage
-    baseline_vector = block_writeback_plan%vector_domain_stage
-
-    writeback_allocation_before = &
-         block_writeback_plan_allocation_count()
-    production_writeback_before = &
-         block_domain_production_writeback_count()
-
-    call begin_block_domain_trend_step(validation_scale)
-    call complete_block_domain_trend_step(.false.)
-    call assert_restored_state
-    if (block_domain_production_writeback_count() /= &
-         production_writeback_before) then
-       call fail("rejected Domain-trend block step wrote Domain sol")
-    end if
-
-    call exercise_candidate(local_patch_count)
-    tendency_allocation_after_first = &
-         local_block_tendency_allocation_count()
-    import_allocation_after_first = &
-         local_block_tendency_import_allocation_count()
-    writeback_allocation_after_first = &
-         block_writeback_plan_allocation_count()
-
-    call exercise_candidate(local_patch_count)
-
-    if (local_block_tendency_allocation_count() /= &
-         tendency_allocation_after_first) then
-       call fail("repeated Euler bridge reallocated tendency arrays")
-    end if
-    if (local_block_tendency_import_allocation_count() /= &
-         import_allocation_after_first) then
-       call fail("repeated Euler bridge reallocated import coverage")
-    end if
-    if (block_writeback_plan_allocation_count() /= &
-         writeback_allocation_after_first .or. &
-         writeback_allocation_after_first /= &
-         writeback_allocation_before) then
-       call fail("Euler bridge reallocated persistent transport storage")
-    end if
-    if (block_domain_production_writeback_count() /= &
-         production_writeback_before + 4_int64) then
-       call fail("Euler bridge writeback count is invalid")
-    end if
-
-    trial_active = local_block_tendency_trial_is_active()
-    checkpoint_ready = &
-         local_block_tendency_commit_checkpoint_is_ready()
-    if (trial_active .or. checkpoint_ready) then
-       call fail("Euler bridge left a pending block transaction")
-    end if
-
-    call MPI_Allreduce(local_patch_count,global_patch_count,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce Euler bridge patches")
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Domain-trend block Euler bridge for rank ",rank,":"
-       write(6,'(a,i0)') &
-            "  candidate block-owned patches = ",local_patch_count
-       write(6,'(a)') &
-            "  rejected actual-trend step preserved Domain sol"
-       write(6,'(a)') &
-            "  exact scalar Euler candidate comparison passed"
-       write(6,'(a)') &
-            "  exact vector Euler candidate comparison passed"
-       write(6,'(a)') &
-            "  candidate sol synchronized to Domain owners"
-       write(6,'(a)') "  exact block/Domain rollback passed"
-       write(6,'(a,/)') &
-            "  repeated actual-trend transaction reuse passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global Domain-trend Euler candidate patches = ", &
-            global_patch_count
-       write(6,'(a,/)') &
-            "Production Domain-trend block Euler bridge passed"
-    end if
-
-    deallocate(candidate_patch)
-    deallocate(trend_vector)
-    deallocate(trend_scalar)
-    deallocate(baseline_vector)
-    deallocate(baseline_scalar)
-
-  contains
-
-    subroutine exercise_candidate (patch_count)
-
-      implicit none
-
-      integer(int64), intent(out) :: patch_count
-
-      call begin_block_domain_trend_step(validation_scale)
-      call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
-      call validate_candidate_stage(patch_count)
-
-      call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
-      call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-
-      call restore_local_block_tendency_commit
-      call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
-      call assert_restored_state
-      call assert_block_domain_field_family_match( &
-           BLOCK_PAYLOAD_WAV_COEFF)
-
-    end subroutine exercise_candidate
-
-
-    subroutine assert_restored_state
-
-      implicit none
-
-      logical :: checkpoint_pending
-      logical :: trial_pending
-
-      call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-      call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
-      if (any(abs(block_writeback_plan%scalar_domain_stage - &
-           baseline_scalar) > 0.0_dp)) then
-         call fail("Euler bridge scalar rollback mismatch")
-      end if
-      if (any(abs(block_writeback_plan%vector_domain_stage - &
-           baseline_vector) > 0.0_dp)) then
-         call fail("Euler bridge vector rollback mismatch")
-      end if
-
-      trial_pending = local_block_tendency_trial_is_active()
-      checkpoint_pending = &
-           local_block_tendency_commit_checkpoint_is_ready()
-      if (trial_pending .or. checkpoint_pending) then
-         call fail("Euler bridge rollback retained transaction state")
-      end if
-
-    end subroutine assert_restored_state
-
-
-    subroutine validate_candidate_stage (patch_count)
-
-      implicit none
-
-      integer(int64), intent(out) :: patch_count
-
-      integer :: b
-      integer :: d
-      integer :: local_index
-      integer :: p
-      integer :: patch_slot
-      integer :: r
-      integer :: slot
-
-      candidate_patch = .false.
-
-      do local_index = 1,n_local_blocks()
-         b = local_block_catalog(local_index)
-         r = source_rank(b)
-         if (r /= rank) cycle
-         d = loc_id(block_catalog(b)%root_domain+1) + 1
-         call validate_candidate_subtree( &
-              d,block_catalog(b)%root_patch)
-      end do
-
-      do r = 1,n_process
-         do slot = block_writeback_plan%recv_displ(r)+1, &
-              block_writeback_plan%recv_displ(r) + &
-              block_writeback_plan%recv_count(r)
-            b = block_writeback_plan%recv_block(slot)
-            d = loc_id(block_catalog(b)%root_domain+1) + 1
-            call validate_candidate_subtree( &
-                 d,block_catalog(b)%root_patch)
-         end do
-      end do
-
-      if (count(candidate_patch) /= &
-           block_writeback_plan%reconstructed_patch_count) then
-         call fail("Euler candidate patch coverage mismatch")
-      end if
-
-      do d = 1,size(grid)
-         do p = 0,grid(d)%patch%length-1
-            patch_slot = &
-                 block_writeback_plan%domain_patch_displ(d) + p + 1
-            if (grid(d)%patch%elts(p+1)%deleted) then
-               if (candidate_patch(patch_slot)) then
-                  call fail("Euler candidate covered a deleted patch")
-               end if
-            else if (.not. candidate_patch(patch_slot)) then
-               call compare_preserved_patch(patch_slot)
-            end if
-         end do
-      end do
-
-      patch_count = int(count(candidate_patch),int64)
-
-    end subroutine validate_candidate_stage
-
-
-    recursive subroutine validate_candidate_subtree (d,p)
-
-      implicit none
-
-      integer, intent(in) :: d
-      integer, intent(in) :: p
-
-      integer :: c
-      integer :: p_child
-      integer :: patch_slot
-      integer :: scalar_pos
-      integer :: vector_pos
-
-      if (d < 1 .or. d > size(grid)) then
-         call fail("Euler candidate Domain is invalid")
-      end if
-      if (p < 0 .or. p >= grid(d)%patch%length) then
-         call fail("Euler candidate patch is invalid")
-      end if
-      if (grid(d)%patch%elts(p+1)%deleted) return
-
-      patch_slot = block_writeback_plan%domain_patch_displ(d) + p + 1
-      if (candidate_patch(patch_slot)) then
-         call fail("Euler candidate patch was covered more than once")
-      end if
-      candidate_patch(patch_slot) = .true.
-
-      scalar_pos = 1
-      vector_pos = 1
-      call pack_domain_patch_prognostic( &
-           d,p,BLOCK_PAYLOAD_TREND,trend_scalar,scalar_pos, &
-           trend_vector,vector_pos)
-      if (scalar_pos /= size(trend_scalar)+1 .or. &
-           vector_pos /= size(trend_vector)+1) then
-         call fail("Euler candidate trend patch extent mismatch")
-      end if
-      call compare_updated_patch(patch_slot)
-
-      do c = 1,N_CHDRN
-         p_child = grid(d)%patch%elts(p+1)%children(c)
-         if (p_child <= 0) cycle
-         call validate_candidate_subtree(d,p_child)
-      end do
-
-    end subroutine validate_candidate_subtree
-
-
-    subroutine compare_updated_patch (patch_slot)
-
-      implicit none
-
-      integer, intent(in) :: patch_slot
-
-      integer :: scalar_start
-      integer :: vector_start
-
-      scalar_start = (patch_slot-1)* &
-           block_writeback_plan%scalar_patch_nvalue + 1
-      vector_start = (patch_slot-1)* &
-           block_writeback_plan%vector_patch_nvalue + 1
-
-      if (any(abs(block_writeback_plan%scalar_domain_stage( &
-           scalar_start:scalar_start+size(trend_scalar)-1) - &
-           (baseline_scalar( &
-           scalar_start:scalar_start+size(trend_scalar)-1) + &
-           validation_scale*trend_scalar)) > 0.0_dp)) then
-         call fail("scalar Domain-trend Euler candidate mismatch")
-      end if
-      if (any(abs(block_writeback_plan%vector_domain_stage( &
-           vector_start:vector_start+size(trend_vector)-1) - &
-           (baseline_vector( &
-           vector_start:vector_start+size(trend_vector)-1) + &
-           validation_scale*trend_vector)) > 0.0_dp)) then
-         call fail("vector Domain-trend Euler candidate mismatch")
-      end if
-
-    end subroutine compare_updated_patch
-
-
-    subroutine compare_preserved_patch (patch_slot)
-
-      implicit none
-
-      integer, intent(in) :: patch_slot
-
-      integer :: scalar_start
-      integer :: vector_start
-
-      scalar_start = (patch_slot-1)* &
-           block_writeback_plan%scalar_patch_nvalue + 1
-      vector_start = (patch_slot-1)* &
-           block_writeback_plan%vector_patch_nvalue + 1
-
-      if (any(abs(block_writeback_plan%scalar_domain_stage( &
-           scalar_start:scalar_start+ &
-           block_writeback_plan%scalar_patch_nvalue-1) - &
-           baseline_scalar(scalar_start:scalar_start+ &
-           block_writeback_plan%scalar_patch_nvalue-1)) > 0.0_dp)) then
-         call fail("preserved scalar Euler scaffold mismatch")
-      end if
-      if (any(abs(block_writeback_plan%vector_domain_stage( &
-           vector_start:vector_start+ &
-           block_writeback_plan%vector_patch_nvalue-1) - &
-           baseline_vector(vector_start:vector_start+ &
-           block_writeback_plan%vector_patch_nvalue-1)) > 0.0_dp)) then
-         call fail("preserved vector Euler scaffold mismatch")
-      end if
-
-    end subroutine compare_preserved_patch
-
-  end subroutine check_block_domain_trend_step
 
 
   recursive subroutine pack_domain_subtree_prognostic ( &
@@ -22673,6 +21727,8 @@ end subroutine build_parallel_block_catalog
     end if
     block_writeback_plan%production_writeback_count = &
          block_writeback_plan%production_writeback_count + 1_int64
+    compatibility_writeback_total = &
+         compatibility_writeback_total + 1_int64
 
   end subroutine write_block_field_family_to_domains
 
@@ -22884,358 +21940,6 @@ end subroutine build_parallel_block_catalog
   end subroutine assert_block_domain_field_family_match
 
 
-  subroutine check_block_writeback_domain_reconstruction (verbose)
-    ! Validate complete sol and wav_coeff Domain staging and transactional
-    ! writeback. Rejected commits must not mutate authoritative fields;
-    ! accepted commits are verified exactly and restored to their references.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: active_patch_count
-    integer :: d
-    integer :: ierr
-    integer :: p
-    integer :: patch_slot
-    integer :: scalar_start
-    integer :: sol_preserved_patch_count
-    integer :: sol_reconstructed_patch_count
-    integer :: vector_start
-
-    integer(int64) :: allocation_before
-    integer(int64) :: global_patch_count
-    integer(int64) :: global_preserved_patch_count
-    integer(int64) :: global_reconstructed_patch_count
-    integer(int64) :: global_scalar_count
-    integer(int64) :: global_vector_count
-    integer(int64) :: local_patch_count
-    integer(int64) :: local_preserved_patch_count
-    integer(int64) :: local_reconstructed_patch_count
-    integer(int64) :: local_scalar_count
-    integer(int64) :: local_vector_count
-
-    logical :: print_summary
-
-    real(dp), allocatable :: current_scalar(:)
-    real(dp), allocatable :: current_vector(:)
-    real(dp), allocatable :: reference_scalar(:)
-    real(dp), allocatable :: reference_vector(:)
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. block_writeback_plan_is_ready()) then
-       call fail("Domain reconstruction check before plan is ready")
-    end if
-
-    allocate(reference_scalar( &
-         size(block_writeback_plan%scalar_domain_stage)))
-    allocate(reference_vector( &
-         size(block_writeback_plan%vector_domain_stage)))
-    allocate(current_scalar( &
-         block_writeback_plan%scalar_patch_nvalue))
-    allocate(current_vector( &
-         block_writeback_plan%vector_patch_nvalue))
-
-    allocation_before = block_writeback_plan%stage_allocations
-
-    call check_family(BLOCK_PAYLOAD_SOL)
-    sol_reconstructed_patch_count = &
-         block_writeback_plan%reconstructed_patch_count
-    sol_preserved_patch_count = &
-         block_writeback_plan%preserved_patch_count
-    call check_family(BLOCK_PAYLOAD_WAV_COEFF)
-    if (block_writeback_plan%reconstructed_patch_count /= &
-         sol_reconstructed_patch_count .or. &
-         block_writeback_plan%preserved_patch_count /= &
-         sol_preserved_patch_count) then
-       call fail("sol and wav_coeff Domain patch coverage differs")
-    end if
-
-    if (block_writeback_plan%stage_allocations /= allocation_before) then
-       call fail("Domain reconstruction reallocated persistent staging")
-    end if
-
-    active_patch_count = 0
-    do d = 1,size(grid)
-       do p = 0,grid(d)%patch%length-1
-          if (.not. grid(d)%patch%elts(p+1)%deleted) then
-             active_patch_count = active_patch_count + 1
-          end if
-       end do
-    end do
-    local_patch_count = int(active_patch_count,int64)
-    local_reconstructed_patch_count = int( &
-         block_writeback_plan%reconstructed_patch_count,int64)
-    local_preserved_patch_count = int( &
-         block_writeback_plan%preserved_patch_count,int64)
-    local_scalar_count = local_patch_count*int( &
-         block_writeback_plan%scalar_patch_nvalue,int64)
-    local_vector_count = local_patch_count*int( &
-         block_writeback_plan%vector_patch_nvalue,int64)
-
-    call MPI_Allreduce(local_patch_count,global_patch_count,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce reconstructed Domain patches")
-    call MPI_Allreduce( &
-         local_reconstructed_patch_count,global_reconstructed_patch_count, &
-         1,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce block-derived Domain patches")
-    call MPI_Allreduce( &
-         local_preserved_patch_count,global_preserved_patch_count, &
-         1,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce preserved Domain patches")
-    call MPI_Allreduce(local_scalar_count,global_scalar_count,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce reconstructed scalar values")
-    call MPI_Allreduce(local_vector_count,global_vector_count,1, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce reconstructed vector values")
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Complete Domain reconstruction for rank ",rank,":"
-       write(6,'(a,i0)') "  active Domain patches = ",local_patch_count
-       write(6,'(a,i0)') "  block-derived patches = ", &
-            local_reconstructed_patch_count
-       write(6,'(a,i0)') "  preserved coarse patches = ", &
-            local_preserved_patch_count
-       write(6,'(a,i0)') "  scalar values staged = ",local_scalar_count
-       write(6,'(a,i0)') "  vector values staged = ",local_vector_count
-       write(6,'(a)') "  exact complete sol reconstruction passed"
-       write(6,'(a)') "  exact complete wav_coeff reconstruction passed"
-       write(6,'(a)') "  repeated persistent Domain staging passed"
-       write(6,'(a)') "  incomplete transaction rejected without mutation"
-       write(6,'(a)') "  exact transactional sol writeback passed"
-       write(6,'(a)') "  exact transactional wav_coeff writeback passed"
-       write(6,'(a)') "  repeated transactional Domain writeback passed"
-       write(6,'(a,/)') "  authoritative Domain fields restored exactly"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global reconstructed Domain patches = ",global_patch_count
-       write(6,'(a,i0)') &
-            "Global block-derived Domain patches = ", &
-            global_reconstructed_patch_count
-       write(6,'(a,i0)') &
-            "Global preserved coarse Domain patches = ", &
-            global_preserved_patch_count
-       write(6,'(a,i0)') &
-            "Global reconstructed scalar values = ",global_scalar_count
-       write(6,'(a,i0)') &
-            "Global reconstructed vector values = ",global_vector_count
-       write(6,'(a,/)') &
-            "Transactional block-to-Domain writeback passed"
-    end if
-
-    deallocate(reference_vector)
-    deallocate(reference_scalar)
-    deallocate(current_vector)
-    deallocate(current_scalar)
-
-  contains
-
-    subroutine build_reference (payload_family)
-
-      implicit none
-
-      integer, intent(in) :: payload_family
-
-      reference_scalar = 0.0_dp
-      reference_vector = 0.0_dp
-      do d = 1,size(grid)
-         do p = 0,grid(d)%patch%length-1
-            if (grid(d)%patch%elts(p+1)%deleted) cycle
-            patch_slot = &
-                 block_writeback_plan%domain_patch_displ(d) + p + 1
-            scalar_start = (patch_slot-1)* &
-                 block_writeback_plan%scalar_patch_nvalue + 1
-            vector_start = (patch_slot-1)* &
-                 block_writeback_plan%vector_patch_nvalue + 1
-            call pack_domain_patch_prognostic( &
-                 d,p,payload_family,reference_scalar,scalar_start, &
-                 reference_vector,vector_start)
-         end do
-      end do
-
-    end subroutine build_reference
-
-
-    subroutine compare_stage_and_authority (payload_family)
-
-      implicit none
-
-      integer, intent(in) :: payload_family
-
-      integer :: current_scalar_pos
-      integer :: current_vector_pos
-
-      if (any(abs(block_writeback_plan%scalar_domain_stage- &
-           reference_scalar) > 0.0_dp)) then
-         if (payload_family == BLOCK_PAYLOAD_SOL) then
-            call fail("complete scalar sol reconstruction mismatch")
-         else
-            call fail("complete scalar wav_coeff reconstruction mismatch")
-         end if
-      end if
-      if (any(abs(block_writeback_plan%vector_domain_stage- &
-           reference_vector) > 0.0_dp)) then
-         if (payload_family == BLOCK_PAYLOAD_SOL) then
-            call fail("complete vector sol reconstruction mismatch")
-         else
-            call fail("complete vector wav_coeff reconstruction mismatch")
-         end if
-      end if
-
-      do d = 1,size(grid)
-         do p = 0,grid(d)%patch%length-1
-            if (grid(d)%patch%elts(p+1)%deleted) cycle
-            patch_slot = &
-                 block_writeback_plan%domain_patch_displ(d) + p + 1
-            scalar_start = (patch_slot-1)* &
-                 block_writeback_plan%scalar_patch_nvalue + 1
-            vector_start = (patch_slot-1)* &
-                 block_writeback_plan%vector_patch_nvalue + 1
-            current_scalar_pos = 1
-            current_vector_pos = 1
-            call pack_domain_patch_prognostic( &
-                 d,p,payload_family,current_scalar,current_scalar_pos, &
-                 current_vector,current_vector_pos)
-            if (any(abs(current_scalar-reference_scalar( &
-                 scalar_start:scalar_start+ &
-                 block_writeback_plan%scalar_patch_nvalue-1)) > &
-                 0.0_dp)) then
-               call fail("authoritative scalar Domain field changed")
-            end if
-            if (any(abs(current_vector-reference_vector( &
-                 vector_start:vector_start+ &
-                 block_writeback_plan%vector_patch_nvalue-1)) > &
-                 0.0_dp)) then
-               call fail("authoritative vector Domain field changed")
-            end if
-         end do
-      end do
-
-    end subroutine compare_stage_and_authority
-
-
-    subroutine compare_authority_to_stage (payload_family)
-
-      implicit none
-
-      integer, intent(in) :: payload_family
-
-      integer :: current_scalar_pos
-      integer :: current_vector_pos
-
-      do d = 1,size(grid)
-         do p = 0,grid(d)%patch%length-1
-            if (grid(d)%patch%elts(p+1)%deleted) cycle
-            patch_slot = &
-                 block_writeback_plan%domain_patch_displ(d) + p + 1
-            scalar_start = (patch_slot-1)* &
-                 block_writeback_plan%scalar_patch_nvalue + 1
-            vector_start = (patch_slot-1)* &
-                 block_writeback_plan%vector_patch_nvalue + 1
-            current_scalar_pos = 1
-            current_vector_pos = 1
-            call pack_domain_patch_prognostic( &
-                 d,p,payload_family,current_scalar,current_scalar_pos, &
-                 current_vector,current_vector_pos)
-            if (any(abs(current_scalar- &
-                 block_writeback_plan%scalar_domain_stage( &
-                 scalar_start:scalar_start+ &
-                 block_writeback_plan%scalar_patch_nvalue-1)) > &
-                 0.0_dp)) then
-               call fail("transactional scalar Domain writeback mismatch")
-            end if
-            if (any(abs(current_vector- &
-                 block_writeback_plan%vector_domain_stage( &
-                 vector_start:vector_start+ &
-                 block_writeback_plan%vector_patch_nvalue-1)) > &
-                 0.0_dp)) then
-               call fail("transactional vector Domain writeback mismatch")
-            end if
-         end do
-      end do
-
-    end subroutine compare_authority_to_stage
-
-
-    subroutine check_transaction (payload_family)
-
-      implicit none
-
-      integer, intent(in) :: payload_family
-
-      integer :: first_active_slot
-
-      logical :: committed
-
-      first_active_slot = 0
-      do d = 1,size(grid)
-         do p = 0,grid(d)%patch%length-1
-            if (grid(d)%patch%elts(p+1)%deleted) cycle
-            first_active_slot = &
-                 block_writeback_plan%domain_patch_displ(d) + p + 1
-            exit
-         end do
-         if (first_active_slot > 0) exit
-      end do
-      if (first_active_slot <= 0) then
-         call fail("transactional writeback has no active Domain patch")
-      end if
-
-      block_writeback_plan%domain_patch_covered(first_active_slot) = &
-           .false.
-      committed = &
-           try_commit_block_writeback_domain_stage(payload_family)
-      block_writeback_plan%domain_patch_covered(first_active_slot) = &
-           .true.
-      if (committed) then
-         call fail("incomplete Domain writeback transaction was accepted")
-      end if
-      call compare_stage_and_authority(payload_family)
-
-      block_writeback_plan%scalar_domain_stage = 0.125_dp
-      block_writeback_plan%vector_domain_stage = -0.125_dp
-      committed = &
-           try_commit_block_writeback_domain_stage(payload_family)
-      if (.not. committed) then
-         call fail("complete Domain writeback transaction was rejected")
-      end if
-      call compare_authority_to_stage(payload_family)
-
-      block_writeback_plan%scalar_domain_stage = reference_scalar
-      block_writeback_plan%vector_domain_stage = reference_vector
-      committed = &
-           try_commit_block_writeback_domain_stage(payload_family)
-      if (.not. committed) then
-         call fail("Domain writeback restoration was rejected")
-      end if
-      call compare_stage_and_authority(payload_family)
-
-    end subroutine check_transaction
-
-
-    subroutine check_family (payload_family)
-
-      implicit none
-
-      integer, intent(in) :: payload_family
-
-      call build_reference(payload_family)
-      call reconstruct_block_writeback_domain_stage(payload_family)
-      call compare_stage_and_authority(payload_family)
-      call reconstruct_block_writeback_domain_stage(payload_family)
-      call compare_stage_and_authority(payload_family)
-      call check_transaction(payload_family)
-
-    end subroutine check_family
-
-  end subroutine check_block_writeback_domain_reconstruction
 
 
   subroutine check_block_ghost_request_manifest (verbose)
@@ -24155,141 +22859,10 @@ end subroutine build_parallel_block_catalog
   end subroutine refresh_block_sol_ghosts
 
 
-  subroutine apply_refreshed_block_tendency_kernel (kernel,context)
-    ! Enforce the production ordering required by every stencil-dependent
-    ! block tendency: refresh sol ghosts before executing the local kernel.
-
-    implicit none
-
-    procedure(Local_Block_Tendency_Kernel) :: kernel
-    class(*), intent(inout) :: context
-
-    if (.not. local_block_store_ready()) then
-       call fail("refreshed tendency kernel before block installation")
-    end if
-    if (local_block_tendency_trial_is_active()) then
-       call fail("refreshed tendency kernel during active trial")
-    end if
-
-    call refresh_block_sol_ghosts
-    call apply_local_block_tendency_kernel(kernel,context)
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("refreshed tendency kernel output is not ready")
-    end if
-
-  end subroutine apply_refreshed_block_tendency_kernel
 
 
-  subroutine begin_block_two_stage_tendency_step ( &
-       kernel,context,scale,weight,result)
-    ! Execute a guarded two-stage block update and retain its one-level
-    ! checkpoint. The caller must subsequently finalize or restore it.
-
-    implicit none
-
-    procedure(Local_Block_Tendency_Kernel) :: kernel
-    class(*), intent(inout) :: context
-    real(dp), intent(in) :: scale
-    real(dp), intent(in) :: weight(2)
-    type(Block_Two_Stage_Step_Result), intent(out) :: result
-
-    integer(int64) :: accumulator_changed_block_count(2)
-
-    result = Block_Two_Stage_Step_Result()
-
-    if (.not. local_block_store_ready()) then
-       call fail("two-stage block step before block installation")
-    end if
-    if (local_block_tendency_trial_is_active() .or. &
-         local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("two-stage block step found pending transaction")
-    end if
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    call reset_local_block_tendency_accumulator
-
-    call apply_refreshed_block_tendency_kernel(kernel,context)
-    call accumulate_local_block_tendency(weight(1))
-
-    call begin_local_block_tendency_trial(scale)
-    call commit_local_block_tendency_trial
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    call apply_refreshed_block_tendency_kernel(kernel,context)
-    call accumulate_local_block_tendency(weight(2))
-
-    call local_block_tendency_accumulator_statistics( &
-         result%scalar_count,result%vector_count, &
-         accumulator_changed_block_count(1), &
-         accumulator_changed_block_count(2),result%stage_count, &
-         result%scalar_moment,result%vector_moment)
-
-    call restore_local_block_tendency_commit
-    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
-         local_block_tendency_state_ready()) then
-       call fail("two-stage intermediate state was not restored")
-    end if
-
-    call begin_local_block_accumulated_tendency_trial(scale)
-    call commit_local_block_tendency_trial
-    call local_block_tendency_commit_checkpoint_statistics( &
-         result%scalar_changed_block_count, &
-         result%vector_changed_block_count, &
-         result%scalar_max_update,result%vector_max_update)
-
-    if (abs(scale) > 0.0_dp) then
-       if (result%scalar_changed_block_count /= &
-            accumulator_changed_block_count(1) .or. &
-            result%vector_changed_block_count /= &
-            accumulator_changed_block_count(2)) then
-          call fail("two-stage committed update coverage mismatch")
-       end if
-    end if
-    if (local_block_tendency_trial_is_active() .or. &
-         .not. local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("two-stage block step did not retain its checkpoint")
-    end if
-    if (local_block_tendency_state_ready()) then
-       call fail("two-stage block step retained stale tendencies")
-    end if
-
-  end subroutine begin_block_two_stage_tendency_step
 
 
-  subroutine complete_block_two_stage_tendency_step (accept)
-    ! Resolve the checkpoint retained by begin_block_two_stage_tendency_step.
-    ! Accepted sol fields are transactionally synchronized to their Domain
-    ! owners before the block checkpoint is finalized. Rejected fields are
-    ! restored without modifying the authoritative Domain representation.
-
-    implicit none
-
-    logical, intent(in) :: accept
-
-    if (local_block_tendency_trial_is_active()) then
-       call fail("two-stage completion found an active trial")
-    end if
-    if (.not. local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("two-stage completion found no pending checkpoint")
-    end if
-
-    if (accept) then
-       call write_block_field_family_to_domains(BLOCK_PAYLOAD_SOL)
-       call finalize_local_block_tendency_commit
-    else
-       call restore_local_block_tendency_commit
-    end if
-
-    if (local_block_tendency_trial_is_active() .or. &
-         local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("two-stage completion left pending transaction state")
-    end if
-    if (local_block_tendency_state_ready()) then
-       call fail("two-stage completion retained stale tendencies")
-    end if
-
-  end subroutine complete_block_two_stage_tendency_step
 
 
   subroutine refresh_block_wav_coeff_ghosts
@@ -24371,1327 +22944,28 @@ end subroutine build_parallel_block_catalog
   end subroutine check_production_block_ghost_refresh
 
 
-  subroutine check_block_field_family_accessors (verbose)
-    ! Verify that independent sol and wav_coeff views reconstruct the
-    ! existing combined payload exactly for every local patch, boundary
-    ! record and ghost. Boundary access is read-only in this stage.
 
-    implicit none
 
-    logical, optional, intent(in) :: verbose
 
-    integer :: b
-    integer :: boundary_index
-    integer :: catalog_index
-    integer :: ghost_index
-    integer :: ierr
-    integer :: n_scalar_boundary_combined
-    integer :: n_scalar_boundary_family
-    integer :: n_scalar_combined
-    integer :: n_scalar_family
-    integer :: n_vector_boundary_combined
-    integer :: n_vector_boundary_family
-    integer :: n_vector_combined
-    integer :: n_vector_family
-    integer :: patch_index
 
-    integer(int64) :: boundary_count_global(2)
-    integer(int64) :: boundary_count_local(2)
-    integer(int64) :: count_global(4)
-    integer(int64) :: count_local(4)
 
-    real(dp), allocatable :: scalar_boundary_combined(:)
-    real(dp), allocatable :: scalar_boundary_family(:)
-    real(dp), allocatable :: scalar_combined(:)
-    real(dp), allocatable :: scalar_family(:)
-    real(dp), allocatable :: vector_boundary_combined(:)
-    real(dp), allocatable :: vector_boundary_family(:)
-    real(dp), allocatable :: vector_combined(:)
-    real(dp), allocatable :: vector_family(:)
 
-    logical :: print_summary
 
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
 
-    if (.not. local_block_store_ready()) then
-       call fail("field-family accessor check before block installation")
-    end if
 
-    boundary_count_local = 0_int64
-    count_local = 0_int64
 
-    do b = 1, n_local_blocks()
-       catalog_index = local_block_catalog(b)
 
-       n_scalar_family = &
-            local_block_scalar_family_patch_nvalue(catalog_index)
-       n_vector_family = &
-            local_block_vector_family_patch_nvalue(catalog_index)
-       n_scalar_combined = &
-            local_block_scalar_patch_nvalue(catalog_index)
-       n_vector_combined = &
-            local_block_vector_patch_nvalue(catalog_index)
 
-       if (n_scalar_combined /= 2*n_scalar_family) then
-          call fail("combined and scalar-family payload extents differ")
-       end if
 
-       if (n_vector_combined /= 2*n_vector_family) then
-          call fail("combined and vector-family payload extents differ")
-       end if
 
-       allocate(scalar_combined(2*n_scalar_family))
-       allocate(scalar_family(n_scalar_family))
-       allocate(vector_combined(2*n_vector_family))
-       allocate(vector_family(n_vector_family))
 
-       do patch_index = 0, local_block_patch_count(catalog_index)-1
-          call get_local_block_scalar_patch_values( &
-               catalog_index,patch_index,scalar_combined)
-          call get_local_block_scalar_patch_family_values( &
-               catalog_index,patch_index,BLOCK_PAYLOAD_SOL, &
-               scalar_family)
-          if (maxval(abs( &
-               scalar_family-scalar_combined(1:n_scalar_family))) > &
-               0.0_dp) then
-             call fail("selective scalar sol patch accessor mismatch")
-          end if
-          call get_local_block_scalar_patch_family_values( &
-               catalog_index,patch_index,BLOCK_PAYLOAD_WAV_COEFF, &
-               scalar_family)
-          if (maxval(abs( &
-               scalar_family- &
-               scalar_combined(n_scalar_family+1: &
-               2*n_scalar_family))) > 0.0_dp) then
-             call fail("selective scalar wav_coeff patch accessor mismatch")
-          end if
-          count_local(1) = count_local(1) + &
-               int(2*n_scalar_family,int64)
 
-          call get_local_block_vector_patch_values( &
-               catalog_index,patch_index,vector_combined)
-          call get_local_block_vector_patch_family_values( &
-               catalog_index,patch_index,BLOCK_PAYLOAD_SOL, &
-               vector_family)
-          if (maxval(abs( &
-               vector_family-vector_combined(1:n_vector_family))) > &
-               0.0_dp) then
-             call fail("selective vector sol patch accessor mismatch")
-          end if
-          call get_local_block_vector_patch_family_values( &
-               catalog_index,patch_index,BLOCK_PAYLOAD_WAV_COEFF, &
-               vector_family)
-          if (maxval(abs( &
-               vector_family- &
-               vector_combined(n_vector_family+1: &
-               2*n_vector_family))) > 0.0_dp) then
-             call fail("selective vector wav_coeff patch accessor mismatch")
-          end if
-          count_local(3) = count_local(3) + &
-               int(2*n_vector_family,int64)
-       end do
 
-       do boundary_index = 1, &
-            local_block_boundary_count(catalog_index)
-          n_scalar_boundary_family = &
-               local_block_scalar_family_boundary_nvalue( &
-               catalog_index,boundary_index)
-          n_scalar_boundary_combined = &
-               local_block_scalar_boundary_nvalue( &
-               catalog_index,boundary_index)
-          n_vector_boundary_family = &
-               local_block_vector_family_boundary_nvalue( &
-               catalog_index,boundary_index)
-          n_vector_boundary_combined = &
-               local_block_vector_boundary_nvalue( &
-               catalog_index,boundary_index)
 
-          if (n_scalar_boundary_combined /= &
-               2*n_scalar_boundary_family) then
-             call fail( &
-                  "combined and scalar boundary-family extents differ")
-          end if
-          if (n_vector_boundary_combined /= &
-               2*n_vector_boundary_family) then
-             call fail( &
-                  "combined and vector boundary-family extents differ")
-          end if
 
-          allocate(scalar_boundary_combined( &
-               n_scalar_boundary_combined))
-          allocate(scalar_boundary_family( &
-               n_scalar_boundary_family))
-          allocate(vector_boundary_combined( &
-               n_vector_boundary_combined))
-          allocate(vector_boundary_family( &
-               n_vector_boundary_family))
 
-          call get_local_block_scalar_boundary_values( &
-               catalog_index,boundary_index, &
-               scalar_boundary_combined)
-          call get_local_block_scalar_boundary_family_values( &
-               catalog_index,boundary_index,BLOCK_PAYLOAD_SOL, &
-               scalar_boundary_family)
-          if (maxval(abs(scalar_boundary_family - &
-               scalar_boundary_combined( &
-               1:n_scalar_boundary_family))) > 0.0_dp) then
-             call fail( &
-                  "selective scalar sol boundary accessor mismatch")
-          end if
-          call get_local_block_scalar_boundary_family_values( &
-               catalog_index,boundary_index, &
-               BLOCK_PAYLOAD_WAV_COEFF,scalar_boundary_family)
-          if (maxval(abs(scalar_boundary_family - &
-               scalar_boundary_combined( &
-               n_scalar_boundary_family+1: &
-               n_scalar_boundary_combined))) > 0.0_dp) then
-             call fail( &
-                  "selective scalar wav_coeff boundary accessor mismatch")
-          end if
-          boundary_count_local(1) = boundary_count_local(1) + &
-               int(n_scalar_boundary_combined,int64)
 
-          call get_local_block_vector_boundary_values( &
-               catalog_index,boundary_index, &
-               vector_boundary_combined)
-          call get_local_block_vector_boundary_family_values( &
-               catalog_index,boundary_index,BLOCK_PAYLOAD_SOL, &
-               vector_boundary_family)
-          if (maxval(abs(vector_boundary_family - &
-               vector_boundary_combined( &
-               1:n_vector_boundary_family))) > 0.0_dp) then
-             call fail( &
-                  "selective vector sol boundary accessor mismatch")
-          end if
-          call get_local_block_vector_boundary_family_values( &
-               catalog_index,boundary_index, &
-               BLOCK_PAYLOAD_WAV_COEFF,vector_boundary_family)
-          if (maxval(abs(vector_boundary_family - &
-               vector_boundary_combined( &
-               n_vector_boundary_family+1: &
-               n_vector_boundary_combined))) > 0.0_dp) then
-             call fail( &
-                  "selective vector wav_coeff boundary accessor mismatch")
-          end if
-          boundary_count_local(2) = boundary_count_local(2) + &
-               int(n_vector_boundary_combined,int64)
 
-          deallocate(scalar_boundary_combined)
-          deallocate(scalar_boundary_family)
-          deallocate(vector_boundary_combined)
-          deallocate(vector_boundary_family)
-       end do
-
-       do ghost_index = 1, local_block_ghost_count(catalog_index)
-          call get_local_block_scalar_ghost_values( &
-               catalog_index,ghost_index,scalar_combined)
-          call get_local_block_scalar_ghost_family_values( &
-               catalog_index,ghost_index,BLOCK_PAYLOAD_SOL, &
-               scalar_family)
-          if (maxval(abs( &
-               scalar_family-scalar_combined(1:n_scalar_family))) > &
-               0.0_dp) then
-             call fail("selective scalar sol ghost accessor mismatch")
-          end if
-          call get_local_block_scalar_ghost_family_values( &
-               catalog_index,ghost_index,BLOCK_PAYLOAD_WAV_COEFF, &
-               scalar_family)
-          if (maxval(abs( &
-               scalar_family- &
-               scalar_combined(n_scalar_family+1: &
-               2*n_scalar_family))) > 0.0_dp) then
-             call fail("selective scalar wav_coeff ghost accessor mismatch")
-          end if
-          count_local(2) = count_local(2) + &
-               int(2*n_scalar_family,int64)
-
-          call get_local_block_vector_ghost_values( &
-               catalog_index,ghost_index,vector_combined)
-          call get_local_block_vector_ghost_family_values( &
-               catalog_index,ghost_index,BLOCK_PAYLOAD_SOL, &
-               vector_family)
-          if (maxval(abs( &
-               vector_family-vector_combined(1:n_vector_family))) > &
-               0.0_dp) then
-             call fail("selective vector sol ghost accessor mismatch")
-          end if
-          call get_local_block_vector_ghost_family_values( &
-               catalog_index,ghost_index,BLOCK_PAYLOAD_WAV_COEFF, &
-               vector_family)
-          if (maxval(abs( &
-               vector_family- &
-               vector_combined(n_vector_family+1: &
-               2*n_vector_family))) > 0.0_dp) then
-             call fail("selective vector wav_coeff ghost accessor mismatch")
-          end if
-          count_local(4) = count_local(4) + &
-               int(2*n_vector_family,int64)
-       end do
-
-       deallocate(scalar_combined)
-       deallocate(scalar_family)
-       deallocate(vector_combined)
-       deallocate(vector_family)
-    end do
-
-    call MPI_Allreduce( &
-         count_local,count_global,4,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce field-family accessor values")
-
-    call MPI_Allreduce( &
-         boundary_count_local,boundary_count_global,2, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi( &
-         ierr,"MPI_Allreduce boundary field-family accessor values")
-
-    if (any(count_global <= 0_int64)) then
-       call fail("incomplete field-family accessor inventory")
-    end if
-    if (any(boundary_count_global <= 0_int64)) then
-       call fail("incomplete boundary field-family accessor inventory")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Selective field-family accessors for rank ",rank,":"
-       write(6,'(a,i0)') &
-            "  scalar patch values verified = ",count_local(1)
-       write(6,'(a,i0)') &
-            "  scalar boundary values verified = ", &
-            boundary_count_local(1)
-       write(6,'(a,i0)') &
-            "  scalar ghost values verified = ",count_local(2)
-       write(6,'(a,i0)') &
-            "  vector patch values verified = ",count_local(3)
-       write(6,'(a,i0)') &
-            "  vector boundary values verified = ", &
-            boundary_count_local(2)
-       write(6,'(a,i0)') &
-            "  vector ghost values verified = ",count_local(4)
-       write(6,'(a,/)') &
-            "  sol/wav_coeff family reconstruction checks passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,4(i0,1x))') &
-            "Global scalar-patch/scalar-ghost/vector-patch/" // &
-            "vector-ghost values = ",count_global
-       write(6,'(a,2(i0,1x))') &
-            "Global scalar/vector boundary values = ", &
-            boundary_count_global
-       write(6,'(a,/)') &
-            "Selective sol/wav_coeff field-family accessors passed"
-    end if
-
-  end subroutine check_block_field_family_accessors
-
-
-  subroutine check_block_patch_writable_storage (verbose)
-    ! Snapshot every compact patch, exercise family-selective and combined
-    ! whole-store writes, and prove exact isolation and restoration.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: b
-    integer :: catalog_index
-    integer :: ierr
-    integer :: local_patch
-    integer :: n_patch_record
-    integer :: record_index
-
-    integer(int64) :: count_global(2)
-    integer(int64) :: count_local(2)
-
-    logical :: print_summary
-
-    type(Block_Patch_Snapshot), allocatable :: snapshot(:)
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_store_ready()) then
-       call fail("writable patch check before block installation")
-    end if
-
-    n_patch_record = 0
-    do b = 1, n_local_blocks()
-       catalog_index = local_block_catalog(b)
-       n_patch_record = n_patch_record + &
-            local_block_patch_count(catalog_index)
-    end do
-
-    allocate(snapshot(n_patch_record))
-    count_local = 0_int64
-    record_index = 0
-
-    do b = 1, n_local_blocks()
-       catalog_index = local_block_catalog(b)
-       do local_patch = 0,local_block_patch_count(catalog_index)-1
-          record_index = record_index + 1
-          snapshot(record_index)%catalog_index = catalog_index
-          snapshot(record_index)%local_patch = local_patch
-
-          allocate(snapshot(record_index)%scalar( &
-               local_block_scalar_patch_nvalue(catalog_index)))
-          allocate(snapshot(record_index)%vector( &
-               local_block_vector_patch_nvalue(catalog_index)))
-
-          call get_local_block_scalar_patch_values( &
-               catalog_index,local_patch,snapshot(record_index)%scalar)
-          call get_local_block_vector_patch_values( &
-               catalog_index,local_patch,snapshot(record_index)%vector)
-
-          count_local(1) = count_local(1) + &
-               int(size(snapshot(record_index)%scalar),int64)
-          count_local(2) = count_local(2) + &
-               int(size(snapshot(record_index)%vector),int64)
-       end do
-    end do
-
-    if (record_index /= n_patch_record) then
-       call fail("writable patch snapshot count mismatch")
-    end if
-
-    call check_scalar_patch_family_bulk_write( &
-         snapshot,BLOCK_PAYLOAD_SOL)
-    call check_scalar_patch_family_bulk_write( &
-         snapshot,BLOCK_PAYLOAD_WAV_COEFF)
-    call check_vector_patch_family_bulk_write( &
-         snapshot,BLOCK_PAYLOAD_SOL)
-    call check_vector_patch_family_bulk_write( &
-         snapshot,BLOCK_PAYLOAD_WAV_COEFF)
-    call check_scalar_patch_combined_bulk_write(snapshot)
-    call check_vector_patch_combined_bulk_write(snapshot)
-
-    call check_refreshed_block_stencil_consumers(.false.)
-
-    call MPI_Allreduce( &
-         count_local,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce writable patch values")
-
-    if (any(count_global <= 0_int64)) then
-       call fail("incomplete writable patch inventory")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Writable compact patch storage for rank ",rank,":"
-       write(6,'(a,i0)') &
-            "  scalar patch values bulk-tested = ",count_local(1)
-       write(6,'(a,i0)') &
-            "  vector patch values bulk-tested = ",count_local(2)
-       write(6,'(a,/)') &
-            "  family and combined poison, isolation and restore passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,2(i0,1x))') &
-            "Global scalar/vector patch values bulk-tested = ", &
-            count_global
-       write(6,'(a,/)') &
-            "Writable sol/wav_coeff compact patch storage passed"
-    end if
-
-    deallocate(snapshot)
-
-  end subroutine check_block_patch_writable_storage
-
-
-  subroutine check_scalar_patch_family_bulk_write ( &
-       snapshot,payload_family)
-    ! Fill and restore one scalar family across the complete patch store.
-
-    implicit none
-
-    type(Block_Patch_Snapshot), intent(in) :: snapshot(:)
-    integer, intent(in) :: payload_family
-
-    integer :: i
-    integer :: n_family
-
-    real(dp), allocatable :: combined(:)
-    real(dp), allocatable :: family(:)
-
-    call fill_local_block_scalar_patch_family_values( &
-         payload_family,BLOCK_PATCH_POISON)
-
-    do i = 1, size(snapshot)
-       if (mod(size(snapshot(i)%scalar),2) /= 0 .or. &
-            size(snapshot(i)%scalar) <= 0) then
-          call fail("invalid scalar writable patch snapshot")
-       end if
-       n_family = size(snapshot(i)%scalar)/2
-       allocate(combined(2*n_family))
-       allocate(family(n_family))
-
-       call get_local_block_scalar_patch_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            payload_family,family)
-       if (maxval(abs(family-BLOCK_PATCH_POISON)) > 0.0_dp) then
-          call fail("scalar patch family bulk poison failed")
-       end if
-
-       call get_local_block_scalar_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            combined)
-       select case (payload_family)
-       case (BLOCK_PAYLOAD_SOL)
-          if (maxval(abs(combined(n_family+1:2*n_family) - &
-               snapshot(i)%scalar(n_family+1:2*n_family))) > &
-               0.0_dp) then
-             call fail("scalar patch wav_coeff changed during family fill")
-          end if
-          family = snapshot(i)%scalar(1:n_family)
-       case (BLOCK_PAYLOAD_WAV_COEFF)
-          if (maxval(abs(combined(1:n_family) - &
-               snapshot(i)%scalar(1:n_family))) > 0.0_dp) then
-             call fail("scalar patch sol changed during family fill")
-          end if
-          family = snapshot(i)%scalar(n_family+1:2*n_family)
-       case default
-          call fail("invalid scalar writable patch family")
-       end select
-
-       call set_local_block_scalar_patch_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            payload_family,family)
-       call get_local_block_scalar_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            combined)
-       if (maxval(abs(combined-snapshot(i)%scalar)) > 0.0_dp) then
-          call fail("scalar patch family bulk restore failed")
-       end if
-
-       deallocate(combined)
-       deallocate(family)
-    end do
-
-  end subroutine check_scalar_patch_family_bulk_write
-
-
-  subroutine check_vector_patch_family_bulk_write ( &
-       snapshot,payload_family)
-    ! Fill and restore one vector family across the complete patch store.
-
-    implicit none
-
-    type(Block_Patch_Snapshot), intent(in) :: snapshot(:)
-    integer, intent(in) :: payload_family
-
-    integer :: i
-    integer :: n_family
-
-    real(dp), allocatable :: combined(:)
-    real(dp), allocatable :: family(:)
-
-    call fill_local_block_vector_patch_family_values( &
-         payload_family,BLOCK_PATCH_POISON)
-
-    do i = 1, size(snapshot)
-       if (mod(size(snapshot(i)%vector),2) /= 0 .or. &
-            size(snapshot(i)%vector) <= 0) then
-          call fail("invalid vector writable patch snapshot")
-       end if
-       n_family = size(snapshot(i)%vector)/2
-       allocate(combined(2*n_family))
-       allocate(family(n_family))
-
-       call get_local_block_vector_patch_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            payload_family,family)
-       if (maxval(abs(family-BLOCK_PATCH_POISON)) > 0.0_dp) then
-          call fail("vector patch family bulk poison failed")
-       end if
-
-       call get_local_block_vector_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            combined)
-       select case (payload_family)
-       case (BLOCK_PAYLOAD_SOL)
-          if (maxval(abs(combined(n_family+1:2*n_family) - &
-               snapshot(i)%vector(n_family+1:2*n_family))) > &
-               0.0_dp) then
-             call fail("vector patch wav_coeff changed during family fill")
-          end if
-          family = snapshot(i)%vector(1:n_family)
-       case (BLOCK_PAYLOAD_WAV_COEFF)
-          if (maxval(abs(combined(1:n_family) - &
-               snapshot(i)%vector(1:n_family))) > 0.0_dp) then
-             call fail("vector patch sol changed during family fill")
-          end if
-          family = snapshot(i)%vector(n_family+1:2*n_family)
-       case default
-          call fail("invalid vector writable patch family")
-       end select
-
-       call set_local_block_vector_patch_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            payload_family,family)
-       call get_local_block_vector_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            combined)
-       if (maxval(abs(combined-snapshot(i)%vector)) > 0.0_dp) then
-          call fail("vector patch family bulk restore failed")
-       end if
-
-       deallocate(combined)
-       deallocate(family)
-    end do
-
-  end subroutine check_vector_patch_family_bulk_write
-
-
-  subroutine check_scalar_patch_combined_bulk_write (snapshot)
-    ! Fill both scalar families, verify vector isolation and restore.
-
-    implicit none
-
-    type(Block_Patch_Snapshot), intent(in) :: snapshot(:)
-
-    integer :: i
-
-    real(dp), allocatable :: combined(:)
-    real(dp), allocatable :: vector_observed(:)
-
-    call fill_local_block_scalar_patch_values(BLOCK_PATCH_POISON)
-
-    do i = 1, size(snapshot)
-       if (size(snapshot(i)%scalar) <= 0 .or. &
-            size(snapshot(i)%vector) <= 0) then
-          call fail("invalid scalar combined patch snapshot")
-       end if
-       allocate(combined(size(snapshot(i)%scalar)))
-       allocate(vector_observed(size(snapshot(i)%vector)))
-
-       call get_local_block_scalar_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            combined)
-       if (maxval(abs(combined-BLOCK_PATCH_POISON)) > 0.0_dp) then
-          call fail("scalar combined patch poison failed")
-       end if
-
-       call get_local_block_vector_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            vector_observed)
-       if (maxval(abs(vector_observed-snapshot(i)%vector)) > &
-            0.0_dp) then
-          call fail("vector patch changed during scalar combined fill")
-       end if
-
-       call set_local_block_scalar_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            snapshot(i)%scalar)
-       call get_local_block_scalar_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            combined)
-       if (maxval(abs(combined-snapshot(i)%scalar)) > 0.0_dp) then
-          call fail("scalar combined patch restore failed")
-       end if
-
-       deallocate(combined)
-       deallocate(vector_observed)
-    end do
-
-  end subroutine check_scalar_patch_combined_bulk_write
-
-
-  subroutine check_vector_patch_combined_bulk_write (snapshot)
-    ! Fill both vector families, verify scalar isolation and restore.
-
-    implicit none
-
-    type(Block_Patch_Snapshot), intent(in) :: snapshot(:)
-
-    integer :: i
-
-    real(dp), allocatable :: combined(:)
-    real(dp), allocatable :: scalar_observed(:)
-
-    call fill_local_block_vector_patch_values(BLOCK_PATCH_POISON)
-
-    do i = 1, size(snapshot)
-       if (size(snapshot(i)%vector) <= 0 .or. &
-            size(snapshot(i)%scalar) <= 0) then
-          call fail("invalid vector combined patch snapshot")
-       end if
-       allocate(combined(size(snapshot(i)%vector)))
-       allocate(scalar_observed(size(snapshot(i)%scalar)))
-
-       call get_local_block_vector_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            combined)
-       if (maxval(abs(combined-BLOCK_PATCH_POISON)) > 0.0_dp) then
-          call fail("vector combined patch poison failed")
-       end if
-
-       call get_local_block_scalar_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            scalar_observed)
-       if (maxval(abs(scalar_observed-snapshot(i)%scalar)) > &
-            0.0_dp) then
-          call fail("scalar patch changed during vector combined fill")
-       end if
-
-       call set_local_block_vector_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            snapshot(i)%vector)
-       call get_local_block_vector_patch_values( &
-            snapshot(i)%catalog_index,snapshot(i)%local_patch, &
-            combined)
-       if (maxval(abs(combined-snapshot(i)%vector)) > 0.0_dp) then
-          call fail("vector combined patch restore failed")
-       end if
-
-       deallocate(combined)
-       deallocate(scalar_observed)
-    end do
-
-  end subroutine check_vector_patch_combined_bulk_write
-
-
-  subroutine check_block_boundary_family_mutators (verbose)
-    ! Poison, read back and restore each scalar and vector boundary family
-    ! independently. The opposite family must remain unchanged, and the
-    ! complete combined payload must be recovered exactly after each test.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: b
-    integer :: boundary_index
-    integer :: catalog_index
-    integer :: ierr
-    integer :: n_scalar_family
-    integer :: n_vector_family
-    integer :: payload_family
-
-    integer(int64) :: count_global(2)
-    integer(int64) :: count_local(2)
-
-    real(dp), allocatable :: scalar_combined_observed(:)
-    real(dp), allocatable :: scalar_combined_original(:)
-    real(dp), allocatable :: scalar_family_observed(:)
-    real(dp), allocatable :: scalar_family_original(:)
-    real(dp), allocatable :: vector_combined_observed(:)
-    real(dp), allocatable :: vector_combined_original(:)
-    real(dp), allocatable :: vector_family_observed(:)
-    real(dp), allocatable :: vector_family_original(:)
-
-    logical :: print_summary
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_store_ready()) then
-       call fail("boundary-family mutation before block installation")
-    end if
-
-    count_local = 0_int64
-
-    do b = 1, n_local_blocks()
-       catalog_index = local_block_catalog(b)
-
-       do boundary_index = 1, &
-            local_block_boundary_count(catalog_index)
-          n_scalar_family = &
-               local_block_scalar_family_boundary_nvalue( &
-               catalog_index,boundary_index)
-          n_vector_family = &
-               local_block_vector_family_boundary_nvalue( &
-               catalog_index,boundary_index)
-
-          allocate(scalar_combined_original(2*n_scalar_family))
-          allocate(scalar_combined_observed(2*n_scalar_family))
-          allocate(scalar_family_original(n_scalar_family))
-          allocate(scalar_family_observed(n_scalar_family))
-          allocate(vector_combined_original(2*n_vector_family))
-          allocate(vector_combined_observed(2*n_vector_family))
-          allocate(vector_family_original(n_vector_family))
-          allocate(vector_family_observed(n_vector_family))
-
-          call get_local_block_scalar_boundary_values( &
-               catalog_index,boundary_index, &
-               scalar_combined_original)
-          call get_local_block_vector_boundary_values( &
-               catalog_index,boundary_index, &
-               vector_combined_original)
-
-          do payload_family = &
-               BLOCK_PAYLOAD_SOL,BLOCK_PAYLOAD_WAV_COEFF
-             select case (payload_family)
-             case (BLOCK_PAYLOAD_SOL)
-                scalar_family_original = &
-                     scalar_combined_original(1:n_scalar_family)
-                vector_family_original = &
-                     vector_combined_original(1:n_vector_family)
-             case (BLOCK_PAYLOAD_WAV_COEFF)
-                scalar_family_original = &
-                     scalar_combined_original(n_scalar_family+1: &
-                     2*n_scalar_family)
-                vector_family_original = &
-                     vector_combined_original(n_vector_family+1: &
-                     2*n_vector_family)
-             end select
-
-             scalar_family_observed = BLOCK_BOUNDARY_POISON
-             call set_local_block_scalar_boundary_family_values( &
-                  catalog_index,boundary_index,payload_family, &
-                  scalar_family_observed)
-             call get_local_block_scalar_boundary_family_values( &
-                  catalog_index,boundary_index,payload_family, &
-                  scalar_family_observed)
-             if (maxval(abs( &
-                  scalar_family_observed-BLOCK_BOUNDARY_POISON)) > &
-                  0.0_dp) then
-                call fail("scalar boundary family poison failed")
-             end if
-             call get_local_block_scalar_boundary_values( &
-                  catalog_index,boundary_index, &
-                  scalar_combined_observed)
-             select case (payload_family)
-             case (BLOCK_PAYLOAD_SOL)
-                if (maxval(abs( &
-                     scalar_combined_observed(n_scalar_family+1: &
-                     2*n_scalar_family) - &
-                     scalar_combined_original(n_scalar_family+1: &
-                     2*n_scalar_family))) > 0.0_dp) then
-                   call fail("scalar wav_coeff boundary family changed")
-                end if
-             case (BLOCK_PAYLOAD_WAV_COEFF)
-                if (maxval(abs( &
-                     scalar_combined_observed(1:n_scalar_family) - &
-                     scalar_combined_original(1:n_scalar_family))) > &
-                     0.0_dp) then
-                   call fail("scalar sol boundary family changed")
-                end if
-             end select
-             call set_local_block_scalar_boundary_family_values( &
-                  catalog_index,boundary_index,payload_family, &
-                  scalar_family_original)
-             call get_local_block_scalar_boundary_values( &
-                  catalog_index,boundary_index, &
-                  scalar_combined_observed)
-             if (maxval(abs(scalar_combined_observed - &
-                  scalar_combined_original)) > 0.0_dp) then
-                call fail("scalar boundary family restore failed")
-             end if
-
-             vector_family_observed = BLOCK_BOUNDARY_POISON
-             call set_local_block_vector_boundary_family_values( &
-                  catalog_index,boundary_index,payload_family, &
-                  vector_family_observed)
-             call get_local_block_vector_boundary_family_values( &
-                  catalog_index,boundary_index,payload_family, &
-                  vector_family_observed)
-             if (maxval(abs( &
-                  vector_family_observed-BLOCK_BOUNDARY_POISON)) > &
-                  0.0_dp) then
-                call fail("vector boundary family poison failed")
-             end if
-             call get_local_block_vector_boundary_values( &
-                  catalog_index,boundary_index, &
-                  vector_combined_observed)
-             select case (payload_family)
-             case (BLOCK_PAYLOAD_SOL)
-                if (maxval(abs( &
-                     vector_combined_observed(n_vector_family+1: &
-                     2*n_vector_family) - &
-                     vector_combined_original(n_vector_family+1: &
-                     2*n_vector_family))) > 0.0_dp) then
-                   call fail("vector wav_coeff boundary family changed")
-                end if
-             case (BLOCK_PAYLOAD_WAV_COEFF)
-                if (maxval(abs( &
-                     vector_combined_observed(1:n_vector_family) - &
-                     vector_combined_original(1:n_vector_family))) > &
-                     0.0_dp) then
-                   call fail("vector sol boundary family changed")
-                end if
-             end select
-             call set_local_block_vector_boundary_family_values( &
-                  catalog_index,boundary_index,payload_family, &
-                  vector_family_original)
-             call get_local_block_vector_boundary_values( &
-                  catalog_index,boundary_index, &
-                  vector_combined_observed)
-             if (maxval(abs(vector_combined_observed - &
-                  vector_combined_original)) > 0.0_dp) then
-                call fail("vector boundary family restore failed")
-             end if
-          end do
-
-          count_local(1) = count_local(1) + &
-               int(2*n_scalar_family,int64)
-          count_local(2) = count_local(2) + &
-               int(2*n_vector_family,int64)
-
-          deallocate(scalar_combined_observed)
-          deallocate(scalar_combined_original)
-          deallocate(scalar_family_observed)
-          deallocate(scalar_family_original)
-          deallocate(vector_combined_observed)
-          deallocate(vector_combined_original)
-          deallocate(vector_family_observed)
-          deallocate(vector_family_original)
-       end do
-    end do
-
-    call check_refreshed_block_stencil_consumers(.false.)
-
-    call MPI_Allreduce( &
-         count_local,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce boundary-family mutation values")
-
-    if (any(count_global <= 0_int64)) then
-       call fail("incomplete boundary-family mutation inventory")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Writable boundary-family accessors for rank ",rank,":"
-       write(6,'(a,i0)') &
-            "  scalar boundary values round-tripped = ", &
-            count_local(1)
-       write(6,'(a,i0)') &
-            "  vector boundary values round-tripped = ", &
-            count_local(2)
-       write(6,'(a,/)') &
-            "  independent sol/wav_coeff poison and restore passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,2(i0,1x))') &
-            "Global scalar/vector boundary values round-tripped = ", &
-            count_global
-       write(6,'(a,/)') &
-            "Writable sol/wav_coeff boundary-family accessors passed"
-    end if
-
-  end subroutine check_block_boundary_family_mutators
-
-
-  subroutine check_block_boundary_family_bulk_fill (verbose)
-    ! Snapshot every compact boundary, fill one complete payload family,
-    ! and prove exact family isolation and restoration over the store.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: b
-    integer :: boundary_index
-    integer :: catalog_index
-    integer :: ierr
-    integer :: n_boundary_record
-    integer :: record_index
-
-    integer(int64) :: count_global(2)
-    integer(int64) :: count_local(2)
-
-    logical :: print_summary
-
-    type(Block_Boundary_Snapshot), allocatable :: snapshot(:)
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_store_ready()) then
-       call fail("boundary-family bulk fill before block installation")
-    end if
-
-    n_boundary_record = 0
-    do b = 1, n_local_blocks()
-       catalog_index = local_block_catalog(b)
-       n_boundary_record = n_boundary_record + &
-            local_block_boundary_count(catalog_index)
-    end do
-
-    allocate(snapshot(n_boundary_record))
-    count_local = 0_int64
-    record_index = 0
-
-    do b = 1, n_local_blocks()
-       catalog_index = local_block_catalog(b)
-       do boundary_index = 1, &
-            local_block_boundary_count(catalog_index)
-          record_index = record_index + 1
-          snapshot(record_index)%catalog_index = catalog_index
-          snapshot(record_index)%boundary_index = boundary_index
-
-          allocate(snapshot(record_index)%scalar( &
-               local_block_scalar_boundary_nvalue( &
-               catalog_index,boundary_index)))
-          allocate(snapshot(record_index)%vector( &
-               local_block_vector_boundary_nvalue( &
-               catalog_index,boundary_index)))
-
-          call get_local_block_scalar_boundary_values( &
-               catalog_index,boundary_index, &
-               snapshot(record_index)%scalar)
-          call get_local_block_vector_boundary_values( &
-               catalog_index,boundary_index, &
-               snapshot(record_index)%vector)
-
-          count_local(1) = count_local(1) + &
-               int(size(snapshot(record_index)%scalar),int64)
-          count_local(2) = count_local(2) + &
-               int(size(snapshot(record_index)%vector),int64)
-       end do
-    end do
-
-    if (record_index /= n_boundary_record) then
-       call fail("boundary-family bulk snapshot count mismatch")
-    end if
-
-    call check_scalar_boundary_family_bulk_fill( &
-         snapshot,BLOCK_PAYLOAD_SOL)
-    call check_scalar_boundary_family_bulk_fill( &
-         snapshot,BLOCK_PAYLOAD_WAV_COEFF)
-    call check_vector_boundary_family_bulk_fill( &
-         snapshot,BLOCK_PAYLOAD_SOL)
-    call check_vector_boundary_family_bulk_fill( &
-         snapshot,BLOCK_PAYLOAD_WAV_COEFF)
-    call check_scalar_boundary_combined_bulk_fill(snapshot)
-    call check_vector_boundary_combined_bulk_fill(snapshot)
-
-    call check_refreshed_block_stencil_consumers(.false.)
-
-    call MPI_Allreduce( &
-         count_local,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce boundary-family bulk values")
-
-    if (any(count_global <= 0_int64)) then
-       call fail("incomplete boundary-family bulk-fill inventory")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Bulk boundary-family fill for rank ",rank,":"
-       write(6,'(a,i0)') &
-            "  scalar boundary values preserved = ",count_local(1)
-       write(6,'(a,i0)') &
-            "  vector boundary values preserved = ",count_local(2)
-       write(6,'(a)') &
-            "  whole-store sol/wav_coeff poison and restore passed"
-       write(6,'(a,/)') &
-            "  combined-family poison, isolation and restore passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,2(i0,1x))') &
-            "Global scalar/vector boundary values bulk-tested = ", &
-            count_global
-       write(6,'(a)') &
-            "Bulk sol/wav_coeff boundary-family fills passed"
-       write(6,'(a,/)') &
-            "Bulk combined scalar/vector boundary fills passed"
-    end if
-
-    deallocate(snapshot)
-
-  end subroutine check_block_boundary_family_bulk_fill
-
-
-  subroutine check_scalar_boundary_family_bulk_fill ( &
-       snapshot,payload_family)
-    ! Check one scalar whole-store fill and restore its saved family.
-
-    implicit none
-
-    type(Block_Boundary_Snapshot), intent(in) :: snapshot(:)
-    integer, intent(in) :: payload_family
-
-    integer :: i
-    integer :: n_family
-
-    real(dp), allocatable :: combined(:)
-    real(dp), allocatable :: family(:)
-
-    call fill_local_block_scalar_boundary_family_values( &
-         payload_family,BLOCK_BOUNDARY_POISON)
-
-    do i = 1, size(snapshot)
-       if (mod(size(snapshot(i)%scalar),2) /= 0 .or. &
-            size(snapshot(i)%scalar) <= 0) then
-          call fail("invalid scalar boundary bulk snapshot")
-       end if
-       n_family = size(snapshot(i)%scalar)/2
-       allocate(combined(2*n_family))
-       allocate(family(n_family))
-
-       call get_local_block_scalar_boundary_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            payload_family,family)
-       if (maxval(abs(family-BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
-          call fail("scalar boundary bulk poison failed")
-       end if
-
-       call get_local_block_scalar_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            combined)
-       select case (payload_family)
-       case (BLOCK_PAYLOAD_SOL)
-          if (maxval(abs(combined(n_family+1:2*n_family) - &
-               snapshot(i)%scalar(n_family+1:2*n_family))) > &
-               0.0_dp) then
-             call fail("scalar wav_coeff changed during bulk fill")
-          end if
-          family = snapshot(i)%scalar(1:n_family)
-       case (BLOCK_PAYLOAD_WAV_COEFF)
-          if (maxval(abs(combined(1:n_family) - &
-               snapshot(i)%scalar(1:n_family))) > 0.0_dp) then
-             call fail("scalar sol changed during bulk fill")
-          end if
-          family = snapshot(i)%scalar(n_family+1:2*n_family)
-       case default
-          call fail("invalid scalar boundary bulk family")
-       end select
-
-       call set_local_block_scalar_boundary_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            payload_family,family)
-       call get_local_block_scalar_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            combined)
-       if (maxval(abs(combined-snapshot(i)%scalar)) > 0.0_dp) then
-          call fail("scalar boundary bulk restore failed")
-       end if
-
-       deallocate(combined)
-       deallocate(family)
-    end do
-
-  end subroutine check_scalar_boundary_family_bulk_fill
-
-
-  subroutine check_vector_boundary_family_bulk_fill ( &
-       snapshot,payload_family)
-    ! Check one vector whole-store fill and restore its saved family.
-
-    implicit none
-
-    type(Block_Boundary_Snapshot), intent(in) :: snapshot(:)
-    integer, intent(in) :: payload_family
-
-    integer :: i
-    integer :: n_family
-
-    real(dp), allocatable :: combined(:)
-    real(dp), allocatable :: family(:)
-
-    call fill_local_block_vector_boundary_family_values( &
-         payload_family,BLOCK_BOUNDARY_POISON)
-
-    do i = 1, size(snapshot)
-       if (mod(size(snapshot(i)%vector),2) /= 0 .or. &
-            size(snapshot(i)%vector) <= 0) then
-          call fail("invalid vector boundary bulk snapshot")
-       end if
-       n_family = size(snapshot(i)%vector)/2
-       allocate(combined(2*n_family))
-       allocate(family(n_family))
-
-       call get_local_block_vector_boundary_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            payload_family,family)
-       if (maxval(abs(family-BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
-          call fail("vector boundary bulk poison failed")
-       end if
-
-       call get_local_block_vector_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            combined)
-       select case (payload_family)
-       case (BLOCK_PAYLOAD_SOL)
-          if (maxval(abs(combined(n_family+1:2*n_family) - &
-               snapshot(i)%vector(n_family+1:2*n_family))) > &
-               0.0_dp) then
-             call fail("vector wav_coeff changed during bulk fill")
-          end if
-          family = snapshot(i)%vector(1:n_family)
-       case (BLOCK_PAYLOAD_WAV_COEFF)
-          if (maxval(abs(combined(1:n_family) - &
-               snapshot(i)%vector(1:n_family))) > 0.0_dp) then
-             call fail("vector sol changed during bulk fill")
-          end if
-          family = snapshot(i)%vector(n_family+1:2*n_family)
-       case default
-          call fail("invalid vector boundary bulk family")
-       end select
-
-       call set_local_block_vector_boundary_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            payload_family,family)
-       call get_local_block_vector_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            combined)
-       if (maxval(abs(combined-snapshot(i)%vector)) > 0.0_dp) then
-          call fail("vector boundary bulk restore failed")
-       end if
-
-       deallocate(combined)
-       deallocate(family)
-    end do
-
-  end subroutine check_vector_boundary_family_bulk_fill
-
-
-  subroutine check_scalar_boundary_combined_bulk_fill (snapshot)
-    ! Check a combined scalar fill, vector isolation and family restore.
-
-    implicit none
-
-    type(Block_Boundary_Snapshot), intent(in) :: snapshot(:)
-
-    integer :: i
-    integer :: n_family
-
-    real(dp), allocatable :: combined(:)
-    real(dp), allocatable :: family(:)
-    real(dp), allocatable :: vector_observed(:)
-
-    call fill_local_block_scalar_boundary_values(BLOCK_BOUNDARY_POISON)
-
-    do i = 1, size(snapshot)
-       if (mod(size(snapshot(i)%scalar),2) /= 0 .or. &
-            size(snapshot(i)%scalar) <= 0 .or. &
-            size(snapshot(i)%vector) <= 0) then
-          call fail("invalid scalar combined boundary snapshot")
-       end if
-       n_family = size(snapshot(i)%scalar)/2
-       allocate(combined(2*n_family))
-       allocate(family(n_family))
-       allocate(vector_observed(size(snapshot(i)%vector)))
-
-       call get_local_block_scalar_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            combined)
-       if (maxval(abs(combined-BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
-          call fail("scalar combined boundary poison failed")
-       end if
-
-       call get_local_block_vector_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            vector_observed)
-       if (maxval(abs(vector_observed-snapshot(i)%vector)) > &
-            0.0_dp) then
-          call fail("vector boundary changed during scalar fill")
-       end if
-
-       family = snapshot(i)%scalar(1:n_family)
-       call set_local_block_scalar_boundary_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            BLOCK_PAYLOAD_SOL,family)
-       call get_local_block_scalar_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            combined)
-       if (maxval(abs(combined(1:n_family) - &
-            snapshot(i)%scalar(1:n_family))) > 0.0_dp) then
-          call fail("scalar sol combined boundary restore failed")
-       end if
-       if (maxval(abs(combined(n_family+1:2*n_family) - &
-            BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
-          call fail("scalar wav_coeff restored before installation")
-       end if
-
-       family = snapshot(i)%scalar(n_family+1:2*n_family)
-       call set_local_block_scalar_boundary_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            BLOCK_PAYLOAD_WAV_COEFF,family)
-       call get_local_block_scalar_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            combined)
-       if (maxval(abs(combined-snapshot(i)%scalar)) > 0.0_dp) then
-          call fail("scalar combined boundary restore failed")
-       end if
-
-       deallocate(combined)
-       deallocate(family)
-       deallocate(vector_observed)
-    end do
-
-  end subroutine check_scalar_boundary_combined_bulk_fill
-
-
-  subroutine check_vector_boundary_combined_bulk_fill (snapshot)
-    ! Check a combined vector fill, scalar isolation and family restore.
-
-    implicit none
-
-    type(Block_Boundary_Snapshot), intent(in) :: snapshot(:)
-
-    integer :: i
-    integer :: n_family
-
-    real(dp), allocatable :: combined(:)
-    real(dp), allocatable :: family(:)
-    real(dp), allocatable :: scalar_observed(:)
-
-    call fill_local_block_vector_boundary_values(BLOCK_BOUNDARY_POISON)
-
-    do i = 1, size(snapshot)
-       if (mod(size(snapshot(i)%vector),2) /= 0 .or. &
-            size(snapshot(i)%vector) <= 0 .or. &
-            size(snapshot(i)%scalar) <= 0) then
-          call fail("invalid vector combined boundary snapshot")
-       end if
-       n_family = size(snapshot(i)%vector)/2
-       allocate(combined(2*n_family))
-       allocate(family(n_family))
-       allocate(scalar_observed(size(snapshot(i)%scalar)))
-
-       call get_local_block_vector_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            combined)
-       if (maxval(abs(combined-BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
-          call fail("vector combined boundary poison failed")
-       end if
-
-       call get_local_block_scalar_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            scalar_observed)
-       if (maxval(abs(scalar_observed-snapshot(i)%scalar)) > &
-            0.0_dp) then
-          call fail("scalar boundary changed during vector fill")
-       end if
-
-       family = snapshot(i)%vector(1:n_family)
-       call set_local_block_vector_boundary_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            BLOCK_PAYLOAD_SOL,family)
-       call get_local_block_vector_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            combined)
-       if (maxval(abs(combined(1:n_family) - &
-            snapshot(i)%vector(1:n_family))) > 0.0_dp) then
-          call fail("vector sol combined boundary restore failed")
-       end if
-       if (maxval(abs(combined(n_family+1:2*n_family) - &
-            BLOCK_BOUNDARY_POISON)) > 0.0_dp) then
-          call fail("vector wav_coeff restored before installation")
-       end if
-
-       family = snapshot(i)%vector(n_family+1:2*n_family)
-       call set_local_block_vector_boundary_family_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            BLOCK_PAYLOAD_WAV_COEFF,family)
-       call get_local_block_vector_boundary_values( &
-            snapshot(i)%catalog_index,snapshot(i)%boundary_index, &
-            combined)
-       if (maxval(abs(combined-snapshot(i)%vector)) > 0.0_dp) then
-          call fail("vector combined boundary restore failed")
-       end if
-
-       deallocate(combined)
-       deallocate(family)
-       deallocate(scalar_observed)
-    end do
-
-  end subroutine check_vector_boundary_combined_bulk_fill
 
 
   subroutine check_local_blocks (verbose)
@@ -26479,1186 +23753,14 @@ end subroutine build_parallel_block_catalog
   end subroutine check_block_field_inventory
 
 
-  subroutine check_block_hydrostatic_state_accessors (verbose)
-    ! Verify patch and whole-block views of persistent thermodynamic
-    ! fields, dependency-selective invalidation and lazy cache refresh.
 
-    implicit none
 
-    logical, optional, intent(in) :: verbose
 
-    integer :: catalog_index
-    integer :: clean_catalog_index
-    integer :: column_base
-    integer :: column_nvalue
-    integer :: local_index
-    integer :: local_patch
-    integer :: n_patch
-    integer :: scalar_nvalue
-    integer :: surface_base
-    integer :: surface_nvalue
 
-    integer(int64) :: column_count_after
-    integer(int64) :: column_count_before
-    integer(int64) :: clean_refresh_before
-    integer(int64) :: dirty_refresh_before
-    integer(int64) :: refresh_count_before
-    integer(int64) :: refresh_count_expected
-    integer(int64) :: surface_count_after
-    integer(int64) :: surface_count_before
 
-    real(dp), allocatable :: air_temperature(:)
-    real(dp), allocatable :: dynamic_exner(:)
-    real(dp), allocatable :: scalar_snapshot(:)
-    real(dp), allocatable :: surface_pressure(:)
 
-    real(dp) :: air_temperature_patch(zlevels*PATCH_SIZE**2)
-    real(dp) :: dynamic_exner_patch(zlevels*PATCH_SIZE**2)
-    real(dp) :: surface_pressure_patch(PATCH_SIZE**2)
-    real(dp) :: exner_moment_after(3)
-    real(dp) :: exner_moment_before(3)
-    real(dp) :: surface_moment_after(3)
-    real(dp) :: surface_moment_before(3)
-    real(dp) :: temperature_moment_after(3)
-    real(dp) :: temperature_moment_before(3)
 
-    logical :: print_summary
 
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. compressible) then
-       if (print_summary) then
-          write(6,'(/,a,i0,a)') &
-               "Persistent hydrostatic accessors for rank ", rank, ":"
-          write(6,'(a,/)') &
-               "  skipped for incompressible configuration"
-       end if
-       return
-    end if
-
-    if (.not. local_block_hydrostatic_state_ready()) then
-       call fail("hydrostatic accessor check before state refresh")
-    end if
-
-    call local_block_hydrostatic_statistics( &
-         surface_count_before,column_count_before, &
-         surface_moment_before,exner_moment_before, &
-         temperature_moment_before)
-    refresh_count_before = local_block_hydrostatic_refresh_count()
-
-    do local_index = 1,n_local_blocks()
-       catalog_index = local_block_catalog(local_index)
-       n_patch = local_block_patch_count(catalog_index)
-       surface_nvalue = &
-            local_block_hydrostatic_surface_nvalue(catalog_index)
-       column_nvalue = &
-            local_block_hydrostatic_column_nvalue(catalog_index)
-
-       if (surface_nvalue /= n_patch*PATCH_SIZE**2 .or. &
-            column_nvalue /= n_patch*zlevels*PATCH_SIZE**2) then
-          call fail("whole-block hydrostatic extent mismatch")
-       end if
-
-       allocate(surface_pressure(surface_nvalue))
-       allocate(dynamic_exner(column_nvalue))
-       allocate(air_temperature(column_nvalue))
-
-       call get_local_block_hydrostatic_values( &
-            catalog_index,surface_pressure,dynamic_exner, &
-            air_temperature)
-
-       do local_patch = 0,n_patch-1
-          call get_local_block_hydrostatic_patch_values( &
-               catalog_index,local_patch,surface_pressure_patch, &
-               dynamic_exner_patch,air_temperature_patch)
-
-          surface_base = local_patch*PATCH_SIZE**2
-          column_base = local_patch*zlevels*PATCH_SIZE**2
-
-          if (any(abs(surface_pressure( &
-               surface_base+1:surface_base+PATCH_SIZE**2) - &
-               surface_pressure_patch) > 0.0_dp)) then
-             call fail("surface-pressure patch/block view mismatch")
-          end if
-          if (any(abs(dynamic_exner( &
-               column_base+1:column_base+zlevels*PATCH_SIZE**2) - &
-               dynamic_exner_patch) > 0.0_dp)) then
-             call fail("dynamic-Exner patch/block view mismatch")
-          end if
-          if (any(abs(air_temperature( &
-               column_base+1:column_base+zlevels*PATCH_SIZE**2) - &
-               air_temperature_patch) > 0.0_dp)) then
-             call fail("temperature patch/block view mismatch")
-          end if
-       end do
-
-       deallocate(surface_pressure)
-       deallocate(dynamic_exner)
-       deallocate(air_temperature)
-    end do
-
-    if (local_block_hydrostatic_refresh_count() /= &
-         refresh_count_before) then
-       call fail("read access caused redundant hydrostatic refresh")
-    end if
-
-    if (n_local_blocks() > 0) then
-       catalog_index = local_block_catalog(1)
-       surface_nvalue = &
-            local_block_hydrostatic_surface_nvalue(catalog_index)
-       column_nvalue = &
-            local_block_hydrostatic_column_nvalue(catalog_index)
-       dirty_refresh_before = &
-            local_block_hydrostatic_block_refresh_count(catalog_index)
-
-       allocate(surface_pressure(surface_nvalue))
-       allocate(dynamic_exner(column_nvalue))
-       allocate(air_temperature(column_nvalue))
-
-       clean_refresh_before = 0_int64
-       if (n_local_blocks() > 1) then
-          clean_catalog_index = local_block_catalog(2)
-          clean_refresh_before = &
-               local_block_hydrostatic_block_refresh_count( &
-               clean_catalog_index)
-       end if
-
-       scalar_nvalue = &
-            local_block_scalar_family_patch_nvalue(catalog_index)
-       allocate(scalar_snapshot(scalar_nvalue))
-
-       call get_local_block_scalar_patch_family_values( &
-            catalog_index,0,BLOCK_PAYLOAD_WAV_COEFF,scalar_snapshot)
-       call set_local_block_scalar_patch_family_values( &
-            catalog_index,0,BLOCK_PAYLOAD_WAV_COEFF,scalar_snapshot)
-
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("wavelet write invalidated hydrostatic state")
-       end if
-       if (local_block_hydrostatic_refresh_count() /= &
-            refresh_count_before) then
-          call fail("wavelet write refreshed hydrostatic state")
-       end if
-
-       call get_local_block_scalar_patch_family_values( &
-            catalog_index,0,BLOCK_PAYLOAD_SOL,scalar_snapshot)
-       call set_local_block_scalar_patch_family_values( &
-            catalog_index,0,BLOCK_PAYLOAD_SOL,scalar_snapshot)
-
-       if (local_block_hydrostatic_state_ready()) then
-          call fail("scalar sol write did not invalidate hydrostatic state")
-       end if
-       if (local_block_hydrostatic_refresh_count() /= &
-            refresh_count_before) then
-          call fail("scalar sol write eagerly refreshed hydrostatic state")
-       end if
-
-       if (n_local_blocks() > 1) then
-          surface_nvalue = &
-               local_block_hydrostatic_surface_nvalue( &
-               clean_catalog_index)
-          if (local_block_hydrostatic_state_ready()) then
-             call fail("clean-block access refreshed a dirty block")
-          end if
-          if (local_block_hydrostatic_refresh_count() /= &
-               refresh_count_before) then
-             call fail("clean-block access changed global refresh count")
-          end if
-          if (local_block_hydrostatic_block_refresh_count( &
-               clean_catalog_index) /= clean_refresh_before) then
-             call fail("clean block was redundantly refreshed")
-          end if
-       end if
-
-       call get_local_block_hydrostatic_values( &
-            catalog_index,surface_pressure,dynamic_exner, &
-            air_temperature)
-
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("dirty-block access did not restore cache readiness")
-       end if
-       if (local_block_hydrostatic_block_refresh_count(catalog_index) /= &
-            dirty_refresh_before+1_int64) then
-          call fail("dirty block refresh count mismatch")
-       end if
-       if (n_local_blocks() > 1) then
-          if (local_block_hydrostatic_block_refresh_count( &
-               clean_catalog_index) /= clean_refresh_before) then
-             call fail("dirty-block access refreshed a clean block")
-          end if
-       end if
-
-       deallocate(scalar_snapshot)
-       deallocate(surface_pressure)
-       deallocate(dynamic_exner)
-       deallocate(air_temperature)
-    end if
-
-    ! A whole-store consumer must not refresh blocks already made current.
-    call local_block_hydrostatic_statistics( &
-         surface_count_after,column_count_after, &
-         surface_moment_after,exner_moment_after, &
-         temperature_moment_after)
-
-    refresh_count_expected = refresh_count_before
-    if (n_local_blocks() > 0) then
-       refresh_count_expected = refresh_count_expected + 1_int64
-    end if
-
-    if (.not. local_block_hydrostatic_state_ready()) then
-       call fail("hydrostatic state not ready after lazy refresh")
-    end if
-    if (local_block_hydrostatic_refresh_count() /= &
-         refresh_count_expected) then
-       call fail("lazy hydrostatic refresh count mismatch")
-    end if
-
-    call ensure_local_block_hydrostatic_state
-    if (local_block_hydrostatic_refresh_count() /= &
-         refresh_count_expected) then
-       call fail("redundant hydrostatic refresh was not suppressed")
-    end if
-
-    if (surface_count_after /= surface_count_before .or. &
-         column_count_after /= column_count_before) then
-       call fail("hydrostatic refresh changed local value counts")
-    end if
-    if (.not. field_moments_match( &
-         surface_moment_after,surface_moment_before, &
-         surface_count_before)) then
-       call fail("hydrostatic refresh changed surface-pressure values")
-    end if
-    if (.not. field_moments_match( &
-         exner_moment_after,exner_moment_before,column_count_before)) then
-       call fail("hydrostatic refresh changed dynamic Exner values")
-    end if
-    if (.not. field_moments_match( &
-         temperature_moment_after,temperature_moment_before, &
-         column_count_before)) then
-       call fail("hydrostatic refresh changed temperature values")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Persistent hydrostatic accessors for rank ", rank, ":"
-       write(6,'(a)') &
-            "  exact patch/whole-block layout checks passed"
-       write(6,'(a)') &
-            "  wavelet-independent cache retention checks passed"
-       write(6,'(a)') &
-            "  selective dirty-block refresh checks passed"
-       write(6,'(a,/)') &
-            "  per-block lazy cache coherence checks passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,/)') &
-            "Selective per-block thermodynamic caches passed"
-    end if
-
-  end subroutine check_block_hydrostatic_state_accessors
-
-
-  subroutine accumulate_block_field_consumer (catalog_index,block,context)
-    ! Production prognostic-field kernel. Consume the complete read-only
-    ! block view, validate its topology/storage contract and accumulate
-    ! interior field inventories without accessor copies. For compressible
-    ! cases, also diagnose surface pressure directly from mass fields.
-
-    implicit none
-
-    integer, intent(in) :: catalog_index
-    type(Block_Data), intent(in) :: block
-    class(*), intent(inout) :: context
-
-    integer :: expected_scalar
-    integer :: expected_vector
-    integer :: i
-    integer :: k
-    integer :: mass_index
-    integer :: mass_slot
-    integer :: n_node
-    integer :: scalar_variable_size
-    integer :: temperature_slot
-
-    real(dp) :: pressure
-    real(dp) :: rho_dz
-
-    if (catalog_index < 1) then
-       call fail("field consumer received invalid catalogue index")
-    end if
-    if (.not. allocated(block%patch) .or. &
-         .not. allocated(block%node) .or. &
-         .not. allocated(block%bdry_node) .or. &
-         .not. allocated(block%ghost_node) .or. &
-         .not. allocated(block%stencil) .or. &
-         .not. allocated(block%block_bdry) .or. &
-         .not. allocated(block%bdry_storage) .or. &
-         .not. allocated(block%ghost_storage)) then
-       call fail("field consumer received incomplete topology")
-    end if
-
-    n_node = size(block%node)
-    if (n_node /= size(block%patch)*PATCH_SIZE**2 .or. &
-         size(block%stencil,1) /= N_BDRY .or. &
-         size(block%stencil,2) /= size(block%patch)) then
-       call fail("field consumer received invalid patch topology")
-    end if
-    if (sum(block%bdry_storage%n_node) /= size(block%bdry_node) .or. &
-         sum(block%ghost_storage%n_node) /= size(block%ghost_node)) then
-       call fail("field consumer received invalid compact topology")
-    end if
-
-    expected_scalar = block%n_scalar_variable*block%n_field_level* &
-         block%scalar_mult*n_node
-    expected_vector = block%n_field_level*block%vector_mult*n_node
-
-    if (size(block%scalar) /= expected_scalar .or. &
-         size(block%scalar_mean) /= expected_scalar .or. &
-         size(block%wavelet_scalar) /= expected_scalar .or. &
-         size(block%vector) /= expected_vector .or. &
-         size(block%vector_mean) /= expected_vector .or. &
-         size(block%wavelet_vector) /= expected_vector) then
-       call fail("field consumer received invalid interior fields")
-    end if
-
-    expected_scalar = block%n_scalar_variable*block%n_field_level* &
-         block%scalar_mult*size(block%bdry_node)
-    expected_vector = block%n_field_level*block%vector_mult* &
-         size(block%bdry_node)
-    if (size(block%bdry_scalar) /= expected_scalar .or. &
-         size(block%bdry_scalar_mean) /= expected_scalar .or. &
-         size(block%bdry_wavelet_scalar) /= expected_scalar .or. &
-         size(block%bdry_vector) /= expected_vector .or. &
-         size(block%bdry_vector_mean) /= expected_vector .or. &
-         size(block%bdry_wavelet_vector) /= expected_vector) then
-       call fail("field consumer received invalid boundary fields")
-    end if
-
-    expected_scalar = block%n_scalar_variable*block%n_field_level* &
-         block%scalar_mult*size(block%ghost_node)
-    expected_vector = block%n_field_level*block%vector_mult* &
-         size(block%ghost_node)
-    if (size(block%ghost_scalar) /= expected_scalar .or. &
-         size(block%ghost_scalar_mean) /= expected_scalar .or. &
-         size(block%ghost_wavelet_scalar) /= expected_scalar .or. &
-         size(block%ghost_vector) /= expected_vector .or. &
-         size(block%ghost_vector_mean) /= expected_vector .or. &
-         size(block%ghost_wavelet_vector) /= expected_vector) then
-       call fail("field consumer received invalid ghost fields")
-    end if
-
-    select type (statistics => context)
-    type is (Block_Field_Traversal_Context)
-       statistics%block_count = statistics%block_count + 1_int64
-       statistics%patch_count = statistics%patch_count + &
-            int(size(block%patch),int64)
-       statistics%boundary_count = statistics%boundary_count + &
-            int(size(block%bdry_storage),int64)
-       statistics%ghost_count = statistics%ghost_count + &
-            int(size(block%ghost_storage),int64)
-       statistics%node_count = statistics%node_count + int(n_node,int64)
-       statistics%boundary_node_count = &
-            statistics%boundary_node_count + &
-            int(size(block%bdry_node),int64)
-       statistics%ghost_node_count = statistics%ghost_node_count + &
-            int(size(block%ghost_node),int64)
-
-       statistics%scalar_count = statistics%scalar_count + &
-            int(size(block%scalar),int64)
-       statistics%vector_count = statistics%vector_count + &
-            int(size(block%vector),int64)
-
-       statistics%scalar_moment(:,1) = &
-            statistics%scalar_moment(:,1) + [ &
-            sum(block%scalar),sum(abs(block%scalar)), &
-            sum(block%scalar**2) ]
-       statistics%scalar_moment(:,2) = &
-            statistics%scalar_moment(:,2) + [ &
-            sum(block%scalar_mean),sum(abs(block%scalar_mean)), &
-            sum(block%scalar_mean**2) ]
-       statistics%scalar_moment(:,3) = &
-            statistics%scalar_moment(:,3) + [ &
-            sum(block%wavelet_scalar), &
-            sum(abs(block%wavelet_scalar)), &
-            sum(block%wavelet_scalar**2) ]
-
-       statistics%vector_moment(:,1) = &
-            statistics%vector_moment(:,1) + [ &
-            sum(block%vector),sum(abs(block%vector)), &
-            sum(block%vector**2) ]
-       statistics%vector_moment(:,2) = &
-            statistics%vector_moment(:,2) + [ &
-            sum(block%vector_mean),sum(abs(block%vector_mean)), &
-            sum(block%vector_mean**2) ]
-       statistics%vector_moment(:,3) = &
-            statistics%vector_moment(:,3) + [ &
-            sum(block%wavelet_vector), &
-            sum(abs(block%wavelet_vector)), &
-            sum(block%wavelet_vector**2) ]
-
-       if (compressible) then
-          if (block%scalar_mult /= 1 .or. &
-               block%field_level > 1 .or. &
-               block%field_level+block%n_field_level-1 < zlevels) then
-             call fail("field consumer cannot diagnose surface pressure")
-          end if
-
-          mass_slot = S_MASS - block%scalar_variable
-          temperature_slot = S_TEMP - block%scalar_variable
-          if (mass_slot < 0 .or. &
-               mass_slot >= block%n_scalar_variable .or. &
-               temperature_slot < 0 .or. &
-               temperature_slot >= block%n_scalar_variable) then
-             call fail("field consumer lacks thermodynamic variables")
-          end if
-
-          scalar_variable_size = block%n_field_level*n_node
-          do i = 1,n_node
-             pressure = p_top
-             do k = 1,zlevels
-                mass_index = mass_slot*scalar_variable_size + &
-                     (k-block%field_level)*n_node + i
-                rho_dz = block%scalar(mass_index) + &
-                     block%scalar_mean(mass_index)
-                if (rho_dz <= 0.0_dp) then
-                   call fail("field consumer diagnosed nonpositive mass")
-                end if
-                pressure = pressure + grav_accel*rho_dz
-             end do
-
-             statistics%surface_count = &
-                  statistics%surface_count + 1_int64
-             statistics%surface_moment(1) = &
-                  statistics%surface_moment(1) + pressure
-             statistics%surface_moment(2) = &
-                  statistics%surface_moment(2) + abs(pressure)
-             statistics%surface_moment(3) = &
-                  statistics%surface_moment(3) + pressure**2
-          end do
-       end if
-    class default
-       call fail("field consumer received invalid context")
-    end select
-
-  end subroutine accumulate_block_field_consumer
-
-
-  subroutine check_block_field_consumer (verbose)
-    ! Exercise the generalized production traversal, compare direct field
-    ! inventories with established consumers and validate the first compact
-    ! prognostic-to-surface-pressure diagnostic in shadow mode.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: catalog_index
-    integer :: local_index
-
-    integer(int64) :: expected_boundary_count
-    integer(int64) :: expected_ghost_count
-    integer(int64) :: expected_patch_count
-    integer(int64) :: column_count
-    integer(int64) :: field_count(2)
-    integer(int64) :: mean_count(2)
-    integer(int64) :: refresh_count_before
-    integer(int64) :: surface_count
-    integer(int64) :: wavelet_count(2)
-
-    real(dp) :: column_moment(3)
-    real(dp) :: field_moment(3,2)
-    real(dp) :: mean_moment(3,2)
-    real(dp) :: surface_moment(3)
-    real(dp) :: temperature_moment(3)
-    real(dp) :: wavelet_moment(3,2)
-
-    logical :: print_summary
-
-    type(Block_Field_Traversal_Context) :: statistics
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
-    call local_block_mean_field_statistics( &
-         mean_count(1),mean_count(2), &
-         mean_moment(:,1),mean_moment(:,2))
-    call local_block_wavelet_statistics( &
-         wavelet_count(1),wavelet_count(2), &
-         wavelet_moment(:,1),wavelet_moment(:,2))
-
-    surface_count = 0_int64
-    surface_moment = 0.0_dp
-    if (compressible) then
-       call local_block_hydrostatic_statistics( &
-            surface_count,column_count,surface_moment, &
-            column_moment,temperature_moment)
-    end if
-
-    refresh_count_before = local_block_hydrostatic_refresh_count()
-    statistics = Block_Field_Traversal_Context()
-    call apply_local_block_field_consumer( &
-         accumulate_block_field_consumer,statistics)
-
-    if (local_block_hydrostatic_refresh_count() /= &
-         refresh_count_before) then
-       call fail("production field consumer refreshed hydrostatic cache")
-    end if
-
-    expected_patch_count = 0_int64
-    expected_boundary_count = 0_int64
-    expected_ghost_count = 0_int64
-    do local_index = 1,n_local_blocks()
-       catalog_index = local_block_catalog(local_index)
-       expected_patch_count = expected_patch_count + &
-            int(local_block_patch_count(catalog_index),int64)
-       expected_boundary_count = expected_boundary_count + &
-            int(local_block_boundary_count(catalog_index),int64)
-       expected_ghost_count = expected_ghost_count + &
-            int(local_block_ghost_count(catalog_index),int64)
-    end do
-
-    if (statistics%block_count /= int(n_local_blocks(),int64) .or. &
-         statistics%patch_count /= expected_patch_count .or. &
-         statistics%boundary_count /= expected_boundary_count .or. &
-         statistics%ghost_count /= expected_ghost_count .or. &
-         statistics%node_count /= expected_patch_count*PATCH_SIZE**2) then
-       call fail("production field consumer topology mismatch")
-    end if
-
-    if (statistics%scalar_count(1) /= field_count(1) .or. &
-         statistics%scalar_count(2) /= mean_count(1) .or. &
-         statistics%scalar_count(3) /= wavelet_count(1) .or. &
-         statistics%vector_count(1) /= field_count(2) .or. &
-         statistics%vector_count(2) /= mean_count(2) .or. &
-         statistics%vector_count(3) /= wavelet_count(2)) then
-       call fail("production field consumer inventory count mismatch")
-    end if
-
-    if (.not. field_moments_match( &
-         statistics%scalar_moment(:,1),field_moment(:,1), &
-         field_count(1)) .or. &
-         .not. field_moments_match( &
-         statistics%scalar_moment(:,2),mean_moment(:,1), &
-         mean_count(1)) .or. &
-         .not. field_moments_match( &
-         statistics%scalar_moment(:,3),wavelet_moment(:,1), &
-         wavelet_count(1)) .or. &
-         .not. field_moments_match( &
-         statistics%vector_moment(:,1),field_moment(:,2), &
-         field_count(2)) .or. &
-         .not. field_moments_match( &
-         statistics%vector_moment(:,2),mean_moment(:,2), &
-         mean_count(2)) .or. &
-         .not. field_moments_match( &
-         statistics%vector_moment(:,3),wavelet_moment(:,2), &
-         wavelet_count(2))) then
-       call fail("production field consumer inventory moment mismatch")
-    end if
-
-    if (compressible) then
-       if (statistics%surface_count /= surface_count) then
-          call fail("production surface-pressure count mismatch")
-       end if
-       if (column_count /= int(zlevels,int64)*surface_count) then
-          call fail("production hydrostatic column count mismatch")
-       end if
-       if (.not. field_moments_match( &
-            statistics%surface_moment,surface_moment,surface_count)) then
-          call fail("production surface-pressure diagnostic mismatch")
-       end if
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Block prognostic traversal for rank ", rank, ":"
-       write(6,'(a,i0)') &
-            "  local blocks consumed       = ", statistics%block_count
-       write(6,'(a,i0)') &
-            "  local patches consumed      = ", statistics%patch_count
-       write(6,'(a,i0)') &
-            "  local boundary records seen = ", statistics%boundary_count
-       write(6,'(a,i0)') &
-            "  local ghost records seen    = ", statistics%ghost_count
-       write(6,'(a)') &
-            "  direct sol/sol_mean/wav_coeff traversal passed"
-       write(6,'(a)') &
-            "  topology and boundary/ghost views passed"
-       if (compressible) then
-          write(6,'(a,/)') &
-               "  prognostic surface-pressure shadow kernel passed"
-       end if
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,/)') &
-            "Production block prognostic-field traversal passed"
-    end if
-
-  end subroutine check_block_field_consumer
-
-
-  subroutine accumulate_block_stencil_kernel (catalog_index,block,context)
-    ! Read the sol family through every compact stencil address and form
-    ! neighbour-value and neighbour-minus-centre diagnostics. Boundary and
-    ! ghost addresses use the same topology that production dynamics sees.
-
-    implicit none
-
-    integer, intent(in) :: catalog_index
-    type(Block_Data), intent(in) :: block
-    class(*), intent(inout) :: context
-
-    integer :: address_offset
-    integer :: center_base
-    integer :: center_index
-    integer :: center_node
-    integer :: component_slot
-    integer :: field_base
-    integer :: field_index
-    integer :: level_slot
-    integer :: n_storage_node
-    integer :: node_index
-    integer :: p
-    integer :: q
-    integer :: record
-    integer :: scalar_slot
-    integer :: side
-    integer :: storage_class
-    integer :: storage_start
-
-    real(dp) :: center_value
-    real(dp) :: difference
-    real(dp) :: value
-
-    if (catalog_index < 1) then
-       call fail("stencil kernel received invalid catalogue index")
-    end if
-    if (block%scalar_mult /= 1 .or. block%vector_mult < 1) then
-       call fail("stencil kernel received invalid field multipliers")
-    end if
-    if (size(block%stencil,1) /= N_BDRY .or. &
-         size(block%stencil,2) /= size(block%patch)) then
-       call fail("stencil kernel received invalid topology")
-    end if
-
-    select type (statistics => context)
-    type is (Block_Stencil_Kernel_Context)
-       statistics%block_count = statistics%block_count + 1_int64
-
-       do p = 1,size(block%patch)
-          do side = 1,N_BDRY
-             storage_class = block%stencil(side,p)%storage
-             record = block%stencil(side,p)%id
-             address_offset = block%stencil(side,p)%offset
-             storage_start = 0
-             n_storage_node = 0
-
-             select case (storage_class)
-             case (STORE_PATCH)
-                if (record < 0 .or. record >= size(block%patch)) then
-                   call fail("stencil kernel received invalid patch address")
-                end if
-                storage_start = block%patch(record+1)%elts_start
-                n_storage_node = PATCH_SIZE**2
-             case (STORE_BDRY)
-                if (record < 1 .or. &
-                     record > size(block%bdry_storage)) then
-                   call fail( &
-                        "stencil kernel received invalid boundary address")
-                end if
-                storage_start = block%bdry_storage(record)%local_start
-                n_storage_node = block%bdry_storage(record)%n_node
-             case (STORE_GHOST)
-                if (record < 1 .or. &
-                     record > size(block%ghost_storage)) then
-                   call fail( &
-                        "stencil kernel received invalid ghost address")
-                end if
-                storage_start = block%ghost_storage(record)%local_start
-                n_storage_node = block%ghost_storage(record)%n_node
-             case default
-                call fail("stencil kernel received invalid storage class")
-             end select
-
-             do q = 0,PATCH_SIZE**2-1
-                if (address_offset+q < 0 .or. &
-                     address_offset+q >= n_storage_node) cycle
-
-                node_index = storage_start + address_offset + q
-                center_node = block%patch(p)%elts_start + q
-                if (center_node < 0 .or. &
-                     center_node >= size(block%node)) then
-                   call fail("stencil kernel received invalid centre node")
-                end if
-
-                select case (storage_class)
-                case (STORE_PATCH)
-                   if (node_index < 0 .or. &
-                        node_index >= size(block%node)) then
-                      call fail("stencil kernel patch node is invalid")
-                   end if
-                case (STORE_BDRY)
-                   if (node_index < 0 .or. &
-                        node_index >= size(block%bdry_node)) then
-                      call fail("stencil kernel boundary node is invalid")
-                   end if
-                case (STORE_GHOST)
-                   if (node_index < 0 .or. &
-                        node_index >= size(block%ghost_node)) then
-                      call fail("stencil kernel ghost node is invalid")
-                   end if
-                end select
-
-                statistics%address_count(storage_class) = &
-                     statistics%address_count(storage_class) + 1_int64
-
-                do scalar_slot = 1,block%n_scalar_variable
-                   do level_slot = 1,block%n_field_level
-                      center_base = &
-                           ((scalar_slot-1)*block%n_field_level + &
-                           level_slot-1)*size(block%node)
-                      center_index = center_base + center_node + 1
-                      center_value = block%scalar(center_index)
-                      value = 0.0_dp
-
-                      select case (storage_class)
-                      case (STORE_PATCH)
-                         field_base = center_base
-                         field_index = field_base + node_index + 1
-                         value = block%scalar(field_index)
-                      case (STORE_BDRY)
-                         field_base = &
-                              ((scalar_slot-1)*block%n_field_level + &
-                              level_slot-1)*size(block%bdry_node)
-                         field_index = field_base + node_index + 1
-                         value = block%bdry_scalar(field_index)
-                      case (STORE_GHOST)
-                         field_base = &
-                              ((scalar_slot-1)*block%n_field_level + &
-                              level_slot-1)*size(block%ghost_node)
-                         field_index = field_base + node_index + 1
-                         value = block%ghost_scalar(field_index)
-                      end select
-
-                      difference = value-center_value
-                      statistics%scalar_count = &
-                           statistics%scalar_count + 1_int64
-                      statistics%scalar_moment = &
-                           statistics%scalar_moment + &
-                           [value,abs(value),value**2]
-                      statistics%scalar_difference_moment = &
-                           statistics%scalar_difference_moment + &
-                           [difference,abs(difference),difference**2]
-                   end do
-                end do
-
-                do level_slot = 1,block%n_field_level
-                   do component_slot = 1,block%vector_mult
-                      center_base = (level_slot-1)* &
-                           block%vector_mult*size(block%node)
-                      center_index = center_base + &
-                           block%vector_mult*center_node + component_slot
-                      center_value = block%vector(center_index)
-                      value = 0.0_dp
-
-                      select case (storage_class)
-                      case (STORE_PATCH)
-                         field_base = center_base
-                         field_index = field_base + &
-                              block%vector_mult*node_index + &
-                              component_slot
-                         value = block%vector(field_index)
-                      case (STORE_BDRY)
-                         field_base = (level_slot-1)* &
-                              block%vector_mult*size(block%bdry_node)
-                         field_index = field_base + &
-                              block%vector_mult*node_index + &
-                              component_slot
-                         value = block%bdry_vector(field_index)
-                      case (STORE_GHOST)
-                         field_base = (level_slot-1)* &
-                              block%vector_mult*size(block%ghost_node)
-                         field_index = field_base + &
-                              block%vector_mult*node_index + &
-                              component_slot
-                         value = block%ghost_vector(field_index)
-                      end select
-
-                      difference = value-center_value
-                      statistics%vector_count = &
-                           statistics%vector_count + 1_int64
-                      statistics%vector_moment = &
-                           statistics%vector_moment + &
-                           [value,abs(value),value**2]
-                      statistics%vector_difference_moment = &
-                           statistics%vector_difference_moment + &
-                           [difference,abs(difference),difference**2]
-                   end do
-                end do
-             end do
-          end do
-       end do
-    class default
-       call fail("stencil kernel received invalid context")
-    end select
-
-  end subroutine accumulate_block_stencil_kernel
-
-
-  subroutine check_block_stencil_kernel (verbose)
-    ! Refresh production sol ghosts and validate a stencil-dependent block
-    ! kernel after migration staging has been released. A second refresh
-    ! must reproduce the complete neighbour-difference diagnostic.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: count_global(5)
-    integer(int64) :: count_local(5)
-    integer(int64) :: refresh_count_before
-    integer(int64) :: scalar_address_count(3)
-    integer(int64) :: scalar_value_count
-    integer(int64) :: vector_address_count(3)
-    integer(int64) :: vector_value_count
-
-    real(dp) :: scalar_value_moment(3,3)
-    real(dp) :: vector_value_moment(3,3)
-
-    logical :: print_summary
-
-    type(Block_Stencil_Kernel_Context) :: first
-    type(Block_Stencil_Kernel_Context) :: second
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    refresh_count_before = local_block_hydrostatic_refresh_count()
-
-    call refresh_block_sol_ghosts
-    first = Block_Stencil_Kernel_Context()
-    call apply_local_block_field_consumer( &
-         accumulate_block_stencil_kernel,first)
-
-    call local_block_scalar_stencil_statistics( &
-         scalar_address_count,scalar_value_count,scalar_value_moment)
-    call local_block_vector_stencil_statistics( &
-         vector_address_count,vector_value_count,vector_value_moment)
-
-    if (first%block_count /= int(n_local_blocks(),int64)) then
-       call fail("production stencil kernel block-count mismatch")
-    end if
-    if (any(first%address_count /= scalar_address_count) .or. &
-         any(first%address_count /= vector_address_count)) then
-       call fail("production stencil kernel address mismatch")
-    end if
-    if (first%scalar_count /= scalar_value_count .or. &
-         first%vector_count /= vector_value_count) then
-       call fail("production stencil kernel value-count mismatch")
-    end if
-    if (.not. field_moments_match( &
-         first%scalar_moment,scalar_value_moment(:,1), &
-         scalar_value_count) .or. &
-         .not. field_moments_match( &
-         first%vector_moment,vector_value_moment(:,1), &
-         vector_value_count)) then
-       call fail("production stencil kernel sol moment mismatch")
-    end if
-
-    call refresh_block_sol_ghosts
-    second = Block_Stencil_Kernel_Context()
-    call apply_local_block_field_consumer( &
-         accumulate_block_stencil_kernel,second)
-
-    if (second%block_count /= first%block_count .or. &
-         any(second%address_count /= first%address_count) .or. &
-         second%scalar_count /= first%scalar_count .or. &
-         second%vector_count /= first%vector_count) then
-       call fail("repeated production stencil traversal changed counts")
-    end if
-    if (.not. field_moments_match( &
-         second%scalar_moment,first%scalar_moment, &
-         first%scalar_count) .or. &
-         .not. field_moments_match( &
-         second%vector_moment,first%vector_moment, &
-         first%vector_count) .or. &
-         .not. field_moments_match( &
-         second%scalar_difference_moment, &
-         first%scalar_difference_moment,first%scalar_count) .or. &
-         .not. field_moments_match( &
-         second%vector_difference_moment, &
-         first%vector_difference_moment,first%vector_count)) then
-       call fail("repeated production stencil diagnostic changed")
-    end if
-
-    if (local_block_hydrostatic_refresh_count() /= &
-         refresh_count_before) then
-       call fail("production stencil kernel refreshed hydrostatic cache")
-    end if
-
-    count_local(1:3) = first%address_count
-    count_local(4) = first%scalar_count
-    count_local(5) = first%vector_count
-    call MPI_Allreduce( &
-         count_local,count_global,5,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce production stencil counts")
-
-    if (any(count_global <= 0_int64)) then
-       call fail("production stencil kernel global inventory incomplete")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Production sol stencil kernel for rank ",rank,":"
-       write(6,'(a,3(i0,1x))') &
-            "  patch/boundary/ghost addresses = ",first%address_count
-       write(6,'(a,i0)') &
-            "  scalar neighbour samples       = ",first%scalar_count
-       write(6,'(a,i0)') &
-            "  vector neighbour samples       = ",first%vector_count
-       write(6,'(a)') &
-            "  direct neighbour-value moments passed"
-       write(6,'(a)') &
-            "  neighbour-minus-centre diagnostics passed"
-       write(6,'(a,/)') &
-            "  repeated sol ghost refresh is stencil-stable"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,3(i0,1x))') &
-            "Global production patch/boundary/ghost addresses = ", &
-            count_global(1:3)
-       write(6,'(a,i0)') &
-            "Global production scalar neighbour samples = ", &
-            count_global(4)
-       write(6,'(a,i0)') &
-            "Global production vector neighbour samples = ", &
-            count_global(5)
-       write(6,'(a,/)') &
-            "Production block sol stencil kernel passed"
-    end if
-
-  end subroutine check_block_stencil_kernel
-
-
-  subroutine accumulate_block_tendency_kernel ( &
-       catalog_index,block,scalar_tendency,vector_tendency,context)
-    ! Write neighbour-minus-centre sol differences into persistent interior
-    ! scalar/vector tendency arrays using compact patch, boundary and ghost
-    ! stencil addresses.
-
-    implicit none
-
-    integer, intent(in) :: catalog_index
-    type(Block_Data), intent(in) :: block
-    real(dp), intent(inout) :: scalar_tendency(:)
-    real(dp), intent(inout) :: vector_tendency(:)
-    class(*), intent(inout) :: context
-
-    integer :: address_offset
-    integer :: center_base
-    integer :: center_index
-    integer :: center_node
-    integer :: component_slot
-    integer :: field_base
-    integer :: field_index
-    integer :: level_slot
-    integer :: n_storage_node
-    integer :: node_index
-    integer :: p
-    integer :: q
-    integer :: record
-    integer :: scalar_slot
-    integer :: side
-    integer :: storage_class
-    integer :: storage_start
-
-    real(dp) :: center_value
-    real(dp) :: difference
-    real(dp) :: value
-
-    if (catalog_index < 1) then
-       call fail("tendency kernel received invalid catalogue index")
-    end if
-    if (size(scalar_tendency) /= size(block%scalar) .or. &
-         size(vector_tendency) /= size(block%vector)) then
-       call fail("tendency kernel received invalid output extents")
-    end if
-    if (block%scalar_mult /= 1 .or. block%vector_mult < 1) then
-       call fail("tendency kernel received invalid field multipliers")
-    end if
-    if (size(block%stencil,1) /= N_BDRY .or. &
-         size(block%stencil,2) /= size(block%patch)) then
-       call fail("tendency kernel received invalid topology")
-    end if
-
-    select type (statistics => context)
-    type is (Block_Stencil_Kernel_Context)
-       statistics%block_count = statistics%block_count + 1_int64
-
-       do p = 1,size(block%patch)
-          do side = 1,N_BDRY
-             storage_class = block%stencil(side,p)%storage
-             record = block%stencil(side,p)%id
-             address_offset = block%stencil(side,p)%offset
-             storage_start = 0
-             n_storage_node = 0
-
-             select case (storage_class)
-             case (STORE_PATCH)
-                if (record < 0 .or. record >= size(block%patch)) then
-                   call fail("tendency kernel received invalid patch address")
-                end if
-                storage_start = block%patch(record+1)%elts_start
-                n_storage_node = PATCH_SIZE**2
-             case (STORE_BDRY)
-                if (record < 1 .or. &
-                     record > size(block%bdry_storage)) then
-                   call fail( &
-                        "tendency kernel received invalid boundary address")
-                end if
-                storage_start = block%bdry_storage(record)%local_start
-                n_storage_node = block%bdry_storage(record)%n_node
-             case (STORE_GHOST)
-                if (record < 1 .or. &
-                     record > size(block%ghost_storage)) then
-                   call fail( &
-                        "tendency kernel received invalid ghost address")
-                end if
-                storage_start = block%ghost_storage(record)%local_start
-                n_storage_node = block%ghost_storage(record)%n_node
-             case default
-                call fail("tendency kernel received invalid storage class")
-             end select
-
-             do q = 0,PATCH_SIZE**2-1
-                if (address_offset+q < 0 .or. &
-                     address_offset+q >= n_storage_node) cycle
-
-                node_index = storage_start + address_offset + q
-                center_node = block%patch(p)%elts_start + q
-
-                if (center_node < 0 .or. &
-                     center_node >= size(block%node)) then
-                   call fail("tendency kernel received invalid centre node")
-                end if
-                select case (storage_class)
-                case (STORE_PATCH)
-                   if (node_index < 0 .or. &
-                        node_index >= size(block%node)) then
-                      call fail("tendency kernel patch node is invalid")
-                   end if
-                case (STORE_BDRY)
-                   if (node_index < 0 .or. &
-                        node_index >= size(block%bdry_node)) then
-                      call fail("tendency kernel boundary node is invalid")
-                   end if
-                case (STORE_GHOST)
-                   if (node_index < 0 .or. &
-                        node_index >= size(block%ghost_node)) then
-                      call fail("tendency kernel ghost node is invalid")
-                   end if
-                end select
-
-                statistics%address_count(storage_class) = &
-                     statistics%address_count(storage_class) + 1_int64
-
-                do scalar_slot = 1,block%n_scalar_variable
-                   do level_slot = 1,block%n_field_level
-                      center_base = &
-                           ((scalar_slot-1)*block%n_field_level + &
-                           level_slot-1)*size(block%node)
-                      center_index = center_base + center_node + 1
-                      center_value = block%scalar(center_index)
-                      value = 0.0_dp
-
-                      select case (storage_class)
-                      case (STORE_PATCH)
-                         field_base = center_base
-                         field_index = field_base + node_index + 1
-                         value = block%scalar(field_index)
-                      case (STORE_BDRY)
-                         field_base = &
-                              ((scalar_slot-1)*block%n_field_level + &
-                              level_slot-1)*size(block%bdry_node)
-                         field_index = field_base + node_index + 1
-                         value = block%bdry_scalar(field_index)
-                      case (STORE_GHOST)
-                         field_base = &
-                              ((scalar_slot-1)*block%n_field_level + &
-                              level_slot-1)*size(block%ghost_node)
-                         field_index = field_base + node_index + 1
-                         value = block%ghost_scalar(field_index)
-                      end select
-
-                      difference = value-center_value
-                      scalar_tendency(center_index) = &
-                           scalar_tendency(center_index) + difference
-                      statistics%scalar_count = &
-                           statistics%scalar_count + 1_int64
-                      statistics%scalar_difference_moment = &
-                           statistics%scalar_difference_moment + &
-                           [difference,abs(difference),difference**2]
-                   end do
-                end do
-
-                do level_slot = 1,block%n_field_level
-                   do component_slot = 1,block%vector_mult
-                      center_base = (level_slot-1)* &
-                           block%vector_mult*size(block%node)
-                      center_index = center_base + &
-                           block%vector_mult*center_node + component_slot
-                      center_value = block%vector(center_index)
-                      value = 0.0_dp
-
-                      select case (storage_class)
-                      case (STORE_PATCH)
-                         field_base = center_base
-                         field_index = field_base + &
-                              block%vector_mult*node_index + &
-                              component_slot
-                         value = block%vector(field_index)
-                      case (STORE_BDRY)
-                         field_base = (level_slot-1)* &
-                              block%vector_mult*size(block%bdry_node)
-                         field_index = field_base + &
-                              block%vector_mult*node_index + &
-                              component_slot
-                         value = block%bdry_vector(field_index)
-                      case (STORE_GHOST)
-                         field_base = (level_slot-1)* &
-                              block%vector_mult*size(block%ghost_node)
-                         field_index = field_base + &
-                              block%vector_mult*node_index + &
-                              component_slot
-                         value = block%ghost_vector(field_index)
-                      end select
-
-                      difference = value-center_value
-                      vector_tendency(center_index) = &
-                           vector_tendency(center_index) + difference
-                      statistics%vector_count = &
-                           statistics%vector_count + 1_int64
-                      statistics%vector_difference_moment = &
-                           statistics%vector_difference_moment + &
-                           [difference,abs(difference),difference**2]
-                   end do
-                end do
-             end do
-          end do
-       end do
-    class default
-       call fail("tendency kernel received invalid context")
-    end select
-
-  end subroutine accumulate_block_tendency_kernel
 
 
 
@@ -28295,1850 +24397,24 @@ end subroutine build_parallel_block_catalog
   end subroutine compute_block_exner_difference_kernel
 
 
-  subroutine check_block_tendency_kernel (verbose)
-    ! Validate reusable writable tendency storage and a complete stencil
-    ! kernel while leaving authoritative prognostic fields unchanged.
 
-    implicit none
 
-    logical, optional, intent(in) :: verbose
 
-    integer :: ierr
 
-    integer(int64) :: allocation_after_first
-    integer(int64) :: allocation_before
-    integer(int64) :: count_global(2)
-    integer(int64) :: count_local(2)
-    integer(int64) :: execution_before
-    integer(int64) :: field_count(2)
-    integer(int64) :: field_count_after(2)
-    integer(int64) :: refresh_count_before
-    integer(int64) :: tendency_count(2)
-    integer(int64) :: tendency_count_second(2)
 
-    real(dp) :: factor
-    real(dp) :: field_moment(3,2)
-    real(dp) :: field_moment_after(3,2)
-    real(dp) :: scale
-    real(dp) :: tendency_moment(3,2)
-    real(dp) :: tendency_moment_second(3,2)
 
-    logical :: print_summary
 
-    type(Block_Stencil_Kernel_Context) :: reference
-    type(Block_Stencil_Kernel_Context) :: writable_first
-    type(Block_Stencil_Kernel_Context) :: writable_second
 
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
 
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
 
-    refresh_count_before = local_block_hydrostatic_refresh_count()
-    allocation_before = local_block_tendency_allocation_count()
-    execution_before = local_block_tendency_execution_count()
 
-    call refresh_block_sol_ghosts
-    reference = Block_Stencil_Kernel_Context()
-    call apply_local_block_field_consumer( &
-         accumulate_block_stencil_kernel,reference)
 
-    writable_first = Block_Stencil_Kernel_Context()
-    call apply_local_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,writable_first)
 
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("production tendency output state is not ready")
-    end if
-    if (local_block_tendency_execution_count() /= execution_before+1_int64) then
-       call fail("production tendency execution count mismatch")
-    end if
 
-    allocation_after_first = local_block_tendency_allocation_count()
-    if (allocation_after_first < allocation_before) then
-       call fail("production tendency allocation count regressed")
-    end if
 
-    call local_block_tendency_statistics( &
-         tendency_count(1),tendency_count(2), &
-         tendency_moment(:,1),tendency_moment(:,2))
 
-    if (any(tendency_count /= field_count)) then
-       call fail("production tendency output coverage mismatch")
-    end if
-    if (writable_first%block_count /= int(n_local_blocks(),int64) .or. &
-         any(writable_first%address_count /= reference%address_count) .or. &
-         writable_first%scalar_count /= reference%scalar_count .or. &
-         writable_first%vector_count /= reference%vector_count) then
-       call fail("production tendency stencil traversal mismatch")
-    end if
-    if (.not. field_moments_match( &
-         writable_first%scalar_difference_moment, &
-         reference%scalar_difference_moment,reference%scalar_count) .or. &
-         .not. field_moments_match( &
-         writable_first%vector_difference_moment, &
-         reference%vector_difference_moment,reference%vector_count)) then
-       call fail("production tendency difference inventory mismatch")
-    end if
 
-    factor = 256.0_dp*epsilon(1.0_dp)* &
-         real(max(1_int64,reference%scalar_count),dp)
-    scale = max(1.0_dp,reference%scalar_difference_moment(2), &
-         tendency_moment(2,1))
-    if (abs(tendency_moment(1,1)- &
-         reference%scalar_difference_moment(1)) > factor*scale) then
-       call fail("scalar tendency accumulation is not conservative")
-    end if
 
-    factor = 256.0_dp*epsilon(1.0_dp)* &
-         real(max(1_int64,reference%vector_count),dp)
-    scale = max(1.0_dp,reference%vector_difference_moment(2), &
-         tendency_moment(2,2))
-    if (abs(tendency_moment(1,2)- &
-         reference%vector_difference_moment(1)) > factor*scale) then
-       call fail("vector tendency accumulation is not conservative")
-    end if
-
-    call refresh_block_sol_ghosts
-    writable_second = Block_Stencil_Kernel_Context()
-    call apply_local_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,writable_second)
-    call local_block_tendency_statistics( &
-         tendency_count_second(1),tendency_count_second(2), &
-         tendency_moment_second(:,1),tendency_moment_second(:,2))
-
-    if (local_block_tendency_allocation_count() /= &
-         allocation_after_first) then
-       call fail("production tendency workspace was reallocated")
-    end if
-    if (local_block_tendency_execution_count() /= execution_before+2_int64) then
-       call fail("repeated tendency execution count mismatch")
-    end if
-    if (any(tendency_count_second /= tendency_count)) then
-       call fail("repeated tendency output coverage changed")
-    end if
-    if (.not. field_moments_match( &
-         tendency_moment_second(:,1),tendency_moment(:,1), &
-         tendency_count(1)) .or. &
-         .not. field_moments_match( &
-         tendency_moment_second(:,2),tendency_moment(:,2), &
-         tendency_count(2))) then
-       call fail("repeated tendency output changed")
-    end if
-
-    call local_block_field_statistics( &
-         field_count_after(1),field_count_after(2), &
-         field_moment_after(:,1),field_moment_after(:,2))
-
-    if (any(field_count_after /= field_count)) then
-       call fail("tendency kernel changed prognostic field coverage")
-    end if
-    if (.not. field_moments_match( &
-         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
-         .not. field_moments_match( &
-         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
-       call fail("tendency kernel changed prognostic fields")
-    end if
-    if (local_block_hydrostatic_refresh_count() /= &
-         refresh_count_before) then
-       call fail("tendency kernel refreshed hydrostatic cache")
-    end if
-
-    count_local = tendency_count
-    call MPI_Allreduce( &
-         count_local,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce production tendency counts")
-
-    if (any(count_global <= 0_int64)) then
-       call fail("production tendency global output is incomplete")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Writable block tendency kernel for rank ",rank,":"
-       write(6,'(a,i0)') &
-            "  scalar tendency values = ",tendency_count(1)
-       write(6,'(a,i0)') &
-            "  vector tendency values = ",tendency_count(2)
-       write(6,'(a)') &
-            "  complete writable stencil output passed"
-       write(6,'(a)') &
-            "  conservative difference accumulation passed"
-       write(6,'(a)') &
-            "  persistent workspace reuse passed"
-       write(6,'(a,/)') &
-            "  prognostic fields and hydrostatic cache unchanged"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global writable scalar tendency values = ",count_global(1)
-       write(6,'(a,i0)') &
-            "Global writable vector tendency values = ",count_global(2)
-       write(6,'(a,/)') &
-            "Persistent writable block stencil tendencies passed"
-    end if
-
-  end subroutine check_block_tendency_kernel
-
-
-  subroutine accumulate_block_tendency_consumer ( &
-       catalog_index,scalar_tendency,vector_tendency,context)
-    ! Read the persistent tendency arrays supplied directly by the
-    ! read-only production traversal.
-
-    implicit none
-
-    integer, intent(in) :: catalog_index
-    real(dp), intent(in) :: scalar_tendency(:)
-    real(dp), intent(in) :: vector_tendency(:)
-    class(*), intent(inout) :: context
-
-    if (catalog_index < 1) then
-       call fail("tendency consumer received invalid catalogue index")
-    end if
-
-    select type (statistics => context)
-    type is (Block_Tendency_Traversal_Context)
-       statistics%block_count = statistics%block_count + 1_int64
-       statistics%scalar_count = statistics%scalar_count + &
-            int(size(scalar_tendency),int64)
-       statistics%vector_count = statistics%vector_count + &
-            int(size(vector_tendency),int64)
-       if (maxval(abs(scalar_tendency)) > 0.0_dp) then
-          statistics%scalar_changed_block_count = &
-               statistics%scalar_changed_block_count + 1_int64
-       end if
-
-       statistics%scalar_moment(1) = &
-            statistics%scalar_moment(1) + sum(scalar_tendency)
-       statistics%scalar_moment(2) = &
-            statistics%scalar_moment(2) + sum(abs(scalar_tendency))
-       statistics%scalar_moment(3) = &
-            statistics%scalar_moment(3) + sum(scalar_tendency**2)
-       statistics%vector_moment(1) = &
-            statistics%vector_moment(1) + sum(vector_tendency)
-       statistics%vector_moment(2) = &
-            statistics%vector_moment(2) + sum(abs(vector_tendency))
-       statistics%vector_moment(3) = &
-            statistics%vector_moment(3) + sum(vector_tendency**2)
-    class default
-       call fail("tendency consumer received invalid context")
-    end select
-
-  end subroutine accumulate_block_tendency_consumer
-
-
-  subroutine check_block_tendency_trial_update (verbose)
-    ! Validate direct read-only tendency traversal and a reversible shadow
-    ! update without changing the active Domain timestep.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: changed_block_global
-    integer(int64) :: field_count(2)
-    integer(int64) :: field_count_after(2)
-    integer(int64) :: refresh_after
-    integer(int64) :: refresh_before
-    integer(int64) :: tendency_count(2)
-
-    real(dp) :: field_moment(3,2)
-    real(dp) :: field_moment_after(3,2)
-    real(dp) :: tendency_moment(3,2)
-    real(dp) :: trial_scale
-
-    logical :: print_summary
-
-    type(Block_Tendency_Traversal_Context) :: traversal
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("tendency trial requested before output is ready")
-    end if
-    if (local_block_tendency_trial_is_active()) then
-       call fail("tendency trial unexpectedly active")
-    end if
-
-    call local_block_tendency_statistics( &
-         tendency_count(1),tendency_count(2), &
-         tendency_moment(:,1),tendency_moment(:,2))
-
-    traversal = Block_Tendency_Traversal_Context()
-    call apply_local_block_tendency_consumer( &
-         accumulate_block_tendency_consumer,traversal)
-
-    if (traversal%block_count /= int(n_local_blocks(),int64) .or. &
-         traversal%scalar_count /= tendency_count(1) .or. &
-         traversal%vector_count /= tendency_count(2)) then
-       call fail("read-only tendency traversal coverage mismatch")
-    end if
-    if (.not. field_moments_match( &
-         traversal%scalar_moment,tendency_moment(:,1), &
-         tendency_count(1)) .or. &
-         .not. field_moments_match( &
-         traversal%vector_moment,tendency_moment(:,2), &
-         tendency_count(2))) then
-       call fail("read-only tendency traversal moment mismatch")
-    end if
-
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    refresh_before = local_block_hydrostatic_refresh_count()
-
-    trial_scale = epsilon(1.0_dp)**0.25_dp
-    call begin_local_block_tendency_trial(trial_scale)
-    if (.not. local_block_tendency_trial_is_active()) then
-       call fail("reversible tendency trial did not become active")
-    end if
-
-    if (compressible .and. &
-         traversal%scalar_changed_block_count > 0_int64) then
-       if (local_block_hydrostatic_state_ready()) then
-          call fail("scalar tendency trial did not invalidate cache")
-       end if
-       if (local_block_hydrostatic_refresh_count() /= refresh_before) then
-          call fail("scalar tendency trial refreshed cache eagerly")
-       end if
-    end if
-
-    call rollback_local_block_tendency_trial
-    if (local_block_tendency_trial_is_active()) then
-       call fail("reversible tendency trial remained active")
-    end if
-
-    call local_block_field_statistics( &
-         field_count_after(1),field_count_after(2), &
-         field_moment_after(:,1),field_moment_after(:,2))
-    if (any(field_count_after /= field_count)) then
-       call fail("tendency rollback changed field coverage")
-    end if
-    if (.not. field_moments_match( &
-         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
-         .not. field_moments_match( &
-         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
-       call fail("tendency rollback did not recover prognostic fields")
-    end if
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("tendency output was lost during trial rollback")
-    end if
-
-    if (compressible) then
-       call ensure_local_block_hydrostatic_state
-       refresh_after = local_block_hydrostatic_refresh_count()
-       if (refresh_after-refresh_before /= &
-            traversal%scalar_changed_block_count) then
-          call fail("selective hydrostatic refresh count mismatch")
-       end if
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("hydrostatic cache not ready after rollback")
-       end if
-    end if
-
-    call MPI_Allreduce( &
-         traversal%scalar_changed_block_count,changed_block_global, &
-         1,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce tendency trial blocks")
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Reversible block tendency trial for rank ",rank,":"
-       write(6,'(a,i0)') &
-            "  directly traversed scalar values = ", &
-            traversal%scalar_count
-       write(6,'(a,i0)') &
-            "  directly traversed vector values = ", &
-            traversal%vector_count
-       write(6,'(a,i0)') &
-            "  scalar-modified blocks            = ", &
-            traversal%scalar_changed_block_count
-       write(6,'(a)') "  direct persistent tendency traversal passed"
-       write(6,'(a)') "  reversible scalar/vector trial update passed"
-       write(6,'(a)') "  selective hydrostatic invalidation passed"
-       write(6,'(a)') "  exact prognostic rollback passed"
-       write(6,'(a,/)') "  persistent tendency outputs retained"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global scalar-modified trial blocks = ", &
-            changed_block_global
-       write(6,'(a,/)') &
-            "Reversible block tendency shadow update passed"
-    end if
-
-  end subroutine check_block_tendency_trial_update
-
-
-  subroutine check_block_tendency_commit (verbose)
-    ! Validate the commit transition without advancing the physical state.
-    ! A zero increment keeps the Domain/block shadow comparison exact while
-    ! exercising stale-output invalidation and allocation reuse.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: allocation_before
-    integer(int64) :: count_global(2)
-    integer(int64) :: execution_before
-    integer(int64) :: field_count(2)
-    integer(int64) :: field_count_after(2)
-    integer(int64) :: refresh_before
-    integer(int64) :: tendency_count(2)
-    integer(int64) :: tendency_count_after(2)
-
-    real(dp) :: field_moment(3,2)
-    real(dp) :: field_moment_after(3,2)
-    real(dp) :: tendency_moment(3,2)
-    real(dp) :: tendency_moment_after(3,2)
-
-    logical :: print_summary
-
-    type(Block_Stencil_Kernel_Context) :: regenerated
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("tendency commit requested before output is ready")
-    end if
-    if (local_block_tendency_trial_is_active()) then
-       call fail("tendency commit found an active trial")
-    end if
-
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
-    call local_block_tendency_statistics( &
-         tendency_count(1),tendency_count(2), &
-         tendency_moment(:,1),tendency_moment(:,2))
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    refresh_before = local_block_hydrostatic_refresh_count()
-    allocation_before = local_block_tendency_allocation_count()
-    execution_before = local_block_tendency_execution_count()
-
-    call begin_local_block_tendency_trial(0.0_dp)
-    if (.not. local_block_tendency_trial_is_active()) then
-       call fail("zero-increment tendency trial did not become active")
-    end if
-
-    call commit_local_block_tendency_trial
-    if (local_block_tendency_trial_is_active()) then
-       call fail("committed tendency trial remained active")
-    end if
-    if (local_block_tendency_state_ready()) then
-       call fail("commit retained stale tendency outputs")
-    end if
-
-    call local_block_field_statistics( &
-         field_count_after(1),field_count_after(2), &
-         field_moment_after(:,1),field_moment_after(:,2))
-    if (any(field_count_after /= field_count)) then
-       call fail("zero-increment commit changed field coverage")
-    end if
-    if (.not. field_moments_match( &
-         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
-         .not. field_moments_match( &
-         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
-       call fail("zero-increment commit changed prognostic fields")
-    end if
-
-    if (compressible) then
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("zero-increment commit invalidated hydrostatic cache")
-       end if
-       if (local_block_hydrostatic_refresh_count() /= refresh_before) then
-          call fail("zero-increment commit refreshed hydrostatic cache")
-       end if
-    end if
-
-    if (.not. local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("zero-increment commit checkpoint is not ready")
-    end if
-    call finalize_local_block_tendency_commit
-    if (local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("zero-increment commit checkpoint was not finalized")
-    end if
-
-    regenerated = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,regenerated)
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("committed tendency output was not regenerated")
-    end if
-    if (local_block_tendency_allocation_count() /= allocation_before) then
-       call fail("committed tendency regeneration reallocated workspace")
-    end if
-    if (local_block_tendency_execution_count() /= execution_before+1_int64) then
-       call fail("committed tendency regeneration count mismatch")
-    end if
-
-    call local_block_tendency_statistics( &
-         tendency_count_after(1),tendency_count_after(2), &
-         tendency_moment_after(:,1),tendency_moment_after(:,2))
-    if (any(tendency_count_after /= tendency_count)) then
-       call fail("regenerated tendency coverage changed")
-    end if
-    if (.not. field_moments_match( &
-         tendency_moment_after(:,1),tendency_moment(:,1), &
-         tendency_count(1)) .or. &
-         .not. field_moments_match( &
-         tendency_moment_after(:,2),tendency_moment(:,2), &
-         tendency_count(2))) then
-       call fail("regenerated tendency output changed")
-    end if
-
-    call MPI_Allreduce( &
-         tendency_count_after,count_global,2, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce committed tendency counts")
-    if (any(count_global <= 0_int64)) then
-       call fail("committed tendency regeneration is incomplete")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Committed block tendency lifecycle for rank ",rank,":"
-       write(6,'(a)') "  zero-increment commit preserved fields and cache"
-       write(6,'(a)') "  pre-commit tendency outputs invalidated"
-       write(6,'(a)') "  persistent tendency allocation reuse passed"
-       write(6,'(a,/)') "  regenerated tendency inventory passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global regenerated scalar tendencies = ",count_global(1)
-       write(6,'(a,i0)') &
-            "Global regenerated vector tendencies = ",count_global(2)
-       write(6,'(a,/)') &
-            "Committed block tendency lifecycle passed"
-    end if
-
-  end subroutine check_block_tendency_commit
-
-
-  subroutine check_block_tendency_step_driver (verbose)
-    ! Exercise two complete refresh, tendency, nonzero trial, rollback and
-    ! hydrostatic-recovery cycles through the guarded production ordering.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: cycle
-    integer :: ierr
-
-    integer(int64) :: allocation_before
-    integer(int64) :: changed_block_global
-    integer(int64) :: execution_before
-    integer(int64) :: field_count(2)
-    integer(int64) :: field_count_after(2)
-    integer(int64) :: refresh_before
-    integer(int64) :: tendency_count(2)
-    integer(int64) :: tendency_count_after(2)
-
-    real(dp) :: field_moment(3,2)
-    real(dp) :: field_moment_after(3,2)
-    real(dp) :: tendency_moment(3,2)
-    real(dp) :: tendency_moment_after(3,2)
-    real(dp) :: trial_scale
-
-    logical :: print_summary
-
-    type(Block_Stencil_Kernel_Context) :: kernel_context
-    type(Block_Tendency_Traversal_Context) :: traversal
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("block step driver requested before tendency is ready")
-    end if
-    if (local_block_tendency_trial_is_active()) then
-       call fail("block step driver found an active trial")
-    end if
-
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
-    call local_block_tendency_statistics( &
-         tendency_count(1),tendency_count(2), &
-         tendency_moment(:,1),tendency_moment(:,2))
-
-    traversal = Block_Tendency_Traversal_Context()
-    call apply_local_block_tendency_consumer( &
-         accumulate_block_tendency_consumer,traversal)
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    refresh_before = local_block_hydrostatic_refresh_count()
-    allocation_before = local_block_tendency_allocation_count()
-    execution_before = local_block_tendency_execution_count()
-    trial_scale = epsilon(1.0_dp)**0.25_dp
-
-    do cycle = 1,2
-       kernel_context = Block_Stencil_Kernel_Context()
-       call apply_refreshed_block_tendency_kernel( &
-            accumulate_block_tendency_kernel,kernel_context)
-
-       if (kernel_context%block_count /= int(n_local_blocks(),int64)) then
-          call fail("guarded block step kernel coverage mismatch")
-       end if
-
-       call begin_local_block_tendency_trial(trial_scale)
-       if (.not. local_block_tendency_trial_is_active()) then
-          call fail("guarded block step trial did not become active")
-       end if
-
-       if (compressible .and. &
-            traversal%scalar_changed_block_count > 0_int64) then
-          if (local_block_hydrostatic_state_ready()) then
-             call fail("guarded block step retained stale hydrostatic cache")
-          end if
-       end if
-
-       call rollback_local_block_tendency_trial
-       if (local_block_tendency_trial_is_active()) then
-          call fail("guarded block step rollback remained active")
-       end if
-
-       if (compressible) then
-          call ensure_local_block_hydrostatic_state
-          if (local_block_hydrostatic_refresh_count()-refresh_before /= &
-               int(cycle,int64)* &
-               traversal%scalar_changed_block_count) then
-             call fail("guarded block step hydrostatic refresh mismatch")
-          end if
-       end if
-
-       call local_block_field_statistics( &
-            field_count_after(1),field_count_after(2), &
-            field_moment_after(:,1),field_moment_after(:,2))
-       if (any(field_count_after /= field_count)) then
-          call fail("guarded block step changed field coverage")
-       end if
-       if (.not. field_moments_match( &
-            field_moment_after(:,1),field_moment(:,1), &
-            field_count(1)) .or. &
-            .not. field_moments_match( &
-            field_moment_after(:,2),field_moment(:,2), &
-            field_count(2))) then
-          call fail("guarded block step rollback changed fields")
-       end if
-    end do
-
-    if (local_block_tendency_allocation_count() /= allocation_before) then
-       call fail("guarded block step reallocated tendency workspace")
-    end if
-    if (local_block_tendency_execution_count() /= execution_before+2_int64) then
-       call fail("guarded block step execution count mismatch")
-    end if
-
-    call local_block_tendency_statistics( &
-         tendency_count_after(1),tendency_count_after(2), &
-         tendency_moment_after(:,1),tendency_moment_after(:,2))
-    if (any(tendency_count_after /= tendency_count)) then
-       call fail("guarded block step tendency coverage changed")
-    end if
-    if (.not. field_moments_match( &
-         tendency_moment_after(:,1),tendency_moment(:,1), &
-         tendency_count(1)) .or. &
-         .not. field_moments_match( &
-         tendency_moment_after(:,2),tendency_moment(:,2), &
-         tendency_count(2))) then
-       call fail("guarded block step tendency inventory changed")
-    end if
-
-    call MPI_Allreduce( &
-         traversal%scalar_changed_block_count,changed_block_global, &
-         1,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce guarded block step blocks")
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Guarded block tendency step driver for rank ",rank,":"
-       write(6,'(a,i0)') &
-            "  complete shadow cycles = ",2
-       write(6,'(a,i0)') &
-            "  scalar-modified blocks = ", &
-            traversal%scalar_changed_block_count
-       write(6,'(a)') "  sol ghost refresh before each kernel passed"
-       write(6,'(a)') "  nonzero update and exact rollback passed"
-       write(6,'(a)') "  selective hydrostatic recovery passed"
-       write(6,'(a,/)') "  persistent tendency workspace reuse passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,i0)') &
-            "Global guarded-step scalar-modified blocks = ", &
-            changed_block_global
-       write(6,'(a,/)') &
-            "Guarded block tendency step sequence passed"
-    end if
-
-  end subroutine check_block_tendency_step_driver
-
-
-  subroutine check_block_tendency_accepted_step (verbose)
-    ! Commit one nonzero block update, consume its derived state, then use
-    ! the retained one-level checkpoint to recover the exact Domain shadow.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: allocation_before
-    integer(int64) :: changed_block_count(2)
-    integer(int64) :: changed_block_global(2)
-    integer(int64) :: execution_before
-    integer(int64) :: field_count(2)
-    integer(int64) :: field_count_after(2)
-    integer(int64) :: refresh_before
-    integer(int64) :: tendency_count(2)
-    integer(int64) :: tendency_count_after(2)
-
-    real(dp) :: field_moment(3,2)
-    real(dp) :: field_moment_after(3,2)
-    real(dp) :: max_update(2)
-    real(dp) :: max_update_global(2)
-    real(dp) :: tendency_moment(3,2)
-    real(dp) :: tendency_moment_after(3,2)
-    real(dp) :: trial_scale
-
-    logical :: print_summary
-
-    type(Block_Stencil_Kernel_Context) :: committed_kernel
-    type(Block_Stencil_Kernel_Context) :: restored_kernel
-    type(Block_Tendency_Traversal_Context) :: traversal
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("accepted block step requested before tendency is ready")
-    end if
-    if (local_block_tendency_trial_is_active() .or. &
-         local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("accepted block step found pending transaction state")
-    end if
-
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
-    call local_block_tendency_statistics( &
-         tendency_count(1),tendency_count(2), &
-         tendency_moment(:,1),tendency_moment(:,2))
-
-    traversal = Block_Tendency_Traversal_Context()
-    call apply_local_block_tendency_consumer( &
-         accumulate_block_tendency_consumer,traversal)
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    refresh_before = local_block_hydrostatic_refresh_count()
-    allocation_before = local_block_tendency_allocation_count()
-    execution_before = local_block_tendency_execution_count()
-    trial_scale = epsilon(1.0_dp)**0.25_dp
-
-    call begin_local_block_tendency_trial(trial_scale)
-    call commit_local_block_tendency_trial
-
-    if (local_block_tendency_trial_is_active() .or. &
-         .not. local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("nonzero block update was not committed")
-    end if
-    if (local_block_tendency_state_ready()) then
-       call fail("accepted block update retained stale tendencies")
-    end if
-
-    call local_block_tendency_commit_checkpoint_statistics( &
-         changed_block_count(1),changed_block_count(2), &
-         max_update(1),max_update(2))
-    if (changed_block_count(1) /= &
-         traversal%scalar_changed_block_count) then
-       call fail("accepted scalar update coverage mismatch")
-    end if
-
-    committed_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,committed_kernel)
-    if (committed_kernel%block_count /= int(n_local_blocks(),int64)) then
-       call fail("accepted-state tendency traversal incomplete")
-    end if
-
-    if (compressible) then
-       call ensure_local_block_hydrostatic_state
-       if (local_block_hydrostatic_refresh_count()-refresh_before /= &
-            changed_block_count(1)) then
-          call fail("accepted-state hydrostatic refresh mismatch")
-       end if
-    end if
-
-    call restore_local_block_tendency_commit
-    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
-         local_block_tendency_state_ready()) then
-       call fail("accepted block checkpoint restore left stale state ready")
-    end if
-
-    call local_block_field_statistics( &
-         field_count_after(1),field_count_after(2), &
-         field_moment_after(:,1),field_moment_after(:,2))
-    if (any(field_count_after /= field_count)) then
-       call fail("accepted block checkpoint changed field coverage")
-    end if
-    if (.not. field_moments_match( &
-         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
-         .not. field_moments_match( &
-         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
-       call fail("accepted block checkpoint did not restore fields")
-    end if
-
-    restored_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,restored_kernel)
-    if (compressible) then
-       call ensure_local_block_hydrostatic_state
-       if (local_block_hydrostatic_refresh_count()-refresh_before /= &
-            2_int64*changed_block_count(1)) then
-          call fail("restored-state hydrostatic refresh mismatch")
-       end if
-    end if
-
-    if (local_block_tendency_allocation_count() /= allocation_before) then
-       call fail("accepted block step reallocated tendency workspace")
-    end if
-    if (local_block_tendency_execution_count() /= execution_before+2_int64) then
-       call fail("accepted block step execution count mismatch")
-    end if
-
-    call local_block_tendency_statistics( &
-         tendency_count_after(1),tendency_count_after(2), &
-         tendency_moment_after(:,1),tendency_moment_after(:,2))
-    if (any(tendency_count_after /= tendency_count)) then
-       call fail("restored tendency coverage changed")
-    end if
-    if (.not. field_moments_match( &
-         tendency_moment_after(:,1),tendency_moment(:,1), &
-         tendency_count(1)) .or. &
-         .not. field_moments_match( &
-         tendency_moment_after(:,2),tendency_moment(:,2), &
-         tendency_count(2))) then
-       call fail("restored tendency inventory changed")
-    end if
-
-    call MPI_Allreduce( &
-         changed_block_count,changed_block_global,2, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce accepted block update counts")
-    call MPI_Allreduce( &
-         max_update,max_update_global,2, &
-         MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce accepted block update maxima")
-    if (changed_block_global(1) <= 0_int64 .or. &
-         maxval(max_update_global) <= 0.0_dp) then
-       call fail("accepted block update produced no change")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Accepted nonzero block step for rank ",rank,":"
-       write(6,'(a,2(i0,1x))') &
-            "  scalar/vector modified blocks = ",changed_block_count
-       write(6,'(a,2(es14.6,1x))') &
-            "  maximum scalar/vector updates = ",max_update
-       write(6,'(a)') "  committed-state ghost refresh passed"
-       write(6,'(a)') "  committed-state tendency regeneration passed"
-       write(6,'(a)') "  committed-state hydrostatic rebuild passed"
-       write(6,'(a,/)') "  exact checkpoint recovery passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,2(i0,1x))') &
-            "Global accepted scalar/vector modified blocks = ", &
-            changed_block_global
-       write(6,'(a,2(es14.6,1x))') &
-            "Global maximum scalar/vector updates = ", &
-            max_update_global
-       write(6,'(a,/)') &
-            "Accepted nonzero block tendency step passed"
-    end if
-
-  end subroutine check_block_tendency_accepted_step
-
-
-  subroutine check_block_multistage_tendency_accumulator (verbose)
-    ! Combine tendencies from the original and one accepted intermediate
-    ! state, apply the weighted register reversibly, and recover the exact
-    ! Domain-shadow fields and original tendency inventory.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: accumulator_allocation_after_reset
-    integer(int64) :: accumulator_allocation_before
-    integer(int64) :: accumulator_changed_count(2)
-    integer(int64) :: accumulator_changed_global(2)
-    integer(int64) :: accumulator_count(2)
-    integer(int64) :: accumulator_stage_count
-    integer(int64) :: execution_before
-    integer(int64) :: field_count(2)
-    integer(int64) :: field_count_after(2)
-    integer(int64) :: tendency_allocation_before
-    integer(int64) :: tendency_count(2)
-    integer(int64) :: tendency_count_after(2)
-
-    real(dp) :: accumulator_moment(3,2)
-    real(dp) :: accumulator_abs_local(2)
-    real(dp) :: accumulator_abs_global(2)
-    real(dp) :: field_moment(3,2)
-    real(dp) :: field_moment_after(3,2)
-    real(dp) :: tendency_moment(3,2)
-    real(dp) :: tendency_moment_after(3,2)
-    real(dp) :: trial_scale
-
-    logical :: print_summary
-
-    type(Block_Stencil_Kernel_Context) :: intermediate_kernel
-    type(Block_Stencil_Kernel_Context) :: restored_kernel
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("multi-stage accumulator before tendency is ready")
-    end if
-    if (local_block_tendency_trial_is_active() .or. &
-         local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("multi-stage accumulator found pending transaction")
-    end if
-
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
-    call local_block_tendency_statistics( &
-         tendency_count(1),tendency_count(2), &
-         tendency_moment(:,1),tendency_moment(:,2))
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    tendency_allocation_before = local_block_tendency_allocation_count()
-    accumulator_allocation_before = &
-         local_block_tendency_accumulator_allocation_count()
-    execution_before = local_block_tendency_execution_count()
-    trial_scale = epsilon(1.0_dp)**0.25_dp
-
-    call reset_local_block_tendency_accumulator
-    if (.not. local_block_tendency_accumulator_state_ready()) then
-       call fail("multi-stage accumulator did not become ready")
-    end if
-    accumulator_allocation_after_reset = &
-         local_block_tendency_accumulator_allocation_count()
-    if (accumulator_allocation_after_reset < &
-         accumulator_allocation_before) then
-       call fail("multi-stage accumulator allocation count regressed")
-    end if
-
-    call accumulate_local_block_tendency(0.5_dp)
-
-    call begin_local_block_tendency_trial(trial_scale)
-    call commit_local_block_tendency_trial
-    intermediate_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,intermediate_kernel)
-    if (intermediate_kernel%block_count /= &
-         int(n_local_blocks(),int64)) then
-       call fail("multi-stage intermediate tendency traversal incomplete")
-    end if
-
-    call accumulate_local_block_tendency(0.5_dp)
-    call local_block_tendency_accumulator_statistics( &
-         accumulator_count(1),accumulator_count(2), &
-         accumulator_changed_count(1),accumulator_changed_count(2), &
-         accumulator_stage_count, &
-         accumulator_moment(:,1),accumulator_moment(:,2))
-
-    if (any(accumulator_count /= field_count)) then
-       call fail("multi-stage accumulator field coverage mismatch")
-    end if
-    if (accumulator_stage_count /= 2_int64) then
-       call fail("multi-stage accumulator stage count mismatch")
-    end if
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    call restore_local_block_tendency_commit
-
-    call begin_local_block_accumulated_tendency_trial(trial_scale)
-    if (.not. local_block_tendency_trial_is_active()) then
-       call fail("multi-stage accumulated trial did not become active")
-    end if
-    if (compressible .and. &
-         accumulator_changed_count(1) > 0_int64) then
-       if (local_block_hydrostatic_state_ready()) then
-          call fail("multi-stage accumulated trial retained stale cache")
-       end if
-    end if
-
-    call rollback_local_block_tendency_trial
-    if (compressible) call ensure_local_block_hydrostatic_state
-
-    call local_block_field_statistics( &
-         field_count_after(1),field_count_after(2), &
-         field_moment_after(:,1),field_moment_after(:,2))
-    if (any(field_count_after /= field_count)) then
-       call fail("multi-stage recovery changed field coverage")
-    end if
-    if (.not. field_moments_match( &
-         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
-         .not. field_moments_match( &
-         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
-       call fail("multi-stage recovery did not restore fields")
-    end if
-
-    restored_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,restored_kernel)
-
-    if (local_block_tendency_allocation_count() /= &
-         tendency_allocation_before) then
-       call fail("multi-stage cycle reallocated tendency workspace")
-    end if
-    if (local_block_tendency_execution_count() /= &
-         execution_before+2_int64) then
-       call fail("multi-stage tendency execution count mismatch")
-    end if
-    if (local_block_tendency_accumulator_allocation_count() /= &
-         accumulator_allocation_after_reset) then
-       call fail("multi-stage cycle reallocated accumulator storage")
-    end if
-
-    call local_block_tendency_statistics( &
-         tendency_count_after(1),tendency_count_after(2), &
-         tendency_moment_after(:,1),tendency_moment_after(:,2))
-    if (any(tendency_count_after /= tendency_count)) then
-       call fail("multi-stage restored tendency coverage changed")
-    end if
-    if (.not. field_moments_match( &
-         tendency_moment_after(:,1),tendency_moment(:,1), &
-         tendency_count(1)) .or. &
-         .not. field_moments_match( &
-         tendency_moment_after(:,2),tendency_moment(:,2), &
-         tendency_count(2))) then
-       call fail("multi-stage restored tendency inventory changed")
-    end if
-
-    call MPI_Allreduce( &
-         accumulator_changed_count,accumulator_changed_global,2, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce multi-stage accumulator blocks")
-    accumulator_abs_local = accumulator_moment(2,:)
-    call MPI_Allreduce( &
-         accumulator_abs_local,accumulator_abs_global,2, &
-         MPI_DOUBLE_PRECISION,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce multi-stage accumulator moments")
-    if (any(accumulator_changed_global <= 0_int64) .or. &
-         maxval(accumulator_abs_global) <= 0.0_dp) then
-       call fail("multi-stage accumulator produced no change")
-    end if
-
-    call reset_local_block_tendency_accumulator
-    if (local_block_tendency_accumulator_allocation_count() /= &
-         accumulator_allocation_after_reset) then
-       call fail("multi-stage accumulator reset reallocated storage")
-    end if
-
-    if (compressible) then
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("multi-stage hydrostatic recovery incomplete")
-       end if
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Persistent multi-stage tendency register for rank ",rank,":"
-       write(6,'(a,2(i0,1x))') &
-            "  scalar/vector register values = ",accumulator_count
-       write(6,'(a,2(i0,1x))') &
-            "  scalar/vector modified blocks = ", &
-            accumulator_changed_count
-       write(6,'(a)') "  two weighted tendency stages accumulated"
-       write(6,'(a)') "  accepted intermediate-state evaluation passed"
-       write(6,'(a)') "  accumulated nonzero update and rollback passed"
-       write(6,'(a,/)') "  tendency and accumulator workspace reuse passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,2(i0,1x))') &
-            "Global multi-stage scalar/vector modified blocks = ", &
-            accumulator_changed_global
-       write(6,'(a,/)') &
-            "Persistent multi-stage block tendency accumulation passed"
-    end if
-
-  end subroutine check_block_multistage_tendency_accumulator
-
-
-  subroutine check_block_multistage_tendency_commit (verbose)
-    ! Commit a weighted two-stage tendency, consume all derived state from
-    ! the accepted result, then recover the exact retained Domain shadow.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: accumulator_allocation_before
-    integer(int64) :: accumulator_changed_count(2)
-    integer(int64) :: accumulator_changed_global(2)
-    integer(int64) :: accumulator_count(2)
-    integer(int64) :: accumulator_stage_count
-    integer(int64) :: changed_block_count(2)
-    integer(int64) :: changed_block_global(2)
-    integer(int64) :: execution_before
-    integer(int64) :: field_count(2)
-    integer(int64) :: field_count_after(2)
-    integer(int64) :: tendency_allocation_before
-    integer(int64) :: tendency_count(2)
-    integer(int64) :: tendency_count_after(2)
-
-    real(dp) :: accumulator_moment(3,2)
-    real(dp) :: field_moment(3,2)
-    real(dp) :: field_moment_after(3,2)
-    real(dp) :: max_update(2)
-    real(dp) :: max_update_global(2)
-    real(dp) :: tendency_moment(3,2)
-    real(dp) :: tendency_moment_after(3,2)
-    real(dp) :: trial_scale
-
-    logical :: print_summary
-
-    type(Block_Stencil_Kernel_Context) :: accepted_kernel
-    type(Block_Stencil_Kernel_Context) :: intermediate_kernel
-    type(Block_Stencil_Kernel_Context) :: restored_kernel
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("multi-stage commit before tendency is ready")
-    end if
-    if (local_block_tendency_trial_is_active() .or. &
-         local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("multi-stage commit found pending transaction")
-    end if
-
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
-    call local_block_tendency_statistics( &
-         tendency_count(1),tendency_count(2), &
-         tendency_moment(:,1),tendency_moment(:,2))
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    tendency_allocation_before = local_block_tendency_allocation_count()
-    accumulator_allocation_before = &
-         local_block_tendency_accumulator_allocation_count()
-    execution_before = local_block_tendency_execution_count()
-    trial_scale = epsilon(1.0_dp)**0.25_dp
-
-    call reset_local_block_tendency_accumulator
-    if (.not. local_block_tendency_accumulator_state_ready()) then
-       call fail("multi-stage commit accumulator did not become ready")
-    end if
-    if (local_block_tendency_accumulator_allocation_count() /= &
-         accumulator_allocation_before) then
-       call fail("multi-stage commit reset reallocated accumulator")
-    end if
-
-    call accumulate_local_block_tendency(0.5_dp)
-
-    call begin_local_block_tendency_trial(trial_scale)
-    call commit_local_block_tendency_trial
-    intermediate_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,intermediate_kernel)
-    if (intermediate_kernel%block_count /= &
-         int(n_local_blocks(),int64)) then
-       call fail("multi-stage commit intermediate traversal incomplete")
-    end if
-
-    call accumulate_local_block_tendency(0.5_dp)
-    call local_block_tendency_accumulator_statistics( &
-         accumulator_count(1),accumulator_count(2), &
-         accumulator_changed_count(1),accumulator_changed_count(2), &
-         accumulator_stage_count, &
-         accumulator_moment(:,1),accumulator_moment(:,2))
-    if (any(accumulator_count /= field_count)) then
-       call fail("multi-stage commit accumulator coverage mismatch")
-    end if
-    if (accumulator_stage_count /= 2_int64) then
-       call fail("multi-stage commit accumulator stage mismatch")
-    end if
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    call restore_local_block_tendency_commit
-    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
-         local_block_tendency_state_ready()) then
-       call fail("multi-stage intermediate restore left stale state ready")
-    end if
-
-    call begin_local_block_accumulated_tendency_trial(trial_scale)
-    call commit_local_block_tendency_trial
-    if (local_block_tendency_trial_is_active() .or. &
-         .not. local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("multi-stage accumulated update was not committed")
-    end if
-    if (local_block_tendency_state_ready()) then
-       call fail("multi-stage committed update retained stale tendencies")
-    end if
-
-    call local_block_tendency_commit_checkpoint_statistics( &
-         changed_block_count(1),changed_block_count(2), &
-         max_update(1),max_update(2))
-    if (any(changed_block_count /= accumulator_changed_count)) then
-       call fail("multi-stage committed update coverage mismatch")
-    end if
-
-    accepted_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,accepted_kernel)
-    if (accepted_kernel%block_count /= int(n_local_blocks(),int64)) then
-       call fail("multi-stage accepted-state traversal incomplete")
-    end if
-    if (compressible) then
-       call ensure_local_block_hydrostatic_state
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("multi-stage accepted hydrostatic rebuild incomplete")
-       end if
-    end if
-
-    call restore_local_block_tendency_commit
-    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
-         local_block_tendency_state_ready()) then
-       call fail("multi-stage checkpoint restore left stale state ready")
-    end if
-
-    call local_block_field_statistics( &
-         field_count_after(1),field_count_after(2), &
-         field_moment_after(:,1),field_moment_after(:,2))
-    if (any(field_count_after /= field_count)) then
-       call fail("multi-stage checkpoint changed field coverage")
-    end if
-    if (.not. field_moments_match( &
-         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
-         .not. field_moments_match( &
-         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
-       call fail("multi-stage checkpoint did not restore fields")
-    end if
-
-    restored_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,restored_kernel)
-    if (restored_kernel%block_count /= int(n_local_blocks(),int64)) then
-       call fail("multi-stage restored-state traversal incomplete")
-    end if
-    if (compressible) then
-       call ensure_local_block_hydrostatic_state
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("multi-stage restored hydrostatic rebuild incomplete")
-       end if
-    end if
-
-    if (local_block_tendency_allocation_count() /= &
-         tendency_allocation_before) then
-       call fail("multi-stage commit reallocated tendency workspace")
-    end if
-    if (local_block_tendency_accumulator_allocation_count() /= &
-         accumulator_allocation_before) then
-       call fail("multi-stage commit reallocated accumulator storage")
-    end if
-    if (local_block_tendency_execution_count() /= &
-         execution_before+3_int64) then
-       call fail("multi-stage commit execution count mismatch")
-    end if
-
-    call local_block_tendency_statistics( &
-         tendency_count_after(1),tendency_count_after(2), &
-         tendency_moment_after(:,1),tendency_moment_after(:,2))
-    if (any(tendency_count_after /= tendency_count)) then
-       call fail("multi-stage commit restored tendency coverage changed")
-    end if
-    if (.not. field_moments_match( &
-         tendency_moment_after(:,1),tendency_moment(:,1), &
-         tendency_count(1)) .or. &
-         .not. field_moments_match( &
-         tendency_moment_after(:,2),tendency_moment(:,2), &
-         tendency_count(2))) then
-       call fail("multi-stage commit restored tendency inventory changed")
-    end if
-
-    call MPI_Allreduce( &
-         changed_block_count,changed_block_global,2, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce multi-stage committed blocks")
-    call MPI_Allreduce( &
-         accumulator_changed_count,accumulator_changed_global,2, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce multi-stage register blocks")
-    call MPI_Allreduce( &
-         max_update,max_update_global,2, &
-         MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce multi-stage committed maxima")
-    if (any(changed_block_global /= accumulator_changed_global)) then
-       call fail("global multi-stage committed coverage mismatch")
-    end if
-    if (any(changed_block_global <= 0_int64) .or. &
-         any(max_update_global <= 0.0_dp)) then
-       call fail("multi-stage committed update produced no change")
-    end if
-
-    call reset_local_block_tendency_accumulator
-    if (local_block_tendency_accumulator_allocation_count() /= &
-         accumulator_allocation_before) then
-       call fail("multi-stage post-commit reset reallocated storage")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Accepted multi-stage block step for rank ",rank,":"
-       write(6,'(a,2(i0,1x))') &
-            "  scalar/vector committed blocks = ",changed_block_count
-       write(6,'(a,2(es14.6,1x))') &
-            "  maximum scalar/vector updates = ",max_update
-       write(6,'(a)') "  weighted two-stage update committed"
-       write(6,'(a)') "  accepted-state ghost refresh passed"
-       write(6,'(a)') "  accepted-state tendency regeneration passed"
-       write(6,'(a)') "  accepted-state hydrostatic rebuild passed"
-       write(6,'(a)') "  exact multi-stage checkpoint recovery passed"
-       write(6,'(a,/)') &
-            "  tendency and accumulator workspace reuse passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,2(i0,1x))') &
-            "Global committed multi-stage scalar/vector blocks = ", &
-            changed_block_global
-       write(6,'(a,2(es14.6,1x))') &
-            "Global committed multi-stage maximum updates = ", &
-            max_update_global
-       write(6,'(a,/)') &
-            "Accepted multi-stage block tendency step passed"
-    end if
-
-  end subroutine check_block_multistage_tendency_commit
-
-
-  subroutine check_block_two_stage_step_driver (verbose)
-    ! Validate the reusable production-facing two-stage transaction through
-    ! accepted-state consumers and exact checkpoint recovery.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: accumulator_allocation_before
-    integer(int64) :: changed_block_count(2)
-    integer(int64) :: changed_block_global(2)
-    integer(int64) :: execution_before
-    integer(int64) :: field_count(2)
-    integer(int64) :: field_count_after(2)
-    integer(int64) :: tendency_allocation_before
-    integer(int64) :: tendency_count(2)
-    integer(int64) :: tendency_count_after(2)
-    integer(int64) :: writeback_before
-
-    real(dp) :: field_moment(3,2)
-    real(dp) :: field_moment_after(3,2)
-    real(dp) :: max_update(2)
-    real(dp) :: max_update_global(2)
-    real(dp) :: tendency_moment(3,2)
-    real(dp) :: tendency_moment_after(3,2)
-    real(dp) :: trial_scale
-    real(dp) :: weight(2)
-
-    logical :: print_summary
-
-    type(Block_Stencil_Kernel_Context) :: accepted_kernel
-    type(Block_Stencil_Kernel_Context) :: driver_kernel
-    type(Block_Stencil_Kernel_Context) :: restored_kernel
-    type(Block_Two_Stage_Step_Result) :: result
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("two-stage driver check before tendency is ready")
-    end if
-    if (local_block_tendency_trial_is_active() .or. &
-         local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("two-stage driver check found pending transaction")
-    end if
-
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
-    call local_block_tendency_statistics( &
-         tendency_count(1),tendency_count(2), &
-         tendency_moment(:,1),tendency_moment(:,2))
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    tendency_allocation_before = local_block_tendency_allocation_count()
-    accumulator_allocation_before = &
-         local_block_tendency_accumulator_allocation_count()
-    execution_before = local_block_tendency_execution_count()
-    writeback_before = block_domain_production_writeback_count()
-    trial_scale = epsilon(1.0_dp)**0.25_dp
-    weight = 0.5_dp
-
-    driver_kernel = Block_Stencil_Kernel_Context()
-    call begin_block_two_stage_tendency_step( &
-         accumulate_block_tendency_kernel,driver_kernel, &
-         trial_scale,weight,result)
-
-    if (driver_kernel%block_count /= &
-         2_int64*int(n_local_blocks(),int64)) then
-       call fail("two-stage production driver traversal incomplete")
-    end if
-    if (result%scalar_count /= field_count(1) .or. &
-         result%vector_count /= field_count(2)) then
-       call fail("two-stage production driver coverage mismatch")
-    end if
-    if (result%stage_count /= 2_int64) then
-       call fail("two-stage production driver stage count mismatch")
-    end if
-    if (local_block_tendency_trial_is_active() .or. &
-         .not. local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("two-stage production driver checkpoint is not ready")
-    end if
-    if (local_block_tendency_state_ready()) then
-       call fail("two-stage production driver tendencies are not stale")
-    end if
-    if (compressible .and. &
-         result%scalar_changed_block_count > 0_int64) then
-       if (local_block_hydrostatic_state_ready()) then
-          call fail("two-stage production driver retained stale cache")
-       end if
-    end if
-
-    accepted_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,accepted_kernel)
-    if (accepted_kernel%block_count /= int(n_local_blocks(),int64)) then
-       call fail("two-stage driver accepted traversal incomplete")
-    end if
-    if (compressible) then
-       call ensure_local_block_hydrostatic_state
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("two-stage driver accepted hydrostatic state not ready")
-       end if
-    end if
-
-    call complete_block_two_stage_tendency_step(.false.)
-    if (block_domain_production_writeback_count() /= writeback_before) then
-       call fail("rejected two-stage step performed Domain writeback")
-    end if
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    if (local_block_tendency_commit_checkpoint_is_ready() .or. &
-         local_block_tendency_state_ready()) then
-       call fail("two-stage driver recovery left stale state ready")
-    end if
-
-    call local_block_field_statistics( &
-         field_count_after(1),field_count_after(2), &
-         field_moment_after(:,1),field_moment_after(:,2))
-    if (any(field_count_after /= field_count)) then
-       call fail("two-stage driver recovery changed field coverage")
-    end if
-    if (.not. field_moments_match( &
-         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
-         .not. field_moments_match( &
-         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
-       call fail("two-stage driver recovery did not restore fields")
-    end if
-
-    restored_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,restored_kernel)
-    if (restored_kernel%block_count /= int(n_local_blocks(),int64)) then
-       call fail("two-stage driver restored traversal incomplete")
-    end if
-    if (compressible) then
-       call ensure_local_block_hydrostatic_state
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("two-stage driver restored hydrostatic state not ready")
-       end if
-    end if
-
-    if (local_block_tendency_allocation_count() /= &
-         tendency_allocation_before) then
-       call fail("two-stage driver reallocated tendency workspace")
-    end if
-    if (local_block_tendency_accumulator_allocation_count() /= &
-         accumulator_allocation_before) then
-       call fail("two-stage driver reallocated accumulator workspace")
-    end if
-    if (local_block_tendency_execution_count() /= &
-         execution_before+4_int64) then
-       call fail("two-stage production driver execution count mismatch")
-    end if
-
-    call local_block_tendency_statistics( &
-         tendency_count_after(1),tendency_count_after(2), &
-         tendency_moment_after(:,1),tendency_moment_after(:,2))
-    if (any(tendency_count_after /= tendency_count)) then
-       call fail("two-stage driver restored tendency coverage changed")
-    end if
-    if (.not. field_moments_match( &
-         tendency_moment_after(:,1),tendency_moment(:,1), &
-         tendency_count(1)) .or. &
-         .not. field_moments_match( &
-         tendency_moment_after(:,2),tendency_moment(:,2), &
-         tendency_count(2))) then
-       call fail("two-stage driver restored tendency inventory changed")
-    end if
-
-    changed_block_count = [result%scalar_changed_block_count, &
-         result%vector_changed_block_count]
-    max_update = [result%scalar_max_update,result%vector_max_update]
-    call MPI_Allreduce( &
-         changed_block_count,changed_block_global,2, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce two-stage driver blocks")
-    call MPI_Allreduce( &
-         max_update,max_update_global,2, &
-         MPI_DOUBLE_PRECISION,MPI_MAX,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce two-stage driver maxima")
-    if (any(changed_block_global <= 0_int64) .or. &
-         any(max_update_global <= 0.0_dp)) then
-       call fail("two-stage production driver produced no change")
-    end if
-
-    call reset_local_block_tendency_accumulator
-    if (local_block_tendency_accumulator_allocation_count() /= &
-         accumulator_allocation_before) then
-       call fail("two-stage driver reset reallocated accumulator")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Reusable two-stage block driver for rank ",rank,":"
-       write(6,'(a,2(i0,1x))') &
-            "  scalar/vector committed blocks = ",changed_block_count
-       write(6,'(a,2(es14.6,1x))') &
-            "  maximum scalar/vector updates = ",max_update
-       write(6,'(a)') "  guarded stage refresh and evaluation passed"
-       write(6,'(a)') "  weighted accumulated commit passed"
-       write(6,'(a)') "  caller-visible recovery checkpoint passed"
-       write(6,'(a)') "  rejected step performed no Domain writeback"
-       write(6,'(a)') "  accepted-state derived consumers passed"
-       write(6,'(a,/)') "  exact recovery and workspace reuse passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,2(i0,1x))') &
-            "Global two-stage driver scalar/vector blocks = ", &
-            changed_block_global
-       write(6,'(a,2(es14.6,1x))') &
-            "Global two-stage driver maximum updates = ", &
-            max_update_global
-       write(6,'(a,/)') &
-            "Reusable production two-stage block step driver passed"
-    end if
-
-  end subroutine check_block_two_stage_step_driver
-
-
-  subroutine check_block_two_stage_step_completion (verbose)
-    ! Exercise permanent acceptance through the production completion API
-    ! twice with a zero increment. Each accepted step must synchronize sol
-    ! exactly while preserving the physical state and wav_coeff shadow.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: ierr
-
-    integer(int64) :: accumulator_allocation_before
-    integer(int64) :: changed_block_count(2)
-    integer(int64) :: count_global(2)
-    integer(int64) :: execution_before
-    integer(int64) :: field_count(2)
-    integer(int64) :: field_count_after(2)
-    integer(int64) :: tendency_allocation_before
-    integer(int64) :: tendency_count(2)
-    integer(int64) :: tendency_count_after(2)
-    integer(int64) :: writeback_allocation_before
-    integer(int64) :: writeback_before
-
-    real(dp) :: field_moment(3,2)
-    real(dp) :: field_moment_after(3,2)
-    real(dp) :: max_update(2)
-    real(dp) :: tendency_moment(3,2)
-    real(dp) :: tendency_moment_after(3,2)
-    real(dp) :: weight(2)
-
-    logical :: print_summary
-    logical :: scalar_moments_match
-    logical :: vector_moments_match
-
-    type(Block_Stencil_Kernel_Context) :: driver_kernel
-    type(Block_Stencil_Kernel_Context) :: regenerated_kernel
-    type(Block_Stencil_Kernel_Context) :: repeated_kernel
-    type(Block_Two_Stage_Step_Result) :: result
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. local_block_tendency_state_ready()) then
-       call fail("two-stage completion check before tendency is ready")
-    end if
-    if (local_block_tendency_trial_is_active() .or. &
-         local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("two-stage completion check found pending transaction")
-    end if
-
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
-    call local_block_tendency_statistics( &
-         tendency_count(1),tendency_count(2), &
-         tendency_moment(:,1),tendency_moment(:,2))
-
-    if (compressible) call ensure_local_block_hydrostatic_state
-    tendency_allocation_before = local_block_tendency_allocation_count()
-    accumulator_allocation_before = &
-         local_block_tendency_accumulator_allocation_count()
-    execution_before = local_block_tendency_execution_count()
-    writeback_allocation_before = &
-         block_writeback_plan_allocation_count()
-    writeback_before = block_domain_production_writeback_count()
-    weight = 0.5_dp
-
-    driver_kernel = Block_Stencil_Kernel_Context()
-    call begin_block_two_stage_tendency_step( &
-         accumulate_block_tendency_kernel,driver_kernel, &
-         0.0_dp,weight,result)
-
-    if (driver_kernel%block_count /= &
-         2_int64*int(n_local_blocks(),int64)) then
-       call fail("accepted two-stage completion traversal incomplete")
-    end if
-    if (result%scalar_count /= field_count(1) .or. &
-         result%vector_count /= field_count(2) .or. &
-         result%stage_count /= 2_int64) then
-       call fail("accepted two-stage completion coverage mismatch")
-    end if
-
-    changed_block_count = [result%scalar_changed_block_count, &
-         result%vector_changed_block_count]
-    max_update = [result%scalar_max_update,result%vector_max_update]
-    if (any(changed_block_count /= 0_int64) .or. &
-         maxval(abs(max_update)) > 0.0_dp) then
-       call fail("zero-increment two-stage completion changed fields")
-    end if
-    if (.not. local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("accepted two-stage completion checkpoint is not ready")
-    end if
-    if (compressible) then
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("zero-increment two-stage step invalidated cache")
-       end if
-    end if
-
-    call complete_block_two_stage_tendency_step(.true.)
-    if (block_domain_production_writeback_count() /= &
-         writeback_before+1_int64) then
-       call fail("accepted step did not perform one Domain writeback")
-    end if
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_WAV_COEFF)
-    if (local_block_tendency_trial_is_active() .or. &
-         local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("accepted two-stage completion remained pending")
-    end if
-    if (local_block_tendency_state_ready()) then
-       call fail("accepted two-stage completion retained stale tendency")
-    end if
-
-    call local_block_field_statistics( &
-         field_count_after(1),field_count_after(2), &
-         field_moment_after(:,1),field_moment_after(:,2))
-    if (any(field_count_after /= field_count)) then
-       call fail("accepted two-stage completion changed field coverage")
-    end if
-    if (.not. field_moments_match( &
-         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
-         .not. field_moments_match( &
-         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
-       call fail("accepted zero-increment step changed fields")
-    end if
-
-    regenerated_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,regenerated_kernel)
-    if (regenerated_kernel%block_count /= &
-         int(n_local_blocks(),int64)) then
-       call fail("accepted two-stage regeneration incomplete")
-    end if
-    if (compressible) then
-       call ensure_local_block_hydrostatic_state
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("accepted two-stage hydrostatic state not ready")
-       end if
-    end if
-
-    repeated_kernel = Block_Stencil_Kernel_Context()
-    call begin_block_two_stage_tendency_step( &
-         accumulate_block_tendency_kernel,repeated_kernel, &
-         0.0_dp,weight,result)
-    if (repeated_kernel%block_count /= &
-         2_int64*int(n_local_blocks(),int64)) then
-       call fail("repeated accepted completion traversal incomplete")
-    end if
-    changed_block_count = [result%scalar_changed_block_count, &
-         result%vector_changed_block_count]
-    max_update = [result%scalar_max_update,result%vector_max_update]
-    if (any(changed_block_count /= 0_int64) .or. &
-         maxval(abs(max_update)) > 0.0_dp) then
-       call fail("repeated zero-increment completion changed fields")
-    end if
-
-    call complete_block_two_stage_tendency_step(.true.)
-    if (block_domain_production_writeback_count() /= &
-         writeback_before+2_int64) then
-       call fail("repeated accepted step Domain writeback count mismatch")
-    end if
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_WAV_COEFF)
-    if (local_block_tendency_trial_is_active()) then
-       call fail("repeated accepted completion left active trial")
-    end if
-    if (local_block_tendency_commit_checkpoint_is_ready()) then
-       call fail("repeated accepted completion left checkpoint ready")
-    end if
-    if (local_block_tendency_state_ready()) then
-       call fail("repeated accepted completion left stale tendency")
-    end if
-
-    call local_block_field_statistics( &
-         field_count_after(1),field_count_after(2), &
-         field_moment_after(:,1),field_moment_after(:,2))
-    if (any(field_count_after /= field_count)) then
-       call fail("repeated accepted completion changed field coverage")
-    end if
-    scalar_moments_match = field_moments_match( &
-         field_moment_after(:,1),field_moment(:,1),field_count(1))
-    vector_moments_match = field_moments_match( &
-         field_moment_after(:,2),field_moment(:,2),field_count(2))
-    if (.not. scalar_moments_match .or. &
-         .not. vector_moments_match) then
-       call fail("repeated accepted zero-increment step changed fields")
-    end if
-
-    regenerated_kernel = Block_Stencil_Kernel_Context()
-    call apply_refreshed_block_tendency_kernel( &
-         accumulate_block_tendency_kernel,regenerated_kernel)
-    if (regenerated_kernel%block_count /= &
-         int(n_local_blocks(),int64)) then
-       call fail("repeated accepted two-stage regeneration incomplete")
-    end if
-    if (compressible) then
-       call ensure_local_block_hydrostatic_state
-       if (.not. local_block_hydrostatic_state_ready()) then
-          call fail("repeated accepted hydrostatic state not ready")
-       end if
-    end if
-
-    if (local_block_tendency_allocation_count() /= &
-         tendency_allocation_before) then
-       call fail("two-stage completion reallocated tendency workspace")
-    end if
-    if (local_block_tendency_accumulator_allocation_count() /= &
-         accumulator_allocation_before) then
-       call fail("two-stage completion reallocated accumulator workspace")
-    end if
-    if (block_writeback_plan_allocation_count() /= &
-         writeback_allocation_before) then
-       call fail("two-stage completion reallocated writeback buffers")
-    end if
-    if (local_block_tendency_execution_count() /= &
-         execution_before+6_int64) then
-       call fail("two-stage completion execution count mismatch")
-    end if
-
-    call local_block_tendency_statistics( &
-         tendency_count_after(1),tendency_count_after(2), &
-         tendency_moment_after(:,1),tendency_moment_after(:,2))
-    if (any(tendency_count_after /= tendency_count)) then
-       call fail("two-stage completion tendency coverage changed")
-    end if
-    if (.not. field_moments_match( &
-         tendency_moment_after(:,1),tendency_moment(:,1), &
-         tendency_count(1)) .or. &
-         .not. field_moments_match( &
-         tendency_moment_after(:,2),tendency_moment(:,2), &
-         tendency_count(2))) then
-       call fail("two-stage completion tendency inventory changed")
-    end if
-
-    call MPI_Allreduce( &
-         field_count,count_global,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce two-stage completion values")
-    if (any(count_global <= 0_int64)) then
-       call fail("two-stage completion field inventory is empty")
-    end if
-
-    call reset_local_block_tendency_accumulator
-    if (local_block_tendency_accumulator_allocation_count() /= &
-         accumulator_allocation_before) then
-       call fail("two-stage completion reset reallocated accumulator")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Completed two-stage block transaction for rank ",rank,":"
-       write(6,'(a,2(i0,1x))') &
-            "  scalar/vector accepted values = ",field_count
-       write(6,'(a)') "  caller completion decision cleared checkpoint"
-       write(6,'(a)') "  explicit permanent acceptance path passed"
-       write(6,'(a)') "  zero-increment acceptance preserved fields"
-       write(6,'(a)') "  accepted sol synchronized to Domain owners"
-       write(6,'(a)') "  wav_coeff Domain shadow remained unchanged"
-       write(6,'(a)') "  repeated accepted Domain writeback passed"
-       write(6,'(a)') "  accepted-state tendency readiness passed"
-       write(6,'(a,/)') "  persistent writeback workspace reuse passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,2(i0,1x))') &
-            "Global completed two-stage scalar/vector values = ", &
-            count_global
-       write(6,'(a,/)') &
-            "Production two-stage Domain synchronization passed"
-    end if
-
-  end subroutine check_block_two_stage_step_completion
 
 
   subroutine check_parallel_block_lifecycle (verbose)
@@ -30294,7 +24570,42 @@ end subroutine build_parallel_block_catalog
     integer, parameter :: SCALE_BDRY_VECTOR_SEND = 25
     integer, parameter :: SCALE_BDRY_VECTOR_RECV = 26
     integer, parameter :: SCALE_BDRY_PERSISTENT_REAL = 27
-    integer, parameter :: SCALE_METRIC_COUNT = 27
+    integer, parameter :: SCALE_ADAPT_SEND_PEER = 28
+    integer, parameter :: SCALE_ADAPT_RECV_PEER = 29
+    integer, parameter :: SCALE_ADAPT_SEND = 30
+    integer, parameter :: SCALE_ADAPT_RECV = 31
+    integer, parameter :: SCALE_REMAP_SEND_PEER = 32
+    integer, parameter :: SCALE_REMAP_RECV_PEER = 33
+    integer, parameter :: SCALE_REMAP_SEND = 34
+    integer, parameter :: SCALE_REMAP_RECV = 35
+    integer, parameter :: SCALE_GHOST_PLAN_BUILD = 36
+    integer, parameter :: SCALE_GHOST_PLAN_REUSE = 37
+    integer, parameter :: SCALE_WRITEBACK_PLAN_BUILD = 38
+    integer, parameter :: SCALE_WRITEBACK_PLAN_REUSE = 39
+    integer, parameter :: SCALE_GHOST_ALLOCATION = 40
+    integer, parameter :: SCALE_WRITEBACK_ALLOCATION = 41
+    integer, parameter :: SCALE_DOMAIN_STAGE_ALLOCATION = 42
+    integer, parameter :: SCALE_ADAPT_ALLOCATION = 43
+    integer, parameter :: SCALE_REMAP_ALLOCATION = 44
+    integer, parameter :: SCALE_TENDENCY_ALLOCATION = 45
+    integer, parameter :: SCALE_IMPORT_ALLOCATION = 46
+    integer, parameter :: SCALE_ACCUMULATOR_ALLOCATION = 47
+    integer, parameter :: SCALE_HYDROSTATIC_ALLOCATION = 48
+    integer, parameter :: SCALE_PRODUCTION_WRITEBACK = 49
+    integer, parameter :: SCALE_TREND_BOUNDARY_REFRESH = 50
+    integer, parameter :: SCALE_MULTISTAGE_BOUNDARY_REFRESH = 51
+    integer, parameter :: SCALE_MIGRATION_SEND_PEER = 52
+    integer, parameter :: SCALE_MIGRATION_RECV_PEER = 53
+    integer, parameter :: SCALE_MIGRATION_SEND_BLOCK = 54
+    integer, parameter :: SCALE_MIGRATION_RECV_BLOCK = 55
+    integer, parameter :: SCALE_MIGRATION_SEND_BYTE = 56
+    integer, parameter :: SCALE_MIGRATION_RECV_BYTE = 57
+    integer, parameter :: SCALE_OUTPUT_WRITEBACK = 58
+    integer, parameter :: SCALE_CHECKPOINT_WRITEBACK = 59
+    integer, parameter :: SCALE_GRID_CHANGE_WRITEBACK = 60
+    integer, parameter :: SCALE_REMAP_WRITEBACK = 61
+    integer, parameter :: SCALE_GHOST_RECORD = 62
+    integer, parameter :: SCALE_METRIC_COUNT = 62
 
     logical, optional, intent(in) :: verbose
 
@@ -30310,6 +24621,7 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: global_sum_repeat(SCALE_METRIC_COUNT)
     integer(int64) :: local_metric(SCALE_METRIC_COUNT)
     integer(int64) :: local_metric_repeat(SCALE_METRIC_COUNT)
+    integer(int64) :: rank_block_count(n_process)
     integer(int64) :: tendency_allocation_after
     integer(int64) :: tendency_allocation_before
     integer(int64) :: writeback_allocation_after
@@ -30317,6 +24629,8 @@ end subroutine build_parallel_block_catalog
 
     logical :: print_summary
     logical :: state_ready
+
+    integer :: r
 
     print_summary = .true.
     if (present(verbose)) print_summary = verbose
@@ -30404,6 +24718,37 @@ end subroutine build_parallel_block_catalog
          global_sum(SCALE_BDRY_VECTOR_RECV)) then
        call fail("scaling snapshot boundary payload mismatch")
     end if
+    if (global_sum(SCALE_ADAPT_SEND_PEER) /= &
+         global_sum(SCALE_ADAPT_RECV_PEER) .or. &
+         global_sum(SCALE_ADAPT_SEND) /= &
+         global_sum(SCALE_ADAPT_RECV)) then
+       call fail("scaling snapshot adaptation exchange mismatch")
+    end if
+    if (global_sum(SCALE_REMAP_SEND_PEER) /= &
+         global_sum(SCALE_REMAP_RECV_PEER) .or. &
+         global_sum(SCALE_REMAP_SEND) /= &
+         global_sum(SCALE_REMAP_RECV)) then
+       call fail("scaling snapshot remap metadata mismatch")
+    end if
+    if (global_sum(SCALE_MIGRATION_SEND_PEER) /= &
+         global_sum(SCALE_MIGRATION_RECV_PEER) .or. &
+         global_sum(SCALE_MIGRATION_SEND_BLOCK) /= &
+         global_sum(SCALE_MIGRATION_RECV_BLOCK) .or. &
+         global_sum(SCALE_MIGRATION_SEND_BYTE) /= &
+         global_sum(SCALE_MIGRATION_RECV_BYTE)) then
+       call fail("scaling snapshot migration exchange mismatch")
+    end if
+    if (global_sum(SCALE_OUTPUT_WRITEBACK) + &
+         global_sum(SCALE_CHECKPOINT_WRITEBACK) + &
+         global_sum(SCALE_GRID_CHANGE_WRITEBACK) + &
+         global_sum(SCALE_REMAP_WRITEBACK) > &
+         global_sum(SCALE_PRODUCTION_WRITEBACK)) then
+       call fail("scaling snapshot writeback purpose totals are invalid")
+    end if
+
+    call MPI_Gather(local_metric(SCALE_BLOCK),1,MPI_INTEGER8, &
+         rank_block_count,1,MPI_INTEGER8,0,comm,ierr)
+    call check_mpi(ierr,"MPI_Gather per-rank block counts")
 
     if (print_summary) then
        write(6,'(/,a,i0,a)') &
@@ -30416,6 +24761,8 @@ end subroutine build_parallel_block_catalog
             local_metric(SCALE_PATCH)
        write(6,'(a,i0)') "  installed compact boundaries = ", &
             local_metric(SCALE_BOUNDARY)
+       write(6,'(a,i0)') "  compact ghost records = ", &
+            local_metric(SCALE_GHOST_RECORD)
        write(6,'(a,i0,a,i0)') "  ghost send/receive peers = ", &
             local_metric(SCALE_GHOST_SEND_PEER)," / ", &
             local_metric(SCALE_GHOST_RECV_PEER)
@@ -30456,17 +24803,40 @@ end subroutine build_parallel_block_catalog
             local_metric(SCALE_BDRY_PERSISTENT_REAL)
        write(6,'(a,i0)') "  persistent real-value capacity = ", &
             local_metric(SCALE_PERSISTENT_REAL)
+       write(6,'(a,i0,a,i0)') &
+            "  adaptation decision send/receive values = ", &
+            local_metric(SCALE_ADAPT_SEND)," / ", &
+            local_metric(SCALE_ADAPT_RECV)
+       write(6,'(a,i0,a,i0)') &
+            "  remap metadata send/receive values = ", &
+            local_metric(SCALE_REMAP_SEND)," / ", &
+            local_metric(SCALE_REMAP_RECV)
+       write(6,'(a,2(i0,1x))') &
+            "  ghost/writeback plan builds = ", &
+            local_metric(SCALE_GHOST_PLAN_BUILD), &
+            local_metric(SCALE_WRITEBACK_PLAN_BUILD)
+       write(6,'(a,2(i0,1x))') &
+            "  ghost/writeback plan reuses = ", &
+            local_metric(SCALE_GHOST_PLAN_REUSE), &
+            local_metric(SCALE_WRITEBACK_PLAN_REUSE)
        write(6,'(a,/)') "  repeated read-only snapshot passed"
     end if
 
     if (print_summary .and. rank == 0) then
        write(6,'(/,a)') "Parallel block global scaling summary:"
        write(6,'(a,i0)') "  MPI ranks = ",n_process
+       write(6,'(a)',advance='no') "  final-owner blocks by rank ="
+       do r = 1,n_process
+          write(6,'(1x,i0)',advance='no') rank_block_count(r)
+       end do
+       write(6,'()')
        call print_min_average_max("final-owner blocks",SCALE_BLOCK)
        call print_min_average_max("final-owner weight",SCALE_WEIGHT)
        call print_min_average_max("installed patches",SCALE_PATCH)
        call print_min_average_max( &
             "installed compact boundaries",SCALE_BOUNDARY)
+       call print_min_average_max( &
+            "compact ghost records",SCALE_GHOST_RECORD)
        call print_min_average_max( &
             "ghost send peers",SCALE_GHOST_SEND_PEER)
        call print_min_average_max( &
@@ -30484,6 +24854,14 @@ end subroutine build_parallel_block_catalog
             SCALE_BDRY_PERSISTENT_REAL)
        call print_min_average_max( &
             "persistent real values",SCALE_PERSISTENT_REAL)
+       call print_min_average_max( &
+            "ghost-plan builds",SCALE_GHOST_PLAN_BUILD)
+       call print_min_average_max( &
+            "ghost-plan reuses",SCALE_GHOST_PLAN_REUSE)
+       call print_min_average_max( &
+            "writeback-plan builds",SCALE_WRITEBACK_PLAN_BUILD)
+       call print_min_average_max( &
+            "writeback-plan reuses",SCALE_WRITEBACK_PLAN_REUSE)
        write(6,'(a,i0)') "  global ghost scalar values = ", &
             global_sum(SCALE_GHOST_SCALAR_SEND)
        write(6,'(a,i0)') "  global ghost vector values = ", &
@@ -30500,6 +24878,57 @@ end subroutine build_parallel_block_catalog
             global_sum(SCALE_BDRY_VECTOR_SEND)
        write(6,'(a,i0)') "  global Domain stage real values = ", &
             global_sum(SCALE_DOMAIN_STAGE_REAL)
+       call print_exchange_volume( &
+            "ghost",SCALE_GHOST_SEND_PEER, &
+            SCALE_GHOST_SCALAR_SEND,SCALE_GHOST_VECTOR_SEND,.true.)
+       call print_exchange_volume( &
+            "writeback",SCALE_WRITEBACK_SEND_PEER, &
+            SCALE_WRITEBACK_SCALAR_SEND,SCALE_WRITEBACK_VECTOR_SEND,.true.)
+       call print_exchange_volume( &
+            "boundary import",SCALE_BDRY_SEND_PEER, &
+            SCALE_BDRY_SCALAR_SEND,SCALE_BDRY_VECTOR_SEND,.true.)
+       call print_exchange_volume( &
+            "adaptation decision",SCALE_ADAPT_SEND_PEER, &
+            SCALE_ADAPT_SEND,SCALE_ADAPT_SEND,.false.)
+       call print_exchange_volume( &
+            "remap metadata",SCALE_REMAP_SEND_PEER, &
+            SCALE_REMAP_SEND,SCALE_REMAP_SEND,.false.)
+       write(6,'(a,3(i0,1x))') &
+            "  migration peer messages/blocks/bytes = ", &
+            global_sum(SCALE_MIGRATION_SEND_PEER), &
+            global_sum(SCALE_MIGRATION_SEND_BLOCK), &
+            global_sum(SCALE_MIGRATION_SEND_BYTE)
+       write(6,'(a)') "  persistent allocation generations (global sum):"
+       write(6,'(a,4(i0,1x))') &
+            "    ghost/writeback/stage/adaptation = ", &
+            global_sum(SCALE_GHOST_ALLOCATION), &
+            global_sum(SCALE_WRITEBACK_ALLOCATION), &
+            global_sum(SCALE_DOMAIN_STAGE_ALLOCATION), &
+            global_sum(SCALE_ADAPT_ALLOCATION)
+       write(6,'(a,4(i0,1x))') &
+            "    remap/tendency/import/accumulator = ", &
+            global_sum(SCALE_REMAP_ALLOCATION), &
+            global_sum(SCALE_TENDENCY_ALLOCATION), &
+            global_sum(SCALE_IMPORT_ALLOCATION), &
+            global_sum(SCALE_ACCUMULATOR_ALLOCATION)
+       write(6,'(a,i0)') "    hydrostatic = ", &
+            global_sum(SCALE_HYDROSTATIC_ALLOCATION)
+       write(6,'(a,5(i0,1x))') &
+            "  writebacks: total/output/checkpoint/grid-change/remap = ", &
+            global_sum(SCALE_PRODUCTION_WRITEBACK), &
+            global_sum(SCALE_OUTPUT_WRITEBACK), &
+            global_sum(SCALE_CHECKPOINT_WRITEBACK), &
+            global_sum(SCALE_GRID_CHANGE_WRITEBACK), &
+            global_sum(SCALE_REMAP_WRITEBACK)
+       write(6,'(a,3(i0,1x))') &
+            "  other writebacks/trend refresh/multistage refresh = ", &
+            global_sum(SCALE_PRODUCTION_WRITEBACK) - &
+            global_sum(SCALE_OUTPUT_WRITEBACK) - &
+            global_sum(SCALE_CHECKPOINT_WRITEBACK) - &
+            global_sum(SCALE_GRID_CHANGE_WRITEBACK) - &
+            global_sum(SCALE_REMAP_WRITEBACK), &
+            global_sum(SCALE_TREND_BOUNDARY_REFRESH), &
+            global_sum(SCALE_MULTISTAGE_BOUNDARY_REFRESH)
        write(6,'(a)') "  global route and payload balance passed"
        write(6,'(a)') "  repeated allocation-free snapshot passed"
        write(6,'(a,/)') "Parallel block scaling validation passed"
@@ -30643,6 +25072,83 @@ end subroutine build_parallel_block_catalog
            production_vector_transform_stage),int64) + int(size( &
            production_vector_wavelet_stage),int64)
 
+      local_value(SCALE_ADAPT_SEND_PEER) = int(count( &
+           block_adaptation_exchange%send_count > 0),int64)
+      local_value(SCALE_ADAPT_RECV_PEER) = int(count( &
+           block_adaptation_exchange%recv_count > 0),int64)
+      local_value(SCALE_ADAPT_SEND) = sum(int( &
+           block_adaptation_exchange%send_count,int64))
+      local_value(SCALE_ADAPT_RECV) = sum(int( &
+           block_adaptation_exchange%recv_count,int64))
+      if (allocated(block_vertical_remap_exchange%send_count) .and. &
+           allocated(block_vertical_remap_exchange%recv_count)) then
+         local_value(SCALE_REMAP_SEND_PEER) = int(count( &
+              block_vertical_remap_exchange%send_count > 0),int64)
+         local_value(SCALE_REMAP_RECV_PEER) = int(count( &
+              block_vertical_remap_exchange%recv_count > 0),int64)
+         local_value(SCALE_REMAP_SEND) = sum(int( &
+              block_vertical_remap_exchange%send_count,int64))
+         local_value(SCALE_REMAP_RECV) = sum(int( &
+              block_vertical_remap_exchange%recv_count,int64))
+      end if
+
+      local_value(SCALE_GHOST_PLAN_BUILD) = &
+           ghost_exchange_plan%build_count
+      local_value(SCALE_GHOST_PLAN_REUSE) = &
+           ghost_exchange_plan%reuse_count
+      local_value(SCALE_WRITEBACK_PLAN_BUILD) = &
+           block_writeback_plan_generation
+      local_value(SCALE_WRITEBACK_PLAN_REUSE) = &
+           block_writeback_plan_reuse_count
+      local_value(SCALE_GHOST_ALLOCATION) = &
+           ghost_exchange_plan%allocation_count
+      local_value(SCALE_WRITEBACK_ALLOCATION) = &
+           block_writeback_plan%buffer_allocations + &
+           staged_coarse_vector_boundary_plan%allocations
+      local_value(SCALE_DOMAIN_STAGE_ALLOCATION) = &
+           block_writeback_plan%stage_allocations
+      local_value(SCALE_ADAPT_ALLOCATION) = &
+           block_adaptation_exchange%allocation_count
+      local_value(SCALE_REMAP_ALLOCATION) = &
+           block_vertical_remap_allocations
+      local_value(SCALE_TENDENCY_ALLOCATION) = &
+           local_block_tendency_allocation_count()
+      local_value(SCALE_IMPORT_ALLOCATION) = &
+           local_block_tendency_import_allocation_count()
+      local_value(SCALE_ACCUMULATOR_ALLOCATION) = &
+           local_block_tendency_accumulator_allocation_count()
+      local_value(SCALE_HYDROSTATIC_ALLOCATION) = &
+           local_block_hydrostatic_allocation_count()
+      local_value(SCALE_PRODUCTION_WRITEBACK) = &
+           compatibility_writeback_total
+      local_value(SCALE_TREND_BOUNDARY_REFRESH) = &
+           block_writeback_plan%production_trend_boundary_refresh_count
+      local_value(SCALE_MULTISTAGE_BOUNDARY_REFRESH) = &
+           block_writeback_plan% &
+           production_multistage_boundary_refresh_count
+      local_value(SCALE_MIGRATION_SEND_PEER) = &
+           migration_send_peer_count
+      local_value(SCALE_MIGRATION_RECV_PEER) = &
+           migration_recv_peer_count
+      local_value(SCALE_MIGRATION_SEND_BLOCK) = &
+           migration_send_block_count
+      local_value(SCALE_MIGRATION_RECV_BLOCK) = &
+           migration_recv_block_count
+      local_value(SCALE_MIGRATION_SEND_BYTE) = &
+           migration_send_byte_count
+      local_value(SCALE_MIGRATION_RECV_BYTE) = &
+           migration_recv_byte_count
+      local_value(SCALE_OUTPUT_WRITEBACK) = &
+           compatibility_writeback_output
+      local_value(SCALE_CHECKPOINT_WRITEBACK) = &
+           compatibility_writeback_checkpoint
+      local_value(SCALE_GRID_CHANGE_WRITEBACK) = &
+           compatibility_writeback_grid_change
+      local_value(SCALE_REMAP_WRITEBACK) = &
+           compatibility_writeback_remap
+      local_value(SCALE_GHOST_RECORD) = &
+           int(ghost_exchange_plan%n_request,int64)
+
       if (any(local_value < 0_int64)) then
          call fail("scaling snapshot contains a negative metric")
       end if
@@ -30658,6 +25164,37 @@ end subroutine build_parallel_block_catalog
       call check_mpi(ierr,"MPI_Allreduce scaling totals")
 
     end subroutine collect_scaling_snapshot
+
+
+    subroutine print_exchange_volume ( &
+         description,peer_metric,first_value_metric, &
+         second_value_metric,real_payload)
+
+      implicit none
+
+      character(*), intent(in) :: description
+      integer, intent(in) :: peer_metric
+      integer, intent(in) :: first_value_metric
+      integer, intent(in) :: second_value_metric
+      logical, intent(in) :: real_payload
+
+      integer(int64) :: byte_count
+      integer(int64) :: value_count
+
+      value_count = global_sum(first_value_metric)
+      if (real_payload) &
+           value_count = value_count + global_sum(second_value_metric)
+      if (real_payload) then
+         byte_count = value_count*int(storage_size(0.0_dp)/8,int64)
+      else
+         byte_count = value_count*int(storage_size(0)/8,int64)
+      end if
+
+      write(6,'(3a,i0,a,i0,a,i0)') "  ",trim(description), &
+           ": peer messages/values/bytes = ", &
+           global_sum(peer_metric)," / ",value_count," / ",byte_count
+
+    end subroutine print_exchange_volume
 
 
     subroutine print_min_average_max (description,metric_index)
@@ -30755,104 +25292,6 @@ end subroutine build_parallel_block_catalog
   end subroutine accumulate_block_hydrostatic_consumer
 
 
-  subroutine check_block_hydrostatic_consumer (verbose)
-    ! Exercise the production traversal interface and compare its direct
-    ! block-array inventory with the established cache statistics.
-
-    implicit none
-
-    logical, optional, intent(in) :: verbose
-
-    integer :: catalog_index
-    integer :: local_index
-
-    integer(int64) :: column_count
-    integer(int64) :: expected_patch_count
-    integer(int64) :: refresh_count_before
-    integer(int64) :: surface_count
-
-    real(dp) :: exner_moment(3)
-    real(dp) :: surface_moment(3)
-    real(dp) :: temperature_moment(3)
-
-    logical :: print_summary
-
-    type(Block_Hydrostatic_Traversal_Context) :: statistics
-
-    print_summary = .true.
-    if (present(verbose)) print_summary = verbose
-
-    if (.not. compressible) then
-       if (print_summary) then
-          write(6,'(/,a,i0,a)') &
-               "Block thermodynamic traversal for rank ", rank, ":"
-          write(6,'(a,/)') &
-               "  skipped for incompressible configuration"
-       end if
-       return
-    end if
-
-    call local_block_hydrostatic_statistics( &
-         surface_count,column_count,surface_moment,exner_moment, &
-         temperature_moment)
-
-    refresh_count_before = local_block_hydrostatic_refresh_count()
-    statistics = Block_Hydrostatic_Traversal_Context()
-
-    call apply_local_block_hydrostatic_consumer( &
-         accumulate_block_hydrostatic_consumer,statistics)
-
-    if (local_block_hydrostatic_refresh_count() /= &
-         refresh_count_before) then
-       call fail("production hydrostatic consumer refreshed cache")
-    end if
-
-    expected_patch_count = 0_int64
-    do local_index = 1,n_local_blocks()
-       catalog_index = local_block_catalog(local_index)
-       expected_patch_count = expected_patch_count + &
-            int(local_block_patch_count(catalog_index),int64)
-    end do
-
-    if (statistics%block_count /= int(n_local_blocks(),int64) .or. &
-         statistics%patch_count /= expected_patch_count) then
-       call fail("production hydrostatic consumer traversal mismatch")
-    end if
-    if (statistics%surface_count /= surface_count .or. &
-         statistics%column_count /= column_count) then
-       call fail("production hydrostatic consumer count mismatch")
-    end if
-    if (.not. field_moments_match( &
-         statistics%surface_moment,surface_moment,surface_count)) then
-       call fail("production hydrostatic consumer surface mismatch")
-    end if
-    if (.not. field_moments_match( &
-         statistics%exner_moment,exner_moment,column_count)) then
-       call fail("production hydrostatic consumer Exner mismatch")
-    end if
-    if (.not. field_moments_match( &
-         statistics%temperature_moment,temperature_moment, &
-         column_count)) then
-       call fail("production hydrostatic consumer temperature mismatch")
-    end if
-
-    if (print_summary) then
-       write(6,'(/,a,i0,a)') &
-            "Block thermodynamic traversal for rank ", rank, ":"
-       write(6,'(a,i0)') &
-            "  local blocks consumed  = ", statistics%block_count
-       write(6,'(a,i0)') &
-            "  local patches consumed = ", statistics%patch_count
-       write(6,'(a,/)') &
-            "  direct production traversal checks passed"
-    end if
-
-    if (print_summary .and. rank == 0) then
-       write(6,'(/,a,/)') &
-            "Production block thermodynamic consumer traversal passed"
-    end if
-
-  end subroutine check_block_hydrostatic_consumer
 
 
   subroutine check_block_hydrostatic_reconstruction (verbose)
@@ -31819,7 +26258,7 @@ end subroutine build_parallel_block_catalog
             "  source/destination checks passed"
     end if
 
-    if (rank == 0) then
+    if (print_local .and. rank == 0) then
        write(6,'(/,a,i0)') &
             "Global migrating blocks verified = ", expected_changed
        write(6,'(a,/)') &
@@ -31993,7 +26432,7 @@ end subroutine build_parallel_block_catalog
             "  packed-size routing checks passed"
     end if
 
-    if (rank == 0) then
+    if (print_local .and. rank == 0) then
        write(6,'(/,a,i0)') &
             "Global packed migration bytes verified = ", &
             global_send_nbyte
@@ -32196,7 +26635,7 @@ end subroutine build_parallel_block_catalog
             "  payload transport checksum passed"
     end if
 
-    if (rank == 0) then
+    if (print_local .and. rank == 0) then
        write(6,'(/,a,i0)') &
             "Global packed payload bytes transferred = ", &
             global_send_nbyte

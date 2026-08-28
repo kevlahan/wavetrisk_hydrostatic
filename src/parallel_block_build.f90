@@ -36,12 +36,14 @@ module parallel_block_build_mod
 contains
 
 
-subroutine build_source_blocks
+subroutine build_source_blocks (verbose)
   ! Build and verify every candidate block whose source Domain is
-  ! currently local to this rank. Detailed diagnostics are printed for
-  ! one representative block; all blocks contribute to rank totals.
+  ! currently local to this rank. Optional diagnostics describe one
+  ! representative block and the rank totals; validation always runs.
 
   implicit none
+
+  logical, optional, intent(in) :: verbose
 
   integer :: b
   integer :: b_verbose
@@ -69,6 +71,11 @@ subroutine build_source_blocks
   integer :: n_pack_block
   integer :: n_pack_byte_total
   integer :: n_pack_byte_max
+
+  logical :: print_summary
+
+  print_summary = .false.
+  if (present(verbose)) print_summary = verbose
 
   !
   ! Count the source-local candidate blocks before allocating the
@@ -126,7 +133,7 @@ subroutine build_source_blocks
   !
   ! Prefer a representative local-source block of depth at least two.
   !
-  if (rank == 0) then
+  if (print_summary .and. rank == 0) then
 
   do b = 1, size(block_catalog)
 
@@ -154,7 +161,7 @@ subroutine build_source_blocks
   !
   ! Fallback to the first candidate with a local source Domain.
   !
-  if (rank == 0 .and. b_verbose < 1) then
+  if (print_summary .and. rank == 0 .and. b_verbose < 1) then
 
      do b = 1, size(block_catalog)
 
@@ -175,7 +182,7 @@ subroutine build_source_blocks
 
   end if
 
-  if (rank == 0 .and. b_verbose < 1) then
+  if (print_summary .and. rank == 0 .and. b_verbose < 1) then
      error stop &
           "build_source_blocks: no local source-domain block"
   end if
@@ -251,6 +258,8 @@ subroutine build_source_blocks
   call check_migrating_block_serialization( &
        n_pack_block, n_pack_byte_total, n_pack_byte_max)
 
+  if (print_summary) then
+
   write(6,'(/,a,i0,a)') &
        "All-block extraction summary for rank ", rank, ":"
 
@@ -314,6 +323,8 @@ subroutine build_source_blocks
 
   write(6,'(a,/)') &
        "  all local-source candidate block checks passed"
+
+  end if
 
 end subroutine build_source_blocks
 
