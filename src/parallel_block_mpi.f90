@@ -521,6 +521,7 @@ module parallel_block_mpi_mod
   logical, save :: block_adaptation_validation = .false.
   logical, save :: block_adaptation_validation_initialized = .false.
   logical, save :: block_adaptation_cutover_reported = .false.
+  logical, save :: production_state_preparation_reported = .false.
 
   ! Domain-shaped, non-authoritative storage for the complete native vector
   ! transform.  Values are populated only from the block-derived writeback
@@ -782,11 +783,6 @@ module parallel_block_mpi_mod
      real(dp) :: vector_max_update = 0.0_dp
   end type Block_Two_Stage_Step_Result
 
-  public :: build_block_migration_manifest
-  public :: check_block_migration_manifest
-  public :: exchange_block_migration_sizes
-  public :: exchange_block_migration_payloads
-  public :: clear_block_migration_manifest
   public :: build_parallel_block_catalog
   public :: clear_parallel_block_state
   public :: parallel_block_state_is_ready
@@ -805,29 +801,7 @@ module parallel_block_mpi_mod
   public :: write_block_native_vertical_remap_to_domains
   public :: complete_block_native_vertical_remap
   public :: migrate_blocks
-  public :: check_local_blocks
-  public :: check_block_field_inventory
-  public :: check_block_scalar_stencil_consumer
-  public :: check_block_vector_stencil_consumer
-  public :: check_block_boundary_routes
-  public :: check_block_ghost_source_addresses
-  public :: check_block_ghost_request_manifest
-  public :: build_block_ghost_exchange_plan
-  public :: clear_block_ghost_exchange_plan
-  public :: check_block_ghost_exchange_plan
-  public :: build_block_writeback_plan
-  public :: clear_block_writeback_plan
-  public :: check_block_writeback_plan
-  public :: exchange_block_writeback_payloads
-  public :: write_block_field_family_to_domains
   public :: block_domain_production_writeback_count
-  public :: check_block_writeback_payload_exchange
-  public :: exchange_domain_to_block_payloads
-  public :: check_domain_to_block_payload_exchange
-  public :: import_domain_field_family_to_blocks
-  public :: check_domain_field_family_block_import
-  public :: import_domain_boundary_field_family_to_blocks
-  public :: check_domain_boundary_field_family_block_import
   public :: refresh_parallel_block_trend_boundary_state
   public :: refresh_parallel_block_candidate_boundary_state
   public :: validate_candidate_block_scalar_wavelets
@@ -837,11 +811,6 @@ module parallel_block_mpi_mod
   public :: activate_block_native_wavelet_compression
   public :: activate_block_native_inverse_transform
   public :: refresh_parallel_block_domain_prognostic_state
-  public :: check_domain_trend_roundtrip
-  public :: import_domain_trend_to_block_tendency
-  public :: check_domain_trend_tendency_import
-  public :: begin_block_domain_trend_step
-  public :: complete_block_domain_trend_step
   public :: advance_block_domain_trend_euler
   public :: capture_block_domain_multistage_candidate_tendency
   public :: begin_block_scalar_divergence_capture
@@ -851,41 +820,6 @@ module parallel_block_mpi_mod
   public :: retain_block_native_multistage_candidate
   public :: prepare_block_native_multistage_wavelet_stage
   public :: prepare_block_native_multistage_wavelet_acceptance
-  public :: accept_block_native_multistage_candidate
-  public :: check_block_domain_trend_step
-  public :: check_block_writeback_domain_reconstruction
-  public :: block_writeback_plan_is_ready
-  public :: block_writeback_plan_allocation_count
-  public :: check_block_scalar_ghost_payload_exchange
-  public :: check_block_vector_ghost_payload_exchange
-  public :: refresh_block_sol_ghosts
-  public :: apply_refreshed_block_tendency_kernel
-  public :: begin_block_two_stage_tendency_step
-  public :: complete_block_two_stage_tendency_step
-  public :: refresh_block_wav_coeff_ghosts
-  public :: refresh_block_sol_wav_coeff_ghosts
-  public :: check_production_block_ghost_refresh
-  public :: check_block_field_family_accessors
-  public :: check_block_patch_writable_storage
-  public :: check_block_boundary_family_mutators
-  public :: check_block_boundary_family_bulk_fill
-  public :: check_refreshed_block_stencil_consumers
-  public :: check_block_hydrostatic_state_accessors
-  public :: check_block_hydrostatic_consumer
-  public :: check_block_field_consumer
-  public :: check_block_stencil_kernel
-  public :: check_block_tendency_kernel
-  public :: check_block_tendency_trial_update
-  public :: check_block_tendency_commit
-  public :: check_block_tendency_step_driver
-  public :: check_block_tendency_accepted_step
-  public :: check_block_multistage_tendency_accumulator
-  public :: check_block_multistage_tendency_commit
-  public :: check_block_two_stage_step_driver
-  public :: check_block_two_stage_step_completion
-  public :: check_parallel_block_lifecycle
-  public :: check_parallel_block_scaling
-  public :: check_block_hydrostatic_reconstruction
 
 contains
 
@@ -3817,6 +3751,78 @@ contains
 end subroutine build_parallel_block_catalog
 
 
+  subroutine prepare_parallel_block_production_state (report)
+    ! Establish the non-optional state required by the first production
+    ! tendency independently of the exhaustive migration validation suite.
+    ! A repeated call proves that unchanged topology reuses every persistent
+    ! tendency workspace and the hydrostatic cache.
+
+    implicit none
+
+    logical, optional, intent(in) :: report
+
+    integer(int64) :: accumulator_allocations
+    integer(int64) :: accumulator_allocations_after
+    integer(int64) :: hydrostatic_refreshes
+    integer(int64) :: hydrostatic_refreshes_after
+    integer(int64) :: import_allocations
+    integer(int64) :: import_allocations_after
+    integer(int64) :: tendency_allocations
+    integer(int64) :: tendency_allocations_after
+
+    logical :: hydrostatic_ready
+    logical :: print_summary
+    logical :: state_ready
+
+    state_ready = parallel_block_state_is_ready()
+    if (.not. state_ready) &
+         call fail("production preparation before block state is ready")
+
+    if (compressible) then
+       call ensure_local_block_hydrostatic_state
+       hydrostatic_ready = local_block_hydrostatic_state_ready()
+       if (.not. hydrostatic_ready) &
+            call fail("production hydrostatic state is not ready")
+       hydrostatic_refreshes = local_block_hydrostatic_refresh_count()
+       call ensure_local_block_hydrostatic_state
+       hydrostatic_refreshes_after = &
+            local_block_hydrostatic_refresh_count()
+       if (hydrostatic_refreshes_after /= hydrostatic_refreshes) &
+            call fail("production hydrostatic state was not reusable")
+    end if
+
+    call prepare_local_block_tendency_workspace
+    tendency_allocations = local_block_tendency_allocation_count()
+    import_allocations = &
+         local_block_tendency_import_allocation_count()
+    accumulator_allocations = &
+         local_block_tendency_accumulator_allocation_count()
+    call prepare_local_block_tendency_workspace
+    tendency_allocations_after = local_block_tendency_allocation_count()
+    import_allocations_after = &
+         local_block_tendency_import_allocation_count()
+    accumulator_allocations_after = &
+         local_block_tendency_accumulator_allocation_count()
+    if (tendency_allocations_after /= tendency_allocations .or. &
+         import_allocations_after /= import_allocations .or. &
+         accumulator_allocations_after /= accumulator_allocations) &
+         call fail("production tendency workspace was not reusable")
+
+    print_summary = .false.
+    if (present(report)) print_summary = report
+    if (print_summary .and. &
+         .not. production_state_preparation_reported .and. rank == 0) then
+       write(6,'(a)') "Parallel-block production state preparation passed"
+       if (compressible) &
+            write(6,'(a)') "  hydrostatic cache prepared and reused"
+       write(6,'(a)') &
+            "  tendency/import/accumulator workspaces prepared and reused"
+    end if
+    if (print_summary) production_state_preparation_reported = .true.
+
+  end subroutine prepare_parallel_block_production_state
+
+
   subroutine migrate_blocks (verbose,full_validation)
     ! Migrate the source-local blocks to their final catalogue owners,
     ! install a self-contained local block store, and release all
@@ -4103,10 +4109,11 @@ end subroutine build_parallel_block_catalog
     deallocate(send_nbyte)
     deallocate(send_payload)
 
+    call prepare_parallel_block_production_state(.false.)
+
     if (run_full_validation) then
        call check_local_blocks(print_local)
        call check_block_field_inventory(print_local)
-       if (compressible) call ensure_local_block_hydrostatic_state
        call check_block_hydrostatic_state_accessors(print_local)
        call check_block_hydrostatic_consumer(print_local)
        call check_block_field_consumer(print_local)
@@ -4131,6 +4138,11 @@ end subroutine build_parallel_block_catalog
        if (compressible) call ensure_local_block_hydrostatic_state
        call check_block_hydrostatic_reconstruction(print_local)
     end if
+
+    ! Validation routines may deliberately exercise invalidation and rollback.
+    ! Restore the same clean production state and prove allocation reuse before
+    ! returning to the timestep driver.
+    call prepare_parallel_block_production_state(.true.)
 
   end subroutine migrate_blocks
 
