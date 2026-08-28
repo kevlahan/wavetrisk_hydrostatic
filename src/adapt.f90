@@ -1,4 +1,6 @@
 module adapt_mod
+  use, intrinsic :: iso_fortran_env, only : int64
+
   use kind_mod,         only : dp
   
   use shared_mod,       only : ADJZONE, EDGE, level_start, level_end, &
@@ -11,6 +13,10 @@ module adapt_mod
   use init_mod,         only : noarg_sub, set_thresholds, update
   use refine_patch_mod, only : fill_up_level, max_level_exceeded, post_refine, refine
   use utils_mod,        only : zero_float
+  use parallel_block_mpi_mod, only : &
+       block_domain_production_writeback_count, &
+       parallel_block_grid_change_is_pending, &
+       parallel_block_state_is_ready
 
 
   use domain_mod,  only :  Domain, Float_Field, grid, idx, scalar, sol, velo, &
@@ -27,7 +33,13 @@ module adapt_mod
 
   private
   public :: adapt, compress_wavelets_scalar, fill_up_grid_and_IWT
+  public :: adaptation_domain_consumer_audits_completed
   public :: WT_after_scalar, WT_after_step, WT_after_velo 
+
+  integer, parameter :: ADAPTATION_CONSUMER_THRESHOLD = 1
+  integer, parameter :: ADAPTATION_CONSUMER_UPDATE = 2
+  logical, save :: threshold_consumer_audited = .false.
+  logical, save :: update_consumer_audited = .false.
   
   interface compress_wavelets_scalar
      procedure :: compress_wavelets_scalar_0, compress_wavelets_scalar_1
@@ -104,6 +116,70 @@ module adapt_mod
   
 contains
 
+
+  subroutine adaptation_domain_consumer_audits_completed ( &
+       threshold_completed,update_completed)
+    ! Return completion of the two test-case callback audits owned by adapt.
+
+    implicit none
+
+    logical, intent(out) :: threshold_completed
+    logical, intent(out) :: update_completed
+
+    threshold_completed = threshold_consumer_audited
+    update_completed = update_consumer_audited
+
+  end subroutine adaptation_domain_consumer_audits_completed
+
+
+  subroutine call_adaptation_domain_consumer ( &
+       consumer,audit_kind,runtime_consumer)
+    ! Prove that a test-case threshold or post-topology update callback does
+    ! not change the parallel-block transaction or initiate synchronization.
+
+    implicit none
+
+    procedure(noarg_sub) :: consumer
+    integer, intent(in) :: audit_kind
+    logical, optional, intent(in) :: runtime_consumer
+
+    integer(int64) :: writeback_before
+    logical :: pending_before
+    logical :: ready_before
+    logical :: runtime_callback
+
+    runtime_callback = .false.
+    if (present(runtime_consumer)) runtime_callback = runtime_consumer
+
+    ready_before = parallel_block_state_is_ready()
+    pending_before = parallel_block_grid_change_is_pending()
+    if (ready_before .and. pending_before) &
+         error stop "adaptation callback entered an invalid block phase"
+    writeback_before = block_domain_production_writeback_count()
+
+    call consumer
+
+    if (parallel_block_state_is_ready() .neqv. ready_before) &
+         error stop "adaptation callback changed authoritative block state"
+    if (parallel_block_grid_change_is_pending() .neqv. &
+         pending_before) &
+         error stop "adaptation callback changed the grid-change phase"
+    if (block_domain_production_writeback_count() /= writeback_before) &
+         error stop "adaptation callback performed an unaccounted writeback"
+
+    select case (audit_kind)
+    case (ADAPTATION_CONSUMER_THRESHOLD)
+       if (pending_before) threshold_consumer_audited = .true.
+    case (ADAPTATION_CONSUMER_UPDATE)
+       if (runtime_callback .and. .not. ready_before .and. &
+            .not. pending_before) &
+            update_consumer_audited = .true.
+    case default
+       error stop "invalid adaptation callback audit kind"
+    end select
+
+  end subroutine call_adaptation_domain_consumer
+
   subroutine refresh_native_inverse_scalar_boundary (scaling,level)
     ! Keep the established Domain boundary operator above the compact block
     ! layer so parallel_block_mpi_mod retains its original module ordering.
@@ -155,7 +231,8 @@ contains
        local_type = .true.
     end if
 
-    if (local_type) call set_thresholds
+    if (local_type) call call_adaptation_domain_consumer( &
+         set_thresholds,ADAPTATION_CONSUMER_THRESHOLD)
 
     ! Initialize all masks to ZERO at scales > level_start
     call init_masks_zero
@@ -195,7 +272,8 @@ contains
     if (local_type) call compress_wavelets (wav_coeff)
     
     ! Evaluate sol_mean, topography and penalization (as defined in test case) on new grid
-    call update 
+    call call_adaptation_domain_consumer( &
+         update,ADAPTATION_CONSUMER_UPDATE,present(block_mask_seed))
   end subroutine adapt
 
   

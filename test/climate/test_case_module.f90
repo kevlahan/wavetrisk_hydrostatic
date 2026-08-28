@@ -62,7 +62,10 @@ contains
 
   
   subroutine assign_functions
-    ! Assigns generic pointer functions to functions defined in test cases
+    ! Assign generic procedure pointers and verify the complete climate
+    ! callback contract.  Runtime Domain-lifecycle checks are placed around
+    ! the enclosing tendency, threshold and post-topology transactions so the
+    ! per-cell callbacks remain free of audit overhead.
     implicit none
 
     ! Standard functions
@@ -78,7 +81,60 @@ contains
     surf_geopot              => surf_geopot_case
     update                   => update_case
     z_coords                 => z_coords_case
+
+    call audit_assigned_functions
   end subroutine assign_functions
+
+
+  subroutine audit_assigned_functions
+    ! Fail at startup if a climate callback is absent or accidentally bound to
+    ! a different implementation.  The classifications below define which
+    ! enclosing production transaction owns each Domain consumer:
+    !
+    ! startup mutation:       apply_initial_conditions
+    ! tendency read-only:     physics_scalar_flux, physics_velo_source
+    ! adaptation read-only:   set_thresholds
+    ! post-topology mutation: update
+    ! diagnostic read-only:   surf_geopot, z_coords
+    ! checkpoint callbacks:   dump, load
+    ! parameter-only:         initialize_a_b_vert,
+    !                         initialize_dt_viscosity,
+    !                         initialize_thresholds
+
+    implicit none
+
+    if (.not. associated(apply_initial_conditions, &
+         apply_initial_conditions_case)) &
+         error stop "climate initial-condition callback is invalid"
+    if (.not. associated(dump,dump_case)) &
+         error stop "climate checkpoint-dump callback is invalid"
+    if (.not. associated(load,load_case)) &
+         error stop "climate checkpoint-load callback is invalid"
+    if (.not. associated(initialize_a_b_vert,initialize_a_b_vert_case)) &
+         error stop "climate vertical-coordinate callback is invalid"
+    if (.not. associated(initialize_dt_viscosity, &
+         initialize_dt_viscosity_case)) &
+         error stop "climate timestep callback is invalid"
+    if (.not. associated(initialize_thresholds, &
+         initialize_thresholds_case)) &
+         error stop "climate threshold-initialization callback is invalid"
+    if (.not. associated(physics_scalar_flux,physics_scalar_flux_case)) &
+         error stop "climate scalar-flux callback is invalid"
+    if (.not. associated(physics_velo_source,physics_velo_source_case)) &
+         error stop "climate velocity-source callback is invalid"
+    if (.not. associated(set_thresholds,set_thresholds_case)) &
+         error stop "climate dynamic-threshold callback is invalid"
+    if (.not. associated(surf_geopot,surf_geopot_case)) &
+         error stop "climate surface-geopotential callback is invalid"
+    if (.not. associated(update,update_case)) &
+         error stop "climate post-topology callback is invalid"
+    if (.not. associated(z_coords,z_coords_case)) &
+         error stop "climate vertical-position callback is invalid"
+
+    if (rank == 0) write(6,'(a)') &
+         "Climate test-case Domain callback registration audit passed"
+
+  end subroutine audit_assigned_functions
   
 
   function physics_scalar_flux_case (q, dom, id, idE, idNE, idN, v, zlev, type) result(flux)

@@ -15,7 +15,8 @@ module main_mod
        R_d, run_id, sigma_z, resume, scalars, sso, test_case, theta_grid, threshold, threshold_def, &
        time, time_end, timeint_type, vert_diffuse, vtk_grid, wave_speed, z_null, zlevels, zmin, zmax
 
-  use adapt_mod,          only : adapt, WT_after_step
+  use adapt_mod,          only : adapt, WT_after_step, &
+       adaptation_domain_consumer_audits_completed
   use coarse_grid_mod,    only : read_optim_grid, smooth_Xu, update_geom_check_grid, zrotate 
   use comm_mod,           only : get_coord, set_coord
   use diagnostics_mod,    only : rho_dz_i, theta_i, theta2temp
@@ -54,13 +55,16 @@ module main_mod
 
   use time_integr_mod, only : dt_step, dt_step_split, init_RK_mem, q1, &
        Euler, Euler_split, RK3, RK3_split, RK4, RK4_split, &
-       set_multistage_block_candidate_enabled
+       call_domain_tendency_consumer, &
+       set_multistage_block_candidate_enabled, &
+       tendency_domain_consumer_audit_completed
 
   use coord_arithmetic_mod
 
   use parallel_block_build_mod, only : build_source_blocks
 
   use parallel_block_mpi_mod, only : build_parallel_block_catalog, &
+       block_adaptation_validation_enabled, &
        block_native_minimum_relative_mass, &
        block_domain_production_writeback_count, &
        clear_parallel_block_state, invalidate_parallel_block_domain_shadow, &
@@ -103,6 +107,7 @@ logical, save        :: output_consumer_cutover_reported = .false.
 logical, save        :: physics_consumer_cutover_reported = .false.
 logical, save        :: solution_consumer_sync_reported = .false.
 logical, save        :: soil_consumer_cutover_reported = .false.
+logical, save        :: test_case_consumer_audit_reported = .false.
 
 integer, parameter :: DOMAIN_CONSUMER_READY = 1
 integer, parameter :: DOMAIN_CONSUMER_PENDING = 2
@@ -191,6 +196,42 @@ contains
          error stop "Domain consumer performed an unaccounted writeback"
 
   end subroutine end_domain_consumer_audit
+
+
+  subroutine report_test_case_domain_consumer_audits
+    ! Emit one concise global report after the hot tendency callbacks, dynamic
+    ! threshold callback and post-topology update callback have each completed
+    ! under their production block transaction.
+
+    implicit none
+
+    logical :: tendency_completed
+    logical :: threshold_completed
+    logical :: update_completed
+
+    if (test_case_consumer_audit_reported) return
+    if (.not. compressible .or. mode_split) return
+
+    tendency_completed = &
+         tendency_domain_consumer_audit_completed()
+    call adaptation_domain_consumer_audits_completed( &
+         threshold_completed,update_completed)
+    if (.not. tendency_completed .or. .not. threshold_completed .or. &
+         .not. update_completed) return
+
+    if (rank == 0) then
+       write(6,'(a)') &
+            "Climate test-case Domain consumer audit passed"
+       write(6,'(a)') &
+            "  tendency callbacks preserved the ready block transaction"
+       write(6,'(a)') &
+            "  threshold callback preserved the pending grid-change phase"
+       write(6,'(a)') &
+            "  post-topology update performed no hidden block writeback"
+    end if
+    test_case_consumer_audit_reported = .true.
+
+  end subroutine report_test_case_domain_consumer_audits
 
 
   subroutine initialize (run_id) 
@@ -630,6 +671,8 @@ contains
 
     implicit none
 
+    logical :: validate_block_bootstrap
+
     call clear_parallel_block_state
     call deallocate_structures  ! deallocate all dynamic arrays and variables
     call init_basic
@@ -681,7 +724,17 @@ contains
     ! run and the restart performed after a newly written checkpoint.
     call build_parallel_block_catalog
     call build_source_blocks
-    call migrate_blocks
+    ! The migration suite still owns required hydrostatic and tendency
+    ! workspace preparation.  Retain it in every build until those production
+    ! initializers have been separated explicitly; only its verbose report is
+    ! controlled by the adaptation-oracle setting.
+    validate_block_bootstrap = .false.
+    if (compressible .and. .not. mode_split) &
+         validate_block_bootstrap = &
+         block_adaptation_validation_enabled()
+    call migrate_blocks( &
+         verbose=validate_block_bootstrap, &
+         full_validation=.true.)
 
   end subroutine restart
 
@@ -734,7 +787,8 @@ contains
        call refresh_parallel_block_trend_boundary_state
        select case (trim(timeint_type))
        case ("Euler")
-          call trend_ml (sol(1:N_VARIABLE,1:zlevels), trend)
+          call call_domain_tendency_consumer( &
+               sol(1:N_VARIABLE,1:zlevels),trend_ml)
           call advance_block_domain_trend_euler(dt)
           call WT_after_step (sol(1:N_VARIABLE,1:zlevels), &
                wav_coeff(1:N_VARIABLE,1:zlevels),level_start-1)
@@ -805,6 +859,7 @@ contains
     call inverse_wavelet_transform (wav_coeff, sol)
     if (block_multistage_candidate) &
          call complete_block_adaptation_lifecycle
+    call report_test_case_domain_consumer_audits
 
     ! Rebuild the compact state immediately after the topology transition.
     ! Vertical remapping can then execute independently in both compact block

@@ -1,5 +1,7 @@
 module time_integr_mod
 
+  use, intrinsic :: iso_fortran_env, only : int64
+
   use kind_mod,   only : dp
   use shared_mod, only : N_VARIABLE, NONE, POSIT, S_TEMP, eps, level_start, theta2, zlevels, zmax
   
@@ -15,6 +17,8 @@ module time_integr_mod
        activate_block_native_inverse_transform, &
        capture_block_domain_multistage_candidate_tendency, &
        finalize_block_scalar_divergence_capture, &
+       block_domain_production_writeback_count, &
+       parallel_block_grid_change_is_pending, &
        parallel_block_state_is_ready, &
        prepare_block_native_wavelet_compression, &
        prepare_block_native_multistage_wavelet_acceptance, &
@@ -33,6 +37,8 @@ module time_integr_mod
   public :: dt_step, dt_step_split
   public :: init_RK_mem
   public :: set_multistage_block_candidate_enabled
+  public :: call_domain_tendency_consumer
+  public :: tendency_domain_consumer_audit_completed
   public :: Euler, Euler_split, RK3, RK3_split, RK4, RK4_split
   public :: q1
   
@@ -74,9 +80,58 @@ module time_integr_mod
   procedure (dt_integrator),       pointer :: dt_step        => null ()
   procedure (dt_integrator_split), pointer :: dt_step_split  => null ()
   logical :: multistage_block_candidate_enabled = .false.
+  logical, save :: tendency_consumer_audited = .false.
 
   
 contains
+
+
+  logical function tendency_domain_consumer_audit_completed () &
+       result(completed)
+    ! Report whether a production tendency transaction has proved that all
+    ! enclosed test-case callbacks preserve block ownership and do not hide a
+    ! compact-to-Domain writeback.
+
+    implicit none
+
+    completed = tendency_consumer_audited
+
+  end function tendency_domain_consumer_audit_completed
+
+
+  subroutine call_domain_tendency_consumer (q,routine)
+    ! Audit the complete legacy Domain tendency transaction rather than its
+    ! per-cell callbacks.  This covers physics_scalar_flux and
+    ! physics_velo_source without adding checks inside hot grid-point loops.
+
+    implicit none
+
+    type(Float_Field), intent(inout), target :: &
+         q(1:N_VARIABLE,1:zlevels)
+    procedure(trend_sub) :: routine
+
+    integer(int64) :: writeback_before
+    logical :: pending_before
+    logical :: ready_before
+
+    ready_before = parallel_block_state_is_ready()
+    pending_before = parallel_block_grid_change_is_pending()
+    if (ready_before .and. pending_before) &
+         error stop "tendency callback entered an invalid block phase"
+    writeback_before = block_domain_production_writeback_count()
+
+    call routine(q,trend)
+
+    if (parallel_block_state_is_ready() .neqv. ready_before) &
+         error stop "tendency callback changed authoritative block state"
+    if (parallel_block_grid_change_is_pending() .neqv. &
+         pending_before) &
+         error stop "tendency callback changed the grid-change phase"
+    if (block_domain_production_writeback_count() /= writeback_before) &
+         error stop "tendency callback performed an unaccounted writeback"
+    if (ready_before) tendency_consumer_audited = .true.
+
+  end subroutine call_domain_tendency_consumer
 
 
   subroutine set_multistage_block_candidate_enabled (enabled)
@@ -137,7 +192,7 @@ contains
     type(Float_Field), intent(inout) :: wav(1:N_VARIABLE,1:zlevels)
     procedure (trend_sub)            :: routine
 
-    call routine (q, trend)
+    call call_domain_tendency_consumer(q,routine)
     call RK_sub_step (q, trend, h, q)
     call WT_after_step (q, wav, level_start-1)
   end subroutine Euler
@@ -169,7 +224,7 @@ contains
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
-    call routine (q, trend)
+    call call_domain_tendency_consumer(q,routine)
     if (block_candidate) then
        call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(1,3,q)
@@ -186,7 +241,7 @@ contains
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
-    call routine (q1, trend)
+    call call_domain_tendency_consumer(q1,routine)
     if (block_candidate) then
        call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(2,3,q1)
@@ -203,7 +258,7 @@ contains
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
-    call routine (q1, trend)
+    call call_domain_tendency_consumer(q1,routine)
     if (block_candidate) then
        call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(3,3,q1)
@@ -262,7 +317,7 @@ contains
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
-    call routine (q, trend)
+    call call_domain_tendency_consumer(q,routine)
     if (block_candidate) then
        call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(1,4,q)
@@ -279,7 +334,7 @@ contains
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
-    call routine (q1, trend)
+    call call_domain_tendency_consumer(q1,routine)
     if (block_candidate) then
        call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(2,4,q1)
@@ -296,7 +351,7 @@ contains
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
-    call routine (q1, trend)
+    call call_domain_tendency_consumer(q1,routine)
     if (block_candidate) then
        call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(3,4,q1)
@@ -313,7 +368,7 @@ contains
     end if
 
     if (block_candidate) call begin_block_scalar_divergence_capture
-    call routine (q1, trend)
+    call call_domain_tendency_consumer(q1,routine)
     if (block_candidate) then
        call finalize_block_scalar_divergence_capture
        call capture_block_domain_multistage_candidate_tendency(4,4,q1)
