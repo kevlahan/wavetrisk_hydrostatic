@@ -79,6 +79,7 @@ module main_mod
        advance_block_domain_trend_euler, parallel_block_state_is_ready, &
        parallel_block_grid_change_is_pending, &
        prepare_parallel_block_grid_change, &
+       refresh_pending_parallel_block_adaptation_wavelets, &
        synchronize_parallel_block_solution_consumer, &
        synchronize_parallel_block_checkpoint, &
        install_block_native_adaptation_mask_seed, &
@@ -561,6 +562,8 @@ contains
           call Euler(sol(1:N_VARIABLE,1:zlevels), &
                wav_coeff(1:N_VARIABLE,1:zlevels), &
                trend_physics_Held_Suarez,dt)
+          if (audit%active) &
+               call refresh_pending_parallel_block_adaptation_wavelets
        case ("Simple")
           call physics_simple_step(dt)
        end select

@@ -14,7 +14,7 @@ module parallel_block_mpi_mod
        AT_EDGE, DG, EAST, EDGE, FROZEN, NORTH, NORTHEAST, NORTHWEST, N_BDRY, &
        N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, n_domain, &
        IJMINUS, IMINUSJPLUS, IPLUSJMINUS, LORT, UPLT, TRIAG, &
-       SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
+       POLE, SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
        MM, MP, PM, PP, UMZ, UPZ, UZM, UZP, VMM, VMPP, VMP, &
        VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
        scalars, S_MASS, S_TEMP, S_VELO, &
@@ -135,6 +135,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
   integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 50
+  integer, parameter :: BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT = EDGE+1
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
   integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
   integer, parameter :: BLOCK_SCALAR_ACTIVE_INDEX = 8
@@ -535,7 +536,13 @@ module parallel_block_mpi_mod
   integer, parameter, public :: BLOCK_PROFILE_STEADY_STEP = 17
   integer, parameter, public :: BLOCK_PROFILE_REFINED_STEP = 18
   integer, parameter, public :: BLOCK_PROFILE_COARSENED_STEP = 19
-  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 19
+  integer, parameter :: BLOCK_PROFILE_RESTRICTION_CAPTURE = 20
+  integer, parameter :: BLOCK_PROFILE_RESTRICTION_INITIAL = 21
+  integer, parameter :: BLOCK_PROFILE_RESTRICTION_PACK = 22
+  integer, parameter :: BLOCK_PROFILE_RESTRICTION_MPI = 23
+  integer, parameter :: BLOCK_PROFILE_RESTRICTION_INSTALL = 24
+  integer, parameter :: BLOCK_PROFILE_RESTRICTION_KERNEL = 25
+  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 25
   character(len=32), parameter :: block_profile_phase_name( &
        BLOCK_PROFILE_PHASE_COUNT) = [character(len=32) :: &
        "complete timestep", "dynamics driver", "physics consumers", &
@@ -546,7 +553,10 @@ module parallel_block_mpi_mod
        "vertical remap", "Domain compatibility writeback", &
        "exact validation oracles", "output/checkpoint consumers", &
        "restart/bootstrap", "unchanged-topology timestep", &
-       "refinement timestep", "coarsening timestep"]
+       "refinement timestep", "coarsening timestep", &
+       "restriction Domain capture", "restriction initial transport", &
+       "restriction ghost pack/local", "restriction ghost MPI", &
+       "restriction ghost install", "restriction kernels/replay"]
   logical, save :: block_profile = .false.
   logical, save :: block_profile_initialized = .false.
   real(dp), save :: block_profile_seconds(BLOCK_PROFILE_PHASE_COUNT) = &
@@ -672,12 +682,20 @@ module parallel_block_mpi_mod
      integer, allocatable :: ghost_recv_count(:)
      integer, allocatable :: ghost_send_displ(:)
      integer, allocatable :: ghost_recv_displ(:)
+     integer, allocatable :: ghost_dynamic_send_count(:)
+     integer, allocatable :: ghost_dynamic_recv_count(:)
+     integer, allocatable :: ghost_dynamic_send_displ(:)
+     integer, allocatable :: ghost_dynamic_recv_displ(:)
      real(dp), allocatable :: ghost_send_buffer(:)
      real(dp), allocatable :: ghost_recv_buffer(:)
      real(dp), allocatable :: ghost_patch_buffer(:)
      integer(int64) :: generation = -1_int64
      integer(int64) :: allocations = 0_int64
      integer(int64) :: exchanges = 0_int64
+     integer(int64) :: full_exchanges = 0_int64
+     integer(int64) :: dynamic_exchanges = 0_int64
+     integer(int64) :: full_values = 0_int64
+     integer(int64) :: dynamic_values = 0_int64
      logical :: ready = .false.
   end type Block_Scalar_Restriction_Exchange_Type
 
@@ -763,6 +781,7 @@ module parallel_block_mpi_mod
   public :: synchronize_parallel_block_solution_consumer
   public :: synchronize_parallel_block_checkpoint
   public :: prepare_parallel_block_grid_change
+  public :: refresh_pending_parallel_block_adaptation_wavelets
   public :: install_block_native_adaptation_mask_seed
   public :: block_adaptation_validation_enabled
   public :: block_detailed_diagnostics_enabled
@@ -1134,6 +1153,64 @@ contains
   end subroutine prepare_parallel_block_grid_change
 
 
+  subroutine refresh_pending_parallel_block_adaptation_wavelets
+    ! A split Domain physics step may recompute atmospheric wav_coeff after
+    ! the block grid-change transaction has been opened. Refresh only that
+    ! adaptation input in the retained compact interiors. The topology and
+    ! persistent communication plans are unchanged, and no Domain field is
+    ! written by this reverse transport.
+
+    implicit none
+
+    integer(int64) :: stage_allocation_before
+    integer(int64) :: writeback_allocation_before
+    integer(int64) :: writeback_before
+
+    logical :: local_store_ready
+    logical :: validate_oracle
+    logical :: writeback_ready
+
+    local_store_ready = local_block_store_ready()
+    writeback_ready = block_writeback_plan_is_ready()
+    if (.not. production_grid_change_pending .or. &
+         .not. local_store_ready .or. .not. writeback_ready) then
+       call fail("post-physics adaptation refresh is not ready")
+    end if
+    if (parallel_block_state_is_ready()) then
+       call fail("post-physics adaptation refresh has no pending state")
+    end if
+
+    writeback_allocation_before = &
+         block_writeback_plan_allocation_count()
+    stage_allocation_before = block_writeback_plan%stage_allocations
+    writeback_before = block_domain_production_writeback_count()
+
+    call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_WAV_COEFF)
+
+    validate_oracle = block_adaptation_validation_enabled()
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_WAV_COEFF)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
+
+    if (.not. production_grid_change_pending) then
+       call fail("post-physics adaptation refresh changed lifecycle")
+    end if
+    if (block_writeback_plan_allocation_count() /= &
+         writeback_allocation_before .or. &
+         block_writeback_plan%stage_allocations /= &
+         stage_allocation_before) then
+       call fail("post-physics adaptation refresh reallocated storage")
+    end if
+    if (block_domain_production_writeback_count() /= writeback_before) then
+       call fail("post-physics adaptation refresh modified Domain fields")
+    end if
+
+  end subroutine refresh_pending_parallel_block_adaptation_wavelets
+
+
   logical function block_adaptation_validation_enabled () result(enabled)
     ! The independent Domain significance calculation is an opt-in oracle.
     ! Production installs transported compact decisions without rereading
@@ -1414,8 +1491,8 @@ contains
     integer(int64) :: compatibility_max(5)
     integer(int64) :: ghost_count_local
     integer(int64) :: ghost_count_sum
-    integer(int64) :: plan_local(8)
-    integer(int64) :: plan_sum(8)
+    integer(int64) :: plan_local(12)
+    integer(int64) :: plan_sum(12)
     integer(int64) :: topology_max(3)
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
     integer(int64) :: weight_local
@@ -1504,7 +1581,11 @@ contains
          block_scalar_restriction_exchange%exchanges, &
          block_adaptation_exchange%allocation_count, &
          block_vertical_remap_allocations, &
-         local_block_hydrostatic_refresh_count()]
+         local_block_hydrostatic_refresh_count(), &
+         block_scalar_restriction_exchange%full_exchanges, &
+         block_scalar_restriction_exchange%dynamic_exchanges, &
+         block_scalar_restriction_exchange%full_values, &
+         block_scalar_restriction_exchange%dynamic_values]
     call MPI_Allreduce(plan_local,plan_sum,size(plan_local), &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce profile plan counters")
@@ -1566,6 +1647,9 @@ contains
        write(6,'(a,4(i0,1x))') &
             "  restriction exchanges/adapt alloc/remap alloc/hydro refresh = ", &
             plan_sum(5),plan_sum(6),plan_sum(7),plan_sum(8)
+       write(6,'(a,4(i0,1x))') &
+            "  restriction ghost full/dynamic exchanges/values = ", &
+            plan_sum(9),plan_sum(10),plan_sum(11),plan_sum(12)
        write(6,'(a,5(i0,1x),/)') &
             "  compatibility writebacks total/output/checkpoint/grid/remap = ", &
             compatibility_max
@@ -1959,6 +2043,7 @@ contains
     integer(int64), intent(inout) :: statistics(4)
 
     integer :: decision
+    integer :: block_decision
     integer :: e
     integer :: field_index
     integer :: i
@@ -1966,6 +2051,8 @@ contains
     integer :: j
     integer :: k
     integer :: level
+    integer :: maximum_level
+    integer :: maximum_variable
     integer :: patch_slot
     integer :: patch_start
     integer :: q
@@ -1975,6 +2062,12 @@ contains
     logical :: active
     logical :: covered
     logical :: node_is_frozen
+
+    real(dp) :: coefficient
+    real(dp) :: coefficient_ratio
+    real(dp) :: maximum_coefficient
+    real(dp) :: maximum_ratio
+    real(dp) :: maximum_threshold
 
     level = grid(d)%patch%elts(p+1)%level
     if (level < level_start .or. level > level_end) return
@@ -1990,6 +2083,11 @@ contains
           if (id < 0 .or. id >= grid(d)%node%length) &
                call fail("Domain adaptation oracle node is invalid")
           node_is_frozen = grid(d)%mask_n%elts(id+1) == FROZEN
+          maximum_coefficient = 0.0_dp
+          maximum_ratio = -huge(0.0_dp)
+          maximum_threshold = 0.0_dp
+          maximum_variable = 0
+          maximum_level = 0
 
           if (covered .and. .not. validate_oracle) then
              decision = block_adaptation_exchange%domain_stage( &
@@ -2023,8 +2121,25 @@ contains
                            size(wav_coeff(v,k)%data(d)%elts)) &
                            call fail( &
                            "Domain scalar adaptation oracle is invalid")
-                      if (abs(wav_coeff(v,k)%data(d)%elts( &
-                           field_index)) >= threshold(v,k)) active = .true.
+                      coefficient = wav_coeff(v,k)%data(d)%elts( &
+                           field_index)
+                      if (threshold(v,k) > 0.0_dp) then
+                         coefficient_ratio = &
+                              abs(coefficient)/threshold(v,k)
+                      else if (abs(coefficient) >= threshold(v,k)) then
+                         coefficient_ratio = huge(0.0_dp)
+                      else
+                         coefficient_ratio = -huge(0.0_dp)
+                      end if
+                      if (coefficient_ratio > maximum_ratio) then
+                         maximum_coefficient = coefficient
+                         maximum_ratio = coefficient_ratio
+                         maximum_threshold = threshold(v,k)
+                         maximum_variable = v
+                         maximum_level = k
+                      end if
+                      if (abs(coefficient) >= threshold(v,k)) &
+                           active = .true.
                    end do
                 end do
                 if (active) then
@@ -2035,10 +2150,28 @@ contains
                 end if
              end if
              if (covered) then
-                if (block_adaptation_exchange%domain_stage( &
-                     stage_start+q) /= decision) &
-                     call fail( &
-                     "block/Domain scalar adaptation record differs")
+                block_decision = &
+                     block_adaptation_exchange%domain_stage(stage_start+q)
+                if (block_decision /= decision) then
+                   write(error_unit,'(/,a)') &
+                        "Block/Domain scalar adaptation mismatch:"
+                   write(error_unit,'(a,7(i0,1x))') &
+                        "  global/local Domain, patch, level, i, j, id = ", &
+                        glo_id(rank+1,d),d,p,level,i,j,id
+                   write(error_unit,'(a,2(i0,1x),a,l1)') &
+                        "  block/Domain decisions = ", &
+                        block_decision,decision, &
+                        "; level-fill forced = ",level < level_fill
+                   write(error_unit,'(a,2(i0,1x))') &
+                        "  controlling variable/physical level = ", &
+                        maximum_variable,maximum_level
+                   write(error_unit,'(a,4(es24.16,1x))') &
+                        "  coefficient, abs, threshold, ratio = ", &
+                        maximum_coefficient,abs(maximum_coefficient), &
+                        maximum_threshold,maximum_ratio
+                   call fail( &
+                        "block/Domain scalar adaptation record differs")
+                end if
              else
                 block_adaptation_exchange%domain_stage(stage_start+q) = &
                      decision
@@ -2560,15 +2693,36 @@ contains
   real(dp) function block_native_minimum_relative_mass () &
        result(minimum_mass)
     ! Compute the remapping trigger from authoritative final-owner compact
-    ! patch interiors without materializing any Domain prognostic field.
+    ! patch interiors. Fixed coarse scaffold patches are not represented by
+    ! blocks, so retain their established Domain contribution explicitly.
 
     implicit none
 
     type(Block_Minimum_Mass_Context) :: statistics
 
+    integer :: c
+    integer :: d
+    integer :: field_index
+    integer :: i
+    integer :: id
     integer :: ierr
+    integer :: j
+    integer :: k
+    integer :: level
+    integer :: p_current
+    integer :: p_parent
+    integer :: p
+    integer :: patch_slot
     integer(int64) :: global_column_count
     logical :: state_ready
+
+    integer :: dims(2,N_BDRY+1)
+    integer :: offs(N_BDRY+1)
+
+    real(dp) :: initial_mass
+    real(dp) :: pressure_surface
+    real(dp) :: ratio
+    real(dp) :: rho_dz(1:zlevels)
 
     state_ready = parallel_block_state_is_ready()
     if (.not. compressible .or. .not. state_ready) then
@@ -2577,6 +2731,105 @@ contains
 
     call apply_local_block_field_consumer( &
          accumulate_block_minimum_relative_mass,statistics)
+
+    if (.not. allocated( &
+         block_writeback_plan%domain_patch_reconstructed)) then
+       call fail("block minimum-mass scaffold coverage is unavailable")
+    end if
+    do d = 1,size(grid)
+       do p = 0,grid(d)%patch%length-1
+          if (grid(d)%patch%elts(p+1)%deleted) cycle
+          if (grid(d)%patch%elts(p+1)%level < level_start .or. &
+               grid(d)%patch%elts(p+1)%level > level_end) cycle
+          patch_slot = block_writeback_plan%domain_patch_displ(d)+p+1
+          if (patch_slot < 1 .or. patch_slot > size( &
+               block_writeback_plan%domain_patch_reconstructed)) then
+             call fail("block minimum-mass scaffold patch is invalid")
+          end if
+          if (block_writeback_plan%domain_patch_reconstructed( &
+               patch_slot)) cycle
+          do j = 0,PATCH_SIZE-1
+             do i = 0,PATCH_SIZE-1
+                id = grid(d)%patch%elts(p+1)%elts_start+ &
+                     PATCH_SIZE*j+i
+                if (id < 0 .or. id >= grid(d)%node%length) then
+                   call fail("block minimum-mass scaffold node is invalid")
+                end if
+                field_index = id+1
+                do k = 1,zlevels
+                   rho_dz(k) = &
+                        sol(S_MASS,k)%data(d)%elts(field_index)+ &
+                        sol_mean(S_MASS,k)%data(d)%elts(field_index)
+                end do
+                pressure_surface = grav_accel*sum(rho_dz)+p_top
+                do k = 1,zlevels
+                   initial_mass = a_vert_mass(k)+ &
+                        b_vert_mass(k)*pressure_surface/grav_accel
+                   if (abs(initial_mass) <= tiny(1.0_dp)) then
+                      call fail("scaffold initial layer mass is zero")
+                   end if
+                   ratio = rho_dz(k)/abs(initial_mass)
+                   if (.not. ieee_is_finite(ratio)) then
+                      call fail("scaffold relative layer mass is non-finite")
+                   end if
+                   statistics%minimum = min(statistics%minimum,ratio)
+                end do
+                statistics%column_count = &
+                     statistics%column_count+1_int64
+             end do
+          end do
+       end do
+    end do
+    ! Pole nodes are visited separately by the legacy apply_no_bdry path and
+    ! are not compact patch interiors. Follow the same two pole branches once
+    ! and include the point represented at every active grid level.
+    do d = 1,size(grid)
+       do c = SOUTHEAST,NORTHWEST,2
+          if (.not. grid(d)%penta(c)) cycle
+          if (grid(d)%neigh(c) /= POLE) cycle
+          p_current = 1
+          do while (p_current > 0)
+             p_parent = p_current
+             p_current = grid(d)%patch%elts(p_parent+1)%children(c-4)
+             level = grid(d)%patch%elts(p_parent+1)%level
+             if (level < level_start) cycle
+             if (level > level_end) exit
+             call get_offs_Domain(grid(d),p_parent,offs,dims)
+             select case (c)
+             case (NORTHWEST)
+                field_index = idx(0,PATCH_SIZE,offs,dims)+1
+             case (SOUTHEAST)
+                field_index = idx(PATCH_SIZE,0,offs,dims)+1
+             case default
+                call fail("block minimum-mass pole branch is invalid")
+             end select
+             if (field_index < 1 .or. &
+                  field_index > grid(d)%node%length) then
+                call fail("block minimum-mass pole address is invalid")
+             end if
+             do k = 1,zlevels
+                rho_dz(k) = sol(S_MASS,k)%data(d)%elts(field_index)+ &
+                     sol_mean(S_MASS,k)%data(d)%elts(field_index)
+             end do
+             pressure_surface = grav_accel*sum(rho_dz)+p_top
+             do k = 1,zlevels
+                initial_mass = a_vert_mass(k)+ &
+                     b_vert_mass(k)*pressure_surface/grav_accel
+                if (abs(initial_mass) <= tiny(1.0_dp)) then
+                   call fail("pole initial layer mass is zero")
+                end if
+                ratio = rho_dz(k)/abs(initial_mass)
+                if (.not. ieee_is_finite(ratio)) then
+                   call fail("pole relative layer mass is non-finite")
+                end if
+                statistics%minimum = min(statistics%minimum,ratio)
+             end do
+             statistics%column_count = &
+                  statistics%column_count+1_int64
+          end do
+       end do
+    end do
+
     call MPI_Allreduce(statistics%minimum,minimum_mass,1, &
          MPI_DOUBLE_PRECISION,MPI_MIN,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce block minimum relative mass")
@@ -15537,6 +15790,18 @@ end subroutine build_parallel_block_catalog
          deallocate(block_scalar_restriction_exchange%ghost_send_displ)
     if (allocated(block_scalar_restriction_exchange%ghost_recv_displ)) &
          deallocate(block_scalar_restriction_exchange%ghost_recv_displ)
+    if (allocated(block_scalar_restriction_exchange% &
+         ghost_dynamic_send_count)) deallocate( &
+         block_scalar_restriction_exchange%ghost_dynamic_send_count)
+    if (allocated(block_scalar_restriction_exchange% &
+         ghost_dynamic_recv_count)) deallocate( &
+         block_scalar_restriction_exchange%ghost_dynamic_recv_count)
+    if (allocated(block_scalar_restriction_exchange% &
+         ghost_dynamic_send_displ)) deallocate( &
+         block_scalar_restriction_exchange%ghost_dynamic_send_displ)
+    if (allocated(block_scalar_restriction_exchange% &
+         ghost_dynamic_recv_displ)) deallocate( &
+         block_scalar_restriction_exchange%ghost_dynamic_recv_displ)
     if (allocated(block_scalar_restriction_exchange%ghost_send_buffer)) &
          deallocate(block_scalar_restriction_exchange%ghost_send_buffer)
     if (allocated(block_scalar_restriction_exchange%ghost_recv_buffer)) &
@@ -15581,6 +15846,14 @@ end subroutine build_parallel_block_catalog
          ghost_send_displ(n_process))
     allocate(block_scalar_restriction_exchange% &
          ghost_recv_displ(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         ghost_dynamic_send_count(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         ghost_dynamic_recv_count(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         ghost_dynamic_send_displ(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         ghost_dynamic_recv_displ(n_process))
     block_scalar_restriction_exchange%ghost_send_count = &
          BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
          ghost_exchange_plan%scalar_n_value* &
@@ -15589,14 +15862,34 @@ end subroutine build_parallel_block_catalog
          BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
          ghost_exchange_plan%scalar_n_value* &
          ghost_exchange_plan%send_record_count
+    block_scalar_restriction_exchange%ghost_dynamic_send_count = &
+         BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT* &
+         ghost_exchange_plan%scalar_n_value* &
+         ghost_exchange_plan%recv_record_count
+    block_scalar_restriction_exchange%ghost_dynamic_recv_count = &
+         BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT* &
+         ghost_exchange_plan%scalar_n_value* &
+         ghost_exchange_plan%send_record_count
     block_scalar_restriction_exchange%ghost_send_displ(1) = 0
     block_scalar_restriction_exchange%ghost_recv_displ(1) = 0
+    block_scalar_restriction_exchange%ghost_dynamic_send_displ(1) = 0
+    block_scalar_restriction_exchange%ghost_dynamic_recv_displ(1) = 0
     block_scalar_restriction_exchange%ghost_send_displ(2:n_process) = &
          BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
          ghost_exchange_plan%scalar_n_value* &
          ghost_exchange_plan%recv_record_displ(2:n_process)
     block_scalar_restriction_exchange%ghost_recv_displ(2:n_process) = &
          BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         ghost_exchange_plan%scalar_n_value* &
+         ghost_exchange_plan%send_record_displ(2:n_process)
+    block_scalar_restriction_exchange% &
+         ghost_dynamic_send_displ(2:n_process) = &
+         BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT* &
+         ghost_exchange_plan%scalar_n_value* &
+         ghost_exchange_plan%recv_record_displ(2:n_process)
+    block_scalar_restriction_exchange% &
+         ghost_dynamic_recv_displ(2:n_process) = &
+         BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT* &
          ghost_exchange_plan%scalar_n_value* &
          ghost_exchange_plan%send_record_displ(2:n_process)
     n_ghost_send = sum( &
@@ -15622,7 +15915,7 @@ end subroutine build_parallel_block_catalog
     block_scalar_restriction_exchange%ghost_patch_buffer = &
          BLOCK_GHOST_POISON
     block_scalar_restriction_exchange%allocations = &
-         block_scalar_restriction_exchange%allocations + 13_int64
+         block_scalar_restriction_exchange%allocations + 17_int64
     block_scalar_restriction_exchange%generation = &
          block_writeback_plan_generation
     block_scalar_restriction_exchange%ready = .true.
@@ -15672,6 +15965,8 @@ end subroutine build_parallel_block_catalog
     logical :: capture_dscalar
 
     if (.not. block_scalar_divergence_plan%active) return
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_CAPTURE)
     capture_direct = .false.
     if (present(direct_flux)) capture_direct = direct_flux
     capture_dscalar = .false.
@@ -15743,6 +16038,8 @@ end subroutine build_parallel_block_catalog
     call capture_block_scalar_restriction_boundaries( &
          scalar_id,field_level,grid_level,capture_direct, &
          domain_tendency,capture_dscalar)
+    call block_profile_leave(BLOCK_PROFILE_RESTRICTION_CAPTURE)
+    call block_profile_leave(BLOCK_PROFILE_RESTRICTION)
 
   contains
 
@@ -16233,6 +16530,7 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: allocation_before
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_INITIAL)
     if (.not. block_scalar_divergence_plan%active) then
        call fail("scalar-divergence finalize without active capture")
     end if
@@ -16306,8 +16604,15 @@ end subroutine build_parallel_block_catalog
          int(count(block_scalar_divergence_plan%recv_count > 0),int64), &
          int(sum(block_scalar_divergence_plan%recv_count),int64)* &
          int(storage_size(0.0_dp)/8,int64))
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_RESTRICTION_INITIAL, &
+         int(count(block_scalar_divergence_plan%recv_count > 0),int64), &
+         int(sum(block_scalar_divergence_plan%recv_count),int64)* &
+         int(storage_size(0.0_dp)/8,int64))
     call block_profile_leave( &
-         BLOCK_PROFILE_RESTRICTION,int(n_local_blocks(),int64))
+         BLOCK_PROFILE_RESTRICTION_INITIAL, &
+         int(n_local_blocks(),int64))
+    call block_profile_leave(BLOCK_PROFILE_RESTRICTION)
 
   end subroutine finalize_block_scalar_divergence_capture
 
@@ -16348,6 +16653,20 @@ end subroutine build_parallel_block_catalog
          block_scalar_restriction_exchange%boundary_recv_displ, &
          MPI_DOUBLE_PRECISION,comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv scalar-restriction boundaries")
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_RESTRICTION, &
+         int(count(block_scalar_restriction_exchange% &
+         boundary_send_count > 0),int64), &
+         int(sum(block_scalar_restriction_exchange% &
+         boundary_send_count),int64)* &
+         int(storage_size(0.0_dp)/8,int64))
+    call record_parallel_block_profile_volume( &
+         BLOCK_PROFILE_RESTRICTION_INITIAL, &
+         int(count(block_scalar_restriction_exchange% &
+         boundary_send_count > 0),int64), &
+         int(sum(block_scalar_restriction_exchange% &
+         boundary_send_count),int64)* &
+         int(storage_size(0.0_dp)/8,int64))
 
     call get_block_field_layout_counts( &
          n_scalar_variable,n_field_level)
@@ -16441,14 +16760,16 @@ end subroutine build_parallel_block_catalog
   end subroutine finalize_block_scalar_restriction_boundaries
 
 
-  subroutine exchange_block_scalar_restriction_ghosts
-    ! Refresh every inter-block restriction ghost from the current native
-    ! hierarchy flux and its immutable geometry. One persistent all-to-all is
-    ! issued per bottom-up horizontal level; no per-cell communication occurs.
+  subroutine exchange_block_scalar_restriction_ghosts (full_payload)
+    ! Install the complete record once, then refresh only native positive-edge
+    ! flux and dscalar values changed by the bottom-up replay. Immutable
+    ! geometry and exact-reference slots remain in persistent ghost storage.
 
     implicit none
 
     integer, parameter :: REQUEST_SIZE = 4
+
+    logical, intent(in) :: full_payload
 
     integer :: destination
     integer :: destination_ghost
@@ -16456,6 +16777,7 @@ end subroutine build_parallel_block_catalog
     integer :: ierr
     integer :: local_index
     integer :: pos
+    integer :: payload_count
     integer :: r
     integer :: request
     integer :: source
@@ -16464,10 +16786,16 @@ end subroutine build_parallel_block_catalog
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("scalar-restriction ghost exchange is not ready")
     end if
-    block_scalar_restriction_exchange%ghost_send_buffer = &
-         BLOCK_GHOST_POISON
-    block_scalar_restriction_exchange%ghost_recv_buffer = &
-         BLOCK_GHOST_POISON
+    payload_count = BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT
+    if (full_payload) payload_count = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
+
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_PACK)
+    block_scalar_restriction_exchange%ghost_send_buffer( &
+         1:max(1,payload_count*ghost_exchange_plan%scalar_n_value* &
+         ghost_exchange_plan%n_remote_recv)) = BLOCK_GHOST_POISON
+    block_scalar_restriction_exchange%ghost_recv_buffer( &
+         1:max(1,payload_count*ghost_exchange_plan%scalar_n_value* &
+         ghost_exchange_plan%n_remote_send)) = BLOCK_GHOST_POISON
 
     do request = 1,ghost_exchange_plan%n_request
        if (ghost_exchange_plan%source_owner(request) /= rank) cycle
@@ -16478,7 +16806,8 @@ end subroutine build_parallel_block_catalog
        destination_ghost = &
             ghost_exchange_plan%destination_ghost(request)
        call install_local_source( &
-            source,source_patch,destination,destination_ghost)
+            source,source_patch,destination,destination_ghost, &
+            full_payload)
     end do
 
     do r = 1,n_process
@@ -16495,30 +16824,53 @@ end subroutine build_parallel_block_catalog
           call pack_patch_record( &
                local_index,source_patch, &
                block_scalar_restriction_exchange%ghost_send_buffer, &
-               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+               payload_count* &
                ghost_exchange_plan%scalar_n_value* &
-               (ghost_exchange_plan%recv_record_displ(r)+i)+1)
+               (ghost_exchange_plan%recv_record_displ(r)+i)+1, &
+               full_payload)
        end do
     end do
 
-    call MPI_Alltoallv( &
-         block_scalar_restriction_exchange%ghost_send_buffer, &
-         block_scalar_restriction_exchange%ghost_send_count, &
-         block_scalar_restriction_exchange%ghost_send_displ, &
-         MPI_DOUBLE_PRECISION, &
-         block_scalar_restriction_exchange%ghost_recv_buffer, &
-         block_scalar_restriction_exchange%ghost_recv_count, &
-         block_scalar_restriction_exchange%ghost_recv_displ, &
-         MPI_DOUBLE_PRECISION,comm,ierr)
-    call check_mpi(ierr,"MPI_Alltoallv scalar-restriction ghosts")
-    call record_parallel_block_profile_volume( &
-         BLOCK_PROFILE_RESTRICTION, &
-         int(count( &
-         block_scalar_restriction_exchange%ghost_send_count > 0),int64), &
-         int(sum( &
-         block_scalar_restriction_exchange%ghost_send_count),int64)* &
-         int(storage_size(0.0_dp)/8,int64))
+    call block_profile_leave( &
+         BLOCK_PROFILE_RESTRICTION_PACK, &
+         int(ghost_exchange_plan%n_local_request + &
+         ghost_exchange_plan%n_remote_recv,int64))
 
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_MPI)
+    if (full_payload) then
+       call MPI_Alltoallv( &
+            block_scalar_restriction_exchange%ghost_send_buffer, &
+            block_scalar_restriction_exchange%ghost_send_count, &
+            block_scalar_restriction_exchange%ghost_send_displ, &
+            MPI_DOUBLE_PRECISION, &
+            block_scalar_restriction_exchange%ghost_recv_buffer, &
+            block_scalar_restriction_exchange%ghost_recv_count, &
+            block_scalar_restriction_exchange%ghost_recv_displ, &
+            MPI_DOUBLE_PRECISION,comm,ierr)
+    else
+       call MPI_Alltoallv( &
+            block_scalar_restriction_exchange%ghost_send_buffer, &
+            block_scalar_restriction_exchange% &
+            ghost_dynamic_send_count, &
+            block_scalar_restriction_exchange% &
+            ghost_dynamic_send_displ,MPI_DOUBLE_PRECISION, &
+            block_scalar_restriction_exchange%ghost_recv_buffer, &
+            block_scalar_restriction_exchange% &
+            ghost_dynamic_recv_count, &
+            block_scalar_restriction_exchange% &
+            ghost_dynamic_recv_displ,MPI_DOUBLE_PRECISION,comm,ierr)
+    end if
+    call check_mpi(ierr,"MPI_Alltoallv scalar-restriction ghosts")
+    if (full_payload) then
+       call record_ghost_volume( &
+            block_scalar_restriction_exchange%ghost_send_count)
+    else
+       call record_ghost_volume( &
+            block_scalar_restriction_exchange%ghost_dynamic_send_count)
+    end if
+    call block_profile_leave(BLOCK_PROFILE_RESTRICTION_MPI)
+
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_INSTALL)
     do r = 1,n_process
        do i = 0,ghost_exchange_plan%send_record_count(r)-1
           request = ghost_exchange_plan%request_index( &
@@ -16530,18 +16882,55 @@ end subroutine build_parallel_block_catalog
           call install_buffer_ghost( &
                destination,destination_ghost, &
                block_scalar_restriction_exchange%ghost_recv_buffer, &
-               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+               payload_count* &
                ghost_exchange_plan%scalar_n_value* &
-               (ghost_exchange_plan%send_record_displ(r)+i)+1)
+               (ghost_exchange_plan%send_record_displ(r)+i)+1, &
+               full_payload)
        end do
     end do
+    call block_profile_leave( &
+         BLOCK_PROFILE_RESTRICTION_INSTALL, &
+         int(ghost_exchange_plan%n_remote_send,int64))
     block_scalar_restriction_exchange%exchanges = &
          block_scalar_restriction_exchange%exchanges + 1_int64
 
   contains
 
+    subroutine record_ghost_volume (send_count)
+
+      implicit none
+
+      integer, intent(in) :: send_count(:)
+
+      integer(int64) :: bytes
+      integer(int64) :: messages
+
+      messages = int(count(send_count > 0),int64)
+      bytes = int(sum(send_count),int64)* &
+           int(storage_size(0.0_dp)/8,int64)
+      if (full_payload) then
+         block_scalar_restriction_exchange%full_exchanges = &
+              block_scalar_restriction_exchange%full_exchanges + 1_int64
+         block_scalar_restriction_exchange%full_values = &
+              block_scalar_restriction_exchange%full_values + &
+              int(sum(send_count),int64)
+      else
+         block_scalar_restriction_exchange%dynamic_exchanges = &
+              block_scalar_restriction_exchange%dynamic_exchanges + 1_int64
+         block_scalar_restriction_exchange%dynamic_values = &
+              block_scalar_restriction_exchange%dynamic_values + &
+              int(sum(send_count),int64)
+      end if
+      call record_parallel_block_profile_volume( &
+           BLOCK_PROFILE_RESTRICTION,messages,bytes)
+      call record_parallel_block_profile_volume( &
+           BLOCK_PROFILE_RESTRICTION_MPI,messages,bytes)
+
+    end subroutine record_ghost_volume
+
     subroutine install_local_source ( &
-         source,source_patch,destination,destination_ghost)
+         source,source_patch,destination,destination_ghost, &
+         full_payload)
 
       implicit none
 
@@ -16549,6 +16938,7 @@ end subroutine build_parallel_block_catalog
       integer, intent(in) :: source_patch
       integer, intent(in) :: destination
       integer, intent(in) :: destination_ghost
+      logical, intent(in) :: full_payload
 
       integer :: source_index
 
@@ -16559,16 +16949,18 @@ end subroutine build_parallel_block_catalog
       end if
       call pack_patch_record( &
            source_index,source_patch, &
-           block_scalar_restriction_exchange%ghost_patch_buffer,1)
+           block_scalar_restriction_exchange%ghost_patch_buffer,1, &
+           full_payload)
       call install_buffer_ghost( &
            destination,destination_ghost, &
-           block_scalar_restriction_exchange%ghost_patch_buffer,1)
+           block_scalar_restriction_exchange%ghost_patch_buffer,1, &
+           full_payload)
 
     end subroutine install_local_source
 
 
     subroutine pack_patch_record ( &
-         local_index,source_patch,buffer,data_start)
+         local_index,source_patch,buffer,data_start,full_payload)
 
       implicit none
 
@@ -16576,29 +16968,62 @@ end subroutine build_parallel_block_catalog
       integer, intent(in) :: source_patch
       real(dp), intent(inout) :: buffer(:)
       integer, intent(in) :: data_start
+      logical, intent(in) :: full_payload
 
       integer :: data_count
+      integer :: destination_start
+      integer :: field_sample
+      integer :: payload_count
+      integer :: q
+      integer :: record_start
       integer :: source_start
 
-      data_count = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-           ghost_exchange_plan%scalar_n_value
+      payload_count = BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT
+      if (full_payload) payload_count = &
+           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
+      data_count = payload_count*ghost_exchange_plan%scalar_n_value
       source_start = source_patch*data_count + 1
+      if (.not. full_payload) source_start = &
+           source_patch*BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+           ghost_exchange_plan%scalar_n_value + 1
       if (source_patch < 0 .or. source_start < 1 .or. &
-           source_start+data_count-1 > &
+           source_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+           ghost_exchange_plan%scalar_n_value-1 > &
            size(block_scalar_tendency(local_index)%patch) .or. &
            data_start < 1 .or. data_start+data_count-1 > &
            size(buffer)) then
          call fail("scalar-restriction ghost pack extent is invalid")
       end if
-      buffer(data_start:data_start+data_count-1) = &
-           block_scalar_tendency(local_index)%patch( &
-           source_start:source_start+data_count-1)
+      if (full_payload) then
+         buffer(data_start:data_start+data_count-1) = &
+              block_scalar_tendency(local_index)%patch( &
+              source_start:source_start+data_count-1)
+      else
+         do field_sample = 0, &
+              ghost_exchange_plan%scalar_n_value/PATCH_SIZE**2-1
+            do q = 0,PATCH_SIZE**2-1
+               record_start = source_start + &
+                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                    (field_sample*PATCH_SIZE**2+q)
+               destination_start = data_start + &
+                    BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT* &
+                    (field_sample*PATCH_SIZE**2+q)
+               buffer(destination_start:destination_start+EDGE-1) = &
+                    block_scalar_tendency(local_index)%patch( &
+                    record_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
+                    record_start+BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-2)
+               buffer(destination_start+EDGE) = &
+                    block_scalar_tendency(local_index)%patch( &
+                    record_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1)
+            end do
+         end do
+      end if
 
     end subroutine pack_patch_record
 
 
     subroutine install_buffer_ghost ( &
-         destination,destination_ghost,buffer,data_start)
+         destination,destination_ghost,buffer,data_start,full_payload)
 
       implicit none
 
@@ -16606,12 +17031,15 @@ end subroutine build_parallel_block_catalog
       integer, intent(in) :: destination_ghost
       real(dp), intent(in) :: buffer(:)
       integer, intent(in) :: data_start
+      logical, intent(in) :: full_payload
 
       integer :: destination_index
       integer :: destination_start
       integer :: field_sample
       integer :: n_ghost
+      integer :: payload_count
       integer :: q
+      integer :: record_start
       integer :: sample
 
       destination_index = catalog_local_block(destination)
@@ -16623,6 +17051,9 @@ end subroutine build_parallel_block_catalog
       if (destination_ghost < 1 .or. destination_ghost > n_ghost) then
          call fail("scalar-restriction destination ghost is invalid")
       end if
+      payload_count = BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT
+      if (full_payload) payload_count = &
+           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
       do field_sample = 0, &
            ghost_exchange_plan%scalar_n_value/PATCH_SIZE**2-1
          do q = 0,PATCH_SIZE**2-1
@@ -16630,14 +17061,25 @@ end subroutine build_parallel_block_catalog
                  (destination_ghost-1)*PATCH_SIZE**2 + q
             destination_start = &
                  BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
-            block_scalar_tendency(destination_index)%ghost( &
-                 destination_start:destination_start+ &
-                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
-                 buffer(data_start+ &
-                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-                 (field_sample*PATCH_SIZE**2+q): &
-                 data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-                 (field_sample*PATCH_SIZE**2+q+1)-1)
+            record_start = data_start + payload_count* &
+                 (field_sample*PATCH_SIZE**2+q)
+            if (full_payload) then
+               block_scalar_tendency(destination_index)%ghost( &
+                    destination_start:destination_start+ &
+                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
+                    buffer(record_start:record_start+ &
+                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+            else
+               block_scalar_tendency(destination_index)%ghost( &
+                    destination_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
+                    destination_start+ &
+                    BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-2) = &
+                    buffer(record_start:record_start+EDGE-1)
+               block_scalar_tendency(destination_index)%ghost( &
+                    destination_start+ &
+                    BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
+                    buffer(record_start+EDGE)
+            end if
          end do
       end do
 
@@ -16668,26 +17110,36 @@ end subroutine build_parallel_block_catalog
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("block-native scalar restriction exchange is not ready")
     end if
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
     call initialize_scalar_restriction_boundary_flux
+    call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
     ! Establish a native finest-level divergence before it is consumed by the
-    ! first coarse restriction. The exchange supplies neighboring edge flux.
-    call exchange_block_scalar_restriction_ghosts
+    ! first coarse restriction. The full exchange installs immutable geometry
+    ! and reference data once; later level refreshes carry only dynamic data.
+    call exchange_block_scalar_restriction_ghosts(.true.)
     statistics%target_level = level_end
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
     call apply_local_block_field_consumer( &
          recompute_block_scalar_divergence_level,statistics)
+    call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
     do l = level_end-1,level_start,-1
        ! Propagate the newly recomputed finer dscalar before restricting l.
-       call exchange_block_scalar_restriction_ghosts
+       call exchange_block_scalar_restriction_ghosts(.false.)
        statistics%target_level = l
+       call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
        call apply_local_block_field_consumer( &
             restrict_block_scalar_flux_level,statistics)
+       call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
        ! Restriction changed the positive-edge flux at l. Refresh its ghost
        ! stencil and immediately form the dscalar required by level l-1.
-       call exchange_block_scalar_restriction_ghosts
+       call exchange_block_scalar_restriction_ghosts(.false.)
+       call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
        call apply_local_block_field_consumer( &
             recompute_block_scalar_divergence_level,statistics)
+       call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
     end do
     statistics%target_level = -1
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
     call apply_local_block_field_consumer( &
          compare_block_scalar_restricted_flux,statistics)
     call apply_local_block_field_consumer( &
@@ -16701,6 +17153,7 @@ end subroutine build_parallel_block_catalog
          local_block_tendency_accumulator_allocation_count()
     call apply_local_block_field_consumer( &
          install_block_scalar_restricted_divergence,statistics)
+    call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
     accumulator_ready = &
          local_block_tendency_accumulator_state_ready()
     if (.not. accumulator_ready .or. &
