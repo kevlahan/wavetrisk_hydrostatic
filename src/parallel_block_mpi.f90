@@ -16092,7 +16092,14 @@ end subroutine build_parallel_block_catalog
           block_scalar_tendency(index)%bdry = BLOCK_BOUNDARY_POISON
           block_scalar_tendency(index)%ghost = BLOCK_GHOST_POISON
        end if
-       block_scalar_tendency(index)%covered = .false.
+       ! Once the immutable production record has been installed, subsequent
+       ! stages retain its interior geometry in place.  The producer below
+       ! refreshes the field-dependent physics and restricted-flux records;
+       ! native restriction overwrites the reference dscalar slot before it
+       ! is consumed.  Oracle builds deliberately rebuild every slot.
+       block_scalar_tendency(index)%covered = &
+            .not. validate_oracle .and. &
+            block_scalar_divergence_plan%production_cache_ready
     end do
 
     if (storage_rebuilt) then
@@ -16114,7 +16121,9 @@ end subroutine build_parallel_block_catalog
        block_scalar_restriction_exchange%ghost_recv_buffer = &
             BLOCK_GHOST_POISON
     end if
-    block_scalar_divergence_plan%recv_covered = .false.
+    block_scalar_divergence_plan%recv_covered = &
+         .not. validate_oracle .and. &
+         block_scalar_divergence_plan%production_cache_ready
     block_scalar_divergence_plan%ready = .false.
     block_scalar_divergence_plan%active = .true.
 
@@ -16525,6 +16534,8 @@ end subroutine build_parallel_block_catalog
 
     logical :: capture_direct
     logical :: capture_dscalar
+    logical :: capture_interior
+    logical :: validate_oracle
 
     if (.not. block_scalar_divergence_plan%active) return
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
@@ -16533,6 +16544,7 @@ end subroutine build_parallel_block_catalog
     if (present(direct_flux)) capture_direct = direct_flux
     capture_dscalar = .false.
     if (present(dscalar_only)) capture_dscalar = dscalar_only
+    validate_oracle = block_dynamics_validation_enabled()
     if (capture_direct .and. capture_dscalar) then
        call fail("scalar-divergence capture mode is invalid")
     end if
@@ -16551,51 +16563,61 @@ end subroutine build_parallel_block_catalog
        call fail("scalar-divergence capture field layout is invalid")
     end if
 
-    do local_index = 1,n_local_blocks()
-       b = local_block_catalog(local_index)
-       if (source_rank(b) /= rank) cycle
-       d = loc_id(block_catalog(b)%root_domain+1) + 1
-       if (d < 1 .or. d > size(grid)) then
-          call fail("retained scalar-divergence Domain is invalid")
-       end if
-       patch_index = 0
-       call capture_subtree( &
-            d,block_catalog(b)%root_patch,b,patch_index,1,local_index)
-       if (patch_index /= local_block_patch_count(b)) then
-          call fail("retained scalar-divergence traversal is incomplete")
-       end if
-    end do
-
-    do r = 1,n_process
-       sample_start = block_writeback_plan%scalar_recv_displ(r) + 1
-       do slot = block_writeback_plan%recv_displ(r)+1, &
-            block_writeback_plan%recv_displ(r) + &
-            block_writeback_plan%recv_count(r)
-          b = block_writeback_plan%recv_block(slot)
-          if (source_rank(b) /= rank) then
-             call fail("remote scalar-divergence source is invalid")
-          end if
+    ! After the first immutable record has been cached, production omits only
+    ! the Domain reference dscalar traversal.  The block replay produces that
+    ! value before activation.  Current-stage restricted flux must still be
+    ! captured: the complete physical recomposition consumes it before the
+    ! native restriction replay, including while forming the velocity path.
+    ! The exact oracle continues to rebuild the reference dscalar as well.
+    capture_interior = validate_oracle .or. .not. capture_dscalar .or. &
+         .not. block_scalar_divergence_plan%production_cache_ready
+    if (capture_interior) then
+       do local_index = 1,n_local_blocks()
+          b = local_block_catalog(local_index)
+          if (source_rank(b) /= rank) cycle
           d = loc_id(block_catalog(b)%root_domain+1) + 1
           if (d < 1 .or. d > size(grid)) then
-             call fail("remote scalar-divergence Domain is invalid")
+             call fail("retained scalar-divergence Domain is invalid")
           end if
           patch_index = 0
           call capture_subtree( &
-               d,block_catalog(b)%root_patch,b,patch_index, &
-               sample_start,0)
-          if (patch_index /= &
-               block_writeback_plan%recv_patch_count(slot)) then
-             call fail("remote scalar-divergence traversal is incomplete")
+               d,block_catalog(b)%root_patch,b,patch_index,1,local_index)
+          if (patch_index /= local_block_patch_count(b)) then
+             call fail("retained scalar-divergence traversal is incomplete")
           end if
-          sample_start = sample_start + &
-               block_writeback_plan%recv_scalar_nvalue(slot)
        end do
-       if (sample_start /= &
-            block_writeback_plan%scalar_recv_displ(r) + &
-            block_writeback_plan%scalar_recv_count(r) + 1) then
-          call fail("scalar-divergence capture extent mismatch")
-       end if
-    end do
+
+       do r = 1,n_process
+          sample_start = block_writeback_plan%scalar_recv_displ(r) + 1
+          do slot = block_writeback_plan%recv_displ(r)+1, &
+               block_writeback_plan%recv_displ(r) + &
+               block_writeback_plan%recv_count(r)
+             b = block_writeback_plan%recv_block(slot)
+             if (source_rank(b) /= rank) then
+                call fail("remote scalar-divergence source is invalid")
+             end if
+             d = loc_id(block_catalog(b)%root_domain+1) + 1
+             if (d < 1 .or. d > size(grid)) then
+                call fail("remote scalar-divergence Domain is invalid")
+             end if
+             patch_index = 0
+             call capture_subtree( &
+                  d,block_catalog(b)%root_patch,b,patch_index, &
+                  sample_start,0)
+             if (patch_index /= &
+                  block_writeback_plan%recv_patch_count(slot)) then
+                call fail("remote scalar-divergence traversal is incomplete")
+             end if
+             sample_start = sample_start + &
+                  block_writeback_plan%recv_scalar_nvalue(slot)
+          end do
+          if (sample_start /= &
+               block_writeback_plan%scalar_recv_displ(r) + &
+               block_writeback_plan%scalar_recv_count(r) + 1) then
+             call fail("scalar-divergence capture extent mismatch")
+          end if
+       end do
+    end if
 
     call capture_block_scalar_restriction_boundaries( &
          scalar_id,field_level,grid_level,capture_direct, &
