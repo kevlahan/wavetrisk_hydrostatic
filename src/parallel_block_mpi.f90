@@ -714,6 +714,7 @@ module parallel_block_mpi_mod
      integer, allocatable :: deduplicated_recv_count(:)
      integer, allocatable :: deduplicated_send_displ(:)
      integer, allocatable :: deduplicated_recv_displ(:)
+     integer, allocatable :: deduplicated_received_block(:)
      real(dp), allocatable :: send_buffer(:)
      real(dp), allocatable :: recv_buffer(:)
      real(dp), allocatable :: deduplicated_buffer(:)
@@ -16128,6 +16129,7 @@ end subroutine build_parallel_block_catalog
 
       integer :: n_recv
       integer :: n_send
+      integer :: ierr
 
       if (block_scalar_divergence_plan%generation == &
            block_writeback_plan_generation) return
@@ -16162,6 +16164,9 @@ end subroutine build_parallel_block_catalog
            deallocate(block_scalar_divergence_plan%recv_buffer)
       if (allocated(block_scalar_divergence_plan%deduplicated_buffer)) &
            deallocate(block_scalar_divergence_plan%deduplicated_buffer)
+      if (allocated(block_scalar_divergence_plan% &
+           deduplicated_received_block)) deallocate( &
+           block_scalar_divergence_plan%deduplicated_received_block)
       if (allocated(block_scalar_divergence_plan%recv_covered)) &
            deallocate(block_scalar_divergence_plan%recv_covered)
 
@@ -16239,10 +16244,25 @@ end subroutine build_parallel_block_catalog
       allocate(block_scalar_divergence_plan%send_buffer(n_send))
       allocate(block_scalar_divergence_plan%recv_buffer(n_recv))
       allocate(block_scalar_divergence_plan%deduplicated_buffer(n_recv))
+      allocate(block_scalar_divergence_plan%deduplicated_received_block( &
+           max(1,sum(block_writeback_plan%send_count))))
+      block_scalar_divergence_plan%deduplicated_received_block = -1
+      ! Preserve the sender's actual per-peer block stream.  The reverse
+      ! Domain-owner/final-owner manifests contain the same blocks but are not
+      ! required to use the same order, which was the sole reason the earlier
+      ! deduplicated transport could install valid records in the wrong block.
+      call MPI_Alltoallv( &
+           block_writeback_plan%recv_block, &
+           block_writeback_plan%recv_count, &
+           block_writeback_plan%recv_displ,MPI_INTEGER, &
+           block_scalar_divergence_plan%deduplicated_received_block, &
+           block_writeback_plan%send_count, &
+           block_writeback_plan%send_displ,MPI_INTEGER,comm,ierr)
+      call check_mpi(ierr,"MPI_Alltoallv deduplicated block manifest")
       allocate(block_scalar_divergence_plan%recv_covered( &
            sum(block_writeback_plan%scalar_recv_count)))
       block_scalar_divergence_plan%allocations = &
-           block_scalar_divergence_plan%allocations + 16_int64
+      block_scalar_divergence_plan%allocations + 17_int64
       block_scalar_divergence_plan%generation = &
            block_writeback_plan_generation
       block_scalar_divergence_plan%production_cache_ready = .false.
@@ -17096,12 +17116,12 @@ end subroutine build_parallel_block_catalog
     end if
 
     allocation_before = block_scalar_divergence_plan%allocations
-    ! The reverse Domain-owner/final-owner route does not preserve a stable
-    ! per-block stream order for a variable-size payload.  Keep the proven
-    ! fixed-width full record until the route manifest carries explicit
-    ! packed offsets; otherwise valid records can be installed in the wrong
-    ! final block even though peer totals agree.
-    deduplicated_transport = .false.
+    ! Full rebuilds use a field-deduplicated stream.  The persistent block
+    ! manifest records the sender's actual order, so variable-size records are
+    ! installed by identity instead of assuming reverse-route positional
+    ! symmetry.  Compact RK-stage refreshes retain their existing layout.
+    deduplicated_transport = &
+         block_scalar_divergence_plan%full_transport
     if (deduplicated_transport) then
        call pack_deduplicated_full_transport
        call MPI_Alltoallv( &
@@ -17166,21 +17186,28 @@ end subroutine build_parallel_block_catalog
        do slot = block_writeback_plan%send_displ(r)+1, &
             block_writeback_plan%send_displ(r) + &
             block_writeback_plan%send_count(r)
-          b = block_writeback_plan%send_block(slot)
+          if (deduplicated_transport) then
+             b = block_scalar_divergence_plan% &
+                  deduplicated_received_block(slot)
+          else
+             b = block_writeback_plan%send_block(slot)
+          end if
           local_index = catalog_local_block(b)
           if (local_index < 1 .or. &
                local_index > size(block_scalar_tendency)) then
              call fail("scalar-divergence received block is invalid")
           end if
-          sample_count = &
-               block_writeback_plan%send_scalar_nvalue(slot)
           if (deduplicated_transport) then
+             sample_count = local_block_patch_count(b)* &
+                  block_writeback_plan%scalar_patch_nvalue
              data_count = deduplicated_block_value_count( &
-                  block_writeback_plan%send_patch_count(slot))
+                  local_block_patch_count(b))
              call unpack_deduplicated_full_block( &
                   local_index,data_start, &
-                  block_writeback_plan%send_patch_count(slot))
+                  local_block_patch_count(b))
           else if (block_scalar_divergence_plan%full_transport) then
+             sample_count = &
+                  block_writeback_plan%send_scalar_nvalue(slot)
              data_count = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample_count
              if (data_start < 1 .or. data_start+data_count-1 > &
                   size(block_scalar_divergence_plan%send_buffer) .or. &
@@ -17192,6 +17219,8 @@ end subroutine build_parallel_block_catalog
                   block_scalar_divergence_plan%send_buffer( &
                   data_start:data_start+data_count-1)
           else
+             sample_count = &
+                  block_writeback_plan%send_scalar_nvalue(slot)
              data_count = BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*sample_count
              if (data_start < 1 .or. data_start+data_count-1 > &
                   size(block_scalar_divergence_plan%send_buffer) .or. &
@@ -17308,16 +17337,32 @@ end subroutine build_parallel_block_catalog
       integer :: destination
       integer :: f
       integer :: field_count
+      integer :: first_field_level
       integer :: k
+      integer :: level_count
+      integer :: mult_scalar
+      integer :: mult_vector
+      integer :: n_scalar_variable
       integer :: p
       integer :: q
       integer :: r_pack
       integer :: sample_pack
+      integer :: shared_field
       integer :: slot_pack
       integer :: source
+      integer :: v_scalar
+      integer :: v_vector
 
-      field_count = block_writeback_plan%scalar_patch_nvalue/ &
-           (PATCH_SIZE**2)
+      call get_block_field_layout( &
+           v_scalar,n_scalar_variable,v_vector,first_field_level, &
+           level_count,mult_scalar,mult_vector)
+      field_count = n_scalar_variable*level_count
+      shared_field = 1-first_field_level
+      if (shared_field < 0 .or. shared_field >= level_count .or. &
+           field_count /= block_writeback_plan%scalar_patch_nvalue/ &
+           (PATCH_SIZE**2)) then
+         call fail("deduplicated scalar shared field is invalid")
+      end if
       do r_pack = 1,n_process
          destination = block_scalar_divergence_plan% &
               deduplicated_recv_displ(r_pack) + 1
@@ -17332,7 +17377,7 @@ end subroutine build_parallel_block_catalog
                   do q = 0,PATCH_SIZE**2-1
                      sample_pack = p*field_count*PATCH_SIZE**2 + &
                           f*PATCH_SIZE**2 + q
-                     if (f == 0) then
+                     if (f == shared_field) then
                         block_scalar_divergence_plan% &
                              deduplicated_buffer(destination: &
                              destination+ &
@@ -17386,14 +17431,30 @@ end subroutine build_parallel_block_catalog
       integer :: destination_unpack
       integer :: f
       integer :: field_count
+      integer :: first_field_level
       integer :: k
+      integer :: level_count
+      integer :: mult_scalar
+      integer :: mult_vector
+      integer :: n_scalar_variable
       integer :: p
       integer :: q
       integer :: sample_unpack
+      integer :: shared_field
       integer :: source_position
+      integer :: v_scalar
+      integer :: v_vector
 
-      field_count = block_writeback_plan%scalar_patch_nvalue/ &
-           (PATCH_SIZE**2)
+      call get_block_field_layout( &
+           v_scalar,n_scalar_variable,v_vector,first_field_level, &
+           level_count,mult_scalar,mult_vector)
+      field_count = n_scalar_variable*level_count
+      shared_field = 1-first_field_level
+      if (shared_field < 0 .or. shared_field >= level_count .or. &
+           field_count /= block_writeback_plan%scalar_patch_nvalue/ &
+           (PATCH_SIZE**2)) then
+         call fail("deduplicated scalar unpack field is invalid")
+      end if
       source_position = source_unpack
       do p = 0,patch_count-1
          do f = 0,field_count-1
@@ -17403,7 +17464,7 @@ end subroutine build_parallel_block_catalog
                destination_unpack = &
                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                     sample_unpack + 1
-               if (f == 0) then
+               if (f == shared_field) then
                   block_scalar_tendency(local_index_unpack)%patch( &
                        destination_unpack:destination_unpack+ &
                        BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
@@ -17413,15 +17474,6 @@ end subroutine build_parallel_block_catalog
                   source_position = source_position + &
                        BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
                else
-                  do k = 1,BLOCK_SCALAR_FULL_SHARED_COUNT
-                     block_scalar_tendency(local_index_unpack)%patch( &
-                          destination_unpack + &
-                          BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1) = &
-                          block_scalar_tendency(local_index_unpack)%patch( &
-                          BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-                          (p*field_count*PATCH_SIZE**2+q) + &
-                          BLOCK_SCALAR_FULL_SHARED_INDEX(k))
-                  end do
                   do k = 1,BLOCK_SCALAR_FULL_FIELD_COUNT
                      block_scalar_tendency(local_index_unpack)%patch( &
                           destination_unpack + &
@@ -17438,6 +17490,30 @@ end subroutine build_parallel_block_catalog
            deduplicated_block_value_count(patch_count)) then
          call fail("deduplicated scalar block unpack differs")
       end if
+      ! The canonical physical-level record can occur after scaffold fields
+      ! in storage order.  Populate every shared slot only after the complete
+      ! stream has installed that canonical record.
+      do p = 0,patch_count-1
+         do f = 0,field_count-1
+            if (f == shared_field) cycle
+            do q = 0,PATCH_SIZE**2-1
+               destination_unpack = &
+                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                    (p*field_count*PATCH_SIZE**2 + &
+                    f*PATCH_SIZE**2+q) + 1
+               do k = 1,BLOCK_SCALAR_FULL_SHARED_COUNT
+                  block_scalar_tendency(local_index_unpack)%patch( &
+                       destination_unpack + &
+                       BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1) = &
+                       block_scalar_tendency(local_index_unpack)%patch( &
+                       BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                       (p*field_count*PATCH_SIZE**2 + &
+                       shared_field*PATCH_SIZE**2+q) + &
+                       BLOCK_SCALAR_FULL_SHARED_INDEX(k))
+               end do
+            end do
+         end do
+      end do
 
     end subroutine unpack_deduplicated_full_block
 
