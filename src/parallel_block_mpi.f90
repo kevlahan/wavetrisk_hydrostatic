@@ -137,6 +137,9 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 50
   integer, parameter :: BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT = EDGE+1
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
+  integer, parameter :: BLOCK_SCALAR_PRODUCTION_INPUT_COUNT = &
+       BLOCK_SCALAR_FLUX_COUNT+EDGE
+  integer, parameter :: BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT = EDGE+1
   integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
   integer, parameter :: BLOCK_SCALAR_ACTIVE_INDEX = 8
   integer, parameter :: BLOCK_SCALAR_DIRECT_FLUX_START = 9
@@ -493,6 +496,8 @@ module parallel_block_mpi_mod
   logical, save :: production_grid_change_pending = .false.
   logical, save :: block_adaptation_validation = .false.
   logical, save :: block_adaptation_validation_initialized = .false.
+  logical, save :: block_dynamics_validation = .false.
+  logical, save :: block_dynamics_validation_initialized = .false.
   logical, save :: block_detailed_diagnostics = .false.
   logical, save :: block_detailed_diagnostics_initialized = .false.
   logical, save :: production_state_preparation_reported = .false.
@@ -542,7 +547,8 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PROFILE_RESTRICTION_MPI = 23
   integer, parameter :: BLOCK_PROFILE_RESTRICTION_INSTALL = 24
   integer, parameter :: BLOCK_PROFILE_RESTRICTION_KERNEL = 25
-  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 25
+  integer, parameter, public :: BLOCK_PROFILE_DOMAIN_TENDENCY = 26
+  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 26
   character(len=32), parameter :: block_profile_phase_name( &
        BLOCK_PROFILE_PHASE_COUNT) = [character(len=32) :: &
        "complete timestep", "dynamics driver", "physics consumers", &
@@ -556,7 +562,8 @@ module parallel_block_mpi_mod
        "refinement timestep", "coarsening timestep", &
        "restriction Domain capture", "restriction initial transport", &
        "restriction ghost pack/local", "restriction ghost MPI", &
-       "restriction ghost install", "restriction kernels/replay"]
+       "restriction ghost install", "restriction kernels/replay", &
+       "legacy Domain tendency path"]
   logical, save :: block_profile = .false.
   logical, save :: block_profile_initialized = .false.
   real(dp), save :: block_profile_seconds(BLOCK_PROFILE_PHASE_COUNT) = &
@@ -615,6 +622,7 @@ module parallel_block_mpi_mod
      logical :: metric_division = .false.
      logical :: velocity_recomposition = .false.
      logical :: complete_physical_recomposition = .false.
+     logical :: validate_oracle = .false.
   end type Block_Exner_Difference_Kernel_Context
 
   type :: Block_Edge_Metric_Storage
@@ -659,6 +667,10 @@ module parallel_block_mpi_mod
      integer, allocatable :: recv_count(:)
      integer, allocatable :: send_displ(:)
      integer, allocatable :: recv_displ(:)
+     integer, allocatable :: production_send_count(:)
+     integer, allocatable :: production_recv_count(:)
+     integer, allocatable :: production_send_displ(:)
+     integer, allocatable :: production_recv_displ(:)
      real(dp), allocatable :: send_buffer(:)
      real(dp), allocatable :: recv_buffer(:)
      logical, allocatable :: recv_covered(:)
@@ -666,6 +678,8 @@ module parallel_block_mpi_mod
      integer(int64) :: allocations = 0_int64
      logical :: active = .false.
      logical :: ready = .false.
+     logical :: full_transport = .true.
+     logical :: production_cache_ready = .false.
   end type Block_Scalar_Divergence_Plan_Type
 
   type(Block_Scalar_Divergence_Plan_Type), save :: &
@@ -676,6 +690,10 @@ module parallel_block_mpi_mod
      integer, allocatable :: boundary_recv_count(:)
      integer, allocatable :: boundary_send_displ(:)
      integer, allocatable :: boundary_recv_displ(:)
+     integer, allocatable :: boundary_dynamic_send_count(:)
+     integer, allocatable :: boundary_dynamic_recv_count(:)
+     integer, allocatable :: boundary_dynamic_send_displ(:)
+     integer, allocatable :: boundary_dynamic_recv_displ(:)
      real(dp), allocatable :: boundary_send_buffer(:)
      real(dp), allocatable :: boundary_recv_buffer(:)
      integer, allocatable :: ghost_send_count(:)
@@ -697,6 +715,7 @@ module parallel_block_mpi_mod
      integer(int64) :: full_values = 0_int64
      integer(int64) :: dynamic_values = 0_int64
      logical :: ready = .false.
+     logical :: production_ghost_cache_ready = .false.
   end type Block_Scalar_Restriction_Exchange_Type
 
   type(Block_Scalar_Restriction_Exchange_Type), save :: &
@@ -784,6 +803,7 @@ module parallel_block_mpi_mod
   public :: refresh_pending_parallel_block_adaptation_wavelets
   public :: install_block_native_adaptation_mask_seed
   public :: block_adaptation_validation_enabled
+  public :: block_dynamics_validation_enabled
   public :: block_detailed_diagnostics_enabled
   public :: parallel_block_profile_enabled
   public :: parallel_block_profile_begin
@@ -1255,6 +1275,52 @@ contains
     enabled = block_adaptation_validation
 
   end function block_adaptation_validation_enabled
+
+
+  logical function block_dynamics_validation_enabled () result(enabled)
+    ! Expensive exact dynamics comparisons, repeated-refresh proofs and
+    ! global coverage reductions are an opt-in oracle.  Production retains
+    ! all numerical kernels, state transitions and allocation guards.
+
+    implicit none
+
+    character(len=32) :: value
+    integer :: enabled_count
+    integer :: ierr
+    integer :: length
+    integer :: local_enabled
+    integer :: status
+
+    if (.not. block_dynamics_validation_initialized) then
+       value = ""
+       call get_environment_variable( &
+            "WAVETRISK_VALIDATE_BLOCK_DYNAMICS",value,length,status)
+       if (status == 0 .and. length > 0) then
+          select case (trim(value(1:min(length,len(value)))))
+          case ("1","true","TRUE","on","ON","yes","YES")
+             block_dynamics_validation = .true.
+          case ("0","false","FALSE","off","OFF","no","NO")
+             block_dynamics_validation = .false.
+          case default
+             call fail("invalid block-dynamics validation option")
+          end select
+       else if (status /= 0 .and. status /= 1) then
+          call fail("unable to read block-dynamics validation option")
+       end if
+       local_enabled = merge(1,0,block_dynamics_validation)
+       call MPI_Allreduce(local_enabled,enabled_count,1,MPI_INTEGER, &
+            MPI_SUM,comm,ierr)
+       call check_mpi(ierr, &
+            "MPI_Allreduce block-dynamics validation option")
+       if (enabled_count /= 0 .and. enabled_count /= n_process) &
+            call fail("inconsistent block-dynamics validation option")
+       block_dynamics_validation_initialized = .true.
+       if (block_dynamics_validation .and. rank == 0) write(6,'(a)') &
+            "Block dynamics validation oracle enabled"
+    end if
+    enabled = block_dynamics_validation
+
+  end function block_dynamics_validation_enabled
 
 
   logical function block_detailed_diagnostics_enabled () result(enabled)
@@ -2449,6 +2515,7 @@ contains
     logical :: state_ready
     logical :: tendency_ready
     logical :: trial_active
+    logical :: validate_oracle
 
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
@@ -2459,9 +2526,14 @@ contains
     writeback_before = block_domain_production_writeback_count()
     hydrostatic_ready = .false.
 
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_WAV_COEFF)
+    validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_WAV_COEFF)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
 
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.true.)
@@ -7744,6 +7816,8 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: count_global(2)
     integer(int64) :: count_local(2)
 
+    logical :: validate_oracle
+
     real(dp) :: allowed
     real(dp) :: reference_value
     real(dp) :: staged_value
@@ -7759,6 +7833,7 @@ end subroutine build_parallel_block_catalog
          production_velocity_restriction_level /= coarse_level) then
        call fail("staged coarse boundary exchange source is not ready")
     end if
+    validate_oracle = block_dynamics_validation_enabled()
 
     call get_block_field_layout( &
          v_scalar,n_scalar_variable,v_vector,first_field_level, &
@@ -7855,55 +7930,59 @@ end subroutine build_parallel_block_catalog
        end do
     end do
 
-    count_local = [ &
-         int(staged_coarse_vector_boundary_plan%n_recv,int64), &
-         int(staged_coarse_vector_boundary_plan%n_local,int64) ]
-    do p = 1,staged_coarse_vector_boundary_plan%n_recv + &
-         staged_coarse_vector_boundary_plan%n_local
-       if (p <= staged_coarse_vector_boundary_plan%n_recv) then
-          d = staged_coarse_vector_boundary_plan%recv_domain(p)
-          destination_id = abs( &
-               staged_coarse_vector_boundary_plan%recv_id(p))
-       else
-          d = staged_coarse_vector_boundary_plan% &
-               local_destination_domain( &
-               p-staged_coarse_vector_boundary_plan%n_recv)
-          destination_id = abs(staged_coarse_vector_boundary_plan% &
-               local_destination_id( &
-               p-staged_coarse_vector_boundary_plan%n_recv))
-       end if
-       do level_slot = 1,n_field_level
-          field_level = first_field_level+level_slot-1
-          staged_value = staged_coarse_vector_boundary_plan% &
-               boundary_value((p-1)*n_field_level+level_slot)
-          reference_value = sol(S_VELO,field_level)%data(d)% &
-               elts(destination_id+1)
-          if (.not. ieee_is_finite(staged_value) .or. &
-               .not. ieee_is_finite(reference_value)) then
-             call fail("staged coarse boundary value is non-finite")
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       count_local = [ &
+            int(staged_coarse_vector_boundary_plan%n_recv,int64), &
+            int(staged_coarse_vector_boundary_plan%n_local,int64) ]
+       do p = 1,staged_coarse_vector_boundary_plan%n_recv + &
+            staged_coarse_vector_boundary_plan%n_local
+          if (p <= staged_coarse_vector_boundary_plan%n_recv) then
+             d = staged_coarse_vector_boundary_plan%recv_domain(p)
+             destination_id = abs( &
+                  staged_coarse_vector_boundary_plan%recv_id(p))
+          else
+             d = staged_coarse_vector_boundary_plan% &
+                  local_destination_domain( &
+                  p-staged_coarse_vector_boundary_plan%n_recv)
+             destination_id = abs(staged_coarse_vector_boundary_plan% &
+                  local_destination_id( &
+                  p-staged_coarse_vector_boundary_plan%n_recv))
           end if
-          allowed = 16.0_dp*epsilon(1.0_dp)*max( &
-               1.0_dp,abs(staged_value),abs(reference_value))
-          if (abs(staged_value-reference_value) > allowed) then
-             write(error_unit,'(/,a,i0,a,i0,a,i0,a,i0)') &
-                  "Rank ",rank, &
-                  ": staged coarse boundary mismatch: Domain = ",d, &
-                  ", edge id = ",destination_id, &
-                  ", field level = ",field_level
-             write(error_unit,'(a,3(es24.16,1x))') &
-                  "  staged, Domain, allowed = ", &
-                  staged_value,reference_value,allowed
-             flush(error_unit)
-             call fail("staged coarse boundary comparison failed")
-          end if
+          do level_slot = 1,n_field_level
+             field_level = first_field_level+level_slot-1
+             staged_value = staged_coarse_vector_boundary_plan% &
+                  boundary_value((p-1)*n_field_level+level_slot)
+             reference_value = sol(S_VELO,field_level)%data(d)% &
+                  elts(destination_id+1)
+             if (.not. ieee_is_finite(staged_value) .or. &
+                  .not. ieee_is_finite(reference_value)) then
+                call fail("staged coarse boundary value is non-finite")
+             end if
+             allowed = 16.0_dp*epsilon(1.0_dp)*max( &
+                  1.0_dp,abs(staged_value),abs(reference_value))
+             if (abs(staged_value-reference_value) > allowed) then
+                write(error_unit,'(/,a,i0,a,i0,a,i0,a,i0)') &
+                     "Rank ",rank, &
+                     ": staged coarse boundary mismatch: Domain = ",d, &
+                     ", edge id = ",destination_id, &
+                     ", field level = ",field_level
+                write(error_unit,'(a,3(es24.16,1x))') &
+                     "  staged, Domain, allowed = ", &
+                     staged_value,reference_value,allowed
+                flush(error_unit)
+                call fail("staged coarse boundary comparison failed")
+             end if
+          end do
        end do
-    end do
 
-    call MPI_Allreduce(count_local,count_global,size(count_local), &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce staged coarse boundary coverage")
-    if (sum(count_global) <= 0_int64) then
-       call fail("staged coarse boundary exchange coverage is empty")
+       call MPI_Allreduce(count_local,count_global,size(count_local), &
+            MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce staged coarse boundary coverage")
+       if (sum(count_global) <= 0_int64) then
+          call fail("staged coarse boundary exchange coverage is empty")
+       end if
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
 
     staged_coarse_vector_boundary_plan%exchange_count = &
@@ -9961,6 +10040,7 @@ end subroutine build_parallel_block_catalog
     logical :: state_ready
     logical :: tendency_ready
     logical :: trial_active
+    logical :: validate_oracle
 
     real(dp) :: scalar_moment_first(3,3)
     real(dp) :: scalar_moment_second(3,3)
@@ -9968,6 +10048,7 @@ end subroutine build_parallel_block_catalog
     real(dp) :: vector_moment_second(3,3)
 
     call block_profile_enter(BLOCK_PROFILE_BOUNDARY_GHOST)
+    validate_oracle = block_dynamics_validation_enabled()
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("trend boundary refresh before block state is ready")
@@ -9996,37 +10077,46 @@ end subroutine build_parallel_block_catalog
     vector_ghost_recv_size_before = &
          size(ghost_exchange_plan%vector_recv_buffer)
 
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    end if
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.)
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.true.)
     call refresh_block_sol_ghosts
-    call local_block_scalar_stencil_statistics( &
-         scalar_address_first,scalar_value_first,scalar_moment_first)
-    call local_block_vector_stencil_statistics( &
-         vector_address_first,vector_value_first,vector_moment_first)
+    if (validate_oracle) then
+       call local_block_scalar_stencil_statistics( &
+            scalar_address_first,scalar_value_first,scalar_moment_first)
+       call local_block_vector_stencil_statistics( &
+            vector_address_first,vector_value_first,vector_moment_first)
 
-    ! A second identical refresh must preserve the complete compact stencil
-    ! image exactly and reuse every persistent communication buffer.
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,.true.)
-    call refresh_block_sol_ghosts
-    call local_block_scalar_stencil_statistics( &
-         scalar_address_second,scalar_value_second,scalar_moment_second)
-    call local_block_vector_stencil_statistics( &
-         vector_address_second,vector_value_second,vector_moment_second)
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+       ! Prove idempotence only in exact-oracle mode.  Repeating this complete
+       ! ghost transaction on every production timestep was pure validation.
+       call import_domain_boundary_field_family_to_blocks( &
+            BLOCK_PAYLOAD_SOL,.true.)
+       call refresh_block_sol_ghosts
+       call local_block_scalar_stencil_statistics( &
+            scalar_address_second,scalar_value_second, &
+            scalar_moment_second)
+       call local_block_vector_stencil_statistics( &
+            vector_address_second,vector_value_second, &
+            vector_moment_second)
+       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
 
-    if (any(scalar_address_first /= scalar_address_second) .or. &
-         scalar_value_first /= scalar_value_second .or. &
-         any(abs(scalar_moment_first-scalar_moment_second) > 0.0_dp)) then
-       call fail("repeated scalar trend boundary refresh changed stencil")
-    end if
-    if (any(vector_address_first /= vector_address_second) .or. &
-         vector_value_first /= vector_value_second .or. &
-         any(abs(vector_moment_first-vector_moment_second) > 0.0_dp)) then
-       call fail("repeated vector trend boundary refresh changed stencil")
+       if (any(scalar_address_first /= scalar_address_second) .or. &
+            scalar_value_first /= scalar_value_second .or. &
+            any(abs(scalar_moment_first-scalar_moment_second) > &
+            0.0_dp)) then
+          call fail("repeated scalar trend boundary refresh changed stencil")
+       end if
+       if (any(vector_address_first /= vector_address_second) .or. &
+            vector_value_first /= vector_value_second .or. &
+            any(abs(vector_moment_first-vector_moment_second) > &
+            0.0_dp)) then
+          call fail("repeated vector trend boundary refresh changed stencil")
+       end if
     end if
     if (block_writeback_plan_allocation_count() /= &
          writeback_allocation_before) then
@@ -10056,11 +10146,14 @@ end subroutine build_parallel_block_catalog
        count_local(3) = count_local(3) + &
             int(local_block_ghost_count(b),int64)
     end do
-    call MPI_Allreduce(count_local,count_global,3, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce trend boundary refresh coverage")
-    if (any(count_global <= 0_int64)) then
-       call fail("trend boundary refresh coverage is incomplete")
+    if (validate_oracle) then
+       call MPI_Allreduce(count_local,count_global,3, &
+            MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce trend boundary refresh coverage")
+       if (any(count_global <= 0_int64)) then
+          call fail("trend boundary refresh coverage is incomplete")
+       end if
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
 
     block_writeback_plan%production_trend_boundary_refresh_count = &
@@ -10103,7 +10196,9 @@ end subroutine build_parallel_block_catalog
     logical :: state_ready
     logical :: tendency_ready
     logical :: trial_active
+    logical :: validate_oracle
 
+    validate_oracle = block_dynamics_validation_enabled()
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("multistage boundary refresh before state is ready")
@@ -10159,8 +10254,11 @@ end subroutine build_parallel_block_catalog
     ! The inverse writeback and the retained compact interiors must agree
     ! before any boundary-only state is refreshed. This assertion also
     ! reconstructs the distributed block image without changing block data.
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_SOL,domain_sol)
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_SOL,domain_sol)
+    end if
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.,domain_sol)
     call import_domain_boundary_field_family_to_blocks( &
@@ -10181,7 +10279,10 @@ end subroutine build_parallel_block_catalog
          int(n_local_blocks(),int64)) then
        call fail("multistage provisional hydrostatic refresh is incomplete")
     end if
-    call assert_candidate_block_hydrostatic_match(domain_sol)
+    if (validate_oracle) then
+       call assert_candidate_block_hydrostatic_match(domain_sol)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
     call ensure_local_block_hydrostatic_state
     if (local_block_hydrostatic_refresh_count() /= &
          hydrostatic_refresh_after) then
@@ -10268,6 +10369,7 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: writeback_before
 
     logical :: checkpoint_ready
+    logical :: validate_oracle
     logical :: state_ready
 
     real(dp) :: allowed
@@ -10279,6 +10381,7 @@ end subroutine build_parallel_block_catalog
 
     candidate_stage = production_multistage_candidate_stage
     candidate_stage_count = production_multistage_candidate_stage_count
+    validate_oracle = block_dynamics_validation_enabled()
     if (candidate_stage_count == 0) return
     if (candidate_stage /= candidate_stage_count .or. &
          coarse_level /= level_start-1) then
@@ -10364,13 +10467,16 @@ end subroutine build_parallel_block_catalog
                               statistics%active_count + 1_int64
                          native_value = staged_restricted_velocity( &
                               d,p_child,level_slot,i_chd,j_chd,e)
-                         reference_value = domain_restricted_velocity( &
-                              d,p,field_level,i_par,j_par,e)
-                         allowed = 8.0_dp*epsilon(1.0_dp)*max( &
-                              1.0_dp,abs(native_value), &
-                              abs(reference_value))
-                         if (abs(native_value-reference_value) > allowed) then
-                            call report_velocity_restriction_mismatch
+                         if (validate_oracle) then
+                            reference_value = domain_restricted_velocity( &
+                                 d,p,field_level,i_par,j_par,e)
+                            allowed = 8.0_dp*epsilon(1.0_dp)*max( &
+                                 1.0_dp,abs(native_value), &
+                                 abs(reference_value))
+                            if (abs(native_value-reference_value) > &
+                                 allowed) then
+                               call report_velocity_restriction_mismatch
+                            end if
                          end if
                          call set_staged_parent_velocity( &
                               d,p,level_slot,i_par,j_par,e,native_value)
@@ -10387,14 +10493,16 @@ end subroutine build_parallel_block_catalog
     count_local = [statistics%parent_patch_count, &
          statistics%candidate_count,statistics%active_count, &
          statistics%produced_count]
-    call MPI_Allreduce(count_local,count_global,size(count_local), &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce velocity restriction coverage")
-    if (any(count_global <= 0_int64)) then
-       call fail("block-derived velocity restriction coverage is empty")
-    end if
-    if (count_global(3) /= count_global(4)) then
-       call fail("block-derived velocity restriction coverage differs")
+    if (validate_oracle) then
+       call MPI_Allreduce(count_local,count_global,size(count_local), &
+            MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce velocity restriction coverage")
+       if (any(count_global <= 0_int64)) then
+          call fail("block-derived velocity restriction coverage is empty")
+       end if
+       if (count_global(3) /= count_global(4)) then
+          call fail("block-derived velocity restriction coverage differs")
+       end if
     end if
 
     production_velocity_restriction_level = coarse_level
@@ -10846,11 +10954,13 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: writeback_before
 
     logical :: checkpoint_ready
+    logical :: validate_oracle
 
     real(dp) :: mask_value
     real(dp) :: native_value
     real(dp) :: operation_scale
 
+    validate_oracle = block_dynamics_validation_enabled()
     writeback_allocation_before = block_writeback_plan_allocation_count()
     scalar_allocation_before = block_scalar_tendency_allocations
     restriction_allocation_before = &
@@ -10872,66 +10982,70 @@ end subroutine build_parallel_block_catalog
     call exchange_staged_coarse_vector_boundaries( &
          wavelet_level,n_field_level)
 
-    count_local = 0_int64
-    do d = 1,size(grid)
-       do p_index = 1,grid(d)%lev(wavelet_level)%length
-          p = grid(d)%lev(wavelet_level)%elts(p_index)
-          call get_offs_Domain(grid(d),p,offs_par,dims_par)
-          count_local(1) = count_local(1) + 1_int64
-          do c = 1,N_CHDRN
-             p_child = grid(d)%patch%elts(p+1)%children(c)
-             if (p_child == 0) cycle
-             if (grid(d)%patch%elts(p_child+1)%level /= &
-                  wavelet_level+1) then
-                call fail("staged coarse outer-wavelet child is invalid")
-             end if
-             do level_slot = 1,n_field_level
-                field_level = first_field_level+level_slot-1
-                if (field_level < 1 .or. field_level > zlevels) cycle
-                do j = 1,PATCH_SIZE/2
-                   j_chd = 2*(j-1)
-                   j_par = j-1+chd_offs(2,c)
-                   do i = 1,PATCH_SIZE/2
-                      i_chd = 2*(i-1)
-                      i_par = i-1+chd_offs(1,c)
-                      do e = RT,UP
-                         if (coarse_outer_stencil_uses_transport()) then
-                            count_local(5) = count_local(5) + 2_int64
-                         end if
-                         count_local(2) = count_local(2) + 2_int64
-                         native_value = 0.0_dp
-                         operation_scale = 0.0_dp
-                         call staged_wavelet_mask(mask_value)
-                         if (mask_value < real(ADJZONE,dp)) then
-                            cycle
-                         end if
-                         count_local(3) = count_local(3) + 2_int64
-                         native_value = staged_outer_wavelet(operation_scale)
-                         if (.not. ieee_is_finite(native_value) .or. &
-                              .not. ieee_is_finite(operation_scale)) then
-                            call fail( &
-                                 "staged coarse outer wavelet is non-finite")
-                         end if
-                         count_local(4) = count_local(4) + 2_int64
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       count_local = 0_int64
+       do d = 1,size(grid)
+          do p_index = 1,grid(d)%lev(wavelet_level)%length
+             p = grid(d)%lev(wavelet_level)%elts(p_index)
+             call get_offs_Domain(grid(d),p,offs_par,dims_par)
+             count_local(1) = count_local(1) + 1_int64
+             do c = 1,N_CHDRN
+                p_child = grid(d)%patch%elts(p+1)%children(c)
+                if (p_child == 0) cycle
+                if (grid(d)%patch%elts(p_child+1)%level /= &
+                     wavelet_level+1) then
+                   call fail( &
+                        "staged coarse outer-wavelet child is invalid")
+                end if
+                do level_slot = 1,n_field_level
+                   field_level = first_field_level+level_slot-1
+                   if (field_level < 1 .or. field_level > zlevels) cycle
+                   do j = 1,PATCH_SIZE/2
+                      j_chd = 2*(j-1)
+                      j_par = j-1+chd_offs(2,c)
+                      do i = 1,PATCH_SIZE/2
+                         i_chd = 2*(i-1)
+                         i_par = i-1+chd_offs(1,c)
+                         do e = RT,UP
+                            if (coarse_outer_stencil_uses_transport()) &
+                                 count_local(5) = count_local(5) + 2_int64
+                            count_local(2) = count_local(2) + 2_int64
+                            native_value = 0.0_dp
+                            operation_scale = 0.0_dp
+                            call staged_wavelet_mask(mask_value)
+                            if (mask_value < real(ADJZONE,dp)) cycle
+                            count_local(3) = count_local(3) + 2_int64
+                            native_value = &
+                                 staged_outer_wavelet(operation_scale)
+                            if (.not. ieee_is_finite(native_value) .or. &
+                                 .not. ieee_is_finite(operation_scale)) then
+                               call fail("staged coarse outer wavelet "// &
+                                    "is non-finite")
+                            end if
+                            count_local(4) = count_local(4) + 2_int64
+                         end do
                       end do
                    end do
                 end do
              end do
           end do
        end do
-    end do
 
-    call MPI_Allreduce(count_local,count_global,size(count_local), &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce staged outer-wavelet coverage")
-    if (count_global(1) <= 0_int64 .or. &
-         count_global(2) <= 0_int64 .or. &
-         count_global(3) <= 0_int64 .or. &
-         count_global(5) <= 0_int64) then
-       call fail("staged coarse outer-wavelet coverage is incomplete")
-    end if
-    if (count_global(3) /= count_global(4)) then
-       call fail("staged coarse outer-wavelet production coverage differs")
+       call MPI_Allreduce(count_local,count_global,size(count_local), &
+            MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce staged outer-wavelet coverage")
+       if (count_global(1) <= 0_int64 .or. &
+            count_global(2) <= 0_int64 .or. &
+            count_global(3) <= 0_int64 .or. &
+            count_global(5) <= 0_int64) then
+          call fail("staged coarse outer-wavelet coverage is incomplete")
+       end if
+       if (count_global(3) /= count_global(4)) then
+          call fail( &
+               "staged coarse outer-wavelet production coverage differs")
+       end if
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
 
     checkpoint_ready = local_block_tendency_commit_checkpoint_is_ready()
@@ -11452,6 +11566,7 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: count_local(4)
 
     logical :: route_valid
+    logical :: validate_oracle
 
     real(dp), pointer :: native_velo(:)
     real(dp), pointer :: native_wc(:)
@@ -11459,6 +11574,7 @@ end subroutine build_parallel_block_catalog
     real(dp) :: midpoint_norm
     real(dp) :: native_value
 
+    validate_oracle = block_dynamics_validation_enabled()
     if (production_complete_vector_wavelet_validated) then
        call fail("complete vector wavelet was already validated")
     end if
@@ -11663,44 +11779,50 @@ end subroutine build_parallel_block_catalog
              call apply_native_pentagon_level(l)
           end do
 
-          do p = 0,grid(d)%patch%length-1
-             if (grid(d)%patch%elts(p+1)%deleted .or. &
-                  grid(d)%patch%elts(p+1)%level <= first_level .or. &
-                  grid(d)%patch%elts(p+1)%level > level_end) cycle
-             do node = 0,PATCH_SIZE**2-1
-                do e = RT,UP
-                   edge_id = EDGE*( &
-                        grid(d)%patch%elts(p+1)%elts_start+node)+e
-                   native_value = native_wc(edge_id+1)
-                   count_local(2) = count_local(2)+1_int64
-                   if (grid(d)%mask_e%elts(edge_id+1) >= ADJZONE) &
-                        count_local(3) = count_local(3)+1_int64
-                   if (.not. ieee_is_finite(native_value)) then
-                      call fail("complete vector wavelet is non-finite")
-                   end if
-                   count_local(4) = count_local(4)+1_int64
+          if (validate_oracle) then
+             do p = 0,grid(d)%patch%length-1
+                if (grid(d)%patch%elts(p+1)%deleted .or. &
+                     grid(d)%patch%elts(p+1)%level <= first_level .or. &
+                     grid(d)%patch%elts(p+1)%level > level_end) cycle
+                do node = 0,PATCH_SIZE**2-1
+                   do e = RT,UP
+                      edge_id = EDGE*( &
+                           grid(d)%patch%elts(p+1)%elts_start+node)+e
+                      native_value = native_wc(edge_id+1)
+                      count_local(2) = count_local(2)+1_int64
+                      if (grid(d)%mask_e%elts(edge_id+1) >= ADJZONE) &
+                           count_local(3) = count_local(3)+1_int64
+                      if (.not. ieee_is_finite(native_value)) then
+                         call fail("complete vector wavelet is non-finite")
+                      end if
+                      count_local(4) = count_local(4)+1_int64
+                   end do
                 end do
              end do
-          end do
+          end if
           nullify(native_velo,native_wc)
        end do
     end do
 
-    call MPI_Allreduce(count_local,count_global,size(count_local), &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce complete vector-wavelet coverage")
-    if (count_global(2) > 0_int64) then
-       if (count_global(1) <= 0_int64 .or. &
-            count_global(4) <= 0_int64 .or. &
-            count_global(2) /= count_global(4)) then
-          call fail("complete vector-wavelet coverage is incomplete")
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call MPI_Allreduce(count_local,count_global,size(count_local), &
+            MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce complete vector-wavelet coverage")
+       if (count_global(2) > 0_int64) then
+          if (count_global(1) <= 0_int64 .or. &
+               count_global(4) <= 0_int64 .or. &
+               count_global(2) /= count_global(4)) then
+             call fail("complete vector-wavelet coverage is incomplete")
+          end if
+       else if (any(count_global /= 0_int64)) then
+          call fail("unrefined vector-wavelet coverage is not empty")
        end if
-    else if (any(count_global /= 0_int64)) then
-       call fail("unrefined vector-wavelet coverage is not empty")
-    end if
-    if (count_global(3) < 0_int64 .or. &
-         count_global(3) > count_global(2)) then
-       call fail("complete active vector-wavelet coverage is invalid")
+       if (count_global(3) < 0_int64 .or. &
+            count_global(3) > count_global(2)) then
+          call fail("complete active vector-wavelet coverage is invalid")
+       end if
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
     production_complete_vector_wavelet_validated = .true.
   contains
@@ -11776,12 +11898,14 @@ end subroutine build_parallel_block_catalog
       end do
 
       call export_provisional_vector_boundaries(coverage_local(2))
-      call MPI_Allreduce(coverage_local,coverage_global,2, &
-           MPI_INTEGER8,MPI_SUM,comm,ierr)
-      call check_mpi(ierr, &
-           "MPI_Allreduce provisional vector source coverage")
-      if (any(coverage_global <= 0_int64)) then
-         call fail("provisional vector block source coverage is empty")
+      if (validate_oracle) then
+         call MPI_Allreduce(coverage_local,coverage_global,2, &
+              MPI_INTEGER8,MPI_SUM,comm,ierr)
+         call check_mpi(ierr, &
+              "MPI_Allreduce provisional vector source coverage")
+         if (any(coverage_global <= 0_int64)) then
+            call fail("provisional vector block source coverage is empty")
+         end if
       end if
 
     end subroutine seed_provisional_vector_transform_from_blocks
@@ -12834,12 +12958,14 @@ end subroutine build_parallel_block_catalog
     logical :: final_transform
     logical :: provisional_transform
     logical :: state_ready
+    logical :: validate_oracle
 
     type(Block_Scalar_Wavelet_Context) :: statistics
 
     candidate_stage = production_multistage_candidate_stage
     candidate_stage_count = &
          production_multistage_candidate_stage_count
+    validate_oracle = block_dynamics_validation_enabled()
 
     if (candidate_stage_count == 0) return
     call block_profile_enter(BLOCK_PROFILE_WAVELET)
@@ -12888,8 +13014,12 @@ end subroutine build_parallel_block_catalog
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.,domain_scaling)
     call refresh_block_sol_ghosts
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_SOL,domain_scaling)
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_SOL,domain_scaling)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
 
     ! The native-mode caller has zeroed the output. Import that structural
     ! zero image to clear inactive compact coefficients while preserving the
@@ -12905,22 +13035,26 @@ end subroutine build_parallel_block_catalog
     count_local = [statistics%parent_patch_count, &
          statistics%candidate_count,statistics%active_count, &
          statistics%compared_count,statistics%produced_count]
-    call MPI_Allreduce(count_local,count_global,size(count_local), &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce scalar-wavelet production coverage")
-    if (count_global(1) > 0_int64) then
-       if (count_global(2) <= 0_int64 .or. &
-            count_global(5) <= 0_int64) then
-          call fail("block-native scalar-wavelet coverage is empty")
+    if (validate_oracle) then
+       call MPI_Allreduce(count_local,count_global,size(count_local), &
+            MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr, &
+            "MPI_Allreduce scalar-wavelet production coverage")
+       if (count_global(1) > 0_int64) then
+          if (count_global(2) <= 0_int64 .or. &
+               count_global(5) <= 0_int64) then
+             call fail("block-native scalar-wavelet coverage is empty")
+          end if
+       else if (any(count_global(2:5) /= 0_int64)) then
+          call fail("unrefined scalar-wavelet coverage is not empty")
        end if
-    else if (any(count_global(2:5) /= 0_int64)) then
-       call fail("unrefined scalar-wavelet coverage is not empty")
-    end if
-    if (count_global(3) /= count_global(4)) then
-       call fail("block-native active scalar-wavelet coverage differs")
-    end if
-    if (count_global(2) /= count_global(5)) then
-       call fail("block-native scalar-wavelet production coverage differs")
+       if (count_global(3) /= count_global(4)) then
+          call fail("block-native active scalar-wavelet coverage differs")
+       end if
+       if (count_global(2) /= count_global(5)) then
+          call fail( &
+               "block-native scalar-wavelet production coverage differs")
+       end if
     end if
 
     checkpoint_ready = &
@@ -13120,10 +13254,12 @@ end subroutine build_parallel_block_catalog
     logical :: final_transform
     logical :: provisional_transform
     logical :: state_ready
+    logical :: validate_oracle
 
     type(Block_Wavelet_Compression_Context) :: statistics
 
     call block_profile_enter(BLOCK_PROFILE_COMPRESSION)
+    validate_oracle = block_dynamics_validation_enabled()
     state_ready = parallel_block_state_is_ready()
     final_transform = production_adaptation_pending .and. &
          production_multistage_candidate_stage_count == 0
@@ -13161,9 +13297,13 @@ end subroutine build_parallel_block_catalog
     call import_domain_field_family_to_blocks( &
          BLOCK_PAYLOAD_WAV_COEFF, &
          preserve_checkpoint=provisional_transform)
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet, &
-         comparison_name="uncompressed resident")
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet, &
+            comparison_name="uncompressed resident")
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
 
     statistics%first_level = level_start+1
     statistics%last_level = level_end
@@ -13173,23 +13313,25 @@ end subroutine build_parallel_block_catalog
     count_local = [statistics%patch_count,statistics%scalar_count, &
          statistics%scalar_zero_count,statistics%vector_count, &
          statistics%vector_zero_count]
-    call MPI_Allreduce(count_local,count_global,size(count_local), &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce native compression coverage")
-    if (count_global(1) > 0_int64) then
-       if (count_global(1) <= 0_int64 .or. &
-            count_global(2) <= 0_int64 .or. &
-            count_global(4) <= 0_int64) then
-          call fail("native wavelet compression coverage is empty")
+    if (validate_oracle) then
+       call MPI_Allreduce(count_local,count_global,size(count_local), &
+            MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce native compression coverage")
+       if (count_global(1) > 0_int64) then
+          if (count_global(1) <= 0_int64 .or. &
+               count_global(2) <= 0_int64 .or. &
+               count_global(4) <= 0_int64) then
+             call fail("native wavelet compression coverage is empty")
+          end if
+       else if (any(count_global(2:5) /= 0_int64)) then
+          call fail("unrefined wavelet compression coverage is not empty")
        end if
-    else if (any(count_global(2:5) /= 0_int64)) then
-       call fail("unrefined wavelet compression coverage is not empty")
-    end if
-    if (count_global(3) < 0_int64 .or. &
-         count_global(3) > count_global(2) .or. &
-         count_global(5) < 0_int64 .or. &
-         count_global(5) > count_global(4)) then
-       call fail("native wavelet compression coverage is invalid")
+       if (count_global(3) < 0_int64 .or. &
+            count_global(3) > count_global(2) .or. &
+            count_global(5) < 0_int64 .or. &
+            count_global(5) > count_global(4)) then
+          call fail("native wavelet compression coverage is invalid")
+       end if
     end if
     if (block_writeback_plan_allocation_count() /= &
          production_block_compression_allocation_before) then
@@ -13218,6 +13360,8 @@ end subroutine build_parallel_block_catalog
     type(Float_Field), intent(inout) :: &
          domain_wavelet(1:N_VARIABLE,1:zlevels)
 
+    logical :: validate_oracle
+
     call block_profile_enter(BLOCK_PROFILE_COMPRESSION)
     if (.not. parallel_block_state_is_ready() .or. &
          .not. production_block_wavelet_compression_ready) then
@@ -13225,8 +13369,13 @@ end subroutine build_parallel_block_catalog
     end if
     call write_block_field_family_to_domains( &
          BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet)
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet)
+    validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_WAV_COEFF,domain_wavelet)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
 
     if (block_writeback_plan_allocation_count() /= &
          production_block_compression_allocation_before) then
@@ -13281,11 +13430,13 @@ end subroutine build_parallel_block_catalog
     logical :: final_transform
     logical :: provisional_transform
     logical :: state_ready
+    logical :: validate_oracle
 
     type(Block_Scalar_Inverse_Context) :: scalar_statistics
     type(Block_Vector_Inverse_Context) :: vector_statistics
 
     call block_profile_enter(BLOCK_PROFILE_INVERSE)
+    validate_oracle = block_dynamics_validation_enabled()
     state_ready = parallel_block_state_is_ready()
     checkpoint_ready = &
          local_block_tendency_commit_checkpoint_is_ready()
@@ -13367,65 +13518,71 @@ end subroutine build_parallel_block_catalog
             domain_scaling,inverse_level+1,refresh_vector_boundary)
     end do
 
-    call MPI_Allreduce( &
-         scalar_count_local,scalar_count_global, &
-         size(scalar_count_local), &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce native scalar inverse coverage")
-    if (scalar_count_global(1) > 0_int64) then
-       if (scalar_count_global(1) <= 0_int64 .or. &
-            scalar_count_global(2) <= 0_int64 .or. &
-            scalar_count_global(3) <= 0_int64) then
-          call fail("native scalar inverse coverage is empty")
-       end if
-    else if (any(scalar_count_global(2:4) /= 0_int64)) then
-       call fail("unrefined scalar inverse coverage is not empty")
-    end if
-    if (scalar_count_global(3)+scalar_count_global(4) /= &
-         scalar_count_global(2)) then
-       call fail("native scalar inverse coverage is incomplete")
-    end if
-
-    call MPI_Allreduce( &
-         vector_count_local,vector_count_global, &
-         size(vector_count_local), &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce native vector inverse coverage")
-    if (jmax <= jmin) then
-       if (any(vector_count_global /= 0_int64)) then
-          call fail("empty-range vector inverse coverage is not empty")
-       end if
-    else
-       if (vector_count_global(1) > 0_int64) then
-          if (any(vector_count_global(2:3) <= 0_int64)) then
-             call fail("native outer-vector inverse coverage is empty")
-          end if
-       else if (any(vector_count_global(2:4) /= 0_int64)) then
-          call fail("unrefined outer-vector coverage is not empty")
-       end if
-       if (jmin < level_start .and. &
-            vector_count_global(4) <= 0_int64) then
-          call fail("native scaffold pentagon coverage is empty")
-       end if
+    if (validate_oracle) then
+       call MPI_Allreduce( &
+            scalar_count_local,scalar_count_global, &
+            size(scalar_count_local), &
+            MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce native scalar inverse coverage")
        if (scalar_count_global(1) > 0_int64) then
-          if (any(vector_count_global(5:6) <= 0_int64)) then
-             call fail("native inner-vector inverse coverage is empty")
+          if (scalar_count_global(1) <= 0_int64 .or. &
+               scalar_count_global(2) <= 0_int64 .or. &
+               scalar_count_global(3) <= 0_int64) then
+             call fail("native scalar inverse coverage is empty")
           end if
-       else if (any(vector_count_global(5:6) /= 0_int64)) then
-          call fail("scaffold-only inner-vector coverage is not empty")
+       else if (any(scalar_count_global(2:4) /= 0_int64)) then
+          call fail("unrefined scalar inverse coverage is not empty")
        end if
-    end if
-    if (vector_count_global(3) /= &
-         6_int64*vector_count_global(2) .or. &
-         vector_count_global(6) /= &
-         6_int64*vector_count_global(5)) then
-       call fail("native vector inverse coverage is incomplete")
+       if (scalar_count_global(3)+scalar_count_global(4) /= &
+            scalar_count_global(2)) then
+          call fail("native scalar inverse coverage is incomplete")
+       end if
+
+       call MPI_Allreduce( &
+            vector_count_local,vector_count_global, &
+            size(vector_count_local), &
+            MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce native vector inverse coverage")
+       if (jmax <= jmin) then
+          if (any(vector_count_global /= 0_int64)) then
+             call fail("empty-range vector inverse coverage is not empty")
+          end if
+       else
+          if (vector_count_global(1) > 0_int64) then
+             if (any(vector_count_global(2:3) <= 0_int64)) then
+                call fail("native outer-vector inverse coverage is empty")
+             end if
+          else if (any(vector_count_global(2:4) /= 0_int64)) then
+             call fail("unrefined outer-vector coverage is not empty")
+          end if
+          if (jmin < level_start .and. &
+               vector_count_global(4) <= 0_int64) then
+             call fail("native scaffold pentagon coverage is empty")
+          end if
+          if (scalar_count_global(1) > 0_int64) then
+             if (any(vector_count_global(5:6) <= 0_int64)) then
+                call fail("native inner-vector inverse coverage is empty")
+             end if
+          else if (any(vector_count_global(5:6) /= 0_int64)) then
+             call fail("scaffold-only inner-vector coverage is not empty")
+          end if
+       end if
+       if (vector_count_global(3) /= &
+            6_int64*vector_count_global(2) .or. &
+            vector_count_global(6) /= &
+            6_int64*vector_count_global(5)) then
+          call fail("native vector inverse coverage is incomplete")
+       end if
     end if
 
     call write_block_field_family_to_domains( &
          BLOCK_PAYLOAD_SOL,domain_scaling)
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_SOL,domain_scaling)
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_SOL,domain_scaling)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
 
     if (block_writeback_plan_allocation_count() /= allocation_before) then
        call fail("native inverse reallocated persistent transport")
@@ -15563,8 +15720,11 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: restriction_allocation_after
 
     logical :: state_ready
+    logical :: storage_rebuilt
+    logical :: validate_oracle
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
+    validate_oracle = block_dynamics_validation_enabled()
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("scalar-divergence capture before block state is ready")
@@ -15575,19 +15735,25 @@ end subroutine build_parallel_block_catalog
 
     call prepare_scalar_divergence_plan
     call prepare_block_scalar_restriction_exchange
-    allocation_after = block_scalar_divergence_plan%allocations
-    restriction_allocation_after = &
-         block_scalar_restriction_exchange%allocations
-    call prepare_scalar_divergence_plan
-    call prepare_block_scalar_restriction_exchange
-    if (block_scalar_divergence_plan%allocations /= allocation_after) then
-       call fail("scalar-divergence transport was not reusable")
-    end if
-    if (block_scalar_restriction_exchange%allocations /= &
-         restriction_allocation_after) then
-       call fail("scalar-restriction transport was not reusable")
+    block_scalar_divergence_plan%full_transport = validate_oracle .or. &
+         .not. block_scalar_divergence_plan%production_cache_ready
+    if (validate_oracle) then
+       allocation_after = block_scalar_divergence_plan%allocations
+       restriction_allocation_after = &
+            block_scalar_restriction_exchange%allocations
+       call prepare_scalar_divergence_plan
+       call prepare_block_scalar_restriction_exchange
+       if (block_scalar_divergence_plan%allocations /= allocation_after) &
+            then
+          call fail("scalar-divergence transport was not reusable")
+       end if
+       if (block_scalar_restriction_exchange%allocations /= &
+            restriction_allocation_after) then
+          call fail("scalar-restriction transport was not reusable")
+       end if
     end if
 
+    storage_rebuilt = .false.
     n_local = n_local_blocks()
     if (allocated(block_scalar_tendency)) then
        if (size(block_scalar_tendency) /= n_local) then
@@ -15596,6 +15762,7 @@ end subroutine build_parallel_block_catalog
     end if
     if (.not. allocated(block_scalar_tendency)) then
        allocate(block_scalar_tendency(n_local))
+       storage_rebuilt = .true.
        block_scalar_tendency_allocations = &
             block_scalar_tendency_allocations + 1_int64
     end if
@@ -15643,11 +15810,13 @@ end subroutine build_parallel_block_catalog
        if (.not. allocated(block_scalar_tendency(index)%patch)) then
           allocate(block_scalar_tendency(index)%patch( &
                BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*count))
+          storage_rebuilt = .true.
           block_scalar_tendency_allocations = &
                block_scalar_tendency_allocations + 1_int64
        end if
        if (.not. allocated(block_scalar_tendency(index)%covered)) then
           allocate(block_scalar_tendency(index)%covered(count))
+          storage_rebuilt = .true.
           block_scalar_tendency_allocations = &
                block_scalar_tendency_allocations + 1_int64
        end if
@@ -15655,35 +15824,48 @@ end subroutine build_parallel_block_catalog
           allocate(block_scalar_tendency(index)%bdry( &
                BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                boundary_sample_count))
+          storage_rebuilt = .true.
           block_scalar_tendency_allocations = &
                block_scalar_tendency_allocations + 1_int64
        end if
        if (.not. allocated(block_scalar_tendency(index)%ghost)) then
           allocate(block_scalar_tendency(index)%ghost( &
                BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ghost_sample_count))
+          storage_rebuilt = .true.
           block_scalar_tendency_allocations = &
                block_scalar_tendency_allocations + 1_int64
        end if
        block_scalar_tendency(index)%catalog_index = b
        block_scalar_tendency(index)%installed_patch_count = 0
        block_scalar_tendency(index)%ready = .false.
-       block_scalar_tendency(index)%patch = BLOCK_PATCH_POISON
-       block_scalar_tendency(index)%bdry = BLOCK_BOUNDARY_POISON
-       block_scalar_tendency(index)%ghost = BLOCK_GHOST_POISON
+       if (validate_oracle) then
+          block_scalar_tendency(index)%patch = BLOCK_PATCH_POISON
+          block_scalar_tendency(index)%bdry = BLOCK_BOUNDARY_POISON
+          block_scalar_tendency(index)%ghost = BLOCK_GHOST_POISON
+       end if
        block_scalar_tendency(index)%covered = .false.
     end do
 
-    block_scalar_divergence_plan%recv_buffer = BLOCK_PATCH_POISON
-    block_scalar_divergence_plan%send_buffer = 0.0_dp
+    if (storage_rebuilt) then
+       block_scalar_divergence_plan%production_cache_ready = .false.
+       block_scalar_divergence_plan%full_transport = .true.
+       block_scalar_restriction_exchange%production_ghost_cache_ready = &
+            .false.
+    end if
+
+    if (validate_oracle) then
+       block_scalar_divergence_plan%recv_buffer = BLOCK_PATCH_POISON
+       block_scalar_divergence_plan%send_buffer = 0.0_dp
+       block_scalar_restriction_exchange%boundary_send_buffer = &
+            BLOCK_BOUNDARY_POISON
+       block_scalar_restriction_exchange%boundary_recv_buffer = &
+            BLOCK_BOUNDARY_POISON
+       block_scalar_restriction_exchange%ghost_send_buffer = &
+            BLOCK_GHOST_POISON
+       block_scalar_restriction_exchange%ghost_recv_buffer = &
+            BLOCK_GHOST_POISON
+    end if
     block_scalar_divergence_plan%recv_covered = .false.
-    block_scalar_restriction_exchange%boundary_send_buffer = &
-         BLOCK_BOUNDARY_POISON
-    block_scalar_restriction_exchange%boundary_recv_buffer = &
-         BLOCK_BOUNDARY_POISON
-    block_scalar_restriction_exchange%ghost_send_buffer = &
-         BLOCK_GHOST_POISON
-    block_scalar_restriction_exchange%ghost_recv_buffer = &
-         BLOCK_GHOST_POISON
     block_scalar_divergence_plan%ready = .false.
     block_scalar_divergence_plan%active = .true.
 
@@ -15710,6 +15892,14 @@ end subroutine build_parallel_block_catalog
            deallocate(block_scalar_divergence_plan%send_displ)
       if (allocated(block_scalar_divergence_plan%recv_displ)) &
            deallocate(block_scalar_divergence_plan%recv_displ)
+      if (allocated(block_scalar_divergence_plan%production_send_count)) &
+           deallocate(block_scalar_divergence_plan%production_send_count)
+      if (allocated(block_scalar_divergence_plan%production_recv_count)) &
+           deallocate(block_scalar_divergence_plan%production_recv_count)
+      if (allocated(block_scalar_divergence_plan%production_send_displ)) &
+           deallocate(block_scalar_divergence_plan%production_send_displ)
+      if (allocated(block_scalar_divergence_plan%production_recv_displ)) &
+           deallocate(block_scalar_divergence_plan%production_recv_displ)
       if (allocated(block_scalar_divergence_plan%send_buffer)) &
            deallocate(block_scalar_divergence_plan%send_buffer)
       if (allocated(block_scalar_divergence_plan%recv_buffer)) &
@@ -15721,6 +15911,10 @@ end subroutine build_parallel_block_catalog
       allocate(block_scalar_divergence_plan%recv_count(n_process))
       allocate(block_scalar_divergence_plan%send_displ(n_process))
       allocate(block_scalar_divergence_plan%recv_displ(n_process))
+      allocate(block_scalar_divergence_plan%production_send_count(n_process))
+      allocate(block_scalar_divergence_plan%production_recv_count(n_process))
+      allocate(block_scalar_divergence_plan%production_send_displ(n_process))
+      allocate(block_scalar_divergence_plan%production_recv_displ(n_process))
       block_scalar_divergence_plan%send_count = &
            BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
            block_writeback_plan%scalar_send_count
@@ -15733,6 +15927,18 @@ end subroutine build_parallel_block_catalog
       block_scalar_divergence_plan%recv_displ = &
            BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
            block_writeback_plan%scalar_recv_displ
+      block_scalar_divergence_plan%production_send_count = &
+           BLOCK_SCALAR_PRODUCTION_INPUT_COUNT* &
+           block_writeback_plan%scalar_send_count
+      block_scalar_divergence_plan%production_recv_count = &
+           BLOCK_SCALAR_PRODUCTION_INPUT_COUNT* &
+           block_writeback_plan%scalar_recv_count
+      block_scalar_divergence_plan%production_send_displ = &
+           BLOCK_SCALAR_PRODUCTION_INPUT_COUNT* &
+           block_writeback_plan%scalar_send_displ
+      block_scalar_divergence_plan%production_recv_displ = &
+           BLOCK_SCALAR_PRODUCTION_INPUT_COUNT* &
+           block_writeback_plan%scalar_recv_displ
       n_send = sum(block_scalar_divergence_plan%send_count)
       n_recv = sum(block_scalar_divergence_plan%recv_count)
       allocate(block_scalar_divergence_plan%send_buffer(n_send))
@@ -15740,9 +15946,11 @@ end subroutine build_parallel_block_catalog
       allocate(block_scalar_divergence_plan%recv_covered( &
            sum(block_writeback_plan%scalar_recv_count)))
       block_scalar_divergence_plan%allocations = &
-           block_scalar_divergence_plan%allocations + 7_int64
+           block_scalar_divergence_plan%allocations + 11_int64
       block_scalar_divergence_plan%generation = &
            block_writeback_plan_generation
+      block_scalar_divergence_plan%production_cache_ready = .false.
+      block_scalar_divergence_plan%full_transport = .true.
 
     end subroutine prepare_scalar_divergence_plan
 
@@ -15776,6 +15984,18 @@ end subroutine build_parallel_block_catalog
     if (allocated(block_scalar_restriction_exchange% &
          boundary_recv_displ)) deallocate( &
          block_scalar_restriction_exchange%boundary_recv_displ)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_dynamic_send_count)) deallocate( &
+         block_scalar_restriction_exchange%boundary_dynamic_send_count)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_dynamic_recv_count)) deallocate( &
+         block_scalar_restriction_exchange%boundary_dynamic_recv_count)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_dynamic_send_displ)) deallocate( &
+         block_scalar_restriction_exchange%boundary_dynamic_send_displ)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_dynamic_recv_displ)) deallocate( &
+         block_scalar_restriction_exchange%boundary_dynamic_recv_displ)
     if (allocated(block_scalar_restriction_exchange% &
          boundary_send_buffer)) deallocate( &
          block_scalar_restriction_exchange%boundary_send_buffer)
@@ -15817,6 +16037,14 @@ end subroutine build_parallel_block_catalog
          boundary_send_displ(n_process))
     allocate(block_scalar_restriction_exchange% &
          boundary_recv_displ(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_dynamic_send_count(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_dynamic_recv_count(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_dynamic_send_displ(n_process))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_dynamic_recv_displ(n_process))
     block_scalar_restriction_exchange%boundary_send_count = &
          BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
          block_writeback_plan%boundary_scalar_domain_send_count
@@ -15828,6 +16056,18 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%boundary_scalar_domain_send_displ
     block_scalar_restriction_exchange%boundary_recv_displ = &
          BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+         block_writeback_plan%boundary_scalar_block_recv_displ
+    block_scalar_restriction_exchange%boundary_dynamic_send_count = &
+         BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT* &
+         block_writeback_plan%boundary_scalar_domain_send_count
+    block_scalar_restriction_exchange%boundary_dynamic_recv_count = &
+         BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT* &
+         block_writeback_plan%boundary_scalar_block_recv_count
+    block_scalar_restriction_exchange%boundary_dynamic_send_displ = &
+         BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT* &
+         block_writeback_plan%boundary_scalar_domain_send_displ
+    block_scalar_restriction_exchange%boundary_dynamic_recv_displ = &
+         BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT* &
          block_writeback_plan%boundary_scalar_block_recv_displ
     n_boundary_send = sum( &
          block_scalar_restriction_exchange%boundary_send_count)
@@ -15915,10 +16155,12 @@ end subroutine build_parallel_block_catalog
     block_scalar_restriction_exchange%ghost_patch_buffer = &
          BLOCK_GHOST_POISON
     block_scalar_restriction_exchange%allocations = &
-         block_scalar_restriction_exchange%allocations + 17_int64
+         block_scalar_restriction_exchange%allocations + 21_int64
     block_scalar_restriction_exchange%generation = &
          block_writeback_plan_generation
     block_scalar_restriction_exchange%ready = .true.
+    block_scalar_restriction_exchange%production_ghost_cache_ready = &
+         .false.
 
   end subroutine prepare_block_scalar_restriction_exchange
 
@@ -16525,7 +16767,10 @@ end subroutine build_parallel_block_catalog
     integer :: ierr
     integer :: local_index
     integer :: r
+    integer :: sample
+    integer :: sample_count
     integer :: slot
+    integer :: source_start
 
     integer(int64) :: allocation_before
 
@@ -16534,25 +16779,63 @@ end subroutine build_parallel_block_catalog
     if (.not. block_scalar_divergence_plan%active) then
        call fail("scalar-divergence finalize without active capture")
     end if
+    if (.not. block_scalar_divergence_plan%full_transport .and. &
+         .not. block_scalar_divergence_plan%production_cache_ready) then
+       call fail("compact scalar-divergence transport without full cache")
+    end if
     call complete_uncaptured_scalar_divergence_coverage
     if (.not. all(block_scalar_divergence_plan%recv_covered)) then
        call fail("scalar-divergence Domain capture is incomplete")
     end if
 
     allocation_before = block_scalar_divergence_plan%allocations
-    call MPI_Alltoallv( &
-         block_scalar_divergence_plan%recv_buffer, &
-         block_scalar_divergence_plan%recv_count, &
-         block_scalar_divergence_plan%recv_displ, &
-         MPI_DOUBLE_PRECISION, &
-         block_scalar_divergence_plan%send_buffer, &
-         block_scalar_divergence_plan%send_count, &
-         block_scalar_divergence_plan%send_displ, &
-         MPI_DOUBLE_PRECISION,comm,ierr)
+    if (block_scalar_divergence_plan%full_transport) then
+       call MPI_Alltoallv( &
+            block_scalar_divergence_plan%recv_buffer, &
+            block_scalar_divergence_plan%recv_count, &
+            block_scalar_divergence_plan%recv_displ, &
+            MPI_DOUBLE_PRECISION, &
+            block_scalar_divergence_plan%send_buffer, &
+            block_scalar_divergence_plan%send_count, &
+            block_scalar_divergence_plan%send_displ, &
+            MPI_DOUBLE_PRECISION,comm,ierr)
+    else
+       ! Compact the retained full-layout capture in place.  Global sample
+       ! order is identical in both layouts and every compact destination
+       ! precedes its unread full-layout source.
+       do sample = 0,size(block_scalar_divergence_plan%recv_covered)-1
+          data_start = BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*sample + 1
+          source_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
+          block_scalar_divergence_plan%recv_buffer( &
+               data_start:data_start+BLOCK_SCALAR_FLUX_COUNT-1) = &
+               block_scalar_divergence_plan%recv_buffer( &
+               source_start:source_start+BLOCK_SCALAR_FLUX_COUNT-1)
+          block_scalar_divergence_plan%recv_buffer( &
+               data_start+BLOCK_SCALAR_FLUX_COUNT: &
+               data_start+BLOCK_SCALAR_PRODUCTION_INPUT_COUNT-1) = &
+               block_scalar_divergence_plan%recv_buffer( &
+               source_start+BLOCK_SCALAR_PHYSICS_START-1: &
+               source_start+BLOCK_SCALAR_PHYSICS_START+EDGE-2)
+       end do
+       call MPI_Alltoallv( &
+            block_scalar_divergence_plan%recv_buffer, &
+            block_scalar_divergence_plan%production_recv_count, &
+            block_scalar_divergence_plan%production_recv_displ, &
+            MPI_DOUBLE_PRECISION, &
+            block_scalar_divergence_plan%send_buffer, &
+            block_scalar_divergence_plan%production_send_count, &
+            block_scalar_divergence_plan%production_send_displ, &
+            MPI_DOUBLE_PRECISION,comm,ierr)
+    end if
     call check_mpi(ierr,"MPI_Alltoallv scalar-divergence input")
 
     do r = 1,n_process
-       data_start = block_scalar_divergence_plan%send_displ(r) + 1
+       if (block_scalar_divergence_plan%full_transport) then
+          data_start = block_scalar_divergence_plan%send_displ(r) + 1
+       else
+          data_start = &
+               block_scalar_divergence_plan%production_send_displ(r) + 1
+       end if
        do slot = block_writeback_plan%send_displ(r)+1, &
             block_writeback_plan%send_displ(r) + &
             block_writeback_plan%send_count(r)
@@ -16562,23 +16845,63 @@ end subroutine build_parallel_block_catalog
                local_index > size(block_scalar_tendency)) then
              call fail("scalar-divergence received block is invalid")
           end if
-          data_count = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+          sample_count = &
                block_writeback_plan%send_scalar_nvalue(slot)
-          if (data_start < 1 .or. data_start+data_count-1 > &
-               size(block_scalar_divergence_plan%send_buffer) .or. &
-               data_count /= &
-               size(block_scalar_tendency(local_index)%patch)) then
-             call fail("scalar-divergence received extent is invalid")
+          if (block_scalar_divergence_plan%full_transport) then
+             data_count = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample_count
+             if (data_start < 1 .or. data_start+data_count-1 > &
+                  size(block_scalar_divergence_plan%send_buffer) .or. &
+                  data_count /= &
+                  size(block_scalar_tendency(local_index)%patch)) then
+                call fail("scalar-divergence received extent is invalid")
+             end if
+             block_scalar_tendency(local_index)%patch = &
+                  block_scalar_divergence_plan%send_buffer( &
+                  data_start:data_start+data_count-1)
+          else
+             data_count = BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*sample_count
+             if (data_start < 1 .or. data_start+data_count-1 > &
+                  size(block_scalar_divergence_plan%send_buffer) .or. &
+                  BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample_count /= &
+                  size(block_scalar_tendency(local_index)%patch)) then
+                call fail( &
+                     "compact scalar-divergence received extent is invalid")
+             end if
+             do sample = 0,sample_count-1
+                source_start = data_start + &
+                     BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*sample
+                block_scalar_tendency(local_index)%patch( &
+                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+1: &
+                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+ &
+                     BLOCK_SCALAR_FLUX_COUNT) = &
+                     block_scalar_divergence_plan%send_buffer( &
+                     source_start:source_start+ &
+                     BLOCK_SCALAR_FLUX_COUNT-1)
+                block_scalar_tendency(local_index)%patch( &
+                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+ &
+                     BLOCK_SCALAR_PHYSICS_START: &
+                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+ &
+                     BLOCK_SCALAR_PHYSICS_START+EDGE-1) = &
+                     block_scalar_divergence_plan%send_buffer( &
+                     source_start+BLOCK_SCALAR_FLUX_COUNT: &
+                     source_start+BLOCK_SCALAR_PRODUCTION_INPUT_COUNT-1)
+             end do
           end if
-          block_scalar_tendency(local_index)%patch = &
-               block_scalar_divergence_plan%send_buffer( &
-               data_start:data_start+data_count-1)
           block_scalar_tendency(local_index)%covered = .true.
           data_start = data_start + data_count
        end do
-       if (data_start /= block_scalar_divergence_plan%send_displ(r) + &
-            block_scalar_divergence_plan%send_count(r) + 1) then
-          call fail("scalar-divergence receive extent mismatch")
+       if (block_scalar_divergence_plan%full_transport) then
+          if (data_start /= block_scalar_divergence_plan%send_displ(r) + &
+               block_scalar_divergence_plan%send_count(r) + 1) then
+             call fail("scalar-divergence receive extent mismatch")
+          end if
+       else
+          if (data_start /= &
+               block_scalar_divergence_plan%production_send_displ(r) + &
+               block_scalar_divergence_plan%production_send_count(r) + 1) &
+               then
+             call fail("compact scalar-divergence receive extent mismatch")
+          end if
        end if
     end do
 
@@ -16598,21 +16921,40 @@ end subroutine build_parallel_block_catalog
     end if
     block_scalar_divergence_plan%active = .false.
     block_scalar_divergence_plan%ready = .true.
+    if (block_scalar_divergence_plan%full_transport) &
+         block_scalar_divergence_plan%production_cache_ready = .true.
 
-    call record_parallel_block_profile_volume( &
-         BLOCK_PROFILE_RESTRICTION, &
-         int(count(block_scalar_divergence_plan%recv_count > 0),int64), &
-         int(sum(block_scalar_divergence_plan%recv_count),int64)* &
-         int(storage_size(0.0_dp)/8,int64))
-    call record_parallel_block_profile_volume( &
-         BLOCK_PROFILE_RESTRICTION_INITIAL, &
-         int(count(block_scalar_divergence_plan%recv_count > 0),int64), &
-         int(sum(block_scalar_divergence_plan%recv_count),int64)* &
-         int(storage_size(0.0_dp)/8,int64))
+    if (block_scalar_divergence_plan%full_transport) then
+       call record_initial_volume(block_scalar_divergence_plan%recv_count)
+    else
+       call record_initial_volume( &
+            block_scalar_divergence_plan%production_recv_count)
+    end if
     call block_profile_leave( &
          BLOCK_PROFILE_RESTRICTION_INITIAL, &
          int(n_local_blocks(),int64))
     call block_profile_leave(BLOCK_PROFILE_RESTRICTION)
+
+  contains
+
+    subroutine record_initial_volume (send_count)
+
+      implicit none
+
+      integer, intent(in) :: send_count(:)
+
+      integer(int64) :: bytes
+      integer(int64) :: messages
+
+      messages = int(count(send_count > 0),int64)
+      bytes = int(sum(send_count),int64)* &
+           int(storage_size(0.0_dp)/8,int64)
+      call record_parallel_block_profile_volume( &
+           BLOCK_PROFILE_RESTRICTION,messages,bytes)
+      call record_parallel_block_profile_volume( &
+           BLOCK_PROFILE_RESTRICTION_INITIAL,messages,bytes)
+
+    end subroutine record_initial_volume
 
   end subroutine finalize_block_scalar_divergence_capture
 
@@ -16642,31 +16984,53 @@ end subroutine build_parallel_block_catalog
     integer :: sample
     integer :: scalar_slot
     integer :: slot
+    integer :: source_start
 
-    call MPI_Alltoallv( &
-         block_scalar_restriction_exchange%boundary_send_buffer, &
-         block_scalar_restriction_exchange%boundary_send_count, &
-         block_scalar_restriction_exchange%boundary_send_displ, &
-         MPI_DOUBLE_PRECISION, &
-         block_scalar_restriction_exchange%boundary_recv_buffer, &
-         block_scalar_restriction_exchange%boundary_recv_count, &
-         block_scalar_restriction_exchange%boundary_recv_displ, &
-         MPI_DOUBLE_PRECISION,comm,ierr)
+    if (block_scalar_divergence_plan%full_transport) then
+       call MPI_Alltoallv( &
+            block_scalar_restriction_exchange%boundary_send_buffer, &
+            block_scalar_restriction_exchange%boundary_send_count, &
+            block_scalar_restriction_exchange%boundary_send_displ, &
+            MPI_DOUBLE_PRECISION, &
+            block_scalar_restriction_exchange%boundary_recv_buffer, &
+            block_scalar_restriction_exchange%boundary_recv_count, &
+            block_scalar_restriction_exchange%boundary_recv_displ, &
+            MPI_DOUBLE_PRECISION,comm,ierr)
+    else
+       do sample = 0,sum(block_writeback_plan% &
+            boundary_scalar_domain_send_count)-1
+          buffer_start = BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT*sample + 1
+          source_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
+          block_scalar_restriction_exchange%boundary_send_buffer( &
+               buffer_start:buffer_start+EDGE-1) = &
+               block_scalar_restriction_exchange%boundary_send_buffer( &
+               source_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
+               source_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2)
+          block_scalar_restriction_exchange%boundary_send_buffer( &
+               buffer_start+EDGE) = &
+               block_scalar_restriction_exchange%boundary_send_buffer( &
+               source_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1)
+       end do
+       call MPI_Alltoallv( &
+            block_scalar_restriction_exchange%boundary_send_buffer, &
+            block_scalar_restriction_exchange% &
+            boundary_dynamic_send_count, &
+            block_scalar_restriction_exchange% &
+            boundary_dynamic_send_displ,MPI_DOUBLE_PRECISION, &
+            block_scalar_restriction_exchange%boundary_recv_buffer, &
+            block_scalar_restriction_exchange% &
+            boundary_dynamic_recv_count, &
+            block_scalar_restriction_exchange% &
+            boundary_dynamic_recv_displ,MPI_DOUBLE_PRECISION,comm,ierr)
+    end if
     call check_mpi(ierr,"MPI_Alltoallv scalar-restriction boundaries")
-    call record_parallel_block_profile_volume( &
-         BLOCK_PROFILE_RESTRICTION, &
-         int(count(block_scalar_restriction_exchange% &
-         boundary_send_count > 0),int64), &
-         int(sum(block_scalar_restriction_exchange% &
-         boundary_send_count),int64)* &
-         int(storage_size(0.0_dp)/8,int64))
-    call record_parallel_block_profile_volume( &
-         BLOCK_PROFILE_RESTRICTION_INITIAL, &
-         int(count(block_scalar_restriction_exchange% &
-         boundary_send_count > 0),int64), &
-         int(sum(block_scalar_restriction_exchange% &
-         boundary_send_count),int64)* &
-         int(storage_size(0.0_dp)/8,int64))
+    if (block_scalar_divergence_plan%full_transport) then
+       call record_boundary_volume( &
+            block_scalar_restriction_exchange%boundary_send_count)
+    else
+       call record_boundary_volume(block_scalar_restriction_exchange% &
+            boundary_dynamic_send_count)
+    end if
 
     call get_block_field_layout_counts( &
          n_scalar_variable,n_field_level)
@@ -16698,18 +17062,39 @@ end subroutine build_parallel_block_catalog
                            node_start + node
                       data_start = &
                            BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
-                      buffer_start = &
-                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-                           (pos_sample-1 + &
-                           ((scalar_slot-1)*n_field_level + &
-                           level_slot-1)*n_node + node) + 1
-                      block_scalar_tendency(local_index)%bdry( &
-                           data_start:data_start+ &
-                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
-                           block_scalar_restriction_exchange% &
-                           boundary_recv_buffer(buffer_start: &
-                           buffer_start+ &
-                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                      if (block_scalar_divergence_plan%full_transport) then
+                         buffer_start = &
+                              BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                              (pos_sample-1 + &
+                              ((scalar_slot-1)*n_field_level + &
+                              level_slot-1)*n_node + node) + 1
+                         block_scalar_tendency(local_index)%bdry( &
+                              data_start:data_start+ &
+                              BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
+                              block_scalar_restriction_exchange% &
+                              boundary_recv_buffer(buffer_start: &
+                              buffer_start+ &
+                              BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                      else
+                         buffer_start = &
+                              BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT* &
+                              (pos_sample-1 + &
+                              ((scalar_slot-1)*n_field_level + &
+                              level_slot-1)*n_node + node) + 1
+                         block_scalar_tendency(local_index)%bdry( &
+                              data_start+ &
+                              BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
+                              data_start+ &
+                              BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2) = &
+                              block_scalar_restriction_exchange% &
+                              boundary_recv_buffer( &
+                              buffer_start:buffer_start+EDGE-1)
+                         block_scalar_tendency(local_index)%bdry( &
+                              data_start+ &
+                              BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1) = &
+                              block_scalar_restriction_exchange% &
+                              boundary_recv_buffer(buffer_start+EDGE)
+                      end if
                    end do
                 end do
              end do
@@ -16730,6 +17115,26 @@ end subroutine build_parallel_block_catalog
     end do
 
   contains
+
+    subroutine record_boundary_volume (send_count)
+
+      implicit none
+
+      integer, intent(in) :: send_count(:)
+
+      integer(int64) :: bytes
+      integer(int64) :: messages
+
+      messages = int(count(send_count > 0),int64)
+      bytes = int(sum(send_count),int64)* &
+           int(storage_size(0.0_dp)/8,int64)
+      call record_parallel_block_profile_volume( &
+           BLOCK_PROFILE_RESTRICTION,messages,bytes)
+      call record_parallel_block_profile_volume( &
+           BLOCK_PROFILE_RESTRICTION_INITIAL,messages,bytes)
+
+    end subroutine record_boundary_volume
+
 
     subroutine get_block_field_layout_counts ( &
          n_scalar_variable,n_field_level)
@@ -16786,16 +17191,23 @@ end subroutine build_parallel_block_catalog
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("scalar-restriction ghost exchange is not ready")
     end if
+    if (.not. full_payload .and. &
+         .not. block_scalar_restriction_exchange% &
+         production_ghost_cache_ready) then
+       call fail("dynamic scalar-restriction exchange without full cache")
+    end if
     payload_count = BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT
     if (full_payload) payload_count = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_PACK)
-    block_scalar_restriction_exchange%ghost_send_buffer( &
-         1:max(1,payload_count*ghost_exchange_plan%scalar_n_value* &
-         ghost_exchange_plan%n_remote_recv)) = BLOCK_GHOST_POISON
-    block_scalar_restriction_exchange%ghost_recv_buffer( &
-         1:max(1,payload_count*ghost_exchange_plan%scalar_n_value* &
-         ghost_exchange_plan%n_remote_send)) = BLOCK_GHOST_POISON
+    if (block_dynamics_validation_enabled()) then
+       block_scalar_restriction_exchange%ghost_send_buffer( &
+            1:max(1,payload_count*ghost_exchange_plan%scalar_n_value* &
+            ghost_exchange_plan%n_remote_recv)) = BLOCK_GHOST_POISON
+       block_scalar_restriction_exchange%ghost_recv_buffer( &
+            1:max(1,payload_count*ghost_exchange_plan%scalar_n_value* &
+            ghost_exchange_plan%n_remote_send)) = BLOCK_GHOST_POISON
+    end if
 
     do request = 1,ghost_exchange_plan%n_request
        if (ghost_exchange_plan%source_owner(request) /= rank) cycle
@@ -17105,8 +17517,11 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: count_local(7)
 
     logical :: accumulator_ready
+    logical :: full_ghost_transport
+    logical :: validate_oracle
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
+    validate_oracle = block_dynamics_validation_enabled()
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("block-native scalar restriction exchange is not ready")
     end if
@@ -17116,7 +17531,13 @@ end subroutine build_parallel_block_catalog
     ! Establish a native finest-level divergence before it is consumed by the
     ! first coarse restriction. The full exchange installs immutable geometry
     ! and reference data once; later level refreshes carry only dynamic data.
-    call exchange_block_scalar_restriction_ghosts(.true.)
+    full_ghost_transport = validate_oracle .or. &
+         .not. block_scalar_restriction_exchange% &
+         production_ghost_cache_ready
+    call exchange_block_scalar_restriction_ghosts(full_ghost_transport)
+    if (full_ghost_transport) &
+         block_scalar_restriction_exchange% &
+         production_ghost_cache_ready = .true.
     statistics%target_level = level_end
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
     call apply_local_block_field_consumer( &
@@ -17140,10 +17561,14 @@ end subroutine build_parallel_block_catalog
     end do
     statistics%target_level = -1
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
-    call apply_local_block_field_consumer( &
-         compare_block_scalar_restricted_flux,statistics)
-    call apply_local_block_field_consumer( &
-         compare_block_scalar_restricted_divergence,statistics)
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call apply_local_block_field_consumer( &
+            compare_block_scalar_restricted_flux,statistics)
+       call apply_local_block_field_consumer( &
+            compare_block_scalar_restricted_divergence,statistics)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
     accumulator_ready = &
          local_block_tendency_accumulator_state_ready()
     if (.not. accumulator_ready) then
@@ -17169,26 +17594,30 @@ end subroutine build_parallel_block_catalog
          statistics%divergence_sample_count, &
          statistics%divergence_compared_count, &
          statistics%divergence_activated_count]
-    call MPI_Allreduce( &
-         count_local,count_global,size(count_local),MPI_INTEGER8, &
-         MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce block scalar restriction")
-    if (count_global(3) < 1_int64 .or. &
-         count_global(4) < 1_int64 .or. &
-         count_global(5) < 1_int64 .or. &
-         count_global(6) < 1_int64 .or. &
-         count_global(7) < 1_int64) then
-       call fail("block-native scalar divergence coverage is empty")
-    end if
-    if (count_global(1) == 0_int64 .and. &
-         count_global(2) > 0_int64) then
-       call fail("block scalar restriction coverage is incomplete")
-    end if
-    if (count_global(4) /= count_global(5)) then
-       call fail("block-native scalar divergence replay coverage differs")
-    end if
-    if (count_global(5) /= count_global(6)) then
-       call fail("block-native scalar divergence comparison coverage differs")
+    if (validate_oracle) then
+       call MPI_Allreduce( &
+            count_local,count_global,size(count_local),MPI_INTEGER8, &
+            MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce block scalar restriction")
+       if (count_global(3) < 1_int64 .or. &
+            count_global(4) < 1_int64 .or. &
+            count_global(5) < 1_int64 .or. &
+            count_global(6) < 1_int64 .or. &
+            count_global(7) < 1_int64) then
+          call fail("block-native scalar divergence coverage is empty")
+       end if
+       if (count_global(1) == 0_int64 .and. &
+            count_global(2) > 0_int64) then
+          call fail("block scalar restriction coverage is incomplete")
+       end if
+       if (count_global(4) /= count_global(5)) then
+          call fail( &
+               "block-native scalar divergence replay coverage differs")
+       end if
+       if (count_global(5) /= count_global(6)) then
+          call fail( &
+               "block-native scalar divergence comparison coverage differs")
+       end if
     end if
 
     call block_profile_leave( &
@@ -17267,6 +17696,9 @@ end subroutine build_parallel_block_catalog
     real(dp) :: sm_flux(4)
     real(dp) :: value
 
+    logical :: validate_oracle
+
+    validate_oracle = block_dynamics_validation_enabled()
     local_index = catalog_local_block(catalog_index)
     if (local_index < 1 .or. &
          local_index > size(block_scalar_tendency)) then
@@ -17330,39 +17762,50 @@ end subroutine build_parallel_block_catalog
                                  BLOCK_SCALAR_EDGE_MASK_START+e)
                             if (edge_mask < real(RESTRCT,dp)) cycle
                             cursor%edge = e
-                            value = complete_block_coarse_flux( &
-                                 sm_flux,block,local_index,child+1, &
-                                 scalar_slot,level_slot,i_par,j_par, &
-                                 i_chd,j_chd,e,cursor,operation_scale)
+                            if (validate_oracle) then
+                               value = complete_block_coarse_flux( &
+                                    sm_flux,block,local_index,child+1, &
+                                    scalar_slot,level_slot,i_par,j_par, &
+                                    i_chd,j_chd,e,cursor,operation_scale)
+                            else
+                               value = complete_block_coarse_flux( &
+                                    sm_flux,block,local_index,child+1, &
+                                    scalar_slot,level_slot,i_par,j_par, &
+                                    i_chd,j_chd,e,cursor)
+                            end if
                             call validate_scalar_restriction_value( &
                                  "complete_block_coarse_flux", &
                                  value,cursor)
-                            reference_value = block_scalar_record_value( &
-                                 block,local_index,p,scalar_slot, &
-                                 level_slot,i_par,j_par, &
-                                 BLOCK_SCALAR_RESTRICTED_FLUX_START+e)
-                            comparison_tolerance = &
-                                 scalar_restriction_roundoff_tolerance( &
-                                 value,reference_value, &
-                                 level_end-cursor%target_level, &
-                                 operation_scale)
-                            if (abs(value-reference_value) > &
-                                 comparison_tolerance) then
-                               call report_scalar_restriction_cursor( &
-                                    "restricted scalar-flux comparison "// &
-                                    "exceeded roundoff bound",cursor)
-                               write(error_unit, &
-                                    '(a,4(es24.16,1x))') &
-                                    "  native, reference, difference, "// &
-                                    "allowed = ",value,reference_value, &
-                                    abs(value-reference_value), &
-                                    comparison_tolerance
-                               flush(error_unit)
-                               call report_scalar_restriction_components( &
-                                    block,local_index,child+1,sm_flux, &
-                                    value,reference_value,cursor)
-                               call fail( &
-                                    "scalar-restriction component mismatch")
+                            if (validate_oracle) then
+                               reference_value = &
+                                    block_scalar_record_value( &
+                                    block,local_index,p,scalar_slot, &
+                                    level_slot,i_par,j_par, &
+                                    BLOCK_SCALAR_RESTRICTED_FLUX_START+e)
+                               comparison_tolerance = &
+                                    scalar_restriction_roundoff_tolerance( &
+                                    value,reference_value, &
+                                    level_end-cursor%target_level, &
+                                    operation_scale)
+                               if (abs(value-reference_value) > &
+                                    comparison_tolerance) then
+                                  call report_scalar_restriction_cursor( &
+                                       "restricted scalar-flux "// &
+                                       "comparison exceeded roundoff "// &
+                                       "bound",cursor)
+                                  write(error_unit, &
+                                       '(a,4(es24.16,1x))') &
+                                       "  native, reference, difference, "// &
+                                       "allowed = ",value,reference_value, &
+                                       abs(value-reference_value), &
+                                       comparison_tolerance
+                                  flush(error_unit)
+                                  call report_scalar_restriction_components( &
+                                       block,local_index,child+1,sm_flux, &
+                                       value,reference_value,cursor)
+                                  call fail("scalar-restriction "// &
+                                       "component mismatch")
+                               end if
                             end if
                             call set_block_patch_scalar_record_value( &
                                  local_index,p,block%n_field_level, &
@@ -19589,6 +20032,7 @@ end subroutine build_parallel_block_catalog
     logical :: recompose_physical
     logical :: require_checkpoint
     logical :: retain_tendency
+    logical :: validate_oracle
 
     type(Block_Exner_Difference_Kernel_Context) :: kernel
 
@@ -19608,6 +20052,7 @@ end subroutine build_parallel_block_catalog
     if (present(retain_stage_tendency)) then
        retain_tendency = retain_stage_tendency
     end if
+    validate_oracle = block_dynamics_validation_enabled()
     if (retain_tendency .and. &
          payload_family /= &
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
@@ -19686,9 +20131,13 @@ end subroutine build_parallel_block_catalog
        call fail("Exner-difference physical-level coverage is invalid")
     end if
 
-    call local_block_field_statistics( &
-         field_count(1),field_count(2), &
-         field_moment(:,1),field_moment(:,2))
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call local_block_field_statistics( &
+            field_count(1),field_count(2), &
+            field_moment(:,1),field_moment(:,2))
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
     allocation_before = local_block_tendency_allocation_count()
     execution_before = local_block_tendency_execution_count()
     hydrostatic_refresh_before = local_block_hydrostatic_refresh_count()
@@ -19705,6 +20154,7 @@ end subroutine build_parallel_block_catalog
     kernel%metric_division = metric_division
     kernel%velocity_recomposition = recompose_velocity
     kernel%complete_physical_recomposition = recompose_physical
+    kernel%validate_oracle = validate_oracle
     call apply_local_block_tendency_kernel( &
          compute_block_exner_difference_kernel,kernel)
 
@@ -19743,23 +20193,28 @@ end subroutine build_parallel_block_catalog
        call fail("Exner-difference shadow changed scalar tendency")
     end if
 
-    call assert_candidate_block_tendency_payload_match( &
-         payload_family,domain_sol,validated_patch_count)
-    if (validated_patch_count /= expected_patch_count) then
-       call fail("Exner-difference validation coverage differs")
-    end if
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_candidate_block_tendency_payload_match( &
+            payload_family,domain_sol,validated_patch_count)
+       if (validated_patch_count /= expected_patch_count) then
+          call fail("Exner-difference validation coverage differs")
+       end if
 
-    call local_block_field_statistics( &
-         field_count_after(1),field_count_after(2), &
-         field_moment_after(:,1),field_moment_after(:,2))
-    if (any(field_count_after /= field_count)) then
-       call fail("Exner-difference shadow changed field coverage")
-    end if
-    if (.not. field_moments_match( &
-         field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
-         .not. field_moments_match( &
-         field_moment_after(:,2),field_moment(:,2),field_count(2))) then
-       call fail("Exner-difference shadow changed block fields")
+       call local_block_field_statistics( &
+            field_count_after(1),field_count_after(2), &
+            field_moment_after(:,1),field_moment_after(:,2))
+       if (any(field_count_after /= field_count)) then
+          call fail("Exner-difference shadow changed field coverage")
+       end if
+       if (.not. field_moments_match( &
+            field_moment_after(:,1),field_moment(:,1),field_count(1)) .or. &
+            .not. field_moments_match( &
+            field_moment_after(:,2),field_moment(:,2), &
+            field_count(2))) then
+          call fail("Exner-difference shadow changed block fields")
+       end if
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
     if (local_block_hydrostatic_refresh_count() /= &
          hydrostatic_refresh_before) then
@@ -19774,13 +20229,15 @@ end subroutine build_parallel_block_catalog
        call fail("Exner-difference shadow modified Domain fields")
     end if
 
-    count_local = [kernel%block_count,kernel%patch_count, &
-         kernel%sample_count]
-    call MPI_Allreduce(count_local,count_global,3, &
-         MPI_INTEGER8,MPI_SUM,comm,ierr)
-    call check_mpi(ierr,"MPI_Allreduce Exner-difference coverage")
-    if (any(count_global <= 0_int64)) then
-       call fail("Exner-difference global coverage is empty")
+    if (validate_oracle) then
+       count_local = [kernel%block_count,kernel%patch_count, &
+            kernel%sample_count]
+       call MPI_Allreduce(count_local,count_global,3, &
+            MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce Exner-difference coverage")
+       if (any(count_global <= 0_int64)) then
+          call fail("Exner-difference global coverage is empty")
+       end if
     end if
 
     if (retain_tendency) then
@@ -19981,6 +20438,7 @@ end subroutine build_parallel_block_catalog
     logical :: hydrostatic_ready
     logical :: state_ready
     logical :: tendency_ready
+    logical :: validate_oracle
 
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
@@ -20003,9 +20461,14 @@ end subroutine build_parallel_block_catalog
 
     call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_SOL)
     call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_WAV_COEFF)
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_WAV_COEFF)
+    validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_WAV_COEFF)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
 
     call import_domain_boundary_field_family_to_blocks( &
          BLOCK_PAYLOAD_SOL,.false.)
@@ -20438,6 +20901,7 @@ end subroutine build_parallel_block_catalog
     logical :: checkpoint_ready
     logical :: state_ready
     logical :: trial_active
+    logical :: validate_oracle
 
     call block_profile_enter(BLOCK_PROFILE_TENDENCY)
     state_ready = parallel_block_state_is_ready()
@@ -20457,8 +20921,13 @@ end subroutine build_parallel_block_catalog
     call begin_block_domain_trend_step(scale)
     call complete_block_domain_trend_step(.true.)
 
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_WAV_COEFF)
+    validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_WAV_COEFF)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
 
     if (local_block_tendency_allocation_count() /= &
          tendency_allocation_before) then
@@ -20515,8 +20984,10 @@ end subroutine build_parallel_block_catalog
     logical :: state_ready
     logical :: tendency_ready
     logical :: trial_active
+    logical :: validate_oracle
 
     call block_profile_enter(BLOCK_PROFILE_TENDENCY)
+    validate_oracle = block_dynamics_validation_enabled()
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("multistage tendency capture before state is ready")
@@ -20555,9 +21026,13 @@ end subroutine build_parallel_block_catalog
           call fail("multistage tendency boundary state was not finalized")
        end if
        production_multistage_candidate_stage_count = stage_count
-       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
-       call assert_block_domain_field_family_match( &
-            BLOCK_PAYLOAD_WAV_COEFF)
+       if (validate_oracle) then
+          call block_profile_enter(BLOCK_PROFILE_ORACLE)
+          call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+          call assert_block_domain_field_family_match( &
+               BLOCK_PAYLOAD_WAV_COEFF)
+          call block_profile_leave(BLOCK_PROFILE_ORACLE)
+       end if
        production_multistage_tendency_allocation_before = &
             local_block_tendency_allocation_count()
        production_multistage_accumulator_allocation_before = &
@@ -20707,6 +21182,8 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: stage
     integer, intent(in) :: stage_count
 
+    logical :: validate_oracle
+
     if (block_writeback_plan%native_stage_ready) then
        call fail("native multistage snapshot is already retained")
     end if
@@ -20717,11 +21194,16 @@ end subroutine build_parallel_block_catalog
        call fail("native multistage snapshot stage is invalid")
     end if
 
-    call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
-    block_writeback_plan%native_scalar_stage = &
-         block_writeback_plan%scalar_domain_stage
-    block_writeback_plan%native_vector_stage = &
-         block_writeback_plan%vector_domain_stage
+    validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
+       block_writeback_plan%native_scalar_stage = &
+            block_writeback_plan%scalar_domain_stage
+       block_writeback_plan%native_vector_stage = &
+            block_writeback_plan%vector_domain_stage
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
     block_writeback_plan%native_stage = stage
     block_writeback_plan%native_stage_count = stage_count
     block_writeback_plan%native_stage_ready = .true.
@@ -20740,20 +21222,29 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: stage
     integer, intent(in) :: stage_count
 
+    logical :: validate_oracle
+
     if (.not. block_writeback_plan%native_stage_ready .or. &
          block_writeback_plan%native_stage /= stage .or. &
          block_writeback_plan%native_stage_count /= stage_count) then
        call fail("native multistage snapshot sequence is invalid")
     end if
 
-    call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
-    if (any(abs(block_writeback_plan%scalar_domain_stage - &
-         block_writeback_plan%native_scalar_stage) > 0.0_dp)) then
-       call fail("native scalar candidate changed across wavelet boundary")
-    end if
-    if (any(abs(block_writeback_plan%vector_domain_stage - &
-         block_writeback_plan%native_vector_stage) > 0.0_dp)) then
-       call fail("native vector candidate changed across wavelet boundary")
+    validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
+       if (any(abs(block_writeback_plan%scalar_domain_stage - &
+            block_writeback_plan%native_scalar_stage) > 0.0_dp)) then
+          call fail( &
+               "native scalar candidate changed across wavelet boundary")
+       end if
+       if (any(abs(block_writeback_plan%vector_domain_stage - &
+            block_writeback_plan%native_vector_stage) > 0.0_dp)) then
+          call fail( &
+               "native vector candidate changed across wavelet boundary")
+       end if
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
 
     block_writeback_plan%native_stage = 0
@@ -20785,6 +21276,7 @@ end subroutine build_parallel_block_catalog
     logical :: state_ready
     logical :: tendency_ready
     logical :: trial_active
+    logical :: validate_oracle
 
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
@@ -20817,16 +21309,25 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan_allocation_count()
     production_writeback_before = &
          block_domain_production_writeback_count()
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_SOL,domain_sol, &
-         integrated_only=.true., &
-         comparison_name="native", &
-         roundoff_tolerant=.true.)
+    validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_SOL,domain_sol, &
+            integrated_only=.true., &
+            comparison_name="native", &
+            roundoff_tolerant=.true.)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
     call retain_native_multistage_candidate_snapshot(stage,stage_count)
     call write_block_field_family_to_domains( &
          BLOCK_PAYLOAD_SOL,domain_sol)
-    call assert_block_domain_field_family_match( &
-         BLOCK_PAYLOAD_SOL,domain_sol)
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match( &
+            BLOCK_PAYLOAD_SOL,domain_sol)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
 
     trial_active = local_block_tendency_trial_is_active()
     checkpoint_ready = &
@@ -20976,6 +21477,7 @@ end subroutine build_parallel_block_catalog
     logical :: checkpoint_ready
     logical :: state_ready
     logical :: trial_active
+    logical :: validate_oracle
 
     if (stage_count /= 3 .and. stage_count /= 4) then
        call fail("accepted production block candidate stage count is invalid")
@@ -21020,7 +21522,12 @@ end subroutine build_parallel_block_catalog
     end if
 
     call finalize_local_block_tendency_commit
-    call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+    validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call assert_block_domain_field_family_match(BLOCK_PAYLOAD_SOL)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
 
     if (local_block_tendency_allocation_count() /= &
          production_multistage_tendency_allocation_before) then
@@ -24994,7 +25501,8 @@ end subroutine build_parallel_block_catalog
                          native_flux = native_advective_flux + &
                               scalar_input(BLOCK_SCALAR_PHYSICS_START+ &
                               flux_slot-1)
-                         if (abs(native_flux-scalar_input( &
+                         if (statistics%validate_oracle .and. &
+                              abs(native_flux-scalar_input( &
                               BLOCK_SCALAR_DIRECT_FLUX_START+ &
                               flux_slot-1)) > 0.0_dp) then
                             write(error_unit,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &

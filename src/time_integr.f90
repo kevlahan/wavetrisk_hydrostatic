@@ -12,12 +12,14 @@ module time_integr_mod
   use domain_mod,        only : Float_Field, init_Field, grid, sol, trend, wav_coeff
   use multi_level_mod,   only : trend_ml
   use parallel_block_mpi_mod, only : &
+       BLOCK_PROFILE_DOMAIN_TENDENCY, &
        begin_block_domain_multistage_candidate_stage, &
        begin_block_scalar_divergence_capture, &
        activate_block_native_inverse_transform, &
        capture_block_domain_multistage_candidate_tendency, &
        finalize_block_scalar_divergence_capture, &
        block_domain_production_writeback_count, &
+       parallel_block_profile_begin, parallel_block_profile_end, &
        parallel_block_grid_change_is_pending, &
        parallel_block_state_is_ready, &
        prepare_block_native_wavelet_compression, &
@@ -98,6 +100,7 @@ contains
     integer(int64) :: writeback_before
     logical :: pending_before
     logical :: ready_before
+    real(dp) :: profile_start
 
     ready_before = parallel_block_state_is_ready()
     pending_before = parallel_block_grid_change_is_pending()
@@ -105,7 +108,11 @@ contains
          error stop "tendency callback entered an invalid block phase"
     writeback_before = block_domain_production_writeback_count()
 
+    profile_start = &
+         parallel_block_profile_begin(BLOCK_PROFILE_DOMAIN_TENDENCY)
     call routine(q,trend)
+    call parallel_block_profile_end( &
+         BLOCK_PROFILE_DOMAIN_TENDENCY,profile_start)
 
     if (parallel_block_state_is_ready() .neqv. ready_before) &
          error stop "tendency callback changed authoritative block state"
