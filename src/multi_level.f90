@@ -4,22 +4,28 @@ module multi_level_mod
   use shared_mod, only : bfly_no2, nghb_pt, hex_sides, hex_s_offs, N_VARIABLE, zlevels, N_BDRY,  N_CHDRN, &
        LORT, UPLT, TRIAG, &
        ADJZONE, EDGE, MM, MP, PM, PP, UMZ, UPZ, UZM, UZP, VMM, VMPP, VMP, VPM, VPMM, VPP, WMM, WMP, WPM, WPP, WMMM, WPPP, &
-       level_end, level_start, NONE,RT, DG, UP, z_null, RESTRCT, S_MASS, S_TEMP, S_VELO, S_DIVU, S_ROTU, &
+       level_end, level_start, NONE,RT, DG, UP, z_null, RESTRCT, TRSK, &
+       S_MASS, S_TEMP, S_VELO, S_DIVU, S_ROTU, &
        Laplace_divu, Laplace_rotu, Laplace_sclr, AT_EDGE, AT_NODE, scalars, eps, radius
 
   use comm_mpi_mod,    only : update_bdry, update_bdry__start, update_bdry__finish
-  use diagnostics_mod, only : cal_div, cal_surf_press, integrate_pressure_up, post_vort
+  use diagnostics_mod, only : cal_div, cal_surf_press, gradi_e, &
+       integrate_pressure_up, post_vort
   use domain_ops_mod,  only : apply_interscale_to_patch, apply_interscale_to_patch3, apply_onescale_to_patch, apply_to_penta_d 
-  use init_mod,        only : physics_scalar_flux, u_source    
+  use init_mod,        only : physics_scalar_flux, &
+       physics_velo_source, u_source
   use ops_mod,         only : du_grad, du_source, &
-       post_step1, scalar_trend, step1
+       post_step1, Qperp, scalar_trend, step1
   use patch_mod,       only : PATCH_SIZE
   use parallel_block_mpi_mod, only : &
+       block_dynamics_validation_enabled, &
        capture_block_scalar_divergence_level
   use utils_mod,       only : zero_float
   
-  use domain_mod, only : Domain, Float_Field, grid, bernoulli, exner, exner_fun, ke, qe, mean_m, mean_t, sol, sol_mean, &
-       horiz_flux, h_mflux, h_flux, divu, dvelo, mass, temp, velo, scalar, vort, &
+  use domain_mod, only : Domain, Float_Field, get_offs_Domain, grid, &
+       bernoulli, exner, exner_fun, ke, qe, mean_m, mean_t, sol, sol_mean, &
+       horiz_flux, h_mflux, h_flux, divu, dvelo, mass, temp, velo, scalar, &
+       vort, &
        Laplacian_scalar, Laplacian_vector, dscalar, Laplacian, &
        ed_idx, idx, idx2
 
@@ -30,8 +36,84 @@ module multi_level_mod
   public :: cpt_or_restr_flux, trend_ml, &
        block_tendency_compatibility_ml, cal_divu_ml
 
+  type :: Velocity_Source_Measurement_Type
+     real(dp), allocatable :: qperp(:)
+     real(dp), allocatable :: physics(:)
+     real(dp), allocatable :: edge_length(:)
+     real(dp), allocatable :: integrated_source(:)
+     logical, allocatable :: active(:)
+     logical, allocatable :: covered(:)
+     logical, allocatable :: direct(:)
+  end type Velocity_Source_Measurement_Type
+
+  type(Velocity_Source_Measurement_Type), allocatable, save :: &
+       velocity_source_measurement(:)
+
   
 contains
+
+
+  subroutine begin_velocity_source_measurement
+
+    implicit none
+
+    integer :: d
+    integer :: n
+
+    if (allocated(velocity_source_measurement)) then
+       if (size(velocity_source_measurement) /= size(grid)) &
+            deallocate(velocity_source_measurement)
+    end if
+    if (.not. allocated(velocity_source_measurement)) &
+         allocate(velocity_source_measurement(size(grid)))
+    do d = 1,size(grid)
+       n = EDGE*grid(d)%node%length
+       if (allocated(velocity_source_measurement(d)%qperp)) then
+          if (size(velocity_source_measurement(d)%qperp) /= n) then
+             deallocate(velocity_source_measurement(d)%qperp)
+             deallocate(velocity_source_measurement(d)%physics)
+             deallocate(velocity_source_measurement(d)%edge_length)
+             deallocate(velocity_source_measurement(d)%integrated_source)
+             deallocate(velocity_source_measurement(d)%active)
+             deallocate(velocity_source_measurement(d)%covered)
+             deallocate(velocity_source_measurement(d)%direct)
+          end if
+       end if
+       if (.not. allocated(velocity_source_measurement(d)%qperp)) then
+          allocate(velocity_source_measurement(d)%qperp(n))
+          allocate(velocity_source_measurement(d)%physics(n))
+          allocate(velocity_source_measurement(d)%edge_length(n))
+          allocate(velocity_source_measurement(d)%integrated_source(n))
+          allocate(velocity_source_measurement(d)%active(n))
+          allocate(velocity_source_measurement(d)%covered(n))
+          allocate(velocity_source_measurement(d)%direct(n))
+       end if
+       velocity_source_measurement(d)%qperp = 0.0_dp
+       velocity_source_measurement(d)%physics = 0.0_dp
+       velocity_source_measurement(d)%edge_length = 0.0_dp
+       velocity_source_measurement(d)%integrated_source = 0.0_dp
+       velocity_source_measurement(d)%active = .false.
+       velocity_source_measurement(d)%covered = .false.
+       velocity_source_measurement(d)%direct = .false.
+    end do
+
+  end subroutine begin_velocity_source_measurement
+
+
+  subroutine finish_velocity_source_measurement
+
+    implicit none
+
+    integer :: d
+
+    do d = 1,size(grid)
+       if (.not. allocated(velocity_source_measurement(d)%covered)) &
+            error stop "velocity-source measurement storage is absent"
+       if (.not. any(velocity_source_measurement(d)%covered)) &
+            error stop "velocity-source measurement coverage is empty"
+    end do
+
+  end subroutine finish_velocity_source_measurement
 
   
   subroutine trend_ml (q, dq)
@@ -96,11 +178,16 @@ contains
 
     integer :: k, l
 
+    logical :: validate_velocity_source
+
     call update_bdry(q,NONE,1067)
     call zero_float(dq)
     call cal_surf_press(q(1:N_VARIABLE,1:zlevels))
+    validate_velocity_source = block_dynamics_validation_enabled()
 
     do k = 1,zlevels
+       if (validate_velocity_source) &
+            call begin_velocity_source_measurement
        if (Laplace_divu /= 0) call cal_divu_ml(q(S_VELO,k))
        if (Laplace_sclr == 2) call cal_Laplacian_scalars(q,k)
        if (Laplace_divu == 2) call cal_Laplacian_divu
@@ -122,7 +209,8 @@ contains
           if (level_start /= level_end .and. l > level_start) &
                call update_bdry__start( &
                dq(scalars(1):scalars(2),k),l)
-          call velocity_trend_source(q,dq,k,l)
+          call velocity_trend_source( &
+               q,dq,k,l,validate_velocity_source)
        end do
 
        ! Retain the legacy-complete velocity gradient here.  The compatibility
@@ -130,7 +218,10 @@ contains
        ! recomposition already validated by the block oracle, avoiding the
        ! first-physical-level discrepancy of the independently shortened
        ! Bernoulli-gradient pass.
-       call velocity_trend_grad(q,dq,k)
+       call velocity_trend_grad( &
+            q,dq,k,validate_velocity_source)
+       if (validate_velocity_source) &
+            call finish_velocity_source_measurement
     end do
     dq%bdry_uptodate = .false.
   end subroutine block_tendency_compatibility_ml
@@ -232,15 +323,21 @@ contains
   end subroutine cal_scalar_trend
 
   
-  subroutine velocity_trend_source (q, dq, k, l)
+  subroutine velocity_trend_source (q, dq, k, l, measure_source)
     ! Evaluate source part of velocity trends at level l
     
     implicit none
     
     type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
     integer,                    intent(in)   :: k, l
+    logical, optional,          intent(in)   :: measure_source
 
     integer :: d, j
+
+    logical :: retain_measurement
+
+    retain_measurement = .false.
+    if (present(measure_source)) retain_measurement = measure_source
 
     u_source => du_source
 
@@ -268,6 +365,9 @@ contains
           end do
        end if
 
+       if (retain_measurement) &
+            call capture_velocity_source_measurement(d,k,l)
+
        nullify (mass, velo, mean_m, dvelo, h_mflux, divu, ke, qe, vort)
     end do
     dq(S_VELO,k)%bdry_uptodate = .false.
@@ -276,15 +376,21 @@ contains
   end subroutine velocity_trend_source
 
   
-  subroutine velocity_trend_grad (q, dq, k)
+  subroutine velocity_trend_grad (q, dq, k, measure_source)
     ! Evaluate complete velocity trend by adding gradient terms to previously calculated source terms on entire grid
     
     implicit none
     
     type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
     integer,                   intent(in)    :: k
+    logical, optional,         intent(in)    :: measure_source
 
     integer :: d, p
+
+    logical :: validate_measurement
+
+    validate_measurement = .false.
+    if (present(measure_source)) validate_measurement = measure_source
 
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
@@ -297,10 +403,150 @@ contains
        do p = 3, grid(d)%patch%length
           call apply_onescale_to_patch (du_grad, grid(d), p-1, k, 0, 0)
        end do
+       if (validate_measurement) &
+            call validate_velocity_source_measurement(d,k)
        nullify (mass, temp, mean_m, mean_t, dvelo, exner, bernoulli)
     end do
     dq(S_VELO,k)%bdry_uptodate = .false.
   end subroutine velocity_trend_grad
+
+
+  subroutine capture_velocity_source_measurement (d,k,l)
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: k
+    integer, intent(in) :: l
+
+    integer :: dims(2,N_BDRY+1)
+    integer :: e
+    integer :: i
+    integer :: id
+    integer :: j
+    integer :: p
+    integer :: patch_slot
+    integer :: pos
+    integer :: offs(N_BDRY+1)
+    real(dp) :: physics_value(EDGE)
+    real(dp) :: qperp_value(EDGE)
+
+    do patch_slot = 1,grid(d)%lev(l)%length
+       p = grid(d)%lev(l)%elts(patch_slot)
+       call get_offs_Domain(grid(d),p,offs,dims)
+       do j = 0,PATCH_SIZE-1
+          do i = 0,PATCH_SIZE-1
+             id = idx(i,j,offs,dims)
+             qperp_value = Qperp(grid(d),i,j,z_null,offs,dims)
+             physics_value = physics_velo_source( &
+                  grid(d),i,j,k,offs,dims)
+             do e = RT,UP
+                pos = EDGE*id+e+1
+                velocity_source_measurement(d)%qperp(pos) = &
+                     qperp_value(e+1)
+                velocity_source_measurement(d)%physics(pos) = &
+                     physics_value(e+1)
+                velocity_source_measurement(d)%edge_length(pos) = &
+                     grid(d)%len%elts(pos)
+                velocity_source_measurement(d)%integrated_source(pos) = &
+                     dvelo(pos)
+                velocity_source_measurement(d)%active(pos) = &
+                     grid(d)%mask_n%elts(id+1) >= TRSK
+                velocity_source_measurement(d)%covered(pos) = .true.
+                velocity_source_measurement(d)%direct(pos) = &
+                     l == level_end
+             end do
+          end do
+       end do
+    end do
+
+  end subroutine capture_velocity_source_measurement
+
+
+  subroutine validate_velocity_source_measurement (d,k)
+
+    implicit none
+
+    integer, intent(in) :: d
+    integer, intent(in) :: k
+
+    integer :: dims(2,N_BDRY+1)
+    integer :: e
+    integer :: i
+    integer :: id
+    integer :: id_e
+    integer :: id_n
+    integer :: id_ne
+    integer :: j
+    integer :: p
+    integer :: pos
+    integer :: offs(N_BDRY+1)
+    real(dp) :: component_value
+    real(dp) :: expected_value
+    real(dp) :: grad_b(EDGE)
+    real(dp) :: grad_e(EDGE)
+    real(dp) :: rho(4)
+    real(dp) :: rho_theta(4)
+    real(dp) :: theta_edge(EDGE)
+
+    do p = 3,grid(d)%patch%length
+       if (grid(d)%patch%elts(p)%deleted) cycle
+       call get_offs_Domain(grid(d),p-1,offs,dims)
+       do j = 0,PATCH_SIZE-1
+          do i = 0,PATCH_SIZE-1
+             id = idx(i,j,offs,dims)
+             id_e = idx(i+1,j,offs,dims)
+             id_ne = idx(i+1,j+1,offs,dims)
+             id_n = idx(i,j+1,offs,dims)
+             grad_b = gradi_e(bernoulli,grid(d),i,j,offs,dims)
+             grad_e = gradi_e(exner,grid(d),i,j,offs,dims)
+             rho = mean_m([id,id_e,id_ne,id_n]+1) + &
+                  mass([id,id_e,id_ne,id_n]+1)
+             rho_theta = mean_t([id,id_e,id_ne,id_n]+1) + &
+                  temp([id,id_e,id_ne,id_n]+1)
+             theta_edge = [ &
+                  0.5_dp*(rho_theta(1)/rho(1)+rho_theta(2)/rho(2)), &
+                  0.5_dp*(rho_theta(1)/rho(1)+rho_theta(3)/rho(3)), &
+                  0.5_dp*(rho_theta(1)/rho(1)+rho_theta(4)/rho(4))]
+             do e = RT,UP
+                pos = EDGE*id+e+1
+                if (.not. velocity_source_measurement(d)%covered(pos)) &
+                     cycle
+                if (velocity_source_measurement(d)%active(pos)) then
+                   if (velocity_source_measurement(d)% &
+                        edge_length(pos) <= 0.0_dp) &
+                        error stop "measured velocity edge length is nonpositive"
+                   expected_value = velocity_source_measurement(d)% &
+                        integrated_source(pos)/ &
+                        velocity_source_measurement(d)%edge_length(pos) - &
+                        grad_b(e+1) - theta_edge(e+1)*grad_e(e+1)
+                   if (abs(dvelo(pos)-expected_value) > &
+                        64.0_dp*epsilon(1.0_dp)*max( &
+                        1.0_dp,abs(dvelo(pos)),abs(expected_value))) &
+                        error stop "measured non-Exner velocity source differs"
+                   if (velocity_source_measurement(d)%direct(pos)) then
+                      component_value = &
+                           -velocity_source_measurement(d)%qperp(pos) + &
+                           velocity_source_measurement(d)%physics(pos)* &
+                           velocity_source_measurement(d)%edge_length(pos)
+                      if (abs(component_value- &
+                           velocity_source_measurement(d)% &
+                           integrated_source(pos)) > &
+                           64.0_dp*epsilon(1.0_dp)*max(1.0_dp, &
+                           abs(component_value),abs( &
+                           velocity_source_measurement(d)% &
+                           integrated_source(pos)))) &
+                           error stop "measured direct velocity source differs"
+                   end if
+                else if (abs(dvelo(pos)) > tiny(1.0_dp)) then
+                   error stop "inactive measured velocity source is nonzero"
+                end if
+             end do
+          end do
+       end do
+    end do
+
+  end subroutine validate_velocity_source_measurement
 
   
   subroutine cal_Laplacian_scalars (q, k)
