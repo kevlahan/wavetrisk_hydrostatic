@@ -41,7 +41,7 @@ contains
     
     type(Float_Field), intent(inout), target :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
 
-    integer :: k, l, v
+    integer :: k, l
 
     call update_bdry (q, NONE, 967)
 
@@ -63,11 +63,9 @@ contains
           if (l < level_end) then
              call update_bdry__finish( &
                   dq(scalars(1):scalars(2),k),l+1)
-             do v = scalars(1),scalars(2)
-                call capture_block_scalar_divergence_level( &
-                     q,physics_scalar_flux,v,k,l+1, &
-                     domain_tendency=dq,dscalar_only=.true.)
-             end do
+             call capture_block_scalar_divergence_level( &
+                  q,physics_scalar_flux,0,k,l+1, &
+                  domain_tendency=dq,dscalar_only=.true.)
           end if
 
           call basic_operators  (q, dq, k, l)
@@ -96,7 +94,7 @@ contains
     type(Float_Field), intent(inout), target :: &
          q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
 
-    integer :: k, l, v
+    integer :: k, l
 
     call update_bdry(q,NONE,1067)
     call zero_float(dq)
@@ -115,11 +113,9 @@ contains
           if (l < level_end) then
              call update_bdry__finish( &
                   dq(scalars(1):scalars(2),k),l+1)
-             do v = scalars(1),scalars(2)
-                call capture_block_scalar_divergence_level( &
-                     q,physics_scalar_flux,v,k,l+1, &
-                     domain_tendency=dq,dscalar_only=.true.)
-             end do
+             call capture_block_scalar_divergence_level( &
+                  q,physics_scalar_flux,0,k,l+1, &
+                  domain_tendency=dq,dscalar_only=.true.)
           end if
           call basic_operators(q,dq,k,l)
           call cal_scalar_trend(q,dq,k,l)
@@ -175,10 +171,8 @@ contains
 
     ! Retain the direct step1 flux before a coarse level is overwritten by
     ! fine-to-coarse flux restriction.
-    do v = scalars(1),scalars(2)
-       call capture_block_scalar_divergence_level( &
-            q,physics_scalar_flux,v,k,l,.true.)
-    end do
+    call capture_block_scalar_divergence_level( &
+         q,physics_scalar_flux,0,k,l,.true.)
 
     ! Compute or restrict Bernoulli, Exner and fluxes only after every local
     ! Domain direct-flux shadow has been captured.
@@ -220,7 +214,7 @@ contains
     call update_bdry (horiz_flux, l, 969)
     
     do d = 1, size(grid)
-       do v = scalars(1), scalars(2)
+       do v = scalars(1),scalars(2)
           dscalar => dq(v,k)%data(d)%elts
           h_flux  => horiz_flux(v)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
@@ -229,13 +223,11 @@ contains
           nullify (dscalar, h_flux)
        end do
     end do
-    do v = scalars(1),scalars(2)
-       call capture_block_scalar_divergence_level( &
-            q,physics_scalar_flux,v,k,l)
-       call capture_block_scalar_divergence_level( &
-            q,physics_scalar_flux,v,k,l, &
-            domain_tendency=dq,dscalar_only=.true.)
-    end do
+    call capture_block_scalar_divergence_level( &
+         q,physics_scalar_flux,0,k,l)
+    call capture_block_scalar_divergence_level( &
+         q,physics_scalar_flux,0,k,l, &
+         domain_tendency=dq,dscalar_only=.true.)
     dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
   end subroutine cal_scalar_trend
 

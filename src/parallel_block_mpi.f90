@@ -16528,6 +16528,8 @@ end subroutine build_parallel_block_catalog
     integer :: r
     integer :: sample_start
     integer :: scalar_slot
+    integer :: scalar_slot_first
+    integer :: scalar_slot_last
     integer :: slot
     integer :: v_scalar
     integer :: v_vector
@@ -16556,8 +16558,15 @@ end subroutine build_parallel_block_catalog
          v_scalar,n_scalar_variable,v_vector,first_field_level, &
          n_field_level,mult_scalar,mult_vector)
     scalar_slot = scalar_id-v_scalar+1
+    scalar_slot_first = scalar_slot
+    scalar_slot_last = scalar_slot
+    if (scalar_id == 0) then
+       scalar_slot_first = 1
+       scalar_slot_last = n_scalar_variable
+    end if
     level_slot = field_level-first_field_level+1
-    if (scalar_slot < 1 .or. scalar_slot > n_scalar_variable .or. &
+    if (scalar_slot_first < 1 .or. &
+         scalar_slot_last > n_scalar_variable .or. &
          level_slot < 1 .or. level_slot > n_field_level .or. &
          mult_scalar /= 1 .or. mult_vector /= EDGE) then
        call fail("scalar-divergence capture field layout is invalid")
@@ -16689,6 +16698,8 @@ end subroutine build_parallel_block_catalog
       integer :: offs(N_BDRY+1)
       integer :: q
       integer :: sample
+      integer :: scalar_capture_id
+      integer :: scalar_capture_slot
       integer :: source_start
 
       real(dp) :: physics_positive(EDGE)
@@ -16696,7 +16707,9 @@ end subroutine build_parallel_block_catalog
 
       call get_offs_Domain(grid(d),p,offs,dims)
       source_start = grid(d)%patch%elts(p+1)%elts_start
-      do q = 0,PATCH_SIZE**2-1
+      do scalar_capture_slot = scalar_slot_first,scalar_slot_last
+         scalar_capture_id = v_scalar + scalar_capture_slot - 1
+         do q = 0,PATCH_SIZE**2-1
          i = mod(q,PATCH_SIZE)
          j = q/PATCH_SIZE
          id = idx(i,j,offs,dims)
@@ -16706,17 +16719,18 @@ end subroutine build_parallel_block_catalog
          value = 0.0_dp
          if (capture_dscalar) then
             value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX) = &
-                 domain_tendency(scalar_id,field_level)%data(d)%elts(id+1)
+                 domain_tendency(scalar_capture_id,field_level)% &
+                 data(d)%elts(id+1)
          else if (capture_direct) then
             id_e = idx(i+1,j,offs,dims)
             id_ne = idx(i+1,j+1,offs,dims)
             id_n = idx(i,j+1,offs,dims)
             physics_positive = physics_flux( &
                  domain_sol,grid(d),id,id_e,id_ne,id_n, &
-                 scalar_id,field_level)
+                 scalar_capture_id,field_level)
             value(BLOCK_SCALAR_DIRECT_FLUX_START: &
                  BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-1) = &
-                 horiz_flux(scalar_id)%data(d)%elts( &
+                 horiz_flux(scalar_capture_id)%data(d)%elts( &
                  EDGE*id+RT+1:EDGE*id+UP+1)
             value(BLOCK_SCALAR_PEDLEN_START: &
                  BLOCK_SCALAR_PEDLEN_START+EDGE-1) = &
@@ -16728,12 +16742,18 @@ end subroutine build_parallel_block_catalog
             id_sw = idx(i-1,j-1,offs,dims)
             id_s = idx(i,j-1,offs,dims)
             value(1:BLOCK_SCALAR_FLUX_COUNT) = [ &
-                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id+RT+1), &
-                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id_w+RT+1), &
-                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id_sw+DG+1), &
-                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id+DG+1), &
-                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id+UP+1), &
-                 horiz_flux(scalar_id)%data(d)%elts(EDGE*id_s+UP+1)]
+                 horiz_flux(scalar_capture_id)%data(d)%elts( &
+                 EDGE*id+RT+1), &
+                 horiz_flux(scalar_capture_id)%data(d)%elts( &
+                 EDGE*id_w+RT+1), &
+                 horiz_flux(scalar_capture_id)%data(d)%elts( &
+                 EDGE*id_sw+DG+1), &
+                 horiz_flux(scalar_capture_id)%data(d)%elts( &
+                 EDGE*id+DG+1), &
+                 horiz_flux(scalar_capture_id)%data(d)%elts( &
+                 EDGE*id+UP+1), &
+                 horiz_flux(scalar_capture_id)%data(d)%elts( &
+                 EDGE*id_s+UP+1)]
             value(BLOCK_SCALAR_AREA_INDEX) = &
                  grid(d)%areas%elts(id+1)%hex_inv
             value(BLOCK_SCALAR_ACTIVE_INDEX) = merge( &
@@ -16752,7 +16772,7 @@ end subroutine build_parallel_block_catalog
                  TRIAG*id+LORT+1:TRIAG*id+UPLT+1)
             value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
                  BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
-                 horiz_flux(scalar_id)%data(d)%elts( &
+                 horiz_flux(scalar_capture_id)%data(d)%elts( &
                  EDGE*id+RT+1:EDGE*id+UP+1)
             value(BLOCK_SCALAR_EDGE_MASK_START: &
                  BLOCK_SCALAR_EDGE_MASK_START+EDGE-1) = real( &
@@ -16770,7 +16790,7 @@ end subroutine build_parallel_block_catalog
          value(BLOCK_SCALAR_SOURCE_INDEX) = real(id,dp)
          sample = block_sample_start + &
               patch_index*block_writeback_plan%scalar_patch_nvalue + &
-              ((scalar_slot-1)*n_field_level + level_slot-1)* &
+              ((scalar_capture_slot-1)*n_field_level + level_slot-1)* &
               PATCH_SIZE**2 + q
          if (storage_index > 0) then
             if (storage_index > size(block_scalar_tendency) .or. &
@@ -16832,6 +16852,7 @@ end subroutine build_parallel_block_catalog
             end if
          end if
 
+         end do
       end do
 
     end subroutine capture_patch
@@ -16874,6 +16895,8 @@ end subroutine build_parallel_block_catalog
     integer :: pos_sample
     integer :: r
     integer :: scalar_slot
+    integer :: scalar_slot_first
+    integer :: scalar_slot_last
     integer :: slot
     integer :: source_bdry
     integer :: source_level
@@ -16884,8 +16907,15 @@ end subroutine build_parallel_block_catalog
          v_scalar,n_scalar_variable,v_vector,first_field_level, &
          n_field_level,mult_scalar,mult_vector)
     scalar_slot = scalar_id-v_scalar+1
+    scalar_slot_first = scalar_slot
+    scalar_slot_last = scalar_slot
+    if (scalar_id == 0) then
+       scalar_slot_first = 1
+       scalar_slot_last = n_scalar_variable
+    end if
     level_slot = field_level-first_field_level+1
-    if (scalar_slot < 1 .or. scalar_slot > n_scalar_variable .or. &
+    if (scalar_slot_first < 1 .or. &
+         scalar_slot_last > n_scalar_variable .or. &
          level_slot < 1 .or. level_slot > n_field_level .or. &
          mult_scalar /= 1 .or. mult_vector /= EDGE) then
        call fail("scalar-restriction boundary layout is invalid")
@@ -16915,13 +16945,15 @@ end subroutine build_parallel_block_catalog
                   block_writeback_plan%recv_boundary_displ(slot) + &
                   boundary_index)
              n_scalar = n_node*n_scalar_variable*n_field_level
-             call fill_domain_boundary_record( &
-                  d,source_bdry,source_level,n_node,scalar_slot,level_slot, &
-                  grid_level,capture_direct, &
-                  block_scalar_restriction_exchange% &
-                  boundary_send_buffer, &
-                  BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-                  (pos_sample-1)+1)
+             do scalar_slot = scalar_slot_first,scalar_slot_last
+                call fill_domain_boundary_record( &
+                     d,source_bdry,source_level,n_node,scalar_slot, &
+                     level_slot,grid_level,capture_direct, &
+                     block_scalar_restriction_exchange% &
+                     boundary_send_buffer, &
+                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                     (pos_sample-1)+1)
+             end do
              pos_sample = pos_sample + n_scalar
           end do
        end do
@@ -16948,10 +16980,12 @@ end subroutine build_parallel_block_catalog
        do boundary_index = 1,local_block_boundary_count(b)
           call get_local_block_boundary_source( &
                b,boundary_index,source_bdry,slot,n_node,source_level)
-          call fill_retained_boundary_record( &
-               d,source_bdry,source_level,n_node,scalar_slot,level_slot, &
-               grid_level,capture_direct,local_index, &
-               n_boundary_node,node_start)
+          do scalar_slot = scalar_slot_first,scalar_slot_last
+             call fill_retained_boundary_record( &
+                  d,source_bdry,source_level,n_node,scalar_slot, &
+                  level_slot,grid_level,capture_direct,local_index, &
+                  n_boundary_node,node_start)
+          end do
           node_start = node_start + n_node
        end do
        if (node_start /= n_boundary_node) then
@@ -16991,7 +17025,8 @@ end subroutine build_parallel_block_catalog
          record_start = data_start + &
               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample
          call fill_boundary_node( &
-              d,id+node,capture_direct,buffer(record_start: &
+              d,id+node,v_scalar+scalar_slot-1,capture_direct, &
+              buffer(record_start: &
               record_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1))
       end do
 
@@ -17028,7 +17063,7 @@ end subroutine build_parallel_block_catalog
               n_boundary_node + node_start + node
          data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
          call fill_boundary_node( &
-              d,id+node,capture_direct, &
+              d,id+node,v_scalar+scalar_slot-1,capture_direct, &
               block_scalar_tendency(local_index)%bdry(data_start: &
               data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1))
       end do
@@ -17036,23 +17071,26 @@ end subroutine build_parallel_block_catalog
     end subroutine fill_retained_boundary_record
 
 
-    subroutine fill_boundary_node (d,id,capture_direct,value)
+    subroutine fill_boundary_node ( &
+         d,id,scalar_capture_id,capture_direct,value)
 
       implicit none
 
       integer, intent(in) :: d
       integer, intent(in) :: id
+      integer, intent(in) :: scalar_capture_id
       logical, intent(in) :: capture_direct
       real(dp), intent(inout) :: &
            value(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
 
       if (capture_dscalar) then
          value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX) = &
-              domain_tendency(scalar_id,field_level)%data(d)%elts(id+1)
+              domain_tendency(scalar_capture_id,field_level)% &
+              data(d)%elts(id+1)
       else if (capture_direct) then
          value(BLOCK_SCALAR_DIRECT_FLUX_START: &
               BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-1) = &
-              horiz_flux(scalar_id)%data(d)%elts( &
+              horiz_flux(scalar_capture_id)%data(d)%elts( &
               EDGE*id+RT+1:EDGE*id+UP+1)
       else
          value(BLOCK_SCALAR_AREA_INDEX) = &
@@ -17073,7 +17111,7 @@ end subroutine build_parallel_block_catalog
               TRIAG*id+LORT+1:TRIAG*id+UPLT+1)
          value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
               BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
-              horiz_flux(scalar_id)%data(d)%elts( &
+              horiz_flux(scalar_capture_id)%data(d)%elts( &
               EDGE*id+RT+1:EDGE*id+UP+1)
          value(BLOCK_SCALAR_EDGE_MASK_START: &
               BLOCK_SCALAR_EDGE_MASK_START+EDGE-1) = real( &
