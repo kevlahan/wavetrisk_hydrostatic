@@ -1,6 +1,6 @@
 module parallel_block_mod
 
-  use, intrinsic :: iso_fortran_env, only : int8, int64
+  use, intrinsic :: iso_fortran_env, only : error_unit, int8, int64
 
   use kind_mod,   only : dp
   use shared_mod, only : Coord, EDGE, MULT, N_BDRY, S_MASS, S_TEMP, &
@@ -1353,6 +1353,11 @@ subroutine assert_local_block_tendency_patch_values ( &
   integer :: n_patch_value
   integer :: patch_start
   integer :: scalar_slot
+  integer :: value_index
+
+  real(dp) :: max_abs_difference
+  real(dp) :: native_value
+  real(dp) :: reference_value
 
   if (.not. block_tendency_ready .or. &
        .not. allocated(block_tendency)) then
@@ -1424,14 +1429,35 @@ subroutine assert_local_block_tendency_patch_values ( &
      field_base = (level_slot-1)* &
           block_local(local_index)%vector_mult*n_node
      input_base = (level_slot-1)*n_patch_value
-     if (any(abs(block_tendency(local_index)%vector( &
+     max_abs_difference = maxval(abs( &
+          block_tendency(local_index)%vector( &
           field_base + &
           block_local(local_index)%vector_mult*patch_start + 1: &
           field_base + &
           block_local(local_index)%vector_mult*patch_start + &
           n_patch_value) - &
-          vector_value(input_base+1:input_base+n_patch_value)) > &
-          0.0_dp)) then
+          vector_value(input_base+1:input_base+n_patch_value)))
+     if (max_abs_difference > 0.0_dp) then
+        native_value = 0.0_dp
+        reference_value = 0.0_dp
+        do value_index = 1,n_patch_value
+           native_value = block_tendency(local_index)%vector( &
+                field_base + &
+                block_local(local_index)%vector_mult*patch_start + &
+                value_index)
+           reference_value = vector_value(input_base+value_index)
+           if (abs(native_value-reference_value) > 0.0_dp) exit
+        end do
+        write(error_unit,*) &
+             "block vector tendency mismatch:", &
+             " catalog=",catalog_index, &
+             " local_patch=",local_patch, &
+             " level_slot=",level_slot, &
+             " value_index=",value_index, &
+             " native=",native_value, &
+             " reference=",reference_value, &
+             " difference=",native_value-reference_value, &
+             " max_abs_difference=",max_abs_difference
         error stop &
              "assert_local_block_tendency_patch_values: vector mismatch"
      end if

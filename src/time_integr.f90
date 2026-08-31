@@ -10,21 +10,24 @@ module time_integr_mod
   use comm_mpi_mod,      only : update_bdry
   use dyn_arrays,        only : extend, init
   use domain_mod,        only : Float_Field, init_Field, grid, sol, trend, wav_coeff
-  use multi_level_mod,   only : trend_ml
+  use multi_level_mod,   only : trend_ml, block_tendency_compatibility_ml
   use parallel_block_mpi_mod, only : &
        BLOCK_PROFILE_DOMAIN_TENDENCY, &
+       BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY, &
        begin_block_domain_multistage_candidate_stage, &
        begin_block_scalar_divergence_capture, &
        activate_block_native_inverse_transform, &
        capture_block_domain_multistage_candidate_tendency, &
        finalize_block_scalar_divergence_capture, &
        block_domain_production_writeback_count, &
+       block_dynamics_validation_enabled, &
        parallel_block_profile_begin, parallel_block_profile_end, &
        parallel_block_grid_change_is_pending, &
        parallel_block_state_is_ready, &
        prepare_block_native_wavelet_compression, &
        prepare_block_native_multistage_wavelet_acceptance, &
        prepare_block_native_multistage_wavelet_stage, &
+       prepare_block_velocity_compatibility_remainder, &
        retain_block_native_multistage_candidate, &
        refresh_parallel_block_candidate_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
@@ -81,6 +84,7 @@ module time_integr_mod
   procedure (dt_integrator),       pointer :: dt_step        => null ()
   procedure (dt_integrator_split), pointer :: dt_step_split  => null ()
   logical :: multistage_block_candidate_enabled = .false.
+  integer(int64) :: legacy_domain_tendency_call_count = 0_int64
 
   
 contains
@@ -111,6 +115,8 @@ contains
     profile_start = &
          parallel_block_profile_begin(BLOCK_PROFILE_DOMAIN_TENDENCY)
     call routine(q,trend)
+    legacy_domain_tendency_call_count = &
+         legacy_domain_tendency_call_count + 1_int64
     call parallel_block_profile_end( &
          BLOCK_PROFILE_DOMAIN_TENDENCY,profile_start)
 
@@ -122,6 +128,56 @@ contains
     if (block_domain_production_writeback_count() /= writeback_before) &
          error stop "tendency callback performed an unaccounted writeback"
   end subroutine call_domain_tendency_consumer
+
+
+  subroutine prepare_block_multistage_tendency ( &
+       domain_stage,routine,scale,stage,stage_count,validate_oracle)
+    ! Production evaluates only the retained compatibility inputs.  Oracle
+    ! builds execute the complete legacy tendency and keep the existing exact
+    ! RK-stage comparison path.
+
+    implicit none
+
+    type(Float_Field), intent(inout), target :: &
+         domain_stage(1:N_VARIABLE,1:zlevels)
+    procedure(trend_sub) :: routine
+    real(dp), intent(in) :: scale
+    integer, intent(in) :: stage
+    integer, intent(in) :: stage_count
+    logical, intent(in) :: validate_oracle
+
+    call begin_block_scalar_divergence_capture
+    call block_tendency_compatibility_ml(domain_stage,trend)
+    call finalize_block_scalar_divergence_capture
+    call prepare_block_velocity_compatibility_remainder(domain_stage)
+    if (validate_oracle) &
+         call call_domain_tendency_consumer(domain_stage,routine)
+    call capture_block_domain_multistage_candidate_tendency( &
+         stage,stage_count,domain_stage, &
+         compatibility_remainder=.true.)
+    call begin_block_domain_multistage_candidate_stage( &
+         scale,stage,stage_count)
+  end subroutine prepare_block_multistage_tendency
+
+
+  subroutine assert_multistage_legacy_tendency_calls ( &
+       count_before,stage_count,validate_oracle)
+
+    implicit none
+
+    integer(int64), intent(in) :: count_before
+    integer, intent(in) :: stage_count
+    logical, intent(in) :: validate_oracle
+
+    if (validate_oracle) then
+       if (legacy_domain_tendency_call_count-count_before /= &
+            int(stage_count,int64)) then
+          error stop "oracle RK path did not execute every Domain tendency"
+       end if
+    else if (legacy_domain_tendency_call_count /= count_before) then
+       error stop "optimized RK path executed a legacy Domain tendency"
+    end if
+  end subroutine assert_multistage_legacy_tendency_calls
 
 
   subroutine set_multistage_block_candidate_enabled (enabled)
@@ -202,25 +258,36 @@ contains
 
     logical :: block_candidate
     logical :: block_state_ready
+    logical :: validate_oracle
+    integer(int64) :: legacy_call_count_before
 
     call manage_q1_mem
 
     block_candidate = multistage_block_candidate_enabled
+    validate_oracle = .false.
+    legacy_call_count_before = legacy_domain_tendency_call_count
     if (block_candidate) then
        block_state_ready = parallel_block_state_is_ready()
        if (.not. block_state_ready) then
           error stop "guarded RK3 block candidate state is not ready"
        end if
+       validate_oracle = block_dynamics_validation_enabled()
     end if
 
-    if (block_candidate) call begin_block_scalar_divergence_capture
-    call call_domain_tendency_consumer(q,routine)
     if (block_candidate) then
-       call finalize_block_scalar_divergence_capture
-       call capture_block_domain_multistage_candidate_tendency(1,3,q)
-       call begin_block_domain_multistage_candidate_stage(h/3,1,3)
+       call prepare_block_multistage_tendency( &
+            q,routine,h/3,1,3,validate_oracle)
+    else
+       call call_domain_tendency_consumer(q,routine)
     end if
-    call RK_sub_step (q, trend, h/3, q1)
+    ! Compatibility initialization for Domain boundary/scaffold storage not
+    ! represented by compact blocks.  The following native writeback remains
+    ! authoritative for every block-owned prognostic value.
+    if (block_candidate) then
+       call RK_sub_step_compatibility(q,trend,h/3,q1)
+    else
+       call RK_sub_step(q,trend,h/3,q1)
+    end if
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,1,3)
     end if
@@ -230,14 +297,17 @@ contains
        call WT_after_step(q1,wav)
     end if
 
-    if (block_candidate) call begin_block_scalar_divergence_capture
-    call call_domain_tendency_consumer(q1,routine)
     if (block_candidate) then
-       call finalize_block_scalar_divergence_capture
-       call capture_block_domain_multistage_candidate_tendency(2,3,q1)
-       call begin_block_domain_multistage_candidate_stage(h/2,2,3)
+       call prepare_block_multistage_tendency( &
+            q1,routine,h/2,2,3,validate_oracle)
+    else
+       call call_domain_tendency_consumer(q1,routine)
     end if
-    call RK_sub_step (q, trend, h/2, q1)
+    if (block_candidate) then
+       call RK_sub_step_compatibility(q,trend,h/2,q1)
+    else
+       call RK_sub_step(q,trend,h/2,q1)
+    end if
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,2,3)
     end if
@@ -247,14 +317,17 @@ contains
        call WT_after_step(q1,wav)
     end if
 
-    if (block_candidate) call begin_block_scalar_divergence_capture
-    call call_domain_tendency_consumer(q1,routine)
     if (block_candidate) then
-       call finalize_block_scalar_divergence_capture
-       call capture_block_domain_multistage_candidate_tendency(3,3,q1)
-       call begin_block_domain_multistage_candidate_stage(h,3,3)
+       call prepare_block_multistage_tendency( &
+            q1,routine,h,3,3,validate_oracle)
+    else
+       call call_domain_tendency_consumer(q1,routine)
     end if
-    call RK_sub_step (q, trend, h, q)
+    if (block_candidate) then
+       call RK_sub_step_compatibility(q,trend,h,q)
+    else
+       call RK_sub_step(q,trend,h,q)
+    end if
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q,3,3)
        call prepare_block_native_multistage_wavelet_acceptance(3)
@@ -276,10 +349,12 @@ contains
          activate_block_native_inverse_transform)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
+       call assert_multistage_legacy_tendency_calls( &
+            legacy_call_count_before,3,validate_oracle)
     end if
   end subroutine RK3
-  
-  
+
+
   subroutine RK4 (q, wav, routine, h)
     ! Low-storage four-stage second-order Runge-Kutta scheme used in
     ! Dubos et al. (2015), Geosci. Model Dev., 8, 3131-3150.
@@ -295,25 +370,36 @@ contains
 
     logical :: block_candidate
     logical :: block_state_ready
+    logical :: validate_oracle
+    integer(int64) :: legacy_call_count_before
 
     call manage_q1_mem
 
     block_candidate = multistage_block_candidate_enabled
+    validate_oracle = .false.
+    legacy_call_count_before = legacy_domain_tendency_call_count
     if (block_candidate) then
        block_state_ready = parallel_block_state_is_ready()
        if (.not. block_state_ready) then
           error stop "guarded RK4 block candidate state is not ready"
        end if
+       validate_oracle = block_dynamics_validation_enabled()
     end if
 
-    if (block_candidate) call begin_block_scalar_divergence_capture
-    call call_domain_tendency_consumer(q,routine)
     if (block_candidate) then
-       call finalize_block_scalar_divergence_capture
-       call capture_block_domain_multistage_candidate_tendency(1,4,q)
-       call begin_block_domain_multistage_candidate_stage(h/4,1,4)
+       call prepare_block_multistage_tendency( &
+            q,routine,h/4,1,4,validate_oracle)
+    else
+       call call_domain_tendency_consumer(q,routine)
     end if
-    call RK_sub_step (q, trend, h/4, q1)
+    ! Compatibility initialization for Domain boundary/scaffold storage not
+    ! represented by compact blocks.  The following native writeback remains
+    ! authoritative for every block-owned prognostic value.
+    if (block_candidate) then
+       call RK_sub_step_compatibility(q,trend,h/4,q1)
+    else
+       call RK_sub_step(q,trend,h/4,q1)
+    end if
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,1,4)
     end if
@@ -323,14 +409,17 @@ contains
        call WT_after_step(q1,wav)
     end if
 
-    if (block_candidate) call begin_block_scalar_divergence_capture
-    call call_domain_tendency_consumer(q1,routine)
     if (block_candidate) then
-       call finalize_block_scalar_divergence_capture
-       call capture_block_domain_multistage_candidate_tendency(2,4,q1)
-       call begin_block_domain_multistage_candidate_stage(h/3,2,4)
+       call prepare_block_multistage_tendency( &
+            q1,routine,h/3,2,4,validate_oracle)
+    else
+       call call_domain_tendency_consumer(q1,routine)
     end if
-    call RK_sub_step (q, trend, h/3, q1)
+    if (block_candidate) then
+       call RK_sub_step_compatibility(q,trend,h/3,q1)
+    else
+       call RK_sub_step(q,trend,h/3,q1)
+    end if
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,2,4)
     end if
@@ -340,14 +429,17 @@ contains
        call WT_after_step(q1,wav)
     end if
 
-    if (block_candidate) call begin_block_scalar_divergence_capture
-    call call_domain_tendency_consumer(q1,routine)
     if (block_candidate) then
-       call finalize_block_scalar_divergence_capture
-       call capture_block_domain_multistage_candidate_tendency(3,4,q1)
-       call begin_block_domain_multistage_candidate_stage(h/2,3,4)
+       call prepare_block_multistage_tendency( &
+            q1,routine,h/2,3,4,validate_oracle)
+    else
+       call call_domain_tendency_consumer(q1,routine)
     end if
-    call RK_sub_step (q, trend, h/2, q1)
+    if (block_candidate) then
+       call RK_sub_step_compatibility(q,trend,h/2,q1)
+    else
+       call RK_sub_step(q,trend,h/2,q1)
+    end if
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q1,3,4)
     end if
@@ -357,14 +449,17 @@ contains
        call WT_after_step(q1,wav)
     end if
 
-    if (block_candidate) call begin_block_scalar_divergence_capture
-    call call_domain_tendency_consumer(q1,routine)
     if (block_candidate) then
-       call finalize_block_scalar_divergence_capture
-       call capture_block_domain_multistage_candidate_tendency(4,4,q1)
-       call begin_block_domain_multistage_candidate_stage(h,4,4)
+       call prepare_block_multistage_tendency( &
+            q1,routine,h,4,4,validate_oracle)
+    else
+       call call_domain_tendency_consumer(q1,routine)
     end if
-    call RK_sub_step (q, trend, h, q)
+    if (block_candidate) then
+       call RK_sub_step_compatibility(q,trend,h,q)
+    else
+       call RK_sub_step(q,trend,h,q)
+    end if
     if (block_candidate) then
        call retain_block_native_multistage_candidate(q,4,4)
        call prepare_block_native_multistage_wavelet_acceptance(4)
@@ -386,9 +481,36 @@ contains
          activate_block_native_inverse_transform)
     if (block_candidate) then
        call refresh_parallel_block_domain_prognostic_state
+       call assert_multistage_legacy_tendency_calls( &
+            legacy_call_count_before,4,validate_oracle)
     end if
   end subroutine RK4
-  
+
+
+  subroutine RK_sub_step_compatibility (sols,trends,h,dest)
+    ! Temporary compatibility initialization for Domain storage outside the
+    ! compact block catalogue.  Profile it independently so the subsequent
+    ! range-limited replacement has a measurable baseline.
+
+    implicit none
+
+    real(dp), intent(in) :: h
+    type(Float_Field), intent(in) :: &
+         sols(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(in) :: &
+         trends(1:N_VARIABLE,1:zlevels)
+    type(Float_Field), intent(inout) :: &
+         dest(1:N_VARIABLE,1:zlevels)
+
+    real(dp) :: profile_start
+
+    profile_start = parallel_block_profile_begin( &
+         BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY)
+    call RK_sub_step(sols,trends,h,dest)
+    call parallel_block_profile_end( &
+         BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY,profile_start)
+  end subroutine RK_sub_step_compatibility
+
 
   subroutine RK_sub_step (sols, trends, h, dest)
     

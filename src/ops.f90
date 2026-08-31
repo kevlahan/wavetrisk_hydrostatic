@@ -20,7 +20,8 @@ module ops_mod
   implicit none
 
   private
-  public :: post_step1, step1, scalar_trend, du_grad, du_source, Qperp
+  public :: post_step1, step1, scalar_trend, du_grad, &
+       du_grad_compatibility, du_source, Qperp
   public :: comp_offs3
 
   
@@ -870,6 +871,36 @@ contains
        dvelo(id_e) = 0.0_dp
     end if
   end subroutine du_grad
+
+
+  subroutine du_grad_compatibility (dom, i, j, zlev, offs, dims)
+    ! Complete only the retained non-Exner velocity input needed by the
+    ! block-native tendency.  velocity_trend_source leaves an edge-integrated
+    ! source in dvelo; production converts it to a point value and applies the
+    ! Bernoulli gradient, while the native block kernel supplies the Exner
+    ! gradient.  The oracle continues to use du_grad above.
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer, intent(in) :: i, j, zlev
+    integer, intent(in) :: offs(N_BDRY+1)
+    integer, intent(in) :: dims(2,N_BDRY+1)
+
+    integer :: id
+    integer :: id_e(EDGE)
+    real(dp) :: gradB(EDGE)
+
+    id = idx(i,j,offs,dims)
+    id_e = id_edge(id)
+
+    if (dom%mask_n%elts(id+1) >= TRSK) then
+       gradB = gradi_e(bernoulli,dom,i,j,offs,dims)
+       dvelo(id_e) = dvelo(id_e)/dom%len%elts(id_e) - gradB
+    else
+       dvelo(id_e) = 0.0_dp
+    end if
+  end subroutine du_grad_compatibility
 
   
   function Qperp (dom, i, j, zlev, offs, dims) result(val)

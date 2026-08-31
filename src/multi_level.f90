@@ -11,7 +11,8 @@ module multi_level_mod
   use diagnostics_mod, only : cal_div, cal_surf_press, integrate_pressure_up, post_vort
   use domain_ops_mod,  only : apply_interscale_to_patch, apply_interscale_to_patch3, apply_onescale_to_patch, apply_to_penta_d 
   use init_mod,        only : physics_scalar_flux, u_source    
-  use ops_mod,         only : du_grad, du_source, post_step1, scalar_trend, step1
+  use ops_mod,         only : du_grad, du_source, &
+       post_step1, scalar_trend, step1
   use patch_mod,       only : PATCH_SIZE
   use parallel_block_mpi_mod, only : &
        capture_block_scalar_divergence_level
@@ -26,7 +27,8 @@ module multi_level_mod
   implicit none
 
   private
-  public :: cpt_or_restr_flux, trend_ml, cal_divu_ml 
+  public :: cpt_or_restr_flux, trend_ml, &
+       block_tendency_compatibility_ml, cal_divu_ml
 
   
 contains
@@ -80,6 +82,62 @@ contains
     end do
     dq%bdry_uptodate = .false.
   end subroutine trend_ml
+
+
+  subroutine block_tendency_compatibility_ml (q, dq)
+    ! Populate only the Domain-shaped compatibility inputs still consumed by
+    ! the block-native tendency: scalar physics flux/restriction records and
+    ! the non-Exner velocity source.  Scalar divergence and the Exner-gradient
+    ! velocity contribution are deliberately omitted because block kernels
+    ! produce them.  The complete trend_ml path remains the validation oracle.
+
+    implicit none
+
+    type(Float_Field), intent(inout), target :: &
+         q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
+
+    integer :: k, l, v
+
+    call update_bdry(q,NONE,1067)
+    call zero_float(dq)
+    call cal_surf_press(q(1:N_VARIABLE,1:zlevels))
+
+    do k = 1,zlevels
+       if (Laplace_divu /= 0) call cal_divu_ml(q(S_VELO,k))
+       if (Laplace_sclr == 2) call cal_Laplacian_scalars(q,k)
+       if (Laplace_divu == 2) call cal_Laplacian_divu
+
+       do l = level_end,level_start,-1
+          ! The Domain restriction compatibility kernel consumes dscalar from
+          ! level l+1 when forming the coarse flux at l.  Preserve that narrow
+          ! dependency and its boundary completion without evaluating the
+          ! complete Domain velocity tendency.
+          if (l < level_end) then
+             call update_bdry__finish( &
+                  dq(scalars(1):scalars(2),k),l+1)
+             do v = scalars(1),scalars(2)
+                call capture_block_scalar_divergence_level( &
+                     q,physics_scalar_flux,v,k,l+1, &
+                     domain_tendency=dq,dscalar_only=.true.)
+             end do
+          end if
+          call basic_operators(q,dq,k,l)
+          call cal_scalar_trend(q,dq,k,l)
+          if (level_start /= level_end .and. l > level_start) &
+               call update_bdry__start( &
+               dq(scalars(1):scalars(2),k),l)
+          call velocity_trend_source(q,dq,k,l)
+       end do
+
+       ! Retain the legacy-complete velocity gradient here.  The compatibility
+       ! payload separates its Exner contribution with the same exact
+       ! recomposition already validated by the block oracle, avoiding the
+       ! first-physical-level discrepancy of the independently shortened
+       ! Bernoulli-gradient pass.
+       call velocity_trend_grad(q,dq,k)
+    end do
+    dq%bdry_uptodate = .false.
+  end subroutine block_tendency_compatibility_ml
 
   
   subroutine basic_operators (q, dq, k, l)
