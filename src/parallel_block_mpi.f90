@@ -136,6 +136,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
   integer, parameter :: BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS = 13
+  integer, parameter :: BLOCK_VELOCITY_SOURCE_RECORD_COUNT = 7
   integer, parameter :: BLOCK_WRITEBACK_BOTH = 0
   integer, parameter :: BLOCK_WRITEBACK_SCALAR = 1
   integer, parameter :: BLOCK_WRITEBACK_VECTOR = 2
@@ -730,6 +731,34 @@ module parallel_block_mpi_mod
   type(Block_Scalar_Divergence_Plan_Type), save :: &
        block_scalar_divergence_plan
 
+  type :: Block_Velocity_Source_Transport_Type
+     integer, allocatable :: send_count(:)
+     integer, allocatable :: recv_count(:)
+     integer, allocatable :: send_displ(:)
+     integer, allocatable :: recv_displ(:)
+     real(dp), allocatable :: send_buffer(:)
+     real(dp), allocatable :: recv_buffer(:)
+     logical, allocatable :: source_covered(:)
+     integer(int64) :: generation = -1_int64
+     integer(int64) :: allocations = 0_int64
+     logical :: active = .false.
+     logical :: ready = .false.
+  end type Block_Velocity_Source_Transport_Type
+
+  type :: Block_Velocity_Source_Storage_Type
+     integer :: catalog_index = 0
+     integer :: installed_patch_count = 0
+     logical :: ready = .false.
+     real(dp), allocatable :: patch(:)
+     logical, allocatable :: covered(:)
+  end type Block_Velocity_Source_Storage_Type
+
+  type(Block_Velocity_Source_Transport_Type), save :: &
+       block_velocity_source_transport
+  type(Block_Velocity_Source_Storage_Type), allocatable, save :: &
+       block_velocity_source(:)
+  integer(int64), save :: block_velocity_source_allocations = 0_int64
+
   type :: Block_Scalar_Restriction_Exchange_Type
      integer, allocatable :: boundary_send_count(:)
      integer, allocatable :: boundary_recv_count(:)
@@ -882,6 +911,9 @@ module parallel_block_mpi_mod
   public :: capture_block_scalar_divergence_level
   public :: finalize_block_scalar_divergence_capture
   public :: prepare_block_velocity_compatibility_remainder
+  public :: begin_block_velocity_source_transport
+  public :: capture_block_velocity_source_level
+  public :: finalize_block_velocity_source_transport
   public :: begin_block_domain_multistage_candidate_stage
   public :: retain_block_native_multistage_candidate
   public :: prepare_block_native_multistage_wavelet_stage
@@ -898,6 +930,7 @@ contains
     implicit none
 
     call clear_block_adaptation_decisions
+    call clear_block_velocity_source_transport
     call clear_block_vertical_remap_storage
     call clear_block_ghost_exchange_plan
     call clear_block_writeback_plan
@@ -15681,6 +15714,461 @@ end subroutine build_parallel_block_catalog
     call evaluate_candidate_block_scalar_restriction
 
   end subroutine evaluate_candidate_block_velocity_recomposition
+
+
+  subroutine clear_block_velocity_source_transport
+
+    implicit none
+
+    integer :: index
+
+    if (allocated(block_velocity_source_transport%send_count)) &
+         deallocate(block_velocity_source_transport%send_count)
+    if (allocated(block_velocity_source_transport%recv_count)) &
+         deallocate(block_velocity_source_transport%recv_count)
+    if (allocated(block_velocity_source_transport%send_displ)) &
+         deallocate(block_velocity_source_transport%send_displ)
+    if (allocated(block_velocity_source_transport%recv_displ)) &
+         deallocate(block_velocity_source_transport%recv_displ)
+    if (allocated(block_velocity_source_transport%send_buffer)) &
+         deallocate(block_velocity_source_transport%send_buffer)
+    if (allocated(block_velocity_source_transport%recv_buffer)) &
+         deallocate(block_velocity_source_transport%recv_buffer)
+    if (allocated(block_velocity_source_transport%source_covered)) &
+         deallocate(block_velocity_source_transport%source_covered)
+    if (allocated(block_velocity_source)) then
+       do index = 1,size(block_velocity_source)
+          if (allocated(block_velocity_source(index)%patch)) &
+               deallocate(block_velocity_source(index)%patch)
+          if (allocated(block_velocity_source(index)%covered)) &
+               deallocate(block_velocity_source(index)%covered)
+       end do
+       deallocate(block_velocity_source)
+    end if
+    block_velocity_source_transport%generation = -1_int64
+    block_velocity_source_transport%active = .false.
+    block_velocity_source_transport%ready = .false.
+
+  end subroutine clear_block_velocity_source_transport
+
+
+  recursive subroutine begin_block_velocity_source_transport
+    ! Prepare a widened, observation-only Domain-owner to final-owner route
+    ! for the seven-value velocity-source record.  This store is deliberately
+    ! separate from the production tendency buffers and is not yet consumed.
+
+    implicit none
+
+    integer :: catalog_index
+    integer :: count
+    integer :: index
+    integer :: n_local
+    integer :: n_recv
+    integer :: n_send
+    integer :: patch_count
+
+    integer(int64) :: allocation_before
+
+    logical :: storage_current
+
+    if (.not. block_writeback_plan_is_ready()) then
+       call fail("velocity-source transport before writeback plan")
+    end if
+    storage_current = block_velocity_source_transport%generation == &
+         block_writeback_plan_generation .and. &
+         allocated(block_velocity_source_transport%send_count) .and. &
+         allocated(block_velocity_source)
+    allocation_before = block_velocity_source_transport%allocations + &
+         block_velocity_source_allocations
+    if (block_velocity_source_transport%generation /= &
+         block_writeback_plan_generation) then
+       call clear_block_velocity_source_transport
+    end if
+
+    if (.not. allocated(block_velocity_source_transport%send_count)) then
+       allocate(block_velocity_source_transport%send_count(n_process))
+       allocate(block_velocity_source_transport%recv_count(n_process))
+       allocate(block_velocity_source_transport%send_displ(n_process))
+       allocate(block_velocity_source_transport%recv_displ(n_process))
+       block_velocity_source_transport%send_count = &
+            BLOCK_VELOCITY_SOURCE_RECORD_COUNT* &
+            block_writeback_plan%vector_send_count
+       block_velocity_source_transport%recv_count = &
+            BLOCK_VELOCITY_SOURCE_RECORD_COUNT* &
+            block_writeback_plan%vector_recv_count
+       block_velocity_source_transport%send_displ = &
+            BLOCK_VELOCITY_SOURCE_RECORD_COUNT* &
+            block_writeback_plan%vector_send_displ
+       block_velocity_source_transport%recv_displ = &
+            BLOCK_VELOCITY_SOURCE_RECORD_COUNT* &
+            block_writeback_plan%vector_recv_displ
+       n_send = sum(block_velocity_source_transport%send_count)
+       n_recv = sum(block_velocity_source_transport%recv_count)
+       allocate(block_velocity_source_transport%send_buffer(max(1,n_send)))
+       allocate(block_velocity_source_transport%recv_buffer(max(1,n_recv)))
+       allocate(block_velocity_source_transport%source_covered( &
+            max(1,n_recv/BLOCK_VELOCITY_SOURCE_RECORD_COUNT)))
+       block_velocity_source_transport%allocations = &
+            block_velocity_source_transport%allocations + 7_int64
+       block_velocity_source_transport%generation = &
+            block_writeback_plan_generation
+    end if
+
+    n_local = n_local_blocks()
+    if (allocated(block_velocity_source)) then
+       if (size(block_velocity_source) /= n_local) then
+          call clear_block_velocity_source_transport
+          call begin_block_velocity_source_transport
+          return
+       end if
+    else
+       allocate(block_velocity_source(n_local))
+       block_velocity_source_allocations = &
+            block_velocity_source_allocations + 1_int64
+    end if
+    do index = 1,n_local
+       catalog_index = local_block_catalog(index)
+       patch_count = local_block_patch_count(catalog_index)
+       count = patch_count*block_writeback_plan%vector_patch_nvalue
+       if (allocated(block_velocity_source(index)%patch)) then
+          if (block_velocity_source(index)%catalog_index /= catalog_index &
+               .or. size(block_velocity_source(index)%covered) /= count) then
+             deallocate(block_velocity_source(index)%patch)
+             deallocate(block_velocity_source(index)%covered)
+          end if
+       end if
+       if (.not. allocated(block_velocity_source(index)%patch)) then
+          allocate(block_velocity_source(index)%patch( &
+               BLOCK_VELOCITY_SOURCE_RECORD_COUNT*count))
+          allocate(block_velocity_source(index)%covered(count))
+          block_velocity_source_allocations = &
+               block_velocity_source_allocations + 2_int64
+       end if
+       block_velocity_source(index)%catalog_index = catalog_index
+       block_velocity_source(index)%installed_patch_count = 0
+       block_velocity_source(index)%ready = .false.
+       block_velocity_source(index)%patch = 0.0_dp
+       block_velocity_source(index)%covered = .false.
+    end do
+    block_velocity_source_transport%send_buffer = 0.0_dp
+    block_velocity_source_transport%recv_buffer = 0.0_dp
+    block_velocity_source_transport%source_covered = .false.
+    block_velocity_source_transport%active = .true.
+    block_velocity_source_transport%ready = .false.
+
+    if (storage_current) then
+       if (block_velocity_source_transport%allocations + &
+            block_velocity_source_allocations /= allocation_before) &
+            call fail("velocity-source transport storage was not reusable")
+    end if
+
+  end subroutine begin_block_velocity_source_transport
+
+
+  subroutine capture_block_velocity_source_level ( &
+       domain_index,field_level,qperp_value,physics_value, &
+       edge_length_value,integrated_value,active_value,covered_value, &
+       direct_value)
+
+    implicit none
+
+    integer, intent(in) :: domain_index
+    integer, intent(in) :: field_level
+    real(dp), intent(in) :: qperp_value(:)
+    real(dp), intent(in) :: physics_value(:)
+    real(dp), intent(in) :: edge_length_value(:)
+    real(dp), intent(in) :: integrated_value(:)
+    logical, intent(in) :: active_value(:)
+    logical, intent(in) :: covered_value(:)
+    logical, intent(in) :: direct_value(:)
+
+    integer :: b
+    integer :: first_field_level
+    integer :: level_slot
+    integer :: local_index
+    integer :: mult_scalar
+    integer :: mult_vector
+    integer :: n_field_level
+    integer :: n_scalar_variable
+    integer :: patch_index
+    integer :: r
+    integer :: sample_start
+    integer :: slot
+    integer :: v_scalar
+    integer :: v_vector
+
+    if (.not. block_velocity_source_transport%active) &
+         call fail("velocity-source capture is not active")
+    if (domain_index < 1 .or. domain_index > size(grid)) &
+         call fail("velocity-source capture Domain is invalid")
+    if (size(qperp_value) /= size(physics_value) .or. &
+         size(qperp_value) /= size(edge_length_value) .or. &
+         size(qperp_value) /= size(integrated_value) .or. &
+         size(qperp_value) /= size(active_value) .or. &
+         size(qperp_value) /= size(covered_value) .or. &
+         size(qperp_value) /= size(direct_value)) &
+         call fail("velocity-source capture arrays differ")
+    call get_block_field_layout( &
+         v_scalar,n_scalar_variable,v_vector,first_field_level, &
+         n_field_level,mult_scalar,mult_vector)
+    level_slot = field_level-first_field_level+1
+    if (level_slot < 1 .or. level_slot > n_field_level .or. &
+         mult_vector /= EDGE) &
+         call fail("velocity-source capture level is invalid")
+
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       if (source_rank(b) /= rank) cycle
+       if (loc_id(block_catalog(b)%root_domain+1)+1 /= domain_index) cycle
+       patch_index = 0
+       call capture_subtree( &
+            block_catalog(b)%root_patch,b,patch_index,1,local_index)
+       if (patch_index /= local_block_patch_count(b)) &
+            call fail("retained velocity-source traversal is incomplete")
+    end do
+
+    do r = 1,n_process
+       sample_start = block_writeback_plan%vector_recv_displ(r) + 1
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r)+ &
+            block_writeback_plan%recv_count(r)
+          b = block_writeback_plan%recv_block(slot)
+          if (source_rank(b) /= rank) &
+               call fail("velocity-source route has wrong source")
+          if (loc_id(block_catalog(b)%root_domain+1)+1 == domain_index) then
+             patch_index = 0
+             call capture_subtree( &
+                  block_catalog(b)%root_patch,b,patch_index, &
+                  sample_start,0)
+             if (patch_index /= &
+                  block_writeback_plan%recv_patch_count(slot)) &
+                  call fail("remote velocity-source traversal incomplete")
+          end if
+          sample_start = sample_start + &
+               block_writeback_plan%recv_vector_nvalue(slot)
+       end do
+       if (sample_start /= block_writeback_plan%vector_recv_displ(r) + &
+            block_writeback_plan%vector_recv_count(r) + 1) &
+            call fail("velocity-source route extent differs")
+    end do
+
+  contains
+
+    recursive subroutine capture_subtree ( &
+         p,catalog_index,patch_index,block_sample_start,storage_index)
+
+      implicit none
+
+      integer, intent(in) :: p
+      integer, intent(in) :: catalog_index
+      integer, intent(inout) :: patch_index
+      integer, intent(in) :: block_sample_start
+      integer, intent(in) :: storage_index
+
+      integer :: c
+      integer :: child
+
+      if (p < 0 .or. p >= grid(domain_index)%patch%length) &
+           call fail("velocity-source patch is invalid")
+      if (grid(domain_index)%patch%elts(p+1)%deleted) return
+      call capture_patch( &
+           p,patch_index,block_sample_start,storage_index)
+      patch_index = patch_index + 1
+      do c = 1,N_CHDRN
+         child = grid(domain_index)%patch%elts(p+1)%children(c)
+         if (child <= 0) cycle
+         call capture_subtree( &
+              child,catalog_index,patch_index,block_sample_start, &
+              storage_index)
+      end do
+
+    end subroutine capture_subtree
+
+    subroutine capture_patch ( &
+         p,patch_index,block_sample_start,storage_index)
+
+      implicit none
+
+      integer, intent(in) :: p
+      integer, intent(in) :: patch_index
+      integer, intent(in) :: block_sample_start
+      integer, intent(in) :: storage_index
+
+      integer :: data_start
+      integer :: dims(2,N_BDRY+1)
+      integer :: e
+      integer :: i
+      integer :: id
+      integer :: j
+      integer :: offs(N_BDRY+1)
+      integer :: q
+      integer :: sample
+      integer :: source_position
+      real(dp) :: value(BLOCK_VELOCITY_SOURCE_RECORD_COUNT)
+
+      call get_offs_Domain(grid(domain_index),p,offs,dims)
+      do q = 0,PATCH_SIZE**2-1
+         i = mod(q,PATCH_SIZE)
+         j = q/PATCH_SIZE
+         id = idx(i,j,offs,dims)
+         do e = 0,EDGE-1
+            source_position = EDGE*id+e+1
+            if (source_position < 1 .or. &
+                 source_position > size(qperp_value)) &
+                 call fail("velocity-source Domain extent is invalid")
+            if (.not. covered_value(source_position)) &
+                 call fail("velocity-source Domain sample is uncovered")
+            value = [qperp_value(source_position), &
+                 physics_value(source_position), &
+                 edge_length_value(source_position), &
+                 integrated_value(source_position), &
+                 merge(1.0_dp,0.0_dp,active_value(source_position)), &
+                 1.0_dp, &
+                 merge(1.0_dp,0.0_dp,direct_value(source_position))]
+            sample = block_sample_start + &
+                 patch_index*block_writeback_plan%vector_patch_nvalue + &
+                 (level_slot-1)*EDGE*PATCH_SIZE**2 + q*EDGE + e
+            data_start = BLOCK_VELOCITY_SOURCE_RECORD_COUNT*(sample-1)+1
+            if (storage_index > 0) then
+               if (sample < 1 .or. sample > &
+                    size(block_velocity_source(storage_index)%covered)) &
+                    call fail("retained velocity-source index invalid")
+               block_velocity_source(storage_index)%patch( &
+                    data_start:data_start+ &
+                    BLOCK_VELOCITY_SOURCE_RECORD_COUNT-1) = value
+               block_velocity_source(storage_index)%covered(sample) = .true.
+            else
+               if (sample < 1 .or. sample > &
+                    size(block_velocity_source_transport%source_covered)) &
+                    call fail("remote velocity-source index invalid")
+               block_velocity_source_transport%recv_buffer( &
+                    data_start:data_start+ &
+                    BLOCK_VELOCITY_SOURCE_RECORD_COUNT-1) = value
+               block_velocity_source_transport%source_covered(sample) = &
+                    .true.
+            end if
+         end do
+      end do
+
+    end subroutine capture_patch
+
+  end subroutine capture_block_velocity_source_level
+
+
+  subroutine finalize_block_velocity_source_transport
+
+    implicit none
+
+    integer :: b
+    integer :: expected
+    integer :: ierr
+    integer :: index
+    integer :: n_patch
+    integer :: patch_index
+    integer :: pos
+    integer :: r
+    integer :: slot
+    integer :: source
+
+    integer(int64) :: allocation_after
+
+    if (.not. block_velocity_source_transport%active) &
+         call fail("velocity-source finalize is not active")
+    expected = sum(block_writeback_plan%recv_patch_count)* &
+         EDGE*PATCH_SIZE**2
+    if (count(block_velocity_source_transport%source_covered) /= expected) &
+         call fail("velocity-source Domain transport coverage differs")
+
+    call MPI_Alltoallv( &
+         block_velocity_source_transport%recv_buffer, &
+         block_velocity_source_transport%recv_count, &
+         block_velocity_source_transport%recv_displ, &
+         MPI_DOUBLE_PRECISION, &
+         block_velocity_source_transport%send_buffer, &
+         block_velocity_source_transport%send_count, &
+         block_velocity_source_transport%send_displ, &
+         MPI_DOUBLE_PRECISION,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv velocity-source payload")
+
+    do r = 1,n_process
+       pos = block_velocity_source_transport%send_displ(r) + 1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r)+ &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          source = source_rank(b)
+          if (source /= r-1 .or. block_catalog(b)%owner /= rank) &
+               call fail("velocity-source receive route differs")
+          index = catalog_local_block(b)
+          n_patch = local_block_patch_count(b)
+          do patch_index = 0,n_patch-1
+             call install_patch( &
+                  index,patch_index,block_velocity_source_transport% &
+                  send_buffer(pos:pos+ &
+                  BLOCK_VELOCITY_SOURCE_RECORD_COUNT* &
+                  block_writeback_plan%vector_patch_nvalue-1))
+             pos = pos + BLOCK_VELOCITY_SOURCE_RECORD_COUNT* &
+                  block_writeback_plan%vector_patch_nvalue
+          end do
+       end do
+       if (pos /= block_velocity_source_transport%send_displ(r) + &
+            block_velocity_source_transport%send_count(r) + 1) &
+            call fail("velocity-source receive extent differs")
+    end do
+
+    do index = 1,size(block_velocity_source)
+       expected = local_block_patch_count( &
+            block_velocity_source(index)%catalog_index)* &
+            EDGE*PATCH_SIZE**2
+       if (count(block_velocity_source(index)%covered) /= expected) &
+            call fail("final-owner velocity-source coverage differs")
+       block_velocity_source(index)%installed_patch_count = &
+            local_block_patch_count( &
+            block_velocity_source(index)%catalog_index)
+       block_velocity_source(index)%ready = .true.
+    end do
+    block_velocity_source_transport%active = .false.
+    block_velocity_source_transport%ready = .true.
+    allocation_after = block_velocity_source_transport%allocations + &
+         block_velocity_source_allocations
+    if (allocation_after <= 0_int64) &
+         call fail("velocity-source allocation accounting is invalid")
+
+  contains
+
+    subroutine install_patch (storage_index,patch_index,value)
+
+      implicit none
+
+      integer, intent(in) :: storage_index
+      integer, intent(in) :: patch_index
+      real(dp), intent(in) :: value(:)
+
+      integer :: first
+      integer :: first_sample
+      integer :: n_sample
+
+      if (storage_index < 1 .or. &
+           storage_index > size(block_velocity_source)) &
+           call fail("velocity-source local block is invalid")
+      n_sample = block_writeback_plan%vector_patch_nvalue
+      if (size(value) /= &
+           BLOCK_VELOCITY_SOURCE_RECORD_COUNT*n_sample) &
+           call fail("velocity-source patch extent is invalid")
+      first_sample = patch_index*n_sample + 1
+      first = BLOCK_VELOCITY_SOURCE_RECORD_COUNT*(first_sample-1)+1
+      if (first < 1 .or. first+size(value)-1 > &
+           size(block_velocity_source(storage_index)%patch)) &
+           call fail("velocity-source storage extent is invalid")
+      block_velocity_source(storage_index)%patch( &
+           first:first+size(value)-1) = value
+      block_velocity_source(storage_index)%covered( &
+           first_sample:first_sample+n_sample-1) = &
+           nint(value(6::BLOCK_VELOCITY_SOURCE_RECORD_COUNT)) == 1
+
+    end subroutine install_patch
+
+  end subroutine finalize_block_velocity_source_transport
 
 
   subroutine prepare_block_velocity_compatibility_remainder (domain_sol)

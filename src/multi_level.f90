@@ -18,8 +18,11 @@ module multi_level_mod
        post_step1, Qperp, scalar_trend, step1
   use patch_mod,       only : PATCH_SIZE
   use parallel_block_mpi_mod, only : &
+       begin_block_velocity_source_transport, &
        block_dynamics_validation_enabled, &
-       capture_block_scalar_divergence_level
+       capture_block_scalar_divergence_level, &
+       capture_block_velocity_source_level, &
+       finalize_block_velocity_source_transport
   use utils_mod,       only : zero_float
   
   use domain_mod, only : Domain, Float_Field, get_offs_Domain, grid, &
@@ -96,13 +99,16 @@ contains
        velocity_source_measurement(d)%covered = .false.
        velocity_source_measurement(d)%direct = .false.
     end do
+    call begin_block_velocity_source_transport
 
   end subroutine begin_velocity_source_measurement
 
 
-  subroutine finish_velocity_source_measurement
+  subroutine finish_velocity_source_measurement (field_level)
 
     implicit none
+
+    integer, intent(in) :: field_level
 
     integer :: d
 
@@ -111,7 +117,16 @@ contains
             error stop "velocity-source measurement storage is absent"
        if (.not. any(velocity_source_measurement(d)%covered)) &
             error stop "velocity-source measurement coverage is empty"
+       call capture_block_velocity_source_level( &
+            d,field_level,velocity_source_measurement(d)%qperp, &
+            velocity_source_measurement(d)%physics, &
+            velocity_source_measurement(d)%edge_length, &
+            velocity_source_measurement(d)%integrated_source, &
+            velocity_source_measurement(d)%active, &
+            velocity_source_measurement(d)%covered, &
+            velocity_source_measurement(d)%direct)
     end do
+    call finalize_block_velocity_source_transport
 
   end subroutine finish_velocity_source_measurement
 
@@ -221,7 +236,7 @@ contains
        call velocity_trend_grad( &
             q,dq,k,validate_velocity_source)
        if (validate_velocity_source) &
-            call finish_velocity_source_measurement
+            call finish_velocity_source_measurement(k)
     end do
     dq%bdry_uptodate = .false.
   end subroutine block_tendency_compatibility_ml
