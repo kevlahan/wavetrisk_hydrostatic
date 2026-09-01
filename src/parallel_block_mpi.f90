@@ -12,7 +12,8 @@ module parallel_block_mpi_mod
   use kind_mod,   only : dp
   use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
        hex_s_offs, &
-       AT_EDGE, DG, EAST, EDGE, FROZEN, NORTH, NORTHEAST, NORTHWEST, N_BDRY, &
+       AT_EDGE, AT_NODE, DG, EAST, EDGE, FROZEN, NORTH, NORTHEAST, &
+       NORTHWEST, N_BDRY, &
        N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, n_domain, &
        IJMINUS, IMINUSJPLUS, IPLUSJMINUS, LORT, UPLT, TRIAG, &
        POLE, SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
@@ -581,7 +582,15 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PROFILE_INVERSE_FULL_IMPORT = 39
   integer, parameter :: BLOCK_PROFILE_INVERSE_BDRY_IMPORT = 40
   integer, parameter :: BLOCK_PROFILE_INVERSE_GHOST = 41
-  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 41
+  integer, parameter, public :: &
+       BLOCK_PROFILE_DOMAIN_TENDENCY_COMPATIBILITY = 42
+  integer, parameter, public :: &
+       BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY = 43
+  integer, parameter, public :: &
+       BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY = 44
+  integer, parameter, public :: &
+       BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY = 45
+  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 45
   character(len=32), parameter :: block_profile_phase_name( &
        BLOCK_PROFILE_PHASE_COUNT) = [character(len=32) :: &
        "complete timestep", "dynamics driver", "physics consumers", &
@@ -603,7 +612,11 @@ module parallel_block_mpi_mod
        "inverse local kernels", "inverse boundary synchronization", &
        "inverse final installation", "inverse boundary writeback", &
        "inverse Domain boundary callback", "inverse full interior import", &
-       "inverse boundary import", "inverse ghost refresh"]
+       "inverse boundary import", "inverse ghost refresh", &
+       "Domain tendency compatibility", &
+       "Domain operator compatibility", &
+       "Domain mass-flux compatibility", &
+       "Domain velocity compatibility"]
   logical, save :: block_profile = .false.
   logical, save :: block_profile_initialized = .false.
   real(dp), save :: block_profile_seconds(BLOCK_PROFILE_PHASE_COUNT) = &
@@ -760,6 +773,20 @@ module parallel_block_mpi_mod
   integer(int64), save :: block_velocity_source_allocations = 0_int64
 
   type :: Block_Scalar_Restriction_Exchange_Type
+     integer, allocatable :: boundary_source_displ(:)
+     integer, allocatable :: boundary_source_domain(:)
+     integer, allocatable :: boundary_source_record(:)
+     integer, allocatable :: boundary_source_node(:)
+     integer, allocatable :: boundary_source_level(:)
+     integer, allocatable :: boundary_source_owner_class(:)
+     integer, allocatable :: boundary_source_owner_domain(:)
+     integer, allocatable :: boundary_source_owner_node(:)
+     integer, allocatable :: boundary_owner_send_buffer(:)
+     integer, allocatable :: boundary_owner_recv_buffer(:)
+     integer, allocatable :: boundary_owner_domain_send_buffer(:)
+     integer, allocatable :: boundary_owner_domain_recv_buffer(:)
+     integer, allocatable :: boundary_owner_node_send_buffer(:)
+     integer, allocatable :: boundary_owner_node_recv_buffer(:)
      integer, allocatable :: boundary_send_count(:)
      integer, allocatable :: boundary_recv_count(:)
      integer, allocatable :: boundary_send_displ(:)
@@ -795,6 +822,16 @@ module parallel_block_mpi_mod
 
   type(Block_Scalar_Restriction_Exchange_Type), save :: &
        block_scalar_restriction_exchange
+  integer, parameter :: BLOCK_BOUNDARY_OWNER_LOCAL = 1
+  integer, parameter :: BLOCK_BOUNDARY_OWNER_REMOTE = 2
+  integer, parameter :: BLOCK_BOUNDARY_OWNER_SCAFFOLD = 3
+  integer, parameter :: BLOCK_BOUNDARY_OWNER_AMBIGUOUS = 4
+  integer, parameter :: BLOCK_BOUNDARY_OWNER_CLASS_COUNT = 4
+  integer(int64), save :: &
+       block_scalar_boundary_shadow_count(4) = 0_int64
+  integer(int64), save :: &
+       block_scalar_boundary_owner_shadow_count(3, &
+       BLOCK_BOUNDARY_OWNER_CLASS_COUNT) = 0_int64
 
   type :: Block_Scalar_Restriction_Context
      integer :: target_level = -1
@@ -1395,8 +1432,15 @@ contains
        if (enabled_count /= 0 .and. enabled_count /= n_process) &
             call fail("inconsistent block-dynamics validation option")
        block_dynamics_validation_initialized = .true.
-       if (block_dynamics_validation .and. rank == 0) write(6,'(a)') &
-            "Block dynamics validation oracle enabled"
+       if (rank == 0) then
+          if (block_dynamics_validation) then
+             write(6,'(a)') &
+                  "Block dynamics validation oracle enabled"
+          else
+             write(6,'(a)') &
+                  "Block dynamics validation oracle disabled"
+          end if
+       end if
     end if
     enabled = block_dynamics_validation
 
@@ -4117,6 +4161,7 @@ contains
     integer :: node
     integer :: record
     integer :: storage_class
+
     integer :: value_index
 
     if (level_slot < 1 .or. level_slot > block%n_field_level) then
@@ -9228,7 +9273,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine exchange_domain_to_block_payloads ( &
-       payload_family,tag_payload,domain_sol)
+       payload_family,tag_payload,domain_sol,vector_only)
     ! Reverse the persistent writeback routes without reallocating them.
     ! Domain owners pack one field family and final block owners receive the
     ! payload in catalogue order. Neither representation is modified.
@@ -9239,6 +9284,7 @@ end subroutine build_parallel_block_catalog
     logical, optional, intent(in) :: tag_payload
     type(Float_Field), optional, intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
+    logical, optional, intent(in) :: vector_only
 
     integer :: b
     integer :: d
@@ -9254,10 +9300,13 @@ end subroutine build_parallel_block_catalog
     integer :: vector_start
 
     logical :: plan_ready
+    logical :: transfer_vector_only
     logical :: use_tags
 
     use_tags = .false.
     if (present(tag_payload)) use_tags = tag_payload
+    transfer_vector_only = .false.
+    if (present(vector_only)) transfer_vector_only = vector_only
     plan_ready = block_writeback_plan_is_ready()
     if (.not. plan_ready) then
        call fail("Domain-to-block exchange before plan is ready")
@@ -9278,10 +9327,19 @@ end subroutine build_parallel_block_catalog
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("invalid Domain-to-block payload family")
     end if
+    if (transfer_vector_only .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS) then
+       call fail("vector-only Domain-to-block payload family is invalid")
+    end if
+    if (transfer_vector_only .and. use_tags) then
+       call fail("vector-only Domain-to-block tags are invalid")
+    end if
 
-    block_writeback_plan%scalar_recv_buffer = 0.0_dp
+    if (.not. transfer_vector_only) &
+         block_writeback_plan%scalar_recv_buffer = 0.0_dp
     block_writeback_plan%vector_recv_buffer = 0.0_dp
-    block_writeback_plan%scalar_send_buffer = 0.0_dp
+    if (.not. transfer_vector_only) &
+         block_writeback_plan%scalar_send_buffer = 0.0_dp
     block_writeback_plan%vector_send_buffer = 0.0_dp
 
     do r = 1,n_process
@@ -9347,16 +9405,19 @@ end subroutine build_parallel_block_catalog
        end if
     end do
 
-    call MPI_Alltoallv( &
-         block_writeback_plan%scalar_recv_buffer, &
-         block_writeback_plan%scalar_recv_count, &
-         block_writeback_plan%scalar_recv_displ, &
-         MPI_DOUBLE_PRECISION, &
-         block_writeback_plan%scalar_send_buffer, &
-         block_writeback_plan%scalar_send_count, &
-         block_writeback_plan%scalar_send_displ, &
-         MPI_DOUBLE_PRECISION,comm,ierr)
-    call check_mpi(ierr,"MPI_Alltoallv Domain-to-block scalar payload")
+    if (.not. transfer_vector_only) then
+       call MPI_Alltoallv( &
+            block_writeback_plan%scalar_recv_buffer, &
+            block_writeback_plan%scalar_recv_count, &
+            block_writeback_plan%scalar_recv_displ, &
+            MPI_DOUBLE_PRECISION, &
+            block_writeback_plan%scalar_send_buffer, &
+            block_writeback_plan%scalar_send_count, &
+            block_writeback_plan%scalar_send_displ, &
+            MPI_DOUBLE_PRECISION,comm,ierr)
+       call check_mpi( &
+            ierr,"MPI_Alltoallv Domain-to-block scalar payload")
+    end if
 
     call MPI_Alltoallv( &
          block_writeback_plan%vector_recv_buffer, &
@@ -16221,7 +16282,8 @@ end subroutine build_parallel_block_catalog
     end if
     if (compatibility_remainder) then
        call exchange_domain_to_block_payloads( &
-            BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS,domain_sol=domain_sol)
+            BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS, &
+            domain_sol=domain_sol,vector_only=.true.)
     else
        call exchange_domain_to_block_payloads( &
             BLOCK_PAYLOAD_PHYSICAL_COMPONENTS,domain_sol=domain_sol)
@@ -16786,6 +16848,50 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan_generation) return
 
     if (allocated(block_scalar_restriction_exchange% &
+         boundary_source_displ)) deallocate( &
+         block_scalar_restriction_exchange%boundary_source_displ)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_source_domain)) deallocate( &
+         block_scalar_restriction_exchange%boundary_source_domain)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_source_record)) deallocate( &
+         block_scalar_restriction_exchange%boundary_source_record)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_source_node)) deallocate( &
+         block_scalar_restriction_exchange%boundary_source_node)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_source_level)) deallocate( &
+         block_scalar_restriction_exchange%boundary_source_level)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_source_owner_class)) deallocate( &
+         block_scalar_restriction_exchange%boundary_source_owner_class)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_source_owner_domain)) deallocate( &
+         block_scalar_restriction_exchange%boundary_source_owner_domain)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_source_owner_node)) deallocate( &
+         block_scalar_restriction_exchange%boundary_source_owner_node)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_owner_send_buffer)) deallocate( &
+         block_scalar_restriction_exchange%boundary_owner_send_buffer)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_owner_recv_buffer)) deallocate( &
+         block_scalar_restriction_exchange%boundary_owner_recv_buffer)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_owner_domain_send_buffer)) deallocate( &
+         block_scalar_restriction_exchange% &
+         boundary_owner_domain_send_buffer)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_owner_domain_recv_buffer)) deallocate( &
+         block_scalar_restriction_exchange% &
+         boundary_owner_domain_recv_buffer)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_owner_node_send_buffer)) deallocate( &
+         block_scalar_restriction_exchange%boundary_owner_node_send_buffer)
+    if (allocated(block_scalar_restriction_exchange% &
+         boundary_owner_node_recv_buffer)) deallocate( &
+         block_scalar_restriction_exchange%boundary_owner_node_recv_buffer)
+    if (allocated(block_scalar_restriction_exchange% &
          boundary_send_count)) deallocate( &
          block_scalar_restriction_exchange%boundary_send_count)
     if (allocated(block_scalar_restriction_exchange% &
@@ -16892,6 +16998,24 @@ end subroutine build_parallel_block_catalog
          boundary_send_buffer(max(1,n_boundary_send)))
     allocate(block_scalar_restriction_exchange% &
          boundary_recv_buffer(max(1,n_boundary_recv)))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_owner_send_buffer(max(1,sum(block_writeback_plan% &
+         boundary_scalar_domain_send_count))))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_owner_recv_buffer(max(1,sum(block_writeback_plan% &
+         boundary_scalar_block_recv_count))))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_owner_domain_send_buffer(max(1,sum( &
+         block_writeback_plan%boundary_scalar_domain_send_count))))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_owner_domain_recv_buffer(max(1,sum( &
+         block_writeback_plan%boundary_scalar_block_recv_count))))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_owner_node_send_buffer(max(1,sum( &
+         block_writeback_plan%boundary_scalar_domain_send_count))))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_owner_node_recv_buffer(max(1,sum( &
+         block_writeback_plan%boundary_scalar_block_recv_count))))
 
     allocate(block_scalar_restriction_exchange% &
          ghost_send_count(n_process))
@@ -16961,10 +17085,18 @@ end subroutine build_parallel_block_catalog
     allocate(block_scalar_restriction_exchange%sparse_request( &
          max(1,2*n_process)))
 
+    call prepare_block_scalar_boundary_provenance
+
     block_scalar_restriction_exchange%boundary_send_buffer = &
          BLOCK_BOUNDARY_POISON
     block_scalar_restriction_exchange%boundary_recv_buffer = &
          BLOCK_BOUNDARY_POISON
+    block_scalar_restriction_exchange%boundary_owner_send_buffer = 0
+    block_scalar_restriction_exchange%boundary_owner_recv_buffer = 0
+    block_scalar_restriction_exchange%boundary_owner_domain_send_buffer = -3
+    block_scalar_restriction_exchange%boundary_owner_domain_recv_buffer = -3
+    block_scalar_restriction_exchange%boundary_owner_node_send_buffer = -3
+    block_scalar_restriction_exchange%boundary_owner_node_recv_buffer = -3
     block_scalar_restriction_exchange%ghost_send_buffer = &
          BLOCK_GHOST_POISON
     block_scalar_restriction_exchange%ghost_recv_buffer = &
@@ -16972,7 +17104,7 @@ end subroutine build_parallel_block_catalog
     block_scalar_restriction_exchange%ghost_patch_buffer = &
          BLOCK_GHOST_POISON
     block_scalar_restriction_exchange%allocations = &
-         block_scalar_restriction_exchange%allocations + 22_int64
+         block_scalar_restriction_exchange%allocations + 36_int64
     block_scalar_restriction_exchange%generation = &
          block_writeback_plan_generation
     block_scalar_restriction_exchange%ready = .true.
@@ -16980,6 +17112,568 @@ end subroutine build_parallel_block_catalog
          .false.
 
   end subroutine prepare_block_scalar_restriction_exchange
+
+
+  subroutine prepare_block_scalar_boundary_provenance
+    ! Stage 166A: retain a canonical topology key for every compact scalar
+    ! boundary node. Boundary storage has its own address space, so numerical
+    ! ownership must later be resolved through the Domain communication graph,
+    ! not by comparing boundary and patch element indices.
+
+    implicit none
+
+    integer :: b
+    integer :: boundary_index
+    integer :: d
+    integer :: d_source
+    integer :: destination_global
+    integer :: elts_start
+    integer :: field_value_slot
+    integer :: ierr
+    integer :: i
+    integer :: local_index
+    integer :: metadata_pos
+    integer :: n_field_value
+    integer :: n_local
+    integer :: n_node
+    integer :: node
+    integer :: owner_class
+    integer :: owner_pos
+    integer :: pos
+    integer :: pos_sample
+    integer :: r
+    integer :: route_index
+    integer :: sample
+    integer :: slot
+    integer :: source
+    integer :: source_global
+    integer :: source_id
+    integer :: source_bdry
+    integer :: source_level
+    integer :: target_id
+    integer :: total_domain_node
+    integer :: total_node
+
+    integer, allocatable :: domain_node_displ(:)
+    integer, allocatable :: route_count(:)
+    integer, allocatable :: route_source_domain(:)
+    integer, allocatable :: route_source_node(:)
+    integer, allocatable :: route_owner_rank(:)
+
+    integer(int64) :: count_global
+    integer(int64) :: count_local
+    integer(int64) :: owner_count_global(BLOCK_BOUNDARY_OWNER_CLASS_COUNT)
+    integer(int64) :: owner_count_local(BLOCK_BOUNDARY_OWNER_CLASS_COUNT)
+    integer(int64) :: source_key_count_global(4)
+    integer(int64) :: source_key_count_local(4)
+
+    n_local = n_local_blocks()
+    allocate(block_scalar_restriction_exchange% &
+         boundary_source_displ(n_local+1))
+    block_scalar_restriction_exchange%boundary_source_displ(1) = 0
+    do local_index = 1,n_local
+       b = local_block_catalog(local_index)
+       total_node = 0
+       do boundary_index = 1,local_block_boundary_count(b)
+          call get_local_block_boundary_source( &
+               b,boundary_index,source_bdry,elts_start,n_node, &
+               source_level)
+          if (source_bdry < 0 .or. elts_start < 0 .or. &
+               n_node < 1 .or. source_level < 0) then
+             call fail("scalar boundary provenance source is invalid")
+          end if
+          total_node = total_node+n_node
+       end do
+       block_scalar_restriction_exchange% &
+            boundary_source_displ(local_index+1) = &
+            block_scalar_restriction_exchange% &
+            boundary_source_displ(local_index)+total_node
+    end do
+    total_node = block_scalar_restriction_exchange% &
+         boundary_source_displ(n_local+1)
+    allocate(block_scalar_restriction_exchange% &
+         boundary_source_domain(max(1,total_node)))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_source_record(max(1,total_node)))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_source_node(max(1,total_node)))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_source_level(max(1,total_node)))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_source_owner_class(max(1,total_node)))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_source_owner_domain(max(1,total_node)))
+    allocate(block_scalar_restriction_exchange% &
+         boundary_source_owner_node(max(1,total_node)))
+    block_scalar_restriction_exchange%boundary_source_domain = -1
+    block_scalar_restriction_exchange%boundary_source_record = -1
+    block_scalar_restriction_exchange%boundary_source_node = -1
+    block_scalar_restriction_exchange%boundary_source_level = -1
+    block_scalar_restriction_exchange%boundary_source_owner_class = 0
+    block_scalar_restriction_exchange%boundary_source_owner_domain = -3
+    block_scalar_restriction_exchange%boundary_source_owner_node = -3
+
+    do local_index = 1,n_local
+       b = local_block_catalog(local_index)
+       pos = block_scalar_restriction_exchange% &
+            boundary_source_displ(local_index)+1
+       do boundary_index = 1,local_block_boundary_count(b)
+          call get_local_block_boundary_source( &
+               b,boundary_index,source_bdry,elts_start,n_node, &
+               source_level)
+          do node = 0,n_node-1
+             if (pos < 1 .or. pos > max(1,total_node)) then
+                call fail("scalar boundary provenance extent is invalid")
+             end if
+             block_scalar_restriction_exchange% &
+                  boundary_source_domain(pos) = &
+                  block_catalog(b)%root_domain
+             block_scalar_restriction_exchange% &
+                  boundary_source_record(pos) = source_bdry
+             block_scalar_restriction_exchange% &
+                  boundary_source_node(pos) = node
+             block_scalar_restriction_exchange% &
+                  boundary_source_level(pos) = source_level
+             pos = pos+1
+          end do
+       end do
+       if (pos /= block_scalar_restriction_exchange% &
+            boundary_source_displ(local_index+1)+1) then
+          call fail("scalar boundary provenance coverage differs")
+       end if
+    end do
+    if (total_node > 0) then
+       if (any(block_scalar_restriction_exchange% &
+            boundary_source_domain(1:total_node) < 0) .or. &
+            any(block_scalar_restriction_exchange% &
+            boundary_source_record(1:total_node) < 0) .or. &
+            any(block_scalar_restriction_exchange% &
+            boundary_source_node(1:total_node) < 0) .or. &
+            any(block_scalar_restriction_exchange% &
+            boundary_source_level(1:total_node) < 0)) then
+          call fail("scalar boundary provenance map is incomplete")
+       end if
+    end if
+
+    ! Stage 166C: resolve each retained Domain-boundary address against the
+    ! established AT_NODE receive graph. The aligned pack/unpack position is
+    ! the only canonical ownership relation; boundary and patch indices are
+    ! deliberately not compared. Multiple routes are retained as an explicit
+    ! ambiguous class instead of selecting an arbitrary owner.
+    allocate(domain_node_displ(size(grid)+1))
+    domain_node_displ(1) = 0
+    do d = 1,size(grid)
+       domain_node_displ(d+1) = domain_node_displ(d) + &
+            grid(d)%node%length
+    end do
+    total_domain_node = domain_node_displ(size(grid)+1)
+    allocate(route_count(max(1,total_domain_node)))
+    allocate(route_owner_rank(max(1,total_domain_node)))
+    allocate(route_source_domain(max(1,total_domain_node)))
+    allocate(route_source_node(max(1,total_domain_node)))
+    route_count = 0
+    route_owner_rank = -1
+    route_source_domain = -3
+    route_source_node = -3
+
+    do d = 1,size(grid)
+       destination_global = glo_id(rank+1,d)+1
+       do r = 1,n_process
+          do d_source = 1,n_domain(r)
+             source_global = glo_id(r,d_source)+1
+             if (r == rank+1) then
+                if (grid(d_source)% &
+                     pack(AT_NODE,destination_global)%length /= &
+                     grid(d)%unpk(AT_NODE,source_global)%length) then
+                   call fail("scalar boundary local source routes differ")
+                end if
+             end if
+             do i = 1,grid(d)%unpk(AT_NODE,source_global)%length
+                target_id = abs( &
+                     grid(d)%unpk(AT_NODE,source_global)%elts(i))
+                if (target_id < 0 .or. &
+                     target_id >= grid(d)%node%length) then
+                   call fail("scalar boundary owner target is invalid")
+                end if
+                route_index = domain_node_displ(d)+target_id+1
+                route_count(route_index) = route_count(route_index)+1
+                if (route_count(route_index) == 1) then
+                   route_owner_rank(route_index) = r-1
+                   route_source_domain(route_index) = source_global-1
+                   route_source_node(route_index) = -1
+                   if (r == rank+1) then
+                      source_id = grid(d_source)% &
+                           pack(AT_NODE,destination_global)%elts(i)
+                      if (source_id < 0 .or. &
+                           source_id >= grid(d_source)%node%length) then
+                         call fail( &
+                              "scalar boundary local source is invalid")
+                      end if
+                      route_source_node(route_index) = source_id
+                   end if
+                else if (route_owner_rank(route_index) /= r-1) then
+                   route_owner_rank(route_index) = -2
+                   route_source_domain(route_index) = -2
+                   route_source_node(route_index) = -2
+                else
+                   route_source_domain(route_index) = -2
+                   route_source_node(route_index) = -2
+                end if
+             end do
+          end do
+       end do
+    end do
+
+    ! Stage 166D: resolve source keys only where the target Domain is
+    ! resident, then carry them to migrated final blocks in the already
+    ! validated scalar-boundary stream. The source Domain is exact for every
+    ! single route; the source node is exact when the aligned pack array is
+    ! local and remains explicitly unresolved for a remote pack.
+    if (mod(block_writeback_plan%scalar_patch_nvalue, &
+         PATCH_SIZE**2) /= 0) then
+       call fail("scalar boundary owner field layout is invalid")
+    end if
+    n_field_value = block_writeback_plan%scalar_patch_nvalue / &
+         PATCH_SIZE**2
+    if (n_field_value < 1) then
+       call fail("scalar boundary owner field count is invalid")
+    end if
+    block_scalar_restriction_exchange%boundary_owner_send_buffer = 0
+    block_scalar_restriction_exchange%boundary_owner_recv_buffer = 0
+    block_scalar_restriction_exchange%boundary_owner_domain_send_buffer = -3
+    block_scalar_restriction_exchange%boundary_owner_domain_recv_buffer = -3
+    block_scalar_restriction_exchange%boundary_owner_node_send_buffer = -3
+    block_scalar_restriction_exchange%boundary_owner_node_recv_buffer = -3
+    do r = 1,n_process
+       pos_sample = block_writeback_plan% &
+            boundary_scalar_domain_send_displ(r)+1
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r) + &
+            block_writeback_plan%recv_count(r)
+          b = block_writeback_plan%recv_block(slot)
+          source = source_rank(b)
+          d = loc_id(block_catalog(b)%root_domain+1)+1
+          if (source /= rank .or. d < 1 .or. d > size(grid) .or. &
+               block_catalog(b)%owner /= r-1) then
+             call fail("scalar boundary owner send route is invalid")
+          end if
+          do boundary_index = 1, &
+               block_writeback_plan%recv_boundary_count(slot)
+             metadata_pos = block_writeback_plan% &
+                  recv_boundary_displ(slot)+boundary_index
+             source_bdry = block_writeback_plan% &
+                  recv_boundary_source(metadata_pos)
+             n_node = block_writeback_plan% &
+                  recv_boundary_nnode(metadata_pos)
+             do field_value_slot = 1,n_field_value
+                do node = 0,n_node-1
+                   sample = pos_sample-1 + &
+                        (field_value_slot-1)*n_node + node
+                   call domain_boundary_owner_key( &
+                        d,source_bdry,node,owner_class, &
+                        source_global,source_id)
+                   block_scalar_restriction_exchange% &
+                        boundary_owner_send_buffer(sample+1) = &
+                        owner_class
+                   block_scalar_restriction_exchange% &
+                        boundary_owner_domain_send_buffer(sample+1) = &
+                        source_global
+                   block_scalar_restriction_exchange% &
+                        boundary_owner_node_send_buffer(sample+1) = &
+                        source_id
+                end do
+             end do
+             pos_sample = pos_sample + &
+                  n_node*n_field_value
+          end do
+       end do
+       if (pos_sample /= block_writeback_plan% &
+            boundary_scalar_domain_send_displ(r) + &
+            block_writeback_plan% &
+            boundary_scalar_domain_send_count(r)+1) then
+          call fail("scalar boundary owner send extent differs")
+       end if
+    end do
+
+    call MPI_Alltoallv( &
+         block_scalar_restriction_exchange%boundary_owner_send_buffer, &
+         block_writeback_plan%boundary_scalar_domain_send_count, &
+         block_writeback_plan%boundary_scalar_domain_send_displ, &
+         MPI_INTEGER, &
+         block_scalar_restriction_exchange%boundary_owner_recv_buffer, &
+         block_writeback_plan%boundary_scalar_block_recv_count, &
+         block_writeback_plan%boundary_scalar_block_recv_displ, &
+         MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary owner classes")
+    call MPI_Alltoallv( &
+         block_scalar_restriction_exchange% &
+         boundary_owner_domain_send_buffer, &
+         block_writeback_plan%boundary_scalar_domain_send_count, &
+         block_writeback_plan%boundary_scalar_domain_send_displ, &
+         MPI_INTEGER, &
+         block_scalar_restriction_exchange% &
+         boundary_owner_domain_recv_buffer, &
+         block_writeback_plan%boundary_scalar_block_recv_count, &
+         block_writeback_plan%boundary_scalar_block_recv_displ, &
+         MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary owner Domains")
+    call MPI_Alltoallv( &
+         block_scalar_restriction_exchange% &
+         boundary_owner_node_send_buffer, &
+         block_writeback_plan%boundary_scalar_domain_send_count, &
+         block_writeback_plan%boundary_scalar_domain_send_displ, &
+         MPI_INTEGER, &
+         block_scalar_restriction_exchange% &
+         boundary_owner_node_recv_buffer, &
+         block_writeback_plan%boundary_scalar_block_recv_count, &
+         block_writeback_plan%boundary_scalar_block_recv_displ, &
+         MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary owner nodes")
+
+    do r = 1,n_process
+       pos_sample = block_writeback_plan% &
+            boundary_scalar_block_recv_displ(r)+1
+       do slot = block_writeback_plan%send_displ(r)+1, &
+            block_writeback_plan%send_displ(r) + &
+            block_writeback_plan%send_count(r)
+          b = block_writeback_plan%send_block(slot)
+          local_index = catalog_local_block(b)
+          if (local_index < 1 .or. local_index > n_local .or. &
+               source_rank(b) /= r-1) then
+             call fail("scalar boundary owner receive route is invalid")
+          end if
+          owner_pos = block_scalar_restriction_exchange% &
+               boundary_source_displ(local_index)+1
+          do boundary_index = 1,local_block_boundary_count(b)
+             call get_local_block_boundary_source( &
+                  b,boundary_index,source_bdry,elts_start,n_node)
+             do node = 0,n_node-1
+                owner_class = block_scalar_restriction_exchange% &
+                     boundary_owner_recv_buffer(pos_sample+node)
+                source_global = block_scalar_restriction_exchange% &
+                     boundary_owner_domain_recv_buffer(pos_sample+node)
+                source_id = block_scalar_restriction_exchange% &
+                     boundary_owner_node_recv_buffer(pos_sample+node)
+                do field_value_slot = 1,n_field_value
+                   sample = pos_sample-1 + &
+                        (field_value_slot-1)*n_node + node
+                   if (block_scalar_restriction_exchange% &
+                        boundary_owner_recv_buffer(sample+1) /= &
+                        owner_class .or. &
+                        block_scalar_restriction_exchange% &
+                        boundary_owner_domain_recv_buffer(sample+1) /= &
+                        source_global .or. &
+                        block_scalar_restriction_exchange% &
+                        boundary_owner_node_recv_buffer(sample+1) /= &
+                        source_id) then
+                      call fail( &
+                           "scalar boundary owner replicas differ")
+                   end if
+                end do
+                block_scalar_restriction_exchange% &
+                     boundary_source_owner_class(owner_pos+node) = &
+                     owner_class
+                block_scalar_restriction_exchange% &
+                     boundary_source_owner_domain(owner_pos+node) = &
+                     source_global
+                block_scalar_restriction_exchange% &
+                     boundary_source_owner_node(owner_pos+node) = &
+                     source_id
+             end do
+             owner_pos = owner_pos+n_node
+             pos_sample = pos_sample + &
+                  n_node*n_field_value
+          end do
+          if (owner_pos /= block_scalar_restriction_exchange% &
+               boundary_source_displ(local_index+1)+1) then
+             call fail("scalar boundary owner receive coverage differs")
+          end if
+       end do
+       if (pos_sample /= block_writeback_plan% &
+            boundary_scalar_block_recv_displ(r) + &
+            block_writeback_plan% &
+            boundary_scalar_block_recv_count(r)+1) then
+          call fail("scalar boundary owner receive extent differs")
+       end if
+    end do
+
+    do local_index = 1,n_local
+       b = local_block_catalog(local_index)
+       if (source_rank(b) /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1)+1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("retained scalar boundary owner Domain is invalid")
+       end if
+       owner_pos = block_scalar_restriction_exchange% &
+            boundary_source_displ(local_index)+1
+       do boundary_index = 1,local_block_boundary_count(b)
+          call get_local_block_boundary_source( &
+               b,boundary_index,source_bdry,elts_start,n_node)
+          do node = 0,n_node-1
+             call domain_boundary_owner_key( &
+                  d,source_bdry,node,owner_class, &
+                  source_global,source_id)
+             block_scalar_restriction_exchange% &
+                  boundary_source_owner_class(owner_pos+node) = &
+                  owner_class
+             block_scalar_restriction_exchange% &
+                  boundary_source_owner_domain(owner_pos+node) = &
+                  source_global
+             block_scalar_restriction_exchange% &
+                  boundary_source_owner_node(owner_pos+node) = source_id
+          end do
+          owner_pos = owner_pos+n_node
+       end do
+       if (owner_pos /= block_scalar_restriction_exchange% &
+            boundary_source_displ(local_index+1)+1) then
+          call fail("retained scalar boundary owner coverage differs")
+       end if
+    end do
+    deallocate(route_source_node)
+    deallocate(route_source_domain)
+    deallocate(route_owner_rank)
+    deallocate(route_count)
+    deallocate(domain_node_displ)
+
+    owner_count_local = 0_int64
+    do pos = 1,total_node
+       r = block_scalar_restriction_exchange% &
+            boundary_source_owner_class(pos)
+       if (r < 1 .or. r > BLOCK_BOUNDARY_OWNER_CLASS_COUNT) then
+          call fail("scalar boundary owner class is invalid")
+       end if
+       owner_count_local(r) = owner_count_local(r)+1_int64
+    end do
+    if (sum(owner_count_local) /= int(total_node,int64)) then
+       call fail("scalar boundary owner coverage differs")
+    end if
+    source_key_count_local = 0_int64
+    do pos = 1,total_node
+       owner_class = block_scalar_restriction_exchange% &
+            boundary_source_owner_class(pos)
+       source_global = block_scalar_restriction_exchange% &
+            boundary_source_owner_domain(pos)
+       source_id = block_scalar_restriction_exchange% &
+            boundary_source_owner_node(pos)
+       select case (owner_class)
+       case (BLOCK_BOUNDARY_OWNER_LOCAL)
+          if (source_global < 0 .or. source_id < 0) then
+             call fail("local scalar boundary source key is incomplete")
+          end if
+          source_key_count_local(1) = source_key_count_local(1)+1_int64
+       case (BLOCK_BOUNDARY_OWNER_REMOTE)
+          if (source_global < 0 .or. source_id /= -1) then
+             call fail("remote scalar boundary source key is invalid")
+          end if
+          source_key_count_local(2) = source_key_count_local(2)+1_int64
+       case (BLOCK_BOUNDARY_OWNER_SCAFFOLD)
+          if (source_global /= -1 .or. source_id /= -1) then
+             call fail("scaffold scalar boundary source key is invalid")
+          end if
+          source_key_count_local(3) = source_key_count_local(3)+1_int64
+       case (BLOCK_BOUNDARY_OWNER_AMBIGUOUS)
+          if (source_global /= -2 .or. source_id /= -2) then
+             call fail("ambiguous scalar boundary source key is invalid")
+          end if
+          source_key_count_local(4) = source_key_count_local(4)+1_int64
+       case default
+          call fail("scalar boundary source key class is invalid")
+       end select
+    end do
+    if (sum(source_key_count_local) /= int(total_node,int64)) then
+       call fail("scalar boundary source key coverage differs")
+    end if
+
+    if (block_dynamics_validation_enabled()) then
+       call MPI_Allreduce(owner_count_local,owner_count_global, &
+            BLOCK_BOUNDARY_OWNER_CLASS_COUNT,MPI_INTEGER8,MPI_SUM, &
+            comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce scalar boundary owner classes")
+       call MPI_Allreduce(source_key_count_local,source_key_count_global, &
+            4,MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce scalar boundary source keys")
+       if (sum(owner_count_global) <= 0_int64) then
+          call fail("scalar boundary owner coverage is empty")
+       end if
+       count_local = int(total_node,int64)
+       call MPI_Allreduce(count_local,count_global,1,MPI_INTEGER8, &
+            MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce scalar boundary provenance")
+       if (count_global <= 0_int64) then
+          call fail("scalar boundary provenance coverage is empty")
+       end if
+       if (rank == 0) write(6,'(a,i0)') &
+            "Block scalar boundary provenance nodes = ",count_global
+       if (rank == 0) write(6,'(a,4(i0,1x))') &
+            "Block scalar boundary owner classes: " // &
+            "local remote scaffold ambiguous = ",owner_count_global
+       if (rank == 0) write(6,'(a,4(i0,1x))') &
+            "Block scalar boundary source keys: " // &
+            "exact remote-pending scaffold ambiguous = ", &
+            source_key_count_global
+    end if
+
+  contains
+
+    subroutine domain_boundary_owner_key ( &
+         d_boundary,boundary_record,boundary_node,owner_class, &
+         owner_domain,owner_node)
+
+      implicit none
+
+      integer, intent(in) :: d_boundary
+      integer, intent(in) :: boundary_record
+      integer, intent(in) :: boundary_node
+      integer, intent(out) :: owner_class
+      integer, intent(out) :: owner_domain
+      integer, intent(out) :: owner_node
+
+      integer :: domain_route_index
+      integer :: domain_target_id
+
+      if (d_boundary < 1 .or. d_boundary > size(grid) .or. &
+           boundary_record < 0 .or. &
+           boundary_record >= grid(d_boundary)%bdry_patch%length .or. &
+           boundary_node < 0) then
+         call fail("scalar boundary owner provenance is invalid")
+      end if
+      domain_target_id = grid(d_boundary)% &
+           bdry_patch%elts(boundary_record+1)%elts_start + boundary_node
+      if (domain_target_id < 0 .or. &
+           domain_target_id >= grid(d_boundary)%node%length) then
+         call fail("scalar boundary owner address is invalid")
+      end if
+      domain_route_index = domain_node_displ(d_boundary) + &
+           domain_target_id+1
+      select case (route_count(domain_route_index))
+      case (0)
+         owner_class = BLOCK_BOUNDARY_OWNER_SCAFFOLD
+         owner_domain = -1
+         owner_node = -1
+      case (1)
+         if (route_owner_rank(domain_route_index) == rank) then
+            owner_class = BLOCK_BOUNDARY_OWNER_LOCAL
+         else
+            owner_class = BLOCK_BOUNDARY_OWNER_REMOTE
+         end if
+         owner_domain = route_source_domain(domain_route_index)
+         owner_node = route_source_node(domain_route_index)
+         if (owner_domain < 0 .or. &
+              (owner_class == BLOCK_BOUNDARY_OWNER_LOCAL .and. &
+              owner_node < 0) .or. &
+              (owner_class == BLOCK_BOUNDARY_OWNER_REMOTE .and. &
+              owner_node /= -1)) then
+            call fail("scalar boundary owner source key is invalid")
+         end if
+      case default
+         owner_class = BLOCK_BOUNDARY_OWNER_AMBIGUOUS
+         owner_domain = -2
+         owner_node = -2
+      end select
+
+    end subroutine domain_boundary_owner_key
+
+  end subroutine prepare_block_scalar_boundary_provenance
 
 
   subroutine capture_block_scalar_divergence_level ( &
@@ -18783,6 +19477,10 @@ end subroutine build_parallel_block_catalog
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
     validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle) then
+       block_scalar_boundary_shadow_count = 0_int64
+       block_scalar_boundary_owner_shadow_count = 0_int64
+    end if
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("block-native scalar restriction exchange is not ready")
     end if
@@ -18830,6 +19528,7 @@ end subroutine build_parallel_block_catalog
     end do
     statistics%target_level = -1
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
+    if (validate_oracle) call report_block_scalar_boundary_shadow
     if (validate_oracle) then
        call block_profile_enter(BLOCK_PROFILE_ORACLE)
        call apply_local_block_field_consumer( &
@@ -18893,6 +19592,62 @@ end subroutine build_parallel_block_catalog
          BLOCK_PROFILE_RESTRICTION,sum(count_local))
 
   end subroutine evaluate_candidate_block_scalar_restriction
+
+
+  subroutine report_block_scalar_boundary_shadow
+    ! Stage 166B shadow report. Counts boundary dscalar consumptions for which
+    ! direct-flux reconstruction matches the authoritative Domain value, and
+    ! those that require an owner-routed or scaffold value. Production still
+    ! consumes the captured reference in every case.
+
+    implicit none
+
+    integer :: ierr
+    integer(int64) :: count_global(4)
+    integer(int64) :: owner_count_global(3, &
+         BLOCK_BOUNDARY_OWNER_CLASS_COUNT)
+
+    call MPI_Allreduce(block_scalar_boundary_shadow_count,count_global,4, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce boundary dscalar shadow")
+    call MPI_Allreduce(block_scalar_boundary_owner_shadow_count, &
+         owner_count_global,size(owner_count_global),MPI_INTEGER8, &
+         MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce boundary dscalar owner shadow")
+    if (count_global(1) /= count_global(2)+count_global(4) .or. &
+         count_global(3) > count_global(1)) then
+       call fail("boundary dscalar shadow coverage differs")
+    end if
+    if (sum(owner_count_global(1,:)) /= count_global(1) .or. &
+         sum(owner_count_global(2,:)) /= count_global(2) .or. &
+         sum(owner_count_global(3,:)) /= count_global(4) .or. &
+         any(owner_count_global(1,:) /= owner_count_global(2,:) + &
+         owner_count_global(3,:))) then
+       call fail("boundary dscalar owner shadow coverage differs")
+    end if
+    if (rank == 0) write(6,'(a,4(i0,1x))') &
+         "Block boundary dscalar shadow: " // &
+         "access match Domain-zero mismatch = ",count_global
+    if (rank == 0) then
+       write(6,'(a,3(i0,1x))') &
+            "Block boundary owner shadow local: " // &
+            "access match mismatch = ", &
+            owner_count_global(:,BLOCK_BOUNDARY_OWNER_LOCAL)
+       write(6,'(a,3(i0,1x))') &
+            "Block boundary owner shadow remote: " // &
+            "access match mismatch = ", &
+            owner_count_global(:,BLOCK_BOUNDARY_OWNER_REMOTE)
+       write(6,'(a,3(i0,1x))') &
+            "Block boundary owner shadow scaffold: " // &
+            "access match mismatch = ", &
+            owner_count_global(:,BLOCK_BOUNDARY_OWNER_SCAFFOLD)
+       write(6,'(a,3(i0,1x))') &
+            "Block boundary owner shadow ambiguous: " // &
+            "access match mismatch = ", &
+            owner_count_global(:,BLOCK_BOUNDARY_OWNER_AMBIGUOUS)
+    end if
+
+  end subroutine report_block_scalar_boundary_shadow
 
 
   subroutine initialize_scalar_restriction_boundary_flux
@@ -20846,6 +21601,21 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: j
     integer, intent(in) :: flux_start
 
+    integer :: boundary_index
+    integer :: node
+    integer :: owner_class
+    integer :: owner_pos
+    integer :: record
+    integer :: source_node
+    integer :: storage_class
+
+    logical :: validate_oracle
+
+    real(dp) :: candidate_value
+    real(dp) :: comparison_tolerance
+    real(dp) :: operation_scale
+    real(dp) :: reference_value
+
     if (flux_start /= BLOCK_SCALAR_DIRECT_FLUX_START .and. &
          flux_start /= BLOCK_SCALAR_RESTRICTED_FLUX_START) then
        call fail("scalar-restriction dscalar mode is invalid")
@@ -20853,6 +21623,85 @@ end subroutine build_parallel_block_catalog
     value = block_scalar_record_value( &
          block,local_index,p,scalar_slot,level_slot,i,j, &
          BLOCK_SCALAR_NATIVE_DSCALAR_INDEX)
+
+    ! Stage 166B is observational only. At direct-flux physical-boundary
+    ! consumptions, reconstruct dscalar from the compact flux stencil and
+    ! classify agreement with the authoritative Domain value. Never replace
+    ! the returned production value here.
+    validate_oracle = block_dynamics_validation_enabled()
+    if (validate_oracle .and. &
+         flux_start == BLOCK_SCALAR_DIRECT_FLUX_START) then
+       call locate_block_scalar_record( &
+            block,local_index,p,i,j,storage_class,record,node)
+       if (storage_class == STORE_BDRY) then
+          if (local_index < 1 .or. local_index+1 > size( &
+               block_scalar_restriction_exchange% &
+               boundary_source_displ) .or. record < 1 .or. &
+               record > size(block%bdry_storage)) then
+             call fail("boundary dscalar owner lookup is invalid")
+          end if
+          source_node = node-block%bdry_storage(record)%local_start
+          if (source_node < 0 .or. &
+               source_node >= block%bdry_storage(record)%n_node) then
+             call fail("boundary dscalar owner node is invalid")
+          end if
+          owner_pos = block_scalar_restriction_exchange% &
+               boundary_source_displ(local_index)+1
+          do boundary_index = 1,record-1
+             owner_pos = owner_pos + &
+                  block%bdry_storage(boundary_index)%n_node
+          end do
+          owner_pos = owner_pos+source_node
+          if (owner_pos < 1 .or. owner_pos >= &
+               block_scalar_restriction_exchange% &
+               boundary_source_displ(local_index+1)+1 .or. &
+               block_scalar_restriction_exchange% &
+               boundary_source_domain(owner_pos) /= block%root_domain .or. &
+               block_scalar_restriction_exchange% &
+               boundary_source_record(owner_pos) /= &
+               block%bdry_storage(record)%source_bdry .or. &
+               block_scalar_restriction_exchange% &
+               boundary_source_node(owner_pos) /= source_node) then
+             call fail("boundary dscalar owner provenance differs")
+          end if
+          owner_class = block_scalar_restriction_exchange% &
+               boundary_source_owner_class(owner_pos)
+          if (owner_class < 1 .or. &
+               owner_class > BLOCK_BOUNDARY_OWNER_CLASS_COUNT) then
+             call fail("boundary dscalar owner class is invalid")
+          end if
+          reference_value = value
+          candidate_value = block_scalar_flux_divergence( &
+               block,local_index,p,scalar_slot,level_slot,i,j, &
+               BLOCK_SCALAR_DIRECT_FLUX_START, &
+               operation_scale=operation_scale)
+          comparison_tolerance = scalar_restriction_roundoff_tolerance( &
+               candidate_value,reference_value,1,operation_scale)
+          block_scalar_boundary_shadow_count(1) = &
+               block_scalar_boundary_shadow_count(1)+1_int64
+          block_scalar_boundary_owner_shadow_count(1,owner_class) = &
+               block_scalar_boundary_owner_shadow_count(1,owner_class) + &
+               1_int64
+          if (abs(candidate_value-reference_value) <= &
+               comparison_tolerance) then
+             block_scalar_boundary_shadow_count(2) = &
+                  block_scalar_boundary_shadow_count(2)+1_int64
+             block_scalar_boundary_owner_shadow_count(2,owner_class) = &
+                  block_scalar_boundary_owner_shadow_count( &
+                  2,owner_class)+1_int64
+          else
+             block_scalar_boundary_shadow_count(4) = &
+                  block_scalar_boundary_shadow_count(4)+1_int64
+             block_scalar_boundary_owner_shadow_count(3,owner_class) = &
+                  block_scalar_boundary_owner_shadow_count( &
+                  3,owner_class)+1_int64
+          end if
+          if (abs(reference_value) < tiny(1.0_dp)) then
+             block_scalar_boundary_shadow_count(3) = &
+                  block_scalar_boundary_shadow_count(3)+1_int64
+          end if
+       end if
+    end if
 
   end function block_restriction_dscalar
 
@@ -22983,7 +23832,6 @@ end subroutine build_parallel_block_catalog
     end if
 
     if (payload_family == BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS) then
-       scalar_payload(scalar_pos:scalar_pos+n_scalar_patch-1) = 0.0_dp
        scalar_pos = scalar_pos + n_scalar_patch
        call pack_domain_patch_velocity_recomposition( &
             d,p,vector_payload( &
@@ -23255,7 +24103,6 @@ end subroutine build_parallel_block_catalog
     end do
 
   end subroutine pack_domain_patch_prognostic
-
 
   subroutine pack_domain_patch_edge_length (d,p,edge_length)
     ! Repeat the authoritative, initialized production primal-edge metric

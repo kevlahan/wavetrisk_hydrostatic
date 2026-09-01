@@ -18,11 +18,15 @@ module multi_level_mod
        post_step1, Qperp, scalar_trend, step1
   use patch_mod,       only : PATCH_SIZE
   use parallel_block_mpi_mod, only : &
+       BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY, &
+       BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY, &
+       BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY, &
        begin_block_velocity_source_transport, &
        block_dynamics_validation_enabled, &
        capture_block_scalar_divergence_level, &
        capture_block_velocity_source_level, &
-       finalize_block_velocity_source_transport
+       finalize_block_velocity_source_transport, &
+       parallel_block_profile_begin, parallel_block_profile_end
   use utils_mod,       only : zero_float
   
   use domain_mod, only : Domain, Float_Field, get_offs_Domain, grid, &
@@ -165,8 +169,8 @@ contains
                   domain_tendency=dq,dscalar_only=.true.)
           end if
 
-          call basic_operators  (q, dq, k, l)
-          call cal_scalar_trend (q, dq, k, l)
+          call basic_operators  (q, dq, k, l, .false.)
+          call cal_scalar_trend (q, dq, k, l, .false.)
 
           ! Start non-blocking communication of dq for use at next level (l-1)
           if (level_start /= level_end .and. l > level_start) call update_bdry__start (dq(scalars(1):scalars(2),k),l) 
@@ -195,6 +199,8 @@ contains
 
     logical :: validate_velocity_source
 
+    real(dp) :: profile_start
+
     call update_bdry(q,NONE,1067)
     call zero_float(dq)
     call cal_surf_press(q(1:N_VARIABLE,1:zlevels))
@@ -219,13 +225,28 @@ contains
                   q,physics_scalar_flux,0,k,l+1, &
                   domain_tendency=dq,dscalar_only=.true.)
           end if
-          call basic_operators(q,dq,k,l)
-          call cal_scalar_trend(q,dq,k,l)
-          if (level_start /= level_end .and. l > level_start) &
-               call update_bdry__start( &
-               dq(scalars(1):scalars(2),k),l)
+          profile_start = parallel_block_profile_begin( &
+               BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY)
+          call basic_operators( &
+               q,dq,k,l,.false.)
+          call parallel_block_profile_end( &
+               BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY,profile_start)
+          profile_start = parallel_block_profile_begin( &
+               BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY)
+          call cal_scalar_trend( &
+               q,dq,k,l,.false.)
+          call parallel_block_profile_end( &
+               BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY,profile_start)
+          if (level_start /= level_end .and. l > level_start) then
+             call update_bdry__start( &
+                  dq(scalars(1):scalars(2),k),l)
+          end if
+          profile_start = parallel_block_profile_begin( &
+               BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY)
           call velocity_trend_source( &
                q,dq,k,l,validate_velocity_source)
+          call parallel_block_profile_end( &
+               BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY,profile_start)
        end do
 
        ! Retain the legacy-complete velocity gradient here.  The compatibility
@@ -233,8 +254,12 @@ contains
        ! recomposition already validated by the block oracle, avoiding the
        ! first-physical-level discrepancy of the independently shortened
        ! Bernoulli-gradient pass.
+       profile_start = parallel_block_profile_begin( &
+            BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY)
        call velocity_trend_grad( &
             q,dq,k,validate_velocity_source)
+       call parallel_block_profile_end( &
+            BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY,profile_start)
        if (validate_velocity_source) &
             call finish_velocity_source_measurement(k)
     end do
@@ -242,15 +267,16 @@ contains
   end subroutine block_tendency_compatibility_ml
 
   
-  subroutine basic_operators (q, dq, k, l)
+  subroutine basic_operators (q, dq, k, l, mass_only_compatibility)
     ! Evaluates basic operators on grid level l and computes/restricts Bernoulli, Exner and fluxes
     
     implicit none
     
     type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
     integer,                   intent(in)    :: k, l
+    logical,                   intent(in)    :: mass_only_compatibility
 
-    integer :: d, j, v
+    integer :: d, j, v, scalar_last
 
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
@@ -280,6 +306,17 @@ contains
     call capture_block_scalar_divergence_level( &
          q,physics_scalar_flux,0,k,l,.true.)
 
+    ! Production still needs current six-edge flux records and complete compact
+    ! record coverage for both scalars before the Domain mass-only restriction.
+    ! Physical-boundary dscalar remains seeded from its validated immutable
+    ! reference because boundary records contain only positive-edge fluxes.
+    if (mass_only_compatibility) then
+       horiz_flux(S_TEMP)%bdry_uptodate = .false.
+       call update_bdry(horiz_flux(S_TEMP:S_TEMP),l,1070)
+       call capture_block_scalar_divergence_level( &
+            q,physics_scalar_flux,0,k,l)
+    end if
+
     ! Compute or restrict Bernoulli, Exner and fluxes only after every local
     ! Domain direct-flux shadow has been captured.
     if (l < level_end) then
@@ -292,7 +329,9 @@ contains
           call cpt_or_restr_scalar (grid(d), l)
           nullify (scalar)
 
-          do v = scalars(1),scalars(2)
+          scalar_last = scalars(2)
+          if (mass_only_compatibility) scalar_last = S_MASS
+          do v = scalars(1),scalar_last
              dscalar => dq(v,k)%data(d)%elts
              h_flux  => horiz_flux(v)%data(d)%elts
              call cpt_or_restr_flux (grid(d), l)
@@ -300,27 +339,40 @@ contains
           end do
        end do
     end if
-    horiz_flux%bdry_uptodate = .false.
-    if (level_start /= level_end) call update_bdry (horiz_flux, l, 968)
+    if (mass_only_compatibility) then
+       horiz_flux(S_MASS)%bdry_uptodate = .false.
+       if (level_start /= level_end) &
+            call update_bdry(horiz_flux(S_MASS:S_MASS),l,1068)
+    else
+       horiz_flux%bdry_uptodate = .false.
+       if (level_start /= level_end) call update_bdry(horiz_flux,l,968)
+    end if
 
     if (Laplace_rotu == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity
   end subroutine basic_operators
 
   
-  subroutine cal_scalar_trend (q, dq, k, l)
+  subroutine cal_scalar_trend (q, dq, k, l, mass_only_compatibility)
     ! Evaluate scalar trends at level l
     
     implicit none
     
     type(Float_Field), target, intent(inout) :: q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
     integer,                   intent(in)    :: k, l
+    logical,                   intent(in)    :: mass_only_compatibility
 
-    integer :: d, j, v
+    integer :: d, j, v, scalar_last
 
-    call update_bdry (horiz_flux, l, 969)
+    if (mass_only_compatibility) then
+       call update_bdry(horiz_flux(S_MASS:S_MASS),l,1069)
+       scalar_last = S_MASS
+    else
+       call update_bdry(horiz_flux,l,969)
+       scalar_last = scalars(2)
+    end if
     
     do d = 1, size(grid)
-       do v = scalars(1),scalars(2)
+       do v = scalars(1),scalar_last
           dscalar => dq(v,k)%data(d)%elts
           h_flux  => horiz_flux(v)%data(d)%elts
           do j = 1, grid(d)%lev(l)%length
@@ -329,12 +381,16 @@ contains
           nullify (dscalar, h_flux)
        end do
     end do
-    call capture_block_scalar_divergence_level( &
-         q,physics_scalar_flux,0,k,l)
-    call capture_block_scalar_divergence_level( &
-         q,physics_scalar_flux,0,k,l, &
-         domain_tendency=dq,dscalar_only=.true.)
-    dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
+    if (.not. mass_only_compatibility) then
+       call capture_block_scalar_divergence_level( &
+            q,physics_scalar_flux,0,k,l)
+       call capture_block_scalar_divergence_level( &
+            q,physics_scalar_flux,0,k,l, &
+            domain_tendency=dq,dscalar_only=.true.)
+       dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
+    else
+       dq(S_MASS,k)%bdry_uptodate = .false.
+    end if
   end subroutine cal_scalar_trend
 
   
@@ -424,7 +480,6 @@ contains
     end do
     dq(S_VELO,k)%bdry_uptodate = .false.
   end subroutine velocity_trend_grad
-
 
   subroutine capture_velocity_source_measurement (d,k,l)
 

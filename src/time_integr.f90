@@ -13,6 +13,7 @@ module time_integr_mod
   use multi_level_mod,   only : trend_ml, block_tendency_compatibility_ml
   use parallel_block_mpi_mod, only : &
        BLOCK_PROFILE_DOMAIN_TENDENCY, &
+       BLOCK_PROFILE_DOMAIN_TENDENCY_COMPATIBILITY, &
        BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY, &
        begin_block_domain_multistage_candidate_stage, &
        begin_block_scalar_divergence_capture, &
@@ -146,8 +147,14 @@ contains
     integer, intent(in) :: stage_count
     logical, intent(in) :: validate_oracle
 
+    real(dp) :: profile_start
+
     call begin_block_scalar_divergence_capture
+    profile_start = parallel_block_profile_begin( &
+         BLOCK_PROFILE_DOMAIN_TENDENCY_COMPATIBILITY)
     call block_tendency_compatibility_ml(domain_stage,trend)
+    call parallel_block_profile_end( &
+         BLOCK_PROFILE_DOMAIN_TENDENCY_COMPATIBILITY,profile_start)
     call finalize_block_scalar_divergence_capture
     call prepare_block_velocity_compatibility_remainder(domain_stage)
     if (validate_oracle) &
