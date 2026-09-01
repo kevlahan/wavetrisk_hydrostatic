@@ -822,6 +822,18 @@ module parallel_block_mpi_mod
 
   type(Block_Scalar_Restriction_Exchange_Type), save :: &
        block_scalar_restriction_exchange
+  integer, allocatable, save :: block_scalar_boundary_owner_patch(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_patch_node(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_patch_send(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_patch_recv(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_patch_node_send(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_patch_node_recv(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_block(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_block_patch(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_block_send(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_block_recv(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_block_patch_send(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_block_patch_recv(:)
   integer, parameter :: BLOCK_BOUNDARY_OWNER_LOCAL = 1
   integer, parameter :: BLOCK_BOUNDARY_OWNER_REMOTE = 2
   integer, parameter :: BLOCK_BOUNDARY_OWNER_SCAFFOLD = 3
@@ -16871,6 +16883,14 @@ end subroutine build_parallel_block_catalog
     if (allocated(block_scalar_restriction_exchange% &
          boundary_source_owner_node)) deallocate( &
          block_scalar_restriction_exchange%boundary_source_owner_node)
+    if (allocated(block_scalar_boundary_owner_patch)) &
+         deallocate(block_scalar_boundary_owner_patch)
+    if (allocated(block_scalar_boundary_owner_patch_node)) &
+         deallocate(block_scalar_boundary_owner_patch_node)
+    if (allocated(block_scalar_boundary_owner_block)) &
+         deallocate(block_scalar_boundary_owner_block)
+    if (allocated(block_scalar_boundary_owner_block_patch)) &
+         deallocate(block_scalar_boundary_owner_block_patch)
     if (allocated(block_scalar_restriction_exchange% &
          boundary_owner_send_buffer)) deallocate( &
          block_scalar_restriction_exchange%boundary_owner_send_buffer)
@@ -16891,6 +16911,22 @@ end subroutine build_parallel_block_catalog
     if (allocated(block_scalar_restriction_exchange% &
          boundary_owner_node_recv_buffer)) deallocate( &
          block_scalar_restriction_exchange%boundary_owner_node_recv_buffer)
+    if (allocated(block_scalar_boundary_owner_patch_send)) &
+         deallocate(block_scalar_boundary_owner_patch_send)
+    if (allocated(block_scalar_boundary_owner_patch_recv)) &
+         deallocate(block_scalar_boundary_owner_patch_recv)
+    if (allocated(block_scalar_boundary_owner_patch_node_send)) &
+         deallocate(block_scalar_boundary_owner_patch_node_send)
+    if (allocated(block_scalar_boundary_owner_patch_node_recv)) &
+         deallocate(block_scalar_boundary_owner_patch_node_recv)
+    if (allocated(block_scalar_boundary_owner_block_send)) &
+         deallocate(block_scalar_boundary_owner_block_send)
+    if (allocated(block_scalar_boundary_owner_block_recv)) &
+         deallocate(block_scalar_boundary_owner_block_recv)
+    if (allocated(block_scalar_boundary_owner_block_patch_send)) &
+         deallocate(block_scalar_boundary_owner_block_patch_send)
+    if (allocated(block_scalar_boundary_owner_block_patch_recv)) &
+         deallocate(block_scalar_boundary_owner_block_patch_recv)
     if (allocated(block_scalar_restriction_exchange% &
          boundary_send_count)) deallocate( &
          block_scalar_restriction_exchange%boundary_send_count)
@@ -17016,6 +17052,26 @@ end subroutine build_parallel_block_catalog
     allocate(block_scalar_restriction_exchange% &
          boundary_owner_node_recv_buffer(max(1,sum( &
          block_writeback_plan%boundary_scalar_block_recv_count))))
+    allocate(block_scalar_boundary_owner_patch_send(max(1,sum( &
+         block_writeback_plan%boundary_scalar_domain_send_count))))
+    allocate(block_scalar_boundary_owner_patch_recv(max(1,sum( &
+         block_writeback_plan%boundary_scalar_block_recv_count))))
+    allocate(block_scalar_boundary_owner_patch_node_send(max(1,sum( &
+         block_writeback_plan%boundary_scalar_domain_send_count))))
+    allocate(block_scalar_boundary_owner_patch_node_recv(max(1,sum( &
+         block_writeback_plan%boundary_scalar_block_recv_count))))
+    allocate(block_scalar_boundary_owner_block(max(1, &
+         sum(block_writeback_plan%boundary_scalar_block_recv_count))))
+    allocate(block_scalar_boundary_owner_block_patch(max(1, &
+         sum(block_writeback_plan%boundary_scalar_block_recv_count))))
+    allocate(block_scalar_boundary_owner_block_send(max(1, &
+         sum(block_writeback_plan%boundary_scalar_domain_send_count))))
+    allocate(block_scalar_boundary_owner_block_recv(max(1, &
+         sum(block_writeback_plan%boundary_scalar_block_recv_count))))
+    allocate(block_scalar_boundary_owner_block_patch_send(max(1, &
+         sum(block_writeback_plan%boundary_scalar_domain_send_count))))
+    allocate(block_scalar_boundary_owner_block_patch_recv(max(1, &
+         sum(block_writeback_plan%boundary_scalar_block_recv_count))))
 
     allocate(block_scalar_restriction_exchange% &
          ghost_send_count(n_process))
@@ -17097,6 +17153,20 @@ end subroutine build_parallel_block_catalog
     block_scalar_restriction_exchange%boundary_owner_domain_recv_buffer = -3
     block_scalar_restriction_exchange%boundary_owner_node_send_buffer = -3
     block_scalar_restriction_exchange%boundary_owner_node_recv_buffer = -3
+    block_scalar_boundary_owner_block_send = -3
+    block_scalar_boundary_owner_block_recv = -3
+    block_scalar_boundary_owner_block_patch_send = -3
+    block_scalar_boundary_owner_block_patch_recv = -3
+    block_scalar_boundary_owner_patch_send = -3
+    block_scalar_boundary_owner_patch_recv = -3
+    block_scalar_boundary_owner_patch_node_send = -3
+    block_scalar_boundary_owner_patch_node_recv = -3
+    block_scalar_boundary_owner_block = -3
+    block_scalar_boundary_owner_block_patch = -3
+    block_scalar_boundary_owner_block_send = -3
+    block_scalar_boundary_owner_block_recv = -3
+    block_scalar_boundary_owner_block_patch_send = -3
+    block_scalar_boundary_owner_block_patch_recv = -3
     block_scalar_restriction_exchange%ghost_send_buffer = &
          BLOCK_GHOST_POISON
     block_scalar_restriction_exchange%ghost_recv_buffer = &
@@ -17104,7 +17174,7 @@ end subroutine build_parallel_block_catalog
     block_scalar_restriction_exchange%ghost_patch_buffer = &
          BLOCK_GHOST_POISON
     block_scalar_restriction_exchange%allocations = &
-         block_scalar_restriction_exchange%allocations + 36_int64
+         block_scalar_restriction_exchange%allocations + 48_int64
     block_scalar_restriction_exchange%generation = &
          block_writeback_plan_generation
     block_scalar_restriction_exchange%ready = .true.
@@ -17137,10 +17207,12 @@ end subroutine build_parallel_block_catalog
     integer :: n_local
     integer :: n_node
     integer :: node
+    integer :: node_key_pos
     integer :: owner_class
     integer :: owner_pos
     integer :: pos
     integer :: pos_sample
+    integer :: q
     integer :: r
     integer :: route_index
     integer :: sample
@@ -17148,6 +17220,10 @@ end subroutine build_parallel_block_catalog
     integer :: source
     integer :: source_global
     integer :: source_id
+    integer :: source_patch
+    integer :: source_patch_node
+    integer :: source_block
+    integer :: source_block_patch
     integer :: source_bdry
     integer :: source_level
     integer :: target_id
@@ -17155,15 +17231,40 @@ end subroutine build_parallel_block_catalog
     integer :: total_node
 
     integer, allocatable :: domain_node_displ(:)
+    integer, allocatable :: domain_node_patch(:)
+    integer, allocatable :: domain_node_patch_node(:)
+    integer, allocatable :: node_key_expected_recv_count(:)
+    integer, allocatable :: node_key_patch_recv_buffer(:)
+    integer, allocatable :: node_key_patch_send_buffer(:)
+    integer, allocatable :: node_key_patch_node_recv_buffer(:)
+    integer, allocatable :: node_key_patch_node_send_buffer(:)
+    integer, allocatable :: node_key_block_recv_buffer(:)
+    integer, allocatable :: node_key_block_send_buffer(:)
+    integer, allocatable :: node_key_block_patch_recv_buffer(:)
+    integer, allocatable :: node_key_block_patch_send_buffer(:)
+    integer, allocatable :: node_key_recv_buffer(:)
+    integer, allocatable :: node_key_recv_count(:)
+    integer, allocatable :: node_key_recv_displ(:)
+    integer, allocatable :: node_key_send_buffer(:)
+    integer, allocatable :: node_key_send_count(:)
+    integer, allocatable :: node_key_send_displ(:)
     integer, allocatable :: route_count(:)
     integer, allocatable :: route_source_domain(:)
     integer, allocatable :: route_source_node(:)
+    integer, allocatable :: route_source_patch(:)
+    integer, allocatable :: route_source_patch_node(:)
+    integer, allocatable :: route_source_block(:)
+    integer, allocatable :: route_source_block_patch(:)
     integer, allocatable :: route_owner_rank(:)
 
     integer(int64) :: count_global
     integer(int64) :: count_local
     integer(int64) :: owner_count_global(BLOCK_BOUNDARY_OWNER_CLASS_COUNT)
     integer(int64) :: owner_count_local(BLOCK_BOUNDARY_OWNER_CLASS_COUNT)
+    integer(int64) :: patch_key_count_global(4)
+    integer(int64) :: patch_key_count_local(4)
+    integer(int64) :: block_key_count_global(4)
+    integer(int64) :: block_key_count_local(4)
     integer(int64) :: source_key_count_global(4)
     integer(int64) :: source_key_count_local(4)
 
@@ -17191,6 +17292,13 @@ end subroutine build_parallel_block_catalog
     end do
     total_node = block_scalar_restriction_exchange% &
          boundary_source_displ(n_local+1)
+    ! Owner metadata is indexed by the complete local boundary-source stream,
+    ! including retained local blocks, so incoming migrated-block count alone
+    ! is insufficient for its allocation.
+    deallocate(block_scalar_boundary_owner_block)
+    deallocate(block_scalar_boundary_owner_block_patch)
+    allocate(block_scalar_boundary_owner_block(max(1,total_node)))
+    allocate(block_scalar_boundary_owner_block_patch(max(1,total_node)))
     allocate(block_scalar_restriction_exchange% &
          boundary_source_domain(max(1,total_node)))
     allocate(block_scalar_restriction_exchange% &
@@ -17205,6 +17313,8 @@ end subroutine build_parallel_block_catalog
          boundary_source_owner_domain(max(1,total_node)))
     allocate(block_scalar_restriction_exchange% &
          boundary_source_owner_node(max(1,total_node)))
+    allocate(block_scalar_boundary_owner_patch(max(1,total_node)))
+    allocate(block_scalar_boundary_owner_patch_node(max(1,total_node)))
     block_scalar_restriction_exchange%boundary_source_domain = -1
     block_scalar_restriction_exchange%boundary_source_record = -1
     block_scalar_restriction_exchange%boundary_source_node = -1
@@ -17212,6 +17322,8 @@ end subroutine build_parallel_block_catalog
     block_scalar_restriction_exchange%boundary_source_owner_class = 0
     block_scalar_restriction_exchange%boundary_source_owner_domain = -3
     block_scalar_restriction_exchange%boundary_source_owner_node = -3
+    block_scalar_boundary_owner_patch = -3
+    block_scalar_boundary_owner_patch_node = -3
 
     do local_index = 1,n_local
        b = local_block_catalog(local_index)
@@ -17267,20 +17379,184 @@ end subroutine build_parallel_block_catalog
             grid(d)%node%length
     end do
     total_domain_node = domain_node_displ(size(grid)+1)
+    ! Stage 166F: establish a canonical active-patch address for each Domain
+    ! node. This metadata is shadow-only and is the compact-storage key that
+    ! the later owner-value transport stage will consume.
+    allocate(domain_node_patch(max(1,total_domain_node)))
+    allocate(domain_node_patch_node(max(1,total_domain_node)))
+    domain_node_patch = -1
+    domain_node_patch_node = -1
+    do d = 1,size(grid)
+       do source_patch = 0,grid(d)%patch%length-1
+          if (grid(d)%patch%elts(source_patch+1)%deleted) cycle
+          source_id = grid(d)%patch%elts(source_patch+1)%elts_start
+          do q = 0,PATCH_SIZE**2-1
+             route_index = domain_node_displ(d)+source_id+q+1
+             if (route_index < 1 .or. &
+                  route_index > max(1,total_domain_node)) then
+                call fail("scalar boundary Domain patch map is invalid")
+             end if
+             if (domain_node_patch(route_index) >= 0) cycle
+             domain_node_patch(route_index) = source_patch
+             domain_node_patch_node(route_index) = q
+          end do
+       end do
+    end do
     allocate(route_count(max(1,total_domain_node)))
     allocate(route_owner_rank(max(1,total_domain_node)))
     allocate(route_source_domain(max(1,total_domain_node)))
     allocate(route_source_node(max(1,total_domain_node)))
+    allocate(route_source_patch(max(1,total_domain_node)))
+    allocate(route_source_patch_node(max(1,total_domain_node)))
+    allocate(route_source_block(max(1,total_domain_node)))
+    allocate(route_source_block_patch(max(1,total_domain_node)))
     route_count = 0
     route_owner_rank = -1
     route_source_domain = -3
     route_source_node = -3
+    route_source_patch = -3
+    route_source_patch_node = -3
+    route_source_block = -3
+    route_source_block_patch = -3
 
-    do d = 1,size(grid)
-       destination_global = glo_id(rank+1,d)+1
-       do r = 1,n_process
-          do d_source = 1,n_domain(r)
-             source_global = glo_id(r,d_source)+1
+    ! Stage 166E: exchange the source-node side of every remote AT_NODE route
+    ! once per topology generation. Packing and unpacking deliberately mirror
+    ! comm_nodes3_mpi: peer, source Domain, destination Domain, then node.
+    ! This converts the remote Domain-only keys retained by Stage 166D into
+    ! exact (source Domain, source node) keys without touching field data.
+    allocate(node_key_send_count(n_process))
+    allocate(node_key_recv_count(n_process))
+    allocate(node_key_expected_recv_count(n_process))
+    allocate(node_key_send_displ(n_process))
+    allocate(node_key_recv_displ(n_process))
+    node_key_send_count = 0
+    node_key_expected_recv_count = 0
+    do r = 1,n_process
+       if (r == rank+1) cycle
+       do d_source = 1,size(grid)
+          do d = 1,n_domain(r)
+             destination_global = glo_id(r,d)+1
+             node_key_send_count(r) = node_key_send_count(r) + &
+                  grid(d_source)% &
+                  pack(AT_NODE,destination_global)%length
+          end do
+       end do
+       do d_source = 1,n_domain(r)
+          source_global = glo_id(r,d_source)+1
+          do d = 1,size(grid)
+             node_key_expected_recv_count(r) = &
+                  node_key_expected_recv_count(r) + &
+                  grid(d)%unpk(AT_NODE,source_global)%length
+          end do
+       end do
+    end do
+    call MPI_Alltoall(node_key_send_count,1,MPI_INTEGER, &
+         node_key_recv_count,1,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoall scalar boundary source-node counts")
+    if (any(node_key_recv_count /= node_key_expected_recv_count)) then
+       call fail("scalar boundary source-node route counts differ")
+    end if
+    node_key_send_displ(1) = 0
+    node_key_recv_displ(1) = 0
+    node_key_send_displ(2:n_process) = &
+         [(sum(node_key_send_count(1:r)),r=1,n_process-1)]
+    node_key_recv_displ(2:n_process) = &
+         [(sum(node_key_recv_count(1:r)),r=1,n_process-1)]
+    allocate(node_key_send_buffer(max(1,sum(node_key_send_count))))
+    allocate(node_key_recv_buffer(max(1,sum(node_key_recv_count))))
+    allocate(node_key_patch_send_buffer( &
+         max(1,sum(node_key_send_count))))
+    allocate(node_key_patch_recv_buffer( &
+         max(1,sum(node_key_recv_count))))
+    allocate(node_key_patch_node_send_buffer( &
+         max(1,sum(node_key_send_count))))
+    allocate(node_key_patch_node_recv_buffer( &
+         max(1,sum(node_key_recv_count))))
+    allocate(node_key_block_send_buffer( &
+         max(1,sum(node_key_send_count))))
+    allocate(node_key_block_recv_buffer( &
+         max(1,sum(node_key_recv_count))))
+    allocate(node_key_block_patch_send_buffer( &
+         max(1,sum(node_key_send_count))))
+    allocate(node_key_block_patch_recv_buffer( &
+         max(1,sum(node_key_recv_count))))
+    node_key_send_buffer = -1
+    node_key_recv_buffer = -1
+    node_key_patch_send_buffer = -1
+    node_key_patch_recv_buffer = -1
+    node_key_patch_node_send_buffer = -1
+    node_key_patch_node_recv_buffer = -1
+    node_key_block_send_buffer = -1
+    node_key_block_recv_buffer = -1
+    node_key_block_patch_send_buffer = -1
+    node_key_block_patch_recv_buffer = -1
+    do r = 1,n_process
+       node_key_pos = node_key_send_displ(r)+1
+       if (r /= rank+1) then
+          do d_source = 1,size(grid)
+             do d = 1,n_domain(r)
+                destination_global = glo_id(r,d)+1
+                do i = 1,grid(d_source)% &
+                     pack(AT_NODE,destination_global)%length
+                   source_id = grid(d_source)% &
+                        pack(AT_NODE,destination_global)%elts(i)
+                   if (source_id < 0 .or. &
+                        source_id >= grid(d_source)%node%length) then
+                      call fail( &
+                           "scalar boundary source-node send is invalid")
+                   end if
+                   call domain_node_patch_key( &
+                        d_source,source_id,source_patch,source_patch_node)
+                   call source_patch_block_key( &
+                        d_source,source_patch,source_block,source_block_patch)
+                   node_key_send_buffer(node_key_pos) = source_id
+                   node_key_patch_send_buffer(node_key_pos) = source_patch
+                   node_key_patch_node_send_buffer(node_key_pos) = &
+                        source_patch_node
+                   node_key_block_send_buffer(node_key_pos) = source_block
+                   node_key_block_patch_send_buffer(node_key_pos) = &
+                        source_block_patch
+                   node_key_pos = node_key_pos+1
+                end do
+             end do
+          end do
+       end if
+       if (node_key_pos /= node_key_send_displ(r) + &
+            node_key_send_count(r)+1) then
+          call fail("scalar boundary source-node send extent differs")
+       end if
+    end do
+    call MPI_Alltoallv(node_key_send_buffer,node_key_send_count, &
+         node_key_send_displ,MPI_INTEGER,node_key_recv_buffer, &
+         node_key_recv_count,node_key_recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary source nodes")
+    call MPI_Alltoallv(node_key_patch_send_buffer,node_key_send_count, &
+         node_key_send_displ,MPI_INTEGER,node_key_patch_recv_buffer, &
+         node_key_recv_count,node_key_recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary source patches")
+    call MPI_Alltoallv(node_key_patch_node_send_buffer, &
+         node_key_send_count,node_key_send_displ,MPI_INTEGER, &
+         node_key_patch_node_recv_buffer,node_key_recv_count, &
+         node_key_recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr, &
+         "MPI_Alltoallv scalar boundary source patch nodes")
+    call MPI_Alltoallv(node_key_block_send_buffer,node_key_send_count, &
+         node_key_send_displ,MPI_INTEGER,node_key_block_recv_buffer, &
+         node_key_recv_count,node_key_recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary source blocks")
+    call MPI_Alltoallv(node_key_block_patch_send_buffer, &
+         node_key_send_count,node_key_send_displ,MPI_INTEGER, &
+         node_key_block_patch_recv_buffer,node_key_recv_count, &
+         node_key_recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr, &
+         "MPI_Alltoallv scalar boundary source block patches")
+
+    do r = 1,n_process
+       node_key_pos = node_key_recv_displ(r)+1
+       do d_source = 1,n_domain(r)
+          source_global = glo_id(r,d_source)+1
+          do d = 1,size(grid)
+             destination_global = glo_id(rank+1,d)+1
              if (r == rank+1) then
                 if (grid(d_source)% &
                      pack(AT_NODE,destination_global)%length /= &
@@ -17289,6 +17565,41 @@ end subroutine build_parallel_block_catalog
                 end if
              end if
              do i = 1,grid(d)%unpk(AT_NODE,source_global)%length
+                if (r == rank+1) then
+                   source_id = grid(d_source)% &
+                        pack(AT_NODE,destination_global)%elts(i)
+                   if (source_id < 0 .or. &
+                        source_id >= grid(d_source)%node%length) then
+                      call fail( &
+                           "scalar boundary local source is invalid")
+                   end if
+                   call domain_node_patch_key( &
+                        d_source,source_id,source_patch,source_patch_node)
+                   call source_patch_block_key( &
+                        d_source,source_patch,source_block,source_block_patch)
+                else
+                   if (node_key_pos > node_key_recv_displ(r) + &
+                        node_key_recv_count(r)) then
+                      call fail( &
+                           "scalar boundary source-node receive overruns")
+                   end if
+                   source_id = node_key_recv_buffer(node_key_pos)
+                   source_patch = &
+                        node_key_patch_recv_buffer(node_key_pos)
+                   source_patch_node = &
+                        node_key_patch_node_recv_buffer(node_key_pos)
+                   source_block = node_key_block_recv_buffer(node_key_pos)
+                   source_block_patch = &
+                        node_key_block_patch_recv_buffer(node_key_pos)
+                   node_key_pos = node_key_pos+1
+                   if (source_id < 0 .or. source_patch < 0 .or. &
+                        source_patch_node < 0 .or. &
+                        source_patch_node >= PATCH_SIZE**2 .or. &
+                        source_block_patch < -1) then
+                      call fail( &
+                           "scalar boundary remote patch key is invalid")
+                   end if
+                end if
                 target_id = abs( &
                      grid(d)%unpk(AT_NODE,source_global)%elts(i))
                 if (target_id < 0 .or. &
@@ -17300,35 +17611,59 @@ end subroutine build_parallel_block_catalog
                 if (route_count(route_index) == 1) then
                    route_owner_rank(route_index) = r-1
                    route_source_domain(route_index) = source_global-1
-                   route_source_node(route_index) = -1
-                   if (r == rank+1) then
-                      source_id = grid(d_source)% &
-                           pack(AT_NODE,destination_global)%elts(i)
-                      if (source_id < 0 .or. &
-                           source_id >= grid(d_source)%node%length) then
-                         call fail( &
-                              "scalar boundary local source is invalid")
-                      end if
-                      route_source_node(route_index) = source_id
-                   end if
+                   route_source_node(route_index) = source_id
+                   route_source_patch(route_index) = source_patch
+                   route_source_patch_node(route_index) = &
+                        source_patch_node
+                   route_source_block(route_index) = source_block
+                   route_source_block_patch(route_index) = &
+                        source_block_patch
                 else if (route_owner_rank(route_index) /= r-1) then
                    route_owner_rank(route_index) = -2
                    route_source_domain(route_index) = -2
                    route_source_node(route_index) = -2
+                   route_source_patch(route_index) = -2
+                   route_source_patch_node(route_index) = -2
+                   route_source_block(route_index) = -2
+                   route_source_block_patch(route_index) = -2
                 else
                    route_source_domain(route_index) = -2
                    route_source_node(route_index) = -2
+                   route_source_patch(route_index) = -2
+                   route_source_patch_node(route_index) = -2
+                   route_source_block(route_index) = -2
+                   route_source_block_patch(route_index) = -2
                 end if
              end do
           end do
        end do
+       if (r /= rank+1 .and. &
+            node_key_pos /= node_key_recv_displ(r) + &
+            node_key_recv_count(r)+1) then
+          call fail("scalar boundary source-node receive extent differs")
+       end if
     end do
+    deallocate(node_key_patch_node_recv_buffer)
+    deallocate(node_key_patch_node_send_buffer)
+    deallocate(node_key_patch_recv_buffer)
+    deallocate(node_key_patch_send_buffer)
+    deallocate(node_key_block_patch_recv_buffer)
+    deallocate(node_key_block_patch_send_buffer)
+    deallocate(node_key_block_recv_buffer)
+    deallocate(node_key_block_send_buffer)
+    deallocate(node_key_recv_buffer)
+    deallocate(node_key_send_buffer)
+    deallocate(node_key_recv_displ)
+    deallocate(node_key_send_displ)
+    deallocate(node_key_expected_recv_count)
+    deallocate(node_key_recv_count)
+    deallocate(node_key_send_count)
 
-    ! Stage 166D: resolve source keys only where the target Domain is
-    ! resident, then carry them to migrated final blocks in the already
-    ! validated scalar-boundary stream. The source Domain is exact for every
-    ! single route; the source node is exact when the aligned pack array is
-    ! local and remains explicitly unresolved for a remote pack.
+    ! Stage 166G: carry canonical source block identities alongside the exact
+    ! source keys from resident target Domains to migrated final blocks. This
+    ! remains metadata-only; field values and ownership decisions are unchanged.
+    ! Carry the exact source keys from resident target Domains to migrated
+    ! final blocks in the already validated scalar-boundary stream.
     if (mod(block_writeback_plan%scalar_patch_nvalue, &
          PATCH_SIZE**2) /= 0) then
        call fail("scalar boundary owner field layout is invalid")
@@ -17371,7 +17706,8 @@ end subroutine build_parallel_block_catalog
                         (field_value_slot-1)*n_node + node
                    call domain_boundary_owner_key( &
                         d,source_bdry,node,owner_class, &
-                        source_global,source_id)
+                        source_global,source_id,source_patch, &
+                        source_patch_node,source_block,source_block_patch)
                    block_scalar_restriction_exchange% &
                         boundary_owner_send_buffer(sample+1) = &
                         owner_class
@@ -17381,6 +17717,14 @@ end subroutine build_parallel_block_catalog
                    block_scalar_restriction_exchange% &
                         boundary_owner_node_send_buffer(sample+1) = &
                         source_id
+                   block_scalar_boundary_owner_patch_send(sample+1) = &
+                        source_patch
+                   block_scalar_boundary_owner_patch_node_send(sample+1) = &
+                        source_patch_node
+                   block_scalar_boundary_owner_block_send(sample+1) = &
+                        source_block
+                   block_scalar_boundary_owner_block_patch_send(sample+1) = &
+                        source_block_patch
                 end do
              end do
              pos_sample = pos_sample + &
@@ -17429,6 +17773,45 @@ end subroutine build_parallel_block_catalog
          block_writeback_plan%boundary_scalar_block_recv_displ, &
          MPI_INTEGER,comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv scalar boundary owner nodes")
+    call MPI_Alltoallv( &
+         block_scalar_boundary_owner_patch_send, &
+         block_writeback_plan%boundary_scalar_domain_send_count, &
+         block_writeback_plan%boundary_scalar_domain_send_displ, &
+         MPI_INTEGER, &
+         block_scalar_boundary_owner_patch_recv, &
+         block_writeback_plan%boundary_scalar_block_recv_count, &
+         block_writeback_plan%boundary_scalar_block_recv_displ, &
+         MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary owner patches")
+    call MPI_Alltoallv( &
+         block_scalar_boundary_owner_patch_node_send, &
+         block_writeback_plan%boundary_scalar_domain_send_count, &
+         block_writeback_plan%boundary_scalar_domain_send_displ, &
+         MPI_INTEGER, &
+         block_scalar_boundary_owner_patch_node_recv, &
+         block_writeback_plan%boundary_scalar_block_recv_count, &
+         block_writeback_plan%boundary_scalar_block_recv_displ, &
+         MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr, &
+         "MPI_Alltoallv scalar boundary owner patch nodes")
+    call MPI_Alltoallv( &
+         block_scalar_boundary_owner_block_send, &
+         block_writeback_plan%boundary_scalar_domain_send_count, &
+         block_writeback_plan%boundary_scalar_domain_send_displ, &
+         MPI_INTEGER, block_scalar_boundary_owner_block_recv, &
+         block_writeback_plan%boundary_scalar_block_recv_count, &
+         block_writeback_plan%boundary_scalar_block_recv_displ, &
+         MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary owner blocks")
+    call MPI_Alltoallv( &
+         block_scalar_boundary_owner_block_patch_send, &
+         block_writeback_plan%boundary_scalar_domain_send_count, &
+         block_writeback_plan%boundary_scalar_domain_send_displ, &
+         MPI_INTEGER, block_scalar_boundary_owner_block_patch_recv, &
+         block_writeback_plan%boundary_scalar_block_recv_count, &
+         block_writeback_plan%boundary_scalar_block_recv_displ, &
+         MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary owner block patches")
 
     do r = 1,n_process
        pos_sample = block_writeback_plan% &
@@ -17454,6 +17837,14 @@ end subroutine build_parallel_block_catalog
                      boundary_owner_domain_recv_buffer(pos_sample+node)
                 source_id = block_scalar_restriction_exchange% &
                      boundary_owner_node_recv_buffer(pos_sample+node)
+                source_patch = block_scalar_boundary_owner_patch_recv( &
+                     pos_sample+node)
+                source_patch_node = block_scalar_boundary_owner_patch_node_recv( &
+                     pos_sample+node)
+                source_block = block_scalar_boundary_owner_block_recv( &
+                     pos_sample+node)
+                source_block_patch = block_scalar_boundary_owner_block_patch_recv( &
+                     pos_sample+node)
                 do field_value_slot = 1,n_field_value
                    sample = pos_sample-1 + &
                         (field_value_slot-1)*n_node + node
@@ -17465,7 +17856,15 @@ end subroutine build_parallel_block_catalog
                         source_global .or. &
                         block_scalar_restriction_exchange% &
                         boundary_owner_node_recv_buffer(sample+1) /= &
-                        source_id) then
+                        source_id .or. &
+                        block_scalar_boundary_owner_patch_recv(sample+1) /= &
+                        source_patch .or. &
+                        block_scalar_boundary_owner_patch_node_recv(sample+1) /= &
+                        source_patch_node .or. &
+                        block_scalar_boundary_owner_block_recv(sample+1) /= &
+                        source_block .or. &
+                        block_scalar_boundary_owner_block_patch_recv(sample+1) /= &
+                        source_block_patch) then
                       call fail( &
                            "scalar boundary owner replicas differ")
                    end if
@@ -17479,6 +17878,13 @@ end subroutine build_parallel_block_catalog
                 block_scalar_restriction_exchange% &
                      boundary_source_owner_node(owner_pos+node) = &
                      source_id
+                block_scalar_boundary_owner_patch(owner_pos+node) = &
+                     source_patch
+                block_scalar_boundary_owner_patch_node(owner_pos+node) = &
+                     source_patch_node
+                block_scalar_boundary_owner_block(owner_pos+node) = source_block
+                block_scalar_boundary_owner_block_patch(owner_pos+node) = &
+                     source_block_patch
              end do
              owner_pos = owner_pos+n_node
              pos_sample = pos_sample + &
@@ -17512,7 +17918,8 @@ end subroutine build_parallel_block_catalog
           do node = 0,n_node-1
              call domain_boundary_owner_key( &
                   d,source_bdry,node,owner_class, &
-                  source_global,source_id)
+                  source_global,source_id,source_patch,source_patch_node, &
+                  source_block,source_block_patch)
              block_scalar_restriction_exchange% &
                   boundary_source_owner_class(owner_pos+node) = &
                   owner_class
@@ -17521,6 +17928,13 @@ end subroutine build_parallel_block_catalog
                   source_global
              block_scalar_restriction_exchange% &
                   boundary_source_owner_node(owner_pos+node) = source_id
+             block_scalar_boundary_owner_patch(owner_pos+node) = &
+                  source_patch
+             block_scalar_boundary_owner_patch_node(owner_pos+node) = &
+                  source_patch_node
+             block_scalar_boundary_owner_block(owner_pos+node) = source_block
+             block_scalar_boundary_owner_block_patch(owner_pos+node) = &
+                  source_block_patch
           end do
           owner_pos = owner_pos+n_node
        end do
@@ -17529,10 +17943,16 @@ end subroutine build_parallel_block_catalog
           call fail("retained scalar boundary owner coverage differs")
        end if
     end do
+    deallocate(route_source_patch_node)
+    deallocate(route_source_block_patch)
+    deallocate(route_source_block)
+    deallocate(route_source_patch)
     deallocate(route_source_node)
     deallocate(route_source_domain)
     deallocate(route_owner_rank)
     deallocate(route_count)
+    deallocate(domain_node_patch_node)
+    deallocate(domain_node_patch)
     deallocate(domain_node_displ)
 
     owner_count_local = 0_int64
@@ -17548,6 +17968,8 @@ end subroutine build_parallel_block_catalog
        call fail("scalar boundary owner coverage differs")
     end if
     source_key_count_local = 0_int64
+    patch_key_count_local = 0_int64
+    block_key_count_local = 0_int64
     do pos = 1,total_node
        owner_class = block_scalar_restriction_exchange% &
             boundary_source_owner_class(pos)
@@ -17555,33 +17977,75 @@ end subroutine build_parallel_block_catalog
             boundary_source_owner_domain(pos)
        source_id = block_scalar_restriction_exchange% &
             boundary_source_owner_node(pos)
+       source_patch = block_scalar_boundary_owner_patch(pos)
+       source_patch_node = block_scalar_boundary_owner_patch_node(pos)
+       source_block = block_scalar_boundary_owner_block(pos)
+       source_block_patch = block_scalar_boundary_owner_block_patch(pos)
        select case (owner_class)
        case (BLOCK_BOUNDARY_OWNER_LOCAL)
           if (source_global < 0 .or. source_id < 0) then
              call fail("local scalar boundary source key is incomplete")
           end if
           source_key_count_local(1) = source_key_count_local(1)+1_int64
+          if (source_patch < 0 .or. source_patch_node < 0 .or. &
+               source_patch_node >= PATCH_SIZE**2) then
+             call fail("local scalar boundary patch key is incomplete")
+          end if
+          patch_key_count_local(1) = patch_key_count_local(1)+1_int64
+          if (source_block >= 0 .and. source_block_patch >= 0) then
+             block_key_count_local(1) = block_key_count_local(1)+1_int64
+          else if (source_block == -1 .and. source_block_patch == -1) then
+             block_key_count_local(3) = block_key_count_local(3)+1_int64
+          else
+             call fail("local scalar boundary block key is invalid")
+          end if
        case (BLOCK_BOUNDARY_OWNER_REMOTE)
-          if (source_global < 0 .or. source_id /= -1) then
-             call fail("remote scalar boundary source key is invalid")
+          if (source_global < 0 .or. source_id < 0) then
+             call fail("remote scalar boundary source key is incomplete")
           end if
           source_key_count_local(2) = source_key_count_local(2)+1_int64
+          if (source_patch < 0 .or. source_patch_node < 0 .or. &
+               source_patch_node >= PATCH_SIZE**2) then
+             call fail("remote scalar boundary patch key is incomplete")
+          end if
+          patch_key_count_local(2) = patch_key_count_local(2)+1_int64
+          if (source_block >= 0 .and. source_block_patch >= 0) then
+             block_key_count_local(2) = block_key_count_local(2)+1_int64
+          else if (source_block == -1 .and. source_block_patch == -1) then
+             block_key_count_local(3) = block_key_count_local(3)+1_int64
+          else
+             call fail("remote scalar boundary block key is invalid")
+          end if
        case (BLOCK_BOUNDARY_OWNER_SCAFFOLD)
-          if (source_global /= -1 .or. source_id /= -1) then
+          if (source_global /= -1 .or. source_id /= -1 .or. &
+               source_patch /= -1 .or. source_patch_node /= -1) then
              call fail("scaffold scalar boundary source key is invalid")
           end if
           source_key_count_local(3) = source_key_count_local(3)+1_int64
+          patch_key_count_local(3) = patch_key_count_local(3)+1_int64
+          if (source_block /= -1 .or. source_block_patch /= -1) then
+             call fail("scaffold scalar boundary block key is invalid")
+          end if
        case (BLOCK_BOUNDARY_OWNER_AMBIGUOUS)
-          if (source_global /= -2 .or. source_id /= -2) then
+          if (source_global /= -2 .or. source_id /= -2 .or. &
+               source_patch /= -2 .or. source_patch_node /= -2) then
              call fail("ambiguous scalar boundary source key is invalid")
           end if
           source_key_count_local(4) = source_key_count_local(4)+1_int64
+          patch_key_count_local(4) = patch_key_count_local(4)+1_int64
+          if (source_block /= -2 .or. source_block_patch /= -2) then
+             call fail("ambiguous scalar boundary block key is invalid")
+          end if
+          block_key_count_local(4) = block_key_count_local(4)+1_int64
        case default
           call fail("scalar boundary source key class is invalid")
        end select
     end do
     if (sum(source_key_count_local) /= int(total_node,int64)) then
        call fail("scalar boundary source key coverage differs")
+    end if
+    if (any(patch_key_count_local /= source_key_count_local)) then
+       call fail("scalar boundary patch key coverage differs")
     end if
 
     if (block_dynamics_validation_enabled()) then
@@ -17592,6 +18056,12 @@ end subroutine build_parallel_block_catalog
        call MPI_Allreduce(source_key_count_local,source_key_count_global, &
             4,MPI_INTEGER8,MPI_SUM,comm,ierr)
        call check_mpi(ierr,"MPI_Allreduce scalar boundary source keys")
+       call MPI_Allreduce(patch_key_count_local,patch_key_count_global, &
+            4,MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce scalar boundary patch keys")
+       call MPI_Allreduce(block_key_count_local,block_key_count_global, &
+            4,MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce scalar boundary block keys")
        if (sum(owner_count_global) <= 0_int64) then
           call fail("scalar boundary owner coverage is empty")
        end if
@@ -17609,15 +18079,104 @@ end subroutine build_parallel_block_catalog
             "local remote scaffold ambiguous = ",owner_count_global
        if (rank == 0) write(6,'(a,4(i0,1x))') &
             "Block scalar boundary source keys: " // &
-            "exact remote-pending scaffold ambiguous = ", &
+            "exact-local exact-remote scaffold ambiguous = ", &
             source_key_count_global
+       if (rank == 0) write(6,'(a,4(i0,1x))') &
+            "Block scalar boundary patch keys: " // &
+            "exact-local exact-remote scaffold ambiguous = ", &
+            patch_key_count_global
+       if (rank == 0) write(6,'(a,4(i0,1x))') &
+            "Block scalar boundary block keys: " // &
+            "catalogued-local catalogued-remote uncatalogued ambiguous = ", &
+            block_key_count_global
     end if
 
   contains
 
+    subroutine source_patch_block_key ( &
+         d_source,source_patch,source_block,source_block_patch)
+
+      implicit none
+
+      integer, intent(in) :: d_source
+      integer, intent(in) :: source_patch
+      integer, intent(out) :: source_block
+      integer, intent(out) :: source_block_patch
+
+      integer :: b
+      integer :: ib
+      integer :: p
+      integer :: source_global
+      integer :: source_start
+
+      source_block = -1
+      source_block_patch = -1
+      if (d_source < 1 .or. d_source > size(grid) .or. &
+           source_patch < 0 .or. &
+           source_patch >= grid(d_source)%patch%length .or. &
+           grid(d_source)%patch%elts(source_patch+1)%deleted) then
+         call fail("scalar boundary source block address is invalid")
+      end if
+      source_global = glo_id(rank+1,d_source)
+      source_start = grid(d_source)%patch%elts(source_patch+1)%elts_start
+      if (.not. allocated(block_source) .or. &
+           .not. allocated(block_source_catalog_index)) return
+      do ib = 1,size(block_source)
+         b = block_source_catalog_index(ib)
+         if (b < 1 .or. b > size(block_catalog)) then
+            call fail("scalar boundary source block catalogue is invalid")
+         end if
+         if (block_catalog(b)%root_domain /= source_global) cycle
+         do p = 1,size(block_source(ib)%patch)
+            if (block_source(ib)%patch(p)%elts_start /= source_start) cycle
+            if (source_block >= 0) then
+               call fail("scalar boundary source block key is ambiguous")
+            end if
+            source_block = b
+            source_block_patch = p-1
+         end do
+      end do
+
+    end subroutine source_patch_block_key
+
+    subroutine domain_node_patch_key ( &
+         d_source,source_node,source_patch,source_patch_node)
+
+      implicit none
+
+      integer, intent(in) :: d_source
+      integer, intent(in) :: source_node
+      integer, intent(out) :: source_patch
+      integer, intent(out) :: source_patch_node
+
+      integer :: source_index
+
+      source_patch = -1
+      source_patch_node = -1
+      if (d_source < 1 .or. d_source > size(grid) .or. &
+           source_node < 0 .or. &
+           source_node >= grid(d_source)%node%length) then
+         call fail("scalar boundary source patch address is invalid")
+      end if
+      source_index = domain_node_displ(d_source)+source_node+1
+      if (source_index < 1 .or. &
+           source_index > max(1,total_domain_node)) then
+         call fail("scalar boundary source patch index is invalid")
+      end if
+      source_patch = domain_node_patch(source_index)
+      source_patch_node = domain_node_patch_node(source_index)
+      if (source_patch < 0 .or. &
+           source_patch_node < 0 .or. &
+           source_patch_node >= PATCH_SIZE**2) then
+         call fail("scalar boundary source patch key is incomplete")
+      end if
+
+    end subroutine domain_node_patch_key
+
     subroutine domain_boundary_owner_key ( &
          d_boundary,boundary_record,boundary_node,owner_class, &
-         owner_domain,owner_node)
+         owner_domain,owner_node,owner_patch,owner_patch_node, &
+         owner_block,owner_block_patch)
 
       implicit none
 
@@ -17627,6 +18186,10 @@ end subroutine build_parallel_block_catalog
       integer, intent(out) :: owner_class
       integer, intent(out) :: owner_domain
       integer, intent(out) :: owner_node
+      integer, intent(out) :: owner_patch
+      integer, intent(out) :: owner_patch_node
+      integer, intent(out) :: owner_block
+      integer, intent(out) :: owner_block_patch
 
       integer :: domain_route_index
       integer :: domain_target_id
@@ -17650,6 +18213,10 @@ end subroutine build_parallel_block_catalog
          owner_class = BLOCK_BOUNDARY_OWNER_SCAFFOLD
          owner_domain = -1
          owner_node = -1
+         owner_patch = -1
+         owner_patch_node = -1
+         owner_block = -1
+         owner_block_patch = -1
       case (1)
          if (route_owner_rank(domain_route_index) == rank) then
             owner_class = BLOCK_BOUNDARY_OWNER_LOCAL
@@ -17658,17 +18225,23 @@ end subroutine build_parallel_block_catalog
          end if
          owner_domain = route_source_domain(domain_route_index)
          owner_node = route_source_node(domain_route_index)
-         if (owner_domain < 0 .or. &
-              (owner_class == BLOCK_BOUNDARY_OWNER_LOCAL .and. &
-              owner_node < 0) .or. &
-              (owner_class == BLOCK_BOUNDARY_OWNER_REMOTE .and. &
-              owner_node /= -1)) then
+         owner_patch = route_source_patch(domain_route_index)
+         owner_patch_node = route_source_patch_node(domain_route_index)
+         owner_block = route_source_block(domain_route_index)
+         owner_block_patch = route_source_block_patch(domain_route_index)
+         if (owner_domain < 0 .or. owner_node < 0 .or. &
+              owner_patch < 0 .or. owner_patch_node < 0 .or. &
+              owner_patch_node >= PATCH_SIZE**2) then
             call fail("scalar boundary owner source key is invalid")
          end if
       case default
          owner_class = BLOCK_BOUNDARY_OWNER_AMBIGUOUS
          owner_domain = -2
          owner_node = -2
+         owner_patch = -2
+         owner_patch_node = -2
+         owner_block = -2
+         owner_block_patch = -2
       end select
 
     end subroutine domain_boundary_owner_key
