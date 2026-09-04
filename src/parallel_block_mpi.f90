@@ -17526,6 +17526,7 @@ end subroutine build_parallel_block_catalog
     integer :: n_cache
     integer :: n_local
     integer :: n_node
+    integer :: next_patch
     integer :: node
     integer :: node_key_pos
     integer :: owner_class
@@ -17549,11 +17550,15 @@ end subroutine build_parallel_block_catalog
     integer :: source_owner_rank
     integer :: target_id
     integer :: total_domain_node
+    integer :: total_domain_patch
     integer :: total_node
 
     integer, allocatable :: domain_node_displ(:)
     integer, allocatable :: domain_node_patch(:)
     integer, allocatable :: domain_node_patch_node(:)
+    integer, allocatable :: domain_patch_block(:)
+    integer, allocatable :: domain_patch_block_patch(:)
+    integer, allocatable :: domain_patch_displ(:)
     integer, allocatable :: node_key_expected_recv_count(:)
     integer, allocatable :: node_key_patch_recv_buffer(:)
     integer, allocatable :: node_key_patch_send_buffer(:)
@@ -17737,6 +17742,31 @@ end subroutine build_parallel_block_catalog
              domain_node_patch_node(route_index) = q
           end do
        end do
+    end do
+    ! Resolve every resident source patch to its unique global block and
+    ! extraction-preorder index once.  Boundary source nodes repeatedly name
+    ! the same patches, so this table avoids a subtree search per node and is
+    ! the persistent key required by the final-owner transport stage.
+    allocate(domain_patch_displ(size(grid)+1))
+    domain_patch_displ(1) = 0
+    do d = 1,size(grid)
+       domain_patch_displ(d+1) = domain_patch_displ(d) + &
+            grid(d)%patch%length
+    end do
+    total_domain_patch = domain_patch_displ(size(grid)+1)
+    allocate(domain_patch_block(max(1,total_domain_patch)))
+    allocate(domain_patch_block_patch(max(1,total_domain_patch)))
+    domain_patch_block = -1
+    domain_patch_block_patch = -1
+    do b = 1,size(block_catalog)
+       if (source_rank(b) /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1)+1
+       if (d < 1 .or. d > size(grid)) then
+          call fail("scalar boundary source block Domain is invalid")
+       end if
+       next_patch = 0
+       call map_source_block_subtree( &
+            d,block_catalog(b)%root_patch,b,next_patch)
     end do
     allocate(route_count(max(1,total_domain_node)))
     allocate(route_owner_rank(max(1,total_domain_node)))
@@ -18308,6 +18338,9 @@ end subroutine build_parallel_block_catalog
     deallocate(route_source_domain)
     deallocate(route_owner_rank)
     deallocate(route_count)
+    deallocate(domain_patch_block_patch)
+    deallocate(domain_patch_block)
+    deallocate(domain_patch_displ)
     deallocate(domain_node_patch_node)
     deallocate(domain_node_patch)
     deallocate(domain_node_displ)
@@ -18356,8 +18389,18 @@ end subroutine build_parallel_block_catalog
              call fail("local scalar boundary patch key is incomplete")
           end if
           patch_key_count_local(1) = patch_key_count_local(1)+1_int64
-          if (source_block >= 0 .and. source_block_patch >= 0) then
-             block_key_count_local(1) = block_key_count_local(1)+1_int64
+          if (source_block >= 1 .and. &
+               source_block <= size(block_catalog) .and. &
+               source_block_patch >= 0) then
+             if (block_catalog(source_block)%root_domain /= source_global) &
+                  call fail("local scalar boundary block Domain differs")
+             if (block_catalog(source_block)%owner == rank) then
+                block_key_count_local(1) = &
+                     block_key_count_local(1)+1_int64
+             else
+                block_key_count_local(2) = &
+                     block_key_count_local(2)+1_int64
+             end if
           else if (source_block == -1 .and. source_block_patch == -1) then
              block_key_count_local(3) = block_key_count_local(3)+1_int64
           else
@@ -18377,8 +18420,18 @@ end subroutine build_parallel_block_catalog
              call fail("remote scalar boundary patch key is incomplete")
           end if
           patch_key_count_local(2) = patch_key_count_local(2)+1_int64
-          if (source_block >= 0 .and. source_block_patch >= 0) then
-             block_key_count_local(2) = block_key_count_local(2)+1_int64
+          if (source_block >= 1 .and. &
+               source_block <= size(block_catalog) .and. &
+               source_block_patch >= 0) then
+             if (block_catalog(source_block)%root_domain /= source_global) &
+                  call fail("remote scalar boundary block Domain differs")
+             if (block_catalog(source_block)%owner == rank) then
+                block_key_count_local(1) = &
+                     block_key_count_local(1)+1_int64
+             else
+                block_key_count_local(2) = &
+                     block_key_count_local(2)+1_int64
+             end if
           else if (source_block == -1 .and. source_block_patch == -1) then
              block_key_count_local(3) = block_key_count_local(3)+1_int64
           else
@@ -18418,6 +18471,11 @@ end subroutine build_parallel_block_catalog
     end if
     if (any(patch_key_count_local /= source_key_count_local)) then
        call fail("scalar boundary patch key coverage differs")
+    end if
+    if (sum(block_key_count_local) /= &
+         source_key_count_local(1)+source_key_count_local(2)+ &
+         source_key_count_local(4)) then
+       call fail("scalar boundary final-owner block coverage differs")
     end if
     block_scalar_boundary_cache_count = n_cache
     block_scalar_boundary_cache_field_count = n_field_value
@@ -18496,7 +18554,7 @@ end subroutine build_parallel_block_catalog
             patch_key_count_global
        if (rank == 0) write(6,'(a,4(i0,1x))') &
             "Block scalar boundary block keys: " // &
-            "catalogued-local catalogued-remote uncatalogued ambiguous = ", &
+            "final-local final-remote uncatalogued ambiguous = ", &
             block_key_count_global
        if (rank == 0) write(6,'(a,5(i0,1x))') &
             "Block scalar boundary cache: " // &
@@ -18708,6 +18766,11 @@ end subroutine build_parallel_block_catalog
 
     subroutine source_patch_block_key ( &
          d_source,source_patch,source_block,source_block_patch)
+      ! Resolve the canonical Domain patch against the global block catalogue.
+      ! Source-block staging has already been consumed when this plan is built,
+      ! so consulting block_source here leaves every otherwise exact key
+      ! uncatalogued.  Reproduce the extraction preorder directly from the
+      ! resident source Domain instead.
 
       implicit none
 
@@ -18716,11 +18779,8 @@ end subroutine build_parallel_block_catalog
       integer, intent(out) :: source_block
       integer, intent(out) :: source_block_patch
 
-      integer :: b
-      integer :: ib
-      integer :: p
+      integer :: patch_index
       integer :: source_global
-      integer :: source_start
 
       source_block = -1
       source_block_patch = -1
@@ -18731,26 +18791,64 @@ end subroutine build_parallel_block_catalog
          call fail("scalar boundary source block address is invalid")
       end if
       source_global = glo_id(rank+1,d_source)
-      source_start = grid(d_source)%patch%elts(source_patch+1)%elts_start
-      if (.not. allocated(block_source) .or. &
-           .not. allocated(block_source_catalog_index)) return
-      do ib = 1,size(block_source)
-         b = block_source_catalog_index(ib)
-         if (b < 1 .or. b > size(block_catalog)) then
-            call fail("scalar boundary source block catalogue is invalid")
-         end if
-         if (block_catalog(b)%root_domain /= source_global) cycle
-         do p = 1,size(block_source(ib)%patch)
-            if (block_source(ib)%patch(p)%elts_start /= source_start) cycle
-            if (source_block >= 0) then
-               call fail("scalar boundary source block key is ambiguous")
-            end if
-            source_block = b
-            source_block_patch = p-1
-         end do
-      end do
+      patch_index = domain_patch_displ(d_source)+source_patch+1
+      if (patch_index < 1 .or. &
+           patch_index > max(1,total_domain_patch)) then
+         call fail("scalar boundary source block lookup is invalid")
+      end if
+      source_block = domain_patch_block(patch_index)
+      source_block_patch = domain_patch_block_patch(patch_index)
+      if (source_block == -1 .and. source_block_patch == -1) return
+      if (source_block < 1 .or. source_block > size(block_catalog) .or. &
+           source_block_patch < 0) then
+         call fail("scalar boundary source block key is invalid")
+      end if
+      if (block_catalog(source_block)%root_domain /= source_global .or. &
+           block_catalog(source_block)%owner < 0 .or. &
+           block_catalog(source_block)%owner >= n_process) then
+         call fail("scalar boundary source block key is invalid")
+      end if
 
     end subroutine source_patch_block_key
+
+
+    recursive subroutine map_source_block_subtree ( &
+         d_source,p,source_block,next_index)
+
+      implicit none
+
+      integer, intent(in) :: d_source
+      integer, intent(in) :: p
+      integer, intent(in) :: source_block
+      integer, intent(inout) :: next_index
+
+      integer :: c
+      integer :: child
+      integer :: patch_index
+
+      if (d_source < 1 .or. d_source > size(grid) .or. &
+           p < 0 .or. p >= grid(d_source)%patch%length) then
+         call fail("scalar boundary source subtree patch is invalid")
+      end if
+      if (grid(d_source)%patch%elts(p+1)%deleted) return
+      patch_index = domain_patch_displ(d_source)+p+1
+      if (patch_index < 1 .or. &
+           patch_index > max(1,total_domain_patch) .or. &
+           domain_patch_block(patch_index) /= -1 .or. &
+           domain_patch_block_patch(patch_index) /= -1) then
+         call fail("scalar boundary source block map is ambiguous")
+      end if
+      domain_patch_block(patch_index) = source_block
+      domain_patch_block_patch(patch_index) = next_index
+      next_index = next_index+1
+      do c = 1,N_CHDRN
+         child = grid(d_source)%patch%elts(p+1)%children(c)
+         if (child <= 0) cycle
+         call map_source_block_subtree( &
+              d_source,child,source_block,next_index)
+      end do
+
+    end subroutine map_source_block_subtree
 
     subroutine domain_node_patch_key ( &
          d_source,source_node,source_patch,source_patch_node)
