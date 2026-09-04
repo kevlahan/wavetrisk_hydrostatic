@@ -147,7 +147,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
   integer, parameter :: BLOCK_SCALAR_PRODUCTION_INPUT_COUNT = &
        BLOCK_SCALAR_FLUX_COUNT+EDGE
-  integer, parameter :: BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT = EDGE+1
+  integer, parameter :: BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT = EDGE
   integer, parameter :: BLOCK_GHOST_DYNAMIC_BOTH = 0
   integer, parameter :: BLOCK_GHOST_DYNAMIC_FLUX = 1
   integer, parameter :: BLOCK_GHOST_DYNAMIC_DSCALAR = 2
@@ -838,6 +838,45 @@ module parallel_block_mpi_mod
 
   type(Block_Scalar_Restriction_Exchange_Type), save :: &
        block_scalar_restriction_exchange
+
+  type :: Block_Scalar_Boundary_Final_Plan_Type
+     integer :: route_level_start = -1
+     integer :: route_level_count = 0
+     integer :: cache_count = 0
+     integer :: field_count = 0
+     integer, allocatable :: cache_block(:)
+     integer, allocatable :: cache_patch(:)
+     integer, allocatable :: cache_node(:)
+     integer, allocatable :: cache_rank(:)
+     integer, allocatable :: cache_level(:)
+     integer, allocatable :: local_level_count(:)
+     integer, allocatable :: local_level_displ(:)
+     integer, allocatable :: local_cache_slot(:)
+     integer, allocatable :: request_count(:)
+     integer, allocatable :: request_displ(:)
+     integer, allocatable :: request_level_count(:,:)
+     integer, allocatable :: request_level_displ(:,:)
+     integer, allocatable :: request_cache_slot(:)
+     integer, allocatable :: service_count(:)
+     integer, allocatable :: service_displ(:)
+     integer, allocatable :: service_level_count(:,:)
+     integer, allocatable :: service_level_displ(:,:)
+     integer, allocatable :: service_block(:)
+     integer, allocatable :: service_patch(:)
+     integer, allocatable :: service_node(:)
+     integer, allocatable :: service_level(:)
+     integer, allocatable :: boundary_level_count(:)
+     integer, allocatable :: boundary_level_displ(:)
+     integer, allocatable :: boundary_local_index(:)
+     integer, allocatable :: boundary_node(:)
+     integer, allocatable :: boundary_cache_slot(:)
+     real(dp), allocatable :: value(:)
+     logical, allocatable :: covered(:)
+     logical :: ready = .false.
+  end type Block_Scalar_Boundary_Final_Plan_Type
+
+  type(Block_Scalar_Boundary_Final_Plan_Type), save :: &
+       block_scalar_boundary_final_plan
   integer, allocatable, save :: block_scalar_boundary_owner_patch(:)
   integer, allocatable, save :: block_scalar_boundary_owner_patch_node(:)
   integer, allocatable, save :: block_scalar_boundary_owner_patch_send(:)
@@ -846,10 +885,13 @@ module parallel_block_mpi_mod
   integer, allocatable, save :: block_scalar_boundary_owner_patch_node_recv(:)
   integer, allocatable, save :: block_scalar_boundary_owner_block(:)
   integer, allocatable, save :: block_scalar_boundary_owner_block_patch(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_block_level(:)
   integer, allocatable, save :: block_scalar_boundary_owner_block_send(:)
   integer, allocatable, save :: block_scalar_boundary_owner_block_recv(:)
   integer, allocatable, save :: block_scalar_boundary_owner_block_patch_send(:)
   integer, allocatable, save :: block_scalar_boundary_owner_block_patch_recv(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_block_level_send(:)
+  integer, allocatable, save :: block_scalar_boundary_owner_block_level_recv(:)
   integer, allocatable, save :: block_scalar_boundary_owner_rank(:)
   integer, allocatable, save :: block_scalar_boundary_owner_rank_send(:)
   integer, allocatable, save :: block_scalar_boundary_owner_rank_recv(:)
@@ -884,6 +926,8 @@ module parallel_block_mpi_mod
        BLOCK_BOUNDARY_OWNER_CLASS_COUNT) = 0_int64
   integer(int64), save :: &
        block_scalar_boundary_cache_shadow_count(4) = 0_int64
+  integer(int64), save :: &
+       block_scalar_boundary_final_shadow_count(3) = 0_int64
 
   type :: Block_Scalar_Restriction_Context
      integer :: target_level = -1
@@ -17114,6 +17158,75 @@ end subroutine build_parallel_block_catalog
   end subroutine begin_block_scalar_divergence_capture
 
 
+  subroutine clear_block_scalar_boundary_final_plan
+
+    implicit none
+
+    if (allocated(block_scalar_boundary_final_plan%cache_block)) &
+         deallocate(block_scalar_boundary_final_plan%cache_block)
+    if (allocated(block_scalar_boundary_final_plan%cache_patch)) &
+         deallocate(block_scalar_boundary_final_plan%cache_patch)
+    if (allocated(block_scalar_boundary_final_plan%cache_node)) &
+         deallocate(block_scalar_boundary_final_plan%cache_node)
+    if (allocated(block_scalar_boundary_final_plan%cache_rank)) &
+         deallocate(block_scalar_boundary_final_plan%cache_rank)
+    if (allocated(block_scalar_boundary_final_plan%cache_level)) &
+         deallocate(block_scalar_boundary_final_plan%cache_level)
+    if (allocated(block_scalar_boundary_final_plan%local_level_count)) &
+         deallocate(block_scalar_boundary_final_plan%local_level_count)
+    if (allocated(block_scalar_boundary_final_plan%local_level_displ)) &
+         deallocate(block_scalar_boundary_final_plan%local_level_displ)
+    if (allocated(block_scalar_boundary_final_plan%local_cache_slot)) &
+         deallocate(block_scalar_boundary_final_plan%local_cache_slot)
+    if (allocated(block_scalar_boundary_final_plan%request_count)) &
+         deallocate(block_scalar_boundary_final_plan%request_count)
+    if (allocated(block_scalar_boundary_final_plan%request_displ)) &
+         deallocate(block_scalar_boundary_final_plan%request_displ)
+    if (allocated(block_scalar_boundary_final_plan%request_level_count)) &
+         deallocate(block_scalar_boundary_final_plan%request_level_count)
+    if (allocated(block_scalar_boundary_final_plan%request_level_displ)) &
+         deallocate(block_scalar_boundary_final_plan%request_level_displ)
+    if (allocated(block_scalar_boundary_final_plan%request_cache_slot)) &
+         deallocate(block_scalar_boundary_final_plan%request_cache_slot)
+    if (allocated(block_scalar_boundary_final_plan%service_count)) &
+         deallocate(block_scalar_boundary_final_plan%service_count)
+    if (allocated(block_scalar_boundary_final_plan%service_displ)) &
+         deallocate(block_scalar_boundary_final_plan%service_displ)
+    if (allocated(block_scalar_boundary_final_plan%service_level_count)) &
+         deallocate(block_scalar_boundary_final_plan%service_level_count)
+    if (allocated(block_scalar_boundary_final_plan%service_level_displ)) &
+         deallocate(block_scalar_boundary_final_plan%service_level_displ)
+    if (allocated(block_scalar_boundary_final_plan%service_block)) &
+         deallocate(block_scalar_boundary_final_plan%service_block)
+    if (allocated(block_scalar_boundary_final_plan%service_patch)) &
+         deallocate(block_scalar_boundary_final_plan%service_patch)
+    if (allocated(block_scalar_boundary_final_plan%service_node)) &
+         deallocate(block_scalar_boundary_final_plan%service_node)
+    if (allocated(block_scalar_boundary_final_plan%service_level)) &
+         deallocate(block_scalar_boundary_final_plan%service_level)
+    if (allocated(block_scalar_boundary_final_plan%boundary_level_count)) &
+         deallocate(block_scalar_boundary_final_plan%boundary_level_count)
+    if (allocated(block_scalar_boundary_final_plan%boundary_level_displ)) &
+         deallocate(block_scalar_boundary_final_plan%boundary_level_displ)
+    if (allocated(block_scalar_boundary_final_plan%boundary_local_index)) &
+         deallocate(block_scalar_boundary_final_plan%boundary_local_index)
+    if (allocated(block_scalar_boundary_final_plan%boundary_node)) &
+         deallocate(block_scalar_boundary_final_plan%boundary_node)
+    if (allocated(block_scalar_boundary_final_plan%boundary_cache_slot)) &
+         deallocate(block_scalar_boundary_final_plan%boundary_cache_slot)
+    if (allocated(block_scalar_boundary_final_plan%value)) &
+         deallocate(block_scalar_boundary_final_plan%value)
+    if (allocated(block_scalar_boundary_final_plan%covered)) &
+         deallocate(block_scalar_boundary_final_plan%covered)
+    block_scalar_boundary_final_plan%route_level_start = -1
+    block_scalar_boundary_final_plan%route_level_count = 0
+    block_scalar_boundary_final_plan%cache_count = 0
+    block_scalar_boundary_final_plan%field_count = 0
+    block_scalar_boundary_final_plan%ready = .false.
+
+  end subroutine clear_block_scalar_boundary_final_plan
+
+
   subroutine prepare_block_scalar_restriction_exchange
     ! Allocate persistent compact-boundary and inter-block-ghost routes for
     ! the scalar restriction record. Routing is inherited from the validated
@@ -17125,9 +17238,14 @@ end subroutine build_parallel_block_catalog
     integer :: n_boundary_send
     integer :: n_ghost_recv
     integer :: n_ghost_send
+    integer :: level_slot
+    integer :: required_ghost_recv
+    integer :: required_ghost_send
 
     if (block_scalar_restriction_exchange%generation == &
          block_writeback_plan_generation) return
+
+    call clear_block_scalar_boundary_final_plan
 
     if (allocated(block_scalar_restriction_exchange% &
          boundary_source_displ)) deallocate( &
@@ -17161,6 +17279,8 @@ end subroutine build_parallel_block_catalog
          deallocate(block_scalar_boundary_owner_block)
     if (allocated(block_scalar_boundary_owner_block_patch)) &
          deallocate(block_scalar_boundary_owner_block_patch)
+    if (allocated(block_scalar_boundary_owner_block_level)) &
+         deallocate(block_scalar_boundary_owner_block_level)
     if (allocated(block_scalar_boundary_owner_rank)) &
          deallocate(block_scalar_boundary_owner_rank)
     if (allocated(block_scalar_boundary_owner_rank_send)) &
@@ -17239,6 +17359,10 @@ end subroutine build_parallel_block_catalog
          deallocate(block_scalar_boundary_owner_block_patch_send)
     if (allocated(block_scalar_boundary_owner_block_patch_recv)) &
          deallocate(block_scalar_boundary_owner_block_patch_recv)
+    if (allocated(block_scalar_boundary_owner_block_level_send)) &
+         deallocate(block_scalar_boundary_owner_block_level_send)
+    if (allocated(block_scalar_boundary_owner_block_level_recv)) &
+         deallocate(block_scalar_boundary_owner_block_level_recv)
     if (allocated(block_scalar_restriction_exchange% &
          boundary_send_count)) deallocate( &
          block_scalar_restriction_exchange%boundary_send_count)
@@ -17376,6 +17500,8 @@ end subroutine build_parallel_block_catalog
          sum(block_writeback_plan%boundary_scalar_block_recv_count))))
     allocate(block_scalar_boundary_owner_block_patch(max(1, &
          sum(block_writeback_plan%boundary_scalar_block_recv_count))))
+    allocate(block_scalar_boundary_owner_block_level(max(1, &
+         sum(block_writeback_plan%boundary_scalar_block_recv_count))))
     allocate(block_scalar_boundary_owner_block_send(max(1, &
          sum(block_writeback_plan%boundary_scalar_domain_send_count))))
     allocate(block_scalar_boundary_owner_block_recv(max(1, &
@@ -17383,6 +17509,10 @@ end subroutine build_parallel_block_catalog
     allocate(block_scalar_boundary_owner_block_patch_send(max(1, &
          sum(block_writeback_plan%boundary_scalar_domain_send_count))))
     allocate(block_scalar_boundary_owner_block_patch_recv(max(1, &
+         sum(block_writeback_plan%boundary_scalar_block_recv_count))))
+    allocate(block_scalar_boundary_owner_block_level_send(max(1, &
+         sum(block_writeback_plan%boundary_scalar_domain_send_count))))
+    allocate(block_scalar_boundary_owner_block_level_recv(max(1, &
          sum(block_writeback_plan%boundary_scalar_block_recv_count))))
     allocate(block_scalar_boundary_owner_rank_send(max(1, &
          sum(block_writeback_plan%boundary_scalar_domain_send_count))))
@@ -17459,6 +17589,36 @@ end subroutine build_parallel_block_catalog
 
     call prepare_block_scalar_boundary_provenance
 
+    required_ghost_send = n_ghost_send
+    required_ghost_recv = n_ghost_recv
+    do level_slot = 1, &
+         block_scalar_boundary_final_plan%route_level_count
+       required_ghost_send = max(required_ghost_send, &
+            ghost_exchange_plan%scalar_n_value*sum( &
+            ghost_exchange_plan%recv_level_count(:,level_slot)) + &
+            block_scalar_boundary_final_plan%field_count*sum( &
+            block_scalar_boundary_final_plan% &
+            service_level_count(:,level_slot)))
+       required_ghost_recv = max(required_ghost_recv, &
+            ghost_exchange_plan%scalar_n_value*sum( &
+            ghost_exchange_plan%send_level_count(:,level_slot)) + &
+            block_scalar_boundary_final_plan%field_count*sum( &
+            block_scalar_boundary_final_plan% &
+            request_level_count(:,level_slot)))
+    end do
+    if (size(block_scalar_restriction_exchange%ghost_send_buffer) < &
+         max(1,required_ghost_send)) then
+       deallocate(block_scalar_restriction_exchange%ghost_send_buffer)
+       allocate(block_scalar_restriction_exchange%ghost_send_buffer( &
+            max(1,required_ghost_send)))
+    end if
+    if (size(block_scalar_restriction_exchange%ghost_recv_buffer) < &
+         max(1,required_ghost_recv)) then
+       deallocate(block_scalar_restriction_exchange%ghost_recv_buffer)
+       allocate(block_scalar_restriction_exchange%ghost_recv_buffer( &
+            max(1,required_ghost_recv)))
+    end if
+
     block_scalar_restriction_exchange%boundary_send_buffer = &
          BLOCK_BOUNDARY_POISON
     block_scalar_restriction_exchange%boundary_recv_buffer = &
@@ -17473,6 +17633,8 @@ end subroutine build_parallel_block_catalog
     block_scalar_boundary_owner_block_recv = -3
     block_scalar_boundary_owner_block_patch_send = -3
     block_scalar_boundary_owner_block_patch_recv = -3
+    block_scalar_boundary_owner_block_level_send = -3
+    block_scalar_boundary_owner_block_level_recv = -3
     block_scalar_boundary_owner_rank_send = -3
     block_scalar_boundary_owner_rank_recv = -3
     block_scalar_boundary_owner_patch_send = -3
@@ -17481,6 +17643,7 @@ end subroutine build_parallel_block_catalog
     block_scalar_boundary_owner_patch_node_recv = -3
     block_scalar_boundary_owner_block = -3
     block_scalar_boundary_owner_block_patch = -3
+    block_scalar_boundary_owner_block_level = -3
     block_scalar_boundary_owner_block_send = -3
     block_scalar_boundary_owner_block_recv = -3
     block_scalar_boundary_owner_block_patch_send = -3
@@ -17544,6 +17707,7 @@ end subroutine build_parallel_block_catalog
     integer :: source_patch
     integer :: source_patch_node
     integer :: source_block
+    integer :: source_block_level
     integer :: source_block_patch
     integer :: source_bdry
     integer :: source_level
@@ -17566,6 +17730,8 @@ end subroutine build_parallel_block_catalog
     integer, allocatable :: node_key_patch_node_send_buffer(:)
     integer, allocatable :: node_key_block_recv_buffer(:)
     integer, allocatable :: node_key_block_send_buffer(:)
+    integer, allocatable :: node_key_block_level_recv_buffer(:)
+    integer, allocatable :: node_key_block_level_send_buffer(:)
     integer, allocatable :: node_key_block_patch_recv_buffer(:)
     integer, allocatable :: node_key_block_patch_send_buffer(:)
     integer, allocatable :: node_key_recv_buffer(:)
@@ -17580,6 +17746,7 @@ end subroutine build_parallel_block_catalog
     integer, allocatable :: route_source_patch(:)
     integer, allocatable :: route_source_patch_node(:)
     integer, allocatable :: route_source_block(:)
+    integer, allocatable :: route_source_block_level(:)
     integer, allocatable :: route_source_block_patch(:)
     integer, allocatable :: route_owner_rank(:)
 
@@ -17595,6 +17762,8 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: cache_count_local(5)
     integer(int64) :: cache_request_count_global(3)
     integer(int64) :: cache_request_count_local(3)
+    integer(int64) :: final_request_count_global(3)
+    integer(int64) :: final_request_count_local(3)
     integer(int64) :: source_key_count_global(4)
     integer(int64) :: source_key_count_local(4)
 
@@ -17627,13 +17796,25 @@ end subroutine build_parallel_block_catalog
     ! is insufficient for its allocation.
     deallocate(block_scalar_boundary_owner_block)
     deallocate(block_scalar_boundary_owner_block_patch)
+    deallocate(block_scalar_boundary_owner_block_level)
     allocate(block_scalar_boundary_owner_block(max(1,total_node)))
     allocate(block_scalar_boundary_owner_block_patch(max(1,total_node)))
+    allocate(block_scalar_boundary_owner_block_level(max(1,total_node)))
     allocate(block_scalar_boundary_owner_rank(max(1,total_node)))
     allocate(block_scalar_boundary_cache_slot(max(1,total_node)))
     allocate(block_scalar_boundary_cache_domain(max(1,total_node)))
     allocate(block_scalar_boundary_cache_node(max(1,total_node)))
     allocate(block_scalar_boundary_cache_rank(max(1,total_node)))
+    allocate(block_scalar_boundary_final_plan%cache_block( &
+         max(1,total_node)))
+    allocate(block_scalar_boundary_final_plan%cache_patch( &
+         max(1,total_node)))
+    allocate(block_scalar_boundary_final_plan%cache_node( &
+         max(1,total_node)))
+    allocate(block_scalar_boundary_final_plan%cache_rank( &
+         max(1,total_node)))
+    allocate(block_scalar_boundary_final_plan%cache_level( &
+         max(1,total_node)))
     allocate(block_scalar_restriction_exchange% &
          boundary_source_domain(max(1,total_node)))
     allocate(block_scalar_restriction_exchange% &
@@ -17659,11 +17840,17 @@ end subroutine build_parallel_block_catalog
     block_scalar_restriction_exchange%boundary_source_owner_node = -3
     block_scalar_boundary_owner_patch = -3
     block_scalar_boundary_owner_patch_node = -3
+    block_scalar_boundary_owner_block_level = -3
     block_scalar_boundary_owner_rank = -3
     block_scalar_boundary_cache_slot = -3
     block_scalar_boundary_cache_domain = -3
     block_scalar_boundary_cache_node = -3
     block_scalar_boundary_cache_rank = -3
+    block_scalar_boundary_final_plan%cache_block = -3
+    block_scalar_boundary_final_plan%cache_patch = -3
+    block_scalar_boundary_final_plan%cache_node = -3
+    block_scalar_boundary_final_plan%cache_rank = -3
+    block_scalar_boundary_final_plan%cache_level = -3
     block_scalar_boundary_cache_count = 0
 
     do local_index = 1,n_local
@@ -17776,6 +17963,7 @@ end subroutine build_parallel_block_catalog
     allocate(route_source_patch_node(max(1,total_domain_node)))
     allocate(route_source_block(max(1,total_domain_node)))
     allocate(route_source_block_patch(max(1,total_domain_node)))
+    allocate(route_source_block_level(max(1,total_domain_node)))
     route_count = 0
     route_owner_rank = -1
     route_source_domain = -3
@@ -17784,6 +17972,7 @@ end subroutine build_parallel_block_catalog
     route_source_patch_node = -3
     route_source_block = -3
     route_source_block_patch = -3
+    route_source_block_level = -3
 
     ! Stage 166E: exchange the source-node side of every remote AT_NODE route
     ! once per topology generation. Packing and unpacking deliberately mirror
@@ -17846,6 +18035,10 @@ end subroutine build_parallel_block_catalog
          max(1,sum(node_key_send_count))))
     allocate(node_key_block_patch_recv_buffer( &
          max(1,sum(node_key_recv_count))))
+    allocate(node_key_block_level_send_buffer( &
+         max(1,sum(node_key_send_count))))
+    allocate(node_key_block_level_recv_buffer( &
+         max(1,sum(node_key_recv_count))))
     node_key_send_buffer = -1
     node_key_recv_buffer = -1
     node_key_patch_send_buffer = -1
@@ -17856,6 +18049,8 @@ end subroutine build_parallel_block_catalog
     node_key_block_recv_buffer = -1
     node_key_block_patch_send_buffer = -1
     node_key_block_patch_recv_buffer = -1
+    node_key_block_level_send_buffer = -1
+    node_key_block_level_recv_buffer = -1
     do r = 1,n_process
        node_key_pos = node_key_send_displ(r)+1
        if (r /= rank+1) then
@@ -17875,6 +18070,8 @@ end subroutine build_parallel_block_catalog
                         d_source,source_id,source_patch,source_patch_node)
                    call source_patch_block_key( &
                         d_source,source_patch,source_block,source_block_patch)
+                   source_block_level = grid(d_source)% &
+                        patch%elts(source_patch+1)%level
                    node_key_send_buffer(node_key_pos) = source_id
                    node_key_patch_send_buffer(node_key_pos) = source_patch
                    node_key_patch_node_send_buffer(node_key_pos) = &
@@ -17882,6 +18079,8 @@ end subroutine build_parallel_block_catalog
                    node_key_block_send_buffer(node_key_pos) = source_block
                    node_key_block_patch_send_buffer(node_key_pos) = &
                         source_block_patch
+                   node_key_block_level_send_buffer(node_key_pos) = &
+                        source_block_level
                    node_key_pos = node_key_pos+1
                 end do
              end do
@@ -17916,6 +18115,12 @@ end subroutine build_parallel_block_catalog
          node_key_recv_displ,MPI_INTEGER,comm,ierr)
     call check_mpi(ierr, &
          "MPI_Alltoallv scalar boundary source block patches")
+    call MPI_Alltoallv(node_key_block_level_send_buffer, &
+         node_key_send_count,node_key_send_displ,MPI_INTEGER, &
+         node_key_block_level_recv_buffer,node_key_recv_count, &
+         node_key_recv_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr, &
+         "MPI_Alltoallv scalar boundary source block levels")
 
     do r = 1,n_process
        node_key_pos = node_key_recv_displ(r)+1
@@ -17943,6 +18148,8 @@ end subroutine build_parallel_block_catalog
                         d_source,source_id,source_patch,source_patch_node)
                    call source_patch_block_key( &
                         d_source,source_patch,source_block,source_block_patch)
+                   source_block_level = grid(d_source)% &
+                        patch%elts(source_patch+1)%level
                 else
                    if (node_key_pos > node_key_recv_displ(r) + &
                         node_key_recv_count(r)) then
@@ -17957,11 +18164,22 @@ end subroutine build_parallel_block_catalog
                    source_block = node_key_block_recv_buffer(node_key_pos)
                    source_block_patch = &
                         node_key_block_patch_recv_buffer(node_key_pos)
+                   source_block_level = &
+                        node_key_block_level_recv_buffer(node_key_pos)
                    node_key_pos = node_key_pos+1
                    if (source_id < 0 .or. source_patch < 0 .or. &
                         source_patch_node < 0 .or. &
                         source_patch_node >= PATCH_SIZE**2 .or. &
-                        source_block_patch < -1) then
+                        source_block_level < 0 .or. &
+                        source_block_level > level_end .or. &
+                        (source_block == -1 .and. &
+                        (source_block_patch /= -1 .or. &
+                        source_block_level >= level_start)) .or. &
+                        (source_block /= -1 .and. &
+                        (source_block < 1 .or. &
+                        source_block > size(block_catalog) .or. &
+                        source_block_patch < 0 .or. &
+                        source_block_level < level_start))) then
                       call fail( &
                            "scalar boundary remote patch key is invalid")
                    end if
@@ -17984,6 +18202,8 @@ end subroutine build_parallel_block_catalog
                    route_source_block(route_index) = source_block
                    route_source_block_patch(route_index) = &
                         source_block_patch
+                   route_source_block_level(route_index) = &
+                        source_block_level
                 else if (route_owner_rank(route_index) /= r-1) then
                    route_owner_rank(route_index) = -2
                    route_source_domain(route_index) = -2
@@ -17992,6 +18212,7 @@ end subroutine build_parallel_block_catalog
                    route_source_patch_node(route_index) = -2
                    route_source_block(route_index) = -2
                    route_source_block_patch(route_index) = -2
+                   route_source_block_level(route_index) = -2
                 else
                    route_source_domain(route_index) = -2
                    route_source_node(route_index) = -2
@@ -17999,6 +18220,7 @@ end subroutine build_parallel_block_catalog
                    route_source_patch_node(route_index) = -2
                    route_source_block(route_index) = -2
                    route_source_block_patch(route_index) = -2
+                   route_source_block_level(route_index) = -2
                 end if
              end do
           end do
@@ -18015,6 +18237,8 @@ end subroutine build_parallel_block_catalog
     deallocate(node_key_patch_send_buffer)
     deallocate(node_key_block_patch_recv_buffer)
     deallocate(node_key_block_patch_send_buffer)
+    deallocate(node_key_block_level_recv_buffer)
+    deallocate(node_key_block_level_send_buffer)
     deallocate(node_key_block_recv_buffer)
     deallocate(node_key_block_send_buffer)
     deallocate(node_key_recv_buffer)
@@ -18074,7 +18298,7 @@ end subroutine build_parallel_block_catalog
                         d,source_bdry,node,owner_class, &
                         source_global,source_id,source_patch, &
                         source_patch_node,source_block,source_block_patch, &
-                        source_owner_rank)
+                        source_block_level,source_owner_rank)
                    block_scalar_restriction_exchange% &
                         boundary_owner_send_buffer(sample+1) = &
                         owner_class
@@ -18092,6 +18316,8 @@ end subroutine build_parallel_block_catalog
                         source_block
                    block_scalar_boundary_owner_block_patch_send(sample+1) = &
                         source_block_patch
+                   block_scalar_boundary_owner_block_level_send(sample+1) = &
+                        source_block_level
                    block_scalar_boundary_owner_rank_send(sample+1) = &
                         source_owner_rank
                 end do
@@ -18182,6 +18408,15 @@ end subroutine build_parallel_block_catalog
          MPI_INTEGER,comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv scalar boundary owner block patches")
     call MPI_Alltoallv( &
+         block_scalar_boundary_owner_block_level_send, &
+         block_writeback_plan%boundary_scalar_domain_send_count, &
+         block_writeback_plan%boundary_scalar_domain_send_displ, &
+         MPI_INTEGER, block_scalar_boundary_owner_block_level_recv, &
+         block_writeback_plan%boundary_scalar_block_recv_count, &
+         block_writeback_plan%boundary_scalar_block_recv_displ, &
+         MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary owner block levels")
+    call MPI_Alltoallv( &
          block_scalar_boundary_owner_rank_send, &
          block_writeback_plan%boundary_scalar_domain_send_count, &
          block_writeback_plan%boundary_scalar_domain_send_displ, &
@@ -18224,6 +18459,8 @@ end subroutine build_parallel_block_catalog
                      pos_sample+node)
                 source_block_patch = block_scalar_boundary_owner_block_patch_recv( &
                      pos_sample+node)
+                source_block_level = block_scalar_boundary_owner_block_level_recv( &
+                     pos_sample+node)
                 source_owner_rank = block_scalar_boundary_owner_rank_recv( &
                      pos_sample+node)
                 do field_value_slot = 1,n_field_value
@@ -18246,6 +18483,8 @@ end subroutine build_parallel_block_catalog
                         source_block .or. &
                         block_scalar_boundary_owner_block_patch_recv(sample+1) /= &
                         source_block_patch .or. &
+                        block_scalar_boundary_owner_block_level_recv(sample+1) /= &
+                        source_block_level .or. &
                         block_scalar_boundary_owner_rank_recv(sample+1) /= &
                         source_owner_rank) then
                       call fail( &
@@ -18268,6 +18507,8 @@ end subroutine build_parallel_block_catalog
                 block_scalar_boundary_owner_block(owner_pos+node) = source_block
                 block_scalar_boundary_owner_block_patch(owner_pos+node) = &
                      source_block_patch
+                block_scalar_boundary_owner_block_level(owner_pos+node) = &
+                     source_block_level
                 block_scalar_boundary_owner_rank(owner_pos+node) = &
                      source_owner_rank
              end do
@@ -18304,7 +18545,8 @@ end subroutine build_parallel_block_catalog
              call domain_boundary_owner_key( &
                   d,source_bdry,node,owner_class, &
                   source_global,source_id,source_patch,source_patch_node, &
-                  source_block,source_block_patch,source_owner_rank)
+                  source_block,source_block_patch,source_block_level, &
+                  source_owner_rank)
              block_scalar_restriction_exchange% &
                   boundary_source_owner_class(owner_pos+node) = &
                   owner_class
@@ -18320,6 +18562,8 @@ end subroutine build_parallel_block_catalog
              block_scalar_boundary_owner_block(owner_pos+node) = source_block
              block_scalar_boundary_owner_block_patch(owner_pos+node) = &
                   source_block_patch
+             block_scalar_boundary_owner_block_level(owner_pos+node) = &
+                  source_block_level
              block_scalar_boundary_owner_rank(owner_pos+node) = &
                   source_owner_rank
           end do
@@ -18331,6 +18575,7 @@ end subroutine build_parallel_block_catalog
        end if
     end do
     deallocate(route_source_patch_node)
+    deallocate(route_source_block_level)
     deallocate(route_source_block_patch)
     deallocate(route_source_block)
     deallocate(route_source_patch)
@@ -18373,6 +18618,7 @@ end subroutine build_parallel_block_catalog
        source_patch_node = block_scalar_boundary_owner_patch_node(pos)
        source_block = block_scalar_boundary_owner_block(pos)
        source_block_patch = block_scalar_boundary_owner_block_patch(pos)
+       source_block_level = block_scalar_boundary_owner_block_level(pos)
        source_owner_rank = block_scalar_boundary_owner_rank(pos)
        select case (owner_class)
        case (BLOCK_BOUNDARY_OWNER_LOCAL)
@@ -18391,7 +18637,9 @@ end subroutine build_parallel_block_catalog
           patch_key_count_local(1) = patch_key_count_local(1)+1_int64
           if (source_block >= 1 .and. &
                source_block <= size(block_catalog) .and. &
-               source_block_patch >= 0) then
+               source_block_patch >= 0 .and. &
+               source_block_level >= level_start .and. &
+               source_block_level <= level_end) then
              if (block_catalog(source_block)%root_domain /= source_global) &
                   call fail("local scalar boundary block Domain differs")
              if (block_catalog(source_block)%owner == rank) then
@@ -18401,7 +18649,9 @@ end subroutine build_parallel_block_catalog
                 block_key_count_local(2) = &
                      block_key_count_local(2)+1_int64
              end if
-          else if (source_block == -1 .and. source_block_patch == -1) then
+          else if (source_block == -1 .and. source_block_patch == -1 .and. &
+               source_block_level >= 0 .and. &
+               source_block_level < level_start) then
              block_key_count_local(3) = block_key_count_local(3)+1_int64
           else
              call fail("local scalar boundary block key is invalid")
@@ -18422,7 +18672,9 @@ end subroutine build_parallel_block_catalog
           patch_key_count_local(2) = patch_key_count_local(2)+1_int64
           if (source_block >= 1 .and. &
                source_block <= size(block_catalog) .and. &
-               source_block_patch >= 0) then
+               source_block_patch >= 0 .and. &
+               source_block_level >= level_start .and. &
+               source_block_level <= level_end) then
              if (block_catalog(source_block)%root_domain /= source_global) &
                   call fail("remote scalar boundary block Domain differs")
              if (block_catalog(source_block)%owner == rank) then
@@ -18432,7 +18684,9 @@ end subroutine build_parallel_block_catalog
                 block_key_count_local(2) = &
                      block_key_count_local(2)+1_int64
              end if
-          else if (source_block == -1 .and. source_block_patch == -1) then
+          else if (source_block == -1 .and. source_block_patch == -1 .and. &
+               source_block_level >= 0 .and. &
+               source_block_level < level_start) then
              block_key_count_local(3) = block_key_count_local(3)+1_int64
           else
              call fail("remote scalar boundary block key is invalid")
@@ -18446,7 +18700,8 @@ end subroutine build_parallel_block_catalog
           source_key_count_local(3) = source_key_count_local(3)+1_int64
           patch_key_count_local(3) = patch_key_count_local(3)+1_int64
           block_scalar_boundary_cache_slot(pos) = -1
-          if (source_block /= -1 .or. source_block_patch /= -1) then
+          if (source_block /= -1 .or. source_block_patch /= -1 .or. &
+               source_block_level /= -1) then
              call fail("scaffold scalar boundary block key is invalid")
           end if
        case (BLOCK_BOUNDARY_OWNER_AMBIGUOUS)
@@ -18457,7 +18712,8 @@ end subroutine build_parallel_block_catalog
           end if
           source_key_count_local(4) = source_key_count_local(4)+1_int64
           patch_key_count_local(4) = patch_key_count_local(4)+1_int64
-          if (source_block /= -2 .or. source_block_patch /= -2) then
+          if (source_block /= -2 .or. source_block_patch /= -2 .or. &
+               source_block_level /= -2) then
              call fail("ambiguous scalar boundary block key is invalid")
           end if
           block_key_count_local(4) = block_key_count_local(4)+1_int64
@@ -18504,6 +18760,8 @@ end subroutine build_parallel_block_catalog
          cache_request_count_local(2) /= cache_count_local(4)) then
        call fail("scalar boundary cache request coverage differs")
     end if
+    call prepare_final_boundary_plan( &
+         n_cache,n_field_value,total_node,final_request_count_local)
 
     if (block_dynamics_validation_enabled()) then
        call MPI_Allreduce(owner_count_local,owner_count_global, &
@@ -18525,6 +18783,9 @@ end subroutine build_parallel_block_catalog
        call MPI_Allreduce(cache_request_count_local, &
             cache_request_count_global,3,MPI_INTEGER8,MPI_SUM,comm,ierr)
        call check_mpi(ierr,"MPI_Allreduce scalar boundary cache requests")
+       call MPI_Allreduce(final_request_count_local, &
+            final_request_count_global,3,MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce scalar boundary final requests")
        if (cache_request_count_global(2) /= &
             cache_request_count_global(3)) then
           call fail("scalar boundary cache global requests differ")
@@ -18564,9 +18825,419 @@ end subroutine build_parallel_block_catalog
             "Block scalar boundary cache requests: " // &
             "local remote-send remote-service = ", &
             cache_request_count_global
+       if (rank == 0) write(6,'(a,3(i0,1x))') &
+            "Block scalar boundary final requests: " // &
+            "local remote-send remote-service = ", &
+            final_request_count_global
     end if
 
   contains
+
+    subroutine prepare_final_boundary_plan ( &
+         n_cache,n_field_value,total_boundary_node,request_count)
+      ! Build the final-block-owner route once. Requests are ordered by peer
+      ! and source level, so every replay level can append its scalar values
+      ! to the existing sparse ghost message without rebuilding a manifest.
+
+      implicit none
+
+      integer, parameter :: REQUEST_SIZE = 4
+
+      integer, intent(in) :: n_cache
+      integer, intent(in) :: n_field_value
+      integer, intent(in) :: total_boundary_node
+      integer(int64), intent(out) :: request_count(3)
+
+      integer :: b
+      integer :: boundary_count
+      integer :: cache_slot
+      integer :: field_count
+      integer :: i
+      integer :: ierr
+      integer :: level_slot
+      integer :: local_index
+      integer :: n_level
+      integer :: node_offset
+      integer :: patch_count
+      integer :: pos
+      integer :: r
+      integer :: record
+      integer :: route_level
+      integer :: routed_cache_count
+
+      integer, allocatable :: cursor(:,:)
+      integer, allocatable :: fill(:)
+      integer, allocatable :: recv_count(:)
+      integer, allocatable :: recv_data(:)
+      integer, allocatable :: recv_displ(:)
+      integer, allocatable :: send_count(:)
+      integer, allocatable :: send_data(:)
+      integer, allocatable :: send_displ(:)
+
+      n_level = level_end-level_start+1
+      if (n_cache < 0 .or. n_field_value < 1 .or. n_level < 1) then
+         call fail("scalar boundary final route layout is invalid")
+      end if
+      block_scalar_boundary_final_plan%route_level_start = level_start
+      block_scalar_boundary_final_plan%route_level_count = n_level
+      block_scalar_boundary_final_plan%cache_count = n_cache
+      block_scalar_boundary_final_plan%field_count = n_field_value
+
+      allocate(block_scalar_boundary_final_plan% &
+           local_level_count(n_level))
+      allocate(block_scalar_boundary_final_plan% &
+           local_level_displ(n_level))
+      allocate(block_scalar_boundary_final_plan%request_count(n_process))
+      allocate(block_scalar_boundary_final_plan%request_displ(n_process))
+      allocate(block_scalar_boundary_final_plan% &
+           request_level_count(n_process,n_level))
+      allocate(block_scalar_boundary_final_plan% &
+           request_level_displ(n_process,n_level))
+      allocate(block_scalar_boundary_final_plan%service_count(n_process))
+      allocate(block_scalar_boundary_final_plan%service_displ(n_process))
+      allocate(block_scalar_boundary_final_plan% &
+           service_level_count(n_process,n_level))
+      allocate(block_scalar_boundary_final_plan% &
+           service_level_displ(n_process,n_level))
+      allocate(block_scalar_boundary_final_plan% &
+           boundary_level_count(n_level))
+      allocate(block_scalar_boundary_final_plan% &
+           boundary_level_displ(n_level))
+
+      block_scalar_boundary_final_plan%local_level_count = 0
+      block_scalar_boundary_final_plan%request_count = 0
+      block_scalar_boundary_final_plan%request_level_count = 0
+      block_scalar_boundary_final_plan%service_level_count = 0
+      block_scalar_boundary_final_plan%boundary_level_count = 0
+      routed_cache_count = 0
+      do cache_slot = 1,n_cache
+         route_level = block_scalar_boundary_final_plan% &
+              cache_level(cache_slot)
+         if (block_scalar_boundary_final_plan% &
+              cache_rank(cache_slot) < 0 .or. &
+              route_level <= level_start) cycle
+         level_slot = route_level-level_start+1
+         r = block_scalar_boundary_final_plan%cache_rank(cache_slot)+1
+         if (level_slot < 1 .or. level_slot > n_level .or. &
+              r < 1 .or. r > n_process) then
+            call fail("scalar boundary final cache route is invalid")
+         end if
+         if (r == rank+1) then
+            block_scalar_boundary_final_plan% &
+                 local_level_count(level_slot) = &
+                 block_scalar_boundary_final_plan% &
+                 local_level_count(level_slot)+1
+         else
+            block_scalar_boundary_final_plan%request_count(r) = &
+                 block_scalar_boundary_final_plan%request_count(r)+1
+            block_scalar_boundary_final_plan% &
+                 request_level_count(r,level_slot) = &
+                 block_scalar_boundary_final_plan% &
+                 request_level_count(r,level_slot)+1
+         end if
+         routed_cache_count = routed_cache_count+1
+      end do
+
+      call MPI_Alltoall(block_scalar_boundary_final_plan%request_count,1, &
+           MPI_INTEGER,block_scalar_boundary_final_plan%service_count,1, &
+           MPI_INTEGER,comm,ierr)
+      call check_mpi(ierr,"MPI_Alltoall scalar boundary final requests")
+      block_scalar_boundary_final_plan%request_displ(1) = 0
+      block_scalar_boundary_final_plan%service_displ(1) = 0
+      do r = 2,n_process
+         block_scalar_boundary_final_plan%request_displ(r) = &
+              block_scalar_boundary_final_plan%request_displ(r-1) + &
+              block_scalar_boundary_final_plan%request_count(r-1)
+         block_scalar_boundary_final_plan%service_displ(r) = &
+              block_scalar_boundary_final_plan%service_displ(r-1) + &
+              block_scalar_boundary_final_plan%service_count(r-1)
+      end do
+      block_scalar_boundary_final_plan%request_level_displ(:,1) = 0
+      do level_slot = 2,n_level
+         block_scalar_boundary_final_plan% &
+              request_level_displ(:,level_slot) = &
+              block_scalar_boundary_final_plan% &
+              request_level_displ(:,level_slot-1) + &
+              block_scalar_boundary_final_plan% &
+              request_level_count(:,level_slot-1)
+      end do
+
+      allocate(block_scalar_boundary_final_plan%request_cache_slot( &
+           max(1,sum(block_scalar_boundary_final_plan%request_count))))
+      allocate(send_data(max(1,REQUEST_SIZE*sum( &
+           block_scalar_boundary_final_plan%request_count))))
+      allocate(recv_data(max(1,REQUEST_SIZE*sum( &
+           block_scalar_boundary_final_plan%service_count))))
+      allocate(cursor(n_process,n_level))
+      cursor = 0
+      send_data = -1
+      block_scalar_boundary_final_plan%request_cache_slot = -1
+      do cache_slot = 1,n_cache
+         if (block_scalar_boundary_final_plan% &
+              cache_rank(cache_slot) < 0 .or. &
+              block_scalar_boundary_final_plan% &
+              cache_level(cache_slot) <= level_start) cycle
+         r = block_scalar_boundary_final_plan%cache_rank(cache_slot)+1
+         if (r == rank+1) cycle
+         level_slot = block_scalar_boundary_final_plan% &
+              cache_level(cache_slot)-level_start+1
+         record = block_scalar_boundary_final_plan%request_displ(r) + &
+              block_scalar_boundary_final_plan% &
+              request_level_displ(r,level_slot) + &
+              cursor(r,level_slot)+1
+         pos = REQUEST_SIZE*(record-1)
+         send_data(pos+1:pos+REQUEST_SIZE) = [ &
+              block_scalar_boundary_final_plan%cache_block(cache_slot), &
+              block_scalar_boundary_final_plan%cache_patch(cache_slot), &
+              block_scalar_boundary_final_plan%cache_node(cache_slot), &
+              block_scalar_boundary_final_plan%cache_level(cache_slot) ]
+         block_scalar_boundary_final_plan%request_cache_slot(record) = &
+              cache_slot
+         cursor(r,level_slot) = cursor(r,level_slot)+1
+      end do
+      if (any(cursor /= &
+           block_scalar_boundary_final_plan%request_level_count)) then
+         call fail("scalar boundary final request fill differs")
+      end if
+      deallocate(cursor)
+
+      allocate(send_count(n_process))
+      allocate(recv_count(n_process))
+      allocate(send_displ(n_process))
+      allocate(recv_displ(n_process))
+      send_count = REQUEST_SIZE* &
+           block_scalar_boundary_final_plan%request_count
+      recv_count = REQUEST_SIZE* &
+           block_scalar_boundary_final_plan%service_count
+      send_displ = REQUEST_SIZE* &
+           block_scalar_boundary_final_plan%request_displ
+      recv_displ = REQUEST_SIZE* &
+           block_scalar_boundary_final_plan%service_displ
+      call MPI_Alltoallv(send_data,send_count,send_displ,MPI_INTEGER, &
+           recv_data,recv_count,recv_displ,MPI_INTEGER,comm,ierr)
+      call check_mpi(ierr,"MPI_Alltoallv scalar boundary final manifest")
+      deallocate(recv_displ)
+      deallocate(send_displ)
+      deallocate(recv_count)
+      deallocate(send_count)
+      deallocate(send_data)
+
+      allocate(block_scalar_boundary_final_plan%service_block( &
+           max(1,sum(block_scalar_boundary_final_plan%service_count))))
+      allocate(block_scalar_boundary_final_plan%service_patch( &
+           max(1,sum(block_scalar_boundary_final_plan%service_count))))
+      allocate(block_scalar_boundary_final_plan%service_node( &
+           max(1,sum(block_scalar_boundary_final_plan%service_count))))
+      allocate(block_scalar_boundary_final_plan%service_level( &
+           max(1,sum(block_scalar_boundary_final_plan%service_count))))
+      block_scalar_boundary_final_plan%service_block = -1
+      block_scalar_boundary_final_plan%service_patch = -1
+      block_scalar_boundary_final_plan%service_node = -1
+      block_scalar_boundary_final_plan%service_level = -1
+      do record = 1, &
+           sum(block_scalar_boundary_final_plan%service_count)
+         pos = REQUEST_SIZE*(record-1)
+         block_scalar_boundary_final_plan%service_block(record) = &
+              recv_data(pos+1)
+         block_scalar_boundary_final_plan%service_patch(record) = &
+              recv_data(pos+2)
+         block_scalar_boundary_final_plan%service_node(record) = &
+              recv_data(pos+3)
+         block_scalar_boundary_final_plan%service_level(record) = &
+              recv_data(pos+4)
+      end do
+      deallocate(recv_data)
+
+      do r = 1,n_process
+         do i = 0,block_scalar_boundary_final_plan%service_count(r)-1
+            record = block_scalar_boundary_final_plan%service_displ(r)+i+1
+            route_level = block_scalar_boundary_final_plan% &
+                 service_level(record)
+            level_slot = route_level-level_start+1
+            b = block_scalar_boundary_final_plan%service_block(record)
+            if (level_slot < 1 .or. level_slot > n_level .or. &
+                 b < 1 .or. b > size(block_catalog)) &
+                 call fail("scalar boundary final service key is invalid")
+            local_index = catalog_local_block(b)
+            if (block_catalog(b)%owner /= rank .or. &
+                 local_index < 1 .or. &
+                 local_index > n_local) then
+               call fail("scalar boundary final service key is invalid")
+            end if
+            patch_count = local_block_patch_count(b)
+            if (block_scalar_boundary_final_plan% &
+                 service_patch(record) < 0 .or. &
+                 block_scalar_boundary_final_plan% &
+                 service_patch(record) >= patch_count) &
+                 call fail("scalar boundary final service patch is invalid")
+            if (block_scalar_boundary_final_plan% &
+                 service_node(record) < 0 .or. &
+                 block_scalar_boundary_final_plan% &
+                 service_node(record) >= PATCH_SIZE**2) &
+                 call fail("scalar boundary final service node is invalid")
+            if (local_block_patch_level( &
+                 b,block_scalar_boundary_final_plan% &
+                 service_patch(record)) /= route_level) then
+               call fail("scalar boundary final service level differs")
+            end if
+            block_scalar_boundary_final_plan% &
+                 service_level_count(r,level_slot) = &
+                 block_scalar_boundary_final_plan% &
+                 service_level_count(r,level_slot)+1
+         end do
+      end do
+      block_scalar_boundary_final_plan%service_level_displ(:,1) = 0
+      do level_slot = 2,n_level
+         block_scalar_boundary_final_plan% &
+              service_level_displ(:,level_slot) = &
+              block_scalar_boundary_final_plan% &
+              service_level_displ(:,level_slot-1) + &
+              block_scalar_boundary_final_plan% &
+              service_level_count(:,level_slot-1)
+      end do
+      do r = 1,n_process
+         do level_slot = 1,n_level
+            do i = 0,block_scalar_boundary_final_plan% &
+                 service_level_count(r,level_slot)-1
+               record = block_scalar_boundary_final_plan% &
+                    service_displ(r) + &
+                    block_scalar_boundary_final_plan% &
+                    service_level_displ(r,level_slot)+i+1
+               if (block_scalar_boundary_final_plan% &
+                    service_level(record) /= &
+                    level_start+level_slot-1) then
+                  call fail("scalar boundary final service order differs")
+               end if
+            end do
+         end do
+      end do
+
+      block_scalar_boundary_final_plan%local_level_displ(1) = 0
+      block_scalar_boundary_final_plan%boundary_level_displ(1) = 0
+      do level_slot = 2,n_level
+         block_scalar_boundary_final_plan%local_level_displ(level_slot) = &
+              block_scalar_boundary_final_plan% &
+              local_level_displ(level_slot-1) + &
+              block_scalar_boundary_final_plan% &
+              local_level_count(level_slot-1)
+         block_scalar_boundary_final_plan% &
+              boundary_level_displ(level_slot) = &
+              block_scalar_boundary_final_plan% &
+              boundary_level_displ(level_slot-1) + &
+              block_scalar_boundary_final_plan% &
+              boundary_level_count(level_slot-1)
+      end do
+      allocate(block_scalar_boundary_final_plan%local_cache_slot( &
+           max(1,sum(block_scalar_boundary_final_plan% &
+           local_level_count))))
+      allocate(fill(n_level))
+      fill = 0
+      do cache_slot = 1,n_cache
+         if (block_scalar_boundary_final_plan% &
+              cache_rank(cache_slot) < 0 .or. &
+              block_scalar_boundary_final_plan% &
+              cache_level(cache_slot) <= level_start) cycle
+         if (block_scalar_boundary_final_plan%cache_rank(cache_slot) /= &
+              rank) cycle
+         level_slot = block_scalar_boundary_final_plan% &
+              cache_level(cache_slot)-level_start+1
+         pos = block_scalar_boundary_final_plan% &
+              local_level_displ(level_slot)+fill(level_slot)+1
+         block_scalar_boundary_final_plan%local_cache_slot(pos) = &
+              cache_slot
+         fill(level_slot) = fill(level_slot)+1
+      end do
+      if (any(fill /= &
+           block_scalar_boundary_final_plan%local_level_count)) then
+         call fail("scalar boundary final local fill differs")
+      end if
+
+      do pos = 1,total_boundary_node
+         cache_slot = block_scalar_boundary_cache_slot(pos)+1
+         if (cache_slot < 1) cycle
+         if (block_scalar_boundary_final_plan% &
+              cache_rank(cache_slot) < 0 .or. &
+              block_scalar_boundary_final_plan% &
+              cache_level(cache_slot) <= level_start) cycle
+         level_slot = block_scalar_boundary_final_plan% &
+              cache_level(cache_slot)-level_start+1
+         if (level_slot < 1 .or. level_slot > n_level) then
+            call fail("scalar boundary final scatter level differs")
+         end if
+         block_scalar_boundary_final_plan% &
+              boundary_level_count(level_slot) = &
+              block_scalar_boundary_final_plan% &
+              boundary_level_count(level_slot)+1
+      end do
+      block_scalar_boundary_final_plan%boundary_level_displ(1) = 0
+      do level_slot = 2,n_level
+         block_scalar_boundary_final_plan% &
+              boundary_level_displ(level_slot) = &
+              block_scalar_boundary_final_plan% &
+              boundary_level_displ(level_slot-1) + &
+              block_scalar_boundary_final_plan% &
+              boundary_level_count(level_slot-1)
+      end do
+      boundary_count = sum( &
+           block_scalar_boundary_final_plan%boundary_level_count)
+      allocate(block_scalar_boundary_final_plan% &
+           boundary_local_index(max(1,boundary_count)))
+      allocate(block_scalar_boundary_final_plan% &
+           boundary_node(max(1,boundary_count)))
+      allocate(block_scalar_boundary_final_plan% &
+           boundary_cache_slot(max(1,boundary_count)))
+      fill = 0
+      do local_index = 1,n_local_blocks()
+         do pos = block_scalar_restriction_exchange% &
+              boundary_source_displ(local_index)+1, &
+              block_scalar_restriction_exchange% &
+              boundary_source_displ(local_index+1)
+            cache_slot = block_scalar_boundary_cache_slot(pos)+1
+            if (cache_slot < 1) cycle
+            if (block_scalar_boundary_final_plan% &
+                 cache_rank(cache_slot) < 0 .or. &
+                 block_scalar_boundary_final_plan% &
+                 cache_level(cache_slot) <= level_start) cycle
+            level_slot = block_scalar_boundary_final_plan% &
+                 cache_level(cache_slot)-level_start+1
+            record = block_scalar_boundary_final_plan% &
+                 boundary_level_displ(level_slot)+fill(level_slot)+1
+            node_offset = pos-block_scalar_restriction_exchange% &
+                 boundary_source_displ(local_index)-1
+            block_scalar_boundary_final_plan% &
+                 boundary_local_index(record) = local_index
+            block_scalar_boundary_final_plan%boundary_node(record) = &
+                 node_offset
+            block_scalar_boundary_final_plan% &
+                 boundary_cache_slot(record) = cache_slot
+            fill(level_slot) = fill(level_slot)+1
+         end do
+      end do
+      if (any(fill /= &
+           block_scalar_boundary_final_plan%boundary_level_count)) then
+         call fail("scalar boundary final scatter fill differs")
+      end if
+      deallocate(fill)
+
+      field_count = max(1,n_cache*n_field_value)
+      allocate(block_scalar_boundary_final_plan%value(field_count))
+      allocate(block_scalar_boundary_final_plan%covered(field_count))
+      block_scalar_boundary_final_plan%value = BLOCK_BOUNDARY_POISON
+      block_scalar_boundary_final_plan%covered = .false.
+      block_scalar_boundary_final_plan%ready = .true.
+
+      request_count(1) = int(sum( &
+           block_scalar_boundary_final_plan%local_level_count),int64)
+      request_count(2) = int(sum( &
+           block_scalar_boundary_final_plan%request_count),int64)
+      request_count(3) = int(sum( &
+           block_scalar_boundary_final_plan%service_count),int64)
+      if (request_count(1)+request_count(2) /= &
+           int(routed_cache_count,int64)) then
+         call fail("scalar boundary final request coverage differs")
+      end if
+
+    end subroutine prepare_final_boundary_plan
 
     subroutine prepare_boundary_cache_request_plan ( &
          n_cache,request_count)
@@ -18718,10 +19389,15 @@ end subroutine build_parallel_block_catalog
       integer, intent(inout) :: n_cache
 
       integer :: cache_slot
+      integer :: final_rank
       integer :: i
       integer :: owner_rank
+      integer :: source_block
+      integer :: source_block_patch
       integer :: source_domain
+      integer :: source_level
       integer :: source_node
+      integer :: source_patch_node
 
       if (boundary_pos < 1 .or. boundary_pos > total_node) then
          call fail("scalar boundary cache position is invalid")
@@ -18737,6 +19413,32 @@ end subroutine build_parallel_block_catalog
       owner_rank = block_scalar_boundary_owner_rank(boundary_pos)
       if (owner_rank < 0 .or. owner_rank >= n_process) then
          call fail("scalar boundary cache owner rank is invalid")
+      end if
+      source_block = block_scalar_boundary_owner_block(boundary_pos)
+      source_block_patch = &
+           block_scalar_boundary_owner_block_patch(boundary_pos)
+      source_patch_node = &
+           block_scalar_boundary_owner_patch_node(boundary_pos)
+      source_level = block_scalar_boundary_owner_block_level(boundary_pos)
+      if (source_patch_node < 0 .or. &
+           source_patch_node >= PATCH_SIZE**2 .or. &
+           source_level < 0 .or. source_level > level_end .or. &
+           (source_block == -1 .and. &
+           (source_block_patch /= -1 .or. &
+           source_level >= level_start)) .or. &
+           (source_block /= -1 .and. &
+           (source_block < 1 .or. &
+           source_block > size(block_catalog) .or. &
+           source_block_patch < 0 .or. &
+           source_level < level_start))) then
+         call fail("scalar boundary final source key is invalid")
+      end if
+      final_rank = -1
+      if (source_block >= 1) then
+         final_rank = block_catalog(source_block)%owner
+         if (final_rank < 0 .or. final_rank >= n_process) then
+            call fail("scalar boundary final owner is invalid")
+         end if
       end if
 
       cache_slot = 0
@@ -18756,9 +19458,30 @@ end subroutine build_parallel_block_catalog
          block_scalar_boundary_cache_domain(cache_slot) = source_domain
          block_scalar_boundary_cache_node(cache_slot) = source_node
          block_scalar_boundary_cache_rank(cache_slot) = owner_rank
+         block_scalar_boundary_final_plan%cache_block(cache_slot) = &
+              source_block
+         block_scalar_boundary_final_plan%cache_patch(cache_slot) = &
+              source_block_patch
+         block_scalar_boundary_final_plan%cache_node(cache_slot) = &
+              source_patch_node
+         block_scalar_boundary_final_plan%cache_rank(cache_slot) = &
+              final_rank
+         block_scalar_boundary_final_plan%cache_level(cache_slot) = &
+              source_level
       else if (block_scalar_boundary_cache_rank(cache_slot) /= owner_rank) &
            then
          call fail("scalar boundary cache owner differs")
+      else if (block_scalar_boundary_final_plan%cache_block(cache_slot) /= &
+           source_block .or. &
+           block_scalar_boundary_final_plan%cache_patch(cache_slot) /= &
+           source_block_patch .or. &
+           block_scalar_boundary_final_plan%cache_node(cache_slot) /= &
+           source_patch_node .or. &
+           block_scalar_boundary_final_plan%cache_rank(cache_slot) /= &
+           final_rank .or. &
+           block_scalar_boundary_final_plan%cache_level(cache_slot) /= &
+           source_level) then
+         call fail("scalar boundary final source differs")
       end if
       block_scalar_boundary_cache_slot(boundary_pos) = cache_slot-1
 
@@ -18887,7 +19610,7 @@ end subroutine build_parallel_block_catalog
     subroutine domain_boundary_owner_key ( &
          d_boundary,boundary_record,boundary_node,owner_class, &
          owner_domain,owner_node,owner_patch,owner_patch_node, &
-         owner_block,owner_block_patch,owner_rank)
+         owner_block,owner_block_patch,owner_block_level,owner_rank)
 
       implicit none
 
@@ -18901,6 +19624,7 @@ end subroutine build_parallel_block_catalog
       integer, intent(out) :: owner_patch_node
       integer, intent(out) :: owner_block
       integer, intent(out) :: owner_block_patch
+      integer, intent(out) :: owner_block_level
       integer, intent(out) :: owner_rank
 
       integer :: domain_route_index
@@ -18929,6 +19653,7 @@ end subroutine build_parallel_block_catalog
          owner_patch_node = -1
          owner_block = -1
          owner_block_patch = -1
+         owner_block_level = -1
          owner_rank = -1
       case (1)
          if (route_owner_rank(domain_route_index) == rank) then
@@ -18942,11 +19667,22 @@ end subroutine build_parallel_block_catalog
          owner_patch_node = route_source_patch_node(domain_route_index)
          owner_block = route_source_block(domain_route_index)
          owner_block_patch = route_source_block_patch(domain_route_index)
+         owner_block_level = route_source_block_level(domain_route_index)
          owner_rank = route_owner_rank(domain_route_index)
          if (owner_domain < 0 .or. owner_node < 0 .or. &
               owner_patch < 0 .or. owner_patch_node < 0 .or. &
               owner_patch_node >= PATCH_SIZE**2 .or. owner_rank < 0 .or. &
-              owner_rank >= n_process) then
+              owner_rank >= n_process .or. &
+              owner_block_level < 0 .or. &
+              owner_block_level > level_end .or. &
+              (owner_block == -1 .and. &
+              (owner_block_patch /= -1 .or. &
+              owner_block_level >= level_start)) .or. &
+              (owner_block /= -1 .and. &
+              (owner_block < 1 .or. &
+              owner_block > size(block_catalog) .or. &
+              owner_block_patch < 0 .or. &
+              owner_block_level < level_start))) then
             call fail("scalar boundary owner source key is invalid")
          end if
       case default
@@ -18957,6 +19693,7 @@ end subroutine build_parallel_block_catalog
          owner_patch_node = -2
          owner_block = -2
          owner_block_patch = -2
+         owner_block_level = -2
          owner_rank = -2
       end select
 
@@ -19049,8 +19786,7 @@ end subroutine build_parallel_block_catalog
     ! captured: the complete physical recomposition consumes it before the
     ! native restriction replay, including while forming the velocity path.
     ! The exact oracle continues to rebuild the reference dscalar as well.
-    capture_interior = validate_oracle .or. .not. capture_dscalar .or. &
-         .not. block_scalar_divergence_plan%production_cache_ready
+    capture_interior = validate_oracle .or. .not. capture_dscalar
     if (capture_interior) then
        do local_index = 1,n_local_blocks()
           b = local_block_catalog(local_index)
@@ -19335,9 +20071,9 @@ end subroutine build_parallel_block_catalog
        scalar_id,field_level,grid_level,capture_direct, &
        domain_tendency,capture_dscalar)
     ! Capture positive scalar flux and immutable restriction geometry for
-    ! compact Domain-boundary records. These records remain authoritative
-    ! compatibility inputs; inter-block records are refreshed from native
-    ! block interiors before every bottom-up restriction level.
+    ! compact Domain-boundary records. Production dscalar is supplied by the
+    ! final-owner route or reconstructed from these fluxes; the Domain value
+    ! is retained only by the validation oracle.
 
     implicit none
 
@@ -19395,6 +20131,7 @@ end subroutine build_parallel_block_catalog
        call fail("scalar-restriction boundary layout is invalid")
     end if
     validate_oracle = block_dynamics_validation_enabled()
+    if (capture_dscalar .and. .not. validate_oracle) return
 
     do r = 1,n_process
        pos_sample = block_writeback_plan% &
@@ -19624,8 +20361,8 @@ end subroutine build_parallel_block_catalog
 
   subroutine exchange_block_scalar_boundary_cache ( &
        domain_tendency,scalar_id,field_level,field_sample)
-    ! Stage 166K shadow transport.  Populate one value per unique exact
-    ! source-node slot.  Production boundary records remain authoritative.
+    ! Oracle-only Domain shadow transport. Populate one value per unique
+    ! exact source-node slot for independent final-owner validation.
 
     implicit none
 
@@ -20251,10 +20988,6 @@ end subroutine build_parallel_block_catalog
                block_scalar_restriction_exchange%boundary_send_buffer( &
                source_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
                source_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2)
-          block_scalar_restriction_exchange%boundary_send_buffer( &
-               buffer_start+EDGE) = &
-               block_scalar_restriction_exchange%boundary_send_buffer( &
-               source_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1)
        end do
        call MPI_Alltoallv( &
             block_scalar_restriction_exchange%boundary_send_buffer, &
@@ -20334,11 +21067,6 @@ end subroutine build_parallel_block_catalog
                               block_scalar_restriction_exchange% &
                               boundary_recv_buffer( &
                               buffer_start:buffer_start+EDGE-1)
-                         block_scalar_tendency(local_index)%bdry( &
-                              data_start+ &
-                              BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1) = &
-                              block_scalar_restriction_exchange% &
-                              boundary_recv_buffer(buffer_start+EDGE)
                       end if
                    end do
                 end do
@@ -20426,6 +21154,7 @@ end subroutine build_parallel_block_catalog
 
     integer :: destination
     integer :: destination_ghost
+    integer :: cache_slot
     integer :: component
     integer :: exchange_level
     integer :: i
@@ -20444,6 +21173,8 @@ end subroutine build_parallel_block_catalog
     integer :: source
     integer :: source_patch
     integer :: work_count
+
+    logical :: exchange_final_boundary
 
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("scalar-restriction ghost exchange is not ready")
@@ -20478,6 +21209,8 @@ end subroutine build_parallel_block_catalog
     if (component == BLOCK_GHOST_DYNAMIC_FLUX) payload_count = EDGE
     if (component == BLOCK_GHOST_DYNAMIC_DSCALAR) payload_count = 1
     if (full_payload) payload_count = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
+    exchange_final_boundary = .not. full_payload .and. &
+         component == BLOCK_GHOST_DYNAMIC_DSCALAR
     profile_ghost_mode = BLOCK_PROFILE_RESTRICTION_GHOST_DYNAMIC
     if (full_payload) &
          profile_ghost_mode = BLOCK_PROFILE_RESTRICTION_GHOST_FULL
@@ -20497,12 +21230,46 @@ end subroutine build_parallel_block_catalog
        block_scalar_restriction_exchange%ghost_dynamic_recv_count = &
             payload_count*ghost_exchange_plan%scalar_n_value* &
             ghost_exchange_plan%send_level_count(:,level_slot)
-       block_scalar_restriction_exchange%ghost_dynamic_send_displ = &
-            payload_count*ghost_exchange_plan%scalar_n_value* &
-            ghost_exchange_plan%recv_level_displ(:,level_slot)
-       block_scalar_restriction_exchange%ghost_dynamic_recv_displ = &
-            payload_count*ghost_exchange_plan%scalar_n_value* &
-            ghost_exchange_plan%send_level_displ(:,level_slot)
+       if (exchange_final_boundary) then
+          if (.not. block_scalar_boundary_final_plan%ready .or. &
+               block_scalar_boundary_final_plan%route_level_start /= &
+               level_start .or. &
+               block_scalar_boundary_final_plan%route_level_count /= &
+               level_end-level_start+1 .or. &
+               block_scalar_boundary_final_plan%field_count /= &
+               ghost_exchange_plan%scalar_n_value/PATCH_SIZE**2) then
+             call fail("scalar boundary final subplan is stale")
+          end if
+          block_scalar_restriction_exchange%ghost_dynamic_send_count = &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_send_count + &
+               block_scalar_boundary_final_plan%field_count* &
+               block_scalar_boundary_final_plan% &
+               service_level_count(:,level_slot)
+          block_scalar_restriction_exchange%ghost_dynamic_recv_count = &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_recv_count + &
+               block_scalar_boundary_final_plan%field_count* &
+               block_scalar_boundary_final_plan% &
+               request_level_count(:,level_slot)
+          block_scalar_boundary_final_plan%covered = .false.
+       end if
+       block_scalar_restriction_exchange%ghost_dynamic_send_displ(1) = 0
+       block_scalar_restriction_exchange%ghost_dynamic_recv_displ(1) = 0
+       do r = 2,n_process
+          block_scalar_restriction_exchange% &
+               ghost_dynamic_send_displ(r) = &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_send_displ(r-1) + &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_send_count(r-1)
+          block_scalar_restriction_exchange% &
+               ghost_dynamic_recv_displ(r) = &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_recv_displ(r-1) + &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_recv_count(r-1)
+       end do
     end if
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_PACK)
@@ -20531,6 +21298,18 @@ end subroutine build_parallel_block_catalog
             ghost_exchange_plan%local_level_count(level_slot)
           request = ghost_exchange_plan%local_level_request(i)
           call install_local_request(request)
+       end do
+    end if
+    if (exchange_final_boundary) then
+       do i = block_scalar_boundary_final_plan% &
+            local_level_displ(level_slot)+1, &
+            block_scalar_boundary_final_plan% &
+            local_level_displ(level_slot) + &
+            block_scalar_boundary_final_plan% &
+            local_level_count(level_slot)
+          cache_slot = block_scalar_boundary_final_plan% &
+               local_cache_slot(i)
+          call fill_final_boundary_cache(cache_slot)
        end do
     end if
 
@@ -20573,6 +21352,18 @@ end subroutine build_parallel_block_catalog
                ghost_exchange_plan%scalar_n_value
           work_count = work_count + 1
        end do
+       if (exchange_final_boundary) then
+          do i = 0,block_scalar_boundary_final_plan% &
+               service_level_count(r,level_slot)-1
+             record = block_scalar_boundary_final_plan%service_displ(r) + &
+                  block_scalar_boundary_final_plan% &
+                  service_level_displ(r,level_slot)+i+1
+             call pack_final_boundary_service(record,payload_pos)
+             payload_pos = payload_pos + &
+                  block_scalar_boundary_final_plan%field_count
+             work_count = work_count + 1
+          end do
+       end if
        if (full_payload) then
           if (payload_pos /= block_scalar_restriction_exchange% &
                ghost_send_displ(r) + &
@@ -20660,6 +21451,20 @@ end subroutine build_parallel_block_catalog
                ghost_exchange_plan%scalar_n_value
           work_count = work_count + 1
        end do
+       if (exchange_final_boundary) then
+          do i = 0,block_scalar_boundary_final_plan% &
+               request_level_count(r,level_slot)-1
+             record = block_scalar_boundary_final_plan%request_displ(r) + &
+                  block_scalar_boundary_final_plan% &
+                  request_level_displ(r,level_slot)+i+1
+             cache_slot = block_scalar_boundary_final_plan% &
+                  request_cache_slot(record)
+             call install_final_boundary_cache(cache_slot,payload_pos)
+             payload_pos = payload_pos + &
+                  block_scalar_boundary_final_plan%field_count
+             work_count = work_count + 1
+          end do
+       end if
        if (full_payload) then
           if (payload_pos /= block_scalar_restriction_exchange% &
                ghost_recv_displ(r) + &
@@ -20673,6 +21478,8 @@ end subroutine build_parallel_block_catalog
                call fail("dynamic scalar ghost install extent differs")
        end if
     end do
+    if (exchange_final_boundary) &
+         call scatter_final_boundary_cache(level_slot)
     call block_profile_leave( &
          BLOCK_PROFILE_RESTRICTION_INSTALL, &
          int(work_count,int64))
@@ -20706,6 +21513,275 @@ end subroutine build_parallel_block_catalog
       work_count = work_count + 1
 
     end subroutine install_local_request
+
+
+    subroutine fill_final_boundary_cache (cache_slot)
+
+      implicit none
+
+      integer, intent(in) :: cache_slot
+
+      integer :: data_index
+      integer :: field_sample
+      integer :: local_source
+      integer :: node_source
+      integer :: patch_source
+      integer :: source_block
+      integer :: source_patch_count
+      real(dp) :: source_value
+
+      if (cache_slot < 1 .or. &
+           cache_slot > block_scalar_boundary_final_plan%cache_count) then
+         call fail("local scalar boundary final cache slot is invalid")
+      end if
+      source_block = block_scalar_boundary_final_plan% &
+           cache_block(cache_slot)
+      patch_source = block_scalar_boundary_final_plan% &
+           cache_patch(cache_slot)
+      node_source = block_scalar_boundary_final_plan% &
+           cache_node(cache_slot)
+      if (source_block < 1 .or. &
+           source_block > size(block_catalog)) &
+           call fail("local scalar boundary final block is invalid")
+      local_source = catalog_local_block(source_block)
+      if (local_source < 1 .or. &
+           local_source > size(block_scalar_tendency) .or. &
+           block_catalog(source_block)%owner /= rank) then
+         call fail("local scalar boundary final source is invalid")
+      end if
+      source_patch_count = local_block_patch_count(source_block)
+      if (patch_source < 0 .or. &
+           patch_source >= source_patch_count) &
+           call fail("local scalar boundary final patch is invalid")
+      if (node_source < 0 .or. node_source >= PATCH_SIZE**2) &
+           call fail("local scalar boundary final node is invalid")
+      if (local_block_patch_level(source_block,patch_source) /= &
+           exchange_level) &
+           call fail("local scalar boundary final level differs")
+      do field_sample = 1,block_scalar_boundary_final_plan%field_count
+         data_index = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*( &
+              patch_source*ghost_exchange_plan%scalar_n_value + &
+              (field_sample-1)*PATCH_SIZE**2+node_source) + &
+              BLOCK_SCALAR_NATIVE_DSCALAR_INDEX
+         if (data_index < 1 .or. &
+              data_index > size(block_scalar_tendency(local_source)%patch)) &
+              call fail("local scalar boundary final data overruns")
+         source_value = block_scalar_tendency(local_source)%patch(data_index)
+         if (abs(source_value) > BLOCK_RESTRICTION_VALUE_LIMIT) then
+            write(error_unit,'(a,7(i0,1x),es24.16)') &
+                 "invalid local final source = ", &
+                 source_block,patch_source,node_source,exchange_level, &
+                 field_sample,local_source,data_index,source_value
+            flush(error_unit)
+            call fail("local scalar boundary final value is unavailable")
+         end if
+         call set_final_boundary_cache_value( &
+              cache_slot,field_sample,source_value)
+      end do
+
+    end subroutine fill_final_boundary_cache
+
+
+    subroutine pack_final_boundary_service (record,data_start)
+
+      implicit none
+
+      integer, intent(in) :: record
+      integer, intent(in) :: data_start
+
+      integer :: data_index
+      integer :: field_sample
+      integer :: local_source
+      integer :: node_source
+      integer :: patch_source
+      integer :: source_block
+      integer :: source_patch_count
+      real(dp) :: source_value
+
+      if (record < 1 .or. &
+           record > sum(block_scalar_boundary_final_plan%service_count)) &
+           then
+         call fail("scalar boundary final service record is invalid")
+      end if
+      source_block = block_scalar_boundary_final_plan%service_block(record)
+      patch_source = block_scalar_boundary_final_plan%service_patch(record)
+      node_source = block_scalar_boundary_final_plan%service_node(record)
+      if (source_block < 1 .or. &
+           source_block > size(block_catalog)) &
+           call fail("scalar boundary final service block is invalid")
+      local_source = catalog_local_block(source_block)
+      if (local_source < 1 .or. &
+           local_source > size(block_scalar_tendency) .or. &
+           block_catalog(source_block)%owner /= rank) then
+         call fail("scalar boundary final service source is invalid")
+      end if
+      source_patch_count = local_block_patch_count(source_block)
+      if (patch_source < 0 .or. &
+           patch_source >= source_patch_count) &
+           call fail("scalar boundary final service patch is invalid")
+      if (node_source < 0 .or. node_source >= PATCH_SIZE**2) &
+           call fail("scalar boundary final service node is invalid")
+      if (block_scalar_boundary_final_plan%service_level(record) /= &
+           exchange_level) &
+           call fail("scalar boundary final service level differs")
+      do field_sample = 1,block_scalar_boundary_final_plan%field_count
+         data_index = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*( &
+              patch_source*ghost_exchange_plan%scalar_n_value + &
+              (field_sample-1)*PATCH_SIZE**2+node_source) + &
+              BLOCK_SCALAR_NATIVE_DSCALAR_INDEX
+         if (data_index < 1 .or. &
+              data_index > size(block_scalar_tendency(local_source)%patch)) &
+              call fail("scalar boundary final service data overruns")
+         if (data_start+field_sample-1 < 1 .or. &
+              data_start+field_sample-1 > size( &
+              block_scalar_restriction_exchange%ghost_send_buffer)) then
+            call fail("scalar boundary final service buffer overruns")
+         end if
+         source_value = block_scalar_tendency(local_source)%patch(data_index)
+         if (abs(source_value) > BLOCK_RESTRICTION_VALUE_LIMIT) then
+            write(error_unit,'(a,7(i0,1x),es24.16)') &
+                 "invalid remote final source = ", &
+                 source_block,patch_source,node_source,exchange_level, &
+                 field_sample,local_source,data_index,source_value
+            flush(error_unit)
+            call fail("scalar boundary final service value is unavailable")
+         end if
+         block_scalar_restriction_exchange%ghost_send_buffer( &
+              data_start+field_sample-1) = source_value
+      end do
+
+    end subroutine pack_final_boundary_service
+
+
+    subroutine install_final_boundary_cache (cache_slot,data_start)
+
+      implicit none
+
+      integer, intent(in) :: cache_slot
+      integer, intent(in) :: data_start
+
+      integer :: field_sample
+
+      do field_sample = 1,block_scalar_boundary_final_plan%field_count
+         if (data_start+field_sample-1 < 1 .or. &
+              data_start+field_sample-1 > size( &
+              block_scalar_restriction_exchange%ghost_recv_buffer)) then
+            call fail("scalar boundary final receive buffer overruns")
+         end if
+         call set_final_boundary_cache_value( &
+              cache_slot,field_sample, &
+              block_scalar_restriction_exchange% &
+              ghost_recv_buffer(data_start+field_sample-1))
+      end do
+
+    end subroutine install_final_boundary_cache
+
+
+    subroutine set_final_boundary_cache_value ( &
+         cache_slot,field_sample,value)
+
+      implicit none
+
+      integer, intent(in) :: cache_slot
+      integer, intent(in) :: field_sample
+      real(dp), intent(in) :: value
+
+      integer :: cache_index
+
+      if (cache_slot < 1 .or. &
+           cache_slot > block_scalar_boundary_final_plan%cache_count .or. &
+           field_sample < 1 .or. &
+           field_sample > block_scalar_boundary_final_plan%field_count) &
+           then
+         call fail("scalar boundary final cache address is invalid")
+      end if
+      cache_index = (field_sample-1)* &
+           block_scalar_boundary_final_plan%cache_count+cache_slot
+      if (cache_index < 1 .or. &
+           cache_index > size(block_scalar_boundary_final_plan%value) .or. &
+           block_scalar_boundary_final_plan%covered(cache_index)) then
+         call fail("scalar boundary final cache value is duplicated")
+      end if
+      block_scalar_boundary_final_plan%value(cache_index) = value
+      block_scalar_boundary_final_plan%covered(cache_index) = .true.
+
+    end subroutine set_final_boundary_cache_value
+
+
+    subroutine scatter_final_boundary_cache (level_slot)
+
+      implicit none
+
+      integer, intent(in) :: level_slot
+
+      integer :: boundary_node
+      integer :: cache_index
+      integer :: cache_slot
+      integer :: data_index
+      integer :: field_sample
+      integer :: list_index
+      integer :: local_destination
+      integer :: n_boundary_node
+
+      real(dp) :: final_value
+
+      if (level_slot < 1 .or. &
+           level_slot > block_scalar_boundary_final_plan% &
+           route_level_count) then
+         call fail("scalar boundary final scatter level is invalid")
+      end if
+      do cache_slot = 1,block_scalar_boundary_final_plan%cache_count
+         if (block_scalar_boundary_final_plan%cache_level(cache_slot) /= &
+              exchange_level) cycle
+         do field_sample = 1, &
+              block_scalar_boundary_final_plan%field_count
+            cache_index = (field_sample-1)* &
+                 block_scalar_boundary_final_plan%cache_count+cache_slot
+            if (.not. block_scalar_boundary_final_plan% &
+                 covered(cache_index)) then
+               call fail("scalar boundary final cache is incomplete")
+            end if
+         end do
+      end do
+
+      do list_index = block_scalar_boundary_final_plan% &
+           boundary_level_displ(level_slot)+1, &
+           block_scalar_boundary_final_plan% &
+           boundary_level_displ(level_slot) + &
+           block_scalar_boundary_final_plan% &
+           boundary_level_count(level_slot)
+         local_destination = block_scalar_boundary_final_plan% &
+              boundary_local_index(list_index)
+         boundary_node = block_scalar_boundary_final_plan% &
+              boundary_node(list_index)
+         cache_slot = block_scalar_boundary_final_plan% &
+              boundary_cache_slot(list_index)
+         if (local_destination < 1 .or. &
+              local_destination > size(block_scalar_tendency)) then
+            call fail("scalar boundary final destination is invalid")
+         end if
+         n_boundary_node = block_scalar_restriction_exchange% &
+              boundary_source_displ(local_destination+1) - &
+              block_scalar_restriction_exchange% &
+              boundary_source_displ(local_destination)
+         if (boundary_node < 0 .or. boundary_node >= n_boundary_node) then
+            call fail("scalar boundary final destination node is invalid")
+         end if
+         do field_sample = 1, &
+              block_scalar_boundary_final_plan%field_count
+            cache_index = (field_sample-1)* &
+                 block_scalar_boundary_final_plan%cache_count+cache_slot
+            data_index = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*( &
+                 (field_sample-1)*n_boundary_node+boundary_node) + &
+                 BLOCK_SCALAR_NATIVE_DSCALAR_INDEX
+            final_value = block_scalar_boundary_final_plan% &
+                 value(cache_index)
+            block_scalar_tendency(local_destination)%bdry(data_index) = &
+                 final_value
+         end do
+      end do
+
+    end subroutine scatter_final_boundary_cache
 
 
     subroutine exchange_sparse_payload ( &
@@ -21018,6 +22094,7 @@ end subroutine build_parallel_block_catalog
        block_scalar_boundary_shadow_count = 0_int64
        block_scalar_boundary_owner_shadow_count = 0_int64
        block_scalar_boundary_cache_shadow_count = 0_int64
+       block_scalar_boundary_final_shadow_count = 0_int64
     end if
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("block-native scalar restriction exchange is not ready")
@@ -21145,6 +22222,7 @@ end subroutine build_parallel_block_catalog
     integer :: ierr
     integer(int64) :: count_global(4)
     integer(int64) :: cache_count_global(4)
+    integer(int64) :: final_count_global(3)
     integer(int64) :: owner_count_global(3, &
          BLOCK_BOUNDARY_OWNER_CLASS_COUNT)
 
@@ -21158,6 +22236,9 @@ end subroutine build_parallel_block_catalog
     call MPI_Allreduce(block_scalar_boundary_cache_shadow_count, &
          cache_count_global,4,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce boundary dscalar cache shadow")
+    call MPI_Allreduce(block_scalar_boundary_final_shadow_count, &
+         final_count_global,3,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce boundary dscalar final shadow")
     if (count_global(1) /= count_global(2)+count_global(4) .or. &
          count_global(3) > count_global(1)) then
        call fail("boundary dscalar shadow coverage differs")
@@ -21173,6 +22254,12 @@ end subroutine build_parallel_block_catalog
          cache_count_global(3)+cache_count_global(4)) then
        call fail("boundary dscalar cache shadow coverage differs")
     end if
+    if (final_count_global(1) /= &
+         final_count_global(2)+final_count_global(3) .or. &
+         final_count_global(1) < 1_int64 .or. &
+         final_count_global(3) /= 0_int64) then
+       call fail("boundary dscalar final shadow coverage differs")
+    end if
     if (rank == 0) write(6,'(a,4(i0,1x))') &
          "Block boundary dscalar shadow: " // &
          "access match Domain-zero mismatch = ",count_global
@@ -21180,6 +22267,9 @@ end subroutine build_parallel_block_catalog
        write(6,'(a,4(i0,1x))') &
             "Block boundary cache shadow: " // &
             "access match mismatch fallback = ",cache_count_global
+       write(6,'(a,3(i0,1x))') &
+            "Block boundary final shadow: " // &
+            "samples match mismatch = ",final_count_global
        write(6,'(a,3(i0,1x))') &
             "Block boundary owner shadow local: " // &
             "access match mismatch = ", &
@@ -21202,15 +22292,19 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine initialize_scalar_restriction_boundary_flux
-    ! Physical-boundary records are immutable compatibility inputs. Seed the
-    ! native positive-edge flux and dscalar slots from their independently
-    ! captured Domain references before the bottom-up restriction replay.
+    ! Seed native positive-edge flux from the compact boundary record. The
+    ! oracle also seeds dscalar from its Domain reference; production leaves
+    ! it poisoned until final-owner delivery or flux reconstruction.
 
     implicit none
 
     integer :: b
     integer :: data_start
     integer :: sample
+
+    logical :: validate_oracle
+
+    validate_oracle = block_dynamics_validation_enabled()
 
     do b = 1,size(block_scalar_tendency)
        if (.not. block_scalar_tendency(b)%ready) then
@@ -21229,10 +22323,16 @@ end subroutine build_parallel_block_catalog
                block_scalar_tendency(b)%bdry( &
                data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
                data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2)
-          block_scalar_tendency(b)%bdry( &
-               data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
-               block_scalar_tendency(b)%bdry( &
-               data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1)
+          if (validate_oracle) then
+             block_scalar_tendency(b)%bdry( &
+                  data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
+                  block_scalar_tendency(b)%bdry( &
+                  data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1)
+          else
+             block_scalar_tendency(b)%bdry( &
+                  data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
+                  BLOCK_BOUNDARY_POISON
+          end if
        end do
     end do
 
@@ -21922,7 +23022,8 @@ end subroutine build_parallel_block_catalog
 
 
   real(dp) function block_scalar_record_value ( &
-       block,local_index,p,scalar_slot,level_slot,i,j,record_slot) &
+       block,local_index,p,scalar_slot,level_slot,i,j,record_slot, &
+       allow_uninitialized) &
        result(value)
 
     implicit none
@@ -21935,13 +23036,18 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: i
     integer, intent(in) :: j
     integer, intent(in) :: record_slot
+    logical, optional, intent(in) :: allow_uninitialized
 
     integer :: data_start
     integer :: node
     integer :: record
     integer :: sample
     integer :: storage_class
+    logical :: permit_uninitialized
 
+    permit_uninitialized = .false.
+    if (present(allow_uninitialized)) &
+         permit_uninitialized = allow_uninitialized
     value = 0.0_dp
     data_start = 0
     node = -1
@@ -21995,7 +23101,8 @@ end subroutine build_parallel_block_catalog
        call report_record_value("non-finite")
        call fail("scalar-restriction record value is non-finite")
     end if
-    if (.not. (abs(value) < BLOCK_RESTRICTION_VALUE_LIMIT)) then
+    if (.not. permit_uninitialized .and. &
+         .not. (abs(value) < BLOCK_RESTRICTION_VALUE_LIMIT)) then
        call report_record_value("poisoned or uninitialized")
        call fail("scalar-restriction record value is poisoned")
     end if
@@ -23163,6 +24270,7 @@ end subroutine build_parallel_block_catalog
     integer :: source_node
     integer :: storage_class
 
+    logical :: final_route
     logical :: validate_oracle
 
     real(dp) :: candidate_value
@@ -23170,6 +24278,8 @@ end subroutine build_parallel_block_catalog
     real(dp) :: comparison_tolerance
     real(dp) :: operation_scale
     real(dp) :: reference_value
+    real(dp) :: route_value
+    real(dp) :: transported_value
 
     if (flux_start /= BLOCK_SCALAR_DIRECT_FLUX_START .and. &
          flux_start /= BLOCK_SCALAR_RESTRICTED_FLUX_START) then
@@ -23177,7 +24287,15 @@ end subroutine build_parallel_block_catalog
     end if
     value = block_scalar_record_value( &
          block,local_index,p,scalar_slot,level_slot,i,j, &
-         BLOCK_SCALAR_NATIVE_DSCALAR_INDEX)
+         BLOCK_SCALAR_NATIVE_DSCALAR_INDEX, &
+         flux_start == BLOCK_SCALAR_DIRECT_FLUX_START)
+    transported_value = value
+    if (flux_start == BLOCK_SCALAR_DIRECT_FLUX_START .and. &
+         value < -BLOCK_RESTRICTION_VALUE_LIMIT) then
+       value = block_scalar_flux_divergence( &
+            block,local_index,p,scalar_slot,level_slot,i,j, &
+            BLOCK_SCALAR_DIRECT_FLUX_START)
+    end if
 
     ! Stage 166B is observational only. At direct-flux physical-boundary
     ! consumptions, reconstruct dscalar from the compact flux stencil and
@@ -23225,7 +24343,9 @@ end subroutine build_parallel_block_catalog
                owner_class > BLOCK_BOUNDARY_OWNER_CLASS_COUNT) then
              call fail("boundary dscalar owner class is invalid")
           end if
-          reference_value = value
+          reference_value = block_scalar_record_value( &
+               block,local_index,p,scalar_slot,level_slot,i,j, &
+               BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX)
           block_scalar_boundary_cache_shadow_count(1) = &
                block_scalar_boundary_cache_shadow_count(1)+1_int64
           cache_slot = block_scalar_boundary_cache_slot(owner_pos)
@@ -23266,6 +24386,43 @@ end subroutine build_parallel_block_catalog
                block,local_index,p,scalar_slot,level_slot,i,j, &
                BLOCK_SCALAR_DIRECT_FLUX_START, &
                operation_scale=operation_scale)
+          final_route = cache_slot >= 0
+          if (final_route) then
+             final_route = cache_slot < &
+                  block_scalar_boundary_final_plan%cache_count
+             if (final_route) final_route = &
+                  block_scalar_boundary_final_plan% &
+                  cache_rank(cache_slot+1) >= 0 .and. &
+                  block_scalar_boundary_final_plan% &
+                  cache_level(cache_slot+1) > level_start
+          end if
+          if (final_route) then
+             route_value = block_scalar_boundary_final_plan% &
+                  value(cache_index)
+             block_scalar_boundary_final_shadow_count(1) = &
+                  block_scalar_boundary_final_shadow_count(1)+1_int64
+             if (abs(transported_value) <= &
+                  BLOCK_RESTRICTION_VALUE_LIMIT .and. &
+                  abs(transported_value-route_value) <= 0.0_dp) then
+                block_scalar_boundary_final_shadow_count(2) = &
+                     block_scalar_boundary_final_shadow_count(2)+1_int64
+             else
+                block_scalar_boundary_final_shadow_count(3) = &
+                     block_scalar_boundary_final_shadow_count(3)+1_int64
+                write(error_unit,'(a,i0,a,i0,a,i0,a,i0)') &
+                     "Rank ",rank, &
+                     ": final-owner boundary dscalar mismatch: block = ", &
+                     local_block_catalog(local_index), &
+                     ", boundary node = ",source_node, &
+                     ", field sample = ",field_sample
+                write(error_unit,'(a,3(es24.16,1x))') &
+                     "  transported, route-cache, difference = ", &
+                     transported_value,route_value, &
+                     abs(transported_value-route_value)
+                flush(error_unit)
+                call fail("final-owner boundary dscalar differs")
+             end if
+          end if
           comparison_tolerance = scalar_restriction_roundoff_tolerance( &
                candidate_value,reference_value,1,operation_scale)
           block_scalar_boundary_shadow_count(1) = &
