@@ -841,6 +841,17 @@ module parallel_block_mpi_mod
   integer, allocatable, save :: block_scalar_boundary_cache_domain(:)
   integer, allocatable, save :: block_scalar_boundary_cache_node(:)
   integer, allocatable, save :: block_scalar_boundary_cache_rank(:)
+  integer, allocatable, save :: block_scalar_boundary_cache_send_count(:)
+  integer, allocatable, save :: block_scalar_boundary_cache_recv_count(:)
+  integer, allocatable, save :: block_scalar_boundary_cache_send_displ(:)
+  integer, allocatable, save :: block_scalar_boundary_cache_recv_displ(:)
+  integer, allocatable, save :: block_scalar_boundary_cache_domain_send(:)
+  integer, allocatable, save :: block_scalar_boundary_cache_domain_recv(:)
+  integer, allocatable, save :: block_scalar_boundary_cache_node_send(:)
+  integer, allocatable, save :: block_scalar_boundary_cache_node_recv(:)
+  integer, allocatable, save :: block_scalar_boundary_cache_slot_send(:)
+  real(dp), allocatable, save :: block_scalar_boundary_cache_value_send(:)
+  real(dp), allocatable, save :: block_scalar_boundary_cache_value_recv(:)
   integer, save :: block_scalar_boundary_cache_count = 0
   integer, parameter :: BLOCK_BOUNDARY_OWNER_LOCAL = 1
   integer, parameter :: BLOCK_BOUNDARY_OWNER_REMOTE = 2
@@ -16913,6 +16924,28 @@ end subroutine build_parallel_block_catalog
          deallocate(block_scalar_boundary_cache_node)
     if (allocated(block_scalar_boundary_cache_rank)) &
          deallocate(block_scalar_boundary_cache_rank)
+    if (allocated(block_scalar_boundary_cache_send_count)) &
+         deallocate(block_scalar_boundary_cache_send_count)
+    if (allocated(block_scalar_boundary_cache_recv_count)) &
+         deallocate(block_scalar_boundary_cache_recv_count)
+    if (allocated(block_scalar_boundary_cache_send_displ)) &
+         deallocate(block_scalar_boundary_cache_send_displ)
+    if (allocated(block_scalar_boundary_cache_recv_displ)) &
+         deallocate(block_scalar_boundary_cache_recv_displ)
+    if (allocated(block_scalar_boundary_cache_domain_send)) &
+         deallocate(block_scalar_boundary_cache_domain_send)
+    if (allocated(block_scalar_boundary_cache_domain_recv)) &
+         deallocate(block_scalar_boundary_cache_domain_recv)
+    if (allocated(block_scalar_boundary_cache_node_send)) &
+         deallocate(block_scalar_boundary_cache_node_send)
+    if (allocated(block_scalar_boundary_cache_node_recv)) &
+         deallocate(block_scalar_boundary_cache_node_recv)
+    if (allocated(block_scalar_boundary_cache_slot_send)) &
+         deallocate(block_scalar_boundary_cache_slot_send)
+    if (allocated(block_scalar_boundary_cache_value_send)) &
+         deallocate(block_scalar_boundary_cache_value_send)
+    if (allocated(block_scalar_boundary_cache_value_recv)) &
+         deallocate(block_scalar_boundary_cache_value_recv)
     block_scalar_boundary_cache_count = 0
     if (allocated(block_scalar_restriction_exchange% &
          boundary_owner_send_buffer)) deallocate( &
@@ -17203,7 +17236,7 @@ end subroutine build_parallel_block_catalog
     block_scalar_restriction_exchange%ghost_patch_buffer = &
          BLOCK_GHOST_POISON
     block_scalar_restriction_exchange%allocations = &
-         block_scalar_restriction_exchange%allocations + 55_int64
+         block_scalar_restriction_exchange%allocations + 66_int64
     block_scalar_restriction_exchange%generation = &
          block_writeback_plan_generation
     block_scalar_restriction_exchange%ready = .true.
@@ -17299,6 +17332,8 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: block_key_count_local(4)
     integer(int64) :: cache_count_global(5)
     integer(int64) :: cache_count_local(5)
+    integer(int64) :: cache_request_count_global(3)
+    integer(int64) :: cache_request_count_local(3)
     integer(int64) :: source_key_count_global(4)
     integer(int64) :: source_key_count_local(4)
 
@@ -18141,6 +18176,12 @@ end subroutine build_parallel_block_catalog
          n_cache /= int(cache_count_local(3)+cache_count_local(4))) then
        call fail("scalar boundary cache coverage differs")
     end if
+    call prepare_boundary_cache_request_plan( &
+         n_cache,cache_request_count_local)
+    if (cache_request_count_local(1) /= cache_count_local(3) .or. &
+         cache_request_count_local(2) /= cache_count_local(4)) then
+       call fail("scalar boundary cache request coverage differs")
+    end if
 
     if (block_dynamics_validation_enabled()) then
        call MPI_Allreduce(owner_count_local,owner_count_global, &
@@ -18159,6 +18200,13 @@ end subroutine build_parallel_block_catalog
        call MPI_Allreduce(cache_count_local,cache_count_global, &
             5,MPI_INTEGER8,MPI_SUM,comm,ierr)
        call check_mpi(ierr,"MPI_Allreduce scalar boundary cache slots")
+       call MPI_Allreduce(cache_request_count_local, &
+            cache_request_count_global,3,MPI_INTEGER8,MPI_SUM,comm,ierr)
+       call check_mpi(ierr,"MPI_Allreduce scalar boundary cache requests")
+       if (cache_request_count_global(2) /= &
+            cache_request_count_global(3)) then
+          call fail("scalar boundary cache global requests differ")
+       end if
        if (sum(owner_count_global) <= 0_int64) then
           call fail("scalar boundary owner coverage is empty")
        end if
@@ -18190,9 +18238,152 @@ end subroutine build_parallel_block_catalog
             "Block scalar boundary cache: " // &
             "route-local route-remote cache-local cache-remote reused = ", &
             cache_count_global
+       if (rank == 0) write(6,'(a,3(i0,1x))') &
+            "Block scalar boundary cache requests: " // &
+            "local remote-send remote-service = ", &
+            cache_request_count_global
     end if
 
   contains
+
+    subroutine prepare_boundary_cache_request_plan ( &
+         n_cache,request_count)
+      ! Stage 166J: request each unique remote source node once from its
+      ! authoritative AT_NODE rank.  Values remain unpopulated until the
+      ! following shadow-transport stage.
+
+      implicit none
+
+      integer, intent(in) :: n_cache
+      integer(int64), intent(out) :: request_count(3)
+
+      integer :: cache_slot
+      integer :: d_source
+      integer :: ierr
+      integer :: pos
+      integer :: r
+      integer :: source_domain
+      integer :: source_node
+
+      integer, allocatable :: cursor(:)
+
+      allocate(block_scalar_boundary_cache_send_count(n_process))
+      allocate(block_scalar_boundary_cache_recv_count(n_process))
+      allocate(block_scalar_boundary_cache_send_displ(n_process))
+      allocate(block_scalar_boundary_cache_recv_displ(n_process))
+      block_scalar_boundary_cache_send_count = 0
+      do cache_slot = 1,n_cache
+         r = block_scalar_boundary_cache_rank(cache_slot)+1
+         if (r < 1 .or. r > n_process) then
+            call fail("scalar boundary cache request rank is invalid")
+         end if
+         if (r == rank+1) cycle
+         block_scalar_boundary_cache_send_count(r) = &
+              block_scalar_boundary_cache_send_count(r)+1
+      end do
+      call MPI_Alltoall(block_scalar_boundary_cache_send_count,1, &
+           MPI_INTEGER,block_scalar_boundary_cache_recv_count,1, &
+           MPI_INTEGER,comm,ierr)
+      call check_mpi(ierr,"MPI_Alltoall scalar boundary cache requests")
+      block_scalar_boundary_cache_send_displ(1) = 0
+      block_scalar_boundary_cache_recv_displ(1) = 0
+      do r = 2,n_process
+         block_scalar_boundary_cache_send_displ(r) = &
+              block_scalar_boundary_cache_send_displ(r-1) + &
+              block_scalar_boundary_cache_send_count(r-1)
+         block_scalar_boundary_cache_recv_displ(r) = &
+              block_scalar_boundary_cache_recv_displ(r-1) + &
+              block_scalar_boundary_cache_recv_count(r-1)
+      end do
+
+      allocate(block_scalar_boundary_cache_domain_send(max(1, &
+           sum(block_scalar_boundary_cache_send_count))))
+      allocate(block_scalar_boundary_cache_domain_recv(max(1, &
+           sum(block_scalar_boundary_cache_recv_count))))
+      allocate(block_scalar_boundary_cache_node_send(max(1, &
+           sum(block_scalar_boundary_cache_send_count))))
+      allocate(block_scalar_boundary_cache_node_recv(max(1, &
+           sum(block_scalar_boundary_cache_recv_count))))
+      allocate(block_scalar_boundary_cache_slot_send(max(1, &
+           sum(block_scalar_boundary_cache_send_count))))
+      allocate(block_scalar_boundary_cache_value_send(max(1, &
+           sum(block_scalar_boundary_cache_recv_count))))
+      allocate(block_scalar_boundary_cache_value_recv(max(1, &
+           sum(block_scalar_boundary_cache_send_count))))
+      block_scalar_boundary_cache_domain_send = -1
+      block_scalar_boundary_cache_domain_recv = -1
+      block_scalar_boundary_cache_node_send = -1
+      block_scalar_boundary_cache_node_recv = -1
+      block_scalar_boundary_cache_slot_send = -1
+      block_scalar_boundary_cache_value_send = BLOCK_BOUNDARY_POISON
+      block_scalar_boundary_cache_value_recv = BLOCK_BOUNDARY_POISON
+
+      allocate(cursor(n_process))
+      cursor = block_scalar_boundary_cache_send_displ+1
+      do cache_slot = 1,n_cache
+         r = block_scalar_boundary_cache_rank(cache_slot)+1
+         if (r == rank+1) cycle
+         pos = cursor(r)
+         if (pos < 1 .or. pos > &
+              sum(block_scalar_boundary_cache_send_count)) then
+            call fail("scalar boundary cache request packing overruns")
+         end if
+         block_scalar_boundary_cache_domain_send(pos) = &
+              block_scalar_boundary_cache_domain(cache_slot)
+         block_scalar_boundary_cache_node_send(pos) = &
+              block_scalar_boundary_cache_node(cache_slot)
+         block_scalar_boundary_cache_slot_send(pos) = cache_slot-1
+         cursor(r) = pos+1
+      end do
+      do r = 1,n_process
+         if (cursor(r) /= block_scalar_boundary_cache_send_displ(r) + &
+              block_scalar_boundary_cache_send_count(r)+1) then
+            call fail("scalar boundary cache request extent differs")
+         end if
+      end do
+      deallocate(cursor)
+
+      call MPI_Alltoallv(block_scalar_boundary_cache_domain_send, &
+           block_scalar_boundary_cache_send_count, &
+           block_scalar_boundary_cache_send_displ,MPI_INTEGER, &
+           block_scalar_boundary_cache_domain_recv, &
+           block_scalar_boundary_cache_recv_count, &
+           block_scalar_boundary_cache_recv_displ,MPI_INTEGER,comm,ierr)
+      call check_mpi(ierr,"MPI_Alltoallv scalar boundary cache Domains")
+      call MPI_Alltoallv(block_scalar_boundary_cache_node_send, &
+           block_scalar_boundary_cache_send_count, &
+           block_scalar_boundary_cache_send_displ,MPI_INTEGER, &
+           block_scalar_boundary_cache_node_recv, &
+           block_scalar_boundary_cache_recv_count, &
+           block_scalar_boundary_cache_recv_displ,MPI_INTEGER,comm,ierr)
+      call check_mpi(ierr,"MPI_Alltoallv scalar boundary cache nodes")
+
+      do pos = 1,sum(block_scalar_boundary_cache_recv_count)
+         source_domain = block_scalar_boundary_cache_domain_recv(pos)
+         source_node = block_scalar_boundary_cache_node_recv(pos)
+         if (source_domain < 0 .or. source_domain >= N_GLO_DOMAIN .or. &
+              owner(source_domain+1) /= rank) then
+            call fail("scalar boundary cache service Domain is invalid")
+         end if
+         d_source = loc_id(source_domain+1)+1
+         if (d_source < 1 .or. d_source > size(grid) .or. &
+              source_node < 0 .or. &
+              source_node >= grid(d_source)%node%length) then
+            call fail("scalar boundary cache service node is invalid")
+         end if
+      end do
+
+      request_count(1) = int(n_cache - &
+           sum(block_scalar_boundary_cache_send_count),int64)
+      request_count(2) = int( &
+           sum(block_scalar_boundary_cache_send_count),int64)
+      request_count(3) = int( &
+           sum(block_scalar_boundary_cache_recv_count),int64)
+      if (request_count(1) < 0_int64) then
+         call fail("scalar boundary cache local request count is invalid")
+      end if
+
+    end subroutine prepare_boundary_cache_request_plan
 
     subroutine assign_boundary_cache_slot (boundary_pos,n_cache)
       ! Stage 166I: deduplicate exact source-node keys on the final block
