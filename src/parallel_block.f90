@@ -292,6 +292,7 @@ module parallel_block_mod
   public :: validate_local_block_ghost_sources
   public :: get_local_block_ghost_requests
   public :: local_block_patch_count
+  public :: local_block_patch_level
   public :: local_block_boundary_count
   public :: get_local_block_boundary_source
   public :: local_block_ghost_count
@@ -2981,6 +2982,30 @@ integer function local_block_patch_count (catalog_index) result(n_patch)
   n_patch = size(block_local(local_index)%patch)
 
 end function local_block_patch_count
+
+
+integer function local_block_patch_level (catalog_index,local_patch) &
+     result(level)
+  ! Return the grid level of one compact local-block patch.
+
+  implicit none
+
+  integer, intent(in) :: catalog_index
+  integer, intent(in) :: local_patch
+
+  integer :: local_index
+
+  local_index = catalog_local_block(catalog_index)
+  if (local_index < 1) then
+     error stop "local_block_patch_level: block is not local"
+  end if
+  if (local_patch < 0 .or. &
+       local_patch >= size(block_local(local_index)%patch)) then
+     error stop "local_block_patch_level: invalid patch"
+  end if
+  level = block_local(local_index)%patch(local_patch+1)%level
+
+end function local_block_patch_level
 
 
 integer function local_block_boundary_count (catalog_index) &

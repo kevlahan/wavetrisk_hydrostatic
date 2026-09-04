@@ -62,6 +62,7 @@ module parallel_block_mpi_mod
        local_block_ghost_source_statistics, &
        validate_local_block_ghost_sources, &
        get_local_block_ghost_requests, local_block_patch_count, &
+       local_block_patch_level, &
        local_block_boundary_count, &
        local_block_ghost_count, &
        local_block_scalar_family_patch_nvalue, &
@@ -263,6 +264,7 @@ module parallel_block_mpi_mod
      integer :: n_remote_recv = 0
      integer, allocatable :: source_block(:)
      integer, allocatable :: source_local_patch(:)
+     integer, allocatable :: source_patch_level(:)
      integer, allocatable :: source_owner(:)
      integer, allocatable :: destination_block(:)
      integer, allocatable :: destination_ghost(:)
@@ -272,6 +274,7 @@ module parallel_block_mpi_mod
      integer, allocatable :: recv_record_displ(:)
      integer, allocatable :: send_data(:)
      integer, allocatable :: recv_data(:)
+     integer, allocatable :: recv_patch_level(:)
      integer, allocatable :: request_index(:)
      integer :: scalar_n_value = 0
      integer :: vector_n_value = 0
@@ -5907,6 +5910,9 @@ end subroutine build_parallel_block_catalog
     if (allocated(ghost_exchange_plan%source_local_patch)) then
        deallocate(ghost_exchange_plan%source_local_patch)
     end if
+    if (allocated(ghost_exchange_plan%source_patch_level)) then
+       deallocate(ghost_exchange_plan%source_patch_level)
+    end if
     if (allocated(ghost_exchange_plan%source_owner)) then
        deallocate(ghost_exchange_plan%source_owner)
     end if
@@ -5933,6 +5939,9 @@ end subroutine build_parallel_block_catalog
     end if
     if (allocated(ghost_exchange_plan%recv_data)) then
        deallocate(ghost_exchange_plan%recv_data)
+    end if
+    if (allocated(ghost_exchange_plan%recv_patch_level)) then
+       deallocate(ghost_exchange_plan%recv_patch_level)
     end if
     if (allocated(ghost_exchange_plan%request_index)) then
        deallocate(ghost_exchange_plan%request_index)
@@ -6022,6 +6031,7 @@ end subroutine build_parallel_block_catalog
     integer, allocatable :: recv_displ(:)
     integer, allocatable :: send_count(:)
     integer, allocatable :: send_displ(:)
+    integer, allocatable :: send_patch_level(:)
 
     if (ghost_exchange_plan%ready) then
        if (.not. local_block_store_ready()) &
@@ -6062,6 +6072,9 @@ end subroutine build_parallel_block_catalog
          ghost_exchange_plan%n_request) then
        call fail("inconsistent block ghost exchange plan arrays")
     end if
+    allocate(ghost_exchange_plan%source_patch_level( &
+         ghost_exchange_plan%n_request))
+    ghost_exchange_plan%source_patch_level = -1
 
     allocate(ghost_exchange_plan%send_record_count(n_process))
     allocate(ghost_exchange_plan%recv_record_count(n_process))
@@ -6110,6 +6123,9 @@ end subroutine build_parallel_block_catalog
           end if
           ghost_exchange_plan%n_local_request = &
                ghost_exchange_plan%n_local_request + 1
+          ghost_exchange_plan%source_patch_level(i) = &
+               local_block_patch_level( &
+               source,ghost_exchange_plan%source_local_patch(i))
        else
           r = ghost_exchange_plan%source_owner(i) + 1
           ghost_exchange_plan%send_record_count(r) = &
@@ -6185,6 +6201,10 @@ end subroutine build_parallel_block_catalog
          comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv persistent ghost requests")
 
+    allocate(ghost_exchange_plan%recv_patch_level( &
+         ghost_exchange_plan%n_remote_recv))
+    allocate(send_patch_level(ghost_exchange_plan%n_remote_send))
+
     do r = 1, n_process
        do i = 0, ghost_exchange_plan%recv_record_count(r)-1
           pos = REQUEST_SIZE*( &
@@ -6219,8 +6239,29 @@ end subroutine build_parallel_block_catalog
           if (ghost_exchange_plan%recv_data(pos+4) < 1) then
              call fail("received persistent ghost index is invalid")
           end if
+          fill_record = ghost_exchange_plan%recv_record_displ(r)+i+1
+          ghost_exchange_plan%recv_patch_level(fill_record) = &
+               local_block_patch_level( &
+               source,ghost_exchange_plan%recv_data(pos+2))
        end do
     end do
+
+    call MPI_Alltoallv( &
+         ghost_exchange_plan%recv_patch_level, &
+         ghost_exchange_plan%recv_record_count, &
+         ghost_exchange_plan%recv_record_displ,MPI_INTEGER, &
+         send_patch_level,ghost_exchange_plan%send_record_count, &
+         ghost_exchange_plan%send_record_displ,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv persistent ghost patch levels")
+    do fill_record = 1,ghost_exchange_plan%n_remote_send
+       i = ghost_exchange_plan%request_index(fill_record)
+       ghost_exchange_plan%source_patch_level(i) = &
+            send_patch_level(fill_record)
+    end do
+    if (any(ghost_exchange_plan%source_patch_level < 0)) then
+       call fail("persistent ghost patch level is incomplete")
+    end if
+    deallocate(send_patch_level)
 
     call get_block_field_layout( &
          scalar_variable,scalar_count,vector_variable,field_level, &
@@ -20069,7 +20110,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine exchange_block_scalar_restriction_ghosts ( &
-       full_payload,dynamic_component)
+       full_payload,dynamic_component,target_level)
     ! Install the complete record once, then refresh only native positive-edge
     ! flux and dscalar values changed by the bottom-up replay. Immutable
     ! geometry and exact-reference slots remain in persistent ghost storage.
@@ -20080,20 +20121,24 @@ end subroutine build_parallel_block_catalog
 
     logical, intent(in) :: full_payload
     integer, optional, intent(in) :: dynamic_component
+    integer, optional, intent(in) :: target_level
 
     integer :: destination
     integer :: destination_ghost
     integer :: component
+    integer :: exchange_level
     integer :: i
     integer :: ierr
     integer :: local_index
     integer :: pos
     integer :: payload_count
+    integer :: payload_pos
     integer :: profile_ghost_mode
     integer :: r
     integer :: request
     integer :: source
     integer :: source_patch
+    integer :: work_count
 
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("scalar-restriction ghost exchange is not ready")
@@ -20114,6 +20159,15 @@ end subroutine build_parallel_block_catalog
          component /= BLOCK_GHOST_DYNAMIC_DSCALAR) then
        call fail("dynamic scalar ghost exchange component is invalid")
     end if
+    exchange_level = -1
+    if (present(target_level)) exchange_level = target_level
+    if (full_payload .and. present(target_level)) then
+       call fail("full scalar ghost exchange level is invalid")
+    else if (.not. full_payload .and. &
+         (exchange_level < level_start .or. &
+         exchange_level > level_end)) then
+       call fail("dynamic scalar ghost exchange level is invalid")
+    end if
     payload_count = BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT
     if (component == BLOCK_GHOST_DYNAMIC_FLUX) payload_count = EDGE
     if (component == BLOCK_GHOST_DYNAMIC_DSCALAR) payload_count = 1
@@ -20124,32 +20178,71 @@ end subroutine build_parallel_block_catalog
     call block_profile_enter(profile_ghost_mode)
 
     if (.not. full_payload) then
-       block_scalar_restriction_exchange%ghost_dynamic_send_count = &
-            payload_count*ghost_exchange_plan%scalar_n_value* &
-            ghost_exchange_plan%recv_record_count
-       block_scalar_restriction_exchange%ghost_dynamic_recv_count = &
-            payload_count*ghost_exchange_plan%scalar_n_value* &
-            ghost_exchange_plan%send_record_count
-       block_scalar_restriction_exchange%ghost_dynamic_send_displ = &
-            payload_count*ghost_exchange_plan%scalar_n_value* &
-            ghost_exchange_plan%recv_record_displ
-       block_scalar_restriction_exchange%ghost_dynamic_recv_displ = &
-            payload_count*ghost_exchange_plan%scalar_n_value* &
-            ghost_exchange_plan%send_record_displ
+       block_scalar_restriction_exchange%ghost_dynamic_send_count = 0
+       block_scalar_restriction_exchange%ghost_dynamic_recv_count = 0
+       do r = 1,n_process
+          do i = ghost_exchange_plan%recv_record_displ(r)+1, &
+               ghost_exchange_plan%recv_record_displ(r) + &
+               ghost_exchange_plan%recv_record_count(r)
+             if (ghost_exchange_plan%recv_patch_level(i) /= &
+                  exchange_level) cycle
+             block_scalar_restriction_exchange% &
+                  ghost_dynamic_send_count(r) = &
+                  block_scalar_restriction_exchange% &
+                  ghost_dynamic_send_count(r) + payload_count* &
+                  ghost_exchange_plan%scalar_n_value
+          end do
+          do i = ghost_exchange_plan%send_record_displ(r)+1, &
+               ghost_exchange_plan%send_record_displ(r) + &
+               ghost_exchange_plan%send_record_count(r)
+             request = ghost_exchange_plan%request_index(i)
+             if (ghost_exchange_plan%source_patch_level(request) /= &
+                  exchange_level) cycle
+             block_scalar_restriction_exchange% &
+                  ghost_dynamic_recv_count(r) = &
+                  block_scalar_restriction_exchange% &
+                  ghost_dynamic_recv_count(r) + payload_count* &
+                  ghost_exchange_plan%scalar_n_value
+          end do
+       end do
+       block_scalar_restriction_exchange%ghost_dynamic_send_displ(1) = 0
+       block_scalar_restriction_exchange%ghost_dynamic_recv_displ(1) = 0
+       do r = 2,n_process
+          block_scalar_restriction_exchange% &
+               ghost_dynamic_send_displ(r) = &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_send_displ(r-1) + &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_send_count(r-1)
+          block_scalar_restriction_exchange% &
+               ghost_dynamic_recv_displ(r) = &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_recv_displ(r-1) + &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_recv_count(r-1)
+       end do
     end if
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_PACK)
     if (block_dynamics_validation_enabled()) then
        block_scalar_restriction_exchange%ghost_send_buffer( &
-            1:max(1,payload_count*ghost_exchange_plan%scalar_n_value* &
-            ghost_exchange_plan%n_remote_recv)) = BLOCK_GHOST_POISON
+            1:max(1,sum(merge( &
+            block_scalar_restriction_exchange%ghost_send_count, &
+            block_scalar_restriction_exchange%ghost_dynamic_send_count, &
+            full_payload)))) = BLOCK_GHOST_POISON
        block_scalar_restriction_exchange%ghost_recv_buffer( &
-            1:max(1,payload_count*ghost_exchange_plan%scalar_n_value* &
-            ghost_exchange_plan%n_remote_send)) = BLOCK_GHOST_POISON
+            1:max(1,sum(merge( &
+            block_scalar_restriction_exchange%ghost_recv_count, &
+            block_scalar_restriction_exchange%ghost_dynamic_recv_count, &
+            full_payload)))) = BLOCK_GHOST_POISON
     end if
 
+    work_count = 0
     do request = 1,ghost_exchange_plan%n_request
        if (ghost_exchange_plan%source_owner(request) /= rank) cycle
+       if (.not. full_payload .and. &
+            ghost_exchange_plan%source_patch_level(request) /= &
+            exchange_level) cycle
        source = ghost_exchange_plan%source_block(request)
        source_patch = &
             ghost_exchange_plan%source_local_patch(request)
@@ -20159,10 +20252,22 @@ end subroutine build_parallel_block_catalog
        call install_local_source( &
             source,source_patch,destination,destination_ghost, &
             full_payload,component)
+       work_count = work_count + 1
     end do
 
     do r = 1,n_process
+       if (full_payload) then
+          payload_pos = &
+               block_scalar_restriction_exchange%ghost_send_displ(r)+1
+       else
+          payload_pos = block_scalar_restriction_exchange% &
+               ghost_dynamic_send_displ(r)+1
+       end if
        do i = 0,ghost_exchange_plan%recv_record_count(r)-1
+          if (.not. full_payload .and. &
+               ghost_exchange_plan%recv_patch_level( &
+               ghost_exchange_plan%recv_record_displ(r)+i+1) /= &
+               exchange_level) cycle
           pos = REQUEST_SIZE*( &
                ghost_exchange_plan%recv_record_displ(r)+i)
           source = ghost_exchange_plan%recv_data(pos+1)
@@ -20175,17 +20280,29 @@ end subroutine build_parallel_block_catalog
           call pack_patch_record( &
                local_index,source_patch, &
                block_scalar_restriction_exchange%ghost_send_buffer, &
-               payload_count* &
-               ghost_exchange_plan%scalar_n_value* &
-               (ghost_exchange_plan%recv_record_displ(r)+i)+1, &
+               payload_pos, &
                full_payload,component)
+          payload_pos = payload_pos + payload_count* &
+               ghost_exchange_plan%scalar_n_value
+          work_count = work_count + 1
        end do
+       if (full_payload) then
+          if (payload_pos /= block_scalar_restriction_exchange% &
+               ghost_send_displ(r) + &
+               block_scalar_restriction_exchange%ghost_send_count(r)+1) &
+               call fail("full scalar ghost pack extent differs")
+       else
+          if (payload_pos /= block_scalar_restriction_exchange% &
+               ghost_dynamic_send_displ(r) + &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_send_count(r)+1) &
+               call fail("dynamic scalar ghost pack extent differs")
+       end if
     end do
 
     call block_profile_leave( &
          BLOCK_PROFILE_RESTRICTION_PACK, &
-         int(ghost_exchange_plan%n_local_request + &
-         ghost_exchange_plan%n_remote_recv,int64))
+         int(work_count,int64))
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_MPI)
     if (full_payload) then
@@ -20219,10 +20336,21 @@ end subroutine build_parallel_block_catalog
     call block_profile_leave(BLOCK_PROFILE_RESTRICTION_MPI)
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_INSTALL)
+    work_count = 0
     do r = 1,n_process
+       if (full_payload) then
+          payload_pos = &
+               block_scalar_restriction_exchange%ghost_recv_displ(r)+1
+       else
+          payload_pos = block_scalar_restriction_exchange% &
+               ghost_dynamic_recv_displ(r)+1
+       end if
        do i = 0,ghost_exchange_plan%send_record_count(r)-1
           request = ghost_exchange_plan%request_index( &
                ghost_exchange_plan%send_record_displ(r)+i+1)
+          if (.not. full_payload .and. &
+               ghost_exchange_plan%source_patch_level(request) /= &
+               exchange_level) cycle
           destination = &
                ghost_exchange_plan%destination_block(request)
           destination_ghost = &
@@ -20230,15 +20358,28 @@ end subroutine build_parallel_block_catalog
           call install_buffer_ghost( &
                destination,destination_ghost, &
                block_scalar_restriction_exchange%ghost_recv_buffer, &
-               payload_count* &
-               ghost_exchange_plan%scalar_n_value* &
-               (ghost_exchange_plan%send_record_displ(r)+i)+1, &
+               payload_pos, &
                full_payload,component)
+          payload_pos = payload_pos + payload_count* &
+               ghost_exchange_plan%scalar_n_value
+          work_count = work_count + 1
        end do
+       if (full_payload) then
+          if (payload_pos /= block_scalar_restriction_exchange% &
+               ghost_recv_displ(r) + &
+               block_scalar_restriction_exchange%ghost_recv_count(r)+1) &
+               call fail("full scalar ghost install extent differs")
+       else
+          if (payload_pos /= block_scalar_restriction_exchange% &
+               ghost_dynamic_recv_displ(r) + &
+               block_scalar_restriction_exchange% &
+               ghost_dynamic_recv_count(r)+1) &
+               call fail("dynamic scalar ghost install extent differs")
+       end if
     end do
     call block_profile_leave( &
          BLOCK_PROFILE_RESTRICTION_INSTALL, &
-         int(ghost_exchange_plan%n_remote_send,int64))
+         int(work_count,int64))
     block_scalar_restriction_exchange%exchanges = &
          block_scalar_restriction_exchange%exchanges + 1_int64
     call block_profile_leave(profile_ghost_mode)
@@ -20425,7 +20566,7 @@ end subroutine build_parallel_block_catalog
                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                     (field_sample*PATCH_SIZE**2+q)
                destination_start = data_start + &
-                    BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT* &
+                    payload_count* &
                     (field_sample*PATCH_SIZE**2+q)
                if (component /= BLOCK_GHOST_DYNAMIC_DSCALAR) then
                   buffer(destination_start:destination_start+EDGE-1) = &
@@ -20571,8 +20712,10 @@ end subroutine build_parallel_block_catalog
     if (full_ghost_transport) then
        call exchange_block_scalar_restriction_ghosts(.true.)
     else
+       ! Direct flux changes every RK stage.  Native dscalar is recomputed
+       ! immediately below and is not consumed before its dedicated refresh.
        call exchange_block_scalar_restriction_ghosts( &
-            .false.,BLOCK_GHOST_DYNAMIC_BOTH)
+            .false.,BLOCK_GHOST_DYNAMIC_FLUX,level_end)
     end if
     if (full_ghost_transport) &
          block_scalar_restriction_exchange% &
@@ -20583,19 +20726,19 @@ end subroutine build_parallel_block_catalog
          recompute_block_scalar_divergence_level,statistics)
     call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
     do l = level_end-1,level_start,-1
-       ! Propagate the newly recomputed finer dscalar and the cross-block
-       ! flux stencil consumed while restricting l.
+       ! The finer direct-flux stencil was installed when that level became
+       ! final.  Only its newly recomputed dscalar changes before restriction.
        call exchange_block_scalar_restriction_ghosts( &
-            .false.,BLOCK_GHOST_DYNAMIC_BOTH)
+            .false.,BLOCK_GHOST_DYNAMIC_DSCALAR,l+1)
        statistics%target_level = l
        call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
        call apply_local_block_field_consumer( &
             restrict_block_scalar_flux_level,statistics)
        call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
-       ! Restriction changed the positive-edge flux at l. Refresh its ghost
-       ! stencil and immediately form the dscalar required by level l-1.
+       ! Restriction changed only the positive-edge flux at l.  Refresh that
+       ! stencil, then form the dscalar whose refresh begins the next level.
        call exchange_block_scalar_restriction_ghosts( &
-            .false.,BLOCK_GHOST_DYNAMIC_BOTH)
+            .false.,BLOCK_GHOST_DYNAMIC_FLUX,l)
        call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
        call apply_local_block_field_consumer( &
             recompute_block_scalar_divergence_level,statistics)
