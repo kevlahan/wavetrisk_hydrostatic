@@ -15,7 +15,7 @@ module multi_level_mod
   use init_mod,        only : physics_scalar_flux, &
        physics_velo_source, u_source
   use ops_mod,         only : du_grad, du_source, &
-       post_step1, Qperp, scalar_trend, step1
+       post_step1, Qperp, scalar_trend, scalar_trend_pair, step1
   use patch_mod,       only : PATCH_SIZE
   use parallel_block_mpi_mod, only : &
        BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY, &
@@ -233,8 +233,7 @@ contains
                BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY,profile_start)
           profile_start = parallel_block_profile_begin( &
                BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY)
-          call cal_scalar_trend( &
-               q,dq,k,l,.false.)
+          call cal_scalar_trend_compatibility(q,dq,k,l)
           call parallel_block_profile_end( &
                BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY,profile_start)
           if (level_start /= level_end .and. l > level_start) then
@@ -350,6 +349,42 @@ contains
 
     if (Laplace_rotu == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity
   end subroutine basic_operators
+
+
+  subroutine cal_scalar_trend_compatibility (q,dq,k,l)
+    ! Compute both compatibility scalar trends in one topology traversal.
+    ! The complete trend_ml oracle continues to use cal_scalar_trend and its
+    ! independent scalar_trend passes.
+
+    implicit none
+
+    type(Float_Field), target, intent(inout) :: &
+         q(1:N_VARIABLE,1:zlevels),dq(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: k
+    integer, intent(in) :: l
+
+    integer :: d
+    integer :: j
+
+    call update_bdry(horiz_flux,l,1169)
+    do d = 1,size(grid)
+       do j = 1,grid(d)%lev(l)%length
+          call scalar_trend_pair( &
+               grid(d),grid(d)%lev(l)%elts(j), &
+               horiz_flux(S_MASS)%data(d)%elts, &
+               horiz_flux(S_TEMP)%data(d)%elts, &
+               dq(S_MASS,k)%data(d)%elts, &
+               dq(S_TEMP,k)%data(d)%elts)
+       end do
+    end do
+    call capture_block_scalar_divergence_level( &
+         q,physics_scalar_flux,0,k,l)
+    call capture_block_scalar_divergence_level( &
+         q,physics_scalar_flux,0,k,l, &
+         domain_tendency=dq,dscalar_only=.true.)
+    dq(S_MASS:S_TEMP,k)%bdry_uptodate = .false.
+
+  end subroutine cal_scalar_trend_compatibility
 
   
   subroutine cal_scalar_trend (q, dq, k, l, mass_only_compatibility)

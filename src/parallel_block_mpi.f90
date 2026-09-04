@@ -17923,8 +17923,9 @@ end subroutine build_parallel_block_catalog
             block_writeback_plan%send_count(r)
           b = block_writeback_plan%send_block(slot)
           local_index = catalog_local_block(b)
+          source = source_rank(b)
           if (local_index < 1 .or. local_index > n_local .or. &
-               source_rank(b) /= r-1) then
+               source /= r-1) then
              call fail("scalar boundary owner receive route is invalid")
           end if
           owner_pos = block_scalar_restriction_exchange% &
@@ -19025,10 +19026,12 @@ end subroutine build_parallel_block_catalog
     integer :: scalar_slot_first
     integer :: scalar_slot_last
     integer :: slot
+    integer :: source
     integer :: source_bdry
     integer :: source_level
     integer :: v_scalar
     integer :: v_vector
+    logical :: validate_oracle
 
     call get_block_field_layout( &
          v_scalar,n_scalar_variable,v_vector,first_field_level, &
@@ -19047,6 +19050,7 @@ end subroutine build_parallel_block_catalog
          mult_scalar /= 1 .or. mult_vector /= EDGE) then
        call fail("scalar-restriction boundary layout is invalid")
     end if
+    validate_oracle = block_dynamics_validation_enabled()
 
     do r = 1,n_process
        pos_sample = block_writeback_plan% &
@@ -19056,7 +19060,8 @@ end subroutine build_parallel_block_catalog
             block_writeback_plan%recv_count(r)
           b = block_writeback_plan%recv_block(slot)
           d = loc_id(block_catalog(b)%root_domain+1) + 1
-          if (source_rank(b) /= rank .or. d < 1 .or. &
+          source = source_rank(b)
+          if (source /= rank .or. d < 1 .or. &
                d > size(grid)) then
              call fail("scalar-restriction boundary route is invalid")
           end if
@@ -19120,7 +19125,7 @@ end subroutine build_parallel_block_catalog
        end if
     end do
 
-    if (capture_dscalar .and. block_dynamics_validation_enabled()) then
+    if (capture_dscalar .and. validate_oracle) then
        if (.not. present(domain_tendency)) then
           call fail("scalar boundary cache tendency is absent")
        end if

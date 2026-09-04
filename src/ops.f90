@@ -4,6 +4,7 @@ module ops_mod
 
   use kind_mod,   only : dp
   use shared_mod, only : EDGE, N_BDRY, N_VARIABLE, EAST, NORTH, NORTHEAST, NORTHWEST, SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
+       IMINUS, IPLUS, JMINUS, JPLUS, &
        S_MASS, S_VELO, IJMINUS, IJPLUS, IMINUSJPLUS, IPLUSJMINUS, &
        compressible, zlevels, zmax, c_p, eps, grav_accel, &
        kappa, p_0, p_top, ref_density, radius, RT, DG, UP, S_TEMP, TRIAG, LORT, UPLT, TRSK, mode_split, scalars, z_null
@@ -14,13 +15,14 @@ module ops_mod
   use utils_mod,       only : interp, phi_node, porous_density
   use init_mod,        only : physics_scalar_flux, physics_velo_source, surf_geopot
   
-  use domain_mod, only : bernoulli, Domain, Float_Field, grid, sides_dims, exner, exner_fun, h_flux, h_mflux, horiz_flux, ke, &
+  use domain_mod, only : bernoulli, Domain, Float_Field, grid, sides_dims, &
+       exner, exner_fun, get_offs_Domain, h_flux, h_mflux, horiz_flux, ke, &
        mass, mean_m, temp, mean_t, dscalar, dvelo, scalar, sol, sol_mean, topography, Laplacian, qe, velo, vort, idx, id_edge
 
   implicit none
 
   private
-  public :: post_step1, step1, scalar_trend, du_grad, &
+  public :: post_step1, step1, scalar_trend, scalar_trend_pair, du_grad, &
        du_grad_compatibility, du_source, Qperp
   public :: comp_offs3
 
@@ -788,6 +790,71 @@ contains
        dscalar(id_i) = 0.0_dp
     end if
   end subroutine scalar_trend
+
+
+  subroutine scalar_trend_pair ( &
+       dom,p,mass_flux,temp_flux,mass_trend,temp_trend)
+    ! Compatibility-only fused scalar divergence.  The complete legacy
+    ! trend oracle retains scalar_trend's independent two-pass traversal.
+
+    implicit none
+
+    type(Domain), intent(inout) :: dom
+    integer, intent(in) :: p
+    real(dp), intent(in) :: mass_flux(:)
+    real(dp), intent(in) :: temp_flux(:)
+    real(dp), intent(inout) :: mass_trend(:)
+    real(dp), intent(inout) :: temp_trend(:)
+
+    integer :: bdry(JPLUS:IMINUS)
+    integer :: dims(2,N_BDRY+1)
+    integer :: i
+    integer :: id
+    integer :: id_s
+    integer :: id_sw
+    integer :: id_w
+    integer :: j
+    integer :: offs(N_BDRY+1)
+
+    logical :: inner_bdry(JPLUS:IMINUS)
+
+    call get_offs_Domain(dom,p,offs,dims,inner_bdry)
+    bdry = [1,1,0,0]
+    where (inner_bdry)
+       bdry = 0
+    end where
+
+    do j = bdry(JMINUS),PATCH_SIZE+bdry(JPLUS)-1
+       do i = bdry(IMINUS),PATCH_SIZE+bdry(IPLUS)-1
+          id = idx(i,j,offs,dims)
+          if (dom%mask_n%elts(id+1) >= TRSK) then
+             id_s = idx(i,j-1,offs,dims)
+             id_w = idx(i-1,j,offs,dims)
+             id_sw = idx(i-1,j-1,offs,dims)
+             mass_trend(id+1) = -( &
+                  mass_flux(EDGE*id+RT+1) - &
+                  mass_flux(EDGE*id_w+RT+1) + &
+                  mass_flux(EDGE*id_sw+DG+1) - &
+                  mass_flux(EDGE*id+DG+1) + &
+                  mass_flux(EDGE*id+UP+1) - &
+                  mass_flux(EDGE*id_s+UP+1))* &
+                  dom%areas%elts(id+1)%hex_inv
+             temp_trend(id+1) = -( &
+                  temp_flux(EDGE*id+RT+1) - &
+                  temp_flux(EDGE*id_w+RT+1) + &
+                  temp_flux(EDGE*id_sw+DG+1) - &
+                  temp_flux(EDGE*id+DG+1) + &
+                  temp_flux(EDGE*id+UP+1) - &
+                  temp_flux(EDGE*id_s+UP+1))* &
+                  dom%areas%elts(id+1)%hex_inv
+          else
+             mass_trend(id+1) = 0.0_dp
+             temp_trend(id+1) = 0.0_dp
+          end if
+       end do
+    end do
+
+  end subroutine scalar_trend_pair
 
   
   subroutine du_source (dom, i, j, zlev, offs, dims)
