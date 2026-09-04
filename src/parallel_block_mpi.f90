@@ -852,7 +852,10 @@ module parallel_block_mpi_mod
   integer, allocatable, save :: block_scalar_boundary_cache_slot_send(:)
   real(dp), allocatable, save :: block_scalar_boundary_cache_value_send(:)
   real(dp), allocatable, save :: block_scalar_boundary_cache_value_recv(:)
+  real(dp), allocatable, save :: block_scalar_boundary_cache_value(:)
+  logical, allocatable, save :: block_scalar_boundary_cache_covered(:)
   integer, save :: block_scalar_boundary_cache_count = 0
+  integer, save :: block_scalar_boundary_cache_field_count = 0
   integer, parameter :: BLOCK_BOUNDARY_OWNER_LOCAL = 1
   integer, parameter :: BLOCK_BOUNDARY_OWNER_REMOTE = 2
   integer, parameter :: BLOCK_BOUNDARY_OWNER_SCAFFOLD = 3
@@ -863,6 +866,8 @@ module parallel_block_mpi_mod
   integer(int64), save :: &
        block_scalar_boundary_owner_shadow_count(3, &
        BLOCK_BOUNDARY_OWNER_CLASS_COUNT) = 0_int64
+  integer(int64), save :: &
+       block_scalar_boundary_cache_shadow_count(4) = 0_int64
 
   type :: Block_Scalar_Restriction_Context
      integer :: target_level = -1
@@ -16946,7 +16951,12 @@ end subroutine build_parallel_block_catalog
          deallocate(block_scalar_boundary_cache_value_send)
     if (allocated(block_scalar_boundary_cache_value_recv)) &
          deallocate(block_scalar_boundary_cache_value_recv)
+    if (allocated(block_scalar_boundary_cache_value)) &
+         deallocate(block_scalar_boundary_cache_value)
+    if (allocated(block_scalar_boundary_cache_covered)) &
+         deallocate(block_scalar_boundary_cache_covered)
     block_scalar_boundary_cache_count = 0
+    block_scalar_boundary_cache_field_count = 0
     if (allocated(block_scalar_restriction_exchange% &
          boundary_owner_send_buffer)) deallocate( &
          block_scalar_restriction_exchange%boundary_owner_send_buffer)
@@ -17236,7 +17246,7 @@ end subroutine build_parallel_block_catalog
     block_scalar_restriction_exchange%ghost_patch_buffer = &
          BLOCK_GHOST_POISON
     block_scalar_restriction_exchange%allocations = &
-         block_scalar_restriction_exchange%allocations + 66_int64
+         block_scalar_restriction_exchange%allocations + 68_int64
     block_scalar_restriction_exchange%generation = &
          block_writeback_plan_generation
     block_scalar_restriction_exchange%ready = .true.
@@ -18163,6 +18173,13 @@ end subroutine build_parallel_block_catalog
        call fail("scalar boundary patch key coverage differs")
     end if
     block_scalar_boundary_cache_count = n_cache
+    block_scalar_boundary_cache_field_count = n_field_value
+    allocate(block_scalar_boundary_cache_value(max(1, &
+         n_cache*n_field_value)))
+    allocate(block_scalar_boundary_cache_covered(max(1, &
+         n_cache*n_field_value)))
+    block_scalar_boundary_cache_value = BLOCK_BOUNDARY_POISON
+    block_scalar_boundary_cache_covered = .false.
     do cache_slot = 1,n_cache
        if (block_scalar_boundary_cache_rank(cache_slot) == rank) then
           cache_count_local(3) = cache_count_local(3)+1_int64
@@ -18991,6 +19008,7 @@ end subroutine build_parallel_block_catalog
     integer :: boundary_index
     integer :: d
     integer :: first_field_level
+    integer :: field_sample
     integer :: level_slot
     integer :: local_index
     integer :: mult_scalar
@@ -19101,6 +19119,18 @@ end subroutine build_parallel_block_catalog
           call fail("retained scalar-restriction boundary extent differs")
        end if
     end do
+
+    if (capture_dscalar .and. block_dynamics_validation_enabled()) then
+       if (.not. present(domain_tendency)) then
+          call fail("scalar boundary cache tendency is absent")
+       end if
+       do scalar_slot = scalar_slot_first,scalar_slot_last
+          field_sample = (scalar_slot-1)*n_field_level+level_slot
+          call exchange_block_scalar_boundary_cache( &
+               domain_tendency,v_scalar+scalar_slot-1,field_level, &
+               field_sample)
+       end do
+    end if
 
   contains
 
@@ -19241,6 +19271,118 @@ end subroutine build_parallel_block_catalog
 
 
   end subroutine capture_block_scalar_restriction_boundaries
+
+
+  subroutine exchange_block_scalar_boundary_cache ( &
+       domain_tendency,scalar_id,field_level,field_sample)
+    ! Stage 166K shadow transport.  Populate one value per unique exact
+    ! source-node slot.  Production boundary records remain authoritative.
+
+    implicit none
+
+    type(Float_Field), intent(in) :: &
+         domain_tendency(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: scalar_id
+    integer, intent(in) :: field_level
+    integer, intent(in) :: field_sample
+
+    integer :: cache_index
+    integer :: cache_slot
+    integer :: d_source
+    integer :: ierr
+    integer :: pos
+    integer :: source_domain
+    integer :: source_node
+    integer :: value_start
+
+    if (scalar_id < 1 .or. scalar_id > N_VARIABLE .or. &
+         field_level < 1 .or. field_level > zlevels .or. &
+         field_sample < 1 .or. &
+         field_sample > block_scalar_boundary_cache_field_count .or. &
+         block_scalar_boundary_cache_count < 0) then
+       call fail("scalar boundary cache field is invalid")
+    end if
+    value_start = (field_sample-1)*block_scalar_boundary_cache_count
+    if (block_scalar_boundary_cache_count > 0) then
+       block_scalar_boundary_cache_covered( &
+            value_start+1:value_start+ &
+            block_scalar_boundary_cache_count) = .false.
+    end if
+    block_scalar_boundary_cache_value_send = BLOCK_BOUNDARY_POISON
+    block_scalar_boundary_cache_value_recv = BLOCK_BOUNDARY_POISON
+
+    do cache_slot = 1,block_scalar_boundary_cache_count
+       if (block_scalar_boundary_cache_rank(cache_slot) /= rank) cycle
+       source_domain = block_scalar_boundary_cache_domain(cache_slot)
+       source_node = block_scalar_boundary_cache_node(cache_slot)
+       if (source_domain < 0 .or. source_domain >= N_GLO_DOMAIN .or. &
+            owner(source_domain+1) /= rank) then
+          call fail("local scalar boundary cache Domain is invalid")
+       end if
+       d_source = loc_id(source_domain+1)+1
+       if (d_source < 1 .or. d_source > size(grid) .or. &
+            source_node < 0 .or. &
+            source_node >= grid(d_source)%node%length) then
+          call fail("local scalar boundary cache node is invalid")
+       end if
+       cache_index = value_start+cache_slot
+       block_scalar_boundary_cache_value(cache_index) = &
+            domain_tendency(scalar_id,field_level)% &
+            data(d_source)%elts(source_node+1)
+       block_scalar_boundary_cache_covered(cache_index) = .true.
+    end do
+
+    do pos = 1,sum(block_scalar_boundary_cache_recv_count)
+       source_domain = block_scalar_boundary_cache_domain_recv(pos)
+       source_node = block_scalar_boundary_cache_node_recv(pos)
+       if (source_domain < 0 .or. source_domain >= N_GLO_DOMAIN .or. &
+            owner(source_domain+1) /= rank) then
+          call fail("remote scalar boundary cache Domain is invalid")
+       end if
+       d_source = loc_id(source_domain+1)+1
+       if (d_source < 1 .or. d_source > size(grid) .or. &
+            source_node < 0 .or. &
+            source_node >= grid(d_source)%node%length) then
+          call fail("remote scalar boundary cache node is invalid")
+       end if
+       block_scalar_boundary_cache_value_send(pos) = &
+            domain_tendency(scalar_id,field_level)% &
+            data(d_source)%elts(source_node+1)
+    end do
+
+    call MPI_Alltoallv(block_scalar_boundary_cache_value_send, &
+         block_scalar_boundary_cache_recv_count, &
+         block_scalar_boundary_cache_recv_displ,MPI_DOUBLE_PRECISION, &
+         block_scalar_boundary_cache_value_recv, &
+         block_scalar_boundary_cache_send_count, &
+         block_scalar_boundary_cache_send_displ,MPI_DOUBLE_PRECISION, &
+         comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv scalar boundary cache values")
+
+    do pos = 1,sum(block_scalar_boundary_cache_send_count)
+       cache_slot = block_scalar_boundary_cache_slot_send(pos)+1
+       if (cache_slot < 1 .or. &
+            cache_slot > block_scalar_boundary_cache_count .or. &
+            block_scalar_boundary_cache_rank(cache_slot) == rank) then
+          call fail("scalar boundary cache value slot is invalid")
+       end if
+       cache_index = value_start+cache_slot
+       if (block_scalar_boundary_cache_covered(cache_index)) then
+          call fail("scalar boundary cache value is duplicated")
+       end if
+       block_scalar_boundary_cache_value(cache_index) = &
+            block_scalar_boundary_cache_value_recv(pos)
+       block_scalar_boundary_cache_covered(cache_index) = .true.
+    end do
+    if (block_scalar_boundary_cache_count > 0) then
+       if (.not. all(block_scalar_boundary_cache_covered( &
+            value_start+1:value_start+ &
+            block_scalar_boundary_cache_count))) then
+          call fail("scalar boundary cache value coverage is incomplete")
+       end if
+    end if
+
+  end subroutine exchange_block_scalar_boundary_cache
 
 
   subroutine finalize_block_scalar_divergence_capture
@@ -20407,6 +20549,7 @@ end subroutine build_parallel_block_catalog
     if (validate_oracle) then
        block_scalar_boundary_shadow_count = 0_int64
        block_scalar_boundary_owner_shadow_count = 0_int64
+       block_scalar_boundary_cache_shadow_count = 0_int64
     end if
     if (.not. block_scalar_restriction_exchange%ready) then
        call fail("block-native scalar restriction exchange is not ready")
@@ -20531,6 +20674,7 @@ end subroutine build_parallel_block_catalog
 
     integer :: ierr
     integer(int64) :: count_global(4)
+    integer(int64) :: cache_count_global(4)
     integer(int64) :: owner_count_global(3, &
          BLOCK_BOUNDARY_OWNER_CLASS_COUNT)
 
@@ -20541,6 +20685,9 @@ end subroutine build_parallel_block_catalog
          owner_count_global,size(owner_count_global),MPI_INTEGER8, &
          MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce boundary dscalar owner shadow")
+    call MPI_Allreduce(block_scalar_boundary_cache_shadow_count, &
+         cache_count_global,4,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce boundary dscalar cache shadow")
     if (count_global(1) /= count_global(2)+count_global(4) .or. &
          count_global(3) > count_global(1)) then
        call fail("boundary dscalar shadow coverage differs")
@@ -20552,10 +20699,17 @@ end subroutine build_parallel_block_catalog
          owner_count_global(3,:))) then
        call fail("boundary dscalar owner shadow coverage differs")
     end if
+    if (cache_count_global(1) /= cache_count_global(2) + &
+         cache_count_global(3)+cache_count_global(4)) then
+       call fail("boundary dscalar cache shadow coverage differs")
+    end if
     if (rank == 0) write(6,'(a,4(i0,1x))') &
          "Block boundary dscalar shadow: " // &
          "access match Domain-zero mismatch = ",count_global
     if (rank == 0) then
+       write(6,'(a,4(i0,1x))') &
+            "Block boundary cache shadow: " // &
+            "access match mismatch fallback = ",cache_count_global
        write(6,'(a,3(i0,1x))') &
             "Block boundary owner shadow local: " // &
             "access match mismatch = ", &
@@ -22529,6 +22683,9 @@ end subroutine build_parallel_block_catalog
     integer, intent(in) :: flux_start
 
     integer :: boundary_index
+    integer :: cache_index
+    integer :: cache_slot
+    integer :: field_sample
     integer :: node
     integer :: owner_class
     integer :: owner_pos
@@ -22539,6 +22696,7 @@ end subroutine build_parallel_block_catalog
     logical :: validate_oracle
 
     real(dp) :: candidate_value
+    real(dp) :: cache_value
     real(dp) :: comparison_tolerance
     real(dp) :: operation_scale
     real(dp) :: reference_value
@@ -22598,6 +22756,40 @@ end subroutine build_parallel_block_catalog
              call fail("boundary dscalar owner class is invalid")
           end if
           reference_value = value
+          block_scalar_boundary_cache_shadow_count(1) = &
+               block_scalar_boundary_cache_shadow_count(1)+1_int64
+          cache_slot = block_scalar_boundary_cache_slot(owner_pos)
+          if (cache_slot >= 0) then
+             field_sample = (scalar_slot-1)*block%n_field_level + &
+                  level_slot
+             if (field_sample < 1 .or. field_sample > &
+                  block_scalar_boundary_cache_field_count .or. &
+                  cache_slot >= block_scalar_boundary_cache_count) then
+                call fail("boundary dscalar cache address is invalid")
+             end if
+             cache_index = (field_sample-1)* &
+                  block_scalar_boundary_cache_count+cache_slot+1
+             if (.not. block_scalar_boundary_cache_covered(cache_index)) then
+                call fail("boundary dscalar cache value is unavailable")
+             end if
+             cache_value = block_scalar_boundary_cache_value(cache_index)
+             comparison_tolerance = &
+                  scalar_restriction_roundoff_tolerance( &
+                  cache_value,reference_value,1)
+             if (abs(cache_value-reference_value) <= &
+                  comparison_tolerance) then
+                block_scalar_boundary_cache_shadow_count(2) = &
+                     block_scalar_boundary_cache_shadow_count(2)+1_int64
+             else
+                block_scalar_boundary_cache_shadow_count(3) = &
+                     block_scalar_boundary_cache_shadow_count(3)+1_int64
+             end if
+          else if (cache_slot == -1 .or. cache_slot == -2) then
+             block_scalar_boundary_cache_shadow_count(4) = &
+                  block_scalar_boundary_cache_shadow_count(4)+1_int64
+          else
+             call fail("boundary dscalar cache slot is invalid")
+          end if
           candidate_value = block_scalar_flux_divergence( &
                block,local_index,p,scalar_slot,level_slot,i,j, &
                BLOCK_SCALAR_DIRECT_FLUX_START, &
