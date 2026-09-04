@@ -28,7 +28,7 @@ module parallel_block_mod
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
-  integer, parameter :: BLOCK_PACK_VERSION = 10
+  integer, parameter :: BLOCK_PACK_VERSION = 11
   integer, parameter :: BLOCK_PACK_HEADER_SIZE = 44
 
 
@@ -70,6 +70,7 @@ module parallel_block_mod
 
   type, public :: Block_Ghost_Storage
      integer :: source_patch = -1
+     integer :: source_level = -1
      integer :: elts_start   = -1
      integer :: local_start  = -1
      integer :: n_node       = 0
@@ -568,7 +569,8 @@ subroutine check_block_storage (block,check_serialization)
   end if
 
   do i = 1, size(block%ghost_storage)
-     if (block%ghost_storage(i)%source_local_patch < 0) then
+     if (block%ghost_storage(i)%source_local_patch < 0 .or. &
+          block%ghost_storage(i)%source_level < 0) then
         error stop "check_block_storage: missing ghost source patch"
      end if
   end do
@@ -2665,6 +2667,7 @@ subroutine accumulate_block_boundary_route_statistics ( &
      end if
      if (block%ghost_storage(i)%source_domain < 0 .or. &
           block%ghost_storage(i)%source_patch < 0 .or. &
+          block%ghost_storage(i)%source_level < 0 .or. &
           block%ghost_storage(i)%source_block < 1 .or. &
           block%ghost_storage(i)%source_block_id < 0 .or. &
           block%ghost_storage(i)%source_owner < 0) then
@@ -2763,7 +2766,7 @@ subroutine source_block_ghost_source_statistics ( &
 
   integer(int64), intent(out) :: ghost_count
   integer(int64), intent(out) :: value_count(2)
-  integer(int64), intent(out) :: source_sum(5)
+  integer(int64), intent(out) :: source_sum(6)
 
   integer :: i
 
@@ -2792,7 +2795,7 @@ subroutine local_block_ghost_source_statistics ( &
 
   integer(int64), intent(out) :: ghost_count
   integer(int64), intent(out) :: value_count(2)
-  integer(int64), intent(out) :: source_sum(5)
+  integer(int64), intent(out) :: source_sum(6)
 
   integer :: i
 
@@ -2821,12 +2824,13 @@ subroutine accumulate_block_ghost_source_statistics ( &
   type(Block_Data), intent(in) :: block
   integer(int64), intent(inout) :: ghost_count
   integer(int64), intent(inout) :: value_count(2)
-  integer(int64), intent(inout) :: source_sum(5)
+  integer(int64), intent(inout) :: source_sum(6)
 
   integer :: i
 
   do i = 1, size(block%ghost_storage)
      if (block%ghost_storage(i)%source_local_patch < 0 .or. &
+          block%ghost_storage(i)%source_level < 0 .or. &
           block%ghost_storage(i)%n_node /= PATCH_SIZE**2) then
         error stop &
              "accumulate_block_ghost_source_statistics: source address"
@@ -2843,7 +2847,8 @@ subroutine accumulate_block_ghost_source_statistics ( &
           block%ghost_storage(i)%source_block, &
           block%ghost_storage(i)%source_block_id, &
           block%ghost_storage(i)%source_owner, &
-          block%ghost_storage(i)%source_local_patch ],int64)
+          block%ghost_storage(i)%source_local_patch, &
+          block%ghost_storage(i)%source_level ],int64)
   end do
 
 end subroutine accumulate_block_ghost_source_statistics
@@ -2909,7 +2914,7 @@ end subroutine validate_local_block_ghost_sources
 
 
 subroutine get_local_block_ghost_requests ( &
-     source_block,source_local_patch,source_owner, &
+     source_block,source_local_patch,source_patch_level,source_owner, &
      destination_block,destination_ghost)
   ! Export one field-independent request for every ghost record owned by
   ! this rank. Float_Field rank and position affect later payload packing,
@@ -2919,6 +2924,7 @@ subroutine get_local_block_ghost_requests ( &
 
   integer, allocatable, intent(out) :: source_block(:)
   integer, allocatable, intent(out) :: source_local_patch(:)
+  integer, allocatable, intent(out) :: source_patch_level(:)
   integer, allocatable, intent(out) :: source_owner(:)
   integer, allocatable, intent(out) :: destination_block(:)
   integer, allocatable, intent(out) :: destination_ghost(:)
@@ -2939,6 +2945,7 @@ subroutine get_local_block_ghost_requests ( &
 
   allocate(source_block(n_request))
   allocate(source_local_patch(n_request))
+  allocate(source_patch_level(n_request))
   allocate(source_owner(n_request))
   allocate(destination_block(n_request))
   allocate(destination_ghost(n_request))
@@ -2951,6 +2958,8 @@ subroutine get_local_block_ghost_requests ( &
              block_local(b)%ghost_storage(g)%source_block
         source_local_patch(i) = &
              block_local(b)%ghost_storage(g)%source_local_patch
+        source_patch_level(i) = &
+             block_local(b)%ghost_storage(g)%source_level
         source_owner(i) = &
              block_local(b)%ghost_storage(g)%source_owner
         destination_block(i) = block_local_catalog_index(b)

@@ -2374,6 +2374,9 @@ subroutine build_one_source_block ( &
      block_out%ghost_storage(ghost_id)%source_patch = &
           ghost_patch(ghost_id)
 
+     block_out%ghost_storage(ghost_id)%source_level = &
+          grid(d)%patch%elts(ghost_patch(ghost_id)+1)%level
+
      block_out%ghost_storage(ghost_id)%source_block = &
           source_block
 

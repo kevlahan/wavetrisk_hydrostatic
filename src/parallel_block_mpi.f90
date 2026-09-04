@@ -151,6 +151,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_GHOST_DYNAMIC_BOTH = 0
   integer, parameter :: BLOCK_GHOST_DYNAMIC_FLUX = 1
   integer, parameter :: BLOCK_GHOST_DYNAMIC_DSCALAR = 2
+  integer, parameter :: BLOCK_GHOST_REQUEST_SIZE = 5
   integer, parameter :: BLOCK_SCALAR_AREA_INDEX = 7
   integer, parameter :: BLOCK_SCALAR_ACTIVE_INDEX = 8
   integer, parameter :: BLOCK_SCALAR_DIRECT_FLUX_START = 9
@@ -274,8 +275,20 @@ module parallel_block_mpi_mod
      integer, allocatable :: recv_record_displ(:)
      integer, allocatable :: send_data(:)
      integer, allocatable :: recv_data(:)
-     integer, allocatable :: recv_patch_level(:)
      integer, allocatable :: request_index(:)
+     integer :: route_level_start = -1
+     integer :: route_level_count = 0
+     integer, allocatable :: local_level_count(:)
+     integer, allocatable :: local_level_displ(:)
+     integer, allocatable :: local_level_request(:)
+     integer, allocatable :: send_level_count(:,:)
+     integer, allocatable :: send_level_displ(:,:)
+     integer, allocatable :: send_level_base(:)
+     integer, allocatable :: send_level_record(:)
+     integer, allocatable :: recv_level_count(:,:)
+     integer, allocatable :: recv_level_displ(:,:)
+     integer, allocatable :: recv_level_base(:)
+     integer, allocatable :: recv_level_record(:)
      integer :: scalar_n_value = 0
      integer :: vector_n_value = 0
      integer, allocatable :: scalar_send_count(:)
@@ -5760,10 +5773,10 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: source_value_global(2)
     integer(int64) :: local_value_local(2)
     integer(int64) :: local_value_global(2)
-    integer(int64) :: source_sum_local(5)
-    integer(int64) :: source_sum_global(5)
-    integer(int64) :: local_sum_local(5)
-    integer(int64) :: local_sum_global(5)
+    integer(int64) :: source_sum_local(6)
+    integer(int64) :: source_sum_global(6)
+    integer(int64) :: local_sum_local(6)
+    integer(int64) :: local_sum_global(6)
 
     integer, allocatable :: catalog_domain(:)
     integer, allocatable :: catalog_id(:)
@@ -5839,12 +5852,12 @@ end subroutine build_parallel_block_catalog
     call check_mpi(ierr,"MPI_Allreduce final ghost values")
 
     call MPI_Allreduce( &
-         source_sum_local,source_sum_global,5, &
+         source_sum_local,source_sum_global,6, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce source ghost addresses")
 
     call MPI_Allreduce( &
-         local_sum_local,local_sum_global,5, &
+         local_sum_local,local_sum_global,6, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce final ghost addresses")
 
@@ -5940,12 +5953,31 @@ end subroutine build_parallel_block_catalog
     if (allocated(ghost_exchange_plan%recv_data)) then
        deallocate(ghost_exchange_plan%recv_data)
     end if
-    if (allocated(ghost_exchange_plan%recv_patch_level)) then
-       deallocate(ghost_exchange_plan%recv_patch_level)
-    end if
     if (allocated(ghost_exchange_plan%request_index)) then
        deallocate(ghost_exchange_plan%request_index)
     end if
+    if (allocated(ghost_exchange_plan%local_level_count)) &
+         deallocate(ghost_exchange_plan%local_level_count)
+    if (allocated(ghost_exchange_plan%local_level_displ)) &
+         deallocate(ghost_exchange_plan%local_level_displ)
+    if (allocated(ghost_exchange_plan%local_level_request)) &
+         deallocate(ghost_exchange_plan%local_level_request)
+    if (allocated(ghost_exchange_plan%send_level_count)) &
+         deallocate(ghost_exchange_plan%send_level_count)
+    if (allocated(ghost_exchange_plan%send_level_displ)) &
+         deallocate(ghost_exchange_plan%send_level_displ)
+    if (allocated(ghost_exchange_plan%send_level_base)) &
+         deallocate(ghost_exchange_plan%send_level_base)
+    if (allocated(ghost_exchange_plan%send_level_record)) &
+         deallocate(ghost_exchange_plan%send_level_record)
+    if (allocated(ghost_exchange_plan%recv_level_count)) &
+         deallocate(ghost_exchange_plan%recv_level_count)
+    if (allocated(ghost_exchange_plan%recv_level_displ)) &
+         deallocate(ghost_exchange_plan%recv_level_displ)
+    if (allocated(ghost_exchange_plan%recv_level_base)) &
+         deallocate(ghost_exchange_plan%recv_level_base)
+    if (allocated(ghost_exchange_plan%recv_level_record)) &
+         deallocate(ghost_exchange_plan%recv_level_record)
     if (allocated(ghost_exchange_plan%scalar_send_count)) then
        deallocate(ghost_exchange_plan%scalar_send_count)
     end if
@@ -5993,6 +6025,8 @@ end subroutine build_parallel_block_catalog
     ghost_exchange_plan%n_local_request = 0
     ghost_exchange_plan%n_remote_send = 0
     ghost_exchange_plan%n_remote_recv = 0
+    ghost_exchange_plan%route_level_start = -1
+    ghost_exchange_plan%route_level_count = 0
     ghost_exchange_plan%scalar_n_value = 0
     ghost_exchange_plan%vector_n_value = 0
     ghost_exchange_plan%ready = .false.
@@ -6006,8 +6040,6 @@ end subroutine build_parallel_block_catalog
     ! plan, its MPI payload buffers and one-patch packing workspaces.
 
     implicit none
-
-    integer, parameter :: REQUEST_SIZE = 4
 
     integer :: destination
     integer :: destination_nghost
@@ -6031,7 +6063,6 @@ end subroutine build_parallel_block_catalog
     integer, allocatable :: recv_displ(:)
     integer, allocatable :: send_count(:)
     integer, allocatable :: send_displ(:)
-    integer, allocatable :: send_patch_level(:)
 
     if (ghost_exchange_plan%ready) then
        if (.not. local_block_store_ready()) &
@@ -6055,6 +6086,7 @@ end subroutine build_parallel_block_catalog
     call get_local_block_ghost_requests( &
          ghost_exchange_plan%source_block, &
          ghost_exchange_plan%source_local_patch, &
+         ghost_exchange_plan%source_patch_level, &
          ghost_exchange_plan%source_owner, &
          ghost_exchange_plan%destination_block, &
          ghost_exchange_plan%destination_ghost)
@@ -6064,6 +6096,8 @@ end subroutine build_parallel_block_catalog
 
     if (size(ghost_exchange_plan%source_local_patch) /= &
          ghost_exchange_plan%n_request .or. &
+         size(ghost_exchange_plan%source_patch_level) /= &
+         ghost_exchange_plan%n_request .or. &
          size(ghost_exchange_plan%source_owner) /= &
          ghost_exchange_plan%n_request .or. &
          size(ghost_exchange_plan%destination_block) /= &
@@ -6072,10 +6106,6 @@ end subroutine build_parallel_block_catalog
          ghost_exchange_plan%n_request) then
        call fail("inconsistent block ghost exchange plan arrays")
     end if
-    allocate(ghost_exchange_plan%source_patch_level( &
-         ghost_exchange_plan%n_request))
-    ghost_exchange_plan%source_patch_level = -1
-
     allocate(ghost_exchange_plan%send_record_count(n_process))
     allocate(ghost_exchange_plan%recv_record_count(n_process))
     allocate(ghost_exchange_plan%send_record_displ(n_process))
@@ -6123,9 +6153,11 @@ end subroutine build_parallel_block_catalog
           end if
           ghost_exchange_plan%n_local_request = &
                ghost_exchange_plan%n_local_request + 1
-          ghost_exchange_plan%source_patch_level(i) = &
+          if (ghost_exchange_plan%source_patch_level(i) /= &
                local_block_patch_level( &
-               source,ghost_exchange_plan%source_local_patch(i))
+               source,ghost_exchange_plan%source_local_patch(i))) then
+             call fail("local ghost source patch level differs")
+          end if
        else
           r = ghost_exchange_plan%source_owner(i) + 1
           ghost_exchange_plan%send_record_count(r) = &
@@ -6156,9 +6188,9 @@ end subroutine build_parallel_block_catalog
     end do
 
     allocate(ghost_exchange_plan%send_data( &
-         REQUEST_SIZE*ghost_exchange_plan%n_remote_send))
+         BLOCK_GHOST_REQUEST_SIZE*ghost_exchange_plan%n_remote_send))
     allocate(ghost_exchange_plan%recv_data( &
-         REQUEST_SIZE*ghost_exchange_plan%n_remote_recv))
+         BLOCK_GHOST_REQUEST_SIZE*ghost_exchange_plan%n_remote_recv))
     allocate(ghost_exchange_plan%request_index( &
          ghost_exchange_plan%n_remote_send))
 
@@ -6168,13 +6200,15 @@ end subroutine build_parallel_block_catalog
        if (ghost_exchange_plan%source_owner(i) == rank) cycle
 
        r = ghost_exchange_plan%source_owner(i) + 1
-       pos = REQUEST_SIZE*( &
+       pos = BLOCK_GHOST_REQUEST_SIZE*( &
             ghost_exchange_plan%send_record_displ(r)+fill(r))
-       ghost_exchange_plan%send_data(pos+1:pos+REQUEST_SIZE) = [ &
+       ghost_exchange_plan%send_data( &
+            pos+1:pos+BLOCK_GHOST_REQUEST_SIZE) = [ &
             ghost_exchange_plan%source_block(i), &
             ghost_exchange_plan%source_local_patch(i), &
             ghost_exchange_plan%destination_block(i), &
-            ghost_exchange_plan%destination_ghost(i) ]
+            ghost_exchange_plan%destination_ghost(i), &
+            ghost_exchange_plan%source_patch_level(i) ]
        fill_record = ghost_exchange_plan%send_record_displ(r) + &
             fill(r) + 1
        ghost_exchange_plan%request_index(fill_record) = i
@@ -6190,10 +6224,14 @@ end subroutine build_parallel_block_catalog
     allocate(send_displ(n_process))
     allocate(recv_displ(n_process))
 
-    send_count = REQUEST_SIZE*ghost_exchange_plan%send_record_count
-    recv_count = REQUEST_SIZE*ghost_exchange_plan%recv_record_count
-    send_displ = REQUEST_SIZE*ghost_exchange_plan%send_record_displ
-    recv_displ = REQUEST_SIZE*ghost_exchange_plan%recv_record_displ
+    send_count = BLOCK_GHOST_REQUEST_SIZE* &
+         ghost_exchange_plan%send_record_count
+    recv_count = BLOCK_GHOST_REQUEST_SIZE* &
+         ghost_exchange_plan%recv_record_count
+    send_displ = BLOCK_GHOST_REQUEST_SIZE* &
+         ghost_exchange_plan%send_record_displ
+    recv_displ = BLOCK_GHOST_REQUEST_SIZE* &
+         ghost_exchange_plan%recv_record_displ
 
     call MPI_Alltoallv( &
          ghost_exchange_plan%send_data,send_count,send_displ,MPI_INTEGER, &
@@ -6201,13 +6239,9 @@ end subroutine build_parallel_block_catalog
          comm,ierr)
     call check_mpi(ierr,"MPI_Alltoallv persistent ghost requests")
 
-    allocate(ghost_exchange_plan%recv_patch_level( &
-         ghost_exchange_plan%n_remote_recv))
-    allocate(send_patch_level(ghost_exchange_plan%n_remote_send))
-
     do r = 1, n_process
        do i = 0, ghost_exchange_plan%recv_record_count(r)-1
-          pos = REQUEST_SIZE*( &
+          pos = BLOCK_GHOST_REQUEST_SIZE*( &
                ghost_exchange_plan%recv_record_displ(r)+i)
           source = ghost_exchange_plan%recv_data(pos+1)
 
@@ -6239,29 +6273,15 @@ end subroutine build_parallel_block_catalog
           if (ghost_exchange_plan%recv_data(pos+4) < 1) then
              call fail("received persistent ghost index is invalid")
           end if
-          fill_record = ghost_exchange_plan%recv_record_displ(r)+i+1
-          ghost_exchange_plan%recv_patch_level(fill_record) = &
+          if (ghost_exchange_plan%recv_data(pos+5) /= &
                local_block_patch_level( &
-               source,ghost_exchange_plan%recv_data(pos+2))
+               source,ghost_exchange_plan%recv_data(pos+2))) then
+             call fail("received persistent ghost patch level differs")
+          end if
        end do
     end do
 
-    call MPI_Alltoallv( &
-         ghost_exchange_plan%recv_patch_level, &
-         ghost_exchange_plan%recv_record_count, &
-         ghost_exchange_plan%recv_record_displ,MPI_INTEGER, &
-         send_patch_level,ghost_exchange_plan%send_record_count, &
-         ghost_exchange_plan%send_record_displ,MPI_INTEGER,comm,ierr)
-    call check_mpi(ierr,"MPI_Alltoallv persistent ghost patch levels")
-    do fill_record = 1,ghost_exchange_plan%n_remote_send
-       i = ghost_exchange_plan%request_index(fill_record)
-       ghost_exchange_plan%source_patch_level(i) = &
-            send_patch_level(fill_record)
-    end do
-    if (any(ghost_exchange_plan%source_patch_level < 0)) then
-       call fail("persistent ghost patch level is incomplete")
-    end if
-    deallocate(send_patch_level)
+    call build_block_ghost_level_subplans
 
     call get_block_field_layout( &
          scalar_variable,scalar_count,vector_variable,field_level, &
@@ -6358,13 +6378,192 @@ end subroutine build_parallel_block_catalog
   end subroutine build_block_ghost_exchange_plan
 
 
+  subroutine build_block_ghost_level_subplans
+    ! Partition the persistent ghost manifest once by source grid level.
+    ! Request metadata already carries the level, so no reverse collective is
+    ! needed and replay can visit only the records used by its current level.
+
+    implicit none
+
+    integer :: i
+    integer :: level_slot
+    integer :: list_index
+    integer :: pos
+    integer :: r
+    integer :: record
+    integer :: request
+    integer :: route_level
+
+    integer, allocatable :: fill(:,:)
+    integer, allocatable :: local_fill(:)
+
+    ghost_exchange_plan%route_level_start = level_start
+    ghost_exchange_plan%route_level_count = level_end-level_start+1
+    if (ghost_exchange_plan%route_level_count < 1) then
+       call fail("persistent ghost route level range is invalid")
+    end if
+
+    allocate(ghost_exchange_plan%local_level_count( &
+         ghost_exchange_plan%route_level_count))
+    allocate(ghost_exchange_plan%local_level_displ( &
+         ghost_exchange_plan%route_level_count))
+    allocate(ghost_exchange_plan%send_level_count( &
+         n_process,ghost_exchange_plan%route_level_count))
+    allocate(ghost_exchange_plan%send_level_displ( &
+         n_process,ghost_exchange_plan%route_level_count))
+    allocate(ghost_exchange_plan%send_level_base( &
+         ghost_exchange_plan%route_level_count))
+    allocate(ghost_exchange_plan%recv_level_count( &
+         n_process,ghost_exchange_plan%route_level_count))
+    allocate(ghost_exchange_plan%recv_level_displ( &
+         n_process,ghost_exchange_plan%route_level_count))
+    allocate(ghost_exchange_plan%recv_level_base( &
+         ghost_exchange_plan%route_level_count))
+
+    ghost_exchange_plan%local_level_count = 0
+    ghost_exchange_plan%send_level_count = 0
+    ghost_exchange_plan%recv_level_count = 0
+
+    do request = 1,ghost_exchange_plan%n_request
+       route_level = ghost_exchange_plan%source_patch_level(request)
+       level_slot = route_level-level_start+1
+       if (level_slot < 1 .or. &
+            level_slot > ghost_exchange_plan%route_level_count) then
+          call fail("persistent ghost source level is outside grid range")
+       end if
+       if (ghost_exchange_plan%source_owner(request) == rank) then
+          ghost_exchange_plan%local_level_count(level_slot) = &
+               ghost_exchange_plan%local_level_count(level_slot) + 1
+       end if
+    end do
+
+    do r = 1,n_process
+       do i = 0,ghost_exchange_plan%send_record_count(r)-1
+          record = ghost_exchange_plan%send_record_displ(r)+i+1
+          request = ghost_exchange_plan%request_index(record)
+          level_slot = ghost_exchange_plan%source_patch_level(request) - &
+               level_start + 1
+          ghost_exchange_plan%send_level_count(r,level_slot) = &
+               ghost_exchange_plan%send_level_count(r,level_slot) + 1
+       end do
+       do i = 0,ghost_exchange_plan%recv_record_count(r)-1
+          record = ghost_exchange_plan%recv_record_displ(r)+i+1
+          pos = BLOCK_GHOST_REQUEST_SIZE*(record-1)
+          level_slot = ghost_exchange_plan%recv_data(pos+5) - &
+               level_start + 1
+          if (level_slot < 1 .or. &
+               level_slot > ghost_exchange_plan%route_level_count) then
+             call fail("received ghost source level is outside grid range")
+          end if
+          ghost_exchange_plan%recv_level_count(r,level_slot) = &
+               ghost_exchange_plan%recv_level_count(r,level_slot) + 1
+       end do
+    end do
+
+    if (sum(ghost_exchange_plan%local_level_count) /= &
+         ghost_exchange_plan%n_local_request .or. &
+         sum(ghost_exchange_plan%send_level_count) /= &
+         ghost_exchange_plan%n_remote_send .or. &
+         sum(ghost_exchange_plan%recv_level_count) /= &
+         ghost_exchange_plan%n_remote_recv) then
+       call fail("persistent ghost level subplan inventory differs")
+    end if
+
+    ghost_exchange_plan%local_level_displ(1) = 0
+    ghost_exchange_plan%send_level_base(1) = 0
+    ghost_exchange_plan%recv_level_base(1) = 0
+    do level_slot = 2,ghost_exchange_plan%route_level_count
+       ghost_exchange_plan%local_level_displ(level_slot) = &
+            ghost_exchange_plan%local_level_displ(level_slot-1) + &
+            ghost_exchange_plan%local_level_count(level_slot-1)
+       ghost_exchange_plan%send_level_base(level_slot) = &
+            ghost_exchange_plan%send_level_base(level_slot-1) + &
+            sum(ghost_exchange_plan%send_level_count(:,level_slot-1))
+       ghost_exchange_plan%recv_level_base(level_slot) = &
+            ghost_exchange_plan%recv_level_base(level_slot-1) + &
+            sum(ghost_exchange_plan%recv_level_count(:,level_slot-1))
+    end do
+    ghost_exchange_plan%send_level_displ(1,:) = 0
+    ghost_exchange_plan%recv_level_displ(1,:) = 0
+    do r = 2,n_process
+       ghost_exchange_plan%send_level_displ(r,:) = &
+            ghost_exchange_plan%send_level_displ(r-1,:) + &
+            ghost_exchange_plan%send_level_count(r-1,:)
+       ghost_exchange_plan%recv_level_displ(r,:) = &
+            ghost_exchange_plan%recv_level_displ(r-1,:) + &
+            ghost_exchange_plan%recv_level_count(r-1,:)
+    end do
+
+    allocate(ghost_exchange_plan%local_level_request( &
+         ghost_exchange_plan%n_local_request))
+    allocate(ghost_exchange_plan%send_level_record( &
+         ghost_exchange_plan%n_remote_send))
+    allocate(ghost_exchange_plan%recv_level_record( &
+         ghost_exchange_plan%n_remote_recv))
+    allocate(local_fill(ghost_exchange_plan%route_level_count))
+    allocate(fill(n_process,ghost_exchange_plan%route_level_count))
+
+    local_fill = 0
+    do request = 1,ghost_exchange_plan%n_request
+       if (ghost_exchange_plan%source_owner(request) /= rank) cycle
+       level_slot = ghost_exchange_plan%source_patch_level(request) - &
+            level_start + 1
+       list_index = ghost_exchange_plan%local_level_displ(level_slot) + &
+            local_fill(level_slot) + 1
+       ghost_exchange_plan%local_level_request(list_index) = request
+       local_fill(level_slot) = local_fill(level_slot) + 1
+    end do
+    if (any(local_fill /= ghost_exchange_plan%local_level_count)) then
+       call fail("local ghost level subplan fill differs")
+    end if
+
+    fill = 0
+    do r = 1,n_process
+       do i = 0,ghost_exchange_plan%send_record_count(r)-1
+          record = ghost_exchange_plan%send_record_displ(r)+i+1
+          request = ghost_exchange_plan%request_index(record)
+          level_slot = ghost_exchange_plan%source_patch_level(request) - &
+               level_start + 1
+          list_index = ghost_exchange_plan%send_level_base(level_slot) + &
+               ghost_exchange_plan%send_level_displ(r,level_slot) + &
+               fill(r,level_slot) + 1
+          ghost_exchange_plan%send_level_record(list_index) = record
+          fill(r,level_slot) = fill(r,level_slot) + 1
+       end do
+    end do
+    if (any(fill /= ghost_exchange_plan%send_level_count)) then
+       call fail("sent ghost level subplan fill differs")
+    end if
+
+    fill = 0
+    do r = 1,n_process
+       do i = 0,ghost_exchange_plan%recv_record_count(r)-1
+          record = ghost_exchange_plan%recv_record_displ(r)+i+1
+          pos = BLOCK_GHOST_REQUEST_SIZE*(record-1)
+          level_slot = ghost_exchange_plan%recv_data(pos+5) - &
+               level_start + 1
+          list_index = ghost_exchange_plan%recv_level_base(level_slot) + &
+               ghost_exchange_plan%recv_level_displ(r,level_slot) + &
+               fill(r,level_slot) + 1
+          ghost_exchange_plan%recv_level_record(list_index) = record
+          fill(r,level_slot) = fill(r,level_slot) + 1
+       end do
+    end do
+    if (any(fill /= ghost_exchange_plan%recv_level_count)) then
+       call fail("received ghost level subplan fill differs")
+    end if
+
+    deallocate(fill)
+    deallocate(local_fill)
+
+  end subroutine build_block_ghost_level_subplans
+
+
   subroutine check_block_ghost_exchange_plan (verbose)
     ! Compare the cached plan with a fresh local inventory and verify the
     ! global request counts and request-record checksums.
 
     implicit none
-
-    integer, parameter :: REQUEST_SIZE = 4
 
     logical, optional, intent(in) :: verbose
 
@@ -6376,15 +6575,16 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: count_local(3)
     integer(int64) :: buffer_count_global(4)
     integer(int64) :: buffer_count_local(4)
-    integer(int64) :: recv_sum_global(REQUEST_SIZE)
-    integer(int64) :: recv_sum_local(REQUEST_SIZE)
-    integer(int64) :: send_sum_global(REQUEST_SIZE)
-    integer(int64) :: send_sum_local(REQUEST_SIZE)
+    integer(int64) :: recv_sum_global(BLOCK_GHOST_REQUEST_SIZE)
+    integer(int64) :: recv_sum_local(BLOCK_GHOST_REQUEST_SIZE)
+    integer(int64) :: send_sum_global(BLOCK_GHOST_REQUEST_SIZE)
+    integer(int64) :: send_sum_local(BLOCK_GHOST_REQUEST_SIZE)
 
     integer, allocatable :: destination_block(:)
     integer, allocatable :: destination_ghost(:)
     integer, allocatable :: source_block(:)
     integer, allocatable :: source_local_patch(:)
+    integer, allocatable :: source_patch_level(:)
     integer, allocatable :: source_owner(:)
 
     logical :: print_summary
@@ -6520,7 +6720,7 @@ end subroutine build_parallel_block_catalog
     end if
 
     call get_local_block_ghost_requests( &
-         source_block,source_local_patch,source_owner, &
+         source_block,source_local_patch,source_patch_level,source_owner, &
          destination_block,destination_ghost)
 
     n_request = size(source_block)
@@ -6531,6 +6731,8 @@ end subroutine build_parallel_block_catalog
     if (any(source_block /= ghost_exchange_plan%source_block) .or. &
          any(source_local_patch /= &
          ghost_exchange_plan%source_local_patch) .or. &
+         any(source_patch_level /= &
+         ghost_exchange_plan%source_patch_level) .or. &
          any(source_owner /= ghost_exchange_plan%source_owner) .or. &
          any(destination_block /= &
          ghost_exchange_plan%destination_block) .or. &
@@ -6550,12 +6752,14 @@ end subroutine build_parallel_block_catalog
     if (ghost_exchange_plan%n_remote_send > 0) then
        send_sum_local = sum(reshape(int( &
             ghost_exchange_plan%send_data,int64), &
-            [REQUEST_SIZE,ghost_exchange_plan%n_remote_send]),dim=2)
+            [BLOCK_GHOST_REQUEST_SIZE, &
+            ghost_exchange_plan%n_remote_send]),dim=2)
     end if
     if (ghost_exchange_plan%n_remote_recv > 0) then
        recv_sum_local = sum(reshape(int( &
             ghost_exchange_plan%recv_data,int64), &
-            [REQUEST_SIZE,ghost_exchange_plan%n_remote_recv]),dim=2)
+            [BLOCK_GHOST_REQUEST_SIZE, &
+            ghost_exchange_plan%n_remote_recv]),dim=2)
     end if
 
     call MPI_Allreduce( &
@@ -6574,12 +6778,12 @@ end subroutine build_parallel_block_catalog
     call check_mpi(ierr,"MPI_Allreduce persistent payload buffer totals")
 
     call MPI_Allreduce( &
-         send_sum_local,send_sum_global,REQUEST_SIZE, &
+         send_sum_local,send_sum_global,BLOCK_GHOST_REQUEST_SIZE, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce persistent ghost send checksum")
 
     call MPI_Allreduce( &
-         recv_sum_local,recv_sum_global,REQUEST_SIZE, &
+         recv_sum_local,recv_sum_global,BLOCK_GHOST_REQUEST_SIZE, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce persistent ghost recv checksum")
 
@@ -6659,6 +6863,7 @@ end subroutine build_parallel_block_catalog
     deallocate(destination_ghost)
     deallocate(source_block)
     deallocate(source_local_patch)
+    deallocate(source_patch_level)
     deallocate(source_owner)
 
   end subroutine check_block_ghost_exchange_plan
@@ -20117,8 +20322,6 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
-    integer, parameter :: REQUEST_SIZE = 4
-
     logical, intent(in) :: full_payload
     integer, optional, intent(in) :: dynamic_component
     integer, optional, intent(in) :: target_level
@@ -20129,13 +20332,17 @@ end subroutine build_parallel_block_catalog
     integer :: exchange_level
     integer :: i
     integer :: ierr
+    integer :: level_slot
+    integer :: list_index
     integer :: local_index
     integer :: pos
     integer :: payload_count
     integer :: payload_pos
     integer :: profile_ghost_mode
     integer :: r
+    integer :: record
     integer :: request
+    integer :: route_count
     integer :: source
     integer :: source_patch
     integer :: work_count
@@ -20160,6 +20367,7 @@ end subroutine build_parallel_block_catalog
        call fail("dynamic scalar ghost exchange component is invalid")
     end if
     exchange_level = -1
+    level_slot = 1
     if (present(target_level)) exchange_level = target_level
     if (full_payload .and. present(target_level)) then
        call fail("full scalar ghost exchange level is invalid")
@@ -20178,49 +20386,25 @@ end subroutine build_parallel_block_catalog
     call block_profile_enter(profile_ghost_mode)
 
     if (.not. full_payload) then
-       block_scalar_restriction_exchange%ghost_dynamic_send_count = 0
-       block_scalar_restriction_exchange%ghost_dynamic_recv_count = 0
-       do r = 1,n_process
-          do i = ghost_exchange_plan%recv_record_displ(r)+1, &
-               ghost_exchange_plan%recv_record_displ(r) + &
-               ghost_exchange_plan%recv_record_count(r)
-             if (ghost_exchange_plan%recv_patch_level(i) /= &
-                  exchange_level) cycle
-             block_scalar_restriction_exchange% &
-                  ghost_dynamic_send_count(r) = &
-                  block_scalar_restriction_exchange% &
-                  ghost_dynamic_send_count(r) + payload_count* &
-                  ghost_exchange_plan%scalar_n_value
-          end do
-          do i = ghost_exchange_plan%send_record_displ(r)+1, &
-               ghost_exchange_plan%send_record_displ(r) + &
-               ghost_exchange_plan%send_record_count(r)
-             request = ghost_exchange_plan%request_index(i)
-             if (ghost_exchange_plan%source_patch_level(request) /= &
-                  exchange_level) cycle
-             block_scalar_restriction_exchange% &
-                  ghost_dynamic_recv_count(r) = &
-                  block_scalar_restriction_exchange% &
-                  ghost_dynamic_recv_count(r) + payload_count* &
-                  ghost_exchange_plan%scalar_n_value
-          end do
-       end do
-       block_scalar_restriction_exchange%ghost_dynamic_send_displ(1) = 0
-       block_scalar_restriction_exchange%ghost_dynamic_recv_displ(1) = 0
-       do r = 2,n_process
-          block_scalar_restriction_exchange% &
-               ghost_dynamic_send_displ(r) = &
-               block_scalar_restriction_exchange% &
-               ghost_dynamic_send_displ(r-1) + &
-               block_scalar_restriction_exchange% &
-               ghost_dynamic_send_count(r-1)
-          block_scalar_restriction_exchange% &
-               ghost_dynamic_recv_displ(r) = &
-               block_scalar_restriction_exchange% &
-               ghost_dynamic_recv_displ(r-1) + &
-               block_scalar_restriction_exchange% &
-               ghost_dynamic_recv_count(r-1)
-       end do
+       if (ghost_exchange_plan%route_level_start /= level_start .or. &
+            ghost_exchange_plan%route_level_count /= &
+            level_end-level_start+1) then
+          call fail("persistent ghost level subplan is stale")
+       end if
+       level_slot = exchange_level - &
+            ghost_exchange_plan%route_level_start + 1
+       block_scalar_restriction_exchange%ghost_dynamic_send_count = &
+            payload_count*ghost_exchange_plan%scalar_n_value* &
+            ghost_exchange_plan%recv_level_count(:,level_slot)
+       block_scalar_restriction_exchange%ghost_dynamic_recv_count = &
+            payload_count*ghost_exchange_plan%scalar_n_value* &
+            ghost_exchange_plan%send_level_count(:,level_slot)
+       block_scalar_restriction_exchange%ghost_dynamic_send_displ = &
+            payload_count*ghost_exchange_plan%scalar_n_value* &
+            ghost_exchange_plan%recv_level_displ(:,level_slot)
+       block_scalar_restriction_exchange%ghost_dynamic_recv_displ = &
+            payload_count*ghost_exchange_plan%scalar_n_value* &
+            ghost_exchange_plan%send_level_displ(:,level_slot)
     end if
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_PACK)
@@ -20238,38 +20422,43 @@ end subroutine build_parallel_block_catalog
     end if
 
     work_count = 0
-    do request = 1,ghost_exchange_plan%n_request
-       if (ghost_exchange_plan%source_owner(request) /= rank) cycle
-       if (.not. full_payload .and. &
-            ghost_exchange_plan%source_patch_level(request) /= &
-            exchange_level) cycle
-       source = ghost_exchange_plan%source_block(request)
-       source_patch = &
-            ghost_exchange_plan%source_local_patch(request)
-       destination = ghost_exchange_plan%destination_block(request)
-       destination_ghost = &
-            ghost_exchange_plan%destination_ghost(request)
-       call install_local_source( &
-            source,source_patch,destination,destination_ghost, &
-            full_payload,component)
-       work_count = work_count + 1
-    end do
+    if (full_payload) then
+       do request = 1,ghost_exchange_plan%n_request
+          if (ghost_exchange_plan%source_owner(request) /= rank) cycle
+          call install_local_request(request)
+       end do
+    else
+       do i = ghost_exchange_plan%local_level_displ(level_slot)+1, &
+            ghost_exchange_plan%local_level_displ(level_slot) + &
+            ghost_exchange_plan%local_level_count(level_slot)
+          request = ghost_exchange_plan%local_level_request(i)
+          call install_local_request(request)
+       end do
+    end if
 
     do r = 1,n_process
        if (full_payload) then
           payload_pos = &
                block_scalar_restriction_exchange%ghost_send_displ(r)+1
+          route_count = ghost_exchange_plan%recv_record_count(r)
        else
           payload_pos = block_scalar_restriction_exchange% &
                ghost_dynamic_send_displ(r)+1
+          route_count = ghost_exchange_plan% &
+               recv_level_count(r,level_slot)
        end if
-       do i = 0,ghost_exchange_plan%recv_record_count(r)-1
-          if (.not. full_payload .and. &
-               ghost_exchange_plan%recv_patch_level( &
-               ghost_exchange_plan%recv_record_displ(r)+i+1) /= &
-               exchange_level) cycle
-          pos = REQUEST_SIZE*( &
-               ghost_exchange_plan%recv_record_displ(r)+i)
+       do i = 0,route_count-1
+          if (full_payload) then
+             record = ghost_exchange_plan%recv_record_displ(r)+i+1
+          else
+             list_index = ghost_exchange_plan% &
+                  recv_level_base(level_slot) + &
+                  ghost_exchange_plan%recv_level_displ(r,level_slot) + &
+                  i + 1
+             record = ghost_exchange_plan% &
+                  recv_level_record(list_index)
+          end if
+          pos = BLOCK_GHOST_REQUEST_SIZE*(record-1)
           source = ghost_exchange_plan%recv_data(pos+1)
           source_patch = ghost_exchange_plan%recv_data(pos+2)
           local_index = catalog_local_block(source)
@@ -20341,16 +20530,25 @@ end subroutine build_parallel_block_catalog
        if (full_payload) then
           payload_pos = &
                block_scalar_restriction_exchange%ghost_recv_displ(r)+1
+          route_count = ghost_exchange_plan%send_record_count(r)
        else
           payload_pos = block_scalar_restriction_exchange% &
                ghost_dynamic_recv_displ(r)+1
+          route_count = ghost_exchange_plan% &
+               send_level_count(r,level_slot)
        end if
-       do i = 0,ghost_exchange_plan%send_record_count(r)-1
-          request = ghost_exchange_plan%request_index( &
-               ghost_exchange_plan%send_record_displ(r)+i+1)
-          if (.not. full_payload .and. &
-               ghost_exchange_plan%source_patch_level(request) /= &
-               exchange_level) cycle
+       do i = 0,route_count-1
+          if (full_payload) then
+             record = ghost_exchange_plan%send_record_displ(r)+i+1
+          else
+             list_index = ghost_exchange_plan% &
+                  send_level_base(level_slot) + &
+                  ghost_exchange_plan%send_level_displ(r,level_slot) + &
+                  i + 1
+             record = ghost_exchange_plan% &
+                  send_level_record(list_index)
+          end if
+          request = ghost_exchange_plan%request_index(record)
           destination = &
                ghost_exchange_plan%destination_block(request)
           destination_ghost = &
@@ -20385,6 +20583,32 @@ end subroutine build_parallel_block_catalog
     call block_profile_leave(profile_ghost_mode)
 
   contains
+
+    subroutine install_local_request (request)
+
+      implicit none
+
+      integer, intent(in) :: request
+
+      integer :: destination_local
+      integer :: destination_ghost_local
+      integer :: source_local
+      integer :: source_patch_local
+
+      source_local = ghost_exchange_plan%source_block(request)
+      source_patch_local = &
+           ghost_exchange_plan%source_local_patch(request)
+      destination_local = &
+           ghost_exchange_plan%destination_block(request)
+      destination_ghost_local = &
+           ghost_exchange_plan%destination_ghost(request)
+      call install_local_source( &
+           source_local,source_patch_local,destination_local, &
+           destination_ghost_local,full_payload,component)
+      work_count = work_count + 1
+
+    end subroutine install_local_request
+
 
     subroutine exchange_sparse_payload ( &
          send_buffer,send_count,send_displ, &
@@ -26874,8 +27098,6 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
-    integer, parameter :: REQUEST_SIZE = 4
-
     logical, optional, intent(in) :: verbose
 
     integer :: b
@@ -26891,10 +27113,10 @@ end subroutine build_parallel_block_catalog
 
     integer(int64) :: count_local(3)
     integer(int64) :: count_global(3)
-    integer(int64) :: recv_sum_local(REQUEST_SIZE)
-    integer(int64) :: recv_sum_global(REQUEST_SIZE)
-    integer(int64) :: send_sum_local(REQUEST_SIZE)
-    integer(int64) :: send_sum_global(REQUEST_SIZE)
+    integer(int64) :: recv_sum_local(BLOCK_GHOST_REQUEST_SIZE)
+    integer(int64) :: recv_sum_global(BLOCK_GHOST_REQUEST_SIZE)
+    integer(int64) :: send_sum_local(BLOCK_GHOST_REQUEST_SIZE)
+    integer(int64) :: send_sum_global(BLOCK_GHOST_REQUEST_SIZE)
 
     integer, allocatable :: destination_block(:)
     integer, allocatable :: destination_ghost(:)
@@ -26913,6 +27135,7 @@ end subroutine build_parallel_block_catalog
     integer, allocatable :: send_record_count(:)
     integer, allocatable :: source_block(:)
     integer, allocatable :: source_local_patch(:)
+    integer, allocatable :: source_patch_level(:)
     integer, allocatable :: source_owner(:)
 
     logical :: print_summary
@@ -26953,12 +27176,13 @@ end subroutine build_parallel_block_catalog
     end if
 
     call get_local_block_ghost_requests( &
-         source_block,source_local_patch,source_owner, &
+         source_block,source_local_patch,source_patch_level,source_owner, &
          destination_block,destination_ghost)
 
     n_request = size(source_block)
 
     if (size(source_local_patch) /= n_request .or. &
+         size(source_patch_level) /= n_request .or. &
          size(source_owner) /= n_request .or. &
          size(destination_block) /= n_request .or. &
          size(destination_ghost) /= n_request) then
@@ -26988,6 +27212,10 @@ end subroutine build_parallel_block_catalog
        if (source_local_patch(i) < 0 .or. &
             source_local_patch(i) >= patch_count_global(source)) then
           call fail("ghost request has invalid compact source patch")
+       end if
+       if (source_patch_level(i) < level_start .or. &
+            source_patch_level(i) > level_end) then
+          call fail("ghost request has invalid source patch level")
        end if
        if (destination_block(i) < 1 .or. &
             destination_block(i) > size(block_catalog)) then
@@ -27019,8 +27247,8 @@ end subroutine build_parallel_block_catalog
     n_remote_send = sum(send_record_count)
     n_remote_recv = sum(recv_record_count)
 
-    send_count = REQUEST_SIZE*send_record_count
-    recv_count = REQUEST_SIZE*recv_record_count
+    send_count = BLOCK_GHOST_REQUEST_SIZE*send_record_count
+    recv_count = BLOCK_GHOST_REQUEST_SIZE*recv_record_count
     send_displ(1) = 0
     recv_displ(1) = 0
 
@@ -27029,8 +27257,8 @@ end subroutine build_parallel_block_catalog
        recv_displ(r) = recv_displ(r-1) + recv_count(r-1)
     end do
 
-    allocate(send_data(REQUEST_SIZE*n_remote_send))
-    allocate(recv_data(REQUEST_SIZE*n_remote_recv))
+    allocate(send_data(BLOCK_GHOST_REQUEST_SIZE*n_remote_send))
+    allocate(recv_data(BLOCK_GHOST_REQUEST_SIZE*n_remote_recv))
 
     fill = 0
     send_sum_local = 0_int64
@@ -27038,12 +27266,14 @@ end subroutine build_parallel_block_catalog
     do i = 1, n_request
        if (source_owner(i) == rank) cycle
        r = source_owner(i) + 1
-       pos = send_displ(r) + REQUEST_SIZE*fill(r)
-       send_data(pos+1:pos+REQUEST_SIZE) = [ &
+       pos = send_displ(r) + BLOCK_GHOST_REQUEST_SIZE*fill(r)
+       send_data(pos+1:pos+BLOCK_GHOST_REQUEST_SIZE) = [ &
             source_block(i),source_local_patch(i), &
-            destination_block(i),destination_ghost(i) ]
+            destination_block(i),destination_ghost(i), &
+            source_patch_level(i) ]
        send_sum_local = send_sum_local + &
-            int(send_data(pos+1:pos+REQUEST_SIZE),int64)
+            int(send_data( &
+            pos+1:pos+BLOCK_GHOST_REQUEST_SIZE),int64)
        fill(r) = fill(r) + 1
     end do
 
@@ -27060,7 +27290,7 @@ end subroutine build_parallel_block_catalog
 
     do r = 1, n_process
        do i = 0, recv_record_count(r)-1
-          pos = recv_displ(r) + REQUEST_SIZE*i
+          pos = recv_displ(r) + BLOCK_GHOST_REQUEST_SIZE*i
           source = recv_data(pos+1)
 
           if (source < 1 .or. source > size(block_catalog)) then
@@ -27085,9 +27315,14 @@ end subroutine build_parallel_block_catalog
                recv_data(pos+4) > ghost_count_global(b)) then
              call fail("received ghost request has invalid ghost record")
           end if
+          if (recv_data(pos+5) /= local_block_patch_level( &
+               source,recv_data(pos+2))) then
+             call fail("received ghost request patch level differs")
+          end if
 
           recv_sum_local = recv_sum_local + &
-               int(recv_data(pos+1:pos+REQUEST_SIZE),int64)
+               int(recv_data( &
+               pos+1:pos+BLOCK_GHOST_REQUEST_SIZE),int64)
        end do
     end do
 
@@ -27099,12 +27334,12 @@ end subroutine build_parallel_block_catalog
     call check_mpi(ierr,"MPI_Allreduce ghost request totals")
 
     call MPI_Allreduce( &
-         send_sum_local,send_sum_global,REQUEST_SIZE, &
+         send_sum_local,send_sum_global,BLOCK_GHOST_REQUEST_SIZE, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce sent ghost request checksum")
 
     call MPI_Allreduce( &
-         recv_sum_local,recv_sum_global,REQUEST_SIZE, &
+         recv_sum_local,recv_sum_global,BLOCK_GHOST_REQUEST_SIZE, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce received ghost request checksum")
 
@@ -27160,6 +27395,7 @@ end subroutine build_parallel_block_catalog
     deallocate(send_record_count)
     deallocate(source_block)
     deallocate(source_local_patch)
+    deallocate(source_patch_level)
     deallocate(source_owner)
 
   end subroutine check_block_ghost_request_manifest
@@ -27196,7 +27432,6 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
-    integer, parameter :: REQUEST_SIZE = 4
     logical, intent(in) :: print_summary
     logical, intent(in) :: verify_installation
     integer, intent(in) :: payload_family
@@ -27276,7 +27511,7 @@ end subroutine build_parallel_block_catalog
 
     do r = 1, n_process
        do i = 0, ghost_exchange_plan%recv_record_count(r)-1
-          pos = REQUEST_SIZE*( &
+          pos = BLOCK_GHOST_REQUEST_SIZE*( &
                ghost_exchange_plan%recv_record_displ(r)+i)
           source = ghost_exchange_plan%recv_data(pos+1)
 
@@ -27508,7 +27743,6 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
-    integer, parameter :: REQUEST_SIZE = 4
     logical, intent(in) :: print_summary
     logical, intent(in) :: verify_installation
     integer, intent(in) :: payload_family
@@ -27586,7 +27820,7 @@ end subroutine build_parallel_block_catalog
 
     do r = 1, n_process
        do i = 0, ghost_exchange_plan%recv_record_count(r)-1
-          pos = REQUEST_SIZE*( &
+          pos = BLOCK_GHOST_REQUEST_SIZE*( &
                ghost_exchange_plan%recv_record_displ(r)+i)
           source = ghost_exchange_plan%recv_data(pos+1)
 
