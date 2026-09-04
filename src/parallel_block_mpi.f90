@@ -22760,7 +22760,9 @@ end subroutine build_parallel_block_catalog
                block_scalar_boundary_cache_shadow_count(1)+1_int64
           cache_slot = block_scalar_boundary_cache_slot(owner_pos)
           if (cache_slot >= 0) then
-             field_sample = (scalar_slot-1)*block%n_field_level + &
+             ! Kernel scalar_slot is zero-based; capture scalar_slot is
+             ! one-based before both are flattened into the same field order.
+             field_sample = scalar_slot*block%n_field_level + &
                   level_slot
              if (field_sample < 1 .or. field_sample > &
                   block_scalar_boundary_cache_field_count .or. &
