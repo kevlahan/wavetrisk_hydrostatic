@@ -1335,7 +1335,7 @@ end subroutine finish_local_block_tendency_import
 
 
 subroutine assert_local_block_tendency_patch_values ( &
-     catalog_index,local_patch,scalar_value,vector_value)
+     catalog_index,local_patch,scalar_value,vector_value,compare_scalar)
   ! Compare one ready tendency patch directly with an external compact
   ! payload. This avoids allocating diagnostic copies in production paths.
 
@@ -1345,6 +1345,7 @@ subroutine assert_local_block_tendency_patch_values ( &
   integer, intent(in) :: local_patch
   real(dp), intent(in) :: scalar_value(:)
   real(dp), intent(in) :: vector_value(:)
+  logical, optional, intent(in) :: compare_scalar
 
   integer :: field_base
   integer :: input_base
@@ -1358,9 +1359,14 @@ subroutine assert_local_block_tendency_patch_values ( &
   integer :: scalar_slot
   integer :: value_index
 
+  logical :: check_scalar
+
   real(dp) :: max_abs_difference
   real(dp) :: native_value
   real(dp) :: reference_value
+
+  check_scalar = .true.
+  if (present(compare_scalar)) check_scalar = compare_scalar
 
   if (.not. block_tendency_ready .or. &
        .not. allocated(block_tendency)) then
@@ -1397,34 +1403,36 @@ subroutine assert_local_block_tendency_patch_values ( &
           "assert_local_block_tendency_patch_values: patch storage"
   end if
 
-  n_patch_value = &
-       block_local(local_index)%scalar_mult*PATCH_SIZE**2
-  do scalar_slot = 1, &
-       block_local(local_index)%n_scalar_variable
-     do level_slot = 1, &
-          block_local(local_index)%n_field_level
-        field_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1)* &
-             block_local(local_index)%scalar_mult*n_node
-        input_base = &
-             ((scalar_slot-1)* &
-             block_local(local_index)%n_field_level + &
-             level_slot-1)*n_patch_value
-        if (any(abs(block_tendency(local_index)%scalar( &
-             field_base + &
-             block_local(local_index)%scalar_mult*patch_start + 1: &
-             field_base + &
-             block_local(local_index)%scalar_mult*patch_start + &
-             n_patch_value) - &
-             scalar_value(input_base+1:input_base+n_patch_value)) > &
-             0.0_dp)) then
-           error stop &
-                "assert_local_block_tendency_patch_values: scalar mismatch"
-        end if
+  if (check_scalar) then
+     n_patch_value = &
+          block_local(local_index)%scalar_mult*PATCH_SIZE**2
+     do scalar_slot = 1, &
+          block_local(local_index)%n_scalar_variable
+        do level_slot = 1, &
+             block_local(local_index)%n_field_level
+           field_base = &
+                ((scalar_slot-1)* &
+                block_local(local_index)%n_field_level + &
+                level_slot-1)* &
+                block_local(local_index)%scalar_mult*n_node
+           input_base = &
+                ((scalar_slot-1)* &
+                block_local(local_index)%n_field_level + &
+                level_slot-1)*n_patch_value
+           if (any(abs(block_tendency(local_index)%scalar( &
+                field_base + &
+                block_local(local_index)%scalar_mult*patch_start + 1: &
+                field_base + &
+                block_local(local_index)%scalar_mult*patch_start + &
+                n_patch_value) - &
+                scalar_value(input_base+1:input_base+n_patch_value)) > &
+                0.0_dp)) then
+              error stop &
+                   "assert_local_block_tendency_patch_values: scalar mismatch"
+           end if
+        end do
      end do
-  end do
+  end if
 
   n_patch_value = &
        block_local(local_index)%vector_mult*PATCH_SIZE**2

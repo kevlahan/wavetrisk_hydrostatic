@@ -145,8 +145,11 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 50
   integer, parameter :: BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT = EDGE+1
   integer, parameter :: BLOCK_SCALAR_FLUX_COUNT = 6
-  integer, parameter :: BLOCK_SCALAR_PRODUCTION_INPUT_COUNT = &
-       BLOCK_SCALAR_FLUX_COUNT+EDGE
+  ! Interior production reconstructs direct flux before native restriction.
+  ! After immutable geometry is cached, only the non-advective physics
+  ! residual crosses the Domain-to-final-owner compact route.  Physical
+  ! boundary flux remains a separate compatibility input in this stage.
+  integer, parameter :: BLOCK_SCALAR_PRODUCTION_INPUT_COUNT = EDGE
   integer, parameter :: BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT = EDGE
   integer, parameter :: BLOCK_GHOST_DYNAMIC_BOTH = 0
   integer, parameter :: BLOCK_GHOST_DYNAMIC_FLUX = 1
@@ -1681,23 +1684,30 @@ contains
   end subroutine block_profile_enter
 
 
-  subroutine block_profile_leave (phase,work)
+  subroutine block_profile_leave (phase,work,count_call)
 
     implicit none
 
     integer, intent(in) :: phase
     integer(int64), optional, intent(in) :: work
+    logical, optional, intent(in) :: count_call
+
+    logical :: record_call
 
     if (phase < 1 .or. phase > BLOCK_PROFILE_PHASE_COUNT) &
          call fail("invalid exited parallel-block profile phase")
     if (.not. parallel_block_profile_enabled()) return
     if (block_profile_depth(phase) <= 0) &
          call fail("parallel-block profile phase is not active")
+    record_call = .true.
+    if (present(count_call)) record_call = count_call
     block_profile_depth(phase) = block_profile_depth(phase)-1
     if (block_profile_depth(phase) == 0) then
        block_profile_seconds(phase) = block_profile_seconds(phase) + &
             max(0.0_dp,MPI_Wtime()-block_profile_outer_start(phase))
-       block_profile_calls(phase) = block_profile_calls(phase)+1_int64
+       if (record_call) &
+            block_profile_calls(phase) = &
+            block_profile_calls(phase)+1_int64
        block_profile_outer_start(phase) = 0.0_dp
     end if
     if (present(work)) &
@@ -16063,9 +16073,9 @@ end subroutine build_parallel_block_catalog
   subroutine evaluate_candidate_block_velocity_recomposition ( &
        domain_sol,checkpoint_required,compatibility_remainder, &
        retained_compatibility_remainder)
-    ! Recompose the complete tendency, then replace its scalar component with
-    ! the independently validated block-native restricted-flux divergence.
-    ! The velocity component remains the reconstructed block-native result.
+    ! Produce and restrict scalar flux before the final physical kernel.  The
+    ! kernel then consumes the authoritative native divergence directly while
+    ! recomposing the velocity component.
 
     implicit none
 
@@ -16095,10 +16105,10 @@ end subroutine build_parallel_block_catalog
     if (.not. block_scalar_divergence_plan%ready) then
        call fail("block-native scalar divergence input is not ready")
     end if
+    call evaluate_candidate_block_scalar_restriction
     call evaluate_candidate_block_exner_shadow( &
          domain_sol,BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY, &
          .true.,.true.,.true.,checkpoint_required,.true.,.true.)
-    call evaluate_candidate_block_scalar_restriction
 
   end subroutine evaluate_candidate_block_velocity_recomposition
 
@@ -20541,19 +20551,17 @@ end subroutine build_parallel_block_catalog
             block_scalar_divergence_plan%send_displ, &
             MPI_DOUBLE_PRECISION,comm,ierr)
     else
-       ! Compact the retained full-layout capture in place.  Global sample
+       ! Compact the retained full-layout capture in place.  Interior direct
+       ! flux is reconstructed below before native restriction, so only the
+       ! non-advective physics residual crosses this route.  Global sample
        ! order is identical in both layouts and every compact destination
        ! precedes its unread full-layout source.
        do sample = 0,size(block_scalar_divergence_plan%recv_covered)-1
           data_start = BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*sample + 1
           source_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
           block_scalar_divergence_plan%recv_buffer( &
-               data_start:data_start+BLOCK_SCALAR_FLUX_COUNT-1) = &
-               block_scalar_divergence_plan%recv_buffer( &
-               source_start:source_start+BLOCK_SCALAR_FLUX_COUNT-1)
-          block_scalar_divergence_plan%recv_buffer( &
-               data_start+BLOCK_SCALAR_FLUX_COUNT: &
-               data_start+BLOCK_SCALAR_PRODUCTION_INPUT_COUNT-1) = &
+               data_start:data_start+ &
+               BLOCK_SCALAR_PRODUCTION_INPUT_COUNT-1) = &
                block_scalar_divergence_plan%recv_buffer( &
                source_start+BLOCK_SCALAR_PHYSICS_START-1: &
                source_start+BLOCK_SCALAR_PHYSICS_START+EDGE-2)
@@ -20630,19 +20638,12 @@ end subroutine build_parallel_block_catalog
                 source_start = data_start + &
                      BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*sample
                 block_scalar_tendency(local_index)%patch( &
-                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+1: &
-                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+ &
-                     BLOCK_SCALAR_FLUX_COUNT) = &
-                     block_scalar_divergence_plan%send_buffer( &
-                     source_start:source_start+ &
-                     BLOCK_SCALAR_FLUX_COUNT-1)
-                block_scalar_tendency(local_index)%patch( &
                      BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+ &
                      BLOCK_SCALAR_PHYSICS_START: &
                      BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+ &
                      BLOCK_SCALAR_PHYSICS_START+EDGE-1) = &
                      block_scalar_divergence_plan%send_buffer( &
-                     source_start+BLOCK_SCALAR_FLUX_COUNT: &
+                     source_start: &
                      source_start+BLOCK_SCALAR_PRODUCTION_INPUT_COUNT-1)
              end do
           end if
@@ -21169,6 +21170,7 @@ end subroutine build_parallel_block_catalog
     integer :: r
     integer :: record
     integer :: request
+    integer :: request_count
     integer :: route_count
     integer :: source
     integer :: source_patch
@@ -21272,7 +21274,6 @@ end subroutine build_parallel_block_catalog
        end do
     end if
 
-    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_PACK)
     if (block_dynamics_validation_enabled()) then
        block_scalar_restriction_exchange%ghost_send_buffer( &
             1:max(1,sum(merge( &
@@ -21286,33 +21287,31 @@ end subroutine build_parallel_block_catalog
             full_payload)))) = BLOCK_GHOST_POISON
     end if
 
-    work_count = 0
+    ! Post receives before touching the outgoing stream.  Ranks with a short
+    ! pack can then make progress while their peers are still assembling the
+    ! same level, rather than all ranks entering the communication phase only
+    ! after the slowest pack has completed.
+    request_count = 0
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_MPI)
     if (full_payload) then
-       do request = 1,ghost_exchange_plan%n_request
-          if (ghost_exchange_plan%source_owner(request) /= rank) cycle
-          call install_local_request(request)
-       end do
+       call post_sparse_payload_receives( &
+            block_scalar_restriction_exchange%ghost_recv_buffer, &
+            block_scalar_restriction_exchange%ghost_recv_count, &
+            block_scalar_restriction_exchange%ghost_recv_displ, &
+            request_count)
     else
-       do i = ghost_exchange_plan%local_level_displ(level_slot)+1, &
-            ghost_exchange_plan%local_level_displ(level_slot) + &
-            ghost_exchange_plan%local_level_count(level_slot)
-          request = ghost_exchange_plan%local_level_request(i)
-          call install_local_request(request)
-       end do
+       call post_sparse_payload_receives( &
+            block_scalar_restriction_exchange%ghost_recv_buffer, &
+            block_scalar_restriction_exchange% &
+            ghost_dynamic_recv_count, &
+            block_scalar_restriction_exchange% &
+            ghost_dynamic_recv_displ,request_count)
     end if
-    if (exchange_final_boundary) then
-       do i = block_scalar_boundary_final_plan% &
-            local_level_displ(level_slot)+1, &
-            block_scalar_boundary_final_plan% &
-            local_level_displ(level_slot) + &
-            block_scalar_boundary_final_plan% &
-            local_level_count(level_slot)
-          cache_slot = block_scalar_boundary_final_plan% &
-               local_cache_slot(i)
-          call fill_final_boundary_cache(cache_slot)
-       end do
-    end if
+    call block_profile_leave( &
+         BLOCK_PROFILE_RESTRICTION_MPI,count_call=.false.)
 
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_PACK)
+    work_count = 0
     do r = 1,n_process
        if (full_payload) then
           payload_pos = &
@@ -21380,30 +21379,62 @@ end subroutine build_parallel_block_catalog
 
     call block_profile_leave( &
          BLOCK_PROFILE_RESTRICTION_PACK, &
-         int(work_count,int64))
+         int(work_count,int64),count_call=.false.)
 
+    ! The send stream is now immutable until completion.  Launch it before
+    ! same-rank ghost copies and local final-owner cache fills so that useful
+    ! local work overlaps the network transfer.
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_MPI)
     if (full_payload) then
-       call exchange_sparse_payload( &
+       call post_sparse_payload_sends( &
             block_scalar_restriction_exchange%ghost_send_buffer, &
             block_scalar_restriction_exchange%ghost_send_count, &
             block_scalar_restriction_exchange%ghost_send_displ, &
-            block_scalar_restriction_exchange%ghost_recv_buffer, &
-            block_scalar_restriction_exchange%ghost_recv_count, &
-            block_scalar_restriction_exchange%ghost_recv_displ)
+            request_count)
     else
-       call exchange_sparse_payload( &
+       call post_sparse_payload_sends( &
             block_scalar_restriction_exchange%ghost_send_buffer, &
             block_scalar_restriction_exchange% &
             ghost_dynamic_send_count, &
             block_scalar_restriction_exchange% &
             ghost_dynamic_send_displ, &
-            block_scalar_restriction_exchange%ghost_recv_buffer, &
-            block_scalar_restriction_exchange% &
-            ghost_dynamic_recv_count, &
-            block_scalar_restriction_exchange% &
-            ghost_dynamic_recv_displ)
+            request_count)
     end if
+    call block_profile_leave( &
+         BLOCK_PROFILE_RESTRICTION_MPI,count_call=.false.)
+
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_PACK)
+    work_count = 0
+    if (full_payload) then
+       do request = 1,ghost_exchange_plan%n_request
+          if (ghost_exchange_plan%source_owner(request) /= rank) cycle
+          call install_local_request(request)
+       end do
+    else
+       do i = ghost_exchange_plan%local_level_displ(level_slot)+1, &
+            ghost_exchange_plan%local_level_displ(level_slot) + &
+            ghost_exchange_plan%local_level_count(level_slot)
+          request = ghost_exchange_plan%local_level_request(i)
+          call install_local_request(request)
+       end do
+    end if
+    if (exchange_final_boundary) then
+       do i = block_scalar_boundary_final_plan% &
+            local_level_displ(level_slot)+1, &
+            block_scalar_boundary_final_plan% &
+            local_level_displ(level_slot) + &
+            block_scalar_boundary_final_plan% &
+            local_level_count(level_slot)
+          cache_slot = block_scalar_boundary_final_plan% &
+               local_cache_slot(i)
+          call fill_final_boundary_cache(cache_slot)
+       end do
+    end if
+    call block_profile_leave( &
+         BLOCK_PROFILE_RESTRICTION_PACK,int(work_count,int64))
+
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_MPI)
+    call complete_sparse_payload(request_count)
     if (full_payload) then
        call record_ghost_volume( &
             block_scalar_restriction_exchange%ghost_send_count)
@@ -21784,37 +21815,35 @@ end subroutine build_parallel_block_catalog
     end subroutine scatter_final_boundary_cache
 
 
-    subroutine exchange_sparse_payload ( &
-         send_buffer,send_count,send_displ, &
-         recv_buffer,recv_count,recv_displ)
-      ! The route plan is sparse but fixed for this topology. Post receives
-      ! first, then sends only to actual peers, avoiding a communicator-wide
-      ! collective at every bottom-up restriction level.
+    subroutine post_sparse_payload_receives ( &
+         recv_buffer,recv_count,recv_displ,request_count)
+      ! Begin the receive half independently so it remains active during
+      ! outgoing packing.  The request array is persistent workspace even
+      ! though each request describes the current level's compact payload.
 
       implicit none
 
       integer, parameter :: SCALAR_RESTRICTION_GHOST_TAG = 27163
 
-      real(dp), intent(in) :: send_buffer(:)
-      integer, intent(in) :: send_count(:)
-      integer, intent(in) :: send_displ(:)
-      real(dp), intent(inout) :: recv_buffer(:)
+      real(dp), intent(inout), asynchronous :: recv_buffer(:)
       integer, intent(in) :: recv_count(:)
       integer, intent(in) :: recv_displ(:)
+      integer, intent(out) :: request_count
 
       integer :: peer
-      integer :: request_count
 
-      if (size(send_count) /= n_process .or. &
-           size(send_displ) /= n_process .or. &
-           size(recv_count) /= n_process .or. &
+      if (size(recv_count) /= n_process .or. &
            size(recv_displ) /= n_process) then
-         call fail("sparse scalar ghost route extent is invalid")
+         call fail("sparse scalar ghost receive route extent is invalid")
       end if
       request_count = 0
       do peer = 1,n_process
          if (recv_count(peer) <= 0) cycle
          request_count = request_count + 1
+         if (request_count > &
+              size(block_scalar_restriction_exchange%sparse_request)) then
+            call fail("sparse scalar ghost receive request is invalid")
+         end if
          call MPI_Irecv( &
               recv_buffer(recv_displ(peer)+1),recv_count(peer), &
               MPI_DOUBLE_PRECISION,peer-1, &
@@ -21823,9 +21852,37 @@ end subroutine build_parallel_block_catalog
               sparse_request(request_count),ierr)
          call check_mpi(ierr,"MPI_Irecv sparse scalar ghosts")
       end do
+
+    end subroutine post_sparse_payload_receives
+
+
+    subroutine post_sparse_payload_sends ( &
+         send_buffer,send_count,send_displ,request_count)
+      ! Add sends to the already-posted receive request set after packing has
+      ! made the outgoing buffer immutable.
+
+      implicit none
+
+      integer, parameter :: SCALAR_RESTRICTION_GHOST_TAG = 27163
+
+      real(dp), intent(in), asynchronous :: send_buffer(:)
+      integer, intent(in) :: send_count(:)
+      integer, intent(in) :: send_displ(:)
+      integer, intent(inout) :: request_count
+
+      integer :: peer
+
+      if (size(send_count) /= n_process .or. &
+           size(send_displ) /= n_process) then
+         call fail("sparse scalar ghost send route extent is invalid")
+      end if
       do peer = 1,n_process
          if (send_count(peer) <= 0) cycle
          request_count = request_count + 1
+         if (request_count > &
+              size(block_scalar_restriction_exchange%sparse_request)) then
+            call fail("sparse scalar ghost send request is invalid")
+         end if
          call MPI_Isend( &
               send_buffer(send_displ(peer)+1),send_count(peer), &
               MPI_DOUBLE_PRECISION,peer-1, &
@@ -21834,7 +21891,19 @@ end subroutine build_parallel_block_catalog
               sparse_request(request_count),ierr)
          call check_mpi(ierr,"MPI_Isend sparse scalar ghosts")
       end do
-      if (request_count > &
+
+    end subroutine post_sparse_payload_sends
+
+
+    subroutine complete_sparse_payload (request_count)
+      ! Complete both halves after independent local copies have run while
+      ! the sparse point-to-point operations were active.
+
+      implicit none
+
+      integer, intent(in) :: request_count
+
+      if (request_count < 0 .or. request_count > &
            size(block_scalar_restriction_exchange%sparse_request)) then
          call fail("sparse scalar ghost request extent is invalid")
       end if
@@ -21846,7 +21915,7 @@ end subroutine build_parallel_block_catalog
          call check_mpi(ierr,"MPI_Waitall sparse scalar ghosts")
       end if
 
-    end subroutine exchange_sparse_payload
+    end subroutine complete_sparse_payload
 
     subroutine record_ghost_volume (send_count)
 
@@ -22068,23 +22137,362 @@ end subroutine build_parallel_block_catalog
   end subroutine exchange_block_scalar_restriction_ghosts
 
 
-  subroutine evaluate_candidate_block_scalar_restriction
-    ! Replay cpt_or_restr_flux bottom-up in compact block storage. Boundary
-    ! values are immutable compatibility inputs; patch interiors and every
-    ! inter-block ghost refresh are native block products.
+  subroutine compute_block_scalar_direct_flux ( &
+       catalog_index,block,context)
+    ! Form the three positive-edge scalar fluxes from block state before the
+    ! bottom-up restriction sweep.  The Domain value is retained only as an
+    ! oracle reference during full validation captures.
 
     implicit none
 
+    integer, intent(in) :: catalog_index
+    type(Block_Data), intent(in) :: block
+    class(*), intent(inout) :: context
+
+    integer :: center_node
+    integer :: field_level
+    integer :: flux_slot
+    integer :: i
+    integer :: j
+    integer :: level_slot
+    integer :: local_index
+    integer :: neighbor_node
+    integer :: neighbor_storage
+    integer :: p
+    integer :: q
+    integer :: remainder_index
+    integer :: scalar_slot
+    integer :: scalar_storage_index
+
+    real(dp) :: native_advective_flux
+    real(dp) :: native_flux
+    real(dp) :: reference_flux
+    real(dp) :: scalar_center
+    real(dp) :: scalar_edge
+    real(dp) :: scalar_input(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+    real(dp) :: scalar_neighbor
+    real(dp) :: u_dual
+
+    local_index = catalog_local_block(catalog_index)
+    if (local_index < 1 .or. &
+         local_index > size(block_scalar_tendency)) then
+       call fail("direct scalar-flux block is invalid")
+    end if
+    if (.not. block_scalar_tendency(local_index)%ready .or. &
+         block_scalar_tendency(local_index)%catalog_index /= &
+         catalog_index) then
+       call fail("direct scalar-flux storage is stale")
+    end if
+    if (block%scalar_mult /= 1 .or. block%vector_mult /= EDGE .or. &
+         block%vector_variable /= S_VELO) then
+       call fail("direct scalar-flux field layout is invalid")
+    end if
+    if (size(block%scalar_mean) /= size(block%scalar) .or. &
+         size(block%bdry_scalar_mean) /= size(block%bdry_scalar) .or. &
+         size(block%ghost_scalar_mean) /= size(block%ghost_scalar)) then
+       call fail("direct scalar-flux mean storage is invalid")
+    end if
+
+    select type (statistics => context)
+    type is (Block_Exner_Difference_Kernel_Context)
+       do p = 1,size(block%patch)
+          do scalar_slot = 0,block%n_scalar_variable-1
+             do level_slot = 1,block%n_field_level
+                field_level = block%field_level+level_slot-1
+                do q = 0,PATCH_SIZE**2-1
+                   statistics%sample_count = &
+                        statistics%sample_count+1_int64
+                   center_node = block%patch(p)%elts_start+q
+                   if (center_node < 0 .or. &
+                        center_node >= size(block%node)) then
+                      call fail("direct scalar-flux node is invalid")
+                   end if
+                   scalar_storage_index = (p-1)* &
+                        block_writeback_plan%scalar_patch_nvalue + &
+                        (scalar_slot*block%n_field_level+level_slot-1)* &
+                        PATCH_SIZE**2+q+1
+                   if (scalar_storage_index < 1 .or. &
+                        scalar_storage_index > &
+                        size(block_scalar_tendency(local_index)%covered)) &
+                        then
+                      call fail("direct scalar-flux index is invalid")
+                   end if
+                   if (.not. block_scalar_tendency(local_index)% &
+                        covered(scalar_storage_index)) then
+                      call fail("direct scalar-flux input is incomplete")
+                   end if
+                   remainder_index = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+                        (scalar_storage_index-1)+1
+                   scalar_input = &
+                        block_scalar_tendency(local_index)%patch( &
+                        remainder_index:remainder_index+ &
+                        BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                   if (field_level < 1 .or. &
+                        field_level > zlevels) cycle
+                   i = mod(q,PATCH_SIZE)
+                   j = q/PATCH_SIZE
+                   scalar_center = block_scalar_total( &
+                        scalar_slot,STORE_PATCH,center_node,field_level)
+                   do flux_slot = 1,EDGE
+                      select case (flux_slot-1)
+                      case (RT)
+                         if (i < PATCH_SIZE-1) then
+                            neighbor_storage = STORE_PATCH
+                            neighbor_node = center_node+1
+                         else
+                            call set_direct_neighbor(EAST,0,j)
+                         end if
+                      case (DG)
+                         if (i < PATCH_SIZE-1 .and. &
+                              j < PATCH_SIZE-1) then
+                            neighbor_storage = STORE_PATCH
+                            neighbor_node = center_node+PATCH_SIZE+1
+                         else if (i == PATCH_SIZE-1 .and. &
+                              j < PATCH_SIZE-1) then
+                            call set_direct_neighbor(EAST,0,j+1)
+                         else if (i < PATCH_SIZE-1 .and. &
+                              j == PATCH_SIZE-1) then
+                            call set_direct_neighbor(NORTH,i+1,0)
+                         else
+                            call set_direct_neighbor(NORTHEAST,0,0)
+                         end if
+                      case (UP)
+                         if (j < PATCH_SIZE-1) then
+                            neighbor_storage = STORE_PATCH
+                            neighbor_node = center_node+PATCH_SIZE
+                         else
+                            call set_direct_neighbor(NORTH,i,0)
+                         end if
+                      case default
+                         call fail( &
+                              "direct scalar-flux component is invalid")
+                      end select
+                      scalar_neighbor = block_scalar_total( &
+                           scalar_slot,neighbor_storage,neighbor_node, &
+                           field_level)
+                      u_dual = block_patch_vector_value( &
+                           center_node,flux_slot-1,field_level)* &
+                           scalar_input(BLOCK_SCALAR_PEDLEN_START+ &
+                           flux_slot-1)
+                      scalar_edge = 0.5_dp* &
+                           (scalar_center+scalar_neighbor)
+                      native_advective_flux = u_dual*scalar_edge
+                      native_flux = native_advective_flux + &
+                           scalar_input(BLOCK_SCALAR_PHYSICS_START+ &
+                           flux_slot-1)
+                      if (statistics%validate_oracle) then
+                         reference_flux = scalar_input( &
+                              BLOCK_SCALAR_DIRECT_FLUX_START+flux_slot-1)
+                         if (abs(native_flux-reference_flux) > 0.0_dp) then
+                            write(error_unit, &
+                                 '(a,i0,a,i0,a,i0,a,i0,a,i0)') &
+                                 "Rank ",rank, &
+                                 ": native scalar flux mismatch: block = ", &
+                                 catalog_index,", patch = ",p, &
+                                 ", cell = ",q,", flux slot = ",flux_slot
+                            write(error_unit,'(a,i0,a,i0)') &
+                                 "  scalar slot = ",scalar_slot, &
+                                 ", field level = ",field_level
+                            write(error_unit, &
+                                 '(a,es24.16,a,es24.16,a,es24.16)') &
+                                 "  Domain value = ",reference_flux, &
+                                 ", block value = ",native_flux, &
+                                 ", absolute difference = ", &
+                                 abs(native_flux-reference_flux)
+                            flush(error_unit)
+                            call fail( &
+                                 "block-native direct scalar flux differs")
+                         end if
+                      end if
+                      block_scalar_tendency(local_index)%patch( &
+                           remainder_index+ &
+                           BLOCK_SCALAR_DIRECT_FLUX_START+flux_slot-2) = &
+                           native_flux
+                   end do
+                end do
+             end do
+          end do
+       end do
+    class default
+       call fail("direct scalar-flux context is invalid")
+    end select
+
+  contains
+
+    subroutine set_direct_neighbor (side,target_i,target_j)
+
+      implicit none
+
+      integer, intent(in) :: side
+      integer, intent(in) :: target_i
+      integer, intent(in) :: target_j
+
+      integer :: boundary_link
+      integer :: dims(2)
+      integer :: neighbor
+      integer :: record
+      integer :: storage_start
+
+      dims = 0
+      storage_start = 0
+      neighbor_storage = 0
+      neighbor_node = 0
+      neighbor = block%patch(p)%neigh(side)
+      if (neighbor > 0) then
+         neighbor_storage = STORE_PATCH
+         record = neighbor
+         if (record >= size(block%patch)) then
+            call fail("direct scalar-flux patch is invalid")
+         end if
+         storage_start = block%patch(record+1)%elts_start
+         dims = PATCH_SIZE
+      else if (neighbor < 0) then
+         boundary_link = -neighbor
+         if (boundary_link < 1 .or. &
+              boundary_link > size(block%block_bdry)) then
+            call fail("direct scalar-flux link is invalid")
+         end if
+         if (block%block_bdry(boundary_link)%patch /= p-1 .or. &
+              block%block_bdry(boundary_link)%side /= side) then
+            call fail("direct scalar-flux link differs")
+         end if
+         record = block%block_bdry(boundary_link)%ghost_id
+         if (record > 0) then
+            neighbor_storage = STORE_GHOST
+            if (record > size(block%ghost_storage)) then
+               call fail("direct scalar-flux ghost is invalid")
+            end if
+            storage_start = block%ghost_storage(record)%local_start
+            dims = PATCH_SIZE
+         else
+            record = block%block_bdry(boundary_link)%storage_id
+            neighbor_storage = STORE_BDRY
+            if (record < 1 .or. &
+                 record > size(block%bdry_storage)) then
+               call fail("direct scalar-flux boundary is invalid")
+            end if
+            storage_start = block%bdry_storage(record)%local_start
+            dims = block%block_bdry(boundary_link)%dims
+         end if
+      else
+         call fail("direct scalar-flux neighbour is absent")
+      end if
+      if (target_i < 0 .or. target_i >= dims(1) .or. &
+           target_j < 0 .or. target_j >= dims(2)) then
+         call fail("direct scalar-flux coordinate is invalid")
+      end if
+      neighbor_node = storage_start+target_j*dims(1)+target_i
+
+    end subroutine set_direct_neighbor
+
+
+    real(dp) function block_scalar_total ( &
+         scalar_slot,storage_class,node,field_level) result(value)
+
+      implicit none
+
+      integer, intent(in) :: scalar_slot
+      integer, intent(in) :: storage_class
+      integer, intent(in) :: node
+      integer, intent(in) :: field_level
+
+      integer :: field_base
+      integer :: field_index
+      integer :: level_slot
+
+      value = 0.0_dp
+      level_slot = field_level-block%field_level+1
+      if (level_slot < 1 .or. level_slot > block%n_field_level) then
+         call fail("direct scalar-flux level is invalid")
+      end if
+      select case (storage_class)
+      case (STORE_PATCH)
+         if (node < 0 .or. node >= size(block%node)) then
+            call fail("direct scalar-flux patch node is invalid")
+         end if
+         field_base = &
+              (scalar_slot*block%n_field_level+level_slot-1)* &
+              size(block%node)
+         field_index = field_base+node+1
+         value = block%scalar(field_index)+ &
+              block%scalar_mean(field_index)
+      case (STORE_BDRY)
+         if (node < 0 .or. node >= size(block%bdry_node)) then
+            call fail("direct scalar-flux boundary node is invalid")
+         end if
+         field_base = &
+              (scalar_slot*block%n_field_level+level_slot-1)* &
+              size(block%bdry_node)
+         field_index = field_base+node+1
+         value = block%bdry_scalar(field_index)+ &
+              block%bdry_scalar_mean(field_index)
+      case (STORE_GHOST)
+         if (node < 0 .or. node >= size(block%ghost_node)) then
+            call fail("direct scalar-flux ghost node is invalid")
+         end if
+         field_base = &
+              (scalar_slot*block%n_field_level+level_slot-1)* &
+              size(block%ghost_node)
+         field_index = field_base+node+1
+         value = block%ghost_scalar(field_index)+ &
+              block%ghost_scalar_mean(field_index)
+      case default
+         call fail("direct scalar-flux storage is invalid")
+      end select
+
+    end function block_scalar_total
+
+
+    real(dp) function block_patch_vector_value ( &
+         node,component,field_level) result(value)
+
+      implicit none
+
+      integer, intent(in) :: node
+      integer, intent(in) :: component
+      integer, intent(in) :: field_level
+
+      integer :: field_base
+      integer :: field_index
+      integer :: level_slot
+
+      value = 0.0_dp
+      if (component < 0 .or. component >= EDGE) then
+         call fail("direct scalar-flux vector component is invalid")
+      end if
+      level_slot = field_level-block%field_level+1
+      if (level_slot < 1 .or. level_slot > block%n_field_level) then
+         call fail("direct scalar-flux vector level is invalid")
+      end if
+      if (node < 0 .or. node >= size(block%node)) then
+         call fail("direct scalar-flux vector node is invalid")
+      end if
+      field_base = (level_slot-1)*EDGE*size(block%node)
+      field_index = field_base+EDGE*node+component+1
+      value = block%vector(field_index)
+
+    end function block_patch_vector_value
+
+  end subroutine compute_block_scalar_direct_flux
+
+
+  subroutine evaluate_candidate_block_scalar_restriction
+    ! Produce positive-edge scalar flux and replay cpt_or_restr_flux bottom-up
+    ! in compact block storage. Boundary values remain compatibility inputs;
+    ! patch interiors and every inter-block ghost refresh are native products.
+
+    implicit none
+
+    type(Block_Exner_Difference_Kernel_Context) :: &
+         direct_flux_statistics
     type(Block_Scalar_Restriction_Context) :: statistics
 
     integer :: ierr
     integer :: l
 
-    integer(int64) :: accumulator_allocation_before
     integer(int64) :: count_global(7)
     integer(int64) :: count_local(7)
 
-    logical :: accumulator_ready
     logical :: full_ghost_transport
     logical :: validate_oracle
 
@@ -22100,6 +22508,9 @@ end subroutine build_parallel_block_catalog
        call fail("block-native scalar restriction exchange is not ready")
     end if
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
+    direct_flux_statistics%validate_oracle = validate_oracle
+    call apply_local_block_field_consumer( &
+         compute_block_scalar_direct_flux,direct_flux_statistics)
     call initialize_scalar_restriction_boundary_flux
     call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
     ! Establish a native finest-level divergence before it is consumed by the
@@ -22154,23 +22565,7 @@ end subroutine build_parallel_block_catalog
             compare_block_scalar_restricted_divergence,statistics)
        call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
-    accumulator_ready = &
-         local_block_tendency_accumulator_state_ready()
-    if (.not. accumulator_ready) then
-       call fail("native scalar-divergence activation register is not ready")
-    end if
-    accumulator_allocation_before = &
-         local_block_tendency_accumulator_allocation_count()
-    call apply_local_block_field_consumer( &
-         install_block_scalar_restricted_divergence,statistics)
     call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
-    accumulator_ready = &
-         local_block_tendency_accumulator_state_ready()
-    if (.not. accumulator_ready .or. &
-         local_block_tendency_accumulator_allocation_count() /= &
-         accumulator_allocation_before) then
-       call fail("native scalar-divergence activation changed register state")
-    end if
 
     count_local = [statistics%parent_patch_count, &
          statistics%restricted_edge_count, &
@@ -22187,8 +22582,7 @@ end subroutine build_parallel_block_catalog
        if (count_global(3) < 1_int64 .or. &
             count_global(4) < 1_int64 .or. &
             count_global(5) < 1_int64 .or. &
-            count_global(6) < 1_int64 .or. &
-            count_global(7) < 1_int64) then
+            count_global(6) < 1_int64) then
           call fail("block-native scalar divergence coverage is empty")
        end if
        if (count_global(1) == 0_int64 .and. &
@@ -22900,72 +23294,6 @@ end subroutine build_parallel_block_catalog
     end select
 
   end subroutine compare_block_scalar_restricted_divergence
-
-
-  subroutine install_block_scalar_restricted_divergence ( &
-       catalog_index,block,context)
-    ! Replace only the scalar component of the retained RK tendency with the
-    ! validated native restricted-flux divergence. The vector component and
-    ! all transaction state remain unchanged.
-
-    implicit none
-
-    integer, intent(in) :: catalog_index
-    type(Block_Data), intent(in) :: block
-    class(*), intent(inout) :: context
-
-    integer :: i
-    integer :: j
-    integer :: level_slot
-    integer :: local_index
-    integer :: p
-    integer :: pos
-    integer :: scalar_slot
-
-    local_index = catalog_local_block(catalog_index)
-    if (local_index < 1 .or. &
-         local_index > size(block_scalar_tendency)) then
-       call fail("scalar-divergence activation block is invalid")
-    end if
-    if (block%scalar_mult /= 1 .or. &
-         size(ghost_exchange_plan%scalar_patch_buffer) /= &
-         block%n_scalar_variable*block%n_field_level*PATCH_SIZE**2) then
-       call fail("scalar-divergence activation layout is invalid")
-    end if
-
-    select type (statistics => context)
-    type is (Block_Scalar_Restriction_Context)
-       do p = 1,size(block%patch)
-          pos = 1
-          do scalar_slot = 0,block%n_scalar_variable-1
-             do level_slot = 1,block%n_field_level
-                do j = 0,PATCH_SIZE-1
-                   do i = 0,PATCH_SIZE-1
-                      ghost_exchange_plan%scalar_patch_buffer(pos) = &
-                           block_scalar_record_value( &
-                           block,local_index,p,scalar_slot,level_slot, &
-                           i,j,BLOCK_SCALAR_NATIVE_DSCALAR_INDEX)
-                      pos = pos + 1
-                   end do
-                end do
-             end do
-          end do
-          if (pos /= &
-               size(ghost_exchange_plan%scalar_patch_buffer)+1) then
-             call fail("scalar-divergence activation extent differs")
-          end if
-          call set_local_block_tendency_accumulator_scalar_patch_values( &
-               catalog_index,p-1, &
-               ghost_exchange_plan%scalar_patch_buffer)
-          statistics%divergence_activated_count = &
-               statistics%divergence_activated_count + &
-               int(pos-1,int64)
-       end do
-    class default
-       call fail("scalar-divergence activation context is invalid")
-    end select
-
-  end subroutine install_block_scalar_restricted_divergence
 
 
   pure real(dp) function scalar_restriction_roundoff_tolerance ( &
@@ -25215,7 +25543,9 @@ end subroutine build_parallel_block_catalog
                   block_writeback_plan%scalar_patch_nvalue-1), &
                   block_writeback_plan%vector_send_buffer( &
                   pos_vector:pos_vector+ &
-                  block_writeback_plan%vector_patch_nvalue-1))
+                  block_writeback_plan%vector_patch_nvalue-1), &
+                  payload_family /= &
+                  BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY)
              pos_scalar = pos_scalar + &
                   block_writeback_plan%scalar_patch_nvalue
              pos_vector = pos_vector + &
@@ -25268,7 +25598,9 @@ end subroutine build_parallel_block_catalog
       call assert_local_block_tendency_patch_values( &
            b,local_patch_index, &
            ghost_exchange_plan%scalar_patch_buffer, &
-           ghost_exchange_plan%vector_patch_buffer)
+           ghost_exchange_plan%vector_patch_buffer, &
+           payload_family /= &
+           BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY)
       local_patch_index = local_patch_index + 1
       validated_patch_count = validated_patch_count + 1_int64
 
@@ -30215,7 +30547,6 @@ end subroutine build_parallel_block_catalog
     integer :: center_node
     integer :: component_slot
     integer :: field_level
-    integer :: flux_slot
     integer :: i
     integer :: j
     integer :: level_slot
@@ -30239,17 +30570,9 @@ end subroutine build_parallel_block_catalog
     real(dp) :: edge_length
     real(dp) :: mass_center
     real(dp) :: mass_neighbor
-    real(dp) :: native_advective_flux
-    real(dp) :: native_flux
     real(dp) :: remainder_value
-    real(dp) :: scalar_center
-    real(dp) :: scalar_divergence
-    real(dp) :: scalar_edge
-    real(dp) :: scalar_input(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
-    real(dp) :: scalar_neighbor
     real(dp) :: theta_center
     real(dp) :: theta_neighbor
-    real(dp) :: u_dual
 
     if (catalog_index < 1) then
        call fail("Exner-difference kernel catalogue index is invalid")
@@ -30360,13 +30683,6 @@ end subroutine build_parallel_block_catalog
                          call fail( &
                               "complete physical scalar input is incomplete")
                       end if
-                      remainder_index = &
-                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-                           (scalar_storage_index-1) + 1
-                      scalar_input = &
-                           block_scalar_tendency(local_index)%patch( &
-                           remainder_index:remainder_index+ &
-                           BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
                       if (field_level < 1 .or. &
                            field_level > zlevels) then
                          scalar_tendency(scalar_output_index) = 0.0_dp
@@ -30376,103 +30692,10 @@ end subroutine build_parallel_block_catalog
                       end if
                       i = mod(q,PATCH_SIZE)
                       j = q/PATCH_SIZE
-                      scalar_center = block_scalar_total( &
-                           scalar_slot,STORE_PATCH,center_node,field_level)
-                      do flux_slot = 1,EDGE
-                         select case (flux_slot-1)
-                         case (RT)
-                            if (i < PATCH_SIZE-1) then
-                               neighbor_storage = STORE_PATCH
-                               neighbor_node = center_node + 1
-                            else
-                               call set_direct_neighbor(EAST,0,j)
-                            end if
-                         case (DG)
-                            if (i < PATCH_SIZE-1 .and. &
-                                 j < PATCH_SIZE-1) then
-                               neighbor_storage = STORE_PATCH
-                               neighbor_node = &
-                                    center_node + PATCH_SIZE + 1
-                            else if (i == PATCH_SIZE-1 .and. &
-                                 j < PATCH_SIZE-1) then
-                               call set_direct_neighbor(EAST,0,j+1)
-                            else if (i < PATCH_SIZE-1 .and. &
-                                 j == PATCH_SIZE-1) then
-                               call set_direct_neighbor(NORTH,i+1,0)
-                            else
-                               call set_direct_neighbor(NORTHEAST,0,0)
-                            end if
-                         case (UP)
-                            if (j < PATCH_SIZE-1) then
-                               neighbor_storage = STORE_PATCH
-                               neighbor_node = center_node + PATCH_SIZE
-                            else
-                               call set_direct_neighbor(NORTH,i,0)
-                            end if
-                         case default
-                            call fail( &
-                                 "block-native direct flux component is invalid")
-                         end select
-                         scalar_neighbor = block_scalar_total( &
-                              scalar_slot,neighbor_storage,neighbor_node, &
-                              field_level)
-                         u_dual = block_patch_vector_value( &
-                              center_node,flux_slot-1, &
-                              field_level)* &
-                              scalar_input(BLOCK_SCALAR_PEDLEN_START+ &
-                              flux_slot-1)
-                         scalar_edge = &
-                              0.5_dp*(scalar_center+scalar_neighbor)
-                         native_advective_flux = u_dual*scalar_edge
-                         native_flux = native_advective_flux + &
-                              scalar_input(BLOCK_SCALAR_PHYSICS_START+ &
-                              flux_slot-1)
-                         if (statistics%validate_oracle .and. &
-                              abs(native_flux-scalar_input( &
-                              BLOCK_SCALAR_DIRECT_FLUX_START+ &
-                              flux_slot-1)) > 0.0_dp) then
-                            write(error_unit,'(a,i0,a,i0,a,i0,a,i0,a,i0)') &
-                                 "Rank ",rank, &
-                                 ": native scalar flux mismatch: block = ", &
-                                 catalog_index,", patch = ",p, &
-                                 ", cell = ",q,", flux slot = ",flux_slot
-                            write(error_unit,'(a,i0,a,i0)') &
-                                 "  scalar slot = ",scalar_slot, &
-                                 ", field level = ",field_level
-                            write(error_unit, &
-                                 '(a,es24.16,a,es24.16,a,es24.16)') &
-                                 "  Domain value = ", &
-                                 scalar_input( &
-                                 BLOCK_SCALAR_DIRECT_FLUX_START+ &
-                                 flux_slot-1), &
-                                 ", block value = ",native_flux, &
-                                 ", absolute difference = ", &
-                                 abs(native_flux-scalar_input( &
-                                 BLOCK_SCALAR_DIRECT_FLUX_START+ &
-                                 flux_slot-1))
-                            call fail( &
-                                 "block-native direct scalar flux differs")
-                         end if
-                         block_scalar_tendency(local_index)%patch( &
-                              remainder_index+ &
-                              BLOCK_SCALAR_DIRECT_FLUX_START+ &
-                              flux_slot-2) = native_flux
-                      end do
-                      scalar_divergence = &
-                           (scalar_input(1)-scalar_input(2) + &
-                           scalar_input(3)-scalar_input(4) + &
-                           scalar_input(5)-scalar_input(6))* &
-                           scalar_input(BLOCK_SCALAR_AREA_INDEX)
-                      scalar_tendency(scalar_output_index) = 0.0_dp
-                      if (scalar_input(BLOCK_SCALAR_ACTIVE_INDEX) > &
-                           0.5_dp) then
-                         scalar_tendency(scalar_output_index) = &
-                              -scalar_divergence
-                      end if
-                      block_scalar_tendency(local_index)%patch( &
-                           remainder_index+ &
-                           BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
-                           scalar_tendency(scalar_output_index)
+                      scalar_tendency(scalar_output_index) = &
+                           block_scalar_record_value( &
+                           block,local_index,p,scalar_slot,level_slot, &
+                           i,j,BLOCK_SCALAR_NATIVE_DSCALAR_INDEX)
                       statistics%scalar_sample_count = &
                            statistics%scalar_sample_count + 1_int64
                    end do
@@ -30798,36 +31021,6 @@ end subroutine build_parallel_block_catalog
 
     end function block_scalar_total
 
-
-    real(dp) function block_patch_vector_value ( &
-         node,component,field_level) result(value)
-
-      implicit none
-
-      integer, intent(in) :: node
-      integer, intent(in) :: component
-      integer, intent(in) :: field_level
-
-      integer :: field_base
-      integer :: field_index
-      integer :: level_slot
-
-      value = 0.0_dp
-      if (component < 0 .or. component >= EDGE) then
-         call fail("scalar-flux vector component is invalid")
-      end if
-      level_slot = field_level-block%field_level+1
-      if (level_slot < 1 .or. level_slot > block%n_field_level) then
-         call fail("scalar-flux vector level is invalid")
-      end if
-      if (node < 0 .or. node >= size(block%node)) then
-         call fail("scalar-flux vector patch node is invalid")
-      end if
-      field_base = (level_slot-1)*EDGE*size(block%node)
-      field_index = field_base + EDGE*node + component + 1
-      value = block%vector(field_index)
-
-    end function block_patch_vector_value
 
   end subroutine compute_block_exner_difference_kernel
 
