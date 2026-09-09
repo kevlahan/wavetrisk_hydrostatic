@@ -31,11 +31,11 @@ module parallel_block_inverse_mod
   end type
   type :: Transfer_Plan
      integer, allocatable :: sc(:),sd(:),rc(:),rd(:),key(:,:),slot(:)
-     real(dp), allocatable :: send(:),recv(:)
+     integer, allocatable :: source_info(:,:),target_info(:,:)
   end type
   type :: Alias_Plan
      integer, allocatable :: sc(:),sd(:),rc(:),rd(:),source(:),dest(:)
-     real(dp), allocatable :: send(:),recv(:)
+     integer, allocatable :: install_order(:)
   end type
   type :: Local_Aliases
      integer, allocatable :: source(:),dest(:)
@@ -49,12 +49,18 @@ module parallel_block_inverse_mod
   end type
   type(Node_Map), allocatable :: nodes(:)
   type(Transfer_Plan) :: interior_plan,boundary_plan
+  type(Transfer_Plan), allocatable :: level_interior(:,:),level_boundary(:,:)
+  type(Transfer_Plan), allocatable :: outer_interior(:),outer_boundary(:)
   type(Alias_Plan), allocatable :: aliases(:,:)
+  type(Alias_Plan) :: range_alias(2,2)
   type(Local_Aliases) :: local_alias(2)
   type(Outer_Operation), allocatable :: operations(:)
   type(MPI_Request), allocatable :: requests(:)
+  real(dp), allocatable :: transfer_send(:),transfer_recv(:)
+  real(dp), allocatable :: alias_send(:),alias_recv(:)
   integer, allocatable :: node_domain(:),node_id(:),operation_first(:),operation_last(:)
   integer, allocatable :: scaffold_slot(:)
+  integer, allocatable :: node_flags(:)
   real(dp), allocatable :: scaffold_value(:,:,:)
   integer(int64), allocatable :: coverage(:,:)
   real(dp), allocatable :: value(:,:,:,:)
@@ -135,7 +141,8 @@ contains
     native_inverse_bytes=0_int64
     if (plan_generation /= generation) then
        if (allocated(nodes)) deallocate(nodes,node_domain,node_id,value,aliases,operations,coverage, &
-            scaffold_slot,scaffold_value,operation_first,operation_last)
+            scaffold_slot,scaffold_value,operation_first,operation_last,node_flags,level_interior,level_boundary, &
+            outer_interior,outer_boundary,transfer_send,transfer_recv,alias_send,alias_recv)
        do q=1,2
           if (allocated(local_alias(q)%source)) deallocate(local_alias(q)%source,local_alias(q)%dest)
        end do
@@ -165,6 +172,12 @@ contains
        end do
        allocate(aliases(2,level_start-1:level_end))
        call compile_aliases
+       do q=1,2
+          call combine_aliases(range_alias(q,1),q,level_start-1)
+          call combine_aliases(range_alias(q,2),q,level_start)
+       end do
+       allocate(alias_send(max(1,zlevels*max(nscalar*sum(range_alias(1,1)%sc),sum(range_alias(2,1)%sc)))))
+       allocate(alias_recv(max(1,zlevels*max(nscalar*sum(range_alias(1,1)%rc),sum(range_alias(2,1)%rc)))))
        ! The upper bound is conservative; records are reused for all fields.
        allocate(operations(max(1,EDGE*total)))
        allocate(coverage(4,level_start-1:level_end))
@@ -206,6 +219,37 @@ contains
           slots(p)=node_slot(d,rb(6,p))
           request(:,p)=rb(1:4,p)
        end do
+       ! Flags are carried in the existing request-key exchange. Both ends
+       ! then derive identical per-level subplans without extra collectives.
+       allocate(node_flags(nnode))
+       node_flags=0
+       do q=1,2
+          do p=1,size(local_alias(q)%dest)
+             r=alias_node(local_alias(q)%dest(p),q)
+             node_flags(r)=ibset(node_flags(r),q-1)
+             node_flags(r)=ibset(node_flags(r),q+2)
+          end do
+          do b=level_start-1,level_end
+             do p=1,size(aliases(q,b)%dest)
+                r=alias_node(aliases(q,b)%dest(p),q)
+                node_flags(r)=ibset(node_flags(r),q-1)
+             end do
+          end do
+       end do
+       do p=1,nnode
+          if (nodes(node_domain(p))%key(2,node_id(p)+1)==-1) node_flags(p)=ibset(node_flags(p),2)
+       end do
+       ! Plus-side or pentagon targets outside the nominal fine level must
+       ! participate too; do not assume geometry level alone is sufficient.
+       do p=1,noperation
+          do q=2,3
+             r=alias_node(operations(p)%target(q),2)
+             if (grid(node_domain(r))%level%elts(node_id(r)+1)/=operations(p)%level+1) then
+                node_flags(r)=ibset(node_flags(r),1)
+                node_flags(r)=ibset(node_flags(r),4)
+             end if
+          end do
+       end do
        call build_transfer(boundary_plan,request,slots)
        deallocate(request,slots)
        n=0
@@ -223,6 +267,22 @@ contains
           slots(n)=p
        end do
        call build_transfer(interior_plan,request,slots)
+       ! Every transfer completes before the next one starts. Subplans keep
+       ! only integer routing metadata, sharing this one maximum-size pair.
+       allocate(transfer_send(max(1,max(nscalar,EDGE)*zlevels*max(sum(interior_plan%sc),sum(boundary_plan%sc)))))
+       allocate(transfer_recv(max(1,max(nscalar,EDGE)*zlevels*max(sum(interior_plan%rc),sum(boundary_plan%rc)))))
+       allocate(level_interior(2,level_start-2:level_end),level_boundary(2,level_start-2:level_end))
+       do q=1,2
+          do b=level_start-2,level_end
+             call select_transfer(level_interior(q,b),interior_plan,q,b,.false.,.false.)
+             call select_transfer(level_boundary(q,b),boundary_plan,q,b,.true.,.false.)
+          end do
+       end do
+       allocate(outer_interior(level_start-1:level_end),outer_boundary(level_start-1:level_end))
+       do b=level_start-1,level_end
+          call select_transfer(outer_interior(b),interior_plan,2,b,.true.,.true.)
+          call select_transfer(outer_boundary(b),boundary_plan,2,b,.true.,.true.)
+       end do
        allocate(value(nscalar+EDGE,zlevels,nnode,2))
        n=0
        do p=1,nnode
@@ -331,7 +391,7 @@ contains
     type(Transfer_Plan), intent(out) :: plan
     integer, intent(in) :: request(:,:),slots(:)
     integer :: p,r,pos,ierr
-    integer, allocatable :: send_key(:,:)
+    integer, allocatable :: send_key(:,:),recv_key(:,:)
     allocate(plan%sc(n_process),plan%sd(n_process),plan%rc(n_process),plan%rd(n_process))
     plan%sc=0
     do p=1,size(slots)
@@ -342,26 +402,88 @@ contains
     call check(ierr,'native dependency counts')
     call displacements(plan%sc,plan%sd)
     call displacements(plan%rc,plan%rd)
-    allocate(send_key(4,max(1,sum(plan%sc))),plan%key(4,max(1,sum(plan%rc))))
+    allocate(send_key(6,max(1,sum(plan%sc))),recv_key(6,max(1,sum(plan%rc))))
+    allocate(plan%key(4,sum(plan%rc)),plan%source_info(2,sum(plan%sc)),plan%target_info(2,sum(plan%rc)))
     allocate(plan%slot(sum(plan%sc)))
     plan%sc=0
     do p=1,size(slots)
        r=block_catalog(request(1,p))%owner+1
        pos=plan%sd(r)+plan%sc(r)+1
-       send_key(:,pos)=request(:,p)
+       send_key(1:4,pos)=request(:,p)
+       send_key(5,pos)=grid(node_domain(slots(p)))%level%elts(node_id(slots(p))+1)
+       send_key(6,pos)=node_flags(slots(p))
        plan%slot(pos)=slots(p)
        plan%sc(r)=plan%sc(r)+1
     end do
-    call MPI_Alltoallv(send_key,4*plan%sc,4*plan%sd,MPI_INTEGER, &
-         plan%key,4*plan%rc,4*plan%rd,MPI_INTEGER,comm,ierr)
+    call MPI_Alltoallv(send_key,6*plan%sc,6*plan%sd,MPI_INTEGER, &
+         recv_key,6*plan%rc,6*plan%rd,MPI_INTEGER,comm,ierr)
     call check(ierr,'native dependency keys')
-    allocate(plan%send(max(1,max(nscalar,EDGE)*zlevels*sum(plan%sc))))
-    allocate(plan%recv(max(1,max(nscalar,EDGE)*zlevels*sum(plan%rc))))
+    plan%key=recv_key(1:4,1:sum(plan%rc))
+    plan%source_info=send_key(5:6,1:sum(plan%sc))
+    plan%target_info=recv_key(5:6,1:sum(plan%rc))
   end subroutine
 
-  subroutine native_inverse_gather(component,family,reset_scaffold)
+  subroutine select_transfer(plan,base,component,level,install,outer)
+    ! Select changed block levels plus every alias destination (all levels).
+    ! A gather restores authoritative interiors overwritten by workspace
+    ! aliases even when their block kernel did not run. Fixed-coarse resets
+    ! likewise remain visible to boundary consumers on every phase.
+    type(Transfer_Plan), intent(out) :: plan
+    type(Transfer_Plan), intent(in) :: base
+    integer, intent(in) :: component,level
+    logical, intent(in) :: install,outer
+    integer :: r,p,s,t
+    allocate(plan%sc(n_process),plan%sd(n_process),plan%rc(n_process),plan%rd(n_process))
+    plan%sc=0
+    plan%rc=0
+    do r=1,n_process
+       do p=base%sd(r)+1,base%sd(r)+base%sc(r)
+          if (selected(base%source_info(:,p))) plan%sc(r)=plan%sc(r)+1
+       end do
+       do p=base%rd(r)+1,base%rd(r)+base%rc(r)
+          if (selected(base%target_info(:,p))) plan%rc(r)=plan%rc(r)+1
+       end do
+    end do
+    call displacements(plan%sc,plan%sd)
+    call displacements(plan%rc,plan%rd)
+    allocate(plan%slot(sum(plan%sc)),plan%key(4,sum(plan%rc)))
+    s=0
+    do p=1,sum(base%sc)
+       if (.not. selected(base%source_info(:,p))) cycle
+       s=s+1
+       plan%slot(s)=base%slot(p)
+    end do
+    t=0
+    do p=1,sum(base%rc)
+       if (.not. selected(base%target_info(:,p))) cycle
+       t=t+1
+       plan%key(:,t)=base%key(:,p)
+    end do
+  contains
+    logical function selected(info)
+      integer, intent(in) :: info(2)
+      if (install) then
+         ! Remote aliases only write their requested level. Local aliases
+         ! still write all levels; an outer transaction also writes coarse
+         ! aliases before producing and synchronizing the fine level.
+         selected=info(1)==level .or. btest(info(2),component+2) .or. btest(info(2),2)
+         if (outer) selected=selected .or. info(1)==level-1
+      else
+         selected=info(1)==level .or. btest(info(2),component-1) .or. btest(info(2),2)
+      end if
+    end function
+  end subroutine
+
+  integer function alias_node(code,component) result(p)
+    integer, intent(in) :: code,component
+    p=abs(code)
+    if (component==2) p=(p-1)/EDGE+1
+  end function
+
+  subroutine native_inverse_gather(component,family,reset_scaffold,changed_level)
     integer, intent(in) :: component,family
     logical, optional, intent(in) :: reset_scaffold
+    integer, optional, intent(in) :: changed_level
     logical :: reset
     integer :: q,first,last
     reset=.true.
@@ -373,18 +495,35 @@ contains
           value(first:last,:,scaffold_slot(q),family)=scaffold_value(first:last,:,q)
        end do
     end if
-    call transfer_nodes(interior_plan,component,family,.false.)
+    if (present(changed_level)) then
+       if (changed_level<level_start-2 .or. changed_level>level_end) call die('gather level range')
+       call transfer_nodes(level_interior(component,changed_level),component,family,.false.)
+    else
+       call transfer_nodes(interior_plan,component,family,.false.)
+    end if
   end subroutine
 
-  subroutine native_inverse_scatter(component,family,interiors)
+  subroutine native_inverse_scatter(component,family,interiors,changed_level)
     integer, intent(in) :: component,family
     logical, intent(in) :: interiors
-    if (interiors) call transfer_nodes(interior_plan,component,family,.true.)
-    call transfer_nodes(boundary_plan,component,family,.true.)
+    integer, optional, intent(in) :: changed_level
+    if (present(changed_level)) then
+       if (changed_level<level_start-2 .or. changed_level>level_end) call die('scatter level range')
+       if (interiors) then
+          if (component/=2 .or. changed_level<level_start-1) call die('outer scatter phase')
+          call transfer_nodes(outer_interior(changed_level),component,family,.true.)
+          call transfer_nodes(outer_boundary(changed_level),component,family,.true.)
+       else
+          call transfer_nodes(level_boundary(component,changed_level),component,family,.true.)
+       end if
+    else
+       if (interiors) call transfer_nodes(interior_plan,component,family,.true.)
+       call transfer_nodes(boundary_plan,component,family,.true.)
+    end if
   end subroutine
 
   subroutine transfer_nodes(plan,component,family,install)
-    type(Transfer_Plan), intent(inout) :: plan
+    type(Transfer_Plan), intent(in) :: plan
     integer, intent(in) :: component,family
     logical, intent(in) :: install
     integer :: p,q,k,v,nv,first,n,phase
@@ -401,27 +540,27 @@ contains
           do k=1,zlevels
              do v=1,nv
                 q=q+1
-                plan%send(q)=value(first+v-1,k,plan%slot(p),family)
+                transfer_send(q)=value(first+v-1,k,plan%slot(p),family)
              end do
           end do
        end do
-       call exchange_values(plan%send,plan%sc,plan%sd,plan%recv,plan%rc,plan%rd,n,19071)
+       call exchange_values(transfer_send,plan%sc,plan%sd,transfer_recv,plan%rc,plan%rd,n,19071)
        do p=1,sum(plan%rc)
-          sample=reshape(plan%recv((p-1)*n+1:p*n),shape(sample))
+          sample=reshape(transfer_recv((p-1)*n+1:p*n),shape(sample))
           call transfer_local_block_inverse_node(plan%key(:,p),family,component,.true.,sample)
        end do
     else
        do p=1,sum(plan%rc)
           call transfer_local_block_inverse_node(plan%key(:,p),family,component,.false.,sample)
-          plan%recv((p-1)*n+1:p*n)=reshape(sample,[n])
+          transfer_recv((p-1)*n+1:p*n)=reshape(sample,[n])
        end do
-       call exchange_values(plan%recv,plan%rc,plan%rd,plan%send,plan%sc,plan%sd,n,19072)
+       call exchange_values(transfer_recv,plan%rc,plan%rd,transfer_send,plan%sc,plan%sd,n,19072)
        do p=1,sum(plan%sc)
           q=(p-1)*n
           do k=1,zlevels
              do v=1,nv
                 q=q+1
-                value(first+v-1,k,plan%slot(p),family)=plan%send(q)
+                value(first+v-1,k,plan%slot(p),family)=transfer_send(q)
              end do
           end do
        end do
@@ -511,7 +650,6 @@ contains
             call displacements(a%sc,a%sd)
             call displacements(a%rc,a%rd)
             allocate(a%source(sum(a%sc)),a%dest(sum(a%rc)))
-            allocate(a%send(max(1,nscalar*zlevels*sum(a%sc))),a%recv(max(1,nscalar*zlevels*sum(a%rc))))
             s=0
             t=0
             do r=1,n_process
@@ -564,27 +702,87 @@ contains
     end do
   end subroutine
 
+  subroutine combine_aliases(a,component,first)
+    ! Pack all requested levels into one peer message, but retain the old
+    ! level-major receive installation order, including repeated targets.
+    type(Alias_Plan), intent(out) :: a
+    integer, intent(in) :: component,first
+    integer :: l,r,p,s,t,q
+    integer :: cursor(n_process)
+    allocate(a%sc(n_process),a%sd(n_process),a%rc(n_process),a%rd(n_process))
+    a%sc=0
+    a%rc=0
+    do l=first,level_end
+       a%sc=a%sc+aliases(component,l)%sc
+       a%rc=a%rc+aliases(component,l)%rc
+    end do
+    call displacements(a%sc,a%sd)
+    call displacements(a%rc,a%rd)
+    allocate(a%source(sum(a%sc)),a%dest(sum(a%rc)),a%install_order(sum(a%rc)))
+    s=0
+    t=0
+    do r=1,n_process
+       do l=first,level_end
+          associate(b=>aliases(component,l))
+            do p=b%sd(r)+1,b%sd(r)+b%sc(r)
+               s=s+1
+               a%source(s)=b%source(p)
+            end do
+            do p=b%rd(r)+1,b%rd(r)+b%rc(r)
+               t=t+1
+               a%dest(t)=b%dest(p)
+            end do
+          end associate
+       end do
+    end do
+    cursor=a%rd
+    q=0
+    do l=first,level_end
+       do r=1,n_process
+          do p=1,aliases(component,l)%rc(r)
+             q=q+1
+             cursor(r)=cursor(r)+1
+             a%install_order(q)=cursor(r)
+          end do
+       end do
+    end do
+  end subroutine
+
   subroutine native_inverse_boundary(component,family,first,last)
     integer, intent(in) :: component,family,first,last
-    integer :: l,p,k,v,nv,n,q
     real(dp) :: started
     started=0.0_dp
     if (timing) started=MPI_Wtime()
+    if (first==last) then
+       call apply_aliases(aliases(component,first),component,family)
+    else if (last==level_end .and. first==level_start-1) then
+       call apply_aliases(range_alias(component,1),component,family)
+    else if (last==level_end .and. first==level_start) then
+       call apply_aliases(range_alias(component,2),component,family)
+    else
+       call die('uncompiled alias level range')
+    end if
+    if (timing) then
+       native_inverse_seconds(2)=native_inverse_seconds(2)+MPI_Wtime()-started
+       native_inverse_calls(2)=native_inverse_calls(2)+1_int64
+    end if
+  end subroutine
+
+  subroutine apply_aliases(a,component,family)
+    type(Alias_Plan), intent(inout) :: a
+    integer, intent(in) :: component,family
+    integer :: p,k,v,nv,n,q,t
     nv=merge(nscalar,1,component==1)
     n=nv*zlevels
     ! Remote sends are snapshots BEFORE the ordered, all-level local copies.
-    do l=first,last
-       associate(a=>aliases(component,l))
-         q=0
-         do p=1,size(a%source)
-            do k=1,zlevels
-               do v=1,nv
-                  q=q+1
-                  a%send(q)=alias_value(a%source(p),component,v,k,family)
-               end do
-            end do
-         end do
-       end associate
+    q=0
+    do p=1,size(a%source)
+       do k=1,zlevels
+          do v=1,nv
+             q=q+1
+             alias_send(q)=alias_value(a%source(p),component,v,k,family)
+          end do
+       end do
     end do
     do p=1,size(local_alias(component)%source)
        do k=1,zlevels
@@ -594,25 +792,19 @@ contains
           end do
        end do
     end do
-    do l=first,last
-       associate(a=>aliases(component,l))
-         call exchange_values(a%send,a%sc,a%sd,a%recv,a%rc,a%rd,n,19073)
-         if (timing) call record_traffic(2,a%sc,n)
-         q=0
-         do p=1,size(a%dest)
-            do k=1,zlevels
-               do v=1,nv
-                  q=q+1
-                  call set_alias(a%dest(p),component,v,k,family,a%recv(q))
-               end do
-            end do
-         end do
-       end associate
+    call exchange_values(alias_send,a%sc,a%sd,alias_recv,a%rc,a%rd,n,19073)
+    if (timing) call record_traffic(2,a%sc,n)
+    do p=1,size(a%dest)
+       t=p
+       if (allocated(a%install_order)) t=a%install_order(p)
+       q=(t-1)*n
+       do k=1,zlevels
+          do v=1,nv
+             q=q+1
+             call set_alias(a%dest(t),component,v,k,family,alias_recv(q))
+          end do
+       end do
     end do
-    if (timing) then
-       native_inverse_seconds(2)=native_inverse_seconds(2)+MPI_Wtime()-started
-       native_inverse_calls(2)=native_inverse_calls(2)+1_int64
-    end if
   end subroutine
 
   real(dp) function alias_value(code,component,v,k,family) result(x)

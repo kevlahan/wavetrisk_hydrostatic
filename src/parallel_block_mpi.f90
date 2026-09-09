@@ -14320,8 +14320,8 @@ end subroutine build_parallel_block_catalog
        ! Complete the all-level boundary contract formerly provided by the
        ! caller's update_bdry(...,NONE) and subsequent Domain re-import.
        call block_profile_enter(BLOCK_PROFILE_INVERSE_BOUNDARY)
-       call native_inverse_gather(1,BLOCK_PAYLOAD_SOL)
-       call native_inverse_gather(2,BLOCK_PAYLOAD_SOL)
+       call native_inverse_gather(1,BLOCK_PAYLOAD_SOL,changed_level=level_start-2)
+       call native_inverse_gather(2,BLOCK_PAYLOAD_SOL,changed_level=level_start-2)
        call native_inverse_boundary(1,BLOCK_PAYLOAD_SOL,level_start-1,level_end)
        call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,level_start-1,level_end)
        if (validate_oracle) then
@@ -14398,10 +14398,10 @@ end subroutine build_parallel_block_catalog
        call refresh_scalar_boundary(domain_scaling,level)
        call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
-    call native_inverse_gather(1,BLOCK_PAYLOAD_SOL)
+    call native_inverse_gather(1,BLOCK_PAYLOAD_SOL,changed_level=level)
     call native_inverse_boundary(1,BLOCK_PAYLOAD_SOL,level,level)
     if (block_dynamics_validation_enabled()) call compare_native_inverse(domain_scaling,1)
-    call native_inverse_scatter(1,BLOCK_PAYLOAD_SOL,.false.)
+    call native_inverse_scatter(1,BLOCK_PAYLOAD_SOL,.false.,changed_level=level)
     call block_profile_enter(BLOCK_PROFILE_INVERSE_GHOST)
     call exchange_block_scalar_ghost_payloads( &
          BLOCK_PAYLOAD_SOL,.false.,.false.)
@@ -14431,10 +14431,10 @@ end subroutine build_parallel_block_catalog
        call refresh_vector_boundary(domain_scaling,level)
        call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
-    call native_inverse_gather(2,BLOCK_PAYLOAD_SOL)
+    call native_inverse_gather(2,BLOCK_PAYLOAD_SOL,changed_level=level)
     call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,level,level)
     if (block_dynamics_validation_enabled()) call compare_native_inverse(domain_scaling,2)
-    call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.false.)
+    call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.false.,changed_level=level)
     call block_profile_enter(BLOCK_PROFILE_INVERSE_GHOST)
     call exchange_block_vector_ghost_payloads( &
          BLOCK_PAYLOAD_SOL,.false.,.false.)
@@ -14823,7 +14823,9 @@ end subroutine build_parallel_block_catalog
        call refresh_vector_boundary(domain_scaling,fine_level)
        call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
-    call native_inverse_gather(2,BLOCK_PAYLOAD_SOL)
+    ! No block vector kernel intervenes since the preceding vector sync.
+    ! Restore only alias-overwritten interiors and fixed coarse inputs.
+    call native_inverse_gather(2,BLOCK_PAYLOAD_SOL,changed_level=level_start-2)
     call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,coarse_level,coarse_level)
     call block_profile_leave(BLOCK_PROFILE_INVERSE_BOUNDARY)
 
@@ -14837,7 +14839,7 @@ end subroutine build_parallel_block_catalog
        if (any(outer_count/=reference_count)) call fail("native outer tape coverage differs")
        call compare_native_inverse(domain_scaling,2)
     end if
-    call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.true.)
+    call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.true.,changed_level=fine_level)
     if (.not. preserve_checkpoint) call invalidate_local_block_tendency_products
     call block_profile_enter(BLOCK_PROFILE_INVERSE_GHOST)
     call exchange_block_vector_ghost_payloads( &
