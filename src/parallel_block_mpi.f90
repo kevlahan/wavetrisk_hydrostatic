@@ -1,4 +1,5 @@
 module parallel_block_mpi_mod
+  use parallel_block_velocity_mod, only : copy_native_velocity_tendency, native_velocity_work
 
   use iso_fortran_env, only : error_unit, int8, int64
   use ieee_arithmetic, only : ieee_is_finite
@@ -142,7 +143,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
   integer, parameter :: BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS = 13
-  integer, parameter :: BLOCK_PAYLOAD_COMPATIBILITY_TREND = 14
+  integer, parameter :: BLOCK_PAYLOAD_NATIVE_VELOCITY_TENDENCY = 14
   integer, parameter :: BLOCK_VELOCITY_SOURCE_RECORD_COUNT = 7
   integer, parameter :: BLOCK_WRITEBACK_BOTH = 0
   integer, parameter :: BLOCK_WRITEBACK_SCALAR = 1
@@ -625,7 +626,10 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PROFILE_TEMPERATURE_PLAN = 46
   integer, parameter :: BLOCK_PROFILE_TEMPERATURE_EDGES = 47
   integer, parameter :: BLOCK_PROFILE_TEMPERATURE_RK = 48
-  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 51
+  integer, parameter, public :: BLOCK_PROFILE_NATIVE_VELOCITY_PLAN=52
+  integer, parameter, public :: BLOCK_PROFILE_NATIVE_VELOCITY_SOURCE=53
+  integer, parameter, public :: BLOCK_PROFILE_NATIVE_VELOCITY_GRADIENT=54
+  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 54
   character(len=32), parameter :: block_profile_phase_name( &
        BLOCK_PROFILE_PHASE_COUNT) = [character(len=32) :: &
        "complete timestep", "dynamics driver", "physics consumers", &
@@ -653,7 +657,8 @@ module parallel_block_mpi_mod
        "Domain mass-flux compatibility", &
        "Domain velocity compatibility", "temperature edge plan", &
        "temperature edge exchange", "temperature RK boundary", &
-       "inverse native gather", "inverse native aliases", "inverse native scatter"]
+       "inverse native gather", "inverse native aliases", "inverse native scatter", &
+       "native velocity plan", "native velocity source", "native velocity gradient"]
   logical, save :: block_profile = .false.
   logical, save :: block_profile_initialized = .false.
   real(dp), save :: block_profile_seconds(BLOCK_PROFILE_PHASE_COUNT) = &
@@ -1123,7 +1128,8 @@ module parallel_block_mpi_mod
   public :: capture_block_scalar_divergence_level
   public :: block_scalar_capture_active, capture_block_scalar_physics_patch
   public :: finalize_block_scalar_divergence_capture
-  public :: prepare_block_velocity_compatibility_remainder
+  public :: prepare_block_native_velocity_remainder
+  public :: native_velocity_plan_generation
   public :: begin_block_velocity_source_transport
   public :: capture_block_velocity_source_level
   public :: finalize_block_velocity_source_transport
@@ -1868,6 +1874,7 @@ contains
     integer(int64) :: plan_sum(12)
     integer(int64) :: topology_max(3)
     integer(int64) :: thermodynamic_sum(11)
+    integer(int64) :: velocity_sum(9)
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
     integer(int64) :: weight_local
     integer(int64) :: weight_max
@@ -1921,6 +1928,8 @@ contains
     call MPI_Allreduce(thermodynamic_work,thermodynamic_sum,11, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce thermodynamic work")
+    call MPI_Allreduce(native_velocity_work,velocity_sum,9,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce native velocity work")
 
     ! Per-rank critical-path projections for the architectural go/no-go
     ! decision.  The conservative bridge removes only representation copies;
@@ -2091,7 +2100,11 @@ contains
        write(6,'(a,4(i0,1x))') &
             "  thermodynamic residual: columns lookups old/new pressure terms = ",thermodynamic_sum(5:8)
        write(6,'(a,3(i0,1x))') &
-            "  native velocity residual: raw values formed oracle-checked = ",thermodynamic_sum(9:11)
+            "  native velocity residual: native values formed oracle-checked = ",thermodynamic_sum(9:11)
+       write(6,'(a,5(i0,1x))') &
+            "  native velocity: plan builds direct restrictions gradients physics = ",velocity_sum(1:5)
+       write(6,'(a,4(i0,1x))') &
+            "  native velocity: published RK-values Domain-source Domain-gradient = ",velocity_sum(6:9)
        write(6,'(a,5(i0,1x),/)') &
             "  compatibility writebacks total/output/checkpoint/grid/remap = ", &
             compatibility_max
@@ -2105,6 +2118,7 @@ contains
        block_profile_bytes = 0_int64
        block_profile_topology_events = 0_int64
        thermodynamic_work = 0_int64
+       native_velocity_work = 0_int64
        block_profile_depth = 0
        block_profile_outer_start = 0.0_dp
     end if
@@ -9802,14 +9816,14 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
          payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
          payload_family /= BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .and. &
-         payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_TREND .and. &
+         payload_family /= BLOCK_PAYLOAD_NATIVE_VELOCITY_TENDENCY .and. &
          payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS .and. &
          payload_family /= &
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("invalid Domain-to-block payload family")
     end if
     if (transfer_vector_only .and. &
-         payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_TREND .and. &
+         payload_family /= BLOCK_PAYLOAD_NATIVE_VELOCITY_TENDENCY .and. &
          payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS) then
        call fail("vector-only Domain-to-block payload family is invalid")
     end if
@@ -16311,7 +16325,7 @@ end subroutine build_parallel_block_catalog
     end if
     if (.not. use_retained_compatibility_remainder) then
        if (use_compatibility_remainder) then
-          call prepare_block_velocity_compatibility_remainder(domain_sol)
+          call prepare_block_native_velocity_remainder(domain_sol)
        else
           call refresh_candidate_block_velocity_remainder(domain_sol,.false.)
        end if
@@ -16782,10 +16796,10 @@ end subroutine build_parallel_block_catalog
   end subroutine finalize_block_velocity_source_transport
 
 
-  subroutine prepare_block_velocity_compatibility_remainder (domain_sol)
-    ! Snapshot raw compatibility trend before the full oracle overwrites it.
-    ! Only the oracle constructs the old Domain thermodynamic residual. The
-    ! native kernel forms the production residual from its own Exner term.
+  subroutine prepare_block_native_velocity_remainder (domain_sol)
+    ! Publish the independently computed native velocity result. The existing
+    ! route now carries native data, not a completed Domain tendency. Only the
+    ! oracle constructs the old Domain residual for the exact comparison.
 
     implicit none
 
@@ -16795,7 +16809,12 @@ end subroutine build_parallel_block_catalog
     call refresh_candidate_block_velocity_remainder(domain_sol,.true.)
     if (block_dynamics_validation_enabled()) &
          call refresh_candidate_block_velocity_remainder(domain_sol,.true.,reference_only=.true.)
-  end subroutine prepare_block_velocity_compatibility_remainder
+  end subroutine prepare_block_native_velocity_remainder
+
+  function native_velocity_plan_generation() result(generation)
+    integer(int64) :: generation
+    generation = block_writeback_plan_generation
+  end function native_velocity_plan_generation
 
 
   subroutine reserve_thermodynamic_columns(columns,nnode)
@@ -16841,8 +16860,8 @@ end subroutine build_parallel_block_catalog
 
   subroutine refresh_candidate_block_velocity_remainder ( &
        domain_sol,compatibility_remainder,reference_only)
-    ! Production transfers raw trend. An optional oracle transaction retains
-    ! the Stage 173 residual independently, without overwriting raw inputs.
+    ! Production transfers native velocity tendency. An optional oracle
+    ! transaction retains the Stage 173 Domain residual independently.
 
     implicit none
 
@@ -16872,7 +16891,7 @@ end subroutine build_parallel_block_catalog
     reference_transaction=.false.
     if (present(reference_only)) reference_transaction=reference_only
     payload_family=BLOCK_PAYLOAD_PHYSICAL_COMPONENTS
-    if (compatibility_remainder) payload_family=BLOCK_PAYLOAD_COMPATIBILITY_TREND
+    if (compatibility_remainder) payload_family=BLOCK_PAYLOAD_NATIVE_VELOCITY_TENDENCY
     if (reference_transaction) then
        if (.not. compatibility_remainder) &
             call fail("velocity residual reference requires compatibility inputs")
@@ -28419,7 +28438,7 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
          payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
          payload_family /= BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .and. &
-         payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_TREND .and. &
+         payload_family /= BLOCK_PAYLOAD_NATIVE_VELOCITY_TENDENCY .and. &
          payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS .and. &
          payload_family /= &
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
@@ -28440,9 +28459,10 @@ end subroutine build_parallel_block_catalog
        call fail("Domain writeback record buffer extent is invalid")
     end if
 
-    if (payload_family == BLOCK_PAYLOAD_COMPATIBILITY_TREND) then
-       ! No Domain thermodynamic reconstruction in production. Retain the
-       ! complete compatibility tendency, including its original gradient.
+    if (payload_family == BLOCK_PAYLOAD_NATIVE_VELOCITY_TENDENCY) then
+       ! Stage 175: this payload is native-workspace output in both modes.
+       ! Do not reintroduce a read of trend(S_VELO): the non-oracle cut test
+       ! deliberately leaves that completed Domain field poisoned.
        scalar_pos = scalar_pos + n_scalar_patch
        start = mult_vector*grid(d)%patch%elts(p+1)%elts_start
        n_value = mult_vector*PATCH_SIZE**2
@@ -28452,10 +28472,8 @@ end subroutine build_parallel_block_catalog
              vector_payload(vector_pos:vector_pos+n_value-1)=0.0_dp
           else
              if (field_level>zlevels) call fail("raw compatibility trend level is invalid")
-             if (start<0 .or. start+n_value>size(trend(v_vector,field_level)%data(d)%elts)) &
-                  call fail("raw compatibility trend extent is invalid")
-             vector_payload(vector_pos:vector_pos+n_value-1)= &
-                  trend(v_vector,field_level)%data(d)%elts(start+1:start+n_value)
+             call copy_native_velocity_tendency(d,field_level,start+1, &
+                  vector_payload(vector_pos:vector_pos+n_value-1))
              if (block_profile) thermodynamic_work(9)=thermodynamic_work(9)+int(n_value,int64)
           end if
           vector_pos=vector_pos+n_value

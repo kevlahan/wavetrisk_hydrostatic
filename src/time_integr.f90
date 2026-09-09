@@ -3,7 +3,8 @@ module time_integr_mod
   use, intrinsic :: iso_fortran_env, only : int64
 
   use kind_mod,   only : dp
-  use shared_mod, only : N_VARIABLE, NONE, POSIT, S_TEMP, eps, level_start, theta2, zlevels, zmax
+  use shared_mod, only : N_VARIABLE, NONE, POSIT, S_TEMP, S_VELO, eps, level_start, theta2, zlevels, zmax
+  use parallel_block_velocity_mod, only : native_velocity_rk, native_velocity
   
   use adapt_mod,         only : WT_after_step
   use barotropic_2d_mod, only : barotropic_correction, eta_update, flux_divergence, scalar_star, u_star, u_update
@@ -29,7 +30,7 @@ module time_integr_mod
        prepare_block_native_wavelet_compression, &
        prepare_block_native_multistage_wavelet_acceptance, &
        prepare_block_native_multistage_wavelet_stage, &
-       prepare_block_velocity_compatibility_remainder, &
+       prepare_block_native_velocity_remainder, &
        retain_block_native_multistage_candidate, &
        refresh_parallel_block_candidate_boundary_state, &
        refresh_parallel_block_domain_prognostic_state, &
@@ -157,7 +158,7 @@ contains
     call parallel_block_profile_end( &
          BLOCK_PROFILE_DOMAIN_TENDENCY_COMPATIBILITY,profile_start)
     call finalize_block_scalar_divergence_capture
-    call prepare_block_velocity_compatibility_remainder(domain_stage)
+    call prepare_block_native_velocity_remainder(domain_stage)
     if (validate_oracle) &
          call call_domain_tendency_consumer(domain_stage,routine)
     call capture_block_domain_multistage_candidate_tendency( &
@@ -495,8 +496,8 @@ contains
 
 
   subroutine RK_sub_step_compatibility (sols,trends,h,dest)
-    ! Materialize mass/velocity compatibility and preserve temperature scaffold
-    ! values. Integrated temperature is supplied by native stage publication.
+    ! Materialize mass compatibility and native velocity closure; preserve
+    ! temperature scaffold values for native boundary/stage publication.
 
     implicit none
 
@@ -510,12 +511,39 @@ contains
 
     real(dp) :: profile_start
     type(Float_Field), allocatable :: temperature_reference(:,:)
+    integer :: d,k,ibeg,iend
 
     profile_start = parallel_block_profile_begin( &
          BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY)
     call prepare_temperature_boundary_stage(sols,h)
+    ! Compute before the legacy oracle: on the last RK substage sols and
+    ! dest are the same field. Computing afterwards would advance it twice.
+    do d=1,size(grid)
+       ibeg=3*grid(d)%patch%elts(3)%elts_start+1
+       iend=dest(S_VELO,1)%data(d)%length
+       do k=1,zlevels
+          call native_velocity_rk(d,k,ibeg,sols(S_VELO,k)%data(d)%elts(ibeg:iend),h, &
+               native_velocity(d)%rk(ibeg:iend,k))
+       end do
+    end do
     call RK_sub_step(sols,trends,h,dest, &
-         native_temperature=.not. block_dynamics_validation_enabled())
+         native_temperature=.not. block_dynamics_validation_enabled(), &
+         native_velocity=.not. block_dynamics_validation_enabled())
+    ! All velocity values needed by the compatibility consumer, including
+    ! boundary/scaffold slots, come from the native workspace. The final-owner
+    ! stage publication still supplies the integrated owned block state.
+    do d=1,size(grid)
+       ibeg=3*grid(d)%patch%elts(3)%elts_start+1
+       iend=dest(S_VELO,1)%data(d)%length
+       do k=1,zlevels
+          if (block_dynamics_validation_enabled()) then
+             if (any(transfer(native_velocity(d)%rk(ibeg:iend,k),[0_int64],iend-ibeg+1) /= &
+                  transfer(dest(S_VELO,k)%data(d)%elts(ibeg:iend),[0_int64],iend-ibeg+1))) &
+                  error stop "native velocity RK compatibility differs bit-for-bit"
+          end if
+          dest(S_VELO,k)%data(d)%elts(ibeg:iend)=native_velocity(d)%rk(ibeg:iend,k)
+       end do
+    end do
     if (block_dynamics_validation_enabled()) temperature_reference=dest(S_TEMP:S_TEMP,:)
     call apply_temperature_boundary_stage(dest)
     if (allocated(temperature_reference)) call assert_temperature_boundary_stage(dest,temperature_reference)
@@ -548,7 +576,7 @@ contains
 
 
 
-  subroutine RK_sub_step (sols, trends, h, dest, native_temperature)
+  subroutine RK_sub_step (sols, trends, h, dest, native_temperature, native_velocity)
     
     implicit none
     
@@ -556,19 +584,22 @@ contains
     type(Float_Field), intent(in)    :: sols(1:N_VARIABLE,1:zlevels)
     type(Float_Field), intent(in)    :: trends(1:N_VARIABLE,1:zlevels)
     type(Float_Field), intent(inout) :: dest(1:N_VARIABLE,1:zlevels)
-    logical, optional, intent(in) :: native_temperature
+    logical, optional, intent(in) :: native_temperature,native_velocity
     
     integer :: d, ibeg, iend, k, v
-    logical :: copy_temperature
+    logical :: copy_temperature,copy_velocity
 
     copy_temperature=.false.
     if (present(native_temperature)) copy_temperature=native_temperature
+    copy_velocity=.false.
+    if (present(native_velocity)) copy_velocity=native_velocity
 
     do v = 1, N_VARIABLE
        do d = 1, size(grid)
           ibeg = (1+2*(POSIT(v)-1)) * grid(d)%patch%elts(2+1)%elts_start + 1
           iend = dest(v,1)%data(d)%length
           do k = 1, zlevels
+             if (v==S_VELO .and. copy_velocity) cycle
              if (v == S_TEMP .and. copy_temperature) then
                 ! Seed untouched scaffolding. The native boundary adapter and
                 ! integrated stage publication supply all evolved values.
