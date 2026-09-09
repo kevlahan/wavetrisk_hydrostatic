@@ -26,6 +26,8 @@ module parallel_block_mod
   integer, parameter, public :: BLOCK_PAYLOAD_SOL = 1
   integer, parameter, public :: BLOCK_PAYLOAD_WAV_COEFF = 2
 
+  public :: transfer_local_block_inverse_node
+
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
   integer, parameter :: BLOCK_PACK_VERSION = 11
@@ -817,6 +819,93 @@ integer function local_block_catalog (local_index) result(catalog_index)
 
 end function local_block_catalog
 
+
+subroutine transfer_local_block_inverse_node (key,family,component,install,value)
+  ! Sparse native inverse transport. Keys contain catalog, storage, record
+  ! (one based), and node (zero based); only atmospheric fields are moved.
+  integer, intent(in) :: key(4),family,component
+  logical, intent(in) :: install
+  real(dp), intent(inout) :: value(:,:)
+  integer :: b,n,q,k,v,slot,field_index,first,last
+
+  b = catalog_local_block(key(1))
+  if (b < 1) error stop "inverse node: nonlocal block"
+  if (family /= BLOCK_PAYLOAD_SOL .and. family /= BLOCK_PAYLOAD_WAV_COEFF) &
+       error stop "inverse node: invalid family"
+  associate (block => block_local(b))
+    select case (key(2))
+    case (STORE_PATCH)
+       if (key(3) < 1 .or. key(3) > size(block%patch)) error stop "inverse node: patch"
+       n = size(block%node)
+       q = block%patch(key(3))%elts_start+key(4)
+       if (key(4) < 0 .or. key(4) >= PATCH_SIZE**2) error stop "inverse node: patch node"
+    case (STORE_BDRY)
+       if (key(3) < 1 .or. key(3) > size(block%bdry_storage)) error stop "inverse node: boundary"
+       n = size(block%bdry_node)
+       q = block%bdry_storage(key(3))%local_start+key(4)
+       if (key(4) < 0 .or. key(4) >= block%bdry_storage(key(3))%n_node) &
+            error stop "inverse node: boundary node"
+    case default
+       error stop "inverse node: storage"
+    end select
+    if (q < 0 .or. q >= n) error stop "inverse node: address"
+    if (component == 1) then
+       first = 1
+       last = block%n_scalar_variable
+    else if (component == 2) then
+       first = 1
+       last = EDGE
+    else
+       error stop "inverse node: component"
+    end if
+    if (size(value,1) /= last .or. size(value,2) /= zlevels) error stop "inverse node: extent"
+    do k=1,zlevels
+       slot = k-block%field_level+1
+       if (slot < 1 .or. slot > block%n_field_level) error stop "inverse node: field level"
+       do v=first,last
+          if (component == 1) then
+             field_index = ((v-1)*block%n_field_level+slot-1)*n+q+1
+             if (key(2) == STORE_PATCH) then
+                if (family == BLOCK_PAYLOAD_SOL) then
+                   if (install) block%scalar(field_index)=value(v,k)
+                   if (.not. install) value(v,k)=block%scalar(field_index)
+                else
+                   if (install) block%wavelet_scalar(field_index)=value(v,k)
+                   if (.not. install) value(v,k)=block%wavelet_scalar(field_index)
+                end if
+             else
+                if (family == BLOCK_PAYLOAD_SOL) then
+                   if (install) block%bdry_scalar(field_index)=value(v,k)
+                   if (.not. install) value(v,k)=block%bdry_scalar(field_index)
+                else
+                   if (install) block%bdry_wavelet_scalar(field_index)=value(v,k)
+                   if (.not. install) value(v,k)=block%bdry_wavelet_scalar(field_index)
+                end if
+             end if
+          else
+             field_index = (slot-1)*EDGE*n+EDGE*q+v
+             if (key(2) == STORE_PATCH) then
+                if (family == BLOCK_PAYLOAD_SOL) then
+                   if (install) block%vector(field_index)=value(v,k)
+                   if (.not. install) value(v,k)=block%vector(field_index)
+                else
+                   if (install) block%wavelet_vector(field_index)=value(v,k)
+                   if (.not. install) value(v,k)=block%wavelet_vector(field_index)
+                end if
+             else
+                if (family == BLOCK_PAYLOAD_SOL) then
+                   if (install) block%bdry_vector(field_index)=value(v,k)
+                   if (.not. install) value(v,k)=block%bdry_vector(field_index)
+                else
+                   if (install) block%bdry_wavelet_vector(field_index)=value(v,k)
+                   if (.not. install) value(v,k)=block%bdry_wavelet_vector(field_index)
+                end if
+             end if
+          end if
+       end do
+    end do
+  end associate
+end subroutine transfer_local_block_inverse_node
 
 integer function catalog_local_block (catalog_index) result(local_index)
   ! Map a replicated catalogue index to its local block index. Return

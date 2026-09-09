@@ -15,6 +15,7 @@ module adapt_mod
   use utils_mod,        only : zero_float
   use parallel_block_mpi_mod, only : &
        block_domain_production_writeback_count, &
+       block_dynamics_validation_enabled, prepare_block_native_inverse_boundaries, &
        parallel_block_grid_change_is_pending, &
        parallel_block_state_is_ready
 
@@ -152,8 +153,11 @@ contains
          scaling(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: level
 
-    call update_bdry1( &
-         scaling(scalars(1):scalars(2),:),level,level,834)
+    if (level < 0) then
+       call update_bdry1(scaling(scalars(1):scalars(2),:),level_start-1,level_end,834)
+    else
+       call update_bdry1(scaling(scalars(1):scalars(2),:),level,level,834)
+    end if
 
   end subroutine refresh_native_inverse_scalar_boundary
 
@@ -167,7 +171,11 @@ contains
          scaling(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: level
 
-    call update_bdry1(scaling(S_VELO,:),level,level,835)
+    if (level < 0) then
+       call update_bdry1(scaling(S_VELO,:),level_start-1,level_end,835)
+    else
+       call update_bdry1(scaling(S_VELO,:),level,level,835)
+    end if
 
   end subroutine refresh_native_inverse_vector_boundary
 
@@ -483,9 +491,12 @@ contains
        call activate_native_compression(wavelet)
        ! Establish the geometric aliases consumed by the native inverse.
        ! No legacy reconstruction is executed on the production path.
-       call update_bdry1( &
-            wavelet,max(l_start,level_start),level_end,802)
-       call update_bdry1(scaling,l_start,level_end,803)
+       call prepare_block_native_inverse_boundaries(wavelet,scaling,l_start)
+       if (block_dynamics_validation_enabled()) then
+          call update_bdry1( &
+               wavelet,max(l_start,level_start),level_end,802)
+          call update_bdry1(scaling,l_start,level_end,803)
+       end if
        scaling%bdry_uptodate = .false.
        call activate_native_inverse( &
             wavelet,scaling,l_start,level_end, &

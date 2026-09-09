@@ -10,6 +10,10 @@ module parallel_block_mpi_mod
        MPI_STATUSES_IGNORE, MPI_SUM, MPI_Wtime
 
   use kind_mod,   only : dp
+  use parallel_block_inverse_mod, only : prepare_native_inverse, native_inverse_gather, &
+       native_inverse_boundary, native_inverse_scatter, native_inverse_outer, &
+       compare_native_inverse, publish_native_inverse, native_inverse_seconds, &
+       native_inverse_calls, native_inverse_messages, native_inverse_bytes
   use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
        hex_s_offs, &
        AT_EDGE, AT_NODE, DG, EAST, EDGE, FROZEN, NORTH, NORTHEAST, &
@@ -520,6 +524,7 @@ module parallel_block_mpi_mod
   logical, save :: block_vertical_remap_active = .false.
 
   integer(int64), save :: block_writeback_plan_generation = 0_int64
+  integer, save :: production_inverse_completed_mode = 0
   integer, save :: production_multistage_candidate_stage = 0
   integer, save :: production_multistage_candidate_stage_count = 0
   integer, save :: production_multistage_captured_tendency_stage = 0
@@ -619,7 +624,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PROFILE_TEMPERATURE_PLAN = 46
   integer, parameter :: BLOCK_PROFILE_TEMPERATURE_EDGES = 47
   integer, parameter :: BLOCK_PROFILE_TEMPERATURE_RK = 48
-  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 48
+  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 51
   character(len=32), parameter :: block_profile_phase_name( &
        BLOCK_PROFILE_PHASE_COUNT) = [character(len=32) :: &
        "complete timestep", "dynamics driver", "physics consumers", &
@@ -646,7 +651,8 @@ module parallel_block_mpi_mod
        "Domain operator compatibility", &
        "Domain mass-flux compatibility", &
        "Domain velocity compatibility", "temperature edge plan", &
-       "temperature edge exchange", "temperature RK boundary"]
+       "temperature edge exchange", "temperature RK boundary", &
+       "inverse native gather", "inverse native aliases", "inverse native scatter"]
   logical, save :: block_profile = .false.
   logical, save :: block_profile_initialized = .false.
   real(dp), save :: block_profile_seconds(BLOCK_PROFILE_PHASE_COUNT) = &
@@ -1092,6 +1098,7 @@ module parallel_block_mpi_mod
   public :: prepare_block_native_wavelet_compression
   public :: activate_block_native_wavelet_compression
   public :: activate_block_native_inverse_transform
+  public :: prepare_block_native_inverse_boundaries
   public :: refresh_parallel_block_domain_prognostic_state
   public :: advance_block_domain_trend_euler
   public :: capture_block_domain_multistage_candidate_tendency
@@ -10855,7 +10862,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine refresh_parallel_block_candidate_boundary_state ( &
-       domain_sol,stage,stage_count)
+       domain_sol,stage,stage_count,native_inverse)
     ! Finalize one native provisional transform while retaining the
     ! timestep-start checkpoint required by the low-storage formula. Native
     ! block interiors remain resident; only boundary aliases and ghosts are
@@ -10867,6 +10874,7 @@ end subroutine build_parallel_block_catalog
          domain_sol(1:N_VARIABLE,1:zlevels)
     integer, intent(in) :: stage
     integer, intent(in) :: stage_count
+    logical, optional, intent(in) :: native_inverse
 
     integer :: scalar_ghost_recv_size_before
     integer :: scalar_ghost_send_size_before
@@ -10885,8 +10893,15 @@ end subroutine build_parallel_block_catalog
     logical :: tendency_ready
     logical :: trial_active
     logical :: validate_oracle
+    logical :: native_complete
 
     validate_oracle = block_dynamics_validation_enabled()
+    native_complete=.false.
+    if (present(native_inverse)) native_complete=native_inverse
+    if (native_complete) then
+       if (production_inverse_completed_mode/=1) call fail("provisional inverse completion is missing")
+       production_inverse_completed_mode=0
+    end if
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
        call fail("multistage boundary refresh before state is ready")
@@ -10947,10 +10962,14 @@ end subroutine build_parallel_block_catalog
        call assert_block_domain_field_family_match( &
             BLOCK_PAYLOAD_SOL,domain_sol)
     end if
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,.false.,domain_sol)
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,.true.,domain_sol)
+    if (.not. native_complete) then
+       call import_domain_boundary_field_family_to_blocks( &
+            BLOCK_PAYLOAD_SOL,.false.,domain_sol)
+    end if
+    if (validate_oracle .or. .not. native_complete) then
+       call import_domain_boundary_field_family_to_blocks( &
+            BLOCK_PAYLOAD_SOL,.true.,domain_sol)
+    end if
     call refresh_block_sol_ghosts
 
     hydrostatic_refresh_before = &
@@ -14086,6 +14105,17 @@ end subroutine build_parallel_block_catalog
   end subroutine activate_block_native_wavelet_compression
 
 
+  subroutine prepare_block_native_inverse_boundaries(wavelet,scaling,first_level)
+    type(Float_Field), intent(in) :: wavelet(1:N_VARIABLE,1:zlevels),scaling(1:N_VARIABLE,1:zlevels)
+    integer, intent(in) :: first_level
+    if (production_inverse_completed_mode/=0) call fail("inverse boundary result was not consumed")
+    call block_profile_enter(BLOCK_PROFILE_INVERSE)
+    call block_profile_enter(BLOCK_PROFILE_INVERSE_SETUP)
+    call prepare_native_inverse(block_writeback_plan_generation,scaling,wavelet,first_level,block_profile)
+    call block_profile_leave(BLOCK_PROFILE_INVERSE_SETUP)
+    ! Keep the inclusive inverse timer open through activation below.
+  end subroutine prepare_block_native_inverse_boundaries
+
   subroutine activate_block_native_inverse_transform ( &
        domain_wavelet,domain_scaling,jmin,jmax, &
        refresh_scalar_boundary,refresh_vector_boundary)
@@ -14126,7 +14156,6 @@ end subroutine build_parallel_block_catalog
     type(Block_Scalar_Inverse_Context) :: scalar_statistics
     type(Block_Vector_Inverse_Context) :: vector_statistics
 
-    call block_profile_enter(BLOCK_PROFILE_INVERSE)
     validate_oracle = block_dynamics_validation_enabled()
     state_ready = parallel_block_state_is_ready()
     checkpoint_ready = &
@@ -14155,12 +14184,16 @@ end subroutine build_parallel_block_catalog
     allocation_before = block_writeback_plan_allocation_count()
     writeback_before = block_domain_production_writeback_count()
 
-    ! The caller has made compressed wavelet boundary aliases authoritative.
-    ! Import only those records; compact interiors remain the Stage 134 native
-    ! compression result and compact sol remains the pre-inverse state.
+    ! The caller has completed the native compressed-wavelet alias routes.
+    ! Compact interiors remain the native compression result and compact sol
+    ! remains the pre-inverse state.
     call block_profile_enter(BLOCK_PROFILE_INVERSE_SETUP)
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_WAV_COEFF,.false.,domain_wavelet)
+    ! Boundary wavelets were populated by the native dependency plan before
+    ! the transaction. The legacy fields are now oracle/compatibility only.
+    if (validate_oracle) then
+       call compare_native_inverse(domain_wavelet,1,BLOCK_PAYLOAD_WAV_COEFF)
+       call compare_native_inverse(domain_wavelet,2,BLOCK_PAYLOAD_WAV_COEFF)
+    end if
     call refresh_block_wav_coeff_ghosts
     call block_profile_leave(BLOCK_PROFILE_INVERSE_SETUP)
     call synchronize_block_inverse_scalars( &
@@ -14275,9 +14308,37 @@ end subroutine build_parallel_block_catalog
     end if
 
     call block_profile_enter(BLOCK_PROFILE_INVERSE_INSTALL)
+    call publish_native_inverse(domain_scaling)
+    if (.not. validate_oracle) then
+       call publish_native_inverse(domain_wavelet,BLOCK_PAYLOAD_WAV_COEFF)
+       if (level_start<level_end) domain_wavelet%bdry_uptodate=.true.
+    end if
     call write_block_field_family_to_domains( &
          BLOCK_PAYLOAD_SOL,domain_scaling)
     call block_profile_leave(BLOCK_PROFILE_INVERSE_INSTALL)
+    if (provisional_transform) then
+       ! Complete the all-level boundary contract formerly provided by the
+       ! caller's update_bdry(...,NONE) and subsequent Domain re-import.
+       call block_profile_enter(BLOCK_PROFILE_INVERSE_BOUNDARY)
+       call native_inverse_gather(1,BLOCK_PAYLOAD_SOL)
+       call native_inverse_gather(2,BLOCK_PAYLOAD_SOL)
+       call native_inverse_boundary(1,BLOCK_PAYLOAD_SOL,level_start-1,level_end)
+       call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,level_start-1,level_end)
+       if (validate_oracle) then
+          call block_profile_enter(BLOCK_PROFILE_ORACLE)
+          call refresh_scalar_boundary(domain_scaling,-1)
+          call refresh_vector_boundary(domain_scaling,-1)
+          call compare_native_inverse(domain_scaling,1)
+          call compare_native_inverse(domain_scaling,2)
+          call block_profile_leave(BLOCK_PROFILE_ORACLE)
+       else
+          call publish_native_inverse(domain_scaling)
+       end if
+       call native_inverse_scatter(1,BLOCK_PAYLOAD_SOL,.false.)
+       call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.false.)
+       domain_scaling%bdry_uptodate=.true.
+       call block_profile_leave(BLOCK_PROFILE_INVERSE_BOUNDARY)
+    end if
     if (validate_oracle) then
        call block_profile_enter(BLOCK_PROFILE_ORACLE)
        call assert_block_domain_field_family_match( &
@@ -14289,17 +14350,25 @@ end subroutine build_parallel_block_catalog
        call fail("native inverse reallocated persistent transport")
     end if
     if (block_domain_production_writeback_count() /= writeback_before+ &
-         int(4*(jmax-jmin)+2,int64)) then
+         int(merge(4*(jmax-jmin)+2,1,validate_oracle),int64)) then
        call fail("native inverse writeback sequence is invalid")
     end if
     if (provisional_transform) then
        production_multistage_native_transform_writeback_count = &
             production_multistage_native_transform_writeback_count + &
-            int(4*(jmax-jmin)+4,int64)
+            block_domain_production_writeback_count()-writeback_before+2_int64
        production_complete_vector_wavelet_validated = .false.
        production_native_wavelet_output_activated = .false.
     end if
     production_block_inverse_active = .false.
+    production_inverse_completed_mode=merge(1,2,provisional_transform)
+
+    if (block_profile) then
+       block_profile_seconds(49:51)=block_profile_seconds(49:51)+native_inverse_seconds
+       block_profile_calls(49:51)=block_profile_calls(49:51)+native_inverse_calls
+       block_profile_messages(49:51)=block_profile_messages(49:51)+native_inverse_messages
+       block_profile_bytes(49:51)=block_profile_bytes(49:51)+native_inverse_bytes
+    end if
 
     call block_profile_leave( &
          BLOCK_PROFILE_INVERSE, &
@@ -14310,9 +14379,8 @@ end subroutine build_parallel_block_catalog
 
   subroutine synchronize_block_inverse_scalars ( &
        domain_scaling,level,refresh_scalar_boundary)
-    ! A deliberately conservative phase boundary for the first production
-    ! scalar inverse: publish compact interiors, refresh the legacy geometric
-    ! boundary, then repopulate compact boundary and ghost records.
+    ! Native sparse dependencies and signed geometric aliases. The Domain
+    ! round trip is executed independently only by the phase oracle.
 
     implicit none
 
@@ -14323,18 +14391,17 @@ end subroutine build_parallel_block_catalog
          refresh_scalar_boundary
 
     call block_profile_enter(BLOCK_PROFILE_INVERSE_BOUNDARY)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_BDRY_WRITEBACK)
-    call write_block_field_family_to_domains( &
-         BLOCK_PAYLOAD_SOL,domain_scaling,BLOCK_WRITEBACK_SCALAR)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_BDRY_WRITEBACK)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_BDRY_CALLBACK)
-    call refresh_scalar_boundary(domain_scaling,level)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_BDRY_CALLBACK)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_BDRY_IMPORT)
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,.false.,domain_scaling, &
-         include_vector=.false.)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_BDRY_IMPORT)
+    if (block_dynamics_validation_enabled()) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call write_block_field_family_to_domains( &
+            BLOCK_PAYLOAD_SOL,domain_scaling,BLOCK_WRITEBACK_SCALAR)
+       call refresh_scalar_boundary(domain_scaling,level)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
+    call native_inverse_gather(1,BLOCK_PAYLOAD_SOL)
+    call native_inverse_boundary(1,BLOCK_PAYLOAD_SOL,level,level)
+    if (block_dynamics_validation_enabled()) call compare_native_inverse(domain_scaling,1)
+    call native_inverse_scatter(1,BLOCK_PAYLOAD_SOL,.false.)
     call block_profile_enter(BLOCK_PROFILE_INVERSE_GHOST)
     call exchange_block_scalar_ghost_payloads( &
          BLOCK_PAYLOAD_SOL,.false.,.false.)
@@ -14346,8 +14413,7 @@ end subroutine build_parallel_block_catalog
 
   subroutine synchronize_block_inverse_vectors ( &
        domain_scaling,level,refresh_vector_boundary)
-    ! Publish regular vector reconstruction, refresh the Domain boundary,
-    ! then repopulate compact boundary and ghost storage.
+    ! Complete the inner-vector phase without a production Domain bridge.
 
     implicit none
 
@@ -14358,18 +14424,17 @@ end subroutine build_parallel_block_catalog
          refresh_vector_boundary
 
     call block_profile_enter(BLOCK_PROFILE_INVERSE_BOUNDARY)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_BDRY_WRITEBACK)
-    call write_block_field_family_to_domains( &
-         BLOCK_PAYLOAD_SOL,domain_scaling,BLOCK_WRITEBACK_VECTOR)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_BDRY_WRITEBACK)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_BDRY_CALLBACK)
-    call refresh_vector_boundary(domain_scaling,level)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_BDRY_CALLBACK)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_BDRY_IMPORT)
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,.false.,domain_scaling, &
-         include_scalar=.false.)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_BDRY_IMPORT)
+    if (block_dynamics_validation_enabled()) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call write_block_field_family_to_domains( &
+            BLOCK_PAYLOAD_SOL,domain_scaling,BLOCK_WRITEBACK_VECTOR)
+       call refresh_vector_boundary(domain_scaling,level)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
+    call native_inverse_gather(2,BLOCK_PAYLOAD_SOL)
+    call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,level,level)
+    if (block_dynamics_validation_enabled()) call compare_native_inverse(domain_scaling,2)
+    call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.false.)
     call block_profile_enter(BLOCK_PROFILE_INVERSE_GHOST)
     call exchange_block_vector_ghost_payloads( &
          BLOCK_PAYLOAD_SOL,.false.,.false.)
@@ -14730,9 +14795,8 @@ end subroutine build_parallel_block_catalog
   subroutine synchronize_block_inverse_outer_vectors ( &
        domain_wavelet,domain_scaling,coarse_level,fine_level, &
        refresh_vector_boundary,outer_count,preserve_checkpoint)
-    ! Publish compact interiors and apply the signed Domain boundary routing
-    ! before the block-owned outer/pentagon arithmetic. Domain storage is a
-    ! transition transport here, not the legacy reconstruction implementation.
+    ! Sparse native outer/pentagon tape between native boundary phases.
+    ! No production full-interior writeback or re-import is performed.
 
     implicit none
 
@@ -14746,35 +14810,35 @@ end subroutine build_parallel_block_catalog
     logical, intent(in) :: preserve_checkpoint
     procedure(Block_Inverse_Scalar_Boundary_Handler) :: &
          refresh_vector_boundary
+    integer(int64) :: reference_count(4)
 
     call block_profile_enter(BLOCK_PROFILE_INVERSE_BOUNDARY)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_BDRY_WRITEBACK)
-    call write_block_field_family_to_domains( &
-         BLOCK_PAYLOAD_SOL,domain_scaling,BLOCK_WRITEBACK_VECTOR)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_BDRY_WRITEBACK)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_BDRY_CALLBACK)
-    call refresh_vector_boundary(domain_scaling,coarse_level)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_BDRY_CALLBACK)
+    if (block_dynamics_validation_enabled()) then
+       call block_profile_enter(BLOCK_PROFILE_ORACLE)
+       call write_block_field_family_to_domains( &
+            BLOCK_PAYLOAD_SOL,domain_scaling,BLOCK_WRITEBACK_VECTOR)
+       call refresh_vector_boundary(domain_scaling,coarse_level)
+       call reconstruct_native_inverse_outer_vectors( &
+            domain_wavelet,domain_scaling,coarse_level,reference_count)
+       call refresh_vector_boundary(domain_scaling,fine_level)
+       call block_profile_leave(BLOCK_PROFILE_ORACLE)
+    end if
+    call native_inverse_gather(2,BLOCK_PAYLOAD_SOL)
+    call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,coarse_level,coarse_level)
     call block_profile_leave(BLOCK_PROFILE_INVERSE_BOUNDARY)
 
     call block_profile_enter(BLOCK_PROFILE_INVERSE_KERNEL)
-    call reconstruct_native_inverse_outer_vectors( &
-         domain_wavelet,domain_scaling,coarse_level,outer_count)
+    call native_inverse_outer(coarse_level,outer_count)
     call block_profile_leave(BLOCK_PROFILE_INVERSE_KERNEL)
 
     call block_profile_enter(BLOCK_PROFILE_INVERSE_BOUNDARY)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_BDRY_CALLBACK)
-    call refresh_vector_boundary(domain_scaling,fine_level)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_BDRY_CALLBACK)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_FULL_IMPORT)
-    call import_domain_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,domain_scaling,preserve_checkpoint)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_FULL_IMPORT)
-    call block_profile_enter(BLOCK_PROFILE_INVERSE_BDRY_IMPORT)
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,.false.,domain_scaling, &
-         include_scalar=.false.)
-    call block_profile_leave(BLOCK_PROFILE_INVERSE_BDRY_IMPORT)
+    call native_inverse_boundary(2,BLOCK_PAYLOAD_SOL,fine_level,fine_level)
+    if (block_dynamics_validation_enabled()) then
+       if (any(outer_count/=reference_count)) call fail("native outer tape coverage differs")
+       call compare_native_inverse(domain_scaling,2)
+    end if
+    call native_inverse_scatter(2,BLOCK_PAYLOAD_SOL,.true.)
+    if (.not. preserve_checkpoint) call invalidate_local_block_tendency_products
     call block_profile_enter(BLOCK_PROFILE_INVERSE_GHOST)
     call exchange_block_vector_ghost_payloads( &
          BLOCK_PAYLOAD_SOL,.false.,.false.)
@@ -26942,12 +27006,14 @@ end subroutine build_parallel_block_catalog
   end subroutine assert_candidate_block_tendency_payload_match
 
 
-  subroutine refresh_parallel_block_domain_prognostic_state
-    ! Refresh complete sol and wav_coeff interiors, compact boundaries,
-    ! and inter-block ghosts from the authoritative Domain representation
-    ! after its wavelet transform. Persistent allocations are retained.
+  subroutine refresh_parallel_block_domain_prognostic_state(native_inverse)
+    ! Close a native transform without re-importing its resident fields, or
+    ! refresh from Domain after an explicitly legacy consumer (default path).
+    ! Both paths refresh ghosts and invalidate derived products explicitly.
 
     implicit none
+
+    logical, optional, intent(in) :: native_inverse
 
     integer :: scalar_ghost_recv_size_before
     integer :: scalar_ghost_send_size_before
@@ -26963,6 +27029,14 @@ end subroutine build_parallel_block_catalog
     logical :: state_ready
     logical :: tendency_ready
     logical :: validate_oracle
+    logical :: native_complete
+
+    native_complete=.false.
+    if (present(native_inverse)) native_complete=native_inverse
+    if (native_complete) then
+       if (production_inverse_completed_mode/=2) call fail("final inverse completion is missing")
+       production_inverse_completed_mode=0
+    end if
 
     state_ready = parallel_block_state_is_ready()
     if (.not. state_ready) then
@@ -26983,8 +27057,13 @@ end subroutine build_parallel_block_catalog
     vector_ghost_recv_size_before = &
          size(ghost_exchange_plan%vector_recv_buffer)
 
-    call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_SOL)
-    call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_WAV_COEFF)
+    if (native_complete) then
+       call invalidate_local_block_tendency_products
+       call invalidate_local_block_hydrostatic_state
+    else
+       call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_SOL)
+       call import_domain_field_family_to_blocks(BLOCK_PAYLOAD_WAV_COEFF)
+    end if
     validate_oracle = block_dynamics_validation_enabled()
     if (validate_oracle) then
        call block_profile_enter(BLOCK_PROFILE_ORACLE)
@@ -26994,24 +27073,22 @@ end subroutine build_parallel_block_catalog
        call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
 
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,.false.)
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_WAV_COEFF,.false.)
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_SOL,.true.)
-    call import_domain_boundary_field_family_to_blocks( &
-         BLOCK_PAYLOAD_WAV_COEFF,.true.)
+    if (.not. native_complete) then
+       call import_domain_boundary_field_family_to_blocks(BLOCK_PAYLOAD_SOL,.false.)
+       call import_domain_boundary_field_family_to_blocks(BLOCK_PAYLOAD_WAV_COEFF,.false.)
+    end if
+    if (validate_oracle .or. .not. native_complete) then
+       call import_domain_boundary_field_family_to_blocks(BLOCK_PAYLOAD_SOL,.true.)
+       call import_domain_boundary_field_family_to_blocks(BLOCK_PAYLOAD_WAV_COEFF,.true.)
+    end if
 
     call refresh_block_sol_wav_coeff_ghosts
-    call exchange_block_scalar_ghost_payloads( &
-         BLOCK_PAYLOAD_SOL,.false.,.true.)
-    call exchange_block_vector_ghost_payloads( &
-         BLOCK_PAYLOAD_SOL,.false.,.true.)
-    call exchange_block_scalar_ghost_payloads( &
-         BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
-    call exchange_block_vector_ghost_payloads( &
-         BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
+    if (validate_oracle .or. .not. native_complete) then
+       call exchange_block_scalar_ghost_payloads(BLOCK_PAYLOAD_SOL,.false.,.true.)
+       call exchange_block_vector_ghost_payloads(BLOCK_PAYLOAD_SOL,.false.,.true.)
+       call exchange_block_scalar_ghost_payloads(BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
+       call exchange_block_vector_ghost_payloads(BLOCK_PAYLOAD_WAV_COEFF,.false.,.true.)
+    end if
 
     tendency_ready = local_block_tendency_state_ready()
     accumulator_ready = &

@@ -228,9 +228,8 @@ contains
          activate_block_native_wavelet_compression, &
          activate_native_inverse= &
          activate_block_native_inverse_transform)
-    call update_bdry(scaling,NONE,980)
     call refresh_parallel_block_candidate_boundary_state( &
-         scaling,stage,stage_count)
+         scaling,stage,stage_count,native_inverse=.true.)
 
   end subroutine native_provisional_WT
 
@@ -356,7 +355,7 @@ contains
          activate_native_inverse= &
          activate_block_native_inverse_transform)
     if (block_candidate) then
-       call refresh_parallel_block_domain_prognostic_state
+       call refresh_parallel_block_domain_prognostic_state(native_inverse=.true.)
        call assert_multistage_legacy_tendency_calls( &
             legacy_call_count_before,3,validate_oracle)
     end if
@@ -488,7 +487,7 @@ contains
          activate_native_inverse= &
          activate_block_native_inverse_transform)
     if (block_candidate) then
-       call refresh_parallel_block_domain_prognostic_state
+       call refresh_parallel_block_domain_prognostic_state(native_inverse=.true.)
        call assert_multistage_legacy_tendency_calls( &
             legacy_call_count_before,4,validate_oracle)
     end if

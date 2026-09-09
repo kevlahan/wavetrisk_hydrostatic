@@ -260,6 +260,7 @@ SRC = kind.f90 \
       arch.f90 \
       domain.f90 \
       parallel_block.f90 \
+      parallel_block_inverse.f90 \
       parallel_block_mpi.f90 \
       spline.f90 \
       domain_ops.f90 \
@@ -359,12 +360,14 @@ $(BUILD_DIR)/parallel_block.o: \
 	$(BUILD_DIR)/shared.o \
 	$(BUILD_DIR)/patch.o
 
-$(BUILD_DIR)/parallel_block_mpi.o: \
+$(BUILD_DIR)/parallel_block_inverse.o: \
 	$(BUILD_DIR)/kind.o \
 	$(BUILD_DIR)/shared.o \
 	$(BUILD_DIR)/arch.o \
 	$(BUILD_DIR)/domain.o \
 	$(BUILD_DIR)/parallel_block.o
+
+$(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/parallel_block_inverse.o
 
 $(BUILD_DIR)/ops.o: \
 	$(BUILD_DIR)/parallel_block_mpi.o \
