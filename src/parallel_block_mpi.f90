@@ -666,6 +666,18 @@ module parallel_block_mpi_mod
   integer(int64), save :: block_profile_bytes( &
        BLOCK_PROFILE_PHASE_COUNT) = 0_int64
   integer(int64), save :: block_profile_topology_events(3) = 0_int64
+  ! Stage-local thermodynamic values, never shared with the slow oracle.
+  ! Native storage is reused across blocks; residual storage across patches
+  ! on each geometry owner. Validity is reset before each producer transaction.
+  type :: Thermodynamic_Columns
+     real(dp), allocatable :: exner(:,:),theta(:,:)
+     logical, allocatable :: ready(:)
+  end type Thermodynamic_Columns
+  type(Thermodynamic_Columns), save :: native_columns(3)
+  type(Thermodynamic_Columns), allocatable, save :: residual_columns(:)
+  logical, save :: residual_columns_active=.false.
+  ! For native then residual: columns, Exner lookups, old/new pressure terms.
+  integer(int64), save :: thermodynamic_work(8)=0_int64
   integer, save :: block_profile_depth(BLOCK_PROFILE_PHASE_COUNT) = 0
   real(dp), save :: block_profile_outer_start( &
        BLOCK_PROFILE_PHASE_COUNT) = 0.0_dp
@@ -1850,6 +1862,7 @@ contains
     integer(int64) :: plan_local(12)
     integer(int64) :: plan_sum(12)
     integer(int64) :: topology_max(3)
+    integer(int64) :: thermodynamic_sum(8)
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
     integer(int64) :: weight_local
     integer(int64) :: weight_max
@@ -1900,6 +1913,9 @@ contains
     call MPI_Allreduce(block_profile_topology_events,topology_max,3, &
          MPI_INTEGER8,MPI_MAX,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce profile topology events")
+    call MPI_Allreduce(thermodynamic_work,thermodynamic_sum,8, &
+         MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce thermodynamic work")
 
     ! Per-rank critical-path projections for the architectural go/no-go
     ! decision.  The conservative bridge removes only representation copies;
@@ -2065,6 +2081,10 @@ contains
        write(6,'(a,4(i0,1x))') &
             "  restriction ghost full/dynamic exchanges/values = ", &
             plan_sum(9),plan_sum(10),plan_sum(11),plan_sum(12)
+       write(6,'(a,4(i0,1x))') &
+            "  thermodynamic native: columns lookups old/new pressure terms = ",thermodynamic_sum(1:4)
+       write(6,'(a,4(i0,1x))') &
+            "  thermodynamic residual: columns lookups old/new pressure terms = ",thermodynamic_sum(5:8)
        write(6,'(a,5(i0,1x),/)') &
             "  compatibility writebacks total/output/checkpoint/grid/remap = ", &
             compatibility_max
@@ -2077,6 +2097,7 @@ contains
        block_profile_messages = 0_int64
        block_profile_bytes = 0_int64
        block_profile_topology_events = 0_int64
+       thermodynamic_work = 0_int64
        block_profile_depth = 0
        block_profile_outer_start = 0.0_dp
     end if
@@ -16762,6 +16783,47 @@ end subroutine build_parallel_block_catalog
   end subroutine prepare_block_velocity_compatibility_remainder
 
 
+  subroutine reserve_thermodynamic_columns(columns,nnode)
+    type(Thermodynamic_Columns), intent(inout) :: columns
+    integer, intent(in) :: nnode
+    logical :: resize
+    resize=.true.
+    if (allocated(columns%ready)) then
+       resize=size(columns%ready)<nnode .or. size(columns%exner,1)/=zlevels
+       if (resize) deallocate(columns%ready,columns%exner,columns%theta)
+    end if
+    if (resize) then
+       allocate(columns%ready(max(1,nnode)),columns%exner(zlevels,max(1,nnode)), &
+            columns%theta(zlevels,max(1,nnode)))
+    end if
+    columns%ready=.false.
+  end subroutine reserve_thermodynamic_columns
+
+
+  subroutine compute_thermodynamic_column(rho_dz,rho_theta,exner_column,theta_column,with_theta)
+    ! Preserve the original sum and subtraction order. In particular, do not
+    ! replace lower-0.5*g*mass by (lower+upper)/2 or reuse a restricted Exner.
+    real(dp), intent(in) :: rho_dz(zlevels),rho_theta(zlevels)
+    real(dp), intent(out) :: exner_column(zlevels),theta_column(zlevels)
+    logical, intent(in) :: with_theta
+    real(dp) :: pressure_lower,layer_pressure
+    integer :: k
+    pressure_lower=p_top
+    do k=1,zlevels
+       if (rho_dz(k)<=0.0_dp) call fail("thermodynamic column has nonpositive mass")
+       pressure_lower=pressure_lower+grav_accel*rho_dz(k)
+    end do
+    theta_column=0.0_dp
+    do k=1,zlevels
+       layer_pressure=pressure_lower-0.5_dp*grav_accel*rho_dz(k)
+       if (layer_pressure<=0.0_dp) call fail("thermodynamic column has nonpositive pressure")
+       exner_column(k)=c_p*(layer_pressure/p_0)**kappa
+       if (with_theta) theta_column(k)=rho_theta(k)/rho_dz(k)
+       if (k<zlevels) pressure_lower=pressure_lower-grav_accel*rho_dz(k)
+    end do
+  end subroutine compute_thermodynamic_column
+
+
   subroutine refresh_candidate_block_velocity_remainder ( &
        domain_sol,compatibility_remainder)
     ! Install the Domain-authoritative non-Exner velocity residual in
@@ -16790,6 +16852,17 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: allocation_before
 
     n_local = n_local_blocks()
+    if (residual_columns_active) call fail("nested thermodynamic residual transaction")
+    if (compatibility_remainder) then
+       if (allocated(residual_columns)) then
+          if (size(residual_columns)/=size(grid)) deallocate(residual_columns)
+       end if
+       if (.not. allocated(residual_columns)) allocate(residual_columns(size(grid)))
+       do d=1,size(grid)
+          call reserve_thermodynamic_columns(residual_columns(d),grid(d)%node%length)
+       end do
+       residual_columns_active=.true.
+    end if
     allocation_before = block_velocity_remainder_allocations
     call prepare_velocity_remainder_storage(n_local)
     if (.not. allocated(ghost_exchange_plan%scalar_patch_buffer) .or. &
@@ -16882,6 +16955,7 @@ end subroutine build_parallel_block_catalog
     if (block_velocity_remainder_allocations /= allocation_after) then
        call fail("velocity-residual storage was not reusable")
     end if
+    residual_columns_active=.false.
 
   contains
 
@@ -28323,7 +28397,7 @@ end subroutine build_parallel_block_catalog
        scalar_pos = scalar_pos + n_scalar_patch
        call pack_domain_patch_velocity_recomposition( &
             d,p,vector_payload( &
-            vector_pos:vector_pos+n_vector_patch-1),domain_sol,.false.)
+            vector_pos:vector_pos+n_vector_patch-1),domain_sol,.false.,cached_columns=.true.)
        vector_pos = vector_pos + n_vector_patch
        return
     end if
@@ -28647,7 +28721,7 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine pack_domain_patch_velocity_recomposition ( &
-       d,p,velocity_value,domain_sol,recompose)
+       d,p,velocity_value,domain_sol,recompose,cached_columns)
     ! Form the authoritative non-Exner residual as trend plus the complete
     ! Exner term. Optionally apply the matching subtraction to provide an
     ! independent Domain reference for the rejected block recomposition.
@@ -28660,6 +28734,7 @@ end subroutine build_parallel_block_catalog
     type(Float_Field), intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
     logical, intent(in) :: recompose
+    logical, optional, intent(in) :: cached_columns
 
     integer :: field_level
     integer :: first_field_level
@@ -28691,7 +28766,7 @@ end subroutine build_parallel_block_catalog
     end if
 
     call pack_domain_patch_exner_difference( &
-         d,p,velocity_value,domain_sol,.true.,.true.)
+         d,p,velocity_value,domain_sol,.true.,.true.,cached_columns)
     source_base = EDGE*grid(d)%patch%elts(p+1)%elts_start
     do level_slot = 1,n_field_level
        field_level = first_field_level + level_slot - 1
@@ -28877,7 +28952,7 @@ end subroutine build_parallel_block_catalog
 
   subroutine pack_domain_patch_exner_difference ( &
        d,p,exner_difference,domain_sol,thermodynamic_product, &
-       metric_division)
+       metric_division,cached_columns)
     ! Independently reconstruct the signed dynamic-Exner differences that
     ! form the numerator of gradi_e(exner) on each physical edge.
 
@@ -28890,6 +28965,7 @@ end subroutine build_parallel_block_catalog
          domain_sol(1:N_VARIABLE,1:zlevels)
     logical, optional, intent(in) :: thermodynamic_product
     logical, optional, intent(in) :: metric_division
+    logical, optional, intent(in) :: cached_columns
 
     integer :: component_slot
     integer :: dims(2,N_BDRY+1)
@@ -28923,8 +28999,15 @@ end subroutine build_parallel_block_catalog
 
     logical :: apply_theta
     logical :: apply_metric
+    logical :: use_columns,validate_columns
 
     apply_theta = .false.
+    use_columns=.false.
+    if (present(cached_columns)) use_columns=cached_columns
+    validate_columns=block_dynamics_validation_enabled()
+    if (use_columns) then
+       if (.not. residual_columns_active) call fail("thermodynamic residual transaction is absent")
+    end if
     if (present(thermodynamic_product)) then
        apply_theta = thermodynamic_product
     end if
@@ -28971,12 +29054,12 @@ end subroutine build_parallel_block_catalog
              id_northeast = idx(i+1,j+1,offs,dims)
              id_north = idx(i,j+1,offs,dims)
 
-             exner_center = domain_dynamic_exner( &
+             exner_center = domain_exner_value( &
                   id_center,field_level)
-             exner_east = domain_dynamic_exner(id_east,field_level)
-             exner_northeast = domain_dynamic_exner( &
+             exner_east = domain_exner_value(id_east,field_level)
+             exner_northeast = domain_exner_value( &
                   id_northeast,field_level)
-             exner_north = domain_dynamic_exner(id_north,field_level)
+             exner_north = domain_exner_value(id_north,field_level)
 
              exner_difference(output_base+EDGE*q+RT+1) = &
                   exner_east-exner_center
@@ -28985,13 +29068,13 @@ end subroutine build_parallel_block_catalog
              exner_difference(output_base+EDGE*q+UP+1) = &
                   exner_north-exner_center
              if (apply_theta) then
-                theta_center = domain_potential_temperature( &
+                theta_center = domain_theta_value( &
                      id_center,field_level)
-                theta_east = domain_potential_temperature( &
+                theta_east = domain_theta_value( &
                      id_east,field_level)
-                theta_northeast = domain_potential_temperature( &
+                theta_northeast = domain_theta_value( &
                      id_northeast,field_level)
-                theta_north = domain_potential_temperature( &
+                theta_north = domain_theta_value( &
                      id_north,field_level)
                 exner_difference(output_base+EDGE*q+RT+1) = &
                      exner_difference(output_base+EDGE*q+RT+1)* &
@@ -29023,6 +29106,58 @@ end subroutine build_parallel_block_catalog
     end do
 
   contains
+
+    real(dp) function domain_exner_value(node,k) result(value)
+      integer, intent(in) :: node,k
+      if (.not. use_columns) then
+         value=domain_dynamic_exner(node,k)
+         return
+      end if
+      call prepare_column(node)
+      value=residual_columns(d)%exner(k,node+1)
+      if (block_profile) then
+         thermodynamic_work(6)=thermodynamic_work(6)+1_int64
+         thermodynamic_work(7)=thermodynamic_work(7)+int(zlevels+k-1,int64)
+      end if
+    end function domain_exner_value
+
+    real(dp) function domain_theta_value(node,k) result(value)
+      integer, intent(in) :: node,k
+      if (use_columns) then
+         value=residual_columns(d)%theta(k,node+1)
+      else
+         value=domain_potential_temperature(node,k)
+      end if
+    end function domain_theta_value
+
+    subroutine prepare_column(node)
+      integer, intent(in) :: node
+      integer :: k
+      real(dp) :: rho_dz(zlevels),rho_theta(zlevels),reference
+      if (node<0 .or. node>=size(residual_columns(d)%ready)) call fail("residual column node is invalid")
+      if (residual_columns(d)%ready(node+1)) return
+      do k=1,zlevels
+         rho_dz(k)=domain_scalar_total(S_MASS,node,k)
+         rho_theta(k)=domain_scalar_total(S_TEMP,node,k)
+      end do
+      call compute_thermodynamic_column(rho_dz,rho_theta,residual_columns(d)%exner(:,node+1), &
+           residual_columns(d)%theta(:,node+1),.true.)
+      if (validate_columns) then
+         do k=1,zlevels
+            reference=domain_dynamic_exner(node,k)
+            if (transfer(reference,0_int64)/=transfer(residual_columns(d)%exner(k,node+1),0_int64)) &
+                 call fail("residual cached Exner differs from original column calculation")
+            reference=domain_potential_temperature(node,k)
+            if (transfer(reference,0_int64)/=transfer(residual_columns(d)%theta(k,node+1),0_int64)) &
+                 call fail("residual cached theta differs from original column calculation")
+         end do
+      end if
+      residual_columns(d)%ready(node+1)=.true.
+      if (block_profile) then
+         thermodynamic_work(5)=thermodynamic_work(5)+1_int64
+         thermodynamic_work(8)=thermodynamic_work(8)+int(2*zlevels-1,int64)
+      end if
+    end subroutine prepare_column
 
     real(dp) function domain_dynamic_exner (node,field_level) &
          result(exner_value)
@@ -31984,6 +32119,8 @@ end subroutine build_parallel_block_catalog
     real(dp) :: theta_center
     real(dp) :: theta_neighbor
 
+    logical :: column_theta,column_oracle
+
     if (catalog_index < 1) then
        call fail("Exner-difference kernel catalogue index is invalid")
     end if
@@ -32014,6 +32151,11 @@ end subroutine build_parallel_block_catalog
     end if
     select type (statistics => context)
     type is (Block_Exner_Difference_Kernel_Context)
+       column_theta=statistics%thermodynamic_product
+       column_oracle=statistics%validate_oracle
+       call reserve_thermodynamic_columns(native_columns(STORE_PATCH),size(block%node))
+       call reserve_thermodynamic_columns(native_columns(STORE_BDRY),size(block%bdry_node))
+       call reserve_thermodynamic_columns(native_columns(STORE_GHOST),size(block%ghost_node))
        statistics%block_count = statistics%block_count + 1_int64
        local_index = 0
        if (statistics%metric_division) then
@@ -32179,9 +32321,9 @@ end subroutine build_parallel_block_catalog
                         block_writeback_plan%vector_patch_nvalue + &
                         (level_slot-1)*EDGE*PATCH_SIZE**2 + &
                         EDGE*q + component_slot
-                   exner_center = block_dynamic_exner( &
+                   exner_center = block_column_exner( &
                         STORE_PATCH,center_node,field_level)
-                   exner_neighbor = block_dynamic_exner( &
+                   exner_neighbor = block_column_exner( &
                         neighbor_storage,neighbor_node,field_level)
                    select case (component_slot-1)
                    case (RT,UP)
@@ -32202,12 +32344,8 @@ end subroutine build_parallel_block_catalog
                          call fail( &
                               "thermodynamic-gradient kernel has bad mass")
                       end if
-                      theta_center = block_scalar_total( &
-                           temperature_slot,STORE_PATCH,center_node, &
-                           field_level)/mass_center
-                      theta_neighbor = block_scalar_total( &
-                           temperature_slot,neighbor_storage,neighbor_node, &
-                           field_level)/mass_neighbor
+                      theta_center = native_columns(STORE_PATCH)%theta(field_level,center_node+1)
+                      theta_neighbor = native_columns(neighbor_storage)%theta(field_level,neighbor_node+1)
                       difference = difference* &
                            (0.5_dp*(theta_center+theta_neighbor))
                    end if
@@ -32334,6 +32472,50 @@ end subroutine build_parallel_block_catalog
 
     end subroutine set_direct_neighbor
 
+
+    real(dp) function block_column_exner(storage_class,node,k) result(value)
+      integer, intent(in) :: storage_class,node,k
+      call prepare_column(storage_class,node)
+      value=native_columns(storage_class)%exner(k,node+1)
+      if (block_profile) then
+         thermodynamic_work(2)=thermodynamic_work(2)+1_int64
+         thermodynamic_work(3)=thermodynamic_work(3)+int(zlevels+k-1,int64)
+      end if
+    end function block_column_exner
+
+    subroutine prepare_column(storage_class,node)
+      integer, intent(in) :: storage_class,node
+      integer :: k
+      real(dp) :: rho_dz(zlevels),rho_theta(zlevels),reference
+      if (storage_class<1 .or. storage_class>3) call fail("native thermodynamic storage class is invalid")
+      if (node<0 .or. node>=size(native_columns(storage_class)%ready)) call fail("native thermodynamic node is invalid")
+      if (native_columns(storage_class)%ready(node+1)) return
+      rho_theta=0.0_dp
+      do k=1,zlevels
+         rho_dz(k)=block_scalar_total(mass_slot,storage_class,node,k)
+         if (column_theta) rho_theta(k)=block_scalar_total(temperature_slot,storage_class,node,k)
+      end do
+      call compute_thermodynamic_column(rho_dz,rho_theta,native_columns(storage_class)%exner(:,node+1), &
+           native_columns(storage_class)%theta(:,node+1),column_theta)
+      if (column_oracle) then
+         do k=1,zlevels
+            reference=block_dynamic_exner(storage_class,node,k)
+            if (transfer(reference,0_int64)/=transfer(native_columns(storage_class)%exner(k,node+1),0_int64)) &
+                 call fail("native cached Exner differs from original column calculation")
+            if (column_theta) then
+               reference=block_scalar_total(temperature_slot,storage_class,node,k)/ &
+                    block_scalar_total(mass_slot,storage_class,node,k)
+               if (transfer(reference,0_int64)/=transfer(native_columns(storage_class)%theta(k,node+1),0_int64)) &
+                    call fail("native cached theta differs from original column calculation")
+            end if
+         end do
+      end if
+      native_columns(storage_class)%ready(node+1)=.true.
+      if (block_profile) then
+         thermodynamic_work(1)=thermodynamic_work(1)+1_int64
+         thermodynamic_work(4)=thermodynamic_work(4)+int(2*zlevels-1,int64)
+      end if
+    end subroutine prepare_column
 
     real(dp) function block_dynamic_exner ( &
          storage_class,node,field_level) result(exner_value)
