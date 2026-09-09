@@ -142,6 +142,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_PAYLOAD_PHYSICAL_COMPONENTS = 11
   integer, parameter :: BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY = 12
   integer, parameter :: BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS = 13
+  integer, parameter :: BLOCK_PAYLOAD_COMPATIBILITY_TREND = 14
   integer, parameter :: BLOCK_VELOCITY_SOURCE_RECORD_COUNT = 7
   integer, parameter :: BLOCK_WRITEBACK_BOTH = 0
   integer, parameter :: BLOCK_WRITEBACK_SCALAR = 1
@@ -677,7 +678,8 @@ module parallel_block_mpi_mod
   type(Thermodynamic_Columns), allocatable, save :: residual_columns(:)
   logical, save :: residual_columns_active=.false.
   ! For native then residual: columns, Exner lookups, old/new pressure terms.
-  integer(int64), save :: thermodynamic_work(8)=0_int64
+  ! Followed by raw velocity values, native residuals and exact oracle checks.
+  integer(int64), save :: thermodynamic_work(11)=0_int64
   integer, save :: block_profile_depth(BLOCK_PROFILE_PHASE_COUNT) = 0
   real(dp), save :: block_profile_outer_start( &
        BLOCK_PROFILE_PHASE_COUNT) = 0.0_dp
@@ -742,7 +744,10 @@ module parallel_block_mpi_mod
      integer :: catalog_index = 0
      integer :: installed_patch_count = 0
      logical :: ready = .false.
+     logical :: raw_trend = .false.
+     logical :: reference_ready = .false.
      real(dp), allocatable :: patch(:)
+     real(dp), allocatable :: reference(:)
   end type Block_Velocity_Remainder_Storage
 
   type(Block_Velocity_Remainder_Storage), allocatable, save :: &
@@ -1862,7 +1867,7 @@ contains
     integer(int64) :: plan_local(12)
     integer(int64) :: plan_sum(12)
     integer(int64) :: topology_max(3)
-    integer(int64) :: thermodynamic_sum(8)
+    integer(int64) :: thermodynamic_sum(11)
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
     integer(int64) :: weight_local
     integer(int64) :: weight_max
@@ -1913,7 +1918,7 @@ contains
     call MPI_Allreduce(block_profile_topology_events,topology_max,3, &
          MPI_INTEGER8,MPI_MAX,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce profile topology events")
-    call MPI_Allreduce(thermodynamic_work,thermodynamic_sum,8, &
+    call MPI_Allreduce(thermodynamic_work,thermodynamic_sum,11, &
          MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce thermodynamic work")
 
@@ -2085,6 +2090,8 @@ contains
             "  thermodynamic native: columns lookups old/new pressure terms = ",thermodynamic_sum(1:4)
        write(6,'(a,4(i0,1x))') &
             "  thermodynamic residual: columns lookups old/new pressure terms = ",thermodynamic_sum(5:8)
+       write(6,'(a,3(i0,1x))') &
+            "  native velocity residual: raw values formed oracle-checked = ",thermodynamic_sum(9:11)
        write(6,'(a,5(i0,1x),/)') &
             "  compatibility writebacks total/output/checkpoint/grid/remap = ", &
             compatibility_max
@@ -9795,12 +9802,14 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
          payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
          payload_family /= BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_TREND .and. &
          payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS .and. &
          payload_family /= &
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
        call fail("invalid Domain-to-block payload family")
     end if
     if (transfer_vector_only .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_TREND .and. &
          payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS) then
        call fail("vector-only Domain-to-block payload family is invalid")
     end if
@@ -16300,9 +16309,13 @@ end subroutine build_parallel_block_catalog
          .not. use_compatibility_remainder) then
        call fail("retained velocity remainder mode is inconsistent")
     end if
-    if (.not. use_retained_compatibility_remainder) &
-         call refresh_candidate_block_velocity_remainder( &
-         domain_sol,use_compatibility_remainder)
+    if (.not. use_retained_compatibility_remainder) then
+       if (use_compatibility_remainder) then
+          call prepare_block_velocity_compatibility_remainder(domain_sol)
+       else
+          call refresh_candidate_block_velocity_remainder(domain_sol,.false.)
+       end if
+    end if
     if (.not. block_scalar_divergence_plan%ready) then
        call fail("block-native scalar divergence input is not ready")
     end if
@@ -16770,9 +16783,9 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine prepare_block_velocity_compatibility_remainder (domain_sol)
-    ! Retain the production-only non-Exner velocity input before an oracle
-    ! evaluation overwrites Domain trend.  The subsequent native kernel then
-    ! uses exactly the same input in production and validation builds.
+    ! Snapshot raw compatibility trend before the full oracle overwrites it.
+    ! Only the oracle constructs the old Domain thermodynamic residual. The
+    ! native kernel forms the production residual from its own Exner term.
 
     implicit none
 
@@ -16780,6 +16793,8 @@ end subroutine build_parallel_block_catalog
          domain_sol(1:N_VARIABLE,1:zlevels)
 
     call refresh_candidate_block_velocity_remainder(domain_sol,.true.)
+    if (block_dynamics_validation_enabled()) &
+         call refresh_candidate_block_velocity_remainder(domain_sol,.true.,reference_only=.true.)
   end subroutine prepare_block_velocity_compatibility_remainder
 
 
@@ -16825,16 +16840,18 @@ end subroutine build_parallel_block_catalog
 
 
   subroutine refresh_candidate_block_velocity_remainder ( &
-       domain_sol,compatibility_remainder)
-    ! Install the Domain-authoritative non-Exner velocity residual in
-    ! persistent final-owner block storage. It is consumed read-only by the
-    ! rejected complete-velocity kernel.
+       domain_sol,compatibility_remainder,reference_only)
+    ! Production transfers raw trend. An optional oracle transaction retains
+    ! the Stage 173 residual independently, without overwriting raw inputs.
 
     implicit none
 
     type(Float_Field), intent(in) :: &
          domain_sol(1:N_VARIABLE,1:zlevels)
     logical, intent(in) :: compatibility_remainder
+    logical, optional, intent(in) :: reference_only
+    logical :: reference_transaction
+    integer :: payload_family
 
     integer :: b
     integer :: d
@@ -16852,8 +16869,19 @@ end subroutine build_parallel_block_catalog
     integer(int64) :: allocation_before
 
     n_local = n_local_blocks()
+    reference_transaction=.false.
+    if (present(reference_only)) reference_transaction=reference_only
+    payload_family=BLOCK_PAYLOAD_PHYSICAL_COMPONENTS
+    if (compatibility_remainder) payload_family=BLOCK_PAYLOAD_COMPATIBILITY_TREND
+    if (reference_transaction) then
+       if (.not. compatibility_remainder) &
+            call fail("velocity residual reference requires compatibility inputs")
+       if (.not. block_dynamics_validation_enabled()) &
+            call fail("velocity residual reference transaction requires the oracle")
+       payload_family=BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS
+    end if
     if (residual_columns_active) call fail("nested thermodynamic residual transaction")
-    if (compatibility_remainder) then
+    if (reference_transaction) then
        if (allocated(residual_columns)) then
           if (size(residual_columns)/=size(grid)) deallocate(residual_columns)
        end if
@@ -16869,19 +16897,21 @@ end subroutine build_parallel_block_catalog
          .not. allocated(ghost_exchange_plan%vector_patch_buffer)) then
        call fail("velocity-residual retained patch buffers are absent")
     end if
-    if (compatibility_remainder) then
-       call exchange_domain_to_block_payloads( &
-            BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS, &
-            domain_sol=domain_sol,vector_only=.true.)
-    else
-       call exchange_domain_to_block_payloads( &
-            BLOCK_PAYLOAD_PHYSICAL_COMPONENTS,domain_sol=domain_sol)
-    end if
+    call exchange_domain_to_block_payloads(payload_family, &
+         domain_sol=domain_sol,vector_only=compatibility_remainder)
 
     do local_index = 1,n_local
-       block_velocity_remainder(local_index)%ready = .false.
        block_velocity_remainder(local_index)%installed_patch_count = 0
-       block_velocity_remainder(local_index)%patch = 0.0_dp
+       block_velocity_remainder(local_index)%reference_ready = .false.
+       if (reference_transaction) then
+          if (.not. block_velocity_remainder(local_index)%ready .or. &
+               .not. block_velocity_remainder(local_index)%raw_trend) &
+               call fail("velocity residual reference has no raw input")
+       else
+          block_velocity_remainder(local_index)%ready = .false.
+          block_velocity_remainder(local_index)%raw_trend = compatibility_remainder
+          block_velocity_remainder(local_index)%patch = 0.0_dp
+       end if
     end do
 
     do local_index = 1,n_local
@@ -16944,7 +16974,11 @@ end subroutine build_parallel_block_catalog
             n_patch) then
           call fail("velocity-residual installation coverage differs")
        end if
-       block_velocity_remainder(local_index)%ready = .true.
+       if (reference_transaction) then
+          block_velocity_remainder(local_index)%reference_ready = .true.
+       else
+          block_velocity_remainder(local_index)%ready = .true.
+       end if
     end do
 
     allocation_after = block_velocity_remainder_allocations
@@ -16997,6 +17031,16 @@ end subroutine build_parallel_block_catalog
             block_velocity_remainder_allocations = &
                  block_velocity_remainder_allocations + 1_int64
          end if
+         if (reference_transaction) then
+            if (allocated(block_velocity_remainder(index)%reference)) then
+               if (size(block_velocity_remainder(index)%reference)/=count) &
+                    deallocate(block_velocity_remainder(index)%reference)
+            end if
+            if (.not. allocated(block_velocity_remainder(index)%reference)) then
+               allocate(block_velocity_remainder(index)%reference(count))
+               block_velocity_remainder_allocations=block_velocity_remainder_allocations+1_int64
+            end if
+         end if
          block_velocity_remainder(index)%catalog_index = catalog_index
       end do
 
@@ -17031,8 +17075,11 @@ end subroutine build_parallel_block_catalog
            size(block_velocity_remainder(index)%patch)) then
          call fail("velocity-residual storage extent is invalid")
       end if
-      block_velocity_remainder(index)%patch( &
-           first:first+size(value)-1) = value
+      if (reference_transaction) then
+         block_velocity_remainder(index)%reference(first:first+size(value)-1) = value
+      else
+         block_velocity_remainder(index)%patch(first:first+size(value)-1) = value
+      end if
       block_velocity_remainder(index)%installed_patch_count = &
            block_velocity_remainder(index)%installed_patch_count + 1
 
@@ -17062,8 +17109,7 @@ end subroutine build_parallel_block_catalog
       scalar_pos = 1
       vector_pos = 1
       call pack_domain_patch_prognostic( &
-           d,p,merge(BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS, &
-           BLOCK_PAYLOAD_PHYSICAL_COMPONENTS,compatibility_remainder), &
+           d,p,payload_family, &
            ghost_exchange_plan%scalar_patch_buffer,scalar_pos, &
            ghost_exchange_plan%vector_patch_buffer,vector_pos,domain_sol)
       if (scalar_pos /= &
@@ -28373,6 +28419,7 @@ end subroutine build_parallel_block_catalog
          payload_family /= BLOCK_PAYLOAD_VELOCITY_REMAINDER .and. &
          payload_family /= BLOCK_PAYLOAD_COMPLETE_VELOCITY .and. &
          payload_family /= BLOCK_PAYLOAD_PHYSICAL_COMPONENTS .and. &
+         payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_TREND .and. &
          payload_family /= BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS .and. &
          payload_family /= &
          BLOCK_PAYLOAD_COMPLETE_PHYSICAL_TENDENCY) then
@@ -28391,6 +28438,29 @@ end subroutine build_parallel_block_catalog
          vector_pos < 1 .or. &
          vector_pos+n_vector_patch-1 > size(vector_payload)) then
        call fail("Domain writeback record buffer extent is invalid")
+    end if
+
+    if (payload_family == BLOCK_PAYLOAD_COMPATIBILITY_TREND) then
+       ! No Domain thermodynamic reconstruction in production. Retain the
+       ! complete compatibility tendency, including its original gradient.
+       scalar_pos = scalar_pos + n_scalar_patch
+       start = mult_vector*grid(d)%patch%elts(p+1)%elts_start
+       n_value = mult_vector*PATCH_SIZE**2
+       do level_slot=1,n_field_level
+          field_level=first_field_level+level_slot-1
+          if (field_level<1) then
+             vector_payload(vector_pos:vector_pos+n_value-1)=0.0_dp
+          else
+             if (field_level>zlevels) call fail("raw compatibility trend level is invalid")
+             if (start<0 .or. start+n_value>size(trend(v_vector,field_level)%data(d)%elts)) &
+                  call fail("raw compatibility trend extent is invalid")
+             vector_payload(vector_pos:vector_pos+n_value-1)= &
+                  trend(v_vector,field_level)%data(d)%elts(start+1:start+n_value)
+             if (block_profile) thermodynamic_work(9)=thermodynamic_work(9)+int(n_value,int64)
+          end if
+          vector_pos=vector_pos+n_value
+       end do
+       return
     end if
 
     if (payload_family == BLOCK_PAYLOAD_COMPATIBILITY_COMPONENTS) then
@@ -32384,6 +32454,26 @@ end subroutine build_parallel_block_catalog
                       end if
                       remainder_value = block_velocity_remainder( &
                            local_index)%patch(remainder_index)
+                      if (block_velocity_remainder(local_index)%raw_trend) then
+                         ! Preserve the accepted add-then-subtract ordering:
+                         ! do not algebraically replace it by raw trend.
+                         remainder_value = remainder_value+difference
+                         if (block_profile) thermodynamic_work(10)=thermodynamic_work(10)+1_int64
+                         if (statistics%validate_oracle) then
+                            if (.not. block_velocity_remainder(local_index)%reference_ready) &
+                                 call fail("native velocity residual reference is absent")
+                            if (transfer(remainder_value,0_int64)/= &
+                                 transfer(block_velocity_remainder(local_index)%reference(remainder_index),0_int64)) then
+                               write(6,'(a,i0,a,5(i0,1x))') "Rank ",rank, &
+                                    ": native residual block/patch/node/edge/level = ", &
+                                    catalog_index,p,center_node,component_slot,field_level
+                               write(6,'(a,3(es24.16,1x))') "native/reference/Exner term = ",remainder_value, &
+                                    block_velocity_remainder(local_index)%reference(remainder_index),difference
+                               call fail("native velocity residual differs bitwise from Domain reconstruction")
+                            end if
+                            if (block_profile) thermodynamic_work(11)=thermodynamic_work(11)+1_int64
+                         end if
+                      end if
                       difference = remainder_value-difference
                    end if
 
