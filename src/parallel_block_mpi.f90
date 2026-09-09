@@ -791,6 +791,8 @@ module parallel_block_mpi_mod
      real(dp), allocatable :: send_buffer(:)
      real(dp), allocatable :: recv_buffer(:)
      real(dp), allocatable :: deduplicated_buffer(:)
+     ! Producer-native stream; never expanded into per-field oracle records.
+     real(dp), allocatable :: producer_buffer(:)
      logical, allocatable :: recv_covered(:)
      integer(int64) :: generation = -1_int64
      integer(int64) :: allocations = 0_int64
@@ -810,9 +812,11 @@ module parallel_block_mpi_mod
      integer, allocatable :: storage(:)
      integer, allocatable :: sample(:)
      logical, allocatable :: covered(:,:)
+     real(dp), allocatable :: geometry(:,:,:)
   end type Block_Scalar_Capture_Domain_Type
   type(Block_Scalar_Capture_Domain_Type), allocatable, save :: &
        block_scalar_capture_domain(:)
+  integer(int64), save :: scalar_producer_work(3) = 0_int64
 
   ! Signed AT_EDGE keys, not the AT_NODE dscalar provenance. Each level owns
   ! a fixed request/service schedule for native temperature boundary fluxes.
@@ -1875,6 +1879,8 @@ contains
     integer(int64) :: topology_max(3)
     integer(int64) :: thermodynamic_sum(11)
     integer(int64) :: velocity_sum(9)
+    integer(int64) :: producer_sum(5),producer_local(5)
+    integer :: producer_domain
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
     integer(int64) :: weight_local
     integer(int64) :: weight_max
@@ -1930,6 +1936,22 @@ contains
     call check_mpi(ierr,"MPI_Allreduce thermodynamic work")
     call MPI_Allreduce(native_velocity_work,velocity_sum,9,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce native velocity work")
+    producer_local=0_int64
+    producer_local(1:3)=scalar_producer_work
+    if (allocated(block_scalar_divergence_plan%producer_buffer)) then
+       producer_local(4)=int(sum(block_scalar_divergence_plan%send_count),int64)+ &
+            2_int64*int(sum(block_scalar_divergence_plan%recv_count),int64)
+       producer_local(5)=int(size(block_scalar_divergence_plan%send_buffer),int64)+ &
+            int(size(block_scalar_divergence_plan%recv_buffer),int64)+ &
+            int(size(block_scalar_divergence_plan%deduplicated_buffer),int64)+ &
+            int(size(block_scalar_divergence_plan%producer_buffer),int64)
+       do producer_domain=1,size(block_scalar_capture_domain)
+          producer_local(5)=producer_local(5)+int(size(block_scalar_capture_domain(producer_domain)%geometry),int64)
+       end do
+       producer_local(4:5)=producer_local(4:5)*int(storage_size(0.0_dp)/8,int64)
+    end if
+    call MPI_Allreduce(producer_local,producer_sum,5,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce scalar producer work")
 
     ! Per-rank critical-path projections for the architectural go/no-go
     ! decision.  The conservative bridge removes only representation copies;
@@ -2105,6 +2127,10 @@ contains
             "  native velocity: plan builds direct restrictions gradients physics = ",velocity_sum(1:5)
        write(6,'(a,4(i0,1x))') &
             "  native velocity: published RK-values Domain-source Domain-gradient = ",velocity_sum(6:9)
+       write(6,'(a,3(i0,1x))') &
+            "  scalar producer: geometry nodes physics values oracle records = ",producer_sum(1:3)
+       write(6,'(a,2(i0,1x))') &
+            "  scalar producer scratch bytes: old-equivalent current = ",producer_sum(4:5)
        write(6,'(a,5(i0,1x),/)') &
             "  compatibility writebacks total/output/checkpoint/grid/remap = ", &
             compatibility_max
@@ -2119,6 +2145,7 @@ contains
        block_profile_topology_events = 0_int64
        thermodynamic_work = 0_int64
        native_velocity_work = 0_int64
+       scalar_producer_work = 0_int64
        block_profile_depth = 0
        block_profile_outer_start = 0.0_dp
     end if
@@ -17344,14 +17371,10 @@ end subroutine build_parallel_block_catalog
     do index = 1,size(block_scalar_capture_domain)
        block_scalar_capture_domain(index)%covered = .false.
     end do
-    if (.not. block_scalar_divergence_plan%full_transport) then
-       ! The full-layout packing workspace becomes the compact send stream.
-       ! Zero scaffold fields, then let producing patches fill physical fields
-       ! directly; no gather from the 50-value records is needed at finalize.
-       block_scalar_divergence_plan%deduplicated_buffer(1: &
-            BLOCK_SCALAR_PRODUCTION_INPUT_COUNT* &
-            size(block_scalar_divergence_plan%recv_covered)) = 0.0_dp
-    end if
+    ! Seed scaffold physics to zero. Producing patches overwrite physical
+    ! fields directly in the actual wire layout, including rebuild stages.
+    block_scalar_divergence_plan%producer_buffer = 0.0_dp
+    if (block_scalar_divergence_plan%full_transport) call seed_scalar_producer_geometry
 
     call block_profile_leave( &
          BLOCK_PROFILE_RESTRICTION,int(n_local,int64))
@@ -17404,6 +17427,8 @@ end subroutine build_parallel_block_catalog
            block_scalar_divergence_plan%deduplicated_received_block)
       if (allocated(block_scalar_divergence_plan%recv_covered)) &
            deallocate(block_scalar_divergence_plan%recv_covered)
+      if (allocated(block_scalar_divergence_plan%producer_buffer)) &
+           deallocate(block_scalar_divergence_plan%producer_buffer)
 
       allocate(block_scalar_divergence_plan%send_count(n_process))
       allocate(block_scalar_divergence_plan%recv_count(n_process))
@@ -17479,9 +17504,17 @@ end subroutine build_parallel_block_catalog
            deduplicated_recv_count(1:n_recv)),n_recv=1,n_process-1)]
       n_send = sum(block_scalar_divergence_plan%send_count)
       n_recv = sum(block_scalar_divergence_plan%recv_count)
+      if (.not. block_dynamics_validation_enabled()) then
+         n_send = sum(block_scalar_divergence_plan%deduplicated_send_count)
+         n_recv = 0
+      end if
       allocate(block_scalar_divergence_plan%send_buffer(n_send))
       allocate(block_scalar_divergence_plan%recv_buffer(n_recv))
       allocate(block_scalar_divergence_plan%deduplicated_buffer(n_recv))
+      allocate(block_scalar_divergence_plan%producer_buffer( &
+           (BLOCK_SCALAR_FULL_SHARED_COUNT*PATCH_SIZE**2+ &
+           EDGE*block_writeback_plan%scalar_patch_nvalue)* &
+           (sum(block_writeback_plan%scalar_recv_count)/block_writeback_plan%scalar_patch_nvalue)))
       allocate(block_scalar_divergence_plan%deduplicated_received_block( &
            max(1,sum(block_writeback_plan%send_count))))
       block_scalar_divergence_plan%deduplicated_received_block = -1
@@ -17501,7 +17534,7 @@ end subroutine build_parallel_block_catalog
            sum(block_writeback_plan%scalar_recv_count)))
       call prepare_block_scalar_capture_addresses
       block_scalar_divergence_plan%allocations = &
-      block_scalar_divergence_plan%allocations + 17_int64
+      block_scalar_divergence_plan%allocations + 18_int64
       block_scalar_divergence_plan%generation = &
            block_writeback_plan_generation
       block_scalar_divergence_plan%production_cache_ready = .false.
@@ -20078,7 +20111,8 @@ end subroutine build_parallel_block_catalog
 
     implicit none
 
-    integer :: b, d, local_index, next_patch, r, sample_start, slot
+    integer :: b, d, local_index, next_patch, r, sample_start, slot, p, node, id
+    real(dp) :: geometry_record(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
 
     if (allocated(block_scalar_capture_domain)) &
          deallocate(block_scalar_capture_domain)
@@ -20087,9 +20121,12 @@ end subroutine build_parallel_block_catalog
        allocate(block_scalar_capture_domain(d)%storage(grid(d)%patch%length))
        allocate(block_scalar_capture_domain(d)%sample(grid(d)%patch%length))
        allocate(block_scalar_capture_domain(d)%covered(zlevels,grid(d)%patch%length))
+       allocate(block_scalar_capture_domain(d)%geometry( &
+            BLOCK_SCALAR_FULL_SHARED_COUNT,PATCH_SIZE**2,grid(d)%patch%length))
        block_scalar_capture_domain(d)%storage = 0
        block_scalar_capture_domain(d)%sample = 0
        block_scalar_capture_domain(d)%covered = .false.
+       block_scalar_capture_domain(d)%geometry = 0.0_dp
     end do
     do local_index = 1,n_local_blocks()
        b = local_block_catalog(local_index)
@@ -20118,8 +20155,40 @@ end subroutine build_parallel_block_catalog
             block_writeback_plan%scalar_recv_count(r)+1) &
             call fail("scalar capture address stream differs")
     end do
+    do d=1,size(grid)
+       do p=1,grid(d)%patch%length
+          if (block_scalar_capture_domain(d)%sample(p) == 0) cycle
+          if (grid(d)%patch%elts(p)%level < level_start .or. &
+               grid(d)%patch%elts(p)%level > level_end) cycle
+          do node=1,PATCH_SIZE**2
+             id=grid(d)%patch%elts(p)%elts_start+node-1
+             geometry_record=0.0_dp
+             geometry_record(BLOCK_SCALAR_AREA_INDEX)=grid(d)%areas%elts(id+1)%hex_inv
+             geometry_record(BLOCK_SCALAR_ACTIVE_INDEX)=merge(1.0_dp,0.0_dp,grid(d)%mask_n%elts(id+1)>=TRSK)
+             geometry_record(BLOCK_SCALAR_PEDLEN_START:BLOCK_SCALAR_PEDLEN_START+EDGE-1)= &
+                  grid(d)%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+             geometry_record(BLOCK_SCALAR_EDGE_MASK_START:BLOCK_SCALAR_EDGE_MASK_START+EDGE-1)= &
+                  real(grid(d)%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1),dp)
+             geometry_record(BLOCK_SCALAR_RESTRICTION_WEIGHT_START:BLOCK_SCALAR_RESTRICTION_WEIGHT_START+EDGE-1)= &
+                  grid(d)%R_F_wgt%elts(id+1)%enc
+             geometry_record(BLOCK_SCALAR_OVERLAP_START:BLOCK_SCALAR_OVERLAP_START+3)=grid(d)%overl_areas%elts(id+1)%a
+             geometry_record(BLOCK_SCALAR_OVERLAP_START+4:BLOCK_SCALAR_OVERLAP_START+5)= &
+                  grid(d)%overl_areas%elts(id+1)%split
+             geometry_record(BLOCK_SCALAR_SOURCE_INDEX)=real(id,dp)
+             geometry_record(BLOCK_SCALAR_WAVELET_MASK_INDEX)=real(grid(d)%mask_n%elts(id+1),dp)
+             geometry_record(BLOCK_VECTOR_WAVELET_WEIGHT_START:BLOCK_VECTOR_WAVELET_WEIGHT_START+8)= &
+                  real(grid(d)%I_u_wgt%elts(id+1)%enc,dp)
+             geometry_record(BLOCK_SCALAR_EDGE_LENGTH_START:BLOCK_SCALAR_EDGE_LENGTH_START+EDGE-1)= &
+                  grid(d)%len%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+             geometry_record(BLOCK_SCALAR_TRIANGLE_AREA_START:BLOCK_SCALAR_TRIANGLE_AREA_START+1)= &
+                  grid(d)%triarea%elts(TRIAG*id+LORT+1:TRIAG*id+UPLT+1)
+             block_scalar_capture_domain(d)%geometry(:,node,p)=geometry_record(BLOCK_SCALAR_FULL_SHARED_INDEX)
+          end do
+          scalar_producer_work(1)=scalar_producer_work(1)+PATCH_SIZE**2
+       end do
+    end do
     block_scalar_divergence_plan%allocations = &
-         block_scalar_divergence_plan%allocations+1_int64+3_int64*size(grid)
+         block_scalar_divergence_plan%allocations+1_int64+4_int64*size(grid)
 
   contains
 
@@ -20149,6 +20218,58 @@ end subroutine build_parallel_block_catalog
   end subroutine prepare_block_scalar_capture_addresses
 
 
+  integer function scalar_producer_address(first,field,node,shared_field) result(address)
+    ! Rebuild wire order is field-major, with the single geometry record
+    ! immediately before physics on the shared physical field. The first
+    ! sample is patch-aligned in the sender's compiled manifest order.
+    integer, intent(in) :: first,field,node,shared_field
+    integer :: patch_width
+    patch_width=BLOCK_SCALAR_FULL_SHARED_COUNT*PATCH_SIZE**2+EDGE*block_writeback_plan%scalar_patch_nvalue
+    if (mod(first-1,block_writeback_plan%scalar_patch_nvalue)/=0) &
+         call fail("scalar producer patch alignment differs")
+    address=((first-1)/block_writeback_plan%scalar_patch_nvalue)*patch_width+ &
+         field*PATCH_SIZE**2*EDGE+node*EDGE+1
+    if (field==shared_field) address=address+(node+1)*BLOCK_SCALAR_FULL_SHARED_COUNT
+    if (field>shared_field) address=address+PATCH_SIZE**2*BLOCK_SCALAR_FULL_SHARED_COUNT
+  end function scalar_producer_address
+
+
+  subroutine seed_scalar_producer_geometry
+    ! No dynamic Domain field is read. Final-owner kernel storage still uses
+    ! its existing layout; the producer-side 50-field shadow no longer exists.
+    integer :: d,p,node,first,storage,v,nscalar,vvector,field_first,nfield,mults,multv,f,address,sample
+    logical :: validate_oracle
+    call get_block_field_layout(v,nscalar,vvector,field_first,nfield,mults,multv)
+    validate_oracle=block_dynamics_validation_enabled()
+    if (1-field_first<0 .or. 1-field_first>=nfield) call fail("scalar producer shared field is invalid")
+    do d=1,size(block_scalar_capture_domain)
+       do p=1,size(block_scalar_capture_domain(d)%sample)
+          first=block_scalar_capture_domain(d)%sample(p)
+          if (first==0) cycle
+          storage=block_scalar_capture_domain(d)%storage(p)
+          do node=0,PATCH_SIZE**2-1
+             if (storage==0) then
+                address=scalar_producer_address(first,1-field_first,node,1-field_first)-BLOCK_SCALAR_FULL_SHARED_COUNT
+                block_scalar_divergence_plan%producer_buffer(address:address+BLOCK_SCALAR_FULL_SHARED_COUNT-1)= &
+                     block_scalar_capture_domain(d)%geometry(:,node+1,p)
+             else if (.not. validate_oracle) then
+                do f=0,nscalar*nfield-1
+                   sample=first+f*PATCH_SIZE**2+node
+                   address=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(sample-1)
+                   block_scalar_tendency(storage)%patch(address+1:address+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)=0.0_dp
+                   if (mod(f,nfield)+field_first>=1 .and. mod(f,nfield)+field_first<=zlevels) &
+                        block_scalar_tendency(storage)%patch(address+BLOCK_SCALAR_FULL_SHARED_INDEX)= &
+                        block_scalar_capture_domain(d)%geometry(:,node+1,p)
+                   block_scalar_tendency(storage)%covered(sample)=.true.
+                end do
+             end if
+          end do
+       end do
+    end do
+    if (.not. validate_oracle) block_scalar_divergence_plan%recv_covered=.true.
+  end subroutine seed_scalar_producer_geometry
+
+
   logical function block_scalar_capture_active() result(active)
     implicit none
     active = block_scalar_divergence_plan%active
@@ -20157,14 +20278,14 @@ end subroutine build_parallel_block_catalog
 
   subroutine capture_block_scalar_physics_patch(d,p,k,physics)
     ! Consume the producer's residual once, before its patch scratch is reused.
-    ! Compact stages touch only three dynamic values. Full rebuilds additionally
-    ! seed direct-flux and metric inputs; independent oracle capture checks them.
+    ! Both compact stages and rebuilds write the three live physics values
+    ! directly. Only oracle mode also fills direct-flux/reference records.
 
     implicit none
     integer, intent(in) :: d,p,k
     real(dp), intent(in) :: physics(EDGE,PATCH_SIZE**2,scalars(1):scalars(2))
     integer :: first,storage,v,nscalar,vvector,field_first,nfield,mults,multv
-    integer :: level_slot,scalar_slot,q,sample,data_start,id
+    integer :: level_slot,scalar_slot,q,sample,data_start,id,producer_start,producer_base,producer_stride
     logical :: validate_oracle
 
     if (.not. block_scalar_divergence_plan%active) &
@@ -20192,6 +20313,17 @@ end subroutine build_parallel_block_catalog
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_CAPTURE)
     do scalar_slot = 0,nscalar-1
+       producer_base=0
+       producer_stride=EDGE
+       if (storage==0) then
+          if (block_scalar_divergence_plan%full_transport) then
+             producer_base=scalar_producer_address(first,scalar_slot*nfield+level_slot-1,0,1-field_first)
+             if (scalar_slot*nfield+level_slot-1==1-field_first) &
+                  producer_stride=EDGE+BLOCK_SCALAR_FULL_SHARED_COUNT
+          else
+             producer_base=EDGE*(first+(scalar_slot*nfield+level_slot-1)*PATCH_SIZE**2-1)+1
+          end if
+       end if
        do q = 0,PATCH_SIZE**2-1
           sample = first+(scalar_slot*nfield+level_slot-1)*PATCH_SIZE**2+q
           data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(sample-1)
@@ -20199,17 +20331,17 @@ end subroutine build_parallel_block_catalog
           if (storage > 0) then
              call install_record(block_scalar_tendency(storage)%patch( &
                   data_start+1:data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT))
-          else if (.not. block_scalar_divergence_plan%full_transport) then
-             data_start = BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*(sample-1)
-             block_scalar_divergence_plan%deduplicated_buffer( &
-                  data_start+1:data_start+EDGE) = physics(:,q+1,v+scalar_slot)
           else
-             call install_record(block_scalar_divergence_plan%recv_buffer( &
+             producer_start=producer_base+q*producer_stride
+             block_scalar_divergence_plan%producer_buffer(producer_start:producer_start+EDGE-1)= &
+                  physics(:,q+1,v+scalar_slot)
+             if (validate_oracle) call install_record(block_scalar_divergence_plan%recv_buffer( &
                   data_start+1:data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT))
           end if
        end do
     end do
     block_scalar_capture_domain(d)%covered(k,p+1) = .true.
+    scalar_producer_work(2)=scalar_producer_work(2)+int(nscalar,int64)*PATCH_SIZE**2*EDGE
     call block_profile_leave(BLOCK_PROFILE_RESTRICTION_CAPTURE, &
          int(nscalar,int64)*PATCH_SIZE**2)
     call block_profile_leave(BLOCK_PROFILE_RESTRICTION)
@@ -20220,7 +20352,7 @@ end subroutine build_parallel_block_catalog
       real(dp), intent(inout) :: record(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
       record(BLOCK_SCALAR_PHYSICS_START:BLOCK_SCALAR_PHYSICS_START+EDGE-1) = &
            physics(:,q+1,v+scalar_slot)
-      if (.not. block_scalar_divergence_plan%full_transport) return
+      if (.not. validate_oracle) return
       if (v+scalar_slot /= S_TEMP .or. validate_oracle) then
          record(BLOCK_SCALAR_DIRECT_FLUX_START:BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-1) = &
               horiz_flux(v+scalar_slot)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
@@ -20310,13 +20442,10 @@ end subroutine build_parallel_block_catalog
        call fail("scalar-divergence capture field layout is invalid")
     end if
 
-    ! Compact production receives physics directly from step1. Interior
-    ! geometry persists, and direct/restricted flux and divergence are native
-    ! products. The original traversals remain the independent oracle and
-    ! the geometry initializer after each topology generation change.
-    capture_interior = validate_oracle .or. &
-         (block_scalar_divergence_plan%full_transport .and. &
-         .not. capture_dscalar .and. .not. capture_direct)
+    ! Production receives physics directly from step1 and geometry from its
+    ! generation-scoped compiler. Direct/restricted flux and divergence are
+    ! native products. No interior Domain capture runs without the oracle.
+    capture_interior = validate_oracle
     if (capture_interior) then
        do local_index = 1,n_local_blocks()
           b = local_block_catalog(local_index)
@@ -20529,6 +20658,16 @@ end subroutine build_parallel_block_catalog
                  grid(d)%overl_areas%elts(id+1)%split
          end if
          value(BLOCK_SCALAR_SOURCE_INDEX) = real(id,dp)
+         scalar_producer_work(3)=scalar_producer_work(3)+1_int64
+         if (.not. capture_dscalar .and. .not. capture_direct) then
+            ! The old traversal independently checks every cached shared
+            ! primitive/geometry input at its actual consumption phase.
+            value(BLOCK_SCALAR_PEDLEN_START:BLOCK_SCALAR_PEDLEN_START+EDGE-1)= &
+                 grid(d)%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+            if (any(transfer(value(BLOCK_SCALAR_FULL_SHARED_INDEX),[0_int64],BLOCK_SCALAR_FULL_SHARED_COUNT) /= &
+                 transfer(block_scalar_capture_domain(d)%geometry(:,q+1,p+1),[0_int64],BLOCK_SCALAR_FULL_SHARED_COUNT))) &
+                 call fail("scalar producer geometry differs from independent capture")
+         end if
          sample = block_sample_start + &
               patch_index*block_writeback_plan%scalar_patch_nvalue + &
               ((scalar_capture_slot-1)*n_field_level + level_slot-1)* &
@@ -21115,10 +21254,11 @@ end subroutine build_parallel_block_catalog
 
     integer(int64) :: allocation_before
 
-    logical :: deduplicated_transport
+    logical :: deduplicated_transport,validate_oracle
 
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_INITIAL)
+    validate_oracle=block_dynamics_validation_enabled()
     if (.not. block_scalar_divergence_plan%active) then
        call fail("scalar-divergence finalize without active capture")
     end if
@@ -21145,6 +21285,7 @@ end subroutine build_parallel_block_catalog
     if (.not. all(block_scalar_divergence_plan%recv_covered)) then
        call fail("scalar-divergence Domain capture is incomplete")
     end if
+    if (validate_oracle) call validate_scalar_producer_stream
 
     allocation_before = block_scalar_divergence_plan%allocations
     ! Full rebuilds use a field-deduplicated stream.  The persistent block
@@ -21153,7 +21294,15 @@ end subroutine build_parallel_block_catalog
     ! symmetry.  Compact RK-stage refreshes retain their existing layout.
     deduplicated_transport = &
          block_scalar_divergence_plan%full_transport
-    if (deduplicated_transport) then
+    if (deduplicated_transport .and. .not. validate_oracle) then
+       call MPI_Alltoallv( &
+            block_scalar_divergence_plan%producer_buffer, &
+            block_scalar_divergence_plan%deduplicated_recv_count, &
+            block_scalar_divergence_plan%deduplicated_recv_displ,MPI_DOUBLE_PRECISION, &
+            block_scalar_divergence_plan%send_buffer, &
+            block_scalar_divergence_plan%deduplicated_send_count, &
+            block_scalar_divergence_plan%deduplicated_send_displ,MPI_DOUBLE_PRECISION,comm,ierr)
+    else if (deduplicated_transport) then
        call pack_deduplicated_full_transport
        call MPI_Alltoallv( &
             block_scalar_divergence_plan%deduplicated_buffer, &
@@ -21175,10 +21324,10 @@ end subroutine build_parallel_block_catalog
             block_scalar_divergence_plan%send_displ, &
             MPI_DOUBLE_PRECISION,comm,ierr)
     else
-       ! Producing patches have already assembled the compact stream in the
-       ! persistent workspace, using the reverse-writeback sample addresses.
+       ! Producing patches assembled the compact stream directly, using the
+       ! reverse-writeback sample addresses. No full-record gather is needed.
        call MPI_Alltoallv( &
-            block_scalar_divergence_plan%deduplicated_buffer, &
+            block_scalar_divergence_plan%producer_buffer, &
             block_scalar_divergence_plan%production_recv_count, &
             block_scalar_divergence_plan%production_recv_displ, &
             MPI_DOUBLE_PRECISION, &
@@ -21321,6 +21470,36 @@ end subroutine build_parallel_block_catalog
 
   contains
 
+    subroutine validate_scalar_producer_stream
+      ! The old full oracle is a separate producer. Check the native rebuild
+      ! stream by identity before any MPI or native kernel can hide a bad key.
+      integer :: d,p,first,storage,f,node,address,reference,nscalar,nfield,v,vv,ff,ms,mv
+      call get_block_field_layout(v,nscalar,vv,ff,nfield,ms,mv)
+      do d=1,size(block_scalar_capture_domain)
+         do p=1,size(block_scalar_capture_domain(d)%sample)
+            first=block_scalar_capture_domain(d)%sample(p)
+            storage=block_scalar_capture_domain(d)%storage(p)
+            if (first==0 .or. storage>0) cycle
+            do f=0,nscalar*nfield-1
+               do node=0,PATCH_SIZE**2-1
+                  address=scalar_producer_address(first,f,node,1-ff)
+                  reference=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(first+f*PATCH_SIZE**2+node-1)
+                  if (any(transfer(block_scalar_divergence_plan%producer_buffer(address:address+EDGE-1),[0_int64],EDGE) /= &
+                       transfer(block_scalar_divergence_plan%recv_buffer( &
+                       reference+BLOCK_SCALAR_PHYSICS_START:reference+BLOCK_SCALAR_PHYSICS_START+EDGE-1),[0_int64],EDGE))) &
+                       call fail("scalar producer physics stream differs from independent capture")
+                  if (f/=1-ff) cycle
+                  if (any(transfer(block_scalar_divergence_plan%producer_buffer( &
+                       address-BLOCK_SCALAR_FULL_SHARED_COUNT:address-1),[0_int64],BLOCK_SCALAR_FULL_SHARED_COUNT) /= &
+                       transfer(block_scalar_divergence_plan%recv_buffer(reference+BLOCK_SCALAR_FULL_SHARED_INDEX), &
+                       [0_int64],BLOCK_SCALAR_FULL_SHARED_COUNT))) &
+                       call fail("scalar producer geometry stream differs from independent capture")
+               end do
+            end do
+         end do
+      end do
+    end subroutine validate_scalar_producer_stream
+
     integer function deduplicated_block_value_count ( &
          patch_count) result(value_count)
 
@@ -21362,6 +21541,8 @@ end subroutine build_parallel_block_catalog
       integer :: v_scalar
       integer :: v_vector
 
+      if (.not. block_dynamics_validation_enabled()) &
+           call fail("production attempted to repack scalar oracle records")
       call get_block_field_layout( &
            v_scalar,n_scalar_variable,v_vector,first_field_level, &
            level_count,mult_scalar,mult_vector)
@@ -26678,9 +26859,10 @@ end subroutine build_parallel_block_catalog
                        call fail( &
                             "remote nonintegrated scalar index is invalid")
                     end if
-                    block_scalar_divergence_plan%recv_buffer( &
-                         data_start:data_start+ &
-                         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = 0.0_dp
+                    if (validate_oracle) then
+                       block_scalar_divergence_plan%recv_buffer( &
+                            data_start:data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = 0.0_dp
+                    end if
                     block_scalar_divergence_plan% &
                          recv_covered(sample) = .true.
                  end if
