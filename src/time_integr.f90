@@ -12,6 +12,7 @@ module time_integr_mod
   use domain_mod,        only : Float_Field, init_Field, grid, sol, trend, wav_coeff
   use multi_level_mod,   only : trend_ml, block_tendency_compatibility_ml
   use parallel_block_mpi_mod, only : &
+       prepare_temperature_boundary_stage, apply_temperature_boundary_stage, &
        BLOCK_PROFILE_DOMAIN_TENDENCY, &
        BLOCK_PROFILE_DOMAIN_TENDENCY_COMPATIBILITY, &
        BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY, &
@@ -287,9 +288,9 @@ contains
     else
        call call_domain_tendency_consumer(q,routine)
     end if
-    ! Compatibility initialization for Domain boundary/scaffold storage not
-    ! represented by compact blocks.  The following native writeback remains
-    ! authoritative for every block-owned prognostic value.
+    ! Retain mass/velocity compatibility and initialize temperature scaffolding.
+    ! Native temperature publication then supplies the wavelet/halo input;
+    ! its block-owned RK candidate must not be left only in compact storage.
     if (block_candidate) then
        call RK_sub_step_compatibility(q,trend,h/3,q1)
     else
@@ -399,9 +400,9 @@ contains
     else
        call call_domain_tendency_consumer(q,routine)
     end if
-    ! Compatibility initialization for Domain boundary/scaffold storage not
-    ! represented by compact blocks.  The following native writeback remains
-    ! authoritative for every block-owned prognostic value.
+    ! Retain mass/velocity compatibility and initialize temperature scaffolding.
+    ! Native temperature publication then supplies the wavelet/halo input;
+    ! its block-owned RK candidate must not be left only in compact storage.
     if (block_candidate) then
        call RK_sub_step_compatibility(q,trend,h/4,q1)
     else
@@ -495,9 +496,8 @@ contains
 
 
   subroutine RK_sub_step_compatibility (sols,trends,h,dest)
-    ! Temporary compatibility initialization for Domain storage outside the
-    ! compact block catalogue.  Profile it independently so the subsequent
-    ! range-limited replacement has a measurable baseline.
+    ! Materialize mass/velocity compatibility and preserve temperature scaffold
+    ! values. Integrated temperature is supplied by native stage publication.
 
     implicit none
 
@@ -510,16 +510,46 @@ contains
          dest(1:N_VARIABLE,1:zlevels)
 
     real(dp) :: profile_start
+    type(Float_Field), allocatable :: temperature_reference(:,:)
 
     profile_start = parallel_block_profile_begin( &
          BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY)
-    call RK_sub_step(sols,trends,h,dest)
+    call prepare_temperature_boundary_stage(sols,h)
+    call RK_sub_step(sols,trends,h,dest, &
+         native_temperature=.not. block_dynamics_validation_enabled())
+    if (block_dynamics_validation_enabled()) temperature_reference=dest(S_TEMP:S_TEMP,:)
+    call apply_temperature_boundary_stage(dest)
+    if (allocated(temperature_reference)) call assert_temperature_boundary_stage(dest,temperature_reference)
     call parallel_block_profile_end( &
          BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY,profile_start)
   end subroutine RK_sub_step_compatibility
 
+  subroutine assert_temperature_boundary_stage(candidate,reference)
+    ! Compare at the actual halo-completed consumer boundary. Individual
+    ! storage aliases can be overwritten by communication before consumption.
+    use arch_mod, only : rank
+    type(Float_Field),intent(inout)::candidate(1:N_VARIABLE,1:zlevels),reference(:,:)
+    integer :: d,k,i
+    real(dp)::difference,allowed
+    call update_bdry(reference,NONE,1260)
+    call update_bdry(candidate(S_TEMP:S_TEMP,:),NONE,1261)
+    do d=1,size(grid)
+       do k=1,zlevels
+          do i=grid(d)%patch%elts(3)%elts_start+1,candidate(S_TEMP,k)%data(d)%length
+             difference=abs(candidate(S_TEMP,k)%data(d)%elts(i)-reference(1,k)%data(d)%elts(i))
+             allowed=64*epsilon(1.0_dp)*max(1.0_dp,abs(reference(1,k)%data(d)%elts(i)))
+             if (difference <= allowed) cycle
+             write(6,*) 'Native temperature RK boundary mismatch: rank, Domain, level, node = ',rank,d,k,i-1
+             write(6,*) 'native, reference = ',candidate(S_TEMP,k)%data(d)%elts(i),reference(1,k)%data(d)%elts(i)
+             error stop "native temperature RK boundary differs"
+          end do
+       end do
+    end do
+  end subroutine assert_temperature_boundary_stage
 
-  subroutine RK_sub_step (sols, trends, h, dest)
+
+
+  subroutine RK_sub_step (sols, trends, h, dest, native_temperature)
     
     implicit none
     
@@ -527,14 +557,25 @@ contains
     type(Float_Field), intent(in)    :: sols(1:N_VARIABLE,1:zlevels)
     type(Float_Field), intent(in)    :: trends(1:N_VARIABLE,1:zlevels)
     type(Float_Field), intent(inout) :: dest(1:N_VARIABLE,1:zlevels)
+    logical, optional, intent(in) :: native_temperature
     
     integer :: d, ibeg, iend, k, v
+    logical :: copy_temperature
+
+    copy_temperature=.false.
+    if (present(native_temperature)) copy_temperature=native_temperature
 
     do v = 1, N_VARIABLE
        do d = 1, size(grid)
           ibeg = (1+2*(POSIT(v)-1)) * grid(d)%patch%elts(2+1)%elts_start + 1
           iend = dest(v,1)%data(d)%length
           do k = 1, zlevels
+             if (v == S_TEMP .and. copy_temperature) then
+                ! Seed untouched scaffolding. The native boundary adapter and
+                ! integrated stage publication supply all evolved values.
+                dest(v,k)%data(d)%elts(ibeg:iend)=sols(v,k)%data(d)%elts(ibeg:iend)
+                cycle
+             end if
              dest(v,k)%data(d)%elts(ibeg:iend) = sols(v,k)%data(d)%elts(ibeg:iend) + h * trends(v,k)%data(d)%elts(ibeg:iend)
           end do
        end do

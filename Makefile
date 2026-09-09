@@ -367,6 +367,7 @@ $(BUILD_DIR)/parallel_block_mpi.o: \
 	$(BUILD_DIR)/parallel_block.o
 
 $(BUILD_DIR)/ops.o: \
+	$(BUILD_DIR)/parallel_block_mpi.o \
 	$(BUILD_DIR)/kind.o \
 	$(BUILD_DIR)/shared.o \
 	$(BUILD_DIR)/diagnostics.o \

@@ -1,4 +1,7 @@
 module multi_level_mod
+#ifdef WAVETRISK_TEST_TEMPERATURE_CUT
+  use ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_is_nan
+#endif
   
   use kind_mod,   only : dp
   use shared_mod, only : bfly_no2, nghb_pt, hex_sides, hex_s_offs, N_VARIABLE, zlevels, N_BDRY,  N_CHDRN, &
@@ -23,6 +26,7 @@ module multi_level_mod
        BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY, &
        begin_block_velocity_source_transport, &
        block_dynamics_validation_enabled, &
+       block_scalar_capture_active, capture_block_scalar_physics_patch, &
        capture_block_scalar_divergence_level, &
        capture_block_velocity_source_level, &
        finalize_block_velocity_source_transport, &
@@ -184,18 +188,24 @@ contains
 
 
   subroutine block_tendency_compatibility_ml (q, dq)
-    ! Populate only the Domain-shaped compatibility inputs still consumed by
-    ! the block-native tendency: scalar physics flux/restriction records and
-    ! the non-Exner velocity source.  Scalar divergence and the Exner-gradient
-    ! velocity contribution are deliberately omitted because block kernels
-    ! produce them.  The complete trend_ml path remains the validation oracle.
+    ! Retain mass flux/restriction/divergence and the velocity compatibility
+    ! input. Temperature transport is native; this pass supplies only its
+    ! once-evaluated physics input and sparse direct boundary closure. The
+    ! complete trend_ml path remains the independent validation oracle.
 
     implicit none
 
     type(Float_Field), intent(inout), target :: &
          q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
 
-    integer :: k, l
+    integer :: k, l, compatibility_last
+#ifdef WAVETRISK_TEST_TEMPERATURE_CUT
+    integer :: poison_domain
+    type :: Temperature_Scratch_Backup
+       real(dp), allocatable :: value(:)
+    end type
+    type(Temperature_Scratch_Backup), allocatable :: temperature_scratch(:)
+#endif
 
     logical :: validate_velocity_source
 
@@ -205,6 +215,18 @@ contains
     call zero_float(dq)
     call cal_surf_press(q(1:N_VARIABLE,1:zlevels))
     validate_velocity_source = block_dynamics_validation_enabled()
+    compatibility_last=S_MASS
+    if (validate_velocity_source) compatibility_last=scalars(2)
+#ifdef WAVETRISK_TEST_TEMPERATURE_CUT
+    if (.not. validate_velocity_source) then
+       allocate(temperature_scratch(size(grid)))
+       do poison_domain=1,size(grid)
+          do k=1,zlevels
+             dq(S_TEMP,k)%data(poison_domain)%elts=ieee_value(0.0_dp,ieee_quiet_nan)
+          end do
+       end do
+    end if
+#endif
 
     do k = 1,zlevels
        if (validate_velocity_source) &
@@ -212,6 +234,17 @@ contains
        if (Laplace_divu /= 0) call cal_divu_ml(q(S_VELO,k))
        if (Laplace_sclr == 2) call cal_Laplacian_scalars(q,k)
        if (Laplace_divu == 2) call cal_Laplacian_divu
+#ifdef WAVETRISK_TEST_TEMPERATURE_CUT
+       ! The retained physics interface uses this scratch field to form the
+       ! biharmonic diffusion input. Poison after that single physics prepass:
+       ! no advective flux, restriction or tendency may subsequently use it.
+       if (.not. validate_velocity_source) then
+          do poison_domain=1,size(grid)
+             temperature_scratch(poison_domain)%value=horiz_flux(S_TEMP)%data(poison_domain)%elts
+             horiz_flux(S_TEMP)%data(poison_domain)%elts=ieee_value(0.0_dp,ieee_quiet_nan)
+          end do
+       end if
+#endif
 
        do l = level_end,level_start,-1
           ! The Domain restriction compatibility kernel consumes dscalar from
@@ -220,7 +253,7 @@ contains
           ! complete Domain velocity tendency.
           if (l < level_end) then
              call update_bdry__finish( &
-                  dq(scalars(1):scalars(2),k),l+1)
+                  dq(scalars(1):compatibility_last,k),l+1)
              call capture_block_scalar_divergence_level( &
                   q,physics_scalar_flux,0,k,l+1, &
                   domain_tendency=dq,dscalar_only=.true.)
@@ -228,17 +261,22 @@ contains
           profile_start = parallel_block_profile_begin( &
                BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY)
           call basic_operators( &
-               q,dq,k,l,.false.)
+               q,dq,k,l,.not. validate_velocity_source)
           call parallel_block_profile_end( &
                BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY,profile_start)
           profile_start = parallel_block_profile_begin( &
                BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY)
-          call cal_scalar_trend_compatibility(q,dq,k,l)
+          if (validate_velocity_source) then
+             call cal_scalar_trend_compatibility(q,dq,k,l)
+          else
+             call cal_scalar_trend(q,dq,k,l,.true.)
+             call capture_block_scalar_divergence_level(q,physics_scalar_flux,0,k,l)
+          end if
           call parallel_block_profile_end( &
                BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY,profile_start)
           if (level_start /= level_end .and. l > level_start) then
              call update_bdry__start( &
-                  dq(scalars(1):scalars(2),k),l)
+                  dq(scalars(1):compatibility_last,k),l)
           end if
           profile_start = parallel_block_profile_begin( &
                BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY)
@@ -261,6 +299,18 @@ contains
             BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY,profile_start)
        if (validate_velocity_source) &
             call finish_velocity_source_measurement(k)
+#ifdef WAVETRISK_TEST_TEMPERATURE_CUT
+    if (.not. validate_velocity_source) then
+       do poison_domain=1,size(grid)
+          if (.not. all(ieee_is_nan(horiz_flux(S_TEMP)%data(poison_domain)%elts))) &
+               error stop "temperature cut wrote the Domain flux workspace"
+          if (.not. all(ieee_is_nan(dq(S_TEMP,k)%data(poison_domain)%elts))) &
+               error stop "temperature cut wrote the Domain trend workspace"
+          ! The next physical layer's diffusion prepass owns this scratch.
+          horiz_flux(S_TEMP)%data(poison_domain)%elts=temperature_scratch(poison_domain)%value
+       end do
+    end if
+#endif
     end do
     dq%bdry_uptodate = .false.
   end subroutine block_tendency_compatibility_ml
@@ -276,6 +326,10 @@ contains
     logical,                   intent(in)    :: mass_only_compatibility
 
     integer :: d, j, v, scalar_last
+    logical :: capture_scalar_physics
+    real(dp) :: scalar_physics(EDGE,PATCH_SIZE**2,scalars(1):scalars(2))
+
+    capture_scalar_physics = block_scalar_capture_active()
 
     do d = 1, size(grid)
        mass      => q(S_MASS,k)%data(d)%elts
@@ -292,7 +346,14 @@ contains
        ! Compute horizontal fluxes, potential vorticity (qe), Bernoulli, Exner (incompressible case) etc
        do j = 1, grid(d)%lev(l)%length
           call apply_onescale_to_patch (integrate_pressure_up, grid(d), grid(d)%lev(l)%elts(j), k, 0, 1)
-          call step1 (dq, q, grid(d), grid(d)%lev(l)%elts(j), k, 0)
+          if (capture_scalar_physics) then
+             call step1(dq,q,grid(d),grid(d)%lev(l)%elts(j),k,0, &
+                  scalar_physics,mass_only_compatibility)
+             call capture_block_scalar_physics_patch( &
+                  d,grid(d)%lev(l)%elts(j),k,scalar_physics)
+          else
+             call step1(dq,q,grid(d),grid(d)%lev(l)%elts(j),k,0)
+          end if
        end do
        call apply_to_penta_d (post_step1, grid(d), l, z_null)
        nullify (mass, velo, temp, mean_m, mean_t, ke, qe, vort)
@@ -305,16 +366,7 @@ contains
     call capture_block_scalar_divergence_level( &
          q,physics_scalar_flux,0,k,l,.true.)
 
-    ! Production still needs current six-edge flux records and complete compact
-    ! record coverage for both scalars before the Domain mass-only restriction.
-    ! Physical-boundary dscalar remains seeded from its validated immutable
-    ! reference because boundary records contain only positive-edge fluxes.
-    if (mass_only_compatibility) then
-       horiz_flux(S_TEMP)%bdry_uptodate = .false.
-       call update_bdry(horiz_flux(S_TEMP:S_TEMP),l,1070)
-       call capture_block_scalar_divergence_level( &
-            q,physics_scalar_flux,0,k,l)
-    end if
+    ! Temperature restriction and its edge/node exchanges are block-native.
 
     ! Compute or restrict Bernoulli, Exner and fluxes only after every local
     ! Domain direct-flux shadow has been captured.

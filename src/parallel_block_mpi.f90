@@ -13,7 +13,7 @@ module parallel_block_mpi_mod
   use shared_mod, only : bfly_no2, end_pt, nghb_pt, opp_no, hex_sides, &
        hex_s_offs, &
        AT_EDGE, AT_NODE, DG, EAST, EDGE, FROZEN, NORTH, NORTHEAST, &
-       NORTHWEST, N_BDRY, &
+       NORTHWEST, N_BDRY, IPLUS, JPLUS, &
        N_CHDRN, N_GLO_DOMAIN, N_VARIABLE, RT, UP, n_domain, &
        IJMINUS, IMINUSJPLUS, IPLUSJMINUS, LORT, UPLT, TRIAG, &
        POLE, SOUTH, SOUTHEAST, SOUTHWEST, WEST, &
@@ -141,6 +141,7 @@ module parallel_block_mpi_mod
   integer, parameter :: BLOCK_VELOCITY_SOURCE_RECORD_COUNT = 7
   integer, parameter :: BLOCK_WRITEBACK_BOTH = 0
   integer, parameter :: BLOCK_WRITEBACK_SCALAR = 1
+  integer, parameter :: BLOCK_WRITEBACK_TEMPERATURE = 3
   integer, parameter :: BLOCK_WRITEBACK_VECTOR = 2
   integer, parameter :: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT = 50
   integer, parameter :: BLOCK_SCALAR_RESTRICTION_DYNAMIC_COUNT = EDGE+1
@@ -609,7 +610,10 @@ module parallel_block_mpi_mod
        BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY = 44
   integer, parameter, public :: &
        BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY = 45
-  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 45
+  integer, parameter :: BLOCK_PROFILE_TEMPERATURE_PLAN = 46
+  integer, parameter :: BLOCK_PROFILE_TEMPERATURE_EDGES = 47
+  integer, parameter :: BLOCK_PROFILE_TEMPERATURE_RK = 48
+  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 48
   character(len=32), parameter :: block_profile_phase_name( &
        BLOCK_PROFILE_PHASE_COUNT) = [character(len=32) :: &
        "complete timestep", "dynamics driver", "physics consumers", &
@@ -635,7 +639,8 @@ module parallel_block_mpi_mod
        "Domain tendency compatibility", &
        "Domain operator compatibility", &
        "Domain mass-flux compatibility", &
-       "Domain velocity compatibility"]
+       "Domain velocity compatibility", "temperature edge plan", &
+       "temperature edge exchange", "temperature RK boundary"]
   logical, save :: block_profile = .false.
   logical, save :: block_profile_initialized = .false.
   real(dp), save :: block_profile_seconds(BLOCK_PROFILE_PHASE_COUNT) = &
@@ -735,6 +740,7 @@ module parallel_block_mpi_mod
   integer(int64), save :: block_scalar_tendency_allocations = 0_int64
 
   type :: Block_Scalar_Divergence_Plan_Type
+     integer :: full_field_count = BLOCK_SCALAR_FULL_FIELD_COUNT
      integer, allocatable :: send_count(:)
      integer, allocatable :: recv_count(:)
      integer, allocatable :: send_displ(:)
@@ -762,6 +768,45 @@ module parallel_block_mpi_mod
 
   type(Block_Scalar_Divergence_Plan_Type), save :: &
        block_scalar_divergence_plan
+
+  ! Map a producing Domain patch directly to its retained or outgoing block
+  ! record. Rebuilt with the writeback generation, never per vertical level
+  ! or RK stage. Zero sample means that the patch is outside the block catalog.
+  type :: Block_Scalar_Capture_Domain_Type
+     integer, allocatable :: storage(:)
+     integer, allocatable :: sample(:)
+     logical, allocatable :: covered(:,:)
+  end type Block_Scalar_Capture_Domain_Type
+  type(Block_Scalar_Capture_Domain_Type), allocatable, save :: &
+       block_scalar_capture_domain(:)
+
+  ! Signed AT_EDGE keys, not the AT_NODE dscalar provenance. Each level owns
+  ! a fixed request/service schedule for native temperature boundary fluxes.
+  type :: Temperature_Edge_Level_Plan
+     integer, allocatable :: request_count(:),request_displ(:)
+     integer, allocatable :: service_count(:),service_displ(:)
+     integer, allocatable :: destination(:,:),source(:,:)
+     integer, allocatable :: closure_destination(:,:)
+     real(dp), allocatable :: send_value(:),recv_value(:)
+  end type Temperature_Edge_Level_Plan
+
+  type :: Temperature_RK_Boundary_Plan
+     integer, allocatable :: request_count(:),request_displ(:)
+     integer, allocatable :: service_count(:),service_displ(:)
+     integer, allocatable :: destination(:,:),source(:,:)
+     real(dp), allocatable :: send_value(:,:),recv_value(:,:)
+     logical, allocatable :: covered(:)
+  end type
+  type(Temperature_RK_Boundary_Plan), save :: temperature_rk_boundary
+  type(Temperature_Edge_Level_Plan), allocatable, save :: temperature_edge_plan(:)
+  integer(int64), save :: temperature_edge_generation = -1_int64
+  type :: Temperature_Closure_Domain
+     integer, allocatable :: slot(:)
+     real(dp), allocatable :: value(:,:)
+  end type
+  type(Temperature_Closure_Domain), allocatable, save :: temperature_closure(:)
+  public :: capture_temperature_closure, temperature_closure_needed
+  public :: prepare_temperature_boundary_stage, apply_temperature_boundary_stage
 
   type :: Block_Velocity_Source_Transport_Type
      integer, allocatable :: send_count(:)
@@ -1045,6 +1090,7 @@ module parallel_block_mpi_mod
   public :: capture_block_domain_multistage_candidate_tendency
   public :: begin_block_scalar_divergence_capture
   public :: capture_block_scalar_divergence_level
+  public :: block_scalar_capture_active, capture_block_scalar_physics_patch
   public :: finalize_block_scalar_divergence_capture
   public :: prepare_block_velocity_compatibility_remainder
   public :: begin_block_velocity_source_transport
@@ -9294,6 +9340,9 @@ end subroutine build_parallel_block_catalog
     if (present(payload_family)) family = payload_family
     component = BLOCK_WRITEBACK_BOTH
     if (present(component_family)) component = component_family
+    ! Temperature publication reuses the scalar transport plan; only the
+    ! selected variable is committed. No velocity payload is exchanged.
+    if (component == BLOCK_WRITEBACK_TEMPERATURE) component=BLOCK_WRITEBACK_SCALAR
     if (family /= BLOCK_PAYLOAD_SOL .and. &
          family /= BLOCK_PAYLOAD_WAV_COEFF) then
        call fail("invalid writeback payload family")
@@ -15593,6 +15642,11 @@ end subroutine build_parallel_block_catalog
     end select
 
     if (.not. ieee_is_finite(value)) then
+       write(error_unit,'(a,10(i0,1x))') "scalar field nonfinite: rank block patch scalar level i j family storage node = ", &
+            rank,local_index,p,scalar_slot,level_slot,i,j,payload_family,storage_class,node
+#ifdef WAVETRISK_TEST_TEMPERATURE_CUT
+       error stop "temperature cut consumed a nonfinite block scalar"
+#endif
        call fail("scalar-wavelet field value is non-finite")
     end if
 
@@ -16870,6 +16924,13 @@ end subroutine build_parallel_block_catalog
 
     call prepare_scalar_divergence_plan
     call prepare_block_scalar_restriction_exchange
+    call prepare_temperature_edge_plan
+    do index=1,size(temperature_closure)
+       ! Unwritten scaffold entries are identically zero: precompute_geometry
+       ! initializes the legacy flux workspace to zero and step1 leaves them
+       ! untouched. Actual direct boundary producers overwrite these seeds.
+       temperature_closure(index)%value=0.0_dp
+    end do
     block_scalar_divergence_plan%full_transport = validate_oracle .or. &
          .not. block_scalar_divergence_plan%production_cache_ready
     if (validate_oracle) then
@@ -16979,10 +17040,8 @@ end subroutine build_parallel_block_catalog
           block_scalar_tendency(index)%ghost = BLOCK_GHOST_POISON
        end if
        ! Once the immutable production record has been installed, subsequent
-       ! stages retain its interior geometry in place.  The producer below
-       ! refreshes the field-dependent physics and restricted-flux records;
-       ! native restriction overwrites the reference dscalar slot before it
-       ! is consumed.  Oracle builds deliberately rebuild every slot.
+       ! stages refresh only physics residuals. Native kernels replace direct
+       ! flux and native dscalar; oracle builds rebuild all reference inputs.
        block_scalar_tendency(index)%covered = &
             .not. validate_oracle .and. &
             block_scalar_divergence_plan%production_cache_ready
@@ -17012,6 +17071,17 @@ end subroutine build_parallel_block_catalog
          block_scalar_divergence_plan%production_cache_ready
     block_scalar_divergence_plan%ready = .false.
     block_scalar_divergence_plan%active = .true.
+    do index = 1,size(block_scalar_capture_domain)
+       block_scalar_capture_domain(index)%covered = .false.
+    end do
+    if (.not. block_scalar_divergence_plan%full_transport) then
+       ! The full-layout packing workspace becomes the compact send stream.
+       ! Zero scaffold fields, then let producing patches fill physical fields
+       ! directly; no gather from the 50-value records is needed at finalize.
+       block_scalar_divergence_plan%deduplicated_buffer(1: &
+            BLOCK_SCALAR_PRODUCTION_INPUT_COUNT* &
+            size(block_scalar_divergence_plan%recv_covered)) = 0.0_dp
+    end if
 
     call block_profile_leave( &
          BLOCK_PROFILE_RESTRICTION,int(n_local,int64))
@@ -17116,14 +17186,17 @@ end subroutine build_parallel_block_catalog
          call fail("deduplicated scalar transport patch count is invalid")
       end if
       n_send = block_writeback_plan%scalar_patch_nvalue/(PATCH_SIZE**2)
+      block_scalar_divergence_plan%full_field_count = &
+           merge(BLOCK_SCALAR_FULL_FIELD_COUNT,EDGE, &
+           block_dynamics_validation_enabled())
       block_scalar_divergence_plan%deduplicated_send_count = &
            (BLOCK_SCALAR_FULL_SHARED_COUNT + &
-           BLOCK_SCALAR_FULL_FIELD_COUNT*n_send)*PATCH_SIZE**2* &
+           block_scalar_divergence_plan%full_field_count*n_send)*PATCH_SIZE**2* &
            (block_writeback_plan%scalar_send_count/ &
            block_writeback_plan%scalar_patch_nvalue)
       block_scalar_divergence_plan%deduplicated_recv_count = &
            (BLOCK_SCALAR_FULL_SHARED_COUNT + &
-           BLOCK_SCALAR_FULL_FIELD_COUNT*n_send)*PATCH_SIZE**2* &
+           block_scalar_divergence_plan%full_field_count*n_send)*PATCH_SIZE**2* &
            (block_writeback_plan%scalar_recv_count/ &
            block_writeback_plan%scalar_patch_nvalue)
       block_scalar_divergence_plan%deduplicated_send_displ(1) = 0
@@ -17156,6 +17229,7 @@ end subroutine build_parallel_block_catalog
       call check_mpi(ierr,"MPI_Alltoallv deduplicated block manifest")
       allocate(block_scalar_divergence_plan%recv_covered( &
            sum(block_writeback_plan%scalar_recv_count)))
+      call prepare_block_scalar_capture_addresses
       block_scalar_divergence_plan%allocations = &
       block_scalar_divergence_plan%allocations + 17_int64
       block_scalar_divergence_plan%generation = &
@@ -19712,6 +19786,167 @@ end subroutine build_parallel_block_catalog
   end subroutine prepare_block_scalar_boundary_provenance
 
 
+  subroutine prepare_block_scalar_capture_addresses
+    ! Compile the existing reverse-writeback order into direct patch addresses.
+    ! This uses the same subtree order as full reference capture; it adds no
+    ! communication and is invalidated by the writeback plan generation.
+
+    implicit none
+
+    integer :: b, d, local_index, next_patch, r, sample_start, slot
+
+    if (allocated(block_scalar_capture_domain)) &
+         deallocate(block_scalar_capture_domain)
+    allocate(block_scalar_capture_domain(size(grid)))
+    do d = 1,size(grid)
+       allocate(block_scalar_capture_domain(d)%storage(grid(d)%patch%length))
+       allocate(block_scalar_capture_domain(d)%sample(grid(d)%patch%length))
+       allocate(block_scalar_capture_domain(d)%covered(zlevels,grid(d)%patch%length))
+       block_scalar_capture_domain(d)%storage = 0
+       block_scalar_capture_domain(d)%sample = 0
+       block_scalar_capture_domain(d)%covered = .false.
+    end do
+    do local_index = 1,n_local_blocks()
+       b = local_block_catalog(local_index)
+       if (source_rank(b) /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1)+1
+       next_patch = 0
+       call map_subtree(d,block_catalog(b)%root_patch,local_index,1,next_patch)
+       if (next_patch /= local_block_patch_count(b)) &
+            call fail("retained scalar capture address count differs")
+    end do
+    do r = 1,n_process
+       sample_start = block_writeback_plan%scalar_recv_displ(r)+1
+       do slot = block_writeback_plan%recv_displ(r)+1, &
+            block_writeback_plan%recv_displ(r)+block_writeback_plan%recv_count(r)
+          b = block_writeback_plan%recv_block(slot)
+          if (source_rank(b) /= rank) &
+               call fail("remote scalar capture source differs")
+          d = loc_id(block_catalog(b)%root_domain+1)+1
+          next_patch = 0
+          call map_subtree(d,block_catalog(b)%root_patch,0,sample_start,next_patch)
+          if (next_patch /= block_writeback_plan%recv_patch_count(slot)) &
+               call fail("remote scalar capture address count differs")
+          sample_start = sample_start+block_writeback_plan%recv_scalar_nvalue(slot)
+       end do
+       if (sample_start /= block_writeback_plan%scalar_recv_displ(r) + &
+            block_writeback_plan%scalar_recv_count(r)+1) &
+            call fail("scalar capture address stream differs")
+    end do
+    block_scalar_divergence_plan%allocations = &
+         block_scalar_divergence_plan%allocations+1_int64+3_int64*size(grid)
+
+  contains
+
+    recursive subroutine map_subtree(d,p,storage,first,next_patch)
+      integer, intent(in) :: d,p,storage,first
+      integer, intent(inout) :: next_patch
+      integer :: c,child
+
+      if (d < 1 .or. d > size(grid)) &
+           call fail("scalar capture address Domain is invalid")
+      if (p < 0 .or. p >= grid(d)%patch%length) &
+           call fail("scalar capture address patch is invalid")
+      if (grid(d)%patch%elts(p+1)%deleted) return
+      if (block_scalar_capture_domain(d)%sample(p+1) /= 0) &
+           call fail("scalar capture address is duplicated")
+      block_scalar_capture_domain(d)%sample(p+1) = &
+           first+next_patch*block_writeback_plan%scalar_patch_nvalue
+      block_scalar_capture_domain(d)%storage(p+1) = storage
+      next_patch = next_patch+1
+      do c = 1,N_CHDRN
+         child = grid(d)%patch%elts(p+1)%children(c)
+         if (child <= 0) cycle
+         call map_subtree(d,child,storage,first,next_patch)
+      end do
+    end subroutine map_subtree
+
+  end subroutine prepare_block_scalar_capture_addresses
+
+
+  logical function block_scalar_capture_active() result(active)
+    implicit none
+    active = block_scalar_divergence_plan%active
+  end function block_scalar_capture_active
+
+
+  subroutine capture_block_scalar_physics_patch(d,p,k,physics)
+    ! Consume the producer's residual once, before its patch scratch is reused.
+    ! Compact stages touch only three dynamic values. Full rebuilds additionally
+    ! seed direct-flux and metric inputs; independent oracle capture checks them.
+
+    implicit none
+    integer, intent(in) :: d,p,k
+    real(dp), intent(in) :: physics(EDGE,PATCH_SIZE**2,scalars(1):scalars(2))
+    integer :: first,storage,v,nscalar,vvector,field_first,nfield,mults,multv
+    integer :: level_slot,scalar_slot,q,sample,data_start,id
+    logical :: validate_oracle
+
+    if (.not. block_scalar_divergence_plan%active) &
+         call fail("scalar physics capture is inactive")
+    if (block_scalar_divergence_plan%generation /= block_writeback_plan_generation) &
+         call fail("scalar physics capture address generation is stale")
+    if (d < 1 .or. d > size(block_scalar_capture_domain)) &
+         call fail("scalar physics capture Domain is invalid")
+    if (p < 0 .or. p >= size(block_scalar_capture_domain(d)%sample)) &
+         call fail("scalar physics capture patch is invalid")
+    first = block_scalar_capture_domain(d)%sample(p+1)
+    if (first == 0) return
+    if (k < 1 .or. k > zlevels) call fail("scalar physics capture level is invalid")
+    if (block_scalar_capture_domain(d)%covered(k,p+1)) &
+         call fail("scalar physics patch capture is duplicated")
+    call get_block_field_layout(v,nscalar,vvector,field_first,nfield,mults,multv)
+    if (v /= scalars(1) .or. v+nscalar-1 /= scalars(2) .or. &
+         mults /= 1 .or. multv /= EDGE) &
+         call fail("scalar physics capture layout differs")
+    level_slot = k-field_first+1
+    if (level_slot < 1 .or. level_slot > nfield) &
+         call fail("scalar physics capture field slot is invalid")
+    storage = block_scalar_capture_domain(d)%storage(p+1)
+    validate_oracle=block_dynamics_validation_enabled()
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
+    call block_profile_enter(BLOCK_PROFILE_RESTRICTION_CAPTURE)
+    do scalar_slot = 0,nscalar-1
+       do q = 0,PATCH_SIZE**2-1
+          sample = first+(scalar_slot*nfield+level_slot-1)*PATCH_SIZE**2+q
+          data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(sample-1)
+          id = grid(d)%patch%elts(p+1)%elts_start+q
+          if (storage > 0) then
+             call install_record(block_scalar_tendency(storage)%patch( &
+                  data_start+1:data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT))
+          else if (.not. block_scalar_divergence_plan%full_transport) then
+             data_start = BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*(sample-1)
+             block_scalar_divergence_plan%deduplicated_buffer( &
+                  data_start+1:data_start+EDGE) = physics(:,q+1,v+scalar_slot)
+          else
+             call install_record(block_scalar_divergence_plan%recv_buffer( &
+                  data_start+1:data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT))
+          end if
+       end do
+    end do
+    block_scalar_capture_domain(d)%covered(k,p+1) = .true.
+    call block_profile_leave(BLOCK_PROFILE_RESTRICTION_CAPTURE, &
+         int(nscalar,int64)*PATCH_SIZE**2)
+    call block_profile_leave(BLOCK_PROFILE_RESTRICTION)
+
+  contains
+
+    subroutine install_record(record)
+      real(dp), intent(inout) :: record(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+      record(BLOCK_SCALAR_PHYSICS_START:BLOCK_SCALAR_PHYSICS_START+EDGE-1) = &
+           physics(:,q+1,v+scalar_slot)
+      if (.not. block_scalar_divergence_plan%full_transport) return
+      if (v+scalar_slot /= S_TEMP .or. validate_oracle) then
+         record(BLOCK_SCALAR_DIRECT_FLUX_START:BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-1) = &
+              horiz_flux(v+scalar_slot)%data(d)%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+      end if
+      record(BLOCK_SCALAR_PEDLEN_START:BLOCK_SCALAR_PEDLEN_START+EDGE-1) = &
+           grid(d)%pedlen%elts(EDGE*id+RT+1:EDGE*id+UP+1)
+    end subroutine install_record
+
+  end subroutine capture_block_scalar_physics_patch
+
+
   subroutine capture_block_scalar_divergence_level ( &
        domain_sol,physics_flux,scalar_id,field_level,grid_level, &
        direct_flux,domain_tendency,dscalar_only)
@@ -19790,13 +20025,13 @@ end subroutine build_parallel_block_catalog
        call fail("scalar-divergence capture field layout is invalid")
     end if
 
-    ! After the first immutable record has been cached, production omits only
-    ! the Domain reference dscalar traversal.  The block replay produces that
-    ! value before activation.  Current-stage restricted flux must still be
-    ! captured: the complete physical recomposition consumes it before the
-    ! native restriction replay, including while forming the velocity path.
-    ! The exact oracle continues to rebuild the reference dscalar as well.
-    capture_interior = validate_oracle .or. .not. capture_dscalar
+    ! Compact production receives physics directly from step1. Interior
+    ! geometry persists, and direct/restricted flux and divergence are native
+    ! products. The original traversals remain the independent oracle and
+    ! the geometry initializer after each topology generation change.
+    capture_interior = validate_oracle .or. &
+         (block_scalar_divergence_plan%full_transport .and. &
+         .not. capture_dscalar .and. .not. capture_direct)
     if (capture_interior) then
        do local_index = 1,n_local_blocks()
           b = local_block_catalog(local_index)
@@ -19958,6 +20193,7 @@ end subroutine build_parallel_block_catalog
             id_w = idx(i-1,j,offs,dims)
             id_sw = idx(i-1,j-1,offs,dims)
             id_s = idx(i,j-1,offs,dims)
+            if (scalar_capture_id /= S_TEMP .or. validate_oracle) then
             value(1:BLOCK_SCALAR_FLUX_COUNT) = [ &
                  horiz_flux(scalar_capture_id)%data(d)%elts( &
                  EDGE*id+RT+1), &
@@ -19971,6 +20207,7 @@ end subroutine build_parallel_block_catalog
                  EDGE*id+UP+1), &
                  horiz_flux(scalar_capture_id)%data(d)%elts( &
                  EDGE*id_s+UP+1)]
+            end if
             value(BLOCK_SCALAR_AREA_INDEX) = &
                  grid(d)%areas%elts(id+1)%hex_inv
             value(BLOCK_SCALAR_ACTIVE_INDEX) = merge( &
@@ -19987,10 +20224,12 @@ end subroutine build_parallel_block_catalog
                  BLOCK_SCALAR_TRIANGLE_AREA_START+1) = &
                  grid(d)%triarea%elts( &
                  TRIAG*id+LORT+1:TRIAG*id+UPLT+1)
+            if (scalar_capture_id /= S_TEMP .or. validate_oracle) then
             value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
                  BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
                  horiz_flux(scalar_capture_id)%data(d)%elts( &
                  EDGE*id+RT+1:EDGE*id+UP+1)
+            end if
             value(BLOCK_SCALAR_EDGE_MASK_START: &
                  BLOCK_SCALAR_EDGE_MASK_START+EDGE-1) = real( &
                  grid(d)%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1),dp)
@@ -20022,6 +20261,8 @@ end subroutine build_parallel_block_catalog
                     data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1) = &
                     value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX)
             else if (capture_direct) then
+               call check_fused_record(block_scalar_tendency(storage_index)%patch( &
+                    data_start:data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1),value)
                block_scalar_tendency(storage_index)%patch( &
                     data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
                     data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
@@ -20051,6 +20292,8 @@ end subroutine build_parallel_block_catalog
                     data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1) = &
                     value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX)
             else if (capture_direct) then
+               call check_fused_record(block_scalar_divergence_plan%recv_buffer( &
+                    data_start:data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1),value)
                block_scalar_divergence_plan%recv_buffer( &
                     data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
                     data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
@@ -20073,6 +20316,21 @@ end subroutine build_parallel_block_catalog
       end do
 
     end subroutine capture_patch
+
+    subroutine check_fused_record(fused,reference)
+      real(dp), intent(in) :: fused(:),reference(:)
+      integer :: component
+
+      ! Both evaluations use identical inputs and operation order. This
+      ! comparison also validates the compiled retained/remote address map.
+      do component = BLOCK_SCALAR_DIRECT_FLUX_START,BLOCK_SCALAR_PHYSICS_START+EDGE-1
+         if (.not. ieee_is_finite(fused(component))) &
+              call fail("fused scalar capture is nonfinite")
+         if (abs(fused(component)-reference(component)) > &
+              8*epsilon(1.0_dp)*max(1.0_dp,abs(reference(component)))) &
+              call fail("fused scalar capture differs from independent reference")
+      end do
+    end subroutine check_fused_record
 
   end subroutine capture_block_scalar_divergence_level
 
@@ -20142,6 +20400,7 @@ end subroutine build_parallel_block_catalog
     end if
     validate_oracle = block_dynamics_validation_enabled()
     if (capture_dscalar .and. .not. validate_oracle) return
+    if (capture_direct .and. .not. validate_oracle) return
 
     do r = 1,n_process
        pos_sample = block_writeback_plan% &
@@ -20317,7 +20576,33 @@ end subroutine build_parallel_block_catalog
       logical, intent(in) :: capture_direct
       real(dp), intent(inout) :: &
            value(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+      integer :: component,closure_index
+      real(dp) :: closure_value(EDGE)
 
+      closure_value=0.0_dp
+      if (scalar_capture_id == S_TEMP .and. .not. capture_direct .and. .not. capture_dscalar) then
+         do component=0,EDGE-1
+            closure_index=temperature_closure(d)%slot(EDGE*id+component+1)
+            if (closure_index > 0) closure_value(component+1)= &
+                 temperature_closure(d)%value(field_level,closure_index)
+         end do
+         value(BLOCK_SCALAR_PHYSICS_START:BLOCK_SCALAR_PHYSICS_START+EDGE-1)=closure_value
+      end if
+
+      if (.not. block_scalar_divergence_plan%full_transport) then
+         ! Boundary flux remains a live compatibility input, but geometry
+         ! and source identity are immutable for this plan generation.
+         if (scalar_capture_id == S_TEMP .and. .not. validate_oracle) then
+            value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
+                 BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1)=closure_value
+            return
+         end if
+         value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
+              BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
+              horiz_flux(scalar_capture_id)%data(d)%elts( &
+              EDGE*id+RT+1:EDGE*id+UP+1)
+         return
+      end if
       if (capture_dscalar) then
          value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX) = &
               domain_tendency(scalar_capture_id,field_level)% &
@@ -20344,10 +20629,15 @@ end subroutine build_parallel_block_catalog
               BLOCK_SCALAR_TRIANGLE_AREA_START+1) = &
               grid(d)%triarea%elts( &
               TRIAG*id+LORT+1:TRIAG*id+UPLT+1)
+         if (scalar_capture_id /= S_TEMP .or. validate_oracle) then
          value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
               BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
               horiz_flux(scalar_capture_id)%data(d)%elts( &
               EDGE*id+RT+1:EDGE*id+UP+1)
+         else
+            value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
+                 BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1)=closure_value
+         end if
          value(BLOCK_SCALAR_EDGE_MASK_START: &
               BLOCK_SCALAR_EDGE_MASK_START+EDGE-1) = real( &
               grid(d)%mask_e%elts(EDGE*id+RT+1:EDGE*id+UP+1),dp)
@@ -20489,10 +20779,12 @@ end subroutine build_parallel_block_catalog
     implicit none
 
     integer :: b
+    integer :: d
     integer :: data_count
     integer :: data_start
     integer :: ierr
     integer :: local_index
+    integer :: p
     integer :: profile_initial_mode
     integer :: r
     integer :: sample
@@ -20517,6 +20809,17 @@ end subroutine build_parallel_block_catalog
     if (block_scalar_divergence_plan%full_transport) &
          profile_initial_mode = BLOCK_PROFILE_RESTRICTION_INITIAL_FULL
     call block_profile_enter(profile_initial_mode)
+    ! Geometry coverage alone cannot detect a missed refresh on a reused
+    ! plan. Require each producing patch at every physical level this stage.
+    do d = 1,size(block_scalar_capture_domain)
+       do p = 1,size(block_scalar_capture_domain(d)%sample)
+          if (block_scalar_capture_domain(d)%sample(p) == 0) cycle
+          if (grid(d)%patch%elts(p)%level < level_start .or. &
+               grid(d)%patch%elts(p)%level > level_end) cycle
+          if (.not. all(block_scalar_capture_domain(d)%covered(:,p))) &
+               call fail("fused scalar physics capture is incomplete")
+       end do
+    end do
     call complete_uncaptured_scalar_divergence_coverage
     if (.not. all(block_scalar_divergence_plan%recv_covered)) then
        call fail("scalar-divergence Domain capture is incomplete")
@@ -20551,23 +20854,10 @@ end subroutine build_parallel_block_catalog
             block_scalar_divergence_plan%send_displ, &
             MPI_DOUBLE_PRECISION,comm,ierr)
     else
-       ! Compact the retained full-layout capture in place.  Interior direct
-       ! flux is reconstructed below before native restriction, so only the
-       ! non-advective physics residual crosses this route.  Global sample
-       ! order is identical in both layouts and every compact destination
-       ! precedes its unread full-layout source.
-       do sample = 0,size(block_scalar_divergence_plan%recv_covered)-1
-          data_start = BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*sample + 1
-          source_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
-          block_scalar_divergence_plan%recv_buffer( &
-               data_start:data_start+ &
-               BLOCK_SCALAR_PRODUCTION_INPUT_COUNT-1) = &
-               block_scalar_divergence_plan%recv_buffer( &
-               source_start+BLOCK_SCALAR_PHYSICS_START-1: &
-               source_start+BLOCK_SCALAR_PHYSICS_START+EDGE-2)
-       end do
+       ! Producing patches have already assembled the compact stream in the
+       ! persistent workspace, using the reverse-writeback sample addresses.
        call MPI_Alltoallv( &
-            block_scalar_divergence_plan%recv_buffer, &
+            block_scalar_divergence_plan%deduplicated_buffer, &
             block_scalar_divergence_plan%production_recv_count, &
             block_scalar_divergence_plan%production_recv_displ, &
             MPI_DOUBLE_PRECISION, &
@@ -20723,7 +21013,7 @@ end subroutine build_parallel_block_catalog
            (PATCH_SIZE**2)
       value_count = patch_count*PATCH_SIZE**2* &
            (BLOCK_SCALAR_FULL_SHARED_COUNT + &
-           BLOCK_SCALAR_FULL_FIELD_COUNT*field_count)
+           block_scalar_divergence_plan%full_field_count*field_count)
 
     end function deduplicated_block_value_count
 
@@ -20775,7 +21065,25 @@ end subroutine build_parallel_block_catalog
                   do q = 0,PATCH_SIZE**2-1
                      sample_pack = p*field_count*PATCH_SIZE**2 + &
                           f*PATCH_SIZE**2 + q
-                     if (f == shared_field) then
+                     if (block_scalar_divergence_plan%full_field_count == EDGE) then
+                        ! Production rebuild: geometry once per node, physics
+                        ! per field. Native kernels produce every other
+                        ! field-dependent interior value before consumption.
+                        if (f == shared_field) then
+                           do k = 1,BLOCK_SCALAR_FULL_SHARED_COUNT
+                              block_scalar_divergence_plan%deduplicated_buffer(destination) = &
+                                   block_scalar_divergence_plan%recv_buffer(source + &
+                                   BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample_pack + &
+                                   BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1)
+                              destination = destination+1
+                           end do
+                        end if
+                        block_scalar_divergence_plan%deduplicated_buffer(destination:destination+EDGE-1) = &
+                             block_scalar_divergence_plan%recv_buffer(source + &
+                             BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample_pack+BLOCK_SCALAR_PHYSICS_START-1: &
+                             source+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample_pack+BLOCK_SCALAR_PHYSICS_START+EDGE-2)
+                        destination = destination+EDGE
+                     else if (f == shared_field) then
                         block_scalar_divergence_plan% &
                              deduplicated_buffer(destination: &
                              destination+ &
@@ -20862,7 +21170,26 @@ end subroutine build_parallel_block_catalog
                destination_unpack = &
                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                     sample_unpack + 1
-               if (f == shared_field) then
+               if (block_scalar_divergence_plan%full_field_count == EDGE) then
+                  ! Dropped oracle fields are deliberately initialized to
+                  ! zero; geometry sharing below and native production fill
+                  ! all the inputs that non-oracle consumers require.
+                  block_scalar_tendency(local_index_unpack)%patch( &
+                       destination_unpack:destination_unpack+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = 0.0_dp
+                  if (f == shared_field) then
+                     do k = 1,BLOCK_SCALAR_FULL_SHARED_COUNT
+                        block_scalar_tendency(local_index_unpack)%patch( &
+                             destination_unpack+BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1) = &
+                             block_scalar_divergence_plan%send_buffer(source_position)
+                        source_position = source_position+1
+                     end do
+                  end if
+                  block_scalar_tendency(local_index_unpack)%patch( &
+                       destination_unpack+BLOCK_SCALAR_PHYSICS_START-1: &
+                       destination_unpack+BLOCK_SCALAR_PHYSICS_START+EDGE-2) = &
+                       block_scalar_divergence_plan%send_buffer(source_position:source_position+EDGE-1)
+                  source_position = source_position+EDGE
+               else if (f == shared_field) then
                   block_scalar_tendency(local_index_unpack)%patch( &
                        destination_unpack:destination_unpack+ &
                        BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
@@ -22476,6 +22803,585 @@ end subroutine build_parallel_block_catalog
   end subroutine compute_block_scalar_direct_flux
 
 
+  subroutine prepare_temperature_edge_plan
+    ! Compile the signed legacy edge routing graph into final-owner keys.
+    ! Only topology crosses the Domain owners here; live flux is read solely
+    ! from final-owner native restriction records by exchange_temperature_edges.
+    implicit none
+    type :: Domain_Edge_Keys
+       integer, allocatable :: key(:,:)
+    end type
+    type(Domain_Edge_Keys), allocatable :: domain_key(:)
+    integer, allocatable :: sc(:),rc(:),sd(:),rd(:),cursor(:)
+    integer, allocatable :: sb(:,:),rb(:,:),query(:,:),answer(:,:)
+    integer, allocatable :: keys(:,:),dest(:,:),order(:)
+    integer :: b,d,p,n,e,r,ds,dd,g,id,pos,ierr,next_patch
+    integer :: ib,bdry,start,nnode,l,q,base,total,slot
+    integer :: v,ns,vv,kfirst,nk,ms,mv,key(5)
+
+    if (temperature_edge_generation == block_writeback_plan_generation) return
+    call block_profile_enter(BLOCK_PROFILE_TEMPERATURE_PLAN)
+    if (allocated(temperature_closure)) deallocate(temperature_closure)
+    allocate(temperature_closure(size(grid)))
+    call get_block_field_layout(v,ns,vv,kfirst,nk,ms,mv)
+    if (v > S_TEMP .or. v+ns <= S_TEMP .or. ms /= 1 .or. mv /= EDGE) &
+         call fail("temperature edge field layout is invalid")
+    allocate(domain_key(size(grid)))
+    do d=1,size(grid)
+       allocate(domain_key(d)%key(5,EDGE*grid(d)%node%length))
+       domain_key(d)%key = 0
+       allocate(temperature_closure(d)%slot(EDGE*grid(d)%node%length))
+       temperature_closure(d)%slot=0
+    end do
+    do b=1,size(block_catalog)
+       if (source_rank(b) /= rank) cycle
+       d = loc_id(block_catalog(b)%root_domain+1)+1
+       next_patch = 0
+       call map_patch(block_catalog(b)%root_patch)
+    end do
+    call prepare_rk_boundary
+
+    ! Counts follow the existing AT_EDGE graph on both ends, so no count
+    ! discovery collective is necessary for this metadata exchange.
+    allocate(sc(n_process),rc(n_process),sd(n_process),rd(n_process),cursor(n_process))
+    sc=0
+    rc=0
+    do r=1,n_process
+       if (r == rank+1) cycle
+       do ds=1,size(grid)
+          do dd=1,n_domain(r)
+             sc(r)=sc(r)+grid(ds)%pack(AT_EDGE,glo_id(r,dd)+1)%length
+          end do
+       end do
+       do ds=1,n_domain(r)
+          do dd=1,size(grid)
+             rc(r)=rc(r)+grid(dd)%unpk(AT_EDGE,glo_id(r,ds)+1)%length
+          end do
+       end do
+    end do
+    call displacements(sc,sd)
+    call displacements(rc,rd)
+    allocate(sb(5,max(1,sum(sc))),rb(5,max(1,sum(rc))))
+    sb=0
+    rb=0
+    do r=1,n_process
+       if (r == rank+1) cycle
+       pos=sd(r)
+       do ds=1,size(grid)
+          do dd=1,n_domain(r)
+             g=glo_id(r,dd)+1
+             do l=0,level_end
+             do q=1,grid(ds)%pack(AT_EDGE,g)%length
+                id=grid(ds)%pack(AT_EDGE,g)%elts(q)
+                if (grid(ds)%level%elts(abs(id)/EDGE+1) /= l) cycle
+                pos=pos+1
+                sb(:,pos)=domain_key(ds)%key(:,abs(id)+1)
+             end do
+             end do
+          end do
+       end do
+    end do
+    call MPI_Alltoallv(sb,5*sc,5*sd,MPI_INTEGER,rb,5*rc,5*rd,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv temperature edge topology")
+    ! comm_nodes3_mpi applies local copies before unpacking remote messages.
+    r=rank+1
+    do ds=1,size(grid)
+       do dd=1,size(grid)
+          g=glo_id(r,ds)+1
+          if (grid(ds)%pack(AT_EDGE,glo_id(r,dd)+1)%length /= &
+               grid(dd)%unpk(AT_EDGE,g)%length) &
+               call fail("temperature local edge route count differs")
+          do q=1,grid(dd)%unpk(AT_EDGE,g)%length
+             id=grid(ds)%pack(AT_EDGE,glo_id(r,dd)+1)%elts(q)
+             key=domain_key(ds)%key(:,abs(id)+1)
+             id=grid(dd)%unpk(AT_EDGE,g)%elts(q)
+             if (id < 0) key(4)=-key(4)
+             domain_key(dd)%key(:,abs(id)+1)=key
+          end do
+       end do
+    end do
+    do r=1,n_process
+       if (r == rank+1) cycle
+       pos=rd(r)
+       do ds=1,n_domain(r)
+          g=glo_id(r,ds)+1
+          do dd=1,size(grid)
+             do l=0,level_end
+             do q=1,grid(dd)%unpk(AT_EDGE,g)%length
+                id=grid(dd)%unpk(AT_EDGE,g)%elts(q)
+                if (grid(dd)%level%elts(abs(id)/EDGE+1) /= l) cycle
+                pos=pos+1
+                key=rb(:,pos)
+                if (id < 0) key(4)=-key(4)
+                domain_key(dd)%key(:,abs(id)+1)=key
+             end do
+             end do
+          end do
+       end do
+    end do
+    deallocate(sb,rb)
+
+    ! Ask the resident topology owner for each compact boundary edge's key.
+    total=0
+    do ib=1,n_local_blocks()
+       b=local_block_catalog(ib)
+       do bdry=1,local_block_boundary_count(b)
+          call get_local_block_boundary_source(b,bdry,p,start,nnode,l)
+          total=total+EDGE*nnode
+       end do
+    end do
+    allocate(dest(4,total),keys(4,total),order(total))
+    sc=0
+    pos=0
+    do ib=1,n_local_blocks()
+       b=local_block_catalog(ib)
+       base=0
+       do bdry=1,local_block_boundary_count(b)
+          call get_local_block_boundary_source(b,bdry,p,start,nnode,l)
+          do n=0,nnode-1
+             do e=0,EDGE-1
+                pos=pos+1
+                dest(:,pos)=[ib,base+n,e,l]
+                sc(source_rank(b)+1)=sc(source_rank(b)+1)+1
+             end do
+          end do
+          base=base+nnode
+       end do
+    end do
+    call MPI_Alltoall(sc,1,MPI_INTEGER,rc,1,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoall temperature topology requests")
+    call displacements(sc,sd)
+    call displacements(rc,rd)
+    allocate(query(3,max(1,sum(sc))),answer(3,max(1,sum(rc))))
+    allocate(sb(4,max(1,sum(rc))),rb(4,max(1,sum(sc))))
+    cursor=sd
+    pos=0
+    do ib=1,n_local_blocks()
+       b=local_block_catalog(ib)
+       r=source_rank(b)+1
+       do bdry=1,local_block_boundary_count(b)
+          call get_local_block_boundary_source(b,bdry,p,start,nnode,l)
+          do n=0,nnode-1
+             do e=0,EDGE-1
+                pos=pos+1
+                cursor(r)=cursor(r)+1
+                slot=cursor(r)
+                query(:,slot)=[block_catalog(b)%root_domain,EDGE*(start+n)+e,l]
+                order(slot)=pos
+             end do
+          end do
+       end do
+    end do
+    call MPI_Alltoallv(query,3*sc,3*sd,MPI_INTEGER,answer,3*rc,3*rd,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv temperature topology requests")
+    do pos=1,sum(rc)
+       d=loc_id(answer(1,pos)+1)+1
+       id=answer(2,pos)
+       if (d < 1 .or. d > size(grid)) call fail("temperature key Domain is invalid")
+       if (id < 0 .or. id >= size(domain_key(d)%key,2)) &
+            call fail("temperature key edge is invalid")
+       sb(:,pos)=domain_key(d)%key(1:4,id+1)
+       if (domain_key(d)%key(5,id+1) /= answer(3,pos)) sb(:,pos)=0
+       if (sb(1,pos) == 0) then
+          temperature_closure(d)%slot(id+1)=1
+       end if
+    end do
+    do d=1,size(grid)
+       slot=0
+       do id=1,size(temperature_closure(d)%slot)
+          if (temperature_closure(d)%slot(id) == 0) cycle
+          slot=slot+1
+          temperature_closure(d)%slot(id)=slot
+       end do
+       allocate(temperature_closure(d)%value(zlevels,slot))
+       temperature_closure(d)%value=0.0_dp
+    end do
+    call MPI_Alltoallv(sb,4*rc,4*rd,MPI_INTEGER,rb,4*sc,4*sd,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv temperature topology responses")
+    do pos=1,total
+       keys(:,order(pos))=rb(:,pos)
+    end do
+    deallocate(sb,rb,query,answer,domain_key)
+    if (allocated(temperature_edge_plan)) deallocate(temperature_edge_plan)
+    allocate(temperature_edge_plan(level_start:level_end))
+    ! Discover all final-owner requests together. Partition the resulting
+    ! peer-ordered manifest locally; no collective is needed per level.
+    sc=0
+    do pos=1,total
+       if (keys(1,pos) <= 0) cycle
+       r=block_catalog(keys(1,pos))%owner+1
+       sc(r)=sc(r)+1
+    end do
+    call MPI_Alltoall(sc,1,MPI_INTEGER,rc,1,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoall native temperature edge requests")
+    call displacements(sc,sd)
+    call displacements(rc,rd)
+    allocate(query(4,max(1,sum(sc))),answer(4,max(1,sum(rc))))
+    cursor=sd
+    do pos=1,total
+       if (keys(1,pos) <= 0) cycle
+       r=block_catalog(keys(1,pos))%owner+1
+       cursor(r)=cursor(r)+1
+       slot=cursor(r)
+       query(:,slot)=[keys(1:3,pos),dest(4,pos)]
+       order(slot)=pos
+    end do
+    call MPI_Alltoallv(query,4*sc,4*sd,MPI_INTEGER,answer,4*rc,4*rd,MPI_INTEGER,comm,ierr)
+    call check_mpi(ierr,"MPI_Alltoallv native temperature edge requests")
+    do l=level_start,level_end
+       associate(plan=>temperature_edge_plan(l))
+         allocate(plan%request_count(n_process),plan%request_displ(n_process))
+         allocate(plan%service_count(n_process),plan%service_displ(n_process))
+         do r=1,n_process
+            plan%request_count(r)=count(query(4,sd(r)+1:sd(r)+sc(r)) == l)
+            plan%service_count(r)=count(answer(4,rd(r)+1:rd(r)+rc(r)) == l)
+         end do
+         call displacements(plan%request_count,plan%request_displ)
+         call displacements(plan%service_count,plan%service_displ)
+         allocate(plan%destination(4,sum(plan%request_count)),plan%source(3,sum(plan%service_count)))
+         allocate(plan%closure_destination(3,count(dest(4,:) == l .and. keys(1,:) == 0)))
+         slot=0
+         do pos=1,total
+            if (dest(4,pos) /= l .or. keys(1,pos) /= 0) cycle
+            slot=slot+1
+            plan%closure_destination(:,slot)=dest(1:3,pos)
+         end do
+         allocate(plan%send_value(max(1,zlevels*sum(plan%service_count))))
+         allocate(plan%recv_value(max(1,zlevels*sum(plan%request_count))))
+         slot=0
+         do q=1,sum(sc)
+            if (query(4,q) /= l) cycle
+            slot=slot+1
+            pos=order(q)
+            plan%destination(:,slot)=[dest(1:3,pos),keys(4,pos)]
+         end do
+         slot=0
+         do pos=1,sum(rc)
+            if (answer(4,pos) /= l) cycle
+            slot=slot+1
+            b=answer(1,pos)
+            ib=catalog_local_block(b)
+            if (ib < 1) call fail("temperature edge service is not local")
+            nnode=local_block_patch_count(b)
+            if (answer(2,pos) < 0 .or. answer(2,pos) >= nnode) &
+                 call fail("temperature edge service patch is invalid")
+            plan%source(:,slot)=[ib,answer(2:3,pos)]
+            ! Storage manifests include cross-level aliases that need not
+            ! belong to an executed stencil. Do not substitute a wrong-level
+            ! value: leave these poisoned and fail if a kernel consumes one.
+            if (local_block_patch_level(b,answer(2,pos)) /= l) plan%source(1,slot)=0
+         end do
+       end associate
+    end do
+    temperature_edge_generation=block_writeback_plan_generation
+    call block_profile_leave(BLOCK_PROFILE_TEMPERATURE_PLAN,int(total,int64))
+
+  contains
+
+    subroutine prepare_rk_boundary
+      ! Legacy RK updates the plus-side closure cells as well as patch
+      ! interiors. These are numerical producers, not just halo copies.
+      integer :: dom,lev,jp,patch,ii,jj,node,side_extent(4),off(N_BDRY+1),dm(2,N_BDRY+1)
+      integer :: count_all,limit,peer,t,at,first,code(5),error
+      integer,allocatable :: req(:,:),target(:,:),ordered(:,:),offset(:),node_displ(:),last_producer(:)
+      logical :: inner(4)
+      associate(plan=>temperature_rk_boundary)
+      if (allocated(plan%request_count)) then
+         deallocate(plan%request_count,plan%request_displ,plan%service_count,plan%service_displ, &
+              plan%destination,plan%source,plan%send_value,plan%recv_value,plan%covered)
+      end if
+      allocate(plan%request_count(n_process),plan%request_displ(n_process))
+      allocate(plan%service_count(n_process),plan%service_displ(n_process),offset(n_process))
+      allocate(node_displ(size(grid)+1))
+      node_displ(1)=0
+      do dom=1,size(grid)
+         node_displ(dom+1)=node_displ(dom)+grid(dom)%node%length
+      end do
+      allocate(last_producer(node_displ(size(grid)+1)))
+      last_producer=0
+      limit=0
+      do dom=1,size(grid)
+         limit=limit+(2*PATCH_SIZE+1)*grid(dom)%patch%length
+      end do
+      allocate(req(5,max(1,limit)),target(2,max(1,limit)))
+      count_all=0
+      plan%request_count=0
+      do lev=level_end,level_start,-1
+         do dom=1,size(grid)
+            do jp=1,grid(dom)%lev(lev)%length
+               patch=grid(dom)%lev(lev)%elts(jp)
+               first=grid(dom)%patch%elts(patch+1)%elts_start
+               code=domain_key(dom)%key(:,EDGE*first+1)
+               if (code(1) < 1) call fail("temperature RK producer is uncatalogued")
+               call get_offs_Domain(grid(dom),patch,off,dm,inner)
+               side_extent=[1,1,0,0]
+               where(inner) side_extent=0
+               do jj=0,PATCH_SIZE+side_extent(JPLUS)-1
+                  do ii=0,PATCH_SIZE+side_extent(IPLUS)-1
+                     if (ii < PATCH_SIZE .and. jj < PATCH_SIZE) cycle
+                     node=idx(ii,jj,off,dm)
+                     count_all=count_all+1
+                     req(:,count_all)=[code(1),code(2),ii,jj,lev]
+                     target(:,count_all)=[dom,node]
+                     last_producer(node_displ(dom)+node+1)=count_all
+                  end do
+               end do
+            end do
+         end do
+      end do
+      ! Shared storage aliases follow the same last-producer order as the
+      ! descending-level compatibility loop, before grouping by MPI peer.
+      at=0
+      do t=1,count_all
+         if (last_producer(node_displ(target(1,t))+target(2,t)+1) /= t) cycle
+         at=at+1
+         req(:,at)=req(:,t)
+         target(:,at)=target(:,t)
+         peer=block_catalog(req(1,at))%owner+1
+         plan%request_count(peer)=plan%request_count(peer)+1
+      end do
+      count_all=at
+      call displacements(plan%request_count,plan%request_displ)
+      call MPI_Alltoall(plan%request_count,1,MPI_INTEGER,plan%service_count,1,MPI_INTEGER,comm,error)
+      call check_mpi(error,"MPI_Alltoall temperature RK boundary plan")
+      call displacements(plan%service_count,plan%service_displ)
+      allocate(ordered(5,max(1,count_all)),plan%destination(2,count_all))
+      offset=plan%request_displ
+      do t=1,count_all
+         peer=block_catalog(req(1,t))%owner+1
+         offset(peer)=offset(peer)+1
+         at=offset(peer)
+         ordered(:,at)=req(:,t)
+         plan%destination(:,at)=target(:,t)
+      end do
+      allocate(plan%source(5,max(1,sum(plan%service_count))))
+      call MPI_Alltoallv(ordered,5*plan%request_count,5*plan%request_displ,MPI_INTEGER, &
+           plan%source,5*plan%service_count,5*plan%service_displ,MPI_INTEGER,comm,error)
+      call check_mpi(error,"MPI_Alltoallv temperature RK boundary plan")
+      do t=1,sum(plan%service_count)
+         first=plan%source(1,t)
+         if (first < 1 .or. first > size(block_catalog)) call fail("temperature RK service block is invalid")
+         if (block_catalog(first)%owner /= rank) call fail("temperature RK service owner differs")
+         patch=plan%source(2,t)
+         limit=local_block_patch_count(first)
+         if (patch < 0 .or. patch >= limit) &
+              call fail("temperature RK service patch is invalid")
+         if (local_block_patch_level(first,patch) /= plan%source(5,t)) &
+              call fail("temperature RK service level differs")
+         if (any(plan%source(3:4,t) < 0) .or. any(plan%source(3:4,t) > PATCH_SIZE)) &
+              call fail("temperature RK service coordinate is invalid")
+      end do
+      allocate(plan%send_value(zlevels,max(1,sum(plan%service_count))))
+      allocate(plan%recv_value(zlevels,max(1,count_all)),plan%covered(sum(plan%service_count)))
+      plan%covered=.false.
+      end associate
+    end subroutine prepare_rk_boundary
+
+    recursive subroutine map_patch(patch)
+      integer,intent(in)::patch
+      integer::ch,node,component,first,child
+      if (grid(d)%patch%elts(patch+1)%deleted) return
+      first=grid(d)%patch%elts(patch+1)%elts_start
+      do node=0,PATCH_SIZE**2-1
+         do component=0,EDGE-1
+            domain_key(d)%key(:,EDGE*(first+node)+component+1)= &
+                 [b,next_patch,EDGE*node+component,1,grid(d)%patch%elts(patch+1)%level]
+         end do
+      end do
+      next_patch=next_patch+1
+      do ch=1,N_CHDRN
+         child=grid(d)%patch%elts(patch+1)%children(ch)
+         if (child > 0) call map_patch(child)
+      end do
+    end subroutine
+
+    subroutine displacements(count,displ)
+      integer,intent(in)::count(:)
+      integer,intent(out)::displ(:)
+      integer::peer
+      displ(1)=0
+      do peer=2,size(count)
+         displ(peer)=displ(peer-1)+count(peer-1)
+      end do
+    end subroutine
+  end subroutine prepare_temperature_edge_plan
+
+  subroutine compute_temperature_rk_boundary(catalog_index,block,context)
+    integer,intent(in)::catalog_index
+    type(Block_Data),intent(in)::block
+    class(*),intent(inout)::context
+    integer :: t,k,p,slot,local_index
+    local_index=catalog_local_block(catalog_index)
+    select type(statistics=>context)
+    type is(Block_Scalar_Restriction_Context)
+      associate(plan=>temperature_rk_boundary)
+      do t=1,sum(plan%service_count)
+         if (plan%source(1,t) /= catalog_index .or. &
+              plan%source(5,t) /= statistics%target_level) cycle
+         p=plan%source(2,t)+1
+         do k=1,zlevels
+            slot=k-block%field_level+1
+            plan%send_value(k,t)=block_scalar_flux_divergence(block,local_index,p, &
+                 S_TEMP-block%scalar_variable,slot,plan%source(3,t),plan%source(4,t), &
+                 BLOCK_SCALAR_DIRECT_FLUX_START)
+         end do
+         plan%covered(t)=.true.
+      end do
+      end associate
+    class default
+      call fail("temperature RK boundary context is invalid")
+    end select
+  end subroutine compute_temperature_rk_boundary
+
+  subroutine prepare_temperature_boundary_stage(sols,h)
+    type(Float_Field),intent(in)::sols(1:N_VARIABLE,1:zlevels)
+    real(dp),intent(in)::h
+    integer :: t,d,node,k,error
+    call block_profile_enter(BLOCK_PROFILE_TEMPERATURE_RK)
+    associate(plan=>temperature_rk_boundary)
+    if (.not. all(plan%covered)) call fail("temperature RK boundary tendency is incomplete")
+    call MPI_Alltoallv(plan%send_value,zlevels*plan%service_count,zlevels*plan%service_displ,MPI_DOUBLE_PRECISION, &
+         plan%recv_value,zlevels*plan%request_count,zlevels*plan%request_displ,MPI_DOUBLE_PRECISION,comm,error)
+    call check_mpi(error,"MPI_Alltoallv temperature RK boundary tendency")
+    do t=1,sum(plan%request_count)
+       d=plan%destination(1,t)
+       node=plan%destination(2,t)+1
+       do k=1,zlevels
+          plan%recv_value(k,t)=sols(S_TEMP,k)%data(d)%elts(node)+h*plan%recv_value(k,t)
+       end do
+    end do
+    end associate
+    call block_profile_leave(BLOCK_PROFILE_TEMPERATURE_RK)
+  end subroutine prepare_temperature_boundary_stage
+
+  subroutine apply_temperature_boundary_stage(dest)
+    type(Float_Field),intent(inout)::dest(1:N_VARIABLE,1:zlevels)
+    integer :: t,d,node,k
+    real(dp)::value
+    associate(plan=>temperature_rk_boundary)
+    do t=1,sum(plan%request_count)
+       d=plan%destination(1,t)
+       node=plan%destination(2,t)+1
+       do k=1,zlevels
+          value=plan%recv_value(k,t)
+          if (.not. ieee_is_finite(value)) call fail("temperature RK boundary value is not finite")
+          dest(S_TEMP,k)%data(d)%elts(node)=value
+       end do
+    end do
+    end associate
+    dest(S_TEMP,:)%bdry_uptodate=.false.
+  end subroutine apply_temperature_boundary_stage
+
+
+  pure logical function temperature_closure_needed(d,edge) result(needed)
+    implicit none
+    integer,intent(in)::d,edge
+    needed=.false.
+    if (.not. block_scalar_divergence_plan%active) return
+    if (.not. allocated(temperature_closure)) return
+    if (d < 1 .or. d > size(temperature_closure)) return
+    if (edge < 0 .or. edge >= size(temperature_closure(d)%slot)) return
+    needed=temperature_closure(d)%slot(edge+1) > 0
+  end function
+
+  subroutine capture_temperature_closure(d,edge,k,value)
+    implicit none
+    integer,intent(in)::d,edge,k
+    real(dp),intent(in)::value
+    if (.not. temperature_closure_needed(d,edge)) return
+    temperature_closure(d)%value(k,temperature_closure(d)%slot(edge+1))=value
+  end subroutine
+
+  subroutine exchange_temperature_edges(l)
+    implicit none
+    integer,intent(in)::l
+    integer::i,k,ib,p,node,e,sample,offset,nb,v,ns,vv,kfirst,nk,ms,mv,ierr,closure_slot
+    integer::r,nrequest,nsend,nrecv
+    type(MPI_Request)::requests(2*n_process)
+    call block_profile_enter(BLOCK_PROFILE_TEMPERATURE_EDGES)
+    call get_block_field_layout(v,ns,vv,kfirst,nk,ms,mv)
+    associate(plan=>temperature_edge_plan(l))
+      do i=1,size(plan%closure_destination,2)
+         ib=plan%closure_destination(1,i)
+         node=plan%closure_destination(2,i)
+         e=plan%closure_destination(3,i)
+         nb=size(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
+         do k=1,zlevels
+            sample=((S_TEMP-v)*nk+k-kfirst)*nb+node
+            offset=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+BLOCK_SCALAR_DIRECT_FLUX_START+e
+            closure_slot=BLOCK_SCALAR_RESTRICTED_FLUX_START
+            if (block_dynamics_validation_enabled()) closure_slot=BLOCK_SCALAR_PHYSICS_START
+            block_scalar_tendency(ib)%bdry(offset)=block_scalar_tendency(ib)%bdry( &
+                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+closure_slot+e)
+         end do
+      end do
+      do i=1,size(plan%source,2)
+         ib=plan%source(1,i)
+         if (ib == 0) then
+            plan%send_value((i-1)*zlevels+1:i*zlevels)=BLOCK_BOUNDARY_POISON
+            cycle
+         end if
+         p=plan%source(2,i)
+         node=plan%source(3,i)/EDGE
+         e=mod(plan%source(3,i),EDGE)
+         do k=1,zlevels
+            sample=p*block_writeback_plan%scalar_patch_nvalue + &
+                 ((S_TEMP-v)*nk+k-kfirst)*PATCH_SIZE**2+node
+            offset=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+BLOCK_SCALAR_DIRECT_FLUX_START+e
+            plan%send_value((i-1)*zlevels+k)=block_scalar_tendency(ib)%patch(offset)
+         end do
+      end do
+      nrequest=0
+      do r=1,n_process
+         if (r == rank+1) cycle
+         nrecv=zlevels*plan%request_count(r)
+         if (nrecv <= 0) cycle
+         nrequest=nrequest+1
+         offset=zlevels*plan%request_displ(r)+1
+         call MPI_Irecv(plan%recv_value(offset:offset+nrecv-1),nrecv, &
+              MPI_DOUBLE_PRECISION,r-1,28469,comm,requests(nrequest),ierr)
+         call check_mpi(ierr,"MPI_Irecv temperature boundary flux")
+      end do
+      do r=1,n_process
+         if (r == rank+1) cycle
+         nsend=zlevels*plan%service_count(r)
+         if (nsend <= 0) cycle
+         nrequest=nrequest+1
+         offset=zlevels*plan%service_displ(r)+1
+         call MPI_Isend(plan%send_value(offset:offset+nsend-1),nsend, &
+              MPI_DOUBLE_PRECISION,r-1,28469,comm,requests(nrequest),ierr)
+         call check_mpi(ierr,"MPI_Isend temperature boundary flux")
+      end do
+      r=rank+1
+      nrecv=zlevels*plan%request_count(r)
+      if (nrecv /= zlevels*plan%service_count(r)) call fail("temperature local edge extent differs")
+      offset=zlevels*plan%request_displ(r)+1
+      i=zlevels*plan%service_displ(r)+1
+      plan%recv_value(offset:offset+nrecv-1)=plan%send_value(i:i+nrecv-1)
+      if (nrequest > 0) then
+         call MPI_Waitall(nrequest,requests(1:nrequest),MPI_STATUSES_IGNORE,ierr)
+         call check_mpi(ierr,"MPI_Waitall temperature boundary flux")
+      end if
+      call record_parallel_block_profile_volume(BLOCK_PROFILE_TEMPERATURE_EDGES, &
+           int(count(plan%service_count > 0)-merge(1,0,plan%service_count(rank+1) > 0),int64), &
+           8_int64*zlevels*(sum(plan%service_count)-plan%service_count(rank+1)))
+      do i=1,size(plan%destination,2)
+         ib=plan%destination(1,i)
+         node=plan%destination(2,i)
+         e=plan%destination(3,i)
+         nb=size(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
+         do k=1,zlevels
+            sample=((S_TEMP-v)*nk+k-kfirst)*nb+node
+            offset=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+BLOCK_SCALAR_DIRECT_FLUX_START+e
+            block_scalar_tendency(ib)%bdry(offset)= &
+                 real(plan%destination(4,i),dp)*plan%recv_value((i-1)*zlevels+k)
+         end do
+      end do
+    end associate
+    call block_profile_leave(BLOCK_PROFILE_TEMPERATURE_EDGES)
+  end subroutine exchange_temperature_edges
+
+
   subroutine evaluate_candidate_block_scalar_restriction
     ! Produce positive-edge scalar flux and replay cpt_or_restr_flux bottom-up
     ! in compact block storage. Boundary values remain compatibility inputs;
@@ -22512,6 +23418,8 @@ end subroutine build_parallel_block_catalog
     call apply_local_block_field_consumer( &
          compute_block_scalar_direct_flux,direct_flux_statistics)
     call initialize_scalar_restriction_boundary_flux
+    temperature_rk_boundary%covered=.false.
+    call exchange_temperature_edges(level_end)
     call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
     ! Establish a native finest-level divergence before it is consumed by the
     ! first coarse restriction. The full exchange installs immutable geometry
@@ -22534,6 +23442,7 @@ end subroutine build_parallel_block_catalog
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
     call apply_local_block_field_consumer( &
          recompute_block_scalar_divergence_level,statistics)
+    call apply_local_block_field_consumer(compute_temperature_rk_boundary,statistics)
     call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
     do l = level_end-1,level_start,-1
        ! The finer direct-flux stencil was installed when that level became
@@ -22549,9 +23458,11 @@ end subroutine build_parallel_block_catalog
        ! stencil, then form the dscalar whose refresh begins the next level.
        call exchange_block_scalar_restriction_ghosts( &
             .false.,BLOCK_GHOST_DYNAMIC_FLUX,l)
+       call exchange_temperature_edges(l)
        call block_profile_enter(BLOCK_PROFILE_RESTRICTION_KERNEL)
        call apply_local_block_field_consumer( &
             recompute_block_scalar_divergence_level,statistics)
+       call apply_local_block_field_consumer(compute_temperature_rk_boundary,statistics)
        call block_profile_leave(BLOCK_PROFILE_RESTRICTION_KERNEL)
     end do
     statistics%target_level = -1
@@ -22599,10 +23510,61 @@ end subroutine build_parallel_block_catalog
        end if
     end if
 
+#ifdef WAVETRISK_TEST_TEMPERATURE_FINGERPRINT
+    call fingerprint_temperature_chain
+#endif
     call block_profile_leave( &
          BLOCK_PROFILE_RESTRICTION,sum(count_local))
 
   end subroutine evaluate_candidate_block_scalar_restriction
+
+#ifdef WAVETRISK_TEST_TEMPERATURE_FINGERPRINT
+  subroutine fingerprint_temperature_chain
+    use mpi_f08, only : MPI_BXOR
+    integer :: ib,b,p,k,q,e,sample,offset,nb,rotation,ierr
+    integer :: v,ns,vv,kfirst,nk,ms,mv
+    integer(int64) :: bits,local_hash(3),global_hash(3)
+    call get_block_field_layout(v,ns,vv,kfirst,nk,ms,mv)
+    local_hash=0_int64
+    do ib=1,size(block_scalar_tendency)
+       b=local_block_catalog(ib)
+       do p=0,local_block_patch_count(b)-1
+          do k=1,zlevels
+             do q=0,PATCH_SIZE**2-1
+                sample=p*block_writeback_plan%scalar_patch_nvalue+ &
+                     ((S_TEMP-v)*nk+k-kfirst)*PATCH_SIZE**2+q
+                offset=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample
+                rotation=mod(b+7*p+11*q+17*k,64)
+                do e=0,EDGE-1
+                   bits=transfer(block_scalar_tendency(ib)%patch(offset+BLOCK_SCALAR_PHYSICS_START+e),bits)
+                   local_hash(1)=ieor(local_hash(1),ishftc(bits,mod(rotation+5*e,64)))
+                end do
+                bits=transfer(block_scalar_tendency(ib)%patch(offset+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX),bits)
+                local_hash(2)=ieor(local_hash(2),ishftc(bits,rotation))
+             end do
+          end do
+       end do
+       nb=size(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
+       do k=1,zlevels
+          do q=0,nb-1
+             sample=((S_TEMP-v)*nk+k-kfirst)*nb+q
+             offset=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample
+             do e=0,EDGE-1
+                bits=transfer(block_scalar_tendency(ib)%bdry(offset+BLOCK_SCALAR_DIRECT_FLUX_START+e),bits)
+                local_hash(3)=ieor(local_hash(3),ishftc(bits,mod(b+11*q+17*k+5*e,64)))
+             end do
+          end do
+       end do
+    end do
+    call MPI_Allreduce(local_hash,global_hash,3,MPI_INTEGER8,MPI_BXOR,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce temperature diagnostic fingerprint")
+    if (rank == 0) then
+       write(6,'(a,i0,a,3(z16.16,1x))') "Temperature fingerprint stage ", &
+            production_multistage_candidate_stage+1,": physics tendency boundary = ",global_hash
+       flush(6)
+    end if
+  end subroutine fingerprint_temperature_chain
+#endif
 
 
   subroutine report_block_scalar_boundary_shadow
@@ -22695,10 +23657,12 @@ end subroutine build_parallel_block_catalog
     integer :: b
     integer :: data_start
     integer :: sample
+    integer :: v,ns,vv,kfirst,nk,ms,mv,nb,k,node
 
     logical :: validate_oracle
 
     validate_oracle = block_dynamics_validation_enabled()
+    call get_block_field_layout(v,ns,vv,kfirst,nk,ms,mv)
 
     do b = 1,size(block_scalar_tendency)
        if (.not. block_scalar_tendency(b)%ready) then
@@ -22727,6 +23691,18 @@ end subroutine build_parallel_block_catalog
                   data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
                   BLOCK_BOUNDARY_POISON
           end if
+       end do
+       ! Temperature has no compatibility fallback, even in oracle runs.
+       ! Missing native routes must fail at the actual stencil consumption.
+       nb=size(block_scalar_tendency(b)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
+       do k=1,zlevels
+          do node=0,nb-1
+             sample=((S_TEMP-v)*nk+k-kfirst)*nb+node
+             data_start=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample
+             block_scalar_tendency(b)%bdry(data_start+BLOCK_SCALAR_DIRECT_FLUX_START: &
+                  data_start+BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-1)=BLOCK_BOUNDARY_POISON
+             block_scalar_tendency(b)%bdry(data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX)=BLOCK_BOUNDARY_POISON
+          end do
        end do
     end do
 
@@ -23442,6 +24418,7 @@ end subroutine build_parallel_block_catalog
       implicit none
 
       character(*), intent(in) :: description
+      integer :: d_source,id_source,route_index,l_source
 
       write(error_unit,'(/,a,i0,3a)') &
            "Rank ",rank,": scalar-restriction record is ", &
@@ -23458,6 +24435,35 @@ end subroutine build_parallel_block_catalog
       write(error_unit,'(a,i0,a,es24.16)') &
            "  data index = ",data_start+record_slot-1, &
            ", value = ",value
+      if (storage_class == STORE_BDRY) then
+         write(error_unit,'(a,4(i0,1x))') "  patch/boundary level, Domain, source boundary = ", &
+              block%patch(p)%level,block%bdry_storage(record)%level, &
+              block%root_domain,block%bdry_storage(record)%source_bdry
+         write(error_unit,'(a,es24.16)') "  source node = ", &
+              block_scalar_tendency(local_index)%bdry(data_start+BLOCK_SCALAR_SOURCE_INDEX-1)
+         write(error_unit,'(a,6(es24.16,1x))') "  closure/reference flux = ", &
+              block_scalar_tendency(local_index)%bdry(data_start+BLOCK_SCALAR_PHYSICS_START-1: &
+              data_start+BLOCK_SCALAR_PHYSICS_START+1), &
+              block_scalar_tendency(local_index)%bdry(data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
+              data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+1)
+         if (source_rank(local_block_catalog(local_index)) == rank) then
+            d_source=loc_id(block%root_domain+1)+1
+            id_source=nint(block_scalar_tendency(local_index)%bdry(data_start+BLOCK_SCALAR_SOURCE_INDEX-1))
+            write(error_unit,'(a,i0)') "  source node storage level = ",grid(d_source)%level%elts(id_source+1)
+         end if
+         l_source=block%bdry_storage(record)%level
+         if (allocated(temperature_edge_plan)) then
+            if (l_source >= lbound(temperature_edge_plan,1) .and. &
+                 l_source <= ubound(temperature_edge_plan,1)) then
+               do route_index=1,size(temperature_edge_plan(l_source)%destination,2)
+                  if (temperature_edge_plan(l_source)%destination(1,route_index) /= local_index) cycle
+                  if (temperature_edge_plan(l_source)%destination(2,route_index) /= node) cycle
+                  write(error_unit,'(a,4(i0,1x))') "  native route destination = ", &
+                       temperature_edge_plan(l_source)%destination(:,route_index)
+               end do
+            end if
+         end if
+      end if
       flush(error_unit)
 
     end subroutine report_record_value
@@ -24986,7 +25992,9 @@ end subroutine build_parallel_block_catalog
       integer :: slot
       integer :: v_scalar
       integer :: v_vector
+      logical :: validate_oracle
 
+      validate_oracle=block_dynamics_validation_enabled()
       call get_block_field_layout( &
            v_scalar,n_scalar_variable,v_vector,first_field_level, &
            n_field_level,mult_scalar,mult_vector)
@@ -25112,7 +26120,7 @@ end subroutine build_parallel_block_catalog
               if (horizontal_integrated .and. physical_level) cycle
               do q = 0,PATCH_SIZE**2-1
                  node = grid(d)%patch%elts(p+1)%elts_start + q
-                 if (physical_level) then
+                 if (physical_level .and. (scalar_id /= S_TEMP .or. validate_oracle)) then
                     if (node < 0 .or. node >= &
                          size(trend(scalar_id,field_level)%data(d)%elts)) &
                          then
@@ -25341,7 +26349,11 @@ end subroutine build_parallel_block_catalog
          block_domain_production_writeback_count()
 
     if (metric_division) call refresh_candidate_block_edge_metrics
-    call exchange_domain_to_block_payloads( &
+    ! This payload is consumed only by the independent comparison below.
+    ! The production kernel reads native scalar divergence and the retained
+    ! velocity remainder; transporting Domain scalar trend would reintroduce
+    ! the removed temperature dependency (and an unused full-field exchange).
+    if (validate_oracle) call exchange_domain_to_block_payloads( &
          payload_family,domain_sol=domain_sol)
     kernel = Block_Exner_Difference_Kernel_Context()
     kernel%thermodynamic_product = thermodynamic_product
@@ -26525,10 +27537,13 @@ end subroutine build_parallel_block_catalog
             roundoff_tolerant=.true.)
        call block_profile_leave(BLOCK_PROFILE_ORACLE)
     end if
-    ! RK_sub_step_compatibility has already materialized the complete Domain
-    ! stage.  Retain the independently accumulated native block candidate,
-    ! but do not transport it back merely to overwrite an oracle-equivalent
-    ! stage before the wavelet boundary.
+    ! The compatibility RK update no longer computes temperature. Publish its
+    ! native stage before the wavelet/halo consumers read Domain-shaped input.
+    ! The oracle comparison above remains independent and precedes publication.
+    call write_block_field_family_to_domains( &
+         BLOCK_PAYLOAD_SOL,domain_sol,BLOCK_WRITEBACK_TEMPERATURE)
+    production_multistage_native_transform_writeback_count = &
+         production_multistage_native_transform_writeback_count+1_int64
     call retain_native_multistage_candidate_snapshot(stage,stage_count)
 
     trial_active = local_block_tendency_trial_is_active()
@@ -26556,8 +27571,8 @@ end subroutine build_parallel_block_catalog
        call fail("native multistage retention reallocated snapshot storage")
     end if
     if (block_domain_production_writeback_count() /= &
-         production_writeback_before) then
-       call fail("native multistage retention wrote a redundant stage")
+         production_writeback_before+1_int64) then
+       call fail("native temperature stage publication count differs")
     end if
 
     production_multistage_native_candidate_stage = 0
@@ -28284,7 +29299,9 @@ end subroutine build_parallel_block_catalog
        scalar_id = v_scalar + scalar_slot - 1
        do level_slot = 1,n_field_level
           field_level = first_field_level + level_slot - 1
-          if (component /= BLOCK_WRITEBACK_VECTOR) then
+          if (component /= BLOCK_WRITEBACK_VECTOR .and. &
+               (component /= BLOCK_WRITEBACK_TEMPERATURE .or. &
+               (scalar_id == S_TEMP .and. field_level >= 1 .and. field_level <= zlevels))) then
              select case (payload_family)
           case (BLOCK_PAYLOAD_SOL)
              if (present(domain_sol) .and. field_level >= 1 .and. &
@@ -28318,7 +29335,7 @@ end subroutine build_parallel_block_catalog
     n_value = mult_vector*PATCH_SIZE**2
     do level_slot = 1,n_field_level
        field_level = first_field_level + level_slot - 1
-       if (component /= BLOCK_WRITEBACK_SCALAR) then
+       if (component == BLOCK_WRITEBACK_BOTH .or. component == BLOCK_WRITEBACK_VECTOR) then
           select case (payload_family)
           case (BLOCK_PAYLOAD_SOL)
           if (present(domain_sol) .and. field_level >= 1 .and. &

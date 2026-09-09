@@ -12,6 +12,7 @@ module ops_mod
   use diagnostics_mod, only : cal_surf_press, cal_vort, div, gradi_e, integrate_pressure_up
   use domain_ops_mod,  only : apply, apply_onescale_to_patch
   use patch_mod,       only : LAST, PATCH_SIZE
+  use parallel_block_mpi_mod, only : capture_temperature_closure, temperature_closure_needed
   use utils_mod,       only : interp, phi_node, porous_density
   use init_mod,        only : physics_scalar_flux, physics_velo_source, surf_geopot
   
@@ -30,7 +31,7 @@ module ops_mod
 contains
   
   
-  subroutine step1 (dq, q, dom, p, zlev, itype)
+  subroutine step1 (dq, q, dom, p, zlev, itype, scalar_physics, native_temperature)
     ! itype = 0 is standard computation of all quantities
     ! itype = 1 computes only scalar flux of pointer scalar
     
@@ -40,6 +41,12 @@ contains
     integer,           intent(in), optional    :: zlev
     type(Domain),      intent(inout)           :: dom
     type(Float_Field), intent(inout), optional :: dq(1:N_VARIABLE,1:zmax), q(1:N_VARIABLE,1:zmax)
+    ! Export the residual already evaluated for interior positive edges.
+    ! Boundary computations can use a different orientation and must never
+    ! overwrite this patch-local output.
+    real(dp), optional, intent(out) :: &
+         scalar_physics(EDGE,PATCH_SIZE**2,scalars(1):scalars(2))
+    logical, optional, intent(in) :: native_temperature
 
     integer :: j, id,  n, e, s, w, ne, sw, v
     integer :: offs(0:N_BDRY) 
@@ -51,9 +58,19 @@ contains
 
     real(dp), dimension(0:N_BDRY,scalars(1):scalars(2)) :: rho_dz
     real(dp), dimension(1:EDGE)                         :: physics_flux
+    real(dp) :: temperature_flux(EDGE)
 
-    logical :: S_bdry, W_bdry
+    logical :: S_bdry, W_bdry, skip_temperature
+    logical :: temperature_needed(EDGE)
 
+    skip_temperature=.false.
+    if (present(native_temperature)) skip_temperature=native_temperature
+    if (skip_temperature .and. .not. present(scalar_physics)) &
+         error stop "step1: native temperature requires physics output"
+
+    if (present(scalar_physics)) then
+       if (itype /= 0) error stop "step1: scalar physics requires standard mode"
+    end if
     call comp_offs3 (dom, p, offs, dims)
 
     S_bdry = (dom%patch%elts(p+1)%neigh(SOUTH) < 0)
@@ -302,7 +319,10 @@ contains
          vort(TRIAG*idS+UPLT+1) = circ_S_UPLT / dom%triarea%elts(TRIAG*idS+UPLT+1)
       elseif (itype == 0) then ! standard
          id_rhodz = [ id, idN, idE, idS, idW, idNE ]
+         temperature_needed=[temperature_closure_needed(d,EDGE*id+RT), &
+              temperature_closure_needed(d,EDGE*id+DG),temperature_closure_needed(d,EDGE*id+UP)]
          do v = scalars(1), scalars(2)
+            if (skip_temperature .and. v == S_TEMP .and. .not. any(temperature_needed)) cycle
             rho_dz(0:NORTHEAST,v) = q(v,zlev)%data(d)%elts(id_rhodz+1) + sol_mean(v,zlev)%data(d)%elts(id_rhodz+1)
          end do
 
@@ -384,8 +404,32 @@ contains
          if (.not. compressible) exner(id_i) = -Phi_k
 
          do v = scalars(1), scalars(2)
+            if (skip_temperature .and. v == S_TEMP) then
+               if (id < offs(0) .or. id >= offs(0)+PATCH_SIZE**2) then
+                  if (.not. any(temperature_needed)) cycle
+               end if
+            end if
             physics_flux = physics_scalar_flux (q(:,1:zlevels), dom, id, idE, idNE, idN, v, zlev)
+            if (present(scalar_physics)) then
+               if (id >= offs(0) .and. id < offs(0)+PATCH_SIZE**2) &
+                    scalar_physics(:,id-offs(0)+1,v) = physics_flux
+            end if
 
+            if (v == S_TEMP) then
+               if (temperature_needed(RT+1)) then
+                  temperature_flux(RT+1)=u_dual_RT*interp(rho_dz(0,v),rho_dz(EAST,v))+physics_flux(RT+1)
+                  call capture_temperature_closure(d,EDGE*id+RT,zlev,temperature_flux(RT+1))
+               end if
+               if (temperature_needed(DG+1)) then
+                  temperature_flux(DG+1)=u_dual_DG*interp(rho_dz(0,v),rho_dz(NORTHEAST,v))+physics_flux(DG+1)
+                  call capture_temperature_closure(d,EDGE*id+DG,zlev,temperature_flux(DG+1))
+               end if
+               if (temperature_needed(UP+1)) then
+                  temperature_flux(UP+1)=u_dual_UP*interp(rho_dz(0,v),rho_dz(NORTH,v))+physics_flux(UP+1)
+                  call capture_temperature_closure(d,EDGE*id+UP,zlev,temperature_flux(UP+1))
+               end if
+               if (skip_temperature) cycle
+            end if
             horiz_flux(v)%data(d)%elts(EDGE*id+RT+1) = u_dual_RT * interp (rho_dz(0,v), rho_dz(EAST,     v)) + physics_flux(RT+1)
             horiz_flux(v)%data(d)%elts(EDGE*id+DG+1) = u_dual_DG * interp (rho_dz(0,v), rho_dz(NORTHEAST,v)) + physics_flux(DG+1)
             horiz_flux(v)%data(d)%elts(EDGE*id+UP+1) = u_dual_UP * interp (rho_dz(0,v), rho_dz(NORTH,    v)) + physics_flux(UP+1)
@@ -502,7 +546,10 @@ contains
          vort(TRIAG*idSW+UPLT+1) = circ_SW_UPLT / dom%triarea%elts(TRIAG*idSW+UPLT+1)
       elseif (itype == 0) then ! standard
          id_rhodz = [ id, id, id, idS, idW, id, id, idSW ]
+         temperature_needed=[temperature_closure_needed(d,EDGE*idW+RT), &
+              temperature_closure_needed(d,EDGE*idSW+DG),temperature_closure_needed(d,EDGE*idS+UP)]
          do v = scalars(1), scalars(2)
+            if (skip_temperature .and. v == S_TEMP .and. .not. any(temperature_needed)) cycle
             rho_dz(0:SOUTHWEST,v) = q(v,zlev)%data(d)%elts(id_rhodz+1) + sol_mean(v,zlev)%data(d)%elts(id_rhodz+1)
          end do
 
@@ -539,7 +586,23 @@ contains
 
          ! Scalar fluxes
          do v = scalars(1), scalars(2)
+            if (skip_temperature .and. v == S_TEMP) then
+               if (.not. any(temperature_needed)) cycle
+            end if
             physics_flux = physics_scalar_flux (q(:,1:zlevels), dom, id, idW, idSW, idS, v, zlev, .true.)
+
+            if (v == S_TEMP) then
+               if (temperature_needed(RT+1)) &
+                    call capture_temperature_closure(d,EDGE*idW+RT,zlev, &
+                    u_dual_RT_W*interp(rho_dz(0,v),rho_dz(WEST,v))+physics_flux(RT+1))
+               if (temperature_needed(DG+1)) &
+                    call capture_temperature_closure(d,EDGE*idSW+DG,zlev, &
+                    u_dual_DG_SW*interp(rho_dz(0,v),rho_dz(SOUTHWEST,v))+physics_flux(DG+1))
+               if (temperature_needed(UP+1)) &
+                    call capture_temperature_closure(d,EDGE*idS+UP,zlev, &
+                    u_dual_UP_S*interp(rho_dz(0,v),rho_dz(SOUTH,v))+physics_flux(UP+1))
+               if (skip_temperature) cycle
+            end if
 
             horiz_flux(v)%data(d)%elts(EDGE*idW+RT +1) = u_dual_RT_W  * interp (rho_dz(0,v), rho_dz(WEST,     v)) &
                  + physics_flux(RT+1)
