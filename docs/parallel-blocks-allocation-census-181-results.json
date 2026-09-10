@@ -1,0 +1,523 @@
+{
+  "identity": {
+    "binary": "/private/tmp/wavetrisk-stage181-census-03/bin/climate",
+    "sha256": "1a101f768aae9c23e81b114b8f890f5a1c58e352ec7f99b0b7ed439a931df3ba",
+    "ranks": 4,
+    "time_end": "0.3350",
+    "parameters": {
+      "test_case": "climate",
+      "physics_type": "Simple",
+      "run_id": "test",
+      "max_level": "6",
+      "zlevels": "30",
+      "Nsoil": "10",
+      "NCAR_topo": "F",
+      "sso": "F",
+      "topo_file": "J05J07_120.0km",
+      "topo_min_level": "5",
+      "topo_max_level": "7",
+      "tol": "2.5e-2",
+      "dt_write": "0.01",
+      "CP_EVERY": "1",
+      "time_end": "0.3350",
+      "resume": "4"
+    },
+    "seed_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+    "environment": {
+      "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+      "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+      "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+      "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+      "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+      "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "BLIS_NUM_THREADS": "1",
+      "VECLIB_MAXIMUM_THREADS": "1",
+      "WAVETRISK_ALLOCATION_CENSUS": "1"
+    },
+    "returncode": 0,
+    "elapsed_seconds": 258.37887174997013
+  },
+  "numerical_transparency": {
+    "passed": true,
+    "failures": [],
+    "policy": {
+      "id": "stage180-local-v1",
+      "atmosphere_absolute": {
+        "velocity": 1e-10,
+        "mass": 1e-10,
+        "temperature": 1e-07
+      },
+      "soil_absolute": 0.0
+    },
+    "exact_fields_required": true,
+    "checkpoints": {
+      "test_checkpoint_0005.bin.zst": {
+        "left": "/private/tmp/wavetrisk-stage180-j6-campaign-01/block/test_checkpoint_0005.bin.zst",
+        "right": "/private/tmp/wavetrisk-stage181-census-run-01/test_checkpoint_0005.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      },
+      "test_checkpoint_0006.bin.zst": {
+        "left": "/private/tmp/wavetrisk-stage180-j6-campaign-01/block/test_checkpoint_0006.bin.zst",
+        "right": "/private/tmp/wavetrisk-stage181-census-run-01/test_checkpoint_0006.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    }
+  },
+  "census": {
+    "scope": "Owned allocatable capacity in four modules; pointer aliases excluded; no MPI synchronization",
+    "excluded": "Other modules, automatic arrays, allocator metadata, MPI internals, OS/runtime and transient allocation peaks",
+    "ranks": [
+      {
+        "rank": 0,
+        "samples": 55,
+        "peak_sample": 42,
+        "peak_phase": "scalar-storage-ready",
+        "peak_counted_bytes": 2936686864,
+        "owners_at_peak": {
+          "domain": 428314492,
+          "comm_mpi": 12282440,
+          "parallel_block": 331612224,
+          "parallel_block_mpi": 2164477708
+        },
+        "largest_roots_at_peak": {
+          "parallel_block_mpi.block_scalar_tendency": 1831497360,
+          "parallel_block.block_local": 276980104,
+          "parallel_block_mpi.staged_coarse_vector_boundary_plan": 98517308,
+          "domain.sol": 86674656,
+          "domain.sol_mean": 86674656,
+          "domain.wav_coeff": 76388576,
+          "domain.trend": 55894080,
+          "parallel_block_mpi.production_vector_transform_stage": 51754464,
+          "parallel_block_mpi.production_vector_wavelet_stage": 51754464,
+          "domain.penal_edge": 45721888,
+          "domain.grid": 41078604,
+          "parallel_block_mpi.block_writeback_plan": 38041396,
+          "parallel_block_mpi.production_vector_transform_covered": 25877232,
+          "parallel_block.block_tendency": 16557840,
+          "parallel_block.block_tendency_trial": 16556360
+        }
+      },
+      {
+        "rank": 1,
+        "samples": 55,
+        "peak_sample": 42,
+        "peak_phase": "scalar-storage-ready",
+        "peak_counted_bytes": 2714752496,
+        "owners_at_peak": {
+          "domain": 399772572,
+          "comm_mpi": 12363068,
+          "parallel_block": 308278012,
+          "parallel_block_mpi": 1994338844
+        },
+        "largest_roots_at_peak": {
+          "parallel_block_mpi.block_scalar_tendency": 1675770896,
+          "parallel_block.block_local": 253330116,
+          "parallel_block_mpi.staged_coarse_vector_boundary_plan": 89026232,
+          "domain.sol": 82710120,
+          "domain.sol_mean": 82710120,
+          "domain.wav_coeff": 70193640,
+          "domain.trend": 51361200,
+          "parallel_block_mpi.production_vector_transform_stage": 49434192,
+          "parallel_block_mpi.production_vector_wavelet_stage": 49434192,
+          "domain.penal_edge": 42030904,
+          "parallel_block_mpi.block_writeback_plan": 38664908,
+          "domain.grid": 37811260,
+          "parallel_block_mpi.production_vector_transform_covered": 24717096,
+          "parallel_block.block_tendency": 16655888,
+          "parallel_block.block_tendency_trial": 16654792
+        }
+      },
+      {
+        "rank": 2,
+        "samples": 55,
+        "peak_sample": 42,
+        "peak_phase": "scalar-storage-ready",
+        "peak_counted_bytes": 2912756172,
+        "owners_at_peak": {
+          "domain": 423570984,
+          "comm_mpi": 12085688,
+          "parallel_block": 328287028,
+          "parallel_block_mpi": 2148812472
+        },
+        "largest_roots_at_peak": {
+          "parallel_block_mpi.block_scalar_tendency": 1808025040,
+          "parallel_block.block_local": 273402908,
+          "parallel_block_mpi.staged_coarse_vector_boundary_plan": 98018268,
+          "domain.sol": 87909904,
+          "domain.sol_mean": 87909904,
+          "domain.wav_coeff": 74094544,
+          "domain.trend": 54215520,
+          "parallel_block_mpi.production_vector_transform_stage": 52506240,
+          "parallel_block_mpi.production_vector_wavelet_stage": 52506240,
+          "domain.penal_edge": 44350192,
+          "domain.grid": 40287832,
+          "parallel_block_mpi.block_writeback_plan": 39826552,
+          "parallel_block_mpi.production_vector_transform_covered": 26253120,
+          "parallel_block.block_tendency": 16634832,
+          "parallel_block.block_tendency_trial": 16633448
+        }
+      },
+      {
+        "rank": 3,
+        "samples": 55,
+        "peak_sample": 42,
+        "peak_phase": "scalar-storage-ready",
+        "peak_counted_bytes": 2696213492,
+        "owners_at_peak": {
+          "domain": 388908716,
+          "comm_mpi": 11213468,
+          "parallel_block": 308518524,
+          "parallel_block_mpi": 1987572784
+        },
+        "largest_roots_at_peak": {
+          "parallel_block_mpi.block_scalar_tendency": 1681766288,
+          "parallel_block.block_local": 254257796,
+          "parallel_block_mpi.staged_coarse_vector_boundary_plan": 85579024,
+          "domain.sol": 78459240,
+          "domain.sol_mean": 78459240,
+          "domain.wav_coeff": 69563880,
+          "domain.trend": 50900400,
+          "parallel_block_mpi.production_vector_transform_stage": 46883664,
+          "parallel_block_mpi.production_vector_wavelet_stage": 46883664,
+          "domain.penal_edge": 41653048,
+          "domain.grid": 37212492,
+          "parallel_block_mpi.block_writeback_plan": 37156004,
+          "parallel_block_mpi.production_vector_transform_covered": 23441832,
+          "parallel_block.block_tendency": 16447120,
+          "parallel_block.block_tendency_trial": 16445960
+        }
+      }
+    ],
+    "phase_sequences_align": true,
+    "largest_aligned_phase_sum": {
+      "sequence": 42,
+      "phase": "scalar-storage-ready",
+      "bytes": 11260409024,
+      "caution": "Same logical sample, not a synchronized instantaneous global peak",
+      "roots": {
+        "parallel_block_mpi.block_scalar_tendency": 6997059584,
+        "parallel_block.block_local": 1057970924,
+        "parallel_block_mpi.staged_coarse_vector_boundary_plan": 371140832,
+        "domain.sol": 335753920,
+        "domain.sol_mean": 335753920,
+        "domain.wav_coeff": 290240640,
+        "domain.trend": 212371200,
+        "parallel_block_mpi.production_vector_transform_stage": 200578560,
+        "parallel_block_mpi.production_vector_wavelet_stage": 200578560,
+        "domain.penal_edge": 173756032,
+        "domain.grid": 156390188,
+        "parallel_block_mpi.block_writeback_plan": 153688860,
+        "parallel_block_mpi.production_vector_transform_covered": 100289280,
+        "parallel_block.block_tendency": 66295680,
+        "parallel_block.block_tendency_trial": 66290560,
+        "parallel_block.block_tendency_accumulator": 66290560,
+        "domain.exner_fun": 59662848,
+        "domain.penal_node": 58242304,
+        "parallel_block_mpi.temperature_edge_plan": 51031208,
+        "parallel_block_mpi.block_velocity_remainder": 39819392,
+        "parallel_block_mpi.block_edge_metric": 39773312,
+        "parallel_block_mpi.block_scalar_boundary_final_plan": 32975460,
+        "comm_mpi.send_buf": 25219008,
+        "comm_mpi.recv_buf": 21722128,
+        "parallel_block_mpi.block_scalar_boundary_cache_value": 20208736,
+        "parallel_block.block_hydrostatic": 19832704,
+        "parallel_block_mpi.block_scalar_restriction_exchange": 16491356,
+        "parallel_block_mpi.temperature_closure": 14545184,
+        "parallel_block_mpi.block_vertical_remap": 13540268,
+        "parallel_block_mpi.block_scalar_capture_domain": 12425216,
+        "parallel_block_mpi.block_scalar_boundary_cache_covered": 10104368,
+        "domain.horiz_flux": 8475904,
+        "domain.laplacian_vector": 5658496,
+        "parallel_block_mpi.temperature_rk_boundary": 3383552,
+        "parallel_block_mpi.ghost_exchange_plan": 3225204,
+        "domain.laplacian_scalar": 2841088,
+        "parallel_block_mpi.inverse_stencil": 1925632,
+        "parallel_block_mpi.block_scalar_divergence_plan": 1687588,
+        "domain.topography": 1420224,
+        "parallel_block_mpi.native_columns": 987360,
+        "parallel_block_mpi.block_adaptation_exchange": 750712,
+        "parallel_block_mpi.block_adaptation_decision": 691968,
+        "comm_mpi.send_buf_i": 589792,
+        "comm_mpi.recv_buf_i": 413352,
+        "parallel_block_mpi.block_scalar_boundary_owner_patch": 405072,
+        "parallel_block_mpi.block_scalar_boundary_owner_patch_node": 405072,
+        "parallel_block_mpi.block_scalar_boundary_owner_block": 405072,
+        "parallel_block_mpi.block_scalar_boundary_owner_block_patch": 405072,
+        "parallel_block_mpi.block_scalar_boundary_owner_block_level": 405072,
+        "parallel_block_mpi.block_scalar_boundary_owner_rank": 405072,
+        "parallel_block_mpi.block_scalar_boundary_cache_slot": 405072,
+        "parallel_block_mpi.block_scalar_boundary_cache_domain": 405072,
+        "parallel_block_mpi.block_scalar_boundary_cache_node": 405072,
+        "parallel_block_mpi.block_scalar_boundary_cache_rank": 405072,
+        "parallel_block_mpi.block_scalar_boundary_owner_patch_send": 330632,
+        "parallel_block_mpi.block_scalar_boundary_owner_patch_node_send": 330632,
+        "parallel_block_mpi.block_scalar_boundary_owner_block_send": 330632,
+        "parallel_block_mpi.block_scalar_boundary_owner_block_patch_send": 330632,
+        "parallel_block_mpi.block_scalar_boundary_owner_block_level_send": 330632,
+        "parallel_block_mpi.block_scalar_boundary_owner_rank_send": 330632,
+        "parallel_block_mpi.block_scalar_boundary_owner_patch_recv": 330628,
+        "parallel_block_mpi.block_scalar_boundary_owner_patch_node_recv": 330628,
+        "parallel_block_mpi.block_scalar_boundary_owner_block_recv": 330628,
+        "parallel_block_mpi.block_scalar_boundary_owner_block_patch_recv": 330628,
+        "parallel_block_mpi.block_scalar_boundary_owner_block_level_recv": 330628,
+        "parallel_block_mpi.block_scalar_boundary_owner_rank_recv": 330628,
+        "parallel_block_mpi.block_scalar_boundary_cache_value_send": 61592,
+        "parallel_block_mpi.block_scalar_boundary_cache_value_recv": 61592,
+        "parallel_block_mpi.block_scalar_boundary_cache_domain_send": 30796,
+        "parallel_block_mpi.block_scalar_boundary_cache_domain_recv": 30796,
+        "parallel_block_mpi.block_scalar_boundary_cache_node_send": 30796,
+        "parallel_block_mpi.block_scalar_boundary_cache_node_recv": 30796,
+        "parallel_block_mpi.block_scalar_boundary_cache_slot_send": 30796,
+        "parallel_block.block_catalog_local_index": 10240,
+        "parallel_block_mpi.block_vertical_remap_exchange": 3260,
+        "parallel_block.block_local_catalog_index": 2560,
+        "parallel_block.block_tendency_import_patch_count": 2560,
+        "parallel_block_mpi.production_vector_transform_displ": 656,
+        "comm_mpi.req": 128,
+        "comm_mpi.recv_lengths": 64,
+        "comm_mpi.recv_offsets": 64,
+        "comm_mpi.send_lengths": 64,
+        "comm_mpi.send_offsets": 64,
+        "parallel_block_mpi.block_scalar_boundary_cache_send_count": 64,
+        "parallel_block_mpi.block_scalar_boundary_cache_recv_count": 64,
+        "parallel_block_mpi.block_scalar_boundary_cache_send_displ": 64,
+        "parallel_block_mpi.block_scalar_boundary_cache_recv_displ": 64,
+        "domain.topography_data": 0,
+        "domain.sso_param": 0,
+        "domain.kv": 0,
+        "domain.kt": 0,
+        "domain.tke": 0,
+        "domain.wav_tke": 0,
+        "parallel_block.block_source": 0,
+        "parallel_block.block_received": 0,
+        "parallel_block.block_source_catalog_index": 0,
+        "parallel_block.block_retained_source_index": 0,
+        "parallel_block.block_migrating_source_index": 0,
+        "parallel_block.block_received_catalog_index": 0,
+        "parallel_block_mpi.residual_columns": 0,
+        "parallel_block_mpi.block_velocity_source_transport": 0,
+        "parallel_block_mpi.block_velocity_source": 0
+      }
+    }
+  },
+  "memory": {
+    "scope": "whole-run system-wide VM deltas; sampled simulation-child RSS, excludes compressed footprint",
+    "vm_delta_bytes": {
+      "Decompressions": 563277463552,
+      "Compressions": 606734385152,
+      "Swapins": 6324224,
+      "Swapouts": 0
+    },
+    "sampled_simultaneous_rss_peak_kib": 8548848,
+    "usable_for_local_timing": false,
+    "reasons": [
+      "More than 1 GiB system-wide decompression during run"
+    ]
+  },
+  "raw_evidence": "/private/tmp/wavetrisk-stage181-census-run-01"
+}

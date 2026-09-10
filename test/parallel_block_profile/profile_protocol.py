@@ -143,7 +143,7 @@ class MemoryMonitor:
         return result
 
 
-def execute(binary,fixture,out,ranks,time_end,oracles=False,detail=False,monitor=False,overrides=None):
+def execute(binary,fixture,out,ranks,time_end,oracles=False,detail=False,monitor=False,overrides=None,census=False):
     binary=binary.resolve(strict=True);fixture=fixture.resolve(strict=True);out=out.resolve()
     if out.is_relative_to(fixture) or fixture.is_relative_to(out):
         raise ValueError('Execution output must be outside the immutable fixture')
@@ -158,6 +158,7 @@ def execute(binary,fixture,out,ranks,time_end,oracles=False,detail=False,monitor
     (out/'grids').symlink_to((fixture/'grids').resolve(strict=True),target_is_directory=True)
     shutil.copy2(binary,out/'climateJ5')
     env=environment(oracles,detail)
+    if census:env['WAVETRISK_ALLOCATION_CENSUS']='1'
     identity={'binary':str(binary),'sha256':digest(binary),'ranks':ranks,'time_end':str(time_end),
               'parameters':parameters(text),'seed_sha256':digest(out/name),
               'environment':{k:v for k,v in env.items() if k.startswith('WAVETRISK_') or k.endswith('NUM_THREADS') or k=='VECLIB_MAXIMUM_THREADS'}}
