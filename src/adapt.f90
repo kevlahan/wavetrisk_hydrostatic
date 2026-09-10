@@ -1,4 +1,5 @@
 module adapt_mod
+  use parallel_block_profile_mod, only : detail_enter, detail_leave, DP_WT_DRIVER
   use, intrinsic :: iso_fortran_env, only : int64
 
   use kind_mod,         only : dp
@@ -404,6 +405,7 @@ contains
     integer :: d, k, l, l_start, v
     logical :: native_output
 
+    call detail_enter(DP_WT_DRIVER)
     native_output = .false.
     if (present(native_wavelet_output)) then
        native_output = native_wavelet_output
@@ -491,21 +493,26 @@ contains
        call activate_native_compression(wavelet)
        ! Establish the geometric aliases consumed by the native inverse.
        ! No legacy reconstruction is executed on the production path.
-       call prepare_block_native_inverse_boundaries(wavelet,scaling,l_start)
+       ! l_start is the forward transform's PARENT range. The legacy inverse
+       ! below starts at level_start, even when the accepted forward stage
+       ! produces level_start coefficients for checkpoint lifting. Do not
+       ! reconstruct an extra coarse transition on the native path.
+       call prepare_block_native_inverse_boundaries(wavelet,scaling,level_start)
        if (block_dynamics_validation_enabled()) then
           call update_bdry1( &
-               wavelet,max(l_start,level_start),level_end,802)
-          call update_bdry1(scaling,l_start,level_end,803)
+               wavelet,level_start,level_end,802)
+          call update_bdry1(scaling,level_start,level_end,803)
        end if
        scaling%bdry_uptodate = .false.
        call activate_native_inverse( &
-            wavelet,scaling,l_start,level_end, &
+            wavelet,scaling,level_start,level_end, &
             refresh_native_inverse_scalar_boundary, &
             refresh_native_inverse_vector_boundary)
     else
        call compress_wavelets (wavelet)
        call inverse_wavelet_transform(wavelet,scaling)
     end if
+    call detail_leave(DP_WT_DRIVER)
   end subroutine WT_after_step
 
   

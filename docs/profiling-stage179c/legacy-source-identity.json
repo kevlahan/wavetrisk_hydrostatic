@@ -1,0 +1,15 @@
+{
+  "revision": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "authoritative": false,
+  "instrumented_files": {
+    "Makefile": "d6c46217549ad30fbd7e8837f07661abf0aa13d6fa96b8a514e391e10353bfd8",
+    "src/adapt.f90": "3766efcfe2cc177b726a3701a66f7211380719ac3af323a921727a6d2cda7d37",
+    "src/comm_mpi.f90": "660b43fdd57fde6d0137e5280fdf9402e1326f115fac35b3ffd24915a5cd20c6",
+    "src/main.f90": "3171517228fa409929fb3492cc778cde1ee64e156113bcfb1692a59b550865f2",
+    "src/multi_level.f90": "83012c7ea628807c56651c2eded47be080e6c4ba280d49e806780c51256f1bc2",
+    "src/time_integr.f90": "fa12442353ad6b63697c52787a52d9ff4870e90a6cf13b83cfaa9cc29dd0a87a",
+    "src/wavelet.f90": "58045b74d203b2f3f16c0409a5cbfd53ed2a1627c5a07432cb7974680c796377",
+    "test/climate/climate.f90": "0fdbb68b6187eb7f23b51d912a6bdc4a453eb141c361309f1929c896f5194dcc"
+  },
+  "baseline_binary_sha256": "0f99636210320cdd79cff5b49cb3becd0618faa9f042b963de0589e3990a277e"
+}

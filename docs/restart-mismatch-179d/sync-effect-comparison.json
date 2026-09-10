@@ -1,0 +1,270 @@
+{
+  "left": "/private/tmp/wavetrisk-restart-probe-runs-01/block/probe-before-consumer-sync-step-259-rank-*.bin",
+  "right": "/private/tmp/wavetrisk-restart-probe-runs-01/block/probe-after-consumer-sync-step-259-rank-*.bin",
+  "left_headers": [
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26719.30615300459
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26719.30615300459
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26719.30615300459
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26719.30615300459
+    }
+  ],
+  "right_headers": [
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26719.30615300459
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26719.30615300459
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26719.30615300459
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26719.30615300459
+    }
+  ],
+  "left_only_patches": 0,
+  "right_only_patches": 0,
+  "common_patches": 3144,
+  "mask_differences": 0,
+  "fields": {
+    "sol/velocity/soil/all": {
+      "samples": 1660032,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/velocity/soil/active": {
+      "samples": 835395,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/velocity/atmosphere/all": {
+      "samples": 4527360,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/velocity/atmosphere/active": {
+      "samples": 2278350,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/velocity/soil/all": {
+      "samples": 1660032,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/velocity/soil/active": {
+      "samples": 835395,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/velocity/atmosphere/all": {
+      "samples": 4527360,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/velocity/atmosphere/active": {
+      "samples": 2278350,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/mass/soil/all": {
+      "samples": 553344,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/mass/soil/active": {
+      "samples": 292534,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/mass/atmosphere/all": {
+      "samples": 1509120,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/mass/atmosphere/active": {
+      "samples": 797820,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/mass/soil/all": {
+      "samples": 553344,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/mass/soil/active": {
+      "samples": 292534,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/mass/atmosphere/all": {
+      "samples": 1509120,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/mass/atmosphere/active": {
+      "samples": 797820,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/temperature/soil/all": {
+      "samples": 553344,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/temperature/soil/active": {
+      "samples": 292534,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/temperature/atmosphere/all": {
+      "samples": 1509120,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/temperature/atmosphere/active": {
+      "samples": 797820,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/temperature/soil/all": {
+      "samples": 553344,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/temperature/soil/active": {
+      "samples": 292534,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/temperature/atmosphere/all": {
+      "samples": 1509120,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/temperature/atmosphere/active": {
+      "samples": 797820,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    }
+  }
+}

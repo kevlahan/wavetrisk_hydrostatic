@@ -1,4 +1,5 @@
 module parallel_block_inverse_mod
+  use parallel_block_profile_mod
   ! Native inverse boundary dependency workspace. Topology is compiled once
   ! per generation; only required nodes are staged, never Float_Field copies.
   ! Regular scalar/inner-vector kernels remain on final-owner blocks. The
@@ -22,6 +23,7 @@ module parallel_block_inverse_mod
   private
   public :: prepare_native_inverse, native_inverse_gather, native_inverse_boundary, &
        native_inverse_scatter, native_inverse_outer, compare_native_inverse, publish_native_inverse
+  public :: capture_native_inverse_consumer_aliases
   real(dp), public :: native_inverse_seconds(3)=0.0_dp
   integer(int64), public :: native_inverse_calls(3)=0_int64, native_inverse_messages(3)=0_int64, &
        native_inverse_bytes(3)=0_int64
@@ -62,6 +64,8 @@ module parallel_block_inverse_mod
   real(dp), allocatable, asynchronous :: alias_send(:),alias_recv(:)
   integer, allocatable :: node_domain(:),node_id(:),operation_first(:),operation_last(:)
   integer, allocatable :: scaffold_slot(:)
+  integer, allocatable :: consumer_alias_slot(:)
+  real(dp), allocatable :: consumer_alias_value(:,:,:)
   integer, allocatable :: node_flags(:)
   real(dp), allocatable :: scaffold_value(:,:,:)
   integer(int64), allocatable :: coverage(:,:)
@@ -137,15 +141,17 @@ contains
     type(Boundary_Manifest) :: manifest
     type(Transfer_Plan) :: outer_patch,outer_bdry
 
+    call detail_enter(DP_INVERSE_PLAN)
     timing=profile
     native_inverse_seconds=0.0_dp
     native_inverse_calls=0_int64
     native_inverse_messages=0_int64
     native_inverse_bytes=0_int64
     if (plan_generation /= generation) then
+       call detail_add(DC_INVERSE_BUILD,1_int64)
        if (allocated(nodes)) deallocate(nodes,node_domain,node_id,value,aliases,operations,coverage, &
             scaffold_slot,scaffold_value,operation_first,operation_last,node_flags,level_interior,level_boundary, &
-            outer_install,transfer_send,transfer_recv,alias_send,alias_recv)
+            outer_install,transfer_send,transfer_recv,alias_send,alias_recv,consumer_alias_slot,consumer_alias_value)
        do q=1,2
           if (allocated(local_alias(q)%source)) deallocate(local_alias(q)%source,local_alias(q)%dest)
        end do
@@ -290,6 +296,17 @@ contains
        allocate(value(nscalar+EDGE,zlevels,nnode,2))
        n=0
        do p=1,nnode
+          if (nodes(node_domain(p))%key(1,node_id(p)+1)==0) n=n+1
+       end do
+       allocate(consumer_alias_slot(n),consumer_alias_value(nscalar+EDGE,zlevels,n))
+       n=0
+       do p=1,nnode
+          if (nodes(node_domain(p))%key(1,node_id(p)+1)/=0) cycle
+          n=n+1
+          consumer_alias_slot(n)=p
+       end do
+       n=0
+       do p=1,nnode
           if (nodes(node_domain(p))%key(2,node_id(p)+1)==-1) n=n+1
        end do
        allocate(scaffold_slot(n),scaffold_value(nscalar+EDGE,zlevels,n))
@@ -300,7 +317,11 @@ contains
           scaffold_slot(n)=p
        end do
        plan_generation=generation
+    else
+       call detail_add(DC_INVERSE_REUSE,1_int64)
     end if
+    call detail_leave(DP_INVERSE_PLAN)
+    call detail_enter(DP_INVERSE_SEED)
 
     ! Seed only compatibility/scaffold and pre-existing boundary state once
     ! per transform. Every catalogued interior dependency is replaced below
@@ -347,6 +368,14 @@ contains
        call native_inverse_scatter(q,2,.false.)
        call native_inverse_scatter(q,1,.false.)
     end do
+    ! Preserve the legacy consumer-visible alias epoch separately from the
+    ! fresher aliases needed by native kernels. Only boundary/scaffold values
+    ! are retained, not a second solution or another inverse computation.
+    do q=1,size(consumer_alias_slot)
+       consumer_alias_value(:,:,q)=value(:,:,consumer_alias_slot(q),BLOCK_PAYLOAD_SOL)
+    end do
+
+    call detail_leave(DP_INVERSE_SEED)
 
   contains
     recursive subroutine map_patch(patch)
@@ -567,6 +596,7 @@ contains
     started=0.0_dp
     if (timing) started=MPI_Wtime()
     if (install) then
+       call detail_enter(DP_INVERSE_PACK)
        do p=1,sum(plan%sc)
           q=(p-1)*n
           do k=1,zlevels
@@ -576,11 +606,17 @@ contains
              end do
           end do
        end do
+       call detail_leave(DP_INVERSE_PACK)
        call exchange_values(transfer_send,plan%sc,plan%sd,transfer_recv,plan%rc,plan%rd,n,19071)
+       call detail_enter(DP_INVERSE_INSTALL)
        call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv)
+       call detail_leave(DP_INVERSE_INSTALL)
     else
+       call detail_enter(DP_INVERSE_PACK)
        call transfer_local_block_inverse_routes(plan%address,family,component,.false.,transfer_recv)
+       call detail_leave(DP_INVERSE_PACK)
        call exchange_values(transfer_recv,plan%rc,plan%rd,transfer_send,plan%sc,plan%sd,n,19072)
+       call detail_enter(DP_INVERSE_INSTALL)
        do p=1,sum(plan%sc)
           q=(p-1)*n
           do k=1,zlevels
@@ -590,6 +626,7 @@ contains
              end do
           end do
        end do
+       call detail_leave(DP_INVERSE_INSTALL)
     end if
     if (timing) then
        phase=merge(3,1,install)
@@ -619,6 +656,7 @@ contains
     integer, intent(in) :: sc(:),sd(:),rc(:),rd(:),n,tag
     integer, intent(out) :: nrequest
     integer :: r,ierr
+    call detail_enter(DP_INVERSE_POST)
     nrequest=0
     do r=1,n_process
        if (r==rank+1 .or. rc(r)==0) cycle
@@ -637,15 +675,20 @@ contains
     r=rank+1
     if (sc(r)/=rc(r)) call die('native self route extent')
     recv(n*rd(r)+1:n*(rd(r)+rc(r)))=send(n*sd(r)+1:n*(sd(r)+sc(r)))
+    call detail_leave(DP_INVERSE_POST)
+
   end subroutine
 
   subroutine finish_exchange_values(nrequest)
     integer, intent(in) :: nrequest
     integer :: ierr
+    call detail_enter(DP_INVERSE_WAIT)
     if (nrequest>0) then
        call MPI_Waitall(nrequest,requests(1:nrequest),MPI_STATUSES_IGNORE,ierr)
        call check(ierr,'native dependency completion')
     end if
+    call detail_leave(DP_INVERSE_WAIT)
+
   end subroutine
 
   subroutine record_traffic(phase,counts,nvalue)
@@ -816,6 +859,7 @@ contains
     nv=merge(nscalar,1,component==1)
     n=nv*zlevels
     ! Remote sends are snapshots BEFORE the ordered, all-level local copies.
+    call detail_enter(DP_INVERSE_PACK)
     q=0
     do p=1,size(a%source)
        do k=1,zlevels
@@ -827,7 +871,9 @@ contains
     end do
     ! Sends have already snapshotted every remote source. Local copies use
     ! only value(), so communication can progress without changing ordering.
+    call detail_leave(DP_INVERSE_PACK)
     call begin_exchange_values(alias_send,a%sc,a%sd,alias_recv,a%rc,a%rd,n,19073,nrequest)
+    call detail_enter(DP_INVERSE_LOCAL)
     do p=1,size(local_alias(component)%source)
        do k=1,zlevels
           do v=1,nv
@@ -836,8 +882,10 @@ contains
           end do
        end do
     end do
+    call detail_leave(DP_INVERSE_LOCAL)
     call finish_exchange_values(nrequest)
     if (timing) call record_traffic(2,a%sc,n)
+    call detail_enter(DP_INVERSE_INSTALL)
     do p=1,size(a%dest)
        t=p
        if (allocated(a%install_order)) t=a%install_order(p)
@@ -849,6 +897,7 @@ contains
           end do
        end do
     end do
+    call detail_leave(DP_INVERSE_INSTALL)
   end subroutine
 
   real(dp) function alias_value(code,component,v,k,family) result(x)
@@ -915,14 +964,49 @@ contains
     bits=transfer(x,bits)
   end function
 
-  subroutine publish_native_inverse(scaling,payload_family)
+  subroutine capture_native_inverse_consumer_aliases(component,level)
+    integer, intent(in) :: component,level
+    integer :: q,p,d,id,first,last
+    first=merge(1,nscalar+1,component==1)
+    last=merge(nscalar,nscalar+EDGE,component==1)
+    do q=1,size(consumer_alias_slot)
+       p=consumer_alias_slot(q)
+       d=node_domain(p)
+       id=node_id(p)
+       if (grid(d)%level%elts(id+1)/=level) cycle
+       consumer_alias_value(first:last,:,q)=value(first:last,:,p,BLOCK_PAYLOAD_SOL)
+    end do
+  end subroutine
+
+  subroutine publish_native_inverse(scaling,payload_family,consumer_aliases)
     ! One compatibility publication after the complete native transaction.
     ! Interior installation remains the standard final-owner publication.
     type(Float_Field), intent(inout) :: scaling(1:N_VARIABLE,1:zlevels)
     integer, optional, intent(in) :: payload_family
-    integer :: p,d,id,k,v,family
+    logical, optional, intent(in) :: consumer_aliases
+    integer :: p,d,id,k,v,family,q
+    logical :: consumer
     family=BLOCK_PAYLOAD_SOL
     if (present(payload_family)) family=payload_family
+    consumer=.false.
+    if (present(consumer_aliases)) consumer=consumer_aliases
+    if (consumer.and.family/=BLOCK_PAYLOAD_SOL) call die('consumer aliases require solution')
+    if (consumer) then
+       do q=1,size(consumer_alias_slot)
+          p=consumer_alias_slot(q)
+          d=node_domain(p)
+          id=node_id(p)
+          do k=1,zlevels
+             do v=1,nscalar
+                scaling(scalars(1)+v-1,k)%data(d)%elts(id+1)=consumer_alias_value(v,k,q)
+             end do
+             do v=1,EDGE
+                scaling(S_VELO,k)%data(d)%elts(EDGE*id+v)=consumer_alias_value(nscalar+v,k,q)
+             end do
+          end do
+       end do
+       return
+    end if
     do p=1,nnode
        d=node_domain(p)
        id=node_id(p)
@@ -1070,6 +1154,7 @@ contains
     integer(int64), intent(out) :: count(4)
     integer :: p,k,q
     real(dp) :: s(13),x(9),correction,second,first
+    call detail_enter(DP_OUTER_KERNEL)
     count=coverage(:,level)
     first=0.0_dp
     second=0.0_dp
@@ -1110,5 +1195,7 @@ contains
           end associate
        end do
     end do
+    call detail_leave(DP_OUTER_KERNEL)
+
   end subroutine
 end module parallel_block_inverse_mod

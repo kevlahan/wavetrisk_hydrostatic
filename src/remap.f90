@@ -6,13 +6,14 @@ module remap_mod
   
   use kind_mod,   only : dp
   use shared_mod, only : ADJZONE, EDGE, N_BDRY, NONE, S_MASS, S_TEMP, S_VELO, RT, DG, UP, &
-       a_vert, b_vert, compressible, grav_accel, p_top, ref_density, remap_type, sigma_z, z_null, zlevels
+       a_vert, b_vert, compressible, grav_accel, p_top, ref_density, remap_type, sigma_z, z_null, zlevels, &
+       level_start, level_end
   
   use arch_mod,        only : abort_run, comm, n_process, rank
   use comm_mpi_mod,    only : update_bdry
   use diagnostics_mod, only : buoyancy
   use domain_mod,      only : Domain, Float_Field, sol, sol_mean, topography, idx
-  use domain_ops_mod,  only : apply_no_bdry2
+  use domain_ops_mod,  only : apply_no_bdry2, apply_to_pole
   use init_mod,        only : z_coords 
   use parallel_block_mpi_mod, only : &
        BLOCK_PROFILE_ORACLE, &
@@ -126,6 +127,7 @@ contains
     logical :: validate_oracle
 
     integer :: ierr
+    integer :: level
 
     real(dp) :: block_seconds
     real(dp) :: global_timing(2)
@@ -199,6 +201,13 @@ contains
           oracle_seconds = MPI_Wtime()-start_time
           call parallel_block_profile_end( &
                BLOCK_PROFILE_ORACLE,start_time)
+       else
+          ! Polar scalar columns are outside compact patch interiors. The
+          ! oracle remaps them above; production must do so explicitly too.
+          ! Work from the still-unmodified Domain image before writeback.
+          do level = level_start,level_end
+             call apply_to_pole(remap_compressible_pole,level,z_null,1,.true.)
+          end do
        end if
 
        call write_block_native_vertical_remap_to_domains
@@ -241,6 +250,41 @@ contains
     nullify (interpolate)
     if (allocated(old_mass)) deallocate(old_mass)
   end subroutine remap_vertical_coordinates
+
+
+  subroutine remap_compressible_pole (dom, p_null, i, j, zlev, offs, dims, is_pole)
+    ! Scalar part of remap_compressible for a non-block-owned polar column.
+    ! Snapshot this entire column before changing it. No neighboring pressure
+    ! coordinates or velocity interpolation are needed at a pole.
+    implicit none
+    type(Domain), intent(inout) :: dom
+    integer, intent(in) :: p_null, i, j, zlev, offs(N_BDRY+1), dims(2,N_BDRY+1), is_pole
+    integer :: d, id_i, k
+    real(dp) :: rho_dz(zlevels), rho_dz_new(zlevels), theta_old(zlevels), theta_new(zlevels)
+    real(dp) :: p_old(0:zlevels), p_new(0:zlevels)
+
+    if (is_pole /= 1) error stop 'polar remap called on a patch interior'
+    d = dom%id+1
+    id_i = idx(i,j,offs,dims)+1
+    if (dom%mask_n%elts(id_i) < ADJZONE) return
+    do k = 1,zlevels
+       rho_dz(k) = sol_mean(S_MASS,k)%data(d)%elts(id_i)+sol(S_MASS,k)%data(d)%elts(id_i)
+       theta_old(zlevels-k+1) = &
+            (sol_mean(S_TEMP,k)%data(d)%elts(id_i)+sol(S_TEMP,k)%data(d)%elts(id_i))/rho_dz(k)
+    end do
+    p_old(0) = p_top
+    do k = 1,zlevels
+       p_old(k) = p_old(k-1)+grav_accel*rho_dz(zlevels-k+1)
+    end do
+    p_new = a_vert(zlevels:0:-1)+b_vert(zlevels:0:-1)*p_old(zlevels)
+    rho_dz_new = (p_new(zlevels:1:-1)-p_new(zlevels-1:0:-1))/grav_accel
+    call interpolate(zlevels,theta_new,p_new,theta_old,p_old)
+    do k = 1,zlevels
+       sol(S_MASS,k)%data(d)%elts(id_i) = rho_dz_new(k)-sol_mean(S_MASS,k)%data(d)%elts(id_i)
+       sol(S_TEMP,k)%data(d)%elts(id_i) = &
+            rho_dz_new(k)*theta_new(zlevels-k+1)-sol_mean(S_TEMP,k)%data(d)%elts(id_i)
+    end do
+  end subroutine remap_compressible_pole
   
 
   subroutine remap_compressible (dom, p_null, i, j, zlev, offs, dims, is_pole)
@@ -711,7 +755,8 @@ contains
     real(dp)                 :: alpha, cff, cff1, dz
     real(dp), dimension(1:N) :: Hz
     real(dp), dimension(0:N) :: dL, dR, FC, r
-    character(255)           :: bc = "PARABOLIC_CONTINUATION" ! options are 'NEUMANN', 'LINEAR_CONTINUATION', 'PARABOLIC_CONTINUATION'
+    ! Options: 'NEUMANN', 'LINEAR_CONTINUATION', 'PARABOLIC_CONTINUATION'.
+    character(255)           :: bc = "PARABOLIC_CONTINUATION"
 
     do k = 1, N
        Hz(k) = z_old(k) - z_old(k-1)

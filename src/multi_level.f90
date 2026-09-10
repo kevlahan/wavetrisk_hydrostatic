@@ -1,4 +1,5 @@
 module multi_level_mod
+  use parallel_block_profile_mod
   use mpi_f08
   use arch_mod, only : comm, MPI_DP, rank, n_process, glo_id
   use shared_mod, only : n_domain
@@ -250,9 +251,12 @@ contains
 
     real(dp) :: profile_start
 
+    call detail_enter(DP_SHARED)
+    call detail_enter(DP_PRIMITIVE)
     call update_bdry(q,NONE,1067)
     call zero_float(dq)
     call cal_surf_press(q(1:N_VARIABLE,1:zlevels))
+    call detail_leave(DP_PRIMITIVE)
     validate_velocity_source = block_dynamics_validation_enabled()
     profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_VELOCITY_PLAN)
     call prepare_native_velocity_programs
@@ -441,6 +445,8 @@ contains
     native_velocity_transaction=.false.
     mass_transaction=.false.
     dq%bdry_uptodate = .false.
+    call detail_leave(DP_SHARED)
+
   end subroutine block_tendency_compatibility_ml
 
 
@@ -722,7 +728,9 @@ contains
        end if
     end do
     if(nreq>0) then
+       call detail_enter(DP_MASS_WAIT)
        call MPI_Waitall(nreq,requests(1:nreq),MPI_STATUSES_IGNORE,ierr)
+       call detail_leave(DP_MASS_WAIT)
        if(ierr/=MPI_SUCCESS) error stop "native mass boundary completion failed"
     end if
     do i=1,size(p%destination,2)
@@ -993,6 +1001,7 @@ contains
     real(dp) :: scalar_physics(EDGE,PATCH_SIZE**2,scalars(1):scalars(2))
     real(dp) :: mass_start
 
+    call detail_enter(DP_BASIC)
     capture_scalar_physics = block_scalar_capture_active()
 
     do d = 1, size(grid)
@@ -1077,6 +1086,8 @@ contains
     end if
 
     if (Laplace_rotu == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity
+    call detail_leave(DP_BASIC)
+
   end subroutine basic_operators
 
 

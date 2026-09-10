@@ -1,0 +1,45 @@
+{
+  "scope": "Local four-rank original J7 checkpoint-3 to checkpoint-4 restart correctness; not a timing benchmark",
+  "legacy_ref": "b82647b36eb825aed0c0aae4e92adcf4ab46d608",
+  "legacy_binary_sha256": "1ff749c560aa313b9be1dbb4903ddc042d346595f2a7f2e83e0225da0acf8080",
+  "block_binary_sha256": "3093d6e3c4227b58fa770f7e8d7248bfb4fb44db387e3866e1eb09b24b4a81f1",
+  "fixture_checkpoint3_sha256": "8c7b651c2d6bc6f481838163591565771e1f9a95fd54ec9adf0ce9b74a117e2d",
+  "block_run": "/private/tmp/wavetrisk-restart-probe-runs-09/block",
+  "legacy_run": "/private/tmp/wavetrisk-restart-probe-runs-06/legacy",
+  "returncode": 0,
+  "ranks": 4,
+  "time_end": 0.3105,
+  "oracles": {"dynamics": 0, "adaptation": 0, "remap": 0},
+  "checkpoint": {
+    "header_differences": 0,
+    "topology_differences": 0,
+    "threshold_max_abs": 0,
+    "soil_max_abs": 0,
+    "nonfinite": 0,
+    "atmospheric_max_abs": {
+      "coarse_velocity": 1.0267342531733448e-12,
+      "coarse_mass": 1.5916157281026244e-12,
+      "coarse_temperature": 4.3655745685100555e-10,
+      "wavelet_velocity": 6.686207143502543e-12,
+      "wavelet_mass": 3.4019037586929812e-12,
+      "wavelet_temperature": 1.783543535083254e-9,
+      "pole_mass": 1.1368683772161603e-13,
+      "pole_temperature": 2.9103830456733704e-11
+    }
+  },
+  "reloaded_active_solution": {
+    "common_patches": 2387,
+    "mask_differences": 0,
+    "velocity_max_abs": 8.29558643999917e-12,
+    "mass_max_abs": 3.751665644813329e-12,
+    "temperature_max_abs": 1.4588295016437769e-9,
+    "soil_max_abs": 0,
+    "nonfinite": 0
+  },
+  "pre_checkpoint_velocity_physics_rounding": {
+    "samples_above_1e_minus_9_absolute": 38,
+    "max_abs": 9.541582421945805e-7,
+    "max_float32_ulp_units": 1.0005074329674244,
+    "interpretation": "Consistent with single-precision physics quantization of differing double-precision inputs; not bitwise equality"
+  }
+}

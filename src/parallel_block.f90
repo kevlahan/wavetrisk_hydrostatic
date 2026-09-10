@@ -1,4 +1,5 @@
 module parallel_block_mod
+  use parallel_block_profile_mod
 
   use, intrinsic :: iso_fortran_env, only : error_unit, int8, int64
 
@@ -579,10 +580,11 @@ subroutine check_block_storage (block,check_serialization)
   end do
 
   if (serialize) then
-
+     call detail_enter(DP_RECEIVE_PROOF)
      call pack_block(block,buffer_source)
      call unpack_block(buffer_source,block_copy)
      call pack_block(block_copy,buffer_copy)
+     call detail_add(DC_RECEIVE_BYTES,size(buffer_source,kind=int64))
 
      if (size(buffer_copy) /= size(buffer_source)) then
         error stop &
@@ -593,7 +595,7 @@ subroutine check_block_storage (block,check_serialization)
         error stop &
              "check_block_storage: serialization mismatch"
      end if
-
+     call detail_leave(DP_RECEIVE_PROOF)
   end if
 
 end subroutine check_block_storage
@@ -618,7 +620,8 @@ subroutine install_local_blocks (n_catalog,local_seen)
   integer(int8), allocatable :: buffer_local(:)
   integer(int8), allocatable :: buffer_reference(:)
 
-  if (n_catalog < 1) then
+  call detail_enter(DP_INSTALL)
+    if (n_catalog < 1) then
      error stop "install_local_blocks: invalid catalogue size"
   end if
 
@@ -686,8 +689,10 @@ subroutine install_local_blocks (n_catalog,local_seen)
      block_catalog_local_index(b) = ilocal
      local_seen(b) = 1
 
+     call detail_enter(DP_COPY_PROOF)
      call pack_block(block_local(ilocal),buffer_local)
      call pack_block(block_source(ib),buffer_reference)
+     call detail_add(DC_COPY_BYTES,size(buffer_reference,kind=int64))
 
      if (size(buffer_local) /= size(buffer_reference)) then
         error stop &
@@ -698,6 +703,7 @@ subroutine install_local_blocks (n_catalog,local_seen)
         error stop &
              "install_local_blocks: retained deep-copy mismatch"
      end if
+     call detail_leave(DP_COPY_PROOF)
 
   end do
 
@@ -720,8 +726,10 @@ subroutine install_local_blocks (n_catalog,local_seen)
      block_catalog_local_index(b) = ilocal
      local_seen(b) = 1
 
+     call detail_enter(DP_COPY_PROOF)
      call pack_block(block_local(ilocal),buffer_local)
      call pack_block(block_received(i),buffer_reference)
+     call detail_add(DC_COPY_BYTES,size(buffer_reference,kind=int64))
 
      if (size(buffer_local) /= size(buffer_reference)) then
         error stop &
@@ -732,6 +740,7 @@ subroutine install_local_blocks (n_catalog,local_seen)
         error stop &
              "install_local_blocks: received deep-copy mismatch"
      end if
+     call detail_leave(DP_COPY_PROOF)
 
   end do
 
@@ -758,6 +767,8 @@ subroutine install_local_blocks (n_catalog,local_seen)
   end do
 
   block_store_ready = .true.
+
+    call detail_leave(DP_INSTALL)
 
 end subroutine install_local_blocks
 

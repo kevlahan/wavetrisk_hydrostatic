@@ -1,0 +1,398 @@
+{
+  "left": "/private/tmp/wavetrisk-restart-probe-runs-01/legacy/probe-after-dump-step-259-rank-*.bin",
+  "right": "/private/tmp/wavetrisk-restart-probe-runs-01/block/probe-after-dump-step-259-rank-*.bin",
+  "left_headers": [
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26822.869355148014
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26822.869355148014
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26822.869355148014
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26822.869355148014
+    }
+  ],
+  "right_headers": [
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26822.869355148014
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26822.869355148014
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26822.869355148014
+    },
+    {
+      "step": 259,
+      "remap": 4,
+      "time": 26822.869355148014
+    }
+  ],
+  "left_only_patches": 0,
+  "right_only_patches": 0,
+  "common_patches": 3144,
+  "mask_differences": 0,
+  "fields": {
+    "sol/velocity/soil/all": {
+      "samples": 1660032,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/velocity/soil/active": {
+      "samples": 835395,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/velocity/atmosphere/all": {
+      "samples": 4527360,
+      "different": 1153349,
+      "scaled_above_1e12": 8135,
+      "nonfinite": 0,
+      "max_abs": 0.016549572348594666,
+      "max_scaled": 0.016549572348594666,
+      "worst": {
+        "domain": 92,
+        "tree_key": 7,
+        "level": 5,
+        "k": 30,
+        "index": 38,
+        "left": -0.09864240884780884,
+        "right": -0.08209283649921417
+      }
+    },
+    "sol/velocity/atmosphere/active": {
+      "samples": 2278350,
+      "different": 693865,
+      "scaled_above_1e12": 7956,
+      "nonfinite": 0,
+      "max_abs": 0.016549572348594666,
+      "max_scaled": 0.016549572348594666,
+      "worst": {
+        "domain": 92,
+        "tree_key": 7,
+        "level": 5,
+        "k": 30,
+        "index": 38,
+        "left": -0.09864240884780884,
+        "right": -0.08209283649921417
+      }
+    },
+    "wav/velocity/soil/all": {
+      "samples": 1660032,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/velocity/soil/active": {
+      "samples": 835395,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/velocity/atmosphere/all": {
+      "samples": 4527360,
+      "different": 799303,
+      "scaled_above_1e12": 23817,
+      "nonfinite": 0,
+      "max_abs": 0.009994674974662658,
+      "max_scaled": 0.009994674974662658,
+      "worst": {
+        "domain": 92,
+        "tree_key": 7,
+        "level": 5,
+        "k": 30,
+        "index": 26,
+        "left": 0.051024218945008505,
+        "right": 0.04102954397034585
+      }
+    },
+    "wav/velocity/atmosphere/active": {
+      "samples": 2278350,
+      "different": 799303,
+      "scaled_above_1e12": 23817,
+      "nonfinite": 0,
+      "max_abs": 0.009994674974662658,
+      "max_scaled": 0.009994674974662658,
+      "worst": {
+        "domain": 92,
+        "tree_key": 7,
+        "level": 5,
+        "k": 30,
+        "index": 26,
+        "left": 0.051024218945008505,
+        "right": 0.04102954397034585
+      }
+    },
+    "sol/mass/soil/all": {
+      "samples": 553344,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/mass/soil/active": {
+      "samples": 292534,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "sol/mass/atmosphere/all": {
+      "samples": 1509120,
+      "different": 412944,
+      "scaled_above_1e12": 79273,
+      "nonfinite": 0,
+      "max_abs": 0.7399434782217895,
+      "max_scaled": 0.003515120544097414,
+      "worst": {
+        "domain": 54,
+        "tree_key": 1,
+        "level": 4,
+        "k": 10,
+        "index": 2,
+        "left": 852.6882356532482,
+        "right": 851.9482921750264
+      }
+    },
+    "sol/mass/atmosphere/active": {
+      "samples": 797820,
+      "different": 312483,
+      "scaled_above_1e12": 79273,
+      "nonfinite": 0,
+      "max_abs": 0.7399434782217895,
+      "max_scaled": 0.003515120544097414,
+      "worst": {
+        "domain": 54,
+        "tree_key": 1,
+        "level": 4,
+        "k": 10,
+        "index": 2,
+        "left": 852.6882356532482,
+        "right": 851.9482921750264
+      }
+    },
+    "wav/mass/soil/all": {
+      "samples": 553344,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/mass/soil/active": {
+      "samples": 292534,
+      "different": 0,
+      "scaled_above_1e12": 0,
+      "nonfinite": 0,
+      "max_abs": 0.0,
+      "max_scaled": 0.0,
+      "worst": null
+    },
+    "wav/mass/atmosphere/all": {
+      "samples": 1509120,
+      "different": 321744,
+      "scaled_above_1e12": 236188,
+      "nonfinite": 0,
+      "max_abs": 2.0407329691852283,
+      "max_scaled": 1.0,
+      "worst": {
+        "domain": 116,
+        "tree_key": 4,
+        "level": 5,
+        "k": 10,
+        "index": 9,
+        "left": 2.0407329691852283,
+        "right": 0.0
+      }
+    },
+    "wav/mass/atmosphere/active": {
+      "samples": 797820,
+      "different": 321744,
+      "scaled_above_1e12": 236188,
+      "nonfinite": 0,
+      "max_abs": 2.0407329691852283,
+      "max_scaled": 1.0,
+      "worst": {
+        "domain": 116,
+        "tree_key": 4,
+        "level": 5,
+        "k": 10,
+        "index": 9,
+        "left": 2.0407329691852283,
+        "right": 0.0
+      }
+    },
+    "sol/temperature/soil/all": {
+      "samples": 553344,
+      "different": 56,
+      "scaled_above_1e12": 56,
+      "nonfinite": 0,
+      "max_abs": 6.103515625e-05,
+      "max_scaled": 2.07222018914397e-07,
+      "worst": {
+        "domain": 92,
+        "tree_key": 7,
+        "level": 5,
+        "k": -1,
+        "index": 12,
+        "left": 294.53985595703125,
+        "right": 294.5399169921875
+      }
+    },
+    "sol/temperature/soil/active": {
+      "samples": 292534,
+      "different": 56,
+      "scaled_above_1e12": 56,
+      "nonfinite": 0,
+      "max_abs": 6.103515625e-05,
+      "max_scaled": 2.07222018914397e-07,
+      "worst": {
+        "domain": 92,
+        "tree_key": 7,
+        "level": 5,
+        "k": -1,
+        "index": 12,
+        "left": 294.53985595703125,
+        "right": 294.5399169921875
+      }
+    },
+    "sol/temperature/atmosphere/all": {
+      "samples": 1509120,
+      "different": 412040,
+      "scaled_above_1e12": 79273,
+      "nonfinite": 0,
+      "max_abs": 251.50396589987213,
+      "max_scaled": 0.004231960239982985,
+      "worst": {
+        "domain": 136,
+        "tree_key": 1,
+        "level": 4,
+        "k": 11,
+        "index": 1,
+        "left": 256719.7755530842,
+        "right": 256971.27951898408
+      }
+    },
+    "sol/temperature/atmosphere/active": {
+      "samples": 797820,
+      "different": 310703,
+      "scaled_above_1e12": 79273,
+      "nonfinite": 0,
+      "max_abs": 251.50396589987213,
+      "max_scaled": 0.004231960239982985,
+      "worst": {
+        "domain": 136,
+        "tree_key": 1,
+        "level": 4,
+        "k": 11,
+        "index": 1,
+        "left": 256719.7755530842,
+        "right": 256971.27951898408
+      }
+    },
+    "wav/temperature/soil/all": {
+      "samples": 553344,
+      "different": 48,
+      "scaled_above_1e12": 48,
+      "nonfinite": 0,
+      "max_abs": 0.00011377525424904888,
+      "max_scaled": 0.00011377525424904888,
+      "worst": {
+        "domain": 124,
+        "tree_key": 7,
+        "level": 5,
+        "k": 0,
+        "index": 12,
+        "left": -0.023630932520575243,
+        "right": -0.023517157266326194
+      }
+    },
+    "wav/temperature/soil/active": {
+      "samples": 292534,
+      "different": 48,
+      "scaled_above_1e12": 48,
+      "nonfinite": 0,
+      "max_abs": 0.00011377525424904888,
+      "max_scaled": 0.00011377525424904888,
+      "worst": {
+        "domain": 124,
+        "tree_key": 7,
+        "level": 5,
+        "k": 0,
+        "index": 12,
+        "left": -0.023630932520575243,
+        "right": -0.023517157266326194
+      }
+    },
+    "wav/temperature/atmosphere/all": {
+      "samples": 1509120,
+      "different": 321746,
+      "scaled_above_1e12": 295892,
+      "nonfinite": 0,
+      "max_abs": 717.3876394510444,
+      "max_scaled": 1.0,
+      "worst": {
+        "domain": 136,
+        "tree_key": 6,
+        "level": 5,
+        "k": 11,
+        "index": 3,
+        "left": -717.3876394510444,
+        "right": 0.0
+      }
+    },
+    "wav/temperature/atmosphere/active": {
+      "samples": 797820,
+      "different": 321746,
+      "scaled_above_1e12": 295892,
+      "nonfinite": 0,
+      "max_abs": 717.3876394510444,
+      "max_scaled": 1.0,
+      "worst": {
+        "domain": 136,
+        "tree_key": 6,
+        "level": 5,
+        "k": 11,
+        "index": 3,
+        "left": -717.3876394510444,
+        "right": 0.0
+      }
+    }
+  }
+}

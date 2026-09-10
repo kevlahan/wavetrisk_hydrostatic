@@ -1,4 +1,6 @@
 module comm_mpi_mod
+  use iso_fortran_env, only : int64
+  use parallel_block_profile_mod
 
   use mpi_f08
 
@@ -1010,7 +1012,7 @@ contains
     integer :: r, r_dest, r_src, tag
 
     if (field%bdry_uptodate) return
-
+    call detail_enter(DP_DOMAIN_BOUNDARY)
     tag = TAG_BDRY_S
     field%bdry_tag = tag
 
@@ -1020,6 +1022,8 @@ contains
        multipl = 1
     end if
 
+    call detail_add(DC_BDRY_FIELDS,int(1,int64))
+    call detail_enter(DP_BDRY_PACK)
     send_buf%length = 0
 
     do r_dest = 1, n_process
@@ -1030,6 +1034,8 @@ contains
              do d_dest = 1, n_domain(r_dest)
                 dest = glo_id(r_dest,d_dest) + 1
 
+                if (detail_enabled) &
+                     call detail_add(DC_BDRY_PACK_VISITS,int(grid(d_src)%pack(field%pos,dest)%length,int64))
                 do i = 1, grid(d_src)%pack(field%pos,dest)%length
                    id  = grid(d_src)%pack(field%pos,dest)%elts(i)
                    lev = grid(d_src)%level%elts(id/multipl+1)
@@ -1045,6 +1051,8 @@ contains
        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
     end do
 
+    call detail_leave(DP_BDRY_PACK)
+    call detail_enter(DP_BDRY_ROUTE)
     recv_buf%length = 0
 
     do r_src = 1, n_process
@@ -1055,6 +1063,8 @@ contains
              do d_dest = 1, n_domain(rank+1)
                 dest = glo_id(r_src,d_src) + 1
 
+                if (detail_enabled) &
+                     call detail_add(DC_BDRY_ROUTE_VISITS,int(grid(d_dest)%unpk(field%pos,dest)%length,int64))
                 do i = 1, grid(d_dest)%unpk(field%pos,dest)%length
                    id = abs(grid(d_dest)%unpk(field%pos,dest)%elts(i))
                    lev = grid(d_dest)%level%elts(id/multipl+1)
@@ -1070,6 +1080,8 @@ contains
        recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
     end do
 
+    call detail_leave(DP_BDRY_ROUTE)
+    call detail_enter(DP_BDRY_STORAGE)
     if (.not. allocated(recv_buf%elts)) then
        allocate(recv_buf%elts(recv_buf%length))
     else if (size(recv_buf%elts) < recv_buf%length) then
@@ -1079,6 +1091,10 @@ contains
 
     if (recv_buf%length > 0) recv_buf%elts = 0.0_dp
 
+    if (detail_enabled.and.recv_buf%length>0) &
+         call detail_add(DC_BDRY_ZERO,int(size(recv_buf%elts),int64))
+    call detail_leave(DP_BDRY_STORAGE)
+    call detail_enter(DP_BDRY_POST)
     nreq = 0
 
     ! Post all receives before sends.
@@ -1104,7 +1120,15 @@ contains
             send_lengths(r), MPI_DP, r-1, tag, comm, req(nreq))
     end do
 
+    call detail_leave(DP_BDRY_POST)
+    call detail_add(DC_BDRY_REQUESTS,int(nreq,int64))
+    call detail_add(DC_BDRY_SEND,int(send_buf%length,int64))
+    call detail_add(DC_BDRY_RECV,int(recv_buf%length,int64))
+    call detail_enter(DP_BDRY_LOCAL)
     call cp_bdry_inside (field)
+    call detail_leave(DP_BDRY_LOCAL)
+    call detail_leave(DP_DOMAIN_BOUNDARY)
+
   end subroutine update_bdry__start1_0
 
 
@@ -1119,10 +1143,12 @@ contains
     integer :: r, r_dest, r_src, tag
 
     if (all(field%bdry_uptodate)) return
-
+    call detail_enter(DP_DOMAIN_BOUNDARY)
     tag = TAG_BDRY_V
     field%bdry_tag = tag
 
+    call detail_add(DC_BDRY_FIELDS,int(size(field),int64))
+    call detail_enter(DP_BDRY_PACK)
     send_buf%length = 0
 
     do r_dest = 1, n_process
@@ -1142,6 +1168,8 @@ contains
                       multipl = 1
                    end if
 
+                   if (detail_enabled) &
+                        call detail_add(DC_BDRY_PACK_VISITS,int(grid(d_src)%pack(pos,dest)%length,int64))
                    do i = 1, grid(d_src)%pack(pos,dest)%length
                       id  = grid(d_src)%pack(pos,dest)%elts(i)
                       lev = grid(d_src)%level%elts(id/multipl+1)
@@ -1158,6 +1186,8 @@ contains
        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
     end do
 
+    call detail_leave(DP_BDRY_PACK)
+    call detail_enter(DP_BDRY_ROUTE)
     recv_buf%length = 0
 
     do r_src = 1, n_process
@@ -1177,6 +1207,8 @@ contains
                       multipl = 1
                    end if
 
+                   if (detail_enabled) &
+                        call detail_add(DC_BDRY_ROUTE_VISITS,int(grid(d_dest)%unpk(pos,dest)%length,int64))
                    do i = 1, grid(d_dest)%unpk(pos,dest)%length
                       id = abs(grid(d_dest)%unpk(pos,dest)%elts(i))
                       lev = grid(d_dest)%level%elts(id/multipl+1)
@@ -1193,6 +1225,8 @@ contains
        recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
     end do
 
+    call detail_leave(DP_BDRY_ROUTE)
+    call detail_enter(DP_BDRY_STORAGE)
     if (.not. allocated(recv_buf%elts)) then
        allocate(recv_buf%elts(recv_buf%length))
     else if (size(recv_buf%elts) < recv_buf%length) then
@@ -1202,6 +1236,10 @@ contains
 
     if (recv_buf%length > 0) recv_buf%elts = 0.0_dp
 
+    if (detail_enabled.and.recv_buf%length>0) &
+         call detail_add(DC_BDRY_ZERO,int(size(recv_buf%elts),int64))
+    call detail_leave(DP_BDRY_STORAGE)
+    call detail_enter(DP_BDRY_POST)
     nreq = 0
 
     do r = 1, n_process
@@ -1226,7 +1264,15 @@ contains
             send_lengths(r), MPI_DP, r-1, tag, comm, req(nreq))
     end do
 
+    call detail_leave(DP_BDRY_POST)
+    call detail_add(DC_BDRY_REQUESTS,int(nreq,int64))
+    call detail_add(DC_BDRY_SEND,int(send_buf%length,int64))
+    call detail_add(DC_BDRY_RECV,int(recv_buf%length,int64))
+    call detail_enter(DP_BDRY_LOCAL)
     call cp_bdry_inside (field)
+    call detail_leave(DP_BDRY_LOCAL)
+    call detail_leave(DP_DOMAIN_BOUNDARY)
+
   end subroutine update_bdry__start1_1
 
 
@@ -1241,10 +1287,12 @@ contains
     integer :: r, r_dest, r_src, tag
 
     if (all(field%bdry_uptodate)) return
-
+    call detail_enter(DP_DOMAIN_BOUNDARY)
     tag = TAG_BDRY_A
     field%bdry_tag = tag
 
+    call detail_add(DC_BDRY_FIELDS,int(size(field),int64))
+    call detail_enter(DP_BDRY_PACK)
     send_buf%length = 0
 
     do r_dest = 1, n_process
@@ -1265,6 +1313,8 @@ contains
                          multipl = 1
                       end if
 
+                      if (detail_enabled) &
+                           call detail_add(DC_BDRY_PACK_VISITS,int(grid(d_src)%pack(pos,dest)%length,int64))
                       do i = 1, grid(d_src)%pack(pos,dest)%length
                          id  = grid(d_src)%pack(pos,dest)%elts(i)
                          lev = grid(d_src)%level%elts(id/multipl+1)
@@ -1284,6 +1334,8 @@ contains
        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
     end do
 
+    call detail_leave(DP_BDRY_PACK)
+    call detail_enter(DP_BDRY_ROUTE)
     recv_buf%length = 0
 
     do r_src = 1, n_process
@@ -1304,6 +1356,8 @@ contains
                          multipl = 1
                       end if
 
+                      if (detail_enabled) &
+                           call detail_add(DC_BDRY_ROUTE_VISITS,int(grid(d_dest)%unpk(pos,dest)%length,int64))
                       do i = 1, grid(d_dest)%unpk(pos,dest)%length
                          id = abs(grid(d_dest)%unpk(pos,dest)%elts(i))
                          lev = grid(d_dest)%level%elts(id/multipl+1)
@@ -1321,6 +1375,8 @@ contains
        recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
     end do
 
+    call detail_leave(DP_BDRY_ROUTE)
+    call detail_enter(DP_BDRY_STORAGE)
     if (.not. allocated(recv_buf%elts)) then
        allocate(recv_buf%elts(recv_buf%length))
     else if (size(recv_buf%elts) < recv_buf%length) then
@@ -1330,6 +1386,10 @@ contains
 
     if (recv_buf%length > 0) recv_buf%elts = 0.0_dp
 
+    if (detail_enabled.and.recv_buf%length>0) &
+         call detail_add(DC_BDRY_ZERO,int(size(recv_buf%elts),int64))
+    call detail_leave(DP_BDRY_STORAGE)
+    call detail_enter(DP_BDRY_POST)
     nreq = 0
 
     do r = 1, n_process
@@ -1354,7 +1414,15 @@ contains
             send_lengths(r), MPI_DP, r-1, tag, comm, req(nreq))
     end do
 
+    call detail_leave(DP_BDRY_POST)
+    call detail_add(DC_BDRY_REQUESTS,int(nreq,int64))
+    call detail_add(DC_BDRY_SEND,int(send_buf%length,int64))
+    call detail_add(DC_BDRY_RECV,int(recv_buf%length,int64))
+    call detail_enter(DP_BDRY_LOCAL)
     call cp_bdry_inside (field)
+    call detail_leave(DP_BDRY_LOCAL)
+    call detail_leave(DP_DOMAIN_BOUNDARY)
+
   end subroutine update_bdry__start1_2
 
 
@@ -1412,7 +1480,7 @@ contains
     integer :: id, i, k, lev, multipl, src
 
     if (field%bdry_uptodate) return
-
+    call detail_enter(DP_DOMAIN_BOUNDARY)
     if (field%bdry_tag == -1) then
        error stop "update_bdry__finish1_0: finish without start"
     end if
@@ -1424,9 +1492,12 @@ contains
     end if
 
     if (nreq > 0) then
+       call detail_enter(DP_DOMAIN_WAIT)
        call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE)
+       call detail_leave(DP_DOMAIN_WAIT)
     end if
 
+    call detail_enter(DP_BDRY_INSTALL)
     k = 0
 
     do r_src = 1, n_process
@@ -1436,6 +1507,8 @@ contains
           src = glo_id(r_src,d_src) + 1
 
           do d_dest = 1, n_domain(rank+1)
+             if (detail_enabled) &
+                  call detail_add(DC_BDRY_INSTALL_VISITS,int(grid(d_dest)%unpk(field%pos,src)%length,int64))
              do i = 1, grid(d_dest)%unpk(field%pos,src)%length
                 id = grid(d_dest)%unpk(field%pos,src)%elts(i)
                 lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
@@ -1466,6 +1539,9 @@ contains
 
     field%bdry_tag = -1
     nreq = 0
+    call detail_leave(DP_BDRY_INSTALL)
+    call detail_leave(DP_DOMAIN_BOUNDARY)
+
   end subroutine update_bdry__finish1_0
 
 
@@ -1480,16 +1556,19 @@ contains
     integer :: id, i, i1, k, lev, multipl, pos, r_src
 
     if (all(field%bdry_uptodate)) return
-
+    call detail_enter(DP_DOMAIN_BOUNDARY)
     if (.not. all(field%bdry_uptodate .or. field%bdry_tag /= -1)) then
        error stop &
             "update_bdry__finish1_1: finish without matching start"
     end if
 
     if (nreq > 0) then
+       call detail_enter(DP_DOMAIN_WAIT)
        call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE)
+       call detail_leave(DP_DOMAIN_WAIT)
     end if
 
+    call detail_enter(DP_BDRY_INSTALL)
     k = 0
 
     do r_src = 1, n_process
@@ -1508,6 +1587,8 @@ contains
                    multipl = 1
                 end if
 
+                if (detail_enabled) &
+                     call detail_add(DC_BDRY_INSTALL_VISITS,int(grid(d_dest)%unpk(pos,src)%length,int64))
                 do i = 1, grid(d_dest)%unpk(pos,src)%length
                    id = grid(d_dest)%unpk(pos,src)%elts(i)
                    lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
@@ -1537,6 +1618,9 @@ contains
 
     field%bdry_tag = -1
     nreq = 0
+    call detail_leave(DP_BDRY_INSTALL)
+    call detail_leave(DP_DOMAIN_BOUNDARY)
+
   end subroutine update_bdry__finish1_1
 
 
@@ -1551,16 +1635,19 @@ contains
     integer :: i, i1, i2, id, k, lev, multipl, pos, r_src
 
     if (all(field%bdry_uptodate)) return
-
+    call detail_enter(DP_DOMAIN_BOUNDARY)
     if (.not. all(field%bdry_uptodate .or. field%bdry_tag /= -1)) then
        error stop &
             "update_bdry__finish1_2: finish without matching start"
     end if
 
     if (nreq > 0) then
+       call detail_enter(DP_DOMAIN_WAIT)
        call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE)
+       call detail_leave(DP_DOMAIN_WAIT)
     end if
 
+    call detail_enter(DP_BDRY_INSTALL)
     k = 0
 
     do r_src = 1, n_process
@@ -1580,6 +1667,8 @@ contains
                       multipl = 1
                    end if
 
+                   if (detail_enabled) &
+                        call detail_add(DC_BDRY_INSTALL_VISITS,int(grid(d_dest)%unpk(pos,src)%length,int64))
                    do i = 1, grid(d_dest)%unpk(pos,src)%length
                       id = grid(d_dest)%unpk(pos,src)%elts(i)
                       lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
@@ -1610,6 +1699,9 @@ contains
 
     field%bdry_tag = -1
     nreq = 0
+    call detail_leave(DP_BDRY_INSTALL)
+    call detail_leave(DP_DOMAIN_BOUNDARY)
+
   end subroutine update_bdry__finish1_2
 
 

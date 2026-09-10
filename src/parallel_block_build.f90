@@ -1,6 +1,7 @@
 module parallel_block_build_mod
+  use parallel_block_profile_mod
 
-  use, intrinsic :: iso_fortran_env, only : int8
+  use, intrinsic :: iso_fortran_env, only : int8, int64
 
   use kind_mod, only : dp
 
@@ -74,7 +75,8 @@ subroutine build_source_blocks (verbose)
 
   logical :: print_summary
 
-  print_summary = .false.
+  call detail_enter(DP_SOURCE)
+    print_summary = .false.
   if (present(verbose)) print_summary = verbose
 
   !
@@ -326,6 +328,8 @@ subroutine build_source_blocks (verbose)
 
   end if
 
+    call detail_leave(DP_SOURCE)
+
 end subroutine build_source_blocks
 
 
@@ -478,7 +482,8 @@ subroutine check_migrating_block_serialization ( &
 
   type(Block_Data) :: block_copy
 
-  if (.not. allocated(block_source) .or. &
+  call detail_enter(DP_SOURCE_PROOF)
+    if (.not. allocated(block_source) .or. &
        .not. allocated(block_migrating_source_index)) then
 
      error stop &
@@ -502,6 +507,7 @@ subroutine check_migrating_block_serialization ( &
      call pack_block(block_source(ib),buffer_source)
      call unpack_block(buffer_source,block_copy)
      call pack_block(block_copy,buffer_copy)
+     call detail_add(DC_SOURCE_BYTES,size(buffer_source,kind=int64))
 
      if (size(buffer_copy) /= size(buffer_source)) then
         error stop &
@@ -525,6 +531,8 @@ subroutine check_migrating_block_serialization ( &
      error stop &
           "check_migrating_block_serialization: tested count mismatch"
   end if
+
+    call detail_leave(DP_SOURCE_PROOF)
 
 end subroutine check_migrating_block_serialization
 

@@ -60,6 +60,8 @@ endif
 # =========================
 # Build flags
 # =========================
+FFLAGS += -ffree-line-length-132
+
 ifeq ($(DEBUG),asan)
 
 ifeq ($(UNAME_S),Darwin)
@@ -259,6 +261,7 @@ SRC = kind.f90 \
       dyn_array.f90 \
       arch.f90 \
       domain.f90 \
+      parallel_block_profile.f90 \
       parallel_block.f90 \
       parallel_block_velocity.f90 \
       parallel_block_mass.f90 \
@@ -358,6 +361,7 @@ $(BUILD_DIR)/%.o: %.f90 | dirs
 # required in addition to source-list ordering when make is allowed to
 # update more than one target concurrently.
 $(BUILD_DIR)/parallel_block.o: \
+	$(BUILD_DIR)/parallel_block_profile.o \
 	$(BUILD_DIR)/kind.o \
 	$(BUILD_DIR)/shared.o \
 	$(BUILD_DIR)/patch.o
@@ -372,6 +376,8 @@ $(BUILD_DIR)/parallel_block_inverse.o: \
 $(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/parallel_block_inverse.o $(BUILD_DIR)/parallel_block_velocity.o $(BUILD_DIR)/parallel_block_mass.o
 
 $(BUILD_DIR)/parallel_block_velocity.o: $(BUILD_DIR)/kind.o
+$(BUILD_DIR)/comm_mpi.o: $(BUILD_DIR)/parallel_block_profile.o
+$(BUILD_DIR)/adapt.o $(BUILD_DIR)/time_integr.o: $(BUILD_DIR)/parallel_block_profile.o
 $(BUILD_DIR)/parallel_block_mass.o: $(BUILD_DIR)/kind.o
 
 $(BUILD_DIR)/multi_level.o: $(BUILD_DIR)/parallel_block_velocity.o
@@ -399,14 +405,20 @@ $(BUILD_DIR)/parallel_block_build.o: \
 $(BUILD_DIR)/multi_level.o: \
 	$(BUILD_DIR)/parallel_block_mpi.o
 
+$(BUILD_DIR)/adapt.o $(BUILD_DIR)/remap.o: $(BUILD_DIR)/parallel_block_mpi.o
+
 $(BUILD_DIR)/time_integr.o: \
-	$(BUILD_DIR)/parallel_block_mpi.o
+	$(BUILD_DIR)/parallel_block_mpi.o \
+	$(BUILD_DIR)/adapt.o \
+	$(BUILD_DIR)/multi_level.o
 
 # main.f90 is appended to SRC below the optional physics include.  Keep
 # that separate placement, but make its new module prerequisites explicit.
 $(BUILD_DIR)/main.o: \
 	$(BUILD_DIR)/parallel_block_build.o \
-	$(BUILD_DIR)/parallel_block_mpi.o
+	$(BUILD_DIR)/parallel_block_mpi.o \
+	$(BUILD_DIR)/time_integr.o \
+	$(BUILD_DIR)/remap.o
 
 # Ensure symlinked test sources exist before compilation
 $(BUILD_DIR)/test_case_module.o: $(TESTMOD_SRC)

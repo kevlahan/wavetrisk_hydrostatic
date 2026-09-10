@@ -1,4 +1,5 @@
 module time_integr_mod
+  use parallel_block_profile_mod, only : detail_enter, detail_leave, DP_CAPTURE, DP_VELOCITY_PREP
 
   use, intrinsic :: iso_fortran_env, only : int64
 
@@ -153,14 +154,20 @@ contains
 
     real(dp) :: profile_start
 
+    call detail_enter(DP_CAPTURE)
     call begin_block_scalar_divergence_capture
+    call detail_leave(DP_CAPTURE)
     profile_start = parallel_block_profile_begin( &
          BLOCK_PROFILE_DOMAIN_TENDENCY_COMPATIBILITY)
     call block_tendency_compatibility_ml(domain_stage,trend)
     call parallel_block_profile_end( &
          BLOCK_PROFILE_DOMAIN_TENDENCY_COMPATIBILITY,profile_start)
+    call detail_enter(DP_CAPTURE)
     call finalize_block_scalar_divergence_capture
+    call detail_leave(DP_CAPTURE)
+    call detail_enter(DP_VELOCITY_PREP)
     call prepare_block_native_velocity_remainder(domain_stage)
+    call detail_leave(DP_VELOCITY_PREP)
     if (validate_oracle) &
          call call_domain_tendency_consumer(domain_stage,routine)
     call capture_block_domain_multistage_candidate_tendency( &

@@ -1,0 +1,777 @@
+--- a/Makefile
++++ b/Makefile
+@@ -249,7 +249,9 @@
+ # =========================
+ vpath %.f90 $(SRC_DIR)
+ 
+-SRC = kind.f90 \
++SRC = parallel_block_profile.f90 \
++      legacy_profile_io.f90 \
++      kind.f90 \
+       $(PARAM).f90 \
+       shared.f90 \
+       coord_arithmetic.f90 \
+--- a/src/adapt.f90
++++ b/src/adapt.f90
+@@ -1,4 +1,5 @@
+ module adapt_mod
++  use parallel_block_profile_mod
+   use kind_mod,         only : dp
+   
+   use shared_mod,       only : ADJZONE, EDGE, level_start, level_end, N_BDRY, n_node_old, n_patch_old, NONE, &
+@@ -48,6 +49,7 @@
+     
+     logical :: local_type
+ 
++    call detail_enter(DP_ADAPT)
+     n_patch_old = grid%patch%length
+     n_node_old  = grid%node%length
+ 
+@@ -89,6 +91,7 @@
+     
+     ! Evaluate sol_mean, topography and penalization (as defined in test case) on new grid
+     call update 
++    call detail_leave(DP_ADAPT)
+   end subroutine adapt
+ 
+   
+@@ -233,6 +236,7 @@
+ 
+     integer :: d, k, l, l_start, v
+ 
++    call detail_enter(DP_WT_DRIVER)
+     call zero_float (wavelet)
+ 
+     if (present(l_start0)) then
+@@ -268,8 +272,11 @@
+           wavelet(:,k)%bdry_uptodate = .false.
+        end do
+     end do
++    call detail_enter(DP_COMPRESSION)
+     call compress_wavelets (wavelet)
++    call detail_leave(DP_COMPRESSION)
+     call inverse_wavelet_transform (wavelet, scaling)
++    call detail_leave(DP_WT_DRIVER)
+   end subroutine WT_after_step
+ 
+   
+--- a/src/comm_mpi.f90
++++ b/src/comm_mpi.f90
+@@ -1,4 +1,6 @@
+ module comm_mpi_mod
++  use iso_fortran_env, only : int64
++  use parallel_block_profile_mod
+ 
+   use mpi_f08
+ 
+@@ -1012,7 +1014,7 @@
+     integer :: r, r_dest, r_src, tag
+ 
+     if (field%bdry_uptodate) return
+-
++    call detail_enter(DP_DOMAIN_BOUNDARY)
+     tag = TAG_BDRY_S
+     field%bdry_tag = tag
+ 
+@@ -1022,6 +1024,8 @@
+        multipl = 1
+     end if
+ 
++    call detail_add(DC_BDRY_FIELDS,int(1,int64))
++    call detail_enter(DP_BDRY_PACK)
+     send_buf%length = 0
+ 
+     do r_dest = 1, n_process
+@@ -1032,6 +1036,8 @@
+              do d_dest = 1, n_domain(r_dest)
+                 dest = glo_id(r_dest,d_dest) + 1
+ 
++                if (detail_enabled) &
++                     call detail_add(DC_BDRY_PACK_VISITS,int(grid(d_src)%pack(field%pos,dest)%length,int64))
+                 do i = 1, grid(d_src)%pack(field%pos,dest)%length
+                    id  = grid(d_src)%pack(field%pos,dest)%elts(i)
+                    lev = grid(d_src)%level%elts(id/multipl+1)
+@@ -1047,6 +1053,8 @@
+        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+     end do
+ 
++    call detail_leave(DP_BDRY_PACK)
++    call detail_enter(DP_BDRY_ROUTE)
+     recv_buf%length = 0
+ 
+     do r_src = 1, n_process
+@@ -1057,6 +1065,8 @@
+              do d_dest = 1, n_domain(rank+1)
+                 dest = glo_id(r_src,d_src) + 1
+ 
++                if (detail_enabled) &
++                     call detail_add(DC_BDRY_ROUTE_VISITS,int(grid(d_dest)%unpk(field%pos,dest)%length,int64))
+                 do i = 1, grid(d_dest)%unpk(field%pos,dest)%length
+                    id = abs(grid(d_dest)%unpk(field%pos,dest)%elts(i))
+                    lev = grid(d_dest)%level%elts(id/multipl+1)
+@@ -1072,6 +1082,8 @@
+        recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
+     end do
+ 
++    call detail_leave(DP_BDRY_ROUTE)
++    call detail_enter(DP_BDRY_STORAGE)
+     if (.not. allocated(recv_buf%elts)) then
+        allocate(recv_buf%elts(recv_buf%length))
+     else if (size(recv_buf%elts) < recv_buf%length) then
+@@ -1081,6 +1093,10 @@
+ 
+     if (recv_buf%length > 0) recv_buf%elts = 0.0_dp
+ 
++    if (detail_enabled.and.recv_buf%length>0) &
++         call detail_add(DC_BDRY_ZERO,int(size(recv_buf%elts),int64))
++    call detail_leave(DP_BDRY_STORAGE)
++    call detail_enter(DP_BDRY_POST)
+     nreq = 0
+ 
+     ! Post all receives before sends.
+@@ -1106,7 +1122,15 @@
+             send_lengths(r), MPI_DP, r-1, tag, comm, req(nreq))
+     end do
+ 
++    call detail_leave(DP_BDRY_POST)
++    call detail_add(DC_BDRY_REQUESTS,int(nreq,int64))
++    call detail_add(DC_BDRY_SEND,int(send_buf%length,int64))
++    call detail_add(DC_BDRY_RECV,int(recv_buf%length,int64))
++    call detail_enter(DP_BDRY_LOCAL)
+     call cp_bdry_inside (field)
++    call detail_leave(DP_BDRY_LOCAL)
++    call detail_leave(DP_DOMAIN_BOUNDARY)
++
+   end subroutine update_bdry__start1_0
+ 
+ 
+@@ -1121,10 +1145,12 @@
+     integer :: r, r_dest, r_src, tag
+ 
+     if (all(field%bdry_uptodate)) return
+-
++    call detail_enter(DP_DOMAIN_BOUNDARY)
+     tag = TAG_BDRY_V
+     field%bdry_tag = tag
+ 
++    call detail_add(DC_BDRY_FIELDS,int(size(field),int64))
++    call detail_enter(DP_BDRY_PACK)
+     send_buf%length = 0
+ 
+     do r_dest = 1, n_process
+@@ -1144,6 +1170,8 @@
+                       multipl = 1
+                    end if
+ 
++                   if (detail_enabled) &
++                        call detail_add(DC_BDRY_PACK_VISITS,int(grid(d_src)%pack(pos,dest)%length,int64))
+                    do i = 1, grid(d_src)%pack(pos,dest)%length
+                       id  = grid(d_src)%pack(pos,dest)%elts(i)
+                       lev = grid(d_src)%level%elts(id/multipl+1)
+@@ -1160,6 +1188,8 @@
+        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+     end do
+ 
++    call detail_leave(DP_BDRY_PACK)
++    call detail_enter(DP_BDRY_ROUTE)
+     recv_buf%length = 0
+ 
+     do r_src = 1, n_process
+@@ -1179,6 +1209,8 @@
+                       multipl = 1
+                    end if
+ 
++                   if (detail_enabled) &
++                        call detail_add(DC_BDRY_ROUTE_VISITS,int(grid(d_dest)%unpk(pos,dest)%length,int64))
+                    do i = 1, grid(d_dest)%unpk(pos,dest)%length
+                       id = abs(grid(d_dest)%unpk(pos,dest)%elts(i))
+                       lev = grid(d_dest)%level%elts(id/multipl+1)
+@@ -1195,6 +1227,8 @@
+        recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
+     end do
+ 
++    call detail_leave(DP_BDRY_ROUTE)
++    call detail_enter(DP_BDRY_STORAGE)
+     if (.not. allocated(recv_buf%elts)) then
+        allocate(recv_buf%elts(recv_buf%length))
+     else if (size(recv_buf%elts) < recv_buf%length) then
+@@ -1204,6 +1238,10 @@
+ 
+     if (recv_buf%length > 0) recv_buf%elts = 0.0_dp
+ 
++    if (detail_enabled.and.recv_buf%length>0) &
++         call detail_add(DC_BDRY_ZERO,int(size(recv_buf%elts),int64))
++    call detail_leave(DP_BDRY_STORAGE)
++    call detail_enter(DP_BDRY_POST)
+     nreq = 0
+ 
+     do r = 1, n_process
+@@ -1228,7 +1266,15 @@
+             send_lengths(r), MPI_DP, r-1, tag, comm, req(nreq))
+     end do
+ 
++    call detail_leave(DP_BDRY_POST)
++    call detail_add(DC_BDRY_REQUESTS,int(nreq,int64))
++    call detail_add(DC_BDRY_SEND,int(send_buf%length,int64))
++    call detail_add(DC_BDRY_RECV,int(recv_buf%length,int64))
++    call detail_enter(DP_BDRY_LOCAL)
+     call cp_bdry_inside (field)
++    call detail_leave(DP_BDRY_LOCAL)
++    call detail_leave(DP_DOMAIN_BOUNDARY)
++
+   end subroutine update_bdry__start1_1
+ 
+ 
+@@ -1243,10 +1289,12 @@
+     integer :: r, r_dest, r_src, tag
+ 
+     if (all(field%bdry_uptodate)) return
+-
++    call detail_enter(DP_DOMAIN_BOUNDARY)
+     tag = TAG_BDRY_A
+     field%bdry_tag = tag
+ 
++    call detail_add(DC_BDRY_FIELDS,int(size(field),int64))
++    call detail_enter(DP_BDRY_PACK)
+     send_buf%length = 0
+ 
+     do r_dest = 1, n_process
+@@ -1267,6 +1315,8 @@
+                          multipl = 1
+                       end if
+ 
++                      if (detail_enabled) &
++                           call detail_add(DC_BDRY_PACK_VISITS,int(grid(d_src)%pack(pos,dest)%length,int64))
+                       do i = 1, grid(d_src)%pack(pos,dest)%length
+                          id  = grid(d_src)%pack(pos,dest)%elts(i)
+                          lev = grid(d_src)%level%elts(id/multipl+1)
+@@ -1286,6 +1336,8 @@
+        send_lengths(r_dest) = send_buf%length - send_offsets(r_dest)
+     end do
+ 
++    call detail_leave(DP_BDRY_PACK)
++    call detail_enter(DP_BDRY_ROUTE)
+     recv_buf%length = 0
+ 
+     do r_src = 1, n_process
+@@ -1306,6 +1358,8 @@
+                          multipl = 1
+                       end if
+ 
++                      if (detail_enabled) &
++                           call detail_add(DC_BDRY_ROUTE_VISITS,int(grid(d_dest)%unpk(pos,dest)%length,int64))
+                       do i = 1, grid(d_dest)%unpk(pos,dest)%length
+                          id = abs(grid(d_dest)%unpk(pos,dest)%elts(i))
+                          lev = grid(d_dest)%level%elts(id/multipl+1)
+@@ -1323,6 +1377,8 @@
+        recv_lengths(r_src) = recv_buf%length - recv_offsets(r_src)
+     end do
+ 
++    call detail_leave(DP_BDRY_ROUTE)
++    call detail_enter(DP_BDRY_STORAGE)
+     if (.not. allocated(recv_buf%elts)) then
+        allocate(recv_buf%elts(recv_buf%length))
+     else if (size(recv_buf%elts) < recv_buf%length) then
+@@ -1332,6 +1388,10 @@
+ 
+     if (recv_buf%length > 0) recv_buf%elts = 0.0_dp
+ 
++    if (detail_enabled.and.recv_buf%length>0) &
++         call detail_add(DC_BDRY_ZERO,int(size(recv_buf%elts),int64))
++    call detail_leave(DP_BDRY_STORAGE)
++    call detail_enter(DP_BDRY_POST)
+     nreq = 0
+ 
+     do r = 1, n_process
+@@ -1356,7 +1416,15 @@
+             send_lengths(r), MPI_DP, r-1, tag, comm, req(nreq))
+     end do
+ 
++    call detail_leave(DP_BDRY_POST)
++    call detail_add(DC_BDRY_REQUESTS,int(nreq,int64))
++    call detail_add(DC_BDRY_SEND,int(send_buf%length,int64))
++    call detail_add(DC_BDRY_RECV,int(recv_buf%length,int64))
++    call detail_enter(DP_BDRY_LOCAL)
+     call cp_bdry_inside (field)
++    call detail_leave(DP_BDRY_LOCAL)
++    call detail_leave(DP_DOMAIN_BOUNDARY)
++
+   end subroutine update_bdry__start1_2
+ 
+ 
+@@ -1414,7 +1482,7 @@
+     integer :: id, i, k, lev, multipl, src
+ 
+     if (field%bdry_uptodate) return
+-
++    call detail_enter(DP_DOMAIN_BOUNDARY)
+     if (field%bdry_tag == -1) then
+        error stop "update_bdry__finish1_0: finish without start"
+     end if
+@@ -1426,9 +1494,12 @@
+     end if
+ 
+     if (nreq > 0) then
++       call detail_enter(DP_DOMAIN_WAIT)
+        call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE)
+-    end if
+-
++       call detail_leave(DP_DOMAIN_WAIT)
++    end if
++
++    call detail_enter(DP_BDRY_INSTALL)
+     k = 0
+ 
+     do r_src = 1, n_process
+@@ -1438,6 +1509,8 @@
+           src = glo_id(r_src,d_src) + 1
+ 
+           do d_dest = 1, n_domain(rank+1)
++             if (detail_enabled) &
++                  call detail_add(DC_BDRY_INSTALL_VISITS,int(grid(d_dest)%unpk(field%pos,src)%length,int64))
+              do i = 1, grid(d_dest)%unpk(field%pos,src)%length
+                 id = grid(d_dest)%unpk(field%pos,src)%elts(i)
+                 lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
+@@ -1468,6 +1541,9 @@
+ 
+     field%bdry_tag = -1
+     nreq = 0
++    call detail_leave(DP_BDRY_INSTALL)
++    call detail_leave(DP_DOMAIN_BOUNDARY)
++
+   end subroutine update_bdry__finish1_0
+ 
+ 
+@@ -1482,16 +1558,19 @@
+     integer :: id, i, i1, k, lev, multipl, pos, r_src
+ 
+     if (all(field%bdry_uptodate)) return
+-
++    call detail_enter(DP_DOMAIN_BOUNDARY)
+     if (.not. all(field%bdry_uptodate .or. field%bdry_tag /= -1)) then
+        error stop &
+             "update_bdry__finish1_1: finish without matching start"
+     end if
+ 
+     if (nreq > 0) then
++       call detail_enter(DP_DOMAIN_WAIT)
+        call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE)
+-    end if
+-
++       call detail_leave(DP_DOMAIN_WAIT)
++    end if
++
++    call detail_enter(DP_BDRY_INSTALL)
+     k = 0
+ 
+     do r_src = 1, n_process
+@@ -1510,6 +1589,8 @@
+                    multipl = 1
+                 end if
+ 
++                if (detail_enabled) &
++                     call detail_add(DC_BDRY_INSTALL_VISITS,int(grid(d_dest)%unpk(pos,src)%length,int64))
+                 do i = 1, grid(d_dest)%unpk(pos,src)%length
+                    id = grid(d_dest)%unpk(pos,src)%elts(i)
+                    lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
+@@ -1539,6 +1620,9 @@
+ 
+     field%bdry_tag = -1
+     nreq = 0
++    call detail_leave(DP_BDRY_INSTALL)
++    call detail_leave(DP_DOMAIN_BOUNDARY)
++
+   end subroutine update_bdry__finish1_1
+ 
+ 
+@@ -1553,16 +1637,19 @@
+     integer :: i, i1, i2, id, k, lev, multipl, pos, r_src
+ 
+     if (all(field%bdry_uptodate)) return
+-
++    call detail_enter(DP_DOMAIN_BOUNDARY)
+     if (.not. all(field%bdry_uptodate .or. field%bdry_tag /= -1)) then
+        error stop &
+             "update_bdry__finish1_2: finish without matching start"
+     end if
+ 
+     if (nreq > 0) then
++       call detail_enter(DP_DOMAIN_WAIT)
+        call MPI_Waitall (nreq, req(1:nreq), MPI_STATUSES_IGNORE)
+-    end if
+-
++       call detail_leave(DP_DOMAIN_WAIT)
++    end if
++
++    call detail_enter(DP_BDRY_INSTALL)
+     k = 0
+ 
+     do r_src = 1, n_process
+@@ -1582,6 +1669,8 @@
+                       multipl = 1
+                    end if
+ 
++                   if (detail_enabled) &
++                        call detail_add(DC_BDRY_INSTALL_VISITS,int(grid(d_dest)%unpk(pos,src)%length,int64))
+                    do i = 1, grid(d_dest)%unpk(pos,src)%length
+                       id = grid(d_dest)%unpk(pos,src)%elts(i)
+                       lev = grid(d_dest)%level%elts(abs(id)/multipl+1)
+@@ -1612,6 +1701,9 @@
+ 
+     field%bdry_tag = -1
+     nreq = 0
++    call detail_leave(DP_BDRY_INSTALL)
++    call detail_leave(DP_DOMAIN_BOUNDARY)
++
+   end subroutine update_bdry__finish1_2
+ 
+ 
+--- a/src/main.f90
++++ b/src/main.f90
+@@ -1,5 +1,6 @@
+ module main_mod
+ 
++  use parallel_block_profile_mod
+   use, intrinsic :: ieee_arithmetic
+ 
+   use kind_mod,   only : dp
+@@ -130,7 +131,9 @@
+     if (resume >= 0) then
+        cp_idx = resume
+        call read_checkpoint_directory (cp_idx)
++       call detail_enter(DP_RESTART)
+        call restart
++       call detail_leave(DP_RESTART)
+     else
+        call init_basic
+        call init_structures
+@@ -307,7 +310,9 @@
+     end if
+ 
+     call dump_adapt_mpi (cp_idx)
++    call detail_enter(DP_RESTART)
+     call restart
++    call detail_leave(DP_RESTART)
+ 
+   end subroutine write_checkpoint
+ 
+@@ -367,6 +372,7 @@
+     integer(8) :: idt, ialign
+     logical    :: save_data 
+ 
++    call detail_enter(DP_STEP)
+     ! New time step
+     istep       = istep       + 1
+     istep_cumul = istep_cumul + 1
+@@ -395,7 +401,9 @@
+     if (mode_split) then
+        call dt_step_split (dt)
+     else
++       call detail_enter(DP_DYNAMICS)
+        call dt_step (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_ml, dt)
++       call detail_leave(DP_DYNAMICS)
+     end if
+ 
+     ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+@@ -412,7 +420,9 @@
+        case ("Held_Suarez")
+           call Euler (sol(1:N_VARIABLE,1:zlevels), wav_coeff(1:N_VARIABLE,1:zlevels), trend_physics_Held_Suarez, dt) 
+        case ("Simple")
++          call detail_enter(DP_PHYSICS)
+           call physics_simple_step (dt)
++          call detail_leave(DP_PHYSICS)
+        end select
+     end if
+ #endif 
+@@ -430,7 +440,9 @@
+     min_mass = cpt_min_mass () 
+     if (remap .and. min_mass < min_mass_remap .or. iremap == iremap_max) then
+        if (rank == 0 .and. log_min_mass) write (6,'(a)') 'Remapping vertical coordinates ...'
++       call detail_enter(DP_REMAP)
+        call remap_vertical_coordinates
++       call detail_leave(DP_REMAP)
+        iremap = 1
+     else
+        iremap = iremap + 1
+@@ -447,8 +459,11 @@
+     if (save_data) then
+        iwrite = iwrite + 1
+        if (modulo (iwrite, CP_EVERY) == 0) call write_checkpoint
++       call detail_enter(DP_OUTPUT)
+        call write_and_export (vtk_grid)
+-    end if
++       call detail_leave(DP_OUTPUT)
++    end if
++    call detail_leave(DP_STEP)
+   end subroutine time_step
+ 
+   subroutine init_basic
+--- a/src/multi_level.f90
++++ b/src/multi_level.f90
+@@ -1,5 +1,6 @@
+ module multi_level_mod
+   
++  use parallel_block_profile_mod
+   use kind_mod,   only : dp
+   use shared_mod, only : bfly_no2, nghb_pt, hex_sides, hex_s_offs, N_VARIABLE, zlevels, N_BDRY,  N_CHDRN, &
+        LORT, UPLT, TRIAG, &
+@@ -39,6 +40,7 @@
+ 
+     integer :: k, l
+ 
++    call detail_enter(DP_SHARED)
+     call update_bdry (q, NONE, 967)
+ 
+     ! Initialize trends
+@@ -58,17 +60,26 @@
+           ! Finish non-blocking communication of dq from level (l+1)
+           if (l < level_end) call update_bdry__finish (dq(scalars(1):scalars(2),k),l+1) 
+ 
++          call detail_enter(DP_BASIC)
+           call basic_operators  (q, dq, k, l)
++          call detail_leave(DP_BASIC)
++          call detail_enter(DP_TENDENCY)
+           call cal_scalar_trend (q, dq, k, l)
++          call detail_leave(DP_TENDENCY)
+ 
+           ! Start non-blocking communication of dq for use at next level (l-1)
+           if (level_start /= level_end .and. l > level_start) call update_bdry__start (dq(scalars(1):scalars(2),k),l) 
+ 
++          call detail_enter(DP_NATIVE_VELOCITY)
+           call velocity_trend_source (q, dq, k, l)
+-       end do
++          call detail_leave(DP_NATIVE_VELOCITY)
++       end do
++       call detail_enter(DP_NATIVE_VELOCITY)
+        call velocity_trend_grad (q, dq, k)
++       call detail_leave(DP_NATIVE_VELOCITY)
+     end do
+     dq%bdry_uptodate = .false.
++    call detail_leave(DP_SHARED)
+   end subroutine trend_ml
+ 
+   
+@@ -105,17 +116,23 @@
+        ! Compute or restrict Bernoulli, Exner and fluxes
+        if (l < level_end) then
+           scalar => grid(d)%bernoulli%elts
++          call detail_enter(DP_SCALAR_REPLAY)
+           call cpt_or_restr_scalar (grid(d), l)
++          call detail_leave(DP_SCALAR_REPLAY)
+           nullify (scalar)
+ 
+           scalar => exner_fun(k)%data(d)%elts
++          call detail_enter(DP_SCALAR_REPLAY)
+           call cpt_or_restr_scalar (grid(d), l)
++          call detail_leave(DP_SCALAR_REPLAY)
+           nullify (scalar)
+           
+           do v = scalars(1), scalars(2)
+              dscalar => dq(v,k)%data(d)%elts
+              h_flux  => horiz_flux(v)%data(d)%elts
++             call detail_enter(DP_SCALAR_REPLAY)
+              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) using dscalar (l+1)
++             call detail_leave(DP_SCALAR_REPLAY)
+              nullify (dscalar, h_flux)
+           end do
+        end if
+@@ -254,7 +271,9 @@
+              do v = scalars(1), scalars(2)
+                 dscalar => Laplacian_scalar(v)%data(d)%elts
+                 h_flux  => horiz_flux(v)%data(d)%elts
++                call detail_enter(DP_SCALAR_REPLAY)
+                 call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) using dscalar (l+1)
++                call detail_leave(DP_SCALAR_REPLAY)
+                 nullify (dscalar, h_flux)
+              end do
+           end if
+@@ -334,7 +353,9 @@
+           if (l < level_end) then
+              dscalar => Laplacian_vector(S_DIVU)%data(d)%elts
+              h_flux  => horiz_flux(S_MASS)%data(d)%elts
++             call detail_enter(DP_SCALAR_REPLAY)
+              call cpt_or_restr_flux (grid(d), l)  ! <= compute flux(l) using dscalar (l+1)
++             call detail_leave(DP_SCALAR_REPLAY)
+              nullify (dscalar, h_flux)
+           end if
+        end do
+@@ -723,7 +744,9 @@
+           nullify (velo)
+           if (l < level_end) then
+              dscalar => grid(d)%divu%elts
++             call detail_enter(DP_SCALAR_REPLAY)
+              call cpt_or_restr_flux (grid(d), l) ! restrict flux if possible
++             call detail_leave(DP_SCALAR_REPLAY)
+              nullify (dscalar)
+           end if
+           nullify (h_flux)
+--- a/src/time_integr.f90
++++ b/src/time_integr.f90
+@@ -1,5 +1,6 @@
+ module time_integr_mod
+ 
++  use parallel_block_profile_mod
+   use kind_mod,   only : dp
+   use shared_mod, only : N_VARIABLE, NONE, POSIT, S_TEMP, eps, level_start, theta2, zlevels, zmax
+   
+@@ -72,7 +73,9 @@
+     procedure (trend_sub)            :: routine
+ 
+     call routine (q, trend)
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q, trend, h, q)
++    call detail_leave(DP_RK_ASSEMBLE)
+     call WT_after_step (q, wav, level_start-1)
+   end subroutine Euler
+   
+@@ -92,15 +95,21 @@
+     call manage_q1_mem
+ 
+     call routine (q, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q, trend, h/3, q1)
+-    call WT_after_step (q1, wav)
+-
+-    call routine (q1, trend) 
++    call detail_leave(DP_RK_ASSEMBLE)
++    call WT_after_step (q1, wav)
++
++    call routine (q1, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q, trend, h/2, q1)
+-    call WT_after_step (q1, wav)
+-
+-    call routine (q1, trend) 
++    call detail_leave(DP_RK_ASSEMBLE)
++    call WT_after_step (q1, wav)
++
++    call routine (q1, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q, trend, h, q)
++    call detail_leave(DP_RK_ASSEMBLE)
+     call WT_after_step (q, wav, level_start-1)
+   end subroutine RK3
+   
+@@ -120,19 +129,27 @@
+     call manage_q1_mem
+ 
+     call routine (q, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q, trend, h/4, q1)
+-    call WT_after_step (q1, wav)
+-
+-    call routine (q1, trend) 
++    call detail_leave(DP_RK_ASSEMBLE)
++    call WT_after_step (q1, wav)
++
++    call routine (q1, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q, trend, h/3, q1)
+-    call WT_after_step (q1, wav)
+-
+-    call routine (q1, trend) 
++    call detail_leave(DP_RK_ASSEMBLE)
++    call WT_after_step (q1, wav)
++
++    call routine (q1, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q, trend, h/2, q1)
+-    call WT_after_step (q1, wav)
+-
+-    call routine (q1, trend) 
++    call detail_leave(DP_RK_ASSEMBLE)
++    call WT_after_step (q1, wav)
++
++    call routine (q1, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q, trend, h, q)
++    call detail_leave(DP_RK_ASSEMBLE)
+     call WT_after_step (q, wav, level_start-1)
+   end subroutine RK4
+   
+@@ -152,7 +169,9 @@
+     call manage_RK_mem
+ 
+     call routine (q, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q, trend, h, q1)
++    call detail_leave(DP_RK_ASSEMBLE)
+     call WT_after_step (q1, wav)
+ 
+     call routine (q1, trend) 
+@@ -180,11 +199,15 @@
+     call manage_RK_mem
+ 
+     call routine (q, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q, trend, h/2, q1)
+-    call WT_after_step (q1, wav)
+-
+-    call routine (q1, trend) 
++    call detail_leave(DP_RK_ASSEMBLE)
++    call WT_after_step (q1, wav)
++
++    call routine (q1, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q1, trend, h/2, q2)
++    call detail_leave(DP_RK_ASSEMBLE)
+     call WT_after_step (q2, wav)
+ 
+     call routine (q2, trend)
+@@ -192,7 +215,9 @@
+     call WT_after_step (q3, wav)
+ 
+     call routine (q3, trend) 
++    call detail_enter(DP_RK_ASSEMBLE)
+     call RK_sub_step (q3, trend, h/2, q)
++    call detail_leave(DP_RK_ASSEMBLE)
+     call WT_after_step (q, wav, level_start-1)
+   end subroutine RK34_opt
+   
+--- a/src/wavelet.f90
++++ b/src/wavelet.f90
+@@ -1,5 +1,6 @@
+ module wavelet_mod
+   
++  use parallel_block_profile_mod
+   use kind_mod,   only : dp
+   use shared_mod, only : ADJZONE, EDGE, Coord, scalars, hex_sides, hex_s_offs, nghb_pt, adj_tri, no_adj_tri, bfly_tri, &
+        end_pt, opp_no, N_BDRY, ORIGIN, IJMINUS, IJPLUS, IMINUS, IMINUSJPLUS, IPLUS, IPLUSJMINUS, JMINUS, JPLUS, RT, DG, UP, &
+@@ -274,6 +275,7 @@
+ 
+     integer :: d, jmin, jmax, k, l, v
+ 
++    call detail_enter(DP_INVERSE)
+     if (present(jmin_in)) then
+        jmin = jmin_in
+     else
+@@ -354,6 +356,7 @@
+ 
+        scaling%bdry_uptodate = .false.
+     end do
++    call detail_leave(DP_INVERSE)
+   end subroutine inverse_wavelet_transform
+   
+   
+--- a/test/climate/climate.f90
++++ b/test/climate/climate.f90
+@@ -1,4 +1,5 @@
+ program climate
++  use legacy_profile_io_mod
+   ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   !
+   !   Climate simulation using Held and Suarez (1994) or Simple Physics (Hourdin 1993) subgrid scale model
+@@ -128,11 +129,13 @@
+   if (rank == 0) write (6,'(a)') &
+        '----------------------------------------------------- Start simulation run &
+        & ------------------------------------------------------'
++  call legacy_profile_begin
+   do while (time < time_end)
+      call start_timing ; call time_step; call stop_timing
+      call print_log
+   end do
+   close (12)
+   if (rank == 0) write (6,'(a,es11.4)') 'Total cpu time = ', total_cpu_time
++  call legacy_profile_end(rank)
+   call finalize
+ end program climate

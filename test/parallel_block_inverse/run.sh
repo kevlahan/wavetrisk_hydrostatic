@@ -9,7 +9,7 @@ for optimization in 0 2; do
     -J"$test_dir" -I"$test_dir" \
     "$repo_dir/src/kind.f90" "$repo_dir/src/param_J5.f90" \
     "$repo_dir/src/shared.f90" "$repo_dir/src/patch.f90" \
-    "$repo_dir/src/parallel_block.f90" \
+    "$repo_dir/src/parallel_block_profile.f90" "$repo_dir/src/parallel_block.f90" \
     "$repo_dir/test/parallel_block_inverse/test_routes.f90" -o "$test_dir/routes-O$optimization"
   "$test_dir/routes-O$optimization"
 done
