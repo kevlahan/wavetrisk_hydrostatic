@@ -1,12 +1,10 @@
 module multi_level_mod
+  use mpi_f08
+  use arch_mod, only : comm, MPI_DP, rank, n_process, glo_id
+  use shared_mod, only : n_domain
+  use parallel_block_mass_mod
   use, intrinsic :: iso_fortran_env, only : int64
-  use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-#ifdef WAVETRISK_TEST_TEMPERATURE_CUT
-  use ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_is_nan
-#endif
-#if defined(WAVETRISK_TEST_VELOCITY_CUT) && !defined(WAVETRISK_TEST_TEMPERATURE_CUT)
-  use ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_is_nan
-#endif
+  use, intrinsic :: ieee_arithmetic, only : ieee_is_finite, ieee_value, ieee_quiet_nan, ieee_is_nan
   
   use kind_mod,   only : dp
   use shared_mod, only : bfly_no2, nghb_pt, hex_sides, hex_s_offs, N_VARIABLE, zlevels, N_BDRY,  N_CHDRN, &
@@ -33,6 +31,7 @@ module multi_level_mod
        VELOCITY_DIRECT, VELOCITY_RESTRICT, validate_velocity_program, &
        execute_velocity_sources, execute_velocity_gradients
   use parallel_block_mpi_mod, only : &
+       BLOCK_PROFILE_NATIVE_MASS_PLAN, BLOCK_PROFILE_NATIVE_MASS, &
        BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY, &
        BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY, &
        BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY, &
@@ -80,6 +79,15 @@ module multi_level_mod
   integer, save :: native_velocity_measurement_domain = 0
   integer, save :: velocity_plan_domain=0, velocity_plan_level=0, velocity_plan_patch=0
   integer, save :: velocity_plan_pass=0, velocity_plan_action=0, velocity_plan_direct=0, velocity_plan_restriction=0
+
+  type :: Mass_Boundary_Plan
+     integer, allocatable :: send_count(:),recv_count(:),send_displ(:),recv_displ(:)
+     integer, allocatable :: source(:,:),destination(:,:),local(:,:)
+     real(dp), allocatable :: send_value(:),recv_value(:)
+  end type
+  type(Mass_Boundary_Plan), allocatable, save :: mass_boundary(:,:)
+  integer(int64), save :: mass_boundary_generation=-1_int64
+  integer, save :: mass_plan_domain=0,mass_plan_level=0,mass_plan_pass=0,mass_plan_count=0
 
   
 contains
@@ -212,10 +220,11 @@ contains
 
 
   subroutine block_tendency_compatibility_ml (q, dq)
-    ! Retain mass flux/restriction/divergence and the velocity compatibility
-    ! input. Temperature transport is native; this pass supplies only its
-    ! once-evaluated physics input and sparse direct boundary closure. The
-    ! complete trend_ml path remains the independent validation oracle.
+    ! Shared primitive/physics producer with native mass and velocity chains.
+    ! Domain scalar restriction/divergence runs only for the oracle. Native
+    ! mass executes on geometry owners at the velocity-consumption phase;
+    ! temperature restriction remains on final owners. trend_ml is the
+    ! independent complete validation oracle.
 
     implicit none
 
@@ -223,6 +232,12 @@ contains
          q(1:N_VARIABLE,1:zlevels), dq(1:N_VARIABLE,1:zlevels)
 
     integer :: k, l, compatibility_last, velocity_domain
+#ifdef WAVETRISK_TEST_MASS_CUT
+    type :: Mass_Scratch_Backup
+       real(dp), allocatable :: value(:)
+    end type
+    type(Mass_Scratch_Backup), allocatable :: mass_scratch(:)
+#endif
 #ifdef WAVETRISK_TEST_TEMPERATURE_CUT
     integer :: poison_domain
     type :: Temperature_Scratch_Backup
@@ -242,8 +257,27 @@ contains
     profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_VELOCITY_PLAN)
     call prepare_native_velocity_programs
     call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_VELOCITY_PLAN,profile_start)
+    profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_MASS_PLAN)
+    call prepare_native_mass
+    call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS_PLAN,profile_start)
     native_velocity_transaction = .true.
     native_velocity_oracle = validate_velocity_source
+    mass_transaction=.true.
+    mass_oracle=validate_velocity_source
+#ifdef WAVETRISK_TEST_MASS_CUT
+    if (.not.mass_oracle) then
+       allocate(mass_scratch(size(grid)))
+       do velocity_domain=1,size(grid)
+          do k=1,zlevels
+             dq(S_MASS,k)%data(velocity_domain)%elts=ieee_value(0.0_dp,ieee_quiet_nan)
+          end do
+       end do
+    end if
+#endif
+    do velocity_domain=1,size(native_mass)
+       native_mass(velocity_domain)%tendency=0.0_dp
+       native_mass(velocity_domain)%ready=.false.
+    end do
     do velocity_domain=1,size(native_velocity)
        native_velocity(velocity_domain)%ready=.false.
        native_velocity(velocity_domain)%tendency=0.0_dp
@@ -279,6 +313,14 @@ contains
        if (Laplace_divu /= 0) call cal_divu_ml(q(S_VELO,k))
        if (Laplace_sclr == 2) call cal_Laplacian_scalars(q,k)
        if (Laplace_divu == 2) call cal_Laplacian_divu
+#ifdef WAVETRISK_TEST_MASS_CUT
+       if (.not.mass_oracle) then
+          do velocity_domain=1,size(grid)
+             mass_scratch(velocity_domain)%value=horiz_flux(S_MASS)%data(velocity_domain)%elts
+             horiz_flux(S_MASS)%data(velocity_domain)%elts=ieee_value(0.0_dp,ieee_quiet_nan)
+          end do
+       end if
+#endif
 #ifdef WAVETRISK_TEST_TEMPERATURE_CUT
        ! The retained physics interface uses this scratch field to form the
        ! biharmonic diffusion input. Poison after that single physics prepass:
@@ -292,16 +334,19 @@ contains
 #endif
 
        do l = level_end,level_start,-1
-          ! The Domain restriction compatibility kernel consumes dscalar from
-          ! level l+1 when forming the coarse flux at l.  Preserve that narrow
-          ! dependency and its boundary completion without evaluating the
-          ! complete Domain velocity tendency.
-          if (l < level_end) then
+          ! Complete the fine-level RHS before coarse restriction. The native
+          ! graph preserves the phase of both local copies and remote delivery.
+          if (l < level_end.and.validate_velocity_source) then
              call update_bdry__finish( &
                   dq(scalars(1):compatibility_last,k),l+1)
              call capture_block_scalar_divergence_level( &
                   q,physics_scalar_flux,0,k,l+1, &
                   domain_tendency=dq,dscalar_only=.true.)
+          end if
+          if (l<level_end) then
+             profile_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_MASS)
+             call exchange_native_mass(AT_NODE,l+1,k)
+             call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS,profile_start)
           end if
           profile_start = parallel_block_profile_begin( &
                BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY)
@@ -310,16 +355,22 @@ contains
           call parallel_block_profile_end( &
                BLOCK_PROFILE_DOMAIN_OPERATOR_COMPATIBILITY,profile_start)
           profile_start = parallel_block_profile_begin( &
-               BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY)
+               BLOCK_PROFILE_NATIVE_MASS)
+          call exchange_native_mass(AT_EDGE,l,k)
+          do velocity_domain=1,size(native_mass)
+             call execute_mass_divergence(native_mass(velocity_domain)%level(l)%divergence, &
+                  native_mass(velocity_domain)%flux,native_mass(velocity_domain)%tendency(:,k))
+          end do
+          call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS,profile_start)
           if (validate_velocity_source) then
+             profile_start=parallel_block_profile_begin(BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY)
              call cal_scalar_trend_compatibility(q,dq,k,l)
+             call assert_native_mass_level(dq,k,l)
+             call parallel_block_profile_end(BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY,profile_start)
           else
-             call cal_scalar_trend(q,dq,k,l,.true.)
              call capture_block_scalar_divergence_level(q,physics_scalar_flux,0,k,l)
           end if
-          call parallel_block_profile_end( &
-               BLOCK_PROFILE_DOMAIN_MASS_COMPATIBILITY,profile_start)
-          if (level_start /= level_end .and. l > level_start) then
+          if (level_start /= level_end .and. l > level_start.and.validate_velocity_source) then
              call update_bdry__start( &
                   dq(scalars(1):compatibility_last,k),l)
           end if
@@ -333,6 +384,10 @@ contains
              call velocity_trend_source(q,dq,k,l,.true.)
              call parallel_block_profile_end(BLOCK_PROFILE_DOMAIN_VELOCITY_COMPATIBILITY,profile_start)
           end if
+       end do
+
+       do velocity_domain=1,size(native_mass)
+          native_mass(velocity_domain)%ready(k)=.true.
        end do
 
        ! Native gradient consumes FINAL restricted B/Exner from the shared
@@ -349,6 +404,17 @@ contains
        end if
        if (validate_velocity_source) &
             call finish_velocity_source_measurement(k)
+#ifdef WAVETRISK_TEST_MASS_CUT
+       if (.not.mass_oracle) then
+          do velocity_domain=1,size(grid)
+             if (.not.all(ieee_is_nan(dq(S_MASS,k)%data(velocity_domain)%elts))) &
+                  error stop "native mass cut wrote Domain mass tendency"
+             if (.not.all(ieee_is_nan(horiz_flux(S_MASS)%data(velocity_domain)%elts))) &
+                  error stop "native mass cut wrote Domain mass flux"
+             horiz_flux(S_MASS)%data(velocity_domain)%elts=mass_scratch(velocity_domain)%value
+          end do
+       end if
+#endif
 #ifdef WAVETRISK_TEST_TEMPERATURE_CUT
     if (.not. validate_velocity_source) then
        do poison_domain=1,size(grid)
@@ -373,8 +439,326 @@ contains
     end if
 #endif
     native_velocity_transaction=.false.
+    mass_transaction=.false.
     dq%bdry_uptodate = .false.
   end subroutine block_tendency_compatibility_ml
+
+
+  subroutine prepare_native_mass
+    integer :: d,l,p,c,s,pass,n
+    integer(int64) :: generation
+    generation=native_velocity_plan_generation()
+    if (allocated(native_mass)) then
+       if (size(native_mass)/=size(grid)) deallocate(native_mass)
+    end if
+    if (.not. allocated(native_mass)) allocate(native_mass(size(grid)))
+    do d=1,size(grid)
+       n=grid(d)%node%length
+       if (native_mass(d)%generation==generation) then
+          if (size(native_mass(d)%active)/=n) error stop "native mass layout changed without generation"
+          if (all(native_mass(d)%active .eqv. (grid(d)%mask_n%elts(1:n)>=TRSK)) .and. &
+               all(native_mass(d)%restricted .eqv. (grid(d)%mask_e%elts(1:EDGE*n)>=RESTRCT))) cycle
+       end if
+       native_mass(d)=Native_Mass_Workspace()
+       associate(w=>native_mass(d))
+       allocate(w%level(level_start:level_end),w%flux(EDGE*n),w%tendency(n,zlevels),w%rk(n,zlevels))
+       allocate(w%active(n),w%restricted(EDGE*n),w%ready(zlevels))
+       w%active=grid(d)%mask_n%elts(1:n)>=TRSK
+       w%restricted=grid(d)%mask_e%elts(1:EDGE*n)>=RESTRCT
+       w%flux=0.0_dp
+       w%tendency=0.0_dp
+       w%ready=.false.
+       mass_plan_domain=d
+       do l=level_end,level_start,-1
+          mass_plan_level=l
+          do pass=1,2
+             mass_plan_pass=pass
+             mass_plan_count=0
+             if (l<level_end) then
+                do s=1,grid(d)%lev(l)%length
+                   p=grid(d)%lev(l)%elts(s)
+                   do c=1,N_CHDRN
+                      if (grid(d)%patch%elts(p+1)%children(c)<=0) cycle
+                      call apply_interscale_to_patch3(compile_mass_restriction,grid(d),p,c,z_null,0,1)
+                   end do
+                end do
+             end if
+             if (pass==1) allocate(w%level(l)%restriction(mass_plan_count))
+          end do
+          do pass=1,2
+             mass_plan_pass=pass
+             mass_plan_count=0
+             do s=1,grid(d)%lev(l)%length
+                call apply_onescale_to_patch(compile_mass_divergence,grid(d),grid(d)%lev(l)%elts(s),z_null,0,1)
+             end do
+             if (pass==1) allocate(w%level(l)%divergence(mass_plan_count))
+          end do
+       end do
+       w%generation=generation
+       mass_work(1)=mass_work(1)+1_int64
+       end associate
+    end do
+    if (mass_boundary_generation/=generation) then
+       if (allocated(mass_boundary)) deallocate(mass_boundary)
+       allocate(mass_boundary(AT_NODE:AT_EDGE,level_start:level_end))
+       do l=level_start,level_end
+          call compile_mass_boundary(AT_NODE,l)
+          call compile_mass_boundary(AT_EDGE,l)
+       end do
+       mass_boundary_generation=generation
+    end if
+  end subroutine
+
+  subroutine compile_mass_divergence(dom,i,j,k,offs,dims)
+    type(Domain), intent(inout) :: dom
+    integer, intent(in) :: i,j,k,offs(N_BDRY+1),dims(2,N_BDRY+1)
+    integer :: id,iw,is,isw
+    mass_plan_count=mass_plan_count+1
+    if (mass_plan_pass==1) return
+    id=idx(i,j,offs,dims)
+    associate(s=>native_mass(mass_plan_domain)%level(mass_plan_level)%divergence(mass_plan_count))
+    s%target=id+1
+    s%active=dom%mask_n%elts(id+1)>=TRSK
+    if (.not. s%active) return
+    iw=idx(i-1,j,offs,dims)
+    is=idx(i,j-1,offs,dims)
+    isw=idx(i-1,j-1,offs,dims)
+    s%edge=[EDGE*id+RT,EDGE*iw+RT,EDGE*isw+DG,EDGE*id+DG,EDGE*id+UP,EDGE*is+UP]+1
+    s%inverse_area=dom%areas%elts(id+1)%hex_inv
+    if (any(s%edge<1).or.any(s%edge>size(native_mass(mass_plan_domain)%flux))) &
+         error stop "native mass divergence address is invalid"
+    end associate
+  end subroutine
+
+  subroutine compile_mass_restriction(dom,p_chd,ip,jp,ic,jc,k,op,dp_,oc,dc)
+    type(Domain), intent(inout) :: dom
+    integer,intent(in)::p_chd,ip,jp,ic,jc,k,op(N_BDRY+1),dp_(2,N_BDRY+1),oc(N_BDRY+1),dc(2,N_BDRY+1)
+    integer :: id,t(20),e,x,y,center,mz,pz,id_mp,id_pp,id_pm,id_mm,weights(2,4),n,m,nnode
+    real(dp) :: a(2),o(4)
+    if (ic>=PATCH_SIZE.or.jc>=PATCH_SIZE) return
+    id=idx(ip,jp,op,dp_)+1
+    if (.not. any(dom%mask_e%elts(EDGE*(id-1)+1:EDGE*id)>=RESTRCT)) return
+    mass_plan_count=mass_plan_count+1
+    if (mass_plan_pass==1) return
+    nnode=grid(mass_plan_domain)%node%length
+    associate(s=>native_mass(mass_plan_domain)%level(mass_plan_level)%restriction(mass_plan_count))
+    s%target=id
+    s%edge=dom%mask_e%elts(EDGE*(id-1)+1:EDGE*id)>=RESTRCT
+    weights(:,1)=[idx(ic+1,jc-2,oc,dc),idx(ic+1,jc-1,oc,dc)]+1
+    weights(:,2)=[idx(ic,jc,oc,dc),idx(ic,jc+1,oc,dc)]+1
+    weights(:,3)=[idx(ic+1,jc,oc,dc),idx(ic+1,jc+1,oc,dc)]+1
+    weights(:,4)=[idx(ic-2,jc,oc,dc),idx(ic-2,jc+1,oc,dc)]+1
+    do n=1,4
+       do m=1,2
+          s%weight(:,m,n)=dom%R_F_wgt%elts(weights(m,n))%enc
+       end do
+    end do
+    call get_indices(dom,ic+1,jc,RT,oc,dc,t)
+    s%small(:,1,1)=t([WPM,UZM,VMM]+1)+1
+    s%small(:,2,1)=t([VPM,WMMM,UMZ]+1)+1
+    s%small(:,3,1)=t([UPZ,VPMM,WMM]+1)+1
+    s%small(:,1,2)=t([WMP,UZP,VPP]+1)+1
+    s%small(:,2,2)=t([VMP,WPPP,UPZ]+1)+1
+    s%small(:,3,2)=t([UMZ,VMPP,WPP]+1)+1
+    call get_indices(dom,ic,jc+1,UP,oc,dc,t)
+    s%small(:,1,3)=t([UZM,VMM,WPM]+1)+1
+    s%small(:,2,3)=t([WMMM,UMZ,VPM]+1)+1
+    s%small(:,3,3)=t([VPMM,WMM,UPZ]+1)+1
+    s%small(:,1,4)=t([UZP,VPP,WMP]+1)+1
+    s%small(:,2,4)=t([WPPP,UPZ,VMP]+1)+1
+    s%small(:,3,4)=t([VMPP,WPP,UMZ]+1)+1
+    if (any(s%small<1).or.any(s%small>EDGE*nnode)) error stop "native mass small-flux address is invalid"
+    do e=RT,UP
+       if (.not.s%edge(e+1)) cycle
+       x=ic
+       y=jc
+       if (e/=UP) x=x+1
+       if (e/=RT) y=y+1
+       center=idx(x,y,oc,dc)+1
+       call get_indices(dom,x,y,e,oc,dc,t)
+       s%partial_flux(:,e+1)=t([UPZ,UMZ,VMM,WMP,WPM,VPP]+1)+1
+       s%partial_node(:,e+1)=t([PP,MM,MP,PM]+1)+1
+       a=dom%overl_areas%elts(center)%a(1:2)
+       o(1:2)=dom%overl_areas%elts(center)%split
+       o(3:4)=dom%overl_areas%elts(center)%a(3:4)-o(1:2)
+       a(1)=a(1)+o(1)+o(4)
+       a(2)=a(2)+o(2)+o(3)
+       s%area(:,e+1)=a/sum(a)
+       o(1)=dom%overl_areas%elts(t(PP+1)+1)%split(1)
+       o(2)=dom%overl_areas%elts(t(MM+1)+1)%split(2)
+       o(3)=dom%overl_areas%elts(t(MP+1)+1)%a(3)-dom%overl_areas%elts(t(MP+1)+1)%split(1)
+       o(4)=dom%overl_areas%elts(t(PM+1)+1)%a(4)-dom%overl_areas%elts(t(PM+1)+1)%split(2)
+       s%overlap(:,e+1)=o
+       mz=idx2(x,y,nghb_pt(:,hex_s_offs(e+1)+2),oc,dc)+1
+       pz=idx2(x,y,nghb_pt(:,hex_s_offs(e+1)+5),oc,dc)+1
+       id_mp=idx2(x,y,nghb_pt(:,hex_s_offs(e+1)+1),oc,dc)+1
+       id_pp=idx2(x,y,nghb_pt(:,hex_s_offs(e+1)+6),oc,dc)+1
+       id_pm=idx2(x,y,nghb_pt(:,hex_s_offs(e+1)+4),oc,dc)+1
+       id_mm=idx2(x,y,nghb_pt(:,hex_s_offs(e+1)+3),oc,dc)+1
+       s%coarse_node(:,e+1)=[mz,pz,idx2(x,y,bfly_no2(:,3,e+1),oc,dc)+1, &
+            idx2(x,y,bfly_no2(:,2,e+1),oc,dc)+1,idx2(x,y,bfly_no2(:,4,e+1),oc,dc)+1, &
+            idx2(x,y,bfly_no2(:,1,e+1),oc,dc)+1]
+       s%coarse(1,e+1)= &
+            dom%overl_areas%elts(center)%a(1)*dom%overl_areas%elts(center)%a(2)*dom%areas%elts(center)%hex_inv &
+            +dom%overl_areas%elts(id_mp)%a(2)*dom%overl_areas%elts(id_mp)%a(3)*dom%areas%elts(id_mp)%hex_inv &
+            +dom%overl_areas%elts(id_pp)%a(1)*dom%overl_areas%elts(id_pp)%a(3)*dom%areas%elts(id_pp)%hex_inv &
+            +dom%overl_areas%elts(id_pm)%a(1)*dom%overl_areas%elts(id_pm)%a(4)*dom%areas%elts(id_pm)%hex_inv &
+            +dom%overl_areas%elts(id_mm)%a(2)*dom%overl_areas%elts(id_mm)%a(4)*dom%areas%elts(id_mm)%hex_inv
+       t(1:4)=[id_pp,id_pm,id_mp,id_mm]
+       do n=1,4
+          m=t(n)
+          s%coarse(n+1,e+1)=dom%overl_areas%elts(m)%a(3)*dom%overl_areas%elts(m)%a(4)*dom%areas%elts(m)%hex_inv
+       end do
+       if (any(s%partial_flux(:,e+1)<1).or.any(s%partial_flux(:,e+1)>EDGE*nnode) .or. &
+            any(s%partial_node(:,e+1)<1).or.any(s%partial_node(:,e+1)>nnode) .or. &
+            any(s%coarse_node(:,e+1)<1).or.any(s%coarse_node(:,e+1)>nnode)) &
+            error stop "native mass restriction address is invalid"
+    end do
+    end associate
+  end subroutine
+
+  subroutine compile_mass_boundary(pos,l)
+    ! Compile the existing geometry-owner graph, including signed edges.
+    ! Same-rank copies intentionally cover ALL levels in their original order:
+    ! cp_bdry_inside has that contract even during a single-level exchange.
+    integer,intent(in)::pos,l
+    integer :: r,ds,dd,g,id,i,pass,ns,nr,nlocal,mult
+    mult=1
+    if (pos==AT_EDGE) mult=EDGE
+    associate(p=>mass_boundary(pos,l))
+    allocate(p%send_count(n_process),p%recv_count(n_process),p%send_displ(n_process),p%recv_displ(n_process))
+    do pass=1,2
+       ns=0
+       nr=0
+       nlocal=0
+       do r=1,n_process
+          p%send_displ(r)=ns
+          p%recv_displ(r)=nr
+          if (r==rank+1) cycle
+          do ds=1,size(grid)
+             do dd=1,n_domain(r)
+                g=glo_id(r,dd)+1
+                do i=1,grid(ds)%pack(pos,g)%length
+                   id=grid(ds)%pack(pos,g)%elts(i)
+                   if (grid(ds)%level%elts(id/mult+1)/=l) cycle
+                   ns=ns+1
+                   if(pass==2) p%source(:,ns)=[ds,id+1]
+                end do
+             end do
+          end do
+          do ds=1,n_domain(r)
+             g=glo_id(r,ds)+1
+             do dd=1,size(grid)
+                do i=1,grid(dd)%unpk(pos,g)%length
+                   id=grid(dd)%unpk(pos,g)%elts(i)
+                   if (grid(dd)%level%elts(abs(id)/mult+1)/=l) cycle
+                   nr=nr+1
+                   if(pass==2) p%destination(:,nr)=[dd,abs(id)+1,merge(-1,1,id<0.and.pos==AT_EDGE)]
+                end do
+             end do
+          end do
+       end do
+       do ds=1,size(grid)
+          do dd=1,size(grid)
+             g=glo_id(rank+1,dd)+1
+             do i=1,grid(ds)%pack(pos,g)%length
+                nlocal=nlocal+1
+                if (pass==1) cycle
+                id=grid(dd)%unpk(pos,glo_id(rank+1,ds)+1)%elts(i)
+                p%local(:,nlocal)=[ds,grid(ds)%pack(pos,g)%elts(i)+1,dd,abs(id)+1, &
+                     merge(-1,1,id<0.and.pos==AT_EDGE)]
+             end do
+          end do
+       end do
+       if(pass==1) then
+          allocate(p%source(2,ns),p%destination(3,nr),p%local(5,nlocal),p%send_value(ns),p%recv_value(nr))
+       end if
+    end do
+    do r=1,n_process-1
+       p%send_count(r)=p%send_displ(r+1)-p%send_displ(r)
+       p%recv_count(r)=p%recv_displ(r+1)-p%recv_displ(r)
+    end do
+    p%send_count(n_process)=ns-p%send_displ(n_process)
+    p%recv_count(n_process)=nr-p%recv_displ(n_process)
+    end associate
+  end subroutine
+
+  subroutine exchange_native_mass(pos,l,k)
+    integer,intent(in)::pos,l,k
+    integer::i,r,nreq,ierr,ds,dd,si,di
+    type(MPI_Request)::requests(2*n_process)
+    associate(p=>mass_boundary(pos,l))
+    do i=1,size(p%source,2)
+       ds=p%source(1,i)
+       si=p%source(2,i)
+       if(pos==AT_EDGE) then
+          p%send_value(i)=native_mass(ds)%flux(si)
+       else
+          p%send_value(i)=native_mass(ds)%tendency(si,k)
+       end if
+    end do
+    nreq=0
+    do r=1,n_process
+       if(p%recv_count(r)==0) cycle
+       nreq=nreq+1
+       call MPI_Irecv(p%recv_value(p%recv_displ(r)+1:),p%recv_count(r),MPI_DP,r-1,28471,comm,requests(nreq),ierr)
+       if(ierr/=MPI_SUCCESS) error stop "native mass boundary receive failed"
+    end do
+    do r=1,n_process
+       if(p%send_count(r)==0) cycle
+       nreq=nreq+1
+       call MPI_Isend(p%send_value(p%send_displ(r)+1:),p%send_count(r),MPI_DP,r-1,28471,comm,requests(nreq),ierr)
+       if(ierr/=MPI_SUCCESS) error stop "native mass boundary send failed"
+    end do
+    do i=1,size(p%local,2)
+       ds=p%local(1,i)
+       si=p%local(2,i)
+       dd=p%local(3,i)
+       di=p%local(4,i)
+       if(pos==AT_EDGE) then
+          native_mass(dd)%flux(di)=p%local(5,i)*native_mass(ds)%flux(si)
+       else
+          native_mass(dd)%tendency(di,k)=native_mass(ds)%tendency(si,k)
+       end if
+    end do
+    if(nreq>0) then
+       call MPI_Waitall(nreq,requests(1:nreq),MPI_STATUSES_IGNORE,ierr)
+       if(ierr/=MPI_SUCCESS) error stop "native mass boundary completion failed"
+    end if
+    do i=1,size(p%destination,2)
+       dd=p%destination(1,i)
+       di=p%destination(2,i)
+       if(pos==AT_EDGE) then
+          native_mass(dd)%flux(di)=p%destination(3,i)*p%recv_value(i)
+       else
+          native_mass(dd)%tendency(di,k)=p%recv_value(i)
+       end if
+    end do
+    mass_work(4)=mass_work(4)+size(p%recv_value)+size(p%local,2)
+    end associate
+  end subroutine
+
+  subroutine assert_native_mass_level(dq,k,l)
+    type(Float_Field),intent(in)::dq(1:N_VARIABLE,1:zlevels)
+    integer,intent(in)::k,l
+    integer::d,s,id,e
+    do d=1,size(grid)
+       do s=1,size(native_mass(d)%level(l)%divergence)
+          id=native_mass(d)%level(l)%divergence(s)%target
+          if(transfer(native_mass(d)%tendency(id,k),0_int64)/=transfer(dq(S_MASS,k)%data(d)%elts(id),0_int64)) then
+             write(6,*) "Native mass divergence differs: rank, owner, layer, level, node",rank,d,k,l,id
+             write(6,*) native_mass(d)%tendency(id,k),dq(S_MASS,k)%data(d)%elts(id)
+             error stop "native mass phase divergence differs bit-for-bit"
+          end if
+          do e=1,6
+             if(.not.native_mass(d)%level(l)%divergence(s)%active) cycle
+             id=native_mass(d)%level(l)%divergence(s)%edge(e)
+             if(transfer(native_mass(d)%flux(id),0_int64)/=transfer(horiz_flux(S_MASS)%data(d)%elts(id),0_int64)) &
+                  error stop "native mass phase flux differs bit-for-bit"
+          end do
+       end do
+    end do
+  end subroutine
 
   subroutine prepare_native_velocity_programs
     integer :: d,l,p,c,slot,pass,nnode,ngrad,i,j,s,id,n,offs(N_BDRY+1),dims(2,N_BDRY+1)
@@ -536,7 +920,7 @@ contains
        mass=>q(S_MASS,k)%data(d)%elts
        velo=>q(S_VELO,k)%data(d)%elts
        mean_m=>sol_mean(S_MASS,k)%data(d)%elts
-       h_mflux=>horiz_flux(S_MASS)%data(d)%elts
+       h_mflux=>native_mass(d)%flux
        qe=>grid(d)%qe%elts
        ke=>grid(d)%ke%elts
        vort=>grid(d)%vort%elts
@@ -560,9 +944,9 @@ contains
           work%physics_ready(id)=.true.
           native_velocity_work(5)=native_velocity_work(5)+1_int64
        end do
-       ! A zero-copy primitive handoff from the once-evaluated shared mass
-       ! pass. No Domain source or gradient is evaluated on this path.
-       flux_view(1:EDGE,1:nnode)=>horiz_flux(S_MASS)%data(d)%elts
+       ! Consume the native mass flux at this exact restriction phase. No
+       ! Domain mass flux, velocity source or gradient is a production input.
+       flux_view(1:EDGE,1:nnode)=>native_mass(d)%flux
        pv_view(1:EDGE,1:nnode)=>grid(d)%qe%elts
        call execute_velocity_sources(work%level(l),flux_view,pv_view,work%physics,work%source)
        native_velocity_work(2)=native_velocity_work(2)+int(size(work%level(l)%direct),int64)
@@ -607,6 +991,7 @@ contains
     integer :: d, j, v, scalar_last
     logical :: capture_scalar_physics
     real(dp) :: scalar_physics(EDGE,PATCH_SIZE**2,scalars(1):scalars(2))
+    real(dp) :: mass_start
 
     capture_scalar_physics = block_scalar_capture_active()
 
@@ -662,6 +1047,7 @@ contains
           scalar_last = scalars(2)
           if (mass_only_compatibility) scalar_last = S_MASS
           do v = scalars(1),scalar_last
+             if (mass_transaction.and..not.mass_oracle) cycle
              dscalar => dq(v,k)%data(d)%elts
              h_flux  => horiz_flux(v)%data(d)%elts
              call cpt_or_restr_flux (grid(d), l)
@@ -669,13 +1055,25 @@ contains
           end do
        end do
     end if
-    if (mass_only_compatibility) then
+    if (mass_transaction.and..not.mass_oracle) then
+       ! Production mass storage and boundary processing are entirely native.
+    else if (mass_only_compatibility) then
        horiz_flux(S_MASS)%bdry_uptodate = .false.
        if (level_start /= level_end) &
             call update_bdry(horiz_flux(S_MASS:S_MASS),l,1068)
     else
        horiz_flux%bdry_uptodate = .false.
        if (level_start /= level_end) call update_bdry(horiz_flux,l,968)
+    end if
+
+    if (mass_transaction) then
+       mass_start=parallel_block_profile_begin(BLOCK_PROFILE_NATIVE_MASS)
+       do d=1,size(native_mass)
+          call execute_mass_restriction(native_mass(d)%level(l)%restriction, &
+               native_mass(d)%flux,native_mass(d)%tendency(:,k))
+       end do
+       if (level_start/=level_end) call exchange_native_mass(AT_EDGE,l,k)
+       call parallel_block_profile_end(BLOCK_PROFILE_NATIVE_MASS,mass_start)
     end if
 
     if (Laplace_rotu == 2) call cal_Laplacian_vector_rot (l) ! requires vorticity

@@ -5,6 +5,8 @@ module time_integr_mod
   use kind_mod,   only : dp
   use shared_mod, only : N_VARIABLE, NONE, POSIT, S_TEMP, S_VELO, eps, level_start, theta2, zlevels, zmax
   use parallel_block_velocity_mod, only : native_velocity_rk, native_velocity
+  use parallel_block_mass_mod, only : native_mass, mass_work
+  use shared_mod, only : S_MASS
   
   use adapt_mod,         only : WT_after_step
   use barotropic_2d_mod, only : barotropic_correction, eta_update, flux_divergence, scalar_star, u_star, u_update
@@ -496,8 +498,8 @@ contains
 
 
   subroutine RK_sub_step_compatibility (sols,trends,h,dest)
-    ! Materialize mass compatibility and native velocity closure; preserve
-    ! temperature scaffold values for native boundary/stage publication.
+    ! Materialize native mass/velocity RK closure at the primitive-consumer
+    ! interface; preserve temperature scaffolding for native publication.
 
     implicit none
 
@@ -516,6 +518,16 @@ contains
     profile_start = parallel_block_profile_begin( &
          BLOCK_PROFILE_DOMAIN_RK_COMPATIBILITY)
     call prepare_temperature_boundary_stage(sols,h)
+    do d=1,size(grid)
+       ibeg=grid(d)%patch%elts(3)%elts_start+1
+       iend=dest(S_MASS,1)%data(d)%length
+       if (.not.all(native_mass(d)%ready)) error stop "native mass RK before tendency completion"
+       do k=1,zlevels
+          native_mass(d)%rk(ibeg:iend,k)=sols(S_MASS,k)%data(d)%elts(ibeg:iend)+ &
+               h*native_mass(d)%tendency(ibeg:iend,k)
+          mass_work(6)=mass_work(6)+iend-ibeg+1
+       end do
+    end do
     ! Compute before the legacy oracle: on the last RK substage sols and
     ! dest are the same field. Computing afterwards would advance it twice.
     do d=1,size(grid)
@@ -528,7 +540,20 @@ contains
     end do
     call RK_sub_step(sols,trends,h,dest, &
          native_temperature=.not. block_dynamics_validation_enabled(), &
-         native_velocity=.not. block_dynamics_validation_enabled())
+         native_velocity=.not. block_dynamics_validation_enabled(), &
+         native_mass_rhs=.not. block_dynamics_validation_enabled())
+    do d=1,size(grid)
+       ibeg=grid(d)%patch%elts(3)%elts_start+1
+       iend=dest(S_MASS,1)%data(d)%length
+       do k=1,zlevels
+          if (block_dynamics_validation_enabled()) then
+             if(any(transfer(native_mass(d)%rk(ibeg:iend,k),[0_int64],iend-ibeg+1)/= &
+                  transfer(dest(S_MASS,k)%data(d)%elts(ibeg:iend),[0_int64],iend-ibeg+1))) &
+                  error stop "native mass RK differs bit-for-bit"
+          end if
+          dest(S_MASS,k)%data(d)%elts(ibeg:iend)=native_mass(d)%rk(ibeg:iend,k)
+       end do
+    end do
     ! All velocity values needed by the compatibility consumer, including
     ! boundary/scaffold slots, come from the native workspace. The final-owner
     ! stage publication still supplies the integrated owned block state.
@@ -576,7 +601,7 @@ contains
 
 
 
-  subroutine RK_sub_step (sols, trends, h, dest, native_temperature, native_velocity)
+  subroutine RK_sub_step (sols, trends, h, dest, native_temperature, native_velocity, native_mass_rhs)
     
     implicit none
     
@@ -584,15 +609,17 @@ contains
     type(Float_Field), intent(in)    :: sols(1:N_VARIABLE,1:zlevels)
     type(Float_Field), intent(in)    :: trends(1:N_VARIABLE,1:zlevels)
     type(Float_Field), intent(inout) :: dest(1:N_VARIABLE,1:zlevels)
-    logical, optional, intent(in) :: native_temperature,native_velocity
+    logical, optional, intent(in) :: native_temperature,native_velocity,native_mass_rhs
     
     integer :: d, ibeg, iend, k, v
-    logical :: copy_temperature,copy_velocity
+    logical :: copy_temperature,copy_velocity,copy_mass
 
     copy_temperature=.false.
     if (present(native_temperature)) copy_temperature=native_temperature
     copy_velocity=.false.
     if (present(native_velocity)) copy_velocity=native_velocity
+    copy_mass=.false.
+    if (present(native_mass_rhs)) copy_mass=native_mass_rhs
 
     do v = 1, N_VARIABLE
        do d = 1, size(grid)
@@ -600,6 +627,7 @@ contains
           iend = dest(v,1)%data(d)%length
           do k = 1, zlevels
              if (v==S_VELO .and. copy_velocity) cycle
+             if (v==S_MASS .and. copy_mass) cycle
              if (v == S_TEMP .and. copy_temperature) then
                 ! Seed untouched scaffolding. The native boundary adapter and
                 ! integrated stage publication supply all evolved values.

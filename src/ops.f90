@@ -13,6 +13,7 @@ module ops_mod
   use domain_ops_mod,  only : apply, apply_onescale_to_patch
   use patch_mod,       only : LAST, PATCH_SIZE
   use parallel_block_mpi_mod, only : capture_temperature_closure, temperature_closure_needed
+  use parallel_block_mass_mod, only : native_mass, mass_transaction, mass_oracle
   use utils_mod,       only : interp, phi_node, porous_density
   use init_mod,        only : physics_scalar_flux, physics_velo_source, surf_geopot
   
@@ -59,6 +60,7 @@ contains
     real(dp), dimension(0:N_BDRY,scalars(1):scalars(2)) :: rho_dz
     real(dp), dimension(1:EDGE)                         :: physics_flux
     real(dp) :: temperature_flux(EDGE)
+    real(dp), pointer :: scalar_flux(:)
 
     logical :: S_bdry, W_bdry, skip_temperature
     logical :: temperature_needed(EDGE)
@@ -430,9 +432,13 @@ contains
                end if
                if (skip_temperature) cycle
             end if
-            horiz_flux(v)%data(d)%elts(EDGE*id+RT+1) = u_dual_RT * interp (rho_dz(0,v), rho_dz(EAST,     v)) + physics_flux(RT+1)
-            horiz_flux(v)%data(d)%elts(EDGE*id+DG+1) = u_dual_DG * interp (rho_dz(0,v), rho_dz(NORTHEAST,v)) + physics_flux(DG+1)
-            horiz_flux(v)%data(d)%elts(EDGE*id+UP+1) = u_dual_UP * interp (rho_dz(0,v), rho_dz(NORTH,    v)) + physics_flux(UP+1)
+            scalar_flux=>horiz_flux(v)%data(d)%elts
+            if (mass_transaction.and.v==S_MASS) scalar_flux=>native_mass(d)%flux
+            scalar_flux(EDGE*id+RT+1) = u_dual_RT * interp (rho_dz(0,v), rho_dz(EAST,     v)) + physics_flux(RT+1)
+            scalar_flux(EDGE*id+DG+1) = u_dual_DG * interp (rho_dz(0,v), rho_dz(NORTHEAST,v)) + physics_flux(DG+1)
+            scalar_flux(EDGE*id+UP+1) = u_dual_UP * interp (rho_dz(0,v), rho_dz(NORTH,    v)) + physics_flux(UP+1)
+            if (mass_transaction.and.mass_oracle.and.v==S_MASS) &
+                 horiz_flux(v)%data(d)%elts(EDGE*id+1:EDGE*(id+1))=scalar_flux(EDGE*id+1:EDGE*(id+1))
          end do
       end if
     end subroutine comput
@@ -604,14 +610,21 @@ contains
                if (skip_temperature) cycle
             end if
 
-            horiz_flux(v)%data(d)%elts(EDGE*idW+RT +1) = u_dual_RT_W  * interp (rho_dz(0,v), rho_dz(WEST,     v)) &
+            scalar_flux=>horiz_flux(v)%data(d)%elts
+            if (mass_transaction.and.v==S_MASS) scalar_flux=>native_mass(d)%flux
+            scalar_flux(EDGE*idW+RT +1) = u_dual_RT_W  * interp (rho_dz(0,v), rho_dz(WEST,     v)) &
                  + physics_flux(RT+1)
             
-            horiz_flux(v)%data(d)%elts(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (rho_dz(0,v), rho_dz(SOUTHWEST,v)) &
+            scalar_flux(EDGE*idSW+DG+1) = u_dual_DG_SW * interp (rho_dz(0,v), rho_dz(SOUTHWEST,v)) &
                  + physics_flux(DG+1)
             
-            horiz_flux(v)%data(d)%elts(EDGE*idS+UP +1) = u_dual_UP_S  * interp (rho_dz(0,v), rho_dz(SOUTH,    v)) &
+            scalar_flux(EDGE*idS+UP +1) = u_dual_UP_S  * interp (rho_dz(0,v), rho_dz(SOUTH,    v)) &
                  + physics_flux(UP+1)
+            if (mass_transaction.and.mass_oracle.and.v==S_MASS) then
+               horiz_flux(v)%data(d)%elts(EDGE*idW+RT+1)=scalar_flux(EDGE*idW+RT+1)
+               horiz_flux(v)%data(d)%elts(EDGE*idSW+DG+1)=scalar_flux(EDGE*idSW+DG+1)
+               horiz_flux(v)%data(d)%elts(EDGE*idS+UP+1)=scalar_flux(EDGE*idS+UP+1)
+            end if
          end do
       end if
     end subroutine comp_SW

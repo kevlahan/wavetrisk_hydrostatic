@@ -1,4 +1,5 @@
 module parallel_block_mpi_mod
+  use parallel_block_mass_mod, only : native_mass, mass_work
   use parallel_block_velocity_mod, only : copy_native_velocity_tendency, native_velocity_work
 
   use iso_fortran_env, only : error_unit, int8, int64
@@ -629,7 +630,8 @@ module parallel_block_mpi_mod
   integer, parameter, public :: BLOCK_PROFILE_NATIVE_VELOCITY_PLAN=52
   integer, parameter, public :: BLOCK_PROFILE_NATIVE_VELOCITY_SOURCE=53
   integer, parameter, public :: BLOCK_PROFILE_NATIVE_VELOCITY_GRADIENT=54
-  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 54
+  integer, parameter, public :: BLOCK_PROFILE_NATIVE_MASS_PLAN=55, BLOCK_PROFILE_NATIVE_MASS=56
+  integer, parameter :: BLOCK_PROFILE_PHASE_COUNT = 56
   character(len=32), parameter :: block_profile_phase_name( &
        BLOCK_PROFILE_PHASE_COUNT) = [character(len=32) :: &
        "complete timestep", "dynamics driver", "physics consumers", &
@@ -658,7 +660,8 @@ module parallel_block_mpi_mod
        "Domain velocity compatibility", "temperature edge plan", &
        "temperature edge exchange", "temperature RK boundary", &
        "inverse native gather", "inverse native aliases", "inverse native scatter", &
-       "native velocity plan", "native velocity source", "native velocity gradient"]
+       "native velocity plan", "native velocity source", "native velocity gradient", &
+       "native mass plan", "native mass restriction/boundary"]
   logical, save :: block_profile = .false.
   logical, save :: block_profile_initialized = .false.
   real(dp), save :: block_profile_seconds(BLOCK_PROFILE_PHASE_COUNT) = &
@@ -1879,6 +1882,7 @@ contains
     integer(int64) :: topology_max(3)
     integer(int64) :: thermodynamic_sum(11)
     integer(int64) :: velocity_sum(9)
+    integer(int64) :: mass_sum(6)
     integer(int64) :: producer_sum(5),producer_local(5)
     integer :: producer_domain
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
@@ -1936,6 +1940,8 @@ contains
     call check_mpi(ierr,"MPI_Allreduce thermodynamic work")
     call MPI_Allreduce(native_velocity_work,velocity_sum,9,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce native velocity work")
+    call MPI_Allreduce(mass_work,mass_sum,6,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce native mass counters")
     producer_local=0_int64
     producer_local(1:3)=scalar_producer_work
     if (allocated(block_scalar_divergence_plan%producer_buffer)) then
@@ -2127,6 +2133,8 @@ contains
             "  native velocity: plan builds direct restrictions gradients physics = ",velocity_sum(1:5)
        write(6,'(a,4(i0,1x))') &
             "  native velocity: published RK-values Domain-source Domain-gradient = ",velocity_sum(6:9)
+       write(6,'(a,6(i0,1x))') &
+            "  native mass: plans restricted-edges divergence boundary published RK-values = ",mass_sum
        write(6,'(a,3(i0,1x))') &
             "  scalar producer: geometry nodes physics values oracle records = ",producer_sum(1:3)
        write(6,'(a,2(i0,1x))') &
@@ -2145,6 +2153,7 @@ contains
        block_profile_topology_events = 0_int64
        thermodynamic_work = 0_int64
        native_velocity_work = 0_int64
+       mass_work = 0_int64
        scalar_producer_work = 0_int64
        block_profile_depth = 0
        block_profile_outer_start = 0.0_dp
@@ -21040,6 +21049,9 @@ end subroutine build_parallel_block_catalog
       real(dp) :: closure_value(EDGE)
 
       closure_value=0.0_dp
+      if (scalar_capture_id==S_MASS.and..not.validate_oracle) then
+         closure_value=native_mass(d)%flux(EDGE*id+1:EDGE*(id+1))
+      end if
       if (scalar_capture_id == S_TEMP .and. .not. capture_direct .and. .not. capture_dscalar) then
          do component=0,EDGE-1
             closure_index=temperature_closure(d)%slot(EDGE*id+component+1)
@@ -21052,7 +21064,7 @@ end subroutine build_parallel_block_catalog
       if (.not. block_scalar_divergence_plan%full_transport) then
          ! Boundary flux remains a live compatibility input, but geometry
          ! and source identity are immutable for this plan generation.
-         if (scalar_capture_id == S_TEMP .and. .not. validate_oracle) then
+         if (.not. validate_oracle) then
             value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
                  BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1)=closure_value
             return
@@ -21089,7 +21101,7 @@ end subroutine build_parallel_block_catalog
               BLOCK_SCALAR_TRIANGLE_AREA_START+1) = &
               grid(d)%triarea%elts( &
               TRIAG*id+LORT+1:TRIAG*id+UPLT+1)
-         if (scalar_capture_id /= S_TEMP .or. validate_oracle) then
+         if (validate_oracle) then
          value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
               BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1) = &
               horiz_flux(scalar_capture_id)%data(d)%elts( &
@@ -21231,10 +21243,46 @@ end subroutine build_parallel_block_catalog
   end subroutine exchange_block_scalar_boundary_cache
 
 
+
+  subroutine publish_native_mass_rhs
+    ! Production mass channel carries the completed native RHS, replacing
+    ! the physics residual for the now oracle-only final-owner mass replay.
+    integer::d,p,k,q,nk,kfirst,v,ns,vv,ms,mv,first,storage,field,address,id,sample
+    call get_block_field_layout(v,ns,vv,kfirst,nk,ms,mv)
+    do d=1,size(block_scalar_capture_domain)
+       if(.not.all(native_mass(d)%ready)) call fail("native mass publication before completion")
+       do p=1,size(block_scalar_capture_domain(d)%sample)
+          first=block_scalar_capture_domain(d)%sample(p)
+          if(first==0) cycle
+          storage=block_scalar_capture_domain(d)%storage(p)
+          do k=1,zlevels
+             field=(S_MASS-v)*nk+k-kfirst
+             do q=0,PATCH_SIZE**2-1
+                id=grid(d)%patch%elts(p)%elts_start+q+1
+                if(storage==0) then
+                   if(block_scalar_divergence_plan%full_transport) then
+                      address=scalar_producer_address(first,field,q,1-kfirst)
+                   else
+                      address=EDGE*(first+field*PATCH_SIZE**2+q-1)+1
+                   end if
+                   block_scalar_divergence_plan%producer_buffer(address:address+EDGE-1)=0.0_dp
+                   block_scalar_divergence_plan%producer_buffer(address)=native_mass(d)%tendency(id,k)
+                else
+                   sample=first+field*PATCH_SIZE**2+q
+                   address=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(sample-1)+BLOCK_SCALAR_PHYSICS_START
+                   block_scalar_tendency(storage)%patch(address:address+EDGE-1)=0.0_dp
+                   block_scalar_tendency(storage)%patch(address)=native_mass(d)%tendency(id,k)
+                end if
+                mass_work(5)=mass_work(5)+1_int64
+             end do
+          end do
+       end do
+    end do
+  end subroutine publish_native_mass_rhs
+
   subroutine finalize_block_scalar_divergence_capture
-    ! Transfer the pre-restriction native-flux shadow and the authoritative
-    ! restricted divergence stencil once, then make every final-owner input
-    ! ready for the rejected block-native kernel.
+    ! Publish shared geometry, native mass RHS and temperature physics in
+    ! production. Oracle runs retain independent flux/divergence references.
 
     implicit none
 
@@ -21282,6 +21330,7 @@ end subroutine build_parallel_block_catalog
        end do
     end do
     call complete_uncaptured_scalar_divergence_coverage
+    if (.not.validate_oracle) call publish_native_mass_rhs
     if (.not. all(block_scalar_divergence_plan%recv_covered)) then
        call fail("scalar-divergence Domain capture is incomplete")
     end if
@@ -23215,6 +23264,12 @@ end subroutine build_parallel_block_catalog
                         block_scalar_tendency(local_index)%patch( &
                         remainder_index:remainder_index+ &
                         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                   if (block%scalar_variable+scalar_slot==S_MASS.and..not.statistics%validate_oracle) then
+                      block_scalar_tendency(local_index)%patch( &
+                           remainder_index+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1)= &
+                           scalar_input(BLOCK_SCALAR_PHYSICS_START)
+                      cycle
+                   end if
                    if (field_level < 1 .or. &
                         field_level > zlevels) cycle
                    i = mod(q,PATCH_SIZE)
@@ -24470,6 +24525,7 @@ end subroutine build_parallel_block_catalog
              cursor%child_patch = child+1
              do scalar_slot = 0,block%n_scalar_variable-1
                 cursor%scalar_slot = scalar_slot
+                if (block%scalar_variable+scalar_slot==S_MASS.and..not.validate_oracle) cycle
                 do level_slot = 1,block%n_field_level
                    if (block%field_level+level_slot-1 < 1 .or. &
                         block%field_level+level_slot-1 > zlevels) cycle
@@ -24692,7 +24748,9 @@ end subroutine build_parallel_block_catalog
     integer :: scalar_slot
 
     real(dp) :: native_value
+    logical :: validate_oracle
 
+    validate_oracle=block_dynamics_validation_enabled()
     local_index = catalog_local_block(catalog_index)
     if (local_index < 1 .or. &
          local_index > size(block_scalar_tendency)) then
@@ -24703,6 +24761,7 @@ end subroutine build_parallel_block_catalog
        do p = 1,size(block%patch)
           if (block%patch(p)%level /= statistics%target_level) cycle
           do scalar_slot = 0,block%n_scalar_variable-1
+             if (block%scalar_variable+scalar_slot==S_MASS.and..not.validate_oracle) cycle
              do level_slot = 1,block%n_field_level
                 if (block%field_level+level_slot-1 < 1 .or. &
                      block%field_level+level_slot-1 > zlevels) cycle
