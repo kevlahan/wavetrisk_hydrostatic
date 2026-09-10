@@ -1,0 +1,224 @@
+{
+  "scope": "Local J6 diagnosis; not a cluster speedup forecast",
+  "binding": {
+    "binaries": {
+      "legacy": "0f99636210320cdd79cff5b49cb3becd0618faa9f042b963de0589e3990a277e",
+      "block": "1fc1d41630ff52c3fa0791d0947b3ab77a66c650f315f7d9950e840bcff24b9f",
+      "instrumented": "0fc29c3c6306a4033ab68a2f9dd26f6820f1c297922723e4a5bbada17dcc8e19"
+    },
+    "fixture": {
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "test",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.01",
+        "CP_EVERY": "1",
+        "resume": "4"
+      },
+      "checkpoint": "test_checkpoint_0004.bin.zst",
+      "checkpoint_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      }
+    },
+    "ranks": 4,
+    "threads": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "BLIS_NUM_THREADS": "1",
+      "VECLIB_MAXIMUM_THREADS": "1"
+    }
+  },
+  "validation": {
+    "legacy": {
+      "passed": true,
+      "failures": [],
+      "max_abs_by_field": {
+        "coarse/velocity/soil": 0,
+        "coarse/velocity/atmosphere": 0,
+        "coarse/mass/soil": 0,
+        "coarse/mass/atmosphere": 0,
+        "coarse/temperature/soil": 0,
+        "coarse/temperature/atmosphere": 0,
+        "wavelet/velocity/soil": 0,
+        "wavelet/velocity/atmosphere": 0,
+        "wavelet/mass/soil": 0,
+        "wavelet/mass/atmosphere": 0,
+        "wavelet/temperature/soil": 0,
+        "wavelet/temperature/atmosphere": 0,
+        "pole/mass/soil": 0,
+        "pole/mass/atmosphere": 0,
+        "pole/temperature/soil": 0,
+        "pole/temperature/atmosphere": 0
+      },
+      "memory": {
+        "scope": "whole-run system-wide VM deltas; sampled simulation-child RSS, excludes compressed footprint",
+        "vm_delta_bytes": {
+          "Decompressions": 22659072,
+          "Compressions": 0,
+          "Swapins": 8110080,
+          "Swapouts": 0
+        },
+        "sampled_simultaneous_rss_peak_kib": 3335360,
+        "usable_for_local_timing": true,
+        "reasons": []
+      }
+    },
+    "block": {
+      "passed": false,
+      "failures": [
+        "test_checkpoint_0006.bin.zst: coarse/velocity/atmosphere: 4.5322893701960076e-09 exceeds 1e-10",
+        "test_checkpoint_0006.bin.zst: coarse/mass/atmosphere: 1.9212791357858805e-09 exceeds 1e-10",
+        "test_checkpoint_0006.bin.zst: coarse/temperature/atmosphere: 9.3848211690783501e-07 exceeds 9.9999999999999995e-08",
+        "test_checkpoint_0006.bin.zst: wavelet/velocity/atmosphere: 5.9972332100421966e-09 exceeds 1e-10",
+        "test_checkpoint_0006.bin.zst: wavelet/mass/atmosphere: 5.7041978709926333e-09 exceeds 1e-10",
+        "test_checkpoint_0006.bin.zst: wavelet/temperature/atmosphere: 2.7875881585259776e-06 exceeds 9.9999999999999995e-08"
+      ],
+      "max_abs_by_field": {
+        "coarse/velocity/soil": 0,
+        "coarse/velocity/atmosphere": 4.532289370196008e-09,
+        "coarse/mass/soil": 0,
+        "coarse/mass/atmosphere": 1.9212791357858805e-09,
+        "coarse/temperature/soil": 0,
+        "coarse/temperature/atmosphere": 9.38482116907835e-07,
+        "wavelet/velocity/soil": 0,
+        "wavelet/velocity/atmosphere": 5.9972332100421966e-09,
+        "wavelet/mass/soil": 0,
+        "wavelet/mass/atmosphere": 5.704197870992633e-09,
+        "wavelet/temperature/soil": 0,
+        "wavelet/temperature/atmosphere": 2.7875881585259776e-06,
+        "pole/mass/soil": 0,
+        "pole/mass/atmosphere": 1.5916157281026244e-12,
+        "pole/temperature/soil": 0,
+        "pole/temperature/atmosphere": 4.0745362639427185e-10
+      },
+      "memory": {
+        "scope": "whole-run system-wide VM deltas; sampled simulation-child RSS, excludes compressed footprint",
+        "vm_delta_bytes": {
+          "Decompressions": 502053617664,
+          "Compressions": 545057325056,
+          "Swapins": 2228224,
+          "Swapouts": 0
+        },
+        "sampled_simultaneous_rss_peak_kib": 8944704,
+        "usable_for_local_timing": false,
+        "reasons": [
+          "More than 1 GiB system-wide decompression during run"
+        ]
+      }
+    }
+  },
+  "timing": [],
+  "paired_ratios": [],
+  "timing_blocked_reasons": {},
+  "oracle-diagnostic": {
+    "legacy": {
+      "passed": false,
+      "failures": [
+        "test_checkpoint_0006.bin.zst: coarse/velocity/atmosphere: 4.5322893701960076e-09 exceeds 1e-10",
+        "test_checkpoint_0006.bin.zst: coarse/mass/atmosphere: 1.9212791357858805e-09 exceeds 1e-10",
+        "test_checkpoint_0006.bin.zst: coarse/temperature/atmosphere: 9.3848211690783501e-07 exceeds 9.9999999999999995e-08",
+        "test_checkpoint_0006.bin.zst: wavelet/velocity/atmosphere: 5.9972332100421966e-09 exceeds 1e-10",
+        "test_checkpoint_0006.bin.zst: wavelet/mass/atmosphere: 5.7041978709926333e-09 exceeds 1e-10",
+        "test_checkpoint_0006.bin.zst: wavelet/temperature/atmosphere: 2.7875881585259776e-06 exceeds 9.9999999999999995e-08"
+      ],
+      "max_abs_by_field": {
+        "coarse/velocity/soil": 0,
+        "coarse/velocity/atmosphere": 4.532289370196008e-09,
+        "coarse/mass/soil": 0,
+        "coarse/mass/atmosphere": 1.9212791357858805e-09,
+        "coarse/temperature/soil": 0,
+        "coarse/temperature/atmosphere": 9.38482116907835e-07,
+        "wavelet/velocity/soil": 0,
+        "wavelet/velocity/atmosphere": 5.9972332100421966e-09,
+        "wavelet/mass/soil": 0,
+        "wavelet/mass/atmosphere": 5.704197870992633e-09,
+        "wavelet/temperature/soil": 0,
+        "wavelet/temperature/atmosphere": 2.7875881585259776e-06,
+        "pole/mass/soil": 0,
+        "pole/mass/atmosphere": 1.5916157281026244e-12,
+        "pole/temperature/soil": 0,
+        "pole/temperature/atmosphere": 4.0745362639427185e-10
+      }
+    },
+    "block": {
+      "passed": true,
+      "failures": [],
+      "max_abs_by_field": {
+        "coarse/velocity/soil": 0,
+        "coarse/velocity/atmosphere": 1.687538997430238e-12,
+        "coarse/mass/soil": 0,
+        "coarse/mass/atmosphere": 9.663381206337363e-13,
+        "coarse/temperature/soil": 0,
+        "coarse/temperature/atmosphere": 3.2014213502407074e-10,
+        "wavelet/velocity/soil": 0,
+        "wavelet/velocity/atmosphere": 8.189005029635155e-12,
+        "wavelet/mass/soil": 0,
+        "wavelet/mass/atmosphere": 2.135930321500723e-12,
+        "wavelet/temperature/soil": 0,
+        "wavelet/temperature/atmosphere": 1.7559074194650748e-09,
+        "pole/mass/soil": 0,
+        "pole/mass/atmosphere": 0,
+        "pole/temperature/soil": 0,
+        "pole/temperature/atmosphere": 0
+      }
+    }
+  },
+  "legacy-instrumentation-diagnostic": {
+    "legacy-off-diagnostic": {
+      "passed": true,
+      "failures": [],
+      "max_abs_by_field": {
+        "coarse/velocity/soil": 0,
+        "coarse/velocity/atmosphere": 0,
+        "coarse/mass/soil": 0,
+        "coarse/mass/atmosphere": 0,
+        "coarse/temperature/soil": 0,
+        "coarse/temperature/atmosphere": 0,
+        "wavelet/velocity/soil": 0,
+        "wavelet/velocity/atmosphere": 0,
+        "wavelet/mass/soil": 0,
+        "wavelet/mass/atmosphere": 0,
+        "wavelet/temperature/soil": 0,
+        "wavelet/temperature/atmosphere": 0,
+        "pole/mass/soil": 0,
+        "pole/mass/atmosphere": 0,
+        "pole/temperature/soil": 0,
+        "pole/temperature/atmosphere": 0
+      }
+    },
+    "legacy-detail-diagnostic": {
+      "passed": true,
+      "failures": [],
+      "max_abs_by_field": {
+        "coarse/velocity/soil": 0,
+        "coarse/velocity/atmosphere": 0,
+        "coarse/mass/soil": 0,
+        "coarse/mass/atmosphere": 0,
+        "coarse/temperature/soil": 0,
+        "coarse/temperature/atmosphere": 0,
+        "wavelet/velocity/soil": 0,
+        "wavelet/velocity/atmosphere": 0,
+        "wavelet/mass/soil": 0,
+        "wavelet/mass/atmosphere": 0,
+        "wavelet/temperature/soil": 0,
+        "wavelet/temperature/atmosphere": 0,
+        "pole/mass/soil": 0,
+        "pole/mass/atmosphere": 0,
+        "pole/temperature/soil": 0,
+        "pole/temperature/atmosphere": 0
+      }
+    }
+  }
+}

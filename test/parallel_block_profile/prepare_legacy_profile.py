@@ -16,6 +16,21 @@ import subprocess
 from build_legacy import tracked_entries, verify
 from experiment import LEGACY_REF, digest
 
+# Committed, reviewed timer-only delta; never depend on working-tree changes.
+BOUNDARY_BASE = '2eee9646312b3b4ed25c2b6f137d519bb8906ca9'
+BOUNDARY_PROFILE = '1b01510ae655eee0e2aab1a8d911e55c147173f2'
+
+
+def boundary_patch(repo):
+    patch = subprocess.check_output(['git', '-C', str(repo), 'diff',
+                                     BOUNDARY_BASE, BOUNDARY_PROFILE, '--', 'src/comm_mpi.f90'])
+    if not patch or b'parallel_block_profile_mod' not in patch:
+        raise ValueError('Pinned boundary instrumentation is absent')
+    for line in patch.decode().splitlines():
+        if line.startswith('-') and not line.startswith('---') and line[1:].strip():
+            raise ValueError('Boundary instrumentation patch removes executable text')
+    return patch
+
 
 def replace_once(text, old, new):
     if text.count(old) != 1:
@@ -72,12 +87,9 @@ def prepare(repo, baseline, out):
     sources = ('SRC = parallel_block_profile.f90', '      legacy_profile_io.f90', '      kind.f90')
     make.write_text(replace_once(make.read_text(), 'SRC = kind.f90', (' ' + chr(92) + '\n').join(sources)))
 
-    # Transplant ONLY uncommitted timer/counter additions to the common boundary
+    # Transplant ONLY pinned timer/counter additions to the common boundary
     # routines. The rest of legacy comm_mpi (including ownership) stays untouched.
-    patch = subprocess.check_output(['git', '-C', str(repo), 'diff', 'HEAD', '--', 'src/comm_mpi.f90'])
-    for line in patch.decode().splitlines():
-        if line.startswith('-') and not line.startswith('---') and line[1:].strip():
-            raise ValueError('Boundary instrumentation patch removes executable text')
+    patch = boundary_patch(repo)
     subprocess.run(['patch', '--dry-run', '-p1'], cwd=out, input=patch, check=True)
     subprocess.run(['patch', '-p1'], cwd=out, input=patch, check=True)
 
@@ -130,6 +142,7 @@ def prepare(repo, baseline, out):
     (out / 'experimental-instrumentation.patch').write_text(''.join(diffs))
     (out / 'experimental-identity.json').write_text(json.dumps({
         'revision': LEGACY_REF, 'authoritative': False, 'instrumented_files': changed,
+        'boundary_instrumentation_refs': [BOUNDARY_BASE, BOUNDARY_PROFILE],
         'baseline_binary_sha256': digest(baseline / 'bin/climate')}, indent=2) + '\n')
     verify(baseline, entries)
     print(out)

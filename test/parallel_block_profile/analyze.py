@@ -22,16 +22,21 @@ def analyze(path):
     lines = path.read_text().splitlines()
     windows, states, ordinary, checkpoint, records = [], [], [], [], []
     pending_checkpoint = False
+    pending_remap = False
     current = None
     for line in lines:
         if "Saving checkpoint" in line:
             pending_checkpoint = True
+        if 'Remapping vertical coordinates' in line:
+            pending_remap = True
         match = STEP.match(line)
         if match:
             records.append({"state": re.sub(r"\s+cpu =.*", "", line.strip()),
-                            "seconds": number(match[1]), "checkpoint": pending_checkpoint})
+                            "seconds": number(match[1]), "checkpoint": pending_checkpoint,
+                            "remap": pending_remap})
             (checkpoint if pending_checkpoint else ordinary).append(number(match[1]))
             pending_checkpoint = False
+            pending_remap = False
             states.append(re.sub(r"\s+cpu =.*", "", line.strip()))
         elif line.strip().startswith(("Minimum relative mass =", "time [d] =")):
             states.append(line.strip())

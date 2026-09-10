@@ -19,6 +19,13 @@ def read(path, zmin, zmax):
         raise ValueError('Expected J5 climate checkpoint v1 with 160 Domains')
     offset = np.frombuffer(raw, '<i8', nd, 24+4*nd)
     size = np.frombuffer(raw, '<i8', nd, 24+12*nd)
+    expected = 24+20*nd
+    for start,length in zip(offset,size):
+        if int(start)!=expected or int(length)<=0:
+            raise ValueError('Noncontiguous or invalid checkpoint directory')
+        expected += int(length)
+    if expected!=len(raw):
+        raise ValueError('Truncated checkpoint or unsupported trailing extension')
     nk = zmax-zmin+1
     metadata = 24+3*nk*8
     coarse_bytes = nk*80*8
@@ -54,9 +61,10 @@ def read(path, zmin, zmax):
 def compare(left, right, zmin=-10, zmax=30):
     a, b = read(left,zmin,zmax), read(right,zmin,zmax)
     result = {'left':str(left),'right':str(right),'header_differences':0,
-              'topology_differences':0,'threshold_max_abs':0.,'fields':{}}
+              'topology_differences':0,'threshold_max_abs':0.,'threshold_nonfinite':0,'fields':{}}
     for gid,(aa,bb) in enumerate(zip(a,b)):
         result['header_differences'] += int(aa[0]!=bb[0])
+        result['threshold_nonfinite'] += int(np.count_nonzero(~np.isfinite(aa[1]) | ~np.isfinite(bb[1])))
         result['threshold_max_abs'] = max(result['threshold_max_abs'],float(np.max(np.abs(aa[1]-bb[1]))))
         if aa[5].shape!=bb[5].shape:
             raise ValueError(f'Domain {gid}: checkpoint tree shapes differ')

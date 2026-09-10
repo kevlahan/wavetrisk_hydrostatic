@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import numpy as np
-from compare_restart_checkpoints import compare
+from compare_restart_checkpoints import compare, read
 
 
 class CheckpointComparisonTests(unittest.TestCase):
@@ -45,6 +45,18 @@ class CheckpointComparisonTests(unittest.TestCase):
             self.assertEqual(r['fields']['coarse/mass/atmosphere']['max_abs'],1.5)
             self.assertEqual(r['fields']['wavelet/temperature/atmosphere']['max_abs'],2.5)
             self.assertEqual(r['fields']['wavelet/velocity/atmosphere']['max_abs'],0.)
+
+    @unittest.skipUnless(shutil.which('zstd'),'zstd required')
+    def test_nonfinite_threshold_and_trailing_data(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a,b,c=(Path(tmp)/name for name in ('a.zst','b.zst','c.zst'))
+            self.write_fixture(a)
+            raw=bytearray(subprocess.check_output(['zstd','-dc',str(a)]))
+            struct.pack_into('<d',raw,24+20*160+24,float('nan'))
+            subprocess.run(['zstd','-q','-o',str(b)],input=raw,check=True)
+            self.assertEqual(compare(a,b,0,1)['threshold_nonfinite'],1)
+            subprocess.run(['zstd','-q','-o',str(c)],input=raw+b'unsupported',check=True)
+            with self.assertRaisesRegex(ValueError,'extension'):read(c,0,1)
 
 
 if __name__=='__main__': unittest.main()

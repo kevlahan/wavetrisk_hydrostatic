@@ -50,6 +50,8 @@ def legacy_detail(directory, ranks):
 
 
 def run(args):
+    if args.pairs:
+        raise ValueError('Printed-state-only timing is retired. Use local_campaign.py for mandatory full-field validation.')
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     seed = args.fixture.resolve(strict=True)
