@@ -538,6 +538,12 @@ module parallel_block_mpi_mod
   logical, save :: production_native_wavelet_output_activated = .false.
   logical, save :: production_block_wavelet_compression_ready = .false.
   logical, save :: production_block_inverse_active = .false.
+  type :: Inverse_Stencil_Addresses
+     integer, allocatable :: address(:,:,:,:)
+  end type
+  type(Inverse_Stencil_Addresses), allocatable, save :: inverse_stencil(:)
+  integer(int64), save :: inverse_stencil_generation=-1_int64
+  integer(int64), save :: inverse_address_work(2)=0_int64
   integer(int64), save :: production_block_compression_writeback_before = &
        0_int64
   integer(int64), save :: production_block_compression_allocation_before = &
@@ -1883,6 +1889,7 @@ contains
     integer(int64) :: thermodynamic_sum(11)
     integer(int64) :: velocity_sum(9)
     integer(int64) :: mass_sum(6)
+    integer(int64) :: inverse_address_sum(2)
     integer(int64) :: producer_sum(5),producer_local(5)
     integer :: producer_domain
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
@@ -1911,6 +1918,8 @@ contains
     if (present(reset)) clear_after = reset
     state_ready = parallel_block_state_is_ready()
 
+    call MPI_Allreduce(inverse_address_work,inverse_address_sum,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call check_mpi(ierr,"MPI_Allreduce inverse address work")
     call MPI_Allreduce(block_profile_seconds,seconds_min, &
          BLOCK_PROFILE_PHASE_COUNT,MPI_DOUBLE_PRECISION,MPI_MIN,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce profile minimum time")
@@ -2135,6 +2144,8 @@ contains
             "  native velocity: published RK-values Domain-source Domain-gradient = ",velocity_sum(6:9)
        write(6,'(a,6(i0,1x))') &
             "  native mass: plans restricted-edges divergence boundary published RK-values = ",mass_sum
+       write(6,'(a,2(i0,1x))') &
+            "  inverse stencil addresses: resolved reused = ",inverse_address_sum
        write(6,'(a,3(i0,1x))') &
             "  scalar producer: geometry nodes physics values oracle records = ",producer_sum(1:3)
        write(6,'(a,2(i0,1x))') &
@@ -2154,6 +2165,7 @@ contains
        thermodynamic_work = 0_int64
        native_velocity_work = 0_int64
        mass_work = 0_int64
+       inverse_address_work = 0_int64
        scalar_producer_work = 0_int64
        block_profile_depth = 0
        block_profile_outer_start = 0.0_dp
@@ -14260,6 +14272,13 @@ end subroutine build_parallel_block_catalog
        call fail("native inverse found an unresolved production transaction")
     end if
 
+    ! Cache only integer topology addresses, never numerical geometry/masks
+    ! or payload pointers. RK swaps and changing masks remain visible.
+    if (inverse_stencil_generation/=block_writeback_plan_generation) then
+       if (allocated(inverse_stencil)) deallocate(inverse_stencil)
+       allocate(inverse_stencil(size(block_scalar_tendency)))
+       inverse_stencil_generation=block_writeback_plan_generation
+    end if
     production_block_inverse_active = .true.
     allocation_before = block_writeback_plan_allocation_count()
     writeback_before = block_domain_production_writeback_count()
@@ -25274,6 +25293,48 @@ end subroutine build_parallel_block_catalog
 
   subroutine locate_block_scalar_record ( &
        block,local_index,p,i,j,storage_class,record,node,remap_addressing)
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index,p,i,j
+    integer, intent(out) :: storage_class,record,node
+    logical, optional, intent(in) :: remap_addressing
+    logical :: cached
+
+    ! Interior addresses already have constant-time resolution. The expensive
+    ! off-patch geometry search is independent of scalar and physical layer.
+    if (.not. production_block_inverse_active) then
+       call resolve_block_scalar_record(block,local_index,p,i,j,storage_class,record,node,remap_addressing)
+       return
+    end if
+    cached=.true.
+    if (present(remap_addressing)) cached=cached .and. .not. remap_addressing
+    cached=cached .and. i>=-2 .and. i<=PATCH_SIZE+1 .and. j>=-2 .and. j<=PATCH_SIZE+1
+    cached=cached .and. .not. (i>=0 .and. i<PATCH_SIZE .and. j>=0 .and. j<PATCH_SIZE)
+    if (cached) then
+       if (p<1 .or. p>size(block%patch)) call fail("inverse stencil patch is invalid")
+       if (local_index<1 .or. local_index>size(inverse_stencil)) call fail("inverse stencil block is invalid")
+       if (.not. allocated(inverse_stencil(local_index)%address)) then
+          allocate(inverse_stencil(local_index)%address(3,-2:PATCH_SIZE+1,-2:PATCH_SIZE+1,size(block%patch)))
+          inverse_stencil(local_index)%address=0
+       end if
+       associate(table=>inverse_stencil(local_index)%address)
+         if (table(1,i,j,p)/=0) then
+            storage_class=table(1,i,j,p)
+            record=table(2,i,j,p)
+            node=table(3,i,j,p)
+            if (block_profile) inverse_address_work(2)=inverse_address_work(2)+1_int64
+            return
+         end if
+       end associate
+    end if
+    call resolve_block_scalar_record(block,local_index,p,i,j,storage_class,record,node,remap_addressing)
+    if (cached) then
+       inverse_stencil(local_index)%address(:,i,j,p)=[storage_class,record,node]
+       if (block_profile) inverse_address_work(1)=inverse_address_work(1)+1_int64
+    end if
+  end subroutine locate_block_scalar_record
+
+  subroutine resolve_block_scalar_record ( &
+       block,local_index,p,i,j,storage_class,record,node,remap_addressing)
 
     implicit none
 
@@ -25490,7 +25551,7 @@ end subroutine build_parallel_block_catalog
        call fail("scalar-restriction source index is unresolved")
     end if
 
-  end subroutine locate_block_scalar_record
+  end subroutine resolve_block_scalar_record
 
 
   integer function block_remap_patch_source_start ( &

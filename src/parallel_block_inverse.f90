@@ -16,7 +16,8 @@ module parallel_block_inverse_mod
   use patch_mod, only : PATCH_SIZE, LAST
   use arch_mod, only : comm, rank, n_process, glo_id, loc_id, owner, block_catalog, abort_run
   use parallel_block_mod, only : Block_Data, STORE_PATCH, STORE_BDRY, BLOCK_PAYLOAD_SOL, &
-       BLOCK_PAYLOAD_WAV_COEFF, apply_local_block_field_consumer, transfer_local_block_inverse_node
+       BLOCK_PAYLOAD_WAV_COEFF, apply_local_block_field_consumer, &
+       compile_local_block_inverse_routes, transfer_local_block_inverse_routes
   implicit none
   private
   public :: prepare_native_inverse, native_inverse_gather, native_inverse_boundary, &
@@ -32,6 +33,7 @@ module parallel_block_inverse_mod
   type :: Transfer_Plan
      integer, allocatable :: sc(:),sd(:),rc(:),rd(:),key(:,:),slot(:)
      integer, allocatable :: source_info(:,:),target_info(:,:)
+     integer, allocatable :: address(:,:)
   end type
   type :: Alias_Plan
      integer, allocatable :: sc(:),sd(:),rc(:),rd(:),source(:),dest(:)
@@ -50,14 +52,14 @@ module parallel_block_inverse_mod
   type(Node_Map), allocatable :: nodes(:)
   type(Transfer_Plan) :: interior_plan,boundary_plan
   type(Transfer_Plan), allocatable :: level_interior(:,:),level_boundary(:,:)
-  type(Transfer_Plan), allocatable :: outer_interior(:),outer_boundary(:)
+  type(Transfer_Plan), allocatable :: outer_install(:)
   type(Alias_Plan), allocatable :: aliases(:,:)
   type(Alias_Plan) :: range_alias(2,2)
   type(Local_Aliases) :: local_alias(2)
   type(Outer_Operation), allocatable :: operations(:)
   type(MPI_Request), allocatable :: requests(:)
-  real(dp), allocatable :: transfer_send(:),transfer_recv(:)
-  real(dp), allocatable :: alias_send(:),alias_recv(:)
+  real(dp), allocatable, asynchronous :: transfer_send(:),transfer_recv(:)
+  real(dp), allocatable, asynchronous :: alias_send(:),alias_recv(:)
   integer, allocatable :: node_domain(:),node_id(:),operation_first(:),operation_last(:)
   integer, allocatable :: scaffold_slot(:)
   integer, allocatable :: node_flags(:)
@@ -133,6 +135,7 @@ contains
     integer :: d,id,q,k,v,total,b,p,r,pos,n,next_patch
     integer, allocatable :: sc(:),rc(:),sd(:),rd(:),sb(:,:),rb(:,:),request(:,:),slots(:)
     type(Boundary_Manifest) :: manifest
+    type(Transfer_Plan) :: outer_patch,outer_bdry
 
     timing=profile
     native_inverse_seconds=0.0_dp
@@ -142,7 +145,7 @@ contains
     if (plan_generation /= generation) then
        if (allocated(nodes)) deallocate(nodes,node_domain,node_id,value,aliases,operations,coverage, &
             scaffold_slot,scaffold_value,operation_first,operation_last,node_flags,level_interior,level_boundary, &
-            outer_interior,outer_boundary,transfer_send,transfer_recv,alias_send,alias_recv)
+            outer_install,transfer_send,transfer_recv,alias_send,alias_recv)
        do q=1,2
           if (allocated(local_alias(q)%source)) deallocate(local_alias(q)%source,local_alias(q)%dest)
        end do
@@ -269,8 +272,8 @@ contains
        call build_transfer(interior_plan,request,slots)
        ! Every transfer completes before the next one starts. Subplans keep
        ! only integer routing metadata, sharing this one maximum-size pair.
-       allocate(transfer_send(max(1,max(nscalar,EDGE)*zlevels*max(sum(interior_plan%sc),sum(boundary_plan%sc)))))
-       allocate(transfer_recv(max(1,max(nscalar,EDGE)*zlevels*max(sum(interior_plan%rc),sum(boundary_plan%rc)))))
+       allocate(transfer_send(max(1,max(nscalar,EDGE)*zlevels*(sum(interior_plan%sc)+sum(boundary_plan%sc)))))
+       allocate(transfer_recv(max(1,max(nscalar,EDGE)*zlevels*(sum(interior_plan%rc)+sum(boundary_plan%rc)))))
        allocate(level_interior(2,level_start-2:level_end),level_boundary(2,level_start-2:level_end))
        do q=1,2
           do b=level_start-2,level_end
@@ -278,10 +281,11 @@ contains
              call select_transfer(level_boundary(q,b),boundary_plan,q,b,.true.,.false.)
           end do
        end do
-       allocate(outer_interior(level_start-1:level_end),outer_boundary(level_start-1:level_end))
+       allocate(outer_install(level_start-1:level_end))
        do b=level_start-1,level_end
-          call select_transfer(outer_interior(b),interior_plan,2,b,.true.,.true.)
-          call select_transfer(outer_boundary(b),boundary_plan,2,b,.true.,.true.)
+          call select_transfer(outer_patch,interior_plan,2,b,.true.,.true.)
+          call select_transfer(outer_bdry,boundary_plan,2,b,.true.,.true.)
+          call combine_transfers(outer_install(b),outer_patch,outer_bdry)
        end do
        allocate(value(nscalar+EDGE,zlevels,nnode,2))
        n=0
@@ -421,6 +425,7 @@ contains
     plan%key=recv_key(1:4,1:sum(plan%rc))
     plan%source_info=send_key(5:6,1:sum(plan%sc))
     plan%target_info=recv_key(5:6,1:sum(plan%rc))
+    call compile_local_block_inverse_routes(plan%key,plan%address)
   end subroutine
 
   subroutine select_transfer(plan,base,component,level,install,outer)
@@ -459,6 +464,7 @@ contains
        t=t+1
        plan%key(:,t)=base%key(:,p)
     end do
+    call compile_local_block_inverse_routes(plan%key,plan%address)
   contains
     logical function selected(info)
       integer, intent(in) :: info(2)
@@ -472,6 +478,34 @@ contains
          selected=info(1)==level .or. btest(info(2),component-1) .or. btest(info(2),2)
       end if
     end function
+  end subroutine
+
+  subroutine combine_transfers(plan,a,b)
+    ! The two destinations are disjoint storage families (patch/boundary).
+    ! Preserve each family's peer order, with one exchange and completion.
+    ! Both ends derive this concatenation locally: no new setup collective.
+    type(Transfer_Plan), intent(out) :: plan
+    type(Transfer_Plan), intent(in) :: a,b
+    integer :: r,s,t,na,nb
+    plan%sc=a%sc+b%sc
+    plan%rc=a%rc+b%rc
+    allocate(plan%sd(n_process),plan%rd(n_process))
+    call displacements(plan%sc,plan%sd)
+    call displacements(plan%rc,plan%rd)
+    allocate(plan%slot(sum(plan%sc)),plan%key(4,sum(plan%rc)))
+    do r=1,n_process
+       s=plan%sd(r)
+       na=a%sc(r)
+       nb=b%sc(r)
+       plan%slot(s+1:s+na)=a%slot(a%sd(r)+1:a%sd(r)+na)
+       plan%slot(s+na+1:s+na+nb)=b%slot(b%sd(r)+1:b%sd(r)+nb)
+       t=plan%rd(r)
+       na=a%rc(r)
+       nb=b%rc(r)
+       plan%key(:,t+1:t+na)=a%key(:,a%rd(r)+1:a%rd(r)+na)
+       plan%key(:,t+na+1:t+na+nb)=b%key(:,b%rd(r)+1:b%rd(r)+nb)
+    end do
+    call compile_local_block_inverse_routes(plan%key,plan%address)
   end subroutine
 
   integer function alias_node(code,component) result(p)
@@ -511,8 +545,7 @@ contains
        if (changed_level<level_start-2 .or. changed_level>level_end) call die('scatter level range')
        if (interiors) then
           if (component/=2 .or. changed_level<level_start-1) call die('outer scatter phase')
-          call transfer_nodes(outer_interior(changed_level),component,family,.true.)
-          call transfer_nodes(outer_boundary(changed_level),component,family,.true.)
+          call transfer_nodes(outer_install(changed_level),component,family,.true.)
        else
           call transfer_nodes(level_boundary(component,changed_level),component,family,.true.)
        end if
@@ -528,9 +561,8 @@ contains
     logical, intent(in) :: install
     integer :: p,q,k,v,nv,first,n,phase
     real(dp) :: started
-    real(dp) :: sample(merge(nscalar,EDGE,component==1),zlevels)
     first=merge(1,nscalar+1,component==1)
-    nv=size(sample,1)
+    nv=merge(nscalar,EDGE,component==1)
     n=nv*zlevels
     started=0.0_dp
     if (timing) started=MPI_Wtime()
@@ -545,15 +577,9 @@ contains
           end do
        end do
        call exchange_values(transfer_send,plan%sc,plan%sd,transfer_recv,plan%rc,plan%rd,n,19071)
-       do p=1,sum(plan%rc)
-          sample=reshape(transfer_recv((p-1)*n+1:p*n),shape(sample))
-          call transfer_local_block_inverse_node(plan%key(:,p),family,component,.true.,sample)
-       end do
+       call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv)
     else
-       do p=1,sum(plan%rc)
-          call transfer_local_block_inverse_node(plan%key(:,p),family,component,.false.,sample)
-          transfer_recv((p-1)*n+1:p*n)=reshape(sample,[n])
-       end do
+       call transfer_local_block_inverse_routes(plan%address,family,component,.false.,transfer_recv)
        call exchange_values(transfer_recv,plan%rc,plan%rd,transfer_send,plan%sc,plan%sd,n,19072)
        do p=1,sum(plan%sc)
           q=(p-1)*n
@@ -578,11 +604,21 @@ contains
   end subroutine
 
   subroutine exchange_values(send,sc,sd,recv,rc,rd,n,tag)
+    real(dp), intent(in), asynchronous :: send(:)
+    real(dp), intent(out), asynchronous :: recv(:)
+    integer, intent(in) :: sc(:),sd(:),rc(:),rd(:),n,tag
+    integer :: nrequest
+    call begin_exchange_values(send,sc,sd,recv,rc,rd,n,tag,nrequest)
+    call finish_exchange_values(nrequest)
+  end subroutine
+
+  subroutine begin_exchange_values(send,sc,sd,recv,rc,rd,n,tag,nrequest)
     ! Persistent sparse peer schedules, with no per-phase global collective.
     real(dp), intent(in), asynchronous :: send(:)
     real(dp), intent(out), asynchronous :: recv(:)
     integer, intent(in) :: sc(:),sd(:),rc(:),rd(:),n,tag
-    integer :: r,nrequest,ierr
+    integer, intent(out) :: nrequest
+    integer :: r,ierr
     nrequest=0
     do r=1,n_process
        if (r==rank+1 .or. rc(r)==0) cycle
@@ -601,6 +637,11 @@ contains
     r=rank+1
     if (sc(r)/=rc(r)) call die('native self route extent')
     recv(n*rd(r)+1:n*(rd(r)+rc(r)))=send(n*sd(r)+1:n*(sd(r)+sc(r)))
+  end subroutine
+
+  subroutine finish_exchange_values(nrequest)
+    integer, intent(in) :: nrequest
+    integer :: ierr
     if (nrequest>0) then
        call MPI_Waitall(nrequest,requests(1:nrequest),MPI_STATUSES_IGNORE,ierr)
        call check(ierr,'native dependency completion')
@@ -771,7 +812,7 @@ contains
   subroutine apply_aliases(a,component,family)
     type(Alias_Plan), intent(inout) :: a
     integer, intent(in) :: component,family
-    integer :: p,k,v,nv,n,q,t
+    integer :: p,k,v,nv,n,q,t,nrequest
     nv=merge(nscalar,1,component==1)
     n=nv*zlevels
     ! Remote sends are snapshots BEFORE the ordered, all-level local copies.
@@ -784,6 +825,9 @@ contains
           end do
        end do
     end do
+    ! Sends have already snapshotted every remote source. Local copies use
+    ! only value(), so communication can progress without changing ordering.
+    call begin_exchange_values(alias_send,a%sc,a%sd,alias_recv,a%rc,a%rd,n,19073,nrequest)
     do p=1,size(local_alias(component)%source)
        do k=1,zlevels
           do v=1,nv
@@ -792,7 +836,7 @@ contains
           end do
        end do
     end do
-    call exchange_values(alias_send,a%sc,a%sd,alias_recv,a%rc,a%rd,n,19073)
+    call finish_exchange_values(nrequest)
     if (timing) call record_traffic(2,a%sc,n)
     do p=1,size(a%dest)
        t=p

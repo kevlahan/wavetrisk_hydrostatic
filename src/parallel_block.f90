@@ -27,6 +27,7 @@ module parallel_block_mod
   integer, parameter, public :: BLOCK_PAYLOAD_WAV_COEFF = 2
 
   public :: transfer_local_block_inverse_node
+  public :: compile_local_block_inverse_routes, transfer_local_block_inverse_routes
 
   integer, parameter :: BLOCK_PACK_MAGIC = &
        int(z'54424C4B')
@@ -819,6 +820,117 @@ integer function local_block_catalog (local_index) result(catalog_index)
 
 end function local_block_catalog
 
+
+subroutine compile_local_block_inverse_routes(key,address)
+  ! Integer offsets only: safe across numeric buffer swaps within a topology
+  ! generation. Never retain pointers to RK or wavelet payload arrays.
+  integer, intent(in) :: key(:,:)
+  integer, allocatable, intent(out) :: address(:,:)
+  integer :: p,b,n,q
+  allocate(address(6,size(key,2)))
+  do p=1,size(key,2)
+     b=catalog_local_block(key(1,p))
+     if (b<1) error stop "inverse routes: nonlocal block"
+     associate(block=>block_local(b))
+       select case(key(2,p))
+       case(STORE_PATCH)
+          if (key(3,p)<1 .or. key(3,p)>size(block%patch)) error stop "inverse routes: patch"
+          if (key(4,p)<0 .or. key(4,p)>=PATCH_SIZE**2) error stop "inverse routes: patch node"
+          n=size(block%node)
+          q=block%patch(key(3,p))%elts_start+key(4,p)
+       case(STORE_BDRY)
+          if (key(3,p)<1 .or. key(3,p)>size(block%bdry_storage)) error stop "inverse routes: boundary"
+          if (key(4,p)<0 .or. key(4,p)>=block%bdry_storage(key(3,p))%n_node) &
+               error stop "inverse routes: boundary node"
+          n=size(block%bdry_node)
+          q=block%bdry_storage(key(3,p))%local_start+key(4,p)
+       case default
+          error stop "inverse routes: storage"
+       end select
+       if (q<0 .or. q>=n) error stop "inverse routes: node"
+       if (block%field_level>1 .or. block%field_level+block%n_field_level-1<zlevels) &
+            error stop "inverse routes: atmospheric extent"
+       address(:,p)=[b,key(2,p),q,n,1-block%field_level,block%n_field_level]
+     end associate
+  end do
+end subroutine compile_local_block_inverse_routes
+
+subroutine transfer_local_block_inverse_routes(address,family,component,install,buffer)
+  ! Pack directly into the wire buffer. Family/storage dispatch is per node,
+  ! not per scalar/layer; no per-node automatic sample or RESHAPE temporary.
+  integer, intent(in) :: address(:,:),family,component
+  logical, intent(in) :: install
+  real(dp), intent(inout) :: buffer(:)
+  integer :: p,b,nv,base,step,scalar_step,offset
+  if (component/=1 .and. component/=2) error stop "inverse routes: component"
+  if (family/=BLOCK_PAYLOAD_SOL .and. family/=BLOCK_PAYLOAD_WAV_COEFF) error stop "inverse routes: family"
+  do p=1,size(address,2)
+     b=address(1,p)
+     associate(block=>block_local(b))
+       nv=merge(block%n_scalar_variable,EDGE,component==1)
+       offset=(p-1)*nv*zlevels
+       if (component==1) then
+          base=address(5,p)*address(4,p)+address(3,p)+1
+          step=address(4,p)
+          scalar_step=address(6,p)*step
+       else
+          base=EDGE*(address(5,p)*address(4,p)+address(3,p))+1
+          step=EDGE*address(4,p)
+          scalar_step=1
+       end if
+       if (address(2,p)==STORE_PATCH) then
+          if (component==1) then
+             if (family==BLOCK_PAYLOAD_SOL) then
+                call copy_values(block%scalar)
+             else
+                call copy_values(block%wavelet_scalar)
+             end if
+          else
+             if (family==BLOCK_PAYLOAD_SOL) then
+                call copy_values(block%vector)
+             else
+                call copy_values(block%wavelet_vector)
+             end if
+          end if
+       else
+          if (component==1) then
+             if (family==BLOCK_PAYLOAD_SOL) then
+                call copy_values(block%bdry_scalar)
+             else
+                call copy_values(block%bdry_wavelet_scalar)
+             end if
+          else
+             if (family==BLOCK_PAYLOAD_SOL) then
+                call copy_values(block%bdry_vector)
+             else
+                call copy_values(block%bdry_wavelet_vector)
+             end if
+          end if
+       end if
+     end associate
+  end do
+contains
+  subroutine copy_values(field)
+    real(dp), intent(inout) :: field(:)
+    integer :: k,v,q
+    q=offset
+    if (install) then
+       do k=0,zlevels-1
+          do v=0,nv-1
+             q=q+1
+             field(base+k*step+v*scalar_step)=buffer(q)
+          end do
+       end do
+    else
+       do k=0,zlevels-1
+          do v=0,nv-1
+             q=q+1
+             buffer(q)=field(base+k*step+v*scalar_step)
+          end do
+       end do
+    end if
+  end subroutine
+end subroutine transfer_local_block_inverse_routes
 
 subroutine transfer_local_block_inverse_node (key,family,component,install,value)
   ! Sparse native inverse transport. Keys contain catalog, storage, record
