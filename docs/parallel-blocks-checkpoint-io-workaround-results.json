@@ -1,0 +1,1292 @@
+{
+  "status": "passed",
+  "probe": {
+    "roundtrip": {
+      "returncode": 0,
+      "passed": true
+    },
+    "bad-header": {
+      "returncode": 1,
+      "passed": true
+    },
+    "bad-directory": {
+      "returncode": 1,
+      "passed": true
+    }
+  },
+  "runs": {
+    "baseline-opt": {
+      "status": "passed",
+      "binary": "/private/tmp/wavetrisk-stage187-physics-batch-01/bin/climate",
+      "binary_sha256": "25217a57241ab97b94c7fb7add3079664389a4858dfb652fdf6f059e53532b24",
+      "build": "/private/tmp/wavetrisk-stage187-physics-batch-01",
+      "param": "param_J4",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.3050",
+        "CP_EVERY": "1",
+        "time_end": "0.3060",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "2cb0a1ee4cb59ad67b0b114c6047c3a40b221f024702e076caae4cad6667638a",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "source_sha256": {
+        "src/NCAR_topo.f90": "54f23a4de878fc45f9e27b5b2b3648e682f89f47033bdfce6c3f44a90d5458d3",
+        "src/adapt.f90": "cd90e9486f381436bb7833eac66905969bf4da801a0d937c03171b3cc14535e0",
+        "src/arch.f90": "61e45f630778e49e1fe5f67c56e06adb95eae8dd862a0e4862b7e10834f4a426",
+        "src/barotropic_2d.f90": "d695915b1830ba304e4eb8714e329fb5645c032bd1e3c051aa1e6c98130b5297",
+        "src/calendar.f90": "9b1c33b17cc8f503ccc09246e9e648b85b65386223223e08f09658c7817c3a9a",
+        "src/checkpoint.f90": "2aa3aa666bfb331ca4cd83198b6cf93a92c1b9113e97f9a7907734131312388a",
+        "src/coarse_grid.f90": "8333ff2215215dcde51c451948a3ef01180dfc62475f8e6486697472c1217a25",
+        "src/comm.f90": "8ae87a927083c55a4e400b889e968ad3862d560eef5dbe535b2ed930c4206f7b",
+        "src/comm_mpi.f90": "5960729832210c51264a0ffcef287932992d86a7935108249287a497ca5dd2a7",
+        "src/coord_arithmetic.f90": "f25b17fb9e0b3c850250f98877449fbc3904578fdbf683556fbf6b08de9526d2",
+        "src/diagnostics.f90": "4ce9f6cfc8fdff1f9518733b09f444770525ae8ebfccafc3b385efcadbfbd82f",
+        "src/domain.f90": "a9f1448e9e6fbd7bc97aa458b93a65843fd855bf8e7667b3b542b4fc0260a388",
+        "src/domain_ops.f90": "5c0eaa093dfeb45f8d5ce0da5ad77b5a9be2e5a501757bf711308c662c7c6616",
+        "src/dyn_array.f90": "788520c676aeacf6fd21cf3225874707eea1c36bc37e949dc756cf422ff052b4",
+        "src/equation_of_state.f90": "ac1c6d51c60b903e74b010717834cab184acd497cf986c4ea9db516579a506ae",
+        "src/geom.f90": "6920c6bac9055dd119dd356cfe8db82d434d31a0ec7cea3e97623fe719775013",
+        "src/init.f90": "bfb760f717d8a4c46446c6422745baffd5887b7f1533bd4e18bdc3febf363a4c",
+        "src/integrate.f90": "05b35aec9fed826ad46200dc962eeb2da68dccf40ea2b4c2a81fcdd70aebaa3a",
+        "src/io_vtk.f90": "fa4922e93311a0fa011cf172b42aee6349c04428fe8e966460d544e31971c93b",
+        "src/kind.f90": "8370452d9259c3bc0e2e6588f42c5eb5eb6f78996656b398641300935c86af41",
+        "src/lin_solve.f90": "34253e9d8a0129f3be09e95a0973de61d8085b6feb06b7a01278d82e3e573a5d",
+        "src/lnorms.f90": "2579a85163987e69ff2fae2672bbc990cbad2bb5d9244783eb2eb45bae5e0bcd",
+        "src/main.f90": "86adf1ccd8838829ab2a177b1077b64d79bbee87c9754406a523ea434f0ad248",
+        "src/mask.f90": "4c24e692022c1b22cb554bf20621162711f827fab004d12489d473e21cd92f78",
+        "src/multi_level.f90": "ee4cd402da05b979ee2c052b4f5e2f3a9aae866b79aaf54c98be584515aa0dea",
+        "src/ops.f90": "52f63a5635ebc87e60bfde4caacd012a0046d0b40c19c3100e46e4f435962000",
+        "src/parallel_block.f90": "40d661c797095bd9437a1dc22f94bedc45904d59b752d6a3607f7a329138045d",
+        "src/parallel_block_build.f90": "a9508d6e3b19c380a83285a212756c1e3df89f4a0658df4b88a46c6e4347aafe",
+        "src/parallel_block_inverse.f90": "c16078f630b773e36f9363de0f10d58b5a27f6f3a1ab5781efa85626ab93c99a",
+        "src/parallel_block_mass.f90": "0e2efb96ee8f69e225dfd387a5f6639af073d177d866f0a70b88b506b57aefcb",
+        "src/parallel_block_mpi.f90": "9bfec6e26b547cac9930e5f28c919d5db77ac713c53c1a3913fd5cebdb8e7363",
+        "src/parallel_block_profile.f90": "85317ae10bd3f71b2d5700ca9eddca62a12b3fca67aea0f3299a4a245d4cde93",
+        "src/parallel_block_scalar_storage.f90": "d438e6efe83ad8a94b231249617a55793b91d18f4b1bad07a836d1430429a5ce",
+        "src/parallel_block_velocity.f90": "9765b09eaad8624fb03697d06d44ba214316630b19e025a9740a6dd64ba73137",
+        "src/param_J3.f90": "f609619b7c8e413279cc7ed637143b1afea0c77c4ec19975ea64f48591815e62",
+        "src/param_J4.f90": "224c562f900d26b2f2fdad1ab07fd36bdb265e7ae080ad16e9ec2ef65af72e6d",
+        "src/param_J5.f90": "e67be1fabc48295bd431f92a68afec765735446ddebe5e441d62437ab6edd634",
+        "src/param_J6.f90": "5b1fbcecf1cd2ae40372069313d6244f45a0d0cfebd70ba74b30877f327548e2",
+        "src/param_J7.f90": "418aad712283c732bb9279e859d1d0148f8b686622e8294ff3dda050c201dcfb",
+        "src/param_J8.f90": "9381904e4a0e6bae6e55ef7dcc4de73b560887999d287d08839a809a3d069e53",
+        "src/param_J9.f90": "a08738b24dc3e934689ec289940efd204c499d487b04f0c13fe1a2223eaea55e",
+        "src/patch.f90": "564efc416161723e032b5af69479d7ba67a7eb72d00098e1e8c797b20e4a8c4a",
+        "src/physics/init_physics_module.f90": "14607dc5702c8b06db238b41a88acc6f8e7fc9379b6afbabf3381c141c3db5a1",
+        "src/physics/phys_processing.f90": "2d75a70d4f9d450692d0ff50d6d5d7b98e6f2de7d95b35c446229c0dea20e251",
+        "src/physics/physics_Held_Suarez.f90": "fea0fd194a99b729c6f7c3ac2c90f6f01610198b03ac8f61f63d0476606ed197",
+        "src/physics/physics_simple.f90": "84bebda2624b30d140b7e1f353aedadfa3033c3adc38df85c1b8a7569ead65b4",
+        "src/physics/physics_trend.f90": "cef5fdc4ae342a0b4954f90b2526b0d0ae962b92e0db2cc5a5c884c4e361564a",
+        "src/physics/simple_physics/bash/convert.f90": "18ce2e9124455f031fca9375ec6d1384d03eaf61e4770a0bbd29c9529715f6c6",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/accelerator.F90": "3509c1e16a655334cb0567ccfa11262d8af9c09c1edb58283cc80bb822533661",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/dynamico_phyparam.F90": "fdd168c55d575d00465299739381adcc9c5212443b16bd01a57f68d8630b3044",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/error_mod.F90": "b35b89d1605fcfe81cbe93c4e11cc83a9aa07858c46e7ec244739fb61c8813e8",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/icosa_phyparam_mod.F90": "ed28f26616fdab0e9e77c4cb5d53a2d6f40ffc08250674a8aa03cf1b7f74a59b",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/iniphyparam_mod.F90": "98d35d16b6994d5ec24473edc515a770d0f00f739b1b8a5c9b8da9b30146f3a8",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/logging.F90": "3d3479fdb4eef0b64dabe33d82817cce71af1a2f9291a990afb90cd150042e44",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/phyparam_mod.F90": "a0d0d3253fe79bb81c27506cb6ca3d9f8d55dabc222b0db3d1477f9291ab673e",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/profiling.F90": "bf57b27e5045fc08b0862f96193d6395d391e8aecf5d0c0fb025476afe79e7ad",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/read_param_mod.F90": "592b6d780a35752313a8f5b4f10e1fcdcb352e584e58164d971b2abaff099f3d",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/restart.F90": "fb16c564bd51589b38e40db282751f75812ba36cb7e5a86c37a16c8833d314f4",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/writefield_mod.F90": "5bbd4e7f3d4f16dbbac8ee330efcb236b743b319bbf8e2f92bbfbc223a84ba23",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/astronomy.F90": "105df7c9b2924e81437ddd26584de5958867d9833c57c286a1b35a814d69a9af",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/callkeys.F90": "a08b2d5dba1472dde269c120040290cf3a3f8b12c2e4968bb79ad6540637f527",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/comgeomfi.F90": "3d4cd79d2f0d0209d750e739066ed9db303da1b7bfc86bbab443643c78e58cd5",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/convection.F90": "8e0fb954546c515a6f59a618d342ad4657a02f59f680b216dab16be7c5b310bd",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/mellor_yamada.F90": "2c798ea24688e0d0c302284660aa4276cf94c3ae8b383c77ebeb253e06bd4454",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/phys_const.F90": "0e24a08875060e94ab58edba630126baf07e2c75c16126c34360f5fbffbffd3b",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/planet.F90": "a0a8a4dcd43919f732c8f01b3382ee0ae5a4416b788e8f893e676d187c01a3d1",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_lw.F90": "afe2f4d5f6c83065af33ad3d79c1551b7b561e00aeb3514c3f87362f4cae1345",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_mod.F90": "57394d53a8467690923305bcdd47256864afdf6e26d28313656b90fafd777f76",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_sw.F90": "c2b33e2a518b5c4fdb8e645aab4ec8715b59d57417d618066b8fa70c71a2992f",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/soil_mod.F90": "5065919a07603de0d03135df986900a2f4670877d54e6a8f8268c98ea049bf6a",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/solar.F90": "61bf934b220f2b42cae806648175684fc78d39546d1002645fdda50c23e4e7dd",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/turbulence.F90": "7a94dda71a3a49ec97700131719a5e30efa33b8c467546271986ece4074f67b9",
+        "src/physics/simple_physics/phyparam/DYNAMICO/dynamico_phyparam.F90": "fdd168c55d575d00465299739381adcc9c5212443b16bd01a57f68d8630b3044",
+        "src/physics/simple_physics/phyparam/DYNAMICO/icosa_phyparam_mod.F90": "ed28f26616fdab0e9e77c4cb5d53a2d6f40ffc08250674a8aa03cf1b7f74a59b",
+        "src/physics/simple_physics/phyparam/driver/driver.F90": "ac210faa2e7361a14d097c48a17dd36be30286a87d7a989e3c7e3e05d5a41653",
+        "src/physics/simple_physics/phyparam/driver/driver_original.F90": "6e70abeb98de68dc2969ebe9d4ffc6bd9ca4ac766c43f175b11be09d0dee2dbe",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iniphysiq_mod.F90": "a57d15a2e93b2ac5497832aecc15f41abd548920e7452c19d2f6ad05ff32ecbb",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iophys.F90": "00891e81dafba7618592d3255afbebf9b5c7915c728a4d95570f0549fe51cb2f",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iotd_ecrit.F90": "3623a46a176c53bdfac41df5a2b5acdd38a62f240209d10a96d9324a0a6db20b",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iotd_fin.F90": "4c5905959c50e6bfb55fe38fffef902b9a8aea93f7d43fb201fd6b72301c3c48",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iotd_ini.F90": "2924872b4aab49da785ae4c028d94f479cd92d52d98d5e20fdc76e9773304810",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/phyparam_plugins_lmdz.F90": "0a7054b361a1dbddbe9170d017a0e40ceb854e0f1aa46b6fa14d67cd4cfc9849",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/physiq_mod.F90": "4a55b9c253644a9faa5a0f42df452689b7173ff618eaaa116e3768b7ef019641",
+        "src/physics/simple_physics/phyparam/physics/accelerator.F90": "3509c1e16a655334cb0567ccfa11262d8af9c09c1edb58283cc80bb822533661",
+        "src/physics/simple_physics/phyparam/physics/astronomy.F90": "105df7c9b2924e81437ddd26584de5958867d9833c57c286a1b35a814d69a9af",
+        "src/physics/simple_physics/phyparam/physics/callkeys.F90": "a08b2d5dba1472dde269c120040290cf3a3f8b12c2e4968bb79ad6540637f527",
+        "src/physics/simple_physics/phyparam/physics/comgeomfi.F90": "3d4cd79d2f0d0209d750e739066ed9db303da1b7bfc86bbab443643c78e58cd5",
+        "src/physics/simple_physics/phyparam/physics/convection.F90": "8e0fb954546c515a6f59a618d342ad4657a02f59f680b216dab16be7c5b310bd",
+        "src/physics/simple_physics/phyparam/physics/error_mod.F90": "b35b89d1605fcfe81cbe93c4e11cc83a9aa07858c46e7ec244739fb61c8813e8",
+        "src/physics/simple_physics/phyparam/physics/iniphyparam_mod.F90": "98d35d16b6994d5ec24473edc515a770d0f00f739b1b8a5c9b8da9b30146f3a8",
+        "src/physics/simple_physics/phyparam/physics/logging.F90": "3d3479fdb4eef0b64dabe33d82817cce71af1a2f9291a990afb90cd150042e44",
+        "src/physics/simple_physics/phyparam/physics/mellor_yamada.F90": "2c798ea24688e0d0c302284660aa4276cf94c3ae8b383c77ebeb253e06bd4454",
+        "src/physics/simple_physics/phyparam/physics/phyparam_mod.F90": "a0d0d3253fe79bb81c27506cb6ca3d9f8d55dabc222b0db3d1477f9291ab673e",
+        "src/physics/simple_physics/phyparam/physics/phys_const.F90": "0e24a08875060e94ab58edba630126baf07e2c75c16126c34360f5fbffbffd3b",
+        "src/physics/simple_physics/phyparam/physics/planet.F90": "a0a8a4dcd43919f732c8f01b3382ee0ae5a4416b788e8f893e676d187c01a3d1",
+        "src/physics/simple_physics/phyparam/physics/profiling.F90": "bf57b27e5045fc08b0862f96193d6395d391e8aecf5d0c0fb025476afe79e7ad",
+        "src/physics/simple_physics/phyparam/physics/radiative_lw.F90": "afe2f4d5f6c83065af33ad3d79c1551b7b561e00aeb3514c3f87362f4cae1345",
+        "src/physics/simple_physics/phyparam/physics/radiative_mod.F90": "57394d53a8467690923305bcdd47256864afdf6e26d28313656b90fafd777f76",
+        "src/physics/simple_physics/phyparam/physics/radiative_sw.F90": "c2b33e2a518b5c4fdb8e645aab4ec8715b59d57417d618066b8fa70c71a2992f",
+        "src/physics/simple_physics/phyparam/physics/read_param_mod.F90": "592b6d780a35752313a8f5b4f10e1fcdcb352e584e58164d971b2abaff099f3d",
+        "src/physics/simple_physics/phyparam/physics/restart.F90": "fb16c564bd51589b38e40db282751f75812ba36cb7e5a86c37a16c8833d314f4",
+        "src/physics/simple_physics/phyparam/physics/single_column_mod.F90": "aa2aeac741b7ba08f1823a54978208b3c082a7cfbe23aadf773faa2867c6a41d",
+        "src/physics/simple_physics/phyparam/physics/soil_mod.F90": "5065919a07603de0d03135df986900a2f4670877d54e6a8f8268c98ea049bf6a",
+        "src/physics/simple_physics/phyparam/physics/solar.F90": "61bf934b220f2b42cae806648175684fc78d39546d1002645fdda50c23e4e7dd",
+        "src/physics/simple_physics/phyparam/physics/turbulence.F90": "7a94dda71a3a49ec97700131719a5e30efa33b8c467546271986ece4074f67b9",
+        "src/physics/simple_physics/phyparam/physics/writefield_mod.F90": "5bbd4e7f3d4f16dbbac8ee330efcb236b743b319bbf8e2f92bbfbc223a84ba23",
+        "src/physics/simple_physics/phyparam/tmp/accelerator.f90": "5ff2b378cf71459f017a9273734657f871cd747b2f320561d9d1c49c294452a8",
+        "src/physics/simple_physics/phyparam/tmp/astronomy.f90": "3190c2ea7f370b962d790df57c939902e21f4954c9b06e92e3f13a0dd89ac26e",
+        "src/physics/simple_physics/phyparam/tmp/callkeys.f90": "3ef21f4859097ee447a566d6bb480ff2afd8d964ea12a50f86dee38e3feb59dc",
+        "src/physics/simple_physics/phyparam/tmp/comgeomfi.f90": "ef1b6f702ddda163fe8a80078612bfbbc2f042c1f8870d41383882fd2906cf8c",
+        "src/physics/simple_physics/phyparam/tmp/convection.f90": "f3c83ceeb11267787902de53423e29fe2e3a9434bd00ca494e705282983fc959",
+        "src/physics/simple_physics/phyparam/tmp/error_mod.f90": "90a1ad6748badc05202140db782383d105802aac70a3507803fc1bc3e59f4e48",
+        "src/physics/simple_physics/phyparam/tmp/iniphyparam_mod.f90": "2d0ecd28f6aa7ca62b970ef97a4cfe7e37d652f877f93ddf77b7eed5b9c63cd4",
+        "src/physics/simple_physics/phyparam/tmp/logging.f90": "cb6242573b30b14c3e49ec96530db0d6d784573203bdc9c16198885b7c73cc42",
+        "src/physics/simple_physics/phyparam/tmp/mellor_yamada.f90": "4d39ccf1528d67ad3fcd32e2ecee80cd1c3f0aa3641ea88f91a7b6b63dc78b37",
+        "src/physics/simple_physics/phyparam/tmp/phyparam_mod.f90": "e6b84d689b488d9d560602a225807dc820487dd6d7b2b71746628be01a1a920d",
+        "src/physics/simple_physics/phyparam/tmp/phys_const.f90": "a37b15aea54eda3691a6417110610635c6959e67695c8b77a7db9ff19202cbf1",
+        "src/physics/simple_physics/phyparam/tmp/planet.f90": "38d4327f5c93e7c83d810a9634210700f3fbc0cf8a2f531b7ec23cfe19424861",
+        "src/physics/simple_physics/phyparam/tmp/profiling.f90": "13d1121b7e5813aa5f9aef8bca658707c3a76bd326a711f885a76a6eb94e32de",
+        "src/physics/simple_physics/phyparam/tmp/radiative_lw.f90": "3233161f1703fef8feddb792c6a9410f80d38dff908f845d938e181f6f908100",
+        "src/physics/simple_physics/phyparam/tmp/radiative_mod.f90": "b40e7478a22585fa3d349f3903b3ce56e5da048489f1073b838c5cb35ee8d8cc",
+        "src/physics/simple_physics/phyparam/tmp/radiative_sw.f90": "e6459e3fa23e6ac2b14b56a748847c954b4c74267b93f7b096d25c31a2060c9b",
+        "src/physics/simple_physics/phyparam/tmp/read_param_mod.f90": "069f89c0083ea87ae8e67af4b0a80873d6e734e991093e7fadc2644ea510e3c4",
+        "src/physics/simple_physics/phyparam/tmp/restart.f90": "fa4de271a95e5a099c4dd5823b26bd2a1c86a771ac4fed06562bcfaf02d65106",
+        "src/physics/simple_physics/phyparam/tmp/single_column_mod.f90": "ea5d7b5c3ca15d35c13b8c00783a8fa8607ceeba804aa01c04984ac0aae95585",
+        "src/physics/simple_physics/phyparam/tmp/soil_mod.f90": "92c8c56b94f7676a457cd8c0ec1a2e7d1d3cb48b6961265a5c545f11288937b8",
+        "src/physics/simple_physics/phyparam/tmp/solar.f90": "1e7d8763bde9868fbfa48c2b3f8877dcee381b0c236dbe7b5e0ac33a00acd29c",
+        "src/physics/simple_physics/phyparam/tmp/turbulence.f90": "35a8f1b93ac490adc81f12fd85001a1d4bfa950e92fbc5189483a55e5b954d0c",
+        "src/physics/simple_physics/phyparam/tmp/writefield_mod.f90": "6758ead5f8986c4b289e29fc797dc99eb5675ab8cb79a776889b5f518d912493",
+        "src/ppr/bfun1d.f90": "646de03bd0e9ba9055ccd3d50ced869d296dd96892fc782249027a0fd120c0ac",
+        "src/ppr/ffsl1d.f90": "4fa17399c43ecf10d8da6d34cfca0ee2f1d5280e9580a9ef8358db79fe7378e9",
+        "src/ppr/inv.f90": "e4ac05fa35a956ed6f9e3b03b4239eaecdb73836b91594d7619a5a881987b05b",
+        "src/ppr/oscl1d.f90": "edd33006e9acc726efc02b7311577eea0c0b912d6b0379e1b099628f47d5d1a6",
+        "src/ppr/p1e.f90": "523e13ddae00c5af5446ddc1bfdfa84c0f864940376c3ac09c3ce585582ce229",
+        "src/ppr/p3e.f90": "e914eab40136435956b5289b1c2ff452bf47e3103a76054534c47b672b43d74b",
+        "src/ppr/p5e.f90": "64c4ee7027115e8a2178a98b5c2785373a9e82594b510cbfef80a27020b05879",
+        "src/ppr/pbc.f90": "781469f389036d934d4df034dad6ae4e05b1ca5bf60ef4e1799d00ab2359f7bd",
+        "src/ppr/pcm.f90": "41f3f0cbc59f612e83704994c6c2c43d1c48f727e0aec5eeda61170c0ece5dc7",
+        "src/ppr/plm.f90": "563bf5fe0962a97d567489476e6e008d7d9117d71782ba8a8cf98286a4acd692",
+        "src/ppr/ppm.f90": "cb79b3e95b4ff73d4ce76a1f3ab0ac7e0ba9cd4c2720a7feb47280ca13dbb9e1",
+        "src/ppr/ppr_1d.f90": "641019a041ab323315bec14e3ae3435b6ee8bcf4608e964c6f609685cf91871b",
+        "src/ppr/pqm.f90": "31f953a512b62ea9297e0377314b6828b8cddb54bf151871a8c4ee9354fcf5a8",
+        "src/ppr/rcon1d.f90": "983c492638a0277f32e4badc8953a88cbccfeee7dd4d27497f224e21d35ece03",
+        "src/ppr/rmap1d.f90": "0789f7ca86dab050c00098eec02c0a01674a10d1bc7cf4019af07908c137bcac",
+        "src/ppr/root1d.f90": "7c43290e2fa88d8b51e0fc5b80d0105e08d7db186d88e6497a841ee9ad2be98c",
+        "src/ppr/util1d.f90": "943695f7565b4c91ddf7202164354bc85fba51b69e849069c071931f60a986a3",
+        "src/ppr/weno1d.f90": "e4d865c20f2b56aa017ba3be465d355cabd96f4b3d6506d761eb150310268644",
+        "src/projection.f90": "2b1ed188af7c84d88d03f906525506f4c167b3d1276ef865b57ddab651a11119",
+        "src/refine_patch.f90": "629337759e727a209140783cb7d0db731f40b0c245a0a82f9986b3322fbc5f20",
+        "src/remap.f90": "213bcc19c611b9524b7d7e092b5c1cec494de28495315abdb99bca9f64f929af",
+        "src/shared.f90": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84",
+        "src/spline.f90": "cc2e60da4e678587da3f9120166309bbb007750e3aa57d04776a8f2435478378",
+        "src/sso.f90": "73192184438e46d77f11cae54b566ebf25ac0be174c2a510d2c16486ed55738e",
+        "src/std_atm_profile.f90": "42db17f877b5d2076909c9475f67a6eb173914c2abfd16f0dfb2a887cb3aabaa",
+        "src/test.f90": "e9452f57f66961b381db8310e693f1cb6ab8dafbc37bc1d47969ba8a31a29593",
+        "src/test_case_module.f90": "2833ad6a06de839392762873c991d743f5f036291f904c65681eba966702278a",
+        "src/time_integr.f90": "bfb3c076d14968ef7dae64c25140fc409231adabe05736a72bbb01c54f496549",
+        "src/topo_grid_descriptor.f90": "a94494029f62ca670b0d6c67d8932676ca767f47a44f378f742ec69247fdb63d",
+        "src/utils.f90": "d3f36c395e6b9b7fc15349282f04aa1307cf747fa06643964e699ad149cea471",
+        "src/vert_diffusion.f90": "6dd1909c9b1c5dee025a364051d63b9413b846d8ab576d8ebbeeb490479786ce",
+        "src/wavelet.f90": "504564302cccc9fbb5d2f225a5c740fab4febb5e30273ee1fd0efc4ed782ab25"
+      },
+      "memory": {
+        "scope": "whole-run system-wide VM deltas; sampled simulation-child RSS, excludes compressed footprint",
+        "vm_delta_bytes": {
+          "Decompressions": 4034756608,
+          "Compressions": 9895378944,
+          "Swapins": 786432,
+          "Swapouts": 0
+        },
+        "sampled_simultaneous_rss_peak_kib": 6183648,
+        "usable_for_local_timing": false,
+        "reasons": [
+          "More than 1 GiB system-wide decompression during run"
+        ]
+      },
+      "elapsed_seconds": 25.7415528340498,
+      "returncode": 0,
+      "analysis": {
+        "log": "/private/tmp/wavetrisk-checkpoint-io-validation-01/baseline-opt/run.log",
+        "completed": true,
+        "total_cpu_reported": [
+          21.359
+        ],
+        "failures": [],
+        "non_checkpoint_step_times": [
+          9.36
+        ],
+        "checkpoint_step_times": [
+          12.0
+        ],
+        "non_checkpoint_median": 9.36,
+        "step_records": [
+          {
+            "state": "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+            "seconds": 9.36,
+            "checkpoint": false,
+            "remap": false
+          },
+          {
+            "state": "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+            "seconds": 12.0,
+            "checkpoint": true,
+            "remap": false
+          }
+        ]
+      },
+      "refinement": [
+        {
+          "checkpoint": "/private/tmp/wavetrisk-checkpoint-io-validation-01/baseline-opt/localJ4J6_checkpoint_0003.bin.zst",
+          "sha256": "8cdea775d1c712b5c6f98fbb815575b975876a9b57cf34ce8e677b53f63fabad",
+          "patches_by_level": {
+            "4": 160,
+            "5": 640,
+            "6": 1093
+          },
+          "above_threshold_node_wavelet_locations": {
+            "4": 0,
+            "5": 0,
+            "6": 0
+          },
+          "above_threshold_edge_wavelet_locations": {
+            "4": 1886,
+            "5": 139,
+            "6": 0
+          },
+          "nonzero_atmospheric_coefficients": {
+            "4": 345600,
+            "5": 669930,
+            "6": 60720
+          },
+          "finest_above_threshold_locations": 0,
+          "finest_fraction_of_above_threshold_locations": 0.0,
+          "scope": "Atmospheric wavelet locations exceeding stored adaptation thresholds in any physical layer; excludes extra mask/adjacency nodes"
+        }
+      ],
+      "vtk_refinement": [
+        {
+          "archive": "/private/tmp/wavetrisk-checkpoint-io-validation-01/baseline-opt/localJ4J6_tri_0002.vtk.tgz",
+          "layer": 1,
+          "active_triangles_by_level": {
+            "4": 3536,
+            "5": 6336
+          },
+          "vertices": 5557,
+          "vertices_on_level6_triangles": 0,
+          "level6_triangle_fraction": 0.0,
+          "scope": "Exported adaptive mesh; unique vertices touching level-6 triangles, not raw checkpoint patch capacity"
+        },
+        {
+          "archive": "/private/tmp/wavetrisk-checkpoint-io-validation-01/baseline-opt/localJ4J6_tri_0003.vtk.tgz",
+          "layer": 1,
+          "active_triangles_by_level": {
+            "4": 4062,
+            "5": 4232
+          },
+          "vertices": 4724,
+          "vertices_on_level6_triangles": 0,
+          "level6_triangle_fraction": 0.0,
+          "scope": "Exported adaptive mesh; unique vertices touching level-6 triangles, not raw checkpoint patch capacity"
+        }
+      ],
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 0
+    },
+    "candidate-opt": {
+      "status": "passed",
+      "binary": "/private/tmp/wavetrisk-checkpoint-io-fix-01/bin/climate",
+      "binary_sha256": "385e6def11e2ba999c7c174be4ddeefbb388504d6d9f208b02da7eab6759c748",
+      "build": "/private/tmp/wavetrisk-checkpoint-io-fix-01",
+      "param": "param_J4",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.3050",
+        "CP_EVERY": "1",
+        "time_end": "0.3060",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "2cb0a1ee4cb59ad67b0b114c6047c3a40b221f024702e076caae4cad6667638a",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "source_sha256": {
+        "src/NCAR_topo.f90": "54f23a4de878fc45f9e27b5b2b3648e682f89f47033bdfce6c3f44a90d5458d3",
+        "src/adapt.f90": "cd90e9486f381436bb7833eac66905969bf4da801a0d937c03171b3cc14535e0",
+        "src/arch.f90": "61e45f630778e49e1fe5f67c56e06adb95eae8dd862a0e4862b7e10834f4a426",
+        "src/barotropic_2d.f90": "d695915b1830ba304e4eb8714e329fb5645c032bd1e3c051aa1e6c98130b5297",
+        "src/calendar.f90": "9b1c33b17cc8f503ccc09246e9e648b85b65386223223e08f09658c7817c3a9a",
+        "src/checkpoint.f90": "1b99e840396a1edd8a7fd62d793d09ad3def1086041d8d611a16cce1f4ec7b90",
+        "src/coarse_grid.f90": "8333ff2215215dcde51c451948a3ef01180dfc62475f8e6486697472c1217a25",
+        "src/comm.f90": "8ae87a927083c55a4e400b889e968ad3862d560eef5dbe535b2ed930c4206f7b",
+        "src/comm_mpi.f90": "5960729832210c51264a0ffcef287932992d86a7935108249287a497ca5dd2a7",
+        "src/coord_arithmetic.f90": "f25b17fb9e0b3c850250f98877449fbc3904578fdbf683556fbf6b08de9526d2",
+        "src/diagnostics.f90": "4ce9f6cfc8fdff1f9518733b09f444770525ae8ebfccafc3b385efcadbfbd82f",
+        "src/domain.f90": "a9f1448e9e6fbd7bc97aa458b93a65843fd855bf8e7667b3b542b4fc0260a388",
+        "src/domain_ops.f90": "5c0eaa093dfeb45f8d5ce0da5ad77b5a9be2e5a501757bf711308c662c7c6616",
+        "src/dyn_array.f90": "788520c676aeacf6fd21cf3225874707eea1c36bc37e949dc756cf422ff052b4",
+        "src/equation_of_state.f90": "ac1c6d51c60b903e74b010717834cab184acd497cf986c4ea9db516579a506ae",
+        "src/geom.f90": "6920c6bac9055dd119dd356cfe8db82d434d31a0ec7cea3e97623fe719775013",
+        "src/init.f90": "bfb760f717d8a4c46446c6422745baffd5887b7f1533bd4e18bdc3febf363a4c",
+        "src/integrate.f90": "05b35aec9fed826ad46200dc962eeb2da68dccf40ea2b4c2a81fcdd70aebaa3a",
+        "src/io_vtk.f90": "fa4922e93311a0fa011cf172b42aee6349c04428fe8e966460d544e31971c93b",
+        "src/kind.f90": "8370452d9259c3bc0e2e6588f42c5eb5eb6f78996656b398641300935c86af41",
+        "src/lin_solve.f90": "34253e9d8a0129f3be09e95a0973de61d8085b6feb06b7a01278d82e3e573a5d",
+        "src/lnorms.f90": "2579a85163987e69ff2fae2672bbc990cbad2bb5d9244783eb2eb45bae5e0bcd",
+        "src/main.f90": "86adf1ccd8838829ab2a177b1077b64d79bbee87c9754406a523ea434f0ad248",
+        "src/mask.f90": "4c24e692022c1b22cb554bf20621162711f827fab004d12489d473e21cd92f78",
+        "src/multi_level.f90": "ee4cd402da05b979ee2c052b4f5e2f3a9aae866b79aaf54c98be584515aa0dea",
+        "src/ops.f90": "52f63a5635ebc87e60bfde4caacd012a0046d0b40c19c3100e46e4f435962000",
+        "src/parallel_block.f90": "40d661c797095bd9437a1dc22f94bedc45904d59b752d6a3607f7a329138045d",
+        "src/parallel_block_build.f90": "a9508d6e3b19c380a83285a212756c1e3df89f4a0658df4b88a46c6e4347aafe",
+        "src/parallel_block_inverse.f90": "c16078f630b773e36f9363de0f10d58b5a27f6f3a1ab5781efa85626ab93c99a",
+        "src/parallel_block_mass.f90": "0e2efb96ee8f69e225dfd387a5f6639af073d177d866f0a70b88b506b57aefcb",
+        "src/parallel_block_mpi.f90": "9bfec6e26b547cac9930e5f28c919d5db77ac713c53c1a3913fd5cebdb8e7363",
+        "src/parallel_block_profile.f90": "85317ae10bd3f71b2d5700ca9eddca62a12b3fca67aea0f3299a4a245d4cde93",
+        "src/parallel_block_scalar_storage.f90": "d438e6efe83ad8a94b231249617a55793b91d18f4b1bad07a836d1430429a5ce",
+        "src/parallel_block_velocity.f90": "9765b09eaad8624fb03697d06d44ba214316630b19e025a9740a6dd64ba73137",
+        "src/param_J3.f90": "f609619b7c8e413279cc7ed637143b1afea0c77c4ec19975ea64f48591815e62",
+        "src/param_J4.f90": "224c562f900d26b2f2fdad1ab07fd36bdb265e7ae080ad16e9ec2ef65af72e6d",
+        "src/param_J5.f90": "e67be1fabc48295bd431f92a68afec765735446ddebe5e441d62437ab6edd634",
+        "src/param_J6.f90": "5b1fbcecf1cd2ae40372069313d6244f45a0d0cfebd70ba74b30877f327548e2",
+        "src/param_J7.f90": "418aad712283c732bb9279e859d1d0148f8b686622e8294ff3dda050c201dcfb",
+        "src/param_J8.f90": "9381904e4a0e6bae6e55ef7dcc4de73b560887999d287d08839a809a3d069e53",
+        "src/param_J9.f90": "a08738b24dc3e934689ec289940efd204c499d487b04f0c13fe1a2223eaea55e",
+        "src/patch.f90": "564efc416161723e032b5af69479d7ba67a7eb72d00098e1e8c797b20e4a8c4a",
+        "src/physics/init_physics_module.f90": "14607dc5702c8b06db238b41a88acc6f8e7fc9379b6afbabf3381c141c3db5a1",
+        "src/physics/phys_processing.f90": "2d75a70d4f9d450692d0ff50d6d5d7b98e6f2de7d95b35c446229c0dea20e251",
+        "src/physics/physics_Held_Suarez.f90": "fea0fd194a99b729c6f7c3ac2c90f6f01610198b03ac8f61f63d0476606ed197",
+        "src/physics/physics_simple.f90": "84bebda2624b30d140b7e1f353aedadfa3033c3adc38df85c1b8a7569ead65b4",
+        "src/physics/physics_trend.f90": "cef5fdc4ae342a0b4954f90b2526b0d0ae962b92e0db2cc5a5c884c4e361564a",
+        "src/physics/simple_physics/bash/convert.f90": "18ce2e9124455f031fca9375ec6d1384d03eaf61e4770a0bbd29c9529715f6c6",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/accelerator.F90": "3509c1e16a655334cb0567ccfa11262d8af9c09c1edb58283cc80bb822533661",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/dynamico_phyparam.F90": "fdd168c55d575d00465299739381adcc9c5212443b16bd01a57f68d8630b3044",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/error_mod.F90": "b35b89d1605fcfe81cbe93c4e11cc83a9aa07858c46e7ec244739fb61c8813e8",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/icosa_phyparam_mod.F90": "ed28f26616fdab0e9e77c4cb5d53a2d6f40ffc08250674a8aa03cf1b7f74a59b",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/iniphyparam_mod.F90": "98d35d16b6994d5ec24473edc515a770d0f00f739b1b8a5c9b8da9b30146f3a8",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/logging.F90": "3d3479fdb4eef0b64dabe33d82817cce71af1a2f9291a990afb90cd150042e44",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/phyparam_mod.F90": "a0d0d3253fe79bb81c27506cb6ca3d9f8d55dabc222b0db3d1477f9291ab673e",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/profiling.F90": "bf57b27e5045fc08b0862f96193d6395d391e8aecf5d0c0fb025476afe79e7ad",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/read_param_mod.F90": "592b6d780a35752313a8f5b4f10e1fcdcb352e584e58164d971b2abaff099f3d",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/restart.F90": "fb16c564bd51589b38e40db282751f75812ba36cb7e5a86c37a16c8833d314f4",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/writefield_mod.F90": "5bbd4e7f3d4f16dbbac8ee330efcb236b743b319bbf8e2f92bbfbc223a84ba23",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/astronomy.F90": "105df7c9b2924e81437ddd26584de5958867d9833c57c286a1b35a814d69a9af",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/callkeys.F90": "a08b2d5dba1472dde269c120040290cf3a3f8b12c2e4968bb79ad6540637f527",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/comgeomfi.F90": "3d4cd79d2f0d0209d750e739066ed9db303da1b7bfc86bbab443643c78e58cd5",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/convection.F90": "8e0fb954546c515a6f59a618d342ad4657a02f59f680b216dab16be7c5b310bd",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/mellor_yamada.F90": "2c798ea24688e0d0c302284660aa4276cf94c3ae8b383c77ebeb253e06bd4454",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/phys_const.F90": "0e24a08875060e94ab58edba630126baf07e2c75c16126c34360f5fbffbffd3b",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/planet.F90": "a0a8a4dcd43919f732c8f01b3382ee0ae5a4416b788e8f893e676d187c01a3d1",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_lw.F90": "afe2f4d5f6c83065af33ad3d79c1551b7b561e00aeb3514c3f87362f4cae1345",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_mod.F90": "57394d53a8467690923305bcdd47256864afdf6e26d28313656b90fafd777f76",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_sw.F90": "c2b33e2a518b5c4fdb8e645aab4ec8715b59d57417d618066b8fa70c71a2992f",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/soil_mod.F90": "5065919a07603de0d03135df986900a2f4670877d54e6a8f8268c98ea049bf6a",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/solar.F90": "61bf934b220f2b42cae806648175684fc78d39546d1002645fdda50c23e4e7dd",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/turbulence.F90": "7a94dda71a3a49ec97700131719a5e30efa33b8c467546271986ece4074f67b9",
+        "src/physics/simple_physics/phyparam/DYNAMICO/dynamico_phyparam.F90": "fdd168c55d575d00465299739381adcc9c5212443b16bd01a57f68d8630b3044",
+        "src/physics/simple_physics/phyparam/DYNAMICO/icosa_phyparam_mod.F90": "ed28f26616fdab0e9e77c4cb5d53a2d6f40ffc08250674a8aa03cf1b7f74a59b",
+        "src/physics/simple_physics/phyparam/driver/driver.F90": "ac210faa2e7361a14d097c48a17dd36be30286a87d7a989e3c7e3e05d5a41653",
+        "src/physics/simple_physics/phyparam/driver/driver_original.F90": "6e70abeb98de68dc2969ebe9d4ffc6bd9ca4ac766c43f175b11be09d0dee2dbe",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iniphysiq_mod.F90": "a57d15a2e93b2ac5497832aecc15f41abd548920e7452c19d2f6ad05ff32ecbb",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iophys.F90": "00891e81dafba7618592d3255afbebf9b5c7915c728a4d95570f0549fe51cb2f",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iotd_ecrit.F90": "3623a46a176c53bdfac41df5a2b5acdd38a62f240209d10a96d9324a0a6db20b",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iotd_fin.F90": "4c5905959c50e6bfb55fe38fffef902b9a8aea93f7d43fb201fd6b72301c3c48",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iotd_ini.F90": "2924872b4aab49da785ae4c028d94f479cd92d52d98d5e20fdc76e9773304810",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/phyparam_plugins_lmdz.F90": "0a7054b361a1dbddbe9170d017a0e40ceb854e0f1aa46b6fa14d67cd4cfc9849",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/physiq_mod.F90": "4a55b9c253644a9faa5a0f42df452689b7173ff618eaaa116e3768b7ef019641",
+        "src/physics/simple_physics/phyparam/physics/accelerator.F90": "3509c1e16a655334cb0567ccfa11262d8af9c09c1edb58283cc80bb822533661",
+        "src/physics/simple_physics/phyparam/physics/astronomy.F90": "105df7c9b2924e81437ddd26584de5958867d9833c57c286a1b35a814d69a9af",
+        "src/physics/simple_physics/phyparam/physics/callkeys.F90": "a08b2d5dba1472dde269c120040290cf3a3f8b12c2e4968bb79ad6540637f527",
+        "src/physics/simple_physics/phyparam/physics/comgeomfi.F90": "3d4cd79d2f0d0209d750e739066ed9db303da1b7bfc86bbab443643c78e58cd5",
+        "src/physics/simple_physics/phyparam/physics/convection.F90": "8e0fb954546c515a6f59a618d342ad4657a02f59f680b216dab16be7c5b310bd",
+        "src/physics/simple_physics/phyparam/physics/error_mod.F90": "b35b89d1605fcfe81cbe93c4e11cc83a9aa07858c46e7ec244739fb61c8813e8",
+        "src/physics/simple_physics/phyparam/physics/iniphyparam_mod.F90": "98d35d16b6994d5ec24473edc515a770d0f00f739b1b8a5c9b8da9b30146f3a8",
+        "src/physics/simple_physics/phyparam/physics/logging.F90": "3d3479fdb4eef0b64dabe33d82817cce71af1a2f9291a990afb90cd150042e44",
+        "src/physics/simple_physics/phyparam/physics/mellor_yamada.F90": "2c798ea24688e0d0c302284660aa4276cf94c3ae8b383c77ebeb253e06bd4454",
+        "src/physics/simple_physics/phyparam/physics/phyparam_mod.F90": "a0d0d3253fe79bb81c27506cb6ca3d9f8d55dabc222b0db3d1477f9291ab673e",
+        "src/physics/simple_physics/phyparam/physics/phys_const.F90": "0e24a08875060e94ab58edba630126baf07e2c75c16126c34360f5fbffbffd3b",
+        "src/physics/simple_physics/phyparam/physics/planet.F90": "a0a8a4dcd43919f732c8f01b3382ee0ae5a4416b788e8f893e676d187c01a3d1",
+        "src/physics/simple_physics/phyparam/physics/profiling.F90": "bf57b27e5045fc08b0862f96193d6395d391e8aecf5d0c0fb025476afe79e7ad",
+        "src/physics/simple_physics/phyparam/physics/radiative_lw.F90": "afe2f4d5f6c83065af33ad3d79c1551b7b561e00aeb3514c3f87362f4cae1345",
+        "src/physics/simple_physics/phyparam/physics/radiative_mod.F90": "57394d53a8467690923305bcdd47256864afdf6e26d28313656b90fafd777f76",
+        "src/physics/simple_physics/phyparam/physics/radiative_sw.F90": "c2b33e2a518b5c4fdb8e645aab4ec8715b59d57417d618066b8fa70c71a2992f",
+        "src/physics/simple_physics/phyparam/physics/read_param_mod.F90": "592b6d780a35752313a8f5b4f10e1fcdcb352e584e58164d971b2abaff099f3d",
+        "src/physics/simple_physics/phyparam/physics/restart.F90": "fb16c564bd51589b38e40db282751f75812ba36cb7e5a86c37a16c8833d314f4",
+        "src/physics/simple_physics/phyparam/physics/single_column_mod.F90": "aa2aeac741b7ba08f1823a54978208b3c082a7cfbe23aadf773faa2867c6a41d",
+        "src/physics/simple_physics/phyparam/physics/soil_mod.F90": "5065919a07603de0d03135df986900a2f4670877d54e6a8f8268c98ea049bf6a",
+        "src/physics/simple_physics/phyparam/physics/solar.F90": "61bf934b220f2b42cae806648175684fc78d39546d1002645fdda50c23e4e7dd",
+        "src/physics/simple_physics/phyparam/physics/turbulence.F90": "7a94dda71a3a49ec97700131719a5e30efa33b8c467546271986ece4074f67b9",
+        "src/physics/simple_physics/phyparam/physics/writefield_mod.F90": "5bbd4e7f3d4f16dbbac8ee330efcb236b743b319bbf8e2f92bbfbc223a84ba23",
+        "src/physics/simple_physics/phyparam/tmp/accelerator.f90": "5ff2b378cf71459f017a9273734657f871cd747b2f320561d9d1c49c294452a8",
+        "src/physics/simple_physics/phyparam/tmp/astronomy.f90": "3190c2ea7f370b962d790df57c939902e21f4954c9b06e92e3f13a0dd89ac26e",
+        "src/physics/simple_physics/phyparam/tmp/callkeys.f90": "3ef21f4859097ee447a566d6bb480ff2afd8d964ea12a50f86dee38e3feb59dc",
+        "src/physics/simple_physics/phyparam/tmp/comgeomfi.f90": "ef1b6f702ddda163fe8a80078612bfbbc2f042c1f8870d41383882fd2906cf8c",
+        "src/physics/simple_physics/phyparam/tmp/convection.f90": "f3c83ceeb11267787902de53423e29fe2e3a9434bd00ca494e705282983fc959",
+        "src/physics/simple_physics/phyparam/tmp/error_mod.f90": "90a1ad6748badc05202140db782383d105802aac70a3507803fc1bc3e59f4e48",
+        "src/physics/simple_physics/phyparam/tmp/iniphyparam_mod.f90": "2d0ecd28f6aa7ca62b970ef97a4cfe7e37d652f877f93ddf77b7eed5b9c63cd4",
+        "src/physics/simple_physics/phyparam/tmp/logging.f90": "cb6242573b30b14c3e49ec96530db0d6d784573203bdc9c16198885b7c73cc42",
+        "src/physics/simple_physics/phyparam/tmp/mellor_yamada.f90": "4d39ccf1528d67ad3fcd32e2ecee80cd1c3f0aa3641ea88f91a7b6b63dc78b37",
+        "src/physics/simple_physics/phyparam/tmp/phyparam_mod.f90": "e6b84d689b488d9d560602a225807dc820487dd6d7b2b71746628be01a1a920d",
+        "src/physics/simple_physics/phyparam/tmp/phys_const.f90": "a37b15aea54eda3691a6417110610635c6959e67695c8b77a7db9ff19202cbf1",
+        "src/physics/simple_physics/phyparam/tmp/planet.f90": "38d4327f5c93e7c83d810a9634210700f3fbc0cf8a2f531b7ec23cfe19424861",
+        "src/physics/simple_physics/phyparam/tmp/profiling.f90": "13d1121b7e5813aa5f9aef8bca658707c3a76bd326a711f885a76a6eb94e32de",
+        "src/physics/simple_physics/phyparam/tmp/radiative_lw.f90": "3233161f1703fef8feddb792c6a9410f80d38dff908f845d938e181f6f908100",
+        "src/physics/simple_physics/phyparam/tmp/radiative_mod.f90": "b40e7478a22585fa3d349f3903b3ce56e5da048489f1073b838c5cb35ee8d8cc",
+        "src/physics/simple_physics/phyparam/tmp/radiative_sw.f90": "e6459e3fa23e6ac2b14b56a748847c954b4c74267b93f7b096d25c31a2060c9b",
+        "src/physics/simple_physics/phyparam/tmp/read_param_mod.f90": "069f89c0083ea87ae8e67af4b0a80873d6e734e991093e7fadc2644ea510e3c4",
+        "src/physics/simple_physics/phyparam/tmp/restart.f90": "fa4de271a95e5a099c4dd5823b26bd2a1c86a771ac4fed06562bcfaf02d65106",
+        "src/physics/simple_physics/phyparam/tmp/single_column_mod.f90": "ea5d7b5c3ca15d35c13b8c00783a8fa8607ceeba804aa01c04984ac0aae95585",
+        "src/physics/simple_physics/phyparam/tmp/soil_mod.f90": "92c8c56b94f7676a457cd8c0ec1a2e7d1d3cb48b6961265a5c545f11288937b8",
+        "src/physics/simple_physics/phyparam/tmp/solar.f90": "1e7d8763bde9868fbfa48c2b3f8877dcee381b0c236dbe7b5e0ac33a00acd29c",
+        "src/physics/simple_physics/phyparam/tmp/turbulence.f90": "35a8f1b93ac490adc81f12fd85001a1d4bfa950e92fbc5189483a55e5b954d0c",
+        "src/physics/simple_physics/phyparam/tmp/writefield_mod.f90": "6758ead5f8986c4b289e29fc797dc99eb5675ab8cb79a776889b5f518d912493",
+        "src/ppr/bfun1d.f90": "646de03bd0e9ba9055ccd3d50ced869d296dd96892fc782249027a0fd120c0ac",
+        "src/ppr/ffsl1d.f90": "4fa17399c43ecf10d8da6d34cfca0ee2f1d5280e9580a9ef8358db79fe7378e9",
+        "src/ppr/inv.f90": "e4ac05fa35a956ed6f9e3b03b4239eaecdb73836b91594d7619a5a881987b05b",
+        "src/ppr/oscl1d.f90": "edd33006e9acc726efc02b7311577eea0c0b912d6b0379e1b099628f47d5d1a6",
+        "src/ppr/p1e.f90": "523e13ddae00c5af5446ddc1bfdfa84c0f864940376c3ac09c3ce585582ce229",
+        "src/ppr/p3e.f90": "e914eab40136435956b5289b1c2ff452bf47e3103a76054534c47b672b43d74b",
+        "src/ppr/p5e.f90": "64c4ee7027115e8a2178a98b5c2785373a9e82594b510cbfef80a27020b05879",
+        "src/ppr/pbc.f90": "781469f389036d934d4df034dad6ae4e05b1ca5bf60ef4e1799d00ab2359f7bd",
+        "src/ppr/pcm.f90": "41f3f0cbc59f612e83704994c6c2c43d1c48f727e0aec5eeda61170c0ece5dc7",
+        "src/ppr/plm.f90": "563bf5fe0962a97d567489476e6e008d7d9117d71782ba8a8cf98286a4acd692",
+        "src/ppr/ppm.f90": "cb79b3e95b4ff73d4ce76a1f3ab0ac7e0ba9cd4c2720a7feb47280ca13dbb9e1",
+        "src/ppr/ppr_1d.f90": "641019a041ab323315bec14e3ae3435b6ee8bcf4608e964c6f609685cf91871b",
+        "src/ppr/pqm.f90": "31f953a512b62ea9297e0377314b6828b8cddb54bf151871a8c4ee9354fcf5a8",
+        "src/ppr/rcon1d.f90": "983c492638a0277f32e4badc8953a88cbccfeee7dd4d27497f224e21d35ece03",
+        "src/ppr/rmap1d.f90": "0789f7ca86dab050c00098eec02c0a01674a10d1bc7cf4019af07908c137bcac",
+        "src/ppr/root1d.f90": "7c43290e2fa88d8b51e0fc5b80d0105e08d7db186d88e6497a841ee9ad2be98c",
+        "src/ppr/util1d.f90": "943695f7565b4c91ddf7202164354bc85fba51b69e849069c071931f60a986a3",
+        "src/ppr/weno1d.f90": "e4d865c20f2b56aa017ba3be465d355cabd96f4b3d6506d761eb150310268644",
+        "src/projection.f90": "2b1ed188af7c84d88d03f906525506f4c167b3d1276ef865b57ddab651a11119",
+        "src/refine_patch.f90": "629337759e727a209140783cb7d0db731f40b0c245a0a82f9986b3322fbc5f20",
+        "src/remap.f90": "213bcc19c611b9524b7d7e092b5c1cec494de28495315abdb99bca9f64f929af",
+        "src/shared.f90": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84",
+        "src/spline.f90": "cc2e60da4e678587da3f9120166309bbb007750e3aa57d04776a8f2435478378",
+        "src/sso.f90": "73192184438e46d77f11cae54b566ebf25ac0be174c2a510d2c16486ed55738e",
+        "src/std_atm_profile.f90": "42db17f877b5d2076909c9475f67a6eb173914c2abfd16f0dfb2a887cb3aabaa",
+        "src/test.f90": "e9452f57f66961b381db8310e693f1cb6ab8dafbc37bc1d47969ba8a31a29593",
+        "src/test_case_module.f90": "2833ad6a06de839392762873c991d743f5f036291f904c65681eba966702278a",
+        "src/time_integr.f90": "bfb3c076d14968ef7dae64c25140fc409231adabe05736a72bbb01c54f496549",
+        "src/topo_grid_descriptor.f90": "a94494029f62ca670b0d6c67d8932676ca767f47a44f378f742ec69247fdb63d",
+        "src/utils.f90": "d3f36c395e6b9b7fc15349282f04aa1307cf747fa06643964e699ad149cea471",
+        "src/vert_diffusion.f90": "6dd1909c9b1c5dee025a364051d63b9413b846d8ab576d8ebbeeb490479786ce",
+        "src/wavelet.f90": "504564302cccc9fbb5d2f225a5c740fab4febb5e30273ee1fd0efc4ed782ab25"
+      },
+      "memory": {
+        "scope": "whole-run system-wide VM deltas; sampled simulation-child RSS, excludes compressed footprint",
+        "vm_delta_bytes": {
+          "Decompressions": 1840300032,
+          "Compressions": 3982262272,
+          "Swapins": 0,
+          "Swapouts": 0
+        },
+        "sampled_simultaneous_rss_peak_kib": 5811712,
+        "usable_for_local_timing": false,
+        "reasons": [
+          "More than 1 GiB system-wide decompression during run"
+        ]
+      },
+      "elapsed_seconds": 25.741001916932873,
+      "returncode": 0,
+      "analysis": {
+        "log": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-opt/run.log",
+        "completed": true,
+        "total_cpu_reported": [
+          21.88
+        ],
+        "failures": [],
+        "non_checkpoint_step_times": [
+          9.71
+        ],
+        "checkpoint_step_times": [
+          12.2
+        ],
+        "non_checkpoint_median": 9.71,
+        "step_records": [
+          {
+            "state": "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+            "seconds": 9.71,
+            "checkpoint": false,
+            "remap": false
+          },
+          {
+            "state": "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+            "seconds": 12.2,
+            "checkpoint": true,
+            "remap": false
+          }
+        ]
+      },
+      "refinement": [
+        {
+          "checkpoint": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-opt/localJ4J6_checkpoint_0003.bin.zst",
+          "sha256": "8cdea775d1c712b5c6f98fbb815575b975876a9b57cf34ce8e677b53f63fabad",
+          "patches_by_level": {
+            "4": 160,
+            "5": 640,
+            "6": 1093
+          },
+          "above_threshold_node_wavelet_locations": {
+            "4": 0,
+            "5": 0,
+            "6": 0
+          },
+          "above_threshold_edge_wavelet_locations": {
+            "4": 1886,
+            "5": 139,
+            "6": 0
+          },
+          "nonzero_atmospheric_coefficients": {
+            "4": 345600,
+            "5": 669930,
+            "6": 60720
+          },
+          "finest_above_threshold_locations": 0,
+          "finest_fraction_of_above_threshold_locations": 0.0,
+          "scope": "Atmospheric wavelet locations exceeding stored adaptation thresholds in any physical layer; excludes extra mask/adjacency nodes"
+        }
+      ],
+      "vtk_refinement": [
+        {
+          "archive": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-opt/localJ4J6_tri_0002.vtk.tgz",
+          "layer": 1,
+          "active_triangles_by_level": {
+            "4": 3536,
+            "5": 6336
+          },
+          "vertices": 5557,
+          "vertices_on_level6_triangles": 0,
+          "level6_triangle_fraction": 0.0,
+          "scope": "Exported adaptive mesh; unique vertices touching level-6 triangles, not raw checkpoint patch capacity"
+        },
+        {
+          "archive": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-opt/localJ4J6_tri_0003.vtk.tgz",
+          "layer": 1,
+          "active_triangles_by_level": {
+            "4": 4062,
+            "5": 4232
+          },
+          "vertices": 4724,
+          "vertices_on_level6_triangles": 0,
+          "level6_triangle_fraction": 0.0,
+          "scope": "Exported adaptive mesh; unique vertices touching level-6 triangles, not raw checkpoint patch capacity"
+        }
+      ],
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 0
+    },
+    "candidate-checked": {
+      "status": "passed",
+      "binary": "/private/tmp/wavetrisk-checkpoint-io-fix-01/bin-checked/climate",
+      "binary_sha256": "3e48e24e3a36d18fd5db1c541ae3bd03d98f881753f0f77a003b79333c8baf2e",
+      "build": "/private/tmp/wavetrisk-checkpoint-io-fix-01",
+      "param": "param_J4",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.3050",
+        "CP_EVERY": "1",
+        "time_end": "0.3060",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "2cb0a1ee4cb59ad67b0b114c6047c3a40b221f024702e076caae4cad6667638a",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "source_sha256": {
+        "src/NCAR_topo.f90": "54f23a4de878fc45f9e27b5b2b3648e682f89f47033bdfce6c3f44a90d5458d3",
+        "src/adapt.f90": "cd90e9486f381436bb7833eac66905969bf4da801a0d937c03171b3cc14535e0",
+        "src/arch.f90": "61e45f630778e49e1fe5f67c56e06adb95eae8dd862a0e4862b7e10834f4a426",
+        "src/barotropic_2d.f90": "d695915b1830ba304e4eb8714e329fb5645c032bd1e3c051aa1e6c98130b5297",
+        "src/calendar.f90": "9b1c33b17cc8f503ccc09246e9e648b85b65386223223e08f09658c7817c3a9a",
+        "src/checkpoint.f90": "1b99e840396a1edd8a7fd62d793d09ad3def1086041d8d611a16cce1f4ec7b90",
+        "src/coarse_grid.f90": "8333ff2215215dcde51c451948a3ef01180dfc62475f8e6486697472c1217a25",
+        "src/comm.f90": "8ae87a927083c55a4e400b889e968ad3862d560eef5dbe535b2ed930c4206f7b",
+        "src/comm_mpi.f90": "5960729832210c51264a0ffcef287932992d86a7935108249287a497ca5dd2a7",
+        "src/coord_arithmetic.f90": "f25b17fb9e0b3c850250f98877449fbc3904578fdbf683556fbf6b08de9526d2",
+        "src/diagnostics.f90": "4ce9f6cfc8fdff1f9518733b09f444770525ae8ebfccafc3b385efcadbfbd82f",
+        "src/domain.f90": "a9f1448e9e6fbd7bc97aa458b93a65843fd855bf8e7667b3b542b4fc0260a388",
+        "src/domain_ops.f90": "5c0eaa093dfeb45f8d5ce0da5ad77b5a9be2e5a501757bf711308c662c7c6616",
+        "src/dyn_array.f90": "788520c676aeacf6fd21cf3225874707eea1c36bc37e949dc756cf422ff052b4",
+        "src/equation_of_state.f90": "ac1c6d51c60b903e74b010717834cab184acd497cf986c4ea9db516579a506ae",
+        "src/geom.f90": "6920c6bac9055dd119dd356cfe8db82d434d31a0ec7cea3e97623fe719775013",
+        "src/init.f90": "bfb760f717d8a4c46446c6422745baffd5887b7f1533bd4e18bdc3febf363a4c",
+        "src/integrate.f90": "05b35aec9fed826ad46200dc962eeb2da68dccf40ea2b4c2a81fcdd70aebaa3a",
+        "src/io_vtk.f90": "fa4922e93311a0fa011cf172b42aee6349c04428fe8e966460d544e31971c93b",
+        "src/kind.f90": "8370452d9259c3bc0e2e6588f42c5eb5eb6f78996656b398641300935c86af41",
+        "src/lin_solve.f90": "34253e9d8a0129f3be09e95a0973de61d8085b6feb06b7a01278d82e3e573a5d",
+        "src/lnorms.f90": "2579a85163987e69ff2fae2672bbc990cbad2bb5d9244783eb2eb45bae5e0bcd",
+        "src/main.f90": "86adf1ccd8838829ab2a177b1077b64d79bbee87c9754406a523ea434f0ad248",
+        "src/mask.f90": "4c24e692022c1b22cb554bf20621162711f827fab004d12489d473e21cd92f78",
+        "src/multi_level.f90": "ee4cd402da05b979ee2c052b4f5e2f3a9aae866b79aaf54c98be584515aa0dea",
+        "src/ops.f90": "52f63a5635ebc87e60bfde4caacd012a0046d0b40c19c3100e46e4f435962000",
+        "src/parallel_block.f90": "40d661c797095bd9437a1dc22f94bedc45904d59b752d6a3607f7a329138045d",
+        "src/parallel_block_build.f90": "a9508d6e3b19c380a83285a212756c1e3df89f4a0658df4b88a46c6e4347aafe",
+        "src/parallel_block_inverse.f90": "c16078f630b773e36f9363de0f10d58b5a27f6f3a1ab5781efa85626ab93c99a",
+        "src/parallel_block_mass.f90": "0e2efb96ee8f69e225dfd387a5f6639af073d177d866f0a70b88b506b57aefcb",
+        "src/parallel_block_mpi.f90": "9bfec6e26b547cac9930e5f28c919d5db77ac713c53c1a3913fd5cebdb8e7363",
+        "src/parallel_block_profile.f90": "85317ae10bd3f71b2d5700ca9eddca62a12b3fca67aea0f3299a4a245d4cde93",
+        "src/parallel_block_scalar_storage.f90": "d438e6efe83ad8a94b231249617a55793b91d18f4b1bad07a836d1430429a5ce",
+        "src/parallel_block_velocity.f90": "9765b09eaad8624fb03697d06d44ba214316630b19e025a9740a6dd64ba73137",
+        "src/param_J3.f90": "f609619b7c8e413279cc7ed637143b1afea0c77c4ec19975ea64f48591815e62",
+        "src/param_J4.f90": "224c562f900d26b2f2fdad1ab07fd36bdb265e7ae080ad16e9ec2ef65af72e6d",
+        "src/param_J5.f90": "e67be1fabc48295bd431f92a68afec765735446ddebe5e441d62437ab6edd634",
+        "src/param_J6.f90": "5b1fbcecf1cd2ae40372069313d6244f45a0d0cfebd70ba74b30877f327548e2",
+        "src/param_J7.f90": "418aad712283c732bb9279e859d1d0148f8b686622e8294ff3dda050c201dcfb",
+        "src/param_J8.f90": "9381904e4a0e6bae6e55ef7dcc4de73b560887999d287d08839a809a3d069e53",
+        "src/param_J9.f90": "a08738b24dc3e934689ec289940efd204c499d487b04f0c13fe1a2223eaea55e",
+        "src/patch.f90": "564efc416161723e032b5af69479d7ba67a7eb72d00098e1e8c797b20e4a8c4a",
+        "src/physics/init_physics_module.f90": "14607dc5702c8b06db238b41a88acc6f8e7fc9379b6afbabf3381c141c3db5a1",
+        "src/physics/phys_processing.f90": "2d75a70d4f9d450692d0ff50d6d5d7b98e6f2de7d95b35c446229c0dea20e251",
+        "src/physics/physics_Held_Suarez.f90": "fea0fd194a99b729c6f7c3ac2c90f6f01610198b03ac8f61f63d0476606ed197",
+        "src/physics/physics_simple.f90": "84bebda2624b30d140b7e1f353aedadfa3033c3adc38df85c1b8a7569ead65b4",
+        "src/physics/physics_trend.f90": "cef5fdc4ae342a0b4954f90b2526b0d0ae962b92e0db2cc5a5c884c4e361564a",
+        "src/physics/simple_physics/bash/convert.f90": "18ce2e9124455f031fca9375ec6d1384d03eaf61e4770a0bbd29c9529715f6c6",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/accelerator.F90": "3509c1e16a655334cb0567ccfa11262d8af9c09c1edb58283cc80bb822533661",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/dynamico_phyparam.F90": "fdd168c55d575d00465299739381adcc9c5212443b16bd01a57f68d8630b3044",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/error_mod.F90": "b35b89d1605fcfe81cbe93c4e11cc83a9aa07858c46e7ec244739fb61c8813e8",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/icosa_phyparam_mod.F90": "ed28f26616fdab0e9e77c4cb5d53a2d6f40ffc08250674a8aa03cf1b7f74a59b",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/iniphyparam_mod.F90": "98d35d16b6994d5ec24473edc515a770d0f00f739b1b8a5c9b8da9b30146f3a8",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/logging.F90": "3d3479fdb4eef0b64dabe33d82817cce71af1a2f9291a990afb90cd150042e44",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/phyparam_mod.F90": "a0d0d3253fe79bb81c27506cb6ca3d9f8d55dabc222b0db3d1477f9291ab673e",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/profiling.F90": "bf57b27e5045fc08b0862f96193d6395d391e8aecf5d0c0fb025476afe79e7ad",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/read_param_mod.F90": "592b6d780a35752313a8f5b4f10e1fcdcb352e584e58164d971b2abaff099f3d",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/restart.F90": "fb16c564bd51589b38e40db282751f75812ba36cb7e5a86c37a16c8833d314f4",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/driver/writefield_mod.F90": "5bbd4e7f3d4f16dbbac8ee330efcb236b743b319bbf8e2f92bbfbc223a84ba23",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/astronomy.F90": "105df7c9b2924e81437ddd26584de5958867d9833c57c286a1b35a814d69a9af",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/callkeys.F90": "a08b2d5dba1472dde269c120040290cf3a3f8b12c2e4968bb79ad6540637f527",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/comgeomfi.F90": "3d4cd79d2f0d0209d750e739066ed9db303da1b7bfc86bbab443643c78e58cd5",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/convection.F90": "8e0fb954546c515a6f59a618d342ad4657a02f59f680b216dab16be7c5b310bd",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/mellor_yamada.F90": "2c798ea24688e0d0c302284660aa4276cf94c3ae8b383c77ebeb253e06bd4454",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/phys_const.F90": "0e24a08875060e94ab58edba630126baf07e2c75c16126c34360f5fbffbffd3b",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/planet.F90": "a0a8a4dcd43919f732c8f01b3382ee0ae5a4416b788e8f893e676d187c01a3d1",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_lw.F90": "afe2f4d5f6c83065af33ad3d79c1551b7b561e00aeb3514c3f87362f4cae1345",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_mod.F90": "57394d53a8467690923305bcdd47256864afdf6e26d28313656b90fafd777f76",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/radiative_sw.F90": "c2b33e2a518b5c4fdb8e645aab4ec8715b59d57417d618066b8fa70c71a2992f",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/soil_mod.F90": "5065919a07603de0d03135df986900a2f4670877d54e6a8f8268c98ea049bf6a",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/solar.F90": "61bf934b220f2b42cae806648175684fc78d39546d1002645fdda50c23e4e7dd",
+        "src/physics/simple_physics/config/DYNAMICO/modeles/DYNAMICO_phyparam/src/physics/turbulence.F90": "7a94dda71a3a49ec97700131719a5e30efa33b8c467546271986ece4074f67b9",
+        "src/physics/simple_physics/phyparam/DYNAMICO/dynamico_phyparam.F90": "fdd168c55d575d00465299739381adcc9c5212443b16bd01a57f68d8630b3044",
+        "src/physics/simple_physics/phyparam/DYNAMICO/icosa_phyparam_mod.F90": "ed28f26616fdab0e9e77c4cb5d53a2d6f40ffc08250674a8aa03cf1b7f74a59b",
+        "src/physics/simple_physics/phyparam/driver/driver.F90": "ac210faa2e7361a14d097c48a17dd36be30286a87d7a989e3c7e3e05d5a41653",
+        "src/physics/simple_physics/phyparam/driver/driver_original.F90": "6e70abeb98de68dc2969ebe9d4ffc6bd9ca4ac766c43f175b11be09d0dee2dbe",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iniphysiq_mod.F90": "a57d15a2e93b2ac5497832aecc15f41abd548920e7452c19d2f6ad05ff32ecbb",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iophys.F90": "00891e81dafba7618592d3255afbebf9b5c7915c728a4d95570f0549fe51cb2f",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iotd_ecrit.F90": "3623a46a176c53bdfac41df5a2b5acdd38a62f240209d10a96d9324a0a6db20b",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iotd_fin.F90": "4c5905959c50e6bfb55fe38fffef902b9a8aea93f7d43fb201fd6b72301c3c48",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/iotd_ini.F90": "2924872b4aab49da785ae4c028d94f479cd92d52d98d5e20fdc76e9773304810",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/phyparam_plugins_lmdz.F90": "0a7054b361a1dbddbe9170d017a0e40ceb854e0f1aa46b6fa14d67cd4cfc9849",
+        "src/physics/simple_physics/phyparam/dynphy_lonlat/physiq_mod.F90": "4a55b9c253644a9faa5a0f42df452689b7173ff618eaaa116e3768b7ef019641",
+        "src/physics/simple_physics/phyparam/physics/accelerator.F90": "3509c1e16a655334cb0567ccfa11262d8af9c09c1edb58283cc80bb822533661",
+        "src/physics/simple_physics/phyparam/physics/astronomy.F90": "105df7c9b2924e81437ddd26584de5958867d9833c57c286a1b35a814d69a9af",
+        "src/physics/simple_physics/phyparam/physics/callkeys.F90": "a08b2d5dba1472dde269c120040290cf3a3f8b12c2e4968bb79ad6540637f527",
+        "src/physics/simple_physics/phyparam/physics/comgeomfi.F90": "3d4cd79d2f0d0209d750e739066ed9db303da1b7bfc86bbab443643c78e58cd5",
+        "src/physics/simple_physics/phyparam/physics/convection.F90": "8e0fb954546c515a6f59a618d342ad4657a02f59f680b216dab16be7c5b310bd",
+        "src/physics/simple_physics/phyparam/physics/error_mod.F90": "b35b89d1605fcfe81cbe93c4e11cc83a9aa07858c46e7ec244739fb61c8813e8",
+        "src/physics/simple_physics/phyparam/physics/iniphyparam_mod.F90": "98d35d16b6994d5ec24473edc515a770d0f00f739b1b8a5c9b8da9b30146f3a8",
+        "src/physics/simple_physics/phyparam/physics/logging.F90": "3d3479fdb4eef0b64dabe33d82817cce71af1a2f9291a990afb90cd150042e44",
+        "src/physics/simple_physics/phyparam/physics/mellor_yamada.F90": "2c798ea24688e0d0c302284660aa4276cf94c3ae8b383c77ebeb253e06bd4454",
+        "src/physics/simple_physics/phyparam/physics/phyparam_mod.F90": "a0d0d3253fe79bb81c27506cb6ca3d9f8d55dabc222b0db3d1477f9291ab673e",
+        "src/physics/simple_physics/phyparam/physics/phys_const.F90": "0e24a08875060e94ab58edba630126baf07e2c75c16126c34360f5fbffbffd3b",
+        "src/physics/simple_physics/phyparam/physics/planet.F90": "a0a8a4dcd43919f732c8f01b3382ee0ae5a4416b788e8f893e676d187c01a3d1",
+        "src/physics/simple_physics/phyparam/physics/profiling.F90": "bf57b27e5045fc08b0862f96193d6395d391e8aecf5d0c0fb025476afe79e7ad",
+        "src/physics/simple_physics/phyparam/physics/radiative_lw.F90": "afe2f4d5f6c83065af33ad3d79c1551b7b561e00aeb3514c3f87362f4cae1345",
+        "src/physics/simple_physics/phyparam/physics/radiative_mod.F90": "57394d53a8467690923305bcdd47256864afdf6e26d28313656b90fafd777f76",
+        "src/physics/simple_physics/phyparam/physics/radiative_sw.F90": "c2b33e2a518b5c4fdb8e645aab4ec8715b59d57417d618066b8fa70c71a2992f",
+        "src/physics/simple_physics/phyparam/physics/read_param_mod.F90": "592b6d780a35752313a8f5b4f10e1fcdcb352e584e58164d971b2abaff099f3d",
+        "src/physics/simple_physics/phyparam/physics/restart.F90": "fb16c564bd51589b38e40db282751f75812ba36cb7e5a86c37a16c8833d314f4",
+        "src/physics/simple_physics/phyparam/physics/single_column_mod.F90": "aa2aeac741b7ba08f1823a54978208b3c082a7cfbe23aadf773faa2867c6a41d",
+        "src/physics/simple_physics/phyparam/physics/soil_mod.F90": "5065919a07603de0d03135df986900a2f4670877d54e6a8f8268c98ea049bf6a",
+        "src/physics/simple_physics/phyparam/physics/solar.F90": "61bf934b220f2b42cae806648175684fc78d39546d1002645fdda50c23e4e7dd",
+        "src/physics/simple_physics/phyparam/physics/turbulence.F90": "7a94dda71a3a49ec97700131719a5e30efa33b8c467546271986ece4074f67b9",
+        "src/physics/simple_physics/phyparam/physics/writefield_mod.F90": "5bbd4e7f3d4f16dbbac8ee330efcb236b743b319bbf8e2f92bbfbc223a84ba23",
+        "src/physics/simple_physics/phyparam/tmp/accelerator.f90": "5ff2b378cf71459f017a9273734657f871cd747b2f320561d9d1c49c294452a8",
+        "src/physics/simple_physics/phyparam/tmp/astronomy.f90": "3190c2ea7f370b962d790df57c939902e21f4954c9b06e92e3f13a0dd89ac26e",
+        "src/physics/simple_physics/phyparam/tmp/callkeys.f90": "3ef21f4859097ee447a566d6bb480ff2afd8d964ea12a50f86dee38e3feb59dc",
+        "src/physics/simple_physics/phyparam/tmp/comgeomfi.f90": "ef1b6f702ddda163fe8a80078612bfbbc2f042c1f8870d41383882fd2906cf8c",
+        "src/physics/simple_physics/phyparam/tmp/convection.f90": "f3c83ceeb11267787902de53423e29fe2e3a9434bd00ca494e705282983fc959",
+        "src/physics/simple_physics/phyparam/tmp/error_mod.f90": "90a1ad6748badc05202140db782383d105802aac70a3507803fc1bc3e59f4e48",
+        "src/physics/simple_physics/phyparam/tmp/iniphyparam_mod.f90": "2d0ecd28f6aa7ca62b970ef97a4cfe7e37d652f877f93ddf77b7eed5b9c63cd4",
+        "src/physics/simple_physics/phyparam/tmp/logging.f90": "cb6242573b30b14c3e49ec96530db0d6d784573203bdc9c16198885b7c73cc42",
+        "src/physics/simple_physics/phyparam/tmp/mellor_yamada.f90": "4d39ccf1528d67ad3fcd32e2ecee80cd1c3f0aa3641ea88f91a7b6b63dc78b37",
+        "src/physics/simple_physics/phyparam/tmp/phyparam_mod.f90": "e6b84d689b488d9d560602a225807dc820487dd6d7b2b71746628be01a1a920d",
+        "src/physics/simple_physics/phyparam/tmp/phys_const.f90": "a37b15aea54eda3691a6417110610635c6959e67695c8b77a7db9ff19202cbf1",
+        "src/physics/simple_physics/phyparam/tmp/planet.f90": "38d4327f5c93e7c83d810a9634210700f3fbc0cf8a2f531b7ec23cfe19424861",
+        "src/physics/simple_physics/phyparam/tmp/profiling.f90": "13d1121b7e5813aa5f9aef8bca658707c3a76bd326a711f885a76a6eb94e32de",
+        "src/physics/simple_physics/phyparam/tmp/radiative_lw.f90": "3233161f1703fef8feddb792c6a9410f80d38dff908f845d938e181f6f908100",
+        "src/physics/simple_physics/phyparam/tmp/radiative_mod.f90": "b40e7478a22585fa3d349f3903b3ce56e5da048489f1073b838c5cb35ee8d8cc",
+        "src/physics/simple_physics/phyparam/tmp/radiative_sw.f90": "e6459e3fa23e6ac2b14b56a748847c954b4c74267b93f7b096d25c31a2060c9b",
+        "src/physics/simple_physics/phyparam/tmp/read_param_mod.f90": "069f89c0083ea87ae8e67af4b0a80873d6e734e991093e7fadc2644ea510e3c4",
+        "src/physics/simple_physics/phyparam/tmp/restart.f90": "fa4de271a95e5a099c4dd5823b26bd2a1c86a771ac4fed06562bcfaf02d65106",
+        "src/physics/simple_physics/phyparam/tmp/single_column_mod.f90": "ea5d7b5c3ca15d35c13b8c00783a8fa8607ceeba804aa01c04984ac0aae95585",
+        "src/physics/simple_physics/phyparam/tmp/soil_mod.f90": "92c8c56b94f7676a457cd8c0ec1a2e7d1d3cb48b6961265a5c545f11288937b8",
+        "src/physics/simple_physics/phyparam/tmp/solar.f90": "1e7d8763bde9868fbfa48c2b3f8877dcee381b0c236dbe7b5e0ac33a00acd29c",
+        "src/physics/simple_physics/phyparam/tmp/turbulence.f90": "35a8f1b93ac490adc81f12fd85001a1d4bfa950e92fbc5189483a55e5b954d0c",
+        "src/physics/simple_physics/phyparam/tmp/writefield_mod.f90": "6758ead5f8986c4b289e29fc797dc99eb5675ab8cb79a776889b5f518d912493",
+        "src/ppr/bfun1d.f90": "646de03bd0e9ba9055ccd3d50ced869d296dd96892fc782249027a0fd120c0ac",
+        "src/ppr/ffsl1d.f90": "4fa17399c43ecf10d8da6d34cfca0ee2f1d5280e9580a9ef8358db79fe7378e9",
+        "src/ppr/inv.f90": "e4ac05fa35a956ed6f9e3b03b4239eaecdb73836b91594d7619a5a881987b05b",
+        "src/ppr/oscl1d.f90": "edd33006e9acc726efc02b7311577eea0c0b912d6b0379e1b099628f47d5d1a6",
+        "src/ppr/p1e.f90": "523e13ddae00c5af5446ddc1bfdfa84c0f864940376c3ac09c3ce585582ce229",
+        "src/ppr/p3e.f90": "e914eab40136435956b5289b1c2ff452bf47e3103a76054534c47b672b43d74b",
+        "src/ppr/p5e.f90": "64c4ee7027115e8a2178a98b5c2785373a9e82594b510cbfef80a27020b05879",
+        "src/ppr/pbc.f90": "781469f389036d934d4df034dad6ae4e05b1ca5bf60ef4e1799d00ab2359f7bd",
+        "src/ppr/pcm.f90": "41f3f0cbc59f612e83704994c6c2c43d1c48f727e0aec5eeda61170c0ece5dc7",
+        "src/ppr/plm.f90": "563bf5fe0962a97d567489476e6e008d7d9117d71782ba8a8cf98286a4acd692",
+        "src/ppr/ppm.f90": "cb79b3e95b4ff73d4ce76a1f3ab0ac7e0ba9cd4c2720a7feb47280ca13dbb9e1",
+        "src/ppr/ppr_1d.f90": "641019a041ab323315bec14e3ae3435b6ee8bcf4608e964c6f609685cf91871b",
+        "src/ppr/pqm.f90": "31f953a512b62ea9297e0377314b6828b8cddb54bf151871a8c4ee9354fcf5a8",
+        "src/ppr/rcon1d.f90": "983c492638a0277f32e4badc8953a88cbccfeee7dd4d27497f224e21d35ece03",
+        "src/ppr/rmap1d.f90": "0789f7ca86dab050c00098eec02c0a01674a10d1bc7cf4019af07908c137bcac",
+        "src/ppr/root1d.f90": "7c43290e2fa88d8b51e0fc5b80d0105e08d7db186d88e6497a841ee9ad2be98c",
+        "src/ppr/util1d.f90": "943695f7565b4c91ddf7202164354bc85fba51b69e849069c071931f60a986a3",
+        "src/ppr/weno1d.f90": "e4d865c20f2b56aa017ba3be465d355cabd96f4b3d6506d761eb150310268644",
+        "src/projection.f90": "2b1ed188af7c84d88d03f906525506f4c167b3d1276ef865b57ddab651a11119",
+        "src/refine_patch.f90": "629337759e727a209140783cb7d0db731f40b0c245a0a82f9986b3322fbc5f20",
+        "src/remap.f90": "213bcc19c611b9524b7d7e092b5c1cec494de28495315abdb99bca9f64f929af",
+        "src/shared.f90": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84",
+        "src/spline.f90": "cc2e60da4e678587da3f9120166309bbb007750e3aa57d04776a8f2435478378",
+        "src/sso.f90": "73192184438e46d77f11cae54b566ebf25ac0be174c2a510d2c16486ed55738e",
+        "src/std_atm_profile.f90": "42db17f877b5d2076909c9475f67a6eb173914c2abfd16f0dfb2a887cb3aabaa",
+        "src/test.f90": "e9452f57f66961b381db8310e693f1cb6ab8dafbc37bc1d47969ba8a31a29593",
+        "src/test_case_module.f90": "2833ad6a06de839392762873c991d743f5f036291f904c65681eba966702278a",
+        "src/time_integr.f90": "bfb3c076d14968ef7dae64c25140fc409231adabe05736a72bbb01c54f496549",
+        "src/topo_grid_descriptor.f90": "a94494029f62ca670b0d6c67d8932676ca767f47a44f378f742ec69247fdb63d",
+        "src/utils.f90": "d3f36c395e6b9b7fc15349282f04aa1307cf747fa06643964e699ad149cea471",
+        "src/vert_diffusion.f90": "6dd1909c9b1c5dee025a364051d63b9413b846d8ab576d8ebbeeb490479786ce",
+        "src/wavelet.f90": "504564302cccc9fbb5d2f225a5c740fab4febb5e30273ee1fd0efc4ed782ab25"
+      },
+      "memory": {
+        "scope": "whole-run system-wide VM deltas; sampled simulation-child RSS, excludes compressed footprint",
+        "vm_delta_bytes": {
+          "Decompressions": 2660122624,
+          "Compressions": 4954112000,
+          "Swapins": 65536,
+          "Swapouts": 0
+        },
+        "sampled_simultaneous_rss_peak_kib": 5686656,
+        "usable_for_local_timing": false,
+        "reasons": [
+          "More than 1 GiB system-wide decompression during run"
+        ]
+      },
+      "elapsed_seconds": 77.36755387496669,
+      "returncode": 0,
+      "analysis": {
+        "log": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-checked/run.log",
+        "completed": true,
+        "total_cpu_reported": [
+          68.174
+        ],
+        "failures": [],
+        "non_checkpoint_step_times": [
+          31.1
+        ],
+        "checkpoint_step_times": [
+          37.1
+        ],
+        "non_checkpoint_median": 31.1,
+        "step_records": [
+          {
+            "state": "00000322     0.3045 d dt =    207.1 s Jmax =  6 dof =        37725",
+            "seconds": 31.1,
+            "checkpoint": false,
+            "remap": false
+          },
+          {
+            "state": "00000322     0.3068 d dt =    207.1 s Jmax =  6 dof =        33864",
+            "seconds": 37.1,
+            "checkpoint": true,
+            "remap": false
+          }
+        ]
+      },
+      "refinement": [
+        {
+          "checkpoint": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-checked/localJ4J6_checkpoint_0003.bin.zst",
+          "sha256": "c7e24de35089705c6c3288912424b68f64d724b224d658b408385cffae720f61",
+          "patches_by_level": {
+            "4": 160,
+            "5": 640,
+            "6": 1093
+          },
+          "above_threshold_node_wavelet_locations": {
+            "4": 0,
+            "5": 0,
+            "6": 0
+          },
+          "above_threshold_edge_wavelet_locations": {
+            "4": 1886,
+            "5": 139,
+            "6": 0
+          },
+          "nonzero_atmospheric_coefficients": {
+            "4": 345600,
+            "5": 669930,
+            "6": 60720
+          },
+          "finest_above_threshold_locations": 0,
+          "finest_fraction_of_above_threshold_locations": 0.0,
+          "scope": "Atmospheric wavelet locations exceeding stored adaptation thresholds in any physical layer; excludes extra mask/adjacency nodes"
+        }
+      ],
+      "vtk_refinement": [
+        {
+          "archive": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-checked/localJ4J6_tri_0002.vtk.tgz",
+          "layer": 1,
+          "active_triangles_by_level": {
+            "4": 3536,
+            "5": 6336
+          },
+          "vertices": 5557,
+          "vertices_on_level6_triangles": 0,
+          "level6_triangle_fraction": 0.0,
+          "scope": "Exported adaptive mesh; unique vertices touching level-6 triangles, not raw checkpoint patch capacity"
+        },
+        {
+          "archive": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-checked/localJ4J6_tri_0003.vtk.tgz",
+          "layer": 1,
+          "active_triangles_by_level": {
+            "4": 4062,
+            "5": 4232
+          },
+          "vertices": 4724,
+          "vertices_on_level6_triangles": 0,
+          "level6_triangle_fraction": 0.0,
+          "scope": "Exported adaptive mesh; unique vertices touching level-6 triangles, not raw checkpoint patch capacity"
+        }
+      ],
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 0
+    }
+  },
+  "gates": {
+    "baseline-opt": {
+      "passed": true,
+      "failures": [],
+      "comparison": {
+        "left": "/private/tmp/wavetrisk-checkpoint-io-validation-01/baseline-opt/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/wavetrisk-checkpoint-io-validation-01/baseline-opt/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    },
+    "candidate-opt": {
+      "passed": true,
+      "failures": [],
+      "comparison": {
+        "left": "/private/tmp/wavetrisk-checkpoint-io-validation-01/baseline-opt/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-opt/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    },
+    "candidate-checked": {
+      "passed": true,
+      "failures": [],
+      "comparison": {
+        "left": "/private/tmp/wavetrisk-stage187-validation-01/rk4-short-production/localJ4J6_checkpoint_0003.bin.zst",
+        "right": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-checked/localJ4J6_checkpoint_0003.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    }
+  },
+  "scope": "Four-rank local J4/J6 short RK4 numerical fixture, two steps, checkpoint 3 and reload; no post-reload timestep/remap coverage. Not a timing comparison.",
+  "source_sha256": "1b99e840396a1edd8a7fd62d793d09ad3def1086041d8d611a16cce1f4ec7b90"
+}

@@ -1,0 +1,1680 @@
+{
+  "status": "passed",
+  "parameters": {
+    "test_case": "climate",
+    "physics_type": "Simple",
+    "run_id": "test",
+    "max_level": "7",
+    "zlevels": "30",
+    "Nsoil": "10",
+    "NCAR_topo": "F",
+    "sso": "F",
+    "topo_file": "J05J07_120.0km",
+    "topo_min_level": "5",
+    "topo_max_level": "7",
+    "tol": "2.5e-2",
+    "dt_write": "0.01",
+    "CP_EVERY": "1",
+    "time_end": "0.315",
+    "resume": "3"
+  },
+  "ranks": 83,
+  "fixture": "/1/home/kevlahan/stage187-fixture-20260911-145307",
+  "input_sha256": "ed173774b8400630657243fa67b4065faff1faf409ba93c1712bb80174d6ae8d",
+  "seed_sha256": "8c7b651c2d6bc6f481838163591565771e1f9a95fd54ec9adf0ce9b74a117e2d",
+  "grids": {
+    "files": 41,
+    "sha256": "54135f3a70e081e993e545a5c053eaacce5398d0483f59e345b12ecc4cd3e059"
+  },
+  "executables": {
+    "baseline": {
+      "path": "/1/home/kevlahan/wt-pre187/bin-opt/climate",
+      "sha256": "8063d5898b0c0d7724650242ab3779a6311d8ffed2a82187dd6d703df40a4362"
+    },
+    "candidate": {
+      "path": "/1/home/kevlahan/wt-stage187/bin-opt/climate",
+      "sha256": "b433a652d38c2f741730131e30d0b4ee4b0020dee1c73d5d430e10c353ee8d4a"
+    },
+    "checked": {
+      "path": "/1/home/kevlahan/wt-stage187/bin-check/climate",
+      "sha256": "6450842f1eedd6dd3b612ff61db7f589166d3c5725ec3206aef37927da9e3a6a"
+    }
+  },
+  "build_notes": "RK4; time_end=0.315; common checkpoint I/O fix; GNU Fortran (Spack GCC) 13.2.0",
+  "slurm_environment": {
+    "SLURM_JOB_USER": "kevlahan",
+    "SLURM_TASKS_PER_NODE": "42,41",
+    "SLURM_JOB_UID": "5318",
+    "SLURM_TASK_PID": "111666",
+    "SLURM_LOCALID": "0",
+    "SLURM_SUBMIT_DIR": "/1/home/kevlahan",
+    "SLURM_NODE_ALIASES": "(null)",
+    "SLURM_CLUSTER_NAME": "bbcluster2",
+    "SLURM_CPUS_ON_NODE": "64",
+    "SLURM_JOB_CPUS_PER_NODE": "64(x2)",
+    "SLURM_GTIDS": "0",
+    "SLURM_JOB_PARTITION": "bb",
+    "SLURM_JOB_NUM_NODES": "2",
+    "SLURM_JOBID": "54452",
+    "SLURM_PROCID": "0",
+    "SLURM_CPUS_PER_TASK": "1",
+    "SLURM_NTASKS": "83",
+    "SLURM_TOPOLOGY_ADDR": "bb01",
+    "SLURM_TOPOLOGY_ADDR_PATTERN": "node",
+    "SLURM_WORKING_CLUSTER": "bbcluster2:192.168.218.100:6817:9728:101",
+    "SLURM_NODELIST": "bb[01-02]",
+    "SLURM_PRIO_PROCESS": "0",
+    "SLURM_NPROCS": "83",
+    "SLURM_NNODES": "2",
+    "SLURM_SUBMIT_HOST": "bbserv.rhpcs.internal",
+    "SLURM_JOB_ID": "54452",
+    "SLURM_NODEID": "0",
+    "SLURM_CONF": "/etc/slurm/slurm.conf",
+    "SLURM_JOB_NAME": "wavetrisk-187",
+    "SLURM_JOB_GID": "5318",
+    "SLURM_JOB_NODELIST": "bb[01-02]"
+  },
+  "schedule": [
+    "checked-off",
+    "checked-on",
+    "baseline-warmup",
+    "candidate-warmup",
+    "baseline-1",
+    "candidate-1",
+    "candidate-2",
+    "baseline-2",
+    "baseline-3",
+    "candidate-3"
+  ],
+  "runs": {
+    "checked-off": {
+      "kind": "checked",
+      "phase": "validation",
+      "returncode": 0,
+      "elapsed_seconds": 65.77218504399934,
+      "command": [
+        "srun",
+        "--ntasks=83",
+        "--cpus-per-task=1",
+        "--cpu-bind=cores",
+        "--kill-on-bad-exit=1",
+        "./climateJ5",
+        "simple.in"
+      ],
+      "oracles": false,
+      "profile": false,
+      "binary_sha256": "6450842f1eedd6dd3b612ff61db7f589166d3c5725ec3206aef37927da9e3a6a",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "reloads": [
+        3,
+        4
+      ],
+      "post_restart_remaps": {
+        "4": true
+      },
+      "step_count": 12,
+      "ordinary_step_median": 4.5
+    },
+    "checked-on": {
+      "kind": "checked",
+      "phase": "validation",
+      "returncode": 0,
+      "elapsed_seconds": 180.53180231000078,
+      "command": [
+        "srun",
+        "--ntasks=83",
+        "--cpus-per-task=1",
+        "--cpu-bind=cores",
+        "--kill-on-bad-exit=1",
+        "./climateJ5",
+        "simple.in"
+      ],
+      "oracles": true,
+      "profile": false,
+      "binary_sha256": "6450842f1eedd6dd3b612ff61db7f589166d3c5725ec3206aef37927da9e3a6a",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "1",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "1",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "1",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "reloads": [
+        3,
+        4
+      ],
+      "post_restart_remaps": {
+        "4": true
+      },
+      "step_count": 12,
+      "ordinary_step_median": 14.4
+    },
+    "baseline-warmup": {
+      "kind": "baseline",
+      "phase": "warmup",
+      "returncode": 0,
+      "elapsed_seconds": 32.19633331700061,
+      "command": [
+        "srun",
+        "--ntasks=83",
+        "--cpus-per-task=1",
+        "--cpu-bind=cores",
+        "--kill-on-bad-exit=1",
+        "./climateJ5",
+        "simple.in"
+      ],
+      "oracles": false,
+      "profile": false,
+      "binary_sha256": "8063d5898b0c0d7724650242ab3779a6311d8ffed2a82187dd6d703df40a4362",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "reloads": [
+        3,
+        4
+      ],
+      "post_restart_remaps": {
+        "4": true
+      },
+      "step_count": 12,
+      "ordinary_step_median": 1.64
+    },
+    "candidate-warmup": {
+      "kind": "candidate",
+      "phase": "warmup",
+      "returncode": 0,
+      "elapsed_seconds": 30.724439932000678,
+      "command": [
+        "srun",
+        "--ntasks=83",
+        "--cpus-per-task=1",
+        "--cpu-bind=cores",
+        "--kill-on-bad-exit=1",
+        "./climateJ5",
+        "simple.in"
+      ],
+      "oracles": false,
+      "profile": false,
+      "binary_sha256": "b433a652d38c2f741730131e30d0b4ee4b0020dee1c73d5d430e10c353ee8d4a",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "reloads": [
+        3,
+        4
+      ],
+      "post_restart_remaps": {
+        "4": true
+      },
+      "step_count": 12,
+      "ordinary_step_median": 1.53
+    },
+    "baseline-1": {
+      "kind": "baseline",
+      "phase": "timing",
+      "returncode": 0,
+      "elapsed_seconds": 32.089279887000885,
+      "command": [
+        "srun",
+        "--ntasks=83",
+        "--cpus-per-task=1",
+        "--cpu-bind=cores",
+        "--kill-on-bad-exit=1",
+        "./climateJ5",
+        "simple.in"
+      ],
+      "oracles": false,
+      "profile": false,
+      "binary_sha256": "8063d5898b0c0d7724650242ab3779a6311d8ffed2a82187dd6d703df40a4362",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "reloads": [
+        3,
+        4
+      ],
+      "post_restart_remaps": {
+        "4": true
+      },
+      "step_count": 12,
+      "ordinary_step_median": 1.65
+    },
+    "candidate-1": {
+      "kind": "candidate",
+      "phase": "timing",
+      "returncode": 0,
+      "elapsed_seconds": 30.662487620998945,
+      "command": [
+        "srun",
+        "--ntasks=83",
+        "--cpus-per-task=1",
+        "--cpu-bind=cores",
+        "--kill-on-bad-exit=1",
+        "./climateJ5",
+        "simple.in"
+      ],
+      "oracles": false,
+      "profile": false,
+      "binary_sha256": "b433a652d38c2f741730131e30d0b4ee4b0020dee1c73d5d430e10c353ee8d4a",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "reloads": [
+        3,
+        4
+      ],
+      "post_restart_remaps": {
+        "4": true
+      },
+      "step_count": 12,
+      "ordinary_step_median": 1.52
+    },
+    "candidate-2": {
+      "kind": "candidate",
+      "phase": "timing",
+      "returncode": 0,
+      "elapsed_seconds": 30.576291237999612,
+      "command": [
+        "srun",
+        "--ntasks=83",
+        "--cpus-per-task=1",
+        "--cpu-bind=cores",
+        "--kill-on-bad-exit=1",
+        "./climateJ5",
+        "simple.in"
+      ],
+      "oracles": false,
+      "profile": false,
+      "binary_sha256": "b433a652d38c2f741730131e30d0b4ee4b0020dee1c73d5d430e10c353ee8d4a",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "reloads": [
+        3,
+        4
+      ],
+      "post_restart_remaps": {
+        "4": true
+      },
+      "step_count": 12,
+      "ordinary_step_median": 1.53
+    },
+    "baseline-2": {
+      "kind": "baseline",
+      "phase": "timing",
+      "returncode": 0,
+      "elapsed_seconds": 32.199271675999626,
+      "command": [
+        "srun",
+        "--ntasks=83",
+        "--cpus-per-task=1",
+        "--cpu-bind=cores",
+        "--kill-on-bad-exit=1",
+        "./climateJ5",
+        "simple.in"
+      ],
+      "oracles": false,
+      "profile": false,
+      "binary_sha256": "8063d5898b0c0d7724650242ab3779a6311d8ffed2a82187dd6d703df40a4362",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "reloads": [
+        3,
+        4
+      ],
+      "post_restart_remaps": {
+        "4": true
+      },
+      "step_count": 12,
+      "ordinary_step_median": 1.65
+    },
+    "baseline-3": {
+      "kind": "baseline",
+      "phase": "timing",
+      "returncode": 0,
+      "elapsed_seconds": 32.0761758439985,
+      "command": [
+        "srun",
+        "--ntasks=83",
+        "--cpus-per-task=1",
+        "--cpu-bind=cores",
+        "--kill-on-bad-exit=1",
+        "./climateJ5",
+        "simple.in"
+      ],
+      "oracles": false,
+      "profile": false,
+      "binary_sha256": "8063d5898b0c0d7724650242ab3779a6311d8ffed2a82187dd6d703df40a4362",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "reloads": [
+        3,
+        4
+      ],
+      "post_restart_remaps": {
+        "4": true
+      },
+      "step_count": 12,
+      "ordinary_step_median": 1.64
+    },
+    "candidate-3": {
+      "kind": "candidate",
+      "phase": "timing",
+      "returncode": 0,
+      "elapsed_seconds": 30.481043240000872,
+      "command": [
+        "srun",
+        "--ntasks=83",
+        "--cpus-per-task=1",
+        "--cpu-bind=cores",
+        "--kill-on-bad-exit=1",
+        "./climateJ5",
+        "simple.in"
+      ],
+      "oracles": false,
+      "profile": false,
+      "binary_sha256": "b433a652d38c2f741730131e30d0b4ee4b0020dee1c73d5d430e10c353ee8d4a",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "reloads": [
+        3,
+        4
+      ],
+      "post_restart_remaps": {
+        "4": true
+      },
+      "step_count": 12,
+      "ordinary_step_median": 1.52
+    }
+  },
+  "gates": {
+    "checked-off": {
+      "passed": true,
+      "failures": [],
+      "checkpoints": {
+        "test_checkpoint_0004.bin.zst": {
+          "left": "/1/home/kevlahan/stage187-results-20260911-152640/checked-off/test_checkpoint_0004.bin.zst",
+          "right": "/1/home/kevlahan/stage187-results-20260911-152640/checked-off/test_checkpoint_0004.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "scope": "Exact semantic fields, thresholds and topology; compressed bytes/load weights may differ.",
+      "reference": "/1/home/kevlahan/stage187-results-20260911-152640/checked-off",
+      "self_check": true
+    },
+    "checked-on": {
+      "passed": true,
+      "failures": [],
+      "checkpoints": {
+        "test_checkpoint_0004.bin.zst": {
+          "left": "/1/home/kevlahan/stage187-results-20260911-152640/checked-off/test_checkpoint_0004.bin.zst",
+          "right": "/1/home/kevlahan/stage187-results-20260911-152640/checked-on/test_checkpoint_0004.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "scope": "Exact semantic fields, thresholds and topology; compressed bytes/load weights may differ.",
+      "reference": "/1/home/kevlahan/stage187-results-20260911-152640/checked-off",
+      "self_check": false
+    },
+    "baseline-warmup": {
+      "passed": true,
+      "failures": [],
+      "checkpoints": {
+        "test_checkpoint_0004.bin.zst": {
+          "left": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup/test_checkpoint_0004.bin.zst",
+          "right": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup/test_checkpoint_0004.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "scope": "Exact semantic fields, thresholds and topology; compressed bytes/load weights may differ.",
+      "reference": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup",
+      "self_check": true
+    },
+    "candidate-warmup": {
+      "passed": true,
+      "failures": [],
+      "checkpoints": {
+        "test_checkpoint_0004.bin.zst": {
+          "left": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup/test_checkpoint_0004.bin.zst",
+          "right": "/1/home/kevlahan/stage187-results-20260911-152640/candidate-warmup/test_checkpoint_0004.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "scope": "Exact semantic fields, thresholds and topology; compressed bytes/load weights may differ.",
+      "reference": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup",
+      "self_check": false
+    },
+    "baseline-1": {
+      "passed": true,
+      "failures": [],
+      "checkpoints": {
+        "test_checkpoint_0004.bin.zst": {
+          "left": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup/test_checkpoint_0004.bin.zst",
+          "right": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-1/test_checkpoint_0004.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "scope": "Exact semantic fields, thresholds and topology; compressed bytes/load weights may differ.",
+      "reference": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup",
+      "self_check": false
+    },
+    "candidate-1": {
+      "passed": true,
+      "failures": [],
+      "checkpoints": {
+        "test_checkpoint_0004.bin.zst": {
+          "left": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup/test_checkpoint_0004.bin.zst",
+          "right": "/1/home/kevlahan/stage187-results-20260911-152640/candidate-1/test_checkpoint_0004.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "scope": "Exact semantic fields, thresholds and topology; compressed bytes/load weights may differ.",
+      "reference": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup",
+      "self_check": false
+    },
+    "candidate-2": {
+      "passed": true,
+      "failures": [],
+      "checkpoints": {
+        "test_checkpoint_0004.bin.zst": {
+          "left": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup/test_checkpoint_0004.bin.zst",
+          "right": "/1/home/kevlahan/stage187-results-20260911-152640/candidate-2/test_checkpoint_0004.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "scope": "Exact semantic fields, thresholds and topology; compressed bytes/load weights may differ.",
+      "reference": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup",
+      "self_check": false
+    },
+    "baseline-2": {
+      "passed": true,
+      "failures": [],
+      "checkpoints": {
+        "test_checkpoint_0004.bin.zst": {
+          "left": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup/test_checkpoint_0004.bin.zst",
+          "right": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-2/test_checkpoint_0004.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "scope": "Exact semantic fields, thresholds and topology; compressed bytes/load weights may differ.",
+      "reference": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup",
+      "self_check": false
+    },
+    "baseline-3": {
+      "passed": true,
+      "failures": [],
+      "checkpoints": {
+        "test_checkpoint_0004.bin.zst": {
+          "left": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup/test_checkpoint_0004.bin.zst",
+          "right": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-3/test_checkpoint_0004.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "scope": "Exact semantic fields, thresholds and topology; compressed bytes/load weights may differ.",
+      "reference": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup",
+      "self_check": false
+    },
+    "candidate-3": {
+      "passed": true,
+      "failures": [],
+      "checkpoints": {
+        "test_checkpoint_0004.bin.zst": {
+          "left": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup/test_checkpoint_0004.bin.zst",
+          "right": "/1/home/kevlahan/stage187-results-20260911-152640/candidate-3/test_checkpoint_0004.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "scope": "Exact semantic fields, thresholds and topology; compressed bytes/load weights may differ.",
+      "reference": "/1/home/kevlahan/stage187-results-20260911-152640/baseline-warmup",
+      "self_check": false
+    }
+  },
+  "limitations": [
+    "No checked-versus-optimized or legacy numerical equivalence claim.",
+    "No automatic distributed memory-pressure qualification.",
+    "Checked solver flags do not necessarily cover external physics."
+  ],
+  "summary": {
+    "baseline": {
+      "elapsed_seconds": [
+        32.089279887000885,
+        32.199271675999626,
+        32.0761758439985
+      ],
+      "ordinary_step_medians": [
+        1.65,
+        1.65,
+        1.64
+      ],
+      "median_elapsed_seconds": 32.089279887000885,
+      "median_ordinary_step_seconds": 1.65
+    },
+    "candidate": {
+      "elapsed_seconds": [
+        30.662487620998945,
+        30.576291237999612,
+        30.481043240000872
+      ],
+      "ordinary_step_medians": [
+        1.52,
+        1.53,
+        1.52
+      ],
+      "median_elapsed_seconds": 30.576291237999612,
+      "median_ordinary_step_seconds": 1.52
+    },
+    "observed_elapsed_reduction_percent": 4.714934876473098,
+    "scope": "Observed timings only. Inspect node load, placement and memory/swap evidence. Warmups, correctness runs and detailed profiles are excluded."
+  }
+}

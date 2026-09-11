@@ -1,0 +1,196 @@
+--- a/src/checkpoint.f90
++++ b/src/checkpoint.f90
+@@ -397,29 +397,7 @@
+          trim(run_id) // "_checkpoint_" // cp4 // ".bin"
+ 
+ 
+-    call MPI_File_open( &
+-         comm, &
+-         filename, &
+-         MPI_MODE_CREATE + MPI_MODE_WRONLY, &
+-         MPI_INFO_NULL, &
+-         fh, ierr)
+-
+-    if (ierr /= MPI_SUCCESS) then
+-       error stop "dump_adapt_mpi: MPI_File_open failed"
+-    end if
+-
+-
+-    ! Truncate an existing checkpoint with the same name.
+-    ! MPI_File_set_size is collective.
+-
+-    call MPI_File_set_size( &
+-         fh, &
+-         int(0, MPI_OFFSET_KIND), &
+-         ierr)
+-
+-    if (ierr /= MPI_SUCCESS) then
+-       error stop "dump_adapt_mpi: MPI_File_set_size failed"
+-    end if
++    call open_checkpoint_output(fh,filename)
+ 
+ 
+     ! Rank zero writes header and directory.
+@@ -429,13 +407,8 @@
+     end if
+ 
+ 
+-    ! Make sure directory writing has completed before payload writes.
+-
+-    call MPI_Barrier(comm, ierr)
+-
+-    if (ierr /= MPI_SUCCESS) then
+-       error stop "dump_adapt_mpi: MPI_Barrier failed"
+-    end if
++    ! Publish metadata before starting the collective payload operation.
++    call sync_checkpoint_output(fh,"metadata")
+ 
+ 
+     ! ---------------------------------------------------------------
+@@ -453,6 +426,9 @@
+     if (ierr /= MPI_SUCCESS) then
+        error stop "dump_adapt_mpi: MPI_File_write_at_all failed"
+     end if
++    call require_mpi_transfer_count( &
++         status,MPI_BYTE,int(rank_bytes),"dump_adapt_mpi payload write")
++    call sync_checkpoint_output(fh,"payload")
+ 
+ 
+     call MPI_File_close(fh, ierr)
+@@ -477,6 +453,9 @@
+ 
+ 
+     if (rank == 0) then
++
++       ! The immediate restart may reuse cp_* in memory; check persisted metadata.
++       call verify_checkpoint_output_directory(filename)
+ 
+        cmd = 'zstd -q -1 --rm -f "' // trim(filename) // '"'
+ 
+@@ -769,6 +748,90 @@
+   end subroutine build_checkpoint_directory
+ 
+ 
++  subroutine open_checkpoint_output(fh,filename)
++    ! MVAPICH/ROMIO collective buffering on bbserv NFS produced persistent
++    ! holes in otherwise successful writes. Use the probe-validated hints;
++    ! payload ownership, offsets and the file format remain unchanged.
++    implicit none
++    type(MPI_File), intent(out) :: fh
++    character(len=*), intent(in) :: filename
++    type(MPI_Info) :: hints,actual
++    integer :: ierr,i
++    logical :: found
++    character(len=14), parameter :: keys(2) = &
++         [character(len=14) :: 'romio_cb_write','romio_ds_write']
++    character(len=MPI_MAX_INFO_VAL) :: value
++
++    call MPI_Info_create(hints,ierr)
++    if (ierr /= MPI_SUCCESS) error stop "checkpoint info create failed"
++    do i=1,size(keys)
++       call MPI_Info_set(hints,trim(keys(i)),"disable",ierr)
++       if (ierr /= MPI_SUCCESS) error stop "checkpoint info set failed"
++    end do
++    call MPI_File_open(comm,filename,MPI_MODE_CREATE+MPI_MODE_WRONLY,hints,fh,ierr)
++    if (ierr /= MPI_SUCCESS) error stop "checkpoint output open failed"
++    call MPI_Info_free(hints,ierr)
++    if (ierr /= MPI_SUCCESS) error stop "checkpoint info free failed"
++
++    call MPI_File_get_info(fh,actual,ierr)
++    if (ierr /= MPI_SUCCESS) error stop "checkpoint get info failed"
++    do i=1,size(keys)
++       value="not reported"
++       call MPI_Info_get(actual,trim(keys(i)),MPI_MAX_INFO_VAL,value,found,ierr)
++       if (ierr /= MPI_SUCCESS) error stop "checkpoint get hint failed"
++       if (.not.found) value="not reported"
++       if (rank==0) write(6,'(4a)') "Checkpoint write hint: ",trim(keys(i))," = ",trim(value)
++       if (found) then
++          if (trim(value)/="disable") error stop "checkpoint write hint was not accepted"
++       end if
++    end do
++    call MPI_Info_free(actual,ierr)
++    if (ierr /= MPI_SUCCESS) error stop "checkpoint actual info free failed"
++
++    call MPI_File_set_size(fh,0_MPI_OFFSET_KIND,ierr)
++    if (ierr /= MPI_SUCCESS) error stop "checkpoint output truncate failed"
++    ! Finish truncation on every rank before rank zero writes the header.
++    call MPI_Barrier(comm,ierr)
++    if (ierr /= MPI_SUCCESS) error stop "checkpoint post-truncation barrier failed"
++  end subroutine open_checkpoint_output
++
++
++  subroutine sync_checkpoint_output(fh,context)
++    implicit none
++    type(MPI_File), intent(in) :: fh
++    character(len=*), intent(in) :: context
++    integer :: ierr
++    call MPI_File_sync(fh,ierr)
++    if (ierr /= MPI_SUCCESS) then
++       write(error_unit,'(2a)') "Checkpoint output sync failed: ",context
++       error stop "checkpoint output sync failed"
++    end if
++    call MPI_Barrier(comm,ierr)
++    if (ierr /= MPI_SUCCESS) error stop "checkpoint post-sync barrier failed"
++  end subroutine sync_checkpoint_output
++
++
++  subroutine verify_checkpoint_output_directory(filename)
++    ! Rank-zero stream read after all MPI handles close; catches bad persisted
++    ! metadata even when the immediate restart retains cp_* in memory.
++    implicit none
++    character(len=*), intent(in) :: filename
++    integer :: fid,ios
++    integer :: loads(N_GLO_DOMAIN)
++    integer(int64) :: header(3),offsets(N_GLO_DOMAIN),lengths(N_GLO_DOMAIN)
++    open(newunit=fid,file=filename,status="old",access="stream", &
++         form="unformatted",action="read",iostat=ios)
++    if (ios/=0) error stop "checkpoint metadata verification open failed"
++    read(fid,iostat=ios) header,loads,offsets,lengths
++    close(fid)
++    if (ios/=0) error stop "checkpoint persisted metadata is truncated"
++    if (any(header/=[CP_MAGIC,CP_VERSION,int(N_GLO_DOMAIN,int64)])) &
++         error stop "checkpoint persisted header differs from written header"
++    if (any(loads/=cp_load).or.any(offsets/=cp_offset).or.any(lengths/=cp_nbytes)) &
++         error stop "checkpoint persisted directory differs from written directory"
++  end subroutine verify_checkpoint_output_directory
++
++
+   subroutine write_checkpoint_directory (fh)
+     implicit none
+ 
+@@ -792,6 +855,8 @@
+     if (ierr /= MPI_SUCCESS) then
+        error stop "write_checkpoint_directory: header write failed"
+     end if
++    call require_mpi_transfer_count( &
++         status,MPI_INTEGER8,3,"write_checkpoint_directory header")
+ 
+     call MPI_File_write_at( &
+          fh, &
+@@ -802,6 +867,8 @@
+     if (ierr /= MPI_SUCCESS) then
+        error stop "write_checkpoint_directory: load write failed"
+     end if
++    call require_mpi_transfer_count( &
++         status,MPI_INTEGER,N_GLO_DOMAIN,"write_checkpoint_directory load")
+ 
+     call MPI_File_write_at( &
+          fh, &
+@@ -812,6 +879,8 @@
+     if (ierr /= MPI_SUCCESS) then
+        error stop "write_checkpoint_directory: offset write failed"
+     end if
++    call require_mpi_transfer_count( &
++         status,MPI_INTEGER8,N_GLO_DOMAIN,"write_checkpoint_directory offset")
+ 
+     call MPI_File_write_at( &
+          fh, &
+@@ -822,6 +891,8 @@
+     if (ierr /= MPI_SUCCESS) then
+        error stop "write_checkpoint_directory: nbytes write failed"
+     end if
++    call require_mpi_transfer_count( &
++         status,MPI_INTEGER8,N_GLO_DOMAIN,"write_checkpoint_directory nbytes")
+ 
+   end subroutine write_checkpoint_directory
+ 

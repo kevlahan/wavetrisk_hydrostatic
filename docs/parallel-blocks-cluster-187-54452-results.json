@@ -1,0 +1,79 @@
+{
+  "job_id": 54452,
+  "source": "User-supplied full results.json, archived as parallel-blocks-cluster-187-54452-campaign.json",
+  "reported_status": "passed",
+  "configuration_from_session": {
+    "ranks": 83,
+    "PARAM": "param_J5",
+    "max_level": 7,
+    "integrator": "RK4",
+    "time_end": 0.315,
+    "dt_write": 0.01,
+    "resume": 3,
+    "expected_new_checkpoint": 4,
+    "common_checkpoint_io_patch": true
+  },
+  "baseline": {
+    "elapsed_seconds": [
+      32.089279887000885,
+      32.199271675999626,
+      32.0761758439985
+    ],
+    "ordinary_step_medians": [
+      1.65,
+      1.65,
+      1.64
+    ]
+  },
+  "candidate": {
+    "elapsed_seconds": [
+      30.662487620998945,
+      30.576291237999612,
+      30.481043240000872
+    ],
+    "ordinary_step_medians": [
+      1.52,
+      1.53,
+      1.52
+    ]
+  },
+  "reported_passes": [
+    "checked-off",
+    "checked-on",
+    "baseline-warmup",
+    "candidate-warmup",
+    "baseline-1",
+    "candidate-1",
+    "candidate-2",
+    "baseline-2",
+    "baseline-3",
+    "candidate-3"
+  ],
+  "derived": {
+    "median_elapsed_reduction_percent": 4.714934876473098,
+    "median_ordinary_step_reduction_percent": 7.878787878787874,
+    "all_candidate_elapsed_below_all_baseline_elapsed": true
+  },
+  "limitations": [
+    "No node load or distributed memory/swap evidence supplied.",
+    "No legacy or checked-versus-optimized equivalence claim.",
+    "Successful I/O in this campaign does not establish universal filesystem correctness."
+  ],
+  "campaign_sha256": "81f6a080e681ea42cab69ae079e4b3f8aabf1a23e0ae7f23e3a444814603dd30",
+  "verified_coverage": {
+    "runs": 10,
+    "steps_per_run": 12,
+    "reloads": [
+      3,
+      4
+    ],
+    "post_restart_remap_all_runs": true,
+    "independent_comparisons": 8,
+    "reference_self_checks": 2,
+    "field_categories_per_checkpoint": 16,
+    "all_differences_and_nonfinite_counts": 0,
+    "nodes": "bb[01-02]",
+    "tasks_per_node": "42,41",
+    "local_sources_match_patch_manifests": true
+  }
+}

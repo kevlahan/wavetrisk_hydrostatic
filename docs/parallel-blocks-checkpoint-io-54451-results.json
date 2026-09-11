@@ -1,0 +1,159 @@
+{
+  "job_id": 54451,
+  "log_sha256": "c50ad3d11170178480fe822adbd1968b51d7824cc37aedcb6e9129e35f749e25",
+  "mpi": "MVAPICH 4.0 ch4:ucx with ROMIO",
+  "compiler": "GNU Fortran 13.2.0",
+  "ranks": 83,
+  "filesystem": "NFS4.2 shared /1 mount on bb01 and bb02",
+  "previous_probe_postrun": {
+    "0": {
+      "bad_directory": 0,
+      "bad_header": 2,
+      "bad_payload_blocks": 1,
+      "bad_size": 0,
+      "files": 8
+    },
+    "1": {
+      "bad_directory": 0,
+      "bad_header": 0,
+      "bad_payload_blocks": 2,
+      "bad_size": 0,
+      "files": 8
+    }
+  },
+  "current_probe_postrun": {
+    "0": {
+      "bad_directory": 0,
+      "bad_header": 0,
+      "bad_payload_blocks": 0,
+      "bad_size": 0,
+      "files": 8
+    },
+    "1": {
+      "bad_directory": 0,
+      "bad_header": 0,
+      "bad_payload_blocks": 3,
+      "bad_size": 0,
+      "files": 8
+    },
+    "2": {
+      "bad_directory": 0,
+      "bad_header": 0,
+      "bad_payload_blocks": 1,
+      "bad_size": 0,
+      "files": 8
+    },
+    "3": {
+      "bad_directory": 0,
+      "bad_header": 0,
+      "bad_payload_blocks": 0,
+      "bad_size": 0,
+      "files": 8
+    },
+    "4": {
+      "bad_directory": 0,
+      "bad_header": 0,
+      "bad_payload_blocks": 0,
+      "bad_size": 0,
+      "files": 8
+    },
+    "5": {
+      "bad_directory": 0,
+      "bad_header": 0,
+      "bad_payload_blocks": 0,
+      "bad_size": 0,
+      "files": 8
+    }
+  },
+  "readers": [
+    {
+      "mode": 0,
+      "reader": 82,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 0
+    },
+    {
+      "mode": 0,
+      "reader": 0,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 0
+    },
+    {
+      "mode": 1,
+      "reader": 0,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 3
+    },
+    {
+      "mode": 1,
+      "reader": 82,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 0
+    },
+    {
+      "mode": 2,
+      "reader": 82,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 1
+    },
+    {
+      "mode": 2,
+      "reader": 0,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 1
+    },
+    {
+      "mode": 3,
+      "reader": 82,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 0
+    },
+    {
+      "mode": 3,
+      "reader": 0,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 0
+    },
+    {
+      "mode": 4,
+      "reader": 82,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 0
+    },
+    {
+      "mode": 4,
+      "reader": 0,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 0
+    },
+    {
+      "mode": 5,
+      "reader": 0,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 0
+    },
+    {
+      "mode": 5,
+      "reader": 82,
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 0
+    }
+  ],
+  "reported_hints": {
+    "romio_cb_write": "disable",
+    "romio_ds_write": "disable"
+  },
+  "interpretation": "Persistent write failures reproduced. Mode 2 also had a second-reader mismatch not seen in the postrun read. Modes 3/4/5 pass both readers and postrun checks in eight trials each; limited probe evidence, not full solver acceptance."
+}

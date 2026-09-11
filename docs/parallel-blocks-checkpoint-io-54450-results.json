@@ -1,0 +1,30 @@
+{
+  "job_id": 54450,
+  "source": "User-supplied complete cluster log in this conversation",
+  "compiler": "GNU Fortran (Spack GCC) 13.2.0",
+  "mpi": "MVAPICH 4.0, ch4:ucx, ROMIO enabled",
+  "ranks": 83,
+  "nodes": [
+    "bb01.rhpcs.internal",
+    "bb02.rhpcs.internal"
+  ],
+  "trials_per_mode": 8,
+  "modes": {
+    "0": {
+      "bad_header": 2,
+      "bad_directory": 0,
+      "bad_payload_blocks": 1,
+      "zero_header_trials": [
+        5,
+        8
+      ]
+    },
+    "1": {
+      "bad_header": 0,
+      "bad_directory": 0,
+      "bad_payload_blocks": 2
+    }
+  },
+  "original_probe_sha256": "35ebbdcb8f53c4593b98f292b958e24c10de4e600f098f1e241b72816f6ed8e7",
+  "interpretation": "Current ordering reproduced zero headers; barrier-only avoided header failure in this sample but did not remove payload failures. Not enough evidence to attribute the remaining error to MPI implementation, filesystem or visibility; no production fix promoted."
+}

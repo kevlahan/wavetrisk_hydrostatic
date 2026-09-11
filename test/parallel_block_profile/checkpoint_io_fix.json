@@ -1,0 +1,6 @@
+{
+  "description": "Checkpoint writer workaround matching mode 3 of bbserv probe 54451, plus transfer-count and persisted-metadata checks. Apply identically to pre187 and Stage187; solver cluster validation passed in bbserv job 54452.",
+  "before_sha256": "2aa3aa666bfb331ca4cd83198b6cf93a92c1b9113e97f9a7907734131312388a",
+  "after_sha256": "1b99e840396a1edd8a7fd62d793d09ad3def1086041d8d611a16cce1f4ec7b90",
+  "patch_sha256": "0a4f5aae337b0bb671a607da83f95225f6d92d761dfc02ff8792c4ac5bcabde2"
+}
