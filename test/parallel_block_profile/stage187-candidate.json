@@ -1,0 +1,9 @@
+{
+  "base_commit": "99571e6129261c36804f41d98ebf1dc41bd4f626",
+  "description": "Stage 187 candidate Fortran sources, including retained Stage 184 and 186 changes.",
+  "source_sha256": {
+    "src/parallel_block_mpi.f90": "9bfec6e26b547cac9930e5f28c919d5db77ac713c53c1a3913fd5cebdb8e7363",
+    "src/parallel_block_scalar_storage.f90": "d438e6efe83ad8a94b231249617a55793b91d18f4b1bad07a836d1430429a5ce"
+  },
+  "patch_sha256": "11520f499c5add9c71e9bfe0e773455372c1b5ba498fa9b75d88537026482db3"
+}

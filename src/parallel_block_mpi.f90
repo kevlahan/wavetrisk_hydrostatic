@@ -827,7 +827,7 @@ module parallel_block_mpi_mod
   end type Block_Scalar_Capture_Domain_Type
   type(Block_Scalar_Capture_Domain_Type), allocatable, save :: &
        block_scalar_capture_domain(:)
-  integer(int64), save :: scalar_producer_work(3) = 0_int64
+  integer(int64), save :: scalar_producer_work(7) = 0_int64
 
   ! Signed AT_EDGE keys, not the AT_NODE dscalar provenance. Each level owns
   ! a fixed request/service schedule for native temperature boundary fluxes.
@@ -1991,7 +1991,7 @@ contains
     integer(int64) :: velocity_sum(9)
     integer(int64) :: mass_sum(6)
     integer(int64) :: inverse_address_sum(5)
-    integer(int64) :: producer_sum(5),producer_local(5)
+    integer(int64) :: producer_sum(9),producer_local(9)
     integer :: producer_domain
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
     integer(int64) :: weight_local
@@ -2053,7 +2053,8 @@ contains
     call MPI_Allreduce(mass_work,mass_sum,6,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce native mass counters")
     producer_local=0_int64
-    producer_local(1:3)=scalar_producer_work
+    producer_local(1:3)=scalar_producer_work(1:3)
+    producer_local(6:9)=scalar_producer_work(4:7)
     if (allocated(block_scalar_divergence_plan%producer_buffer)) then
        producer_local(4)=int(sum(block_scalar_divergence_plan%send_count),int64)+ &
             2_int64*int(sum(block_scalar_divergence_plan%recv_count),int64)
@@ -2066,7 +2067,7 @@ contains
        end do
        producer_local(4:5)=producer_local(4:5)*int(storage_size(0.0_dp)/8,int64)
     end if
-    call MPI_Allreduce(producer_local,producer_sum,5,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call MPI_Allreduce(producer_local,producer_sum,9,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce scalar producer work")
 
     ! Per-rank critical-path projections for the architectural go/no-go
@@ -2253,6 +2254,10 @@ contains
             "  scalar producer: geometry nodes physics values oracle records = ",producer_sum(1:3)
        write(6,'(a,2(i0,1x))') &
             "  scalar producer scratch bytes: old-equivalent current = ",producer_sum(4:5)
+       write(6,'(a,2(i0,1x))') &
+            "  scalar physics batches: calls replaced node writes = ",producer_sum(6:7)
+       write(6,'(a,2(i0,1x))') &
+            "  scalar boundary narrow updates: records logical slots avoided = ",producer_sum(8:9)
        write(6,'(a,5(i0,1x),/)') &
             "  compatibility writebacks total/output/checkpoint/grid/remap = ", &
             compatibility_max
@@ -20665,6 +20670,16 @@ end subroutine build_parallel_block_catalog
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION)
     call block_profile_enter(BLOCK_PROFILE_RESTRICTION_CAPTURE)
     do scalar_slot = 0,nscalar-1
+       if (storage>0.and..not.validate_oracle) then
+          sample=first+(scalar_slot*nfield+level_slot-1)*PATCH_SIZE**2
+          call scalar_write_field_records(block_scalar_tendency(storage)%patch, &
+               sample-1,BLOCK_SCALAR_PHYSICS_START,physics(:,:,v+scalar_slot))
+          if (block_profile) then
+             scalar_producer_work(4)=scalar_producer_work(4)+1_int64
+             scalar_producer_work(5)=scalar_producer_work(5)+PATCH_SIZE**2
+          end if
+          cycle
+       end if
        producer_base=0
        producer_stride=EDGE
        if (storage==0) then
@@ -21374,6 +21389,27 @@ end subroutine build_parallel_block_catalog
          data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
          block
            real(dp) :: record(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+           if (.not.validate_oracle.and..not.block_scalar_divergence_plan%full_transport) then
+              record=BLOCK_BOUNDARY_POISON
+              call fill_boundary_node(d,id+node,v_scalar+scalar_slot-1,capture_direct,record)
+              call scalar_write_range(block_scalar_tendency(local_index)%bdry, &
+                   data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1, &
+                   data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2, &
+                   record(BLOCK_SCALAR_RESTRICTED_FLUX_START:BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-1))
+              if (v_scalar+scalar_slot-1==S_TEMP) then
+                 call scalar_write_range(block_scalar_tendency(local_index)%bdry, &
+                      data_start+BLOCK_SCALAR_PHYSICS_START-1,data_start+BLOCK_SCALAR_PHYSICS_START+EDGE-2, &
+                      record(BLOCK_SCALAR_PHYSICS_START:BLOCK_SCALAR_PHYSICS_START+EDGE-1))
+              end if
+              if (block_profile) then
+                 scalar_producer_work(6)=scalar_producer_work(6)+1_int64
+                 scalar_producer_work(7)=scalar_producer_work(7)+2*BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT- &
+                      EDGE-merge(EDGE,0,v_scalar+scalar_slot-1==S_TEMP)
+              end if
+              cycle
+           end if
+           ! Rebuilds install geometry; the oracle preserves its independent
+           ! complete records at every stage. Neither path uses the shortcut.
            record=scalar_read_range(block_scalar_tendency(local_index)%bdry, &
                 data_start,data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
            call fill_boundary_node(d,id+node,v_scalar+scalar_slot-1,capture_direct,record)

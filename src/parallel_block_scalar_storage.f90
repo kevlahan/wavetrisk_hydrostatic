@@ -7,7 +7,7 @@ module parallel_block_scalar_storage_mod
   private
   public :: Scalar_Record_Storage, scalar_allocate, scalar_release, scalar_extent, scalar_capacity
   public :: scalar_geometry_capacity, scalar_read, scalar_read_range, scalar_write, scalar_write_range, scalar_fill
-  public :: scalar_read_column, scalar_write_column
+  public :: scalar_read_column, scalar_write_column, scalar_write_field_records
   public :: scalar_is_allocated
   public :: scalar_seed_patch
   public :: scalar_install_geometry, scalar_share_inactive, scalar_fill_fields
@@ -254,6 +254,35 @@ contains
             SCALAR_RECORD_WIDTH*store%stride)=value
     end if
   end subroutine scalar_write_column
+
+  subroutine scalar_write_field_records(store,sample,slot,value)
+    ! Install adjacent field slots for consecutive nodes of one field/patch.
+    ! Decode and validate the layout once instead of once per node. Shared
+    ! geometry is deliberately excluded; oracle records remain independent.
+    type(Scalar_Record_Storage), intent(inout) :: store
+    integer, intent(in) :: sample,slot
+    real(dp), intent(in) :: value(:,:)
+    integer :: rows,columns,a,b,q,address
+    rows=size(value,1)
+    columns=size(value,2)
+    if (rows<1.or.columns<1.or.slot<1.or.slot+rows-1>SCALAR_RECORD_WIDTH) &
+         error stop 'scalar field-record shape invalid'
+    if (sample<0.or.sample+columns>store%samples.or.store%stride<1) &
+         error stop 'scalar field-record storage extent invalid'
+    if (mod(sample,store%stride)+columns>store%stride) &
+         error stop 'scalar field-record batch crosses field boundary'
+    a=slot_map(slot)
+    b=slot_map(slot+rows-1)
+    if (a<1.or.b-a/=rows-1) error stop 'scalar field-record batch requires contiguous field slots'
+    if (store%compact) then
+       store%field(a:b,sample+1:sample+columns)=value
+    else
+       do q=1,columns
+          address=SCALAR_RECORD_WIDTH*(sample+q-1)+slot
+          store%full(address:address+rows-1)=value(:,q)
+       end do
+    end if
+  end subroutine scalar_write_field_records
 
   subroutine write_value(store,address,value)
     type(Scalar_Record_Storage), intent(inout) :: store
