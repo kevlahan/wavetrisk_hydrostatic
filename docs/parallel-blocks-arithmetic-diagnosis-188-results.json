@@ -1,0 +1,2626 @@
+{
+  "stage": 188,
+  "status": "diagnosed_crossmode_exact_and_legacy_screen_passes_with_contraction_off",
+  "original_default_builds_unchanged": true,
+  "raw_directory": "/private/tmp/wavetrisk-stage188-crossmode-01",
+  "compiler": "GNU Fortran (Homebrew GCC 15.2.0) 15.2.0",
+  "change": "Disable solver expression contraction only; external physics objects unchanged",
+  "j4": {
+    "short_control": {
+      "candidate-opt": {
+        "passed": false,
+        "comparison": {
+          "left": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-opt/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/wavetrisk-stage188-crossmode-01/nofma-short/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 56461,
+              "nonfinite": 0,
+              "max_abs": 1.0302869668521453e-11,
+              "worst": {
+                "domain": 1,
+                "record": 0,
+                "k": 30,
+                "index": 41,
+                "left": 25.00391829950994,
+                "right": 25.003918299499638
+              }
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 17674,
+              "nonfinite": 0,
+              "max_abs": 1.5916157281026244e-11,
+              "worst": {
+                "domain": 0,
+                "record": 0,
+                "k": 11,
+                "index": 10,
+                "left": 879.2006493643884,
+                "right": 879.2006493643725
+              }
+            },
+            "coarse/temperature/soil": {
+              "different": 6673,
+              "nonfinite": 0,
+              "max_abs": 6.87805368215777e-12,
+              "worst": {
+                "domain": 19,
+                "record": 0,
+                "k": -10,
+                "index": 14,
+                "left": 300.00003051758534,
+                "right": 300.00003051757847
+              }
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 17709,
+              "nonfinite": 0,
+              "max_abs": 4.889443516731262e-09,
+              "worst": {
+                "domain": 0,
+                "record": 0,
+                "k": 11,
+                "index": 10,
+                "left": 266677.1497285281,
+                "right": 266677.1497285232
+              }
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 781162,
+              "nonfinite": 0,
+              "max_abs": 7.676845825699274e-10,
+              "worst": {
+                "domain": 19,
+                "record": 68,
+                "k": 30,
+                "index": 8,
+                "left": 0.0029817205277353764,
+                "right": 0.002981721295419959
+              }
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 143940,
+              "nonfinite": 0,
+              "max_abs": 1.8854140471091796e-09,
+              "worst": {
+                "domain": 31,
+                "record": 29,
+                "k": 12,
+                "index": 4,
+                "left": 1.293607497370235,
+                "right": 1.293607495484821
+              }
+            },
+            "wavelet/temperature/soil": {
+              "different": 51951,
+              "nonfinite": 0,
+              "max_abs": 5.745164344261866e-10,
+              "worst": {
+                "domain": 19,
+                "record": 62,
+                "k": 0,
+                "index": 7,
+                "left": -0.0037837596586882682,
+                "right": -0.0037837602332047027
+              }
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 143939,
+              "nonfinite": 0,
+              "max_abs": 5.671433882525889e-07,
+              "worst": {
+                "domain": 31,
+                "record": 29,
+                "k": 12,
+                "index": 4,
+                "left": 406.71763761251054,
+                "right": 406.71763704536716
+              }
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 139,
+              "nonfinite": 0,
+              "max_abs": 1.1368683772161603e-13,
+              "worst": {
+                "domain": 1,
+                "record": 0,
+                "k": 8,
+                "index": 0,
+                "left": 542.1241131565303,
+                "right": 542.1241131565301
+              }
+            },
+            "pole/temperature/soil": {
+              "different": 110,
+              "nonfinite": 0,
+              "max_abs": 3.922195901395753e-12,
+              "worst": {
+                "domain": 1,
+                "record": 0,
+                "k": -10,
+                "index": 0,
+                "left": 300.00003051757795,
+                "right": 300.0000305175819
+              }
+            },
+            "pole/temperature/atmosphere": {
+              "different": 195,
+              "nonfinite": 0,
+              "max_abs": 5.820766091346741e-11,
+              "worst": {
+                "domain": 5,
+                "record": 0,
+                "k": 11,
+                "index": 0,
+                "left": 242269.33343549835,
+                "right": 242269.3334354984
+              }
+            }
+          }
+        }
+      },
+      "candidate-checked": {
+        "passed": true,
+        "comparison": {
+          "left": "/private/tmp/wavetrisk-checkpoint-io-validation-01/candidate-checked/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/wavetrisk-stage188-crossmode-01/nofma-short/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      }
+    },
+    "full_crossmode": {
+      "passed": true,
+      "failures": [],
+      "exact_fields_required": true,
+      "domains": 40,
+      "min_level": 4,
+      "expected_new_checkpoint_indices": [
+        3
+      ],
+      "checkpoints": {
+        "localJ4J6_checkpoint_0003.bin.zst": {
+          "left": "/private/tmp/wavetrisk-stage187-validation-01/rk4-checked-full/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/wavetrisk-stage188-crossmode-01/nofma-full/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "unchanged_screen_passed": true
+    },
+    "legacy_default": {
+      "passed": false,
+      "failures": [
+        "localJ4J6_checkpoint_0003.bin.zst: coarse/velocity/atmosphere: 9.2279206498346866e-10 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: coarse/mass/atmosphere: 8.3026918673567707e-12 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: coarse/temperature/atmosphere: 8.2327460404485464e-09 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: wavelet/velocity/atmosphere: 1.5948060649861873e-09 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: wavelet/mass/atmosphere: 2.4787153232730397e-11 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: wavelet/temperature/atmosphere: 2.4604531745353597e-08 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: pole/mass/atmosphere: 1.1368683772161603e-13 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: pole/temperature/atmosphere: 2.9103830456733704e-11 exceeds 0"
+      ],
+      "exact_fields_required": true,
+      "domains": 40,
+      "min_level": 4,
+      "expected_new_checkpoint_indices": [
+        3
+      ],
+      "checkpoints": {
+        "localJ4J6_checkpoint_0003.bin.zst": {
+          "left": "/private/tmp/wavetrisk-stage187-validation-01/optimized/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/wavetrisk-stage188-crossmode-01/legacy-default-full/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 41097,
+              "nonfinite": 0,
+              "max_abs": 9.227920649834687e-10,
+              "worst": {
+                "domain": 23,
+                "record": 0,
+                "k": 30,
+                "index": 44,
+                "left": -2.363041613913482,
+                "right": -2.36304161299069
+              }
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 9878,
+              "nonfinite": 0,
+              "max_abs": 8.30269186735677e-12,
+              "worst": {
+                "domain": 24,
+                "record": 0,
+                "k": 30,
+                "index": 8,
+                "left": 28.530751822895752,
+                "right": 28.530751822904055
+              }
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 10047,
+              "nonfinite": 0,
+              "max_abs": 8.232746040448546e-09,
+              "worst": {
+                "domain": 24,
+                "record": 0,
+                "k": 30,
+                "index": 8,
+                "left": 28308.784799734818,
+                "right": 28308.78479974305
+              }
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 799010,
+              "nonfinite": 0,
+              "max_abs": 1.5948060649861873e-09,
+              "worst": {
+                "domain": 23,
+                "record": 3,
+                "k": 30,
+                "index": 45,
+                "left": 0.18934948603500956,
+                "right": 0.18934948762981563
+              }
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 158399,
+              "nonfinite": 0,
+              "max_abs": 2.4787153232730397e-11,
+              "worst": {
+                "domain": 23,
+                "record": 0,
+                "k": 30,
+                "index": 12,
+                "left": -0.012880278824504062,
+                "right": -0.012880278849291216
+              }
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 158390,
+              "nonfinite": 0,
+              "max_abs": 2.4604531745353597e-08,
+              "worst": {
+                "domain": 23,
+                "record": 0,
+                "k": 30,
+                "index": 12,
+                "left": -31.407186446219413,
+                "right": -31.407186470823945
+              }
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 65,
+              "nonfinite": 0,
+              "max_abs": 1.1368683772161603e-13,
+              "worst": {
+                "domain": 1,
+                "record": 0,
+                "k": 11,
+                "index": 0,
+                "left": 933.9407822272365,
+                "right": 933.9407822272364
+              }
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 40,
+              "nonfinite": 0,
+              "max_abs": 2.9103830456733704e-11,
+              "worst": {
+                "domain": 1,
+                "record": 0,
+                "k": 13,
+                "index": 0,
+                "left": 204245.83649621223,
+                "right": 204245.83649621226
+              }
+            }
+          }
+        }
+      },
+      "unchanged_screen_passed": false
+    },
+    "legacy_off": {
+      "passed": false,
+      "failures": [
+        "localJ4J6_checkpoint_0003.bin.zst: coarse/velocity/atmosphere: 8.4554585555451922e-13 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: coarse/mass/atmosphere: 1.8189894035458565e-12 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: coarse/temperature/atmosphere: 5.2386894822120667e-10 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: wavelet/velocity/atmosphere: 8.3311135767871747e-12 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: wavelet/mass/atmosphere: 3.2969182939268649e-12 exceeds 0",
+        "localJ4J6_checkpoint_0003.bin.zst: wavelet/temperature/atmosphere: 1.622538547962904e-09 exceeds 0"
+      ],
+      "exact_fields_required": true,
+      "domains": 40,
+      "min_level": 4,
+      "expected_new_checkpoint_indices": [
+        3
+      ],
+      "checkpoints": {
+        "localJ4J6_checkpoint_0003.bin.zst": {
+          "left": "/private/tmp/wavetrisk-stage188-crossmode-01/legacy-nofma-full/localJ4J6_checkpoint_0003.bin.zst",
+          "right": "/private/tmp/wavetrisk-stage188-crossmode-01/nofma-full/localJ4J6_checkpoint_0003.bin.zst",
+          "header_differences": 0,
+          "topology_differences": 0,
+          "threshold_max_abs": 0.0,
+          "threshold_nonfinite": 0,
+          "fields": {
+            "coarse/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/velocity/atmosphere": {
+              "different": 32414,
+              "nonfinite": 0,
+              "max_abs": 8.455458555545192e-13,
+              "worst": {
+                "domain": 35,
+                "record": 0,
+                "k": 30,
+                "index": 35,
+                "left": -21.211996961219022,
+                "right": -21.211996961218176
+              }
+            },
+            "coarse/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/mass/atmosphere": {
+              "different": 5334,
+              "nonfinite": 0,
+              "max_abs": 1.8189894035458565e-12,
+              "worst": {
+                "domain": 36,
+                "record": 0,
+                "k": 10,
+                "index": 13,
+                "left": 837.5220891133997,
+                "right": 837.5220891134015
+              }
+            },
+            "coarse/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "coarse/temperature/atmosphere": {
+              "different": 5690,
+              "nonfinite": 0,
+              "max_abs": 5.238689482212067e-10,
+              "worst": {
+                "domain": 36,
+                "record": 0,
+                "k": 10,
+                "index": 13,
+                "left": 239689.6031407293,
+                "right": 239689.60314072983
+              }
+            },
+            "wavelet/velocity/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/velocity/atmosphere": {
+              "different": 730546,
+              "nonfinite": 0,
+              "max_abs": 8.331113576787175e-12,
+              "worst": {
+                "domain": 4,
+                "record": 50,
+                "k": 30,
+                "index": 32,
+                "left": 0.04407844185251264,
+                "right": 0.04407844186084375
+              }
+            },
+            "wavelet/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/mass/atmosphere": {
+              "different": 98253,
+              "nonfinite": 0,
+              "max_abs": 3.296918293926865e-12,
+              "worst": {
+                "domain": 12,
+                "record": 6,
+                "k": 10,
+                "index": 4,
+                "left": 0.10273147034331487,
+                "right": 0.10273147034001795
+              }
+            },
+            "wavelet/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "wavelet/temperature/atmosphere": {
+              "different": 97738,
+              "nonfinite": 0,
+              "max_abs": 1.622538547962904e-09,
+              "worst": {
+                "domain": 19,
+                "record": 58,
+                "k": 30,
+                "index": 7,
+                "left": -234.11598448472432,
+                "right": -234.11598448310178
+              }
+            },
+            "pole/mass/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/mass/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/soil": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            },
+            "pole/temperature/atmosphere": {
+              "different": 0,
+              "nonfinite": 0,
+              "max_abs": 0.0,
+              "worst": null
+            }
+          }
+        }
+      },
+      "unchanged_screen_passed": true
+    },
+    "original_full_crossmode": {
+      "left": "/private/tmp/wavetrisk-stage187-validation-01/optimized/localJ4J6_checkpoint_0003.bin.zst",
+      "right": "/private/tmp/wavetrisk-stage187-validation-01/rk4-checked-full/localJ4J6_checkpoint_0003.bin.zst",
+      "header_differences": 0,
+      "topology_differences": 0,
+      "threshold_max_abs": 0.0,
+      "threshold_nonfinite": 0,
+      "fields": {
+        "coarse/velocity/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/velocity/atmosphere": {
+          "different": 57295,
+          "nonfinite": 0,
+          "max_abs": 1.1912696873395134e-07,
+          "worst": {
+            "domain": 38,
+            "record": 0,
+            "k": 5,
+            "index": 28,
+            "left": 2.5940091425553016,
+            "right": 2.594009023428333
+          }
+        },
+        "coarse/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "coarse/mass/atmosphere": {
+          "different": 18949,
+          "nonfinite": 0,
+          "max_abs": 4.092814265277411e-08,
+          "worst": {
+            "domain": 38,
+            "record": 0,
+            "k": 4,
+            "index": 9,
+            "left": 246.6653232585089,
+            "right": 246.66532321758075
+          }
+        },
+        "coarse/temperature/soil": {
+          "different": 6669,
+          "nonfinite": 0,
+          "max_abs": 6.934897101018578e-12,
+          "worst": {
+            "domain": 19,
+            "record": 0,
+            "k": -1,
+            "index": 14,
+            "left": 300.70229557691323,
+            "right": 300.7022955769063
+          }
+        },
+        "coarse/temperature/atmosphere": {
+          "different": 18934,
+          "nonfinite": 0,
+          "max_abs": 1.0842166375368834e-05,
+          "worst": {
+            "domain": 38,
+            "record": 0,
+            "k": 4,
+            "index": 9,
+            "left": 65455.41490561426,
+            "right": 65455.4148947721
+          }
+        },
+        "wavelet/velocity/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/velocity/atmosphere": {
+          "different": 882140,
+          "nonfinite": 0,
+          "max_abs": 2.4298816736489925e-07,
+          "worst": {
+            "domain": 38,
+            "record": 2,
+            "k": 4,
+            "index": 43,
+            "left": -0.45231179374884967,
+            "right": -0.45231203673701703
+          }
+        },
+        "wavelet/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "wavelet/mass/atmosphere": {
+          "different": 158430,
+          "nonfinite": 0,
+          "max_abs": 1.1892098239485449e-07,
+          "worst": {
+            "domain": 38,
+            "record": 2,
+            "k": 4,
+            "index": 14,
+            "left": 0.5327342172679694,
+            "right": 0.5327343361889518
+          }
+        },
+        "wavelet/temperature/soil": {
+          "different": 57190,
+          "nonfinite": 0,
+          "max_abs": 5.663309821102303e-10,
+          "worst": {
+            "domain": 36,
+            "record": 44,
+            "k": 0,
+            "index": 12,
+            "left": -0.0012867530708149388,
+            "right": -0.001286753637145921
+          }
+        },
+        "wavelet/temperature/atmosphere": {
+          "different": 158430,
+          "nonfinite": 0,
+          "max_abs": 3.1769519338809005e-05,
+          "worst": {
+            "domain": 38,
+            "record": 2,
+            "k": 4,
+            "index": 14,
+            "left": 99.97946497833262,
+            "right": 99.97949674785195
+          }
+        },
+        "pole/mass/soil": {
+          "different": 0,
+          "nonfinite": 0,
+          "max_abs": 0.0,
+          "worst": null
+        },
+        "pole/mass/atmosphere": {
+          "different": 295,
+          "nonfinite": 0,
+          "max_abs": 8.952838470577262e-11,
+          "worst": {
+            "domain": 5,
+            "record": 0,
+            "k": 3,
+            "index": 0,
+            "left": 221.0759140602236,
+            "right": 221.07591406013407
+          }
+        },
+        "pole/temperature/soil": {
+          "different": 110,
+          "nonfinite": 0,
+          "max_abs": 3.922195901395753e-12,
+          "worst": {
+            "domain": 1,
+            "record": 0,
+            "k": -10,
+            "index": 0,
+            "left": 300.00003051757795,
+            "right": 300.0000305175819
+          }
+        },
+        "pole/temperature/atmosphere": {
+          "different": 295,
+          "nonfinite": 0,
+          "max_abs": 2.325396053493023e-08,
+          "worst": {
+            "domain": 5,
+            "record": 0,
+            "k": 3,
+            "index": 0,
+            "left": 56991.94744574534,
+            "right": 56991.947445722086
+          }
+        }
+      }
+    }
+  },
+  "instruction_counts": {
+    "optimized": {
+      "geom.o": 61,
+      "wavelet.o": 75,
+      "physics_simple.o": 3,
+      "parallel_block_mpi.o": 104
+    },
+    "checked": {
+      "geom.o": 0,
+      "wavelet.o": 0,
+      "physics_simple.o": 0,
+      "parallel_block_mpi.o": 0
+    },
+    "optimized_no_contraction": {
+      "geom.o": 0,
+      "wavelet.o": 0,
+      "physics_simple.o": 0,
+      "parallel_block_mpi.o": 0
+    }
+  },
+  "legacy_tracked_sources_verified": true,
+  "runs": {
+    "nofma-short": {
+      "status": "passed",
+      "binary": "/private/tmp/wavetrisk-stage188-nofma-01/bin-nofma/climate",
+      "binary_sha256": "54c6d184218e79fec37db9afdc216458af21b457b897467511d7290797df779a",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.3050",
+        "CP_EVERY": "1",
+        "time_end": "0.3060",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "2cb0a1ee4cb59ad67b0b114c6047c3a40b221f024702e076caae4cad6667638a",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 0,
+      "step_count": 2,
+      "fortran_source_manifest_sha256": "f1267c09f34cc1d56da1c0ae5d69feeb29f3fc0d76be25cc67894bb4bb32b09d"
+    },
+    "nofma-full": {
+      "status": "passed",
+      "binary": "/private/tmp/wavetrisk-stage188-nofma-01/bin-nofma/climate",
+      "binary_sha256": "54c6d184218e79fec37db9afdc216458af21b457b897467511d7290797df779a",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.02",
+        "CP_EVERY": "1",
+        "time_end": "0.33",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "step_count": 12,
+      "fortran_source_manifest_sha256": "f1267c09f34cc1d56da1c0ae5d69feeb29f3fc0d76be25cc67894bb4bb32b09d"
+    },
+    "legacy-default-full": {
+      "status": "passed",
+      "binary": "/private/tmp/wavetrisk-stage188-legacy-j4-01/bin-j4/climate",
+      "binary_sha256": "78d68d67030626f897baffae4425895f64fb60673b65c4b6daa9b8fe76a0914a",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.02",
+        "CP_EVERY": "1",
+        "time_end": "0.33",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "step_count": 12,
+      "fortran_source_manifest_sha256": "8c1a912db1cf2706be41757339a97f991fb6d14c5b4d67142419c32ebcd4f8b4"
+    },
+    "legacy-nofma-full": {
+      "status": "passed",
+      "binary": "/private/tmp/wavetrisk-stage188-legacy-j4-01/bin-j4-nofma/climate",
+      "binary_sha256": "8608519d1def08c47820ba2970dd9ef6bd6f7f18f290d9f42fa325fc2df08497",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "localJ4J6",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.02",
+        "CP_EVERY": "1",
+        "time_end": "0.33",
+        "resume": "2"
+      },
+      "ranks": 4,
+      "input_sha256": "6c10b0a76bc29ce2ec629db45a1219ee60011cccce34fcf071dd7e83ec8d8cd5",
+      "seed_sha256": "0272c3717e3ed520d58a542707cc886e85a9412e2b5d61f20ddcb96dd007f3f4",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      },
+      "reloads": [
+        2,
+        3
+      ],
+      "remaps": 2,
+      "step_count": 12,
+      "fortran_source_manifest_sha256": "8c1a912db1cf2706be41757339a97f991fb6d14c5b4d67142419c32ebcd4f8b4"
+    }
+  },
+  "physics_object_hashes": {
+    "block": {
+      "radiative_sw.o": "1aba55a84ef44a52cda9ded02b977be7bd126b59a5b7da86190b3417eed779b5",
+      "phyparam_mod.o": "c9d39809921f9e6f25e1b1acbbbf773d0c8170a642d5adc3a46a262697a8178b",
+      "single_column_mod.o": "884f00e163ce06e0c43b8420e6f8aa6915e415c4ed238dc578c6ae6d7e25f5ae",
+      "comgeomfi.o": "48d7e724536e6aac1f517f4eab699a026eafdafe448e6477bf0048153d8ed595",
+      "accelerator.o": "8a32ae74604aa98db8d728df34b8f7c5b3981adb7e4ca8ffe2bdbcd35c0f0d92",
+      "turbulence.o": "468c7a85d600800f995a6bcb1d6cfca64bb5947a895976c1c15d0585cba1b0b3",
+      "writefield_mod.o": "0ac36c703db91ec1ebfa03413b6a7d11ddfc52cae1ca6c4853819f222032a28e",
+      "logging.o": "5ae24ae85ac8e063cd6a0ffbe4a2b9a61566fe058fd6de53de78733653725bbb",
+      "astronomy.o": "20b4d772f78b2531556027993562378a4da95a23e9bc6810822fed318f5e51b7",
+      "iniphyparam_mod.o": "529959650fffc1fef6743a62db3904761679bb8f9b20ab07a4656e1220adcbff",
+      "restart.o": "e318efd2c5c93bd2de274ecc13c086d905b363b4082c8059d8963baa08ea902a",
+      "callkeys.o": "970a4e6b09cecaff4c9c20041c1eb18bdef705bd4ecad292769c1a6fc167b39e",
+      "radiative_mod.o": "c435001cd4c5f17ee8d2d312ce76aae3f2779f12014b7ebdb55c209dc1f086bf",
+      "soil_mod.o": "6095ec5d9c444231dd923a7ad334c35ba24fffe39fd4a6945d5485078c4bfa31",
+      "solar.o": "3fae7a8f7d590c17aec5b706005eed694dd2d00ff5ac639ec97989620df7b1b3",
+      "profiling.o": "28cb368e274e13c6fd10c9c4746843a96578ac25e3d7f60ff51c3382963da516",
+      "mellor_yamada.o": "d9ba47f56aaa035c299923bdb4af1cfd267671bd2e35582f7e9820f5057a13a5",
+      "phys_const.o": "6d2bbf27990a45f8ffae8424964f37aafa0179e91cf001c2171bcb795d781a56",
+      "convection.o": "255fb394c813fb8122a692d3dca4792bfcae9f5751da4926c072535e027a863b",
+      "error_mod.o": "9ad13b39eac8cf4d1e118c0edf97eac2617301b604735c971b90114580111840",
+      "planet.o": "b878aa9d4cb0d5be6b64e70b9ca2461b82fd9b7eecb6410c03c40332a92b5126",
+      "radiative_lw.o": "41d9f76b015ee18615f414b9e2c1790a54df1e6148378519013bdd3358068390",
+      "read_param_mod.o": "7894316301a691bec468f0b5e934440f1d8e8536d605ea7c109cc08a2ef74524"
+    },
+    "legacy": {
+      "radiative_sw.o": "1aba55a84ef44a52cda9ded02b977be7bd126b59a5b7da86190b3417eed779b5",
+      "phyparam_mod.o": "c9d39809921f9e6f25e1b1acbbbf773d0c8170a642d5adc3a46a262697a8178b",
+      "single_column_mod.o": "884f00e163ce06e0c43b8420e6f8aa6915e415c4ed238dc578c6ae6d7e25f5ae",
+      "comgeomfi.o": "48d7e724536e6aac1f517f4eab699a026eafdafe448e6477bf0048153d8ed595",
+      "accelerator.o": "8a32ae74604aa98db8d728df34b8f7c5b3981adb7e4ca8ffe2bdbcd35c0f0d92",
+      "turbulence.o": "468c7a85d600800f995a6bcb1d6cfca64bb5947a895976c1c15d0585cba1b0b3",
+      "writefield_mod.o": "0ac36c703db91ec1ebfa03413b6a7d11ddfc52cae1ca6c4853819f222032a28e",
+      "logging.o": "5ae24ae85ac8e063cd6a0ffbe4a2b9a61566fe058fd6de53de78733653725bbb",
+      "astronomy.o": "20b4d772f78b2531556027993562378a4da95a23e9bc6810822fed318f5e51b7",
+      "iniphyparam_mod.o": "529959650fffc1fef6743a62db3904761679bb8f9b20ab07a4656e1220adcbff",
+      "restart.o": "e318efd2c5c93bd2de274ecc13c086d905b363b4082c8059d8963baa08ea902a",
+      "callkeys.o": "970a4e6b09cecaff4c9c20041c1eb18bdef705bd4ecad292769c1a6fc167b39e",
+      "radiative_mod.o": "c435001cd4c5f17ee8d2d312ce76aae3f2779f12014b7ebdb55c209dc1f086bf",
+      "soil_mod.o": "6095ec5d9c444231dd923a7ad334c35ba24fffe39fd4a6945d5485078c4bfa31",
+      "solar.o": "3fae7a8f7d590c17aec5b706005eed694dd2d00ff5ac639ec97989620df7b1b3",
+      "profiling.o": "28cb368e274e13c6fd10c9c4746843a96578ac25e3d7f60ff51c3382963da516",
+      "mellor_yamada.o": "d9ba47f56aaa035c299923bdb4af1cfd267671bd2e35582f7e9820f5057a13a5",
+      "phys_const.o": "6d2bbf27990a45f8ffae8424964f37aafa0179e91cf001c2171bcb795d781a56",
+      "convection.o": "255fb394c813fb8122a692d3dca4792bfcae9f5751da4926c072535e027a863b",
+      "error_mod.o": "9ad13b39eac8cf4d1e118c0edf97eac2617301b604735c971b90114580111840",
+      "planet.o": "b878aa9d4cb0d5be6b64e70b9ca2461b82fd9b7eecb6410c03c40332a92b5126",
+      "radiative_lw.o": "41d9f76b015ee18615f414b9e2c1790a54df1e6148378519013bdd3358068390",
+      "read_param_mod.o": "7894316301a691bec468f0b5e934440f1d8e8536d605ea7c109cc08a2ef74524"
+    }
+  },
+  "checks": {
+    "helper_tests": 64,
+    "build_option_checks": {
+      "default": {
+        "returncode": 0,
+        "stdout": "Using GNU Fortran compiler: GNU Fortran (Homebrew GCC 15.2.0) 15.2.0\n-ffree-line-length-132 -O2 -g -Wall -Wextra -Wline-truncation -Wno-unused-dummy-argument -Wno-trampolines -fbacktrace -march=native -Jbuild/mod -Ibuild/mod -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include\n",
+        "stderr": ""
+      },
+      "off": {
+        "returncode": 0,
+        "stdout": "Using GNU Fortran compiler: GNU Fortran (Homebrew GCC 15.2.0) 15.2.0\n-ffree-line-length-132 -O2 -g -Wall -Wextra -Wline-truncation -Wno-unused-dummy-argument -Wno-trampolines -fbacktrace -march=native -ffp-contract=off -Jbuild/mod -Ibuild/mod -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include\n",
+        "stderr": ""
+      },
+      "fast": {
+        "returncode": 0,
+        "stdout": "Using GNU Fortran compiler: GNU Fortran (Homebrew GCC 15.2.0) 15.2.0\n-ffree-line-length-132 -O2 -g -Wall -Wextra -Wline-truncation -Wno-unused-dummy-argument -Wno-trampolines -fbacktrace -march=native -ffp-contract=fast -Jbuild/mod -Ibuild/mod -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include -I/opt/homebrew/Cellar/netcdf-fortran/4.6.2/include\n",
+        "stderr": ""
+      },
+      "invalid": {
+        "returncode": 2,
+        "stdout": "Using GNU Fortran compiler: GNU Fortran (Homebrew GCC 15.2.0) 15.2.0\n",
+        "stderr": "Makefile:126: *** Unknown FP_CONTRACT='invalid'; use default, off, or fast.  Stop.\n"
+      }
+    },
+    "final_driver_replay_passed": true,
+    "mismatched_reference_ranks_rejected_before_launch": true,
+    "final_helper_log_sha256": "107147944e8464a4bab799b877672ab14aec7a14f51159a4070a9071c51783ba",
+    "production_fortran_sources_unchanged": true
+  },
+  "build_artifacts": {
+    "block": {
+      "directory": "/private/tmp/wavetrisk-stage188-nofma-01",
+      "binaries": {
+        "bin-nofma/climate": "54c6d184218e79fec37db9afdc216458af21b457b897467511d7290797df779a",
+        "bin-j5-nofma/climate": "51c8865c949f07729ac3e37f1a930749eb836734a7c0deeeba5178cfefb3006d"
+      },
+      "logs": {
+        "nofma-build.log": "5d155f4ebe53e8e0f0661a42ca9840db11507253cc250902cda2f2e63a40edc1",
+        "block-j5-nofma-build.log": "2d574f845051c91aca4de6012686b0af639690818d1225e5a50616d34c235309"
+      }
+    },
+    "legacy": {
+      "directory": "/private/tmp/wavetrisk-stage188-legacy-j4-01",
+      "binaries": {
+        "bin-j4/climate": "78d68d67030626f897baffae4425895f64fb60673b65c4b6daa9b8fe76a0914a",
+        "bin-j4-nofma/climate": "8608519d1def08c47820ba2970dd9ef6bd6f7f18f290d9f42fa325fc2df08497",
+        "bin-j5-nofma/climate": "12198401c3ccc3bb090e734c2b2ef0d6d4c69035c3e2ebb4aec429c691147aa0"
+      },
+      "logs": {
+        "legacy-default-build.log": "f6403d049f60fcff5fd2e8c939b77d610d5e50430b00f74702bff77ea299c666",
+        "legacy-nofma-build.log": "30afb2d4d14a55abe2aef98d42004bf0163f5c3aee080e735a510d1cc52c2a7f",
+        "legacy-j5-nofma-build.log": "3404ce161bd8fca337500618bf10cf17267f9330f1706972ddfdcb97e3b9853d"
+      }
+    }
+  },
+  "scope": "Local four-rank RK4 J4/J6 and original J5/J6 fixtures. Default arithmetic controls remain failures; no bitwise legacy, universal accuracy, cluster arithmetic-control or performance claim.",
+  "j5": {
+    "simulation_results_path": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-original/results.json",
+    "simulation_results_sha256": "e8362fcc74333ab85ee1fcacef98c8ad6a0c8d3b57bbbd4aaacb204d8796f5bf",
+    "final_driver_replay": "Read-only comparisons rerun with final driver using existing simulation outputs; no additional solver execution. Rank mismatch rejected before launch. Initial replay using symlinked compressed files was rejected by zstd; replay-02 uses regular hard-linked files.",
+    "fixture": {
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "test",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.01",
+        "CP_EVERY": "1",
+        "resume": "4"
+      },
+      "checkpoint": "test_checkpoint_0004.bin.zst",
+      "checkpoint_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+      "grids": {
+        "files": 39,
+        "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+      }
+    },
+    "checked_reference_identity": {
+      "binary": "/private/tmp/wavetrisk-stage184-column-opt-01/bin-checked/climate",
+      "sha256": "73c1b15fa2f355bde7401f997d8c14adee248134b57d7987abcd9248c36e9359",
+      "ranks": 4,
+      "time_end": "0.3350",
+      "parameters": {
+        "test_case": "climate",
+        "physics_type": "Simple",
+        "run_id": "test",
+        "max_level": "6",
+        "zlevels": "30",
+        "Nsoil": "10",
+        "NCAR_topo": "F",
+        "sso": "F",
+        "topo_file": "J05J07_120.0km",
+        "topo_min_level": "5",
+        "topo_max_level": "7",
+        "tol": "2.5e-2",
+        "dt_write": "0.01",
+        "CP_EVERY": "1",
+        "time_end": "0.3350",
+        "resume": "4"
+      },
+      "seed_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+      "environment": {
+        "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+        "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+        "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+        "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+        "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+        "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "BLIS_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "returncode": 0,
+      "elapsed_seconds": 524.5678204589058
+    },
+    "gates": {
+      "checked_vs_block": {
+        "passed": true,
+        "failures": [],
+        "policy": {
+          "id": "stage180-local-v1",
+          "atmosphere_absolute": {
+            "velocity": 1e-10,
+            "mass": 1e-10,
+            "temperature": 1e-07
+          },
+          "soil_absolute": 0.0
+        },
+        "exact_fields_required": true,
+        "checkpoints": {
+          "test_checkpoint_0005.bin.zst": {
+            "left": "/private/tmp/wavetrisk-stage184-full-checked-01/rk4-production/test_checkpoint_0005.bin.zst",
+            "right": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-driver-replay-02/block/test_checkpoint_0005.bin.zst",
+            "header_differences": 0,
+            "topology_differences": 0,
+            "threshold_max_abs": 0.0,
+            "threshold_nonfinite": 0,
+            "fields": {
+              "coarse/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/velocity/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              }
+            }
+          },
+          "test_checkpoint_0006.bin.zst": {
+            "left": "/private/tmp/wavetrisk-stage184-full-checked-01/rk4-production/test_checkpoint_0006.bin.zst",
+            "right": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-driver-replay-02/block/test_checkpoint_0006.bin.zst",
+            "header_differences": 0,
+            "topology_differences": 0,
+            "threshold_max_abs": 0.0,
+            "threshold_nonfinite": 0,
+            "fields": {
+              "coarse/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/velocity/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              }
+            }
+          }
+        }
+      },
+      "legacy_vs_block": {
+        "passed": false,
+        "failures": [
+          "test_checkpoint_0005.bin.zst: coarse/velocity/atmosphere: 1.142197447734361e-12 exceeds 0",
+          "test_checkpoint_0005.bin.zst: coarse/mass/atmosphere: 2.2737367544323206e-13 exceeds 0",
+          "test_checkpoint_0005.bin.zst: coarse/temperature/atmosphere: 1.1641532182693481e-10 exceeds 0",
+          "test_checkpoint_0005.bin.zst: wavelet/velocity/atmosphere: 5.0661697059695143e-12 exceeds 0",
+          "test_checkpoint_0005.bin.zst: wavelet/mass/atmosphere: 1.3642420526593924e-12 exceeds 0",
+          "test_checkpoint_0005.bin.zst: wavelet/temperature/atmosphere: 9.8589225672185421e-10 exceeds 0",
+          "test_checkpoint_0006.bin.zst: coarse/velocity/atmosphere: 2.4615864901988971e-12 exceeds 0",
+          "test_checkpoint_0006.bin.zst: coarse/mass/atmosphere: 1.9326762412674725e-12 exceeds 0",
+          "test_checkpoint_0006.bin.zst: coarse/temperature/atmosphere: 5.8207660913467407e-10 exceeds 0",
+          "test_checkpoint_0006.bin.zst: wavelet/velocity/atmosphere: 1.2210676914037322e-11 exceeds 0",
+          "test_checkpoint_0006.bin.zst: wavelet/mass/atmosphere: 4.3200998334214091e-12 exceeds 0",
+          "test_checkpoint_0006.bin.zst: wavelet/temperature/atmosphere: 3.3141986932605505e-09 exceeds 0"
+        ],
+        "policy": {
+          "id": "stage180-local-v1",
+          "atmosphere_absolute": {
+            "velocity": 1e-10,
+            "mass": 1e-10,
+            "temperature": 1e-07
+          },
+          "soil_absolute": 0.0
+        },
+        "exact_fields_required": true,
+        "checkpoints": {
+          "test_checkpoint_0005.bin.zst": {
+            "left": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-driver-replay-02/legacy/test_checkpoint_0005.bin.zst",
+            "right": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-driver-replay-02/block/test_checkpoint_0005.bin.zst",
+            "header_differences": 0,
+            "topology_differences": 0,
+            "threshold_max_abs": 0.0,
+            "threshold_nonfinite": 0,
+            "fields": {
+              "coarse/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/velocity/atmosphere": {
+                "different": 22245,
+                "nonfinite": 0,
+                "max_abs": 1.142197447734361e-12,
+                "worst": {
+                  "domain": 8,
+                  "record": 0,
+                  "k": 30,
+                  "index": 26,
+                  "left": -11.625132646952215,
+                  "right": -11.625132646953357
+                }
+              },
+              "coarse/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/atmosphere": {
+                "different": 2725,
+                "nonfinite": 0,
+                "max_abs": 2.2737367544323206e-13,
+                "worst": {
+                  "domain": 46,
+                  "record": 0,
+                  "k": 10,
+                  "index": 15,
+                  "left": 775.1951006033269,
+                  "right": 775.1951006033271
+                }
+              },
+              "coarse/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/atmosphere": {
+                "different": 3195,
+                "nonfinite": 0,
+                "max_abs": 1.1641532182693481e-10,
+                "worst": {
+                  "domain": 53,
+                  "record": 0,
+                  "k": 12,
+                  "index": 1,
+                  "left": 267944.0574744659,
+                  "right": 267944.05747446604
+                }
+              },
+              "wavelet/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/atmosphere": {
+                "different": 402105,
+                "nonfinite": 0,
+                "max_abs": 5.066169705969514e-12,
+                "worst": {
+                  "domain": 47,
+                  "record": 16,
+                  "k": 30,
+                  "index": 32,
+                  "left": -0.011955667379233148,
+                  "right": -0.011955667374166978
+                }
+              },
+              "wavelet/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/atmosphere": {
+                "different": 41996,
+                "nonfinite": 0,
+                "max_abs": 1.3642420526593924e-12,
+                "worst": {
+                  "domain": 78,
+                  "record": 17,
+                  "k": 12,
+                  "index": 3,
+                  "left": 0.0534516146868782,
+                  "right": 0.053451614688242444
+                }
+              },
+              "wavelet/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/atmosphere": {
+                "different": 41253,
+                "nonfinite": 0,
+                "max_abs": 9.858922567218542e-10,
+                "worst": {
+                  "domain": 78,
+                  "record": 17,
+                  "k": 30,
+                  "index": 3,
+                  "left": 10.293384135493397,
+                  "right": 10.29338413647929
+                }
+              },
+              "pole/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              }
+            }
+          },
+          "test_checkpoint_0006.bin.zst": {
+            "left": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-driver-replay-02/legacy/test_checkpoint_0006.bin.zst",
+            "right": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-driver-replay-02/block/test_checkpoint_0006.bin.zst",
+            "header_differences": 0,
+            "topology_differences": 0,
+            "threshold_max_abs": 0.0,
+            "threshold_nonfinite": 0,
+            "fields": {
+              "coarse/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/velocity/atmosphere": {
+                "different": 64809,
+                "nonfinite": 0,
+                "max_abs": 2.461586490198897e-12,
+                "worst": {
+                  "domain": 52,
+                  "record": 0,
+                  "k": 30,
+                  "index": 16,
+                  "left": 1.723733586299415,
+                  "right": 1.7237335863018766
+                }
+              },
+              "coarse/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/atmosphere": {
+                "different": 15298,
+                "nonfinite": 0,
+                "max_abs": 1.9326762412674725e-12,
+                "worst": {
+                  "domain": 116,
+                  "record": 0,
+                  "k": 10,
+                  "index": 14,
+                  "left": 839.3528480646503,
+                  "right": 839.3528480646522
+                }
+              },
+              "coarse/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/atmosphere": {
+                "different": 15861,
+                "nonfinite": 0,
+                "max_abs": 5.820766091346741e-10,
+                "worst": {
+                  "domain": 119,
+                  "record": 0,
+                  "k": 9,
+                  "index": 14,
+                  "left": 205487.91303677263,
+                  "right": 205487.9130367732
+                }
+              },
+              "wavelet/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/atmosphere": {
+                "different": 724626,
+                "nonfinite": 0,
+                "max_abs": 1.2210676914037322e-11,
+                "worst": {
+                  "domain": 127,
+                  "record": 9,
+                  "k": 30,
+                  "index": 26,
+                  "left": 0.008549263183308398,
+                  "right": 0.008549263195519075
+                }
+              },
+              "wavelet/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/atmosphere": {
+                "different": 121676,
+                "nonfinite": 0,
+                "max_abs": 4.320099833421409e-12,
+                "worst": {
+                  "domain": 78,
+                  "record": 5,
+                  "k": 10,
+                  "index": 9,
+                  "left": -0.10300396423633629,
+                  "right": -0.10300396424065639
+                }
+              },
+              "wavelet/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/atmosphere": {
+                "different": 120953,
+                "nonfinite": 0,
+                "max_abs": 3.3141986932605505e-09,
+                "worst": {
+                  "domain": 117,
+                  "record": 8,
+                  "k": 30,
+                  "index": 6,
+                  "left": -36.43109594164707,
+                  "right": -36.431095938332874
+                }
+              },
+              "pole/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              }
+            }
+          }
+        }
+      },
+      "legacy_screen": {
+        "passed": true,
+        "failures": [],
+        "policy": {
+          "id": "stage180-local-v1",
+          "atmosphere_absolute": {
+            "velocity": 1e-10,
+            "mass": 1e-10,
+            "temperature": 1e-07
+          },
+          "soil_absolute": 0.0
+        },
+        "exact_fields_required": false,
+        "checkpoints": {
+          "test_checkpoint_0005.bin.zst": {
+            "left": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-driver-replay-02/legacy/test_checkpoint_0005.bin.zst",
+            "right": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-driver-replay-02/block/test_checkpoint_0005.bin.zst",
+            "header_differences": 0,
+            "topology_differences": 0,
+            "threshold_max_abs": 0.0,
+            "threshold_nonfinite": 0,
+            "fields": {
+              "coarse/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/velocity/atmosphere": {
+                "different": 22245,
+                "nonfinite": 0,
+                "max_abs": 1.142197447734361e-12,
+                "worst": {
+                  "domain": 8,
+                  "record": 0,
+                  "k": 30,
+                  "index": 26,
+                  "left": -11.625132646952215,
+                  "right": -11.625132646953357
+                }
+              },
+              "coarse/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/atmosphere": {
+                "different": 2725,
+                "nonfinite": 0,
+                "max_abs": 2.2737367544323206e-13,
+                "worst": {
+                  "domain": 46,
+                  "record": 0,
+                  "k": 10,
+                  "index": 15,
+                  "left": 775.1951006033269,
+                  "right": 775.1951006033271
+                }
+              },
+              "coarse/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/atmosphere": {
+                "different": 3195,
+                "nonfinite": 0,
+                "max_abs": 1.1641532182693481e-10,
+                "worst": {
+                  "domain": 53,
+                  "record": 0,
+                  "k": 12,
+                  "index": 1,
+                  "left": 267944.0574744659,
+                  "right": 267944.05747446604
+                }
+              },
+              "wavelet/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/atmosphere": {
+                "different": 402105,
+                "nonfinite": 0,
+                "max_abs": 5.066169705969514e-12,
+                "worst": {
+                  "domain": 47,
+                  "record": 16,
+                  "k": 30,
+                  "index": 32,
+                  "left": -0.011955667379233148,
+                  "right": -0.011955667374166978
+                }
+              },
+              "wavelet/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/atmosphere": {
+                "different": 41996,
+                "nonfinite": 0,
+                "max_abs": 1.3642420526593924e-12,
+                "worst": {
+                  "domain": 78,
+                  "record": 17,
+                  "k": 12,
+                  "index": 3,
+                  "left": 0.0534516146868782,
+                  "right": 0.053451614688242444
+                }
+              },
+              "wavelet/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/atmosphere": {
+                "different": 41253,
+                "nonfinite": 0,
+                "max_abs": 9.858922567218542e-10,
+                "worst": {
+                  "domain": 78,
+                  "record": 17,
+                  "k": 30,
+                  "index": 3,
+                  "left": 10.293384135493397,
+                  "right": 10.29338413647929
+                }
+              },
+              "pole/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              }
+            }
+          },
+          "test_checkpoint_0006.bin.zst": {
+            "left": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-driver-replay-02/legacy/test_checkpoint_0006.bin.zst",
+            "right": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-driver-replay-02/block/test_checkpoint_0006.bin.zst",
+            "header_differences": 0,
+            "topology_differences": 0,
+            "threshold_max_abs": 0.0,
+            "threshold_nonfinite": 0,
+            "fields": {
+              "coarse/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/velocity/atmosphere": {
+                "different": 64809,
+                "nonfinite": 0,
+                "max_abs": 2.461586490198897e-12,
+                "worst": {
+                  "domain": 52,
+                  "record": 0,
+                  "k": 30,
+                  "index": 16,
+                  "left": 1.723733586299415,
+                  "right": 1.7237335863018766
+                }
+              },
+              "coarse/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/mass/atmosphere": {
+                "different": 15298,
+                "nonfinite": 0,
+                "max_abs": 1.9326762412674725e-12,
+                "worst": {
+                  "domain": 116,
+                  "record": 0,
+                  "k": 10,
+                  "index": 14,
+                  "left": 839.3528480646503,
+                  "right": 839.3528480646522
+                }
+              },
+              "coarse/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "coarse/temperature/atmosphere": {
+                "different": 15861,
+                "nonfinite": 0,
+                "max_abs": 5.820766091346741e-10,
+                "worst": {
+                  "domain": 119,
+                  "record": 0,
+                  "k": 9,
+                  "index": 14,
+                  "left": 205487.91303677263,
+                  "right": 205487.9130367732
+                }
+              },
+              "wavelet/velocity/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/velocity/atmosphere": {
+                "different": 724626,
+                "nonfinite": 0,
+                "max_abs": 1.2210676914037322e-11,
+                "worst": {
+                  "domain": 127,
+                  "record": 9,
+                  "k": 30,
+                  "index": 26,
+                  "left": 0.008549263183308398,
+                  "right": 0.008549263195519075
+                }
+              },
+              "wavelet/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/mass/atmosphere": {
+                "different": 121676,
+                "nonfinite": 0,
+                "max_abs": 4.320099833421409e-12,
+                "worst": {
+                  "domain": 78,
+                  "record": 5,
+                  "k": 10,
+                  "index": 9,
+                  "left": -0.10300396423633629,
+                  "right": -0.10300396424065639
+                }
+              },
+              "wavelet/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "wavelet/temperature/atmosphere": {
+                "different": 120953,
+                "nonfinite": 0,
+                "max_abs": 3.3141986932605505e-09,
+                "worst": {
+                  "domain": 117,
+                  "record": 8,
+                  "k": 30,
+                  "index": 6,
+                  "left": -36.43109594164707,
+                  "right": -36.431095938332874
+                }
+              },
+              "pole/mass/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/mass/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/soil": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              },
+              "pole/temperature/atmosphere": {
+                "different": 0,
+                "nonfinite": 0,
+                "max_abs": 0.0,
+                "worst": null
+              }
+            }
+          }
+        }
+      }
+    },
+    "runs": {
+      "block": {
+        "directory": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-original/block",
+        "identity": {
+          "binary": "/private/tmp/wavetrisk-stage188-nofma-01/bin-j5-nofma/climate",
+          "sha256": "51c8865c949f07729ac3e37f1a930749eb836734a7c0deeeba5178cfefb3006d",
+          "ranks": 4,
+          "time_end": "0.3350",
+          "parameters": {
+            "test_case": "climate",
+            "physics_type": "Simple",
+            "run_id": "test",
+            "max_level": "6",
+            "zlevels": "30",
+            "Nsoil": "10",
+            "NCAR_topo": "F",
+            "sso": "F",
+            "topo_file": "J05J07_120.0km",
+            "topo_min_level": "5",
+            "topo_max_level": "7",
+            "tol": "2.5e-2",
+            "dt_write": "0.01",
+            "CP_EVERY": "1",
+            "time_end": "0.3350",
+            "resume": "4"
+          },
+          "seed_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+          "environment": {
+            "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+            "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+            "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+            "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+            "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+            "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "MKL_NUM_THREADS": "1",
+            "BLIS_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": "1"
+          },
+          "returncode": 0,
+          "elapsed_seconds": 191.4035899580922
+        },
+        "coverage": {
+          "reloads": [
+            4,
+            5,
+            6
+          ],
+          "remap_after_each_new_restart": true,
+          "steps": 11
+        }
+      },
+      "legacy": {
+        "directory": "/private/tmp/wavetrisk-stage188-crossmode-01/j5-original/legacy",
+        "identity": {
+          "binary": "/private/tmp/wavetrisk-stage188-legacy-j4-01/bin-j5-nofma/climate",
+          "sha256": "12198401c3ccc3bb090e734c2b2ef0d6d4c69035c3e2ebb4aec429c691147aa0",
+          "ranks": 4,
+          "time_end": "0.3350",
+          "parameters": {
+            "test_case": "climate",
+            "physics_type": "Simple",
+            "run_id": "test",
+            "max_level": "6",
+            "zlevels": "30",
+            "Nsoil": "10",
+            "NCAR_topo": "F",
+            "sso": "F",
+            "topo_file": "J05J07_120.0km",
+            "topo_min_level": "5",
+            "topo_max_level": "7",
+            "tol": "2.5e-2",
+            "dt_write": "0.01",
+            "CP_EVERY": "1",
+            "time_end": "0.3350",
+            "resume": "4"
+          },
+          "seed_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+          "environment": {
+            "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+            "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+            "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+            "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+            "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+            "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "MKL_NUM_THREADS": "1",
+            "BLIS_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": "1"
+          },
+          "returncode": 0,
+          "elapsed_seconds": 79.75417383294553
+        },
+        "coverage": {
+          "reloads": [
+            4,
+            5,
+            6
+          ],
+          "remap_after_each_new_restart": true,
+          "steps": 11
+        }
+      }
+    }
+  },
+  "historical_default_legacy": {
+    "5": {
+      "reference_sha256": "7b9176e33b26cc0b570d68e106ab00c07ccd6d78c409927c1fd01354dc5cdcd2",
+      "candidate_sha256": "6bf369fe2802f6ed9760d1a2730e87807a9cfe6ede736061eb5bba5632d37dac",
+      "failures": [],
+      "comparison": {
+        "left": "/private/tmp/wavetrisk-stage180-j6-campaign-01/legacy/test_checkpoint_0005.bin.zst",
+        "right": "/private/tmp/wavetrisk-stage180-j6-campaign-01/block/test_checkpoint_0005.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 52875,
+            "nonfinite": 0,
+            "max_abs": 2.34123831432953e-12,
+            "worst": {
+              "domain": 115,
+              "record": 0,
+              "k": 30,
+              "index": 0,
+              "left": -18.26446360639544,
+              "right": -18.264463606397783
+            }
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 18453,
+            "nonfinite": 0,
+            "max_abs": 3.410605131648481e-13,
+            "worst": {
+              "domain": 68,
+              "record": 0,
+              "k": 11,
+              "index": 10,
+              "left": 843.6432222171143,
+              "right": 843.6432222171139
+            }
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 18371,
+            "nonfinite": 0,
+            "max_abs": 2.219167072325945e-10,
+            "worst": {
+              "domain": 155,
+              "record": 0,
+              "k": 30,
+              "index": 9,
+              "left": 28626.127569382654,
+              "right": 28626.127569382432
+            }
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 615976,
+            "nonfinite": 0,
+            "max_abs": 9.304557124778512e-12,
+            "worst": {
+              "domain": 139,
+              "record": 11,
+              "k": 30,
+              "index": 26,
+              "left": 0.006235386404526366,
+              "right": 0.006235386395221809
+            }
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 296747,
+            "nonfinite": 0,
+            "max_abs": 2.4679702725904917e-12,
+            "worst": {
+              "domain": 113,
+              "record": 4,
+              "k": 11,
+              "index": 14,
+              "left": 0.09331452057381284,
+              "right": 0.09331452057628081
+            }
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 296753,
+            "nonfinite": 0,
+            "max_abs": 2.4093620432097396e-09,
+            "worst": {
+              "domain": 52,
+              "record": 12,
+              "k": 30,
+              "index": 3,
+              "left": 3.409970942113432,
+              "right": 3.409970944522794
+            }
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 36,
+            "nonfinite": 0,
+            "max_abs": 1.1368683772161603e-13,
+            "worst": {
+              "domain": 3,
+              "record": 0,
+              "k": 10,
+              "index": 0,
+              "left": 860.9198741018181,
+              "right": 860.919874101818
+            }
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 55,
+            "nonfinite": 0,
+            "max_abs": 2.9103830456733704e-11,
+            "worst": {
+              "domain": 3,
+              "record": 0,
+              "k": 11,
+              "index": 0,
+              "left": 241726.32687244576,
+              "right": 241726.32687244573
+            }
+          }
+        }
+      }
+    },
+    "6": {
+      "reference_sha256": "f9fba8ffe7f9272a3c2039975523d9f22b066aa6fd72abd9819e2b2910807095",
+      "candidate_sha256": "9f1f2379e8e270f771303a33e97dbdab82c9e6964009335d25a768404c9f8676",
+      "failures": [
+        "coarse/velocity/atmosphere: 4.5322893701960076e-09 exceeds 1e-10",
+        "coarse/mass/atmosphere: 1.9212791357858805e-09 exceeds 1e-10",
+        "coarse/temperature/atmosphere: 9.3848211690783501e-07 exceeds 9.9999999999999995e-08",
+        "wavelet/velocity/atmosphere: 5.9972332100421966e-09 exceeds 1e-10",
+        "wavelet/mass/atmosphere: 5.7041978709926333e-09 exceeds 1e-10",
+        "wavelet/temperature/atmosphere: 2.7875881585259776e-06 exceeds 9.9999999999999995e-08"
+      ],
+      "comparison": {
+        "left": "/private/tmp/wavetrisk-stage180-j6-campaign-01/legacy/test_checkpoint_0006.bin.zst",
+        "right": "/private/tmp/wavetrisk-stage180-j6-campaign-01/block/test_checkpoint_0006.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 180040,
+            "nonfinite": 0,
+            "max_abs": 4.532289370196008e-09,
+            "worst": {
+              "domain": 77,
+              "record": 0,
+              "k": 26,
+              "index": 45,
+              "left": -0.060292017375839974,
+              "right": -0.060292021908129344
+            }
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 47540,
+            "nonfinite": 0,
+            "max_abs": 1.9212791357858805e-09,
+            "worst": {
+              "domain": 77,
+              "record": 0,
+              "k": 26,
+              "index": 15,
+              "left": 157.19765397308544,
+              "right": 157.19765397500672
+            }
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 48568,
+            "nonfinite": 0,
+            "max_abs": 9.38482116907835e-07,
+            "worst": {
+              "domain": 77,
+              "record": 0,
+              "k": 26,
+              "index": 15,
+              "left": 76784.61806276474,
+              "right": 76784.61806370322
+            }
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 1202288,
+            "nonfinite": 0,
+            "max_abs": 5.9972332100421966e-09,
+            "worst": {
+              "domain": 77,
+              "record": 0,
+              "k": 26,
+              "index": 19,
+              "left": 0.09009886927793043,
+              "right": 0.09009886328069722
+            }
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 309892,
+            "nonfinite": 0,
+            "max_abs": 5.704197870992633e-09,
+            "worst": {
+              "domain": 77,
+              "record": 0,
+              "k": 26,
+              "index": 11,
+              "left": -0.013876047514145284,
+              "right": -0.013876053218343155
+            }
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 309893,
+            "nonfinite": 0,
+            "max_abs": 2.7875881585259776e-06,
+            "worst": {
+              "domain": 77,
+              "record": 0,
+              "k": 26,
+              "index": 11,
+              "left": -30.618172761518508,
+              "right": -30.618175549106667
+            }
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 128,
+            "nonfinite": 0,
+            "max_abs": 1.5916157281026244e-12,
+            "worst": {
+              "domain": 19,
+              "record": 0,
+              "k": 6,
+              "index": 0,
+              "left": 291.0331711833457,
+              "right": 291.0331711833473
+            }
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 141,
+            "nonfinite": 0,
+            "max_abs": 4.0745362639427185e-10,
+            "worst": {
+              "domain": 19,
+              "record": 0,
+              "k": 6,
+              "index": 0,
+              "left": 75144.77376354315,
+              "right": 75144.77376354356
+            }
+          }
+        }
+      }
+    }
+  }
+}

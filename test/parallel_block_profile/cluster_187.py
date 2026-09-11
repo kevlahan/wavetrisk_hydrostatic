@@ -117,6 +117,7 @@ def summarize(runs):
 
 
 def run(args):
+    arithmetic_control = getattr(args, 'arithmetic_control', False)
     fixture = args.fixture.resolve(strict=True)
     out = args.out.resolve()
     binaries = {kind: getattr(args, kind).resolve(strict=True) for kind in ('baseline', 'candidate', 'checked')}
@@ -180,6 +181,12 @@ def run(args):
               'limitations': ['No checked-versus-optimized or legacy numerical equivalence claim.',
                              'No automatic distributed memory-pressure qualification.',
                              'Checked solver flags do not necessarily cover external physics.']}
+    if arithmetic_control:
+        result['comparison_mode'] = 'Stage 187 default contraction versus contraction off'
+        result['build_roles'] = {'baseline': 'Stage 187 optimized, compiler default contraction',
+                                 'candidate': 'Stage 187 optimized, contraction off',
+                                 'checked': 'Stage 187 checked, contraction off'}
+        result['limitations'][0] = 'Cross-mode equality is tested for contraction-off builds only; no legacy equivalence claim.'
     result_path = out / 'results.json'
     save(result_path, result)
     try:
@@ -219,6 +226,8 @@ def run(args):
             # Self-comparisons of the first references check finiteness/layout only.
             # All later comparisons use an independent run of the matching build mode.
             reference = out / ('checked-off' if phase == 'validation' else 'baseline-warmup')
+            if arithmetic_control and kind == 'candidate':
+                reference = out / 'checked-off'
             gate = exact_gate(reference, directory, p['run_id'], expected)
             gate['reference'] = str(reference)
             gate['self_check'] = reference == directory
@@ -226,11 +235,24 @@ def run(args):
             save(result_path, result)
             if not gate['passed']:
                 raise RuntimeError(f'Exact checkpoint gate failed for {label}: {gate["failures"]}')
+            if arithmetic_control and label == 'candidate-warmup':
+                diagnostic = exact_gate(out / 'baseline-warmup', directory, p['run_id'], expected)
+                diagnostic['scope'] += ' Diagnostic only: the two builds use different arithmetic policies.'
+                result['default_vs_off_diagnostic'] = diagnostic
+                save(result_path, result)
+                print('Default versus contraction-off exact equality (diagnostic): ' + str(diagnostic['passed']), flush=True)
             print(f'PASS {label}: {elapsed:.2f}s; ordinary-step median {record["ordinary_step_median"]:.4g}s', flush=True)
         if (grid_identity(inputs / 'grids') != grids or digest(inputs / seed) != result['seed_sha256'] or
                 digest(inputs / 'simple.in') != result['input_sha256']):
             raise ValueError('Frozen input snapshot changed during the campaign')
         result['summary'] = summarize(result['runs'])
+        if arithmetic_control:
+            result['summary']['interpretation'] = ('baseline=Stage 187 default; candidate=Stage 187 contraction off. '
+                                                   'A negative elapsed reduction means contraction off is slower.')
+            result['summary']['off_elapsed_increase_percent'] = -result['summary']['observed_elapsed_reduction_percent']
+            result['summary']['off_ordinary_step_increase_percent'] = 100 * (
+                result['summary']['candidate']['median_ordinary_step_seconds'] /
+                result['summary']['baseline']['median_ordinary_step_seconds'] - 1)
         result['status'] = 'passed'
         result.pop('active', None)
         save(result_path, result)
@@ -251,6 +273,8 @@ def main():
     parser.add_argument('--expected-checkpoints', type=int, nargs='+', default=[4])
     parser.add_argument('--require-post-restart-remap', action='store_true')
     parser.add_argument('--profiles', action='store_true', help='Append separate baseline and candidate profiles')
+    parser.add_argument('--arithmetic-control', action='store_true',
+                        help='Compare Stage 187 default/off timings; require optimized off to match checked off')
     parser.add_argument('--build-notes', required=True, help='Compiler/MPI versions, flags and source identifiers')
     run(parser.parse_args())
 

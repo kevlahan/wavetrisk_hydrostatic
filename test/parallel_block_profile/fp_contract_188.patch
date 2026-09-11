@@ -1,0 +1,29 @@
+diff --git a/Makefile b/Makefile
+index 7af1af99..cea028d3 100644
+--- a/Makefile
++++ b/Makefile
+@@ -7,6 +7,9 @@
+ #   DEBUG=check  → Fortran runtime checks and floating-point traps
+ # ===========================================================================
+ DEBUG         ?= false
++# Keep existing compiler behavior by default. Use off for matched-arithmetic
++# numerical diagnostics, with fresh BUILD_DIR and BIN_DIR values.
++FP_CONTRACT   ?= default
+ TEST_CASE     ?= climate
+ PARAM         ?= param_J5
+ MPIF90        ?= mpif90
+@@ -118,6 +121,14 @@ $(error Unknown DEBUG='$(DEBUG)'; use false, asan, or check)
+ 
+ endif
+ 
++# Optional arithmetic control for solver code; external physics keeps its flags.
++ifeq ($(filter $(FP_CONTRACT),default off fast),)
++$(error Unknown FP_CONTRACT='$(FP_CONTRACT)'; use default, off, or fast)
++endif
++ifneq ($(FP_CONTRACT),default)
++FFLAGS += -ffp-contract=$(FP_CONTRACT)
++endif
++
+ # Force a non-executable stack on Linux
+ ifeq ($(UNAME_S),Linux)
+ LDFLAGS += -Wl,-z,noexecstack

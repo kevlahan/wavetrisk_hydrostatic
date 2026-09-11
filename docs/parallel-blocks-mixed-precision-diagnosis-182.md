@@ -142,3 +142,13 @@ screen has passed.
 - Keep the original comparison and fixed screening policy visible.
 - Shared horizontal geometry remains a separate numerical-equivalence and
   capacity-reduction change; no speedup is inferred from this diagnostic run.
+
+## Stage 188 arithmetic control
+
+Compiling both unmodified legacy and current block solvers with floating-point
+contraction disabled passes the unchanged numerical screen on this original
+J5 fixture at both checkpoints, without replay. It does not give bitwise legacy
+equality or change the original default-build failure above. The smaller J4
+fixture passes the same screen under this control. See the
+[Stage 188 diagnosis](parallel-blocks-arithmetic-diagnosis-188.md) for measured
+residuals, exact checked/optimized comparisons and the opt-in build setting.

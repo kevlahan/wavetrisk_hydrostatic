@@ -7,6 +7,10 @@
 #   DEBUG=check  → Fortran runtime checks and floating-point traps
 # ===========================================================================
 DEBUG         ?= false
+# Disable contraction for reproducible checked/optimized comparisons.
+# FP_CONTRACT=default restores compiler behavior. Use fresh BUILD_DIR and
+# BIN_DIR values when changing the arithmetic setting.
+FP_CONTRACT   ?= off
 TEST_CASE     ?= climate
 PARAM         ?= param_J5
 MPIF90        ?= mpif90
@@ -116,6 +120,14 @@ else
 
 $(error Unknown DEBUG='$(DEBUG)'; use false, asan, or check)
 
+endif
+
+# Optional arithmetic control for solver code; external physics keeps its flags.
+ifeq ($(filter $(FP_CONTRACT),default off fast),)
+$(error Unknown FP_CONTRACT='$(FP_CONTRACT)'; use default, off, or fast)
+endif
+ifneq ($(FP_CONTRACT),default)
+FFLAGS += -ffp-contract=$(FP_CONTRACT)
 endif
 
 # Force a non-executable stack on Linux

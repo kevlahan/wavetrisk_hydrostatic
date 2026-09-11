@@ -126,3 +126,13 @@ no RK3 full run was started. Full-matrix acceptance is not claimed. The complete
 RK4 production coverage and same-mode Stage 183 equality remain valid evidence.
 A fresh param_J4 / max_level6 fixture is prepared separately in Stage 185,
 retaining the original cluster fixture unchanged.
+
+## Stage 188 follow-up
+
+The original cross-build-mode discrepancy is now attributed to compiler
+floating-point contraction on these local fixtures. An optimized Stage 187
+solver built with contraction disabled matches this checked reference exactly
+at checkpoints 5 and 6, completing both reloads and subsequent remaps. The J4
+short and full windows also match exactly under that arithmetic control.
+Default-build differences remain recorded; numerical tolerances and solver
+formulas were not changed. See the [Stage 188 diagnosis](parallel-blocks-arithmetic-diagnosis-188.md).
