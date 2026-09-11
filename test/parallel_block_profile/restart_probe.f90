@@ -10,17 +10,23 @@ module restart_probe_mod
 contains
   subroutine restart_probe(tag)
     character(*), intent(in) :: tag
-    integer :: u,d,p,c,q,k,v,b,n,status
+    integer :: u,d,p,c,q,k,v,b,n,status,selected,nd
     integer(int64), allocatable :: key(:)
     character(256) :: filename
     character(16) :: enabled
     call get_environment_variable('WAVETRISK_RESTART_PROBE',enabled,status=status)
     if (status/=0.or.trim(enabled)/='1') return
+    call get_environment_variable('WAVETRISK_PROBE_DOMAIN',enabled,status=status)
+    selected=-1
+    if (status==0.and.len_trim(enabled)>0) read(enabled,*) selected
+    nd=size(grid)
+    if (selected>=0) nd=count(glo_id(rank+1,1:size(grid))==selected)
     write(filename,'(a,a,a,i0,a,i0,a)') 'probe-',tag,'-step-',istep_cumul,'-rank-',rank,'.bin'
     open(newunit=u,file=trim(filename),status='new',access='stream',form='unformatted',action='write')
-    write(u) 179401,size(grid),N_VARIABLE,zmin,zmax,PATCH_SIZE,istep_cumul,iremap
+    write(u) 179401,nd,N_VARIABLE,zmin,zmax,PATCH_SIZE,istep_cumul,iremap
     write(u) time,threshold
     do d=1,size(grid)
+       if (selected>=0.and.glo_id(rank+1,d)/=selected) cycle
        allocate(key(grid(d)%patch%length))
        key=0_int64
        key(2)=1_int64
@@ -49,7 +55,7 @@ contains
        deallocate(key)
     end do
     close(u)
-    if (tag=='after-dynamics') call alias_probe(tag)
+    if (tag=='after-dynamics'.and.selected<0) call alias_probe(tag)
   end subroutine
 
   subroutine alias_probe(tag)

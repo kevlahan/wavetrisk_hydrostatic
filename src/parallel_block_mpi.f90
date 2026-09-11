@@ -1,4 +1,5 @@
 module parallel_block_mpi_mod
+  use parallel_block_scalar_storage_mod
   use parallel_block_profile_mod
   use parallel_block_mass_mod, only : native_mass, mass_work
   use parallel_block_velocity_mod, only : copy_native_velocity_tendency, native_velocity_work
@@ -775,9 +776,7 @@ module parallel_block_mpi_mod
      integer :: catalog_index = 0
      integer :: installed_patch_count = 0
      logical :: ready = .false.
-     real(dp), allocatable :: patch(:)
-     real(dp), allocatable :: bdry(:)
-     real(dp), allocatable :: ghost(:)
+     type(Scalar_Record_Storage) :: patch,bdry,ghost
      logical, allocatable :: covered(:)
   end type Block_Scalar_Tendency_Storage
 
@@ -17523,6 +17522,7 @@ end subroutine build_parallel_block_catalog
     integer :: index
     integer :: n_local
     integer :: patch_count
+    integer :: v_scalar,nscalar,v_vector,first_level,nlevel,mult_scalar,mult_vector
 
     integer(int64) :: allocation_after
     integer(int64) :: restriction_allocation_after
@@ -17570,6 +17570,10 @@ end subroutine build_parallel_block_catalog
     end if
 
     storage_rebuilt = .false.
+    call get_block_field_layout(v_scalar,nscalar,v_vector,first_level,nlevel,mult_scalar,mult_vector)
+    if (SCALAR_RECORD_WIDTH/=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT.or. &
+         SCALAR_FIELD_SLOTS/=BLOCK_SCALAR_FULL_FIELD_COUNT.or. &
+         SCALAR_SHARED_SLOTS/=BLOCK_SCALAR_FULL_SHARED_COUNT) call fail("scalar storage slot layout differs")
     n_local = n_local_blocks()
     if (allocated(block_scalar_tendency)) then
        if (size(block_scalar_tendency) /= n_local) then
@@ -17594,12 +17598,10 @@ end subroutine build_parallel_block_catalog
        end do
        ghost_sample_count = local_block_ghost_count(b)* &
             block_writeback_plan%scalar_patch_nvalue
-       if (allocated(block_scalar_tendency(index)%patch)) then
-          if (block_scalar_tendency(index)%catalog_index /= b .or. &
-               size(block_scalar_tendency(index)%patch) /= &
-               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*count) then
-             deallocate(block_scalar_tendency(index)%patch)
-          end if
+       if (block_scalar_tendency(index)%catalog_index /= b) then
+          call scalar_release(block_scalar_tendency(index)%patch)
+          call scalar_release(block_scalar_tendency(index)%bdry)
+          call scalar_release(block_scalar_tendency(index)%ghost)
        end if
        if (allocated(block_scalar_tendency(index)%covered)) then
           if (block_scalar_tendency(index)%catalog_index /= b .or. &
@@ -17607,46 +17609,11 @@ end subroutine build_parallel_block_catalog
              deallocate(block_scalar_tendency(index)%covered)
           end if
        end if
-       if (allocated(block_scalar_tendency(index)%bdry)) then
-          if (block_scalar_tendency(index)%catalog_index /= b .or. &
-               size(block_scalar_tendency(index)%bdry) /= &
-               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-               boundary_sample_count) then
-             deallocate(block_scalar_tendency(index)%bdry)
-          end if
-       end if
-       if (allocated(block_scalar_tendency(index)%ghost)) then
-          if (block_scalar_tendency(index)%catalog_index /= b .or. &
-               size(block_scalar_tendency(index)%ghost) /= &
-               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-               ghost_sample_count) then
-             deallocate(block_scalar_tendency(index)%ghost)
-          end if
-       end if
-       if (.not. allocated(block_scalar_tendency(index)%patch)) then
-          allocate(block_scalar_tendency(index)%patch( &
-               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*count))
-          storage_rebuilt = .true.
-          block_scalar_tendency_allocations = &
-               block_scalar_tendency_allocations + 1_int64
-       end if
+       call prepare_storage(block_scalar_tendency(index)%patch,count,PATCH_SIZE**2)
+       call prepare_storage(block_scalar_tendency(index)%bdry,boundary_sample_count,boundary_sample_count/(nscalar*nlevel))
+       call prepare_storage(block_scalar_tendency(index)%ghost,ghost_sample_count,ghost_sample_count/(nscalar*nlevel))
        if (.not. allocated(block_scalar_tendency(index)%covered)) then
           allocate(block_scalar_tendency(index)%covered(count))
-          storage_rebuilt = .true.
-          block_scalar_tendency_allocations = &
-               block_scalar_tendency_allocations + 1_int64
-       end if
-       if (.not. allocated(block_scalar_tendency(index)%bdry)) then
-          allocate(block_scalar_tendency(index)%bdry( &
-               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-               boundary_sample_count))
-          storage_rebuilt = .true.
-          block_scalar_tendency_allocations = &
-               block_scalar_tendency_allocations + 1_int64
-       end if
-       if (.not. allocated(block_scalar_tendency(index)%ghost)) then
-          allocate(block_scalar_tendency(index)%ghost( &
-               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ghost_sample_count))
           storage_rebuilt = .true.
           block_scalar_tendency_allocations = &
                block_scalar_tendency_allocations + 1_int64
@@ -17655,9 +17622,9 @@ end subroutine build_parallel_block_catalog
        block_scalar_tendency(index)%installed_patch_count = 0
        block_scalar_tendency(index)%ready = .false.
        if (validate_oracle) then
-          block_scalar_tendency(index)%patch = BLOCK_PATCH_POISON
-          block_scalar_tendency(index)%bdry = BLOCK_BOUNDARY_POISON
-          block_scalar_tendency(index)%ghost = BLOCK_GHOST_POISON
+          call scalar_fill(block_scalar_tendency(index)%patch,BLOCK_PATCH_POISON)
+          call scalar_fill(block_scalar_tendency(index)%bdry,BLOCK_BOUNDARY_POISON)
+          call scalar_fill(block_scalar_tendency(index)%ghost,BLOCK_GHOST_POISON)
        end if
        ! Once the immutable production record has been installed, subsequent
        ! stages refresh only physics residuals. Native kernels replace direct
@@ -17711,6 +17678,17 @@ end subroutine build_parallel_block_catalog
     call detail_leave(DP_SCALAR_SETUP)
 
   contains
+
+    subroutine prepare_storage(store,samples,stride)
+      type(Scalar_Record_Storage), intent(inout) :: store
+      integer, intent(in) :: samples,stride
+      logical :: rebuilt
+      call scalar_allocate(store,samples,stride,nlevel,nscalar,first_level,zlevels,.not.validate_oracle,rebuilt)
+      if (rebuilt) then
+         storage_rebuilt=.true.
+         block_scalar_tendency_allocations=block_scalar_tendency_allocations+merge(1_int64,2_int64,validate_oracle)
+      end if
+    end subroutine prepare_storage
 
     subroutine prepare_scalar_divergence_plan
 
@@ -20568,7 +20546,7 @@ end subroutine build_parallel_block_catalog
   subroutine seed_scalar_producer_geometry
     ! No dynamic Domain field is read. Final-owner kernel storage still uses
     ! its existing layout; the producer-side 50-field shadow no longer exists.
-    integer :: d,p,node,first,storage,v,nscalar,vvector,field_first,nfield,mults,multv,f,address,sample
+    integer :: d,p,node,first,storage,v,nscalar,vvector,field_first,nfield,mults,multv,address
     logical :: validate_oracle
     call detail_enter(DP_GEOMETRY_EXPAND)
     call get_block_field_layout(v,nscalar,vvector,field_first,nfield,mults,multv)
@@ -20581,24 +20559,20 @@ end subroutine build_parallel_block_catalog
           storage=block_scalar_capture_domain(d)%storage(p)
           if (detail_enabled.and.storage/=0.and..not.validate_oracle) then
              call detail_add(DC_GEOMETRY_WRITES, &
-                  int(PATCH_SIZE**2,int64)*nscalar*zlevels*BLOCK_SCALAR_FULL_SHARED_COUNT)
+                  int(PATCH_SIZE**2,int64)*2*BLOCK_SCALAR_FULL_SHARED_COUNT)
              call detail_add(DC_FIELD_SAMPLES,int(PATCH_SIZE**2,int64)*nscalar*nfield)
+          end if
+          if (storage>0.and..not.validate_oracle) then
+             call scalar_seed_patch(block_scalar_tendency(storage)%patch,first, &
+                  block_scalar_capture_domain(d)%geometry(:,:,p))
+             block_scalar_tendency(storage)%covered(first:first+nscalar*nfield*PATCH_SIZE**2-1)=.true.
+             cycle
           end if
           do node=0,PATCH_SIZE**2-1
              if (storage==0) then
                 address=scalar_producer_address(first,1-field_first,node,1-field_first)-BLOCK_SCALAR_FULL_SHARED_COUNT
                 block_scalar_divergence_plan%producer_buffer(address:address+BLOCK_SCALAR_FULL_SHARED_COUNT-1)= &
                      block_scalar_capture_domain(d)%geometry(:,node+1,p)
-             else if (.not. validate_oracle) then
-                do f=0,nscalar*nfield-1
-                   sample=first+f*PATCH_SIZE**2+node
-                   address=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(sample-1)
-                   block_scalar_tendency(storage)%patch(address+1:address+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)=0.0_dp
-                   if (mod(f,nfield)+field_first>=1 .and. mod(f,nfield)+field_first<=zlevels) &
-                        block_scalar_tendency(storage)%patch(address+BLOCK_SCALAR_FULL_SHARED_INDEX)= &
-                        block_scalar_capture_domain(d)%geometry(:,node+1,p)
-                   block_scalar_tendency(storage)%covered(sample)=.true.
-                end do
              end if
           end do
        end do
@@ -20609,21 +20583,23 @@ end subroutine build_parallel_block_catalog
   end subroutine seed_scalar_producer_geometry
 
   subroutine sample_scalar_working_storage
-    ! Actual 50-double patch/boundary/ghost records, excluding auxiliary
-    ! arrays and producer buffers. Geometry estimate retains horizontal
-    ! halos but removes scalar and field-level replication axes.
+    ! Count actual allocated record/geometry capacity, not the virtual
+    ! 50-slot addressing extent. Oracle storage remains expanded.
     integer :: i,v,ns,vv,kfirst,nk,ms,mv
     integer(int64) :: samples,bytes(3)
     call get_block_field_layout(v,ns,vv,kfirst,nk,ms,mv)
     samples=0_int64
+    bytes=0_int64
     do i=1,size(block_scalar_tendency)
-       samples=samples+size(block_scalar_tendency(i)%patch,kind=int64)/BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
-       samples=samples+size(block_scalar_tendency(i)%bdry,kind=int64)/BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
-       samples=samples+size(block_scalar_tendency(i)%ghost,kind=int64)/BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
+       samples=samples+int(scalar_extent(block_scalar_tendency(i)%patch),int64)/BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
+       samples=samples+int(scalar_extent(block_scalar_tendency(i)%bdry),int64)/BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
+       samples=samples+int(scalar_extent(block_scalar_tendency(i)%ghost),int64)/BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
+       bytes(1)=bytes(1)+scalar_capacity(block_scalar_tendency(i)%patch)+ &
+            scalar_capacity(block_scalar_tendency(i)%bdry)+scalar_capacity(block_scalar_tendency(i)%ghost)
+       bytes(2)=bytes(2)+scalar_geometry_capacity(block_scalar_tendency(i)%patch)+ &
+            scalar_geometry_capacity(block_scalar_tendency(i)%bdry)+scalar_geometry_capacity(block_scalar_tendency(i)%ghost)
     end do
-    bytes(1)=samples*BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*int(storage_size(0.0_dp)/8,int64)
-    bytes(2)=samples*BLOCK_SCALAR_FULL_SHARED_COUNT*int(storage_size(0.0_dp)/8,int64)
-    bytes(3)=bytes(2)/(int(ns,int64)*nk)
+    bytes(3)=samples*BLOCK_SCALAR_FULL_SHARED_COUNT*int(storage_size(0.0_dp)/8,int64)/(int(ns,int64)*nk)
     call detail_memory(bytes)
   end subroutine sample_scalar_working_storage
 
@@ -20687,8 +20663,20 @@ end subroutine build_parallel_block_catalog
           data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(sample-1)
           id = grid(d)%patch%elts(p+1)%elts_start+q
           if (storage > 0) then
-             call install_record(block_scalar_tendency(storage)%patch( &
-                  data_start+1:data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT))
+             if (validate_oracle) then
+                block
+                  real(dp) :: record(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+                  record=scalar_read_range(block_scalar_tendency(storage)%patch, &
+                       data_start+1,data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+                  call install_record(record)
+                  call scalar_write_range(block_scalar_tendency(storage)%patch, &
+                       data_start+1,data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT,record)
+                end block
+             else
+                call scalar_write_range(block_scalar_tendency(storage)%patch, &
+                     data_start+BLOCK_SCALAR_PHYSICS_START,data_start+BLOCK_SCALAR_PHYSICS_START+EDGE-1, &
+                     physics(:,q+1,v+scalar_slot))
+             end if
           else
              producer_start=producer_base+q*producer_stride
              block_scalar_divergence_plan%producer_buffer(producer_start:producer_start+EDGE-1)= &
@@ -21039,26 +21027,20 @@ end subroutine build_parallel_block_catalog
             data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                  (sample-1) + 1
             if (capture_dscalar) then
-               block_scalar_tendency(storage_index)%patch( &
-                    data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1) = &
-                    value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX)
+               call scalar_write(block_scalar_tendency(storage_index)%patch, &
+                    data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1,value(BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX))
             else if (capture_direct) then
-               call check_fused_record(block_scalar_tendency(storage_index)%patch( &
-                    data_start:data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1),value)
-               block_scalar_tendency(storage_index)%patch( &
-                    data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
-                    data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
-                    value(BLOCK_SCALAR_DIRECT_FLUX_START: &
-                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+               call check_fused_record(scalar_read_range(block_scalar_tendency(storage_index)%patch,data_start, &
+                    data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1),value)
+               call scalar_write_range(block_scalar_tendency(storage_index)%patch, &
+                    data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1,data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1, &
+                    value(BLOCK_SCALAR_DIRECT_FLUX_START: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT))
             else
-               block_scalar_tendency(storage_index)%patch( &
-                    data_start:data_start+BLOCK_SCALAR_ACTIVE_INDEX-1) = &
-                    value(1:BLOCK_SCALAR_ACTIVE_INDEX)
-               block_scalar_tendency(storage_index)%patch( &
-                    data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
-                    data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
-                    value(BLOCK_SCALAR_RESTRICTED_FLUX_START: &
-                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+               call scalar_write_range(block_scalar_tendency(storage_index)%patch,data_start, &
+                    data_start+BLOCK_SCALAR_ACTIVE_INDEX-1,value(1:BLOCK_SCALAR_ACTIVE_INDEX))
+               call scalar_write_range(block_scalar_tendency(storage_index)%patch, &
+                    data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1,data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1, &
+                    value(BLOCK_SCALAR_RESTRICTED_FLUX_START: BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT))
                block_scalar_tendency(storage_index)%covered(sample) = .true.
             end if
          else
@@ -21236,9 +21218,7 @@ end subroutine build_parallel_block_catalog
        if (d < 1 .or. d > size(grid)) then
           call fail("retained scalar-restriction Domain is invalid")
        end if
-       n_boundary_node = size( &
-            block_scalar_tendency(local_index)%bdry)/ &
-            (BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+       n_boundary_node = scalar_extent(block_scalar_tendency(local_index)%bdry)/ (BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
             n_scalar_variable*n_field_level)
        node_start = 0
        do boundary_index = 1,local_block_boundary_count(b)
@@ -21374,10 +21354,14 @@ end subroutine build_parallel_block_catalog
          sample = ((scalar_slot-1)*n_field_level + level_slot-1)* &
               n_boundary_node + node_start + node
          data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
-         call fill_boundary_node( &
-              d,id+node,v_scalar+scalar_slot-1,capture_direct, &
-              block_scalar_tendency(local_index)%bdry(data_start: &
-              data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1))
+         block
+           real(dp) :: record(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT)
+           record=scalar_read_range(block_scalar_tendency(local_index)%bdry, &
+                data_start,data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+           call fill_boundary_node(d,id+node,v_scalar+scalar_slot-1,capture_direct,record)
+           call scalar_write_range(block_scalar_tendency(local_index)%bdry, &
+                data_start,data_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1,record)
+         end block
       end do
 
     end subroutine fill_retained_boundary_record
@@ -21619,8 +21603,8 @@ end subroutine build_parallel_block_catalog
                 else
                    sample=first+field*PATCH_SIZE**2+q
                    address=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(sample-1)+BLOCK_SCALAR_PHYSICS_START
-                   block_scalar_tendency(storage)%patch(address:address+EDGE-1)=0.0_dp
-                   block_scalar_tendency(storage)%patch(address)=native_mass(d)%tendency(id,k)
+                   call scalar_write_range(block_scalar_tendency(storage)%patch,address,address+EDGE-1,0.0_dp)
+                   call scalar_write(block_scalar_tendency(storage)%patch,address,native_mass(d)%tendency(id,k))
                 end if
                 mass_work(5)=mass_work(5)+1_int64
              end do
@@ -21781,37 +21765,30 @@ end subroutine build_parallel_block_catalog
              sample_count = &
                   block_writeback_plan%send_scalar_nvalue(slot)
              data_count = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample_count
-             if (data_start < 1 .or. data_start+data_count-1 > &
-                  size(block_scalar_divergence_plan%send_buffer) .or. &
-                  data_count /= &
-                  size(block_scalar_tendency(local_index)%patch)) then
+             if (data_start < 1 .or. data_start+data_count-1 > size(block_scalar_divergence_plan%send_buffer) .or. &
+                  data_count /= scalar_extent(block_scalar_tendency(local_index)%patch)) then
                 call fail("scalar-divergence received extent is invalid")
              end if
-             block_scalar_tendency(local_index)%patch = &
-                  block_scalar_divergence_plan%send_buffer( &
-                  data_start:data_start+data_count-1)
+             call scalar_write_range(block_scalar_tendency(local_index)%patch,1, &
+                  scalar_extent(block_scalar_tendency(local_index)%patch),block_scalar_divergence_plan%send_buffer( &
+                  data_start:data_start+data_count-1))
           else
              sample_count = &
                   block_writeback_plan%send_scalar_nvalue(slot)
              data_count = BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*sample_count
-             if (data_start < 1 .or. data_start+data_count-1 > &
-                  size(block_scalar_divergence_plan%send_buffer) .or. &
+             if (data_start < 1 .or. data_start+data_count-1 > size(block_scalar_divergence_plan%send_buffer) .or. &
                   BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample_count /= &
-                  size(block_scalar_tendency(local_index)%patch)) then
+                  scalar_extent(block_scalar_tendency(local_index)%patch)) then
                 call fail( &
                      "compact scalar-divergence received extent is invalid")
              end if
              do sample = 0,sample_count-1
                 source_start = data_start + &
                      BLOCK_SCALAR_PRODUCTION_INPUT_COUNT*sample
-                block_scalar_tendency(local_index)%patch( &
-                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+ &
-                     BLOCK_SCALAR_PHYSICS_START: &
-                     BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+ &
-                     BLOCK_SCALAR_PHYSICS_START+EDGE-1) = &
-                     block_scalar_divergence_plan%send_buffer( &
-                     source_start: &
-                     source_start+BLOCK_SCALAR_PRODUCTION_INPUT_COUNT-1)
+                call scalar_write_range(block_scalar_tendency(local_index)%patch,BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+ &
+                     BLOCK_SCALAR_PHYSICS_START,BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+ &
+                     BLOCK_SCALAR_PHYSICS_START+EDGE-1,block_scalar_divergence_plan%send_buffer( source_start: &
+                     source_start+BLOCK_SCALAR_PRODUCTION_INPUT_COUNT-1))
              end do
           end if
           block_scalar_tendency(local_index)%covered = .true.
@@ -22073,6 +22050,8 @@ end subroutine build_parallel_block_catalog
          call fail("deduplicated scalar unpack field is invalid")
       end if
       source_position = source_unpack
+      if (block_scalar_tendency(local_index_unpack)%patch%compact) &
+           call scalar_fill(block_scalar_tendency(local_index_unpack)%patch,0.0_dp)
       do p = 0,patch_count-1
          do f = 0,field_count-1
             do q = 0,PATCH_SIZE**2-1
@@ -22085,37 +22064,30 @@ end subroutine build_parallel_block_catalog
                   ! Dropped oracle fields are deliberately initialized to
                   ! zero; geometry sharing below and native production fill
                   ! all the inputs that non-oracle consumers require.
-                  block_scalar_tendency(local_index_unpack)%patch( &
-                       destination_unpack:destination_unpack+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = 0.0_dp
+                  ! Field storage was zeroed once above; do not rebuild a
+                  ! 50-slot record or replicate geometry for every field.
                   if (f == shared_field) then
                      do k = 1,BLOCK_SCALAR_FULL_SHARED_COUNT
-                        block_scalar_tendency(local_index_unpack)%patch( &
-                             destination_unpack+BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1) = &
-                             block_scalar_divergence_plan%send_buffer(source_position)
+                        call scalar_write(block_scalar_tendency(local_index_unpack)%patch, &
+                             destination_unpack+BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1, &
+                             block_scalar_divergence_plan%send_buffer(source_position))
                         source_position = source_position+1
                      end do
                   end if
-                  block_scalar_tendency(local_index_unpack)%patch( &
-                       destination_unpack+BLOCK_SCALAR_PHYSICS_START-1: &
-                       destination_unpack+BLOCK_SCALAR_PHYSICS_START+EDGE-2) = &
-                       block_scalar_divergence_plan%send_buffer(source_position:source_position+EDGE-1)
+                  call scalar_write_range(block_scalar_tendency(local_index_unpack)%patch, &
+                       destination_unpack+BLOCK_SCALAR_PHYSICS_START-1,destination_unpack+BLOCK_SCALAR_PHYSICS_START+EDGE-2, &
+                       block_scalar_divergence_plan%send_buffer(source_position:source_position+EDGE-1))
                   source_position = source_position+EDGE
                else if (f == shared_field) then
-                  block_scalar_tendency(local_index_unpack)%patch( &
-                       destination_unpack:destination_unpack+ &
-                       BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
-                       block_scalar_divergence_plan%send_buffer( &
-                       source_position:source_position+ &
-                       BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                  call scalar_write_range(block_scalar_tendency(local_index_unpack)%patch,destination_unpack, &
+                       destination_unpack+ BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1,block_scalar_divergence_plan%send_buffer( &
+                       source_position:source_position+ BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1))
                   source_position = source_position + &
                        BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT
                else
                   do k = 1,BLOCK_SCALAR_FULL_FIELD_COUNT
-                     block_scalar_tendency(local_index_unpack)%patch( &
-                          destination_unpack + &
-                          BLOCK_SCALAR_FULL_FIELD_INDEX(k)-1) = &
-                          block_scalar_divergence_plan%send_buffer( &
-                          source_position)
+                     call scalar_write(block_scalar_tendency(local_index_unpack)%patch, destination_unpack + &
+                          BLOCK_SCALAR_FULL_FIELD_INDEX(k)-1,block_scalar_divergence_plan%send_buffer( source_position))
                      source_position = source_position + 1
                   end do
                end if
@@ -22130,6 +22102,12 @@ end subroutine build_parallel_block_catalog
       ! in storage order.  Populate every shared slot only after the complete
       ! stream has installed that canonical record.
       call detail_enter(DP_REMOTE_GEOMETRY)
+      if (block_scalar_tendency(local_index_unpack)%patch%compact) then
+         call scalar_share_inactive(block_scalar_tendency(local_index_unpack)%patch)
+         call detail_add(DC_REMOTE_GEOMETRY_WRITES,int(patch_count,int64)*PATCH_SIZE**2*BLOCK_SCALAR_FULL_SHARED_COUNT)
+         call detail_leave(DP_REMOTE_GEOMETRY)
+         return
+      end if
       call detail_add(DC_REMOTE_GEOMETRY_WRITES, &
            int(patch_count,int64)*PATCH_SIZE**2*(field_count-1)*BLOCK_SCALAR_FULL_SHARED_COUNT)
       do p = 0,patch_count-1
@@ -22141,14 +22119,10 @@ end subroutine build_parallel_block_catalog
                     (p*field_count*PATCH_SIZE**2 + &
                     f*PATCH_SIZE**2+q) + 1
                do k = 1,BLOCK_SCALAR_FULL_SHARED_COUNT
-                  block_scalar_tendency(local_index_unpack)%patch( &
-                       destination_unpack + &
-                       BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1) = &
-                       block_scalar_tendency(local_index_unpack)%patch( &
-                       BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-                       (p*field_count*PATCH_SIZE**2 + &
-                       shared_field*PATCH_SIZE**2+q) + &
-                       BLOCK_SCALAR_FULL_SHARED_INDEX(k))
+                  call scalar_write(block_scalar_tendency(local_index_unpack)%patch, destination_unpack + &
+                       BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1,scalar_read(block_scalar_tendency(local_index_unpack)%patch, &
+                       BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* (p*field_count*PATCH_SIZE**2 + shared_field*PATCH_SIZE**2+q) + &
+                       BLOCK_SCALAR_FULL_SHARED_INDEX(k)))
                end do
             end do
          end do
@@ -22275,9 +22249,7 @@ end subroutine build_parallel_block_catalog
                local_index > size(block_scalar_tendency)) then
              call fail("scalar-restriction boundary block is invalid")
           end if
-          n_boundary_node = size( &
-               block_scalar_tendency(local_index)%bdry)/ &
-               (BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+          n_boundary_node = scalar_extent(block_scalar_tendency(local_index)%bdry)/ (BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                n_scalar_variable*n_field_level)
           node_start = 0
           do boundary_index = 1,local_block_boundary_count(b)
@@ -22297,27 +22269,18 @@ end subroutine build_parallel_block_catalog
                               (pos_sample-1 + &
                               ((scalar_slot-1)*n_field_level + &
                               level_slot-1)*n_node + node) + 1
-                         block_scalar_tendency(local_index)%bdry( &
-                              data_start:data_start+ &
-                              BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
-                              block_scalar_restriction_exchange% &
-                              boundary_recv_buffer(buffer_start: &
-                              buffer_start+ &
-                              BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                         call scalar_write_range(block_scalar_tendency(local_index)%bdry,data_start,data_start+ &
+                              BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1,block_scalar_restriction_exchange% &
+                              boundary_recv_buffer(buffer_start: buffer_start+ BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1))
                       else
                          buffer_start = &
                               BLOCK_SCALAR_BOUNDARY_DYNAMIC_COUNT* &
                               (pos_sample-1 + &
                               ((scalar_slot-1)*n_field_level + &
                               level_slot-1)*n_node + node) + 1
-                         block_scalar_tendency(local_index)%bdry( &
-                              data_start+ &
-                              BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
-                              data_start+ &
-                              BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2) = &
-                              block_scalar_restriction_exchange% &
-                              boundary_recv_buffer( &
-                              buffer_start:buffer_start+EDGE-1)
+                         call scalar_write_range(block_scalar_tendency(local_index)%bdry,data_start+ &
+                              BLOCK_SCALAR_RESTRICTED_FLUX_START-1,data_start+ BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2, &
+                              block_scalar_restriction_exchange% boundary_recv_buffer( buffer_start:buffer_start+EDGE-1))
                       end if
                    end do
                 end do
@@ -22397,7 +22360,7 @@ end subroutine build_parallel_block_catalog
     ! per field (mass compatibility flux or temperature boundary closure).
     implicit none
     integer, intent(in) :: profile_initial_mode
-    integer :: r,slot,b,ib,nb,bd,n,node,f,k,base,at,dst,first_node,nf,ierr,width
+    integer :: r,slot,b,ib,nb,bd,n,node,f,base,at,dst,first_node,nf,ierr,width
     integer(int64) :: messages,bytes
     logical :: full
 
@@ -22431,27 +22394,26 @@ end subroutine build_parallel_block_catalog
             ib = catalog_local_block(b)
             if (ib < 1 .or. ib > size(block_scalar_tendency)) &
                  call fail("production boundary destination is invalid")
-            nb = size(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*nf)
+            nb = scalar_extent(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*nf)
             first_node = 0
             do bd=1,local_block_boundary_count(b)
                n = local_block_scalar_family_boundary_nvalue(b,bd)/nf
+               if (full) call scalar_install_geometry(block_scalar_tendency(ib)%bdry,first_node+1, &
+                    reshape(ex%boundary_recv_buffer(base:base+n*BLOCK_SCALAR_FULL_SHARED_COUNT-1), &
+                    [BLOCK_SCALAR_FULL_SHARED_COUNT,n]))
                do f=0,nf-1
+                  if (full) call scalar_fill_fields(block_scalar_tendency(ib)%bdry, &
+                       f*nb+first_node+1,f*nb+first_node+n,BLOCK_BOUNDARY_POISON)
                   do node=0,n-1
                      dst = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(f*nb+first_node+node)+1
                      at = base+EDGE*(f*n+node)
                      if (full) then
                         ! Absent oracle fields must not silently supply zero
                         ! to an undiscovered production consumer.
-                        block_scalar_tendency(ib)%bdry(dst:dst+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
-                             BLOCK_BOUNDARY_POISON
-                        do k=1,BLOCK_SCALAR_FULL_SHARED_COUNT
-                           block_scalar_tendency(ib)%bdry(dst+BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1) = &
-                                ex%boundary_recv_buffer(base+node*BLOCK_SCALAR_FULL_SHARED_COUNT+k-1)
-                        end do
                         at = at+BLOCK_SCALAR_FULL_SHARED_COUNT*n
                      end if
-                     block_scalar_tendency(ib)%bdry(dst+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
-                          dst+BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2) = ex%boundary_recv_buffer(at:at+EDGE-1)
+                     call scalar_write_range(block_scalar_tendency(ib)%bdry,dst+BLOCK_SCALAR_RESTRICTED_FLUX_START-1, &
+                          dst+BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2,ex%boundary_recv_buffer(at:at+EDGE-1))
                   end do
                end do
                base = base+width*n
@@ -22934,10 +22896,9 @@ end subroutine build_parallel_block_catalog
               patch_source*ghost_exchange_plan%scalar_n_value + &
               (field_sample-1)*PATCH_SIZE**2+node_source) + &
               BLOCK_SCALAR_NATIVE_DSCALAR_INDEX
-         if (data_index < 1 .or. &
-              data_index > size(block_scalar_tendency(local_source)%patch)) &
-              call fail("local scalar boundary final data overruns")
-         source_value = block_scalar_tendency(local_source)%patch(data_index)
+         if (data_index < 1 .or. data_index > scalar_extent(block_scalar_tendency(local_source)%patch)) call &
+              fail("local scalar boundary final data overruns")
+         source_value = scalar_read(block_scalar_tendency(local_source)%patch,data_index)
          if (abs(source_value) > BLOCK_RESTRICTION_VALUE_LIMIT) then
             write(error_unit,'(a,7(i0,1x),es24.16)') &
                  "invalid local final source = ", &
@@ -23000,15 +22961,14 @@ end subroutine build_parallel_block_catalog
               patch_source*ghost_exchange_plan%scalar_n_value + &
               (field_sample-1)*PATCH_SIZE**2+node_source) + &
               BLOCK_SCALAR_NATIVE_DSCALAR_INDEX
-         if (data_index < 1 .or. &
-              data_index > size(block_scalar_tendency(local_source)%patch)) &
-              call fail("scalar boundary final service data overruns")
+         if (data_index < 1 .or. data_index > scalar_extent(block_scalar_tendency(local_source)%patch)) call &
+              fail("scalar boundary final service data overruns")
          if (data_start+field_sample-1 < 1 .or. &
               data_start+field_sample-1 > size( &
               block_scalar_restriction_exchange%ghost_send_buffer)) then
             call fail("scalar boundary final service buffer overruns")
          end if
-         source_value = block_scalar_tendency(local_source)%patch(data_index)
+         source_value = scalar_read(block_scalar_tendency(local_source)%patch,data_index)
          if (abs(source_value) > BLOCK_RESTRICTION_VALUE_LIMIT) then
             write(error_unit,'(a,7(i0,1x),es24.16)') &
                  "invalid remote final source = ", &
@@ -23147,8 +23107,7 @@ end subroutine build_parallel_block_catalog
                  BLOCK_SCALAR_NATIVE_DSCALAR_INDEX
             final_value = block_scalar_boundary_final_plan% &
                  value(cache_index)
-            block_scalar_tendency(local_destination)%bdry(data_index) = &
-                 final_value
+            call scalar_write(block_scalar_tendency(local_destination)%bdry,data_index,final_value)
          end do
       end do
 
@@ -23352,12 +23311,9 @@ end subroutine build_parallel_block_catalog
       if (full_payload) data_count = restriction_ghost_wire_size()
       source_start = source_patch*BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
            ghost_exchange_plan%scalar_n_value + 1
-      if (source_patch < 0 .or. source_start < 1 .or. &
-           source_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
-           ghost_exchange_plan%scalar_n_value-1 > &
-           size(block_scalar_tendency(local_index)%patch) .or. &
-           data_start < 1 .or. data_start+data_count-1 > &
-           size(buffer)) then
+      if (source_patch < 0 .or. source_start < 1 .or. source_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
+           ghost_exchange_plan%scalar_n_value-1 > scalar_extent(block_scalar_tendency(local_index)%patch) .or. data_start < &
+           1 .or. data_start+data_count-1 > size(buffer)) then
          call fail("scalar-restriction ghost pack extent is invalid")
       end if
       if (full_payload) then
@@ -23367,9 +23323,8 @@ end subroutine build_parallel_block_catalog
          end if
       end if
       if (full_payload) then
-         buffer(data_start:data_start+data_count-1) = &
-              block_scalar_tendency(local_index)%patch( &
-              source_start:source_start+data_count-1)
+         buffer(data_start:data_start+data_count-1) = scalar_read_range(block_scalar_tendency(local_index)%patch, &
+              source_start,source_start+data_count-1)
       else
          do field_sample = 0, &
               ghost_exchange_plan%scalar_n_value/PATCH_SIZE**2-1
@@ -23382,17 +23337,14 @@ end subroutine build_parallel_block_catalog
                     (field_sample*PATCH_SIZE**2+q)
                if (component /= BLOCK_GHOST_DYNAMIC_DSCALAR) then
                   buffer(destination_start:destination_start+EDGE-1) = &
-                       block_scalar_tendency(local_index)%patch( &
-                       record_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
-                       record_start+BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-2)
+                       scalar_read_range(block_scalar_tendency(local_index)%patch, &
+                       record_start+BLOCK_SCALAR_DIRECT_FLUX_START-1,record_start+BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-2)
                end if
                if (component == BLOCK_GHOST_DYNAMIC_DSCALAR) then
-                  buffer(destination_start) = &
-                       block_scalar_tendency(local_index)%patch( &
+                  buffer(destination_start) = scalar_read(block_scalar_tendency(local_index)%patch, &
                        record_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1)
                else if (component == BLOCK_GHOST_DYNAMIC_BOTH) then
-                  buffer(destination_start+EDGE) = &
-                       block_scalar_tendency(local_index)%patch( &
+                  buffer(destination_start+EDGE) = scalar_read(block_scalar_tendency(local_index)%patch, &
                        record_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1)
                end if
             end do
@@ -23454,30 +23406,21 @@ end subroutine build_parallel_block_catalog
             record_start = data_start + payload_count* &
                  (field_sample*PATCH_SIZE**2+q)
             if (full_payload) then
-               block_scalar_tendency(destination_index)%ghost( &
-                    destination_start:destination_start+ &
-                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = &
-                    buffer(record_start:record_start+ &
-                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+               call scalar_write_range(block_scalar_tendency(destination_index)%ghost,destination_start,destination_start+ &
+                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1,buffer(record_start:record_start+ &
+                    BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1))
             else
                if (component /= BLOCK_GHOST_DYNAMIC_DSCALAR) then
-                  block_scalar_tendency(destination_index)%ghost( &
-                       destination_start+ &
-                       BLOCK_SCALAR_DIRECT_FLUX_START-1: &
-                       destination_start+ &
-                       BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-2) = &
-                       buffer(record_start:record_start+EDGE-1)
+                  call scalar_write_range(block_scalar_tendency(destination_index)%ghost,destination_start+ &
+                       BLOCK_SCALAR_DIRECT_FLUX_START-1,destination_start+ BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-2, &
+                       buffer(record_start:record_start+EDGE-1))
                end if
                if (component == BLOCK_GHOST_DYNAMIC_DSCALAR) then
-                  block_scalar_tendency(destination_index)%ghost( &
-                       destination_start+ &
-                       BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
-                       buffer(record_start)
+                  call scalar_write(block_scalar_tendency(destination_index)%ghost, destination_start+ &
+                       BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1,buffer(record_start))
                else if (component == BLOCK_GHOST_DYNAMIC_BOTH) then
-                  block_scalar_tendency(destination_index)%ghost( &
-                       destination_start+ &
-                       BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
-                       buffer(record_start+EDGE)
+                  call scalar_write(block_scalar_tendency(destination_index)%ghost, destination_start+ &
+                       BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1,buffer(record_start+EDGE))
                end if
             end if
          end do
@@ -23492,25 +23435,23 @@ end subroutine build_parallel_block_catalog
     implicit none
     integer, intent(in) :: ib,source_start,data_start
     real(dp), intent(inout) :: buffer(:)
-    integer :: v,ns,vv,kfirst,nk,ms,mv,nf,q,k,f,src,at
+    integer :: v,ns,vv,kfirst,nk,ms,mv,nf,q,f,src,at
     call get_block_field_layout(v,ns,vv,kfirst,nk,ms,mv)
     nf = ns*nk
     if (1-kfirst < 0 .or. 1-kfirst >= nk) call fail("production ghost geometry field is invalid")
     do q=0,PATCH_SIZE**2-1
        src = source_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*((1-kfirst)*PATCH_SIZE**2+q)
-       do k=1,BLOCK_SCALAR_FULL_SHARED_COUNT
-          buffer(data_start+q*BLOCK_SCALAR_FULL_SHARED_COUNT+k-1) = &
-               block_scalar_tendency(ib)%patch(src+BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1)
-       end do
+       at=data_start+q*BLOCK_SCALAR_FULL_SHARED_COUNT
+       buffer(at:at+BLOCK_SCALAR_FULL_SHARED_COUNT-1)= &
+            scalar_read(block_scalar_tendency(ib)%patch,src+BLOCK_SCALAR_FULL_SHARED_INDEX-1)
     end do
     at = data_start+BLOCK_SCALAR_FULL_SHARED_COUNT*PATCH_SIZE**2
     do f=0,nf-1
        do q=0,PATCH_SIZE**2-1
           src = source_start+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*(f*PATCH_SIZE**2+q)
-          do k=1,BLOCK_SCALAR_GHOST_FIELD_COUNT
-             buffer(at) = block_scalar_tendency(ib)%patch(src+BLOCK_SCALAR_GHOST_FIELD_INDEX(k)-1)
-             at = at+1
-          end do
+          buffer(at:at+BLOCK_SCALAR_GHOST_FIELD_COUNT-1)= &
+               scalar_read(block_scalar_tendency(ib)%patch,src+BLOCK_SCALAR_GHOST_FIELD_INDEX-1)
+          at=at+BLOCK_SCALAR_GHOST_FIELD_COUNT
        end do
     end do
     if (at /= data_start+restriction_ghost_wire_size()) call fail("production ghost pack extent differs")
@@ -23521,24 +23462,23 @@ end subroutine build_parallel_block_catalog
     implicit none
     integer, intent(in) :: ib,ghost,nghost,data_start
     real(dp), intent(in) :: buffer(:)
-    integer :: nf,q,k,f,dst,at,nvalue
+    integer :: nf,q,f,dst,at,nvalue,first_sample
     nf = ghost_exchange_plan%scalar_n_value/PATCH_SIZE**2
     nvalue = restriction_ghost_wire_size()
     if (data_start < 1 .or. data_start+nvalue-1 > size(buffer)) &
          call fail("production ghost install buffer is invalid")
     at = data_start+BLOCK_SCALAR_FULL_SHARED_COUNT*PATCH_SIZE**2
+    call scalar_install_geometry(block_scalar_tendency(ib)%ghost,(ghost-1)*PATCH_SIZE**2+1, &
+         reshape(buffer(data_start:at-1),[BLOCK_SCALAR_FULL_SHARED_COUNT,PATCH_SIZE**2]))
     do f=0,nf-1
+       first_sample=(f*nghost+ghost-1)*PATCH_SIZE**2+1
+       call scalar_fill_fields(block_scalar_tendency(ib)%ghost, &
+            first_sample,first_sample+PATCH_SIZE**2-1,BLOCK_GHOST_POISON)
        do q=0,PATCH_SIZE**2-1
           dst = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*((f*nghost+ghost-1)*PATCH_SIZE**2+q)+1
-          block_scalar_tendency(ib)%ghost(dst:dst+BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = BLOCK_GHOST_POISON
-          do k=1,BLOCK_SCALAR_FULL_SHARED_COUNT
-             block_scalar_tendency(ib)%ghost(dst+BLOCK_SCALAR_FULL_SHARED_INDEX(k)-1) = &
-                  buffer(data_start+q*BLOCK_SCALAR_FULL_SHARED_COUNT+k-1)
-          end do
-          do k=1,BLOCK_SCALAR_GHOST_FIELD_COUNT
-             block_scalar_tendency(ib)%ghost(dst+BLOCK_SCALAR_GHOST_FIELD_INDEX(k)-1) = buffer(at)
-             at = at+1
-          end do
+          call scalar_write(block_scalar_tendency(ib)%ghost,dst+BLOCK_SCALAR_GHOST_FIELD_INDEX-1, &
+               buffer(at:at+BLOCK_SCALAR_GHOST_FIELD_COUNT-1))
+          at=at+BLOCK_SCALAR_GHOST_FIELD_COUNT
        end do
     end do
     if (at /= data_start+nvalue) call fail("production ghost install extent differs")
@@ -23631,14 +23571,11 @@ end subroutine build_parallel_block_catalog
                    end if
                    remainder_index = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT* &
                         (scalar_storage_index-1)+1
-                   scalar_input = &
-                        block_scalar_tendency(local_index)%patch( &
-                        remainder_index:remainder_index+ &
-                        BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
+                   scalar_input = scalar_read_range(block_scalar_tendency(local_index)%patch,remainder_index, &
+                        remainder_index+ BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1)
                    if (block%scalar_variable+scalar_slot==S_MASS.and..not.statistics%validate_oracle) then
-                      block_scalar_tendency(local_index)%patch( &
-                           remainder_index+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1)= &
-                           scalar_input(BLOCK_SCALAR_PHYSICS_START)
+                      call scalar_write(block_scalar_tendency(local_index)%patch, &
+                           remainder_index+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1,scalar_input(BLOCK_SCALAR_PHYSICS_START))
                       cycle
                    end if
                    if (field_level < 1 .or. &
@@ -23718,10 +23655,8 @@ end subroutine build_parallel_block_catalog
                                  "block-native direct scalar flux differs")
                          end if
                       end if
-                      block_scalar_tendency(local_index)%patch( &
-                           remainder_index+ &
-                           BLOCK_SCALAR_DIRECT_FLUX_START+flux_slot-2) = &
-                           native_flux
+                      call scalar_write(block_scalar_tendency(local_index)%patch, remainder_index+ &
+                           BLOCK_SCALAR_DIRECT_FLUX_START+flux_slot-2,native_flux)
                    end do
                 end do
              end do
@@ -24431,14 +24366,14 @@ end subroutine build_parallel_block_catalog
          ib=plan%closure_destination(1,i)
          node=plan%closure_destination(2,i)
          e=plan%closure_destination(3,i)
-         nb=size(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
+         nb=scalar_extent(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
          do k=1,zlevels
             sample=((S_TEMP-v)*nk+k-kfirst)*nb+node
             offset=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+BLOCK_SCALAR_DIRECT_FLUX_START+e
             closure_slot=BLOCK_SCALAR_RESTRICTED_FLUX_START
             if (block_dynamics_validation_enabled()) closure_slot=BLOCK_SCALAR_PHYSICS_START
-            block_scalar_tendency(ib)%bdry(offset)=block_scalar_tendency(ib)%bdry( &
-                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+closure_slot+e)
+            call scalar_write(block_scalar_tendency(ib)%bdry,offset,scalar_read(block_scalar_tendency(ib)%bdry, &
+                 BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+closure_slot+e))
          end do
       end do
       do i=1,size(plan%source,2)
@@ -24454,7 +24389,7 @@ end subroutine build_parallel_block_catalog
             sample=p*block_writeback_plan%scalar_patch_nvalue + &
                  ((S_TEMP-v)*nk+k-kfirst)*PATCH_SIZE**2+node
             offset=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+BLOCK_SCALAR_DIRECT_FLUX_START+e
-            plan%send_value((i-1)*zlevels+k)=block_scalar_tendency(ib)%patch(offset)
+            plan%send_value((i-1)*zlevels+k)=scalar_read(block_scalar_tendency(ib)%patch,offset)
          end do
       end do
       nrequest=0
@@ -24497,12 +24432,12 @@ end subroutine build_parallel_block_catalog
          ib=plan%destination(1,i)
          node=plan%destination(2,i)
          e=plan%destination(3,i)
-         nb=size(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
+         nb=scalar_extent(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
          do k=1,zlevels
             sample=((S_TEMP-v)*nk+k-kfirst)*nb+node
             offset=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample+BLOCK_SCALAR_DIRECT_FLUX_START+e
-            block_scalar_tendency(ib)%bdry(offset)= &
-                 real(plan%destination(4,i),dp)*plan%recv_value((plan%value_slot(i)-1)*zlevels+k)
+            call scalar_write(block_scalar_tendency(ib)%bdry,offset,real(plan%destination(4,i), &
+                 dp)*plan%recv_value((plan%value_slot(i)-1)*zlevels+k))
          end do
       end do
     end associate
@@ -24667,21 +24602,21 @@ end subroutine build_parallel_block_catalog
                 offset=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample
                 rotation=mod(b+7*p+11*q+17*k,64)
                 do e=0,EDGE-1
-                   bits=transfer(block_scalar_tendency(ib)%patch(offset+BLOCK_SCALAR_PHYSICS_START+e),bits)
+                   bits=transfer(scalar_read(block_scalar_tendency(ib)%patch,offset+BLOCK_SCALAR_PHYSICS_START+e),bits)
                    local_hash(1)=ieor(local_hash(1),ishftc(bits,mod(rotation+5*e,64)))
                 end do
-                bits=transfer(block_scalar_tendency(ib)%patch(offset+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX),bits)
+                bits=transfer(scalar_read(block_scalar_tendency(ib)%patch,offset+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX),bits)
                 local_hash(2)=ieor(local_hash(2),ishftc(bits,rotation))
              end do
           end do
        end do
-       nb=size(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
+       nb=scalar_extent(block_scalar_tendency(ib)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
        do k=1,zlevels
           do q=0,nb-1
              sample=((S_TEMP-v)*nk+k-kfirst)*nb+q
              offset=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample
              do e=0,EDGE-1
-                bits=transfer(block_scalar_tendency(ib)%bdry(offset+BLOCK_SCALAR_DIRECT_FLUX_START+e),bits)
+                bits=transfer(scalar_read(block_scalar_tendency(ib)%bdry,offset+BLOCK_SCALAR_DIRECT_FLUX_START+e),bits)
                 local_hash(3)=ieor(local_hash(3),ishftc(bits,mod(b+11*q+17*k+5*e,64)))
              end do
           end do
@@ -24799,40 +24734,33 @@ end subroutine build_parallel_block_catalog
        if (.not. block_scalar_tendency(b)%ready) then
           call fail("scalar-restriction boundary source is stale")
        end if
-       if (mod(size(block_scalar_tendency(b)%bdry), &
-            BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT) /= 0) then
+       if (mod(scalar_extent(block_scalar_tendency(b)%bdry), BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT) /= 0) then
           call fail("scalar-restriction boundary extent is invalid")
        end if
-       do sample = 0,size(block_scalar_tendency(b)%bdry)/ &
-            BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1
+       do sample = 0,scalar_extent(block_scalar_tendency(b)%bdry)/ BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1
           data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
-          block_scalar_tendency(b)%bdry( &
-               data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1: &
-               data_start+BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-2) = &
-               block_scalar_tendency(b)%bdry( &
-               data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
-               data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2)
+          call scalar_write_range(block_scalar_tendency(b)%bdry,data_start+BLOCK_SCALAR_DIRECT_FLUX_START-1, &
+               data_start+BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-2,scalar_read_range(block_scalar_tendency(b)%bdry, &
+               data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1,data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+EDGE-2))
           if (validate_oracle) then
-             block_scalar_tendency(b)%bdry( &
-                  data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
-                  block_scalar_tendency(b)%bdry( &
-                  data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1)
+             call scalar_write(block_scalar_tendency(b)%bdry, data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1, &
+                  scalar_read(block_scalar_tendency(b)%bdry,data_start+BLOCK_SCALAR_REFERENCE_DSCALAR_INDEX-1))
           else
-             block_scalar_tendency(b)%bdry( &
-                  data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1) = &
-                  BLOCK_BOUNDARY_POISON
+             call scalar_write(block_scalar_tendency(b)%bdry, data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX-1, &
+                  BLOCK_BOUNDARY_POISON)
           end if
        end do
        ! Temperature has no compatibility fallback, even in oracle runs.
        ! Missing native routes must fail at the actual stencil consumption.
-       nb=size(block_scalar_tendency(b)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
+       nb=scalar_extent(block_scalar_tendency(b)%bdry)/(BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*ns*nk)
        do k=1,zlevels
           do node=0,nb-1
              sample=((S_TEMP-v)*nk+k-kfirst)*nb+node
              data_start=BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample
-             block_scalar_tendency(b)%bdry(data_start+BLOCK_SCALAR_DIRECT_FLUX_START: &
-                  data_start+BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-1)=BLOCK_BOUNDARY_POISON
-             block_scalar_tendency(b)%bdry(data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX)=BLOCK_BOUNDARY_POISON
+             call scalar_write_range(block_scalar_tendency(b)%bdry,data_start+BLOCK_SCALAR_DIRECT_FLUX_START, &
+                  data_start+BLOCK_SCALAR_DIRECT_FLUX_START+EDGE-1,BLOCK_BOUNDARY_POISON)
+             call scalar_write(block_scalar_tendency(b)%bdry,data_start+BLOCK_SCALAR_NATIVE_DSCALAR_INDEX, &
+                  BLOCK_BOUNDARY_POISON)
           end do
        end do
     end do
@@ -25507,32 +25435,26 @@ end subroutine build_parallel_block_catalog
             (scalar_slot*block%n_field_level+level_slot-1)* &
             PATCH_SIZE**2 + node
        data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
-       if (data_start+record_slot-1 > &
-            size(block_scalar_tendency(local_index)%patch)) then
+       if (data_start+record_slot-1 > scalar_extent(block_scalar_tendency(local_index)%patch)) then
           call fail("scalar-restriction patch record is invalid")
        end if
-       value = block_scalar_tendency(local_index)%patch( &
-            data_start+record_slot-1)
+       value = scalar_read(block_scalar_tendency(local_index)%patch,data_start+record_slot-1)
     case (STORE_BDRY)
        sample = (scalar_slot*block%n_field_level+level_slot-1)* &
             size(block%bdry_node) + node
        data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
-       if (data_start+record_slot-1 > &
-            size(block_scalar_tendency(local_index)%bdry)) then
+       if (data_start+record_slot-1 > scalar_extent(block_scalar_tendency(local_index)%bdry)) then
           call fail("scalar-restriction boundary record is invalid")
        end if
-       value = block_scalar_tendency(local_index)%bdry( &
-            data_start+record_slot-1)
+       value = scalar_read(block_scalar_tendency(local_index)%bdry,data_start+record_slot-1)
     case (STORE_GHOST)
        sample = (scalar_slot*block%n_field_level+level_slot-1)* &
             size(block%ghost_node) + node
        data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
-       if (data_start+record_slot-1 > &
-            size(block_scalar_tendency(local_index)%ghost)) then
+       if (data_start+record_slot-1 > scalar_extent(block_scalar_tendency(local_index)%ghost)) then
           call fail("scalar-restriction ghost record is invalid")
        end if
-       value = block_scalar_tendency(local_index)%ghost( &
-            data_start+record_slot-1)
+       value = scalar_read(block_scalar_tendency(local_index)%ghost,data_start+record_slot-1)
     case default
        call fail("scalar-restriction record storage is invalid")
     end select
@@ -25574,16 +25496,15 @@ end subroutine build_parallel_block_catalog
          write(error_unit,'(a,4(i0,1x))') "  patch/boundary level, Domain, source boundary = ", &
               block%patch(p)%level,block%bdry_storage(record)%level, &
               block%root_domain,block%bdry_storage(record)%source_bdry
-         write(error_unit,'(a,es24.16)') "  source node = ", &
-              block_scalar_tendency(local_index)%bdry(data_start+BLOCK_SCALAR_SOURCE_INDEX-1)
+         write(error_unit,'(a,es24.16)') "  source node = ", scalar_read(block_scalar_tendency(local_index)%bdry, &
+              data_start+BLOCK_SCALAR_SOURCE_INDEX-1)
          write(error_unit,'(a,6(es24.16,1x))') "  closure/reference flux = ", &
-              block_scalar_tendency(local_index)%bdry(data_start+BLOCK_SCALAR_PHYSICS_START-1: &
-              data_start+BLOCK_SCALAR_PHYSICS_START+1), &
-              block_scalar_tendency(local_index)%bdry(data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1: &
-              data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+1)
+              scalar_read_range(block_scalar_tendency(local_index)%bdry,data_start+BLOCK_SCALAR_PHYSICS_START-1, &
+              data_start+BLOCK_SCALAR_PHYSICS_START+1), scalar_read_range(block_scalar_tendency(local_index)%bdry, &
+              data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START-1,data_start+BLOCK_SCALAR_RESTRICTED_FLUX_START+1)
          if (source_rank(local_block_catalog(local_index)) == rank) then
             d_source=loc_id(block%root_domain+1)+1
-            id_source=nint(block_scalar_tendency(local_index)%bdry(data_start+BLOCK_SCALAR_SOURCE_INDEX-1))
+            id_source=nint(scalar_read(block_scalar_tendency(local_index)%bdry,data_start+BLOCK_SCALAR_SOURCE_INDEX-1))
             write(error_unit,'(a,i0)') "  source node storage level = ",grid(d_source)%level%elts(id_source+1)
          end if
          l_source=block%bdry_storage(record)%level
@@ -25637,13 +25558,10 @@ end subroutine build_parallel_block_catalog
          (scalar_slot*n_field_level+level_slot-1)* &
          PATCH_SIZE**2 + PATCH_SIZE*j+i
     data_start = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + 1
-    if (record_slot < 1 .or. &
-         data_start+record_slot-1 > &
-         size(block_scalar_tendency(local_index)%patch)) then
+    if (record_slot < 1 .or. data_start+record_slot-1 > scalar_extent(block_scalar_tendency(local_index)%patch)) then
        call fail("scalar-restriction patch write record is invalid")
     end if
-    block_scalar_tendency(local_index)%patch( &
-         data_start+record_slot-1) = value
+    call scalar_write(block_scalar_tendency(local_index)%patch, data_start+record_slot-1,value)
 
   end subroutine set_block_patch_scalar_record_value
 
@@ -25974,12 +25892,10 @@ end subroutine build_parallel_block_catalog
          (level_slot-1)*PATCH_SIZE**2
     data_index = BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*sample + &
          BLOCK_SCALAR_SOURCE_INDEX
-    if (data_index < 1 .or. data_index > &
-         size(block_scalar_tendency(local_index)%patch)) then
+    if (data_index < 1 .or. data_index > scalar_extent(block_scalar_tendency(local_index)%patch)) then
        call fail("scalar-restriction source index is invalid")
     end if
-    source_value = &
-         block_scalar_tendency(local_index)%patch(data_index)
+    source_value = scalar_read(block_scalar_tendency(local_index)%patch,data_index)
     if (.not. ieee_is_finite(source_value) .or. &
          source_value < 0.0_dp .or. &
          source_value > real(huge(source_start),dp)) then
@@ -27324,9 +27240,8 @@ end subroutine build_parallel_block_catalog
                        call fail( &
                             "retained nonintegrated scalar index is invalid")
                     end if
-                    block_scalar_tendency(storage_index)%patch( &
-                         data_start:data_start+ &
-                         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1) = 0.0_dp
+                    call scalar_write_range(block_scalar_tendency(storage_index)%patch,data_start,data_start+ &
+                         BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT-1,0.0_dp)
                     block_scalar_tendency(storage_index)% &
                          covered(sample) = .true.
                  else
@@ -32962,9 +32877,8 @@ end subroutine build_parallel_block_catalog
                catalog_index) then
              call fail("complete physical scalar tendency is stale")
           end if
-          if (size(block_scalar_tendency(local_index)%patch) /= &
-               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*size(block%patch)* &
-               block_writeback_plan%scalar_patch_nvalue) then
+          if (scalar_extent(block_scalar_tendency(local_index)%patch) /= &
+               BLOCK_SCALAR_DIVERGENCE_INPUT_COUNT*size(block%patch)* block_writeback_plan%scalar_patch_nvalue) then
              call fail("complete physical scalar extent is invalid")
           end if
           do p = 1,size(block%patch)

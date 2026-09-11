@@ -262,6 +262,7 @@ SRC = kind.f90 \
       arch.f90 \
       domain.f90 \
       parallel_block_profile.f90 \
+      parallel_block_scalar_storage.f90 \
       parallel_block.f90 \
       parallel_block_velocity.f90 \
       parallel_block_mass.f90 \
@@ -373,7 +374,8 @@ $(BUILD_DIR)/parallel_block_inverse.o: \
 	$(BUILD_DIR)/domain.o \
 	$(BUILD_DIR)/parallel_block.o
 
-$(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/parallel_block_inverse.o $(BUILD_DIR)/parallel_block_velocity.o $(BUILD_DIR)/parallel_block_mass.o
+$(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/parallel_block_inverse.o $(BUILD_DIR)/parallel_block_velocity.o $(BUILD_DIR)/parallel_block_mass.o $(BUILD_DIR)/parallel_block_scalar_storage.o
+$(BUILD_DIR)/parallel_block_scalar_storage.o: $(BUILD_DIR)/kind.o
 
 $(BUILD_DIR)/parallel_block_velocity.o: $(BUILD_DIR)/kind.o
 $(BUILD_DIR)/comm_mpi.o: $(BUILD_DIR)/parallel_block_profile.o

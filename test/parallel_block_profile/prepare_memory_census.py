@@ -6,6 +6,7 @@ storage. Pointer targets and module-local temporary allocations are excluded.
 This is a diagnostic build, never a timing executable or a numerical change.
 """
 import argparse
+import hashlib
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -167,13 +168,30 @@ DRIVER='''
 '''
 
 
-def prepare(repo,baseline,out,ref):
+def prepare(repo,baseline,out,ref,working_tree=False):
     repo=repo.resolve(strict=True);baseline=baseline.resolve(strict=True);out=out.resolve()
     if (baseline/'.git').exists():raise ValueError('Baseline must be an archived build, not a Git checkout')
     if any(out.is_relative_to(p) or p.is_relative_to(out) for p in (repo,baseline)):
         raise ValueError('Use a new external output directory')
-    entries=tracked_entries(repo,ref);verify(baseline,entries)
-    sources={name:(baseline/'src'/f'{name}.f90').read_text() for name in TYPE_SOURCES}
+    entries=tracked_entries(repo,ref)
+    if working_tree:
+        # Verify the candidate archive against the checkout's actual build
+        # inputs, not against a commit whose numerical source has changed.
+        entries=[e for e in entries if e[2]=='Makefile' or e[2].startswith(('src/','test/climate/'))]
+        extra='src/parallel_block_scalar_storage.f90'
+        if (repo/extra).exists() and extra not in {e[2] for e in entries}:entries.append(('100644','',extra))
+        expected=[]
+        for mode,_,name in entries:
+            path=repo/name
+            data=str(path.readlink()).encode() if mode=='120000' else path.read_bytes()
+            sha=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+            expected.append((mode,sha,name))
+        entries=expected
+    verify(baseline,entries)
+    type_sources=TYPE_SOURCES
+    if (baseline/'src/parallel_block_scalar_storage.f90').exists():
+        type_sources=(*type_sources,'parallel_block_scalar_storage')
+    sources={name:(baseline/'src'/f'{name}.f90').read_text() for name in type_sources}
     types={};roots={}
     for name,text in sources.items():
         local,roots[name]=specification(text)
@@ -204,11 +222,15 @@ def prepare(repo,baseline,out,ref):
     make=out/'Makefile'
     make.write_text(make.read_text()+'\n# Isolated allocation census dependency\n'+
                     '$(BUILD_DIR)/parallel_block_mpi.o: $(BUILD_DIR)/comm_mpi.o\n')
-    manifest={'revision':ref,'baseline_binary_sha256':digest(baseline/'bin/climate'),
+    manifest={'revision':None if working_tree else ref,'parent_revision':ref,'working_tree':working_tree,
+              'verified_input_git_blobs':{name:sha for _,sha,name in entries},
+              'baseline_binary_sha256':digest(baseline/'bin/climate'),
               'scope':'Owned allocatable capacity in four modules; pointer aliases excluded; no MPI synchronization',
               'excluded':'Other modules, automatic arrays, allocator metadata, MPI internals, OS/runtime and transient allocation peaks',
               'coverage':coverage,'changed_files':{f'src/{name}.f90':digest(out/'src'/f'{name}.f90') for name in (*OWNERS,'main')}}
     manifest['changed_files']['Makefile']=digest(make)
+    if 'parallel_block_scalar_storage' in sources:
+        manifest['changed_files']['src/parallel_block_scalar_storage.f90']=digest(out/'src/parallel_block_scalar_storage.f90')
     (out/'allocation-census-identity.json').write_text(json.dumps(manifest,indent=2)+'\n')
     verify(baseline,entries)
     print(json.dumps({k:len(v['allocations']) for k,v in coverage.items()},indent=2))
@@ -218,4 +240,5 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('repo','baseline','out'):p.add_argument('--'+name,type=Path,required=True)
     p.add_argument('--ref',default='1b01510ae655eee0e2aab1a8d911e55c147173f2')
-    a=p.parse_args();prepare(a.repo,a.baseline,a.out,a.ref)
+    p.add_argument('--working-tree',action='store_true',help='Verify candidate build inputs against the uncommitted checkout')
+    a=p.parse_args();prepare(a.repo,a.baseline,a.out,a.ref,a.working_tree)

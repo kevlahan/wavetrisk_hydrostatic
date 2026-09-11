@@ -58,7 +58,7 @@ module parallel_block_profile_mod
   integer(int64), public, save :: detail_count(DC_COUNT)=0_int64
   integer, parameter, public :: DM_SCALAR_BYTES=1, DM_GEOMETRY_BYTES=2, DM_SHARED_BYTES=3, DM_COUNT=3
   character(32), parameter, public :: detail_memory_name(DM_COUNT)=[character(32) :: &
-       'expanded scalar records bytes', 'geometry subset bytes', 'shared-once geometry estimate']
+       'scalar record storage bytes', 'geometry subset bytes', 'shared-once geometry estimate']
   integer(int64), public, save :: detail_peak(DM_COUNT)=0_int64
   integer, parameter :: STACK_SIZE=128
   integer :: depth=0, phase_stack(STACK_SIZE)=0
