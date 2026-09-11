@@ -9,9 +9,9 @@ from compare_restart_checkpoints import compare, read
 
 
 class CheckpointComparisonTests(unittest.TestCase):
-    def write_fixture(self, path, perturb=False):
+    def write_fixture(self, path, perturb=False, domains=160):
         chunks=[]
-        for d in range(160):
+        for d in range(domains):
             data=struct.pack('<idqi',252,100.,10000,3)+np.zeros(6,dtype='<f8').tobytes()
             if d==0:
                 pole=np.zeros((1,2,2),dtype='<f8')
@@ -25,8 +25,8 @@ class CheckpointComparisonTests(unittest.TestCase):
             data+=wave.tobytes()+np.zeros(4,dtype='<i4').tobytes()
             chunks.append(data)
         sizes=np.array([len(p) for p in chunks],dtype='<i8')
-        offsets=np.concatenate(([24+20*160],24+20*160+np.cumsum(sizes)[:-1])).astype('<i8')
-        raw=struct.pack('<3q',0x5741564554524953,1,160)+np.zeros(160,dtype='<i4').tobytes()
+        offsets=np.concatenate(([24+20*domains],24+20*domains+np.cumsum(sizes)[:-1])).astype('<i8')
+        raw=struct.pack('<3q',0x5741564554524953,1,domains)+np.zeros(domains,dtype='<i4').tobytes()
         raw+=offsets.tobytes()+sizes.tobytes()+b''.join(chunks)
         subprocess.run(['zstd','-q','-o',str(path)],input=raw,check=True)
 
@@ -57,6 +57,18 @@ class CheckpointComparisonTests(unittest.TestCase):
             self.assertEqual(compare(a,b,0,1)['threshold_nonfinite'],1)
             subprocess.run(['zstd','-q','-o',str(c)],input=raw+b'unsupported',check=True)
             with self.assertRaisesRegex(ValueError,'extension'):read(c,0,1)
+
+    @unittest.skipUnless(shutil.which('zstd'),'zstd required')
+    def test_j4_requires_explicit_domain_layout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a,b=Path(tmp)/'a.zst',Path(tmp)/'b.zst'
+            self.write_fixture(a,domains=40)
+            self.write_fixture(b,True,domains=40)
+            with self.assertRaisesRegex(ValueError,'160 Domains'):read(a,0,1)
+            r=compare(a,b,0,1,expected_domains=40)
+            self.assertEqual(r['fields']['coarse/mass/atmosphere']['max_abs'],1.5)
+            self.assertEqual(r['fields']['pole/temperature/atmosphere']['max_abs'],0.25)
+            with self.assertRaisesRegex(ValueError,'explicit J4'):read(a,0,1,expected_domains=10)
 
 
 if __name__=='__main__': unittest.main()

@@ -1,0 +1,487 @@
+{
+  "stage": 184,
+  "parent": "99571e6129261c36804f41d98ebf1dc41bd4f626",
+  "source_sha256": {
+    "Makefile": "c52f7d17797fd6f34e279fc874f457f47aa4d1eca133dc6962850007d218bf2a",
+    "src/parallel_block_scalar_storage.f90": "4e3574a238dfad7b51bbd169ff6cdf4aa648cf1e981c15a2be1eeaa35502b748",
+    "src/parallel_block_mpi.f90": "47c23e9a3d6092c603d2a08f24705d7ab48dfe7cd51637f82c29fcb5325fda4e",
+    "src/shared.f90": "bd203af9a687cc2831e4df61fd802211e37b60a2517b8b91bb933ef479b7ca84"
+  },
+  "fixture": {
+    "parameters": {
+      "test_case": "climate",
+      "physics_type": "Simple",
+      "run_id": "test",
+      "max_level": "6",
+      "zlevels": "30",
+      "Nsoil": "10",
+      "NCAR_topo": "F",
+      "sso": "F",
+      "topo_file": "J05J07_120.0km",
+      "topo_min_level": "5",
+      "topo_max_level": "7",
+      "tol": "2.5e-2",
+      "dt_write": "0.01",
+      "CP_EVERY": "1",
+      "resume": "4"
+    },
+    "checkpoint": "test_checkpoint_0004.bin.zst",
+    "checkpoint_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+    "grids": {
+      "files": 39,
+      "sha256": "52ef8de738c6b2048f6437f749848314b34c760b6972fbb4240abac0b1772c4f"
+    }
+  },
+  "build_directory": "/private/tmp/wavetrisk-stage184-column-opt-01",
+  "scope": "Local candidate validation, not cluster acceptance or a controlled speedup measurement",
+  "legacy_screen": "Original unmodified legacy fixed-screen failure remains; no tolerance or replay changes",
+  "runs": {
+    "optimized-production": {
+      "directory": "/private/tmp/wavetrisk-stage184-column-runs-02/optimized-production",
+      "identity": {
+        "binary": "/private/tmp/wavetrisk-stage184-column-opt-01/bin/climate",
+        "sha256": "28d414d1bfb84833362d34c598034ca7cbd40f917199077ea38bc5ff1f581689",
+        "ranks": 4,
+        "time_end": "0.3350",
+        "parameters": {
+          "test_case": "climate",
+          "physics_type": "Simple",
+          "run_id": "test",
+          "max_level": "6",
+          "zlevels": "30",
+          "Nsoil": "10",
+          "NCAR_topo": "F",
+          "sso": "F",
+          "topo_file": "J05J07_120.0km",
+          "topo_min_level": "5",
+          "topo_max_level": "7",
+          "tol": "2.5e-2",
+          "dt_write": "0.01",
+          "CP_EVERY": "1",
+          "time_end": "0.3350",
+          "resume": "4"
+        },
+        "seed_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+        "environment": {
+          "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+          "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+          "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+          "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+          "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+          "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1",
+          "VECLIB_MAXIMUM_THREADS": "1"
+        },
+        "returncode": 0,
+        "elapsed_seconds": 205.4171346250223
+      },
+      "memory": null,
+      "completed": true,
+      "coverage": "Two checkpoint/reload cycles and remaps"
+    },
+    "rk4-checked-production": {
+      "directory": "/private/tmp/wavetrisk-stage184-column-runs-02/rk4-checked-production",
+      "identity": {
+        "binary": "/private/tmp/wavetrisk-stage184-column-opt-01/bin-checked/climate",
+        "sha256": "73c1b15fa2f355bde7401f997d8c14adee248134b57d7987abcd9248c36e9359",
+        "ranks": 4,
+        "time_end": "0.3105",
+        "parameters": {
+          "test_case": "climate",
+          "physics_type": "Simple",
+          "run_id": "test",
+          "max_level": "6",
+          "zlevels": "30",
+          "Nsoil": "10",
+          "NCAR_topo": "F",
+          "sso": "F",
+          "topo_file": "J05J07_120.0km",
+          "topo_min_level": "5",
+          "topo_max_level": "7",
+          "tol": "2.5e-2",
+          "dt_write": "0.01",
+          "CP_EVERY": "1",
+          "time_end": "0.3105",
+          "resume": "4"
+        },
+        "seed_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+        "environment": {
+          "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+          "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+          "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+          "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+          "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+          "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1",
+          "VECLIB_MAXIMUM_THREADS": "1"
+        },
+        "returncode": 0,
+        "elapsed_seconds": 66.65709433297161
+      },
+      "memory": null,
+      "completed": true,
+      "coverage": "First step only"
+    },
+    "rk4-checked-oracle": {
+      "directory": "/private/tmp/wavetrisk-stage184-column-runs-02/rk4-checked-oracle",
+      "identity": {
+        "binary": "/private/tmp/wavetrisk-stage184-column-opt-01/bin-checked/climate",
+        "sha256": "73c1b15fa2f355bde7401f997d8c14adee248134b57d7987abcd9248c36e9359",
+        "ranks": 4,
+        "time_end": "0.3105",
+        "parameters": {
+          "test_case": "climate",
+          "physics_type": "Simple",
+          "run_id": "test",
+          "max_level": "6",
+          "zlevels": "30",
+          "Nsoil": "10",
+          "NCAR_topo": "F",
+          "sso": "F",
+          "topo_file": "J05J07_120.0km",
+          "topo_min_level": "5",
+          "topo_max_level": "7",
+          "tol": "2.5e-2",
+          "dt_write": "0.01",
+          "CP_EVERY": "1",
+          "time_end": "0.3105",
+          "resume": "4"
+        },
+        "seed_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+        "environment": {
+          "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "1",
+          "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "1",
+          "WAVETRISK_VALIDATE_BLOCK_REMAP": "1",
+          "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+          "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "0",
+          "WAVETRISK_PROFILE_BLOCK_DETAIL": "0",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1",
+          "VECLIB_MAXIMUM_THREADS": "1"
+        },
+        "returncode": 0,
+        "elapsed_seconds": 139.05006279202644
+      },
+      "memory": null,
+      "completed": true,
+      "coverage": "First step only"
+    },
+    "optimized-profile": {
+      "directory": "/private/tmp/wavetrisk-stage184-column-runs-02/optimized-profile",
+      "identity": {
+        "binary": "/private/tmp/wavetrisk-stage184-column-opt-01/bin/climate",
+        "sha256": "28d414d1bfb84833362d34c598034ca7cbd40f917199077ea38bc5ff1f581689",
+        "ranks": 4,
+        "time_end": "0.3105",
+        "parameters": {
+          "test_case": "climate",
+          "physics_type": "Simple",
+          "run_id": "test",
+          "max_level": "6",
+          "zlevels": "30",
+          "Nsoil": "10",
+          "NCAR_topo": "F",
+          "sso": "F",
+          "topo_file": "J05J07_120.0km",
+          "topo_min_level": "5",
+          "topo_max_level": "7",
+          "tol": "2.5e-2",
+          "dt_write": "0.01",
+          "CP_EVERY": "1",
+          "time_end": "0.3105",
+          "resume": "4"
+        },
+        "seed_sha256": "77218f07fbdec69e53eaa8087b63bff91b59ae0c5541a5550501e3850e6515ae",
+        "environment": {
+          "WAVETRISK_VALIDATE_BLOCK_DYNAMICS": "0",
+          "WAVETRISK_VALIDATE_BLOCK_ADAPTATION": "0",
+          "WAVETRISK_VALIDATE_BLOCK_REMAP": "0",
+          "WAVETRISK_BLOCK_DETAILED_DIAGNOSTICS": "0",
+          "WAVETRISK_PROFILE_PARALLEL_BLOCKS": "1",
+          "WAVETRISK_PROFILE_BLOCK_DETAIL": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1",
+          "BLIS_NUM_THREADS": "1",
+          "VECLIB_MAXIMUM_THREADS": "1"
+        },
+        "returncode": 0,
+        "elapsed_seconds": 25.13186979200691
+      },
+      "memory": null,
+      "completed": true,
+      "coverage": "First step only",
+      "restriction_regions": []
+    }
+  },
+  "exact_stage183_gate": {
+    "passed": true,
+    "failures": [],
+    "policy": {
+      "id": "stage180-local-v1",
+      "atmosphere_absolute": {
+        "velocity": 1e-10,
+        "mass": 1e-10,
+        "temperature": 1e-07
+      },
+      "soil_absolute": 0.0
+    },
+    "exact_fields_required": true,
+    "checkpoints": {
+      "test_checkpoint_0005.bin.zst": {
+        "left": "/private/tmp/wavetrisk-stage183-storage-run-02/test_checkpoint_0005.bin.zst",
+        "right": "/private/tmp/wavetrisk-stage184-column-runs-02/optimized-production/test_checkpoint_0005.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      },
+      "test_checkpoint_0006.bin.zst": {
+        "left": "/private/tmp/wavetrisk-stage183-storage-run-02/test_checkpoint_0006.bin.zst",
+        "right": "/private/tmp/wavetrisk-stage184-column-runs-02/optimized-production/test_checkpoint_0006.bin.zst",
+        "header_differences": 0,
+        "topology_differences": 0,
+        "threshold_max_abs": 0.0,
+        "threshold_nonfinite": 0,
+        "fields": {
+          "coarse/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "coarse/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/velocity/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "wavelet/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/mass/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/soil": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          },
+          "pole/temperature/atmosphere": {
+            "different": 0,
+            "nonfinite": 0,
+            "max_abs": 0.0,
+            "worst": null
+          }
+        }
+      }
+    }
+  },
+  "column_work_reports": [
+    [
+      122240,
+      488960,
+      29337600
+    ]
+  ],
+  "status": "Locally validated candidate; uncommitted; full cluster acceptance and matched timing pending",
+  "profile_evidence_lines": [
+    "restriction kernels/replay: 20 |  1.1675E+00  1.3848E+00  1.5396E+00 |   1.112 | 0 | 0 | 0",
+    "native velocity: published RK-values Domain-source Domain-gradient = 11001600 28005120 0 0",
+    "divergence columns: columns locations replaced scalar reads = 122240 488960 29337600",
+    "scalar producer: geometry nodes physics values oracle records = 30560 22003200 0"
+  ],
+  "helper_tests": {
+    "suite_passed": 49,
+    "suite_log": "/private/tmp/wavetrisk-stage184-helper-tests.log",
+    "final_storage_tests_passed": 2,
+    "final_storage_log": "/private/tmp/wavetrisk-stage184-storage-tests.log",
+    "test_sha256": "15990893f9bb6c3781cc9f7b0fbf8e0ad4f22986464391a57a356cfcfb5d7a3c"
+  },
+  "reproduction_script": "/private/tmp/wavetrisk-stage184-validate.py",
+  "reproduction_script_sha256": "d59d41c9b5b4c43ffbaabe8bececdbd96dfaac83bd56ecbde03e3aa586511d4d",
+  "build_logs": [
+    "/private/tmp/wavetrisk-stage184-column-opt-01/build-retry.log",
+    "/private/tmp/wavetrisk-stage184-column-opt-01/checked-build.log"
+  ],
+  "build_setup": "Generated physics Makefile.inc restored from Stage 183 after source verification; initial MPI sandbox socket failure retried with approved socket access in fresh runs-02 directory.",
+  "pending": [
+    "Stage 183 cluster acceptance",
+    "Stage 184 full checked RK3/RK4 oracle and production restart/remap runs",
+    "Exact candidate-versus-Stage183 cluster checkpoint comparison",
+    "Matched 83-task runtime/self-CPU/wall measurements"
+  ]
+}

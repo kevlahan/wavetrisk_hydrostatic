@@ -1,0 +1,9 @@
+{
+  "base_commit": "99571e6129261c36804f41d98ebf1dc41bd4f626",
+  "description": "Stage 184 column divergence plus Stage 186 oracle correction; no Stage 187 capture changes or rejected zero-import experiment. Reproduces the locally measured pre-187 baseline source.",
+  "source_sha256": {
+    "src/parallel_block_mpi.f90": "56df0819e5b33b92ffd37ea4f23487f11e20527c2bd877762ed25f6014ac1547",
+    "src/parallel_block_scalar_storage.f90": "4e3574a238dfad7b51bbd169ff6cdf4aa648cf1e981c15a2be1eeaa35502b748"
+  },
+  "patch_sha256": "aabe2b9b609735efb54c2b6f3a7523294d52d97fb16d85ce0c762d1bc1efee2f"
+}

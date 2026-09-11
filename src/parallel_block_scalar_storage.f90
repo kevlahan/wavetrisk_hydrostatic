@@ -7,6 +7,7 @@ module parallel_block_scalar_storage_mod
   private
   public :: Scalar_Record_Storage, scalar_allocate, scalar_release, scalar_extent, scalar_capacity
   public :: scalar_geometry_capacity, scalar_read, scalar_read_range, scalar_write, scalar_write_range, scalar_fill
+  public :: scalar_read_column, scalar_write_column
   public :: scalar_is_allocated
   public :: scalar_seed_patch
   public :: scalar_install_geometry, scalar_share_inactive, scalar_fill_fields
@@ -198,6 +199,61 @@ contains
        end do
     end if
   end function scalar_read_range
+
+  subroutine column_bounds(store,sample,slot,count,last,mapped)
+    ! sample is zero based. A column must stay within one scalar variable;
+    ! shared reads additionally require a single physical/inactive class.
+    type(Scalar_Record_Storage), intent(in) :: store
+    integer, intent(in) :: sample,slot,count
+    integer, intent(out) :: last,mapped
+    integer :: level
+    if (sample<0.or.count<1.or.slot<1.or.slot>SCALAR_RECORD_WIDTH.or.store%stride<1) &
+         error stop 'scalar column arguments invalid'
+    last=sample+(count-1)*store%stride
+    if (last>=store%samples) error stop 'scalar column extent invalid'
+    level=mod(sample/store%stride,store%nlevel)
+    if (level+count>store%nlevel) error stop 'scalar column crosses variable'
+    mapped=slot_map(slot)
+    if (mapped<0) then
+       level=level+store%first_level
+       if (level<1.and.level+count-1>=1) error stop 'scalar column crosses geometry class'
+       if (level<=store%last_physical.and.level+count-1>store%last_physical) &
+            error stop 'scalar column crosses geometry class'
+    end if
+  end subroutine column_bounds
+
+  function scalar_read_column(store,sample,slot,count) result(value)
+    type(Scalar_Record_Storage), intent(in) :: store
+    integer, intent(in) :: sample,slot,count
+    real(dp) :: value(count)
+    integer :: last,mapped,node,zone,field
+    call column_bounds(store,sample,slot,count,last,mapped)
+    if (.not.store%compact) then
+       ! The oracle reads its independently captured geometry at every layer.
+       value=store%full(SCALAR_RECORD_WIDTH*sample+slot:SCALAR_RECORD_WIDTH*last+slot: &
+            SCALAR_RECORD_WIDTH*store%stride)
+    else if (mapped>0) then
+       value=store%field(mapped,sample+1:last+1:store%stride)
+    else
+       call shared_address(store,sample,node,zone,field)
+       value=store%geometry(-mapped,zone,node)
+    end if
+  end function scalar_read_column
+
+  subroutine scalar_write_column(store,sample,slot,value)
+    type(Scalar_Record_Storage), intent(inout) :: store
+    integer, intent(in) :: sample,slot
+    real(dp), intent(in) :: value(:)
+    integer :: last,mapped
+    call column_bounds(store,sample,slot,size(value),last,mapped)
+    if (mapped<1) error stop 'scalar column write requires field slot'
+    if (store%compact) then
+       store%field(mapped,sample+1:last+1:store%stride)=value
+    else
+       store%full(SCALAR_RECORD_WIDTH*sample+slot:SCALAR_RECORD_WIDTH*last+slot: &
+            SCALAR_RECORD_WIDTH*store%stride)=value
+    end if
+  end subroutine scalar_write_column
 
   subroutine write_value(store,address,value)
     type(Scalar_Record_Storage), intent(inout) :: store

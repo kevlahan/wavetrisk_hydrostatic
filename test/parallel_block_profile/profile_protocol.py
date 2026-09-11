@@ -94,7 +94,7 @@ def child_rss(text,launcher):
         new=descendants|{pid for pid,parent,_,_ in rows if parent in descendants}
         if new==descendants: break
         descendants=new
-    return {str(pid):rss for pid,_,rss,cmd in rows if pid in descendants and Path(cmd).name=='climateJ5'}
+    return {str(pid):rss for pid,_,rss,cmd in rows if pid in descendants and Path(cmd).name in ('climateJ4','climateJ5')}
 
 
 class MemoryMonitor:

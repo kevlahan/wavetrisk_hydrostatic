@@ -14,7 +14,7 @@ DRIVER='''program test
   integer :: span,groups,nf,nk,ns,s,f,node,zone,j,at,h
   integer,parameter :: shared(33)=[7,8,12,13,14,21,22,23,24,25,26,27,28,29,30,31,32,33, &
        36,37,38,39,40,41,42,43,44,45,46,47,48,49,50]
-  real(dp) :: record(50),geom(33,16)
+  real(dp) :: record(50),geom(33,16),col(3),expected(3)
   logical :: rebuilt
   nk=6;ns=2;nf=nk*ns
   do groups=1,2
@@ -37,6 +37,37 @@ DRIVER='''program test
         if(any(scalar_read_range(a,50*s+1,50*(s+1))/=scalar_read_range(b,50*s+1,50*(s+1)))) &
              error stop 'compact record differs from independently expanded record'
       end do
+      ! Columns at both group and variable offsets; full oracle values remain
+      ! independent while compact geometry is shared across physical layers.
+      do h=0,groups-1
+        do f=0,ns-1
+          do node=0,span-1
+            s=h*span*nf+(f*nk+3)*span+node
+            do j=1,50
+              do at=1,3
+                expected(at)=scalar_read(b,50*(s+(at-1)*span)+j)
+              end do
+              col=scalar_read_column(a,s,j,3)
+              if(any(col/=expected))error stop 'compact column differs'
+              col=scalar_read_column(b,s,j,3)
+              if(any(col/=expected))error stop 'oracle column differs'
+            end do
+            col=[-11.0_dp,-12.0_dp,-13.0_dp]
+            call scalar_write_column(a,s,34,col)
+            call scalar_write_column(b,s,34,col)
+            if(any(scalar_read_column(a,s,34,3)/=col))error stop 'column write failed'
+            if(any(scalar_read_column(b,s,34,3)/=col))error stop 'oracle column write failed'
+            if(scalar_read(a,50*(s-span)+34)/=scalar_read(b,50*(s-span)+34)) &
+                 error stop 'column write touched inactive level'
+          end do
+        end do
+      end do
+      s=3*span
+      col=scalar_read_column(b,s,7,3)
+      call scalar_write(b,50*(s+span)+7,987654.0_dp)
+      expected=col;expected(2)=987654.0_dp
+      if(any(scalar_read_column(b,s,7,3)/=expected))error stop 'oracle geometry was shared'
+      if(any(scalar_read_column(a,s,7,3)/=col))error stop 'oracle write changed compact geometry'
       if(scalar_capacity(a)>=scalar_capacity(b)) error stop 'storage did not shrink'
       call scalar_allocate(a,groups*span*nf,span,nk,ns,-2,3,.true.,rebuilt)
       if(rebuilt) error stop 'unchanged allocation rebuilt'
@@ -94,6 +125,44 @@ class ScalarStorageTests(unittest.TestCase):
             run=subprocess.run(['./test'],cwd=out,capture_output=True,text=True)
             self.assertEqual(run.returncode,0,run.stdout+run.stderr)
             self.assertIn('PASS scalar storage',run.stdout)
+
+    @unittest.skipUnless(shutil.which('gfortran'),'gfortran required')
+    def test_column_rejects_invalid_extent_class_and_geometry_write(self):
+        driver='''program test
+  use kind_mod, only : dp
+  use parallel_block_scalar_storage_mod
+  implicit none
+  type(Scalar_Record_Storage) :: a
+  real(dp) :: v(3)
+  logical :: rebuilt
+  character(20) :: mode
+  call get_command_argument(1,mode)
+  call scalar_allocate(a,16*6*2,16,6,2,-2,3,.true.,rebuilt)
+  call scalar_fill(a,0.0_dp)
+  select case(trim(mode))
+  case('extent')
+    v=scalar_read_column(a,16*6*2-1,9,3)
+  case('variable')
+    v=scalar_read_column(a,16*5,9,3)
+  case('class')
+    v=scalar_read_column(a,16*2,7,3)
+  case('geometry-write')
+    call scalar_write_column(a,16*3,7,[1.0_dp,2.0_dp,3.0_dp])
+  end select
+end program test
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            out=Path(tmp);(out/'driver.f90').write_text(driver)
+            build=subprocess.run(['gfortran','-fcheck=all','-ffpe-trap=invalid,zero,overflow',
+                str(ROOT/'src/kind.f90'),str(ROOT/'src/parallel_block_scalar_storage.f90'),
+                'driver.f90','-o','test'],cwd=out,capture_output=True,text=True)
+            self.assertEqual(build.returncode,0,build.stdout+build.stderr)
+            for mode,message in [('extent','extent invalid'),('variable','crosses variable'),
+                                 ('class','crosses geometry class'),('geometry-write','requires field slot')]:
+                with self.subTest(mode=mode):
+                    run=subprocess.run(['./test',mode],cwd=out,capture_output=True,text=True)
+                    self.assertNotEqual(run.returncode,0)
+                    self.assertIn(message,run.stderr)
 
 
 if __name__=='__main__':unittest.main()

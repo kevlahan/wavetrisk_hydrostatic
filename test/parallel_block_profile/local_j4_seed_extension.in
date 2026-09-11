@@ -1,0 +1,16 @@
+test_case          climate        ! name of test case
+physics_type       Simple        ! which physics (Held_Suarez or Simple)
+run_id             localJ4J6           ! name of run (for saved data files)
+max_level	   6              ! maximum level of resolution
+zlevels            30             ! number of vertical layers
+Nsoil              10             ! number of soil layers (used only if physics_type = Simple)
+NCAR_topo          F              ! use realistic topography (compile with flag TOPO=.true.)		  
+sso                F              ! use SSO (subgrid scale orography) parameterization (Lott and Miller 1997) 
+topo_file          J05J07_120.0km ! smoothed NCAR topography file name
+topo_min_level     5              ! minimum topography level
+topo_max_level     7              ! maximum topography level
+tol      	   2.5e-2           ! non-dimensional tolerance
+dt_write           0.05              ! save interval (days)
+CP_EVERY           1              ! checkpoint and rebalance every CP_EVERY saves
+time_end           0.355           ! final time (days)
+resume             2              ! restart from checkpoint (negative means fresh restart)

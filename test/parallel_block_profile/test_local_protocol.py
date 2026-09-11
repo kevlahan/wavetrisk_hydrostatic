@@ -42,6 +42,7 @@ class ProtocolTests(unittest.TestCase):
     def test_rss_tracks_only_launcher_descendants(self):
         rows='10 1 20 mpirun\n11 10 40 daemon\n12 11 600 /tmp/climateJ5\n13 1 900 /tmp/climateJ5\n'
         self.assertEqual(child_rss(rows,10),{'12':600})
+        self.assertEqual(child_rss(rows.replace('climateJ5','climateJ4'),10),{'12':600})
 
     def test_seed_is_not_relabelled(self):
         self.assertEqual(checkpoint_name('run_id test\nresume 4\n'),'test_checkpoint_0004.bin.zst')

@@ -1,0 +1,284 @@
+--- a/src/parallel_block_mpi.f90
++++ b/src/parallel_block_mpi.f90
+@@ -547,7 +547,7 @@
+   end type
+   type(Inverse_Stencil_Addresses), allocatable, save :: inverse_stencil(:)
+   integer(int64), save :: inverse_stencil_generation=-1_int64
+-  integer(int64), save :: inverse_address_work(2)=0_int64
++  integer(int64), save :: inverse_address_work(5)=0_int64
+   integer(int64), save :: production_block_compression_writeback_before = &
+        0_int64
+   integer(int64), save :: production_block_compression_allocation_before = &
+@@ -1990,7 +1990,7 @@
+     integer(int64) :: thermodynamic_sum(11)
+     integer(int64) :: velocity_sum(9)
+     integer(int64) :: mass_sum(6)
+-    integer(int64) :: inverse_address_sum(2)
++    integer(int64) :: inverse_address_sum(5)
+     integer(int64) :: producer_sum(5),producer_local(5)
+     integer :: producer_domain
+     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
+@@ -2019,7 +2019,7 @@
+     if (present(reset)) clear_after = reset
+     state_ready = parallel_block_state_is_ready()
+ 
+-    call MPI_Allreduce(inverse_address_work,inverse_address_sum,2,MPI_INTEGER8,MPI_SUM,comm,ierr)
++    call MPI_Allreduce(inverse_address_work,inverse_address_sum,5,MPI_INTEGER8,MPI_SUM,comm,ierr)
+     call check_mpi(ierr,"MPI_Allreduce inverse address work")
+     call MPI_Allreduce(block_profile_seconds,seconds_min, &
+          BLOCK_PROFILE_PHASE_COUNT,MPI_DOUBLE_PRECISION,MPI_MIN,comm,ierr)
+@@ -2246,7 +2246,9 @@
+        write(6,'(a,6(i0,1x))') &
+             "  native mass: plans restricted-edges divergence boundary published RK-values = ",mass_sum
+        write(6,'(a,2(i0,1x))') &
+-            "  inverse stencil addresses: resolved reused = ",inverse_address_sum
++            "  inverse stencil addresses: resolved reused = ",inverse_address_sum(1:2)
++       write(6,'(a,3(i0,1x))') &
++            "  divergence columns: columns locations replaced scalar reads = ",inverse_address_sum(3:5)
+        write(6,'(a,3(i0,1x))') &
+             "  scalar producer: geometry nodes physics values oracle records = ",producer_sum(1:3)
+        write(6,'(a,2(i0,1x))') &
+@@ -11447,7 +11449,20 @@
+     ! Reconstruct a non-authoritative Domain-layout stage from all retained
+     ! block roots, including migrated roots, and evaluate Restrict_velo on
+     ! each source Domain owner from those block-derived fine values.
+-    call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
++    ! The comparison reconstructs this shared scratch image. Run it before
++    ! installing native coarse restrictions: reconstructing afterwards would
++    ! replace those values with the independently accumulated Domain scaffold.
++    if (validate_oracle) then
++       call block_profile_enter(BLOCK_PROFILE_ORACLE)
++       call assert_block_domain_field_family_match( &
++            BLOCK_PAYLOAD_SOL,domain_scaling, &
++            integrated_only=.true., &
++            comparison_name="native wavelet input", &
++            roundoff_tolerant=.true.)
++       call block_profile_leave(BLOCK_PROFILE_ORACLE)
++    else
++       call reconstruct_block_writeback_domain_stage(BLOCK_PAYLOAD_SOL)
++    end if
+     call get_block_field_layout( &
+          v_scalar,n_scalar_variable,v_vector,first_field_level, &
+          n_field_level,mult_scalar,mult_vector)
+@@ -14035,7 +14050,10 @@
+     call import_domain_boundary_field_family_to_blocks( &
+          BLOCK_PAYLOAD_SOL,.false.,domain_scaling)
+     call refresh_block_sol_ghosts
+-    if (validate_oracle) then
++    ! Final-stage comparison precedes coarse restriction in its producer.
++    ! Its reconstruction must not overwrite the native coarse scratch values
++    ! consumed below by validate_complete_block_vector_wavelets.
++    if (validate_oracle .and. provisional_transform) then
+        call block_profile_enter(BLOCK_PROFILE_ORACLE)
+        call assert_block_domain_field_family_match( &
+             BLOCK_PAYLOAD_SOL,domain_scaling, &
+@@ -25035,59 +25053,99 @@
+ 
+   subroutine recompute_block_scalar_divergence_level ( &
+        catalog_index,block,context)
+-    ! Recompute native dscalar immediately after the native flux at one level
+-    ! becomes final, so the next coarser restriction consumes that result.
+-
+-    implicit none
+-
++    ! Flux is final at this horizontal level. Resolve each stencil column
++    ! once, then consume live field arrays across physical layers. No plan or
++    ! numeric cache survives this call (restart/remap/topology cannot stale it).
+     integer, intent(in) :: catalog_index
+     type(Block_Data), intent(in) :: block
+     class(*), intent(inout) :: context
+-
+-    integer :: i
+-    integer :: j
+-    integer :: level_slot
+-    integer :: local_index
+-    integer :: p
+-    integer :: scalar_slot
+-
+-    real(dp) :: native_value
++    integer :: i,j,k,local_index,p,scalar_slot,first,count,sample
++    real(dp) :: column(8,zlevels),value(zlevels)
+     logical :: validate_oracle
+ 
+     validate_oracle=block_dynamics_validation_enabled()
+-    local_index = catalog_local_block(catalog_index)
+-    if (local_index < 1 .or. &
+-         local_index > size(block_scalar_tendency)) then
+-       call fail("scalar-divergence replay block is invalid")
+-    end if
+-    select type (statistics => context)
++    local_index=catalog_local_block(catalog_index)
++    if (local_index<1.or.local_index>size(block_scalar_tendency)) &
++         call fail("scalar-divergence column block is invalid")
++    first=max(1,2-block%field_level)
++    count=min(block%n_field_level,zlevels-block%field_level+1)-first+1
++    if (count<=0) return
++    select type (statistics=>context)
+     type is (Block_Scalar_Restriction_Context)
+-       do p = 1,size(block%patch)
+-          if (block%patch(p)%level /= statistics%target_level) cycle
+-          do scalar_slot = 0,block%n_scalar_variable-1
++       do p=1,size(block%patch)
++          if (block%patch(p)%level/=statistics%target_level) cycle
++          do scalar_slot=0,block%n_scalar_variable-1
+              if (block%scalar_variable+scalar_slot==S_MASS.and..not.validate_oracle) cycle
+-             do level_slot = 1,block%n_field_level
+-                if (block%field_level+level_slot-1 < 1 .or. &
+-                     block%field_level+level_slot-1 > zlevels) cycle
+-                do j = 0,PATCH_SIZE-1
+-                   do i = 0,PATCH_SIZE-1
+-                      native_value = block_scalar_flux_divergence( &
+-                           block,local_index,p,scalar_slot,level_slot, &
+-                           i,j,BLOCK_SCALAR_DIRECT_FLUX_START)
+-                      call set_block_patch_scalar_record_value( &
+-                           local_index,p,block%n_field_level, &
+-                           scalar_slot,level_slot,i,j, &
+-                           BLOCK_SCALAR_NATIVE_DSCALAR_INDEX,native_value)
+-                      statistics%divergence_replay_count = &
+-                           statistics%divergence_replay_count + 1_int64
++             do j=0,PATCH_SIZE-1
++                do i=0,PATCH_SIZE-1
++                   call read_stencil_column(i,j, &
++                        [BLOCK_SCALAR_DIRECT_FLUX_START+RT,BLOCK_SCALAR_DIRECT_FLUX_START+DG, &
++                        BLOCK_SCALAR_DIRECT_FLUX_START+UP,BLOCK_SCALAR_AREA_INDEX,BLOCK_SCALAR_ACTIVE_INDEX], &
++                        column(1:5,:count))
++                   call read_stencil_column(i-1,j,[BLOCK_SCALAR_DIRECT_FLUX_START+RT],column(6:6,:count))
++                   call read_stencil_column(i-1,j-1,[BLOCK_SCALAR_DIRECT_FLUX_START+DG],column(7:7,:count))
++                   call read_stencil_column(i,j-1,[BLOCK_SCALAR_DIRECT_FLUX_START+UP],column(8:8,:count))
++                   ! Keep checks on every consumed flux, including inactive
++                   ! nodes, so moving the loop does not weaken poison coverage.
++                   value(:count)=0.0_dp
++                   do k=1,count
++                      if (column(5,k)>0.5_dp) value(k)= &
++                           -(column(1,k)-column(6,k)+column(7,k)-column(2,k)+ &
++                           column(3,k)-column(8,k))*column(4,k)
+                    end do
++                   sample=(p-1)*block_writeback_plan%scalar_patch_nvalue+ &
++                        (scalar_slot*block%n_field_level+first-1)*PATCH_SIZE**2+PATCH_SIZE*j+i
++                   call scalar_write_column(block_scalar_tendency(local_index)%patch,sample, &
++                        BLOCK_SCALAR_NATIVE_DSCALAR_INDEX,value(:count))
++                   statistics%divergence_replay_count=statistics%divergence_replay_count+int(count,int64)
++                   if (block_profile) then
++                      inverse_address_work(3)=inverse_address_work(3)+1_int64
++                      inverse_address_work(4)=inverse_address_work(4)+4_int64
++                      inverse_address_work(5)=inverse_address_work(5)+8_int64*count
++                   end if
+                 end do
+              end do
+           end do
+        end do
+     class default
+-       call fail("scalar-divergence replay context is invalid")
++       call fail("scalar-divergence column context is invalid")
+     end select
++
++  contains
++
++    subroutine read_stencil_column(x,y,slots,values)
++      integer, intent(in) :: x,y,slots(:)
++      real(dp), intent(out) :: values(:,:)
++      integer :: storage_class,record,node,base,q
++      call locate_block_scalar_record(block,local_index,p,x,y,storage_class,record,node)
++      base=scalar_slot*block%n_field_level+first-1
++      select case(storage_class)
++      case(STORE_PATCH)
++         base=record*block_writeback_plan%scalar_patch_nvalue+base*PATCH_SIZE**2+node
++         do q=1,size(slots)
++            values(q,:)=scalar_read_column(block_scalar_tendency(local_index)%patch,base,slots(q),count)
++         end do
++      case(STORE_BDRY)
++         base=base*size(block%bdry_node)+node
++         do q=1,size(slots)
++            values(q,:)=scalar_read_column(block_scalar_tendency(local_index)%bdry,base,slots(q),count)
++         end do
++      case(STORE_GHOST)
++         base=base*size(block%ghost_node)+node
++         do q=1,size(slots)
++            values(q,:)=scalar_read_column(block_scalar_tendency(local_index)%ghost,base,slots(q),count)
++         end do
++      case default
++         call fail("scalar-divergence column storage is invalid")
++      end select
++      if (all(ieee_is_finite(values))) then
++         if (all(abs(values)<BLOCK_RESTRICTION_VALUE_LIMIT)) return
++      end if
++      write(error_unit,'(a,8(i0,1x))') 'Invalid divergence column: block, patch, x, y, scalar, first, storage, node = ', &
++           block%id,p,x,y,scalar_slot,first,storage_class,node
++      flush(error_unit)
++      call fail("scalar-divergence column value is non-finite or poisoned")
++    end subroutine read_stencil_column
+ 
+   end subroutine recompute_block_scalar_divergence_level
+ 
+--- a/src/parallel_block_scalar_storage.f90
++++ b/src/parallel_block_scalar_storage.f90
+@@ -7,6 +7,7 @@
+   private
+   public :: Scalar_Record_Storage, scalar_allocate, scalar_release, scalar_extent, scalar_capacity
+   public :: scalar_geometry_capacity, scalar_read, scalar_read_range, scalar_write, scalar_write_range, scalar_fill
++  public :: scalar_read_column, scalar_write_column
+   public :: scalar_is_allocated
+   public :: scalar_seed_patch
+   public :: scalar_install_geometry, scalar_share_inactive, scalar_fill_fields
+@@ -199,6 +200,61 @@
+     end if
+   end function scalar_read_range
+ 
++  subroutine column_bounds(store,sample,slot,count,last,mapped)
++    ! sample is zero based. A column must stay within one scalar variable;
++    ! shared reads additionally require a single physical/inactive class.
++    type(Scalar_Record_Storage), intent(in) :: store
++    integer, intent(in) :: sample,slot,count
++    integer, intent(out) :: last,mapped
++    integer :: level
++    if (sample<0.or.count<1.or.slot<1.or.slot>SCALAR_RECORD_WIDTH.or.store%stride<1) &
++         error stop 'scalar column arguments invalid'
++    last=sample+(count-1)*store%stride
++    if (last>=store%samples) error stop 'scalar column extent invalid'
++    level=mod(sample/store%stride,store%nlevel)
++    if (level+count>store%nlevel) error stop 'scalar column crosses variable'
++    mapped=slot_map(slot)
++    if (mapped<0) then
++       level=level+store%first_level
++       if (level<1.and.level+count-1>=1) error stop 'scalar column crosses geometry class'
++       if (level<=store%last_physical.and.level+count-1>store%last_physical) &
++            error stop 'scalar column crosses geometry class'
++    end if
++  end subroutine column_bounds
++
++  function scalar_read_column(store,sample,slot,count) result(value)
++    type(Scalar_Record_Storage), intent(in) :: store
++    integer, intent(in) :: sample,slot,count
++    real(dp) :: value(count)
++    integer :: last,mapped,node,zone,field
++    call column_bounds(store,sample,slot,count,last,mapped)
++    if (.not.store%compact) then
++       ! The oracle reads its independently captured geometry at every layer.
++       value=store%full(SCALAR_RECORD_WIDTH*sample+slot:SCALAR_RECORD_WIDTH*last+slot: &
++            SCALAR_RECORD_WIDTH*store%stride)
++    else if (mapped>0) then
++       value=store%field(mapped,sample+1:last+1:store%stride)
++    else
++       call shared_address(store,sample,node,zone,field)
++       value=store%geometry(-mapped,zone,node)
++    end if
++  end function scalar_read_column
++
++  subroutine scalar_write_column(store,sample,slot,value)
++    type(Scalar_Record_Storage), intent(inout) :: store
++    integer, intent(in) :: sample,slot
++    real(dp), intent(in) :: value(:)
++    integer :: last,mapped
++    call column_bounds(store,sample,slot,size(value),last,mapped)
++    if (mapped<1) error stop 'scalar column write requires field slot'
++    if (store%compact) then
++       store%field(mapped,sample+1:last+1:store%stride)=value
++    else
++       store%full(SCALAR_RECORD_WIDTH*sample+slot:SCALAR_RECORD_WIDTH*last+slot: &
++            SCALAR_RECORD_WIDTH*store%stride)=value
++    end if
++  end subroutine scalar_write_column
++
+   subroutine write_value(store,address,value)
+     type(Scalar_Record_Storage), intent(inout) :: store
+     integer, intent(in) :: address

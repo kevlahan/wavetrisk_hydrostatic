@@ -1,7 +1,8 @@
-"""Compare semantic payloads of the J5 climate checkpoint fixture, including poles.
+"""Compare semantic payloads of the J4/J5 climate checkpoint fixtures, including poles.
 
 This deliberately supports only the three-field, PATCH_SIZE=4, no-TKE climate
 layout with an empty testcase checkpoint extension. Reject other layouts.
+The default remains the original 160-Domain layout; J4 requires explicit selection.
 Directory load weights are metadata, not numerical solution equivalence.
 """
 import argparse
@@ -12,11 +13,13 @@ import subprocess
 import numpy as np
 
 
-def read(path, zmin, zmax):
+def read(path, zmin, zmax, expected_domains=160):
     raw = subprocess.check_output(['zstd', '-dc', str(path)])
     magic, version, nd = struct.unpack_from('<3q', raw)
-    if magic != 0x5741564554524953 or version != 1 or nd != 160:
-        raise ValueError('Expected J5 climate checkpoint v1 with 160 Domains')
+    if expected_domains not in (40,160):
+        raise ValueError("Only explicit J4 (40) or J5 (160) Domain layouts are supported")
+    if magic != 0x5741564554524953 or version != 1 or nd != expected_domains:
+        raise ValueError(f'Expected climate checkpoint v1 with {expected_domains} Domains')
     offset = np.frombuffer(raw, '<i8', nd, 24+4*nd)
     size = np.frombuffer(raw, '<i8', nd, 24+12*nd)
     expected = 24+20*nd
@@ -58,8 +61,8 @@ def read(path, zmin, zmax):
     return result
 
 
-def compare(left, right, zmin=-10, zmax=30):
-    a, b = read(left,zmin,zmax), read(right,zmin,zmax)
+def compare(left, right, zmin=-10, zmax=30, expected_domains=160):
+    a, b = read(left,zmin,zmax,expected_domains), read(right,zmin,zmax,expected_domains)
     result = {'left':str(left),'right':str(right),'header_differences':0,
               'topology_differences':0,'threshold_max_abs':0.,'threshold_nonfinite':0,'fields':{}}
     for gid,(aa,bb) in enumerate(zip(a,b)):
@@ -95,5 +98,6 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--left',type=Path,required=True)
     parser.add_argument('--right',type=Path,required=True)
+    parser.add_argument('--domains',type=int,choices=(40,160),default=160)
     args=parser.parse_args()
-    print(json.dumps(compare(args.left,args.right),indent=2))
+    print(json.dumps(compare(args.left,args.right,expected_domains=args.domains),indent=2))
