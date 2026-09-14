@@ -1,0 +1,499 @@
+{
+  "status": "passed_matched_scope_audit",
+  "job": 54561,
+  "tested_source_commit": "37ac536405afbb8b2f8d59037db126950af574cd",
+  "input_campaign_sha256": "e87652cf09f387d86042416bc03ba4cefc36663c3fa288c0e51b08bac8b13932",
+  "scope": "Whole-window inclusive WT_after_step wall time, averaged across ranks, 60 calls/rank and 12 timesteps including checkpoint. No sum of phase maxima.",
+  "matched_wavelet_transaction": {
+    "stage190": {
+      "whole_window_rank_mean_seconds": 5.61379,
+      "seconds_per_step_including_checkpoint": 0.4678158333333333,
+      "calls_per_rank": 60.0
+    },
+    "stage191": {
+      "whole_window_rank_mean_seconds": 5.60228,
+      "seconds_per_step_including_checkpoint": 0.4668566666666667,
+      "calls_per_rank": 60.0
+    },
+    "legacy": {
+      "whole_window_rank_mean_seconds": 1.293584800821502,
+      "seconds_per_step_including_checkpoint": 0.10779873340179184,
+      "calls_per_rank": 60.0
+    }
+  },
+  "wavelet_ratio": 4.330817737223122,
+  "wavelet_excess_whole_window_seconds": 4.308695199178498,
+  "wavelet_excess_seconds_per_step_including_checkpoint": 0.35905793326487484,
+  "whole_profile_step_excess_seconds": 8.846040351761651,
+  "fraction_of_whole_profile_step_excess_in_wavelet_percent": 48.707614117094096,
+  "native_inverse": {
+    "calls_per_rank": 48.0,
+    "inclusive_rank_mean_seconds": 3.593472,
+    "explicit_wait_self_seconds": 1.412491,
+    "explicit_wait_process_cpu_seconds": 1.403423,
+    "regular_plus_outer_kernel_inclusive_seconds": 0.760384,
+    "transport_helpers": {
+      "inverse native gather": {
+        "rank_mean_seconds": 0.43162500000000004,
+        "reported_rank_mean_calls": 680,
+        "remote_messages": 51648,
+        "remote_payload_bytes": 6357166080,
+        "windows": 2
+      },
+      "inverse native aliases": {
+        "rank_mean_seconds": 0.8368199999999999,
+        "reported_rank_mean_calls": 772,
+        "remote_messages": 363312,
+        "remote_payload_bytes": 10557549120,
+        "windows": 2
+      },
+      "inverse native scatter": {
+        "rank_mean_seconds": 0.7754300000000001,
+        "reported_rank_mean_calls": 680,
+        "remote_messages": 81044,
+        "remote_payload_bytes": 25348300800,
+        "windows": 2
+      }
+    },
+    "transport_helpers_total": {
+      "rank_mean_seconds": 2.043875,
+      "remote_messages": 496004,
+      "remote_payload_bytes": 42263016000,
+      "reported_rank_mean_calls": 2132
+    },
+    "transport_helper_fraction_of_inverse_percent": 56.87744331944147
+  },
+  "ordinary_rank_diagnostic": {
+    "0": {
+      "wall": 1.3296737299999999,
+      "named_MPI": 0.3627554509090909,
+      "outside_named_MPI": 0.9669182790909091
+    },
+    "1": {
+      "wall": 1.33364245,
+      "named_MPI": 0.5444156090909091,
+      "outside_named_MPI": 0.7892268409090909
+    },
+    "2": {
+      "wall": 1.3336674354545455,
+      "named_MPI": 0.41635442672727274,
+      "outside_named_MPI": 0.9173130087272727
+    },
+    "3": {
+      "wall": 1.3336771090909092,
+      "named_MPI": 0.5468743818181818,
+      "outside_named_MPI": 0.7868027272727273
+    },
+    "4": {
+      "wall": 1.3336957472727273,
+      "named_MPI": 0.4222615036363636,
+      "outside_named_MPI": 0.9114342436363636
+    },
+    "5": {
+      "wall": 1.333688330909091,
+      "named_MPI": 0.48341822727272726,
+      "outside_named_MPI": 0.8502701036363637
+    },
+    "6": {
+      "wall": 1.3336358281818181,
+      "named_MPI": 0.5269333481818181,
+      "outside_named_MPI": 0.80670248
+    },
+    "7": {
+      "wall": 1.3336809781818182,
+      "named_MPI": 0.5344670518181819,
+      "outside_named_MPI": 0.7992139263636363
+    },
+    "8": {
+      "wall": 1.33366208,
+      "named_MPI": 0.53843234,
+      "outside_named_MPI": 0.79522974
+    },
+    "9": {
+      "wall": 1.3336733190909091,
+      "named_MPI": 0.48918555454545454,
+      "outside_named_MPI": 0.8444877645454545
+    },
+    "10": {
+      "wall": 1.3337160327272728,
+      "named_MPI": 0.545379970909091,
+      "outside_named_MPI": 0.7883360618181818
+    },
+    "11": {
+      "wall": 1.3336766036363636,
+      "named_MPI": 0.6028481509090909,
+      "outside_named_MPI": 0.7308284527272727
+    },
+    "12": {
+      "wall": 1.3336508972727272,
+      "named_MPI": 0.5043909535454546,
+      "outside_named_MPI": 0.8292599437272727
+    },
+    "13": {
+      "wall": 1.3336303563636362,
+      "named_MPI": 0.45427862636363636,
+      "outside_named_MPI": 0.87935173
+    },
+    "14": {
+      "wall": 1.3336943454545456,
+      "named_MPI": 0.38310703581818184,
+      "outside_named_MPI": 0.9505873096363636
+    },
+    "15": {
+      "wall": 1.3355458645454545,
+      "named_MPI": 0.4363933163636364,
+      "outside_named_MPI": 0.8991525481818182
+    },
+    "16": {
+      "wall": 1.3350369272727274,
+      "named_MPI": 0.4371273381818182,
+      "outside_named_MPI": 0.8979095890909091
+    },
+    "17": {
+      "wall": 1.3336857372727273,
+      "named_MPI": 0.4188746636363636,
+      "outside_named_MPI": 0.9148110736363637
+    },
+    "18": {
+      "wall": 1.3336546663636364,
+      "named_MPI": 0.28736670454545454,
+      "outside_named_MPI": 1.0462879618181817
+    },
+    "19": {
+      "wall": 1.33368598,
+      "named_MPI": 0.2887160927272727,
+      "outside_named_MPI": 1.0449698872727273
+    },
+    "20": {
+      "wall": 1.3358383218181817,
+      "named_MPI": 0.34506507000000003,
+      "outside_named_MPI": 0.9907732518181818
+    },
+    "21": {
+      "wall": 1.3337055263636364,
+      "named_MPI": 0.4174461209090909,
+      "outside_named_MPI": 0.9162594054545454
+    },
+    "22": {
+      "wall": 1.3336522845454546,
+      "named_MPI": 0.36903435545454544,
+      "outside_named_MPI": 0.9646179290909092
+    },
+    "23": {
+      "wall": 1.3337109018181819,
+      "named_MPI": 0.42327544636363634,
+      "outside_named_MPI": 0.9104354554545454
+    },
+    "24": {
+      "wall": 1.333691360909091,
+      "named_MPI": 0.4052522154545455,
+      "outside_named_MPI": 0.9284391454545454
+    },
+    "25": {
+      "wall": 1.3336890354545454,
+      "named_MPI": 0.40010539363636366,
+      "outside_named_MPI": 0.9335836418181818
+    },
+    "26": {
+      "wall": 1.3354455372727272,
+      "named_MPI": 0.49585047272727273,
+      "outside_named_MPI": 0.8395950645454545
+    },
+    "27": {
+      "wall": 1.3337061518181819,
+      "named_MPI": 0.4330792072727273,
+      "outside_named_MPI": 0.9006269445454546
+    },
+    "28": {
+      "wall": 1.3340783572727273,
+      "named_MPI": 0.4966179709090909,
+      "outside_named_MPI": 0.8374603863636364
+    },
+    "29": {
+      "wall": 1.3336604881818181,
+      "named_MPI": 0.5680556463636364,
+      "outside_named_MPI": 0.7656048418181818
+    },
+    "30": {
+      "wall": 1.3336255745454546,
+      "named_MPI": 0.2619724163636364,
+      "outside_named_MPI": 1.0716531581818183
+    },
+    "31": {
+      "wall": 1.3337170627272728,
+      "named_MPI": 0.4563711272727273,
+      "outside_named_MPI": 0.8773459354545454
+    },
+    "32": {
+      "wall": 1.333612859090909,
+      "named_MPI": 0.5962582454545454,
+      "outside_named_MPI": 0.7373546136363637
+    },
+    "33": {
+      "wall": 1.333674899090909,
+      "named_MPI": 0.45495080454545456,
+      "outside_named_MPI": 0.8787240945454545
+    },
+    "34": {
+      "wall": 1.3337343627272726,
+      "named_MPI": 0.29841855545454543,
+      "outside_named_MPI": 1.0353158072727273
+    },
+    "35": {
+      "wall": 1.3336848027272727,
+      "named_MPI": 0.4887566272727273,
+      "outside_named_MPI": 0.8449281754545455
+    },
+    "36": {
+      "wall": 1.3336921481818182,
+      "named_MPI": 0.3841162109090909,
+      "outside_named_MPI": 0.9495759372727273
+    },
+    "37": {
+      "wall": 1.3336839945454546,
+      "named_MPI": 0.5601608636363636,
+      "outside_named_MPI": 0.773523130909091
+    },
+    "38": {
+      "wall": 1.3336081745454547,
+      "named_MPI": 0.4765015454545455,
+      "outside_named_MPI": 0.8571066290909091
+    },
+    "39": {
+      "wall": 1.3336709236363635,
+      "named_MPI": 0.5253296090909091,
+      "outside_named_MPI": 0.8083413145454545
+    },
+    "40": {
+      "wall": 1.3337879772727272,
+      "named_MPI": 0.5218618609090909,
+      "outside_named_MPI": 0.8119261163636363
+    },
+    "41": {
+      "wall": 1.3337134372727273,
+      "named_MPI": 0.5695714818181818,
+      "outside_named_MPI": 0.7641419554545454
+    },
+    "42": {
+      "wall": 1.3337360563636365,
+      "named_MPI": 0.6121256381818182,
+      "outside_named_MPI": 0.7216104181818181
+    },
+    "43": {
+      "wall": 1.3337129654545454,
+      "named_MPI": 0.5742731736363637,
+      "outside_named_MPI": 0.7594397918181818
+    },
+    "44": {
+      "wall": 1.3336455190909091,
+      "named_MPI": 0.5618529,
+      "outside_named_MPI": 0.7717926190909091
+    },
+    "45": {
+      "wall": 1.33370616,
+      "named_MPI": 0.5294139909090909,
+      "outside_named_MPI": 0.8042921690909091
+    },
+    "46": {
+      "wall": 1.3347449090909091,
+      "named_MPI": 0.4752084709090909,
+      "outside_named_MPI": 0.8595364381818182
+    },
+    "47": {
+      "wall": 1.3336988363636364,
+      "named_MPI": 0.5156993181818182,
+      "outside_named_MPI": 0.8179995181818182
+    },
+    "48": {
+      "wall": 1.3335846281818182,
+      "named_MPI": 0.3987348090909091,
+      "outside_named_MPI": 0.9348498190909091
+    },
+    "49": {
+      "wall": 1.3337398945454546,
+      "named_MPI": 0.40459549818181817,
+      "outside_named_MPI": 0.9291443963636363
+    },
+    "50": {
+      "wall": 1.3336279090909091,
+      "named_MPI": 0.28195750090909094,
+      "outside_named_MPI": 1.0516704081818182
+    },
+    "51": {
+      "wall": 1.3336558,
+      "named_MPI": 0.4517998509090909,
+      "outside_named_MPI": 0.881855949090909
+    },
+    "52": {
+      "wall": 1.3336373218181818,
+      "named_MPI": 0.2349569009090909,
+      "outside_named_MPI": 1.098680420909091
+    },
+    "53": {
+      "wall": 1.3337461218181819,
+      "named_MPI": 0.4242563090909091,
+      "outside_named_MPI": 0.9094898127272727
+    },
+    "54": {
+      "wall": 1.3351904972727273,
+      "named_MPI": 0.3413944209090909,
+      "outside_named_MPI": 0.9937960763636363
+    },
+    "55": {
+      "wall": 1.33363817,
+      "named_MPI": 0.5001904363636364,
+      "outside_named_MPI": 0.8334477336363636
+    },
+    "56": {
+      "wall": 1.3336323590909092,
+      "named_MPI": 0.46412491181818183,
+      "outside_named_MPI": 0.8695074472727272
+    },
+    "57": {
+      "wall": 1.3336568345454545,
+      "named_MPI": 0.4118373320909091,
+      "outside_named_MPI": 0.9218195024545455
+    },
+    "58": {
+      "wall": 1.3336747572727272,
+      "named_MPI": 0.35906259545454544,
+      "outside_named_MPI": 0.9746121618181818
+    },
+    "59": {
+      "wall": 1.3336235590909091,
+      "named_MPI": 0.4807590636363636,
+      "outside_named_MPI": 0.8528644954545455
+    },
+    "60": {
+      "wall": 1.3338058645454545,
+      "named_MPI": 0.4212000490909091,
+      "outside_named_MPI": 0.9126058154545454
+    },
+    "61": {
+      "wall": 1.333713669090909,
+      "named_MPI": 0.31555215545454546,
+      "outside_named_MPI": 1.0181615136363638
+    },
+    "62": {
+      "wall": 1.3338048381818182,
+      "named_MPI": 0.39517934636363633,
+      "outside_named_MPI": 0.9386254918181818
+    },
+    "63": {
+      "wall": 1.3337367854545454,
+      "named_MPI": 0.47211942727272727,
+      "outside_named_MPI": 0.8616173581818182
+    },
+    "64": {
+      "wall": 1.3336255663636363,
+      "named_MPI": 0.5710884818181818,
+      "outside_named_MPI": 0.7625370845454545
+    },
+    "65": {
+      "wall": 1.3336944572727274,
+      "named_MPI": 0.5227527218181818,
+      "outside_named_MPI": 0.8109417354545455
+    },
+    "66": {
+      "wall": 1.3336798245454546,
+      "named_MPI": 0.6002747254545454,
+      "outside_named_MPI": 0.7334050990909091
+    },
+    "67": {
+      "wall": 1.3336692254545455,
+      "named_MPI": 0.5486252854545455,
+      "outside_named_MPI": 0.78504394
+    },
+    "68": {
+      "wall": 1.3336969509090908,
+      "named_MPI": 0.5603997027272727,
+      "outside_named_MPI": 0.7732972481818181
+    },
+    "69": {
+      "wall": 1.3336746963636363,
+      "named_MPI": 0.5991494127272727,
+      "outside_named_MPI": 0.7345252836363636
+    },
+    "70": {
+      "wall": 1.3336769054545454,
+      "named_MPI": 0.6777092036363637,
+      "outside_named_MPI": 0.6559677018181819
+    },
+    "71": {
+      "wall": 1.3336717163636365,
+      "named_MPI": 0.5848714572727273,
+      "outside_named_MPI": 0.7488002590909091
+    },
+    "72": {
+      "wall": 1.3336364045454545,
+      "named_MPI": 0.47259992727272726,
+      "outside_named_MPI": 0.8610364772727273
+    },
+    "73": {
+      "wall": 1.3336682481818183,
+      "named_MPI": 0.54299593,
+      "outside_named_MPI": 0.7906723181818183
+    },
+    "74": {
+      "wall": 1.3336705827272728,
+      "named_MPI": 0.6693167527272728,
+      "outside_named_MPI": 0.6643538299999999
+    },
+    "75": {
+      "wall": 1.3336547627272728,
+      "named_MPI": 0.6753414678181818,
+      "outside_named_MPI": 0.658313294909091
+    },
+    "76": {
+      "wall": 1.3336732381818182,
+      "named_MPI": 0.5411606754545455,
+      "outside_named_MPI": 0.7925125627272728
+    },
+    "77": {
+      "wall": 1.3336676263636364,
+      "named_MPI": 0.6119106009090909,
+      "outside_named_MPI": 0.7217570254545455
+    },
+    "78": {
+      "wall": 1.3336878863636363,
+      "named_MPI": 0.6232929363636364,
+      "outside_named_MPI": 0.71039495
+    },
+    "79": {
+      "wall": 1.3337204863636363,
+      "named_MPI": 0.749883480909091,
+      "outside_named_MPI": 0.5838370054545454
+    },
+    "80": {
+      "wall": 1.3338740436363636,
+      "named_MPI": 0.7152328681818182,
+      "outside_named_MPI": 0.6186411754545454
+    },
+    "81": {
+      "wall": 1.3336770745454545,
+      "named_MPI": 0.7451239709090909,
+      "outside_named_MPI": 0.5885531036363636
+    },
+    "82": {
+      "wall": 1.3336228172727274,
+      "named_MPI": 0.8620586181818182,
+      "outside_named_MPI": 0.4715641990909091
+    }
+  },
+  "source_findings": [
+    "WT_after_step contains the entire forward/compression/inverse transaction in both implementations; inclusive timing already charges nested legacy boundary work.",
+    "Native output skips legacy forward-wavelet loops and legacy inverse; repeated whole-transform call counts are equal. No evidence of a duplicate full legacy transform on each native stage.",
+    "Regular inverse kernels stay on final block owners; outer-edge dependencies retain geometric route owners. transfer_nodes gathers/scatters between these layouts, and aliases use a separate exchange.",
+    "The provisional inverse also gathers/scatters boundary state and publishes Domain consumer state after the interior computation.",
+    "Native gather/scatter/alias payload counters count remote sends only; they exclude self copies and do not represent total DRAM traffic."
+  ],
+  "next_experiment": "Within the inverse transaction, remove or narrow per-level final-owner/geometric-owner transfers while preserving outer-edge write order and consumer aliases; measure the same full transaction against legacy.",
+  "remaining_limits": [
+    "This isolates a major cost center, not the whole 0.783 s unprofiled ordinary-step excess.",
+    "Whole-window inclusive records cannot exclude the checkpoint step or give per-step parent/child attribution. Do not divide this excess by the unprofiled ordinary-step excess.",
+    "Transport helpers include packing, copying and waiting; their sum is contained in inverse inclusive time and must not be added to it.",
+    "MPI process CPU includes spin; outside-named-MPI time is not guaranteed useful arithmetic. Arrival imbalance and implementation costs both remain relevant.",
+    "Legacy inverse timer has 73 calls/rank versus 48 native inverse calls, so their bare timer rows are not matched transactions. The common 60-call WT parent is the defensible comparison.",
+    "Proof of recoverable savings requires a controlled ownership-transfer ablation; payload volume alone is not that proof."
+  ]
+}
