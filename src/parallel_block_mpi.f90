@@ -547,7 +547,7 @@ module parallel_block_mpi_mod
   end type
   type(Inverse_Stencil_Addresses), allocatable, save :: inverse_stencil(:)
   integer(int64), save :: inverse_stencil_generation=-1_int64
-  integer(int64), save :: inverse_address_work(8)=0_int64
+  integer(int64), save :: inverse_address_work(12)=0_int64
   integer(int64), save :: production_block_compression_writeback_before = &
        0_int64
   integer(int64), save :: production_block_compression_allocation_before = &
@@ -1990,7 +1990,7 @@ contains
     integer(int64) :: thermodynamic_sum(11)
     integer(int64) :: velocity_sum(9)
     integer(int64) :: mass_sum(6)
-    integer(int64) :: inverse_address_sum(8)
+    integer(int64) :: inverse_address_sum(12)
     integer(int64) :: producer_sum(9),producer_local(9)
     integer :: producer_domain
     integer(int64) :: work_sum(BLOCK_PROFILE_PHASE_COUNT)
@@ -2019,7 +2019,7 @@ contains
     if (present(reset)) clear_after = reset
     state_ready = parallel_block_state_is_ready()
 
-    call MPI_Allreduce(inverse_address_work,inverse_address_sum,8,MPI_INTEGER8,MPI_SUM,comm,ierr)
+    call MPI_Allreduce(inverse_address_work,inverse_address_sum,12,MPI_INTEGER8,MPI_SUM,comm,ierr)
     call check_mpi(ierr,"MPI_Allreduce inverse address work")
     call MPI_Allreduce(block_profile_seconds,seconds_min, &
          BLOCK_PROFILE_PHASE_COUNT,MPI_DOUBLE_PRECISION,MPI_MIN,comm,ierr)
@@ -2252,6 +2252,8 @@ contains
             "  divergence columns: columns locations replaced scalar reads = ",inverse_address_sum(3:5)
        write(6,'(a,3(i0,1x))') &
             "  restriction interpolation columns: columns locations replaced scalar reads = ",inverse_address_sum(6:8)
+       write(6,'(a,4(i0,1x))') &
+            "  restriction closure columns: edges locations reused fallback layers = ",inverse_address_sum(9:12)
        write(6,'(a,3(i0,1x))') &
             "  scalar producer: geometry nodes physics values oracle records = ",producer_sum(1:3)
        write(6,'(a,2(i0,1x))') &
@@ -24996,12 +24998,12 @@ end subroutine build_parallel_block_catalog
   subroutine restrict_block_scalar_flux_columns(catalog_index,block,context)
     ! Stage 189: batch interpolation across physical layers. Fine-level inputs
     ! are finalized before this call; only parent direct flux is written here.
-    ! Partial/coarse closure retains its original scalar evaluation and order.
+    ! Closure shares geometry and batches field access with the same arithmetic order.
     integer, intent(in) :: catalog_index
     type(Block_Data), intent(in) :: block
     class(*), intent(inout) :: context
-    integer :: local_index,p,c,child,scalar_slot,i,j,ip,jp,ic,jc,e,k,first,count
-    real(dp) :: masks(RT:UP),sm(zlevels,4),value
+    integer :: local_index,p,c,child,scalar_slot,i,j,ip,jp,ic,jc,e,first,count,sample
+    real(dp) :: masks(RT:UP),sm(zlevels,4),values(zlevels)
     type(Block_Scalar_Restriction_Cursor) :: cursor
 
     local_index=catalog_local_block(catalog_index)
@@ -25049,21 +25051,23 @@ end subroutine build_parallel_block_catalog
                       sm(:count,:)=interpolate_block_scalar_flux_columns( &
                            block,local_index,child+1,scalar_slot,first,count,ic,jc,BLOCK_SCALAR_DIRECT_FLUX_START)
                       if (block_profile) inverse_address_work(6)=inverse_address_work(6)+1_int64
-                      do k=1,count
-                         cursor%level_slot=first+k-1
-                         cursor%physical_level=block%field_level+cursor%level_slot-1
-                         cursor%edge=-1
-                         call validate_scalar_restriction_vector("interpolate_block_scalar_flux_columns",sm(k,:),cursor)
-                         do e=RT,UP
-                            if (masks(e)<real(RESTRCT,dp)) cycle
-                            cursor%edge=e
-                            value=complete_block_coarse_flux(sm(k,:),block,local_index,child+1,scalar_slot, &
-                                 cursor%level_slot,ip,jp,ic,jc,e,cursor)
-                            call validate_scalar_restriction_value("complete_block_coarse_flux",value,cursor)
-                            call set_block_patch_scalar_record_value(local_index,p,block%n_field_level,scalar_slot, &
-                                 cursor%level_slot,ip,jp,BLOCK_SCALAR_DIRECT_FLUX_START+e,value)
-                            statistics%restricted_edge_count=statistics%restricted_edge_count+1_int64
-                         end do
+                      if (.not.all(ieee_is_finite(sm(:count,:)))) &
+                           call fail("restriction interpolation columns are non-finite")
+                      cursor%level_slot=first
+                      cursor%physical_level=block%field_level+first-1
+                      if (p<1.or.p>block_scalar_tendency(local_index)%installed_patch_count.or. &
+                           ip<0.or.ip>=PATCH_SIZE.or.jp<0.or.jp>=PATCH_SIZE) &
+                           call fail("scalar-restriction column write coordinate is invalid")
+                      sample=(p-1)*block_writeback_plan%scalar_patch_nvalue+ &
+                           (scalar_slot*block%n_field_level+first-1)*PATCH_SIZE**2+PATCH_SIZE*jp+ip
+                      do e=RT,UP
+                         if (masks(e)<real(RESTRCT,dp)) cycle
+                         cursor%edge=e
+                         values(:count)=complete_block_coarse_flux_columns(sm(:count,:),block,local_index, &
+                              child+1,scalar_slot,first,count,ip,jp,ic,jc,e,cursor)
+                         call scalar_write_column(block_scalar_tendency(local_index)%patch,sample, &
+                              BLOCK_SCALAR_DIRECT_FLUX_START+e,values(:count))
+                         statistics%restricted_edge_count=statistics%restricted_edge_count+int(count,int64)
                       end do
                    end do
                 end do
@@ -26341,6 +26345,351 @@ end subroutine build_parallel_block_catalog
     end function sum_edge_difference_weight_product
 
   end function interpolate_block_scalar_flux
+
+
+  function complete_block_coarse_flux_columns( &
+       sm_flux,block,local_index,p,scalar_slot,first,count, &
+       i_par,j_par,i_chd,j_chd,e,cursor) result(value)
+    ! Stage 190: geometry and closure stencils are invocation-local. The fine
+    ! level is finalized; no parent writes occur until this function returns.
+    ! Only compact production geometry may be shared across physical layers.
+    type(Block_Data), intent(in) :: block
+    integer, intent(in) :: local_index,p,scalar_slot,first,count
+    integer, intent(in) :: i_par,j_par,i_chd,j_chd,e
+    type(Block_Scalar_Restriction_Cursor), intent(in) :: cursor
+    real(dp), intent(in) :: sm_flux(count,4)
+    real(dp) :: value(count),partial_value(count),coarse_value(count)
+    integer :: i,j
+    integer, parameter :: MAX_COLUMN_INPUTS=32
+    integer :: used,keys(3,MAX_COLUMN_INPUTS)
+    real(dp) :: inputs(count,MAX_COLUMN_INPUTS)
+    integer :: edge_component(0:19)
+    integer :: edge_i(0:19)
+    integer :: edge_j(0:19)
+    integer :: scalar_i(0:19)
+    integer :: scalar_j(0:19)
+
+    real(dp) :: area(2)
+    real(dp) :: area_input(2)
+    real(dp) :: area_sum
+    real(dp) :: ol_area(4)
+    real(dp) :: ol_area_input(4)
+    real(dp) :: ol_area_terms(6)
+
+    integer :: i_mm
+    integer :: i_mm2
+    integer :: i_mp
+    integer :: i_mp2
+    integer :: i_mz
+    integer :: i_pm
+    integer :: i_pm2
+    integer :: i_pp
+    integer :: i_pp2
+    integer :: i_pz
+    integer :: j_mm
+    integer :: j_mm2
+    integer :: j_mp
+    integer :: j_mp2
+    integer :: j_mz
+    integer :: j_pm
+    integer :: j_pm2
+    integer :: j_pp
+    integer :: j_pp2
+    integer :: j_pz
+
+    real(dp) :: coefficient
+
+    if (.not. block_scalar_tendency(local_index)%patch%compact) &
+         call fail("coarse flux columns require compact production storage")
+    if (count<1.or.first<1.or.first+count-1>block%n_field_level) &
+         call fail("coarse flux column extent is invalid")
+    used=0
+    select case(e)
+    case(RT)
+       i=i_chd+1; j=j_chd
+    case(DG)
+       i=i_chd+1; j=j_chd+1
+    case(UP)
+       i=i_chd; j=j_chd+1
+    case default
+       call fail("scalar-restriction coarse edge is invalid")
+    end select
+    call get_block_restriction_indices( &
+         i,j,e,edge_i,edge_j,edge_component,scalar_i,scalar_j)
+    area = [overlap_value( &
+         i,j,1), &
+         overlap_value( &
+         i,j,2)]
+    ol_area(1:2) = [overlap_split( &
+         i,j,1), &
+         overlap_split( &
+         i,j,2)]
+    ol_area(3:4) = [overlap_value( &
+         i,j,3), &
+         overlap_value( &
+         i,j,4)]
+    area_input = area
+    ol_area_input = ol_area
+    if (.not. all(ieee_is_finite(area_input)) .or. &
+         .not. all(ieee_is_finite(ol_area_input))) then
+       call report_scalar_restriction_cursor( &
+            "non-finite partial coarse-flux input",cursor)
+       write(error_unit,'(a,2(es24.16,1x))') &
+            "  area input = ",area_input
+       write(error_unit,'(a,4(es24.16,1x))') &
+            "  overlap-area input = ",ol_area_input
+       flush(error_unit)
+       call fail("partial coarse-flux input is non-finite")
+    end if
+    ol_area(3:4) = ol_area(3:4)-ol_area(1:2)
+    area(1) = area(1)+ol_area(1)+ol_area(4)
+    area(2) = area(2)+ol_area(2)+ol_area(3)
+    area_sum = sum(area)
+    if (.not. all(ieee_is_finite(area)) .or. &
+         .not. all(ieee_is_finite(ol_area)) .or. &
+         .not. ieee_is_finite(area_sum) .or. &
+         .not. (abs(area_sum) > 0.0_dp)) then
+       call report_scalar_restriction_cursor( &
+            "invalid partial coarse-flux normalization",cursor)
+       write(error_unit,'(a,2(es24.16,1x))') &
+            "  area = ",area
+       write(error_unit,'(a,4(es24.16,1x))') &
+            "  overlap area = ",ol_area
+       write(error_unit,'(a,es24.16)') &
+            "  area sum = ",area_sum
+       flush(error_unit)
+       call fail("partial coarse-flux normalization is invalid")
+    end if
+    area = area/area_sum
+
+    ol_area_terms(1) = overlap_split( &
+         scalar_i(PP),scalar_j(PP),1)
+    ol_area_terms(2) = overlap_split( &
+         scalar_i(MM),scalar_j(MM),2)
+    ol_area_terms(3) = overlap_value( &
+         scalar_i(MP),scalar_j(MP),3)
+    ol_area_terms(4) = overlap_split( &
+         scalar_i(MP),scalar_j(MP),1)
+    ol_area_terms(5) = overlap_value( &
+         scalar_i(PM),scalar_j(PM),4)
+    ol_area_terms(6) = overlap_split( &
+         scalar_i(PM),scalar_j(PM),2)
+    if (.not. all(ieee_is_finite(ol_area_terms))) then
+       call report_scalar_restriction_cursor( &
+            "non-finite partial coarse-flux overlap input",cursor)
+       write(error_unit,'(a,6(es24.16,1x))') &
+            "  overlap-area terms = ",ol_area_terms
+       flush(error_unit)
+       call fail("partial coarse-flux overlap input is non-finite")
+    end if
+    ol_area = [ol_area_terms(1),ol_area_terms(2), &
+         ol_area_terms(3)-ol_area_terms(4), &
+         ol_area_terms(5)-ol_area_terms(6)]
+    if (.not. all(ieee_is_finite(ol_area))) then
+       call report_scalar_restriction_cursor( &
+            "non-finite partial coarse-flux overlap result",cursor)
+       write(error_unit,'(a,4(es24.16,1x))') &
+            "  overlap area = ",ol_area
+       flush(error_unit)
+       call fail("partial coarse-flux overlap result is non-finite")
+    end if
+
+    partial_value = (flux_column( &
+         edge_i(UPZ),edge_j(UPZ),edge_component(UPZ))*area(1) + &
+         flux_column( &
+         edge_i(UMZ),edge_j(UMZ),edge_component(UMZ))*area(2)) - &
+         (flux_column( &
+         edge_i(VMM),edge_j(VMM),edge_component(VMM)) + &
+         flux_column( &
+         edge_i(WMP),edge_j(WMP),edge_component(WMP)))*area(2) - &
+         (flux_column( &
+         edge_i(WPM),edge_j(WPM),edge_component(WPM)) + &
+         flux_column( &
+         edge_i(VPP),edge_j(VPP),edge_component(VPP)))*area(1) + &
+         ol_area(3)*dscalar_column( &
+         scalar_i(MP),scalar_j(MP)) - &
+         ol_area(4)*dscalar_column( &
+         scalar_i(PM),scalar_j(PM)) - &
+         ol_area(1)*dscalar_column( &
+         scalar_i(PP),scalar_j(PP)) + &
+         ol_area(2)*dscalar_column( &
+         scalar_i(MM),scalar_j(MM))
+
+    if (i_par < 0 .or. j_par < 0) then
+       call fail("scalar-restriction parent coordinate is invalid")
+    end if
+    i_mz = i+nghb_pt(1,hex_s_offs(e+1)+2)
+    j_mz = j+nghb_pt(2,hex_s_offs(e+1)+2)
+    i_pz = i+nghb_pt(1,hex_s_offs(e+1)+5)
+    j_pz = j+nghb_pt(2,hex_s_offs(e+1)+5)
+    i_mp = i+nghb_pt(1,hex_s_offs(e+1)+1)
+    j_mp = j+nghb_pt(2,hex_s_offs(e+1)+1)
+    i_pp = i+nghb_pt(1,hex_s_offs(e+1)+6)
+    j_pp = j+nghb_pt(2,hex_s_offs(e+1)+6)
+    i_pm = i+nghb_pt(1,hex_s_offs(e+1)+4)
+    j_pm = j+nghb_pt(2,hex_s_offs(e+1)+4)
+    i_mm = i+nghb_pt(1,hex_s_offs(e+1)+3)
+    j_mm = j+nghb_pt(2,hex_s_offs(e+1)+3)
+    i_mm2 = i+bfly_no2(1,1,e+1)
+    j_mm2 = j+bfly_no2(2,1,e+1)
+    i_pm2 = i+bfly_no2(1,2,e+1)
+    j_pm2 = j+bfly_no2(2,2,e+1)
+    i_pp2 = i+bfly_no2(1,3,e+1)
+    j_pp2 = j+bfly_no2(2,3,e+1)
+    i_mp2 = i+bfly_no2(1,4,e+1)
+    j_mp2 = j+bfly_no2(2,4,e+1)
+
+    coefficient = overlap_value( &
+         i,j,1)* &
+         overlap_value( &
+         i,j,2)* &
+         area_value( &
+         i,j) + &
+         overlap_value( &
+         i_mp,j_mp,2)* &
+         overlap_value( &
+         i_mp,j_mp,3)* &
+         area_value( &
+         i_mp,j_mp) + &
+         overlap_value( &
+         i_pp,j_pp,1)* &
+         overlap_value( &
+         i_pp,j_pp,3)* &
+         area_value( &
+         i_pp,j_pp) + &
+         overlap_value( &
+         i_pm,j_pm,1)* &
+         overlap_value( &
+         i_pm,j_pm,4)* &
+         area_value( &
+         i_pm,j_pm) + &
+         overlap_value( &
+         i_mm,j_mm,2)* &
+         overlap_value( &
+         i_mm,j_mm,4)* &
+         area_value( &
+         i_mm,j_mm)
+    coarse_value = coefficient*(dscalar_column( &
+         i_pz,j_pz)- &
+         dscalar_column( &
+         i_mz,j_mz))
+    coarse_value = coarse_value + 0.5_dp*overlap_area_product( &
+         i_pp,j_pp,3,4)*(dscalar_column( &
+         i_pp2,j_pp2)- &
+         dscalar_column( &
+         i_mz,j_mz))
+    coarse_value = coarse_value + 0.5_dp*overlap_area_product( &
+         i_pm,j_pm,3,4)*(dscalar_column( &
+         i_pm2,j_pm2)- &
+         dscalar_column( &
+         i_mz,j_mz))
+    coarse_value = coarse_value + 0.5_dp*overlap_area_product( &
+         i_mp,j_mp,3,4)*(dscalar_column( &
+         i_pz,j_pz)- &
+         dscalar_column( &
+         i_mp2,j_mp2))
+    coarse_value = coarse_value + 0.5_dp*overlap_area_product( &
+         i_mm,j_mm,3,4)*(dscalar_column( &
+         i_pz,j_pz)- &
+         dscalar_column( &
+         i_mm2,j_mm2))
+    call validate_scalar_restriction_vector("partial_block_coarse_flux_columns",partial_value,cursor)
+    call validate_scalar_restriction_vector("block_coarse_flux_columns",coarse_value,cursor)
+    select case(e)
+    case(RT)
+       value=partial_value+coarse_value+sm_flux(:,1)+sm_flux(:,2)
+    case(DG)
+       value=partial_value+coarse_value+sm_flux(:,2)+sm_flux(:,3)
+    case(UP)
+       value=partial_value+coarse_value+sm_flux(:,3)+sm_flux(:,4)
+    end select
+    call validate_scalar_restriction_vector("complete_block_coarse_flux_columns",value,cursor)
+    if (block_profile) inverse_address_work(9)=inverse_address_work(9)+1_int64
+
+  contains
+
+    real(dp) function overlap_value(x,y,component) result(v)
+      integer, intent(in) :: x,y,component
+      v=block_overlap_value(block,local_index,p,scalar_slot,first,x,y,component)
+    end function
+
+    real(dp) function overlap_split(x,y,component) result(v)
+      integer, intent(in) :: x,y,component
+      v=block_overlap_split(block,local_index,p,scalar_slot,first,x,y,component)
+    end function
+
+    real(dp) function area_value(x,y) result(v)
+      integer, intent(in) :: x,y
+      v=block_area_value(block,local_index,p,scalar_slot,first,x,y)
+    end function
+
+    real(dp) function overlap_area_product(x,y,c1,c2) result(v)
+      integer, intent(in) :: x,y,c1,c2
+      v=overlap_value(x,y,c1)*overlap_value(x,y,c2)*area_value(x,y)
+    end function
+
+    function flux_column(x,y,edge) result(v)
+      integer, intent(in) :: x,y,edge
+      real(dp) :: v(count)
+      if (edge<RT.or.edge>UP) call fail("scalar-restriction column edge is invalid")
+      v=read_cached_column(x,y,BLOCK_SCALAR_DIRECT_FLUX_START+edge)
+    end function
+
+    function dscalar_column(x,y) result(v)
+      integer, intent(in) :: x,y
+      real(dp) :: v(count)
+      v=read_cached_column(x,y,BLOCK_SCALAR_NATIVE_DSCALAR_INDEX)
+    end function
+
+    function read_cached_column(x,y,slot) result(v)
+      integer, intent(in) :: x,y,slot
+      real(dp) :: v(count)
+      integer :: q,k,storage_class,record,node,base
+      do q=1,used
+         if (all(keys(:,q)==[x,y,slot])) then
+            v=inputs(:,q)
+            if (block_profile) inverse_address_work(11)=inverse_address_work(11)+1_int64
+            return
+         end if
+      end do
+      if (used==MAX_COLUMN_INPUTS) call fail("coarse flux column scratch capacity exceeded")
+      call locate_block_scalar_record(block,local_index,p,x,y,storage_class,record,node)
+      base=scalar_slot*block%n_field_level+first-1
+      select case(storage_class)
+      case(STORE_PATCH)
+         base=record*block_writeback_plan%scalar_patch_nvalue+base*PATCH_SIZE**2+node
+         v=scalar_read_column(block_scalar_tendency(local_index)%patch,base,slot,count)
+      case(STORE_BDRY)
+         base=base*size(block%bdry_node)+node
+         v=scalar_read_column(block_scalar_tendency(local_index)%bdry,base,slot,count)
+      case(STORE_GHOST)
+         base=base*size(block%ghost_node)+node
+         v=scalar_read_column(block_scalar_tendency(local_index)%ghost,base,slot,count)
+      case default
+         call fail("coarse flux column storage is invalid")
+      end select
+      if (.not.all(ieee_is_finite(v))) call fail("coarse flux column is non-finite")
+      if (slot==BLOCK_SCALAR_NATIVE_DSCALAR_INDEX) then
+         ! Match the scalar accessor's permitted uninitialized tendency and
+         ! reconstruct only the affected layers. Other layers need no flux
+         ! stencil and must not acquire additional boundary dependencies.
+         do k=1,count
+            if (v(k)<-BLOCK_RESTRICTION_VALUE_LIMIT) then
+               v(k)=block_scalar_flux_divergence(block,local_index,p,scalar_slot,first+k-1,x,y, &
+                    BLOCK_SCALAR_DIRECT_FLUX_START)
+               if (block_profile) inverse_address_work(12)=inverse_address_work(12)+1_int64
+            end if
+         end do
+      else
+         if (.not.all(abs(v)<BLOCK_RESTRICTION_VALUE_LIMIT)) call fail("coarse flux column is poisoned")
+      end if
+      used=used+1
+      keys(:,used)=[x,y,slot]
+      inputs(:,used)=v
+      if (block_profile) inverse_address_work(10)=inverse_address_work(10)+1_int64
+    end function
+
+  end function complete_block_coarse_flux_columns
 
 
   real(dp) function complete_block_coarse_flux ( &

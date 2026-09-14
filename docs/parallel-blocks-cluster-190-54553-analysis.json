@@ -1,0 +1,926 @@
+{
+  "status": "passed_review",
+  "job": 54553,
+  "campaign_status": "passed",
+  "reported_gates": 36,
+  "exact_checkpoint_reports": [
+    "checked-off",
+    "checked-on",
+    "baseline-warmup",
+    "cross-mode-baseline-warmup",
+    "candidate-warmup",
+    "cross-mode-candidate-warmup",
+    "legacy-warmup",
+    "baseline-1",
+    "candidate-1",
+    "legacy-1",
+    "candidate-2",
+    "legacy-2",
+    "baseline-2",
+    "legacy-3",
+    "baseline-3",
+    "candidate-3",
+    "baseline-profile",
+    "candidate-profile"
+  ],
+  "legacy_screens_max_abs": {
+    "legacy-screen-legacy-warmup": {
+      "velocity": 3.723243935382925e-12,
+      "mass": 2.5011104298755527e-12,
+      "temperature": 7.8580342233181e-10
+    },
+    "legacy-screen-legacy-1": {
+      "velocity": 3.723243935382925e-12,
+      "mass": 2.5011104298755527e-12,
+      "temperature": 7.8580342233181e-10
+    },
+    "legacy-screen-legacy-2": {
+      "velocity": 3.723243935382925e-12,
+      "mass": 2.5011104298755527e-12,
+      "temperature": 7.8580342233181e-10
+    },
+    "legacy-screen-legacy-3": {
+      "velocity": 3.723243935382925e-12,
+      "mass": 2.5011104298755527e-12,
+      "temperature": 7.8580342233181e-10
+    }
+  },
+  "source_manifests_match": true,
+  "embedded_build_record_matches": true,
+  "supplied_build_log_hashes_match": true,
+  "all_run_binary_hashes_match": true,
+  "physics_objects_recorded": 23,
+  "build_host": {
+    "system": "Linux",
+    "node": "bb13.rhpcs.internal",
+    "release": "5.14.0-687.15.1.el9_8.x86_64",
+    "version": "#1 SMP PREEMPT_DYNAMIC Thu Jun 11 16:33:25 UTC 2026",
+    "machine": "x86_64",
+    "processor": "x86_64"
+  },
+  "placement": {
+    "host": "bb13.rhpcs.internal",
+    "same_rank_cpu_mapping_all_runs": true,
+    "physical_cores": 83,
+    "socket_counts": {
+      "socket0": 42,
+      "socket1": 41
+    }
+  },
+  "summary": {
+    "baseline": {
+      "elapsed_seconds": [
+        33.7514527659805,
+        33.641190720984014,
+        33.648209365986986
+      ],
+      "ordinary_step_medians": [
+        1.49,
+        1.49,
+        1.49
+      ],
+      "median_elapsed_seconds": 33.648209365986986,
+      "median_ordinary_step_seconds": 1.49
+    },
+    "candidate": {
+      "elapsed_seconds": [
+        32.942491916008294,
+        32.9266276069975,
+        32.779283621988725
+      ],
+      "ordinary_step_medians": [
+        1.43,
+        1.43,
+        1.42
+      ],
+      "median_elapsed_seconds": 32.9266276069975,
+      "median_ordinary_step_seconds": 1.43
+    },
+    "legacy": {
+      "elapsed_seconds": [
+        22.534994302986888,
+        22.641743636020692,
+        22.520391363010276
+      ],
+      "ordinary_step_medians": [
+        0.558,
+        0.558,
+        0.555
+      ],
+      "median_elapsed_seconds": 22.534994302986888,
+      "median_ordinary_step_seconds": 0.558
+    },
+    "observed_elapsed_reduction_percent": 2.1444878422531843,
+    "block_vs_legacy": {
+      "baseline": {
+        "elapsed_ratio": 1.4931536664079432,
+        "ordinary_step_ratio": 2.6702508960573472
+      },
+      "candidate": {
+        "elapsed_ratio": 1.4611331675656674,
+        "ordinary_step_ratio": 2.562724014336917
+      }
+    },
+    "scope": "Observed timings only. Inspect node load, placement and memory/swap evidence. Warmups, correctness runs and detailed profiles are excluded."
+  },
+  "ordinary_step_reduction_percent": 4.026845637583898,
+  "runs": {
+    "checked-off": {
+      "kind": "checked",
+      "phase": "validation",
+      "elapsed_seconds": 61.55619225598639,
+      "ordinary_step_median": 3.8,
+      "max_rank_rss_mib": 403.625,
+      "sum_rank_peak_rss_gib": 23.66384506225586,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1496.9965591430664,
+        1496.7240867614746
+      ]
+    },
+    "checked-on": {
+      "kind": "checked",
+      "phase": "validation",
+      "elapsed_seconds": 189.04989462700905,
+      "ordinary_step_median": 14.8,
+      "max_rank_rss_mib": 702.63671875,
+      "sum_rank_peak_rss_gib": 41.0099983215332,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1496.6576957702637,
+        1497.0039100646973
+      ]
+    },
+    "baseline-warmup": {
+      "kind": "baseline",
+      "phase": "warmup",
+      "elapsed_seconds": 33.55901426897617,
+      "ordinary_step_median": 1.5,
+      "max_rank_rss_mib": 400.44921875,
+      "sum_rank_peak_rss_gib": 22.97125244140625,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1496.8803253173828,
+        1496.408359527588
+      ]
+    },
+    "candidate-warmup": {
+      "kind": "candidate",
+      "phase": "warmup",
+      "elapsed_seconds": 32.87860726000508,
+      "ordinary_step_median": 1.42,
+      "max_rank_rss_mib": 400.015625,
+      "sum_rank_peak_rss_gib": 22.991878509521484,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1496.0666236877441,
+        1496.094326019287
+      ]
+    },
+    "legacy-warmup": {
+      "kind": "legacy",
+      "phase": "warmup",
+      "elapsed_seconds": 22.494922329991823,
+      "ordinary_step_median": 0.558,
+      "max_rank_rss_mib": 168.984375,
+      "sum_rank_peak_rss_gib": 11.023078918457031,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1495.950511932373,
+        1496.3598976135254
+      ]
+    },
+    "baseline-1": {
+      "kind": "baseline",
+      "phase": "timing",
+      "elapsed_seconds": 33.7514527659805,
+      "ordinary_step_median": 1.49,
+      "max_rank_rss_mib": 397.70703125,
+      "sum_rank_peak_rss_gib": 23.001678466796875,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1496.1547470092773,
+        1495.8257789611816
+      ]
+    },
+    "candidate-1": {
+      "kind": "candidate",
+      "phase": "timing",
+      "elapsed_seconds": 32.942491916008294,
+      "ordinary_step_median": 1.43,
+      "max_rank_rss_mib": 397.3984375,
+      "sum_rank_peak_rss_gib": 23.018936157226562,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1495.8863639831543,
+        1495.8304061889648
+      ]
+    },
+    "legacy-1": {
+      "kind": "legacy",
+      "phase": "timing",
+      "elapsed_seconds": 22.534994302986888,
+      "ordinary_step_median": 0.558,
+      "max_rank_rss_mib": 165.5703125,
+      "sum_rank_peak_rss_gib": 11.028644561767578,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1495.7579460144043,
+        1496.1008110046387
+      ]
+    },
+    "candidate-2": {
+      "kind": "candidate",
+      "phase": "timing",
+      "elapsed_seconds": 32.9266276069975,
+      "ordinary_step_median": 1.43,
+      "max_rank_rss_mib": 399.34765625,
+      "sum_rank_peak_rss_gib": 22.99335479736328,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1495.8173294067383,
+        1495.5107612609863
+      ]
+    },
+    "legacy-2": {
+      "kind": "legacy",
+      "phase": "timing",
+      "elapsed_seconds": 22.641743636020692,
+      "ordinary_step_median": 0.558,
+      "max_rank_rss_mib": 168.0390625,
+      "sum_rank_peak_rss_gib": 11.037368774414062,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1495.5000381469727,
+        1495.9212837219238
+      ]
+    },
+    "baseline-2": {
+      "kind": "baseline",
+      "phase": "timing",
+      "elapsed_seconds": 33.641190720984014,
+      "ordinary_step_median": 1.49,
+      "max_rank_rss_mib": 397.54296875,
+      "sum_rank_peak_rss_gib": 22.998027801513672,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1495.575511932373,
+        1495.3508605957031
+      ]
+    },
+    "legacy-3": {
+      "kind": "legacy",
+      "phase": "timing",
+      "elapsed_seconds": 22.520391363010276,
+      "ordinary_step_median": 0.555,
+      "max_rank_rss_mib": 166.3125,
+      "sum_rank_peak_rss_gib": 11.03988265991211,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1495.3794784545898,
+        1495.6400527954102
+      ]
+    },
+    "baseline-3": {
+      "kind": "baseline",
+      "phase": "timing",
+      "elapsed_seconds": 33.648209365986986,
+      "ordinary_step_median": 1.49,
+      "max_rank_rss_mib": 398.25390625,
+      "sum_rank_peak_rss_gib": 23.00967025756836,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1495.3786506652832,
+        1495.1361236572266
+      ]
+    },
+    "candidate-3": {
+      "kind": "candidate",
+      "phase": "timing",
+      "elapsed_seconds": 32.779283621988725,
+      "ordinary_step_median": 1.42,
+      "max_rank_rss_mib": 398.80078125,
+      "sum_rank_peak_rss_gib": 22.985980987548828,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1495.0138702392578,
+        1495.0083274841309
+      ]
+    },
+    "baseline-profile": {
+      "kind": "baseline",
+      "phase": "profile",
+      "elapsed_seconds": 34.36838138400344,
+      "ordinary_step_median": 1.55,
+      "max_rank_rss_mib": 400.60546875,
+      "sum_rank_peak_rss_gib": 23.06896209716797,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1494.8943710327148,
+        1495.0254974365234
+      ]
+    },
+    "candidate-profile": {
+      "kind": "candidate",
+      "phase": "profile",
+      "elapsed_seconds": 33.63570909501868,
+      "ordinary_step_median": 1.48,
+      "max_rank_rss_mib": 400.81640625,
+      "sum_rank_peak_rss_gib": 23.02867889404297,
+      "swap_pages_delta": {
+        "pswpin": 0,
+        "pswpout": 0
+      },
+      "available_memory_gib_before_after": [
+        1495.0788536071777,
+        1494.9298629760742
+      ]
+    }
+  },
+  "profile_self_wall_and_cpu_rank_mean_sums": {
+    "baseline": {
+      "timestep residual": [
+        0.035386100000000004,
+        0.0350783
+      ],
+      "dynamics residual": [
+        0.022326850000000002,
+        0.02192348
+      ],
+      "adaptation residual": [
+        0.2900382,
+        0.2870148
+      ],
+      "output/checkpoint": [
+        3.73084163,
+        3.35499123
+      ],
+      "source extraction": [
+        0.1664816,
+        0.1647845
+      ],
+      "source serialization proof": [
+        0.1220252,
+        0.1210599
+      ],
+      "receive serialization proof": [
+        0.25341539999999996,
+        0.25088710000000003
+      ],
+      "local install/deep copy": [
+        0.0531754,
+        0.052791599999999994
+      ],
+      "local copy byte proof": [
+        0.1963361,
+        0.1949997
+      ],
+      "migration residual": [
+        0.711866,
+        0.7076939999999999
+      ],
+      "migration pack": [
+        0.1439334,
+        0.14269880000000001
+      ],
+      "migration unpack": [
+        0.0772517,
+        0.0763976
+      ],
+      "migration MPI": [
+        0.472504,
+        0.467596
+      ],
+      "inverse residual": [
+        0.1159143,
+        0.1143121
+      ],
+      "inverse plan": [
+        0.076694,
+        0.0755197
+      ],
+      "inverse pack": [
+        0.3125481,
+        0.31036830000000004
+      ],
+      "inverse local aliases": [
+        0.038406499999999996,
+        0.0381369
+      ],
+      "inverse MPI post/self copy": [
+        0.036390900000000004,
+        0.0346151
+      ],
+      "inverse MPI wait": [
+        1.4305860000000001,
+        1.421599
+      ],
+      "inverse install": [
+        0.2334543,
+        0.2318461
+      ],
+      "outer inverse arithmetic": [
+        0.0800168,
+        0.0793226
+      ],
+      "scalar setup/storage": [
+        0.348093,
+        0.34087999999999996
+      ],
+      "scalar geometry expansion": [
+        0.00525461,
+        0.00509132
+      ],
+      "scalar transport/install": [
+        0.3530591,
+        0.34915090000000004
+      ],
+      "scalar replay": [
+        1.519247,
+        1.5072800000000002
+      ],
+      "shared producer residual": [
+        0.530115,
+        0.527603
+      ],
+      "shared basic operators": [
+        0.337511,
+        0.336145
+      ],
+      "Domain boundary interface": [
+        0.20041910000000002,
+        0.1873389
+      ],
+      "primitive/physics preparation": [
+        0.0522922,
+        0.051779399999999996
+      ],
+      "native mass": [
+        0.1165119,
+        0.1166354
+      ],
+      "native velocity": [
+        0.1431355,
+        0.1423356
+      ],
+      "Domain writeback": [
+        0.0608897,
+        0.0603582
+      ],
+      "block ghost pack/install": [
+        0.6494880000000001,
+        0.64377
+      ],
+      "block ghost MPI": [
+        0.34554070000000003,
+        0.3424863
+      ],
+      "catalog construction": [
+        0.0921936,
+        0.0916212
+      ],
+      "scalar/inner inverse kernels": [
+        0.680436,
+        0.676248
+      ],
+      "scalar transport MPI": [
+        0.9837199999999999,
+        0.976791
+      ],
+      "Domain boundary MPI wait": [
+        1.8993769999999999,
+        1.889833
+      ],
+      "native mass MPI wait": [
+        0.960977,
+        0.954673
+      ],
+      "Domain writeback MPI": [
+        0.45660500000000004,
+        0.453465
+      ],
+      "received geometry expansion": [
+        0.0002833544,
+        0.0002555907
+      ],
+      "inverse scaffold staging": [
+        0.08626,
+        0.0851627
+      ],
+      "native wavelet work": [
+        0.7500519999999999,
+        0.744103
+      ],
+      "native compression": [
+        0.1955395,
+        0.1943174
+      ],
+      "native RK assembly": [
+        0.015611400000000001,
+        0.0155337
+      ],
+      "RK retention/publication": [
+        0.01739551,
+        0.01728961
+      ],
+      "tendency assembly residual": [
+        0.2962272,
+        0.2940725
+      ],
+      "grid-change synchronization": [
+        0.015917,
+        0.01581991
+      ],
+      "trend state refresh": [
+        0.0945019,
+        0.0932978
+      ],
+      "prognostic state refresh": [
+        0.00511993,
+        0.00507538
+      ],
+      "scalar capture lifecycle": [
+        0.000637209,
+        0.000494421
+      ],
+      "velocity remainder preparation": [
+        0.0689105,
+        0.06813720000000001
+      ],
+      "RK compatibility closure": [
+        0.1317056,
+        0.1308434
+      ],
+      "split physics consumers": [
+        0.1509498,
+        0.150225
+      ],
+      "vertical remap": [
+        0.019401130000000003,
+        0.019210980000000002
+      ],
+      "restart bootstrap": [
+        1.56101,
+        1.16987
+      ],
+      "boundary scan and pack": [
+        0.427852,
+        0.425907
+      ],
+      "boundary receive route scan": [
+        0.243995,
+        0.24309930000000002
+      ],
+      "boundary MPI posting": [
+        0.1625642,
+        0.1664828
+      ],
+      "boundary scan and install": [
+        0.2809538,
+        0.2799315
+      ],
+      "boundary local copies": [
+        0.0458099,
+        0.0456839
+      ],
+      "boundary buffer allocation/zero": [
+        0.29164239999999997,
+        0.2932416
+      ],
+      "wavelet driver residual": [
+        0.19344940000000002,
+        0.1896951
+      ]
+    },
+    "candidate": {
+      "timestep residual": [
+        0.0404493,
+        0.040111499999999994
+      ],
+      "dynamics residual": [
+        0.022330219999999998,
+        0.021897530000000002
+      ],
+      "adaptation residual": [
+        0.2881772,
+        0.2852933
+      ],
+      "output/checkpoint": [
+        3.77836153,
+        3.39279212
+      ],
+      "source extraction": [
+        0.1669537,
+        0.16536240000000002
+      ],
+      "source serialization proof": [
+        0.12101579999999999,
+        0.1200479
+      ],
+      "receive serialization proof": [
+        0.2534628,
+        0.2508725
+      ],
+      "local install/deep copy": [
+        0.0535485,
+        0.0531566
+      ],
+      "local copy byte proof": [
+        0.19666609999999998,
+        0.1952889
+      ],
+      "migration residual": [
+        0.711486,
+        0.70727
+      ],
+      "migration pack": [
+        0.1442916,
+        0.1430557
+      ],
+      "migration unpack": [
+        0.07716039999999999,
+        0.0763368
+      ],
+      "migration MPI": [
+        0.469624,
+        0.46520000000000006
+      ],
+      "inverse residual": [
+        0.115862,
+        0.11426639999999999
+      ],
+      "inverse plan": [
+        0.0721234,
+        0.0709459
+      ],
+      "inverse pack": [
+        0.3112259,
+        0.3089697
+      ],
+      "inverse local aliases": [
+        0.0383818,
+        0.038105299999999995
+      ],
+      "inverse MPI post/self copy": [
+        0.0362296,
+        0.0340518
+      ],
+      "inverse MPI wait": [
+        1.421739,
+        1.4124269999999999
+      ],
+      "inverse install": [
+        0.23393199999999997,
+        0.232255
+      ],
+      "outer inverse arithmetic": [
+        0.0802101,
+        0.07950879999999999
+      ],
+      "scalar setup/storage": [
+        0.343471,
+        0.337155
+      ],
+      "scalar geometry expansion": [
+        0.00524625,
+        0.00507772
+      ],
+      "scalar transport/install": [
+        0.35295469999999995,
+        0.3491123
+      ],
+      "scalar replay": [
+        1.169265,
+        1.1587939999999999
+      ],
+      "shared producer residual": [
+        0.530986,
+        0.528369
+      ],
+      "shared basic operators": [
+        0.33926,
+        0.33829299999999995
+      ],
+      "Domain boundary interface": [
+        0.2005855,
+        0.1878455
+      ],
+      "primitive/physics preparation": [
+        0.0513761,
+        0.0508247
+      ],
+      "native mass": [
+        0.1171477,
+        0.117118
+      ],
+      "native velocity": [
+        0.1427431,
+        0.1419085
+      ],
+      "Domain writeback": [
+        0.06298419999999999,
+        0.0624388
+      ],
+      "block ghost pack/install": [
+        0.660127,
+        0.654138
+      ],
+      "block ghost MPI": [
+        0.34450010000000003,
+        0.3415129
+      ],
+      "catalog construction": [
+        0.0912003,
+        0.0906577
+      ],
+      "scalar/inner inverse kernels": [
+        0.6789850000000001,
+        0.674677
+      ],
+      "scalar transport MPI": [
+        0.571356,
+        0.566564
+      ],
+      "Domain boundary MPI wait": [
+        1.879965,
+        1.870383
+      ],
+      "native mass MPI wait": [
+        0.95421,
+        0.947729
+      ],
+      "Domain writeback MPI": [
+        0.447137,
+        0.443953
+      ],
+      "received geometry expansion": [
+        0.0002605369,
+        0.0002361328
+      ],
+      "inverse scaffold staging": [
+        0.0864419,
+        0.08530560000000001
+      ],
+      "native wavelet work": [
+        0.740685,
+        0.7346
+      ],
+      "native compression": [
+        0.1975478,
+        0.19630809999999999
+      ],
+      "native RK assembly": [
+        0.0165638,
+        0.016472149999999998
+      ],
+      "RK retention/publication": [
+        0.02075541,
+        0.02060548
+      ],
+      "tendency assembly residual": [
+        0.2820117,
+        0.2797235
+      ],
+      "grid-change synchronization": [
+        0.01593048,
+        0.01583058
+      ],
+      "trend state refresh": [
+        0.0941505,
+        0.092856
+      ],
+      "prognostic state refresh": [
+        0.00515194,
+        0.00510995
+      ],
+      "scalar capture lifecycle": [
+        0.000623282,
+        0.00048028899999999995
+      ],
+      "velocity remainder preparation": [
+        0.0696919,
+        0.0689225
+      ],
+      "RK compatibility closure": [
+        0.1032262,
+        0.1023619
+      ],
+      "split physics consumers": [
+        0.1514079,
+        0.1506699
+      ],
+      "vertical remap": [
+        0.01951682,
+        0.01932073
+      ],
+      "restart bootstrap": [
+        1.56457,
+        1.17149
+      ],
+      "boundary scan and pack": [
+        0.429357,
+        0.42731600000000003
+      ],
+      "boundary receive route scan": [
+        0.24169469999999998,
+        0.2407995
+      ],
+      "boundary MPI posting": [
+        0.1632362,
+        0.1671772
+      ],
+      "boundary scan and install": [
+        0.280402,
+        0.2793749
+      ],
+      "boundary local copies": [
+        0.0457969,
+        0.045633
+      ],
+      "boundary buffer allocation/zero": [
+        0.29141700000000004,
+        0.292743
+      ],
+      "wavelet driver residual": [
+        0.19309959999999998,
+        0.1897515
+      ]
+    }
+  },
+  "closure_work_windows": [
+    [
+      168544,
+      2696704,
+      674176,
+      12000
+    ],
+    [
+      83800,
+      1340800,
+      335200,
+      6240
+    ]
+  ],
+  "input_file_sha256": {
+    "run_candidate.log": "be84f848673ce09e9a2dc73c9a3a83cc7c8013dff7b3d146f19a1c25ba68321e",
+    "build-190-baseline.log": "31bc0bbd957d8ad2aa0ee05a27bab0d1eb07a67ff2d876331a9e8eb2f7e72f54",
+    "results.json": "61a6354717f6857808160b7beb8bb098849cd4351f289c1a08b7d60c22f7c8b7",
+    "restriction-190-builds.json": "9f8d01217fac4d441a53b07ef0e55703cb71a8b39305fd82625d9c62539cc5ce",
+    "wavetrisk-190-54553.log": "f01871a39011e4e7d1914e196a03313afee635fccd1c03b82e6cecd169b5c376",
+    "run_baseline.log": "cc8ac47027dabafdf300a5b409611966567903a9e66d17ced5bc2a12dbfc895a",
+    "build-190-candidate.log": "c2769a6f86c921f79744d9f287469923dc28fccd7d860a85bad76bad5d9e674b",
+    "build-190-checked.log": "f7bbd6e70897b1215fcb00a8e0db5d37dd7fd8d707bcae6e486e598d8c42dbf9"
+  },
+  "limitations": [
+    "Raw checkpoints were not supplied; inspected recorded comparison reports, not a fresh checkpoint comparison.",
+    "Legacy build log was not supplied; legacy identity, flags request and source/physics verification rely on the build record and harness.",
+    "Profile sums are rank-mean exclusive times, not solver critical-path attribution; MPI wait includes load imbalance and spin.",
+    "Three timing repetitions on one nk allocation and one short J5/J7 fixture; no multi-node or longer-run claim.",
+    "Child RSS excludes waiting Python wrappers; sum of per-rank peaks is not simultaneous allocation peak."
+  ]
+}
