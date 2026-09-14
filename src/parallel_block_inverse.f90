@@ -8,7 +8,7 @@ module parallel_block_inverse_mod
   use iso_fortran_env, only : int64, error_unit
   use ieee_arithmetic, only : ieee_is_finite
   use mpi_f08, only : MPI_Alltoall, MPI_Alltoallv, MPI_INTEGER, MPI_DOUBLE_PRECISION, MPI_SUCCESS, MPI_Wtime, &
-       MPI_Request, MPI_Irecv, MPI_Isend, MPI_Waitall, MPI_STATUSES_IGNORE
+       MPI_Request, MPI_Irecv, MPI_Isend, MPI_Waitall, MPI_STATUSES_IGNORE, MPI_Allreduce, MPI_MIN, MPI_MAX
   use kind_mod, only : dp
   use shared_mod, only : EDGE, AT_NODE, AT_EDGE, N_VARIABLE, N_BDRY, N_CHDRN, &
        scalars, S_VELO, zlevels, n_domain, level_start, level_end, end_pt, opp_no, hex_sides, hex_s_offs, &
@@ -28,6 +28,7 @@ module parallel_block_inverse_mod
   integer(int64), public :: native_inverse_calls(3)=0_int64, native_inverse_messages(3)=0_int64, &
        native_inverse_bytes(3)=0_int64
   logical :: timing=.false.
+  logical :: sparse_outer_install=.false., stage192_ready=.false.
 
   type :: Node_Map
      integer, allocatable :: slot(:), key(:,:)
@@ -36,6 +37,7 @@ module parallel_block_inverse_mod
      integer, allocatable :: sc(:),sd(:),rc(:),rd(:),key(:,:),slot(:)
      integer, allocatable :: source_info(:,:),target_info(:,:)
      integer, allocatable :: address(:,:)
+     logical :: edgewise=.false.
   end type
   type :: Alias_Plan
      integer, allocatable :: sc(:),sd(:),rc(:),rd(:),source(:),dest(:)
@@ -76,6 +78,32 @@ module parallel_block_inverse_mod
        [16.0_dp,-1.0_dp,1.0_dp,1.0_dp,-1.0_dp,-1.0_dp,-1.0_dp,1.0_dp,1.0_dp]/16.0_dp
 
 contains
+
+  subroutine configure_stage192
+    character(16) :: setting
+    integer :: status,length,selected,low,high,ierr
+    if (stage192_ready) return
+    call get_environment_variable('WAVETRISK_STAGE192_SPARSE_OUTER',setting,length,status)
+    if (status/=1) then
+       if (status/=0 .or. length/=1) call die('STAGE192_SPARSE_OUTER must be 0 or 1')
+       select case(setting(1:1))
+       case('0')
+          sparse_outer_install=.false.
+       case('1')
+          sparse_outer_install=.true.
+       case default
+          call die('STAGE192_SPARSE_OUTER must be 0 or 1')
+       end select
+    end if
+    selected=merge(1,0,sparse_outer_install)
+    call MPI_Allreduce(selected,low,1,MPI_INTEGER,MPI_MIN,comm,ierr)
+    call check(ierr,'Stage 192 selector minimum')
+    call MPI_Allreduce(selected,high,1,MPI_INTEGER,MPI_MAX,comm,ierr)
+    call check(ierr,'Stage 192 selector maximum')
+    if (low/=high) call die('Stage 192 selector differs between ranks')
+    if (rank==0) write(*,'(a,i0)') 'Stage 192 requested sparse outer install = ',selected
+    stage192_ready=.true.
+  end subroutine
 
   subroutine check(ierr,where)
     integer, intent(in) :: ierr
@@ -141,6 +169,7 @@ contains
     type(Boundary_Manifest) :: manifest
     type(Transfer_Plan) :: outer_patch,outer_bdry
 
+    call configure_stage192
     call detail_enter(DP_INVERSE_PLAN)
     timing=profile
     native_inverse_seconds=0.0_dp
@@ -237,11 +266,13 @@ contains
              r=alias_node(local_alias(q)%dest(p),q)
              node_flags(r)=ibset(node_flags(r),q-1)
              node_flags(r)=ibset(node_flags(r),q+2)
+             if (q==2) node_flags(r)=ibset(node_flags(r),6+mod(abs(local_alias(q)%dest(p))-1,EDGE))
           end do
           do b=level_start-1,level_end
              do p=1,size(aliases(q,b)%dest)
                 r=alias_node(aliases(q,b)%dest(p),q)
                 node_flags(r)=ibset(node_flags(r),q-1)
+                if (q==2) node_flags(r)=ibset(node_flags(r),6+mod(abs(aliases(q,b)%dest(p))-1,EDGE))
              end do
           end do
        end do
@@ -253,6 +284,11 @@ contains
        do p=1,noperation
           do q=2,3
              r=alias_node(operations(p)%target(q),2)
+             ! Only target(2:3) are written by native_inverse_outer. Keep a
+             ! conservative union across levels, shared with final owners in
+             ! the existing key exchange; target(1) is a read-only parent.
+             node_flags(r)=ibset(node_flags(r),5)
+             node_flags(r)=ibset(node_flags(r),6+mod(abs(operations(p)%target(q))-1,EDGE))
              if (grid(node_domain(r))%level%elts(node_id(r)+1)/=operations(p)%level+1) then
                 node_flags(r)=ibset(node_flags(r),1)
                 node_flags(r)=ibset(node_flags(r),4)
@@ -289,9 +325,13 @@ contains
        end do
        allocate(outer_install(level_start-1:level_end))
        do b=level_start-1,level_end
-          call select_transfer(outer_patch,interior_plan,2,b,.true.,.true.)
-          call select_transfer(outer_bdry,boundary_plan,2,b,.true.,.true.)
-          call combine_transfers(outer_install(b),outer_patch,outer_bdry)
+          call select_transfer(outer_patch,interior_plan,2,b,.true.,.true.,sparse_outer_install)
+          call select_transfer(outer_bdry,boundary_plan,2,b,.true.,.true.,sparse_outer_install)
+          if (sparse_outer_install) then
+             call combine_outer_edges(outer_install(b),outer_patch,outer_bdry)
+          else
+             call combine_transfers(outer_install(b),outer_patch,outer_bdry)
+          end if
        end do
        allocate(value(nscalar+EDGE,zlevels,nnode,2))
        n=0
@@ -457,7 +497,7 @@ contains
     call compile_local_block_inverse_routes(plan%key,plan%address)
   end subroutine
 
-  subroutine select_transfer(plan,base,component,level,install,outer)
+  subroutine select_transfer(plan,base,component,level,install,outer,modified_only)
     ! Select changed block levels plus every alias destination (all levels).
     ! A gather restores authoritative interiors overwritten by workspace
     ! aliases even when their block kernel did not run. Fixed-coarse resets
@@ -466,6 +506,7 @@ contains
     type(Transfer_Plan), intent(in) :: base
     integer, intent(in) :: component,level
     logical, intent(in) :: install,outer
+    logical, optional, intent(in) :: modified_only
     integer :: r,p,s,t
     allocate(plan%sc(n_process),plan%sd(n_process),plan%rc(n_process),plan%rd(n_process))
     plan%sc=0
@@ -481,17 +522,22 @@ contains
     call displacements(plan%sc,plan%sd)
     call displacements(plan%rc,plan%rd)
     allocate(plan%slot(sum(plan%sc)),plan%key(4,sum(plan%rc)))
+    if (present(modified_only)) then
+       allocate(plan%source_info(2,sum(plan%sc)),plan%target_info(2,sum(plan%rc)))
+    end if
     s=0
     do p=1,sum(base%sc)
        if (.not. selected(base%source_info(:,p))) cycle
        s=s+1
        plan%slot(s)=base%slot(p)
+       if (present(modified_only)) plan%source_info(:,s)=base%source_info(:,p)
     end do
     t=0
     do p=1,sum(base%rc)
        if (.not. selected(base%target_info(:,p))) cycle
        t=t+1
        plan%key(:,t)=base%key(:,p)
+       if (present(modified_only)) plan%target_info(:,t)=base%target_info(:,p)
     end do
     call compile_local_block_inverse_routes(plan%key,plan%address)
   contains
@@ -503,6 +549,13 @@ contains
          ! aliases before producing and synchronizing the fine level.
          selected=info(1)==level .or. btest(info(2),component+2) .or. btest(info(2),2)
          if (outer) selected=selected .or. info(1)==level-1
+         if (present(modified_only)) then
+            ! No block vector kernel intervenes since the preceding vector
+            ! sync (or initial seeding). Unwritten interior/boundary records
+            ! already contain the gathered value; retain aliases and resets.
+            if (modified_only) selected=selected .and. &
+                 (btest(info(2),1) .or. btest(info(2),2) .or. btest(info(2),5))
+         end if
       else
          selected=info(1)==level .or. btest(info(2),component-1) .or. btest(info(2),2)
       end if
@@ -535,6 +588,74 @@ contains
        plan%key(:,t+na+1:t+na+nb)=b%key(:,b%rd(r)+1:b%rd(r)+nb)
     end do
     call compile_local_block_inverse_routes(plan%key,plan%address)
+  end subroutine
+
+  subroutine combine_outer_edges(plan,interior,boundary)
+    ! A single peer exchange in edge units. Interior writes use the union of
+    ! actual outer targets and signed alias destinations in both storage
+    ! families. Scaffold resets retain all edges. Peer/family order is unchanged.
+    type(Transfer_Plan), intent(out) :: plan
+    type(Transfer_Plan), intent(in) :: interior,boundary
+    integer :: r,p,e,s,t,n,pass
+    integer, allocatable :: edges(:),address(:,:)
+    plan%edgewise=.true.
+    allocate(plan%sc(n_process),plan%sd(n_process),plan%rc(n_process),plan%rd(n_process))
+    plan%sc=0
+    plan%rc=0
+    do pass=1,2
+       s=0
+       t=0
+       do r=1,n_process
+          do p=interior%sd(r)+1,interior%sd(r)+interior%sc(r)
+             do e=1,EDGE
+                if (.not.(btest(interior%source_info(2,p),5+e).or.btest(interior%source_info(2,p),2))) cycle
+                s=s+1
+                if (pass==1) plan%sc(r)=plan%sc(r)+1
+                if (pass==2) plan%slot(s)=EDGE*(interior%slot(p)-1)+e
+             end do
+          end do
+          do p=boundary%sd(r)+1,boundary%sd(r)+boundary%sc(r)
+             do e=1,EDGE
+                if (.not.(btest(boundary%source_info(2,p),5+e).or.btest(boundary%source_info(2,p),2))) cycle
+                s=s+1
+                if (pass==1) plan%sc(r)=plan%sc(r)+1
+                if (pass==2) plan%slot(s)=EDGE*(boundary%slot(p)-1)+e
+             end do
+          end do
+          do p=interior%rd(r)+1,interior%rd(r)+interior%rc(r)
+             do e=1,EDGE
+                if (.not.(btest(interior%target_info(2,p),5+e).or.btest(interior%target_info(2,p),2))) cycle
+                t=t+1
+                if (pass==1) plan%rc(r)=plan%rc(r)+1
+                if (pass==2) then
+                   plan%key(:,t)=interior%key(:,p)
+                   edges(t)=e
+                end if
+             end do
+          end do
+          do p=boundary%rd(r)+1,boundary%rd(r)+boundary%rc(r)
+             do e=1,EDGE
+                if (.not.(btest(boundary%target_info(2,p),5+e).or.btest(boundary%target_info(2,p),2))) cycle
+                t=t+1
+                if (pass==1) plan%rc(r)=plan%rc(r)+1
+                if (pass==2) then
+                   plan%key(:,t)=boundary%key(:,p)
+                   edges(t)=e
+                end if
+             end do
+          end do
+       end do
+       if (pass==1) then
+          call displacements(plan%sc,plan%sd)
+          call displacements(plan%rc,plan%rd)
+          allocate(plan%slot(s),plan%key(4,t),edges(t))
+       end if
+    end do
+    call compile_local_block_inverse_routes(plan%key,address)
+    n=size(address,2)
+    allocate(plan%address(7,n))
+    plan%address(1:6,:)=address
+    plan%address(7,:)=edges
   end subroutine
 
   integer function alias_node(code,component) result(p)
@@ -592,6 +713,10 @@ contains
     real(dp) :: started
     first=merge(1,nscalar+1,component==1)
     nv=merge(nscalar,EDGE,component==1)
+    if (plan%edgewise) then
+       if (.not.install .or. component/=2) call die('edgewise transfer outside vector install')
+       nv=1
+    end if
     n=nv*zlevels
     started=0.0_dp
     if (timing) started=MPI_Wtime()
@@ -602,14 +727,22 @@ contains
           do k=1,zlevels
              do v=1,nv
                 q=q+1
-                transfer_send(q)=value(first+v-1,k,plan%slot(p),family)
+                if (plan%edgewise) then
+                   transfer_send(q)=value(nscalar+mod(plan%slot(p)-1,EDGE)+1,k,(plan%slot(p)-1)/EDGE+1,family)
+                else
+                   transfer_send(q)=value(first+v-1,k,plan%slot(p),family)
+                end if
              end do
           end do
        end do
        call detail_leave(DP_INVERSE_PACK)
        call exchange_values(transfer_send,plan%sc,plan%sd,transfer_recv,plan%rc,plan%rd,n,19071)
        call detail_enter(DP_INVERSE_INSTALL)
-       call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv)
+       if (plan%edgewise) then
+          call transfer_local_block_inverse_routes(plan%address(1:6,:),family,component,.true.,transfer_recv,plan%address(7,:))
+       else
+          call transfer_local_block_inverse_routes(plan%address,family,component,.true.,transfer_recv)
+       end if
        call detail_leave(DP_INVERSE_INSTALL)
     else
        call detail_enter(DP_INVERSE_PACK)

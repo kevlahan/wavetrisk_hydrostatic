@@ -955,19 +955,25 @@ subroutine compile_local_block_inverse_routes(key,address)
   end do
 end subroutine compile_local_block_inverse_routes
 
-subroutine transfer_local_block_inverse_routes(address,family,component,install,buffer)
+subroutine transfer_local_block_inverse_routes(address,family,component,install,buffer,selected_edge)
   ! Pack directly into the wire buffer. Family/storage dispatch is per node,
   ! not per scalar/layer; no per-node automatic sample or RESHAPE temporary.
   integer, intent(in) :: address(:,:),family,component
+  integer, optional, intent(in) :: selected_edge(:)
   logical, intent(in) :: install
   real(dp), intent(inout) :: buffer(:)
   integer :: p,b,nv,base,step,scalar_step,offset
   if (component/=1 .and. component/=2) error stop "inverse routes: component"
   if (family/=BLOCK_PAYLOAD_SOL .and. family/=BLOCK_PAYLOAD_WAV_COEFF) error stop "inverse routes: family"
+  if (present(selected_edge)) then
+     if (component/=2 .or. size(selected_edge)/=size(address,2)) error stop "inverse routes: selected_edge extent"
+     if (any(selected_edge<1) .or. any(selected_edge>EDGE)) error stop "inverse routes: selected_edge index"
+  end if
   do p=1,size(address,2)
      b=address(1,p)
      associate(block=>block_local(b))
        nv=merge(block%n_scalar_variable,EDGE,component==1)
+       if (present(selected_edge)) nv=1
        offset=(p-1)*nv*zlevels
        if (component==1) then
           base=address(5,p)*address(4,p)+address(3,p)+1
@@ -977,6 +983,7 @@ subroutine transfer_local_block_inverse_routes(address,family,component,install,
           base=EDGE*(address(5,p)*address(4,p)+address(3,p))+1
           step=EDGE*address(4,p)
           scalar_step=1
+          if (present(selected_edge)) base=base+selected_edge(p)-1
        end if
        if (address(2,p)==STORE_PATCH) then
           if (component==1) then

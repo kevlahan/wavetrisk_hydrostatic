@@ -1,0 +1,903 @@
+{
+  "job": 54581,
+  "status": "passed_review",
+  "inventory_files_verified": 4683,
+  "source_hashes_match_frozen_candidate": true,
+  "baseline_commit": "30c831149653205210531427f81b184663a3acbf",
+  "candidate_patch_sha256": "f23cf5222e285981ffadad1440ec53b23e7d9a74d5eae2436ceed1914f2b6b4c",
+  "matched_inverse_comparison": {
+    "baseline": {
+      "steps": 12,
+      "wavelet_calls": 4980,
+      "wavelet_seconds": 5.59833,
+      "inverse_seconds": 3.587139,
+      "transfers": {
+        "inverse native gather": {
+          "seconds": 0.431227,
+          "calls_per_rank": 680,
+          "remote_messages": 51648,
+          "remote_bytes": 6357166080,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 529763840.0,
+          "remote_messages_per_step_including_checkpoint": 4304.0
+        },
+        "inverse native aliases": {
+          "seconds": 0.83665,
+          "calls_per_rank": 772,
+          "remote_messages": 363312,
+          "remote_bytes": 10557549120,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 879795760.0,
+          "remote_messages_per_step_including_checkpoint": 30276.0
+        },
+        "inverse native scatter": {
+          "seconds": 0.77549,
+          "calls_per_rank": 680,
+          "remote_messages": 81044,
+          "remote_bytes": 25348300800,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 2112358400.0,
+          "remote_messages_per_step_including_checkpoint": 6753.666666666667
+        }
+      }
+    },
+    "candidate": {
+      "steps": 12,
+      "wavelet_calls": 4980,
+      "wavelet_seconds": 5.605180000000001,
+      "inverse_seconds": 3.59532,
+      "transfers": {
+        "inverse native gather": {
+          "seconds": 0.430822,
+          "calls_per_rank": 680,
+          "remote_messages": 51648,
+          "remote_bytes": 6357166080,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 529763840.0,
+          "remote_messages_per_step_including_checkpoint": 4304.0
+        },
+        "inverse native aliases": {
+          "seconds": 0.83589,
+          "calls_per_rank": 772,
+          "remote_messages": 363312,
+          "remote_bytes": 10557549120,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 879795760.0,
+          "remote_messages_per_step_including_checkpoint": 30276.0
+        },
+        "inverse native scatter": {
+          "seconds": 0.7921900000000001,
+          "calls_per_rank": 680,
+          "remote_messages": 81044,
+          "remote_bytes": 23565148800,
+          "windows": 2,
+          "remote_bytes_per_step_including_checkpoint": 1963762400.0,
+          "remote_messages_per_step_including_checkpoint": 6753.666666666667
+        }
+      }
+    },
+    "legacy": {
+      "wavelet_seconds": 1.2826069157159645,
+      "wavelet_calls": 4980,
+      "steps": 12
+    },
+    "scatter_byte_reduction_percent": 7.034601703953269,
+    "wavelet_reduction_percent": -0.1223579174503886,
+    "candidate_wavelet_to_legacy_ratio": 4.370146403640067,
+    "scope": "Whole-window rank-mean inclusive WT_after_step, including checkpoint. Helpers are contained in inverse time. Remote sends exclude self copies; bytes are not measured DRAM or NIC traffic. Profiles are excluded from headline timing. Per-step traffic here includes checkpoint; it is not an ordinary-step measurement."
+  },
+  "inverse_component_rank_mean_self_seconds": {
+    "baseline": {
+      "plan": 0.0737071,
+      "pack": 0.3100948,
+      "local_aliases": 0.0380729,
+      "MPI_post_self_copy": 0.0365311,
+      "MPI_wait": 1.414772,
+      "install": 0.2322495
+    },
+    "candidate": {
+      "plan": 0.0728444,
+      "pack": 0.332953,
+      "local_aliases": 0.0379172,
+      "MPI_post_self_copy": 0.0342491,
+      "MPI_wait": 1.409602,
+      "install": 0.2326985
+    }
+  },
+  "results_sha256": "d11d254372ccff2189899b90b89662dca67474ab7bc43c4cf910ac5014636912",
+  "build_identity_sha256": "862ef2bb8b7d493dfeaac06378679350f8ce0b1b190bed8830bb0d1c35ee4771",
+  "build_logs": {
+    "baseline": {
+      "sha256": "913836ef78b061b4d452a1c5105fade6a0da352e4c4c0bd8651e98627a98fe03",
+      "compiler_commands_verified": 55
+    },
+    "candidate": {
+      "sha256": "0918b743c213919286c5f109e8cb25e68e71a0f6acecbc21feed154a1bb7a13e",
+      "compiler_commands_verified": 55
+    },
+    "checked": {
+      "sha256": "963c612a79fcecd6d361d235777f18e53f585bdaeafdf787f3a626fe78f2f90a",
+      "compiler_commands_verified": 55
+    },
+    "legacy": {
+      "sha256": "11d446b2cf5d0c6cabfc659d39bbf099c4afcccc9d554a6d09bee7ae690aa2fb",
+      "compiler_commands_verified": 47
+    },
+    "legacy_profile": {
+      "sha256": "b3e20a54064987cc0a7e8d2e02e04178d0c58253a828f591cd09be3622530df8",
+      "compiler_commands_verified": 49
+    }
+  },
+  "gate_counts": {
+    "exact": 29,
+    "workload": 25,
+    "legacy_screen": 8
+  },
+  "maximum_legacy_field_differences": {
+    "velocity": 3.723243935382925e-12,
+    "mass": 2.5011104298755527e-12,
+    "temperature": 7.8580342233181e-10
+  },
+  "summary": {
+    "baseline": {
+      "elapsed_seconds": [
+        31.591651002992876,
+        31.892536204017233,
+        31.81118400100968,
+        31.855667285999516,
+        31.782729516009567,
+        31.853725594992284
+      ],
+      "ordinary_step_medians": [
+        1.35,
+        1.34,
+        1.35,
+        1.34,
+        1.34,
+        1.35
+      ],
+      "median_elapsed_seconds": 31.83245479800098,
+      "median_ordinary_step_seconds": 1.3450000000000002
+    },
+    "candidate": {
+      "elapsed_seconds": [
+        31.738985892006895,
+        31.626744659995893,
+        31.76552796398755,
+        31.786740246985573,
+        31.682249587000115,
+        31.88448717800202
+      ],
+      "ordinary_step_medians": [
+        1.35,
+        1.34,
+        1.34,
+        1.35,
+        1.34,
+        1.34
+      ],
+      "median_elapsed_seconds": 31.752256927997223,
+      "median_ordinary_step_seconds": 1.34
+    },
+    "legacy": {
+      "elapsed_seconds": [
+        22.554406520997873,
+        22.402907919022255,
+        22.539965153991943,
+        22.524679121997906,
+        22.595431191002717,
+        22.42183043298428
+      ],
+      "ordinary_step_medians": [
+        0.556,
+        0.556,
+        0.556,
+        0.555,
+        0.562,
+        0.556
+      ],
+      "median_elapsed_seconds": 22.532322137994925,
+      "median_ordinary_step_seconds": 0.556
+    },
+    "observed_elapsed_reduction_percent": 0.25193743464859697,
+    "block_vs_legacy": {
+      "baseline": {
+        "elapsed_ratio": 1.4127463029797445,
+        "ordinary_step_ratio": 2.419064748201439
+      },
+      "candidate": {
+        "elapsed_ratio": 1.4091870661859245,
+        "ordinary_step_ratio": 2.4100719424460433
+      }
+    },
+    "scope": "Observed timings only. Inspect node load, placement and memory/swap evidence. Warmups, correctness runs and detailed profiles are excluded."
+  },
+  "ordinary_step_reduction_percent": 0.3717472118959231,
+  "fraction_of_excess_over_legacy_removed_percent": 0.63371356147023,
+  "memory": {
+    "checked-off": {
+      "max_rank_rss_mib": 389.4296875,
+      "sum_rank_peak_rss_gib": 22.407398223876953,
+      "major_faults_sum": 5460,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "checked-on": {
+      "max_rank_rss_mib": 701.859375,
+      "sum_rank_peak_rss_gib": 41.124961853027344,
+      "major_faults_sum": 6449,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-warmup": {
+      "max_rank_rss_mib": 381.640625,
+      "sum_rank_peak_rss_gib": 21.664573669433594,
+      "major_faults_sum": 2209,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-warmup": {
+      "max_rank_rss_mib": 381.234375,
+      "sum_rank_peak_rss_gib": 21.704647064208984,
+      "major_faults_sum": 1979,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-warmup": {
+      "max_rank_rss_mib": 168.4296875,
+      "sum_rank_peak_rss_gib": 11.01180648803711,
+      "major_faults_sum": 1060,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-1": {
+      "max_rank_rss_mib": 379.04296875,
+      "sum_rank_peak_rss_gib": 21.655033111572266,
+      "major_faults_sum": 2053,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-1": {
+      "max_rank_rss_mib": 380.7578125,
+      "sum_rank_peak_rss_gib": 21.713455200195312,
+      "major_faults_sum": 2203,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-1": {
+      "max_rank_rss_mib": 165.68359375,
+      "sum_rank_peak_rss_gib": 11.0128173828125,
+      "major_faults_sum": 1273,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-2": {
+      "max_rank_rss_mib": 381.1171875,
+      "sum_rank_peak_rss_gib": 21.693504333496094,
+      "major_faults_sum": 2170,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-2": {
+      "max_rank_rss_mib": 165.85546875,
+      "sum_rank_peak_rss_gib": 11.00332260131836,
+      "major_faults_sum": 1183,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-2": {
+      "max_rank_rss_mib": 380.16796875,
+      "sum_rank_peak_rss_gib": 21.69607162475586,
+      "major_faults_sum": 2038,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-3": {
+      "max_rank_rss_mib": 167.83203125,
+      "sum_rank_peak_rss_gib": 11.003807067871094,
+      "major_faults_sum": 1151,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-3": {
+      "max_rank_rss_mib": 381.91015625,
+      "sum_rank_peak_rss_gib": 21.671710968017578,
+      "major_faults_sum": 1972,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-3": {
+      "max_rank_rss_mib": 381.15625,
+      "sum_rank_peak_rss_gib": 21.71718978881836,
+      "major_faults_sum": 2054,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-4": {
+      "max_rank_rss_mib": 382.2734375,
+      "sum_rank_peak_rss_gib": 21.692546844482422,
+      "major_faults_sum": 1922,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-4": {
+      "max_rank_rss_mib": 380.69921875,
+      "sum_rank_peak_rss_gib": 21.700973510742188,
+      "major_faults_sum": 2061,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-4": {
+      "max_rank_rss_mib": 167.0546875,
+      "sum_rank_peak_rss_gib": 11.006790161132812,
+      "major_faults_sum": 1059,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-5": {
+      "max_rank_rss_mib": 379.65234375,
+      "sum_rank_peak_rss_gib": 21.694839477539062,
+      "major_faults_sum": 2154,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-5": {
+      "max_rank_rss_mib": 167.3671875,
+      "sum_rank_peak_rss_gib": 11.018760681152344,
+      "major_faults_sum": 1218,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-5": {
+      "max_rank_rss_mib": 381.5,
+      "sum_rank_peak_rss_gib": 21.66777801513672,
+      "major_faults_sum": 1945,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-6": {
+      "max_rank_rss_mib": 167.67578125,
+      "sum_rank_peak_rss_gib": 11.004215240478516,
+      "major_faults_sum": 1173,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-6": {
+      "max_rank_rss_mib": 380.01953125,
+      "sum_rank_peak_rss_gib": 21.664020538330078,
+      "major_faults_sum": 1975,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-6": {
+      "max_rank_rss_mib": 382.12109375,
+      "sum_rank_peak_rss_gib": 21.692733764648438,
+      "major_faults_sum": 2145,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-control": {
+      "max_rank_rss_mib": 382.03125,
+      "sum_rank_peak_rss_gib": 21.662708282470703,
+      "major_faults_sum": 2062,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "baseline-profile": {
+      "max_rank_rss_mib": 380.65625,
+      "sum_rank_peak_rss_gib": 21.677947998046875,
+      "major_faults_sum": 1922,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "candidate-profile": {
+      "max_rank_rss_mib": 379.75,
+      "sum_rank_peak_rss_gib": 21.732013702392578,
+      "major_faults_sum": 2138,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    },
+    "legacy-profile": {
+      "max_rank_rss_mib": 167.5390625,
+      "sum_rank_peak_rss_gib": 11.023330688476562,
+      "major_faults_sum": 1186,
+      "swap_deltas": [
+        {
+          "pswpin": 0,
+          "pswpout": 0
+        }
+      ]
+    }
+  },
+  "timing_memory_summary": {
+    "baseline": {
+      "max_rank_rss_mib_range": [
+        379.04296875,
+        382.2734375
+      ],
+      "median_sum_rank_peak_rss_gib": 21.66974449157715
+    },
+    "candidate": {
+      "max_rank_rss_mib_range": [
+        379.65234375,
+        382.12109375
+      ],
+      "median_sum_rank_peak_rss_gib": 21.697906494140625
+    },
+    "legacy": {
+      "max_rank_rss_mib_range": [
+        165.68359375,
+        167.83203125
+      ],
+      "median_sum_rank_peak_rss_gib": 11.005502700805664
+    }
+  },
+  "profiles": {
+    "baseline": {
+      "ordinary_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "mean_rank_mean_wall": 1.337364893023001,
+      "mean_self_wall_by_region": [
+        0.002716684462212486,
+        0.0021012042584884994,
+        0.027799052683461115,
+        0.00034864333406352683,
+        0.00989552161007667,
+        0.0,
+        0.0,
+        1.5764911456736034e-05,
+        0.0,
+        0.028404151040525738,
+        0.010653709568346112,
+        0.005466410324205914,
+        0.03688139463307777,
+        0.009522969353778752,
+        0.006202002387732749,
+        0.02571327726177437,
+        0.0031527701377875137,
+        0.003069148225629792,
+        0.11578757415115006,
+        0.01924371616648412,
+        0.006609433562968237,
+        0.029771598247535596,
+        0.0004620714238663746,
+        0.028939963713033954,
+        0.09609639140197153,
+        0.04411670690032859,
+        0.027888902858707557,
+        0.01646682398685652,
+        0.004247673307776561,
+        0.012162303680175247,
+        0.012049833943044907,
+        0.005187912668127054,
+        0.05583706621029573,
+        0.028160808535596934,
+        0.009579669291347208,
+        0.055663413837787515,
+        0.045892253702081054,
+        0.1535531591456736,
+        0.07835503052573932,
+        0.035981176456736035,
+        2.5570056067907994e-05,
+        0.0071244665936473165,
+        0.061176874370208106,
+        0.016078092760131436,
+        0.0012924912847754656,
+        0.001864309417305586,
+        0.02327293273822563,
+        0.001317350552026287,
+        0.00778160017524644,
+        0.00047372853778751366,
+        4.801080503833516e-05,
+        0.005683756809419497,
+        0.008221535128148959,
+        0.012462961555312157,
+        0.001790788269441402,
+        0.0,
+        0.0,
+        0.034884446549835704,
+        0.0197774286856517,
+        0.013321520930996714,
+        0.02281111917853231,
+        0.0037327855531215774,
+        0.02393512394304491,
+        0.0,
+        0.016291810799561882
+      ],
+      "max_conservation_error": 1.7240999998779927e-06,
+      "whole_window_counters": {
+        "source proof payload bytes": 0,
+        "receive proof payload bytes": 0,
+        "copy proof payload bytes": 0,
+        "local geometry doubles written": 5942112,
+        "local scalar field samples": 7382624,
+        "received geometry doubles copied": 13835712,
+        "inverse plan builds": 996,
+        "inverse plan reuses": 2988,
+        "boundary doubles sent": 2014206995,
+        "boundary doubles received": 2014206995,
+        "boundary posted requests": 21192112,
+        "boundary pack candidates": 5193344911,
+        "boundary route candidates": 5193344911,
+        "boundary install candidates": 5193344911,
+        "boundary buffer doubles zeroed": 208806015978,
+        "boundary fields per start": 4161122,
+        "install moved payload bytes": 13862170508,
+        "install copied payload bytes": 0
+      }
+    },
+    "candidate": {
+      "ordinary_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "mean_rank_mean_wall": 1.3385417466593648,
+      "mean_self_wall_by_region": [
+        0.0028489738159912376,
+        0.0018779866429353778,
+        0.027933663855421686,
+        0.0003549702595837897,
+        0.009938270558598028,
+        0.0,
+        0.0,
+        1.6167898313253014e-05,
+        0.0,
+        0.028567662541073385,
+        0.01072116316086528,
+        0.005464209627601314,
+        0.03658073066812705,
+        0.00974902404162103,
+        0.006007120536692223,
+        0.027587423636363635,
+        0.003141183473932092,
+        0.0028868717710843375,
+        0.1153569426067908,
+        0.019278605859802848,
+        0.006572077583964951,
+        0.02975260821467689,
+        0.00043289207228915664,
+        0.028958760854326398,
+        0.09633236627601315,
+        0.04408315048192771,
+        0.028057558411829137,
+        0.016384807667031764,
+        0.004382039236582694,
+        0.012255248838992334,
+        0.012385288488499452,
+        0.0051241897831325305,
+        0.054953226516977,
+        0.02781362122015334,
+        0.009170232980284776,
+        0.05572477266462213,
+        0.045814233461117196,
+        0.15341871380065716,
+        0.0791947034392114,
+        0.035913936789704275,
+        2.562746813800657e-05,
+        0.007126688948521358,
+        0.06102706177437021,
+        0.01601429070098576,
+        0.0013619962311062432,
+        0.0018585964589266156,
+        0.02311025978094195,
+        0.0013391856111719606,
+        0.007800660547645126,
+        0.00042152866276013145,
+        5.079607491785323e-05,
+        0.0056731109145673605,
+        0.008515779802847755,
+        0.012452383187294634,
+        0.001792715213581599,
+        0.0,
+        0.0,
+        0.034798044906900326,
+        0.01977875439211391,
+        0.013300976232201533,
+        0.022829091073384447,
+        0.0037288388280394304,
+        0.023991681292442498,
+        0.0,
+        0.016508267469879517
+      ],
+      "max_conservation_error": 1.4587900001306053e-06,
+      "whole_window_counters": {
+        "source proof payload bytes": 0,
+        "receive proof payload bytes": 0,
+        "copy proof payload bytes": 0,
+        "local geometry doubles written": 5942112,
+        "local scalar field samples": 7382624,
+        "received geometry doubles copied": 13835712,
+        "inverse plan builds": 996,
+        "inverse plan reuses": 2988,
+        "boundary doubles sent": 2014206995,
+        "boundary doubles received": 2014206995,
+        "boundary posted requests": 21192112,
+        "boundary pack candidates": 5193344911,
+        "boundary route candidates": 5193344911,
+        "boundary install candidates": 5193344911,
+        "boundary buffer doubles zeroed": 208806015978,
+        "boundary fields per start": 4161122,
+        "install moved payload bytes": 13862170508,
+        "install copied payload bytes": 0
+      }
+    },
+    "legacy": {
+      "ordinary_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "mean_rank_mean_wall": 0.6079151616968903,
+      "mean_self_wall_by_region": [
+        0.0084605278102806,
+        0.0003746689168411447,
+        0.012354005871105762,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.017462418099355538,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.016132583493104934,
+        0.020005116764652907,
+        0.025058035891648966,
+        0.023698751506028924,
+        0.0,
+        0.0,
+        0.031071946580162647,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.24175175759164938,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0011742454242631426,
+        0.005337251727422087,
+        0.0,
+        0.003173718380607636,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.01221132648134347,
+        0.0007907580160640429,
+        0.0,
+        0.0,
+        0.05231251675531784,
+        0.03371405469922187,
+        0.019299306502525704,
+        0.0383366995815533,
+        0.0058853149335070945,
+        0.03313657852995356,
+        0.0,
+        0.006173578140279686
+      ]
+    }
+  },
+  "profile_groups": {
+    "Domain boundary handling": {
+      "baseline": 0.28848240797371305,
+      "candidate": 0.2882309081927711,
+      "legacy": 0.44813498009975766
+    },
+    "Block reconstruction and migration": {
+      "baseline": 0.10221397193106244,
+      "candidate": 0.10179762304603505,
+      "legacy": 0.0
+    },
+    "Native inverse": {
+      "baseline": 0.25211434173480834,
+      "candidate": 0.25345633859153344,
+      "legacy": 0.017462418099355538
+    },
+    "Scalar input and restriction": {
+      "baseline": 0.20121028929352686,
+      "candidate": 0.20134165695334064,
+      "legacy": 0.016132583493104934
+    },
+    "Block ghost handling": {
+      "baseline": 0.08399787474589267,
+      "candidate": 0.08276684773713033,
+      "legacy": 0.0
+    },
+    "Native mass and velocity": {
+      "baseline": 0.10256716814895947,
+      "candidate": 0.10383524076670318,
+      "legacy": 0.031071946580162647
+    },
+    "Shared Domain producers": {
+      "baseline": 0.0819370398762322,
+      "candidate": 0.0821958590449069,
+      "legacy": 0.04506315265630187
+    },
+    "Domain/block publication": {
+      "baseline": 0.04942441783789704,
+      "candidate": 0.04926031578324206,
+      "legacy": 0.0
+    },
+    "Wavelet and compression": {
+      "baseline": 0.09354677792990143,
+      "candidate": 0.09354961994523549,
+      "legacy": 0.007347823564542829
+    },
+    "RK and tendency assembly": {
+      "baseline": 0.03465126856845564,
+      "candidate": 0.034846632273822564,
+      "legacy": 0.008510970108029724
+    },
+    "Other timestep work": {
+      "baseline": 0.047219334562979186,
+      "candidate": 0.047260692974808324,
+      "legacy": 0.03419128709563502
+    }
+  },
+  "limitations": [
+    "Checkpoint payloads and executables are absent: validate supplied reports/hashes, not re-execution.",
+    "One short 83-rank nk J5/J7 RK4 campaign; no general multi-node or longer-run claim.",
+    "Legacy phase boundaries differ, notably boundary work split out of inverse/scalar phases. Group differences are not a causal excess decomposition.",
+    "Profile means exclude checkpoint steps but are instrumented runs; timing medians exclude all profiles.",
+    "Summed rank peaks are not simultaneous node memory; resource collection excludes waiting Python parents.",
+    "Only one profile per implementation. Profile component differences are diagnostic, not repeated performance measurements."
+  ],
+  "review_archive": {
+    "name": "stage192-review-54581.tar.gz",
+    "sha256": "0c7df2e351b65785b80330fc5e1e4777df1e9371fa626d010570393153305e35"
+  },
+  "frozen_kit_crosscheck": "All five baseline/candidate/checked/legacy/legacy-profile source identities match the issued kit.",
+  "recommendation": "Retain Stage 191 production default. Preserve Stage 192 as a validated experiment and keep the test infrastructure/results. No convincing performance gain; prioritize removing ownership-transfer rounds."
+}

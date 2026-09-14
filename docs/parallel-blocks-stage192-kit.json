@@ -1,0 +1,8 @@
+{
+  "kit": "/private/tmp/wavetrisk-stage192-cluster-kit",
+  "archive": "/private/tmp/wavetrisk-stage192-cluster-kit.tar.gz",
+  "sha256": "b55e5561c1ae3b89b10f133a9f074d547809fa0710a166dac1a3ce22eb8abb81",
+  "baseline_commit": "30c831149653205210531427f81b184663a3acbf",
+  "candidate_patch_sha256": "f23cf5222e285981ffadad1440ec53b23e7d9a74d5eae2436ceed1914f2b6b4c",
+  "validation": "Pinned baseline archive + patch reproduces all candidate source hashes; current source identity verified. Cluster execution pending."
+}
