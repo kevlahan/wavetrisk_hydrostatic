@@ -26,7 +26,8 @@ candidate tests two concrete causes while adding the missing paired legacy data.
   Full dynamics oracle mode retains synchronous exchange. Payloads and arithmetic
   are unchanged.
 - Each change has an independent runtime selector, checked for rank agreement once
-  and logged. Both default on. The cluster campaign measures Stage 190, the full
+  and logged. Both defaulted on in the tested snapshot; the accepted default
+  now enables installation and disables experimental overlap. The cluster campaign measures Stage 190, the full
   candidate and legacy directly, plus installation-only/overlap-only variants and
   a both-off control. Production profiles verify zero proof/copied bytes and
   positive moved bytes.

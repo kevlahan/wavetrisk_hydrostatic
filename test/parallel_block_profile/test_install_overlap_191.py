@@ -15,6 +15,47 @@ def sub(text,name):
 
 
 class InstallOverlap191(unittest.TestCase):
+    @unittest.skipUnless(os.environ.get('WAVETRISK_RUN_MPI_TESTS')=='1','Set WAVETRISK_RUN_MPI_TESTS=1 for selector MPI test')
+    def test_default_and_explicit_selectors(self):
+        text=(ROOT/'src/parallel_block_mpi.f90').read_text()
+        declarations='\n'.join(line for line in text.splitlines() if 'logical, save :: stage191_options' in line)
+        function=re.search(r'  logical function block_stage191_option\(option\).*?  end function block_stage191_option',text,re.S).group()
+        source='''module actual
+use mpi_f08
+integer :: rank
+type(MPI_Comm) :: comm=MPI_COMM_WORLD
+'''+declarations+'\ncontains\n'+function+'''
+subroutine fail(message)
+character(*),intent(in)::message
+error stop message
+end subroutine
+subroutine check_mpi(ierr,message)
+integer,intent(in)::ierr
+character(*),intent(in)::message
+if(ierr/=MPI_SUCCESS)error stop message
+end subroutine
+end module
+program check
+use actual
+integer::ierr,i,j
+call MPI_Init(ierr)
+call MPI_Comm_rank(comm,rank,ierr)
+i=merge(1,0,block_stage191_option(1))
+j=merge(1,0,block_stage191_option(2))
+write(*,'(a,2i2)') 'SELECTORS',i,j
+call MPI_Finalize(ierr)
+end program
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            p=Path(tmp);(p/'options.f90').write_text(source)
+            subprocess.run(['mpif90','-O2','-fcheck=all','options.f90','-o','options'],cwd=p,check=True,capture_output=True)
+            clean={k:v for k,v in os.environ.items() if not k.startswith('WAVETRISK_')}
+            for overrides,expected in [({},'SELECTORS 1 0'),
+                ({'WAVETRISK_STAGE191_MASS_OVERLAP':'1'},'SELECTORS 1 1'),
+                ({'WAVETRISK_STAGE191_INSTALL':'0'},'SELECTORS 0 0')]:
+                result=subprocess.run(['mpirun','-n','2',str(p/'options')],cwd=p,env={**clean,**overrides},check=True,capture_output=True,text=True,timeout=30)
+                self.assertEqual(result.stdout.count(expected),2)
+
     @unittest.skipUnless(shutil.which('gfortran'),'GNU Fortran required')
     def test_move_every_component_and_replacement(self):
         text=(ROOT/'src/parallel_block.f90').read_text()

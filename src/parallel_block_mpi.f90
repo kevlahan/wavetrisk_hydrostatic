@@ -560,7 +560,8 @@ module parallel_block_mpi_mod
   logical, save :: block_adaptation_validation = .false.
   logical, save :: block_adaptation_validation_initialized = .false.
   logical, save :: stage191_options_ready = .false.
-  logical, save :: stage191_options(2) = .true.
+  ! Installation is validated; mass overlap remains an explicit experiment.
+  logical, save :: stage191_options(2) = [.true., .false.]
   public :: block_stage191_option, block_stage191_fast_install_enabled
   logical, save :: block_dynamics_validation = .false.
   logical, save :: block_dynamics_validation_initialized = .false.
